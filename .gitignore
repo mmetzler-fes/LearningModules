@@ -1,0 +1,43 @@
+# Node modules
+node_modules/
+
+# Build output
+dist/
+build/
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Environment variables
+.env
+.env.*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE/Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Test coverage
+coverage/
+
+# Misc
+*.local
+*.log
+
+# Excel/CSV/Import/Export data
+assets/*.xlsx
+assets/*.csv
+data/
+
+# Ignore compiled TypeScript
+*.tsbuildinfo
+
+# Ignore results (if not needed)
+results/

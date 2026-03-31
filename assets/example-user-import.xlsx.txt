@@ -1,0 +1,16 @@
+# Nutzer-Import (Schüler & Lehrer)
+
+Sie können eine Excel- oder CSV-Datei mit folgenden Spalten importieren:
+
+| login | password | class | role | firstname | lastname | email |
+|-------|----------|-------|------|-----------|----------|-------|
+
+- **login**: Benutzername (Pflichtfeld)
+- **password**: Passwort (Pflichtfeld)
+- **class**: Klassenbezeichnung (optional für Lehrer)
+- **role**: "student" oder "teacher" (Pflichtfeld)
+- **firstname**: Vorname (optional)
+- **lastname**: Nachname (optional)
+- **email**: E-Mail-Adresse (optional)
+
+Nicht benötigte Felder können leer bleiben. Schüler und Lehrer können gemeinsam importiert werden.

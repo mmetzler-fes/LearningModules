@@ -1,0 +1,563 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src * data:; font-src 'self' data:; media-src 'self' data:; connect-src * data:;" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LearningModules</title>
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+
+  <!-- ==================== LOGIN SCREEN ==================== -->
+  <div id="loginScreen" class="login-screen">
+    <div class="login-card">
+      <div class="login-header">
+        <span class="login-logo">📚</span>
+        <h1 data-i18n="app.title">LernModule</h1>
+        <p class="login-subtitle" data-i18n="app.subtitle">Interaktive Lernplattform mit H5P</p>
+        <p class="login-credit">Designed by Martin Metzler, implementation assisted by AI.</p>
+        <p class="login-credit" style="margin-top: 4px;"><a href="https://github.com/mmetzler-fes/LearningModules_RN" style="color: inherit; text-decoration: none;">https://github.com/mmetzler-fes/LearningModules_RN</a></p>
+        <div id="networkQr" class="login-qr hidden">
+          <span class="login-qr-title">📡 Im WLAN öffnen</span>
+          <img id="networkQrImg" src="" alt="QR-Code WLAN" class="login-qr-img" />
+          <span id="networkQrUrl" class="login-qr-url" style="font-size: 1.4rem; font-weight: bold; background: var(--bg-secondary); padding: 8px 16px; border-radius: var(--radius-md); margin-top: 12px; display: inline-block; color: var(--primary); letter-spacing: 0.5px;"></span>
+        </div>
+      </div>
+      <!-- Student Login Section -->
+      <div id="studentLoginSection">
+        <form id="loginForm" class="login-form">
+          <div class="form-group">
+            <label for="loginName" data-i18n="login.name.label">Dein Name</label>
+            <input type="text" id="loginName" required data-i18n-placeholder="login.name.placeholder" placeholder="Name eingeben..." autocomplete="off" />
+          </div>
+          <div class="form-group" id="loginPasswordGroup">
+            <label for="loginPassword">Passwort</label>
+            <input type="password" id="loginPassword" data-i18n-placeholder="login.password.placeholder" placeholder="Passwort..." />
+          </div>
+          <p id="studentLoginError" class="login-error hidden">Anmeldung fehlgeschlagen.</p>
+          <button type="submit" class="btn btn-primary btn-full" id="btnStudentLogin" data-i18n="login.student">🎓 Als Schüler anmelden</button>
+        </form>
+        <div class="login-divider"><span data-i18n="login.or">oder</span></div>
+        <button class="btn btn-secondary btn-full" id="btnShowAdminLogin" data-i18n="login.teacher.toggle">🔐 Zum Lehrer-Bereich</button>
+      </div>
+
+      <!-- Admin Login (hidden by default) -->
+      <div id="adminLoginSection" class="admin-login-section hidden">
+        <form id="adminLoginForm" class="login-form">
+          <div class="form-group">
+            <label for="adminUsername" data-i18n="login.admin.username.label">Benutzername</label>
+            <input type="text" id="adminUsername" required data-i18n-placeholder="login.admin.username.placeholder" placeholder="admin" autocomplete="off" value="admin" />
+          </div>
+          <div class="form-group">
+            <label for="adminPassword" data-i18n="login.admin.password.label">Passwort</label>
+            <input type="password" id="adminPassword" required data-i18n-placeholder="login.admin.password.placeholder" placeholder="Passwort..." />
+          </div>
+          <button type="submit" class="btn btn-primary btn-full" data-i18n="login.admin.submit">🔑 Lehrer-Login</button>
+          <p id="adminLoginError" class="login-error hidden" data-i18n="login.admin.error">Falsche Anmeldedaten.</p>
+        </form>
+        <div class="login-divider"><span data-i18n="login.or">oder</span></div>
+        <button class="btn btn-secondary btn-full" id="btnShowStudentLogin" data-i18n="login.student.toggle">🎓 Zurück zum Schüler-Bereich</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== APP (hidden until login) ==================== -->
+  <div id="appContainer" class="app-container hidden">
+
+    <!-- Sidebar -->
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-header">
+        <h1 class="app-title">📚 <span data-i18n="app.title">LernModule</span></h1>
+        <div class="user-info" id="userInfo"></div>
+      </div>
+
+      <!-- Teacher Navigation -->
+      <nav class="sidebar-nav hidden" id="teacherNav">
+        <button class="nav-btn active" data-view="teacher-dashboard">
+          <span class="nav-icon">🏠</span> <span data-i18n="nav.dashboard">Dashboard</span>
+        </button>
+        <button class="nav-btn" data-view="teacher-topics">
+          <span class="nav-icon">📂</span> <span data-i18n="nav.topics">Lernthemen</span>
+        </button>
+        <button class="nav-btn" data-view="teacher-modules">
+          <span class="nav-icon">📦</span> <span data-i18n="nav.modules">Module verwalten</span>
+        </button>
+        <button class="nav-btn" data-view="teacher-results">
+          <span class="nav-icon">📊</span> <span data-i18n="nav.results">Ergebnisse</span>
+        </button>
+      </nav>
+
+      <!-- Admin-only Navigation (only visible to admin role) -->
+      <nav class="sidebar-nav hidden" id="adminNav">
+        <div class="nav-section-label">Administration</div>
+        <button class="nav-btn" data-view="admin-users">
+          <span class="nav-icon">👥</span> Benutzerverwaltung
+        </button>
+        <button class="nav-btn" data-view="admin-classes">
+          <span class="nav-icon">🏫</span> Klassenverwaltung
+        </button>
+        <button class="nav-btn" data-view="admin-settings">
+          <span class="nav-icon">⚙️</span> Einstellungen
+        </button>
+      </nav>
+
+      <!-- Student Navigation -->
+      <nav class="sidebar-nav hidden" id="studentNav">
+        <button class="nav-btn active" data-view="student-topics">
+          <span class="nav-icon">📂</span> <span data-i18n="nav.student.topics">Lernthemen</span>
+        </button>
+        <button class="nav-btn" data-view="student-quiz">
+          <span class="nav-icon">🧠</span> <span data-i18n="nav.student.quiz">Quiz starten</span>
+        </button>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="sidebar-settings">
+          <div class="setting-row">
+            <label class="setting-label" data-i18n="settings.theme">Design</label>
+            <button class="btn btn-secondary btn-sm btn-theme-toggle" id="btnThemeToggle">🌙</button>
+          </div>
+          <div class="setting-row">
+            <label class="setting-label" data-i18n="settings.language">Sprache</label>
+            <select class="setting-select" id="langSelect">
+              <option value="de">Deutsch</option>
+              <option value="en">English</option>
+            </select>
+          </div>
+        </div>
+        <button class="btn btn-secondary btn-full btn-sm" id="btnLogout" data-i18n="nav.logout">🚪 Abmelden</button>
+        <span class="version-label">v2.0.0</span>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content" id="mainContent">
+
+      <!-- ==================== TEACHER VIEWS ==================== -->
+
+      <!-- Teacher Dashboard -->
+      <section class="view active" id="view-teacher-dashboard">
+        <div class="view-header">
+          <h2 data-i18n="dashboard.title">Lehrer-Dashboard</h2>
+          <p class="subtitle" data-i18n="dashboard.subtitle">Übersicht über Ihre Lernthemen und Schüler-Ergebnisse</p>
+        </div>
+        <div class="stats-grid" id="teacherStatsGrid">
+          <div class="stat-card">
+            <div class="stat-number" id="statTopics">0</div>
+            <div class="stat-label" data-i18n="dashboard.stat.topics">Lernthemen</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-number" id="statModules">0</div>
+            <div class="stat-label" data-i18n="dashboard.stat.modules">Module gesamt</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-number" id="statActive">0</div>
+            <div class="stat-label" data-i18n="dashboard.stat.active">Aktive Themen</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-number" id="statResults">0</div>
+            <div class="stat-label" data-i18n="dashboard.stat.results">Quiz-Ergebnisse</div>
+          </div>
+        </div>
+        <div class="section-title">
+          <h3 data-i18n="dashboard.types.title">Verfügbare H5P-Modultypen</h3>
+        </div>
+        <div class="type-grid" id="typeGrid"></div>
+      </section>
+
+      <!-- Teacher: Topic Management -->
+      <section class="view" id="view-teacher-topics">
+        <div class="view-header">
+          <h2 data-i18n="topics.title">Lernthemen verwalten</h2>
+          <p class="subtitle" data-i18n="topics.subtitle">Erstellen und verwalten Sie Lernthemen. Nur aktivierte Themen sind für Schüler sichtbar.</p>
+        </div>
+        <div class="topic-actions-bar">
+          <button class="btn btn-primary" id="btnNewTopic" data-i18n="topics.new">➕ Neues Lernthema</button>
+          <button class="btn btn-secondary" id="btnImportTopic" data-i18n="topics.import">📥 Thema importieren</button>
+          <button class="btn btn-secondary" id="btnImportH5p">📦 H5P importieren</button>
+          <button class="btn btn-secondary" id="btnExportH5p" disabled title="Thema als H5P exportieren">📦 H5P exportieren</button>
+        </div>
+        <div class="exam-mode-row">
+          <label class="exam-mode-label">
+            <input type="checkbox" id="chkExamMode" />
+            <span>Prüfungsmodus aktivieren (keine Sofort-Rückmeldung für Schüler)</span>
+          </label>
+        </div>
+        <div id="topicsList" class="topics-list"></div>
+
+        <!-- New/Edit Topic Form (hidden) -->
+        <div id="topicFormContainer" class="topic-form-container hidden">
+          <div class="topic-form-card">
+            <h3 id="topicFormTitle" data-i18n="topics.form.new">Neues Lernthema</h3>
+            <form id="topicForm">
+              <div class="form-group">
+                <label for="topicTitle" data-i18n="topics.form.name">Themenname *</label>
+                <input type="text" id="topicTitle" required data-i18n-placeholder="topics.form.name.placeholder" placeholder="z.B. Mathematik Grundlagen" />
+              </div>
+              <div class="form-group">
+                <label for="topicDescription" data-i18n="topics.form.desc">Beschreibung</label>
+                <textarea id="topicDescription" rows="3" data-i18n-placeholder="topics.form.desc.placeholder" placeholder="Optionale Beschreibung..."></textarea>
+              </div>
+              <div class="form-actions">
+                <button type="submit" class="btn btn-primary" data-i18n="topics.form.save">Speichern</button>
+                <button type="button" class="btn btn-secondary" id="btnCancelTopic" data-i18n="topics.form.cancel">Abbrechen</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </section>
+
+      <!-- Teacher: Module Management (within a topic) -->
+      <section class="view" id="view-teacher-modules">
+        <div class="view-header">
+          <div class="breadcrumb" id="modulesBreadcrumb">
+            <span class="breadcrumb-link" id="backToTopics" data-i18n="modules.breadcrumb.topics">📂 Lernthemen</span>
+            <span class="breadcrumb-sep">›</span>
+            <span class="breadcrumb-current" id="currentTopicName">—</span>
+          </div>
+          <h2 id="modulesViewTitle" data-i18n="modules.title">Module verwalten</h2>
+          <div class="header-actions">
+            <input type="text" id="searchModules" class="search-input" data-i18n-placeholder="modules.search.placeholder" placeholder="Module durchsuchen..." />
+            <select id="filterType" class="filter-select">
+              <option value="" data-i18n="modules.filter.all">Alle Typen</option>
+            </select>
+          </div>
+        </div>
+        <div class="topic-actions-bar">
+          <button class="btn btn-primary" id="btnCreateModule" data-i18n="modules.new">➕ Neues Modul</button>
+          <button class="btn btn-secondary" id="btnImportModules">📥 Module importieren</button>
+          <button class="btn btn-secondary" id="btnExportCurrentTopic" data-i18n="modules.export">📤 Thema exportieren</button>
+          <button class="btn btn-secondary" id="btnTransferModules" title="Ausgewählte Module verschieben/kopieren">🔄 Verschieben/Kopieren</button>
+          <button class="btn btn-secondary" id="btnExportModulesAsH5p" title="Alle aktiven Module als einzelne H5P-Dateien exportieren">📦 Module als H5P</button>
+        </div>
+        <div class="modules-list" id="modulesList"></div>
+      </section>
+
+      <!-- Teacher: Create/Edit Module -->
+      <section class="view" id="view-create-module">
+        <div class="view-header">
+          <h2 id="createViewTitle" data-i18n="module.create.title">Neues Modul erstellen</h2>
+        </div>
+        <form id="moduleForm" class="module-form">
+          <input type="hidden" id="moduleId" />
+          <div class="form-group">
+            <label for="moduleTitle" data-i18n="module.title.label">Titel *</label>
+            <input type="text" id="moduleTitle" required data-i18n-placeholder="module.title.placeholder" placeholder="Titel des Lernmoduls eingeben..." />
+          </div>
+          <div class="form-group">
+            <label for="moduleType" data-i18n="module.type.label">H5P-Modultyp *</label>
+            <select id="moduleType" required>
+              <option value="" data-i18n="module.type.placeholder">— Modultyp wählen —</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="moduleDescription" data-i18n="module.desc.label">Beschreibung</label>
+            <div class="rich-text-editor" id="moduleDescEditorWrap">
+              <div class="rich-text-toolbar" id="moduleDescToolbar">
+                <select id="moduleDescBlockFormat" class="rt-select rt-block-format" title="Textformat">
+                  <option value="p">¶ Stil</option>
+                  <option value="h1">H1</option>
+                  <option value="h2">H2</option>
+                  <option value="h3">H3</option>
+                </select>
+                <div class="rt-separator"></div>
+                <select id="moduleDescSpacing" class="rt-select rt-spacing" title="Absatz-Abstand">
+                  <option value="" disabled selected>↕ Abstand</option>
+                  <option value="0px">0px</option>
+                  <option value="12px">12px</option>
+                  <option value="20px">20px</option>
+                </select>
+                <div class="rt-separator"></div>
+                <select id="moduleDescFontSize" class="rt-select rt-font-size" title="Schriftgröße">
+                  <option value="1">XS</option>
+                  <option value="2">S</option>
+                  <option value="3" selected>Aa Größe</option>
+                  <option value="4">L</option>
+                  <option value="5">XL</option>
+                  <option value="6">XXL</option>
+                </select>
+                <div class="rt-separator"></div>
+                <button type="button" class="rt-btn" data-command="bold" title="Fett"><b>B</b></button>
+                <button type="button" class="rt-btn" data-command="italic" title="Kursiv"><i style="font-family:serif;font-weight:600;">I</i></button>
+                <button type="button" class="rt-btn" data-command="underline" title="Unterstrichen"><u>U</u></button>
+                <button type="button" class="rt-btn" data-command="strikeThrough" title="Durchgestrichen"><s>S</s></button>
+                <div class="rt-separator"></div>
+                <button type="button" class="rt-btn" data-command="insertUnorderedList" title="Aufzählungsliste">≡ ⁝</button>
+                <button type="button" class="rt-btn" data-command="insertOrderedList" title="Nummerierte Liste">1. ⁝</button>
+                <div class="rt-separator"></div>
+                <button type="button" class="rt-btn rt-btn-link" id="moduleDescCreateLink" title="Link einfügen">🔗</button>
+                <button type="button" class="rt-btn rt-btn-table" id="moduleDescInsertTable" title="Tabelle einfügen">▦ Table</button>
+                <div class="rt-separator"></div>
+                <button type="button" class="rt-btn rt-btn-clear" id="moduleDescClearFormat" title="Formatierung entfernen">T&#x2093;</button>
+              </div>
+              <div id="moduleDescriptionEditor" class="rich-text-surface" contenteditable="true" role="textbox" aria-multiline="true"></div>
+              <textarea id="moduleDescription" class="hidden" rows="3" data-i18n-placeholder="module.desc.placeholder" placeholder="Optionale Beschreibung..."></textarea>
+            </div>
+          </div>
+          <div id="contentEditor" class="content-editor"></div>
+          <div class="form-actions">
+            <button type="submit" class="btn btn-primary" id="btnSaveModule" data-i18n="module.save">Modul speichern</button>
+            <button type="button" class="btn btn-secondary" id="btnCancelModule" data-i18n="module.cancel">Abbrechen</button>
+          </div>
+        </form>
+      </section>
+
+      <!-- Teacher: Results -->
+      <section class="view" id="view-teacher-results">
+        <div class="view-header">
+          <h2 data-i18n="results.title">Quiz-Ergebnisse</h2>
+          <p class="subtitle" data-i18n="results.subtitle">Übersicht aller Schüler-Ergebnisse</p>
+          <div class="header-actions">
+            <input type="text" id="searchResults" class="search-input" data-i18n-placeholder="results.search.placeholder" placeholder="Nach Schüler filtern..." />
+            <button class="btn btn-danger btn-sm" id="btnDeleteAllResults" data-i18n="results.delete.all">🗑 Alle löschen</button>
+          </div>
+        </div>
+        <div id="resultsStats" class="results-stats"></div>
+        <div id="resultsList" class="results-list"></div>
+      </section>
+
+      <!-- ==================== STUDENT VIEWS ==================== -->
+
+      <!-- Student: Topic Selection -->
+      <section class="view" id="view-student-topics">
+        <div class="view-header">
+          <h2 data-i18n="student.topics.title">Lernthemen auswählen</h2>
+          <p class="subtitle" data-i18n="student.topics.subtitle">Wähle die Themen aus, die du bearbeiten möchtest.</p>
+        </div>
+        <div id="studentTopicsList" class="topics-list student-topics-list"></div>
+      </section>
+
+      <!-- Student: Quiz Mode -->
+      <section class="view" id="view-student-quiz">
+        <div class="view-header">
+          <h2 data-i18n="quiz.title">Quiz-Modus</h2>
+          <p class="subtitle" id="quizSubtitle" data-i18n="quiz.subtitle">Wähle ein Thema, um das Quiz zu starten.</p>
+        </div>
+        <!-- Topic selection for quiz -->
+        <div id="quizTopicSelect" class="quiz-topic-select"></div>
+        <!-- Quiz player area -->
+        <div id="quizPlayerArea" class="quiz-player-area hidden">
+          <div class="quiz-progress-bar">
+            <div class="quiz-progress-fill" id="quizProgressFill"></div>
+          </div>
+          <div class="quiz-info" id="quizInfo"></div>
+          <div id="quizModuleContainer" class="h5p-container"></div>
+          <div class="quiz-actions" id="quizActions">
+            <button class="btn btn-secondary" id="btnQuizPrev" style="display:none;" data-i18n="quiz.prev">← Zurück</button>
+            <button class="btn btn-primary" id="btnQuizNext" data-i18n="quiz.next">Weiter →</button>
+            <button class="btn btn-secondary" id="btnQuizCancel" data-i18n="quiz.cancel">Quiz abbrechen</button>
+          </div>
+        </div>
+        <!-- Quiz result -->
+        <div id="quizResultArea" class="quiz-result-area hidden"></div>
+      </section>
+
+      <!-- ==================== ADMIN VIEWS ==================== -->
+
+      <!-- Admin: User Management -->
+      <section class="view" id="view-admin-users">
+        <div class="view-header">
+          <h2>Benutzerverwaltung</h2>
+          <p class="subtitle">Lehrer, Admins und Schüler verwalten</p>
+          <div class="header-actions">
+            <button class="btn btn-primary" id="btnNewUser">➕ Neuer Benutzer</button>
+            <button class="btn btn-secondary" id="btnImportUsers">📥 Nutzer importieren</button>
+          </div>
+                <!-- User Import Dialog (hidden) -->
+                <div id="userImportOverlay" class="confirm-overlay hidden">
+                  <div class="import-modules-card" style="min-width:380px;max-width:500px">
+                    <h3>Nutzer importieren (Excel/CSV)</h3>
+                    <form id="userImportForm">
+                      <div class="form-group">
+                        <label for="userImportFile">Datei auswählen (.xlsx oder .csv)</label>
+                        <input type="file" id="userImportFile" accept=".xlsx,.csv" required />
+                      </div>
+                      <div class="form-group">
+                        <a href="assets/example-user-import.xlsx.txt" download style="font-size:0.95em">Beispiel-Excel herunterladen</a>
+                      </div>
+                      <div class="form-group">
+                        <b>Erwartete Spalten:</b>
+                        <div style="font-family:monospace;font-size:1em;margin-top:2px;">login, password, class, role, firstname, lastname, email</div>
+                        <div style="font-size:0.95em;color:var(--text-secondary);margin-top:2px;">(Nicht benötigte Felder können leer bleiben. Schüler und Lehrer gemeinsam möglich.)</div>
+                      </div>
+                      <div class="confirm-actions">
+                        <button type="submit" class="btn btn-primary">Importieren</button>
+                        <button type="button" class="btn btn-secondary" id="btnCancelUserImport">Abbrechen</button>
+                      </div>
+                      <div id="userImportResult" style="margin-top:10px;font-size:0.98em;"></div>
+                    </form>
+                  </div>
+                </div>
+        </div>
+        <div class="admin-tabs">
+          <button class="admin-tab active" data-filter="all">Alle</button>
+          <button class="admin-tab" data-filter="admin">Admins</button>
+          <button class="admin-tab" data-filter="teacher">Lehrer</button>
+          <button class="admin-tab" data-filter="student">Schüler</button>
+        </div>
+        <div id="usersList" class="admin-list"></div>
+
+        <!-- User Form (hidden) -->
+        <div id="userFormOverlay" class="confirm-overlay hidden">
+          <div class="import-modules-card" style="min-width:380px;max-width:500px">
+            <h3 id="userFormTitle">Neuer Benutzer</h3>
+            <form id="userForm">
+              <input type="hidden" id="userFormId" />
+              <div class="form-group">
+                <label for="userFormUsername">Benutzername *</label>
+                <input type="text" id="userFormUsername" required placeholder="z.B. lehrer1" autocomplete="off" />
+              </div>
+              <div class="form-group">
+                <label for="userFormDisplayName">Anzeigename</label>
+                <input type="text" id="userFormDisplayName" placeholder="z.B. Max Mustermann" />
+              </div>
+              <div class="form-group">
+                <label for="userFormRole">Rolle *</label>
+                <select id="userFormRole">
+                  <option value="student">Schüler</option>
+                  <option value="teacher">Lehrer</option>
+                  <option value="admin">Admin</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="userFormPassword">Passwort <span id="userPasswordHint" style="font-size:0.85em;color:var(--text-secondary)">(leer = kein Passwort nötig)</span></label>
+                <input type="password" id="userFormPassword" placeholder="Passwort (leer lassen = unveränderlich lassen)" autocomplete="new-password" />
+              </div>
+              <div class="form-group" id="userFormClassesGroup">
+                <label>Klassen</label>
+                <div id="userFormClassesList" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:4px;"></div>
+              </div>
+              <div class="confirm-actions">
+                <button type="submit" class="btn btn-primary">Speichern</button>
+                <button type="button" class="btn btn-secondary" id="btnCancelUser">Abbrechen</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </section>
+
+      <!-- Admin: Class Management -->
+      <section class="view" id="view-admin-classes">
+        <div class="view-header">
+          <h2>Klassenverwaltung</h2>
+          <p class="subtitle">Klassen erstellen und Schüler zuweisen</p>
+          <div class="header-actions">
+            <button class="btn btn-primary" id="btnNewClass">➕ Neue Klasse</button>
+          </div>
+        </div>
+        <div id="classesList" class="admin-list"></div>
+
+        <!-- Class Form (hidden) -->
+        <div id="classFormOverlay" class="confirm-overlay hidden">
+          <div class="import-modules-card" style="min-width:340px">
+            <h3 id="classFormTitle">Neue Klasse</h3>
+            <form id="classForm">
+              <input type="hidden" id="classFormId" />
+              <div class="form-group">
+                <label for="classFormName">Klassenname *</label>
+                <input type="text" id="classFormName" required placeholder="z.B. Klasse 7a" />
+              </div>
+              <div class="confirm-actions">
+                <button type="submit" class="btn btn-primary">Speichern</button>
+                <button type="button" class="btn btn-secondary" id="btnCancelClass">Abbrechen</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </section>
+
+      <!-- Admin: Settings -->
+      <section class="view" id="view-admin-settings">
+        <div class="view-header">
+          <h2>Einstellungen</h2>
+          <p class="subtitle">Globale Anwendungseinstellungen</p>
+        </div>
+        <div class="settings-panel">
+          <div class="settings-group">
+            <h3>Schüler-Login</h3>
+            <label class="setting-toggle-row">
+              <span>Leere Passwörter für Schüler erlauben</span>
+              <input type="checkbox" id="settingAllowEmptyStudentPwd" />
+            </label>
+            <p class="settings-hint">Wenn aktiv, können Schüler ohne Passwort einloggen (Name reicht).</p>
+          </div>
+          <div class="form-actions">
+            <button class="btn btn-primary" id="btnSaveSettings">💾 Einstellungen speichern</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="view" id="view-player">
+        <div class="view-header">
+          <div class="player-header">
+            <button class="btn btn-secondary btn-back" id="btnBackFromPlayer" data-i18n="player.back">← Zurück</button>
+            <h2 id="playerTitle" data-i18n="player.title">Modul-Vorschau</h2>
+          </div>
+        </div>
+        <div id="h5pContainer" class="h5p-container"></div>
+      </section>
+
+    </main>
+  </div>
+
+  <!-- H5P export topic selector -->
+  <div id="exportH5pTopicOverlay" class="confirm-overlay hidden">
+    <div class="import-modules-card">
+      <h3>📦 Thema als H5P exportieren</h3>
+      <p class="import-modules-hint">Wähle ein Thema aus, das als H5P-Datei exportiert werden soll:</p>
+      <div id="exportH5pTopicList" class="import-modules-list"></div>
+      <div class="confirm-actions">
+        <button id="exportH5pBtnCancel" class="btn btn-secondary">Abbrechen</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Module import selection dialog -->
+  <div id="importModulesOverlay" class="confirm-overlay hidden">
+    <div class="import-modules-card">
+      <h3>📥 Module importieren</h3>
+      <p class="import-modules-hint">Wähle die Module aus, die importiert werden sollen:</p>
+      <div id="importModulesList" class="import-modules-list"></div>
+      <div class="confirm-actions">
+        <button id="importModulesBtnOk" class="btn btn-primary">✅ Ausgewählte importieren</button>
+        <button id="importModulesBtnCancel" class="btn btn-secondary">Abbrechen</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Transfer modules selection dialog -->
+  <div id="transferModulesOverlay" class="confirm-overlay hidden">
+    <div class="import-modules-card">
+      <h3>🔄 Ausgewählte Module verschieben/kopieren</h3>
+      <p class="import-modules-hint" id="transferModulesHint">Wähle das Ziel-Thema aus:</p>
+      <div id="transferTopicList" class="import-modules-list" style="margin-bottom: 15px;"></div>
+      <div class="confirm-actions">
+        <button id="transferModulesBtnMove" class="btn btn-primary" disabled>Verschieben</button>
+        <button id="transferModulesBtnCopy" class="btn btn-primary" disabled>Kopieren</button>
+        <button id="transferModulesBtnCancel" class="btn btn-secondary">Abbrechen</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Custom confirm dialog (replaces native confirm()) -->
+  <div id="confirmOverlay" class="confirm-overlay hidden">
+    <div class="confirm-card">
+      <p id="confirmMessage" class="confirm-message"></p>
+      <div class="confirm-actions">
+        <button id="confirmBtnYes" class="btn btn-primary" data-i18n="confirm.yes">Ja</button>
+        <button id="confirmBtnNo" class="btn btn-secondary" data-i18n="confirm.no">Abbrechen</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast notification container -->
+  <div id="toastContainer" class="toast-container"></div>
+
+  <script src="js/i18n.js"></script>
+  <script src="js/h5p-types.js"></script>
+  <script src="js/content-editors.js"></script>
+  <script src="js/api-shim.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

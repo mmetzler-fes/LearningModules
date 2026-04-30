@@ -1,0 +1,18 @@
+Vereinfachung der Account Administration:
+
+- Admin:
+	- kann Admins anlegen/löschen (mindestens 1 Admin bleibt vorhanden)
+	- Admin wird über Email identifiziert
+	- Kann Whitelist/Blacklist für Admins und Lehrer festlegen 
+
+- Lehrer:
+	- Melden sich selber mit ihrer Email an und vergeben ihr eigenes Passwort
+	- Im Anmeldedialog gibt es eine Option Passwort vergessen, welche ein neues zufälliges Passwort setzt und an die Email des Lehrers sendet
+	- Kann sein Account löschen
+	- Kann Quizze erstellen und freigeben, mit passwort freigeben oder sperren
+
+- Schüler:
+	- haben kein Account
+	- Schüler geben die Lehreremail und ihren Namen über die UI ein und sehen alle Quizze des Lehrers, die freigegeben oder mit Passwort freigegeben sind (dann Passwort Eingabe)
+	- Die Schülerdaten werden beim Lehreraccount abgespeichert (wie bisher)
+

@@ -10,6 +10,8 @@ export class H5pService {
   constructor(
     @InjectRepository(LearningTopic)
     private readonly topicRepo: Repository<LearningTopic>,
+    @InjectRepository(LearningModule)
+    private readonly moduleRepo: Repository<LearningModule>,
   ) {}
 
   async generateH5pBuffer(topicId: string): Promise<Buffer> {

@@ -1,6 +1,7 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import { Injectable, BadRequestException, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import * as crypto from 'crypto';
 import { LearningTopic } from '../../entities/learning-topic.entity';
 import { LearningModule } from '../../entities/learning-module.entity';
 
@@ -13,7 +14,7 @@ export class ImportService {
     private readonly moduleRepo: Repository<LearningModule>,
   ) {}
 
-  async importTopicFromJson(jsonString: string, user: any) {
+  async importTopicFromJson(jsonString: string, user: any, targetTopicId?: string) {
     let importData: any;
     try {
       importData = JSON.parse(jsonString);
@@ -37,19 +38,31 @@ export class ImportService {
       throw new BadRequestException('Keine Module in der Datei gefunden');
     }
 
-    const topic = this.topicRepo.create({
-      title: topicTitle,
-      description: topicDesc,
-      ownerId: user.userId,
-      schoolId: user.schoolId,
-      permissions: { visibleTo: 'school' },
-    });
-    const savedTopic = await this.topicRepo.save(topic);
+    let savedTopic: LearningTopic;
+    if (targetTopicId) {
+      // Add modules to existing topic
+      const existing = await this.topicRepo.findOne({ where: { id: targetTopicId } });
+      if (!existing) throw new NotFoundException('Thema nicht gefunden');
+      if (user.role === 'teacher' && existing.ownerId !== user.userId) {
+        throw new ForbiddenException('Kein Zugriff auf dieses Thema');
+      }
+      savedTopic = existing;
+    } else {
+      // Create new topic
+      savedTopic = await this.topicRepo.save(this.topicRepo.create({
+        id: crypto.randomUUID(),
+        title: topicTitle,
+        description: topicDesc,
+        ownerId: user.userId,
+        permissions: { visibleTo: 'school' },
+      }));
+    }
 
     const newModules = importModules.map((m: any) => {
-      const mod = new LearningModule();
-      Object.assign(mod, {
-        ...m,
+      const { id: _id, topic: _topic, subModules: _sub, parent: _parent, ...moduleData } = m;
+      const mod = Object.assign(new LearningModule(), {
+        ...moduleData,
+        id: crypto.randomUUID(),
         topicId: savedTopic.id,
         moduleSelected: true,
       });

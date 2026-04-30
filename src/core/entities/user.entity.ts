@@ -1,12 +1,15 @@
 import { Entity, Column } from 'typeorm';
 import { BaseEntity } from './base.entity';
 
-export type UserRole = 'admin' | 'schooladmin' | 'teacher' | 'student';
+export type UserRole = 'admin' | 'teacher';
 
 @Entity('users')
 export class User extends BaseEntity {
+  @Column({ unique: true, nullable: true })
+  username: string; // kept for backward compat; login is via email
+
   @Column({ unique: true })
-  username: string;
+  email: string;
 
   @Column()
   passwordHash: string;
@@ -17,19 +20,23 @@ export class User extends BaseEntity {
   @Column({ nullable: true })
   displayName: string;
 
+  // Legacy columns kept nullable for migration compatibility
   @Column({ nullable: true })
-  schoolId: string; // Shared across all school-level users
+  schoolId: string;
 
   @Column({ nullable: true })
-  supervisorId: string; // The teacher ID (for students)
+  supervisorId: string;
 
   @Column('simple-json', { nullable: true })
-  accessFilters: {
-    ips: string[];
-    browserUsers: string[];
-    browserDomains: string[];
-  };
+  accessFilters: any;
 
   @Column('simple-json', { nullable: true })
   classIds: string[];
+
+  // Password reset
+  @Column({ nullable: true })
+  resetPasswordToken: string;
+
+  @Column({ nullable: true, type: 'datetime' })
+  resetPasswordExpires: Date;
 }

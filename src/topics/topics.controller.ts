@@ -1,10 +1,9 @@
 import { Controller, Get, Post, Body, Param, UseGuards, Request, Delete, Patch } from '@nestjs/common';
 import { TopicsService } from './topics.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { SchoolIsolationGuard } from '../auth/guards/school-isolation.guard';
 
 @Controller('topics')
-@UseGuards(JwtAuthGuard, SchoolIsolationGuard)
+@UseGuards(JwtAuthGuard)
 export class TopicsController {
   constructor(private readonly topicsService: TopicsService) {}
 

@@ -1,0 +1,232 @@
+================================================================================
+  LearningModules – Architekturüberblick
+================================================================================
+
+STACK
+-----
+  Backend  : NestJS 11 (Node.js), alle Routen unter /api
+  Datenbank: TypeORM + SQLite (data/database.sqlite), synchronize: true
+  Auth     : Passport JWT, 24 h, Secret: JWT_SECRET env || 'secretKey'
+  Passwort : crypto.scryptSync, gespeichert als "<salt>:<hash>"
+  Frontend : Vanilla JS + HTML, kein Bundler
+
+--------------------------------------------------------------------------------
+BACKEND – src/
+--------------------------------------------------------------------------------
+
+  main.ts                       Bootstrap, global /api-Präfix, statisches Serving
+  app.module.ts                 Root-Modul, importiert alle Feature-Module
+
+  core/entities/                TypeORM-Entitäten
+    base.entity.ts              Basis (id, createdAt, updatedAt)
+    user.entity.ts              Benutzer (admin / teacher)
+    school.entity.ts            Schule / Mandant
+    student-class.entity.ts     Klasse
+    learning-topic.entity.ts    Lernthema (gehört zu User)
+    learning-module.entity.ts   Lernmodul (gehört zu Topic)
+    result.entity.ts            Quiz-Ergebnis
+
+  auth/                         JWT-Authentifizierung
+    auth.controller.ts          POST /api/auth/login, /register
+    auth.service.ts             Login-Logik, Token-Ausstellung
+    strategies/jwt.strategy.ts  Passport JWT-Strategie
+    guards/
+      jwt-auth.guard.ts         Schützt Teacher-/Admin-Routen
+      result-visibility.guard.ts Sichtbarkeit von Ergebnissen
+      school-isolation.guard.ts  Mandanten-Isolation
+
+  topics/                       CRUD Lernthemen (Teacher-Auth erforderlich)
+  results/                      CRUD Quiz-Ergebnisse
+  admin/                        Admin-Verwaltung (User-Liste, Whitelist/Blacklist)
+
+  core/interchange/             Import / Export
+    interchange.controller.ts   Routen für JSON- und H5P-Import/-Export
+    import/import.service.ts    JSON-Datei-Import
+    h5p/h5p.service.ts          H5P-Paket parsen & generieren
+    h5p/h5p-parser.ts           H5P-Format-Hilfsfunktionen
+
+  core/database/migration/      Demo-Daten & DB-Migration (Entwicklung)
+  core/schools/                 Schulverwaltung
+
+--------------------------------------------------------------------------------
+FRONTEND – src/renderer/
+--------------------------------------------------------------------------------
+
+  index.html                    Single-Page-App, alle Views als <div id="view-*">
+
+  JS-Ladestrategie:
+    <script src="...">          Globale Hilfsskripte (kein Modul-System):
+      js/i18n.js                  t(), getLanguage(), setLanguage(), applyTranslations()
+      js/h5p-types.js             H5P_TYPES{}, getH5pTypesArray()
+      js/content-editors.js       ContentEditorManager (globale Klasse)
+      js/api-shim.js              Electron-Kompatibilitäts-Shim
+    <script type="module">      Haupteinstiegspunkt (ES6-Module):
+      js/app.js
+
+  js/ – ES6-Module
+  ─────────────────────────────────────────────────────────────────────────────
+
+  app.js          App-Koordinator (Einstiegspunkt)
+    class App
+      .authStore          AuthStore-Instanz
+      .api                BrowserApi-Instanz
+      .renderer           H5pRenderer-Instanz
+      .state              Zentraler Anwendungszustand:
+                            currentUser, topics, currentTopicId,
+                            currentTopicModules, currentTopicRawSummary,
+                            editingModuleId, editingTopicId,
+                            contentEditor, examModeEnabled, quizState
+      .loginView          LoginView
+      .topicsView         TopicsView
+      .modulesView        ModulesView
+      .quizView           QuizView
+      .resultsView        ResultsView
+      .dashboardView      DashboardView
+      .adminView          AdminView
+      loadTopics()        Lädt Themen (teacher: eigene; student: Lehrerfreigaben)
+      loadExamMode()      Liest Prüfungsmodus-Einstellung aus API
+      setupNavigation()   Bindet Nav-Buttons nach Login
+      navigateToView()    Zeigt View, hebt Nav-Button hervor, delegiert refresh()
+      initTheme()         Dark-Mode + Sprache initialisieren
+      init()              Bootstrap (Theme, i18n, ContentEditor, Modul-Selects, Login)
+
+  api.js
+    class AuthStore       JWT in localStorage (getToken, setToken, getHeaders,
+                          authFetch)
+    class BrowserApi      Alle REST-Methoden gegen /api/*
+                          (Topics, Modules, Results, Auth, Admin, H5P, Import/Export)
+
+  utils.js
+    escapeHtml(str)             XSS-sicheres HTML-Escaping
+    escapeAttr(str)             Escaping für HTML-Attribute
+    hexToRgba(hex, alpha)       Farb-Konvertierung
+    generateId()                Zufällige ID (nanoid-ähnlich)
+    escapeHtmlPreservingText()  Escaped HTML, behält Text-Whitespace
+    showToast(message, type)    Toast-Benachrichtigung (info/success/error)
+    appConfirm(message)         Promise<boolean>-Bestätigungsdialog
+    sanitizeModuleDescriptionHtml(html)  Bereinigt beschreibungs-HTML
+
+  desc-editor.js
+    class ModuleDescriptionEditor
+      init()              Bindet Toolbar-Buttons (Bold, Italic, Lists, …)
+      getHtml()           Gibt aktuellen HTML-Inhalt zurück
+      setHtml(value)      Setzt HTML-Inhalt
+      _applyCommand()     Führt execCommand aus
+      _syncInput()        Synchronisiert hidden Input
+
+  h5p-renderer.js
+    class H5pRenderer
+      renderPreview(mod, typeDef, container, options)
+                          Rendert vollständige Modul-Vorschau inkl. Header/Beschreibung
+      renderModuleImage(content, options)
+                          Gibt Bild-HTML zurück
+      createTypePreview(type, content, options)
+                          Switch über alle H5P-Typen:
+                          accordion, arithmeticQuiz, multipleChoice, trueFalse,
+                          dialogCards/flashcards, fillInTheBlanks, essay,
+                          dragTheWords, markTheWords, coursePresentation,
+                          dictation, dragAndDrop, iframeEmbedder, imageHotspots,
+                          collage, audioRecorder, branchingScenario, video,
+                          h5p_native, default
+      startArithmeticQuiz(container, content, suppressFeedback)
+                          Interaktives Rechenquiz-Widget
+
+  views/login.js
+    class LoginView
+      initLoginScreen()   Zeigt Admin-Toggle (prüft Servereinstellung)
+      showLoginScreen()   Setzt Zustand zurück, zeigt Login-Formular
+      enterApp()          Nav aufbauen, Themen laden, zur Startansicht navigieren
+      _onStudentLogin()   Lehrer-Email + Schülername validieren
+      _onAdminLogin()     JWT-Login für Lehrer/Admin
+      _onRegister()       Lehrer-Registrierung
+
+  views/topics.js
+    class TopicsView
+      refresh()           Rendert Themenkarten (Toggle, Module öffnen, Edit,
+                          Teilen, JSON/H5P-Export, Löschen)
+      _openEditor(topic)  Formular für Bearbeitung füllen
+      _onFormSubmit()     Thema anlegen / aktualisieren
+      _onExportH5p()      Einzel- oder Multi-Thema H5P-Export
+      _openShareDialog()  Overlay mit Benutzerauswahl zum Teilen
+
+  views/modules.js
+    class ModulesView
+      openTopicModules(topicId)   Setzt currentTopicId, lädt Module, navigiert
+      loadTopicModules(topicId)   Lädt Module, ruft refresh()
+      populateTypeSelects()       Füllt Typ-Dropdowns
+      refresh()                   Module-Liste mit Drag-Reorder, Checkboxen, RAW-H5P-Modus
+      _openPlayer(mod)            Öffnet H5pRenderer-Vorschau
+      _openEditor(mod)            Öffnet Formular + ContentEditor
+      _onModuleFormSubmit()       Speichern / Aktualisieren
+      _openTransferDialog()       Thema-Picker zum Verschieben/Kopieren
+      _handleTransfer(mode)       Ausführen des Transfers
+
+  views/quiz.js
+    class QuizView
+      refreshStudentTopics()      Schüler-Themenübersicht (view: student-topics)
+      refreshQuizSelect()         Themenauswahl-Karten (view: student-quiz)
+      _startStudentQuiz(topic)    Passwortprüfung, dann _startQuiz()
+      _startQuiz(topic)           quizState initialisieren, Player anzeigen
+      _renderModule()             Aktuelles Modul mit H5pRenderer + Fortschrittsbalken
+      _collectAnswer(mod)         Antwort je Typ einsammeln (alle H5P-Typen)
+      _finishQuiz()               Ergebnis speichern, Ergebnisbildschirm anzeigen
+
+  views/results.js
+    class ResultsView
+      refresh()           Ergebnisliste laden, filtern (Suche), Statistik-Header
+
+  views/dashboard.js
+    class DashboardView
+      refresh()           Statistiken (Themen, Module, Aktiv, Ergebnisse) laden
+      renderTypeGrid()    H5P-Typen-Übersichtskarten anzeigen
+
+  views/admin.js
+    class AdminView
+      load()                    Admin-Nav + Formulare binden
+      refreshUsers()            Benutzerliste laden & rendern
+      _deleteUser(userId)       Benutzer löschen mit Bestätigung
+      refreshWhitelistBlacklist() Whitelist/Blacklist aus API laden
+      (Speichern via _btnSaveWBL-Listener)
+
+--------------------------------------------------------------------------------
+DATENFLUSS (Login → Quiz)
+--------------------------------------------------------------------------------
+
+  1. app.init()
+       → LoginView.initLoginScreen()  (Admin-Toggle prüfen)
+
+  2. Benutzer logt ein
+       → LoginView.enterApp()
+       → App.loadTopics()  +  App.loadExamMode()
+       → App.setupNavigation()
+       → App.navigateToView('teacher-dashboard' | 'student-topics')
+
+  3. Lehrer öffnet Thema
+       → TopicsView: Klick "Module" → ModulesView.openTopicModules(topicId)
+       → API: GET /api/topics/:id/modules
+       → ModulesView.refresh() → H5pRenderer.renderPreview()
+
+  4. Schüler startet Quiz
+       → QuizView._startQuiz(topic)
+       → quizState initialisieren
+       → QuizView._renderModule() → H5pRenderer.renderPreview(..., {quizMode:true})
+       → QuizView._finishQuiz()
+       → API: POST /api/results (oder public endpoint)
+
+--------------------------------------------------------------------------------
+ROLLEN
+--------------------------------------------------------------------------------
+
+  admin    Vollzugriff; sieht Admin-Nav (Benutzerverwaltung, Whitelist/Blacklist)
+  teacher  CRUD eigene Themen & Module; sieht Ergebnisse
+  student  Lesezugriff auf freigegebene Themen; Quiz-Teilnahme (kein JWT)
+
+--------------------------------------------------------------------------------
+UMGEBUNGSVARIABLEN
+--------------------------------------------------------------------------------
+
+  JWT_SECRET        Token-Signaturschlüssel (Standard: 'secretKey')
+  PORT              HTTP-Port (Standard: 3000)
+  DATABASE_PATH     Pfad zur SQLite-Datei (Standard: data/database.sqlite)
+
+================================================================================

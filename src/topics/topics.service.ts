@@ -15,11 +15,12 @@ export class TopicsService {
 
   async findAll(user: any) {
     const qb = this.topicRepo.createQueryBuilder('topic');
-    
-    // Multi-tenant (School) isolation
-    if (user.role !== 'admin') {
-      qb.where('topic.schoolId = :schoolId', { schoolId: user.schoolId });
+
+    // Teachers only see their own topics
+    if (user.role === 'teacher') {
+      qb.where('topic.ownerId = :ownerId', { ownerId: user.userId });
     }
+    // Admins see all topics
 
     return qb.leftJoinAndSelect('topic.modules', 'modules').orderBy('modules.orderIndex', 'ASC').addOrderBy('topic.id', 'ASC').getMany();
   }
@@ -29,13 +30,12 @@ export class TopicsService {
       .where('topic.id = :id', { id })
       .leftJoinAndSelect('topic.modules', 'modules')
       .orderBy('modules.orderIndex', 'ASC');
-      
-    const topic = await qb.getOne();
 
+    const topic = await qb.getOne();
     if (!topic) throw new NotFoundException('Thema nicht gefunden');
 
-    // Security check: School isolation
-    if (user.role !== 'admin' && topic.schoolId !== user.schoolId) {
+    // Teachers can only access their own topics
+    if (user.role === 'teacher' && topic.ownerId !== user.userId) {
       throw new ForbiddenException('Keine Berechtigung für dieses Thema');
     }
 
@@ -45,8 +45,9 @@ export class TopicsService {
   async create(user: any, topicData: Partial<LearningTopic>) {
     const topic = this.topicRepo.create({
       ...topicData,
+      id: require('crypto').randomUUID(),
       ownerId: user.userId,
-      schoolId: user.schoolId,
+      visibility: (topicData as any).visibility || 'locked',
     });
     return this.topicRepo.save(topic);
   }

@@ -6,13 +6,14 @@ import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { User } from '../core/entities/user.entity';
+import { SystemConfig } from '../core/entities/system-config.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([User]),
+    TypeOrmModule.forFeature([User, SystemConfig]),
     PassportModule,
     JwtModule.register({
-      secret: 'secretKey', // Use environment variables in production
+      secret: process.env.JWT_SECRET || 'secretKey',
       signOptions: { expiresIn: '24h' },
     }),
   ],

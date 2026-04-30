@@ -28,36 +28,79 @@
       <div id="studentLoginSection">
         <form id="loginForm" class="login-form">
           <div class="form-group">
-            <label for="loginName" data-i18n="login.name.label">Dein Name</label>
-            <input type="text" id="loginName" required data-i18n-placeholder="login.name.placeholder" placeholder="Name eingeben..." autocomplete="off" />
+            <label for="teacherEmailInput">E-Mail des Lehrers</label>
+            <input type="email" id="teacherEmailInput" required placeholder="lehrer@schule.de" autocomplete="off" />
           </div>
-          <div class="form-group" id="loginPasswordGroup">
-            <label for="loginPassword">Passwort</label>
-            <input type="password" id="loginPassword" data-i18n-placeholder="login.password.placeholder" placeholder="Passwort..." />
+          <div class="form-group">
+            <label for="loginName">Dein Name</label>
+            <input type="text" id="loginName" required placeholder="Vor- und Nachname..." autocomplete="off" />
           </div>
-          <p id="studentLoginError" class="login-error hidden">Anmeldung fehlgeschlagen.</p>
-          <button type="submit" class="btn btn-primary btn-full" id="btnStudentLogin" data-i18n="login.student">🎓 Als Schüler anmelden</button>
+          <p id="studentLoginError" class="login-error hidden">Lehrer nicht gefunden oder Fehler beim Laden.</p>
+          <button type="submit" class="btn btn-primary btn-full" id="btnStudentLogin">🎓 Lernthemen laden</button>
         </form>
-        <div class="login-divider"><span data-i18n="login.or">oder</span></div>
-        <button class="btn btn-secondary btn-full" id="btnShowAdminLogin" data-i18n="login.teacher.toggle">🔐 Zum Lehrer-Bereich</button>
+        <div class="login-divider"><span>oder</span></div>
+        <button class="btn btn-secondary btn-full" id="btnShowAdminLogin">🔐 Zum Lehrer-/Admin-Bereich</button>
       </div>
 
-      <!-- Admin Login (hidden by default) -->
+      <!-- Teacher / Admin Login (hidden by default) -->
       <div id="adminLoginSection" class="admin-login-section hidden">
-        <form id="adminLoginForm" class="login-form">
-          <div class="form-group">
-            <label for="adminUsername" data-i18n="login.admin.username.label">Benutzername</label>
-            <input type="text" id="adminUsername" required data-i18n-placeholder="login.admin.username.placeholder" placeholder="admin" autocomplete="off" value="admin" />
+        <!-- Login form -->
+        <div id="teacherLoginForm">
+          <form id="adminLoginForm" class="login-form">
+            <div class="form-group">
+              <label for="adminUsername">E-Mail-Adresse</label>
+              <input type="email" id="adminUsername" required placeholder="deine@email.de" autocomplete="off" />
+            </div>
+            <div class="form-group">
+              <label for="adminPassword">Passwort</label>
+              <input type="password" id="adminPassword" required placeholder="Passwort..." autocomplete="current-password" />
+            </div>
+            <button type="submit" class="btn btn-primary btn-full">🔑 Anmelden</button>
+            <p id="adminLoginError" class="login-error hidden">Falsche Anmeldedaten.</p>
+          </form>
+          <div style="text-align:center; margin-top: 8px;">
+            <a href="#" id="btnForgotPassword" style="font-size:0.9em; color:var(--text-secondary);">Passwort vergessen?</a>
           </div>
-          <div class="form-group">
-            <label for="adminPassword" data-i18n="login.admin.password.label">Passwort</label>
-            <input type="password" id="adminPassword" required data-i18n-placeholder="login.admin.password.placeholder" placeholder="Passwort..." />
-          </div>
-          <button type="submit" class="btn btn-primary btn-full" data-i18n="login.admin.submit">🔑 Lehrer-Login</button>
-          <p id="adminLoginError" class="login-error hidden" data-i18n="login.admin.error">Falsche Anmeldedaten.</p>
-        </form>
-        <div class="login-divider"><span data-i18n="login.or">oder</span></div>
-        <button class="btn btn-secondary btn-full" id="btnShowStudentLogin" data-i18n="login.student.toggle">🎓 Zurück zum Schüler-Bereich</button>
+          <div class="login-divider"><span>neu hier?</span></div>
+          <button class="btn btn-secondary btn-full" id="btnShowRegister">📝 Als Lehrer registrieren</button>
+        </div>
+
+        <!-- Forgot password form (hidden) -->
+        <div id="forgotPasswordForm" class="hidden">
+          <form id="forgotForm" class="login-form">
+            <div class="form-group">
+              <label for="forgotEmail">Ihre E-Mail-Adresse</label>
+              <input type="email" id="forgotEmail" required placeholder="deine@email.de" autocomplete="off" />
+            </div>
+            <p id="forgotMessage" class="hidden" style="color:var(--success);font-size:0.95em;margin-bottom:8px;"></p>
+            <button type="submit" class="btn btn-primary btn-full">🔄 Neues Passwort anfordern</button>
+          </form>
+          <button class="btn btn-secondary btn-full" id="btnBackToLogin" style="margin-top:8px;">← Zurück zum Login</button>
+        </div>
+
+        <!-- Registration form (hidden) -->
+        <div id="teacherRegisterForm" class="hidden">
+          <form id="registerForm" class="login-form">
+            <div class="form-group">
+              <label for="registerEmail">E-Mail-Adresse *</label>
+              <input type="email" id="registerEmail" required placeholder="deine@email.de" autocomplete="off" />
+            </div>
+            <div class="form-group">
+              <label for="registerDisplayName">Anzeigename</label>
+              <input type="text" id="registerDisplayName" placeholder="Vor- und Nachname..." autocomplete="name" />
+            </div>
+            <div class="form-group">
+              <label for="registerPassword">Passwort * (mind. 6 Zeichen)</label>
+              <input type="password" id="registerPassword" required placeholder="Passwort..." autocomplete="new-password" />
+            </div>
+            <p id="registerError" class="login-error hidden">Registrierung fehlgeschlagen.</p>
+            <button type="submit" class="btn btn-primary btn-full">✅ Registrieren</button>
+          </form>
+          <button class="btn btn-secondary btn-full" id="btnBackToLoginFromRegister" style="margin-top:8px;">← Zurück zum Login</button>
+        </div>
+
+        <div class="login-divider"><span>oder</span></div>
+        <button class="btn btn-secondary btn-full" id="btnShowStudentLogin">🎓 Zurück zum Schüler-Bereich</button>
       </div>
     </div>
   </div>
@@ -94,11 +137,8 @@
         <button class="nav-btn" data-view="admin-users">
           <span class="nav-icon">👥</span> Benutzerverwaltung
         </button>
-        <button class="nav-btn" data-view="admin-classes">
-          <span class="nav-icon">🏫</span> Klassenverwaltung
-        </button>
-        <button class="nav-btn" data-view="admin-settings">
-          <span class="nav-icon">⚙️</span> Einstellungen
+        <button class="nav-btn" data-view="admin-whitelist">
+          <span class="nav-icon">🔒</span> Whitelist / Blacklist
         </button>
       </nav>
 
@@ -127,6 +167,7 @@
           </div>
         </div>
         <button class="btn btn-secondary btn-full btn-sm" id="btnLogout" data-i18n="nav.logout">🚪 Abmelden</button>
+        <button class="btn btn-danger btn-full btn-sm hidden" id="btnDeleteAccount" style="margin-top:4px;">🗑 Konto löschen</button>
         <span class="version-label">v2.0.0</span>
       </div>
     </aside>
@@ -198,6 +239,18 @@
               <div class="form-group">
                 <label for="topicDescription" data-i18n="topics.form.desc">Beschreibung</label>
                 <textarea id="topicDescription" rows="3" data-i18n-placeholder="topics.form.desc.placeholder" placeholder="Optionale Beschreibung..."></textarea>
+              </div>
+              <div class="form-group">
+                <label for="topicVisibility">Freigabe für Schüler</label>
+                <select id="topicVisibility">
+                  <option value="locked">🔒 Gesperrt (nicht sichtbar)</option>
+                  <option value="public">🌐 Freigegeben (öffentlich)</option>
+                  <option value="password">🔑 Mit Passwort freigeben</option>
+                </select>
+              </div>
+              <div class="form-group hidden" id="topicPasswordGroup">
+                <label for="topicAccessPassword">Zugangspasswort</label>
+                <input type="text" id="topicAccessPassword" placeholder="Passwort für Schüler..." autocomplete="off" />
               </div>
               <div class="form-actions">
                 <button type="submit" class="btn btn-primary" data-i18n="topics.form.save">Speichern</button>
@@ -359,77 +412,37 @@
       <section class="view" id="view-admin-users">
         <div class="view-header">
           <h2>Benutzerverwaltung</h2>
-          <p class="subtitle">Lehrer, Admins und Schüler verwalten</p>
+          <p class="subtitle">Admins und Lehrer verwalten</p>
           <div class="header-actions">
-            <button class="btn btn-primary" id="btnNewUser">➕ Neuer Benutzer</button>
-            <button class="btn btn-secondary" id="btnImportUsers">📥 Nutzer importieren</button>
+            <button class="btn btn-primary" id="btnNewAdmin">➕ Neuen Admin anlegen</button>
           </div>
-                <!-- User Import Dialog (hidden) -->
-                <div id="userImportOverlay" class="confirm-overlay hidden">
-                  <div class="import-modules-card" style="min-width:380px;max-width:500px">
-                    <h3>Nutzer importieren (Excel/CSV)</h3>
-                    <form id="userImportForm">
-                      <div class="form-group">
-                        <label for="userImportFile">Datei auswählen (.xlsx oder .csv)</label>
-                        <input type="file" id="userImportFile" accept=".xlsx,.csv" required />
-                      </div>
-                      <div class="form-group">
-                        <a href="assets/example-user-import.xlsx.txt" download style="font-size:0.95em">Beispiel-Excel herunterladen</a>
-                      </div>
-                      <div class="form-group">
-                        <b>Erwartete Spalten:</b>
-                        <div style="font-family:monospace;font-size:1em;margin-top:2px;">login, password, class, role, firstname, lastname, email</div>
-                        <div style="font-size:0.95em;color:var(--text-secondary);margin-top:2px;">(Nicht benötigte Felder können leer bleiben. Schüler und Lehrer gemeinsam möglich.)</div>
-                      </div>
-                      <div class="confirm-actions">
-                        <button type="submit" class="btn btn-primary">Importieren</button>
-                        <button type="button" class="btn btn-secondary" id="btnCancelUserImport">Abbrechen</button>
-                      </div>
-                      <div id="userImportResult" style="margin-top:10px;font-size:0.98em;"></div>
-                    </form>
-                  </div>
-                </div>
         </div>
         <div class="admin-tabs">
           <button class="admin-tab active" data-filter="all">Alle</button>
           <button class="admin-tab" data-filter="admin">Admins</button>
           <button class="admin-tab" data-filter="teacher">Lehrer</button>
-          <button class="admin-tab" data-filter="student">Schüler</button>
         </div>
         <div id="usersList" class="admin-list"></div>
 
-        <!-- User Form (hidden) -->
+        <!-- New Admin Form (hidden) -->
         <div id="userFormOverlay" class="confirm-overlay hidden">
           <div class="import-modules-card" style="min-width:380px;max-width:500px">
-            <h3 id="userFormTitle">Neuer Benutzer</h3>
+            <h3 id="userFormTitle">Neuen Admin anlegen</h3>
             <form id="userForm">
-              <input type="hidden" id="userFormId" />
               <div class="form-group">
-                <label for="userFormUsername">Benutzername *</label>
-                <input type="text" id="userFormUsername" required placeholder="z.B. lehrer1" autocomplete="off" />
+                <label for="userFormEmail">E-Mail-Adresse *</label>
+                <input type="email" id="userFormEmail" required placeholder="admin@schule.de" autocomplete="off" />
               </div>
               <div class="form-group">
                 <label for="userFormDisplayName">Anzeigename</label>
-                <input type="text" id="userFormDisplayName" placeholder="z.B. Max Mustermann" />
+                <input type="text" id="userFormDisplayName" placeholder="z.B. Max Mustermann" autocomplete="name" />
               </div>
               <div class="form-group">
-                <label for="userFormRole">Rolle *</label>
-                <select id="userFormRole">
-                  <option value="student">Schüler</option>
-                  <option value="teacher">Lehrer</option>
-                  <option value="admin">Admin</option>
-                </select>
-              </div>
-              <div class="form-group">
-                <label for="userFormPassword">Passwort <span id="userPasswordHint" style="font-size:0.85em;color:var(--text-secondary)">(leer = kein Passwort nötig)</span></label>
-                <input type="password" id="userFormPassword" placeholder="Passwort (leer lassen = unveränderlich lassen)" autocomplete="new-password" />
-              </div>
-              <div class="form-group" id="userFormClassesGroup">
-                <label>Klassen</label>
-                <div id="userFormClassesList" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:4px;"></div>
+                <label for="userFormPassword">Passwort * (mind. 6 Zeichen)</label>
+                <input type="password" id="userFormPassword" required placeholder="Passwort..." autocomplete="new-password" />
               </div>
               <div class="confirm-actions">
-                <button type="submit" class="btn btn-primary">Speichern</button>
+                <button type="submit" class="btn btn-primary">Anlegen</button>
                 <button type="button" class="btn btn-secondary" id="btnCancelUser">Abbrechen</button>
               </div>
             </form>
@@ -437,53 +450,37 @@
         </div>
       </section>
 
-      <!-- Admin: Class Management -->
-      <section class="view" id="view-admin-classes">
+      <!-- Admin: Whitelist / Blacklist -->
+      <section class="view" id="view-admin-whitelist">
         <div class="view-header">
-          <h2>Klassenverwaltung</h2>
-          <p class="subtitle">Klassen erstellen und Schüler zuweisen</p>
-          <div class="header-actions">
-            <button class="btn btn-primary" id="btnNewClass">➕ Neue Klasse</button>
-          </div>
-        </div>
-        <div id="classesList" class="admin-list"></div>
-
-        <!-- Class Form (hidden) -->
-        <div id="classFormOverlay" class="confirm-overlay hidden">
-          <div class="import-modules-card" style="min-width:340px">
-            <h3 id="classFormTitle">Neue Klasse</h3>
-            <form id="classForm">
-              <input type="hidden" id="classFormId" />
-              <div class="form-group">
-                <label for="classFormName">Klassenname *</label>
-                <input type="text" id="classFormName" required placeholder="z.B. Klasse 7a" />
-              </div>
-              <div class="confirm-actions">
-                <button type="submit" class="btn btn-primary">Speichern</button>
-                <button type="button" class="btn btn-secondary" id="btnCancelClass">Abbrechen</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      </section>
-
-      <!-- Admin: Settings -->
-      <section class="view" id="view-admin-settings">
-        <div class="view-header">
-          <h2>Einstellungen</h2>
-          <p class="subtitle">Globale Anwendungseinstellungen</p>
+          <h2>Whitelist / Blacklist</h2>
+          <p class="subtitle">Steuert, welche E-Mail-Adressen oder Domains sich als Lehrer registrieren oder als Admin angelegt werden dürfen.</p>
         </div>
         <div class="settings-panel">
           <div class="settings-group">
-            <h3>Schüler-Login</h3>
-            <label class="setting-toggle-row">
-              <span>Leere Passwörter für Schüler erlauben</span>
-              <input type="checkbox" id="settingAllowEmptyStudentPwd" />
-            </label>
-            <p class="settings-hint">Wenn aktiv, können Schüler ohne Passwort einloggen (Name reicht).</p>
+            <h3>Lehrer-Registrierung</h3>
+            <div class="form-group">
+              <label>Whitelist (eine E-Mail oder Domain pro Zeile, z.B. @schule.de)</label>
+              <textarea id="teacherWhitelist" rows="4" placeholder="leer = alle erlaubt&#10;@schule.de&#10;lehrer@example.com"></textarea>
+            </div>
+            <div class="form-group">
+              <label>Blacklist (eine E-Mail oder Domain pro Zeile)</label>
+              <textarea id="teacherBlacklist" rows="4" placeholder="leer = nichts gesperrt"></textarea>
+            </div>
+          </div>
+          <div class="settings-group" style="margin-top:24px;">
+            <h3>Admin-Erstellung</h3>
+            <div class="form-group">
+              <label>Whitelist</label>
+              <textarea id="adminWhitelist" rows="4" placeholder="leer = alle erlaubt"></textarea>
+            </div>
+            <div class="form-group">
+              <label>Blacklist</label>
+              <textarea id="adminBlacklist" rows="4" placeholder="leer = nichts gesperrt"></textarea>
+            </div>
           </div>
           <div class="form-actions">
-            <button class="btn btn-primary" id="btnSaveSettings">💾 Einstellungen speichern</button>
+            <button class="btn btn-primary" id="btnSaveWhitelistBlacklist">💾 Speichern</button>
           </div>
         </div>
       </section>
@@ -558,6 +555,6 @@
   <script src="js/h5p-types.js"></script>
   <script src="js/content-editors.js"></script>
   <script src="js/api-shim.js"></script>
-  <script src="js/app.js"></script>
+  <script type="module" src="js/app.js"></script>
 </body>
 </html>

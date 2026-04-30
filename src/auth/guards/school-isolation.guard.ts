@@ -23,7 +23,7 @@ export class SchoolIsolationGuard implements CanActivate {
     }
 
     // Identify target schoolId from the request
-    const targetSchoolId = request.params.schoolId || request.body.schoolId || request.query.schoolId;
+    const targetSchoolId = request.params?.schoolId || request.body?.schoolId || request.query?.schoolId;
 
     // If a schoolId is provided in the request, it MUST match the user's schoolId
     if (targetSchoolId && targetSchoolId !== user.schoolId) {

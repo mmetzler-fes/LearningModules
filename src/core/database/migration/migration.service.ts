@@ -45,9 +45,16 @@ export class MigrationService implements OnModuleInit {
       if (db.users) {
         this.logger.log(`Migrating ${db.users.length} users...`);
         for (const u of db.users) {
+          // E-Mail übernehmen oder Dummy-Adresse generieren
+          let email = u.email;
+          if (!email) {
+            // Fallback: username@demo.local
+            email = `${u.username || 'user'}@demo.local`;
+          }
           const user = this.userRepo.create({
             id: u.id,
             username: u.username,
+            email,
             passwordHash: u.passwordHash,
             role: u.role,
             displayName: u.displayName,

@@ -3,14 +3,17 @@ import { BaseEntity } from './base.entity';
 
 @Entity('results')
 export class Result extends BaseEntity {
-  @Column()
-  userId: string; // The student
+  @Column({ nullable: true })
+  userId: string; // kept for legacy data
 
   @Column({ nullable: true })
-  teacherId: string; // The supervising teacher who sees this result
+  studentName: string; // name of the student (no account)
 
   @Column({ nullable: true })
-  schoolId: string;
+  teacherId: string; // the teacher whose topic was used
+
+  @Column({ nullable: true })
+  schoolId: string; // kept for migration compatibility
 
   @Column()
   topicId: string;

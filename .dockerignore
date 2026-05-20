@@ -1,0 +1,11 @@
+.git/
+node_modules/
+dist/
+data/
+coverage/
+.env
+.env.*
+*.log
+assets/*.xlsx
+assets/*.csv
+test/

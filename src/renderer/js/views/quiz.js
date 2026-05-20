@@ -88,18 +88,17 @@ export class QuizView {
               ${topic.visibility === 'password' ? '<span class="hint" style="margin-left:8px;">Passwortgeschützt</span>' : ''}
             </div>
           </div>
-          <div class="topic-card-actions">
-            <button class="btn btn-primary btn-sm btn-start-quiz">🧠 Quiz starten</button>
-          </div>
         </div>`;
-      card.querySelector('.btn-start-quiz').addEventListener('click', () => this._startStudentQuiz(topic));
       this._studentTopicsList.appendChild(card);
     }
   }
 
   // Called when navigating to 'student-quiz'
   async refreshQuizSelect() {
+    if (this.app.state.quizState) return;
+
     await this.app.loadTopics();
+    await this.app.loadExamMode();
     const { state } = this.app;
     const myTopics = state.topics.filter((t) => t.visibility !== 'locked');
 
@@ -117,6 +116,7 @@ export class QuizView {
       return;
     }
 
+    const isExam = state.examModeEnabled;
     for (const topic of myTopics) {
       const moduleCount = (topic.modules || []).filter((m) => m.moduleSelected !== false).length;
       if (moduleCount === 0) continue;
@@ -127,7 +127,7 @@ export class QuizView {
           <h3>${escapeHtml(topic.title)}</h3>
           <p>${moduleCount} Module${topic.visibility === 'password' ? ' 🔑' : ''}</p>
         </div>
-        <button class="btn btn-primary">🧠 Quiz starten</button>`;
+        <button class="btn btn-primary">${isExam ? '📝 Prüfung starten' : '🧠 Quiz starten'}</button>`;
       card.querySelector('.btn').addEventListener('click', () => this._startStudentQuiz(topic));
       this._quizTopicSelect.appendChild(card);
     }
@@ -141,29 +141,41 @@ export class QuizView {
         const { state, api } = this.app;
         const verified = await api.verifyTopicPassword(state.currentUser.teacherEmail, topic.id, pwd);
         if (!verified || !verified.id) { this.app.showToast('Falsches Passwort.', 'error'); return; }
-        this._startQuiz(verified);
+        await this._startQuiz(verified);
       } catch (_) {
         this.app.showToast('Fehler beim Überprüfen des Passworts.', 'error');
       }
     } else {
-      this._startQuiz(topic);
+      await this._startQuiz(topic);
     }
   }
 
   async _startQuiz(topic) {
-    const modules = (topic.modules || []).filter((m) => m.moduleSelected !== false);
+    // Always fetch the latest data from the server so teacher changes are immediately visible
+    await this.app.loadTopics();
+    const freshTopic = this.app.state.topics.find((t) => t.id === topic.id);
+    if (!freshTopic) {
+      this.app.showToast('Dieses Thema ist nicht mehr verfügbar.', 'error');
+      this.refreshQuizSelect();
+      return;
+    }
+
+    const modules = (freshTopic.modules || []).filter((m) => m.moduleSelected !== false);
     if (modules.length === 0) { this.app.showToast(t('quiz.no.modules'), 'error'); return; }
 
+    // loadTopics() already sets examModeEnabled; keep call for non-student fallback
     await this.app.loadExamMode();
 
     this.app.state.quizState = {
-      topicId: topic.id,
-      topicTitle: topic.title,
+      topicId: freshTopic.id,
+      topicTitle: freshTopic.title,
       modules,
       currentIndex: 0,
       answers: [],
       startTime: Date.now(),
     };
+
+    this.app.navigateToView('student-quiz');
 
     this._quizTopicSelect.classList.add('hidden');
     this._quizPlayerArea.classList.remove('hidden');

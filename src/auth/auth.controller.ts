@@ -1,4 +1,4 @@
-import { Controller, Post, Delete, Body, UseGuards, Request, HttpCode } from '@nestjs/common';
+import { Controller, Get, Post, Delete, Body, UseGuards, Request, HttpCode } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 
@@ -39,5 +39,21 @@ export class AuthController {
   @UseGuards(JwtAuthGuard)
   async deleteAccount(@Request() req: any) {
     return this.authService.deleteAccount(req.user.userId);
+  }
+
+  /** Get exam mode setting for logged-in teacher/admin */
+  @Get('exam-mode')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(200)
+  async getExamMode(@Request() req: any) {
+    return this.authService.getExamMode(req.user.userId);
+  }
+
+  /** Set exam mode setting for logged-in teacher/admin */
+  @Post('exam-mode')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(200)
+  async setExamMode(@Request() req: any, @Body() body: { enabled: boolean }) {
+    return this.authService.setExamMode(req.user.userId, !!body.enabled);
   }
 }

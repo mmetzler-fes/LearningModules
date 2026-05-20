@@ -9,6 +9,7 @@ export class ResultsView {
     this._resultsList   = document.getElementById('resultsList');
     this._searchResults = document.getElementById('searchResults');
     this._btnDeleteAll  = document.getElementById('btnDeleteAllResults');
+    this._btnExport     = document.getElementById('btnExportResults');
 
     this._bindEvents();
   }
@@ -23,6 +24,27 @@ export class ResultsView {
         this.refresh();
       });
     }
+    if (this._btnExport) {
+      this._btnExport.addEventListener('click', () => this._exportResults());
+    }
+  }
+
+  async _exportResults() {
+    const results = await this.app.api.getQuizResults();
+    if (!results || results.length === 0) {
+      this.app.showToast('Keine Ergebnisse zum Exportieren vorhanden.', 'info');
+      return;
+    }
+    const blob = new Blob([JSON.stringify(results, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `quiz_ergebnisse_${new Date().toISOString().split('T')[0]}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    this.app.showToast('Ergebnisse erfolgreich exportiert.', 'success');
   }
 
   async refresh() {

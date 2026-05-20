@@ -31,10 +31,38 @@ export class AuthService {
 
   // ---- Whitelist / Blacklist check ----
 
-  async checkAllowed(email: string, listType: 'teacher' | 'admin'): Promise<void> {
-    const emailLower = email.toLowerCase();
-    const domain = emailLower.split('@')[1] || '';
+  /**
+   * Checks whether an email matches a single pattern entry.
+   * Supported formats:
+   *   *.fes-es.de        — any email at fes-es.de or any subdomain
+   *   @fes-es.de         — any email at exactly fes-es.de
+   *   fes-es.de          — same as @fes-es.de
+   *   user@fes-es.de     — exact email address
+   */
+  private emailMatchesPattern(email: string, pattern: string): boolean {
+    const p = pattern.toLowerCase().trim();
+    const e = email.toLowerCase().trim();
+    if (!p) return false;
 
+    // Exact email address match
+    if (p.includes('@') && !p.startsWith('*')) {
+      return e === p;
+    }
+
+    // Wildcard subdomain: *.fes-es.de
+    if (p.startsWith('*.')) {
+      const base = p.slice(2);
+      const emailDomain = e.split('@')[1] || '';
+      return emailDomain === base || emailDomain.endsWith('.' + base);
+    }
+
+    // @domain.com or plain domain.com
+    const domain = p.replace(/^@/, '');
+    const emailDomain = e.split('@')[1] || '';
+    return emailDomain === domain;
+  }
+
+  async checkAllowed(email: string, listType: 'teacher' | 'admin'): Promise<void> {
     const whitelistEntry = await this.configRepo.findOne({ where: { key: `${listType}_whitelist` } });
     const blacklistEntry = await this.configRepo.findOne({ where: { key: `${listType}_blacklist` } });
 
@@ -43,17 +71,13 @@ export class AuthService {
 
     // Blacklist takes priority
     if (blacklist.length > 0) {
-      const blocked = blacklist.some(
-        (entry) => emailLower === entry.toLowerCase() || domain === entry.toLowerCase().replace(/^@/, ''),
-      );
+      const blocked = blacklist.some((entry) => this.emailMatchesPattern(email, entry));
       if (blocked) throw new ForbiddenException('Diese E-Mail-Adresse ist gesperrt.');
     }
 
-    // If whitelist is defined, only listed entries are allowed
+    // If whitelist is defined, only listed patterns are allowed
     if (whitelist.length > 0) {
-      const allowed = whitelist.some(
-        (entry) => emailLower === entry.toLowerCase() || domain === entry.toLowerCase().replace(/^@/, ''),
-      );
+      const allowed = whitelist.some((entry) => this.emailMatchesPattern(email, entry));
       if (!allowed) throw new ForbiddenException('Diese E-Mail-Adresse ist nicht in der Whitelist.');
     }
   }
@@ -178,6 +202,22 @@ export class AuthService {
     user.passwordHash = this.hashPassword(newPassword);
     await this.userRepo.save(user);
     return { success: true, message: 'Passwort erfolgreich geändert.' };
+  }
+
+  // ---- Exam Mode ----
+
+  async setExamMode(userId: string, enabled: boolean) {
+    const user = await this.userRepo.findOne({ where: { id: userId } });
+    if (user) {
+      user.accessFilters = { ...(user.accessFilters || {}), examMode: enabled };
+      await this.userRepo.save(user);
+    }
+    return { success: true, enabled };
+  }
+
+  async getExamMode(userId: string) {
+    const user = await this.userRepo.findOne({ where: { id: userId } });
+    return { enabled: !!user?.accessFilters?.examMode };
   }
 
   // ---- Ensure at least one admin exists (called on app startup) ----

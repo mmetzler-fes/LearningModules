@@ -15,10 +15,10 @@ export class Result extends BaseEntity {
   @Column({ nullable: true })
   schoolId: string; // kept for migration compatibility
 
-  @Column()
+  @Column({ nullable: true })
   topicId: string;
 
-  @Column()
+  @Column({ nullable: true })
   moduleId: string;
 
   @Column()
@@ -29,4 +29,7 @@ export class Result extends BaseEntity {
 
   @Column('simple-json', { nullable: true })
   payload: any;
+
+  @Column({ nullable: true })
+  ipAddress: string;
 }

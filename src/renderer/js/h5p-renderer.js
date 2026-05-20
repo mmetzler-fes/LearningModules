@@ -807,6 +807,26 @@ export class H5pRenderer {
         const canvasEl = div.querySelector('#dndCanvas');
         const dragsEl  = div.querySelector('#dndDraggables');
 
+        div.addEventListener('dragover', (e) => e.preventDefault());
+        div.addEventListener('drop', (e) => e.preventDefault());
+
+        dragsEl.addEventListener('dragover', (e) => e.preventDefault());
+        dragsEl.addEventListener('drop', (e) => {
+          e.preventDefault();
+          const dragId = e.dataTransfer.getData('text/plain');
+          const dragBtn = div.querySelector(`[data-drag-id="${dragId}"]`);
+          if (dragBtn) {
+            const isClone = dragBtn.dataset.dragId.split('-').length > 2;
+            if (isClone) {
+              dragBtn.remove();
+            } else {
+              dragBtn.dataset.currentZone = '';
+              dragBtn.classList.remove('placed');
+              dragsEl.appendChild(dragBtn);
+            }
+          }
+        });
+
         zones.forEach((z, i) => {
           const zoneEl = document.createElement('div');
           zoneEl.className = 'dnd-player-zone';
@@ -848,9 +868,10 @@ export class H5pRenderer {
             drag.dataset.dragId = isClone ? `drag-${i}-${++cloneCounter}` : `drag-${i}`;
             drag.dataset.correctZone = d.correctZone || ''; drag.dataset.currentZone = '';
             drag.dataset.multiple = d.multiple ? 'true' : 'false';
-            drag.addEventListener('dragstart', (e) => { e.dataTransfer.setData('text/plain', drag.dataset.dragId); drag.classList.add('dragging'); });
-            drag.addEventListener('dragend', () => { drag.classList.remove('dragging'); });
-            drag.addEventListener('click', () => {
+            drag.addEventListener('dragstart', (e) => { e.dataTransfer.setData('text/plain', drag.dataset.dragId); drag.classList.add('dragging'); drag.dataset.preventClick = 'true'; });
+            drag.addEventListener('dragend', () => { drag.classList.remove('dragging'); setTimeout(() => drag.dataset.preventClick = 'false', 100); });
+            drag.addEventListener('click', (e) => {
+              if (drag.dataset.preventClick === 'true') return;
               const currentZone = drag.dataset.currentZone || '';
               const zoneNames = zones.map((z) => z.label);
               if (d.multiple && !isClone && drag.parentElement === dragsEl) {

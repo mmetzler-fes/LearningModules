@@ -182,6 +182,9 @@
         <div class="view-header">
           <h2 data-i18n="dashboard.title">Lehrer-Dashboard</h2>
           <p class="subtitle" data-i18n="dashboard.subtitle">Übersicht über Ihre Lernthemen und Schüler-Ergebnisse</p>
+          <div class="header-actions">
+            <button class="btn btn-secondary btn-sm" id="btnChangeOwnPassword">🔑 Passwort ändern</button>
+          </div>
         </div>
         <div class="stats-grid" id="teacherStatsGrid">
           <div class="stat-card">
@@ -363,6 +366,7 @@
           <p class="subtitle" data-i18n="results.subtitle">Übersicht aller Schüler-Ergebnisse</p>
           <div class="header-actions">
             <input type="text" id="searchResults" class="search-input" data-i18n-placeholder="results.search.placeholder" placeholder="Nach Schüler filtern..." />
+            <button class="btn btn-secondary btn-sm" id="btnExportResults">⬇️ Exportieren</button>
             <button class="btn btn-danger btn-sm" id="btnDeleteAllResults" data-i18n="results.delete.all">🗑 Alle löschen</button>
           </div>
         </div>
@@ -414,7 +418,6 @@
           <h2>Benutzerverwaltung</h2>
           <p class="subtitle">Admins und Lehrer verwalten</p>
           <div class="header-actions">
-            <button class="btn btn-secondary" id="btnChangeOwnPassword" style="margin-right: 8px;">🔑 Passwort ändern</button>
             <button class="btn btn-primary" id="btnNewAdmin">➕ Neuen Admin anlegen</button>
           </div>
         </div>
@@ -450,30 +453,6 @@
           </div>
         </div>
 
-        <!-- Change Own Password Form (hidden by default) -->
-        <div id="changePasswordOverlay" class="confirm-overlay hidden">
-          <div class="import-modules-card" style="min-width:380px;max-width:500px">
-            <h3>🔑 Eigenes Passwort ändern</h3>
-            <form id="changePasswordForm">
-              <div class="form-group">
-                <label for="changePasswordOld">Aktuelles Passwort *</label>
-                <input type="password" id="changePasswordOld" required placeholder="Aktuelles Passwort..." autocomplete="current-password" />
-              </div>
-              <div class="form-group">
-                <label for="changePasswordNew">Neues Passwort * (mind. 6 Zeichen)</label>
-                <input type="password" id="changePasswordNew" required placeholder="Neues Passwort..." autocomplete="new-password" />
-              </div>
-              <div class="form-group">
-                <label for="changePasswordConfirm">Neues Passwort bestätigen *</label>
-                <input type="password" id="changePasswordConfirm" required placeholder="Neues Passwort bestätigen..." autocomplete="new-password" />
-              </div>
-              <div class="confirm-actions">
-                <button type="submit" class="btn btn-primary">Speichern</button>
-                <button type="button" class="btn btn-secondary" id="btnCancelChangePassword">Abbrechen</button>
-              </div>
-            </form>
-          </div>
-        </div>
       </section>
 
       <!-- Admin: Whitelist / Blacklist -->
@@ -486,23 +465,23 @@
           <div class="settings-group">
             <h3>Lehrer-Registrierung</h3>
             <div class="form-group">
-              <label>Whitelist (eine E-Mail oder Domain pro Zeile, z.B. @schule.de)</label>
-              <textarea id="teacherWhitelist" rows="4" placeholder="leer = alle erlaubt&#10;@schule.de&#10;lehrer@example.com"></textarea>
+              <label>Whitelist (eine E-Mail oder Domain pro Zeile)</label>
+              <textarea id="teacherWhitelist" rows="4" placeholder="leer = alle erlaubt&#10;*.fes-es.de&#10;@schule.de&#10;lehrer@example.com"></textarea>
             </div>
             <div class="form-group">
               <label>Blacklist (eine E-Mail oder Domain pro Zeile)</label>
-              <textarea id="teacherBlacklist" rows="4" placeholder="leer = nichts gesperrt"></textarea>
+              <textarea id="teacherBlacklist" rows="4" placeholder="leer = nichts gesperrt&#10;*.spam.de&#10;@blocked.com"></textarea>
             </div>
           </div>
           <div class="settings-group" style="margin-top:24px;">
             <h3>Admin-Erstellung</h3>
             <div class="form-group">
               <label>Whitelist</label>
-              <textarea id="adminWhitelist" rows="4" placeholder="leer = alle erlaubt"></textarea>
+              <textarea id="adminWhitelist" rows="4" placeholder="leer = alle erlaubt&#10;*.fes-es.de&#10;@schule.de"></textarea>
             </div>
             <div class="form-group">
               <label>Blacklist</label>
-              <textarea id="adminBlacklist" rows="4" placeholder="leer = nichts gesperrt"></textarea>
+              <textarea id="adminBlacklist" rows="4" placeholder="leer = nichts gesperrt&#10;*.spam.de&#10;@blocked.com"></textarea>
             </div>
           </div>
           <div class="form-actions">
@@ -522,6 +501,31 @@
       </section>
 
     </main>
+  </div>
+
+  <!-- Change Own Password Form (hidden by default) -->
+  <div id="changePasswordOverlay" class="confirm-overlay hidden">
+    <div class="import-modules-card" style="min-width:380px;max-width:500px">
+      <h3>🔑 Eigenes Passwort ändern</h3>
+      <form id="changePasswordForm">
+        <div class="form-group">
+          <label for="changePasswordOld">Aktuelles Passwort *</label>
+          <input type="password" id="changePasswordOld" required placeholder="Aktuelles Passwort..." autocomplete="current-password" />
+        </div>
+        <div class="form-group">
+          <label for="changePasswordNew">Neues Passwort * (mind. 6 Zeichen)</label>
+          <input type="password" id="changePasswordNew" required placeholder="Neues Passwort..." autocomplete="new-password" />
+        </div>
+        <div class="form-group">
+          <label for="changePasswordConfirm">Neues Passwort bestätigen *</label>
+          <input type="password" id="changePasswordConfirm" required placeholder="Neues Passwort bestätigen..." autocomplete="new-password" />
+        </div>
+        <div class="confirm-actions">
+          <button type="submit" class="btn btn-primary">Speichern</button>
+          <button type="button" class="btn btn-secondary" id="btnCancelChangePassword">Abbrechen</button>
+        </div>
+      </form>
+    </div>
   </div>
 
   <!-- H5P export topic selector -->

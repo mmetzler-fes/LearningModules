@@ -82,7 +82,7 @@ export class BrowserApi {
 
   // ---------- Public (student) API ----------
   getTeacherTopics(teacherEmail) {
-    return fetch(`/api/public/teachers/${encodeURIComponent(teacherEmail)}/topics`).then((r) => r.json());
+    return fetch(`/api/public/teachers/${encodeURIComponent(teacherEmail)}/topics`, { cache: 'no-store' }).then((r) => r.json());
   }
 
   verifyTopicPassword(teacherEmail, topicId, password) {
@@ -122,8 +122,9 @@ export class BrowserApi {
 
   // ---------- Topics ----------
   getTopics() { return this._fetch('/api/topics'); }
-  getExamMode() { return Promise.resolve({ enabled: false }); }
-  setExamMode() { return Promise.resolve({ success: true }); }
+  getExamMode() { return this._fetch('/api/auth/exam-mode'); }
+  setExamMode(enabled) { return this._fetch('/api/auth/exam-mode', { method: 'POST', body: JSON.stringify({ enabled }) }); }
+  getTeacherExamMode(teacherEmail) { return fetch(`/api/public/teachers/${encodeURIComponent(teacherEmail)}/exam-mode`, { cache: 'no-store' }).then((r) => r.json()); }
   saveTopic(topicData, isUpdate = false) {
     if (isUpdate && topicData.id) {
       return this._fetch(`/api/topics/${encodeURIComponent(topicData.id)}`, { method: 'PATCH', body: JSON.stringify(topicData) });

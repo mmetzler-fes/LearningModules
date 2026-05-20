@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Req, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { User } from '../entities/user.entity';
@@ -23,22 +23,27 @@ export class PublicController {
    */
   @Get('teachers/:email/topics')
   async getTeacherTopics(@Param('email') email: string) {
-    const teacher = await this.userRepo.findOne({ where: { email, role: 'teacher' } });
+    const teacher = await this.userRepo.findOne({
+      where: [{ email, role: 'teacher' }, { email, role: 'admin' }],
+    });
     if (!teacher) throw new NotFoundException('Lehrer nicht gefunden.');
 
     const topics = await this.topicRepo
       .createQueryBuilder('topic')
       .where('topic.ownerId = :ownerId', { ownerId: teacher.id })
       .andWhere('topic.visibility != :locked', { locked: 'locked' })
+      .andWhere('topic.selected = :selected', { selected: true })
       .leftJoinAndSelect('topic.modules', 'modules')
       .orderBy('modules.orderIndex', 'ASC')
       .getMany();
 
-    // Strip access passwords from response
-    return topics.map(({ accessPassword, ...topic }) => ({
-      ...topic,
-      hasPassword: !!accessPassword && topic.visibility === 'password',
-    }));
+    return {
+      topics: topics.map(({ accessPassword, ...topic }) => ({
+        ...topic,
+        hasPassword: !!accessPassword && topic.visibility === 'password',
+      })),
+      examMode: !!(teacher.accessFilters?.examMode),
+    };
   }
 
   /**
@@ -76,6 +81,20 @@ export class PublicController {
   }
 
   /**
+   * GET /public/teachers/:email/exam-mode
+   * Returns the exam mode setting of a teacher (no auth required).
+   * Students use this to check whether immediate feedback is suppressed.
+   */
+  @Get('teachers/:email/exam-mode')
+  async getTeacherExamMode(@Param('email') email: string) {
+    const teacher = await this.userRepo.findOne({
+      where: [{ email, role: 'teacher' }, { email, role: 'admin' }],
+    });
+    if (!teacher) throw new NotFoundException('Lehrer nicht gefunden.');
+    return { enabled: !!(teacher.accessFilters?.examMode) };
+  }
+
+  /**
    * POST /public/results
    * Submits a quiz result for a student (no account required).
    */
@@ -90,9 +109,13 @@ export class PublicController {
       maxScore: number;
       payload?: any;
     },
+    @Req() req: any,
   ) {
     const teacher = await this.userRepo.findOne({ where: { email: body.teacherEmail, role: 'teacher' } });
     if (!teacher) throw new NotFoundException('Lehrer nicht gefunden.');
+
+    const forwarded = req.headers['x-forwarded-for'];
+    const ipAddress = (typeof forwarded === 'string' ? forwarded.split(',')[0] : req.ip || '').trim();
 
     const result = this.resultRepo.create({
       id: crypto.randomUUID(),
@@ -103,6 +126,7 @@ export class PublicController {
       score: body.score,
       maxScore: body.maxScore,
       payload: body.payload || null,
+      ipAddress: ipAddress || null,
     });
     const saved = await this.resultRepo.save(result);
     return { success: true, id: saved.id };

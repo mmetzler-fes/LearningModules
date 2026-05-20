@@ -7,9 +7,10 @@ export class AdminView {
     this.app = app;
     this._usersCache = [];
 
-    this._teacherWhitelist = document.getElementById('teacherWhitelistTextarea');
-    this._teacherBlacklist = document.getElementById('teacherBlacklistTextarea');
-    this._adminWhitelist   = document.getElementById('adminWhitelistTextarea');
+    this._teacherWhitelist = document.getElementById('teacherWhitelist');
+    this._teacherBlacklist = document.getElementById('teacherBlacklist');
+    this._adminWhitelist   = document.getElementById('adminWhitelist');
+    this._adminBlacklist   = document.getElementById('adminBlacklist');
     this._btnSaveWBL       = document.getElementById('btnSaveWhitelistBlacklist');
   }
 
@@ -66,64 +67,16 @@ export class AdminView {
       });
     }
 
-    // Toggle Change Own Password Form
-    const btnChangeOwnPassword = document.getElementById('btnChangeOwnPassword');
-    const changePasswordOverlay = document.getElementById('changePasswordOverlay');
-    const btnCancelChangePassword = document.getElementById('btnCancelChangePassword');
-    const changePasswordForm = document.getElementById('changePasswordForm');
 
-    if (btnChangeOwnPassword && changePasswordOverlay) {
-      btnChangeOwnPassword.addEventListener('click', () => {
-        changePasswordOverlay.classList.remove('hidden');
-      });
-    }
-    if (btnCancelChangePassword && changePasswordOverlay) {
-      btnCancelChangePassword.addEventListener('click', () => {
-        changePasswordOverlay.classList.add('hidden');
-        if (changePasswordForm) changePasswordForm.reset();
-      });
-    }
-    if (changePasswordForm) {
-      changePasswordForm.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const oldPassword = document.getElementById('changePasswordOld')?.value;
-        const newPassword = document.getElementById('changePasswordNew')?.value;
-        const confirmPassword = document.getElementById('changePasswordConfirm')?.value;
-
-        if (!oldPassword || !newPassword || !confirmPassword) return;
-
-        if (newPassword !== confirmPassword) {
-          this.app.showToast('Die neuen Passwörter stimmen nicht überein.', 'error');
-          return;
-        }
-
-        if (newPassword.length < 6) {
-          this.app.showToast('Das neue Passwort muss mindestens 6 Zeichen lang sein.', 'error');
-          return;
-        }
-
-        try {
-          const res = await this.app.api.changePassword(oldPassword, newPassword);
-          if (res && res.success !== false) {
-            this.app.showToast('Passwort erfolgreich geändert', 'success');
-            changePasswordForm.reset();
-            changePasswordOverlay.classList.add('hidden');
-          } else {
-            this.app.showToast('Fehler: ' + (res?.message || res?.error || 'Ungültiges Passwort'), 'error');
-          }
-        } catch (err) {
-          this.app.showToast('Fehler: ' + err.message, 'error');
-        }
-      });
-    }
 
     // Whitelist/blacklist save
     if (this._btnSaveWBL) {
       this._btnSaveWBL.addEventListener('click', async () => {
         const data = {
-          teacherWhitelist: (this._teacherWhitelist?.value || '').split('\n').map((s) => s.trim()).filter(Boolean),
-          teacherBlacklist: (this._teacherBlacklist?.value || '').split('\n').map((s) => s.trim()).filter(Boolean),
-          adminWhitelist:   (this._adminWhitelist?.value   || '').split('\n').map((s) => s.trim()).filter(Boolean),
+          teacher_whitelist: (this._teacherWhitelist?.value || '').split('\n').map((s) => s.trim()).filter(Boolean),
+          teacher_blacklist: (this._teacherBlacklist?.value || '').split('\n').map((s) => s.trim()).filter(Boolean),
+          admin_whitelist:   (this._adminWhitelist?.value   || '').split('\n').map((s) => s.trim()).filter(Boolean),
+          admin_blacklist:   (this._adminBlacklist?.value   || '').split('\n').map((s) => s.trim()).filter(Boolean),
         };
         try {
           await this.app.api.saveAdminWhitelistBlacklist(data);
@@ -185,9 +138,10 @@ export class AdminView {
   async refreshWhitelistBlacklist() {
     try {
       const data = await this.app.api.getAdminWhitelistBlacklist();
-      if (this._teacherWhitelist) this._teacherWhitelist.value = (data.teacherWhitelist || []).join('\n');
-      if (this._teacherBlacklist) this._teacherBlacklist.value = (data.teacherBlacklist || []).join('\n');
-      if (this._adminWhitelist)   this._adminWhitelist.value   = (data.adminWhitelist   || []).join('\n');
+      if (this._teacherWhitelist) this._teacherWhitelist.value = (data.teacher_whitelist || []).join('\n');
+      if (this._teacherBlacklist) this._teacherBlacklist.value = (data.teacher_blacklist || []).join('\n');
+      if (this._adminWhitelist)   this._adminWhitelist.value   = (data.admin_whitelist   || []).join('\n');
+      if (this._adminBlacklist)   this._adminBlacklist.value   = (data.admin_blacklist   || []).join('\n');
     } catch (_) {}
   }
 }

@@ -138,10 +138,14 @@ export class LoginView {
     const loginError   = document.getElementById('studentLoginError');
     if (!teacherEmail || !studentName) return;
     try {
-      const topics = await this.app.api.getTeacherTopics(teacherEmail);
-      if (!Array.isArray(topics)) throw new Error('Lehrer nicht gefunden');
+      const data = await this.app.api.getTeacherTopics(teacherEmail);
+      // New format: { topics: [...], examMode: bool }  — fallback: plain array
+      const topics = data && Array.isArray(data.topics) ? data.topics : (Array.isArray(data) ? data : null);
+      if (!topics) throw new Error('Lehrer nicht gefunden');
       this.app.authStore.setToken(null);
       this.app.state.currentUser = { name: studentName, role: 'student', teacherEmail };
+      this.app.state.topics = topics;
+      this.app.state.examModeEnabled = !!(data && data.examMode);
       if (loginError) loginError.classList.add('hidden');
       await this.enterApp();
     } catch (_) {

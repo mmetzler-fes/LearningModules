@@ -55,16 +55,33 @@ class App {
   async loadTopics() {
     const { state, api } = this;
     if (state.currentUser && state.currentUser.role === 'student') {
-      state.topics = await api.getTeacherTopics(state.currentUser.teacherEmail);
-      if (!Array.isArray(state.topics)) state.topics = [];
+      const data = await api.getTeacherTopics(state.currentUser.teacherEmail);
+      if (data && Array.isArray(data.topics)) {
+        state.topics = data.topics;
+        // Exam mode is bundled with the topics response — always up-to-date
+        state.examModeEnabled = !!(data.examMode);
+      } else {
+        // Fallback: old server returning plain array
+        state.topics = Array.isArray(data) ? data : [];
+      }
     } else {
       state.topics = await api.getTopics();
     }
   }
 
   async loadExamMode() {
-    const result = await this.api.getExamMode();
-    this.state.examModeEnabled = !!(result && result.enabled);
+    const { currentUser } = this.state;
+    try {
+      let result;
+      if (currentUser && currentUser.role === 'student' && currentUser.teacherEmail) {
+        result = await this.api.getTeacherExamMode(currentUser.teacherEmail);
+      } else {
+        result = await this.api.getExamMode();
+      }
+      this.state.examModeEnabled = !!(result && result.enabled);
+    } catch (_) {
+      this.state.examModeEnabled = false;
+    }
     const chk = document.getElementById('chkExamMode');
     if (chk) chk.checked = this.state.examModeEnabled;
   }
@@ -145,8 +162,61 @@ class App {
     }
   }
 
+  initGlobalEvents() {
+    const btnChangeOwnPassword = document.getElementById('btnChangeOwnPassword');
+    const changePasswordOverlay = document.getElementById('changePasswordOverlay');
+    const btnCancelChangePassword = document.getElementById('btnCancelChangePassword');
+    const changePasswordForm = document.getElementById('changePasswordForm');
+
+    if (btnChangeOwnPassword && changePasswordOverlay) {
+      btnChangeOwnPassword.addEventListener('click', () => {
+        changePasswordOverlay.classList.remove('hidden');
+      });
+    }
+    if (btnCancelChangePassword && changePasswordOverlay) {
+      btnCancelChangePassword.addEventListener('click', () => {
+        changePasswordOverlay.classList.add('hidden');
+        if (changePasswordForm) changePasswordForm.reset();
+      });
+    }
+    if (changePasswordForm) {
+      changePasswordForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const oldPassword = document.getElementById('changePasswordOld')?.value;
+        const newPassword = document.getElementById('changePasswordNew')?.value;
+        const confirmPassword = document.getElementById('changePasswordConfirm')?.value;
+
+        if (!oldPassword || !newPassword || !confirmPassword) return;
+
+        if (newPassword !== confirmPassword) {
+          this.showToast('Die neuen Passwörter stimmen nicht überein.', 'error');
+          return;
+        }
+
+        if (newPassword.length < 6) {
+          this.showToast('Das neue Passwort muss mindestens 6 Zeichen lang sein.', 'error');
+          return;
+        }
+
+        try {
+          const res = await this.api.changePassword(oldPassword, newPassword);
+          if (res && res.success !== false) {
+            this.showToast('Passwort erfolgreich geändert', 'success');
+            changePasswordForm.reset();
+            changePasswordOverlay.classList.add('hidden');
+          } else {
+            this.showToast('Fehler: ' + (res?.message || res?.error || 'Ungültiges Passwort'), 'error');
+          }
+        } catch (err) {
+          this.showToast('Fehler: ' + err.message, 'error');
+        }
+      });
+    }
+  }
+
   async init() {
     this.initTheme();
+    this.initGlobalEvents();
     applyTranslations();
 
     const contentEditorEl = document.getElementById('contentEditor');

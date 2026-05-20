@@ -55,3 +55,43 @@ window.electron = {
     }
   }
 };
+
+window.appApi = {
+  selectImage: async () => {
+    return new Promise((resolve) => {
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = 'image/*';
+      input.onchange = (e) => {
+        const file = e.target.files[0];
+        if (!file) return resolve({ success: false });
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+          resolve({ success: true, dataUrl: ev.target.result });
+        };
+        reader.onerror = () => resolve({ success: false });
+        reader.readAsDataURL(file);
+      };
+      input.click();
+    });
+  },
+  selectAudio: async () => {
+    return new Promise((resolve) => {
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = 'audio/*';
+      input.onchange = (e) => {
+        const file = e.target.files[0];
+        if (!file) return resolve({ success: false });
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+          resolve({ success: true, dataUrl: ev.target.result });
+        };
+        reader.onerror = () => resolve({ success: false });
+        reader.readAsDataURL(file);
+      };
+      input.click();
+    });
+  }
+};
+

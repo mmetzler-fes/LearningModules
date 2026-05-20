@@ -26,6 +26,14 @@ export class AuthController {
     return this.authService.forgotPassword(body.email);
   }
 
+  /** Change password of logged-in user */
+  @Post('change-password')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(200)
+  async changePassword(@Request() req: any, @Body() body: { oldPassword?: string; newPassword?: string }) {
+    return this.authService.changePassword(req.user.userId, body.oldPassword || '', body.newPassword || '');
+  }
+
   /** Teacher deletes their own account */
   @Delete('account')
   @UseGuards(JwtAuthGuard)

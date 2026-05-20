@@ -7,7 +7,14 @@ export class H5pRenderer {
   // ------ Public API ------
 
   renderPreview(mod, typeDef, container, options = {}) {
-    const content = mod.content || {};
+    let content = mod.content || {};
+    if (typeof content === 'string') {
+      try {
+        content = JSON.parse(content);
+      } catch (e) {
+        content = {};
+      }
+    }
     const wrapper = document.createElement('div');
     wrapper.style.maxWidth = '800px';
     wrapper.style.margin = '0 auto';
@@ -811,7 +818,8 @@ export class H5pRenderer {
             zoneEl.style.position = 'relative'; zoneEl.style.minHeight = '50px'; zoneEl.style.marginBottom = '8px';
           }
           zoneEl.style.borderColor = color;
-          zoneEl.style.background = hexToRgba(color, 0.92);
+          zoneEl.style.color = color;
+          zoneEl.style.background = hexToRgba(color, 0.25);
           zoneEl.dataset.zone = z.label;
           zoneEl.innerHTML = `<span class="dnd-player-zone-label" style="background:${color}">${escapeHtml(z.label)}</span><div class="dnd-player-zone-items" data-zone="${escapeAttr(z.label)}"></div>`;
           zoneEl.addEventListener('dragover', (e) => { e.preventDefault(); zoneEl.classList.add('dnd-zone-hover'); });

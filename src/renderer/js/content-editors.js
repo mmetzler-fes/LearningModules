@@ -1,7 +1,15 @@
-/**
- * Dynamic Content Editors for each H5P type.
- * Generates form fields based on the H5P type definition.
- */
+function escapeHtml(str) {
+  return String(str || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+function escapeHtmlPreservingText(text) {
+  return escapeHtml(String(text || '')).replace(/\n/g, '<br>');
+}
 
 class ContentEditorManager {
   constructor(containerEl) {
@@ -22,6 +30,15 @@ class ContentEditorManager {
       return;
     }
 
+    let data = existingData;
+    if (typeof data === 'string') {
+      try {
+        data = JSON.parse(data);
+      } catch (e) {
+        data = {};
+      }
+    }
+
     this.currentType = typeId;
     this.listCounters = {};
     this._h5pNativeData = null;
@@ -30,20 +47,20 @@ class ContentEditorManager {
 
     // h5p_native: read-only editor — preserve raw content, show info only
     if (typeId === 'h5p_native') {
-      this._h5pNativeData = existingData;
+      this._h5pNativeData = data;
       const heading = document.createElement('h4');
       heading.textContent = `${typeDef.icon} ${typeDef.name} — Inhalt konfigurieren`;
       this.container.appendChild(heading);
       const info = document.createElement('p');
       info.style.cssText = 'color:var(--text-secondary);font-size:0.88rem;margin:8px 0;';
-      info.textContent = `H5P-Bibliothek: ${existingData.library || '—'}. Der Inhalt wird im Original gespeichert und nicht bearbeitet.`;
+      info.textContent = `H5P-Bibliothek: ${data.library || '—'}. Der Inhalt wird im Original gespeichert und nicht bearbeitet.`;
       this.container.appendChild(info);
       return;
     }
 
     // Special visual editor for Drag and Drop
     if (typeDef.editorType === 'dragAndDrop') {
-      this.renderDragAndDropEditor(typeDef, existingData);
+      this.renderDragAndDropEditor(typeDef, data);
       return;
     }
 
@@ -55,7 +72,7 @@ class ContentEditorManager {
     const advancedFields = (typeDef.fields || []).filter((field) => field.advanced);
 
     for (const field of normalFields) {
-      const value = existingData[field.key];
+      const value = data[field.key];
       this.renderField(this.container, field, value);
     }
 
@@ -72,7 +89,7 @@ class ContentEditorManager {
       details.appendChild(body);
 
       for (const field of advancedFields) {
-        const value = existingData[field.key];
+        const value = data[field.key];
         this.renderField(body, field, value);
       }
 
@@ -738,6 +755,15 @@ class ContentEditorManager {
     canvasContainer.appendChild(placeholder);
     canvasGroup.appendChild(canvasContainer);
 
+    // Click on canvas background deselects active zone
+    canvasContainer.addEventListener('click', (e) => {
+      const img = canvasContainer.querySelector('.dnd-canvas-img');
+      if (e.target === canvasContainer || e.target === img) {
+        this.dndState.selectedZone = null;
+        this.refreshDndCanvas();
+      }
+    });
+
     // Zone toolbar
     const toolbar = document.createElement('div');
     toolbar.className = 'dnd-toolbar';
@@ -909,10 +935,12 @@ class ContentEditorManager {
     const canvas = this.container.querySelector('#dnd-canvas');
     if (!canvas) return;
 
-    // Remove old overlays and placeholder, keep draw-rect if any
-    canvas.querySelectorAll('.dnd-zone-overlay, .dnd-canvas-placeholder, .dnd-canvas-img').forEach((el) => el.remove());
+    // Remove old overlays and placeholder, keep image if any
+    canvas.querySelectorAll('.dnd-zone-overlay, .dnd-canvas-placeholder').forEach((el) => el.remove());
 
     if (!this.dndState.backgroundImage) {
+      const img = canvas.querySelector('.dnd-canvas-img');
+      if (img) img.remove();
       const ph = document.createElement('div');
       ph.className = 'dnd-canvas-placeholder';
       ph.textContent = 'Bild wird hier angezeigt. Wähle zuerst ein Hintergrundbild aus.';
@@ -928,7 +956,9 @@ class ContentEditorManager {
       img.draggable = false;
       canvas.prepend(img);
     }
-    img.src = this.dndState.backgroundImage;
+    if (img.src !== this.dndState.backgroundImage) {
+      img.src = this.dndState.backgroundImage;
+    }
 
     // Render drop zones
     const colors = ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16'];
@@ -973,14 +1003,6 @@ class ContentEditorManager {
 
       canvas.appendChild(overlay);
     });
-
-    // Click on canvas background deselects
-    canvas.addEventListener('click', (e) => {
-      if (e.target === canvas || e.target === img) {
-        this.dndState.selectedZone = null;
-        this.refreshDndCanvas();
-      }
-    }, { once: true });
   }
 
   _makeDndZoneDraggable(overlay, zone, canvas) {

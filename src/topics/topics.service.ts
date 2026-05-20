@@ -54,10 +54,19 @@ export class TopicsService {
 
   async addModule(topicId: string, user: any, moduleData: Partial<LearningModule>) {
     const topic = await this.findOne(topicId, user);
+    let orderIndex = moduleData.orderIndex;
+    if (orderIndex === undefined) {
+      if (moduleData.id) {
+        const existing = topic.modules ? topic.modules.find(m => m.id === moduleData.id) : null;
+        orderIndex = existing ? existing.orderIndex : (topic.modules ? topic.modules.length : 0);
+      } else {
+        orderIndex = topic.modules ? topic.modules.length : 0;
+      }
+    }
     const module = this.moduleRepo.create({
       ...moduleData,
       topicId: topic.id,
-      orderIndex: topic.modules ? topic.modules.length : 0,
+      orderIndex,
     });
     return this.moduleRepo.save(module);
   }

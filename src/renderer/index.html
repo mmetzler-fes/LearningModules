@@ -414,6 +414,7 @@
           <h2>Benutzerverwaltung</h2>
           <p class="subtitle">Admins und Lehrer verwalten</p>
           <div class="header-actions">
+            <button class="btn btn-secondary" id="btnChangeOwnPassword" style="margin-right: 8px;">🔑 Passwort ändern</button>
             <button class="btn btn-primary" id="btnNewAdmin">➕ Neuen Admin anlegen</button>
           </div>
         </div>
@@ -444,6 +445,31 @@
               <div class="confirm-actions">
                 <button type="submit" class="btn btn-primary">Anlegen</button>
                 <button type="button" class="btn btn-secondary" id="btnCancelUser">Abbrechen</button>
+              </div>
+            </form>
+          </div>
+        </div>
+
+        <!-- Change Own Password Form (hidden by default) -->
+        <div id="changePasswordOverlay" class="confirm-overlay hidden">
+          <div class="import-modules-card" style="min-width:380px;max-width:500px">
+            <h3>🔑 Eigenes Passwort ändern</h3>
+            <form id="changePasswordForm">
+              <div class="form-group">
+                <label for="changePasswordOld">Aktuelles Passwort *</label>
+                <input type="password" id="changePasswordOld" required placeholder="Aktuelles Passwort..." autocomplete="current-password" />
+              </div>
+              <div class="form-group">
+                <label for="changePasswordNew">Neues Passwort * (mind. 6 Zeichen)</label>
+                <input type="password" id="changePasswordNew" required placeholder="Neues Passwort..." autocomplete="new-password" />
+              </div>
+              <div class="form-group">
+                <label for="changePasswordConfirm">Neues Passwort bestätigen *</label>
+                <input type="password" id="changePasswordConfirm" required placeholder="Neues Passwort bestätigen..." autocomplete="new-password" />
+              </div>
+              <div class="confirm-actions">
+                <button type="submit" class="btn btn-primary">Speichern</button>
+                <button type="button" class="btn btn-secondary" id="btnCancelChangePassword">Abbrechen</button>
               </div>
             </form>
           </div>

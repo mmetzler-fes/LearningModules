@@ -1357,12 +1357,42 @@ body {
   display: flex;
   flex-direction: column;
   overflow: visible;
-  transition: background 0.2s;
+  transition: background 0.2s, border-style 0.2s, box-shadow 0.2s, transform 0.15s ease-out;
+}
+
+/* Expand the dropzone target area slightly */
+.dnd-player-zone::after {
+  content: '';
+  position: absolute;
+  top: -12px;
+  left: -12px;
+  right: -12px;
+  bottom: -12px;
+  pointer-events: auto !important;
+  z-index: -1;
 }
 
 .dnd-player-zone.dnd-zone-hover {
-  filter: brightness(1.2);
-  border-style: solid;
+  filter: brightness(1.1);
+  border-style: solid !important;
+  box-shadow: 0 0 14px currentColor, inset 0 0 10px rgba(255, 255, 255, 0.3) !important;
+  transform: scale(1.02);
+  z-index: 10;
+}
+
+/* Highlight all zones with a dashed border when a drag is in progress */
+.dnd-player:has(.dragging) .dnd-player-zone {
+  border-style: dashed !important;
+  box-shadow: 0 0 8px rgba(0, 0, 0, 0.15);
+}
+
+/* Ignore pointer events on drop zone children during active drag to prevent flickering */
+.dnd-player:has(.dragging) .dnd-player-zone * {
+  pointer-events: none !important;
+}
+
+.dnd-player:has(.dragging) .dnd-player-zone::after {
+  pointer-events: auto !important;
 }
 
 .dnd-player-zone-label {

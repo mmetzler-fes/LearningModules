@@ -26,28 +26,93 @@ export class AdminView {
       });
     });
 
-    // Create admin form
-    const newAdminForm = document.getElementById('newAdminForm');
-    if (newAdminForm) {
-      newAdminForm.addEventListener('submit', async (e) => {
+    // Toggle New Admin Form
+    const btnNewAdmin = document.getElementById('btnNewAdmin');
+    const userFormOverlay = document.getElementById('userFormOverlay');
+    const btnCancelUser = document.getElementById('btnCancelUser');
+    const userForm = document.getElementById('userForm');
+
+    if (btnNewAdmin && userFormOverlay) {
+      btnNewAdmin.addEventListener('click', () => {
+        userFormOverlay.classList.remove('hidden');
+      });
+    }
+    if (btnCancelUser && userFormOverlay) {
+      btnCancelUser.addEventListener('click', () => {
+        userFormOverlay.classList.add('hidden');
+        if (userForm) userForm.reset();
+      });
+    }
+    if (userForm) {
+      userForm.addEventListener('submit', async (e) => {
         e.preventDefault();
-        const email       = document.getElementById('newAdminEmail')?.value.trim();
-        const password    = document.getElementById('newAdminPassword')?.value;
-        const displayName = document.getElementById('newAdminDisplayName')?.value.trim();
-        const errEl       = document.getElementById('newAdminError');
+        const email       = document.getElementById('userFormEmail')?.value.trim();
+        const password    = document.getElementById('userFormPassword')?.value;
+        const displayName = document.getElementById('userFormDisplayName')?.value.trim();
         if (!email || !password) return;
         try {
           const res = await this.app.api.createAdmin({ email, password, displayName });
-          if (res && res.id) {
+          if (res && (res.id || !res.error)) {
             this.app.showToast('Admin erstellt', 'success');
-            newAdminForm.reset();
-            if (errEl) errEl.classList.add('hidden');
+            userForm.reset();
+            userFormOverlay.classList.add('hidden');
             await this.refreshUsers();
           } else {
-            if (errEl) { errEl.textContent = res?.error || 'Fehler'; errEl.classList.remove('hidden'); }
+            this.app.showToast('Fehler: ' + (res?.error || res?.message || 'Unbekannter Fehler'), 'error');
           }
         } catch (err) {
-          if (errEl) { errEl.textContent = err.message; errEl.classList.remove('hidden'); }
+          this.app.showToast('Fehler: ' + err.message, 'error');
+        }
+      });
+    }
+
+    // Toggle Change Own Password Form
+    const btnChangeOwnPassword = document.getElementById('btnChangeOwnPassword');
+    const changePasswordOverlay = document.getElementById('changePasswordOverlay');
+    const btnCancelChangePassword = document.getElementById('btnCancelChangePassword');
+    const changePasswordForm = document.getElementById('changePasswordForm');
+
+    if (btnChangeOwnPassword && changePasswordOverlay) {
+      btnChangeOwnPassword.addEventListener('click', () => {
+        changePasswordOverlay.classList.remove('hidden');
+      });
+    }
+    if (btnCancelChangePassword && changePasswordOverlay) {
+      btnCancelChangePassword.addEventListener('click', () => {
+        changePasswordOverlay.classList.add('hidden');
+        if (changePasswordForm) changePasswordForm.reset();
+      });
+    }
+    if (changePasswordForm) {
+      changePasswordForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const oldPassword = document.getElementById('changePasswordOld')?.value;
+        const newPassword = document.getElementById('changePasswordNew')?.value;
+        const confirmPassword = document.getElementById('changePasswordConfirm')?.value;
+
+        if (!oldPassword || !newPassword || !confirmPassword) return;
+
+        if (newPassword !== confirmPassword) {
+          this.app.showToast('Die neuen Passwörter stimmen nicht überein.', 'error');
+          return;
+        }
+
+        if (newPassword.length < 6) {
+          this.app.showToast('Das neue Passwort muss mindestens 6 Zeichen lang sein.', 'error');
+          return;
+        }
+
+        try {
+          const res = await this.app.api.changePassword(oldPassword, newPassword);
+          if (res && res.success !== false) {
+            this.app.showToast('Passwort erfolgreich geändert', 'success');
+            changePasswordForm.reset();
+            changePasswordOverlay.classList.add('hidden');
+          } else {
+            this.app.showToast('Fehler: ' + (res?.message || res?.error || 'Ungültiges Passwort'), 'error');
+          }
+        } catch (err) {
+          this.app.showToast('Fehler: ' + err.message, 'error');
         }
       });
     }

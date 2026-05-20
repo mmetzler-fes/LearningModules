@@ -159,6 +159,27 @@ export class AuthService {
     return { success: true };
   }
 
+  // ---- Change password ----
+
+  async changePassword(userId: string, oldPassword: string, newPassword: string) {
+    if (!oldPassword || !newPassword) {
+      throw new BadRequestException('Altes und neues Passwort sind erforderlich.');
+    }
+    if (newPassword.length < 6) {
+      throw new BadRequestException('Das neue Passwort muss mindestens 6 Zeichen lang sein.');
+    }
+    const user = await this.userRepo.findOne({ where: { id: userId } });
+    if (!user) {
+      throw new BadRequestException('Benutzer nicht gefunden.');
+    }
+    if (!user.passwordHash || !this.verifyPassword(oldPassword, user.passwordHash)) {
+      throw new UnauthorizedException('Das alte Passwort ist nicht korrekt.');
+    }
+    user.passwordHash = this.hashPassword(newPassword);
+    await this.userRepo.save(user);
+    return { success: true, message: 'Passwort erfolgreich geändert.' };
+  }
+
   // ---- Ensure at least one admin exists (called on app startup) ----
 
   async ensureAdminExists() {

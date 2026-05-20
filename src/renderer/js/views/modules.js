@@ -28,7 +28,7 @@ export class ModulesView {
     this._transferBtnCancel = document.getElementById('transferModulesBtnCancel');
     this._moduleForm       = document.getElementById('moduleForm');
     this._moduleIdInput    = document.getElementById('moduleId');
-    this._moduleTitleInput = document.getElementById('moduleTitleInput');
+    this._moduleTitleInput = document.getElementById('moduleTitle');
     this._moduleTypeSelect = document.getElementById('moduleType');
     this._btnCancelModule  = document.getElementById('btnCancelModule');
     this._createViewTitle  = document.getElementById('createViewTitle');

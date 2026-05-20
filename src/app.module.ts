@@ -16,13 +16,15 @@ import { TopicsModule } from './topics/topics.module';
 import { AdminModule } from './admin/admin.module';
 import { PublicModule } from './core/public/public.module';
 import { join } from 'path';
+import { AppController } from './app.controller';
+import { AppService } from './app.service';
 
 @Module({
   imports: [
     ServeStaticModule.forRoot({
       rootPath: join(__dirname, '..', 'src', 'renderer'),
       serveRoot: '/',
-      exclude: ['/api/(.*)'],
+      exclude: ['/api*'],
     }),
     TypeOrmModule.forRoot({
       type: 'sqlite',
@@ -38,5 +40,7 @@ import { join } from 'path';
     AdminModule,
     PublicModule,
   ],
+  controllers: [AppController],
+  providers: [AppService],
 })
 export class AppModule {}

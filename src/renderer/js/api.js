@@ -69,6 +69,13 @@ export class BrowserApi {
     }).then((r) => r.json());
   }
 
+  changePassword(oldPassword, newPassword) {
+    return this._fetch('/api/auth/change-password', {
+      method: 'POST',
+      body: JSON.stringify({ oldPassword, newPassword }),
+    });
+  }
+
   deleteAccount() {
     return this._fetch('/api/auth/account', { method: 'DELETE' });
   }
@@ -153,6 +160,11 @@ export class BrowserApi {
     return this._fetch(`/api/topics/${encodeURIComponent(topicId)}/modules`, {
       method: 'POST',
       body: JSON.stringify(moduleData),
+    }).then((res) => {
+      if (res && res.id) {
+        return { success: true, ...res };
+      }
+      return res;
     });
   }
   deleteModule(topicId, moduleId) {

@@ -40,4 +40,4 @@ data/
 *.tsbuildinfo
 
 # Ignore results (if not needed)
-results/
+/results/

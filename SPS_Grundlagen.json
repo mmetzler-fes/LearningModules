@@ -1,0 +1,449 @@
+{
+  "topic": {
+    "id": "71a2e58c-8cb4-49c7-aef1-1361b207b3cc",
+    "createdAt": "2026-05-20T16:45:00.000Z",
+    "updatedAt": "2026-05-20T16:50:00.000Z",
+    "title": "Automatisierungstechnik & SPS",
+    "description": "Grundlagen der speicherprogrammierbaren Steuerungen",
+    "selected": true,
+    "ownerId": "55e5f17e-bb13-47c4-8f36-ce5456799886",
+    "schoolId": null,
+    "visibility": "public",
+    "accessPassword": null,
+    "permissions": {
+      "visibleTo": "school"
+    },
+    "modules": [
+      {
+        "id": "e5b8d234-fc12-4abd-aa88-c7825fa44f91",
+        "createdAt": "2026-05-20T16:45:00.000Z",
+        "updatedAt": "2026-05-20T16:50:00.000Z",
+        "type": "multipleChoice",
+        "title": "SPS Grundlagen – Verknüpfungen, FlipFlops & Zeitglieder",
+        "description": "Multiple Choice Abfrage",
+        "moduleSelected": true,
+        "content": {
+          "question": "Welche logische Grundverknüpfung entspricht einer Reihenschaltung von zwei Schließer-Kontakten in einem Stromlaufplan?",
+          "imageUrl": "",
+          "answers": [
+            {
+              "text": "UND-Verknüpfung (AND)",
+              "correct": true,
+              "tip": "Bei einer Reihenschaltung muss sowohl der erste als auch der zweite Kontakt geschlossen sein, damit Strom fließt. Das entspricht exakt der logischen UND-Bedingung."
+            },
+            {
+              "text": "ODER-Verknüpfung (OR)",
+              "correct": false,
+              "tip": "Eine ODER-Verknüpfung würde einer Parallelschaltung entsprechen, da hier bereits das Schließen eines einzigen Kontakts ausreicht."
+            },
+            {
+              "text": "NICHT-Verknüpfung (NOT)",
+              "correct": false,
+              "tip": "Eine NICHT-Verknüpfung invertiert ein einzelnes Signal und wird im Stromlaufplan durch einen Öffner-Kontakt dargestellt."
+            },
+            {
+              "text": "EXKLUSIV-ODER-Verknüpfung (XOR)",
+              "correct": false,
+              "tip": "Ein XOR-Glied liefert nur dann ein Signal, wenn genau einer der Eingänge aktiv ist, was nicht durch eine einfache Reihenschaltung zweier Schließer realisiert wird."
+            }
+          ],
+          "singleAnswer": true,
+          "randomAnswers": true,
+          "enableRetry": true,
+          "enableSolutionsButton": true,
+          "passPercentage": 100
+        },
+        "topicId": "71a2e58c-8cb4-49c7-aef1-1361b207b3cc",
+        "parentId": null,
+        "orderIndex": 0
+      },
+      {
+        "id": "b7c2d159-a2e4-4c81-893d-429cf201b17d",
+        "createdAt": "2026-05-20T16:45:00.000Z",
+        "updatedAt": "2026-05-20T16:50:00.000Z",
+        "type": "multipleChoice",
+        "title": "SPS Grundlagen – ODER-Verknüpfung",
+        "description": "Multiple Choice Abfrage",
+        "moduleSelected": true,
+        "content": {
+          "question": "Ein ODER-Glied (OR) mit zwei Eingängen liefert am Ausgang das Signal 1, wenn...",
+          "imageUrl": "",
+          "answers": [
+            {
+              "text": "mindestens einer der beiden Eingänge das Signal 1 führt.",
+              "correct": true,
+              "tip": "Die ODER-Verknüpfung ist wahr, wenn Eingang A, Eingang B oder beide Eingänge aktiv sind."
+            },
+            {
+              "text": "ausschließlich beide Eingänge gleichzeitig das Signal 1 führen.",
+              "correct": false,
+              "tip": "Dies beschreibt das Verhalten einer UND-Verknüpfung, bei der alle Bedingungen gleichzeitig erfüllt sein müssen."
+            },
+            {
+              "text": "genau ein Eingang das Signal 1 führt, aber nicht beide.",
+              "correct": false,
+              "tip": "Diese strikte Entweder-oder-Bedingung gehört zur XOR-Verknüpfung (Exklusiv-ODER)."
+            },
+            {
+              "text": "beide Eingänge das Signal 0 führen.",
+              "correct": false,
+              "tip": "Wenn beide Eingänge 0 sind, bleibt auch der Ausgang einer ODER-Verknüpfung auf 0. Das beschriebene Verhalten entspräche einem NOR-Glied."
+            }
+          ],
+          "singleAnswer": true,
+          "randomAnswers": true,
+          "enableRetry": true,
+          "enableSolutionsButton": true,
+          "passPercentage": 100
+        },
+        "topicId": "71a2e58c-8cb4-49c7-aef1-1361b207b3cc",
+        "parentId": null,
+        "orderIndex": 1
+      },
+      {
+        "id": "fa249a5b-0c58-47c3-bc99-281ef304f58c",
+        "createdAt": "2026-05-20T16:45:00.000Z",
+        "updatedAt": "2026-05-20T16:50:00.000Z",
+        "type": "multipleChoice",
+        "title": "SPS Grundlagen – Speicherverhalten",
+        "description": "Multiple Choice Abfrage",
+        "moduleSelected": true,
+        "content": {
+          "question": "Wie verhält sich ein dominierend rücksetzendes RS-FlipFlop (SR-Glied), wenn an beiden Eingängen (Setzen und Rücksetzen) gleichzeitig das Signal 1 anliegt?",
+          "imageUrl": "",
+          "answers": [
+            {
+              "text": "Der Ausgang wird auf 0 zurückgesetzt.",
+              "correct": true,
+              "tip": "Da das FlipFlop 'rücksetzungsdominierend' ist, gewinnt das Rücksetzsignal (R) bei Signalgleichheit, und der Ausgang wird sicher abgeschaltet."
+            },
+            {
+              "text": "Der Ausgang wird auf 1 gesetzt.",
+              "correct": false,
+              "tip": "Das Setzen würde nur bei einem dominierend setzenden FlipFlop (RS-Glied) den Vorrang erhalten."
+            },
+            {
+              "text": "Das FlipFlop behält seinen vorherigen Zustand bei (gespeichert).",
+              "correct": false,
+              "tip": "Denzeile behält das FlipFlop nur bei, wenn beide Eingänge auf 0 stehen. Bei 1 an beiden Eingängen entscheidet die Dominanz."
+            },
+            {
+              "text": "Der Ausgang beginnt unkontrolliert zu blinken.",
+              "correct": false,
+              "tip": "In einer SPS sind die Zustände durch die logische Abarbeitung im Programmcode jederzeit stabil definiert; es entsteht kein unkontrolliertes Schwingen."
+            }
+          ],
+          "singleAnswer": true,
+          "randomAnswers": true,
+          "enableRetry": true,
+          "enableSolutionsButton": true,
+          "passPercentage": 100
+        },
+        "topicId": "71a2e58c-8cb4-49c7-aef1-1361b207b3cc",
+        "parentId": null,
+        "orderIndex": 2
+      },
+      {
+        "id": "c8d41e7a-3948-422f-bd1a-9f5b248a3190",
+        "createdAt": "2026-05-20T16:45:00.000Z",
+        "updatedAt": "2026-05-20T16:50:00.000Z",
+        "type": "multipleChoice",
+        "title": "SPS Grundlagen – Zeitglieder TON",
+        "description": "Multiple Choice Abfrage",
+        "moduleSelected": true,
+        "content": {
+          "question": "Welches Verhalten zeigt ein SPS-Zeitglied vom Typ 'Einschaltverzögerung' (TON)?",
+          "imageUrl": "",
+          "answers": [
+            {
+              "text": "Der Ausgang schaltet erst nach Ablauf der Verzögerungszeit auf 1, sofern das Eingangssignal so lange ununterbrochen ansteht.",
+              "correct": true,
+              "tip": "Die Einschaltverzögerung wartet die parametrierte Zeit ab, während der Eingang stabil auf 1 sein muss, bevor sie den Ausgang durchschaltet."
+            },
+            {
+              "text": "Der Ausgang schaltet sofort auf 1 und nach Ablauf der Zeit unabhängig vom Eingang wieder ab.",
+              "correct": false,
+              "tip": "Dieses Verhalten beschreibt einen Impuls (TP) und keine Einschaltverzögerung."
+            },
+            {
+              "text": "Der Ausgang schaltet sofort mit dem Eingang ein, bleibt aber nach dem Abschalten des Eingangs noch um die Verzögerungszeit eingeschaltet.",
+              "correct": false,
+              "tip": "Hierbei handelt es sich um eine Ausschaltverzögerung (TOF), da das Ausschalten verzögert wird."
+            },
+            {
+              "text": "Der Ausgang wechselt permanent zwischen 0 und 1, solange der Eingang aktiv ist.",
+              "correct": false,
+              "tip": "Das wäre ein Taktgeber oder Blinkrelais, keine klassische Einschaltverzögerung."
+            }
+          ],
+          "singleAnswer": true,
+          "randomAnswers": true,
+          "enableRetry": true,
+          "enableSolutionsButton": true,
+          "passPercentage": 100
+        },
+        "topicId": "71a2e58c-8cb4-49c7-aef1-1361b207b3cc",
+        "parentId": null,
+        "orderIndex": 3
+      },
+      {
+        "id": "a9e8f1d3-4812-4b2a-912c-381af952db4f",
+        "createdAt": "2026-05-20T16:45:00.000Z",
+        "updatedAt": "2026-05-20T16:50:00.000Z",
+        "type": "multipleChoice",
+        "title": "SPS Grundlagen – Zeitglieder TOF",
+        "description": "Multiple Choice Abfrage",
+        "moduleSelected": true,
+        "content": {
+          "question": "Was passiert bei einer 'Ausschaltverzögerung' (TOF), wenn das Eingangssignal von 1 auf 0 wechselt?",
+          "imageUrl": "",
+          "answers": [
+            {
+              "text": "Die Verzögerungszeit startet, und der Ausgang bleibt während dieser Zeit weiterhin auf 1.",
+              "correct": true,
+              "tip": "Die Ausschaltverzögerung sorgt dafür, dass der Ausgang nach dem Wegfall des Eingangssignals noch für die eingestellte Zeitspanne aktiv bleibt."
+            },
+            {
+              "text": "Der Ausgang schaltet sofort auf 0 um.",
+              "correct": false,
+              "tip": "Ein sofortiges Abschalten würde bedeuten, dass keine Ausschaltverzögerung aktiv ist oder die Zeit auf Null steht."
+            },
+            {
+              "text": "Der Ausgang schaltet in diesem Moment überhaupt erst ein.",
+              "correct": false,
+              "tip": "Das Ausschalten des Eingangs triggert das spätere Ausschalten des Ausgangs, nicht das Einschalten."
+            },
+            {
+              "text": "Die Zeit läuft ab, aber der Ausgang geht erst auf 1, wenn die Zeit um ist.",
+              "correct": false,
+              "tip": "Das wäre die inverse Logik einer Einschaltverzögerung und entspricht nicht dem Standardverhalten einer TOF."
+            }
+          ],
+          "singleAnswer": true,
+          "randomAnswers": true,
+          "enableRetry": true,
+          "enableSolutionsButton": true,
+          "passPercentage": 100
+        },
+        "topicId": "71a2e58c-8cb4-49c7-aef1-1361b207b3cc",
+        "parentId": null,
+        "orderIndex": 4
+      },
+      {
+        "id": "d4e21b8c-5a9e-4c81-bd8f-12948facb910",
+        "createdAt": "2026-05-20T16:45:00.000Z",
+        "updatedAt": "2026-05-20T16:50:00.000Z",
+        "type": "multipleChoice",
+        "title": "SPS Grundlagen – Programmierung FUP",
+        "description": "Multiple Choice Abfrage",
+        "moduleSelected": true,
+        "content": {
+          "question": "In welcher SPS-Programmiersprache werden die Logikfunktionen als grafische Funktionsblöcke (Kästchen mit Symbolen wie '&' oder '>=1') dargestellt?",
+          "imageUrl": "",
+          "answers": [
+            {
+              "text": "FUP (Funktionsplan / FBD)",
+              "correct": true,
+              "tip": "Der Funktionsplan nutzt standardisierte Symbole wie '&' für UND und '>=1' für ODER in Form von Rechtecken, um Netzwerke darzustellen."
+            },
+            {
+              "text": "KOP (Kontaktplan / LAD)",
+              "correct": false,
+              "tip": "Der Kontaktplan lehnt sich visuell an klassische elektrische Relaisschaltpläne mit Stromschienen und Kontakten an."
+            },
+            {
+              "text": "AWL (Anweisungsliste / IL)",
+              "correct": false,
+              "tip": "Die Anweisungsliste ist eine textbasierte, maschinennahe Programmiersprache, die Befehle untereinander auflistet."
+            },
+            {
+              "text": "ST / SCL (Strukturierter Text)",
+              "correct": false,
+              "tip": "Strukturierter Text ist eine textuelle Hochsprache, die stark an Pascal oder C erinnert und keine grafischen Blöcke nutzt."
+            }
+          ],
+          "singleAnswer": true,
+          "randomAnswers": true,
+          "enableRetry": true,
+          "enableSolutionsButton": true,
+          "passPercentage": 100
+        },
+        "topicId": "71a2e58c-8cb4-49c7-aef1-1361b207b3cc",
+        "parentId": null,
+        "orderIndex": 5
+      },
+      {
+        "id": "f5c32a7b-8d1e-429f-ab1c-349f8152dc90",
+        "createdAt": "2026-05-20T16:45:00.000Z",
+        "updatedAt": "2026-05-20T16:50:00.000Z",
+        "type": "multipleChoice",
+        "title": "SPS Grundlagen – Symbole im FUP",
+        "description": "Multiple Choice Abfrage",
+        "moduleSelected": true,
+        "content": {
+          "question": "Welches mathematische Symbol wird im Funktionsplan (FUP) für eine UND-Verknüpfung innerhalb des Funktionsblocks verwendet?",
+          "imageUrl": "",
+          "answers": [
+            {
+              "text": "&",
+              "correct": true,
+              "tip": "Das Kaufmanns-Und-Zeichen (&) ist das normgerechte Symbol für die logische Konjunktion (UND) im Funktionsplan."
+            },
+            {
+              "text": ">=1",
+              "correct": false,
+              "tip": "Das Zeichen '>=1' (größer oder gleich 1) kennzeichnet ein ODER-Glied, da mindestens ein Eingang aktiv sein muss."
+            },
+            {
+              "text": "=",
+              "correct": false,
+              "tip": "Das Gleichheitszeichen wird typischerweise für Zuweisungen oder mathematische Vergleiche auf Identität genutzt."
+            },
+            {
+              "text": "XOR",
+              "correct": false,
+              "tip": "Exklusiv-ODER-Glieder werden direkt mit der Bezeichnung 'XOR' oder dem mathematischen Zeichen für eine Antivalenz versehen."
+            }
+          ],
+          "singleAnswer": true,
+          "randomAnswers": true,
+          "enableRetry": true,
+          "enableSolutionsButton": true,
+          "passPercentage": 100
+        },
+        "topicId": "71a2e58c-8cb4-49c7-aef1-1361b207b3cc",
+        "parentId": null,
+        "orderIndex": 6
+      },
+      {
+        "id": "e6a5d4c3-1b2e-439f-bd9c-482f7162db90",
+        "createdAt": "2026-05-20T16:45:00.000Z",
+        "updatedAt": "2026-05-20T16:50:00.000Z",
+        "type": "multipleChoice",
+        "title": "SPS Grundlagen – Ruhezustand RS-FlipFlop",
+        "description": "Multiple Choice Abfrage",
+        "moduleSelected": true,
+        "content": {
+          "question": "Was passiert mit dem Zustand eines RS-FlipFlops, wenn sowohl der Setz- (S) als auch der Rücksetzeingang (R) das Signal 0 aufweisen?",
+          "imageUrl": "",
+          "answers": [
+            {
+              "text": "Das FlipFlop speichert den aktuellen Zustand unverändert.",
+              "correct": true,
+              "tip": "Wenn kein aktives Signal zum Setzen oder Rücksetzen anliegt (0/0), bleibt der aktuelle Zustand des Ausgangs stabil erhalten (Speicherfunktion)."
+            },
+            {
+              "text": "Der Ausgang wechselt automatisch immer auf 0.",
+              "correct": false,
+              "tip": "Ohne Rücksetzbefehl (R=1) steuert das Bauteil den Ausgang nicht aktiv in den Grundzustand."
+            },
+            {
+              "text": "Der Ausgang wird sofort auf 1 gezwungen.",
+              "correct": false,
+              "tip": "Ein Wechsel auf 1 erfordert einen aktiven Setzbefehl (S=1) an der Flanke bzw. dem Zustand des Eingangs."
+            },
+            {
+              "text": "Der Zustand wird undefiniert und hochohmig.",
+              "correct": false,
+              "tip": "SPS-Software-FlipFlops haben im Gegensatz zu manchen Hardware-ICs keine unbestimmten Zustände; sie behalten einfach den im Speicher hinterlegten Bitwert."
+            }
+          ],
+          "singleAnswer": true,
+          "randomAnswers": true,
+          "enableRetry": true,
+          "enableSolutionsButton": true,
+          "passPercentage": 100
+        },
+        "topicId": "71a2e58c-8cb4-49c7-aef1-1361b207b3cc",
+        "parentId": null,
+        "orderIndex": 7
+      },
+      {
+        "id": "c7b6a5d4-2e3f-449f-ad9c-582e8172fc90",
+        "createdAt": "2026-05-20T16:45:00.000Z",
+        "updatedAt": "2026-05-20T16:50:00.000Z",
+        "type": "multipleChoice",
+        "title": "SPS Grundlagen – Negierung im FUP",
+        "description": "Multiple Choice Abfrage",
+        "moduleSelected": true,
+        "content": {
+          "question": "Wie wird eine Invertierung (NICHT-Funktion) an einem Eingang eines FUP-Logikbausteins visuell dargestellt?",
+          "imageUrl": "",
+          "answers": [
+            {
+              "text": "Durch einen kleinen Kreis am entsprechenden Eingang des Blocks.",
+              "correct": true,
+              "tip": "Ein Negationspunkt (Kreis) signalisiert in der normierten Grafik des Funktionsplans, dass das Signal vor der Verknüpfung negiert wird."
+            },
+            {
+              "text": "Durch ein rotes Kreuz über dem Eingang.",
+              "correct": false,
+              "tip": "Kreuze werden in Entwicklungsumgebungen meist für Fehler oder nicht verbundene Variablen genutzt, nicht für Invertierungen."
+            },
+            {
+              "text": "Durch eine gestrichelte Verbindungslinie.",
+              "correct": false,
+              "tip": "Gestrichelte Linien haben je nach Hersteller andere Bedeutungen (z.B. andere Datentypen), stellen aber keine mathematische Invertierung dar."
+            },
+            {
+              "text": "Durch ein Blitz-Symbol im Inneren des Kastens.",
+              "correct": false,
+              "tip": "Ein Blitz kennzeichnet in der Regel dynamische Vorgänge (z.B. Flankenauswertungen) oder Warnungen."
+            }
+          ],
+          "singleAnswer": true,
+          "randomAnswers": true,
+          "enableRetry": true,
+          "enableSolutionsButton": true,
+          "passPercentage": 100
+        },
+        "topicId": "71a2e58c-8cb4-49c7-aef1-1361b207b3cc",
+        "parentId": null,
+        "orderIndex": 8
+      },
+      {
+        "id": "a8b7c6d5-3e4f-459f-bd9c-682f9182ec90",
+        "createdAt": "2026-05-20T16:45:00.000Z",
+        "updatedAt": "2026-05-20T16:50:00.000Z",
+        "type": "multipleChoice",
+        "title": "SPS Grundlagen – Selbsthaltung vs. FlipFlop",
+        "description": "Multiple Choice Abfrage",
+        "moduleSelected": true,
+        "content": {
+          "question": "Was unterscheidet ein speicherndes RS-FlipFlop grundlegend von einer einfachen UND/ODER-Selbsthalteschaltung im SPS-Programm?",
+          "imageUrl": "",
+          "answers": [
+            {
+              "text": "Rein funktionell gibt es bei gleicher Priorität keinen Unterschied, das RS-FlipFlop ist lediglich eine kompaktere, fertige Systemfunktion.",
+              "correct": true,
+              "tip": "Eine klassische Selbsthaltung mittels Zuweisung, ODER- und UND-Glied lässt sich exakt so programmieren, dass sie sich identisch zu einem SR- bzw. RS-Block verhält."
+            },
+            {
+              "text": "Ein RS-FlipFlop benötigt zwingend eine externe Hardware-Verdrahtung zur Speicherung.",
+              "correct": false,
+              "tip": "Beide Schaltungen sind reine Binärlogiken und arbeiten ausschließlich mit den Zuständen 0 und 1 (True/False)."
+            },
+            {
+              "text": "Die Selbsthalteschaltung verliert bei jedem CPU-Zyklus kurzzeitig ihren Zustand.",
+              "correct": false,
+              "tip": "Die SPS behält Variablenwerte über den Zyklus hinweg stabil im Prozessabbild, weshalb auch die Selbsthaltung lückenlos hält."
+            },
+            {
+              "text": "Das RS-FlipFlop kann keine analogen Werte verarbeiten, die Selbsthaltung schon.",
+              "correct": false,
+              "tip": "Beide Schaltungen sind reine Binärlogiken und arbeiten ausschließlich mit den Zuständen 0 und 1 (True/False)."
+            }
+          ],
+          "singleAnswer": true,
+          "randomAnswers": true,
+          "enableRetry": true,
+          "enableSolutionsButton": true,
+          "passPercentage": 100
+        },
+        "topicId": "71a2e58c-8cb4-49c7-aef1-1361b207b3cc",
+        "parentId": null,
+        "orderIndex": 9
+      }
+    ]
+  }
+}

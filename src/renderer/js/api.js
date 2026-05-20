@@ -96,6 +96,19 @@ export class BrowserApi {
     ).then((r) => r.json());
   }
 
+  verifySubscribeKey(teacherEmail, topicId, key) {
+    return fetch(
+      `/api/public/teachers/${encodeURIComponent(teacherEmail)}/topics/${encodeURIComponent(topicId)}/verify-subscribe-key`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key }),
+      }
+    ).then((r) => r.json());
+  }
+
+  getAllAdminTopics() { return this._fetch('/api/admin/topics'); }
+
   submitPublicResult(data) {
     return fetch('/api/public/results', {
       method: 'POST',

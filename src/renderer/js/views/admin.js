@@ -144,4 +144,37 @@ export class AdminView {
       if (this._adminBlacklist)   this._adminBlacklist.value   = (data.admin_blacklist   || []).join('\n');
     } catch (_) {}
   }
+
+  async refreshAdminTopics() {
+    const container = document.getElementById('adminTopicsContainer');
+    if (!container) return;
+    try {
+      const topics = await this.app.api.getAllAdminTopics();
+      if (!topics || topics.length === 0) {
+        container.innerHTML = '<p class="hint">Keine Lernthemen gefunden.</p>';
+        return;
+      }
+      container.innerHTML = '';
+      for (const topic of topics) {
+        const moduleCount = (topic.modules || []).length;
+        const item = document.createElement('div');
+        item.className = `topic-card ${topic.selected ? 'topic-active' : 'topic-inactive'}`;
+        item.innerHTML = `
+          <div class="topic-card-header">
+            <div class="topic-card-info">
+              <h3 class="topic-card-title">${escapeHtml(topic.title)}</h3>
+              <p class="topic-card-desc" style="color:var(--text-secondary);font-size:0.85em">${escapeHtml(topic.ownerEmail || topic.ownerId)}</p>
+              <div class="topic-card-meta">
+                <span class="topic-module-count">${moduleCount} Module</span>
+                <span class="topic-status ${topic.selected ? 'active' : 'inactive'}" style="margin-left:8px">${topic.selected ? '✅ Aktiv' : '❌ Inaktiv'}</span>
+                ${topic.subscribeKey ? `<span class="hint" style="margin-left:8px">🔑 Key: ${escapeHtml(topic.subscribeKey)}</span>` : ''}
+              </div>
+            </div>
+          </div>`;
+        container.appendChild(item);
+      }
+    } catch (e) {
+      container.innerHTML = `<p class="hint">Fehler: ${escapeHtml(e.message)}</p>`;
+    }
+  }
 }

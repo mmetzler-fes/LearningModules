@@ -129,6 +129,7 @@ class App {
       case 'student-topics':    this.quizView.refreshStudentTopics(); break;
       case 'student-quiz':      this.quizView.refreshQuizSelect(); break;
       case 'admin-users':       this.adminView.refreshUsers(); break;
+      case 'admin-topics':      this.adminView.refreshAdminTopics(); break;
       case 'admin-whitelist':   this.adminView.refreshWhitelistBlacklist(); break;
     }
   }

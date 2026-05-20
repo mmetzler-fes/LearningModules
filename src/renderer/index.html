@@ -136,8 +136,9 @@
         <div class="nav-section-label">Administration</div>
         <button class="nav-btn" data-view="admin-users">
           <span class="nav-icon">👥</span> Benutzerverwaltung
-        </button>
-        <button class="nav-btn" data-view="admin-whitelist">
+        </button>        <button class="nav-btn" data-view="admin-topics">
+          <span class="nav-icon">📚</span> Lernmodule
+        </button>        <button class="nav-btn" data-view="admin-whitelist">
           <span class="nav-icon">🔒</span> Whitelist / Blacklist
         </button>
       </nav>
@@ -244,16 +245,9 @@
                 <textarea id="topicDescription" rows="3" data-i18n-placeholder="topics.form.desc.placeholder" placeholder="Optionale Beschreibung..."></textarea>
               </div>
               <div class="form-group">
-                <label for="topicVisibility">Freigabe für Schüler</label>
-                <select id="topicVisibility">
-                  <option value="locked">🔒 Gesperrt (nicht sichtbar)</option>
-                  <option value="public">🌐 Freigegeben (öffentlich)</option>
-                  <option value="password">🔑 Mit Passwort freigeben</option>
-                </select>
-              </div>
-              <div class="form-group hidden" id="topicPasswordGroup">
-                <label for="topicAccessPassword">Zugangspasswort</label>
-                <input type="text" id="topicAccessPassword" placeholder="Passwort für Schüler..." autocomplete="off" />
+                <label for="topicSubscribeKey">Subscribe-Key <span style="font-weight:normal;color:var(--text-secondary)">(optional)</span></label>
+                <input type="text" id="topicSubscribeKey" placeholder="Leer = kein Schlüssel erforderlich" autocomplete="off" />
+                <span class="hint" style="font-size:0.85em;color:var(--text-secondary)">Schüler sehen das Thema, müssen aber diesen Key eingeben, um das Quiz zu starten.</span>
               </div>
               <div class="form-actions">
                 <button type="submit" class="btn btn-primary" data-i18n="topics.form.save">Speichern</button>
@@ -411,6 +405,15 @@
       </section>
 
       <!-- ==================== ADMIN VIEWS ==================== -->
+
+      <!-- Admin: All Topics (read-only) -->
+      <section class="view" id="view-admin-topics">
+        <div class="view-header">
+          <h2>Lernmodule (Alle)</h2>
+          <p class="subtitle">Schreibgeschützte Übersicht aller Lernthemen von allen Lehrern und Admins</p>
+        </div>
+        <div id="adminTopicsContainer" class="topics-list"></div>
+      </section>
 
       <!-- Admin: User Management -->
       <section class="view" id="view-admin-users">

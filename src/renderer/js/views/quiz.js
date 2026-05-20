@@ -61,7 +61,7 @@ export class QuizView {
   async refreshStudentTopics() {
     await this.app.loadTopics();
     const { state } = this.app;
-    const available = state.topics.filter((t) => t.visibility !== 'locked');
+    const available = state.topics; // server returns only selected=true topics
 
     this._studentTopicsList.innerHTML = '';
     if (available.length === 0) {
@@ -75,17 +75,17 @@ export class QuizView {
 
     for (const topic of available) {
       const moduleCount = (topic.modules || []).filter((m) => m.moduleSelected !== false).length;
-      const visIcon = topic.visibility === 'public' ? '🌐' : '🔑';
+      const keyIcon = topic.hasSubscribeKey ? '🔑' : '🌐';
       const card = document.createElement('div');
       card.className = 'topic-card student-topic-card';
       card.innerHTML = `
         <div class="topic-card-header">
           <div class="topic-card-info">
-            <h3 class="topic-card-title">${visIcon} ${escapeHtml(topic.title)}</h3>
+            <h3 class="topic-card-title">${keyIcon} ${escapeHtml(topic.title)}</h3>
             <p class="topic-card-desc">${escapeHtml(topic.description || '')}</p>
             <div class="topic-card-meta">
               <span class="topic-module-count">${moduleCount} Module</span>
-              ${topic.visibility === 'password' ? '<span class="hint" style="margin-left:8px;">Passwortgeschützt</span>' : ''}
+              ${topic.hasSubscribeKey ? '<span class="hint" style="margin-left:8px;">🔑 Subscribe-Key erforderlich</span>' : ''}
             </div>
           </div>
         </div>`;
@@ -100,7 +100,7 @@ export class QuizView {
     await this.app.loadTopics();
     await this.app.loadExamMode();
     const { state } = this.app;
-    const myTopics = state.topics.filter((t) => t.visibility !== 'locked');
+    const myTopics = state.topics; // server already returns only selected=true
 
     this._quizTopicSelect.innerHTML = '';
     this._quizTopicSelect.classList.remove('hidden');
@@ -125,7 +125,7 @@ export class QuizView {
       card.innerHTML = `
         <div class="quiz-topic-card-info">
           <h3>${escapeHtml(topic.title)}</h3>
-          <p>${moduleCount} Module${topic.visibility === 'password' ? ' 🔑' : ''}</p>
+          <p>${moduleCount} Module${topic.hasSubscribeKey ? ' 🔑' : ''}</p>
         </div>
         <button class="btn btn-primary">${isExam ? '📝 Prüfung starten' : '🧠 Quiz starten'}</button>`;
       card.querySelector('.btn').addEventListener('click', () => this._startStudentQuiz(topic));
@@ -134,16 +134,16 @@ export class QuizView {
   }
 
   async _startStudentQuiz(topic) {
-    if (topic.visibility === 'password' && topic.hasPassword) {
-      const pwd = prompt(`Bitte Passwort für "${topic.title}" eingeben:`);
-      if (pwd === null) return;
+    if (topic.hasSubscribeKey) {
+      const key = prompt(`🔑 Subscribe-Key für "${topic.title}" eingeben:`);
+      if (key === null) return;
       try {
         const { state, api } = this.app;
-        const verified = await api.verifyTopicPassword(state.currentUser.teacherEmail, topic.id, pwd);
-        if (!verified || !verified.id) { this.app.showToast('Falsches Passwort.', 'error'); return; }
+        const verified = await api.verifySubscribeKey(state.currentUser.teacherEmail, topic.id, key);
+        if (!verified || !verified.id) { this.app.showToast('Falscher Subscribe-Key.', 'error'); return; }
         await this._startQuiz(verified);
       } catch (_) {
-        this.app.showToast('Fehler beim Überprüfen des Passworts.', 'error');
+        this.app.showToast('Falscher Subscribe-Key.', 'error');
       }
     } else {
       await this._startQuiz(topic);

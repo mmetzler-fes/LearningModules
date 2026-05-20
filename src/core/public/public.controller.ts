@@ -31,19 +31,50 @@ export class PublicController {
     const topics = await this.topicRepo
       .createQueryBuilder('topic')
       .where('topic.ownerId = :ownerId', { ownerId: teacher.id })
-      .andWhere('topic.visibility != :locked', { locked: 'locked' })
       .andWhere('topic.selected = :selected', { selected: true })
       .leftJoinAndSelect('topic.modules', 'modules')
       .orderBy('modules.orderIndex', 'ASC')
       .getMany();
 
     return {
-      topics: topics.map(({ accessPassword, ...topic }) => ({
+      topics: topics.map(({ accessPassword, subscribeKey, ...topic }) => ({
         ...topic,
-        hasPassword: !!accessPassword && topic.visibility === 'password',
+        hasSubscribeKey: !!subscribeKey,
       })),
       examMode: !!(teacher.accessFilters?.examMode),
     };
+  }
+
+  /**
+   * POST /public/teachers/:email/topics/:id/verify-subscribe-key
+   * Verifies the subscribe key for a topic before a student can start the quiz.
+   */
+  @Post('teachers/:email/topics/:id/verify-subscribe-key')
+  async verifySubscribeKey(
+    @Param('email') email: string,
+    @Param('id') topicId: string,
+    @Body() body: { key: string },
+  ) {
+    const teacher = await this.userRepo.findOne({
+      where: [{ email, role: 'teacher' }, { email, role: 'admin' }],
+    });
+    if (!teacher) throw new NotFoundException('Lehrer nicht gefunden.');
+
+    const topic = await this.topicRepo
+      .createQueryBuilder('topic')
+      .where('topic.id = :id', { id: topicId })
+      .andWhere('topic.ownerId = :ownerId', { ownerId: teacher.id })
+      .leftJoinAndSelect('topic.modules', 'modules')
+      .orderBy('modules.orderIndex', 'ASC')
+      .getOne();
+
+    if (!topic) throw new NotFoundException('Thema nicht gefunden.');
+    if (!topic.subscribeKey || topic.subscribeKey !== body.key) {
+      throw new ForbiddenException('Falscher Subscribe-Key.');
+    }
+
+    const { subscribeKey: _sk, accessPassword: _ap, ...safeTopic } = topic;
+    return safeTopic;
   }
 
   /**

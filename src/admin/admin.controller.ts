@@ -6,6 +6,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { User } from '../core/entities/user.entity';
 import { SystemConfig } from '../core/entities/system-config.entity';
+import { LearningTopic } from '../core/entities/learning-topic.entity';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { AuthService } from '../auth/auth.service';
 
@@ -15,6 +16,7 @@ export class AdminController {
   constructor(
     @InjectRepository(User) private readonly userRepo: Repository<User>,
     @InjectRepository(SystemConfig) private readonly configRepo: Repository<SystemConfig>,
+    @InjectRepository(LearningTopic) private readonly topicRepo: Repository<LearningTopic>,
     private readonly authService: AuthService,
   ) {}
 
@@ -90,5 +92,18 @@ export class AdminController {
       }
     }
     return { success: true };
+  }
+
+  // ---- Read-only view of ALL topics across all teachers/admins ----
+  @Get('topics')
+  async getAllTopicsReadOnly(@Request() req: any) {
+    this.requireAdmin(req);
+    const topics = await this.topicRepo.find({ relations: ['modules'], order: { id: 'ASC' } });
+    const users = await this.userRepo.find();
+    const userMap = new Map(users.map((u) => [u.id, u.email]));
+    return topics.map(({ accessPassword: _ap, ...t }) => ({
+      ...t,
+      ownerEmail: userMap.get(t.ownerId) || t.ownerId,
+    }));
   }
 }

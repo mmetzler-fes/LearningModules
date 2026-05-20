@@ -17,9 +17,7 @@ export class TopicsView {
     this._btnImportH5p    = document.getElementById('btnImportH5p');
     this._btnExportH5p    = document.getElementById('btnExportH5p');
     this._btnCancel       = document.getElementById('btnCancelTopic');
-    this._visibilityEl    = document.getElementById('topicVisibility');
-    this._passwordEl      = document.getElementById('topicAccessPassword');
-    this._passwordGroupEl = document.getElementById('topicPasswordGroup');
+    this._subscribeKeyEl  = document.getElementById('topicSubscribeKey');
     this._exportOverlay   = document.getElementById('exportH5pTopicOverlay');
     this._exportList      = document.getElementById('exportH5pTopicList');
     this._exportBtnCancel = document.getElementById('exportH5pBtnCancel');
@@ -35,9 +33,7 @@ export class TopicsView {
         this._formTitle.textContent = t('topics.form.new');
         this._titleInput.value = '';
         this._descInput.value = '';
-        if (this._visibilityEl) this._visibilityEl.value = 'locked';
-        if (this._passwordGroupEl) this._passwordGroupEl.classList.add('hidden');
-        if (this._passwordEl) this._passwordEl.value = '';
+        if (this._subscribeKeyEl) this._subscribeKeyEl.value = '';
         this._formContainer.classList.remove('hidden');
       });
     }
@@ -85,14 +81,6 @@ export class TopicsView {
 
     if (this._form) {
       this._form.addEventListener('submit', (e) => this._onFormSubmit(e));
-    }
-
-    if (this._visibilityEl) {
-      this._visibilityEl.addEventListener('change', () => {
-        if (this._passwordGroupEl) {
-          this._passwordGroupEl.classList.toggle('hidden', this._visibilityEl.value !== 'password');
-        }
-      });
     }
 
     if (this._chkExamMode) {
@@ -223,11 +211,7 @@ export class TopicsView {
     this._formTitle.textContent = t('topics.form.edit');
     this._titleInput.value = topic.title;
     this._descInput.value = topic.description || '';
-    if (this._visibilityEl) {
-      this._visibilityEl.value = topic.visibility || 'locked';
-      if (this._passwordGroupEl) this._passwordGroupEl.classList.toggle('hidden', this._visibilityEl.value !== 'password');
-    }
-    if (this._passwordEl) this._passwordEl.value = topic.accessPassword || '';
+    if (this._subscribeKeyEl) this._subscribeKeyEl.value = topic.subscribeKey || '';
     this._formContainer.classList.remove('hidden');
   }
 
@@ -238,15 +222,12 @@ export class TopicsView {
 
     const { state, api } = this.app;
     const { topics } = state;
-    const visibility = this._visibilityEl ? this._visibilityEl.value : 'locked';
-    const accessPassword = (visibility === 'password' && this._passwordEl) ? this._passwordEl.value.trim() : undefined;
 
     const topicData = {
       id: state.editingTopicId || ('topic_' + Date.now().toString(36) + '_' + Math.random().toString(36).substring(2, 6)),
       title,
       description: this._descInput.value.trim(),
-      visibility,
-      accessPassword: accessPassword || undefined,
+      subscribeKey: this._subscribeKeyEl ? (this._subscribeKeyEl.value.trim() || null) : undefined,
       selected: state.editingTopicId ? (topics.find((t) => t.id === state.editingTopicId) || {}).selected || false : false,
       createdAt: state.editingTopicId ? (topics.find((t) => t.id === state.editingTopicId) || {}).createdAt || new Date().toISOString() : new Date().toISOString(),
     };

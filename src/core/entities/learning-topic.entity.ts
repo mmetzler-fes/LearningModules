@@ -25,6 +25,9 @@ export class LearningTopic extends BaseEntity {
   @Column({ nullable: true })
   accessPassword: string;
 
+  @Column({ nullable: true })
+  subscribeKey: string;
+
   @Column('simple-json', { nullable: true })
   permissions: {
     visibleTo: 'all' | 'none' | 'classes' | 'school';

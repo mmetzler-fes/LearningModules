@@ -16,7 +16,7 @@ RUN bun run build
 
 
 # ---- Production stage ----
-FROM oven/bun:1 AS runner
+FROM node:22-slim AS runner
 
 WORKDIR /app
 
@@ -24,8 +24,8 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y python3 make g++ && rm -rf /var/lib/apt/lists/*
 
 # Install only production dependencies
-COPY package.json bun.lock ./
-RUN bun install --frozen-lockfile --production
+COPY package.json ./
+RUN npm install --omit=dev --ignore-scripts=false
 
 # Copy compiled NestJS app
 COPY --from=builder /app/dist ./dist
@@ -38,4 +38,4 @@ RUN mkdir -p data
 
 EXPOSE 3000
 
-CMD ["bun", "run", "start:prod"]
+CMD ["node", "dist/main"]

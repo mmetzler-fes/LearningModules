@@ -80,6 +80,10 @@ export class TopicsService {
   async update(id: string, user: any, updateData: Partial<LearningTopic>) {
     const topic = await this.findOne(id, user);
     Object.assign(topic, updateData);
+    // Auto-promote visibility when activating: selected=true + visibility='locked' → 'public'
+    if (topic.selected && topic.visibility === 'locked') {
+      topic.visibility = 'public';
+    }
     return this.topicRepo.save(topic);
   }
 

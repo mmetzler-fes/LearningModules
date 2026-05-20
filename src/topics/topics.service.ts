@@ -16,11 +16,8 @@ export class TopicsService {
   async findAll(user: any) {
     const qb = this.topicRepo.createQueryBuilder('topic');
 
-    // Teachers only see their own topics
-    if (user.role === 'teacher') {
-      qb.where('topic.ownerId = :ownerId', { ownerId: user.userId });
-    }
-    // Admins see all topics
+    // Teachers and admins only see their own topics
+    qb.where('topic.ownerId = :ownerId', { ownerId: user.userId });
 
     return qb.leftJoinAndSelect('topic.modules', 'modules').orderBy('modules.orderIndex', 'ASC').addOrderBy('topic.id', 'ASC').getMany();
   }

@@ -57,7 +57,9 @@ export class PublicController {
     @Param('id') topicId: string,
     @Body() body: { password: string },
   ) {
-    const teacher = await this.userRepo.findOne({ where: { email, role: 'teacher' } });
+    const teacher = await this.userRepo.findOne({
+      where: [{ email, role: 'teacher' }, { email, role: 'admin' }],
+    });
     if (!teacher) throw new NotFoundException('Lehrer nicht gefunden.');
 
     const topic = await this.topicRepo
@@ -111,7 +113,9 @@ export class PublicController {
     },
     @Req() req: any,
   ) {
-    const teacher = await this.userRepo.findOne({ where: { email: body.teacherEmail, role: 'teacher' } });
+    const teacher = await this.userRepo.findOne({
+      where: [{ email: body.teacherEmail, role: 'teacher' }, { email: body.teacherEmail, role: 'admin' }],
+    });
     if (!teacher) throw new NotFoundException('Lehrer nicht gefunden.');
 
     const forwarded = req.headers['x-forwarded-for'];

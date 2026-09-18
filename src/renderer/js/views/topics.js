@@ -95,6 +95,7 @@ export class TopicsView {
   }
 
   async refresh() {
+    this.refreshSharedTopics();
     await this.app.loadTopics();
     const { topics } = this.app.state;
     this._topicsList.innerHTML = '';
@@ -153,9 +154,9 @@ export class TopicsView {
               <span class="topic-module-count">${moduleCount} Module</span>
               ${isRawTopic ? '<span class="topic-status" style="background:#eef2ff; color:#3730a3;">RAW H5P</span>' : ''}
               <span class="topic-status ${topic.selected ? 'active' : 'inactive'}">${topic.selected ? '✅ Aktiv' : '❌ Inaktiv'}</span>
-              ${topic.ownerId && topic.ownerId !== (currentUser && currentUser.id)
-                ? '<span class="topic-shared-badge">🔗 Geteilt</span>'
-                : (Array.isArray(topic.sharedWith) && topic.sharedWith.length > 0 ? '<span class="topic-shared-badge owner">👥 Freigegeben</span>' : '')}
+              ${Array.isArray(topic.sharedWith) && topic.sharedWith.length > 0
+                ? `<span class="topic-shared-badge owner">👥 freigegeben ${topic.sharedWith.includes('*') ? 'für alle' : 'für ' + topic.sharedWith.length}</span>`
+                : ''}
             </div>
           </div>
           <div class="topic-card-actions">
@@ -429,42 +430,54 @@ export class TopicsView {
     this._exportOverlay.classList.remove('hidden');
   }
 
+  /**
+   * Freigabe zum Kopieren. Bewusst kein Rechtemodell: Wer freigegeben
+   * bekommt, zieht sich eine eigene Kopie und ist deren Eigentümer. Das
+   * Original bleibt unberührt.
+   */
   async _openShareDialog(topic) {
     const { state, api } = this.app;
     const { currentUser } = state;
     const isOwner = topic.ownerId === (currentUser && currentUser.id);
     if (!isOwner && currentUser.role !== 'admin') {
-      this.app.showToast('Nur der Eigentümer oder ein Admin kann dieses Thema teilen.', 'error');
+      this.app.showToast('Nur der Eigentümer kann dieses Thema freigeben.', 'error');
       return;
     }
 
     let users = [];
     try {
-      const allUsers = await api.getAllUsers();
-      users = allUsers.filter((u) =>
-        (u.role === 'teacher' || u.role === 'admin') && u.id !== (currentUser && currentUser.id)
-      );
+      users = await api.getColleagues();
     } catch (_) {}
+    if (!Array.isArray(users)) users = [];
 
-    const currentShared = Array.isArray(topic.sharedWith) ? topic.sharedWith : [];
+    const shared = Array.isArray(topic.sharedWith) ? topic.sharedWith : [];
+    const alleAktiv = shared.includes('*');
+
     const overlay = document.createElement('div');
     overlay.className = 'confirm-overlay';
     overlay.innerHTML = `
       <div class="import-modules-card" style="min-width:360px; max-width:480px">
-        <h3>👥 Thema teilen: <em>${escapeHtml(topic.title)}</em></h3>
-        <p style="color:var(--text-secondary); font-size:0.9em; margin-bottom:12px">
-          Wähle Lehrer/Admins, die dieses Thema bearbeiten dürfen:
-        </p>
-        <div id="shareUserList" style="display:flex; flex-direction:column; gap:8px; max-height:280px; overflow-y:auto; margin-bottom:16px">
+        <h3>👥 Thema freigeben: <em>${escapeHtml(topic.title)}</em></h3>
+        <p class="hint">Freigegebene Kolleginnen und Kollegen können sich eine
+          <strong>eigene Kopie</strong> holen und diese frei bearbeiten. Dein Thema
+          bleibt unverändert, spätere Änderungen wandern nicht in die Kopien.</p>
+
+        <label class="share-all-row">
+          <input type="checkbox" id="shareAll" ${alleAktiv ? 'checked' : ''} />
+          <strong>Für alle Kolleginnen und Kollegen freigeben</strong>
+        </label>
+
+        <div id="shareUserList" class="share-user-list">
           ${users.length === 0
-            ? '<p style="color:var(--text-secondary)">Keine anderen Lehrer/Admins vorhanden.</p>'
+            ? '<p class="hint">Keine weiteren Lehrkräfte vorhanden.</p>'
             : users.map((u) => `
-              <label style="display:flex; align-items:center; gap:10px; cursor:pointer; padding:8px; border-radius:var(--radius-sm); background:var(--bg-secondary)">
-                <input type="checkbox" value="${escapeHtml(u.id)}" ${currentShared.includes(u.id) ? 'checked' : ''} />
+              <label class="share-user-row">
+                <input type="checkbox" value="${escapeHtml(u.id)}" ${shared.includes(u.id) ? 'checked' : ''} />
                 <span class="user-role-badge ${u.role}">${u.role === 'admin' ? 'Admin' : 'Lehrer'}</span>
-                <span>${escapeHtml(u.displayName || u.username)}</span>
+                <span>${escapeHtml(u.displayName || u.email)}</span>
               </label>`).join('')}
         </div>
+
         <div class="confirm-actions">
           <button class="btn btn-primary" id="btnShareSave">Freigabe speichern</button>
           <button class="btn btn-secondary" id="btnShareCancel">Abbrechen</button>
@@ -472,23 +485,91 @@ export class TopicsView {
       </div>`;
     document.body.appendChild(overlay);
 
-    overlay.querySelector('#btnShareCancel').addEventListener('click', () => overlay.remove());
+    const chkAll = overlay.querySelector('#shareAll');
+    const list = overlay.querySelector('#shareUserList');
+    // Bei "alle" ist die Einzelauswahl gegenstandslos.
+    const syncList = () => { list.style.opacity = chkAll.checked ? '0.45' : '1'; list.style.pointerEvents = chkAll.checked ? 'none' : 'auto'; };
+    chkAll.addEventListener('change', syncList);
+    syncList();
+
+    const close = () => overlay.remove();
+    overlay.querySelector('#btnShareCancel').addEventListener('click', close);
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+
     overlay.querySelector('#btnShareSave').addEventListener('click', async () => {
-      const checked = Array.from(overlay.querySelectorAll('#shareUserList input:checked')).map((cb) => cb.value);
+      const sharedWith = chkAll.checked
+        ? ['*']
+        : Array.from(list.querySelectorAll('input:checked')).map((cb) => cb.value);
       try {
-        if (api.setTopicSharing) await api.setTopicSharing(topic.id, checked);
-        else if (api.saveTopic) {
-          const fullTopic = state.topics.find((tt) => tt.id === topic.id);
-          if (fullTopic) { fullTopic.sharedWith = checked; await api.saveTopic(fullTopic); }
+        const res = await api.setTopicSharing(topic.id, sharedWith);
+        if (res && res.success) {
+          close();
+          this.app.showToast(sharedWith.length ? 'Freigabe gespeichert' : 'Freigabe aufgehoben', 'success');
+          await this.app.loadTopics();
+          this.refresh();
+        } else {
+          this.app.showToast('Fehler: ' + (res?.message || res?.error || 'unbekannt'), 'error');
         }
-        overlay.remove();
-        this.app.showToast('Freigabe gespeichert', 'success');
-        await this.app.loadTopics();
-        this.refresh();
       } catch (err) {
         this.app.showToast('Fehler beim Speichern: ' + err.message, 'error');
       }
     });
-    overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+  }
+
+  // ==================== VON KOLLEGEN FREIGEGEBEN ====================
+
+  async refreshSharedTopics() {
+    const section = document.getElementById('sharedTopicsSection');
+    const list = document.getElementById('sharedTopicsList');
+    if (!section || !list) return;
+
+    let topics = [];
+    try {
+      topics = await this.app.api.getSharedWithMe();
+    } catch (_) { topics = []; }
+    if (!Array.isArray(topics) || topics.length === 0) {
+      section.classList.add('hidden');
+      return;
+    }
+
+    section.classList.remove('hidden');
+    list.innerHTML = '';
+    for (const t of topics) {
+      const card = document.createElement('div');
+      card.className = 'topic-card topic-shared';
+      card.innerHTML = `
+        <div class="topic-card-header">
+          <div class="topic-card-info">
+            <h3 class="topic-card-title">${escapeHtml(t.title)}</h3>
+            <p class="topic-card-desc">${escapeHtml(t.description || '')}</p>
+            <div class="topic-card-meta">
+              <span class="topic-module-count">${t.moduleCount} Module</span>
+              <span class="topic-shared-badge" style="margin-left:8px">von ${escapeHtml(t.ownerName)}</span>
+            </div>
+          </div>
+          <div class="topic-card-actions">
+            <button class="btn btn-primary btn-sm btn-copy-shared">📥 Zu mir kopieren</button>
+          </div>
+        </div>`;
+      card.querySelector('.btn-copy-shared').addEventListener('click', async (e) => {
+        const btn = e.currentTarget;
+        btn.disabled = true;
+        try {
+          const res = await this.app.api.copySharedTopic(t.id);
+          if (res && res.success) {
+            this.app.showToast(`"${res.title}" kopiert – du bist jetzt Eigentümer.`, 'success');
+            await this.app.loadTopics();
+            this.refresh();
+          } else {
+            this.app.showToast('Fehler: ' + (res?.message || 'Kopieren fehlgeschlagen'), 'error');
+            btn.disabled = false;
+          }
+        } catch (err) {
+          this.app.showToast('Fehler: ' + err.message, 'error');
+          btn.disabled = false;
+        }
+      });
+      list.appendChild(card);
+    }
   }
 }

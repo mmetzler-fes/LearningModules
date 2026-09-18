@@ -12,6 +12,20 @@ export class TopicsController {
     return this.topicsService.findAll(req.user);
   }
 
+  // Feste Pfade müssen vor @Get(':id') stehen, sonst matcht der Platzhalter
+  // zuerst und "colleagues" landet als Themen-ID im findOne.
+  /** Kolleginnen und Kollegen für die Auswahl im Freigabe-Dialog. */
+  @Get('colleagues')
+  async listColleagues(@Request() req: any) {
+    return this.topicsService.listColleagues(req.user);
+  }
+
+  /** Themen, die mir jemand freigegeben hat. */
+  @Get('shared-with-me')
+  async sharedWithMe(@Request() req: any) {
+    return this.topicsService.findSharedWithMe(req.user);
+  }
+
   @Get(':id')
   async findOne(@Param('id') id: string, @Request() req: any) {
     return this.topicsService.findOne(id, req.user);
@@ -21,6 +35,20 @@ export class TopicsController {
   async getModules(@Param('id') id: string, @Request() req: any) {
     const topic = await this.topicsService.findOne(id, req.user);
     return topic.modules || [];
+  }
+
+  // ---- Freigabe zum Kopieren ----
+
+  /** Freigabe setzen: Liste von Benutzer-IDs oder ['*'] für alle. */
+  @Post(':id/sharing')
+  async setSharing(@Param('id') id: string, @Request() req: any, @Body() body: { sharedWith?: string[] }) {
+    return this.topicsService.setSharing(id, req.user, body?.sharedWith || []);
+  }
+
+  /** Eigene Kopie eines freigegebenen Themas anlegen. */
+  @Post(':id/copy')
+  async copyShared(@Param('id') id: string, @Request() req: any) {
+    return this.topicsService.copySharedTopic(id, req.user);
   }
 
   // ---- Quick-Link für Schüler (Link + QR-Code) ----

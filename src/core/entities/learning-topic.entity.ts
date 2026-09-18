@@ -36,6 +36,14 @@ export class LearningTopic extends BaseEntity {
   @Column({ type: 'varchar', nullable: true })
   quickToken: string | null;
 
+  /**
+   * Freigabe zum Kopieren: Liste von Benutzer-IDs, oder ['*'] für alle
+   * Kolleginnen und Kollegen. Wer freigegeben bekommt, kann sich eine eigene
+   * Kopie ziehen und ist deren Eigentümer – das Original bleibt unberührt.
+   */
+  @Column('simple-json', { nullable: true })
+  sharedWith: string[] | null;
+
   @Column('simple-json', { nullable: true })
   permissions: {
     visibleTo: 'all' | 'none' | 'classes' | 'school';

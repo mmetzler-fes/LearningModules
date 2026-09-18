@@ -180,11 +180,21 @@ export class BrowserApi {
       body: JSON.stringify({ selected }),
     });
   }
+  // ---------- Teilen: freigeben und kopieren ----------
+  /** Freigabe setzen: Liste von Benutzer-IDs oder ['*'] für alle Kollegen. */
   setTopicSharing(topicId, sharedWith) {
-    return this._fetch(`/api/topics/${encodeURIComponent(topicId)}`, {
-      method: 'PATCH',
+    return this._fetch(`/api/topics/${encodeURIComponent(topicId)}/sharing`, {
+      method: 'POST',
       body: JSON.stringify({ sharedWith }),
     });
+  }
+  /** Kollegen für die Auswahl im Freigabe-Dialog (auch für Lehrkräfte). */
+  getColleagues() { return this._fetch('/api/topics/colleagues'); }
+  /** Themen, die mir jemand freigegeben hat. */
+  getSharedWithMe() { return this._fetch('/api/topics/shared-with-me'); }
+  /** Eigene Kopie eines freigegebenen Themas anlegen. */
+  copySharedTopic(topicId) {
+    return this._fetch(`/api/topics/${encodeURIComponent(topicId)}/copy`, { method: 'POST' });
   }
   setTopicPermissions(topicId, permissions) {
     return this._fetch('/api/topics/permissions', {

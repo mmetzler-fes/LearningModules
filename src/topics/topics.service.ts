@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { LearningTopic } from '../core/entities/learning-topic.entity';
 import { LearningModule } from '../core/entities/learning-module.entity';
+import { User } from '../core/entities/user.entity';
 import * as crypto from 'crypto';
 
 @Injectable()
@@ -12,6 +13,8 @@ export class TopicsService {
     private readonly topicRepo: Repository<LearningTopic>,
     @InjectRepository(LearningModule)
     private readonly moduleRepo: Repository<LearningModule>,
+    @InjectRepository(User)
+    private readonly userRepo: Repository<User>,
   ) {}
 
   async findAll(user: any) {
@@ -38,6 +41,111 @@ export class TopicsService {
     }
 
     return topic;
+  }
+
+  // ---- Freigabe zum Kopieren ----
+
+  /** Prüft, ob ein Thema für diesen Benutzer zum Kopieren freigegeben ist. */
+  private isSharedWith(topic: LearningTopic, userId: string): boolean {
+    const list = topic.sharedWith;
+    if (!Array.isArray(list) || list.length === 0) return false;
+    return list.includes('*') || list.includes(userId);
+  }
+
+  /** Freigabe setzen. Nur der Eigentümer (oder ein Admin) darf das. */
+  async setSharing(id: string, user: any, sharedWith: string[]) {
+    const topic = await this.findOne(id, user);
+    if (user.role === 'teacher' && topic.ownerId !== user.userId) {
+      throw new ForbiddenException('Nur der Eigentümer kann die Freigabe ändern.');
+    }
+    const clean = Array.isArray(sharedWith)
+      ? [...new Set(sharedWith.map(String).filter(Boolean))]
+      : [];
+    // '*' schlägt jede Einzelauswahl – sonst wäre der Zustand widersprüchlich.
+    topic.sharedWith = clean.includes('*') ? ['*'] : clean;
+    await this.topicRepo.save(topic);
+    return { success: true, sharedWith: topic.sharedWith };
+  }
+
+  /** Kolleginnen und Kollegen für die Auswahl im Freigabe-Dialog. */
+  async listColleagues(user: any) {
+    const users = await this.userRepo.find();
+    return users
+      .filter((u) => u.id !== user.userId && (u.role === 'teacher' || u.role === 'admin'))
+      .map((u) => ({
+        id: u.id,
+        displayName: u.displayName || u.email,
+        email: u.email,
+        role: u.role,
+      }));
+  }
+
+  /**
+   * Themen, die mir jemand freigegeben hat. Die Liste wird in JavaScript
+   * gefiltert, weil sharedWith als JSON-Text gespeichert ist – bei schulischen
+   * Datenmengen völlig unkritisch.
+   */
+  async findSharedWithMe(user: any) {
+    const topics = await this.topicRepo.find({ relations: ['modules'] });
+    const owners = await this.userRepo.find();
+    const ownerName = new Map(owners.map((o) => [o.id, o.displayName || o.email]));
+
+    return topics
+      .filter((t) => t.ownerId !== user.userId && this.isSharedWith(t, user.userId))
+      .map((t) => ({
+        id: t.id,
+        title: t.title,
+        description: t.description,
+        ownerId: t.ownerId,
+        ownerName: ownerName.get(t.ownerId) || 'Unbekannt',
+        moduleCount: (t.modules || []).length,
+      }));
+  }
+
+  /**
+   * Zieht eine eigene Kopie eines freigegebenen Themas. Der Kopierende wird
+   * Eigentümer; das Original bleibt unverändert. Zugangsdaten des Originals
+   * (Passwort, Subscribe-Key, Quick-Link) werden bewusst nicht übernommen.
+   */
+  async copySharedTopic(id: string, user: any) {
+    const source = await this.topicRepo.findOne({ where: { id }, relations: ['modules'] });
+    if (!source) throw new NotFoundException('Thema nicht gefunden');
+    if (source.ownerId === user.userId) {
+      throw new ForbiddenException('Das ist bereits dein eigenes Thema.');
+    }
+    if (!this.isSharedWith(source, user.userId) && user.role !== 'admin') {
+      throw new ForbiddenException('Dieses Thema ist nicht für dich freigegeben.');
+    }
+
+    const copy = await this.topicRepo.save(this.topicRepo.create({
+      id: crypto.randomUUID(),
+      // Kennzeichnung, damit mehrfaches Kopieren nicht zu gleichnamigen
+      // Themen führt. Umbenennen kann der neue Eigentümer jederzeit.
+      title: `${source.title} (Kopie)`,
+      description: source.description,
+      ownerId: user.userId,
+      // Die Kopie startet bewusst unveröffentlicht: erst prüfen, dann freigeben.
+      selected: false,
+      visibility: 'locked',
+      accessPassword: null as any,
+      subscribeKey: null as any,
+      quickToken: null,
+      sharedWith: null,
+      permissions: source.permissions,
+    }));
+
+    const modules = (source.modules || []).map((m) => {
+      const { id: _id, topic: _t, subModules: _s, parent: _p, ...rest } = m as any;
+      return Object.assign(new LearningModule(), {
+        ...rest,
+        id: crypto.randomUUID(),
+        topicId: copy.id,
+        parentId: null,
+      });
+    });
+    if (modules.length) await this.moduleRepo.save(modules);
+
+    return { success: true, topicId: copy.id, title: copy.title, moduleCount: modules.length };
   }
 
   // ---- Quick-Link: Schüler starten per Link/QR-Code direkt das Quiz ----

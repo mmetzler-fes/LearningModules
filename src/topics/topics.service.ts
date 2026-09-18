@@ -142,6 +142,10 @@ export class TopicsService {
     }
     const module = this.moduleRepo.create({
       ...moduleData,
+      // Ohne id schlug das Anlegen bisher mit einem NOT-NULL-Fehler fehl. Eine
+      // mitgeschickte id bleibt erhalten, denn derselbe Aufruf aktualisiert
+      // auch bestehende Module – sonst entstünde bei jeder Bearbeitung ein Duplikat.
+      id: moduleData.id || crypto.randomUUID(),
       topicId: topic.id,
       orderIndex,
     });

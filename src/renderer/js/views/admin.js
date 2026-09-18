@@ -59,7 +59,9 @@ export class AdminView {
             await this.refreshUsers();
             this._showCredentials(res, 'Benutzer angelegt');
           } else {
-            this.app.showToast('Fehler: ' + (res?.error || res?.message || 'Unbekannter Fehler'), 'error');
+            // message trägt den Grund ("... nicht in der Whitelist"), error nur
+            // das generische "Forbidden" – deshalb message zuerst.
+            this.app.showToast('Fehler: ' + (res?.message || res?.error || 'Unbekannter Fehler'), 'error');
           }
         } catch (err) {
           this.app.showToast('Fehler: ' + err.message, 'error');

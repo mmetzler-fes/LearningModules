@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { LearningTopic } from '../core/entities/learning-topic.entity';
 import { LearningModule } from '../core/entities/learning-module.entity';
+import * as crypto from 'crypto';
 
 @Injectable()
 export class TopicsService {
@@ -37,6 +38,85 @@ export class TopicsService {
     }
 
     return topic;
+  }
+
+  // ---- Quick-Link: Schüler starten per Link/QR-Code direkt das Quiz ----
+
+  /**
+   * Liefert den Quick-Link des Themas und legt ihn beim ersten Aufruf an.
+   * Mit `regenerate` wird ein neuer Token erzeugt; alle bisher verteilten
+   * Links und QR-Codes sind damit sofort ungültig.
+   */
+  async getQuickLink(id: string, user: any, regenerate = false, req?: any) {
+    const topic = await this.findOne(id, user);
+
+    // Ein Quick-Link auf etwas Gesperrtes wäre eine Falle: Der Schüler scannt
+    // und landet vor einer verschlossenen Tür. Deshalb gar nicht erst erzeugen.
+    if (!topic.selected) {
+      throw new ForbiddenException(
+        'Das Thema ist nicht für Schüler freigegeben. Bitte zuerst freigeben, dann den Quick-Link erzeugen.',
+      );
+    }
+    const activeCount = (topic.modules || []).filter((m) => m.moduleSelected !== false).length;
+    if (activeCount === 0) {
+      throw new ForbiddenException(
+        'Das Thema hat keine freigegebenen Module. Bitte zuerst mindestens ein Modul freigeben.',
+      );
+    }
+
+    if (!topic.quickToken || regenerate) {
+      // 16 Zeichen aus dem URL-sicheren Alphabet – genug Entropie, damit der
+      // Link nicht erratbar ist, und noch kurz genug für einen QR-Code.
+      topic.quickToken = crypto.randomBytes(12).toString('base64url');
+      await this.topicRepo.save(topic);
+    }
+
+    const url = `${this.baseUrl(req)}/?q=${topic.quickToken}`;
+
+    return {
+      token: topic.quickToken,
+      url,
+      qrSvg: await this.renderQr(url),
+      topicId: topic.id,
+      title: topic.title,
+      moduleCount: activeCount,
+    };
+  }
+
+  /**
+   * Öffentliche Adresse der Anwendung. APP_URL hat Vorrang; sonst wird sie aus
+   * dem Request abgeleitet, damit es hinter einem Reverse Proxy ohne
+   * zusätzliche Konfiguration stimmt.
+   */
+  private baseUrl(req?: any): string {
+    const configured = (process.env.APP_URL || '').trim();
+    if (configured) return configured.replace(/\/+$/, '');
+
+    const headers = req?.headers || {};
+    const proto = (headers['x-forwarded-proto'] || req?.protocol || 'http').toString().split(',')[0].trim();
+    const host = (headers['x-forwarded-host'] || headers.host || 'localhost:3000').toString().split(',')[0].trim();
+    return `${proto}://${host}`;
+  }
+
+  /** QR-Code als SVG – skaliert verlustfrei und lässt sich sauber ausdrucken. */
+  private async renderQr(url: string): Promise<string | null> {
+    try {
+      const moduleName = 'qrcode';
+      const qrcode: any = await import(moduleName);
+      const toString = qrcode.toString || qrcode.default?.toString;
+      return await toString(url, { type: 'svg', margin: 1, width: 240 });
+    } catch (err: any) {
+      // Ohne QR-Code bleibt der Link trotzdem nutzbar.
+      return null;
+    }
+  }
+
+  /** Quick-Link entwerten, ohne einen neuen zu erzeugen. */
+  async revokeQuickLink(id: string, user: any) {
+    const topic = await this.findOne(id, user);
+    topic.quickToken = null;
+    await this.topicRepo.save(topic);
+    return { success: true };
   }
 
   async create(user: any, topicData: Partial<LearningTopic>) {

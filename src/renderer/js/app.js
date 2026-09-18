@@ -260,6 +260,10 @@ class App {
       const adminToggle = document.getElementById('btnShowAdminLogin');
       if (adminToggle) adminToggle.style.display = 'none';
       await this.loginView.initLoginScreen();
+
+      // Quick-Link: ?q=<token> führt direkt zur Namenseingabe
+      const quickToken = new URLSearchParams(window.location.search).get('q');
+      if (quickToken) await this.loginView.startQuickEntry(quickToken);
     }
   }
 }

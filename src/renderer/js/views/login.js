@@ -131,6 +131,90 @@ export class LoginView {
     }
   }
 
+  // ==================== QUICK-LINK-EINSTIEG ====================
+
+  /**
+   * Einstieg über ?q=<token>: Der Schüler gibt nur seinen Namen ein, danach
+   * startet das Quiz sofort. Lehrer-E-Mail und Subscribe-Key entfallen, weil
+   * der Token bereits den Zugang darstellt.
+   */
+  async startQuickEntry(token) {
+    const section  = document.getElementById('quickEntrySection');
+    const loading  = document.getElementById('quickEntryLoading');
+    const ready    = document.getElementById('quickEntryReady');
+    const errBox   = document.getElementById('quickEntryError');
+    const studentSection = document.getElementById('studentLoginSection');
+    if (!section) return false;
+
+    // Normale Anmeldemasken ausblenden, Quick-Bereich zeigen
+    section.classList.remove('hidden');
+    studentSection?.classList.add('hidden');
+    document.getElementById('teacherLoginForm')?.classList.add('hidden');
+
+    const showError = (msg) => {
+      loading.classList.add('hidden');
+      ready.classList.add('hidden');
+      errBox.classList.remove('hidden');
+      document.getElementById('quickEntryErrorText').textContent = msg;
+    };
+
+    document.getElementById('btnQuickFallback')?.addEventListener('click', () => {
+      section.classList.add('hidden');
+      studentSection?.classList.remove('hidden');
+      history.replaceState(null, '', window.location.pathname);
+    });
+
+    let data;
+    try {
+      data = await this.app.api.getQuickTopic(token);
+    } catch (_) {
+      showError('Der Server ist nicht erreichbar.');
+      return true;
+    }
+
+    if (!data || !data.topic) {
+      showError(data?.message || 'Dieser Link ist ungültig oder wurde zurückgezogen.');
+      return true;
+    }
+
+    const modules = (data.topic.modules || []).filter((m) => m.moduleSelected !== false);
+    if (modules.length === 0) {
+      showError('Für dieses Lernthema sind derzeit keine Aufgaben freigegeben.');
+      return true;
+    }
+
+    loading.classList.add('hidden');
+    ready.classList.remove('hidden');
+    document.getElementById('quickEntryTitle').textContent = data.topic.title;
+    document.getElementById('quickEntryMeta').textContent =
+      `${modules.length} Aufgabe${modules.length !== 1 ? 'n' : ''}` +
+      (data.examMode ? ' · Prüfungsmodus' : '');
+
+    const nameInput = document.getElementById('quickEntryName');
+    nameInput?.focus();
+
+    document.getElementById('quickEntryForm')?.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const name = nameInput.value.trim();
+      if (!name) return;
+      await this._enterQuickQuiz(name, data);
+    });
+
+    return true;
+  }
+
+  async _enterQuickQuiz(studentName, data) {
+    const { app } = this;
+    app.authStore.setToken(null);
+    app.state.currentUser = { name: studentName, role: 'student', teacherEmail: data.teacherEmail };
+    app.state.topics = [data.topic];
+    app.state.examModeEnabled = !!data.examMode;
+
+    await this.enterApp();
+    // Direkt ins Quiz, ohne den Umweg über die Themenauswahl.
+    await app.quizView.startQuickQuiz(data.topic);
+  }
+
   async _onStudentLogin(e) {
     e.preventDefault();
     const teacherEmail = this._teacherEmail ? this._teacherEmail.value.trim() : '';

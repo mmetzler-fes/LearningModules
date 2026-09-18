@@ -24,6 +24,31 @@
           <span id="networkQrUrl" class="login-qr-url" style="font-size: 1.4rem; font-weight: bold; background: var(--bg-secondary); padding: 8px 16px; border-radius: var(--radius-md); margin-top: 12px; display: inline-block; color: var(--primary); letter-spacing: 0.5px;"></span>
         </div>
       </div>
+      <!-- Quick-Link: nur Name eingeben, dann startet das Quiz sofort -->
+      <div id="quickEntrySection" class="hidden">
+        <div id="quickEntryLoading" class="quick-entry-loading">
+          <p class="hint">Lernthema wird geladen…</p>
+        </div>
+        <div id="quickEntryReady" class="hidden">
+          <div class="quick-entry-topic">
+            <span class="quick-entry-label">Du startest:</span>
+            <h2 id="quickEntryTitle"></h2>
+            <p id="quickEntryMeta" class="hint"></p>
+          </div>
+          <form id="quickEntryForm" class="login-form">
+            <div class="form-group">
+              <label for="quickEntryName">Dein Name</label>
+              <input type="text" id="quickEntryName" required placeholder="Vor- und Nachname..." autocomplete="off" />
+            </div>
+            <button type="submit" class="btn btn-primary btn-full" id="btnQuickStart">🚀 Los geht's</button>
+          </form>
+        </div>
+        <div id="quickEntryError" class="hidden">
+          <p class="login-error" id="quickEntryErrorText"></p>
+          <button class="btn btn-secondary btn-full" id="btnQuickFallback">Zur normalen Anmeldung</button>
+        </div>
+      </div>
+
       <!-- Student Login Section -->
       <div id="studentLoginSection">
         <form id="loginForm" class="login-form">
@@ -538,6 +563,34 @@
           <button type="button" class="btn btn-secondary" id="btnCancelChangePassword">Abbrechen</button>
         </div>
       </form>
+    </div>
+  </div>
+
+  <!-- Quick-Link für Schüler (Link + QR-Code) -->
+  <div id="quickLinkOverlay" class="confirm-overlay hidden">
+    <div class="import-modules-card" id="quickLinkCard" style="min-width:380px;max-width:520px">
+      <h3>🔗 Quick-Link für Schüler</h3>
+      <p class="hint" id="quickLinkTopic"></p>
+      <p class="login-error hidden" id="quickLinkWarning"></p>
+
+      <div id="quickLinkQr" class="quicklink-qr"></div>
+
+      <div class="form-group">
+        <label for="quickLinkUrl">Link</label>
+        <input type="text" id="quickLinkUrl" readonly />
+      </div>
+
+      <p class="hint">Schüler öffnen den Link oder scannen den Code, geben nur ihren Namen
+        ein und starten sofort. Lehrer-E-Mail und Subscribe-Key entfallen dabei –
+        wer den Link hat, kommt hinein.</p>
+
+      <div class="confirm-actions">
+        <button type="button" class="btn btn-secondary" id="btnCopyQuickLink">📋 Kopieren</button>
+        <button type="button" class="btn btn-secondary" id="btnPrintQuickLink">🖨 Drucken</button>
+        <button type="button" class="btn btn-secondary" id="btnRegenQuickLink" title="Alter Link wird ungültig">🔄 Neu</button>
+        <button type="button" class="btn btn-danger" id="btnRevokeQuickLink" title="Link abschalten">🚫 Zurückziehen</button>
+        <button type="button" class="btn btn-primary" id="btnCloseQuickLink">Fertig</button>
+      </div>
     </div>
   </div>
 

@@ -23,6 +23,20 @@ export class TopicsController {
     return topic.modules || [];
   }
 
+  // ---- Quick-Link für Schüler (Link + QR-Code) ----
+
+  /** Quick-Link abrufen bzw. beim ersten Mal erzeugen. */
+  @Post(':id/quick-link')
+  async createQuickLink(@Param('id') id: string, @Request() req: any, @Body() body: { regenerate?: boolean }) {
+    return this.topicsService.getQuickLink(id, req.user, !!body?.regenerate, req);
+  }
+
+  /** Quick-Link entwerten – verteilte Links und QR-Codes wirken nicht mehr. */
+  @Delete(':id/quick-link')
+  async revokeQuickLink(@Param('id') id: string, @Request() req: any) {
+    return this.topicsService.revokeQuickLink(id, req.user);
+  }
+
   @Post()
   async create(@Request() req: any, @Body() topicData: any) {
     return this.topicsService.create(req.user, topicData);

@@ -46,6 +46,37 @@ export class PublicController {
   }
 
   /**
+   * GET /public/quick/:token
+   * Einstieg über Quick-Link bzw. QR-Code: liefert das Thema mitsamt Modulen,
+   * ohne dass der Schüler Lehrer-E-Mail, Subscribe-Key oder Themenpasswort
+   * eingeben muss. Der Token selbst ist der Zugangsschlüssel.
+   */
+  @Get('quick/:token')
+  async getQuickTopic(@Param('token') token: string) {
+    if (!token) throw new NotFoundException('Ungültiger Link.');
+
+    const topic = await this.topicRepo
+      .createQueryBuilder('topic')
+      .where('topic.quickToken = :token', { token })
+      .leftJoinAndSelect('topic.modules', 'modules')
+      .orderBy('modules.orderIndex', 'ASC')
+      .getOne();
+
+    if (!topic) throw new NotFoundException('Dieser Link ist ungültig oder wurde zurückgezogen.');
+    if (!topic.selected) throw new ForbiddenException('Dieses Thema ist derzeit nicht freigegeben.');
+
+    const teacher = await this.userRepo.findOne({ where: { id: topic.ownerId } });
+    if (!teacher) throw new NotFoundException('Lehrer nicht gefunden.');
+
+    const { accessPassword: _ap, subscribeKey: _sk, quickToken: _qt, ...safeTopic } = topic;
+    return {
+      teacherEmail: teacher.email,
+      topic: safeTopic,
+      examMode: !!(teacher.accessFilters?.examMode),
+    };
+  }
+
+  /**
    * POST /public/teachers/:email/topics/:id/verify-subscribe-key
    * Verifies the subscribe key for a topic before a student can start the quiz.
    */

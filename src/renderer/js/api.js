@@ -109,6 +109,21 @@ export class BrowserApi {
 
   getAllAdminTopics() { return this._fetch('/api/admin/topics'); }
 
+  // ---------- Quick-Link ----------
+  createQuickLink(topicId, regenerate = false) {
+    return this._fetch(`/api/topics/${topicId}/quick-link`, {
+      method: 'POST',
+      body: JSON.stringify({ regenerate }),
+    });
+  }
+  revokeQuickLink(topicId) {
+    return this._fetch(`/api/topics/${topicId}/quick-link`, { method: 'DELETE' });
+  }
+  /** Öffentlicher Einstieg über den Quick-Link – ohne Anmeldung. */
+  getQuickTopic(token) {
+    return fetch(`/api/public/quick/${encodeURIComponent(token)}`).then((r) => r.json());
+  }
+
   submitPublicResult(data) {
     return fetch('/api/public/results', {
       method: 'POST',

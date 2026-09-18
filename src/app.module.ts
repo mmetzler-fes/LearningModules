@@ -26,6 +26,17 @@ import { AppService } from './app.service';
       rootPath: join(__dirname, '..', 'src', 'renderer'),
       serveRoot: '/',
       exclude: ['/api*'],
+      serveStaticOptions: {
+        // HTML, JS und CSS tragen keine Versionskennung im Namen. Ohne
+        // Rückfrage beim Server kann ein Proxy oder Browser nach einem Update
+        // beliebig lange die alte Oberfläche ausliefern – mit neuem Backend
+        // und altem Frontend als Ergebnis.
+        setHeaders: (res: any, path: string) => {
+          if (/\.(html|js|css)$/i.test(path)) {
+            res.setHeader('Cache-Control', 'no-cache, must-revalidate');
+          }
+        },
+      },
     }),
     TypeOrmModule.forRoot({
       type: 'sqlite',

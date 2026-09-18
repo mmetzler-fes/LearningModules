@@ -25,6 +25,9 @@ export class AuthStore {
   authFetch(url, opts = {}) {
     return fetch(url, {
       ...opts,
+      // Ohne no-store beantwortet der Browser ein erneutes GET aus dem Cache –
+      // frisch angelegte Benutzer oder Themen tauchen dann nicht auf.
+      cache: 'no-store',
       headers: { ...(opts.headers || {}), ...this.getHeaders() },
     }).then((r) => {
       if (r.status === 401) this.setToken(null);

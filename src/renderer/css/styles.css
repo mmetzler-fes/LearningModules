@@ -2752,3 +2752,13 @@ body {
   font-size: 0.9em;
   margin-right: 6px;
 }
+
+/* Frisch angelegter Benutzer wird kurz hervorgehoben */
+.admin-list-item-new {
+  animation: adminItemNew 2.5s ease-out;
+}
+
+@keyframes adminItemNew {
+  0%, 60% { background: var(--primary-light, #dbeafe); }
+  100%    { background: transparent; }
+}

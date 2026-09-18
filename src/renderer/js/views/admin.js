@@ -56,7 +56,7 @@ export class AdminView {
           if (res && res.id) {
             userForm.reset();
             userFormOverlay.classList.add('hidden');
-            await this.refreshUsers();
+            await this.refreshUsers(res.id);
             this._showCredentials(res, 'Benutzer angelegt');
           } else {
             // message trägt den Grund ("... nicht in der Whitelist"), error nur
@@ -99,12 +99,15 @@ export class AdminView {
     if (!overlay || this._credentialsBound) return;
     this._credentialsBound = true;
 
-    document.getElementById('btnCloseCredentials')?.addEventListener('click', () => {
+    document.getElementById('btnCloseCredentials')?.addEventListener('click', async () => {
       overlay.classList.add('hidden');
       // Passwort nicht im DOM stehen lassen
       const pw = document.getElementById('credentialsPassword');
       if (pw) pw.textContent = '';
       this._lastCredentials = null;
+      // Sicherheitshalber noch einmal laden: so ist die Liste auch dann aktuell,
+      // wenn die erste Aktualisierung aus irgendeinem Grund nicht durchkam.
+      await this.refreshUsers();
     });
 
     document.getElementById('btnCopyCredentials')?.addEventListener('click', async () => {
@@ -218,10 +221,15 @@ export class AdminView {
     }
   }
 
-  async refreshUsers() {
+  async refreshUsers(highlightId) {
     try {
       this._usersCache = await this.app.api.getAllUsers();
       this._renderUsersList();
+      if (highlightId) {
+        const row = document.querySelector(`.admin-list-item[data-id="${highlightId}"]`);
+        row?.classList.add('admin-list-item-new');
+        row?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      }
     } catch (e) {
       const el = document.getElementById('usersList');
       if (el) el.innerHTML = `<p class="hint">Fehler: ${escapeHtml(e.message)}</p>`;

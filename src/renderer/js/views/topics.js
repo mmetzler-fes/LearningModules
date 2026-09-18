@@ -259,9 +259,44 @@ export class TopicsView {
 
   /** Kopieren/Drucken/Neu/Zurückziehen nur sinnvoll, wenn ein Link existiert. */
   _setQuickLinkActionsEnabled(enabled) {
-    for (const id of ['btnCopyQuickLink', 'btnPrintQuickLink', 'btnRegenQuickLink', 'btnRevokeQuickLink']) {
+    for (const id of ['btnCopyQr', 'btnCopyQuickLink', 'btnPrintQuickLink', 'btnRegenQuickLink', 'btnRevokeQuickLink']) {
       const btn = document.getElementById(id);
       if (btn) btn.disabled = !enabled;
+    }
+  }
+
+  /**
+   * Kopiert den QR-Code als PNG in die Zwischenablage – zum Einfügen in
+   * Arbeitsblätter, Präsentationen oder Moodle. Das SVG wird dafür über ein
+   * Canvas gerastert, bewusst großzügig, damit es beim Ausdrucken scharf bleibt.
+   */
+  async _copyQrImage() {
+    const svg = document.querySelector('#quickLinkQr svg');
+    if (!svg) return;
+
+    const SIZE = 600;
+    try {
+      const xml = new XMLSerializer().serializeToString(svg);
+      const img = new Image();
+      img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(xml);
+      await img.decode();
+
+      const canvas = document.createElement('canvas');
+      canvas.width = SIZE;
+      canvas.height = SIZE;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#ffffff';           // weißer Grund, sonst scannt es schlecht
+      ctx.fillRect(0, 0, SIZE, SIZE);
+      ctx.drawImage(img, 0, 0, SIZE, SIZE);
+
+      const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
+      if (!blob) throw new Error('PNG konnte nicht erzeugt werden.');
+
+      await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+      this.app.showToast('QR-Code kopiert', 'success');
+    } catch (_) {
+      // Ältere Browser können keine Bilder in die Zwischenablage legen.
+      this.app.showToast('QR-Code kopieren klappt hier nicht – bitte drucken oder den Link nutzen.', 'error');
     }
   }
 
@@ -291,6 +326,8 @@ export class TopicsView {
         this.app.showToast('Bitte mit Strg+C kopieren', 'info');
       }
     });
+
+    document.getElementById('btnCopyQr')?.addEventListener('click', () => this._copyQrImage());
 
     document.getElementById('btnPrintQuickLink')?.addEventListener('click', () => {
       document.body.classList.add('printing-quicklink');

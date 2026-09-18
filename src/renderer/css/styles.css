@@ -2688,6 +2688,27 @@ body {
 
 .quicklink-qr svg { width: 220px; height: 220px; display: block; }
 
+/* QR-Code mit Kopierknopf daneben */
+.quicklink-qr-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.quicklink-qr-row .quicklink-qr { margin: 12px 0; }
+
+/* Link mit Kopierknopf daneben */
+.quicklink-url-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.quicklink-url-row input { flex: 1 1 auto; min-width: 0; }
+.quicklink-copy { white-space: nowrap; flex: 0 0 auto; }
+
 #quickLinkUrl {
   font-family: 'Courier New', monospace;
   cursor: text;
@@ -2707,7 +2728,8 @@ body {
     display: block !important;
     background: none !important;
   }
-  body.printing-quicklink #quickLinkOverlay .confirm-actions { display: none !important; }
+  body.printing-quicklink #quickLinkOverlay .confirm-actions,
+  body.printing-quicklink .quicklink-copy { display: none !important; }
   body.printing-quicklink #quickLinkCard {
     box-shadow: none !important;
     border: 1px solid #000;

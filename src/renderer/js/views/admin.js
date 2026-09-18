@@ -205,7 +205,8 @@ export class AdminView {
     const user = this._usersCache.find((u) => u.id === userId);
     if (!user) return;
     const confirmed = await this.app.appConfirm(
-      `Passwort von "${user.displayName || user.email}" zurücksetzen? Das bisherige Passwort wird ungültig.`,
+      `Neues Initialpasswort für "${user.displayName || user.email}" erzeugen?\n\n` +
+      'Es wird anschließend einmalig angezeigt. Das bisherige Passwort wird ungültig.',
     );
     if (!confirmed) return;
     try {
@@ -258,14 +259,15 @@ export class AdminView {
           <strong>${escapeHtml(u.displayName || u.username || u.email)}</strong>
           <span style="color:var(--text-secondary);font-size:0.9em">${escapeHtml(u.email || u.username)}</span>
           ${roleBadge(u.role)}
-          ${u.mustChangePassword ? '<span class="hint">🔑 Initialpasswort offen</span>' : ''}
+          ${u.mustChangePassword ? '<span class="hint">🔑 hat sein Passwort noch nicht geändert</span>' : ''}
         </div>
         <div class="admin-list-item-actions">
           <select class="user-role-select" title="Rolle ändern">
             <option value="teacher" ${u.role !== 'admin' ? 'selected' : ''}>Lehrer</option>
             <option value="admin" ${u.role === 'admin' ? 'selected' : ''}>Admin + Lehrer</option>
           </select>
-          <button class="btn btn-secondary btn-sm btn-reset-password" title="Passwort zurücksetzen">🔑</button>
+          <button class="btn btn-secondary btn-sm btn-reset-password"
+            title="Neues Initialpasswort erzeugen und anzeigen">🔑 Neues Passwort</button>
           <button class="btn btn-danger btn-sm btn-delete-user" title="Benutzer löschen">🗑</button>
         </div>`;
       item.querySelector('.user-role-select').addEventListener('change', (e) => this._changeRole(u, e.target));

@@ -618,11 +618,14 @@
         <p class="hint">Dieses Passwort wird <strong>nur jetzt</strong> angezeigt. Bitte notieren
           oder ausdrucken und dem Benutzer persönlich übergeben. Beim ersten Login muss er ein
           eigenes Passwort vergeben.</p>
+        <p class="hint">Versehentlich geschlossen? Über <strong>🔑</strong> in der Benutzerliste
+          lässt sich jederzeit ein neues Initialpasswort erzeugen. Zusätzlich steht es im
+          Server-Log (<code>docker compose logs | grep Initialpasswort</code>).</p>
       </div>
       <div class="confirm-actions">
         <button type="button" class="btn btn-secondary" id="btnCopyCredentials">📋 Kopieren</button>
         <button type="button" class="btn btn-secondary" id="btnPrintCredentials">🖨 Drucken</button>
-        <button type="button" class="btn btn-primary" id="btnCloseCredentials">Fertig</button>
+        <button type="button" class="btn btn-primary" id="btnCloseCredentials">Notiert – schließen</button>
       </div>
     </div>
   </div>

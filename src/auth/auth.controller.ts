@@ -1,6 +1,7 @@
 import { Controller, Get, Post, Delete, Body, UseGuards, Request, HttpCode } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
+import { AllowPendingPassword } from './guards/allow-pending-password.decorator';
 
 @Controller('auth')
 export class AuthController {
@@ -26,9 +27,10 @@ export class AuthController {
     return this.authService.forgotPassword(body.email);
   }
 
-  /** Change password of logged-in user */
+  /** Change password of logged-in user – auch mit offenem Initialpasswort erlaubt */
   @Post('change-password')
   @UseGuards(JwtAuthGuard)
+  @AllowPendingPassword()
   @HttpCode(200)
   async changePassword(@Request() req: any, @Body() body: { oldPassword?: string; newPassword?: string }) {
     return this.authService.changePassword(req.user.userId, body.oldPassword || '', body.newPassword || '');

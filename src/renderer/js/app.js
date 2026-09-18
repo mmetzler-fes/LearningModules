@@ -163,6 +163,32 @@ class App {
     }
   }
 
+  /**
+   * Erzwingt den Passwortwechsel: der Dialog lässt sich nicht abbrechen,
+   * solange das Initialpasswort gilt.
+   */
+  startForcedPasswordChange(onDone) {
+    this._passwordChangeForced = true;
+    this._onPasswordChanged = onDone;
+    const overlay = document.getElementById('changePasswordOverlay');
+    const hint    = document.getElementById('changePasswordForced');
+    const cancel  = document.getElementById('btnCancelChangePassword');
+    hint?.classList.remove('hidden');
+    cancel?.classList.add('hidden');
+    overlay?.classList.remove('hidden');
+    document.getElementById('changePasswordOld')?.focus();
+  }
+
+  async _endForcedPasswordChange() {
+    this._passwordChangeForced = false;
+    if (this.state.currentUser) this.state.currentUser.mustChangePassword = false;
+    document.getElementById('changePasswordForced')?.classList.add('hidden');
+    document.getElementById('btnCancelChangePassword')?.classList.remove('hidden');
+    const done = this._onPasswordChanged;
+    this._onPasswordChanged = null;
+    if (done) await done();
+  }
+
   initGlobalEvents() {
     const btnChangeOwnPassword = document.getElementById('btnChangeOwnPassword');
     const changePasswordOverlay = document.getElementById('changePasswordOverlay');
@@ -202,9 +228,12 @@ class App {
         try {
           const res = await this.api.changePassword(oldPassword, newPassword);
           if (res && res.success !== false) {
+            // Der Server liefert ein neues Token ohne die Initialpasswort-Sperre.
+            if (res.token) this.authStore.setToken(res.token);
             this.showToast('Passwort erfolgreich geändert', 'success');
             changePasswordForm.reset();
             changePasswordOverlay.classList.add('hidden');
+            if (this._passwordChangeForced) await this._endForcedPasswordChange();
           } else {
             this.showToast('Fehler: ' + (res?.message || res?.error || 'Ungültiges Passwort'), 'error');
           }

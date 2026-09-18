@@ -2,8 +2,9 @@ import { Injectable, UnauthorizedException, BadRequestException, ForbiddenExcept
 import { JwtService } from '@nestjs/jwt';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { User } from '../core/entities/user.entity';
+import { User, UserRole } from '../core/entities/user.entity';
 import { SystemConfig } from '../core/entities/system-config.entity';
+import { MailService } from '../core/mail/mail.service';
 import * as crypto from 'crypto';
 
 @Injectable()
@@ -12,7 +13,28 @@ export class AuthService {
     @InjectRepository(User) private readonly userRepo: Repository<User>,
     @InjectRepository(SystemConfig) private readonly configRepo: Repository<SystemConfig>,
     private readonly jwtService: JwtService,
+    private readonly mailService: MailService,
   ) {}
+
+  // ---- Password generation ----
+
+  /**
+   * Erzeugt ein aussprechbares Initialpasswort, das sich am Telefon oder auf
+   * einem Zettel fehlerfrei weitergeben lässt: keine verwechselbaren Zeichen
+   * (0/O, 1/l/I), Gruppen durch Bindestriche getrennt.
+   */
+  private generatePassword(): string {
+    const alphabet = 'abcdefghijkmnpqrstuvwxyz23456789ACDEFGHJKLMNPQRSTUVWXYZ';
+    const groups: string[] = [];
+    for (let g = 0; g < 3; g++) {
+      let group = '';
+      for (let i = 0; i < 4; i++) {
+        group += alphabet[crypto.randomInt(alphabet.length)];
+      }
+      groups.push(group);
+    }
+    return groups.join('-');
+  }
 
   // ---- Password hashing ----
 
@@ -90,7 +112,18 @@ export class AuthService {
     if (!user || !user.passwordHash || !this.verifyPassword(password, user.passwordHash)) {
       throw new UnauthorizedException('Ungültige Anmeldedaten.');
     }
-    const payload = { sub: user.id, email: user.email, username: user.email, role: user.role };
+    return this.buildSession(user);
+  }
+
+  /** Token + Benutzerdaten für die Antwort an das Frontend. */
+  private buildSession(user: User) {
+    const payload = {
+      sub: user.id,
+      email: user.email,
+      username: user.email,
+      role: user.role,
+      mustChangePassword: !!user.mustChangePassword,
+    };
     return {
       token: this.jwtService.sign(payload),
       id: user.id,
@@ -98,6 +131,7 @@ export class AuthService {
       username: user.email,
       role: user.role,
       displayName: user.displayName || user.email,
+      mustChangePassword: !!user.mustChangePassword,
     };
   }
 
@@ -124,53 +158,100 @@ export class AuthService {
       displayName: data.displayName || data.email,
     });
     const saved = await this.userRepo.save(user);
-    const payload = { sub: saved.id, email: saved.email, username: saved.email, role: saved.role };
-    return {
-      token: this.jwtService.sign(payload),
-      id: saved.id,
-      email: saved.email,
-      username: saved.email,
-      role: saved.role,
-      displayName: saved.displayName,
-    };
+    return this.buildSession(saved);
   }
 
-  // ---- Admin creates another admin ----
+  // ---- Admin legt einen Benutzer an (Lehrer oder Admin) ----
 
-  async createAdmin(data: { email: string; password: string; displayName?: string }) {
+  /**
+   * Erzeugt ein Konto mit einem zufälligen Initialpasswort.
+   *
+   * Konnte das Passwort per Mail zugestellt werden, taucht es in der Antwort
+   * NICHT auf. Ohne Versandweg wird es einmalig zurückgegeben, damit der Admin
+   * es dem neuen Benutzer persönlich übergeben kann.
+   */
+  async createUser(data: { email: string; role: UserRole; displayName?: string }) {
     if (!data.email || !data.email.includes('@')) {
       throw new BadRequestException('Gültige E-Mail-Adresse erforderlich.');
     }
-    if (!data.password || data.password.length < 6) {
-      throw new BadRequestException('Passwort muss mindestens 6 Zeichen lang sein.');
-    }
-    await this.checkAllowed(data.email, 'admin');
+    const role: UserRole = data.role === 'admin' ? 'admin' : 'teacher';
+    await this.checkAllowed(data.email, role);
 
     const existing = await this.userRepo.findOne({ where: { email: data.email } });
     if (existing) throw new BadRequestException('Diese E-Mail-Adresse ist bereits registriert.');
 
+    const initialPassword = this.generatePassword();
+    const displayName = data.displayName || data.email;
     const user = this.userRepo.create({
       id: crypto.randomUUID(),
       email: data.email,
       username: data.email,
-      passwordHash: this.hashPassword(data.password),
-      role: 'admin',
-      displayName: data.displayName || data.email,
+      passwordHash: this.hashPassword(initialPassword),
+      role,
+      displayName,
+      mustChangePassword: true,
     });
     const saved = await this.userRepo.save(user);
-    return { id: saved.id, email: saved.email, role: saved.role, displayName: saved.displayName };
+
+    const mail = await this.mailService.sendInitialPassword({
+      to: saved.email,
+      displayName,
+      password: initialPassword,
+      role,
+    });
+
+    return {
+      id: saved.id,
+      email: saved.email,
+      role: saved.role,
+      displayName: saved.displayName,
+      mailSent: mail.delivered,
+      mailInfo: mail.reason,
+      // Nur sichtbar, solange die Mail nicht zugestellt werden konnte:
+      initialPassword: mail.delivered ? undefined : initialPassword,
+    };
   }
 
-  // ---- Forgot password (stub: logs new password instead of sending email) ----
+  /** Bestehendes Konto auf ein neues Initialpasswort zurücksetzen (Admin). */
+  async resetUserPassword(userId: string) {
+    const user = await this.userRepo.findOne({ where: { id: userId } });
+    if (!user) throw new BadRequestException('Benutzer nicht gefunden.');
+
+    const newPassword = this.generatePassword();
+    user.passwordHash = this.hashPassword(newPassword);
+    user.mustChangePassword = true;
+    await this.userRepo.save(user);
+
+    const mail = await this.mailService.sendPasswordReset({
+      to: user.email,
+      displayName: user.displayName || user.email,
+      password: newPassword,
+    });
+
+    return {
+      id: user.id,
+      email: user.email,
+      displayName: user.displayName,
+      mailSent: mail.delivered,
+      mailInfo: mail.reason,
+      initialPassword: mail.delivered ? undefined : newPassword,
+    };
+  }
+
+  // ---- Forgot password ----
 
   async forgotPassword(email: string) {
     const user = await this.userRepo.findOne({ where: { email } });
     if (user) {
-      const newPassword = crypto.randomBytes(6).toString('hex');
+      const newPassword = this.generatePassword();
       user.passwordHash = this.hashPassword(newPassword);
+      user.mustChangePassword = true;
       await this.userRepo.save(user);
-      // EMAIL STUB: Replace with real SMTP sending in production
-      console.log(`[EMAIL STUB] Passwort-Reset für ${email}: Neues Passwort = ${newPassword}`);
+      await this.mailService.sendPasswordReset({
+        to: user.email,
+        displayName: user.displayName || user.email,
+        password: newPassword,
+      });
     }
     // Always return success to prevent user enumeration
     return { success: true, message: 'Falls die E-Mail-Adresse registriert ist, wurde ein neues Passwort versandt.' };
@@ -200,8 +281,11 @@ export class AuthService {
       throw new UnauthorizedException('Das alte Passwort ist nicht korrekt.');
     }
     user.passwordHash = this.hashPassword(newPassword);
+    user.mustChangePassword = false;
     await this.userRepo.save(user);
-    return { success: true, message: 'Passwort erfolgreich geändert.' };
+    // Neues Token, damit das mustChangePassword-Flag im JWT nicht mehr sperrt.
+    const session = this.buildSession(user);
+    return { success: true, message: 'Passwort erfolgreich geändert.', token: session.token };
   }
 
   // ---- Exam Mode ----
@@ -233,9 +317,10 @@ export class AuthService {
         passwordHash: this.hashPassword(defaultPassword),
         role: 'admin',
         displayName: 'Administrator',
+        mustChangePassword: true,
       });
       await this.userRepo.save(user);
-      console.log('[SETUP] Standard-Admin angelegt: admin@localhost / admin123');
+      console.log('[SETUP] Standard-Admin angelegt: admin@localhost / admin123 (muss beim ersten Login geändert werden)');
     }
   }
 }

@@ -168,8 +168,14 @@ export class LoginView {
           id: res.id,
           username: res.email || res.username,
           email: res.email,
+          mustChangePassword: !!res.mustChangePassword,
         };
         this._adminLoginErr.classList.add('hidden');
+        if (res.mustChangePassword) {
+          // Erst das Passwort ändern – die übrigen Endpunkte sind bis dahin gesperrt.
+          this.app.startForcedPasswordChange(() => this.enterApp());
+          return;
+        }
         await this.enterApp();
       } else {
         this._adminLoginErr.textContent = res.error || 'Falsche Anmeldedaten';

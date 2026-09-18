@@ -421,7 +421,7 @@
           <h2>Benutzerverwaltung</h2>
           <p class="subtitle">Admins und Lehrer verwalten</p>
           <div class="header-actions">
-            <button class="btn btn-primary" id="btnNewAdmin">➕ Neuen Admin anlegen</button>
+            <button class="btn btn-primary" id="btnNewAdmin">➕ Neuen Benutzer anlegen</button>
           </div>
         </div>
         <div class="admin-tabs">
@@ -434,20 +434,26 @@
         <!-- New Admin Form (hidden) -->
         <div id="userFormOverlay" class="confirm-overlay hidden">
           <div class="import-modules-card" style="min-width:380px;max-width:500px">
-            <h3 id="userFormTitle">Neuen Admin anlegen</h3>
+            <h3 id="userFormTitle">Neuen Benutzer anlegen</h3>
             <form id="userForm">
               <div class="form-group">
                 <label for="userFormEmail">E-Mail-Adresse *</label>
-                <input type="email" id="userFormEmail" required placeholder="admin@schule.de" autocomplete="off" />
+                <input type="email" id="userFormEmail" required placeholder="name@schule.de" autocomplete="off" />
               </div>
               <div class="form-group">
                 <label for="userFormDisplayName">Anzeigename</label>
                 <input type="text" id="userFormDisplayName" placeholder="z.B. Max Mustermann" autocomplete="name" />
               </div>
               <div class="form-group">
-                <label for="userFormPassword">Passwort * (mind. 6 Zeichen)</label>
-                <input type="password" id="userFormPassword" required placeholder="Passwort..." autocomplete="new-password" />
+                <label for="userFormRole">Rolle *</label>
+                <select id="userFormRole">
+                  <option value="teacher">Lehrer</option>
+                  <option value="admin">Admin</option>
+                </select>
               </div>
+              <p class="hint">Das Initialpasswort wird automatisch erzeugt. Es wird per E-Mail
+                verschickt, sobald ein Mailversand eingerichtet ist – sonst im nächsten Schritt
+                zum Weitergeben angezeigt.</p>
               <div class="confirm-actions">
                 <button type="submit" class="btn btn-primary">Anlegen</button>
                 <button type="button" class="btn btn-secondary" id="btnCancelUser">Abbrechen</button>
@@ -510,6 +516,10 @@
   <div id="changePasswordOverlay" class="confirm-overlay hidden">
     <div class="import-modules-card" style="min-width:380px;max-width:500px">
       <h3>🔑 Eigenes Passwort ändern</h3>
+      <p id="changePasswordForced" class="hint hidden">
+        Sie melden sich mit einem Initialpasswort an. Bitte vergeben Sie jetzt ein
+        eigenes Passwort – erst danach stehen die übrigen Funktionen zur Verfügung.
+      </p>
       <form id="changePasswordForm">
         <div class="form-group">
           <label for="changePasswordOld">Aktuelles Passwort *</label>
@@ -528,6 +538,30 @@
           <button type="button" class="btn btn-secondary" id="btnCancelChangePassword">Abbrechen</button>
         </div>
       </form>
+    </div>
+  </div>
+
+  <!-- Erzeugtes Initialpasswort (einmalige Anzeige) -->
+  <div id="credentialsOverlay" class="confirm-overlay hidden">
+    <div class="import-modules-card" id="credentialsCard" style="min-width:380px;max-width:520px">
+      <h3 id="credentialsTitle">✅ Benutzer angelegt</h3>
+      <p id="credentialsMailInfo" class="hint"></p>
+      <div class="form-group">
+        <label>E-Mail-Adresse</label>
+        <div class="credentials-value" id="credentialsEmail"></div>
+      </div>
+      <div class="form-group" id="credentialsPasswordGroup">
+        <label>Initialpasswort</label>
+        <div class="credentials-value credentials-password" id="credentialsPassword"></div>
+        <p class="hint">Dieses Passwort wird <strong>nur jetzt</strong> angezeigt. Bitte notieren
+          oder ausdrucken und dem Benutzer persönlich übergeben. Beim ersten Login muss er ein
+          eigenes Passwort vergeben.</p>
+      </div>
+      <div class="confirm-actions">
+        <button type="button" class="btn btn-secondary" id="btnCopyCredentials">📋 Kopieren</button>
+        <button type="button" class="btn btn-secondary" id="btnPrintCredentials">🖨 Drucken</button>
+        <button type="button" class="btn btn-primary" id="btnCloseCredentials">Fertig</button>
+      </div>
     </div>
   </div>
 

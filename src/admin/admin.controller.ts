@@ -4,7 +4,7 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { User } from '../core/entities/user.entity';
+import { User, UserRole } from '../core/entities/user.entity';
 import { SystemConfig } from '../core/entities/system-config.entity';
 import { LearningTopic } from '../core/entities/learning-topic.entity';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -33,11 +33,25 @@ export class AdminController {
     return users.map(({ passwordHash, resetPasswordToken, ...u }) => u);
   }
 
-  // ---- Create a new admin ----
-  @Post('admins')
-  async createAdmin(@Request() req: any, @Body() body: { email: string; password: string; displayName?: string }) {
+  // ---- Create a new user (teacher or admin) with a generated initial password ----
+  @Post('users')
+  async createUser(
+    @Request() req: any,
+    @Body() body: { email: string; role?: UserRole; displayName?: string },
+  ) {
     this.requireAdmin(req);
-    return this.authService.createAdmin(body);
+    return this.authService.createUser({
+      email: body.email,
+      role: body.role === 'admin' ? 'admin' : 'teacher',
+      displayName: body.displayName,
+    });
+  }
+
+  // ---- Reset a user's password to a new generated one ----
+  @Post('users/:id/reset-password')
+  async resetUserPassword(@Request() req: any, @Param('id') id: string) {
+    this.requireAdmin(req);
+    return this.authService.resetUserPassword(id);
   }
 
   // ---- Delete admin or teacher (min. 1 admin must remain) ----

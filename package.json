@@ -29,6 +29,7 @@
     "@nestjs/typeorm": "^11.0.0",
     "@types/passport-jwt": "^4.0.1",
     "adm-zip": "^0.5.16",
+    "nodemailer": "^10.0.10",
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.1",
     "reflect-metadata": "^0.2.2",

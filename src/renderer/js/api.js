@@ -120,7 +120,10 @@ export class BrowserApi {
   // ---------- Admin ----------
   getAllUsers() { return this._fetch('/api/admin/users'); }
   deleteUser(userId) { return this._fetch(`/api/admin/users/${userId}`, { method: 'DELETE' }); }
-  createAdmin(data) { return this._fetch('/api/admin/admins', { method: 'POST', body: JSON.stringify(data) }); }
+  createUser(data) { return this._fetch('/api/admin/users', { method: 'POST', body: JSON.stringify(data) }); }
+  resetUserPassword(userId) {
+    return this._fetch(`/api/admin/users/${userId}/reset-password`, { method: 'POST' });
+  }
   getAdminWhitelistBlacklist() { return this._fetch('/api/admin/whitelist-blacklist'); }
   saveAdminWhitelistBlacklist(data) {
     return this._fetch('/api/admin/whitelist-blacklist', { method: 'POST', body: JSON.stringify(data) });

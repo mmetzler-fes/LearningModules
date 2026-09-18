@@ -109,6 +109,21 @@ export class BrowserApi {
 
   getAllAdminTopics() { return this._fetch('/api/admin/topics'); }
 
+  // ---------- Quick-Link ----------
+  createQuickLink(topicId, regenerate = false) {
+    return this._fetch(`/api/topics/${topicId}/quick-link`, {
+      method: 'POST',
+      body: JSON.stringify({ regenerate }),
+    });
+  }
+  revokeQuickLink(topicId) {
+    return this._fetch(`/api/topics/${topicId}/quick-link`, { method: 'DELETE' });
+  }
+  /** Öffentlicher Einstieg über den Quick-Link – ohne Anmeldung. */
+  getQuickTopic(token) {
+    return fetch(`/api/public/quick/${encodeURIComponent(token)}`).then((r) => r.json());
+  }
+
   submitPublicResult(data) {
     return fetch('/api/public/results', {
       method: 'POST',
@@ -120,7 +135,10 @@ export class BrowserApi {
   // ---------- Admin ----------
   getAllUsers() { return this._fetch('/api/admin/users'); }
   deleteUser(userId) { return this._fetch(`/api/admin/users/${userId}`, { method: 'DELETE' }); }
-  createAdmin(data) { return this._fetch('/api/admin/admins', { method: 'POST', body: JSON.stringify(data) }); }
+  createUser(data) { return this._fetch('/api/admin/users', { method: 'POST', body: JSON.stringify(data) }); }
+  resetUserPassword(userId) {
+    return this._fetch(`/api/admin/users/${userId}/reset-password`, { method: 'POST' });
+  }
   getAdminWhitelistBlacklist() { return this._fetch('/api/admin/whitelist-blacklist'); }
   saveAdminWhitelistBlacklist(data) {
     return this._fetch('/api/admin/whitelist-blacklist', { method: 'POST', body: JSON.stringify(data) });

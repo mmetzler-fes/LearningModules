@@ -150,6 +150,14 @@ export class QuizView {
     }
   }
 
+  /**
+   * Start über den Quick-Link: Subscribe-Key und Themenauswahl werden
+   * übersprungen, der Token hat den Zugang bereits nachgewiesen.
+   */
+  async startQuickQuiz(topic) {
+    return this._startQuiz(topic);
+  }
+
   async _startQuiz(topic) {
     // Always fetch the latest data from the server so teacher changes are immediately visible
     await this.app.loadTopics();

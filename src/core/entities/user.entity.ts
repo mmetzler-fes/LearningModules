@@ -20,6 +20,14 @@ export class User extends BaseEntity {
   @Column({ nullable: true })
   displayName: string;
 
+  /**
+   * Gesetzt, wenn das Konto noch mit einem vom System erzeugten
+   * Initialpasswort arbeitet. Der Benutzer kommt dann erst nach einer
+   * Passwortänderung an die übrigen Funktionen.
+   */
+  @Column({ type: 'boolean', default: false })
+  mustChangePassword: boolean;
+
   // Legacy columns kept nullable for migration compatibility
   @Column({ nullable: true })
   schoolId: string;

@@ -28,6 +28,14 @@ export class LearningTopic extends BaseEntity {
   @Column({ nullable: true })
   subscribeKey: string;
 
+  /**
+   * Token für den Quick-Link: Schüler starten damit ohne Lehrer-E-Mail und
+   * ohne Subscribe-Key direkt das Quiz. Der Link ist der Schlüssel – wer ihn
+   * hat, kommt rein. Über "neu erzeugen" lässt er sich jederzeit entwerten.
+   */
+  @Column({ type: 'varchar', nullable: true })
+  quickToken: string | null;
+
   @Column('simple-json', { nullable: true })
   permissions: {
     visibleTo: 'all' | 'none' | 'classes' | 'school';

@@ -8,6 +8,7 @@ import { Result } from './core/entities/result.entity';
 import { School } from './core/entities/school.entity';
 import { SystemConfig } from './core/entities/system-config.entity';
 import { MigrationModule } from './core/database/migration/migration.module';
+import { MailModule } from './core/mail/mail.module';
 import { AuthModule } from './auth/auth.module';
 import { ResultsModule } from './results/results.module';
 import { InterchangeModule } from './core/interchange/interchange.module';
@@ -32,6 +33,7 @@ import { AppService } from './app.service';
       entities: [User, StudentClass, LearningTopic, LearningModule, Result, School, SystemConfig],
       synchronize: true,
     }),
+    MailModule,
     MigrationModule,
     AuthModule,
     ResultsModule,

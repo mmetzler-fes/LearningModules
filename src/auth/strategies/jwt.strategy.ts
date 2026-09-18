@@ -18,6 +18,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       email: payload.email,
       username: payload.email, // backward compat alias
       role: payload.role,
+      mustChangePassword: !!payload.mustChangePassword,
     };
   }
 }

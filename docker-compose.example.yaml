@@ -1,0 +1,37 @@
+# Beispiel für den Server – Variante A: Versand über ein vorhandenes Postfach.
+# Das Passwort steht NICHT hier, sondern in einer .env-Datei daneben:
+#
+#   echo 'SMTP_PASS=geheim' > .env && chmod 600 .env
+#
+services:
+  learningmodules-server:
+    image: ghcr.io/mmetzler-fes/learningmodules-server:latest
+    container_name: learningmodules-server
+    restart: always
+    volumes:
+      - ./data:/app/data
+    networks:
+      - proxy-nw
+    expose:
+      - "3000"
+    environment:
+      MAIL_TRANSPORT: smtp
+      SMTP_HOST: smtp.dein-provider.de
+      SMTP_PORT: "587"
+      SMTP_SECURE: "false"          # "true" nur bei Port 465
+      # Unverschlüsselter Versand ist verboten (Vorgabe). Nur auf "false"
+      # setzen, wenn der Mailserver kein STARTTLS kann:
+      SMTP_REQUIRE_TLS: "true"
+      # Absender: Postfach einer Domain, für die du senden darfst.
+      # Fremde Absenderdomains scheitern an SPF/DMARC.
+      SMTP_USER: lernmodule@metzlercloud.de
+      SMTP_PASS: ${SMTP_PASS}
+      MAIL_FROM: "LearningModules <lernmodule@metzlercloud.de>"
+      # Erscheint als Adresszeile in der Mail an den neuen Benutzer:
+      APP_URL: https://lm.metzlercloud.de
+      JWT_SECRET: ${JWT_SECRET}     # sonst gilt der Vorgabewert "secretKey"
+
+networks:
+  proxy-nw:
+    external: true
+    name: nginx-proxy-network

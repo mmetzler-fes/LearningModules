@@ -24,6 +24,31 @@
           <span id="networkQrUrl" class="login-qr-url" style="font-size: 1.4rem; font-weight: bold; background: var(--bg-secondary); padding: 8px 16px; border-radius: var(--radius-md); margin-top: 12px; display: inline-block; color: var(--primary); letter-spacing: 0.5px;"></span>
         </div>
       </div>
+      <!-- Quick-Link: nur Name eingeben, dann startet das Quiz sofort -->
+      <div id="quickEntrySection" class="hidden">
+        <div id="quickEntryLoading" class="quick-entry-loading">
+          <p class="hint">Lernthema wird geladen…</p>
+        </div>
+        <div id="quickEntryReady" class="hidden">
+          <div class="quick-entry-topic">
+            <span class="quick-entry-label">Du startest:</span>
+            <h2 id="quickEntryTitle"></h2>
+            <p id="quickEntryMeta" class="hint"></p>
+          </div>
+          <form id="quickEntryForm" class="login-form">
+            <div class="form-group">
+              <label for="quickEntryName">Dein Name</label>
+              <input type="text" id="quickEntryName" required placeholder="Vor- und Nachname..." autocomplete="off" />
+            </div>
+            <button type="submit" class="btn btn-primary btn-full" id="btnQuickStart">🚀 Los geht's</button>
+          </form>
+        </div>
+        <div id="quickEntryError" class="hidden">
+          <p class="login-error" id="quickEntryErrorText"></p>
+          <button class="btn btn-secondary btn-full" id="btnQuickFallback">Zur normalen Anmeldung</button>
+        </div>
+      </div>
+
       <!-- Student Login Section -->
       <div id="studentLoginSection">
         <form id="loginForm" class="login-form">
@@ -421,7 +446,7 @@
           <h2>Benutzerverwaltung</h2>
           <p class="subtitle">Admins und Lehrer verwalten</p>
           <div class="header-actions">
-            <button class="btn btn-primary" id="btnNewAdmin">➕ Neuen Admin anlegen</button>
+            <button class="btn btn-primary" id="btnNewAdmin">➕ Neuen Benutzer anlegen</button>
           </div>
         </div>
         <div class="admin-tabs">
@@ -434,20 +459,26 @@
         <!-- New Admin Form (hidden) -->
         <div id="userFormOverlay" class="confirm-overlay hidden">
           <div class="import-modules-card" style="min-width:380px;max-width:500px">
-            <h3 id="userFormTitle">Neuen Admin anlegen</h3>
+            <h3 id="userFormTitle">Neuen Benutzer anlegen</h3>
             <form id="userForm">
               <div class="form-group">
                 <label for="userFormEmail">E-Mail-Adresse *</label>
-                <input type="email" id="userFormEmail" required placeholder="admin@schule.de" autocomplete="off" />
+                <input type="email" id="userFormEmail" required placeholder="name@schule.de" autocomplete="off" />
               </div>
               <div class="form-group">
                 <label for="userFormDisplayName">Anzeigename</label>
                 <input type="text" id="userFormDisplayName" placeholder="z.B. Max Mustermann" autocomplete="name" />
               </div>
               <div class="form-group">
-                <label for="userFormPassword">Passwort * (mind. 6 Zeichen)</label>
-                <input type="password" id="userFormPassword" required placeholder="Passwort..." autocomplete="new-password" />
+                <label for="userFormRole">Rolle *</label>
+                <select id="userFormRole">
+                  <option value="teacher">Lehrer</option>
+                  <option value="admin">Admin</option>
+                </select>
               </div>
+              <p class="hint">Das Initialpasswort wird automatisch erzeugt. Es wird per E-Mail
+                verschickt, sobald ein Mailversand eingerichtet ist – sonst im nächsten Schritt
+                zum Weitergeben angezeigt.</p>
               <div class="confirm-actions">
                 <button type="submit" class="btn btn-primary">Anlegen</button>
                 <button type="button" class="btn btn-secondary" id="btnCancelUser">Abbrechen</button>
@@ -510,6 +541,10 @@
   <div id="changePasswordOverlay" class="confirm-overlay hidden">
     <div class="import-modules-card" style="min-width:380px;max-width:500px">
       <h3>🔑 Eigenes Passwort ändern</h3>
+      <p id="changePasswordForced" class="hint hidden">
+        Sie melden sich mit einem Initialpasswort an. Bitte vergeben Sie jetzt ein
+        eigenes Passwort – erst danach stehen die übrigen Funktionen zur Verfügung.
+      </p>
       <form id="changePasswordForm">
         <div class="form-group">
           <label for="changePasswordOld">Aktuelles Passwort *</label>
@@ -528,6 +563,58 @@
           <button type="button" class="btn btn-secondary" id="btnCancelChangePassword">Abbrechen</button>
         </div>
       </form>
+    </div>
+  </div>
+
+  <!-- Quick-Link für Schüler (Link + QR-Code) -->
+  <div id="quickLinkOverlay" class="confirm-overlay hidden">
+    <div class="import-modules-card" id="quickLinkCard" style="min-width:380px;max-width:520px">
+      <h3>🔗 Quick-Link für Schüler</h3>
+      <p class="hint" id="quickLinkTopic"></p>
+      <p class="login-error hidden" id="quickLinkWarning"></p>
+
+      <div id="quickLinkQr" class="quicklink-qr"></div>
+
+      <div class="form-group">
+        <label for="quickLinkUrl">Link</label>
+        <input type="text" id="quickLinkUrl" readonly />
+      </div>
+
+      <p class="hint">Schüler öffnen den Link oder scannen den Code, geben nur ihren Namen
+        ein und starten sofort. Lehrer-E-Mail und Subscribe-Key entfallen dabei –
+        wer den Link hat, kommt hinein.</p>
+
+      <div class="confirm-actions">
+        <button type="button" class="btn btn-secondary" id="btnCopyQuickLink">📋 Kopieren</button>
+        <button type="button" class="btn btn-secondary" id="btnPrintQuickLink">🖨 Drucken</button>
+        <button type="button" class="btn btn-secondary" id="btnRegenQuickLink" title="Alter Link wird ungültig">🔄 Neu</button>
+        <button type="button" class="btn btn-danger" id="btnRevokeQuickLink" title="Link abschalten">🚫 Zurückziehen</button>
+        <button type="button" class="btn btn-primary" id="btnCloseQuickLink">Fertig</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Erzeugtes Initialpasswort (einmalige Anzeige) -->
+  <div id="credentialsOverlay" class="confirm-overlay hidden">
+    <div class="import-modules-card" id="credentialsCard" style="min-width:380px;max-width:520px">
+      <h3 id="credentialsTitle">✅ Benutzer angelegt</h3>
+      <p id="credentialsMailInfo" class="hint"></p>
+      <div class="form-group">
+        <label>E-Mail-Adresse</label>
+        <div class="credentials-value" id="credentialsEmail"></div>
+      </div>
+      <div class="form-group" id="credentialsPasswordGroup">
+        <label>Initialpasswort</label>
+        <div class="credentials-value credentials-password" id="credentialsPassword"></div>
+        <p class="hint">Dieses Passwort wird <strong>nur jetzt</strong> angezeigt. Bitte notieren
+          oder ausdrucken und dem Benutzer persönlich übergeben. Beim ersten Login muss er ein
+          eigenes Passwort vergeben.</p>
+      </div>
+      <div class="confirm-actions">
+        <button type="button" class="btn btn-secondary" id="btnCopyCredentials">📋 Kopieren</button>
+        <button type="button" class="btn btn-secondary" id="btnPrintCredentials">🖨 Drucken</button>
+        <button type="button" class="btn btn-primary" id="btnCloseCredentials">Fertig</button>
+      </div>
     </div>
   </div>
 

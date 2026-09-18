@@ -66,6 +66,12 @@ export class AuthService {
     const e = email.toLowerCase().trim();
     if (!p) return false;
 
+    // @domain.de – muss VOR der Prüfung auf eine exakte Adresse stehen, sonst
+    // landet "@fes-es.de" im Exakt-Vergleich und passt auf gar nichts.
+    if (p.startsWith('@')) {
+      return (e.split('@')[1] || '') === p.slice(1);
+    }
+
     // Exact email address match
     if (p.includes('@') && !p.startsWith('*')) {
       return e === p;

@@ -171,6 +171,33 @@ export class AdminView {
     overlay.classList.remove('hidden');
   }
 
+  /** Rolle umstellen. Der Server lehnt ab, wenn der letzte Admin wegfiele. */
+  async _changeRole(user, selectEl) {
+    const newRole = selectEl.value;
+    const previous = user.role;
+    if (newRole === previous) return;
+
+    const label = newRole === 'admin' ? 'Admin + Lehrer' : 'Lehrer';
+    const confirmed = await this.app.appConfirm(
+      `Rolle von "${user.displayName || user.email}" auf "${label}" ändern?`,
+    );
+    if (!confirmed) { selectEl.value = previous; return; }
+
+    try {
+      const res = await this.app.api.setUserRole(user.id, newRole);
+      if (res && res.success) {
+        this.app.showToast('Rolle geändert', 'success');
+        await this.refreshUsers();
+      } else {
+        selectEl.value = previous;
+        this.app.showToast('Fehler: ' + (res?.message || res?.error || 'Unbekannter Fehler'), 'error');
+      }
+    } catch (err) {
+      selectEl.value = previous;
+      this.app.showToast('Fehler: ' + err.message, 'error');
+    }
+  }
+
   async _resetPassword(userId) {
     const user = this._usersCache.find((u) => u.id === userId);
     if (!user) return;
@@ -204,8 +231,12 @@ export class AdminView {
   _renderUsersList() {
     const container = document.getElementById('usersList');
     if (!container) return;
-    const roleLabels = { admin: 'Admin', teacher: 'Lehrer' };
-    const roleBadge = (role) => `<span class="user-role-badge ${role}">${roleLabels[role] || role}</span>`;
+    // Ein Admin hat sämtliche Lehrerfunktionen zusätzlich – das wird auch so
+    // angezeigt, damit die Auswahl nicht wie ein Entweder-oder wirkt.
+    const roleBadge = (role) =>
+      role === 'admin'
+        ? '<span class="user-role-badge admin">Admin</span><span class="user-role-badge teacher">Lehrer</span>'
+        : '<span class="user-role-badge teacher">Lehrer</span>';
 
     if (!this._usersCache.length) { container.innerHTML = '<p class="hint">Keine Benutzer gefunden.</p>'; return; }
 
@@ -222,9 +253,14 @@ export class AdminView {
           ${u.mustChangePassword ? '<span class="hint">🔑 Initialpasswort offen</span>' : ''}
         </div>
         <div class="admin-list-item-actions">
+          <select class="user-role-select" title="Rolle ändern">
+            <option value="teacher" ${u.role !== 'admin' ? 'selected' : ''}>Lehrer</option>
+            <option value="admin" ${u.role === 'admin' ? 'selected' : ''}>Admin + Lehrer</option>
+          </select>
           <button class="btn btn-secondary btn-sm btn-reset-password" title="Passwort zurücksetzen">🔑</button>
           <button class="btn btn-danger btn-sm btn-delete-user" title="Benutzer löschen">🗑</button>
         </div>`;
+      item.querySelector('.user-role-select').addEventListener('change', (e) => this._changeRole(u, e.target));
       item.querySelector('.btn-reset-password').addEventListener('click', () => this._resetPassword(u.id));
       item.querySelector('.btn-delete-user').addEventListener('click', () => this._deleteUser(u.id));
       container.appendChild(item);

@@ -136,6 +136,12 @@ export class BrowserApi {
   getAllUsers() { return this._fetch('/api/admin/users'); }
   deleteUser(userId) { return this._fetch(`/api/admin/users/${userId}`, { method: 'DELETE' }); }
   createUser(data) { return this._fetch('/api/admin/users', { method: 'POST', body: JSON.stringify(data) }); }
+  setUserRole(userId, role) {
+    return this._fetch(`/api/admin/users/${userId}/role`, {
+      method: 'PATCH',
+      body: JSON.stringify({ role }),
+    });
+  }
   resetUserPassword(userId) {
     return this._fetch(`/api/admin/users/${userId}/reset-password`, { method: 'POST' });
   }

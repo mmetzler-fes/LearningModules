@@ -48,6 +48,40 @@ Dialog – es geht also kein Konto verloren.
 `MAIL_TRANSPORT` nicht gesetzt oder `console` → kein Versand, Passwort wird
 angezeigt und zusätzlich ins Server-Log geschrieben.
 
+## Rollen
+
+Es gibt **Lehrer** und **Admin + Lehrer**. Ein Admin besitzt sämtliche
+Lehrerfunktionen zusätzlich: eigene Lernthemen, Module, Quick-Links und
+Ergebnisse. Die Rechteprüfungen im Code sind durchgehend als
+`if (user.role === 'teacher')` formuliert – Admins sind also nie
+eingeschränkt, sondern nur zusätzlich berechtigt.
+
+Die Rolle lässt sich in der Benutzerliste über das Auswahlfeld ändern
+(`PATCH /api/admin/users/:id/role`). Zwei Sperren verhindern das Aussperren:
+
+- Man kann sich **nicht selbst** die Admin-Rechte entziehen – das muss ein
+  anderer Admin tun.
+- Der letzte verbleibende Admin kann nicht herabgestuft werden.
+
+**Achtung:** Eine Rollenänderung wirkt erst, wenn der Betroffene sich neu
+anmeldet. Sein bestehendes Token trägt die alte Rolle bis zu 24 Stunden.
+
+## Whitelist / Blacklist
+
+Erlaubte Schreibweisen für Einträge:
+
+| Muster | Bedeutung |
+|---|---|
+| `@fes-es.de` | alle Adressen genau dieser Domain |
+| `fes-es.de` | dasselbe |
+| `*.fes-es.de` | Domain und alle Subdomains |
+| `chef@fes-es.de` | genau diese eine Adresse |
+
+Leere Whitelist = alles erlaubt. Die Blacklist hat Vorrang.
+
+Die Prüfung gilt für die Selbstregistrierung von Lehrkräften **und** für
+Konten, die ein Admin anlegt.
+
 ## Rollout auf den Server (Docker)
 
 Das Image kommt aus der GHCR und wird von `.github/workflows/docker-build.yml`

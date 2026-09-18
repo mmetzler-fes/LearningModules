@@ -1,5 +1,5 @@
 import {
-  Controller, Get, Post, Delete, Body, Param, UseGuards, Request,
+  Controller, Get, Post, Patch, Delete, Body, Param, UseGuards, Request,
   ForbiddenException, BadRequestException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -52,6 +52,34 @@ export class AdminController {
   async resetUserPassword(@Request() req: any, @Param('id') id: string) {
     this.requireAdmin(req);
     return this.authService.resetUserPassword(id);
+  }
+
+  // ---- Change a user's role ----
+  @Patch('users/:id/role')
+  async setUserRole(@Request() req: any, @Param('id') id: string, @Body() body: { role?: UserRole }) {
+    this.requireAdmin(req);
+    const role: UserRole = body?.role === 'admin' ? 'admin' : 'teacher';
+
+    const target = await this.userRepo.findOne({ where: { id } });
+    if (!target) throw new BadRequestException('Benutzer nicht gefunden.');
+    if (target.role === role) return { success: true, id: target.id, role };
+
+    // Sich selbst die Admin-Rechte zu entziehen sperrt einen aus der
+    // Benutzerverwaltung aus – das muss ein anderer Admin tun.
+    if (target.id === req.user.userId && role !== 'admin') {
+      throw new BadRequestException(
+        'Du kannst dir die Admin-Rechte nicht selbst entziehen. Bitte von einem anderen Admin ändern lassen.',
+      );
+    }
+
+    if (target.role === 'admin' && role !== 'admin') {
+      const adminCount = await this.userRepo.count({ where: { role: 'admin' } });
+      if (adminCount <= 1) throw new BadRequestException('Es muss mindestens ein Admin vorhanden bleiben.');
+    }
+
+    target.role = role;
+    await this.userRepo.save(target);
+    return { success: true, id: target.id, role: target.role };
   }
 
   // ---- Delete admin or teacher (min. 1 admin must remain) ----

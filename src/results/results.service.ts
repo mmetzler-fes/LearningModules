@@ -32,6 +32,9 @@ export class ResultsService {
       timestamp: r.createdAt.toISOString(),
       details: r.payload?.details || [],
       ipAddress: r.ipAddress || null,
+      linkId: r.linkId || null,
+      linkName: r.linkName || null,
+      mode: r.mode || null,
     }));
   }
 

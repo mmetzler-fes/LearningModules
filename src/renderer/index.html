@@ -45,24 +45,54 @@
         </div>
         <div id="quickEntryError" class="hidden">
           <p class="login-error" id="quickEntryErrorText"></p>
-          <button class="btn btn-secondary btn-full" id="btnQuickFallback">Zur normalen Anmeldung</button>
+          <button class="btn btn-secondary btn-full" id="btnQuickFallback">Zur Startseite</button>
         </div>
       </div>
 
-      <!-- Student Login Section -->
+      <!-- Themen-Link: Name, ggf. Passwort, ggf. Modusauswahl -->
+      <div id="linkEntrySection" class="hidden">
+        <div id="linkEntryLoading" class="quick-entry-loading">
+          <p class="hint">Link wird geladen…</p>
+        </div>
+        <div id="linkEntryReady" class="hidden">
+          <div class="quick-entry-topic">
+            <span class="quick-entry-label">Du startest:</span>
+            <h2 id="linkEntryTitle"></h2>
+            <p id="linkEntryMeta" class="hint"></p>
+          </div>
+          <form id="linkEntryForm" class="login-form">
+            <div class="form-group">
+              <label for="linkEntryName">Dein Name</label>
+              <input type="text" id="linkEntryName" required placeholder="Vor- und Nachname..." autocomplete="off" />
+            </div>
+            <div class="form-group hidden" id="linkEntryPasswordGroup">
+              <label for="linkEntryPassword">Passwort</label>
+              <input type="password" id="linkEntryPassword" placeholder="Passwort der Lehrkraft" autocomplete="off" />
+            </div>
+            <div class="form-group hidden" id="linkEntryModeGroup">
+              <label>Wie möchtest du arbeiten?</label>
+              <div id="linkEntryModeChoices" class="link-mode-choices"></div>
+            </div>
+            <p id="linkEntryAttemptNote" class="hint hidden">
+              📝 Die Klassenarbeit kann nur einmal bearbeitet werden.
+            </p>
+            <p id="linkEntryFormError" class="login-error hidden"></p>
+            <button type="submit" class="btn btn-primary btn-full" id="btnLinkStart">🚀 Los geht's</button>
+          </form>
+        </div>
+        <div id="linkEntryError" class="hidden">
+          <p class="login-error" id="linkEntryErrorText"></p>
+        </div>
+      </div>
+
+      <!-- Einstieg für Schüler: nur noch über Themen-Link oder Quick-Link -->
       <div id="studentLoginSection">
-        <form id="loginForm" class="login-form">
-          <div class="form-group">
-            <label for="teacherEmailInput">E-Mail des Lehrers</label>
-            <input type="email" id="teacherEmailInput" required placeholder="lehrer@schule.de" autocomplete="off" />
-          </div>
-          <div class="form-group">
-            <label for="loginName">Dein Name</label>
-            <input type="text" id="loginName" required placeholder="Vor- und Nachname..." autocomplete="off" />
-          </div>
-          <p id="studentLoginError" class="login-error hidden">Lehrer nicht gefunden oder Fehler beim Laden.</p>
-          <button type="submit" class="btn btn-primary btn-full" id="btnStudentLogin">🎓 Lernthemen laden</button>
-        </form>
+        <div class="login-hint-box">
+          <span class="login-hint-icon">🔗</span>
+          <p><strong>Du bist Schülerin oder Schüler?</strong></p>
+          <p class="hint">Öffne den Link oder scanne den QR-Code, den du von deiner
+            Lehrkraft bekommen hast. Eine Anmeldung brauchst du nicht.</p>
+        </div>
         <div class="login-divider"><span>oder</span></div>
         <button class="btn btn-secondary btn-full" id="btnShowAdminLogin">🔐 Zum Lehrer-/Admin-Bereich</button>
       </div>
@@ -151,6 +181,12 @@
         <button class="nav-btn" data-view="teacher-modules">
           <span class="nav-icon">📦</span> <span data-i18n="nav.modules">Module verwalten</span>
         </button>
+        <button class="nav-btn" data-view="teacher-links">
+          <span class="nav-icon">🔗</span> Themen-Links
+        </button>
+        <button class="nav-btn" data-view="teacher-tags">
+          <span class="nav-icon">🏷</span> Tags
+        </button>
         <button class="nav-btn" data-view="teacher-results">
           <span class="nav-icon">📊</span> <span data-i18n="nav.results">Ergebnisse</span>
         </button>
@@ -170,11 +206,8 @@
 
       <!-- Student Navigation -->
       <nav class="sidebar-nav hidden" id="studentNav">
-        <button class="nav-btn active" data-view="student-topics">
-          <span class="nav-icon">📂</span> <span data-i18n="nav.student.topics">Lernthemen</span>
-        </button>
-        <button class="nav-btn" data-view="student-quiz">
-          <span class="nav-icon">🧠</span> <span data-i18n="nav.student.quiz">Quiz starten</span>
+        <button class="nav-btn active" data-view="student-quiz">
+          <span class="nav-icon">🧠</span> <span data-i18n="nav.student.quiz">Aufgaben</span>
         </button>
       </nav>
 
@@ -248,19 +281,23 @@
           <button class="btn btn-secondary" id="btnImportH5p">📦 H5P importieren</button>
           <button class="btn btn-secondary" id="btnExportH5p" disabled title="Thema als H5P exportieren">📦 H5P exportieren</button>
         </div>
-        <div class="exam-mode-row">
-          <label class="exam-mode-label">
-            <input type="checkbox" id="chkExamMode" />
-            <span>Prüfungsmodus aktivieren (keine Sofort-Rückmeldung für Schüler)</span>
+        <div class="tag-filter-bar">
+          <input type="text" id="topicTagSearch" class="search-input" placeholder="Tags suchen, z. B. Arduino…" />
+          <label class="tag-filter-mode">
+            <input type="checkbox" id="topicTagFilterAll" />
+            <span title="Aus: mindestens ein Tag muss passen. An: alle gewählten Tags müssen passen.">alle Tags müssen passen</span>
           </label>
+          <div id="topicTagFilterChips" class="tag-filter-chips"></div>
         </div>
         <div id="topicsList" class="topics-list"></div>
 
         <!-- Von Kollegen freigegebene Themen (nur sichtbar, wenn es welche gibt) -->
         <div id="sharedTopicsSection" class="hidden" style="margin-top:28px">
           <h3>📤 Von Kolleginnen und Kollegen freigegeben</h3>
-          <p class="hint">Hol dir eine eigene Kopie. Du wirst dann Eigentümer und kannst sie frei
-            bearbeiten – das Original bleibt unberührt.</p>
+          <p class="hint"><strong>Verwendbare</strong> Themen kannst du direkt in deinen
+            Themen-Links auswählen – ohne Kopie, Änderungen der Kollegin wirken sofort.
+            Bei <strong>kopierbaren</strong> holst du dir eine eigene Fassung und wirst
+            Eigentümer; das Original bleibt dann unberührt.</p>
           <div id="sharedTopicsList" class="topics-list"></div>
         </div>
 
@@ -276,6 +313,10 @@
               <div class="form-group">
                 <label for="topicDescription" data-i18n="topics.form.desc">Beschreibung</label>
                 <textarea id="topicDescription" rows="3" data-i18n-placeholder="topics.form.desc.placeholder" placeholder="Optionale Beschreibung..."></textarea>
+              </div>
+              <div class="form-group">
+                <label>Tags</label>
+                <div id="topicTags" class="tag-picker"></div>
               </div>
               <div class="form-group">
                 <label for="topicSubscribeKey">Subscribe-Key <span style="font-weight:normal;color:var(--text-secondary)">(optional)</span></label>
@@ -393,6 +434,9 @@
           <p class="subtitle" data-i18n="results.subtitle">Übersicht aller Schüler-Ergebnisse</p>
           <div class="header-actions">
             <input type="text" id="searchResults" class="search-input" data-i18n-placeholder="results.search.placeholder" placeholder="Nach Schüler filtern..." />
+            <select id="filterResultsLink" class="search-input" title="Nach Themen-Link filtern">
+              <option value="">Alle Links</option>
+            </select>
             <button class="btn btn-secondary btn-sm" id="btnExportResults">⬇️ Exportieren</button>
             <button class="btn btn-danger btn-sm" id="btnDeleteAllResults" data-i18n="results.delete.all">🗑 Alle löschen</button>
           </div>
@@ -401,16 +445,107 @@
         <div id="resultsList" class="results-list"></div>
       </section>
 
-      <!-- ==================== STUDENT VIEWS ==================== -->
-
-      <!-- Student: Topic Selection -->
-      <section class="view" id="view-student-topics">
+      <!-- Teacher: Themen-Links -->
+      <section class="view" id="view-teacher-links">
         <div class="view-header">
-          <h2 data-i18n="student.topics.title">Lernthemen auswählen</h2>
-          <p class="subtitle" data-i18n="student.topics.subtitle">Wähle die Themen aus, die du bearbeiten möchtest.</p>
+          <h2>🔗 Themen-Links</h2>
+          <p class="subtitle">Benannte Zugänge für Schüler – z. B. „TG12 Informatik Arduino“.
+            Der Link bestimmt, welche Aufgaben drankommen und in welchem Modus gearbeitet wird.</p>
         </div>
-        <div id="studentTopicsList" class="topics-list student-topics-list"></div>
+        <div class="topic-actions-bar">
+          <button class="btn btn-primary" id="btnNewLink">➕ Neuer Themen-Link</button>
+        </div>
+
+        <div class="tag-filter-bar">
+          <input type="text" id="linkTagSearch" class="search-input" placeholder="Tags suchen, z. B. Arduino…" />
+          <label class="tag-filter-mode">
+            <input type="checkbox" id="linkTagFilterAll" />
+            <span title="Aus: mindestens ein Tag muss passen. An: alle gewählten Tags müssen passen.">alle Tags müssen passen</span>
+          </label>
+          <div id="linkTagFilterChips" class="tag-filter-chips"></div>
+        </div>
+
+        <div id="linksList" class="links-list"></div>
+
+        <!-- Link anlegen / bearbeiten -->
+        <div id="linkFormContainer" class="topic-form-container hidden">
+          <div class="topic-form-card">
+            <h3 id="linkFormTitle">Neuer Themen-Link</h3>
+            <form id="linkForm">
+              <div class="form-group">
+                <label for="linkName">Name *</label>
+                <input type="text" id="linkName" required placeholder="z. B. TG12 Informatik Arduino" autocomplete="off" />
+              </div>
+
+              <div class="form-group">
+                <label>Abfragemodus *</label>
+                <div id="linkModes" class="link-mode-choices"></div>
+                <span class="hint">Mehrere Modi erlaubt: Die Schüler wählen dann selbst aus.</span>
+              </div>
+
+              <div class="form-group hidden" id="linkSingleAttemptRow">
+                <label class="tag-filter-mode">
+                  <input type="checkbox" id="linkSingleAttempt" />
+                  <span>Klassenarbeit nur einmal pro Name zulassen</span>
+                </label>
+                <span class="hint">Eine Hürde, keine fälschungssichere Sperre – den Namen gibt der Schüler selbst ein.</span>
+              </div>
+
+              <div class="form-group">
+                <label for="linkPassword">Passwort <span style="font-weight:normal;color:var(--text-secondary)">(optional)</span></label>
+                <input type="password" id="linkPassword" placeholder="Leer = kein Passwort" autocomplete="new-password" />
+              </div>
+
+              <div class="form-group">
+                <label>Tags</label>
+                <div id="linkTags" class="tag-picker"></div>
+              </div>
+
+              <div class="form-group">
+                <label>Inhalte *</label>
+                <p class="hint" id="linkSelectionSummary">Noch nichts ausgewählt.</p>
+                <div id="linkTopicTree" class="link-tree"></div>
+              </div>
+
+              <div class="form-actions">
+                <button type="submit" class="btn btn-primary">Speichern</button>
+                <button type="button" class="btn btn-secondary" id="btnCancelLink">Abbrechen</button>
+              </div>
+            </form>
+          </div>
+        </div>
       </section>
+
+      <!-- Teacher: Tags -->
+      <section class="view" id="view-teacher-tags">
+        <div class="view-header">
+          <h2>🏷 Tags</h2>
+          <p class="subtitle">Schlagworte zum Einordnen von Lernthemen und Themen-Links,
+            z. B. „Informatik“ oder „Arduino“.</p>
+        </div>
+
+        <div class="topic-form-card" style="margin-bottom:20px;">
+          <h3 id="tagFormTitle">Neuer Tag</h3>
+          <form id="tagForm" class="tag-form">
+            <div class="form-group">
+              <label for="tagName">Name *</label>
+              <input type="text" id="tagName" required maxlength="40" placeholder="z. B. Arduino" autocomplete="off" />
+            </div>
+            <div class="form-group">
+              <label for="tagColor">Farbe</label>
+              <input type="color" id="tagColor" value="#4f7cff" />
+            </div>
+            <div class="form-actions">
+              <button type="submit" class="btn btn-primary">Speichern</button>
+              <button type="button" class="btn btn-secondary hidden" id="btnCancelTag">Abbrechen</button>
+            </div>
+          </form>
+        </div>
+
+        <div id="tagsList" class="tags-list"></div>
+      </section>
+
+      <!-- ==================== STUDENT VIEWS ==================== -->
 
       <!-- Student: Quiz Mode -->
       <section class="view" id="view-student-quiz">
@@ -577,6 +712,41 @@
   </div>
 
   <!-- Quick-Link für Schüler (Link + QR-Code) -->
+  <!-- Themen-Link versenden: QR-Code und URL -->
+  <div id="linkShareOverlay" class="confirm-overlay hidden">
+    <div class="import-modules-card" id="linkShareCard" style="min-width:380px;max-width:520px">
+      <h3>🔗 Themen-Link für Schüler</h3>
+      <p class="hint" id="linkShareInfo"></p>
+      <p class="login-error hidden" id="linkShareWarning"></p>
+
+      <div class="quicklink-qr-row">
+        <div id="linkShareQr" class="quicklink-qr"></div>
+        <button type="button" class="btn btn-secondary btn-sm quicklink-copy" id="btnCopyLinkShareQr"
+          title="QR-Code als Bild in die Zwischenablage">📋 QR kopieren</button>
+      </div>
+
+      <div class="form-group">
+        <label for="linkShareUrl">Link</label>
+        <div class="quicklink-url-row">
+          <input type="text" id="linkShareUrl" readonly />
+          <button type="button" class="btn btn-secondary btn-sm quicklink-copy" id="btnCopyLinkShareUrl"
+            title="Link in die Zwischenablage">📋 Kopieren</button>
+        </div>
+      </div>
+
+      <p class="hint">Schüler öffnen den Link oder scannen den Code, geben ihren Namen ein
+        und starten in dem Modus, den du freigegeben hast. Wer den Link hat, kommt hinein –
+        für eine Klassenarbeit also erst zu Beginn zeigen.</p>
+
+      <div class="confirm-actions">
+        <button type="button" class="btn btn-secondary" id="btnPrintLinkShare">🖨 Drucken</button>
+        <button type="button" class="btn btn-secondary" id="btnRegenLinkShare" title="Alter Link wird ungültig">🔄 Neu</button>
+        <button type="button" class="btn btn-danger" id="btnRevokeLinkShare" title="Link abschalten">🚫 Zurückziehen</button>
+        <button type="button" class="btn btn-primary" id="btnCloseLinkShare">Fertig</button>
+      </div>
+    </div>
+  </div>
+
   <div id="quickLinkOverlay" class="confirm-overlay hidden">
     <div class="import-modules-card" id="quickLinkCard" style="min-width:380px;max-width:520px">
       <h3>🔗 Quick-Link für Schüler</h3>
@@ -598,9 +768,9 @@
         </div>
       </div>
 
-      <p class="hint">Schüler öffnen den Link oder scannen den Code, geben nur ihren Namen
-        ein und starten sofort. Lehrer-E-Mail und Subscribe-Key entfallen dabei –
-        wer den Link hat, kommt hinein.</p>
+      <p class="hint">Der Quick-Link startet dieses eine Thema sofort im Quiz-Modus.
+        Soll der Modus wählbar sein oder mehrere Themen umfassen, nimm einen
+        <strong>Themen-Link</strong>. Wer den Link hat, kommt hinein.</p>
 
       <div class="confirm-actions">
         <button type="button" class="btn btn-secondary" id="btnPrintQuickLink">🖨 Drucken</button>

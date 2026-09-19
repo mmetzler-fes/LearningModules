@@ -1,4 +1,5 @@
-import { escapeHtml, escapeAttr } from '../utils.js';
+import { escapeHtml, escapeAttr, copyQrSvgAsPng } from '../utils.js';
+import { TagFilter } from './tags.js';
 
 // ==================== TOPICS VIEW ====================
 
@@ -21,7 +22,14 @@ export class TopicsView {
     this._exportOverlay   = document.getElementById('exportH5pTopicOverlay');
     this._exportList      = document.getElementById('exportH5pTopicList');
     this._exportBtnCancel = document.getElementById('exportH5pBtnCancel');
-    this._chkExamMode     = document.getElementById('chkExamMode');
+    this._tagsBox         = document.getElementById('topicTags');
+
+    this._filter = new TagFilter(app, {
+      searchInput: document.getElementById('topicTagSearch'),
+      chipList: document.getElementById('topicTagFilterChips'),
+      modeToggle: document.getElementById('topicTagFilterAll'),
+      onChange: () => this.refresh(),
+    });
 
     this._bindEvents();
   }
@@ -34,6 +42,7 @@ export class TopicsView {
         this._titleInput.value = '';
         this._descInput.value = '';
         if (this._subscribeKeyEl) this._subscribeKeyEl.value = '';
+        this._renderTagPicker([]);
         this._formContainer.classList.remove('hidden');
       });
     }
@@ -82,22 +91,18 @@ export class TopicsView {
     if (this._form) {
       this._form.addEventListener('submit', (e) => this._onFormSubmit(e));
     }
-
-    if (this._chkExamMode) {
-      this._chkExamMode.addEventListener('change', async (e) => {
-        const enabled = !!e.target.checked;
-        const result = await this.app.api.setExamMode(enabled);
-        this.app.state.examModeEnabled = !!(result && result.enabled);
-        this._chkExamMode.checked = this.app.state.examModeEnabled;
-        this.app.showToast(this.app.state.examModeEnabled ? '📝 Prüfungsmodus aktiviert' : '🧠 Lernmodus aktiviert', 'info');
-      });
-    }
   }
 
   async refresh() {
     this.refreshSharedTopics();
     await this.app.loadTopics();
-    const { topics } = this.app.state;
+    await this.app.loadTags();
+    this._filter.render();
+
+    const all = this.app.state.topics;
+    // Der Filter schränkt nur die Anzeige ein – "Alle auswählen" unten bezieht
+    // sich deshalb bewusst auf die gerade sichtbaren Themen.
+    const topics = all.filter((topic) => this._filter.matches(topic));
     this._topicsList.innerHTML = '';
     this._formContainer.classList.add('hidden');
 
@@ -132,7 +137,9 @@ export class TopicsView {
     }
 
     if (topics.length === 0) {
-      this._topicsList.innerHTML = `<div class="empty-state"><span class="empty-icon">📂</span><p>Noch keine Lernthemen erstellt.</p></div>`;
+      this._topicsList.innerHTML = all.length === 0
+        ? '<div class="empty-state"><span class="empty-icon">📂</span><p>Noch keine Lernthemen erstellt.</p></div>'
+        : '<div class="empty-state"><span class="empty-icon">🏷</span><p>Kein Thema passt zum gewählten Filter.</p></div>';
       if (this._btnExportH5p) this._btnExportH5p.disabled = true;
       return;
     }
@@ -154,10 +161,9 @@ export class TopicsView {
               <span class="topic-module-count">${moduleCount} Module</span>
               ${isRawTopic ? '<span class="topic-status" style="background:#eef2ff; color:#3730a3;">RAW H5P</span>' : ''}
               <span class="topic-status ${topic.selected ? 'active' : 'inactive'}">${topic.selected ? '✅ Aktiv' : '❌ Inaktiv'}</span>
-              ${Array.isArray(topic.sharedWith) && topic.sharedWith.length > 0
-                ? `<span class="topic-shared-badge owner">👥 freigegeben ${topic.sharedWith.includes('*') ? 'für alle' : 'für ' + topic.sharedWith.length}</span>`
-                : ''}
+              ${this._sharingBadges(topic)}
             </div>
+            <div class="topic-card-tags">${this._renderTagChips(topic.tagIds)}</div>
           </div>
           <div class="topic-card-actions">
             <label class="toggle-switch" title="Für Schüler freigeben">
@@ -266,39 +272,12 @@ export class TopicsView {
     }
   }
 
-  /**
-   * Kopiert den QR-Code als PNG in die Zwischenablage – zum Einfügen in
-   * Arbeitsblätter, Präsentationen oder Moodle. Das SVG wird dafür über ein
-   * Canvas gerastert, bewusst großzügig, damit es beim Ausdrucken scharf bleibt.
-   */
   async _copyQrImage() {
-    const svg = document.querySelector('#quickLinkQr svg');
-    if (!svg) return;
-
-    const SIZE = 600;
-    try {
-      const xml = new XMLSerializer().serializeToString(svg);
-      const img = new Image();
-      img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(xml);
-      await img.decode();
-
-      const canvas = document.createElement('canvas');
-      canvas.width = SIZE;
-      canvas.height = SIZE;
-      const ctx = canvas.getContext('2d');
-      ctx.fillStyle = '#ffffff';           // weißer Grund, sonst scannt es schlecht
-      ctx.fillRect(0, 0, SIZE, SIZE);
-      ctx.drawImage(img, 0, 0, SIZE, SIZE);
-
-      const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
-      if (!blob) throw new Error('PNG konnte nicht erzeugt werden.');
-
-      await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
-      this.app.showToast('QR-Code kopiert', 'success');
-    } catch (_) {
-      // Ältere Browser können keine Bilder in die Zwischenablage legen.
-      this.app.showToast('QR-Code kopieren klappt hier nicht – bitte drucken oder den Link nutzen.', 'error');
-    }
+    const ok = await copyQrSvgAsPng(document.querySelector('#quickLinkQr svg'));
+    this.app.showToast(
+      ok ? 'QR-Code kopiert' : 'QR-Code kopieren klappt hier nicht – bitte drucken oder den Link nutzen.',
+      ok ? 'success' : 'error',
+    );
   }
 
   _bindQuickLinkDialog() {
@@ -350,7 +329,7 @@ export class TopicsView {
 
     document.getElementById('btnRevokeQuickLink')?.addEventListener('click', async () => {
       const ok = await this.app.appConfirm(
-        'Quick-Link zurückziehen? Schüler können danach nur noch über die normale Anmeldung starten.',
+        'Quick-Link zurückziehen? Verteilte Links und QR-Codes führen danach ins Leere.',
       );
       if (!ok) return;
       await this.app.api.revokeQuickLink(this._quickLinkTopic.id);
@@ -359,12 +338,67 @@ export class TopicsView {
     });
   }
 
+  /** Tag-Auswahl im Themenformular. */
+  _renderTagPicker(selected) {
+    if (!this._tagsBox) return;
+    const set = new Set(selected || []);
+    const tags = this.app.state.tags || [];
+    this._tagsBox.innerHTML = '';
+    if (tags.length === 0) {
+      this._tagsBox.innerHTML = '<span class="hint">Noch keine Tags angelegt – siehe Menüpunkt „Tags“.</span>';
+      return;
+    }
+    for (const tag of tags) {
+      const label = document.createElement('label');
+      label.className = 'tag-filter-option';
+      label.innerHTML = `
+        <input type="checkbox" value="${escapeAttr(tag.id)}" ${set.has(tag.id) ? 'checked' : ''} />
+        <span class="tag-chip" style="--tag-color:${escapeAttr(tag.color || '#4f7cff')}">${escapeHtml(tag.name)}</span>`;
+      this._tagsBox.appendChild(label);
+    }
+  }
+
+  _selectedTagIds() {
+    if (!this._tagsBox) return [];
+    return [...this._tagsBox.querySelectorAll('input:checked')].map((i) => i.value);
+  }
+
+  _renderTagChips(tagIds) {
+    const byId = new Map((this.app.state.tags || []).map((t) => [t.id, t]));
+    return (tagIds || [])
+      .map((id) => byId.get(id))
+      .filter(Boolean)
+      .map((tag) => `<span class="tag-chip" style="--tag-color:${escapeAttr(tag.color || '#4f7cff')}">${escapeHtml(tag.name)}</span>`)
+      .join('');
+  }
+
+  /**
+   * Abzeichen für die beiden Freigabe-Arten. Getrennt ausgewiesen, weil
+   * "verwenden" und "kopieren" sehr unterschiedliche Folgen haben.
+   */
+  _sharingBadges(topic) {
+    const out = [];
+    const copy = Array.isArray(topic.sharedWith) ? topic.sharedWith : [];
+    const access = Array.isArray(topic.sharedAccess) ? topic.sharedAccess : [];
+
+    if (access.length > 0) {
+      const forAll = access.some((e) => e.userId === '*');
+      out.push(`<span class="topic-shared-badge use">🔗 verwendbar ${forAll ? 'für alle' : 'für ' + access.length}</span>`);
+    }
+    if (copy.length > 0) {
+      const forAll = copy.includes('*');
+      out.push(`<span class="topic-shared-badge owner">👥 kopierbar ${forAll ? 'für alle' : 'für ' + copy.length}</span>`);
+    }
+    return out.join('');
+  }
+
   _openEditor(topic) {
     this.app.state.editingTopicId = topic.id;
     this._formTitle.textContent = t('topics.form.edit');
     this._titleInput.value = topic.title;
     this._descInput.value = topic.description || '';
     if (this._subscribeKeyEl) this._subscribeKeyEl.value = topic.subscribeKey || '';
+    this._renderTagPicker(topic.tagIds || []);
     this._formContainer.classList.remove('hidden');
   }
 
@@ -381,6 +415,7 @@ export class TopicsView {
       title,
       description: this._descInput.value.trim(),
       subscribeKey: this._subscribeKeyEl ? (this._subscribeKeyEl.value.trim() || null) : undefined,
+      tagIds: this._selectedTagIds(),
       selected: state.editingTopicId ? (topics.find((t) => t.id === state.editingTopicId) || {}).selected || false : false,
       createdAt: state.editingTopicId ? (topics.find((t) => t.id === state.editingTopicId) || {}).createdAt || new Date().toISOString() : new Date().toISOString(),
     };
@@ -431,9 +466,17 @@ export class TopicsView {
   }
 
   /**
-   * Freigabe zum Kopieren. Bewusst kein Rechtemodell: Wer freigegeben
-   * bekommt, zieht sich eine eigene Kopie und ist deren Eigentümer. Das
-   * Original bleibt unberührt.
+   * Freigabe. Zwei Dinge lassen sich unabhängig voneinander erlauben:
+   *
+   *   Verwenden – die Kollegin nimmt das Original in ihre eigenen Themen-Links.
+   *               Änderungen wirken sofort bei allen, die es verwenden. Die
+   *               Ergebnisse landen trotzdem bei ihr, denn dafür zählt der
+   *               Eigentümer des Links.
+   *   Kopieren  – sie zieht sich eine eigene Kopie und wird deren Eigentümerin.
+   *               Spätere Änderungen am Original wandern nicht mit.
+   *
+   * Das Datenmodell kennt zusätzlich die Stufe 'write' (Module bearbeiten).
+   * Sie ist hier bewusst noch nicht wählbar – siehe learning-topic.entity.ts.
    */
   async _openShareDialog(topic) {
     const { state, api } = this.app;
@@ -450,32 +493,56 @@ export class TopicsView {
     } catch (_) {}
     if (!Array.isArray(users)) users = [];
 
-    const shared = Array.isArray(topic.sharedWith) ? topic.sharedWith : [];
-    const alleAktiv = shared.includes('*');
+    const copyList = Array.isArray(topic.sharedWith) ? topic.sharedWith : [];
+    const accessList = Array.isArray(topic.sharedAccess) ? topic.sharedAccess : [];
+    const levelOf = (id) => accessList.find((e) => e.userId === id)?.level || 'none';
+
+    const copyAll = copyList.includes('*');
+    const useAll = levelOf('*') !== 'none';
+
+    const row = (id, label, badge) => `
+      <div class="share-user-row" data-user="${escapeAttr(id)}">
+        <span class="share-user-name">${badge}${escapeHtml(label)}</span>
+        <label class="share-flag">
+          <input type="checkbox" class="chk-use" ${levelOf(id) !== 'none' ? 'checked' : ''} />
+          <span>verwenden</span>
+        </label>
+        <label class="share-flag">
+          <input type="checkbox" class="chk-copy" ${copyList.includes(id) ? 'checked' : ''} />
+          <span>kopieren</span>
+        </label>
+      </div>`;
 
     const overlay = document.createElement('div');
     overlay.className = 'confirm-overlay';
     overlay.innerHTML = `
-      <div class="import-modules-card" style="min-width:360px; max-width:480px">
+      <div class="import-modules-card" style="min-width:420px; max-width:560px">
         <h3>👥 Thema freigeben: <em>${escapeHtml(topic.title)}</em></h3>
-        <p class="hint">Freigegebene Kolleginnen und Kollegen können sich eine
-          <strong>eigene Kopie</strong> holen und diese frei bearbeiten. Dein Thema
-          bleibt unverändert, spätere Änderungen wandern nicht in die Kopien.</p>
+        <p class="hint"><strong>Verwenden</strong> heißt: Die Kollegin nimmt dein Original in
+          ihre eigenen Themen-Links. Ihre Schülerergebnisse landen bei ihr, nicht bei dir.
+          Änderst du später eine Aufgabe, ändert sich ihr Quiz mit – für eine Klassenarbeit
+          ist deshalb <strong>kopieren</strong> oft die ruhigere Wahl.</p>
 
-        <label class="share-all-row">
-          <input type="checkbox" id="shareAll" ${alleAktiv ? 'checked' : ''} />
-          <strong>Für alle Kolleginnen und Kollegen freigeben</strong>
-        </label>
+        <div class="share-head-row">
+          <span class="share-user-name"><strong>Alle Kolleginnen und Kollegen</strong></span>
+          <label class="share-flag">
+            <input type="checkbox" id="useAll" ${useAll ? 'checked' : ''} />
+            <span>verwenden</span>
+          </label>
+          <label class="share-flag">
+            <input type="checkbox" id="copyAll" ${copyAll ? 'checked' : ''} />
+            <span>kopieren</span>
+          </label>
+        </div>
 
         <div id="shareUserList" class="share-user-list">
           ${users.length === 0
             ? '<p class="hint">Keine weiteren Lehrkräfte vorhanden.</p>'
-            : users.map((u) => `
-              <label class="share-user-row">
-                <input type="checkbox" value="${escapeHtml(u.id)}" ${shared.includes(u.id) ? 'checked' : ''} />
-                <span class="user-role-badge ${u.role}">${u.role === 'admin' ? 'Admin' : 'Lehrer'}</span>
-                <span>${escapeHtml(u.displayName || u.email)}</span>
-              </label>`).join('')}
+            : users.map((u) => row(
+                u.id,
+                u.displayName || u.email,
+                `<span class="user-role-badge ${u.role}">${u.role === 'admin' ? 'Admin' : 'Lehrer'}</span> `,
+              )).join('')}
         </div>
 
         <div class="confirm-actions">
@@ -485,11 +552,21 @@ export class TopicsView {
       </div>`;
     document.body.appendChild(overlay);
 
-    const chkAll = overlay.querySelector('#shareAll');
+    const useAllBox = overlay.querySelector('#useAll');
+    const copyAllBox = overlay.querySelector('#copyAll');
     const list = overlay.querySelector('#shareUserList');
-    // Bei "alle" ist die Einzelauswahl gegenstandslos.
-    const syncList = () => { list.style.opacity = chkAll.checked ? '0.45' : '1'; list.style.pointerEvents = chkAll.checked ? 'none' : 'auto'; };
-    chkAll.addEventListener('change', syncList);
+
+    // Ist etwas für alle freigegeben, wäre die Einzelauswahl dafür
+    // gegenstandslos – die betroffenen Häkchen werden deshalb gesperrt.
+    const syncList = () => {
+      list.querySelectorAll('.chk-use').forEach((cb) => { cb.disabled = useAllBox.checked; });
+      list.querySelectorAll('.chk-copy').forEach((cb) => { cb.disabled = copyAllBox.checked; });
+      list.querySelectorAll('.share-user-row').forEach((r) => {
+        r.style.opacity = useAllBox.checked && copyAllBox.checked ? '0.45' : '1';
+      });
+    };
+    useAllBox.addEventListener('change', syncList);
+    copyAllBox.addEventListener('change', syncList);
     syncList();
 
     const close = () => overlay.remove();
@@ -497,14 +574,24 @@ export class TopicsView {
     overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
 
     overlay.querySelector('#btnShareSave').addEventListener('click', async () => {
-      const sharedWith = chkAll.checked
+      const rows = [...list.querySelectorAll('.share-user-row')];
+
+      const sharedWith = copyAllBox.checked
         ? ['*']
-        : Array.from(list.querySelectorAll('input:checked')).map((cb) => cb.value);
+        : rows.filter((r) => r.querySelector('.chk-copy').checked).map((r) => r.dataset.user);
+
+      const sharedAccess = useAllBox.checked
+        ? [{ userId: '*', level: 'read' }]
+        : rows
+            .filter((r) => r.querySelector('.chk-use').checked)
+            .map((r) => ({ userId: r.dataset.user, level: 'read' }));
+
       try {
-        const res = await api.setTopicSharing(topic.id, sharedWith);
+        const res = await api.setTopicSharing(topic.id, { sharedWith, sharedAccess });
         if (res && res.success) {
           close();
-          this.app.showToast(sharedWith.length ? 'Freigabe gespeichert' : 'Freigabe aufgehoben', 'success');
+          const anything = sharedWith.length || sharedAccess.length;
+          this.app.showToast(anything ? 'Freigabe gespeichert' : 'Freigabe aufgehoben', 'success');
           await this.app.loadTopics();
           this.refresh();
         } else {
@@ -545,13 +632,16 @@ export class TopicsView {
             <div class="topic-card-meta">
               <span class="topic-module-count">${t.moduleCount} Module</span>
               <span class="topic-shared-badge" style="margin-left:8px">von ${escapeHtml(t.ownerName)}</span>
+              ${t.canUse ? '<span class="topic-shared-badge use" style="margin-left:6px">🔗 in eigenen Links verwendbar</span>' : ''}
             </div>
           </div>
           <div class="topic-card-actions">
-            <button class="btn btn-primary btn-sm btn-copy-shared">📥 Zu mir kopieren</button>
+            ${t.canCopy ? '<button class="btn btn-primary btn-sm btn-copy-shared">📥 Zu mir kopieren</button>' : ''}
           </div>
         </div>`;
-      card.querySelector('.btn-copy-shared').addEventListener('click', async (e) => {
+      // Ohne Kopier-Freigabe gibt es nur den Hinweis, dass das Thema in
+      // eigenen Themen-Links verwendet werden darf.
+      card.querySelector('.btn-copy-shared')?.addEventListener('click', async (e) => {
         const btn = e.currentTarget;
         btn.disabled = true;
         try {

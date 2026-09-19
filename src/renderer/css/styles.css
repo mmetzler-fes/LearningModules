@@ -2722,20 +2722,26 @@ body {
 
 /* Beim Drucken nur QR-Code und Link ausgeben */
 @media print {
-  body.printing-quicklink > *:not(#quickLinkOverlay) { display: none !important; }
-  body.printing-quicklink #quickLinkOverlay {
+  body.printing-quicklink > *:not(#quickLinkOverlay):not(#linkShareOverlay) { display: none !important; }
+  body.printing-quicklink #quickLinkOverlay,
+  body.printing-quicklink #linkShareOverlay {
     position: static !important;
     display: block !important;
     background: none !important;
   }
-  body.printing-quicklink #quickLinkOverlay .confirm-actions,
+  /* Der gerade nicht geöffnete Dialog darf nicht mit aufs Blatt. */
+  body.printing-quicklink #quickLinkOverlay.hidden,
+  body.printing-quicklink #linkShareOverlay.hidden { display: none !important; }
+  body.printing-quicklink .confirm-actions,
   body.printing-quicklink .quicklink-copy { display: none !important; }
-  body.printing-quicklink #quickLinkCard {
+  body.printing-quicklink #quickLinkCard,
+  body.printing-quicklink #linkShareCard {
     box-shadow: none !important;
     border: 1px solid #000;
     max-width: 100% !important;
   }
-  body.printing-quicklink #quickLinkUrl {
+  body.printing-quicklink #quickLinkUrl,
+  body.printing-quicklink #linkShareUrl {
     border: none;
     font-size: 1.1rem;
     text-align: center;
@@ -2798,4 +2804,240 @@ body {
 
 .topic-card.topic-shared {
   border-left: 4px solid var(--primary, #3b82f6);
+}
+
+/* ===================================================================
+   Tags, Themen-Links und die drei Abfragemodi
+   =================================================================== */
+
+/* ---- Tag-Chip: überall dieselbe Darstellung, Farbe kommt vom Tag ---- */
+.tag-chip {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 0.82em;
+  font-weight: 600;
+  line-height: 1.6;
+  color: var(--tag-color, var(--accent));
+  background: color-mix(in srgb, var(--tag-color, var(--accent)) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--tag-color, var(--accent)) 40%, transparent);
+}
+
+.topic-card-tags,
+.link-card-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+/* ---- Filterleiste: Freitext, Modus-Schalter, Tag-Checkboxen ---- */
+.tag-filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  margin-bottom: 14px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+.tag-filter-bar .search-input { min-width: 220px; }
+.tag-filter-mode {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.88em;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+.tag-filter-chips,
+.tag-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  flex: 1 1 100%;
+}
+.tag-filter-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+
+/* ---- Tag-Verwaltung ---- */
+.tag-form { display: grid; grid-template-columns: 1fr auto; gap: 16px; align-items: end; }
+.tag-form .form-actions { grid-column: 1 / -1; }
+.tags-list { display: flex; flex-direction: column; gap: 8px; }
+.tag-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 14px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+.tag-usage { color: var(--text-secondary); font-size: 0.85em; }
+.tag-row-actions { margin-left: auto; display: flex; gap: 6px; }
+
+/* ---- Link-Karten ---- */
+.links-list { display: flex; flex-direction: column; gap: 12px; }
+.link-card {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  justify-content: space-between;
+  padding: 16px 18px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+}
+/* Deaktivierte Links bleiben sichtbar, treten aber zurück. */
+.link-card-inactive { opacity: 0.65; border-style: dashed; }
+.link-card-title { margin: 0 0 6px; font-size: 1.05rem; }
+.link-card-meta { color: var(--text-secondary); font-size: 0.88em; margin: 6px 0 0; }
+.link-card-modes { display: flex; flex-wrap: wrap; gap: 6px; }
+.link-card-actions { display: flex; flex-wrap: wrap; gap: 6px; align-items: flex-start; }
+.link-badge { font-size: 0.8em; margin-left: 4px; }
+.link-mode-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+  font-size: 0.8em;
+  background: var(--accent-light);
+  color: var(--accent-hover);
+}
+
+/* ---- Modusauswahl (Lehrerformular und Schülereinstieg) ---- */
+.link-mode-choices { display: flex; flex-direction: column; gap: 8px; }
+.link-mode-choice {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: border-color var(--transition), background var(--transition);
+}
+.link-mode-choice:hover { border-color: var(--accent); background: var(--accent-light); }
+.link-mode-choice-text { display: flex; flex-direction: column; gap: 2px; }
+.link-mode-choice-text small { color: var(--text-secondary); }
+
+/* ---- Auswahlbaum: Thema → Modul → Submodul ---- */
+.link-tree {
+  max-height: 420px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 8px;
+  background: var(--bg-primary);
+}
+.link-tree-topic {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+}
+.link-tree-topic:last-child { border-bottom: none; }
+.link-tree-topic-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.link-tree-count { color: var(--text-secondary); font-size: 0.85em; margin-left: auto; }
+.link-tree-check { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+.link-tree-modules { margin: 8px 0 0 22px; display: flex; flex-direction: column; gap: 6px; }
+.link-tree-submodules { margin-left: 24px; display: flex; flex-direction: column; gap: 4px; }
+.link-tree-subcheck { font-size: 0.9em; color: var(--text-secondary); }
+
+/* ---- Lernen mit Lösungen: Musterlösung unter der Aufgabe ---- */
+.quiz-solution-panel {
+  margin: 20px auto 0;
+  max-width: 800px;
+  padding: 16px 18px;
+  border-radius: var(--radius-md);
+  background: var(--detail-correct-bg);
+  border: 1px solid var(--detail-correct-border);
+}
+.quiz-solution-head { font-weight: 700; margin-bottom: 8px; }
+.quiz-solution-panel p { margin: 4px 0; }
+.quiz-topic-badge {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+  font-size: 0.8em;
+  background: var(--bg-primary);
+  color: var(--text-secondary);
+}
+
+/* ---- Ergebnisliste: Herkunft des Durchlaufs ---- */
+.result-link-name { margin-left: 8px; font-size: 0.85em; color: var(--text-secondary); }
+.result-mode-badge {
+  margin-left: 6px;
+  padding: 1px 7px;
+  border-radius: var(--radius-sm);
+  font-size: 0.78em;
+  background: var(--accent-light);
+  color: var(--accent-hover);
+}
+
+/* ---- Startseite: Hinweis für Schüler ---- */
+.login-hint-box {
+  text-align: center;
+  padding: 18px 16px;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-primary);
+}
+.login-hint-icon { font-size: 2rem; display: block; margin-bottom: 6px; }
+.login-hint-box p { margin: 4px 0; }
+
+/* ---- Freigabe: verwenden und kopieren getrennt ---- */
+.share-head-row,
+.share-user-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 7px 4px;
+}
+.share-head-row { border-bottom: 1px solid var(--border); margin-bottom: 6px; }
+.share-user-name { flex: 1; display: flex; align-items: center; gap: 6px; }
+.share-flag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.86em;
+  color: var(--text-secondary);
+  cursor: pointer;
+  min-width: 96px;
+}
+/* Gesperrte Häkchen sollen nicht wie eine Auswahl aussehen. */
+.share-flag input:disabled + span { opacity: 0.45; }
+
+.topic-shared-badge.use {
+  background: var(--accent-light);
+  color: var(--accent-hover);
+}
+
+/* ---- Auswahlbaum: fremde Inhalte ---- */
+.link-tree-section {
+  margin: 10px 0 4px;
+  padding: 6px 10px;
+  font-size: 0.85em;
+  font-weight: 600;
+  color: var(--text-secondary);
+  border-top: 1px solid var(--border);
+}
+.link-tree-owner {
+  font-size: 0.8em;
+  color: var(--text-secondary);
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+}
+
+.link-card-warning {
+  margin: 6px 0 0;
+  font-size: 0.86em;
+  color: var(--warning);
 }

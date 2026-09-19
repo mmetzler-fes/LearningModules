@@ -1,5 +1,10 @@
 # Quick-Link: Schüler starten per Link oder QR-Code
 
+> Der Quick-Link startet **ein** Thema sofort im Quiz-Modus. Soll der Modus
+> wählbar sein (Quiz, Klassenarbeit, Lernen mit Lösungen) oder sollen mehrere
+> Themen zusammen abgefragt werden, ist ein **[Themen-Link](themen-links.md)**
+> das passendere Werkzeug.
+
 ## Für die Lehrkraft
 
 Auf der Karte eines Lernthemas gibt es den Button **🔗 Quick-Link**. Der Dialog
@@ -17,7 +22,7 @@ bis bewusst *Neu* oder *Zurückziehen* gewählt wird.
 ## Für die Schüler
 
 Link öffnen oder QR scannen → Name eintippen → das Quiz startet sofort.
-Lehrer-E-Mail, Subscribe-Key und Themenpasswort entfallen.
+Eine Anmeldung gibt es für Schüler nicht mehr; der Link ist der Zugang.
 
 ## Freigabe-Regeln
 
@@ -35,9 +40,9 @@ So kann kein QR-Code entstehen, der Schüler vor eine verschlossene Tür führt.
 ## Sicherheit
 
 **Der Link ist der Schlüssel.** Wer ihn hat, kommt ohne weitere Prüfung ins
-Quiz — auch ohne Subscribe-Key oder Themenpasswort. Das ist der Zweck, sollte
-aber bewusst eingesetzt werden: Für eine Prüfung den Link erst zu Beginn zeigen
-und danach *Zurückziehen* wählen.
+Quiz. Das ist der Zweck, sollte aber bewusst eingesetzt werden: Für eine
+Prüfung den Link erst zu Beginn zeigen und danach *Zurückziehen* wählen —
+oder gleich einen Themen-Link im Modus „Klassenarbeit“ verwenden.
 
 Der Token hat 96 Bit Zufall (`crypto.randomBytes(12)`, base64url) und ist nicht
 erratbar.

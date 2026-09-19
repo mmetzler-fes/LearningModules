@@ -1,30 +1,46 @@
-# Lernthemen freigeben und kopieren
+# Lernthemen freigeben: verwenden und kopieren
 
 ## Gedanke dahinter
 
-Freigeben heißt hier **nicht** gemeinsames Bearbeiten, sondern: Kolleginnen und
-Kollegen dürfen sich eine **eigene Kopie** ziehen und sind deren Eigentümer.
+Es gibt zwei Arten, ein Thema herzugeben. Sie lassen sich unabhängig
+voneinander erlauben.
 
-Das vermeidet ein Rechtemodell mit Lese-, Schreib- und Exportstufen – und vor
-allem die Frage, bei wem die Schülerergebnisse landen, wenn zwei Lehrkräfte
-dasselbe Thema einsetzen. Bei Kopien ist das eindeutig: jede Lehrkraft hat ihr
-eigenes Thema, ihren eigenen Quick-Link und ihre eigenen Ergebnisse.
+**Verwenden** – die Kollegin nimmt das **Original** in ihre eigenen
+Themen-Links. Es gibt keine Kopie; du pflegst den Inhalt an einer Stelle, und
+Änderungen wirken sofort bei allen, die ihn einsetzen.
 
-Der Preis: Spätere Änderungen am Original wandern **nicht** in die Kopien.
+**Kopieren** – die Kollegin zieht sich eine **eigene Fassung** und wird deren
+Eigentümerin. Spätere Änderungen am Original wandern nicht mit.
+
+Die früher heikle Frage, bei wem die Schülerergebnisse landen, stellt sich in
+beiden Fällen nicht mehr: Dafür zählt der Eigentümer des **Themen-Links**,
+nicht der des Inhalts. Wer den Link verteilt, bekommt die Ergebnisse — auch
+wenn die Aufgaben von jemand anderem stammen.
+
+**Wann was?** Für laufendes Üben ist *verwenden* angenehmer: eine Quelle, keine
+veralteten Kopien. Für eine Klassenarbeit ist *kopieren* die ruhigere Wahl —
+sonst könnte eine Änderung am Original die Arbeit verändern, die morgen
+geschrieben wird.
 
 ## Für die Lehrkraft
 
-**Freigeben:** Auf der Themenkarte → **👥** → entweder „Für alle Kolleginnen und
-Kollegen freigeben" oder einzelne Konten ankreuzen → speichern. Die Karte trägt
-danach ein Abzeichen („freigegeben für alle" bzw. „für 3").
+**Freigeben:** Auf der Themenkarte → **👥**. Pro Person gibt es zwei Häkchen,
+*verwenden* und *kopieren*; die oberste Zeile setzt beides für alle
+Kolleginnen und Kollegen auf einmal. Die Karte trägt danach getrennte
+Abzeichen („🔗 verwendbar für 3", „👥 kopierbar für alle").
 
-Freigabe zurücknehmen: alle Haken entfernen und speichern. Bereits gezogene
-Kopien bleiben davon unberührt – sie gehören ja schon jemand anderem.
+**Zurücknehmen:** Haken entfernen und speichern. Bei *kopieren* bleiben
+bereits gezogene Kopien unberührt – sie gehören ja schon jemand anderem. Bei
+*verwenden* wirkt der Entzug dagegen **sofort**: Bestehende Themen-Links der
+Kollegin liefern das Thema nicht mehr aus, und ihre Link-Liste weist darauf
+hin. Die Prüfung läuft bei jedem Schülerstart neu, nicht nur beim Anlegen des
+Links.
 
-**Kopieren:** Unter der eigenen Themenliste erscheint der Bereich
-„📤 Von Kolleginnen und Kollegen freigegeben" mit dem Knopf
-**„📥 Zu mir kopieren"**. Der Bereich ist unsichtbar, solange niemand etwas
-freigegeben hat.
+**Empfangen:** Unter der eigenen Themenliste erscheint der Bereich
+„📤 Von Kolleginnen und Kollegen freigegeben". Verwendbare Themen sind dort
+gekennzeichnet und stehen im Themen-Link-Editor unter „Von Kolleginnen und
+Kollegen freigegeben" zur Auswahl. Kopierbare tragen zusätzlich den Knopf
+**„📥 Zu mir kopieren"**.
 
 ## Was die Kopie übernimmt – und was nicht
 
@@ -38,17 +54,47 @@ freigegeben hat.
 Die Kopie startet bewusst **inaktiv** und auf „gesperrt": erst ansehen, dann
 selbst freigeben. So taucht sie nicht ungeprüft bei den Schülern auf.
 
+## Zugriffsstufen
+
+Das Datenmodell kennt drei Stufen, geordnet – `write` schließt `read` ein:
+
+| Stufe | Darf |
+|---|---|
+| `read` | Inhalte sehen und in eigenen Themen-Links verwenden |
+| `write` | zusätzlich Module anlegen, bearbeiten, löschen, umsortieren |
+| Eigentümer | zusätzlich Thema löschen, Freigabe ändern, Quick-Link verwalten |
+
+**`write` ist im Datenmodell vorgesehen, in der Oberfläche aber noch nicht
+wählbar.** Das war Absicht: Die Stufe lässt sich später freischalten, ohne das
+Modell noch einmal anzufassen. Serverseitig ist sie vollständig umgesetzt und
+geprüft, einschließlich der Eigentümervorbehalte.
+
+Der gesamte Zugriff hängt an einer einzigen Stelle – `findOneFor(id, user,
+need)` in `topics.service.ts`. Jede Methode nennt die Stufe, die sie braucht;
+was nicht ausdrücklich geöffnet wird, bleibt eigentümergebunden. `update()`
+arbeitet zusätzlich mit einer Positivliste erlaubter Felder, damit ein
+Bearbeiter nicht über einen Umweg `ownerId`, die Freigabe oder das
+Themenpasswort mitsetzen kann.
+
 ## Endpunkte
 
 | Methode | Pfad | Zweck |
 |---|---|---|
 | `GET` | `/api/topics/colleagues` | Auswahlliste für den Dialog (auch für Lehrkräfte) |
-| `GET` | `/api/topics/shared-with-me` | Was mir freigegeben wurde |
-| `POST` | `/api/topics/:id/sharing` | `{sharedWith: ["*"]}` oder Liste von Benutzer-IDs |
+| `GET` | `/api/topics/shared-with-me` | Was mir freigegeben wurde (mit `canUse`/`canCopy`) |
+| `GET` | `/api/topics/usable` | Eigene + zur Nutzung freigegebene Themen samt Modulen |
+| `POST` | `/api/topics/:id/sharing` | `{sharedWith, sharedAccess}` – fehlendes Feld bleibt unverändert |
 | `POST` | `/api/topics/:id/copy` | Eigene Kopie anlegen |
 
-Gespeichert wird in `topics.sharedWith` (`simple-json`). `['*']` steht für alle
-und schlägt jede Einzelauswahl, damit kein widersprüchlicher Zustand entsteht.
+Gespeichert wird in zwei Feldern: `topics.sharedWith` (Kopier-Freigabe, Liste
+von Benutzer-IDs) und `topics.sharedAccess` (`[{userId, level}]`). Bei beiden
+steht `'*'` für alle Kolleginnen und Kollegen; ein persönlicher Eintrag in
+`sharedAccess` schlägt die Sammelfreigabe, sodass eine Einzelperson mehr
+bekommen kann als die Allgemeinheit.
+
+`GET /api/topics/usable` liefert fremde Themen entschärft: Themenpasswort,
+Subscribe-Key und Quick-Link-Token bleiben draußen. Wer Inhalte verwenden
+darf, braucht die Zugangsdaten des Eigentümers nicht.
 
 **Hinweis zur Technik:** `shared-with-me` filtert in JavaScript statt in SQL,
 weil `sharedWith` als JSON-Text abgelegt ist. Bei schulischen Datenmengen ist

@@ -137,3 +137,37 @@ export function sanitizeModuleDescriptionHtml(html) {
 
   return out.innerHTML;
 }
+
+/**
+ * Kopiert einen QR-Code (SVG) als PNG in die Zwischenablage – zum Einfügen
+ * in Arbeitsblätter, Präsentationen oder Moodle. Das SVG wird über ein
+ * Canvas gerastert, bewusst großzügig, damit es beim Ausdrucken scharf bleibt.
+ *
+ * Gibt zurück, ob es geklappt hat; ältere Browser können keine Bilder in die
+ * Zwischenablage legen.
+ */
+export async function copyQrSvgAsPng(svg, size = 600) {
+  if (!svg) return false;
+  try {
+    const xml = new XMLSerializer().serializeToString(svg);
+    const img = new Image();
+    img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(xml);
+    await img.decode();
+
+    const canvas = document.createElement('canvas');
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#ffffff';           // weißer Grund, sonst scannt es schlecht
+    ctx.fillRect(0, 0, size, size);
+    ctx.drawImage(img, 0, 0, size, size);
+
+    const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
+    if (!blob) return false;
+
+    await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+    return true;
+  } catch (_) {
+    return false;
+  }
+}

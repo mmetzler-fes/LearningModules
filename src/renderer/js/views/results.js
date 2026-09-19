@@ -1,4 +1,7 @@
-import { escapeHtml } from '../utils.js';
+import { escapeHtml, escapeAttr } from '../utils.js';
+
+/** Kurzbeschriftung der Abfragemodi in der Ergebnisliste. */
+const MODE_LABELS = { quiz: '🧠 Quiz', exam: '📝 Klassenarbeit', learn: '💡 Lernen' };
 
 // ==================== RESULTS VIEW ====================
 
@@ -8,6 +11,7 @@ export class ResultsView {
     this._resultsStats  = document.getElementById('resultsStats');
     this._resultsList   = document.getElementById('resultsList');
     this._searchResults = document.getElementById('searchResults');
+    this._filterLink    = document.getElementById('filterResultsLink');
     this._btnDeleteAll  = document.getElementById('btnDeleteAllResults');
     this._btnExport     = document.getElementById('btnExportResults');
 
@@ -16,6 +20,7 @@ export class ResultsView {
 
   _bindEvents() {
     if (this._searchResults) this._searchResults.addEventListener('input', () => this.refresh());
+    if (this._filterLink) this._filterLink.addEventListener('change', () => this.refresh());
     if (this._btnDeleteAll) {
       this._btnDeleteAll.addEventListener('click', async () => {
         if (!(await this.app.appConfirm(t('results.delete.all.confirm')))) return;
@@ -47,11 +52,39 @@ export class ResultsView {
     this.app.showToast('Ergebnisse erfolgreich exportiert.', 'success');
   }
 
+  /**
+   * Füllt die Link-Auswahl aus den tatsächlich vorhandenen Ergebnissen.
+   * Gelöschte Links bleiben damit auswählbar, solange ihre Ergebnisse noch
+   * da sind – der Name steht ja im Ergebnis selbst.
+   */
+  _renderLinkOptions(results) {
+    if (!this._filterLink) return;
+    const names = [...new Set(results.map((r) => r.linkName).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'de'));
+    const current = this._filterLink.value;
+    const hasWithout = results.some((r) => !r.linkName);
+
+    this._filterLink.innerHTML = `
+      <option value="">Alle Links</option>
+      ${names.map((n) => `<option value="${escapeAttr(n)}">${escapeHtml(n)}</option>`).join('')}
+      ${hasWithout ? '<option value="__none__">Ohne Link</option>' : ''}`;
+    if ([...this._filterLink.options].some((o) => o.value === current)) this._filterLink.value = current;
+  }
+
   async refresh() {
     const results = await this.app.api.getQuizResults();
     const search = (this._searchResults ? this._searchResults.value : '').toLowerCase().trim();
+    const linkFilter = this._filterLink ? this._filterLink.value : '';
+
+    this._renderLinkOptions(results);
+
     let filtered = results;
     if (search) filtered = filtered.filter((r) => (r.studentName || r.username || '').toLowerCase().includes(search));
+    if (linkFilter) {
+      // '__none__' fasst alles zusammen, was ohne Themen-Link entstanden ist.
+      filtered = linkFilter === '__none__'
+        ? filtered.filter((r) => !r.linkName)
+        : filtered.filter((r) => r.linkName === linkFilter);
+    }
 
     const uniqueStudents = new Set(results.map((r) => r.studentName || r.username || r.id)).size;
     const avgScore = results.length > 0
@@ -95,6 +128,8 @@ export class ResultsView {
             </span>
             <br>
             <span class="result-topic-name">${escapeHtml(r.topicTitle || '—')}</span>
+            ${r.linkName ? `<span class="result-link-name">🔗 ${escapeHtml(r.linkName)}</span>` : ''}
+            ${r.mode ? `<span class="result-mode-badge">${escapeHtml(MODE_LABELS[r.mode] || r.mode)}</span>` : ''}
             <span class="result-date">${new Date(r.timestamp).toLocaleString('de-DE')}</span>
           </div>
           <div class="result-score ${pctClass}">${r.score}/${r.totalQuestions} (${r.percentage}%)</div>

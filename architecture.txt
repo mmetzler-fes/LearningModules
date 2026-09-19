@@ -22,9 +22,12 @@ BACKEND – src/
     user.entity.ts              Benutzer (admin / teacher)
     school.entity.ts            Schule / Mandant
     student-class.entity.ts     Klasse
-    learning-topic.entity.ts    Lernthema (gehört zu User)
+    learning-topic.entity.ts    Lernthema (tagIds, sharedWith = kopieren,
+                                sharedAccess = [{userId, level}] verwenden)
     learning-module.entity.ts   Lernmodul (gehört zu Topic)
-    result.entity.ts            Quiz-Ergebnis
+    result.entity.ts            Quiz-Ergebnis (mit linkId, linkName, mode)
+    tag.entity.ts               Schlagwort (gehört zu User)
+    topic-link.entity.ts        Themen-Link: benannter Schülerzugang
 
   auth/                         JWT-Authentifizierung
     auth.controller.ts          POST /api/auth/login, /register
@@ -36,8 +39,15 @@ BACKEND – src/
       school-isolation.guard.ts  Mandanten-Isolation
 
   topics/                       CRUD Lernthemen (Teacher-Auth erforderlich)
+    topics.service.ts           findOneFor(id,user,need): eine Stelle für alle
+                                Zugriffsstufen (read < write < owner)
   results/                      CRUD Quiz-Ergebnisse
   admin/                        Admin-Verwaltung (User-Liste, Whitelist/Blacklist)
+  tags/                         CRUD Schlagworte; Löschen räumt Themen & Links auf
+  links/                        CRUD Themen-Links
+    links.service.ts            resolveModules() löst die Auswahl in Module auf
+
+  core/share/link-url.ts        Öffentliche Adresse + QR-Code (Quick- und Themen-Link)
 
   core/interchange/             Import / Export
     interchange.controller.ts   Routen für JSON- und H5P-Import/-Export
@@ -72,10 +82,10 @@ FRONTEND – src/renderer/
       .api                BrowserApi-Instanz
       .renderer           H5pRenderer-Instanz
       .state              Zentraler Anwendungszustand:
-                            currentUser, topics, currentTopicId,
+                            currentUser, topics, tags, currentTopicId,
                             currentTopicModules, currentTopicRawSummary,
                             editingModuleId, editingTopicId,
-                            contentEditor, examModeEnabled, quizState
+                            contentEditor, quizState, linkSession
       .loginView          LoginView
       .topicsView         TopicsView
       .modulesView        ModulesView
@@ -83,8 +93,10 @@ FRONTEND – src/renderer/
       .resultsView        ResultsView
       .dashboardView      DashboardView
       .adminView          AdminView
-      loadTopics()        Lädt Themen (teacher: eigene; student: Lehrerfreigaben)
-      loadExamMode()      Liest Prüfungsmodus-Einstellung aus API
+      .linksView          LinksView
+      .tagsView           TagsView
+      loadTopics()        Lädt die Themen der Lehrkraft (Schüler laden nichts nach)
+      loadTags()          Lädt die Tags der Lehrkraft
       setupNavigation()   Bindet Nav-Buttons nach Login
       navigateToView()    Zeigt View, hebt Nav-Button hervor, delegiert refresh()
       initTheme()         Dark-Mode + Sprache initialisieren
@@ -132,13 +144,25 @@ FRONTEND – src/renderer/
                           Interaktives Rechenquiz-Widget
 
   views/login.js
+    LINK_MODE_LABELS      Beschriftung der drei Abfragemodi (auch in links.js)
     class LoginView
       initLoginScreen()   Zeigt Admin-Toggle (prüft Servereinstellung)
       showLoginScreen()   Setzt Zustand zurück, zeigt Login-Formular
       enterApp()          Nav aufbauen, Themen laden, zur Startansicht navigieren
-      _onStudentLogin()   Lehrer-Email + Schülername validieren
+      startLinkEntry()    Einstieg über ?l=<token>: Name, Passwort, Moduswahl
+      startQuickEntry()   Einstieg über ?q=<token>: nur Name
       _onAdminLogin()     JWT-Login für Lehrer/Admin
       _onRegister()       Lehrer-Registrierung
+
+  views/links.js
+    class LinksView
+      refresh()           Link-Karten mit Modi, Tags, Aktivierung
+      _openEditor(link)   Formular inkl. Auswahlbaum Thema → Modul → Submodul
+      _openShareDialog()  QR-Code und URL zum Versenden
+
+  views/tags.js
+    class TagsView        Verwaltete Tag-Liste (anlegen, umbenennen, löschen)
+    class TagFilter       Filterbaustein: Freitext + Checkboxen + ODER/UND
 
   views/topics.js
     class TopicsView
@@ -163,13 +187,15 @@ FRONTEND – src/renderer/
 
   views/quiz.js
     class QuizView
-      refreshStudentTopics()      Schüler-Themenübersicht (view: student-topics)
-      refreshQuizSelect()         Themenauswahl-Karten (view: student-quiz)
-      _startStudentQuiz(topic)    Passwortprüfung, dann _startQuiz()
+      refreshQuizSelect()         Themenauswahl (nur Lehrkraft; Schüler bringt der Link)
+      startLinkRun(data)          Durchlauf über einen Themen-Link, Module aller Themen
+      startQuickQuiz(topic)       Durchlauf über den Quick-Link
       _startQuiz(topic)           quizState initialisieren, Player anzeigen
+      _isExamRun() / _isLearnRun() Modus des laufenden Durchlaufs
       _renderModule()             Aktuelles Modul mit H5pRenderer + Fortschrittsbalken
+      _revealSolution(answer)     Musterlösung im Modus "Lernen mit Lösungen"
       _collectAnswer(mod)         Antwort je Typ einsammeln (alle H5P-Typen)
-      _finishQuiz()               Ergebnis speichern, Ergebnisbildschirm anzeigen
+      _finishQuiz()               Ergebnis speichern (nicht im Lernmodus)
 
   views/results.js
     class ResultsView
@@ -206,20 +232,24 @@ DATENFLUSS (Login → Quiz)
        → API: GET /api/topics/:id/modules
        → ModulesView.refresh() → H5pRenderer.renderPreview()
 
-  4. Schüler startet Quiz
-       → QuizView._startQuiz(topic)
-       → quizState initialisieren
-       → QuizView._renderModule() → H5pRenderer.renderPreview(..., {quizMode:true})
+  4. Schüler startet über einen Themen-Link
+       → ?l=<token> → LoginView.startLinkEntry()
+       → API: GET /api/public/link/:token   (Name, Modi, Passwortpflicht)
+       → Name, ggf. Passwort, ggf. Modus wählen
+       → API: POST /api/public/link/:token/start   (liefert die Module)
+       → QuizView.startLinkRun() → _renderModule()
        → QuizView._finishQuiz()
-       → API: POST /api/results (oder public endpoint)
+       → API: POST /api/public/results (mit linkToken und mode;
+              im Modus "Lernen mit Lösungen" entfällt das Speichern)
 
 --------------------------------------------------------------------------------
 ROLLEN
 --------------------------------------------------------------------------------
 
   admin    Vollzugriff; sieht Admin-Nav (Benutzerverwaltung, Whitelist/Blacklist)
-  teacher  CRUD eigene Themen & Module; sieht Ergebnisse
-  student  Lesezugriff auf freigegebene Themen; Quiz-Teilnahme (kein JWT)
+  teacher  CRUD eigene Themen, Module, Tags und Themen-Links; sieht Ergebnisse
+  student  Kein Konto und keine Anmeldung. Zugang ausschließlich über einen
+           Themen-Link (?l=) oder Quick-Link (?q=); der Link ist der Schlüssel.
 
 --------------------------------------------------------------------------------
 UMGEBUNGSVARIABLEN

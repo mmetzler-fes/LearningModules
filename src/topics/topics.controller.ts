@@ -21,6 +21,12 @@ export class TopicsController {
   }
 
   /** Themen, die mir jemand freigegeben hat. */
+  /** Themen, die ich in eigenen Themen-Links verwenden darf (eigene + freigegebene). */
+  @Get('usable')
+  async findUsable(@Request() req: any) {
+    return this.topicsService.findUsable(req.user);
+  }
+
   @Get('shared-with-me')
   async sharedWithMe(@Request() req: any) {
     return this.topicsService.findSharedWithMe(req.user);
@@ -41,8 +47,13 @@ export class TopicsController {
 
   /** Freigabe setzen: Liste von Benutzer-IDs oder ['*'] für alle. */
   @Post(':id/sharing')
-  async setSharing(@Param('id') id: string, @Request() req: any, @Body() body: { sharedWith?: string[] }) {
-    return this.topicsService.setSharing(id, req.user, body?.sharedWith || []);
+  async setSharing(
+    @Param('id') id: string,
+    @Request() req: any,
+    @Body() body: { sharedWith?: string[]; sharedAccess?: Array<{ userId: string; level: string }> },
+  ) {
+    // Fehlt ein Feld, bleibt die jeweilige Freigabe unangetastet.
+    return this.topicsService.setSharing(id, req.user, body?.sharedWith, body?.sharedAccess);
   }
 
   /** Eigene Kopie eines freigegebenen Themas anlegen. */

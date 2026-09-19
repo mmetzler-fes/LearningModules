@@ -1,10 +1,12 @@
-import { Controller, Get, Post, Body, Param, Req, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Req, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { User } from '../entities/user.entity';
 import { LearningTopic } from '../entities/learning-topic.entity';
 import { LearningModule } from '../entities/learning-module.entity';
 import { Result } from '../entities/result.entity';
+import { TopicLink } from '../entities/topic-link.entity';
+import { LinksService } from '../../links/links.service';
 import * as crypto from 'crypto';
 
 @Controller('public')
@@ -14,36 +16,9 @@ export class PublicController {
     @InjectRepository(LearningTopic) private readonly topicRepo: Repository<LearningTopic>,
     @InjectRepository(LearningModule) private readonly moduleRepo: Repository<LearningModule>,
     @InjectRepository(Result) private readonly resultRepo: Repository<Result>,
+    @InjectRepository(TopicLink) private readonly linkRepo: Repository<TopicLink>,
+    private readonly linksService: LinksService,
   ) {}
-
-  /**
-   * GET /public/teachers/:email/topics
-   * Returns all public and password-protected topics of a teacher.
-   * Students use this to browse available quizzes.
-   */
-  @Get('teachers/:email/topics')
-  async getTeacherTopics(@Param('email') email: string) {
-    const teacher = await this.userRepo.findOne({
-      where: [{ email, role: 'teacher' }, { email, role: 'admin' }],
-    });
-    if (!teacher) throw new NotFoundException('Lehrer nicht gefunden.');
-
-    const topics = await this.topicRepo
-      .createQueryBuilder('topic')
-      .where('topic.ownerId = :ownerId', { ownerId: teacher.id })
-      .andWhere('topic.selected = :selected', { selected: true })
-      .leftJoinAndSelect('topic.modules', 'modules')
-      .orderBy('modules.orderIndex', 'ASC')
-      .getMany();
-
-    return {
-      topics: topics.map(({ accessPassword, subscribeKey, ...topic }) => ({
-        ...topic,
-        hasSubscribeKey: !!subscribeKey,
-      })),
-      examMode: !!(teacher.accessFilters?.examMode),
-    };
-  }
 
   /**
    * GET /public/quick/:token
@@ -72,90 +47,98 @@ export class PublicController {
     return {
       teacherEmail: teacher.email,
       topic: safeTopic,
-      examMode: !!(teacher.accessFilters?.examMode),
+    };
+  }
+
+  // ==================== THEMEN-LINK ====================
+
+  /**
+   * GET /public/link/:token
+   * Vorschau des Themen-Links: Name, erlaubte Modi und ob ein Passwort nötig
+   * ist. Inhalte gibt es erst nach POST .../start – der Name des Schülers
+   * gehört zu jedem Durchlauf dazu.
+   */
+  @Get('link/:token')
+  async getLink(@Param('token') token: string) {
+    const link = await this.findLinkByToken(token);
+    const resolved = await this.linksService.resolveModules(link);
+
+    return {
+      linkId: link.id,
+      name: link.name,
+      modes: link.modes,
+      requiresPassword: !!link.accessPassword,
+      singleAttempt: link.singleAttempt,
+      topicCount: resolved.length,
+      moduleCount: resolved.reduce((n, r) => n + r.modules.length, 0),
+      topicTitles: resolved.map((r) => r.topic.title),
     };
   }
 
   /**
-   * POST /public/teachers/:email/topics/:id/verify-subscribe-key
-   * Verifies the subscribe key for a topic before a student can start the quiz.
+   * POST /public/link/:token/start
+   * Startet einen Durchlauf: prüft Passwort und Modus, liefert die Module.
    */
-  @Post('teachers/:email/topics/:id/verify-subscribe-key')
-  async verifySubscribeKey(
-    @Param('email') email: string,
-    @Param('id') topicId: string,
-    @Body() body: { key: string },
+  @Post('link/:token/start')
+  async startLink(
+    @Param('token') token: string,
+    @Body() body: { studentName?: string; password?: string; mode?: string },
   ) {
-    const teacher = await this.userRepo.findOne({
-      where: [{ email, role: 'teacher' }, { email, role: 'admin' }],
-    });
-    if (!teacher) throw new NotFoundException('Lehrer nicht gefunden.');
+    const link = await this.findLinkByToken(token);
 
-    const topic = await this.topicRepo
-      .createQueryBuilder('topic')
-      .where('topic.id = :id', { id: topicId })
-      .andWhere('topic.ownerId = :ownerId', { ownerId: teacher.id })
-      .leftJoinAndSelect('topic.modules', 'modules')
-      .orderBy('modules.orderIndex', 'ASC')
-      .getOne();
+    const studentName = (body?.studentName || '').trim();
+    if (!studentName) throw new BadRequestException('Bitte den Namen eingeben.');
 
-    if (!topic) throw new NotFoundException('Thema nicht gefunden.');
-    if (!topic.subscribeKey || topic.subscribeKey !== body.key) {
-      throw new ForbiddenException('Falscher Subscribe-Key.');
+    if (link.accessPassword && (body?.password || '') !== link.accessPassword) {
+      throw new ForbiddenException('Falsches Passwort.');
     }
 
-    const { subscribeKey: _sk, accessPassword: _ap, ...safeTopic } = topic;
-    return safeTopic;
-  }
+    // Ohne Angabe gilt der einzige erlaubte Modus; bei mehreren muss der
+    // Schüler sich entschieden haben.
+    const mode = (body?.mode || (link.modes.length === 1 ? link.modes[0] : '')) as string;
+    if (!link.modes.includes(mode as any)) {
+      throw new ForbiddenException('Dieser Modus ist für den Link nicht freigegeben.');
+    }
 
-  /**
-   * POST /public/teachers/:email/topics/:id/verify-password
-   * Verifies the access password for a password-protected topic.
-   * Returns modules if password is correct.
-   */
-  @Post('teachers/:email/topics/:id/verify-password')
-  async verifyTopicPassword(
-    @Param('email') email: string,
-    @Param('id') topicId: string,
-    @Body() body: { password: string },
-  ) {
-    const teacher = await this.userRepo.findOne({
-      where: [{ email, role: 'teacher' }, { email, role: 'admin' }],
-    });
-    if (!teacher) throw new NotFoundException('Lehrer nicht gefunden.');
-
-    const topic = await this.topicRepo
-      .createQueryBuilder('topic')
-      .where('topic.id = :id', { id: topicId })
-      .andWhere('topic.ownerId = :ownerId', { ownerId: teacher.id })
-      .leftJoinAndSelect('topic.modules', 'modules')
-      .orderBy('modules.orderIndex', 'ASC')
-      .getOne();
-
-    if (!topic) throw new NotFoundException('Thema nicht gefunden.');
-    if (topic.visibility === 'locked') throw new ForbiddenException('Dieses Thema ist gesperrt.');
-    if (topic.visibility === 'password') {
-      if (!body.password || body.password !== topic.accessPassword) {
-        throw new ForbiddenException('Falsches Passwort.');
+    if (mode === 'exam' && link.singleAttempt) {
+      const previous = await this.resultRepo.count({ where: { linkId: link.id, studentName, mode: 'exam' } });
+      if (previous > 0) {
+        throw new ForbiddenException(
+          `Für "${studentName}" liegt bereits ein Durchlauf vor. Bitte bei der Lehrkraft melden.`,
+        );
       }
     }
 
-    const { accessPassword, ...safeTopic } = topic;
-    return safeTopic;
+    const teacher = await this.userRepo.findOne({ where: { id: link.ownerId } });
+    if (!teacher) throw new NotFoundException('Lehrer nicht gefunden.');
+
+    const resolved = await this.linksService.resolveModules(link);
+    if (resolved.length === 0) {
+      throw new ForbiddenException('Dieser Link enthält derzeit keine Inhalte.');
+    }
+
+    return {
+      linkId: link.id,
+      linkName: link.name,
+      mode,
+      studentName,
+      teacherEmail: teacher.email,
+      topics: resolved.map((r) => ({
+        id: r.topic.id,
+        title: r.topic.title,
+        description: r.topic.description,
+        modules: r.modules,
+      })),
+    };
   }
 
-  /**
-   * GET /public/teachers/:email/exam-mode
-   * Returns the exam mode setting of a teacher (no auth required).
-   * Students use this to check whether immediate feedback is suppressed.
-   */
-  @Get('teachers/:email/exam-mode')
-  async getTeacherExamMode(@Param('email') email: string) {
-    const teacher = await this.userRepo.findOne({
-      where: [{ email, role: 'teacher' }, { email, role: 'admin' }],
-    });
-    if (!teacher) throw new NotFoundException('Lehrer nicht gefunden.');
-    return { enabled: !!(teacher.accessFilters?.examMode) };
+  /** Gemeinsame Prüfung: Token bekannt, Link aktiv. */
+  private async findLinkByToken(token: string): Promise<TopicLink> {
+    if (!token) throw new NotFoundException('Ungültiger Link.');
+    const link = await this.linkRepo.findOne({ where: { token } });
+    if (!link) throw new NotFoundException('Dieser Link ist ungültig oder wurde zurückgezogen.');
+    if (!link.active) throw new ForbiddenException('Dieser Link ist derzeit deaktiviert.');
+    return link;
   }
 
   /**
@@ -165,7 +148,9 @@ export class PublicController {
   @Post('results')
   async submitResult(
     @Body() body: {
-      teacherEmail: string;
+      teacherEmail?: string;
+      linkToken?: string;
+      mode?: string;
       studentName: string;
       topicId: string;
       moduleId: string;
@@ -175,9 +160,20 @@ export class PublicController {
     },
     @Req() req: any,
   ) {
-    const teacher = await this.userRepo.findOne({
-      where: [{ email: body.teacherEmail, role: 'teacher' }, { email: body.teacherEmail, role: 'admin' }],
-    });
+    // Kommt der Durchlauf über einen Themen-Link, ist der Token die Quelle der
+    // Wahrheit: Lehrkraft und Linkname stammen dann aus dem Link selbst und
+    // nicht aus dem, was der Browser mitschickt.
+    let link: TopicLink | null = null;
+    if (body.linkToken) {
+      link = await this.linkRepo.findOne({ where: { token: body.linkToken } });
+      if (!link) throw new NotFoundException('Dieser Link ist ungültig oder wurde zurückgezogen.');
+    }
+
+    const teacher = link
+      ? await this.userRepo.findOne({ where: { id: link.ownerId } })
+      : await this.userRepo.findOne({
+          where: [{ email: body.teacherEmail, role: 'teacher' }, { email: body.teacherEmail, role: 'admin' }],
+        });
     if (!teacher) throw new NotFoundException('Lehrer nicht gefunden.');
 
     const forwarded = req.headers['x-forwarded-for'];
@@ -193,6 +189,9 @@ export class PublicController {
       maxScore: body.maxScore,
       payload: body.payload || null,
       ipAddress: ipAddress || null,
+      linkId: link?.id,
+      linkName: link?.name,
+      mode: link ? body.mode : undefined,
     });
     const saved = await this.resultRepo.save(result);
     return { success: true, id: saved.id };

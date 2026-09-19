@@ -16,3 +16,21 @@ Vereinfachung der Account Administration:
 	- Schüler geben die Lehreremail und ihren Namen über die UI ein und sehen alle Quizze des Lehrers, die freigegeben oder mit Passwort freigegeben sind (dann Passwort Eingabe)
 	- Die Schülerdaten werden beim Lehreraccount abgespeichert (wie bisher)
 
+Zuordnung der Lehrerthemen:
+- Für die Lernmodule sollen Tags erstellt werden können z.B. Informatik, Arduino
+- Die Inhalte sollen auch gefiltert werden können nach Tags z.B. Freitext Eingabe und Anzeige aller Tags
+die dazu passen mit Checkbox. Wird die Checkbox ausgewählt werden nur Themen mit diesen Tags angezeigt.
+Es soll auch nach mehreren Themen gefiltert werden können.
+
+- Das Konzept der Schüleranmeldung passt nicht richtig. Der Quicklink ist passender und soll
+ausgebaut werden.
+- Es sollen Links mit Namen z.B. "TG12 Informatik Arduino" erstellt werden können, bei denen aus den Lernthemen module ausgewält werden können
+Am besten sogar dass eine Selektion der Unterthemen der Lernmodule möglich ist.
+Ein Themenlink soll wie der Quicklink versendet werden können (QR-Code, URL)
+Wichtig für den Link soll Quiz, Klassenarbeit, Lernen mit Lösungen ausgewählt werden können.
+Wird z.B. nur Quiz ausgewählt wird sofort mit dem Link wie bei Quicklink das Quiz aller im Link ausgewählten
+Themen aktiviert.
+Bei Klassenarbeit entsprechend. 
+Ist z.B. Quiz und Lernen mit Lösungen aktiviert, kann der Schüler selbst zwischen beiden wählen.
+
+- Links sollen ebenso Tags zugeordnet werden können und sie sollen in einem separaten Menü angezeigt werden und auch gelöscht oder deaktiviert werden können.

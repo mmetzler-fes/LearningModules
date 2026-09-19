@@ -8,6 +8,8 @@ import { QuizView } from './views/quiz.js';
 import { ResultsView } from './views/results.js';
 import { DashboardView } from './views/dashboard.js';
 import { AdminView } from './views/admin.js';
+import { LinksView } from './views/links.js';
+import { TagsView } from './views/tags.js';
 
 // ==================== APP COORDINATOR ====================
 
@@ -26,8 +28,13 @@ class App {
       editingModuleId: null,
       editingTopicId: null,
       contentEditor: null,
-      examModeEnabled: false,
       quizState: null,
+      /**
+       * Läuft die Sitzung über einen Themen-Link, steht hier alles, was der
+       * Durchlauf braucht: Token, Name des Links, gewählter Modus.
+       */
+      linkSession: null,
+      tags: [],
     };
 
     this._views = document.querySelectorAll('.view');
@@ -42,6 +49,8 @@ class App {
     this.resultsView  = new ResultsView(this);
     this.dashboardView = new DashboardView(this);
     this.adminView    = new AdminView(this);
+    this.linksView    = new LinksView(this);
+    this.tagsView     = new TagsView(this);
   }
 
   showToast(message, type = 'info') {
@@ -52,38 +61,24 @@ class App {
     return appConfirm(message);
   }
 
+  /**
+   * Themen der angemeldeten Lehrkraft. Schüler laden nichts nach: Was sie
+   * sehen, bringt der Themen-Link bzw. der Quick-Link mit.
+   */
   async loadTopics() {
     const { state, api } = this;
-    if (state.currentUser && state.currentUser.role === 'student') {
-      const data = await api.getTeacherTopics(state.currentUser.teacherEmail);
-      if (data && Array.isArray(data.topics)) {
-        state.topics = data.topics;
-        // Exam mode is bundled with the topics response — always up-to-date
-        state.examModeEnabled = !!(data.examMode);
-      } else {
-        // Fallback: old server returning plain array
-        state.topics = Array.isArray(data) ? data : [];
-      }
-    } else {
-      state.topics = await api.getTopics();
-    }
+    if (state.currentUser && state.currentUser.role === 'student') return;
+    state.topics = await api.getTopics();
   }
 
-  async loadExamMode() {
-    const { currentUser } = this.state;
+  /** Tags der Lehrkraft – Grundlage für Filter und Auswahl. */
+  async loadTags() {
     try {
-      let result;
-      if (currentUser && currentUser.role === 'student' && currentUser.teacherEmail) {
-        result = await this.api.getTeacherExamMode(currentUser.teacherEmail);
-      } else {
-        result = await this.api.getExamMode();
-      }
-      this.state.examModeEnabled = !!(result && result.enabled);
+      this.state.tags = await this.api.getTags();
     } catch (_) {
-      this.state.examModeEnabled = false;
+      this.state.tags = [];
     }
-    const chk = document.getElementById('chkExamMode');
-    if (chk) chk.checked = this.state.examModeEnabled;
+    return this.state.tags;
   }
 
   setupNavigation() {
@@ -126,8 +121,8 @@ class App {
       case 'teacher-topics':    this.topicsView.refresh(); break;
       case 'teacher-modules':   this.modulesView.refresh(); break;
       case 'teacher-results':   this.resultsView.refresh(); break;
-      case 'student-topics':    this.quizView.refreshStudentTopics(); break;
-      case 'student-quiz':      this.quizView.refreshQuizSelect(); break;
+      case 'teacher-links':     this.linksView.refresh(); break;
+      case 'teacher-tags':      this.tagsView.refresh(); break;
       case 'admin-users':       this.adminView.refreshUsers(); break;
       case 'admin-topics':      this.adminView.refreshAdminTopics(); break;
       case 'admin-whitelist':   this.adminView.refreshWhitelistBlacklist(); break;
@@ -261,8 +256,15 @@ class App {
       if (adminToggle) adminToggle.style.display = 'none';
       await this.loginView.initLoginScreen();
 
+      const params = new URLSearchParams(window.location.search);
+      // Themen-Link: ?l=<token> – Name, ggf. Passwort, ggf. Modusauswahl
+      const linkToken = params.get('l');
+      if (linkToken) {
+        await this.loginView.startLinkEntry(linkToken);
+        return;
+      }
       // Quick-Link: ?q=<token> führt direkt zur Namenseingabe
-      const quickToken = new URLSearchParams(window.location.search).get('q');
+      const quickToken = params.get('q');
       if (quickToken) await this.loginView.startQuickEntry(quickToken);
     }
   }

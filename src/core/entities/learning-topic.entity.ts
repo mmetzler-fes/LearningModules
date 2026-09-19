@@ -44,6 +44,28 @@ export class LearningTopic extends BaseEntity {
   @Column('simple-json', { nullable: true })
   sharedWith: string[] | null;
 
+  /**
+   * Zugriff auf das Original, ohne es zu kopieren. Damit kann eine Kollegin
+   * das Thema in ihren eigenen Themen-Links verwenden; die Ergebnisse landen
+   * trotzdem bei ihr, denn dafür zählt der Eigentümer des Links.
+   *
+   * Die Stufen sind bewusst geordnet: 'write' schließt 'read' ein.
+   *   read  – Inhalte sehen und in eigenen Links verwenden
+   *   write – zusätzlich Module bearbeiten, anlegen, löschen, umsortieren
+   *
+   * 'write' ist im Datenmodell vorgesehen, in der Oberfläche aber noch nicht
+   * wählbar. Eigentümervorbehalte bleiben in jedem Fall: Thema löschen,
+   * Freigabe ändern und Quick-Link verwalten kann nur der Ersteller.
+   *
+   * userId '*' steht für alle Kolleginnen und Kollegen.
+   */
+  @Column('simple-json', { nullable: true })
+  sharedAccess: Array<{ userId: string; level: 'read' | 'write' }> | null;
+
+  /** Schlagworte zur Einordnung (Tag-IDs, siehe Tag-Entität). */
+  @Column('simple-json', { nullable: true })
+  tagIds: string[] | null;
+
   @Column('simple-json', { nullable: true })
   permissions: {
     visibleTo: 'all' | 'none' | 'classes' | 'school';

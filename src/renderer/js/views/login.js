@@ -1,4 +1,11 @@
-import { escapeHtml } from '../utils.js';
+import { escapeHtml, escapeAttr } from '../utils.js';
+
+/** Beschriftung der drei Abfragemodi – auch in der Link-Verwaltung genutzt. */
+export const LINK_MODE_LABELS = {
+  quiz:  { icon: '🧠', label: 'Quiz',                  hint: 'Mit Rückmeldung nach jeder Aufgabe.' },
+  exam:  { icon: '📝', label: 'Klassenarbeit',         hint: 'Ohne Rückmeldung, kein Zurückblättern.' },
+  learn: { icon: '💡', label: 'Lernen mit Lösungen',   hint: 'Antworten und sofort die Musterlösung sehen.' },
+};
 
 // ==================== LOGIN VIEW ====================
 
@@ -9,9 +16,6 @@ export class LoginView {
     // DOM references
     this._loginScreen   = document.getElementById('loginScreen');
     this._appContainer  = document.getElementById('appContainer');
-    this._loginForm     = document.getElementById('loginForm');
-    this._loginName     = document.getElementById('loginName');
-    this._teacherEmail  = document.getElementById('teacherEmailInput');
     this._studentSec    = document.getElementById('studentLoginSection');
     this._adminSec      = document.getElementById('adminLoginSection');
     this._btnShowAdmin  = document.getElementById('btnShowAdminLogin');
@@ -43,11 +47,6 @@ export class LoginView {
   }
 
   _bindEvents() {
-    // Student login
-    if (this._loginForm) {
-      this._loginForm.addEventListener('submit', (e) => this._onStudentLogin(e));
-    }
-
     // Show admin / show student toggles
     if (this._btnShowAdmin) {
       this._btnShowAdmin.addEventListener('click', () => {
@@ -164,6 +163,7 @@ export class LoginView {
       history.replaceState(null, '', window.location.pathname);
     });
 
+
     let data;
     try {
       data = await this.app.api.getQuickTopic(token);
@@ -187,8 +187,7 @@ export class LoginView {
     ready.classList.remove('hidden');
     document.getElementById('quickEntryTitle').textContent = data.topic.title;
     document.getElementById('quickEntryMeta').textContent =
-      `${modules.length} Aufgabe${modules.length !== 1 ? 'n' : ''}` +
-      (data.examMode ? ' · Prüfungsmodus' : '');
+      `${modules.length} Aufgabe${modules.length !== 1 ? 'n' : ''}`;
 
     const nameInput = document.getElementById('quickEntryName');
     nameInput?.focus();
@@ -208,33 +207,148 @@ export class LoginView {
     app.authStore.setToken(null);
     app.state.currentUser = { name: studentName, role: 'student', teacherEmail: data.teacherEmail };
     app.state.topics = [data.topic];
-    app.state.examModeEnabled = !!data.examMode;
+    app.state.linkSession = null;
 
     await this.enterApp();
     // Direkt ins Quiz, ohne den Umweg über die Themenauswahl.
     await app.quizView.startQuickQuiz(data.topic);
   }
 
-  async _onStudentLogin(e) {
-    e.preventDefault();
-    const teacherEmail = this._teacherEmail ? this._teacherEmail.value.trim() : '';
-    const studentName  = this._loginName.value.trim();
-    const loginError   = document.getElementById('studentLoginError');
-    if (!teacherEmail || !studentName) return;
+  // ==================== THEMEN-LINK-EINSTIEG ====================
+
+  /**
+   * Einstieg über ?l=<token>. Der Schüler gibt seinen Namen ein, bei Bedarf
+   * ein Passwort, und wählt – falls die Lehrkraft mehrere Modi freigegeben
+   * hat – zwischen Quiz, Klassenarbeit und Lernen mit Lösungen. Ist nur ein
+   * Modus erlaubt, startet er ohne Rückfrage.
+   */
+  async startLinkEntry(token) {
+    const section = document.getElementById('linkEntrySection');
+    const loading = document.getElementById('linkEntryLoading');
+    const ready   = document.getElementById('linkEntryReady');
+    const errBox  = document.getElementById('linkEntryError');
+    if (!section) return false;
+
+    section.classList.remove('hidden');
+    document.getElementById('studentLoginSection')?.classList.add('hidden');
+    document.getElementById('adminLoginSection')?.classList.add('hidden');
+
+    const showError = (msg) => {
+      loading.classList.add('hidden');
+      ready.classList.add('hidden');
+      errBox.classList.remove('hidden');
+      document.getElementById('linkEntryErrorText').textContent = msg;
+    };
+
+    let info;
     try {
-      const data = await this.app.api.getTeacherTopics(teacherEmail);
-      // New format: { topics: [...], examMode: bool }  — fallback: plain array
-      const topics = data && Array.isArray(data.topics) ? data.topics : (Array.isArray(data) ? data : null);
-      if (!topics) throw new Error('Lehrer nicht gefunden');
-      this.app.authStore.setToken(null);
-      this.app.state.currentUser = { name: studentName, role: 'student', teacherEmail };
-      this.app.state.topics = topics;
-      this.app.state.examModeEnabled = !!(data && data.examMode);
-      if (loginError) loginError.classList.add('hidden');
-      await this.enterApp();
+      info = await this.app.api.getLinkInfo(token);
     } catch (_) {
-      if (loginError) { loginError.textContent = 'Lehrer-E-Mail nicht gefunden.'; loginError.classList.remove('hidden'); }
+      showError('Der Server ist nicht erreichbar.');
+      return true;
     }
+    if (!info || !info.linkId) {
+      showError(info?.message || 'Dieser Link ist ungültig, deaktiviert oder wurde zurückgezogen.');
+      return true;
+    }
+    if (!info.moduleCount) {
+      showError('Für diesen Link sind derzeit keine Aufgaben hinterlegt.');
+      return true;
+    }
+
+    loading.classList.add('hidden');
+    ready.classList.remove('hidden');
+
+    document.getElementById('linkEntryTitle').textContent = info.name;
+    const parts = [`${info.moduleCount} Aufgabe${info.moduleCount !== 1 ? 'n' : ''}`];
+    if (info.topicTitles?.length) parts.push(info.topicTitles.join(' · '));
+    document.getElementById('linkEntryMeta').textContent = parts.join(' — ');
+
+    // Passwortfeld nur zeigen, wenn der Link eines verlangt.
+    const pwGroup = document.getElementById('linkEntryPasswordGroup');
+    pwGroup?.classList.toggle('hidden', !info.requiresPassword);
+    const pwInput = document.getElementById('linkEntryPassword');
+    if (pwInput) pwInput.required = !!info.requiresPassword;
+
+    const modeGroup = document.getElementById('linkEntryModeGroup');
+    const modeChoices = document.getElementById('linkEntryModeChoices');
+    const multi = (info.modes || []).length > 1;
+    modeGroup?.classList.toggle('hidden', !multi);
+    if (modeChoices) {
+      modeChoices.innerHTML = '';
+      if (multi) {
+        info.modes.forEach((mode, i) => {
+          const meta = LINK_MODE_LABELS[mode];
+          if (!meta) return;
+          const label = document.createElement('label');
+          label.className = 'link-mode-choice';
+          label.innerHTML = `
+            <input type="radio" name="linkEntryMode" value="${escapeAttr(mode)}" ${i === 0 ? 'checked' : ''} />
+            <span class="link-mode-choice-text">
+              <strong>${meta.icon} ${escapeHtml(meta.label)}</strong>
+              <small>${escapeHtml(meta.hint)}</small>
+            </span>`;
+          modeChoices.appendChild(label);
+        });
+      }
+    }
+
+    if (info.singleAttempt && (info.modes || []).includes('exam')) {
+      const note = document.getElementById('linkEntryAttemptNote');
+      note?.classList.remove('hidden');
+    }
+
+    const nameInput = document.getElementById('linkEntryName');
+    nameInput?.focus();
+
+    const form = document.getElementById('linkEntryForm');
+    const errText = document.getElementById('linkEntryFormError');
+    form?.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      errText?.classList.add('hidden');
+
+      const studentName = nameInput.value.trim();
+      if (!studentName) return;
+      const password = pwInput ? pwInput.value : '';
+      const mode = multi
+        ? form.querySelector('input[name="linkEntryMode"]:checked')?.value
+        : info.modes[0];
+
+      let data;
+      try {
+        data = await this.app.api.startLinkRun(token, { studentName, password, mode });
+      } catch (_) {
+        if (errText) { errText.textContent = 'Der Server ist nicht erreichbar.'; errText.classList.remove('hidden'); }
+        return;
+      }
+      if (!data || !data.topics) {
+        if (errText) {
+          errText.textContent = data?.message || 'Der Start ist fehlgeschlagen.';
+          errText.classList.remove('hidden');
+        }
+        return;
+      }
+      await this._enterLinkRun(token, data);
+    });
+
+    return true;
+  }
+
+  /** Übergibt den geprüften Durchlauf an die Quiz-Ansicht. */
+  async _enterLinkRun(token, data) {
+    const { app } = this;
+    app.authStore.setToken(null);
+    app.state.currentUser = { name: data.studentName, role: 'student', teacherEmail: data.teacherEmail };
+    app.state.topics = data.topics;
+    app.state.linkSession = {
+      token,
+      linkId: data.linkId,
+      linkName: data.linkName,
+      mode: data.mode,
+    };
+
+    await this.enterApp();
+    await app.quizView.startLinkRun(data);
   }
 
   async _onAdminLogin(e) {
@@ -330,9 +444,6 @@ export class LoginView {
     if (adminNavEl)  adminNavEl.classList.add('hidden');
     this._loginScreen.classList.remove('hidden');
 
-    // Reset student fields
-    if (this._teacherEmail) this._teacherEmail.value = '';
-    this._loginName.value = '';
     // Reset teacher/admin fields
     this._adminUsername.value = '';
     this._adminPassword.value = '';
@@ -348,7 +459,6 @@ export class LoginView {
     if (this._regDisplayName)    this._regDisplayName.value = '';
     if (this._regPassword)       this._regPassword.value = '';
     if (this._regError)          this._regError.classList.add('hidden');
-    this._loginName.focus();
   }
 
   async enterApp() {
@@ -357,8 +467,6 @@ export class LoginView {
 
     this._loginScreen.classList.add('hidden');
     this._appContainer.classList.remove('hidden');
-
-    await this.app.loadExamMode();
 
     const teacherNav = document.getElementById('teacherNav');
     const studentNav = document.getElementById('studentNav');
@@ -391,7 +499,7 @@ export class LoginView {
       this.app.navigateToView('teacher-dashboard');
       if (currentUser.role === 'admin') this.app.adminView.load();
     } else {
-      this.app.navigateToView('student-topics');
+      this.app.navigateToView('student-quiz');
     }
   }
 }

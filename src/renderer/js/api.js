@@ -84,31 +84,6 @@ export class BrowserApi {
   }
 
   // ---------- Public (student) API ----------
-  getTeacherTopics(teacherEmail) {
-    return fetch(`/api/public/teachers/${encodeURIComponent(teacherEmail)}/topics`, { cache: 'no-store' }).then((r) => r.json());
-  }
-
-  verifyTopicPassword(teacherEmail, topicId, password) {
-    return fetch(
-      `/api/public/teachers/${encodeURIComponent(teacherEmail)}/topics/${encodeURIComponent(topicId)}/verify-password`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password }),
-      }
-    ).then((r) => r.json());
-  }
-
-  verifySubscribeKey(teacherEmail, topicId, key) {
-    return fetch(
-      `/api/public/teachers/${encodeURIComponent(teacherEmail)}/topics/${encodeURIComponent(topicId)}/verify-subscribe-key`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ key }),
-      }
-    ).then((r) => r.json());
-  }
 
   getAllAdminTopics() { return this._fetch('/api/admin/topics'); }
 
@@ -126,6 +101,44 @@ export class BrowserApi {
   getQuickTopic(token) {
     return fetch(`/api/public/quick/${encodeURIComponent(token)}`).then((r) => r.json());
   }
+
+  /** Vorschau eines Themen-Links (Name, Modi, Passwortpflicht). */
+  getLinkInfo(token) {
+    return fetch(`/api/public/link/${encodeURIComponent(token)}`, { cache: 'no-store' }).then((r) => r.json());
+  }
+
+  /** Durchlauf starten: prüft Name, Passwort und Modus und liefert die Module. */
+  startLinkRun(token, { studentName, password, mode }) {
+    return fetch(`/api/public/link/${encodeURIComponent(token)}/start`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ studentName, password, mode }),
+    }).then((r) => r.json());
+  }
+
+  // ---------- Tags ----------
+  getTags() { return this._fetch('/api/tags'); }
+  createTag(data) { return this._fetch('/api/tags', { method: 'POST', body: JSON.stringify(data) }); }
+  updateTag(id, data) {
+    return this._fetch(`/api/tags/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(data) });
+  }
+  deleteTag(id) { return this._fetch(`/api/tags/${encodeURIComponent(id)}`, { method: 'DELETE' }); }
+
+  // ---------- Themen-Links ----------
+  getLinks() { return this._fetch('/api/links'); }
+  getLink(id) { return this._fetch(`/api/links/${encodeURIComponent(id)}`); }
+  createLink(data) { return this._fetch('/api/links', { method: 'POST', body: JSON.stringify(data) }); }
+  updateLink(id, data) {
+    return this._fetch(`/api/links/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(data) });
+  }
+  deleteLink(id) { return this._fetch(`/api/links/${encodeURIComponent(id)}`, { method: 'DELETE' }); }
+  shareLink(id, regenerate = false) {
+    return this._fetch(`/api/links/${encodeURIComponent(id)}/share`, {
+      method: 'POST',
+      body: JSON.stringify({ regenerate }),
+    });
+  }
+  revokeLink(id) { return this._fetch(`/api/links/${encodeURIComponent(id)}/share`, { method: 'DELETE' }); }
 
   submitPublicResult(data) {
     return fetch('/api/public/results', {
@@ -162,9 +175,6 @@ export class BrowserApi {
 
   // ---------- Topics ----------
   getTopics() { return this._fetch('/api/topics'); }
-  getExamMode() { return this._fetch('/api/auth/exam-mode'); }
-  setExamMode(enabled) { return this._fetch('/api/auth/exam-mode', { method: 'POST', body: JSON.stringify({ enabled }) }); }
-  getTeacherExamMode(teacherEmail) { return fetch(`/api/public/teachers/${encodeURIComponent(teacherEmail)}/exam-mode`, { cache: 'no-store' }).then((r) => r.json()); }
   saveTopic(topicData, isUpdate = false) {
     if (isUpdate && topicData.id) {
       return this._fetch(`/api/topics/${encodeURIComponent(topicData.id)}`, { method: 'PATCH', body: JSON.stringify(topicData) });
@@ -181,13 +191,19 @@ export class BrowserApi {
     });
   }
   // ---------- Teilen: freigeben und kopieren ----------
-  /** Freigabe setzen: Liste von Benutzer-IDs oder ['*'] für alle Kollegen. */
-  setTopicSharing(topicId, sharedWith) {
+  /**
+   * Freigabe setzen. `sharedWith` ist die Kopier-Freigabe (Benutzer-IDs oder
+   * ['*']), `sharedAccess` der Zugriff aufs Original ([{userId, level}]).
+   * Ein weggelassenes Feld bleibt unverändert.
+   */
+  setTopicSharing(topicId, { sharedWith, sharedAccess }) {
     return this._fetch(`/api/topics/${encodeURIComponent(topicId)}/sharing`, {
       method: 'POST',
-      body: JSON.stringify({ sharedWith }),
+      body: JSON.stringify({ sharedWith, sharedAccess }),
     });
   }
+  /** Themen, die ich in eigenen Links verwenden darf (eigene + freigegebene). */
+  getUsableTopics() { return this._fetch('/api/topics/usable'); }
   /** Kollegen für die Auswahl im Freigabe-Dialog (auch für Lehrkräfte). */
   getColleagues() { return this._fetch('/api/topics/colleagues'); }
   /** Themen, die mir jemand freigegeben hat. */

@@ -6,7 +6,6 @@ export class QuizView {
   constructor(app) {
     this.app = app;
 
-    this._studentTopicsList     = document.getElementById('studentTopicsList');
     this._quizTopicSelect       = document.getElementById('quizTopicSelect');
     this._quizPlayerArea        = document.getElementById('quizPlayerArea');
     this._quizResultArea        = document.getElementById('quizResultArea');
@@ -26,10 +25,22 @@ export class QuizView {
       this._btnQuizNext.addEventListener('click', () => {
         const { state } = this.app;
         if (!state.quizState) return;
-        const mod = state.quizState.modules[state.quizState.currentIndex];
-        state.quizState.answers[state.quizState.currentIndex] = this._collectAnswer(mod);
-        state.quizState.currentIndex++;
-        if (state.quizState.currentIndex >= state.quizState.modules.length) this._finishQuiz();
+        const qs = state.quizState;
+        const mod = qs.modules[qs.currentIndex];
+
+        // Im Lernmodus erst die Lösung zeigen; weiter geht es beim zweiten Klick.
+        if (this._isLearnRun() && !qs.revealed) {
+          qs.answers[qs.currentIndex] = this._collectAnswer(mod);
+          this._revealSolution(qs.answers[qs.currentIndex]);
+          qs.revealed = true;
+          this._btnQuizNext.textContent =
+            qs.currentIndex < qs.modules.length - 1 ? t('quiz.next') : t('quiz.finish');
+          return;
+        }
+
+        qs.answers[qs.currentIndex] = this._collectAnswer(mod);
+        qs.currentIndex++;
+        if (qs.currentIndex >= qs.modules.length) this._finishQuiz();
         else this._renderModule();
       });
     }
@@ -57,66 +68,41 @@ export class QuizView {
     }
   }
 
-  // Called when navigating to 'student-topics'
-  async refreshStudentTopics() {
-    await this.app.loadTopics();
-    const { state } = this.app;
-    const available = state.topics; // server returns only selected=true topics
-
-    this._studentTopicsList.innerHTML = '';
-    if (available.length === 0) {
-      this._studentTopicsList.innerHTML = `
-        <div class="empty-state">
-          <span class="empty-icon">📂</span>
-          <p>Noch keine Lernthemen vom Lehrer freigegeben.</p>
-        </div>`;
-      return;
-    }
-
-    for (const topic of available) {
-      const moduleCount = (topic.modules || []).filter((m) => m.moduleSelected !== false).length;
-      const keyIcon = topic.hasSubscribeKey ? '🔑' : '🌐';
-      const card = document.createElement('div');
-      card.className = 'topic-card student-topic-card';
-      card.innerHTML = `
-        <div class="topic-card-header">
-          <div class="topic-card-info">
-            <h3 class="topic-card-title">${keyIcon} ${escapeHtml(topic.title)}</h3>
-            <p class="topic-card-desc">${escapeHtml(topic.description || '')}</p>
-            <div class="topic-card-meta">
-              <span class="topic-module-count">${moduleCount} Module</span>
-              ${topic.hasSubscribeKey ? '<span class="hint" style="margin-left:8px;">🔑 Subscribe-Key erforderlich</span>' : ''}
-            </div>
-          </div>
-        </div>`;
-      this._studentTopicsList.appendChild(card);
-    }
-  }
-
-  // Called when navigating to 'student-quiz'
+  /**
+   * Themenauswahl beim Aufruf von 'student-quiz'. Für Schüler ist sie leer:
+   * Der Themen-Link bestimmt, was bearbeitet wird. Lehrkräfte können ihre
+   * eigenen Themen hier weiterhin zur Probe durchspielen.
+   */
   async refreshQuizSelect() {
     if (this.app.state.quizState) return;
 
-    await this.app.loadTopics();
-    await this.app.loadExamMode();
     const { state } = this.app;
-    const myTopics = state.topics; // server already returns only selected=true
-
     this._quizTopicSelect.innerHTML = '';
     this._quizTopicSelect.classList.remove('hidden');
     this._quizPlayerArea.classList.add('hidden');
     this._quizResultArea.classList.add('hidden');
 
-    if (myTopics.length === 0) {
+    if (state.currentUser && state.currentUser.role === 'student') {
       this._quizTopicSelect.innerHTML = `
         <div class="empty-state">
-          <span class="empty-icon">🧠</span>
-          <p>Noch keine Lernthemen freigegeben.</p>
+          <span class="empty-icon">🔗</span>
+          <p>Dieser Durchlauf ist beendet. Öffne den Link erneut, um noch einmal zu starten.</p>
         </div>`;
       return;
     }
 
-    const isExam = state.examModeEnabled;
+    await this.app.loadTopics();
+    const myTopics = state.topics;
+
+    if (myTopics.length === 0) {
+      this._quizTopicSelect.innerHTML = `
+        <div class="empty-state">
+          <span class="empty-icon">🧠</span>
+          <p>Noch keine Lernthemen angelegt.</p>
+        </div>`;
+      return;
+    }
+
     for (const topic of myTopics) {
       const moduleCount = (topic.modules || []).filter((m) => m.moduleSelected !== false).length;
       if (moduleCount === 0) continue;
@@ -125,28 +111,11 @@ export class QuizView {
       card.innerHTML = `
         <div class="quiz-topic-card-info">
           <h3>${escapeHtml(topic.title)}</h3>
-          <p>${moduleCount} Module${topic.hasSubscribeKey ? ' 🔑' : ''}</p>
+          <p>${moduleCount} Module</p>
         </div>
-        <button class="btn btn-primary">${isExam ? '📝 Prüfung starten' : '🧠 Quiz starten'}</button>`;
-      card.querySelector('.btn').addEventListener('click', () => this._startStudentQuiz(topic));
+        <button class="btn btn-primary">🧠 Quiz starten</button>`;
+      card.querySelector('.btn').addEventListener('click', () => this._startQuiz(topic));
       this._quizTopicSelect.appendChild(card);
-    }
-  }
-
-  async _startStudentQuiz(topic) {
-    if (topic.hasSubscribeKey) {
-      const key = prompt(`🔑 Subscribe-Key für "${topic.title}" eingeben:`);
-      if (key === null) return;
-      try {
-        const { state, api } = this.app;
-        const verified = await api.verifySubscribeKey(state.currentUser.teacherEmail, topic.id, key);
-        if (!verified || !verified.id) { this.app.showToast('Falscher Subscribe-Key.', 'error'); return; }
-        await this._startQuiz(verified);
-      } catch (_) {
-        this.app.showToast('Falscher Subscribe-Key.', 'error');
-      }
-    } else {
-      await this._startQuiz(topic);
     }
   }
 
@@ -156,6 +125,43 @@ export class QuizView {
    */
   async startQuickQuiz(topic) {
     return this._startQuiz(topic);
+  }
+
+  /**
+   * Start über einen Themen-Link: Die Module aller im Link gewählten Themen
+   * werden zu einem Durchlauf zusammengezogen – in der Reihenfolge, in der
+   * die Lehrkraft sie angeordnet hat.
+   */
+  async startLinkRun(data) {
+    const modules = [];
+    for (const topic of data.topics || []) {
+      for (const mod of topic.modules || []) {
+        modules.push({ ...mod, _topicId: topic.id, _topicTitle: topic.title });
+      }
+    }
+    if (modules.length === 0) {
+      this.app.showToast('Dieser Link enthält derzeit keine Aufgaben.', 'error');
+      return;
+    }
+
+    this.app.state.quizState = {
+      // Das Ergebnis hängt am ersten Thema des Links; welche Aufgaben
+      // tatsächlich drankamen, steht ohnehin in den Details.
+      topicId: (data.topics[0] || {}).id || null,
+      // Themenname und Linkname getrennt halten – sonst stünde in der
+      // Ergebnisliste zweimal dasselbe.
+      topicTitle: (data.topics || []).map((t) => t.title).join(', '),
+      modules,
+      currentIndex: 0,
+      answers: [],
+      startTime: Date.now(),
+      mode: data.mode,
+      linkToken: this.app.state.linkSession?.token || null,
+      linkName: data.linkName,
+      revealed: false,
+    };
+
+    this._enterPlayer(data.linkName);
   }
 
   async _startQuiz(topic) {
@@ -171,9 +177,6 @@ export class QuizView {
     const modules = (freshTopic.modules || []).filter((m) => m.moduleSelected !== false);
     if (modules.length === 0) { this.app.showToast(t('quiz.no.modules'), 'error'); return; }
 
-    // loadTopics() already sets examModeEnabled; keep call for non-student fallback
-    await this.app.loadExamMode();
-
     this.app.state.quizState = {
       topicId: freshTopic.id,
       topicTitle: freshTopic.title,
@@ -181,15 +184,34 @@ export class QuizView {
       currentIndex: 0,
       answers: [],
       startTime: Date.now(),
+      // Ohne Themen-Link gilt der normale Quiz-Modus mit Rückmeldung.
+      mode: 'quiz',
+      linkToken: null,
+      linkName: null,
+      revealed: false,
     };
 
-    this.app.navigateToView('student-quiz');
+    this._enterPlayer(topic.title);
+  }
 
+  /** Gemeinsames Umschalten in den Player, egal woher der Start kam. */
+  _enterPlayer(title) {
+    this.app.navigateToView('student-quiz');
     this._quizTopicSelect.classList.add('hidden');
     this._quizPlayerArea.classList.remove('hidden');
     this._quizResultArea.classList.add('hidden');
-    this._quizSubtitle.textContent = `${t('quiz.title')}: ${topic.title}`;
+    this._quizSubtitle.textContent = `${t('quiz.title')}: ${title}`;
     this._renderModule();
+  }
+
+  /** Klassenarbeit: keine Sofort-Rückmeldung, kein Zurückblättern. */
+  _isExamRun() {
+    return this.app.state.quizState?.mode === 'exam';
+  }
+
+  /** Lernen mit Lösungen: nach jeder Aufgabe erscheint die Musterlösung. */
+  _isLearnRun() {
+    return this.app.state.quizState?.mode === 'learn';
   }
 
   _renderModule() {
@@ -200,26 +222,46 @@ export class QuizView {
     const mod = modules[currentIndex];
     const typeDef = H5P_TYPES[mod.type] || {};
     const progress = (currentIndex / modules.length) * 100;
+    state.quizState.revealed = false;
 
     this._quizProgressFill.style.width = `${progress}%`;
     this._quizInfo.innerHTML = `
       <strong>${t('quiz.module.of', { current: currentIndex + 1, total: modules.length })}</strong>
       ${escapeHtml(mod.title)}
-      <span class="quiz-type-badge">${typeDef.icon || ''} ${typeDef.name || mod.type}</span>`;
+      <span class="quiz-type-badge">${typeDef.icon || ''} ${typeDef.name || mod.type}</span>
+      ${mod._topicTitle ? `<span class="quiz-topic-badge">${escapeHtml(mod._topicTitle)}</span>` : ''}`;
 
     this._quizModuleContainer.innerHTML = '';
     this.app.renderer.renderPreview(mod, typeDef, this._quizModuleContainer, {
       quizMode: true,
-      examMode: state.examModeEnabled && state.currentUser && state.currentUser.role === 'student',
+      examMode: this._isExamRun(),
     });
 
-    this._btnQuizNext.textContent = currentIndex < modules.length - 1 ? t('quiz.next') : t('quiz.finish');
+    this._btnQuizNext.textContent = this._isLearnRun()
+      ? '💡 Lösung anzeigen'
+      : currentIndex < modules.length - 1 ? t('quiz.next') : t('quiz.finish');
 
     if (this._btnQuizPrev) {
-      const isExam = state.examModeEnabled && state.currentUser && state.currentUser.role === 'student';
-      this._btnQuizPrev.style.display = (!isExam && currentIndex > 0) ? 'inline-block' : 'none';
+      this._btnQuizPrev.style.display = (!this._isExamRun() && currentIndex > 0) ? 'inline-block' : 'none';
       this._btnQuizPrev.textContent = t('quiz.prev');
     }
+  }
+
+  /**
+   * Zeigt die Musterlösung zur aktuellen Aufgabe. Die richtige Antwort
+   * stammt aus derselben Auswertung, die auch das Ergebnis erzeugt – so
+   * kann die angezeigte Lösung gar nicht von der Bewertung abweichen.
+   */
+  _revealSolution(answer) {
+    const panel = document.createElement('div');
+    panel.className = 'quiz-solution-panel';
+    panel.innerHTML = `
+      <div class="quiz-solution-head">${answer.isCorrect ? '✅ Richtig' : '💡 Musterlösung'}</div>
+      ${answer.userAnswer ? `<p><strong>Deine Antwort:</strong> ${escapeHtml(String(answer.userAnswer))}</p>` : ''}
+      ${answer.correctAnswer ? `<p><strong>Richtig wäre:</strong> ${escapeHtml(String(answer.correctAnswer))}</p>` : ''}
+      ${answer.score ? `<p><strong>Auswertung:</strong> ${escapeHtml(String(answer.score))}</p>` : ''}`;
+    this._quizModuleContainer.appendChild(panel);
+    panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }
 
   _collectAnswer(mod) {
@@ -376,19 +418,31 @@ export class QuizView {
 
   async _finishQuiz() {
     const { state, api } = this.app;
-    const { quizState, currentUser, examModeEnabled } = state;
+    const { quizState, currentUser } = state;
+    const isExam = quizState.mode === 'exam';
+    const isLearn = quizState.mode === 'learn';
     const score = quizState.answers.filter((a) => a.isCorrect).length;
     const total = quizState.answers.length;
     const percentage = total > 0 ? Math.round((score / total) * 100) : 0;
 
-    if (currentUser.role === 'student') {
+    if (isLearn) {
+      // Lernen mit Lösungen ist zum Üben da – dabei entsteht kein Eintrag im
+      // Ergebnis-Log der Lehrkraft.
+    } else if (currentUser.role === 'student') {
       await api.submitPublicResult({
         teacherEmail: currentUser.teacherEmail,
+        linkToken: quizState.linkToken || undefined,
+        mode: quizState.mode,
         studentName: currentUser.name,
         topicId: quizState.topicId,
         moduleId: null,
         score, maxScore: total,
-        payload: { topicTitle: quizState.topicTitle, percentage, details: quizState.answers },
+        payload: {
+          topicTitle: quizState.topicTitle,
+          linkName: quizState.linkName || null,
+          percentage,
+          details: quizState.answers,
+        },
       });
     } else {
       await api.saveQuizResult({
@@ -410,9 +464,10 @@ export class QuizView {
           <span class="quiz-result-pct">${percentage}%</span>
         </div>
         <p>${t('quiz.topic')}: <strong>${escapeHtml(quizState.topicTitle)}</strong></p>
+        ${isLearn ? '<p class="hint">Übungsdurchlauf – dieses Ergebnis wird nicht gespeichert.</p>' : ''}
         <div class="quiz-result-details">
-          ${examModeEnabled
-            ? '<p style="color:var(--text-secondary);">Prüfungsmodus aktiv: Detail-Rückmeldung ist ausgeblendet.</p>'
+          ${isExam
+            ? '<p style="color:var(--text-secondary);">Klassenarbeit: Die Detail-Rückmeldung ist ausgeblendet.</p>'
             : quizState.answers.map((a, i) => `
               <div class="result-detail-item ${a.isCorrect ? 'correct' : 'wrong'}">
                 <span class="result-detail-icon">${a.isCorrect ? '✅' : '❌'}</span>

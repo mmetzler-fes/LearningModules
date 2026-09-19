@@ -42,20 +42,4 @@ export class AuthController {
   async deleteAccount(@Request() req: any) {
     return this.authService.deleteAccount(req.user.userId);
   }
-
-  /** Get exam mode setting for logged-in teacher/admin */
-  @Get('exam-mode')
-  @UseGuards(JwtAuthGuard)
-  @HttpCode(200)
-  async getExamMode(@Request() req: any) {
-    return this.authService.getExamMode(req.user.userId);
-  }
-
-  /** Set exam mode setting for logged-in teacher/admin */
-  @Post('exam-mode')
-  @UseGuards(JwtAuthGuard)
-  @HttpCode(200)
-  async setExamMode(@Request() req: any, @Body() body: { enabled: boolean }) {
-    return this.authService.setExamMode(req.user.userId, !!body.enabled);
-  }
 }

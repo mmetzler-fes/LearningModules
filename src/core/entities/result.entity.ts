@@ -30,6 +30,21 @@ export class Result extends BaseEntity {
   @Column('simple-json', { nullable: true })
   payload: any;
 
+  /** Themen-Link, über den der Durchlauf gestartet wurde (falls vorhanden). */
+  @Column({ nullable: true })
+  linkId: string;
+
+  /**
+   * Name des Links zum Zeitpunkt des Durchlaufs. Bewusst mitkopiert, damit
+   * die Ergebnisliste lesbar bleibt, wenn der Link umbenannt oder gelöscht wird.
+   */
+  @Column({ nullable: true })
+  linkName: string;
+
+  /** Modus des Durchlaufs: 'quiz' | 'exam' | 'learn'. */
+  @Column({ nullable: true })
+  mode: string;
+
   @Column({ nullable: true })
   ipAddress: string;
 }

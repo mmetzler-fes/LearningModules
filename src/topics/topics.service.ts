@@ -4,6 +4,8 @@ import { Repository } from 'typeorm';
 import { LearningTopic } from '../core/entities/learning-topic.entity';
 import { LearningModule } from '../core/entities/learning-module.entity';
 import { User } from '../core/entities/user.entity';
+import { TagsService } from '../tags/tags.service';
+import { baseUrl, renderQr } from '../core/share/link-url';
 import * as crypto from 'crypto';
 
 @Injectable()
@@ -15,6 +17,7 @@ export class TopicsService {
     private readonly moduleRepo: Repository<LearningModule>,
     @InjectRepository(User)
     private readonly userRepo: Repository<User>,
+    private readonly tagsService: TagsService,
   ) {}
 
   async findAll(user: any) {
@@ -26,21 +29,58 @@ export class TopicsService {
     return qb.leftJoinAndSelect('topic.modules', 'modules').orderBy('modules.orderIndex', 'ASC').addOrderBy('topic.id', 'ASC').getMany();
   }
 
-  async findOne(id: string, user: any) {
-    const qb = this.topicRepo.createQueryBuilder('topic')
+  // ---- Zugriffsstufen ----
+  //
+  // Der gesamte Zugriff auf ein fremdes Thema hängt an dieser einen Stelle.
+  // Jede Methode sagt, was sie braucht: 'read', 'write' oder 'owner'. Was
+  // nicht ausdrücklich geöffnet wird, bleibt damit eigentümergebunden.
+
+  /** Zugriffsstufe eines Benutzers auf ein Thema. */
+  accessLevel(topic: LearningTopic, user: any): 'owner' | 'write' | 'read' | 'none' {
+    if (topic.ownerId === user.userId) return 'owner';
+    // Admins sehen und bearbeiten alles – wie bisher.
+    if (user.role === 'admin') return 'owner';
+
+    const entries = Array.isArray(topic.sharedAccess) ? topic.sharedAccess : [];
+    // Ein persönlicher Eintrag schlägt die Sammelfreigabe für alle.
+    const mine = entries.find((e) => e && e.userId === user.userId);
+    const all = entries.find((e) => e && e.userId === '*');
+    const level = (mine || all)?.level;
+    if (level === 'write') return 'write';
+    if (level === 'read') return 'read';
+    return 'none';
+  }
+
+  private static readonly RANK = { none: 0, read: 1, write: 2, owner: 3 };
+
+  /**
+   * Lädt ein Thema und prüft dabei die geforderte Mindeststufe.
+   * `findOne` bleibt als Lesezugriff erhalten, damit bestehende Aufrufer
+   * unverändert weiterlaufen.
+   */
+  async findOneFor(id: string, user: any, need: 'read' | 'write' | 'owner') {
+    const topic = await this.topicRepo.createQueryBuilder('topic')
       .where('topic.id = :id', { id })
       .leftJoinAndSelect('topic.modules', 'modules')
-      .orderBy('modules.orderIndex', 'ASC');
+      .orderBy('modules.orderIndex', 'ASC')
+      .getOne();
 
-    const topic = await qb.getOne();
     if (!topic) throw new NotFoundException('Thema nicht gefunden');
 
-    // Teachers can only access their own topics
-    if (user.role === 'teacher' && topic.ownerId !== user.userId) {
-      throw new ForbiddenException('Keine Berechtigung für dieses Thema');
+    const have = this.accessLevel(topic, user);
+    if (TopicsService.RANK[have] < TopicsService.RANK[need]) {
+      // Die Meldung nennt den Grund, damit nicht nach einem Fehler gesucht wird.
+      throw new ForbiddenException(
+        need === 'owner'
+          ? 'Das kann nur der Eigentümer des Themas.'
+          : 'Keine Berechtigung für dieses Thema.',
+      );
     }
-
     return topic;
+  }
+
+  async findOne(id: string, user: any) {
+    return this.findOneFor(id, user, 'read');
   }
 
   // ---- Freigabe zum Kopieren ----
@@ -53,18 +93,80 @@ export class TopicsService {
   }
 
   /** Freigabe setzen. Nur der Eigentümer (oder ein Admin) darf das. */
-  async setSharing(id: string, user: any, sharedWith: string[]) {
-    const topic = await this.findOne(id, user);
-    if (user.role === 'teacher' && topic.ownerId !== user.userId) {
-      throw new ForbiddenException('Nur der Eigentümer kann die Freigabe ändern.');
+  async setSharing(id: string, user: any, sharedWith?: string[], sharedAccess?: any) {
+    const topic = await this.findOneFor(id, user, 'owner');
+    if (sharedWith !== undefined) {
+      const clean = Array.isArray(sharedWith)
+        ? [...new Set(sharedWith.map(String).filter(Boolean))]
+        : [];
+      // '*' schlägt jede Einzelauswahl – sonst wäre der Zustand widersprüchlich.
+      topic.sharedWith = clean.includes('*') ? ['*'] : clean;
     }
-    const clean = Array.isArray(sharedWith)
-      ? [...new Set(sharedWith.map(String).filter(Boolean))]
-      : [];
-    // '*' schlägt jede Einzelauswahl – sonst wäre der Zustand widersprüchlich.
-    topic.sharedWith = clean.includes('*') ? ['*'] : clean;
+
+    if (sharedAccess !== undefined) {
+      topic.sharedAccess = this.cleanAccess(sharedAccess);
+    }
+
     await this.topicRepo.save(topic);
-    return { success: true, sharedWith: topic.sharedWith };
+    return { success: true, sharedWith: topic.sharedWith, sharedAccess: topic.sharedAccess };
+  }
+
+  /**
+   * Themen, die in einem eigenen Themen-Link verwendet werden dürfen:
+   * die eigenen und die, die mir jemand zur Nutzung freigegeben hat.
+   *
+   * Fremde Themen kommen entschärft zurück – Zugangsdaten des Eigentümers
+   * gehen niemanden sonst etwas an, auch nicht die Lehrkraft, die die
+   * Inhalte verwenden darf.
+   */
+  async findUsable(user: any) {
+    const all = await this.topicRepo.find({ relations: ['modules'] });
+    const owners = await this.userRepo.find();
+    const ownerName = new Map(owners.map((o) => [o.id, o.displayName || o.email]));
+
+    const usable = [];
+    for (const topic of all) {
+      const level = this.accessLevel(topic, user);
+      if (level === 'none') continue;
+
+      const isOwn = topic.ownerId === user.userId;
+      if (isOwn) {
+        usable.push({ ...topic, accessLevel: level, isOwn: true, ownerName: null });
+        continue;
+      }
+
+      const { accessPassword, subscribeKey, quickToken, sharedWith, sharedAccess, ...safe } = topic;
+      usable.push({
+        ...safe,
+        accessLevel: level,
+        isOwn: false,
+        ownerName: ownerName.get(topic.ownerId) || 'Unbekannt',
+      });
+    }
+
+    usable.sort((a, b) =>
+      // Eigene zuerst, danach alphabetisch – so steht Vertrautes oben.
+      a.isOwn === b.isOwn ? a.title.localeCompare(b.title, 'de') : a.isOwn ? -1 : 1,
+    );
+    return usable;
+  }
+
+  /**
+   * Räumt eine übergebene Zugriffsliste auf: bekannte Stufen, keine
+   * Doppelungen, pro Person ein Eintrag.
+   */
+  private cleanAccess(input: any): Array<{ userId: string; level: 'read' | 'write' }> {
+    if (!Array.isArray(input)) return [];
+    const byUser = new Map<string, 'read' | 'write'>();
+    for (const entry of input) {
+      const userId = String(entry?.userId || '').trim();
+      const level = entry?.level;
+      if (!userId || (level !== 'read' && level !== 'write')) continue;
+      // Die höhere Stufe gewinnt, falls jemand doppelt auftaucht.
+      const existing = byUser.get(userId);
+      byUser.set(userId, existing === 'write' || level === 'write' ? 'write' : 'read');
+    }
+    return [...byUser].map(([userId, level]) => ({ userId, level }));
   }
 
   /** Kolleginnen und Kollegen für die Auswahl im Freigabe-Dialog. */
@@ -90,8 +192,14 @@ export class TopicsService {
     const owners = await this.userRepo.find();
     const ownerName = new Map(owners.map((o) => [o.id, o.displayName || o.email]));
 
+    // Alles, was mir jemand zugänglich gemacht hat – zum Kopieren, zum
+    // Verwenden oder beides. Welche Knöpfe erscheinen, entscheidet danach
+    // die Oberfläche anhand von canCopy/canUse.
     return topics
-      .filter((t) => t.ownerId !== user.userId && this.isSharedWith(t, user.userId))
+      .filter((t) => {
+        if (t.ownerId === user.userId) return false;
+        return this.isSharedWith(t, user.userId) || this.accessLevel(t, user) !== 'none';
+      })
       .map((t) => ({
         id: t.id,
         title: t.title,
@@ -99,6 +207,8 @@ export class TopicsService {
         ownerId: t.ownerId,
         ownerName: ownerName.get(t.ownerId) || 'Unbekannt',
         moduleCount: (t.modules || []).length,
+        canCopy: this.isSharedWith(t, user.userId),
+        canUse: this.accessLevel(t, user) !== 'none',
       }));
   }
 
@@ -156,7 +266,7 @@ export class TopicsService {
    * Links und QR-Codes sind damit sofort ungültig.
    */
   async getQuickLink(id: string, user: any, regenerate = false, req?: any) {
-    const topic = await this.findOne(id, user);
+    const topic = await this.findOneFor(id, user, 'owner');
 
     // Ein Quick-Link auf etwas Gesperrtes wäre eine Falle: Der Schüler scannt
     // und landet vor einer verschlossenen Tür. Deshalb gar nicht erst erzeugen.
@@ -179,49 +289,21 @@ export class TopicsService {
       await this.topicRepo.save(topic);
     }
 
-    const url = `${this.baseUrl(req)}/?q=${topic.quickToken}`;
+    const url = `${baseUrl(req)}/?q=${topic.quickToken}`;
 
     return {
       token: topic.quickToken,
       url,
-      qrSvg: await this.renderQr(url),
+      qrSvg: await renderQr(url),
       topicId: topic.id,
       title: topic.title,
       moduleCount: activeCount,
     };
   }
 
-  /**
-   * Öffentliche Adresse der Anwendung. APP_URL hat Vorrang; sonst wird sie aus
-   * dem Request abgeleitet, damit es hinter einem Reverse Proxy ohne
-   * zusätzliche Konfiguration stimmt.
-   */
-  private baseUrl(req?: any): string {
-    const configured = (process.env.APP_URL || '').trim();
-    if (configured) return configured.replace(/\/+$/, '');
-
-    const headers = req?.headers || {};
-    const proto = (headers['x-forwarded-proto'] || req?.protocol || 'http').toString().split(',')[0].trim();
-    const host = (headers['x-forwarded-host'] || headers.host || 'localhost:3000').toString().split(',')[0].trim();
-    return `${proto}://${host}`;
-  }
-
-  /** QR-Code als SVG – skaliert verlustfrei und lässt sich sauber ausdrucken. */
-  private async renderQr(url: string): Promise<string | null> {
-    try {
-      const moduleName = 'qrcode';
-      const qrcode: any = await import(moduleName);
-      const toString = qrcode.toString || qrcode.default?.toString;
-      return await toString(url, { type: 'svg', margin: 1, width: 240 });
-    } catch (err: any) {
-      // Ohne QR-Code bleibt der Link trotzdem nutzbar.
-      return null;
-    }
-  }
-
   /** Quick-Link entwerten, ohne einen neuen zu erzeugen. */
   async revokeQuickLink(id: string, user: any) {
-    const topic = await this.findOne(id, user);
+    const topic = await this.findOneFor(id, user, 'owner');
     topic.quickToken = null;
     await this.topicRepo.save(topic);
     return { success: true };
@@ -230,15 +312,16 @@ export class TopicsService {
   async create(user: any, topicData: Partial<LearningTopic>) {
     const topic = this.topicRepo.create({
       ...topicData,
-      id: require('crypto').randomUUID(),
+      id: crypto.randomUUID(),
       ownerId: user.userId,
       visibility: (topicData as any).visibility || 'locked',
+      tagIds: await this.tagsService.sanitizeIds(user, (topicData as any).tagIds),
     });
     return this.topicRepo.save(topic);
   }
 
   async addModule(topicId: string, user: any, moduleData: Partial<LearningModule>) {
-    const topic = await this.findOne(topicId, user);
+    const topic = await this.findOneFor(topicId, user, 'write');
     let orderIndex = moduleData.orderIndex;
     if (orderIndex === undefined) {
       if (moduleData.id) {
@@ -261,7 +344,7 @@ export class TopicsService {
   }
 
   async remove(id: string, user: any) {
-    const topic = await this.findOne(id, user);
+    const topic = await this.findOneFor(id, user, 'owner');
     if (topic.modules && topic.modules.length > 0) {
       await this.moduleRepo.remove(topic.modules);
     }
@@ -269,9 +352,37 @@ export class TopicsService {
     return { success: true };
   }
 
+  /**
+   * Inhaltliche Felder, die ein Bearbeiter setzen darf.
+   *
+   * Bewusst eine Positivliste: Vorher kam nur der Eigentümer hierher, ein
+   * blindes Object.assign war deshalb harmlos. Sobald Fremde schreiben
+   * dürfen, ließen sich darüber sonst ownerId, sharedWith/sharedAccess oder
+   * das Themenpasswort mitsetzen.
+   */
+  private static readonly EDITABLE_FIELDS = ['title', 'description', 'selected', 'tagIds'];
+
+  /** Zusätzlich nur für den Eigentümer: Zugang und Sichtbarkeit. */
+  private static readonly OWNER_FIELDS = ['visibility', 'accessPassword', 'subscribeKey', 'permissions'];
+
   async update(id: string, user: any, updateData: Partial<LearningTopic>) {
-    const topic = await this.findOne(id, user);
-    Object.assign(topic, updateData);
+    const topic = await this.findOneFor(id, user, 'write');
+    const isOwner = this.accessLevel(topic, user) === 'owner';
+
+    const allowed = isOwner
+      ? [...TopicsService.EDITABLE_FIELDS, ...TopicsService.OWNER_FIELDS]
+      : TopicsService.EDITABLE_FIELDS;
+
+    const data = updateData as any;
+    for (const field of allowed) {
+      if (field === 'tagIds' || data[field] === undefined) continue;
+      (topic as any)[field] = data[field];
+    }
+
+    // Nur eigene Tags akzeptieren – sonst könnte eine manipulierte Anfrage
+    // fremde Tag-IDs am Thema hinterlassen.
+    if (data.tagIds !== undefined) topic.tagIds = await this.tagsService.sanitizeIds(user, data.tagIds);
+
     // Auto-promote visibility when activating: selected=true + visibility='locked' → 'public'
     if (topic.selected && topic.visibility === 'locked') {
       topic.visibility = 'public';
@@ -280,7 +391,7 @@ export class TopicsService {
   }
 
   async removeModule(topicId: string, moduleId: string, user: any) {
-    const topic = await this.findOne(topicId, user);
+    const topic = await this.findOneFor(topicId, user, 'write');
     const module = topic.modules.find(m => m.id === moduleId);
     if (!module) throw new NotFoundException('Modul nicht gefunden');
     await this.moduleRepo.remove(module);
@@ -288,7 +399,7 @@ export class TopicsService {
   }
 
   async toggleModule(topicId: string, moduleId: string, selected: boolean, user: any) {
-    const topic = await this.findOne(topicId, user);
+    const topic = await this.findOneFor(topicId, user, 'write');
     const module = topic.modules.find(m => m.id === moduleId);
     if (!module) throw new NotFoundException('Modul nicht gefunden');
     module.moduleSelected = selected;
@@ -297,7 +408,7 @@ export class TopicsService {
   }
 
   async bulkToggleModules(topicId: string, moduleIds: string[], selected: boolean, user: any) {
-    const topic = await this.findOne(topicId, user);
+    const topic = await this.findOneFor(topicId, user, 'write');
     const modulesToUpdate = topic.modules.filter(m => moduleIds.includes(m.id));
     for (const m of modulesToUpdate) {
       m.moduleSelected = selected;
@@ -309,7 +420,7 @@ export class TopicsService {
   }
 
   async reorderModules(topicId: string, moduleIds: string[], user: any) {
-    const topic = await this.findOne(topicId, user);
+    const topic = await this.findOneFor(topicId, user, 'write');
     const updates = [];
     for (let i = 0; i < moduleIds.length; i++) {
       const module = topic.modules.find(m => m.id === moduleIds[i]);

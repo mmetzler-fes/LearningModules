@@ -294,22 +294,6 @@ export class AuthService {
     return { success: true, message: 'Passwort erfolgreich geändert.', token: session.token };
   }
 
-  // ---- Exam Mode ----
-
-  async setExamMode(userId: string, enabled: boolean) {
-    const user = await this.userRepo.findOne({ where: { id: userId } });
-    if (user) {
-      user.accessFilters = { ...(user.accessFilters || {}), examMode: enabled };
-      await this.userRepo.save(user);
-    }
-    return { success: true, enabled };
-  }
-
-  async getExamMode(userId: string) {
-    const user = await this.userRepo.findOne({ where: { id: userId } });
-    return { enabled: !!user?.accessFilters?.examMode };
-  }
-
   // ---- Ensure at least one admin exists (called on app startup) ----
 
   async ensureAdminExists() {

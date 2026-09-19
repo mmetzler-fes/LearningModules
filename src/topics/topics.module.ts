@@ -5,10 +5,12 @@ import { TopicsController } from './topics.controller';
 import { LearningTopic } from '../core/entities/learning-topic.entity';
 import { LearningModule } from '../core/entities/learning-module.entity';
 import { User } from '../core/entities/user.entity';
+import { TagsModule } from '../tags/tags.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([LearningTopic, LearningModule, User]),
+    TagsModule,
   ],
   controllers: [TopicsController],
   providers: [TopicsService],

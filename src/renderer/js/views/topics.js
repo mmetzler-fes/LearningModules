@@ -1,5 +1,5 @@
-import { escapeHtml, escapeAttr, copyQrSvgAsPng } from '../utils.js';
-import { TagFilter } from './tags.js';
+import { escapeHtml, escapeAttr, copyQrSvgAsPng, copyShareSheetAsPng } from '../utils.js';
+import { TagFilter, TagPicker } from './tags.js';
 
 // ==================== TOPICS VIEW ====================
 
@@ -22,7 +22,8 @@ export class TopicsView {
     this._exportOverlay   = document.getElementById('exportH5pTopicOverlay');
     this._exportList      = document.getElementById('exportH5pTopicList');
     this._exportBtnCancel = document.getElementById('exportH5pBtnCancel');
-    this._tagsBox         = document.getElementById('topicTags');
+    this._section         = document.getElementById('view-teacher-topics');
+    this._tagPicker       = new TagPicker(app, document.getElementById('topicTags'));
 
     this._filter = new TagFilter(app, {
       searchInput: document.getElementById('topicTagSearch'),
@@ -42,8 +43,8 @@ export class TopicsView {
         this._titleInput.value = '';
         this._descInput.value = '';
         if (this._subscribeKeyEl) this._subscribeKeyEl.value = '';
-        this._renderTagPicker([]);
-        this._formContainer.classList.remove('hidden');
+        this._tagPicker.render([]);
+        this._showForm();
       });
     }
 
@@ -83,7 +84,7 @@ export class TopicsView {
 
     if (this._btnCancel) {
       this._btnCancel.addEventListener('click', () => {
-        this._formContainer.classList.add('hidden');
+        this._hideForm();
         this.app.state.editingTopicId = null;
       });
     }
@@ -104,7 +105,7 @@ export class TopicsView {
     // sich deshalb bewusst auf die gerade sichtbaren Themen.
     const topics = all.filter((topic) => this._filter.matches(topic));
     this._topicsList.innerHTML = '';
-    this._formContainer.classList.add('hidden');
+    this._hideForm();
 
     if (topics.length > 0) {
       const selectAllRow = document.createElement('div');
@@ -266,7 +267,7 @@ export class TopicsView {
 
   /** Kopieren/Drucken/Neu/Zurückziehen nur sinnvoll, wenn ein Link existiert. */
   _setQuickLinkActionsEnabled(enabled) {
-    for (const id of ['btnCopyQr', 'btnCopyQuickLink', 'btnPrintQuickLink', 'btnRegenQuickLink', 'btnRevokeQuickLink']) {
+    for (const id of ['btnCopyQr', 'btnCopyQuickLink', 'btnCopyQuickLinkSheet', 'btnPrintQuickLink', 'btnRegenQuickLink', 'btnRevokeQuickLink']) {
       const btn = document.getElementById(id);
       if (btn) btn.disabled = !enabled;
     }
@@ -276,6 +277,20 @@ export class TopicsView {
     const ok = await copyQrSvgAsPng(document.querySelector('#quickLinkQr svg'));
     this.app.showToast(
       ok ? 'QR-Code kopiert' : 'QR-Code kopieren klappt hier nicht – bitte drucken oder den Link nutzen.',
+      ok ? 'success' : 'error',
+    );
+  }
+
+  /** Dasselbe Blatt wie beim Drucken, nur als Bild für die Zwischenablage. */
+  async _copyQuickLinkSheet() {
+    const ok = await copyShareSheetAsPng({
+      title: 'Quick-Link für Schüler',
+      subtitle: document.getElementById('quickLinkTopic')?.textContent || '',
+      svg: document.querySelector('#quickLinkQr svg'),
+      url: this._quickLinkData?.url || '',
+    });
+    this.app.showToast(
+      ok ? 'Blatt als Bild kopiert – in OneNote einfügen mit Strg+V.' : 'Als Bild kopieren klappt hier nicht – bitte drucken.',
       ok ? 'success' : 'error',
     );
   }
@@ -309,6 +324,8 @@ export class TopicsView {
 
     document.getElementById('btnCopyQr')?.addEventListener('click', () => this._copyQrImage());
 
+    document.getElementById('btnCopyQuickLinkSheet')?.addEventListener('click', () => this._copyQuickLinkSheet());
+
     document.getElementById('btnPrintQuickLink')?.addEventListener('click', () => {
       document.body.classList.add('printing-quicklink');
       const cleanup = () => {
@@ -338,30 +355,23 @@ export class TopicsView {
     });
   }
 
-  /** Tag-Auswahl im Themenformular. */
-  _renderTagPicker(selected) {
-    if (!this._tagsBox) return;
-    const set = new Set(selected || []);
-    const tags = this.app.state.tags || [];
-    this._tagsBox.innerHTML = '';
-    if (tags.length === 0) {
-      this._tagsBox.innerHTML = '<span class="hint">Noch keine Tags angelegt – siehe Menüpunkt „Tags“.</span>';
-      return;
-    }
-    for (const tag of tags) {
-      const label = document.createElement('label');
-      label.className = 'tag-filter-option';
-      label.innerHTML = `
-        <input type="checkbox" value="${escapeAttr(tag.id)}" ${set.has(tag.id) ? 'checked' : ''} />
-        <span class="tag-chip" style="--tag-color:${escapeAttr(tag.color || '#4f7cff')}">${escapeHtml(tag.name)}</span>`;
-      this._tagsBox.appendChild(label);
-    }
+  /**
+   * Beim Bearbeiten nur das Formular zeigen. Es steht am Ende der Seite -
+   * bei vielen Themen landete es weit unterhalb des sichtbaren Bereichs und
+   * wirkte, als waere nichts passiert.
+   */
+  _showForm() {
+    this._formContainer.classList.remove('hidden');
+    this._section?.classList.add('topic-editing');
+    this._formContainer.scrollIntoView({ block: 'start', behavior: 'smooth' });
+    this._titleInput?.focus();
   }
 
-  _selectedTagIds() {
-    if (!this._tagsBox) return [];
-    return [...this._tagsBox.querySelectorAll('input:checked')].map((i) => i.value);
+  _hideForm() {
+    this._formContainer.classList.add('hidden');
+    this._section?.classList.remove('topic-editing');
   }
+
 
   _renderTagChips(tagIds) {
     const byId = new Map((this.app.state.tags || []).map((t) => [t.id, t]));
@@ -398,8 +408,8 @@ export class TopicsView {
     this._titleInput.value = topic.title;
     this._descInput.value = topic.description || '';
     if (this._subscribeKeyEl) this._subscribeKeyEl.value = topic.subscribeKey || '';
-    this._renderTagPicker(topic.tagIds || []);
-    this._formContainer.classList.remove('hidden');
+    this._tagPicker.render(topic.tagIds || []);
+    this._showForm();
   }
 
   async _onFormSubmit(e) {
@@ -415,14 +425,14 @@ export class TopicsView {
       title,
       description: this._descInput.value.trim(),
       subscribeKey: this._subscribeKeyEl ? (this._subscribeKeyEl.value.trim() || null) : undefined,
-      tagIds: this._selectedTagIds(),
+      tagIds: this._tagPicker.selectedIds,
       selected: state.editingTopicId ? (topics.find((t) => t.id === state.editingTopicId) || {}).selected || false : false,
       createdAt: state.editingTopicId ? (topics.find((t) => t.id === state.editingTopicId) || {}).createdAt || new Date().toISOString() : new Date().toISOString(),
     };
 
     await api.saveTopic(topicData, !!state.editingTopicId);
     this.app.showToast(state.editingTopicId ? t('topics.updated') : t('topics.created'), 'success');
-    this._formContainer.classList.add('hidden');
+    this._hideForm();
     state.editingTopicId = null;
     this.refresh();
   }

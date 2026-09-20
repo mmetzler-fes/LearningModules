@@ -316,7 +316,7 @@
               </div>
               <div class="form-group">
                 <label>Tags</label>
-                <div id="topicTags" class="tag-picker"></div>
+                <div id="topicTags" class="tag-picker-wrap"></div>
               </div>
               <div class="form-group">
                 <label for="topicSubscribeKey">Subscribe-Key <span style="font-weight:normal;color:var(--text-secondary)">(optional)</span></label>
@@ -502,7 +502,7 @@
 
               <div class="form-group">
                 <label>Tags</label>
-                <div id="linkTags" class="tag-picker"></div>
+                <div id="linkTags" class="tag-picker-wrap"></div>
               </div>
 
               <div class="form-group">
@@ -750,6 +750,8 @@
         für eine Klassenarbeit also erst zu Beginn zeigen.</p>
 
       <div class="confirm-actions">
+        <button type="button" class="btn btn-secondary" id="btnCopyLinkShareSheet"
+          title="Blatt als Bild in die Zwischenablage, z. B. für OneNote">🖼 Als Bild kopieren</button>
         <button type="button" class="btn btn-secondary" id="btnPrintLinkShare">🖨 Drucken</button>
         <button type="button" class="btn btn-secondary" id="btnRegenLinkShare" title="Alter Link wird ungültig">🔄 Neu</button>
         <button type="button" class="btn btn-danger" id="btnRevokeLinkShare" title="Link abschalten">🚫 Zurückziehen</button>
@@ -784,6 +786,8 @@
         <strong>Themen-Link</strong>. Wer den Link hat, kommt hinein.</p>
 
       <div class="confirm-actions">
+        <button type="button" class="btn btn-secondary" id="btnCopyQuickLinkSheet"
+          title="Blatt als Bild in die Zwischenablage, z. B. für OneNote">🖼 Als Bild kopieren</button>
         <button type="button" class="btn btn-secondary" id="btnPrintQuickLink">🖨 Drucken</button>
         <button type="button" class="btn btn-secondary" id="btnRegenQuickLink" title="Alter Link wird ungültig">🔄 Neu</button>
         <button type="button" class="btn btn-danger" id="btnRevokeQuickLink" title="Link abschalten">🚫 Zurückziehen</button>

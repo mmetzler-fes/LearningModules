@@ -2882,6 +2882,18 @@ body {
   cursor: pointer;
 }
 
+/*
+ * Themenformular hat Vorrang: Waehrend bearbeitet wird, treten Liste,
+ * Filter und Werkzeugleiste zurueck. Das Formular steht im Markup ganz
+ * unten - bei vielen Themen war es sonst ausserhalb des Bildschirms.
+ */
+#view-teacher-topics.topic-editing .topic-actions-bar,
+#view-teacher-topics.topic-editing .tag-filter-bar,
+#view-teacher-topics.topic-editing #topicsList,
+#view-teacher-topics.topic-editing #sharedTopicsSection {
+  display: none;
+}
+
 /* ---- Tag-Auswahl im Formular, inkl. Zeile zum Anlegen ---- */
 .tag-picker-wrap { display: flex; flex-direction: column; gap: 10px; }
 .tag-picker-new { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }

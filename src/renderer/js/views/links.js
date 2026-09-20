@@ -1,6 +1,6 @@
-import { escapeHtml, escapeAttr, copyQrSvgAsPng } from '../utils.js';
+import { escapeHtml, escapeAttr, copyQrSvgAsPng, copyShareSheetAsPng } from '../utils.js';
 import { LINK_MODE_LABELS } from './login.js';
-import { TagFilter } from './tags.js';
+import { TagFilter, TagPicker } from './tags.js';
 
 // ==================== THEMEN-LINKS ====================
 
@@ -25,7 +25,7 @@ export class LinksView {
     this._chkSingle   = document.getElementById('linkSingleAttempt');
     this._singleRow   = document.getElementById('linkSingleAttemptRow');
     this._modesBox    = document.getElementById('linkModes');
-    this._tagsBox     = document.getElementById('linkTags');
+    this._tagPicker   = new TagPicker(app, document.getElementById('linkTags'));
     this._treeBox     = document.getElementById('linkTopicTree');
     this._btnCancel   = document.getElementById('btnCancelLink');
     this._selectionSummary = document.getElementById('linkSelectionSummary');
@@ -160,7 +160,7 @@ export class LinksView {
     this._chkSingle.checked = !!link?.singleAttempt;
 
     this._renderModes(link ? link.modes : ['quiz']);
-    this._renderTagPicker(link ? link.tagIds : []);
+    this._tagPicker.render(link ? link.tagIds : []);
 
     this._selection = new Map();
     for (const entry of link?.selection || []) {
@@ -208,24 +208,6 @@ export class LinksView {
     const examOn = this._selectedModes().includes('exam');
     this._singleRow?.classList.toggle('hidden', !examOn);
     if (!examOn && this._chkSingle) this._chkSingle.checked = false;
-  }
-
-  _renderTagPicker(selected) {
-    const set = new Set(selected || []);
-    const tags = this.app.state.tags || [];
-    this._tagsBox.innerHTML = '';
-    if (tags.length === 0) {
-      this._tagsBox.innerHTML = '<span class="hint">Noch keine Tags angelegt – siehe Menüpunkt „Tags“.</span>';
-      return;
-    }
-    for (const tag of tags) {
-      const label = document.createElement('label');
-      label.className = 'tag-filter-option';
-      label.innerHTML = `
-        <input type="checkbox" value="${escapeAttr(tag.id)}" ${set.has(tag.id) ? 'checked' : ''} />
-        <span class="tag-chip" style="--tag-color:${escapeAttr(tag.color || '#4f7cff')}">${escapeHtml(tag.name)}</span>`;
-      this._tagsBox.appendChild(label);
-    }
   }
 
   // ---------- Auswahlbaum ----------
@@ -390,7 +372,7 @@ export class LinksView {
     if (modes.length === 0) { this.app.showToast('Bitte mindestens einen Modus auswählen.', 'error'); return; }
     if (selection.length === 0) { this.app.showToast('Bitte mindestens ein Thema oder Modul auswählen.', 'error'); return; }
 
-    const tagIds = [...this._tagsBox.querySelectorAll('input:checked')].map((i) => i.value);
+    const tagIds = this._tagPicker.selectedIds;
     const password = this._passwordInput.value.trim();
 
     const payload = { name, modes, selection, tagIds, singleAttempt: !!this._chkSingle.checked };
@@ -482,6 +464,20 @@ export class LinksView {
       const ok = await copyQrSvgAsPng(document.querySelector('#linkShareQr svg'));
       this.app.showToast(
         ok ? 'QR-Code kopiert' : 'QR-Code kopieren klappt hier nicht – bitte drucken oder den Link nutzen.',
+        ok ? 'success' : 'error',
+      );
+    });
+
+    // Dasselbe Blatt wie beim Drucken, nur als Bild fuer die Zwischenablage.
+    document.getElementById('btnCopyLinkShareSheet')?.addEventListener('click', async () => {
+      const ok = await copyShareSheetAsPng({
+        title: 'Themen-Link für Schüler',
+        subtitle: document.getElementById('linkShareInfo')?.textContent || '',
+        svg: document.querySelector('#linkShareQr svg'),
+        url: this._shareData?.url || '',
+      });
+      this.app.showToast(
+        ok ? 'Blatt als Bild kopiert – in OneNote einfügen mit Strg+V.' : 'Als Bild kopieren klappt hier nicht – bitte drucken.',
         ok ? 'success' : 'error',
       );
     });

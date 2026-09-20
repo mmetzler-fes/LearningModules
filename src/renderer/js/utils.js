@@ -154,6 +154,113 @@ export function sanitizeModuleDescriptionHtml(html) {
 }
 
 /**
+ * Legt ein PNG in die Zwischenablage. Getrennt herausgezogen, weil beide
+ * Kopier-Wege denselben letzten Schritt haben.
+ */
+async function putPngOnClipboard(canvas) {
+  const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
+  if (!blob) return false;
+  await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+  return true;
+}
+
+/** Bricht Text auf eine Breite um und liefert die einzelnen Zeilen. */
+function wrapText(ctx, text, maxWidth) {
+  const lines = [];
+  let line = '';
+  for (const word of String(text || '').split(/\s+/).filter(Boolean)) {
+    const probe = line ? line + ' ' + word : word;
+    if (ctx.measureText(probe).width > maxWidth && line) {
+      lines.push(line);
+      line = word;
+    } else {
+      line = probe;
+    }
+  }
+  if (line) lines.push(line);
+  return lines;
+}
+
+/**
+ * Kopiert das komplette Aushang-Blatt - Überschrift, QR-Code und Link - als
+ * ein Bild in die Zwischenablage, so wie es auch aufs Papier käme.
+ *
+ * Bewusst auf einem Canvas nachgebaut statt den Dialog abzufotografieren:
+ * Ein Browser kann kein DOM rastern, und der Umweg über SVG-foreignObject
+ * verliert regelmäßig Schriften und Farben. Hier ist das Ergebnis immer
+ * gleich - was gebraucht wird, um es in OneNote einzufügen.
+ *
+ * Gibt zurück, ob es geklappt hat.
+ */
+export async function copyShareSheetAsPng({ title, subtitle, svg, url, qrSize = 380 }) {
+  if (!svg) return false;
+  try {
+    const xml = new XMLSerializer().serializeToString(svg);
+    const qrImg = new Image();
+    qrImg.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(xml);
+    await qrImg.decode();
+
+    const scale = 2;                 // doppelte Auflösung, damit es beim Ausdrucken scharf bleibt
+    const width = 760;
+    const pad = 48;
+    const inner = width - 2 * pad;
+    const font = "'Segoe UI', system-ui, -apple-system, sans-serif";
+
+    // Erst messen, dann zeichnen: Die Höhe haengt davon ab, wie oft der
+    // Untertitel und der Link umbrechen.
+    const probe = document.createElement('canvas').getContext('2d');
+    probe.font = `500 20px ${font}`;
+    const subLines = subtitle ? wrapText(probe, subtitle, inner) : [];
+    probe.font = `600 22px ${font}`;
+    const urlLines = wrapText(probe, url, inner);
+
+    let height = pad + 38;                       // Überschrift
+    if (subLines.length) height += subLines.length * 28 + 10;
+    height += 24 + qrSize + 30;                  // QR-Code
+    height += urlLines.length * 32;
+    height += pad;
+
+    const canvas = document.createElement('canvas');
+    canvas.width = width * scale;
+    canvas.height = height * scale;
+    const ctx = canvas.getContext('2d');
+    ctx.scale(scale, scale);
+
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, width, height);
+    ctx.strokeStyle = '#000000';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(0.5, 0.5, width - 1, height - 1);
+
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#000000';
+    let y = pad + 28;
+    ctx.font = `700 28px ${font}`;
+    ctx.fillText(title, width / 2, y);
+    y += 10;
+
+    if (subLines.length) {
+      ctx.font = `500 20px ${font}`;
+      ctx.fillStyle = '#444444';
+      for (const line of subLines) { y += 28; ctx.fillText(line, width / 2, y); }
+      y += 10;
+    }
+
+    y += 24;
+    ctx.drawImage(qrImg, (width - qrSize) / 2, y, qrSize, qrSize);
+    y += qrSize + 30;
+
+    ctx.font = `600 22px ${font}`;
+    ctx.fillStyle = '#000000';
+    for (const line of urlLines) { y += 32; ctx.fillText(line, width / 2, y); }
+
+    return await putPngOnClipboard(canvas);
+  } catch (_) {
+    return false;
+  }
+}
+
+/**
  * Kopiert einen QR-Code (SVG) als PNG in die Zwischenablage – zum Einfügen
  * in Arbeitsblätter, Präsentationen oder Moodle. Das SVG wird über ein
  * Canvas gerastert, bewusst großzügig, damit es beim Ausdrucken scharf bleibt.
@@ -177,11 +284,7 @@ export async function copyQrSvgAsPng(svg, size = 600) {
     ctx.fillRect(0, 0, size, size);
     ctx.drawImage(img, 0, 0, size, size);
 
-    const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
-    if (!blob) return false;
-
-    await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
-    return true;
+    return await putPngOnClipboard(canvas);
   } catch (_) {
     return false;
   }

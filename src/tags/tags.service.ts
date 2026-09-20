@@ -1,9 +1,10 @@
 import { Injectable, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { Tag } from '../core/entities/tag.entity';
 import { LearningTopic } from '../core/entities/learning-topic.entity';
 import { TopicLink } from '../core/entities/topic-link.entity';
+import { LearningModule } from '../core/entities/learning-module.entity';
 import * as crypto from 'crypto';
 
 @Injectable()
@@ -12,7 +13,18 @@ export class TagsService {
     @InjectRepository(Tag) private readonly tagRepo: Repository<Tag>,
     @InjectRepository(LearningTopic) private readonly topicRepo: Repository<LearningTopic>,
     @InjectRepository(TopicLink) private readonly linkRepo: Repository<TopicLink>,
+    @InjectRepository(LearningModule) private readonly moduleRepo: Repository<LearningModule>,
   ) {}
+
+  /**
+   * Alle Module der Lehrkraft. Ein Modul kennt keinen Eigentuemer, es haengt
+   * am Thema - deshalb der Umweg ueber die eigenen Themen.
+   */
+  private async ownModules(topics: LearningTopic[]): Promise<LearningModule[]> {
+    const topicIds = topics.map((t) => t.id);
+    if (topicIds.length === 0) return [];
+    return this.moduleRepo.find({ where: { topicId: In(topicIds) } });
+  }
 
   /**
    * Alle Tags der Lehrkraft mit Verwendungszähler. Der Zähler beantwortet die
@@ -22,6 +34,7 @@ export class TagsService {
     const tags = await this.tagRepo.find({ where: { ownerId: user.userId } });
     const topics = await this.topicRepo.find({ where: { ownerId: user.userId } });
     const links = await this.linkRepo.find({ where: { ownerId: user.userId } });
+    const modules = await this.ownModules(topics);
 
     return tags
       .map((tag) => ({
@@ -30,6 +43,7 @@ export class TagsService {
         color: tag.color,
         topicCount: topics.filter((t) => (t.tagIds || []).includes(tag.id)).length,
         linkCount: links.filter((l) => (l.tagIds || []).includes(tag.id)).length,
+        moduleCount: modules.filter((m) => (m.tagIds || []).includes(tag.id)).length,
       }))
       .sort((a, b) => a.name.localeCompare(b.name, 'de'));
   }
@@ -80,7 +94,7 @@ export class TagsService {
   }
 
   /**
-   * Löscht den Tag und entfernt ihn zugleich aus allen Themen und Links.
+   * Löscht den Tag und entfernt ihn zugleich aus allen Themen, Modulen und Links.
    * Ohne dieses Aufräumen blieben verwaiste IDs zurück, die im Filter als
    * unsichtbare Treffer weiterwirken würden.
    */
@@ -97,8 +111,18 @@ export class TagsService {
     for (const l of dirtyLinks) l.tagIds = (l.tagIds || []).filter((x) => x !== id);
     if (dirtyLinks.length) await this.linkRepo.save(dirtyLinks);
 
+    const modules = await this.ownModules(topics);
+    const dirtyModules = modules.filter((m) => (m.tagIds || []).includes(id));
+    for (const m of dirtyModules) m.tagIds = (m.tagIds || []).filter((x) => x !== id);
+    if (dirtyModules.length) await this.moduleRepo.save(dirtyModules);
+
     await this.tagRepo.remove(tag);
-    return { success: true, detachedFromTopics: dirtyTopics.length, detachedFromLinks: dirtyLinks.length };
+    return {
+      success: true,
+      detachedFromTopics: dirtyTopics.length,
+      detachedFromLinks: dirtyLinks.length,
+      detachedFromModules: dirtyModules.length,
+    };
   }
 
   /** Filtert eine übergebene Tag-Auswahl auf die tatsächlich eigenen Tags. */

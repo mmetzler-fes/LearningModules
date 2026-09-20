@@ -65,6 +65,9 @@ export class ImportService {
         id: crypto.randomUUID(),
         topicId: savedTopic.id,
         moduleSelected: true,
+        // Tags stammen aus dem Quellkonto und existieren hier nicht. Sie
+        // mitzuschleppen hiesse, unauffloesbare IDs am Modul zu hinterlassen.
+        tagIds: null,
       });
 
       if (mod.type === 'dragAndDrop' && mod.content) {

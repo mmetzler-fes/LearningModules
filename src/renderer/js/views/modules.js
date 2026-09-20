@@ -1,5 +1,6 @@
 import { escapeHtml, escapeAttr, generateId } from '../utils.js';
 import { ModuleDescriptionEditor } from '../desc-editor.js';
+import { TagPicker } from './tags.js';
 
 // ==================== MODULES VIEW ====================
 
@@ -42,6 +43,8 @@ export class ModulesView {
 
     this._descEditor = new ModuleDescriptionEditor();
     this._descEditor.init();
+
+    this._tagPicker = new TagPicker(app, document.getElementById('moduleTags'));
 
     this._bindEvents();
   }
@@ -241,6 +244,10 @@ export class ModulesView {
     const { state } = this.app;
     const { currentTopicId } = state;
 
+    // Tags frisch holen: Namen und Farben koennen sich in der Tag-Verwaltung
+    // geaendert haben, waehrend diese Ansicht offen war.
+    await this.app.loadTags();
+
     this._updateToolbarForTopicMode();
 
     if (!currentTopicId) {
@@ -353,6 +360,7 @@ export class ModulesView {
             <span class="module-card-type">${typeDef.name || mod.type}</span>
             ${mod.createdAt ? new Date(mod.createdAt).toLocaleDateString('de-DE') : ''}
           </div>
+          ${this._renderTagChips(mod.tagIds)}
         </div>
         <div class="module-card-actions">
           <button class="btn btn-secondary btn-sm btn-preview" title="Vorschau">▶ Vorschau</button>
@@ -391,6 +399,17 @@ export class ModulesView {
     }
   }
 
+  /** Tag-Chips einer Modulkarte; leer, solange nichts zugeordnet ist. */
+  _renderTagChips(tagIds) {
+    const byId = new Map((this.app.state.tags || []).map((t) => [t.id, t]));
+    const chips = (tagIds || [])
+      .map((id) => byId.get(id))
+      .filter(Boolean)
+      .map((tag) => `<span class="tag-chip" style="--tag-color:${escapeAttr(tag.color || '#4f7cff')}">${escapeHtml(tag.name)}</span>`)
+      .join('');
+    return chips ? `<div class="module-card-tags">${chips}</div>` : '';
+  }
+
   _openPlayer(mod) {
     const typeDef = H5P_TYPES[mod.type] || {};
     this._playerTitle.textContent = mod.title;
@@ -406,6 +425,7 @@ export class ModulesView {
     this._moduleTitleInput.value = mod.title;
     this._moduleTypeSelect.value = mod.type;
     this._descEditor.setHtml(mod.description || '');
+    this._tagPicker.render(mod.tagIds || []);
     this.app.navigateToView('create-module');
     this.app.state.contentEditor.render(mod.type, mod.content || {});
   }
@@ -426,6 +446,7 @@ export class ModulesView {
     this._moduleTitleInput.value = '';
     this._moduleTypeSelect.value = '';
     this._descEditor.setHtml('');
+    this._tagPicker.render([]);
     this.app.state.contentEditor.clear();
     this._createViewTitle.textContent = t('module.create.title');
   }
@@ -447,6 +468,7 @@ export class ModulesView {
     const moduleData = {
       id: state.editingModuleId || generateId(),
       title, type, description, content,
+      tagIds: this._tagPicker.selectedIds,
       moduleSelected: existing ? existing.moduleSelected : true,
       createdAt: existing ? (existing.createdAt || new Date().toISOString()) : new Date().toISOString(),
       updatedAt: new Date().toISOString(),

@@ -37,4 +37,12 @@ export class LearningModule extends BaseEntity {
 
   @Column({ default: 0 })
   orderIndex: number;
+
+  /**
+   * Schlagworte zur Einordnung (Tag-IDs, siehe Tag-Entitaet). Bewusst am
+   * Modul und nicht nur am Thema: Ein Thema "Python" enthaelt Module zu
+   * Schleifen, Listen und OOP, die sich sonst nicht auseinanderhalten lassen.
+   */
+  @Column('simple-json', { nullable: true })
+  tagIds: string[] | null;
 }

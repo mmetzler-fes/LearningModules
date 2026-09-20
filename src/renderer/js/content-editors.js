@@ -972,6 +972,8 @@ class ContentEditorManager {
       overlay.style.width = zone.width + '%';
       overlay.style.height = zone.height + '%';
       overlay.style.borderColor = color;
+      // currentColor fuer den Eck-Anfasser, damit er die Zonenfarbe traegt.
+      overlay.style.color = color;
       overlay.style.background = color + '25';
 
       if (this.dndState.selectedZone === zone.id) {

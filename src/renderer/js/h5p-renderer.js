@@ -1,4 +1,4 @@
-import { sanitizeModuleDescriptionHtml, escapeHtml, escapeAttr, hexToRgba } from './utils.js';
+import { sanitizeModuleDescriptionHtml, escapeHtml, escapeAttr, hexTint } from './utils.js';
 
 // ==================== H5P RENDERER ====================
 
@@ -841,7 +841,10 @@ export class H5pRenderer {
           }
           zoneEl.style.borderColor = color;
           zoneEl.style.color = color;
-          zoneEl.style.background = hexToRgba(color, 0.25);
+          // Deckend, nicht transparent: Die Zonen liegen ueber dem Diagramm,
+          // und dort steht die Loesung oft schon angeschrieben. Durchscheinen
+          // wuerde die Aufgabe verraten.
+          zoneEl.style.background = hexTint(color, 0.25);
           zoneEl.dataset.zone = z.label;
           zoneEl.innerHTML = `<span class="dnd-player-zone-label" style="background:${color}">${escapeHtml(z.label)}</span><div class="dnd-player-zone-items" data-zone="${escapeAttr(z.label)}"></div>`;
           zoneEl.addEventListener('dragover', (e) => { e.preventDefault(); zoneEl.classList.add('dnd-zone-hover'); });

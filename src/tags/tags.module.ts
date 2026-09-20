@@ -5,9 +5,10 @@ import { TagsController } from './tags.controller';
 import { Tag } from '../core/entities/tag.entity';
 import { LearningTopic } from '../core/entities/learning-topic.entity';
 import { TopicLink } from '../core/entities/topic-link.entity';
+import { LearningModule } from '../core/entities/learning-module.entity';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Tag, LearningTopic, TopicLink])],
+  imports: [TypeOrmModule.forFeature([Tag, LearningTopic, TopicLink, LearningModule])],
   controllers: [TagsController],
   providers: [TagsService],
   exports: [TagsService],

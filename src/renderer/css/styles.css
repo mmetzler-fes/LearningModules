@@ -1168,17 +1168,31 @@ body {
   pointer-events: none;
 }
 
+/*
+ * Anfasser zum Aendern der Zonengroesse. Bewusst eine Ecke in der Zonenfarbe
+ * statt eines weissen Kaestchens: Das sah wie eine Checkbox aus und lud dazu
+ * ein, es anzuklicken. Sichtbar nur an der ausgewaehlten Zone, damit das
+ * Diagramm darunter nicht von Griffen uebersaet ist.
+ */
 .dnd-zone-handle {
   position: absolute;
   bottom: 0;
   right: 0;
-  width: 14px;
-  height: 14px;
-  background: #fff;
-  border: 2px solid #666;
-  border-radius: 2px;
+  width: 16px;
+  height: 16px;
+  background: currentColor;
+  clip-path: polygon(100% 0, 100% 100%, 0 100%);
+  border-radius: 0 0 2px 0;
   cursor: se-resize;
   touch-action: none;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s;
+}
+
+.dnd-zone-overlay.selected .dnd-zone-handle {
+  opacity: 0.9;
+  pointer-events: auto;
 }
 
 .dnd-draw-rect {
@@ -1321,7 +1335,9 @@ body {
 }
 
 .dnd-player-drag.placed {
-  opacity: 0.85;
+  /* Volle Deckkraft: abgelegte Elemente liegen ueber dem Hintergrundbild und
+     duerfen nichts davon durchscheinen lassen. */
+  opacity: 1;
   font-size: 0.8rem;
   padding: 4px 10px;
 }
@@ -2866,8 +2882,27 @@ body {
   cursor: pointer;
 }
 
+/* ---- Tag-Auswahl im Formular, inkl. Zeile zum Anlegen ---- */
+.tag-picker-wrap { display: flex; flex-direction: column; gap: 10px; }
+.tag-picker-new { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.tag-picker-new .tag-picker-new-name { flex: 1 1 200px; min-width: 0; }
+.tag-picker-new .tag-picker-new-color { flex: 0 0 auto; }
+.tag-picker-new .btn { flex: 0 0 auto; }
+.module-card-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+
 /* ---- Tag-Verwaltung ---- */
 .tag-form { display: grid; grid-template-columns: 1fr auto; gap: 16px; align-items: end; }
+
+/* ---- Farbwahl mit Hex-Feld zum Kopieren/Einfuegen ---- */
+.tag-color-picker { display: flex; align-items: center; gap: 8px; }
+.tag-color-picker input[type='color'] { flex: 0 0 auto; }
+.tag-color-picker input[type='text'] {
+  width: 9ch;
+  font-family: monospace;
+  text-transform: lowercase;
+}
+.tag-color-picker input[type='text'].invalid { border-color: var(--danger); }
+.tag-color-picker .btn { flex: 0 0 auto; }
 .tag-form .form-actions { grid-column: 1 / -1; }
 .tags-list { display: flex; flex-direction: column; gap: 8px; }
 .tag-row {

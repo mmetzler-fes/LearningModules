@@ -376,6 +376,10 @@
             </select>
           </div>
           <div class="form-group">
+            <label>Tags</label>
+            <div id="moduleTags" class="tag-picker-wrap"></div>
+          </div>
+          <div class="form-group">
             <label for="moduleDescription" data-i18n="module.desc.label">Beschreibung</label>
             <div class="rich-text-editor" id="moduleDescEditorWrap">
               <div class="rich-text-toolbar" id="moduleDescToolbar">
@@ -533,7 +537,14 @@
             </div>
             <div class="form-group">
               <label for="tagColor">Farbe</label>
-              <input type="color" id="tagColor" value="#4f7cff" />
+              <div class="tag-color-picker">
+                <input type="color" id="tagColor" value="#4f7cff" />
+                <input type="text" id="tagColorHex" value="#4f7cff" maxlength="7" spellcheck="false"
+                       autocomplete="off" aria-label="Farbwert als Hex-Code" placeholder="#4f7cff" />
+                <button type="button" id="btnCopyTagColor" class="btn btn-secondary btn-sm"
+                        title="Farbwert kopieren">📋</button>
+              </div>
+              <span class="hint">Hex-Code kopieren und bei einem anderen Tag einfügen.</span>
             </div>
             <div class="form-actions">
               <button type="submit" class="btn btn-primary">Speichern</button>

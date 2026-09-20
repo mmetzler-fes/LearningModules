@@ -331,8 +331,16 @@ export class TopicsService {
         orderIndex = topic.modules ? topic.modules.length : 0;
       }
     }
+    // Nur eigene Tags akzeptieren - wie beim Thema, damit eine manipulierte
+    // Anfrage keine fremden Tag-IDs am Modul hinterlassen kann.
+    const tagIds =
+      (moduleData as any).tagIds !== undefined
+        ? await this.tagsService.sanitizeIds(user, (moduleData as any).tagIds)
+        : undefined;
+
     const module = this.moduleRepo.create({
       ...moduleData,
+      ...(tagIds !== undefined ? { tagIds } : {}),
       // Ohne id schlug das Anlegen bisher mit einem NOT-NULL-Fehler fehl. Eine
       // mitgeschickte id bleibt erhalten, denn derselbe Aufruf aktualisiert
       // auch bestehende Module – sonst entstünde bei jeder Bearbeitung ein Duplikat.

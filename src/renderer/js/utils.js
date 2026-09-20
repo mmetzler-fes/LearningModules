@@ -17,6 +17,21 @@ export function hexToRgba(hex, alpha) {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
+/**
+ * Mischt eine Farbe mit Weiss und liefert wieder einen vollen Hex-Wert.
+ * Sieht aus wie dieselbe Farbe mit wenig Deckkraft auf weissem Grund, ist
+ * aber undurchsichtig - was darunter liegt, bleibt damit verdeckt.
+ *
+ * `ratio` ist der Farbanteil: 0.25 entspricht optisch alpha 0.25.
+ */
+export function hexTint(hex, ratio) {
+  const mix = (v) => Math.round(255 + (v - 255) * ratio);
+  const r = mix(parseInt(hex.slice(1, 3), 16));
+  const g = mix(parseInt(hex.slice(3, 5), 16));
+  const b = mix(parseInt(hex.slice(5, 7), 16));
+  return `rgb(${r}, ${g}, ${b})`;
+}
+
 export function generateId() {
   return 'mod_' + Date.now().toString(36) + '_' + Math.random().toString(36).substring(2, 8);
 }

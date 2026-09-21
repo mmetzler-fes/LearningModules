@@ -1169,30 +1169,22 @@ body {
 }
 
 /*
- * Anfasser zum Aendern der Zonengroesse. Bewusst eine Ecke in der Zonenfarbe
- * statt eines weissen Kaestchens: Das sah wie eine Checkbox aus und lud dazu
- * ein, es anzuklicken. Sichtbar nur an der ausgewaehlten Zone, damit das
- * Diagramm darunter nicht von Griffen uebersaet ist.
+ * Anfasser zum Aendern der Zonengroesse: das vertraute weisse Kaestchen,
+ * immer sichtbar und immer anfassbar. Die Variante, die nur an der
+ * ausgewaehlten Zone erschien, war an einer frisch geoeffneten Zone nicht
+ * greifbar - deshalb wieder die alte.
  */
 .dnd-zone-handle {
   position: absolute;
   bottom: 0;
   right: 0;
-  width: 16px;
-  height: 16px;
-  background: currentColor;
-  clip-path: polygon(100% 0, 100% 100%, 0 100%);
-  border-radius: 0 0 2px 0;
+  width: 14px;
+  height: 14px;
+  background: #fff;
+  border: 2px solid #666;
+  border-radius: 2px;
   cursor: se-resize;
   touch-action: none;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.15s;
-}
-
-.dnd-zone-overlay.selected .dnd-zone-handle {
-  opacity: 0.9;
-  pointer-events: auto;
 }
 
 .dnd-draw-rect {

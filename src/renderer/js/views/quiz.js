@@ -431,6 +431,17 @@ export class QuizView {
         break;
       }
     }
+    // Reine Informationen (z. B. ein PDF zum Nachlesen) sind keine Aufgabe.
+    // Sie zählten sonst als gelöst und hoben die Prozentzahl, ohne dass
+    // jemand etwas beantwortet hätte.
+    if ((H5P_TYPES[mod.type] || {}).informational) {
+      result.informational = true;
+      result.isCorrect = true;
+      result.userAnswer = 'Gelesen';
+      result.correctAnswer = '';
+      result.points = null;
+      return result;
+    }
     // Punkte dieser Aufgabe (0 bis 1). Aufgabentypen ohne Teilpunkte zählen ganz oder gar nicht.
     if (result.points === undefined) result.points = result.isCorrect ? 1 : 0;
     return result;
@@ -441,9 +452,13 @@ export class QuizView {
     const { quizState, currentUser } = state;
     const isExam = quizState.mode === 'exam';
     const isLearn = quizState.mode === 'learn';
-    const rawScore = quizState.answers.reduce((sum, a) => sum + (a.points ?? (a.isCorrect ? 1 : 0)), 0);
+    // Informationsmodule bleiben in der Liste sichtbar, aber aus der
+    // Rechnung heraus – sonst hinge die Prozentzahl daran, wie viele
+    // Infoseiten ein Thema enthält.
+    const graded = quizState.answers.filter((a) => !a.informational);
+    const rawScore = graded.reduce((sum, a) => sum + (a.points ?? (a.isCorrect ? 1 : 0)), 0);
     const score = Math.round(rawScore * 100) / 100;
-    const total = quizState.answers.length;
+    const total = graded.length;
     const percentage = total > 0 ? Math.round((score / total) * 100) : 0;
 
     if (isLearn) {
@@ -475,23 +490,28 @@ export class QuizView {
     this._quizPlayerArea.classList.add('hidden');
     this._quizResultArea.classList.remove('hidden');
 
+    // Ein Thema kann auch nur aus Informationen bestehen. Dann gibt es
+    // nichts zu bewerten, und "0 %" wäre eine Note, die niemand vergeben hat.
+    const nothingGraded = total === 0;
     const pctClass = percentage >= 70 ? 'good' : percentage >= 40 ? 'medium' : 'poor';
     this._quizResultArea.innerHTML = `
       <div class="quiz-final-result">
-        <div class="quiz-result-icon">${percentage >= 80 ? '🏆' : percentage >= 50 ? '👍' : '📚'}</div>
+        <div class="quiz-result-icon">${nothingGraded ? '📖' : percentage >= 80 ? '🏆' : percentage >= 50 ? '👍' : '📚'}</div>
         <h2>${t('quiz.complete')}</h2>
-        <div class="quiz-result-score ${pctClass}">
+        ${nothingGraded
+          ? '<p style="margin:12px 0;">Durchgesehen – dieses Thema enthält nur Informationen, es gibt nichts zu bewerten.</p>'
+          : `<div class="quiz-result-score ${pctClass}">
           <span class="quiz-result-number">${score.toLocaleString('de-DE')} / ${total}</span>
           <span class="quiz-result-pct">${percentage}%</span>
-        </div>
+        </div>`}
         <p>${t('quiz.topic')}: <strong>${escapeHtml(quizState.topicTitle)}</strong></p>
         ${isLearn ? '<p class="hint">Übungsdurchlauf – dieses Ergebnis wird nicht gespeichert.</p>' : ''}
         <div class="quiz-result-details">
           ${isExam
             ? '<p style="color:var(--text-secondary);">Klassenarbeit: Die Detail-Rückmeldung ist ausgeblendet.</p>'
             : quizState.answers.map((a, i) => `
-              <div class="result-detail-item ${a.isCorrect ? 'correct' : 'wrong'}">
-                <span class="result-detail-icon">${a.isCorrect ? '✅' : '❌'}</span>
+              <div class="result-detail-item ${a.informational ? '' : a.isCorrect ? 'correct' : 'wrong'}">
+                <span class="result-detail-icon">${a.informational ? 'ℹ️' : a.isCorrect ? '✅' : '❌'}</span>
                 <div>
                   <strong>${i + 1}. ${escapeHtml(a.moduleTitle)}</strong>
                   ${a.userAnswer ? `<br>${t('common.your.answer')}: ${escapeHtml(String(a.userAnswer))}` : ''}

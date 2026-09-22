@@ -1,5 +1,51 @@
 import { sanitizeModuleDescriptionHtml, escapeHtml, escapeAttr, hexTint } from './utils.js';
 
+/**
+ * Nur http(s) einbetten. Ohne diese Schranke landeten `javascript:`- oder
+ * `data:`-Adressen aus einem Modulfeld direkt im src eines Rahmens.
+ */
+function safeHttpUrl(raw) {
+  const value = String(raw || '').trim();
+  if (!value) return '';
+  try {
+    const parsed = new URL(value, window.location.origin);
+    return /^https?:$/.test(parsed.protocol) ? parsed.href : '';
+  } catch (_) {
+    return '';
+  }
+}
+
+/**
+ * Eingebetteter Rahmen für Webseiten.
+ *
+ * Der Sandkasten bleibt eng: Ein fremder Auftritt soll unsere Seite weder
+ * verlassen noch übernehmen können. Für PDFs taugt er nicht – siehe
+ * embeddedDocument().
+ */
+function embeddedFrame(url, height, title, extraStyle = '') {
+  return `<iframe src="${escapeAttr(url)}" title="${escapeAttr(title)}"
+    style="display:block; width:100%; height:${Number(height) || 600}px; border:0; ${extraStyle}"
+    sandbox="allow-scripts allow-popups allow-forms allow-downloads"
+    referrerpolicy="no-referrer" loading="lazy"></iframe>`;
+}
+
+/**
+ * Eingebettetes Dokument (PDF).
+ *
+ * Bewusst <object> statt <iframe>: Der PDF-Betrachter von Chrome verweigert
+ * die Arbeit, sobald am Rahmen ein sandbox-Attribut hängt – gleich welche
+ * Rechte es erlaubt; nachgemessen, nicht vermutet. Ein <object> braucht
+ * keinen Sandkasten, denn es zeigt ein Dokument an und führt keine fremde
+ * Seite aus. Was zwischen den Marken steht, erscheint genau dann, wenn die
+ * Anzeige scheitert – etwa weil der Server das Einbetten verbietet.
+ */
+function embeddedDocument(url, height, fallbackHtml) {
+  return `<object data="${escapeAttr(url)}" type="application/pdf"
+    style="display:block; width:100%; height:${Number(height) || 600}px; border:0;">
+    <div style="padding:24px; text-align:center; color:var(--text-secondary);">${fallbackHtml}</div>
+  </object>`;
+}
+
 // ==================== H5P RENDERER ====================
 
 export class H5pRenderer {
@@ -935,16 +981,53 @@ export class H5pRenderer {
       }
 
       case 'iframeEmbedder': {
-        const url = content.url || '';
-        if (url) {
-          div.innerHTML = `
-            <p style="margin-bottom:8px; font-size:0.85rem; color:var(--text-secondary);">Eingebettete Seite: ${escapeHtml(url)}</p>
-            <div style="border:1px solid var(--border); border-radius:var(--radius-sm); overflow:hidden; background:#fff; text-align:center; padding:40px;">
-              <p>IFrame-Vorschau ist in der Desktop-App aus Sicherheitsgründen eingeschränkt.</p>
-              <p style="margin-top:8px;"><strong>URL:</strong> ${escapeHtml(url)}</p>
-              <p style="margin-top:4px;"><strong>Größe:</strong> ${content.width || 800}×${content.height || 600}px</p>
-            </div>`;
-        } else { div.textContent = 'Keine URL definiert.'; }
+        // Der Platzhalter hier stammte aus der Desktop-App. Im Browser gibt
+        // es diese Einschränkung nicht – eingebettet wird jetzt wirklich.
+        const url = safeHttpUrl(content.url);
+        if (!content.url) { div.textContent = 'Keine URL definiert.'; break; }
+        if (!url) {
+          div.innerHTML = `<p style="color:var(--danger, #b91c1c);">Nur Adressen mit http:// oder https:// können eingebettet werden.</p>`;
+          break;
+        }
+        const width = Number(content.width) > 0 ? Number(content.width) : 800;
+        const height = Number(content.height) > 0 ? Number(content.height) : 600;
+        div.innerHTML = `
+          <div style="border:1px solid var(--border); border-radius:var(--radius-sm); overflow:hidden; background:#fff;">
+            ${embeddedFrame(url, height, 'Eingebettete Seite', `max-width:${width}px;`)}
+          </div>
+          <p style="margin-top:8px; font-size:0.85rem;">
+            <a href="${escapeAttr(url)}" target="_blank" rel="noopener noreferrer">In neuem Tab öffnen ↗</a>
+          </p>`;
+        break;
+      }
+
+      case 'document': {
+        // Information zum Nachlesen. Die Vorschau kann fehlschlagen – manche
+        // Browser zeigen PDFs gar nicht im Seitenverbund an, und manche
+        // Server verbieten das Einbetten. Der Knopf darunter funktioniert in
+        // beiden Fällen, deshalb steht er immer da.
+        const url = safeHttpUrl(content.url);
+        if (!content.url) { div.textContent = 'Kein Dokument hinterlegt.'; break; }
+        if (!url) {
+          div.innerHTML = `<p style="color:var(--danger, #b91c1c);">Nur Adressen mit http:// oder https:// können eingebunden werden.</p>`;
+          break;
+        }
+        const height = Number(content.height) > 0 ? Number(content.height) : 600;
+        const linkText = content.linkText || 'Dokument öffnen';
+        const note = content.note ? sanitizeModuleDescriptionHtml(content.note) : '';
+        // Vorschau nur auf Wunsch; ohne gesetztes Feld ist sie an.
+        const embed = content.embed !== false;
+        const openLink = `<a class="btn btn-primary btn-sm" href="${escapeAttr(url)}" target="_blank" rel="noopener noreferrer"
+               style="text-decoration:none;">📄 ${escapeHtml(linkText)} ↗</a>`;
+        div.innerHTML = `
+          ${note ? `<div class="module-description-content" style="margin-bottom:16px;">${note}</div>` : ''}
+          ${embed ? `
+            <div style="border:1px solid var(--border); border-radius:var(--radius-sm); overflow:hidden; background:#fff; margin-bottom:12px;">
+              ${embeddedDocument(url, height, 'Die Vorschau lässt sich hier nicht anzeigen – bitte den Knopf unten benutzen.')}
+            </div>` : ''}
+          <p style="margin:0;">${openLink}</p>
+          ${embed ? `<p style="margin-top:8px; font-size:0.82rem; color:var(--text-secondary);">
+            Wird oben nichts angezeigt, öffnet der Knopf das Dokument in einem neuen Tab.</p>` : ''}`;
         break;
       }
 

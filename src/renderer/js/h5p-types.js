@@ -9,6 +9,8 @@ const H5P_TYPES = {
     icon: '📋',
     description: 'Aufklappbare Textabschnitte zum strukturierten Darstellen von Inhalten.',
     category: 'Darstellung',
+    // Reine Information, keine Aufgabe: zaehlt in der Auswertung nicht mit.
+    informational: true,
     fields: [
       { key: 'panels', type: 'list', label: 'Panels', itemFields: [
         { key: 'title', type: 'text', label: 'Titel', required: true },
@@ -69,6 +71,8 @@ const H5P_TYPES = {
     icon: '🖼️',
     description: 'Bildcollagen in verschiedenen Layouts erstellen.',
     category: 'Medien',
+    // Reine Information, keine Aufgabe: zaehlt in der Auswertung nicht mit.
+    informational: true,
     fields: [
       { key: 'layout', type: 'select', label: 'Layout', options: [
         { value: '1-1', label: '2 Spalten (50/50)' },
@@ -96,6 +100,31 @@ const H5P_TYPES = {
         { key: 'slideNotes', type: 'textarea', label: 'Sprechernotizen' },
       ]},
       { key: 'enableNavigation', type: 'checkbox', label: 'Navigation aktivieren', default: true },
+    ],
+  },
+  /**
+   * Information zum Nachlesen: ein PDF oder Dokument, das anderswo liegt
+   * (Schulserver, Moodle, Cloud). Die App speichert keine Dateien, deshalb
+   * eine URL statt eines Uploads.
+   *
+   * Eingebettete Vorschau *und* Knopf zum Öffnen: Nicht jeder Browser zeigt
+   * ein PDF im Rahmen an – auf iOS bleibt oft nur der Download. Der Knopf
+   * ist die Rückfallebene, die überall funktioniert.
+   */
+  document: {
+    id: 'document',
+    name: 'Dokument / PDF',
+    icon: '📄',
+    description: 'Ein PDF oder Dokument als Information einbinden – mit Vorschau und Knopf zum Öffnen.',
+    category: 'Darstellung',
+    // Reine Information, keine Aufgabe: zählt in der Auswertung nicht mit.
+    informational: true,
+    fields: [
+      { key: 'url', type: 'text', label: 'URL des Dokuments', required: true, placeholder: 'https://.../skript.pdf' },
+      { key: 'note', type: 'richtext', label: 'Hinweistext (optional)' },
+      { key: 'embed', type: 'checkbox', label: 'Vorschau direkt einbetten', default: true },
+      { key: 'linkText', type: 'text', label: 'Beschriftung des Knopfes', default: 'Dokument öffnen', advanced: true },
+      { key: 'height', type: 'number', label: 'Höhe der Vorschau (px)', default: 600, advanced: true },
     ],
   },
   dialogCards: {
@@ -226,8 +255,10 @@ const H5P_TYPES = {
     id: 'iframeEmbedder',
     name: 'IFRAME Embedder',
     icon: '🌐',
-    description: 'Externe Webinhalte via IFrame einbetten.',
+    description: 'Externe Webinhalte via IFrame einbetten. Für PDFs eignet sich "Dokument / PDF".',
     category: 'Medien',
+    // Reine Information, keine Aufgabe: zaehlt in der Auswertung nicht mit.
+    informational: true,
     fields: [
       { key: 'url', type: 'text', label: 'URL der einzubettenden Seite', required: true, placeholder: 'https://...' },
       { key: 'width', type: 'number', label: 'Breite (px)', default: 800 },
@@ -240,6 +271,8 @@ const H5P_TYPES = {
     icon: '📌',
     description: 'Interaktive Punkte auf einem Bild mit Zusatzinformationen.',
     category: 'Interaktiv',
+    // Reine Information, keine Aufgabe: zaehlt in der Auswertung nicht mit.
+    informational: true,
     fields: [
       { key: 'imageUrl', type: 'text', label: 'Hintergrundbild-URL', required: true },
       { key: 'hotspots', type: 'list', label: 'Hotspots', itemFields: [
@@ -314,6 +347,8 @@ const H5P_TYPES = {
     icon: '🎬',
     description: 'Videos einbetten und abspielen.',
     category: 'Medien',
+    // Reine Information, keine Aufgabe: zaehlt in der Auswertung nicht mit.
+    informational: true,
     fields: [
       { key: 'videoSource', type: 'select', label: 'Videoquelle', options: [
         { value: 'url', label: 'URL (YouTube, Vimeo, etc.)' },

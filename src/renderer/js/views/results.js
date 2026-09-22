@@ -91,9 +91,7 @@ export class ResultsView {
     }
 
     const uniqueStudents = new Set(results.map((r) => r.studentName || r.username || r.id)).size;
-    const avgScore = results.length > 0
-      ? Math.round(results.reduce((sum, r) => sum + (r.percentage || 0), 0) / results.length)
-      : 0;
+    const avgScore = this._avg(results);
 
     if (this._resultsStats) {
       this._resultsStats.innerHTML = `
@@ -131,10 +129,15 @@ export class ResultsView {
     return n === 1 ? '1 Durchlauf' : `${n} Durchläufe`;
   }
 
-  /** Mittelwert der Erfolgsquote, auf ganze Prozent gerundet. */
+  /**
+   * Mittelwert der Erfolgsquote, auf ganze Prozent gerundet. Durchläufe ohne
+   * bewertbare Aufgaben bleiben draussen – sie stehen mit 0 % in den Daten
+   * und zögen den Schnitt sonst grundlos nach unten.
+   */
   _avg(list) {
-    if (list.length === 0) return 0;
-    return Math.round(list.reduce((sum, r) => sum + (r.percentage || 0), 0) / list.length);
+    const graded = list.filter((r) => r.totalQuestions);
+    if (graded.length === 0) return 0;
+    return Math.round(graded.reduce((sum, r) => sum + (r.percentage || 0), 0) / graded.length);
   }
 
   /**
@@ -192,7 +195,8 @@ export class ResultsView {
       for (const [studentName, runs] of students) {
         // Neueste zuerst: Der letzte Versuch ist der, nach dem gefragt wird.
         runs.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-        const best = Math.max(...runs.map((r) => r.percentage || 0));
+        const gradedRuns = runs.filter((r) => r.totalQuestions);
+        const best = gradedRuns.length > 0 ? Math.max(...gradedRuns.map((r) => r.percentage || 0)) : 0;
 
         const studentBox = this._makeGroup(
           `student::${linkName}::${studentName}`,
@@ -214,7 +218,10 @@ export class ResultsView {
   _renderResultCard(r) {
     const card = document.createElement('div');
     card.className = 'result-card';
-    const pctClass = r.percentage >= 70 ? 'good' : r.percentage >= 40 ? 'medium' : 'poor';
+    // Ein Durchlauf ohne bewertbare Aufgaben (nur Informationen) ist keine
+    // Null, sondern keine Note. Sonst stünde da rot "0/0 (0%)".
+    const nothingGraded = !r.totalQuestions;
+    const pctClass = nothingGraded ? '' : r.percentage >= 70 ? 'good' : r.percentage >= 40 ? 'medium' : 'poor';
     card.innerHTML = `
       <div class="result-card-header">
         <div class="result-card-info">
@@ -229,7 +236,7 @@ export class ResultsView {
               ${r.ipAddress ? `(${escapeHtml(r.ipAddress)})` : ''}
             </span>` : ''}
         </div>
-        <div class="result-score ${pctClass}">${r.score}/${r.totalQuestions} (${r.percentage}%)</div>
+        <div class="result-score ${pctClass}">${nothingGraded ? 'nur gelesen' : `${r.score}/${r.totalQuestions} (${r.percentage}%)`}</div>
         <button class="btn btn-danger btn-sm btn-delete-result" data-result-id="${r.id}">🗑</button>
       </div>
       ${r.details && r.details.length > 0 ? `
@@ -237,8 +244,8 @@ export class ResultsView {
           <summary>Details anzeigen</summary>
           <div class="result-detail-list">
             ${r.details.map((d) => `
-              <div class="result-detail-item ${d.isCorrect ? 'correct' : 'wrong'}">
-                <span class="result-detail-icon">${d.isCorrect ? '✅' : '❌'}</span>
+              <div class="result-detail-item ${d.informational ? '' : d.isCorrect ? 'correct' : 'wrong'}">
+                <span class="result-detail-icon">${d.informational ? 'ℹ️' : d.isCorrect ? '✅' : '❌'}</span>
                 <div>
                   <strong>${escapeHtml(d.moduleName || d.moduleTitle || '')}</strong>
                   ${d.userAnswer !== undefined ? `<br>Antwort: ${escapeHtml(String(d.userAnswer))}` : ''}

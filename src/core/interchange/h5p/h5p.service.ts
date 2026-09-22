@@ -76,6 +76,10 @@ export class H5pService {
       'dragTheWords': 'H5P.DragText 1.8',
       'markTheWords': 'H5P.MarkTheWords 1.9',
       'essay': 'H5P.Essay 1.2',
+      // Reine Informationen sind in H5P keine Frage. IframeEmbedder kommt
+      // dem am nächsten – MultiChoice als Rückfall wäre hier schlicht falsch.
+      'document': 'H5P.IframeEmbedder 1.0',
+      'iframeEmbedder': 'H5P.IframeEmbedder 1.0',
     };
     return map[type] || 'H5P.MultiChoice 1.14';
   }

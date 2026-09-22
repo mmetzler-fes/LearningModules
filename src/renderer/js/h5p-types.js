@@ -120,7 +120,7 @@ const H5P_TYPES = {
     // Reine Information, keine Aufgabe: zählt in der Auswertung nicht mit.
     informational: true,
     fields: [
-      { key: 'url', type: 'text', label: 'URL des Dokuments', required: true, placeholder: 'https://.../skript.pdf' },
+      { key: 'url', type: 'fileUrl', label: 'Dokument (hochladen oder Adresse eintragen)', required: true, placeholder: 'https://.../skript.pdf' },
       { key: 'note', type: 'richtext', label: 'Hinweistext (optional)' },
       { key: 'embed', type: 'checkbox', label: 'Vorschau direkt einbetten', default: true },
       { key: 'linkText', type: 'text', label: 'Beschriftung des Knopfes', default: 'Dokument öffnen', advanced: true },

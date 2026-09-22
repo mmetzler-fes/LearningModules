@@ -9,6 +9,7 @@ import { School } from './core/entities/school.entity';
 import { SystemConfig } from './core/entities/system-config.entity';
 import { Tag } from './core/entities/tag.entity';
 import { TopicLink } from './core/entities/topic-link.entity';
+import { UploadedFile } from './core/entities/uploaded-file.entity';
 import { MigrationModule } from './core/database/migration/migration.module';
 import { MailModule } from './core/mail/mail.module';
 import { AuthModule } from './auth/auth.module';
@@ -20,6 +21,7 @@ import { AdminModule } from './admin/admin.module';
 import { PublicModule } from './core/public/public.module';
 import { TagsModule } from './tags/tags.module';
 import { LinksModule } from './links/links.module';
+import { FilesModule } from './files/files.module';
 import { join } from 'path';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -45,7 +47,7 @@ import { AppService } from './app.service';
     TypeOrmModule.forRoot({
       type: 'sqlite',
       database: 'data/database.sqlite',
-      entities: [User, StudentClass, LearningTopic, LearningModule, Result, School, SystemConfig, Tag, TopicLink],
+      entities: [User, StudentClass, LearningTopic, LearningModule, Result, School, SystemConfig, Tag, TopicLink, UploadedFile],
       synchronize: true,
     }),
     MailModule,
@@ -57,6 +59,7 @@ import { AppService } from './app.service';
     AdminModule,
     TagsModule,
     LinksModule,
+    FilesModule,
     PublicModule,
   ],
   controllers: [AppController],

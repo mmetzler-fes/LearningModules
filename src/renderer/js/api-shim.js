@@ -75,6 +75,49 @@ window.appApi = {
       input.click();
     });
   },
+  /**
+   * PDF hochladen. Die Datei landet auf dem Server dieser App; zurueck kommt
+   * die Adresse, unter der sie ohne Anmeldung abrufbar ist.
+   */
+  uploadPdf: async () => {
+    return new Promise((resolve) => {
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = 'application/pdf,.pdf';
+      // Bricht jemand den Dateidialog ab, kommt kein change-Ereignis. Ohne
+      // diesen Fall bliebe der Knopf fuer immer auf "Wird hochgeladen".
+      // Der Rueckkehr-Fokus kommt auch bei einer getroffenen Auswahl, deshalb
+      // entscheidet nicht er, sondern ob bis dahin eine Datei da ist.
+      let done = false;
+      let picked = false;
+      const finish = (value) => { if (!done) { done = true; resolve(value); } };
+      window.addEventListener('focus', () => {
+        setTimeout(() => { if (!picked) finish({ success: false, cancelled: true }); }, 1000);
+      }, { once: true });
+
+      input.onchange = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return finish({ success: false, cancelled: true });
+        picked = true;
+        const formData = new FormData();
+        formData.append('file', file);
+        const token = localStorage.getItem('lm_token');
+        const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
+        try {
+          const res = await fetch('/api/files', { method: 'POST', headers, body: formData });
+          const data = await res.json();
+          if (res.ok && data.success) {
+            finish({ success: true, url: data.url, name: data.name, size: data.size });
+          } else {
+            finish({ success: false, error: data.message || data.error || `HTTP ${res.status}` });
+          }
+        } catch (err) {
+          finish({ success: false, error: err.message });
+        }
+      };
+      input.click();
+    });
+  },
   selectAudio: async () => {
     return new Promise((resolve) => {
       const input = document.createElement('input');

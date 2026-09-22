@@ -105,6 +105,9 @@ class ContentEditorManager {
       case 'text':
         this.renderTextField(parent, field, value);
         break;
+      case 'fileUrl':
+        this.renderFileUrlField(parent, field, value);
+        break;
       case 'textarea':
         this.renderTextareaField(parent, field, value);
         break;
@@ -133,6 +136,75 @@ class ContentEditorManager {
         this.renderGroupField(parent, field, value);
         break;
     }
+  }
+
+  /**
+   * Adresse eines Dokuments – entweder hochgeladen oder von Hand eingetragen.
+   *
+   * Beides steht bewusst nebeneinander im selben Feld: Gespeichert wird in
+   * jedem Fall nur eine URL, und ein Dokument, das anderswo liegt (Moodle,
+   * Nextcloud, Schulserver), bleibt damit genauso möglich wie vorher.
+   */
+  renderFileUrlField(parent, field, value) {
+    const group = this.createFormGroup(field.label, field.required);
+    const wrap = document.createElement('div');
+    wrap.className = 'file-field-wrap';
+
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.name = `content_${field.key}`;
+    input.value = value || '';
+    input.placeholder = field.placeholder || 'https://...';
+
+    const status = document.createElement('p');
+    status.className = 'hint';
+    status.style.cssText = 'margin:6px 0 0; font-size:0.82rem;';
+    const showStatus = (text, isError) => {
+      status.textContent = text || '';
+      status.style.color = isError ? 'var(--danger, #b91c1c)' : 'var(--text-secondary)';
+    };
+
+    const btnRow = document.createElement('div');
+    btnRow.style.cssText = 'display:flex; gap:8px; margin-top:8px; flex-wrap:wrap;';
+
+    const btnUpload = document.createElement('button');
+    btnUpload.type = 'button';
+    btnUpload.className = 'btn btn-secondary btn-sm';
+    btnUpload.textContent = '📎 PDF hochladen';
+    btnUpload.addEventListener('click', async () => {
+      btnUpload.disabled = true;
+      showStatus('Wird hochgeladen …', false);
+      try {
+        const result = await appApi.uploadPdf();
+        if (result && result.success) {
+          input.value = result.url;
+          const kb = Math.round((result.size || 0) / 1024);
+          showStatus(`Hochgeladen: ${result.name} (${kb} KB). Liegt jetzt auf diesem Server.`, false);
+        } else if (result && result.cancelled) {
+          showStatus('', false);
+        } else {
+          showStatus(`Hochladen fehlgeschlagen: ${(result && result.error) || 'Unbekannter Fehler'}`, true);
+        }
+      } catch (err) {
+        showStatus(`Hochladen fehlgeschlagen: ${err.message}`, true);
+      }
+      btnUpload.disabled = false;
+    });
+
+    const btnClear = document.createElement('button');
+    btnClear.type = 'button';
+    btnClear.className = 'btn btn-secondary btn-sm';
+    btnClear.textContent = '✕ Leeren';
+    btnClear.addEventListener('click', () => { input.value = ''; showStatus('', false); });
+
+    btnRow.appendChild(btnUpload);
+    btnRow.appendChild(btnClear);
+
+    wrap.appendChild(input);
+    wrap.appendChild(btnRow);
+    wrap.appendChild(status);
+    group.appendChild(wrap);
+    parent.appendChild(group);
   }
 
   renderImageField(parent, field, value) {
@@ -603,7 +675,8 @@ class ContentEditorManager {
       case 'number':
       case 'select':
       case 'image':
-      case 'audio': {
+      case 'audio':
+      case 'fileUrl': {
         const el = this.container.querySelector(`[name="content_${field.key}"]`);
         if (!el) return field.default || '';
         if (field.type === 'number') return parseFloat(el.value) || 0;

@@ -1169,19 +1169,26 @@ body {
 }
 
 /*
- * Anfasser zum Aendern der Zonengroesse: das vertraute weisse Kaestchen,
- * immer sichtbar und immer anfassbar. Die Variante, die nur an der
- * ausgewaehlten Zone erschien, war an einer frisch geoeffneten Zone nicht
- * greifbar - deshalb wieder die alte.
+ * Anfasser zum Aendern der Zonengroesse. Drei waagrechte Striche wie der
+ * Anfasser der Lernmodule, damit beides dieselbe Sprache spricht. Das weisse
+ * Kaestchen darunter bleibt: Die Striche liegen ueber einem beliebigen
+ * Diagramm und waeren ohne Hintergrund je nach Bild unsichtbar. Immer
+ * sichtbar und immer anfassbar - die Variante, die nur an der ausgewaehlten
+ * Zone erschien, war an einer frisch geoeffneten Zone nicht greifbar.
  */
 .dnd-zone-handle {
   position: absolute;
   bottom: 0;
   right: 0;
-  width: 14px;
-  height: 14px;
-  background: #fff;
-  border: 2px solid #666;
+  width: 16px;
+  height: 16px;
+  background-color: #fff;
+  /* Drei 2px-Striche mit 1px Abstand: 3 x 3px ergibt genau die 8px Hoehe. */
+  background-image: repeating-linear-gradient(to bottom, #666 0 2px, transparent 2px 3px);
+  background-size: 10px 8px;
+  background-position: center;
+  background-repeat: no-repeat;
+  border: 1px solid #666;
   border-radius: 2px;
   cursor: se-resize;
   touch-action: none;

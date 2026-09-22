@@ -285,8 +285,13 @@ export class QuizView {
         result.userAnswer = selected.map((i) => (content.answers || [])[i]?.text || i).join(', ');
         result.correctAnswer = correctList.map((i) => (content.answers || [])[i]?.text || i).join(', ');
         result.isCorrect = totalDecisions > 0 && correctDecisions === totalDecisions;
-        if (totalDecisions > 0) {
-          const pct = Math.round((correctDecisions / totalDecisions) * 100);
+        // Teilpunkte nur bei Mehrfachauswahl: jedes falsche Kreuz hebt ein
+        // richtiges auf, sonst brächte schon „nichts ankreuzen“ Punkte.
+        if (!content.singleAnswer && correctList.length > 0) {
+          const hits = selected.filter((i) => correctList.includes(i)).length;
+          const wrongHits = selected.length - hits;
+          result.points = Math.max(0, hits - wrongHits) / correctList.length;
+          const pct = Math.round(result.points * 100);
           result.score = `Richtig: ${pct}% | Falsch: ${100 - pct}%`;
         }
         break;
@@ -320,6 +325,11 @@ export class QuizView {
         result.userAnswer = answers.join(', ');
         result.correctAnswer = Array.from(inputs).map((i) => i.dataset.answer.split('/')[0].trim()).join(', ');
         result.isCorrect = correct === inputs.length && inputs.length > 0;
+        if (inputs.length > 0) {
+          result.points = correct / inputs.length;
+          const pct = Math.round(result.points * 100);
+          result.score = `Richtig: ${pct}% | Falsch: ${100 - pct}%`;
+        }
         break;
       }
       case 'essay': {
@@ -393,6 +403,14 @@ export class QuizView {
         result.userAnswer = placements.join(', ');
         result.correctAnswer = expectedMappings.map((m) => `${m.text} → ${m.zone}`).join(', ');
         result.isCorrect = expectedMappings.length > 0 && correct === expectedMappings.length && incorrect === 0;
+        // Teilpunkte je richtig abgelegtem Begriff. Falsch abgelegte vergrößern
+        // den Nenner, damit wahlloses Verteilen aller Begriffe nicht belohnt wird.
+        const denominator = Math.max(expectedMappings.length, correct + incorrect);
+        if (denominator > 0) {
+          result.points = correct / denominator;
+          const pct = Math.round(result.points * 100);
+          result.score = `Richtig: ${pct}% | Falsch: ${100 - pct}%`;
+        }
         break;
       }
       case 'flashcards': {
@@ -413,6 +431,8 @@ export class QuizView {
         break;
       }
     }
+    // Punkte dieser Aufgabe (0 bis 1). Aufgabentypen ohne Teilpunkte zählen ganz oder gar nicht.
+    if (result.points === undefined) result.points = result.isCorrect ? 1 : 0;
     return result;
   }
 
@@ -421,7 +441,8 @@ export class QuizView {
     const { quizState, currentUser } = state;
     const isExam = quizState.mode === 'exam';
     const isLearn = quizState.mode === 'learn';
-    const score = quizState.answers.filter((a) => a.isCorrect).length;
+    const rawScore = quizState.answers.reduce((sum, a) => sum + (a.points ?? (a.isCorrect ? 1 : 0)), 0);
+    const score = Math.round(rawScore * 100) / 100;
     const total = quizState.answers.length;
     const percentage = total > 0 ? Math.round((score / total) * 100) : 0;
 
@@ -460,7 +481,7 @@ export class QuizView {
         <div class="quiz-result-icon">${percentage >= 80 ? '🏆' : percentage >= 50 ? '👍' : '📚'}</div>
         <h2>${t('quiz.complete')}</h2>
         <div class="quiz-result-score ${pctClass}">
-          <span class="quiz-result-number">${score} / ${total}</span>
+          <span class="quiz-result-number">${score.toLocaleString('de-DE')} / ${total}</span>
           <span class="quiz-result-pct">${percentage}%</span>
         </div>
         <p>${t('quiz.topic')}: <strong>${escapeHtml(quizState.topicTitle)}</strong></p>

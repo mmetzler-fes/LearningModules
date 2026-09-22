@@ -1494,6 +1494,65 @@ body {
   gap: 12px;
 }
 
+/* ---- Ergebnisse: Link > Schüler > Durchläufe ---- */
+.result-group {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-primary, #fff);
+  margin-bottom: 10px;
+}
+
+.result-group > summary {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  cursor: pointer;
+  padding: 12px 16px;
+  border-radius: var(--radius-md);
+  user-select: none;
+}
+
+.result-group > summary:hover {
+  background: var(--bg-secondary);
+}
+
+.result-group-title {
+  font-weight: 700;
+}
+
+/* Kennzahlen rechts, damit die Namen untereinander in einer Flucht stehen. */
+.result-group-meta {
+  margin-left: auto;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+.result-group-link > summary .result-group-title {
+  font-size: 1.05rem;
+}
+
+/* Die Schülerebene rückt ein und wird ruhiger, damit die Schachtelung
+   auf einen Blick erkennbar bleibt. */
+.result-group-student {
+  margin: 8px 12px 10px 20px;
+  border-left: 3px solid var(--accent);
+}
+
+.result-group-student > summary {
+  padding: 9px 14px;
+  font-size: 0.95rem;
+}
+
+.result-group-student > .result-card {
+  margin: 8px 12px 10px;
+}
+
+.result-card-origin {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
 .result-card {
   background: var(--bg-secondary);
   border: 1px solid var(--border);

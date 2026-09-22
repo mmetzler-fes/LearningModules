@@ -208,6 +208,17 @@ export class BrowserApi {
   getColleagues() { return this._fetch('/api/topics/colleagues'); }
   /** Themen, die mir jemand freigegeben hat. */
   getSharedWithMe() { return this._fetch('/api/topics/shared-with-me'); }
+  /** Ein freigegebenes Thema samt Modulen nur zum Ansehen holen. */
+  getSharedTopicView(topicId) {
+    return this._fetch(`/api/topics/${encodeURIComponent(topicId)}/shared-view`);
+  }
+  /** Fremde Freigabe in der eigenen Liste ausblenden bzw. wieder einblenden. */
+  setSharedTopicHidden(topicId, hidden) {
+    return this._fetch(`/api/topics/${encodeURIComponent(topicId)}/hidden`, {
+      method: 'POST',
+      body: JSON.stringify({ hidden }),
+    });
+  }
   /** Eigene Kopie eines freigegebenen Themas anlegen. */
   copySharedTopic(topicId) {
     return this._fetch(`/api/topics/${encodeURIComponent(topicId)}/copy`, { method: 'POST' });
@@ -258,8 +269,15 @@ export class BrowserApi {
       body: JSON.stringify({ moduleIds }),
     });
   }
-  transferModules() {
-    return Promise.resolve({ success: false, error: 'Im Browser-Modus nicht verfügbar' });
+  /**
+   * Module in ein anderes Thema verschieben oder kopieren. Gleiches Quell-
+   * und Zielthema mit mode='copy' dupliziert sie an Ort und Stelle.
+   */
+  transferModules(topicId, targetTopicId, moduleIds, mode) {
+    return this._fetch(`/api/topics/${encodeURIComponent(topicId)}/modules/transfer`, {
+      method: 'POST',
+      body: JSON.stringify({ targetTopicId, moduleIds, mode }),
+    });
   }
   confirmImportModules(topicId, modules) {
     let topics = [];

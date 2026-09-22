@@ -92,6 +92,78 @@ export class TopicsService {
     return list.includes('*') || list.includes(userId);
   }
 
+  /**
+   * Darf dieser Benutzer das fremde Thema wenigstens ansehen?
+   *
+   * Wer kopieren darf, darf auch hineinschauen – sonst müsste man blind
+   * kopieren. Die Nutzungsfreigabe ('read'/'write') schließt das Ansehen
+   * ohnehin ein. Bewusst getrennt von accessLevel: Eine reine
+   * Kopier-Freigabe soll das Thema *nicht* in fremden Themen-Links
+   * verwendbar machen.
+   */
+  canView(topic: LearningTopic, user: any): boolean {
+    return this.accessLevel(topic, user) !== 'none' || this.isSharedWith(topic, user.userId);
+  }
+
+  /**
+   * Ein freigegebenes Thema zum reinen Ansehen: Module inklusive, aber ohne
+   * alles, was dem Eigentümer gehört (Passwort, Subscribe-Key, Quick-Link,
+   * Freigabelisten).
+   */
+  async findSharedForViewing(id: string, user: any) {
+    const topic = await this.topicRepo.createQueryBuilder('topic')
+      .where('topic.id = :id', { id })
+      .leftJoinAndSelect('topic.modules', 'modules')
+      .orderBy('modules.orderIndex', 'ASC')
+      .getOne();
+
+    if (!topic) throw new NotFoundException('Thema nicht gefunden');
+    if (!this.canView(topic, user)) {
+      throw new ForbiddenException('Dieses Thema ist nicht für dich freigegeben.');
+    }
+
+    const owner = await this.userRepo.findOne({ where: { id: topic.ownerId } });
+    const { accessPassword, subscribeKey, quickToken, sharedWith, sharedAccess, ...safe } = topic;
+    return {
+      ...safe,
+      ownerName: owner ? owner.displayName || owner.email : 'Unbekannt',
+      accessLevel: this.accessLevel(topic, user),
+      readOnly: true,
+    };
+  }
+
+  // ---- Persönliches Ausblenden ----
+
+  /** Die vom Benutzer ausgeblendeten Freigaben – nie null. */
+  private async hiddenIds(user: any): Promise<string[]> {
+    const me = await this.userRepo.findOne({ where: { id: user.userId } });
+    const list = me && Array.isArray(me.hiddenSharedTopics) ? me.hiddenSharedTopics : [];
+    return list.filter(Boolean).map(String);
+  }
+
+  /**
+   * Blendet eine fremde Freigabe in der eigenen Liste aus bzw. wieder ein.
+   * Das ist eine reine Ansichtssache des Aufrufers: Weder das Thema noch die
+   * Freigabe der Kollegin ändern sich dadurch.
+   */
+  async setSharedHidden(id: string, user: any, hidden: boolean) {
+    const me = await this.userRepo.findOne({ where: { id: user.userId } });
+    if (!me) throw new NotFoundException('Benutzer nicht gefunden');
+
+    const topic = await this.topicRepo.findOne({ where: { id } });
+    if (!topic) throw new NotFoundException('Thema nicht gefunden');
+    if (topic.ownerId === user.userId) {
+      // Eigene Themen werden gelöscht, nicht ausgeblendet.
+      throw new ForbiddenException('Das ist dein eigenes Thema – es lässt sich löschen, nicht ausblenden.');
+    }
+
+    const current = new Set(Array.isArray(me.hiddenSharedTopics) ? me.hiddenSharedTopics : []);
+    if (hidden) current.add(id); else current.delete(id);
+    me.hiddenSharedTopics = [...current];
+    await this.userRepo.save(me);
+    return { success: true, hidden };
+  }
+
   /** Freigabe setzen. Nur der Eigentümer (oder ein Admin) darf das. */
   async setSharing(id: string, user: any, sharedWith?: string[], sharedAccess?: any) {
     const topic = await this.findOneFor(id, user, 'owner');
@@ -191,6 +263,9 @@ export class TopicsService {
     const topics = await this.topicRepo.find({ relations: ['modules'] });
     const owners = await this.userRepo.find();
     const ownerName = new Map(owners.map((o) => [o.id, o.displayName || o.email]));
+    // Ausgeblendetes kommt mit – die Oberfläche kann es so auf Wunsch
+    // wieder hervorholen, ohne dass etwas verloren geht.
+    const hidden = new Set(await this.hiddenIds(user));
 
     // Alles, was mir jemand zugänglich gemacht hat – zum Kopieren, zum
     // Verwenden oder beides. Welche Knöpfe erscheinen, entscheidet danach
@@ -209,6 +284,8 @@ export class TopicsService {
         moduleCount: (t.modules || []).length,
         canCopy: this.isSharedWith(t, user.userId),
         canUse: this.accessLevel(t, user) !== 'none',
+        canView: this.canView(t, user),
+        hidden: hidden.has(t.id),
       }));
   }
 
@@ -425,6 +502,100 @@ export class TopicsService {
       await this.moduleRepo.save(modulesToUpdate);
     }
     return { success: true };
+  }
+
+  /**
+   * Module in ein anderes Thema verschieben oder kopieren – und mit
+   * `targetTopicId === topicId` im selben Thema duplizieren.
+   *
+   * Beide Themen brauchen Schreibrecht: Verschieben nimmt dem einen etwas
+   * weg und legt es dem anderen hinein. Tags wandern mit, Ergebnisse nicht –
+   * die hängen am Link, nicht am Modul.
+   */
+  async transferModules(
+    topicId: string,
+    targetTopicId: string,
+    moduleIds: string[],
+    mode: 'move' | 'copy',
+    user: any,
+  ) {
+    const ids = Array.isArray(moduleIds) ? [...new Set(moduleIds.filter(Boolean).map(String))] : [];
+    if (ids.length === 0) throw new NotFoundException('Keine Module ausgewählt.');
+    if (mode !== 'move' && mode !== 'copy') {
+      throw new ForbiddenException('Unbekannte Aktion – erlaubt sind "move" und "copy".');
+    }
+
+    const source = await this.findOneFor(topicId, user, 'write');
+    const sameTopic = topicId === targetTopicId;
+    if (sameTopic && mode === 'move') {
+      // Verschieben innerhalb desselben Themas ist die Reihenfolge, nicht das hier.
+      throw new ForbiddenException('Quelle und Ziel sind dasselbe Thema – zum Duplizieren bitte "kopieren".');
+    }
+    const target = sameTopic ? source : await this.findOneFor(targetTopicId, user, 'write');
+
+    // Die Reihenfolge der Auswahl soll im Ziel erhalten bleiben.
+    const picked = (source.modules || [])
+      .filter((m) => ids.includes(m.id))
+      .sort((a, b) => a.orderIndex - b.orderIndex);
+    if (picked.length === 0) throw new NotFoundException('Die gewählten Module gehören nicht zu diesem Thema.');
+
+    if (mode === 'move') {
+      let next = (target.modules || []).length;
+      for (const m of picked) {
+        m.topicId = target.id;
+        // Untermodule kennt die Oberfläche nicht; ein mitgeschleppter
+        // parentId zeigte sonst in das alte Thema.
+        m.parentId = null as any;
+        m.orderIndex = next++;
+      }
+      await this.moduleRepo.save(picked);
+      // Im Quellthema bleiben sonst Lücken in der Reihenfolge zurück.
+      await this.compactOrder(source.id, ids);
+      return { success: true, count: picked.length, mode, targetTopicId: target.id };
+    }
+
+    const copies = picked.map((m) => {
+      const { id: _id, topic: _t, subModules: _s, parent: _p, createdAt: _c, updatedAt: _u, ...rest } = m as any;
+      return Object.assign(new LearningModule(), {
+        ...rest,
+        id: crypto.randomUUID(),
+        topicId: target.id,
+        parentId: null,
+        // Nur im selben Thema braucht die Kopie einen eigenen Namen – sonst
+        // stünden zwei identische Einträge untereinander.
+        title: sameTopic ? `${m.title} (Kopie)` : m.title,
+      });
+    });
+
+    if (sameTopic) {
+      // Das Duplikat gehört direkt hinter sein Original, nicht ans Ende.
+      const order = [...(source.modules || [])].sort((a, b) => a.orderIndex - b.orderIndex);
+      const result: Array<{ id: string; entity: any }> = [];
+      for (const m of order) {
+        result.push({ id: m.id, entity: m });
+        const copy = copies[picked.findIndex((p) => p.id === m.id)];
+        if (copy) result.push({ id: copy.id, entity: copy });
+      }
+      result.forEach((entry, i) => { entry.entity.orderIndex = i; });
+      await this.moduleRepo.save(copies);
+      await this.moduleRepo.save(order);
+    } else {
+      let next = (target.modules || []).length;
+      for (const copy of copies) copy.orderIndex = next++;
+      await this.moduleRepo.save(copies);
+    }
+
+    return { success: true, count: copies.length, mode, targetTopicId: target.id };
+  }
+
+  /** Schließt die Lücken in der Reihenfolge, die entfernte Module hinterlassen. */
+  private async compactOrder(topicId: string, removedIds: string[]) {
+    const rest = await this.moduleRepo.find({ where: { topicId } });
+    const ordered = rest
+      .filter((m) => !removedIds.includes(m.id))
+      .sort((a, b) => a.orderIndex - b.orderIndex);
+    ordered.forEach((m, i) => { m.orderIndex = i; });
+    if (ordered.length) await this.moduleRepo.save(ordered);
   }
 
   async reorderModules(topicId: string, moduleIds: string[], user: any) {

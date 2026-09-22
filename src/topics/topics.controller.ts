@@ -32,6 +32,22 @@ export class TopicsController {
     return this.topicsService.findSharedWithMe(req.user);
   }
 
+  /**
+   * Ein freigegebenes Thema nur zum Ansehen – auch dann, wenn es lediglich
+   * zum Kopieren freigegeben wurde. Muss vor @Get(':id') stehen? Nein: der
+   * Pfad ist zweiteilig und kollidiert deshalb nicht mit dem Platzhalter.
+   */
+  @Get(':id/shared-view')
+  async sharedView(@Param('id') id: string, @Request() req: any) {
+    return this.topicsService.findSharedForViewing(id, req.user);
+  }
+
+  /** Fremde Freigabe in der eigenen Liste ausblenden bzw. wieder einblenden. */
+  @Post(':id/hidden')
+  async setSharedHidden(@Param('id') id: string, @Request() req: any, @Body() body: { hidden?: boolean }) {
+    return this.topicsService.setSharedHidden(id, req.user, body?.hidden !== false);
+  }
+
   @Get(':id')
   async findOne(@Param('id') id: string, @Request() req: any) {
     return this.topicsService.findOne(id, req.user);
@@ -109,6 +125,16 @@ export class TopicsController {
   @Patch(':id/modules/bulk-toggle')
   async bulkToggleModules(@Param('id') id: string, @Body() body: any, @Request() req: any) {
     return this.topicsService.bulkToggleModules(id, body.moduleIds, body.selected, req.user);
+  }
+
+  /** Module in ein anderes Thema verschieben/kopieren oder im selben duplizieren. */
+  @Post(':id/modules/transfer')
+  async transferModules(
+    @Param('id') id: string,
+    @Request() req: any,
+    @Body() body: { targetTopicId: string; moduleIds: string[]; mode: 'move' | 'copy' },
+  ) {
+    return this.topicsService.transferModules(id, body?.targetTopicId, body?.moduleIds, body?.mode, req.user);
   }
 
   @Post(':id/modules/reorder')

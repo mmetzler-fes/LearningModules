@@ -23,6 +23,7 @@ export class ModulesView {
     this._importBtnOk      = document.getElementById('importModulesBtnOk');
     this._transferOverlay  = document.getElementById('transferModulesOverlay');
     this._transferTopicList = document.getElementById('transferTopicList');
+    this._transferModuleList = document.getElementById('transferModuleList');
     this._transferHint     = document.getElementById('transferModulesHint');
     this._transferBtnMove  = document.getElementById('transferModulesBtnMove');
     this._transferBtnCopy  = document.getElementById('transferModulesBtnCopy');
@@ -365,6 +366,7 @@ export class ModulesView {
         <div class="module-card-actions">
           <button class="btn btn-secondary btn-sm btn-preview" title="Vorschau">▶ Vorschau</button>
           <button class="btn btn-secondary btn-sm btn-edit" title="Bearbeiten">✏️ Bearbeiten</button>
+          <button class="btn btn-secondary btn-sm btn-duplicate" title="Im selben Thema duplizieren">⧉ Duplizieren</button>
           <button class="btn btn-danger btn-sm btn-delete" title="Löschen">🗑</button>
         </div>`;
 
@@ -394,6 +396,7 @@ export class ModulesView {
       });
       card.querySelector('.btn-preview').addEventListener('click', () => this._openPlayer(mod));
       card.querySelector('.btn-edit').addEventListener('click', () => this._openEditor(mod));
+      card.querySelector('.btn-duplicate').addEventListener('click', (e) => this._duplicateModule(mod, e.currentTarget));
       card.querySelector('.btn-delete').addEventListener('click', () => this._deleteModule(mod));
       this._modulesList.appendChild(card);
     }
@@ -428,6 +431,28 @@ export class ModulesView {
     this._tagPicker.render(mod.tagIds || []);
     this.app.navigateToView('create-module');
     this.app.state.contentEditor.render(mod.type, mod.content || {});
+  }
+
+  /**
+   * Ein Modul an Ort und Stelle duplizieren. Die Kopie landet direkt hinter
+   * dem Original – von dort ist sie am schnellsten anzupassen.
+   */
+  async _duplicateModule(mod, btn) {
+    const { state, api } = this.app;
+    if (btn) btn.disabled = true;
+    try {
+      const res = await api.transferModules(state.currentTopicId, state.currentTopicId, [mod.id], 'copy');
+      if (res && res.success) {
+        this.app.showToast(`"${mod.title}" dupliziert.`, 'success');
+        await this.refresh();
+      } else {
+        this.app.showToast('Duplizieren fehlgeschlagen: ' + (res?.message || res?.error || 'Unbekannt'), 'error');
+        if (btn) btn.disabled = false;
+      }
+    } catch (err) {
+      this.app.showToast('Duplizieren fehlgeschlagen: ' + err.message, 'error');
+      if (btn) btn.disabled = false;
+    }
   }
 
   async _deleteModule(mod) {
@@ -490,52 +515,88 @@ export class ModulesView {
     const { currentTopicId, currentTopicModules, topics } = state;
     if (!currentTopicId) return;
 
-    this._transferSelectedIds = currentTopicModules.filter((m) => m.moduleSelected !== false).map((m) => m.id);
-    if (this._transferSelectedIds.length === 0) {
-      this.app.showToast('Keine Module ausgewählt. Bitte aktiviere Module in der Übersicht.', 'error');
+    const modules = Array.isArray(currentTopicModules) ? currentTopicModules : [];
+    if (modules.length === 0) {
+      this.app.showToast('Dieses Thema hat keine Module.', 'error');
       return;
+    }
+
+    // Die Auswahl hing bisher am Häkchen "für Schüler freigeben". Das ist eine
+    // andere Frage als "was will ich verschieben" – deshalb wird hier eigens
+    // ausgewählt. Vorbelegt sind die freigegebenen Module, das trifft meist zu.
+    this._transferModuleList.innerHTML = '';
+    for (const mod of modules) {
+      const typeDef = (typeof H5P_TYPES !== 'undefined' && H5P_TYPES[mod.type]) || {};
+      const item = document.createElement('label');
+      item.className = 'import-module-item';
+      item.style.cursor = 'pointer';
+      item.innerHTML = `
+        <input type="checkbox" class="transfer-module-check" value="${escapeAttr(mod.id)}"
+          ${mod.moduleSelected !== false ? 'checked' : ''} style="cursor:pointer" />
+        <span style="flex:1; padding-left:10px;">
+          <span class="import-module-title">${typeDef.icon || '📦'} ${escapeHtml(mod.title)}</span>
+          <span class="import-module-type">${escapeHtml(typeDef.name || mod.type || '')}</span>
+        </span>`;
+      item.querySelector('input').addEventListener('change', () => this._syncTransferButtons());
+      this._transferModuleList.appendChild(item);
     }
 
     const available = topics.filter((t) => t.id !== currentTopicId);
     this._transferTopicList.innerHTML = '';
     this._transferTargetId = null;
-    this._transferBtnMove.disabled = true;
-    this._transferBtnCopy.disabled = true;
 
     if (available.length === 0) {
-      this._transferTopicList.innerHTML = '<div class="empty-state"><p>Keine anderen Lernthemen verfügbar.</p></div>';
+      this._transferTopicList.innerHTML = '<div class="empty-state"><p>Keine anderen Lernthemen vorhanden. Zum Duplizieren im selben Thema gibt es den Knopf ⧉ an jeder Modulkarte.</p></div>';
     } else {
       for (const topic of available) {
         const item = document.createElement('div');
         item.className = 'import-module-item'; item.style.cursor = 'pointer';
         item.innerHTML = `
-          <input type="radio" name="transferTarget" value="${topic.id}" id="transfer_tgt_${topic.id}" style="cursor:pointer;" />
-          <label for="transfer_tgt_${topic.id}" style="cursor:pointer; flex:1; padding-left:10px;">
+          <input type="radio" name="transferTarget" value="${escapeAttr(topic.id)}" id="transfer_tgt_${escapeAttr(topic.id)}" style="cursor:pointer;" />
+          <label for="transfer_tgt_${escapeAttr(topic.id)}" style="cursor:pointer; flex:1; padding-left:10px;">
             <span class="import-module-title">📚 ${escapeHtml(topic.title)}</span>
           </label>`;
-        item.addEventListener('click', () => {
+        const select = () => {
           item.querySelector('input').checked = true;
           this._transferTargetId = topic.id;
-          this._transferBtnMove.disabled = false; this._transferBtnCopy.disabled = false;
-        });
-        item.querySelector('input').addEventListener('change', (e) => {
-          if (e.target.checked) { this._transferTargetId = topic.id; this._transferBtnMove.disabled = false; this._transferBtnCopy.disabled = false; }
-        });
+          this._syncTransferButtons();
+        };
+        item.addEventListener('click', select);
+        item.querySelector('input').addEventListener('change', (e) => { if (e.target.checked) select(); });
         this._transferTopicList.appendChild(item);
       }
     }
-    this._transferHint.textContent = `${this._transferSelectedIds.length} Modul(e) ausgewählt. Wähle das Ziel-Thema aus:`;
+
+    this._syncTransferButtons();
     this._transferOverlay.classList.remove('hidden');
+  }
+
+  /** Verschieben/Kopieren erst, wenn Module *und* Ziel feststehen. */
+  _syncTransferButtons() {
+    this._transferSelectedIds = [...this._transferModuleList.querySelectorAll('.transfer-module-check')]
+      .filter((cb) => cb.checked)
+      .map((cb) => cb.value);
+    const ready = this._transferSelectedIds.length > 0 && !!this._transferTargetId;
+    this._transferBtnMove.disabled = !ready;
+    this._transferBtnCopy.disabled = !ready;
+    this._transferHint.textContent = this._transferSelectedIds.length === 0
+      ? 'Bitte mindestens ein Modul auswählen.'
+      : `${this._transferSelectedIds.length} Modul(e) ausgewählt${this._transferTargetId ? '' : ' – jetzt das Ziel-Thema wählen'}.`;
   }
 
   async _handleTransfer(mode) {
     if (!this._transferTargetId || this._transferSelectedIds.length === 0) return;
     const { state, api } = this.app;
-    const result = await api.transferModules(state.currentTopicId, this._transferTargetId, this._transferSelectedIds, mode);
+    let result = null;
+    try {
+      result = await api.transferModules(state.currentTopicId, this._transferTargetId, this._transferSelectedIds, mode);
+    } catch (err) {
+      result = { success: false, message: err.message };
+    }
     if (result && result.success) {
       this.app.showToast(`${result.count} Modul(e) erfolgreich ${mode === 'move' ? 'verschoben' : 'kopiert'}.`, 'success');
     } else {
-      this.app.showToast('Ein Fehler ist aufgetreten: ' + (result?.error || 'Unbekannt'), 'error');
+      this.app.showToast('Ein Fehler ist aufgetreten: ' + (result?.message || result?.error || 'Unbekannt'), 'error');
     }
     this._transferOverlay.classList.add('hidden');
     state.topics = await api.getTopics();

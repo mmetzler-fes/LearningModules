@@ -629,47 +629,191 @@ export class TopicsView {
       return;
     }
 
+    // Ausgeblendetes bleibt erreichbar, aber aus dem Weg: erst auf Wunsch
+    // sichtbar, damit eine versehentlich weggeklickte Freigabe nicht
+    // verloren ist.
+    const visible = topics.filter((t) => !t.hidden);
+    const hidden = topics.filter((t) => t.hidden);
+
     section.classList.remove('hidden');
     list.innerHTML = '';
-    for (const t of topics) {
-      const card = document.createElement('div');
-      card.className = 'topic-card topic-shared';
-      card.innerHTML = `
-        <div class="topic-card-header">
-          <div class="topic-card-info">
-            <h3 class="topic-card-title">${escapeHtml(t.title)}</h3>
-            <p class="topic-card-desc">${escapeHtml(t.description || '')}</p>
-            <div class="topic-card-meta">
-              <span class="topic-module-count">${t.moduleCount} Module</span>
-              <span class="topic-shared-badge" style="margin-left:8px">von ${escapeHtml(t.ownerName)}</span>
-              ${t.canUse ? '<span class="topic-shared-badge use" style="margin-left:6px">🔗 in eigenen Links verwendbar</span>' : ''}
-            </div>
+
+    if (visible.length === 0) {
+      const empty = document.createElement('p');
+      empty.className = 'hint';
+      empty.textContent = 'Alle Freigaben sind ausgeblendet.';
+      list.appendChild(empty);
+    }
+    for (const t of visible) list.appendChild(this._sharedTopicCard(t));
+
+    if (hidden.length > 0) {
+      const toggle = document.createElement('button');
+      toggle.className = 'btn btn-secondary btn-sm';
+      toggle.style.marginTop = '10px';
+      toggle.textContent = `👁‍🗨 ${hidden.length} ausgeblendete Freigabe${hidden.length === 1 ? '' : 'n'} anzeigen`;
+      const box = document.createElement('div');
+      box.className = 'hidden';
+      box.style.marginTop = '10px';
+      for (const t of hidden) box.appendChild(this._sharedTopicCard(t));
+      toggle.addEventListener('click', () => {
+        box.classList.toggle('hidden');
+        toggle.textContent = box.classList.contains('hidden')
+          ? `👁‍🗨 ${hidden.length} ausgeblendete Freigabe${hidden.length === 1 ? '' : 'n'} anzeigen`
+          : '▲ Ausgeblendete wieder verbergen';
+      });
+      list.appendChild(toggle);
+      list.appendChild(box);
+    }
+  }
+
+  /**
+   * Karte einer fremden Freigabe. Ansehen geht immer – auch wenn nur das
+   * Kopieren freigegeben wurde, denn blind kopiert niemand gern. Ausblenden
+   * wirkt ausschließlich in der eigenen Liste; beim Eigentümer ändert sich
+   * nichts.
+   */
+  _sharedTopicCard(entry) {
+    const card = document.createElement('div');
+    card.className = 'topic-card topic-shared';
+    card.innerHTML = `
+      <div class="topic-card-header">
+        <div class="topic-card-info">
+          <h3 class="topic-card-title">${escapeHtml(entry.title)}</h3>
+          <p class="topic-card-desc">${escapeHtml(entry.description || '')}</p>
+          <div class="topic-card-meta">
+            <span class="topic-module-count">${entry.moduleCount} Module</span>
+            <span class="topic-shared-badge" style="margin-left:8px">von ${escapeHtml(entry.ownerName)}</span>
+            ${entry.canUse ? '<span class="topic-shared-badge use" style="margin-left:6px">🔗 in eigenen Links verwendbar</span>' : ''}
+            ${entry.hidden ? '<span class="topic-status inactive" style="margin-left:6px">ausgeblendet</span>' : ''}
           </div>
-          <div class="topic-card-actions">
-            ${t.canCopy ? '<button class="btn btn-primary btn-sm btn-copy-shared">📥 Zu mir kopieren</button>' : ''}
-          </div>
-        </div>`;
-      // Ohne Kopier-Freigabe gibt es nur den Hinweis, dass das Thema in
-      // eigenen Themen-Links verwendet werden darf.
-      card.querySelector('.btn-copy-shared')?.addEventListener('click', async (e) => {
-        const btn = e.currentTarget;
-        btn.disabled = true;
-        try {
-          const res = await this.app.api.copySharedTopic(t.id);
-          if (res && res.success) {
-            this.app.showToast(`"${res.title}" kopiert – du bist jetzt Eigentümer.`, 'success');
-            await this.app.loadTopics();
-            this.refresh();
-          } else {
-            this.app.showToast('Fehler: ' + (res?.message || 'Kopieren fehlgeschlagen'), 'error');
-            btn.disabled = false;
-          }
-        } catch (err) {
-          this.app.showToast('Fehler: ' + err.message, 'error');
+        </div>
+        <div class="topic-card-actions">
+          <button class="btn btn-secondary btn-sm btn-view-shared" title="Module ansehen (nur Anzeige)">👁 Ansehen</button>
+          ${entry.canCopy ? '<button class="btn btn-primary btn-sm btn-copy-shared">📥 Zu mir kopieren</button>' : ''}
+          <button class="btn btn-secondary btn-sm btn-hide-shared"
+            title="${entry.hidden ? 'Wieder in meiner Liste zeigen' : 'Nur bei mir ausblenden – die Kollegin behält ihr Thema'}">
+            ${entry.hidden ? '↩️ Einblenden' : '🚫 Ausblenden'}</button>
+        </div>
+      </div>`;
+
+    card.querySelector('.btn-view-shared').addEventListener('click', () => this._openSharedTopicViewer(entry));
+
+    card.querySelector('.btn-hide-shared').addEventListener('click', async (e) => {
+      const btn = e.currentTarget;
+      btn.disabled = true;
+      try {
+        const res = await this.app.api.setSharedTopicHidden(entry.id, !entry.hidden);
+        if (res && res.success) {
+          this.app.showToast(
+            entry.hidden ? 'Freigabe wieder eingeblendet' : 'Freigabe ausgeblendet – beim Kollegen bleibt alles unverändert.',
+            'info',
+          );
+          this.refreshSharedTopics();
+        } else {
+          this.app.showToast('Fehler: ' + (res?.message || 'Ausblenden fehlgeschlagen'), 'error');
           btn.disabled = false;
         }
-      });
-      list.appendChild(card);
+      } catch (err) {
+        this.app.showToast('Fehler: ' + err.message, 'error');
+        btn.disabled = false;
+      }
+    });
+
+    card.querySelector('.btn-copy-shared')?.addEventListener('click', async (e) => {
+      const btn = e.currentTarget;
+      btn.disabled = true;
+      try {
+        const res = await this.app.api.copySharedTopic(entry.id);
+        if (res && res.success) {
+          this.app.showToast(`"${res.title}" kopiert – du bist jetzt Eigentümer.`, 'success');
+          await this.app.loadTopics();
+          this.refresh();
+        } else {
+          this.app.showToast('Fehler: ' + (res?.message || 'Kopieren fehlgeschlagen'), 'error');
+          btn.disabled = false;
+        }
+      } catch (err) {
+        this.app.showToast('Fehler: ' + err.message, 'error');
+        btn.disabled = false;
+      }
+    });
+    return card;
+  }
+
+  /**
+   * Fremdes Thema ansehen: Modulliste im Overlay, Vorschau im selben
+   * Fenster. Bewusst eine eigene, schreibfreie Ansicht statt der
+   * Modulverwaltung – dort sind alle Knöpfe zum Ändern, die hier nicht
+   * greifen dürfen.
+   */
+  async _openSharedTopicViewer(entry) {
+    let topic = null;
+    try {
+      topic = await this.app.api.getSharedTopicView(entry.id);
+    } catch (err) {
+      this.app.showToast('Fehler: ' + err.message, 'error');
+      return;
     }
+    if (!topic || !topic.id) {
+      this.app.showToast('Fehler: ' + (topic?.message || 'Thema kann nicht angezeigt werden'), 'error');
+      return;
+    }
+
+    const modules = Array.isArray(topic.modules) ? topic.modules : [];
+    const overlay = document.createElement('div');
+    overlay.className = 'confirm-overlay';
+    overlay.innerHTML = `
+      <div class="import-modules-card" style="min-width:480px; max-width:820px; max-height:82vh; overflow:auto">
+        <h3>👁 ${escapeHtml(topic.title)}</h3>
+        <p class="hint">Freigabe von <strong>${escapeHtml(topic.ownerName)}</strong> – nur zum Ansehen.
+          Änderungen sind hier nicht möglich; das Thema gehört weiterhin der Kollegin.</p>
+        <div id="sharedViewList"></div>
+        <div id="sharedViewPreview" class="hidden"></div>
+        <div class="confirm-actions">
+          <button class="btn btn-secondary" id="btnSharedViewClose">Schließen</button>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+
+    const listBox = overlay.querySelector('#sharedViewList');
+    const previewBox = overlay.querySelector('#sharedViewPreview');
+
+    if (modules.length === 0) {
+      listBox.innerHTML = '<div class="empty-state"><span class="empty-icon">📭</span><p>Dieses Thema hat noch keine Module.</p></div>';
+    }
+    modules.forEach((mod, idx) => {
+      const typeDef = (typeof H5P_TYPES !== 'undefined' && H5P_TYPES[mod.type]) || {};
+      const item = document.createElement('div');
+      item.className = 'import-module-item';
+      item.style.justifyContent = 'space-between';
+      item.innerHTML = `
+        <div>
+          <span class="import-module-title">${typeDef.icon || '📦'} ${idx + 1}. ${escapeHtml(mod.title)}</span>
+          <span class="import-module-type">${escapeHtml(typeDef.name || mod.type || '')}</span>
+        </div>
+        <button class="btn btn-secondary btn-sm">▶ Vorschau</button>`;
+      item.querySelector('button').addEventListener('click', () => {
+        listBox.classList.add('hidden');
+        previewBox.classList.remove('hidden');
+        previewBox.innerHTML = '';
+        const back = document.createElement('button');
+        back.className = 'btn btn-secondary btn-sm';
+        back.textContent = '← Zurück zur Modulliste';
+        back.addEventListener('click', () => {
+          previewBox.innerHTML = '';
+          previewBox.classList.add('hidden');
+          listBox.classList.remove('hidden');
+        });
+        previewBox.appendChild(back);
+        const host = document.createElement('div');
+        previewBox.appendChild(host);
+        this.app.renderer.renderPreview(mod, typeDef, host);
+      });
+      listBox.appendChild(item);
+    });
+
+    const close = () => overlay.remove();
+    overlay.querySelector('#btnSharedViewClose').addEventListener('click', close);
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
   }
 }

@@ -41,6 +41,14 @@ export class User extends BaseEntity {
   @Column('simple-json', { nullable: true })
   classIds: string[];
 
+  /**
+   * Freigegebene Themen fremder Lehrkräfte, die ich in meiner Liste
+   * ausgeblendet habe. Rein persönlich: Die Freigabe der Kollegin und ihr
+   * Thema bleiben davon unberührt.
+   */
+  @Column('simple-json', { nullable: true })
+  hiddenSharedTopics: string[];
+
   // Password reset
   @Column({ nullable: true })
   resetPasswordToken: string;

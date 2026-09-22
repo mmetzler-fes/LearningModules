@@ -297,7 +297,9 @@
           <p class="hint"><strong>Verwendbare</strong> Themen kannst du direkt in deinen
             Themen-Links auswählen – ohne Kopie, Änderungen der Kollegin wirken sofort.
             Bei <strong>kopierbaren</strong> holst du dir eine eigene Fassung und wirst
-            Eigentümer; das Original bleibt dann unberührt.</p>
+            Eigentümer; das Original bleibt dann unberührt.
+            <strong>Ansehen</strong> geht immer; <strong>Ausblenden</strong> räumt die Freigabe
+            nur aus deiner Liste – beim Kollegen bleibt alles, wie es ist.</p>
           <div id="sharedTopicsList" class="topics-list"></div>
         </div>
 
@@ -851,8 +853,11 @@
   <!-- Transfer modules selection dialog -->
   <div id="transferModulesOverlay" class="confirm-overlay hidden">
     <div class="import-modules-card">
-      <h3>🔄 Ausgewählte Module verschieben/kopieren</h3>
-      <p class="import-modules-hint" id="transferModulesHint">Wähle das Ziel-Thema aus:</p>
+      <h3>🔄 Module verschieben/kopieren</h3>
+      <p class="import-modules-hint" id="transferModulesHint">Wähle die Module und das Ziel-Thema aus:</p>
+      <p class="hint" style="margin:0 0 6px"><strong>1. Module</strong></p>
+      <div id="transferModuleList" class="import-modules-list" style="margin-bottom: 12px;"></div>
+      <p class="hint" style="margin:0 0 6px"><strong>2. Ziel-Thema</strong></p>
       <div id="transferTopicList" class="import-modules-list" style="margin-bottom: 15px;"></div>
       <div class="confirm-actions">
         <button id="transferModulesBtnMove" class="btn btn-primary" disabled>Verschieben</button>

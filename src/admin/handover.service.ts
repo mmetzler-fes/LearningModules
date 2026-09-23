@@ -8,6 +8,7 @@ import { TopicQuickLink } from '../core/entities/topic-quick-link.entity';
 import { Tag } from '../core/entities/tag.entity';
 import { Result } from '../core/entities/result.entity';
 import { UploadedFile } from '../core/entities/uploaded-file.entity';
+import { TeacherGroup } from '../core/entities/teacher-group.entity';
 
 /**
  * Übergabe der Hinterlassenschaft einer ausscheidenden Lehrkraft.
@@ -36,6 +37,7 @@ export class HandoverService {
     @InjectRepository(Tag) private readonly tagRepo: Repository<Tag>,
     @InjectRepository(Result) private readonly resultRepo: Repository<Result>,
     @InjectRepository(UploadedFile) private readonly uploadRepo: Repository<UploadedFile>,
+    @InjectRepository(TeacherGroup) private readonly groupRepo: Repository<TeacherGroup>,
   ) {}
 
   /**
@@ -57,13 +59,14 @@ export class HandoverService {
       uploads: await this.reassign(this.uploadRepo, 'ownerId', from.id, to.id),
       tags: await this.transferTags(from.id, to.id, fromLabel),
       sharingEntriesRemoved: await this.dropFromSharing(from.id),
+      groupsLeft: await this.dropFromGroups(from.id),
     };
 
     this.logger.log(
       `Übergabe ${fromLabel} → ${to.displayName || to.email}: ` +
         `${counts.topics} Themen, ${counts.links} Links, ${counts.quickLinks} Quick-Links, ` +
         `${counts.results} Ergebnisse, ${counts.tags} Tags, ${counts.uploads} Dateien, ` +
-        `${counts.sharingEntriesRemoved} Freigabe-Einträge bereinigt`,
+        `${counts.sharingEntriesRemoved} Freigabe-Einträge und ${counts.groupsLeft} Gruppen bereinigt`,
     );
     return counts;
   }
@@ -125,6 +128,15 @@ export class HandoverService {
     }
 
     if (touched.length) await this.topicRepo.save(touched);
+    return touched.length;
+  }
+
+  /** Nimmt den ausscheidenden Benutzer aus allen Gruppen heraus. */
+  private async dropFromGroups(userId: string) {
+    const groups = await this.groupRepo.find();
+    const touched = groups.filter((g) => Array.isArray(g.memberIds) && g.memberIds.includes(userId));
+    for (const g of touched) g.memberIds = (g.memberIds || []).filter((id) => id !== userId);
+    if (touched.length) await this.groupRepo.save(touched);
     return touched.length;
   }
 

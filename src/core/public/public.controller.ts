@@ -9,6 +9,7 @@ import { TopicLink } from '../entities/topic-link.entity';
 import { TopicQuickLink } from '../entities/topic-quick-link.entity';
 import { LinksService } from '../../links/links.service';
 import { TopicsService } from '../../topics/topics.service';
+import { GroupsService } from '../../groups/groups.service';
 import * as crypto from 'crypto';
 
 @Controller('public')
@@ -22,6 +23,7 @@ export class PublicController {
     @InjectRepository(TopicQuickLink) private readonly quickRepo: Repository<TopicQuickLink>,
     private readonly linksService: LinksService,
     private readonly topicsService: TopicsService,
+    private readonly groupsService: GroupsService,
   ) {}
 
   /**
@@ -83,7 +85,7 @@ export class PublicController {
     if (!teacher) throw new NotFoundException('Lehrer nicht gefunden.');
 
     if (!isOwnerLink) {
-      const level = this.topicsService.accessLevel(topic, { userId: teacher.id, role: 'teacher' });
+      const level = this.topicsService.accessLevel(topic, await this.groupsService.asUser(teacher.id));
       if (level === 'none') {
         throw new ForbiddenException('Dieser Link ist derzeit nicht mehr freigegeben.');
       }

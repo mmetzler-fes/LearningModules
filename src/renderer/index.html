@@ -199,6 +199,8 @@
           <span class="nav-icon">👥</span> Benutzerverwaltung
         </button>        <button class="nav-btn" data-view="admin-topics">
           <span class="nav-icon">📚</span> Lernmodule
+        </button>        <button class="nav-btn" data-view="admin-groups">
+          <span class="nav-icon">🏫</span> Gruppen
         </button>        <button class="nav-btn" data-view="admin-whitelist">
           <span class="nav-icon">🔒</span> Whitelist / Blacklist
         </button>
@@ -648,6 +650,19 @@
       </section>
 
       <!-- Admin: Whitelist / Blacklist -->
+      <!-- Admin: Lehrergruppen (Fachschaften) -->
+      <section class="view" id="view-admin-groups">
+        <div class="view-header">
+          <h2>Gruppen</h2>
+          <p class="subtitle">Fachschaften und Teams. Lehrkräfte geben Themen an eine Gruppe frei,
+            statt zwölf Haken einzeln zu setzen – wer später dazukommt, ist automatisch dabei.</p>
+          <div class="header-actions">
+            <button class="btn btn-primary" id="btnNewGroup">➕ Neue Gruppe</button>
+          </div>
+        </div>
+        <div id="adminGroupsContainer" class="topics-list"></div>
+      </section>
+
       <section class="view" id="view-admin-whitelist">
         <div class="view-header">
           <h2>Whitelist / Blacklist</h2>

@@ -23,6 +23,7 @@ export class AdminView {
         const view = btn.getAttribute('data-view');
         this.app.navigateToView(view);
         if (view === 'admin-users') this.refreshUsers();
+        if (view === 'admin-groups') this.refreshGroups();
         if (view === 'admin-whitelist') this.refreshWhitelistBlacklist();
       });
     });
@@ -70,6 +71,8 @@ export class AdminView {
     }
 
     this._bindCredentialsDialog();
+
+    document.getElementById('btnNewGroup')?.addEventListener('click', () => this._openGroupEditor(null));
 
 
 
@@ -310,6 +313,149 @@ export class AdminView {
         'success',
       );
     } else this.app.showToast('Fehler: ' + (res?.error || '?'), 'error');
+  }
+
+  // ==================== GRUPPEN (FACHSCHAFTEN) ====================
+
+  async refreshGroups() {
+    const box = document.getElementById('adminGroupsContainer');
+    if (!box) return;
+
+    let groups = [];
+    let users = [];
+    try {
+      [groups, users] = await Promise.all([this.app.api.getGroups(), this.app.api.getAllUsers()]);
+    } catch (_) { groups = []; users = []; }
+    this._groupUsers = Array.isArray(users) ? users.filter((u) => u.role === 'teacher' || u.role === 'admin') : [];
+
+    box.innerHTML = '';
+    if (!Array.isArray(groups) || groups.length === 0) {
+      box.innerHTML = '<div class="empty-state"><span class="empty-icon">🏫</span>' +
+        '<p>Noch keine Gruppen. Eine Fachschaft anzulegen lohnt sich ab etwa drei Personen, ' +
+        'die regelmäßig dieselben Themen brauchen.</p></div>';
+      return;
+    }
+
+    for (const g of groups) {
+      const members = (g.memberIds || [])
+        .map((id) => this._groupUsers.find((u) => u.id === id))
+        .filter(Boolean);
+
+      const card = document.createElement('div');
+      card.className = 'topic-card';
+      card.innerHTML = `
+        <div class="topic-card-header">
+          <div class="topic-card-info">
+            <h3 class="topic-card-title">🏫 ${escapeHtml(g.name)}</h3>
+            <p class="topic-card-desc">${escapeHtml(g.description || '')}</p>
+            <div class="topic-card-meta">
+              <span class="topic-module-count">${members.length} Mitglied${members.length === 1 ? '' : 'er'}</span>
+            </div>
+            <div class="topic-card-tags">${members
+              .map((m) => `<span class="tag-chip">${escapeHtml(m.displayName || m.email)}</span>`)
+              .join('')}</div>
+          </div>
+          <div class="topic-card-actions">
+            <button class="btn btn-secondary btn-sm btn-edit-group" title="Bearbeiten">✏️</button>
+            <button class="btn btn-danger btn-sm btn-delete-group" title="Löschen">🗑</button>
+          </div>
+        </div>`;
+
+      card.querySelector('.btn-edit-group').addEventListener('click', () => this._openGroupEditor(g));
+      card.querySelector('.btn-delete-group').addEventListener('click', () => this._deleteGroup(g));
+      box.appendChild(card);
+    }
+  }
+
+  async _deleteGroup(group) {
+    const ok = await this.app.appConfirm(
+      `Gruppe "${group.name}" löschen?\n\n` +
+      'Die Freigaben, die auf diese Gruppe zeigen, werden dabei mit entfernt. ' +
+      'Themen und Konten bleiben unberührt – nur der Verteiler verschwindet.',
+    );
+    if (!ok) return;
+    try {
+      const res = await this.app.api.deleteGroup(group.id);
+      if (res && res.success) {
+        this.app.showToast(
+          res.sharingEntriesRemoved
+            ? `Gruppe gelöscht – ${res.sharingEntriesRemoved} Freigabe${res.sharingEntriesRemoved === 1 ? '' : 'n'} bereinigt.`
+            : 'Gruppe gelöscht.',
+          'info',
+        );
+        this.refreshGroups();
+      } else this.app.showToast('Fehler: ' + (res?.message || 'Löschen fehlgeschlagen'), 'error');
+    } catch (err) {
+      this.app.showToast('Fehler: ' + err.message, 'error');
+    }
+  }
+
+  /** Anlegen und Bearbeiten teilen sich den Dialog; `group` null heißt neu. */
+  _openGroupEditor(group) {
+    const users = this._groupUsers || [];
+    const chosen = new Set(group ? group.memberIds || [] : []);
+
+    const overlay = document.createElement('div');
+    overlay.className = 'confirm-overlay';
+    overlay.innerHTML = `
+      <div class="import-modules-card" style="min-width:420px; max-width:560px; max-height:82vh; overflow:auto">
+        <h3>${group ? '✏️ Gruppe bearbeiten' : '➕ Neue Gruppe'}</h3>
+        <div class="form-group">
+          <label>Name</label>
+          <input type="text" id="groupName" placeholder="z. B. Fachschaft Informatik"
+            value="${group ? escapeHtml(group.name) : ''}" />
+        </div>
+        <div class="form-group">
+          <label>Beschreibung (optional)</label>
+          <input type="text" id="groupDesc" value="${group ? escapeHtml(group.description || '') : ''}" />
+        </div>
+        <div class="form-group">
+          <label>Mitglieder</label>
+          <div class="share-user-list" id="groupMembers">
+            ${users.length === 0
+              ? '<p class="hint">Keine Lehrkräfte vorhanden.</p>'
+              : users.map((u) => `
+                <div class="share-user-row">
+                  <span class="share-user-name">${escapeHtml(u.displayName || u.email)}</span>
+                  <label class="share-flag">
+                    <input type="checkbox" data-user="${escapeHtml(u.id)}" ${chosen.has(u.id) ? 'checked' : ''} />
+                    <span>Mitglied</span>
+                  </label>
+                </div>`).join('')}
+          </div>
+        </div>
+        <div class="confirm-actions">
+          <button class="btn btn-primary" id="btnSaveGroup">Speichern</button>
+          <button class="btn btn-secondary" id="btnCancelGroup">Abbrechen</button>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+
+    const close = () => overlay.remove();
+    overlay.querySelector('#btnCancelGroup').addEventListener('click', close);
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+
+    overlay.querySelector('#btnSaveGroup').addEventListener('click', async () => {
+      const name = overlay.querySelector('#groupName').value.trim();
+      if (!name) { this.app.showToast('Die Gruppe braucht einen Namen.', 'error'); return; }
+      const memberIds = [...overlay.querySelectorAll('#groupMembers input:checked')].map((cb) => cb.dataset.user);
+      const body = { name, description: overlay.querySelector('#groupDesc').value.trim(), memberIds };
+
+      try {
+        const res = group
+          ? await this.app.api.updateGroup(group.id, body)
+          : await this.app.api.createGroup(body);
+        if (res && res.id) {
+          close();
+          this.app.showToast(group ? 'Gruppe gespeichert' : 'Gruppe angelegt', 'success');
+          this.refreshGroups();
+        } else {
+          this.app.showToast('Fehler: ' + (res?.message || 'Speichern fehlgeschlagen'), 'error');
+        }
+      } catch (err) {
+        this.app.showToast('Fehler: ' + err.message, 'error');
+      }
+    });
   }
 
   async refreshWhitelistBlacklist() {

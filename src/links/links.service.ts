@@ -6,6 +6,7 @@ import { LearningTopic } from '../core/entities/learning-topic.entity';
 import { LearningModule } from '../core/entities/learning-module.entity';
 import { TagsService } from '../tags/tags.service';
 import { TopicsService } from '../topics/topics.service';
+import { GroupsService } from '../groups/groups.service';
 import { baseUrl, renderQr } from '../core/share/link-url';
 import * as crypto from 'crypto';
 
@@ -19,6 +20,7 @@ export class LinksService {
     @InjectRepository(LearningModule) private readonly moduleRepo: Repository<LearningModule>,
     private readonly tagsService: TagsService,
     private readonly topicsService: TopicsService,
+    private readonly groupsService: GroupsService,
   ) {}
 
   // ---- Eingaben prüfen ----
@@ -103,8 +105,10 @@ export class LinksService {
 
     // Die Freigabe wird bei jedem Start neu geprüft, nicht nur beim Speichern
     // des Links. Zieht der Eigentümer sie zurück, wirkt das sofort – sonst
-    // liefe ein einmal gespeicherter Link unbegrenzt weiter.
-    const linkOwner = { userId: link.ownerId, role: 'teacher' };
+    // liefe ein einmal gespeicherter Link unbegrenzt weiter. Das gilt auch
+    // für Freigaben an eine Gruppe: Wer aus der Fachschaft ausscheidet,
+    // verliert den Zugriff mit dem nächsten Schülerstart.
+    const linkOwner = await this.groupsService.asUser(link.ownerId);
     const topics = found.filter((t) => this.topicsService.accessLevel(t, linkOwner) !== 'none');
     const byId = new Map(topics.map((t) => [t.id, t]));
     const allModules = topics.length
@@ -160,7 +164,7 @@ export class LinksService {
     if (ids.length === 0) return 0;
 
     const found = await this.topicRepo.find({ where: { id: In(ids) } });
-    const linkOwner = { userId: link.ownerId, role: 'teacher' };
+    const linkOwner = await this.groupsService.asUser(link.ownerId);
     const ok = new Set(
       found.filter((t) => this.topicsService.accessLevel(t, linkOwner) !== 'none').map((t) => t.id),
     );

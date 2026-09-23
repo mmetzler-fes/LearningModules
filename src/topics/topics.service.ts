@@ -6,6 +6,8 @@ import { LearningModule } from '../core/entities/learning-module.entity';
 import { User } from '../core/entities/user.entity';
 import { TopicQuickLink } from '../core/entities/topic-quick-link.entity';
 import { TagsService } from '../tags/tags.service';
+import { groupIdOf } from '../groups/groups.service';
+import { TeacherGroup } from '../core/entities/teacher-group.entity';
 import { baseUrl, renderQr } from '../core/share/link-url';
 import * as crypto from 'crypto';
 
@@ -20,6 +22,11 @@ export class TopicsService {
     private readonly userRepo: Repository<User>,
     @InjectRepository(TopicQuickLink)
     private readonly quickRepo: Repository<TopicQuickLink>,
+    // Bewusst das Repository statt des GroupsService: Der GroupsService
+    // braucht diesen Service (zum Aufräumen beim Löschen einer Gruppe), und
+    // ein Ring aus zwei Modulen wäre der Preis für nichts.
+    @InjectRepository(TeacherGroup)
+    private readonly groupRepo: Repository<TeacherGroup>,
     private readonly tagsService: TagsService,
   ) {}
 
@@ -89,17 +96,42 @@ export class TopicsService {
   // Jede Methode sagt, was sie braucht: 'read', 'write' oder 'owner'. Was
   // nicht ausdrücklich geöffnet wird, bleibt damit eigentümergebunden.
 
-  /** Zugriffsstufe eines Benutzers auf ein Thema. */
+  /**
+   * Zugriffsstufe eines Benutzers auf ein Thema.
+   *
+   * Drei Arten von Einträgen, absteigend spezifisch:
+   *   persönlich   – die Benutzer-ID selbst
+   *   Gruppe       – 'group:<id>', greift bei Mitgliedschaft
+   *   alle         – '*'
+   *
+   * Der spezifischere Eintrag schlägt den allgemeineren, sodass eine
+   * Einzelperson mehr bekommen kann als ihre Fachschaft und die Fachschaft
+   * mehr als das Kollegium. Unter mehreren Gruppen gewinnt die höhere Stufe.
+   *
+   * Bewusst synchron und ohne Datenbankzugriff: Diese Funktion läuft pro
+   * Thema, teils in Schleifen über alle Themen. Die Mitgliedschaft steht
+   * deshalb als `user.groupIds` bereit – geladen einmal pro Anfrage in der
+   * JWT-Strategie, außerhalb einer Anfrage über `GroupsService.asUser()`.
+   */
   accessLevel(topic: LearningTopic, user: any): 'owner' | 'write' | 'read' | 'none' {
     if (topic.ownerId === user.userId) return 'owner';
     // Admins sehen und bearbeiten alles – wie bisher.
     if (user.role === 'admin') return 'owner';
 
     const entries = Array.isArray(topic.sharedAccess) ? topic.sharedAccess : [];
-    // Ein persönlicher Eintrag schlägt die Sammelfreigabe für alle.
+    const groupIds: string[] = Array.isArray(user.groupIds) ? user.groupIds : [];
+
     const mine = entries.find((e) => e && e.userId === user.userId);
+    // Unter den Gruppen des Benutzers zählt die großzügigste.
+    const viaGroup = entries
+      .filter((e) => {
+        const gid = e && groupIdOf(e.userId);
+        return gid ? groupIds.includes(gid) : false;
+      })
+      .sort((a, b) => (a.level === 'write' ? -1 : b.level === 'write' ? 1 : 0))[0];
     const all = entries.find((e) => e && e.userId === '*');
-    const level = (mine || all)?.level;
+
+    const level = (mine || viaGroup || all)?.level;
     if (level === 'write') return 'write';
     if (level === 'read') return 'read';
     return 'none';
@@ -139,11 +171,20 @@ export class TopicsService {
 
   // ---- Freigabe zum Kopieren ----
 
-  /** Prüft, ob ein Thema für diesen Benutzer zum Kopieren freigegeben ist. */
-  private isSharedWith(topic: LearningTopic, userId: string): boolean {
+  /**
+   * Prüft, ob ein Thema für diesen Benutzer zum Kopieren freigegeben ist –
+   * persönlich, über eine seiner Gruppen oder über die Freigabe für alle.
+   */
+  private isSharedWith(topic: LearningTopic, user: any): boolean {
     const list = topic.sharedWith;
     if (!Array.isArray(list) || list.length === 0) return false;
-    return list.includes('*') || list.includes(userId);
+    if (list.includes('*') || list.includes(user.userId)) return true;
+
+    const groupIds: string[] = Array.isArray(user.groupIds) ? user.groupIds : [];
+    return list.some((entry) => {
+      const gid = groupIdOf(entry);
+      return gid ? groupIds.includes(gid) : false;
+    });
   }
 
   /**
@@ -156,7 +197,7 @@ export class TopicsService {
    * verwendbar machen.
    */
   canView(topic: LearningTopic, user: any): boolean {
-    return this.accessLevel(topic, user) !== 'none' || this.isSharedWith(topic, user.userId);
+    return this.accessLevel(topic, user) !== 'none' || this.isSharedWith(topic, user);
   }
 
   /**
@@ -280,9 +321,12 @@ export class TopicsService {
    * dieselbe Person die Freigabe vor Wochen einmal weggeklickt hat.
    */
   private async clearPersonalMarks(topicId: string, userIds: string[]) {
-    const ids = userIds.filter((id) => id && id !== '*');
+    // Eine Gruppe steht für ihre Mitglieder – die Einladung gilt ihnen, nicht
+    // dem Eintrag.
+    const expanded = await this.expandGroups(userIds);
+    const ids = expanded.filter((id) => id && id !== '*');
     // '*' trifft alle: dann zählt jeder, der den Eintrag überhaupt trägt.
-    const everyone = userIds.includes('*');
+    const everyone = expanded.includes('*');
     if (!everyone && ids.length === 0) return;
 
     const users = await this.userRepo.find();
@@ -354,6 +398,50 @@ export class TopicsService {
       if (entry?.userId) at(String(entry.userId)).level = entry.level === 'write' ? 2 : 1;
     }
     return out;
+  }
+
+  /** Ersetzt 'group:<id>'-Einträge durch die Benutzer-IDs der Mitglieder. */
+  private async expandGroups(entries: string[]): Promise<string[]> {
+    const groupIds = entries.map(groupIdOf).filter(Boolean) as string[];
+    if (groupIds.length === 0) return entries;
+
+    const groups = await this.groupRepo.find();
+    const out = new Set(entries.filter((e) => !groupIdOf(e)));
+    for (const g of groups) {
+      if (!groupIds.includes(g.id)) continue;
+      for (const member of g.memberIds || []) out.add(member);
+    }
+    return [...out];
+  }
+
+  /**
+   * Nimmt eine gelöschte Gruppe aus allen Freigaben heraus.
+   *
+   * In der Zugriffsprüfung wäre ein toter Verweis folgenlos – Mitglied einer
+   * gelöschten Gruppe ist niemand. Er stünde aber für immer als
+   * unerklärlicher Eintrag in den Listen und würde in den Abzeichen
+   * mitgezählt.
+   */
+  async dropGroupFromSharing(groupId: string) {
+    const ref = `group:${groupId}`;
+    const topics = await this.topicRepo.find();
+    const touched: LearningTopic[] = [];
+
+    for (const topic of topics) {
+      let changed = false;
+      if (Array.isArray(topic.sharedWith) && topic.sharedWith.includes(ref)) {
+        topic.sharedWith = topic.sharedWith.filter((id) => id !== ref);
+        changed = true;
+      }
+      if (Array.isArray(topic.sharedAccess) && topic.sharedAccess.some((e) => e?.userId === ref)) {
+        topic.sharedAccess = topic.sharedAccess.filter((e) => e?.userId !== ref);
+        changed = true;
+      }
+      if (changed) touched.push(topic);
+    }
+
+    if (touched.length) await this.topicRepo.save(touched);
+    return touched.length;
   }
 
   /** Was jemand tatsächlich hatte – die Sammelfreigabe für alle zählt mit. */
@@ -466,7 +554,7 @@ export class TopicsService {
       .filter((t) => {
         if (t.ownerId === user.userId) return false;
         if (removed.has(t.id)) return false;
-        return this.isSharedWith(t, user.userId) || this.accessLevel(t, user) !== 'none';
+        return this.isSharedWith(t, user) || this.accessLevel(t, user) !== 'none';
       })
       .map((t) => ({
         id: t.id,
@@ -475,7 +563,7 @@ export class TopicsService {
         ownerId: t.ownerId,
         ownerName: ownerName.get(t.ownerId) || 'Unbekannt',
         moduleCount: (t.modules || []).length,
-        canCopy: this.isSharedWith(t, user.userId),
+        canCopy: this.isSharedWith(t, user),
         canUse: this.accessLevel(t, user) !== 'none',
         canView: this.canView(t, user),
         hidden: hidden.has(t.id),
@@ -506,7 +594,7 @@ export class TopicsService {
     if (source.ownerId === user.userId) {
       throw new ForbiddenException('Das ist bereits dein eigenes Thema.');
     }
-    if (!this.isSharedWith(source, user.userId) && user.role !== 'admin') {
+    if (!this.isSharedWith(source, user) && user.role !== 'admin') {
       throw new ForbiddenException('Dieses Thema ist nicht für dich freigegeben.');
     }
 

@@ -33,6 +33,8 @@ BACKEND – src/
     result.entity.ts            Quiz-Ergebnis (mit linkId, linkName, mode)
     tag.entity.ts               Schlagwort (gehört zu User)
     topic-link.entity.ts        Themen-Link: benannter Schülerzugang
+    teacher-group.entity.ts     Lehrergruppe (Fachschaft); Mitglieder als IDs.
+                                In Freigaben steht sie als 'group:<id>'
     topic-quick-link.entity.ts  Quick-Link je Thema UND Lehrkraft; der Zugang
                                 gehört dem, der ihn verteilt – dort landen
                                 auch die Ergebnisse
@@ -40,7 +42,9 @@ BACKEND – src/
   auth/                         JWT-Authentifizierung
     auth.controller.ts          POST /api/auth/login, /register
     auth.service.ts             Login-Logik, Token-Ausstellung
-    strategies/jwt.strategy.ts  Passport JWT-Strategie
+    strategies/jwt.strategy.ts  Passport JWT-Strategie; lädt einmal pro
+                                Anfrage die Gruppen nach req.user.groupIds
+                                (nicht ins Token: Entzug muss sofort wirken)
     guards/
       jwt-auth.guard.ts         Schützt Teacher-/Admin-Routen
       result-visibility.guard.ts Sichtbarkeit von Ergebnissen
@@ -60,6 +64,9 @@ BACKEND – src/
                                 Tags, Dateien und Ergebnisse an einen Admin;
                                 die Herkunft von Kopien bleibt unberührt
   tags/                         CRUD Schlagworte; Löschen räumt Themen & Links auf
+  groups/                       Lehrergruppen: lesen alle, pflegen nur Admin
+    groups.service.ts           groupIdsFor()/asUser(): Mitgliedschaft auflösen
+
   links/                        CRUD Themen-Links
     links.service.ts            resolveModules() löst die Auswahl in Module auf
 

@@ -9,12 +9,13 @@ import { TopicQuickLink } from '../core/entities/topic-quick-link.entity';
 import { Tag } from '../core/entities/tag.entity';
 import { Result } from '../core/entities/result.entity';
 import { UploadedFile } from '../core/entities/uploaded-file.entity';
+import { TeacherGroup } from '../core/entities/teacher-group.entity';
 import { HandoverService } from './handover.service';
 import { AuthModule } from '../auth/auth.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([User, SystemConfig, LearningTopic, TopicLink, TopicQuickLink, Tag, Result, UploadedFile]),
+    TypeOrmModule.forFeature([User, SystemConfig, LearningTopic, TopicLink, TopicQuickLink, Tag, Result, UploadedFile, TeacherGroup]),
     AuthModule,
   ],
   controllers: [AdminController],

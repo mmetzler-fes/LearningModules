@@ -146,6 +146,45 @@ Verfasser, und der Zähler am Original zählt nur direkte Kopien: Er beantwortet
 Die Kopie startet bewusst **inaktiv** und auf „gesperrt": erst ansehen, dann
 selbst freigeben. So taucht sie nicht ungeprüft bei den Schülern auf.
 
+## Gruppen (Fachschaften)
+
+Statt zwölf Haken einzeln zu setzen, gibt man an **„Fachschaft Informatik"**
+frei. Im Freigabe-Dialog stehen die Gruppen über der Personenliste, mit
+denselben zwei Häkchen.
+
+Der Unterschied zu einer einmaligen Mehrfachauswahl ist die Dauer: Eine Gruppe
+wirkt **fortlaufend**. Wer später dazukommt, ist automatisch dabei; wer
+ausscheidet, verliert den Zugriff sofort — auch in bereits gespeicherten
+Themen- und Quick-Links, denn die Prüfung läuft bei jedem Schülerstart neu.
+
+**Gepflegt werden Gruppen vom Admin** (Administration → 🏫 Gruppen). Das ist
+bewusst zentral: Dürfte jede Lehrkraft eigene Verteiler anlegen, gäbe es nach
+einem Jahr acht Versionen von „Mathe", und niemand wüsste, welche die richtige
+ist. Lesen darf jede Lehrkraft — für die Auswahl im Dialog ist das nötig, und
+wer an eine Fachschaft freigibt, soll sehen, wen er damit erreicht.
+
+Wird eine Gruppe gelöscht, verschwinden die Freigaben, die auf sie zeigen,
+gleich mit. In der Zugriffsprüfung wäre ein toter Verweis zwar folgenlos —
+Mitglied einer gelöschten Gruppe ist niemand —, stünde aber für immer als
+unerklärlicher Eintrag in den Listen der Kolleginnen.
+
+### Technisch
+
+Eine Gruppe steht in denselben Feldern wie eine Person, nur mit Präfix:
+`group:<id>` in `sharedWith` und `sharedAccess`. Das Datenmodell wird dadurch
+nicht doppelt geführt.
+
+Die Mitgliedschaft wird **einmal pro Anfrage** in der JWT-Strategie geladen und
+liegt danach als `user.groupIds` bereit. So bleibt `accessLevel()` synchron und
+ohne Datenbankzugriff — die Funktion läuft teils in Schleifen über alle Themen,
+eine Abfrage je Prüfung wäre spürbar. Außerhalb einer Anfrage, etwa für den
+Eigentümer eines Themen-Links beim Schülerstart, liefert
+`GroupsService.asUser()` dasselbe.
+
+**Bewusst nicht im Token.** Das wäre billiger, aber eine Änderung der Besetzung
+würde erst nach dem nächsten Login wirken. Ein Entzug, der erst morgen greift,
+ist keiner.
+
 ## Zugriffsstufen
 
 Das Datenmodell kennt drei Stufen, geordnet – `write` schließt `read` ein:
@@ -176,6 +215,8 @@ Themenpasswort mitsetzen kann.
 | Methode | Pfad | Zweck |
 |---|---|---|
 | `GET` | `/api/topics/colleagues` | Auswahlliste für den Dialog (auch für Lehrkräfte) |
+| `GET` | `/api/groups` | Gruppen lesen (jede Lehrkraft) |
+| `POST`/`PATCH`/`DELETE` | `/api/groups[/:id]` | Gruppen pflegen (nur Admin) |
 | `GET` | `/api/topics/shared-with-me` | Was mir freigegeben wurde (mit `canUse`/`canCopy`) |
 | `GET` | `/api/topics/usable` | Eigene + zur Nutzung freigegebene Themen samt Modulen |
 | `POST` | `/api/topics/:id/sharing` | `{sharedWith, sharedAccess}` – fehlendes Feld bleibt unverändert |
@@ -187,9 +228,10 @@ Themenpasswort mitsetzen kann.
 Gespeichert wird die Freigabe in zwei Feldern: `topics.sharedWith`
 (Kopier-Freigabe, Liste von Benutzer-IDs) und `topics.sharedAccess`
 (`[{userId, level}]`). Bei beiden steht `'*'` für alle Kolleginnen und
-Kollegen; ein persönlicher Eintrag in `sharedAccess` schlägt die
-Sammelfreigabe, sodass eine Einzelperson mehr bekommen kann als die
-Allgemeinheit.
+Kollegen und `group:<id>` für eine Gruppe. Der spezifischere Eintrag schlägt
+den allgemeineren — persönlich vor Gruppe vor „alle" —, sodass eine
+Einzelperson mehr bekommen kann als ihre Fachschaft und die Fachschaft mehr
+als das Kollegium. Unter mehreren Gruppen gewinnt die höhere Stufe.
 
 Die persönlichen Entscheidungen des Empfängers stehen dagegen bei ihm, nicht
 am Thema: `users.hiddenSharedTopics` und `users.removedSharedTopics`. So kann

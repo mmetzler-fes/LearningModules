@@ -10,6 +10,7 @@ import { SystemConfig } from './core/entities/system-config.entity';
 import { Tag } from './core/entities/tag.entity';
 import { TopicLink } from './core/entities/topic-link.entity';
 import { TopicQuickLink } from './core/entities/topic-quick-link.entity';
+import { TeacherGroup } from './core/entities/teacher-group.entity';
 import { UploadedFile } from './core/entities/uploaded-file.entity';
 import { MigrationModule } from './core/database/migration/migration.module';
 import { MailModule } from './core/mail/mail.module';
@@ -22,6 +23,7 @@ import { AdminModule } from './admin/admin.module';
 import { PublicModule } from './core/public/public.module';
 import { TagsModule } from './tags/tags.module';
 import { LinksModule } from './links/links.module';
+import { GroupsModule } from './groups/groups.module';
 import { FilesModule } from './files/files.module';
 import { join } from 'path';
 import { AppController } from './app.controller';
@@ -48,7 +50,7 @@ import { AppService } from './app.service';
     TypeOrmModule.forRoot({
       type: 'sqlite',
       database: 'data/database.sqlite',
-      entities: [User, StudentClass, LearningTopic, LearningModule, Result, School, SystemConfig, Tag, TopicLink, TopicQuickLink, UploadedFile],
+      entities: [User, StudentClass, LearningTopic, LearningModule, Result, School, SystemConfig, Tag, TopicLink, TopicQuickLink, TeacherGroup, UploadedFile],
       synchronize: true,
     }),
     MailModule,
@@ -60,6 +62,7 @@ import { AppService } from './app.service';
     AdminModule,
     TagsModule,
     LinksModule,
+    GroupsModule,
     FilesModule,
     PublicModule,
   ],

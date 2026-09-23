@@ -396,13 +396,23 @@ export class TopicsView {
     const copy = Array.isArray(topic.sharedWith) ? topic.sharedWith : [];
     const access = Array.isArray(topic.sharedAccess) ? topic.sharedAccess : [];
 
+    // Gruppen getrennt zählen: "für 2 Gruppen" sagt mehr als "für 2", wenn
+    // dahinter zwanzig Personen stehen.
+    const describe = (entries) => {
+      if (entries.includes('*')) return 'für alle';
+      const groups = entries.filter((e) => String(e).startsWith('group:')).length;
+      const people = entries.length - groups;
+      const parts = [];
+      if (people) parts.push(`für ${people}`);
+      if (groups) parts.push(`${groups} Gruppe${groups === 1 ? '' : 'n'}`);
+      return parts.join(' + ');
+    };
+
     if (access.length > 0) {
-      const forAll = access.some((e) => e.userId === '*');
-      out.push(`<span class="topic-shared-badge use">🔗 verwendbar ${forAll ? 'für alle' : 'für ' + access.length}</span>`);
+      out.push(`<span class="topic-shared-badge use">🔗 verwendbar ${describe(access.map((e) => e.userId))}</span>`);
     }
     if (copy.length > 0) {
-      const forAll = copy.includes('*');
-      out.push(`<span class="topic-shared-badge owner">👥 kopierbar ${forAll ? 'für alle' : 'für ' + copy.length}</span>`);
+      out.push(`<span class="topic-shared-badge owner">👥 kopierbar ${describe(copy)}</span>`);
     }
     if (topic.copyCount > 0) {
       // Beantwortet die Frage, die vor jedem Entzug steht: Ist überhaupt noch
@@ -521,14 +531,19 @@ export class TopicsView {
     }
 
     let users = [];
+    let groups = [];
     try {
-      users = await api.getColleagues();
+      [users, groups] = await Promise.all([api.getColleagues(), api.getGroups()]);
     } catch (_) {}
     if (!Array.isArray(users)) users = [];
+    if (!Array.isArray(groups)) groups = [];
 
     const copyList = Array.isArray(topic.sharedWith) ? topic.sharedWith : [];
     const accessList = Array.isArray(topic.sharedAccess) ? topic.sharedAccess : [];
     const levelOf = (id) => accessList.find((e) => e.userId === id)?.level || 'none';
+    // Gruppen stehen in denselben Listen, nur mit Präfix – das Datenmodell
+    // muss deshalb nicht doppelt geführt werden.
+    const groupRef = (id) => `group:${id}`;
 
     const copyAll = copyList.includes('*');
     const useAll = levelOf('*') !== 'none';
@@ -570,6 +585,25 @@ export class TopicsView {
           </label>
         </div>
 
+        ${groups.length ? `
+        <div class="share-user-list" id="shareGroupList" style="margin-bottom:10px">
+          ${groups.map((g) => `
+            <div class="share-user-row" data-group="${escapeAttr(g.id)}">
+              <span class="share-user-name">👥 ${escapeHtml(g.name)}
+                <span class="import-module-type">${(g.memberIds || []).length} Mitglied${(g.memberIds || []).length === 1 ? '' : 'er'}</span></span>
+              <label class="share-flag">
+                <input type="checkbox" class="chk-use" ${levelOf(groupRef(g.id)) !== 'none' ? 'checked' : ''} />
+                <span>verwenden</span>
+              </label>
+              <label class="share-flag">
+                <input type="checkbox" class="chk-copy" ${copyList.includes(groupRef(g.id)) ? 'checked' : ''} />
+                <span>kopieren</span>
+              </label>
+            </div>`).join('')}
+        </div>
+        <p class="hint">Eine Gruppe wirkt dauerhaft: Wer später dazukommt, ist automatisch dabei;
+          wer ausscheidet, verliert den Zugriff sofort.</p>` : ''}
+
         <div id="shareUserList" class="share-user-list">
           ${users.length === 0
             ? '<p class="hint">Keine weiteren Lehrkräfte vorhanden.</p>'
@@ -590,15 +624,19 @@ export class TopicsView {
     const useAllBox = overlay.querySelector('#useAll');
     const copyAllBox = overlay.querySelector('#copyAll');
     const list = overlay.querySelector('#shareUserList');
+    const groupList = overlay.querySelector('#shareGroupList');
 
     // Ist etwas für alle freigegeben, wäre die Einzelauswahl dafür
     // gegenstandslos – die betroffenen Häkchen werden deshalb gesperrt.
     const syncList = () => {
-      list.querySelectorAll('.chk-use').forEach((cb) => { cb.disabled = useAllBox.checked; });
-      list.querySelectorAll('.chk-copy').forEach((cb) => { cb.disabled = copyAllBox.checked; });
-      list.querySelectorAll('.share-user-row').forEach((r) => {
-        r.style.opacity = useAllBox.checked && copyAllBox.checked ? '0.45' : '1';
-      });
+      const boxes = [list, groupList].filter(Boolean);
+      for (const box of boxes) {
+        box.querySelectorAll('.chk-use').forEach((cb) => { cb.disabled = useAllBox.checked; });
+        box.querySelectorAll('.chk-copy').forEach((cb) => { cb.disabled = copyAllBox.checked; });
+        box.querySelectorAll('.share-user-row').forEach((r) => {
+          r.style.opacity = useAllBox.checked && copyAllBox.checked ? '0.45' : '1';
+        });
+      }
     };
     useAllBox.addEventListener('change', syncList);
     copyAllBox.addEventListener('change', syncList);
@@ -609,17 +647,23 @@ export class TopicsView {
     overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
 
     overlay.querySelector('#btnShareSave').addEventListener('click', async () => {
-      const rows = [...list.querySelectorAll('.share-user-row')];
+      // Personen und Gruppen landen in denselben Listen; die Gruppe trägt
+      // ihr Präfix, damit der Server sie beim Prüfen auflösen kann.
+      const rows = [
+        ...list.querySelectorAll('.share-user-row'),
+        ...(groupList ? groupList.querySelectorAll('.share-user-row') : []),
+      ];
+      const refOf = (r) => (r.dataset.group ? groupRef(r.dataset.group) : r.dataset.user);
 
       const sharedWith = copyAllBox.checked
         ? ['*']
-        : rows.filter((r) => r.querySelector('.chk-copy').checked).map((r) => r.dataset.user);
+        : rows.filter((r) => r.querySelector('.chk-copy').checked).map(refOf);
 
       const sharedAccess = useAllBox.checked
         ? [{ userId: '*', level: 'read' }]
         : rows
             .filter((r) => r.querySelector('.chk-use').checked)
-            .map((r) => ({ userId: r.dataset.user, level: 'read' }));
+            .map((r) => ({ userId: refOf(r), level: 'read' }));
 
       try {
         const res = await api.setTopicSharing(topic.id, { sharedWith, sharedAccess });

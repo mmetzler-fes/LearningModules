@@ -229,6 +229,19 @@ export class BrowserApi {
       body: JSON.stringify({ removed }),
     });
   }
+  // ---------- Lehrergruppen (Fachschaften) ----------
+  /** Lesen darf jede Lehrkraft – der Freigabe-Dialog braucht die Namen. */
+  getGroups() { return this._fetch('/api/groups'); }
+  createGroup(body) {
+    return this._fetch('/api/groups', { method: 'POST', body: JSON.stringify(body) });
+  }
+  updateGroup(id, body) {
+    return this._fetch(`/api/groups/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(body) });
+  }
+  deleteGroup(id) {
+    return this._fetch(`/api/groups/${encodeURIComponent(id)}`, { method: 'DELETE' });
+  }
+
   /** Eigene Kopie eines freigegebenen Themas anlegen. */
   copySharedTopic(topicId) {
     return this._fetch(`/api/topics/${encodeURIComponent(topicId)}/copy`, { method: 'POST' });

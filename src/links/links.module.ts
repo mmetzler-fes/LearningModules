@@ -7,9 +7,10 @@ import { LearningTopic } from '../core/entities/learning-topic.entity';
 import { LearningModule } from '../core/entities/learning-module.entity';
 import { TagsModule } from '../tags/tags.module';
 import { TopicsModule } from '../topics/topics.module';
+import { GroupsModule } from '../groups/groups.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([TopicLink, LearningTopic, LearningModule]), TagsModule, TopicsModule],
+  imports: [TypeOrmModule.forFeature([TopicLink, LearningTopic, LearningModule]), TagsModule, TopicsModule, GroupsModule],
   controllers: [LinksController],
   providers: [LinksService],
   exports: [LinksService],

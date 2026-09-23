@@ -111,6 +111,41 @@ docker compose logs -f learningmodules-server | grep -i mail
 `Mail an ... versandt` = zugestellt. `Mailversand ... fehlgeschlagen` = der Admin
 bekommt das Passwort weiterhin im Dialog angezeigt.
 
+## Benutzer löschen: die Inhalte gehen an einen Admin
+
+Beim Löschen einer Lehrkraft wechselt vorher alles, was ihr gehört, zum
+handelnden Admin: Themen, Themen-Links, Quick-Links, Tags, hochgeladene
+Dateien und Ergebnisse. Erst danach verschwindet das Konto.
+
+**Warum nicht einfach löschen?** Vorher blieb genau das zurück, was niemand
+gebrauchen kann: Themen mit einer `ownerId`, die auf niemanden mehr zeigte.
+Für alle unsichtbar, von niemandem zu bearbeiten oder zu löschen – aber
+Kolleginnen mit einer Nutzungsfreigabe behielten sie, weil `accessLevel()` nur
+IDs vergleicht. Ihre Themen-Links liefen also weiter und lieferten Inhalte
+aus, an die niemand mehr herankam. Ein Konto zu löschen sollte mitten im
+Schuljahr keinen Unterricht abschalten und keine Karteileichen hinterlassen.
+
+Was dabei passiert:
+
+| | |
+|---|---|
+| Themen, Links, Quick-Links, Tags, Dateien, Ergebnisse | gehen an den Admin |
+| Freigaben an Kolleginnen | bleiben bestehen, ihre Links laufen weiter |
+| Die gelöschte Person in fremden Freigabelisten | wird entfernt |
+| Namensgleiche Tags beim Admin | bekommen den Zusatz „(von …)" |
+| Herkunft von Kopien (`copiedFrom*`) | bleibt **unverändert** |
+
+Die Herkunft bleibt bewusst stehen: Sie hält fest, wer etwas verfasst hat, und
+daran ändert das Ausscheiden nichts. Genau dafür stehen dort Name und Titel
+als Text und nicht nur als Verweis.
+
+Wer übernimmt, ist der Admin, der löscht. Löscht ein Admin sich selbst, ist es
+der dienstälteste andere. Ohne Nachfolger geht es nicht – der letzte Admin
+lässt sich ohnehin nicht löschen.
+
+Aufräumen ist danach eine eigene, bewusste Entscheidung des Admins und keine
+Nebenwirkung des Löschens. Umgesetzt in `src/admin/handover.service.ts`.
+
 ## Beteiligte Dateien
 
 | Datei | Zweck |
@@ -121,6 +156,7 @@ bekommt das Passwort weiterhin im Dialog angezeigt.
 | `src/core/mail/mail.module.ts` | Auswahl über `MAIL_TRANSPORT` |
 | `src/auth/auth.service.ts` | `createUser`, `resetUserPassword`, `generatePassword` |
 | `src/auth/guards/jwt-auth.guard.ts` | Sperre bei offenem Initialpasswort |
+| `src/admin/handover.service.ts` | Übergabe der Inhalte beim Löschen eines Kontos |
 
 ## Endpunkte
 
@@ -129,6 +165,7 @@ bekommt das Passwort weiterhin im Dialog angezeigt.
 | `POST` | `/api/admin/users` | Benutzer anlegen (Admin) |
 | `POST` | `/api/admin/users/:id/reset-password` | Passwort neu setzen (Admin) |
 | `POST` | `/api/auth/change-password` | Eigenes Passwort ändern, liefert neues Token |
+| `DELETE` | `/api/admin/users/:id` | Konto löschen; Inhalte gehen an einen Admin, Antwort nennt Empfänger und Anzahl |
 
 `POST /api/admin/admins` gibt es nicht mehr – ersetzt durch
 `POST /api/admin/users` mit `role: "admin"`.

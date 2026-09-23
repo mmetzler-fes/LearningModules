@@ -9,6 +9,7 @@ import { SystemConfig } from '../core/entities/system-config.entity';
 import { LearningTopic } from '../core/entities/learning-topic.entity';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { AuthService } from '../auth/auth.service';
+import { HandoverService } from './handover.service';
 
 @Controller('admin')
 @UseGuards(JwtAuthGuard)
@@ -18,6 +19,7 @@ export class AdminController {
     @InjectRepository(SystemConfig) private readonly configRepo: Repository<SystemConfig>,
     @InjectRepository(LearningTopic) private readonly topicRepo: Repository<LearningTopic>,
     private readonly authService: AuthService,
+    private readonly handover: HandoverService,
   ) {}
 
   // ---- Admin only guard helper ----
@@ -92,8 +94,22 @@ export class AdminController {
       const adminCount = await this.userRepo.count({ where: { role: 'admin' } });
       if (adminCount <= 1) throw new BadRequestException('Es muss mindestens ein Admin vorhanden bleiben.');
     }
+
+    // Erst übergeben, dann löschen. Andersherum bliebe alles als Waise mit
+    // einer ownerId zurück, die auf niemanden zeigt: unsichtbar für alle,
+    // aber bei Kolleginnen mit Nutzungsfreigabe weiterhin aktiv.
+    const successor = await this.handover.pickSuccessor(target, req.user.userId);
+    if (!successor) {
+      throw new BadRequestException('Kein Admin gefunden, der die Inhalte übernehmen könnte.');
+    }
+    const moved = await this.handover.transferOwnership(target, successor);
+
     await this.userRepo.delete({ id });
-    return { success: true };
+    return {
+      success: true,
+      handedOverTo: successor.displayName || successor.email,
+      moved,
+    };
   }
 
   // ---- Whitelist / Blacklist management ----

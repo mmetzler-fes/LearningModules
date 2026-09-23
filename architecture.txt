@@ -56,6 +56,9 @@ BACKEND – src/
                                 (nur direkte Abstammung, kein Stammbaum)
   results/                      CRUD Quiz-Ergebnisse
   admin/                        Admin-Verwaltung (User-Liste, Whitelist/Blacklist)
+    handover.service.ts         Beim Löschen eines Kontos gehen Themen, Links,
+                                Tags, Dateien und Ergebnisse an einen Admin;
+                                die Herkunft von Kopien bleibt unberührt
   tags/                         CRUD Schlagworte; Löschen räumt Themen & Links auf
   links/                        CRUD Themen-Links
     links.service.ts            resolveModules() löst die Auswahl in Module auf

@@ -280,11 +280,36 @@ export class AdminView {
   async _deleteUser(userId) {
     const user = this._usersCache.find((u) => u.id === userId);
     if (!user) return;
-    const confirmed = await this.app.appConfirm(`Benutzer "${user.displayName || user.email || user.username}" wirklich löschen?`);
+    const name = user.displayName || user.email || user.username;
+    // Die Übergabe ist der überraschende Teil – sie gehört vor die
+    // Entscheidung, nicht in eine Meldung danach.
+    const confirmed = await this.app.appConfirm(
+      `Benutzer "${name}" wirklich löschen?\n\n` +
+      'Themen, Links, Tags, Dateien und Ergebnisse gehen dabei nicht verloren: ' +
+      'Sie werden dir als Admin überschrieben. Laufende Links von Kolleginnen, ' +
+      'die Inhalte dieser Lehrkraft verwenden, bleiben damit gültig. ' +
+      'Aufräumen kannst du danach in Ruhe.',
+    );
     if (!confirmed) return;
     const res = await this.app.api.deleteUser(userId);
-    if (res && res.success !== false) { await this.refreshUsers(); this.app.showToast('Benutzer gelöscht', 'success'); }
-    else this.app.showToast('Fehler: ' + (res?.error || '?'), 'error');
+    if (res && res.success !== false) {
+      await this.refreshUsers();
+      const m = res.moved || {};
+      const parts = [
+        m.topics ? `${m.topics} Themen` : null,
+        m.links ? `${m.links} Links` : null,
+        m.quickLinks ? `${m.quickLinks} Quick-Links` : null,
+        m.results ? `${m.results} Ergebnisse` : null,
+        m.tags ? `${m.tags} Tags` : null,
+        m.uploads ? `${m.uploads} Dateien` : null,
+      ].filter(Boolean);
+      this.app.showToast(
+        parts.length
+          ? `Benutzer gelöscht – ${parts.join(', ')} übernommen von ${res.handedOverTo}.`
+          : 'Benutzer gelöscht – es gab nichts zu übernehmen.',
+        'success',
+      );
+    } else this.app.showToast('Fehler: ' + (res?.error || '?'), 'error');
   }
 
   async refreshWhitelistBlacklist() {

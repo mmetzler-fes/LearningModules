@@ -111,6 +111,15 @@ docker compose logs -f learningmodules-server | grep -i mail
 `Mail an ... versandt` = zugestellt. `Mailversand ... fehlgeschlagen` = der Admin
 bekommt das Passwort weiterhin im Dialog angezeigt.
 
+## Stapel-Import und Gruppenpflege
+
+Mehrere Konten auf einmal anlegen und Gruppen per Häkchen pflegen: als
+`.ods`-Tabelle, beschrieben in **[benutzer-tabelle.md](benutzer-tabelle.md)**.
+
+Ohne eingerichteten Mailversand ist das auch der bequemste Weg an die
+Initialpasswörter: Der Import gibt sie einmalig als zweite Tabelle zurück, zum
+Ausdrucken und Verteilen.
+
 ## Benutzer löschen: die Inhalte gehen an einen Admin
 
 Beim Löschen einer Lehrkraft wechselt vorher alles, was ihr gehört, zum
@@ -157,6 +166,8 @@ Nebenwirkung des Löschens. Umgesetzt in `src/admin/handover.service.ts`.
 | `src/auth/auth.service.ts` | `createUser`, `resetUserPassword`, `generatePassword` |
 | `src/auth/guards/jwt-auth.guard.ts` | Sperre bei offenem Initialpasswort |
 | `src/admin/handover.service.ts` | Übergabe der Inhalte beim Löschen eines Kontos |
+| `src/admin/user-sheet.service.ts` | Benutzertabelle (.ods) aus- und einlesen |
+| `src/core/interchange/ods/ods.ts` | Minimaler ODS-Leser/-Schreiber (ohne Fremdbibliothek) |
 
 ## Endpunkte
 
@@ -166,6 +177,8 @@ Nebenwirkung des Löschens. Umgesetzt in `src/admin/handover.service.ts`.
 | `POST` | `/api/admin/users/:id/reset-password` | Passwort neu setzen (Admin) |
 | `POST` | `/api/auth/change-password` | Eigenes Passwort ändern, liefert neues Token |
 | `DELETE` | `/api/admin/users/:id` | Konto löschen; Inhalte gehen an einen Admin, Antwort nennt Empfänger und Anzahl |
+| `GET` | `/api/admin/users/export.ods` | Benutzertabelle mit Gruppenspalten (ohne Passwörter) |
+| `POST` | `/api/admin/users/import` | Tabelle einlesen: Konten anlegen, Gruppen setzen |
 
 `POST /api/admin/admins` gibt es nicht mehr – ersetzt durch
 `POST /api/admin/users` mit `role: "admin"`.

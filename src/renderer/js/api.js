@@ -229,6 +229,47 @@ export class BrowserApi {
       body: JSON.stringify({ removed }),
     });
   }
+  // ---------- Benutzerliste als Tabelle (.ods) ----------
+
+  /** Lädt die Benutzertabelle herunter. Enthält keine Passwörter. */
+  async exportUsersOds() {
+    const token = this._auth.getToken();
+    const res = await fetch('/api/admin/users/export.ods', {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    if (!res.ok) throw new Error('Export fehlgeschlagen.');
+    const blob = await res.blob();
+    downloadBlob(blob, `benutzer-${new Date().toISOString().slice(0, 10)}.ods`);
+    return { success: true };
+  }
+
+  /** Lädt eine .ods hoch und liefert den Bericht samt Zugangsdaten-Datei. */
+  importUsersOds() {
+    return new Promise((resolve) => {
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = '.ods';
+      input.onchange = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return resolve(null);
+        const formData = new FormData();
+        formData.append('file', file);
+        const token = this._auth.getToken();
+        try {
+          const res = await fetch('/api/admin/users/import', {
+            method: 'POST',
+            headers: token ? { Authorization: `Bearer ${token}` } : {},
+            body: formData,
+          });
+          resolve(await res.json());
+        } catch (err) {
+          resolve({ message: err.message });
+        }
+      };
+      input.click();
+    });
+  }
+
   // ---------- Lehrergruppen (Fachschaften) ----------
   /** Lesen darf jede Lehrkraft – der Freigabe-Dialog braucht die Namen. */
   getGroups() { return this._fetch('/api/groups'); }
@@ -413,4 +454,22 @@ export class BrowserApi {
   onMenuExport() {}
   focusWindow() {}
   getWebServerUrl() { return Promise.resolve(window.location.origin); }
+}
+
+
+/**
+ * Speichert einen Blob als Datei. Der Umweg über ein <a download> ist nötig,
+ * weil der Download eine Authorization-Kopfzeile braucht – ein einfacher
+ * Link zum Endpunkt käme ohne Token an.
+ */
+export function downloadBlob(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  // Erst freigeben, wenn der Browser den Download begonnen hat.
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
 }

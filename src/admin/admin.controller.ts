@@ -1,7 +1,9 @@
 import {
-  Controller, Get, Post, Patch, Delete, Body, Param, UseGuards, Request,
-  ForbiddenException, BadRequestException,
+  Controller, Get, Post, Patch, Delete, Body, Param, UseGuards, Request, Res,
+  ForbiddenException, BadRequestException, UseInterceptors, UploadedFile,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import type { Response } from 'express';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { User, UserRole } from '../core/entities/user.entity';
@@ -10,6 +12,7 @@ import { LearningTopic } from '../core/entities/learning-topic.entity';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { AuthService } from '../auth/auth.service';
 import { HandoverService } from './handover.service';
+import { UserSheetService } from './user-sheet.service';
 
 @Controller('admin')
 @UseGuards(JwtAuthGuard)
@@ -20,6 +23,7 @@ export class AdminController {
     @InjectRepository(LearningTopic) private readonly topicRepo: Repository<LearningTopic>,
     private readonly authService: AuthService,
     private readonly handover: HandoverService,
+    private readonly userSheet: UserSheetService,
   ) {}
 
   // ---- Admin only guard helper ----
@@ -110,6 +114,37 @@ export class AdminController {
       handedOverTo: successor.displayName || successor.email,
       moved,
     };
+  }
+
+  // ---- Benutzerliste als Tabelle (.ods) ----
+
+  /**
+   * Alle Konten mit Gruppen-Spalten zum Ankreuzen. Ohne Passwörter – im
+   * Server liegt nur der Hash. Die Datei ist deshalb gefahrlos und dient der
+   * Übersicht und der Gruppenpflege.
+   */
+  @Get('users/export.ods')
+  async exportUsers(@Request() req: any, @Res() res: Response) {
+    this.requireAdmin(req);
+    const buffer = await this.userSheet.exportUsers();
+    const stamp = new Date().toISOString().slice(0, 10);
+    res.setHeader('Content-Type', 'application/vnd.oasis.opendocument.spreadsheet');
+    res.setHeader('Content-Disposition', `attachment; filename="benutzer-${stamp}.ods"`);
+    res.send(buffer);
+  }
+
+  /**
+   * Dieselbe Tabelle wieder einlesen: fehlende Konten anlegen, Gruppen nach
+   * den Häkchen setzen. Wurden Konten angelegt, kommt eine zweite Tabelle mit
+   * den Initialpasswörtern zurück – einmalig, denn danach steht im Server
+   * wieder nur der Hash.
+   */
+  @Post('users/import')
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 5 * 1024 * 1024 } }))
+  async importUsers(@Request() req: any, @UploadedFile() file: Express.Multer.File) {
+    this.requireAdmin(req);
+    if (!file || !file.buffer) throw new BadRequestException('Keine Datei empfangen.');
+    return this.userSheet.importUsers(file.buffer);
   }
 
   // ---- Whitelist / Blacklist management ----

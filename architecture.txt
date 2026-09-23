@@ -60,6 +60,9 @@ BACKEND – src/
                                 (nur direkte Abstammung, kein Stammbaum)
   results/                      CRUD Quiz-Ergebnisse
   admin/                        Admin-Verwaltung (User-Liste, Whitelist/Blacklist)
+    user-sheet.service.ts       Benutzer als .ods aus- und einlesen; der Import
+                                legt Konten an und gibt die Initialpasswörter
+                                einmalig zurück (im Server liegt nur der Hash)
     handover.service.ts         Beim Löschen eines Kontos gehen Themen, Links,
                                 Tags, Dateien und Ergebnisse an einen Admin;
                                 die Herkunft von Kopien bleibt unberührt
@@ -76,6 +79,8 @@ BACKEND – src/
                                 bestimmt aus dem Token die zuständige Lehrkraft
 
   core/interchange/             Import / Export
+    ods/ods.ts                  Minimaler ODS-Leser/-Schreiber ohne Fremd-
+                                bibliothek (.ods = ZIP + content.xml)
     interchange.controller.ts   Routen für JSON- und H5P-Import/-Export
     import/import.service.ts    JSON-Datei-Import
     h5p/h5p.service.ts          H5P-Paket parsen & generieren

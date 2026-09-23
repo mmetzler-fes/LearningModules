@@ -176,7 +176,7 @@ export class AuthService {
    * NICHT auf. Ohne Versandweg wird es einmalig zurückgegeben, damit der Admin
    * es dem neuen Benutzer persönlich übergeben kann.
    */
-  async createUser(data: { email: string; role: UserRole; displayName?: string }) {
+  async createUser(data: { email: string; role: UserRole; displayName?: string; password?: string }) {
     if (!data.email || !data.email.includes('@')) {
       throw new BadRequestException('Gültige E-Mail-Adresse erforderlich.');
     }
@@ -186,7 +186,14 @@ export class AuthService {
     const existing = await this.userRepo.findOne({ where: { email: data.email } });
     if (existing) throw new BadRequestException('Diese E-Mail-Adresse ist bereits registriert.');
 
-    const initialPassword = this.generatePassword();
+    // Beim Stapel-Import darf der Admin ein Passwort vorgeben – dann hat er
+    // die Liste bereits selbst und braucht keine zurück. Ohne Angabe erzeugt
+    // der Server eines, wie bisher.
+    const supplied = (data.password || '').trim();
+    if (supplied && supplied.length < 8) {
+      throw new BadRequestException('Ein vorgegebenes Passwort braucht mindestens 8 Zeichen.');
+    }
+    const initialPassword = supplied || this.generatePassword();
     const displayName = data.displayName || data.email;
     const user = this.userRepo.create({
       id: crypto.randomUUID(),

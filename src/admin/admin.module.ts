@@ -11,6 +11,7 @@ import { Result } from '../core/entities/result.entity';
 import { UploadedFile } from '../core/entities/uploaded-file.entity';
 import { TeacherGroup } from '../core/entities/teacher-group.entity';
 import { HandoverService } from './handover.service';
+import { UserSheetService } from './user-sheet.service';
 import { AuthModule } from '../auth/auth.module';
 
 @Module({
@@ -19,6 +20,6 @@ import { AuthModule } from '../auth/auth.module';
     AuthModule,
   ],
   controllers: [AdminController],
-  providers: [HandoverService],
+  providers: [HandoverService, UserSheetService],
 })
 export class AdminModule {}

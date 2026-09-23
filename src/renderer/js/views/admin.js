@@ -1,4 +1,5 @@
 import { escapeHtml } from '../utils.js';
+import { downloadBlob } from '../api.js';
 
 // ==================== ADMIN VIEW ====================
 
@@ -73,6 +74,17 @@ export class AdminView {
     this._bindCredentialsDialog();
 
     document.getElementById('btnNewGroup')?.addEventListener('click', () => this._openGroupEditor(null));
+
+    document.getElementById('btnExportUsers')?.addEventListener('click', async () => {
+      try {
+        await this.app.api.exportUsersOds();
+        this.app.showToast('Tabelle heruntergeladen – sie enthält keine Passwörter.', 'success');
+      } catch (err) {
+        this.app.showToast('Fehler: ' + err.message, 'error');
+      }
+    });
+
+    document.getElementById('btnImportUsers')?.addEventListener('click', () => this._importUsers());
 
 
 
@@ -313,6 +325,100 @@ export class AdminView {
         'success',
       );
     } else this.app.showToast('Fehler: ' + (res?.error || '?'), 'error');
+  }
+
+  // ==================== TABELLE EIN- UND AUSLESEN ====================
+
+  async _importUsers() {
+    const res = await this.app.api.importUsersOds();
+    if (!res) return; // abgebrochen
+    if (!res.created && !res.skipped) {
+      this.app.showToast('Fehler: ' + (res.message || 'Import fehlgeschlagen'), 'error');
+      return;
+    }
+    await this.refreshUsers();
+    this._showImportReport(res);
+  }
+
+  /**
+   * Der Bericht ist wichtiger als ein Toast: Beim Stapel-Import will man
+   * sehen, was angelegt wurde, was übersprungen wurde und warum – und die
+   * Zugangsdaten gibt es nur dieses eine Mal.
+   */
+  _showImportReport(res) {
+    const created = res.created || [];
+    const updated = res.groupsUpdated || [];
+    const skipped = res.skipped || [];
+
+    const section = (title, items, render) =>
+      items.length
+        ? `<div class="settings-group" style="margin-top:14px">
+             <h3>${title} (${items.length})</h3>
+             <div class="share-user-list">${items.map(render).join('')}</div>
+           </div>`
+        : '';
+
+    const overlay = document.createElement('div');
+    overlay.className = 'confirm-overlay';
+    overlay.innerHTML = `
+      <div class="import-modules-card" style="min-width:480px; max-width:720px; max-height:82vh; overflow:auto">
+        <h3>📊 Tabelle eingelesen</h3>
+        <p class="hint">
+          ${created.length} Konto${created.length === 1 ? '' : 'en'} angelegt ·
+          ${updated.length} Gruppenzuordnung${updated.length === 1 ? '' : 'en'} geändert ·
+          ${skipped.length} Zeile${skipped.length === 1 ? '' : 'n'} übersprungen
+        </p>
+        ${res.groupColumns?.length
+          ? `<p class="hint">Berücksichtigte Gruppenspalten: ${res.groupColumns.map(escapeHtml).join(', ')}.
+             Gruppen ohne Spalte in der Datei blieben unverändert.</p>`
+          : '<p class="hint">Die Datei enthielt keine bekannten Gruppenspalten – es wurden keine Mitgliedschaften geändert.</p>'}
+        ${res.unknownColumns?.length
+          ? `<p class="login-error">Unbekannte Spalten übergangen: ${res.unknownColumns.map(escapeHtml).join(', ')}.
+             Heißt die Gruppe wirklich so?</p>`
+          : ''}
+
+        ${res.credentialsFile
+          ? `<div class="settings-group" style="margin-top:14px">
+               <h3>🔑 Zugangsdaten</h3>
+               <p class="hint">Für ${res.credentialsCount} neues Konto${res.credentialsCount === 1 ? '' : 'en'} wurde ein
+                 Initialpasswort erzeugt. <strong>Diese Datei gibt es nur jetzt</strong> – danach steht im Server nur
+                 noch der Hash. Herunterladen, verteilen, löschen.</p>
+               <button class="btn btn-primary" id="btnDownloadCreds">⬇️ Zugangsdaten (.ods)</button>
+             </div>`
+          : ''}
+
+        ${section('Angelegt', created, (c) =>
+          `<div class="share-user-row"><span class="share-user-name">${escapeHtml(c.displayName)} · ${escapeHtml(c.email)} · ${escapeHtml(c.role === 'admin' ? 'Admin' : 'Lehrer')}</span></div>`)}
+        ${section('Gruppen geändert', updated, (u) =>
+          `<div class="share-user-row"><span class="share-user-name">${escapeHtml(u.email)}
+             ${u.added.length ? '<span class="topic-shared-badge use">+ ' + u.added.map(escapeHtml).join(', ') + '</span>' : ''}
+             ${u.removed.length ? '<span class="topic-status inactive">− ' + u.removed.map(escapeHtml).join(', ') + '</span>' : ''}
+           </span></div>`)}
+        ${section('Übersprungen', skipped, (s) =>
+          `<div class="share-user-row"><span class="share-user-name">Zeile ${s.row}: ${escapeHtml(s.email || '(ohne E-Mail)')} – ${escapeHtml(s.reason)}</span></div>`)}
+
+        <div class="confirm-actions">
+          <button class="btn btn-secondary" id="btnCloseImportReport">Schließen</button>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+
+    overlay.querySelector('#btnDownloadCreds')?.addEventListener('click', () => {
+      // Aus base64 zurück in eine Datei – der Server hat sie einmalig
+      // mitgeschickt, gespeichert wird sie nirgends.
+      const raw = atob(res.credentialsFile);
+      const bytes = new Uint8Array(raw.length);
+      for (let i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i);
+      downloadBlob(
+        new Blob([bytes], { type: 'application/vnd.oasis.opendocument.spreadsheet' }),
+        `zugangsdaten-${new Date().toISOString().slice(0, 10)}.ods`,
+      );
+      this.app.showToast('Zugangsdaten heruntergeladen – bitte nach dem Verteilen löschen.', 'info');
+    });
+
+    const close = () => overlay.remove();
+    overlay.querySelector('#btnCloseImportReport').addEventListener('click', close);
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
   }
 
   // ==================== GRUPPEN (FACHSCHAFTEN) ====================

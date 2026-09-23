@@ -49,6 +49,21 @@ export class User extends BaseEntity {
   @Column('simple-json', { nullable: true })
   hiddenSharedTopics: string[];
 
+  /**
+   * Freigegebene Themen, die ich aus meiner Liste entfernt habe.
+   *
+   * Der Unterschied zum Ausblenden ist die Absicht: Ausgeblendetes wartet
+   * zusammengeklappt auf seinen Einsatz, Entferntes will ich gar nicht mehr
+   * sehen. Für den Eigentümer ändert sich in beiden Fällen nichts – seine
+   * Inhalte bleiben ihm, entfernt wird nur meine Ansicht darauf.
+   *
+   * Gibt die Kollegin die Freigabe später erneut, räumt `setSharing` den
+   * Eintrag wieder weg: Eine neue Einladung soll nicht an einer alten
+   * Absage scheitern.
+   */
+  @Column('simple-json', { nullable: true })
+  removedSharedTopics: string[];
+
   // Password reset
   @Column({ nullable: true })
   resetPasswordToken: string;

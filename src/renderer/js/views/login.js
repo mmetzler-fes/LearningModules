@@ -196,18 +196,22 @@ export class LoginView {
       e.preventDefault();
       const name = nameInput.value.trim();
       if (!name) return;
-      await this._enterQuickQuiz(name, data);
+      await this._enterQuickQuiz(name, data, token);
     });
 
     return true;
   }
 
-  async _enterQuickQuiz(studentName, data) {
+  async _enterQuickQuiz(studentName, data, token) {
     const { app } = this;
     app.authStore.setToken(null);
     app.state.currentUser = { name: studentName, role: 'student', teacherEmail: data.teacherEmail };
     app.state.topics = [data.topic];
     app.state.linkSession = null;
+    // Der Token wandert mit ins Ergebnis: Er sagt dem Server, welche Lehrkraft
+    // den Link verteilt hat. Bei fremden Inhalten ist das nicht der
+    // Eigentümer des Themas.
+    app.state.quickSession = { token };
 
     await this.enterApp();
     // Direkt ins Quiz, ohne den Umweg über die Themenauswahl.

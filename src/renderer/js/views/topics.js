@@ -158,6 +158,7 @@ export class TopicsView {
           <div class="topic-card-info">
             <h3 class="topic-card-title">${escapeHtml(topic.title)}</h3>
             <p class="topic-card-desc">${escapeHtml(topic.description || '')}</p>
+            ${this._originLine(topic)}
             <div class="topic-card-meta">
               <span class="topic-module-count">${moduleCount} Module</span>
               ${isRawTopic ? '<span class="topic-status" style="background:#eef2ff; color:#3730a3;">RAW H5P</span>' : ''}
@@ -248,7 +249,11 @@ export class TopicsView {
       if (!res || !res.url) throw new Error(res?.message || 'Quick-Link konnte nicht erzeugt werden.');
 
       this._quickLinkData = res;
-      info.textContent = `${res.title} · ${res.moduleCount} freigegebene Module`;
+      info.textContent = res.isOwn === false
+        // Bei fremden Inhalten gehört der Link trotzdem mir – wer das nicht
+        // weiß, sucht die Ergebnisse später beim Falschen.
+        ? `${res.title} · ${res.moduleCount} freigegebene Module · fremdes Thema, die Ergebnisse kommen zu dir`
+        : `${res.title} · ${res.moduleCount} freigegebene Module`;
       urlBox.value = res.url;
       // QR-SVG kommt vom eigenen Server (qrcode-Bibliothek), kein Fremdinhalt.
       qrBox.innerHTML = res.qrSvg || '<p class="hint">QR-Code nicht verfügbar – bitte den Link verwenden.</p>';
@@ -399,7 +404,25 @@ export class TopicsView {
       const forAll = copy.includes('*');
       out.push(`<span class="topic-shared-badge owner">👥 kopierbar ${forAll ? 'für alle' : 'für ' + copy.length}</span>`);
     }
+    if (topic.copyCount > 0) {
+      // Beantwortet die Frage, die vor jedem Entzug steht: Ist überhaupt noch
+      // etwas zu holen? Gezogene Kopien gehören schon jemand anderem.
+      out.push(`<span class="topic-shared-badge" title="So oft hat sich jemand eine eigene Fassung gezogen. Diese Kopien gehören ihren neuen Eigentümern – ein Entzug erreicht sie nicht mehr.">📋 ${topic.copyCount} Kopie${topic.copyCount === 1 ? '' : 'n'} gezogen</span>`);
+    }
     return out.join('');
+  }
+
+  /**
+   * Herkunftszeile einer Kopie. Reine Nennung, kein Zugriffsrecht – und vom
+   * neuen Eigentümer nicht abstellbar, weil der Server die Felder gar nicht
+   * erst zum Ändern annimmt.
+   */
+  _originLine(topic) {
+    const origin = topic && topic.origin;
+    if (!origin) return '';
+    const title = origin.title ? `„${escapeHtml(origin.title)}"` : 'einem Thema';
+    return `<p class="topic-card-desc" style="opacity:.75; font-size:.85em">
+      📋 Kopie von ${title} · Ursprung: ${escapeHtml(origin.author)}</p>`;
   }
 
   _openEditor(topic) {
@@ -532,6 +555,8 @@ export class TopicsView {
           ihre eigenen Themen-Links. Ihre Schülerergebnisse landen bei ihr, nicht bei dir.
           Änderst du später eine Aufgabe, ändert sich ihr Quiz mit – für eine Klassenarbeit
           ist deshalb <strong>kopieren</strong> oft die ruhigere Wahl.</p>
+        ${topic.origin ? `<p class="hint">📋 Dieses Thema ist eine Kopie von „${escapeHtml(topic.origin.title || '')}" (${escapeHtml(topic.origin.author)}).
+          Der Ursprung ist hier vorbelegt – du kannst die Haken abwählen, die Nennung bleibt.</p>` : ''}
 
         <div class="share-head-row">
           <span class="share-user-name"><strong>Alle Kolleginnen und Kollegen</strong></span>
@@ -680,6 +705,7 @@ export class TopicsView {
         <div class="topic-card-info">
           <h3 class="topic-card-title">${escapeHtml(entry.title)}</h3>
           <p class="topic-card-desc">${escapeHtml(entry.description || '')}</p>
+          ${this._originLine(entry)}
           <div class="topic-card-meta">
             <span class="topic-module-count">${entry.moduleCount} Module</span>
             <span class="topic-shared-badge" style="margin-left:8px">von ${escapeHtml(entry.ownerName)}</span>
@@ -689,14 +715,47 @@ export class TopicsView {
         </div>
         <div class="topic-card-actions">
           <button class="btn btn-secondary btn-sm btn-view-shared" title="Module ansehen (nur Anzeige)">👁 Ansehen</button>
+          ${entry.canUse ? '<button class="btn btn-secondary btn-sm btn-quick-shared" title="Eigener Quick-Link auf dieses Thema – die Ergebnisse kommen zu mir">🔗 Quick-Link</button>' : ''}
           ${entry.canCopy ? '<button class="btn btn-primary btn-sm btn-copy-shared">📥 Zu mir kopieren</button>' : ''}
           <button class="btn btn-secondary btn-sm btn-hide-shared"
             title="${entry.hidden ? 'Wieder in meiner Liste zeigen' : 'Nur bei mir ausblenden – die Kollegin behält ihr Thema'}">
             ${entry.hidden ? '↩️ Einblenden' : '🚫 Ausblenden'}</button>
+          <button class="btn btn-danger btn-sm btn-remove-shared"
+            title="Aus meiner Liste entfernen – gelöscht wird nichts, die Kollegin behält ihr Thema">🗑 Entfernen</button>
         </div>
       </div>`;
 
     card.querySelector('.btn-view-shared').addEventListener('click', () => this._openSharedTopicViewer(entry));
+
+    // Der Quick-Link gehört mir, nicht dem Eigentümer des Themas: Der Dialog
+    // ist derselbe wie bei eigenen Themen, der Token ein eigener.
+    card.querySelector('.btn-quick-shared')?.addEventListener('click', () =>
+      this._openQuickLinkDialog({ id: entry.id, title: entry.title }));
+
+    card.querySelector('.btn-remove-shared').addEventListener('click', async (e) => {
+      const ok = await this.app.appConfirm(
+        `"${entry.title}" aus deiner Liste entfernen?\n\n` +
+        'Gelöscht wird dabei nichts: Das Thema gehört weiter ' + entry.ownerName + '. ' +
+        'Bereits verteilte Links von dir auf dieses Thema laufen weiter – die ziehst du bei Bedarf selbst zurück. ' +
+        'Gibt die Kollegin das Thema später erneut frei, taucht es wieder auf.',
+      );
+      if (!ok) return;
+      const btn = e.currentTarget;
+      btn.disabled = true;
+      try {
+        const res = await this.app.api.setSharedTopicRemoved(entry.id, true);
+        if (res && res.success) {
+          this.app.showToast('Freigabe aus deiner Liste entfernt – beim Eigentümer bleibt alles unverändert.', 'info');
+          this.refreshSharedTopics();
+        } else {
+          this.app.showToast('Fehler: ' + (res?.message || 'Entfernen fehlgeschlagen'), 'error');
+          btn.disabled = false;
+        }
+      } catch (err) {
+        this.app.showToast('Fehler: ' + err.message, 'error');
+        btn.disabled = false;
+      }
+    });
 
     card.querySelector('.btn-hide-shared').addEventListener('click', async (e) => {
       const btn = e.currentTarget;
@@ -725,7 +784,12 @@ export class TopicsView {
       try {
         const res = await this.app.api.copySharedTopic(entry.id);
         if (res && res.success) {
-          this.app.showToast(`"${res.title}" kopiert – du bist jetzt Eigentümer.`, 'success');
+          this.app.showToast(
+            `"${res.title}" kopiert – du bist jetzt Eigentümer. ` +
+            `${entry.ownerName} ist als Ursprung vermerkt und darf die Kopie vorerst verwenden und kopieren; ` +
+            'unter 👥 kannst du das ändern.',
+            'success',
+          );
           await this.app.loadTopics();
           this.refresh();
         } else {
@@ -767,6 +831,7 @@ export class TopicsView {
         <h3>👁 ${escapeHtml(topic.title)}</h3>
         <p class="hint">Freigabe von <strong>${escapeHtml(topic.ownerName)}</strong> – nur zum Ansehen.
           Änderungen sind hier nicht möglich; das Thema gehört weiterhin der Kollegin.</p>
+        ${topic.origin ? `<p class="hint">📋 Kopie von „${escapeHtml(topic.origin.title || '')}" · Ursprung: ${escapeHtml(topic.origin.author)}</p>` : ''}
         <div id="sharedViewList"></div>
         <div id="sharedViewPreview" class="hidden"></div>
         <div class="confirm-actions">

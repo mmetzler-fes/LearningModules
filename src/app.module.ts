@@ -9,6 +9,7 @@ import { School } from './core/entities/school.entity';
 import { SystemConfig } from './core/entities/system-config.entity';
 import { Tag } from './core/entities/tag.entity';
 import { TopicLink } from './core/entities/topic-link.entity';
+import { TopicQuickLink } from './core/entities/topic-quick-link.entity';
 import { UploadedFile } from './core/entities/uploaded-file.entity';
 import { MigrationModule } from './core/database/migration/migration.module';
 import { MailModule } from './core/mail/mail.module';
@@ -47,7 +48,7 @@ import { AppService } from './app.service';
     TypeOrmModule.forRoot({
       type: 'sqlite',
       database: 'data/database.sqlite',
-      entities: [User, StudentClass, LearningTopic, LearningModule, Result, School, SystemConfig, Tag, TopicLink, UploadedFile],
+      entities: [User, StudentClass, LearningTopic, LearningModule, Result, School, SystemConfig, Tag, TopicLink, TopicQuickLink, UploadedFile],
       synchronize: true,
     }),
     MailModule,

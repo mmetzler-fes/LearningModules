@@ -19,15 +19,23 @@ BACKEND – src/
 
   core/entities/                TypeORM-Entitäten
     base.entity.ts              Basis (id, createdAt, updatedAt)
-    user.entity.ts              Benutzer (admin / teacher)
+    user.entity.ts              Benutzer (admin / teacher); hiddenSharedTopics
+                                und removedSharedTopics = persönliche Sicht
+                                auf fremde Freigaben
     school.entity.ts            Schule / Mandant
     student-class.entity.ts     Klasse
     learning-topic.entity.ts    Lernthema (tagIds, sharedWith = kopieren,
-                                sharedAccess = [{userId, level}] verwenden)
+                                sharedAccess = [{userId, level}] verwenden,
+                                copiedFrom* = Herkunft einer Kopie; als Text
+                                mitkopiert, damit die Nennung die Quelle
+                                überlebt, und nicht änderbar)
     learning-module.entity.ts   Lernmodul (gehört zu Topic)
     result.entity.ts            Quiz-Ergebnis (mit linkId, linkName, mode)
     tag.entity.ts               Schlagwort (gehört zu User)
     topic-link.entity.ts        Themen-Link: benannter Schülerzugang
+    topic-quick-link.entity.ts  Quick-Link je Thema UND Lehrkraft; der Zugang
+                                gehört dem, der ihn verteilt – dort landen
+                                auch die Ergebnisse
 
   auth/                         JWT-Authentifizierung
     auth.controller.ts          POST /api/auth/login, /register
@@ -40,7 +48,12 @@ BACKEND – src/
 
   topics/                       CRUD Lernthemen (Teacher-Auth erforderlich)
     topics.service.ts           findOneFor(id,user,need): eine Stelle für alle
-                                Zugriffsstufen (read < write < owner)
+                                Zugriffsstufen (read < write < owner);
+                                getQuickLink() ab 'read' – auch fremde Themen;
+                                setSharedHidden()/setSharedRemoved() =
+                                persönliche Sicht, löschen nie etwas;
+                                withProvenance() liefert origin + copyCount
+                                (nur direkte Abstammung, kein Stammbaum)
   results/                      CRUD Quiz-Ergebnisse
   admin/                        Admin-Verwaltung (User-Liste, Whitelist/Blacklist)
   tags/                         CRUD Schlagworte; Löschen räumt Themen & Links auf
@@ -48,6 +61,9 @@ BACKEND – src/
     links.service.ts            resolveModules() löst die Auswahl in Module auf
 
   core/share/link-url.ts        Öffentliche Adresse + QR-Code (Quick- und Themen-Link)
+  core/public/public.controller.ts
+                                Schülerzugang ohne Konto; resolveQuickToken()
+                                bestimmt aus dem Token die zuständige Lehrkraft
 
   core/interchange/             Import / Export
     interchange.controller.ts   Routen für JSON- und H5P-Import/-Export
@@ -85,7 +101,8 @@ FRONTEND – src/renderer/
                             currentUser, topics, tags, currentTopicId,
                             currentTopicModules, currentTopicRawSummary,
                             editingModuleId, editingTopicId,
-                            contentEditor, quizState, linkSession
+                            contentEditor, quizState, linkSession,
+                            quickSession (Quick-Token des Durchlaufs)
       .loginView          LoginView
       .topicsView         TopicsView
       .modulesView        ModulesView
@@ -172,6 +189,8 @@ FRONTEND – src/renderer/
       _onFormSubmit()     Thema anlegen / aktualisieren
       _onExportH5p()      Einzel- oder Multi-Thema H5P-Export
       _openShareDialog()  Overlay mit Benutzerauswahl zum Teilen
+      refreshSharedTopics()       Fremde Freigaben: ansehen, eigener
+                                  Quick-Link, kopieren, ausblenden, entfernen
 
   views/modules.js
     class ModulesView
@@ -248,6 +267,11 @@ ROLLEN
 
   admin    Vollzugriff; sieht Admin-Nav (Benutzerverwaltung, Whitelist/Blacklist)
   teacher  CRUD eigene Themen, Module, Tags und Themen-Links; sieht Ergebnisse
+           Eigentümer  = Schreibrechte am Inhalt (ändern, löschen, freigeben)
+           Nutzer      = Benutzungsrechte: eigener Quick-/Themen-Link auf
+                         fremde Inhalte, die Ergebnisse kommen zu ihm.
+                         Freigaben lassen sich bei sich ausblenden oder
+                         entfernen – beim Eigentümer ändert das nichts.
   student  Kein Konto und keine Anmeldung. Zugang ausschließlich über einen
            Themen-Link (?l=) oder Quick-Link (?q=); der Link ist der Schlüssel.
 

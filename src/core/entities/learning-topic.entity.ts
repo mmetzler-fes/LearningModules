@@ -62,6 +62,35 @@ export class LearningTopic extends BaseEntity {
   @Column('simple-json', { nullable: true })
   sharedAccess: Array<{ userId: string; level: 'read' | 'write' }> | null;
 
+  /**
+   * Herkunft einer Kopie: das Thema, aus dem sie gezogen wurde.
+   *
+   * Nur die *direkte* Abstammung, kein Stammbaum. Die Kopie einer Kopie nennt
+   * ihre unmittelbare Quelle, nicht deren Quelle – sonst sammelte ein altes
+   * Thema über Jahre eine Ahnenreihe an, die niemand mehr überblickt.
+   *
+   * Die vier Felder stehen bewusst nebeneinander statt als Verweis allein:
+   * Die Nennung soll erhalten bleiben, auch wenn das Original oder sein
+   * Verfasser längst gelöscht ist. Deshalb wandern Titel und Name als Text
+   * mit und werden nicht bei jeder Anzeige neu aufgelöst.
+   *
+   * Keines der vier Felder steht in EDITABLE_FIELDS oder OWNER_FIELDS – die
+   * Herkunft lässt sich darum auch vom neuen Eigentümer nicht abstreifen.
+   */
+  @Column({ type: 'varchar', nullable: true })
+  copiedFromId: string | null;
+
+  @Column({ type: 'varchar', nullable: true })
+  copiedFromOwnerId: string | null;
+
+  /** Name des Verfassers zum Zeitpunkt der Kopie – bleibt auch danach stehen. */
+  @Column({ type: 'varchar', nullable: true })
+  copiedFromAuthor: string | null;
+
+  /** Titel der Quelle zum Zeitpunkt der Kopie. */
+  @Column({ type: 'varchar', nullable: true })
+  copiedFromTitle: string | null;
+
   /** Schlagworte zur Einordnung (Tag-IDs, siehe Tag-Entität). */
   @Column('simple-json', { nullable: true })
   tagIds: string[] | null;

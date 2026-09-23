@@ -6,7 +6,9 @@ import { LearningTopic } from '../entities/learning-topic.entity';
 import { LearningModule } from '../entities/learning-module.entity';
 import { Result } from '../entities/result.entity';
 import { TopicLink } from '../entities/topic-link.entity';
+import { TopicQuickLink } from '../entities/topic-quick-link.entity';
 import { LinksService } from '../../links/links.service';
+import { TopicsService } from '../../topics/topics.service';
 import * as crypto from 'crypto';
 
 @Controller('public')
@@ -17,7 +19,9 @@ export class PublicController {
     @InjectRepository(LearningModule) private readonly moduleRepo: Repository<LearningModule>,
     @InjectRepository(Result) private readonly resultRepo: Repository<Result>,
     @InjectRepository(TopicLink) private readonly linkRepo: Repository<TopicLink>,
+    @InjectRepository(TopicQuickLink) private readonly quickRepo: Repository<TopicQuickLink>,
     private readonly linksService: LinksService,
+    private readonly topicsService: TopicsService,
   ) {}
 
   /**
@@ -28,26 +32,64 @@ export class PublicController {
    */
   @Get('quick/:token')
   async getQuickTopic(@Param('token') token: string) {
-    if (!token) throw new NotFoundException('Ungültiger Link.');
-
-    const topic = await this.topicRepo
-      .createQueryBuilder('topic')
-      .where('topic.quickToken = :token', { token })
-      .leftJoinAndSelect('topic.modules', 'modules')
-      .orderBy('modules.orderIndex', 'ASC')
-      .getOne();
-
-    if (!topic) throw new NotFoundException('Dieser Link ist ungültig oder wurde zurückgezogen.');
-    if (!topic.selected) throw new ForbiddenException('Dieses Thema ist derzeit nicht freigegeben.');
-
-    const teacher = await this.userRepo.findOne({ where: { id: topic.ownerId } });
-    if (!teacher) throw new NotFoundException('Lehrer nicht gefunden.');
+    const { topic, teacher } = await this.resolveQuickToken(token);
 
     const { accessPassword: _ap, subscribeKey: _sk, quickToken: _qt, ...safeTopic } = topic;
     return {
+      // Die Lehrkraft, die den Link verteilt hat – nicht zwingend die, von
+      // der die Aufgaben stammen. Dort landen später die Ergebnisse.
       teacherEmail: teacher.email,
       topic: safeTopic,
     };
+  }
+
+  /**
+   * Löst einen Quick-Token in Thema und zuständige Lehrkraft auf.
+   *
+   * Zwei Quellen, weil der Token früher als Spalte am Thema hing: zuerst die
+   * Tabelle der Quick-Links, danach die alte Spalte. Für Links fremder
+   * Lehrkräfte wird die Nutzungsfreigabe bei jedem Start neu geprüft – zieht
+   * der Eigentümer sie zurück, wirkt das sofort, genau wie beim Themen-Link.
+   */
+  private async resolveQuickToken(token: string): Promise<{ topic: LearningTopic; teacher: User }> {
+    if (!token) throw new NotFoundException('Ungültiger Link.');
+
+    const entry = await this.quickRepo.findOne({ where: { token } });
+
+    const topicQuery = (where: string, params: any) =>
+      this.topicRepo
+        .createQueryBuilder('topic')
+        .where(where, params)
+        .leftJoinAndSelect('topic.modules', 'modules')
+        .orderBy('modules.orderIndex', 'ASC')
+        .getOne();
+
+    const topic = entry
+      ? await topicQuery('topic.id = :id', { id: entry.topicId })
+      : await topicQuery('topic.quickToken = :token', { token });
+
+    if (!topic) throw new NotFoundException('Dieser Link ist ungültig oder wurde zurückgezogen.');
+
+    const teacherId = entry ? entry.ownerId : topic.ownerId;
+    const isOwnerLink = teacherId === topic.ownerId;
+
+    // Der Haken "aktiv" gehört zur Schülersicht des Eigentümers. Bei einem
+    // fremden Quick-Link ist die Nutzungsfreigabe die maßgebliche Zustimmung.
+    if (isOwnerLink && !topic.selected) {
+      throw new ForbiddenException('Dieses Thema ist derzeit nicht freigegeben.');
+    }
+
+    const teacher = await this.userRepo.findOne({ where: { id: teacherId } });
+    if (!teacher) throw new NotFoundException('Lehrer nicht gefunden.');
+
+    if (!isOwnerLink) {
+      const level = this.topicsService.accessLevel(topic, { userId: teacher.id, role: 'teacher' });
+      if (level === 'none') {
+        throw new ForbiddenException('Dieser Link ist derzeit nicht mehr freigegeben.');
+      }
+    }
+
+    return { topic, teacher };
   }
 
   // ==================== THEMEN-LINK ====================
@@ -150,6 +192,7 @@ export class PublicController {
     @Body() body: {
       teacherEmail?: string;
       linkToken?: string;
+      quickToken?: string;
       mode?: string;
       studentName: string;
       topicId: string;
@@ -160,20 +203,27 @@ export class PublicController {
     },
     @Req() req: any,
   ) {
-    // Kommt der Durchlauf über einen Themen-Link, ist der Token die Quelle der
+    // Kommt der Durchlauf über einen Link, ist der Token die Quelle der
     // Wahrheit: Lehrkraft und Linkname stammen dann aus dem Link selbst und
-    // nicht aus dem, was der Browser mitschickt.
+    // nicht aus dem, was der Browser mitschickt. Das gilt für den Themen-Link
+    // wie für den Quick-Link – in beiden Fällen zählt, wer den Link verteilt
+    // hat, nicht wem die Aufgaben gehören.
     let link: TopicLink | null = null;
     if (body.linkToken) {
       link = await this.linkRepo.findOne({ where: { token: body.linkToken } });
       if (!link) throw new NotFoundException('Dieser Link ist ungültig oder wurde zurückgezogen.');
     }
 
-    const teacher = link
-      ? await this.userRepo.findOne({ where: { id: link.ownerId } })
-      : await this.userRepo.findOne({
-          where: [{ email: body.teacherEmail, role: 'teacher' }, { email: body.teacherEmail, role: 'admin' }],
-        });
+    let teacher: User | null = null;
+    if (link) {
+      teacher = await this.userRepo.findOne({ where: { id: link.ownerId } });
+    } else if (body.quickToken) {
+      teacher = (await this.resolveQuickToken(body.quickToken)).teacher;
+    } else {
+      teacher = await this.userRepo.findOne({
+        where: [{ email: body.teacherEmail, role: 'teacher' }, { email: body.teacherEmail, role: 'admin' }],
+      });
+    }
     if (!teacher) throw new NotFoundException('Lehrer nicht gefunden.');
 
     const forwarded = req.headers['x-forwarded-for'];

@@ -48,6 +48,18 @@ export class TopicsController {
     return this.topicsService.setSharedHidden(id, req.user, body?.hidden !== false);
   }
 
+  /**
+   * Fremde Freigabe aus der eigenen Liste entfernen bzw. zurückholen.
+   *
+   * Bewusst kein DELETE auf :id – gelöscht wird hier nichts. Das Thema
+   * gehört weiterhin dem Eigentümer; entfernt wird allein die eigene Sicht
+   * darauf.
+   */
+  @Post(':id/removed')
+  async setSharedRemoved(@Param('id') id: string, @Request() req: any, @Body() body: { removed?: boolean }) {
+    return this.topicsService.setSharedRemoved(id, req.user, body?.removed !== false);
+  }
+
   @Get(':id')
   async findOne(@Param('id') id: string, @Request() req: any) {
     return this.topicsService.findOne(id, req.user);
@@ -80,13 +92,19 @@ export class TopicsController {
 
   // ---- Quick-Link für Schüler (Link + QR-Code) ----
 
-  /** Quick-Link abrufen bzw. beim ersten Mal erzeugen. */
+  /**
+   * Quick-Link abrufen bzw. beim ersten Mal erzeugen.
+   *
+   * Auch für Themen, die mir nur zur Nutzung freigegeben sind: Der Link
+   * gehört der Lehrkraft, die ihn verteilt, und ihr werden die Ergebnisse
+   * zugeordnet.
+   */
   @Post(':id/quick-link')
   async createQuickLink(@Param('id') id: string, @Request() req: any, @Body() body: { regenerate?: boolean }) {
     return this.topicsService.getQuickLink(id, req.user, !!body?.regenerate, req);
   }
 
-  /** Quick-Link entwerten – verteilte Links und QR-Codes wirken nicht mehr. */
+  /** Den eigenen Quick-Link entwerten – die der Kolleginnen bleiben gültig. */
   @Delete(':id/quick-link')
   async revokeQuickLink(@Param('id') id: string, @Request() req: any) {
     return this.topicsService.revokeQuickLink(id, req.user);

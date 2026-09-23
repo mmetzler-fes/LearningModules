@@ -187,6 +187,9 @@ export class QuizView {
       // Ohne Themen-Link gilt der normale Quiz-Modus mit Rückmeldung.
       mode: 'quiz',
       linkToken: null,
+      // Beim Start über den Quick-Link entscheidet dieser Token, wem das
+      // Ergebnis gutgeschrieben wird; die Lehrervorschau hat keinen.
+      quickToken: this.app.state.quickSession?.token || null,
       linkName: null,
       revealed: false,
     };
@@ -468,6 +471,7 @@ export class QuizView {
       await api.submitPublicResult({
         teacherEmail: currentUser.teacherEmail,
         linkToken: quizState.linkToken || undefined,
+        quickToken: quizState.quickToken || undefined,
         mode: quizState.mode,
         studentName: currentUser.name,
         topicId: quizState.topicId,

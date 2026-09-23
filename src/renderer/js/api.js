@@ -219,6 +219,16 @@ export class BrowserApi {
       body: JSON.stringify({ hidden }),
     });
   }
+  /**
+   * Fremde Freigabe aus der eigenen Liste entfernen bzw. zurückholen.
+   * Entfernt wird nur die eigene Ansicht – der Eigentümer behält alles.
+   */
+  setSharedTopicRemoved(topicId, removed) {
+    return this._fetch(`/api/topics/${encodeURIComponent(topicId)}/removed`, {
+      method: 'POST',
+      body: JSON.stringify({ removed }),
+    });
+  }
   /** Eigene Kopie eines freigegebenen Themas anlegen. */
   copySharedTopic(topicId) {
     return this._fetch(`/api/topics/${encodeURIComponent(topicId)}/copy`, { method: 'POST' });

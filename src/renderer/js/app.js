@@ -34,6 +34,7 @@ class App {
        * Durchlauf braucht: Token, Name des Links, gewählter Modus.
        */
       linkSession: null,
+      quickSession: null,
       tags: [],
     };
 

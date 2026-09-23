@@ -1,9 +1,10 @@
 import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { LearningTopic } from '../core/entities/learning-topic.entity';
 import { LearningModule } from '../core/entities/learning-module.entity';
 import { User } from '../core/entities/user.entity';
+import { TopicQuickLink } from '../core/entities/topic-quick-link.entity';
 import { TagsService } from '../tags/tags.service';
 import { baseUrl, renderQr } from '../core/share/link-url';
 import * as crypto from 'crypto';
@@ -17,6 +18,8 @@ export class TopicsService {
     private readonly moduleRepo: Repository<LearningModule>,
     @InjectRepository(User)
     private readonly userRepo: Repository<User>,
+    @InjectRepository(TopicQuickLink)
+    private readonly quickRepo: Repository<TopicQuickLink>,
     private readonly tagsService: TagsService,
   ) {}
 
@@ -26,7 +29,58 @@ export class TopicsService {
     // Teachers and admins only see their own topics
     qb.where('topic.ownerId = :ownerId', { ownerId: user.userId });
 
-    return qb.leftJoinAndSelect('topic.modules', 'modules').orderBy('modules.orderIndex', 'ASC').addOrderBy('topic.id', 'ASC').getMany();
+    const topics = await qb
+      .leftJoinAndSelect('topic.modules', 'modules')
+      .orderBy('modules.orderIndex', 'ASC')
+      .addOrderBy('topic.id', 'ASC')
+      .getMany();
+
+    return this.withProvenance(topics);
+  }
+
+  // ---- Herkunft ----
+  //
+  // Zwei Richtungen derselben Sache: Woher stammt dieses Thema (`origin`),
+  // und wer hat sich von ihm etwas geholt (`copyCount`). Beides ist reine
+  // Nennung – ein Zugriffsrecht folgt daraus nicht.
+
+  /**
+   * Zählt die *direkten* Kopien je Thema und hängt die Herkunft an.
+   * Enkel werden bewusst nicht mitgezählt: Der Zähler beantwortet die Frage
+   * "wer hat sich bei mir bedient", nicht "wie weit hat es sich verbreitet".
+   */
+  private async withProvenance(topics: LearningTopic[]) {
+    const ids = topics.map((t) => t.id);
+    const copies = ids.length
+      ? await this.topicRepo.find({ where: { copiedFromId: In(ids) } })
+      : [];
+
+    const count = new Map<string, number>();
+    for (const c of copies) {
+      if (!c.copiedFromId) continue;
+      count.set(c.copiedFromId, (count.get(c.copiedFromId) || 0) + 1);
+    }
+
+    return topics.map((t) => ({
+      ...t,
+      copyCount: count.get(t.id) || 0,
+      origin: this.originOf(t),
+    }));
+  }
+
+  /**
+   * Die Herkunftsangabe einer Kopie, oder null bei einem eigenen Thema.
+   * Gelesen wird aus den mitkopierten Textfeldern, damit die Nennung auch
+   * dann noch steht, wenn Quelle oder Verfasser gelöscht sind.
+   */
+  private originOf(topic: LearningTopic) {
+    if (!topic.copiedFromAuthor && !topic.copiedFromTitle) return null;
+    return {
+      topicId: topic.copiedFromId,
+      ownerId: topic.copiedFromOwnerId,
+      author: topic.copiedFromAuthor || 'Unbekannt',
+      title: topic.copiedFromTitle || '',
+    };
   }
 
   // ---- Zugriffsstufen ----
@@ -128,11 +182,21 @@ export class TopicsService {
       ...safe,
       ownerName: owner ? owner.displayName || owner.email : 'Unbekannt',
       accessLevel: this.accessLevel(topic, user),
+      origin: this.originOf(topic),
       readOnly: true,
     };
   }
 
-  // ---- Persönliches Ausblenden ----
+  // ---- Persönliche Ansicht auf fremde Freigaben ----
+  //
+  // Zwei Stufen, beide rein persönlich und beide ohne jede Wirkung beim
+  // Eigentümer:
+  //
+  //   ausgeblendet  – aus dem Weg, aber zusammengeklappt erreichbar
+  //   entfernt      – gar nicht mehr da; nur eine neue Freigabe holt es zurück
+  //
+  // Die Inhalte gehören weiterhin dem Eigentümer. Wer sie freigegeben
+  // bekommt, entscheidet allein darüber, ob sie in *seiner* Liste auftauchen.
 
   /** Die vom Benutzer ausgeblendeten Freigaben – nie null. */
   private async hiddenIds(user: any): Promise<string[]> {
@@ -141,21 +205,34 @@ export class TopicsService {
     return list.filter(Boolean).map(String);
   }
 
-  /**
-   * Blendet eine fremde Freigabe in der eigenen Liste aus bzw. wieder ein.
-   * Das ist eine reine Ansichtssache des Aufrufers: Weder das Thema noch die
-   * Freigabe der Kollegin ändern sich dadurch.
-   */
-  async setSharedHidden(id: string, user: any, hidden: boolean) {
+  /** Die vom Benutzer entfernten Freigaben – nie null. */
+  private async removedIds(user: any): Promise<string[]> {
+    const me = await this.userRepo.findOne({ where: { id: user.userId } });
+    const list = me && Array.isArray(me.removedSharedTopics) ? me.removedSharedTopics : [];
+    return list.filter(Boolean).map(String);
+  }
+
+  /** Gemeinsame Prüfung für Ausblenden und Entfernen: fremdes Thema, das es gibt. */
+  private async foreignTopicFor(id: string, user: any, verb: string) {
     const me = await this.userRepo.findOne({ where: { id: user.userId } });
     if (!me) throw new NotFoundException('Benutzer nicht gefunden');
 
     const topic = await this.topicRepo.findOne({ where: { id } });
     if (!topic) throw new NotFoundException('Thema nicht gefunden');
     if (topic.ownerId === user.userId) {
-      // Eigene Themen werden gelöscht, nicht ausgeblendet.
-      throw new ForbiddenException('Das ist dein eigenes Thema – es lässt sich löschen, nicht ausblenden.');
+      // Eigene Themen werden gelöscht, nicht aus der eigenen Ansicht geräumt.
+      throw new ForbiddenException(`Das ist dein eigenes Thema – es lässt sich löschen, nicht ${verb}.`);
     }
+    return { me, topic };
+  }
+
+  /**
+   * Blendet eine fremde Freigabe in der eigenen Liste aus bzw. wieder ein.
+   * Das ist eine reine Ansichtssache des Aufrufers: Weder das Thema noch die
+   * Freigabe der Kollegin ändern sich dadurch.
+   */
+  async setSharedHidden(id: string, user: any, hidden: boolean) {
+    const { me } = await this.foreignTopicFor(id, user, 'ausblenden');
 
     const current = new Set(Array.isArray(me.hiddenSharedTopics) ? me.hiddenSharedTopics : []);
     if (hidden) current.add(id); else current.delete(id);
@@ -164,9 +241,76 @@ export class TopicsService {
     return { success: true, hidden };
   }
 
+  /**
+   * Entfernt eine fremde Freigabe aus der eigenen Liste – oder holt sie
+   * zurück.
+   *
+   * "Entfernen" heißt hier ausdrücklich *nicht* löschen: Das Thema, seine
+   * Module und die Freigabe des Eigentümers bleiben unangetastet. Verschwunden
+   * ist nur die eigene Ansicht darauf.
+   *
+   * Der Zugriff selbst bleibt bestehen, damit bereits verteilte Themen- und
+   * Quick-Links der Lehrkraft weiterlaufen. Wer eine Freigabe wirklich
+   * loswerden will, entfernt sie hier und zieht seine Links dazu selbst
+   * zurück – das ist die Entscheidung der Lehrkraft, nicht die eines
+   * stillschweigenden Aufräumens.
+   */
+  async setSharedRemoved(id: string, user: any, removed: boolean) {
+    const { me } = await this.foreignTopicFor(id, user, 'entfernen');
+
+    const current = new Set(Array.isArray(me.removedSharedTopics) ? me.removedSharedTopics : []);
+    if (removed) current.add(id); else current.delete(id);
+    me.removedSharedTopics = [...current];
+
+    if (removed) {
+      // Was fort ist, muss nicht zusätzlich als ausgeblendet geführt werden –
+      // sonst käme es beim Zurückholen gleich wieder zusammengeklappt an.
+      const hidden = new Set(Array.isArray(me.hiddenSharedTopics) ? me.hiddenSharedTopics : []);
+      hidden.delete(id);
+      me.hiddenSharedTopics = [...hidden];
+    }
+
+    await this.userRepo.save(me);
+    return { success: true, removed };
+  }
+
+  /**
+   * Räumt die persönlichen Merker derer weg, die gerade neu freigegeben
+   * bekommen haben. Eine frische Einladung soll nicht daran scheitern, dass
+   * dieselbe Person die Freigabe vor Wochen einmal weggeklickt hat.
+   */
+  private async clearPersonalMarks(topicId: string, userIds: string[]) {
+    const ids = userIds.filter((id) => id && id !== '*');
+    // '*' trifft alle: dann zählt jeder, der den Eintrag überhaupt trägt.
+    const everyone = userIds.includes('*');
+    if (!everyone && ids.length === 0) return;
+
+    const users = await this.userRepo.find();
+    const touched = users.filter((u) => {
+      if (!everyone && !ids.includes(u.id)) return false;
+      const removed = Array.isArray(u.removedSharedTopics) && u.removedSharedTopics.includes(topicId);
+      const hidden = Array.isArray(u.hiddenSharedTopics) && u.hiddenSharedTopics.includes(topicId);
+      return removed || hidden;
+    });
+
+    for (const u of touched) {
+      u.removedSharedTopics = (u.removedSharedTopics || []).filter((t) => t !== topicId);
+      u.hiddenSharedTopics = (u.hiddenSharedTopics || []).filter((t) => t !== topicId);
+    }
+    if (touched.length) await this.userRepo.save(touched);
+  }
+
   /** Freigabe setzen. Nur der Eigentümer (oder ein Admin) darf das. */
   async setSharing(id: string, user: any, sharedWith?: string[], sharedAccess?: any) {
     const topic = await this.findOneFor(id, user, 'owner');
+
+    // Nur wer wirklich etwas dazugewinnt, bekommt eine neue Einladung – und
+    // nur die rechtfertigt es, seine persönliche Entscheidung
+    // (ausgeblendet/entfernt) zu überschreiben. Das bloße Erneutspeichern
+    // unveränderter Freigaben soll niemandem etwas zurück in die Liste
+    // schieben.
+    const before = this.grantSignatures(topic);
+
     if (sharedWith !== undefined) {
       const clean = Array.isArray(sharedWith)
         ? [...new Set(sharedWith.map(String).filter(Boolean))]
@@ -180,7 +324,47 @@ export class TopicsService {
     }
 
     await this.topicRepo.save(topic);
+
+    const after = this.grantSignatures(topic);
+    const gained: string[] = [];
+    for (const [userId, now] of after) {
+      const had = this.effectiveGrant(before, userId);
+      if ((now.copy && !had.copy) || now.level > had.level) gained.push(userId);
+    }
+    await this.clearPersonalMarks(topic.id, gained);
+
     return { success: true, sharedWith: topic.sharedWith, sharedAccess: topic.sharedAccess };
+  }
+
+  /**
+   * Was jede genannte Person am Thema hat: kopieren ja/nein und welche
+   * Nutzungsstufe. '*' bleibt als eigener Schlüssel stehen – es steht für
+   * alle und wird beim Vergleich mitgelesen.
+   */
+  private grantSignatures(topic: LearningTopic): Map<string, { copy: boolean; level: number }> {
+    const out = new Map<string, { copy: boolean; level: number }>();
+    const at = (userId: string) => {
+      if (!out.has(userId)) out.set(userId, { copy: false, level: 0 });
+      return out.get(userId)!;
+    };
+    for (const userId of Array.isArray(topic.sharedWith) ? topic.sharedWith : []) {
+      if (userId) at(String(userId)).copy = true;
+    }
+    for (const entry of Array.isArray(topic.sharedAccess) ? topic.sharedAccess : []) {
+      if (entry?.userId) at(String(entry.userId)).level = entry.level === 'write' ? 2 : 1;
+    }
+    return out;
+  }
+
+  /** Was jemand tatsächlich hatte – die Sammelfreigabe für alle zählt mit. */
+  private effectiveGrant(
+    signatures: Map<string, { copy: boolean; level: number }>,
+    userId: string,
+  ): { copy: boolean; level: number } {
+    const mine = signatures.get(userId) || { copy: false, level: 0 };
+    if (userId === '*') return mine;
+    const all = signatures.get('*') || { copy: false, level: 0 };
+    return { copy: mine.copy || all.copy, level: Math.max(mine.level, all.level) };
   }
 
   /**
@@ -195,6 +379,10 @@ export class TopicsService {
     const all = await this.topicRepo.find({ relations: ['modules'] });
     const owners = await this.userRepo.find();
     const ownerName = new Map(owners.map((o) => [o.id, o.displayName || o.email]));
+    // Entfernte Freigaben sollen auch im Link-Editor nicht mehr auftauchen –
+    // sonst wäre "entfernt" nur die halbe Wahrheit. Der Zugriff selbst bleibt
+    // bestehen, damit bereits gespeicherte Links weiterlaufen.
+    const removed = new Set(await this.removedIds(user));
 
     const usable = [];
     for (const topic of all) {
@@ -202,8 +390,9 @@ export class TopicsService {
       if (level === 'none') continue;
 
       const isOwn = topic.ownerId === user.userId;
+      if (!isOwn && removed.has(topic.id)) continue;
       if (isOwn) {
-        usable.push({ ...topic, accessLevel: level, isOwn: true, ownerName: null });
+        usable.push({ ...topic, accessLevel: level, isOwn: true, ownerName: null, origin: this.originOf(topic) });
         continue;
       }
 
@@ -213,6 +402,7 @@ export class TopicsService {
         accessLevel: level,
         isOwn: false,
         ownerName: ownerName.get(topic.ownerId) || 'Unbekannt',
+        origin: this.originOf(topic),
       });
     }
 
@@ -266,6 +456,8 @@ export class TopicsService {
     // Ausgeblendetes kommt mit – die Oberfläche kann es so auf Wunsch
     // wieder hervorholen, ohne dass etwas verloren geht.
     const hidden = new Set(await this.hiddenIds(user));
+    // Entferntes kommt nicht mit – das ist der Unterschied zum Ausblenden.
+    const removed = new Set(await this.removedIds(user));
 
     // Alles, was mir jemand zugänglich gemacht hat – zum Kopieren, zum
     // Verwenden oder beides. Welche Knöpfe erscheinen, entscheidet danach
@@ -273,6 +465,7 @@ export class TopicsService {
     return topics
       .filter((t) => {
         if (t.ownerId === user.userId) return false;
+        if (removed.has(t.id)) return false;
         return this.isSharedWith(t, user.userId) || this.accessLevel(t, user) !== 'none';
       })
       .map((t) => ({
@@ -286,6 +479,7 @@ export class TopicsService {
         canUse: this.accessLevel(t, user) !== 'none',
         canView: this.canView(t, user),
         hidden: hidden.has(t.id),
+        origin: this.originOf(t),
       }));
   }
 
@@ -293,6 +487,18 @@ export class TopicsService {
    * Zieht eine eigene Kopie eines freigegebenen Themas. Der Kopierende wird
    * Eigentümer; das Original bleibt unverändert. Zugangsdaten des Originals
    * (Passwort, Subscribe-Key, Quick-Link) werden bewusst nicht übernommen.
+   *
+   * Die Eigentümerrolle wechselt damit vollständig: Der bisherige Eigentümer
+   * behält sein Original und bekommt auf die Kopie *verwenden* und
+   * *kopieren* vorbelegt – er soll sehen dürfen, was aus seinem Material
+   * geworden ist, und sich die verbesserte Fassung auch zurückholen können.
+   *
+   * Vorbelegt, nicht festgeschrieben: Der neue Eigentümer kann beides in
+   * seinem Freigabe-Dialog abstellen. Ein unentziehbares Zugriffsrecht wäre
+   * hier falsch – nach ein paar Bearbeitungen steht in der Kopie Material,
+   * das nie aus dem Original stammte und das niemand pauschal weitergeben
+   * können soll. Unentziehbar ist allein die *Nennung* der Herkunft; sie
+   * kostet nichts und ist das, was die Fairness eigentlich meint.
    */
   async copySharedTopic(id: string, user: any) {
     const source = await this.topicRepo.findOne({ where: { id }, relations: ['modules'] });
@@ -303,6 +509,8 @@ export class TopicsService {
     if (!this.isSharedWith(source, user.userId) && user.role !== 'admin') {
       throw new ForbiddenException('Dieses Thema ist nicht für dich freigegeben.');
     }
+
+    const sourceOwner = await this.userRepo.findOne({ where: { id: source.ownerId } });
 
     const copy = await this.topicRepo.save(this.topicRepo.create({
       id: crypto.randomUUID(),
@@ -317,7 +525,19 @@ export class TopicsService {
       accessPassword: null as any,
       subscribeKey: null as any,
       quickToken: null,
-      sharedWith: null,
+      // Beides zurück an den bisherigen Eigentümer: Er hat das Material
+      // beigesteuert und verliert mit der Kopie sonst jeden Blick darauf –
+      // und ohne das Kopierrecht käme er an eine verbesserte Fassung nicht
+      // mehr heran. Abstellbar bleibt es trotzdem.
+      sharedWith: [source.ownerId],
+      sharedAccess: [{ userId: source.ownerId, level: 'read' as const }],
+      // Herkunft als Text, nicht als Verweis allein: Sie soll die Quelle und
+      // deren Verfasser überleben. Nur die direkte Abstammung – die Kopie
+      // einer Kopie nennt ihre unmittelbare Quelle, keinen Stammbaum.
+      copiedFromId: source.id,
+      copiedFromOwnerId: source.ownerId,
+      copiedFromAuthor: sourceOwner ? sourceOwner.displayName || sourceOwner.email : 'Unbekannt',
+      copiedFromTitle: source.title,
       permissions: source.permissions,
     }));
 
@@ -332,22 +552,39 @@ export class TopicsService {
     });
     if (modules.length) await this.moduleRepo.save(modules);
 
+    // Falls der bisherige Eigentümer frühere Freigaben von mir einmal
+    // weggeklickt hat, soll die Kopie trotzdem bei ihm ankommen.
+    await this.clearPersonalMarks(copy.id, [source.ownerId]);
+
     return { success: true, topicId: copy.id, title: copy.title, moduleCount: modules.length };
   }
 
   // ---- Quick-Link: Schüler starten per Link/QR-Code direkt das Quiz ----
+  //
+  // Der Quick-Link gehört nicht dem Thema, sondern der Lehrkraft, die ihn
+  // verteilt. Deshalb darf ihn auch anlegen, wer das Thema nur verwenden
+  // darf: Die Ergebnisse landen bei ihr, so wie beim Themen-Link auch. Der
+  // Eigentümer bleibt Eigentümer des Inhalts – am Thema selbst ändert ein
+  // fremder Quick-Link nichts.
 
   /**
-   * Liefert den Quick-Link des Themas und legt ihn beim ersten Aufruf an.
-   * Mit `regenerate` wird ein neuer Token erzeugt; alle bisher verteilten
-   * Links und QR-Codes sind damit sofort ungültig.
+   * Liefert den Quick-Link dieser Lehrkraft auf das Thema und legt ihn beim
+   * ersten Aufruf an. Mit `regenerate` wird ein neuer Token erzeugt; die
+   * bisher von *dieser* Lehrkraft verteilten Links und QR-Codes sind damit
+   * sofort ungültig – die der Kolleginnen bleiben unberührt.
    */
   async getQuickLink(id: string, user: any, regenerate = false, req?: any) {
-    const topic = await this.findOneFor(id, user, 'owner');
+    const topic = await this.findOneFor(id, user, 'read');
+    const isOwner = this.accessLevel(topic, user) === 'owner';
 
     // Ein Quick-Link auf etwas Gesperrtes wäre eine Falle: Der Schüler scannt
     // und landet vor einer verschlossenen Tür. Deshalb gar nicht erst erzeugen.
-    if (!topic.selected) {
+    //
+    // Für fremde Themen zählt stattdessen die Nutzungsfreigabe: Sie ist die
+    // ausdrückliche Zustimmung des Eigentümers, und der Haken "aktiv" gehört
+    // zu seiner eigenen Schülersicht, nicht zu meiner. Genauso hält es der
+    // Themen-Link.
+    if (isOwner && !topic.selected) {
       throw new ForbiddenException(
         'Das Thema ist nicht für Schüler freigegeben. Bitte zuerst freigeben, dann den Quick-Link erzeugen.',
       );
@@ -359,30 +596,85 @@ export class TopicsService {
       );
     }
 
-    if (!topic.quickToken || regenerate) {
-      // 16 Zeichen aus dem URL-sicheren Alphabet – genug Entropie, damit der
-      // Link nicht erratbar ist, und noch kurz genug für einen QR-Code.
-      topic.quickToken = crypto.randomBytes(12).toString('base64url');
-      await this.topicRepo.save(topic);
-    }
-
-    const url = `${baseUrl(req)}/?q=${topic.quickToken}`;
+    const entry = await this.quickLinkEntry(topic, user, regenerate);
+    const url = `${baseUrl(req)}/?q=${entry.token}`;
 
     return {
-      token: topic.quickToken,
+      token: entry.token,
       url,
       qrSvg: await renderQr(url),
       topicId: topic.id,
       title: topic.title,
       moduleCount: activeCount,
+      isOwn: isOwner,
     };
   }
 
-  /** Quick-Link entwerten, ohne einen neuen zu erzeugen. */
+  /**
+   * Holt den Eintrag dieser Lehrkraft oder legt ihn an.
+   *
+   * Übergang vom alten Modell: Früher hing genau ein Token als Spalte am
+   * Thema. Der gehört dem Eigentümer und wird beim ersten Aufruf in die
+   * Tabelle übernommen, damit bereits verteilte Zettel gültig bleiben.
+   */
+  private async quickLinkEntry(topic: LearningTopic, user: any, regenerate: boolean) {
+    let entry = await this.quickRepo.findOne({ where: { topicId: topic.id, ownerId: user.userId } });
+
+    if (!entry && topic.quickToken && topic.ownerId === user.userId) {
+      entry = this.quickRepo.create({
+        id: crypto.randomUUID(),
+        topicId: topic.id,
+        ownerId: user.userId,
+        token: topic.quickToken,
+      });
+      await this.quickRepo.save(entry);
+    }
+
+    if (!entry) {
+      entry = this.quickRepo.create({
+        id: crypto.randomUUID(),
+        topicId: topic.id,
+        ownerId: user.userId,
+        token: this.newQuickToken(),
+      });
+    } else if (regenerate) {
+      entry.token = this.newQuickToken();
+    } else {
+      return entry;
+    }
+
+    await this.quickRepo.save(entry);
+    // Die alte Spalte wird mitgeführt, solange sie am Thema steht: Ein
+    // Rückschritt auf eine ältere Fassung soll den Eigentümer nicht ohne
+    // Quick-Link dastehen lassen.
+    if (topic.ownerId === user.userId && topic.quickToken !== entry.token) {
+      topic.quickToken = entry.token;
+      await this.topicRepo.save(topic);
+    }
+    return entry;
+  }
+
+  /**
+   * 16 Zeichen aus dem URL-sicheren Alphabet – genug Entropie, damit der
+   * Link nicht erratbar ist, und noch kurz genug für einen QR-Code.
+   */
+  private newQuickToken(): string {
+    return crypto.randomBytes(12).toString('base64url');
+  }
+
+  /** Den eigenen Quick-Link entwerten, ohne einen neuen zu erzeugen. */
   async revokeQuickLink(id: string, user: any) {
-    const topic = await this.findOneFor(id, user, 'owner');
-    topic.quickToken = null;
-    await this.topicRepo.save(topic);
+    const topic = await this.findOneFor(id, user, 'read');
+
+    const entry = await this.quickRepo.findOne({ where: { topicId: id, ownerId: user.userId } });
+    if (entry) await this.quickRepo.remove(entry);
+
+    // Nur der eigene Zugang verschwindet; die Quick-Links der Kolleginnen auf
+    // dasselbe Thema bleiben gültig.
+    if (topic.ownerId === user.userId && topic.quickToken) {
+      topic.quickToken = null;
+      await this.topicRepo.save(topic);
+    }
     return { success: true };
   }
 
@@ -433,6 +725,10 @@ export class TopicsService {
     if (topic.modules && topic.modules.length > 0) {
       await this.moduleRepo.remove(topic.modules);
     }
+    // Mit dem Thema gehen auch die Quick-Links aller Lehrkräfte darauf –
+    // sonst blieben tote Tokens in der Tabelle zurück.
+    const quickLinks = await this.quickRepo.find({ where: { topicId: id } });
+    if (quickLinks.length) await this.quickRepo.remove(quickLinks);
     await this.topicRepo.remove(topic);
     return { success: true };
   }

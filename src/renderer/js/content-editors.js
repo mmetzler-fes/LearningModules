@@ -1056,6 +1056,7 @@ class ContentEditorManager {
       label.className = 'dnd-zone-label';
       label.style.background = color;
       label.textContent = zone.label || `Zone ${i + 1}`;
+      if (zone.group) label.textContent += ` · 🔀 ${zone.group}`;
       overlay.appendChild(label);
 
       // Resize handle
@@ -1220,14 +1221,32 @@ class ContentEditorManager {
       groupLabel.style.fontSize = '0.85rem';
       groupLabel.style.color = 'var(--text-secondary)';
 
-      const groupInput = document.createElement('input');
-      groupInput.type = 'text';
-      groupInput.value = zone.group || '';
-      groupInput.placeholder = '(optional)';
-      groupInput.className = 'dnd-zone-group-input';
-      groupInput.style.width = '80px';
-      groupInput.title = 'Zonen mit derselben Gruppen-ID sind untereinander vertauschbar (z. B. symmetrische Eingänge eines Oder-Gatters). Leer lassen für feste Zuordnung.';
-      groupInput.addEventListener('input', () => { zone.group = groupInput.value.trim(); });
+      // Ablagegruppe als Auswahl statt Freitext: vorhandene Gruppen wählen oder
+      // per "Neue Gruppe" eine anlegen. Unbekannte (z. B. importierte) IDs
+      // bleiben als Option erhalten.
+      const groupSelect = document.createElement('select');
+      groupSelect.className = 'dnd-zone-group-input';
+      groupSelect.title = 'Zonen derselben Ablagegruppe sind untereinander vertauschbar (z. B. symmetrische Eingänge eines Oder-Gatters). „Keine“ für feste Zuordnung.';
+      const noGroupOpt = document.createElement('option');
+      noGroupOpt.value = '';
+      noGroupOpt.textContent = '— keine —';
+      groupSelect.appendChild(noGroupOpt);
+      this._dndGroupNames().forEach((name) => {
+        const opt = document.createElement('option');
+        opt.value = name;
+        opt.textContent = name;
+        if (zone.group === name) opt.selected = true;
+        groupSelect.appendChild(opt);
+      });
+      const newGroupOpt = document.createElement('option');
+      newGroupOpt.value = '__new__';
+      newGroupOpt.textContent = '➕ Neue Gruppe';
+      groupSelect.appendChild(newGroupOpt);
+      groupSelect.addEventListener('change', () => {
+        zone.group = groupSelect.value === '__new__' ? this._dndNextGroupName() : groupSelect.value;
+        this.refreshDndCanvas();
+        this.refreshDndZonesList();
+      });
 
       const btnRemove = document.createElement('button');
       btnRemove.type = 'button';
@@ -1245,11 +1264,31 @@ class ContentEditorManager {
       item.appendChild(targetLabel);
       item.appendChild(dragSelect);
       item.appendChild(groupLabel);
-      item.appendChild(groupInput);
+      item.appendChild(groupSelect);
       item.appendChild(posLabel);
       item.appendChild(btnRemove);
       list.appendChild(item);
     });
+
+    const hint = document.createElement('p');
+    hint.className = 'dnd-group-hint';
+    hint.textContent = '🔀 Ablagegruppen: Zonen derselben Gruppe sind untereinander vertauschbar – ein Element zählt als richtig, wenn es in irgendeiner Zone seiner Gruppe liegt. Eine Gruppe braucht mindestens zwei Zonen.';
+    list.appendChild(hint);
+  }
+
+  _dndGroupNames() {
+    return [...new Set(this.dndState.dropZones.map((z) => z.group).filter(Boolean))].sort();
+  }
+
+  _dndNextGroupName() {
+    const used = new Set(this._dndGroupNames());
+    for (let n = 0; ; n++) {
+      // Gruppe A … Z, danach Gruppe AA, AB, …
+      let suffix = '';
+      for (let k = n; k >= 0; k = Math.floor(k / 26) - 1) suffix = String.fromCharCode(65 + (k % 26)) + suffix;
+      const name = `Gruppe ${suffix}`;
+      if (!used.has(name)) return name;
+    }
   }
 
   refreshDndDraggables() {

@@ -1256,6 +1256,12 @@ body {
   font-size: 0.9rem;
 }
 
+.dnd-group-hint {
+  margin: 4px 0 0;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
 .dnd-zone-pos {
   font-size: 0.8rem;
   color: var(--text-secondary);

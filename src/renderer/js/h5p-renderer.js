@@ -950,21 +950,38 @@ export class H5pRenderer {
           if (dndCheckBtn) {
             dndCheckBtn.addEventListener('click', () => {
               const zoneEls = (hasImage ? canvasEl : div.querySelector('#dndZonesLegacy')).querySelectorAll('.dnd-player-zone');
+              // Zonen mit derselben (nicht-leeren) Gruppen-ID sind untereinander
+              // vertauschbar (z. B. die zwei gleichwertigen Eingänge eines
+              // Oder-Gatters) – dieselbe Regel wie bei der Endauswertung.
+              const zoneLabelSet = new Set(zones.map((z) => z.label));
+              const zoneGroup = new Map(zones.map((z) => [z.label, z.group || '']));
+              const expected = [];
+              zones.forEach((z) => { if (z.correctDraggable) expected.push({ zone: z.label, text: z.correctDraggable }); });
+              drags.forEach((d) => { if (d.correctZone && zoneLabelSet.has(d.correctZone) && !expected.find((m) => m.zone === d.correctZone)) expected.push({ zone: d.correctZone, text: d.text }); });
+              const used = new Set();
+              const itemOk = new Map();
+              zoneEls.forEach((z) => {
+                const zoneLabel = z.dataset.zone;
+                const group = zoneGroup.get(zoneLabel) || '';
+                z.querySelectorAll('.dnd-player-drag.placed').forEach((item) => {
+                  const matchIdx = expected.findIndex((m, i) => !used.has(i) && m.text === item.textContent && (m.zone === zoneLabel || (group && group === (zoneGroup.get(m.zone) || ''))));
+                  itemOk.set(item, matchIdx !== -1);
+                  if (matchIdx !== -1) used.add(matchIdx);
+                });
+              });
               let correct = 0;
               zoneEls.forEach((z, idx) => {
-                const zoneData = zones.find((zz) => zz.label === z.dataset.zone);
-                const expected = zoneData?.correctDraggable || '';
+                const zoneLabel = z.dataset.zone;
+                const group = zoneGroup.get(zoneLabel) || '';
                 const items = z.querySelectorAll('.dnd-player-drag.placed');
                 const defaultColor = colors[idx % colors.length];
                 let hasCorrect = false; let anyWrong = false;
-                if (items.length === 0) { if (expected) anyWrong = true; }
-                else {
-                  for (const item of items) {
-                    const isMatchByText = expected && item.textContent === expected;
-                    const isMatchByZone = item.dataset.correctZone === z.dataset.zone;
-                    if (isMatchByText || isMatchByZone) hasCorrect = true;
-                    else anyWrong = true;
-                  }
+                if (items.length === 0) {
+                  // Eine leere Zone einer Gruppe kann in Ordnung sein, wenn das
+                  // Gruppen-Soll bereits über eine andere Zone erfüllt wurde.
+                  if (expected.some((m) => m.zone === zoneLabel) && !group) anyWrong = true;
+                } else {
+                  items.forEach((item) => { if (itemOk.get(item)) hasCorrect = true; else anyWrong = true; });
                 }
                 if (hasCorrect && !anyWrong) { z.style.borderColor = 'green'; correct++; }
                 else if (anyWrong) { z.style.borderColor = 'red'; }

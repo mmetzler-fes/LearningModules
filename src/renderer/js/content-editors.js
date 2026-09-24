@@ -764,6 +764,7 @@ class ContentEditorManager {
           id: i,
           label: z.label || '',
           correctDraggable,
+          group: z.group || '',
           x: z.x ?? 10,
           y: z.y ?? 10,
           width: z.width ?? 20,
@@ -1214,6 +1215,20 @@ class ContentEditorManager {
       });
       dragSelect.addEventListener('change', () => { zone.correctDraggable = dragSelect.value; });
 
+      const groupLabel = document.createElement('span');
+      groupLabel.innerHTML = '&nbsp;🔀 Gruppe:&nbsp;';
+      groupLabel.style.fontSize = '0.85rem';
+      groupLabel.style.color = 'var(--text-secondary)';
+
+      const groupInput = document.createElement('input');
+      groupInput.type = 'text';
+      groupInput.value = zone.group || '';
+      groupInput.placeholder = '(optional)';
+      groupInput.className = 'dnd-zone-group-input';
+      groupInput.style.width = '80px';
+      groupInput.title = 'Zonen mit derselben Gruppen-ID sind untereinander vertauschbar (z. B. symmetrische Eingänge eines Oder-Gatters). Leer lassen für feste Zuordnung.';
+      groupInput.addEventListener('input', () => { zone.group = groupInput.value.trim(); });
+
       const btnRemove = document.createElement('button');
       btnRemove.type = 'button';
       btnRemove.className = 'btn btn-danger btn-sm';
@@ -1229,6 +1244,8 @@ class ContentEditorManager {
       item.appendChild(labelInput);
       item.appendChild(targetLabel);
       item.appendChild(dragSelect);
+      item.appendChild(groupLabel);
+      item.appendChild(groupInput);
       item.appendChild(posLabel);
       item.appendChild(btnRemove);
       list.appendChild(item);
@@ -1336,6 +1353,7 @@ class ContentEditorManager {
       dropZones: this.dndState.dropZones.map((z) => ({
         label: z.label,
         correctDraggable: z.correctDraggable,
+        group: z.group || '',
         x: z.x,
         y: z.y,
         width: z.width,

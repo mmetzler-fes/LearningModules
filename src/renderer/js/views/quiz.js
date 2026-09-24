@@ -388,9 +388,20 @@ export class QuizView {
       }
       case 'dragAndDrop': {
         const draggablesDef = content.draggables || []; const zonesDef = content.dropZones || [];
+        // Pro Zone genau ein Soll-Wert, sonst kann die Aufgabe nie vollständig
+        // "richtig" werden. Die Zonen-Seite (im Editor gepflegt) ist
+        // maßgeblich; die Ziehbare-Element-Seite füllt nur Zonen auf, die dort
+        // noch keinen Wert haben, und nur für Zonen, die es noch gibt – sonst
+        // zählen veraltete correctZone-Verweise als zusätzliche, unerfüllbare
+        // Anforderung mit.
+        const zoneLabels = new Set(zonesDef.map((z) => z.label));
+        // Zonen mit derselben (nicht-leeren) Gruppen-ID sind untereinander
+        // vertauschbar, z. B. die zwei gleichwertigen Eingänge eines
+        // Oder-Gatters. Ohne Gruppe zählt weiterhin nur die eigene Zone.
+        const zoneGroup = new Map(zonesDef.map((z) => [z.label, z.group || '']));
         const expectedMappings = [];
-        draggablesDef.forEach((d) => { if (d.correctZone && !expectedMappings.find((m) => m.zone === d.correctZone && m.text === d.text)) expectedMappings.push({ zone: d.correctZone, text: d.text }); });
-        zonesDef.forEach((z) => { if (z.correctDraggable && !expectedMappings.find((m) => m.zone === z.label && m.text === z.correctDraggable)) expectedMappings.push({ zone: z.label, text: z.correctDraggable }); });
+        zonesDef.forEach((z) => { if (z.correctDraggable) expectedMappings.push({ zone: z.label, text: z.correctDraggable }); });
+        draggablesDef.forEach((d) => { if (d.correctZone && zoneLabels.has(d.correctZone) && !expectedMappings.find((m) => m.zone === d.correctZone)) expectedMappings.push({ zone: d.correctZone, text: d.text }); });
         const dragEls = this._quizModuleContainer.querySelectorAll('.dnd-player-drag');
         let correct = 0; let incorrect = 0; const placements = [];
         const satisfiedDefs = new Set();
@@ -398,7 +409,13 @@ export class QuizView {
           const currentZone = el.dataset.currentZone || ''; const text = el.textContent;
           const isMultipleSource = el.dataset.multiple === 'true' && !currentZone;
           if (currentZone) {
-            const matchIdx = expectedMappings.findIndex((m, idx) => m.text === text && m.zone === currentZone && !satisfiedDefs.has(idx));
+            const currentGroup = zoneGroup.get(currentZone) || '';
+            const matchIdx = expectedMappings.findIndex((m, idx) => {
+              if (satisfiedDefs.has(idx) || m.text !== text) return false;
+              if (m.zone === currentZone) return true;
+              const targetGroup = zoneGroup.get(m.zone) || '';
+              return !!currentGroup && currentGroup === targetGroup;
+            });
             if (matchIdx !== -1) { satisfiedDefs.add(matchIdx); correct++; } else { incorrect++; }
             placements.push(`${text} → ${currentZone}`);
           } else if (!isMultipleSource) { placements.push(`${text} → (nicht zugeordnet)`); }

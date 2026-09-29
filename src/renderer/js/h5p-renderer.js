@@ -881,6 +881,29 @@ export class H5pRenderer {
           return zoneEl && div.contains(zoneEl) ? zoneEl : null;
         };
 
+        // Einrasten: die Zone unter dem Zeiger, sonst die naechste Zone, deren
+        // Rand hoechstens SNAP px vom Zeiger oder von der Mitte des gezogenen
+        // Elements entfernt ist. Zonen sind oft nur ca. 1 cm gross und der
+        // Finger verdeckt sie - genau treffen muss man deshalb nicht.
+        const DND_SNAP_PX = { touch: 48, pen: 36, mouse: 28 };
+        const snapZone = (target, info) => {
+          if (!target || target.closest('.dnd-player-draggables') === dragsEl) return null;
+          const direct = zoneAt(target);
+          if (direct || !info) return direct;
+          const snap = DND_SNAP_PX[info.pointerType] ?? 36;
+          const points = [[info.x, info.y]];
+          if (info.rect) points.push([info.rect.left + info.rect.width / 2, info.rect.top + info.rect.height / 2]);
+          let best = null, bestDist = Infinity;
+          div.querySelectorAll('.dnd-player-zone').forEach((zoneEl) => {
+            const r = zoneEl.getBoundingClientRect();
+            points.forEach(([px, py]) => {
+              const dist = Math.hypot(Math.max(r.left - px, 0, px - r.right), Math.max(r.top - py, 0, py - r.bottom));
+              if (dist <= snap && dist < bestDist) { best = zoneEl; bestDist = dist; }
+            });
+          });
+          return best;
+        };
+
         const openRemoveMenu = (drag, x, y) => showContextMenu(x, y, [
           { label: '✕ Element entfernen', danger: true, onClick: () => returnToBank(drag) },
         ]);
@@ -920,17 +943,19 @@ export class H5pRenderer {
             let hoverZone = null;
             attachPointerDrag(drag, {
               scrollContainer: document.getElementById('mainContent'),
-              onHover: (target) => {
-                const zoneEl = zoneAt(target);
+              onHover: (target, info) => {
+                const zoneEl = snapZone(target, info);
                 if (zoneEl === hoverZone) return;
                 if (hoverZone) hoverZone.classList.remove('dnd-zone-hover');
                 if (zoneEl) zoneEl.classList.add('dnd-zone-hover');
                 hoverZone = zoneEl;
               },
-              onDrop: (target) => {
-                const zoneEl = zoneAt(target);
+              onDrop: (target, info) => {
+                const zoneEl = snapZone(target, info);
                 if (zoneEl) placeInZone(drag, zoneEl);
-                else if (target.closest('.dnd-player-draggables') === dragsEl && drag.classList.contains('placed')) returnToBank(drag);
+                // Abgelegtes Element neben alle Zonen gezogen: zurueck in die
+                // Ablage. So laesst es sich auch per Finger einfach entfernen.
+                else if (drag.classList.contains('placed')) returnToBank(drag);
               },
               // iPadOS kennt kein Kontextmenue: langes Druecken ersetzt den Rechtsklick
               canLongPress: () => drag.classList.contains('placed'),

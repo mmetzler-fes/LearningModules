@@ -340,8 +340,11 @@ export function showContextMenu(x, y, items) {
  * ermittelt, worueber das Element liegt.
  *
  * Optionen:
- *  - onHover(target)        bei jeder Bewegung, am Ende mit null
- *  - onDrop(target)         beim Loslassen nach einer echten Bewegung
+ *  - onHover(target, info)  bei jeder Bewegung, am Ende mit null
+ *  - onDrop(target, info)   beim Loslassen nach einer echten Bewegung
+ *                           info = { x, y, rect, pointerType }: Zeigerposition
+ *                           und Rechteck der mitgezogenen Kopie, damit der
+ *                           Aufrufer auch knapp daneben noch einrasten kann
  *  - onLongPress(x, y)      Finger/Stift ruht LONG_PRESS_MS lang (Ersatz fuer
  *                           Rechtsklick, iPadOS kennt kein contextmenu)
  *  - canLongPress()         ob der lange Druck gerade etwas ausloesen soll
@@ -351,7 +354,9 @@ export function showContextMenu(x, y, items) {
  *
  * Ein Tippen ohne Bewegung bleibt ein normaler click.
  */
-const DRAG_THRESHOLD = 6;
+// Ab dieser Bewegung wird gezogen. Fuer Finger groesser: Ein ruhig
+// gehaltener Finger zittert, das darf den langen Druck nicht abbrechen.
+const DRAG_THRESHOLD = { mouse: 4, pen: 6, touch: 10 };
 const LONG_PRESS_MS = 500;
 
 // Der click, den der Browser nach Ziehen bzw. langem Druck noch nachschiebt,
@@ -388,6 +393,10 @@ export function attachPointerDrag(el, { onHover, onDrop, onLongPress, canLongPre
     }
 
     const hit = (ev) => document.elementFromPoint(ev.clientX, ev.clientY);
+    const info = (ev) => ({
+      x: ev.clientX, y: ev.clientY, pointerType: e.pointerType,
+      rect: ghost ? ghost.getBoundingClientRect() : null,
+    });
 
     const autoScroll = (ev) => {
       if (!scrollContainer) return;
@@ -403,7 +412,7 @@ export function attachPointerDrag(el, { onHover, onDrop, onLongPress, canLongPre
     const move = (ev) => {
       if (ev.pointerId !== id) return;
       if (!ghost) {
-        if (Math.hypot(ev.clientX - x0, ev.clientY - y0) < DRAG_THRESHOLD) return;
+        if (Math.hypot(ev.clientX - x0, ev.clientY - y0) < (DRAG_THRESHOLD[e.pointerType] ?? 6)) return;
         if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; }
         const r = el.getBoundingClientRect();
         offX = x0 - r.left; offY = y0 - r.top;
@@ -423,7 +432,7 @@ export function attachPointerDrag(el, { onHover, onDrop, onLongPress, canLongPre
       ev.preventDefault();
       ghost.style.left = (ev.clientX - offX) + 'px';
       ghost.style.top = (ev.clientY - offY) + 'px';
-      if (onHover) onHover(hit(ev));
+      if (onHover) onHover(hit(ev), info(ev));
       autoScroll(ev);
     };
 
@@ -432,11 +441,11 @@ export function attachPointerDrag(el, { onHover, onDrop, onLongPress, canLongPre
       const dragged = !!ghost;
       // Ziel noch im Ziehzustand bestimmen (Zoneninhalte sind dann per CSS
       // nicht treffbar, es zaehlt die Zone selbst).
-      const target = dragged && ev.type === 'pointerup' ? hit(ev) : null;
+      const drop = dragged && ev.type === 'pointerup' ? { target: hit(ev), info: info(ev) } : null;
       cleanup();
       if (dragged) {
         swallowNextClick();
-        if (target && onDrop) onDrop(target);
+        if (drop && drop.target && onDrop) onDrop(drop.target, drop.info);
       }
     };
 

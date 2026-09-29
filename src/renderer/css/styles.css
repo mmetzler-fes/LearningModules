@@ -1443,18 +1443,6 @@ body {
   transition: background 0.2s, border-style 0.2s, box-shadow 0.2s, transform 0.15s ease-out;
 }
 
-/* Expand the dropzone target area slightly */
-.dnd-player-zone::after {
-  content: '';
-  position: absolute;
-  top: -12px;
-  left: -12px;
-  right: -12px;
-  bottom: -12px;
-  pointer-events: auto !important;
-  z-index: -1;
-}
-
 .dnd-player-zone.dnd-zone-hover {
   filter: brightness(1.1);
   border-style: solid !important;
@@ -1469,14 +1457,13 @@ body {
   box-shadow: 0 0 8px rgba(0, 0, 0, 0.15);
 }
 
-/* Ignore pointer events on drop zone children during active drag to prevent flickering */
-.dnd-player:has(.dragging) .dnd-player-zone * {
-  pointer-events: none !important;
-}
-
-.dnd-player:has(.dragging) .dnd-player-zone::after {
-  pointer-events: auto !important;
-}
+/*
+ * Frueher standen hier pointer-events: none fuer alle Zoneninhalte waehrend
+ * des Ziehens (gegen Flackern beim HTML5-dragleave) und ein vergroesserter
+ * Trefferbereich per ::after. Beides entfaellt: Das traf auch das gerade
+ * gezogene, bereits abgelegte Element, und Safari auf dem iPad bricht den Zug
+ * dann ab. Den groesseren Fangbereich uebernimmt snapZone im Player.
+ */
 
 /* Liegt ueber der Zone statt ueber den Elementen, damit das abgelegte Wort
    mittig in der Zone sitzt; ist etwas abgelegt, verschwindet sie. */

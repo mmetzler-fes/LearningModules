@@ -41,6 +41,14 @@ export class Result extends BaseEntity {
   @Column({ nullable: true })
   linkName: string;
 
+  /**
+   * Art des Links: 'quick' fuer einen Quick-Link, sonst leer (Themen-Link
+   * bzw. ohne Link). Beim Quick-Link steht in linkName der Titel des Themas,
+   * zu dem er erzeugt wurde - die Ergebnisliste gruppiert danach.
+   */
+  @Column({ nullable: true })
+  linkKind: string;
+
   /** Modus des Durchlaufs: 'quiz' | 'exam' | 'learn'. */
   @Column({ nullable: true })
   mode: string;

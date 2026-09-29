@@ -34,6 +34,7 @@ export class ResultsService {
       ipAddress: r.ipAddress || null,
       linkId: r.linkId || null,
       linkName: r.linkName || null,
+      linkKind: r.linkKind || null,
       mode: r.mode || null,
     }));
   }

@@ -217,10 +217,15 @@ export class PublicController {
     }
 
     let teacher: User | null = null;
+    // Beim Quick-Link steht der Thementitel als Linkname im Ergebnis, damit
+    // die Durchlaeufe unter ihrem Thema erscheinen statt unter "Ohne Link".
+    let quickTopicTitle: string | null = null;
     if (link) {
       teacher = await this.userRepo.findOne({ where: { id: link.ownerId } });
     } else if (body.quickToken) {
-      teacher = (await this.resolveQuickToken(body.quickToken)).teacher;
+      const quick = await this.resolveQuickToken(body.quickToken);
+      teacher = quick.teacher;
+      quickTopicTitle = quick.topic.title;
     } else {
       teacher = await this.userRepo.findOne({
         where: [{ email: body.teacherEmail, role: 'teacher' }, { email: body.teacherEmail, role: 'admin' }],
@@ -242,8 +247,10 @@ export class PublicController {
       payload: body.payload || null,
       ipAddress: ipAddress || null,
       linkId: link?.id,
-      linkName: link?.name,
-      mode: link ? body.mode : undefined,
+      linkName: link ? link.name : quickTopicTitle ?? undefined,
+      linkKind: quickTopicTitle !== null ? 'quick' : undefined,
+      // Der Quick-Link startet immer im Quiz-Modus.
+      mode: link ? body.mode : quickTopicTitle !== null ? 'quiz' : undefined,
     });
     const saved = await this.resultRepo.save(result);
     return { success: true, id: saved.id };

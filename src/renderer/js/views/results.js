@@ -3,6 +3,10 @@ import { escapeHtml, escapeAttr } from '../utils.js';
 /** Kurzbeschriftung der Abfragemodi in der Ergebnisliste. */
 const MODE_LABELS = { quiz: '🧠 Quiz', exam: '📝 Klassenarbeit', learn: '💡 Lernen' };
 
+/** Gruppenschluessel fuer Durchlaeufe ohne Link bzw. Praefix fuer Quick-Links. */
+const NO_LINK = '__none__';
+const QUICK_PREFIX = 'quick::';
+
 // ==================== RESULTS VIEW ====================
 
 export class ResultsView {
@@ -63,14 +67,15 @@ export class ResultsView {
    */
   _renderLinkOptions(results) {
     if (!this._filterLink) return;
-    const names = [...new Set(results.map((r) => r.linkName).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'de'));
+    const keys = [...new Set(results.map((r) => this._linkKey(r)).filter((k) => k !== NO_LINK))]
+      .sort((a, b) => this._linkLabel(a).localeCompare(this._linkLabel(b), 'de'));
     const current = this._filterLink.value;
-    const hasWithout = results.some((r) => !r.linkName);
+    const hasWithout = results.some((r) => this._linkKey(r) === NO_LINK);
 
     this._filterLink.innerHTML = `
       <option value="">Alle Links</option>
-      ${names.map((n) => `<option value="${escapeAttr(n)}">${escapeHtml(n)}</option>`).join('')}
-      ${hasWithout ? '<option value="__none__">Ohne Link</option>' : ''}`;
+      ${keys.map((k) => `<option value="${escapeAttr(k)}">${escapeHtml(this._linkLabel(k))}</option>`).join('')}
+      ${hasWithout ? `<option value="${NO_LINK}">Ohne Link</option>` : ''}`;
     if ([...this._filterLink.options].some((o) => o.value === current)) this._filterLink.value = current;
   }
 
@@ -84,10 +89,8 @@ export class ResultsView {
     let filtered = results;
     if (search) filtered = filtered.filter((r) => (r.studentName || r.username || '').toLowerCase().includes(search));
     if (linkFilter) {
-      // '__none__' fasst alles zusammen, was ohne Themen-Link entstanden ist.
-      filtered = linkFilter === '__none__'
-        ? filtered.filter((r) => !r.linkName)
-        : filtered.filter((r) => r.linkName === linkFilter);
+      // NO_LINK fasst alles zusammen, was ohne Link entstanden ist.
+      filtered = filtered.filter((r) => this._linkKey(r) === linkFilter);
     }
 
     const uniqueStudents = new Set(results.map((r) => r.studentName || r.username || r.id)).size;
@@ -123,6 +126,22 @@ export class ResultsView {
   }
 
   // ---- Gruppierte Darstellung: Link > Schüler > Durchläufe ----
+
+  /**
+   * Gruppenschluessel eines Durchlaufs. Quick-Links bekommen ein Praefix,
+   * damit ein Themen-Link, der zufaellig wie ein Thema heisst, eine eigene
+   * Gruppe bleibt.
+   */
+  _linkKey(r) {
+    if (!r.linkName) return NO_LINK;
+    return r.linkKind === 'quick' ? QUICK_PREFIX + r.linkName : r.linkName;
+  }
+
+  /** Lesbare Beschriftung zu einem Gruppenschluessel (ohne Symbol). */
+  _linkLabel(key) {
+    if (key === NO_LINK) return 'Ohne Link';
+    return key.startsWith(QUICK_PREFIX) ? `${key.slice(QUICK_PREFIX.length)} (Quick-Link)` : key;
+  }
 
   /** "1 Durchlauf" statt "1 Durchläufe". */
   _runCount(n) {
@@ -178,11 +197,18 @@ export class ResultsView {
   }
 
   _renderGroups(results, { expandAll }) {
-    const NO_LINK = '__none__';
-
-    for (const [linkName, linkResults] of this._groupBy(results, (r) => r.linkName || NO_LINK, NO_LINK)) {
+    // Nach sichtbarer Beschriftung sortieren, sonst stuenden alle Quick-Links
+    // wegen ihres Praefixes gesammelt unter "q". "Ohne Link" bleibt am Ende.
+    const linkGroups = this._groupBy(results, (r) => this._linkKey(r), NO_LINK)
+      .sort(([a], [b]) => (a === NO_LINK) - (b === NO_LINK) || this._linkLabel(a).localeCompare(this._linkLabel(b), 'de'));
+    for (const [linkName, linkResults] of linkGroups) {
       const students = this._groupBy(linkResults, (r) => r.studentName || r.username || '—', null);
-      const title = linkName === NO_LINK ? '📄 Ohne Link' : `🔗 ${escapeHtml(linkName)}`;
+      // Quick-Link: unter dem Titel des Themas, zu dem er erzeugt wurde
+      const title = linkName === NO_LINK
+        ? '📄 Ohne Link'
+        : linkName.startsWith(QUICK_PREFIX)
+          ? `📚 ${escapeHtml(linkName.slice(QUICK_PREFIX.length))} <span class="result-mode-badge">⚡ Quick-Link</span>`
+          : `🔗 ${escapeHtml(linkName)}`;
 
       const linkBox = this._makeGroup(
         'link::' + linkName,

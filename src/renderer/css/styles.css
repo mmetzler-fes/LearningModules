@@ -2471,6 +2471,13 @@ body {
   background: var(--accent-light, rgba(99, 102, 241, 0.1));
   cursor: grab;
   font-weight: 600;
+  /* Gefuellte Luecken werden per attachPointerDrag gezogen (siehe .dtw-chip);
+     leere bleiben scrollbar. */
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-user-drag: none;
+  -webkit-touch-callout: none;
 }
 
 .dtw-drop-zone.dtw-correct {
@@ -2511,7 +2518,26 @@ body {
   font-weight: 600;
   font-size: 0.9rem;
   user-select: none;
+  /* Gezogen wird per Pointer-Events (attachPointerDrag), siehe .dnd-player-drag */
+  touch-action: none;
+  -webkit-user-select: none;
+  -webkit-user-drag: none;
+  -webkit-touch-callout: none;
   transition: opacity 0.15s, transform 0.1s;
+}
+
+/* Kopie, die waehrend des Ziehens dem Finger bzw. der Maus folgt */
+.dtw-chip.drag-ghost,
+.dtw-drop-zone.drag-ghost {
+  opacity: 0.9;
+  cursor: grabbing;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.25);
+  transition: none;
+}
+
+.dtw-chip.dragging,
+.dtw-drop-zone.dragging {
+  opacity: 0.5;
 }
 
 .dtw-chip:hover {

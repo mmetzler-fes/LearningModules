@@ -345,6 +345,8 @@ export function showContextMenu(x, y, items) {
  *  - onLongPress(x, y)      Finger/Stift ruht LONG_PRESS_MS lang (Ersatz fuer
  *                           Rechtsklick, iPadOS kennt kein contextmenu)
  *  - canLongPress()         ob der lange Druck gerade etwas ausloesen soll
+ *  - canDrag()              ob das Element gerade ziehbar ist (z. B. nur eine
+ *                           gefuellte Luecke)
  *  - scrollContainer        wird am oberen/unteren Rand mitgescrollt
  *
  * Ein Tippen ohne Bewegung bleibt ein normaler click.
@@ -365,10 +367,11 @@ function swallowNextClick() {
   setTimeout(() => window.removeEventListener('click', stop, true), 400);
 }
 
-export function attachPointerDrag(el, { onHover, onDrop, onLongPress, canLongPress, scrollContainer } = {}) {
+export function attachPointerDrag(el, { onHover, onDrop, onLongPress, canLongPress, canDrag, scrollContainer } = {}) {
   el.draggable = false;
   el.addEventListener('pointerdown', (e) => {
     if (!e.isPrimary || (e.pointerType === 'mouse' && e.button !== 0)) return;
+    if (canDrag && !canDrag()) return;
     const id = e.pointerId;
     const x0 = e.clientX, y0 = e.clientY;
     let ghost = null, offX = 0, offY = 0;
@@ -405,8 +408,10 @@ export function attachPointerDrag(el, { onHover, onDrop, onLongPress, canLongPre
         const r = el.getBoundingClientRect();
         offX = x0 - r.left; offY = y0 - r.top;
         ghost = el.cloneNode(true);
+        // Ohne id und data-*: Die Kopie soll fuer keine Auswertung wie ein
+        // echtes Element aussehen.
         ghost.removeAttribute('id');
-        delete ghost.dataset.dragId;
+        Object.keys(ghost.dataset).forEach((k) => delete ghost.dataset[k]);
         ghost.classList.add('drag-ghost');
         Object.assign(ghost.style, {
           position: 'fixed', margin: '0', width: r.width + 'px',

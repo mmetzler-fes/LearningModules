@@ -567,28 +567,6 @@ export class H5pRenderer {
       }
 
       case 'dragTheWords': {
-        let autoScrollInterval = null;
-        const startAutoScroll = (e) => {
-          const main = document.getElementById('mainContent');
-          if (!main) return;
-          const rect = main.getBoundingClientRect();
-          const topDist = e.clientY - rect.top;
-          const bottomDist = rect.bottom - e.clientY;
-          const threshold = 60;
-          let speed = 0;
-          if (topDist < threshold && topDist > -threshold) speed = -15;
-          else if (bottomDist < threshold && bottomDist > -threshold) speed = 15;
-          if (speed !== 0 && !autoScrollInterval) {
-            autoScrollInterval = setInterval(() => { main.scrollTop += speed; }, 20);
-          } else if (speed === 0 && autoScrollInterval) {
-            clearInterval(autoScrollInterval); autoScrollInterval = null;
-          }
-        };
-        const stopAutoScroll = () => {
-          if (autoScrollInterval) { clearInterval(autoScrollInterval); autoScrollInterval = null; }
-          document.removeEventListener('dragover', startAutoScroll);
-        };
-
         div.innerHTML = `
           <div class="dtw-container">
             ${content.taskDescription ? `<div class="dtw-description">${sanitizeModuleDescriptionHtml(content.taskDescription)}</div>` : ''}
@@ -622,36 +600,6 @@ export class H5pRenderer {
                 dropZone.className = 'dtw-drop-zone';
                 dropZone.dataset.correctWord = correctWord;
                 dropZone.dataset.dropIdx = dropIdx++;
-                dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('dtw-drop-hover'); });
-                dropZone.addEventListener('dragleave', () => { dropZone.classList.remove('dtw-drop-hover'); });
-                dropZone.addEventListener('drop', (e) => {
-                  e.preventDefault();
-                  dropZone.classList.remove('dtw-drop-hover');
-                  const word = e.dataTransfer.getData('text/plain');
-                  const srcId = e.dataTransfer.getData('application/dtw-src');
-                  if (dropZone.dataset.currentWord) returnWordToBank(dropZone.dataset.currentWord, wordBank);
-                  dropZone.textContent = word;
-                  dropZone.dataset.currentWord = word;
-                  dropZone.classList.add('dtw-drop-filled');
-                  const srcEl = wordBank.querySelector(`[data-dtw-id="${srcId}"]`);
-                  if (srcEl) srcEl.classList.add('dtw-chip-used');
-                  const fromZone = e.dataTransfer.getData('application/dtw-from-zone');
-                  if (fromZone) {
-                    const prevZone = textArea.querySelector(`.dtw-drop-zone[data-drop-idx="${fromZone}"]`);
-                    if (prevZone && prevZone !== dropZone) { prevZone.textContent = ''; prevZone.dataset.currentWord = ''; prevZone.classList.remove('dtw-drop-filled'); }
-                  }
-                });
-                dropZone.setAttribute('draggable', 'false');
-                dropZone.addEventListener('mousedown', () => { if (dropZone.dataset.currentWord) dropZone.setAttribute('draggable', 'true'); });
-                dropZone.addEventListener('dragstart', (e) => {
-                  if (!dropZone.dataset.currentWord) { e.preventDefault(); return; }
-                  e.dataTransfer.setData('text/plain', dropZone.dataset.currentWord);
-                  e.dataTransfer.setData('application/dtw-src', '');
-                  e.dataTransfer.setData('application/dtw-from-zone', dropZone.dataset.dropIdx);
-                  e.dataTransfer.effectAllowed = 'move';
-                  document.addEventListener('dragover', startAutoScroll);
-                });
-                dropZone.addEventListener('dragend', () => { dropZone.setAttribute('draggable', 'false'); stopAutoScroll(); });
                 fragment.appendChild(dropZone);
               } else if (part) {
                 const staticSpan = document.createElement('span');
@@ -667,16 +615,6 @@ export class H5pRenderer {
           }
         });
 
-        const shuffled = [...draggableWords].sort(() => Math.random() - 0.5);
-        shuffled.forEach((word, i) => {
-          const chip = document.createElement('span');
-          chip.className = 'dtw-chip'; chip.textContent = word;
-          chip.setAttribute('draggable', 'true'); chip.dataset.dtwId = `chip_${i}`;
-          chip.addEventListener('dragstart', (e) => { e.dataTransfer.setData('text/plain', word); e.dataTransfer.setData('application/dtw-src', chip.dataset.dtwId); e.dataTransfer.effectAllowed = 'move'; document.addEventListener('dragover', startAutoScroll); });
-          chip.addEventListener('dragend', stopAutoScroll);
-          wordBank.appendChild(chip);
-        });
-
         function returnWordToBank(word, bank) {
           const chips = bank.querySelectorAll('.dtw-chip');
           for (const c of chips) {
@@ -684,16 +622,78 @@ export class H5pRenderer {
           }
         }
 
-        wordBank.addEventListener('dragover', (e) => e.preventDefault());
-        wordBank.addEventListener('drop', (e) => {
-          e.preventDefault();
-          const fromZone = e.dataTransfer.getData('application/dtw-from-zone');
-          const word = e.dataTransfer.getData('text/plain');
-          if (fromZone) {
-            const prevZone = textArea.querySelector(`.dtw-drop-zone[data-drop-idx="${fromZone}"]`);
-            if (prevZone) { prevZone.textContent = ''; prevZone.dataset.currentWord = ''; prevZone.classList.remove('dtw-drop-filled'); }
-            returnWordToBank(word, wordBank);
-          }
+        const clearZone = (zone) => {
+          zone.textContent = ''; zone.dataset.currentWord = ''; zone.classList.remove('dtw-drop-filled');
+        };
+
+        // Wort in eine Luecke legen. Ein dort liegendes Wort geht zurueck in
+        // die Wortbank; kommt das Wort aus einer anderen Luecke, wird diese frei.
+        const fillZone = (zone, word, { chip = null, fromZone = null } = {}) => {
+          if (zone === fromZone) return;
+          if (zone.dataset.currentWord) returnWordToBank(zone.dataset.currentWord, wordBank);
+          zone.textContent = word; zone.dataset.currentWord = word; zone.classList.add('dtw-drop-filled');
+          if (chip) chip.classList.add('dtw-chip-used');
+          if (fromZone) clearZone(fromZone);
+        };
+
+        const removeFromZone = (zone) => {
+          const word = zone.dataset.currentWord;
+          if (!word) return;
+          clearZone(zone);
+          returnWordToBank(word, wordBank);
+        };
+
+        const zoneAt = (target) => {
+          const zone = target && target.closest('.dtw-drop-zone');
+          return zone && textArea.contains(zone) ? zone : null;
+        };
+
+        // Pointer-Events statt HTML5-Drag&Drop: Auf dem iPad bewegt der Finger
+        // ein Wort sofort, ohne vorher lange zu druecken.
+        let hoverZone = null;
+        const onHover = (target) => {
+          const zone = zoneAt(target);
+          if (zone === hoverZone) return;
+          if (hoverZone) hoverZone.classList.remove('dtw-drop-hover');
+          if (zone) zone.classList.add('dtw-drop-hover');
+          hoverZone = zone;
+        };
+        const scrollContainer = document.getElementById('mainContent');
+        const openRemoveMenu = (zone, x, y) => showContextMenu(x, y, [
+          { label: '✕ Wort entfernen', danger: true, onClick: () => removeFromZone(zone) },
+        ]);
+
+        const shuffled = [...draggableWords].sort(() => Math.random() - 0.5);
+        shuffled.forEach((word) => {
+          const chip = document.createElement('span');
+          chip.className = 'dtw-chip'; chip.textContent = word;
+          attachPointerDrag(chip, {
+            scrollContainer, onHover,
+            onDrop: (target) => { const zone = zoneAt(target); if (zone) fillZone(zone, word, { chip }); },
+          });
+          wordBank.appendChild(chip);
+        });
+
+        // Gefuellte Luecken lassen sich weiterziehen oder zurueck in die
+        // Wortbank ziehen; Rechtsklick bzw. langes Druecken entfernt das Wort.
+        textArea.querySelectorAll('.dtw-drop-zone').forEach((zone) => {
+          const filled = () => !!zone.dataset.currentWord;
+          attachPointerDrag(zone, {
+            scrollContainer, onHover,
+            canDrag: filled,
+            onDrop: (target) => {
+              const toZone = zoneAt(target);
+              if (toZone) fillZone(toZone, zone.dataset.currentWord, { fromZone: zone });
+              else if (target.closest('.dtw-word-bank') === wordBank) removeFromZone(zone);
+            },
+            canLongPress: filled,
+            onLongPress: (x, y) => openRemoveMenu(zone, x, y),
+          });
+          zone.addEventListener('contextmenu', (e) => {
+            if (!filled()) return;
+            e.preventDefault();
+            openRemoveMenu(zone, e.clientX, e.clientY);
+          });
         });
 
         const dtwCheckBtn = div.querySelector('#dtwCheck');

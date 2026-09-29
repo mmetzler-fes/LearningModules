@@ -2854,6 +2854,29 @@ body {
 
 /* ==================== Quick-Link ==================== */
 
+/*
+ * Quick-Link- und Themen-Link-Dialog: fuenf Buttons in einer Reihe passen
+ * nicht in die uebliche 520px-Karte. Die Karte waechst deshalb mit ihrer
+ * Buttonleiste (bis zur Fensterbreite), und wird es zu eng, brechen die
+ * Buttons innerhalb der Karte um, statt ueber den Rand zu ragen.
+ */
+.import-modules-card.quicklink-card {
+  width: auto;
+  min-width: min(380px, 95vw);
+  max-width: min(760px, 95vw);
+  max-height: 95vh;
+  overflow-y: auto;
+}
+
+.quicklink-card .confirm-actions {
+  flex-wrap: wrap;
+  margin-top: 16px;
+}
+
+.quicklink-card .confirm-actions .btn {
+  white-space: nowrap;
+}
+
 .quicklink-qr {
   display: flex;
   justify-content: center;
@@ -2918,6 +2941,8 @@ body {
     box-shadow: none !important;
     border: 1px solid #000;
     max-width: 100% !important;
+    max-height: none !important;
+    overflow: visible !important;
   }
   body.printing-quicklink #quickLinkUrl,
   body.printing-quicklink #linkShareUrl {

@@ -926,6 +926,27 @@ export class H5pRenderer {
           zoneEl.style.background = hexTint(color, 0.25);
           zoneEl.dataset.zone = z.label;
           zoneEl.innerHTML = `<span class="dnd-player-zone-label" style="background:${color}">${escapeHtml(z.label)}</span><div class="dnd-player-zone-items" data-zone="${escapeAttr(z.label)}"></div>`;
+          // Die ganze belegte Zone ist Anfasser fuer ihr Element: Abgelegte
+          // Elemente sind klein und ragen oft ueber die Zone hinaus, mit dem
+          // Finger trifft man sonst leicht nur die Zone. Das Antippen wird als
+          // pointerdown an das (zuletzt) abgelegte Element weitergereicht; die
+          // weiteren Bewegungen verfolgt attachPointerDrag ueber window.
+          const placedIn = () => { const items = zoneEl.querySelectorAll('.dnd-player-drag.placed'); return items[items.length - 1] || null; };
+          zoneEl.addEventListener('pointerdown', (e) => {
+            if (e.target.closest('.dnd-player-drag')) return;
+            const item = placedIn();
+            if (!item) return;
+            item.dispatchEvent(new PointerEvent('pointerdown', {
+              pointerId: e.pointerId, pointerType: e.pointerType, isPrimary: e.isPrimary,
+              button: e.button, buttons: e.buttons, clientX: e.clientX, clientY: e.clientY, bubbles: true,
+            }));
+          });
+          zoneEl.addEventListener('contextmenu', (e) => {
+            const item = placedIn();
+            if (!item || e.target.closest('.dnd-player-drag')) return;
+            e.preventDefault();
+            openRemoveMenu(item, e.clientX, e.clientY);
+          });
           if (hasImage) canvasEl.appendChild(zoneEl);
           else div.querySelector('#dndZonesLegacy').appendChild(zoneEl);
         });

@@ -1,4 +1,4 @@
-import { sanitizeModuleDescriptionHtml, escapeHtml, escapeAttr, hexTint } from './utils.js';
+import { sanitizeModuleDescriptionHtml, escapeHtml, escapeAttr, hexTint, showContextMenu } from './utils.js';
 
 /**
  * Nur http(s) einbetten. Ohne diese Schranke landeten `javascript:`- oder
@@ -858,21 +858,25 @@ export class H5pRenderer {
         div.addEventListener('dragover', (e) => e.preventDefault());
         div.addEventListener('drop', (e) => e.preventDefault());
 
+        // Abgelegtes Element zurueck in die Ablage; Kopien mehrfach
+        // verwendbarer Elemente (drag-<i>-<n>) verschwinden einfach.
+        const returnToBank = (dragBtn) => {
+          const isClone = dragBtn.dataset.dragId.split('-').length > 2;
+          if (isClone) {
+            dragBtn.remove();
+          } else {
+            dragBtn.dataset.currentZone = '';
+            dragBtn.classList.remove('placed');
+            dragsEl.appendChild(dragBtn);
+          }
+        };
+
         dragsEl.addEventListener('dragover', (e) => e.preventDefault());
         dragsEl.addEventListener('drop', (e) => {
           e.preventDefault();
           const dragId = e.dataTransfer.getData('text/plain');
           const dragBtn = div.querySelector(`[data-drag-id="${dragId}"]`);
-          if (dragBtn) {
-            const isClone = dragBtn.dataset.dragId.split('-').length > 2;
-            if (isClone) {
-              dragBtn.remove();
-            } else {
-              dragBtn.dataset.currentZone = '';
-              dragBtn.classList.remove('placed');
-              dragsEl.appendChild(dragBtn);
-            }
-          }
+          if (dragBtn) returnToBank(dragBtn);
         });
 
         zones.forEach((z, i) => {
@@ -932,12 +936,20 @@ export class H5pRenderer {
               const currentIdx = zoneNames.indexOf(currentZone);
               const nextIdx = (currentIdx + 1) % (zoneNames.length + 1);
               if (nextIdx >= zoneNames.length) {
-                if (isClone) { drag.remove(); } else { drag.dataset.currentZone = ''; drag.classList.remove('placed'); dragsEl.appendChild(drag); }
+                returnToBank(drag);
               } else {
                 drag.dataset.currentZone = zoneNames[nextIdx]; drag.classList.add('placed');
                 const zoneItemsEl = (hasImage ? canvasEl : div.querySelector('#dndZonesLegacy')).querySelector(`.dnd-player-zone[data-zone="${escapeAttr(zoneNames[nextIdx])}"] .dnd-player-zone-items`);
                 if (zoneItemsEl) zoneItemsEl.appendChild(drag);
               }
+            });
+            // Falsch abgelegt? Rechtsklick (bzw. langes Tippen) -> entfernen
+            drag.addEventListener('contextmenu', (e) => {
+              if (!drag.classList.contains('placed')) return;
+              e.preventDefault();
+              showContextMenu(e.clientX, e.clientY, [
+                { label: '✕ Element entfernen', danger: true, onClick: () => returnToBank(drag) },
+              ]);
             });
             if (!isClone) drag.cloneSelf = () => createDraggableNode(true);
             return drag;

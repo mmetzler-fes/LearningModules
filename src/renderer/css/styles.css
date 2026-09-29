@@ -1148,8 +1148,8 @@ body {
   border-radius: 4px;
   cursor: move;
   display: flex;
-  align-items: flex-start;
-  justify-content: flex-start;
+  align-items: center;
+  justify-content: center;
   touch-action: none;
 }
 
@@ -1158,40 +1158,76 @@ body {
   box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.4);
 }
 
+/* Mittig wie das abgelegte Wort im Player; darf ueber kleine Zonen hinausragen. */
 .dnd-zone-label {
-  font-size: 0.7rem;
+  font-size: 0.6rem;
   font-weight: 700;
   color: #fff;
-  padding: 2px 6px;
+  padding: 1px 4px;
   border-radius: 2px;
   white-space: nowrap;
   pointer-events: none;
 }
 
 /*
- * Anfasser zum Aendern der Zonengroesse. Drei waagrechte Striche wie der
- * Anfasser der Lernmodule, damit beides dieselbe Sprache spricht. Das weisse
- * Kaestchen darunter bleibt: Die Striche liegen ueber einem beliebigen
- * Diagramm und waeren ohne Hintergrund je nach Bild unsichtbar. Immer
- * sichtbar und immer anfassbar - die Variante, die nur an der ausgewaehlten
- * Zone erschien, war an einer frisch geoeffneten Zone nicht greifbar.
+ * Eckmarken: An den Ecken wird die Groesse geaendert (der Cursor wechselt
+ * dort), auf der Flaeche verschoben. Die Marken sind nur Anzeige - erkannt
+ * wird die Ecke in _makeDndZoneInteractive an der Zeigerposition. Weiss mit
+ * Rand, damit sie auf jedem Hintergrundbild sichtbar bleiben.
  */
-.dnd-zone-handle {
+.dnd-zone-corner {
   position: absolute;
-  bottom: 0;
-  right: 0;
-  width: 16px;
-  height: 16px;
-  background-color: #fff;
-  /* Drei 2px-Striche mit 1px Abstand: 3 x 3px ergibt genau die 8px Hoehe. */
-  background-image: repeating-linear-gradient(to bottom, #666 0 2px, transparent 2px 3px);
-  background-size: 10px 8px;
-  background-position: center;
-  background-repeat: no-repeat;
+  width: 6px;
+  height: 6px;
+  background: #fff;
   border: 1px solid #666;
-  border-radius: 2px;
-  cursor: se-resize;
-  touch-action: none;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.dnd-zone-overlay:hover .dnd-zone-corner,
+.dnd-zone-overlay.selected .dnd-zone-corner {
+  opacity: 1;
+}
+@media (hover: none) {
+  .dnd-zone-corner { opacity: 1; }
+}
+.dnd-zone-corner-nw { top: -4px; left: -4px; }
+.dnd-zone-corner-ne { top: -4px; right: -4px; }
+.dnd-zone-corner-sw { bottom: -4px; left: -4px; }
+.dnd-zone-corner-se { bottom: -4px; right: -4px; }
+
+.ctx-menu {
+  position: fixed;
+  z-index: 10000;
+  min-width: 160px;
+  padding: 4px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.18);
+}
+
+.ctx-menu-item {
+  display: block;
+  width: 100%;
+  padding: 6px 10px;
+  border: none;
+  background: none;
+  color: var(--text-primary);
+  font-size: 0.85rem;
+  text-align: left;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.ctx-menu-item:hover,
+.ctx-menu-item:focus-visible {
+  background: var(--bg-secondary);
+}
+
+.ctx-menu-item.danger {
+  color: #dc2626;
 }
 
 .dnd-draw-rect {
@@ -1353,8 +1389,9 @@ body {
   /* Volle Deckkraft: abgelegte Elemente liegen ueber dem Hintergrundbild und
      duerfen nichts davon durchscheinen lassen. */
   opacity: 1;
-  font-size: 0.8rem;
-  padding: 4px 10px;
+  font-size: 0.7rem;
+  padding: 2px 6px;
+  white-space: nowrap;
 }
 
 .dnd-player-canvas-wrap {
@@ -1426,20 +1463,31 @@ body {
   pointer-events: auto !important;
 }
 
+/* Liegt ueber der Zone statt ueber den Elementen, damit das abgelegte Wort
+   mittig in der Zone sitzt; ist etwas abgelegt, verschwindet sie. */
 .dnd-player-zone-label {
-  font-size: 0.7rem;
+  position: absolute;
+  top: 0;
+  left: 0;
+  font-size: 0.6rem;
   font-weight: 700;
   color: #fff;
-  padding: 1px 5px;
+  padding: 1px 4px;
   border-radius: 2px;
   white-space: nowrap;
-  align-self: flex-start;
   pointer-events: none;
+}
+
+.dnd-player-zone:has(.dnd-player-drag.placed) .dnd-player-zone-label {
+  display: none;
 }
 
 .dnd-player-zone-items {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
+  align-content: center;
+  justify-content: center;
   gap: 4px;
   padding: 2px;
   flex: 1;

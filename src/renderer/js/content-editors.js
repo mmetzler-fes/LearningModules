@@ -11,6 +11,54 @@ function escapeHtmlPreservingText(text) {
   return escapeHtml(String(text || '')).replace(/\n/g, '<br>');
 }
 
+// Drag & Drop-Editor: Zonen rasten in Viertelprozent-Schritten ein (vorher
+// ganze Prozent - auf einem breiten Bild waren das fast 10 px Sprung).
+const DND_GRID = 0.25;
+const dndSnap = (v) => Math.round(v / DND_GRID) * DND_GRID;
+// CSS-Zentimeter in Pixeln (96 dpi): neue Zonen starten bei ca. 1 x 1 cm.
+const DND_DEFAULT_ZONE_PX = 96 / 2.54;
+// Kleiner laesst sich eine Zone nicht ziehen oder zeichnen.
+const DND_MIN_ZONE_PX = 12;
+
+/**
+ * Kleines Kontextmenue an der Zeigerposition. Schliesst bei Klick daneben,
+ * Escape, Scrollen oder wenn ein Eintrag gewaehlt wurde.
+ * items: [{ label, onClick, danger }]
+ *
+ * Kopie von showContextMenu in utils.js (dieses Skript kann nicht importieren).
+ */
+function showContextMenu(x, y, items) {
+  document.querySelectorAll('.ctx-menu').forEach((m) => m._close());
+  const menu = document.createElement('div');
+  menu.className = 'ctx-menu';
+  const close = () => {
+    menu.remove();
+    document.removeEventListener('pointerdown', onOutside, true);
+    document.removeEventListener('keydown', onKey, true);
+    window.removeEventListener('scroll', close, true);
+    window.removeEventListener('blur', close);
+  };
+  const onOutside = (e) => { if (!menu.contains(e.target)) close(); };
+  const onKey = (e) => { if (e.key === 'Escape') close(); };
+  menu._close = close;
+  items.forEach(({ label, onClick, danger }) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'ctx-menu-item' + (danger ? ' danger' : '');
+    btn.textContent = label;
+    btn.addEventListener('click', () => { close(); onClick(); });
+    menu.appendChild(btn);
+  });
+  document.body.appendChild(menu);
+  const r = menu.getBoundingClientRect();
+  menu.style.left = Math.max(4, Math.min(x, window.innerWidth - r.width - 4)) + 'px';
+  menu.style.top = Math.max(4, Math.min(y, window.innerHeight - r.height - 4)) + 'px';
+  document.addEventListener('pointerdown', onOutside, true);
+  document.addEventListener('keydown', onKey, true);
+  window.addEventListener('scroll', close, true);
+  window.addEventListener('blur', close);
+}
+
 class ContentEditorManager {
   constructor(containerEl) {
     this.container = containerEl;
@@ -908,8 +956,13 @@ class ContentEditorManager {
     btnAddZone.addEventListener('click', () => {
       if (!this.dndState.backgroundImage) return;
       const id = this.dndState.nextZoneId++;
+      // Ca. 1 x 1 cm, mittig im Bild
+      const rect = canvasContainer.getBoundingClientRect();
+      const width = rect.width ? dndSnap((DND_DEFAULT_ZONE_PX / rect.width) * 100) : 5;
+      const height = rect.height ? dndSnap((DND_DEFAULT_ZONE_PX / rect.height) * 100) : 5;
       this.dndState.dropZones.push({
-        id, label: `Ablagezone ${id + 1}`, correctDraggable: '', x: 35, y: 35, width: 25, height: 20,
+        id, label: `Ablagezone ${id + 1}`, correctDraggable: '',
+        x: dndSnap(50 - width / 2), y: dndSnap(50 - height / 2), width, height,
       });
       this.refreshDndCanvas();
       this.refreshDndZonesList();
@@ -952,7 +1005,7 @@ class ContentEditorManager {
 
     canvas.addEventListener('pointerdown', (e) => {
       if (!this.dndState.drawMode) return;
-      if (e.target.classList.contains('dnd-zone-overlay') || e.target.classList.contains('dnd-zone-handle')) return;
+      if (e.target.closest('.dnd-zone-overlay')) return;
       const rect = canvas.getBoundingClientRect();
       startX = ((e.clientX - rect.left) / rect.width) * 100;
       startY = ((e.clientY - rect.top) / rect.height) * 100;
@@ -988,14 +1041,15 @@ class ContentEditorManager {
       const rect = canvas.getBoundingClientRect();
       const curX = Math.max(0, Math.min(100, ((e.clientX - rect.left) / rect.width) * 100));
       const curY = Math.max(0, Math.min(100, ((e.clientY - rect.top) / rect.height) * 100));
-      const x = Math.round(Math.min(startX, curX));
-      const y = Math.round(Math.min(startY, curY));
-      const w = Math.round(Math.abs(curX - startX));
-      const h = Math.round(Math.abs(curY - startY));
+      const x = dndSnap(Math.min(startX, curX));
+      const y = dndSnap(Math.min(startY, curY));
+      const w = dndSnap(Math.abs(curX - startX));
+      const h = dndSnap(Math.abs(curY - startY));
       drawRect.remove();
       drawRect = null;
 
-      if (w < 3 || h < 3) return; // Too small, ignore
+      // Zu klein (meist ein versehentlicher Klick): ignorieren
+      if ((w / 100) * rect.width < DND_MIN_ZONE_PX || (h / 100) * rect.height < DND_MIN_ZONE_PX) return;
 
       const id = this.dndState.nextZoneId++;
       this.dndState.dropZones.push({ id, label: `Ablagezone ${id + 1}`, correctDraggable: '', x, y, width: w, height: h });
@@ -1059,10 +1113,13 @@ class ContentEditorManager {
       if (zone.group) label.textContent += ` · 🔀 ${zone.group}`;
       overlay.appendChild(label);
 
-      // Resize handle
-      const handle = document.createElement('div');
-      handle.className = 'dnd-zone-handle';
-      overlay.appendChild(handle);
+      // Eckmarken: zeigen, wo die Groesse geaendert wird. Reine Anzeige, das
+      // Anfassen selbst erkennt _makeDndZoneInteractive an der Zeigerposition.
+      ['nw', 'ne', 'sw', 'se'].forEach((c) => {
+        const mark = document.createElement('span');
+        mark.className = `dnd-zone-corner dnd-zone-corner-${c}`;
+        overlay.appendChild(mark);
+      });
 
       // Click to select
       overlay.addEventListener('click', (e) => {
@@ -1071,84 +1128,137 @@ class ContentEditorManager {
         this.refreshDndCanvas();
       });
 
-      // Make zone draggable (move)
-      this._makeDndZoneDraggable(overlay, zone, canvas);
-      // Make zone resizable
-      this._makeDndZoneResizable(handle, zone, canvas);
+      // Rechtsklick (bzw. langes Tippen): Zone direkt im Bild loeschen
+      overlay.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        showContextMenu(e.clientX, e.clientY, [
+          { label: '🗑 Ablagezone löschen', danger: true, onClick: () => this._removeDndZone(zone.id) },
+        ]);
+      });
+
+      this._makeDndZoneInteractive(overlay, zone, canvas);
 
       canvas.appendChild(overlay);
     });
   }
 
-  _makeDndZoneDraggable(overlay, zone, canvas) {
-    let dragging = false;
+  _removeDndZone(id) {
+    this.dndState.dropZones = this.dndState.dropZones.filter((z) => z.id !== id);
+    if (this.dndState.selectedZone === id) this.dndState.selectedZone = null;
+    this.refreshDndCanvas();
+    this.refreshDndZonesList();
+    this.refreshDndDraggables();
+  }
+
+  /**
+   * Welche Ecke der Zone liegt unter dem Zeiger ('nw', 'ne', 'sw', 'se')?
+   * null heisst: Flaeche, also verschieben. Der Fangbereich waechst fuer
+   * Finger, bleibt aber hoechstens ein Drittel der Zone, damit auch eine
+   * kleine Zone in der Mitte noch verschiebbar ist.
+   */
+  _dndCornerAt(overlay, e) {
+    const r = overlay.getBoundingClientRect();
+    const grip = Math.min(e.pointerType === 'touch' ? 16 : 10, r.width / 3, r.height / 3);
+    const nearL = e.clientX - r.left <= grip;
+    const nearR = r.right - e.clientX <= grip;
+    const nearT = e.clientY - r.top <= grip;
+    const nearB = r.bottom - e.clientY <= grip;
+    if (nearT && nearL) return 'nw';
+    if (nearT && nearR) return 'ne';
+    if (nearB && nearL) return 'sw';
+    if (nearB && nearR) return 'se';
+    return null;
+  }
+
+  /**
+   * Verschieben und Groesse aendern in einem: An den Ecken zeigt der Zeiger
+   * den Groessen-Cursor und zieht die Ecke (die gegenueberliegende bleibt
+   * stehen), sonst den Verschieben-Cursor und bewegt die ganze Zone.
+   */
+  _makeDndZoneInteractive(overlay, zone, canvas) {
+    const cursors = { nw: 'nwse-resize', se: 'nwse-resize', ne: 'nesw-resize', sw: 'nesw-resize' };
+    let mode = null; // 'move' | Ecke
     let offsetX = 0, offsetY = 0;
+    let fixedX = 0, fixedY = 0;
+
+    const toPct = (e) => {
+      const rect = canvas.getBoundingClientRect();
+      return {
+        x: ((e.clientX - rect.left) / rect.width) * 100,
+        y: ((e.clientY - rect.top) / rect.height) * 100,
+        minW: (DND_MIN_ZONE_PX / rect.width) * 100,
+        minH: (DND_MIN_ZONE_PX / rect.height) * 100,
+      };
+    };
+    const apply = () => {
+      overlay.style.left = zone.x + '%';
+      overlay.style.top = zone.y + '%';
+      overlay.style.width = zone.width + '%';
+      overlay.style.height = zone.height + '%';
+    };
 
     overlay.addEventListener('pointerdown', (e) => {
-      if (this.dndState.drawMode) return;
-      if (e.target.classList.contains('dnd-zone-handle')) return;
-      dragging = true;
-      const rect = canvas.getBoundingClientRect();
-      offsetX = ((e.clientX - rect.left) / rect.width) * 100 - zone.x;
-      offsetY = ((e.clientY - rect.top) / rect.height) * 100 - zone.y;
+      if (this.dndState.drawMode || e.button !== 0) return;
+      const p = toPct(e);
+      const corner = this._dndCornerAt(overlay, e);
+      if (corner) {
+        mode = corner;
+        // Gegenueberliegende Ecke bleibt fest
+        fixedX = corner.includes('w') ? zone.x + zone.width : zone.x;
+        fixedY = corner.includes('n') ? zone.y + zone.height : zone.y;
+      } else {
+        mode = 'move';
+        offsetX = p.x - zone.x;
+        offsetY = p.y - zone.y;
+      }
+      overlay.style.cursor = corner ? cursors[corner] : 'grabbing';
       overlay.setPointerCapture(e.pointerId);
       e.preventDefault();
     });
 
     overlay.addEventListener('pointermove', (e) => {
-      if (!dragging) return;
-      const rect = canvas.getBoundingClientRect();
-      let newX = ((e.clientX - rect.left) / rect.width) * 100 - offsetX;
-      let newY = ((e.clientY - rect.top) / rect.height) * 100 - offsetY;
-      newX = Math.max(0, Math.min(100 - zone.width, newX));
-      newY = Math.max(0, Math.min(100 - zone.height, newY));
-      zone.x = Math.round(newX);
-      zone.y = Math.round(newY);
-      overlay.style.left = zone.x + '%';
-      overlay.style.top = zone.y + '%';
-    });
-
-    overlay.addEventListener('pointerup', () => {
-      if (dragging) {
-        dragging = false;
-        this.refreshDndZonesList();
+      if (!mode) {
+        if (this.dndState.drawMode) return;
+        const corner = this._dndCornerAt(overlay, e);
+        overlay.style.cursor = corner ? cursors[corner] : 'move';
+        return;
       }
-    });
-  }
-
-  _makeDndZoneResizable(handle, zone, canvas) {
-    let resizing = false;
-
-    handle.addEventListener('pointerdown', (e) => {
-      if (this.dndState.drawMode) return;
-      resizing = true;
-      handle.setPointerCapture(e.pointerId);
-      e.stopPropagation();
-      e.preventDefault();
-    });
-
-    handle.addEventListener('pointermove', (e) => {
-      if (!resizing) return;
-      const rect = canvas.getBoundingClientRect();
-      const curX = ((e.clientX - rect.left) / rect.width) * 100;
-      const curY = ((e.clientY - rect.top) / rect.height) * 100;
-      let newW = curX - zone.x;
-      let newH = curY - zone.y;
-      newW = Math.max(5, Math.min(100 - zone.x, newW));
-      newH = Math.max(5, Math.min(100 - zone.y, newH));
-      zone.width = Math.round(newW);
-      zone.height = Math.round(newH);
-      const overlay = handle.parentElement;
-      overlay.style.width = zone.width + '%';
-      overlay.style.height = zone.height + '%';
-    });
-
-    handle.addEventListener('pointerup', () => {
-      if (resizing) {
-        resizing = false;
-        this.refreshDndZonesList();
+      const p = toPct(e);
+      if (mode === 'move') {
+        zone.x = dndSnap(Math.max(0, Math.min(100 - zone.width, p.x - offsetX)));
+        zone.y = dndSnap(Math.max(0, Math.min(100 - zone.height, p.y - offsetY)));
+      } else {
+        const curX = Math.max(0, Math.min(100, p.x));
+        const curY = Math.max(0, Math.min(100, p.y));
+        if (mode.includes('w')) {
+          const left = dndSnap(Math.min(curX, fixedX - p.minW));
+          zone.x = Math.max(0, left);
+          zone.width = dndSnap(fixedX - zone.x);
+        } else {
+          zone.x = fixedX;
+          zone.width = dndSnap(Math.min(100 - fixedX, Math.max(p.minW, curX - fixedX)));
+        }
+        if (mode.includes('n')) {
+          const top = dndSnap(Math.min(curY, fixedY - p.minH));
+          zone.y = Math.max(0, top);
+          zone.height = dndSnap(fixedY - zone.y);
+        } else {
+          zone.y = fixedY;
+          zone.height = dndSnap(Math.min(100 - fixedY, Math.max(p.minH, curY - fixedY)));
+        }
       }
+      apply();
     });
+
+    const end = () => {
+      if (!mode) return;
+      mode = null;
+      overlay.style.cursor = '';
+      this.refreshDndZonesList();
+    };
+    overlay.addEventListener('pointerup', end);
+    overlay.addEventListener('pointercancel', end);
   }
 
   refreshDndZonesList() {
@@ -1252,12 +1362,7 @@ class ContentEditorManager {
       btnRemove.type = 'button';
       btnRemove.className = 'btn btn-danger btn-sm';
       btnRemove.textContent = '✕';
-      btnRemove.addEventListener('click', () => {
-        this.dndState.dropZones = this.dndState.dropZones.filter((z) => z.id !== zone.id);
-        this.refreshDndCanvas();
-        this.refreshDndZonesList();
-        this.refreshDndDraggables();
-      });
+      btnRemove.addEventListener('click', () => this._removeDndZone(zone.id));
 
       item.appendChild(colorDot);
       item.appendChild(labelInput);

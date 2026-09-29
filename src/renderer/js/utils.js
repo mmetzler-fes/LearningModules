@@ -289,3 +289,43 @@ export async function copyQrSvgAsPng(svg, size = 600) {
     return false;
   }
 }
+
+/**
+ * Kleines Kontextmenue an der Zeigerposition. Schliesst bei Klick daneben,
+ * Escape, Scrollen oder wenn ein Eintrag gewaehlt wurde.
+ * items: [{ label, onClick, danger }]
+ *
+ * Gleiche Funktion wie in content-editors.js (klassisches Skript, kann nicht
+ * importieren).
+ */
+export function showContextMenu(x, y, items) {
+  document.querySelectorAll('.ctx-menu').forEach((m) => m._close());
+  const menu = document.createElement('div');
+  menu.className = 'ctx-menu';
+  const close = () => {
+    menu.remove();
+    document.removeEventListener('pointerdown', onOutside, true);
+    document.removeEventListener('keydown', onKey, true);
+    window.removeEventListener('scroll', close, true);
+    window.removeEventListener('blur', close);
+  };
+  const onOutside = (e) => { if (!menu.contains(e.target)) close(); };
+  const onKey = (e) => { if (e.key === 'Escape') close(); };
+  menu._close = close;
+  items.forEach(({ label, onClick, danger }) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'ctx-menu-item' + (danger ? ' danger' : '');
+    btn.textContent = label;
+    btn.addEventListener('click', () => { close(); onClick(); });
+    menu.appendChild(btn);
+  });
+  document.body.appendChild(menu);
+  const r = menu.getBoundingClientRect();
+  menu.style.left = Math.max(4, Math.min(x, window.innerWidth - r.width - 4)) + 'px';
+  menu.style.top = Math.max(4, Math.min(y, window.innerHeight - r.height - 4)) + 'px';
+  document.addEventListener('pointerdown', onOutside, true);
+  document.addEventListener('keydown', onKey, true);
+  window.addEventListener('scroll', close, true);
+  window.addEventListener('blur', close);
+}

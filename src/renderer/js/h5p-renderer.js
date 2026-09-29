@@ -1,4 +1,4 @@
-import { sanitizeModuleDescriptionHtml, escapeHtml, escapeAttr, hexTint, showContextMenu } from './utils.js';
+import { sanitizeModuleDescriptionHtml, escapeHtml, escapeAttr, hexTint, showContextMenu, attachPointerDrag } from './utils.js';
 
 /**
  * Nur http(s) einbetten. Ohne diese Schranke landeten `javascript:`- oder
@@ -855,9 +855,6 @@ export class H5pRenderer {
         const canvasEl = div.querySelector('#dndCanvas');
         const dragsEl  = div.querySelector('#dndDraggables');
 
-        div.addEventListener('dragover', (e) => e.preventDefault());
-        div.addEventListener('drop', (e) => e.preventDefault());
-
         // Abgelegtes Element zurueck in die Ablage; Kopien mehrfach
         // verwendbarer Elemente (drag-<i>-<n>) verschwinden einfach.
         const returnToBank = (dragBtn) => {
@@ -871,13 +868,22 @@ export class H5pRenderer {
           }
         };
 
-        dragsEl.addEventListener('dragover', (e) => e.preventDefault());
-        dragsEl.addEventListener('drop', (e) => {
-          e.preventDefault();
-          const dragId = e.dataTransfer.getData('text/plain');
-          const dragBtn = div.querySelector(`[data-drag-id="${dragId}"]`);
-          if (dragBtn) returnToBank(dragBtn);
-        });
+        const placeInZone = (dragBtn, zoneEl) => {
+          let elToPlace = dragBtn;
+          if (dragBtn.dataset.multiple === 'true' && dragBtn.parentElement === dragsEl && typeof dragBtn.cloneSelf === 'function') elToPlace = dragBtn.cloneSelf();
+          elToPlace.dataset.currentZone = zoneEl.dataset.zone;
+          zoneEl.querySelector('.dnd-player-zone-items').appendChild(elToPlace);
+          elToPlace.classList.add('placed');
+        };
+
+        const zoneAt = (target) => {
+          const zoneEl = target && target.closest('.dnd-player-zone');
+          return zoneEl && div.contains(zoneEl) ? zoneEl : null;
+        };
+
+        const openRemoveMenu = (drag, x, y) => showContextMenu(x, y, [
+          { label: '✕ Element entfernen', danger: true, onClick: () => returnToBank(drag) },
+        ]);
 
         zones.forEach((z, i) => {
           const zoneEl = document.createElement('div');
@@ -897,20 +903,6 @@ export class H5pRenderer {
           zoneEl.style.background = hexTint(color, 0.25);
           zoneEl.dataset.zone = z.label;
           zoneEl.innerHTML = `<span class="dnd-player-zone-label" style="background:${color}">${escapeHtml(z.label)}</span><div class="dnd-player-zone-items" data-zone="${escapeAttr(z.label)}"></div>`;
-          zoneEl.addEventListener('dragover', (e) => { e.preventDefault(); zoneEl.classList.add('dnd-zone-hover'); });
-          zoneEl.addEventListener('dragleave', () => { zoneEl.classList.remove('dnd-zone-hover'); });
-          zoneEl.addEventListener('drop', (e) => {
-            e.preventDefault(); zoneEl.classList.remove('dnd-zone-hover');
-            const dragId = e.dataTransfer.getData('text/plain');
-            const dragBtn = div.querySelector(`[data-drag-id="${dragId}"]`);
-            if (dragBtn) {
-              let elToPlace = dragBtn;
-              if (dragBtn.dataset.multiple === 'true' && dragBtn.parentElement === dragsEl && typeof dragBtn.cloneSelf === 'function') elToPlace = dragBtn.cloneSelf();
-              elToPlace.dataset.currentZone = z.label;
-              zoneEl.querySelector('.dnd-player-zone-items').appendChild(elToPlace);
-              elToPlace.classList.add('placed');
-            }
-          });
           if (hasImage) canvasEl.appendChild(zoneEl);
           else div.querySelector('#dndZonesLegacy').appendChild(zoneEl);
         });
@@ -919,14 +911,32 @@ export class H5pRenderer {
           let cloneCounter = 0;
           const createDraggableNode = (isClone = false) => {
             const drag = document.createElement('div');
-            drag.className = 'dnd-player-drag'; drag.textContent = d.text; drag.draggable = true;
+            drag.className = 'dnd-player-drag'; drag.textContent = d.text;
             drag.dataset.dragId = isClone ? `drag-${i}-${++cloneCounter}` : `drag-${i}`;
             drag.dataset.correctZone = d.correctZone || ''; drag.dataset.currentZone = '';
             drag.dataset.multiple = d.multiple ? 'true' : 'false';
-            drag.addEventListener('dragstart', (e) => { e.dataTransfer.setData('text/plain', drag.dataset.dragId); drag.classList.add('dragging'); drag.dataset.preventClick = 'true'; });
-            drag.addEventListener('dragend', () => { drag.classList.remove('dragging'); setTimeout(() => drag.dataset.preventClick = 'false', 100); });
-            drag.addEventListener('click', (e) => {
-              if (drag.dataset.preventClick === 'true') return;
+            // Pointer-Events statt HTML5-Drag&Drop: Auf dem iPad bewegt der
+            // Finger das Element sofort, ohne vorher lange zu druecken.
+            let hoverZone = null;
+            attachPointerDrag(drag, {
+              scrollContainer: document.getElementById('mainContent'),
+              onHover: (target) => {
+                const zoneEl = zoneAt(target);
+                if (zoneEl === hoverZone) return;
+                if (hoverZone) hoverZone.classList.remove('dnd-zone-hover');
+                if (zoneEl) zoneEl.classList.add('dnd-zone-hover');
+                hoverZone = zoneEl;
+              },
+              onDrop: (target) => {
+                const zoneEl = zoneAt(target);
+                if (zoneEl) placeInZone(drag, zoneEl);
+                else if (target.closest('.dnd-player-draggables') === dragsEl && drag.classList.contains('placed')) returnToBank(drag);
+              },
+              // iPadOS kennt kein Kontextmenue: langes Druecken ersetzt den Rechtsklick
+              canLongPress: () => drag.classList.contains('placed'),
+              onLongPress: (x, y) => openRemoveMenu(drag, x, y),
+            });
+            drag.addEventListener('click', () => {
               const currentZone = drag.dataset.currentZone || '';
               const zoneNames = zones.map((z) => z.label);
               if (d.multiple && !isClone && drag.parentElement === dragsEl) {
@@ -943,13 +953,11 @@ export class H5pRenderer {
                 if (zoneItemsEl) zoneItemsEl.appendChild(drag);
               }
             });
-            // Falsch abgelegt? Rechtsklick (bzw. langes Tippen) -> entfernen
+            // Falsch abgelegt? Rechtsklick -> entfernen
             drag.addEventListener('contextmenu', (e) => {
               if (!drag.classList.contains('placed')) return;
               e.preventDefault();
-              showContextMenu(e.clientX, e.clientY, [
-                { label: '✕ Element entfernen', danger: true, onClick: () => returnToBank(drag) },
-              ]);
+              openRemoveMenu(drag, e.clientX, e.clientY);
             });
             if (!isClone) drag.cloneSelf = () => createDraggableNode(true);
             return drag;

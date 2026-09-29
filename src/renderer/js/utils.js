@@ -329,3 +329,125 @@ export function showContextMenu(x, y, items) {
   window.addEventListener('scroll', close, true);
   window.addEventListener('blur', close);
 }
+
+/**
+ * Ziehen per Pointer-Events statt nativem HTML5-Drag&Drop, damit Finger und
+ * Stift ein Element sofort bewegen. Natives Drag&Drop startet auf dem iPad
+ * erst nach langem Druecken. Vorbild ist pointerDrag.ts in LibreSpice.
+ *
+ * Waehrend des Ziehens folgt eine Kopie (Geist) dem Zeiger; das Original
+ * bekommt die Klasse `dragging`. Losgelassen wird per elementFromPoint
+ * ermittelt, worueber das Element liegt.
+ *
+ * Optionen:
+ *  - onHover(target)        bei jeder Bewegung, am Ende mit null
+ *  - onDrop(target)         beim Loslassen nach einer echten Bewegung
+ *  - onLongPress(x, y)      Finger/Stift ruht LONG_PRESS_MS lang (Ersatz fuer
+ *                           Rechtsklick, iPadOS kennt kein contextmenu)
+ *  - canLongPress()         ob der lange Druck gerade etwas ausloesen soll
+ *  - scrollContainer        wird am oberen/unteren Rand mitgescrollt
+ *
+ * Ein Tippen ohne Bewegung bleibt ein normaler click.
+ */
+const DRAG_THRESHOLD = 6;
+const LONG_PRESS_MS = 500;
+
+// Der click, den der Browser nach Ziehen bzw. langem Druck noch nachschiebt,
+// darf nichts ausloesen (sonst wanderte das Element per Klick weiter). Ein
+// Klick ins gerade geoeffnete Kontextmenue bleibt erlaubt.
+function swallowNextClick() {
+  const stop = (e) => {
+    if (e.target.closest && e.target.closest('.ctx-menu')) return;
+    e.stopPropagation(); e.preventDefault();
+    window.removeEventListener('click', stop, true);
+  };
+  window.addEventListener('click', stop, true);
+  setTimeout(() => window.removeEventListener('click', stop, true), 400);
+}
+
+export function attachPointerDrag(el, { onHover, onDrop, onLongPress, canLongPress, scrollContainer } = {}) {
+  el.draggable = false;
+  el.addEventListener('pointerdown', (e) => {
+    if (!e.isPrimary || (e.pointerType === 'mouse' && e.button !== 0)) return;
+    const id = e.pointerId;
+    const x0 = e.clientX, y0 = e.clientY;
+    let ghost = null, offX = 0, offY = 0;
+    let scrollSpeed = 0, scrollTimer = null;
+    let pressTimer = null;
+
+    if (onLongPress && e.pointerType !== 'mouse' && (!canLongPress || canLongPress())) {
+      pressTimer = setTimeout(() => {
+        pressTimer = null;
+        cleanup();
+        swallowNextClick();
+        onLongPress(x0, y0);
+      }, LONG_PRESS_MS);
+    }
+
+    const hit = (ev) => document.elementFromPoint(ev.clientX, ev.clientY);
+
+    const autoScroll = (ev) => {
+      if (!scrollContainer) return;
+      const r = scrollContainer.getBoundingClientRect();
+      scrollSpeed = ev.clientY - r.top < 60 ? -15 : r.bottom - ev.clientY < 60 ? 15 : 0;
+      if (scrollSpeed && !scrollTimer) {
+        scrollTimer = setInterval(() => { scrollContainer.scrollTop += scrollSpeed; }, 20);
+      } else if (!scrollSpeed && scrollTimer) {
+        clearInterval(scrollTimer); scrollTimer = null;
+      }
+    };
+
+    const move = (ev) => {
+      if (ev.pointerId !== id) return;
+      if (!ghost) {
+        if (Math.hypot(ev.clientX - x0, ev.clientY - y0) < DRAG_THRESHOLD) return;
+        if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; }
+        const r = el.getBoundingClientRect();
+        offX = x0 - r.left; offY = y0 - r.top;
+        ghost = el.cloneNode(true);
+        ghost.removeAttribute('id');
+        delete ghost.dataset.dragId;
+        ghost.classList.add('drag-ghost');
+        Object.assign(ghost.style, {
+          position: 'fixed', margin: '0', width: r.width + 'px',
+          pointerEvents: 'none', zIndex: '10000',
+        });
+        document.body.appendChild(ghost);
+        el.classList.add('dragging');
+      }
+      ev.preventDefault();
+      ghost.style.left = (ev.clientX - offX) + 'px';
+      ghost.style.top = (ev.clientY - offY) + 'px';
+      if (onHover) onHover(hit(ev));
+      autoScroll(ev);
+    };
+
+    const end = (ev) => {
+      if (ev.pointerId !== id) return;
+      const dragged = !!ghost;
+      // Ziel noch im Ziehzustand bestimmen (Zoneninhalte sind dann per CSS
+      // nicht treffbar, es zaehlt die Zone selbst).
+      const target = dragged && ev.type === 'pointerup' ? hit(ev) : null;
+      cleanup();
+      if (dragged) {
+        swallowNextClick();
+        if (target && onDrop) onDrop(target);
+      }
+    };
+
+    function cleanup() {
+      if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; }
+      if (scrollTimer) { clearInterval(scrollTimer); scrollTimer = null; }
+      if (ghost) { ghost.remove(); ghost = null; }
+      el.classList.remove('dragging');
+      if (onHover) onHover(null);
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', end);
+      window.removeEventListener('pointercancel', end);
+    }
+
+    window.addEventListener('pointermove', move, { passive: false });
+    window.addEventListener('pointerup', end);
+    window.addEventListener('pointercancel', end);
+  });
+}

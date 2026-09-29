@@ -1376,7 +1376,22 @@ body {
   font-weight: 600;
   cursor: grab;
   user-select: none;
+  /* Gezogen wird per Pointer-Events (attachPointerDrag): Der Browser darf
+     die Beruehrung weder zum Scrollen nutzen noch als natives Ziehen,
+     Lupe oder Textauswahl deuten. */
+  touch-action: none;
+  -webkit-user-select: none;
+  -webkit-user-drag: none;
+  -webkit-touch-callout: none;
   transition: opacity 0.2s, transform 0.15s;
+}
+
+/* Kopie, die waehrend des Ziehens dem Finger bzw. der Maus folgt */
+.dnd-player-drag.drag-ghost {
+  opacity: 0.9;
+  cursor: grabbing;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.25);
+  transition: none;
 }
 
 .dnd-player-drag:active,

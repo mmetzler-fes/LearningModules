@@ -196,6 +196,8 @@ const H5P_TYPES = {
       { key: 'imageUrl', type: 'image', label: 'Bild (optional)' },
       { key: 'textField', type: 'richtext', label: 'Text (ziehbare Wörter mit *Sternchen* markieren)', required: true,
         placeholder: 'Die *Sonne* scheint am *Himmel*.' },
+      { key: 'distractors', type: 'text', label: 'Ablenkwörter (werden nicht benötigt, mit *Sternchen* markieren)',
+        placeholder: '*Mond* *Wolke*' },
       { key: 'enableRetry', type: 'checkbox', label: 'Wiederholen erlauben', default: true, advanced: true },
       { key: 'enableSolutionsButton', type: 'checkbox', label: 'Lösung anzeigen erlauben', default: true, advanced: true },
       { key: 'instantFeedback', type: 'checkbox', label: 'Sofortiges Feedback', default: false, advanced: true },

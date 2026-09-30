@@ -117,6 +117,7 @@ function convertH5pToNative(machineName: string, params: any, h5pImages: Record<
           taskDescription: stripHtml(params.taskDescription || ''),
           imageUrl: extractMediaImage(params.media, h5pImages),
           textField: params.textField || '',
+          distractors: stripHtml(params.distractors || ''),
           enableRetry: !(params.behaviour && params.behaviour.enableRetry === false),
           enableSolutionsButton: !(params.behaviour && params.behaviour.enableSolutionsButton === false),
           instantFeedback: !!(params.behaviour && params.behaviour.instantFeedback),

@@ -663,7 +663,19 @@ export class H5pRenderer {
           { label: '✕ Wort entfernen', danger: true, onClick: () => removeFromZone(zone) },
         ]);
 
-        const shuffled = [...draggableWords].sort(() => Math.random() - 0.5);
+        // Ablenkwoerter landen gemischt mit den richtigen Woertern in der
+        // Wortbank, gehoeren aber zu keiner Luecke. Schreibweise wie in H5P:
+        // *Mond* *Wolke*; ohne Sternchen gilt Komma bzw. Zeilenumbruch als Trenner.
+        const distractorText = content.distractors || '';
+        const markedDistractors = [...distractorText.matchAll(/\*([^*]+)\*/g)].map((m) => m[1]);
+        const distractors = (markedDistractors.length ? markedDistractors : distractorText.split(/[,\n]/))
+          .map((w) => w.trim()).filter(Boolean);
+
+        const shuffled = [...draggableWords, ...distractors];
+        for (let i = shuffled.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+        }
         shuffled.forEach((word) => {
           const chip = document.createElement('span');
           chip.className = 'dtw-chip'; chip.textContent = word;

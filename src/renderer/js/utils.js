@@ -82,8 +82,22 @@ export function appConfirm(message) {
 }
 
 export function sanitizeModuleDescriptionHtml(html) {
+  return sanitizeRichHtml(html, false);
+}
+
+/**
+ * Inhalt eines Arbeitsblatts. Wie die Modulbeschreibung, zusätzlich Bilder
+ * (nur als data:-Bild oder https), H4, Unter-/Hochstellung, Trennlinien und
+ * Textrahmen (div.ws-box) – das, was der .odt-Import erzeugt.
+ */
+export function sanitizeWorksheetHtml(html) {
+  return sanitizeRichHtml(html, true);
+}
+
+function sanitizeRichHtml(html, worksheet) {
   const allowedTags = new Set(['P', 'BR', 'B', 'STRONG', 'I', 'EM', 'U', 'S', 'UL', 'OL', 'LI',
     'H1', 'H2', 'H3', 'BLOCKQUOTE', 'TABLE', 'THEAD', 'TBODY', 'TR', 'TH', 'TD', 'A', 'SPAN', 'FONT']);
+  if (worksheet) ['IMG', 'H4', 'SUB', 'SUP', 'HR', 'DIV'].forEach((t) => allowedTags.add(t));
   const template = document.createElement('template');
   template.innerHTML = html || '';
 
@@ -122,6 +136,22 @@ export function sanitizeModuleDescriptionHtml(html) {
       if (colspan && /^\d+$/.test(colspan)) clean.setAttribute('colspan', colspan);
       if (rowspan && /^\d+$/.test(rowspan)) clean.setAttribute('rowspan', rowspan);
     }
+
+    if (tag === 'IMG') {
+      // Kein SVG als Adresse von außen und nichts außer Bildern: Ein
+      // data:-Bild bzw. https-Bild führt im <img> kein Skript aus.
+      const src = node.getAttribute('src') || '';
+      if (!/^data:image\/(png|jpeg|gif|webp|svg\+xml);base64,[A-Za-z0-9+/=]+$/.test(src) && !/^https:\/\//i.test(src)) {
+        return document.createDocumentFragment();
+      }
+      clean.setAttribute('src', src);
+      const alt = node.getAttribute('alt');
+      if (alt) clean.setAttribute('alt', alt);
+      const width = node.getAttribute('width');
+      if (width && /^\d{1,4}$/.test(width)) clean.setAttribute('width', width);
+    }
+
+    if (tag === 'DIV' && node.classList.contains('ws-box')) clean.className = 'ws-box';
 
     if (tag === 'FONT') {
       const size = node.getAttribute('size');

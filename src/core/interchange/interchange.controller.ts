@@ -6,6 +6,7 @@ import { H5pService } from './h5p/h5p.service';
 import { ImportService } from './import/import.service';
 import { ExportService } from './export/export.service';
 import { MasterKeyService } from '../crypto/master-key.service';
+import { odtToHtml } from './odt/odt';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { SchoolIsolationGuard } from '../../auth/guards/school-isolation.guard';
 
@@ -74,6 +75,22 @@ export class InterchangeController {
       await this.h5pService['moduleRepo'].save(modules);
     }
     return { success: true, topicId: savedTopic.id, topicTitle: savedTopic.title, importedCount: modules.length };
+  }
+
+  /**
+   * Writer-Dokument (.odt) in HTML für das Modul "Text / Arbeitsblatt".
+   * Gespeichert wird hier nichts – das Ergebnis landet im Editor und wird
+   * erst mit dem Modul gesichert.
+   */
+  @Post('odt-to-html')
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 40 * 1024 * 1024 } }))
+  async odtToHtml(@UploadedFile() file: Express.Multer.File) {
+    if (!file || !file.buffer) throw new BadRequestException('Keine Datei empfangen.');
+    try {
+      return { success: true, ...odtToHtml(file.buffer, file.originalname) };
+    } catch (err: any) {
+      throw new BadRequestException(err?.message || 'Die Datei konnte nicht gelesen werden.');
+    }
   }
 
   /** Wie viele Module eigene bzw. fremde sind – für die Warnung vor dem Export. */

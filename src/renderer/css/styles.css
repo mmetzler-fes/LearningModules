@@ -3363,3 +3363,30 @@ body {
 .cloud-backup-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 6px 0; border-bottom: 1px solid var(--border); }
 .shop-mode-row select,
 .shop-pick-row select { width: auto; min-width: 140px; }
+
+/* ==================== TEXT / ARBEITSBLATT ==================== */
+
+.worksheet-import { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-bottom: 10px; }
+.worksheet-import .hint { font-size: 0.85em; }
+.worksheet-import-status { flex-basis: 100%; }
+
+.worksheet-content { line-height: 1.55; overflow-wrap: anywhere; }
+.worksheet-content h2 { margin: 1.2em 0 0.5em; font-size: 1.35em; }
+.worksheet-content h3 { margin: 1.1em 0 0.4em; font-size: 1.15em; }
+.worksheet-content h4 { margin: 1em 0 0.3em; font-size: 1em; }
+.worksheet-content p { margin: 0 0 0.6em; }
+.worksheet-content img { max-width: 100%; height: auto; vertical-align: middle; }
+.worksheet-content table { border-collapse: collapse; width: 100%; margin: 0.8em 0; display: block; overflow-x: auto; }
+.worksheet-content th,
+.worksheet-content td { border: 1px solid var(--border); padding: 6px 8px; vertical-align: top; }
+.worksheet-content th { background: var(--bg-primary); }
+.worksheet-content td p:last-child,
+.worksheet-content th p:last-child { margin-bottom: 0; }
+.worksheet-content .ws-box {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  margin: 0.8em 0;
+  background: var(--bg-secondary);
+}
+.rich-text-surface.worksheet-content { min-height: 320px; max-height: 70vh; overflow-y: auto; }

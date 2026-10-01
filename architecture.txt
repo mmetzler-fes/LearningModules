@@ -70,7 +70,7 @@ BACKEND – src/
     user-sheet.service.ts       Benutzer als .ods aus- und einlesen; der Import
                                 legt Konten an und gibt die Initialpasswörter
                                 einmalig zurück (im Server liegt nur der Hash)
-    backup.service.ts           Gesamtsicherung (VACUUM INTO + Dokumente),
+    backup.service.ts           Gesamtsicherung (VACUUM INTO),
                                 verschlüsselt mit dem Masterkey; Restore
     cloud-backup.service.ts     Automatisches Backup per WebDAV (Nextcloud):
                                 Zeitplan, Aufbewahrung, Restore aus der Cloud
@@ -78,7 +78,7 @@ BACKEND – src/
     accounts.service.ts         Creator deaktivieren (Inhalte für 0 Punkte in
                                 den Shop), reaktivieren, Nicht-Creator löschen,
                                 Konten zusammenführen (E-Mail-Wechsel)
-    handover.service.ts         Links, Quick-Links, Ergebnisse, Tags, Dateien
+    handover.service.ts         Links, Quick-Links, Ergebnisse, Tags
                                 an ein anderes Konto übergeben
     points.service.ts           Punktekonto, Einstellungen, Jahreswechsel
   shop/                         Lernmodule-Shop (docs/shop-und-rechte.md)
@@ -105,6 +105,8 @@ BACKEND – src/
     ods/ods.ts                  Minimaler ODS-Leser/-Schreiber ohne Fremd-
                                 bibliothek (.ods = ZIP + content.xml)
     interchange.controller.ts   Routen für JSON- und H5P-Import/-Export
+    odt/odt.ts                  Writer-Dokument (.odt) → HTML für "Text /
+                                Arbeitsblatt"; Zeichnungen → SVG
     export/export.service.ts    Offen nur eigene Module; verschlüsselt das
                                 ganze Thema, Re-Import nur durch den Exporteur
     import/import.service.ts    JSON-Datei-Import

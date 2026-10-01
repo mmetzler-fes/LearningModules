@@ -317,7 +317,7 @@ export class AdminView {
         'kostenlos zum Kopieren und Verwenden im Shop. Über „Reaktivieren" lässt sich das rückgängig machen.'
       : `"${name}" wirklich löschen?\n\n` +
         'Das Konto hat keine eigenen Module. Erworbene Kopien und Nutzungsrechte verfallen; ' +
-        'Themen-Links, Ergebnisse, Tags und Dateien werden dir als Admin überschrieben.';
+        'Themen-Links, Ergebnisse und Tags werden dir als Admin überschrieben.';
     if (!(await this.app.appConfirm(text))) return;
     const res = await this.app.api.deleteUser(userId);
     if (res && res.success !== false) {
@@ -332,7 +332,6 @@ export class AdminView {
         m.quickLinks ? `${m.quickLinks} Quick-Links` : null,
         m.results ? `${m.results} Ergebnisse` : null,
         m.tags ? `${m.tags} Tags` : null,
-        m.uploads ? `${m.uploads} Dateien` : null,
       ].filter(Boolean);
       this.app.showToast(
         parts.length
@@ -564,7 +563,7 @@ export class AdminView {
 
     document.getElementById('btnRestore')?.addEventListener('click', async () => {
       const ok = await this.app.appConfirm(
-        'Backup einspielen?\n\nAlle aktuellen Daten – Konten, Themen, Links, Ergebnisse, Dokumente – werden durch ' +
+        'Backup einspielen?\n\nAlle aktuellen Daten – Konten, Themen, Links, Ergebnisse – werden durch ' +
         'den Stand des Backups ersetzt. Der bisherige Stand bleibt auf dem Server als Datei *.before-restore liegen.',
       );
       if (!ok) return;

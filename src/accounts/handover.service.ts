@@ -6,13 +6,12 @@ import { TopicLink } from '../core/entities/topic-link.entity';
 import { TopicQuickLink } from '../core/entities/topic-quick-link.entity';
 import { Tag } from '../core/entities/tag.entity';
 import { Result } from '../core/entities/result.entity';
-import { UploadedFile } from '../core/entities/uploaded-file.entity';
 import { TeacherGroup } from '../core/entities/teacher-group.entity';
 import { ShopOffer } from '../core/entities/shop-offer.entity';
 
 /**
  * Was beim Löschen oder Zusammenführen eines Kontos an jemand anderen geht:
- * Themen-Links, Quick-Links, Ergebnisse, Dateien und Tags.
+ * Themen-Links, Quick-Links, Ergebnisse und Tags.
  *
  * Die Inhalte selbst (Themen, Module) behandelt der AccountsService – dort
  * entscheidet das Rechtemodell, was mit ihnen geschieht. Hier geht es nur um
@@ -26,13 +25,12 @@ export class HandoverService {
     @InjectRepository(TopicQuickLink) private readonly quickRepo: Repository<TopicQuickLink>,
     @InjectRepository(Tag) private readonly tagRepo: Repository<Tag>,
     @InjectRepository(Result) private readonly resultRepo: Repository<Result>,
-    @InjectRepository(UploadedFile) private readonly uploadRepo: Repository<UploadedFile>,
     @InjectRepository(TeacherGroup) private readonly groupRepo: Repository<TeacherGroup>,
     @InjectRepository(ShopOffer) private readonly offerRepo: Repository<ShopOffer>,
   ) {}
 
   /**
-   * Schreibt Links, Quick-Links, Ergebnisse, Dateien und Tags von `from` auf
+   * Schreibt Links, Quick-Links, Ergebnisse und Tags von `from` auf
    * `to` um. Mit `replaceInGroups` tritt `to` in den Gruppen und
    * Angebots-Zielgruppen an die Stelle von `from` (Zusammenführen); sonst
    * fällt `from` dort nur heraus (Löschen).
@@ -43,7 +41,6 @@ export class HandoverService {
       links: await this.reassign(this.linkRepo, 'ownerId', from.id, to.id),
       quickLinks: await this.transferQuickLinks(from.id, to.id),
       results: await this.reassign(this.resultRepo, 'teacherId', from.id, to.id),
-      uploads: await this.reassign(this.uploadRepo, 'ownerId', from.id, to.id),
       tags: await this.transferTags(from.id, to.id, fromLabel),
       groups: await this.updateGroups(from.id, replaceInGroups ? to.id : null),
       audiences: await this.updateAudiences(from.id, replaceInGroups ? to.id : null),

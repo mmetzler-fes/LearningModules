@@ -451,7 +451,7 @@ export class QuizView {
         break;
       }
     }
-    // Reine Informationen (z. B. ein PDF zum Nachlesen) sind keine Aufgabe.
+    // Reine Informationen (z. B. ein Arbeitsblatt zum Lesen) sind keine Aufgabe.
     // Sie zählten sonst als gelöst und hoben die Prozentzahl, ohne dass
     // jemand etwas beantwortet hätte.
     if ((H5P_TYPES[mod.type] || {}).informational) {

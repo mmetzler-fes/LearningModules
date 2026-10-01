@@ -103,29 +103,21 @@ const H5P_TYPES = {
     ],
   },
   /**
-   * Information zum Nachlesen: ein PDF oder Dokument, das anderswo liegt
-   * (Schulserver, Moodle, Nextcloud). Die App speichert keine Dateien – wer
-   * ein Dokument einbindet, ist für Ort und Verfügbarkeit selbst
-   * verantwortlich. Deshalb eine URL statt eines Uploads.
-   *
-   * Eingebettete Vorschau *und* Knopf zum Öffnen: Nicht jeder Browser zeigt
-   * ein PDF im Rahmen an – auf iOS bleibt oft nur der Download. Der Knopf
-   * ist die Rückfallebene, die überall funktioniert.
+   * Text oder Arbeitsblatt zum Lesen – direkt in der App, im Design der App
+   * und auf jedem Gerät gut lesbar. Ein Writer-Dokument (.odt) lässt sich
+   * übernehmen; danach ist der Text hier bearbeitbar und gehört zum Modul,
+   * landet also im Backup und lässt sich über den Shop teilen.
    */
-  document: {
-    id: 'document',
-    name: 'Dokument / PDF',
-    icon: '📄',
-    description: 'Ein PDF oder Dokument als Information einbinden – mit Vorschau und Knopf zum Öffnen.',
+  worksheet: {
+    id: 'worksheet',
+    name: 'Text / Arbeitsblatt',
+    icon: '📝',
+    description: 'Text mit Überschriften, Tabellen und Bildern – selbst schreiben oder aus LibreOffice Writer (.odt) übernehmen.',
     category: 'Darstellung',
     // Reine Information, keine Aufgabe: zählt in der Auswertung nicht mit.
     informational: true,
     fields: [
-      { key: 'url', type: 'fileUrl', label: 'Adresse des Dokuments (Webserver oder Nextcloud-Freigabe)', required: true, placeholder: 'https://.../skript.pdf' },
-      { key: 'note', type: 'richtext', label: 'Hinweistext (optional)' },
-      { key: 'embed', type: 'checkbox', label: 'Vorschau direkt einbetten', default: true },
-      { key: 'linkText', type: 'text', label: 'Beschriftung des Knopfes', default: 'Dokument öffnen', advanced: true },
-      { key: 'height', type: 'number', label: 'Höhe der Vorschau (px)', default: 600, advanced: true },
+      { key: 'html', type: 'worksheet', label: 'Inhalt', required: true },
     ],
   },
   dialogCards: {
@@ -258,7 +250,7 @@ const H5P_TYPES = {
     id: 'iframeEmbedder',
     name: 'IFRAME Embedder',
     icon: '🌐',
-    description: 'Externe Webinhalte via IFrame einbetten. Für PDFs eignet sich "Dokument / PDF".',
+    description: 'Externe Webinhalte via IFrame einbetten.',
     category: 'Medien',
     // Reine Information, keine Aufgabe: zaehlt in der Auswertung nicht mit.
     informational: true,

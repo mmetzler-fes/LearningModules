@@ -107,7 +107,7 @@ Anzahl.
 |---|---|---|
 | JSON / H5P | nur die selbst verfassten Module | jeder mit Lesezugriff |
 | 🔒 verschlüsselt (`.lmenc`) | das ganze Thema mit Creator-Angaben | nur der Eigentümer des Themas |
-| 💾 Backup (`.lmbak`) | ganze Datenbank und alle Dokumente | nur Admins |
+| 💾 Backup (`.lmbak`) | ganze Datenbank (Inhalte samt Bildern, Konten, Ergebnisse) | nur Admins |
 
 Enthält ein Thema eigene und fremde Module, warnt der Export-Dialog, dass
 unverschlüsselt nur die eigenen hinausgehen.
@@ -147,8 +147,9 @@ verhindert, dass sich fremde Inhalte als Datei aus der App ziehen lassen.
 
 Die Datenbank wird mit `VACUUM INTO` kopiert. Das liefert einen konsistenten
 Stand, auch während andere Anfragen laufen. Der Restore **ersetzt alles**. Der
-vorherige Stand bleibt als `data/database.sqlite.before-restore` und
-`data/uploads.before-restore` liegen. Masterkeys und App-Secret gehören nicht
+vorherige Stand bleibt als `data/database.sqlite.before-restore` liegen.
+Dateien legt die App nicht ab – Bilder und Arbeitsblätter stehen in der
+Datenbank und sind damit im Backup. Masterkeys und App-Secret gehören nicht
 zum Backup: Sie gehören zum Server, nicht zu den Daten.
 
 ### Automatisches Backup in die Cloud (WebDAV / Nextcloud)
@@ -206,8 +207,8 @@ gilt beim Löschen durch den Benutzer selbst wie durch den Admin.
   erworben haben, behalten sie.
 
 Wer nichts verfasst hat, wird **wirklich gelöscht**. Erworbene Kopien und
-Nutzungsrechte verfallen. Themen-Links, Quick-Links, Ergebnisse, Tags und
-Dateien gehen an einen Admin.
+Nutzungsrechte verfallen. Themen-Links, Quick-Links, Ergebnisse und Tags
+gehen an einen Admin.
 
 Der letzte aktive Admin lässt sich weder löschen noch deaktivieren noch
 herabstufen.

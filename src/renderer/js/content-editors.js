@@ -153,8 +153,8 @@ class ContentEditorManager {
       case 'text':
         this.renderTextField(parent, field, value);
         break;
-      case 'fileUrl':
-        this.renderFileUrlField(parent, field, value);
+      case 'worksheet':
+        this.renderWorksheetField(parent, field, value);
         break;
       case 'textarea':
         this.renderTextareaField(parent, field, value);
@@ -187,89 +187,66 @@ class ContentEditorManager {
   }
 
   /**
-   * Adresse eines Dokuments – entweder hochgeladen oder von Hand eingetragen.
-   *
-   * Beides steht bewusst nebeneinander im selben Feld: Gespeichert wird in
-   * jedem Fall nur eine URL, und ein Dokument, das anderswo liegt (Moodle,
-   * Nextcloud, Schulserver), bleibt damit genauso möglich wie vorher.
+   * Inhalt eines Arbeitsblatts: Texteditor plus Übernahme aus einem
+   * Writer-Dokument (.odt). Die Umwandlung macht der Server; zurück kommt
+   * HTML, das hier im Editor landet und vor dem Speichern noch geändert
+   * werden kann.
    */
-  renderFileUrlField(parent, field, value) {
-    const group = this.createFormGroup(field.label, field.required);
-    const wrap = document.createElement('div');
-    wrap.className = 'file-field-wrap';
+  renderWorksheetField(parent, field, value) {
+    const bar = document.createElement('div');
+    bar.className = 'worksheet-import';
+    bar.innerHTML = `
+      <button type="button" class="btn btn-secondary btn-sm">📄 Aus LibreOffice Writer (.odt) übernehmen</button>
+      <span class="hint">Überschriften, Absätze, Listen, Tabellen, Bilder und einfache Zeichnungen.
+        Das Seitenlayout wird vereinfacht.</span>
+      <div class="worksheet-import-status hint"></div>`;
+    parent.appendChild(bar);
 
-    const input = document.createElement('input');
-    input.type = 'text';
-    input.name = `content_${field.key}`;
-    input.value = value || '';
-    input.placeholder = field.placeholder || 'https://...';
+    this.renderRichtextField(parent, { ...field, type: 'richtext' }, value);
+    const surface = parent.querySelector(`.rich-text-surface[data-field-key="${field.key}"]`);
+    const hidden = parent.querySelector(`input[name="content_${field.key}"]`);
+    surface?.classList.add('worksheet-content');
+    const status = bar.querySelector('.worksheet-import-status');
 
-    const status = document.createElement('p');
-    status.className = 'hint';
-    status.style.cssText = 'margin:6px 0 0; font-size:0.82rem;';
-    const showStatus = (text, isError) => {
-      status.textContent = text || '';
-      status.style.color = isError ? 'var(--danger, #b91c1c)' : 'var(--text-secondary)';
-    };
-
-    const btnRow = document.createElement('div');
-    btnRow.style.cssText = 'display:flex; gap:8px; margin-top:8px; flex-wrap:wrap;';
-
-    // Dateien liegen nicht auf diesem Server: Wer ein Dokument einbindet,
-    // ist selbst für Ort und Verfügbarkeit verantwortlich (Schulserver,
-    // Nextcloud, Moodle …). Deshalb nur eine Adresse, kein Hochladen.
-    const help = document.createElement('p');
-    help.className = 'hint';
-    help.style.cssText = 'margin:6px 0 0; font-size:0.82rem;';
-    help.innerHTML = 'Adresse einer öffentlich abrufbaren PDF-Datei, z.&nbsp;B. auf dem Schulserver. ' +
-      '<strong>Nextcloud:</strong> Datei teilen → „Link teilen“ und den Link hier einfügen – ' +
-      'er wird automatisch zum Direkt-Download ergänzt.';
-
-    // Ein Nextcloud-Freigabelink (…/s/<token>) zeigt eine HTML-Seite; die
-    // Datei selbst liegt unter …/s/<token>/download.
-    const normalize = () => {
-      const v = input.value.trim();
-      if (/^https?:\/\/[^\s]+\/s\/[A-Za-z0-9]+\/?$/.test(v)) {
-        input.value = v.replace(/\/?$/, '/download');
-        showStatus('Nextcloud-Freigabelink zum Direkt-Download ergänzt.', false);
-      } else if (v.startsWith('/api/files/')) {
-        showStatus('Diese Datei liegt noch auf dem App-Server. Bitte durch eine eigene Adresse ersetzen – ' +
-          'hochgeladene Dateien werden nicht mehr gesichert.', true);
-      } else if (v && !/^https?:\/\//i.test(v)) {
-        showStatus('Bitte eine vollständige Adresse mit https:// angeben.', true);
-      } else {
-        showStatus('', false);
-      }
-    };
-    input.addEventListener('change', normalize);
-    input.addEventListener('paste', () => setTimeout(normalize, 0));
-    setTimeout(normalize, 0);
-
-    const btnOpen = document.createElement('button');
-    btnOpen.type = 'button';
-    btnOpen.className = 'btn btn-secondary btn-sm';
-    btnOpen.textContent = '↗ Testen';
-    btnOpen.title = 'Adresse in neuem Tab öffnen – so sehen es auch die Schüler';
-    btnOpen.addEventListener('click', () => {
-      normalize();
-      if (/^https?:\/\//i.test(input.value.trim())) window.open(input.value.trim(), '_blank', 'noopener');
+    bar.querySelector('button').addEventListener('click', () => {
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = '.odt,.ott,.fodt,application/vnd.oasis.opendocument.text';
+      input.onchange = async () => {
+        const file = input.files[0];
+        if (!file) return;
+        // Der Bestätigungsdialog der App, sofern sie ihn bereitstellt.
+        const ask = window.appConfirm || ((m) => Promise.resolve(window.confirm(m)));
+        if ((surface.textContent.trim() || surface.querySelector('img')) && !(await ask('Den bisherigen Inhalt durch das Dokument ersetzen?'))) return;
+        status.textContent = 'Wird übernommen …';
+        const form = new FormData();
+        form.append('file', file);
+        const token = localStorage.getItem('lm_token');
+        try {
+          const res = await fetch('/api/interchange/odt-to-html', {
+            method: 'POST',
+            headers: token ? { Authorization: `Bearer ${token}` } : {},
+            body: form,
+          });
+          const data = await res.json();
+          if (!res.ok || !data.success) throw new Error(data.message || `HTTP ${res.status}`);
+          surface.innerHTML = data.html;
+          hidden.value = data.html;
+          // Ein leerer Modultitel bekommt den des Dokuments.
+          const title = document.getElementById('moduleTitle');
+          if (title && !title.value.trim()) title.value = data.title || '';
+          const s = data.stats || {};
+          status.innerHTML = `✅ Übernommen: ${s.headings || 0} Überschriften, ${s.paragraphs || 0} Absätze, ` +
+            `${s.tables || 0} Tabellen, ${s.images || 0} Bilder.` +
+            (data.warnings && data.warnings.length
+              ? `<br>⚠️ ${data.warnings.map((w) => escapeHtml(w)).join('<br>⚠️ ')}`
+              : '');
+        } catch (err) {
+          status.textContent = `Übernahme fehlgeschlagen: ${err.message}`;
+        }
+      };
+      input.click();
     });
-
-    const btnClear = document.createElement('button');
-    btnClear.type = 'button';
-    btnClear.className = 'btn btn-secondary btn-sm';
-    btnClear.textContent = '✕ Leeren';
-    btnClear.addEventListener('click', () => { input.value = ''; showStatus('', false); });
-
-    btnRow.appendChild(btnOpen);
-    btnRow.appendChild(btnClear);
-
-    wrap.appendChild(input);
-    wrap.appendChild(help);
-    wrap.appendChild(btnRow);
-    wrap.appendChild(status);
-    group.appendChild(wrap);
-    parent.appendChild(group);
   }
 
   renderImageField(parent, field, value) {
@@ -737,11 +714,11 @@ class ContentEditorManager {
       case 'text':
       case 'textarea':
       case 'richtext':
+      case 'worksheet':
       case 'number':
       case 'select':
       case 'image':
-      case 'audio':
-      case 'fileUrl': {
+      case 'audio': {
         const el = this.container.querySelector(`[name="content_${field.key}"]`);
         if (!el) return field.default || '';
         if (field.type === 'number') return parseFloat(el.value) || 0;

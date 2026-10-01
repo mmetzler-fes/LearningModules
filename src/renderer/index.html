@@ -2,7 +2,7 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8" />
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src * data:; font-src 'self' data:; media-src 'self' data:; connect-src * data:; object-src 'self' https:; frame-src 'self' https:;" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src * data:; font-src 'self' data:; media-src 'self' data:; connect-src * data:; object-src 'none'; frame-src 'self' https:;" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>LearningModules</title>
   <link rel="stylesheet" href="css/styles.css" />
@@ -785,7 +785,7 @@
 
           <div class="settings-group" style="margin-top:24px;">
             <h3>💾 Backup</h3>
-            <p class="hint">Sichert die gesamte Datenbank und alle hochgeladenen Dokumente in einer Datei,
+            <p class="hint">Sichert die gesamte Datenbank – Konten, Themen, Module samt Bildern, Links und Ergebnisse – in einer Datei,
               verschlüsselt mit dem Masterkey. Das Einspielen <strong>ersetzt alle Daten</strong>; der vorherige
               Stand bleibt auf dem Server als <code>*.before-restore</code> liegen.</p>
             <div class="form-actions">

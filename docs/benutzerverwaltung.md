@@ -129,7 +129,7 @@ nicht anmelden, seine Links sind gesperrt. In der Benutzerliste trägt er
 „⏸ deaktiviert“, und **▶ Reaktivieren** schaltet ihn wieder frei.
 
 Wer nichts verfasst hat, wird wirklich gelöscht. Seine Themen-Links,
-Quick-Links, Ergebnisse, Tags und Dateien gehen an den handelnden Admin (bzw.
+Quick-Links, Ergebnisse und Tags gehen an den handelnden Admin (bzw.
 den dienstältesten anderen). Erworbene Kopien und Nutzungsrechte verfallen.
 
 Einzelheiten, auch zum Wechsel der E-Mail-Adresse und zum Zusammenführen von
@@ -148,7 +148,7 @@ Der letzte aktive Admin lässt sich weder löschen noch herabstufen.
 | `src/auth/auth.service.ts` | `createUser`, `resetUserPassword`, `generatePassword` |
 | `src/auth/guards/jwt-auth.guard.ts` | Sperre bei offenem Initialpasswort |
 | `src/accounts/accounts.service.ts` | Deaktivieren, Reaktivieren, Löschen, Zusammenführen |
-| `src/accounts/handover.service.ts` | Übergabe von Links, Ergebnissen, Tags und Dateien |
+| `src/accounts/handover.service.ts` | Übergabe von Links, Ergebnissen und Tags |
 | `src/admin/user-sheet.service.ts` | Benutzertabelle (.ods) aus- und einlesen |
 | `src/core/interchange/ods/ods.ts` | Minimaler ODS-Leser/-Schreiber (ohne Fremdbibliothek) |
 

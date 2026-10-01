@@ -391,4 +391,6 @@ class App {
 
 const app = new App();
 window.appNavigate = (v) => app.navigateToView(v);
+// Für die klassischen Skripte (content-editors.js), die keine Module importieren.
+window.appConfirm = (m) => app.appConfirm(m);
 app.init();

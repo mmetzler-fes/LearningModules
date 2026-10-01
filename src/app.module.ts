@@ -11,7 +11,6 @@ import { Tag } from './core/entities/tag.entity';
 import { TopicLink } from './core/entities/topic-link.entity';
 import { TopicQuickLink } from './core/entities/topic-quick-link.entity';
 import { TeacherGroup } from './core/entities/teacher-group.entity';
-import { UploadedFile } from './core/entities/uploaded-file.entity';
 import { ShopOffer } from './core/entities/shop-offer.entity';
 import { UseGrant } from './core/entities/use-grant.entity';
 import { PointsEntry } from './core/entities/points-entry.entity';
@@ -27,7 +26,6 @@ import { PublicModule } from './core/public/public.module';
 import { TagsModule } from './tags/tags.module';
 import { LinksModule } from './links/links.module';
 import { GroupsModule } from './groups/groups.module';
-import { FilesModule } from './files/files.module';
 import { AccountsModule } from './accounts/accounts.module';
 import { ShopModule } from './shop/shop.module';
 import { CryptoModule } from './core/crypto/crypto.module';
@@ -56,7 +54,7 @@ import { AppService } from './app.service';
     TypeOrmModule.forRoot({
       type: 'sqlite',
       database: 'data/database.sqlite',
-      entities: [User, StudentClass, LearningTopic, LearningModule, Result, School, SystemConfig, Tag, TopicLink, TopicQuickLink, TeacherGroup, UploadedFile, ShopOffer, UseGrant, PointsEntry],
+      entities: [User, StudentClass, LearningTopic, LearningModule, Result, School, SystemConfig, Tag, TopicLink, TopicQuickLink, TeacherGroup, ShopOffer, UseGrant, PointsEntry],
       synchronize: true,
     }),
     MailModule,
@@ -69,7 +67,6 @@ import { AppService } from './app.service';
     TagsModule,
     LinksModule,
     GroupsModule,
-    FilesModule,
     AccountsModule,
     CryptoModule,
     ShopModule,

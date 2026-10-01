@@ -62,7 +62,7 @@ export class H5pService {
   private mapModuleToH5p(module: LearningModule) {
     return {
       library: this.getH5pLibrary(module.type),
-      params: module.content,
+      params: module.type === 'worksheet' ? { text: (module.content as any)?.html || '' } : module.content,
       subContentId: module.id,
       metadata: { title: module.title },
     };
@@ -74,9 +74,8 @@ export class H5pService {
       'dragTheWords': 'H5P.DragText 1.8',
       'markTheWords': 'H5P.MarkTheWords 1.9',
       'essay': 'H5P.Essay 1.2',
-      // Reine Informationen sind in H5P keine Frage. IframeEmbedder kommt
-      // dem am nächsten – MultiChoice als Rückfall wäre hier schlicht falsch.
-      'document': 'H5P.IframeEmbedder 1.0',
+      // Reiner Text ist in H5P keine Frage; AdvancedText ist der Textbaustein.
+      'worksheet': 'H5P.AdvancedText 1.1',
       'iframeEmbedder': 'H5P.IframeEmbedder 1.0',
     };
     return map[type] || 'H5P.MultiChoice 1.14';

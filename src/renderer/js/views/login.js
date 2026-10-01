@@ -117,10 +117,20 @@ export class LoginView {
     // Delete account
     if (this._btnDeleteAcc) {
       this._btnDeleteAcc.addEventListener('click', async () => {
-        if (!(await this.app.appConfirm('Konto wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.'))) return;
-        try { await this.app.api.deleteAccount(); } catch (_) {}
+        if (!(await this.app.appConfirm(
+          'Konto wirklich löschen?\n\n' +
+          'Hast du selbst Module verfasst, wird das Konto nur deaktiviert: Deine Inhalte bleiben erhalten und ' +
+          'stehen anderen kostenlos im Shop zur Verfügung, deine Links sind gesperrt. Der Admin kann dich wieder ' +
+          'freischalten.\n\nOhne eigene Module wird das Konto gelöscht, erworbene Inhalte verfallen.',
+        ))) return;
+        let res = null;
+        try { res = await this.app.api.deleteAccount(); } catch (_) {}
+        if (res && res.success === false) {
+          this.app.showToast('Fehler: ' + (res.message || '?'), 'error');
+          return;
+        }
         this.showLoginScreen();
-        this.app.showToast('Konto wurde gelöscht.', 'info');
+        this.app.showToast(res && res.deactivated ? 'Konto deaktiviert – deine Inhalte bleiben im Shop.' : 'Konto wurde gelöscht.', 'info');
       });
     }
 
@@ -498,6 +508,7 @@ export class LoginView {
 
     this.app.setupNavigation();
     await this.app.loadTopics();
+    if (currentUser.role === 'admin' || currentUser.role === 'teacher') this.app.loadPoints();
 
     if (currentUser.role === 'admin' || currentUser.role === 'teacher') {
       this.app.navigateToView('teacher-dashboard');

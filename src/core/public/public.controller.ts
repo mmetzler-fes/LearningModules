@@ -36,7 +36,7 @@ export class PublicController {
   async getQuickTopic(@Param('token') token: string) {
     const { topic, teacher } = await this.resolveQuickToken(token);
 
-    const { accessPassword: _ap, subscribeKey: _sk, quickToken: _qt, ...safeTopic } = topic;
+    const { accessPassword: _ap, subscribeKey: _sk, quickToken: _qt, sharedWith: _sw, sharedAccess: _sa, ...safeTopic } = topic;
     return {
       // Die Lehrkraft, die den Link verteilt hat – nicht zwingend die, von
       // der die Aufgaben stammen. Dort landen später die Ergebnisse.
@@ -83,12 +83,16 @@ export class PublicController {
 
     const teacher = await this.userRepo.findOne({ where: { id: teacherId } });
     if (!teacher) throw new NotFoundException('Lehrer nicht gefunden.');
+    if (teacher.active === false) throw new ForbiddenException('Dieser Link ist derzeit gesperrt.');
 
     if (!isOwnerLink) {
-      const level = this.topicsService.accessLevel(topic, await this.groupsService.asUser(teacher.id));
+      const asTeacher = await this.groupsService.asUser(teacher.id);
+      const level = this.topicsService.accessLevel(topic, asTeacher);
       if (level === 'none') {
         throw new ForbiddenException('Dieser Link ist derzeit nicht mehr freigegeben.');
       }
+      // Mit Nutzungsrecht nur die Module, die es umfasst.
+      topic.modules = this.topicsService.visibleModules(topic, topic.modules || [], asTeacher);
     }
 
     return { topic, teacher };
@@ -182,6 +186,9 @@ export class PublicController {
     const link = await this.linkRepo.findOne({ where: { token } });
     if (!link) throw new NotFoundException('Dieser Link ist ungültig oder wurde zurückgezogen.');
     if (!link.active) throw new ForbiddenException('Dieser Link ist derzeit deaktiviert.');
+    // Links eines deaktivierten Kontos ruhen mit ihm.
+    const owner = await this.userRepo.findOne({ where: { id: link.ownerId } });
+    if (!owner || owner.active === false) throw new ForbiddenException('Dieser Link ist derzeit gesperrt.');
     return link;
   }
 

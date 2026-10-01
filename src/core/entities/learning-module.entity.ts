@@ -45,4 +45,15 @@ export class LearningModule extends BaseEntity {
    */
   @Column('simple-json', { nullable: true })
   tagIds: string[] | null;
+
+  /**
+   * Wer dieses Modul verfasst hat. Bleibt bei Kopie, Kauf, Bearbeitung und
+   * Verschieben erhalten – nur der Creator darf das Modul im Shop anbieten
+   * und unverschlüsselt exportieren. Siehe docs/shop-und-rechte.md.
+   *
+   * Gesetzt wird er ausschließlich vom Server: beim Anlegen auf den
+   * Anlegenden, danach nie wieder (außer beim Zusammenführen zweier Konten).
+   */
+  @Column({ type: 'varchar', nullable: true })
+  creatorId: string | null;
 }

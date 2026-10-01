@@ -11,8 +11,12 @@ import { SystemConfig } from '../core/entities/system-config.entity';
 import { LearningTopic } from '../core/entities/learning-topic.entity';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { AuthService } from '../auth/auth.service';
-import { HandoverService } from './handover.service';
 import { UserSheetService } from './user-sheet.service';
+import { BackupService } from './backup.service';
+import { AccountsService } from '../accounts/accounts.service';
+import { PointsService } from '../accounts/points.service';
+import { MasterKeyService } from '../core/crypto/master-key.service';
+import { LearningModule } from '../core/entities/learning-module.entity';
 
 @Controller('admin')
 @UseGuards(JwtAuthGuard)
@@ -22,8 +26,12 @@ export class AdminController {
     @InjectRepository(SystemConfig) private readonly configRepo: Repository<SystemConfig>,
     @InjectRepository(LearningTopic) private readonly topicRepo: Repository<LearningTopic>,
     private readonly authService: AuthService,
-    private readonly handover: HandoverService,
+    @InjectRepository(LearningModule) private readonly moduleRepo: Repository<LearningModule>,
     private readonly userSheet: UserSheetService,
+    private readonly accounts: AccountsService,
+    private readonly points: PointsService,
+    private readonly masterKey: MasterKeyService,
+    private readonly backup: BackupService,
   ) {}
 
   // ---- Admin only guard helper ----
@@ -36,7 +44,15 @@ export class AdminController {
   async getAllUsers(@Request() req: any) {
     this.requireAdmin(req);
     const users = await this.userRepo.find();
-    return users.map(({ passwordHash, resetPasswordToken, ...u }) => u);
+    const { startPoints } = await this.points.getSettings();
+    // Creator-Kennung je Konto in einem Rutsch statt einer Abfrage pro Zeile.
+    const modules = await this.moduleRepo.find({ select: ['id', 'creatorId'] });
+    const creators = new Set(modules.map((m) => m.creatorId));
+    return users.map(({ passwordHash, resetPasswordToken, ...u }) => ({
+      ...u,
+      points: u.points ?? startPoints,
+      isCreator: creators.has(u.id),
+    }));
   }
 
   // ---- Create a new user (teacher or admin) with a generated initial password ----
@@ -78,9 +94,8 @@ export class AdminController {
       );
     }
 
-    if (target.role === 'admin' && role !== 'admin') {
-      const adminCount = await this.userRepo.count({ where: { role: 'admin' } });
-      if (adminCount <= 1) throw new BadRequestException('Es muss mindestens ein Admin vorhanden bleiben.');
+    if (target.role === 'admin' && role !== 'admin' && (await this.accounts.otherActiveAdmins(target.id)) === 0) {
+      throw new BadRequestException('Es muss mindestens ein aktiver Admin vorhanden bleiben.');
     }
 
     target.role = role;
@@ -88,32 +103,73 @@ export class AdminController {
     return { success: true, id: target.id, role: target.role };
   }
 
-  // ---- Delete admin or teacher (min. 1 admin must remain) ----
+  // ---- Konto entfernen: Creator werden deaktiviert, alle anderen gelöscht ----
   @Delete('users/:id')
   async deleteUser(@Request() req: any, @Param('id') id: string) {
     this.requireAdmin(req);
     const target = await this.userRepo.findOne({ where: { id } });
     if (!target) throw new BadRequestException('Benutzer nicht gefunden.');
-    if (target.role === 'admin') {
-      const adminCount = await this.userRepo.count({ where: { role: 'admin' } });
-      if (adminCount <= 1) throw new BadRequestException('Es muss mindestens ein Admin vorhanden bleiben.');
-    }
+    return this.accounts.removeAccount(target, req.user.userId);
+  }
 
-    // Erst übergeben, dann löschen. Andersherum bliebe alles als Waise mit
-    // einer ownerId zurück, die auf niemanden zeigt: unsichtbar für alle,
-    // aber bei Kolleginnen mit Nutzungsfreigabe weiterhin aktiv.
-    const successor = await this.handover.pickSuccessor(target, req.user.userId);
-    if (!successor) {
-      throw new BadRequestException('Kein Admin gefunden, der die Inhalte übernehmen könnte.');
-    }
-    const moved = await this.handover.transferOwnership(target, successor);
+  /** Deaktiviertes Konto wieder freischalten; seine früheren Angebote kehren zurück. */
+  @Post('users/:id/reactivate')
+  async reactivateUser(@Request() req: any, @Param('id') id: string) {
+    this.requireAdmin(req);
+    const target = await this.userRepo.findOne({ where: { id } });
+    if (!target) throw new BadRequestException('Benutzer nicht gefunden.');
+    if (target.active !== false) return { success: true, alreadyActive: true };
+    return this.accounts.reactivate(target);
+  }
 
-    await this.userRepo.delete({ id });
-    return {
-      success: true,
-      handedOverTo: successor.displayName || successor.email,
-      moved,
-    };
+  // ---- Punkte ----
+
+  @Get('points-settings')
+  async getPointsSettings(@Request() req: any) {
+    this.requireAdmin(req);
+    return this.points.getSettings();
+  }
+
+  @Post('points-settings')
+  async savePointsSettings(@Request() req: any, @Body() body: any) {
+    this.requireAdmin(req);
+    return this.points.saveSettings(body || {});
+  }
+
+  // ---- Masterkey ----
+
+  /** Nur Fingerabdruck und Datum – den Schlüssel selbst gibt die App nie heraus. */
+  @Get('master-key')
+  async getMasterKey(@Request() req: any) {
+    this.requireAdmin(req);
+    return this.masterKey.status();
+  }
+
+  @Post('master-key')
+  async setMasterKey(@Request() req: any, @Body() body: { masterKey?: string }) {
+    this.requireAdmin(req);
+    return this.masterKey.setMasterKey(String(body?.masterKey || ''));
+  }
+
+  // ---- Backup ----
+
+  @Get('backup')
+  async downloadBackup(@Request() req: any, @Res() res: Response) {
+    this.requireAdmin(req);
+    const buffer = await this.backup.create();
+    const stamp = new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-');
+    res.setHeader('Content-Type', 'application/octet-stream');
+    res.setHeader('Content-Disposition', `attachment; filename="lernmodule-backup-${stamp}.lmbak"`);
+    res.send(buffer);
+  }
+
+  /** Ersetzt alle Daten durch das Backup. Der vorherige Stand bleibt als Datei liegen. */
+  @Post('restore')
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 1024 * 1024 * 1024 } }))
+  async restoreBackup(@Request() req: any, @UploadedFile() file: Express.Multer.File) {
+    this.requireAdmin(req);
+    if (!file || !file.buffer) throw new BadRequestException('Keine Datei empfangen.');
+    return this.backup.restore(file.buffer);
   }
 
   // ---- Benutzerliste als Tabelle (.ods) ----

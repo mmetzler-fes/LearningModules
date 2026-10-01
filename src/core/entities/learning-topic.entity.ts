@@ -37,28 +37,13 @@ export class LearningTopic extends BaseEntity {
   quickToken: string | null;
 
   /**
-   * Freigabe zum Kopieren: Liste von Benutzer-IDs, oder ['*'] für alle
-   * Kolleginnen und Kollegen. Wer freigegeben bekommt, kann sich eine eigene
-   * Kopie ziehen und ist deren Eigentümer – das Original bleibt unberührt.
+   * Altlast der früheren Freigabe (kopieren bzw. verwenden). Seit dem Shop
+   * liest nur noch die RightsMigrationService diese Felder: Sie überführt
+   * Bestände in Angebote und Nutzungsrechte und leert sie danach.
    */
   @Column('simple-json', { nullable: true })
   sharedWith: string[] | null;
 
-  /**
-   * Zugriff auf das Original, ohne es zu kopieren. Damit kann eine Kollegin
-   * das Thema in ihren eigenen Themen-Links verwenden; die Ergebnisse landen
-   * trotzdem bei ihr, denn dafür zählt der Eigentümer des Links.
-   *
-   * Die Stufen sind bewusst geordnet: 'write' schließt 'read' ein.
-   *   read  – Inhalte sehen und in eigenen Links verwenden
-   *   write – zusätzlich Module bearbeiten, anlegen, löschen, umsortieren
-   *
-   * 'write' ist im Datenmodell vorgesehen, in der Oberfläche aber noch nicht
-   * wählbar. Eigentümervorbehalte bleiben in jedem Fall: Thema löschen,
-   * Freigabe ändern und Quick-Link verwalten kann nur der Ersteller.
-   *
-   * userId '*' steht für alle Kolleginnen und Kollegen.
-   */
   @Column('simple-json', { nullable: true })
   sharedAccess: Array<{ userId: string; level: 'read' | 'write' }> | null;
 
@@ -76,6 +61,7 @@ export class LearningTopic extends BaseEntity {
    *
    * Keines der vier Felder steht in EDITABLE_FIELDS oder OWNER_FIELDS – die
    * Herkunft lässt sich darum auch vom neuen Eigentümer nicht abstreifen.
+   * Wer Creator welches Moduls ist, steht ohnehin am Modul selbst.
    */
   @Column({ type: 'varchar', nullable: true })
   copiedFromId: string | null;

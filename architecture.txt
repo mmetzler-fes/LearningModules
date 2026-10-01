@@ -19,17 +19,21 @@ BACKEND – src/
 
   core/entities/                TypeORM-Entitäten
     base.entity.ts              Basis (id, createdAt, updatedAt)
-    user.entity.ts              Benutzer (admin / teacher); hiddenSharedTopics
-                                und removedSharedTopics = persönliche Sicht
-                                auf fremde Freigaben
+    user.entity.ts              Benutzer (admin / teacher); points (null =
+                                Startguthaben beim ersten Zugriff), active
+                                (Creator werden nur deaktiviert), formerIds,
+                                pendingMergeFrom (E-Mail-Wechsel)
     school.entity.ts            Schule / Mandant
     student-class.entity.ts     Klasse
-    learning-topic.entity.ts    Lernthema (tagIds, sharedWith = kopieren,
-                                sharedAccess = [{userId, level}] verwenden,
-                                copiedFrom* = Herkunft einer Kopie; als Text
-                                mitkopiert, damit die Nennung die Quelle
-                                überlebt, und nicht änderbar)
-    learning-module.entity.ts   Lernmodul (gehört zu Topic)
+    learning-topic.entity.ts    Lernthema (tagIds, copiedFrom* = Herkunft
+                                einer Kopie; sharedWith/sharedAccess sind
+                                Altlast, nur noch für die Migration)
+    learning-module.entity.ts   Lernmodul (gehört zu Topic); creatorId =
+                                Verfasser, bleibt bei Kopie/Bearbeitung
+    shop-offer.entity.ts        Shop-Angebot: creator (eigene Module, Copy/
+                                Use, Preise) oder buyer (Weitergabe, nur Use)
+    use-grant.entity.ts         Nutzungsrecht ("Use"); scope creator|all
+    points-entry.entity.ts      Buchung auf dem Punktekonto
     result.entity.ts            Quiz-Ergebnis (mit linkId, linkName, mode)
     tag.entity.ts               Schlagwort (gehört zu User)
     topic-link.entity.ts        Themen-Link: benannter Schülerzugang
@@ -52,20 +56,37 @@ BACKEND – src/
 
   topics/                       CRUD Lernthemen (Teacher-Auth erforderlich)
     topics.service.ts           findOneFor(id,user,need): eine Stelle für alle
-                                Zugriffsstufen (read < write < owner);
+                                Zugriffsstufen (read = Nutzungsrecht < owner);
+                                visibleModules(): welche Module ein
+                                Nutzungsrecht zeigt;
                                 getQuickLink() ab 'read' – auch fremde Themen;
                                 setSharedHidden()/setSharedRemoved() =
                                 persönliche Sicht, löschen nie etwas;
                                 withProvenance() liefert origin + copyCount
                                 (nur direkte Abstammung, kein Stammbaum)
   results/                      CRUD Quiz-Ergebnisse
-  admin/                        Admin-Verwaltung (User-Liste, Whitelist/Blacklist)
+  admin/                        Admin-Verwaltung (User-Liste, Whitelist/Blacklist,
+                                Punkteregeln, Masterkey, Backup)
     user-sheet.service.ts       Benutzer als .ods aus- und einlesen; der Import
                                 legt Konten an und gibt die Initialpasswörter
                                 einmalig zurück (im Server liegt nur der Hash)
-    handover.service.ts         Beim Löschen eines Kontos gehen Themen, Links,
-                                Tags, Dateien und Ergebnisse an einen Admin;
-                                die Herkunft von Kopien bleibt unberührt
+    backup.service.ts           Gesamtsicherung (VACUUM INTO + Dokumente),
+                                verschlüsselt mit dem Masterkey; Restore
+  accounts/                     Lebenszyklus von Konten
+    accounts.service.ts         Creator deaktivieren (Inhalte für 0 Punkte in
+                                den Shop), reaktivieren, Nicht-Creator löschen,
+                                Konten zusammenführen (E-Mail-Wechsel)
+    handover.service.ts         Links, Quick-Links, Ergebnisse, Tags, Dateien
+                                an ein anderes Konto übergeben
+    points.service.ts           Punktekonto, Einstellungen, Jahreswechsel
+  shop/                         Lernmodule-Shop (docs/shop-und-rechte.md)
+    shop.service.ts             Anbieten, Erwerben (Punkte in einer
+                                Transaktion), Weitergeben, Entziehen
+    rights-migration.service.ts Bestand umstellen: Creator setzen, alte
+                                Freigaben in Angebote/Nutzungsrechte
+  core/crypto/master-key.service.ts
+                                Masterkey (data/masterkeys.json, geschützt mit
+                                APP_SECRET), AES-256-GCM mit scrypt
   tags/                         CRUD Schlagworte; Löschen räumt Themen & Links auf
   groups/                       Lehrergruppen: lesen alle, pflegen nur Admin
     groups.service.ts           groupIdsFor()/asUser(): Mitgliedschaft auflösen
@@ -82,6 +103,8 @@ BACKEND – src/
     ods/ods.ts                  Minimaler ODS-Leser/-Schreiber ohne Fremd-
                                 bibliothek (.ods = ZIP + content.xml)
     interchange.controller.ts   Routen für JSON- und H5P-Import/-Export
+    export/export.service.ts    Offen nur eigene Module; verschlüsselt das
+                                ganze Thema, Re-Import nur durch den Exporteur
     import/import.service.ts    JSON-Datei-Import
     h5p/h5p.service.ts          H5P-Paket parsen & generieren
     h5p/h5p-parser.ts           H5P-Format-Hilfsfunktionen
@@ -199,13 +222,19 @@ FRONTEND – src/renderer/
   views/topics.js
     class TopicsView
       refresh()           Rendert Themenkarten (Toggle, Module öffnen, Edit,
-                          Teilen, JSON/H5P-Export, Löschen)
+                          👥 → Shop, Export, Löschen mit Use-Warnung)
       _openEditor(topic)  Formular für Bearbeitung füllen
       _onFormSubmit()     Thema anlegen / aktualisieren
-      _onExportH5p()      Einzel- oder Multi-Thema H5P-Export
-      _openShareDialog()  Overlay mit Benutzerauswahl zum Teilen
-      refreshSharedTopics()       Fremde Freigaben: ansehen, eigener
-                                  Quick-Link, kopieren, ausblenden, entfernen
+      openExportDialog()  JSON/H5P (nur eigene Module) oder verschlüsselt
+      _onExportH5p()      Themenauswahl für den Export-Dialog
+      refreshSharedTopics()       Zur Nutzung erworben: ansehen, eigener
+                                  Quick-Link, zurückgeben
+
+  views/shop.js
+    class ShopView
+      refresh()           Tabs: Angebote, Meine Angebote, Punktekonto
+      openForTopic(id)    Aus der Themenkarte: Shop + Anbieten-Dialog
+      openOfferDialog(id) Als Creator anbieten / als Buyer weitergeben
 
   views/modules.js
     class ModulesView
@@ -244,7 +273,9 @@ FRONTEND – src/renderer/
     class AdminView
       load()                    Admin-Nav + Formulare binden
       refreshUsers()            Benutzerliste laden & rendern
-      _deleteUser(userId)       Benutzer löschen mit Bestätigung
+      _deleteUser(userId)       Entfernen (Creator: deaktivieren) mit Bestätigung
+      _reactivateUser(user)     Deaktiviertes Konto freischalten
+      refreshSettings()         Shop & Sicherheit: Punkte, Masterkey, Backup
       refreshWhitelistBlacklist() Whitelist/Blacklist aus API laden
       (Speichern via _btnSaveWBL-Listener)
 

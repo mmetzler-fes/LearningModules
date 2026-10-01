@@ -41,28 +41,46 @@ export class User extends BaseEntity {
   @Column('simple-json', { nullable: true })
   classIds: string[];
 
-  /**
-   * Freigegebene Themen fremder Lehrkräfte, die ich in meiner Liste
-   * ausgeblendet habe. Rein persönlich: Die Freigabe der Kollegin und ihr
-   * Thema bleiben davon unberührt.
-   */
+  /** Altlast der früheren Freigaben (persönlich ausgeblendet/entfernt); ungenutzt. */
   @Column('simple-json', { nullable: true })
   hiddenSharedTopics: string[];
 
-  /**
-   * Freigegebene Themen, die ich aus meiner Liste entfernt habe.
-   *
-   * Der Unterschied zum Ausblenden ist die Absicht: Ausgeblendetes wartet
-   * zusammengeklappt auf seinen Einsatz, Entferntes will ich gar nicht mehr
-   * sehen. Für den Eigentümer ändert sich in beiden Fällen nichts – seine
-   * Inhalte bleiben ihm, entfernt wird nur meine Ansicht darauf.
-   *
-   * Gibt die Kollegin die Freigabe später erneut, räumt `setSharing` den
-   * Eintrag wieder weg: Eine neue Einladung soll nicht an einer alten
-   * Absage scheitern.
-   */
   @Column('simple-json', { nullable: true })
   removedSharedTopics: string[];
+
+  /**
+   * Punktekonto für den Shop. `null` heißt: noch nie angefasst – dann gilt
+   * beim ersten Zugriff das vom Admin eingestellte Startguthaben (siehe
+   * PointsService). So muss das Anlegen eines Kontos nichts vom Shop wissen.
+   */
+  @Column({ type: 'integer', nullable: true })
+  points: number | null;
+
+  /**
+   * Deaktivierte Konten können sich nicht anmelden, ihre Links sind gesperrt.
+   * Ein Creator wird beim Löschen nur deaktiviert – seine Inhalte bleiben
+   * erhalten und stehen für 0 Punkte im Shop. Der Admin kann ihn reaktivieren.
+   */
+  @Column({ type: 'boolean', default: true })
+  active: boolean;
+
+  @Column({ type: 'datetime', nullable: true })
+  deactivatedAt: Date | null;
+
+  /**
+   * IDs von Konten, die in dieses zusammengeführt wurden. Verschlüsselte
+   * Exporte dieser Konten lassen sich deshalb hier weiter importieren.
+   */
+  @Column('simple-json', { nullable: true })
+  formerIds: string[] | null;
+
+  /**
+   * E-Mail-Wechsel auf eine neue Adresse: Dieses Konto wurde dafür angelegt
+   * und übernimmt das genannte, sobald hier das Initialpasswort geändert ist.
+   * Erst damit ist bewiesen, dass die neue Adresse dem Benutzer gehört.
+   */
+  @Column({ type: 'varchar', nullable: true })
+  pendingMergeFrom: string | null;
 
   // Password reset
   @Column({ nullable: true })

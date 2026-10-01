@@ -86,6 +86,8 @@ export class AdminView {
 
     document.getElementById('btnImportUsers')?.addEventListener('click', () => this._importUsers());
 
+    this._bindSettings();
+
 
 
     // Whitelist/blacklist save
@@ -274,7 +276,11 @@ export class AdminView {
           <strong>${escapeHtml(u.displayName || u.username || u.email)}</strong>
           <span style="color:var(--text-secondary);font-size:0.9em">${escapeHtml(u.email || u.username)}</span>
           ${roleBadge(u.role)}
-          ${u.mustChangePassword ? '<span class="hint">🔑 hat sein Passwort noch nicht geändert</span>' : ''}
+          ${u.active === false ? '<span class="topic-status inactive" title="Kann sich nicht anmelden; Inhalte stehen kostenlos im Shop">⏸ deaktiviert</span>' : ''}
+          ${u.isCreator ? '<span class="topic-shared-badge" title="Hat Module verfasst – wird beim Löschen nur deaktiviert">✍️ Creator</span>' : ''}
+          <span class="topic-shared-badge" title="Punktekonto">🪙 ${u.points ?? 0}</span>
+          ${u.pendingMergeFrom ? '<span class="hint">✉️ wartet auf Bestätigung eines E-Mail-Wechsels</span>' : ''}
+          ${u.mustChangePassword && !u.pendingMergeFrom ? '<span class="hint">🔑 hat sein Passwort noch nicht geändert</span>' : ''}
         </div>
         <div class="admin-list-item-actions">
           <select class="user-role-select" title="Rolle ändern">
@@ -283,35 +289,44 @@ export class AdminView {
           </select>
           <button class="btn btn-secondary btn-sm btn-reset-password"
             title="Neues Initialpasswort erzeugen und anzeigen">🔑 Neues Passwort</button>
-          <button class="btn btn-danger btn-sm btn-delete-user" title="Benutzer löschen">🗑</button>
+          ${u.active === false
+            ? '<button class="btn btn-primary btn-sm btn-reactivate-user" title="Konto wieder freischalten">▶ Reaktivieren</button>'
+            : `<button class="btn btn-danger btn-sm btn-delete-user" title="${u.isCreator ? 'Deaktivieren (Creator werden nicht gelöscht)' : 'Benutzer löschen'}">🗑</button>`}
         </div>`;
       item.querySelector('.user-role-select').addEventListener('change', (e) => this._changeRole(u, e.target));
       item.querySelector('.btn-reset-password').addEventListener('click', () => this._resetPassword(u.id));
-      item.querySelector('.btn-delete-user').addEventListener('click', () => this._deleteUser(u.id));
+      item.querySelector('.btn-delete-user')?.addEventListener('click', () => this._deleteUser(u.id));
+      item.querySelector('.btn-reactivate-user')?.addEventListener('click', () => this._reactivateUser(u));
       container.appendChild(item);
     }
   }
 
+  /**
+   * Entfernen. Creator werden nur deaktiviert, ihre Inhalte gehen für 0 Punkte
+   * in den Shop; alle anderen werden gelöscht. Das gehört vor die
+   * Entscheidung, nicht in eine Meldung danach.
+   */
   async _deleteUser(userId) {
     const user = this._usersCache.find((u) => u.id === userId);
     if (!user) return;
     const name = user.displayName || user.email || user.username;
-    // Die Übergabe ist der überraschende Teil – sie gehört vor die
-    // Entscheidung, nicht in eine Meldung danach.
-    const confirmed = await this.app.appConfirm(
-      `Benutzer "${name}" wirklich löschen?\n\n` +
-      'Themen, Links, Tags, Dateien und Ergebnisse gehen dabei nicht verloren: ' +
-      'Sie werden dir als Admin überschrieben. Laufende Links von Kolleginnen, ' +
-      'die Inhalte dieser Lehrkraft verwenden, bleiben damit gültig. ' +
-      'Aufräumen kannst du danach in Ruhe.',
-    );
-    if (!confirmed) return;
+    const text = user.isCreator
+      ? `"${name}" hat Module verfasst und wird deshalb nur deaktiviert.\n\n` +
+        'Das Konto kann sich nicht mehr anmelden, seine Links sind gesperrt. Seine Inhalte stehen allen ' +
+        'kostenlos zum Kopieren und Verwenden im Shop. Über „Reaktivieren" lässt sich das rückgängig machen.'
+      : `"${name}" wirklich löschen?\n\n` +
+        'Das Konto hat keine eigenen Module. Erworbene Kopien und Nutzungsrechte verfallen; ' +
+        'Themen-Links, Ergebnisse, Tags und Dateien werden dir als Admin überschrieben.';
+    if (!(await this.app.appConfirm(text))) return;
     const res = await this.app.api.deleteUser(userId);
     if (res && res.success !== false) {
       await this.refreshUsers();
+      if (res.deactivated) {
+        this.app.showToast(`"${name}" deaktiviert – ${res.offeredTopics || 0} Themen stehen kostenlos im Shop.`, 'success');
+        return;
+      }
       const m = res.moved || {};
       const parts = [
-        m.topics ? `${m.topics} Themen` : null,
         m.links ? `${m.links} Links` : null,
         m.quickLinks ? `${m.quickLinks} Quick-Links` : null,
         m.results ? `${m.results} Ergebnisse` : null,
@@ -324,7 +339,95 @@ export class AdminView {
           : 'Benutzer gelöscht – es gab nichts zu übernehmen.',
         'success',
       );
-    } else this.app.showToast('Fehler: ' + (res?.error || '?'), 'error');
+    } else this.app.showToast('Fehler: ' + (res?.message || res?.error || '?'), 'error');
+  }
+
+  async _reactivateUser(user) {
+    const name = user.displayName || user.email;
+    if (!(await this.app.appConfirm(`"${name}" wieder freischalten?\n\nSeine Shop-Angebote kehren zum Stand vor der Deaktivierung zurück. Wer in der Zwischenzeit kostenlos etwas erworben hat, behält es.`))) return;
+    const res = await this.app.api.reactivateUser(user.id);
+    if (res && res.success) {
+      this.app.showToast(`"${name}" ist wieder aktiv.`, 'success');
+      await this.refreshUsers();
+    } else this.app.showToast('Fehler: ' + (res?.message || '?'), 'error');
+  }
+
+  // ==================== SHOP & SICHERHEIT ====================
+
+  async refreshSettings() {
+    try {
+      const [pts, key] = await Promise.all([this.app.api.getPointsSettings(), this.app.api.getMasterKeyStatus()]);
+      const set = (id, v) => { const el = document.getElementById(id); if (el) el.value = v ?? ''; };
+      set('ptsStart', pts.startPoints);
+      set('ptsDecay', pts.yearlyDecayPercent);
+      set('ptsBonus', pts.yearlyBonus);
+      set('ptsShareMax', pts.buyerShareMax);
+      const status = document.getElementById('masterKeyStatus');
+      if (status) {
+        status.innerHTML = key.fingerprint
+          ? `Aktueller Masterkey: Fingerabdruck <code>${escapeHtml(key.fingerprint)}</code>, gesetzt am
+             ${new Date(key.setAt).toLocaleString('de-DE')}${key.previousKeys ? ` · ${key.previousKeys} frühere gespeichert` : ''}.
+             ${key.appSecretFromEnv ? '' : '<br>⚠️ APP_SECRET ist nicht gesetzt – die Masterkeys sind mit einer Datei auf dem Server geschützt. Für den Betrieb besser APP_SECRET setzen.'}`
+          : 'Noch kein Masterkey gesetzt.';
+      }
+    } catch (err) {
+      this.app.showToast('Fehler: ' + err.message, 'error');
+    }
+  }
+
+  _bindSettings() {
+    document.getElementById('btnSavePoints')?.addEventListener('click', async () => {
+      const num = (id) => Number(document.getElementById(id)?.value);
+      const res = await this.app.api.savePointsSettings({
+        startPoints: num('ptsStart'),
+        yearlyDecayPercent: num('ptsDecay'),
+        yearlyBonus: num('ptsBonus'),
+        buyerShareMax: num('ptsShareMax'),
+      });
+      if (res && typeof res.startPoints === 'number') this.app.showToast('Punkteregeln gespeichert', 'success');
+      else this.app.showToast('Fehler: ' + (res?.message || '?'), 'error');
+    });
+
+    document.getElementById('btnSetMasterKey')?.addEventListener('click', async () => {
+      const a = document.getElementById('masterKeyNew');
+      const b = document.getElementById('masterKeyRepeat');
+      if (!a.value || a.value !== b.value) {
+        this.app.showToast('Die beiden Eingaben stimmen nicht überein.', 'error');
+        return;
+      }
+      const ok = await this.app.appConfirm(
+        'Neuen Masterkey setzen?\n\nAb jetzt wird damit verschlüsselt. Ältere Dateien bleiben lesbar. ' +
+        'Die App zeigt den Schlüssel nie wieder an – bitte jetzt sicher notieren.',
+      );
+      if (!ok) return;
+      const res = await this.app.api.setMasterKey(a.value);
+      a.value = '';
+      b.value = '';
+      if (res && res.fingerprint) {
+        this.app.showToast('Masterkey gesetzt', 'success');
+        this.refreshSettings();
+      } else this.app.showToast('Fehler: ' + (res?.message || '?'), 'error');
+    });
+
+    document.getElementById('btnBackup')?.addEventListener('click', async () => {
+      const res = await this.app.api.downloadBackup();
+      if (res && res.success) this.app.showToast('Backup heruntergeladen (verschlüsselt)', 'success');
+      else this.app.showToast('Fehler: ' + (res?.error || '?'), 'error');
+    });
+
+    document.getElementById('btnRestore')?.addEventListener('click', async () => {
+      const ok = await this.app.appConfirm(
+        'Backup einspielen?\n\nAlle aktuellen Daten – Konten, Themen, Links, Ergebnisse, Dokumente – werden durch ' +
+        'den Stand des Backups ersetzt. Der bisherige Stand bleibt auf dem Server als Datei *.before-restore liegen.',
+      );
+      if (!ok) return;
+      const res = await this.app.api.restoreBackup();
+      if (!res) return;
+      if (res.success) {
+        this.app.showToast(`Backup vom ${new Date(res.createdAt).toLocaleString('de-DE')} eingespielt. Bitte neu anmelden.`, 'success');
+        setTimeout(() => this.app.loginView.showLoginScreen(), 1500);
+      } else this.app.showToast('Fehler: ' + (res.message || '?'), 'error');
+    });
   }
 
   // ==================== TABELLE EIN- UND AUSLESEN ====================

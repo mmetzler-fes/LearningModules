@@ -22,11 +22,12 @@ Menüpunkt **🔗 Themen-Links → ➕ Neuer Themen-Link**.
 | Tags | Zum Wiederfinden, siehe unten |
 | Inhalte | Themen ankreuzen, oder Module einzeln auswählen |
 
-Zur Auswahl stehen die **eigenen** Themen und die, die dir jemand **zur
-Nutzung freigegeben** hat – letztere in einem eigenen Abschnitt mit
-Eigentümernamen. Verwendest du fremde Inhalte, landen die Ergebnisse trotzdem
-bei dir: Dafür zählt der Eigentümer des Links. Siehe
-[Lernthemen freigeben](themen-teilen.md).
+Zur Auswahl stehen die **eigenen** Themen und die, auf die du ein
+**Nutzungsrecht** aus dem Shop hast. Letztere stehen in einem eigenen Abschnitt
+mit Eigentümernamen und nur mit den Modulen, die das Nutzungsrecht umfasst.
+Verwendest du fremde Inhalte, landen die Ergebnisse trotzdem bei dir, denn
+dafür zählt der Eigentümer des Links. Siehe
+[Rechtemodell und Shop](shop-und-rechte.md).
 
 Bei den Inhalten gibt es zwei Wege:
 

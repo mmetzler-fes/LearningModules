@@ -70,28 +70,14 @@ export class ModulesView {
       });
     }
 
-    if (this._btnExportTopic) {
-      this._btnExportTopic.addEventListener('click', async () => {
-        if (!this.app.state.currentTopicId) return;
-        const result = await this.app.api.exportTopic(this.app.state.currentTopicId);
-        if (result.success) this.app.showToast(t('topics.exported'), 'success');
-      });
-    }
-
-    if (this._btnExportH5p) {
-      this._btnExportH5p.addEventListener('click', async () => {
-        if (!this.app.state.currentTopicId) return;
-        const result = await this.app.api.exportSelectedModulesAsH5p(this.app.state.currentTopicId);
-        if (result.success) {
-          const msg = result.exported === result.total
-            ? `📦 ${result.exported} Modul(e) als H5P exportiert!`
-            : `📦 ${result.exported} von ${result.total} Modul(en) exportiert.`;
-          this.app.showToast(result.errors && result.errors.length > 0 ? msg + ` (${result.errors.length} Fehler)` : msg, 'success');
-        } else if (result.error) {
-          this.app.showToast('❌ H5P-Export fehlgeschlagen: ' + result.error, 'error');
-        }
-      });
-    }
+    // Beide Export-Knöpfe führen in denselben Dialog: Er weiß, welche Module
+    // eigene sind und was deshalb nur verschlüsselt hinaus darf.
+    const openExport = () => {
+      const id = this.app.state.currentTopicId;
+      if (id) this.app.topicsView.openExportDialog({ id });
+    };
+    this._btnExportTopic?.addEventListener('click', openExport);
+    this._btnExportH5p?.addEventListener('click', openExport);
 
     // Import Modules — must be called synchronously in click handler to open file dialog
     if (this._btnImport) {
@@ -360,6 +346,7 @@ export class ModulesView {
           <div class="module-card-meta">
             <span class="module-card-type">${typeDef.name || mod.type}</span>
             ${mod.createdAt ? new Date(mod.createdAt).toLocaleDateString('de-DE') : ''}
+            ${mod.isMine === false ? `<span class="topic-shared-badge" title="Creator dieses Moduls – bleibt auch nach deiner Bearbeitung verzeichnet. Unverschlüsselt exportieren kann es nur der Creator.">✍️ ${escapeHtml(mod.creatorName || 'Unbekannt')}</span>` : ''}
           </div>
           ${this._renderTagChips(mod.tagIds)}
         </div>
@@ -456,7 +443,13 @@ export class ModulesView {
   }
 
   async _deleteModule(mod) {
-    if (!(await this.app.appConfirm(t('modules.delete.confirm', { title: mod.title })))) return;
+    // Verwenden andere das Thema über den Shop, verschwindet das Modul auch bei ihnen.
+    const topic = (this.app.state.topics || []).find((x) => x.id === this.app.state.currentTopicId);
+    const users = topic && topic.useCount
+      ? `\n\n${topic.useCount} Person${topic.useCount === 1 ? ' verwendet' : 'en verwenden'} dieses Thema über den Shop – ` +
+        'das Modul verschwindet auch bei ihnen.'
+      : '';
+    if (!(await this.app.appConfirm(t('modules.delete.confirm', { title: mod.title }) + users))) return;
     const result = await this.app.api.deleteModule(this.app.state.currentTopicId, mod.id);
     if (result.success) {
       this.app.showToast(t('modules.deleted'), 'info');

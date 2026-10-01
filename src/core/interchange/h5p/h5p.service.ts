@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import AdmZip from 'adm-zip';
@@ -14,14 +14,12 @@ export class H5pService {
     private readonly moduleRepo: Repository<LearningModule>,
   ) {}
 
-  async generateH5pBuffer(topicId: string): Promise<Buffer> {
-    const topic = await this.topicRepo.findOne({
-      where: { id: topicId },
-      relations: ['modules'],
-    });
-
-    if (!topic) throw new NotFoundException('Thema nicht gefunden');
-
+  /**
+   * Baut das H5P-Paket aus den übergebenen Modulen. Welche das sind,
+   * entscheidet der Aufrufer (ExportService) – unverschlüsselt sind es nur
+   * die selbst verfassten.
+   */
+  async generateH5pBuffer(topic: LearningTopic, modules: LearningModule[]): Promise<Buffer> {
     const zip = new AdmZip();
 
     // 1. h5p.json
@@ -39,7 +37,7 @@ export class H5pService {
     zip.addFile('h5p.json', Buffer.from(JSON.stringify(h5pJson, null, 2), 'utf-8'));
 
     // 2. content/content.json
-    const selectedModules = (topic.modules || []).filter(m => m.moduleSelected !== false);
+    const selectedModules = modules.filter((m) => !m.parentId && m.moduleSelected !== false);
     const questions = selectedModules.map(mod => this.mapModuleToH5p(mod));
 
     const contentJson = {

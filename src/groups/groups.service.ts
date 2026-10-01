@@ -3,12 +3,13 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { TeacherGroup } from '../core/entities/teacher-group.entity';
 import { User } from '../core/entities/user.entity';
+import { UseGrant } from '../core/entities/use-grant.entity';
 import * as crypto from 'crypto';
 
-/** Präfix, mit dem eine Gruppe in den Freigabelisten eines Themas steht. */
+/** Präfix, mit dem eine Gruppe in der Zielgruppe eines Shop-Angebots steht. */
 export const GROUP_PREFIX = 'group:';
 
-/** Macht aus einer Gruppen-ID den Eintrag, wie er in sharedAccess steht. */
+/** Macht aus einer Gruppen-ID den Eintrag, wie er in der Zielgruppe eines Angebots steht. */
 export const groupRef = (id: string) => `${GROUP_PREFIX}${id}`;
 
 /** Die Gruppen-ID aus einem Eintrag, oder null bei einer Einzelperson. */
@@ -22,6 +23,7 @@ export class GroupsService {
   constructor(
     @InjectRepository(TeacherGroup) private readonly groupRepo: Repository<TeacherGroup>,
     @InjectRepository(User) private readonly userRepo: Repository<User>,
+    @InjectRepository(UseGrant) private readonly grantRepo: Repository<UseGrant>,
   ) {}
 
   // ---- Mitgliedschaft auflösen ----
@@ -52,7 +54,18 @@ export class GroupsService {
    * gibt es kein `req.user`, die Gruppen müssen aber trotzdem zählen.
    */
   async asUser(userId: string, role = 'teacher') {
-    return { userId, role, groupIds: await this.groupIdsFor(userId) };
+    return { userId, role, groupIds: await this.groupIdsFor(userId), grants: await this.grantsFor(userId) };
+  }
+
+  /**
+   * Die Nutzungsrechte (Modus "Use") eines Benutzers – aus demselben Grund
+   * wie die Gruppen einmal pro Anfrage geladen: `accessLevel()` und
+   * `visibleModules()` laufen in Schleifen und bleiben so ohne Abfrage.
+   */
+  async grantsFor(userId: string): Promise<Array<{ topicId: string; scope: 'creator' | 'all'; creatorId: string | null }>> {
+    if (!userId) return [];
+    const grants = await this.grantRepo.find({ where: { userId } });
+    return grants.map((g) => ({ topicId: g.topicId, scope: g.scope, creatorId: g.creatorId }));
   }
 
   // ---- Verwaltung (nur Admin) ----

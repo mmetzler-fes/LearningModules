@@ -120,40 +120,22 @@ Ohne eingerichteten Mailversand ist das auch der bequemste Weg an die
 Initialpasswörter: Der Import gibt sie einmalig als zweite Tabelle zurück, zum
 Ausdrucken und Verteilen.
 
-## Benutzer löschen: die Inhalte gehen an einen Admin
+## Benutzer löschen: Creator werden nur deaktiviert
 
-Beim Löschen einer Lehrkraft wechselt vorher alles, was ihr gehört, zum
-handelnden Admin: Themen, Themen-Links, Quick-Links, Tags, hochgeladene
-Dateien und Ergebnisse. Erst danach verschwindet das Konto.
+Wer mindestens ein Modul verfasst hat, wird beim Löschen **nur deaktiviert**.
+Das gilt beim Löschen durch den Benutzer selbst wie durch den Admin. Seine
+Inhalte bleiben erhalten und stehen allen für 0 Punkte im Shop. Er kann sich
+nicht anmelden, seine Links sind gesperrt. In der Benutzerliste trägt er
+„⏸ deaktiviert“, und **▶ Reaktivieren** schaltet ihn wieder frei.
 
-**Warum nicht einfach löschen?** Vorher blieb genau das zurück, was niemand
-gebrauchen kann: Themen mit einer `ownerId`, die auf niemanden mehr zeigte.
-Für alle unsichtbar, von niemandem zu bearbeiten oder zu löschen – aber
-Kolleginnen mit einer Nutzungsfreigabe behielten sie, weil `accessLevel()` nur
-IDs vergleicht. Ihre Themen-Links liefen also weiter und lieferten Inhalte
-aus, an die niemand mehr herankam. Ein Konto zu löschen sollte mitten im
-Schuljahr keinen Unterricht abschalten und keine Karteileichen hinterlassen.
+Wer nichts verfasst hat, wird wirklich gelöscht. Seine Themen-Links,
+Quick-Links, Ergebnisse, Tags und Dateien gehen an den handelnden Admin (bzw.
+den dienstältesten anderen). Erworbene Kopien und Nutzungsrechte verfallen.
 
-Was dabei passiert:
+Einzelheiten, auch zum Wechsel der E-Mail-Adresse und zum Zusammenführen von
+Konten: **[shop-und-rechte.md](shop-und-rechte.md#konten)**.
 
-| | |
-|---|---|
-| Themen, Links, Quick-Links, Tags, Dateien, Ergebnisse | gehen an den Admin |
-| Freigaben an Kolleginnen | bleiben bestehen, ihre Links laufen weiter |
-| Die gelöschte Person in fremden Freigabelisten | wird entfernt |
-| Namensgleiche Tags beim Admin | bekommen den Zusatz „(von …)" |
-| Herkunft von Kopien (`copiedFrom*`) | bleibt **unverändert** |
-
-Die Herkunft bleibt bewusst stehen: Sie hält fest, wer etwas verfasst hat, und
-daran ändert das Ausscheiden nichts. Genau dafür stehen dort Name und Titel
-als Text und nicht nur als Verweis.
-
-Wer übernimmt, ist der Admin, der löscht. Löscht ein Admin sich selbst, ist es
-der dienstälteste andere. Ohne Nachfolger geht es nicht – der letzte Admin
-lässt sich ohnehin nicht löschen.
-
-Aufräumen ist danach eine eigene, bewusste Entscheidung des Admins und keine
-Nebenwirkung des Löschens. Umgesetzt in `src/admin/handover.service.ts`.
+Der letzte aktive Admin lässt sich weder löschen noch herabstufen.
 
 ## Beteiligte Dateien
 
@@ -165,7 +147,8 @@ Nebenwirkung des Löschens. Umgesetzt in `src/admin/handover.service.ts`.
 | `src/core/mail/mail.module.ts` | Auswahl über `MAIL_TRANSPORT` |
 | `src/auth/auth.service.ts` | `createUser`, `resetUserPassword`, `generatePassword` |
 | `src/auth/guards/jwt-auth.guard.ts` | Sperre bei offenem Initialpasswort |
-| `src/admin/handover.service.ts` | Übergabe der Inhalte beim Löschen eines Kontos |
+| `src/accounts/accounts.service.ts` | Deaktivieren, Reaktivieren, Löschen, Zusammenführen |
+| `src/accounts/handover.service.ts` | Übergabe von Links, Ergebnissen, Tags und Dateien |
 | `src/admin/user-sheet.service.ts` | Benutzertabelle (.ods) aus- und einlesen |
 | `src/core/interchange/ods/ods.ts` | Minimaler ODS-Leser/-Schreiber (ohne Fremdbibliothek) |
 
@@ -176,7 +159,9 @@ Nebenwirkung des Löschens. Umgesetzt in `src/admin/handover.service.ts`.
 | `POST` | `/api/admin/users` | Benutzer anlegen (Admin) |
 | `POST` | `/api/admin/users/:id/reset-password` | Passwort neu setzen (Admin) |
 | `POST` | `/api/auth/change-password` | Eigenes Passwort ändern, liefert neues Token |
-| `DELETE` | `/api/admin/users/:id` | Konto löschen; Inhalte gehen an einen Admin, Antwort nennt Empfänger und Anzahl |
+| `DELETE` | `/api/admin/users/:id` | Konto entfernen: Creator werden deaktiviert, sonst gelöscht |
+| `POST` | `/api/admin/users/:id/reactivate` | Deaktiviertes Konto wieder freischalten |
+| `POST` | `/api/auth/change-email` | Eigene E-Mail-Adresse ändern bzw. Konten zusammenführen |
 | `GET` | `/api/admin/users/export.ods` | Benutzertabelle mit Gruppenspalten (ohne Passwörter) |
 | `POST` | `/api/admin/users/import` | Tabelle einlesen: Konten anlegen, Gruppen setzen |
 

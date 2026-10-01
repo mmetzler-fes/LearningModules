@@ -5,6 +5,7 @@ import { Repository } from 'typeorm';
 import { User, UserRole } from '../core/entities/user.entity';
 import { SystemConfig } from '../core/entities/system-config.entity';
 import { MailService } from '../core/mail/mail.service';
+import { AccountsService } from '../accounts/accounts.service';
 import * as crypto from 'crypto';
 
 @Injectable()
@@ -14,6 +15,7 @@ export class AuthService {
     @InjectRepository(SystemConfig) private readonly configRepo: Repository<SystemConfig>,
     private readonly jwtService: JwtService,
     private readonly mailService: MailService,
+    private readonly accounts: AccountsService,
   ) {}
 
   // ---- Password generation ----
@@ -117,6 +119,9 @@ export class AuthService {
     const user = await this.userRepo.findOne({ where: { email } });
     if (!user || !user.passwordHash || !this.verifyPassword(password, user.passwordHash)) {
       throw new UnauthorizedException('Ungültige Anmeldedaten.');
+    }
+    if (user.active === false) {
+      throw new UnauthorizedException('Dieses Konto ist deaktiviert. Bitte an den Admin wenden.');
     }
     return this.buildSession(user);
   }
@@ -255,7 +260,7 @@ export class AuthService {
 
   async forgotPassword(email: string) {
     const user = await this.userRepo.findOne({ where: { email } });
-    if (user) {
+    if (user && user.active !== false) {
       const newPassword = this.generatePassword();
       user.passwordHash = this.hashPassword(newPassword);
       user.mustChangePassword = true;
@@ -272,9 +277,98 @@ export class AuthService {
 
   // ---- Delete own account ----
 
+  /**
+   * Wer Creator ist, wird nur deaktiviert – seine Inhalte gehen für 0 Punkte
+   * in den Shop. Alle anderen werden gelöscht.
+   */
   async deleteAccount(userId: string) {
-    await this.userRepo.delete({ id: userId });
-    return { success: true };
+    const user = await this.userRepo.findOne({ where: { id: userId } });
+    if (!user) throw new BadRequestException('Benutzer nicht gefunden.');
+    return this.accounts.removeAccount(user, userId);
+  }
+
+  // ---- E-Mail-Adresse ändern ----
+
+  /**
+   * Wechsel auf eine neue E-Mail-Adresse.
+   *
+   * Gibt es die Adresse schon, werden die Konten nach Eingabe ihres
+   * Passworts zusammengeführt: Alles geht an das Konto mit der neuen Adresse.
+   *
+   * Gibt es sie nicht, wird dort ein Konto mit Initialpasswort angelegt und
+   * das Passwort an die neue Adresse geschickt. Erst wenn sich der Benutzer
+   * damit anmeldet und ein eigenes Passwort vergibt, wird das alte Konto
+   * übernommen – so ist bewiesen, dass die neue Adresse ihm gehört.
+   */
+  async changeEmail(userId: string, body: { newEmail?: string; password?: string; targetPassword?: string }) {
+    const me = await this.userRepo.findOne({ where: { id: userId } });
+    if (!me) throw new BadRequestException('Benutzer nicht gefunden.');
+    if (!body.password || !this.verifyPassword(body.password, me.passwordHash)) {
+      throw new UnauthorizedException('Das aktuelle Passwort ist nicht korrekt.');
+    }
+    const newEmail = String(body.newEmail || '').trim();
+    if (!newEmail.includes('@')) throw new BadRequestException('Gültige E-Mail-Adresse erforderlich.');
+    if (newEmail.toLowerCase() === me.email.toLowerCase()) {
+      throw new BadRequestException('Das ist bereits deine E-Mail-Adresse.');
+    }
+    await this.checkAllowed(newEmail, me.role === 'admin' ? 'admin' : 'teacher');
+
+    const target = await this.userRepo.findOne({ where: { email: newEmail } });
+
+    if (target && target.pendingMergeFrom === me.id) {
+      // Schon angefordert, aber noch nicht bestätigt: neues Initialpasswort.
+      return this.sendPendingPassword(target, true);
+    }
+
+    if (target) {
+      if (target.active === false) throw new BadRequestException('Das Konto mit dieser Adresse ist deaktiviert.');
+      if (!body.targetPassword) {
+        return { success: false, needsTargetPassword: true, message: 'Diese Adresse hat bereits ein Konto. Bitte dessen Passwort eingeben, um die Konten zusammenzuführen.' };
+      }
+      if (!this.verifyPassword(body.targetPassword, target.passwordHash)) {
+        throw new UnauthorizedException('Das Passwort des Kontos mit der neuen Adresse ist nicht korrekt.');
+      }
+      await this.accounts.merge(me, target);
+      const merged = await this.userRepo.findOne({ where: { id: target.id } });
+      return { success: true, merged: true, session: this.buildSession(merged!) };
+    }
+
+    const pending = this.userRepo.create({
+      id: crypto.randomUUID(),
+      email: newEmail,
+      username: newEmail,
+      passwordHash: '',
+      role: me.role,
+      displayName: me.displayName,
+      mustChangePassword: true,
+      pendingMergeFrom: me.id,
+      // Kein zweites Startguthaben – die Punkte kommen beim Zusammenführen.
+      points: 0,
+    });
+    return this.sendPendingPassword(pending, false);
+  }
+
+  private async sendPendingPassword(account: User, resend: boolean) {
+    const password = this.generatePassword();
+    account.passwordHash = this.hashPassword(password);
+    account.mustChangePassword = true;
+    await this.userRepo.save(account);
+    const mail = await this.mailService.sendInitialPassword({
+      to: account.email,
+      displayName: account.displayName || account.email,
+      password,
+      role: account.role,
+    });
+    return {
+      success: true,
+      pending: true,
+      resent: resend,
+      newEmail: account.email,
+      mailSent: mail.delivered,
+      mailInfo: mail.reason,
+      // Ohne Mailversand bleibt nur der Weg über den Bildschirm.
+      initialPassword: mail.delivered ? undefined : password,
+    };
   }
 
   // ---- Change password ----
@@ -296,17 +390,41 @@ export class AuthService {
     user.passwordHash = this.hashPassword(newPassword);
     user.mustChangePassword = false;
     await this.userRepo.save(user);
+
+    // Konto für einen E-Mail-Wechsel: Mit dem eigenen Passwort ist die neue
+    // Adresse bestätigt – jetzt wird das alte Konto übernommen.
+    let mergedFrom: string | undefined;
+    if (user.pendingMergeFrom) {
+      const old = await this.userRepo.findOne({ where: { id: user.pendingMergeFrom } });
+      if (old) {
+        await this.accounts.merge(old, user);
+        mergedFrom = old.email;
+      }
+    }
+    const fresh = (await this.userRepo.findOne({ where: { id: userId } }))!;
     // Neues Token, damit das mustChangePassword-Flag im JWT nicht mehr sperrt.
-    const session = this.buildSession(user);
-    return { success: true, message: 'Passwort erfolgreich geändert.', token: session.token };
+    const session = this.buildSession(fresh);
+    return {
+      success: true,
+      message: mergedFrom
+        ? `Passwort geändert. Das Konto ${mergedFrom} wurde übernommen – die neue Adresse gilt ab sofort.`
+        : 'Passwort erfolgreich geändert.',
+      token: session.token,
+      mergedFrom,
+      session,
+    };
   }
 
   // ---- Ensure at least one admin exists (called on app startup) ----
 
   async ensureAdminExists() {
-    const adminCount = await this.userRepo.count({ where: { role: 'admin' } });
+    const adminCount = await this.userRepo.count({ where: { role: 'admin', active: true } });
     if (adminCount === 0) {
       const defaultPassword = 'admin123';
+      if (await this.userRepo.findOne({ where: { email: 'admin@localhost' } })) {
+        console.log('[SETUP] Kein aktiver Admin, admin@localhost existiert aber – bitte per Datenbank reaktivieren.');
+        return;
+      }
       const user = this.userRepo.create({
         id: crypto.randomUUID(),
         email: 'admin@localhost',

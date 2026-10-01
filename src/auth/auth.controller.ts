@@ -36,7 +36,18 @@ export class AuthController {
     return this.authService.changePassword(req.user.userId, body.oldPassword || '', body.newPassword || '');
   }
 
-  /** Teacher deletes their own account */
+  /**
+   * E-Mail-Adresse ändern: `{ newEmail, password, targetPassword? }`.
+   * Siehe AuthService.changeEmail für die beiden Wege.
+   */
+  @Post('change-email')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(200)
+  async changeEmail(@Request() req: any, @Body() body: { newEmail?: string; password?: string; targetPassword?: string }) {
+    return this.authService.changeEmail(req.user.userId, body || {});
+  }
+
+  /** Eigenes Konto löschen – Creator werden nur deaktiviert. */
   @Delete('account')
   @UseGuards(JwtAuthGuard)
   async deleteAccount(@Request() req: any) {

@@ -30,6 +30,10 @@ services:
       # Erscheint als Adresszeile in der Mail an den neuen Benutzer:
       APP_URL: https://lm.metzlercloud.de
       JWT_SECRET: ${JWT_SECRET}     # sonst gilt der Vorgabewert "secretKey"
+      # Schützt die gespeicherten Masterkeys (mind. 16 Zeichen). Ohne legt die
+      # App data/.app-secret an – dann liegen Schlüssel und Schutz im selben
+      # Verzeichnis. Nicht ändern, sonst sind die Masterkeys nicht mehr lesbar.
+      APP_SECRET: ${APP_SECRET}
 
 networks:
   proxy-nw:

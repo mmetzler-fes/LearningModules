@@ -59,7 +59,7 @@ export class LinksView {
   async refresh() {
     await this.app.loadTags();
     // Für den Auswahlbaum zählen nicht nur die eigenen Themen, sondern auch
-    // die, die mir jemand zur Nutzung freigegeben hat.
+    // die, auf die ich ein Nutzungsrecht aus dem Shop habe.
     try {
       this._usableTopics = await this.app.api.getUsableTopics();
     } catch (_) {
@@ -110,7 +110,7 @@ export class LinksView {
           </p>
           ${link.unavailableTopics ? `
             <p class="link-card-warning">⚠️ ${link.unavailableTopics} Thema/Themen nicht mehr verfügbar –
-              gelöscht oder die Freigabe wurde zurückgezogen.</p>` : ''}
+              gelöscht oder das Nutzungsrecht ist entfallen.</p>` : ''}
           <div class="link-card-tags">${this._renderTagChips(link.tagIds)}</div>
         </div>
         <div class="link-card-actions">
@@ -233,7 +233,7 @@ export class LinksView {
         foreignHeaderDone = true;
         const head = document.createElement('div');
         head.className = 'link-tree-section';
-        head.textContent = '📤 Von Kolleginnen und Kollegen freigegeben';
+        head.textContent = '🔗 Zur Nutzung erworben';
         this._treeBox.appendChild(head);
       }
       const modules = (topic.modules || []).slice().sort((a, b) => a.orderIndex - b.orderIndex);

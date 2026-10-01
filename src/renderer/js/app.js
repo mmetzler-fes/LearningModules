@@ -1,6 +1,6 @@
 import { AuthStore, BrowserApi } from './api.js';
 import { H5pRenderer } from './h5p-renderer.js';
-import { appConfirm, showToast } from './utils.js';
+import { appConfirm, showToast, escapeHtml } from './utils.js';
 import { LoginView } from './views/login.js';
 import { TopicsView } from './views/topics.js';
 import { ModulesView } from './views/modules.js';
@@ -10,6 +10,7 @@ import { DashboardView } from './views/dashboard.js';
 import { AdminView } from './views/admin.js';
 import { LinksView } from './views/links.js';
 import { TagsView } from './views/tags.js';
+import { ShopView } from './views/shop.js';
 
 // ==================== APP COORDINATOR ====================
 
@@ -52,6 +53,7 @@ class App {
     this.adminView    = new AdminView(this);
     this.linksView    = new LinksView(this);
     this.tagsView     = new TagsView(this);
+    this.shopView     = new ShopView(this);
   }
 
   showToast(message, type = 'info') {
@@ -124,6 +126,8 @@ class App {
       case 'teacher-results':   this.resultsView.refresh(); break;
       case 'teacher-links':     this.linksView.refresh(); break;
       case 'teacher-tags':      this.tagsView.refresh(); break;
+      case 'teacher-shop':      this.shopView.refresh(); break;
+      case 'admin-settings':    this.adminView.refreshSettings(); break;
       case 'admin-users':       this.adminView.refreshUsers(); break;
       case 'admin-topics':      this.adminView.refreshAdminTopics(); break;
       case 'admin-whitelist':   this.adminView.refreshWhitelistBlacklist(); break;
@@ -185,7 +189,121 @@ class App {
     if (done) await done();
   }
 
+  /** Kontostand neben dem Namen in der Seitenleiste. */
+  updatePointsBadge(balance) {
+    const info = document.getElementById('userInfo');
+    if (!info || typeof balance !== 'number') return;
+    let badge = info.querySelector('.points-badge');
+    if (!badge) {
+      badge = document.createElement('span');
+      badge.className = 'points-badge';
+      badge.title = 'Punkte für den Lernmodule-Shop';
+      badge.addEventListener('click', () => this.navigateToView('teacher-shop'));
+      info.appendChild(badge);
+    }
+    badge.textContent = `🪙 ${balance}`;
+  }
+
+  async loadPoints() {
+    try {
+      const data = await this.api.getMyPoints();
+      if (data && typeof data.balance === 'number') this.updatePointsBadge(data.balance);
+    } catch (_) {}
+  }
+
+  /**
+   * E-Mail-Adresse ändern. Zwei Wege, die der Server unterscheidet: neue
+   * Adresse (Initialpasswort dorthin, Übernahme nach dem ersten Login) oder
+   * bestehende Adresse (Zusammenführen nach Eingabe ihres Passworts).
+   */
+  _initChangeEmail() {
+    const overlay = document.getElementById('changeEmailOverlay');
+    const form = document.getElementById('changeEmailForm');
+    const targetGroup = document.getElementById('changeEmailTargetGroup');
+    const result = document.getElementById('changeEmailResult');
+    if (!overlay || !form) return;
+
+    const reset = () => {
+      form.reset();
+      targetGroup.classList.add('hidden');
+      result.classList.add('hidden');
+      result.textContent = '';
+    };
+    document.getElementById('btnChangeOwnEmail')?.addEventListener('click', () => {
+      reset();
+      overlay.classList.remove('hidden');
+      document.getElementById('changeEmailNew')?.focus();
+    });
+    document.getElementById('btnCancelChangeEmail')?.addEventListener('click', () => {
+      overlay.classList.add('hidden');
+      reset();
+    });
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const newEmail = document.getElementById('changeEmailNew').value.trim();
+      const password = document.getElementById('changeEmailPassword').value;
+      const target = targetGroup.classList.contains('hidden') ? undefined : document.getElementById('changeEmailTarget').value;
+      if (!newEmail || !password) return;
+      try {
+        const res = await this.api.changeEmail(newEmail, password, target);
+        if (res && res.needsTargetPassword) {
+          targetGroup.classList.remove('hidden');
+          result.textContent = res.message;
+          result.classList.remove('hidden');
+          document.getElementById('changeEmailTarget').focus();
+          return;
+        }
+        if (res && res.merged && res.session) {
+          // Weiter als das zusammengeführte Konto – das alte gibt es nicht mehr.
+          overlay.classList.add('hidden');
+          reset();
+          this.authStore.setToken(res.session.token);
+          Object.assign(this.state.currentUser, {
+            id: res.session.id,
+            email: res.session.email,
+            username: res.session.email,
+            name: res.session.displayName,
+            role: res.session.role,
+          });
+          // Nicht neu "einsteigen" – das bände die Navigation ein zweites Mal.
+          const nameEl = document.querySelector('#userInfo');
+          const badge = nameEl?.querySelector('.user-role-badge');
+          if (nameEl && badge) {
+            nameEl.innerHTML = '';
+            nameEl.appendChild(badge);
+            nameEl.append(` ${res.session.displayName}`);
+          }
+          await this.loadTopics();
+          await this.loadPoints();
+          this.navigateToView('teacher-dashboard');
+          this.showToast(
+            `Konten zusammengeführt – du bist jetzt als ${res.session.email} angemeldet.` +
+              (res.session.role === 'admin' && !document.getElementById('adminNav')?.offsetParent
+                ? ' Für die Admin-Funktionen bitte neu anmelden.' : ''),
+            'success',
+          );
+          return;
+        }
+        if (res && res.pending) {
+          result.innerHTML = res.initialPassword
+            ? `Für <strong>${escapeHtml(res.newEmail)}</strong> wurde ein Konto angelegt. Es konnte keine E-Mail
+               verschickt werden – das Initialpasswort lautet <code>${escapeHtml(res.initialPassword)}</code>.
+               Melde dich damit an und vergib ein eigenes Passwort; danach wird dieses Konto übernommen.`
+            : `Das Initialpasswort wurde an <strong>${escapeHtml(res.newEmail)}</strong> geschickt. Melde dich damit
+               an und vergib ein eigenes Passwort; danach wird dieses Konto übernommen.`;
+          result.classList.remove('hidden');
+          return;
+        }
+        this.showToast('Fehler: ' + (res?.message || 'E-Mail konnte nicht geändert werden'), 'error');
+      } catch (err) {
+        this.showToast('Fehler: ' + err.message, 'error');
+      }
+    });
+  }
+
   initGlobalEvents() {
+    this._initChangeEmail();
     const btnChangeOwnPassword = document.getElementById('btnChangeOwnPassword');
     const changePasswordOverlay = document.getElementById('changePasswordOverlay');
     const btnCancelChangePassword = document.getElementById('btnCancelChangePassword');
@@ -226,7 +344,7 @@ class App {
           if (res && res.success !== false) {
             // Der Server liefert ein neues Token ohne die Initialpasswort-Sperre.
             if (res.token) this.authStore.setToken(res.token);
-            this.showToast('Passwort erfolgreich geändert', 'success');
+            this.showToast(res.mergedFrom ? res.message : 'Passwort erfolgreich geändert', 'success');
             changePasswordForm.reset();
             changePasswordOverlay.classList.add('hidden');
             if (this._passwordChangeForced) await this._endForcedPasswordChange();

@@ -43,7 +43,9 @@ export class ImportService {
       // Add modules to existing topic
       const existing = await this.topicRepo.findOne({ where: { id: targetTopicId } });
       if (!existing) throw new NotFoundException('Thema nicht gefunden');
-      if (user.role === 'teacher' && existing.ownerId !== user.userId) {
+      // Nur ins eigene Thema – auch Admins, denn die Module bekämen sonst
+      // ein fremdes Thema als Heimat.
+      if (existing.ownerId !== user.userId) {
         throw new ForbiddenException('Kein Zugriff auf dieses Thema');
       }
       savedTopic = existing;
@@ -58,13 +60,21 @@ export class ImportService {
       }));
     }
 
+    // Neue IDs, und Untermodule zeigen weiter auf ihr (neues) Elternmodul.
+    const idMap = new Map<string, string>();
+    for (const m of importModules) if (m && m.id) idMap.set(String(m.id), crypto.randomUUID());
+
     const newModules = importModules.map((m: any) => {
-      const { id: _id, topic: _topic, subModules: _sub, parent: _parent, ...moduleData } = m;
+      const { id, topic: _topic, subModules: _sub, parent: _parent, creatorId: _creator, createdAt: _c, updatedAt: _u, ...moduleData } = m;
       const mod = Object.assign(new LearningModule(), {
         ...moduleData,
-        id: crypto.randomUUID(),
+        id: (id && idMap.get(String(id))) || crypto.randomUUID(),
+        parentId: m.parentId ? idMap.get(String(m.parentId)) || null : null,
         topicId: savedTopic.id,
         moduleSelected: true,
+        // Was als offene Datei hereinkommt, ist neues Material in dieser App:
+        // Creator ist, wer es importiert.
+        creatorId: user.userId,
         // Tags stammen aus dem Quellkonto und existieren hier nicht. Sie
         // mitzuschleppen hiesse, unauffloesbare IDs am Modul zu hinterlassen.
         tagIds: null,
@@ -81,7 +91,8 @@ export class ImportService {
     return {
       success: true,
       topicId: savedTopic.id,
-      importedCount: newModules.length,
+      topicTitle: savedTopic.title,
+      importedCount: newModules.filter((m: any) => !m.parentId).length,
     };
   }
 

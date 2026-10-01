@@ -1,11 +1,17 @@
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { PassportStrategy } from '@nestjs/passport';
-import { Injectable } from '@nestjs/common';
+import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 import { GroupsService } from '../../groups/groups.service';
+import { User } from '../../core/entities/user.entity';
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
-  constructor(private readonly groups: GroupsService) {
+  constructor(
+    private readonly groups: GroupsService,
+    @InjectRepository(User) private readonly userRepo: Repository<User>,
+  ) {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
@@ -14,22 +20,27 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   }
 
   /**
-   * Die Gruppenmitgliedschaft wird hier einmal pro Anfrage geladen und liegt
-   * danach als `req.user.groupIds` bereit. So bleibt `accessLevel()` synchron
-   * und ohne Datenbankzugriff, obwohl Freigaben an Gruppen gehen können.
+   * Gruppenmitgliedschaft und Nutzungsrechte werden hier einmal pro Anfrage
+   * geladen und liegen danach als `req.user.groupIds` und `req.user.grants`
+   * bereit. So bleibt `accessLevel()` synchron und ohne Datenbankzugriff.
    *
-   * Bewusst nicht im Token: Ändert der Admin die Besetzung einer Fachschaft,
-   * muss das sofort wirken – ein Entzug, der erst nach dem nächsten Login
-   * greift, wäre keiner.
+   * Bewusst nicht im Token: Ein Entzug muss sofort wirken. Aus demselben
+   * Grund wird das Konto selbst nachgeschlagen – ein deaktiviertes oder
+   * gelöschtes Konto ist mit dem nächsten Klick draußen, nicht erst nach
+   * Ablauf des Tokens.
    */
   async validate(payload: any) {
+    const user = await this.userRepo.findOne({ where: { id: payload.sub } });
+    if (!user) throw new UnauthorizedException('Dieses Konto gibt es nicht mehr.');
+    if (user.active === false) throw new UnauthorizedException('Dieses Konto ist deaktiviert.');
     return {
       userId: payload.sub,
-      email: payload.email,
-      username: payload.email, // backward compat alias
+      email: user.email,
+      username: user.email, // backward compat alias
       role: payload.role,
       mustChangePassword: !!payload.mustChangePassword,
       groupIds: await this.groups.groupIdsFor(payload.sub),
+      grants: await this.groups.grantsFor(payload.sub),
     };
   }
 }

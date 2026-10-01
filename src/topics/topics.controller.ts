@@ -14,50 +14,28 @@ export class TopicsController {
 
   // Feste Pfade müssen vor @Get(':id') stehen, sonst matcht der Platzhalter
   // zuerst und "colleagues" landet als Themen-ID im findOne.
-  /** Kolleginnen und Kollegen für die Auswahl im Freigabe-Dialog. */
+  /** Kolleginnen und Kollegen für die Zielgruppe eines Shop-Angebots. */
   @Get('colleagues')
   async listColleagues(@Request() req: any) {
     return this.topicsService.listColleagues(req.user);
   }
 
-  /** Themen, die mir jemand freigegeben hat. */
-  /** Themen, die ich in eigenen Themen-Links verwenden darf (eigene + freigegebene). */
+  /** Themen, die ich in eigenen Themen-Links verwenden darf (eigene + mit Nutzungsrecht). */
   @Get('usable')
   async findUsable(@Request() req: any) {
     return this.topicsService.findUsable(req.user);
   }
 
-  @Get('shared-with-me')
-  async sharedWithMe(@Request() req: any) {
-    return this.topicsService.findSharedWithMe(req.user);
+  /** Themen, auf die ich ein Nutzungsrecht aus dem Shop habe. */
+  @Get('granted')
+  async granted(@Request() req: any) {
+    return this.topicsService.findGranted(req.user);
   }
 
-  /**
-   * Ein freigegebenes Thema nur zum Ansehen – auch dann, wenn es lediglich
-   * zum Kopieren freigegeben wurde. Muss vor @Get(':id') stehen? Nein: der
-   * Pfad ist zweiteilig und kollidiert deshalb nicht mit dem Platzhalter.
-   */
+  /** Ein Thema mit Nutzungsrecht nur zum Ansehen. */
   @Get(':id/shared-view')
   async sharedView(@Param('id') id: string, @Request() req: any) {
     return this.topicsService.findSharedForViewing(id, req.user);
-  }
-
-  /** Fremde Freigabe in der eigenen Liste ausblenden bzw. wieder einblenden. */
-  @Post(':id/hidden')
-  async setSharedHidden(@Param('id') id: string, @Request() req: any, @Body() body: { hidden?: boolean }) {
-    return this.topicsService.setSharedHidden(id, req.user, body?.hidden !== false);
-  }
-
-  /**
-   * Fremde Freigabe aus der eigenen Liste entfernen bzw. zurückholen.
-   *
-   * Bewusst kein DELETE auf :id – gelöscht wird hier nichts. Das Thema
-   * gehört weiterhin dem Eigentümer; entfernt wird allein die eigene Sicht
-   * darauf.
-   */
-  @Post(':id/removed')
-  async setSharedRemoved(@Param('id') id: string, @Request() req: any, @Body() body: { removed?: boolean }) {
-    return this.topicsService.setSharedRemoved(id, req.user, body?.removed !== false);
   }
 
   @Get(':id')
@@ -67,27 +45,7 @@ export class TopicsController {
 
   @Get(':id/modules')
   async getModules(@Param('id') id: string, @Request() req: any) {
-    const topic = await this.topicsService.findOne(id, req.user);
-    return topic.modules || [];
-  }
-
-  // ---- Freigabe zum Kopieren ----
-
-  /** Freigabe setzen: Liste von Benutzer-IDs oder ['*'] für alle. */
-  @Post(':id/sharing')
-  async setSharing(
-    @Param('id') id: string,
-    @Request() req: any,
-    @Body() body: { sharedWith?: string[]; sharedAccess?: Array<{ userId: string; level: string }> },
-  ) {
-    // Fehlt ein Feld, bleibt die jeweilige Freigabe unangetastet.
-    return this.topicsService.setSharing(id, req.user, body?.sharedWith, body?.sharedAccess);
-  }
-
-  /** Eigene Kopie eines freigegebenen Themas anlegen. */
-  @Post(':id/copy')
-  async copyShared(@Param('id') id: string, @Request() req: any) {
-    return this.topicsService.copySharedTopic(id, req.user);
+    return this.topicsService.findModules(id, req.user);
   }
 
   // ---- Quick-Link für Schüler (Link + QR-Code) ----
@@ -95,7 +53,7 @@ export class TopicsController {
   /**
    * Quick-Link abrufen bzw. beim ersten Mal erzeugen.
    *
-   * Auch für Themen, die mir nur zur Nutzung freigegeben sind: Der Link
+   * Auch für Themen, auf die ich nur ein Nutzungsrecht habe: Der Link
    * gehört der Lehrkraft, die ihn verteilt, und ihr werden die Ergebnisse
    * zugeordnet.
    */

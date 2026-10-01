@@ -163,7 +163,7 @@ export class TopicsView {
               <span class="topic-module-count">${moduleCount} Module</span>
               ${isRawTopic ? '<span class="topic-status" style="background:#eef2ff; color:#3730a3;">RAW H5P</span>' : ''}
               <span class="topic-status ${topic.selected ? 'active' : 'inactive'}">${topic.selected ? '✅ Aktiv' : '❌ Inaktiv'}</span>
-              ${this._sharingBadges(topic)}
+              ${this._rightsBadges(topic)}
             </div>
             <div class="topic-card-tags">${this._renderTagChips(topic.tagIds)}</div>
           </div>
@@ -176,14 +176,14 @@ export class TopicsView {
             <button class="btn btn-secondary btn-sm btn-quick-link" ${topic.selected ? '' : 'disabled'}
               title="${topic.selected ? 'Quick-Link für Schüler (Link + QR-Code)' : 'Erst freigeben, dann ist ein Quick-Link möglich'}">🔗 Quick-Link</button>
             <button class="btn btn-secondary btn-sm btn-edit-topic" title="Bearbeiten">✏️</button>
-            <button class="btn btn-secondary btn-sm btn-share-topic" title="Mit Lehrern teilen">👥</button>
-            <button class="btn btn-secondary btn-sm btn-export-topic" title="Als JSON exportieren">📤</button>
-            <button class="btn btn-secondary btn-sm btn-export-h5p-topic" title="Als H5P exportieren">📦 H5P</button>
+            <button class="btn btn-secondary btn-sm btn-share-topic" title="Im Shop anbieten oder weitergeben">👥</button>
+            <button class="btn btn-secondary btn-sm btn-export-topic" title="Exportieren (JSON, H5P oder verschlüsselt)">📤</button>
             <button class="btn btn-danger btn-sm btn-delete-topic" title="Löschen">🗑</button>
           </div>
         </div>`;
 
-      card.querySelector('.btn-share-topic').addEventListener('click', () => this._openShareDialog(topic));
+      // Teilen läuft über den Shop – der Knopf führt direkt zum Angebot für dieses Thema.
+      card.querySelector('.btn-share-topic').addEventListener('click', () => this.app.shopView.openForTopic(topic.id));
       card.querySelector('.topic-toggle').addEventListener('change', async (e) => {
         await this.app.api.toggleTopicSelection(topic.id, e.target.checked);
         this.app.showToast(e.target.checked ? t('topics.activated') : t('topics.deactivated'), 'info');
@@ -192,17 +192,15 @@ export class TopicsView {
       card.querySelector('.btn-open-topic').addEventListener('click', () => this.app.modulesView.openTopicModules(topic.id));
       card.querySelector('.btn-quick-link').addEventListener('click', () => this._openQuickLinkDialog(topic));
       card.querySelector('.btn-edit-topic').addEventListener('click', () => this._openEditor(topic));
-      card.querySelector('.btn-export-topic').addEventListener('click', async () => {
-        const result = await this.app.api.exportTopic(topic.id);
-        if (result.success) this.app.showToast(t('topics.exported'), 'success');
-      });
-      card.querySelector('.btn-export-h5p-topic').addEventListener('click', async () => {
-        const result = await this.app.api.exportTopicAsH5p(topic.id);
-        if (result.success) this.app.showToast('📦 H5P exportiert!', 'success');
-        else if (result.error) this.app.showToast('❌ H5P-Export fehlgeschlagen: ' + result.error, 'error');
-      });
+      card.querySelector('.btn-export-topic').addEventListener('click', () => this.openExportDialog(topic));
       card.querySelector('.btn-delete-topic').addEventListener('click', async () => {
-        if (!(await this.app.appConfirm(t('topics.delete.confirm', { title: topic.title })))) return;
+        // Wer das Thema per "Use" verwendet, verliert es mit – das gehört vor
+        // die Entscheidung.
+        const users = topic.useCount
+          ? `\n\n${topic.useCount} Person${topic.useCount === 1 ? ' verwendet' : 'en verwenden'} dieses Thema über den Shop ` +
+            'und verliert es damit ebenfalls – auch wenn dafür bezahlt wurde.'
+          : '';
+        if (!(await this.app.appConfirm(t('topics.delete.confirm', { title: topic.title }) + users))) return;
         await this.app.api.deleteTopic(topic.id);
         this.app.showToast(t('topics.deleted'), 'info');
         this.refresh();
@@ -388,38 +386,100 @@ export class TopicsView {
   }
 
   /**
-   * Abzeichen für die beiden Freigabe-Arten. Getrennt ausgewiesen, weil
-   * "verwenden" und "kopieren" sehr unterschiedliche Folgen haben.
+   * Abzeichen zu Rechten und Shop: wie viel selbst verfasst ist, von wem der
+   * Rest stammt, was im Shop steht und wer das Thema verwendet.
    */
-  _sharingBadges(topic) {
+  _rightsBadges(topic) {
     const out = [];
-    const copy = Array.isArray(topic.sharedWith) ? topic.sharedWith : [];
-    const access = Array.isArray(topic.sharedAccess) ? topic.sharedAccess : [];
-
-    // Gruppen getrennt zählen: "für 2 Gruppen" sagt mehr als "für 2", wenn
-    // dahinter zwanzig Personen stehen.
-    const describe = (entries) => {
-      if (entries.includes('*')) return 'für alle';
-      const groups = entries.filter((e) => String(e).startsWith('group:')).length;
-      const people = entries.length - groups;
-      const parts = [];
-      if (people) parts.push(`für ${people}`);
-      if (groups) parts.push(`${groups} Gruppe${groups === 1 ? '' : 'n'}`);
-      return parts.join(' + ');
-    };
-
-    if (access.length > 0) {
-      out.push(`<span class="topic-shared-badge use">🔗 verwendbar ${describe(access.map((e) => e.userId))}</span>`);
+    const own = topic.ownModuleCount || 0;
+    const foreign = topic.foreignModuleCount || 0;
+    if (foreign > 0) {
+      out.push(`<span class="topic-shared-badge" title="Creator bleibt verzeichnet – du bist Buyer dieser Module">✍️ ${own} eigene · ${foreign} von ${escapeHtml((topic.foreignCreators || []).join(', '))}</span>`);
     }
-    if (copy.length > 0) {
-      out.push(`<span class="topic-shared-badge owner">👥 kopierbar ${describe(copy)}</span>`);
+    const co = topic.creatorOffer;
+    if (co && co.active) {
+      const modes = [
+        co.allowUse ? `Use ${co.priceUse ? co.priceUse + ' P' : 'frei'}` : null,
+        co.allowCopy ? `Copy ${co.priceCopy ? co.priceCopy + ' P' : 'frei'}` : null,
+      ].filter(Boolean).join(' · ');
+      out.push(`<span class="topic-shared-badge owner">🛒 im Shop: ${modes}</span>`);
+    }
+    const bs = topic.buyerShare;
+    if (bs && bs.active) {
+      out.push(`<span class="topic-shared-badge use">↪ zur Nutzung weitergegeben</span>`);
+    }
+    if (topic.useCount > 0) {
+      out.push(`<span class="topic-shared-badge use" title="So viele verwenden das Thema über ein Nutzungsrecht">🔗 von ${topic.useCount} verwendet</span>`);
     }
     if (topic.copyCount > 0) {
-      // Beantwortet die Frage, die vor jedem Entzug steht: Ist überhaupt noch
-      // etwas zu holen? Gezogene Kopien gehören schon jemand anderem.
-      out.push(`<span class="topic-shared-badge" title="So oft hat sich jemand eine eigene Fassung gezogen. Diese Kopien gehören ihren neuen Eigentümern – ein Entzug erreicht sie nicht mehr.">📋 ${topic.copyCount} Kopie${topic.copyCount === 1 ? '' : 'n'} gezogen</span>`);
+      out.push(`<span class="topic-shared-badge" title="So oft wurde eine eigene Fassung erworben">📋 ${topic.copyCount}× kopiert</span>`);
     }
     return out.join('');
+  }
+
+  // ==================== EXPORT ====================
+
+  /**
+   * Export eines Themas. Unverschlüsselt (JSON, H5P) verlassen nur die selbst
+   * verfassten Module die App; das ganze Thema samt fremden Modulen gibt es
+   * nur verschlüsselt mit dem Masterkey.
+   */
+  async openExportDialog(topic) {
+    let info;
+    try {
+      info = await this.app.api.getExportInfo(topic.id);
+    } catch (err) {
+      this.app.showToast('Fehler: ' + err.message, 'error');
+      return;
+    }
+    if (!info || typeof info.ownModules !== 'number') {
+      this.app.showToast('Fehler: ' + (info?.message || 'Export nicht möglich'), 'error');
+      return;
+    }
+    const own = info.ownModules;
+    const foreign = info.foreignModules;
+
+    const overlay = document.createElement('div');
+    overlay.className = 'confirm-overlay';
+    overlay.innerHTML = `
+      <div class="import-modules-card" style="min-width:420px; max-width:560px">
+        <h3>📤 Exportieren: <em>${escapeHtml(info.title)}</em></h3>
+        ${foreign > 0 && own > 0 ? `<p class="login-error">⚠️ Dieses Thema enthält ${foreign} fremde${foreign === 1 ? 's' : ''} Modul${foreign === 1 ? '' : 'e'}.
+          Unverschlüsselt werden nur deine ${own} eigenen exportiert.</p>` : ''}
+        ${own === 0 ? '<p class="login-error">Dieses Thema enthält keine von dir verfassten Module – es lässt sich nur verschlüsselt exportieren.</p>' : ''}
+        <div class="settings-group">
+          <h3>Offen – nur eigene Module (${own})</h3>
+          <p class="hint">Zum Weitergeben außerhalb der App oder für andere H5P-Plattformen.</p>
+          <div class="confirm-actions" style="justify-content:flex-start">
+            <button class="btn btn-secondary" id="btnExpJson" ${own ? '' : 'disabled'}>📤 JSON</button>
+            <button class="btn btn-secondary" id="btnExpH5p" ${own ? '' : 'disabled'}>📦 H5P</button>
+          </div>
+        </div>
+        <div class="settings-group" style="margin-top:14px">
+          <h3>🔒 Verschlüsselt – ganzes Thema (${own + foreign})</h3>
+          <p class="hint">Zur Sicherung. Lässt sich nur in einer App mit demselben Masterkey und nur von dir wieder einlesen;
+            die Creator der Module bleiben dabei verzeichnet.</p>
+          <div class="confirm-actions" style="justify-content:flex-start">
+            <button class="btn btn-primary" id="btnExpEnc" ${info.canExportEncrypted ? '' : 'disabled title="Nur für eigene Themen"'}>🔒 Verschlüsselt exportieren</button>
+          </div>
+        </div>
+        <div class="confirm-actions">
+          <button class="btn btn-secondary" id="btnExpClose">Schließen</button>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+    const close = () => overlay.remove();
+    overlay.querySelector('#btnExpClose').addEventListener('click', close);
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+
+    const run = async (fn, okMsg) => {
+      const res = await fn();
+      if (res && res.success) { this.app.showToast(okMsg, 'success'); close(); }
+      else this.app.showToast('Export fehlgeschlagen: ' + (res?.error || '?'), 'error');
+    };
+    overlay.querySelector('#btnExpJson').addEventListener('click', () => run(() => this.app.api.exportTopic(topic.id), t('topics.exported')));
+    overlay.querySelector('#btnExpH5p').addEventListener('click', () => run(() => this.app.api.exportTopicAsH5p(topic.id), '📦 H5P exportiert!'));
+    overlay.querySelector('#btnExpEnc').addEventListener('click', () => run(() => this.app.api.exportTopicEncrypted(topic.id), '🔒 Verschlüsselt exportiert'));
   }
 
   /**
@@ -478,10 +538,7 @@ export class TopicsView {
     if (exportable.length === 0) return;
 
     if (exportable.length === 1) {
-      this.app.api.exportTopicAsH5p(exportable[0].id).then((result) => {
-        if (result.success) this.app.showToast('📦 H5P exportiert!', 'success');
-        else if (result.error) this.app.showToast('❌ H5P-Export fehlgeschlagen: ' + result.error, 'error');
-      });
+      this.openExportDialog(exportable[0]);
       return;
     }
 
@@ -497,192 +554,16 @@ export class TopicsView {
           <span class="import-module-type">${activeCount} aktive Modul${activeCount !== 1 ? 'e' : ''}</span>
         </div>
         <button class="btn btn-primary btn-sm">📦 Exportieren</button>`;
-      item.querySelector('button').addEventListener('click', async () => {
+      item.querySelector('button').addEventListener('click', () => {
         this._exportOverlay.classList.add('hidden');
-        const result = await this.app.api.exportTopicAsH5p(topic.id);
-        if (result.success) this.app.showToast('📦 H5P exportiert!', 'success');
-        else if (result.error) this.app.showToast('❌ H5P-Export fehlgeschlagen: ' + result.error, 'error');
+        this.openExportDialog(topic);
       });
       this._exportList.appendChild(item);
     }
     this._exportOverlay.classList.remove('hidden');
   }
 
-  /**
-   * Freigabe. Zwei Dinge lassen sich unabhängig voneinander erlauben:
-   *
-   *   Verwenden – die Kollegin nimmt das Original in ihre eigenen Themen-Links.
-   *               Änderungen wirken sofort bei allen, die es verwenden. Die
-   *               Ergebnisse landen trotzdem bei ihr, denn dafür zählt der
-   *               Eigentümer des Links.
-   *   Kopieren  – sie zieht sich eine eigene Kopie und wird deren Eigentümerin.
-   *               Spätere Änderungen am Original wandern nicht mit.
-   *
-   * Das Datenmodell kennt zusätzlich die Stufe 'write' (Module bearbeiten).
-   * Sie ist hier bewusst noch nicht wählbar – siehe learning-topic.entity.ts.
-   */
-  async _openShareDialog(topic) {
-    const { state, api } = this.app;
-    const { currentUser } = state;
-    const isOwner = topic.ownerId === (currentUser && currentUser.id);
-    if (!isOwner && currentUser.role !== 'admin') {
-      this.app.showToast('Nur der Eigentümer kann dieses Thema freigeben.', 'error');
-      return;
-    }
-
-    let users = [];
-    let groups = [];
-    try {
-      [users, groups] = await Promise.all([api.getColleagues(), api.getGroups()]);
-    } catch (_) {}
-    if (!Array.isArray(users)) users = [];
-    if (!Array.isArray(groups)) groups = [];
-
-    const copyList = Array.isArray(topic.sharedWith) ? topic.sharedWith : [];
-    const accessList = Array.isArray(topic.sharedAccess) ? topic.sharedAccess : [];
-    const levelOf = (id) => accessList.find((e) => e.userId === id)?.level || 'none';
-    // Gruppen stehen in denselben Listen, nur mit Präfix – das Datenmodell
-    // muss deshalb nicht doppelt geführt werden.
-    const groupRef = (id) => `group:${id}`;
-
-    const copyAll = copyList.includes('*');
-    const useAll = levelOf('*') !== 'none';
-
-    const row = (id, label, badge) => `
-      <div class="share-user-row" data-user="${escapeAttr(id)}">
-        <span class="share-user-name">${badge}${escapeHtml(label)}</span>
-        <label class="share-flag">
-          <input type="checkbox" class="chk-use" ${levelOf(id) !== 'none' ? 'checked' : ''} />
-          <span>verwenden</span>
-        </label>
-        <label class="share-flag">
-          <input type="checkbox" class="chk-copy" ${copyList.includes(id) ? 'checked' : ''} />
-          <span>kopieren</span>
-        </label>
-      </div>`;
-
-    const overlay = document.createElement('div');
-    overlay.className = 'confirm-overlay';
-    overlay.innerHTML = `
-      <div class="import-modules-card" style="min-width:420px; max-width:560px">
-        <h3>👥 Thema freigeben: <em>${escapeHtml(topic.title)}</em></h3>
-        <p class="hint"><strong>Verwenden</strong> heißt: Die Kollegin nimmt dein Original in
-          ihre eigenen Themen-Links. Ihre Schülerergebnisse landen bei ihr, nicht bei dir.
-          Änderst du später eine Aufgabe, ändert sich ihr Quiz mit – für eine Klassenarbeit
-          ist deshalb <strong>kopieren</strong> oft die ruhigere Wahl.</p>
-        ${topic.origin ? `<p class="hint">📋 Dieses Thema ist eine Kopie von „${escapeHtml(topic.origin.title || '')}" (${escapeHtml(topic.origin.author)}).
-          Der Ursprung ist hier vorbelegt – du kannst die Haken abwählen, die Nennung bleibt.</p>` : ''}
-
-        <div class="share-head-row">
-          <span class="share-user-name"><strong>Alle Kolleginnen und Kollegen</strong></span>
-          <label class="share-flag">
-            <input type="checkbox" id="useAll" ${useAll ? 'checked' : ''} />
-            <span>verwenden</span>
-          </label>
-          <label class="share-flag">
-            <input type="checkbox" id="copyAll" ${copyAll ? 'checked' : ''} />
-            <span>kopieren</span>
-          </label>
-        </div>
-
-        ${groups.length ? `
-        <div class="share-user-list" id="shareGroupList" style="margin-bottom:10px">
-          ${groups.map((g) => `
-            <div class="share-user-row" data-group="${escapeAttr(g.id)}">
-              <span class="share-user-name">👥 ${escapeHtml(g.name)}
-                <span class="import-module-type">${(g.memberIds || []).length} Mitglied${(g.memberIds || []).length === 1 ? '' : 'er'}</span></span>
-              <label class="share-flag">
-                <input type="checkbox" class="chk-use" ${levelOf(groupRef(g.id)) !== 'none' ? 'checked' : ''} />
-                <span>verwenden</span>
-              </label>
-              <label class="share-flag">
-                <input type="checkbox" class="chk-copy" ${copyList.includes(groupRef(g.id)) ? 'checked' : ''} />
-                <span>kopieren</span>
-              </label>
-            </div>`).join('')}
-        </div>
-        <p class="hint">Eine Gruppe wirkt dauerhaft: Wer später dazukommt, ist automatisch dabei;
-          wer ausscheidet, verliert den Zugriff sofort.</p>` : ''}
-
-        <div id="shareUserList" class="share-user-list">
-          ${users.length === 0
-            ? '<p class="hint">Keine weiteren Lehrkräfte vorhanden.</p>'
-            : users.map((u) => row(
-                u.id,
-                u.displayName || u.email,
-                `<span class="user-role-badge ${u.role}">${u.role === 'admin' ? 'Admin' : 'Lehrer'}</span> `,
-              )).join('')}
-        </div>
-
-        <div class="confirm-actions">
-          <button class="btn btn-primary" id="btnShareSave">Freigabe speichern</button>
-          <button class="btn btn-secondary" id="btnShareCancel">Abbrechen</button>
-        </div>
-      </div>`;
-    document.body.appendChild(overlay);
-
-    const useAllBox = overlay.querySelector('#useAll');
-    const copyAllBox = overlay.querySelector('#copyAll');
-    const list = overlay.querySelector('#shareUserList');
-    const groupList = overlay.querySelector('#shareGroupList');
-
-    // Ist etwas für alle freigegeben, wäre die Einzelauswahl dafür
-    // gegenstandslos – die betroffenen Häkchen werden deshalb gesperrt.
-    const syncList = () => {
-      const boxes = [list, groupList].filter(Boolean);
-      for (const box of boxes) {
-        box.querySelectorAll('.chk-use').forEach((cb) => { cb.disabled = useAllBox.checked; });
-        box.querySelectorAll('.chk-copy').forEach((cb) => { cb.disabled = copyAllBox.checked; });
-        box.querySelectorAll('.share-user-row').forEach((r) => {
-          r.style.opacity = useAllBox.checked && copyAllBox.checked ? '0.45' : '1';
-        });
-      }
-    };
-    useAllBox.addEventListener('change', syncList);
-    copyAllBox.addEventListener('change', syncList);
-    syncList();
-
-    const close = () => overlay.remove();
-    overlay.querySelector('#btnShareCancel').addEventListener('click', close);
-    overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
-
-    overlay.querySelector('#btnShareSave').addEventListener('click', async () => {
-      // Personen und Gruppen landen in denselben Listen; die Gruppe trägt
-      // ihr Präfix, damit der Server sie beim Prüfen auflösen kann.
-      const rows = [
-        ...list.querySelectorAll('.share-user-row'),
-        ...(groupList ? groupList.querySelectorAll('.share-user-row') : []),
-      ];
-      const refOf = (r) => (r.dataset.group ? groupRef(r.dataset.group) : r.dataset.user);
-
-      const sharedWith = copyAllBox.checked
-        ? ['*']
-        : rows.filter((r) => r.querySelector('.chk-copy').checked).map(refOf);
-
-      const sharedAccess = useAllBox.checked
-        ? [{ userId: '*', level: 'read' }]
-        : rows
-            .filter((r) => r.querySelector('.chk-use').checked)
-            .map((r) => ({ userId: refOf(r), level: 'read' }));
-
-      try {
-        const res = await api.setTopicSharing(topic.id, { sharedWith, sharedAccess });
-        if (res && res.success) {
-          close();
-          const anything = sharedWith.length || sharedAccess.length;
-          this.app.showToast(anything ? 'Freigabe gespeichert' : 'Freigabe aufgehoben', 'success');
-          await this.app.loadTopics();
-          this.refresh();
-        } else {
-          this.app.showToast('Fehler: ' + (res?.message || res?.error || 'unbekannt'), 'error');
-        }
-      } catch (err) {
-        this.app.showToast('Fehler beim Speichern: ' + err.message, 'error');
-      }
-    });
-  }
-
-  // ==================== VON KOLLEGEN FREIGEGEBEN ====================
+  // ==================== ZUR NUTZUNG ERWORBEN ====================
 
   async refreshSharedTopics() {
     const section = document.getElementById('sharedTopicsSection');
@@ -691,59 +572,25 @@ export class TopicsView {
 
     let topics = [];
     try {
-      topics = await this.app.api.getSharedWithMe();
+      topics = await this.app.api.getGrantedTopics();
     } catch (_) { topics = []; }
     if (!Array.isArray(topics) || topics.length === 0) {
       section.classList.add('hidden');
       return;
     }
-
-    // Ausgeblendetes bleibt erreichbar, aber aus dem Weg: erst auf Wunsch
-    // sichtbar, damit eine versehentlich weggeklickte Freigabe nicht
-    // verloren ist.
-    const visible = topics.filter((t) => !t.hidden);
-    const hidden = topics.filter((t) => t.hidden);
-
     section.classList.remove('hidden');
     list.innerHTML = '';
-
-    if (visible.length === 0) {
-      const empty = document.createElement('p');
-      empty.className = 'hint';
-      empty.textContent = 'Alle Freigaben sind ausgeblendet.';
-      list.appendChild(empty);
-    }
-    for (const t of visible) list.appendChild(this._sharedTopicCard(t));
-
-    if (hidden.length > 0) {
-      const toggle = document.createElement('button');
-      toggle.className = 'btn btn-secondary btn-sm';
-      toggle.style.marginTop = '10px';
-      toggle.textContent = `👁‍🗨 ${hidden.length} ausgeblendete Freigabe${hidden.length === 1 ? '' : 'n'} anzeigen`;
-      const box = document.createElement('div');
-      box.className = 'hidden';
-      box.style.marginTop = '10px';
-      for (const t of hidden) box.appendChild(this._sharedTopicCard(t));
-      toggle.addEventListener('click', () => {
-        box.classList.toggle('hidden');
-        toggle.textContent = box.classList.contains('hidden')
-          ? `👁‍🗨 ${hidden.length} ausgeblendete Freigabe${hidden.length === 1 ? '' : 'n'} anzeigen`
-          : '▲ Ausgeblendete wieder verbergen';
-      });
-      list.appendChild(toggle);
-      list.appendChild(box);
-    }
+    for (const t of topics) list.appendChild(this._grantedTopicCard(t));
   }
 
   /**
-   * Karte einer fremden Freigabe. Ansehen geht immer – auch wenn nur das
-   * Kopieren freigegeben wurde, denn blind kopiert niemand gern. Ausblenden
-   * wirkt ausschließlich in der eigenen Liste; beim Eigentümer ändert sich
-   * nichts.
+   * Karte eines Themas mit Nutzungsrecht: ansehen, eigener Quick-Link,
+   * zurückgeben. Bearbeiten gibt es hier nicht – dafür im Shop eine Kopie.
    */
-  _sharedTopicCard(entry) {
+  _grantedTopicCard(entry) {
     const card = document.createElement('div');
     card.className = 'topic-card topic-shared';
+    const paid = entry.grants.reduce((n, g) => n + (g.pricePaid || 0), 0);
     card.innerHTML = `
       <div class="topic-card-header">
         <div class="topic-card-info">
@@ -753,93 +600,39 @@ export class TopicsView {
           <div class="topic-card-meta">
             <span class="topic-module-count">${entry.moduleCount} Module</span>
             <span class="topic-shared-badge" style="margin-left:8px">von ${escapeHtml(entry.ownerName)}</span>
-            ${entry.canUse ? '<span class="topic-shared-badge use" style="margin-left:6px">🔗 in eigenen Links verwendbar</span>' : ''}
-            ${entry.hidden ? '<span class="topic-status inactive" style="margin-left:6px">ausgeblendet</span>' : ''}
+            <span class="topic-shared-badge" title="Creator der Module">✍️ ${entry.creators.map(escapeHtml).join(', ')}</span>
+            <span class="topic-shared-badge use">${paid ? `🪙 ${paid} Punkte bezahlt` : 'kostenlos'}</span>
           </div>
         </div>
         <div class="topic-card-actions">
           <button class="btn btn-secondary btn-sm btn-view-shared" title="Module ansehen (nur Anzeige)">👁 Ansehen</button>
-          ${entry.canUse ? '<button class="btn btn-secondary btn-sm btn-quick-shared" title="Eigener Quick-Link auf dieses Thema – die Ergebnisse kommen zu mir">🔗 Quick-Link</button>' : ''}
-          ${entry.canCopy ? '<button class="btn btn-primary btn-sm btn-copy-shared">📥 Zu mir kopieren</button>' : ''}
-          <button class="btn btn-secondary btn-sm btn-hide-shared"
-            title="${entry.hidden ? 'Wieder in meiner Liste zeigen' : 'Nur bei mir ausblenden – die Kollegin behält ihr Thema'}">
-            ${entry.hidden ? '↩️ Einblenden' : '🚫 Ausblenden'}</button>
-          <button class="btn btn-danger btn-sm btn-remove-shared"
-            title="Aus meiner Liste entfernen – gelöscht wird nichts, die Kollegin behält ihr Thema">🗑 Entfernen</button>
+          <button class="btn btn-secondary btn-sm btn-quick-shared" title="Eigener Quick-Link auf dieses Thema – die Ergebnisse kommen zu mir">🔗 Quick-Link</button>
+          <button class="btn btn-danger btn-sm btn-return-grant" title="Nutzungsrecht zurückgeben">↩ Zurückgeben</button>
         </div>
       </div>`;
 
     card.querySelector('.btn-view-shared').addEventListener('click', () => this._openSharedTopicViewer(entry));
-
     // Der Quick-Link gehört mir, nicht dem Eigentümer des Themas: Der Dialog
     // ist derselbe wie bei eigenen Themen, der Token ein eigener.
-    card.querySelector('.btn-quick-shared')?.addEventListener('click', () =>
+    card.querySelector('.btn-quick-shared').addEventListener('click', () =>
       this._openQuickLinkDialog({ id: entry.id, title: entry.title }));
 
-    card.querySelector('.btn-remove-shared').addEventListener('click', async (e) => {
+    card.querySelector('.btn-return-grant').addEventListener('click', async (e) => {
       const ok = await this.app.appConfirm(
-        `"${entry.title}" aus deiner Liste entfernen?\n\n` +
-        'Gelöscht wird dabei nichts: Das Thema gehört weiter ' + entry.ownerName + '. ' +
-        'Bereits verteilte Links von dir auf dieses Thema laufen weiter – die ziehst du bei Bedarf selbst zurück. ' +
-        'Gibt die Kollegin das Thema später erneut frei, taucht es wieder auf.',
+        `Nutzungsrecht an „${entry.title}" zurückgeben?\n\n` +
+        (paid ? 'Bezahlte Punkte werden nicht erstattet. ' : '') +
+        'Deine Themen- und Quick-Links liefern das Thema danach nicht mehr aus.',
       );
       if (!ok) return;
       const btn = e.currentTarget;
       btn.disabled = true;
       try {
-        const res = await this.app.api.setSharedTopicRemoved(entry.id, true);
-        if (res && res.success) {
-          this.app.showToast('Freigabe aus deiner Liste entfernt – beim Eigentümer bleibt alles unverändert.', 'info');
-          this.refreshSharedTopics();
-        } else {
-          this.app.showToast('Fehler: ' + (res?.message || 'Entfernen fehlgeschlagen'), 'error');
-          btn.disabled = false;
+        for (const g of entry.grants) {
+          const res = await this.app.api.revokeGrant(g.id);
+          if (!res || !res.success) throw new Error(res?.message || 'Zurückgeben fehlgeschlagen');
         }
-      } catch (err) {
-        this.app.showToast('Fehler: ' + err.message, 'error');
-        btn.disabled = false;
-      }
-    });
-
-    card.querySelector('.btn-hide-shared').addEventListener('click', async (e) => {
-      const btn = e.currentTarget;
-      btn.disabled = true;
-      try {
-        const res = await this.app.api.setSharedTopicHidden(entry.id, !entry.hidden);
-        if (res && res.success) {
-          this.app.showToast(
-            entry.hidden ? 'Freigabe wieder eingeblendet' : 'Freigabe ausgeblendet – beim Kollegen bleibt alles unverändert.',
-            'info',
-          );
-          this.refreshSharedTopics();
-        } else {
-          this.app.showToast('Fehler: ' + (res?.message || 'Ausblenden fehlgeschlagen'), 'error');
-          btn.disabled = false;
-        }
-      } catch (err) {
-        this.app.showToast('Fehler: ' + err.message, 'error');
-        btn.disabled = false;
-      }
-    });
-
-    card.querySelector('.btn-copy-shared')?.addEventListener('click', async (e) => {
-      const btn = e.currentTarget;
-      btn.disabled = true;
-      try {
-        const res = await this.app.api.copySharedTopic(entry.id);
-        if (res && res.success) {
-          this.app.showToast(
-            `"${res.title}" kopiert – du bist jetzt Eigentümer. ` +
-            `${entry.ownerName} ist als Ursprung vermerkt und darf die Kopie vorerst verwenden und kopieren; ` +
-            'unter 👥 kannst du das ändern.',
-            'success',
-          );
-          await this.app.loadTopics();
-          this.refresh();
-        } else {
-          this.app.showToast('Fehler: ' + (res?.message || 'Kopieren fehlgeschlagen'), 'error');
-          btn.disabled = false;
-        }
+        this.app.showToast('Nutzungsrecht zurückgegeben', 'info');
+        this.refreshSharedTopics();
       } catch (err) {
         this.app.showToast('Fehler: ' + err.message, 'error');
         btn.disabled = false;
@@ -873,8 +666,8 @@ export class TopicsView {
     overlay.innerHTML = `
       <div class="import-modules-card" style="min-width:480px; max-width:820px; max-height:82vh; overflow:auto">
         <h3>👁 ${escapeHtml(topic.title)}</h3>
-        <p class="hint">Freigabe von <strong>${escapeHtml(topic.ownerName)}</strong> – nur zum Ansehen.
-          Änderungen sind hier nicht möglich; das Thema gehört weiterhin der Kollegin.</p>
+        <p class="hint">Thema von <strong>${escapeHtml(topic.ownerName)}</strong> – du darfst es verwenden, aber
+          nicht ändern. Für eine eigene Fassung im Shop „Copy" wählen.</p>
         ${topic.origin ? `<p class="hint">📋 Kopie von „${escapeHtml(topic.origin.title || '')}" · Ursprung: ${escapeHtml(topic.origin.author)}</p>` : ''}
         <div id="sharedViewList"></div>
         <div id="sharedViewPreview" class="hidden"></div>
@@ -898,7 +691,7 @@ export class TopicsView {
       item.innerHTML = `
         <div>
           <span class="import-module-title">${typeDef.icon || '📦'} ${idx + 1}. ${escapeHtml(mod.title)}</span>
-          <span class="import-module-type">${escapeHtml(typeDef.name || mod.type || '')}</span>
+          <span class="import-module-type">${escapeHtml(typeDef.name || mod.type || '')} · ✍️ ${escapeHtml(mod.creatorName || '')}</span>
         </div>
         <button class="btn btn-secondary btn-sm">▶ Vorschau</button>`;
       item.querySelector('button').addEventListener('click', () => {

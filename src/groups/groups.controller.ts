@@ -1,14 +1,14 @@
 import { Controller, Get, Post, Patch, Delete, Body, Param, UseGuards, Request, ForbiddenException } from '@nestjs/common';
 import { GroupsService } from './groups.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { TopicsService } from '../topics/topics.service';
+import { ShopService } from '../shop/shop.service';
 
 @Controller('groups')
 @UseGuards(JwtAuthGuard)
 export class GroupsController {
   constructor(
     private readonly groups: GroupsService,
-    private readonly topics: TopicsService,
+    private readonly shop: ShopService,
   ) {}
 
   private requireAdmin(req: any) {
@@ -42,7 +42,7 @@ export class GroupsController {
   }
 
   /**
-   * Löschen räumt zugleich die Freigaben auf, die auf die Gruppe zeigen.
+   * Löschen räumt zugleich die Shop-Angebote auf, die auf die Gruppe zeigen.
    * Ein toter Verweis wäre in der Zugriffsprüfung zwar folgenlos – niemand
    * ist Mitglied einer gelöschten Gruppe –, stünde aber für immer als
    * unerklärlicher Eintrag in den Listen der Kolleginnen.
@@ -50,7 +50,7 @@ export class GroupsController {
   @Delete(':id')
   async remove(@Request() req: any, @Param('id') id: string) {
     this.requireAdmin(req);
-    const cleaned = await this.topics.dropGroupFromSharing(id);
+    const cleaned = await this.shop.dropGroupFromAudiences(id);
     await this.groups.remove(id);
     return { success: true, sharingEntriesRemoved: cleaned };
   }

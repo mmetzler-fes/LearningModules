@@ -51,9 +51,13 @@ export class LinksService {
     const topics = found.filter((t) => this.topicsService.accessLevel(t, user) !== 'none');
     const ownTopicIds = new Set(topics.map((t) => t.id));
 
-    const modules = ownTopicIds.size
+    // Bei fremden Themen nur die Module, die das Nutzungsrecht umfasst.
+    const loaded = ownTopicIds.size
       ? await this.moduleRepo.find({ where: { topicId: In([...ownTopicIds]) } })
       : [];
+    const modules = topics.flatMap((t) =>
+      this.topicsService.visibleModules(t, loaded.filter((m) => m.topicId === t.id), user),
+    );
     const modulesByTopic = new Map<string, Set<string>>();
     for (const m of modules) {
       if (!modulesByTopic.has(m.topicId)) modulesByTopic.set(m.topicId, new Set());
@@ -103,11 +107,9 @@ export class LinksService {
 
     const found = await this.topicRepo.find({ where: { id: In(topicIds) } });
 
-    // Die Freigabe wird bei jedem Start neu geprüft, nicht nur beim Speichern
-    // des Links. Zieht der Eigentümer sie zurück, wirkt das sofort – sonst
-    // liefe ein einmal gespeicherter Link unbegrenzt weiter. Das gilt auch
-    // für Freigaben an eine Gruppe: Wer aus der Fachschaft ausscheidet,
-    // verliert den Zugriff mit dem nächsten Schülerstart.
+    // Das Nutzungsrecht wird bei jedem Start neu geprüft, nicht nur beim
+    // Speichern des Links. Wird es entzogen oder zurückgegeben, wirkt das
+    // sofort – sonst liefe ein einmal gespeicherter Link unbegrenzt weiter.
     const linkOwner = await this.groupsService.asUser(link.ownerId);
     const topics = found.filter((t) => this.topicsService.accessLevel(t, linkOwner) !== 'none');
     const byId = new Map(topics.map((t) => [t.id, t]));
@@ -121,8 +123,9 @@ export class LinksService {
       const topic = byId.get(entry.topicId);
       if (!topic) continue;
 
-      const ofTopic = allModules
-        .filter((m) => m.topicId === topic.id)
+      // Mit Nutzungsrecht nur die Module, die es umfasst.
+      const ofTopic = this.topicsService
+        .visibleModules(topic, allModules.filter((m) => m.topicId === topic.id), linkOwner)
         .sort((a, b) => a.orderIndex - b.orderIndex);
 
       const chosen = new Set(entry.all ? ofTopic.map((m) => m.id) : entry.moduleIds || []);

@@ -8,11 +8,13 @@ import { JwtStrategy } from './strategies/jwt.strategy';
 import { User } from '../core/entities/user.entity';
 import { SystemConfig } from '../core/entities/system-config.entity';
 import { GroupsModule } from '../groups/groups.module';
+import { AccountsModule } from '../accounts/accounts.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([User, SystemConfig]),
     GroupsModule,
+    AccountsModule,
     PassportModule,
     JwtModule.register({
       secret: process.env.JWT_SECRET || 'secretKey',

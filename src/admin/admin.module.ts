@@ -10,16 +10,19 @@ import { Tag } from '../core/entities/tag.entity';
 import { Result } from '../core/entities/result.entity';
 import { UploadedFile } from '../core/entities/uploaded-file.entity';
 import { TeacherGroup } from '../core/entities/teacher-group.entity';
-import { HandoverService } from './handover.service';
+import { BackupService } from './backup.service';
+import { LearningModule } from '../core/entities/learning-module.entity';
+import { AccountsModule } from '../accounts/accounts.module';
 import { UserSheetService } from './user-sheet.service';
 import { AuthModule } from '../auth/auth.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([User, SystemConfig, LearningTopic, TopicLink, TopicQuickLink, Tag, Result, UploadedFile, TeacherGroup]),
+    TypeOrmModule.forFeature([User, SystemConfig, LearningTopic, LearningModule, TopicLink, TopicQuickLink, Tag, Result, UploadedFile, TeacherGroup]),
     AuthModule,
+    AccountsModule,
   ],
   controllers: [AdminController],
-  providers: [HandoverService, UserSheetService],
+  providers: [UserSheetService, BackupService],
 })
 export class AdminModule {}

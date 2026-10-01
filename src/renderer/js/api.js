@@ -190,45 +190,127 @@ export class BrowserApi {
       body: JSON.stringify({ selected }),
     });
   }
-  // ---------- Teilen: freigeben und kopieren ----------
-  /**
-   * Freigabe setzen. `sharedWith` ist die Kopier-Freigabe (Benutzer-IDs oder
-   * ['*']), `sharedAccess` der Zugriff aufs Original ([{userId, level}]).
-   * Ein weggelassenes Feld bleibt unverändert.
-   */
-  setTopicSharing(topicId, { sharedWith, sharedAccess }) {
-    return this._fetch(`/api/topics/${encodeURIComponent(topicId)}/sharing`, {
-      method: 'POST',
-      body: JSON.stringify({ sharedWith, sharedAccess }),
-    });
-  }
-  /** Themen, die ich in eigenen Links verwenden darf (eigene + freigegebene). */
+  /** Themen, die ich in eigenen Links verwenden darf (eigene + mit Nutzungsrecht). */
   getUsableTopics() { return this._fetch('/api/topics/usable'); }
-  /** Kollegen für die Auswahl im Freigabe-Dialog (auch für Lehrkräfte). */
+  /** Kollegen für die Zielgruppe eines Shop-Angebots. */
   getColleagues() { return this._fetch('/api/topics/colleagues'); }
-  /** Themen, die mir jemand freigegeben hat. */
-  getSharedWithMe() { return this._fetch('/api/topics/shared-with-me'); }
-  /** Ein freigegebenes Thema samt Modulen nur zum Ansehen holen. */
+  /** Themen, auf die ich ein Nutzungsrecht aus dem Shop habe. */
+  getGrantedTopics() { return this._fetch('/api/topics/granted'); }
+  /** Ein Thema mit Nutzungsrecht samt sichtbaren Modulen nur zum Ansehen holen. */
   getSharedTopicView(topicId) {
     return this._fetch(`/api/topics/${encodeURIComponent(topicId)}/shared-view`);
   }
-  /** Fremde Freigabe in der eigenen Liste ausblenden bzw. wieder einblenden. */
-  setSharedTopicHidden(topicId, hidden) {
-    return this._fetch(`/api/topics/${encodeURIComponent(topicId)}/hidden`, {
+
+  // ---------- Lernmodule-Shop ----------
+  getShopOffers() { return this._fetch('/api/shop/offers'); }
+  getMyOffers() { return this._fetch('/api/shop/my-offers'); }
+  getMyPoints() { return this._fetch('/api/shop/points'); }
+  getTopicOfferState(topicId) {
+    return this._fetch(`/api/shop/topics/${encodeURIComponent(topicId)}`);
+  }
+  saveCreatorOffer(topicId, body) {
+    return this._fetch(`/api/shop/topics/${encodeURIComponent(topicId)}/creator-offer`, {
       method: 'POST',
-      body: JSON.stringify({ hidden }),
+      body: JSON.stringify(body),
     });
   }
+  saveBuyerShare(topicId, audience) {
+    return this._fetch(`/api/shop/topics/${encodeURIComponent(topicId)}/buyer-share`, {
+      method: 'POST',
+      body: JSON.stringify({ audience }),
+    });
+  }
+  withdrawOffer(offerId) {
+    return this._fetch(`/api/shop/offers/${encodeURIComponent(offerId)}`, { method: 'DELETE' });
+  }
+  /** mode: 'copy' | 'use' */
+  acquireOffer(offerId, mode) {
+    return this._fetch(`/api/shop/offers/${encodeURIComponent(offerId)}/acquire`, {
+      method: 'POST',
+      body: JSON.stringify({ mode }),
+    });
+  }
+  /** Nutzungsrecht zurückgeben (eigenes) bzw. kostenloses entziehen (als Anbieter). */
+  revokeGrant(grantId) {
+    return this._fetch(`/api/shop/grants/${encodeURIComponent(grantId)}`, { method: 'DELETE' });
+  }
+
+  // ---------- Konto ----------
+  /** E-Mail-Adresse ändern; bei bestehender Adresse mit `targetPassword` zusammenführen. */
+  changeEmail(newEmail, password, targetPassword) {
+    return this._fetch('/api/auth/change-email', {
+      method: 'POST',
+      body: JSON.stringify({ newEmail, password, targetPassword }),
+    });
+  }
+
+  // ---------- Admin: Shop & Sicherheit ----------
+  reactivateUser(userId) {
+    return this._fetch(`/api/admin/users/${encodeURIComponent(userId)}/reactivate`, { method: 'POST' });
+  }
+  getPointsSettings() { return this._fetch('/api/admin/points-settings'); }
+  savePointsSettings(body) {
+    return this._fetch('/api/admin/points-settings', { method: 'POST', body: JSON.stringify(body) });
+  }
+  getMasterKeyStatus() { return this._fetch('/api/admin/master-key'); }
+  setMasterKey(masterKey) {
+    return this._fetch('/api/admin/master-key', { method: 'POST', body: JSON.stringify({ masterKey }) });
+  }
+  downloadBackup() {
+    return this._download('/api/admin/backup', `lernmodule-backup-${new Date().toISOString().slice(0, 10)}.lmbak`);
+  }
+  /** Fragt nach einer Backup-Datei und spielt sie ein. Liefert null bei Abbruch. */
+  restoreBackup() {
+    return this._pickAndUpload('.lmbak', '/api/admin/restore');
+  }
+
   /**
-   * Fremde Freigabe aus der eigenen Liste entfernen bzw. zurückholen.
-   * Entfernt wird nur die eigene Ansicht – der Eigentümer behält alles.
+   * Lädt eine Datei mit Anmeldung herunter. Der Dateiname kommt vom Server;
+   * `fallbackName` gilt nur, wenn er fehlt.
    */
-  setSharedTopicRemoved(topicId, removed) {
-    return this._fetch(`/api/topics/${encodeURIComponent(topicId)}/removed`, {
-      method: 'POST',
-      body: JSON.stringify({ removed }),
+  async _download(url, fallbackName) {
+    const token = this._auth.getToken();
+    const res = await fetch(url, { headers: token ? { Authorization: `Bearer ${token}` } : {}, cache: 'no-store' });
+    if (!res.ok) {
+      let message = 'Download fehlgeschlagen.';
+      try { message = (await res.json()).message || message; } catch (_) {}
+      return { success: false, error: message };
+    }
+    const disposition = res.headers.get('Content-Disposition') || '';
+    const star = /filename\*=UTF-8''([^;]+)/i.exec(disposition);
+    const plain = /filename="([^"]+)"/i.exec(disposition);
+    const name = star ? decodeURIComponent(star[1]) : plain ? plain[1] : fallbackName;
+    downloadBlob(await res.blob(), name);
+    return { success: true };
+  }
+
+  _pickAndUpload(accept, url, extra = {}) {
+    return new Promise((resolve) => {
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = accept;
+      input.onchange = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return resolve(null);
+        const formData = new FormData();
+        formData.append('file', file);
+        for (const [k, v] of Object.entries(extra)) formData.append(k, v);
+        const token = this._auth.getToken();
+        try {
+          const res = await fetch(url, {
+            method: 'POST',
+            headers: token ? { Authorization: `Bearer ${token}` } : {},
+            body: formData,
+          });
+          resolve(await res.json());
+        } catch (err) {
+          resolve({ success: false, message: err.message });
+        }
+      };
+      input.click();
     });
   }
+
   // ---------- Benutzerliste als Tabelle (.ods) ----------
 
   /** Lädt die Benutzertabelle herunter. Enthält keine Passwörter. */
@@ -283,10 +365,6 @@ export class BrowserApi {
     return this._fetch(`/api/groups/${encodeURIComponent(id)}`, { method: 'DELETE' });
   }
 
-  /** Eigene Kopie eines freigegebenen Themas anlegen. */
-  copySharedTopic(topicId) {
-    return this._fetch(`/api/topics/${encodeURIComponent(topicId)}/copy`, { method: 'POST' });
-  }
   setTopicPermissions(topicId, permissions) {
     return this._fetch('/api/topics/permissions', {
       method: 'POST',
@@ -355,23 +433,25 @@ export class BrowserApi {
   }
 
   // ---------- Export / Import ----------
+  /** Wie viele Module eigene und fremde sind – vor dem Export abfragen. */
+  getExportInfo(topicId) {
+    return this._fetch(`/api/interchange/topics/${encodeURIComponent(topicId)}/export-info`);
+  }
+  /** Unverschlüsselt als JSON – nur die selbst verfassten Module. */
   exportTopic(topicId) {
-    return this._fetch(`/api/topics/${encodeURIComponent(topicId)}`).then((topic) => {
-      if (!topic || !topic.id) return { success: false };
-      const blob = new Blob([JSON.stringify({ topic }, null, 2)], { type: 'application/json' });
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
-      a.download = `${topic.title || 'topic'}.json`;
-      a.click();
-      return { success: true };
-    });
+    return this._download(`/api/interchange/topics/${encodeURIComponent(topicId)}/export-json`, 'thema.json');
+  }
+  /** Das ganze Thema, verschlüsselt mit dem Masterkey. */
+  exportTopicEncrypted(topicId) {
+    return this._download(`/api/interchange/topics/${encodeURIComponent(topicId)}/export-encrypted`, 'thema.lmenc');
   }
 
   importTopic() {
     return new Promise((resolve) => {
       const input = document.createElement('input');
       input.type = 'file';
-      input.accept = '.json';
+      // .lmenc = verschlüsselter Export dieser App; der Server erkennt ihn selbst.
+      input.accept = '.json,.lmenc';
       input.onchange = async (e) => {
         const file = e.target.files[0];
         if (!file) return resolve({ success: false });
@@ -421,13 +501,9 @@ export class BrowserApi {
     });
   }
 
+  /** Unverschlüsselt als H5P – nur die selbst verfassten Module. */
   exportTopicAsH5p(topicId) {
-    const token = this._auth.getToken();
-    const url = `/api/interchange/topics/${topicId}/export-h5p${token ? `?token=${encodeURIComponent(token)}` : ''}`;
-    const a = document.createElement('a');
-    a.href = url;
-    a.click();
-    return Promise.resolve({ success: true });
+    return this._download(`/api/interchange/topics/${encodeURIComponent(topicId)}/export-h5p`, 'thema.h5p');
   }
 
   exportSelectedModulesAsH5p() {

@@ -11,6 +11,7 @@ import { Result } from '../core/entities/result.entity';
 import { UploadedFile } from '../core/entities/uploaded-file.entity';
 import { TeacherGroup } from '../core/entities/teacher-group.entity';
 import { BackupService } from './backup.service';
+import { CloudBackupService } from './cloud-backup.service';
 import { LearningModule } from '../core/entities/learning-module.entity';
 import { AccountsModule } from '../accounts/accounts.module';
 import { UserSheetService } from './user-sheet.service';
@@ -23,6 +24,6 @@ import { AuthModule } from '../auth/auth.module';
     AccountsModule,
   ],
   controllers: [AdminController],
-  providers: [UserSheetService, BackupService],
+  providers: [UserSheetService, BackupService, CloudBackupService],
 })
 export class AdminModule {}

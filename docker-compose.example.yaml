@@ -34,6 +34,8 @@ services:
       # App data/.app-secret an – dann liegen Schlüssel und Schutz im selben
       # Verzeichnis. Nicht ändern, sonst sind die Masterkeys nicht mehr lesbar.
       APP_SECRET: ${APP_SECRET}
+      # Zeitzone für den Zeitplan des automatischen Backups (sonst UTC).
+      TZ: Europe/Berlin
 
 networks:
   proxy-nw:

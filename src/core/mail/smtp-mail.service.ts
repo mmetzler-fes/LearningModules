@@ -132,4 +132,8 @@ export class SmtpMailService extends MailService {
         `Beim nächsten Login werden Sie aufgefordert, ein eigenes Passwort zu vergeben.\n`,
     );
   }
+
+  async sendNotice(params: { to: string; subject: string; text: string }): Promise<MailResult> {
+    return this.send(params.to, `LearningModules: ${params.subject}`, params.text);
+  }
 }

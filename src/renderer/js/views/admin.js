@@ -87,6 +87,7 @@ export class AdminView {
     document.getElementById('btnImportUsers')?.addEventListener('click', () => this._importUsers());
 
     this._bindSettings();
+    this.checkBackupAlert(true);
 
 
 
@@ -370,12 +371,158 @@ export class AdminView {
              ${key.appSecretFromEnv ? '' : '<br>⚠️ APP_SECRET ist nicht gesetzt – die Masterkeys sind mit einer Datei auf dem Server geschützt. Für den Betrieb besser APP_SECRET setzen.'}`
           : 'Noch kein Masterkey gesetzt.';
       }
+      await this._refreshCloudBackup();
     } catch (err) {
       this.app.showToast('Fehler: ' + err.message, 'error');
     }
   }
 
+  // ---- Automatisches Backup ----
+
+  /**
+   * Ist das letzte automatische Backup fehlgeschlagen, steht ein rotes "!"
+   * am Menüpunkt – und beim Anmelden zusätzlich eine Meldung. Ohne
+   * Mailversand ist das der einzige Weg, auf dem es der Admin erfährt.
+   */
+  async checkBackupAlert(onLogin = false) {
+    try {
+      const data = await this.app.api.getCloudBackup();
+      const failed = data?.config?.enabled && data?.state?.lastStatus === 'error';
+      document.getElementById('navBackupAlert')?.classList.toggle('hidden', !failed);
+      if (failed && onLogin) {
+        this.app.showToast(
+          `⚠️ Das automatische Backup ist fehlgeschlagen: ${data.state.lastError} – Details unter „Shop & Sicherheit“.`,
+          'error',
+        );
+      }
+      return data;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  async _refreshCloudBackup() {
+    const data = await this.checkBackupAlert();
+    if (!data || !data.config) return;
+    const c = data.config;
+    const hour = document.getElementById('cbHour');
+    if (hour && !hour.options.length) {
+      for (let h = 0; h < 24; h++) hour.add(new Option(`${String(h).padStart(2, '0')}:00 Uhr`, String(h)));
+    }
+    const set = (id, v) => { const el = document.getElementById(id); if (el) el.value = v ?? ''; };
+    set('cbUrl', c.url);
+    set('cbUser', c.username);
+    set('cbPassword', '');
+    set('cbInterval', c.interval);
+    set('cbWeekday', String(c.weekday));
+    set('cbHour', String(c.hour));
+    set('cbKeep', c.keep);
+    document.getElementById('cbEnabled').checked = !!c.enabled;
+    document.getElementById('cbPassword').placeholder = c.hasPassword ? 'gespeichert – leer lassen = unverändert' : 'App-Passwort eingeben';
+    document.getElementById('cbWeekday').disabled = c.interval === 'daily';
+
+    const st = data.state || {};
+    const when = (iso) => (iso ? new Date(iso).toLocaleString('de-DE') : '–');
+    const parts = [];
+    if (!c.enabled) parts.push('Ausgeschaltet.');
+    else parts.push(`Nächstes Backup: <strong>${when(data.nextRunAt)}</strong>.`);
+    if (st.lastStatus === 'ok') parts.push(`Letztes erfolgreich: ${when(st.lastSuccessAt)} (${escapeHtml(st.lastFile || '')}).`);
+    if (st.lastStatus === 'error') {
+      parts.push(`<span class="login-error" style="display:inline">❌ Letzter Versuch ${when(st.lastAttemptAt)} fehlgeschlagen:
+        ${escapeHtml(st.lastError || '')}</span> Es wird stündlich erneut versucht.`);
+      if (st.lastSuccessAt) parts.push(`Letztes erfolgreiches Backup: ${when(st.lastSuccessAt)}.`);
+    }
+    parts.push(`<span style="opacity:.7">Serverzeit: ${escapeHtml(data.serverTime || '')}</span>`);
+    document.getElementById('cloudBackupStatus').innerHTML = parts.join(' ');
+  }
+
+  _cloudBackupForm() {
+    const v = (id) => document.getElementById(id)?.value;
+    return {
+      url: v('cbUrl'),
+      username: v('cbUser'),
+      password: v('cbPassword') || undefined,
+      interval: v('cbInterval'),
+      weekday: Number(v('cbWeekday')),
+      hour: Number(v('cbHour')),
+      keep: Number(v('cbKeep')),
+      enabled: document.getElementById('cbEnabled').checked,
+    };
+  }
+
+  async _listCloudBackups() {
+    const box = document.getElementById('cloudBackupList');
+    box.innerHTML = '<p class="hint">Wird geladen…</p>';
+    const res = await this.app.api.listCloudBackups();
+    if (!Array.isArray(res)) {
+      box.innerHTML = `<p class="login-error">${escapeHtml(res?.message || 'Ordner nicht lesbar')}</p>`;
+      return;
+    }
+    if (res.length === 0) {
+      box.innerHTML = '<p class="hint">Im Ordner liegt noch kein Backup.</p>';
+      return;
+    }
+    box.innerHTML = res.map((f) => `
+      <div class="cloud-backup-row">
+        <span>${escapeHtml(f.name)} ${f.size ? `<span class="import-module-type">${Math.round(f.size / 1024)} KB</span>` : ''}</span>
+        <button class="btn btn-danger btn-sm" data-name="${escapeHtml(f.name)}">⬆️ Einspielen</button>
+      </div>`).join('');
+    box.querySelectorAll('button[data-name]').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const ok = await this.app.appConfirm(
+          `Backup „${btn.dataset.name}“ aus der Cloud einspielen?\n\nAlle aktuellen Daten werden durch diesen Stand ersetzt. ` +
+          'Der bisherige Stand bleibt auf dem Server als Datei *.before-restore liegen.',
+        );
+        if (!ok) return;
+        btn.disabled = true;
+        const r = await this.app.api.restoreCloudBackup(btn.dataset.name);
+        if (r && r.success) {
+          this.app.showToast('Backup eingespielt. Bitte neu anmelden.', 'success');
+          setTimeout(() => this.app.loginView.showLoginScreen(), 1500);
+        } else {
+          this.app.showToast('Fehler: ' + (r?.message || '?'), 'error');
+          btn.disabled = false;
+        }
+      });
+    });
+  }
+
+  _bindCloudBackup() {
+    document.getElementById('cbInterval')?.addEventListener('change', (e) => {
+      document.getElementById('cbWeekday').disabled = e.target.value === 'daily';
+    });
+    const busy = async (btn, fn) => {
+      btn.disabled = true;
+      try { await fn(); } finally { btn.disabled = false; }
+    };
+    document.getElementById('btnCbSave')?.addEventListener('click', (e) => busy(e.currentTarget, async () => {
+      const res = await this.app.api.saveCloudBackup(this._cloudBackupForm());
+      if (res && res.config) {
+        this.app.showToast(res.config.enabled ? 'Gespeichert – das erste Backup folgt in Kürze.' : 'Gespeichert', 'success');
+        await this._refreshCloudBackup();
+      } else this.app.showToast('Fehler: ' + (res?.message || '?'), 'error');
+    }));
+    document.getElementById('btnCbTest')?.addEventListener('click', (e) => busy(e.currentTarget, async () => {
+      // Erst speichern, damit ein frisch eingetipptes Passwort mitgeprüft wird.
+      const saved = await this.app.api.saveCloudBackup({ ...this._cloudBackupForm(), enabled: undefined });
+      if (!saved || !saved.config) { this.app.showToast('Fehler: ' + (saved?.message || '?'), 'error'); return; }
+      const res = await this.app.api.testCloudBackup();
+      this.app.showToast(res && res.success ? res.message : 'Fehler: ' + (res?.message || '?'), res && res.success ? 'success' : 'error');
+      await this._refreshCloudBackup();
+    }));
+    document.getElementById('btnCbRun')?.addEventListener('click', (e) => busy(e.currentTarget, async () => {
+      this.app.showToast('Backup wird erstellt und hochgeladen…', 'info');
+      const res = await this.app.api.runCloudBackup();
+      if (res && res.success) {
+        this.app.showToast(`Gesichert: ${res.file}${res.removed?.length ? ` · ${res.removed.length} alte gelöscht` : ''}`, 'success');
+      } else this.app.showToast('Fehler: ' + (res?.message || '?'), 'error');
+      await this._refreshCloudBackup();
+    }));
+    document.getElementById('btnCbList')?.addEventListener('click', () => this._listCloudBackups());
+  }
+
   _bindSettings() {
+    this._bindCloudBackup();
     document.getElementById('btnSavePoints')?.addEventListener('click', async () => {
       const num = (id) => Number(document.getElementById(id)?.value);
       const res = await this.app.api.savePointsSettings({

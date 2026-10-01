@@ -33,4 +33,7 @@ export abstract class MailService {
     displayName: string;
     password: string;
   }): Promise<MailResult>;
+
+  /** Betriebsmeldung an einen Admin, z. B. ein fehlgeschlagenes Backup. */
+  abstract sendNotice(params: { to: string; subject: string; text: string }): Promise<MailResult>;
 }

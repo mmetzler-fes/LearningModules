@@ -26,4 +26,9 @@ export class ConsoleMailService extends MailService {
     this.logger.log(`Neues Passwort für ${params.to}: ${params.password}`);
     return { delivered: false, reason: 'Kein Mailversand konfiguriert (MAIL_TRANSPORT=console).' };
   }
+
+  async sendNotice(params: { to: string; subject: string; text: string }): Promise<MailResult> {
+    this.logger.log(`Meldung an ${params.to}: ${params.subject}\n${params.text}`);
+    return { delivered: false, reason: 'Kein Mailversand konfiguriert (MAIL_TRANSPORT=console).' };
+  }
 }

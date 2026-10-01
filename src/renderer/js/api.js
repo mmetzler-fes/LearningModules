@@ -259,6 +259,17 @@ export class BrowserApi {
   downloadBackup() {
     return this._download('/api/admin/backup', `lernmodule-backup-${new Date().toISOString().slice(0, 10)}.lmbak`);
   }
+  getCloudBackup() { return this._fetch('/api/admin/cloud-backup'); }
+  saveCloudBackup(body) {
+    return this._fetch('/api/admin/cloud-backup', { method: 'POST', body: JSON.stringify(body) });
+  }
+  testCloudBackup() { return this._fetch('/api/admin/cloud-backup/test', { method: 'POST' }); }
+  runCloudBackup() { return this._fetch('/api/admin/cloud-backup/run', { method: 'POST' }); }
+  listCloudBackups() { return this._fetch('/api/admin/cloud-backup/files'); }
+  restoreCloudBackup(name) {
+    return this._fetch('/api/admin/cloud-backup/restore', { method: 'POST', body: JSON.stringify({ name }) });
+  }
+
   /** Fragt nach einer Backup-Datei und spielt sie ein. Liefert null bei Abbruch. */
   restoreBackup() {
     return this._pickAndUpload('.lmbak', '/api/admin/restore');

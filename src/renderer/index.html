@@ -2,7 +2,7 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8" />
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src * data:; font-src 'self' data:; media-src 'self' data:; connect-src * data:;" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src * data:; font-src 'self' data:; media-src 'self' data:; connect-src * data:; object-src 'self' https:; frame-src 'self' https:;" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>LearningModules</title>
   <link rel="stylesheet" href="css/styles.css" />
@@ -209,6 +209,7 @@
         </button>
         <button class="nav-btn" data-view="admin-settings">
           <span class="nav-icon">🛡</span> Shop &amp; Sicherheit
+          <span class="nav-alert hidden" id="navBackupAlert" title="Das letzte automatische Backup ist fehlgeschlagen">!</span>
         </button>
       </nav>
 
@@ -791,6 +792,60 @@
               <button class="btn btn-primary" id="btnBackup">⬇️ Backup herunterladen</button>
               <button class="btn btn-danger" id="btnRestore">⬆️ Backup einspielen</button>
             </div>
+          </div>
+
+          <div class="settings-group" style="margin-top:24px;">
+            <h3>☁️ Automatisches Backup (WebDAV / Nextcloud)</h3>
+            <p class="hint">Legt das verschlüsselte Backup regelmäßig in einem Cloud-Ordner ab und behält dort nur die
+              neuesten. Ältere werden erst gelöscht, wenn das neue sicher angekommen ist.
+              <strong>Nextcloud:</strong> Die WebDAV-Adresse steht in der Dateiansicht unten links unter
+              „Dateieinstellungen“, z.&nbsp;B. <code>https://cloud.schule.de/remote.php/dav/files/BENUTZER/</code> –
+              dahinter den Ordnernamen anhängen. Als Passwort ein <strong>App-Passwort</strong> verwenden
+              (Nextcloud → Einstellungen → Sicherheit), nicht das Login-Passwort.
+              Den Masterkey nicht im selben Ordner ablegen.</p>
+            <p class="hint" id="cloudBackupStatus" style="margin:12px 0 16px;"></p>
+            <div class="form-group">
+              <label for="cbUrl">WebDAV-Adresse des Ordners</label>
+              <input type="url" id="cbUrl" placeholder="https://cloud.schule.de/remote.php/dav/files/BENUTZER/LernModule-Backups/" autocomplete="off" />
+            </div>
+            <div class="form-group">
+              <label for="cbUser">Benutzername</label>
+              <input type="text" id="cbUser" autocomplete="off" />
+            </div>
+            <div class="form-group">
+              <label for="cbPassword">App-Passwort</label>
+              <input type="password" id="cbPassword" autocomplete="new-password" placeholder="leer = unverändert" />
+            </div>
+            <div class="form-group">
+              <label>Zeitplan</label>
+              <div class="shop-mode-row">
+                <select id="cbInterval">
+                  <option value="weekly">wöchentlich</option>
+                  <option value="daily">täglich</option>
+                </select>
+                <select id="cbWeekday">
+                  <option value="1">Montag</option><option value="2">Dienstag</option><option value="3">Mittwoch</option>
+                  <option value="4">Donnerstag</option><option value="5">Freitag</option><option value="6">Samstag</option>
+                  <option value="0">Sonntag</option>
+                </select>
+                <span>um</span>
+                <select id="cbHour"></select>
+              </div>
+            </div>
+            <div class="form-group">
+              <label for="cbKeep">So viele Backups aufbewahren</label>
+              <input type="number" id="cbKeep" min="1" max="100" step="1" />
+            </div>
+            <label class="share-flag" style="margin-bottom:12px;">
+              <input type="checkbox" id="cbEnabled" /> <span>Automatisches Backup eingeschaltet</span>
+            </label>
+            <div class="form-actions">
+              <button class="btn btn-primary" id="btnCbSave">💾 Speichern</button>
+              <button class="btn btn-secondary" id="btnCbTest">🔌 Verbindung testen</button>
+              <button class="btn btn-secondary" id="btnCbRun">☁️ Jetzt sichern</button>
+              <button class="btn btn-secondary" id="btnCbList">📋 Backups in der Cloud</button>
+            </div>
+            <div id="cloudBackupList"></div>
           </div>
         </div>
       </section>

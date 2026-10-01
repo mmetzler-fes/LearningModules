@@ -151,6 +151,45 @@ vorherige Stand bleibt als `data/database.sqlite.before-restore` und
 `data/uploads.before-restore` liegen. Masterkeys und App-Secret gehören nicht
 zum Backup: Sie gehören zum Server, nicht zu den Daten.
 
+### Automatisches Backup in die Cloud (WebDAV / Nextcloud)
+
+Unter Administration → Shop & Sicherheit → *Automatisches Backup* stellt der
+Admin ein:
+
+| Einstellung | Vorgabe |
+|---|---|
+| WebDAV-Adresse des Ordners | – (nur `https://`, außer `localhost`) |
+| Benutzername und App-Passwort | – (Passwort verschlüsselt mit `APP_SECRET`, nie wieder angezeigt) |
+| Zeitplan | wöchentlich, Sonntag 03:00 Uhr (oder täglich) |
+| Aufbewahren | 4 Backups |
+
+**Nextcloud:** Die WebDAV-Adresse steht in der Dateiansicht unten links unter
+„Dateieinstellungen“, z. B. `https://cloud.schule.de/remote.php/dav/files/BENUTZER/`.
+Dahinter kommt der Ordnername. Fehlt der Ordner, legt die App ihn an (eine
+Ebene). Als Passwort ein **App-Passwort** verwenden (Nextcloud → Einstellungen →
+Sicherheit). Es lässt sich jederzeit widerrufen, ohne das Login zu ändern.
+
+Je Lauf: Backup erzeugen, hochladen, prüfen, ob es vollständig angekommen ist.
+**Erst danach** werden die ältesten gelöscht, bis nur noch die eingestellte
+Anzahl übrig ist. Schlägt etwas fehl, wird nichts gelöscht. Angefasst werden
+nur Dateien nach dem Muster `lernmodule-backup-JJJJ-MM-TT-HHMM.lmbak`; alles
+andere im Ordner bleibt liegen.
+
+- **Zeitplan:** Ein verpasster Termin, etwa weil der Server aus war, wird
+  beim nächsten Start nachgeholt. Nach einem Fehler versucht die App es
+  stündlich erneut. Gleich nach dem ersten Einschalten läuft ein Backup.
+- **Uhrzeit:** Es zählt die Zeitzone des Servers; die Admin-Seite zeigt sie
+  an. Im Docker-Container ist das ohne weitere Angabe UTC, deshalb
+  `TZ: Europe/Berlin` in der `docker-compose.yaml` setzen.
+- **Fehler:** In der Admin-Navigation steht dann ein rotes „!“ an
+  „Shop & Sicherheit“, beim Anmelden als Admin erscheint eine Meldung, und
+  der Abschnitt nennt Zeitpunkt und Grund. Ist Mailversand eingerichtet,
+  bekommen alle aktiven Admins beim ersten Fehler einer Serie eine Mail.
+- **Knöpfe:** *Verbindung testen* (schreibt und löscht eine Testdatei),
+  *Jetzt sichern*, *Backups in der Cloud* (Liste mit *Einspielen*).
+- **Masterkey** nicht im selben Ordner ablegen. Ohne ihn ist das Backup
+  wertlos, mit ihm daneben ungeschützt.
+
 ## Konten
 
 **Löschen:** Wer Creator ist, also mindestens ein noch existierendes Modul
@@ -220,6 +259,7 @@ Stelle tritt *Zurückgeben*.
 | `src/core/crypto/master-key.service.ts` | Masterkey, Ver- und Entschlüsselung |
 | `src/core/interchange/export/export.service.ts` | Export mit Rechteprüfung, verschlüsselter Import |
 | `src/admin/backup.service.ts` | Backup und Restore |
+| `src/admin/cloud-backup.service.ts` | Automatisches Backup per WebDAV, Zeitplan, Aufbewahrung |
 
 Der Zugriff auf ein Thema hängt weiter an einer Stelle: `accessLevel()` in
 `topics.service.ts` kennt `owner` (eigenes Thema; Admins immer) und `read`
@@ -266,6 +306,11 @@ sofort draußen ist.
 | `GET`/`POST` | `/api/admin/master-key` | Status bzw. neuen Masterkey setzen |
 | `GET` | `/api/admin/backup` | verschlüsseltes Backup |
 | `POST` | `/api/admin/restore` | Backup einspielen (ersetzt alles) |
+| `GET`/`POST` | `/api/admin/cloud-backup` | Status bzw. Einstellungen des automatischen Backups |
+| `POST` | `/api/admin/cloud-backup/test` | Verbindung testen |
+| `POST` | `/api/admin/cloud-backup/run` | Jetzt sichern |
+| `GET` | `/api/admin/cloud-backup/files` | Backups im Cloud-Ordner |
+| `POST` | `/api/admin/cloud-backup/restore` | `{name}` – Backup aus der Cloud einspielen |
 
 Entfallen sind `POST /api/topics/:id/sharing`, `POST /api/topics/:id/copy`,
 `GET /api/topics/shared-with-me` sowie `POST /api/topics/:id/hidden` und

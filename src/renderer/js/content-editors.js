@@ -215,28 +215,44 @@ class ContentEditorManager {
     const btnRow = document.createElement('div');
     btnRow.style.cssText = 'display:flex; gap:8px; margin-top:8px; flex-wrap:wrap;';
 
-    const btnUpload = document.createElement('button');
-    btnUpload.type = 'button';
-    btnUpload.className = 'btn btn-secondary btn-sm';
-    btnUpload.textContent = '📎 PDF hochladen';
-    btnUpload.addEventListener('click', async () => {
-      btnUpload.disabled = true;
-      showStatus('Wird hochgeladen …', false);
-      try {
-        const result = await appApi.uploadPdf();
-        if (result && result.success) {
-          input.value = result.url;
-          const kb = Math.round((result.size || 0) / 1024);
-          showStatus(`Hochgeladen: ${result.name} (${kb} KB). Liegt jetzt auf diesem Server.`, false);
-        } else if (result && result.cancelled) {
-          showStatus('', false);
-        } else {
-          showStatus(`Hochladen fehlgeschlagen: ${(result && result.error) || 'Unbekannter Fehler'}`, true);
-        }
-      } catch (err) {
-        showStatus(`Hochladen fehlgeschlagen: ${err.message}`, true);
+    // Dateien liegen nicht auf diesem Server: Wer ein Dokument einbindet,
+    // ist selbst für Ort und Verfügbarkeit verantwortlich (Schulserver,
+    // Nextcloud, Moodle …). Deshalb nur eine Adresse, kein Hochladen.
+    const help = document.createElement('p');
+    help.className = 'hint';
+    help.style.cssText = 'margin:6px 0 0; font-size:0.82rem;';
+    help.innerHTML = 'Adresse einer öffentlich abrufbaren PDF-Datei, z.&nbsp;B. auf dem Schulserver. ' +
+      '<strong>Nextcloud:</strong> Datei teilen → „Link teilen“ und den Link hier einfügen – ' +
+      'er wird automatisch zum Direkt-Download ergänzt.';
+
+    // Ein Nextcloud-Freigabelink (…/s/<token>) zeigt eine HTML-Seite; die
+    // Datei selbst liegt unter …/s/<token>/download.
+    const normalize = () => {
+      const v = input.value.trim();
+      if (/^https?:\/\/[^\s]+\/s\/[A-Za-z0-9]+\/?$/.test(v)) {
+        input.value = v.replace(/\/?$/, '/download');
+        showStatus('Nextcloud-Freigabelink zum Direkt-Download ergänzt.', false);
+      } else if (v.startsWith('/api/files/')) {
+        showStatus('Diese Datei liegt noch auf dem App-Server. Bitte durch eine eigene Adresse ersetzen – ' +
+          'hochgeladene Dateien werden nicht mehr gesichert.', true);
+      } else if (v && !/^https?:\/\//i.test(v)) {
+        showStatus('Bitte eine vollständige Adresse mit https:// angeben.', true);
+      } else {
+        showStatus('', false);
       }
-      btnUpload.disabled = false;
+    };
+    input.addEventListener('change', normalize);
+    input.addEventListener('paste', () => setTimeout(normalize, 0));
+    setTimeout(normalize, 0);
+
+    const btnOpen = document.createElement('button');
+    btnOpen.type = 'button';
+    btnOpen.className = 'btn btn-secondary btn-sm';
+    btnOpen.textContent = '↗ Testen';
+    btnOpen.title = 'Adresse in neuem Tab öffnen – so sehen es auch die Schüler';
+    btnOpen.addEventListener('click', () => {
+      normalize();
+      if (/^https?:\/\//i.test(input.value.trim())) window.open(input.value.trim(), '_blank', 'noopener');
     });
 
     const btnClear = document.createElement('button');
@@ -245,10 +261,11 @@ class ContentEditorManager {
     btnClear.textContent = '✕ Leeren';
     btnClear.addEventListener('click', () => { input.value = ''; showStatus('', false); });
 
-    btnRow.appendChild(btnUpload);
+    btnRow.appendChild(btnOpen);
     btnRow.appendChild(btnClear);
 
     wrap.appendChild(input);
+    wrap.appendChild(help);
     wrap.appendChild(btnRow);
     wrap.appendChild(status);
     group.appendChild(wrap);

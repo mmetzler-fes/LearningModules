@@ -212,7 +212,7 @@ export class ShopView {
     pick.className = 'shop-pick-row';
     const own = (Array.isArray(topics) ? topics : []).filter((t) => (t.modules || []).length > 0);
     pick.innerHTML = `
-      <select class="setting-select" id="shopPickTopic">
+      <select id="shopPickTopic">
         <option value="">— Thema wählen —</option>
         ${own.map((t) => `<option value="${escapeAttr(t.id)}">${escapeHtml(t.title)}</option>`).join('')}
       </select>

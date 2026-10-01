@@ -1,8 +1,6 @@
 import {
-  Controller, Get, Post, Delete, Param, Request, Res, UseGuards,
-  UseInterceptors, UploadedFile as UploadedFileParam,
+  Controller, Get, Post, Delete, Param, Request, Res, UseGuards, GoneException,
 } from '@nestjs/common';
-import { FileInterceptor } from '@nestjs/platform-express';
 import type { Response } from 'express';
 import { createReadStream } from 'fs';
 import { FilesService } from './files.service';
@@ -12,12 +10,19 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 export class FilesController {
   constructor(private readonly filesService: FilesService) {}
 
-  /** Hochladen darf nur eine angemeldete Lehrkraft. */
+  /**
+   * Hochladen ist abgeschaltet: Dokumente liegen nicht mehr auf diesem
+   * Server, sondern dort, wo die Lehrkraft sie selbst verantwortet
+   * (Schulserver, Nextcloud …). Das Modul "Dokument / PDF" nimmt nur noch
+   * eine Adresse. Bereits hochgeladene Dateien bleiben über GET abrufbar,
+   * bis ihre Module auf eine eigene Adresse umgestellt sind.
+   */
   @Post()
   @UseGuards(JwtAuthGuard)
-  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: FilesService.MAX_BYTES } }))
-  async upload(@UploadedFileParam() file: Express.Multer.File, @Request() req: any) {
-    return this.filesService.store(file, req.user);
+  async upload() {
+    throw new GoneException(
+      'Dateien werden nicht mehr auf dem App-Server gespeichert. Bitte die Adresse einer PDF-Datei angeben, z. B. einen Nextcloud-Freigabelink.',
+    );
   }
 
   /** Die eigenen Dateien – zum Nachschauen und Aufräumen. */

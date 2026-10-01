@@ -81,6 +81,18 @@ export class MasterKeyService implements OnModuleInit {
     }
   }
 
+  /**
+   * Ein Geheimnis (etwa das WebDAV-Passwort des Cloud-Backups) mit dem
+   * App-Secret verschlüsseln – genauso, wie die Masterkeys aufbewahrt werden.
+   */
+  sealSecret(plain: string): string {
+    return this.seal(plain);
+  }
+
+  unsealSecret(sealed: string): string {
+    return this.unseal(sealed);
+  }
+
   private seal(plain: string): string {
     const iv = crypto.randomBytes(12);
     const cipher = crypto.createCipheriv('aes-256-gcm', this.appSecret(), iv);

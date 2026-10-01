@@ -72,6 +72,8 @@ BACKEND – src/
                                 einmalig zurück (im Server liegt nur der Hash)
     backup.service.ts           Gesamtsicherung (VACUUM INTO + Dokumente),
                                 verschlüsselt mit dem Masterkey; Restore
+    cloud-backup.service.ts     Automatisches Backup per WebDAV (Nextcloud):
+                                Zeitplan, Aufbewahrung, Restore aus der Cloud
   accounts/                     Lebenszyklus von Konten
     accounts.service.ts         Creator deaktivieren (Inhalte für 0 Punkte in
                                 den Shop), reaktivieren, Nicht-Creator löschen,

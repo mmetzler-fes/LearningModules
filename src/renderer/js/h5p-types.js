@@ -104,8 +104,9 @@ const H5P_TYPES = {
   },
   /**
    * Information zum Nachlesen: ein PDF oder Dokument, das anderswo liegt
-   * (Schulserver, Moodle, Cloud). Die App speichert keine Dateien, deshalb
-   * eine URL statt eines Uploads.
+   * (Schulserver, Moodle, Nextcloud). Die App speichert keine Dateien – wer
+   * ein Dokument einbindet, ist für Ort und Verfügbarkeit selbst
+   * verantwortlich. Deshalb eine URL statt eines Uploads.
    *
    * Eingebettete Vorschau *und* Knopf zum Öffnen: Nicht jeder Browser zeigt
    * ein PDF im Rahmen an – auf iOS bleibt oft nur der Download. Der Knopf
@@ -120,7 +121,7 @@ const H5P_TYPES = {
     // Reine Information, keine Aufgabe: zählt in der Auswertung nicht mit.
     informational: true,
     fields: [
-      { key: 'url', type: 'fileUrl', label: 'Dokument (hochladen oder Adresse eintragen)', required: true, placeholder: 'https://.../skript.pdf' },
+      { key: 'url', type: 'fileUrl', label: 'Adresse des Dokuments (Webserver oder Nextcloud-Freigabe)', required: true, placeholder: 'https://.../skript.pdf' },
       { key: 'note', type: 'richtext', label: 'Hinweistext (optional)' },
       { key: 'embed', type: 'checkbox', label: 'Vorschau direkt einbetten', default: true },
       { key: 'linkText', type: 'text', label: 'Beschriftung des Knopfes', default: 'Dokument öffnen', advanced: true },

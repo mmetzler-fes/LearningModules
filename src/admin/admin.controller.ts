@@ -13,6 +13,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { AuthService } from '../auth/auth.service';
 import { UserSheetService } from './user-sheet.service';
 import { BackupService } from './backup.service';
+import { CloudBackupService } from './cloud-backup.service';
 import { AccountsService } from '../accounts/accounts.service';
 import { PointsService } from '../accounts/points.service';
 import { MasterKeyService } from '../core/crypto/master-key.service';
@@ -32,6 +33,7 @@ export class AdminController {
     private readonly points: PointsService,
     private readonly masterKey: MasterKeyService,
     private readonly backup: BackupService,
+    private readonly cloudBackup: CloudBackupService,
   ) {}
 
   // ---- Admin only guard helper ----
@@ -170,6 +172,46 @@ export class AdminController {
     this.requireAdmin(req);
     if (!file || !file.buffer) throw new BadRequestException('Keine Datei empfangen.');
     return this.backup.restore(file.buffer);
+  }
+
+  // ---- Automatisches Backup (WebDAV / Nextcloud) ----
+
+  @Get('cloud-backup')
+  async getCloudBackup(@Request() req: any) {
+    this.requireAdmin(req);
+    return this.cloudBackup.status();
+  }
+
+  /** Leeres Passwort lässt das gespeicherte unverändert. */
+  @Post('cloud-backup')
+  async saveCloudBackup(@Request() req: any, @Body() body: any) {
+    this.requireAdmin(req);
+    return this.cloudBackup.saveConfig(body || {});
+  }
+
+  @Post('cloud-backup/test')
+  async testCloudBackup(@Request() req: any) {
+    this.requireAdmin(req);
+    return this.cloudBackup.test();
+  }
+
+  @Post('cloud-backup/run')
+  async runCloudBackup(@Request() req: any) {
+    this.requireAdmin(req);
+    return this.cloudBackup.run();
+  }
+
+  @Get('cloud-backup/files')
+  async listCloudBackups(@Request() req: any) {
+    this.requireAdmin(req);
+    return this.cloudBackup.list();
+  }
+
+  /** Ein Backup aus der Cloud einspielen – ersetzt alle Daten. */
+  @Post('cloud-backup/restore')
+  async restoreCloudBackup(@Request() req: any, @Body() body: { name?: string }) {
+    this.requireAdmin(req);
+    return this.cloudBackup.restoreFromCloud(String(body?.name || ''));
   }
 
   // ---- Benutzerliste als Tabelle (.ods) ----

@@ -33,6 +33,7 @@ export class QuizView {
           qs.answers[qs.currentIndex] = this._collectAnswer(mod);
           this._revealSolution(qs.answers[qs.currentIndex]);
           qs.revealed = true;
+          (qs.revealedAt || (qs.revealedAt = {}))[qs.currentIndex] = true;
           this._btnQuizNext.textContent =
             qs.currentIndex < qs.modules.length - 1 ? t('quiz.next') : t('quiz.finish');
           return;
@@ -221,11 +222,13 @@ export class QuizView {
     const { state } = this.app;
     if (!state.quizState) return;
 
-    const { modules, currentIndex } = state.quizState;
+    const qs = state.quizState;
+    const { modules, currentIndex } = qs;
     const mod = modules[currentIndex];
     const typeDef = H5P_TYPES[mod.type] || {};
     const progress = (currentIndex / modules.length) * 100;
-    state.quizState.revealed = false;
+    // Im Lernmodus bleibt eine schon gezeigte Lösung beim Zurückblättern stehen.
+    qs.revealed = !!(qs.revealedAt && qs.revealedAt[currentIndex]);
 
     this._quizProgressFill.style.width = `${progress}%`;
     this._quizInfo.innerHTML = `
@@ -234,13 +237,32 @@ export class QuizView {
       <span class="quiz-type-badge">${typeDef.icon || ''} ${typeDef.name || mod.type}</span>
       ${mod._topicTitle ? `<span class="quiz-topic-badge">${escapeHtml(mod._topicTitle)}</span>` : ''}`;
 
-    this._quizModuleContainer.innerHTML = '';
-    this.app.renderer.renderPreview(mod, typeDef, this._quizModuleContainer, {
-      quizMode: true,
-      examMode: this._isExamRun(),
-    });
+    // Jede Aufgabe behält ihre Ansicht bis zum Abschluss. Beim Blättern wird
+    // sie nur aus- und wieder eingehängt, nicht neu aufgebaut – so bleiben
+    // Kreuze, Eingaben, gezogene Wörter und Markierungen genau so stehen,
+    // wie der Schüler sie verlassen hat, gleich welcher Aufgabentyp.
+    const container = this._quizModuleContainer;
+    for (const el of [...container.children]) {
+      el.querySelectorAll('video, audio').forEach((media) => { try { media.pause(); } catch (_) {} });
+      el.remove();
+    }
+    if (!qs.views) qs.views = [];
+    let view = qs.views[currentIndex];
+    if (view) {
+      container.appendChild(view);
+    } else {
+      view = document.createElement('div');
+      view.className = 'quiz-module-view';
+      // Erst einhängen, dann aufbauen: Manche Aufgaben messen beim Aufbau ihre Größe.
+      container.appendChild(view);
+      this.app.renderer.renderPreview(mod, typeDef, view, {
+        quizMode: true,
+        examMode: this._isExamRun(),
+      });
+      qs.views[currentIndex] = view;
+    }
 
-    this._btnQuizNext.textContent = this._isLearnRun()
+    this._btnQuizNext.textContent = this._isLearnRun() && !qs.revealed
       ? '💡 Lösung anzeigen'
       : currentIndex < modules.length - 1 ? t('quiz.next') : t('quiz.finish');
 
@@ -263,7 +285,9 @@ export class QuizView {
       ${answer.userAnswer ? `<p><strong>Deine Antwort:</strong> ${escapeHtml(String(answer.userAnswer))}</p>` : ''}
       ${answer.correctAnswer ? `<p><strong>Richtig wäre:</strong> ${escapeHtml(String(answer.correctAnswer))}</p>` : ''}
       ${answer.score ? `<p><strong>Auswertung:</strong> ${escapeHtml(String(answer.score))}</p>` : ''}`;
-    this._quizModuleContainer.appendChild(panel);
+    const qs = this.app.state.quizState;
+    // In die Ansicht der Aufgabe, damit die Lösung beim Zurückblättern mitkommt.
+    ((qs && qs.views && qs.views[qs.currentIndex]) || this._quizModuleContainer).appendChild(panel);
     panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }
 

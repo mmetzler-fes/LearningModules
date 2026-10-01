@@ -259,7 +259,9 @@ FRONTEND – src/renderer/
       startQuickQuiz(topic)       Durchlauf über den Quick-Link
       _startQuiz(topic)           quizState initialisieren, Player anzeigen
       _isExamRun() / _isLearnRun() Modus des laufenden Durchlaufs
-      _renderModule()             Aktuelles Modul mit H5pRenderer + Fortschrittsbalken
+      _renderModule()             Aktuelles Modul mit H5pRenderer + Fortschrittsbalken;
+                                  jede Aufgabe behält ihre Ansicht (quizState.views)
+                                  bis zum Abschluss – Zurückblättern verliert nichts
       _revealSolution(answer)     Musterlösung im Modus "Lernen mit Lösungen"
       _collectAnswer(mod)         Antwort je Typ einsammeln (alle H5P-Typen)
       _finishQuiz()               Ergebnis speichern (nicht im Lernmodus)

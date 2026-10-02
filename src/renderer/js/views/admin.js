@@ -317,7 +317,7 @@ export class AdminView {
         'kostenlos zum Kopieren und Verwenden im Shop. Über „Reaktivieren" lässt sich das rückgängig machen.'
       : `"${name}" wirklich löschen?\n\n` +
         'Das Konto hat keine eigenen Module. Erworbene Kopien und Nutzungsrechte verfallen; ' +
-        'Themen-Links, Ergebnisse und Tags werden dir als Admin überschrieben.';
+        'Schülerfreigaben, Ergebnisse und Tags werden dir als Admin überschrieben.';
     if (!(await this.app.appConfirm(text))) return;
     const res = await this.app.api.deleteUser(userId);
     if (res && res.success !== false) {

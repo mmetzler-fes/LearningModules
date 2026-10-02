@@ -82,8 +82,8 @@ export class LinksView {
         <div class="empty-state">
           <span class="empty-icon">🔗</span>
           <p>${(this._links || []).length === 0
-            ? 'Noch keine Themen-Links. Lege einen an, z. B. „TG12 Informatik Arduino“.'
-            : 'Kein Link passt zum gewählten Filter.'}</p>
+            ? 'Noch keine Schülerfreigaben. Lege eine an, z. B. „TG12 Informatik Arduino“.'
+            : 'Keine Freigabe passt zum gewählten Filter.'}</p>
         </div>`;
       return;
     }
@@ -124,13 +124,13 @@ export class LinksView {
       card.querySelector('.btn-link-edit').addEventListener('click', () => this._openEditor(link));
       card.querySelector('.btn-link-toggle').addEventListener('click', async () => {
         await this.app.api.updateLink(link.id, { active: !link.active });
-        this.app.showToast(link.active ? 'Link deaktiviert.' : 'Link aktiviert.', 'info');
+        this.app.showToast(link.active ? 'Freigabe deaktiviert.' : 'Freigabe aktiviert.', 'info');
         this.refresh();
       });
       card.querySelector('.btn-link-delete').addEventListener('click', async () => {
-        if (!(await this.app.appConfirm(`Link "${link.name}" löschen? Verteilte QR-Codes führen danach ins Leere.`))) return;
+        if (!(await this.app.appConfirm(`Freigabe "${link.name}" löschen? Verteilte QR-Codes führen danach ins Leere.`))) return;
         await this.app.api.deleteLink(link.id);
-        this.app.showToast('Link gelöscht.', 'info');
+        this.app.showToast('Freigabe gelöscht.', 'info');
         this.refresh();
       });
 
@@ -151,7 +151,7 @@ export class LinksView {
 
   _openEditor(link) {
     this._editId = link ? link.id : null;
-    this._formTitle.textContent = link ? `Link bearbeiten: ${link.name}` : 'Neuer Themen-Link';
+    this._formTitle.textContent = link ? `Freigabe bearbeiten: ${link.name}` : 'Neue Schülerfreigabe';
     this._nameInput.value = link ? link.name : '';
     this._passwordInput.value = '';
     this._passwordInput.placeholder = link?.hasPassword
@@ -388,7 +388,7 @@ export class LinksView {
         this.app.showToast(res?.message || 'Speichern fehlgeschlagen.', 'error');
         return;
       }
-      this.app.showToast(this._editId ? 'Link gespeichert.' : 'Link angelegt.', 'success');
+      this.app.showToast(this._editId ? 'Freigabe gespeichert.' : 'Freigabe angelegt.', 'success');
       this._closeEditor();
       await this.refresh();
     } catch (err) {
@@ -471,7 +471,7 @@ export class LinksView {
     // Dasselbe Blatt wie beim Drucken, nur als Bild fuer die Zwischenablage.
     document.getElementById('btnCopyLinkShareSheet')?.addEventListener('click', async () => {
       const ok = await copyShareSheetAsPng({
-        title: 'Themen-Link für Schüler',
+        title: 'Schülerfreigabe – Link für Schüler',
         subtitle: document.getElementById('linkShareInfo')?.textContent || '',
         svg: document.querySelector('#linkShareQr svg'),
         url: this._shareData?.url || '',

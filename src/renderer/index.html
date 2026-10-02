@@ -178,14 +178,11 @@
         <button class="nav-btn" data-view="teacher-topics">
           <span class="nav-icon">📂</span> <span data-i18n="nav.topics">Lernthemen</span>
         </button>
-        <button class="nav-btn" data-view="teacher-modules">
-          <span class="nav-icon">📦</span> <span data-i18n="nav.modules">Module verwalten</span>
-        </button>
         <button class="nav-btn" data-view="teacher-shop">
           <span class="nav-icon">🛒</span> Shop
         </button>
         <button class="nav-btn" data-view="teacher-links">
-          <span class="nav-icon">🔗</span> Themen-Links
+          <span class="nav-icon">🔗</span> Schülerfreigaben
         </button>
         <button class="nav-btn" data-view="teacher-tags">
           <span class="nav-icon">🏷</span> Tags
@@ -473,7 +470,7 @@
           <p class="subtitle" data-i18n="results.subtitle">Übersicht aller Schüler-Ergebnisse</p>
           <div class="header-actions">
             <input type="text" id="searchResults" class="search-input" data-i18n-placeholder="results.search.placeholder" placeholder="Nach Schüler filtern..." />
-            <select id="filterResultsLink" class="search-input" title="Nach Themen-Link filtern">
+            <select id="filterResultsLink" class="search-input" title="Nach Schülerfreigabe oder Quick-Link filtern">
               <option value="">Alle Links</option>
             </select>
             <button class="btn btn-secondary btn-sm" id="btnExportResults">⬇️ Exportieren</button>
@@ -484,15 +481,15 @@
         <div id="resultsList" class="results-list"></div>
       </section>
 
-      <!-- Teacher: Themen-Links -->
+      <!-- Teacher: Schülerfreigaben (intern: Themen-Links) -->
       <section class="view" id="view-teacher-links">
         <div class="view-header">
-          <h2>🔗 Themen-Links</h2>
+          <h2>🔗 Schülerfreigaben</h2>
           <p class="subtitle">Benannte Zugänge für Schüler – z. B. „TG12 Informatik Arduino“.
-            Der Link bestimmt, welche Aufgaben drankommen und in welchem Modus gearbeitet wird.</p>
+            Die Freigabe bestimmt, welche Aufgaben drankommen und in welchem Modus gearbeitet wird.</p>
         </div>
         <div class="topic-actions-bar">
-          <button class="btn btn-primary" id="btnNewLink">➕ Neuer Themen-Link</button>
+          <button class="btn btn-primary" id="btnNewLink">➕ Neue Schülerfreigabe</button>
         </div>
 
         <div class="tag-filter-bar">
@@ -509,7 +506,7 @@
         <!-- Link anlegen / bearbeiten -->
         <div id="linkFormContainer" class="topic-form-container hidden">
           <div class="topic-form-card">
-            <h3 id="linkFormTitle">Neuer Themen-Link</h3>
+            <h3 id="linkFormTitle">Neue Schülerfreigabe</h3>
             <form id="linkForm">
               <div class="form-group">
                 <label for="linkName">Name *</label>
@@ -559,7 +556,7 @@
       <section class="view" id="view-teacher-tags">
         <div class="view-header">
           <h2>🏷 Tags</h2>
-          <p class="subtitle">Schlagworte zum Einordnen von Lernthemen und Themen-Links,
+          <p class="subtitle">Schlagworte zum Einordnen von Lernthemen und Schülerfreigaben,
             z. B. „Informatik“ oder „Arduino“.</p>
         </div>
 
@@ -925,7 +922,7 @@
   <!-- Themen-Link versenden: QR-Code und URL -->
   <div id="linkShareOverlay" class="confirm-overlay hidden">
     <div class="import-modules-card quicklink-card" id="linkShareCard">
-      <h3>🔗 Themen-Link für Schüler</h3>
+      <h3>🔗 Schülerfreigabe – Link für Schüler</h3>
       <p class="hint" id="linkShareInfo"></p>
       <p class="login-error hidden" id="linkShareWarning"></p>
 
@@ -982,7 +979,7 @@
 
       <p class="hint">Der Quick-Link startet dieses eine Thema sofort im Quiz-Modus.
         Soll der Modus wählbar sein oder mehrere Themen umfassen, nimm einen
-        <strong>Themen-Link</strong>. Wer den Link hat, kommt hinein.</p>
+        <strong>Schülerfreigabe</strong>. Wer den Link hat, kommt hinein.</p>
 
       <div class="confirm-actions">
         <button type="button" class="btn btn-secondary" id="btnCopyQuickLinkSheet"

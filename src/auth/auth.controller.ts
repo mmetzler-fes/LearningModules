@@ -14,6 +14,18 @@ export class AuthController {
     return this.authService.login(body.email, body.password);
   }
 
+  /**
+   * Angemeldetes Konto zum vorhandenen Token – damit ein Neuladen der Seite
+   * nicht zum Login zurückführt. Auch mit offenem Initialpasswort erlaubt,
+   * sonst käme man nach dem Reload nicht mehr zum Passwortwechsel.
+   */
+  @Get('me')
+  @UseGuards(JwtAuthGuard)
+  @AllowPendingPassword()
+  async me(@Request() req: any) {
+    return this.authService.me(req.user.userId, req.user.role, req.user.mustChangePassword);
+  }
+
   /** Teacher self-registration */
   @Post('register')
   async register(@Body() body: { email: string; password: string; displayName?: string }) {

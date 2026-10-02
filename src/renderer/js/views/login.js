@@ -399,6 +399,40 @@ export class LoginView {
     }
   }
 
+  /**
+   * Nach einem Reload mit dem gespeicherten Token weitermachen, statt erneut
+   * nach dem Passwort zu fragen. Liefert true, wenn das geklappt hat; ein
+   * abgelaufenes oder ungültiges Token führt still zum Login-Bildschirm.
+   */
+  async resumeSession() {
+    const { app } = this;
+    if (!app.authStore.getToken()) return false;
+    let res;
+    try {
+      res = await app.api.me();
+    } catch (_) {
+      return false;
+    }
+    if (!res || !res.id || (res.role !== 'admin' && res.role !== 'teacher')) {
+      app.authStore.setToken(null);
+      return false;
+    }
+    app.state.currentUser = {
+      name: res.displayName || res.email,
+      role: res.role,
+      id: res.id,
+      username: res.email,
+      email: res.email,
+      mustChangePassword: !!res.mustChangePassword,
+    };
+    if (res.mustChangePassword) {
+      app.startForcedPasswordChange(() => this.enterApp());
+      return true;
+    }
+    await this.enterApp(app.lastView());
+    return true;
+  }
+
   async _onRegister(e) {
     e.preventDefault();
     const email       = this._regEmail ? this._regEmail.value.trim() : '';
@@ -432,6 +466,7 @@ export class LoginView {
     state.quizState     = null;
     state.currentTopicId = null;
     this.app.authStore.setToken(null);
+    this.app.forgetLastView();
 
     document.querySelectorAll('.view').forEach((v) => v.classList.remove('active'));
 
@@ -475,7 +510,7 @@ export class LoginView {
     if (this._regError)          this._regError.classList.add('hidden');
   }
 
-  async enterApp() {
+  async enterApp(startView = null) {
     const { state, api } = this.app;
     const { currentUser } = state;
 
@@ -511,7 +546,7 @@ export class LoginView {
     if (currentUser.role === 'admin' || currentUser.role === 'teacher') this.app.loadPoints();
 
     if (currentUser.role === 'admin' || currentUser.role === 'teacher') {
-      this.app.navigateToView('teacher-dashboard');
+      this.app.navigateToView(startView || 'teacher-dashboard');
       if (currentUser.role === 'admin') this.app.adminView.load();
     } else {
       this.app.navigateToView('student-quiz');

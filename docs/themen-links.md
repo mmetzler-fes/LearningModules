@@ -1,4 +1,7 @@
-# Themen-Links: ein Link pro Gruppe und Anlass
+# Schülerfreigaben (Themen-Links): ein Link pro Gruppe und Anlass
+
+> In der Oberfläche heißen Themen-Links **Schülerfreigaben**. Im Code und in
+> dieser Doku bleibt der alte Name (`TopicLink`, `/api/links`).
 
 Ein Themen-Link ist ein benannter Zugang für Schüler, zum Beispiel
 **„TG12 Informatik Arduino“**. Er bündelt eine beliebige Auswahl aus den

@@ -101,8 +101,29 @@ class App {
     }
   }
 
+  /**
+   * Zuletzt geöffnete Hauptansicht der Seitenleiste, damit ein Reload dort
+   * weitermacht. Nur Ansichten aus der Seitenleiste – Unteransichten wie der
+   * Modul-Editor brauchen Zustand, den es nach dem Reload nicht mehr gibt.
+   */
+  lastView() {
+    try {
+      const v = sessionStorage.getItem('lm_last_view');
+      return v && document.querySelector(`.sidebar-nav .nav-btn[data-view="${v}"]`) ? v : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  forgetLastView() {
+    try { sessionStorage.removeItem('lm_last_view'); } catch (_) {}
+  }
+
   navigateToView(viewName) {
     const { state } = this;
+    if (document.querySelector(`.sidebar-nav .nav-btn[data-view="${viewName}"]`)) {
+      try { sessionStorage.setItem('lm_last_view', viewName); } catch (_) {}
+    }
     this._views.forEach((v) => v.classList.remove('active'));
 
     const isTeacherLike = state.currentUser && (state.currentUser.role === 'teacher' || state.currentUser.role === 'admin');
@@ -115,8 +136,10 @@ class App {
     const targetView = document.getElementById('view-' + viewName);
     if (targetView) targetView.classList.add('active');
 
-    const targetBtn = navContainer.querySelector('.nav-btn[data-view="' + viewName + '"]')
-      || (adminNavEl && adminNavEl.querySelector('.nav-btn[data-view="' + viewName + '"]'));
+    // Die Modulliste gehört zu einem Lernthema und hat keinen eigenen Menüpunkt.
+    const navName = viewName === 'teacher-modules' ? 'teacher-topics' : viewName;
+    const targetBtn = navContainer.querySelector('.nav-btn[data-view="' + navName + '"]')
+      || (adminNavEl && adminNavEl.querySelector('.nav-btn[data-view="' + navName + '"]'));
     if (targetBtn) targetBtn.classList.add('active');
 
     switch (viewName) {
@@ -384,7 +407,12 @@ class App {
       }
       // Quick-Link: ?q=<token> führt direkt zur Namenseingabe
       const quickToken = params.get('q');
-      if (quickToken) await this.loginView.startQuickEntry(quickToken);
+      if (quickToken) {
+        await this.loginView.startQuickEntry(quickToken);
+        return;
+      }
+      // Lehrkraft/Admin: nach einem Reload ohne erneutes Login weiter.
+      await this.loginView.resumeSession();
     }
   }
 }

@@ -126,6 +126,23 @@ export class AuthService {
     return this.buildSession(user);
   }
 
+  /**
+   * Benutzerdaten zum vorhandenen Token, ohne neues Token. Rolle und
+   * Passwortsperre kommen aus dem Token, denn danach richten sich die Guards.
+   */
+  async me(userId: string, role: string, mustChangePassword: boolean) {
+    const user = await this.userRepo.findOne({ where: { id: userId } });
+    if (!user) throw new UnauthorizedException('Dieses Konto gibt es nicht mehr.');
+    return {
+      id: user.id,
+      email: user.email,
+      username: user.email,
+      role,
+      displayName: user.displayName || user.email,
+      mustChangePassword,
+    };
+  }
+
   /** Token + Benutzerdaten für die Antwort an das Frontend. */
   private buildSession(user: User) {
     const payload = {

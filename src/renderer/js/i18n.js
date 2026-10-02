@@ -22,7 +22,6 @@ const TRANSLATIONS = {
     // Sidebar
     'nav.dashboard': 'Dashboard',
     'nav.topics': 'Lernthemen',
-    'nav.modules': 'Module verwalten',
     'nav.results': 'Ergebnisse',
     'nav.student.topics': 'Lernthemen',
     'nav.student.quiz': 'Quiz starten',
@@ -190,7 +189,6 @@ const TRANSLATIONS = {
     // Sidebar
     'nav.dashboard': 'Dashboard',
     'nav.topics': 'Learning Topics',
-    'nav.modules': 'Manage Modules',
     'nav.results': 'Results',
     'nav.student.topics': 'Learning Topics',
     'nav.student.quiz': 'Start Quiz',

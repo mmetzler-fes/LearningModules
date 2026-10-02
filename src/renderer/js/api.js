@@ -56,6 +56,11 @@ export class BrowserApi {
     }).then((r) => r.json());
   }
 
+  /** Konto zum gespeicherten Token – für die Wiederaufnahme nach einem Reload. */
+  me() {
+    return this._fetch('/api/auth/me');
+  }
+
   register(email, password, displayName) {
     return fetch('/api/auth/register', {
       method: 'POST',

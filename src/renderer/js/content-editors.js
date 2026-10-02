@@ -1127,11 +1127,12 @@ class ContentEditorManager {
         this.refreshDndCanvas();
       });
 
-      // Rechtsklick (bzw. langes Tippen): Zone direkt im Bild loeschen
+      // Rechtsklick (bzw. langes Tippen): Zone duplizieren oder loeschen
       overlay.addEventListener('contextmenu', (e) => {
         e.preventDefault();
         e.stopPropagation();
         showContextMenu(e.clientX, e.clientY, [
+          { label: '⧉ Duplizieren', onClick: () => this._duplicateDndZone(zone.id) },
           { label: '🗑 Ablagezone löschen', danger: true, onClick: () => this._removeDndZone(zone.id) },
         ]);
       });
@@ -1140,6 +1141,37 @@ class ContentEditorManager {
 
       canvas.appendChild(overlay);
     });
+  }
+
+  /**
+   * Neue Zone gleicher Groesse direkt neben der Vorlage – rechts, sonst
+   * links, sonst darunter bzw. darueber. Mehrfach dupliziert entsteht so eine
+   * Reihe gleich grosser Zonen. Die Gruppe (austauschbare Zonen) wird
+   * uebernommen, die richtige Antwort nicht – die gehoert zu genau einer Zone.
+   */
+  _duplicateDndZone(id) {
+    const src = this.dndState.dropZones.find((z) => z.id === id);
+    if (!src) return;
+    const gap = 1;
+    let { x, y } = src;
+    if (src.x + 2 * src.width + gap <= 100) x = src.x + src.width + gap;
+    else if (src.x - src.width - gap >= 0) x = src.x - src.width - gap;
+    else if (src.y + 2 * src.height + gap <= 100) y = src.y + src.height + gap;
+    else y = Math.max(0, src.y - src.height - gap);
+    const newId = this.dndState.nextZoneId++;
+    const copy = {
+      ...src,
+      id: newId,
+      label: `Ablagezone ${newId + 1}`,
+      correctDraggable: '',
+      x: dndSnap(x),
+      y: dndSnap(y),
+    };
+    this.dndState.dropZones.push(copy);
+    this.dndState.selectedZone = newId;
+    this.refreshDndCanvas();
+    this.refreshDndZonesList();
+    this.refreshDndDraggables();
   }
 
   _removeDndZone(id) {

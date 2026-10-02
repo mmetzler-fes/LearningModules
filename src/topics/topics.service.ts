@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
 import { LearningTopic } from '../core/entities/learning-topic.entity';
@@ -8,6 +8,7 @@ import { TopicQuickLink } from '../core/entities/topic-quick-link.entity';
 import { TagsService } from '../tags/tags.service';
 import { ShopOffer } from '../core/entities/shop-offer.entity';
 import { UseGrant } from '../core/entities/use-grant.entity';
+import { School } from '../core/entities/school.entity';
 import { baseUrl, renderQr } from '../core/share/link-url';
 import * as crypto from 'crypto';
 
@@ -26,6 +27,8 @@ export class TopicsService {
     private readonly offerRepo: Repository<ShopOffer>,
     @InjectRepository(UseGrant)
     private readonly grantRepo: Repository<UseGrant>,
+    @InjectRepository(School)
+    private readonly schoolRepo: Repository<School>,
     private readonly tagsService: TagsService,
   ) {}
 
@@ -318,6 +321,30 @@ export class TopicsService {
    * Wer einer Schule angehört, wählt nur unter Kolleginnen und Kollegen der
    * eigenen Schule aus; "alle" im Shop bleibt davon unberührt.
    */
+  /**
+   * Eine Lehrkraft über ihre vollständige E-Mail-Adresse – auch aus einer
+   * anderen Schule. So lässt sich gezielt an jemanden freigeben, ohne dass
+   * fremde Kollegien aufgelistet werden. Nur exakte Treffer, keine Suche
+   * nach Teilen der Adresse oder des Namens.
+   */
+  async lookupColleague(user: any, email: string) {
+    const clean = String(email || '').trim().toLowerCase();
+    if (!clean.includes('@')) throw new BadRequestException('Bitte die vollständige E-Mail-Adresse eingeben.');
+    const found = (await this.userRepo.find()).find((u) => u.email.toLowerCase() === clean);
+    if (!found || found.active === false || (found.role !== 'teacher' && found.role !== 'admin')) {
+      throw new NotFoundException('Keine aktive Lehrkraft mit dieser Adresse gefunden.');
+    }
+    if (found.id === user.userId) throw new BadRequestException('Das bist du selbst.');
+    const school = found.schoolId ? await this.schoolRepo.findOne({ where: { id: found.schoolId } }) : null;
+    return {
+      id: found.id,
+      displayName: found.displayName || found.email,
+      email: found.email,
+      schoolName: school?.name || null,
+      sameSchool: !!user.schoolId && found.schoolId === user.schoolId,
+    };
+  }
+
   async listColleagues(user: any) {
     const users = await this.userRepo.find();
     return users

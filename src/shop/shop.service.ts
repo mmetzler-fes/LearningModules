@@ -188,6 +188,12 @@ export class ShopService {
         priceCopy: offer.priceCopy,
         priceUse: offer.priceUse,
         audience: offer.audience,
+        // Namen der eingetragenen Personen – auch aus anderen Schulen, die
+        // die Auswahlliste selbst nicht zeigt. Sonst fielen sie beim
+        // nächsten Speichern unbemerkt heraus.
+        audienceUsers: (offer.audience || [])
+          .filter((e) => users.has(e))
+          .map((id) => ({ id, label: this.label(users.get(id)), email: users.get(id)!.email })),
         fromDeactivation: offer.fromDeactivation,
         holders: grants.map((g) => ({
           grantId: g.id,

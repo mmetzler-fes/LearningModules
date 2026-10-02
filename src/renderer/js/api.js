@@ -254,6 +254,8 @@ export class BrowserApi {
   getUsableTopics() { return this._fetch('/api/topics/usable'); }
   /** Kollegen für die Zielgruppe eines Shop-Angebots. */
   getColleagues() { return this._fetch('/api/topics/colleagues'); }
+  /** Lehrkraft (auch anderer Schulen) über die genaue E-Mail-Adresse. */
+  lookupColleague(email) { return this._fetch(`/api/topics/colleagues/lookup?email=${encodeURIComponent(email)}`); }
   /** Themen, auf die ich ein Nutzungsrecht aus dem Shop habe. */
   getGrantedTopics() { return this._fetch('/api/topics/granted'); }
   /** Ein Thema mit Nutzungsrecht samt sichtbaren Modulen nur zum Ansehen holen. */

@@ -365,7 +365,16 @@ export class ShopView {
     const coAudience = co ? co.audience : ['*'];
     const bsAudience = bs ? bs.audience : [];
 
-    const audienceList = (prefix, selected, allowAll) => `
+    // Eingetragene Personen, die die Auswahlliste nicht kennt (andere Schule) –
+    // sie müssen sichtbar bleiben, sonst fielen sie beim Speichern heraus.
+    const known = new Set(users.map((u) => u.id));
+    const extraOf = (offer) => (offer?.audienceUsers || []).filter((u) => !known.has(u.id));
+    const extraRow = (prefix, u, checked) => `
+          <label class="share-user-row"><input type="checkbox" class="${prefix}-entry" value="${escapeAttr(u.id)}" ${checked ? 'checked' : ''} />
+            <span class="share-user-name">${escapeHtml(u.label || u.displayName || u.email)}
+              <span class="import-module-type">🏫 ${escapeHtml(u.schoolName || 'andere Schule')}</span></span></label>`;
+
+    const audienceList = (prefix, selected, allowAll, extra = []) => `
       ${allowAll ? `<label class="share-flag shop-all"><input type="checkbox" class="${prefix}-all" ${selected.includes('*') ? 'checked' : ''} />
         <span><strong>Alle Kolleginnen und Kollegen</strong></span></label>` : ''}
       <div class="share-user-list ${prefix}-list">
@@ -378,6 +387,11 @@ export class ShopView {
           <label class="share-user-row"><input type="checkbox" class="${prefix}-entry" value="${escapeAttr(u.id)}"
             ${selected.includes(u.id) ? 'checked' : ''} />
             <span class="share-user-name">${escapeHtml(u.displayName || u.email)}</span></label>`).join('')}
+        ${extra.map((u) => extraRow(prefix, u, selected.includes(u.id))).join('')}
+      </div>
+      <div class="share-lookup">
+        <input type="email" class="${prefix}-lookup" placeholder="Person einer anderen Schule: vollständige E-Mail-Adresse" autocomplete="off" />
+        <button type="button" class="btn btn-secondary btn-sm ${prefix}-lookup-btn">+ Hinzufügen</button>
       </div>`;
 
     const overlay = document.createElement('div');
@@ -405,7 +419,7 @@ export class ShopView {
             <input type="number" id="coPriceCopy" min="0" step="1" value="${co ? co.priceCopy : 0}" class="shop-price" /> Punkte
           </div>
           <p class="hint"><strong>Für wen?</strong> Ohne Auswahl einzelner Personen oder Gruppen sehen es alle.</p>
-          ${audienceList('co', coAudience, true)}
+          ${audienceList('co', coAudience, true, extraOf(co))}
           ${co ? this._holdersHtml(co.holders) : ''}
           <div class="confirm-actions">
             <button class="btn btn-primary" id="btnSaveCreatorOffer">${co && co.active ? 'Angebot speichern' : 'In den Shop stellen'}</button>
@@ -420,7 +434,7 @@ export class ShopView {
           <p class="hint">Fremde Module, die du erworben hast, darfst du an höchstens
             <strong>${state.buyerShareMax}</strong> Personen weitergeben – nur zum Verwenden (Use), kostenlos und ohne
             Punkte für dich. Wen du abwählst, verliert die Nutzung sofort.</p>
-          ${audienceList('bs', bsAudience, false)}
+          ${audienceList('bs', bsAudience, false, extraOf(bs))}
           <p class="hint" id="bsCount"></p>
           ${bs ? this._holdersHtml(bs.holders) : ''}
           <div class="confirm-actions">
@@ -470,6 +484,33 @@ export class ShopView {
     };
     overlay.querySelectorAll('.bs-entry').forEach((cb) => cb.addEventListener('change', syncBs));
     syncBs();
+
+    // Person einer anderen Schule über die genaue E-Mail-Adresse ergänzen.
+    for (const prefix of ['co', 'bs']) {
+      const input = overlay.querySelector(`.${prefix}-lookup`);
+      const btn = overlay.querySelector(`.${prefix}-lookup-btn`);
+      if (!input || !btn) continue;
+      const add = async () => {
+        const email = input.value.trim();
+        if (!email) return;
+        const res = await this.app.api.lookupColleague(email);
+        if (!res || !res.id) { this.app.showToast(res?.message || 'Nicht gefunden.', 'error'); return; }
+        let cb = [...overlay.querySelectorAll(`.${prefix}-entry`)].find((x) => x.value === res.id);
+        if (!cb) {
+          overlay.querySelector(`.${prefix}-list`).insertAdjacentHTML('beforeend', extraRow(prefix, res, true));
+          cb = [...overlay.querySelectorAll(`.${prefix}-entry`)].find((x) => x.value === res.id);
+          if (prefix === 'bs') cb.addEventListener('change', syncBs);
+        }
+        cb.checked = true;
+        // Eine bestimmte Person schließt "alle" aus.
+        if (prefix === 'co' && coAll?.checked) { coAll.checked = false; syncCo(); }
+        if (prefix === 'bs') syncBs();
+        input.value = '';
+        this.app.showToast(`${res.displayName} hinzugefügt${res.schoolName && !res.sameSchool ? ` (${res.schoolName})` : ''} – bitte speichern.`, 'success');
+      };
+      btn.addEventListener('click', add);
+      input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); add(); } });
+    }
 
     overlay.querySelector('#btnSaveCreatorOffer')?.addEventListener('click', async () => {
       const audience = coAll?.checked ? ['*'] : picked('co');

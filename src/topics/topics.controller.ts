@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, UseGuards, Request, Delete, Patch } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, UseGuards, Request, Delete, Patch, Query } from '@nestjs/common';
 import { TopicsService } from './topics.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
@@ -18,6 +18,12 @@ export class TopicsController {
   @Get('colleagues')
   async listColleagues(@Request() req: any) {
     return this.topicsService.listColleagues(req.user);
+  }
+
+  /** Eine Lehrkraft (auch anderer Schulen) über ihre genaue E-Mail-Adresse finden. */
+  @Get('colleagues/lookup')
+  async lookupColleague(@Request() req: any, @Query('email') email: string) {
+    return this.topicsService.lookupColleague(req.user, email);
   }
 
   /** Themen, die ich in eigenen Themen-Links verwenden darf (eigene + mit Nutzungsrecht). */

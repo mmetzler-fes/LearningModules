@@ -3548,3 +3548,7 @@ body {
 /* Login: "Angemeldet bleiben" */
 .login-remember { display: flex; align-items: center; gap: 6px; margin: 2px 0 12px; font-size: 0.9em; cursor: pointer; }
 .login-remember .hint { font-size: 0.85em; }
+
+/* Freigabe: Person einer anderen Schule per E-Mail ergänzen */
+.share-lookup { display: flex; gap: 8px; margin: 8px 0 14px; }
+.share-lookup input { flex: 1 1 auto; min-width: 0; padding: 6px 10px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg-secondary); color: var(--text-primary); }

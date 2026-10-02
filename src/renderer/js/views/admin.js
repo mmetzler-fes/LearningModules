@@ -897,36 +897,89 @@ export class AdminView {
     } catch (_) {}
   }
 
+  /**
+   * Alle Lernthemen, gegliedert nach Schule und darin nach Lehrkraft – beide
+   * Ebenen aufklappbar. Was aufgeklappt war, bleibt es beim Neuladen.
+   */
   async refreshAdminTopics() {
     const container = document.getElementById('adminTopicsContainer');
     if (!container) return;
+    this._openTopicGroups = this._openTopicGroups || new Set();
+    let topics;
     try {
-      const topics = await this.app.api.getAllAdminTopics();
-      if (!topics || topics.length === 0) {
-        container.innerHTML = '<p class="hint">Keine Lernthemen gefunden.</p>';
-        return;
-      }
-      container.innerHTML = '';
-      for (const topic of topics) {
-        const moduleCount = (topic.modules || []).length;
-        const item = document.createElement('div');
-        item.className = `topic-card ${topic.selected ? 'topic-active' : 'topic-inactive'}`;
-        item.innerHTML = `
-          <div class="topic-card-header">
-            <div class="topic-card-info">
-              <h3 class="topic-card-title">${escapeHtml(topic.title)}</h3>
-              <p class="topic-card-desc" style="color:var(--text-secondary);font-size:0.85em">${escapeHtml(topic.ownerEmail || topic.ownerId)}</p>
-              <div class="topic-card-meta">
-                <span class="topic-module-count">${moduleCount} Module</span>
-                <span class="topic-status ${topic.selected ? 'active' : 'inactive'}" style="margin-left:8px">${topic.selected ? '✅ Aktiv' : '❌ Inaktiv'}</span>
-                ${topic.subscribeKey ? `<span class="hint" style="margin-left:8px">🔑 Key: ${escapeHtml(topic.subscribeKey)}</span>` : ''}
-              </div>
-            </div>
-          </div>`;
-        container.appendChild(item);
-      }
+      topics = await this.app.api.getAllAdminTopics();
     } catch (e) {
       container.innerHTML = `<p class="hint">Fehler: ${escapeHtml(e.message)}</p>`;
+      return;
     }
+    if (!Array.isArray(topics) || topics.length === 0) {
+      container.innerHTML = '<p class="hint">Keine Lernthemen gefunden.</p>';
+      return;
+    }
+
+    // Schule → Lehrkraft → Themen
+    const bySchool = new Map();
+    for (const t of topics) {
+      const sKey = t.schoolId || '';
+      if (!bySchool.has(sKey)) bySchool.set(sKey, { name: t.schoolName || 'Ohne Schule', teachers: new Map() });
+      const teachers = bySchool.get(sKey).teachers;
+      if (!teachers.has(t.ownerId)) {
+        teachers.set(t.ownerId, { name: t.ownerName || t.ownerEmail, email: t.ownerEmail, active: t.ownerActive !== false, topics: [] });
+      }
+      teachers.get(t.ownerId).topics.push(t);
+    }
+    const de = (a, b) => a.localeCompare(b, 'de');
+    const schools = [...bySchool.entries()].sort(([ka, a], [kb, b]) => (!ka) - (!kb) || de(a.name, b.name));
+
+    const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+    const section = (key, summary, extraClass = '') => {
+      const d = document.createElement('details');
+      d.className = `area-group ${extraClass}`;
+      d.open = this._openTopicGroups.has(key);
+      d.innerHTML = `<summary class="area-group-head">${summary}</summary><div class="area-group-body"></div>`;
+      d.addEventListener('toggle', () => { if (d.open) this._openTopicGroups.add(key); else this._openTopicGroups.delete(key); });
+      return d;
+    };
+
+    container.innerHTML = '';
+    for (const [sKey, school] of schools) {
+      const teachers = [...school.teachers.entries()].sort(([, a], [, b]) => de(a.name, b.name));
+      const topicCount = teachers.reduce((n, [, t]) => n + t.topics.length, 0);
+      const sSec = section(`s:${sKey}`, `
+        <span class="area-group-title">${sKey ? '🏫' : ''} <strong class="${sKey ? '' : 'area-group-none'}">${escapeHtml(school.name)}</strong></span>
+        <span class="area-group-count">${plural(teachers.length, 'Lehrkraft', 'Lehrkräfte')} · ${plural(topicCount, 'Lernthema', 'Lernthemen')}</span>`);
+      const sBody = sSec.querySelector('.area-group-body');
+
+      for (const [ownerId, teacher] of teachers) {
+        const tSec = section(`t:${ownerId}`, `
+          <span class="area-group-title">👤 <strong>${escapeHtml(teacher.name)}</strong>
+            <span class="hint">${escapeHtml(teacher.email)}</span>
+            ${teacher.active ? '' : '<span class="topic-status inactive">⏸ deaktiviert</span>'}</span>
+          <span class="area-group-count">${plural(teacher.topics.length, 'Lernthema', 'Lernthemen')}</span>`, 'admin-teacher-group');
+        const tBody = tSec.querySelector('.area-group-body');
+        teacher.topics.sort((a, b) => de(a.title || '', b.title || ''));
+        for (const topic of teacher.topics) tBody.appendChild(this._adminTopicCard(topic));
+        sBody.appendChild(tSec);
+      }
+      container.appendChild(sSec);
+    }
+  }
+
+  _adminTopicCard(topic) {
+    const moduleCount = (topic.modules || []).length;
+    const item = document.createElement('div');
+    item.className = `topic-card ${topic.selected ? 'topic-active' : 'topic-inactive'}`;
+    item.innerHTML = `
+      <div class="topic-card-header">
+        <div class="topic-card-info">
+          <h3 class="topic-card-title">${escapeHtml(topic.title)}</h3>
+          <div class="topic-card-meta">
+            <span class="topic-module-count">${moduleCount} Module</span>
+            <span class="topic-status ${topic.selected ? 'active' : 'inactive'}" style="margin-left:8px">${topic.selected ? '✅ Aktiv' : '❌ Inaktiv'}</span>
+            ${topic.subscribeKey ? `<span class="hint" style="margin-left:8px">🔑 Key: ${escapeHtml(topic.subscribeKey)}</span>` : ''}
+          </div>
+        </div>
+      </div>`;
+    return item;
   }
 }

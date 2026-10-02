@@ -19,6 +19,7 @@ import { PointsService } from '../accounts/points.service';
 import { MasterKeyService } from '../core/crypto/master-key.service';
 import { TwoFactorService } from '../accounts/two-factor.service';
 import { LearningModule } from '../core/entities/learning-module.entity';
+import { School } from '../core/entities/school.entity';
 
 @Controller('admin')
 @UseGuards(JwtAuthGuard)
@@ -29,6 +30,7 @@ export class AdminController {
     @InjectRepository(LearningTopic) private readonly topicRepo: Repository<LearningTopic>,
     private readonly authService: AuthService,
     @InjectRepository(LearningModule) private readonly moduleRepo: Repository<LearningModule>,
+    @InjectRepository(School) private readonly schoolRepo: Repository<School>,
     private readonly userSheet: UserSheetService,
     private readonly accounts: AccountsService,
     private readonly points: PointsService,
@@ -300,11 +302,21 @@ export class AdminController {
   async getAllTopicsReadOnly(@Request() req: any) {
     this.requireAdmin(req);
     const topics = await this.topicRepo.find({ relations: ['modules'], order: { id: 'ASC' } });
-    const users = await this.userRepo.find();
-    const userMap = new Map(users.map((u) => [u.id, u.email]));
-    return topics.map(({ accessPassword: _ap, ...t }) => ({
-      ...t,
-      ownerEmail: userMap.get(t.ownerId) || t.ownerId,
-    }));
+    const users = new Map((await this.userRepo.find()).map((u) => [u.id, u]));
+    const schools = new Map((await this.schoolRepo.find()).map((s) => [s.id, s.name]));
+    // Name und Schule der Lehrkraft, damit die Übersicht nach Schule und
+    // Lehrkraft gegliedert werden kann.
+    return topics.map(({ accessPassword: _ap, ...t }) => {
+      const owner = users.get(t.ownerId);
+      const schoolName = owner?.schoolId ? schools.get(owner.schoolId) || null : null;
+      return {
+        ...t,
+        ownerEmail: owner?.email || t.ownerId,
+        ownerName: owner?.displayName || owner?.email || t.ownerId,
+        ownerActive: owner ? owner.active !== false : false,
+        schoolId: schoolName ? owner!.schoolId : null,
+        schoolName,
+      };
+    });
   }
 }

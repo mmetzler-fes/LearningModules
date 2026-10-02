@@ -3539,3 +3539,7 @@ body {
 /* Format-Pinsel: aktiv hervorgehoben, Zeiger zeigt den Modus */
 .rt-btn.rt-btn-painter.active { background: var(--accent); color: #fff; }
 .rich-text-surface.rt-painting { cursor: copy; }
+
+/* Admin-Übersicht der Lernmodule: Lehrkräfte als zweite Ebene unter der Schule */
+.admin-teacher-group { margin-bottom: 0; background: var(--bg-primary); }
+.admin-teacher-group .area-group-title .hint { margin-left: 6px; font-weight: normal; }

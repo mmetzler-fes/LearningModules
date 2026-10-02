@@ -9,6 +9,7 @@ import { TopicQuickLink } from '../core/entities/topic-quick-link.entity';
 import { Tag } from '../core/entities/tag.entity';
 import { Result } from '../core/entities/result.entity';
 import { TeacherGroup } from '../core/entities/teacher-group.entity';
+import { School } from '../core/entities/school.entity';
 import { BackupService } from './backup.service';
 import { CloudBackupService } from './cloud-backup.service';
 import { LearningModule } from '../core/entities/learning-module.entity';
@@ -18,7 +19,7 @@ import { AuthModule } from '../auth/auth.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([User, SystemConfig, LearningTopic, LearningModule, TopicLink, TopicQuickLink, Tag, Result, TeacherGroup]),
+    TypeOrmModule.forFeature([User, SystemConfig, LearningTopic, LearningModule, TopicLink, TopicQuickLink, Tag, Result, TeacherGroup, School]),
     AuthModule,
     AccountsModule,
   ],

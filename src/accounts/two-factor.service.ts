@@ -108,6 +108,17 @@ export class TwoFactorService {
     return { method, recoveryLeft: (user.totpRecovery || []).length };
   }
 
+  /**
+   * Zweiter Faktor für eine heikle Aktion (Masterkey, Backup): Bei aktiver
+   * 2FA muss ein gültiger Code dabei sein, sonst genügt das Passwort.
+   */
+  async confirmSecondFactor(userId: string, code: string) {
+    const user = await this.load(userId);
+    if (!user.totpEnabled) return;
+    if (!String(code || '').trim()) throw new UnauthorizedException('Bitte den Code aus der Authenticator-App eingeben.');
+    await this.checkCode(user, code, true);
+  }
+
   // ---- Einrichten und Verwalten (eigenes Konto) ----
 
   async status(userId: string) {

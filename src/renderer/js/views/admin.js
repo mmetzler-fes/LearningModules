@@ -103,6 +103,50 @@ export class AdminView {
     }
   }
 
+  /**
+   * Erneute Bestätigung vor heiklen Aktionen: eigenes Passwort und – bei
+   * aktiver Zwei-Faktor-Anmeldung – ein Code. Liefert { password, code } oder
+   * null bei Abbruch. Geprüft wird auf dem Server.
+   */
+  async confirmIdentity(action) {
+    let twoFactor = false;
+    try { twoFactor = !!(await this.app.api.getTwoFactor())?.enabled; } catch (_) {}
+    return new Promise((resolve) => {
+      const overlay = document.createElement('div');
+      overlay.className = 'confirm-overlay';
+      overlay.innerHTML = `
+        <form class="import-modules-card" style="min-width:360px; max-width:460px">
+          <h3>🔐 ${escapeHtml(action)}</h3>
+          <p class="hint">Zur Sicherheit bitte bestätigen, dass du es bist. Damit lässt sich der gesamte
+            Datenbestand mitnehmen oder ersetzen – eine offen gelassene Sitzung soll dafür nicht reichen.</p>
+          <div class="form-group">
+            <label>Dein Passwort</label>
+            <input type="password" class="ci-password" autocomplete="current-password" required />
+          </div>
+          ${twoFactor ? `
+          <div class="form-group">
+            <label>Code aus der Authenticator-App</label>
+            <input type="text" class="ci-code otp-input" inputmode="numeric" autocomplete="one-time-code" maxlength="12" required />
+          </div>` : ''}
+          <div class="confirm-actions">
+            <button type="submit" class="btn btn-primary">Bestätigen</button>
+            <button type="button" class="btn btn-secondary ci-cancel">Abbrechen</button>
+          </div>
+        </form>`;
+      document.body.appendChild(overlay);
+      const done = (value) => { overlay.remove(); resolve(value); };
+      overlay.querySelector('.ci-cancel').addEventListener('click', () => done(null));
+      overlay.querySelector('form').addEventListener('submit', (e) => {
+        e.preventDefault();
+        done({
+          password: overlay.querySelector('.ci-password').value,
+          code: overlay.querySelector('.ci-code')?.value.trim() || '',
+        });
+      });
+      overlay.querySelector('.ci-password').focus();
+    });
+  }
+
   // ---- Anzeige der erzeugten Zugangsdaten ----
 
   _bindCredentialsDialog() {
@@ -504,8 +548,10 @@ export class AdminView {
           'Der bisherige Stand bleibt auf dem Server als Datei *.before-restore liegen.',
         );
         if (!ok) return;
+        const creds = await this.confirmIdentity('Backup einspielen');
+        if (!creds) return;
         btn.disabled = true;
-        const r = await this.app.api.restoreCloudBackup(btn.dataset.name);
+        const r = await this.app.api.restoreCloudBackup(btn.dataset.name, creds);
         if (r && r.success) {
           this.app.showToast('Backup eingespielt. Bitte neu anmelden.', 'success');
           setTimeout(() => this.app.loginView.showLoginScreen(), 1500);
@@ -577,7 +623,9 @@ export class AdminView {
         'Die App zeigt den Schlüssel nie wieder an – bitte jetzt sicher notieren.',
       );
       if (!ok) return;
-      const res = await this.app.api.setMasterKey(a.value);
+      const creds = await this.confirmIdentity('Masterkey ändern');
+      if (!creds) return;
+      const res = await this.app.api.setMasterKey(a.value, creds);
       a.value = '';
       b.value = '';
       if (res && res.fingerprint) {
@@ -587,7 +635,9 @@ export class AdminView {
     });
 
     document.getElementById('btnBackup')?.addEventListener('click', async () => {
-      const res = await this.app.api.downloadBackup();
+      const creds = await this.confirmIdentity('Backup herunterladen');
+      if (!creds) return;
+      const res = await this.app.api.downloadBackup(creds);
       if (res && res.success) this.app.showToast('Backup heruntergeladen (verschlüsselt)', 'success');
       else this.app.showToast('Fehler: ' + (res?.error || '?'), 'error');
     });
@@ -598,7 +648,9 @@ export class AdminView {
         'den Stand des Backups ersetzt. Der bisherige Stand bleibt auf dem Server als Datei *.before-restore liegen.',
       );
       if (!ok) return;
-      const res = await this.app.api.restoreBackup();
+      const creds = await this.confirmIdentity('Backup einspielen');
+      if (!creds) return;
+      const res = await this.app.api.restoreBackup(creds);
       if (!res) return;
       if (res.success) {
         this.app.showToast(`Backup vom ${new Date(res.createdAt).toLocaleString('de-DE')} eingespielt. Bitte neu anmelden.`, 'success');

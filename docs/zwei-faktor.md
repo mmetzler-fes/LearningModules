@@ -34,3 +34,15 @@ Passwort; die Person richtet 2FA neu ein.
   Wer ein Backup einspielen kann, hat den Masterkey – die Codes gelten dann
   auch auf dem neuen Server. Wiederherstellungscodes werden nur als Hash
   gespeichert.
+
+## Heikle Admin-Aktionen
+
+Masterkey setzen, Backup herunterladen und Backup einspielen (Datei oder
+Cloud) verlangen eine erneute Bestätigung: das eigene Passwort und – bei
+aktiver 2FA – einen aktuellen Code. Eine offen gelassene Admin-Sitzung reicht
+dafür nicht. Hintergrund: Wer den Masterkey selbst setzt und danach ein Backup
+lädt, könnte den gesamten Datenbestand außerhalb der App entschlüsseln.
+
+Bei Masterkey-Wechsel und Restore bekommen alle anderen aktiven Admins eine
+Mail (sofern Mailversand eingerichtet ist); jede dieser Aktionen und jeder
+Backup-Download steht außerdem als Warnung im Server-Log.

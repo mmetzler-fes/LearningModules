@@ -295,11 +295,13 @@ export class BrowserApi {
     return this._fetch('/api/admin/points-settings', { method: 'POST', body: JSON.stringify(body) });
   }
   getMasterKeyStatus() { return this._fetch('/api/admin/master-key'); }
-  setMasterKey(masterKey) {
-    return this._fetch('/api/admin/master-key', { method: 'POST', body: JSON.stringify({ masterKey }) });
+  /** creds: { password, code } – erneute Bestätigung für heikle Aktionen. */
+  setMasterKey(masterKey, creds) {
+    return this._fetch('/api/admin/master-key', { method: 'POST', body: JSON.stringify({ masterKey, ...creds }) });
   }
-  downloadBackup() {
-    return this._download('/api/admin/backup', `lernmodule-backup-${new Date().toISOString().slice(0, 10)}.lmbak`);
+  downloadBackup(creds) {
+    return this._download('/api/admin/backup', `lernmodule-backup-${new Date().toISOString().slice(0, 10)}.lmbak`,
+      { method: 'POST', body: JSON.stringify(creds || {}) });
   }
   getCloudBackup() { return this._fetch('/api/admin/cloud-backup'); }
   saveCloudBackup(body) {
@@ -308,22 +310,23 @@ export class BrowserApi {
   testCloudBackup() { return this._fetch('/api/admin/cloud-backup/test', { method: 'POST' }); }
   runCloudBackup() { return this._fetch('/api/admin/cloud-backup/run', { method: 'POST' }); }
   listCloudBackups() { return this._fetch('/api/admin/cloud-backup/files'); }
-  restoreCloudBackup(name) {
-    return this._fetch('/api/admin/cloud-backup/restore', { method: 'POST', body: JSON.stringify({ name }) });
+  restoreCloudBackup(name, creds) {
+    return this._fetch('/api/admin/cloud-backup/restore', { method: 'POST', body: JSON.stringify({ name, ...creds }) });
   }
 
   /** Fragt nach einer Backup-Datei und spielt sie ein. Liefert null bei Abbruch. */
-  restoreBackup() {
-    return this._pickAndUpload('.lmbak', '/api/admin/restore');
+  restoreBackup(creds) {
+    return this._pickAndUpload('.lmbak', '/api/admin/restore', { password: creds?.password || '', code: creds?.code || '' });
   }
 
   /**
    * Lädt eine Datei mit Anmeldung herunter. Der Dateiname kommt vom Server;
    * `fallbackName` gilt nur, wenn er fehlt.
    */
-  async _download(url, fallbackName) {
+  async _download(url, fallbackName, opts = {}) {
     const token = this._auth.getToken();
-    const res = await fetch(url, { headers: token ? { Authorization: `Bearer ${token}` } : {}, cache: 'no-store' });
+    const headers = { ...(token ? { Authorization: `Bearer ${token}` } : {}), ...(opts.body ? { 'Content-Type': 'application/json' } : {}) };
+    const res = await fetch(url, { ...opts, headers, cache: 'no-store' });
     if (!res.ok) {
       let message = 'Download fehlgeschlagen.';
       try { message = (await res.json()).message || message; } catch (_) {}

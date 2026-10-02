@@ -1,6 +1,6 @@
 import {
   Controller, Get, Post, Patch, Delete, Body, Param, UseGuards, Request, Res,
-  ForbiddenException, BadRequestException, UseInterceptors, UploadedFile,
+  ForbiddenException, BadRequestException, UseInterceptors, UploadedFile, Logger,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import type { Response } from 'express';
@@ -20,10 +20,16 @@ import { MasterKeyService } from '../core/crypto/master-key.service';
 import { TwoFactorService } from '../accounts/two-factor.service';
 import { LearningModule } from '../core/entities/learning-module.entity';
 import { School } from '../core/entities/school.entity';
+import { MailService } from '../core/mail/mail.service';
+
+/** Zugangsdaten für eine erneute Bestätigung vor heiklen Aktionen. */
+type Reauth = { password?: string; code?: string };
 
 @Controller('admin')
 @UseGuards(JwtAuthGuard)
 export class AdminController {
+  private readonly logger = new Logger('Admin');
+
   constructor(
     @InjectRepository(User) private readonly userRepo: Repository<User>,
     @InjectRepository(SystemConfig) private readonly configRepo: Repository<SystemConfig>,
@@ -38,11 +44,41 @@ export class AdminController {
     private readonly backup: BackupService,
     private readonly cloudBackup: CloudBackupService,
     private readonly twoFactor: TwoFactorService,
+    private readonly mail: MailService,
   ) {}
 
   // ---- Admin only guard helper ----
   private requireAdmin(req: any) {
     if (req.user.role !== 'admin') throw new ForbiddenException('Nur Admins haben Zugriff.');
+  }
+
+  /**
+   * Erneut bestätigen: eigenes Passwort, bei aktiver 2FA auch ein Code.
+   * Gilt für alles, womit sich der gesamte Datenbestand mitnehmen oder
+   * ersetzen lässt (Masterkey, Backup herunterladen, Backup einspielen).
+   * Eine offen gelassene Admin-Sitzung allein reicht dafür nicht.
+   */
+  private async reauth(req: any, creds: Reauth | undefined) {
+    this.requireAdmin(req);
+    await this.authService.assertOwnPassword(req.user.userId, creds?.password || '');
+    await this.twoFactor.confirmSecondFactor(req.user.userId, creds?.code || '');
+  }
+
+  /** Alle anderen aktiven Admins benachrichtigen – ein unbemerkter Eingriff soll auffallen. */
+  private async notifyOtherAdmins(req: any, subject: string, text: string) {
+    const admins = await this.userRepo.find({ where: { role: 'admin' } });
+    const actor = req.user.email || req.user.userId;
+    const when = new Date().toLocaleString('de-DE', { timeZone: 'Europe/Berlin' });
+    this.logger.warn(`${subject} – durch ${actor} am ${when}`);
+    for (const a of admins.filter((u) => u.id !== req.user.userId && u.active !== false && u.email)) {
+      await this.mail.sendNotice({
+        to: a.email,
+        subject: `LernModule: ${subject}`,
+        text: `${text}\n\nDurch: ${actor}\nZeitpunkt: ${when}\n\n` +
+          'Warst du das nicht oder ist es nicht abgesprochen, prüfe bitte sofort die Admin-Konten ' +
+          'und ändere die Passwörter.',
+      });
+    }
   }
 
   // ---- List all admins and teachers ----
@@ -160,16 +196,22 @@ export class AdminController {
   }
 
   @Post('master-key')
-  async setMasterKey(@Request() req: any, @Body() body: { masterKey?: string }) {
-    this.requireAdmin(req);
-    return this.masterKey.setMasterKey(String(body?.masterKey || ''));
+  async setMasterKey(@Request() req: any, @Body() body: { masterKey?: string } & Reauth) {
+    await this.reauth(req, body);
+    const status = this.masterKey.setMasterKey(String(body?.masterKey || ''));
+    await this.notifyOtherAdmins(req, 'Masterkey geändert',
+      `Der Masterkey wurde neu gesetzt (Fingerabdruck ${status.fingerprint}). Ab jetzt werden Backups und ` +
+      'Exporte damit verschlüsselt; ältere bleiben mit dem bisherigen Schlüssel lesbar.');
+    return status;
   }
 
   // ---- Backup ----
 
-  @Get('backup')
-  async downloadBackup(@Request() req: any, @Res() res: Response) {
-    this.requireAdmin(req);
+  /** POST statt GET: Passwort und Code gehören in den Rumpf, nicht in die Adresse. */
+  @Post('backup')
+  async downloadBackup(@Request() req: any, @Body() body: Reauth, @Res() res: Response) {
+    await this.reauth(req, body);
+    this.logger.warn(`Backup heruntergeladen durch ${req.user.email || req.user.userId}`);
     const buffer = await this.backup.create();
     const stamp = new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-');
     res.setHeader('Content-Type', 'application/octet-stream');
@@ -180,9 +222,13 @@ export class AdminController {
   /** Ersetzt alle Daten durch das Backup. Der vorherige Stand bleibt als Datei liegen. */
   @Post('restore')
   @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 1024 * 1024 * 1024 } }))
-  async restoreBackup(@Request() req: any, @UploadedFile() file: Express.Multer.File) {
-    this.requireAdmin(req);
+  async restoreBackup(@Request() req: any, @UploadedFile() file: Express.Multer.File, @Body() body: Reauth) {
+    await this.reauth(req, body);
     if (!file || !file.buffer) throw new BadRequestException('Keine Datei empfangen.');
+    // Vor dem Einspielen benachrichtigen – danach gibt es die Konten evtl. nicht mehr.
+    await this.notifyOtherAdmins(req, 'Backup eingespielt',
+      `Ein Backup aus einer hochgeladenen Datei (${file.originalname || 'ohne Namen'}) wird eingespielt; ` +
+      'alle Daten werden durch dessen Stand ersetzt.');
     return this.backup.restore(file.buffer);
   }
 
@@ -221,8 +267,10 @@ export class AdminController {
 
   /** Ein Backup aus der Cloud einspielen – ersetzt alle Daten. */
   @Post('cloud-backup/restore')
-  async restoreCloudBackup(@Request() req: any, @Body() body: { name?: string }) {
-    this.requireAdmin(req);
+  async restoreCloudBackup(@Request() req: any, @Body() body: { name?: string } & Reauth) {
+    await this.reauth(req, body);
+    await this.notifyOtherAdmins(req, 'Backup eingespielt',
+      `Das Cloud-Backup „${body?.name || '?'}“ wird eingespielt; alle Daten werden durch dessen Stand ersetzt.`);
     return this.cloudBackup.restoreFromCloud(String(body?.name || ''));
   }
 

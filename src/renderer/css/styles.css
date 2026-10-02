@@ -817,7 +817,13 @@ body {
 }
 
 /* ===== Forms ===== */
+/* Volle Breite: Bilder, Zonen und Hotspots brauchen den Platz neben der
+   Seitenleiste. Nur einfache Eingabefelder bleiben handlich schmal. */
 .module-form {
+  max-width: none;
+}
+.module-form > .form-group > input[type="text"],
+.module-form > .form-group > select {
   max-width: 720px;
 }
 
@@ -1113,6 +1119,7 @@ body {
 .dnd-canvas {
   position: relative;
   width: 100%;
+  margin: 0 auto;
   min-height: 200px;
   background: var(--bg-secondary);
   border: 2px solid var(--border);

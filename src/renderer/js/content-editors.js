@@ -1353,6 +1353,11 @@ class ContentEditorManager {
     if (img.src !== this.dndState.backgroundImage) {
       img.src = this.dndState.backgroundImage;
     }
+    // Volle Breite, aber nie höher als der Bildschirm (Zonen sind in %).
+    const fit = () => {
+      if (img.naturalWidth) canvas.style.maxWidth = `calc((100vh - 120px) * ${(img.naturalWidth / img.naturalHeight).toFixed(4)})`;
+    };
+    if (img.complete) fit(); else img.addEventListener('load', fit, { once: true });
 
     // Render drop zones
     const colors = ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16'];

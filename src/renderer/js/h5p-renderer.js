@@ -1,3 +1,4 @@
+import { videoSourceOf } from './video.js';
 import { audioSourceOf, scoreDictation, dictationOptions } from './dictation.js';
 import { normalizeShareUrl, sanitizeModuleDescriptionHtml, sanitizeWorksheetHtml, escapeHtml, escapeAttr, hexTint, showContextMenu, attachPointerDrag } from './utils.js';
 
@@ -1288,12 +1289,46 @@ export class H5pRenderer {
       }
 
       case 'video': {
-        div.innerHTML = `
-          <div style="padding:30px; text-align:center; background:var(--bg-primary); border-radius:var(--radius-md);">
-            <div style="font-size:4rem; margin-bottom:16px;">🎬</div>
-            <h3>${escapeHtml(content.title || 'Video')}</h3>
-            <p style="margin-top:8px; color:var(--text-secondary);">Quelle: ${escapeHtml(content.videoUrl || 'Nicht definiert')}</p>
-          </div>`;
+        const v = videoSourceOf(content.videoUrl);
+        const start = Math.max(0, Math.floor(Number(content.startAt) || 0));
+        const title = content.title ? `<h3 class="video-title">${escapeHtml(content.title)}</h3>` : '';
+        let player = '';
+        if (!v) {
+          player = '<p class="hint">Für dieses Modul ist kein Video-Link hinterlegt.</p>';
+        } else if (v.kind === 'youtube' || v.kind === 'vimeo') {
+          const params = new URLSearchParams();
+          let src;
+          if (v.kind === 'youtube') {
+            if (start) params.set('start', String(start));
+            if (content.autoplay) { params.set('autoplay', '1'); params.set('mute', '1'); }
+            if (content.loop) { params.set('loop', '1'); params.set('playlist', v.id); }
+            params.set('rel', '0');
+            src = `https://www.youtube-nocookie.com/embed/${encodeURIComponent(v.id)}?${params}`;
+          } else {
+            if (content.autoplay) { params.set('autoplay', '1'); params.set('muted', '1'); }
+            if (content.loop) params.set('loop', '1');
+            params.set('dnt', '1');
+            src = `https://player.vimeo.com/video/${encodeURIComponent(v.id)}?${params}${start ? `#t=${start}s` : ''}`;
+          }
+          player = `<div class="video-frame"><iframe src="${escapeAttr(src)}" title="${escapeAttr(content.title || 'Video')}"
+            allow="autoplay; fullscreen; picture-in-picture; encrypted-media" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe></div>`;
+        } else if (v.kind === 'file') {
+          // Automatisch abspielen erlauben Browser nur stumm.
+          player = `<video class="video-player" controls playsinline preload="metadata" src="${escapeAttr(v.src)}"
+            ${content.autoplay ? 'autoplay muted' : ''} ${content.loop ? 'loop' : ''}></video>
+            <p class="video-error dict-error hidden">⚠️ Das Video lässt sich nicht abspielen.
+              Bei Nextcloud: Freigabe ohne Passwort und ohne „Download verbergen“.
+              <a href="${escapeAttr(v.src)}" target="_blank" rel="noopener noreferrer">Video direkt öffnen</a></p>`;
+        } else {
+          player = `<p class="hint">Dieser Link lässt sich nicht direkt einbetten.</p>
+            <p><a class="btn btn-secondary btn-sm" href="${escapeAttr(v.src)}" target="_blank" rel="noopener noreferrer">🎬 Video in neuem Tab öffnen</a></p>`;
+        }
+        div.innerHTML = `<div class="video-module">${title}${player}</div>`;
+        const video = div.querySelector('video.video-player');
+        if (video) {
+          if (start) video.addEventListener('loadedmetadata', () => { try { video.currentTime = start; } catch (_) {} }, { once: true });
+          video.addEventListener('error', () => div.querySelector('.video-error')?.classList.remove('hidden'));
+        }
         break;
       }
 

@@ -364,12 +364,11 @@ const H5P_TYPES = {
     category: 'Medien',
     // Reine Information, keine Aufgabe: zaehlt in der Auswertung nicht mit.
     informational: true,
+    // Erkannt werden YouTube, Vimeo, Nextcloud-Freigabelinks und direkte
+    // Links auf Videodateien (siehe video.js). Videos werden bewusst nicht
+    // hochgeladen – sie blähten Datenbank und jede Quiz-Seite auf.
     fields: [
-      { key: 'videoSource', type: 'select', label: 'Videoquelle', options: [
-        { value: 'url', label: 'URL (YouTube, Vimeo, etc.)' },
-        { value: 'file', label: 'Lokale Datei' },
-      ]},
-      { key: 'videoUrl', type: 'text', label: 'Video-URL', required: true, placeholder: 'https://...' },
+      { key: 'videoUrl', type: 'text', label: 'Video-Link (YouTube, Vimeo, Nextcloud-Freigabelink oder Link auf .mp4)', required: true, placeholder: 'https://...' },
       { key: 'title', type: 'text', label: 'Videotitel' },
       { key: 'startAt', type: 'number', label: 'Startzeit (Sekunden)', default: 0 },
       { key: 'autoplay', type: 'checkbox', label: 'Automatisch abspielen', default: false },

@@ -91,6 +91,7 @@ export class LinksView {
     const grouped = renderAreaGroups(this._list, links, {
       tags: this.app.state.tags,
       scope: 'links',
+      respectHidden: true,
       expandAll: this._filter.selectedIds.length > 0,
       buildItem: (link) => this._buildCard(link),
       countLabel: (n) => (n === 1 ? '1 Freigabe' : `${n} Freigaben`),

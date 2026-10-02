@@ -131,10 +131,24 @@ export class TagsService implements OnModuleInit {
       .sort((a, b) => a.name.localeCompare(b.name, 'de'));
   }
 
-  /** Eigene Tags plus die (schreibgeschützten) Vorgaben der eigenen Schule. */
+  /**
+   * Eigene Tags plus die (schreibgeschützten) Vorgaben der eigenen Schule.
+   * Themengebiete, die die Lehrkraft ausgeblendet hat, tragen `hidden`.
+   */
   async findAll(user: any) {
     const tags = [...(await this.inScope(this.ownScope(user))), ...(await this.schoolTagsOf(user))];
-    return this.withUsage(tags, [user.userId]);
+    const me = await this.userRepo.findOne({ where: { id: user.userId } });
+    const hidden = new Set(me?.hiddenAreaIds || []);
+    return (await this.withUsage(tags, [user.userId])).map((t) => ({ ...t, hidden: t.isArea && hidden.has(t.id) }));
+  }
+
+  /** Persönliche Auswahl ausgeblendeter Themengebiete speichern (nur gültige Gebiete). */
+  async setHiddenAreas(user: any, areaIds: any) {
+    const usable = [...(await this.inScope(this.ownScope(user))), ...(await this.schoolTagsOf(user))];
+    const areas = new Set(usable.filter((t) => t.isArea).map((t) => t.id));
+    const clean = Array.isArray(areaIds) ? [...new Set(areaIds.map(String).filter((id) => areas.has(id)))] : [];
+    await this.userRepo.update(user.userId, { hiddenAreaIds: clean.length ? clean : null });
+    return { success: true, hiddenAreaIds: clean };
   }
 
   /** Die Schul-Tags für den Schuladmin, gezählt über alle Lehrkräfte der Schule. */

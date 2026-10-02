@@ -154,6 +154,10 @@ export class BrowserApi {
     return this._fetch(`/api/tags/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(data) });
   }
   deleteTag(id) { return this._fetch(`/api/tags/${encodeURIComponent(id)}`, { method: 'DELETE' }); }
+  /** Persönlich ausgeblendete Themengebiete (ersetzt die bisherige Auswahl). */
+  setHiddenAreas(areaIds) {
+    return this._fetch('/api/tags/hidden-areas', { method: 'PUT', body: JSON.stringify({ areaIds }) });
+  }
   // Tag-Struktur der Schule (Schuladmin)
   getSchoolTags() { return this._fetch('/api/tags/school'); }
   createSchoolTag(data) { return this._fetch('/api/tags/school', { method: 'POST', body: JSON.stringify(data) }); }

@@ -150,6 +150,7 @@ export class TopicsView {
     const grouped = renderAreaGroups(this._topicsList, topics, {
       tags: this.app.state.tags,
       scope: 'topics',
+      respectHidden: true,
       expandAll: this._filter.selectedIds.length > 0,
       buildItem: (topic) => this._buildCard(topic),
       countLabel: (n) => (n === 1 ? '1 Lernthema' : `${n} Lernthemen`),

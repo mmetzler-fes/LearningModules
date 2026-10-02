@@ -40,6 +40,70 @@ export function areasOfTagIds(tagIds, tags) {
   return out;
 }
 
+/**
+ * Was eine Lehrkraft ausgeblendet hat: die Themengebiete selbst und alle
+ * Tags, die ausschließlich zu ausgeblendeten Gebieten gehören. Ein Tag, der
+ * auch unter einem sichtbaren Gebiet hängt, bleibt sichtbar.
+ */
+export function hiddenTagIds(tags) {
+  const list = tags || [];
+  const out = new Set(list.filter((t) => t.isArea && t.hidden).map((t) => t.id));
+  if (out.size === 0) return out;
+  const visibleAreas = new Set(list.filter((t) => t.isArea && !t.hidden).map((t) => t.id));
+  for (const t of list) {
+    const areas = t.isArea ? [] : t.areaIds || [];
+    if (areas.length && areas.every((id) => !visibleAreas.has(id))) out.add(t.id);
+  }
+  return out;
+}
+
+/**
+ * Persönliche Auswahl der Themengebiete: anhaken = anzeigen. Speichert auf
+ * dem Server und lädt die Tags neu; `onDone` zeichnet die Ansicht neu.
+ */
+export function openAreaVisibilityDialog(app, onDone) {
+  const areas = areaTags(app.state.tags);
+  const overlay = document.createElement('div');
+  overlay.className = 'confirm-overlay';
+  overlay.innerHTML = `
+    <div class="import-modules-card" style="min-width:360px; max-width:520px; max-height:82vh; overflow:auto">
+      <h3>👁 Themengebiete auswählen</h3>
+      <p class="hint">Nur angehakte Themengebiete erscheinen in Filtern, Tag-Auswahl und Gliederung.
+        Das gilt nur für dich; an den Tags selbst ändert sich nichts.</p>
+      ${areas.length === 0
+        ? '<p class="hint">Es gibt noch keine Themengebiete.</p>'
+        : `<div class="area-visibility-list">${areas.map((a) => `
+          <label class="tag-filter-option">
+            <input type="checkbox" value="${escapeAttr(a.id)}" ${a.hidden ? '' : 'checked'} />
+            ${chipHtml(a)}
+          </label>`).join('')}</div>
+        <div class="school-row" style="margin-top:8px">
+          <button type="button" class="btn btn-secondary btn-sm btn-all">Alle</button>
+          <button type="button" class="btn btn-secondary btn-sm btn-none">Keine</button>
+        </div>`}
+      <div class="confirm-actions">
+        <button class="btn btn-primary btn-save">Übernehmen</button>
+        <button class="btn btn-secondary btn-cancel">Abbrechen</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+  const close = () => overlay.remove();
+  const boxes = () => [...overlay.querySelectorAll('.area-visibility-list input')];
+  overlay.querySelector('.btn-all')?.addEventListener('click', () => boxes().forEach((b) => { b.checked = true; }));
+  overlay.querySelector('.btn-none')?.addEventListener('click', () => boxes().forEach((b) => { b.checked = false; }));
+  overlay.querySelector('.btn-cancel').addEventListener('click', close);
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+  overlay.querySelector('.btn-save').addEventListener('click', async () => {
+    const hidden = boxes().filter((b) => !b.checked).map((b) => b.value);
+    const res = await app.api.setHiddenAreas(hidden);
+    if (!res || res.success !== true) { app.showToast('Fehler: ' + (res?.message || 'Speichern fehlgeschlagen'), 'error'); return; }
+    close();
+    await app.loadTags();
+    app.showToast(hidden.length ? `${hidden.length} Themengebiet(e) ausgeblendet.` : 'Alle Themengebiete sichtbar.', 'success');
+    onDone?.();
+  });
+}
+
 export function chipHtml(tag) {
   const cls = `tag-chip${tag.isArea ? ' area-chip' : ''}${tag.isSchoolTag ? ' school-tag' : ''}`;
   const title = tag.isSchoolTag ? ' title="Vorgabe der Schule"' : '';
@@ -74,18 +138,28 @@ function saveToggled(scope, set) {
  * - defaultOpen: Abschnitte anfangs offen statt zu
  * - expandAll:   alles offen, ohne es zu merken (z. B. bei aktivem Filter)
  * - showEmpty:   auch Themengebiete ohne Einträge zeigen
+ * - respectHidden: persönlich ausgeblendete Themengebiete weglassen; was nur
+ *                dort hinge, kommt in einen zugeklappten Abschnitt am Ende
  */
 export function renderAreaGroups(container, items, opts) {
-  const { tags, scope, buildItem, buildHead, countLabel, defaultOpen = false, expandAll = false, showEmpty = false } = opts;
-  const areas = areaTags(tags);
-  if (areas.length === 0) return false;
+  const {
+    tags, scope, buildItem, buildHead, countLabel,
+    defaultOpen = false, expandAll = false, showEmpty = false, respectHidden = false,
+  } = opts;
+  const allAreas = areaTags(tags);
+  if (allAreas.length === 0) return false;
+  const hiddenAreas = new Set(respectHidden ? allAreas.filter((a) => a.hidden).map((a) => a.id) : []);
+  const areas = allAreas.filter((a) => !hiddenAreas.has(a.id));
 
   const groups = new Map(areas.map((a) => [a.id, []]));
   const loose = [];
+  const hiddenOnly = [];
   for (const item of items) {
     const ids = areasOfTagIds(item.tagIds, tags);
+    const shown = [...ids].filter((id) => !hiddenAreas.has(id));
     if (ids.size === 0) loose.push(item);
-    else ids.forEach((id) => groups.get(id)?.push(item));
+    else if (shown.length === 0) hiddenOnly.push(item);
+    else shown.forEach((id) => groups.get(id)?.push(item));
   }
 
   const toggled = loadToggled(scope);
@@ -118,6 +192,10 @@ export function renderAreaGroups(container, items, opts) {
     if (list.length || showEmpty) section(area.id, buildHead ? buildHead(area) : chipHtml(area), list);
   }
   if (loose.length) section('__none__', '<span class="area-group-none">Ohne Themengebiet</span>', loose);
+  if (hiddenOnly.length) {
+    section('__hidden__', '<span class="area-group-none">🙈 Ausgeblendete Themengebiete</span>', hiddenOnly)
+      .classList.add('area-group-hidden');
+  }
   return true;
 }
 
@@ -128,9 +206,12 @@ export function renderAreaGroups(container, items, opts) {
  * umschalten.
  *
  * `visible(tag)` blendet Tags aus (Suche); `onToggle(id, checked)` meldet
- * jede Änderung.
+ * jede Änderung. Persönlich ausgeblendete Themengebiete und ihre Tags fehlen,
+ * außer sie sind gerade angehakt – eine bestehende Zuordnung bleibt sichtbar.
  */
-function renderTagChoices(box, tags, selected, { visible = () => true, onToggle }) {
+function renderTagChoices(box, tags, selected, { visible: matches = () => true, onToggle }) {
+  const hidden = hiddenTagIds(tags);
+  const visible = (tag) => selected.has(tag.id) || (!hidden.has(tag.id) && matches(tag));
   const option = (tag) => {
     const label = document.createElement('label');
     label.className = 'tag-filter-option';
@@ -163,12 +244,16 @@ function renderTagChoices(box, tags, selected, { visible = () => true, onToggle 
     box.appendChild(div);
   };
 
+  const shownAreas = new Set();
   for (const area of areas) {
+    if (hidden.has(area.id) && !selected.has(area.id)) continue;
     const children = plain.filter((t) => (t.areaIds || []).includes(area.id) && visible(t));
     if (!visible(area) && children.length === 0) continue;
+    shownAreas.add(area.id);
     row(option(area), children);
   }
-  const loose = plain.filter((t) => !(t.areaIds || []).some((a) => areas.some((x) => x.id === a)) && visible(t));
+  // Ohne (sichtbares) Themengebiet – dazu angehakte Tags, deren Gebiete alle ausgeblendet sind.
+  const loose = plain.filter((t) => !(t.areaIds || []).some((a) => shownAreas.has(a)) && visible(t));
   if (loose.length) row(null, loose);
 }
 
@@ -197,6 +282,7 @@ export class TagsView {
       update: (id, data) => app.api.updateTag(id, data),
       remove: (id) => app.api.deleteTag(id),
       editable: (tag) => !tag.isSchoolTag,
+      hideable: true,
     };
     this._tags = [];
 
@@ -399,7 +485,13 @@ export class TagsView {
       const byId = new Map(tags.map((t) => [t.id, t]));
       this._list.querySelectorAll('.area-group').forEach((group) => {
         const area = byId.get(group.dataset.areaKey);
-        if (area) group.querySelector('.area-group-head').appendChild(this._actions(area));
+        if (!area) return;
+        const head = group.querySelector('.area-group-head');
+        if (area.hidden && this._source.hideable) {
+          group.classList.add('area-group-hidden');
+          head.querySelector('.area-group-count')?.insertAdjacentHTML('afterend', '<span class="hint">🙈 ausgeblendet</span>');
+        }
+        head.appendChild(this._actions(area));
       });
     } else {
       for (const tag of tags) this._list.appendChild(this._buildRow(tag));
@@ -418,16 +510,36 @@ export class TagsView {
   _actions(tag) {
     const span = document.createElement('span');
     span.className = 'tag-row-actions';
+    // Ein-/Ausblenden ist persönlich und geht auch bei Vorgaben der Schule.
+    if (this._source.hideable && tag.isArea) {
+      const eye = document.createElement('button');
+      eye.className = 'btn btn-secondary btn-sm btn-toggle-area';
+      eye.textContent = tag.hidden ? '👁 Einblenden' : '🙈 Ausblenden';
+      eye.title = tag.hidden
+        ? 'Wieder in Filtern, Tag-Auswahl und Gliederung zeigen'
+        : 'Interessiert mich nicht – in Filtern, Tag-Auswahl und Gliederung weglassen (nur für mich)';
+      eye.addEventListener('click', (e) => { e.preventDefault(); this._toggleHidden(tag); });
+      span.appendChild(eye);
+    }
     if (!this._source.editable(tag)) {
-      span.innerHTML = '<span class="hint" title="Gepflegt vom Schuladmin">🏫 Vorgabe der Schule</span>';
+      span.insertAdjacentHTML('beforeend', '<span class="hint" title="Gepflegt vom Schuladmin">🏫 Vorgabe der Schule</span>');
       return span;
     }
-    span.innerHTML = `
+    span.insertAdjacentHTML('beforeend', `
       <button class="btn btn-secondary btn-sm btn-edit-tag">✏️ Bearbeiten</button>
-      <button class="btn btn-danger btn-sm btn-delete-tag">🗑</button>`;
+      <button class="btn btn-danger btn-sm btn-delete-tag">🗑</button>`);
     span.querySelector('.btn-edit-tag').addEventListener('click', (e) => { e.preventDefault(); this._startEdit(tag); });
     span.querySelector('.btn-delete-tag').addEventListener('click', (e) => { e.preventDefault(); this._delete(tag); });
     return span;
+  }
+
+  async _toggleHidden(area) {
+    const hidden = new Set(this._tags.filter((t) => t.isArea && t.hidden).map((t) => t.id));
+    if (area.hidden) hidden.delete(area.id); else hidden.add(area.id);
+    const res = await this.app.api.setHiddenAreas([...hidden]);
+    if (!res || res.success !== true) { this.app.showToast('Fehler: ' + (res?.message || '?'), 'error'); return; }
+    this.app.showToast(area.hidden ? `„${area.name}“ wird wieder angezeigt.` : `„${area.name}“ ausgeblendet – nur für dich.`, 'success');
+    await this.refresh();
   }
 
   _buildRow(tag) {
@@ -461,6 +573,18 @@ export class TagFilter {
       this._mode = this._modeToggle.checked ? 'all' : 'any';
       this._onChange?.();
     });
+
+    // Persönliche Auswahl der Themengebiete direkt aus der Filterleiste.
+    const modeLabel = this._modeToggle?.closest('label');
+    if (modeLabel) {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'btn btn-secondary btn-sm btn-area-visibility';
+      btn.textContent = '👁 Themengebiete';
+      btn.title = 'Auswählen, welche Themengebiete dich interessieren';
+      btn.addEventListener('click', () => openAreaVisibilityDialog(app, () => { this.render(); this._onChange?.(); }));
+      modeLabel.after(btn);
+    }
   }
 
   /** Trifft ein Eintrag (Thema oder Link) die aktuelle Tag-Auswahl? */

@@ -3498,3 +3498,9 @@ body {
 .two-factor-block input[type="password"] { width: 100%; }
 .two-factor-codes { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px 16px; margin: 12px 0; }
 .two-factor-codes code { font-size: 1.05em; text-align: center; padding: 4px; }
+
+/* ---- Persönlich ausgeblendete Themengebiete ---- */
+.area-group-hidden { opacity: 0.6; }
+.area-group-hidden[open] { opacity: 1; }
+.area-visibility-list { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+.area-group-head .hint { font-size: 0.85em; }

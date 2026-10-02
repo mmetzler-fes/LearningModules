@@ -44,6 +44,14 @@ export class User extends BaseEntity {
   @Column({ default: false })
   schoolManual: boolean;
 
+  /**
+   * Themengebiete, die diese Lehrkraft nicht interessieren – ausgeblendet in
+   * Filtern, Tag-Auswahl und Gliederung. Reine Ansichtssache, ändert nichts
+   * an den Tags selbst.
+   */
+  @Column('simple-json', { nullable: true })
+  hiddenAreaIds: string[] | null;
+
   // ---- Zwei-Faktor-Anmeldung (TOTP, siehe auth/totp.ts) ----
 
   @Column({ default: false })

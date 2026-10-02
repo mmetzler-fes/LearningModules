@@ -59,6 +59,11 @@ Lehrkräfte der Schule – mit derselben Oberfläche wie unter „Tags“.
   Tag darf nicht so heißen wie eine Vorgabe der Schule.
 - Löscht der Schuladmin eine Vorgabe, verschwindet sie aus den Themen, Modulen
   und Links aller Lehrkräfte der Schule.
+- Jede Lehrkraft kann Themengebiete, die sie nicht interessieren, für sich
+  ausblenden (Tags-Seite oder „👁 Themengebiete“ in der Filterleiste). Sie
+  fehlen dann in Filtern, Tag-Auswahl und Gliederung; eigene Themen, die nur
+  dort hängen, stehen unter „Ausgeblendete Themengebiete“. Gespeichert am
+  Konto (`hiddenAreaIds`), gilt also auf jedem Gerät.
 - Wer die Schule verlässt, sieht deren Vorgaben nicht mehr; Themen mit diesen
   Tags stehen dann unter „Ohne Themengebiet“. Wird die Schule gelöscht,
   entfallen ihre Vorgaben.

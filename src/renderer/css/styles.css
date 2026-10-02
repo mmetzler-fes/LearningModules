@@ -3552,3 +3552,23 @@ body {
 /* Freigabe: Person einer anderen Schule per E-Mail ergänzen */
 .share-lookup { display: flex; gap: 8px; margin: 8px 0 14px; }
 .share-lookup input { flex: 1 1 auto; min-width: 0; padding: 6px 10px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg-secondary); color: var(--text-primary); }
+
+/* ---- Diktat ---- */
+.dict-player { padding: 20px; background: var(--bg-primary); border-radius: var(--radius-md); }
+.dict-instructions { margin: 0 0 16px; font-weight: 600; }
+.dict-row { margin-bottom: 16px; }
+.dict-row-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 6px; }
+.dict-num { font-weight: 600; min-width: 1.6em; }
+.dict-error { color: var(--danger); }
+.dict-input {
+  width: 100%; padding: 8px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm);
+  font-size: 1.05rem; font-family: inherit; resize: vertical; background: var(--bg-secondary); color: var(--text-primary);
+}
+.dict-result { margin-top: 6px; padding: 8px 12px; border-radius: var(--radius-sm); background: var(--bg-secondary); line-height: 1.9; }
+.dict-ok { color: var(--success); }
+.dict-wrong s, .dict-extra s { color: var(--danger); }
+.dict-wrong b { color: var(--success); }
+.dict-missing { color: var(--warning); text-decoration: underline dotted; font-weight: 600; }
+.dict-count { color: var(--text-secondary); font-size: 0.9em; }
+.dict-actions { margin-top: 8px; }
+.dict-feedback { margin-top: 12px; }

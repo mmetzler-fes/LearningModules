@@ -1,3 +1,4 @@
+import { audioSourceOf, scoreDictation, dictationOptions } from './dictation.js';
 import { sanitizeModuleDescriptionHtml, sanitizeWorksheetHtml, escapeHtml, escapeAttr, hexTint, showContextMenu, attachPointerDrag } from './utils.js';
 
 /**
@@ -794,31 +795,137 @@ export class H5pRenderer {
       }
 
       case 'dictation': {
-        const sentences = content.sentences || [];
+        const sentences = (content.sentences || []).filter((s) => s && String(s.text || '').trim());
+        const opts = dictationOptions(content);
+        const maxPlays = Math.max(0, Number(content.maxPlays) || 0);
+        const slow = content.slowPlayback !== false;
         div.innerHTML = `
-          <div style="padding:20px; background:var(--bg-primary); border-radius:var(--radius-md);">
-            <p style="margin-bottom:16px; font-weight:600;">Diktat — Schreiben Sie die gehörten Sätze:</p>
-            <div id="dictArea"></div>
-            ${suppressFeedback ? '' : '<button class="btn btn-primary btn-sm" style="margin-top:16px;" id="dictCheck">Überprüfen</button><div id="dictFeedback" style="margin-top:12px;"></div>'}
+          <div class="dict-player">
+            <p class="dict-instructions">${escapeHtml(content.instructions || 'Hör dir jeden Satz an und schreibe ihn auf.')}</p>
+            <div class="dict-area"></div>
+            ${suppressFeedback ? '' : '<div class="dict-actions"><button class="btn btn-primary btn-sm dict-check">Überprüfen</button></div><div class="dict-feedback"></div>'}
           </div>`;
-        const dictArea = div.querySelector('#dictArea');
+        const area = div.querySelector('.dict-area');
+
+        // Nur ein Satz spielt zur Zeit – ein neuer Klick hält den vorigen an.
+        let current = null;
+        const stopAll = () => {
+          if (current && current.pause) { try { current.pause(); } catch (_) {} }
+          if (window.speechSynthesis) window.speechSynthesis.cancel();
+          current = null;
+        };
+
         sentences.forEach((s, i) => {
+          const src = audioSourceOf(s);
           const row = document.createElement('div');
-          row.style.marginBottom = '12px';
-          row.innerHTML = `<label style="font-size:0.85rem; color:var(--text-secondary);">Satz ${i + 1}:</label><input type="text" class="dict-input" data-answer="${escapeAttr(s.text || '')}" style="width:100%; padding:8px 12px; border:1px solid var(--border); border-radius:4px; margin-top:4px;">`;
-          dictArea.appendChild(row);
+          row.className = 'dict-row';
+          row.innerHTML = `
+            <div class="dict-row-head">
+              <span class="dict-num">${i + 1}.</span>
+              <button type="button" class="btn btn-secondary btn-sm dict-play" title="Satz anhören">▶ Anhören</button>
+              ${slow ? '<button type="button" class="btn btn-secondary btn-sm dict-slow" title="Langsamer anhören">🐢 Langsam</button>' : ''}
+              <span class="dict-plays hint"></span>
+              <span class="dict-error hint"></span>
+            </div>
+            <textarea class="dict-input" rows="2" spellcheck="false" autocapitalize="off" autocorrect="off"
+              aria-label="Satz ${i + 1}" placeholder="Hier schreiben …"></textarea>
+            <div class="dict-result hidden"></div>`;
+          area.appendChild(row);
+
+          let plays = 0;
+          const playsEl = row.querySelector('.dict-plays');
+          const errorEl = row.querySelector('.dict-error');
+          const buttons = [...row.querySelectorAll('.dict-play, .dict-slow')];
+          const showPlays = () => {
+            if (!maxPlays) return;
+            const left = Math.max(0, maxPlays - plays);
+            playsEl.textContent = left ? `noch ${left}× anhören` : 'nicht mehr anhörbar';
+            buttons.forEach((b) => { b.disabled = !left; });
+          };
+          showPlays();
+
+          const play = (rate) => {
+            if (maxPlays && plays >= maxPlays) return;
+            stopAll();
+            errorEl.textContent = '';
+            if (src) {
+              // Im Seitenbaum (unsichtbar), damit das Quiz beim Weiterblättern
+              // auch diesen Ton anhält.
+              let audio = row.querySelector('audio');
+              if (!audio) {
+                audio = document.createElement('audio');
+                audio.preload = 'none';
+                audio.hidden = true;
+                audio.src = src;
+                row.appendChild(audio);
+              }
+              audio.currentTime = 0;
+              audio.playbackRate = rate;
+              audio.preservesPitch = true;
+              audio.addEventListener('error', () => {
+                errorEl.textContent = '⚠️ Die Audio-Datei lässt sich nicht abspielen – bitte der Lehrkraft Bescheid geben.';
+              });
+              current = audio;
+              audio.play().then(() => { plays++; showPlays(); }).catch(() => {
+                errorEl.textContent = '⚠️ Die Audio-Datei lässt sich nicht abspielen – bitte der Lehrkraft Bescheid geben.';
+              });
+            } else if (window.speechSynthesis && window.SpeechSynthesisUtterance) {
+              // Ohne Aufnahme liest der Browser den Satz vor.
+              const u = new SpeechSynthesisUtterance(s.text);
+              u.lang = content.language || 'de-DE';
+              u.rate = rate;
+              const voice = window.speechSynthesis.getVoices().find((v) => v.lang === u.lang)
+                || window.speechSynthesis.getVoices().find((v) => v.lang.startsWith(u.lang.slice(0, 2)));
+              if (voice) u.voice = voice;
+              window.speechSynthesis.speak(u);
+              plays++;
+              showPlays();
+            } else {
+              errorEl.textContent = '⚠️ Dieser Browser kann nichts vorlesen, und es ist keine Audio-Datei hinterlegt.';
+            }
+          };
+          row.querySelector('.dict-play').addEventListener('click', () => play(1));
+          row.querySelector('.dict-slow')?.addEventListener('click', () => play(0.7));
         });
-        const dictCheckBtn = div.querySelector('#dictCheck');
-        if (dictCheckBtn) {
-          dictCheckBtn.addEventListener('click', () => {
-            const inputs = dictArea.querySelectorAll('.dict-input');
-            let correct = 0;
-            inputs.forEach((inp) => {
-              const match = inp.value.trim().toLowerCase() === inp.dataset.answer.toLowerCase();
-              inp.style.borderColor = match ? 'green' : 'red';
-              if (match) correct++;
-            });
-            div.querySelector('#dictFeedback').innerHTML = `<span style="font-weight:600;">${correct} von ${inputs.length} richtig</span>`;
+
+        // Ergebnis je Satz: richtige Wörter grün, falsche rot mit Korrektur,
+        // fehlende und überzählige gekennzeichnet.
+        const renderResult = (el, r) => {
+          const html = r.ops.map((op) => {
+            if (op.type === 'ok') return `<span class="dict-ok">${escapeHtml(op.given)}</span>`;
+            if (op.type === 'wrong') return `<span class="dict-wrong"><s>${escapeHtml(op.given)}</s> <b>${escapeHtml(op.expected)}</b></span>`;
+            if (op.type === 'missing') return `<span class="dict-missing" title="fehlt">${escapeHtml(op.expected)}</span>`;
+            return `<span class="dict-extra" title="zu viel"><s>${escapeHtml(op.given)}</s></span>`;
+          }).join(' ');
+          el.innerHTML = `${html} <span class="dict-count">${r.mistakes ? `– ${r.mistakes} Fehler` : '✓ fehlerfrei'}</span>`;
+          el.classList.remove('hidden');
+        };
+
+        const checkBtn = div.querySelector('.dict-check');
+        if (checkBtn) {
+          const inputs = [...area.querySelectorAll('.dict-input')];
+          checkBtn.addEventListener('click', () => {
+            if (checkBtn.dataset.mode === 'retry') {
+              // Noch einmal: Eingaben bleiben, Markierungen verschwinden.
+              area.querySelectorAll('.dict-result').forEach((el) => el.classList.add('hidden'));
+              inputs.forEach((inp) => { inp.disabled = false; });
+              div.querySelector('.dict-feedback').innerHTML = '';
+              checkBtn.textContent = 'Überprüfen';
+              delete checkBtn.dataset.mode;
+              return;
+            }
+            stopAll();
+            const score = scoreDictation(sentences, inputs.map((inp) => inp.value), opts);
+            score.results.forEach((r, idx) => renderResult(area.querySelectorAll('.dict-result')[idx], r));
+            inputs.forEach((inp) => { inp.disabled = true; });
+            const pct = Math.round(score.points * 100);
+            div.querySelector('.dict-feedback').innerHTML =
+              `<strong>${score.good} von ${score.total} Wörtern richtig (${pct} %)</strong>` +
+              (score.mistakes ? ` · ${score.mistakes} Fehler` : ' – alles richtig! 🎉');
+            if (content.tryAgain !== false && score.mistakes) {
+              checkBtn.textContent = '↻ Noch einmal';
+              checkBtn.dataset.mode = 'retry';
+            } else checkBtn.disabled = true;
           });
         }
         break;

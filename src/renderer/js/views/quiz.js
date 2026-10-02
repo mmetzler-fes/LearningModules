@@ -1,4 +1,5 @@
 import { escapeHtml } from '../utils.js';
+import { scoreDictation, dictationOptions } from '../dictation.js';
 
 // ==================== QUIZ VIEW ====================
 
@@ -244,6 +245,8 @@ export class QuizView {
     const container = this._quizModuleContainer;
     for (const el of [...container.children]) {
       el.querySelectorAll('video, audio').forEach((media) => { try { media.pause(); } catch (_) {} });
+      // Vorlesen (Diktat ohne Aufnahme) ebenfalls beenden.
+      if (window.speechSynthesis) window.speechSynthesis.cancel();
       el.remove();
     }
     if (!qs.views) qs.views = [];
@@ -403,11 +406,19 @@ export class QuizView {
         break;
       }
       case 'dictation': {
-        const inputs = this._quizModuleContainer.querySelectorAll('.dict-input');
-        let correct = 0;
-        inputs.forEach((inp) => { if (inp.value.trim().toLowerCase() === inp.dataset.answer.toLowerCase()) correct++; });
-        result.userAnswer = `${correct}/${inputs.length}`; result.correctAnswer = `${inputs.length}/${inputs.length}`;
-        result.isCorrect = correct === inputs.length && inputs.length > 0;
+        // Wortweise wie in der Anzeige (dictation.js): Punkte = Anteil
+        // fehlerfreier Wörter.
+        const sentences = (content.sentences || []).filter((s) => s && String(s.text || '').trim());
+        const answers = [...this._quizModuleContainer.querySelectorAll('.dict-input')].map((inp) => inp.value);
+        const score = scoreDictation(sentences, answers, dictationOptions(content));
+        result.userAnswer = answers.map((a) => a.trim()).join(' | ');
+        result.correctAnswer = sentences.map((s) => s.text).join(' | ');
+        result.isCorrect = score.total > 0 && score.mistakes === 0;
+        if (score.total > 0) {
+          result.points = score.points;
+          const pct = Math.round(score.points * 100);
+          result.score = `${score.good}/${score.total} Wörter richtig (${pct}%), ${score.mistakes} Fehler`;
+        }
         break;
       }
       case 'dragAndDrop': {

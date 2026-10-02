@@ -144,13 +144,29 @@ const H5P_TYPES = {
     id: 'dictation',
     name: 'Dictation',
     icon: '✏️',
-    description: 'Diktatübungen mit Audio-Wiedergabe und Texteingabe.',
+    description: 'Sätze anhören und aufschreiben – mit eigener Aufnahme, Audio-Link oder Sprachausgabe; Auswertung Wort für Wort.',
     category: 'Sprache',
+    // Ton je Satz: hochgeladene Datei, sonst Audio-URL (Nextcloud-Freigabelinks
+    // werden zum Direktlink), sonst liest der Browser den Satz vor.
     fields: [
+      { key: 'instructions', type: 'text', label: 'Arbeitsauftrag', placeholder: 'Hör dir jeden Satz an und schreibe ihn auf.' },
       { key: 'sentences', type: 'list', label: 'Sätze', itemFields: [
         { key: 'text', type: 'text', label: 'Korrekte Schreibweise', required: true },
-        { key: 'audioUrl', type: 'text', label: 'Audio-URL (optional)' },
+        { key: 'audioFile', type: 'audio', label: 'Audio-Datei (optional)' },
+        { key: 'audioUrl', type: 'text', label: 'oder Audio-URL (optional, z. B. Nextcloud-Freigabelink)' },
       ]},
+      { key: 'language', type: 'select', label: 'Sprache der Sprachausgabe (wenn kein Audio hinterlegt ist)', default: 'de-DE', options: [
+        { value: 'de-DE', label: 'Deutsch' },
+        { value: 'en-GB', label: 'Englisch (GB)' },
+        { value: 'en-US', label: 'Englisch (US)' },
+        { value: 'fr-FR', label: 'Französisch' },
+        { value: 'es-ES', label: 'Spanisch' },
+        { value: 'it-IT', label: 'Italienisch' },
+      ]},
+      { key: 'maxPlays', type: 'number', label: 'Wie oft darf jeder Satz gehört werden? (0 = beliebig)', default: 0 },
+      { key: 'slowPlayback', type: 'checkbox', label: '„Langsam abspielen“ anbieten', default: true },
+      { key: 'caseSensitive', type: 'checkbox', label: 'Groß-/Kleinschreibung werten', default: true },
+      { key: 'punctuation', type: 'checkbox', label: 'Satzzeichen werten', default: true },
       { key: 'tryAgain', type: 'checkbox', label: 'Erneut versuchen erlauben', default: true },
     ],
   },

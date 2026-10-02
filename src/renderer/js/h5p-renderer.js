@@ -1,5 +1,5 @@
 import { audioSourceOf, scoreDictation, dictationOptions } from './dictation.js';
-import { sanitizeModuleDescriptionHtml, sanitizeWorksheetHtml, escapeHtml, escapeAttr, hexTint, showContextMenu, attachPointerDrag } from './utils.js';
+import { normalizeShareUrl, sanitizeModuleDescriptionHtml, sanitizeWorksheetHtml, escapeHtml, escapeAttr, hexTint, showContextMenu, attachPointerDrag } from './utils.js';
 
 /**
  * Nur http(s) einbetten. Ohne diese Schranke landeten `javascript:`- oder
@@ -1185,16 +1185,66 @@ export class H5pRenderer {
       }
 
       case 'imageHotspots': {
-        const hotspots = content.hotspots || [];
+        const hotspots = (content.hotspots || []).filter((h) => h && (h.title || h.content));
+        const src = content.imageFile || normalizeShareUrl(content.imageUrl);
         div.innerHTML = `
-          <div style="padding:20px; background:var(--bg-primary); border-radius:var(--radius-md);">
-            <div style="position:relative; width:100%; height:300px; background:#e2e8f0; border-radius:var(--radius-sm); overflow:hidden;">
-              ${hotspots.map((h) => `<div style="position:absolute; left:${h.posX || 50}%; top:${h.posY || 50}%; transform:translate(-50%,-50%); width:30px; height:30px; background:var(--accent); border-radius:50%; cursor:pointer; display:flex; align-items:center; justify-content:center; color:white; font-weight:bold; font-size:0.8rem;" title="${escapeAttr(h.title || '')}">📌</div>`).join('')}
+          <div class="hs-player">
+            ${src ? `
+            <div class="hs-stage">
+              <img class="hs-img" src="${escapeAttr(src)}" alt="${escapeAttr(content.imageAlt || '')}" draggable="false" />
+              ${hotspots.map((h, i) => `
+                <button type="button" class="hs-marker" data-i="${i}" style="left:${Number(h.posX ?? 50)}%; top:${Number(h.posY ?? 50)}%"
+                  aria-label="${escapeAttr(h.title || `Punkt ${i + 1}`)}">${i + 1}</button>`).join('')}
+              <div class="hs-popup hidden" role="dialog"></div>
             </div>
-            <div style="margin-top:16px;">
-              ${hotspots.map((h) => `<div style="margin-bottom:8px; padding:8px 12px; background:var(--bg-secondary); border-radius:var(--radius-sm); border:1px solid var(--border);"><strong>${escapeHtml(h.title || '')}</strong><br/><span style="font-size:0.85rem; color:var(--text-secondary);">${escapeHtml(h.content || '')}</span></div>`).join('')}
-            </div>
+            <p class="hs-hint hint">Tippe auf die Punkte, um mehr zu erfahren. <span class="hs-progress"></span></p>`
+            : '<p class="hint">Für dieses Modul ist kein Bild hinterlegt.</p>'}
           </div>`;
+        if (!src) break;
+
+        const stage = div.querySelector('.hs-stage');
+        const popup = div.querySelector('.hs-popup');
+        const progress = div.querySelector('.hs-progress');
+        const seen = new Set();
+        const showProgress = () => {
+          if (hotspots.length) progress.textContent = `(${seen.size} von ${hotspots.length} angesehen)`;
+        };
+        showProgress();
+        div.querySelector('.hs-img').addEventListener('error', () => {
+          stage.innerHTML = '<p class="dict-error">⚠️ Das Bild lässt sich nicht laden – bitte der Lehrkraft Bescheid geben.</p>';
+        });
+
+        const close = () => {
+          popup.classList.add('hidden');
+          stage.querySelectorAll('.hs-marker.active').forEach((m) => m.classList.remove('active'));
+        };
+        // Die Blase öffnet zur Bildmitte hin, damit sie nicht über den Rand ragt.
+        const open = (i) => {
+          const h = hotspots[i];
+          const x = Number(h.posX ?? 50);
+          const y = Number(h.posY ?? 50);
+          popup.innerHTML = `
+            <button type="button" class="hs-close" aria-label="Schließen">✕</button>
+            ${h.title ? `<strong>${escapeHtml(h.title)}</strong>` : ''}
+            ${h.content ? `<p>${escapeHtml(h.content).replace(/\n/g, '<br>')}</p>` : ''}`;
+          popup.style.left = `${x}%`;
+          popup.style.top = `${y}%`;
+          popup.dataset.h = x > 55 ? 'left' : 'right';
+          popup.dataset.v = y > 60 ? 'up' : 'down';
+          popup.classList.remove('hidden');
+          popup.querySelector('.hs-close').addEventListener('click', close);
+          stage.querySelectorAll('.hs-marker').forEach((m) => m.classList.toggle('active', Number(m.dataset.i) === i));
+          const marker = stage.querySelector(`.hs-marker[data-i="${i}"]`);
+          marker.classList.add('seen');
+          seen.add(i);
+          showProgress();
+        };
+        stage.querySelectorAll('.hs-marker').forEach((m) => m.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const i = Number(m.dataset.i);
+          if (m.classList.contains('active')) close(); else open(i);
+        }));
+        stage.addEventListener('click', (e) => { if (!popup.contains(e.target)) close(); });
         break;
       }
 

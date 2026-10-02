@@ -1,5 +1,18 @@
 // ==================== UTILITY FUNCTIONS ====================
 
+/**
+ * Freigabelinks auf die Datei selbst umbiegen. Ein Nextcloud-Link
+ * ".../s/<Kürzel>" öffnet eine Webseite; erst ".../s/<Kürzel>/download"
+ * liefert die Datei – ein <img> oder <audio> mit der Webseite bleibt leer.
+ * (Kopie in hotspot-editor.js, das als klassisches Skript nicht importiert.)
+ */
+export function normalizeShareUrl(url) {
+  const u = String(url || '').trim();
+  if (!u) return '';
+  const m = /^(https?:\/\/[^?#]+?\/(?:index\.php\/)?s\/[A-Za-z0-9]+)\/?(?:[?#].*)?$/.exec(u);
+  return m ? `${m[1]}/download` : u;
+}
+
 export function escapeHtml(str) {
   const div = document.createElement('div');
   div.textContent = str || '';

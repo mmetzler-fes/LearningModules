@@ -3572,3 +3572,52 @@ body {
 .dict-count { color: var(--text-secondary); font-size: 0.9em; }
 .dict-actions { margin-top: 8px; }
 .dict-feedback { margin-top: 12px; }
+
+/* ---- Image Hotspots: Player ---- */
+.hs-player { padding: 12px 0; }
+.hs-stage { position: relative; display: block; width: fit-content; max-width: 100%; margin: 0 auto; }
+.hs-img { display: block; max-width: 100%; height: auto; border-radius: var(--radius-sm); user-select: none; }
+.hs-marker {
+  position: absolute; transform: translate(-50%, -50%); width: 34px; height: 34px; border-radius: 50%;
+  border: 3px solid #fff; background: var(--accent); color: #fff; font-weight: 700; font-size: 0.95rem;
+  cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,0.35); padding: 0; line-height: 1;
+  animation: hs-pulse 2.2s ease-in-out infinite;
+}
+.hs-marker.seen { background: #64748b; animation: none; }
+.hs-marker.active { background: var(--warning); animation: none; z-index: 3; }
+.hs-marker:focus-visible { outline: 3px solid var(--warning); outline-offset: 2px; }
+@keyframes hs-pulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(59,130,246,0.55); } 50% { box-shadow: 0 0 0 8px rgba(59,130,246,0); } }
+.hs-popup {
+  position: absolute; z-index: 4; width: min(320px, 80%); padding: 12px 14px 10px; border-radius: var(--radius-md);
+  background: var(--bg-secondary); color: var(--text-primary); border: 1px solid var(--border); box-shadow: var(--shadow-lg);
+}
+.hs-popup[data-h="right"] { margin-left: 24px; }
+.hs-popup[data-h="left"] { transform: translateX(-100%); margin-left: -24px; }
+.hs-popup[data-v="down"] { margin-top: -18px; }
+.hs-popup[data-v="up"] { translate: 0 -100%; margin-top: 18px; }
+.hs-popup strong { display: block; margin-right: 24px; margin-bottom: 4px; }
+.hs-popup p { margin: 0; font-size: 0.92rem; line-height: 1.45; }
+.hs-close { position: absolute; top: 6px; right: 8px; border: none; background: none; cursor: pointer; color: var(--text-secondary); font-size: 1rem; }
+.hs-hint { text-align: center; margin-top: 10px; }
+
+/* ---- Image Hotspots: Editor ---- */
+.hs-ed-imagebar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.hs-ed-imagebar .hs-ed-url { flex: 1 1 260px; min-width: 0; }
+.hs-ed-canvas { border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--bg-primary); padding: 10px; }
+.hs-ed-stage { position: relative; width: fit-content; max-width: 100%; margin: 0 auto; }
+.hs-ed-stage .hs-img { cursor: crosshair; }
+.hs-ed-marker { animation: none; cursor: grab; touch-action: none; }
+.hs-ed-marker:active { cursor: grabbing; }
+.hs-ed-placeholder { padding: 40px 16px; text-align: center; color: var(--text-secondary); }
+.hs-ed-list { display: flex; flex-direction: column; gap: 10px; }
+.hs-ed-item { border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 8px 10px; background: var(--bg-secondary); }
+.hs-ed-item.selected { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-light); }
+.hs-ed-item-head { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.hs-ed-num { width: 26px; height: 26px; border-radius: 50%; background: var(--accent); color: #fff; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; }
+.hs-ed-title { flex: 1 1 auto; min-width: 0; }
+.hs-ed-pos { white-space: nowrap; }
+.hs-ed-item input, .hs-ed-item textarea, .hs-ed-imagebar input {
+  padding: 6px 10px; border: 1px solid var(--border); border-radius: var(--radius-sm);
+  background: var(--bg-secondary); color: var(--text-primary); font: inherit;
+}
+.hs-ed-item textarea { width: 100%; resize: vertical; }

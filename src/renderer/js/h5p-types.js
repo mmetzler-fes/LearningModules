@@ -284,8 +284,12 @@ const H5P_TYPES = {
     category: 'Interaktiv',
     // Reine Information, keine Aufgabe: zaehlt in der Auswertung nicht mit.
     informational: true,
+    // Visueller Editor (hotspot-editor.js): Hotspots direkt aufs Bild setzen.
+    editorType: 'imageHotspots',
     fields: [
-      { key: 'imageUrl', type: 'text', label: 'Hintergrundbild-URL', required: true },
+      { key: 'imageUrl', type: 'text', label: 'Hintergrundbild-URL' },
+      { key: 'imageFile', type: 'image', label: 'Hintergrundbild' },
+      { key: 'imageAlt', type: 'text', label: 'Bildbeschreibung' },
       { key: 'hotspots', type: 'list', label: 'Hotspots', itemFields: [
         { key: 'title', type: 'text', label: 'Titel', required: true },
         { key: 'content', type: 'textarea', label: 'Inhalt' },

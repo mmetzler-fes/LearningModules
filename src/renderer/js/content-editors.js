@@ -251,6 +251,9 @@ class ContentEditorManager {
     this.currentType = typeId;
     this.listCounters = {};
     this._h5pNativeData = null;
+    // Zustand eines vorher gewählten Spezial-Editors darf nicht nachwirken.
+    this.dndState = null;
+    this.hsEditor = null;
     this.container.innerHTML = '';
     this.container.classList.add('active');
 
@@ -270,6 +273,12 @@ class ContentEditorManager {
     // Special visual editor for Drag and Drop
     if (typeDef.editorType === 'dragAndDrop') {
       this.renderDragAndDropEditor(typeDef, data);
+      return;
+    }
+
+    // Image Hotspots: Hotspots direkt auf dem Bild setzen (hotspot-editor.js)
+    if (typeDef.editorType === 'imageHotspots' && typeof HotspotEditor !== 'undefined') {
+      this.hsEditor = new HotspotEditor(this.container, typeDef, data);
       return;
     }
 
@@ -871,6 +880,9 @@ class ContentEditorManager {
     // Special handling for Drag and Drop visual editor
     if (this.dndState) {
       return this.collectDragAndDropData();
+    }
+    if (this.hsEditor) {
+      return this.hsEditor.collect();
     }
 
     const typeDef = H5P_TYPES[this.currentType];
@@ -1720,6 +1732,7 @@ class ContentEditorManager {
       this._dndKeyHandler = null;
     }
     this.dndState = null;
+    this.hsEditor = null;
     this._h5pNativeData = null;
     this.container.innerHTML = '';
     this.container.classList.remove('active');

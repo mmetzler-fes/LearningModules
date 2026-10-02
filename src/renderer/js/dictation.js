@@ -4,18 +4,10 @@
  * damit beide genau dasselbe zählen.
  */
 
-/**
- * Freigabelinks auf die Datei selbst umbiegen. Ein Nextcloud-Link
- * ".../s/<Kürzel>" öffnet eine Webseite, erst ".../s/<Kürzel>/download"
- * liefert die MP3 – ein <audio> mit der Webseite bleibt stumm.
- */
-export function normalizeAudioUrl(url) {
-  const u = String(url || '').trim();
-  if (!u) return '';
-  const m = /^(https?:\/\/[^?#]+?\/(?:index\.php\/)?s\/[A-Za-z0-9]+)\/?(?:[?#].*)?$/.exec(u);
-  if (m) return `${m[1]}/download`;
-  return u;
-}
+import { normalizeShareUrl } from './utils.js';
+
+/** Audio-Link; Nextcloud-Freigabelinks werden zum Direktlink (siehe utils.js). */
+export const normalizeAudioUrl = normalizeShareUrl;
 
 /** Audioquelle eines Satzes: hochgeladene Datei vor Link; '' = Sprachausgabe. */
 export function audioSourceOf(sentence) {

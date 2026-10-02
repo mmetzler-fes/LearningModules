@@ -858,7 +858,11 @@ export class H5pRenderer {
           } else {
             dragBtn.dataset.currentZone = '';
             dragBtn.classList.remove('placed');
-            dragsEl.appendChild(dragBtn);
+            // An den ursprünglichen Platz in der Ablage, nicht ans Ende –
+            // sonst wechselt die Reihenfolge mit jedem Zurücklegen.
+            const idx = (el) => Number(el.dataset.dragId.split('-')[1]);
+            const before = [...dragsEl.querySelectorAll(':scope > .dnd-player-drag')].find((el) => idx(el) > idx(dragBtn));
+            dragsEl.insertBefore(dragBtn, before || null);
           }
         };
 
@@ -976,23 +980,10 @@ export class H5pRenderer {
               canLongPress: () => drag.classList.contains('placed'),
               onLongPress: (x, y) => openRemoveMenu(drag, x, y),
             });
-            drag.addEventListener('click', () => {
-              const currentZone = drag.dataset.currentZone || '';
-              const zoneNames = zones.map((z) => z.label);
-              if (d.multiple && !isClone && drag.parentElement === dragsEl) {
-                if (zones.length > 0) { const clone = createDraggableNode(true); clone.dataset.currentZone = zoneNames[0]; clone.classList.add('placed'); const zItems = (hasImage ? canvasEl : div.querySelector('#dndZonesLegacy')).querySelector(`.dnd-player-zone[data-zone="${escapeAttr(zoneNames[0])}"] .dnd-player-zone-items`); if (zItems) zItems.appendChild(clone); }
-                return;
-              }
-              const currentIdx = zoneNames.indexOf(currentZone);
-              const nextIdx = (currentIdx + 1) % (zoneNames.length + 1);
-              if (nextIdx >= zoneNames.length) {
-                returnToBank(drag);
-              } else {
-                drag.dataset.currentZone = zoneNames[nextIdx]; drag.classList.add('placed');
-                const zoneItemsEl = (hasImage ? canvasEl : div.querySelector('#dndZonesLegacy')).querySelector(`.dnd-player-zone[data-zone="${escapeAttr(zoneNames[nextIdx])}"] .dnd-player-zone-items`);
-                if (zoneItemsEl) zoneItemsEl.appendChild(drag);
-              }
-            });
+            // Antippen tut bewusst nichts: Abgelegt wird durch Ziehen, entfernt
+            // durch Herausziehen oder ueber das Kontextmenue (langes Druecken).
+            // Ein Antippen mit Wirkung loeste beim Nachruecken auf dem iPad zu
+            // leicht ungewollt etwas aus.
             // Falsch abgelegt? Rechtsklick -> entfernen
             drag.addEventListener('contextmenu', (e) => {
               if (!drag.classList.contains('placed')) return;

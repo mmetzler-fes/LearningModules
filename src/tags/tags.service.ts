@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException, BadRequestException, OnModuleInit, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
 import { Tag } from '../core/entities/tag.entity';
@@ -24,7 +24,9 @@ type TagData = { name?: string; color?: string; isArea?: boolean; areaIds?: stri
 const schoolOwner = (schoolId: string) => `school:${schoolId}`;
 
 @Injectable()
-export class TagsService {
+export class TagsService implements OnModuleInit {
+  private readonly logger = new Logger(TagsService.name);
+
   constructor(
     @InjectRepository(Tag) private readonly tagRepo: Repository<Tag>,
     @InjectRepository(LearningTopic) private readonly topicRepo: Repository<LearningTopic>,
@@ -33,6 +35,45 @@ export class TagsService {
     @InjectRepository(User) private readonly userRepo: Repository<User>,
     private readonly schools: SchoolsService,
   ) {}
+
+  /**
+   * Beim Start verwaiste Verweise aufräumen: Tag-IDs an Themen, Modulen und
+   * Links, die es nicht mehr gibt, und Themengebiets-Zuordnungen, die auf
+   * gelöschte oder herabgestufte Tags zeigen. Ältere Versionen haben beim
+   * Löschen nicht überall aufgeräumt; so wird der Bestand wieder konsistent.
+   */
+  async onModuleInit() {
+    const tags = await this.tagRepo.find();
+    const known = new Set(tags.map((t) => t.id));
+    const areas = new Set(tags.filter((t) => t.isArea).map((t) => t.id));
+    const fixed = {
+      topics: await this.prune(this.topicRepo, (id) => known.has(id)),
+      links: await this.prune(this.linkRepo, (id) => known.has(id)),
+      modules: await this.prune(this.moduleRepo, (id) => known.has(id)),
+      tags: 0,
+    };
+    const dirtyTags = tags.filter((t) => (t.areaIds || []).some((id) => !areas.has(id) || id === t.id) || (t.isArea && t.areaIds?.length));
+    for (const t of dirtyTags) {
+      const rest = t.isArea ? [] : (t.areaIds || []).filter((id) => areas.has(id) && id !== t.id);
+      t.areaIds = rest.length ? rest : null;
+    }
+    if (dirtyTags.length) await this.tagRepo.save(dirtyTags);
+    fixed.tags = dirtyTags.length;
+    if (fixed.topics + fixed.links + fixed.modules + fixed.tags > 0) {
+      this.logger.log(
+        `Verwaiste Tag-Verweise bereinigt: ${fixed.topics} Themen, ${fixed.modules} Module, ${fixed.links} Links, ${fixed.tags} Tags`,
+      );
+    }
+  }
+
+  /** Entfernt aus `tagIds` aller Einträge, was `keep` nicht besteht. Liefert die Zahl geänderter Einträge. */
+  private async prune<T extends { tagIds: string[] | null }>(repo: Repository<T>, keep: (id: string) => boolean) {
+    const rows = await repo.find();
+    const dirty = rows.filter((r) => (r.tagIds || []).some((id) => !keep(id)));
+    for (const r of dirty) r.tagIds = (r.tagIds || []).filter(keep);
+    if (dirty.length) await repo.save(dirty as any);
+    return dirty.length;
+  }
 
   private ownScope(user: any): TagScope {
     return { ownerId: user.userId, schoolId: null };
@@ -203,37 +244,19 @@ export class TagsService {
 
   /**
    * Löscht den Tag und entfernt ihn zugleich aus allen Themen, Modulen und
-   * Links, an denen er hängt. Ohne dieses Aufräumen blieben verwaiste IDs
-   * zurück, die im Filter als unsichtbare Treffer weiterwirken würden.
-   * `owners` begrenzt die Suche: eigene Inhalte bzw. die aller Lehrkräfte
-   * der Schule.
+   * Links, an denen er hängt – überall, nicht nur bei der Eigentümerin:
+   * Auch Themen ehemaliger Schulmitglieder oder anderer Konten sollen keine
+   * toten Verweise behalten. Tag-IDs sind eindeutig, das ist also gefahrlos.
    */
-  private async removeIn(scope: TagScope, id: string, owners: string[]) {
+  private async removeIn(scope: TagScope, id: string) {
     const tag = await this.findIn(scope, id);
-
-    const topics = owners.length ? await this.topicRepo.find({ where: { ownerId: In(owners) } }) : [];
-    const dirtyTopics = topics.filter((t) => (t.tagIds || []).includes(id));
-    for (const t of dirtyTopics) t.tagIds = (t.tagIds || []).filter((x) => x !== id);
-    if (dirtyTopics.length) await this.topicRepo.save(dirtyTopics);
-
-    const links = owners.length ? await this.linkRepo.find({ where: { ownerId: In(owners) } }) : [];
-    const dirtyLinks = links.filter((l) => (l.tagIds || []).includes(id));
-    for (const l of dirtyLinks) l.tagIds = (l.tagIds || []).filter((x) => x !== id);
-    if (dirtyLinks.length) await this.linkRepo.save(dirtyLinks);
-
-    const modules = await this.modulesOf(topics);
-    const dirtyModules = modules.filter((m) => (m.tagIds || []).includes(id));
-    for (const m of dirtyModules) m.tagIds = (m.tagIds || []).filter((x) => x !== id);
-    if (dirtyModules.length) await this.moduleRepo.save(dirtyModules);
-
+    const gone = (x: string) => x !== id;
+    const detachedFromTopics = await this.prune(this.topicRepo, gone);
+    const detachedFromLinks = await this.prune(this.linkRepo, gone);
+    const detachedFromModules = await this.prune(this.moduleRepo, gone);
     if (tag.isArea) await this.detachArea(id);
     await this.tagRepo.remove(tag);
-    return {
-      success: true,
-      detachedFromTopics: dirtyTopics.length,
-      detachedFromLinks: dirtyLinks.length,
-      detachedFromModules: dirtyModules.length,
-    };
+    return { success: true, detachedFromTopics, detachedFromLinks, detachedFromModules };
   }
 
   // ---- Eigene Tags der Lehrkraft ----
@@ -247,7 +270,7 @@ export class TagsService {
   }
 
   remove(id: string, user: any) {
-    return this.removeIn(this.ownScope(user), id, [user.userId]);
+    return this.removeIn(this.ownScope(user), id);
   }
 
   // ---- Tag-Struktur der Schule (Schuladmin) ----
@@ -261,9 +284,7 @@ export class TagsService {
   }
 
   async removeSchoolTag(id: string, user: any) {
-    const scope = await this.schoolScope(user);
-    const members = await this.userRepo.find({ where: { schoolId: scope.schoolId! } });
-    return this.removeIn(scope, id, members.map((m) => m.id));
+    return this.removeIn(await this.schoolScope(user), id);
   }
 
   /** Filtert eine übergebene Tag-Auswahl auf eigene Tags und die der eigenen Schule. */

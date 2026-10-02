@@ -354,8 +354,13 @@ export class TagsView {
       ? '\n\nTags, die nur zu diesem Themengebiet gehören, stehen danach unter „Ohne Themengebiet“.'
       : '';
     if (!(await this.app.appConfirm(`${tag.isArea ? 'Themengebiet' : 'Tag'} "${tag.name}" löschen?${warn}${areaWarn}`))) return;
-    await this._source.remove(tag.id);
-    this.app.showToast('Tag gelöscht.', 'info');
+    const res = await this._source.remove(tag.id);
+    if (!res || res.success !== true) {
+      this.app.showToast('Löschen fehlgeschlagen: ' + (res?.message || 'unbekannter Fehler'), 'error');
+      await this.refresh();
+      return;
+    }
+    this.app.showToast(`${tag.isArea ? 'Themengebiet' : 'Tag'} gelöscht.`, 'info');
     if (this._editId === tag.id) this._resetForm();
     await this.refresh();
   }
@@ -460,6 +465,7 @@ export class TagFilter {
 
   /** Trifft ein Eintrag (Thema oder Link) die aktuelle Tag-Auswahl? */
   matches(entity) {
+    this._pruneSelection();
     if (this._selected.size === 0) return true;
     // Ein gewähltes Themengebiet trifft auch alles, was über einen seiner
     // Tags dazugehört.
@@ -470,7 +476,17 @@ export class TagFilter {
   }
 
   get selectedIds() {
+    this._pruneSelection();
     return [...this._selected];
+  }
+
+  /**
+   * Gelöschte Tags aus der Auswahl werfen. Sonst filterte ein Haken weiter,
+   * den man nirgends mehr sieht – die Liste bliebe rätselhaft leer.
+   */
+  _pruneSelection() {
+    const known = new Set((this.app.state.tags || []).map((t) => t.id));
+    for (const id of [...this._selected]) if (!known.has(id)) this._selected.delete(id);
   }
 
   /**
@@ -481,6 +497,7 @@ export class TagFilter {
   render() {
     if (!this._chips) return;
     const all = this.app.state.tags || [];
+    this._pruneSelection();
     const needle = (this._search?.value || '').toLowerCase().trim();
     const isVisible = (tag) => this._selected.has(tag.id) || !needle || tag.name.toLowerCase().includes(needle);
     const visible = all.filter(isVisible);

@@ -254,6 +254,7 @@ class ContentEditorManager {
     // Zustand eines vorher gewählten Spezial-Editors darf nicht nachwirken.
     this.dndState = null;
     this.hsEditor = null;
+    this.brEditor = null;
     this.container.innerHTML = '';
     this.container.classList.add('active');
 
@@ -273,6 +274,12 @@ class ContentEditorManager {
     // Special visual editor for Drag and Drop
     if (typeDef.editorType === 'dragAndDrop') {
       this.renderDragAndDropEditor(typeDef, data);
+      return;
+    }
+
+    // Branching Scenario: Schritte mit Verzweigungen (branching-editor.js)
+    if (typeDef.editorType === 'branching' && typeof BranchingEditor !== 'undefined') {
+      this.brEditor = new BranchingEditor(this, this.container, typeDef, data);
       return;
     }
 
@@ -483,8 +490,24 @@ class ContentEditorManager {
       btnRemove.style.display = 'none';
     });
 
+    // Mehrere Bilder zu einem zusammenstellen (image-composer.js)
+    const btnCompose = document.createElement('button');
+    btnCompose.type = 'button';
+    btnCompose.className = 'btn btn-secondary btn-sm';
+    btnCompose.textContent = '🧩 Zusammenstellen';
+    btnCompose.title = 'Mehrere Bilder zu einem Bild zusammenstellen (Collage)';
+    btnCompose.addEventListener('click', async () => {
+      if (typeof openImageComposer !== 'function') return;
+      const dataUrl = await openImageComposer();
+      if (!dataUrl) return;
+      hidden.value = dataUrl;
+      preview.innerHTML = `<img src="${dataUrl}" />`;
+      btnRemove.style.display = '';
+    });
+
     btnRow.appendChild(btnFile);
     btnRow.appendChild(btnUrl);
+    btnRow.appendChild(btnCompose);
     btnRow.appendChild(btnRemove);
 
     wrap.appendChild(hidden);
@@ -729,6 +752,12 @@ class ContentEditorManager {
     group.appendChild(wrapper);
     group.appendChild(hidden);
     parent.appendChild(group);
+
+    // Felder mit images: true bekommen die Bildwerkzeuge des Arbeitsblatts.
+    if (field.images && typeof WorksheetImageTools !== 'undefined') {
+      editor.classList.add('worksheet-content', 'rt-with-images');
+      new WorksheetImageTools(editor, hidden, toolbar);
+    }
   }
 
   renderNumberField(parent, field, value) {
@@ -884,6 +913,9 @@ class ContentEditorManager {
     if (this.hsEditor) {
       return this.hsEditor.collect();
     }
+    if (this.brEditor) {
+      return this.brEditor.collect();
+    }
 
     const typeDef = H5P_TYPES[this.currentType];
     const data = {};
@@ -1036,7 +1068,14 @@ class ContentEditorManager {
     btnRemoveImg.textContent = '✕ Entfernen';
     btnRemoveImg.style.display = this.dndState.backgroundImage ? '' : 'none';
 
+    const btnComposeImg = document.createElement('button');
+    btnComposeImg.type = 'button';
+    btnComposeImg.className = 'btn btn-secondary';
+    btnComposeImg.textContent = '🧩 Bild zusammenstellen';
+    btnComposeImg.title = 'Mehrere Bilder zu einem Hintergrundbild zusammenstellen (Collage)';
+
     imgControls.appendChild(btnSelectImg);
+    imgControls.appendChild(btnComposeImg);
     imgControls.appendChild(imgStatus);
     imgControls.appendChild(btnRemoveImg);
     imgGroup.appendChild(imgControls);
@@ -1124,6 +1163,15 @@ class ContentEditorManager {
         btnRemoveImg.style.display = '';
         this.refreshDndCanvas();
       }
+    });
+    btnComposeImg.addEventListener('click', async () => {
+      if (typeof openImageComposer !== 'function') return;
+      const dataUrl = await openImageComposer();
+      if (!dataUrl) return;
+      this.dndState.backgroundImage = dataUrl;
+      imgStatus.textContent = '✅ Zusammengestelltes Bild';
+      btnRemoveImg.style.display = '';
+      this.refreshDndCanvas();
     });
     btnRemoveImg.addEventListener('click', () => {
       this.dndState.backgroundImage = '';
@@ -1733,6 +1781,7 @@ class ContentEditorManager {
     }
     this.dndState = null;
     this.hsEditor = null;
+    this.brEditor = null;
     this._h5pNativeData = null;
     this.container.innerHTML = '';
     this.container.classList.remove('active');

@@ -1,4 +1,5 @@
 import { videoSourceOf } from './video.js';
+import { normalizeBranching } from './branching.js';
 import { audioSourceOf, scoreDictation, dictationOptions } from './dictation.js';
 import { normalizeShareUrl, sanitizeModuleDescriptionHtml, sanitizeWorksheetHtml, escapeHtml, escapeAttr, hexTint, showContextMenu, attachPointerDrag } from './utils.js';
 
@@ -105,7 +106,15 @@ export class H5pRenderer {
           summary.textContent = panel.title || '';
           const body = document.createElement('div');
           body.style.cssText = 'padding:12px 16px;';
-          body.textContent = panel.content || '';
+          // Formatiert (neu) oder reiner Text (ältere Module).
+          const text = panel.content || '';
+          if (/<\/?[a-z][\s\S]*>/i.test(text)) {
+            body.className = 'worksheet-content';
+            body.innerHTML = sanitizeWorksheetHtml(text);
+          } else {
+            body.style.whiteSpace = 'pre-line';
+            body.textContent = text;
+          }
           details.appendChild(summary);
           details.appendChild(body);
           div.appendChild(details);
@@ -1250,14 +1259,14 @@ export class H5pRenderer {
       }
 
       case 'collage': {
-        const images = content.images || [];
-        div.innerHTML = `
-          <div style="padding:20px; background:var(--bg-primary); border-radius:var(--radius-md);">
-            <p style="margin-bottom:12px;"><strong>Layout:</strong> ${content.layout || 'Standard'}</p>
-            <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:12px;">
-              ${images.map((img) => `<div style="background:var(--bg-secondary); border:1px solid var(--border); border-radius:var(--radius-sm); padding:16px; text-align:center;"><div style="font-size:2rem; margin-bottom:8px;">🖼️</div><p style="font-size:0.85rem;">${escapeHtml(img.imageUrl || 'Kein Bild')}</p><p style="font-size:0.8rem; color:var(--text-secondary);">${escapeHtml(img.alt || '')}</p></div>`).join('')}
-            </div>
-          </div>`;
+        // Bestehende Collagen (neue entstehen mit "🧩 Bild zusammenstellen").
+        const images = (content.images || []).filter((img) => img && img.imageUrl);
+        const cols = { '1-1': '1fr 1fr', '1-2': '1fr 2fr', '2-1': '2fr 1fr', '1-1-1': '1fr 1fr 1fr', '2x2': '1fr 1fr' }[content.layout] || '1fr 1fr';
+        div.innerHTML = images.length
+          ? `<div class="collage-grid" style="grid-template-columns:${cols}">${images.map((img) => `
+              <figure class="collage-item"><img src="${escapeAttr(normalizeShareUrl(img.imageUrl))}" alt="${escapeAttr(img.alt || '')}" loading="lazy" />
+                ${img.alt ? `<figcaption>${escapeHtml(img.alt)}</figcaption>` : ''}</figure>`).join('')}</div>`
+          : '<p class="hint">Keine Bilder hinterlegt.</p>';
         break;
       }
 
@@ -1273,18 +1282,68 @@ export class H5pRenderer {
       }
 
       case 'branchingScenario': {
-        const startScreen = content.startScreen || {};
-        const steps = content.steps || [];
-        div.innerHTML = `
-          <div style="padding:20px; background:var(--bg-primary); border-radius:var(--radius-md);">
-            <div style="text-align:center; margin-bottom:24px;">
-              <h3>${escapeHtml(startScreen.title || 'Branching Scenario')}</h3>
-              ${startScreen.subtitle ? `<p style="color:var(--text-secondary);">${escapeHtml(startScreen.subtitle)}</p>` : ''}
-            </div>
-            <div>
-              ${steps.map((s, i) => `<div style="padding:12px 16px; background:var(--bg-secondary); border:1px solid var(--border); border-radius:var(--radius-sm); margin-bottom:8px;"><strong>Schritt ${i + 1}: ${escapeHtml(s.stepTitle || '')}</strong>${s.stepContent ? `<p style="font-size:0.85rem; margin-top:4px;">${escapeHtml(s.stepContent)}</p>` : ''}</div>`).join('')}
-            </div>
-          </div>`;
+        const data = normalizeBranching(content);
+        const byId = new Map(data.steps.map((st) => [st.id, st]));
+        div.innerHTML = '<div class="bs-player"></div>';
+        const root = div.querySelector('.bs-player');
+        // Weg des Schülers: [{ id, label }] – für Zurück und für die Auswertung.
+        let path = [];
+        const finish = (st) => {
+          root.dataset.done = '1';
+          root.dataset.score = String(st.score);
+          root.dataset.path = JSON.stringify(path.map((p) => p.label).filter(Boolean));
+        };
+        const showStart = () => {
+          path = [];
+          delete root.dataset.done;
+          root.innerHTML = `
+            <div class="bs-start">
+              <h3>${escapeHtml(data.startScreen.title || 'Entscheidungsszenario')}</h3>
+              ${data.startScreen.subtitle ? `<p>${escapeHtml(data.startScreen.subtitle)}</p>` : ''}
+              <button type="button" class="btn btn-primary bs-go">▶ Starten</button>
+            </div>`;
+          root.querySelector('.bs-go').addEventListener('click', () => show(data.steps[0]?.id, null));
+        };
+        const show = (id, label) => {
+          const st = byId.get(id);
+          if (!st) { root.innerHTML = '<p class="hint">Dieser Weg ist noch nicht fertig – bitte der Lehrkraft Bescheid geben.</p>'; return; }
+          path.push({ id, label });
+          const body = st.content ? `<div class="bs-content worksheet-content">${sanitizeWorksheetHtml(st.content)}</div>` : '';
+          if (st.kind === 'end') {
+            finish(st);
+            const tone = st.score >= 80 ? 'good' : st.score >= 40 ? 'mid' : 'bad';
+            root.innerHTML = `
+              <div class="bs-step bs-end bs-${tone}">
+                ${st.title ? `<h3>${escapeHtml(st.title)}</h3>` : ''}
+                ${body}
+                ${st.feedback ? `<p class="bs-feedback">${escapeHtml(st.feedback)}</p>` : ''}
+                ${suppressFeedback ? '' : `<div class="bs-score"><div class="bs-score-bar" style="width:${st.score}%"></div><span>${st.score} %</span></div>`}
+                <p class="bs-path hint">Dein Weg: ${path.filter((p) => p.label).map((p) => escapeHtml(p.label)).join(' → ') || '—'}</p>
+                ${suppressFeedback ? '' : '<button type="button" class="btn btn-secondary btn-sm bs-restart">↻ Von vorn</button>'}
+              </div>`;
+            root.querySelector('.bs-restart')?.addEventListener('click', showStart);
+            return;
+          }
+          root.innerHTML = `
+            <div class="bs-step">
+              ${st.title ? `<h3>${escapeHtml(st.title)}</h3>` : ''}
+              ${body}
+              <div class="bs-choices">${st.choices.map((ch, i) =>
+                `<button type="button" class="btn btn-secondary bs-choice" data-i="${i}">${escapeHtml(ch.label)}</button>`).join('')}</div>
+              ${data.allowBack && path.length > 1 ? '<button type="button" class="btn btn-sm bs-back">↩ Zurück</button>' : ''}
+            </div>`;
+          root.querySelectorAll('.bs-choice').forEach((b) => b.addEventListener('click', () => {
+            const ch = st.choices[Number(b.dataset.i)];
+            show(ch.next, ch.label);
+          }));
+          root.querySelector('.bs-back')?.addEventListener('click', () => {
+            path.pop();
+            const prev = path.pop();
+            show(prev.id, prev.label);
+          });
+        };
+        if (data.steps.length) showStart();
+        else root.innerHTML = '<p class="hint">Noch keine Schritte angelegt.</p>';
         break;
       }
 

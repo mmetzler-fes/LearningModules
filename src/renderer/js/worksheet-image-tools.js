@@ -89,6 +89,28 @@
       btn.addEventListener('click', () => this.insertFromFile());
       toolbar.appendChild(btn);
 
+      // Mehrere Bilder als eines einfügen (image-composer.js)
+      const compose = document.createElement('button');
+      compose.type = 'button';
+      compose.className = 'rt-btn';
+      compose.title = 'Mehrere Bilder zu einem zusammenstellen und einfügen';
+      compose.textContent = '🧩';
+      compose.addEventListener('mousedown', (e) => e.preventDefault());
+      compose.addEventListener('click', async () => {
+        if (typeof openImageComposer !== 'function') return;
+        const dataUrl = await openImageComposer();
+        if (!dataUrl) return;
+        const el = document.createElement('img');
+        el.src = dataUrl;
+        el.alt = 'Bildzusammenstellung';
+        el.setAttribute('width', String(this.contentWidth()));
+        el.className = 'ws-img-center';
+        this.insertNode(el);
+        this.select(el);
+        this.changed();
+      });
+      toolbar.appendChild(compose);
+
       this.panel = this.buildPanel();
       // Zwischen Werkzeugleiste und Text – so bleibt sie auch bei langen Blättern sichtbar.
       editor.parentNode.insertBefore(this.panel, editor);

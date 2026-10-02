@@ -47,6 +47,7 @@
           <label>Bild *</label>
           <div class="hs-ed-imagebar">
             <button type="button" class="btn btn-secondary btn-sm hs-ed-upload">📁 Bild hochladen</button>
+            <button type="button" class="btn btn-secondary btn-sm hs-ed-compose" title="Mehrere Bilder zu einem zusammenstellen">🧩 Zusammenstellen</button>
             <input type="text" class="hs-ed-url" placeholder="oder Bild-URL, z. B. Nextcloud-Freigabelink" value="${esc(this.state.imageUrl)}" />
             <button type="button" class="btn btn-danger btn-sm hs-ed-remove" title="Bild entfernen">✕</button>
           </div>
@@ -72,6 +73,13 @@
           this.state.imageFile = res.dataUrl;
           this.renderCanvas();
         }
+      });
+      this.root.querySelector('.hs-ed-compose').addEventListener('click', async () => {
+        if (typeof openImageComposer !== 'function') return;
+        const dataUrl = await openImageComposer();
+        if (!dataUrl) return;
+        this.state.imageFile = dataUrl;
+        this.renderCanvas();
       });
       const urlInput = this.root.querySelector('.hs-ed-url');
       urlInput.addEventListener('change', () => {

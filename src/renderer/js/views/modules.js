@@ -192,6 +192,9 @@ export class ModulesView {
       for (const t of types) {
         const opt = document.createElement('option');
         opt.value = t.id; opt.textContent = `${t.icon} ${t.name}`;
+        // Abgelöste Typen: für neue Module nicht mehr wählbar, bestehende
+        // lassen sich aber weiter öffnen und bearbeiten.
+        if (t.deprecated) opt.hidden = true;
         this._moduleTypeSelect.appendChild(opt);
       }
     }

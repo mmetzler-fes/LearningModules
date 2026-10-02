@@ -12,9 +12,10 @@ const H5P_TYPES = {
     // Reine Information, keine Aufgabe: zaehlt in der Auswertung nicht mit.
     informational: true,
     fields: [
-      { key: 'panels', type: 'list', label: 'Panels', itemFields: [
+      { key: 'panels', type: 'list', label: 'Abschnitte', itemFields: [
         { key: 'title', type: 'text', label: 'Titel', required: true },
-        { key: 'content', type: 'textarea', label: 'Inhalt', required: true },
+        // Formatierter Text mit Bildern (Bildwerkzeuge wie im Arbeitsblatt)
+        { key: 'content', type: 'richtext', label: 'Inhalt', required: true, images: true },
       ]},
     ],
   },
@@ -51,18 +52,14 @@ const H5P_TYPES = {
     id: 'branchingScenario',
     name: 'Branching Scenario',
     icon: '🌳',
-    description: 'Verzweigte Lernszenarien mit verschiedenen Pfaden basierend auf Entscheidungen.',
+    description: 'Entscheidungsszenarien: Jede Antwort führt zu einem anderen Schritt, am Ende steht eine Bewertung – z. B. Fehlersuche oder Inbetriebnahme.',
     category: 'Interaktiv',
+    // Eigener Editor (branching-editor.js), Format siehe branching.js
+    editorType: 'branching',
     fields: [
-      { key: 'startScreen', type: 'group', label: 'Startbildschirm', fields: [
-        { key: 'title', type: 'text', label: 'Titel' },
-        { key: 'subtitle', type: 'text', label: 'Untertitel' },
-      ]},
-      { key: 'steps', type: 'list', label: 'Schritte', itemFields: [
-        { key: 'stepTitle', type: 'text', label: 'Schritt-Titel', required: true },
-        { key: 'stepContent', type: 'textarea', label: 'Inhalt' },
-        { key: 'nextStepOptions', type: 'textarea', label: 'Optionen (eine pro Zeile: Text -> Schritt-Nr.)' },
-      ]},
+      { key: 'startScreen', type: 'group', label: 'Startbildschirm' },
+      { key: 'allowBack', type: 'checkbox', label: 'Zurück erlauben' },
+      { key: 'steps', type: 'list', label: 'Schritte' },
     ],
   },
   collage: {
@@ -71,6 +68,9 @@ const H5P_TYPES = {
     icon: '🖼️',
     description: 'Bildcollagen in verschiedenen Layouts erstellen.',
     category: 'Medien',
+    // Abgelöst durch "🧩 Bild zusammenstellen" in jeder Bildauswahl – das
+    // Ergebnis ist dort ein gewöhnliches Bild. Bestehende Collagen bleiben.
+    deprecated: true,
     // Reine Information, keine Aufgabe: zaehlt in der Auswertung nicht mit.
     informational: true,
     fields: [

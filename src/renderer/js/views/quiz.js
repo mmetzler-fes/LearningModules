@@ -421,6 +421,25 @@ export class QuizView {
         }
         break;
       }
+      case 'branchingScenario': {
+        // Bewertung = Prozentwert des erreichten Endes; ohne Ende 0 Punkte.
+        const player = this._quizModuleContainer.querySelector('.bs-player');
+        if (player && player.dataset.done) {
+          const score = Number(player.dataset.score) || 0;
+          let path = [];
+          try { path = JSON.parse(player.dataset.path || '[]'); } catch (_) {}
+          result.points = score / 100;
+          result.isCorrect = score >= 100;
+          result.userAnswer = path.join(' → ');
+          result.score = `Ende erreicht: ${score} %`;
+        } else {
+          result.points = 0;
+          result.userAnswer = 'nicht bis zu einem Ende gespielt';
+          result.score = 'kein Ende erreicht';
+        }
+        result.correctAnswer = '—';
+        break;
+      }
       case 'dragAndDrop': {
         const draggablesDef = content.draggables || []; const zonesDef = content.dropZones || [];
         // Pro Zone genau ein Soll-Wert, sonst kann die Aufgabe nie vollständig

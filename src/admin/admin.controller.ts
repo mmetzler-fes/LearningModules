@@ -21,6 +21,10 @@ import { TwoFactorService } from '../accounts/two-factor.service';
 import { LearningModule } from '../core/entities/learning-module.entity';
 import { School } from '../core/entities/school.entity';
 import { MailService } from '../core/mail/mail.service';
+import { SchoolsService } from '../core/schools/schools.service';
+
+/** Rollenstufen in der Oberfläche: Lehrer < Schuladmin (+ Lehrer) < Admin (alle Rechte). */
+type RoleLevel = 'teacher' | 'schooladmin' | 'admin';
 
 /** Zugangsdaten für eine erneute Bestätigung vor heiklen Aktionen. */
 type Reauth = { password?: string; code?: string };
@@ -45,6 +49,7 @@ export class AdminController {
     private readonly cloudBackup: CloudBackupService,
     private readonly twoFactor: TwoFactorService,
     private readonly mail: MailService,
+    private readonly schools: SchoolsService,
   ) {}
 
   // ---- Admin only guard helper ----
@@ -98,18 +103,32 @@ export class AdminController {
     }));
   }
 
-  // ---- Create a new user (teacher or admin) with a generated initial password ----
+  // ---- Neues Konto (Lehrer, Schuladmin oder Admin) mit erzeugtem Initialpasswort ----
+  /**
+   * Ein Schuladmin ist eine Lehrkraft mit Zusatzrecht und braucht deshalb
+   * eine Schule. Bei den anderen Stufen ist sie optional – ohne Angabe
+   * ordnet die Whitelist der Schulen zu, wie bei einer Registrierung.
+   */
   @Post('users')
   async createUser(
     @Request() req: any,
-    @Body() body: { email: string; role?: UserRole; displayName?: string },
+    @Body() body: { email: string; role?: RoleLevel | UserRole; displayName?: string; schoolId?: string | null },
   ) {
     this.requireAdmin(req);
-    return this.authService.createUser({
+    const level: RoleLevel = body.role === 'admin' ? 'admin' : body.role === 'schooladmin' ? 'schooladmin' : 'teacher';
+    if (level === 'schooladmin' && !body.schoolId) {
+      throw new BadRequestException('Ein Schuladmin braucht eine Schule – bitte auswählen.');
+    }
+    if (body.schoolId) await this.schools.findOne(body.schoolId); // gibt es die Schule?
+    const res = await this.authService.createUser({
       email: body.email,
-      role: body.role === 'admin' ? 'admin' : 'teacher',
+      role: level === 'admin' ? 'admin' : 'teacher',
       displayName: body.displayName,
     });
+    if (body.schoolId) {
+      await this.schools.assign(res.id, { schoolId: body.schoolId, isSchoolAdmin: level === 'schooladmin' });
+    }
+    return res;
   }
 
   // ---- Reset a user's password to a new generated one ----
@@ -119,15 +138,24 @@ export class AdminController {
     return this.authService.resetUserPassword(id);
   }
 
-  // ---- Change a user's role ----
+  // ---- Rollenstufe ändern: Lehrer, Schuladmin (+ Lehrer), Admin (alle Rechte) ----
   @Patch('users/:id/role')
-  async setUserRole(@Request() req: any, @Param('id') id: string, @Body() body: { role?: UserRole }) {
+  async setUserRole(@Request() req: any, @Param('id') id: string, @Body() body: { role?: RoleLevel | UserRole }) {
     this.requireAdmin(req);
-    const role: UserRole = body?.role === 'admin' ? 'admin' : 'teacher';
+    const level: RoleLevel = body?.role === 'admin' ? 'admin' : body?.role === 'schooladmin' ? 'schooladmin' : 'teacher';
+    const role: UserRole = level === 'admin' ? 'admin' : 'teacher';
 
     const target = await this.userRepo.findOne({ where: { id } });
     if (!target) throw new BadRequestException('Benutzer nicht gefunden.');
-    if (target.role === role) return { success: true, id: target.id, role };
+    if (level === 'schooladmin' && !target.schoolId) {
+      throw new BadRequestException('Schuladmin kann nur werden, wer einer Schule angehört – bitte zuerst die Schule zuordnen.');
+    }
+    // Das Schuladmin-Recht folgt der Stufe; bei "Admin" bleibt es, wie es ist.
+    if (level !== 'admin') target.isSchoolAdmin = level === 'schooladmin';
+    if (target.role === role) {
+      await this.userRepo.save(target);
+      return { success: true, id: target.id, role, level };
+    }
 
     // Sich selbst die Admin-Rechte zu entziehen sperrt einen aus der
     // Benutzerverwaltung aus – das muss ein anderer Admin tun.
@@ -143,7 +171,7 @@ export class AdminController {
 
     target.role = role;
     await this.userRepo.save(target);
-    return { success: true, id: target.id, role: target.role };
+    return { success: true, id: target.id, role: target.role, level };
   }
 
   // ---- Konto entfernen: Creator werden deaktiviert, alle anderen gelöscht ----

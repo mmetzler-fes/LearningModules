@@ -681,6 +681,7 @@
         <div class="admin-tabs">
           <button class="admin-tab active" data-filter="all">Alle</button>
           <button class="admin-tab" data-filter="admin">Admins</button>
+          <button class="admin-tab" data-filter="schooladmin">Schuladmins</button>
           <button class="admin-tab" data-filter="teacher">Lehrer</button>
         </div>
         <div id="usersList" class="admin-list"></div>
@@ -702,10 +703,17 @@
                 <label for="userFormRole">Rolle *</label>
                 <select id="userFormRole">
                   <option value="teacher">Lehrer</option>
-                  <option value="admin">Admin + Lehrer</option>
+                  <option value="schooladmin">Schuladmin + Lehrer</option>
+                  <option value="admin">Admin (alle Rechte)</option>
                 </select>
-                <p class="hint">Ein Admin hat alle Lehrerfunktionen zusätzlich – eigene
-                  Lernthemen, Module und Ergebnisse bleiben also möglich.</p>
+                <p class="hint">Schuladmins verwalten ihre Schule (Lehrkräfte, Whitelist, Gruppen, Tags), Admins
+                  zusätzlich alle Schulen und den Server. Beide behalten alle Lehrerfunktionen.</p>
+              </div>
+              <div class="form-group">
+                <label for="userFormSchool">Schule <span id="userFormSchoolRequired" class="hidden">*</span></label>
+                <select id="userFormSchool">
+                  <option value="">– automatisch per Whitelist –</option>
+                </select>
               </div>
               <p class="hint">Das Initialpasswort wird automatisch erzeugt. Es wird per E-Mail
                 verschickt, sobald ein Mailversand eingerichtet ist – sonst im nächsten Schritt

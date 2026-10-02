@@ -45,7 +45,8 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       // Schule und Schuladmin-Recht frisch aus der Datenbank – ein Entzug
       // durch den Hauptadmin wirkt damit beim nächsten Klick.
       schoolId: user.schoolId || null,
-      isSchoolAdmin: !!user.schoolId && !!user.isSchoolAdmin,
+      // Ein Admin hat alle Rechte – auch die des Schuladmins seiner Schule.
+      isSchoolAdmin: !!user.schoolId && (!!user.isSchoolAdmin || user.role === 'admin'),
       groupIds: await this.groups.groupIdsFor(payload.sub),
       grants: await this.groups.grantsFor(payload.sub),
     };

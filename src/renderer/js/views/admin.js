@@ -1,6 +1,9 @@
 import { escapeHtml } from '../utils.js';
 import { downloadBlob } from '../api.js';
 
+/** Rollenstufe eines Kontos für die Oberfläche. */
+const userLevel = (u) => (u.role === 'admin' ? 'admin' : u.isSchoolAdmin && u.schoolId ? 'schooladmin' : 'teacher');
+
 // ==================== ADMIN VIEW ====================
 
 export class AdminView {
@@ -18,14 +21,43 @@ export class AdminView {
   async load() {
     // Die Admin-Menüpunkte bindet App.setupNavigation; navigateToView lädt die Ansicht.
 
+    // Reiter über der Benutzerliste: nach Rollenstufe filtern.
+    this._userFilter = 'all';
+    document.querySelectorAll('#view-admin-users .admin-tab').forEach((tab) => {
+      if (tab.dataset.bound) return;
+      tab.dataset.bound = '1';
+      tab.addEventListener('click', () => {
+        document.querySelectorAll('#view-admin-users .admin-tab').forEach((t) => t.classList.toggle('active', t === tab));
+        this._userFilter = tab.dataset.filter || 'all';
+        this._renderUsersList();
+      });
+    });
+
     // Toggle New Admin Form
     const btnNewAdmin = document.getElementById('btnNewAdmin');
     const userFormOverlay = document.getElementById('userFormOverlay');
     const btnCancelUser = document.getElementById('btnCancelUser');
     const userForm = document.getElementById('userForm');
 
+    // Schulauswahl im Formular: Pflicht für Schuladmins, sonst optional.
+    const schoolSelect = document.getElementById('userFormSchool');
+    const roleSelect = document.getElementById('userFormRole');
+    const syncSchoolRequired = () => {
+      const needed = roleSelect?.value === 'schooladmin';
+      document.getElementById('userFormSchoolRequired')?.classList.toggle('hidden', !needed);
+      if (schoolSelect) schoolSelect.options[0].textContent = needed ? '– bitte Schule wählen –' : '– automatisch per Whitelist –';
+    };
+    roleSelect?.addEventListener('change', syncSchoolRequired);
+
     if (btnNewAdmin && userFormOverlay) {
-      btnNewAdmin.addEventListener('click', () => {
+      btnNewAdmin.addEventListener('click', async () => {
+        if (schoolSelect) {
+          const data = await this.app.api.getSchools().catch(() => null);
+          const schools = Array.isArray(data?.schools) ? data.schools : [];
+          schoolSelect.innerHTML = '<option value="">– automatisch per Whitelist –</option>' +
+            schools.map((s) => `<option value="${escapeHtml(s.id)}">🏫 ${escapeHtml(s.name)}</option>`).join('');
+        }
+        syncSchoolRequired();
         userFormOverlay.classList.remove('hidden');
       });
     }
@@ -41,9 +73,14 @@ export class AdminView {
         const email       = document.getElementById('userFormEmail')?.value.trim();
         const displayName = document.getElementById('userFormDisplayName')?.value.trim();
         const role        = document.getElementById('userFormRole')?.value || 'teacher';
+        const schoolId    = document.getElementById('userFormSchool')?.value || null;
         if (!email) return;
+        if (role === 'schooladmin' && !schoolId) {
+          this.app.showToast('Bitte eine Schule für den Schuladmin wählen.', 'error');
+          return;
+        }
         try {
-          const res = await this.app.api.createUser({ email, role, displayName });
+          const res = await this.app.api.createUser({ email, role, displayName, schoolId });
           if (res && res.id) {
             userForm.reset();
             userFormOverlay.classList.add('hidden');
@@ -232,10 +269,10 @@ export class AdminView {
   /** Rolle umstellen. Der Server lehnt ab, wenn der letzte Admin wegfiele. */
   async _changeRole(user, selectEl) {
     const newRole = selectEl.value;
-    const previous = user.role;
+    const previous = userLevel(user);
     if (newRole === previous) return;
 
-    const label = newRole === 'admin' ? 'Admin + Lehrer' : 'Lehrer';
+    const label = { teacher: 'Lehrer', schooladmin: 'Schuladmin + Lehrer', admin: 'Admin (alle Rechte)' }[newRole];
     const confirmed = await this.app.appConfirm(
       `Rolle von "${user.displayName || user.email}" auf "${label}" ändern?`,
     );
@@ -295,19 +332,24 @@ export class AdminView {
   }
 
   _renderUsersList() {
+    const level = userLevel;
     const container = document.getElementById('usersList');
     if (!container) return;
     // Ein Admin hat sämtliche Lehrerfunktionen zusätzlich – das wird auch so
     // angezeigt, damit die Auswahl nicht wie ein Entweder-oder wirkt.
-    const roleBadge = (role) =>
-      role === 'admin'
-        ? '<span class="user-role-badge admin">Admin</span><span class="user-role-badge teacher">Lehrer</span>'
-        : '<span class="user-role-badge teacher">Lehrer</span>';
+    const roleBadge = (u) =>
+      u.role === 'admin'
+        ? '<span class="user-role-badge admin">Admin</span>'
+        : (u.isSchoolAdmin && u.schoolId ? '<span class="user-role-badge admin">Schuladmin</span>' : '') +
+          '<span class="user-role-badge teacher">Lehrer</span>';
 
     if (!this._usersCache.length) { container.innerHTML = '<p class="hint">Keine Benutzer gefunden.</p>'; return; }
+    const filter = this._userFilter || 'all';
+    const shown = this._usersCache.filter((u) => filter === 'all' || level(u) === filter);
+    if (!shown.length) { container.innerHTML = '<p class="hint">Keine Konten in dieser Rolle.</p>'; return; }
 
     container.innerHTML = '';
-    for (const u of this._usersCache) {
+    for (const u of shown) {
       const item = document.createElement('div');
       item.className = 'admin-list-item';
       item.dataset.id = u.id;
@@ -315,7 +357,7 @@ export class AdminView {
         <div class="admin-list-item-info">
           <strong>${escapeHtml(u.displayName || u.username || u.email)}</strong>
           <span style="color:var(--text-secondary);font-size:0.9em">${escapeHtml(u.email || u.username)}</span>
-          ${roleBadge(u.role)}
+          ${roleBadge(u)}
           ${u.active === false ? '<span class="topic-status inactive" title="Kann sich nicht anmelden; Inhalte stehen kostenlos im Shop">⏸ deaktiviert</span>' : ''}
           ${u.isCreator ? '<span class="topic-shared-badge" title="Hat Module verfasst – wird beim Löschen nur deaktiviert">✍️ Creator</span>' : ''}
           <span class="topic-shared-badge" title="Punktekonto">🪙 ${u.points ?? 0}</span>
@@ -328,13 +370,10 @@ export class AdminView {
             <option value="">– keine Schule –</option>
             ${(this._schools || []).map((sc) => `<option value="${escapeHtml(sc.id)}" ${u.schoolId === sc.id ? 'selected' : ''}>🏫 ${escapeHtml(sc.name)}</option>`).join('')}
           </select>
-          <label class="share-flag" title="${u.schoolId ? 'Verwaltet die eigene Schule: Whitelist, Lehrkräfte, Gruppen' : 'Erst einer Schule zuordnen'}">
-            <input type="checkbox" class="user-school-admin" ${u.isSchoolAdmin ? 'checked' : ''} ${u.schoolId ? '' : 'disabled'} />
-            <span>Schuladmin</span>
-          </label>
           <select class="user-role-select" title="Rolle ändern">
-            <option value="teacher" ${u.role !== 'admin' ? 'selected' : ''}>Lehrer</option>
-            <option value="admin" ${u.role === 'admin' ? 'selected' : ''}>Admin + Lehrer</option>
+            <option value="teacher" ${level(u) === 'teacher' ? 'selected' : ''}>Lehrer</option>
+            <option value="schooladmin" ${level(u) === 'schooladmin' ? 'selected' : ''} ${u.schoolId ? '' : 'disabled'}>Schuladmin + Lehrer${u.schoolId ? '' : ' (erst Schule wählen)'}</option>
+            <option value="admin" ${level(u) === 'admin' ? 'selected' : ''}>Admin (alle Rechte)</option>
           </select>
           <button class="btn btn-secondary btn-sm btn-reset-password"
             title="Neues Initialpasswort erzeugen und anzeigen">🔑 Neues Passwort</button>
@@ -346,7 +385,7 @@ export class AdminView {
         </div>`;
       item.querySelector('.user-role-select').addEventListener('change', (e) => this._changeRole(u, e.target));
       item.querySelector('.user-school-select').addEventListener('change', (e) => this._assignSchool(u, { schoolId: e.target.value || null }));
-      item.querySelector('.user-school-admin').addEventListener('change', (e) => this._assignSchool(u, { isSchoolAdmin: e.target.checked }));
+
       item.querySelector('.btn-reset-password').addEventListener('click', () => this._resetPassword(u.id));
       item.querySelector('.btn-reset-2fa')?.addEventListener('click', async () => {
         const name = u.displayName || u.email;

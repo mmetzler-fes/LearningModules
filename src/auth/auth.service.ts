@@ -196,7 +196,7 @@ export class AuthService {
     return {
       schoolId: schoolName ? user.schoolId : null,
       schoolName,
-      isSchoolAdmin: !!schoolName && !!user.isSchoolAdmin,
+      isSchoolAdmin: !!schoolName && (!!user.isSchoolAdmin || user.role === 'admin'),
     };
   }
 

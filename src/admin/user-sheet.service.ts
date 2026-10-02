@@ -50,7 +50,7 @@ export class UserSheetService {
     const rows = users.map((u) => [
       u.email,
       u.displayName || '',
-      u.role === 'admin' ? 'Admin' : 'Lehrer',
+      u.role === 'admin' ? 'Admin' : u.isSchoolAdmin && u.schoolId ? 'Schuladmin' : 'Lehrer',
       u.mustChangePassword ? 'ja' : 'nein',
       ...groups.map((g) => ((g.memberIds || []).includes(u.id) ? 'x' : '')),
     ]);
@@ -131,7 +131,10 @@ export class UserSheetService {
       let user: User | undefined = byEmail.get(email);
 
       if (!user) {
-        const role = /admin/i.test(col(row, roleCol)) ? 'admin' : 'teacher';
+        // Genau "Admin" – "Schuladmin" enthält das Wort auch, ist aber eine Lehrkraft.
+        const roleText = col(row, roleCol).toLowerCase();
+        const role = roleText === 'admin' ? 'admin' : 'teacher';
+        const wantsSchoolAdmin = roleText === 'schuladmin';
         const displayName = col(row, nameCol) || email;
         try {
           const res = await this.authService.createUser({
@@ -142,6 +145,14 @@ export class UserSheetService {
           });
           const fresh = await this.userRepo.findOne({ where: { id: res.id } });
           if (!fresh) throw new Error('Konto wurde nicht gefunden.');
+          // Schuladmin nur, wenn die Whitelist eine Schule zugeordnet hat –
+          // ohne Schule gibt es nichts zu verwalten.
+          if (wantsSchoolAdmin && fresh.schoolId) {
+            fresh.isSchoolAdmin = true;
+            await this.userRepo.save(fresh);
+          } else if (wantsSchoolAdmin) {
+            skipped.push({ row: rowNo, email, reason: 'Als Lehrkraft angelegt: Schuladmin braucht eine Schule (Whitelist oder Benutzerverwaltung).' });
+          }
           user = fresh;
           byEmail.set(email, user);
           created.push({ email, displayName, role });

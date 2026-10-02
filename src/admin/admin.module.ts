@@ -16,12 +16,14 @@ import { LearningModule } from '../core/entities/learning-module.entity';
 import { AccountsModule } from '../accounts/accounts.module';
 import { UserSheetService } from './user-sheet.service';
 import { AuthModule } from '../auth/auth.module';
+import { SchoolsModule } from '../core/schools/schools.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([User, SystemConfig, LearningTopic, LearningModule, TopicLink, TopicQuickLink, Tag, Result, TeacherGroup, School]),
     AuthModule,
     AccountsModule,
+    SchoolsModule,
   ],
   controllers: [AdminController],
   providers: [UserSheetService, BackupService, CloudBackupService],

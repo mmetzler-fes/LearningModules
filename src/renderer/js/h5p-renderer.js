@@ -53,7 +53,7 @@ export class H5pRenderer {
     const wrapper = document.createElement('div');
     // Text bleibt schmal (lange Zeilen lesen sich schlecht); bildlastige
     // Aufgaben dürfen die Breite großer Bildschirme nutzen.
-    wrapper.style.maxWidth = WIDE_TYPES.has(mod.type) ? '1400px' : '800px';
+    wrapper.style.maxWidth = WIDE_TYPES.has(mod.type) ? 'none' : '800px';
     wrapper.style.margin = '0 auto';
 
     const header = document.createElement('div');
@@ -1014,14 +1014,6 @@ export class H5pRenderer {
 
         const canvasEl = div.querySelector('#dndCanvas');
         const dragsEl  = div.querySelector('#dndDraggables');
-        // Bild samt Zonen höchstens so groß, dass es ohne Scrollen ganz auf den
-        // Bildschirm passt. Zonen sind in % angegeben und skalieren mit.
-        const bgImg = canvasEl.querySelector('.dnd-player-img');
-        const fitToScreen = () => {
-          if (!bgImg?.naturalWidth) return;
-          canvasEl.style.maxWidth = `calc((100vh - 140px) * ${(bgImg.naturalWidth / bgImg.naturalHeight).toFixed(4)})`;
-        };
-        if (bgImg) { if (bgImg.complete) fitToScreen(); else bgImg.addEventListener('load', fitToScreen, { once: true }); }
 
         // Abgelegtes Element zurueck in die Ablage; Kopien mehrfach
         // verwendbarer Elemente (drag-<i>-<n>) verschwinden einfach.

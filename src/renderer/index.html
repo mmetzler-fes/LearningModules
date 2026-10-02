@@ -556,8 +556,10 @@
       <section class="view" id="view-teacher-tags">
         <div class="view-header">
           <h2>🏷 Tags</h2>
-          <p class="subtitle">Schlagworte zum Einordnen von Lernthemen und Schülerfreigaben,
-            z. B. „Informatik“ oder „Arduino“.</p>
+          <p class="subtitle">Schlagworte zum Einordnen von Lernthemen und Schülerfreigaben.
+            Ein Tag kann ein <strong>Themengebiet</strong> sein (z. B. „Informatik“); die übrigen Tags
+            (z. B. „Arduino“) ordnest du einem oder mehreren Themengebieten zu. Lernthemen und Freigaben
+            werden dann nach Themengebieten gegliedert.</p>
         </div>
 
         <div class="topic-form-card" style="margin-bottom:20px;">
@@ -577,6 +579,16 @@
                         title="Farbwert kopieren">📋</button>
               </div>
               <span class="hint">Hex-Code kopieren und bei einem anderen Tag einfügen.</span>
+            </div>
+            <div class="form-group tag-area-settings">
+              <label class="tag-filter-mode">
+                <input type="checkbox" id="tagIsArea" />
+                <span><strong>Themengebiet</strong> – Gliederungsüberschrift für Lernthemen, Freigaben und Tags</span>
+              </label>
+              <div id="tagAreaChoicesWrap">
+                <label>Gehört zu Themengebiet(en)</label>
+                <div id="tagAreaChoices" class="tag-picker"></div>
+              </div>
             </div>
             <div class="form-actions">
               <button type="submit" class="btn btn-primary">Speichern</button>

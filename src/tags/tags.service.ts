@@ -41,6 +41,8 @@ export class TagsService {
         id: tag.id,
         name: tag.name,
         color: tag.color,
+        isArea: !!tag.isArea,
+        areaIds: tag.isArea ? [] : (tag.areaIds || []).filter((id) => tags.some((a) => a.id === id && a.isArea)),
         topicCount: topics.filter((t) => (t.tagIds || []).includes(tag.id)).length,
         linkCount: links.filter((l) => (l.tagIds || []).includes(tag.id)).length,
         moduleCount: modules.filter((m) => (m.tagIds || []).includes(tag.id)).length,
@@ -64,16 +66,45 @@ export class TagsService {
     if (clash) throw new ConflictException(`Es gibt bereits einen Tag "${clash.name}".`);
   }
 
-  async create(user: any, data: { name: string; color?: string }) {
+  async create(user: any, data: { name: string; color?: string; isArea?: boolean; areaIds?: string[] }) {
     const name = this.normalize(data?.name);
     await this.assertNameFree(user.userId, name);
+    const id = crypto.randomUUID();
+    const isArea = !!data?.isArea;
     const tag = this.tagRepo.create({
-      id: crypto.randomUUID(),
+      id,
       name,
       color: data?.color || null,
       ownerId: user.userId,
+      isArea,
+      areaIds: isArea ? null : await this.sanitizeAreaIds(user.userId, data?.areaIds, id),
     });
     return this.tagRepo.save(tag);
+  }
+
+  /**
+   * Nur eigene Themengebiete, nicht der Tag selbst. Eine tiefere Hierarchie
+   * gibt es bewusst nicht: Themengebiet und darunter Tags reicht für den
+   * Überblick, mehr Ebenen machten das Zuordnen mühsam.
+   */
+  private async sanitizeAreaIds(ownerId: string, areaIds: any, selfId: string): Promise<string[] | null> {
+    if (!Array.isArray(areaIds)) return null;
+    const areas = await this.tagRepo.find({ where: { ownerId, isArea: true } });
+    const valid = new Set(areas.map((a) => a.id));
+    valid.delete(selfId);
+    const clean = [...new Set(areaIds.map(String).filter((id) => valid.has(id)))];
+    return clean.length ? clean : null;
+  }
+
+  /** Entfernt ein Themengebiet aus den Zuordnungen aller anderen Tags. */
+  private async detachArea(ownerId: string, areaId: string) {
+    const tags = await this.tagRepo.find({ where: { ownerId } });
+    const dirty = tags.filter((t) => (t.areaIds || []).includes(areaId));
+    for (const t of dirty) {
+      const rest = (t.areaIds || []).filter((x) => x !== areaId);
+      t.areaIds = rest.length ? rest : null;
+    }
+    if (dirty.length) await this.tagRepo.save(dirty);
   }
 
   private async own(id: string, user: any) {
@@ -82,7 +113,11 @@ export class TagsService {
     return tag;
   }
 
-  async update(id: string, user: any, data: { name?: string; color?: string }) {
+  async update(
+    id: string,
+    user: any,
+    data: { name?: string; color?: string; isArea?: boolean; areaIds?: string[] },
+  ) {
     const tag = await this.own(id, user);
     if (data?.name !== undefined) {
       const name = this.normalize(data.name);
@@ -90,6 +125,14 @@ export class TagsService {
       tag.name = name;
     }
     if (data?.color !== undefined) tag.color = data.color || null;
+    if (data?.isArea !== undefined && !!data.isArea !== !!tag.isArea) {
+      tag.isArea = !!data.isArea;
+      // Kein Themengebiet mehr: Tags, die darunter hingen, stehen danach
+      // wieder ohne Themengebiet da, statt auf einen normalen Tag zu zeigen.
+      if (!tag.isArea) await this.detachArea(user.userId, id);
+    }
+    if (tag.isArea) tag.areaIds = null;
+    else if (data?.areaIds !== undefined) tag.areaIds = await this.sanitizeAreaIds(user.userId, data.areaIds, id);
     return this.tagRepo.save(tag);
   }
 
@@ -116,6 +159,7 @@ export class TagsService {
     for (const m of dirtyModules) m.tagIds = (m.tagIds || []).filter((x) => x !== id);
     if (dirtyModules.length) await this.moduleRepo.save(dirtyModules);
 
+    if (tag.isArea) await this.detachArea(user.userId, id);
     await this.tagRepo.remove(tag);
     return {
       success: true,

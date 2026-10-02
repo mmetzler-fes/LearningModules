@@ -1,5 +1,5 @@
 import { escapeHtml, escapeAttr, copyQrSvgAsPng, copyShareSheetAsPng } from '../utils.js';
-import { TagFilter, TagPicker } from './tags.js';
+import { TagFilter, TagPicker, renderAreaGroups, chipHtml } from './tags.js';
 
 // ==================== TOPICS VIEW ====================
 
@@ -145,75 +145,87 @@ export class TopicsView {
       return;
     }
 
-    for (const topic of topics) {
-      const isRawTopic = topic.h5pImportMode === 'raw';
-      const moduleCount = isRawTopic
-        ? (topic.h5pRawSummary && topic.h5pRawSummary.itemCount) || 0
-        : (topic.modules || []).length;
-      const { currentUser } = this.app.state;
-      const card = document.createElement('div');
-      card.className = `topic-card ${topic.selected ? 'topic-active' : 'topic-inactive'}`;
-      card.innerHTML = `
-        <div class="topic-card-header">
-          <div class="topic-card-info">
-            <h3 class="topic-card-title">${escapeHtml(topic.title)}</h3>
-            <p class="topic-card-desc">${escapeHtml(topic.description || '')}</p>
-            ${this._originLine(topic)}
-            <div class="topic-card-meta">
-              <span class="topic-module-count">${moduleCount} Module</span>
-              ${isRawTopic ? '<span class="topic-status" style="background:#eef2ff; color:#3730a3;">RAW H5P</span>' : ''}
-              <span class="topic-status ${topic.selected ? 'active' : 'inactive'}">${topic.selected ? '✅ Aktiv' : '❌ Inaktiv'}</span>
-              ${this._rightsBadges(topic)}
-            </div>
-            <div class="topic-card-tags">${this._renderTagChips(topic.tagIds)}</div>
-          </div>
-          <div class="topic-card-actions">
-            <label class="toggle-switch" title="Für Schüler freigeben">
-              <input type="checkbox" class="topic-toggle" data-topic-id="${topic.id}" ${topic.selected ? 'checked' : ''} />
-              <span class="toggle-slider"></span>
-            </label>
-            <button class="btn btn-primary btn-sm btn-open-topic" title="Module verwalten">📦 Module</button>
-            <button class="btn btn-secondary btn-sm btn-quick-link" ${topic.selected ? '' : 'disabled'}
-              title="${topic.selected ? 'Quick-Link für Schüler (Link + QR-Code)' : 'Erst freigeben, dann ist ein Quick-Link möglich'}">🔗 Quick-Link</button>
-            <button class="btn btn-secondary btn-sm btn-edit-topic" title="Bearbeiten">✏️</button>
-            <button class="btn btn-secondary btn-sm btn-share-topic" title="Im Shop anbieten oder weitergeben">👥</button>
-            <button class="btn btn-secondary btn-sm btn-export-topic" title="Exportieren (JSON, H5P oder verschlüsselt)">📤</button>
-            <button class="btn btn-danger btn-sm btn-delete-topic" title="Löschen">🗑</button>
-          </div>
-        </div>`;
-
-      // Teilen läuft über den Shop – der Knopf führt direkt zum Angebot für dieses Thema.
-      card.querySelector('.btn-share-topic').addEventListener('click', () => this.app.shopView.openForTopic(topic.id));
-      card.querySelector('.topic-toggle').addEventListener('change', async (e) => {
-        await this.app.api.toggleTopicSelection(topic.id, e.target.checked);
-        this.app.showToast(e.target.checked ? t('topics.activated') : t('topics.deactivated'), 'info');
-        this.refresh();
-      });
-      card.querySelector('.btn-open-topic').addEventListener('click', () => this.app.modulesView.openTopicModules(topic.id));
-      card.querySelector('.btn-quick-link').addEventListener('click', () => this._openQuickLinkDialog(topic));
-      card.querySelector('.btn-edit-topic').addEventListener('click', () => this._openEditor(topic));
-      card.querySelector('.btn-export-topic').addEventListener('click', () => this.openExportDialog(topic));
-      card.querySelector('.btn-delete-topic').addEventListener('click', async () => {
-        // Wer das Thema per "Use" verwendet, verliert es mit – das gehört vor
-        // die Entscheidung.
-        const users = topic.useCount
-          ? `\n\n${topic.useCount} Person${topic.useCount === 1 ? ' verwendet' : 'en verwenden'} dieses Thema über den Shop ` +
-            'und verliert es damit ebenfalls – auch wenn dafür bezahlt wurde.'
-          : '';
-        if (!(await this.app.appConfirm(t('topics.delete.confirm', { title: topic.title }) + users))) return;
-        await this.app.api.deleteTopic(topic.id);
-        this.app.showToast(t('topics.deleted'), 'info');
-        this.refresh();
-      });
-
-      this._topicsList.appendChild(card);
-    }
+    // Mit Themengebieten gegliedert und aufklappbar; bei aktivem Tag-Filter
+    // ist alles offen, damit kein Treffer im zugeklappten Abschnitt steckt.
+    const grouped = renderAreaGroups(this._topicsList, topics, {
+      tags: this.app.state.tags,
+      scope: 'topics',
+      expandAll: this._filter.selectedIds.length > 0,
+      buildItem: (topic) => this._buildCard(topic),
+      countLabel: (n) => (n === 1 ? '1 Lernthema' : `${n} Lernthemen`),
+    });
+    if (!grouped) for (const topic of topics) this._topicsList.appendChild(this._buildCard(topic));
 
     if (this._btnExportH5p) {
       this._btnExportH5p.disabled = !topics.some(
         (t) => t.h5pImportMode !== 'raw' && (t.modules || []).some((m) => m.moduleSelected !== false)
       );
     }
+  }
+
+  /** Karte eines Lernthemas mit allen Aktionen. */
+  _buildCard(topic) {
+    const isRawTopic = topic.h5pImportMode === 'raw';
+    const moduleCount = isRawTopic
+      ? (topic.h5pRawSummary && topic.h5pRawSummary.itemCount) || 0
+      : (topic.modules || []).length;
+    const { currentUser } = this.app.state;
+    const card = document.createElement('div');
+    card.className = `topic-card ${topic.selected ? 'topic-active' : 'topic-inactive'}`;
+    card.innerHTML = `
+      <div class="topic-card-header">
+        <div class="topic-card-info">
+          <h3 class="topic-card-title">${escapeHtml(topic.title)}</h3>
+          <p class="topic-card-desc">${escapeHtml(topic.description || '')}</p>
+          ${this._originLine(topic)}
+          <div class="topic-card-meta">
+            <span class="topic-module-count">${moduleCount} Module</span>
+            ${isRawTopic ? '<span class="topic-status" style="background:#eef2ff; color:#3730a3;">RAW H5P</span>' : ''}
+            <span class="topic-status ${topic.selected ? 'active' : 'inactive'}">${topic.selected ? '✅ Aktiv' : '❌ Inaktiv'}</span>
+            ${this._rightsBadges(topic)}
+          </div>
+          <div class="topic-card-tags">${this._renderTagChips(topic.tagIds)}</div>
+        </div>
+        <div class="topic-card-actions">
+          <label class="toggle-switch" title="Für Schüler freigeben">
+            <input type="checkbox" class="topic-toggle" data-topic-id="${topic.id}" ${topic.selected ? 'checked' : ''} />
+            <span class="toggle-slider"></span>
+          </label>
+          <button class="btn btn-primary btn-sm btn-open-topic" title="Module verwalten">📦 Module</button>
+          <button class="btn btn-secondary btn-sm btn-quick-link" ${topic.selected ? '' : 'disabled'}
+            title="${topic.selected ? 'Quick-Link für Schüler (Link + QR-Code)' : 'Erst freigeben, dann ist ein Quick-Link möglich'}">🔗 Quick-Link</button>
+          <button class="btn btn-secondary btn-sm btn-edit-topic" title="Bearbeiten">✏️</button>
+          <button class="btn btn-secondary btn-sm btn-share-topic" title="Im Shop anbieten oder weitergeben">👥</button>
+          <button class="btn btn-secondary btn-sm btn-export-topic" title="Exportieren (JSON, H5P oder verschlüsselt)">📤</button>
+          <button class="btn btn-danger btn-sm btn-delete-topic" title="Löschen">🗑</button>
+        </div>
+      </div>`;
+
+    // Teilen läuft über den Shop – der Knopf führt direkt zum Angebot für dieses Thema.
+    card.querySelector('.btn-share-topic').addEventListener('click', () => this.app.shopView.openForTopic(topic.id));
+    card.querySelector('.topic-toggle').addEventListener('change', async (e) => {
+      await this.app.api.toggleTopicSelection(topic.id, e.target.checked);
+      this.app.showToast(e.target.checked ? t('topics.activated') : t('topics.deactivated'), 'info');
+      this.refresh();
+    });
+    card.querySelector('.btn-open-topic').addEventListener('click', () => this.app.modulesView.openTopicModules(topic.id));
+    card.querySelector('.btn-quick-link').addEventListener('click', () => this._openQuickLinkDialog(topic));
+    card.querySelector('.btn-edit-topic').addEventListener('click', () => this._openEditor(topic));
+    card.querySelector('.btn-export-topic').addEventListener('click', () => this.openExportDialog(topic));
+    card.querySelector('.btn-delete-topic').addEventListener('click', async () => {
+      // Wer das Thema per "Use" verwendet, verliert es mit – das gehört vor
+      // die Entscheidung.
+      const users = topic.useCount
+        ? `\n\n${topic.useCount} Person${topic.useCount === 1 ? ' verwendet' : 'en verwenden'} dieses Thema über den Shop ` +
+          'und verliert es damit ebenfalls – auch wenn dafür bezahlt wurde.'
+        : '';
+      if (!(await this.app.appConfirm(t('topics.delete.confirm', { title: topic.title }) + users))) return;
+      await this.app.api.deleteTopic(topic.id);
+      this.app.showToast(t('topics.deleted'), 'info');
+      this.refresh();
+    });
+
+    return card;
   }
 
   // ==================== QUICK-LINK ====================
@@ -381,7 +393,7 @@ export class TopicsView {
     return (tagIds || [])
       .map((id) => byId.get(id))
       .filter(Boolean)
-      .map((tag) => `<span class="tag-chip" style="--tag-color:${escapeAttr(tag.color || '#4f7cff')}">${escapeHtml(tag.name)}</span>`)
+      .map((tag) => chipHtml(tag))
       .join('');
   }
 

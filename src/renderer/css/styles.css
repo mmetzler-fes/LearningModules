@@ -3390,3 +3390,62 @@ body {
   background: var(--bg-secondary);
 }
 .rich-text-surface.worksheet-content { min-height: 320px; max-height: 70vh; overflow-y: auto; }
+
+/* ---- Themengebiete: aufklappbare Abschnitte und gegliederte Tag-Auswahl ---- */
+.tag-chip.area-chip {
+  font-size: 0.9em;
+  border-width: 2px;
+  border-color: var(--tag-color, var(--accent));
+}
+.area-group {
+  margin-bottom: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-secondary);
+}
+.area-group-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 10px 14px;
+  cursor: pointer;
+  user-select: none;
+  list-style: none;
+}
+.area-group-head::-webkit-details-marker { display: none; }
+.area-group-head::before {
+  content: '▸';
+  color: var(--text-secondary);
+  transition: transform var(--transition);
+}
+.area-group[open] > .area-group-head::before { transform: rotate(90deg); }
+.area-group-title { display: inline-flex; align-items: center; gap: 10px; }
+.area-group-count { color: var(--text-secondary); font-size: 0.85em; }
+.area-group-head .tag-row-actions { margin-left: auto; }
+.area-group-none { font-weight: 600; color: var(--text-secondary); }
+.area-group-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 4px 14px 14px 32px;
+}
+.area-group-body .tag-row { background: var(--bg-primary); }
+
+.tag-area-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+  flex: 1 1 100%;
+  padding-bottom: 6px;
+  border-bottom: 1px dashed var(--border);
+}
+.tag-area-row:last-child { border-bottom: none; padding-bottom: 0; }
+.tag-area-row > .tag-filter-option,
+.tag-area-row > .area-group-none { flex: 0 0 auto; min-width: 140px; }
+.tag-area-children { display: flex; flex-wrap: wrap; gap: 10px; }
+
+.tag-area-settings { grid-column: 1 / -1; display: flex; flex-direction: column; gap: 10px; }
+.tag-picker-new-isarea { display: inline-flex; align-items: center; gap: 4px; font-size: 0.88em; white-space: nowrap; }
+.tag-picker-new .tag-picker-new-area { flex: 0 1 200px; width: auto; min-width: 0; }

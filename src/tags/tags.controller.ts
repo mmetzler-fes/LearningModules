@@ -13,12 +13,16 @@ export class TagsController {
   }
 
   @Post()
-  async create(@Request() req: any, @Body() body: { name: string; color?: string }) {
+  async create(@Request() req: any, @Body() body: { name: string; color?: string; isArea?: boolean; areaIds?: string[] }) {
     return this.tagsService.create(req.user, body);
   }
 
   @Patch(':id')
-  async update(@Param('id') id: string, @Request() req: any, @Body() body: { name?: string; color?: string }) {
+  async update(
+    @Param('id') id: string,
+    @Request() req: any,
+    @Body() body: { name?: string; color?: string; isArea?: boolean; areaIds?: string[] },
+  ) {
     return this.tagsService.update(id, req.user, body);
   }
 

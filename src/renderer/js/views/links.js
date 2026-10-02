@@ -1,6 +1,6 @@
 import { escapeHtml, escapeAttr, copyQrSvgAsPng, copyShareSheetAsPng } from '../utils.js';
 import { LINK_MODE_LABELS } from './login.js';
-import { TagFilter, TagPicker } from './tags.js';
+import { TagFilter, TagPicker, renderAreaGroups, chipHtml } from './tags.js';
 
 // ==================== THEMEN-LINKS ====================
 
@@ -88,54 +88,65 @@ export class LinksView {
       return;
     }
 
-    for (const link of links) {
-      const card = document.createElement('div');
-      card.className = 'link-card' + (link.active ? '' : ' link-card-inactive');
-      card.innerHTML = `
-        <div class="link-card-main">
-          <h3 class="link-card-title">
-            ${link.active ? '🔗' : '⏸'} ${escapeHtml(link.name)}
-            ${link.hasPassword ? '<span class="link-badge" title="Passwort erforderlich">🔒</span>' : ''}
-            ${link.singleAttempt ? '<span class="link-badge" title="Klassenarbeit nur einmal">1×</span>' : ''}
-          </h3>
-          <div class="link-card-modes">
-            ${(link.modes || []).map((m) => `
-              <span class="link-mode-badge">${LINK_MODE_LABELS[m]?.icon || ''} ${escapeHtml(LINK_MODE_LABELS[m]?.label || m)}</span>
-            `).join('')}
-          </div>
-          <p class="link-card-meta">
-            ${link.topicCount} Thema/Themen · ${link.moduleCount} Aufgabe${link.moduleCount !== 1 ? 'n' : ''}
-            ${link.active ? '' : ' · deaktiviert'}
-            ${link.usesForeignContent ? ' · nutzt fremde Inhalte' : ''}
-          </p>
-          ${link.unavailableTopics ? `
-            <p class="link-card-warning">⚠️ ${link.unavailableTopics} Thema/Themen nicht mehr verfügbar –
-              gelöscht oder das Nutzungsrecht ist entfallen.</p>` : ''}
-          <div class="link-card-tags">${this._renderTagChips(link.tagIds)}</div>
+    const grouped = renderAreaGroups(this._list, links, {
+      tags: this.app.state.tags,
+      scope: 'links',
+      expandAll: this._filter.selectedIds.length > 0,
+      buildItem: (link) => this._buildCard(link),
+      countLabel: (n) => (n === 1 ? '1 Freigabe' : `${n} Freigaben`),
+    });
+    if (!grouped) for (const link of links) this._list.appendChild(this._buildCard(link));
+  }
+
+  /** Karte einer Schülerfreigabe mit allen Aktionen. */
+  _buildCard(link) {
+    const card = document.createElement('div');
+    card.className = 'link-card' + (link.active ? '' : ' link-card-inactive');
+    card.innerHTML = `
+      <div class="link-card-main">
+        <h3 class="link-card-title">
+          ${link.active ? '🔗' : '⏸'} ${escapeHtml(link.name)}
+          ${link.hasPassword ? '<span class="link-badge" title="Passwort erforderlich">🔒</span>' : ''}
+          ${link.singleAttempt ? '<span class="link-badge" title="Klassenarbeit nur einmal">1×</span>' : ''}
+        </h3>
+        <div class="link-card-modes">
+          ${(link.modes || []).map((m) => `
+            <span class="link-mode-badge">${LINK_MODE_LABELS[m]?.icon || ''} ${escapeHtml(LINK_MODE_LABELS[m]?.label || m)}</span>
+          `).join('')}
         </div>
-        <div class="link-card-actions">
-          <button class="btn btn-secondary btn-sm btn-link-share" ${link.active ? '' : 'disabled title="Link ist deaktiviert"'}>🔗 Link &amp; QR</button>
-          <button class="btn btn-secondary btn-sm btn-link-toggle">${link.active ? '⏸ Deaktivieren' : '▶️ Aktivieren'}</button>
-          <button class="btn btn-secondary btn-sm btn-link-edit">✏️ Bearbeiten</button>
-          <button class="btn btn-danger btn-sm btn-link-delete">🗑</button>
-        </div>`;
+        <p class="link-card-meta">
+          ${link.topicCount} Thema/Themen · ${link.moduleCount} Aufgabe${link.moduleCount !== 1 ? 'n' : ''}
+          ${link.active ? '' : ' · deaktiviert'}
+          ${link.usesForeignContent ? ' · nutzt fremde Inhalte' : ''}
+        </p>
+        ${link.unavailableTopics ? `
+          <p class="link-card-warning">⚠️ ${link.unavailableTopics} Thema/Themen nicht mehr verfügbar –
+            gelöscht oder das Nutzungsrecht ist entfallen.</p>` : ''}
+        <div class="link-card-tags">${this._renderTagChips(link.tagIds)}</div>
+      </div>
+      <div class="link-card-actions">
+        <button class="btn btn-secondary btn-sm btn-link-share" ${link.active ? '' : 'disabled title="Link ist deaktiviert"'}>🔗 Link &amp; QR</button>
+        <button class="btn btn-secondary btn-sm btn-link-toggle">${link.active ? '⏸ Deaktivieren' : '▶️ Aktivieren'}</button>
+        <button class="btn btn-secondary btn-sm btn-link-edit">✏️ Bearbeiten</button>
+        <button class="btn btn-danger btn-sm btn-link-delete">🗑</button>
+      </div>`;
 
-      card.querySelector('.btn-link-share').addEventListener('click', () => this._openShareDialog(link));
-      card.querySelector('.btn-link-edit').addEventListener('click', () => this._openEditor(link));
-      card.querySelector('.btn-link-toggle').addEventListener('click', async () => {
-        await this.app.api.updateLink(link.id, { active: !link.active });
-        this.app.showToast(link.active ? 'Freigabe deaktiviert.' : 'Freigabe aktiviert.', 'info');
-        this.refresh();
-      });
-      card.querySelector('.btn-link-delete').addEventListener('click', async () => {
-        if (!(await this.app.appConfirm(`Freigabe "${link.name}" löschen? Verteilte QR-Codes führen danach ins Leere.`))) return;
-        await this.app.api.deleteLink(link.id);
-        this.app.showToast('Freigabe gelöscht.', 'info');
-        this.refresh();
-      });
+    card.querySelector('.btn-link-share').addEventListener('click', () => this._openShareDialog(link));
+    card.querySelector('.btn-link-edit').addEventListener('click', () => this._openEditor(link));
+    card.querySelector('.btn-link-toggle').addEventListener('click', async () => {
+      await this.app.api.updateLink(link.id, { active: !link.active });
+      this.app.showToast(link.active ? 'Freigabe deaktiviert.' : 'Freigabe aktiviert.', 'info');
+      this.refresh();
+    });
+    card.querySelector('.btn-link-delete').addEventListener('click', async () => {
+      if (!(await this.app.appConfirm(`Freigabe "${link.name}" löschen? Verteilte QR-Codes führen danach ins Leere.`))) return;
+      await this.app.api.deleteLink(link.id);
+      this.app.showToast('Freigabe gelöscht.', 'info');
+      this.refresh();
+    });
 
-      this._list.appendChild(card);
-    }
+
+    return card;
   }
 
   _renderTagChips(tagIds) {
@@ -143,7 +154,7 @@ export class LinksView {
     return (tagIds || [])
       .map((id) => byId.get(id))
       .filter(Boolean)
-      .map((tag) => `<span class="tag-chip" style="--tag-color:${escapeAttr(tag.color || '#4f7cff')}">${escapeHtml(tag.name)}</span>`)
+      .map((tag) => chipHtml(tag))
       .join('');
   }
 

@@ -380,7 +380,10 @@ export class LoginView {
     const pass  = this._adminPassword.value;
     if (!email || !pass) return;
     try {
-      const res = await this.app.api.login(email, pass);
+      // Das Häkchen gilt auch für den zweiten Schritt (Code): Der Server hat
+      // es im Zwischen-Token, der Browser merkt es sich für den Speicherort.
+      this._remember = !!document.getElementById('loginRemember')?.checked;
+      const res = await this.app.api.login(email, pass, this._remember);
       if (res && res.twoFactorRequired) {
         this._showTwoFactorStep(res.challenge);
         return;
@@ -399,7 +402,7 @@ export class LoginView {
       errEl.classList.remove('hidden');
       return false;
     }
-    this.app.authStore.setToken(res.token);
+    this.app.authStore.setToken(res.token, !!res.remember);
     this.app.state.currentUser = {
       name: res.displayName || res.username || res.email,
       role: res.role,
@@ -520,7 +523,7 @@ export class LoginView {
     try {
       const res = await this.app.api.register(email, password, displayName);
       if (res.token) {
-        this.app.authStore.setToken(res.token);
+        this.app.authStore.setToken(res.token, false);
         this.app.state.currentUser = {
           name: res.displayName || res.username || email, role: 'teacher', id: res.id, username: email, email, ...schoolFields(res),
         };

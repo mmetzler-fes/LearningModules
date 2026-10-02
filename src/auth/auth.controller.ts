@@ -14,8 +14,8 @@ export class AuthController {
   /** Teacher / Admin login via email + password */
   @Post('login')
   @HttpCode(200)
-  async login(@Body() body: { email: string; password: string }) {
-    return this.authService.login(body.email, body.password);
+  async login(@Body() body: { email: string; password: string; remember?: boolean }) {
+    return this.authService.login(body.email, body.password, !!body.remember);
   }
 
   /**
@@ -94,7 +94,7 @@ export class AuthController {
   @AllowPendingPassword()
   @HttpCode(200)
   async changePassword(@Request() req: any, @Body() body: { oldPassword?: string; newPassword?: string }) {
-    return this.authService.changePassword(req.user.userId, body.oldPassword || '', body.newPassword || '');
+    return this.authService.changePassword(req.user.userId, body.oldPassword || '', body.newPassword || '', !!req.user.remember);
   }
 
   /**
@@ -105,7 +105,7 @@ export class AuthController {
   @UseGuards(JwtAuthGuard)
   @HttpCode(200)
   async changeEmail(@Request() req: any, @Body() body: { newEmail?: string; password?: string; targetPassword?: string }) {
-    return this.authService.changeEmail(req.user.userId, body || {});
+    return this.authService.changeEmail(req.user.userId, body || {}, !!req.user.remember);
   }
 
   /** Eigenes Konto löschen – Creator werden nur deaktiviert. */

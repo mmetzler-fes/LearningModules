@@ -20,7 +20,8 @@ import { SchoolsModule } from '../core/schools/schools.module';
     PassportModule,
     JwtModule.register({
       secret: process.env.JWT_SECRET || 'secretKey',
-      signOptions: { expiresIn: '24h' },
+      // Die Gültigkeit setzt AuthService je Sitzung ("Angemeldet bleiben").
+      signOptions: { expiresIn: '12h' },
     }),
   ],
   providers: [AuthService, JwtStrategy],

@@ -14,6 +14,14 @@ import { TwoFactorService } from '../accounts/two-factor.service';
  * nie als Sitzungs-Token, selbst wenn es jemand als Bearer mitschickt.
  */
 const CHALLENGE_SECRET = `${process.env.JWT_SECRET || 'secretKey'}:2fa-challenge`;
+
+/**
+ * Gültigkeit einer Sitzung: ohne "Angemeldet bleiben" ein Schultag, mit
+ * Häkchen eine Woche. Das Häkchen steht im Token (`rem`), damit neu
+ * ausgestellte Tokens (Passwortwechsel, Kontozusammenführung) es behalten.
+ */
+const SESSION_SHORT = '12h';
+const SESSION_REMEMBER = '7d';
 import * as crypto from 'crypto';
 import { emailMatchesPattern } from '../core/share/email-pattern';
 
@@ -88,7 +96,7 @@ export class AuthService {
 
   // ---- Login (teacher / admin by email + password) ----
 
-  async login(email: string, password: string) {
+  async login(email: string, password: string, remember = false) {
     if (!email || !password) throw new UnauthorizedException('E-Mail und Passwort erforderlich.');
     const user = await this.userRepo.findOne({ where: { email } });
     if (!user || !user.passwordHash || !this.verifyPassword(password, user.passwordHash)) {
@@ -102,11 +110,14 @@ export class AuthService {
     if (user.totpEnabled) {
       return {
         twoFactorRequired: true,
-        challenge: this.jwtService.sign({ sub: user.id, purpose: '2fa' }, { secret: CHALLENGE_SECRET, expiresIn: '5m' }),
+        challenge: this.jwtService.sign(
+          { sub: user.id, purpose: '2fa', rem: !!remember },
+          { secret: CHALLENGE_SECRET, expiresIn: '5m' },
+        ),
       };
     }
     await this.schools.autoAssign(user);
-    return await this.buildSession(user);
+    return await this.buildSession(user, remember);
   }
 
   /** Zweiter Schritt der Anmeldung: Code aus der App oder ein Wiederherstellungscode. */
@@ -124,7 +135,7 @@ export class AuthService {
     const result = await this.twoFactor.verifyLogin(user, code);
     await this.schools.autoAssign(user);
     return {
-      ...(await this.buildSession(user)),
+      ...(await this.buildSession(user, !!payload.rem)),
       usedRecoveryCode: result.method === 'recovery',
       recoveryLeft: result.recoveryLeft,
     };
@@ -157,16 +168,18 @@ export class AuthService {
   }
 
   /** Token + Benutzerdaten für die Antwort an das Frontend. */
-  private async buildSession(user: User) {
+  private async buildSession(user: User, remember = false) {
     const payload = {
       sub: user.id,
       email: user.email,
       username: user.email,
       role: user.role,
       mustChangePassword: !!user.mustChangePassword,
+      rem: !!remember,
     };
     return {
-      token: this.jwtService.sign(payload),
+      token: this.jwtService.sign(payload, { expiresIn: remember ? SESSION_REMEMBER : SESSION_SHORT }),
+      remember: !!remember,
       id: user.id,
       email: user.email,
       username: user.email,
@@ -343,7 +356,11 @@ export class AuthService {
    * damit anmeldet und ein eigenes Passwort vergibt, wird das alte Konto
    * übernommen – so ist bewiesen, dass die neue Adresse ihm gehört.
    */
-  async changeEmail(userId: string, body: { newEmail?: string; password?: string; targetPassword?: string }) {
+  async changeEmail(
+    userId: string,
+    body: { newEmail?: string; password?: string; targetPassword?: string },
+    remember = false,
+  ) {
     const me = await this.userRepo.findOne({ where: { id: userId } });
     if (!me) throw new BadRequestException('Benutzer nicht gefunden.');
     if (!body.password || !this.verifyPassword(body.password, me.passwordHash)) {
@@ -373,7 +390,7 @@ export class AuthService {
       }
       await this.accounts.merge(me, target);
       const merged = await this.userRepo.findOne({ where: { id: target.id } });
-      return { success: true, merged: true, session: await this.buildSession(merged!) };
+      return { success: true, merged: true, session: await this.buildSession(merged!, remember) };
     }
 
     const pending = this.userRepo.create({
@@ -416,7 +433,7 @@ export class AuthService {
 
   // ---- Change password ----
 
-  async changePassword(userId: string, oldPassword: string, newPassword: string) {
+  async changePassword(userId: string, oldPassword: string, newPassword: string, remember = false) {
     if (!oldPassword || !newPassword) {
       throw new BadRequestException('Altes und neues Passwort sind erforderlich.');
     }
@@ -446,7 +463,7 @@ export class AuthService {
     }
     const fresh = (await this.userRepo.findOne({ where: { id: userId } }))!;
     // Neues Token, damit das mustChangePassword-Flag im JWT nicht mehr sperrt.
-    const session = await this.buildSession(fresh);
+    const session = await this.buildSession(fresh, remember);
     return {
       success: true,
       message: mergedFrom

@@ -834,6 +834,7 @@ body {
 }
 
 .form-group input[type="text"],
+.form-group input[type="email"],
 .form-group input[type="number"],
 .form-group input[type="password"],
 .form-group input[type="url"],
@@ -3543,3 +3544,7 @@ body {
 /* Admin-Übersicht der Lernmodule: Lehrkräfte als zweite Ebene unter der Schule */
 .admin-teacher-group { margin-bottom: 0; background: var(--bg-primary); }
 .admin-teacher-group .area-group-title .hint { margin-left: 6px; font-weight: normal; }
+
+/* Login: "Angemeldet bleiben" */
+.login-remember { display: flex; align-items: center; gap: 6px; margin: 2px 0 12px; font-size: 0.9em; cursor: pointer; }
+.login-remember .hint { font-size: 0.85em; }

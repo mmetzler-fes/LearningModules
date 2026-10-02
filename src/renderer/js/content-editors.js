@@ -386,7 +386,7 @@ class ContentEditorManager {
         status.textContent = 'Wird übernommen …';
         const form = new FormData();
         form.append('file', file);
-        const token = localStorage.getItem('lm_token');
+        const token = sessionStorage.getItem('lm_token') || localStorage.getItem('lm_token');
         try {
           const res = await fetch('/api/interchange/odt-to-html', {
             method: 'POST',

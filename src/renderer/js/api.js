@@ -1,18 +1,36 @@
 // ==================== AUTH STORE ====================
 
+const TOKEN_KEY = 'lm_token';
+function readStorage(store) {
+  try { return store.getItem(TOKEN_KEY); } catch (_) { return null; }
+}
+function writeStorage(store, value) {
+  try {
+    if (value) store.setItem(TOKEN_KEY, value); else store.removeItem(TOKEN_KEY);
+  } catch (_) { /* Speicher gesperrt: Token bleibt nur im Speicher der Seite */ }
+}
+
+/**
+ * Anmelde-Token im Browser. Ohne "Angemeldet bleiben" im sessionStorage –
+ * es übersteht einen Reload, aber nicht das Schließen des Browsers. Mit
+ * Häkchen im localStorage, bis es abläuft oder man sich abmeldet.
+ */
 export class AuthStore {
   constructor() {
     this._token = null;
+    this._persist = !!readStorage(localStorage);
   }
 
   getToken() {
-    return this._token || localStorage.getItem('lm_token');
+    return this._token || readStorage(sessionStorage) || readStorage(localStorage);
   }
 
-  setToken(t) {
+  /** persist: true = localStorage, false = sessionStorage; weggelassen = wie bisher. */
+  setToken(t, persist = this._persist) {
     this._token = t;
-    if (t) localStorage.setItem('lm_token', t);
-    else localStorage.removeItem('lm_token');
+    this._persist = !!persist;
+    writeStorage(localStorage, t && persist ? t : null);
+    writeStorage(sessionStorage, t && !persist ? t : null);
   }
 
   getHeaders() {
@@ -48,11 +66,11 @@ export class BrowserApi {
   }
 
   // ---------- Auth ----------
-  login(email, password) {
+  login(email, password, remember = false) {
     return fetch('/api/auth/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify({ email, password, remember }),
     }).then((r) => r.json());
   }
 

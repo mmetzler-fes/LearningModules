@@ -59,6 +59,167 @@ function showContextMenu(x, y, items) {
   window.addEventListener('blur', close);
 }
 
+/**
+ * Schriftgröße der Markierung setzen; `null` heißt Normalgröße. Verschachtelte
+ * Größenangaben in der Markierung fallen dabei weg – sonst bliebe ein XXL
+ * innerhalb des Textes stehen, den man gerade auf "Normal" stellt.
+ *
+ * Trick: execCommand markiert die Auswahl mit <font size="7">, danach wird
+ * dieses Element auf die gewünschte Größe gesetzt bzw. aufgelöst.
+ */
+function applyFontSize(editor, size) {
+  const sel = window.getSelection();
+  if (!sel || !sel.rangeCount || sel.isCollapsed) return;
+  document.execCommand('styleWithCSS', false, false);
+  document.execCommand('fontSize', false, '7');
+  const marked = [...editor.querySelectorAll('font[size="7"]')];
+  if (!marked.length) return;
+  // Was markiert war, bleibt danach markiert – der Format-Pinsel und weitere
+  // Befehle arbeiten mit derselben Auswahl weiter.
+  const first = marked[0].firstChild;
+  const last = marked[marked.length - 1].lastChild;
+  for (const el of marked) {
+    // Innere Größenangaben entfernen (Elemente auflösen, Text behalten).
+    el.querySelectorAll('font[size]').forEach((inner) => inner.replaceWith(...inner.childNodes));
+    // Steckt die Markierung in einem Abschnitt mit eigener Größe, wird sie
+    // daraus herausgelöst – sonst bliebe "Normal" wirkungslos.
+    let outer = el.parentNode && el.parentNode.closest ? el.parentNode.closest('font[size]') : null;
+    while (outer && editor.contains(outer)) {
+      liftOutOf(el, outer);
+      outer = el.parentNode && el.parentNode.closest ? el.parentNode.closest('font[size]') : null;
+    }
+    if (size) {
+      el.setAttribute('size', size);
+    } else {
+      el.replaceWith(...el.childNodes);
+    }
+  }
+  if (first && last && editor.contains(first) && editor.contains(last)) {
+    const range = document.createRange();
+    range.setStartBefore(first);
+    range.setEndAfter(last);
+    sel.removeAllRanges();
+    sel.addRange(range);
+  }
+}
+
+/**
+ * Hebt `el` aus `ancestor` heraus: `ancestor` wird in einen Teil davor und
+ * einen danach geteilt, `el` steht dazwischen. Inline-Elemente auf dem Weg
+ * (z. B. <b>) werden mitgeteilt, damit das übrige Format erhalten bleibt.
+ */
+function liftOutOf(el, ancestor) {
+  let node = el;
+  let parent = node.parentNode;
+  for (;;) {
+    const after = parent.cloneNode(false);
+    while (node.nextSibling) after.appendChild(node.nextSibling);
+    parent.after(after);
+    if (!after.firstChild) after.remove();
+    if (parent === ancestor) {
+      parent.after(node);
+      if (!parent.firstChild) parent.remove();
+      return;
+    }
+    const mid = parent.cloneNode(false);
+    parent.after(mid);
+    mid.appendChild(node);
+    if (!parent.firstChild) parent.remove();
+    node = mid;
+    parent = node.parentNode;
+  }
+}
+
+/**
+ * Format übertragen ("Pinsel" wie in LibreOffice): Zeichenformat an der
+ * Schreibmarke merken – fett, kursiv, unterstrichen, durchgestrichen, hoch-/
+ * tiefgestellt, Schriftgröße – und auf den nächsten markierten Text
+ * übertragen. Ein Klick ins Wort ohne Markierung nimmt das ganze Wort.
+ * Doppelklick auf den Pinsel: bleibt aktiv, bis Esc oder erneuter Klick.
+ */
+class FormatPainter {
+  constructor(editor, button) {
+    this.editor = editor;
+    this.button = button;
+    this.format = null;
+    this.sticky = false;
+    if (!button) return;
+
+    button.addEventListener('mousedown', (e) => e.preventDefault()); // Auswahl behalten
+    button.addEventListener('click', (e) => {
+      // Zweiter Klick eines Doppelklicks: Pinsel bleibt für mehrere Stellen aktiv.
+      if (this.format && e.detail >= 2) { this.sticky = true; return; }
+      if (this.format) { this.stop(); return; }
+      this.start(false);
+    });
+
+    editor.addEventListener('mouseup', () => setTimeout(() => this.applyIfActive(), 0));
+    editor.addEventListener('keydown', (e) => { if (e.key === 'Escape' && this.format) this.stop(); });
+  }
+
+  /** Format an der Schreibmarke bzw. am Anfang der Markierung lesen. */
+  capture() {
+    const sel = window.getSelection();
+    if (!sel || !sel.rangeCount || !this.editor.contains(sel.anchorNode)) return null;
+    const state = (cmd) => { try { return document.queryCommandState(cmd); } catch (_) { return false; } };
+    let node = sel.anchorNode.nodeType === 3 ? sel.anchorNode.parentNode : sel.anchorNode;
+    const font = node.closest ? node.closest('font[size]') : null;
+    return {
+      bold: state('bold'),
+      italic: state('italic'),
+      underline: state('underline'),
+      strikeThrough: state('strikeThrough'),
+      subscript: state('subscript'),
+      superscript: state('superscript'),
+      size: font && this.editor.contains(font) ? font.getAttribute('size') : null,
+    };
+  }
+
+  start(sticky) {
+    this.format = this.capture();
+    if (!this.format) {
+      window.alert('Zuerst in den Text klicken, dessen Format übertragen werden soll.');
+      return;
+    }
+    this.sticky = sticky;
+    this.button.classList.add('active');
+    this.editor.classList.add('rt-painting');
+  }
+
+  stop() {
+    this.format = null;
+    this.sticky = false;
+    this.button.classList.remove('active');
+    this.editor.classList.remove('rt-painting');
+  }
+
+  applyIfActive() {
+    if (!this.format) return;
+    const sel = window.getSelection();
+    if (!sel || !sel.rangeCount || !this.editor.contains(sel.anchorNode)) return;
+    // Nur geklickt: das Wort unter der Schreibmarke nehmen.
+    if (sel.isCollapsed && sel.modify) {
+      sel.modify('move', 'backward', 'word');
+      sel.modify('extend', 'forward', 'word');
+      // Leerzeichen am Wortende nicht mitformatieren.
+      const text = sel.toString();
+      const trailing = text.length - text.replace(/\s+$/, '').length;
+      for (let i = 0; i < trailing; i++) sel.modify('extend', 'backward', 'character');
+    }
+    if (sel.isCollapsed) return;
+
+    const f = this.format;
+    document.execCommand('styleWithCSS', false, false);
+    document.execCommand('removeFormat', false, null);
+    if (f.size) applyFontSize(this.editor, f.size);
+    for (const cmd of ['bold', 'italic', 'underline', 'strikeThrough', 'subscript', 'superscript']) {
+      if (f[cmd]) document.execCommand(cmd, false, null);
+    }
+    this.editor.dispatchEvent(new Event('input'));
+    if (!this.sticky) this.stop();
+  }
+}
+
 class ContentEditorManager {
   constructor(containerEl) {
     this.container = containerEl;
@@ -428,15 +589,17 @@ class ContentEditorManager {
         <option value="20px">20px</option>
       </select>
       <div class="rt-separator"></div>
-      <select class="rt-select rt-font-size" title="Schriftgröße">
+      <select class="rt-select rt-font-size" title="Schriftgröße des markierten Texts">
+        <option value="" disabled selected>Aa Größe</option>
         <option value="1">XS</option>
         <option value="2">S</option>
-        <option value="3" selected>Aa Größe</option>
+        <option value="normal">Normal</option>
         <option value="4">L</option>
         <option value="5">XL</option>
         <option value="6">XXL</option>
       </select>
       <div class="rt-separator"></div>
+      <button type="button" class="rt-btn rt-btn-painter" title="Format übertragen: erst Text mit dem gewünschten Format anklicken, dann Pinsel, dann Zieltext markieren. Doppelklick: mehrfach übertragen, Esc beendet.">🖌</button>
       <button type="button" class="rt-btn" data-cmd="bold" title="Fett"><b>B</b></button>
       <button type="button" class="rt-btn" data-cmd="italic" title="Kursiv"><i style="font-family:serif;font-weight:600;">I</i></button>
       <button type="button" class="rt-btn" data-cmd="underline" title="Unterstrichen"><u>U</u></button>
@@ -476,10 +639,16 @@ class ContentEditorManager {
     });
 
     toolbar.querySelector('.rt-font-size').addEventListener('change', (e) => {
+      const value = e.target.value;
+      // Zurück auf die Beschriftung – so löst auch dieselbe Größe erneut aus.
+      e.target.selectedIndex = 0;
+      if (!value) return;
       editor.focus();
-      document.execCommand('fontSize', false, e.target.value);
-      e.target.value = '3'; // reset visually to Normal
+      applyFontSize(editor, value === 'normal' ? null : value);
+      editor.dispatchEvent(new Event('input'));
     });
+
+    new FormatPainter(editor, toolbar.querySelector('.rt-btn-painter'));
 
     toolbar.querySelector('.rt-spacing').addEventListener('change', (e) => {
       const val = e.target.value;

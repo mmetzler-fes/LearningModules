@@ -3535,3 +3535,7 @@ body {
   flex: 1 1 180px; min-width: 0; padding: 4px 8px; border: 1px solid var(--border);
   border-radius: var(--radius-sm); background: var(--bg-secondary); color: var(--text-primary);
 }
+
+/* Format-Pinsel: aktiv hervorgehoben, Zeiger zeigt den Modus */
+.rt-btn.rt-btn-painter.active { background: var(--accent); color: #fff; }
+.rich-text-surface.rt-painting { cursor: copy; }

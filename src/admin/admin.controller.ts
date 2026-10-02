@@ -17,6 +17,7 @@ import { CloudBackupService } from './cloud-backup.service';
 import { AccountsService } from '../accounts/accounts.service';
 import { PointsService } from '../accounts/points.service';
 import { MasterKeyService } from '../core/crypto/master-key.service';
+import { TwoFactorService } from '../accounts/two-factor.service';
 import { LearningModule } from '../core/entities/learning-module.entity';
 
 @Controller('admin')
@@ -34,6 +35,7 @@ export class AdminController {
     private readonly masterKey: MasterKeyService,
     private readonly backup: BackupService,
     private readonly cloudBackup: CloudBackupService,
+    private readonly twoFactor: TwoFactorService,
   ) {}
 
   // ---- Admin only guard helper ----
@@ -50,7 +52,8 @@ export class AdminController {
     // Creator-Kennung je Konto in einem Rutsch statt einer Abfrage pro Zeile.
     const modules = await this.moduleRepo.find({ select: ['id', 'creatorId'] });
     const creators = new Set(modules.map((m) => m.creatorId));
-    return users.map(({ passwordHash, resetPasswordToken, ...u }) => ({
+    // Geheimnisse bleiben im Server – auch die verschlüsselten.
+    return users.map(({ passwordHash, resetPasswordToken, totpSecret, totpPending, totpRecovery, totpLastStep, ...u }) => ({
       ...u,
       points: u.points ?? startPoints,
       isCreator: creators.has(u.id),
@@ -112,6 +115,13 @@ export class AdminController {
     const target = await this.userRepo.findOne({ where: { id } });
     if (!target) throw new BadRequestException('Benutzer nicht gefunden.');
     return this.accounts.removeAccount(target, req.user.userId);
+  }
+
+  /** 2FA zurücksetzen, etwa bei verlorenem Handy. Die Person richtet sie danach neu ein. */
+  @Post('users/:id/reset-2fa')
+  async resetTwoFactor(@Request() req: any, @Param('id') id: string) {
+    this.requireAdmin(req);
+    return this.twoFactor.reset(id);
   }
 
   /** Deaktiviertes Konto wieder freischalten; seine früheren Angebote kehren zurück. */

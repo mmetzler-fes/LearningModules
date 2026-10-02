@@ -18,6 +18,7 @@ function teacherInfo(t) {
     ${t.isSchoolAdmin ? '<span class="user-role-badge admin">Schuladmin</span>' : ''}
     ${t.role === 'admin' ? '<span class="user-role-badge admin">Hauptadmin</span>' : ''}
     ${t.active === false ? '<span class="topic-status inactive">⏸ deaktiviert</span>' : ''}
+    ${t.totpEnabled ? '<span class="topic-shared-badge" title="Meldet sich mit Zwei-Faktor-Code an">🔐 2FA</span>' : ''}
     ${t.mustChangePassword ? '<span class="hint">🔑 Initialpasswort noch nicht geändert</span>' : ''}`;
 }
 
@@ -383,6 +384,7 @@ export class MySchoolView {
           ${t.active === false
             ? '<button class="btn btn-primary btn-sm btn-reactivate">▶ Reaktivieren</button>'
             : '<button class="btn btn-secondary btn-sm btn-deactivate">⏸ Deaktivieren</button>'}
+          ${t.totpEnabled ? '<button class="btn btn-secondary btn-sm btn-reset-2fa" title="z. B. bei verlorenem Handy">🔐 2FA zurücksetzen</button>' : ''}
           <button class="btn btn-danger btn-sm btn-remove">Aus Schule entfernen</button>` : ''}
         </div>`;
       row.querySelector('.btn-remove')?.addEventListener('click', () => this._action(t, 'remove',
@@ -392,6 +394,9 @@ export class MySchoolView {
         `${t.displayName} deaktivieren?\n\nDas Konto kann sich nicht mehr anmelden, seine Schülerfreigaben sind gesperrt. ` +
         'Selbst verfasste Inhalte stehen dann allen kostenlos im Shop – genauso wie bei einer Deaktivierung durch den ' +
         'Hauptadmin. „Reaktivieren“ macht das rückgängig.'));
+      row.querySelector('.btn-reset-2fa')?.addEventListener('click', () => this._action(t, 'reset-2fa',
+        `Zwei-Faktor-Anmeldung von ${t.displayName} zurücksetzen?\n\nDanach genügt wieder das Passwort. ` +
+        'Bitte nur nach Rückfrage bei der Person selbst – etwa wenn das Handy verloren ist.'));
       row.querySelector('.btn-reactivate')?.addEventListener('click', () => this._action(t, 'reactivate',
         `${t.displayName} wieder freischalten?`));
       this._teachers.appendChild(row);
@@ -402,7 +407,9 @@ export class MySchoolView {
     if (!(await this.app.appConfirm(question))) return;
     const res = await this.app.api.mySchoolTeacherAction(teacher.id, action);
     if (failed(res)) { this.app.showToast('Fehler: ' + (res?.message || 'Aktion fehlgeschlagen'), 'error'); return; }
-    const done = { remove: 'aus der Schule entfernt', deactivate: 'deaktiviert', reactivate: 'wieder aktiv' }[action];
+    const done = {
+      remove: 'aus der Schule entfernt', deactivate: 'deaktiviert', reactivate: 'wieder aktiv', 'reset-2fa': '2FA zurückgesetzt',
+    }[action];
     this.app.showToast(`${teacher.displayName}: ${done}.`, 'success');
     await this.refresh();
   }

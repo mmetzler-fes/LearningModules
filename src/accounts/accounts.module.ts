@@ -15,6 +15,7 @@ import { PointsEntry } from '../core/entities/points-entry.entity';
 import { AccountsService } from './accounts.service';
 import { HandoverService } from './handover.service';
 import { PointsService } from './points.service';
+import { TwoFactorService } from './two-factor.service';
 
 /** Konten über ihren ganzen Lebenszyklus, samt Punktekonto. */
 @Module({
@@ -24,7 +25,7 @@ import { PointsService } from './points.service';
       Tag, Result, TeacherGroup, ShopOffer, UseGrant, PointsEntry,
     ]),
   ],
-  providers: [AccountsService, HandoverService, PointsService],
-  exports: [AccountsService, HandoverService, PointsService],
+  providers: [AccountsService, HandoverService, PointsService, TwoFactorService],
+  exports: [AccountsService, HandoverService, PointsService, TwoFactorService],
 })
 export class AccountsModule {}

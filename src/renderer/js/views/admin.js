@@ -275,6 +275,7 @@ export class AdminView {
           ${u.active === false ? '<span class="topic-status inactive" title="Kann sich nicht anmelden; Inhalte stehen kostenlos im Shop">⏸ deaktiviert</span>' : ''}
           ${u.isCreator ? '<span class="topic-shared-badge" title="Hat Module verfasst – wird beim Löschen nur deaktiviert">✍️ Creator</span>' : ''}
           <span class="topic-shared-badge" title="Punktekonto">🪙 ${u.points ?? 0}</span>
+          ${u.totpEnabled ? '<span class="topic-shared-badge" title="Meldet sich mit Zwei-Faktor-Code an">🔐 2FA</span>' : ''}
           ${u.pendingMergeFrom ? '<span class="hint">✉️ wartet auf Bestätigung eines E-Mail-Wechsels</span>' : ''}
           ${u.mustChangePassword && !u.pendingMergeFrom ? '<span class="hint">🔑 hat sein Passwort noch nicht geändert</span>' : ''}
         </div>
@@ -293,6 +294,8 @@ export class AdminView {
           </select>
           <button class="btn btn-secondary btn-sm btn-reset-password"
             title="Neues Initialpasswort erzeugen und anzeigen">🔑 Neues Passwort</button>
+          ${u.totpEnabled ? `<button class="btn btn-secondary btn-sm btn-reset-2fa"
+            title="Zwei-Faktor-Anmeldung zurücksetzen, z. B. bei verlorenem Handy">🔐 2FA zurücksetzen</button>` : ''}
           ${u.active === false
             ? '<button class="btn btn-primary btn-sm btn-reactivate-user" title="Konto wieder freischalten">▶ Reaktivieren</button>'
             : `<button class="btn btn-danger btn-sm btn-delete-user" title="${u.isCreator ? 'Deaktivieren (Creator werden nicht gelöscht)' : 'Benutzer löschen'}">🗑</button>`}
@@ -301,6 +304,14 @@ export class AdminView {
       item.querySelector('.user-school-select').addEventListener('change', (e) => this._assignSchool(u, { schoolId: e.target.value || null }));
       item.querySelector('.user-school-admin').addEventListener('change', (e) => this._assignSchool(u, { isSchoolAdmin: e.target.checked }));
       item.querySelector('.btn-reset-password').addEventListener('click', () => this._resetPassword(u.id));
+      item.querySelector('.btn-reset-2fa')?.addEventListener('click', async () => {
+        const name = u.displayName || u.email;
+        if (!(await this.app.appConfirm(`Zwei-Faktor-Anmeldung von "${name}" zurücksetzen?\n\n` +
+          'Danach genügt wieder das Passwort. Die Person sollte 2FA gleich neu einrichten.'))) return;
+        const res = await this.app.api.adminResetTwoFactor(u.id);
+        if (res && res.success) { this.app.showToast('2FA zurückgesetzt', 'success'); await this.refreshUsers(); }
+        else this.app.showToast('Fehler: ' + (res?.message || '?'), 'error');
+      });
       item.querySelector('.btn-delete-user')?.addEventListener('click', () => this._deleteUser(u.id));
       item.querySelector('.btn-reactivate-user')?.addEventListener('click', () => this._reactivateUser(u));
       container.appendChild(item);

@@ -56,6 +56,32 @@ export class BrowserApi {
     }).then((r) => r.json());
   }
 
+  /** Zweiter Anmeldeschritt bei aktiver 2FA – noch ohne Sitzung. */
+  loginTwoFactor(challenge, code) {
+    return fetch('/api/auth/login/2fa', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ challenge, code }),
+    }).then((r) => r.json());
+  }
+
+  // ---------- 2FA des eigenen Kontos ----------
+  getTwoFactor() { return this._fetch('/api/auth/2fa'); }
+  setupTwoFactor() { return this._fetch('/api/auth/2fa/setup', { method: 'POST' }); }
+  enableTwoFactor(code) {
+    return this._fetch('/api/auth/2fa/enable', { method: 'POST', body: JSON.stringify({ code }) });
+  }
+  regenerateRecoveryCodes(code) {
+    return this._fetch('/api/auth/2fa/recovery-codes', { method: 'POST', body: JSON.stringify({ code }) });
+  }
+  disableTwoFactor(password, code) {
+    return this._fetch('/api/auth/2fa/disable', { method: 'POST', body: JSON.stringify({ password, code }) });
+  }
+  /** Hauptadmin: 2FA eines Kontos zurücksetzen. */
+  adminResetTwoFactor(userId) {
+    return this._fetch(`/api/admin/users/${encodeURIComponent(userId)}/reset-2fa`, { method: 'POST' });
+  }
+
   /** Konto zum gespeicherten Token – für die Wiederaufnahme nach einem Reload. */
   me() {
     return this._fetch('/api/auth/me');
@@ -417,7 +443,7 @@ export class BrowserApi {
   }
   previewMySchoolWhitelist() { return this._fetch('/api/my-school/whitelist-preview'); }
   applyMySchoolWhitelist() { return this._fetch('/api/my-school/apply-whitelist', { method: 'POST' }); }
-  /** action: 'remove' | 'deactivate' | 'reactivate' */
+  /** action: 'remove' | 'deactivate' | 'reactivate' | 'reset-2fa' */
   mySchoolTeacherAction(userId, action) {
     return this._fetch(`/api/my-school/teachers/${encodeURIComponent(userId)}/${action}`, { method: 'POST' });
   }

@@ -44,6 +44,30 @@ export class User extends BaseEntity {
   @Column({ default: false })
   schoolManual: boolean;
 
+  // ---- Zwei-Faktor-Anmeldung (TOTP, siehe auth/totp.ts) ----
+
+  @Column({ default: false })
+  totpEnabled: boolean;
+
+  /** Geheimnis, verschlüsselt mit dem Masterkey – übersteht so auch einen Restore. */
+  @Column({ type: 'text', nullable: true })
+  totpSecret: string | null;
+
+  /** Geheimnis während der Einrichtung, bis der erste Code bestätigt ist. */
+  @Column({ type: 'text', nullable: true })
+  totpPending: string | null;
+
+  /** Zuletzt verwendeter Zeitschritt – derselbe Code gilt nur einmal. */
+  @Column({ type: 'integer', nullable: true })
+  totpLastStep: number | null;
+
+  /** Hashes der noch unbenutzten Wiederherstellungscodes. */
+  @Column('simple-json', { nullable: true })
+  totpRecovery: string[] | null;
+
+  @Column({ type: 'datetime', nullable: true })
+  totpEnabledAt: Date | null;
+
   // Legacy columns kept nullable for migration compatibility
 
   @Column({ nullable: true })

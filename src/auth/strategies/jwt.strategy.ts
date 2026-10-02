@@ -30,6 +30,8 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
    * Ablauf des Tokens.
    */
   async validate(payload: any) {
+    // Zwischen-Tokens (z. B. der 2FA-Anmeldung) sind keine Sitzung.
+    if (payload?.purpose) throw new UnauthorizedException('Kein Sitzungs-Token.');
     const user = await this.userRepo.findOne({ where: { id: payload.sub } });
     if (!user) throw new UnauthorizedException('Dieses Konto gibt es nicht mehr.');
     if (user.active === false) throw new UnauthorizedException('Dieses Konto ist deaktiviert.');

@@ -7,6 +7,13 @@ import { SystemConfig } from '../core/entities/system-config.entity';
 import { MailService } from '../core/mail/mail.service';
 import { AccountsService } from '../accounts/accounts.service';
 import { SchoolsService } from '../core/schools/schools.service';
+import { TwoFactorService } from '../accounts/two-factor.service';
+
+/**
+ * Eigener Schlüssel für das Zwischen-Token der 2FA-Anmeldung. Es taugt so
+ * nie als Sitzungs-Token, selbst wenn es jemand als Bearer mitschickt.
+ */
+const CHALLENGE_SECRET = `${process.env.JWT_SECRET || 'secretKey'}:2fa-challenge`;
 import * as crypto from 'crypto';
 import { emailMatchesPattern } from '../core/share/email-pattern';
 
@@ -19,6 +26,7 @@ export class AuthService {
     private readonly mailService: MailService,
     private readonly accounts: AccountsService,
     private readonly schools: SchoolsService,
+    private readonly twoFactor: TwoFactorService,
   ) {}
 
   // ---- Password generation ----
@@ -89,8 +97,45 @@ export class AuthService {
     if (user.active === false) {
       throw new UnauthorizedException('Dieses Konto ist deaktiviert. Bitte an den Admin wenden.');
     }
+    // Mit 2FA gibt es nach dem Passwort nur ein kurzlebiges Zwischen-Token;
+    // die Sitzung entsteht erst mit dem Code (completeTwoFactorLogin).
+    if (user.totpEnabled) {
+      return {
+        twoFactorRequired: true,
+        challenge: this.jwtService.sign({ sub: user.id, purpose: '2fa' }, { secret: CHALLENGE_SECRET, expiresIn: '5m' }),
+      };
+    }
     await this.schools.autoAssign(user);
     return await this.buildSession(user);
+  }
+
+  /** Zweiter Schritt der Anmeldung: Code aus der App oder ein Wiederherstellungscode. */
+  async completeTwoFactorLogin(challenge: string, code: string) {
+    let payload: any;
+    try {
+      payload = this.jwtService.verify(String(challenge || ''), { secret: CHALLENGE_SECRET });
+    } catch {
+      throw new UnauthorizedException('Die Anmeldung ist abgelaufen. Bitte noch einmal mit dem Passwort beginnen.');
+    }
+    if (payload?.purpose !== '2fa') throw new UnauthorizedException('Ungültige Anmeldung.');
+    const user = await this.userRepo.findOne({ where: { id: payload.sub } });
+    if (!user || user.active === false) throw new UnauthorizedException('Dieses Konto ist nicht verfügbar.');
+
+    const result = await this.twoFactor.verifyLogin(user, code);
+    await this.schools.autoAssign(user);
+    return {
+      ...(await this.buildSession(user)),
+      usedRecoveryCode: result.method === 'recovery',
+      recoveryLeft: result.recoveryLeft,
+    };
+  }
+
+  /** Passwort des angemeldeten Kontos prüfen – etwa bevor 2FA abgeschaltet wird. */
+  async assertOwnPassword(userId: string, password: string) {
+    const user = await this.userRepo.findOne({ where: { id: userId } });
+    if (!user || !user.passwordHash || !this.verifyPassword(String(password || ''), user.passwordHash)) {
+      throw new UnauthorizedException('Das Passwort ist nicht korrekt.');
+    }
   }
 
   /**

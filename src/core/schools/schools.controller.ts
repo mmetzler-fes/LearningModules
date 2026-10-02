@@ -95,6 +95,11 @@ export class MySchoolController {
     return this.schools.deactivateTeacher(req.user, id);
   }
 
+  @Post('teachers/:id/reset-2fa')
+  async resetTwoFactor(@Request() req: any, @Param('id') id: string) {
+    return this.schools.resetTwoFactor(req.user, id);
+  }
+
   @Post('teachers/:id/reactivate')
   async reactivate(@Request() req: any, @Param('id') id: string) {
     return this.schools.reactivateTeacher(req.user, id);

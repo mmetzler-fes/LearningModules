@@ -12,6 +12,7 @@ import { LinksView } from './views/links.js';
 import { TagsView } from './views/tags.js';
 import { ShopView } from './views/shop.js';
 import { SchoolsAdminView, MySchoolView } from './views/schools.js';
+import { TwoFactorDialog } from './views/two-factor.js';
 
 // ==================== APP COORDINATOR ====================
 
@@ -57,6 +58,7 @@ class App {
     this.shopView     = new ShopView(this);
     this.schoolsView  = new SchoolsAdminView(this);
     this.mySchoolView = new MySchoolView(this);
+    this.twoFactorDialog = new TwoFactorDialog(this);
   }
 
   showToast(message, type = 'info') {

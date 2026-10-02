@@ -3480,3 +3480,21 @@ body {
 .tag-chip.school-tag::after { content: ' 🏫'; font-size: 0.85em; }
 .tag-row-actions .hint { font-size: 0.85em; white-space: nowrap; }
 #view-school-admin .settings-panel { max-width: 960px; }
+
+/* ---- Zwei-Faktor-Anmeldung ---- */
+.otp-input { font-family: monospace; font-size: 1.15em; letter-spacing: 0.15em; }
+.two-factor-card { min-width: 380px; max-width: 520px; max-height: 88vh; overflow: auto; }
+.two-factor-qr { display: flex; justify-content: center; margin: 8px 0; }
+.two-factor-qr svg { width: 200px; height: 200px; background: #fff; padding: 6px; border-radius: var(--radius-sm); }
+.two-factor-secret { font-size: 1em; letter-spacing: 0.05em; word-break: break-all; user-select: all; }
+.two-factor-steps { margin: 4px 0 8px 18px; padding: 0; }
+.two-factor-block { display: flex; flex-direction: column; gap: 8px; padding-top: 12px; margin-top: 12px; border-top: 1px dashed var(--border); }
+.two-factor-block h4 { margin: 0; }
+.two-factor-block .otp-input, .two-factor-card .school-row .otp-input,
+.two-factor-block input[type="password"] {
+  flex: 1 1 160px; min-width: 0; padding: 8px 12px; border: 1px solid var(--border);
+  border-radius: var(--radius-sm); background: var(--bg-secondary); color: var(--text-primary);
+}
+.two-factor-block input[type="password"] { width: 100%; }
+.two-factor-codes { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px 16px; margin: 12px 0; }
+.two-factor-codes code { font-size: 1.05em; text-align: center; padding: 4px; }

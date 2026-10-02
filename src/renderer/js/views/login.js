@@ -381,30 +381,97 @@ export class LoginView {
     if (!email || !pass) return;
     try {
       const res = await this.app.api.login(email, pass);
-      if (res.token && (res.role === 'admin' || res.role === 'teacher')) {
-        this.app.authStore.setToken(res.token);
-        this.app.state.currentUser = {
-          name: res.displayName || res.username || res.email,
-          role: res.role,
-          id: res.id,
-          username: res.email || res.username,
-          email: res.email,
-          mustChangePassword: !!res.mustChangePassword,
-          ...schoolFields(res),
-        };
-        this._adminLoginErr.classList.add('hidden');
-        if (res.mustChangePassword) {
-          // Erst das Passwort ändern – die übrigen Endpunkte sind bis dahin gesperrt.
-          this.app.startForcedPasswordChange(() => this.enterApp());
-          return;
-        }
-        await this.enterApp();
-      } else {
-        this._adminLoginErr.textContent = res.error || 'Falsche Anmeldedaten';
-        this._adminLoginErr.classList.remove('hidden');
+      if (res && res.twoFactorRequired) {
+        this._showTwoFactorStep(res.challenge);
+        return;
       }
+      await this._finishLogin(res, this._adminLoginErr);
     } catch (_) {
       this._adminLoginErr.textContent = 'Server nicht erreichbar';
+      this._adminLoginErr.classList.remove('hidden');
+    }
+  }
+
+  /** Sitzung aus der Login-Antwort übernehmen – nach Passwort bzw. nach dem 2FA-Code. */
+  async _finishLogin(res, errEl) {
+    if (!(res && res.token && (res.role === 'admin' || res.role === 'teacher'))) {
+      errEl.textContent = res?.message || res?.error || 'Falsche Anmeldedaten';
+      errEl.classList.remove('hidden');
+      return false;
+    }
+    this.app.authStore.setToken(res.token);
+    this.app.state.currentUser = {
+      name: res.displayName || res.username || res.email,
+      role: res.role,
+      id: res.id,
+      username: res.email || res.username,
+      email: res.email,
+      mustChangePassword: !!res.mustChangePassword,
+      ...schoolFields(res),
+    };
+    errEl.classList.add('hidden');
+    this._hideTwoFactorStep();
+    if (res.mustChangePassword) {
+      // Erst das Passwort ändern – die übrigen Endpunkte sind bis dahin gesperrt.
+      this.app.startForcedPasswordChange(() => this.enterApp());
+      return true;
+    }
+    await this.enterApp();
+    return true;
+  }
+
+  // ---- Zweiter Anmeldeschritt (2FA) ----
+
+  _bindTwoFactorStep() {
+    if (this._twoFactorBound) return;
+    this._twoFactorBound = true;
+    const form = document.getElementById('twoFactorLoginForm');
+    const input = document.getElementById('twoFactorLoginCode');
+    const err = document.getElementById('twoFactorLoginError');
+    document.getElementById('btnTwoFactorBack')?.addEventListener('click', () => this._hideTwoFactorStep());
+    form?.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const code = input.value.trim();
+      if (!code) return;
+      try {
+        const res = await this.app.api.loginTwoFactor(this._challenge, code);
+        if (res && res.token && res.usedRecoveryCode) {
+          this.app.showToast(
+            `Wiederherstellungscode verbraucht – noch ${res.recoveryLeft} übrig. Unter „🔐 Zwei-Faktor“ lassen sich neue erzeugen.`,
+            res.recoveryLeft <= 2 ? 'error' : 'info',
+          );
+        }
+        if (!(await this._finishLogin(res, err))) {
+          input.select();
+          // Abgelaufen: zurück zum Passwort, ein neuer Versuch braucht ein neues Zwischen-Token.
+          if (res && res.statusCode === 401 && /abgelaufen/.test(res.message || '')) this._hideTwoFactorStep(res.message);
+        }
+      } catch (_) {
+        err.textContent = 'Server nicht erreichbar';
+        err.classList.remove('hidden');
+      }
+    });
+  }
+
+  _showTwoFactorStep(challenge) {
+    this._bindTwoFactorStep();
+    this._challenge = challenge;
+    this._adminLoginErr.classList.add('hidden');
+    this._adminLoginForm.classList.add('hidden');
+    const form = document.getElementById('twoFactorLoginForm');
+    form.classList.remove('hidden');
+    document.getElementById('twoFactorLoginError').classList.add('hidden');
+    const input = document.getElementById('twoFactorLoginCode');
+    input.value = '';
+    input.focus();
+  }
+
+  _hideTwoFactorStep(message) {
+    this._challenge = null;
+    document.getElementById('twoFactorLoginForm')?.classList.add('hidden');
+    this._adminLoginForm?.classList.remove('hidden');
+    if (message) {
+      this._adminLoginErr.textContent = message;
       this._adminLoginErr.classList.remove('hidden');
     }
   }
@@ -512,6 +579,7 @@ export class LoginView {
     this._adminPassword.value = '';
     this._adminSec.classList.add('hidden');
     this._adminLoginErr.classList.add('hidden');
+    this._hideTwoFactorStep();
     this._studentSec.classList.remove('hidden');
     if (this._teacherLoginForm)  this._teacherLoginForm.classList.remove('hidden');
     if (this._forgotPasswordForm) this._forgotPasswordForm.classList.add('hidden');

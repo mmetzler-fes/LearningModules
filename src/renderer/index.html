@@ -113,6 +113,19 @@
             <button type="submit" class="btn btn-primary btn-full">🔑 Anmelden</button>
             <p id="adminLoginError" class="login-error hidden">Falsche Anmeldedaten.</p>
           </form>
+          <!-- Zweiter Schritt bei aktiver Zwei-Faktor-Anmeldung -->
+          <form id="twoFactorLoginForm" class="login-form hidden">
+            <p class="hint">🔐 Bitte den 6-stelligen Code aus deiner Authenticator-App eingeben.</p>
+            <div class="form-group">
+              <label for="twoFactorLoginCode">Code</label>
+              <input type="text" id="twoFactorLoginCode" required inputmode="numeric" autocomplete="one-time-code"
+                maxlength="12" placeholder="123456" class="otp-input" />
+              <span class="hint">Handy nicht zur Hand? Einen deiner Wiederherstellungscodes (z. B. <code>k7m2-x9pq</code>) eingeben.</span>
+            </div>
+            <button type="submit" class="btn btn-primary btn-full">✔ Bestätigen</button>
+            <button type="button" class="btn btn-secondary btn-full" id="btnTwoFactorBack" style="margin-top:8px;">↩ Zurück</button>
+            <p id="twoFactorLoginError" class="login-error hidden"></p>
+          </form>
           <div style="text-align:center; margin-top: 8px;">
             <a href="#" id="btnForgotPassword" style="font-size:0.9em; color:var(--text-secondary);">Passwort vergessen?</a>
           </div>
@@ -260,6 +273,7 @@
           <div class="header-actions">
             <button class="btn btn-secondary btn-sm" id="btnChangeOwnPassword">🔑 Passwort ändern</button>
             <button class="btn btn-secondary btn-sm" id="btnChangeOwnEmail">✉️ E-Mail ändern</button>
+            <button class="btn btn-secondary btn-sm" id="btnTwoFactor" title="Zwei-Faktor-Anmeldung mit einer Authenticator-App">🔐 Zwei-Faktor</button>
           </div>
         </div>
         <div class="stats-grid" id="teacherStatsGrid">

@@ -9,6 +9,7 @@ import { User } from '../entities/user.entity';
 import { TeacherGroup } from '../entities/teacher-group.entity';
 import { Tag } from '../entities/tag.entity';
 import { AccountsService } from '../../accounts/accounts.service';
+import { TwoFactorService } from '../../accounts/two-factor.service';
 import { emailMatchesAny } from '../share/email-pattern';
 
 /** Was eine Lehrkraft in den Schullisten zeigt – ohne Hash und Tokens. */
@@ -22,6 +23,7 @@ function teacherView(u: User) {
     isSchoolAdmin: !!u.isSchoolAdmin,
     mustChangePassword: !!u.mustChangePassword,
     schoolManual: !!u.schoolManual,
+    totpEnabled: !!u.totpEnabled,
   };
 }
 
@@ -46,6 +48,7 @@ export class SchoolsService implements OnModuleInit {
     @InjectRepository(TeacherGroup) private readonly groupRepo: Repository<TeacherGroup>,
     @InjectRepository(Tag) private readonly tagRepo: Repository<Tag>,
     private readonly accounts: AccountsService,
+    private readonly twoFactor: TwoFactorService,
   ) {}
 
   /**
@@ -353,6 +356,12 @@ export class SchoolsService implements OnModuleInit {
     if (target.active === false) return { success: true, alreadyInactive: true };
     const offeredTopics = await this.accounts.deactivate(target);
     return { success: true, offeredTopics };
+  }
+
+  /** 2FA einer Lehrkraft zurücksetzen (verlorenes Handy) – unter demselben Recht wie Deaktivieren. */
+  async resetTwoFactor(user: any, targetId: string) {
+    const target = await this.manageableTeacher(user, targetId);
+    return this.twoFactor.reset(target.id);
   }
 
   async reactivateTeacher(user: any, targetId: string) {

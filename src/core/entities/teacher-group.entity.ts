@@ -10,9 +10,10 @@ import { BaseEntity } from './base.entity';
  * sofort auf alle bestehenden Freigaben – genau das unterscheidet eine Gruppe
  * von einer einmaligen Mehrfachauswahl.
  *
- * Gepflegt wird sie vom Admin. Das ist bewusst zentral: Dürfte jede Lehrkraft
- * eigene Verteiler anlegen, gäbe es nach einem Jahr acht Versionen von
- * "Mathe", und niemand wüsste, welche die richtige ist.
+ * Gepflegt wird sie vom Admin bzw. vom Schuladmin der jeweiligen Schule. Das
+ * ist bewusst zentral: Dürfte jede Lehrkraft eigene Verteiler anlegen, gäbe
+ * es nach einem Jahr acht Versionen von "Mathe", und niemand wüsste, welche
+ * die richtige ist.
  *
  * In den Freigabelisten eines Themas steht eine Gruppe als `group:<id>` –
  * dieselben Felder wie für Einzelpersonen, damit das Modell nicht doppelt
@@ -25,6 +26,13 @@ export class TeacherGroup extends BaseEntity {
 
   @Column({ type: 'varchar', nullable: true })
   description: string | null;
+
+  /**
+   * Schule der Gruppe; Mitglieder kommen nur aus dieser Schule. Leer =
+   * schulübergreifende Gruppe, die nur der Hauptadmin pflegt.
+   */
+  @Column({ type: 'varchar', nullable: true })
+  schoolId: string | null;
 
   /** Benutzer-IDs der Mitglieder. */
   @Column('simple-json', { nullable: true })

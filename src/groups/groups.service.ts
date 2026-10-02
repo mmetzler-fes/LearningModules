@@ -68,40 +68,59 @@ export class GroupsService {
     return grants.map((g) => ({ topicId: g.topicId, scope: g.scope, creatorId: g.creatorId }));
   }
 
-  // ---- Verwaltung (nur Admin) ----
+  // ---- Verwaltung (Hauptadmin, Schuladmin für die eigene Schule) ----
 
-  async findAll() {
-    const groups = await this.groupRepo.find();
+  /**
+   * Der Hauptadmin sieht alle Gruppen. Alle anderen sehen die Gruppen ihrer
+   * Schule und die schulübergreifenden – die Gruppen anderer Schulen gehen
+   * sie nichts an und gehören nicht in ihre Freigabe-Auswahl.
+   */
+  async findAll(user?: any) {
+    let groups = await this.groupRepo.find();
+    if (user && user.role !== 'admin') {
+      groups = groups.filter((g) => !g.schoolId || g.schoolId === user.schoolId);
+    }
     groups.sort((a, b) => a.name.localeCompare(b.name, 'de'));
     return groups.map((g) => ({ ...g, memberIds: g.memberIds || [] }));
   }
 
-  async create(name: string, description?: string, memberIds?: string[]) {
+  async findOne(id: string) {
+    const group = await this.groupRepo.findOne({ where: { id } });
+    if (!group) throw new NotFoundException('Gruppe nicht gefunden.');
+    return group;
+  }
+
+  async create(name: string, description?: string, memberIds?: string[], schoolId: string | null = null) {
     const clean = (name || '').trim();
     if (!clean) throw new BadRequestException('Die Gruppe braucht einen Namen, z. B. "Fachschaft Informatik".');
-    await this.requireFreeName(clean);
+    await this.requireFreeName(clean, schoolId);
 
     const group = this.groupRepo.create({
       id: crypto.randomUUID(),
       name: clean,
       description: (description || '').trim() || null,
-      memberIds: await this.cleanMembers(memberIds),
+      schoolId,
+      memberIds: await this.cleanMembers(memberIds, schoolId),
     });
     return this.groupRepo.save(group);
   }
 
-  async update(id: string, body: { name?: string; description?: string; memberIds?: string[] }) {
-    const group = await this.groupRepo.findOne({ where: { id } });
-    if (!group) throw new NotFoundException('Gruppe nicht gefunden.');
+  /** `schoolId` ändern darf nur der Hauptadmin – das prüft der Controller. */
+  async update(id: string, body: { name?: string; description?: string; memberIds?: string[]; schoolId?: string | null }) {
+    const group = await this.findOne(id);
 
+    if (body.schoolId !== undefined) group.schoolId = body.schoolId || null;
     if (body.name !== undefined) {
       const clean = String(body.name).trim();
       if (!clean) throw new BadRequestException('Die Gruppe braucht einen Namen.');
-      if (clean.toLowerCase() !== group.name.toLowerCase()) await this.requireFreeName(clean);
       group.name = clean;
     }
+    if (body.name !== undefined || body.schoolId !== undefined) await this.requireFreeName(group.name, group.schoolId, id);
     if (body.description !== undefined) group.description = String(body.description).trim() || null;
-    if (body.memberIds !== undefined) group.memberIds = await this.cleanMembers(body.memberIds);
+    // Wechselt die Schule, fallen Mitglieder anderer Schulen heraus.
+    if (body.memberIds !== undefined || body.schoolId !== undefined) {
+      group.memberIds = await this.cleanMembers(body.memberIds ?? group.memberIds ?? [], group.schoolId);
+    }
 
     return this.groupRepo.save(group);
   }
@@ -119,19 +138,29 @@ export class GroupsService {
     return { success: true };
   }
 
-  /** Nur vorhandene Lehrkräfte und Admins, ohne Doppelungen. */
-  private async cleanMembers(memberIds?: string[]): Promise<string[]> {
+  /**
+   * Nur vorhandene Lehrkräfte und Admins, ohne Doppelungen; bei einer
+   * Schulgruppe nur Lehrkräfte dieser Schule.
+   */
+  private async cleanMembers(memberIds?: string[], schoolId: string | null = null): Promise<string[]> {
     const wanted = Array.isArray(memberIds) ? [...new Set(memberIds.map(String).filter(Boolean))] : [];
     if (wanted.length === 0) return [];
     const users = await this.userRepo.find();
-    const valid = new Set(users.filter((u) => u.role === 'teacher' || u.role === 'admin').map((u) => u.id));
+    const valid = new Set(
+      users
+        .filter((u) => u.role === 'teacher' || u.role === 'admin')
+        .filter((u) => !schoolId || u.schoolId === schoolId)
+        .map((u) => u.id),
+    );
     return wanted.filter((id) => valid.has(id));
   }
 
-  private async requireFreeName(name: string) {
+  /** Namen sind je Schule eindeutig; zwei Schulen dürfen beide "Mathe" haben. */
+  private async requireFreeName(name: string, schoolId: string | null, exceptId?: string) {
     const all = await this.groupRepo.find();
-    if (all.some((g) => g.name.toLowerCase() === name.toLowerCase())) {
-      throw new BadRequestException(`Es gibt bereits eine Gruppe "${name}".`);
-    }
+    const clash = all.some(
+      (g) => g.id !== exceptId && (g.schoolId || null) === (schoolId || null) && g.name.toLowerCase() === name.toLowerCase(),
+    );
+    if (clash) throw new BadRequestException(`Es gibt bereits eine Gruppe "${name}".`);
   }
 }

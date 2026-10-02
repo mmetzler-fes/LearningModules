@@ -199,14 +199,24 @@
           <span class="nav-icon">👥</span> Benutzerverwaltung
         </button>        <button class="nav-btn" data-view="admin-topics">
           <span class="nav-icon">📚</span> Lernmodule
+        </button>        <button class="nav-btn" data-view="admin-schools">
+          <span class="nav-icon">🏫</span> Schulen
         </button>        <button class="nav-btn" data-view="admin-groups">
-          <span class="nav-icon">🏫</span> Gruppen
+          <span class="nav-icon">👥</span> Gruppen
         </button>        <button class="nav-btn" data-view="admin-whitelist">
           <span class="nav-icon">🔒</span> Whitelist / Blacklist
         </button>
         <button class="nav-btn" data-view="admin-settings">
           <span class="nav-icon">🛡</span> Shop &amp; Sicherheit
           <span class="nav-alert hidden" id="navBackupAlert" title="Das letzte automatische Backup ist fehlgeschlagen">!</span>
+        </button>
+      </nav>
+
+      <!-- Schuladmin: Verwaltung der eigenen Schule -->
+      <nav class="sidebar-nav hidden" id="schoolAdminNav">
+        <div class="nav-section-label">Schuladmin</div>
+        <button class="nav-btn" data-view="school-admin">
+          <span class="nav-icon">🏫</span> Meine Schule
         </button>
       </nav>
 
@@ -695,11 +705,58 @@
 
       <!-- Admin: Whitelist / Blacklist -->
       <!-- Admin: Lehrergruppen (Fachschaften) -->
+      <section class="view" id="view-admin-schools">
+        <div class="view-header">
+          <h2>🏫 Schulen</h2>
+          <p class="subtitle">Lehrkräfte gehören zu genau einer Schule – zugeordnet über die Whitelist der Schule
+            oder von Hand. Schuladmins verwalten ihre Schule selbst; welche Rechte sie dabei haben, legst du hier fest.</p>
+          <div class="header-actions">
+            <input type="text" id="newSchoolName" class="search-input" maxlength="120" placeholder="Name der neuen Schule" />
+            <button class="btn btn-primary" id="btnNewSchool">➕ Schule anlegen</button>
+          </div>
+        </div>
+        <div id="adminSchoolsContainer" class="topics-list"></div>
+      </section>
+
+      <!-- Schuladmin: Meine Schule -->
+      <section class="view" id="view-school-admin">
+        <div class="view-header">
+          <h2 id="mySchoolTitle">🏫 Meine Schule</h2>
+          <p class="subtitle">Lehrkräfte, Whitelist und Gruppen deiner Schule.</p>
+        </div>
+        <div class="settings-panel">
+          <div class="settings-group">
+            <h3>Lehrkräfte</h3>
+            <div id="mySchoolTeachers"></div>
+          </div>
+          <div class="settings-group" style="margin-top:24px;">
+            <h3>Whitelist</h3>
+            <textarea id="mySchoolWhitelist" rows="4" placeholder="*@schule.de"></textarea>
+            <p class="hint" id="mySchoolWhitelistHint"></p>
+            <div class="form-actions">
+              <button class="btn btn-primary" id="btnSaveMySchoolWhitelist">💾 Whitelist speichern</button>
+              <button class="btn btn-secondary" id="btnApplyMySchoolWhitelist"
+                title="Lehrkräfte ohne Schule, die auf die Whitelist passen, sofort zuordnen">👥 Jetzt zuordnen</button>
+            </div>
+          </div>
+          <div class="settings-group" style="margin-top:24px;">
+            <h3>Gruppen</h3>
+            <p class="hint">Fachschaften und Teams eurer Schule. Lehrkräfte geben Themen an eine Gruppe frei,
+              statt Haken einzeln zu setzen.</p>
+            <div class="form-actions" style="margin-bottom:12px;">
+              <button class="btn btn-primary" id="btnNewSchoolGroup">➕ Neue Gruppe</button>
+            </div>
+            <div id="mySchoolGroups" class="topics-list"></div>
+          </div>
+        </div>
+      </section>
+
       <section class="view" id="view-admin-groups">
         <div class="view-header">
           <h2>Gruppen</h2>
           <p class="subtitle">Fachschaften und Teams. Lehrkräfte geben Themen an eine Gruppe frei,
-            statt zwölf Haken einzeln zu setzen – wer später dazukommt, ist automatisch dabei.</p>
+            statt zwölf Haken einzeln zu setzen – wer später dazukommt, ist automatisch dabei.
+            Gruppen einer Schule pflegt auch deren Schuladmin.</p>
           <div class="header-actions">
             <button class="btn btn-primary" id="btnNewGroup">➕ Neue Gruppe</button>
           </div>
@@ -710,7 +767,8 @@
       <section class="view" id="view-admin-whitelist">
         <div class="view-header">
           <h2>Whitelist / Blacklist</h2>
-          <p class="subtitle">Steuert, welche E-Mail-Adressen oder Domains sich als Lehrer registrieren oder als Admin angelegt werden dürfen.</p>
+          <p class="subtitle">Steuert, welche E-Mail-Adressen oder Domains sich als Lehrer registrieren oder als Admin angelegt werden dürfen.
+            Die Zuordnung zu Schulen regeln die Whitelists unter „Schulen“.</p>
         </div>
         <div class="settings-panel">
           <div class="settings-group">

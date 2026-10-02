@@ -16,18 +16,7 @@ export class AdminView {
   }
 
   async load() {
-    // Bind admin nav buttons
-    document.querySelectorAll('#adminNav .nav-btn').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        document.querySelectorAll('#adminNav .nav-btn').forEach((b) => b.classList.remove('active'));
-        btn.classList.add('active');
-        const view = btn.getAttribute('data-view');
-        this.app.navigateToView(view);
-        if (view === 'admin-users') this.refreshUsers();
-        if (view === 'admin-groups') this.refreshGroups();
-        if (view === 'admin-whitelist') this.refreshWhitelistBlacklist();
-      });
-    });
+    // Die Admin-Menüpunkte bindet App.setupNavigation; navigateToView lädt die Ansicht.
 
     // Toggle New Admin Form
     const btnNewAdmin = document.getElementById('btnNewAdmin');
@@ -73,7 +62,11 @@ export class AdminView {
 
     this._bindCredentialsDialog();
 
-    document.getElementById('btnNewGroup')?.addEventListener('click', () => this._openGroupEditor(null));
+    document.getElementById('btnNewGroup')?.addEventListener('click', async () => {
+      const [u, sc] = await Promise.all([this.app.api.getAllUsers(), this.app.api.getSchools()]);
+      const users = Array.isArray(u) ? u.filter((x) => x.role === 'teacher' || x.role === 'admin') : [];
+      this.openGroupEditor(null, users, { schools: sc?.schools || [], onChanged: () => this.refreshGroups() });
+    });
 
     document.getElementById('btnExportUsers')?.addEventListener('click', async () => {
       try {
@@ -242,7 +235,9 @@ export class AdminView {
 
   async refreshUsers(highlightId) {
     try {
-      this._usersCache = await this.app.api.getAllUsers();
+      const [users, schools] = await Promise.all([this.app.api.getAllUsers(), this.app.api.getSchools()]);
+      this._usersCache = Array.isArray(users) ? users : [];
+      this._schools = Array.isArray(schools?.schools) ? schools.schools : [];
       this._renderUsersList();
       if (highlightId) {
         const row = document.querySelector(`.admin-list-item[data-id="${highlightId}"]`);
@@ -284,6 +279,14 @@ export class AdminView {
           ${u.mustChangePassword && !u.pendingMergeFrom ? '<span class="hint">🔑 hat sein Passwort noch nicht geändert</span>' : ''}
         </div>
         <div class="admin-list-item-actions">
+          <select class="user-school-select" title="Schule zuordnen – gilt dann fest, die Whitelist ändert es nicht mehr">
+            <option value="">– keine Schule –</option>
+            ${(this._schools || []).map((sc) => `<option value="${escapeHtml(sc.id)}" ${u.schoolId === sc.id ? 'selected' : ''}>🏫 ${escapeHtml(sc.name)}</option>`).join('')}
+          </select>
+          <label class="share-flag" title="${u.schoolId ? 'Verwaltet die eigene Schule: Whitelist, Lehrkräfte, Gruppen' : 'Erst einer Schule zuordnen'}">
+            <input type="checkbox" class="user-school-admin" ${u.isSchoolAdmin ? 'checked' : ''} ${u.schoolId ? '' : 'disabled'} />
+            <span>Schuladmin</span>
+          </label>
           <select class="user-role-select" title="Rolle ändern">
             <option value="teacher" ${u.role !== 'admin' ? 'selected' : ''}>Lehrer</option>
             <option value="admin" ${u.role === 'admin' ? 'selected' : ''}>Admin + Lehrer</option>
@@ -295,11 +298,28 @@ export class AdminView {
             : `<button class="btn btn-danger btn-sm btn-delete-user" title="${u.isCreator ? 'Deaktivieren (Creator werden nicht gelöscht)' : 'Benutzer löschen'}">🗑</button>`}
         </div>`;
       item.querySelector('.user-role-select').addEventListener('change', (e) => this._changeRole(u, e.target));
+      item.querySelector('.user-school-select').addEventListener('change', (e) => this._assignSchool(u, { schoolId: e.target.value || null }));
+      item.querySelector('.user-school-admin').addEventListener('change', (e) => this._assignSchool(u, { isSchoolAdmin: e.target.checked }));
       item.querySelector('.btn-reset-password').addEventListener('click', () => this._resetPassword(u.id));
       item.querySelector('.btn-delete-user')?.addEventListener('click', () => this._deleteUser(u.id));
       item.querySelector('.btn-reactivate-user')?.addEventListener('click', () => this._reactivateUser(u));
       container.appendChild(item);
     }
+  }
+
+  /** Schule bzw. Schuladmin-Recht setzen; danach die Liste neu laden. */
+  async _assignSchool(user, body) {
+    try {
+      const res = await this.app.api.assignSchool(user.id, body);
+      if (!res || res.success === false || res.statusCode) {
+        this.app.showToast('Fehler: ' + (res?.message || 'Zuordnung fehlgeschlagen'), 'error');
+      } else {
+        this.app.showToast('Zuordnung gespeichert', 'success');
+      }
+    } catch (err) {
+      this.app.showToast('Fehler: ' + err.message, 'error');
+    }
+    await this.refreshUsers();
   }
 
   /**
@@ -678,22 +698,37 @@ export class AdminView {
 
     let groups = [];
     let users = [];
+    let schools = [];
     try {
-      [groups, users] = await Promise.all([this.app.api.getGroups(), this.app.api.getAllUsers()]);
-    } catch (_) { groups = []; users = []; }
-    this._groupUsers = Array.isArray(users) ? users.filter((u) => u.role === 'teacher' || u.role === 'admin') : [];
+      const [g, u, s] = await Promise.all([this.app.api.getGroups(), this.app.api.getAllUsers(), this.app.api.getSchools()]);
+      groups = Array.isArray(g) ? g : [];
+      users = Array.isArray(u) ? u.filter((x) => x.role === 'teacher' || x.role === 'admin') : [];
+      schools = Array.isArray(s?.schools) ? s.schools : [];
+    } catch (_) { /* leere Listen */ }
 
+    this.renderGroupList(box, groups, users, { schools, onChanged: () => this.refreshGroups() });
+  }
+
+  /**
+   * Gruppenkarten – vom Hauptadmin (alle Gruppen, mit Schulangabe) und vom
+   * Schuladmin (nur die eigene Schule) genutzt.
+   *
+   * opts.schools:   nur beim Hauptadmin – zeigt Schule und erlaubt den Wechsel
+   * opts.onChanged: nach Speichern/Löschen
+   */
+  renderGroupList(box, groups, users, opts = {}) {
     box.innerHTML = '';
-    if (!Array.isArray(groups) || groups.length === 0) {
+    if (groups.length === 0) {
       box.innerHTML = '<div class="empty-state"><span class="empty-icon">🏫</span>' +
         '<p>Noch keine Gruppen. Eine Fachschaft anzulegen lohnt sich ab etwa drei Personen, ' +
         'die regelmäßig dieselben Themen brauchen.</p></div>';
       return;
     }
+    const schoolName = (id) => (opts.schools || []).find((s) => s.id === id)?.name;
 
     for (const g of groups) {
       const members = (g.memberIds || [])
-        .map((id) => this._groupUsers.find((u) => u.id === id))
+        .map((id) => users.find((u) => u.id === id))
         .filter(Boolean);
 
       const card = document.createElement('div');
@@ -701,10 +736,13 @@ export class AdminView {
       card.innerHTML = `
         <div class="topic-card-header">
           <div class="topic-card-info">
-            <h3 class="topic-card-title">🏫 ${escapeHtml(g.name)}</h3>
+            <h3 class="topic-card-title">👥 ${escapeHtml(g.name)}</h3>
             <p class="topic-card-desc">${escapeHtml(g.description || '')}</p>
             <div class="topic-card-meta">
               <span class="topic-module-count">${members.length} Mitglied${members.length === 1 ? '' : 'er'}</span>
+              ${opts.schools ? `<span class="topic-shared-badge">${g.schoolId
+                ? `🏫 ${escapeHtml(schoolName(g.schoolId) || 'unbekannte Schule')}`
+                : '🌐 schulübergreifend'}</span>` : ''}
             </div>
             <div class="topic-card-tags">${members
               .map((m) => `<span class="tag-chip">${escapeHtml(m.displayName || m.email)}</span>`)
@@ -716,13 +754,13 @@ export class AdminView {
           </div>
         </div>`;
 
-      card.querySelector('.btn-edit-group').addEventListener('click', () => this._openGroupEditor(g));
-      card.querySelector('.btn-delete-group').addEventListener('click', () => this._deleteGroup(g));
+      card.querySelector('.btn-edit-group').addEventListener('click', () => this.openGroupEditor(g, users, opts));
+      card.querySelector('.btn-delete-group').addEventListener('click', () => this._deleteGroup(g, opts.onChanged));
       box.appendChild(card);
     }
   }
 
-  async _deleteGroup(group) {
+  async _deleteGroup(group, onChanged) {
     const ok = await this.app.appConfirm(
       `Gruppe "${group.name}" löschen?\n\n` +
       'Die Freigaben, die auf diese Gruppe zeigen, werden dabei mit entfernt. ' +
@@ -738,17 +776,21 @@ export class AdminView {
             : 'Gruppe gelöscht.',
           'info',
         );
-        this.refreshGroups();
+        onChanged?.();
       } else this.app.showToast('Fehler: ' + (res?.message || 'Löschen fehlgeschlagen'), 'error');
     } catch (err) {
       this.app.showToast('Fehler: ' + err.message, 'error');
     }
   }
 
-  /** Anlegen und Bearbeiten teilen sich den Dialog; `group` null heißt neu. */
-  _openGroupEditor(group) {
-    const users = this._groupUsers || [];
+  /**
+   * Anlegen und Bearbeiten teilen sich den Dialog; `group` null heißt neu.
+   * Mit `opts.schools` (Hauptadmin) lässt sich die Schule wählen; die
+   * Mitgliederliste zeigt dann nur Lehrkräfte dieser Schule.
+   */
+  openGroupEditor(group, users, opts = {}) {
     const chosen = new Set(group ? group.memberIds || [] : []);
+    const schools = opts.schools;
 
     const overlay = document.createElement('div');
     overlay.className = 'confirm-overlay';
@@ -764,20 +806,17 @@ export class AdminView {
           <label>Beschreibung (optional)</label>
           <input type="text" id="groupDesc" value="${group ? escapeHtml(group.description || '') : ''}" />
         </div>
+        ${schools ? `
+        <div class="form-group">
+          <label>Schule</label>
+          <select id="groupSchool">
+            <option value="">🌐 schulübergreifend</option>
+            ${schools.map((sc) => `<option value="${escapeHtml(sc.id)}" ${group?.schoolId === sc.id ? 'selected' : ''}>${escapeHtml(sc.name)}</option>`).join('')}
+          </select>
+        </div>` : ''}
         <div class="form-group">
           <label>Mitglieder</label>
-          <div class="share-user-list" id="groupMembers">
-            ${users.length === 0
-              ? '<p class="hint">Keine Lehrkräfte vorhanden.</p>'
-              : users.map((u) => `
-                <div class="share-user-row">
-                  <span class="share-user-name">${escapeHtml(u.displayName || u.email)}</span>
-                  <label class="share-flag">
-                    <input type="checkbox" data-user="${escapeHtml(u.id)}" ${chosen.has(u.id) ? 'checked' : ''} />
-                    <span>Mitglied</span>
-                  </label>
-                </div>`).join('')}
-          </div>
+          <div class="share-user-list" id="groupMembers"></div>
         </div>
         <div class="confirm-actions">
           <button class="btn btn-primary" id="btnSaveGroup">Speichern</button>
@@ -786,6 +825,29 @@ export class AdminView {
       </div>`;
     document.body.appendChild(overlay);
 
+    const schoolSelect = overlay.querySelector('#groupSchool');
+    const membersBox = overlay.querySelector('#groupMembers');
+    const renderMembers = () => {
+      // Häkchen, die gerade sichtbar sind, vor dem Neuzeichnen übernehmen.
+      membersBox.querySelectorAll('input[data-user]').forEach((cb) => {
+        if (cb.checked) chosen.add(cb.dataset.user); else chosen.delete(cb.dataset.user);
+      });
+      const schoolId = schoolSelect ? schoolSelect.value : null;
+      const list = schoolId ? users.filter((u) => u.schoolId === schoolId) : users;
+      membersBox.innerHTML = list.length === 0
+        ? '<p class="hint">Keine Lehrkräfte vorhanden.</p>'
+        : list.map((u) => `
+          <div class="share-user-row">
+            <span class="share-user-name">${escapeHtml(u.displayName || u.email)}</span>
+            <label class="share-flag">
+              <input type="checkbox" data-user="${escapeHtml(u.id)}" ${chosen.has(u.id) ? 'checked' : ''} />
+              <span>Mitglied</span>
+            </label>
+          </div>`).join('');
+    };
+    renderMembers();
+    schoolSelect?.addEventListener('change', renderMembers);
+
     const close = () => overlay.remove();
     overlay.querySelector('#btnCancelGroup').addEventListener('click', close);
     overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
@@ -793,8 +855,9 @@ export class AdminView {
     overlay.querySelector('#btnSaveGroup').addEventListener('click', async () => {
       const name = overlay.querySelector('#groupName').value.trim();
       if (!name) { this.app.showToast('Die Gruppe braucht einen Namen.', 'error'); return; }
-      const memberIds = [...overlay.querySelectorAll('#groupMembers input:checked')].map((cb) => cb.dataset.user);
+      const memberIds = [...membersBox.querySelectorAll('input:checked')].map((cb) => cb.dataset.user);
       const body = { name, description: overlay.querySelector('#groupDesc').value.trim(), memberIds };
+      if (schoolSelect) body.schoolId = schoolSelect.value || null;
 
       try {
         const res = group
@@ -803,7 +866,7 @@ export class AdminView {
         if (res && res.id) {
           close();
           this.app.showToast(group ? 'Gruppe gespeichert' : 'Gruppe angelegt', 'success');
-          this.refreshGroups();
+          opts.onChanged?.();
         } else {
           this.app.showToast('Fehler: ' + (res?.message || 'Speichern fehlgeschlagen'), 'error');
         }

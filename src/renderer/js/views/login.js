@@ -1,5 +1,14 @@
 import { escapeHtml, escapeAttr } from '../utils.js';
 
+/** Schule und Schuladmin-Recht aus der Login-/Session-Antwort des Servers. */
+function schoolFields(res) {
+  return {
+    schoolId: res.schoolId || null,
+    schoolName: res.schoolName || null,
+    isSchoolAdmin: !!res.isSchoolAdmin,
+  };
+}
+
 /** Beschriftung der drei Abfragemodi – auch in der Link-Verwaltung genutzt. */
 export const LINK_MODE_LABELS = {
   quiz:  { icon: '🧠', label: 'Quiz',                  hint: 'Mit Rückmeldung nach jeder Aufgabe.' },
@@ -381,6 +390,7 @@ export class LoginView {
           username: res.email || res.username,
           email: res.email,
           mustChangePassword: !!res.mustChangePassword,
+          ...schoolFields(res),
         };
         this._adminLoginErr.classList.add('hidden');
         if (res.mustChangePassword) {
@@ -424,6 +434,7 @@ export class LoginView {
       username: res.email,
       email: res.email,
       mustChangePassword: !!res.mustChangePassword,
+      ...schoolFields(res),
     };
     if (res.mustChangePassword) {
       app.startForcedPasswordChange(() => this.enterApp());
@@ -443,7 +454,9 @@ export class LoginView {
       const res = await this.app.api.register(email, password, displayName);
       if (res.token) {
         this.app.authStore.setToken(res.token);
-        this.app.state.currentUser = { name: res.displayName || res.username || email, role: 'teacher', id: res.id, username: email, email };
+        this.app.state.currentUser = {
+          name: res.displayName || res.username || email, role: 'teacher', id: res.id, username: email, email, ...schoolFields(res),
+        };
         if (this._registerForm) this._registerForm.classList.add('hidden');
         if (this._teacherLoginForm) this._teacherLoginForm.classList.remove('hidden');
         await this.enterApp();
@@ -491,6 +504,7 @@ export class LoginView {
     if (teacherNav)  teacherNav.classList.add('hidden');
     if (studentNav)  studentNav.classList.add('hidden');
     if (adminNavEl)  adminNavEl.classList.add('hidden');
+    document.getElementById('schoolAdminNav')?.classList.add('hidden');
     this._loginScreen.classList.remove('hidden');
 
     // Reset teacher/admin fields
@@ -539,6 +553,13 @@ export class LoginView {
       if (adminNavEl) adminNavEl.classList.add('hidden');
       if (this._btnDeleteAcc) this._btnDeleteAcc.classList.add('hidden');
       this._userInfo.innerHTML = `<span class="user-role-badge student">${t('role.student')}</span> ${escapeHtml(currentUser.name)}`;
+    }
+
+    // Schuladmin ist ein Zusatzrecht – das Menü kommt zu dem der Lehrkraft dazu.
+    document.getElementById('schoolAdminNav')?.classList.toggle('hidden', !currentUser.isSchoolAdmin);
+    if (currentUser.schoolName && currentUser.role !== 'student') {
+      this._userInfo.insertAdjacentHTML('beforeend',
+        `<div class="user-school" title="Deine Schule">🏫 ${escapeHtml(currentUser.schoolName)}</div>`);
     }
 
     this.app.setupNavigation();

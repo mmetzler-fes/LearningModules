@@ -381,6 +381,40 @@ export class BrowserApi {
     return this._fetch(`/api/groups/${encodeURIComponent(id)}`, { method: 'DELETE' });
   }
 
+  // ---------- Schulen (Hauptadmin) ----------
+  getSchools() { return this._fetch('/api/admin/schools'); }
+  createSchool(body) {
+    return this._fetch('/api/admin/schools', { method: 'POST', body: JSON.stringify(body) });
+  }
+  updateSchool(id, body) {
+    return this._fetch(`/api/admin/schools/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(body) });
+  }
+  deleteSchool(id) {
+    return this._fetch(`/api/admin/schools/${encodeURIComponent(id)}`, { method: 'DELETE' });
+  }
+  previewSchoolWhitelist(id) {
+    return this._fetch(`/api/admin/schools/${encodeURIComponent(id)}/whitelist-preview`);
+  }
+  applySchoolWhitelist(id) {
+    return this._fetch(`/api/admin/schools/${encodeURIComponent(id)}/apply-whitelist`, { method: 'POST' });
+  }
+  /** `{ schoolId: id | null, isSchoolAdmin? }` */
+  assignSchool(userId, body) {
+    return this._fetch(`/api/admin/schools/users/${encodeURIComponent(userId)}`, { method: 'PATCH', body: JSON.stringify(body) });
+  }
+
+  // ---------- Meine Schule (Schuladmin) ----------
+  getMySchool() { return this._fetch('/api/my-school'); }
+  saveMySchoolWhitelist(whitelist) {
+    return this._fetch('/api/my-school/whitelist', { method: 'PUT', body: JSON.stringify({ whitelist }) });
+  }
+  previewMySchoolWhitelist() { return this._fetch('/api/my-school/whitelist-preview'); }
+  applyMySchoolWhitelist() { return this._fetch('/api/my-school/apply-whitelist', { method: 'POST' }); }
+  /** action: 'remove' | 'deactivate' | 'reactivate' */
+  mySchoolTeacherAction(userId, action) {
+    return this._fetch(`/api/my-school/teachers/${encodeURIComponent(userId)}/${action}`, { method: 'POST' });
+  }
+
   setTopicPermissions(topicId, permissions) {
     return this._fetch('/api/topics/permissions', {
       method: 'POST',

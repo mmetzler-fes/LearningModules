@@ -6,7 +6,9 @@ import { User, UserRole } from '../core/entities/user.entity';
 import { SystemConfig } from '../core/entities/system-config.entity';
 import { MailService } from '../core/mail/mail.service';
 import { AccountsService } from '../accounts/accounts.service';
+import { SchoolsService } from '../core/schools/schools.service';
 import * as crypto from 'crypto';
+import { emailMatchesPattern } from '../core/share/email-pattern';
 
 @Injectable()
 export class AuthService {
@@ -16,6 +18,7 @@ export class AuthService {
     private readonly jwtService: JwtService,
     private readonly mailService: MailService,
     private readonly accounts: AccountsService,
+    private readonly schools: SchoolsService,
   ) {}
 
   // ---- Password generation ----
@@ -55,43 +58,6 @@ export class AuthService {
 
   // ---- Whitelist / Blacklist check ----
 
-  /**
-   * Checks whether an email matches a single pattern entry.
-   * Supported formats:
-   *   *.fes-es.de        — any email at fes-es.de or any subdomain
-   *   @fes-es.de         — any email at exactly fes-es.de
-   *   fes-es.de          — same as @fes-es.de
-   *   user@fes-es.de     — exact email address
-   */
-  private emailMatchesPattern(email: string, pattern: string): boolean {
-    const p = pattern.toLowerCase().trim();
-    const e = email.toLowerCase().trim();
-    if (!p) return false;
-
-    // @domain.de – muss VOR der Prüfung auf eine exakte Adresse stehen, sonst
-    // landet "@fes-es.de" im Exakt-Vergleich und passt auf gar nichts.
-    if (p.startsWith('@')) {
-      return (e.split('@')[1] || '') === p.slice(1);
-    }
-
-    // Exact email address match
-    if (p.includes('@') && !p.startsWith('*')) {
-      return e === p;
-    }
-
-    // Wildcard subdomain: *.fes-es.de
-    if (p.startsWith('*.')) {
-      const base = p.slice(2);
-      const emailDomain = e.split('@')[1] || '';
-      return emailDomain === base || emailDomain.endsWith('.' + base);
-    }
-
-    // @domain.com or plain domain.com
-    const domain = p.replace(/^@/, '');
-    const emailDomain = e.split('@')[1] || '';
-    return emailDomain === domain;
-  }
-
   async checkAllowed(email: string, listType: 'teacher' | 'admin'): Promise<void> {
     const whitelistEntry = await this.configRepo.findOne({ where: { key: `${listType}_whitelist` } });
     const blacklistEntry = await this.configRepo.findOne({ where: { key: `${listType}_blacklist` } });
@@ -101,13 +67,13 @@ export class AuthService {
 
     // Blacklist takes priority
     if (blacklist.length > 0) {
-      const blocked = blacklist.some((entry) => this.emailMatchesPattern(email, entry));
+      const blocked = blacklist.some((entry) => emailMatchesPattern(email, entry));
       if (blocked) throw new ForbiddenException('Diese E-Mail-Adresse ist gesperrt.');
     }
 
     // If whitelist is defined, only listed patterns are allowed
     if (whitelist.length > 0) {
-      const allowed = whitelist.some((entry) => this.emailMatchesPattern(email, entry));
+      const allowed = whitelist.some((entry) => emailMatchesPattern(email, entry));
       if (!allowed) throw new ForbiddenException('Diese E-Mail-Adresse ist nicht in der Whitelist.');
     }
   }
@@ -123,7 +89,8 @@ export class AuthService {
     if (user.active === false) {
       throw new UnauthorizedException('Dieses Konto ist deaktiviert. Bitte an den Admin wenden.');
     }
-    return this.buildSession(user);
+    await this.schools.autoAssign(user);
+    return await this.buildSession(user);
   }
 
   /**
@@ -140,11 +107,12 @@ export class AuthService {
       role,
       displayName: user.displayName || user.email,
       mustChangePassword,
+      ...(await this.schoolInfo(user)),
     };
   }
 
   /** Token + Benutzerdaten für die Antwort an das Frontend. */
-  private buildSession(user: User) {
+  private async buildSession(user: User) {
     const payload = {
       sub: user.id,
       email: user.email,
@@ -160,6 +128,17 @@ export class AuthService {
       role: user.role,
       displayName: user.displayName || user.email,
       mustChangePassword: !!user.mustChangePassword,
+      ...(await this.schoolInfo(user)),
+    };
+  }
+
+  /** Schule und Schuladmin-Recht für die Oberfläche (Menü, Anzeige). */
+  private async schoolInfo(user: User) {
+    const schoolName = await this.schools.schoolName(user.schoolId);
+    return {
+      schoolId: schoolName ? user.schoolId : null,
+      schoolName,
+      isSchoolAdmin: !!schoolName && !!user.isSchoolAdmin,
     };
   }
 
@@ -186,7 +165,8 @@ export class AuthService {
       displayName: data.displayName || data.email,
     });
     const saved = await this.userRepo.save(user);
-    return this.buildSession(saved);
+    await this.schools.autoAssign(saved);
+    return await this.buildSession(saved);
   }
 
   // ---- Admin legt einen Benutzer an (Lehrer oder Admin) ----
@@ -227,6 +207,7 @@ export class AuthService {
       mustChangePassword: true,
     });
     const saved = await this.userRepo.save(user);
+    await this.schools.autoAssign(saved);
 
     const mail = await this.mailService.sendInitialPassword({
       to: saved.email,
@@ -347,7 +328,7 @@ export class AuthService {
       }
       await this.accounts.merge(me, target);
       const merged = await this.userRepo.findOne({ where: { id: target.id } });
-      return { success: true, merged: true, session: this.buildSession(merged!) };
+      return { success: true, merged: true, session: await this.buildSession(merged!) };
     }
 
     const pending = this.userRepo.create({
@@ -420,7 +401,7 @@ export class AuthService {
     }
     const fresh = (await this.userRepo.findOne({ where: { id: userId } }))!;
     // Neues Token, damit das mustChangePassword-Flag im JWT nicht mehr sperrt.
-    const session = this.buildSession(fresh);
+    const session = await this.buildSession(fresh);
     return {
       success: true,
       message: mergedFrom

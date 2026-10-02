@@ -29,6 +29,7 @@ import { GroupsModule } from './groups/groups.module';
 import { AccountsModule } from './accounts/accounts.module';
 import { ShopModule } from './shop/shop.module';
 import { CryptoModule } from './core/crypto/crypto.module';
+import { SchoolsModule } from './core/schools/schools.module';
 import { join } from 'path';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -69,6 +70,7 @@ import { AppService } from './app.service';
     GroupsModule,
     AccountsModule,
     CryptoModule,
+    SchoolsModule,
     ShopModule,
     PublicModule,
   ],

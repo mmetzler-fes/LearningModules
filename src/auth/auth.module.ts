@@ -9,12 +9,14 @@ import { User } from '../core/entities/user.entity';
 import { SystemConfig } from '../core/entities/system-config.entity';
 import { GroupsModule } from '../groups/groups.module';
 import { AccountsModule } from '../accounts/accounts.module';
+import { SchoolsModule } from '../core/schools/schools.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([User, SystemConfig]),
     GroupsModule,
     AccountsModule,
+    SchoolsModule,
     PassportModule,
     JwtModule.register({
       secret: process.env.JWT_SECRET || 'secretKey',

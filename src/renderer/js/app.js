@@ -11,6 +11,7 @@ import { AdminView } from './views/admin.js';
 import { LinksView } from './views/links.js';
 import { TagsView } from './views/tags.js';
 import { ShopView } from './views/shop.js';
+import { SchoolsAdminView, MySchoolView } from './views/schools.js';
 
 // ==================== APP COORDINATOR ====================
 
@@ -54,6 +55,8 @@ class App {
     this.linksView    = new LinksView(this);
     this.tagsView     = new TagsView(this);
     this.shopView     = new ShopView(this);
+    this.schoolsView  = new SchoolsAdminView(this);
+    this.mySchoolView = new MySchoolView(this);
   }
 
   showToast(message, type = 'info') {
@@ -91,6 +94,11 @@ class App {
     navContainer.querySelectorAll('.nav-btn').forEach((btn) => {
       btn.addEventListener('click', () => this.navigateToView(btn.dataset.view));
     });
+    if (state.currentUser.isSchoolAdmin) {
+      document.querySelectorAll('#schoolAdminNav .nav-btn').forEach((btn) => {
+        btn.addEventListener('click', () => this.navigateToView(btn.dataset.view));
+      });
+    }
     if (state.currentUser.role === 'admin') {
       const adminNavEl = document.getElementById('adminNav');
       if (adminNavEl) {
@@ -132,6 +140,8 @@ class App {
 
     const adminNavEl = document.getElementById('adminNav');
     if (adminNavEl) adminNavEl.querySelectorAll('.nav-btn').forEach((b) => b.classList.remove('active'));
+    const schoolNavEl = document.getElementById('schoolAdminNav');
+    schoolNavEl?.querySelectorAll('.nav-btn').forEach((b) => b.classList.remove('active'));
 
     const targetView = document.getElementById('view-' + viewName);
     if (targetView) targetView.classList.add('active');
@@ -139,7 +149,8 @@ class App {
     // Die Modulliste gehört zu einem Lernthema und hat keinen eigenen Menüpunkt.
     const navName = viewName === 'teacher-modules' ? 'teacher-topics' : viewName;
     const targetBtn = navContainer.querySelector('.nav-btn[data-view="' + navName + '"]')
-      || (adminNavEl && adminNavEl.querySelector('.nav-btn[data-view="' + navName + '"]'));
+      || (adminNavEl && adminNavEl.querySelector('.nav-btn[data-view="' + navName + '"]'))
+      || schoolNavEl?.querySelector('.nav-btn[data-view="' + navName + '"]');
     if (targetBtn) targetBtn.classList.add('active');
 
     switch (viewName) {
@@ -153,6 +164,9 @@ class App {
       case 'admin-settings':    this.adminView.refreshSettings(); break;
       case 'admin-users':       this.adminView.refreshUsers(); break;
       case 'admin-topics':      this.adminView.refreshAdminTopics(); break;
+      case 'admin-schools':     this.schoolsView.refresh(); break;
+      case 'admin-groups':      this.adminView.refreshGroups(); break;
+      case 'school-admin':      this.mySchoolView.refresh(); break;
       case 'admin-whitelist':   this.adminView.refreshWhitelistBlacklist(); break;
     }
   }

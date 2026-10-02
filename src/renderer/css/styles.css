@@ -3449,3 +3449,29 @@ body {
 .tag-area-settings { grid-column: 1 / -1; display: flex; flex-direction: column; gap: 10px; }
 .tag-picker-new-isarea { display: inline-flex; align-items: center; gap: 4px; font-size: 0.88em; white-space: nowrap; }
 .tag-picker-new .tag-picker-new-area { flex: 0 1 200px; width: auto; min-width: 0; }
+
+/* ---- Schulen ---- */
+.user-info { flex-wrap: wrap; }
+.user-school { flex-basis: 100%; font-size: 0.92em; color: var(--text-sidebar); opacity: 0.85; }
+.school-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.school-row .school-name { flex: 1 1 260px; min-width: 0; }
+.school-block { display: flex; flex-direction: column; gap: 8px; padding-top: 12px; border-top: 1px dashed var(--border); }
+.school-block h4 { margin: 0; font-size: 0.95em; }
+.school-row .school-name,
+.school-block textarea,
+#view-school-admin textarea {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  font-size: 0.9rem;
+  outline: none;
+}
+.school-block textarea,
+#view-school-admin textarea { font-family: monospace; }
+.school-row .school-name:focus,
+.school-block textarea:focus,
+#view-school-admin textarea:focus { border-color: var(--accent); }
+.school-conflicts { border-color: var(--warning); }

@@ -223,6 +223,12 @@ export class AccountsService {
     if (!fresh) throw new BadRequestException('Zielkonto nicht gefunden.');
     if (from.role === 'admin') fresh.role = 'admin';
     if (!fresh.displayName || fresh.displayName === fresh.email) fresh.displayName = from.displayName || fresh.displayName;
+    // Die Schule zieht mit um – bei einem E-Mail-Wechsel bleibt man ja an derselben Schule.
+    if (!fresh.schoolId && from.schoolId) {
+      fresh.schoolId = from.schoolId;
+      fresh.isSchoolAdmin = !!from.isSchoolAdmin;
+      fresh.schoolManual = !!from.schoolManual;
+    }
     fresh.formerIds = [...new Set([...(fresh.formerIds || []), from.id, ...(from.formerIds || [])])];
     fresh.pendingMergeFrom = null;
     fresh.active = true;

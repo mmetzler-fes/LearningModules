@@ -11,8 +11,18 @@ export class GroupsController {
     private readonly shop: ShopService,
   ) {}
 
-  private requireAdmin(req: any) {
-    if (req.user.role !== 'admin') throw new ForbiddenException('Gruppen pflegt der Admin.');
+  /**
+   * Der Hauptadmin pflegt alle Gruppen, ein Schuladmin nur die seiner Schule.
+   * Schulübergreifende Gruppen bleiben beim Hauptadmin.
+   */
+  private async requireManage(req: any, groupId?: string) {
+    const user = req.user;
+    if (user.role === 'admin') return;
+    if (!user.isSchoolAdmin || !user.schoolId) throw new ForbiddenException('Gruppen pflegt der Admin.');
+    if (groupId) {
+      const group = await this.groups.findOne(groupId);
+      if (group.schoolId !== user.schoolId) throw new ForbiddenException('Diese Gruppe gehört nicht zu eurer Schule.');
+    }
   }
 
   /**
@@ -21,24 +31,30 @@ export class GroupsController {
    * Fachschaft freigibt, soll sehen, wen er damit erreicht.
    */
   @Get()
-  async findAll() {
-    return this.groups.findAll();
+  async findAll(@Request() req: any) {
+    return this.groups.findAll(req.user);
   }
 
   @Post()
-  async create(@Request() req: any, @Body() body: { name: string; description?: string; memberIds?: string[] }) {
-    this.requireAdmin(req);
-    return this.groups.create(body?.name, body?.description, body?.memberIds);
+  async create(
+    @Request() req: any,
+    @Body() body: { name: string; description?: string; memberIds?: string[]; schoolId?: string | null },
+  ) {
+    await this.requireManage(req);
+    // Ein Schuladmin legt immer für die eigene Schule an.
+    const schoolId = req.user.role === 'admin' ? body?.schoolId || null : req.user.schoolId;
+    return this.groups.create(body?.name, body?.description, body?.memberIds, schoolId);
   }
 
   @Patch(':id')
   async update(
     @Request() req: any,
     @Param('id') id: string,
-    @Body() body: { name?: string; description?: string; memberIds?: string[] },
+    @Body() body: { name?: string; description?: string; memberIds?: string[]; schoolId?: string | null },
   ) {
-    this.requireAdmin(req);
-    return this.groups.update(id, body || {});
+    await this.requireManage(req, id);
+    const { schoolId, ...rest } = body || {};
+    return this.groups.update(id, req.user.role === 'admin' ? { ...rest, schoolId } : rest);
   }
 
   /**
@@ -49,7 +65,7 @@ export class GroupsController {
    */
   @Delete(':id')
   async remove(@Request() req: any, @Param('id') id: string) {
-    this.requireAdmin(req);
+    await this.requireManage(req, id);
     const cleaned = await this.shop.dropGroupFromAudiences(id);
     await this.groups.remove(id);
     return { success: true, sharingEntriesRemoved: cleaned };

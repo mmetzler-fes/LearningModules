@@ -314,10 +314,15 @@ export class TopicsService {
   }
 
   /** Aktive Kolleginnen und Kollegen für die Auswahl der Zielgruppe im Shop. */
+  /**
+   * Wer einer Schule angehört, wählt nur unter Kolleginnen und Kollegen der
+   * eigenen Schule aus; "alle" im Shop bleibt davon unberührt.
+   */
   async listColleagues(user: any) {
     const users = await this.userRepo.find();
     return users
       .filter((u) => u.id !== user.userId && u.active !== false && (u.role === 'teacher' || u.role === 'admin'))
+      .filter((u) => !user.schoolId || u.schoolId === user.schoolId)
       .map((u) => ({
         id: u.id,
         displayName: u.displayName || u.email,

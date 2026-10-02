@@ -28,9 +28,23 @@ export class User extends BaseEntity {
   @Column({ type: 'boolean', default: false })
   mustChangePassword: boolean;
 
+  /** Schule der Lehrkraft (siehe School); leer = keiner Schule zugeordnet. */
+  @Column({ type: 'varchar', nullable: true })
+  schoolId: string | null;
+
+  /** Zusatzrecht: verwaltet die eigene Schule (Whitelist, Lehrkräfte, Gruppen). */
+  @Column({ default: false })
+  isSchoolAdmin: boolean;
+
+  /**
+   * Die Schule wurde von Hand gesetzt oder entzogen. Dann ordnet die
+   * Whitelist nicht mehr automatisch zu – sonst landete jemand, den der
+   * Schuladmin gerade entfernt hat, beim nächsten Login wieder in der Schule.
+   */
+  @Column({ default: false })
+  schoolManual: boolean;
+
   // Legacy columns kept nullable for migration compatibility
-  @Column({ nullable: true })
-  schoolId: string;
 
   @Column({ nullable: true })
   supervisorId: string;

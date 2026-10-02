@@ -569,7 +569,7 @@
           <p class="subtitle">Schlagworte zum Einordnen von Lernthemen und Schülerfreigaben.
             Ein Tag kann ein <strong>Themengebiet</strong> sein (z. B. „Informatik“); die übrigen Tags
             (z. B. „Arduino“) ordnest du einem oder mehreren Themengebieten zu. Lernthemen und Freigaben
-            werden dann nach Themengebieten gegliedert.</p>
+            werden dann nach Themengebieten gegliedert. Mit 🏫 gekennzeichnete Tags gibt deine Schule vor.</p>
         </div>
 
         <div class="topic-form-card" style="margin-bottom:20px;">
@@ -738,6 +738,48 @@
               <button class="btn btn-secondary" id="btnApplyMySchoolWhitelist"
                 title="Lehrkräfte ohne Schule, die auf die Whitelist passen, sofort zuordnen">👥 Jetzt zuordnen</button>
             </div>
+          </div>
+          <div class="settings-group" style="margin-top:24px;">
+            <h3>Tag-Struktur der Schule</h3>
+            <p class="hint">Themengebiete und Tags, die alle Lehrkräfte eurer Schule sehen und vergeben können
+              (mit 🏫 gekennzeichnet). Ändern können sie sie nicht – eigene Tags dürfen sie aber anlegen und unter
+              eure Themengebiete hängen.</p>
+          <div class="topic-form-card" style="margin-bottom:20px;">
+            <h3 id="schoolTagFormTitle">Neuer Tag</h3>
+            <form id="schoolTagForm" class="tag-form">
+              <div class="form-group">
+                <label for="schoolTagName">Name *</label>
+                <input type="text" id="schoolTagName" required maxlength="40" placeholder="z. B. Informatik" autocomplete="off" />
+              </div>
+              <div class="form-group">
+                <label for="schoolTagColor">Farbe</label>
+                <div class="tag-color-picker">
+                  <input type="color" id="schoolTagColor" value="#4f7cff" />
+                  <input type="text" id="schoolTagColorHex" value="#4f7cff" maxlength="7" spellcheck="false"
+                         autocomplete="off" aria-label="Farbwert als Hex-Code" placeholder="#4f7cff" />
+                  <button type="button" id="schoolBtnCopyTagColor" class="btn btn-secondary btn-sm"
+                          title="Farbwert kopieren">📋</button>
+                </div>
+                <span class="hint">Hex-Code kopieren und bei einem anderen Tag einfügen.</span>
+              </div>
+              <div class="form-group tag-area-settings">
+                <label class="tag-filter-mode">
+                  <input type="checkbox" id="schoolTagIsArea" />
+                  <span><strong>Themengebiet</strong> – Gliederungsüberschrift für Lernthemen, Freigaben und Tags</span>
+                </label>
+                <div id="schoolTagAreaChoicesWrap">
+                  <label>Gehört zu Themengebiet(en)</label>
+                  <div id="schoolTagAreaChoices" class="tag-picker"></div>
+                </div>
+              </div>
+              <div class="form-actions">
+                <button type="submit" class="btn btn-primary">Speichern</button>
+                <button type="button" class="btn btn-secondary hidden" id="schoolBtnCancelTag">Abbrechen</button>
+              </div>
+            </form>
+          </div>
+
+          <div id="schoolTagsList" class="tags-list"></div>
           </div>
           <div class="settings-group" style="margin-top:24px;">
             <h3>Gruppen</h3>

@@ -3475,3 +3475,8 @@ body {
 .school-block textarea:focus,
 #view-school-admin textarea:focus { border-color: var(--accent); }
 .school-conflicts { border-color: var(--warning); }
+/* Vorgabe der Schule: gestrichelter Rand plus kleines Schulsymbol */
+.tag-chip.school-tag { border-style: dashed; }
+.tag-chip.school-tag::after { content: ' 🏫'; font-size: 0.85em; }
+.tag-row-actions .hint { font-size: 0.85em; white-space: nowrap; }
+#view-school-admin .settings-panel { max-width: 960px; }

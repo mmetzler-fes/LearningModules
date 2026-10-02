@@ -1,4 +1,5 @@
 import { escapeHtml, escapeAttr } from '../utils.js';
+import { TagsView } from './tags.js';
 
 // ==================== SCHULEN ====================
 
@@ -304,6 +305,22 @@ export class MySchoolView {
         () => this.app.api.applyMySchoolWhitelist());
       if (ok) await this.refresh();
     });
+    // Tag-Struktur der Schule: dieselbe Verwaltung wie unter "Tags", nur mit
+    // den Schul-Endpunkten. Danach die eigene Tag-Liste neu laden, damit die
+    // Vorgaben in Filtern und Formularen sofort auftauchen.
+    const reload = async (res) => { await app.loadTags(); return res; };
+    this._tagsView = new TagsView(app, {
+      prefix: 'school',
+      scope: 'school-tags',
+      source: {
+        load: () => app.api.getSchoolTags(),
+        create: (data) => app.api.createSchoolTag(data).then(reload),
+        update: (id, data) => app.api.updateSchoolTag(id, data).then(reload),
+        remove: (id) => app.api.deleteSchoolTag(id).then(reload),
+        editable: () => true,
+      },
+    });
+
     document.getElementById('btnNewSchoolGroup')?.addEventListener('click', () =>
       this.app.adminView.openGroupEditor(null, this._data?.teachers || [], { onChanged: () => this.refresh() }));
   }
@@ -323,6 +340,7 @@ export class MySchoolView {
     if (this._title) this._title.textContent = `🏫 ${data.name}`;
     this._renderTeachers(data);
     this._renderWhitelist(data);
+    await this._tagsView.refresh();
 
     const own = (Array.isArray(groups) ? groups : []).filter((g) => g.schoolId === data.id);
     if (this._groups) this.app.adminView.renderGroupList(this._groups, own, data.teachers, { onChanged: () => this.refresh() });

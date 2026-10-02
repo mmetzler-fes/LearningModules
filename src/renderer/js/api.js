@@ -128,6 +128,13 @@ export class BrowserApi {
     return this._fetch(`/api/tags/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(data) });
   }
   deleteTag(id) { return this._fetch(`/api/tags/${encodeURIComponent(id)}`, { method: 'DELETE' }); }
+  // Tag-Struktur der Schule (Schuladmin)
+  getSchoolTags() { return this._fetch('/api/tags/school'); }
+  createSchoolTag(data) { return this._fetch('/api/tags/school', { method: 'POST', body: JSON.stringify(data) }); }
+  updateSchoolTag(id, data) {
+    return this._fetch(`/api/tags/school/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(data) });
+  }
+  deleteSchoolTag(id) { return this._fetch(`/api/tags/school/${encodeURIComponent(id)}`, { method: 'DELETE' }); }
 
   // ---------- Themen-Links ----------
   getLinks() { return this._fetch('/api/links'); }

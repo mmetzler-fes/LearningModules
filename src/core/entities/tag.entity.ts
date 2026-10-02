@@ -14,6 +14,11 @@ import { BaseEntity } from './base.entity';
  * (z. B. "Arduino" unter "Informatik" und "Technik"). Lernthemen und Links
  * erscheinen dann unter jedem Themengebiet, das sie direkt oder über einen
  * ihrer Tags tragen.
+ *
+ * Schul-Tags: Der Schuladmin gibt eine Struktur für alle Lehrkräfte der
+ * Schule vor (ownerId = "school:<id>", schoolId gesetzt). Lehrkräfte sehen
+ * und vergeben sie, ändern sie aber nicht; eigene Tags dürfen sie unter
+ * Schul-Themengebiete hängen.
  */
 @Entity('tags')
 @Index(['ownerId', 'name'])
@@ -23,6 +28,10 @@ export class Tag extends BaseEntity {
 
   @Column()
   ownerId: string;
+
+  /** Gesetzt bei einer Vorgabe der Schule, sonst leer (Tag einer Lehrkraft). */
+  @Column({ type: 'varchar', nullable: true })
+  schoolId: string | null;
 
   /** Optionale Farbe (#rrggbb) für die Darstellung als Chip. */
   @Column({ type: 'varchar', nullable: true })

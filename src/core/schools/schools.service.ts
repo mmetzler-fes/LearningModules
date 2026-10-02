@@ -7,6 +7,7 @@ import * as crypto from 'crypto';
 import { School } from '../entities/school.entity';
 import { User } from '../entities/user.entity';
 import { TeacherGroup } from '../entities/teacher-group.entity';
+import { Tag } from '../entities/tag.entity';
 import { AccountsService } from '../../accounts/accounts.service';
 import { emailMatchesAny } from '../share/email-pattern';
 
@@ -43,6 +44,7 @@ export class SchoolsService implements OnModuleInit {
     @InjectRepository(School) private readonly schoolRepo: Repository<School>,
     @InjectRepository(User) private readonly userRepo: Repository<User>,
     @InjectRepository(TeacherGroup) private readonly groupRepo: Repository<TeacherGroup>,
+    @InjectRepository(Tag) private readonly tagRepo: Repository<Tag>,
     private readonly accounts: AccountsService,
   ) {}
 
@@ -170,6 +172,8 @@ export class SchoolsService implements OnModuleInit {
    * Löscht die Schule. Lehrkräfte stehen danach ohne Schule da (und dürfen
    * per Whitelist einer anderen zugeordnet werden), Gruppen werden
    * schulübergreifend – ihre Freigaben sollen nicht still verschwinden.
+   * Die Tag-Vorgaben der Schule entfallen; an Themen verbliebene IDs zeigen
+   * dann ins Leere und werden in der Anzeige übergangen.
    */
   async remove(id: string) {
     const school = await this.findOne(id);
@@ -183,8 +187,10 @@ export class SchoolsService implements OnModuleInit {
     const groups = await this.groupRepo.find({ where: { schoolId: id } });
     for (const g of groups) g.schoolId = null;
     if (groups.length) await this.groupRepo.save(groups);
+    const tags = await this.tagRepo.find({ where: { schoolId: id } });
+    if (tags.length) await this.tagRepo.remove(tags);
     await this.schoolRepo.remove(school);
-    return { success: true, teachersReleased: users.length, groupsReleased: groups.length };
+    return { success: true, teachersReleased: users.length, groupsReleased: groups.length, tagsRemoved: tags.length };
   }
 
   /**

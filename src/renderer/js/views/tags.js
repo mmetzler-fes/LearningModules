@@ -41,7 +41,9 @@ export function areasOfTagIds(tagIds, tags) {
 }
 
 export function chipHtml(tag) {
-  return `<span class="tag-chip${tag.isArea ? ' area-chip' : ''}" style="--tag-color:${escapeAttr(tag.color || DEFAULT_TAG_COLOR)}">${tag.isArea ? '📁 ' : ''}${escapeHtml(tag.name)}</span>`;
+  const cls = `tag-chip${tag.isArea ? ' area-chip' : ''}${tag.isSchoolTag ? ' school-tag' : ''}`;
+  const title = tag.isSchoolTag ? ' title="Vorgabe der Schule"' : '';
+  return `<span class="${cls}"${title} style="--tag-color:${escapeAttr(tag.color || DEFAULT_TAG_COLOR)}">${tag.isArea ? '📁 ' : ''}${escapeHtml(tag.name)}</span>`;
 }
 
 // Welche Abschnitte jemand auf- bzw. zugeklappt hat, merkt sich nur der
@@ -178,21 +180,39 @@ function renderTagChoices(box, tags, selected, { visible = () => true, onToggle 
  * So steht "Arduino" nicht dreimal unterschiedlich geschrieben im Filter.
  */
 export class TagsView {
-  constructor(app) {
+  /**
+   * Dieselbe Verwaltung für die eigenen Tags (Menü "Tags") und für die
+   * Tag-Struktur der Schule ("Meine Schule"). Unterschiede:
+   *   prefix – Präfix der Element-IDs (leer bzw. "school" → schoolTagName …)
+   *   source – woher die Tags kommen und wohin Änderungen gehen
+   *   scope  – Schlüssel für den gemerkten Auf-/Zu-Zustand
+   * In den eigenen Tags stehen die Schul-Vorgaben schreibgeschützt mit drin.
+   */
+  constructor(app, { prefix = '', source = null, scope = 'tags' } = {}) {
     this.app = app;
+    this._scope = scope;
+    this._source = source || {
+      load: () => app.loadTags(),
+      create: (data) => app.api.createTag(data),
+      update: (id, data) => app.api.updateTag(id, data),
+      remove: (id) => app.api.deleteTag(id),
+      editable: (tag) => !tag.isSchoolTag,
+    };
+    this._tags = [];
 
-    this._list    = document.getElementById('tagsList');
-    this._form    = document.getElementById('tagForm');
-    this._input   = document.getElementById('tagName');
-    this._color   = document.getElementById('tagColor');
-    this._hex     = document.getElementById('tagColorHex');
-    this._btnCopyColor = document.getElementById('btnCopyTagColor');
+    const $ = (id) => document.getElementById(prefix ? prefix + id[0].toUpperCase() + id.slice(1) : id);
+    this._list    = $('tagsList');
+    this._form    = $('tagForm');
+    this._input   = $('tagName');
+    this._color   = $('tagColor');
+    this._hex     = $('tagColorHex');
+    this._btnCopyColor = $('btnCopyTagColor');
     this._editId  = null;
-    this._btnCancel = document.getElementById('btnCancelTag');
-    this._formTitle = document.getElementById('tagFormTitle');
-    this._isArea  = document.getElementById('tagIsArea');
-    this._areaWrap = document.getElementById('tagAreaChoicesWrap');
-    this._areaBox = document.getElementById('tagAreaChoices');
+    this._btnCancel = $('btnCancelTag');
+    this._formTitle = $('tagFormTitle');
+    this._isArea  = $('tagIsArea');
+    this._areaWrap = $('tagAreaChoicesWrap');
+    this._areaBox = $('tagAreaChoices');
     this._areaSelected = new Set();
 
     this._bindEvents();
@@ -217,7 +237,7 @@ export class TagsView {
    */
   _renderAreaChoices() {
     if (!this._areaBox || !this._areaWrap) return;
-    const areas = areaTags(this.app.state.tags).filter((a) => a.id !== this._editId);
+    const areas = areaTags(this._tags).filter((a) => a.id !== this._editId);
     const hide = !!this._isArea?.checked;
     this._areaWrap.classList.toggle('hidden', hide);
     this._areaBox.innerHTML = '';
@@ -297,8 +317,8 @@ export class TagsView {
 
     try {
       const res = this._editId
-        ? await this.app.api.updateTag(this._editId, { name, color, isArea, areaIds })
-        : await this.app.api.createTag({ name, color, isArea, areaIds });
+        ? await this._source.update(this._editId, { name, color, isArea, areaIds })
+        : await this._source.create({ name, color, isArea, areaIds });
       if (res && res.message && !res.id) {
         this.app.showToast(res.message, 'error');
         return;
@@ -334,14 +354,16 @@ export class TagsView {
       ? '\n\nTags, die nur zu diesem Themengebiet gehören, stehen danach unter „Ohne Themengebiet“.'
       : '';
     if (!(await this.app.appConfirm(`${tag.isArea ? 'Themengebiet' : 'Tag'} "${tag.name}" löschen?${warn}${areaWarn}`))) return;
-    await this.app.api.deleteTag(tag.id);
+    await this._source.remove(tag.id);
     this.app.showToast('Tag gelöscht.', 'info');
     if (this._editId === tag.id) this._resetForm();
     await this.refresh();
   }
 
   async refresh() {
-    const tags = await this.app.loadTags();
+    const loaded = await this._source.load();
+    const tags = Array.isArray(loaded) ? loaded : [];
+    this._tags = tags;
     this._renderAreaChoices();
     if (!this._list) return;
 
@@ -360,7 +382,7 @@ export class TagsView {
     // bearbeiten. Ohne Themengebiete bleibt es bei der flachen Liste.
     const grouped = renderAreaGroups(this._list, tags.filter((t) => !t.isArea).map((t) => ({ ...t, tagIds: t.areaIds })), {
       tags,
-      scope: 'tags',
+      scope: this._scope,
       defaultOpen: true,
       showEmpty: true,
       buildItem: (tag) => this._buildRow(tag),
@@ -383,10 +405,18 @@ export class TagsView {
     return `${tag.topicCount} Thema/Themen · ${tag.moduleCount || 0} Modul(e) · ${tag.linkCount} Link(s)`;
   }
 
-  /** Bearbeiten/Löschen; in einer Überschrift ohne Auf-/Zuklappen. */
+  /**
+   * Bearbeiten/Löschen; in einer Überschrift ohne Auf-/Zuklappen. Eine
+   * Vorgabe der Schule ist hier nur zu sehen, gepflegt wird sie unter
+   * "Meine Schule".
+   */
   _actions(tag) {
     const span = document.createElement('span');
     span.className = 'tag-row-actions';
+    if (!this._source.editable(tag)) {
+      span.innerHTML = '<span class="hint" title="Gepflegt vom Schuladmin">🏫 Vorgabe der Schule</span>';
+      return span;
+    }
     span.innerHTML = `
       <button class="btn btn-secondary btn-sm btn-edit-tag">✏️ Bearbeiten</button>
       <button class="btn btn-danger btn-sm btn-delete-tag">🗑</button>`;

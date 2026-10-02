@@ -261,6 +261,12 @@ export class QuizView {
       this.app.renderer.renderPreview(mod, typeDef, view, {
         quizMode: true,
         examMode: this._isExamRun(),
+        // Für Aufgaben, die etwas hochladen (Audio Recorder)
+        upload: {
+          linkToken: qs.linkToken || null,
+          quickToken: qs.quickToken || null,
+          studentName: this.app.state.currentUser?.name || '',
+        },
       });
       qs.views[currentIndex] = view;
     }
@@ -419,6 +425,17 @@ export class QuizView {
           const pct = Math.round(score.points * 100);
           result.score = `${score.good}/${score.total} Wörter richtig (${pct}%), ${score.mistakes} Fehler`;
         }
+        break;
+      }
+      case 'audioRecorder': {
+        // Bewertet wird die Aufnahme von der Lehrkraft; hier zählt nur, ob abgegeben wurde.
+        const player = this._quizModuleContainer.querySelector('.rec-player');
+        const file = player?.dataset.submitted || '';
+        result.isCorrect = !!file;
+        result.points = file ? 1 : 0;
+        result.userAnswer = file ? `Aufnahme abgegeben: ${file}` : 'keine Aufnahme abgegeben';
+        result.correctAnswer = '—';
+        result.score = file ? 'abgegeben' : 'nicht abgegeben';
         break;
       }
       case 'branchingScenario': {

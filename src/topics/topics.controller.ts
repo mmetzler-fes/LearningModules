@@ -1,5 +1,6 @@
 import { Controller, Get, Post, Body, Param, UseGuards, Request, Delete, Patch, Query } from '@nestjs/common';
 import { TopicsService } from './topics.service';
+import { uploadToNextcloud } from '../core/share/nextcloud-upload';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
 @Controller('topics')
@@ -18,6 +19,15 @@ export class TopicsController {
   @Get('colleagues')
   async listColleagues(@Request() req: any) {
     return this.topicsService.listColleagues(req.user);
+  }
+
+  /** Audio Recorder: Nextcloud-Ablage mit einer kleinen Testdatei prüfen. */
+  @Post('recording-test')
+  async testRecordingTarget(@Request() req: any, @Body() body: { uploadUrl?: string; uploadPassword?: string }) {
+    const text = `Verbindungstest von LernModule (${req.user.email || 'Lehrkraft'}) am ${new Date().toLocaleString('de-DE')}.\n` +
+      'Diese Datei kann gelöscht werden.\n';
+    await uploadToNextcloud(body?.uploadUrl || '', body?.uploadPassword, 'LernModule-Verbindungstest.txt', Buffer.from(text, 'utf8'), 'text/plain');
+    return { success: true };
   }
 
   /** Eine Lehrkraft (auch anderer Schulen) über ihre genaue E-Mail-Adresse finden. */

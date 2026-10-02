@@ -360,7 +360,45 @@ class ContentEditorManager {
       case 'group':
         this.renderGroupField(parent, field, value);
         break;
+      case 'uploadTest':
+        this.renderUploadTestField(parent);
+        break;
     }
+  }
+
+  /**
+   * Audio Recorder: Nextcloud-Ablage prüfen. Lädt eine kleine Textdatei hoch
+   * – kommt sie in der Nextcloud an, klappt es auch mit den Aufnahmen.
+   */
+  renderUploadTestField(parent) {
+    const row = document.createElement('div');
+    row.className = 'form-group upload-test';
+    row.innerHTML = `
+      <button type="button" class="btn btn-secondary btn-sm">🔌 Verbindung testen</button>
+      <span class="hint upload-test-status">Tipp: In Nextcloud „Teilen → Link“ und als Berechtigung
+        <strong>„Dateiablage (nur Hochladen)“</strong> wählen – dann sehen Schüler keine Aufnahmen anderer.</span>`;
+    const status = row.querySelector('.upload-test-status');
+    row.querySelector('button').addEventListener('click', async () => {
+      const url = this.container.querySelector('[name="content_uploadUrl"]')?.value.trim();
+      const pw = this.container.querySelector('[name="content_uploadPassword"]')?.value || '';
+      if (!url) { status.textContent = 'Bitte zuerst den Freigabelink eintragen.'; return; }
+      status.textContent = 'Teste …';
+      const token = sessionStorage.getItem('lm_token') || localStorage.getItem('lm_token');
+      try {
+        const res = await fetch('/api/topics/recording-test', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+          body: JSON.stringify({ uploadUrl: url, uploadPassword: pw }),
+        });
+        const data = await res.json();
+        status.textContent = res.ok && data.success
+          ? '✅ Verbindung klappt – in der Nextcloud liegt jetzt „LernModule-Verbindungstest.txt“.'
+          : `⚠️ ${data.message || 'Test fehlgeschlagen.'}`;
+      } catch (err) {
+        status.textContent = `⚠️ ${err.message}`;
+      }
+    });
+    parent.appendChild(row);
   }
 
   /**

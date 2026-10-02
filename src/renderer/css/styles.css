@@ -3690,3 +3690,15 @@ body {
 .br-arrow { color: var(--text-secondary); }
 .br-end-fields { display: flex; flex-wrap: wrap; gap: 10px 18px; margin-top: 8px; }
 .br-end-fields label { display: flex; flex-direction: column; gap: 4px; font-size: 0.9em; flex: 1 1 220px; }
+
+/* ---- Audio Recorder ---- */
+.rec-player { padding: 20px; background: var(--bg-primary); border-radius: var(--radius-md); }
+.rec-instruction { margin: 0 0 14px; font-weight: 600; }
+.rec-controls { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.rec-time { font-variant-numeric: tabular-nums; color: var(--text-secondary); }
+.rec-player.recording .rec-time { color: var(--danger); font-weight: 700; }
+.rec-review { margin-top: 14px; display: flex; flex-direction: column; gap: 8px; }
+.rec-audio { width: 100%; max-width: 480px; }
+.rec-actions { display: flex; gap: 8px; }
+.rec-status { margin-top: 12px; }
+.upload-test { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }

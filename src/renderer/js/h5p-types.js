@@ -41,11 +41,16 @@ const H5P_TYPES = {
     id: 'audioRecorder',
     name: 'Audio Recorder',
     icon: '🎙️',
-    description: 'Ermöglicht Lernenden, Audioaufnahmen zu erstellen.',
+    description: 'Schüler nehmen eine Antwort auf; die Aufnahme landet in deiner Nextcloud-Dateiablage.',
     category: 'Medien',
+    // Aufnahmen gehen über den Server in eine Nextcloud-Freigabe (am besten
+    // "Dateiablage – nur Hochladen"); gespeichert wird in der App nichts.
     fields: [
       { key: 'instruction', type: 'textarea', label: 'Aufgabenstellung' },
-      { key: 'maxDuration', type: 'number', label: 'Max. Aufnahmedauer (Sekunden)', default: 60 },
+      { key: 'maxDuration', type: 'number', label: 'Max. Aufnahmedauer (Sekunden, höchstens 600)', default: 60 },
+      { key: 'uploadUrl', type: 'text', label: 'Nextcloud-Ablage: Freigabelink mit Hochladen (Typ „Dateiablage“)', placeholder: 'https://cloud…/s/…' },
+      { key: 'uploadPassword', type: 'text', label: 'Passwort der Freigabe (falls gesetzt)' },
+      { key: 'uploadTest', type: 'uploadTest', label: '' },
     ],
   },
   branchingScenario: {

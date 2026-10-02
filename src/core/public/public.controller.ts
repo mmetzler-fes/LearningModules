@@ -1,4 +1,6 @@
-import { Controller, Get, Post, Body, Param, Req, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Req, NotFoundException, ForbiddenException, BadRequestException, UseInterceptors, UploadedFile } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { uploadToNextcloud } from '../share/nextcloud-upload';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { User } from '../entities/user.entity';
@@ -11,6 +13,25 @@ import { LinksService } from '../../links/links.service';
 import { TopicsService } from '../../topics/topics.service';
 import { GroupsService } from '../../groups/groups.service';
 import * as crypto from 'crypto';
+
+const MAX_RECORDING_BYTES = 25 * 1024 * 1024;
+
+/** Modulinhalt als Objekt (gespeichert wird teils als JSON-Text). */
+function contentOf(m: { content?: any }): any {
+  if (!m?.content) return {};
+  if (typeof m.content === 'string') { try { return JSON.parse(m.content); } catch { return {}; } }
+  return m.content;
+}
+
+/**
+ * Was Schüler von einem Modul bekommen: beim Audio Recorder ohne
+ * Ablage-Link und Passwort – nur die Angabe, dass hochgeladen wird.
+ */
+function forStudents<T extends { type?: string; content?: any }>(m: T): T {
+  if (m?.type !== 'audioRecorder') return m;
+  const { uploadUrl, uploadPassword: _pw, ...rest } = contentOf(m);
+  return { ...m, content: { ...rest, uploadConfigured: !!uploadUrl } };
+}
 
 @Controller('public')
 export class PublicController {
@@ -41,7 +62,7 @@ export class PublicController {
       // Die Lehrkraft, die den Link verteilt hat – nicht zwingend die, von
       // der die Aufgaben stammen. Dort landen später die Ergebnisse.
       teacherEmail: teacher.email,
-      topic: safeTopic,
+      topic: { ...safeTopic, modules: (safeTopic.modules || []).map(forStudents) },
     };
   }
 
@@ -175,9 +196,64 @@ export class PublicController {
         id: r.topic.id,
         title: r.topic.title,
         description: r.topic.description,
-        modules: r.modules,
+        modules: r.modules.map(forStudents),
       })),
     };
+  }
+
+  /**
+   * POST /public/recording – Aufnahme eines Schülers (Audio Recorder) in die
+   * Nextcloud-Ablage der Lehrkraft. Der Server reicht nur durch.
+   *
+   * Geprüft wird wie bei den Ergebnissen über den Link: Das Modul muss zum
+   * Link gehören, und die Ablage-Adresse stammt aus dem gespeicherten Modul,
+   * nie aus der Anfrage. Hochgeladen wird nur, wenn das Modul der Lehrkraft
+   * gehört, die den Link verteilt – sonst landeten Aufnahmen fremder Klassen
+   * in der Nextcloud des Erstellers.
+   */
+  @Post('recording')
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: MAX_RECORDING_BYTES } }))
+  async uploadRecording(
+    @UploadedFile() file: Express.Multer.File,
+    @Body() body: { linkToken?: string; quickToken?: string; moduleId?: string; studentName?: string },
+  ) {
+    if (!file?.buffer?.length) throw new BadRequestException('Keine Aufnahme empfangen.');
+    const studentName = String(body?.studentName || '').trim().slice(0, 60);
+    if (!studentName) throw new BadRequestException('Name fehlt.');
+    const mod = body?.moduleId ? await this.moduleRepo.findOne({ where: { id: body.moduleId } }) : null;
+    if (!mod || mod.type !== 'audioRecorder') throw new NotFoundException('Aufgabe nicht gefunden.');
+
+    let ownerId: string;
+    let context: string;
+    if (body.linkToken) {
+      const link = await this.findLinkByToken(body.linkToken);
+      const resolved = await this.linksService.resolveModules(link);
+      if (!resolved.some((r) => r.modules.some((m) => m.id === mod.id))) {
+        throw new ForbiddenException('Diese Aufgabe gehört nicht zum Link.');
+      }
+      ownerId = link.ownerId;
+      context = link.name;
+    } else if (body.quickToken) {
+      const { topic, teacher } = await this.resolveQuickToken(body.quickToken);
+      if (mod.topicId !== topic.id) throw new ForbiddenException('Diese Aufgabe gehört nicht zum Link.');
+      ownerId = teacher.id;
+      context = topic.title;
+    } else {
+      throw new ForbiddenException('Hochladen geht nur über einen Schüler-Link.');
+    }
+
+    const topic = await this.topicRepo.findOne({ where: { id: mod.topicId } });
+    if (!topic || topic.ownerId !== ownerId) {
+      throw new ForbiddenException('Für diese Aufgabe ist keine Ablage der Lehrkraft eingerichtet – bitte Bescheid geben.');
+    }
+    const content = contentOf(mod);
+    if (!content.uploadUrl) throw new BadRequestException('Für diese Aufgabe ist keine Ablage eingerichtet.');
+
+    const ext = /mp4|m4a|aac/.test(file.mimetype) ? 'm4a' : /ogg/.test(file.mimetype) ? 'ogg' : /wav/.test(file.mimetype) ? 'wav' : 'webm';
+    const stamp = new Date().toISOString().slice(0, 16).replace('T', '_').replace(':', '-');
+    const fileName = `${stamp}_${studentName}_${context}_${mod.title || 'Aufnahme'}.${ext}`;
+    await uploadToNextcloud(content.uploadUrl, content.uploadPassword, fileName, file.buffer, file.mimetype);
+    return { success: true, fileName };
   }
 
   /** Gemeinsame Prüfung: Token bekannt, Link aktiv. */

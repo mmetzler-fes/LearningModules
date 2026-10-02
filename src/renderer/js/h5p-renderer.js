@@ -68,7 +68,7 @@ export class H5pRenderer {
       wrapper.appendChild(desc);
     }
 
-    const previewEl = this.createTypePreview(mod.type, content, options);
+    const previewEl = this.createTypePreview(mod.type, content, { ...options, moduleId: mod.id });
     wrapper.appendChild(previewEl);
     container.appendChild(wrapper);
   }
@@ -1271,13 +1271,111 @@ export class H5pRenderer {
       }
 
       case 'audioRecorder': {
+        const maxSec = Math.min(600, Math.max(5, Number(content.maxDuration) || 60));
+        const up = options.upload || {};
+        const canUpload = !!content.uploadConfigured || !!content.uploadUrl;
+        const inRun = !!(up.linkToken || up.quickToken);
         div.innerHTML = `
-          <div style="padding:30px; text-align:center; background:var(--bg-primary); border-radius:var(--radius-md);">
-            ${content.instruction ? `<p style="margin-bottom:20px;">${escapeHtml(content.instruction)}</p>` : ''}
-            <div style="font-size:4rem; margin-bottom:16px;">🎙️</div>
-            <p style="color:var(--text-secondary);">Audio Recorder Vorschau</p>
-            <p style="font-size:0.85rem; color:var(--text-secondary); margin-top:8px;">Max. Aufnahmedauer: ${content.maxDuration || 60}s</p>
+          <div class="rec-player">
+            ${content.instruction ? `<p class="rec-instruction">${escapeHtml(content.instruction).replace(/\n/g, '<br>')}</p>` : ''}
+            <div class="rec-controls">
+              <button type="button" class="btn btn-primary rec-start">🎙 Aufnahme starten</button>
+              <button type="button" class="btn btn-danger rec-stop hidden">⏹ Stopp</button>
+              <span class="rec-time">0:00 / ${Math.floor(maxSec / 60)}:${String(maxSec % 60).padStart(2, '0')}</span>
+            </div>
+            <div class="rec-review hidden">
+              <audio class="rec-audio" controls></audio>
+              <div class="rec-actions">
+                <button type="button" class="btn btn-secondary btn-sm rec-redo">↻ Neu aufnehmen</button>
+                ${canUpload ? '<button type="button" class="btn btn-primary btn-sm rec-submit">⬆ Abgeben</button>' : ''}
+              </div>
+            </div>
+            <p class="rec-status hint">${canUpload
+              ? (inRun ? 'Nimm deine Antwort auf, hör sie dir an und gib sie dann ab.' : 'Vorschau: Aufnehmen und Anhören klappen; hochgeladen wird nur im Schüler-Durchlauf über einen Link.')
+              : 'Für diese Aufgabe ist keine Ablage eingerichtet – die Aufnahme bleibt auf diesem Gerät.'}</p>
           </div>`;
+        const root = div.querySelector('.rec-player');
+        const q = (sel) => root.querySelector(sel);
+        const fmt = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+        let recorder = null;
+        let chunks = [];
+        let blob = null;
+        let timer = null;
+        let started = 0;
+        const status = (msg, err) => { q('.rec-status').textContent = msg; q('.rec-status').classList.toggle('dict-error', !!err); };
+
+        const stop = () => { if (recorder && recorder.state !== 'inactive') recorder.stop(); };
+        q('.rec-start').addEventListener('click', async () => {
+          if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
+            status('Dieser Browser kann nicht aufnehmen.', true);
+            return;
+          }
+          let stream;
+          try {
+            stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+          } catch (_) {
+            status('Kein Zugriff aufs Mikrofon – bitte im Browser erlauben (Schloss-Symbol in der Adresszeile).', true);
+            return;
+          }
+          // Opus/WebM (Chrome, Firefox) oder MP4/AAC (Safari, iPad)
+          const type = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/ogg'].find((t) => MediaRecorder.isTypeSupported?.(t)) || '';
+          recorder = new MediaRecorder(stream, type ? { mimeType: type } : undefined);
+          chunks = [];
+          recorder.ondataavailable = (e) => { if (e.data.size) chunks.push(e.data); };
+          recorder.onstop = () => {
+            stream.getTracks().forEach((t) => t.stop());
+            clearInterval(timer);
+            blob = new Blob(chunks, { type: recorder.mimeType || type || 'audio/webm' });
+            q('.rec-audio').src = URL.createObjectURL(blob);
+            q('.rec-review').classList.remove('hidden');
+            q('.rec-stop').classList.add('hidden');
+            q('.rec-start').classList.add('hidden');
+            status(canUpload && inRun ? 'Hör dir die Aufnahme an. Passt sie, klick auf „Abgeben“.' : 'Aufnahme fertig.');
+          };
+          recorder.start(1000);
+          started = Date.now();
+          q('.rec-start').classList.add('hidden');
+          q('.rec-stop').classList.remove('hidden');
+          root.classList.add('recording');
+          status('🔴 Aufnahme läuft …');
+          timer = setInterval(() => {
+            const sec = (Date.now() - started) / 1000;
+            q('.rec-time').textContent = `${fmt(sec)} / ${fmt(maxSec)}`;
+            if (sec >= maxSec) stop();
+          }, 250);
+        });
+        q('.rec-stop').addEventListener('click', () => { root.classList.remove('recording'); stop(); });
+        q('.rec-redo').addEventListener('click', () => {
+          blob = null;
+          q('.rec-review').classList.add('hidden');
+          q('.rec-start').classList.remove('hidden');
+          q('.rec-time').textContent = `0:00 / ${fmt(maxSec)}`;
+          status('Neue Aufnahme – die vorige wird verworfen.');
+        });
+        q('.rec-submit')?.addEventListener('click', async () => {
+          if (!blob) return;
+          if (!inRun) { status('Vorschau: Hochgeladen wird nur im Schüler-Durchlauf über einen Link.', true); return; }
+          const btn = q('.rec-submit');
+          btn.disabled = true;
+          status('Wird hochgeladen …');
+          const form = new FormData();
+          form.append('file', blob, 'aufnahme');
+          form.append('moduleId', options.moduleId || '');
+          form.append('studentName', up.studentName || '');
+          if (up.linkToken) form.append('linkToken', up.linkToken);
+          if (up.quickToken) form.append('quickToken', up.quickToken);
+          try {
+            const res = await fetch('/api/public/recording', { method: 'POST', body: form });
+            const data = await res.json();
+            if (!res.ok || !data.success) throw new Error(data.message || `Fehler ${res.status}`);
+            root.dataset.submitted = data.fileName;
+            status(`✅ Abgegeben. Du kannst neu aufnehmen und erneut abgeben – die Lehrkraft bekommt dann beide.`);
+          } catch (err) {
+            status(`⚠️ Abgeben hat nicht geklappt: ${err.message}`, true);
+          } finally {
+            btn.disabled = false;
+          }
+        });
         break;
       }
 

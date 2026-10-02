@@ -12,6 +12,16 @@ import { School } from '../core/entities/school.entity';
 import { baseUrl, renderQr } from '../core/share/link-url';
 import * as crypto from 'crypto';
 
+/** Audio Recorder ohne Ablage-Link und Passwort (siehe visibleModules). */
+function withoutUploadTarget<T>(m: T): T {
+  const mod = m as any;
+  if (mod?.type !== 'audioRecorder' || !mod.content) return m;
+  let content = mod.content;
+  if (typeof content === 'string') { try { content = JSON.parse(content); } catch { return m; } }
+  const { uploadUrl, uploadPassword: _pw, ...rest } = content;
+  return { ...mod, content: { ...rest, uploadConfigured: !!uploadUrl } };
+}
+
 @Injectable()
 export class TopicsService {
   constructor(
@@ -171,10 +181,12 @@ export class TopicsService {
   ): T[] {
     if (this.accessLevel(topic, user) === 'owner') return modules;
     const grants: any[] = (Array.isArray(user.grants) ? user.grants : []).filter((g: any) => g && g.topicId === topic.id);
-    if (grants.some((g) => g.scope === 'all')) return modules;
+    // Die Nextcloud-Ablage eines Audio Recorders (Link, Passwort) gehört dem
+    // Eigentümer und geht niemanden sonst etwas an.
+    if (grants.some((g) => g.scope === 'all')) return modules.map(withoutUploadTarget);
     const creators = new Set(grants.map((g) => g.creatorId).filter(Boolean));
     const direct = new Set(modules.filter((m) => m.creatorId && creators.has(m.creatorId)).map((m) => m.id));
-    return modules.filter((m) => direct.has(m.id) || (!!m.parentId && direct.has(m.parentId)));
+    return modules.filter((m) => direct.has(m.id) || (!!m.parentId && direct.has(m.parentId))).map(withoutUploadTarget);
   }
 
   private static readonly RANK = { none: 0, read: 1, write: 2, owner: 3 };

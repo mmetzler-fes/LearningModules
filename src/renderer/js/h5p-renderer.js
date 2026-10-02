@@ -68,7 +68,7 @@ export class H5pRenderer {
       wrapper.appendChild(desc);
     }
 
-    const previewEl = this.createTypePreview(mod.type, content, { ...options, moduleId: mod.id });
+    const previewEl = this.createTypePreview(mod.type, content, { ...options, moduleId: mod.id, title: mod.title });
     wrapper.appendChild(previewEl);
     container.appendChild(wrapper);
   }
@@ -818,11 +818,15 @@ export class H5pRenderer {
         const area = div.querySelector('.dict-area');
 
         // Nur ein Satz spielt zur Zeit – ein neuer Klick hält den vorigen an.
-        let current = null;
+        // active: { audio | null (= Sprachausgabe), paused, idle() }
+        let active = null;
         const stopAll = () => {
-          if (current && current.pause) { try { current.pause(); } catch (_) {} }
-          if (window.speechSynthesis) window.speechSynthesis.cancel();
-          current = null;
+          if (!active) return;
+          const a = active;
+          active = null;
+          if (a.audio) { try { a.audio.pause(); a.audio.currentTime = 0; } catch (_) {} }
+          else if (window.speechSynthesis) window.speechSynthesis.cancel();
+          a.idle();
         };
 
         sentences.forEach((s, i) => {
@@ -834,6 +838,8 @@ export class H5pRenderer {
               <span class="dict-num">${i + 1}.</span>
               <button type="button" class="btn btn-secondary btn-sm dict-play" title="Satz anhören">▶ Anhören</button>
               ${slow ? '<button type="button" class="btn btn-secondary btn-sm dict-slow" title="Langsamer anhören">🐢 Langsam</button>' : ''}
+              <button type="button" class="btn btn-secondary btn-sm dict-pause hidden" title="Anhalten / weiter">⏸ Pause</button>
+              <button type="button" class="btn btn-secondary btn-sm dict-stop hidden" title="Beenden">⏹ Stopp</button>
               <span class="dict-plays hint"></span>
               <span class="dict-error hint"></span>
             </div>
@@ -854,30 +860,46 @@ export class H5pRenderer {
           };
           showPlays();
 
+          const pauseBtn = row.querySelector('.dict-pause');
+          const stopBtn = row.querySelector('.dict-stop');
+          const failMsg = '⚠️ Die Audio-Datei lässt sich nicht abspielen – bitte der Lehrkraft Bescheid geben.';
+          // Pause und Stopp nur, solange dieser Satz läuft.
+          const setPlaying = (on) => {
+            pauseBtn.classList.toggle('hidden', !on);
+            stopBtn.classList.toggle('hidden', !on);
+            pauseBtn.textContent = '⏸ Pause';
+            row.classList.toggle('dict-playing', on);
+          };
+          const idle = () => setPlaying(false);
+          const finished = (me) => { if (active === me) { active = null; idle(); } };
+
+          // Im Seitenbaum (unsichtbar), damit das Quiz beim Weiterblättern
+          // auch diesen Ton anhält.
+          let audio = null;
+          if (src) {
+            audio = document.createElement('audio');
+            audio.preload = 'none';
+            audio.hidden = true;
+            audio.src = src;
+            audio.addEventListener('error', () => { errorEl.textContent = failMsg; stopAll(); });
+            row.appendChild(audio);
+          }
+
           const play = (rate) => {
             if (maxPlays && plays >= maxPlays) return;
             stopAll();
             errorEl.textContent = '';
-            if (src) {
-              // Im Seitenbaum (unsichtbar), damit das Quiz beim Weiterblättern
-              // auch diesen Ton anhält.
-              let audio = row.querySelector('audio');
-              if (!audio) {
-                audio = document.createElement('audio');
-                audio.preload = 'none';
-                audio.hidden = true;
-                audio.src = src;
-                row.appendChild(audio);
-              }
+            if (audio) {
+              const me = { audio, paused: false, idle };
+              active = me;
+              audio.onended = () => finished(me);
               audio.currentTime = 0;
               audio.playbackRate = rate;
               audio.preservesPitch = true;
-              audio.addEventListener('error', () => {
-                errorEl.textContent = '⚠️ Die Audio-Datei lässt sich nicht abspielen – bitte der Lehrkraft Bescheid geben.';
-              });
-              current = audio;
+              setPlaying(true);
               audio.play().then(() => { plays++; showPlays(); }).catch(() => {
-                errorEl.textContent = '⚠️ Die Audio-Datei lässt sich nicht abspielen – bitte der Lehrkraft Bescheid geben.';
+                errorEl.textContent = failMsg;
+                finished(me);
               });
             } else if (window.speechSynthesis && window.SpeechSynthesisUtterance) {
               // Ohne Aufnahme liest der Browser den Satz vor.
@@ -887,6 +909,11 @@ export class H5pRenderer {
               const voice = window.speechSynthesis.getVoices().find((v) => v.lang === u.lang)
                 || window.speechSynthesis.getVoices().find((v) => v.lang.startsWith(u.lang.slice(0, 2)));
               if (voice) u.voice = voice;
+              const me = { audio: null, paused: false, idle };
+              active = me;
+              u.onend = () => finished(me);
+              u.onerror = () => finished(me);
+              setPlaying(true);
               window.speechSynthesis.speak(u);
               plays++;
               showPlays();
@@ -896,6 +923,22 @@ export class H5pRenderer {
           };
           row.querySelector('.dict-play').addEventListener('click', () => play(1));
           row.querySelector('.dict-slow')?.addEventListener('click', () => play(0.7));
+
+          // Anhalten und Weiter – zählt nicht als weiteres Anhören.
+          pauseBtn.addEventListener('click', () => {
+            const me = active;
+            if (!me || me.idle !== idle) return;
+            if (me.paused) {
+              if (me.audio) me.audio.play().catch(() => {}); else window.speechSynthesis.resume();
+              me.paused = false;
+              pauseBtn.textContent = '⏸ Pause';
+            } else {
+              if (me.audio) me.audio.pause(); else window.speechSynthesis.pause();
+              me.paused = true;
+              pauseBtn.textContent = '▶ Weiter';
+            }
+          });
+          stopBtn.addEventListener('click', () => { if (active && active.idle === idle) stopAll(); });
         });
 
         // Ergebnis je Satz: richtige Wörter grün, falsche rot mit Korrektur,
@@ -1275,6 +1318,9 @@ export class H5pRenderer {
         const up = options.upload || {};
         const canUpload = !!content.uploadConfigured || !!content.uploadUrl;
         const inRun = !!(up.linkToken || up.quickToken);
+        // Vorschau der Lehrkraft: Probe-Abgabe in die eigene Ablage (Adresse aus dem Modul).
+        const authToken = sessionStorage.getItem('lm_token') || localStorage.getItem('lm_token');
+        const canPreviewUpload = !inRun && !!content.uploadUrl && !!authToken;
         div.innerHTML = `
           <div class="rec-player">
             ${content.instruction ? `<p class="rec-instruction">${escapeHtml(content.instruction).replace(/\n/g, '<br>')}</p>` : ''}
@@ -1291,7 +1337,9 @@ export class H5pRenderer {
               </div>
             </div>
             <p class="rec-status hint">${canUpload
-              ? (inRun ? 'Nimm deine Antwort auf, hör sie dir an und gib sie dann ab.' : 'Vorschau: Aufnehmen und Anhören klappen; hochgeladen wird nur im Schüler-Durchlauf über einen Link.')
+              ? (inRun ? 'Nimm deine Antwort auf, hör sie dir an und gib sie dann ab.'
+                : canPreviewUpload ? 'Vorschau: Eine Abgabe landet als „Vorschau_…“ in deiner Ablage.'
+                : 'Vorschau: Aufnehmen und Anhören klappen; hochgeladen wird nur im Schüler-Durchlauf über einen Link.')
               : 'Für diese Aufgabe ist keine Ablage eingerichtet – die Aufnahme bleibt auf diesem Gerät.'}</p>
           </div>`;
         const root = div.querySelector('.rec-player');
@@ -1330,7 +1378,7 @@ export class H5pRenderer {
             q('.rec-review').classList.remove('hidden');
             q('.rec-stop').classList.add('hidden');
             q('.rec-start').classList.add('hidden');
-            status(canUpload && inRun ? 'Hör dir die Aufnahme an. Passt sie, klick auf „Abgeben“.' : 'Aufnahme fertig.');
+            status(canUpload && (inRun || canPreviewUpload) ? 'Hör dir die Aufnahme an. Passt sie, klick auf „Abgeben“.' : 'Aufnahme fertig.');
           };
           recorder.start(1000);
           started = Date.now();
@@ -1354,22 +1402,35 @@ export class H5pRenderer {
         });
         q('.rec-submit')?.addEventListener('click', async () => {
           if (!blob) return;
-          if (!inRun) { status('Vorschau: Hochgeladen wird nur im Schüler-Durchlauf über einen Link.', true); return; }
+          if (!inRun && !canPreviewUpload) { status('Vorschau: Hochgeladen wird nur im Schüler-Durchlauf über einen Link.', true); return; }
           const btn = q('.rec-submit');
           btn.disabled = true;
           status('Wird hochgeladen …');
           const form = new FormData();
           form.append('file', blob, 'aufnahme');
-          form.append('moduleId', options.moduleId || '');
-          form.append('studentName', up.studentName || '');
-          if (up.linkToken) form.append('linkToken', up.linkToken);
-          if (up.quickToken) form.append('quickToken', up.quickToken);
+          let url = '/api/public/recording';
+          const headers = {};
+          if (inRun) {
+            form.append('moduleId', options.moduleId || '');
+            form.append('studentName', up.studentName || '');
+            if (up.linkToken) form.append('linkToken', up.linkToken);
+            if (up.quickToken) form.append('quickToken', up.quickToken);
+          } else {
+            url = '/api/topics/recording-preview';
+            headers.Authorization = `Bearer ${authToken}`;
+            form.append('uploadUrl', content.uploadUrl);
+            form.append('uploadPassword', content.uploadPassword || '');
+            form.append('title', options.title || content.title || 'Aufnahme');
+          }
           try {
-            const res = await fetch('/api/public/recording', { method: 'POST', body: form });
-            const data = await res.json();
+            const res = await fetch(url, { method: 'POST', body: form, headers });
+            // Ein vorgeschalteter Proxy antwortet bei Fehlern oft mit HTML statt JSON.
+            const data = await res.json().catch(() => ({}));
+            if (res.status === 413) throw new Error('Die Aufnahme ist zu groß für den Server (Upload-Grenze des Proxys, z. B. client_max_body_size).');
             if (!res.ok || !data.success) throw new Error(data.message || `Fehler ${res.status}`);
             root.dataset.submitted = data.fileName;
-            status(`✅ Abgegeben. Du kannst neu aufnehmen und erneut abgeben – die Lehrkraft bekommt dann beide.`);
+            status(inRun ? '✅ Abgegeben. Du kannst neu aufnehmen und erneut abgeben – die Lehrkraft bekommt dann beide.'
+              : `✅ Probe-Abgabe angekommen: „${data.fileName}“.`);
           } catch (err) {
             status(`⚠️ Abgeben hat nicht geklappt: ${err.message}`, true);
           } finally {

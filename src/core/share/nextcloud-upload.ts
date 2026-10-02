@@ -65,6 +65,12 @@ export function safeFileName(name: string): string {
     .slice(0, 120) || 'aufnahme';
 }
 
+/** Zeitstempel für Dateinamen in Ortszeit (TZ des Servers), z. B. 2026-10-03_14-05. */
+export function fileStamp(d = new Date()): string {
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}_${p(d.getHours())}-${p(d.getMinutes())}`;
+}
+
 /**
  * Lädt eine Datei hoch. Versucht zuerst die klassische öffentliche
  * WebDAV-Schnittstelle (Benutzer = Freigabe-Kürzel), dann die neuere

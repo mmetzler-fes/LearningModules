@@ -39,4 +39,9 @@ abgegeben“ – bewertet wird die Aufnahme von der Lehrkraft.
   `https`-Freigabelinks auf öffentliche Server – keine internen Adressen.
 - Ablage-Link und Passwort erreichen nie Schüler und auch keine Lehrkräfte,
   die das Thema über den Shop nutzen.
-- Lehrer-Vorschau: Aufnehmen und Anhören gehen, hochgeladen wird nicht.
+- Lehrer-Vorschau: „Abgeben“ lädt eine Probe in die eigene Ablage
+  (Dateiname beginnt mit `Vorschau_`, `POST /api/topics/recording-preview`,
+  nur angemeldet). So lässt sich der ganze Weg selbst ausprobieren.
+- Läuft der Server hinter einem Proxy (z. B. nginx), muss dessen Upload-Grenze
+  groß genug sein, etwa `client_max_body_size 25m;`. Sonst lehnt der Proxy
+  längere Aufnahmen ab, und die App meldet „zu groß für den Server“.

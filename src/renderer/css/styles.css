@@ -3702,3 +3702,4 @@ body {
 .rec-actions { display: flex; gap: 8px; }
 .rec-status { margin-top: 12px; }
 .upload-test { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.dict-row.dict-playing .dict-num { color: var(--accent); }

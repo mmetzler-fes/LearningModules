@@ -1,6 +1,6 @@
 import { Controller, Get, Post, Body, Param, Req, NotFoundException, ForbiddenException, BadRequestException, UseInterceptors, UploadedFile } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { uploadToNextcloud } from '../share/nextcloud-upload';
+import { uploadToNextcloud, fileStamp } from '../share/nextcloud-upload';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { User } from '../entities/user.entity';
@@ -250,7 +250,7 @@ export class PublicController {
     if (!content.uploadUrl) throw new BadRequestException('Für diese Aufgabe ist keine Ablage eingerichtet.');
 
     const ext = /mp4|m4a|aac/.test(file.mimetype) ? 'm4a' : /ogg/.test(file.mimetype) ? 'ogg' : /wav/.test(file.mimetype) ? 'wav' : 'webm';
-    const stamp = new Date().toISOString().slice(0, 16).replace('T', '_').replace(':', '-');
+    const stamp = fileStamp();
     const fileName = `${stamp}_${studentName}_${context}_${mod.title || 'Aufnahme'}.${ext}`;
     await uploadToNextcloud(content.uploadUrl, content.uploadPassword, fileName, file.buffer, file.mimetype);
     return { success: true, fileName };

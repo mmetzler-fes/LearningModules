@@ -1,6 +1,7 @@
-import { Controller, Get, Post, Body, Param, UseGuards, Request, Delete, Patch, Query } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, UseGuards, Request, Delete, Patch, Query, UseInterceptors, UploadedFile, BadRequestException } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { TopicsService } from './topics.service';
-import { uploadToNextcloud } from '../core/share/nextcloud-upload';
+import { uploadToNextcloud, fileStamp } from '../core/share/nextcloud-upload';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
 @Controller('topics')
@@ -28,6 +29,26 @@ export class TopicsController {
       'Diese Datei kann gelöscht werden.\n';
     await uploadToNextcloud(body?.uploadUrl || '', body?.uploadPassword, 'LernModule-Verbindungstest.txt', Buffer.from(text, 'utf8'), 'text/plain');
     return { success: true };
+  }
+
+  /**
+   * Audio Recorder in der Vorschau: Die Lehrkraft gibt eine Probeaufnahme in
+   * ihre eigene Ablage ab (Dateiname beginnt mit „Vorschau_“). Die Adresse
+   * kommt aus dem Editor – wie beim Verbindungstest, denn das Modul ist evtl.
+   * noch nicht gespeichert.
+   */
+  @Post('recording-preview')
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 25 * 1024 * 1024 } }))
+  async previewRecording(
+    @UploadedFile() file: Express.Multer.File,
+    @Body() body: { uploadUrl?: string; uploadPassword?: string; title?: string },
+  ) {
+    if (!file?.buffer?.length) throw new BadRequestException('Keine Aufnahme empfangen.');
+    const ext = /mp4|m4a|aac/.test(file.mimetype) ? 'm4a' : /ogg/.test(file.mimetype) ? 'ogg' : /wav/.test(file.mimetype) ? 'wav' : 'webm';
+    const stamp = fileStamp();
+    const fileName = `Vorschau_${stamp}_${String(body?.title || 'Aufnahme').slice(0, 60)}.${ext}`;
+    await uploadToNextcloud(body?.uploadUrl || '', body?.uploadPassword, fileName, file.buffer, file.mimetype);
+    return { success: true, fileName };
   }
 
   /** Eine Lehrkraft (auch anderer Schulen) über ihre genaue E-Mail-Adresse finden. */

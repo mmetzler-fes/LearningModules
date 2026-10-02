@@ -90,6 +90,9 @@ export function sanitizeModuleDescriptionHtml(html) {
  * (nur als data:-Bild oder https), H4, Unter-/Hochstellung, Trennlinien und
  * Textrahmen (div.ws-box) – das, was der .odt-Import erzeugt.
  */
+/** Erlaubte Klassen an Bildern im Arbeitsblatt (siehe .worksheet-content in styles.css). */
+export const WORKSHEET_IMAGE_CLASSES = new Set(['ws-float-left', 'ws-float-right', 'ws-img-center', 'ws-img-border']);
+
 export function sanitizeWorksheetHtml(html) {
   return sanitizeRichHtml(html, true);
 }
@@ -149,6 +152,9 @@ function sanitizeRichHtml(html, worksheet) {
       if (alt) clean.setAttribute('alt', alt);
       const width = node.getAttribute('width');
       if (width && /^\d{1,4}$/.test(width)) clean.setAttribute('width', width);
+      // Lage und Rahmen eines Bildes – nur diese festen Klassen, kein freies CSS.
+      const classes = (node.getAttribute('class') || '').split(/\s+/).filter((c) => WORKSHEET_IMAGE_CLASSES.has(c));
+      if (worksheet && classes.length) clean.className = classes.join(' ');
     }
 
     if (tag === 'DIV' && node.classList.contains('ws-box')) clean.className = 'ws-box';

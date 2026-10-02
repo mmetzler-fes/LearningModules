@@ -197,8 +197,8 @@ class ContentEditorManager {
     bar.className = 'worksheet-import';
     bar.innerHTML = `
       <button type="button" class="btn btn-secondary btn-sm">📄 Aus LibreOffice Writer (.odt) übernehmen</button>
-      <span class="hint">Überschriften, Absätze, Listen, Tabellen, Bilder und einfache Zeichnungen.
-        Das Seitenlayout wird vereinfacht.</span>
+      <span class="hint">Überschriften, Absätze, Listen, Tabellen, Bilder und Zeichnungen.
+        Das Seitenlayout wird vereinfacht. Bilder danach anklicken, um Größe und Lage anzupassen.</span>
       <div class="worksheet-import-status hint"></div>`;
     parent.appendChild(bar);
 
@@ -207,6 +207,10 @@ class ContentEditorManager {
     const hidden = parent.querySelector(`input[name="content_${field.key}"]`);
     surface?.classList.add('worksheet-content');
     const status = bar.querySelector('.worksheet-import-status');
+    // Bilder einfügen, anordnen, in der Größe ändern, löschen.
+    const tools = surface && typeof WorksheetImageTools !== 'undefined'
+      ? new WorksheetImageTools(surface, hidden, surface.parentNode.querySelector('.rich-text-toolbar'))
+      : null;
 
     bar.querySelector('button').addEventListener('click', () => {
       const input = document.createElement('input');
@@ -230,6 +234,7 @@ class ContentEditorManager {
           });
           const data = await res.json();
           if (!res.ok || !data.success) throw new Error(data.message || `HTTP ${res.status}`);
+          tools?.select(null);
           surface.innerHTML = data.html;
           hidden.value = data.html;
           // Ein leerer Modultitel bekommt den des Dokuments.

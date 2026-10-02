@@ -10,10 +10,11 @@ import * as path from 'path';
  *
  * Übernommen werden Inhalt und Grundformatierung – Überschriften, Absätze,
  * fett/kursiv/unterstrichen, Listen, Tabellen, Bilder, Textrahmen. Das
- * Seitenlayout bleibt zurück: frei positionierte Rahmen werden an ihrer
- * Stelle im Text eingereiht, Zeichnungen (Linien, Formen) und Grafiken in
- * Fremdformaten (SVM, WMF, EMF) gehen nicht mit. Was fehlt, steht in
- * `warnings`, damit niemand eine Lücke erst vor der Klasse bemerkt.
+ * Seitenlayout bleibt zurück: Ein einzelnes frei verankertes Bild wird vom
+ * Text umflossen (links oder rechts wie im Dokument), Zeichnungen samt ihrer
+ * Rahmen werden zu einem SVG-Bild. Grafiken in Fremdformaten (SVM, WMF, EMF)
+ * gehen nur mit, wenn das Dokument ein PNG-Ersatzbild enthält. Was fehlt,
+ * steht in `warnings`, damit niemand eine Lücke erst vor der Klasse bemerkt.
  */
 
 // ---- Minimaler XML-Leser ----
@@ -96,6 +97,17 @@ interface StyleInfo {
   markerStart?: string;
   markerEnd?: string;
   fontColor?: string;
+  fontSize?: string;
+  /** Bildfüllung: Name des draw:fill-image (siehe Styles.fillImage). */
+  fillImage?: string;
+  /** Rahmen eines Textrahmens, z. B. "0.06pt solid #000000". */
+  border?: string;
+  background?: string;
+  textVAlign?: string;
+  textHAlign?: string;
+  padding?: string;
+  /** Umfluss: none, left, right, parallel, dynamic, run-through … */
+  wrap?: string;
 }
 
 /** Name, unter dem die Standardvorlage für Zeichnungen geführt wird. */
@@ -105,6 +117,8 @@ class Styles {
   private readonly styles = new Map<string, StyleInfo>();
   /** Listenvorlage → je Ebene nummeriert (ol) oder mit Aufzählungszeichen (ul). */
   private readonly lists = new Map<string, Map<number, 'ol' | 'ul'>>();
+  /** Bildfüllungen: Name → Pfad im Archiv (aus styles.xml). */
+  private readonly fillImages = new Map<string, string>();
 
   read(root: XNode | undefined) {
     if (!root) return;
@@ -114,6 +128,9 @@ class Styles {
         this.readStyle({ ...n, attrs: { ...n.attrs, 'style:name': DEFAULT_GRAPHIC } });
       }
       else if (n.name === 'text:list-style') this.readList(n);
+      else if (n.name === 'draw:fill-image') {
+        if (n.attrs['draw:name'] && n.attrs['xlink:href']) this.fillImages.set(n.attrs['draw:name'], n.attrs['xlink:href']);
+      }
       else for (const c of elements(n)) visit(c);
     };
     visit(root);
@@ -151,8 +168,17 @@ class Styles {
       if (g['draw:fill-color']) info.fillColor = g['draw:fill-color'];
       if (g['draw:marker-start'] !== undefined) info.markerStart = g['draw:marker-start'];
       if (g['draw:marker-end'] !== undefined) info.markerEnd = g['draw:marker-end'];
+      if (g['draw:fill-image-name']) info.fillImage = g['draw:fill-image-name'];
+      if (g['fo:border']) info.border = g['fo:border'];
+      if (g['fo:background-color']) info.background = g['fo:background-color'];
+      if (g['draw:textarea-vertical-align']) info.textVAlign = g['draw:textarea-vertical-align'];
+      if (g['draw:textarea-horizontal-align']) info.textHAlign = g['draw:textarea-horizontal-align'];
+      const pad = g['fo:padding-left'] || g['fo:padding'];
+      if (pad) info.padding = pad;
+      if (g['style:wrap']) info.wrap = g['style:wrap'];
     }
     if (tp?.attrs['fo:color']) info.fontColor = tp.attrs['fo:color'];
+    if (tp?.attrs['fo:font-size'] && !/%$/.test(tp.attrs['fo:font-size'])) info.fontSize = tp.attrs['fo:font-size'];
     const pp = elements(n).find((c) => c.name === 'style:paragraph-properties');
     const align = pp?.attrs['fo:text-align'];
     if (align) {
@@ -203,6 +229,11 @@ class Styles {
       name = this.styles.get(name)?.parent;
     }
     return false;
+  }
+
+  /** Pfad des Bildes einer Bildfüllung. */
+  fillImage(name: string | undefined): string | undefined {
+    return name ? this.fillImages.get(name) : undefined;
   }
 
   listType(listStyle: string | undefined, level: number): 'ol' | 'ul' {
@@ -256,8 +287,10 @@ const DRAWINGS = new Set([
  * Pfade, Verbinder, einfache Formen, Gruppen) in ein SVG-Bild.
  *
  * Alle Zeichnungen eines Absatzes landen in einem gemeinsamen Bild, damit
- * ihre Lage zueinander erhalten bleibt. Zur Lage gegenüber Text und Bildern
- * gilt das nicht: Pfeile auf ein Foto stehen danach unter dem Foto.
+ * ihre Lage zueinander erhalten bleibt – zusammen mit den frei verankerten
+ * Bildern und Textrahmen desselben Absatzes (Beschriftungen auf einem Foto,
+ * Schrittkästen in einem Ablaufplan). Bildfüllungen werden als Bild unter
+ * die Form gelegt, Textrahmen behalten Rand, Hintergrund und Ausrichtung.
  *
  * Formen aus der Formen-Palette (Sterne, Sprechblasen …) werden nur
  * übernommen, wenn ihr Umriss ohne Formeln beschrieben ist; sonst
@@ -312,8 +345,8 @@ class DrawingSvg {
     const stroke = g('stroke') === 'none' ? 'none' : g('strokeColor') || '#3465a4';
     const width = Math.max(1, toPx(g('strokeWidth') || '0') || 1);
     const dash = g('stroke') === 'dash' ? ' stroke-dasharray="6 4"' : '';
-    const fill = closed && g('fill') !== 'none' && g('fill') !== undefined ? g('fillColor') || '#729fcf'
-      : closed && g('fill') === undefined ? g('fillColor') || '#729fcf' : 'none';
+    const fill = !closed || g('fill') === 'none' || g('fill') === 'bitmap' || g('fill') === 'gradient' && !g('fillColor') ? 'none'
+      : g('fillColor') || '#729fcf';
     let markers = '';
     if (stroke !== 'none') {
       if (g('markerEnd')) markers += ` marker-end="url(#${this.marker(stroke)})"`;
@@ -335,24 +368,120 @@ class DrawingSvg {
     return {
       x: toPx(n.attrs['svg:x']) ?? 0,
       y: toPx(n.attrs['svg:y']) ?? 0,
-      w: toPx(n.attrs['svg:width']) ?? 0,
-      h: toPx(n.attrs['svg:height']) ?? 0,
+      // Mitwachsende Textrahmen haben oft nur eine Mindestgröße.
+      w: toPx(n.attrs['svg:width']) ?? toPx(n.attrs['fo:min-width']) ?? 0,
+      h: toPx(n.attrs['svg:height']) ?? toPx(n.attrs['fo:min-height']) ?? 0,
     };
   }
 
-  /** Text in einer Form, zentriert. */
-  private label(n: XNode, b: { x: number; y: number; w: number; h: number }, tr: string) {
-    const lines = elements(n)
-      .filter((c) => c.name === 'text:p' || c.name === 'text:h')
-      .map((c) => textOf(c).replace(/\s+/g, ' ').trim())
-      .filter(Boolean);
+  /**
+   * Bildfüllung einer Form: das Bild in ihrem Rahmen, darüber zeichnet die
+   * Form selbst nur noch ihren Umriss. Für nicht rechteckige Formen ist das
+   * eine Näherung – in Arbeitsblättern sind es praktisch immer Rechtecke.
+   */
+  private bitmap(n: XNode, b: { x: number; y: number; w: number; h: number }, tr: string) {
+    const style = n.attrs['draw:style-name'];
+    if (this.styles.graphic(style, 'fill') !== 'bitmap') return '';
+    const href = this.styles.fillImage(this.styles.graphic(style, 'fillImage'));
+    const data = href ? this.imageData(href) : null;
+    return data
+      ? `<image href="${data}" x="${b.x}" y="${b.y}" width="${b.w}" height="${b.h}" preserveAspectRatio="none"${tr}/>`
+      : '';
+  }
+
+  /** Zeilen eines Absatzes: Zeilenumbrüche, Tabs und Leerzeichen wie im Dokument. */
+  private lineText(p: XNode): string[] {
+    const walk = (n: XNode | string): string => {
+      if (typeof n === 'string') return n.replace(/\s+/g, ' ');
+      if (n.name === 'text:line-break') return '\n';
+      if (n.name === 'text:tab') return '    ';
+      if (n.name === 'text:s') return ' '.repeat(Math.min(Number(n.attrs['text:c'] || 1), 20));
+      if (DRAWINGS.has(n.name) || n.name === 'draw:frame') return '';
+      return n.children.map(walk).join('');
+    };
+    return walk(p).split('\n');
+  }
+
+  /** Schriftgröße eines Absatzes (oder seines ersten Abschnitts) in px. */
+  private fontSize(p: XNode, fallback: number): number {
+    const own = toPx(this.styles.prop(p.attrs['text:style-name'], 'fontSize'));
+    if (own) return own;
+    const span = elements(p).find((c) => c.name === 'text:span' && this.styles.prop(c.attrs['text:style-name'], 'fontSize'));
+    return toPx(this.styles.prop(span?.attrs['text:style-name'], 'fontSize')) || fallback;
+  }
+
+  /**
+   * Text in einer Form oder einem Textrahmen. Ausrichtung, Schriftgröße,
+   * Fettdruck und Farbe kommen aus den Absatzvorlagen; ohne Angabe gelten
+   * die Vorgaben des Aufrufers (Formen: mittig, Textrahmen: oben links).
+   */
+  private textBlock(
+    container: XNode,
+    b: { x: number; y: number; w: number; h: number },
+    tr: string,
+    opts: { h: string; v: string; pad: number; color?: string },
+  ) {
+    const paras = elements(container).filter((c) => c.name === 'text:p' || c.name === 'text:h');
+    const lines: Array<{ text: string; size: number; align: string; bold: boolean; color: string }> = [];
+    for (const p of paras) {
+      const style = p.attrs['text:style-name'];
+      const size = this.fontSize(p, 14.7);
+      const align = this.styles.prop(style, 'align') || opts.h;
+      const span = elements(p).find((c) => c.name === 'text:span');
+      const bold = !!(this.styles.prop(style, 'bold') || this.styles.prop(span?.attrs['text:style-name'], 'bold'));
+      const color = this.styles.prop(style, 'fontColor') || this.styles.prop(span?.attrs['text:style-name'], 'fontColor') || opts.color || '#000000';
+      for (const text of this.lineText(p)) lines.push({ text: text.replace(/\s+$/, ''), size, align, bold, color });
+    }
+    // Leerzeilen am Ende fallen weg; die am Anfang sind oft gewollter Abstand.
+    while (lines.length && !lines[lines.length - 1].text.trim()) lines.pop();
     if (!lines.length) return '';
-    const size = 14;
-    const top = b.y + b.h / 2 - ((lines.length - 1) * size * 1.2) / 2 + size * 0.35;
-    const color = this.styles.graphic(n.attrs['draw:text-style-name'], 'fontColor') || '#000000';
-    return `<text x="${b.x + b.w / 2}" y="${top}" font-family="sans-serif" font-size="${size}" fill="${esc(color)}" text-anchor="middle"${tr}>` +
-      lines.map((l, i) => `<tspan x="${b.x + b.w / 2}" dy="${i ? size * 1.2 : 0}">${esc(l)}</tspan>`).join('') +
-      '</text>';
+
+    const total = lines.reduce((sum, l) => sum + l.size * 1.2, 0);
+    let y = opts.v === 'bottom' ? b.y + b.h - opts.pad - total
+      : opts.v === 'top' ? b.y + opts.pad
+        : b.y + b.h / 2 - total / 2;
+    let out = '';
+    for (const l of lines) {
+      y += l.size * 1.2;
+      if (!l.text.trim()) continue;
+      const x = l.align === 'center' ? b.x + b.w / 2 : l.align === 'right' ? b.x + b.w - opts.pad : b.x + opts.pad;
+      const anchor = l.align === 'center' ? 'middle' : l.align === 'right' ? 'end' : 'start';
+      out += `<text x="${x.toFixed(1)}" y="${(y - l.size * 0.28).toFixed(1)}" font-family="Arial, Helvetica, sans-serif"` +
+        ` font-size="${l.size.toFixed(1)}"${l.bold ? ' font-weight="bold"' : ''} fill="${esc(l.color)}"` +
+        ` text-anchor="${anchor}" xml:space="preserve"${tr}>${esc(l.text)}</text>`;
+    }
+    return out;
+  }
+
+  /** Text in einer Form – standardmäßig mittig, sofern die Form nichts anderes sagt. */
+  private label(n: XNode, b: { x: number; y: number; w: number; h: number }, tr: string) {
+    const style = n.attrs['draw:style-name'];
+    const h = this.styles.graphic(style, 'textHAlign');
+    return this.textBlock(n, b, tr, {
+      h: h === 'left' ? 'left' : h === 'right' ? 'right' : 'center',
+      v: this.styles.graphic(style, 'textVAlign') || 'middle',
+      pad: toPx(this.styles.graphic(style, 'padding')) ?? 5,
+      color: this.styles.graphic(n.attrs['draw:text-style-name'], 'fontColor'),
+    });
+  }
+
+  /** Textrahmen: Rand und Hintergrund wie im Dokument, Text oben links. */
+  private textFrame(n: XNode, box: XNode, b: { x: number; y: number; w: number; h: number }, tr: string) {
+    const style = n.attrs['draw:style-name'];
+    const g = <K extends keyof StyleInfo>(k: K) => this.styles.graphic(style, k);
+    const border = /([\d.]+\s*(?:pt|cm|mm|in|px))\s+(solid|dashed|dotted|double)\s+(#[0-9a-f]{6})/i.exec(g('border') || '');
+    const bg = g('fill') === 'solid' ? g('fillColor') : g('background') && g('background') !== 'transparent' ? g('background') : '';
+    let out = this.bitmap(n, b, tr);
+    if (border || bg) {
+      const sw = border ? Math.max(1, toPx(border[1]) || 1) : 0;
+      out += `<rect x="${b.x}" y="${b.y}" width="${b.w}" height="${b.h}" fill="${esc(bg || 'none')}"` +
+        `${border ? ` stroke="${esc(border[3])}" stroke-width="${sw}"${border[2] === 'dashed' ? ' stroke-dasharray="6 4"' : ''}` : ''}${tr}/>`;
+    }
+    return out + this.textBlock(box, b, tr, {
+      h: 'left',
+      v: g('textVAlign') || 'top',
+      pad: toPx(g('padding')) ?? 2,
+    });
   }
 
   /** Punkte einer viewBox auf den Rahmen der Form umrechnen. */
@@ -389,12 +518,14 @@ class DrawingSvg {
       }
       case 'draw:rect': {
         const r = toPx(n.attrs['draw:corner-radius']) ?? 0;
+        this.parts.push(this.bitmap(n, b, t.attr));
         this.parts.push(`<rect x="${b.x}" y="${b.y}" width="${b.w}" height="${b.h}"${r ? ` rx="${r}"` : ''} ${this.paint(n, true)}${t.attr}/>`);
         this.parts.push(this.label(n, b, t.attr));
         break;
       }
       case 'draw:ellipse':
       case 'draw:circle':
+        this.parts.push(this.bitmap(n, b, t.attr));
         this.parts.push(`<ellipse cx="${b.x + b.w / 2}" cy="${b.y + b.h / 2}" rx="${b.w / 2}" ry="${b.h / 2}" ${this.paint(n, true)}${t.attr}/>`);
         this.parts.push(this.label(n, b, t.attr));
         break;
@@ -406,6 +537,7 @@ class DrawingSvg {
           .map(([px, py]) => `${b.x + (px - f.vx) * f.sx},${b.y + (py - f.vy) * f.sy}`)
           .join(' ');
         const closed = n.name === 'draw:polygon';
+        if (closed) this.parts.push(this.bitmap(n, b, t.attr));
         this.parts.push(`<${closed ? 'polygon' : 'polyline'} points="${pts}" ${this.paint(n, closed)}${t.attr}/>`);
         break;
       }
@@ -413,6 +545,7 @@ class DrawingSvg {
         const f = this.fit(n, b);
         const d = n.attrs['svg:d'] || '';
         const closed = /z\s*$/i.test(d.trim());
+        if (closed) this.parts.push(this.bitmap(n, b, t.attr));
         this.parts.push(`<path d="${esc(d)}" vector-effect="non-scaling-stroke" ${this.paint(n, closed)}` +
           ` transform="${t.attr ? t.attr.slice(12, -1) + ' ' : ''}translate(${b.x} ${b.y}) scale(${f.sx} ${f.sy}) translate(${-f.vx} ${-f.vy})"/>`);
         break;
@@ -421,6 +554,7 @@ class DrawingSvg {
         const geo = elements(n).find((c) => c.name === 'draw:enhanced-geometry');
         const type = geo?.attrs['draw:type'] || '';
         const path = geo?.attrs['draw:enhanced-path'] || '';
+        this.parts.push(this.bitmap(n, b, t.attr));
         // Umriss ohne Formeln ($, ?) und nur mit einfachen Befehlen: direkt übernehmen.
         if (geo && path && !/[?$]/.test(path) && /^[\sMLCZNFS\d.,-]+$/.test(path)) {
           const f = this.fit(geo, b);
@@ -438,14 +572,18 @@ class DrawingSvg {
         break;
       }
       case 'draw:frame': {
-        const img = elements(n).find((c) => c.name === 'draw:image');
-        const data = img ? this.imageData(img.attrs['xlink:href'] || '') : null;
+        // Mehrere draw:image: das erste lesbare (z. B. PNG-Ersatz für eine SVM-Grafik).
+        let data: string | null = null;
+        for (const img of elements(n).filter((c) => c.name === 'draw:image')) {
+          data = this.imageData(img.attrs['xlink:href'] || '');
+          if (data) break;
+        }
         if (data) {
           this.parts.push(`<image href="${data}" x="${b.x}" y="${b.y}" width="${b.w}" height="${b.h}" preserveAspectRatio="none"${t.attr}/>`);
         } else {
           const box = elements(n).find((c) => c.name === 'draw:text-box');
           if (!box) return false;
-          this.parts.push(this.label(box, b, t.attr));
+          this.parts.push(this.textFrame(n, box, b, t.attr));
         }
         break;
       }
@@ -477,7 +615,8 @@ class DrawingSvg {
   }
 }
 
-type Seg = { inline: string } | { block: string };
+/** Inline-Text, eigener Block, oder ein umflossenes Bild am Anfang des Absatzes. */
+type Seg = { inline: string } | { block: string } | { float: string };
 
 export interface OdtResult {
   title: string;
@@ -560,7 +699,9 @@ export function odtToHtml(buffer: Buffer, fileName = ''): OdtResult {
   /** Mehrere Zeichnungselemente zu einem Bild; zählt, was nicht ging. */
   const drawing = (nodes: XNode[]): string => {
     const svg = new DrawingSvg(styles, imageData);
-    for (const n of nodes) if (!svg.add(n)) skippedDrawings++;
+    // Stapelreihenfolge wie im Dokument: Bilder unten, Beschriftungen oben.
+    const z = (n: XNode) => Number(n.attrs['draw:z-index'] ?? 0);
+    for (const n of [...nodes].sort((a, b) => z(a) - z(b))) if (!svg.add(n)) skippedDrawings++;
     const img = svg.toImg();
     if (img) {
       stats.images++;
@@ -583,11 +724,35 @@ export function odtToHtml(buffer: Buffer, fileName = ''): OdtResult {
     return html;
   };
 
+  /** Frei verankert (am Absatz, Zeichen, Seite) statt wie ein Buchstabe im Text. */
+  const anchored = (c: XNode) => !!c.attrs['text:anchor-type'] && c.attrs['text:anchor-type'] !== 'as-char';
+  const isImageFrame = (f: XNode) => elements(f).some((c) => c.name === 'draw:image');
+  const isTextFrame = (f: XNode) => elements(f).some((c) => c.name === 'draw:text-box');
+
+  /**
+   * Seite, an der ein einzelnes verankertes Bild stehen soll, damit der Text
+   * es umfließt wie im Dokument – oder null für eine eigene Zeile (kein
+   * Umfluss eingestellt oder breiter als gut die Hälfte des Satzspiegels).
+   */
+  const floatSide = (f: XNode): 'left' | 'right' | null => {
+    const wrap = styles.graphic(f.attrs['draw:style-name'], 'wrap');
+    if (wrap === 'none' || wrap === 'run-through') return null;
+    const x = toPx(f.attrs['svg:x']) ?? 0;
+    const w = toPx(f.attrs['svg:width']) ?? 0;
+    if (!w || w > 380) return null;
+    // Satzspiegel einer A4-Seite mit üblichen Rändern: rund 17 cm.
+    return x + w / 2 > 320 ? 'right' : 'left';
+  };
+
   const inline = (n: XNode): Seg[] => {
     const out: Seg[] = [];
     // Zeichnungen eines Absatzes werden gesammelt und am Ende als ein Bild
-    // ausgegeben – so bleibt ihre Lage zueinander erhalten.
+    // ausgegeben – so bleibt ihre Lage zueinander erhalten. Frei verankerte
+    // Rahmen (Bilder, Textrahmen) desselben Absatzes kommen mit hinein, wenn
+    // sie zusammengehören: Beschriftungen auf einem Foto, Schrittkästen in
+    // einem Ablaufplan, Bilder nebeneinander.
     const shapes: XNode[] = [];
+    const frames: XNode[] = [];
     for (const c of n.children) {
       if (typeof c === 'string') {
         out.push({ inline: esc(c.replace(/\s+/g, ' ')) });
@@ -622,6 +787,10 @@ export function odtToHtml(buffer: Buffer, fileName = ''): OdtResult {
           break;
         }
         case 'draw:frame': {
+          if (anchored(c)) {
+            frames.push(c);
+            break;
+          }
           const img = image(c);
           if (img !== null) {
             if (img) out.push({ inline: img });
@@ -650,9 +819,32 @@ export function odtToHtml(buffer: Buffer, fileName = ''): OdtResult {
           inline(c).forEach((s) => out.push(s));
       }
     }
-    if (shapes.length) {
-      const img = drawing(shapes);
+    // Zusammensetzen, wenn es Formen gibt oder Text auf/neben Bildern steht.
+    const compose = shapes.length > 0 ||
+      (frames.length > 1 && frames.some(isTextFrame) && frames.some(isImageFrame));
+    if (compose) {
+      const img = drawing([...frames, ...shapes]);
       if (img) out.push({ block: `<p>${img}</p>` });
+      return out;
+    }
+    for (const f of frames) {
+      const img = image(f);
+      if (img !== null) {
+        if (!img) continue;
+        const side = floatSide(f);
+        if (side) out.push({ float: img.replace('<img ', `<img class="ws-float-${side}" `) });
+        else out.push({ block: `<p>${img.replace('<img ', '<img class="ws-img-center" ')}</p>` });
+        continue;
+      }
+      const box = elements(f).find((x) => x.name === 'draw:text-box');
+      if (box) {
+        const inner = blocks(box);
+        if (inner.trim()) out.push({ block: `<div class="ws-box">${inner}</div>` });
+        continue;
+      }
+      if (elements(f).some((x) => x.name === 'draw:image' || x.name === 'draw:object' || x.name === 'draw:object-ole')) {
+        skippedImages++;
+      }
     }
     return out;
   };
@@ -680,6 +872,8 @@ export function odtToHtml(buffer: Buffer, fileName = ''): OdtResult {
     };
     for (const seg of inline(n)) {
       if ('inline' in seg) buffer += seg.inline;
+      // Am Anfang des Absatzes, damit der ganze Absatz das Bild umfließt.
+      else if ('float' in seg) buffer = seg.float + buffer;
       else {
         flush();
         parts.push(seg.block);
@@ -760,7 +954,7 @@ export function odtToHtml(buffer: Buffer, fileName = ''): OdtResult {
       else if (c.name === 'text:section' || c.name === 'text:index-body') parts.push(blocks(c));
       else if (c.name === 'draw:frame' || c.name === 'draw:a') {
         for (const seg of inline({ name: '#', attrs: {}, children: [c] })) {
-          parts.push('inline' in seg ? `<p>${seg.inline}</p>` : seg.block);
+          parts.push('inline' in seg ? `<p>${seg.inline}</p>` : 'float' in seg ? `<p>${seg.float}</p>` : seg.block);
         }
       } else if (DRAWINGS.has(c.name)) {
         const img = drawing([c]);
@@ -784,7 +978,7 @@ export function odtToHtml(buffer: Buffer, fileName = ''): OdtResult {
 
   const warnings: string[] = [];
   if (stats.drawings) {
-    warnings.push(`${stats.drawings} Zeichnung${stats.drawings === 1 ? '' : 'en'} als Bild übernommen – bitte prüfen: Die Lage zu Text und Bildern geht verloren, komplexe Formen werden vereinfacht.`);
+    warnings.push(`${stats.drawings} Zeichnung${stats.drawings === 1 ? '' : 'en'} als Bild übernommen – bitte kurz prüfen: Komplexe Formen werden vereinfacht, Schriften durch Arial ersetzt.`);
   }
   if (skippedDrawings) {
     warnings.push(`${skippedDrawings} Zeichnungselement${skippedDrawings === 1 ? '' : 'e'} nicht übernommen (z. B. Steuerelemente oder Maßlinien).`);

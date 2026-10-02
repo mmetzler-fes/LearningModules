@@ -3391,6 +3391,18 @@ body {
 }
 .rich-text-surface.worksheet-content { min-height: 320px; max-height: 70vh; overflow-y: auto; }
 
+/* Bildlage im Arbeitsblatt: umflossen links/rechts, eigene Zeile mittig, mit Rahmen */
+.worksheet-content img.ws-float-right { float: right; margin: 0.2em 0 0.6em 1.2em; max-width: 50%; }
+.worksheet-content img.ws-float-left { float: left; margin: 0.2em 1.2em 0.6em 0; max-width: 50%; }
+.worksheet-content img.ws-img-center { display: block; margin: 0.6em auto; }
+.worksheet-content img.ws-img-border { border: 1px solid var(--border); padding: 4px; background: #fff; }
+/* Überschriften, Tabellen und Kästen beginnen unter einem umflossenen Bild. */
+.worksheet-content h2, .worksheet-content h3, .worksheet-content h4,
+.worksheet-content table, .worksheet-content .ws-box { clear: both; }
+.worksheet-content::after { content: ''; display: block; clear: both; }
+/* Zeichnungen haben schwarze Linien auf transparentem Grund – im dunklen Design hell hinterlegen. */
+[data-theme="dark"] .worksheet-content img { background: #fff; border-radius: 4px; }
+
 /* ---- Themengebiete: aufklappbare Abschnitte und gegliederte Tag-Auswahl ---- */
 .tag-chip.area-chip {
   font-size: 0.9em;
@@ -3504,3 +3516,22 @@ body {
 .area-group-hidden[open] { opacity: 1; }
 .area-visibility-list { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
 .area-group-head .hint { font-size: 0.85em; }
+
+/* ---- Bildwerkzeuge im Arbeitsblatt-Editor ---- */
+.rich-text-surface.worksheet-content img { cursor: pointer; }
+.rich-text-surface.worksheet-content img.ws-selected { outline: 3px solid var(--accent); outline-offset: 2px; }
+.ws-image-panel {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px;
+  padding: 8px 12px; border-bottom: 1px solid var(--accent); background: var(--accent-light);
+}
+.ws-image-panel-title { font-weight: 600; }
+.ws-image-width { display: inline-flex; align-items: center; gap: 6px; font-size: 0.9em; }
+.ws-image-width input[type="range"] { width: 140px; }
+.ws-width-value { min-width: 4.5em; font-variant-numeric: tabular-nums; color: var(--text-secondary); }
+.ws-image-group { display: inline-flex; gap: 4px; }
+.ws-image-panel .rt-btn.active { background: var(--accent); color: #fff; }
+.ws-image-check { display: inline-flex; align-items: center; gap: 4px; font-size: 0.9em; }
+.ws-image-panel .ws-alt {
+  flex: 1 1 180px; min-width: 0; padding: 4px 8px; border: 1px solid var(--border);
+  border-radius: var(--radius-sm); background: var(--bg-secondary); color: var(--text-primary);
+}

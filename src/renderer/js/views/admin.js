@@ -199,7 +199,8 @@ export class AdminView {
       this._lastCredentials = null;
       // Sicherheitshalber noch einmal laden: so ist die Liste auch dann aktuell,
       // wenn die erste Aktualisierung aus irgendeinem Grund nicht durchkam.
-      await this.refreshUsers();
+      // (Schuladmins nutzen den Dialog auch – sie haben keine Benutzerliste.)
+      if (this.app.state.currentUser?.role === 'admin') await this.refreshUsers();
     });
 
     document.getElementById('btnCopyCredentials')?.addEventListener('click', async () => {

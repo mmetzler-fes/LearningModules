@@ -90,6 +90,7 @@ export class SchoolsService implements OnModuleInit {
       whitelist: school.whitelist || [],
       adminsMayEditWhitelist: school.adminsMayEditWhitelist !== false,
       adminsMayManageTeachers: school.adminsMayManageTeachers !== false,
+      adminsMayCreateTeachers: school.adminsMayCreateTeachers !== false,
       teachers: members
         .map(teacherView)
         .sort((a, b) => a.displayName.localeCompare(b.displayName, 'de')),
@@ -152,12 +153,14 @@ export class SchoolsService implements OnModuleInit {
       whitelist: body?.whitelist ? this.cleanWhitelist(body.whitelist) : [],
       adminsMayEditWhitelist: true,
       adminsMayManageTeachers: true,
+      adminsMayCreateTeachers: true,
     });
     return this.schoolRepo.save(school);
   }
 
   async update(id: string, body: {
     name?: string; whitelist?: string[]; adminsMayEditWhitelist?: boolean; adminsMayManageTeachers?: boolean;
+    adminsMayCreateTeachers?: boolean;
   }) {
     const school = await this.findOne(id);
     if (body?.name !== undefined) {
@@ -168,6 +171,7 @@ export class SchoolsService implements OnModuleInit {
     if (body?.whitelist !== undefined) school.whitelist = this.cleanWhitelist(body.whitelist);
     if (body?.adminsMayEditWhitelist !== undefined) school.adminsMayEditWhitelist = !!body.adminsMayEditWhitelist;
     if (body?.adminsMayManageTeachers !== undefined) school.adminsMayManageTeachers = !!body.adminsMayManageTeachers;
+    if (body?.adminsMayCreateTeachers !== undefined) school.adminsMayCreateTeachers = !!body.adminsMayCreateTeachers;
     return this.schoolRepo.save(school);
   }
 
@@ -321,6 +325,15 @@ export class SchoolsService implements OnModuleInit {
       throw new ForbiddenException('Die Whitelist pflegt bei eurer Schule der Hauptadmin.');
     }
     return this.applyWhitelist(school.id);
+  }
+
+  /** Schule, für die `user` neue Lehrer-Konten anlegen darf – sonst 403. */
+  async requireMayCreateTeachers(user: any): Promise<School> {
+    const school = await this.requireSchoolAdmin(user);
+    if (school.adminsMayCreateTeachers === false) {
+      throw new ForbiddenException('Neue Lehrkräfte legt bei eurer Schule der Hauptadmin an.');
+    }
+    return school;
   }
 
   /**

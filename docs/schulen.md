@@ -28,11 +28,16 @@ getrennt: Sie regelt nur, wer sich überhaupt registrieren darf.
 | Schulen anlegen/löschen, Schuladmins bestimmen | ✔ | | |
 | Whitelist der Schule pflegen | ✔ | ✔ ¹ | |
 | Lehrkräfte aus der Schule entfernen, (de)aktivieren | ✔ | ✔ ¹ | |
+| Neue Lehrkräfte für die Schule anlegen | ✔ | ✔ ¹ | |
 | Gruppen der Schule pflegen | ✔ | ✔ | |
 | Tag-Struktur der Schule pflegen | | ✔ | nutzen |
 | Schulübergreifende Gruppen pflegen | ✔ | | |
 
 ¹ Der Hauptadmin kann diese Rechte je Schule entziehen.
+
+Ein Schuladmin legt immer eine normale Lehrkraft der eigenen Schule an – nie
+einen Schuladmin oder Admin – und kann keine bereits registrierte Adresse
+übernehmen; die globale Whitelist/Blacklist gilt auch hier.
 
 Schuladmins können weder sich selbst noch den Hauptadmin ändern. Deaktivieren
 wirkt wie beim Hauptadmin: Das Konto kann sich nicht anmelden, selbst

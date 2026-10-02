@@ -468,6 +468,10 @@ export class BrowserApi {
   }
   previewMySchoolWhitelist() { return this._fetch('/api/my-school/whitelist-preview'); }
   applyMySchoolWhitelist() { return this._fetch('/api/my-school/apply-whitelist', { method: 'POST' }); }
+  /** Schuladmin: neue Lehrkraft für die eigene Schule anlegen. */
+  mySchoolCreateTeacher(body) {
+    return this._fetch('/api/my-school/teachers', { method: 'POST', body: JSON.stringify(body) });
+  }
   /** action: 'remove' | 'deactivate' | 'reactivate' | 'reset-2fa' */
   mySchoolTeacherAction(userId, action) {
     return this._fetch(`/api/my-school/teachers/${encodeURIComponent(userId)}/${action}`, { method: 'POST' });

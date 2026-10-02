@@ -32,4 +32,8 @@ export class School {
   /** Dürfen die Schuladmins Lehrkräfte entfernen und (de)aktivieren? */
   @Column({ default: true })
   adminsMayManageTeachers: boolean;
+
+  /** Dürfen die Schuladmins neue Lehrer-Konten für ihre Schule anlegen? */
+  @Column({ default: true })
+  adminsMayCreateTeachers: boolean;
 }

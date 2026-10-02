@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AdminController } from './admin.controller';
+import { MySchoolTeachersController } from './my-school-teachers.controller';
 import { User } from '../core/entities/user.entity';
 import { SystemConfig } from '../core/entities/system-config.entity';
 import { LearningTopic } from '../core/entities/learning-topic.entity';
@@ -25,7 +26,7 @@ import { SchoolsModule } from '../core/schools/schools.module';
     AccountsModule,
     SchoolsModule,
   ],
-  controllers: [AdminController],
+  controllers: [AdminController, MySchoolTeachersController],
   providers: [UserSheetService, BackupService, CloudBackupService],
 })
 export class AdminModule {}

@@ -166,6 +166,8 @@ export class SchoolsAdminView {
           <span>dürfen die Whitelist pflegen</span></label>
         <label class="share-flag"><input type="checkbox" class="perm-teachers" ${school.adminsMayManageTeachers ? 'checked' : ''} />
           <span>dürfen Lehrkräfte aus der Schule entfernen und deaktivieren</span></label>
+        <label class="share-flag"><input type="checkbox" class="perm-create" ${school.adminsMayCreateTeachers ? 'checked' : ''} />
+          <span>dürfen neue Lehrkräfte für die Schule anlegen</span></label>
       </div>
 
       <div class="school-block">
@@ -191,6 +193,8 @@ export class SchoolsAdminView {
       this._update(school.id, { adminsMayEditWhitelist: e.target.checked }, 'Recht gespeichert'));
     body.querySelector('.perm-teachers').addEventListener('change', (e) =>
       this._update(school.id, { adminsMayManageTeachers: e.target.checked }, 'Recht gespeichert'));
+    body.querySelector('.perm-create').addEventListener('change', (e) =>
+      this._update(school.id, { adminsMayCreateTeachers: e.target.checked }, 'Recht gespeichert'));
     body.querySelector('.btn-save-whitelist').addEventListener('click', () =>
       this._update(school.id, { whitelist: parseLines(body.querySelector('.school-whitelist').value) }, 'Whitelist gespeichert'));
     body.querySelector('.btn-apply-whitelist').addEventListener('click', async () => {
@@ -322,6 +326,8 @@ export class MySchoolView {
       },
     });
 
+    document.getElementById('btnMySchoolNewTeacher')?.addEventListener('click', () => this._createTeacher());
+
     document.getElementById('btnNewSchoolGroup')?.addEventListener('click', () =>
       this.app.adminView.openGroupEditor(null, this._data?.teachers || [], { onChanged: () => this.refresh() }));
   }
@@ -341,6 +347,7 @@ export class MySchoolView {
     if (this._title) this._title.textContent = `🏫 ${data.name}`;
     this._renderTeachers(data);
     this._renderWhitelist(data);
+    document.getElementById('btnMySchoolNewTeacher')?.classList.toggle('hidden', !data.adminsMayCreateTeachers);
     await this._tagsView.refresh();
 
     const own = (Array.isArray(groups) ? groups : []).filter((g) => g.schoolId === data.id);
@@ -401,6 +408,52 @@ export class MySchoolView {
         `${t.displayName} wieder freischalten?`));
       this._teachers.appendChild(row);
     }
+  }
+
+  /**
+   * Neue Lehrkraft für die eigene Schule: E-Mail und Name. Das
+   * Initialpasswort geht per Mail raus; ohne Mailversand zeigt der Dialog es
+   * einmalig an (derselbe wie in der Benutzerverwaltung).
+   */
+  _createTeacher() {
+    const overlay = document.createElement('div');
+    overlay.className = 'confirm-overlay';
+    overlay.innerHTML = `
+      <form class="import-modules-card" style="min-width:360px; max-width:460px">
+        <h3>➕ Lehrkraft anlegen</h3>
+        <p class="hint">Das Konto gehört danach zu „${escapeHtml(this._data?.name || 'eurer Schule')}“. Das
+          Initialpasswort wird per E-Mail verschickt; beim ersten Login vergibt die Lehrkraft ein eigenes.</p>
+        <div class="form-group">
+          <label>E-Mail-Adresse *</label>
+          <input type="email" class="nt-email" required placeholder="name@schule.de" autocomplete="off" />
+        </div>
+        <div class="form-group">
+          <label>Anzeigename</label>
+          <input type="text" class="nt-name" placeholder="z. B. Max Mustermann" autocomplete="off" />
+        </div>
+        <div class="confirm-actions">
+          <button type="submit" class="btn btn-primary">Anlegen</button>
+          <button type="button" class="btn btn-secondary nt-cancel">Abbrechen</button>
+        </div>
+      </form>`;
+    document.body.appendChild(overlay);
+    const close = () => overlay.remove();
+    overlay.querySelector('.nt-cancel').addEventListener('click', close);
+    overlay.querySelector('form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const res = await this.app.api.mySchoolCreateTeacher({
+        email: overlay.querySelector('.nt-email').value.trim(),
+        displayName: overlay.querySelector('.nt-name').value.trim(),
+      });
+      if (failed(res) || !res.id) {
+        this.app.showToast('Fehler: ' + (res?.message || 'Anlegen fehlgeschlagen'), 'error');
+        return;
+      }
+      close();
+      this.app.adminView._showCredentials(res, 'Lehrkraft angelegt');
+      await this.refresh();
+    });
+    overlay.querySelector('.nt-email').focus();
   }
 
   async _action(teacher, action, question) {

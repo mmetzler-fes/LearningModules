@@ -50,24 +50,42 @@
     });
   }
 
+  /**
+   * Höhe des Bildbereichs je Zeile. Bei „automatisch“ so hoch, dass das
+   * höchste Bild der Zeile in voller Zellbreite ganz hineinpasst – nichts wird
+   * abgeschnitten. Sonst fest nach Seitenverhältnis.
+   */
+  function rowHeights(s, cellW) {
+    const fixed = Math.round(cellW * (RATIOS[s.ratio] || 3 / 4));
+    return Array.from({ length: s.rows }, (_, r) => {
+      if (s.ratio !== 'auto') return fixed;
+      let h = 0;
+      for (let c = 0; c < s.cols; c++) {
+        const img = s.cells[r * s.cols + c]?.img;
+        if (img) h = Math.max(h, cellW * img.naturalHeight / img.naturalWidth);
+      }
+      return Math.round(Math.min(h || cellW * 3 / 4, cellW * 3));
+    });
+  }
+
   /** Zeichnet die Collage auf ein Canvas. cells: [{ img, caption }] */
   function draw(canvas, s) {
     const gap = s.gap;
     const cellW = Math.floor((WIDTH - gap * (s.cols + 1)) / s.cols);
-    const imgH = Math.round(cellW * RATIOS[s.ratio]);
+    const heights = rowHeights(s, cellW);
     const capH = s.captions ? CAPTION_H : 0;
-    const cellH = imgH + capH;
     canvas.width = WIDTH;
-    canvas.height = gap * (s.rows + 1) + cellH * s.rows;
+    canvas.height = gap * (s.rows + 1) + heights.reduce((a, h) => a + h + capH, 0);
     const ctx = canvas.getContext('2d');
     ctx.fillStyle = s.background;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
+    let y = gap;
     for (let r = 0; r < s.rows; r++) {
+      const imgH = heights[r];
       for (let c = 0; c < s.cols; c++) {
         const cell = s.cells[r * s.cols + c] || {};
         const x = gap + c * (cellW + gap);
-        const y = gap + r * (cellH + gap);
         if (cell.img) {
           const iw = cell.img.naturalWidth;
           const ih = cell.img.naturalHeight;
@@ -75,15 +93,11 @@
           ctx.beginPath();
           ctx.rect(x, y, cellW, imgH);
           ctx.clip();
-          if (s.fit === 'cover') {
-            // Füllen: zuschneiden, Mitte bleibt sichtbar
-            const k = Math.max(cellW / iw, imgH / ih);
-            ctx.drawImage(cell.img, x + (cellW - iw * k) / 2, y + (imgH - ih * k) / 2, iw * k, ih * k);
-          } else {
-            // Ganz zeigen: ggf. mit Rand
-            const k = Math.min(cellW / iw, imgH / ih);
-            ctx.drawImage(cell.img, x + (cellW - iw * k) / 2, y + (imgH - ih * k) / 2, iw * k, ih * k);
-          }
+          // Füllen: zuschneiden, Mitte bleibt sichtbar – sonst ganz zeigen
+          const k = s.fit === 'cover' && s.ratio !== 'auto'
+            ? Math.max(cellW / iw, imgH / ih)
+            : Math.min(cellW / iw, imgH / ih);
+          ctx.drawImage(cell.img, x + (cellW - iw * k) / 2, y + (imgH - ih * k) / 2, iw * k, ih * k);
           ctx.restore();
         } else {
           ctx.fillStyle = 'rgba(128,128,128,0.15)';
@@ -102,13 +116,14 @@
           ctx.fillText(cell.caption, x + cellW / 2, y + imgH + capH / 2, cellW - 12);
         }
       }
+      y += imgH + capH + gap;
     }
   }
 
   window.openImageComposer = function openImageComposer() {
     return new Promise((resolve) => {
       const s = {
-        rows: 2, cols: 2, ratio: '4:3', fit: 'cover', gap: 12, captions: false,
+        rows: 2, cols: 2, ratio: 'auto', fit: 'contain', gap: 12, captions: false,
         background: '#ffffff', textColor: '#1e293b', cells: [],
       };
       const overlay = document.createElement('div');
@@ -121,10 +136,10 @@
           <div class="ic-controls">
             <label>Anordnung <select class="ic-layout">${LAYOUTS.map((l, i) =>
               `<option value="${i}" ${l.rows === 2 && l.cols === 2 ? 'selected' : ''}>${esc(l.label)}</option>`).join('')}</select></label>
-            <label>Seitenverhältnis <select class="ic-ratio">${Object.keys(RATIOS).map((k) =>
-              `<option ${k === '4:3' ? 'selected' : ''}>${k}</option>`).join('')}</select></label>
-            <label>Bilder <select class="ic-fit">
-              <option value="cover">füllen (zuschneiden)</option><option value="contain">ganz zeigen</option></select></label>
+            <label>Seitenverhältnis <select class="ic-ratio"><option value="auto" selected>automatisch (Bild ganz)</option>${Object.keys(RATIOS).map((k) =>
+              `<option>${k}</option>`).join('')}</select></label>
+            <label class="ic-fit-label hidden">Bilder <select class="ic-fit">
+              <option value="contain">ganz zeigen</option><option value="cover">füllen (zuschneiden)</option></select></label>
             <label>Abstand <input type="range" class="ic-gap" min="0" max="48" step="4" value="12" /></label>
             <label>Hintergrund <input type="color" class="ic-bg" value="#ffffff" /></label>
             <label class="ic-check"><input type="checkbox" class="ic-captions" /> Beschriftungen</label>
@@ -173,7 +188,12 @@
         s.rows = l.rows; s.cols = l.cols;
         renderCells(); redraw();
       });
-      overlay.querySelector('.ic-ratio').addEventListener('change', (e) => { s.ratio = e.target.value; redraw(); });
+      overlay.querySelector('.ic-ratio').addEventListener('change', (e) => {
+        s.ratio = e.target.value;
+        // Zuschneiden ergibt nur bei festem Seitenverhältnis Sinn
+        overlay.querySelector('.ic-fit-label').classList.toggle('hidden', s.ratio === 'auto');
+        redraw();
+      });
       overlay.querySelector('.ic-fit').addEventListener('change', (e) => { s.fit = e.target.value; redraw(); });
       overlay.querySelector('.ic-gap').addEventListener('input', (e) => { s.gap = Number(e.target.value); redraw(); });
       overlay.querySelector('.ic-bg').addEventListener('input', (e) => { s.background = e.target.value; redraw(); });

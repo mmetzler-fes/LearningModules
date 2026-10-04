@@ -360,7 +360,7 @@ export class CompanionRun {
     const btn = this.view._btnQuizNext;
     // Nur eine eigene Sperre aufheben – manche Aufgaben sperren den Knopf
     // selbst, bis alle Teilfragen gesehen sind.
-    if (this._penaltyActive) btn.disabled = false;
+    if (this._penaltyActive) btn.disabled = !!this._currentView()?.querySelector('[data-next-locked="true"]');
     this._penaltyActive = false;
     this._currentView()?.classList.remove('companion-paused');
     this.panel?.querySelector('.companion-penalty')?.classList.add('hidden');

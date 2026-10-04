@@ -100,7 +100,7 @@ export class H5pRenderer {
     const div = document.createElement('div');
 
     const globalNextBtn = document.getElementById('btnQuizNext');
-    if (globalNextBtn) globalNextBtn.disabled = false;
+    if (globalNextBtn) { globalNextBtn.disabled = false; globalNextBtn.title = ''; }
 
     switch (type) {
 
@@ -233,10 +233,18 @@ export class H5pRenderer {
         const tfFalse    = div.querySelector('#tfFalse');
         const tfResults  = tfQuestions.map(() => null);
 
-        if (tfQuestions.length > 1) {
+        // Weiter bzw. Prüfen erst, wenn alle Teilfragen beantwortet sind. Die
+        // Sperre steht auch am Element (data-next-locked), damit sie beim
+        // Zurückblättern zu dieser Aufgabe wieder greift (quiz.js).
+        const updateTfLock = () => {
+          const locked = tfResults.some((r) => r === null);
+          div.dataset.nextLocked = locked ? 'true' : '';
           const nb = document.getElementById('btnQuizNext');
-          if (nb) nb.disabled = true;
-        }
+          if (!nb) return;
+          nb.disabled = locked;
+          nb.title = locked ? 'Erst alle Fragen beantworten' : '';
+        };
+        updateTfLock();
 
         const updateTfScore = () => {
           if (suppressFeedback) { tfScore.textContent = ''; return; }
@@ -246,10 +254,6 @@ export class H5pRenderer {
         };
 
         const showTfQuestion = () => {
-          if (tfIdx === tfQuestions.length - 1) {
-            const nb = document.getElementById('btnQuizNext');
-            if (nb) nb.disabled = false;
-          }
           const q = tfQuestions[tfIdx];
           tfQuestion.textContent = q.question || '';
           tfProgress.textContent = `Frage ${tfIdx + 1} von ${tfQuestions.length}`;
@@ -282,6 +286,7 @@ export class H5pRenderer {
           const q = tfQuestions[tfIdx];
           q._userAnswer = val;
           tfResults[tfIdx] = q.correctAnswer === val;
+          updateTfLock();
           showTfQuestion();
         };
 
@@ -634,7 +639,7 @@ export class H5pRenderer {
           if (zone === fromZone) return;
           if (zone.dataset.currentWord) returnWordToBank(zone.dataset.currentWord, wordBank);
           zone.textContent = word; zone.dataset.currentWord = word; zone.classList.add('dtw-drop-filled');
-          if (chip) chip.classList.add('dtw-chip-used');
+          if (chip && !chip.dataset.reusable) chip.classList.add('dtw-chip-used');
           if (fromZone) clearZone(fromZone);
         };
 
@@ -673,7 +678,26 @@ export class H5pRenderer {
         const distractors = (markedDistractors.length ? markedDistractors : distractorText.split(/[,\n]/))
           .map((w) => w.trim()).filter(Boolean);
 
-        const shuffled = [...draggableWords, ...distractors];
+        // Wörter, die in mehr als eine Lücke passen (z. B. *Neutralleiter* und
+        // *Sternpunkt|Neutralleiter*), stehen nur einmal in der Wortbank und
+        // werden nicht ausgegraut – sonst fehlte das Wort für die zweite Lücke.
+        const key = (w) => w.trim().toLowerCase();
+        const fits = new Map();
+        textArea.querySelectorAll('.dtw-drop-zone').forEach((z) => {
+          new Set(dtwAlternatives(z.dataset.correctWord).map(key)).forEach((k) => fits.set(k, (fits.get(k) || 0) + 1));
+        });
+        const reusable = (w) => (fits.get(key(w)) || 0) > 1;
+        const bankWords = [];
+        const seenReusable = new Set();
+        for (const w of [...draggableWords, ...distractors]) {
+          if (reusable(w)) {
+            if (seenReusable.has(key(w))) continue;
+            seenReusable.add(key(w));
+          }
+          bankWords.push(w);
+        }
+
+        const shuffled = bankWords;
         for (let i = shuffled.length - 1; i > 0; i--) {
           const j = Math.floor(Math.random() * (i + 1));
           [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
@@ -681,6 +705,7 @@ export class H5pRenderer {
         shuffled.forEach((word) => {
           const chip = document.createElement('span');
           chip.className = 'dtw-chip'; chip.textContent = word;
+          if (reusable(word)) chip.dataset.reusable = 'true';
           attachPointerDrag(chip, {
             scrollContainer, onHover,
             onDrop: (target) => { const zone = zoneAt(target); if (zone) fillZone(zone, word, { chip }); },

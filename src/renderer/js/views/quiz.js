@@ -300,6 +300,11 @@ export class QuizView {
     let view = qs.views[currentIndex];
     if (view) {
       container.appendChild(view);
+      // Bereits aufgebaute Aufgabe: Eine Sperre von Weiter/Prüfen (z. B. noch
+      // offene Wahr/Falsch-Fragen) steht am Element, nicht mehr am Knopf.
+      const locked = !!view.querySelector('[data-next-locked="true"]');
+      this._btnQuizNext.disabled = locked;
+      this._btnQuizNext.title = locked ? 'Erst alle Fragen beantworten' : '';
     } else {
       view = document.createElement('div');
       view.className = 'quiz-module-view';

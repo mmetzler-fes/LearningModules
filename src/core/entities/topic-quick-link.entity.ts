@@ -28,4 +28,13 @@ export class TopicQuickLink extends BaseEntity {
   @Index({ unique: true })
   @Column({ type: 'varchar' })
   token: string;
+
+  /**
+   * Schülerfreigabe, die beim ersten Quick-Link mit angelegt wurde (Quiz,
+   * Lernbegleitung, Quiz-Arena). Gesetzt bleibt die ID auch, wenn die
+   * Lehrkraft die Freigabe löscht – sonst käme sie beim nächsten Öffnen
+   * ungefragt wieder.
+   */
+  @Column({ type: 'varchar', nullable: true })
+  shareLinkId: string | null;
 }

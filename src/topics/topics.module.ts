@@ -9,11 +9,12 @@ import { TopicQuickLink } from '../core/entities/topic-quick-link.entity';
 import { ShopOffer } from '../core/entities/shop-offer.entity';
 import { School } from '../core/entities/school.entity';
 import { UseGrant } from '../core/entities/use-grant.entity';
+import { TopicLink } from '../core/entities/topic-link.entity';
 import { TagsModule } from '../tags/tags.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([LearningTopic, LearningModule, User, TopicQuickLink, ShopOffer, UseGrant, School]),
+    TypeOrmModule.forFeature([LearningTopic, LearningModule, User, TopicQuickLink, TopicLink, ShopOffer, UseGrant, School]),
     TagsModule,
   ],
   controllers: [TopicsController],

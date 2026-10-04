@@ -291,6 +291,8 @@ export class TopicsView {
     const urlBox  = document.getElementById('quickLinkUrl');
     const info    = document.getElementById('quickLinkTopic');
     const warning = document.getElementById('quickLinkWarning');
+    const shareNote = document.getElementById('quickLinkShareNote');
+    shareNote.classList.add('hidden');
 
     qrBox.innerHTML = '<p class="hint">Wird erzeugt…</p>';
     urlBox.value = '';
@@ -310,6 +312,13 @@ export class TopicsView {
       qrBox.innerHTML = res.qrSvg || '<p class="hint">QR-Code nicht verfügbar – bitte den Link verwenden.</p>';
       warning.classList.add('hidden');
       this._setQuickLinkActionsEnabled(true);
+      // Beim ersten Quick-Link entsteht dazu eine Schülerfreigabe – sagen,
+      // wo sie zu finden ist.
+      if (res.createdShare) {
+        shareNote.textContent = `➕ Dazu wurde die Schülerfreigabe „${res.createdShare.name}“ angelegt – `
+          + 'mit Quiz, Lernbegleitung und Quiz-Arena. Du findest sie unter Schülerfreigaben.';
+        shareNote.classList.remove('hidden');
+      }
     } catch (err) {
       // Nicht freigegeben: kein Link, keine Aktionen – nur die Erklärung.
       this._quickLinkData = null;

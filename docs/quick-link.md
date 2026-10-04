@@ -19,6 +19,19 @@ Dazu: *Kopieren*, *Drucken* (nur QR und Link kommen aufs Blatt), *Neu* und
 Der Token bleibt stabil. Einmal ausgeteilte Zettel behalten also ihre Gültigkeit,
 bis bewusst *Neu* oder *Zurückziehen* gewählt wird.
 
+### Schülerfreigabe gleich dazu
+
+Beim ersten Öffnen des Quick-Links legt die App zusätzlich eine
+[Schülerfreigabe](themen-links.md) an: benannt nach dem Lernthema, mit dem
+ganzen Thema und den Modi **Quiz**, **🦉 Lernbegleitung** und
+**🏆 Quiz-Arena**. Sie übernimmt die Tags des Themas. Der Dialog weist einmal
+darauf hin; danach ist sie eine ganz normale Freigabe unter
+**Schülerfreigaben** – umbenennen, ändern, löschen nach Belieben.
+
+Das geschieht genau einmal je Quick-Link. Wer die Freigabe löscht, bekommt
+sie nicht wieder – auch nicht durch *Neu*. Erst nach *Zurückziehen* und einem
+neuen Quick-Link entsteht wieder eine.
+
 ## Der Quick-Link gehört der Lehrkraft, nicht dem Thema
 
 Jede Lehrkraft hat ihren **eigenen** Quick-Link auf ein Thema – auch auf eines,

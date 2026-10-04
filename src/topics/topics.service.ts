@@ -5,6 +5,7 @@ import { LearningTopic } from '../core/entities/learning-topic.entity';
 import { LearningModule } from '../core/entities/learning-module.entity';
 import { User } from '../core/entities/user.entity';
 import { TopicQuickLink } from '../core/entities/topic-quick-link.entity';
+import { TopicLink } from '../core/entities/topic-link.entity';
 import { TagsService } from '../tags/tags.service';
 import { ShopOffer } from '../core/entities/shop-offer.entity';
 import { UseGrant } from '../core/entities/use-grant.entity';
@@ -33,6 +34,8 @@ export class TopicsService {
     private readonly userRepo: Repository<User>,
     @InjectRepository(TopicQuickLink)
     private readonly quickRepo: Repository<TopicQuickLink>,
+    @InjectRepository(TopicLink)
+    private readonly linkRepo: Repository<TopicLink>,
     @InjectRepository(ShopOffer)
     private readonly offerRepo: Repository<ShopOffer>,
     @InjectRepository(UseGrant)
@@ -430,6 +433,7 @@ export class TopicsService {
     }
 
     const entry = await this.quickLinkEntry(topic, user, regenerate);
+    const share = await this.quickShare(topic, entry, user);
     const url = `${baseUrl(req)}/?q=${entry.token}`;
 
     return {
@@ -440,7 +444,40 @@ export class TopicsService {
       title: topic.title,
       moduleCount: activeCount,
       isOwn: isOwner,
+      // Nur beim ersten Mal gesetzt – der Dialog weist dann darauf hin.
+      createdShare: share ? { id: share.id, name: share.name } : null,
     };
+  }
+
+  /**
+   * Zum ersten Quick-Link gehört eine Schülerfreigabe für das ganze Thema:
+   * Quiz, Lernbegleitung und Quiz-Arena, benannt nach dem Thema. Dann gibt
+   * es Lernbegleitung und Quiz-Arena, ohne dass die Lehrkraft erst eine
+   * Freigabe zusammenstellen muss. Angelegt wird sie genau einmal je
+   * Quick-Link-Eintrag; liefert die neue Freigabe oder `null`.
+   */
+  private async quickShare(topic: LearningTopic, entry: TopicQuickLink, user: any): Promise<TopicLink | null> {
+    if (entry.shareLinkId) return null;
+    const link = this.linkRepo.create({
+      id: crypto.randomUUID(),
+      name: topic.title,
+      ownerId: user.userId,
+      token: crypto.randomBytes(12).toString('base64url'),
+      active: true,
+      modes: ['quiz', 'companion', 'contest'],
+      selection: [{ topicId: topic.id, all: true }],
+      accessPassword: null,
+      singleAttempt: false,
+      // Wie im Formular: Die Freigabe übernimmt die Tags des Themas – soweit
+      // es meine sind (bei fremden Themen fallen sie hier heraus).
+      tagIds: await this.tagsService.sanitizeIds(user, topic.tagIds || []),
+      companionSettings: null,
+      contestSettings: null,
+    });
+    await this.linkRepo.save(link);
+    entry.shareLinkId = link.id;
+    await this.quickRepo.save(entry);
+    return link;
   }
 
   /**

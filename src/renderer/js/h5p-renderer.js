@@ -57,6 +57,7 @@ export class H5pRenderer {
     wrapper.style.margin = '0 auto';
 
     const header = document.createElement('div');
+    header.className = 'module-preview-header';
     header.innerHTML = `
       <div style="text-align:center; margin-bottom:24px;">
         <span style="font-size:3rem;">${typeDef.icon || '📦'}</span>

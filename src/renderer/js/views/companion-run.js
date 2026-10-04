@@ -49,8 +49,26 @@ export class CompanionRun {
 
   // ---------- Anzeige ----------
 
+  /**
+   * Breite Bildschirme: Die Eule sitzt in der Seitenleiste, die Aufgabe hat
+   * die volle Höhe. Schmale Bildschirme (Seitenleiste nur Symbole): über den
+   * Knöpfen unter der Aufgabe.
+   */
+  _place() {
+    if (!this.panel) return;
+    const slot = document.getElementById('sidebarCompanion');
+    const narrow = window.matchMedia('(max-width: 800px)').matches;
+    if (slot && !narrow) {
+      if (this.panel.parentNode !== slot) slot.appendChild(this.panel);
+    } else if (this._beforeEl && this.panel.nextSibling !== this._beforeEl) {
+      this._beforeEl.parentNode.insertBefore(this.panel, this._beforeEl);
+    }
+    this.panel.classList.toggle('companion-in-sidebar', !!slot && !narrow);
+  }
+
   mount(beforeEl) {
     this.unmount();
+    this._beforeEl = beforeEl;
     const panel = document.createElement('div');
     panel.id = 'companionPanel';
     panel.className = 'companion-panel';
@@ -67,8 +85,10 @@ export class CompanionRun {
           <button type="button" class="btn btn-sm companion-joker hidden">🃏 Joker spielen</button>
         </div>
       </div>`;
-    beforeEl.parentNode.insertBefore(panel, beforeEl);
     this.panel = panel;
+    this._place();
+    this._onResize = () => this._place();
+    window.addEventListener('resize', this._onResize);
     panel.querySelector('.companion-joker').addEventListener('click', () => this._playJoker());
     this._say('Hallo! Ich bin deine Lerneule. Löse die Aufgabe und klick auf „Prüfen“ – ich sag dir, wie es aussieht.', 'happy');
     this._updateStatus();
@@ -76,6 +96,8 @@ export class CompanionRun {
 
   unmount() {
     this._stopTimer();
+    if (this._onResize) window.removeEventListener('resize', this._onResize);
+    this._onResize = null;
     document.getElementById('companionPanel')?.remove();
     this.panel = null;
   }
@@ -86,6 +108,8 @@ export class CompanionRun {
     bubble.innerHTML = text;
     const owl = this.panel.querySelector('.companion-owl');
     owl.dataset.mood = mood;
+    // Stimmung färbt die Sprechblase (grün = gut, blau = nachdenken, orange = streng).
+    this.panel.dataset.mood = mood;
     // Kleiner Hüpfer, damit der neue Kommentar auffällt.
     owl.classList.remove('companion-hop');
     void owl.offsetWidth;

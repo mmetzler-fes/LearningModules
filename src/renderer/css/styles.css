@@ -110,6 +110,9 @@ body {
   background: var(--bg-primary);
   color: var(--text-primary);
   height: 100vh;
+  /* Handy: 100vh zählt die Adressleiste mit – der untere Rand (Prüfen-Knopf)
+     läge sonst unerreichbar außerhalb. dvh ist die sichtbare Höhe. */
+  height: 100dvh;
   overflow: hidden;
 }
 
@@ -262,6 +265,7 @@ body {
 .app-container {
   display: flex;
   height: 100vh;
+  height: 100dvh;
   overflow: hidden;
 }
 
@@ -4093,3 +4097,109 @@ body {
 /* Blättern in den Lernthemen */
 .topics-pager { display: flex; align-items: center; justify-content: center; gap: 12px; margin: 12px 0; flex-wrap: wrap; }
 .topics-pager-info { color: var(--text-secondary); font-size: 0.9rem; }
+
+/* ==================== SCHÜLERANSICHT: KOMPAKT ==================== */
+/* Ziel: Die Aufgabe passt in die Bildschirmhöhe, die Knöpfe bleiben sichtbar. */
+
+.student-run .main-content { padding: 12px 20px; }
+.student-run #view-student-quiz.active { display: flex; flex-direction: column; height: 100%; }
+.student-run #view-student-quiz .view-header { display: none; }
+.student-run #quizPlayerArea:not(.hidden) { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; margin-top: 0; }
+.student-run .quiz-progress-bar { margin-bottom: 8px; flex-shrink: 0; }
+.student-run .quiz-info { margin-bottom: 8px; flex-shrink: 0; }
+.student-run #quizModuleContainer { flex: 1 1 auto; min-height: 0; overflow: auto; padding: 14px 20px; }
+.student-run .quiz-actions { margin-top: 10px; padding-top: 10px; flex-shrink: 0; }
+.student-run #quizResultArea:not(.hidden) { flex: 1 1 auto; overflow: auto; margin-top: 0; }
+.student-run .module-preview-header > div { margin-bottom: 10px !important; }
+.student-run .module-preview-header span,
+.student-run .module-preview-header p { display: none; }
+.student-run .module-preview-header h3 { margin-top: 0 !important; }
+.student-run .companion-panel:not(.companion-in-sidebar) { margin: 10px 0 0; flex-shrink: 0; }
+
+/* Seitenleiste der Schüler: "Aufgaben" hat keine Funktion, Einstellungen gestaucht. */
+.student-run #studentNav { display: none !important; }
+.student-run .sidebar-header { padding: 16px 16px 10px; }
+.student-run .sidebar-footer {
+  order: 1;
+  padding: 10px 16px;
+  gap: 6px;
+  border-top: none;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+}
+.student-run .sidebar-settings { flex-direction: row; justify-content: space-between; margin-bottom: 0; }
+.student-run .sidebar-settings .setting-label,
+.student-run .sidebar-footer .version-label { display: none; }
+.student-run #btnLogout { padding: 4px 8px; }
+
+/* Platz der Lerneule in der Seitenleiste */
+.sidebar-companion { display: none; }
+.companion-run .sidebar-companion { display: block; order: 2; flex: 1 1 auto; padding: 18px 14px; overflow-y: auto; }
+
+/* Sprechblase deutlicher – überall */
+.companion-bubble { font-size: 1.1rem; font-weight: 500; border-left: 4px solid var(--accent); }
+.companion-panel[data-mood="happy"] .companion-bubble { border-left-color: var(--success); }
+.companion-panel[data-mood="stern"] .companion-bubble { border-left-color: var(--warning); }
+
+/* Eule in der Seitenleiste: groß, Sprechblase weiß auf dunkel */
+.companion-panel.companion-in-sidebar {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  box-shadow: none;
+}
+.companion-in-sidebar .companion-owl { font-size: 4.5rem; text-align: center; }
+.companion-in-sidebar .companion-bubble {
+  margin-top: 10px;
+  background: #ffffff;
+  color: #1e293b;
+  font-size: 1.15rem;
+  font-weight: 600;
+  line-height: 1.45;
+  padding: 14px 16px;
+  border-left: none;
+  border-top: 5px solid var(--accent);
+  border-radius: var(--radius-md);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+}
+.companion-in-sidebar .companion-bubble::before {
+  left: 50%;
+  top: -17px;
+  margin-left: -10px;
+  border: 10px solid transparent;
+  border-bottom-color: var(--accent);
+  border-top: 0;
+}
+.companion-in-sidebar[data-mood="happy"] .companion-bubble { border-top-color: var(--success); }
+.companion-in-sidebar[data-mood="happy"] .companion-bubble::before { border-bottom-color: var(--success); }
+.companion-in-sidebar[data-mood="stern"] .companion-bubble { border-top-color: var(--warning); }
+.companion-in-sidebar[data-mood="stern"] .companion-bubble::before { border-bottom-color: var(--warning); }
+.companion-in-sidebar .companion-plus { color: #15803d; }
+.companion-in-sidebar .companion-penalty-note { color: #b45309; }
+.companion-in-sidebar .companion-status {
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  margin-top: 14px;
+  color: var(--text-sidebar);
+  font-size: 0.95rem;
+}
+.companion-in-sidebar .companion-points strong { font-size: 1.5rem; color: #fbbf24; }
+.companion-in-sidebar .companion-penalty { color: #fbbf24; font-size: 1.1rem; }
+.companion-in-sidebar .companion-actions { margin-top: 12px; }
+.companion-in-sidebar .companion-joker { width: 100%; padding: 10px; font-size: 1rem; }
+
+/* Handy/Tablet hochkant: Für Schüler keine Seitenleiste – jede Breite zählt.
+   Abbrechen bleibt über "Quiz abbrechen" erreichbar. */
+@media (max-width: 800px) {
+  .student-run .sidebar { display: none; }
+  .student-run .main-content { padding: 10px 12px; }
+  .student-run #quizModuleContainer { padding: 12px; }
+  .student-run .companion-panel:not(.companion-in-sidebar) { padding: 10px 12px; gap: 10px; }
+  .student-run .companion-panel:not(.companion-in-sidebar) .companion-owl { font-size: 2.2rem; }
+  .student-run .companion-panel:not(.companion-in-sidebar) .companion-bubble { font-size: 1rem; padding: 8px 12px; }
+  .student-run .companion-status { margin-top: 4px; font-size: 0.85rem; }
+}

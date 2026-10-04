@@ -220,6 +220,9 @@ export class QuizView {
 
   /** Gemeinsames Umschalten in den Player, egal woher der Start kam. */
   _enterPlayer(title) {
+    // Schüler: kompakte Ansicht, damit die Aufgabe in die Bildschirmhöhe passt.
+    document.body.classList.toggle('student-run', this.app.state.currentUser?.role === 'student');
+    document.body.classList.toggle('companion-run', !!this._companion);
     this.app.navigateToView('student-quiz');
     this._quizTopicSelect.classList.add('hidden');
     this._quizPlayerArea.classList.remove('hidden');
@@ -250,6 +253,7 @@ export class QuizView {
   _endCompanion() {
     if (this._companion) this._companion.unmount();
     this._companion = null;
+    document.body.classList.remove('companion-run');
   }
 
   /** Klassenarbeit: keine Sofort-Rückmeldung, kein Zurückblättern. */

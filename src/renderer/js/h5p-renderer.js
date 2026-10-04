@@ -95,6 +95,19 @@ export class H5pRenderer {
 
   // ------ Type Preview Factory ------
 
+  /**
+   * Sperrt Weiter bzw. Prüfen des Quiz, solange die Aufgabe unvollständig
+   * ist. Die Sperre steht auch am Element (data-next-locked), damit sie beim
+   * Zurückblättern zu dieser Aufgabe wieder greift (quiz.js).
+   */
+  setNextLock(div, locked, hint = 'Erst alle Fragen beantworten') {
+    div.dataset.nextLocked = locked ? 'true' : '';
+    const nb = document.getElementById('btnQuizNext');
+    if (!nb) return;
+    nb.disabled = locked;
+    nb.title = locked ? hint : '';
+  }
+
   createTypePreview(type, content, options = {}) {
     const suppressFeedback = !!(options.quizMode && options.examMode);
     const div = document.createElement('div');
@@ -233,17 +246,8 @@ export class H5pRenderer {
         const tfFalse    = div.querySelector('#tfFalse');
         const tfResults  = tfQuestions.map(() => null);
 
-        // Weiter bzw. Prüfen erst, wenn alle Teilfragen beantwortet sind. Die
-        // Sperre steht auch am Element (data-next-locked), damit sie beim
-        // Zurückblättern zu dieser Aufgabe wieder greift (quiz.js).
-        const updateTfLock = () => {
-          const locked = tfResults.some((r) => r === null);
-          div.dataset.nextLocked = locked ? 'true' : '';
-          const nb = document.getElementById('btnQuizNext');
-          if (!nb) return;
-          nb.disabled = locked;
-          nb.title = locked ? 'Erst alle Fragen beantworten' : '';
-        };
+        // Weiter bzw. Prüfen erst, wenn alle Teilfragen beantwortet sind.
+        const updateTfLock = () => this.setNextLock(div, tfResults.some((r) => r === null));
         updateTfLock();
 
         const updateTfScore = () => {
@@ -479,7 +483,6 @@ export class H5pRenderer {
             <div id="blanksArea"></div>
             <div style="display:flex; align-items:center; gap:12px; margin-top:16px;">
               ${suppressFeedback ? '' : '<button class="btn btn-primary btn-sm" id="blanksCheck">Überprüfen</button>'}
-              <button class="btn btn-secondary btn-sm" id="blanksNext">Weiter →</button>
             </div>
             ${suppressFeedback ? '' : '<div id="blanksFeedback" style="margin-top:12px;"></div>'}
           </div>`;
@@ -530,10 +533,12 @@ export class H5pRenderer {
             div.querySelector('#blanksFeedback').innerHTML = `<span style="font-weight:600;">${correct} von ${answerMap.length} richtig</span>`;
           });
         }
-        const blanksNextBtn = div.querySelector('#blanksNext');
-        if (blanksNextBtn) {
-          blanksNextBtn.addEventListener('click', () => { const nb = document.getElementById('btnQuizNext'); if (nb) nb.click(); });
-        }
+        // Alle Lücken stehen auf einer Seite – ein eigenes "Weiter" gibt es
+        // nicht. Weiter bzw. Prüfen des Quiz erst, wenn alle Felder gefüllt sind.
+        const updateBlanksLock = () => this.setNextLock(
+          div, answerMap.some(({ inputEl }) => !inputEl.value.trim()), 'Erst alle Felder ausfüllen');
+        answerMap.forEach(({ inputEl }) => inputEl.addEventListener('input', updateBlanksLock));
+        updateBlanksLock();
         break;
       }
 

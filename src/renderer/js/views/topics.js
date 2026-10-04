@@ -171,7 +171,7 @@ export class TopicsView {
       scope: 'topics',
       respectHidden: true,
       expandAll: this._filter.selectedIds.length > 0,
-      buildItem: (topic) => this._buildCard(topic),
+      buildItem: (topic, areaId) => this._buildCard(topic, areaId),
       countLabel: (n) => (n === 1 ? '1 Lernthema' : `${n} Lernthemen`),
     });
     if (!grouped) for (const topic of topics) this._topicsList.appendChild(this._buildCard(topic));
@@ -205,7 +205,8 @@ export class TopicsView {
   }
 
   /** Karte eines Lernthemas mit allen Aktionen. */
-  _buildCard(topic) {
+  /** areaId: Themengebiet des Abschnitts – sein Tag steht schon in der Überschrift. */
+  _buildCard(topic, areaId = null) {
     const isRawTopic = topic.h5pImportMode === 'raw';
     const moduleCount = isRawTopic
       ? (topic.h5pRawSummary && topic.h5pRawSummary.itemCount) || 0
@@ -225,7 +226,7 @@ export class TopicsView {
             <span class="topic-status ${topic.selected ? 'active' : 'inactive'}">${topic.selected ? '✅ Aktiv' : '❌ Inaktiv'}</span>
             ${this._rightsBadges(topic)}
           </div>
-          <div class="topic-card-tags">${this._renderTagChips(topic.tagIds)}</div>
+          <div class="topic-card-tags">${this._renderTagChips(topic.tagIds, areaId)}</div>
         </div>
         <div class="topic-card-actions">
           <label class="toggle-switch" title="Für Schüler freigeben">
@@ -438,9 +439,10 @@ export class TopicsView {
   }
 
 
-  _renderTagChips(tagIds) {
+  _renderTagChips(tagIds, skipId = null) {
     const byId = new Map((this.app.state.tags || []).map((t) => [t.id, t]));
     return (tagIds || [])
+      .filter((id) => id !== skipId)
       .map((id) => byId.get(id))
       .filter(Boolean)
       .map((tag) => chipHtml(tag))

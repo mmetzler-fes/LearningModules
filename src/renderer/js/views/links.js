@@ -118,14 +118,15 @@ export class LinksView {
       scope: 'links',
       respectHidden: true,
       expandAll: this._filter.selectedIds.length > 0,
-      buildItem: (link) => this._buildCard(link),
+      buildItem: (link, areaId) => this._buildCard(link, areaId),
       countLabel: (n) => (n === 1 ? '1 Freigabe' : `${n} Freigaben`),
     });
     if (!grouped) for (const link of links) this._list.appendChild(this._buildCard(link));
   }
 
   /** Karte einer Schülerfreigabe mit allen Aktionen. */
-  _buildCard(link) {
+  /** areaId: Themengebiet des Abschnitts – sein Tag steht schon in der Überschrift. */
+  _buildCard(link, areaId = null) {
     const card = document.createElement('div');
     card.className = 'link-card' + (link.active ? '' : ' link-card-inactive');
     const off = link.active ? '' : 'disabled title="Link ist deaktiviert"';
@@ -149,7 +150,7 @@ export class LinksView {
         ${link.unavailableTopics ? `
           <p class="link-card-warning">⚠️ ${link.unavailableTopics} Thema/Themen nicht mehr verfügbar –
             gelöscht oder das Nutzungsrecht ist entfallen.</p>` : ''}
-        <div class="link-card-tags">${this._renderTagChips(link.tagIds)}</div>
+        <div class="link-card-tags">${this._renderTagChips(link.tagIds, areaId)}</div>
       </div>
       <div class="link-card-actions">
         ${this._hasPractice(link) ? `<button class="btn btn-secondary btn-sm btn-link-share" ${off} title="Link zum Üben: Quiz, Lernen mit Lösungen, Lernbegleitung">🔗 Link &amp; QR</button>` : ''}
@@ -180,9 +181,10 @@ export class LinksView {
     return card;
   }
 
-  _renderTagChips(tagIds) {
+  _renderTagChips(tagIds, skipId = null) {
     const byId = new Map((this.app.state.tags || []).map((t) => [t.id, t]));
     return (tagIds || [])
+      .filter((id) => id !== skipId)
       .map((id) => byId.get(id))
       .filter(Boolean)
       .map((tag) => chipHtml(tag))

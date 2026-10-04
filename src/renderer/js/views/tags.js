@@ -132,7 +132,9 @@ function saveToggled(scope, set) {
  * false; der Aufrufer bleibt dann bei der flachen Liste.
  *
  * - scope:       Schlüssel für den gemerkten Auf-/Zu-Zustand
- * - buildItem:   Eintrag -> DOM-Element (wird je Abschnitt neu gebaut)
+ * - buildItem:   (Eintrag, Themengebiet-ID des Abschnitts | null) -> DOM-Element
+ *                (wird je Abschnitt neu gebaut; das Gebiet steht schon in der
+ *                Überschrift und muss auf der Karte nicht noch einmal stehen)
  * - buildHead:   Themengebiet -> HTML der Überschrift (Standard: Chip)
  * - countLabel:  Anzahl -> Text neben der Überschrift
  * - defaultOpen: Abschnitte anfangs offen statt zu
@@ -163,7 +165,7 @@ export function renderAreaGroups(container, items, opts) {
   }
 
   const toggled = loadToggled(scope);
-  const section = (key, head, list) => {
+  const section = (key, head, list, areaId = null) => {
     const details = document.createElement('details');
     details.className = 'area-group';
     details.dataset.areaKey = key;
@@ -175,7 +177,7 @@ export function renderAreaGroups(container, items, opts) {
       </summary>
       <div class="area-group-body"></div>`;
     const body = details.querySelector('.area-group-body');
-    for (const item of list) body.appendChild(buildItem(item));
+    for (const item of list) body.appendChild(buildItem(item, areaId));
     details.addEventListener('toggle', () => {
       if (expandAll) return;
       const now = loadToggled(scope);
@@ -189,7 +191,7 @@ export function renderAreaGroups(container, items, opts) {
 
   for (const area of areas) {
     const list = groups.get(area.id);
-    if (list.length || showEmpty) section(area.id, buildHead ? buildHead(area) : chipHtml(area), list);
+    if (list.length || showEmpty) section(area.id, buildHead ? buildHead(area) : chipHtml(area), list, area.id);
   }
   if (loose.length) section('__none__', '<span class="area-group-none">Ohne Themengebiet</span>', loose);
   if (hiddenOnly.length) {

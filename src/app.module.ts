@@ -30,6 +30,8 @@ import { AccountsModule } from './accounts/accounts.module';
 import { ShopModule } from './shop/shop.module';
 import { CryptoModule } from './core/crypto/crypto.module';
 import { SchoolsModule } from './core/schools/schools.module';
+import { CompanionModule } from './companion/companion.module';
+import { ContestModule } from './contest/contest.module';
 import { join } from 'path';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -73,6 +75,8 @@ import { AppService } from './app.service';
     SchoolsModule,
     ShopModule,
     PublicModule,
+    CompanionModule,
+    ContestModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -52,6 +52,13 @@ export class User extends BaseEntity {
   @Column('simple-json', { nullable: true })
   hiddenAreaIds: string[] | null;
 
+  /**
+   * Eigener Lernbegleiter der Lehrkraft: zusätzliche Kommentare und
+   * Abweichungen von den Vorgaben der Schule (Joker, Zeitstrafe, Tusch).
+   */
+  @Column('simple-json', { nullable: true })
+  companionConfig: any;
+
   // ---- Zwei-Faktor-Anmeldung (TOTP, siehe auth/totp.ts) ----
 
   @Column({ default: false })

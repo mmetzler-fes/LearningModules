@@ -49,7 +49,7 @@ export class Result extends BaseEntity {
   @Column({ nullable: true })
   linkKind: string;
 
-  /** Modus des Durchlaufs: 'quiz' | 'exam' | 'learn'. */
+  /** Modus des Durchlaufs: 'quiz' | 'exam' | 'learn' | 'companion' | 'contest'. */
   @Column({ nullable: true })
   mode: string;
 

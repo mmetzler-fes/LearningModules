@@ -13,6 +13,8 @@ import { TagsView } from './views/tags.js';
 import { ShopView } from './views/shop.js';
 import { SchoolsAdminView, MySchoolView } from './views/schools.js';
 import { TwoFactorDialog } from './views/two-factor.js';
+import { ContestView } from './views/contest.js';
+import { CompanionSettingsView } from './views/companion-settings.js';
 
 // ==================== APP COORDINATOR ====================
 
@@ -59,6 +61,8 @@ class App {
     this.schoolsView  = new SchoolsAdminView(this);
     this.mySchoolView = new MySchoolView(this);
     this.twoFactorDialog = new TwoFactorDialog(this);
+    this.contestView  = new ContestView(this);
+    this.companionView = new CompanionSettingsView(this);
   }
 
   showToast(message, type = 'info') {
@@ -161,6 +165,7 @@ class App {
       case 'teacher-modules':   this.modulesView.refresh(); break;
       case 'teacher-results':   this.resultsView.refresh(); break;
       case 'teacher-links':     this.linksView.refresh(); break;
+      case 'teacher-companion': this.companionView.refresh(); break;
       case 'teacher-tags':      this.tagsView.refresh(); break;
       case 'teacher-shop':      this.shopView.refresh(); break;
       case 'admin-settings':    this.adminView.refreshSettings(); break;
@@ -415,10 +420,17 @@ class App {
       await this.loginView.initLoginScreen();
 
       const params = new URLSearchParams(window.location.search);
-      // Themen-Link: ?l=<token> – Name, ggf. Passwort, ggf. Modusauswahl
+      // Lernwettkampf leiten: ?wh=<Leitungs-Token> – ohne Anmeldung, z. B. am Beamer.
+      const hostToken = params.get('wh');
+      if (hostToken) {
+        await this.contestView.startHost(hostToken);
+        return;
+      }
+      // Themen-Link: ?l=<token> – Name, ggf. Passwort, ggf. Modusauswahl;
+      // &m=contest führt direkt in den Wartebereich des Lernwettkampfs.
       const linkToken = params.get('l');
       if (linkToken) {
-        await this.loginView.startLinkEntry(linkToken);
+        await this.loginView.startLinkEntry(linkToken, params.get('m') === 'contest' ? 'contest' : null);
         return;
       }
       // Quick-Link: ?q=<token> führt direkt zur Namenseingabe

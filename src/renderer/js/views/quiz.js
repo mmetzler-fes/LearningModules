@@ -1,5 +1,6 @@
 import { escapeHtml } from '../utils.js';
-import { scoreDictation, dictationOptions } from '../dictation.js';
+import { collectAnswer } from '../answer-eval.js';
+import { CompanionRun, COMPANION_MAX } from './companion-run.js';
 
 // ==================== QUIZ VIEW ====================
 
@@ -29,9 +30,15 @@ export class QuizView {
         const qs = state.quizState;
         const mod = qs.modules[qs.currentIndex];
 
+        // Lernbegleitung: Prüfen, Kommentar, ggf. Denkpause – die Eule entscheidet.
+        if (this._companion) {
+          this._companion.onPrimary();
+          return;
+        }
+
         // Im Lernmodus erst die Lösung zeigen; weiter geht es beim zweiten Klick.
         if (this._isLearnRun() && !qs.revealed) {
-          qs.answers[qs.currentIndex] = this._collectAnswer(mod);
+          qs.answers[qs.currentIndex] = collectAnswer(mod, this._quizModuleContainer);
           this._revealSolution(qs.answers[qs.currentIndex]);
           qs.revealed = true;
           (qs.revealedAt || (qs.revealedAt = {}))[qs.currentIndex] = true;
@@ -40,10 +47,8 @@ export class QuizView {
           return;
         }
 
-        qs.answers[qs.currentIndex] = this._collectAnswer(mod);
-        qs.currentIndex++;
-        if (qs.currentIndex >= qs.modules.length) this._finishQuiz();
-        else this._renderModule();
+        qs.answers[qs.currentIndex] = collectAnswer(mod, this._quizModuleContainer);
+        this._goNext();
       });
     }
 
@@ -52,7 +57,7 @@ export class QuizView {
         const { state } = this.app;
         if (!state.quizState || state.quizState.currentIndex <= 0) return;
         const mod = state.quizState.modules[state.quizState.currentIndex];
-        state.quizState.answers[state.quizState.currentIndex] = this._collectAnswer(mod);
+        state.quizState.answers[state.quizState.currentIndex] = collectAnswer(mod, this._quizModuleContainer);
         state.quizState.currentIndex--;
         this._renderModule();
       });
@@ -61,6 +66,7 @@ export class QuizView {
     if (this._btnQuizCancel) {
       this._btnQuizCancel.addEventListener('click', async () => {
         if (!(await this.app.appConfirm(t('quiz.cancel.confirm')))) return;
+        this._endCompanion();
         this.app.state.quizState = null;
         this._quizPlayerArea.classList.add('hidden');
         this._quizModuleContainer.innerHTML = '';
@@ -163,6 +169,8 @@ export class QuizView {
       revealed: false,
     };
 
+    this._endCompanion();
+    if (data.mode === 'companion') this._companion = new CompanionRun(this, data.companion);
     this._enterPlayer(data.linkName);
   }
 
@@ -196,6 +204,7 @@ export class QuizView {
       revealed: false,
     };
 
+    this._endCompanion();
     this._enterPlayer(topic.title);
   }
 
@@ -206,7 +215,31 @@ export class QuizView {
     this._quizPlayerArea.classList.remove('hidden');
     this._quizResultArea.classList.add('hidden');
     this._quizSubtitle.textContent = `${t('quiz.title')}: ${title}`;
+    if (this._companion) this._companion.mount(document.getElementById('quizActions'));
     this._renderModule();
+  }
+
+  /** Nächste Aufgabe oder Abschluss. */
+  _goNext() {
+    const qs = this.app.state.quizState;
+    if (!qs) return;
+    qs.currentIndex++;
+    if (qs.currentIndex >= qs.modules.length) this._finishQuiz();
+    else this._renderModule();
+  }
+
+  /** Aufgabe frisch aufbauen (Lernbegleitung: neuer Versuch bei Kopfrechnen & Co.). */
+  _rebuildCurrentView() {
+    const qs = this.app.state.quizState;
+    if (!qs?.views) return;
+    qs.views[qs.currentIndex]?.remove();
+    qs.views[qs.currentIndex] = null;
+    this._renderModule();
+  }
+
+  _endCompanion() {
+    if (this._companion) this._companion.unmount();
+    this._companion = null;
   }
 
   /** Klassenarbeit: keine Sofort-Rückmeldung, kein Zurückblättern. */
@@ -260,7 +293,9 @@ export class QuizView {
       container.appendChild(view);
       this.app.renderer.renderPreview(mod, typeDef, view, {
         quizMode: true,
-        examMode: this._isExamRun(),
+        // Die Lernbegleitung gibt die Rückmeldung selbst – die eingebauten
+        // Prüfknöpfe der Aufgaben würden sie umgehen.
+        examMode: this._isExamRun() || !!this._companion,
         // Für Aufgaben, die etwas hochladen (Audio Recorder)
         upload: {
           linkToken: qs.linkToken || null,
@@ -276,9 +311,11 @@ export class QuizView {
       : currentIndex < modules.length - 1 ? t('quiz.next') : t('quiz.finish');
 
     if (this._btnQuizPrev) {
-      this._btnQuizPrev.style.display = (!this._isExamRun() && currentIndex > 0) ? 'inline-block' : 'none';
+      const prevOk = !this._isExamRun() && !this._companion && currentIndex > 0;
+      this._btnQuizPrev.style.display = prevOk ? 'inline-block' : 'none';
       this._btnQuizPrev.textContent = t('quiz.prev');
     }
+    if (this._companion) this._companion.onTaskShown();
   }
 
   /**
@@ -300,256 +337,24 @@ export class QuizView {
     panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }
 
-  _collectAnswer(mod) {
-    const content = mod.content || {};
-    const result = {
-      moduleId: mod.id, moduleTitle: mod.title, moduleType: mod.type,
-      isCorrect: false, userAnswer: '', correctAnswer: '',
-    };
-
-    switch (mod.type) {
-      case 'multipleChoice': {
-        const inputs = this._quizModuleContainer.querySelectorAll('input[name="mc-answer"]');
-        const selected = []; const correctList = [];
-        let correctDecisions = 0; let totalDecisions = 0;
-        inputs.forEach((inp, i) => {
-          if (inp.checked) selected.push(i);
-          if (inp.dataset.correct === 'true') correctList.push(i);
-          if (inp.checked === (inp.dataset.correct === 'true')) correctDecisions++;
-          totalDecisions++;
-        });
-        result.userAnswer = selected.map((i) => (content.answers || [])[i]?.text || i).join(', ');
-        result.correctAnswer = correctList.map((i) => (content.answers || [])[i]?.text || i).join(', ');
-        result.isCorrect = totalDecisions > 0 && correctDecisions === totalDecisions;
-        // Teilpunkte nur bei Mehrfachauswahl: jedes falsche Kreuz hebt ein
-        // richtiges auf, sonst brächte schon „nichts ankreuzen“ Punkte.
-        if (!content.singleAnswer && correctList.length > 0) {
-          const hits = selected.filter((i) => correctList.includes(i)).length;
-          const wrongHits = selected.length - hits;
-          result.points = Math.max(0, hits - wrongHits) / correctList.length;
-          const pct = Math.round(result.points * 100);
-          result.score = `Richtig: ${pct}% | Falsch: ${100 - pct}%`;
-        }
-        break;
-      }
-      case 'trueFalse': {
-        const tfQs = content.questions || [content];
-        let tfCorrect = 0; const ua = []; const ca = [];
-        tfQs.forEach((q) => {
-          if (q._userAnswer === q.correctAnswer) tfCorrect++;
-          ua.push(q._userAnswer === 'true' ? 'Wahr' : q._userAnswer === 'false' ? 'Falsch' : '—');
-          ca.push(q.correctAnswer === 'true' ? 'Wahr' : 'Falsch');
-        });
-        result.isCorrect = tfCorrect === tfQs.length;
-        result.userAnswer = ua.join(', '); result.correctAnswer = ca.join(', ');
-        if (tfQs.length > 0) {
-          const pct = Math.round((tfCorrect / tfQs.length) * 100);
-          result.score = `Richtig: ${pct}% | Falsch: ${100 - pct}%`;
-        }
-        break;
-      }
-      case 'fillInTheBlanks': {
-        const inputs = this._quizModuleContainer.querySelectorAll('input[data-answer]');
-        let correct = 0; const answers = [];
-        inputs.forEach((inp) => {
-          const expected = inp.dataset.answer; const given = inp.value.trim();
-          const alts = expected.split('/').map((a) => a.trim()).filter(Boolean);
-          const match = alts.some((alt) => content.caseSensitive ? given === alt : given.toLowerCase() === alt.toLowerCase());
-          if (match) correct++;
-          answers.push(given);
-        });
-        result.userAnswer = answers.join(', ');
-        result.correctAnswer = Array.from(inputs).map((i) => i.dataset.answer.split('/')[0].trim()).join(', ');
-        result.isCorrect = correct === inputs.length && inputs.length > 0;
-        if (inputs.length > 0) {
-          result.points = correct / inputs.length;
-          const pct = Math.round(result.points * 100);
-          result.score = `Richtig: ${pct}% | Falsch: ${100 - pct}%`;
-        }
-        break;
-      }
-      case 'essay': {
-        const textarea = this._quizModuleContainer.querySelector('#essayAnswer');
-        const text = textarea ? textarea.value.trim() : '';
-        const minChars = Number(content.minChars) || 0;
-        result.userAnswer = text || '—'; result.correctAnswer = content.sampleSolution || 'Freitextantwort';
-        result.isCorrect = minChars <= 0 ? text.length > 0 : text.length >= minChars;
-        result.score = `${text.length} Zeichen`;
-        break;
-      }
-      case 'arithmeticQuiz': {
-        const resultEl = this._quizModuleContainer.querySelector('.quiz-area h3');
-        if (resultEl) {
-          const m = resultEl.textContent.match(/(\d+)\s*\/\s*(\d+)/);
-          if (m) { result.userAnswer = `${m[1]}/${m[2]}`; result.correctAnswer = `${m[2]}/${m[2]}`; result.isCorrect = m[1] === m[2]; }
-        }
-        break;
-      }
-      case 'markTheWords': {
-        const spans = this._quizModuleContainer.querySelectorAll('#wordsArea span');
-        let correct = 0; let total = 0; const ua = []; const ca = [];
-        spans.forEach((s) => {
-          const isTarget = s.dataset.correct === 'true'; const isSel = s.classList.contains('selected');
-          if (isTarget) { total++; ca.push(s.textContent); }
-          if (isSel) { ua.push(s.textContent); if (isTarget) correct++; }
-        });
-        result.userAnswer = ua.length ? ua.join(', ') : 'Keine markiert';
-        result.correctAnswer = ca.join(', ');
-        result.isCorrect = correct === total && total > 0;
-        break;
-      }
-      case 'dragTheWords': {
-        const zones = this._quizModuleContainer.querySelectorAll('.dtw-drop-zone');
-        let correct = 0; const ua = []; const ca = [];
-        zones.forEach((z) => {
-          const current = (z.dataset.currentWord || '').trim(); const expected = z.dataset.correctWord;
-          if (current.toLowerCase() === expected.toLowerCase()) correct++;
-          ua.push(current || '(leer)'); ca.push(expected);
-        });
-        result.userAnswer = ua.join(', '); result.correctAnswer = ca.join(', ');
-        result.percent = zones.length > 0 ? Math.round((correct / zones.length) * 100) : 0;
-        result.isCorrect = correct === zones.length && zones.length > 0;
-        break;
-      }
-      case 'dictation': {
-        // Wortweise wie in der Anzeige (dictation.js): Punkte = Anteil
-        // fehlerfreier Wörter.
-        const sentences = (content.sentences || []).filter((s) => s && String(s.text || '').trim());
-        const answers = [...this._quizModuleContainer.querySelectorAll('.dict-input')].map((inp) => inp.value);
-        const score = scoreDictation(sentences, answers, dictationOptions(content));
-        result.userAnswer = answers.map((a) => a.trim()).join(' | ');
-        result.correctAnswer = sentences.map((s) => s.text).join(' | ');
-        result.isCorrect = score.total > 0 && score.mistakes === 0;
-        if (score.total > 0) {
-          result.points = score.points;
-          const pct = Math.round(score.points * 100);
-          result.score = `${score.good}/${score.total} Wörter richtig (${pct}%), ${score.mistakes} Fehler`;
-        }
-        break;
-      }
-      case 'audioRecorder': {
-        // Bewertet wird die Aufnahme von der Lehrkraft; hier zählt nur, ob abgegeben wurde.
-        const player = this._quizModuleContainer.querySelector('.rec-player');
-        const file = player?.dataset.submitted || '';
-        result.isCorrect = !!file;
-        result.points = file ? 1 : 0;
-        result.userAnswer = file ? `Aufnahme abgegeben: ${file}` : 'keine Aufnahme abgegeben';
-        result.correctAnswer = '—';
-        result.score = file ? 'abgegeben' : 'nicht abgegeben';
-        break;
-      }
-      case 'branchingScenario': {
-        // Bewertung = Prozentwert des erreichten Endes; ohne Ende 0 Punkte.
-        const player = this._quizModuleContainer.querySelector('.bs-player');
-        if (player && player.dataset.done) {
-          const score = Number(player.dataset.score) || 0;
-          let path = [];
-          try { path = JSON.parse(player.dataset.path || '[]'); } catch (_) {}
-          result.points = score / 100;
-          result.isCorrect = score >= 100;
-          result.userAnswer = path.join(' → ');
-          result.score = `Ende erreicht: ${score} %`;
-        } else {
-          result.points = 0;
-          result.userAnswer = 'nicht bis zu einem Ende gespielt';
-          result.score = 'kein Ende erreicht';
-        }
-        result.correctAnswer = '—';
-        break;
-      }
-      case 'dragAndDrop': {
-        const draggablesDef = content.draggables || []; const zonesDef = content.dropZones || [];
-        // Pro Zone genau ein Soll-Wert, sonst kann die Aufgabe nie vollständig
-        // "richtig" werden. Die Zonen-Seite (im Editor gepflegt) ist
-        // maßgeblich; die Ziehbare-Element-Seite füllt nur Zonen auf, die dort
-        // noch keinen Wert haben, und nur für Zonen, die es noch gibt – sonst
-        // zählen veraltete correctZone-Verweise als zusätzliche, unerfüllbare
-        // Anforderung mit.
-        const zoneLabels = new Set(zonesDef.map((z) => z.label));
-        // Zonen mit derselben (nicht-leeren) Gruppen-ID sind untereinander
-        // vertauschbar, z. B. die zwei gleichwertigen Eingänge eines
-        // Oder-Gatters. Ohne Gruppe zählt weiterhin nur die eigene Zone.
-        const zoneGroup = new Map(zonesDef.map((z) => [z.label, z.group || '']));
-        const expectedMappings = [];
-        zonesDef.forEach((z) => { if (z.correctDraggable) expectedMappings.push({ zone: z.label, text: z.correctDraggable }); });
-        draggablesDef.forEach((d) => { if (d.correctZone && zoneLabels.has(d.correctZone) && !expectedMappings.find((m) => m.zone === d.correctZone)) expectedMappings.push({ zone: d.correctZone, text: d.text }); });
-        const dragEls = this._quizModuleContainer.querySelectorAll('.dnd-player-drag');
-        let correct = 0; let incorrect = 0; const placements = [];
-        const satisfiedDefs = new Set();
-        dragEls.forEach((el) => {
-          const currentZone = el.dataset.currentZone || ''; const text = el.textContent;
-          const isMultipleSource = el.dataset.multiple === 'true' && !currentZone;
-          if (currentZone) {
-            const currentGroup = zoneGroup.get(currentZone) || '';
-            const matchIdx = expectedMappings.findIndex((m, idx) => {
-              if (satisfiedDefs.has(idx) || m.text !== text) return false;
-              if (m.zone === currentZone) return true;
-              const targetGroup = zoneGroup.get(m.zone) || '';
-              return !!currentGroup && currentGroup === targetGroup;
-            });
-            if (matchIdx !== -1) { satisfiedDefs.add(matchIdx); correct++; } else { incorrect++; }
-            placements.push(`${text} → ${currentZone}`);
-          } else if (!isMultipleSource) { placements.push(`${text} → (nicht zugeordnet)`); }
-        });
-        result.userAnswer = placements.join(', ');
-        result.correctAnswer = expectedMappings.map((m) => `${m.text} → ${m.zone}`).join(', ');
-        result.isCorrect = expectedMappings.length > 0 && correct === expectedMappings.length && incorrect === 0;
-        // Teilpunkte je richtig abgelegtem Begriff. Falsch abgelegte vergrößern
-        // den Nenner, damit wahlloses Verteilen aller Begriffe nicht belohnt wird.
-        const denominator = Math.max(expectedMappings.length, correct + incorrect);
-        if (denominator > 0) {
-          result.points = correct / denominator;
-          const pct = Math.round(result.points * 100);
-          result.score = `Richtig: ${pct}% | Falsch: ${100 - pct}%`;
-        }
-        break;
-      }
-      case 'flashcards': {
-        const cards = content.cards || []; let correct = 0; const answers = [];
-        cards.forEach((card) => {
-          const user = (card._userAnswer || '').trim(); const expected = card.answer || '';
-          const alts = expected.split('/').map((a) => a.trim().toLowerCase()).filter(Boolean);
-          const ok = alts.includes(user.toLowerCase());
-          if (ok) correct++;
-          answers.push(`${user || '—'} (${ok ? '✓' : '✗'})`);
-        });
-        result.userAnswer = `${correct}/${cards.length} richtig`; result.correctAnswer = `${cards.length}/${cards.length}`;
-        result.isCorrect = correct === cards.length && cards.length > 0;
-        break;
-      }
-      default: {
-        result.isCorrect = true; result.userAnswer = 'Angesehen'; result.correctAnswer = '—';
-        break;
-      }
-    }
-    // Reine Informationen (z. B. ein Arbeitsblatt zum Lesen) sind keine Aufgabe.
-    // Sie zählten sonst als gelöst und hoben die Prozentzahl, ohne dass
-    // jemand etwas beantwortet hätte.
-    if ((H5P_TYPES[mod.type] || {}).informational) {
-      result.informational = true;
-      result.isCorrect = true;
-      result.userAnswer = 'Gelesen';
-      result.correctAnswer = '';
-      result.points = null;
-      return result;
-    }
-    // Punkte dieser Aufgabe (0 bis 1). Aufgabentypen ohne Teilpunkte zählen ganz oder gar nicht.
-    if (result.points === undefined) result.points = result.isCorrect ? 1 : 0;
-    return result;
-  }
-
   async _finishQuiz() {
     const { state, api } = this.app;
     const { quizState, currentUser } = state;
     const isExam = quizState.mode === 'exam';
     const isLearn = quizState.mode === 'learn';
+    const companion = this._companion;
+    this._endCompanion();
     // Informationsmodule bleiben in der Liste sichtbar, aber aus der
     // Rechnung heraus – sonst hinge die Prozentzahl daran, wie viele
-    // Infoseiten ein Thema enthält.
-    const graded = quizState.answers.filter((a) => !a.informational);
-    const rawScore = graded.reduce((sum, a) => sum + (a.points ?? (a.isCorrect ? 1 : 0)), 0);
+    // Infoseiten ein Thema enthält. Dasselbe gilt in der Lernbegleitung für
+    // Aufgaben, die kein Automat bewerten kann.
+    const graded = quizState.answers.filter((a) => a && !a.informational && !a.ungraded);
+    // Lernbegleitung: Lernpunkte statt Anteilen, 10 je Aufgabe.
+    const rawScore = companion
+      ? graded.reduce((sum, a) => sum + (a.lernpunkte || 0), 0)
+      : graded.reduce((sum, a) => sum + (a.points ?? (a.isCorrect ? 1 : 0)), 0);
     const score = Math.round(rawScore * 100) / 100;
-    const total = graded.length;
+    const total = companion ? graded.length * COMPANION_MAX : graded.length;
     const percentage = total > 0 ? Math.round((score / total) * 100) : 0;
 
     if (isLearn) {
@@ -569,7 +374,8 @@ export class QuizView {
           topicTitle: quizState.topicTitle,
           linkName: quizState.linkName || null,
           percentage,
-          details: quizState.answers,
+          details: quizState.answers.filter(Boolean),
+          ...(companion ? { jokersUsed: companion.jokersUsed } : {}),
         },
       });
     } else {
@@ -588,8 +394,9 @@ export class QuizView {
     const pctClass = percentage >= 70 ? 'good' : percentage >= 40 ? 'medium' : 'poor';
     this._quizResultArea.innerHTML = `
       <div class="quiz-final-result">
-        <div class="quiz-result-icon">${nothingGraded ? '📖' : percentage >= 80 ? '🏆' : percentage >= 50 ? '👍' : '📚'}</div>
+        <div class="quiz-result-icon">${companion ? '🦉' : nothingGraded ? '📖' : percentage >= 80 ? '🏆' : percentage >= 50 ? '👍' : '📚'}</div>
         <h2>${t('quiz.complete')}</h2>
+        ${companion && !nothingGraded ? `<p class="companion-summary">⭐ Du hast <strong>${score}</strong> von ${total} Lernpunkten gesammelt${companion.jokersUsed ? ` und ${companion.jokersUsed} Joker gespielt` : ''}.</p>` : ''}
         ${nothingGraded
           ? '<p style="margin:12px 0;">Durchgesehen – dieses Thema enthält nur Informationen, es gibt nichts zu bewerten.</p>'
           : `<div class="quiz-result-score ${pctClass}">
@@ -601,7 +408,7 @@ export class QuizView {
         <div class="quiz-result-details">
           ${isExam
             ? '<p style="color:var(--text-secondary);">Klassenarbeit: Die Detail-Rückmeldung ist ausgeblendet.</p>'
-            : quizState.answers.map((a, i) => `
+            : quizState.answers.filter(Boolean).map((a, i) => `
               <div class="result-detail-item ${a.informational ? '' : a.isCorrect ? 'correct' : 'wrong'}">
                 <span class="result-detail-icon">${a.informational ? 'ℹ️' : a.isCorrect ? '✅' : '❌'}</span>
                 <div>

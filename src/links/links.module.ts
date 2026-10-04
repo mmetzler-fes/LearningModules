@@ -8,9 +8,10 @@ import { LearningModule } from '../core/entities/learning-module.entity';
 import { TagsModule } from '../tags/tags.module';
 import { TopicsModule } from '../topics/topics.module';
 import { GroupsModule } from '../groups/groups.module';
+import { CompanionModule } from '../companion/companion.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([TopicLink, LearningTopic, LearningModule]), TagsModule, TopicsModule, GroupsModule],
+  imports: [TypeOrmModule.forFeature([TopicLink, LearningTopic, LearningModule]), TagsModule, TopicsModule, GroupsModule, CompanionModule],
   controllers: [LinksController],
   providers: [LinksService],
   exports: [LinksService],

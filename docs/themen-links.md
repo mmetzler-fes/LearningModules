@@ -39,13 +39,18 @@ Bei den Inhalten gibt es zwei Wege:
   Modul Submodule, lassen sich auch die einzeln wählen. Ist nur das
   Elternmodul angehakt, gilt das ganze Modul.
 
-## Die drei Modi
+## Die Modi
 
 | Modus | Verhalten | Ergebnis |
 |---|---|---|
 | 🧠 **Quiz** | Rückmeldung nach jeder Aufgabe, Zurückblättern erlaubt | wird gespeichert |
 | 📝 **Klassenarbeit** | Keine Rückmeldung, kein Zurückblättern | wird gespeichert |
 | 💡 **Lernen mit Lösungen** | Antworten wie im Quiz, danach die Musterlösung zur Aufgabe | wird **nicht** gespeichert |
+| 🦉 **Lernbegleitung** | Eine Lerneule kommentiert jeden Versuch; Lernpunkte, Joker, Zeitstrafe | wird gespeichert |
+| 🏆 **Lernwettkampf** | Alle gleichzeitig, Punkte nach Richtigkeit und Tempo, Siegertreppchen | wird gespeichert |
+
+Lernbegleitung und Lernwettkampf sind in
+[Lernbegleitung und Lernwettkampf](lernbegleitung-und-wettkampf.md) beschrieben.
 
 Ist nur ein Modus freigegeben, startet der Link ohne Rückfrage hinein. Sind
 mehrere freigegeben, wählt der Schüler nach der Namenseingabe selbst.
@@ -131,6 +136,7 @@ damit lesbar, auch wenn der Link später umbenannt oder gelöscht wird.
 | `GET /api/tags` … | Tags verwalten (CRUD) |
 | `GET /api/public/link/:token` | Öffentliche Vorschau: Name, Modi, Passwortpflicht |
 | `POST /api/public/link/:token/start` | Name/Passwort/Modus prüfen, Module liefern |
+| `POST /api/links/:id/contest-share` | Lernwettkampf: Leitungs- und Schüler-Link |
 
 Einstieg im Frontend: `?l=<token>` auf der Startseite, ausgewertet in
 `app.init()` → `LoginView.startLinkEntry()`.

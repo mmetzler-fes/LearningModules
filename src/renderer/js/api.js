@@ -199,6 +199,38 @@ export class BrowserApi {
     });
   }
   revokeLink(id) { return this._fetch(`/api/links/${encodeURIComponent(id)}/share`, { method: 'DELETE' }); }
+  /** Lernwettkampf: Leitungs-Link, Schüler-Link und QR-Code. */
+  contestShareLink(id, regenerate = false) {
+    return this._fetch(`/api/links/${encodeURIComponent(id)}/contest-share`, {
+      method: 'POST',
+      body: JSON.stringify({ regenerate }),
+    });
+  }
+
+  // ---------- Lernbegleiter ----------
+  getCompanion() { return this._fetch('/api/companion'); }
+  saveMyCompanion(data) { return this._fetch('/api/companion/mine', { method: 'PUT', body: JSON.stringify(data) }); }
+  saveSchoolCompanion(data) { return this._fetch('/api/companion/school', { method: 'PUT', body: JSON.stringify(data) }); }
+  getCompanionColleagues() { return this._fetch('/api/companion/school/colleagues'); }
+
+  // ---------- Lernwettkampf (öffentlich, ohne Anmeldung) ----------
+  _publicPost(url, body) {
+    return fetch(url, {
+      method: 'POST',
+      cache: 'no-store',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body || {}),
+    }).then((r) => r.json());
+  }
+  contestHost(hostToken, action, body) {
+    return this._publicPost(`/api/public/contest/host/${encodeURIComponent(hostToken)}/${action}`, body);
+  }
+  contestJoin(token, body) {
+    return this._publicPost(`/api/public/contest/${encodeURIComponent(token)}/join`, body);
+  }
+  contestAnswer(token, body) {
+    return this._publicPost(`/api/public/contest/${encodeURIComponent(token)}/answer`, body);
+  }
 
   submitPublicResult(data) {
     return fetch('/api/public/results', {

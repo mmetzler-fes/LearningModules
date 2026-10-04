@@ -42,6 +42,12 @@ export class LinksController {
     return this.linksService.share(id, req.user, !!body?.regenerate, req);
   }
 
+  /** Lernwettkampf: Leitungs- und Schüler-Link; `{regenerate:true}` erneuert den Leitungs-Link. */
+  @Post(':id/contest-share')
+  async contestShare(@Param('id') id: string, @Request() req: any, @Body() body: { regenerate?: boolean }) {
+    return this.linksService.contestShare(id, req.user, !!body?.regenerate, req);
+  }
+
   /** Token entwerten – verteilte Links und QR-Codes wirken nicht mehr. */
   @Delete(':id/share')
   async revoke(@Param('id') id: string, @Request() req: any) {

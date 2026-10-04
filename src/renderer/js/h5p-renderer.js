@@ -1637,6 +1637,9 @@ export class H5pRenderer {
     const render = () => {
       if (qIdx >= questions.length - 1) { const nb = document.getElementById('btnQuizNext'); if (nb) nb.disabled = false; }
       if (qIdx >= questions.length) {
+        // Für die Auswertung (answer-eval.js), unabhängig von der Anzeige.
+        container.dataset.correct = String(score);
+        container.dataset.total = String(questions.length);
         container.innerHTML = suppressFeedback
           ? '<h3>Alle Fragen beantwortet.</h3>'
           : `<h3>Ergebnis: ${score} / ${questions.length}</h3>`;

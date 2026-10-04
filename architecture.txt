@@ -95,6 +95,15 @@ BACKEND – src/
 
   links/                        CRUD Themen-Links
     links.service.ts            resolveModules() löst die Auswahl in Module auf
+                                contestShare(): Leitungs- und Schüler-Link
+                                für den Lernwettkampf
+  companion/                    Lernbegleiter (Eule): Kommentare, Joker,
+                                Zeitstrafe, Tusch. Stufen Grundausstattung →
+                                Schule → Lehrkraft → Link (effectiveFor())
+  contest/                      Lernwettkampf: Wartebereich, synchrone Fragen,
+                                Bestenliste, Siegertreppchen. Läuft im
+                                Arbeitsspeicher, Server-Sent Events; am Ende
+                                ein Ergebnis je Schüler (mode 'contest')
 
   core/share/link-url.ts        Öffentliche Adresse + QR-Code (Quick- und Themen-Link)
   core/public/public.controller.ts
@@ -312,6 +321,18 @@ DATENFLUSS (Login → Quiz)
        → QuizView._finishQuiz()
        → API: POST /api/public/results (mit linkToken und mode;
               im Modus "Lernen mit Lösungen" entfällt das Speichern)
+       Lernbegleitung: /start liefert zusätzlich `companion` (Kommentare,
+              Joker, Zeitstrafe); CompanionRun steuert Prüfen/Kommentar
+
+  5. Lernwettkampf
+       Leitung: ?wh=<Leitungs-Token> → ContestView.startHost()
+       → API: POST /api/public/contest/host/:hostToken/open
+       → SSE:  GET  /api/public/contest/host/:hostToken/events
+       → start / next / kick / reset / close
+       Schüler: ?l=<token>&m=contest → Name → ContestView.joinAsPlayer()
+       → API: POST /api/public/contest/:token/join
+       → SSE:  GET  /api/public/contest/:token/events?pid=…&sec=…
+       → API: POST /api/public/contest/:token/answer
 
 --------------------------------------------------------------------------------
 ROLLEN

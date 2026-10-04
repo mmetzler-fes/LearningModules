@@ -1,7 +1,9 @@
 import { escapeHtml, escapeAttr } from '../utils.js';
 
 /** Kurzbeschriftung der Abfragemodi in der Ergebnisliste. */
-const MODE_LABELS = { quiz: '🧠 Quiz', exam: '📝 Klassenarbeit', learn: '💡 Lernen' };
+const MODE_LABELS = {
+  quiz: '🧠 Quiz', exam: '📝 Klassenarbeit', learn: '💡 Lernen', companion: '🦉 Lernbegleitung', contest: '🏆 Wettkampf',
+};
 
 /** Gruppenschluessel fuer Durchlaeufe ohne Link bzw. Praefix fuer Quick-Links. */
 const NO_LINK = '__none__';
@@ -254,6 +256,7 @@ export class ResultsView {
           <span class="result-topic-name">${escapeHtml(r.topicTitle || '—')}</span>
           <span>
             ${r.mode ? `<span class="result-mode-badge">${escapeHtml(MODE_LABELS[r.mode] || r.mode)}</span>` : ''}
+            ${r.rank ? `<span class="result-mode-badge">${r.rank <= 3 ? ['🥇', '🥈', '🥉'][r.rank - 1] : '🏅'} Platz ${r.rank}${r.playerCount ? ` von ${r.playerCount}` : ''}</span>` : ''}
             <span class="result-date">${new Date(r.timestamp).toLocaleString('de-DE')}</span>
           </span>
           ${r.systemUsername || r.ipAddress ? `

@@ -1,10 +1,12 @@
 import { escapeHtml, escapeAttr, copyQrSvgAsPng, copyShareSheetAsPng } from '../utils.js';
 import { LINK_MODE_LABELS } from './login.js';
 import { TagFilter, TagPicker, renderAreaGroups, chipHtml } from './tags.js';
+import { GRADABLE_TYPES } from '../answer-eval.js';
+import { saveRedirectFile } from './contest.js';
 
 // ==================== THEMEN-LINKS ====================
 
-const ALL_MODES = ['quiz', 'exam', 'learn'];
+const ALL_MODES = ['quiz', 'exam', 'learn', 'companion', 'contest'];
 
 /**
  * Verwaltung der Themen-Links: benannte Zugänge wie "TG12 Informatik
@@ -29,6 +31,11 @@ export class LinksView {
     this._treeBox     = document.getElementById('linkTopicTree');
     this._btnCancel   = document.getElementById('btnCancelLink');
     this._selectionSummary = document.getElementById('linkSelectionSummary');
+    this._companionRow = document.getElementById('linkCompanionRow');
+    this._contestRow   = document.getElementById('linkContestRow');
+    this._contestTimes = document.getElementById('linkContestTimes');
+    /** Eigene Zeiten je Aufgabe im Formular: Modul-ID → Sekunden. */
+    this._contestSeconds = {};
 
     /** Auswahl im Formular: topicId → { all, moduleIds:Set }. */
     this._selection = new Map();
@@ -52,6 +59,8 @@ export class LinksView {
     // Die Einmal-Teilnahme greift nur in der Klassenarbeit – sonst wäre die
     // Option eine leere Zusage.
     this._modesBox?.addEventListener('change', () => this._syncModeDependentFields());
+    // Die Standardzeit steht als Platzhalter bei jeder einzelnen Aufgabe.
+    document.getElementById('linkContestSeconds')?.addEventListener('input', () => this._renderContestTimes());
   }
 
   // ---------- Liste ----------
@@ -127,12 +136,14 @@ export class LinksView {
       </div>
       <div class="link-card-actions">
         <button class="btn btn-secondary btn-sm btn-link-share" ${link.active ? '' : 'disabled title="Link ist deaktiviert"'}>🔗 Link &amp; QR</button>
+        ${(link.modes || []).includes('contest') ? `<button class="btn btn-primary btn-sm btn-link-contest" ${link.active ? '' : 'disabled title="Link ist deaktiviert"'}>🏆 Wettkampf</button>` : ''}
         <button class="btn btn-secondary btn-sm btn-link-toggle">${link.active ? '⏸ Deaktivieren' : '▶️ Aktivieren'}</button>
         <button class="btn btn-secondary btn-sm btn-link-edit">✏️ Bearbeiten</button>
         <button class="btn btn-danger btn-sm btn-link-delete">🗑</button>
       </div>`;
 
     card.querySelector('.btn-link-share').addEventListener('click', () => this._openShareDialog(link));
+    card.querySelector('.btn-link-contest')?.addEventListener('click', () => this._openContestDialog(link));
     card.querySelector('.btn-link-edit').addEventListener('click', () => this._openEditor(link));
     card.querySelector('.btn-link-toggle').addEventListener('click', async () => {
       await this.app.api.updateLink(link.id, { active: !link.active });
@@ -173,6 +184,7 @@ export class LinksView {
 
     this._renderModes(link ? link.modes : ['quiz']);
     this._tagPicker.render(link ? link.tagIds : []);
+    this._fillModeSettings(link);
 
     this._selection = new Map();
     for (const entry of link?.selection || []) {
@@ -217,9 +229,102 @@ export class LinksView {
 
   /** Einmal-Teilnahme nur anbieten, wenn die Klassenarbeit erlaubt ist. */
   _syncModeDependentFields() {
-    const examOn = this._selectedModes().includes('exam');
+    const modes = this._selectedModes();
+    const examOn = modes.includes('exam');
     this._singleRow?.classList.toggle('hidden', !examOn);
     if (!examOn && this._chkSingle) this._chkSingle.checked = false;
+    this._companionRow?.classList.toggle('hidden', !modes.includes('companion'));
+    this._contestRow?.classList.toggle('hidden', !modes.includes('contest'));
+    if (modes.includes('contest')) this._renderContestTimes();
+  }
+
+  /** Lernbegleitung und Wettkampf: gespeicherte Werte ins Formular, Vorgaben als Platzhalter. */
+  async _fillModeSettings(link) {
+    const cs = link?.companionSettings || {};
+    const val = (v) => (v === null || v === undefined ? '' : String(v));
+    document.getElementById('linkJokerMax').value = val(cs.jokerMax);
+    document.getElementById('linkPenaltyStart').value = val(cs.penaltyStart);
+    document.getElementById('linkPenaltyMax').value = val(cs.penaltyMax);
+
+    const ct = link?.contestSettings || {};
+    document.getElementById('linkContestMaxPoints').value = val(ct.maxPoints);
+    document.getElementById('linkContestSeconds').value = val(ct.defaultSeconds);
+    document.getElementById('linkContestSound').checked = ct.sound !== false;
+    this._contestSeconds = { ...(ct.seconds || {}) };
+
+    // Was ohne Eintrag gilt, steht grau im Feld.
+    try {
+      const companion = await this.app.api.getCompanion();
+      const eff = companion?.effective?.settings;
+      if (eff) {
+        document.getElementById('linkJokerMax').placeholder = String(eff.jokerMax);
+        document.getElementById('linkPenaltyStart').placeholder = String(eff.penaltyStart);
+        document.getElementById('linkPenaltyMax').placeholder = String(eff.penaltyMax);
+      }
+    } catch (_) { /* Platzhalter bleiben leer */ }
+  }
+
+  /** Aufgaben der aktuellen Auswahl, die im Wettkampf vorkommen (automatisch bewertbar). */
+  _contestModules() {
+    const topics = this._usableTopics || [];
+    const out = [];
+    for (const entry of this._buildSelection()) {
+      const topic = topics.find((t) => t.id === entry.topicId);
+      if (!topic) continue;
+      const roots = (topic.modules || []).filter((m) => !m.parentId).sort((a, b) => a.orderIndex - b.orderIndex);
+      const chosen = new Set(entry.all ? roots.map((m) => m.id) : entry.moduleIds);
+      for (const m of roots) {
+        const kids = (topic.modules || []).filter((k) => k.parentId === m.id);
+        const picked = chosen.has(m.id) || kids.some((k) => chosen.has(k.id));
+        if (picked && GRADABLE_TYPES.has(m.type)) out.push({ ...m, _topicTitle: topic.title });
+      }
+    }
+    return out;
+  }
+
+  _renderContestTimes() {
+    if (!this._contestTimes) return;
+    const modules = this._contestModules();
+    if (modules.length === 0) {
+      this._contestTimes.innerHTML = '<p class="hint">Die Auswahl enthält noch keine automatisch bewertbare Aufgabe.</p>';
+      return;
+    }
+    const def = document.getElementById('linkContestSeconds').value || '30';
+    this._contestTimes.innerHTML = modules.map((m) => `
+      <label class="link-contest-time">
+        <span>${(H5P_TYPES[m.type] || {}).icon || ''} ${escapeHtml(m.title)} <small class="hint">${escapeHtml(m._topicTitle)}</small></span>
+        <input type="number" min="5" max="600" data-module="${escapeAttr(m.id)}"
+          value="${escapeAttr(this._contestSeconds[m.id] ?? '')}" placeholder="${escapeAttr(def)}" /> s
+      </label>`).join('');
+    this._contestTimes.querySelectorAll('input[data-module]').forEach((inp) => {
+      inp.addEventListener('input', () => {
+        if (inp.value === '') delete this._contestSeconds[inp.dataset.module];
+        else this._contestSeconds[inp.dataset.module] = Number(inp.value);
+      });
+    });
+  }
+
+  _modeSettingsPayload() {
+    const num = (id) => {
+      const v = document.getElementById(id).value.trim();
+      return v === '' ? null : Number(v);
+    };
+    // Nur Zeiten von Aufgaben, die noch in der Auswahl sind.
+    const ids = new Set(this._contestModules().map((m) => m.id));
+    const seconds = Object.fromEntries(Object.entries(this._contestSeconds).filter(([id, v]) => ids.has(id) && v));
+    return {
+      companionSettings: {
+        jokerMax: num('linkJokerMax'),
+        penaltyStart: num('linkPenaltyStart'),
+        penaltyMax: num('linkPenaltyMax'),
+      },
+      contestSettings: {
+        maxPoints: num('linkContestMaxPoints') ?? 1000,
+        defaultSeconds: num('linkContestSeconds') ?? 30,
+        sound: document.getElementById('linkContestSound').checked,
+        seconds,
+      },
+    };
   }
 
   // ---------- Auswahlbaum ----------
@@ -370,6 +475,7 @@ export class LinksView {
     this._selectionSummary.textContent = selection.length === 0
       ? 'Noch nichts ausgewählt.'
       : `${selection.length} Thema/Themen · ${modules} Aufgabe(n) ausgewählt`;
+    if (this._selectedModes().includes('contest')) this._renderContestTimes();
   }
 
   // ---------- Speichern ----------
@@ -387,7 +493,7 @@ export class LinksView {
     const tagIds = this._tagPicker.selectedIds;
     const password = this._passwordInput.value.trim();
 
-    const payload = { name, modes, selection, tagIds, singleAttempt: !!this._chkSingle.checked };
+    const payload = { name, modes, selection, tagIds, singleAttempt: !!this._chkSingle.checked, ...this._modeSettingsPayload() };
     // Beim Bearbeiten bleibt ein vorhandenes Passwort bestehen, solange das
     // Feld leer ist – sonst würde man es beim Umbenennen versehentlich löschen.
     if (!this._editId || password) payload.accessPassword = password;
@@ -406,6 +512,85 @@ export class LinksView {
     } catch (err) {
       this.app.showToast('Fehler: ' + err.message, 'error');
     }
+  }
+
+  // ---------- Lernwettkampf ----------
+
+  /**
+   * Leitungs-Link (für die Lehrkraft, z. B. am Beamer) und Schüler-Link.
+   * Beide gibt es auch als HTML-Datei, die beim Öffnen sofort hinspringt.
+   */
+  async _openContestDialog(link) {
+    const res = await this.app.api.contestShareLink(link.id).catch(() => null);
+    if (!res || !res.hostUrl) {
+      this.app.showToast(res?.message || 'Wettkampf-Links konnten nicht erzeugt werden.', 'error');
+      return;
+    }
+    document.getElementById('contestShareOverlay')?.remove();
+    const overlay = document.createElement('div');
+    overlay.id = 'contestShareOverlay';
+    overlay.className = 'confirm-overlay';
+    overlay.innerHTML = `
+      <div class="import-modules-card quicklink-card">
+        <h3>🏆 Lernwettkampf – ${escapeHtml(res.name)}</h3>
+
+        <div class="form-group">
+          <label>1. Wartebereich öffnen (für dich, z. B. am Beamer)</label>
+          <div class="quicklink-url-row">
+            <input type="text" readonly value="${escapeAttr(res.hostUrl)}" class="contest-host-url" />
+            <button type="button" class="btn btn-secondary btn-sm" data-copy="${escapeAttr(res.hostUrl)}">📋</button>
+          </div>
+          <div class="form-actions" style="margin-top:8px;">
+            <a class="btn btn-primary btn-sm" href="${escapeAttr(res.hostUrl)}" target="_blank" rel="noopener">▶️ Wartebereich öffnen</a>
+            <button type="button" class="btn btn-secondary btn-sm" data-save="host">💾 Als Startdatei speichern</button>
+          </div>
+          <span class="hint">Wer diesen Link hat, kann den Wettkampf leiten – nicht an Schüler weitergeben.
+            Die Startdatei kannst du z. B. auf dem Desktop des Beamer-PCs ablegen.</span>
+        </div>
+
+        <div class="form-group">
+          <label>2. Schüler machen mit (wird auch im Wartebereich groß angezeigt)</label>
+          <div class="quicklink-qr-row"><div class="quicklink-qr">${res.qrSvg || ''}</div></div>
+          <div class="quicklink-url-row">
+            <input type="text" readonly value="${escapeAttr(res.joinUrl)}" />
+            <button type="button" class="btn btn-secondary btn-sm" data-copy="${escapeAttr(res.joinUrl)}">📋</button>
+            <button type="button" class="btn btn-secondary btn-sm" data-save="join" title="HTML-Datei, die den Schüler-Link öffnet">💾</button>
+          </div>
+        </div>
+
+        <div class="confirm-actions">
+          <button type="button" class="btn btn-secondary" data-regen title="Alter Leitungs-Link und Startdatei werden ungültig">🔄 Leitungs-Link erneuern</button>
+          <button type="button" class="btn btn-primary" data-close>Fertig</button>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+
+    overlay.querySelector('[data-close]').addEventListener('click', () => overlay.remove());
+    overlay.querySelectorAll('[data-copy]').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        try {
+          await navigator.clipboard.writeText(btn.dataset.copy);
+          this.app.showToast('Link kopiert', 'success');
+        } catch (_) {
+          this.app.showToast('Bitte mit Strg+C kopieren', 'info');
+        }
+      });
+    });
+    overlay.querySelector('[data-save="host"]').addEventListener('click', () =>
+      saveRedirectFile(res.hostUrl, `Lernwettkampf ${res.name} – Leitung`, `Wettkampf_${res.name}_Leitung`));
+    overlay.querySelector('[data-save="join"]').addEventListener('click', () =>
+      saveRedirectFile(res.joinUrl, `Lernwettkampf ${res.name} – mitmachen`, `Wettkampf_${res.name}_Schueler`));
+    overlay.querySelector('[data-regen]').addEventListener('click', async () => {
+      if (!(await this.app.appConfirm('Leitungs-Link erneuern? Der alte Link und gespeicherte Startdateien funktionieren dann nicht mehr.'))) return;
+      const again = await this.app.api.contestShareLink(link.id, true).catch(() => null);
+      if (!again?.hostUrl) {
+        this.app.showToast(again?.message || 'Erneuern fehlgeschlagen.', 'error');
+        return;
+      }
+      overlay.remove();
+      this._openContestDialog(link);
+      this.app.showToast('Neuer Leitungs-Link erzeugt.', 'success');
+    });
   }
 
   // ---------- Versenden ----------

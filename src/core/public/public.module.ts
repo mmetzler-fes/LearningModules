@@ -10,9 +10,10 @@ import { TopicQuickLink } from '../entities/topic-quick-link.entity';
 import { LinksModule } from '../../links/links.module';
 import { TopicsModule } from '../../topics/topics.module';
 import { GroupsModule } from '../../groups/groups.module';
+import { CompanionModule } from '../../companion/companion.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([User, LearningTopic, LearningModule, Result, TopicLink, TopicQuickLink]), LinksModule, TopicsModule, GroupsModule],
+  imports: [TypeOrmModule.forFeature([User, LearningTopic, LearningModule, Result, TopicLink, TopicQuickLink]), LinksModule, TopicsModule, GroupsModule, CompanionModule],
   controllers: [PublicController],
 })
 export class PublicModule {}

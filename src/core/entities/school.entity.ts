@@ -36,4 +36,11 @@ export class School {
   /** Dürfen die Schuladmins neue Lehrer-Konten für ihre Schule anlegen? */
   @Column({ default: true })
   adminsMayCreateTeachers: boolean;
+
+  /**
+   * Lernbegleiter der Schule (Kommentare, Joker, Zeitstrafe, Tusch), gepflegt
+   * vom Schuladmin. Siehe companion/companion.defaults.ts.
+   */
+  @Column('simple-json', { nullable: true })
+  companionConfig: any;
 }

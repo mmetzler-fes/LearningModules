@@ -12,26 +12,11 @@ import { TopicQuickLink } from '../entities/topic-quick-link.entity';
 import { LinksService } from '../../links/links.service';
 import { TopicsService } from '../../topics/topics.service';
 import { GroupsService } from '../../groups/groups.service';
+import { CompanionService } from '../../companion/companion.service';
+import { contentOf, forStudents } from './student-view';
 import * as crypto from 'crypto';
 
 const MAX_RECORDING_BYTES = 25 * 1024 * 1024;
-
-/** Modulinhalt als Objekt (gespeichert wird teils als JSON-Text). */
-function contentOf(m: { content?: any }): any {
-  if (!m?.content) return {};
-  if (typeof m.content === 'string') { try { return JSON.parse(m.content); } catch { return {}; } }
-  return m.content;
-}
-
-/**
- * Was Schüler von einem Modul bekommen: beim Audio Recorder ohne
- * Ablage-Link und Passwort – nur die Angabe, dass hochgeladen wird.
- */
-function forStudents<T extends { type?: string; content?: any }>(m: T): T {
-  if (m?.type !== 'audioRecorder') return m;
-  const { uploadUrl, uploadPassword: _pw, ...rest } = contentOf(m);
-  return { ...m, content: { ...rest, uploadConfigured: !!uploadUrl } };
-}
 
 @Controller('public')
 export class PublicController {
@@ -45,6 +30,7 @@ export class PublicController {
     private readonly linksService: LinksService,
     private readonly topicsService: TopicsService,
     private readonly groupsService: GroupsService,
+    private readonly companionService: CompanionService,
   ) {}
 
   /**
@@ -168,6 +154,10 @@ export class PublicController {
     if (!link.modes.includes(mode as any)) {
       throw new ForbiddenException('Dieser Modus ist für den Link nicht freigegeben.');
     }
+    // Zum Wettkampf geht es über den Wartebereich, nicht über einen Einzeldurchlauf.
+    if (mode === 'contest') {
+      throw new BadRequestException('Der Lernwettkampf startet über den Wartebereich.');
+    }
 
     if (mode === 'exam' && link.singleAttempt) {
       const previous = await this.resultRepo.count({ where: { linkId: link.id, studentName, mode: 'exam' } });
@@ -192,6 +182,11 @@ export class PublicController {
       mode,
       studentName,
       teacherEmail: teacher.email,
+      // Lernbegleitung: Kommentare, Joker und Zeitstrafe nach Schule,
+      // Lehrkraft und Link.
+      companion: mode === 'companion'
+        ? await this.companionService.effectiveFor(link.ownerId, link.companionSettings)
+        : undefined,
       topics: resolved.map((r) => ({
         id: r.topic.id,
         title: r.topic.title,

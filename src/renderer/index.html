@@ -200,6 +200,9 @@
         <button class="nav-btn" data-view="teacher-links">
           <span class="nav-icon">🔗</span> Schülerfreigaben
         </button>
+        <button class="nav-btn" data-view="teacher-companion">
+          <span class="nav-icon">🦉</span> Lernbegleiter
+        </button>
         <button class="nav-btn" data-view="teacher-tags">
           <span class="nav-icon">🏷</span> Tags
         </button>
@@ -554,6 +557,45 @@
                 <span class="hint">Eine Hürde, keine fälschungssichere Sperre – den Namen gibt der Schüler selbst ein.</span>
               </div>
 
+              <div class="form-group hidden link-mode-settings" id="linkCompanionRow">
+                <label>🦉 Lernbegleitung</label>
+                <div class="companion-settings-grid">
+                  <label>Joker je Durchlauf
+                    <input type="number" id="linkJokerMax" min="0" max="10" />
+                  </label>
+                  <label>Erste Zeitstrafe (s)
+                    <input type="number" id="linkPenaltyStart" min="0" max="600" />
+                  </label>
+                  <label>Längste Zeitstrafe (s)
+                    <input type="number" id="linkPenaltyMax" min="0" max="600" />
+                  </label>
+                </div>
+                <span class="hint">Leer = deine Vorgabe unter „🦉 Lernbegleiter“ (grau angezeigt). Kommentare und
+                  Grundeinstellungen pflegst du dort.</span>
+              </div>
+
+              <div class="form-group hidden link-mode-settings" id="linkContestRow">
+                <label>🏆 Lernwettkampf</label>
+                <div class="companion-settings-grid">
+                  <label>Höchstpunktzahl je Aufgabe
+                    <input type="number" id="linkContestMaxPoints" min="10" max="100000" step="10" placeholder="1000" />
+                  </label>
+                  <label>Zeit je Aufgabe (s)
+                    <input type="number" id="linkContestSeconds" min="5" max="600" placeholder="30" />
+                  </label>
+                  <label class="tag-filter-mode" style="align-self:end;">
+                    <input type="checkbox" id="linkContestSound" checked />
+                    <span>Tusch bei der Siegerehrung</span>
+                  </label>
+                </div>
+                <span class="hint">Punkte = Richtigkeit² × Zeitfaktor × Höchstpunktzahl. Der Zeitfaktor sinkt von 1
+                  (sofort) auf ½ (bei Ablauf). Freitext, Aufnahmen und Infoseiten bleiben im Wettkampf außen vor.</span>
+                <details class="link-contest-times-box">
+                  <summary>Zeit für einzelne Aufgaben anpassen</summary>
+                  <div id="linkContestTimes" class="link-contest-times"></div>
+                </details>
+              </div>
+
               <div class="form-group">
                 <label for="linkPassword">Passwort <span style="font-weight:normal;color:var(--text-secondary)">(optional)</span></label>
                 <input type="password" id="linkPassword" placeholder="Leer = kein Passwort" autocomplete="new-password" />
@@ -577,6 +619,17 @@
             </form>
           </div>
         </div>
+      </section>
+
+      <!-- Teacher: Lernbegleiter (Eule) und Tusch für den Lernwettkampf -->
+      <section class="view" id="view-teacher-companion">
+        <div class="view-header">
+          <h2>🦉 Lernbegleiter</h2>
+          <p class="subtitle">Die Lerneule kommentiert in der <strong>Lernbegleitung</strong> jeden Versuch.
+            Hier legst du ihre Kommentare fest, wie viele Joker es gibt und wie lange die Denkpause nach
+            dem Raten dauert – und welcher Tusch beim <strong>Lernwettkampf</strong> die Sieger feiert.</p>
+        </div>
+        <div id="companionSettings" class="settings-panel"></div>
       </section>
 
       <!-- Teacher: Tags -->

@@ -1,16 +1,34 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
-import { TopicLink, LinkMode, LinkTopicSelection } from '../core/entities/topic-link.entity';
+import { TopicLink, LinkMode, LinkTopicSelection, LinkContestSettings } from '../core/entities/topic-link.entity';
 import { LearningTopic } from '../core/entities/learning-topic.entity';
 import { LearningModule } from '../core/entities/learning-module.entity';
 import { TagsService } from '../tags/tags.service';
 import { TopicsService } from '../topics/topics.service';
 import { GroupsService } from '../groups/groups.service';
+import { CompanionService } from '../companion/companion.service';
 import { baseUrl, renderQr } from '../core/share/link-url';
 import * as crypto from 'crypto';
 
-const ALL_MODES: LinkMode[] = ['quiz', 'exam', 'learn'];
+const ALL_MODES: LinkMode[] = ['quiz', 'exam', 'learn', 'companion', 'contest'];
+
+export const DEFAULT_CONTEST_SETTINGS: LinkContestSettings = {
+  maxPoints: 1000,
+  defaultSeconds: 30,
+  seconds: {},
+  sound: true,
+};
+
+const clampInt = (v: any, min: number, max: number, fallback: number) => {
+  const n = Math.round(Number(v));
+  return Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : fallback;
+};
+
+/** Wettkampf-Einstellungen eines Links, mit Vorgaben aufgefüllt. */
+export function contestSettingsOf(link: TopicLink): LinkContestSettings {
+  return { ...DEFAULT_CONTEST_SETTINGS, ...(link.contestSettings || {}) };
+}
 
 @Injectable()
 export class LinksService {
@@ -21,6 +39,7 @@ export class LinksService {
     private readonly tagsService: TagsService,
     private readonly topicsService: TopicsService,
     private readonly groupsService: GroupsService,
+    private readonly companionService: CompanionService,
   ) {}
 
   // ---- Eingaben prüfen ----
@@ -29,10 +48,27 @@ export class LinksService {
     const list = Array.isArray(modes) ? modes.filter((m) => ALL_MODES.includes(m)) : [];
     const unique = [...new Set(list)] as LinkMode[];
     if (unique.length === 0) {
-      throw new BadRequestException('Bitte mindestens einen Modus auswählen (Quiz, Klassenarbeit oder Lernen mit Lösungen).');
+      throw new BadRequestException('Bitte mindestens einen Modus auswählen.');
     }
     // Reihenfolge festhalten, damit die Auswahl beim Schüler immer gleich aussieht.
     return ALL_MODES.filter((m) => unique.includes(m));
+  }
+
+  /** Punkte und Zeiten für den Lernwettkampf, in vernünftigen Grenzen. */
+  private cleanContestSettings(body: any): LinkContestSettings {
+    const d = DEFAULT_CONTEST_SETTINGS;
+    const seconds: Record<string, number> = {};
+    const raw = body?.seconds && typeof body.seconds === 'object' ? body.seconds : {};
+    for (const [id, v] of Object.entries(raw).slice(0, 1000)) {
+      if (!/^[\w-]{1,64}$/.test(id) || v === null || v === '' || v === undefined) continue;
+      seconds[id] = clampInt(v, 5, 600, d.defaultSeconds);
+    }
+    return {
+      maxPoints: clampInt(body?.maxPoints, 10, 100000, d.maxPoints),
+      defaultSeconds: clampInt(body?.defaultSeconds, 5, 600, d.defaultSeconds),
+      seconds,
+      sound: body?.sound !== false,
+    };
   }
 
   /**
@@ -204,8 +240,8 @@ export class LinksService {
 
   /** Passwort niemals zurückgeben – nur, ob eines gesetzt ist. */
   private publicShape(link: TopicLink) {
-    const { accessPassword, ...rest } = link;
-    return { ...rest, hasPassword: !!accessPassword };
+    const { accessPassword, contestHostToken: _host, ...rest } = link;
+    return { ...rest, hasPassword: !!accessPassword, contestSettings: contestSettingsOf(link) };
   }
 
   async findOne(id: string, user: any, req?: any) {
@@ -236,6 +272,8 @@ export class LinksService {
       accessPassword: (body?.accessPassword || '').trim() || null,
       singleAttempt: !!body?.singleAttempt,
       tagIds: await this.tagsService.sanitizeIds(user, body?.tagIds),
+      companionSettings: this.companionService.cleanLinkSettings(body?.companionSettings),
+      contestSettings: this.cleanContestSettings(body?.contestSettings),
     });
     await this.linkRepo.save(link);
     return this.findOne(link.id, user, req);
@@ -254,6 +292,10 @@ export class LinksService {
     if (body?.active !== undefined) link.active = !!body.active;
     if (body?.singleAttempt !== undefined) link.singleAttempt = !!body.singleAttempt;
     if (body?.tagIds !== undefined) link.tagIds = await this.tagsService.sanitizeIds(user, body.tagIds);
+    if (body?.companionSettings !== undefined) {
+      link.companionSettings = this.companionService.cleanLinkSettings(body.companionSettings);
+    }
+    if (body?.contestSettings !== undefined) link.contestSettings = this.cleanContestSettings(body.contestSettings);
     // Leerer String löscht das Passwort, `undefined` lässt es unangetastet.
     if (body?.accessPassword !== undefined) {
       link.accessPassword = String(body.accessPassword).trim() || null;
@@ -287,6 +329,36 @@ export class LinksService {
       active: link.active,
       modes: link.modes,
       moduleCount: resolved.reduce((n, r) => n + r.modules.length, 0),
+    };
+  }
+
+  /**
+   * Lernwettkampf: Leitungs-Link (für die Lehrkraft, z. B. am Beamer) und
+   * Schüler-Link mit QR-Code. `regenerate` entwertet den alten Leitungs-Link.
+   */
+  async contestShare(id: string, user: any, regenerate = false, req?: any) {
+    const link = await this.own(id, user);
+    if (!link.modes.includes('contest')) {
+      throw new BadRequestException('Für diese Freigabe ist der Lernwettkampf nicht eingeschaltet.');
+    }
+    let changed = false;
+    if (!link.contestHostToken || regenerate) {
+      link.contestHostToken = crypto.randomBytes(18).toString('base64url');
+      changed = true;
+    }
+    if (!link.token) {
+      link.token = crypto.randomBytes(12).toString('base64url');
+      changed = true;
+    }
+    if (changed) await this.linkRepo.save(link);
+    const base = baseUrl(req);
+    const joinUrl = `${base}/?l=${link.token}&m=contest`;
+    return {
+      name: link.name,
+      active: link.active,
+      hostUrl: `${base}/?wh=${link.contestHostToken}`,
+      joinUrl,
+      qrSvg: await renderQr(joinUrl),
     };
   }
 

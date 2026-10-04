@@ -1,8 +1,34 @@
 import { Entity, Column, Index } from 'typeorm';
 import { BaseEntity } from './base.entity';
 
-/** Abfragemodi, die ein Link freischalten kann. */
-export type LinkMode = 'quiz' | 'exam' | 'learn';
+/**
+ * Abfragemodi, die ein Link freischalten kann. `companion` ist die
+ * Lernbegleitung (Eule mit Kommentaren, Lernpunkten, Joker und Zeitstrafe),
+ * `contest` der Lernwettkampf mit Wartebereich und Siegertreppchen.
+ */
+export type LinkMode = 'quiz' | 'exam' | 'learn' | 'companion' | 'contest';
+
+/**
+ * Lernbegleitung: Abweichungen dieses Links von den Vorgaben der Lehrkraft
+ * bzw. der Schule. `null` oder fehlend heißt: Vorgabe übernehmen.
+ */
+export interface LinkCompanionSettings {
+  jokerMax?: number | null;
+  penaltyStart?: number | null;
+  penaltyMax?: number | null;
+}
+
+/** Lernwettkampf: Punkte und Zeit je Aufgabe. */
+export interface LinkContestSettings {
+  /** Höchstpunktzahl je Aufgabe (richtig und sofort beantwortet). */
+  maxPoints: number;
+  /** Zeit je Aufgabe in Sekunden, wenn für die Aufgabe nichts eigenes gilt. */
+  defaultSeconds: number;
+  /** Eigene Zeit je Aufgabe: Modul-ID → Sekunden. */
+  seconds: Record<string, number>;
+  /** Tusch bei der Siegerehrung. */
+  sound: boolean;
+}
 
 /**
  * Auswahl eines Themas innerhalb eines Links.
@@ -70,4 +96,19 @@ export class TopicLink extends BaseEntity {
 
   @Column('simple-json', { nullable: true })
   tagIds: string[] | null;
+
+  @Column('simple-json', { nullable: true })
+  companionSettings: LinkCompanionSettings | null;
+
+  @Column('simple-json', { nullable: true })
+  contestSettings: LinkContestSettings | null;
+
+  /**
+   * Schlüssel für die Wettkampf-Leitung (`/?wh=<token>`). Getrennt vom
+   * Schüler-Token, sonst könnte jeder Schüler den Wettkampf starten. Bleibt
+   * stabil, damit eine gespeicherte Startdatei immer wieder funktioniert.
+   */
+  @Index({ unique: true })
+  @Column({ type: 'varchar', nullable: true })
+  contestHostToken: string | null;
 }

@@ -36,6 +36,9 @@ export class ResultsService {
       linkName: r.linkName || null,
       linkKind: r.linkKind || null,
       mode: r.mode || null,
+      // Lernwettkampf: Platz und Zahl der Teilnehmer.
+      rank: r.payload?.rank ?? null,
+      playerCount: r.payload?.playerCount ?? null,
     }));
   }
 

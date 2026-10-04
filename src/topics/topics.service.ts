@@ -43,18 +43,39 @@ export class TopicsService {
   ) {}
 
   async findAll(user: any) {
-    const qb = this.topicRepo.createQueryBuilder('topic');
-
-    // Teachers and admins only see their own topics
-    qb.where('topic.ownerId = :ownerId', { ownerId: user.userId });
-
-    const topics = await qb
-      .leftJoinAndSelect('topic.modules', 'modules')
-      .orderBy('modules.orderIndex', 'ASC')
-      .addOrderBy('topic.id', 'ASC')
-      .getMany();
-
+    // Lehrkräfte und Admins sehen hier nur die eigenen Themen.
+    const topics = await this.topicRepo.find({ where: { ownerId: user.userId }, order: { id: 'ASC' } });
+    await this.attachModuleSummaries(topics);
     return this.withRights(topics, user);
+  }
+
+  /**
+   * Felder, die Themenlisten von einem Modul brauchen. Inhalt und Beschreibung
+   * fehlen bewusst: Sie können eingebettete Bilder enthalten und machten die
+   * Liste schnell zig Megabyte schwer – geladen werden sie erst, wenn ein
+   * Modul geöffnet wird (GET /topics/:id/modules).
+   */
+  private static readonly MODULE_SUMMARY_FIELDS: (keyof LearningModule)[] = [
+    'id', 'type', 'title', 'moduleSelected', 'topicId', 'parentId', 'orderIndex', 'tagIds', 'creatorId',
+    'createdAt', 'updatedAt',
+  ];
+
+  /** Hängt jedem Thema seine Module als schlanke Zusammenfassung an (sortiert). */
+  private async attachModuleSummaries(topics: LearningTopic[]) {
+    const ids = topics.map((t) => t.id);
+    const modules = ids.length
+      ? await this.moduleRepo.find({
+          where: { topicId: In(ids) },
+          select: TopicsService.MODULE_SUMMARY_FIELDS,
+          order: { orderIndex: 'ASC' },
+        })
+      : [];
+    const byTopic = new Map<string, LearningModule[]>();
+    for (const m of modules) {
+      if (!byTopic.has(m.topicId)) byTopic.set(m.topicId, []);
+      byTopic.get(m.topicId)!.push(m);
+    }
+    for (const t of topics) t.modules = byTopic.get(t.id) || [];
   }
 
   // ---- Herkunft und Rechte für die Themenkarten ----
@@ -254,7 +275,8 @@ export class TopicsService {
   async findGranted(user: any) {
     const grants = await this.grantRepo.find({ where: { userId: user.userId } });
     if (grants.length === 0) return [];
-    const topics = await this.topicRepo.find({ where: { id: In([...new Set(grants.map((g) => g.topicId))]) }, relations: ['modules'] });
+    const topics = await this.topicRepo.find({ where: { id: In([...new Set(grants.map((g) => g.topicId))]) } });
+    await this.attachModuleSummaries(topics);
     const names = await this.userNames();
     const offers = await this.offerRepo.find({ where: { id: In(grants.map((g) => g.offerId).filter(Boolean) as string[]) } });
 
@@ -295,8 +317,8 @@ export class TopicsService {
     const grantedIds = (Array.isArray(user.grants) ? user.grants : []).map((g: any) => g.topicId);
     const all = await this.topicRepo.find({
       where: [{ ownerId: user.userId }, ...(grantedIds.length ? [{ id: In(grantedIds) }] : [])],
-      relations: ['modules'],
     });
+    await this.attachModuleSummaries(all);
     const names = await this.userNames();
 
     const usable: any[] = [];

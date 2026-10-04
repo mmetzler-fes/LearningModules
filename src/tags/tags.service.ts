@@ -101,7 +101,8 @@ export class TagsService implements OnModuleInit {
   private async modulesOf(topics: LearningTopic[]): Promise<LearningModule[]> {
     const topicIds = topics.map((t) => t.id);
     if (topicIds.length === 0) return [];
-    return this.moduleRepo.find({ where: { topicId: In(topicIds) } });
+    // Zum Zählen reichen die Tags – der Inhalt kann groß sein (Bilder).
+    return this.moduleRepo.find({ where: { topicId: In(topicIds) }, select: ['id', 'topicId', 'tagIds'] });
   }
 
   /**
@@ -114,6 +115,7 @@ export class TagsService implements OnModuleInit {
     const topics = ownerIds.length ? await this.topicRepo.find({ where: { ownerId: In(ownerIds) } }) : [];
     const links = ownerIds.length ? await this.linkRepo.find({ where: { ownerId: In(ownerIds) } }) : [];
     const modules = await this.modulesOf(topics);
+    const topicTags = new Map(topics.map((t) => [t.id, t.tagIds || []]));
     const areas = new Set(tags.filter((t) => t.isArea).map((t) => t.id));
 
     return tags
@@ -126,7 +128,10 @@ export class TagsService implements OnModuleInit {
         areaIds: tag.isArea ? [] : (tag.areaIds || []).filter((id) => areas.has(id)),
         topicCount: topics.filter((t) => (t.tagIds || []).includes(tag.id)).length,
         linkCount: links.filter((l) => (l.tagIds || []).includes(tag.id)).length,
-        moduleCount: modules.filter((m) => (m.tagIds || []).includes(tag.id)).length,
+        // Module erben die Tags ihres Themas – sie zählen also mit.
+        moduleCount: modules.filter(
+          (m) => (m.tagIds || []).includes(tag.id) || (topicTags.get(m.topicId) || []).includes(tag.id),
+        ).length,
       }))
       .sort((a, b) => a.name.localeCompare(b.name, 'de'));
   }

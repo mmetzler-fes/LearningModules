@@ -184,7 +184,17 @@ export class QuizView {
       return;
     }
 
-    const modules = (freshTopic.modules || []).filter((m) => m.moduleSelected !== false);
+    // Beim Quick-Link bringt der Schülerzugang die Module samt Inhalt mit.
+    // Die Themenliste der Lehrkraft trägt dagegen nur Zusammenfassungen –
+    // zum Durchspielen werden die Inhalte nachgeladen.
+    let source = freshTopic.modules || [];
+    if (this.app.state.currentUser?.role !== 'student') {
+      const full = await this.app.api.getTopicModules(freshTopic.id).catch(() => null);
+      source = (Array.isArray(full) ? full : [])
+        .filter((m) => !m.parentId)
+        .sort((a, b) => (a.orderIndex || 0) - (b.orderIndex || 0));
+    }
+    const modules = source.filter((m) => m.moduleSelected !== false);
     if (modules.length === 0) { this.app.showToast(t('quiz.no.modules'), 'error'); return; }
 
     this.app.state.quizState = {

@@ -351,7 +351,7 @@ export class ModulesView {
             ${mod.createdAt ? new Date(mod.createdAt).toLocaleDateString('de-DE') : ''}
             ${mod.isMine === false ? `<span class="topic-shared-badge" title="Creator dieses Moduls – bleibt auch nach deiner Bearbeitung verzeichnet. Unverschlüsselt exportieren kann es nur der Creator.">✍️ ${escapeHtml(mod.creatorName || 'Unbekannt')}</span>` : ''}
           </div>
-          ${this._renderTagChips(mod.tagIds)}
+          ${this._renderTagChips(mod.tagIds, this._topicTagIds())}
         </div>
         <div class="module-card-actions">
           <button class="btn btn-secondary btn-sm btn-preview" title="Vorschau">▶ Vorschau</button>
@@ -392,15 +392,36 @@ export class ModulesView {
     }
   }
 
-  /** Tag-Chips einer Modulkarte; leer, solange nichts zugeordnet ist. */
-  _renderTagChips(tagIds) {
+  /**
+   * Tags des aktuellen Themas. Module erben sie: Sie gelten für jedes Modul,
+   * ohne dass man sie dort einzeln setzen muss – und ändern sich mit dem Thema.
+   */
+  _topicTagIds() {
+    const topic = (this.app.state.topics || []).find((x) => x.id === this.app.state.currentTopicId);
+    return topic?.tagIds || [];
+  }
+
+  /** Tag-Chips einer Modulkarte: geerbte vom Thema (blasser), dann eigene. */
+  _renderTagChips(tagIds, inheritedIds = []) {
     const byId = new Map((this.app.state.tags || []).map((t) => [t.id, t]));
-    const chips = (tagIds || [])
-      .map((id) => byId.get(id))
-      .filter(Boolean)
-      .map((tag) => `<span class="tag-chip" style="--tag-color:${escapeAttr(tag.color || '#4f7cff')}">${escapeHtml(tag.name)}</span>`)
-      .join('');
+    const inherited = new Set(inheritedIds);
+    const chip = (tag, fromTopic) => `<span class="tag-chip${fromTopic ? ' tag-chip-inherited' : ''}"
+      style="--tag-color:${escapeAttr(tag.color || '#4f7cff')}"${fromTopic ? ' title="vom Lernthema übernommen"' : ''}>${escapeHtml(tag.name)}</span>`;
+    const chips = [
+      ...[...inherited].map((id) => byId.get(id)).filter(Boolean).map((tag) => chip(tag, true)),
+      ...(tagIds || []).filter((id) => !inherited.has(id)).map((id) => byId.get(id)).filter(Boolean).map((tag) => chip(tag, false)),
+    ].join('');
     return chips ? `<div class="module-card-tags">${chips}</div>` : '';
+  }
+
+  /** Im Modul-Editor: welche Tags schon vom Thema kommen. */
+  _renderInheritedHint() {
+    const box = document.getElementById('moduleInheritedTags');
+    if (!box) return;
+    const html = this._renderTagChips([], this._topicTagIds());
+    box.innerHTML = html
+      ? `<span class="hint">Vom Lernthema übernommen (gelten automatisch):</span>${html}<span class="hint">Hier nur zusätzliche Tags für dieses Modul wählen.</span>`
+      : '';
   }
 
   _openPlayer(mod) {
@@ -418,7 +439,10 @@ export class ModulesView {
     this._moduleTitleInput.value = mod.title;
     this._moduleTypeSelect.value = mod.type;
     this._descEditor.setHtml(mod.description || '');
-    this._tagPicker.render(mod.tagIds || []);
+    // Geerbte Tags nicht doppelt als eigene führen.
+    const inherited = new Set(this._topicTagIds());
+    this._tagPicker.render((mod.tagIds || []).filter((id) => !inherited.has(id)));
+    this._renderInheritedHint();
     this.app.navigateToView('create-module');
     this.app.state.contentEditor.render(mod.type, mod.content || {});
   }
@@ -468,6 +492,7 @@ export class ModulesView {
     this._moduleTypeSelect.value = '';
     this._descEditor.setHtml('');
     this._tagPicker.render([]);
+    this._renderInheritedHint();
     this.app.state.contentEditor.clear();
     this._createViewTitle.textContent = t('module.create.title');
   }

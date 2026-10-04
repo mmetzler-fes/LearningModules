@@ -4083,3 +4083,13 @@ body {
   .podium-name { font-size: 1rem; }
   .companion-owl { font-size: 2.4rem; }
 }
+
+/* Tags, die ein Modul von seinem Lernthema erbt */
+.tag-chip.tag-chip-inherited { opacity: 0.7; border: 1px dashed var(--tag-color, var(--accent)); }
+.module-inherited-tags { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: 8px; }
+.module-inherited-tags:empty { display: none; }
+.module-inherited-tags .module-card-tags { display: contents; }
+
+/* Blättern in den Lernthemen */
+.topics-pager { display: flex; align-items: center; justify-content: center; gap: 12px; margin: 12px 0; flex-wrap: wrap; }
+.topics-pager-info { color: var(--text-secondary); font-size: 0.9rem; }

@@ -3,6 +3,9 @@ import { TagFilter, TagPicker, renderAreaGroups, chipHtml } from './tags.js';
 
 // ==================== TOPICS VIEW ====================
 
+/** Lernthemen je Seite – mehr Karten auf einmal machen die Ansicht träge. */
+const TOPICS_PER_PAGE = 10;
+
 export class TopicsView {
   constructor(app) {
     this.app = app;
@@ -29,8 +32,10 @@ export class TopicsView {
       searchInput: document.getElementById('topicTagSearch'),
       chipList: document.getElementById('topicTagFilterChips'),
       modeToggle: document.getElementById('topicTagFilterAll'),
-      onChange: () => this.refresh(),
+      // Filtern ändert nur die Anzeige – kein erneutes Laden vom Server.
+      onChange: () => { this._page = 0; this._render(); },
     });
+    this._page = 0;
 
     this._bindEvents();
   }
@@ -96,16 +101,27 @@ export class TopicsView {
 
   async refresh() {
     this.refreshSharedTopics();
-    await this.app.loadTopics();
-    await this.app.loadTags();
+    // Themen und Tags gleichzeitig laden statt nacheinander.
+    await Promise.all([this.app.loadTopics(), this.app.loadTags()]);
     this._filter.render();
+    this._hideForm();
+    this._render();
+  }
 
-    const all = this.app.state.topics;
+  /**
+   * Zeichnet die Liste aus den geladenen Themen: Filter anwenden, dann eine
+   * Seite mit höchstens TOPICS_PER_PAGE Karten. Geprüft werden dabei nur die
+   * Tags der Themen selbst.
+   */
+  _render() {
+    const all = this.app.state.topics || [];
     // Der Filter schränkt nur die Anzeige ein – "Alle auswählen" unten bezieht
     // sich deshalb bewusst auf die gerade sichtbaren Themen.
-    const topics = all.filter((topic) => this._filter.matches(topic));
+    const matching = all.filter((topic) => this._filter.matches(topic));
+    const pages = Math.max(1, Math.ceil(matching.length / TOPICS_PER_PAGE));
+    this._page = Math.min(Math.max(0, this._page || 0), pages - 1);
+    const topics = matching.slice(this._page * TOPICS_PER_PAGE, (this._page + 1) * TOPICS_PER_PAGE);
     this._topicsList.innerHTML = '';
-    this._hideForm();
 
     if (topics.length > 0) {
       const selectAllRow = document.createElement('div');
@@ -122,12 +138,12 @@ export class TopicsView {
       deselectAllBtn.title = 'Alle Lernthemen deaktivieren';
 
       selectAllBtn.addEventListener('click', async () => {
-        for (const topic of topics) { if (!topic.selected) await this.app.api.toggleTopicSelection(topic.id, true); }
+        for (const topic of matching) { if (!topic.selected) await this.app.api.toggleTopicSelection(topic.id, true); }
         this.app.showToast('Alle Lernthemen aktiviert', 'info');
         this.refresh();
       });
       deselectAllBtn.addEventListener('click', async () => {
-        for (const topic of topics) { if (topic.selected) await this.app.api.toggleTopicSelection(topic.id, false); }
+        for (const topic of matching) { if (topic.selected) await this.app.api.toggleTopicSelection(topic.id, false); }
         this.app.showToast('Alle Lernthemen deaktiviert', 'info');
         this.refresh();
       });
@@ -145,6 +161,9 @@ export class TopicsView {
       return;
     }
 
+    // Blättern oben und unten, damit man bei langen Seiten nicht scrollen muss.
+    if (pages > 1) this._topicsList.appendChild(this._pager(matching.length, pages));
+
     // Mit Themengebieten gegliedert und aufklappbar; bei aktivem Tag-Filter
     // ist alles offen, damit kein Treffer im zugeklappten Abschnitt steckt.
     const grouped = renderAreaGroups(this._topicsList, topics, {
@@ -156,12 +175,33 @@ export class TopicsView {
       countLabel: (n) => (n === 1 ? '1 Lernthema' : `${n} Lernthemen`),
     });
     if (!grouped) for (const topic of topics) this._topicsList.appendChild(this._buildCard(topic));
+    if (pages > 1) this._topicsList.appendChild(this._pager(matching.length, pages));
 
     if (this._btnExportH5p) {
       this._btnExportH5p.disabled = !topics.some(
         (t) => t.h5pImportMode !== 'raw' && (t.modules || []).some((m) => m.moduleSelected !== false)
       );
     }
+  }
+
+  /** Blättern: ← Zurück · Seite x von y · Weiter →. */
+  _pager(count, pages) {
+    const from = this._page * TOPICS_PER_PAGE + 1;
+    const to = Math.min(count, (this._page + 1) * TOPICS_PER_PAGE);
+    const bar = document.createElement('div');
+    bar.className = 'topics-pager';
+    bar.innerHTML = `
+      <button class="btn btn-secondary btn-sm" data-dir="-1" ${this._page === 0 ? 'disabled' : ''}>← Zurück</button>
+      <span class="topics-pager-info">Seite ${this._page + 1} von ${pages} · Lernthemen ${from}–${to} von ${count}</span>
+      <button class="btn btn-secondary btn-sm" data-dir="1" ${this._page >= pages - 1 ? 'disabled' : ''}>Weiter →</button>`;
+    bar.querySelectorAll('button').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        this._page += Number(btn.dataset.dir);
+        this._render();
+        this._topicsList.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
+    });
+    return bar;
   }
 
   /** Karte eines Lernthemas mit allen Aktionen. */

@@ -187,6 +187,9 @@ export class LinksView {
     this._fillModeSettings(link);
 
     this._selection = new Map();
+    // Tag-Vorschläge beginnen beim Öffnen neu (siehe _applySuggestedTags).
+    this._autoTags = null;
+    this._dismissedTags = new Set();
     for (const entry of link?.selection || []) {
       this._selection.set(entry.topicId, {
         all: !!entry.all,
@@ -294,7 +297,7 @@ export class LinksView {
       <label class="link-contest-time">
         <span>${(H5P_TYPES[m.type] || {}).icon || ''} ${escapeHtml(m.title)} <small class="hint">${escapeHtml(m._topicTitle)}</small></span>
         <input type="number" min="5" max="600" data-module="${escapeAttr(m.id)}"
-          value="${escapeAttr(this._contestSeconds[m.id] ?? '')}" placeholder="${escapeAttr(def)}" /> s
+          value="${escapeAttr(String(this._contestSeconds[m.id] ?? ''))}" placeholder="${escapeAttr(def)}" /> s
       </label>`).join('');
     this._contestTimes.querySelectorAll('input[data-module]').forEach((inp) => {
       inp.addEventListener('input', () => {
@@ -476,6 +479,56 @@ export class LinksView {
       ? 'Noch nichts ausgewählt.'
       : `${selection.length} Thema/Themen · ${modules} Aufgabe(n) ausgewählt`;
     if (this._selectedModes().includes('contest')) this._renderContestTimes();
+    this._applySuggestedTags();
+  }
+
+  /** Tags der gewählten Themen und Module (bei ganzem Thema: aller seiner Module). */
+  _suggestedTags() {
+    const topics = this._usableTopics || [];
+    const out = new Set();
+    for (const entry of this._buildSelection()) {
+      const topic = topics.find((t) => t.id === entry.topicId);
+      if (!topic) continue;
+      (topic.tagIds || []).forEach((id) => out.add(id));
+      const chosen = new Set(entry.all ? (topic.modules || []).map((m) => m.id) : entry.moduleIds);
+      for (const m of topic.modules || []) {
+        if (chosen.has(m.id)) (m.tagIds || []).forEach((id) => out.add(id));
+      }
+    }
+    return out;
+  }
+
+  /**
+   * Übernimmt die Tags der Auswahl als Vorgabe. Kommt Inhalt dazu, kommen
+   * seine Tags dazu; fällt er weg, gehen nur die automatisch gesetzten Tags
+   * mit. Was die Lehrkraft selbst angehakt oder abgewählt hat, bleibt so.
+   * Beim Bearbeiten gilt die gespeicherte Auswahl als Ausgangspunkt – das
+   * Öffnen allein ändert nichts.
+   */
+  _applySuggestedTags() {
+    const suggested = this._suggestedTags();
+    if (this._autoTags === null) {
+      this._autoTags = this._editId ? suggested : new Set();
+      if (this._editId) return;
+    }
+    const current = new Set(this._tagPicker.selectedIds);
+    const before = this._autoTags;
+    // Ein vorgeschlagener Tag, den die Lehrkraft abgewählt hat, bleibt abgewählt.
+    this._dismissedTags = this._dismissedTags || new Set();
+    for (const id of before) if (!current.has(id)) this._dismissedTags.add(id);
+
+    let changed = false;
+    for (const id of before) {
+      if (!suggested.has(id) && current.delete(id)) changed = true;
+    }
+    for (const id of suggested) {
+      if (!before.has(id) && !this._dismissedTags.has(id) && !current.has(id)) {
+        current.add(id);
+        changed = true;
+      }
+    }
+    this._autoTags = new Set([...suggested].filter((id) => current.has(id)));
+    if (changed) this._tagPicker.render([...current]);
   }
 
   // ---------- Speichern ----------

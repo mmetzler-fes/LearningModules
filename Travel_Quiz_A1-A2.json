@@ -1,0 +1,401 @@
+{
+  "topic": {
+    "title": "Travel Quiz (A1–A2)",
+    "description": "Englisch-Quiz zum Thema Reisen mit 7 Aufgabenarten: Wortschatz, Leseverstehen, Verneinung, Satzstellung, Fehlerkorrektur, Modalverben und Hörverstehen.",
+    "selected": true,
+    "modules": [
+      {
+        "id": "travel_01",
+        "title": "1.1 Vocabulary (A1)",
+        "type": "multipleChoice",
+        "description": "<p>Choose the best answer.</p>",
+        "content": {
+          "question": "You need a ___ to get on the plane.",
+          "imageUrl": "",
+          "answers": [
+            {
+              "text": "boarding pass",
+              "correct": true,
+              "tip": "You show it at the gate before you get on the plane."
+            },
+            {
+              "text": "umbrella",
+              "correct": false,
+              "tip": ""
+            },
+            {
+              "text": "pillow",
+              "correct": false,
+              "tip": ""
+            },
+            {
+              "text": "menu",
+              "correct": false,
+              "tip": ""
+            }
+          ],
+          "singleAnswer": true,
+          "randomAnswers": true,
+          "enableRetry": true,
+          "enableSolutionsButton": true,
+          "passPercentage": 100
+        },
+        "orderIndex": 0
+      },
+      {
+        "id": "travel_02",
+        "title": "1.2 Vocabulary (A1)",
+        "type": "multipleChoice",
+        "description": "<p>Choose the best answer.</p>",
+        "content": {
+          "question": "We booked a double room in a ___ near the beach.",
+          "imageUrl": "",
+          "answers": [
+            {
+              "text": "hotel",
+              "correct": true,
+              "tip": ""
+            },
+            {
+              "text": "station",
+              "correct": false,
+              "tip": ""
+            },
+            {
+              "text": "airport",
+              "correct": false,
+              "tip": ""
+            },
+            {
+              "text": "passport",
+              "correct": false,
+              "tip": ""
+            }
+          ],
+          "singleAnswer": true,
+          "randomAnswers": true,
+          "enableRetry": true,
+          "enableSolutionsButton": true,
+          "passPercentage": 100
+        },
+        "orderIndex": 1
+      },
+      {
+        "id": "travel_03",
+        "title": "1.3 Prepositions (A2)",
+        "type": "multipleChoice",
+        "description": "<p>Choose the best answer.</p>",
+        "content": {
+          "question": "The train to Munich leaves ___ 9 o'clock.",
+          "imageUrl": "",
+          "answers": [
+            {
+              "text": "at",
+              "correct": true,
+              "tip": "Clock times take <em>at</em>: at 9 o'clock, at noon."
+            },
+            {
+              "text": "in",
+              "correct": false,
+              "tip": ""
+            },
+            {
+              "text": "on",
+              "correct": false,
+              "tip": ""
+            },
+            {
+              "text": "by",
+              "correct": false,
+              "tip": ""
+            }
+          ],
+          "singleAnswer": true,
+          "randomAnswers": true,
+          "enableRetry": true,
+          "enableSolutionsButton": true,
+          "passPercentage": 100
+        },
+        "orderIndex": 2
+      },
+      {
+        "id": "travel_04",
+        "title": "2. Reading: Mia's trip (A1–A2)",
+        "type": "trueFalse",
+        "description": "<p><strong>Read the text. Are the sentences true or false?</strong></p><p>Mia is from Berlin. Next week she is flying to Lisbon with her brother. They are staying in a small hotel near the old town for four nights. Mia wants to visit museums, but her brother wants to go to the beach.</p>",
+        "content": {
+          "imageUrl": "",
+          "questions": [
+            {
+              "question": "Mia is travelling alone.",
+              "correctAnswer": "false",
+              "feedbackCorrect": "Right – she is travelling with her brother.",
+              "feedbackWrong": "Read again: who is going with Mia?"
+            },
+            {
+              "question": "They are staying in Lisbon for four nights.",
+              "correctAnswer": "true",
+              "feedbackCorrect": "Right!",
+              "feedbackWrong": "Read again: how many nights?"
+            },
+            {
+              "question": "Mia's brother wants to visit museums.",
+              "correctAnswer": "false",
+              "feedbackCorrect": "Right – he wants to go to the beach.",
+              "feedbackWrong": "Read again: what does her brother want to do?"
+            }
+          ],
+          "randomOrder": false,
+          "enableRetry": true,
+          "enableSolutionsButton": true
+        },
+        "orderIndex": 3
+      },
+      {
+        "id": "travel_05",
+        "title": "3.1 Negatives (A1)",
+        "type": "multipleChoice",
+        "description": "<p>Choose the correct negative form.</p>",
+        "content": {
+          "question": "I ___ flying. I always take the train.",
+          "imageUrl": "",
+          "answers": [
+            {
+              "text": "don't like",
+              "correct": true,
+              "tip": "I / you / we / they → don't + verb"
+            },
+            {
+              "text": "doesn't like",
+              "correct": false,
+              "tip": ""
+            },
+            {
+              "text": "not like",
+              "correct": false,
+              "tip": ""
+            },
+            {
+              "text": "no like",
+              "correct": false,
+              "tip": ""
+            }
+          ],
+          "singleAnswer": true,
+          "randomAnswers": true,
+          "enableRetry": true,
+          "enableSolutionsButton": true,
+          "passPercentage": 100
+        },
+        "orderIndex": 4
+      },
+      {
+        "id": "travel_06",
+        "title": "3.2 Negatives (A1)",
+        "type": "multipleChoice",
+        "description": "<p>Choose the correct negative form.</p>",
+        "content": {
+          "question": "She can't travel abroad because she ___ a passport.",
+          "imageUrl": "",
+          "answers": [
+            {
+              "text": "doesn't have",
+              "correct": true,
+              "tip": "he / she / it → doesn't + verb (without -s)"
+            },
+            {
+              "text": "don't have",
+              "correct": false,
+              "tip": ""
+            },
+            {
+              "text": "not has",
+              "correct": false,
+              "tip": ""
+            },
+            {
+              "text": "isn't have",
+              "correct": false,
+              "tip": ""
+            }
+          ],
+          "singleAnswer": true,
+          "randomAnswers": true,
+          "enableRetry": true,
+          "enableSolutionsButton": true,
+          "passPercentage": 100
+        },
+        "orderIndex": 5
+      },
+      {
+        "id": "travel_07",
+        "title": "3.3 Negatives (A2)",
+        "type": "multipleChoice",
+        "description": "<p>Choose the correct negative form.</p>",
+        "content": {
+          "question": "We ___ at the hotel yesterday – we stayed with friends.",
+          "imageUrl": "",
+          "answers": [
+            {
+              "text": "weren't",
+              "correct": true,
+              "tip": "Past of be: we / you / they → were → weren't"
+            },
+            {
+              "text": "wasn't",
+              "correct": false,
+              "tip": ""
+            },
+            {
+              "text": "didn't were",
+              "correct": false,
+              "tip": ""
+            },
+            {
+              "text": "not were",
+              "correct": false,
+              "tip": ""
+            }
+          ],
+          "singleAnswer": true,
+          "randomAnswers": true,
+          "enableRetry": true,
+          "enableSolutionsButton": true,
+          "passPercentage": 100
+        },
+        "orderIndex": 6
+      },
+      {
+        "id": "travel_08",
+        "title": "4.1 Word order (A1)",
+        "type": "dragTheWords",
+        "description": "<p>Put the words in the correct order.</p>",
+        "content": {
+          "taskDescription": "",
+          "imageUrl": "",
+          "textField": "*We* *are* *going* *to* *Spain* *by* *plane*.",
+          "distractors": "",
+          "enableRetry": true,
+          "enableSolutionsButton": true,
+          "instantFeedback": false
+        },
+        "orderIndex": 7
+      },
+      {
+        "id": "travel_09",
+        "title": "4.2 Word order (A1)",
+        "type": "dragTheWords",
+        "description": "<p>Put the words in the correct order.</p>",
+        "content": {
+          "taskDescription": "",
+          "imageUrl": "",
+          "textField": "*Where* *is* *the* *train* *station*?",
+          "distractors": "",
+          "enableRetry": true,
+          "enableSolutionsButton": true,
+          "instantFeedback": false
+        },
+        "orderIndex": 8
+      },
+      {
+        "id": "travel_10",
+        "title": "4.3 Word order (A2)",
+        "type": "dragTheWords",
+        "description": "<p>Put the words in the correct order.</p>",
+        "content": {
+          "taskDescription": "",
+          "imageUrl": "",
+          "textField": "*I* *would* *like* *a* *single* *room* *for* *two* *nights*.",
+          "distractors": "",
+          "enableRetry": true,
+          "enableSolutionsButton": true,
+          "instantFeedback": false
+        },
+        "orderIndex": 9
+      },
+      {
+        "id": "travel_11",
+        "title": "5.1 Find the mistake (A1–A2)",
+        "type": "markTheWords",
+        "description": "<p>Each sentence has <strong>one</strong> mistake. Click on the wrong word.</p>",
+        "content": {
+          "taskDescription": "",
+          "imageUrl": "",
+          "textField": "Yesterday we *go* to the airport by taxi.\nShe *don't* like long flights.\nThere *is* three suitcases in the car.",
+          "enableRetry": true,
+          "enableSolutionsButton": true
+        },
+        "orderIndex": 10
+      },
+      {
+        "id": "travel_12",
+        "title": "5.2 Correct the mistake (A1–A2)",
+        "type": "fillInTheBlanks",
+        "description": "<p>Write the correct form of the wrong word from 5.1.</p>",
+        "content": {
+          "taskDescription": "<p>Now write the correct word.</p>",
+          "imageUrl": "",
+          "questions": [
+            {
+              "text": "Yesterday we *went* to the airport by taxi."
+            },
+            {
+              "text": "She *doesn't/does not/doesn’t* like long flights."
+            },
+            {
+              "text": "There *are* three suitcases in the car."
+            }
+          ],
+          "caseSensitive": false,
+          "enableRetry": true,
+          "enableSolutionsButton": true,
+          "showSolutionsRequiresInput": true
+        },
+        "orderIndex": 11
+      },
+      {
+        "id": "travel_13",
+        "title": "6. Modal verbs (A2)",
+        "type": "dragTheWords",
+        "description": "<p>Drag the correct modal verb into each gap. Two words are not needed.</p>",
+        "content": {
+          "taskDescription": "",
+          "imageUrl": "",
+          "textField": "It's the rule: you *must* wear a seatbelt during take-off.\nExcuse me, *can* you help me with my bag?\nIt's raining in London. You *should* take an umbrella.",
+          "distractors": "*mustn't* *needn't*",
+          "enableRetry": true,
+          "enableSolutionsButton": true,
+          "instantFeedback": false
+        },
+        "orderIndex": 12
+      },
+      {
+        "id": "travel_14",
+        "title": "7. Listening (A1–A2)",
+        "type": "dictation",
+        "description": "<p>Listen and write. You can listen as often as you like – also slowly.</p>",
+        "content": {
+          "instructions": "Listen to each sentence and write it down.",
+          "sentences": [
+            {
+              "text": "My flight leaves at ten in the morning."
+            },
+            {
+              "text": "Can I have a ticket to London, please?"
+            },
+            {
+              "text": "The hotel is next to the beach."
+            }
+          ],
+          "language": "en-GB",
+          "maxPlays": 0,
+          "slowPlayback": true,
+          "caseSensitive": false,
+          "punctuation": false,
+          "tryAgain": true
+        },
+        "orderIndex": 13
+      }
+    ]
+  }
+}

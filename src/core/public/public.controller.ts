@@ -9,7 +9,7 @@ import { LearningModule } from '../entities/learning-module.entity';
 import { Result } from '../entities/result.entity';
 import { TopicLink } from '../entities/topic-link.entity';
 import { TopicQuickLink } from '../entities/topic-quick-link.entity';
-import { LinksService } from '../../links/links.service';
+import { LinksService, LinkAccess, modesFor } from '../../links/links.service';
 import { TopicsService } from '../../topics/topics.service';
 import { GroupsService } from '../../groups/groups.service';
 import { CompanionService } from '../../companion/companion.service';
@@ -115,13 +115,18 @@ export class PublicController {
    */
   @Get('link/:token')
   async getLink(@Param('token') token: string) {
-    const link = await this.findLinkByToken(token);
+    const { link, access } = await this.findAccessByToken(token);
     const resolved = await this.linksService.resolveModules(link);
 
     return {
       linkId: link.id,
       name: link.name,
-      modes: link.modes,
+      // Übungslink: Quiz, Lernen mit Lösungen, Lernbegleitung zur Wahl.
+      // Link der Klassenarbeit: nur die Klassenarbeit.
+      modes: modesFor(link, access),
+      access,
+      // Die Quiz-Arena läuft über den Übungslink mit &m=contest.
+      contestEnabled: access === 'practice' && link.modes.includes('contest'),
       requiresPassword: !!link.accessPassword,
       singleAttempt: link.singleAttempt,
       topicCount: resolved.length,
@@ -139,7 +144,8 @@ export class PublicController {
     @Param('token') token: string,
     @Body() body: { studentName?: string; password?: string; mode?: string },
   ) {
-    const link = await this.findLinkByToken(token);
+    const { link, access } = await this.findAccessByToken(token);
+    const allowed = modesFor(link, access);
 
     const studentName = (body?.studentName || '').trim();
     if (!studentName) throw new BadRequestException('Bitte den Namen eingeben.');
@@ -150,13 +156,16 @@ export class PublicController {
 
     // Ohne Angabe gilt der einzige erlaubte Modus; bei mehreren muss der
     // Schüler sich entschieden haben.
-    const mode = (body?.mode || (link.modes.length === 1 ? link.modes[0] : '')) as string;
-    if (!link.modes.includes(mode as any)) {
-      throw new ForbiddenException('Dieser Modus ist für den Link nicht freigegeben.');
-    }
-    // Zum Wettkampf geht es über den Wartebereich, nicht über einen Einzeldurchlauf.
+    const mode = (body?.mode || (allowed.length === 1 ? allowed[0] : '')) as string;
     if (mode === 'contest') {
-      throw new BadRequestException('Der Lernwettkampf startet über den Wartebereich.');
+      throw new BadRequestException('Die Quiz-Arena startet über den Wartebereich.');
+    }
+    if (!allowed.includes(mode as any)) {
+      throw new ForbiddenException(
+        mode === 'exam'
+          ? 'Die Klassenarbeit hat einen eigenen Link – bitte den Link der Lehrkraft verwenden.'
+          : 'Dieser Modus ist für den Link nicht freigegeben.',
+      );
     }
 
     if (mode === 'exam' && link.singleAttempt) {
@@ -251,16 +260,33 @@ export class PublicController {
     return { success: true, fileName };
   }
 
+  /**
+   * Link zu einem Schlüssel: Übungslink (`token`) oder Link der
+   * Klassenarbeit (`examToken`). Ohne Prüfung auf "aktiv".
+   */
+  private async linkOfToken(token: string): Promise<{ link: TopicLink; access: LinkAccess } | null> {
+    if (!token) return null;
+    const practice = await this.linkRepo.findOne({ where: { token } });
+    if (practice) return { link: practice, access: 'practice' };
+    const exam = await this.linkRepo.findOne({ where: { examToken: token } });
+    return exam ? { link: exam, access: 'exam' } : null;
+  }
+
   /** Gemeinsame Prüfung: Token bekannt, Link aktiv. */
   private async findLinkByToken(token: string): Promise<TopicLink> {
+    return (await this.findAccessByToken(token)).link;
+  }
+
+  private async findAccessByToken(token: string): Promise<{ link: TopicLink; access: LinkAccess }> {
     if (!token) throw new NotFoundException('Ungültiger Link.');
-    const link = await this.linkRepo.findOne({ where: { token } });
-    if (!link) throw new NotFoundException('Dieser Link ist ungültig oder wurde zurückgezogen.');
+    const found = await this.linkOfToken(token);
+    if (!found) throw new NotFoundException('Dieser Link ist ungültig oder wurde zurückgezogen.');
+    const { link } = found;
     if (!link.active) throw new ForbiddenException('Dieser Link ist derzeit deaktiviert.');
     // Links eines deaktivierten Kontos ruhen mit ihm.
     const owner = await this.userRepo.findOne({ where: { id: link.ownerId } });
     if (!owner || owner.active === false) throw new ForbiddenException('Dieser Link ist derzeit gesperrt.');
-    return link;
+    return found;
   }
 
   /**
@@ -289,9 +315,15 @@ export class PublicController {
     // wie für den Quick-Link – in beiden Fällen zählt, wer den Link verteilt
     // hat, nicht wem die Aufgaben gehören.
     let link: TopicLink | null = null;
+    let linkMode: string | undefined;
     if (body.linkToken) {
-      link = await this.linkRepo.findOne({ where: { token: body.linkToken } });
-      if (!link) throw new NotFoundException('Dieser Link ist ungültig oder wurde zurückgezogen.');
+      const found = await this.linkOfToken(body.linkToken);
+      if (!found) throw new NotFoundException('Dieser Link ist ungültig oder wurde zurückgezogen.');
+      link = found.link;
+      // Der Modus muss zum Zugang passen – über den Link der Klassenarbeit
+      // entsteht immer ein Klassenarbeits-Ergebnis.
+      const allowed: string[] = modesFor(link, found.access);
+      linkMode = allowed.includes(body.mode || '') ? body.mode : allowed[0];
     }
 
     let teacher: User | null = null;
@@ -328,7 +360,7 @@ export class PublicController {
       linkName: link ? link.name : quickTopicTitle ?? undefined,
       linkKind: quickTopicTitle !== null ? 'quick' : undefined,
       // Der Quick-Link startet immer im Quiz-Modus.
-      mode: link ? body.mode : quickTopicTitle !== null ? 'quiz' : undefined,
+      mode: link ? linkMode : quickTopicTitle !== null ? 'quiz' : undefined,
     });
     const saved = await this.resultRepo.save(result);
     return { success: true, id: saved.id };

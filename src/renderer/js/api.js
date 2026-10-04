@@ -192,14 +192,17 @@ export class BrowserApi {
     return this._fetch(`/api/links/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(data) });
   }
   deleteLink(id) { return this._fetch(`/api/links/${encodeURIComponent(id)}`, { method: 'DELETE' }); }
-  shareLink(id, regenerate = false) {
+  /** access: 'practice' (Link & QR) oder 'exam' (eigener Link der Klassenarbeit). */
+  shareLink(id, regenerate = false, access = 'practice') {
     return this._fetch(`/api/links/${encodeURIComponent(id)}/share`, {
       method: 'POST',
-      body: JSON.stringify({ regenerate }),
+      body: JSON.stringify({ regenerate, access }),
     });
   }
-  revokeLink(id) { return this._fetch(`/api/links/${encodeURIComponent(id)}/share`, { method: 'DELETE' }); }
-  /** Lernwettkampf: Leitungs-Link, Schüler-Link und QR-Code. */
+  revokeLink(id, access = 'practice') {
+    return this._fetch(`/api/links/${encodeURIComponent(id)}/share?access=${encodeURIComponent(access)}`, { method: 'DELETE' });
+  }
+  /** Quiz-Arena: Leitungs-Link, Schüler-Link und QR-Code. */
   contestShareLink(id, regenerate = false) {
     return this._fetch(`/api/links/${encodeURIComponent(id)}/contest-share`, {
       method: 'POST',
@@ -213,7 +216,7 @@ export class BrowserApi {
   saveSchoolCompanion(data) { return this._fetch('/api/companion/school', { method: 'PUT', body: JSON.stringify(data) }); }
   getCompanionColleagues() { return this._fetch('/api/companion/school/colleagues'); }
 
-  // ---------- Lernwettkampf (öffentlich, ohne Anmeldung) ----------
+  // ---------- Quiz-Arena (öffentlich, ohne Anmeldung) ----------
   _publicPost(url, body) {
     return fetch(url, {
       method: 'POST',

@@ -3,10 +3,10 @@ import type { Response } from 'express';
 import { ContestService } from './contest.service';
 
 /**
- * Lernwettkampf – ohne Anmeldung, wie die übrigen Schülerzugänge.
+ * Quiz-Arena – ohne Anmeldung, wie die übrigen Schülerzugänge.
  *
  * Leitung: Der Leitungs-Token (`/?wh=…`) ist der Schlüssel. So lässt sich der
- * Wettkampf am Beamer-PC starten, ohne sich dort anzumelden.
+ * Quiz-Arena am Beamer-PC starten, ohne sich dort anzumelden.
  * Teilnehmer: Schüler-Token des Links plus Spieler-ID und -Geheimnis aus
  * dem Beitritt.
  *

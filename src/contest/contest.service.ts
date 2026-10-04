@@ -15,8 +15,8 @@ import { baseUrl, renderQr } from '../core/share/link-url';
 
 /**
  * Aufgabentypen, die der Browser selbst bewertet (siehe answer-eval.js).
- * Alles andere – Freitext, Aufnahmen, reine Informationen – bleibt im
- * Wettkampf außen vor.
+ * Alles andere – Freitext, Aufnahmen, reine Informationen – bleibt in
+ * der Quiz-Arena außen vor.
  */
 const GRADABLE_TYPES = new Set([
   'multipleChoice', 'trueFalse', 'fillInTheBlanks', 'markTheWords', 'dragTheWords',
@@ -27,7 +27,7 @@ const MAX_PLAYERS = 100;
 const MAX_NAME = 40;
 /** Antworten, die kurz nach Ablauf eintreffen (Netz, automatisches Abschicken), zählen noch. */
 const GRACE_MS = 1500;
-/** Ein Wettkampf, an dem so lange niemand etwas tut, wird aufgeräumt. */
+/** Eine Quiz-Arena, in der so lange niemand etwas tut, wird aufgeräumt. */
 const IDLE_MS = 4 * 60 * 60 * 1000;
 const HEARTBEAT_MS = 20 * 1000;
 
@@ -102,9 +102,9 @@ function send(res: Response, event: string, data: any) {
 }
 
 /**
- * Lernwettkampf: Wartebereich, synchrone Fragen, Bestenliste, Siegertreppchen.
+ * Quiz-Arena: Wartebereich, synchrone Fragen, Bestenliste, Siegertreppchen.
  *
- * Ein laufender Wettkampf lebt nur im Arbeitsspeicher (einer je Link). Er ist
+ * Eine laufende Quiz-Arena lebt nur im Arbeitsspeicher (eine je Link). Sie ist
  * eine Sache von einer Schulstunde; startet der Server neu, öffnet die
  * Lehrkraft den Wartebereich einfach erneut. Gespeichert wird erst das
  * Endergebnis – als Eintrag je Schüler in der Ergebnisliste.
@@ -148,7 +148,7 @@ export class ContestService implements OnModuleDestroy {
   private sweep() {
     const now = Date.now();
     for (const s of [...this.sessions.values()]) {
-      if (now - s.lastActivity > IDLE_MS) this.close(s, 'Der Wettkampf wurde wegen Inaktivität beendet.');
+      if (now - s.lastActivity > IDLE_MS) this.close(s, 'Die Quiz-Arena wurde wegen Inaktivität beendet.');
     }
   }
 
@@ -172,7 +172,7 @@ export class ContestService implements OnModuleDestroy {
     if (!link) throw new NotFoundException('Dieser Link ist ungültig oder wurde zurückgezogen.');
     if (!link.active) throw new ForbiddenException('Diese Freigabe ist derzeit deaktiviert.');
     if (!link.modes.includes('contest')) {
-      throw new ForbiddenException('Für diese Freigabe ist der Lernwettkampf nicht eingeschaltet.');
+      throw new ForbiddenException('Für diese Freigabe ist die Quiz-Arena nicht eingeschaltet.');
     }
     const owner = await this.userRepo.findOne({ where: { id: link.ownerId } });
     if (!owner || owner.active === false) throw new ForbiddenException('Dieser Link ist derzeit gesperrt.');
@@ -213,7 +213,7 @@ export class ContestService implements OnModuleDestroy {
 
   // ---- Leitung ----
 
-  /** Wartebereich öffnen – oder den schon laufenden Wettkampf wieder aufnehmen. */
+  /** Wartebereich öffnen – oder die schon laufende Quiz-Arena wieder aufnehmen. */
   async hostOpen(hostToken: string, req: any) {
     const link = await this.linkByHostToken(hostToken);
     if (!link.token) {
@@ -273,7 +273,7 @@ export class ContestService implements OnModuleDestroy {
 
   async hostStart(hostToken: string) {
     const s = await this.sessionForHost(hostToken);
-    if (s.phase !== 'lobby') throw new ConflictException('Der Wettkampf läuft bereits.');
+    if (s.phase !== 'lobby') throw new ConflictException('Die Quiz-Arena läuft bereits.');
     // Frisch laden: Änderungen am Link seit dem Öffnen gelten.
     const link = await this.linkByHostToken(hostToken);
     const cfg = contestSettingsOf(link);
@@ -309,7 +309,7 @@ export class ContestService implements OnModuleDestroy {
     s.players.delete(playerId);
     s.kicked.add(playerId);
     for (const res of p.streams) {
-      send(res, 'kicked', { reason: 'Du wurdest von der Lehrkraft aus dem Wettkampf entfernt.' });
+      send(res, 'kicked', { reason: 'Du wurdest von der Lehrkraft aus der Quiz-Arena entfernt.' });
       try { res.end(); } catch { /* egal */ }
     }
     this.maybeEndEarly(s);
@@ -317,7 +317,7 @@ export class ContestService implements OnModuleDestroy {
     return { success: true };
   }
 
-  /** Neuer Wettkampf mit denselben Teilnehmern: zurück in den Wartebereich. */
+  /** Neue Runde mit denselben Teilnehmern: zurück in den Wartebereich. */
   async hostReset(hostToken: string) {
     const s = await this.sessionForHost(hostToken);
     if (s.timer) clearTimeout(s.timer);
@@ -335,7 +335,7 @@ export class ContestService implements OnModuleDestroy {
 
   async hostClose(hostToken: string) {
     const s = await this.sessionForHost(hostToken);
-    this.close(s, 'Die Lehrkraft hat den Wettkampf beendet.');
+    this.close(s, 'Die Lehrkraft hat die Quiz-Arena beendet.');
     return { success: true };
   }
 
@@ -352,7 +352,7 @@ export class ContestService implements OnModuleDestroy {
     }
     const s = this.sessions.get(link.id);
     if (!s) {
-      throw new ConflictException('Der Wettkampf ist noch nicht geöffnet. Warte, bis deine Lehrkraft den Wartebereich öffnet.');
+      throw new ConflictException('Die Quiz-Arena ist noch nicht geöffnet. Warte, bis deine Lehrkraft den Wartebereich öffnet.');
     }
     s.lastActivity = Date.now();
 
@@ -362,14 +362,14 @@ export class ContestService implements OnModuleDestroy {
       return { playerId: back.id, secret: back.secret, name: back.name, linkName: s.linkName };
     }
     if (body?.playerId && s.kicked.has(body.playerId)) {
-      throw new ForbiddenException('Du wurdest von der Lehrkraft aus dem Wettkampf entfernt.');
+      throw new ForbiddenException('Du wurdest von der Lehrkraft aus der Quiz-Arena entfernt.');
     }
 
     const name = String(body?.studentName || '').trim().replace(/\s+/g, ' ').slice(0, MAX_NAME);
     if (!name) throw new BadRequestException('Bitte den Namen eingeben.');
     const taken = [...s.players.values()].some((p) => p.name.toLowerCase() === name.toLowerCase());
     if (taken) throw new ConflictException(`Der Name „${name}“ ist schon vergeben – bitte z. B. mit Nachnamen ergänzen.`);
-    if (s.players.size >= MAX_PLAYERS) throw new ConflictException('Der Wettkampf ist voll.');
+    if (s.players.size >= MAX_PLAYERS) throw new ConflictException('Die Quiz-Arena ist voll.');
 
     const player: Player = {
       id: crypto.randomUUID(),
@@ -388,11 +388,11 @@ export class ContestService implements OnModuleDestroy {
   private async playerOf(token: string, playerId: string, secret: string): Promise<{ s: Session; p: Player }> {
     const link = await this.linkByToken(token);
     const s = this.sessions.get(link.id);
-    if (!s) throw new ConflictException('Der Wettkampf ist beendet.');
+    if (!s) throw new ConflictException('Die Quiz-Arena ist beendet.');
     const p = s.players.get(playerId);
     if (!p || p.secret !== secret) {
       throw new ForbiddenException(s.kicked.has(playerId)
-        ? 'Du wurdest von der Lehrkraft aus dem Wettkampf entfernt.'
+        ? 'Du wurdest von der Lehrkraft aus der Quiz-Arena entfernt.'
         : 'Du bist nicht (mehr) angemeldet.');
     }
     s.lastActivity = Date.now();
@@ -487,7 +487,7 @@ export class ContestService implements OnModuleDestroy {
     try {
       await this.saveResults(s);
     } catch (err) {
-      this.logger.error(`Wettkampf-Ergebnisse nicht gespeichert: ${(err as Error).message}`);
+      this.logger.error(`Quiz-Arena-Ergebnisse nicht gespeichert: ${(err as Error).message}`);
     }
   }
 

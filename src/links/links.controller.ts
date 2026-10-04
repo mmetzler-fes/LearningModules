@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Delete, Body, Param, UseGuards, Request } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Body, Param, Query, UseGuards, Request } from '@nestjs/common';
 import { LinksService } from './links.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
@@ -36,13 +36,20 @@ export class LinksController {
     return this.linksService.remove(id, req.user);
   }
 
-  /** Link zum Versenden abrufen (URL + QR); `{regenerate:true}` erneuert ihn. */
+  /**
+   * Link zum Versenden abrufen (URL + QR); `{regenerate:true}` erneuert ihn.
+   * `{access:'exam'}` liefert den eigenen Link der Klassenarbeit.
+   */
   @Post(':id/share')
-  async share(@Param('id') id: string, @Request() req: any, @Body() body: { regenerate?: boolean }) {
-    return this.linksService.share(id, req.user, !!body?.regenerate, req);
+  async share(
+    @Param('id') id: string,
+    @Request() req: any,
+    @Body() body: { regenerate?: boolean; access?: string },
+  ) {
+    return this.linksService.share(id, req.user, !!body?.regenerate, req, body?.access === 'exam' ? 'exam' : 'practice');
   }
 
-  /** Lernwettkampf: Leitungs- und Schüler-Link; `{regenerate:true}` erneuert den Leitungs-Link. */
+  /** Quiz-Arena: Leitungs- und Schüler-Link; `{regenerate:true}` erneuert den Leitungs-Link. */
   @Post(':id/contest-share')
   async contestShare(@Param('id') id: string, @Request() req: any, @Body() body: { regenerate?: boolean }) {
     return this.linksService.contestShare(id, req.user, !!body?.regenerate, req);
@@ -50,7 +57,7 @@ export class LinksController {
 
   /** Token entwerten – verteilte Links und QR-Codes wirken nicht mehr. */
   @Delete(':id/share')
-  async revoke(@Param('id') id: string, @Request() req: any) {
-    return this.linksService.revoke(id, req.user);
+  async revoke(@Param('id') id: string, @Request() req: any, @Query('access') access?: string) {
+    return this.linksService.revoke(id, req.user, access === 'exam' ? 'exam' : 'practice');
   }
 }

@@ -13,6 +13,28 @@ import * as crypto from 'crypto';
 
 const ALL_MODES: LinkMode[] = ['quiz', 'exam', 'learn', 'companion', 'contest'];
 
+/** Modi, zwischen denen Schüler über den Übungslink ("Link & QR") wählen. */
+export const PRACTICE_MODES: LinkMode[] = ['quiz', 'learn', 'companion'];
+
+/** Welcher Zugang eines Links: Übung (`token`) oder Klassenarbeit (`examToken`). */
+export type LinkAccess = 'practice' | 'exam';
+
+/**
+ * Modi, die ein Zugang freischaltet. Der Übungslink bietet nur die
+ * Übungsmodi, der Klassenarbeits-Link nur die Klassenarbeit; die Quiz-Arena
+ * hat ihren eigenen Ablauf (siehe contest/).
+ *
+ * Altbestand: Ein Link, der nur die Klassenarbeit (ohne Übungsmodi) hatte,
+ * wurde früher über den Übungslink verteilt. Damit ausgeteilte QR-Codes
+ * weiter funktionieren, führt sein Übungslink dann in die Klassenarbeit.
+ */
+export function modesFor(link: TopicLink, access: LinkAccess): LinkMode[] {
+  if (access === 'exam') return link.modes.includes('exam') ? ['exam'] : [];
+  const practice = PRACTICE_MODES.filter((m) => link.modes.includes(m));
+  if (practice.length === 0 && link.modes.includes('exam')) return ['exam'];
+  return practice;
+}
+
 export const DEFAULT_CONTEST_SETTINGS: LinkContestSettings = {
   maxPoints: 1000,
   defaultSeconds: 30,
@@ -25,7 +47,7 @@ const clampInt = (v: any, min: number, max: number, fallback: number) => {
   return Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : fallback;
 };
 
-/** Wettkampf-Einstellungen eines Links, mit Vorgaben aufgefüllt. */
+/** Quiz-Arena-Einstellungen eines Links, mit Vorgaben aufgefüllt. */
 export function contestSettingsOf(link: TopicLink): LinkContestSettings {
   return { ...DEFAULT_CONTEST_SETTINGS, ...(link.contestSettings || {}) };
 }
@@ -54,7 +76,7 @@ export class LinksService {
     return ALL_MODES.filter((m) => unique.includes(m));
   }
 
-  /** Punkte und Zeiten für den Lernwettkampf, in vernünftigen Grenzen. */
+  /** Punkte und Zeiten für die Quiz-Arena, in vernünftigen Grenzen. */
   private cleanContestSettings(body: any): LinkContestSettings {
     const d = DEFAULT_CONTEST_SETTINGS;
     const seconds: Record<string, number> = {};
@@ -240,8 +262,13 @@ export class LinksService {
 
   /** Passwort niemals zurückgeben – nur, ob eines gesetzt ist. */
   private publicShape(link: TopicLink) {
-    const { accessPassword, contestHostToken: _host, ...rest } = link;
-    return { ...rest, hasPassword: !!accessPassword, contestSettings: contestSettingsOf(link) };
+    const { accessPassword, contestHostToken: _host, examToken, ...rest } = link;
+    return {
+      ...rest,
+      hasPassword: !!accessPassword,
+      hasExamLink: !!examToken,
+      contestSettings: contestSettingsOf(link),
+    };
   }
 
   async findOne(id: string, user: any, req?: any) {
@@ -311,35 +338,44 @@ export class LinksService {
     return { success: true };
   }
 
-  /** Link zum Versenden: URL und QR-Code. `regenerate` entwertet den alten. */
-  async share(id: string, user: any, regenerate = false, req?: any) {
+  /**
+   * Link zum Versenden: URL und QR-Code. `regenerate` entwertet den alten.
+   * `access` wählt den Übungslink oder den eigenen Link der Klassenarbeit.
+   */
+  async share(id: string, user: any, regenerate = false, req?: any, access: LinkAccess = 'practice') {
     const link = await this.own(id, user);
-    if (!link.token || regenerate) {
-      link.token = crypto.randomBytes(12).toString('base64url');
+    if (access === 'exam' && !link.modes.includes('exam')) {
+      throw new BadRequestException('Für diese Freigabe ist die Klassenarbeit nicht eingeschaltet.');
+    }
+    const field = access === 'exam' ? 'examToken' : 'token';
+    if (!link[field] || regenerate) {
+      link[field] = crypto.randomBytes(12).toString('base64url');
       await this.linkRepo.save(link);
     }
-    const url = `${baseUrl(req)}/?l=${link.token}`;
+    const token = link[field] as string;
+    const url = `${baseUrl(req)}/?l=${token}`;
     const resolved = await this.resolveModules(link);
     return {
-      token: link.token,
+      token,
+      access,
       url,
       qrSvg: await renderQr(url),
       linkId: link.id,
       name: link.name,
       active: link.active,
-      modes: link.modes,
+      modes: modesFor(link, access),
       moduleCount: resolved.reduce((n, r) => n + r.modules.length, 0),
     };
   }
 
   /**
-   * Lernwettkampf: Leitungs-Link (für die Lehrkraft, z. B. am Beamer) und
+   * Quiz-Arena: Leitungs-Link (für die Lehrkraft, z. B. am Beamer) und
    * Schüler-Link mit QR-Code. `regenerate` entwertet den alten Leitungs-Link.
    */
   async contestShare(id: string, user: any, regenerate = false, req?: any) {
     const link = await this.own(id, user);
     if (!link.modes.includes('contest')) {
-      throw new BadRequestException('Für diese Freigabe ist der Lernwettkampf nicht eingeschaltet.');
+      throw new BadRequestException('Für diese Freigabe ist die Quiz-Arena nicht eingeschaltet.');
     }
     let changed = false;
     if (!link.contestHostToken || regenerate) {
@@ -363,9 +399,10 @@ export class LinksService {
   }
 
   /** Token entwerten, ohne den Link zu löschen. */
-  async revoke(id: string, user: any) {
+  async revoke(id: string, user: any, access: LinkAccess = 'practice') {
     const link = await this.own(id, user);
-    link.token = null;
+    if (access === 'exam') link.examToken = null;
+    else link.token = null;
     await this.linkRepo.save(link);
     return { success: true };
   }

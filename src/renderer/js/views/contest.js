@@ -2,7 +2,7 @@ import { escapeHtml, escapeAttr } from '../utils.js';
 import { downloadBlob } from '../api.js';
 import { collectAnswer } from '../answer-eval.js';
 
-// ==================== LERNWETTKAMPF ====================
+// ==================== QUIZ-ARENA ====================
 
 const SESSION_PREFIX = 'lm_contest_';
 const MEDALS = ['🥇', '🥈', '🥉'];
@@ -178,7 +178,7 @@ function updateTimer(root, left, total) {
 // ==================== VIEW ====================
 
 /**
- * Bildschirme des Lernwettkampfs. Sie liegen außerhalb der normalen
+ * Bildschirme des Quiz-Arenas. Sie liegen außerhalb der normalen
  * Oberfläche, denn weder Leitung noch Schüler sind angemeldet.
  *
  * Leitung (`/?wh=<token>`): Wartebereich mit QR-Code, die laufende Frage,
@@ -273,7 +273,7 @@ export class ContestView {
       return;
     }
     if (!res || res.statusCode) {
-      this._showMessage('🚫', 'Wettkampf kann nicht geöffnet werden', res?.message || 'Unbekannter Fehler.');
+      this._showMessage('🚫', 'Quiz-Arena kann nicht geöffnet werden', res?.message || 'Unbekannter Fehler.');
       return;
     }
     this.hostState = res;
@@ -291,7 +291,7 @@ export class ContestView {
       },
       closed: (data) => {
         this._closeSource();
-        this._showMessage('👋', 'Wettkampf beendet', data?.reason || '', { reload: true });
+        this._showMessage('👋', 'Quiz-Arena beendet', data?.reason || '', { reload: true });
       },
     }, () => {
       // Server neu gestartet o. ä.: Wartebereich neu eröffnen.
@@ -330,7 +330,7 @@ export class ContestView {
   _hostTop(st, extra = '') {
     return `
       <header class="contest-top">
-        <div class="contest-top-title">🏆 ${escapeHtml(st.linkName || 'Lernwettkampf')}</div>
+        <div class="contest-top-title">🏆 ${escapeHtml(st.linkName || 'Quiz-Arena')}</div>
         <div class="contest-top-info">${extra}</div>
         <button class="btn btn-secondary btn-sm contest-sound" title="Tusch an/aus">${this.soundOn ? '🔊' : '🔇'}</button>
       </header>`;
@@ -363,7 +363,7 @@ export class ContestView {
           <h2>Im Wartebereich: <span class="contest-player-count">0</span></h2>
           <div class="contest-players"></div>
           <div class="contest-host-actions">
-            <button class="btn btn-primary btn-lg" id="contestStart">▶️ Wettkampf starten</button>
+            <button class="btn btn-primary btn-lg" id="contestStart">▶️ Quiz-Arena starten</button>
           </div>
           <p class="hint">Namen mit ✕ entfernen. Wer später kommt, steigt bei der laufenden Aufgabe ein.</p>
         </section>
@@ -378,7 +378,7 @@ export class ContestView {
       }
     });
     screen.querySelector('#contestSaveJoin').addEventListener('click', () =>
-      saveRedirectFile(st.joinUrl, `Lernwettkampf ${st.linkName} – mitmachen`, `Wettkampf_${st.linkName}_Schueler`));
+      saveRedirectFile(st.joinUrl, `Quiz-Arena ${st.linkName} – mitmachen`, `QuizArena_${st.linkName}_Schueler`));
     screen.querySelector('#contestStart').addEventListener('click', () => this._hostAction('start'));
   }
 
@@ -396,7 +396,7 @@ export class ContestView {
     box.querySelectorAll('.contest-kick').forEach((btn) => {
       btn.addEventListener('click', async () => {
         const name = btn.parentElement.textContent.replace('✕', '').replace(/[✅⏳]/g, '').trim();
-        if (!(await this.app.appConfirm(`„${name}“ aus dem Wettkampf entfernen?`))) return;
+        if (!(await this.app.appConfirm(`„${name}“ aus der Quiz-Arena entfernen?`))) return;
         this._hostAction('kick', { playerId: btn.dataset.id });
       });
     });
@@ -486,9 +486,9 @@ export class ContestView {
         <div class="contest-host-actions">
           <button class="btn btn-secondary" id="contestFanfare">🎺 Tusch</button>
           <button class="btn btn-primary" id="contestAgain">🔁 Neuer Durchgang</button>
-          <button class="btn btn-danger" id="contestClose">⏹ Wettkampf beenden</button>
+          <button class="btn btn-danger" id="contestClose">⏹ Quiz-Arena beenden</button>
         </div>
-        <p class="hint">Die Ergebnisse stehen in deiner Ergebnisliste (Modus „Wettkampf“).</p>
+        <p class="hint">Die Ergebnisse stehen in deiner Ergebnisliste (Modus „Quiz-Arena“).</p>
       </main>`;
     this._bindSound(screen);
     screen.querySelector('#contestFanfare').addEventListener('click', () => playFanfare(st.soundUrl));
@@ -498,7 +498,7 @@ export class ContestView {
       }
     });
     screen.querySelector('#contestClose').addEventListener('click', async () => {
-      if (await this.app.appConfirm('Wettkampf beenden? Die Schüler sehen dann eine Abschlussmeldung.')) {
+      if (await this.app.appConfirm('Quiz-Arena beenden? Die Schüler sehen dann eine Abschlussmeldung.')) {
         this._hostAction('close');
       }
     });
@@ -598,13 +598,13 @@ export class ContestView {
       closed: (data) => {
         this._closeSource();
         this._saveSession(token, null);
-        this._showMessage('👋', 'Der Wettkampf ist beendet', data?.reason || 'Danke fürs Mitmachen!');
+        this._showMessage('👋', 'Die Quiz-Arena ist beendet', data?.reason || 'Danke fürs Mitmachen!');
       },
     }, () => {
       // Endgültig abgebrochen: prüfen, ob es den Platz noch gibt.
       setTimeout(async () => {
         if (!(await this.resumePlayer(token))) {
-          this._showMessage('📡', 'Verbindung verloren', 'Der Wettkampf ist nicht mehr erreichbar.', { reload: true });
+          this._showMessage('📡', 'Verbindung verloren', 'Die Quiz-Arena ist nicht mehr erreichbar.', { reload: true });
         }
       }, 2000);
     });
@@ -632,7 +632,7 @@ export class ContestView {
   _playerTop(st, extra = '') {
     return `
       <header class="contest-top">
-        <div class="contest-top-title">🏆 ${escapeHtml(st.linkName || 'Lernwettkampf')}</div>
+        <div class="contest-top-title">🏆 ${escapeHtml(st.linkName || 'Quiz-Arena')}</div>
         <div class="contest-top-info">${extra}</div>
         <div class="contest-me">👤 ${escapeHtml(this.me.name)} · ${fmtPoints(st.me?.score)} P</div>
       </header>`;

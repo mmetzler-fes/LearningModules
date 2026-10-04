@@ -2,7 +2,7 @@ import { escapeHtml, escapeAttr } from '../utils.js';
 
 /** Kurzbeschriftung der Abfragemodi in der Ergebnisliste. */
 const MODE_LABELS = {
-  quiz: '🧠 Quiz', exam: '📝 Klassenarbeit', learn: '💡 Lernen', companion: '🦉 Lernbegleitung', contest: '🏆 Wettkampf',
+  quiz: '🧠 Quiz', exam: '📝 Klassenarbeit', learn: '💡 Lernen', companion: '🦉 Lernbegleitung', contest: '🏆 Quiz-Arena',
 };
 
 /** Gruppenschluessel fuer Durchlaeufe ohne Link bzw. Praefix fuer Quick-Links. */

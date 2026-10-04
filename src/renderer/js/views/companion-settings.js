@@ -38,7 +38,7 @@ export class CompanionSettingsView {
     this.box.innerHTML = `
       <div class="settings-group">
         <h3>🦉 Mein Lernbegleiter</h3>
-        <p class="hint">Gilt für alle deine Schülerfreigaben mit Lernbegleitung bzw. Lernwettkampf.
+        <p class="hint">Gilt für alle deine Schülerfreigaben mit Lernbegleitung bzw. Quiz-Arena.
           Leere Felder übernehmen die Vorgabe ${d.school ? 'der Schule' : ''} (in Grau angezeigt).</p>
         ${this._settingsForm('mine', d.mine || {}, d.inherited)}
         ${this._commentsForm('mine', d.mine || {}, { showSchool: true })}
@@ -95,7 +95,7 @@ export class CompanionSettingsView {
       <p class="hint">Die Zeitstrafe beginnt nach dem dritten Fehlversuch und wächst mit jedem weiteren
         (z. B. 30 → 60 → 90 → 120 s). 0 schaltet sie ab.</p>
       <div class="form-group">
-        <label>Tusch für die Siegerehrung im Lernwettkampf</label>
+        <label>Tusch für die Siegerehrung in der Quiz-Arena</label>
         <div class="quicklink-url-row">
           <input type="url" data-field="${scope}:soundUrl" value="${val(cfg.soundUrl)}"
             placeholder="${scope === 'mine' && this.data.school?.config?.soundUrl ? 'leer = Tusch der Schule' : 'leer = eingebaute Fanfare'} · z. B. https://cloud.schule.de/s/AbC123" />

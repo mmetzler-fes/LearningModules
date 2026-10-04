@@ -47,10 +47,31 @@ Bei den Inhalten gibt es zwei Wege:
 | 📝 **Klassenarbeit** | Keine Rückmeldung, kein Zurückblättern | wird gespeichert |
 | 💡 **Lernen mit Lösungen** | Antworten wie im Quiz, danach die Musterlösung zur Aufgabe | wird **nicht** gespeichert |
 | 🦉 **Lernbegleitung** | Eine Lerneule kommentiert jeden Versuch; Lernpunkte, Joker, Zeitstrafe | wird gespeichert |
-| 🏆 **Lernwettkampf** | Alle gleichzeitig, Punkte nach Richtigkeit und Tempo, Siegertreppchen | wird gespeichert |
+| 🏆 **Quiz-Arena** | Alle gleichzeitig, Punkte nach Richtigkeit und Tempo, Siegertreppchen | wird gespeichert |
 
-Lernbegleitung und Lernwettkampf sind in
-[Lernbegleitung und Lernwettkampf](lernbegleitung-und-wettkampf.md) beschrieben.
+Lernbegleitung und Quiz-Arena sind in
+[Lernbegleitung und Quiz-Arena](lernbegleitung-und-quiz-arena.md) beschrieben.
+
+## Drei Links je Freigabe
+
+Die Schüler sollen nicht zwischen Üben, Klassenarbeit und Quiz-Arena wählen.
+Deshalb hat jede Freigabe bis zu drei getrennte Links, nebeneinander auf
+ihrer Karte:
+
+| Knopf | Führt zu | Schüler wählen |
+|---|---|---|
+| **🔗 Link & QR** | den Übungsmodi | zwischen Quiz, Lernen mit Lösungen und Lernbegleitung (was freigegeben ist) |
+| **📝 Klassenarbeit** | direkt in die Klassenarbeit | – |
+| **🏆 Quiz-Arena** | Leitungs- und Schüler-Link der Quiz-Arena | – |
+
+Der Link der Klassenarbeit hat einen **eigenen Schlüssel**. Mit dem
+Übungslink kommt also niemand in die Klassenarbeit, auch nicht über eine
+geänderte Adresse. Er lässt sich unabhängig vom Übungslink erneuern oder
+zurückziehen.
+
+Ältere Freigaben, die nur die Klassenarbeit hatten, wurden über den
+Übungslink verteilt. Damit ausgeteilte QR-Codes weiter gelten, führt deren
+Übungslink weiterhin in die Klassenarbeit.
 
 Ist nur ein Modus freigegeben, startet der Link ohne Rückfrage hinein. Sind
 mehrere freigegeben, wählt der Schüler nach der Namenseingabe selbst.
@@ -131,12 +152,12 @@ damit lesbar, auch wenn der Link später umbenannt oder gelöscht wird.
 | `GET /api/topics/usable` | Auswahl für den Baum: eigene + freigegebene Themen |
 | `GET/POST /api/links` | Links auflisten, anlegen |
 | `PATCH/DELETE /api/links/:id` | Ändern, löschen |
-| `POST /api/links/:id/share` | Link + QR abrufen, `{regenerate:true}` erneuert |
-| `DELETE /api/links/:id/share` | Token entwerten |
+| `POST /api/links/:id/share` | Link + QR abrufen, `{regenerate:true}` erneuert, `{access:'exam'}` = Link der Klassenarbeit |
+| `DELETE /api/links/:id/share` | Token entwerten, `?access=exam` für den Link der Klassenarbeit |
 | `GET /api/tags` … | Tags verwalten (CRUD) |
 | `GET /api/public/link/:token` | Öffentliche Vorschau: Name, Modi, Passwortpflicht |
 | `POST /api/public/link/:token/start` | Name/Passwort/Modus prüfen, Module liefern |
-| `POST /api/links/:id/contest-share` | Lernwettkampf: Leitungs- und Schüler-Link |
+| `POST /api/links/:id/contest-share` | Quiz-Arena: Leitungs- und Schüler-Link |
 
 Einstieg im Frontend: `?l=<token>` auf der Startseite, ausgewertet in
 `app.init()` → `LoginView.startLinkEntry()`.

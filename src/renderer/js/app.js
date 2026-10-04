@@ -420,14 +420,14 @@ class App {
       await this.loginView.initLoginScreen();
 
       const params = new URLSearchParams(window.location.search);
-      // Lernwettkampf leiten: ?wh=<Leitungs-Token> – ohne Anmeldung, z. B. am Beamer.
+      // Quiz-Arena leiten: ?wh=<Leitungs-Token> – ohne Anmeldung, z. B. am Beamer.
       const hostToken = params.get('wh');
       if (hostToken) {
         await this.contestView.startHost(hostToken);
         return;
       }
       // Themen-Link: ?l=<token> – Name, ggf. Passwort, ggf. Modusauswahl;
-      // &m=contest führt direkt in den Wartebereich des Lernwettkampfs.
+      // &m=contest führt direkt in den Wartebereich der Quiz-Arena.
       const linkToken = params.get('l');
       if (linkToken) {
         await this.loginView.startLinkEntry(linkToken, params.get('m') === 'contest' ? 'contest' : null);

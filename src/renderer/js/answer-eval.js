@@ -4,7 +4,7 @@ import { scoreDictation, dictationOptions } from './dictation.js';
 
 /**
  * Aufgabentypen, die sich automatisch bewerten lassen. Nur sie taugen für
- * die Lernbegleitung (mehrere Versuche) und den Lernwettkampf; Freitext,
+ * die Lernbegleitung (mehrere Versuche) und die Quiz-Arena; Freitext,
  * Audio-Aufnahme und reine Informationen bewertet kein Automat.
  */
 export const GRADABLE_TYPES = new Set([

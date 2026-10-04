@@ -1,4 +1,4 @@
-# Lernbegleitung und Lernwettkampf
+# Lernbegleitung und Quiz-Arena
 
 Zwei weitere Modi für [Schülerfreigaben](themen-links.md). Beide werden im
 Formular der Freigabe angehakt wie Quiz oder Klassenarbeit.
@@ -69,7 +69,7 @@ Menüpunkt **🦉 Lernbegleiter**. Es gilt die Reihenfolge
 | Kommentare | ergänzt für alle | ergänzt für sich | – |
 | Joker je Durchlauf | Vorgabe | überschreibt | überschreibt |
 | Zeitstrafe (Start, Maximum) | Vorgabe | überschreibt | überschreibt |
-| Tusch (Lernwettkampf) | Vorgabe | überschreibt | – |
+| Tusch (Quiz-Arena) | Vorgabe | überschreibt | – |
 
 Kommentare werden zusammengelegt, die Grundausstattung bleibt immer dabei.
 Eigene Kommentare stehen einer pro Zeile im Feld der jeweiligen Lage.
@@ -79,24 +79,24 @@ alle Kommentare, die Lehrkräfte seiner Schule für sich angelegt haben. Mit ➕
 übernimmt er einen Kommentar in die Schulvorgaben – dann haben alle etwas
 davon.
 
-## 🏆 Lernwettkampf
+## 🏆 Quiz-Arena
 
 Wie Kahoot, aber mit den eigenen Aufgaben.
 
 ### Ablauf
 
-1. In der Freigabe **🏆 Lernwettkampf** anhaken, Höchstpunktzahl und Zeit je
+1. In der Freigabe **🏆 Quiz-Arena** anhaken, Höchstpunktzahl und Zeit je
    Aufgabe festlegen. Unter *Zeit für einzelne Aufgaben anpassen* bekommt
    jede Aufgabe bei Bedarf eine eigene Zeit – ein Drag & Drop braucht länger
    als eine Wahr/Falsch-Frage.
-2. Auf der Karte der Freigabe **🏆 Wettkampf** wählen. Der Dialog zeigt:
+2. Auf der Karte der Freigabe **🏆 Quiz-Arena** wählen. Der Dialog zeigt:
    - den **Leitungs-Link** – öffnet den Wartebereich, z. B. am Beamer.
      Als *Startdatei* gespeichert, genügt später ein Doppelklick.
    - den **Schüler-Link** mit QR-Code, ebenfalls als Datei speicherbar.
 3. Im Wartebereich steht der QR-Code groß. Schüler scannen, geben ihren Namen
    ein und erscheinen sofort in der Liste. Unpassende Namen entfernt die
    Lehrkraft mit ✕.
-4. **▶️ Wettkampf starten.** Alle bekommen dieselbe Aufgabe gleichzeitig auf
+4. **▶️ Quiz-Arena starten.** Alle bekommen dieselbe Aufgabe gleichzeitig auf
    ihr Gerät; am Beamer stehen die Aufgabe, der Countdown und wie viele schon
    geantwortet haben.
 5. Ist die Zeit um oder haben alle geantwortet, folgt die **Auswertung**:
@@ -125,7 +125,7 @@ Eine halb richtige Antwort nach der Hälfte der Zeit bei 1000 Punkten:
 0,5² × 0,75 × 1000 = 188 Punkte.
 
 Nur automatisch bewertbare Aufgaben kommen vor. Freitext, Aufnahmen und
-Informationsseiten überspringt der Wettkampf.
+Informationsseiten überspringt die Quiz-Arena.
 
 ### Tusch
 
@@ -133,21 +133,21 @@ Standard ist eine eingebaute Fanfare, die der Browser selbst erzeugt – ohne
 Datei und ohne Lizenzfrage. Ein eigener Tusch ist ein Nextcloud-Freigabelink
 auf eine Audiodatei (mp3, ogg, wav, m4a), eingetragen unter
 **🦉 Lernbegleiter**: vom Schuladmin für die ganze Schule, von jeder
-Lehrkraft für sich. Mit 🔊/🔇 im Wettkampf lässt er sich abschalten, in der
+Lehrkraft für sich. Mit 🔊/🔇 in der Quiz-Arena lässt er sich abschalten, in der
 Freigabe auch ganz.
 
 ### Ergebnisse
 
 Mit der Siegerehrung landet für jeden Teilnehmer ein Eintrag in der
-Ergebnisliste („🏆 Wettkampf“), mit Platz, Punkten und je Aufgabe
+Ergebnisliste („🏆 Quiz-Arena“), mit Platz, Punkten und je Aufgabe
 Richtigkeit und Antwortzeit.
 
 ### Grenzen
 
-- Ein laufender Wettkampf lebt im Arbeitsspeicher des Servers. Startet der
+- Eine laufende Quiz-Arena lebt im Arbeitsspeicher des Servers. Startet der
   Server neu, ist er weg; die Lehrkraft öffnet den Wartebereich einfach neu.
   Gespeichert wird erst das Endergebnis.
-- Ausgelegt für eine Klasse; mehr als 100 Teilnehmer nimmt ein Wettkampf
+- Ausgelegt für eine Klasse; mehr als 100 Teilnehmer nimmt eine Quiz-Arena
   nicht auf.
 - Die Richtigkeit bewertet – wie im Quiz – der Browser des Schülers. Wer
   sich gut auskennt, könnte das manipulieren. Für den Unterricht reicht es.
@@ -163,7 +163,7 @@ Richtigkeit und Antwortzeit.
 | `PUT /api/companion/school` | Schulvorgaben (nur Schuladmin) |
 | `GET /api/companion/school/colleagues` | Ergänzungen der Lehrkräfte (nur Schuladmin) |
 | `POST /api/links/:id/contest-share` | Leitungs- und Schüler-Link, `{regenerate:true}` erneuert den Leitungs-Link |
-| `POST /api/public/contest/host/:hostToken/open` | Wartebereich öffnen bzw. laufenden Wettkampf aufnehmen |
+| `POST /api/public/contest/host/:hostToken/open` | Wartebereich öffnen bzw. laufende Quiz-Arena aufnehmen |
 | `GET /api/public/contest/host/:hostToken/events` | Ereignisse für die Leitung (SSE) |
 | `POST /api/public/contest/host/:hostToken/{start,next,kick,reset,close}` | Steuerung |
 | `POST /api/public/contest/:token/join` | Beitreten (oder mit `playerId`/`secret` wieder aufnehmen) |
@@ -173,4 +173,4 @@ Richtigkeit und Antwortzeit.
 Code: `src/companion/`, `src/contest/`; im Browser `views/companion-run.js`,
 `views/companion-settings.js`, `views/contest.js` und `answer-eval.js` (die
 gemeinsame Auswertung aller Aufgabentypen für Quiz, Lernbegleitung und
-Wettkampf).
+Quiz-Arena).

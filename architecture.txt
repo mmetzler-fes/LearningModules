@@ -96,11 +96,11 @@ BACKEND – src/
   links/                        CRUD Themen-Links
     links.service.ts            resolveModules() löst die Auswahl in Module auf
                                 contestShare(): Leitungs- und Schüler-Link
-                                für den Lernwettkampf
+                                für die Quiz-Arena
   companion/                    Lernbegleiter (Eule): Kommentare, Joker,
                                 Zeitstrafe, Tusch. Stufen Grundausstattung →
                                 Schule → Lehrkraft → Link (effectiveFor())
-  contest/                      Lernwettkampf: Wartebereich, synchrone Fragen,
+  contest/                      Quiz-Arena: Wartebereich, synchrone Fragen,
                                 Bestenliste, Siegertreppchen. Läuft im
                                 Arbeitsspeicher, Server-Sent Events; am Ende
                                 ein Ergebnis je Schüler (mode 'contest')
@@ -324,7 +324,7 @@ DATENFLUSS (Login → Quiz)
        Lernbegleitung: /start liefert zusätzlich `companion` (Kommentare,
               Joker, Zeitstrafe); CompanionRun steuert Prüfen/Kommentar
 
-  5. Lernwettkampf
+  5. Quiz-Arena
        Leitung: ?wh=<Leitungs-Token> → ContestView.startHost()
        → API: POST /api/public/contest/host/:hostToken/open
        → SSE:  GET  /api/public/contest/host/:hostToken/events

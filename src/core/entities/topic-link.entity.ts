@@ -4,7 +4,7 @@ import { BaseEntity } from './base.entity';
 /**
  * Abfragemodi, die ein Link freischalten kann. `companion` ist die
  * Lernbegleitung (Eule mit Kommentaren, Lernpunkten, Joker und Zeitstrafe),
- * `contest` der Lernwettkampf mit Wartebereich und Siegertreppchen.
+ * `contest` die Quiz-Arena mit Wartebereich und Siegertreppchen.
  */
 export type LinkMode = 'quiz' | 'exam' | 'learn' | 'companion' | 'contest';
 
@@ -18,7 +18,7 @@ export interface LinkCompanionSettings {
   penaltyMax?: number | null;
 }
 
-/** Lernwettkampf: Punkte und Zeit je Aufgabe. */
+/** Quiz-Arena: Punkte und Zeit je Aufgabe. */
 export interface LinkContestSettings {
   /** Höchstpunktzahl je Aufgabe (richtig und sofort beantwortet). */
   maxPoints: number;
@@ -68,6 +68,15 @@ export class TopicLink extends BaseEntity {
   @Column({ type: 'varchar', nullable: true })
   token: string | null;
 
+  /**
+   * Eigener Zugang zur Klassenarbeit (`/?l=<examToken>`). Getrennt vom
+   * Übungslink, damit niemand mit dem Übungslink die Klassenarbeit öffnet –
+   * und damit sie sich unabhängig zurückziehen lässt.
+   */
+  @Index({ unique: true })
+  @Column({ type: 'varchar', nullable: true })
+  examToken: string | null;
+
   /** Deaktivierte Links bleiben erhalten, weisen Schüler aber ab. */
   @Column({ default: true })
   active: boolean;
@@ -104,8 +113,8 @@ export class TopicLink extends BaseEntity {
   contestSettings: LinkContestSettings | null;
 
   /**
-   * Schlüssel für die Wettkampf-Leitung (`/?wh=<token>`). Getrennt vom
-   * Schüler-Token, sonst könnte jeder Schüler den Wettkampf starten. Bleibt
+   * Schlüssel für die Leitung der Quiz-Arena (`/?wh=<token>`). Getrennt vom
+   * Schüler-Token, sonst könnte jeder Schüler die Quiz-Arena starten. Bleibt
    * stabil, damit eine gespeicherte Startdatei immer wieder funktioniert.
    */
   @Index({ unique: true })

@@ -22,7 +22,7 @@ function optionalInt(value: any, min: number, max: number): number | null {
 }
 
 /**
- * Lernbegleiter (Eule) und Tusch für den Lernwettkampf.
+ * Lernbegleiter (Eule) und Tusch für die Quiz-Arena.
  *
  * Es gilt die Reihenfolge Grundausstattung → Schule → Lehrkraft → Link:
  * Kommentare werden zusammengelegt, Einstellungen überschreibt jeweils die

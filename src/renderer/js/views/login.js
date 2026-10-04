@@ -15,7 +15,7 @@ export const LINK_MODE_LABELS = {
   exam:  { icon: '📝', label: 'Klassenarbeit',         hint: 'Ohne Rückmeldung, kein Zurückblättern.' },
   learn: { icon: '💡', label: 'Lernen mit Lösungen',   hint: 'Antworten und sofort die Musterlösung sehen.' },
   companion: { icon: '🦉', label: 'Lernbegleitung',      hint: 'Die Lerneule kommentiert jeden Versuch – mit Lernpunkten, Joker und Denkpause.' },
-  contest: { icon: '🏆', label: 'Lernwettkampf',         hint: 'Alle gleichzeitig: schnell und richtig antworten, Bestenliste und Siegertreppchen.' },
+  contest: { icon: '🏆', label: 'Quiz-Arena',            hint: 'Alle gleichzeitig: schnell und richtig antworten, Bestenliste und Siegertreppchen.' },
 };
 
 // ==================== LOGIN VIEW ====================
@@ -248,7 +248,7 @@ export class LoginView {
    * Modus erlaubt, startet er ohne Rückfrage.
    */
   async startLinkEntry(token, presetMode = null) {
-    // Wettkampf nach einem Neuladen: mit demselben Platz weiter, ohne neue Namenseingabe.
+    // Quiz-Arena nach einem Neuladen: mit demselben Platz weiter, ohne neue Namenseingabe.
     if (await this.app.contestView.resumePlayer(token)) return true;
 
     const section = document.getElementById('linkEntrySection');
@@ -298,14 +298,21 @@ export class LoginView {
     const pwInput = document.getElementById('linkEntryPassword');
     if (pwInput) pwInput.required = !!info.requiresPassword;
 
-    // Der QR-Code im Wartebereich führt direkt in den Wettkampf (…&m=contest).
-    if (presetMode && !(info.modes || []).includes(presetMode)) {
-      showError('Für diese Freigabe ist der Lernwettkampf derzeit nicht eingeschaltet.');
+    // Der QR-Code im Wartebereich führt direkt in die Quiz-Arena (…&m=contest).
+    // Hat eine Freigabe nur die Quiz-Arena, führt auch ihr Übungslink dorthin.
+    if (!presetMode && (info.modes || []).length === 0 && info.contestEnabled) presetMode = 'contest';
+    if (presetMode === 'contest') {
+      if (!info.contestEnabled) {
+        showError('Für diese Freigabe ist die Quiz-Arena derzeit nicht eingeschaltet.');
+        return true;
+      }
+      info.modes = ['contest'];
+    } else if ((info.modes || []).length === 0) {
+      showError('Über diesen Link ist derzeit nichts freigegeben. Bitte bei der Lehrkraft nachfragen.');
       return true;
     }
-    if (presetMode) info.modes = [presetMode];
     if (info.modes.length === 1 && info.modes[0] === 'contest') {
-      document.querySelector('#linkEntryReady .quick-entry-label').textContent = '🏆 Lernwettkampf:';
+      document.querySelector('#linkEntryReady .quick-entry-label').textContent = '🏆 Quiz-Arena:';
       document.getElementById('linkEntryMeta').textContent = 'Gib deinen Namen ein – dann geht es in den Wartebereich.';
     }
 

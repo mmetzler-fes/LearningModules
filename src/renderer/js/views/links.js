@@ -7,6 +7,22 @@ import { saveRedirectFile } from './contest.js';
 // ==================== THEMEN-LINKS ====================
 
 const ALL_MODES = ['quiz', 'exam', 'learn', 'companion', 'contest'];
+/** Modi, zwischen denen Schüler über "Link & QR" wählen. */
+const PRACTICE_MODES = ['quiz', 'learn', 'companion'];
+
+/** Texte des Freigabe-Dialogs je Link. */
+const SHARE_TEXTS = {
+  practice: {
+    title: '🔗 Schülerfreigabe – Link zum Üben',
+    hint: 'Schüler öffnen den Link oder scannen den Code, geben ihren Namen ein und wählen, wie sie üben '
+      + '(Quiz, Lernen mit Lösungen, Lernbegleitung – je nachdem, was du freigegeben hast).',
+  },
+  exam: {
+    title: '📝 Klassenarbeit – eigener Link',
+    hint: 'Dieser Link führt direkt in die Klassenarbeit – getrennt vom Übungslink. Wer ihn hat, kommt hinein: '
+      + 'erst zu Beginn zeigen und danach mit „Zurückziehen“ oder „Neu“ schließen.',
+  },
+};
 
 /**
  * Verwaltung der Themen-Links: benannte Zugänge wie "TG12 Informatik
@@ -112,6 +128,7 @@ export class LinksView {
   _buildCard(link) {
     const card = document.createElement('div');
     card.className = 'link-card' + (link.active ? '' : ' link-card-inactive');
+    const off = link.active ? '' : 'disabled title="Link ist deaktiviert"';
     card.innerHTML = `
       <div class="link-card-main">
         <h3 class="link-card-title">
@@ -135,14 +152,16 @@ export class LinksView {
         <div class="link-card-tags">${this._renderTagChips(link.tagIds)}</div>
       </div>
       <div class="link-card-actions">
-        <button class="btn btn-secondary btn-sm btn-link-share" ${link.active ? '' : 'disabled title="Link ist deaktiviert"'}>🔗 Link &amp; QR</button>
-        ${(link.modes || []).includes('contest') ? `<button class="btn btn-primary btn-sm btn-link-contest" ${link.active ? '' : 'disabled title="Link ist deaktiviert"'}>🏆 Wettkampf</button>` : ''}
+        ${this._hasPractice(link) ? `<button class="btn btn-secondary btn-sm btn-link-share" ${off} title="Link zum Üben: Quiz, Lernen mit Lösungen, Lernbegleitung">🔗 Link &amp; QR</button>` : ''}
+        ${(link.modes || []).includes('exam') ? `<button class="btn btn-secondary btn-sm btn-link-exam" ${off} title="Eigener Link der Klassenarbeit">📝 Klassenarbeit</button>` : ''}
+        ${(link.modes || []).includes('contest') ? `<button class="btn btn-primary btn-sm btn-link-contest" ${off}>🏆 Quiz-Arena</button>` : ''}
         <button class="btn btn-secondary btn-sm btn-link-toggle">${link.active ? '⏸ Deaktivieren' : '▶️ Aktivieren'}</button>
         <button class="btn btn-secondary btn-sm btn-link-edit">✏️ Bearbeiten</button>
         <button class="btn btn-danger btn-sm btn-link-delete">🗑</button>
       </div>`;
 
-    card.querySelector('.btn-link-share').addEventListener('click', () => this._openShareDialog(link));
+    card.querySelector('.btn-link-share')?.addEventListener('click', () => this._openShareDialog(link, 'practice'));
+    card.querySelector('.btn-link-exam')?.addEventListener('click', () => this._openShareDialog(link, 'exam'));
     card.querySelector('.btn-link-contest')?.addEventListener('click', () => this._openContestDialog(link));
     card.querySelector('.btn-link-edit').addEventListener('click', () => this._openEditor(link));
     card.querySelector('.btn-link-toggle').addEventListener('click', async () => {
@@ -241,7 +260,7 @@ export class LinksView {
     if (modes.includes('contest')) this._renderContestTimes();
   }
 
-  /** Lernbegleitung und Wettkampf: gespeicherte Werte ins Formular, Vorgaben als Platzhalter. */
+  /** Lernbegleitung und Quiz-Arena: gespeicherte Werte ins Formular, Vorgaben als Platzhalter. */
   async _fillModeSettings(link) {
     const cs = link?.companionSettings || {};
     const val = (v) => (v === null || v === undefined ? '' : String(v));
@@ -267,7 +286,7 @@ export class LinksView {
     } catch (_) { /* Platzhalter bleiben leer */ }
   }
 
-  /** Aufgaben der aktuellen Auswahl, die im Wettkampf vorkommen (automatisch bewertbar). */
+  /** Aufgaben der aktuellen Auswahl, die in der Quiz-Arena vorkommen (automatisch bewertbar). */
   _contestModules() {
     const topics = this._usableTopics || [];
     const out = [];
@@ -567,7 +586,7 @@ export class LinksView {
     }
   }
 
-  // ---------- Lernwettkampf ----------
+  // ---------- Quiz-Arena ----------
 
   /**
    * Leitungs-Link (für die Lehrkraft, z. B. am Beamer) und Schüler-Link.
@@ -576,7 +595,7 @@ export class LinksView {
   async _openContestDialog(link) {
     const res = await this.app.api.contestShareLink(link.id).catch(() => null);
     if (!res || !res.hostUrl) {
-      this.app.showToast(res?.message || 'Wettkampf-Links konnten nicht erzeugt werden.', 'error');
+      this.app.showToast(res?.message || 'Quiz-Arena-Links konnten nicht erzeugt werden.', 'error');
       return;
     }
     document.getElementById('contestShareOverlay')?.remove();
@@ -585,7 +604,7 @@ export class LinksView {
     overlay.className = 'confirm-overlay';
     overlay.innerHTML = `
       <div class="import-modules-card quicklink-card">
-        <h3>🏆 Lernwettkampf – ${escapeHtml(res.name)}</h3>
+        <h3>🏆 Quiz-Arena – ${escapeHtml(res.name)}</h3>
 
         <div class="form-group">
           <label>1. Wartebereich öffnen (für dich, z. B. am Beamer)</label>
@@ -597,7 +616,7 @@ export class LinksView {
             <a class="btn btn-primary btn-sm" href="${escapeAttr(res.hostUrl)}" target="_blank" rel="noopener">▶️ Wartebereich öffnen</a>
             <button type="button" class="btn btn-secondary btn-sm" data-save="host">💾 Als Startdatei speichern</button>
           </div>
-          <span class="hint">Wer diesen Link hat, kann den Wettkampf leiten – nicht an Schüler weitergeben.
+          <span class="hint">Wer diesen Link hat, kann die Quiz-Arena leiten – nicht an Schüler weitergeben.
             Die Startdatei kannst du z. B. auf dem Desktop des Beamer-PCs ablegen.</span>
         </div>
 
@@ -630,9 +649,9 @@ export class LinksView {
       });
     });
     overlay.querySelector('[data-save="host"]').addEventListener('click', () =>
-      saveRedirectFile(res.hostUrl, `Lernwettkampf ${res.name} – Leitung`, `Wettkampf_${res.name}_Leitung`));
+      saveRedirectFile(res.hostUrl, `Quiz-Arena ${res.name} – Leitung`, `QuizArena_${res.name}_Leitung`));
     overlay.querySelector('[data-save="join"]').addEventListener('click', () =>
-      saveRedirectFile(res.joinUrl, `Lernwettkampf ${res.name} – mitmachen`, `Wettkampf_${res.name}_Schueler`));
+      saveRedirectFile(res.joinUrl, `Quiz-Arena ${res.name} – mitmachen`, `QuizArena_${res.name}_Schueler`));
     overlay.querySelector('[data-regen]').addEventListener('click', async () => {
       if (!(await this.app.appConfirm('Leitungs-Link erneuern? Der alte Link und gespeicherte Startdateien funktionieren dann nicht mehr.'))) return;
       const again = await this.app.api.contestShareLink(link.id, true).catch(() => null);
@@ -648,9 +667,19 @@ export class LinksView {
 
   // ---------- Versenden ----------
 
-  async _openShareDialog(link) {
+  /** Hat die Freigabe Übungsmodi (Quiz, Lernen mit Lösungen, Lernbegleitung)? */
+  _hasPractice(link) {
+    return (link.modes || []).some((m) => PRACTICE_MODES.includes(m));
+  }
+
+  /** access: 'practice' (Link & QR) oder 'exam' (eigener Link der Klassenarbeit). */
+  async _openShareDialog(link, access = 'practice') {
     this._bindShareDialog();
     this._shareLink = link;
+    this._shareAccess = access;
+    const texts = SHARE_TEXTS[access];
+    document.getElementById('linkShareTitle').textContent = texts.title;
+    document.getElementById('linkShareHint').textContent = texts.hint;
     const overlay = document.getElementById('linkShareOverlay');
     if (!overlay) return;
     overlay.classList.remove('hidden');
@@ -668,7 +697,7 @@ export class LinksView {
     warning.classList.add('hidden');
 
     try {
-      const res = await this.app.api.shareLink(this._shareLink.id, regenerate);
+      const res = await this.app.api.shareLink(this._shareLink.id, regenerate, this._shareAccess);
       if (!res || !res.url) throw new Error(res?.message || 'Link konnte nicht erzeugt werden.');
 
       this._shareData = res;
@@ -721,7 +750,7 @@ export class LinksView {
     // Dasselbe Blatt wie beim Drucken, nur als Bild fuer die Zwischenablage.
     document.getElementById('btnCopyLinkShareSheet')?.addEventListener('click', async () => {
       const ok = await copyShareSheetAsPng({
-        title: 'Schülerfreigabe – Link für Schüler',
+        title: SHARE_TEXTS[this._shareAccess || 'practice'].title.replace(/^\S+\s/, ''),
         subtitle: document.getElementById('linkShareInfo')?.textContent || '',
         svg: document.querySelector('#linkShareQr svg'),
         url: this._shareData?.url || '',
@@ -755,7 +784,7 @@ export class LinksView {
         'Link zurückziehen? Schüler kommen danach nicht mehr hinein, der Eintrag bleibt aber erhalten.',
       );
       if (!ok) return;
-      await this.app.api.revokeLink(this._shareLink.id);
+      await this.app.api.revokeLink(this._shareLink.id, this._shareAccess);
       overlay.classList.add('hidden');
       this.app.showToast('Link zurückgezogen', 'info');
       this.refresh();

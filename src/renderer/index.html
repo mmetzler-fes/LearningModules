@@ -550,7 +550,9 @@
               <div class="form-group">
                 <label>Abfragemodus *</label>
                 <div id="linkModes" class="link-mode-choices"></div>
-                <span class="hint">Mehrere Modi erlaubt: Die Schüler wählen dann selbst aus.</span>
+                <span class="hint">Quiz, Lernen mit Lösungen und Lernbegleitung erreichen die Schüler über
+                  <strong>🔗 Link &amp; QR</strong> und wählen dort selbst. <strong>📝 Klassenarbeit</strong> und
+                  <strong>🏆 Quiz-Arena</strong> bekommen je einen eigenen Link auf der Karte der Freigabe.</span>
               </div>
 
               <div class="form-group hidden" id="linkSingleAttemptRow">
@@ -579,7 +581,7 @@
               </div>
 
               <div class="form-group hidden link-mode-settings" id="linkContestRow">
-                <label>🏆 Lernwettkampf</label>
+                <label>🏆 Quiz-Arena</label>
                 <div class="companion-settings-grid">
                   <label>Höchstpunktzahl je Aufgabe
                     <input type="number" id="linkContestMaxPoints" min="10" max="100000" step="10" placeholder="1000" />
@@ -593,7 +595,7 @@
                   </label>
                 </div>
                 <span class="hint">Punkte = Richtigkeit² × Zeitfaktor × Höchstpunktzahl. Der Zeitfaktor sinkt von 1
-                  (sofort) auf ½ (bei Ablauf). Freitext, Aufnahmen und Infoseiten bleiben im Wettkampf außen vor.</span>
+                  (sofort) auf ½ (bei Ablauf). Freitext, Aufnahmen und Infoseiten bleiben in der Quiz-Arena außen vor.</span>
                 <details class="link-contest-times-box">
                   <summary>Zeit für einzelne Aufgaben anpassen</summary>
                   <div id="linkContestTimes" class="link-contest-times"></div>
@@ -627,13 +629,13 @@
         </div>
       </section>
 
-      <!-- Teacher: Lernbegleiter (Eule) und Tusch für den Lernwettkampf -->
+      <!-- Teacher: Lernbegleiter (Eule) und Tusch für die Quiz-Arena -->
       <section class="view" id="view-teacher-companion">
         <div class="view-header">
           <h2>🦉 Lernbegleiter</h2>
           <p class="subtitle">Die Lerneule kommentiert in der <strong>Lernbegleitung</strong> jeden Versuch.
             Hier legst du ihre Kommentare fest, wie viele Joker es gibt und wie lange die Denkpause nach
-            dem Raten dauert – und welcher Tusch beim <strong>Lernwettkampf</strong> die Sieger feiert.</p>
+            dem Raten dauert – und welcher Tusch in der <strong>Quiz-Arena</strong> die Sieger feiert.</p>
         </div>
         <div id="companionSettings" class="settings-panel"></div>
       </section>
@@ -1121,7 +1123,7 @@
   <!-- Themen-Link versenden: QR-Code und URL -->
   <div id="linkShareOverlay" class="confirm-overlay hidden">
     <div class="import-modules-card quicklink-card" id="linkShareCard">
-      <h3>🔗 Schülerfreigabe – Link für Schüler</h3>
+      <h3 id="linkShareTitle">🔗 Schülerfreigabe – Link für Schüler</h3>
       <p class="hint" id="linkShareInfo"></p>
       <p class="login-error hidden" id="linkShareWarning"></p>
 
@@ -1140,9 +1142,7 @@
         </div>
       </div>
 
-      <p class="hint">Schüler öffnen den Link oder scannen den Code, geben ihren Namen ein
-        und starten in dem Modus, den du freigegeben hast. Wer den Link hat, kommt hinein –
-        für eine Klassenarbeit also erst zu Beginn zeigen.</p>
+      <p class="hint" id="linkShareHint"></p>
 
       <div class="confirm-actions">
         <button type="button" class="btn btn-secondary" id="btnCopyLinkShareSheet"

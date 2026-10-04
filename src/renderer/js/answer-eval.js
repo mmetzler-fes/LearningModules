@@ -26,6 +26,22 @@ export const ONE_SHOT_TYPES = new Set(['arithmeticQuiz', 'branchingScenario']);
  * Ergebnis: isCorrect, points (0 bis 1; null bei reinen Informationen),
  * userAnswer, correctAnswer und ggf. score als lesbare Auswertung.
  */
+/**
+ * Lücke bei Drag the Words: *Sternpunkt|Neutralleiter* lässt beide Wörter
+ * gelten, in die Wortbank kommt das erste. Trenner ist "|", nicht "/" wie
+ * bei Fill in the Blanks – sonst zerfielen Wörter wie "km/h" oder "U / √3".
+ */
+export function dtwAlternatives(spec) {
+  const alts = String(spec || '').split('|').map((a) => a.trim()).filter(Boolean);
+  return alts.length ? alts : [String(spec || '').trim()];
+}
+
+/** Passt das abgelegte Wort zu einer der Alternativen der Lücke? */
+export function dtwMatches(current, spec) {
+  const word = String(current || '').trim().toLowerCase();
+  return !!word && dtwAlternatives(spec).some((a) => a.toLowerCase() === word);
+}
+
 export function collectAnswer(mod, root) {
   const content = mod.content || {};
   const result = {
@@ -136,8 +152,8 @@ export function collectAnswer(mod, root) {
       let correct = 0; const ua = []; const ca = [];
       zones.forEach((z) => {
         const current = (z.dataset.currentWord || '').trim(); const expected = z.dataset.correctWord;
-        if (current.toLowerCase() === expected.toLowerCase()) correct++;
-        ua.push(current || '(leer)'); ca.push(expected);
+        if (dtwMatches(current, expected)) correct++;
+        ua.push(current || '(leer)'); ca.push(dtwAlternatives(expected).join(' / '));
       });
       result.userAnswer = ua.join(', '); result.correctAnswer = ca.join(', ');
       result.percent = zones.length > 0 ? Math.round((correct / zones.length) * 100) : 0;

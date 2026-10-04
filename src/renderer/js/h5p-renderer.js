@@ -1,5 +1,6 @@
 import { videoSourceOf } from './video.js';
 import { normalizeBranching } from './branching.js';
+import { dtwAlternatives, dtwMatches } from './answer-eval.js';
 import { audioSourceOf, scoreDictation, dictationOptions } from './dictation.js';
 import { normalizeShareUrl, sanitizeModuleDescriptionHtml, sanitizeWorksheetHtml, escapeHtml, escapeAttr, hexTint, showContextMenu, attachPointerDrag } from './utils.js';
 
@@ -594,8 +595,9 @@ export class H5pRenderer {
             parts.forEach((part) => {
               const match = part.match(/^\*(.+)\*$/);
               if (match) {
+                // *A|B*: beide Wörter gelten, in die Wortbank kommt A.
                 const correctWord = match[1];
-                draggableWords.push(correctWord);
+                draggableWords.push(dtwAlternatives(correctWord)[0]);
                 const dropZone = document.createElement('span');
                 dropZone.className = 'dtw-drop-zone';
                 dropZone.dataset.correctWord = correctWord;
@@ -717,7 +719,7 @@ export class H5pRenderer {
               z.classList.remove('dtw-correct', 'dtw-wrong', 'dtw-missing');
               const current = (z.dataset.currentWord || '').trim();
               const expected = z.dataset.correctWord;
-              if (current.toLowerCase() === expected.toLowerCase()) { z.classList.add('dtw-correct'); correct++; }
+              if (dtwMatches(current, expected)) { z.classList.add('dtw-correct'); correct++; }
               else if (current) { z.classList.add('dtw-wrong'); }
               else { z.classList.add('dtw-missing'); }
             });

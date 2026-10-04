@@ -208,8 +208,8 @@ const H5P_TYPES = {
     fields: [
       { key: 'taskDescription', type: 'richtext', label: 'Aufgabenbeschreibung' },
       { key: 'imageUrl', type: 'image', label: 'Bild (optional)' },
-      { key: 'textField', type: 'richtext', label: 'Text (ziehbare Wörter mit *Sternchen* markieren)', required: true,
-        placeholder: 'Die *Sonne* scheint am *Himmel*.' },
+      { key: 'textField', type: 'richtext', label: 'Text (ziehbare Wörter mit *Sternchen* markieren, mehrere richtige Wörter mit | trennen: *Sternpunkt|Neutralleiter*)', required: true,
+        placeholder: 'Die *Sonne* scheint am *Himmel|Firmament*.' },
       { key: 'distractors', type: 'text', label: 'Ablenkwörter (werden nicht benötigt, mit *Sternchen* markieren)',
         placeholder: '*Mond* *Wolke*' },
       { key: 'enableRetry', type: 'checkbox', label: 'Wiederholen erlauben', default: true, advanced: true },

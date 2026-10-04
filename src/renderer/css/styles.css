@@ -4203,3 +4203,8 @@ body {
   .student-run .companion-panel:not(.companion-in-sidebar) .companion-bubble { font-size: 1rem; padding: 8px 12px; }
   .student-run .companion-status { margin-top: 4px; font-size: 0.85rem; }
 }
+
+/* Abschluss ohne Netz: Ergebnis erneut senden */
+.quiz-save-failed { margin: 16px auto; max-width: 560px; text-align: left; }
+.quiz-save-failed p { margin: 0 0 10px; }
+.quiz-save-ok { margin: 16px auto; color: var(--success, #16a34a); font-weight: 600; }

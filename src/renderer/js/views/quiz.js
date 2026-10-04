@@ -220,6 +220,7 @@ export class QuizView {
 
   /** Gemeinsames Umschalten in den Player, egal woher der Start kam. */
   _enterPlayer(title) {
+    this._finishing = false;
     // Schüler: kompakte Ansicht, damit die Aufgabe in die Bildschirmhöhe passt.
     document.body.classList.toggle('student-run', this.app.state.currentUser?.role === 'student');
     document.body.classList.toggle('companion-run', !!this._companion);
@@ -361,6 +362,11 @@ export class QuizView {
     const { quizState, currentUser } = state;
     const isExam = quizState.mode === 'exam';
     const isLearn = quizState.mode === 'learn';
+    // Ein zweiter Klick, während noch gespeichert wird, darf nicht noch
+    // einmal abschließen (und kein zweites Ergebnis anlegen).
+    if (this._finishing) return;
+    this._finishing = true;
+    this._btnQuizNext.disabled = true;
     const companion = this._companion;
     this._endCompanion();
     // Informationsmodule bleiben in der Liste sichtbar, aber aus der
@@ -376,11 +382,15 @@ export class QuizView {
     const total = companion ? graded.length * COMPANION_MAX : graded.length;
     const percentage = total > 0 ? Math.round((score / total) * 100) : 0;
 
+    // Speichern darf das Ende nicht aufhalten: Ohne Netz (WLAN aus) warf der
+    // Aufruf, und das Quiz blieb mit "Abschließen" stehen. Jetzt kommt die
+    // Auswertung immer, und ein Fehlschlag lässt sich erneut senden.
+    let send = null;
     if (isLearn) {
       // Lernen mit Lösungen ist zum Üben da – dabei entsteht kein Eintrag im
       // Ergebnis-Log der Lehrkraft.
     } else if (currentUser.role === 'student') {
-      await api.submitPublicResult({
+      send = () => api.submitPublicResult({
         teacherEmail: currentUser.teacherEmail,
         linkToken: quizState.linkToken || undefined,
         quickToken: quizState.quickToken || undefined,
@@ -398,11 +408,21 @@ export class QuizView {
         },
       });
     } else {
-      await api.saveQuizResult({
+      send = () => api.saveQuizResult({
         username: currentUser.name, topicId: quizState.topicId, topicTitle: quizState.topicTitle,
         score, totalQuestions: total, percentage, details: quizState.answers,
       });
     }
+    const trySend = async () => {
+      try {
+        const res = await send();
+        // Fehlerantworten des Servers kommen als JSON mit statusCode zurück.
+        return !(res && (res.statusCode >= 400 || res.success === false));
+      } catch (_) {
+        return false;
+      }
+    };
+    const saved = send ? await trySend() : true;
 
     this._quizPlayerArea.classList.add('hidden');
     this._quizResultArea.classList.remove('hidden');
@@ -424,6 +444,11 @@ export class QuizView {
         </div>`}
         <p>${t('quiz.topic')}: <strong>${escapeHtml(quizState.topicTitle)}</strong></p>
         ${isLearn ? '<p class="hint">Übungsdurchlauf – dieses Ergebnis wird nicht gespeichert.</p>' : ''}
+        ${saved ? '' : `<div class="quiz-save-failed login-error">
+          <p>⚠️ Das Ergebnis konnte nicht gesendet werden – vermutlich gibt es gerade keine Internetverbindung.
+            Bitte diese Seite offen lassen, die Verbindung prüfen und dann erneut senden.</p>
+          <button class="btn btn-primary btn-sm" id="btnQuizResend">🔄 Erneut senden</button>
+        </div>`}
         <div class="quiz-result-details">
           ${isExam
             ? '<p style="color:var(--text-secondary);">Klassenarbeit: Die Detail-Rückmeldung ist ausgeblendet.</p>'
@@ -443,7 +468,25 @@ export class QuizView {
         </div>
       </div>`;
 
-    this._quizResultArea.querySelector('#btnQuizRestart').addEventListener('click', () => {
+    this._quizResultArea.querySelector('#btnQuizResend')?.addEventListener('click', async (e) => {
+      const btn = e.currentTarget;
+      btn.disabled = true;
+      btn.textContent = 'Wird gesendet…';
+      const box = btn.closest('.quiz-save-failed');
+      if (await trySend()) {
+        box.className = 'quiz-save-ok';
+        box.innerHTML = '<p>✓ Ergebnis gesendet.</p>';
+      } else {
+        btn.disabled = false;
+        btn.textContent = '🔄 Erneut senden';
+        this.app.showToast('Immer noch keine Verbindung – bitte gleich noch einmal versuchen.', 'error');
+      }
+    });
+
+    this._quizResultArea.querySelector('#btnQuizRestart').addEventListener('click', async () => {
+      // Nicht gesendetes Ergebnis nicht stillschweigend verwerfen.
+      if (this._quizResultArea.querySelector('.quiz-save-failed')
+        && !(await this.app.appConfirm('Das Ergebnis wurde noch nicht gesendet und geht verloren. Trotzdem neu starten?'))) return;
       state.quizState = null;
       this._quizResultArea.classList.add('hidden');
       this._quizTopicSelect.classList.remove('hidden');
@@ -452,5 +495,6 @@ export class QuizView {
     });
 
     state.quizState = null;
+    this._finishing = false;
   }
 }

@@ -1,5 +1,5 @@
 import { escapeHtml } from '../utils.js';
-import { collectAnswer } from '../answer-eval.js';
+import { collectAnswer, splitTrueFalse } from '../answer-eval.js';
 import { CompanionRun, COMPANION_MAX } from './companion-run.js';
 
 // ==================== QUIZ VIEW ====================
@@ -159,7 +159,7 @@ export class QuizView {
       // Themenname und Linkname getrennt halten – sonst stünde in der
       // Ergebnisliste zweimal dasselbe.
       topicTitle: (data.topics || []).map((t) => t.title).join(', '),
-      modules,
+      modules: splitTrueFalse(modules),
       currentIndex: 0,
       answers: [],
       startTime: Date.now(),
@@ -200,7 +200,7 @@ export class QuizView {
     this.app.state.quizState = {
       topicId: freshTopic.id,
       topicTitle: freshTopic.title,
-      modules,
+      modules: splitTrueFalse(modules),
       currentIndex: 0,
       answers: [],
       startTime: Date.now(),

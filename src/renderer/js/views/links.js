@@ -316,7 +316,7 @@ export class LinksView {
       <label class="link-contest-time">
         <span>${(H5P_TYPES[m.type] || {}).icon || ''} ${escapeHtml(m.title)} <small class="hint">${escapeHtml(m._topicTitle)}</small></span>
         <input type="number" min="5" max="600" data-module="${escapeAttr(m.id)}"
-          value="${escapeAttr(String(this._contestSeconds[m.id] ?? ''))}" placeholder="${escapeAttr(def)}" /> s
+          value="${escapeAttr(String(this._contestSeconds[m.id] ?? ''))}" placeholder="${escapeAttr(def)}" /> s${m.type === 'trueFalse' ? ' <small class="hint">je Frage</small>' : ''}
       </label>`).join('');
     this._contestTimes.querySelectorAll('input[data-module]').forEach((inp) => {
       inp.addEventListener('input', () => {

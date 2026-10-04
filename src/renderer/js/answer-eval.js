@@ -27,6 +27,35 @@ export const ONE_SHOT_TYPES = new Set(['arithmeticQuiz', 'branchingScenario']);
  * userAnswer, correctAnswer und ggf. score als lesbare Auswertung.
  */
 /**
+ * Wahr/Falsch mit mehreren Fragen wird im Durchlauf in einzelne Schritte
+ * zerlegt: jede Frage eine eigene Aufgabe mit eigenem Weiter/Prüfen. Im
+ * Editor bleibt es ein Modul. "Fragen zufällig mischen" mischt die Schritte.
+ * Gegenstück für die Quiz-Arena: splitTrueFalse() in contest.service.ts.
+ */
+export function splitTrueFalse(modules) {
+  const out = [];
+  for (const mod of modules) {
+    let content = mod?.type === 'trueFalse' ? mod.content : null;
+    if (typeof content === 'string') { try { content = JSON.parse(content); } catch (_) { content = null; } }
+    const questions = content?.questions;
+    if (!Array.isArray(questions) || questions.length < 2) { out.push(mod); continue; }
+    const order = questions.map((_, i) => i);
+    if (content.randomOrder) {
+      for (let i = order.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [order[i], order[j]] = [order[j], order[i]];
+      }
+    }
+    order.forEach((qi, n) => out.push({
+      ...mod,
+      title: `${mod.title} (${n + 1}/${order.length})`,
+      content: { ...content, questions: [{ ...questions[qi] }], randomOrder: false },
+    }));
+  }
+  return out;
+}
+
+/**
  * Lücke bei Drag the Words: *Sternpunkt|Neutralleiter* lässt beide Wörter
  * gelten, in die Wortbank kommt das erste. Trenner ist "|", nicht "/" wie
  * bei Fill in the Blanks – sonst zerfielen Wörter wie "km/h" oder "U / √3".

@@ -127,6 +127,14 @@ Eine halb richtige Antwort nach der Hälfte der Zeit bei 1000 Punkten:
 Nur automatisch bewertbare Aufgaben kommen vor. Freitext, Aufnahmen und
 Informationsseiten überspringt die Quiz-Arena.
 
+Ein Wahr/Falsch-Modul mit mehreren Fragen wird in einzelne Runden zerlegt –
+jede Frage hat ihren eigenen Countdown und ihre eigene Auswertung. Ist im
+Modul *Fragen zufällig mischen* angehakt, kommen sie gemischt (für alle
+Spieler in derselben Reihenfolge). Eine eigene Zeit für das Modul gilt je
+Frage. Genauso läuft es in Quiz, Lernbegleitung und Klassenarbeit: Jede
+Frage ist ein eigener Schritt mit Weiter bzw. Prüfen; im Editor bleibt es
+ein Modul.
+
 ### Tusch
 
 Standard ist eine eingebaute Fanfare, die der Browser selbst erzeugt – ohne

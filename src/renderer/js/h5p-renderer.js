@@ -221,7 +221,7 @@ export class H5pRenderer {
         let tfIdx = 0;
         div.innerHTML = `
           <div class="tf-player">
-            <div class="tf-progress"><span id="tfProgress">Frage 1 von ${tfQuestions.length}</span></div>
+            ${tfQuestions.length > 1 ? `<div class="tf-progress"><span id="tfProgress">Frage 1 von ${tfQuestions.length}</span></div>` : ''}
             <div class="tf-card">
               ${this.renderModuleImage(content, { marginBottom: '20px' })}
               <p id="tfQuestion" class="tf-question"></p>
@@ -231,7 +231,8 @@ export class H5pRenderer {
               </div>
               <div id="tfFeedback" class="tf-feedback"></div>
             </div>
-            <div class="tf-nav">
+            <!-- Eine einzelne Frage braucht kein eigenes Blättern – das macht Weiter/Prüfen des Quiz. -->
+            <div class="tf-nav${tfQuestions.length > 1 ? '' : ' hidden'}">
               <button class="btn btn-secondary btn-sm" id="tfPrev">← Zurück</button>
               <span id="tfScore" class="tf-score"></span>
               <button class="btn btn-secondary btn-sm" id="tfNext">Weiter →</button>
@@ -260,7 +261,7 @@ export class H5pRenderer {
         const showTfQuestion = () => {
           const q = tfQuestions[tfIdx];
           tfQuestion.textContent = q.question || '';
-          tfProgress.textContent = `Frage ${tfIdx + 1} von ${tfQuestions.length}`;
+          if (tfProgress) tfProgress.textContent = `Frage ${tfIdx + 1} von ${tfQuestions.length}`;
           if (tfResults[tfIdx] !== null) {
             // In exam mode: keep buttons enabled to allow changing answer before moving on
             tfTrue.disabled = suppressFeedback ? false : true;

@@ -10,7 +10,7 @@ import { User } from '../core/entities/user.entity';
 import { Result } from '../core/entities/result.entity';
 import { LinksService, contestSettingsOf } from '../links/links.service';
 import { CompanionService } from '../companion/companion.service';
-import { forStudents } from '../core/public/student-view';
+import { forStudents, contentOf } from '../core/public/student-view';
 import { baseUrl, renderQr } from '../core/share/link-url';
 
 /**
@@ -22,6 +22,30 @@ const GRADABLE_TYPES = new Set([
   'multipleChoice', 'trueFalse', 'fillInTheBlanks', 'markTheWords', 'dragTheWords',
   'dictation', 'dragAndDrop', 'flashcards', 'arithmeticQuiz', 'branchingScenario',
 ]);
+
+/**
+ * Wahr/Falsch mit mehreren Fragen: In der Quiz-Arena ist jede Frage eine
+ * eigene Runde. "Fragen zufällig mischen" mischt die Runden – einmal je
+ * Durchgang, also für alle Spieler gleich. Gegenstück im Browser:
+ * splitTrueFalse() in answer-eval.js.
+ */
+export function splitTrueFalse(m: any): any[] {
+  const content = m?.type === 'trueFalse' ? contentOf(m) : null;
+  const questions = content?.questions;
+  if (!Array.isArray(questions) || questions.length < 2) return [m];
+  const order = questions.map((_: any, i: number) => i);
+  if (content.randomOrder) {
+    for (let i = order.length - 1; i > 0; i--) {
+      const j = crypto.randomInt(i + 1);
+      [order[i], order[j]] = [order[j], order[i]];
+    }
+  }
+  return order.map((qi: number, n: number) => ({
+    ...m,
+    title: `${m.title} (${n + 1}/${order.length})`,
+    content: { ...content, questions: [{ ...questions[qi] }], randomOrder: false },
+  }));
+}
 
 const MAX_PLAYERS = 100;
 const MAX_NAME = 40;
@@ -200,12 +224,15 @@ export class ContestService implements OnModuleDestroy {
       for (const m of modules) {
         if (!GRADABLE_TYPES.has(m.type)) continue;
         const { subModules: _sub, ...plain } = m as any;
-        out.push({
-          module: forStudents(plain),
-          topicId: topic.id,
-          topicTitle: topic.title,
-          seconds: cfg.seconds[m.id] || cfg.defaultSeconds,
-        });
+        // Eine eigene Zeit gilt für jede einzelne Wahr/Falsch-Frage des Moduls.
+        for (const part of splitTrueFalse(forStudents(plain))) {
+          out.push({
+            module: part,
+            topicId: topic.id,
+            topicTitle: topic.title,
+            seconds: cfg.seconds[m.id] || cfg.defaultSeconds,
+          });
+        }
       }
     }
     return out;

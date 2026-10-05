@@ -20,6 +20,12 @@ export class ClassesController {
     return this.classesService.setSchoolYear(req.user, body?.schoolYear);
   }
 
+  /** Mehrere Klassen einlesen (Export des SchülerLernTools); `{ dryRun: true }` liefert die Vorschau. */
+  @Post('import')
+  async importClasses(@Request() req: any, @Body() body: any) {
+    return this.classesService.importClasses(req.user, body);
+  }
+
   @Get()
   async findAll(@Request() req: any, @Query('year') year?: string) {
     return this.classesService.findAll(req.user, year);
@@ -64,6 +70,17 @@ export class ClassesController {
     @Body() body: { firstName?: string; lastName?: string; confirm?: boolean },
   ) {
     return this.classesService.updateStudent(id, studentId, req.user, body);
+  }
+
+  /** Unbestätigten Eintrag mit einem Schüler zusammenführen (`{ targetId }`). */
+  @Post(':id/students/:studentId/merge')
+  async mergeStudent(
+    @Param('id') id: string,
+    @Param('studentId') studentId: string,
+    @Request() req: any,
+    @Body() body: { targetId?: string },
+  ) {
+    return this.classesService.mergeStudent(id, studentId, req.user, String(body?.targetId || ''));
   }
 
   @Delete(':id/students/:studentId')

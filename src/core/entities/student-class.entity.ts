@@ -34,6 +34,13 @@ export class StudentClass extends BaseEntity {
   @Column({ default: false })
   strict: boolean;
 
+  /**
+   * Klassen-ID aus dem SchülerLernTool. Daran erkennt ein späteres Einlesen
+   * dieselbe Klasse wieder, auch wenn sie umbenannt wurde.
+   */
+  @Column({ type: 'varchar', nullable: true })
+  importId: string | null;
+
   /** Klasse des Vorjahres, aus der diese übernommen wurde. */
   @Column({ type: 'varchar', nullable: true })
   predecessorId: string | null;

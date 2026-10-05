@@ -7,11 +7,13 @@ import { ClassStudent } from '../core/entities/class-student.entity';
 import { SystemConfig } from '../core/entities/system-config.entity';
 import { Result } from '../core/entities/result.entity';
 import { TopicLink } from '../core/entities/topic-link.entity';
-import { isSchoolYear, schoolYearOfDate, compareSchoolYearsDesc } from './school-year';
+import { isSchoolYear, schoolYearOfDate, compareSchoolYearsDesc, splitSchoolYearPrefix } from './school-year';
 import { planStudentImport, nameKey, ImportRow } from './student-import';
+import { matchStudent, splitTypedName, normalizeName } from './name-match';
 
 const SCHOOL_YEAR_KEY = 'school_year';
 const MAX_IMPORT_ROWS = 500;
+const MAX_IMPORT_CLASSES = 60;
 
 const cleanName = (v: unknown, max = 80) => String(v ?? '').normalize('NFC').replace(/\s+/g, ' ').trim().slice(0, max);
 
@@ -110,6 +112,55 @@ export class ClassesService implements OnApplicationBootstrap {
   /** Klasse ohne Rechteprüfung – für das Speichern von Ergebnissen über einen Klassenlink. */
   async findById(id: string | null | undefined): Promise<StudentClass | null> {
     return id ? this.classRepo.findOne({ where: { id } }) : null;
+  }
+
+  /**
+   * Anmeldung über einen Klassenlink: Wer ist das?
+   *
+   * Passt der Name genau einem Schüler, ist er es. Sonst weist eine strikte
+   * Klasse ab – ohne Namen zu verraten, sonst ließe sich über den Link die
+   * Klassenliste auslesen. Eine offene Klasse nimmt den Namen als
+   * unbestätigten Eintrag auf (oder findet den von neulich wieder); die
+   * Lehrkraft bestätigt ihn oder führt ihn mit einem Schüler zusammen.
+   */
+  async resolveStudent(klasse: StudentClass, typedName: string): Promise<{ studentId: string; name: string }> {
+    const students = await this.studentRepo.find({ where: { classId: klasse.id } });
+    const found = matchStudent(typedName, students);
+    if (found.kind === 'match') {
+      return { studentId: found.student.id, name: `${found.student.firstName} ${found.student.lastName}`.trim() };
+    }
+    if (klasse.strict) {
+      throw new ForbiddenException(
+        found.kind === 'ambiguous'
+          ? 'Der Name passt zu mehreren Schülern der Klasse. Bitte zusätzlich den Nachnamen oder seinen Anfang eingeben, z. B. „Max M“.'
+          : 'Dieser Name steht nicht in der Klassenliste. Bitte Vor- und Nachnamen prüfen – sonst bei der Lehrkraft melden.',
+      );
+    }
+    const typed = splitTypedName(typedName);
+    const key = normalizeName(`${typed.firstName} ${typed.lastName}`);
+    const again = students.find((s) => s.status === 'pending' && normalizeName(`${s.firstName} ${s.lastName}`) === key);
+    if (again) return { studentId: again.id, name: `${again.firstName} ${again.lastName}`.trim() };
+    const created = await this.studentRepo.save(
+      this.studentRepo.create({
+        id: crypto.randomUUID(), classId: klasse.id, firstName: typed.firstName.slice(0, 80),
+        lastName: typed.lastName.slice(0, 80), status: 'pending', importId: null,
+      }),
+    );
+    return { studentId: created.id, name: `${created.firstName} ${created.lastName}`.trim() };
+  }
+
+  /**
+   * Unbestätigten Eintrag mit einem Schüler zusammenführen: Seine Ergebnisse
+   * gehen auf den Schüler über, der Eintrag verschwindet.
+   */
+  async mergeStudent(classId: string, studentId: string, user: any, targetId: string) {
+    const from = await this.ownStudent(classId, studentId, user);
+    const to = await this.studentRepo.findOne({ where: { id: String(targetId || ''), classId } });
+    if (!to || to.id === from.id) throw new BadRequestException('Bitte einen anderen Schüler der Klasse wählen.');
+    const name = `${to.firstName} ${to.lastName}`.trim();
+    const moved = await this.resultRepo.update({ studentId: from.id }, { studentId: to.id, studentName: name });
+    await this.studentRepo.remove(from);
+    return { success: true, moved: moved.affected ?? 0 };
   }
 
   private async assertNameFree(user: any, schoolYear: string, name: string, exceptId?: string) {
@@ -226,12 +277,17 @@ export class ClassesService implements OnApplicationBootstrap {
     }
     if (body?.lastName !== undefined) student.lastName = cleanName(body.lastName);
     if (body?.confirm) student.status = 'confirmed';
-    return this.studentRepo.save(student);
+    const saved = await this.studentRepo.save(student);
+    // Ergebnisse tragen den Namen mit – nach einer Korrektur den richtigen.
+    await this.resultRepo.update({ studentId: saved.id }, { studentName: `${saved.firstName} ${saved.lastName}`.trim() });
+    return saved;
   }
 
   async removeStudent(classId: string, studentId: string, user: any) {
     const student = await this.ownStudent(classId, studentId, user);
     await this.studentRepo.remove(student);
+    // Ergebnisse bleiben mit ihrem Namen stehen, gehören aber niemandem mehr.
+    await this.resultRepo.update({ studentId: student.id }, { studentId: null });
     return { success: true };
   }
 
@@ -245,7 +301,15 @@ export class ClassesService implements OnApplicationBootstrap {
     if (rows.length === 0) throw new BadRequestException('Die Liste enthält keine Schüler.');
     if (rows.length > MAX_IMPORT_ROWS) throw new BadRequestException(`Höchstens ${MAX_IMPORT_ROWS} Schüler je Import.`);
 
-    const existing = await this.studentRepo.find({ where: { classId } });
+    const { summary, apply } = await this.planImport(classId, rows);
+    if (body?.dryRun) return { dryRun: true, ...summary };
+    await apply();
+    return { success: true, ...summary };
+  }
+
+  /** Abgleich der Schülerliste: Zusammenfassung für die Vorschau und `apply` zum Übernehmen. */
+  private async planImport(classId: string | null, rows: ImportRow[]) {
+    const existing = classId ? await this.studentRepo.find({ where: { classId } }) : [];
     const plan = planStudentImport(existing, rows);
     const summary = {
       added: plan.add.length,
@@ -255,8 +319,11 @@ export class ClassesService implements OnApplicationBootstrap {
       addNames: plan.add.map((r) => `${r.firstName} ${r.lastName}`.trim()),
       updateNames: plan.update.map((r) => `${r.firstName} ${r.lastName}`.trim()),
     };
-    if (body?.dryRun) return { dryRun: true, ...summary };
+    const apply = (targetId = classId as string) => this.applyImport(targetId, existing, plan);
+    return { summary, apply };
+  }
 
+  private async applyImport(classId: string, existing: ClassStudent[], plan: ReturnType<typeof planStudentImport>) {
     const byId = new Map(existing.map((s) => [s.id, s]));
     const changed = plan.update.map((u) => Object.assign(byId.get(u.id) as ClassStudent, u));
     const added = plan.add.map((r) =>
@@ -270,6 +337,59 @@ export class ClassesService implements OnApplicationBootstrap {
       }),
     );
     await this.studentRepo.save([...changed, ...added]);
-    return { success: true, ...summary };
+  }
+
+  /**
+   * Mehrere Klassen auf einmal einlesen – der Export „Klassen für
+   * LearningModules“ des SchülerLernTools. Das Schuljahr steht dort als
+   * Vorsatz im Namen ("SJ26-27-E1ME1"), sonst gilt `schoolYear`. Vorhandene
+   * Klassen werden über die Klassen-ID, sonst über den Namen gefunden und
+   * ergänzt; neue werden angelegt. `strict` schaltet die strikte Anmeldung
+   * für alle eingelesenen Klassen ein. Mit `dryRun` nur die Vorschau.
+   */
+  async importClasses(
+    user: any,
+    body: { classes?: Array<{ name?: string; classId?: string; students?: ImportRow[] }>; schoolYear?: string; strict?: boolean; dryRun?: boolean },
+  ) {
+    const input = Array.isArray(body?.classes) ? body.classes : [];
+    if (input.length === 0) throw new BadRequestException('Die Datei enthält keine Klassen.');
+    if (input.length > MAX_IMPORT_CLASSES) throw new BadRequestException(`Höchstens ${MAX_IMPORT_CLASSES} Klassen je Import.`);
+    const fallbackYear = isSchoolYear(body?.schoolYear) ? body.schoolYear : await this.currentSchoolYear();
+    const mine = await this.classRepo.find({ where: { ownerId: user.userId } });
+
+    const result: any[] = [];
+    for (const c of input) {
+      const split = splitSchoolYearPrefix(cleanName(c?.name, 60));
+      const name = split.name.slice(0, 40);
+      if (!name) continue;
+      const schoolYear = split.schoolYear || fallbackYear;
+      const importId = cleanName(c?.classId, 64) || null;
+      const rows = Array.isArray(c?.students) ? c.students.slice(0, MAX_IMPORT_ROWS) : [];
+      const sameYear = mine.filter((k) => k.schoolYear === schoolYear);
+      const target =
+        (importId && sameYear.find((k) => k.importId === importId)) ||
+        sameYear.find((k) => k.name.toLocaleLowerCase('de') === name.toLocaleLowerCase('de')) ||
+        null;
+      const { summary, apply } = await this.planImport(target?.id ?? null, rows);
+      result.push({ name: target?.name ?? name, schoolYear, exists: !!target, strict: !!target?.strict, ...summary });
+      if (body?.dryRun) continue;
+
+      let klasse = target;
+      if (!klasse) {
+        klasse = await this.classRepo.save(
+          this.classRepo.create({
+            id: crypto.randomUUID(), name, ownerId: user.userId, schoolYear, strict: false,
+            predecessorId: null, importId, createdBy: user.userId,
+          }),
+        );
+        mine.push(klasse);
+      } else if (importId && !klasse.importId) {
+        klasse.importId = importId;
+      }
+      if (body?.strict) klasse.strict = true;
+      await this.classRepo.save(klasse);
+      await apply(klasse.id);
+    }
+    return { dryRun: !!body?.dryRun, classes: result };
   }
 }

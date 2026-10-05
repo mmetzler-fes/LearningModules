@@ -412,6 +412,7 @@ export class QuizView {
         quickToken: quizState.quickToken || undefined,
         mode: quizState.mode,
         studentName: currentUser.name,
+        studentTicket: quizState.linkToken ? this.app.state.linkSession?.studentTicket || undefined : undefined,
         topicId: quizState.topicId,
         moduleId: null,
         score, maxScore: total,

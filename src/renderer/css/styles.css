@@ -4252,3 +4252,5 @@ body {
 .ai-prompt-row label { display: flex; flex-direction: column; gap: 4px; font-weight: 600; }
 .ai-prompt-types { display: flex; flex-wrap: wrap; gap: 6px 16px; }
 .ai-prompt-output { width: 100%; font-family: ui-monospace, monospace; font-size: 0.85em; margin-top: 12px; }
+.class-strict-toggle, .class-strict-choice { align-items: flex-start; gap: 8px; margin: 8px 0 4px; }
+.class-strict-toggle span, .class-strict-choice span { font-size: 0.9em; line-height: 1.4; }

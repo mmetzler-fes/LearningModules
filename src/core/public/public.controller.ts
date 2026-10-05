@@ -14,6 +14,7 @@ import { TopicsService } from '../../topics/topics.service';
 import { GroupsService } from '../../groups/groups.service';
 import { CompanionService } from '../../companion/companion.service';
 import { ClassesService } from '../../classes/classes.service';
+import { issueTicket, readTicket } from '../../classes/student-ticket';
 import { TimingsService } from '../../timings/timings.service';
 import { contentOf, forStudents } from './student-view';
 import * as crypto from 'crypto';
@@ -153,7 +154,7 @@ export class PublicController {
     const { link, access } = await this.findAccessByToken(token);
     const allowed = modesFor(link, access);
 
-    const studentName = (body?.studentName || '').trim();
+    let studentName = (body?.studentName || '').trim().replace(/\s+/g, ' ');
     if (!studentName) throw new BadRequestException('Bitte den Namen eingeben.');
 
     if (link.accessPassword && (body?.password || '') !== link.accessPassword) {
@@ -174,8 +175,20 @@ export class PublicController {
       );
     }
 
+    // Klassenlink: Name einem Schüler der Klassenliste zuordnen. Im Ergebnis
+    // steht dann sein Name aus der Liste, nicht die Schreibweise der Eingabe.
+    const klasse = await this.classesService.findById(link.classId);
+    let studentId: string | null = null;
+    if (klasse) {
+      const who = await this.classesService.resolveStudent(klasse, studentName);
+      studentId = who.studentId;
+      studentName = who.name;
+    }
+
     if (mode === 'exam' && link.singleAttempt) {
-      const previous = await this.resultRepo.count({ where: { linkId: link.id, studentName, mode: 'exam' } });
+      const previous = await this.resultRepo.count({
+        where: studentId ? { linkId: link.id, studentId, mode: 'exam' } : { linkId: link.id, studentName, mode: 'exam' },
+      });
       if (previous > 0) {
         throw new ForbiddenException(
           `Für "${studentName}" liegt bereits ein Durchlauf vor. Bitte bei der Lehrkraft melden.`,
@@ -194,9 +207,10 @@ export class PublicController {
     return {
       linkId: link.id,
       linkName: link.name,
-      className: (await this.classesService.findById(link.classId))?.name ?? null,
+      className: klasse?.name ?? null,
       mode,
       studentName,
+      studentTicket: studentId ? issueTicket(link.id, studentId, studentName) : null,
       teacherEmail: teacher.email,
       // Lernbegleitung: Kommentare, Joker und Zeitstrafe nach Schule,
       // Lehrkraft und Link.
@@ -308,6 +322,7 @@ export class PublicController {
       quickToken?: string;
       mode?: string;
       studentName: string;
+      studentTicket?: string;
       topicId: string;
       moduleId: string;
       score: number;
@@ -343,7 +358,9 @@ export class PublicController {
       const quick = await this.resolveQuickToken(body.quickToken);
       teacher = quick.teacher;
       quickTopicTitle = quick.topic.title;
-    } else {
+    } else if (body.teacherEmail) {
+      // Ohne Adresse keine Suche: TypeORM übergeht `email: undefined` in der
+      // Bedingung und lieferte sonst einfach die erste Lehrkraft.
       teacher = await this.userRepo.findOne({
         where: [{ email: body.teacherEmail, role: 'teacher' }, { email: body.teacherEmail, role: 'admin' }],
       });
@@ -354,11 +371,18 @@ export class PublicController {
     const ipAddress = (typeof forwarded === 'string' ? forwarded.split(',')[0] : req.ip || '').trim();
 
     // Über einen Klassenlink: Klasse und ihr Schuljahr, sonst das aktuelle.
+    // Wer es ist, sagt der Schülerausweis vom Start. Ohne gültigen Ausweis
+    // nimmt eine strikte Klasse nichts an; eine offene den Namen wie bisher.
     const klasse = await this.classesService.findById(link?.classId);
+    const ticket = klasse && link ? readTicket(body.studentTicket, link.id) : null;
+    if (klasse?.strict && !ticket) {
+      throw new ForbiddenException('Die Anmeldung ist abgelaufen. Bitte den Link neu öffnen und den Namen eingeben.');
+    }
 
     const result = this.resultRepo.create({
       id: crypto.randomUUID(),
-      studentName: body.studentName,
+      studentName: ticket ? ticket.n : body.studentName,
+      studentId: ticket ? ticket.s : null,
       teacherId: teacher.id,
       topicId: body.topicId,
       moduleId: body.moduleId,

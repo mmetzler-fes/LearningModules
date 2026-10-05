@@ -48,8 +48,57 @@ Je Schüler Vorname(n) und Name. Doppelvornamen stehen in einem Feld
 („Anna Lena“). Sortiert wird nach Name, dann Vorname.
 
 Einträge mit dem Vermerk **unbestätigt** sind bei der Anmeldung eines
-Schülers entstanden. Die Lehrkraft bestätigt sie (✓) oder korrigiert sie;
-Zusammenführen mit einem vorhandenen Eintrag folgt mit Schritt 3.
+Schülers entstanden. Die Lehrkraft bestätigt sie (✓), korrigiert sie (✏️)
+oder ordnet sie einem Schüler der Liste zu (⇄) – seine Ergebnisse gehen
+dann mit, der Eintrag verschwindet. Eine Namenskorrektur ändert auch den
+Namen in den Ergebnissen des Schülers.
+
+## Anmeldung über Klassenlinks
+
+Wer über einen Klassenlink startet (Übung, Klassenarbeit, Quiz-Arena), gibt
+Vorname(n) und – bei Bedarf – den Nachnamen oder seinen Anfang ein. Der Name
+wird einem Schüler der Liste zugeordnet:
+
+- Alles als Vorname gelesen („Adrian“, „Anna Lena“, auch nur „Lena“) oder
+  das letzte Wort als Anfang des Nachnamens („Adrian Al“).
+- Passt genau einer, ist er es. Der volle Name gilt immer („Max Mai“ neben
+  „Max Maier“).
+- Groß-/Kleinschreibung, Umlaute (Ö = Oe) und Akzente spielen keine Rolle.
+
+Im Ergebnis steht der Name aus der Liste, nicht die Schreibweise der
+Eingabe. Gespeichert wird über einen **Schülerausweis**, den der Start
+ausstellt (signiert, 12 Stunden gültig) – ein geänderter Name im Browser
+ändert daran nichts. „Klassenarbeit nur einmal“ zählt je Schüler.
+
+**🔒 strikt** (je Klasse, in der Schülerliste und beim Einlesen): Wer nicht
+eindeutig zugeordnet werden kann, kommt nicht hinein. Die Meldung sagt nur,
+ob der Name fehlt oder mehrdeutig ist – nie, welche Namen es gibt.
+
+**Offen** (strikt aus): Unbekannte Namen kommen als unbestätigte Einträge
+dazu; wer sich erneut so anmeldet, landet beim selben Eintrag. Für
+Nachzügler strikt kurz ausschalten, anmelden lassen, wieder einschalten und
+den Eintrag bestätigen oder zuordnen.
+
+## Klassen einlesen (SchülerLernTool)
+
+Im SchülerLernTool unter **Eigenschaften → 🎓 Klassen für LearningModules
+exportieren** die Klassen wählen; es entsteht eine mit dem App-Passwort
+verschlüsselte Tabelle, ein Blatt je Klasse (Klasse, Klassen-ID, dann
+Name | Vorname | Schüler-ID).
+
+In LearningModules unter **🏫 Klassen → 📥 Klassen einlesen** öffnen. Die
+Vorschau zeigt je Klasse Schuljahr, ob sie neu ist und wie viele Schüler
+dazukommen; **Danach strikt** ist vorgewählt.
+
+- Das Schuljahr steht im SchülerLernTool als Vorsatz im Klassennamen
+  (`SJ26-27-E1ME1` → Klasse `E1ME1` im SJ26-27); ohne Vorsatz gilt das oben
+  gewählte Schuljahr.
+- Vorhandene Klassen werden über die Klassen-ID erkannt (auch nach dem
+  Umbenennen), sonst über den Namen; Schüler über die Schüler-ID, sonst
+  über den Namen. Erneutes Einlesen legt nichts doppelt an.
+- Schüler, die in der Datei fehlen, bleiben erhalten.
+- Eine einzelne Klassenliste (mit Kursen und Noten) lässt sich weiterhin in
+  der Klasse selbst über *📥 Schülerliste einlesen* übernehmen.
 
 ### Schülerliste einlesen
 
@@ -90,13 +139,8 @@ Die Umsetzung erfolgt in Schritten, jeder für sich nutzbar:
    der Schülerfreigaben, neuester oben. Ergebnisse speichern Klasse und
    deren Schuljahr. Alte Links und QR-Codes gelten weiter und speichern unter
    „ohne Klasse“, bis man sie einer Klasse zuordnet.
-3. **Anmeldung über die Schülerliste.** Eingabe „Vorname(n) Name“: Passt
-   genau ein Schüler – alles als Vorname gelesen („Anna Lena“, auch nur
-   „Lena“) oder das letzte Wort als Anfang des Namens („Adrian A“) –, wird
-   er zugeordnet. Sonst entsteht ein unbestätigter Eintrag, oder bei
-   **strikter** Klasse wird abgewiesen – ohne Namen zu verraten. Der Start
-   liefert dazu einen signierten Schülerausweis, damit beim Speichern die
-   zugeordnete Schüler-ID zählt und nicht der Name aus dem Browser.
+3. ✅ **Anmeldung über die Schülerliste**, strikter Modus, Schülerausweis,
+   Zuordnen unbestätigter Einträge, Klassen einlesen aus dem SchülerLernTool.
 4. **Ansicht Klassenergebnisse:** Schuljahr → Klasse → Schüler / Tests (mit
    „fehlt noch“) / Jahresüberblick.
 5. **Assistent zum Schuljahreswechsel:** Klassen übernehmen (Schülerliste
@@ -117,9 +161,12 @@ Die Umsetzung erfolgt in Schritten, jeder für sich nutzbar:
 | `POST /api/classes/:id/students` | Schüler anlegen |
 | `PATCH/DELETE /api/classes/:id/students/:sid` | ändern (`confirm: true` bestätigt), entfernen |
 | `POST /api/classes/:id/import` | `{ students: [{ firstName, lastName, importId }], dryRun }` |
+| `POST /api/classes/import` | mehrere Klassen: `{ classes: [{ name, classId, students }], schoolYear, strict, dryRun }` |
+| `POST /api/classes/:id/students/:sid/merge` | unbestätigten Eintrag zuordnen, `{ targetId }` |
 
 Entitäten: `StudentClass` (Tabelle `classes`, bestehend und erweitert) und
 `ClassStudent`. Das Schuljahr steht in `system_config` unter `school_year`.
-Abgleich beim Import: `src/classes/student-import.ts`. ODF-Lesen im Browser:
+Abgleich beim Import: `src/classes/student-import.ts`, Namenszuordnung:
+`src/classes/name-match.ts`, Schülerausweis: `src/classes/student-ticket.ts`. ODF-Lesen im Browser:
 `src/renderer/js/odf/`. Beim Löschen oder Zusammenführen eines Kontos wandern
 die Klassen mit (`HandoverService`).

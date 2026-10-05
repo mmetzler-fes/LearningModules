@@ -397,6 +397,8 @@ export class LoginView {
       linkId: data.linkId,
       linkName: data.linkName,
       mode: data.mode,
+      // Klassenlink: Schülerausweis vom Start – beim Speichern zählt er, nicht der Name.
+      studentTicket: data.studentTicket || null,
     };
 
     await this.enterApp();

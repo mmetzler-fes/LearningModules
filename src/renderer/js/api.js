@@ -211,6 +211,17 @@ export class BrowserApi {
       method: 'DELETE',
     });
   }
+  /** Mehrere Klassen einlesen (Export des SchülerLernTools); `dryRun` liefert nur die Vorschau. */
+  importClasses(data) {
+    return this._fetch('/api/classes/import', { method: 'POST', body: JSON.stringify(data) });
+  }
+  /** Unbestätigten Eintrag mit einem Schüler der Klasse zusammenführen. */
+  mergeClassStudent(classId, studentId, targetId) {
+    return this._fetch(`/api/classes/${encodeURIComponent(classId)}/students/${encodeURIComponent(studentId)}/merge`, {
+      method: 'POST',
+      body: JSON.stringify({ targetId }),
+    });
+  }
   /** Schülerliste einlesen; `dryRun` liefert nur die Vorschau. */
   importClassStudents(classId, students, dryRun) {
     return this._fetch(`/api/classes/${encodeURIComponent(classId)}/import`, {

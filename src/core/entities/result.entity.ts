@@ -1,4 +1,4 @@
-import { Entity, Column } from 'typeorm';
+import { Entity, Column, Index } from 'typeorm';
 import { BaseEntity } from './base.entity';
 
 @Entity('results')
@@ -60,6 +60,11 @@ export class Result extends BaseEntity {
   /** Klasse des Klassenlinks, über den der Durchlauf lief. Leer = ohne Klasse. */
   @Column({ type: 'varchar', nullable: true })
   classId: string | null;
+
+  /** Eintrag der Schülerliste, dem der Durchlauf zugeordnet ist (Klassenlink). */
+  @Index()
+  @Column({ type: 'varchar', nullable: true })
+  studentId: string | null;
 
   /** Klassenname zum Zeitpunkt des Durchlaufs – mitkopiert wie `linkName`. */
   @Column({ type: 'varchar', nullable: true })

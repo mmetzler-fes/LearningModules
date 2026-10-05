@@ -1,5 +1,5 @@
 import { escapeHtml, escapeAttr } from '../utils.js';
-import { readStudentList, needsPassword, WrongPassword } from '../odf/student-list.js';
+import { readStudentList, readClassLists, needsPassword, WrongPassword } from '../odf/student-list.js';
 
 // ==================== KLASSEN ====================
 
@@ -106,6 +106,8 @@ export class ClassesView {
     this._detail     = document.getElementById('classDetail');
     this._fileInput  = document.getElementById('classImportFile');
     this._btnNew     = document.getElementById('btnNewClass');
+    this._btnImportAll = document.getElementById('btnImportClasses');
+    this._fileInputAll = document.getElementById('classesImportFile');
 
     this._year = null;
     this._currentYear = null;
@@ -122,6 +124,12 @@ export class ClassesView {
       this.refresh();
     });
     this._btnNew?.addEventListener('click', () => this._createClass());
+    this._btnImportAll?.addEventListener('click', () => this._fileInputAll.click());
+    this._fileInputAll?.addEventListener('change', () => {
+      const file = this._fileInputAll.files?.[0];
+      this._fileInputAll.value = '';
+      if (file) this._importClassesFile(file);
+    });
     this._fileInput?.addEventListener('change', () => {
       const file = this._fileInput.files?.[0];
       this._fileInput.value = '';
@@ -152,6 +160,7 @@ export class ClassesView {
     this._detail.innerHTML = '';
     this._list.classList.remove('hidden');
     this._btnNew.classList.remove('hidden');
+    this._btnImportAll?.classList.remove('hidden');
 
     const classes = await this.app.api.getClasses(this._year);
     if (failed(classes)) {
@@ -240,6 +249,7 @@ export class ClassesView {
     }
     this._list.classList.add('hidden');
     this._btnNew.classList.add('hidden');
+    this._btnImportAll?.classList.add('hidden');
     this._detail.classList.remove('hidden');
 
     const students = klasse.students || [];
@@ -253,7 +263,13 @@ export class ClassesView {
           <button class="btn btn-secondary btn-sm btn-class-rename">✏️ Umbenennen</button>
         </div>
       </div>
-      <p class="hint">${students.length === 1 ? '1 Schüler' : `${students.length} Schüler`}${pending ? ` · ${pending} unbestätigt – bei der Anmeldung entstanden, bitte prüfen` : ''}</p>
+      <p class="hint">${students.length === 1 ? '1 Schüler' : `${students.length} Schüler`}${pending ? ` · ${pending} unbestätigt – bei der Anmeldung entstanden: bestätigen (✓) oder einem Schüler zuordnen (⇄)` : ''}</p>
+      <label class="tag-filter-mode class-strict-toggle">
+        <input type="checkbox" class="chk-class-strict" ${klasse.strict ? 'checked' : ''} />
+        <span><strong>🔒 strikt</strong> – über Klassenlinks kommt nur hinein, wer eindeutig in der Liste steht
+          (Vorname, bei Gleichnamigen dazu der Anfang des Nachnamens). Aus: Unbekannte Namen kommen als
+          unbestätigte Einträge dazu – praktisch kurz für Nachzügler.</span>
+      </label>
 
       <form class="class-add-student">
         <input name="firstName" placeholder="Vorname(n)" maxlength="80" autocomplete="off" required />
@@ -272,6 +288,7 @@ export class ClassesView {
                 <td>${s.status === 'pending' ? '<span class="class-pending-note">unbestätigt</span>' : ''}</td>
                 <td class="class-student-actions">
                   ${s.status === 'pending' ? '<button class="btn btn-secondary btn-sm btn-student-confirm" title="Bestätigen">✓</button>' : ''}
+                  ${s.status === 'pending' && students.some((o) => o.status === 'confirmed') ? '<button class="btn btn-secondary btn-sm btn-student-merge" title="Einem Schüler der Liste zuordnen – seine Ergebnisse gehen mit">⇄</button>' : ''}
                   <button class="btn btn-secondary btn-sm btn-student-edit" title="Bearbeiten">✏️</button>
                   <button class="btn btn-danger btn-sm btn-student-delete" title="Entfernen">🗑</button>
                 </td>
@@ -280,6 +297,13 @@ export class ClassesView {
           </table>`}`;
 
     const byId = new Map(students.map((s) => [s.id, s]));
+    this._detail.querySelector('.chk-class-strict').addEventListener('change', async (e) => {
+      const res = await this.app.api.updateClass(klasse.id, { strict: e.target.checked });
+      if (failed(res)) { this.app.showToast('Fehler: ' + (res?.message || '?'), 'error'); e.target.checked = !e.target.checked; return; }
+      this.app.showToast(e.target.checked
+        ? `${klasse.name}: strikt – nur Schüler aus der Liste.`
+        : `${klasse.name}: offen – neue Namen kommen als unbestätigte Einträge dazu.`, 'info');
+    });
     this._detail.querySelector('.btn-class-back').addEventListener('click', () => { this._openId = null; this.refresh(); });
     this._detail.querySelector('.btn-class-import').addEventListener('click', () => this._fileInput.click());
     this._detail.querySelector('.btn-class-rename').addEventListener('click', () => this._renameClass(klasse));
@@ -299,6 +323,7 @@ export class ClassesView {
     this._detail.querySelectorAll('tr[data-id]').forEach((row) => {
       const s = byId.get(row.dataset.id);
       row.querySelector('.btn-student-confirm')?.addEventListener('click', () => this._updateStudent(klasse.id, s, { confirm: true }));
+      row.querySelector('.btn-student-merge')?.addEventListener('click', () => this._mergeStudent(klasse, s, students));
       row.querySelector('.btn-student-edit').addEventListener('click', async () => {
         const values = await formDialog({
           title: '✏️ Schüler bearbeiten',
@@ -318,6 +343,39 @@ export class ClassesView {
     });
   }
 
+  /** Unbestätigten Eintrag einem Schüler zuordnen. */
+  async _mergeStudent(klasse, pending, students) {
+    const targets = students.filter((o) => o.status === 'confirmed');
+    const target = await new Promise((resolve) => {
+      const overlay = document.createElement('div');
+      overlay.className = 'confirm-overlay';
+      overlay.innerHTML = `
+        <div class="import-modules-card">
+          <h3>⇄ „${escapeHtml(`${pending.firstName} ${pending.lastName}`.trim())}“ zuordnen</h3>
+          <p class="hint">Wer war das? Seine Ergebnisse gehen auf diesen Schüler über, der unbestätigte Eintrag verschwindet.</p>
+          <select class="merge-target" size="${Math.min(10, targets.length)}" style="width:100%">
+            ${targets.map((o) => `<option value="${escapeAttr(o.id)}">${escapeHtml(`${o.lastName}, ${o.firstName}`)}</option>`).join('')}
+          </select>
+          <div class="confirm-actions">
+            <button class="btn btn-primary btn-ok">Zuordnen</button>
+            <button class="btn btn-secondary btn-cancel">Abbrechen</button>
+          </div>
+        </div>`;
+      document.body.appendChild(overlay);
+      const done = (v) => { overlay.remove(); resolve(v); };
+      const select = overlay.querySelector('.merge-target');
+      overlay.querySelector('.btn-ok').addEventListener('click', () => done(select.value || null));
+      select.addEventListener('dblclick', () => done(select.value || null));
+      overlay.querySelector('.btn-cancel').addEventListener('click', () => done(null));
+      overlay.addEventListener('click', (e) => { if (e.target === overlay) done(null); });
+    });
+    if (!target) return;
+    const res = await this.app.api.mergeClassStudent(klasse.id, pending.id, target);
+    if (failed(res)) { this.app.showToast('Fehler: ' + (res?.message || '?'), 'error'); return; }
+    this.app.showToast(`Zugeordnet${res.moved ? ` – ${res.moved} Ergebnis(se) übernommen` : ''}.`, 'success');
+    this._renderDetail();
+  }
+
   async _updateStudent(classId, student, data) {
     const res = await this.app.api.updateClassStudent(classId, student.id, data);
     if (failed(res)) { this.app.showToast('Fehler: ' + (res?.message || '?'), 'error'); return; }
@@ -330,26 +388,34 @@ export class ClassesView {
    * Datei lesen (im Browser, auch das Passwort bleibt hier), Vorschau vom
    * Server holen, nach Bestätigung übernehmen.
    */
-  async _importFile(classId, file) {
-    let list;
+  /**
+   * Datei öffnen – bei Bedarf mit Passwort, das nur hier im Browser bleibt.
+   * `reader` liest den Inhalt; `null` bei Abbruch oder Fehler (mit Meldung).
+   */
+  async _readFile(file, reader) {
     try {
       let password = null;
       if (await needsPassword(file)) {
         const values = await formDialog({
-          title: '🔒 Passwort der Klassenliste',
+          title: '🔒 Passwort der Datei',
           hint: 'Die Datei ist verschlüsselt – im SchülerLernTool mit dem App-Passwort. '
             + 'Entschlüsselt wird nur hier im Browser; das Passwort wird nicht übertragen.',
           fields: [{ name: 'password', label: 'Passwort', type: 'password' }],
           submitLabel: 'Öffnen',
         });
-        if (!values) return;
+        if (!values) return null;
         password = values.password;
       }
-      list = await readStudentList(file, password);
+      return await reader(file, password);
     } catch (err) {
       this.app.showToast(err instanceof WrongPassword ? err.message : 'Datei nicht lesbar: ' + err.message, 'error');
-      return;
+      return null;
     }
+  }
+
+  async _importFile(classId, file) {
+    const list = await this._readFile(file, readStudentList);
+    if (!list) return;
     if (list.students.length === 0) {
       this.app.showToast('Die Datei enthält keine Schüler.', 'info');
       return;
@@ -367,6 +433,72 @@ export class ClassesView {
     if (failed(res)) { this.app.showToast('Fehler: ' + (res?.message || '?'), 'error'); return; }
     this.app.showToast(`Übernommen: ${res.added} neu, ${res.updated} aktualisiert.`, 'success');
     this._renderDetail();
+  }
+
+  /** Export „Klassen für LearningModules“ (oder eine Klassenliste): Vorschau, dann alle übernehmen. */
+  async _importClassesFile(file) {
+    const lists = await this._readFile(file, readClassLists);
+    if (!lists) return;
+    const classes = lists
+      .filter((l) => l.students.length || l.className)
+      .map((l) => ({ name: l.className || '', classId: l.classId || null, students: l.students }));
+    if (classes.some((c) => !c.name)) {
+      this.app.showToast('In der Datei fehlt der Klassenname („Klasse“ in Zeile 1). Eine einzelne Liste bitte in der Klasse selbst einlesen.', 'error');
+      return;
+    }
+    if (classes.length === 0) { this.app.showToast('Die Datei enthält keine Klassen.', 'info'); return; }
+
+    const payload = { classes, schoolYear: this._year };
+    const preview = await this.app.api.importClasses({ ...payload, dryRun: true });
+    if (failed(preview)) { this.app.showToast('Fehler: ' + (preview?.message || '?'), 'error'); return; }
+    const choice = await this._confirmClassesImport(preview.classes);
+    if (!choice) return;
+
+    const res = await this.app.api.importClasses({ ...payload, strict: choice.strict });
+    if (failed(res)) { this.app.showToast('Fehler: ' + (res?.message || '?'), 'error'); return; }
+    const added = res.classes.reduce((n, c) => n + c.added, 0);
+    const created = res.classes.filter((c) => !c.exists).length;
+    this.app.showToast(`${res.classes.length} Klassen eingelesen (${created} neu), ${added} Schüler aufgenommen${choice.strict ? ', strikt' : ''}.`, 'success');
+    const years = [...new Set(res.classes.map((c) => c.schoolYear))];
+    if (years.length === 1) this._year = years[0];
+    this._openId = null;
+    this.refresh();
+  }
+
+  _confirmClassesImport(rows) {
+    return new Promise((resolve) => {
+      const overlay = document.createElement('div');
+      overlay.className = 'confirm-overlay';
+      overlay.innerHTML = `
+        <div class="import-modules-card class-import-preview">
+          <h3>📥 Klassen einlesen</h3>
+          <table class="class-students">
+            <thead><tr><th>Klasse</th><th>Schuljahr</th><th></th><th>Schüler</th></tr></thead>
+            <tbody>${rows.map((c) => `
+              <tr>
+                <td>${escapeHtml(c.name)}</td>
+                <td>${escapeHtml(c.schoolYear)}</td>
+                <td>${c.exists ? 'vorhanden' : '<strong>neu</strong>'}</td>
+                <td>${[c.added ? `${c.added} neu` : '', c.updated ? `${c.updated} aktualisiert` : '', c.unchanged ? `${c.unchanged} unverändert` : '']
+                  .filter(Boolean).join(', ') || '–'}</td>
+              </tr>`).join('')}
+            </tbody>
+          </table>
+          <label class="tag-filter-mode class-strict-choice"><input type="checkbox" class="chk-strict" checked />
+            <span><strong>🔒 Danach strikt</strong> – über Klassenlinks kommt nur hinein, wer eindeutig in der Liste steht.
+              Für Nachzügler lässt sich das je Klasse kurz ausschalten.</span></label>
+          <p class="hint">Schüler, die schon in einer Klasse stehen, aber in der Datei fehlen, bleiben erhalten.</p>
+          <div class="confirm-actions">
+            <button class="btn btn-primary btn-ok">Übernehmen</button>
+            <button class="btn btn-secondary btn-cancel">Abbrechen</button>
+          </div>
+        </div>`;
+      document.body.appendChild(overlay);
+      const done = (v) => { overlay.remove(); resolve(v); };
+      overlay.querySelector('.btn-ok').addEventListener('click', () => done({ strict: overlay.querySelector('.chk-strict').checked }));
+      overlay.querySelector('.btn-cancel').addEventListener('click', () => done(null));
+      overlay.addEventListener('click', (e) => { if (e.target === overlay) done(null); });
+    });
   }
 
   _confirmImport(list, preview) {

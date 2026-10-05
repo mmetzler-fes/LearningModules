@@ -72,6 +72,8 @@ interface Player {
   id: string;
   secret: string;
   name: string;
+  /** Eintrag der Schülerliste (nur über einen Klassenlink). */
+  studentId: string | null;
   score: number;
   answers: Array<RoundAnswer | undefined>;
   streams: Set<Response>;
@@ -401,8 +403,19 @@ export class ContestService implements OnModuleDestroy {
       throw new ForbiddenException('Du wurdest von der Lehrkraft aus der Quiz-Arena entfernt.');
     }
 
-    const name = String(body?.studentName || '').trim().replace(/\s+/g, ' ').slice(0, MAX_NAME);
+    let name = String(body?.studentName || '').trim().replace(/\s+/g, ' ').slice(0, MAX_NAME);
     if (!name) throw new BadRequestException('Bitte den Namen eingeben.');
+    // Klassenlink: Name einem Schüler der Klassenliste zuordnen (strikt: nur so).
+    let studentId: string | null = null;
+    const klasse = await this.classesService.findById(link.classId);
+    if (klasse) {
+      const who = await this.classesService.resolveStudent(klasse, name);
+      studentId = who.studentId;
+      name = who.name.slice(0, MAX_NAME);
+      if ([...s.players.values()].some((p) => p.studentId === studentId)) {
+        throw new ConflictException(`${name} ist schon in der Quiz-Arena – nach einem Neuladen bitte dasselbe Gerät verwenden.`);
+      }
+    }
     const taken = [...s.players.values()].some((p) => p.name.toLowerCase() === name.toLowerCase());
     if (taken) throw new ConflictException(`Der Name „${name}“ ist schon vergeben – bitte z. B. mit Nachnamen ergänzen.`);
     if (s.players.size >= MAX_PLAYERS) throw new ConflictException('Die Quiz-Arena ist voll.');
@@ -411,6 +424,7 @@ export class ContestService implements OnModuleDestroy {
       id: crypto.randomUUID(),
       secret: crypto.randomBytes(16).toString('base64url'),
       name,
+      studentId,
       score: 0,
       answers: [],
       streams: new Set(),
@@ -540,6 +554,7 @@ export class ContestService implements OnModuleDestroy {
       return this.resultRepo.create({
         id: crypto.randomUUID(),
         studentName: p.name,
+        studentId: p.studentId ?? null,
         teacherId: s.ownerId,
         topicId: s.questions[0]?.topicId,
         moduleId: undefined,

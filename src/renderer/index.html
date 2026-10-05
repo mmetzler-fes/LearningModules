@@ -636,18 +636,22 @@
         <div class="view-header">
           <h2>🏫 Klassen</h2>
           <p class="subtitle">Deine Klassen je Schuljahr mit ihren Schülerlisten. Die Listen siehst nur du.
-            Schüler kommen hinzu, wenn sie sich über einen Klassenlink anmelden, oder du liest die Klassenliste
-            aus dem SchülerLernTool (bzw. eine Tabelle mit „Name“ und „Vorname“) ein.</p>
+            Schüler kommen hinzu, wenn sie sich über einen Klassenlink anmelden, oder du liest sie aus dem
+            SchülerLernTool ein (Eigenschaften → Klassen für LearningModules). Mit <strong>🔒 strikt</strong> kommt
+            über Klassenlinks nur hinein, wer eindeutig in der Schülerliste steht.</p>
         </div>
         <div class="topic-actions-bar classes-bar">
           <label class="classes-year">Schuljahr
             <select id="classYear"></select>
           </label>
           <button class="btn btn-primary" id="btnNewClass">➕ Neue Klasse</button>
+          <button class="btn btn-secondary" id="btnImportClasses"
+            title="Export „Klassen für LearningModules“ aus dem SchülerLernTool oder eine Klassenliste">📥 Klassen einlesen</button>
         </div>
         <div id="classesList" class="links-list"></div>
         <div id="classDetail" class="hidden"></div>
         <input type="file" id="classImportFile" accept=".ods,.csv,.txt" class="hidden" />
+        <input type="file" id="classesImportFile" accept=".ods,.csv,.txt" class="hidden" />
       </section>
 
       <!-- Teacher: Tags -->

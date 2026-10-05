@@ -93,7 +93,11 @@ const norm = (s) => String(s || '').trim().toLocaleLowerCase('de');
  */
 function studentsFromRows(rows) {
   let className = '';
-  for (const r of rows.slice(0, 10)) if (norm(r[0]) === 'klasse' && r[1]) className = r[1].trim();
+  let classId = '';
+  for (const r of rows.slice(0, 10)) {
+    if (norm(r[0]) === 'klasse' && r[1]) className = r[1].trim();
+    if (norm(r[0]) === 'klassen-id' && r[1]) classId = r[1].trim();
+  }
 
   const headerIndex = rows.slice(0, 15).findIndex((r) => {
     const cells = r.map(norm);
@@ -114,7 +118,7 @@ function studentsFromRows(rows) {
     if (!firstName && !lastName) continue;
     students.push({ firstName, lastName, importId: colId >= 0 ? (r[colId] || '').trim() || null : null });
   }
-  return { className, students };
+  return { className, classId, students };
 }
 
 /** Braucht die Datei ein Passwort? Nur bei .ods möglich. */
@@ -123,19 +127,37 @@ export async function needsPassword(file) {
   return (await odfInfo(new Uint8Array(await file.arrayBuffer()))).encrypted;
 }
 
-/**
- * Liest die Schülerliste aus einer Datei. Liefert
- * { className, students: [{ firstName, lastName, importId }] }.
- */
-export async function readStudentList(file, password) {
-  if (/\.(csv|txt)$/i.test(file.name)) return studentsFromRows(readCsv(await file.text()));
-  if (!/\.ods$/i.test(file.name)) throw new Error('Bitte eine .ods- oder .csv-Datei wählen.');
-
+async function sheetsOf(file, password) {
   const files = await openOdf(new Uint8Array(await file.arrayBuffer()), password || null);
   if (!files['content.xml']) throw new Error('Die Datei ist beschädigt.');
   const doc = new DOMParser().parseFromString(new TextDecoder().decode(files['content.xml']), 'application/xml');
   const tables = [...doc.getElementsByTagNameNS(NS.table, 'table')];
   if (tables.length === 0) throw new Error('Die Datei enthält keine Tabelle.');
-  const table = tables.find((t) => t.getAttributeNS(NS.table, 'name') === SHEET_NAME) || tables[0];
-  return studentsFromRows(readSheet(table));
+  return tables.map((t) => ({ name: t.getAttributeNS(NS.table, 'name'), rows: readSheet(t) }));
+}
+
+/**
+ * Liest die Schülerliste einer Klasse aus einer Datei. Liefert
+ * { className, classId, students: [{ firstName, lastName, importId }] }.
+ */
+export async function readStudentList(file, password) {
+  if (/\.(csv|txt)$/i.test(file.name)) return studentsFromRows(readCsv(await file.text()));
+  if (!/\.ods$/i.test(file.name)) throw new Error('Bitte eine .ods- oder .csv-Datei wählen.');
+  const sheets = await sheetsOf(file, password);
+  const sheet = sheets.find((s) => s.name === SHEET_NAME) || sheets[0];
+  return studentsFromRows(sheet.rows);
+}
+
+/**
+ * Mehrere Klassen aus einer Datei: der Export „Klassen für LearningModules“
+ * des SchülerLernTools – je Klasse ein Blatt, das mit „Klasse | <Name>“
+ * beginnt. Kursblätter der Klassenliste beginnen mit „Kurs“ und fallen so
+ * heraus. Eine Datei ohne solche Blätter gilt als eine einzige Klasse.
+ */
+export async function readClassLists(file, password) {
+  if (!/\.ods$/i.test(file.name)) return [await readStudentList(file, password)];
+  const sheets = await sheetsOf(file, password);
+  const classSheets = sheets.filter((s) => norm(s.rows[0]?.[0]) === 'klasse');
+  if (classSheets.length === 0) return [await readStudentList(file, password)];
+  return classSheets.map((s) => studentsFromRows(s.rows));
 }

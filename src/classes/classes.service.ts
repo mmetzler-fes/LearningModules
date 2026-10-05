@@ -6,6 +6,7 @@ import { StudentClass } from '../core/entities/student-class.entity';
 import { ClassStudent } from '../core/entities/class-student.entity';
 import { SystemConfig } from '../core/entities/system-config.entity';
 import { Result } from '../core/entities/result.entity';
+import { TopicLink } from '../core/entities/topic-link.entity';
 import { isSchoolYear, schoolYearOfDate, compareSchoolYearsDesc } from './school-year';
 import { planStudentImport, nameKey, ImportRow } from './student-import';
 
@@ -33,6 +34,7 @@ export class ClassesService implements OnApplicationBootstrap {
     @InjectRepository(ClassStudent) private readonly studentRepo: Repository<ClassStudent>,
     @InjectRepository(SystemConfig) private readonly configRepo: Repository<SystemConfig>,
     @InjectRepository(Result) private readonly resultRepo: Repository<Result>,
+    @InjectRepository(TopicLink) private readonly linkRepo: Repository<TopicLink>,
   ) {}
 
   /**
@@ -100,6 +102,16 @@ export class ClassesService implements OnApplicationBootstrap {
     return klasse;
   }
 
+  /** Eigene Klasse oder 404 – für Klassenlinks. */
+  async ownedClass(id: string, user: any): Promise<StudentClass> {
+    return this.own(id, user);
+  }
+
+  /** Klasse ohne Rechteprüfung – für das Speichern von Ergebnissen über einen Klassenlink. */
+  async findById(id: string | null | undefined): Promise<StudentClass | null> {
+    return id ? this.classRepo.findOne({ where: { id } }) : null;
+  }
+
   private async assertNameFree(user: any, schoolYear: string, name: string, exceptId?: string) {
     const same = await this.classRepo.find({ where: { ownerId: user.userId, schoolYear } });
     const key = name.toLocaleLowerCase('de');
@@ -111,9 +123,11 @@ export class ClassesService implements OnApplicationBootstrap {
   async findAll(user: any, schoolYear?: string) {
     const year = isSchoolYear(schoolYear) ? schoolYear : await this.currentSchoolYear();
     const classes = await this.classRepo.find({ where: { ownerId: user.userId, schoolYear: year } });
-    const students = classes.length
-      ? await this.studentRepo.find({ where: { classId: In(classes.map((c) => c.id)) }, select: ['classId', 'status'] })
+    const ids = classes.map((c) => c.id);
+    const students = ids.length
+      ? await this.studentRepo.find({ where: { classId: In(ids) }, select: ['classId', 'status'] })
       : [];
+    const links = ids.length ? await this.linkRepo.find({ where: { classId: In(ids) }, select: ['classId'] }) : [];
     return classes
       .sort((a, b) => a.name.localeCompare(b.name, 'de', { numeric: true }))
       .map((c) => {
@@ -122,6 +136,7 @@ export class ClassesService implements OnApplicationBootstrap {
           ...c,
           studentCount: mine.length,
           pendingCount: mine.filter((s) => s.status === 'pending').length,
+          linkCount: links.filter((l) => l.classId === c.id).length,
         };
       });
   }
@@ -161,8 +176,14 @@ export class ClassesService implements OnApplicationBootstrap {
     return this.classRepo.save(klasse);
   }
 
+  /**
+   * Löscht Klasse, Schülerliste und ihre Klassenlinks – ein Link auf eine
+   * Klasse, die es nicht mehr gibt, hätte keinen Sinn. Ergebnisse bleiben;
+   * den Klassennamen tragen sie selbst.
+   */
   async remove(id: string, user: any) {
     const klasse = await this.own(id, user);
+    await this.linkRepo.delete({ classId: id, ownerId: user.userId });
     await this.studentRepo.delete({ classId: id });
     await this.classRepo.remove(klasse);
     return { success: true };

@@ -120,4 +120,30 @@ export class TopicLink extends BaseEntity {
   @Index({ unique: true })
   @Column({ type: 'varchar', nullable: true })
   contestHostToken: string | null;
+
+  /**
+   * Klassenlink: die Klasse, für die dieser Link ausgegeben wurde. Ohne
+   * Klasse ist die Freigabe eine *Regel* – sie beschreibt Inhalte und Modi,
+   * verteilt wird sie aber erst als Klassenlink (Kopie mit `classId`).
+   * Ergebnisse über einen Klassenlink landen unter ihrer Klasse.
+   *
+   * Regeln aus der Zeit vor den Klassen können noch einen Token haben.
+   * Er bleibt gültig, damit ausgeteilte QR-Codes weiter funktionieren;
+   * Ergebnisse darüber stehen unter "ohne Klasse".
+   */
+  @Index()
+  @Column({ type: 'varchar', nullable: true })
+  classId: string | null;
+
+  /** Klassenlink: die Regel, aus der er erzeugt wurde. Je Regel und Klasse gibt es höchstens einen. */
+  @Column({ type: 'varchar', nullable: true })
+  templateId: string | null;
+
+  /** Regel, die der Quick-Link-Knopf eines Lernthemas angelegt hat. */
+  @Column({ type: 'varchar', nullable: true })
+  quickTopicId: string | null;
+
+  /** Zuletzt als Link oder QR-Code abgerufen – die Klassenübersicht zeigt den neuesten oben. */
+  @Column({ type: 'datetime', nullable: true })
+  lastSharedAt: Date | null;
 }

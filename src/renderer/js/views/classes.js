@@ -44,6 +44,57 @@ export function formDialog({ title, hint = '', fields, submitLabel = 'Speichern'
 }
 
 /**
+ * Klasse für einen Klassenlink wählen: die eigenen Klassen des aktuellen
+ * Schuljahrs als Knöpfe, darunter ein Feld für eine neue Klasse. Liefert die
+ * Klasse oder `null` bei Abbruch.
+ */
+export async function pickClass(app, { title, hint = '' }) {
+  const info = await app.api.getSchoolYear();
+  if (failed(info)) { app.showToast('Fehler: ' + (info?.message || 'Schuljahr nicht abrufbar'), 'error'); return null; }
+  const classes = await app.api.getClasses(info.current);
+  if (failed(classes)) { app.showToast('Fehler: ' + (classes?.message || 'Klassen nicht abrufbar'), 'error'); return null; }
+
+  return new Promise((resolve) => {
+    const overlay = document.createElement('div');
+    overlay.className = 'confirm-overlay';
+    overlay.innerHTML = `
+      <div class="import-modules-card class-picker">
+        <h3>${escapeHtml(title)}</h3>
+        ${hint ? `<p class="hint">${escapeHtml(hint)}</p>` : ''}
+        ${classes.length
+          ? `<div class="class-picker-list">${classes.map((c) => `
+              <button type="button" class="btn btn-secondary class-picker-choice" data-id="${escapeAttr(c.id)}">🏫 ${escapeHtml(c.name)}</button>`).join('')}
+            </div>`
+          : `<p class="hint">Im ${escapeHtml(info.current)} hast du noch keine Klassen – lege gleich eine an.</p>`}
+        <form class="class-picker-new">
+          <input name="name" placeholder="Neue Klasse, z. B. TG12" maxlength="40" autocomplete="off" />
+          <button type="submit" class="btn btn-primary btn-sm">➕ Anlegen und wählen</button>
+        </form>
+        <p class="hint">Schuljahr ${escapeHtml(info.current)}.</p>
+        <div class="confirm-actions">
+          <button type="button" class="btn btn-secondary btn-cancel">Abbrechen</button>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+    const done = (value) => { overlay.remove(); resolve(value); };
+    overlay.querySelector('.btn-cancel').addEventListener('click', () => done(null));
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) done(null); });
+    overlay.querySelectorAll('.class-picker-choice').forEach((btn) => {
+      btn.addEventListener('click', () => done(classes.find((c) => c.id === btn.dataset.id)));
+    });
+    const form = overlay.querySelector('.class-picker-new');
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const res = await app.api.createClass({ name: form.elements.name.value, schoolYear: info.current });
+      if (failed(res)) { app.showToast('Fehler: ' + (res?.message || '?'), 'error'); return; }
+      app.showToast(`Klasse „${res.name}“ angelegt.`, 'success');
+      done(res);
+    });
+    (overlay.querySelector('.class-picker-choice') || form.elements.name).focus();
+  });
+}
+
+/**
  * Klassen der Lehrkraft je Schuljahr, mit Schülerliste und Import der
  * Klassenliste aus dem SchülerLernTool.
  */
@@ -121,6 +172,7 @@ export class ClassesView {
           <p class="link-card-meta">
             ${c.studentCount === 1 ? '1 Schüler' : `${c.studentCount} Schüler`}
             ${c.pendingCount ? ` · <span class="class-pending-note">${c.pendingCount} unbestätigt</span>` : ''}
+            ${c.linkCount ? ` · ${c.linkCount === 1 ? '1 Klassenlink' : `${c.linkCount} Klassenlinks`}` : ''}
             ${c.strict ? ' · 🔒 strikt' : ''}
           </p>
         </div>
@@ -164,8 +216,11 @@ export class ClassesView {
   }
 
   async _deleteClass(c) {
+    const links = c.linkCount
+      ? `\n\nAuch ${c.linkCount === 1 ? 'ihr Klassenlink wird' : `ihre ${c.linkCount} Klassenlinks werden`} gelöscht – verteilte QR-Codes führen dann ins Leere.`
+      : '';
     const ok = await this.app.appConfirm(
-      `Klasse „${c.name}“ (${c.schoolYear}) mit ihrer Schülerliste löschen?\n\nBereits gespeicherte Ergebnisse bleiben erhalten.`,
+      `Klasse „${c.name}“ (${c.schoolYear}) mit ihrer Schülerliste löschen?${links}\n\nBereits gespeicherte Ergebnisse bleiben erhalten.`,
     );
     if (!ok) return;
     const res = await this.app.api.deleteClass(c.id);

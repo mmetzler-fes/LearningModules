@@ -57,6 +57,14 @@ export class Result extends BaseEntity {
   @Column({ type: 'varchar', nullable: true })
   schoolYear: string | null;
 
+  /** Klasse des Klassenlinks, über den der Durchlauf lief. Leer = ohne Klasse. */
+  @Column({ type: 'varchar', nullable: true })
+  classId: string | null;
+
+  /** Klassenname zum Zeitpunkt des Durchlaufs – mitkopiert wie `linkName`. */
+  @Column({ type: 'varchar', nullable: true })
+  className: string | null;
+
   /** Modus des Durchlaufs: 'quiz' | 'exam' | 'learn' | 'companion' | 'contest'. */
   @Column({ nullable: true })
   mode: string;

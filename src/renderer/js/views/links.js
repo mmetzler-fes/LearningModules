@@ -3,10 +3,19 @@ import { LINK_MODE_LABELS } from './login.js';
 import { TagFilter, TagPicker, renderAreaGroups, chipHtml } from './tags.js';
 import { GRADABLE_TYPES } from '../answer-eval.js';
 import { saveRedirectFile } from './contest.js';
+import { pickClass } from './classes.js';
 
 // ==================== THEMEN-LINKS ====================
 
 const ALL_MODES = ['quiz', 'exam', 'learn', 'companion', 'contest'];
+
+/** Ansicht und Klassenauswahl merkt sich nur der eigene Browser. */
+function loadPref(key) {
+  try { return localStorage.getItem(key); } catch (_) { return null; }
+}
+function savePref(key, value) {
+  try { if (value) localStorage.setItem(key, value); else localStorage.removeItem(key); } catch (_) { /* egal */ }
+}
 /** Modi, zwischen denen Schüler über "Link & QR" wählen. */
 const PRACTICE_MODES = ['quiz', 'learn', 'companion'];
 
@@ -57,6 +66,19 @@ export class LinksView {
     this._selection = new Map();
     this._editId = null;
 
+    // Themen (Regeln) | Klassen (Klassenlinks)
+    this._tabs        = document.querySelectorAll('[data-links-tab]');
+    this._rulesBar    = document.getElementById('linkRulesBar');
+    this._classBar    = document.getElementById('linkClassBar');
+    this._classYearSel = document.getElementById('linkClassYear');
+    this._classSel    = document.getElementById('linkClassSelect');
+    this._tab = loadPref('lm_links_tab') === 'classes' ? 'classes' : 'rules';
+    this._classYear = null;
+    this._classId = loadPref('lm_links_class');
+    this._classes = [];
+    /** Nach dem Erzeugen eines Klassenlinks: welchen Dialog gleich öffnen. */
+    this._pending = null;
+
     this._filter = new TagFilter(app, {
       searchInput: document.getElementById('linkTagSearch'),
       chipList: document.getElementById('linkTagFilterChips'),
@@ -77,6 +99,90 @@ export class LinksView {
     this._modesBox?.addEventListener('change', () => this._syncModeDependentFields());
     // Die Standardzeit steht als Platzhalter bei jeder einzelnen Aufgabe.
     document.getElementById('linkContestSeconds')?.addEventListener('input', () => this._renderContestTimes());
+
+    this._tabs.forEach((btn) => btn.addEventListener('click', () => {
+      this._tab = btn.dataset.linksTab;
+      savePref('lm_links_tab', this._tab);
+      this._renderList();
+    }));
+    this._classYearSel?.addEventListener('change', async () => {
+      this._classYear = this._classYearSel.value;
+      await this._loadClasses();
+      this._renderList();
+    });
+    this._classSel?.addEventListener('change', () => {
+      this._classId = this._classSel.value || null;
+      savePref('lm_links_class', this._classId);
+      this._renderList();
+    });
+  }
+
+  // ---------- Klassen ----------
+
+  /** Schuljahre und Klassen für die Klassenansicht. */
+  async _loadClassBar() {
+    const info = await this.app.api.getSchoolYear();
+    const years = Array.isArray(info?.years) ? info.years : [];
+    if (!this._classYear || !years.includes(this._classYear)) this._classYear = info?.current || years[0] || null;
+    this._classYearSel.innerHTML = years
+      .map((y) => `<option value="${escapeAttr(y)}" ${y === this._classYear ? 'selected' : ''}>${escapeHtml(y)}${y === info.current ? ' (aktuell)' : ''}</option>`)
+      .join('');
+    await this._loadClasses();
+  }
+
+  async _loadClasses() {
+    const classes = this._classYear ? await this.app.api.getClasses(this._classYear) : [];
+    this._classes = Array.isArray(classes) ? classes : [];
+    if (!this._classes.some((c) => c.id === this._classId)) this._classId = this._classes[0]?.id || null;
+    this._classSel.innerHTML = this._classes.length
+      ? this._classes.map((c) => `<option value="${escapeAttr(c.id)}" ${c.id === this._classId ? 'selected' : ''}>${escapeHtml(c.name)}${c.linkCount ? ` (${c.linkCount})` : ''}</option>`).join('')
+      : '<option value="">– keine Klassen –</option>';
+  }
+
+  /**
+   * Nach dem Erzeugen eines Klassenlinks: zur Klassenübersicht wechseln, die
+   * Klasse auswählen und Link & QR (bzw. Klassenarbeit, Quiz-Arena) gleich
+   * öffnen – so fühlt sich der Ablauf an wie bisher, nur mit Klasse.
+   */
+  showClassLink(link, kind = 'practice') {
+    this._tab = 'classes';
+    savePref('lm_links_tab', 'classes');
+    this._classYear = link.schoolYear || null;
+    this._classId = link.classId;
+    savePref('lm_links_class', link.classId);
+    this._pending = { id: link.id, kind };
+    if (document.getElementById('view-teacher-links')?.classList.contains('active')) this.refresh();
+    else this.app.navigateToView('teacher-links');
+  }
+
+  /** Klasse wählen und Klassenlink aus der Regel erzeugen. `adopt`: alten Link der Regel übergeben. */
+  async _shareForClass(rule, kind, adopt = false) {
+    const klasse = await pickClass(this.app, {
+      title: adopt ? `🏫 Alter Link – ${rule.name}` : `🔗 ${rule.name}`,
+      hint: adopt
+        ? 'Welcher Klasse gehört der alte Link? Ausgeteilte QR-Codes bleiben gültig, Ergebnisse stehen ab jetzt unter der Klasse.'
+        : 'Für welche Klasse? Ergebnisse über diesen Link stehen dann unter der Klasse.',
+    });
+    if (!klasse) return;
+    const link = await this.app.api.createClassLink(rule.id, klasse.id, adopt);
+    if (!link || !link.id) {
+      this.app.showToast('Fehler: ' + (link?.message || 'Link konnte nicht erzeugt werden.'), 'error');
+      return;
+    }
+    this.showClassLink(link, kind);
+  }
+
+  /** Den gemerkten Dialog öffnen, sobald die Liste steht. */
+  _openPending() {
+    const pending = this._pending;
+    this._pending = null;
+    const link = pending && (this._links || []).find((l) => l.id === pending.id);
+    if (!link || !link.active) return;
+    const modes = link.modes || [];
+    let kind = pending.kind;
+    if (kind === 'practice' && !this._hasPractice(link)) kind = modes.includes('exam') ? 'exam' : 'contest';
+    if (kind === 'contest') this._openContestDialog(link);
+    else this._openShareDialog(link, kind);
   }
 
   // ---------- Liste ----------
@@ -93,21 +199,28 @@ export class LinksView {
     if (!Array.isArray(this._usableTopics)) this._usableTopics = [];
     this._links = await this.app.api.getLinks();
     if (!Array.isArray(this._links)) this._links = [];
+    await this._loadClassBar();
     this._filter.render();
     this._renderList();
+    if (this._pending) this._openPending();
   }
 
   _renderList() {
     if (!this._list) return;
-    const links = (this._links || []).filter((l) => this._filter.matches(l));
+    this._tabs.forEach((btn) => btn.classList.toggle('active', btn.dataset.linksTab === this._tab));
+    this._rulesBar?.classList.toggle('hidden', this._tab !== 'rules');
+    this._classBar?.classList.toggle('hidden', this._tab !== 'classes');
+    if (this._tab === 'classes') return this._renderClassLinks();
+
+    const links = (this._links || []).filter((l) => !l.classId && this._filter.matches(l));
 
     this._list.innerHTML = '';
     if (links.length === 0) {
       this._list.innerHTML = `
         <div class="empty-state">
           <span class="empty-icon">🔗</span>
-          <p>${(this._links || []).length === 0
-            ? 'Noch keine Schülerfreigaben. Lege eine an, z. B. „TG12 Informatik Arduino“.'
+          <p>${(this._links || []).every((l) => l.classId)
+            ? 'Noch keine Schülerfreigaben. Lege eine an, z. B. „Informatik Arduino“.'
             : 'Keine Freigabe passt zum gewählten Filter.'}</p>
         </div>`;
       return;
@@ -124,9 +237,35 @@ export class LinksView {
     if (!grouped) for (const link of links) this._list.appendChild(this._buildCard(link));
   }
 
+  /** Klassenlinks der gewählten Klasse, der zuletzt gezeigte oben. */
+  _renderClassLinks() {
+    this._list.innerHTML = '';
+    if (!this._classId) {
+      this._list.innerHTML = `
+        <div class="empty-state"><span class="empty-icon">🏫</span>
+          <p>Im ${escapeHtml(this._classYear || '')} gibt es noch keine Klassen. Unter <strong>📚 Themen</strong> legt
+            <strong>🔗 Link &amp; QR</strong> eine an, oder unter <strong>🏫 Klassen</strong> im Menü.</p></div>`;
+      return;
+    }
+    const stamp = (l) => new Date(l.lastSharedAt || l.createdAt || 0).getTime();
+    const links = (this._links || [])
+      .filter((l) => l.classId === this._classId && this._filter.matches(l))
+      .sort((a, b) => stamp(b) - stamp(a));
+    if (links.length === 0) {
+      this._list.innerHTML = `
+        <div class="empty-state"><span class="empty-icon">🔗</span>
+          <p>Noch keine Links für diese Klasse. Unter <strong>📚 Themen</strong> bei einer Freigabe
+            <strong>🔗 Link &amp; QR</strong> wählen – oder bei einem Lernthema <strong>🔗 Quick-Link</strong>.</p></div>`;
+      return;
+    }
+    for (const link of links) this._list.appendChild(this._buildCard(link));
+  }
+
   /** Karte einer Schülerfreigabe mit allen Aktionen. */
   /** areaId: Themengebiet des Abschnitts – sein Tag steht schon in der Überschrift. */
   _buildCard(link, areaId = null) {
+    const isClass = !!link.classId;
+    const classLinks = isClass ? 0 : (this._links || []).filter((l) => l.templateId === link.id).length;
     const card = document.createElement('div');
     card.className = 'link-card' + (link.active ? '' : ' link-card-inactive');
     const off = link.active ? '' : 'disabled title="Link ist deaktiviert"';
@@ -136,6 +275,7 @@ export class LinksView {
           ${link.active ? '🔗' : '⏸'} ${escapeHtml(link.name)}
           ${link.hasPassword ? '<span class="link-badge" title="Passwort erforderlich">🔒</span>' : ''}
           ${link.singleAttempt ? '<span class="link-badge" title="Klassenarbeit nur einmal">1×</span>' : ''}
+          ${isClass ? `<span class="link-class-chip">🏫 ${escapeHtml(link.className || '?')}</span>` : ''}
         </h3>
         <div class="link-card-modes">
           ${(link.modes || []).map((m) => `
@@ -146,7 +286,12 @@ export class LinksView {
           ${link.topicCount} Thema/Themen · ${link.moduleCount} Aufgabe${link.moduleCount !== 1 ? 'n' : ''}
           ${link.active ? '' : ' · deaktiviert'}
           ${link.usesForeignContent ? ' · nutzt fremde Inhalte' : ''}
+          ${isClass && link.lastSharedAt ? ` · zuletzt gezeigt ${new Date(link.lastSharedAt).toLocaleDateString('de-DE')}` : ''}
+          ${!isClass && classLinks ? ` · ${classLinks === 1 ? '1 Klassenlink' : `${classLinks} Klassenlinks`}` : ''}
         </p>
+        ${link.hasLegacyLink ? `
+          <p class="link-legacy-note">Alter Link ohne Klasse ist noch gültig – Ergebnisse darüber stehen unter „ohne Klasse“.
+            <button type="button" class="btn btn-secondary btn-sm btn-link-adopt">🏫 Einer Klasse zuordnen</button></p>` : ''}
         ${link.unavailableTopics ? `
           <p class="link-card-warning">⚠️ ${link.unavailableTopics} Thema/Themen nicht mehr verfügbar –
             gelöscht oder das Nutzungsrecht ist entfallen.</p>` : ''}
@@ -161,9 +306,14 @@ export class LinksView {
         <button class="btn btn-danger btn-sm btn-link-delete">🗑</button>
       </div>`;
 
-    card.querySelector('.btn-link-share')?.addEventListener('click', () => this._openShareDialog(link, 'practice'));
-    card.querySelector('.btn-link-exam')?.addEventListener('click', () => this._openShareDialog(link, 'exam'));
-    card.querySelector('.btn-link-contest')?.addEventListener('click', () => this._openContestDialog(link));
+    // Eine Regel verteilt man über einen Klassenlink: erst die Klasse, dann Link & QR.
+    const share = (kind) => (isClass
+      ? (kind === 'contest' ? this._openContestDialog(link) : this._openShareDialog(link, kind))
+      : this._shareForClass(link, kind));
+    card.querySelector('.btn-link-share')?.addEventListener('click', () => share('practice'));
+    card.querySelector('.btn-link-exam')?.addEventListener('click', () => share('exam'));
+    card.querySelector('.btn-link-contest')?.addEventListener('click', () => share('contest'));
+    card.querySelector('.btn-link-adopt')?.addEventListener('click', () => this._shareForClass(link, 'practice', true));
     card.querySelector('.btn-link-edit').addEventListener('click', () => this._openEditor(link));
     card.querySelector('.btn-link-toggle').addEventListener('click', async () => {
       await this.app.api.updateLink(link.id, { active: !link.active });
@@ -171,7 +321,10 @@ export class LinksView {
       this.refresh();
     });
     card.querySelector('.btn-link-delete').addEventListener('click', async () => {
-      if (!(await this.app.appConfirm(`Freigabe "${link.name}" löschen? Verteilte QR-Codes führen danach ins Leere.`))) return;
+      const question = isClass
+        ? `Klassenlink "${link.name}" (${link.className}) löschen? Verteilte QR-Codes führen danach ins Leere.`
+        : `Freigabe "${link.name}" löschen?${classLinks ? ' Ihre Klassenlinks bleiben bestehen.' : ''}${link.hasLegacyLink ? ' Ihr alter Link führt danach ins Leere.' : ''}`;
+      if (!(await this.app.appConfirm(question))) return;
       await this.app.api.deleteLink(link.id);
       this.app.showToast('Freigabe gelöscht.', 'info');
       this.refresh();
@@ -195,7 +348,9 @@ export class LinksView {
 
   _openEditor(link) {
     this._editId = link ? link.id : null;
-    this._formTitle.textContent = link ? `Freigabe bearbeiten: ${link.name}` : 'Neue Schülerfreigabe';
+    this._formTitle.textContent = link
+      ? `${link.classId ? 'Klassenlink' : 'Freigabe'} bearbeiten: ${link.name}${link.classId ? ` (${link.className})` : ''}`
+      : 'Neue Schülerfreigabe';
     this._nameInput.value = link ? link.name : '';
     this._passwordInput.value = '';
     this._passwordInput.placeholder = link?.hasPassword
@@ -580,7 +735,13 @@ export class LinksView {
         this.app.showToast(res?.message || 'Speichern fehlgeschlagen.', 'error');
         return;
       }
-      this.app.showToast(this._editId ? 'Freigabe gespeichert.' : 'Freigabe angelegt.', 'success');
+      const copies = this._editId && !res.classId ? (this._links || []).filter((l) => l.templateId === res.id).length : 0;
+      this.app.showToast(
+        copies
+          ? 'Freigabe gespeichert. Vorhandene Klassenlinks bleiben unverändert – sie bearbeitest du unter 🏫 Klassen.'
+          : this._editId ? 'Freigabe gespeichert.' : 'Freigabe angelegt.',
+        'success',
+      );
       this._closeEditor();
       await this.refresh();
     } catch (err) {

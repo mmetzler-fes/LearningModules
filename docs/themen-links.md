@@ -80,10 +80,38 @@ Die Musterlösung im Lernmodus stammt aus derselben Auswertung, die auch das
 Ergebnis erzeugt. Angezeigte Lösung und Bewertung können deshalb nicht
 auseinanderlaufen.
 
-## Versenden
+## Versenden: immer für eine Klasse
 
-**🔗 Link & QR** öffnet den Dialog mit QR-Code und URL, dazu *Kopieren*,
-*Drucken*, *Neu* und *Zurückziehen* – wie beim Quick-Link.
+Die Seite hat zwei Reiter:
+
+- **📚 Themen** – die Freigaben selbst. Sie sind *Regeln*: Inhalte, Modi,
+  Passwort, Tags. Einen Link haben sie nicht.
+- **🏫 Klassen** – Schuljahr und Klasse wählen, darunter die *Klassenlinks*
+  dieser Klasse, der zuletzt gezeigte oben.
+
+**🔗 Link & QR**, **📝 Klassenarbeit** und **🏆 Quiz-Arena** an einer Regel
+fragen zuerst nach der Klasse – aus den eigenen Klassen des aktuellen
+Schuljahrs, oder direkt eine neue anlegen. Daraus entsteht ein Klassenlink:
+eine Kopie der Regel mit Klasse und eigenem Token. Die App wechselt zur
+Klassenübersicht und öffnet den gewünschten Dialog. Je Regel und Klasse gibt
+es höchstens einen Klassenlink; ein zweites Mal zeigt den vorhandenen.
+
+Der Klassenlink ist danach eigenständig: Er lässt sich bearbeiten,
+deaktivieren und löschen, ohne die Regel zu berühren. Umgekehrt ändert das
+Bearbeiten der Regel vorhandene Klassenlinks nicht – nur neue übernehmen den
+neuen Stand. Wird eine Klasse gelöscht, verschwinden ihre Klassenlinks mit.
+
+Ergebnisse über einen Klassenlink tragen Klasse und deren Schuljahr; die
+Ergebnisliste zeigt je Klasse eine eigene Gruppe.
+
+**Freigaben aus der Zeit vor den Klassen** behalten ihren Link, damit
+ausgeteilte QR-Codes weiter gelten; ihre Ergebnisse stehen unter „ohne
+Klasse“. Die Karte weist darauf hin. **🏫 Einer Klasse zuordnen** übergibt
+den alten Link an einen Klassenlink – dieselben QR-Codes speichern ab dann
+unter der Klasse.
+
+Der Dialog zeigt QR-Code und URL, dazu *Kopieren*, *Drucken*, *Neu* und
+*Zurückziehen*.
 
 Der Token bleibt stabil. Ausgeteilte Zettel behalten ihre Gültigkeit, bis
 bewusst *Neu* oder *Zurückziehen* gewählt wird.
@@ -158,6 +186,8 @@ damit lesbar, auch wenn der Link später umbenannt oder gelöscht wird.
 | `GET /api/public/link/:token` | Öffentliche Vorschau: Name, Modi, Passwortpflicht |
 | `POST /api/public/link/:token/start` | Name/Passwort/Modus prüfen, Module liefern |
 | `POST /api/links/:id/contest-share` | Quiz-Arena: Leitungs- und Schüler-Link |
+| `POST /api/links/:id/class-link` | Klassenlink aus einer Regel, `{ classId, adoptTokens }` |
+| `POST /api/links/from-topic/:topicId` | Quick-Link-Knopf: Klassenlink für ein Lernthema, `{ classId }` |
 
 Einstieg im Frontend: `?l=<token>` auf der Startseite, ausgewertet in
 `app.init()` → `LoginView.startLinkEntry()`.

@@ -136,7 +136,9 @@ export class ResultsView {
    */
   _linkKey(r) {
     if (!r.linkName) return NO_LINK;
-    return r.linkKind === 'quick' ? QUICK_PREFIX + r.linkName : r.linkName;
+    const key = r.linkKind === 'quick' ? QUICK_PREFIX + r.linkName : r.linkName;
+    // Klassenlinks derselben Freigabe sind je Klasse eine eigene Gruppe.
+    return r.className ? `${key} · 🏫 ${r.className}` : key;
   }
 
   /** Lesbare Beschriftung zu einem Gruppenschluessel (ohne Symbol). */

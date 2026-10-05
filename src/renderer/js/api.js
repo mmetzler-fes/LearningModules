@@ -227,6 +227,20 @@ export class BrowserApi {
     return this._fetch(`/api/links/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(data) });
   }
   deleteLink(id) { return this._fetch(`/api/links/${encodeURIComponent(id)}`, { method: 'DELETE' }); }
+  /** Klassenlink aus einer Regel; `adoptTokens` übergibt deren alten Link an die Klasse. */
+  createClassLink(ruleId, classId, adoptTokens = false) {
+    return this._fetch(`/api/links/${encodeURIComponent(ruleId)}/class-link`, {
+      method: 'POST',
+      body: JSON.stringify({ classId, adoptTokens }),
+    });
+  }
+  /** Quick-Link-Knopf: Klassenlink für ein ganzes Lernthema. */
+  classLinkFromTopic(topicId, classId) {
+    return this._fetch(`/api/links/from-topic/${encodeURIComponent(topicId)}`, {
+      method: 'POST',
+      body: JSON.stringify({ classId }),
+    });
+  }
   /** access: 'practice' (Link & QR) oder 'exam' (eigener Link der Klassenarbeit). */
   shareLink(id, regenerate = false, access = 'practice') {
     return this._fetch(`/api/links/${encodeURIComponent(id)}/share`, {

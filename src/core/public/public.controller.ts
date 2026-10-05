@@ -120,9 +120,11 @@ export class PublicController {
     const { link, access } = await this.findAccessByToken(token);
     const resolved = await this.linksService.resolveModules(link);
 
+    const klasse = await this.classesService.findById(link.classId);
     return {
       linkId: link.id,
       name: link.name,
+      className: klasse?.name ?? null,
       // Übungslink: Quiz, Lernen mit Lösungen, Lernbegleitung zur Wahl.
       // Link der Klassenarbeit: nur die Klassenarbeit.
       modes: modesFor(link, access),
@@ -190,6 +192,7 @@ export class PublicController {
     return {
       linkId: link.id,
       linkName: link.name,
+      className: (await this.classesService.findById(link.classId))?.name ?? null,
       mode,
       studentName,
       teacherEmail: teacher.email,
@@ -348,6 +351,9 @@ export class PublicController {
     const forwarded = req.headers['x-forwarded-for'];
     const ipAddress = (typeof forwarded === 'string' ? forwarded.split(',')[0] : req.ip || '').trim();
 
+    // Über einen Klassenlink: Klasse und ihr Schuljahr, sonst das aktuelle.
+    const klasse = await this.classesService.findById(link?.classId);
+
     const result = this.resultRepo.create({
       id: crypto.randomUUID(),
       studentName: body.studentName,
@@ -363,7 +369,9 @@ export class PublicController {
       linkKind: quickTopicTitle !== null ? 'quick' : undefined,
       // Der Quick-Link startet immer im Quiz-Modus.
       mode: link ? linkMode : quickTopicTitle !== null ? 'quiz' : undefined,
-      schoolYear: await this.classesService.currentSchoolYear(),
+      schoolYear: klasse?.schoolYear || (await this.classesService.currentSchoolYear()),
+      classId: klasse?.id ?? null,
+      className: klasse?.name ?? null,
     });
     const saved = await this.resultRepo.save(result);
     return { success: true, id: saved.id };

@@ -16,6 +16,12 @@ export class LinksController {
     return this.linksService.findAll(req.user, req);
   }
 
+  /** Quick-Link-Knopf eines Lernthemas: Klassenlink aus der Regel des Themas. */
+  @Post('from-topic/:topicId')
+  async fromTopic(@Param('topicId') topicId: string, @Request() req: any, @Body() body: { classId?: string }) {
+    return this.linksService.classLinkForTopic(topicId, String(body?.classId || ''), req.user, req);
+  }
+
   @Get(':id')
   async findOne(@Param('id') id: string, @Request() req: any) {
     return this.linksService.findOne(id, req.user, req);
@@ -47,6 +53,15 @@ export class LinksController {
     @Body() body: { regenerate?: boolean; access?: string },
   ) {
     return this.linksService.share(id, req.user, !!body?.regenerate, req, body?.access === 'exam' ? 'exam' : 'practice');
+  }
+
+  /**
+   * Klassenlink aus einer Regel (`{ classId }`); vorhandener wird geliefert.
+   * `adoptTokens` übergibt den alten Link der Regel an die Klasse.
+   */
+  @Post(':id/class-link')
+  async classLink(@Param('id') id: string, @Request() req: any, @Body() body: { classId?: string; adoptTokens?: boolean }) {
+    return this.linksService.classLink(id, String(body?.classId || ''), req.user, !!body?.adoptTokens, req);
   }
 
   /** Quiz-Arena: Leitungs- und Schüler-Link; `{regenerate:true}` erneuert den Leitungs-Link. */

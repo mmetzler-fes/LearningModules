@@ -84,18 +84,19 @@ wird. Dabei gilt:
 Die Umsetzung erfolgt in Schritten, jeder für sich nutzbar:
 
 1. ✅ Schuljahr, Klassen mit Schülerliste, Import
-2. **Klassenlinks.** Schülerfreigabe und Quick-Link werden zur *Regel*;
-   *Link & QR* fragt zuerst nach der Klasse (oder legt sie an) und erzeugt
-   einen Klassenlink. Er erscheint in der Klassenübersicht der
-   Schülerfreigaben, neuester oben. Ergebnisse speichern zusätzlich die
-   Klasse; das Schuljahr ist dann das der Klasse. Der Start liefert einen signierten Schülerausweis, damit beim
-   Speichern nicht der Name aus dem Browser zählt. Alte Links und QR-Codes
-   gelten weiter und speichern unter „ohne Klasse“.
+2. ✅ **Klassenlinks**, siehe [Schülerfreigaben](themen-links.md#versenden-immer-für-eine-klasse).
+   Freigabe und Quick-Link sind Regeln; *Link & QR* fragt nach der Klasse
+   (oder legt sie an) und erzeugt einen Klassenlink in der Klassenübersicht
+   der Schülerfreigaben, neuester oben. Ergebnisse speichern Klasse und
+   deren Schuljahr. Alte Links und QR-Codes gelten weiter und speichern unter
+   „ohne Klasse“, bis man sie einer Klasse zuordnet.
 3. **Anmeldung über die Schülerliste.** Eingabe „Vorname(n) Name“: Passt
    genau ein Schüler – alles als Vorname gelesen („Anna Lena“, auch nur
    „Lena“) oder das letzte Wort als Anfang des Namens („Adrian A“) –, wird
    er zugeordnet. Sonst entsteht ein unbestätigter Eintrag, oder bei
-   **strikter** Klasse wird abgewiesen – ohne Namen zu verraten.
+   **strikter** Klasse wird abgewiesen – ohne Namen zu verraten. Der Start
+   liefert dazu einen signierten Schülerausweis, damit beim Speichern die
+   zugeordnete Schüler-ID zählt und nicht der Name aus dem Browser.
 4. **Ansicht Klassenergebnisse:** Schuljahr → Klasse → Schüler / Tests (mit
    „fehlt noch“) / Jahresüberblick.
 5. **Assistent zum Schuljahreswechsel:** Klassen übernehmen (Schülerliste

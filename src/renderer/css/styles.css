@@ -4228,3 +4228,15 @@ body {
 .class-import-preview { max-height: 82vh; overflow: auto; }
 .class-import-preview ul { margin: 4px 0 12px 20px; columns: 2; font-size: 0.92em; }
 .form-dialog .form-group label { display: flex; flex-direction: column; gap: 4px; }
+.class-picker-list { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
+.class-picker-new { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.class-picker-new input { flex: 1 1 180px; }
+
+/* ---- Schülerfreigaben: Themen | Klassen ---- */
+.links-tabs { display: flex; gap: 6px; margin-bottom: 12px; border-bottom: 1px solid var(--border); }
+.links-tab { background: none; border: none; border-bottom: 3px solid transparent; padding: 8px 14px; cursor: pointer; font: inherit; color: var(--text-secondary); }
+.links-tab.active { color: var(--text-primary); border-bottom-color: var(--accent); font-weight: 600; }
+.link-class-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-bottom: 12px; }
+.link-class-bar label { display: flex; align-items: center; gap: 8px; font-weight: 600; }
+.link-class-chip { display: inline-block; font-size: 0.8em; padding: 1px 8px; margin-left: 6px; border-radius: 999px; background: var(--bg-primary); border: 1px solid var(--border); color: var(--text-primary); font-weight: 600; vertical-align: middle; }
+.link-legacy-note { color: var(--text-secondary); font-size: 0.88em; margin: 6px 0 0; }

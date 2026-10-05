@@ -525,7 +525,9 @@ export class ContestService implements OnModuleDestroy {
     const ranking = this.ranking(s);
     const maxScore = s.maxPoints * s.questions.length;
     const topicTitle = [...new Set(s.questions.map((q) => q.topicTitle))].join(', ');
-    const schoolYear = await this.classesService.currentSchoolYear();
+    const link = await this.linkRepo.findOne({ where: { id: s.linkId } });
+    const klasse = await this.classesService.findById(link?.classId);
+    const schoolYear = klasse?.schoolYear || (await this.classesService.currentSchoolYear());
     const rows = ranking.map((entry) => {
       const p = s.players.get(entry.id)!;
       return this.resultRepo.create({
@@ -541,6 +543,8 @@ export class ContestService implements OnModuleDestroy {
         linkName: s.linkName,
         mode: 'contest',
         schoolYear,
+        classId: klasse?.id ?? null,
+        className: klasse?.name ?? null,
         payload: {
           topicTitle,
           linkName: s.linkName,

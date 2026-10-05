@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, Repository } from 'typeorm';
+import { In, IsNull, Repository } from 'typeorm';
 import { LearningTopic } from '../core/entities/learning-topic.entity';
 import { LearningModule } from '../core/entities/learning-module.entity';
 import { User } from '../core/entities/user.entity';
@@ -410,6 +410,67 @@ export class TopicsService {
    * sofort ungültig – die der Kolleginnen bleiben unberührt.
    */
   async getQuickLink(id: string, user: any, regenerate = false, req?: any) {
+    const { topic, isOwner, activeCount } = await this.quickLinkableTopic(id, user);
+
+    const entry = await this.quickLinkEntry(topic, user, regenerate);
+    const share = await this.quickShare(topic, entry, user);
+    const url = `${baseUrl(req)}/?q=${entry.token}`;
+
+    return {
+      token: entry.token,
+      url,
+      qrSvg: await renderQr(url),
+      topicId: topic.id,
+      title: topic.title,
+      moduleCount: activeCount,
+      isOwn: isOwner,
+      // Nur beim ersten Mal gesetzt – der Dialog weist dann darauf hin.
+      createdShare: share ? { id: share.id, name: share.name } : null,
+    };
+  }
+
+  /**
+   * Regel hinter dem Quick-Link-Knopf: ganzes Thema mit Quiz, Lernbegleitung
+   * und Quiz-Arena. Der Knopf erzeugt daraus Klassenlinks; die Regel selbst
+   * hat keinen Token. Gibt es sie nicht (mehr), entsteht sie neu – auch nach
+   * dem Löschen, denn wer den Knopf drückt, will einen Link. Die beim
+   * früheren Quick-Link angelegte Freigabe wird weiterverwendet.
+   */
+  async ensureQuickRule(topicId: string, user: any): Promise<TopicLink> {
+    const { topic } = await this.quickLinkableTopic(topicId, user);
+    const found = await this.linkRepo.findOne({ where: { ownerId: user.userId, quickTopicId: topic.id, classId: IsNull() } });
+    if (found) return found;
+
+    const entry = await this.quickRepo.findOne({ where: { topicId: topic.id, ownerId: user.userId } });
+    const earlier = entry?.shareLinkId
+      ? await this.linkRepo.findOne({ where: { id: entry.shareLinkId, ownerId: user.userId, classId: IsNull() } })
+      : null;
+    if (earlier) {
+      earlier.quickTopicId = topic.id;
+      return this.linkRepo.save(earlier);
+    }
+
+    return this.linkRepo.save(
+      this.linkRepo.create({
+        id: crypto.randomUUID(),
+        name: topic.title,
+        ownerId: user.userId,
+        token: null,
+        active: true,
+        modes: ['quiz', 'companion', 'contest'],
+        selection: [{ topicId: topic.id, all: true }],
+        accessPassword: null,
+        singleAttempt: false,
+        tagIds: await this.tagsService.sanitizeIds(user, topic.tagIds || []),
+        companionSettings: null,
+        contestSettings: null,
+        quickTopicId: topic.id,
+      }),
+    );
+  }
+
+  /** Darf für dieses Thema ein Quick-Link entstehen? Wirft sonst mit Begründung. */
+  private async quickLinkableTopic(id: string, user: any) {
     const topic = await this.findOneFor(id, user, 'read');
     const isOwner = this.accessLevel(topic, user) === 'owner';
 
@@ -431,22 +492,7 @@ export class TopicsService {
         'Das Thema hat keine freigegebenen Module. Bitte zuerst mindestens ein Modul freigeben.',
       );
     }
-
-    const entry = await this.quickLinkEntry(topic, user, regenerate);
-    const share = await this.quickShare(topic, entry, user);
-    const url = `${baseUrl(req)}/?q=${entry.token}`;
-
-    return {
-      token: entry.token,
-      url,
-      qrSvg: await renderQr(url),
-      topicId: topic.id,
-      title: topic.title,
-      moduleCount: activeCount,
-      isOwn: isOwner,
-      // Nur beim ersten Mal gesetzt – der Dialog weist dann darauf hin.
-      createdShare: share ? { id: share.id, name: share.name } : null,
-    };
+    return { topic, isOwner, activeCount };
   }
 
   /**

@@ -1,6 +1,8 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
+import { ClassesService } from '../classes/classes.service';
+import { StudentClass } from '../core/entities/student-class.entity';
 import { TopicLink, LinkMode, LinkTopicSelection, LinkContestSettings } from '../core/entities/topic-link.entity';
 import { LearningTopic } from '../core/entities/learning-topic.entity';
 import { LearningModule } from '../core/entities/learning-module.entity';
@@ -12,6 +14,8 @@ import { baseUrl, renderQr } from '../core/share/link-url';
 import * as crypto from 'crypto';
 
 const ALL_MODES: LinkMode[] = ['quiz', 'exam', 'learn', 'companion', 'contest'];
+
+const NEEDS_CLASS = 'Links gibt es nur für eine Klasse – bitte über „Link & QR“ eine Klasse wählen.';
 
 /** Modi, zwischen denen Schüler über den Übungslink ("Link & QR") wählen. */
 export const PRACTICE_MODES: LinkMode[] = ['quiz', 'learn', 'companion'];
@@ -62,6 +66,7 @@ export class LinksService {
     private readonly topicsService: TopicsService,
     private readonly groupsService: GroupsService,
     private readonly companionService: CompanionService,
+    private readonly classesService: ClassesService,
   ) {}
 
   // ---- Eingaben prüfen ----
@@ -243,13 +248,14 @@ export class LinksService {
   async findAll(user: any, req?: any) {
     const links = await this.linkRepo.find({ where: { ownerId: user.userId } });
     links.sort((a, b) => a.name.localeCompare(b.name, 'de'));
+    const classes = await this.classesOf(links);
 
     const base = baseUrl(req);
     return Promise.all(
       links.map(async (link) => {
         const resolved = await this.resolveModules(link);
         return {
-          ...this.publicShape(link),
+          ...this.publicShape(link, classes.get(link.classId || '')),
           url: link.token ? `${base}/?l=${link.token}` : null,
           topicCount: resolved.length,
           moduleCount: resolved.reduce((n, r) => n + r.modules.length, 0),
@@ -260,13 +266,28 @@ export class LinksService {
     );
   }
 
+  /** Klassen der Klassenlinks, nach ID. */
+  private async classesOf(links: TopicLink[]): Promise<Map<string, StudentClass>> {
+    const ids = [...new Set(links.map((l) => l.classId).filter(Boolean))] as string[];
+    const out = new Map<string, StudentClass>();
+    for (const id of ids) {
+      const klasse = await this.classesService.findById(id);
+      if (klasse) out.set(id, klasse);
+    }
+    return out;
+  }
+
   /** Passwort niemals zurückgeben – nur, ob eines gesetzt ist. */
-  private publicShape(link: TopicLink) {
+  private publicShape(link: TopicLink, klasse?: StudentClass | null) {
     const { accessPassword, contestHostToken: _host, examToken, ...rest } = link;
     return {
       ...rest,
       hasPassword: !!accessPassword,
       hasExamLink: !!examToken,
+      // Regel aus der Zeit vor den Klassen, deren alter Link noch gilt.
+      hasLegacyLink: !link.classId && !!(link.token || examToken || _host),
+      className: klasse?.name ?? null,
+      schoolYear: klasse?.schoolYear ?? null,
       contestSettings: contestSettingsOf(link),
     };
   }
@@ -275,7 +296,7 @@ export class LinksService {
     const link = await this.own(id, user);
     const resolved = await this.resolveModules(link);
     return {
-      ...this.publicShape(link),
+      ...this.publicShape(link, await this.classesService.findById(link.classId)),
       url: link.token ? `${baseUrl(req)}/?l=${link.token}` : null,
       topicCount: resolved.length,
       moduleCount: resolved.reduce((n, r) => n + r.modules.length, 0),
@@ -292,7 +313,8 @@ export class LinksService {
       id: crypto.randomUUID(),
       name,
       ownerId: user.userId,
-      token: crypto.randomBytes(12).toString('base64url'),
+      // Eine neue Freigabe ist eine Regel; Links gibt es erst als Klassenlink.
+      token: null,
       active: body?.active !== false,
       modes: this.cleanModes(body?.modes),
       selection: await this.cleanSelection(user, body?.selection),
@@ -348,10 +370,10 @@ export class LinksService {
       throw new BadRequestException('Für diese Freigabe ist die Klassenarbeit nicht eingeschaltet.');
     }
     const field = access === 'exam' ? 'examToken' : 'token';
-    if (!link[field] || regenerate) {
-      link[field] = crypto.randomBytes(12).toString('base64url');
-      await this.linkRepo.save(link);
-    }
+    if (!link.classId && (!link[field] || regenerate)) throw new BadRequestException(NEEDS_CLASS);
+    if (!link[field] || regenerate) link[field] = crypto.randomBytes(12).toString('base64url');
+    link.lastSharedAt = new Date();
+    await this.linkRepo.save(link);
     const token = link[field] as string;
     const url = `${baseUrl(req)}/?l=${token}`;
     const resolved = await this.resolveModules(link);
@@ -377,16 +399,13 @@ export class LinksService {
     if (!link.modes.includes('contest')) {
       throw new BadRequestException('Für diese Freigabe ist die Quiz-Arena nicht eingeschaltet.');
     }
-    let changed = false;
-    if (!link.contestHostToken || regenerate) {
-      link.contestHostToken = crypto.randomBytes(18).toString('base64url');
-      changed = true;
+    if (!link.classId && (!link.contestHostToken || !link.token || regenerate)) {
+      throw new BadRequestException(NEEDS_CLASS);
     }
-    if (!link.token) {
-      link.token = crypto.randomBytes(12).toString('base64url');
-      changed = true;
-    }
-    if (changed) await this.linkRepo.save(link);
+    if (!link.contestHostToken || regenerate) link.contestHostToken = crypto.randomBytes(18).toString('base64url');
+    if (!link.token) link.token = crypto.randomBytes(12).toString('base64url');
+    link.lastSharedAt = new Date();
+    await this.linkRepo.save(link);
     const base = baseUrl(req);
     const joinUrl = `${base}/?l=${link.token}&m=contest`;
     return {
@@ -396,6 +415,65 @@ export class LinksService {
       joinUrl,
       qrSvg: await renderQr(joinUrl),
     };
+  }
+
+  // ---- Klassenlinks ----
+
+  /**
+   * Klassenlink aus einer Regel: eine Kopie mit Klasse und eigenem Token.
+   * Je Regel und Klasse gibt es höchstens einen – ein zweiter Aufruf liefert
+   * den vorhandenen, damit nicht bei jedem Zeigen ein neuer QR-Code entsteht.
+   *
+   * `adoptTokens` übergibt die alten Tokens einer Regel aus der Zeit vor den
+   * Klassen an den Klassenlink: Ausgeteilte QR-Codes bleiben gültig, ihre
+   * Ergebnisse landen ab jetzt unter der Klasse.
+   */
+  async classLink(ruleId: string, classId: string, user: any, adoptTokens = false, req?: any) {
+    const rule = await this.own(ruleId, user);
+    if (rule.classId) throw new BadRequestException('Das ist schon ein Klassenlink.');
+    const klasse = await this.classesService.ownedClass(classId, user);
+
+    let link = await this.linkRepo.findOne({ where: { ownerId: user.userId, templateId: rule.id, classId: klasse.id } });
+    if (!link) {
+      link = this.linkRepo.create({
+        id: crypto.randomUUID(),
+        name: rule.name,
+        ownerId: user.userId,
+        token: null,
+        examToken: null,
+        contestHostToken: null,
+        active: true,
+        modes: rule.modes,
+        selection: rule.selection,
+        accessPassword: rule.accessPassword,
+        singleAttempt: rule.singleAttempt,
+        tagIds: rule.tagIds,
+        companionSettings: rule.companionSettings,
+        contestSettings: rule.contestSettings,
+        classId: klasse.id,
+        templateId: rule.id,
+        quickTopicId: null,
+        lastSharedAt: new Date(),
+      });
+    }
+    if (adoptTokens) {
+      // Erst die Regel freigeben – die Tokens sind eindeutig.
+      const tokens = { token: rule.token, examToken: rule.examToken, contestHostToken: rule.contestHostToken };
+      rule.token = null;
+      rule.examToken = null;
+      rule.contestHostToken = null;
+      await this.linkRepo.save(rule);
+      for (const [key, value] of Object.entries(tokens)) if (value) (link as any)[key] = value;
+    }
+    link.lastSharedAt = new Date();
+    await this.linkRepo.save(link);
+    return this.findOne(link.id, user, req);
+  }
+
+  /** Klassenlink über den Quick-Link-Knopf eines Lernthemas. */
+  async classLinkForTopic(topicId: string, classId: string, user: any, req?: any) {
+    const rule = await this.topicsService.ensureQuickRule(topicId, user);
+    return this.classLink(rule.id, classId, user, false, req);
   }
 
   /** Token entwerten, ohne den Link zu löschen. */

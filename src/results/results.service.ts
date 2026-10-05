@@ -36,6 +36,9 @@ export class ResultsService {
       linkName: r.linkName || null,
       linkKind: r.linkKind || null,
       mode: r.mode || null,
+      schoolYear: r.schoolYear || null,
+      classId: r.classId || null,
+      className: r.className || null,
       // Quiz-Arena: Platz und Zahl der Teilnehmer.
       rank: r.payload?.rank ?? null,
       playerCount: r.payload?.playerCount ?? null,

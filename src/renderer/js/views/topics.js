@@ -1,4 +1,5 @@
-import { escapeHtml, escapeAttr, copyQrSvgAsPng, copyShareSheetAsPng } from '../utils.js';
+import { escapeHtml, escapeAttr } from '../utils.js';
+import { pickClass } from './classes.js';
 import { TagFilter, TagPicker, renderAreaGroups, chipHtml } from './tags.js';
 
 // ==================== TOPICS VIEW ====================
@@ -235,7 +236,7 @@ export class TopicsView {
           </label>
           <button class="btn btn-primary btn-sm btn-open-topic" title="Module verwalten">📦 Module</button>
           <button class="btn btn-secondary btn-sm btn-quick-link" ${topic.selected ? '' : 'disabled'}
-            title="${topic.selected ? 'Quick-Link für Schüler (Link + QR-Code)' : 'Erst freigeben, dann ist ein Quick-Link möglich'}">🔗 Quick-Link</button>
+            title="${topic.selected ? 'Link + QR-Code für eine Klasse' : 'Erst freigeben, dann ist ein Quick-Link möglich'}">🔗 Quick-Link</button>
           <button class="btn btn-secondary btn-sm btn-edit-topic" title="Bearbeiten">✏️</button>
           <button class="btn btn-secondary btn-sm btn-share-topic" title="Im Shop anbieten oder weitergeben">👥</button>
           <button class="btn btn-secondary btn-sm btn-export-topic" title="Exportieren (JSON, H5P oder verschlüsselt)">📤</button>
@@ -251,7 +252,7 @@ export class TopicsView {
       this.refresh();
     });
     card.querySelector('.btn-open-topic').addEventListener('click', () => this.app.modulesView.openTopicModules(topic.id));
-    card.querySelector('.btn-quick-link').addEventListener('click', () => this._openQuickLinkDialog(topic));
+    card.querySelector('.btn-quick-link').addEventListener('click', () => this._createQuickClassLink(topic));
     card.querySelector('.btn-edit-topic').addEventListener('click', () => this._openEditor(topic));
     card.querySelector('.btn-export-topic').addEventListener('click', () => this.openExportDialog(topic));
     card.querySelector('.btn-delete-topic').addEventListener('click', async () => {
@@ -273,152 +274,24 @@ export class TopicsView {
   // ==================== QUICK-LINK ====================
 
   /**
-   * Zeigt Link und QR-Code für ein Thema. Beim ersten Öffnen wird der Token
-   * erzeugt, danach immer derselbe geliefert – ausgeteilte Zettel bleiben also
-   * gültig, bis der Lehrer bewusst "Neu" oder "Zurückziehen" wählt.
+   * Quick-Link: Klasse wählen (oder anlegen), daraus entsteht ein
+   * Klassenlink für das ganze Thema. Danach geht es zur Klassenübersicht der
+   * Schülerfreigaben, wo Link und QR-Code gleich offen sind. Früher
+   * verteilte Quick-Links (?q=) bleiben gültig, ihre Ergebnisse stehen unter
+   * "ohne Klasse".
    */
-  async _openQuickLinkDialog(topic) {
-    this._bindQuickLinkDialog();
-    this._quickLinkTopic = topic;
-    const overlay = document.getElementById('quickLinkOverlay');
-    if (!overlay) return;
-    overlay.classList.remove('hidden');
-    await this._loadQuickLink(false);
-  }
-
-  async _loadQuickLink(regenerate) {
-    const topic = this._quickLinkTopic;
-    const qrBox   = document.getElementById('quickLinkQr');
-    const urlBox  = document.getElementById('quickLinkUrl');
-    const info    = document.getElementById('quickLinkTopic');
-    const warning = document.getElementById('quickLinkWarning');
-    const shareNote = document.getElementById('quickLinkShareNote');
-    shareNote.classList.add('hidden');
-
-    qrBox.innerHTML = '<p class="hint">Wird erzeugt…</p>';
-    urlBox.value = '';
-
-    try {
-      const res = await this.app.api.createQuickLink(topic.id, regenerate);
-      if (!res || !res.url) throw new Error(res?.message || 'Quick-Link konnte nicht erzeugt werden.');
-
-      this._quickLinkData = res;
-      info.textContent = res.isOwn === false
-        // Bei fremden Inhalten gehört der Link trotzdem mir – wer das nicht
-        // weiß, sucht die Ergebnisse später beim Falschen.
-        ? `${res.title} · ${res.moduleCount} freigegebene Module · fremdes Thema, die Ergebnisse kommen zu dir`
-        : `${res.title} · ${res.moduleCount} freigegebene Module`;
-      urlBox.value = res.url;
-      // QR-SVG kommt vom eigenen Server (qrcode-Bibliothek), kein Fremdinhalt.
-      qrBox.innerHTML = res.qrSvg || '<p class="hint">QR-Code nicht verfügbar – bitte den Link verwenden.</p>';
-      warning.classList.add('hidden');
-      this._setQuickLinkActionsEnabled(true);
-      // Beim ersten Quick-Link entsteht dazu eine Schülerfreigabe – sagen,
-      // wo sie zu finden ist.
-      if (res.createdShare) {
-        shareNote.textContent = `➕ Dazu wurde die Schülerfreigabe „${res.createdShare.name}“ angelegt – `
-          + 'mit Quiz, Lernbegleitung und Quiz-Arena. Du findest sie unter Schülerfreigaben.';
-        shareNote.classList.remove('hidden');
-      }
-    } catch (err) {
-      // Nicht freigegeben: kein Link, keine Aktionen – nur die Erklärung.
-      this._quickLinkData = null;
-      qrBox.innerHTML = '';
-      info.textContent = topic.title;
-      warning.textContent = err.message;
-      warning.classList.remove('hidden');
-      this._setQuickLinkActionsEnabled(false);
+  async _createQuickClassLink(topic) {
+    const klasse = await pickClass(this.app, {
+      title: `🔗 Quick-Link – ${topic.title}`,
+      hint: 'Für welche Klasse? Ergebnisse über diesen Link stehen dann unter der Klasse.',
+    });
+    if (!klasse) return;
+    const link = await this.app.api.classLinkFromTopic(topic.id, klasse.id);
+    if (!link || !link.id) {
+      this.app.showToast('Fehler: ' + (link?.message || 'Link konnte nicht erzeugt werden.'), 'error');
+      return;
     }
-  }
-
-  /** Kopieren/Drucken/Neu/Zurückziehen nur sinnvoll, wenn ein Link existiert. */
-  _setQuickLinkActionsEnabled(enabled) {
-    for (const id of ['btnCopyQr', 'btnCopyQuickLink', 'btnCopyQuickLinkSheet', 'btnPrintQuickLink', 'btnRegenQuickLink', 'btnRevokeQuickLink']) {
-      const btn = document.getElementById(id);
-      if (btn) btn.disabled = !enabled;
-    }
-  }
-
-  async _copyQrImage() {
-    const ok = await copyQrSvgAsPng(document.querySelector('#quickLinkQr svg'));
-    this.app.showToast(
-      ok ? 'QR-Code kopiert' : 'QR-Code kopieren klappt hier nicht – bitte drucken oder den Link nutzen.',
-      ok ? 'success' : 'error',
-    );
-  }
-
-  /** Dasselbe Blatt wie beim Drucken, nur als Bild für die Zwischenablage. */
-  async _copyQuickLinkSheet() {
-    const ok = await copyShareSheetAsPng({
-      title: 'Quick-Link für Schüler',
-      subtitle: document.getElementById('quickLinkTopic')?.textContent || '',
-      svg: document.querySelector('#quickLinkQr svg'),
-      url: this._quickLinkData?.url || '',
-    });
-    this.app.showToast(
-      ok ? 'Blatt als Bild kopiert – in OneNote einfügen mit Strg+V.' : 'Als Bild kopieren klappt hier nicht – bitte drucken.',
-      ok ? 'success' : 'error',
-    );
-  }
-
-  _bindQuickLinkDialog() {
-    if (this._quickLinkBound) return;
-    this._quickLinkBound = true;
-
-    const overlay = document.getElementById('quickLinkOverlay');
-    const urlBox  = document.getElementById('quickLinkUrl');
-
-    // Klick markiert den ganzen Link – bequem zum Kopieren am PC.
-    urlBox?.addEventListener('focus', () => urlBox.select());
-    urlBox?.addEventListener('click', () => urlBox.select());
-
-    document.getElementById('btnCloseQuickLink')?.addEventListener('click', () => {
-      overlay.classList.add('hidden');
-    });
-
-    document.getElementById('btnCopyQuickLink')?.addEventListener('click', async () => {
-      const url = this._quickLinkData?.url;
-      if (!url) return;
-      try {
-        await navigator.clipboard.writeText(url);
-        this.app.showToast('Link kopiert', 'success');
-      } catch (_) {
-        urlBox.select();
-        this.app.showToast('Bitte mit Strg+C kopieren', 'info');
-      }
-    });
-
-    document.getElementById('btnCopyQr')?.addEventListener('click', () => this._copyQrImage());
-
-    document.getElementById('btnCopyQuickLinkSheet')?.addEventListener('click', () => this._copyQuickLinkSheet());
-
-    document.getElementById('btnPrintQuickLink')?.addEventListener('click', () => {
-      document.body.classList.add('printing-quicklink');
-      const cleanup = () => {
-        document.body.classList.remove('printing-quicklink');
-        window.removeEventListener('afterprint', cleanup);
-      };
-      window.addEventListener('afterprint', cleanup);
-      window.print();
-      setTimeout(cleanup, 2000);
-    });
-
-    document.getElementById('btnRegenQuickLink')?.addEventListener('click', async () => {
-      const ok = await this.app.appConfirm(
-        'Neuen Link erzeugen? Bereits verteilte Links und QR-Codes funktionieren danach nicht mehr.',
-      );
-      if (ok) await this._loadQuickLink(true);
-    });
-
-    document.getElementById('btnRevokeQuickLink')?.addEventListener('click', async () => {
-      const ok = await this.app.appConfirm(
-        'Quick-Link zurückziehen? Verteilte Links und QR-Codes führen danach ins Leere.',
-      );
-      if (!ok) return;
-      await this.app.api.revokeQuickLink(this._quickLinkTopic.id);
-      overlay.classList.add('hidden');
-      this.app.showToast('Quick-Link zurückgezogen', 'info');
-    });
+    this.app.linksView.showClassLink(link, 'practice');
   }
 
   /**

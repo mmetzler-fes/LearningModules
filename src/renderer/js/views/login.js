@@ -287,7 +287,7 @@ export class LoginView {
     loading.classList.add('hidden');
     ready.classList.remove('hidden');
 
-    document.getElementById('linkEntryTitle').textContent = info.name;
+    document.getElementById('linkEntryTitle').textContent = info.className ? `${info.name} · ${info.className}` : info.name;
     const parts = [`${info.moduleCount} Aufgabe${info.moduleCount !== 1 ? 'n' : ''}`];
     if (info.topicTitles?.length) parts.push(info.topicTitles.join(' · '));
     document.getElementById('linkEntryMeta').textContent = parts.join(' — ');

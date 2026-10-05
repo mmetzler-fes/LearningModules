@@ -1,36 +1,23 @@
 # Quick-Link: Schüler starten per Link oder QR-Code
 
-> Der Quick-Link startet **ein** Thema sofort im Quiz-Modus. Soll der Modus
-> wählbar sein (Quiz, Klassenarbeit, Lernen mit Lösungen) oder sollen mehrere
-> Themen zusammen abgefragt werden, ist ein **[Themen-Link](themen-links.md)**
-> das passendere Werkzeug.
+> **Seit den Klassenlinks** erzeugt der Knopf keinen eigenen Link mehr,
+> sondern einen [Klassenlink](klassen-und-schuljahr.md). Ältere Quick-Links
+> (`/?q=…`) bleiben gültig; Ergebnisse darüber stehen unter „ohne Klasse“.
+> Der Rest dieser Seite beschreibt diese älteren Links.
 
 ## Für die Lehrkraft
 
-Auf der Karte eines Lernthemas gibt es den Button **🔗 Quick-Link**. Der Dialog
-zeigt beides nebeneinander:
+Auf der Karte eines Lernthemas gibt es den Button **🔗 Quick-Link**. Er fragt
+nach der Klasse (oder legt eine neue an) und erzeugt daraus einen Klassenlink
+für das ganze Thema mit **Quiz**, **🦉 Lernbegleitung** und **🏆 Quiz-Arena**.
+Danach wechselt die App zu **Schülerfreigaben → 🏫 Klassen**, wo Link und
+QR-Code gleich offen sind.
 
-- **QR-Code** – zum Abscannen mit iPad oder Handy
-- **Link** – zum Kopieren am PC, etwa für Moodle, Teams oder die Tafel
-
-Dazu: *Kopieren*, *Drucken* (nur QR und Link kommen aufs Blatt), *Neu* und
-*Zurückziehen*.
-
-Der Token bleibt stabil. Einmal ausgeteilte Zettel behalten also ihre Gültigkeit,
-bis bewusst *Neu* oder *Zurückziehen* gewählt wird.
-
-### Schülerfreigabe gleich dazu
-
-Beim ersten Öffnen des Quick-Links legt die App zusätzlich eine
-[Schülerfreigabe](themen-links.md) an: benannt nach dem Lernthema, mit dem
-ganzen Thema und den Modi **Quiz**, **🦉 Lernbegleitung** und
-**🏆 Quiz-Arena**. Sie übernimmt die Tags des Themas. Der Dialog weist einmal
-darauf hin; danach ist sie eine ganz normale Freigabe unter
-**Schülerfreigaben** – umbenennen, ändern, löschen nach Belieben.
-
-Das geschieht genau einmal je Quick-Link. Wer die Freigabe löscht, bekommt
-sie nicht wieder – auch nicht durch *Neu*. Erst nach *Zurückziehen* und einem
-neuen Quick-Link entsteht wieder eine.
+Grundlage ist eine Regel unter **Schülerfreigaben → 📚 Themen**, benannt nach
+dem Lernthema und mit dessen Tags. Sie entsteht beim ersten Klick; eine beim
+früheren Quick-Link angelegte Freigabe wird weiterverwendet. Wer die Regel
+löscht, bekommt beim nächsten Klick eine neue. Je Klasse gibt es einen
+Klassenlink – ein zweiter Klick für dieselbe Klasse zeigt den vorhandenen.
 
 ## Der Quick-Link gehört der Lehrkraft, nicht dem Thema
 

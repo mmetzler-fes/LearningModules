@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { User } from './core/entities/user.entity';
 import { StudentClass } from './core/entities/student-class.entity';
+import { ClassStudent } from './core/entities/class-student.entity';
 import { LearningTopic } from './core/entities/learning-topic.entity';
 import { LearningModule } from './core/entities/learning-module.entity';
 import { Result } from './core/entities/result.entity';
@@ -32,6 +33,7 @@ import { CryptoModule } from './core/crypto/crypto.module';
 import { SchoolsModule } from './core/schools/schools.module';
 import { CompanionModule } from './companion/companion.module';
 import { ContestModule } from './contest/contest.module';
+import { ClassesModule } from './classes/classes.module';
 import { join } from 'path';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -57,7 +59,7 @@ import { AppService } from './app.service';
     TypeOrmModule.forRoot({
       type: 'sqlite',
       database: 'data/database.sqlite',
-      entities: [User, StudentClass, LearningTopic, LearningModule, Result, School, SystemConfig, Tag, TopicLink, TopicQuickLink, TeacherGroup, ShopOffer, UseGrant, PointsEntry],
+      entities: [User, StudentClass, ClassStudent, LearningTopic, LearningModule, Result, School, SystemConfig, Tag, TopicLink, TopicQuickLink, TeacherGroup, ShopOffer, UseGrant, PointsEntry],
       synchronize: true,
     }),
     MailModule,
@@ -77,6 +79,7 @@ import { AppService } from './app.service';
     PublicModule,
     CompanionModule,
     ContestModule,
+    ClassesModule,
   ],
   controllers: [AppController],
   providers: [AppService],

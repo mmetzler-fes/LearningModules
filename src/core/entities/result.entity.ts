@@ -49,6 +49,14 @@ export class Result extends BaseEntity {
   @Column({ nullable: true })
   linkKind: string;
 
+  /**
+   * Schuljahr des Durchlaufs ("SJ26-27"), beim Speichern festgehalten –
+   * nicht aus dem Datum errechnet, denn der Admin stellt das Schuljahr von
+   * Hand um, irgendwann in oder nach den Sommerferien.
+   */
+  @Column({ type: 'varchar', nullable: true })
+  schoolYear: string | null;
+
   /** Modus des Durchlaufs: 'quiz' | 'exam' | 'learn' | 'companion' | 'contest'. */
   @Column({ nullable: true })
   mode: string;

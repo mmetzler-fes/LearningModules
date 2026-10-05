@@ -11,9 +11,10 @@ import { LinksModule } from '../../links/links.module';
 import { TopicsModule } from '../../topics/topics.module';
 import { GroupsModule } from '../../groups/groups.module';
 import { CompanionModule } from '../../companion/companion.module';
+import { ClassesModule } from '../../classes/classes.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([User, LearningTopic, LearningModule, Result, TopicLink, TopicQuickLink]), LinksModule, TopicsModule, GroupsModule, CompanionModule],
+  imports: [TypeOrmModule.forFeature([User, LearningTopic, LearningModule, Result, TopicLink, TopicQuickLink]), LinksModule, TopicsModule, GroupsModule, CompanionModule, ClassesModule],
   controllers: [PublicController],
 })
 export class PublicModule {}

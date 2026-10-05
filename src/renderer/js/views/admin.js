@@ -447,6 +447,7 @@ export class AdminView {
         m.quickLinks ? `${m.quickLinks} Quick-Links` : null,
         m.results ? `${m.results} Ergebnisse` : null,
         m.tags ? `${m.tags} Tags` : null,
+        m.classes ? `${m.classes} Klassen` : null,
       ].filter(Boolean);
       this.app.showToast(
         parts.length
@@ -486,9 +487,43 @@ export class AdminView {
           : 'Noch kein Masterkey gesetzt.';
       }
       await this._refreshCloudBackup();
+      await this._refreshSchoolYear();
     } catch (err) {
       this.app.showToast('Fehler: ' + err.message, 'error');
     }
+  }
+
+  // ---- Schuljahr ----
+
+  async _refreshSchoolYear() {
+    const info = await this.app.api.getSchoolYear();
+    const input = document.getElementById('schoolYearInput');
+    const status = document.getElementById('schoolYearStatus');
+    if (input) input.value = info?.current || '';
+    if (status) {
+      status.textContent = info?.setByAdmin
+        ? `Aktuell: ${info.current}.`
+        : `Aktuell: ${info?.current || '?'} – noch nie gesetzt, deshalb nach Kalender (Wechsel am 1. August).`;
+    }
+  }
+
+  _bindSchoolYear() {
+    const input = document.getElementById('schoolYearInput');
+    const save = async (value) => {
+      const res = await this.app.api.setSchoolYear(value);
+      if (res && res.success) {
+        this.app.showToast(`Schuljahr ${res.current} gesetzt.`, 'success');
+        await this._refreshSchoolYear();
+      } else this.app.showToast('Fehler: ' + (res?.message || '?'), 'error');
+    };
+    document.getElementById('btnSaveSchoolYear')?.addEventListener('click', () => save(input?.value || ''));
+    document.getElementById('btnNextSchoolYear')?.addEventListener('click', () => {
+      const m = /^SJ(\d{2})-(\d{2})$/.exec(String(input?.value || '').trim().toUpperCase());
+      if (!m || !input) return;
+      const two = (n) => String(n % 100).padStart(2, '0');
+      input.value = `SJ${two(Number(m[1]) + 1)}-${two(Number(m[2]) + 1)}`;
+      input.focus();
+    });
   }
 
   // ---- Automatisches Backup ----
@@ -639,6 +674,7 @@ export class AdminView {
 
   _bindSettings() {
     this._bindCloudBackup();
+    this._bindSchoolYear();
     document.getElementById('btnSavePoints')?.addEventListener('click', async () => {
       const num = (id) => Number(document.getElementById(id)?.value);
       const res = await this.app.api.savePointsSettings({

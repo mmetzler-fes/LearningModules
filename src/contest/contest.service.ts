@@ -10,6 +10,7 @@ import { User } from '../core/entities/user.entity';
 import { Result } from '../core/entities/result.entity';
 import { LinksService, contestSettingsOf } from '../links/links.service';
 import { CompanionService } from '../companion/companion.service';
+import { ClassesService } from '../classes/classes.service';
 import { forStudents, contentOf } from '../core/public/student-view';
 import { baseUrl, renderQr } from '../core/share/link-url';
 
@@ -149,6 +150,7 @@ export class ContestService implements OnModuleDestroy {
     @InjectRepository(Result) private readonly resultRepo: Repository<Result>,
     private readonly linksService: LinksService,
     private readonly companionService: CompanionService,
+    private readonly classesService: ClassesService,
   ) {
     // Kommentarzeilen halten Proxys davon ab, ruhige Verbindungen zu kappen.
     this.heartbeat = setInterval(() => {
@@ -523,6 +525,7 @@ export class ContestService implements OnModuleDestroy {
     const ranking = this.ranking(s);
     const maxScore = s.maxPoints * s.questions.length;
     const topicTitle = [...new Set(s.questions.map((q) => q.topicTitle))].join(', ');
+    const schoolYear = await this.classesService.currentSchoolYear();
     const rows = ranking.map((entry) => {
       const p = s.players.get(entry.id)!;
       return this.resultRepo.create({
@@ -537,6 +540,7 @@ export class ContestService implements OnModuleDestroy {
         linkId: s.linkId,
         linkName: s.linkName,
         mode: 'contest',
+        schoolYear,
         payload: {
           topicTitle,
           linkName: s.linkName,

@@ -15,6 +15,7 @@ import { SchoolsAdminView, MySchoolView } from './views/schools.js';
 import { TwoFactorDialog } from './views/two-factor.js';
 import { ContestView } from './views/contest.js';
 import { CompanionSettingsView } from './views/companion-settings.js';
+import { ClassesView } from './views/classes.js';
 
 // ==================== APP COORDINATOR ====================
 
@@ -63,6 +64,7 @@ class App {
     this.twoFactorDialog = new TwoFactorDialog(this);
     this.contestView  = new ContestView(this);
     this.companionView = new CompanionSettingsView(this);
+    this.classesView  = new ClassesView(this);
   }
 
   showToast(message, type = 'info') {
@@ -165,6 +167,7 @@ class App {
       case 'teacher-modules':   this.modulesView.refresh(); break;
       case 'teacher-results':   this.resultsView.refresh(); break;
       case 'teacher-links':     this.linksView.refresh(); break;
+      case 'teacher-classes':   this.classesView.refresh(); break;
       case 'teacher-companion': this.companionView.refresh(); break;
       case 'teacher-tags':      this.tagsView.refresh(); break;
       case 'teacher-shop':      this.shopView.refresh(); break;

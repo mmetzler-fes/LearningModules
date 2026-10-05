@@ -13,6 +13,7 @@ import { LinksService, LinkAccess, modesFor } from '../../links/links.service';
 import { TopicsService } from '../../topics/topics.service';
 import { GroupsService } from '../../groups/groups.service';
 import { CompanionService } from '../../companion/companion.service';
+import { ClassesService } from '../../classes/classes.service';
 import { contentOf, forStudents } from './student-view';
 import * as crypto from 'crypto';
 
@@ -31,6 +32,7 @@ export class PublicController {
     private readonly topicsService: TopicsService,
     private readonly groupsService: GroupsService,
     private readonly companionService: CompanionService,
+    private readonly classesService: ClassesService,
   ) {}
 
   /**
@@ -361,6 +363,7 @@ export class PublicController {
       linkKind: quickTopicTitle !== null ? 'quick' : undefined,
       // Der Quick-Link startet immer im Quiz-Modus.
       mode: link ? linkMode : quickTopicTitle !== null ? 'quiz' : undefined,
+      schoolYear: await this.classesService.currentSchoolYear(),
     });
     const saved = await this.resultRepo.save(result);
     return { success: true, id: saved.id };

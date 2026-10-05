@@ -8,10 +8,11 @@ import { Tag } from '../core/entities/tag.entity';
 import { Result } from '../core/entities/result.entity';
 import { TeacherGroup } from '../core/entities/teacher-group.entity';
 import { ShopOffer } from '../core/entities/shop-offer.entity';
+import { StudentClass } from '../core/entities/student-class.entity';
 
 /**
  * Was beim Löschen oder Zusammenführen eines Kontos an jemand anderen geht:
- * Themen-Links, Quick-Links, Ergebnisse und Tags.
+ * Themen-Links, Quick-Links, Ergebnisse, Tags und Klassen.
  *
  * Die Inhalte selbst (Themen, Module) behandelt der AccountsService – dort
  * entscheidet das Rechtemodell, was mit ihnen geschieht. Hier geht es nur um
@@ -27,10 +28,11 @@ export class HandoverService {
     @InjectRepository(Result) private readonly resultRepo: Repository<Result>,
     @InjectRepository(TeacherGroup) private readonly groupRepo: Repository<TeacherGroup>,
     @InjectRepository(ShopOffer) private readonly offerRepo: Repository<ShopOffer>,
+    @InjectRepository(StudentClass) private readonly classRepo: Repository<StudentClass>,
   ) {}
 
   /**
-   * Schreibt Links, Quick-Links, Ergebnisse und Tags von `from` auf
+   * Schreibt Links, Quick-Links, Ergebnisse, Tags und Klassen von `from` auf
    * `to` um. Mit `replaceInGroups` tritt `to` in den Gruppen und
    * Angebots-Zielgruppen an die Stelle von `from` (Zusammenführen); sonst
    * fällt `from` dort nur heraus (Löschen).
@@ -42,6 +44,7 @@ export class HandoverService {
       quickLinks: await this.transferQuickLinks(from.id, to.id),
       results: await this.reassign(this.resultRepo, 'teacherId', from.id, to.id),
       tags: await this.transferTags(from.id, to.id, fromLabel),
+      classes: await this.transferClasses(from.id, to.id, fromLabel),
       groups: await this.updateGroups(from.id, replaceInGroups ? to.id : null),
       audiences: await this.updateAudiences(from.id, replaceInGroups ? to.id : null),
     };
@@ -91,6 +94,28 @@ export class HandoverService {
       tag.ownerId = toId;
     }
     await this.tagRepo.save(mine);
+    return mine.length;
+  }
+
+  /**
+   * Klassen wandern samt Schülerliste mit – die Ergebnisse tun es ja auch.
+   * Je Schuljahr ist der Klassenname eindeutig; eine gleichnamige Klasse
+   * bekommt deshalb einen Zusatz, wie bei den Tags.
+   */
+  private async transferClasses(fromId: string, toId: string, fromLabel: string) {
+    const mine = await this.classRepo.find({ where: { ownerId: fromId } });
+    if (mine.length === 0) return 0;
+
+    const existing = await this.classRepo.find({ where: { ownerId: toId } });
+    const key = (c: StudentClass) => `${c.schoolYear}|${c.name.toLowerCase()}`;
+    const taken = new Set(existing.map(key));
+
+    for (const klasse of mine) {
+      if (taken.has(key(klasse))) klasse.name = `${klasse.name} (von ${fromLabel})`;
+      taken.add(key(klasse));
+      klasse.ownerId = toId;
+    }
+    await this.classRepo.save(mine);
     return mine.length;
   }
 

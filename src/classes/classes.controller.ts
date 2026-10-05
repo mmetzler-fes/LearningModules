@@ -1,0 +1,73 @@
+import { Controller, Get, Post, Patch, Put, Delete, Body, Param, Query, UseGuards, Request } from '@nestjs/common';
+import { ClassesService } from './classes.service';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+
+/** Klassen und Schülerlisten der Lehrkraft, dazu das aktuelle Schuljahr. */
+@Controller('classes')
+@UseGuards(JwtAuthGuard)
+export class ClassesController {
+  constructor(private readonly classesService: ClassesService) {}
+
+  /** Aktuelles Schuljahr und die Schuljahre, in denen es eigene Klassen gibt. */
+  @Get('school-year')
+  async schoolYear(@Request() req: any) {
+    return this.classesService.schoolYearInfo(req.user);
+  }
+
+  /** Nur Admin: aktuelles Schuljahr setzen (`{ schoolYear: 'SJ26-27' }`). */
+  @Put('school-year')
+  async setSchoolYear(@Request() req: any, @Body() body: { schoolYear?: string }) {
+    return this.classesService.setSchoolYear(req.user, body?.schoolYear);
+  }
+
+  @Get()
+  async findAll(@Request() req: any, @Query('year') year?: string) {
+    return this.classesService.findAll(req.user, year);
+  }
+
+  @Get(':id')
+  async findOne(@Param('id') id: string, @Request() req: any) {
+    return this.classesService.findOne(id, req.user);
+  }
+
+  @Post()
+  async create(@Request() req: any, @Body() body: { name?: string; schoolYear?: string }) {
+    return this.classesService.create(req.user, body);
+  }
+
+  @Patch(':id')
+  async update(@Param('id') id: string, @Request() req: any, @Body() body: { name?: string; strict?: boolean }) {
+    return this.classesService.update(id, req.user, body);
+  }
+
+  @Delete(':id')
+  async remove(@Param('id') id: string, @Request() req: any) {
+    return this.classesService.remove(id, req.user);
+  }
+
+  @Post(':id/students')
+  async addStudent(@Param('id') id: string, @Request() req: any, @Body() body: { firstName?: string; lastName?: string }) {
+    return this.classesService.addStudent(id, req.user, body);
+  }
+
+  /** Schülerliste einlesen; `{ dryRun: true }` liefert nur die Vorschau. */
+  @Post(':id/import')
+  async importStudents(@Param('id') id: string, @Request() req: any, @Body() body: any) {
+    return this.classesService.importStudents(id, req.user, body);
+  }
+
+  @Patch(':id/students/:studentId')
+  async updateStudent(
+    @Param('id') id: string,
+    @Param('studentId') studentId: string,
+    @Request() req: any,
+    @Body() body: { firstName?: string; lastName?: string; confirm?: boolean },
+  ) {
+    return this.classesService.updateStudent(id, studentId, req.user, body);
+  }
+
+  @Delete(':id/students/:studentId')
+  async removeStudent(@Param('id') id: string, @Param('studentId') studentId: string, @Request() req: any) {
+    return this.classesService.removeStudent(id, studentId, req.user);
+  }
+}

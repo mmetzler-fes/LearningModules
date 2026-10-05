@@ -184,6 +184,41 @@ export class BrowserApi {
   }
   deleteSchoolTag(id) { return this._fetch(`/api/tags/school/${encodeURIComponent(id)}`, { method: 'DELETE' }); }
 
+  // ---------- Schuljahr und Klassen ----------
+  getSchoolYear() { return this._fetch('/api/classes/school-year'); }
+  /** Nur Admin. */
+  setSchoolYear(schoolYear) {
+    return this._fetch('/api/classes/school-year', { method: 'PUT', body: JSON.stringify({ schoolYear }) });
+  }
+  getClasses(year) { return this._fetch(`/api/classes${year ? `?year=${encodeURIComponent(year)}` : ''}`); }
+  getClass(id) { return this._fetch(`/api/classes/${encodeURIComponent(id)}`); }
+  createClass(data) { return this._fetch('/api/classes', { method: 'POST', body: JSON.stringify(data) }); }
+  updateClass(id, data) {
+    return this._fetch(`/api/classes/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(data) });
+  }
+  deleteClass(id) { return this._fetch(`/api/classes/${encodeURIComponent(id)}`, { method: 'DELETE' }); }
+  addClassStudent(classId, data) {
+    return this._fetch(`/api/classes/${encodeURIComponent(classId)}/students`, { method: 'POST', body: JSON.stringify(data) });
+  }
+  updateClassStudent(classId, studentId, data) {
+    return this._fetch(`/api/classes/${encodeURIComponent(classId)}/students/${encodeURIComponent(studentId)}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  }
+  deleteClassStudent(classId, studentId) {
+    return this._fetch(`/api/classes/${encodeURIComponent(classId)}/students/${encodeURIComponent(studentId)}`, {
+      method: 'DELETE',
+    });
+  }
+  /** Schülerliste einlesen; `dryRun` liefert nur die Vorschau. */
+  importClassStudents(classId, students, dryRun) {
+    return this._fetch(`/api/classes/${encodeURIComponent(classId)}/import`, {
+      method: 'POST',
+      body: JSON.stringify({ students, dryRun }),
+    });
+  }
+
   // ---------- Themen-Links ----------
   getLinks() { return this._fetch('/api/links'); }
   getLink(id) { return this._fetch(`/api/links/${encodeURIComponent(id)}`); }

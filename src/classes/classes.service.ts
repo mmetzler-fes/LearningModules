@@ -1,4 +1,4 @@
-import { Injectable, Logger, NotFoundException, BadRequestException, ForbiddenException, OnApplicationBootstrap } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, BadRequestException, ForbiddenException, OnApplicationBootstrap, OnModuleDestroy } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In, IsNull } from 'typeorm';
 import * as crypto from 'crypto';
@@ -7,11 +7,17 @@ import { ClassStudent } from '../core/entities/class-student.entity';
 import { SystemConfig } from '../core/entities/system-config.entity';
 import { Result } from '../core/entities/result.entity';
 import { TopicLink } from '../core/entities/topic-link.entity';
-import { isSchoolYear, schoolYearOfDate, compareSchoolYearsDesc, splitSchoolYearPrefix } from './school-year';
+import { ClassShare } from '../core/entities/class-share.entity';
+import { User } from '../core/entities/user.entity';
+import { isSchoolYear, schoolYearOfDate, compareSchoolYearsDesc, splitSchoolYearPrefix, shiftSchoolYear, suggestNextClassName } from './school-year';
 import { planStudentImport, nameKey, ImportRow } from './student-import';
 import { matchStudent, splitTypedName, normalizeName } from './name-match';
+import { isExpired, deleteAfter, oldestKeptYear } from './retention';
 
 const SCHOOL_YEAR_KEY = 'school_year';
+/** Wann der Admin ins aktuelle Schuljahr gewechselt hat: `{ year, at }` – Grundlage der Löschfrist. */
+const SCHOOL_YEAR_SWITCH_KEY = 'school_year_switched';
+const RETENTION_INTERVAL_MS = 6 * 60 * 60 * 1000;
 const MAX_IMPORT_ROWS = 500;
 const MAX_IMPORT_CLASSES = 60;
 
@@ -28,8 +34,9 @@ const byLastFirst = (a: ClassStudent, b: ClassStudent) =>
  * bewusst nicht schulweit, siehe `StudentClass`.
  */
 @Injectable()
-export class ClassesService implements OnApplicationBootstrap {
+export class ClassesService implements OnApplicationBootstrap, OnModuleDestroy {
   private readonly logger = new Logger(ClassesService.name);
+  private retentionTimer: NodeJS.Timeout | null = null;
 
   constructor(
     @InjectRepository(StudentClass) private readonly classRepo: Repository<StudentClass>,
@@ -37,6 +44,8 @@ export class ClassesService implements OnApplicationBootstrap {
     @InjectRepository(SystemConfig) private readonly configRepo: Repository<SystemConfig>,
     @InjectRepository(Result) private readonly resultRepo: Repository<Result>,
     @InjectRepository(TopicLink) private readonly linkRepo: Repository<TopicLink>,
+    @InjectRepository(ClassShare) private readonly shareRepo: Repository<ClassShare>,
+    @InjectRepository(User) private readonly userRepo: Repository<User>,
   ) {}
 
   /**
@@ -60,6 +69,67 @@ export class ClassesService implements OnApplicationBootstrap {
       }
     } catch (err) {
       this.logger.error('Schuljahr nachtragen fehlgeschlagen', err as any);
+    }
+    await this.runRetention();
+    this.retentionTimer = setInterval(() => void this.runRetention(), RETENTION_INTERVAL_MS);
+  }
+
+  onModuleDestroy() {
+    if (this.retentionTimer) clearInterval(this.retentionTimer);
+  }
+
+  // ---- Löschregel ----
+
+  /** Ab wann abgelaufene Schuljahre gelöscht werden. */
+  private async retentionDeadline(current: string): Promise<Date> {
+    const entry = await this.configRepo.findOne({ where: { key: SCHOOL_YEAR_SWITCH_KEY } });
+    const switched = entry?.value?.year === current && entry?.value?.at ? new Date(entry.value.at) : null;
+    return deleteAfter(current, switched);
+  }
+
+  /** Abgelaufene Schuljahre, in denen es (bei `ownerId`: eigene) Klassen oder Ergebnisse gibt. */
+  private async expiredYears(current: string, ownerId?: string): Promise<string[]> {
+    const classYears = await this.classRepo
+      .createQueryBuilder('c').select('DISTINCT c.schoolYear', 'y')
+      .where(ownerId ? 'c.ownerId = :ownerId' : '1=1', { ownerId }).getRawMany();
+    const resultYears = await this.resultRepo
+      .createQueryBuilder('r').select('DISTINCT r.schoolYear', 'y')
+      .where(ownerId ? 'r.teacherId = :ownerId' : '1=1', { ownerId }).getRawMany();
+    return [...new Set([...classYears, ...resultYears].map((r) => r.y))].filter((y) => isExpired(y, current)).sort(compareSchoolYearsDesc);
+  }
+
+  /** Für den Hinweis: Was von mir wird wann gelöscht? */
+  async retentionInfo(user: any) {
+    const current = await this.currentSchoolYear();
+    const years = await this.expiredYears(current, user.userId);
+    const classes = years.length ? await this.classRepo.count({ where: { ownerId: user.userId, schoolYear: In(years) } }) : 0;
+    const results = years.length ? await this.resultRepo.count({ where: { teacherId: user.userId, schoolYear: In(years) } }) : 0;
+    return { current, keepFrom: oldestKeptYear(current), years, classes, results, deleteAfter: (await this.retentionDeadline(current)).toISOString() };
+  }
+
+  /**
+   * Löscht abgelaufene Schuljahre, sobald die Frist nach dem Wechsel um ist:
+   * Ergebnisse, Klassen mit Schülerlisten, ihre Klassenlinks und offene
+   * Teilen-Angebote. Läuft beim Start und alle sechs Stunden.
+   */
+  async runRetention(now = new Date()) {
+    try {
+      const current = await this.currentSchoolYear();
+      if (now < (await this.retentionDeadline(current))) return;
+      const years = await this.expiredYears(current);
+      if (years.length === 0) return;
+      const classes = await this.classRepo.find({ where: { schoolYear: In(years) }, select: ['id'] });
+      const ids = classes.map((c) => c.id);
+      const results = await this.resultRepo.delete({ schoolYear: In(years) });
+      if (ids.length) {
+        await this.studentRepo.delete({ classId: In(ids) });
+        await this.linkRepo.delete({ classId: In(ids) });
+        await this.shareRepo.delete({ classId: In(ids) });
+        await this.classRepo.delete({ id: In(ids) });
+      }
+      this.logger.log(`Löschregel: ${years.join(', ')} gelöscht – ${ids.length} Klassen, ${results.affected ?? 0} Ergebnisse.`);
+    } catch (err) {
+      this.logger.error('Löschregel fehlgeschlagen', err as any);
     }
   }
 
@@ -92,7 +162,12 @@ export class ClassesService implements OnApplicationBootstrap {
     if (user?.role !== 'admin') throw new ForbiddenException('Nur der Admin setzt das Schuljahr.');
     const year = String(value ?? '').trim().toUpperCase();
     if (!isSchoolYear(year)) throw new BadRequestException('Schuljahr bitte im Format SJ26-27 angeben.');
+    const before = await this.currentSchoolYear();
     await this.configRepo.save(this.configRepo.create({ key: SCHOOL_YEAR_KEY, value: year }));
+    // Der Tag des Wechsels startet die Frist der Löschregel.
+    if (before !== year) {
+      await this.configRepo.save(this.configRepo.create({ key: SCHOOL_YEAR_SWITCH_KEY, value: { year, at: new Date().toISOString() } }));
+    }
     return { success: true, current: year };
   }
 
@@ -236,7 +311,184 @@ export class ClassesService implements OnApplicationBootstrap {
     const klasse = await this.own(id, user);
     await this.linkRepo.delete({ classId: id, ownerId: user.userId });
     await this.studentRepo.delete({ classId: id });
+    await this.shareRepo.delete({ classId: id, status: 'offered' });
     await this.classRepo.remove(klasse);
+    return { success: true };
+  }
+
+  // ---- Schuljahreswechsel ----
+
+  /**
+   * Klassen des Vorjahres, über die noch nicht entschieden ist – Grundlage
+   * des Assistenten. Leer, sobald jede übernommen oder aufgegeben ist.
+   */
+  async rolloverInfo(user: any) {
+    const to = await this.currentSchoolYear();
+    const from = shiftSchoolYear(to, -1);
+    const open = await this.classRepo.find({ where: { ownerId: user.userId, schoolYear: from, rolledOver: IsNull() } });
+    const ids = open.map((c) => c.id);
+    const students = ids.length ? await this.studentRepo.find({ where: { classId: In(ids) }, select: ['classId', 'status'] }) : [];
+    const links = ids.length ? await this.linkRepo.find({ where: { classId: In(ids) }, select: ['classId'] }) : [];
+    return {
+      from,
+      to,
+      classes: open
+        .sort((a, b) => a.name.localeCompare(b.name, 'de', { numeric: true }))
+        .map((c) => ({
+          id: c.id,
+          name: c.name,
+          suggestedName: suggestNextClassName(c.name),
+          studentCount: students.filter((s) => s.classId === c.id && s.status === 'confirmed').length,
+          linkCount: links.filter((l) => l.classId === c.id).length,
+          strict: c.strict,
+        })),
+    };
+  }
+
+  /**
+   * Klassen ins neue Schuljahr übernehmen: Je Klasse entsteht eine neue mit
+   * der (bestätigten) Schülerliste; die alte bleibt für die Ergebnisse des
+   * Vorjahres. `moveLinks` hängt ihre Klassenlinks an die neue Klasse, damit
+   * ausgeteilte QR-Codes weiter gelten. Nicht übernommene Klassen gelten als
+   * aufgegeben, ihre Klassenlinks werden deaktiviert.
+   */
+  async rollover(user: any, body: { items?: Array<{ classId?: string; take?: boolean; name?: string; moveLinks?: boolean }> }) {
+    const info = await this.rolloverInfo(user);
+    const items = Array.isArray(body?.items) ? body.items : [];
+    const openIds = new Set(info.classes.map((c) => c.id));
+    const taken: string[] = [];
+    const dropped: string[] = [];
+
+    for (const item of items) {
+      if (!item?.classId || !openIds.has(item.classId)) continue;
+      const old = await this.own(item.classId, user);
+      if (!item.take) {
+        await this.linkRepo.update({ classId: old.id, ownerId: user.userId }, { active: false });
+        old.rolledOver = 'dropped';
+        await this.classRepo.save(old);
+        dropped.push(old.name);
+        continue;
+      }
+      const name = cleanName(item.name, 40) || old.name;
+      await this.assertNameFree(user, info.to, name);
+      const klasse = await this.classRepo.save(
+        this.classRepo.create({
+          id: crypto.randomUUID(), name, ownerId: user.userId, schoolYear: info.to, strict: old.strict,
+          predecessorId: old.id, importId: null, rolledOver: null, createdBy: user.userId,
+        }),
+      );
+      const students = await this.studentRepo.find({ where: { classId: old.id, status: 'confirmed' } });
+      await this.studentRepo.save(
+        students.map((s) =>
+          this.studentRepo.create({
+            id: crypto.randomUUID(), classId: klasse.id, firstName: s.firstName, lastName: s.lastName,
+            status: 'confirmed', importId: s.importId,
+          }),
+        ),
+      );
+      if (item.moveLinks) await this.linkRepo.update({ classId: old.id, ownerId: user.userId }, { classId: klasse.id });
+      old.rolledOver = 'copied';
+      await this.classRepo.save(old);
+      taken.push(name);
+    }
+    return { success: true, taken, dropped };
+  }
+
+  // ---- Teilen ----
+
+  /**
+   * Klasse Kolleginnen und Kollegen anbieten – nur innerhalb der eigenen
+   * Schule (ohne Schule: alle Lehrkräfte). Ein schon offenes Angebot an
+   * dieselbe Person bleibt, wie es ist.
+   */
+  async shareClass(classId: string, user: any, body: { userIds?: string[] }) {
+    const klasse = await this.own(classId, user);
+    const ids = [...new Set((Array.isArray(body?.userIds) ? body.userIds : []).map(String))].filter((id) => id !== user.userId);
+    if (ids.length === 0) throw new BadRequestException('Bitte mindestens eine Person wählen.');
+    const recipients = await this.userRepo.find({ where: { id: In(ids) } });
+    const allowed = recipients.filter(
+      (u) => u.active !== false && (u.role === 'teacher' || u.role === 'admin') && (!user.schoolId || u.schoolId === user.schoolId),
+    );
+    if (allowed.length === 0) throw new BadRequestException('Diese Personen gehören nicht zu deiner Schule.');
+    const me = await this.userRepo.findOne({ where: { id: user.userId } });
+    const existing = await this.shareRepo.find({ where: { classId, status: 'offered' } });
+    const fresh = allowed
+      .filter((u) => !existing.some((s) => s.toUserId === u.id))
+      .map((u) =>
+        this.shareRepo.create({
+          id: crypto.randomUUID(), classId, fromUserId: user.userId, toUserId: u.id, status: 'offered',
+          className: klasse.name, schoolYear: klasse.schoolYear, fromName: me?.displayName || me?.email || '',
+        }),
+      );
+    if (fresh.length) await this.shareRepo.save(fresh);
+    return { success: true, offered: fresh.length };
+  }
+
+  /** Mit wem die Klasse geteilt ist – für die Schülerliste. */
+  async sharesOfClass(classId: string, user: any) {
+    await this.own(classId, user);
+    const shares = await this.shareRepo.find({ where: { classId } });
+    const users = shares.length ? await this.userRepo.find({ where: { id: In(shares.map((s) => s.toUserId)) } }) : [];
+    return shares.map((s) => {
+      const u = users.find((x) => x.id === s.toUserId);
+      return { id: s.id, status: s.status, toName: u?.displayName || u?.email || '?', createdAt: s.createdAt };
+    });
+  }
+
+  /** Offene Angebote an mich. */
+  async incomingShares(user: any) {
+    const shares = await this.shareRepo.find({ where: { toUserId: user.userId, status: 'offered' } });
+    return shares.map((s) => ({ id: s.id, className: s.className, schoolYear: s.schoolYear, fromName: s.fromName, createdAt: s.createdAt }));
+  }
+
+  private async ownShare(id: string, user: any) {
+    const share = await this.shareRepo.findOne({ where: { id, toUserId: user.userId, status: 'offered' } });
+    if (!share) throw new NotFoundException('Dieses Angebot gibt es nicht (mehr).');
+    return share;
+  }
+
+  /**
+   * Angebot annehmen: eigene Klasse im selben Schuljahr mit dem heutigen
+   * Stand der Schülerliste (bestätigte Schüler). Gibt es den Namen bei mir
+   * schon, bekommt die Kopie einen Zusatz.
+   */
+  async acceptShare(id: string, user: any) {
+    const share = await this.ownShare(id, user);
+    const source = await this.classRepo.findOne({ where: { id: share.classId } });
+    if (!source) {
+      share.status = 'declined';
+      await this.shareRepo.save(share);
+      throw new NotFoundException('Die Klasse wurde inzwischen gelöscht.');
+    }
+    const schoolYear = source.schoolYear || (await this.currentSchoolYear());
+    const mine = await this.classRepo.find({ where: { ownerId: user.userId, schoolYear } });
+    const taken = (n: string) => mine.some((c) => c.name.toLocaleLowerCase('de') === n.toLocaleLowerCase('de'));
+    let name = source.name;
+    if (taken(name)) name = `${source.name} (von ${share.fromName})`.slice(0, 40);
+    for (let i = 2; taken(name); i++) name = `${source.name} (${i})`;
+    const klasse = await this.classRepo.save(
+      this.classRepo.create({
+        id: crypto.randomUUID(), name, ownerId: user.userId, schoolYear, strict: source.strict,
+        predecessorId: null, importId: source.importId, rolledOver: null, createdBy: user.userId,
+      }),
+    );
+    const students = await this.studentRepo.find({ where: { classId: source.id, status: 'confirmed' } });
+    await this.studentRepo.save(
+      students.map((s) =>
+        this.studentRepo.create({
+          id: crypto.randomUUID(), classId: klasse.id, firstName: s.firstName, lastName: s.lastName, status: 'confirmed', importId: s.importId,
+        }),
+      ),
+    );
+    share.status = 'accepted';
+    await this.shareRepo.save(share);
+    return { success: true, class: { id: klasse.id, name: klasse.name, schoolYear: klasse.schoolYear }, students: students.length };
+  }
+
+  async declineShare(id: string, user: any) {
+    const share = await this.ownShare(id, user);
+    share.status = 'declined';
+    await this.shareRepo.save(share);
     return { success: true };
   }
 

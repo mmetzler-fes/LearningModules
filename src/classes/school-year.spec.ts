@@ -4,6 +4,7 @@ import {
   shiftSchoolYear,
   compareSchoolYearsDesc,
   splitSchoolYearPrefix,
+  suggestNextClassName,
 } from './school-year';
 
 describe('Schuljahr', () => {
@@ -36,5 +37,13 @@ describe('Schuljahr', () => {
     expect(splitSchoolYearPrefix('sj26-27 TG12')).toEqual({ schoolYear: 'SJ26-27', name: 'TG12' });
     expect(splitSchoolYearPrefix('TG12')).toEqual({ schoolYear: null, name: 'TG12' });
     expect(splitSchoolYearPrefix('SJ26-28-TG12')).toEqual({ schoolYear: null, name: 'SJ26-28-TG12' });
+  });
+
+  it('schlägt den Namen fürs nächste Jahr vor', () => {
+    expect(suggestNextClassName('TG11')).toBe('TG12');
+    expect(suggestNextClassName('E1ME1')).toBe('E2ME1');
+    expect(suggestNextClassName('10a')).toBe('11a');
+    expect(suggestNextClassName('09b')).toBe('10b');
+    expect(suggestNextClassName('Kurs')).toBe('Kurs');
   });
 });

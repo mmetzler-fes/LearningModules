@@ -54,3 +54,12 @@ export function splitSchoolYearPrefix(name: string): { schoolYear: string | null
   const year = m[1].toUpperCase();
   return isSchoolYear(year) ? { schoolYear: year, name: m[2].trim() } : { schoolYear: null, name: String(name).trim() };
 }
+
+/**
+ * Vorschlag für den Klassennamen im nächsten Schuljahr: die erste Zahl um
+ * eins erhöht (TG11 → TG12, E1ME1 → E2ME1, 10a → 11a). Nur ein Vorschlag –
+ * die Lehrkraft sieht und ändert ihn im Assistenten.
+ */
+export function suggestNextClassName(name: string): string {
+  return String(name ?? '').replace(/\d+/, (digits) => String(Number(digits) + 1).padStart(digits.length, '0'));
+}

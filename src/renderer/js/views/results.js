@@ -9,6 +9,44 @@ const MODE_LABELS = {
 const NO_LINK = '__none__';
 const QUICK_PREFIX = 'quick::';
 
+/** Eigene Ergebnisse (optional nur einzelne Schuljahre) als Datei speichern. */
+export async function downloadResultsExport(app, years) {
+  const data = await app.api.exportResults(years);
+  if (!data || data.statusCode >= 400) { app.showToast('Fehler: ' + (data?.message || '?'), 'error'); return; }
+  if (!data.results.length) { app.showToast('Keine Ergebnisse zum Exportieren vorhanden.', 'info'); return; }
+  const url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }));
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `ergebnisse_${years?.length ? years.join('_') : 'alle'}_${new Date().toISOString().split('T')[0]}.json`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+  app.showToast(`${data.results.length} Ergebnis(se) exportiert.`, 'success');
+}
+
+/**
+ * Hinweis auf die Löschregel: Welche eigenen Schuljahre sind abgelaufen und
+ * wann werden sie gelöscht? Mit Export-Knopf für genau diese Jahre.
+ */
+export async function renderRetentionNotice(app, container) {
+  if (!container) return;
+  container.innerHTML = '';
+  const info = await app.api.getRetention();
+  if (!info || info.statusCode >= 400 || !info.years?.length || !(info.classes || info.results)) return;
+  const when = new Date(info.deleteAfter);
+  const past = when <= new Date();
+  const box = document.createElement('div');
+  box.className = 'class-notice warning';
+  box.innerHTML = `
+    <div><strong>🗓 Löschregel:</strong> Aufbewahrt werden ${escapeHtml(info.keepFrom)} bis ${escapeHtml(info.current)}.
+      Deine Daten aus ${escapeHtml(info.years.join(', '))} (${info.classes} Klasse(n), ${info.results} Ergebnis(se))
+      werden ${past ? 'in Kürze' : `am ${when.toLocaleDateString('de-DE')}`} gelöscht. Vorher exportieren, wer sie behalten will.</div>
+    <button class="btn btn-secondary btn-sm">⬇️ Diese Jahre exportieren</button>`;
+  box.querySelector('button').addEventListener('click', () => downloadResultsExport(app, info.years));
+  container.appendChild(box);
+}
+
 // ==================== RESULTS VIEW ====================
 
 export class ResultsView {
@@ -42,24 +80,33 @@ export class ResultsView {
     if (this._btnExport) {
       this._btnExport.addEventListener('click', () => this._exportResults());
     }
+    const fileInput = document.getElementById('resultsImportFile');
+    document.getElementById('btnImportResults')?.addEventListener('click', () => fileInput?.click());
+    fileInput?.addEventListener('change', () => {
+      const file = fileInput.files?.[0];
+      fileInput.value = '';
+      if (file) this._importResults(file);
+    });
   }
 
   async _exportResults() {
-    const results = await this.app.api.getQuizResults();
-    if (!results || results.length === 0) {
-      this.app.showToast('Keine Ergebnisse zum Exportieren vorhanden.', 'info');
+    await downloadResultsExport(this.app);
+  }
+
+  /** Ergebnis-Datei einlesen (Export dieser oder einer anderen LearningModules-Installation). */
+  async _importResults(file) {
+    let data;
+    try {
+      data = JSON.parse(await file.text());
+    } catch (_) {
+      this.app.showToast('Die Datei ist kein gültiges JSON.', 'error');
       return;
     }
-    const blob = new Blob([JSON.stringify(results, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `quiz_ergebnisse_${new Date().toISOString().split('T')[0]}.json`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-    this.app.showToast('Ergebnisse erfolgreich exportiert.', 'success');
+    const res = await this.app.api.importResults(data);
+    if (!res || res.statusCode >= 400) { this.app.showToast('Fehler: ' + (res?.message || '?'), 'error'); return; }
+    this.app.showToast(`${res.imported} Ergebnis(se) eingelesen${res.skipped ? `, ${res.skipped} schon vorhanden` : ''}.`
+      + (res.expired ? ` ${res.expired} davon stammen aus abgelaufenen Schuljahren – die Löschregel entfernt sie wieder.` : ''), res.expired ? 'info' : 'success');
+    this.refresh();
   }
 
   /**
@@ -82,6 +129,7 @@ export class ResultsView {
   }
 
   async refresh() {
+    renderRetentionNotice(this.app, document.getElementById('resultsNotices'));
     const results = await this.app.api.getQuizResults();
     const search = (this._searchResults ? this._searchResults.value : '').toLowerCase().trim();
     const linkFilter = this._filterLink ? this._filterLink.value : '';
@@ -244,8 +292,11 @@ export class ResultsView {
     }
   }
 
-  /** Ein einzelner Durchlauf. Der Linkname steht jetzt in der Gruppe darüber. */
-  _renderResultCard(r) {
+  /**
+   * Ein einzelner Durchlauf. Der Linkname steht jetzt in der Gruppe darüber.
+   * `onDeleted`: was nach dem Löschen neu gezeichnet wird (Klassenergebnisse nutzen die Karte mit).
+   */
+  _renderResultCard(r, onDeleted = () => this.refresh()) {
     const card = document.createElement('div');
     card.className = 'result-card';
     // Ein Durchlauf ohne bewertbare Aufgaben (nur Informationen) ist keine
@@ -290,7 +341,7 @@ export class ResultsView {
     card.querySelector('.btn-delete-result').addEventListener('click', async () => {
       await this.app.api.deleteQuizResult(r.id);
       this.app.showToast(t('results.deleted'), 'info');
-      this.refresh();
+      onDeleted();
     });
     return card;
   }

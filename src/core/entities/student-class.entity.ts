@@ -41,6 +41,13 @@ export class StudentClass extends BaseEntity {
   @Column({ type: 'varchar', nullable: true })
   importId: string | null;
 
+  /**
+   * Schuljahreswechsel erledigt: 'copied' = ins neue Jahr übernommen,
+   * 'dropped' = nicht mehr benötigt. Leer = der Assistent fragt noch.
+   */
+  @Column({ type: 'varchar', nullable: true })
+  rolledOver: string | null;
+
   /** Klasse des Vorjahres, aus der diese übernommen wurde. */
   @Column({ type: 'varchar', nullable: true })
   predecessorId: string | null;

@@ -4254,3 +4254,15 @@ body {
 .ai-prompt-output { width: 100%; font-family: ui-monospace, monospace; font-size: 0.85em; margin-top: 12px; }
 .class-strict-toggle, .class-strict-choice { align-items: flex-start; gap: 8px; margin: 8px 0 4px; }
 .class-strict-toggle span, .class-strict-choice span { font-size: 0.9em; line-height: 1.4; }
+
+/* ---- Klassenergebnisse ---- */
+.cr-missing { color: var(--danger); font-weight: 600; }
+.cr-row-missing td { color: var(--text-secondary); }
+.cr-table { margin: 8px 0 12px; }
+.cr-table .result-score { font-size: 0.95em; padding: 2px 8px; }
+.cr-subhead { margin: 20px 0 4px; font-size: 1rem; }
+.class-notice { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 18px; margin-bottom: 14px; border-radius: var(--radius-md); background: var(--accent-light); border: 1px solid var(--accent); }
+.class-notice.warning { background: rgba(245, 158, 11, 0.12); border-color: var(--warning); }
+.rollover-card { max-width: 820px; }
+.rollover-card .ro-name { width: 100%; min-width: 100px; }
+.share-list { display: flex; flex-direction: column; gap: 4px; max-height: 40vh; overflow: auto; }

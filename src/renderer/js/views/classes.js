@@ -1,5 +1,6 @@
 import { escapeHtml, escapeAttr } from '../utils.js';
 import { readStudentList, readClassLists, needsPassword, WrongPassword } from '../odf/student-list.js';
+import { renderRetentionNotice } from './results.js';
 
 // ==================== KLASSEN ====================
 
@@ -103,6 +104,7 @@ export class ClassesView {
     this.app = app;
     this._yearSelect = document.getElementById('classYear');
     this._list       = document.getElementById('classesList');
+    this._notices    = document.getElementById('classesNotices');
     this._detail     = document.getElementById('classDetail');
     this._fileInput  = document.getElementById('classImportFile');
     this._btnNew     = document.getElementById('btnNewClass');
@@ -155,7 +157,120 @@ export class ClassesView {
 
   // ---- Übersicht ----
 
+  /** Nach dem Login einmal je Sitzung: Gibt es Klassen aus dem Vorjahr zu übernehmen? */
+  async checkRollover() {
+    try {
+      if (sessionStorage.getItem('lm_rollover_hint')) return;
+      sessionStorage.setItem('lm_rollover_hint', '1');
+    } catch (_) { /* dann eben bei jedem Login */ }
+    const offers = await this.app.api.getIncomingClassShares();
+    if (!failed(offers) && offers.length) {
+      this.app.showToast(`${offers.length} geteilte Klasse(n) warten auf dich – unter 🏫 Klassen.`, 'info');
+    }
+    const info = await this.app.api.getRollover();
+    if (failed(info) || !info.classes?.length) return;
+    this.app.showToast(`Neues Schuljahr ${info.to}: ${info.classes.length} Klasse(n) aus ${info.from} übernehmen – unter 🏫 Klassen.`, 'info');
+  }
+
+  /** Hinweise über der Klassenliste: Schuljahreswechsel. */
+  async _renderNotices() {
+    this._notices.innerHTML = '';
+    const retention = document.createElement('div');
+    this._notices.appendChild(retention);
+    renderRetentionNotice(this.app, retention);
+    const offers = await this.app.api.getIncomingClassShares();
+    for (const offer of failed(offers) ? [] : offers) {
+      const box = document.createElement('div');
+      box.className = 'class-notice';
+      box.innerHTML = `
+        <div><strong>👥 ${escapeHtml(offer.fromName)}</strong> teilt die Klasse <strong>${escapeHtml(offer.className)}</strong>
+          (${escapeHtml(offer.schoolYear || '')}) mit dir. Annehmen legt eine eigene Klasse mit dieser Schülerliste an.</div>
+        <div class="link-card-actions">
+          <button class="btn btn-primary btn-sm btn-accept">Annehmen</button>
+          <button class="btn btn-secondary btn-sm btn-decline">Ablehnen</button>
+        </div>`;
+      const answer = async (accept) => {
+        const res = await this.app.api.answerClassShare(offer.id, accept);
+        if (failed(res)) { this.app.showToast('Fehler: ' + (res?.message || '?'), 'error'); this.refresh(); return; }
+        if (accept) {
+          this.app.showToast(`Klasse „${res.class.name}“ mit ${res.students} Schülern angelegt.`, 'success');
+          this._year = res.class.schoolYear;
+        }
+        this.refresh();
+      };
+      box.querySelector('.btn-accept').addEventListener('click', () => answer(true));
+      box.querySelector('.btn-decline').addEventListener('click', () => answer(false));
+      this._notices.appendChild(box);
+    }
+
+    if (this._year !== this._currentYear) return;
+    const info = await this.app.api.getRollover();
+    if (failed(info) || !info.classes?.length) return;
+    const box = document.createElement('div');
+    box.className = 'class-notice';
+    box.innerHTML = `
+      <div><strong>📅 Neues Schuljahr ${escapeHtml(info.to)}</strong> – ${info.classes.length} Klasse(n) aus ${escapeHtml(info.from)}
+        warten auf deine Entscheidung: übernehmen (mit Schülerliste) oder nicht mehr benötigt.</div>
+      <button class="btn btn-primary btn-sm">Klassen übernehmen …</button>`;
+    box.querySelector('button').addEventListener('click', () => this._openRollover(info));
+    this._notices.appendChild(box);
+  }
+
+  /** Assistent: je Klasse des Vorjahres übernehmen (mit neuem Namen) oder aufgeben. */
+  _openRollover(info) {
+    const overlay = document.createElement('div');
+    overlay.className = 'confirm-overlay';
+    overlay.innerHTML = `
+      <div class="import-modules-card class-import-preview rollover-card">
+        <h3>📅 Klassen ins ${escapeHtml(info.to)} übernehmen</h3>
+        <p class="hint">Übernommen wird die Schülerliste (bestätigte Schüler); die Klasse aus ${escapeHtml(info.from)} bleibt mit
+          ihren Ergebnissen erhalten. <strong>Links mitnehmen</strong> hängt ihre Klassenlinks an die neue Klasse – ausgeteilte
+          QR-Codes gelten weiter. Nicht angehakte Klassen gelten als nicht mehr benötigt; ihre Klassenlinks werden deaktiviert.</p>
+        <table class="class-students">
+          <thead><tr><th>Übernehmen</th><th>${escapeHtml(info.from)}</th><th>Name im ${escapeHtml(info.to)}</th><th>Schüler</th><th>Links mitnehmen</th></tr></thead>
+          <tbody>${info.classes.map((c) => `
+            <tr data-id="${escapeAttr(c.id)}">
+              <td><input type="checkbox" class="ro-take" checked /></td>
+              <td>${escapeHtml(c.name)}</td>
+              <td><input type="text" class="ro-name" maxlength="40" value="${escapeAttr(c.suggestedName)}" /></td>
+              <td>${c.studentCount}</td>
+              <td>${c.linkCount ? `<label><input type="checkbox" class="ro-links" checked /> ${c.linkCount}</label>` : '–'}</td>
+            </tr>`).join('')}
+          </tbody>
+        </table>
+        <div class="confirm-actions">
+          <button class="btn btn-primary btn-ok">Übernehmen</button>
+          <button class="btn btn-secondary btn-cancel">Später</button>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+    const close = () => overlay.remove();
+    overlay.querySelectorAll('tr[data-id]').forEach((row) => {
+      const take = row.querySelector('.ro-take');
+      const sync = () => row.querySelectorAll('.ro-name, .ro-links').forEach((el) => { el.disabled = !take.checked; });
+      take.addEventListener('change', sync);
+    });
+    overlay.querySelector('.btn-cancel').addEventListener('click', close);
+    overlay.querySelector('.btn-ok').addEventListener('click', async () => {
+      const items = [...overlay.querySelectorAll('tr[data-id]')].map((row) => ({
+        classId: row.dataset.id,
+        take: row.querySelector('.ro-take').checked,
+        name: row.querySelector('.ro-name').value,
+        moveLinks: !!row.querySelector('.ro-links')?.checked,
+      }));
+      const dropped = items.filter((i) => !i.take).length;
+      if (dropped && !(await this.app.appConfirm(`${dropped} Klasse(n) nicht übernehmen? Ihre Klassenlinks werden deaktiviert; die Ergebnisse bleiben.`))) return;
+      const res = await this.app.api.rollover(items);
+      if (failed(res)) { this.app.showToast('Fehler: ' + (res?.message || '?'), 'error'); return; }
+      close();
+      this.app.showToast(`${res.taken.length} Klasse(n) übernommen${res.dropped.length ? `, ${res.dropped.length} nicht mehr benötigt` : ''}.`, 'success');
+      this._year = info.to;
+      this.refresh();
+    });
+  }
+
   async _renderList() {
+    this._renderNotices();
     this._detail.classList.add('hidden');
     this._detail.innerHTML = '';
     this._list.classList.remove('hidden');
@@ -248,6 +363,7 @@ export class ClassesView {
       return this._renderList();
     }
     this._list.classList.add('hidden');
+    this._notices.innerHTML = '';
     this._btnNew.classList.add('hidden');
     this._btnImportAll?.classList.add('hidden');
     this._detail.classList.remove('hidden');
@@ -261,8 +377,10 @@ export class ClassesView {
         <div class="link-card-actions">
           <button class="btn btn-secondary btn-sm btn-class-import" title="Klassenliste aus dem SchülerLernTool oder Tabelle mit Name und Vorname">📥 Schülerliste einlesen</button>
           <button class="btn btn-secondary btn-sm btn-class-rename">✏️ Umbenennen</button>
+          <button class="btn btn-secondary btn-sm btn-class-share" title="Kolleginnen und Kollegen bekommen eine eigene Kopie mit dieser Schülerliste">👥 Teilen</button>
         </div>
       </div>
+      <p class="hint class-shares-line"></p>
       <p class="hint">${students.length === 1 ? '1 Schüler' : `${students.length} Schüler`}${pending ? ` · ${pending} unbestätigt – bei der Anmeldung entstanden: bestätigen (✓) oder einem Schüler zuordnen (⇄)` : ''}</p>
       <label class="tag-filter-mode class-strict-toggle">
         <input type="checkbox" class="chk-class-strict" ${klasse.strict ? 'checked' : ''} />
@@ -307,6 +425,13 @@ export class ClassesView {
     this._detail.querySelector('.btn-class-back').addEventListener('click', () => { this._openId = null; this.refresh(); });
     this._detail.querySelector('.btn-class-import').addEventListener('click', () => this._fileInput.click());
     this._detail.querySelector('.btn-class-rename').addEventListener('click', () => this._renameClass(klasse));
+    this._detail.querySelector('.btn-class-share').addEventListener('click', () => this._shareClass(klasse));
+    this.app.api.getClassShares(klasse.id).then((shares) => {
+      const line = this._detail.querySelector('.class-shares-line');
+      if (!line || failed(shares) || !shares.length) return;
+      const label = { offered: 'offen', accepted: 'angenommen', declined: 'abgelehnt' };
+      line.textContent = 'Geteilt mit: ' + shares.map((s) => `${s.toName} (${label[s.status] || s.status})`).join(', ');
+    });
 
     const addForm = this._detail.querySelector('.class-add-student');
     addForm.addEventListener('submit', async (e) => {
@@ -341,6 +466,50 @@ export class ClassesView {
         this._renderDetail();
       });
     });
+  }
+
+  /** Klasse Kolleginnen und Kollegen der eigenen Schule anbieten. */
+  async _shareClass(klasse) {
+    const colleagues = await this.app.api.getColleagues();
+    if (failed(colleagues) || !colleagues.length) {
+      this.app.showToast('Keine Kolleginnen und Kollegen deiner Schule gefunden.', 'info');
+      return;
+    }
+    const chosen = await new Promise((resolve) => {
+      const overlay = document.createElement('div');
+      overlay.className = 'confirm-overlay';
+      overlay.innerHTML = `
+        <div class="import-modules-card class-import-preview">
+          <h3>👥 „${escapeHtml(klasse.name)}“ teilen</h3>
+          <p class="hint">Wer annimmt, bekommt eine eigene Klasse mit Name und Schülerliste (Stand beim Annehmen).
+            Danach sind beide unabhängig; Ergebnisse sieht jede Lehrkraft nur von ihren eigenen Links.</p>
+          <input type="search" class="search-input share-filter" placeholder="Name suchen…" style="width:100%;margin-bottom:8px" />
+          <div class="share-list">${colleagues
+            .sort((a, b) => a.displayName.localeCompare(b.displayName, 'de'))
+            .map((c) => `<label class="tag-filter-option" data-text="${escapeAttr(`${c.displayName} ${c.email}`.toLowerCase())}">
+              <input type="checkbox" value="${escapeAttr(c.id)}" /> ${escapeHtml(c.displayName)} <small class="hint">${escapeHtml(c.email)}</small></label>`).join('')}
+          </div>
+          <div class="confirm-actions">
+            <button class="btn btn-primary btn-ok">Angebot senden</button>
+            <button class="btn btn-secondary btn-cancel">Abbrechen</button>
+          </div>
+        </div>`;
+      document.body.appendChild(overlay);
+      const done = (v) => { overlay.remove(); resolve(v); };
+      overlay.querySelector('.share-filter').addEventListener('input', (e) => {
+        const q = e.target.value.toLowerCase().trim();
+        overlay.querySelectorAll('.share-list label').forEach((l) => { l.style.display = !q || l.dataset.text.includes(q) ? '' : 'none'; });
+      });
+      overlay.querySelector('.btn-ok').addEventListener('click', () =>
+        done([...overlay.querySelectorAll('.share-list input:checked')].map((b) => b.value)));
+      overlay.querySelector('.btn-cancel').addEventListener('click', () => done(null));
+      overlay.addEventListener('click', (e) => { if (e.target === overlay) done(null); });
+    });
+    if (!chosen || !chosen.length) return;
+    const res = await this.app.api.shareClass(klasse.id, chosen);
+    if (failed(res)) { this.app.showToast('Fehler: ' + (res?.message || '?'), 'error'); return; }
+    this.app.showToast(res.offered ? `Angebot an ${res.offered} Person(en) gesendet.` : 'Die Angebote waren schon offen.', 'success');
+    this._renderDetail();
   }
 
   /** Unbestätigten Eintrag einem Schüler zuordnen. */

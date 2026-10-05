@@ -20,6 +20,40 @@ export class ClassesController {
     return this.classesService.setSchoolYear(req.user, body?.schoolYear);
   }
 
+  /** Löschregel: Was von mir wird wann gelöscht? */
+  @Get('retention')
+  async retention(@Request() req: any) {
+    return this.classesService.retentionInfo(req.user);
+  }
+
+  /** Offene Angebote geteilter Klassen an mich. */
+  @Get('shares/incoming')
+  async incomingShares(@Request() req: any) {
+    return this.classesService.incomingShares(req.user);
+  }
+
+  @Post('shares/:shareId/accept')
+  async acceptShare(@Param('shareId') shareId: string, @Request() req: any) {
+    return this.classesService.acceptShare(shareId, req.user);
+  }
+
+  @Post('shares/:shareId/decline')
+  async declineShare(@Param('shareId') shareId: string, @Request() req: any) {
+    return this.classesService.declineShare(shareId, req.user);
+  }
+
+  /** Schuljahreswechsel: Klassen des Vorjahres, über die noch nicht entschieden ist. */
+  @Get('rollover')
+  async rolloverInfo(@Request() req: any) {
+    return this.classesService.rolloverInfo(req.user);
+  }
+
+  /** Schuljahreswechsel: `{ items: [{ classId, take, name, moveLinks }] }`. */
+  @Post('rollover')
+  async rollover(@Request() req: any, @Body() body: any) {
+    return this.classesService.rollover(req.user, body);
+  }
+
   /** Mehrere Klassen einlesen (Export des SchülerLernTools); `{ dryRun: true }` liefert die Vorschau. */
   @Post('import')
   async importClasses(@Request() req: any, @Body() body: any) {
@@ -49,6 +83,17 @@ export class ClassesController {
   @Delete(':id')
   async remove(@Param('id') id: string, @Request() req: any) {
     return this.classesService.remove(id, req.user);
+  }
+
+  /** Klasse anbieten: `{ userIds }` – Kolleginnen und Kollegen der eigenen Schule. */
+  @Post(':id/share')
+  async shareClass(@Param('id') id: string, @Request() req: any, @Body() body: { userIds?: string[] }) {
+    return this.classesService.shareClass(id, req.user, body);
+  }
+
+  @Get(':id/shares')
+  async sharesOfClass(@Param('id') id: string, @Request() req: any) {
+    return this.classesService.sharesOfClass(id, req.user);
   }
 
   @Post(':id/students')

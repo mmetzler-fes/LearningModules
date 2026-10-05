@@ -209,6 +209,9 @@
         <button class="nav-btn" data-view="teacher-results">
           <span class="nav-icon">📊</span> <span data-i18n="nav.results">Ergebnisse</span>
         </button>
+        <button class="nav-btn" data-view="teacher-class-results">
+          <span class="nav-icon">📈</span> Klassenergebnisse
+        </button>
       </nav>
 
       <!-- Admin-only Navigation (only visible to admin role) -->
@@ -476,6 +479,25 @@
         </form>
       </section>
 
+      <!-- Teacher: Klassenergebnisse -->
+      <section class="view" id="view-teacher-class-results">
+        <div class="view-header">
+          <h2>📈 Klassenergebnisse</h2>
+          <p class="subtitle">Ergebnisse über Klassenlinks, nach Klasse und Schüler. Ergebnisse ohne Klasse stehen
+            weiter unter <strong>📊 Ergebnisse</strong>.</p>
+        </div>
+        <div class="link-class-bar">
+          <label>Schuljahr <select id="crYear"></select></label>
+          <label>Klasse <select id="crClass"></select></label>
+        </div>
+        <div class="links-tabs" role="tablist">
+          <button type="button" class="links-tab active" data-cr-tab="students" role="tab">👥 Schüler</button>
+          <button type="button" class="links-tab" data-cr-tab="tests" role="tab">📝 Tests</button>
+          <button type="button" class="links-tab" data-cr-tab="year" role="tab">📅 Jahresüberblick</button>
+        </div>
+        <div id="crContent"></div>
+      </section>
+
       <!-- Teacher: Results -->
       <section class="view" id="view-teacher-results">
         <div class="view-header">
@@ -486,10 +508,13 @@
             <select id="filterResultsLink" class="search-input" title="Nach Schülerfreigabe oder Quick-Link filtern">
               <option value="">Alle Links</option>
             </select>
-            <button class="btn btn-secondary btn-sm" id="btnExportResults">⬇️ Exportieren</button>
+            <button class="btn btn-secondary btn-sm" id="btnExportResults" title="Alle eigenen Ergebnisse als Datei – lässt sich wieder einlesen">⬇️ Exportieren</button>
+            <button class="btn btn-secondary btn-sm" id="btnImportResults" title="Ergebnis-Datei (Export) einlesen">📥 Importieren</button>
+            <input type="file" id="resultsImportFile" accept=".json,application/json" class="hidden" />
             <button class="btn btn-danger btn-sm" id="btnDeleteAllResults" data-i18n="results.delete.all">🗑 Alle löschen</button>
           </div>
         </div>
+        <div id="resultsNotices"></div>
         <div id="resultsStats" class="results-stats"></div>
         <div id="resultsList" class="results-list"></div>
       </section>
@@ -648,6 +673,7 @@
           <button class="btn btn-secondary" id="btnImportClasses"
             title="Export „Klassen für LearningModules“ aus dem SchülerLernTool oder eine Klassenliste">📥 Klassen einlesen</button>
         </div>
+        <div id="classesNotices"></div>
         <div id="classesList" class="links-list"></div>
         <div id="classDetail" class="hidden"></div>
         <input type="file" id="classImportFile" accept=".ods,.csv,.txt" class="hidden" />
@@ -960,6 +986,9 @@
             </div>
             <p class="hint">In oder nach den Sommerferien auf das neue Schuljahr setzen. Neue Klassen und
               Ergebnisse gehören dann zum neuen Jahr; die Lehrkräfte übernehmen ihre Klassen selbst.</p>
+            <p class="hint">⚠️ <strong>Löschregel:</strong> Aufbewahrt werden das aktuelle und die zwei vorigen Schuljahre.
+              30 Tage nach dem Wechsel löscht der Server ältere Klassen, Schülerlisten und Ergebnisse – die Lehrkräfte
+              sehen vorher einen Hinweis mit Export-Knopf.</p>
             <div class="form-actions">
               <button class="btn btn-primary" id="btnSaveSchoolYear">💾 Speichern</button>
               <button class="btn btn-secondary" id="btnNextSchoolYear">⏭ Nächstes Schuljahr eintragen</button>

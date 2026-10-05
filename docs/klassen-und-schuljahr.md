@@ -128,26 +128,71 @@ wird. Dabei gilt:
 | sonst | neuer Schüler |
 | Schüler fehlt in der Datei | bleibt in der Klasse |
 
-## Geplant
+## Klassenergebnisse
 
-Die Umsetzung erfolgt in Schritten, jeder für sich nutzbar:
+Menüpunkt **📈 Klassenergebnisse**: Schuljahr und Klasse wählen, dann drei
+Reiter. Gezeigt werden die eigenen Ergebnisse über Klassenlinks; alles ohne
+Klasse steht weiter unter **📊 Ergebnisse**.
+
+| Reiter | Inhalt |
+|---|---|
+| 👥 Schüler | je Schüler (Name, Vorname) Durchläufe, Ø, zuletzt – aufgeklappt alle Durchläufe; darunter „nicht zugeordnet“ |
+| 📝 Tests | je Klassenlink die ganze Klasse: Durchläufe, bestes Ergebnis, zuletzt – und wer **fehlt noch** |
+| 📅 Jahresüberblick | je Schüler Durchläufe, verschiedene Tests, aktive Wochen, Ø, zuletzt – das Engagement übers Jahr |
+
+## Schuljahreswechsel
+
+Nach dem Wechsel durch den Admin erscheint unter **🏫 Klassen** ein Hinweis
+(nach dem Login einmal auch als Meldung). **Klassen übernehmen …** zeigt je
+Klasse des Vorjahres:
+
+- **Übernehmen** mit neuem Namen – vorgeschlagen ist die erste Zahl um eins
+  erhöht (TG11 → TG12, E1ME1 → E2ME1). Die bestätigten Schüler werden
+  kopiert, „strikt“ bleibt; die alte Klasse bleibt mit ihren Ergebnissen.
+- **Links mitnehmen** hängt die Klassenlinks an die neue Klasse – ausgeteilte
+  QR-Codes gelten weiter, neue Ergebnisse landen im neuen Jahr.
+- Nicht angehakt: **nicht mehr benötigt** – ihre Klassenlinks werden
+  deaktiviert.
+
+*Später* lässt alles offen; der Hinweis bleibt, bis über jede Klasse
+entschieden ist.
+
+## Klasse teilen
+
+In der Schülerliste **👥 Teilen**: Kolleginnen und Kollegen der eigenen
+Schule auswählen. Sie sehen unter **🏫 Klassen** ein Angebot; **Annehmen**
+legt bei ihnen eine eigene Klasse mit Name und Schülerliste an (Stand beim
+Annehmen, bestätigte Schüler). Danach sind beide unabhängig; Ergebnisse
+sieht jede Lehrkraft nur von ihren eigenen Links. In der Schülerliste steht,
+mit wem geteilt wurde und ob angenommen.
+
+## Löschregel
+
+Aufbewahrt werden das **aktuelle und die zwei vorigen Schuljahre** (im
+SJ26-27 also SJ24-25 bis SJ26-27). **30 Tage nach dem Schuljahreswechsel**
+löscht der Server ältere Klassen samt Schülerlisten, Klassenlinks, offenen
+Teilen-Angeboten und Ergebnissen. Ohne Wechsel durch den Admin zählt der
+1. August.
+
+Vorher sehen die Lehrkräfte unter **🏫 Klassen** und **📊 Ergebnisse**
+einen Hinweis mit Datum und **⬇️ Diese Jahre exportieren**.
+
+**Export und Import:** Unter **📊 Ergebnisse** exportiert *⬇️ Exportieren*
+alle eigenen Ergebnisse vollständig (ohne IP-Adressen) als JSON-Datei,
+*📥 Importieren* liest eine solche Datei wieder ein – etwa auf einem anderen
+Server. Eingelesene Ergebnisse gehören der Lehrkraft, die einliest; schon
+vorhandene werden übersprungen. Ergebnisse aus abgelaufenen Schuljahren
+entfernt die Löschregel beim nächsten Lauf wieder (der Import sagt das).
+
+## Umsetzung
 
 1. ✅ Schuljahr, Klassen mit Schülerliste, Import
-2. ✅ **Klassenlinks**, siehe [Schülerfreigaben](themen-links.md#versenden-immer-für-eine-klasse).
-   Freigabe und Quick-Link sind Regeln; *Link & QR* fragt nach der Klasse
-   (oder legt sie an) und erzeugt einen Klassenlink in der Klassenübersicht
-   der Schülerfreigaben, neuester oben. Ergebnisse speichern Klasse und
-   deren Schuljahr. Alte Links und QR-Codes gelten weiter und speichern unter
-   „ohne Klasse“, bis man sie einer Klasse zuordnet.
-3. ✅ **Anmeldung über die Schülerliste**, strikter Modus, Schülerausweis,
-   Zuordnen unbestätigter Einträge, Klassen einlesen aus dem SchülerLernTool.
-4. **Ansicht Klassenergebnisse:** Schuljahr → Klasse → Schüler / Tests (mit
-   „fehlt noch“) / Jahresüberblick.
-5. **Assistent zum Schuljahreswechsel:** Klassen übernehmen (Schülerliste
-   wird kopiert) oder aufgeben, Klassenlinks umhängen oder deaktivieren.
-6. **Klasse mit Kollegin teilen** (übernimmt Klasse und Schülerliste, eigene
-   Ergebnisse bleiben getrennt), **Löschregel** nach drei Schuljahren mit
-   vorherigem Export.
+2. ✅ Klassenlinks, siehe [Schülerfreigaben](themen-links.md#versenden-immer-für-eine-klasse)
+3. ✅ Anmeldung über die Schülerliste, strikter Modus, Schülerausweis,
+   Zuordnen unbestätigter Einträge, Klassen einlesen aus dem SchülerLernTool
+4. ✅ Klassenergebnisse
+5. ✅ Assistent zum Schuljahreswechsel
+6. ✅ Klasse teilen, Löschregel mit Export/Import
 
 ## Technik
 
@@ -163,9 +208,16 @@ Die Umsetzung erfolgt in Schritten, jeder für sich nutzbar:
 | `POST /api/classes/:id/import` | `{ students: [{ firstName, lastName, importId }], dryRun }` |
 | `POST /api/classes/import` | mehrere Klassen: `{ classes: [{ name, classId, students }], schoolYear, strict, dryRun }` |
 | `POST /api/classes/:id/students/:sid/merge` | unbestätigten Eintrag zuordnen, `{ targetId }` |
+| `GET/POST /api/classes/rollover` | Schuljahreswechsel: offene Klassen / `{ items: [{ classId, take, name, moveLinks }] }` |
+| `POST /api/classes/:id/share`, `GET /api/classes/:id/shares` | Klasse anbieten (`{ userIds }`), Stand der Angebote |
+| `GET /api/classes/shares/incoming`, `POST …/shares/:id/accept\|decline` | Angebote an mich |
+| `GET /api/classes/retention` | Löschregel: abgelaufene eigene Jahre, Löschtermin |
+| `GET /api/results/class/:classId` | Klassenergebnisse |
+| `GET /api/results/export?years=…`, `POST /api/results/import` | Ergebnisse exportieren, einlesen |
 
 Entitäten: `StudentClass` (Tabelle `classes`, bestehend und erweitert) und
 `ClassStudent`. Das Schuljahr steht in `system_config` unter `school_year`.
+Löschregel: `src/classes/retention.ts` (Lauf beim Start und alle 6 Stunden),
 Abgleich beim Import: `src/classes/student-import.ts`, Namenszuordnung:
 `src/classes/name-match.ts`, Schülerausweis: `src/classes/student-ticket.ts`. ODF-Lesen im Browser:
 `src/renderer/js/odf/`. Beim Löschen oder Zusammenführen eines Kontos wandern

@@ -211,6 +211,16 @@ export class BrowserApi {
       method: 'DELETE',
     });
   }
+  shareClass(classId, userIds) {
+    return this._fetch(`/api/classes/${encodeURIComponent(classId)}/share`, { method: 'POST', body: JSON.stringify({ userIds }) });
+  }
+  getClassShares(classId) { return this._fetch(`/api/classes/${encodeURIComponent(classId)}/shares`); }
+  getIncomingClassShares() { return this._fetch('/api/classes/shares/incoming'); }
+  answerClassShare(shareId, accept) {
+    return this._fetch(`/api/classes/shares/${encodeURIComponent(shareId)}/${accept ? 'accept' : 'decline'}`, { method: 'POST' });
+  }
+  getRollover() { return this._fetch('/api/classes/rollover'); }
+  rollover(items) { return this._fetch('/api/classes/rollover', { method: 'POST', body: JSON.stringify({ items }) }); }
   /** Mehrere Klassen einlesen (Export des SchülerLernTools); `dryRun` liefert nur die Vorschau. */
   importClasses(data) {
     return this._fetch('/api/classes/import', { method: 'POST', body: JSON.stringify(data) });
@@ -725,6 +735,11 @@ export class BrowserApi {
 
   // ---------- Results ----------
   getQuizResults() { return this._fetch('/api/results'); }
+  /** Eigene Ergebnisse als wieder einlesbare Datei; `years` beschränkt auf Schuljahre. */
+  exportResults(years) { return this._fetch(`/api/results/export${years?.length ? `?years=${encodeURIComponent(years.join(','))}` : ''}`); }
+  importResults(data) { return this._fetch('/api/results/import', { method: 'POST', body: JSON.stringify(data) }); }
+  getRetention() { return this._fetch('/api/classes/retention'); }
+  getClassResults(classId) { return this._fetch(`/api/results/class/${encodeURIComponent(classId)}`); }
   saveQuizResult(resultData) {
     return this._fetch('/api/results', { method: 'POST', body: JSON.stringify(resultData) });
   }

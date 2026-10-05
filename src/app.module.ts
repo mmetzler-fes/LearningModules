@@ -4,6 +4,7 @@ import { User } from './core/entities/user.entity';
 import { StudentClass } from './core/entities/student-class.entity';
 import { ClassStudent } from './core/entities/class-student.entity';
 import { ModuleTiming } from './core/entities/module-timing.entity';
+import { ClassShare } from './core/entities/class-share.entity';
 import { LearningTopic } from './core/entities/learning-topic.entity';
 import { LearningModule } from './core/entities/learning-module.entity';
 import { Result } from './core/entities/result.entity';
@@ -60,7 +61,7 @@ import { AppService } from './app.service';
     TypeOrmModule.forRoot({
       type: 'sqlite',
       database: 'data/database.sqlite',
-      entities: [User, StudentClass, ClassStudent, LearningTopic, LearningModule, Result, School, SystemConfig, Tag, TopicLink, TopicQuickLink, TeacherGroup, ShopOffer, UseGrant, PointsEntry, ModuleTiming],
+      entities: [User, StudentClass, ClassStudent, LearningTopic, LearningModule, Result, School, SystemConfig, Tag, TopicLink, TopicQuickLink, TeacherGroup, ShopOffer, UseGrant, PointsEntry, ModuleTiming, ClassShare],
       synchronize: true,
     }),
     MailModule,

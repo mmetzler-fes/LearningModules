@@ -7,9 +7,11 @@ import { ClassStudent } from '../core/entities/class-student.entity';
 import { SystemConfig } from '../core/entities/system-config.entity';
 import { Result } from '../core/entities/result.entity';
 import { TopicLink } from '../core/entities/topic-link.entity';
+import { ClassShare } from '../core/entities/class-share.entity';
+import { User } from '../core/entities/user.entity';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([StudentClass, ClassStudent, SystemConfig, Result, TopicLink])],
+  imports: [TypeOrmModule.forFeature([StudentClass, ClassStudent, SystemConfig, Result, TopicLink, ClassShare, User])],
   controllers: [ClassesController],
   providers: [ClassesService],
   exports: [ClassesService],

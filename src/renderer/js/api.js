@@ -234,6 +234,10 @@ export class BrowserApi {
       body: JSON.stringify({ classId, adoptTokens }),
     });
   }
+  /** Quiz-Arena: Zeiten aus gemessenen Bearbeitungszeiten je Modul. */
+  getArenaTimes(moduleIds) {
+    return this._fetch('/api/links/arena-times', { method: 'POST', body: JSON.stringify({ moduleIds }) });
+  }
   /** Quick-Link-Knopf: Klassenlink für ein ganzes Lernthema. */
   classLinkFromTopic(topicId, classId) {
     return this._fetch(`/api/links/from-topic/${encodeURIComponent(topicId)}`, {

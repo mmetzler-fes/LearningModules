@@ -1,6 +1,7 @@
 import { Controller, Get, Post, Patch, Delete, Body, Param, Query, UseGuards, Request } from '@nestjs/common';
 import { LinksService } from './links.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { TimingsService } from '../timings/timings.service';
 
 /**
  * Themen-Links: benannte Zugänge für Schüler, die Themen/Module bündeln und
@@ -9,7 +10,20 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 @Controller('links')
 @UseGuards(JwtAuthGuard)
 export class LinksController {
-  constructor(private readonly linksService: LinksService) {}
+  constructor(
+    private readonly linksService: LinksService,
+    private readonly timingsService: TimingsService,
+  ) {}
+
+  /**
+   * Quiz-Arena: Zeiten aus den gemessenen Bearbeitungszeiten, für den Editor
+   * (`{ moduleIds }` → `{ [id]: { seconds, n } }`; `seconds` leer = zu wenig Messungen).
+   */
+  @Post('arena-times')
+  async arenaTimes(@Body() body: { moduleIds?: string[] }) {
+    const ids = Array.isArray(body?.moduleIds) ? body.moduleIds.map(String).slice(0, 1000) : [];
+    return Object.fromEntries(await this.timingsService.arenaSecondsFor(ids));
+  }
 
   @Get()
   async findAll(@Request() req: any) {

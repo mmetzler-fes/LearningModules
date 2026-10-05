@@ -1,6 +1,7 @@
 import { escapeHtml } from '../utils.js';
 import { collectAnswer, splitTrueFalse } from '../answer-eval.js';
 import { CompanionRun, COMPANION_MAX } from './companion-run.js';
+import { TaskTimer } from '../task-timer.js';
 
 // ==================== QUIZ VIEW ====================
 
@@ -47,6 +48,7 @@ export class QuizView {
           return;
         }
 
+        this._taskTimer?.answered(qs.currentIndex);
         qs.answers[qs.currentIndex] = collectAnswer(mod, this._quizModuleContainer);
         this._goNext();
       });
@@ -67,6 +69,8 @@ export class QuizView {
       this._btnQuizCancel.addEventListener('click', async () => {
         if (!(await this.app.appConfirm(t('quiz.cancel.confirm')))) return;
         this._endCompanion();
+        this._taskTimer?.dispose();
+        this._taskTimer = null;
         this.app.state.quizState = null;
         this._quizPlayerArea.classList.add('hidden');
         this._quizModuleContainer.innerHTML = '';
@@ -221,6 +225,9 @@ export class QuizView {
   /** Gemeinsames Umschalten in den Player, egal woher der Start kam. */
   _enterPlayer(title) {
     this._finishing = false;
+    // Zeit bis zur ersten Antwort je Aufgabe – Grundlage der Quiz-Arena-Zeiten.
+    this._taskTimer?.dispose();
+    this._taskTimer = new TaskTimer();
     // Schüler: kompakte Ansicht, damit die Aufgabe in die Bildschirmhöhe passt.
     document.body.classList.toggle('student-run', this.app.state.currentUser?.role === 'student');
     document.body.classList.toggle('companion-run', !!this._companion);
@@ -275,6 +282,7 @@ export class QuizView {
     const { modules, currentIndex } = qs;
     const mod = modules[currentIndex];
     const typeDef = H5P_TYPES[mod.type] || {};
+    this._taskTimer?.show(currentIndex);
     const progress = (currentIndex / modules.length) * 100;
     // Im Lernmodus bleibt eine schon gezeigte Lösung beim Zurückblättern stehen.
     qs.revealed = !!(qs.revealedAt && qs.revealedAt[currentIndex]);
@@ -369,6 +377,14 @@ export class QuizView {
     this._btnQuizNext.disabled = true;
     const companion = this._companion;
     this._endCompanion();
+    // Gemessene Zeiten an die Antworten hängen; der Server leitet daraus die
+    // Vorgabezeiten der Quiz-Arena ab.
+    const timer = this._taskTimer;
+    this._taskTimer = null;
+    timer?.dispose();
+    const details = quizState.answers
+      .map((a, i) => (a && timer?.msOf(i) !== undefined ? { ...a, ms: timer.msOf(i) } : a))
+      .filter(Boolean);
     // Informationsmodule bleiben in der Liste sichtbar, aber aus der
     // Rechnung heraus – sonst hinge die Prozentzahl daran, wie viele
     // Infoseiten ein Thema enthält. Dasselbe gilt in der Lernbegleitung für
@@ -403,7 +419,7 @@ export class QuizView {
           topicTitle: quizState.topicTitle,
           linkName: quizState.linkName || null,
           percentage,
-          details: quizState.answers.filter(Boolean),
+          details,
           ...(companion ? { jokersUsed: companion.jokersUsed } : {}),
         },
       });

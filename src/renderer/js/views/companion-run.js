@@ -234,6 +234,8 @@ export class CompanionRun {
 
     if (task.lockedUntil > Date.now()) return;
 
+    // Für die Arena-Zeiten zählt der erste Prüfen-Klick, nicht die richtige Lösung.
+    if (task.attempts === 0) this.view._taskTimer?.answered(qs.currentIndex);
     const answer = collectAnswer(mod, root);
     task.attempts++;
 

@@ -11,6 +11,7 @@ import { Result } from '../core/entities/result.entity';
 import { LinksService, contestSettingsOf } from '../links/links.service';
 import { CompanionService } from '../companion/companion.service';
 import { ClassesService } from '../classes/classes.service';
+import { TimingsService } from '../timings/timings.service';
 import { forStudents, contentOf } from '../core/public/student-view';
 import { baseUrl, renderQr } from '../core/share/link-url';
 
@@ -151,6 +152,7 @@ export class ContestService implements OnModuleDestroy {
     private readonly linksService: LinksService,
     private readonly companionService: CompanionService,
     private readonly classesService: ClassesService,
+    private readonly timingsService: TimingsService,
   ) {
     // Kommentarzeilen halten Proxys davon ab, ruhige Verbindungen zu kappen.
     this.heartbeat = setInterval(() => {
@@ -217,10 +219,15 @@ export class ContestService implements OnModuleDestroy {
     return this.checkLink(await this.linkRepo.findOne({ where: { token } }));
   }
 
-  /** Aufgaben des Links, die sich automatisch bewerten lassen – in Link-Reihenfolge. */
+  /**
+   * Aufgaben des Links, die sich automatisch bewerten lassen – in Link-Reihenfolge.
+   * Zeit je Aufgabe: eigene Zeit der Lehrkraft, sonst die aus den gemessenen
+   * Bearbeitungszeiten, sonst die Standardzeit der Freigabe.
+   */
   private async loadQuestions(link: TopicLink): Promise<Question[]> {
     const cfg = contestSettingsOf(link);
     const resolved = await this.linksService.resolveModules(link);
+    const measured = await this.timingsService.arenaSecondsFor(resolved.flatMap((r) => r.modules.map((m) => m.id)));
     const out: Question[] = [];
     for (const { topic, modules } of resolved) {
       for (const m of modules) {
@@ -232,7 +239,7 @@ export class ContestService implements OnModuleDestroy {
             module: part,
             topicId: topic.id,
             topicTitle: topic.title,
-            seconds: cfg.seconds[m.id] || cfg.defaultSeconds,
+            seconds: cfg.seconds[m.id] || measured.get(m.id)?.seconds || cfg.defaultSeconds,
           });
         }
       }

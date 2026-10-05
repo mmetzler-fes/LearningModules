@@ -105,6 +105,32 @@ Wie Kahoot, aber mit den eigenen Aufgaben.
 6. Nach der letzten Aufgabe: **🏆 Zur Siegerehrung** – Siegertreppchen mit
    den ersten drei Plätzen und Tusch.
 
+### Zeit je Aufgabe aus den Übungsdurchläufen
+
+Für jede Aufgabe gilt die erste passende Zeit:
+
+1. die eigene Zeit der Lehrkraft unter *Zeit für einzelne Aufgaben anpassen*,
+2. die **gemessene Zeit** (⏱), sobald mindestens drei Messungen vorliegen,
+3. sonst die *Zeit je Aufgabe* der Freigabe (Vorgabe 30 s).
+
+Gemessen wird in **Quiz** und **Lernbegleitung** über Schülerfreigaben und
+Quick-Links: die Zeit von der Anzeige einer Aufgabe bis zur ersten Antwort –
+*Weiter* im Quiz, der erste *Prüfen*-Klick in der Lernbegleitung. Bei
+Wahr/Falsch mit mehreren Fragen je Frage, wie in der Arena. Die Uhr steht,
+solange die Seite im Hintergrund ist; wer zurückblättert, ändert eine schon
+beantwortete Aufgabe nicht. Unter ½ s gilt als Durchklicken und zählt
+nicht, eine einzelne Messung zählt höchstens 600 s.
+
+Die gemessene Zeit ist **Median + 3 × Streuung um den Median** (MAD, mit
+1,4826 auf eine Standardabweichung umgerechnet), auf 5 s aufgerundet,
+zwischen 5 und 600 s. Das ist die robuste Form von „Mittelwert + 3 ×
+Standardabweichung“: Bei 10, 12 und 14 s kommen 25 s heraus – und ein
+einzelner Schüler mit 100 s ändert daran nichts (Mittelwert + 3σ ergäbe
+170 s). Sie stammt aus allen Durchläufen mit
+dieser Aufgabe, auch bei anderen Lehrkräften – gespeichert sind nur Modul
+und Millisekunden, keine Namen. Im Editor steht sie als Platzhalter mit
+„⏱ gemessen (n×)“; die Arena liest sie beim Öffnen des Wartebereichs.
+
 Wer zu spät kommt, steigt bei der laufenden Aufgabe ein. Lädt ein Schüler
 die Seite neu, behält er seinen Platz und seine Punkte. **🔁 Neuer
 Durchgang** startet mit denselben Teilnehmern wieder bei 0.

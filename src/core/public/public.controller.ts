@@ -14,6 +14,7 @@ import { TopicsService } from '../../topics/topics.service';
 import { GroupsService } from '../../groups/groups.service';
 import { CompanionService } from '../../companion/companion.service';
 import { ClassesService } from '../../classes/classes.service';
+import { TimingsService } from '../../timings/timings.service';
 import { contentOf, forStudents } from './student-view';
 import * as crypto from 'crypto';
 
@@ -33,6 +34,7 @@ export class PublicController {
     private readonly groupsService: GroupsService,
     private readonly companionService: CompanionService,
     private readonly classesService: ClassesService,
+    private readonly timingsService: TimingsService,
   ) {}
 
   /**
@@ -374,6 +376,11 @@ export class PublicController {
       className: klasse?.name ?? null,
     });
     const saved = await this.resultRepo.save(result);
+    // Bearbeitungszeiten für die Quiz-Arena – nur aus Durchläufen über einen
+    // Link, nicht aus der Lehrervorschau. Ein Fehler hier kostet kein Ergebnis.
+    if (link || quickTopicTitle !== null) {
+      await this.timingsService.record(body.payload?.details, result.mode).catch(() => undefined);
+    }
     return { success: true, id: saved.id };
   }
 }

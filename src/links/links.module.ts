@@ -10,9 +10,10 @@ import { TopicsModule } from '../topics/topics.module';
 import { GroupsModule } from '../groups/groups.module';
 import { CompanionModule } from '../companion/companion.module';
 import { ClassesModule } from '../classes/classes.module';
+import { TimingsModule } from '../timings/timings.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([TopicLink, LearningTopic, LearningModule]), TagsModule, TopicsModule, GroupsModule, CompanionModule, ClassesModule],
+  imports: [TypeOrmModule.forFeature([TopicLink, LearningTopic, LearningModule]), TagsModule, TopicsModule, GroupsModule, CompanionModule, ClassesModule, TimingsModule],
   controllers: [LinksController],
   providers: [LinksService],
   exports: [LinksService],

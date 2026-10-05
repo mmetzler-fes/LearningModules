@@ -461,6 +461,18 @@ export class LinksView {
     return out;
   }
 
+  /** Gemessene Zeiten nachladen; danach die Liste mit den neuen Platzhaltern zeichnen. */
+  async _loadMeasured(ids) {
+    this._measured = this._measured || new Map();
+    const missing = ids.filter((id) => !this._measured.has(id));
+    if (missing.length === 0) return;
+    for (const id of missing) this._measured.set(id, null);
+    const res = await this.app.api.getArenaTimes(missing).catch(() => null);
+    if (!res || res.statusCode) return;
+    for (const [id, value] of Object.entries(res)) this._measured.set(id, value);
+    this._renderContestTimes();
+  }
+
   _renderContestTimes() {
     if (!this._contestTimes) return;
     const modules = this._contestModules();
@@ -469,12 +481,17 @@ export class LinksView {
       return;
     }
     const def = document.getElementById('linkContestSeconds').value || '30';
+    // Leer gelassene Felder: gemessene Zeit, sonst die Standardzeit – als Platzhalter.
+    this._measured = this._measured || new Map();
+    const measuredOf = (m) => this._measured.get(m.id)?.seconds;
     this._contestTimes.innerHTML = modules.map((m) => `
       <label class="link-contest-time">
         <span>${(H5P_TYPES[m.type] || {}).icon || ''} ${escapeHtml(m.title)} <small class="hint">${escapeHtml(m._topicTitle)}</small></span>
         <input type="number" min="5" max="600" data-module="${escapeAttr(m.id)}"
-          value="${escapeAttr(String(this._contestSeconds[m.id] ?? ''))}" placeholder="${escapeAttr(def)}" /> s${m.type === 'trueFalse' ? ' <small class="hint">je Frage</small>' : ''}
+          value="${escapeAttr(String(this._contestSeconds[m.id] ?? ''))}" placeholder="${escapeAttr(String(measuredOf(m) ?? def))}" /> s${m.type === 'trueFalse' ? ' <small class="hint">je Frage</small>' : ''}
+        ${measuredOf(m) ? `<small class="hint" title="Median + 3 × Streuung der Zeit bis zur ersten Antwort in Quiz und Lernbegleitung">⏱ gemessen (${this._measured.get(m.id).n}×)</small>` : ''}
       </label>`).join('');
+    this._loadMeasured(modules.map((m) => m.id));
     this._contestTimes.querySelectorAll('input[data-module]').forEach((inp) => {
       inp.addEventListener('input', () => {
         if (inp.value === '') delete this._contestSeconds[inp.dataset.module];

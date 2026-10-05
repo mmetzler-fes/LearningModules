@@ -6,7 +6,6 @@ import { TopicsView } from './views/topics.js';
 import { ModulesView } from './views/modules.js';
 import { QuizView } from './views/quiz.js';
 import { ResultsView } from './views/results.js';
-import { DashboardView } from './views/dashboard.js';
 import { AdminView } from './views/admin.js';
 import { LinksView } from './views/links.js';
 import { TagsView } from './views/tags.js';
@@ -54,7 +53,6 @@ class App {
     this.modulesView  = new ModulesView(this);
     this.quizView     = new QuizView(this);
     this.resultsView  = new ResultsView(this);
-    this.dashboardView = new DashboardView(this);
     this.adminView    = new AdminView(this);
     this.linksView    = new LinksView(this);
     this.tagsView     = new TagsView(this);
@@ -137,6 +135,9 @@ class App {
 
   navigateToView(viewName) {
     const { state } = this;
+    // Das Dashboard ist in den LernModulen aufgegangen; ein gemerkter alter
+    // Menüpunkt (sessionStorage) führt dorthin.
+    if (viewName === 'teacher-dashboard') viewName = 'teacher-topics';
     if (document.querySelector(`.sidebar-nav .nav-btn[data-view="${viewName}"]`)) {
       try { sessionStorage.setItem('lm_last_view', viewName); } catch (_) {}
     }
@@ -162,7 +163,6 @@ class App {
     if (targetBtn) targetBtn.classList.add('active');
 
     switch (viewName) {
-      case 'teacher-dashboard': this.dashboardView.refresh(); break;
       case 'teacher-topics':    this.topicsView.refresh(); break;
       case 'teacher-modules':   this.modulesView.refresh(); break;
       case 'teacher-results':   this.resultsView.refresh(); break;
@@ -323,7 +323,7 @@ class App {
           }
           await this.loadTopics();
           await this.loadPoints();
-          this.navigateToView('teacher-dashboard');
+          this.navigateToView('teacher-topics');
           this.showToast(
             `Konten zusammengeführt – du bist jetzt als ${res.session.email} angemeldet.` +
               (res.session.role === 'admin' && !document.getElementById('adminNav')?.offsetParent

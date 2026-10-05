@@ -213,7 +213,7 @@ gehen an einen Admin.
 Der letzte aktive Admin lässt sich weder löschen noch deaktivieren noch
 herabstufen.
 
-**E-Mail-Adresse ändern** (Dashboard → ✉️ E-Mail ändern):
+**E-Mail-Adresse ändern** (🏠 LernModule → ✉️ E-Mail ändern):
 
 - **Neue Adresse gibt es noch nicht:** Dort wird ein Konto mit Initialpasswort
   angelegt, und das Passwort geht an die neue Adresse. Erst wenn sich der

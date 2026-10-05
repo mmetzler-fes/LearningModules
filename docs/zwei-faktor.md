@@ -7,7 +7,7 @@ Authenticator, FreeOTP, Aegis, 2FAS, Bitwarden …).
 
 ## Für Lehrkräfte
 
-Dashboard → **🔐 Zwei-Faktor** → *Einrichten*: QR-Code scannen, ersten Code
+🏠 LernModule → **🔐 Zwei-Faktor** → *Einrichten*: QR-Code scannen, ersten Code
 eingeben. Danach erscheinen **10 Wiederherstellungscodes** – nur dieses eine
 Mal. Jeder gilt einmal und ersetzt den Code aus der App, wenn das Handy fehlt.
 

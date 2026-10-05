@@ -20,8 +20,7 @@ const TRANSLATIONS = {
     'login.admin.error': 'Falsche Anmeldedaten.',
 
     // Sidebar
-    'nav.dashboard': 'Dashboard',
-    'nav.topics': 'Lernthemen',
+    'nav.topics': 'LernModule',
     'nav.results': 'Ergebnisse',
     'nav.student.topics': 'Lernthemen',
     'nav.student.quiz': 'Quiz starten',
@@ -32,8 +31,6 @@ const TRANSLATIONS = {
     'role.student': 'Schüler',
 
     // Dashboard
-    'dashboard.title': 'Lehrer-Dashboard',
-    'dashboard.subtitle': 'Übersicht über Ihre Lernthemen und Schüler-Ergebnisse',
     'dashboard.stat.topics': 'Lernthemen',
     'dashboard.stat.modules': 'Module gesamt',
     'dashboard.stat.active': 'Aktive Themen',
@@ -41,7 +38,7 @@ const TRANSLATIONS = {
     'dashboard.types.title': 'Verfügbare H5P-Modultypen',
 
     // Topics
-    'topics.title': 'Lernthemen verwalten',
+    'topics.title': 'LernModule',
     'topics.subtitle': 'Erstellen und verwalten Sie Lernthemen. Nur aktivierte Themen sind für Schüler sichtbar.',
     'topics.new': '➕ Neues Lernthema',
     'topics.import': '📥 Thema importieren',
@@ -187,8 +184,7 @@ const TRANSLATIONS = {
     'login.admin.error': 'Invalid credentials.',
 
     // Sidebar
-    'nav.dashboard': 'Dashboard',
-    'nav.topics': 'Learning Topics',
+    'nav.topics': 'Learning Modules',
     'nav.results': 'Results',
     'nav.student.topics': 'Learning Topics',
     'nav.student.quiz': 'Start Quiz',
@@ -199,8 +195,6 @@ const TRANSLATIONS = {
     'role.student': 'Student',
 
     // Dashboard
-    'dashboard.title': 'Teacher Dashboard',
-    'dashboard.subtitle': 'Overview of your learning topics and student results',
     'dashboard.stat.topics': 'Learning Topics',
     'dashboard.stat.modules': 'Total Modules',
     'dashboard.stat.active': 'Active Topics',
@@ -208,7 +202,7 @@ const TRANSLATIONS = {
     'dashboard.types.title': 'Available H5P Module Types',
 
     // Topics
-    'topics.title': 'Manage Learning Topics',
+    'topics.title': 'Learning Modules',
     'topics.subtitle': 'Create and manage learning topics. Only activated topics are visible to students.',
     'topics.new': '➕ New Topic',
     'topics.import': '📥 Import Topic',

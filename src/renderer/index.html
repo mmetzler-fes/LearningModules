@@ -188,11 +188,8 @@
 
       <!-- Teacher Navigation -->
       <nav class="sidebar-nav hidden" id="teacherNav">
-        <button class="nav-btn active" data-view="teacher-dashboard">
-          <span class="nav-icon">🏠</span> <span data-i18n="nav.dashboard">Dashboard</span>
-        </button>
-        <button class="nav-btn" data-view="teacher-topics">
-          <span class="nav-icon">📂</span> <span data-i18n="nav.topics">Lernthemen</span>
+        <button class="nav-btn active" data-view="teacher-topics">
+          <span class="nav-icon">🏠</span> <span data-i18n="nav.topics">LernModule</span>
         </button>
         <button class="nav-btn" data-view="teacher-shop">
           <span class="nav-icon">🛒</span> Shop
@@ -278,45 +275,24 @@
       <!-- ==================== TEACHER VIEWS ==================== -->
 
       <!-- Teacher Dashboard -->
-      <section class="view active" id="view-teacher-dashboard">
+      <!-- Teacher: Topic Management -->
+      <section class="view active" id="view-teacher-topics">
         <div class="view-header">
-          <h2 data-i18n="dashboard.title">Lehrer-Dashboard</h2>
-          <p class="subtitle" data-i18n="dashboard.subtitle">Übersicht über Ihre Lernthemen und Schüler-Ergebnisse</p>
+          <h2 data-i18n="topics.title">LernModule</h2>
+          <p class="subtitle" data-i18n="topics.subtitle">Erstellen und verwalten Sie Lernthemen. Nur aktivierte Themen sind für Schüler sichtbar.</p>
           <div class="header-actions">
+            <button class="btn btn-secondary btn-sm" id="btnH5pTypes" title="Welche H5P-Modultypen es gibt">ℹ️ H5P-Typen</button>
+            <button class="btn btn-secondary btn-sm" id="btnAiPrompt" title="Prompt erzeugen, mit dem eine KI ein Lernthema als Importdatei erstellt">🤖 KI-Prompt</button>
             <button class="btn btn-secondary btn-sm" id="btnChangeOwnPassword">🔑 Passwort ändern</button>
             <button class="btn btn-secondary btn-sm" id="btnChangeOwnEmail">✉️ E-Mail ändern</button>
             <button class="btn btn-secondary btn-sm" id="btnTwoFactor" title="Zwei-Faktor-Anmeldung mit einer Authenticator-App">🔐 Zwei-Faktor</button>
           </div>
         </div>
-        <div class="stats-grid" id="teacherStatsGrid">
-          <div class="stat-card">
-            <div class="stat-number" id="statTopics">0</div>
-            <div class="stat-label" data-i18n="dashboard.stat.topics">Lernthemen</div>
-          </div>
-          <div class="stat-card">
-            <div class="stat-number" id="statModules">0</div>
-            <div class="stat-label" data-i18n="dashboard.stat.modules">Module gesamt</div>
-          </div>
-          <div class="stat-card">
-            <div class="stat-number" id="statActive">0</div>
-            <div class="stat-label" data-i18n="dashboard.stat.active">Aktive Themen</div>
-          </div>
-          <div class="stat-card">
-            <div class="stat-number" id="statResults">0</div>
-            <div class="stat-label" data-i18n="dashboard.stat.results">Quiz-Ergebnisse</div>
-          </div>
-        </div>
-        <div class="section-title">
-          <h3 data-i18n="dashboard.types.title">Verfügbare H5P-Modultypen</h3>
-        </div>
-        <div class="type-grid" id="typeGrid"></div>
-      </section>
-
-      <!-- Teacher: Topic Management -->
-      <section class="view" id="view-teacher-topics">
-        <div class="view-header">
-          <h2 data-i18n="topics.title">Lernthemen verwalten</h2>
-          <p class="subtitle" data-i18n="topics.subtitle">Erstellen und verwalten Sie Lernthemen. Nur aktivierte Themen sind für Schüler sichtbar.</p>
+        <div class="stats-row" id="teacherStatsRow">
+          <span class="stats-row-item"><strong id="statTopics">0</strong> <span data-i18n="dashboard.stat.topics">Lernthemen</span></span>
+          <span class="stats-row-item"><strong id="statModules">0</strong> <span data-i18n="dashboard.stat.modules">Module gesamt</span></span>
+          <span class="stats-row-item"><strong id="statActive">0</strong> <span data-i18n="dashboard.stat.active">Aktive Themen</span></span>
+          <span class="stats-row-item"><strong id="statResults">0</strong> <span data-i18n="dashboard.stat.results">Quiz-Ergebnisse</span></span>
         </div>
         <div class="topic-actions-bar">
           <button class="btn btn-primary" id="btnNewTopic" data-i18n="topics.new">➕ Neues Lernthema</button>

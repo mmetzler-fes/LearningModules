@@ -667,7 +667,7 @@ export class LoginView {
     if (currentUser.role === 'admin' || currentUser.role === 'teacher') this.app.loadPoints();
 
     if (currentUser.role === 'admin' || currentUser.role === 'teacher') {
-      this.app.navigateToView(startView || 'teacher-dashboard');
+      this.app.navigateToView(startView || 'teacher-topics');
       if (currentUser.role === 'admin') this.app.adminView.load();
     } else {
       this.app.navigateToView('student-quiz');

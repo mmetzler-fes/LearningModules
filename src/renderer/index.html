@@ -203,6 +203,9 @@
         <button class="nav-btn" data-view="teacher-companion">
           <span class="nav-icon">🦉</span> Lernbegleiter
         </button>
+        <button class="nav-btn" data-view="teacher-ai-prompt">
+          <span class="nav-icon">🤖</span> KI-Prompt
+        </button>
         <button class="nav-btn" data-view="teacher-tags">
           <span class="nav-icon">🏷</span> Tags
         </button>
@@ -654,6 +657,17 @@
             dem Raten dauert – und welcher Tusch in der <strong>Quiz-Arena</strong> die Sieger feiert.</p>
         </div>
         <div id="companionSettings" class="settings-panel"></div>
+      </section>
+
+      <!-- Teacher: KI-Prompt-Generator -->
+      <section class="view" id="view-teacher-ai-prompt">
+        <div class="view-header">
+          <h2>🤖 KI-Prompt für ein neues Lernthema</h2>
+          <p class="subtitle">Der Prompt beschreibt der KI das Importformat genau. Ihre Antwort als <code>.json</code> speichern
+            und unter <strong>🏠 LernModule → 📥 Thema importieren</strong> einlesen. Alle angebotenen Typen sind automatisch
+            bewertbar – sie laufen in Quiz, Lernbegleitung und Quiz-Arena. Deine Angaben merkt sich der Browser.</p>
+        </div>
+        <div id="aiPromptPanel" class="ai-prompt-panel"></div>
       </section>
 
       <!-- Teacher: Klassen -->

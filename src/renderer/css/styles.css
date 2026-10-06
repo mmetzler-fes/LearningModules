@@ -4245,9 +4245,9 @@ body {
 .stats-row { display: flex; flex-wrap: wrap; gap: 8px 20px; margin: -4px 0 16px; color: var(--text-secondary); font-size: 0.9rem; }
 .stats-row-item strong { color: var(--accent); font-size: 1.1rem; margin-right: 2px; }
 .h5p-types-card { max-width: 960px; max-height: 85vh; overflow: auto; }
-.ai-prompt-card { max-width: 760px; max-height: 90vh; overflow: auto; }
-.ai-prompt-card .form-group label { display: flex; flex-direction: column; gap: 4px; }
-.ai-prompt-card .form-group label.tag-filter-mode, .ai-prompt-card .form-group label.tag-filter-option { flex-direction: row; align-items: center; }
+.ai-prompt-panel { max-width: 860px; }
+.ai-prompt-form .form-group label { display: flex; flex-direction: column; gap: 4px; }
+.ai-prompt-form .form-group label.tag-filter-mode, .ai-prompt-form .form-group label.tag-filter-option { flex-direction: row; align-items: center; }
 .ai-prompt-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 16px; }
 .ai-prompt-row label { display: flex; flex-direction: column; gap: 4px; font-weight: 600; }
 .ai-prompt-types { display: flex; flex-wrap: wrap; gap: 6px 16px; }

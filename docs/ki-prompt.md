@@ -1,6 +1,6 @@
 # KI-Prompt-Generator
 
-Unter **🏠 LernModule → 🤖 KI-Prompt** entsteht ein Prompt, mit dem eine KI
+Im Hauptmenü unter **🤖 KI-Prompt** (auch über den Knopf in 🏠 LernModule) entsteht ein Prompt, mit dem eine KI
 (ChatGPT, Claude, Le Chat …) ein Lernthema als JSON-Datei erstellt. Die
 Antwort der KI als `.json` speichern und über **📥 Thema importieren**
 einlesen.
@@ -16,7 +16,8 @@ einlesen.
 | Materialien | Dateinamen der Unterlagen, die du im KI-Chat anhängst; die KI soll nur deren Inhalte verwenden |
 | Geteilter Ordner | z. B. ein Nextcloud-Link, als Quelle im Prompt; optional dürfen Bilder daraus per Download-Link eingebunden werden |
 
-Die letzten Angaben merkt sich der Browser.
+Jede Eingabe merkt sich der Browser sofort – ein Wechsel der Ansicht oder
+ein Neuladen verliert nichts.
 
 **Materialien am besten direkt im KI-Chat hochladen.** Einen geteilten
 Nextcloud-Ordner kann eine KI meist nicht öffnen – die Seite braucht
@@ -36,4 +37,4 @@ JavaScript und zeigt keine lesbare Dateiliste. Ohne Bild-Links bleiben
   - Drag and Drop: je Zone genau ein richtiges Element, Positionen in Prozent
 - Ausgabe: nur ein JSON-Codeblock, gültiges JSON, Aufgaben vorher prüfen.
 
-Code: `src/renderer/js/ai-prompt.js`, Dialog in `views/topics.js`.
+Code: `src/renderer/js/ai-prompt.js`, Seite in `views/ai-prompt-view.js`.

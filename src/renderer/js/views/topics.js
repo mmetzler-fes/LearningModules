@@ -328,24 +328,20 @@ export class TopicsView {
   // ==================== QUICK-LINK ====================
 
   /**
-   * Quick-Link: Klasse wählen (oder anlegen), daraus entsteht ein
-   * Klassenlink für das ganze Thema. Danach geht es zur Klassenübersicht der
-   * Schülerfreigaben, wo Link und QR-Code gleich offen sind. Früher
-   * verteilte Quick-Links (?q=) bleiben gültig, ihre Ergebnisse stehen unter
-   * "ohne Klasse".
+   * Quick-Link: Klassen wählen (oder anlegen), daraus entsteht je Klasse ein
+   * Klassenlink für das ganze Thema – Parallelklassen in einem Rutsch.
+   * Danach geht es zur Klassenübersicht der Schülerfreigaben; bei einer
+   * Klasse sind Link und QR-Code gleich offen. Früher verteilte Quick-Links
+   * (?q=) bleiben gültig, ihre Ergebnisse stehen unter "ohne Klasse".
    */
   async _createQuickClassLink(topic) {
-    const klasse = await pickClass(this.app, {
+    const classes = await pickClass(this.app, {
       title: `🔗 Quick-Link – ${topic.title}`,
-      hint: 'Für welche Klasse? Ergebnisse über diesen Link stehen dann unter der Klasse.',
+      hint: 'Für welche Klassen? Ergebnisse über einen Link stehen dann unter seiner Klasse.',
+      multiple: true,
     });
-    if (!klasse) return;
-    const link = await this.app.api.classLinkFromTopic(topic.id, klasse.id);
-    if (!link || !link.id) {
-      this.app.showToast('Fehler: ' + (link?.message || 'Link konnte nicht erzeugt werden.'), 'error');
-      return;
-    }
-    this.app.linksView.showClassLink(link, 'practice');
+    if (!classes || !classes.length) return;
+    await this.app.linksView.createClassLinks(classes, (klasse) => this.app.api.classLinkFromTopic(topic.id, klasse.id), 'practice');
   }
 
   /**

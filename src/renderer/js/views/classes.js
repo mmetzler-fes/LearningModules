@@ -48,49 +48,84 @@ export function formDialog({ title, hint = '', fields, submitLabel = 'Speichern'
  * Klasse für einen Klassenlink wählen: die eigenen Klassen des aktuellen
  * Schuljahrs als Knöpfe, darunter ein Feld für eine neue Klasse. Liefert die
  * Klasse oder `null` bei Abbruch.
+ *
+ * Mit `multiple` werden die Knöpfe zu Schaltern – Parallelklassen bekommen
+ * so in einem Rutsch ihren Link. Eine neu angelegte Klasse ist gleich
+ * gewählt; "Links erzeugen" liefert die gewählten Klassen als Liste.
  */
-export async function pickClass(app, { title, hint = '' }) {
+export async function pickClass(app, { title, hint = '', multiple = false }) {
   const info = await app.api.getSchoolYear();
   if (failed(info)) { app.showToast('Fehler: ' + (info?.message || 'Schuljahr nicht abrufbar'), 'error'); return null; }
   const classes = await app.api.getClasses(info.current);
   if (failed(classes)) { app.showToast('Fehler: ' + (classes?.message || 'Klassen nicht abrufbar'), 'error'); return null; }
 
   return new Promise((resolve) => {
+    const chosen = new Set();
+    const choiceHtml = (c) => `
+      <button type="button" class="btn btn-secondary class-picker-choice" data-id="${escapeAttr(c.id)}"
+        ${multiple ? 'aria-pressed="false"' : ''}>🏫 ${escapeHtml(c.name)}</button>`;
     const overlay = document.createElement('div');
     overlay.className = 'confirm-overlay';
     overlay.innerHTML = `
       <div class="import-modules-card class-picker">
         <h3>${escapeHtml(title)}</h3>
         ${hint ? `<p class="hint">${escapeHtml(hint)}</p>` : ''}
-        ${classes.length
-          ? `<div class="class-picker-list">${classes.map((c) => `
-              <button type="button" class="btn btn-secondary class-picker-choice" data-id="${escapeAttr(c.id)}">🏫 ${escapeHtml(c.name)}</button>`).join('')}
-            </div>`
-          : `<p class="hint">Im ${escapeHtml(info.current)} hast du noch keine Klassen – lege gleich eine an.</p>`}
+        <div class="class-picker-list ${classes.length ? '' : 'hidden'}">${classes.map(choiceHtml).join('')}</div>
+        ${classes.length ? '' : `<p class="hint class-picker-empty">Im ${escapeHtml(info.current)} hast du noch keine Klassen – lege gleich eine an.</p>`}
         <form class="class-picker-new">
           <input name="name" placeholder="Neue Klasse, z. B. TG12" maxlength="40" autocomplete="off" />
-          <button type="submit" class="btn btn-primary btn-sm">➕ Anlegen und wählen</button>
+          <button type="submit" class="btn btn-${multiple ? 'secondary' : 'primary'} btn-sm">➕ ${multiple ? 'Anlegen' : 'Anlegen und wählen'}</button>
         </form>
-        <p class="hint">Schuljahr ${escapeHtml(info.current)}.</p>
+        <p class="hint">Schuljahr ${escapeHtml(info.current)}.${multiple ? ' Mehrere Klassen wählbar, z. B. Parallelklassen.' : ''}</p>
         <div class="confirm-actions">
+          ${multiple ? '<button type="button" class="btn btn-primary btn-ok" disabled>🔗 Links erzeugen</button>' : ''}
           <button type="button" class="btn btn-secondary btn-cancel">Abbrechen</button>
         </div>
       </div>`;
     document.body.appendChild(overlay);
+    const list = overlay.querySelector('.class-picker-list');
+    const okBtn = overlay.querySelector('.btn-ok');
     const done = (value) => { overlay.remove(); resolve(value); };
+    const syncOk = () => {
+      if (!okBtn) return;
+      okBtn.disabled = chosen.size === 0;
+      okBtn.textContent = chosen.size > 1 ? `🔗 ${chosen.size} Links erzeugen` : '🔗 Link erzeugen';
+    };
+    const toggle = (btn, on) => {
+      const id = btn.dataset.id;
+      if (on) chosen.add(id); else chosen.delete(id);
+      btn.classList.toggle('is-selected', on);
+      btn.setAttribute('aria-pressed', String(on));
+      syncOk();
+    };
+    const bindChoice = (btn) => btn.addEventListener('click', () => {
+      if (multiple) toggle(btn, !chosen.has(btn.dataset.id));
+      else done(classes.find((c) => c.id === btn.dataset.id));
+    });
+    overlay.querySelectorAll('.class-picker-choice').forEach(bindChoice);
     overlay.querySelector('.btn-cancel').addEventListener('click', () => done(null));
     overlay.addEventListener('click', (e) => { if (e.target === overlay) done(null); });
-    overlay.querySelectorAll('.class-picker-choice').forEach((btn) => {
-      btn.addEventListener('click', () => done(classes.find((c) => c.id === btn.dataset.id)));
-    });
+    okBtn?.addEventListener('click', () => done(classes.filter((c) => chosen.has(c.id))));
+
     const form = overlay.querySelector('.class-picker-new');
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
       const res = await app.api.createClass({ name: form.elements.name.value, schoolYear: info.current });
       if (failed(res)) { app.showToast('Fehler: ' + (res?.message || '?'), 'error'); return; }
       app.showToast(`Klasse „${res.name}“ angelegt.`, 'success');
-      done(res);
+      if (!multiple) { done(res); return; }
+      // Neue Klasse in die Liste aufnehmen und gleich wählen.
+      classes.push(res);
+      list.classList.remove('hidden');
+      overlay.querySelector('.class-picker-empty')?.remove();
+      list.insertAdjacentHTML('beforeend', choiceHtml(res));
+      const btn = list.lastElementChild;
+      bindChoice(btn);
+      toggle(btn, true);
+      form.reset();
+      form.elements.name.focus();
     });
+    syncOk();
     (overlay.querySelector('.class-picker-choice') || form.elements.name).focus();
   });
 }

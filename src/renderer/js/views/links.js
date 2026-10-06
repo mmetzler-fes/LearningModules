@@ -160,26 +160,46 @@ export class LinksView {
     // und die Links der übrigen Klassen bleiben sichtbar.
     this._classId = ALL_CLASSES;
     savePref('lm_links_class', ALL_CLASSES);
-    this._pending = { id: link.id, kind };
+    this._pending = kind ? { id: link.id, kind } : null;
     if (document.getElementById('view-teacher-links')?.classList.contains('active')) this.refresh();
     else this.app.navigateToView('teacher-links');
   }
 
-  /** Klasse wählen und Klassenlink aus der Regel erzeugen. `adopt`: alten Link der Regel übergeben. */
+  /**
+   * Klassen wählen und Klassenlinks aus der Regel erzeugen. `adopt`: alten
+   * Link der Regel übergeben – der gehört genau einer Klasse.
+   */
   async _shareForClass(rule, kind, adopt = false) {
-    const klasse = await pickClass(this.app, {
+    const picked = await pickClass(this.app, {
       title: adopt ? `🏫 Alter Link – ${rule.name}` : `🔗 ${rule.name}`,
       hint: adopt
         ? 'Welcher Klasse gehört der alte Link? Ausgeteilte QR-Codes bleiben gültig, Ergebnisse stehen ab jetzt unter der Klasse.'
-        : 'Für welche Klasse? Ergebnisse über diesen Link stehen dann unter der Klasse.',
+        : 'Für welche Klassen? Ergebnisse über einen Link stehen dann unter seiner Klasse.',
+      multiple: !adopt,
     });
-    if (!klasse) return;
-    const link = await this.app.api.createClassLink(rule.id, klasse.id, adopt);
-    if (!link || !link.id) {
-      this.app.showToast('Fehler: ' + (link?.message || 'Link konnte nicht erzeugt werden.'), 'error');
-      return;
+    const classes = Array.isArray(picked) ? picked : picked ? [picked] : [];
+    if (!classes.length) return;
+    await this.createClassLinks(classes, (klasse) => this.app.api.createClassLink(rule.id, klasse.id, adopt), kind);
+  }
+
+  /**
+   * Klassenlinks für mehrere Klassen nacheinander erzeugen. Bei genau einem
+   * Link öffnet sich gleich sein Dialog; bei mehreren zeigt "Alle Klassen"
+   * sie zusammen, jeder oben in seiner Klasse.
+   */
+  async createClassLinks(classes, create, kind = 'practice') {
+    const made = [];
+    const errors = [];
+    for (const klasse of classes) {
+      const link = await create(klasse).catch(() => null);
+      if (link && link.id) made.push(link);
+      else errors.push(`${klasse.name}: ${link?.message || 'Link konnte nicht erzeugt werden.'}`);
     }
-    this.showClassLink(link, kind);
+    if (errors.length) this.app.showToast('Fehler: ' + errors.join(' · '), 'error');
+    if (made.length === 0) return;
+    if (made.length === 1) { this.showClassLink(made[0], kind); return; }
+    this.app.showToast(`${made.length} Klassenlinks: ${made.map((l) => l.className).join(', ')}.`, 'success');
+    this.showClassLink(made[0], null);
   }
 
   /** Den gemerkten Dialog öffnen, sobald die Liste steht. */

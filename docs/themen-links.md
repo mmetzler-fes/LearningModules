@@ -91,10 +91,13 @@ Die Seite hat zwei Reiter:
   alle Klassenlinks des Schuljahrs, je Klasse ein Abschnitt.
 
 **🔗 Link & QR**, **📝 Klassenarbeit** und **🏆 Quiz-Arena** an einer Regel
-fragen zuerst nach der Klasse – aus den eigenen Klassen des aktuellen
-Schuljahrs, oder direkt eine neue anlegen. Daraus entsteht ein Klassenlink:
-eine Kopie der Regel mit Klasse und eigenem Token. Die App wechselt zur
-Klassenübersicht (Alle Klassen) und öffnet den gewünschten Dialog. Je Regel und Klasse gibt
+fragen zuerst nach den Klassen – aus den eigenen Klassen des aktuellen
+Schuljahrs, oder direkt neue anlegen. Mehrere Klassen lassen sich anklicken
+(z. B. Parallelklassen), **🔗 Links erzeugen** legt dann je Klasse einen
+Klassenlink an: eine Kopie der Regel mit Klasse und eigenem Token. Dasselbe
+gilt für den **🔗 Quick-Link** eines Lernthemas. Die App wechselt zur
+Klassenübersicht (Alle Klassen); bei genau einer Klasse öffnet sie gleich den
+gewünschten Dialog. Je Regel und Klasse gibt
 es höchstens einen Klassenlink; ein zweites Mal zeigt den vorhandenen.
 
 Der Klassenlink ist danach eigenständig: Er lässt sich bearbeiten,

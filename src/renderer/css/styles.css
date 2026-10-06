@@ -4232,6 +4232,9 @@ body {
 .class-import-preview ul { margin: 4px 0 12px 20px; columns: 2; font-size: 0.92em; }
 .form-dialog .form-group label { display: flex; flex-direction: column; gap: 4px; }
 .class-picker-list { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
+.class-picker-choice.is-selected { background: var(--accent); border-color: var(--accent); color: #fff; }
+.class-picker-choice.is-selected:hover { background: var(--accent-hover); }
+.class-picker-choice.is-selected::after { content: ' ✓'; }
 .class-picker-new { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
 .class-picker-new input { flex: 1 1 180px; }
 

@@ -335,13 +335,6 @@ export class BrowserApi {
     return this._fetch('/api/admin/whitelist-blacklist', { method: 'POST', body: JSON.stringify(data) });
   }
 
-  // ---------- App settings stubs ----------
-  getAppSettings() { return Promise.resolve({}); }
-  saveAppSettings() { return Promise.resolve({ success: true }); }
-  getAllClasses() { return Promise.resolve([]); }
-  saveClass() { return Promise.resolve({ success: false }); }
-  deleteClass() { return Promise.resolve({ success: false }); }
-
   // ---------- Topics ----------
   getTopics() { return this._fetch('/api/topics'); }
   saveTopic(topicData, isUpdate = false) {

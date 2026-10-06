@@ -5,7 +5,7 @@ import { renderRetentionNotice } from './results.js';
 // ==================== KLASSEN ====================
 
 /** Antwort des Servers ein Fehler? Fehler kommen als JSON mit statusCode. */
-const failed = (res) => !res || res.statusCode >= 400;
+const failed = (res) => !res || res.statusCode >= 400 || res.success === false;
 
 /**
  * Kleiner Formulardialog. `fields`: [{ name, label, value, type, placeholder }].

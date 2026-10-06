@@ -9,6 +9,9 @@ import { pickClass } from './classes.js';
 
 const ALL_MODES = ['quiz', 'exam', 'learn', 'companion', 'contest'];
 
+/** Auswahl "Alle Klassen" im Reiter Klassen. */
+const ALL_CLASSES = '__all__';
+
 /** Ansicht und Klassenauswahl merkt sich nur der eigene Browser. */
 function loadPref(key) {
   try { return localStorage.getItem(key); } catch (_) { return null; }
@@ -74,7 +77,7 @@ export class LinksView {
     this._classSel    = document.getElementById('linkClassSelect');
     this._tab = loadPref('lm_links_tab') === 'classes' ? 'classes' : 'rules';
     this._classYear = null;
-    this._classId = loadPref('lm_links_class');
+    this._classId = loadPref('lm_links_class') || ALL_CLASSES;
     this._classes = [];
     /** Nach dem Erzeugen eines Klassenlinks: welchen Dialog gleich öffnen. */
     this._pending = null;
@@ -133,9 +136,14 @@ export class LinksView {
   async _loadClasses() {
     const classes = this._classYear ? await this.app.api.getClasses(this._classYear) : [];
     this._classes = Array.isArray(classes) ? classes : [];
-    if (!this._classes.some((c) => c.id === this._classId)) this._classId = this._classes[0]?.id || null;
+    // "Alle Klassen" zeigt jeden Klassenlink des Schuljahrs – sonst sieht man
+    // nach dem Erzeugen eines Links für TG12-1 die von TG12-2 nicht mehr.
+    if (this._classId !== ALL_CLASSES && !this._classes.some((c) => c.id === this._classId)) this._classId = ALL_CLASSES;
+    if (!this._classes.length) this._classId = null;
+    const total = this._classes.reduce((n, c) => n + (c.linkCount || 0), 0);
     this._classSel.innerHTML = this._classes.length
-      ? this._classes.map((c) => `<option value="${escapeAttr(c.id)}" ${c.id === this._classId ? 'selected' : ''}>${escapeHtml(c.name)}${c.linkCount ? ` (${c.linkCount})` : ''}</option>`).join('')
+      ? `<option value="${ALL_CLASSES}" ${this._classId === ALL_CLASSES ? 'selected' : ''}>Alle Klassen${total ? ` (${total})` : ''}</option>`
+        + this._classes.map((c) => `<option value="${escapeAttr(c.id)}" ${c.id === this._classId ? 'selected' : ''}>${escapeHtml(c.name)}${c.linkCount ? ` (${c.linkCount})` : ''}</option>`).join('')
       : '<option value="">– keine Klassen –</option>';
   }
 
@@ -148,8 +156,10 @@ export class LinksView {
     this._tab = 'classes';
     savePref('lm_links_tab', 'classes');
     this._classYear = link.schoolYear || null;
-    this._classId = link.classId;
-    savePref('lm_links_class', link.classId);
+    // Auf "Alle Klassen" wechseln: Der neue Link steht oben in seiner Klasse,
+    // und die Links der übrigen Klassen bleiben sichtbar.
+    this._classId = ALL_CLASSES;
+    savePref('lm_links_class', ALL_CLASSES);
     this._pending = { id: link.id, kind };
     if (document.getElementById('view-teacher-links')?.classList.contains('active')) this.refresh();
     else this.app.navigateToView('teacher-links');
@@ -248,8 +258,10 @@ export class LinksView {
       return;
     }
     const stamp = (l) => new Date(l.lastSharedAt || l.createdAt || 0).getTime();
+    const all = this._classId === ALL_CLASSES;
+    const classIds = new Set(this._classes.map((c) => c.id));
     const links = (this._links || [])
-      .filter((l) => l.classId === this._classId && this._filter.matches(l))
+      .filter((l) => (all ? classIds.has(l.classId) : l.classId === this._classId) && this._filter.matches(l))
       .sort((a, b) => stamp(b) - stamp(a));
     if (links.length === 0) {
       this._list.innerHTML = `
@@ -258,7 +270,20 @@ export class LinksView {
             <strong>🔗 Link &amp; QR</strong> wählen – oder bei einem Lernthema <strong>🔗 Quick-Link</strong>.</p></div>`;
       return;
     }
-    for (const link of links) this._list.appendChild(this._buildCard(link));
+    if (!all) {
+      for (const link of links) this._list.appendChild(this._buildCard(link));
+      return;
+    }
+    // Je Klasse ein Abschnitt, in der Reihenfolge der Auswahlliste.
+    for (const klasse of this._classes) {
+      const mine = links.filter((l) => l.classId === klasse.id);
+      if (!mine.length) continue;
+      const head = document.createElement('h3');
+      head.className = 'link-class-section';
+      head.textContent = `🏫 ${klasse.name}`;
+      this._list.appendChild(head);
+      for (const link of mine) this._list.appendChild(this._buildCard(link));
+    }
   }
 
   /** Karte einer Schülerfreigabe mit allen Aktionen. */

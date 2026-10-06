@@ -87,13 +87,14 @@ Die Seite hat zwei Reiter:
 - **📚 Themen** – die Freigaben selbst. Sie sind *Regeln*: Inhalte, Modi,
   Passwort, Tags. Einen Link haben sie nicht.
 - **🏫 Klassen** – Schuljahr und Klasse wählen, darunter die *Klassenlinks*
-  dieser Klasse, der zuletzt gezeigte oben.
+  dieser Klasse, der zuletzt gezeigte oben. **Alle Klassen** (Vorgabe) zeigt
+  alle Klassenlinks des Schuljahrs, je Klasse ein Abschnitt.
 
 **🔗 Link & QR**, **📝 Klassenarbeit** und **🏆 Quiz-Arena** an einer Regel
 fragen zuerst nach der Klasse – aus den eigenen Klassen des aktuellen
 Schuljahrs, oder direkt eine neue anlegen. Daraus entsteht ein Klassenlink:
 eine Kopie der Regel mit Klasse und eigenem Token. Die App wechselt zur
-Klassenübersicht und öffnet den gewünschten Dialog. Je Regel und Klasse gibt
+Klassenübersicht (Alle Klassen) und öffnet den gewünschten Dialog. Je Regel und Klasse gibt
 es höchstens einen Klassenlink; ein zweites Mal zeigt den vorhandenen.
 
 Der Klassenlink ist danach eigenständig: Er lässt sich bearbeiten,

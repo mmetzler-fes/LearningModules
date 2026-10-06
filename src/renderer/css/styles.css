@@ -3278,6 +3278,9 @@ body {
 }
 
 /* ---- Auswahlbaum: fremde Inhalte ---- */
+.link-class-section { margin: 18px 0 8px; font-size: 1.05rem; }
+.link-class-section:first-child { margin-top: 0; }
+
 .link-tree-section {
   margin: 10px 0 4px;
   padding: 6px 10px;

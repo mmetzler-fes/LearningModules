@@ -1,4 +1,4 @@
-import { escapeHtml, escapeAttr } from '../utils.js';
+import { escapeHtml, escapeAttr, showImportReport } from '../utils.js';
 import { pickClass } from './classes.js';
 import { TagFilter, TagPicker, renderAreaGroups, orderByArea, chipHtml } from './tags.js';
 
@@ -68,6 +68,7 @@ export class TopicsView {
         const result = await this.app.api.importTopic();
         if (result.success) {
           this.app.showToast(t('topics.import.success', { title: result.topicTitle || 'Thema', count: result.importedCount }), 'success');
+          showImportReport(result);
           this.refresh();
         } else if (result.error) {
           this.app.showToast(t('topics.import.error') + result.error, 'error');

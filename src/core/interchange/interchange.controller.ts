@@ -4,6 +4,7 @@ import * as crypto from 'crypto';
 import type { Response } from 'express';
 import { H5pService } from './h5p/h5p.service';
 import { ImportService } from './import/import.service';
+import { looksLikeMoodleXml } from './moodle/moodle-import';
 import { ExportService } from './export/export.service';
 import { MasterKeyService } from '../crypto/master-key.service';
 import { odtToHtml } from './odt/odt';
@@ -121,8 +122,8 @@ export class InterchangeController {
   }
 
   /**
-   * Import eines Themas. Erkennt selbst, ob die Datei offenes JSON oder ein
-   * verschlüsselter Export ist.
+   * Import eines Themas. Erkennt selbst, ob die Datei offenes JSON, ein
+   * verschlüsselter Export oder Moodle-XML (Fragensammlung) ist.
    */
   @Post('import-json')
   @UseInterceptors(FileInterceptor('file'))
@@ -135,8 +136,13 @@ export class InterchangeController {
       if (this.masterKey.isEncrypted(file.buffer)) {
         return await this.exportService.importEncrypted(file.buffer, req.user, targetTopicId);
       }
-      const jsonString = file.buffer.toString('utf-8');
-      return await this.importService.importTopicFromJson(jsonString, req.user, targetTopicId);
+      const text = file.buffer.toString('utf-8');
+      if (looksLikeMoodleXml(file.buffer)) {
+        // Multer liefert den Dateinamen als Latin-1 – für Umlaute zurückwandeln.
+        const name = Buffer.from(file.originalname || '', 'latin1').toString('utf-8');
+        return await this.importService.importMoodleXml(text, name, req.user, targetTopicId);
+      }
+      return await this.importService.importTopicFromJson(text, req.user, targetTopicId);
     } catch (err) {
       if (err?.status) throw err; // re-throw NestJS HttpExceptions (400, 403, 404 …)
       throw new InternalServerErrorException(err?.message || 'Import fehlgeschlagen');

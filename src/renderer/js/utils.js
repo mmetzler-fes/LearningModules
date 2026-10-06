@@ -68,6 +68,29 @@ export function showToast(message, type = 'info') {
   }, 3500);
 }
 
+/**
+ * Bericht nach einem Import (z. B. Moodle-XML): was übersprungen und was nur
+ * vereinfacht übernommen wurde. Ohne beides passiert nichts.
+ */
+export function showImportReport({ skipped = [], notes = [] } = {}, heading = '📋 Import-Bericht') {
+  if (!skipped.length && !notes.length) return;
+  const list = (items) => `<ul class="import-report-list">${items.map((i) => `<li>${escapeHtml(i)}</li>`).join('')}</ul>`;
+  const overlay = document.createElement('div');
+  overlay.className = 'confirm-overlay';
+  overlay.innerHTML = `
+    <div class="import-modules-card import-report">
+      <h3>${escapeHtml(heading)}</h3>
+      ${skipped.length ? `<p><strong>⏭ Nicht übernommen (${skipped.length})</strong></p>${list(skipped)}` : ''}
+      ${notes.length ? `<p><strong>ℹ️ Vereinfacht übernommen (${notes.length})</strong></p>${list(notes)}` : ''}
+      <p class="hint">${heading.includes('Export') ? 'Alles andere ist in der Datei.' : 'Alles andere ist im Thema – bitte die Aufgaben kurz im Editor durchsehen.'}</p>
+      <div class="confirm-actions"><button type="button" class="btn btn-primary btn-ok">OK</button></div>
+    </div>`;
+  document.body.appendChild(overlay);
+  const close = () => overlay.remove();
+  overlay.querySelector('.btn-ok').addEventListener('click', close);
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+}
+
 export function appConfirm(message) {
   return new Promise((resolve) => {
     const confirmOverlay = document.getElementById('confirmOverlay');

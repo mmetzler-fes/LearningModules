@@ -4,6 +4,7 @@ import { Repository } from 'typeorm';
 import * as crypto from 'crypto';
 import { LearningTopic } from '../../entities/learning-topic.entity';
 import { LearningModule } from '../../entities/learning-module.entity';
+import { convertMoodleXml, MoodleImportResult } from '../moodle/moodle-import';
 
 @Injectable()
 export class ImportService {
@@ -37,7 +38,33 @@ export class ImportService {
       }
       throw new BadRequestException('Ungültiges JSON-Format');
     }
+    return this.importTopicData(importData, user, targetTopicId);
+  }
 
+  /**
+   * Moodle-XML (Fragensammlung): Fragen umsetzen, dann wie ein JSON-Thema
+   * anlegen. Übersprungenes und Vereinfachtes kommt im Ergebnis mit.
+   */
+  async importMoodleXml(xml: string, fileName: string, user: any, targetTopicId?: string) {
+    let converted: MoodleImportResult;
+    try {
+      converted = convertMoodleXml(xml, fileName.replace(/\.xml$/i, '') || 'Moodle-Import');
+    } catch (e) {
+      throw new BadRequestException((e as Error).message);
+    }
+    if (converted.modules.length === 0) {
+      const why = converted.skipped.length ? ` Übersprungen: ${converted.skipped.join('; ')}` : '';
+      throw new BadRequestException(`Keine übernehmbaren Fragen in der Datei.${why}`);
+    }
+    const result = await this.importTopicData(
+      { topic: { title: converted.title, description: 'Aus Moodle importiert.', modules: converted.modules } },
+      user,
+      targetTopicId,
+    );
+    return { ...result, skipped: converted.skipped, notes: converted.notes };
+  }
+
+  private async importTopicData(importData: any, user: any, targetTopicId?: string) {
     let importModules = [];
     let topicTitle = 'Importiertes Thema';
     let topicDesc = '';

@@ -1,4 +1,4 @@
-import { escapeHtml, escapeAttr, generateId } from '../utils.js';
+import { escapeHtml, escapeAttr, generateId, showImportReport } from '../utils.js';
 import { ModuleDescriptionEditor } from '../desc-editor.js';
 import { TagPicker } from './tags.js';
 
@@ -88,7 +88,7 @@ export class ModulesView {
         }
         const input = document.createElement('input');
         input.type = 'file';
-        input.accept = '.json';
+        input.accept = '.json,.xml';
         input.onchange = async (e) => {
           const file = e.target.files[0];
           if (!file) return;
@@ -102,6 +102,7 @@ export class ModulesView {
             const data = await res.json();
             if (data.success) {
               this.app.showToast(`${data.importedCount} Modul(e) importiert.`, 'success');
+              showImportReport(data);
               await this.loadTopicModules(this.app.state.currentTopicId);
             } else {
               this.app.showToast('Import fehlgeschlagen: ' + (data.message || 'Unbekannter Fehler'), 'error');

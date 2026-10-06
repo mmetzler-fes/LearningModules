@@ -666,8 +666,9 @@ export class BrowserApi {
     return new Promise((resolve) => {
       const input = document.createElement('input');
       input.type = 'file';
-      // .lmenc = verschlüsselter Export dieser App; der Server erkennt ihn selbst.
-      input.accept = '.json,.lmenc';
+      // .lmenc = verschlüsselter Export dieser App, .xml = Moodle-Fragensammlung;
+      // der Server erkennt das Format selbst.
+      input.accept = '.json,.lmenc,.xml';
       input.onchange = async (e) => {
         const file = e.target.files[0];
         if (!file) return resolve({ success: false });
@@ -679,7 +680,7 @@ export class BrowserApi {
           const res = await fetch('/api/interchange/import-json', { method: 'POST', headers, body: formData });
           const data = await res.json();
           if (data.success) {
-            resolve({ success: true, topicTitle: data.topicTitle, importedCount: data.importedCount });
+            resolve({ success: true, topicTitle: data.topicTitle, importedCount: data.importedCount, skipped: data.skipped, notes: data.notes });
           } else {
             resolve({ success: false, error: data.message || data.error || 'Unbekannter Fehler' });
           }

@@ -143,6 +143,28 @@ function saveToggled(scope, set) {
  * - respectHidden: persönlich ausgeblendete Themengebiete weglassen; was nur
  *                dort hinge, kommt in einen zugeklappten Abschnitt am Ende
  */
+/**
+ * Reihenfolge wie in renderAreaGroups: Themengebiete alphabetisch, dann "Ohne
+ * Themengebiet", zuletzt nur ausgeblendete. Ein Eintrag mit mehreren Gebieten
+ * zählt zum ersten. Innerhalb eines Gebiets bleibt die Eingabereihenfolge –
+ * so lässt sich vorher sortieren und dann seitenweise blättern, ohne dass ein
+ * Gebiet über mehrere Seiten verstreut ist.
+ */
+export function orderByArea(items, tags, respectHidden = false) {
+  const allAreas = areaTags(tags);
+  const hidden = new Set(respectHidden ? allAreas.filter((a) => a.hidden).map((a) => a.id) : []);
+  const rank = new Map(allAreas.filter((a) => !hidden.has(a.id)).map((a, i) => [a.id, i]));
+  const rankOf = (item) => {
+    const ids = [...areasOfTagIds(item.tagIds, tags)];
+    if (ids.length === 0) return rank.size;
+    const shown = ids.filter((id) => rank.has(id)).map((id) => rank.get(id));
+    return shown.length ? Math.min(...shown) : rank.size + 1;
+  };
+  return items.map((item, i) => [rankOf(item), i, item])
+    .sort((a, b) => a[0] - b[0] || a[1] - b[1])
+    .map(([, , item]) => item);
+}
+
 export function renderAreaGroups(container, items, opts) {
   const {
     tags, scope, buildItem, buildHead, countLabel,

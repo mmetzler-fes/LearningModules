@@ -1,12 +1,19 @@
 import { escapeHtml, escapeAttr } from '../utils.js';
 import { pickClass } from './classes.js';
 import { AI_PROMPT_TYPES, buildAiPrompt } from '../ai-prompt.js';
-import { TagFilter, TagPicker, renderAreaGroups, chipHtml } from './tags.js';
+import { TagFilter, TagPicker, renderAreaGroups, orderByArea, chipHtml } from './tags.js';
 
 // ==================== TOPICS VIEW ====================
 
 /** Lernthemen je Seite – mehr Karten auf einmal machen die Ansicht träge. */
 const TOPICS_PER_PAGE = 10;
+
+/** Letzte Änderung an einem Thema oder einem seiner Module (ms, 0 = unbekannt). */
+function lastChange(topic) {
+  let latest = Date.parse(topic.updatedAt) || 0;
+  for (const m of topic.modules || []) latest = Math.max(latest, Date.parse(m.updatedAt) || 0);
+  return latest;
+}
 
 export class TopicsView {
   constructor(app) {
@@ -258,7 +265,16 @@ export class TopicsView {
     const all = this.app.state.topics || [];
     // Der Filter schränkt nur die Anzeige ein – "Alle auswählen" unten bezieht
     // sich deshalb bewusst auf die gerade sichtbaren Themen.
-    const matching = all.filter((topic) => this._filter.matches(topic));
+    // Geblättert wird Themengebiet für Themengebiet, darin das zuletzt
+    // geänderte Thema zuerst – so ist ein Gebiet nie über Seiten verstreut.
+    const matching = orderByArea(
+      all.filter((topic) => this._filter.matches(topic))
+        .map((topic) => [lastChange(topic), topic])
+        .sort((a, b) => b[0] - a[0])
+        .map(([, topic]) => topic),
+      this.app.state.tags,
+      true,
+    );
     const pages = Math.max(1, Math.ceil(matching.length / TOPICS_PER_PAGE));
     this._page = Math.min(Math.max(0, this._page || 0), pages - 1);
     const topics = matching.slice(this._page * TOPICS_PER_PAGE, (this._page + 1) * TOPICS_PER_PAGE);

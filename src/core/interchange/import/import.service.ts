@@ -19,6 +19,14 @@ export class ImportService {
     try {
       importData = JSON.parse(jsonString);
     } catch (e) {
+      // KIs brechen lange Antworten gern mitten im JSON ab – das verdient
+      // einen Hinweis, der weiterhilft.
+      if (!jsonString.trimEnd().endsWith('}')) {
+        throw new BadRequestException(
+          'Die Datei ist unvollständig – sie endet mitten im JSON. Vermutlich wurde die KI-Antwort abgeschnitten; '
+          + 'den Prompt mit weniger Modulen pro Antwort erneut erzeugen.',
+        );
+      }
       throw new BadRequestException('Ungültiges JSON-Format');
     }
 

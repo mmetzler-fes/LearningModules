@@ -9,6 +9,13 @@
 /** Aufgabentypen, die der Generator anbietet – alle automatisch bewertbar. */
 export const AI_PROMPT_TYPES = ['multipleChoice', 'trueFalse', 'fillInTheBlanks', 'dragTheWords', 'markTheWords', 'dragAndDrop'];
 
+/**
+ * Module je Antwort. Längere Antworten brechen KIs gern mitten im JSON ab
+ * (Gemini z. B. nach etwa sechs Modulen) – die Datei ist dann unbrauchbar.
+ * Darüber hinaus kommt das Thema deshalb in mehreren vollständigen Teilen.
+ */
+export const AI_PROMPT_PART_SIZE = 5;
+
 /** Kleines Beispiel je Typ – nur `content`, im Format, das der Import erwartet. */
 export const AI_PROMPT_EXAMPLES = {
   multipleChoice: {
@@ -132,6 +139,8 @@ export function buildAiPrompt(o) {
   const types = AI_PROMPT_TYPES.filter((t) => o.types.includes(t));
   const files = String(o.files || '').split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
   const link = String(o.link || '').trim();
+  const count = o.count || 10;
+  const parts = Math.ceil(count / AI_PROMPT_PART_SIZE);
   const L = [];
 
   L.push('Du erstellst ein digitales Lernthema mit Quiz-Aufgaben für den Unterricht.');
@@ -142,7 +151,7 @@ export function buildAiPrompt(o) {
   L.push(`- Beschreibung: ${o.description}`);
   if (o.level) L.push(`- Klassenstufe/Niveau: ${o.level}`);
   L.push(`- Sprache der Aufgaben: ${o.language || 'Deutsch'}`);
-  L.push(`- Anzahl Module: etwa ${o.count || 10}, sinnvoll auf diese Aufgabentypen verteilt: ${types.map(typeName).join(', ')}`);
+  L.push(`- Anzahl Module: etwa ${count}, sinnvoll auf diese Aufgabentypen verteilt: ${types.map(typeName).join(', ')}`);
   L.push('- Die Aufgaben steigen im Schwierigkeitsgrad an und decken die Inhalte breit ab.');
   L.push('');
 
@@ -172,11 +181,11 @@ export function buildAiPrompt(o) {
     topic: {
       title: o.title || 'Titel des Themas',
       description: 'Ein bis zwei Sätze, worum es geht.',
-      modules: [{ id: 'm01', title: '1. Kurzer Titel der Aufgabe', type: types[0] || 'multipleChoice', description: '', content: { '…': 'je nach Typ, siehe unten' }, orderIndex: 0 }],
+      modules: [{ title: '1. Kurzer Titel der Aufgabe', type: types[0] || 'multipleChoice', description: '', content: { '…': 'je nach Typ, siehe unten' }, orderIndex: 0 }],
     },
   }, null, 2));
   L.push('```');
-  L.push('- "id": eindeutig, z. B. "m01", "m02" …; "orderIndex": 0, 1, 2 … in der gewünschten Reihenfolge.');
+  L.push('- "orderIndex": 0, 1, 2 … in der gewünschten Reihenfolge, über alle Teile hinweg fortlaufend.');
   L.push('- "title": kurz und nummeriert. "description": optionale Arbeitsanweisung als einfaches HTML (z. B. "<p>…</p>"), sonst "".');
   L.push('- "type": genau einer der Werte unten. "content": Aufbau je Typ wie beschrieben.');
   L.push('');
@@ -197,7 +206,16 @@ export function buildAiPrompt(o) {
   L.push('');
 
   L.push('## Ausgabe');
-  L.push('- Gib NUR den JSON-Code in einem einzigen ```json-Codeblock aus – kein Text davor oder danach.');
+  if (parts > 1) {
+    L.push(`- Lange Antworten werden abgeschnitten. Gib deshalb höchstens ${AI_PROMPT_PART_SIZE} Module pro Antwort aus – insgesamt ${parts} Teile.`);
+    L.push('- Jeder Teil ist eine vollständige, gültige JSON-Datei im obigen Format (mit "topic", "title", "description" und "modules"), die mit } endet.');
+    L.push('- Plane vorher alle Module, damit sich nichts wiederholt. Nummerierung in "title" und "orderIndex" laufen über die Teile weiter.');
+    L.push(`- Gib nur den JSON-Codeblock aus. Einzige Ausnahme: Direkt danach eine Zeile "Teil x von ${parts} – schreibe »weiter« für den nächsten Teil." (beim letzten Teil weglassen).`);
+    L.push('- Auf "weiter" folgt der nächste Teil im selben Format.');
+  } else {
+    L.push('- Gib NUR den JSON-Code in einem einzigen ```json-Codeblock aus – kein Text davor oder danach.');
+  }
+  L.push('- Kompakt bleiben: "description" der Module nur, wenn sie über die Aufgabe hinaus etwas sagt, sonst "".');
   L.push('- Gültiges JSON: doppelte Anführungszeichen, keine Kommentare, kein Komma nach dem letzten Element.');
   L.push('- Prüfe vor der Ausgabe jede Aufgabe auf fachliche Richtigkeit und eindeutige Lösung.');
   return L.join('\n');

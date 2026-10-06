@@ -36,5 +36,11 @@ JavaScript und zeigt keine lesbare Dateiliste. Ohne Bild-Links bleiben
   - Wahr/Falsch: `correctAnswer` als Text `"true"`/`"false"`
   - Drag and Drop: je Zone genau ein richtiges Element, Positionen in Prozent
 - Ausgabe: nur ein JSON-Codeblock, gültiges JSON, Aufgaben vorher prüfen.
+- Mehr als 5 Module: Die KI antwortet in Teilen zu höchstens 5 Modulen, jeder
+  Teil eine vollständige Datei; mit „weiter“ kommt der nächste. Lange Antworten
+  brechen KIs sonst mitten im JSON ab (Gemini etwa nach sechs Modulen). Teil 1
+  über **📥 Thema importieren**, die weiteren im Thema über
+  **📥 Module importieren**. Eine abgeschnittene Datei meldet der Import als
+  „unvollständig“.
 
 Code: `src/renderer/js/ai-prompt.js`, Seite in `views/ai-prompt-view.js`.

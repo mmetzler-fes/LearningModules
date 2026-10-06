@@ -1,5 +1,5 @@
 import { escapeHtml, escapeAttr } from '../utils.js';
-import { AI_PROMPT_TYPES, buildAiPrompt } from '../ai-prompt.js';
+import { AI_PROMPT_TYPES, AI_PROMPT_PART_SIZE, buildAiPrompt } from '../ai-prompt.js';
 
 // ==================== KI-PROMPT-GENERATOR ====================
 
@@ -81,6 +81,7 @@ export class AiPromptView {
         </div>
         <div class="ai-prompt-result hidden">
           <textarea readonly rows="16" class="ai-prompt-output"></textarea>
+          <p class="hint ai-prompt-parts hidden"></p>
           <div class="confirm-actions">
             <button type="button" class="btn btn-primary btn-copy">📋 Kopieren</button>
             <button type="button" class="btn btn-secondary btn-save">💾 Als Textdatei</button>
@@ -100,6 +101,13 @@ export class AiPromptView {
       if (values.types.length === 0) { this.app.showToast('Bitte mindestens einen Aufgabentyp wählen.', 'error'); return; }
       this._save();
       output.value = buildAiPrompt(values);
+      // Viele Module kommen in Teilen – sonst bricht die KI mitten im JSON ab.
+      const parts = Math.ceil(values.count / AI_PROMPT_PART_SIZE);
+      const partsHint = form.querySelector('.ai-prompt-parts');
+      partsHint.classList.toggle('hidden', parts < 2);
+      partsHint.innerHTML = `Die KI antwortet in <strong>${parts} Teilen</strong> zu je höchstens ${AI_PROMPT_PART_SIZE} Modulen
+        – mit „weiter“ kommt der nächste. Jeden Teil als eigene <code>.json</code> speichern: Teil 1 über
+        <strong>🏠 LernModule → 📥 Thema importieren</strong>, die weiteren im neuen Thema über <strong>📥 Module importieren</strong>.`;
       form.querySelector('.ai-prompt-result').classList.remove('hidden');
       output.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
     });

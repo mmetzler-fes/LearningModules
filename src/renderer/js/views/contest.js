@@ -205,7 +205,7 @@ export class ContestView {
     return this.screen;
   }
 
-  _showMessage(icon, title, text, { reload = false } = {}) {
+  _showMessage(icon, title, text, { reload = false, action = null } = {}) {
     this.countdown.stop();
     const screen = this._ensureScreen();
     screen.innerHTML = `
@@ -213,8 +213,10 @@ export class ContestView {
         <div class="contest-message-icon">${icon}</div>
         <h2>${escapeHtml(title)}</h2>
         ${text ? `<p>${escapeHtml(text)}</p>` : ''}
+        ${action ? `<button class="btn btn-primary" id="contestAction">${escapeHtml(action.label)}</button>` : ''}
         ${reload ? '<button class="btn btn-primary" id="contestReload">🔄 Neu laden</button>' : ''}
       </div>`;
+    screen.querySelector('#contestAction')?.addEventListener('click', action?.run);
     screen.querySelector('#contestReload')?.addEventListener('click', () => location.reload());
   }
 
@@ -291,7 +293,10 @@ export class ContestView {
       },
       closed: (data) => {
         this._closeSource();
-        this._showMessage('👋', 'Quiz-Arena beendet', data?.reason || '', { reload: true });
+        this._hostKey = null;
+        this._showMessage('👋', 'Quiz-Arena beendet', data?.reason || '', {
+          action: { label: '🆕 Neuen Wartebereich öffnen', run: () => this.startHost(this.hostToken) },
+        });
       },
     }, () => {
       // Server neu gestartet o. ä.: Wartebereich neu eröffnen.
@@ -332,8 +337,30 @@ export class ContestView {
       <header class="contest-top">
         <div class="contest-top-title">🏆 ${escapeHtml(st.linkName || 'Quiz-Arena')}</div>
         <div class="contest-top-info">${extra}</div>
+        ${st.phase === 'question' || st.phase === 'reveal' ? `
+        <button class="btn btn-secondary btn-sm contest-top-reset" title="Durchgang abbrechen, zurück in den Wartebereich">🔁 Neu starten</button>` : ''}
+        ${st.phase !== 'podium' ? `
+        <button class="btn btn-secondary btn-sm contest-top-close" title="Quiz-Arena beenden, alle Teilnehmer entfernen">⏹ Beenden</button>` : ''}
         <button class="btn btn-secondary btn-sm contest-sound" title="Tusch an/aus">${this.soundOn ? '🔊' : '🔇'}</button>
       </header>`;
+  }
+
+  /**
+   * Kopfleiste: Ton, und außerhalb der Siegerehrung Abbrechen und Beenden –
+   * sonst steckte ein abgebrochener Durchgang bis zur Siegerehrung fest.
+   */
+  _bindTop(screen) {
+    this._bindSound(screen);
+    screen.querySelector('.contest-top-reset')?.addEventListener('click', async () => {
+      if (await this.app.appConfirm('Durchgang abbrechen und zurück in den Wartebereich? Die Teilnehmer bleiben, die Punkte beginnen wieder bei 0.')) {
+        this._hostAction('reset');
+      }
+    });
+    screen.querySelector('.contest-top-close')?.addEventListener('click', async () => {
+      if (await this.app.appConfirm('Quiz-Arena beenden? Alle Teilnehmer werden entfernt; danach kannst du einen leeren Wartebereich öffnen.')) {
+        this._hostAction('close');
+      }
+    });
   }
 
   _bindSound(screen) {
@@ -368,7 +395,7 @@ export class ContestView {
           <p class="hint">Namen mit ✕ entfernen. Wer später kommt, steigt bei der laufenden Aufgabe ein.</p>
         </section>
       </main>`;
-    this._bindSound(screen);
+    this._bindTop(screen);
     screen.querySelector('#contestCopyJoin').addEventListener('click', async () => {
       try {
         await navigator.clipboard.writeText(st.joinUrl);
@@ -432,7 +459,7 @@ export class ContestView {
         <div class="contest-question h5p-container"></div>
         <div class="contest-players contest-players-small"></div>
       </main>`;
-    this._bindSound(screen);
+    this._bindTop(screen);
     this._hostView = this._renderQuestionInto(screen.querySelector('.contest-question'), false);
     screen.querySelector('#contestEndTime').addEventListener('click', () => this._hostAction('next'));
     this.countdown.set(st.remainingMs, st.seconds, (left, total) => updateTimer(screen, left, total));
@@ -463,7 +490,7 @@ export class ContestView {
           <div class="contest-leaderboard"></div>
         </section>
       </main>`;
-    this._bindSound(screen);
+    this._bindTop(screen);
     screen.querySelector('#contestNext').addEventListener('click', async () => {
       // Der Tusch muss im Klick starten – sonst blockiert der Browser den Ton.
       if (last && this.soundOn) playFanfare(st.soundUrl);
@@ -490,7 +517,7 @@ export class ContestView {
         </div>
         <p class="hint">Die Ergebnisse stehen in deiner Ergebnisliste (Modus „Quiz-Arena“).</p>
       </main>`;
-    this._bindSound(screen);
+    this._bindTop(screen);
     screen.querySelector('#contestFanfare').addEventListener('click', () => playFanfare(st.soundUrl));
     screen.querySelector('#contestAgain').addEventListener('click', async () => {
       if (await this.app.appConfirm('Neuer Durchgang mit denselben Teilnehmern? Die Punkte beginnen wieder bei 0.')) {

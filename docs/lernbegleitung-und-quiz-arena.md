@@ -105,6 +105,15 @@ Wie Kahoot, aber mit den eigenen Aufgaben.
 6. Nach der letzten Aufgabe: **🏆 Zur Siegerehrung** – Siegertreppchen mit
    den ersten drei Plätzen und Tusch.
 
+Abbrechen geht jederzeit über die Kopfleiste der Leitung:
+
+- **🔁 Neu starten** (während Aufgabe und Auswertung): zurück in den
+  Wartebereich, dieselben Teilnehmer, Punkte wieder bei 0.
+- **⏹ Beenden**: entfernt alle Teilnehmer; danach öffnet
+  **🆕 Neuen Wartebereich öffnen** einen leeren Wartebereich. Ohne Beenden
+  nimmt das erneute Öffnen den laufenden Durchgang wieder auf – erst nach
+  4 Stunden ohne Aktivität räumt der Server ihn selbst weg.
+
 ### Zeit je Aufgabe aus den Übungsdurchläufen
 
 Für jede Aufgabe gilt die erste passende Zeit:

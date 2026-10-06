@@ -98,6 +98,7 @@ const RULES = {
   ],
   markTheWords: [
     'Die richtig zu markierenden Wörter stehen im Text in *Sternchen*, alle anderen ohne.',
+    'Jeder Satz braucht mindestens ein Wort in *Sternchen* – ohne Sternchen gibt es nichts zu markieren und die Aufgabe ist unlösbar.',
     'Mehrere Sätze mit \\n trennen.',
   ],
   dragAndDrop: [
@@ -216,6 +217,7 @@ export function buildAiPrompt(o) {
     L.push('- Gib NUR den JSON-Code in einem einzigen ```json-Codeblock aus – kein Text davor oder danach.');
   }
   L.push('- Kompakt bleiben: "description" der Module nur, wenn sie über die Aufgabe hinaus etwas sagt, sonst "".');
+  L.push('- Lücken- und Markieraufgaben vor der Ausgabe prüfen: Stehen die Lösungswörter wirklich in *Sternchen*?');
   L.push('- Gültiges JSON: doppelte Anführungszeichen, keine Kommentare, kein Komma nach dem letzten Element.');
   L.push('- Prüfe vor der Ausgabe jede Aufgabe auf fachliche Richtigkeit und eindeutige Lösung.');
   return L.join('\n');

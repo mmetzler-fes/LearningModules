@@ -16,12 +16,20 @@ export class ImportService {
 
   async importTopicFromJson(jsonString: string, user: any, targetTopicId?: string) {
     let importData: any;
-    try {
-      importData = JSON.parse(jsonString);
-    } catch (e) {
+    // KI-Antworten werden oft samt Markdown-Rahmen gespeichert: ```json … ```
+    // und eventuell Text davor oder danach ("Teil 1 von 3 …"). Dann zählt
+    // nur der Codeblock bzw. das JSON-Objekt darin.
+    const fenced = /```(?:json)?\s*\n([\s\S]*?)\n\s*```/i.exec(jsonString);
+    const start = jsonString.indexOf('{');
+    const body = fenced ? fenced[1] : start > 0 ? jsonString.slice(start) : jsonString;
+    const candidates = [body, body.slice(0, body.lastIndexOf('}') + 1)];
+    for (const candidate of candidates) {
+      try { importData = JSON.parse(candidate); break; } catch (_) { /* nächster Versuch */ }
+    }
+    if (importData === undefined) {
       // KIs brechen lange Antworten gern mitten im JSON ab – das verdient
       // einen Hinweis, der weiterhilft.
-      if (!jsonString.trimEnd().endsWith('}')) {
+      if (ImportService.openBraces(body) > 0) {
         throw new BadRequestException(
           'Die Datei ist unvollständig – sie endet mitten im JSON. Vermutlich wurde die KI-Antwort abgeschnitten; '
           + 'den Prompt mit weniger Modulen pro Antwort erneut erzeugen.',
@@ -102,6 +110,22 @@ export class ImportService {
       topicTitle: savedTopic.title,
       importedCount: newModules.filter((m: any) => !m.parentId).length,
     };
+  }
+
+  /** Noch offene { bzw. [ am Textende (außerhalb von Strings) – > 0 heißt abgeschnitten. */
+  private static openBraces(text: string): number {
+    let depth = 0;
+    let inString = false;
+    for (let i = 0; i < text.length; i++) {
+      const c = text[i];
+      if (inString) {
+        if (c === '\\') i++;
+        else if (c === '"') inString = false;
+      } else if (c === '"') inString = true;
+      else if (c === '{' || c === '[') depth++;
+      else if (c === '}' || c === ']') depth--;
+    }
+    return depth + (inString ? 1 : 0);
   }
 
   private syncDragAndDropMapping(content: any) {

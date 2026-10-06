@@ -42,5 +42,7 @@ JavaScript und zeigt keine lesbare Dateiliste. Ohne Bild-Links bleiben
   über **📥 Thema importieren**, die weiteren im Thema über
   **📥 Module importieren**. Eine abgeschnittene Datei meldet der Import als
   „unvollständig“.
+- Die KI-Antwort darf samt Markdown-Rahmen (```` ```json … ``` ````) und Text
+  davor oder danach gespeichert werden – der Import nimmt nur das JSON darin.
 
 Code: `src/renderer/js/ai-prompt.js`, Seite in `views/ai-prompt-view.js`.

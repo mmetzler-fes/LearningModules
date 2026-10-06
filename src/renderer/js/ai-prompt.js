@@ -103,7 +103,7 @@ const RULES = {
   ],
   dragAndDrop: [
     'Jede Zone hat eine eindeutige "label"; jedes Element nennt in "correctZone" genau diese Bezeichnung.',
-    'Je Zone genau EIN richtiges Element – sonst kann die Aufgabe nie ganz richtig werden. Weitere Elemente ohne Zone sind Ablenker ("correctZone": "").',
+    'Mehrere Elemente dürfen dieselbe Zone als "correctZone" haben (z. B. zwei SELECT-Ausdrücke in "Projektion") – die Zone ist dann richtig, wenn alle drin liegen. Weitere Elemente ohne Zone sind Ablenker ("correctZone": "").',
     'Positionen x, y, width, height in Prozent (0–100), Zonen dürfen sich nicht überlappen.',
   ],
 };

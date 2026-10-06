@@ -34,7 +34,8 @@ JavaScript und zeigt keine lesbare Dateiliste. Ohne Bild-Links bleiben
   - Lückentext: `*Antwort*`, Alternativen mit `/`
   - Drag the Words: `*Wort*`, Alternativen mit `|`, Ablenker in `distractors`
   - Wahr/Falsch: `correctAnswer` als Text `"true"`/`"false"`
-  - Drag and Drop: je Zone genau ein richtiges Element, Positionen in Prozent
+  - Drag and Drop: mehrere Elemente dürfen dieselbe Zone als Ziel haben (alle
+    müssen hinein), Positionen in Prozent
 - Ausgabe: nur ein JSON-Codeblock, gültiges JSON, Aufgaben vorher prüfen.
 - Mehr als 5 Module: Die KI antwortet in Teilen zu höchstens 5 Modulen, jeder
   Teil eine vollständige Datei; mit „weiter“ kommt der nächste. Lange Antworten

@@ -1310,6 +1310,8 @@ body {
   color: var(--text-secondary);
 }
 
+.dnd-zone-right { flex-basis: 100%; font-size: 0.85rem; color: var(--success); }
+
 .dnd-zone-pos {
   font-size: 0.8rem;
   color: var(--text-secondary);

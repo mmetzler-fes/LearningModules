@@ -3,6 +3,29 @@ import { scoreDictation, dictationOptions } from './dictation.js';
 // ==================== AUSWERTUNG EINER AUFGABE ====================
 
 /**
+ * Drag and Drop: was in welche Zone gehört, als Liste { zone, text }.
+ *
+ * Eine Zone darf mehrere richtige Elemente haben (wie bei H5P): alle, deren
+ * Ziel sie ist. Das "Erwartete Wort" der Zone muss dann darunter sein oder
+ * leer bleiben. Widersprechen sich beide Seiten, gilt wie früher nur die
+ * Zone – sonst würde ein veralteter Verweis eines Elements eine alte Aufgabe
+ * plötzlich unlösbar machen.
+ */
+export function dndExpectedMappings(content) {
+  const zones = (content && content.dropZones) || [];
+  const drags = (content && content.draggables) || [];
+  const out = [];
+  for (const z of zones) {
+    if (!z.label) continue;
+    const targeted = [...new Set(drags.filter((d) => d.correctZone === z.label && d.text).map((d) => d.text))];
+    const own = z.correctDraggable || '';
+    const texts = !own ? targeted : targeted.includes(own) ? targeted : [own];
+    for (const text of texts) out.push({ zone: z.label, text });
+  }
+  return out;
+}
+
+/**
  * Aufgabentypen, die sich automatisch bewerten lassen. Nur sie taugen für
  * die Lernbegleitung (mehrere Versuche) und die Quiz-Arena; Freitext,
  * Audio-Aufnahme und reine Informationen bewertet kein Automat.
@@ -236,21 +259,12 @@ export function collectAnswer(mod, root) {
       break;
     }
     case 'dragAndDrop': {
-      const draggablesDef = content.draggables || []; const zonesDef = content.dropZones || [];
-      // Pro Zone genau ein Soll-Wert, sonst kann die Aufgabe nie vollständig
-      // "richtig" werden. Die Zonen-Seite (im Editor gepflegt) ist
-      // maßgeblich; die Ziehbare-Element-Seite füllt nur Zonen auf, die dort
-      // noch keinen Wert haben, und nur für Zonen, die es noch gibt – sonst
-      // zählen veraltete correctZone-Verweise als zusätzliche, unerfüllbare
-      // Anforderung mit.
-      const zoneLabels = new Set(zonesDef.map((z) => z.label));
+      const zonesDef = content.dropZones || [];
       // Zonen mit derselben (nicht-leeren) Gruppen-ID sind untereinander
       // vertauschbar, z. B. die zwei gleichwertigen Eingänge eines
       // Oder-Gatters. Ohne Gruppe zählt weiterhin nur die eigene Zone.
       const zoneGroup = new Map(zonesDef.map((z) => [z.label, z.group || '']));
-      const expectedMappings = [];
-      zonesDef.forEach((z) => { if (z.correctDraggable) expectedMappings.push({ zone: z.label, text: z.correctDraggable }); });
-      draggablesDef.forEach((d) => { if (d.correctZone && zoneLabels.has(d.correctZone) && !expectedMappings.find((m) => m.zone === d.correctZone)) expectedMappings.push({ zone: d.correctZone, text: d.text }); });
+      const expectedMappings = dndExpectedMappings(content);
       const dragEls = root.querySelectorAll('.dnd-player-drag');
       let correct = 0; let incorrect = 0; const placements = [];
       const satisfiedDefs = new Set();

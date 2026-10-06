@@ -189,6 +189,8 @@ function convertH5pToNative(machineName: string, params: any, h5pImages: Record<
           const text = stripHtml(rawText) || `Element ${i + 1}`;
           return {
             text,
+            // H5P "unbegrenzt": jedes Ziehen erzeugt eine Kopie.
+            multiple: !!el.multiple,
             correctZone:
               correctZoneIdx >= 0 && mappedDropZones[correctZoneIdx]
                 ? mappedDropZones[correctZoneIdx].label

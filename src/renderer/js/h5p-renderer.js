@@ -1,6 +1,6 @@
 import { videoSourceOf } from './video.js';
 import { normalizeBranching } from './branching.js';
-import { dtwAlternatives, dtwMatches } from './answer-eval.js';
+import { dtwAlternatives, dtwMatches, dndExpectedMappings } from './answer-eval.js';
 import { audioSourceOf, scoreDictation, dictationOptions } from './dictation.js';
 import { normalizeShareUrl, sanitizeModuleDescriptionHtml, sanitizeWorksheetHtml, escapeHtml, escapeAttr, hexTint, showContextMenu, attachPointerDrag } from './utils.js';
 
@@ -1204,11 +1204,8 @@ export class H5pRenderer {
               // Zonen mit derselben (nicht-leeren) Gruppen-ID sind untereinander
               // vertauschbar (z. B. die zwei gleichwertigen Eingänge eines
               // Oder-Gatters) – dieselbe Regel wie bei der Endauswertung.
-              const zoneLabelSet = new Set(zones.map((z) => z.label));
               const zoneGroup = new Map(zones.map((z) => [z.label, z.group || '']));
-              const expected = [];
-              zones.forEach((z) => { if (z.correctDraggable) expected.push({ zone: z.label, text: z.correctDraggable }); });
-              drags.forEach((d) => { if (d.correctZone && zoneLabelSet.has(d.correctZone) && !expected.find((m) => m.zone === d.correctZone)) expected.push({ zone: d.correctZone, text: d.text }); });
+              const expected = dndExpectedMappings({ dropZones: zones, draggables: drags });
               const used = new Set();
               const itemOk = new Map();
               zoneEls.forEach((z) => {
@@ -1234,7 +1231,11 @@ export class H5pRenderer {
                 } else {
                   items.forEach((item) => { if (itemOk.get(item)) hasCorrect = true; else anyWrong = true; });
                 }
-                if (hasCorrect && !anyWrong) { z.style.borderColor = 'green'; correct++; }
+                // Gehören mehrere Elemente in die Zone, ist sie erst vollständig,
+                // wenn alle drin liegen (bei Gruppen zählt die ganze Gruppe).
+                const missing = expected.some((m, i) => !used.has(i)
+                  && (group ? (zoneGroup.get(m.zone) || '') === group : m.zone === zoneLabel));
+                if (hasCorrect && !anyWrong && !missing) { z.style.borderColor = 'green'; correct++; }
                 else if (anyWrong) { z.style.borderColor = 'red'; }
                 else { z.style.borderColor = defaultColor; }
               });

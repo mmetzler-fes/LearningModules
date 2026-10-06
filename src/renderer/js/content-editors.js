@@ -1622,7 +1622,22 @@ class ContentEditorManager {
         if (zone.correctDraggable === dragText) opt.selected = true;
         dragSelect.appendChild(opt);
       });
-      dragSelect.addEventListener('change', () => { zone.correctDraggable = dragSelect.value; });
+      dragSelect.addEventListener('change', () => {
+        zone.correctDraggable = dragSelect.value;
+        // Beide Seiten gleich halten: Das gewählte Element zielt auf die Zone,
+        // sofern es noch kein Ziel hat.
+        this.dndState.draggables.forEach((d) => {
+          if (d.text === zone.correctDraggable && !d.correctZone) d.correctZone = zone.label;
+        });
+        this.refreshDndDraggables();
+        this.refreshDndZonesList();
+      });
+
+      // Was in diese Zone gehört – bei mehreren Elementen alle.
+      const rightTexts = this._dndRightTexts(zone);
+      const rightInfo = document.createElement('span');
+      rightInfo.className = 'dnd-zone-right';
+      rightInfo.textContent = rightTexts.length > 1 ? `✓ ${rightTexts.length} richtig: ${rightTexts.join(' · ')}` : '';
 
       const groupLabel = document.createElement('span');
       groupLabel.innerHTML = '&nbsp;🔀 Gruppe:&nbsp;';
@@ -1670,13 +1685,30 @@ class ContentEditorManager {
       item.appendChild(groupSelect);
       item.appendChild(posLabel);
       item.appendChild(btnRemove);
+      if (rightInfo.textContent) item.appendChild(rightInfo);
       list.appendChild(item);
     });
+
+    const multiHint = document.createElement('p');
+    multiHint.className = 'dnd-group-hint';
+    multiHint.textContent = '🧺 Mehrere richtige Elemente je Zone: Bei den ziehbaren Elementen dieselbe Zone als Ziel wählen – die Zone ist dann richtig, wenn alle drin liegen.';
+    list.appendChild(multiHint);
 
     const hint = document.createElement('p');
     hint.className = 'dnd-group-hint';
     hint.textContent = '🔀 Ablagegruppen: Zonen derselben Gruppe sind untereinander vertauschbar – ein Element zählt als richtig, wenn es in irgendeiner Zone seiner Gruppe liegt. Eine Gruppe braucht mindestens zwei Zonen.';
     list.appendChild(hint);
+  }
+
+  /**
+   * Richtige Elemente einer Zone – dieselbe Regel wie in der Auswertung
+   * (answer-eval.js, dndExpectedMappings): alle Elemente mit dieser Zone als
+   * Ziel, solange das Erwartete Wort darunter ist oder fehlt.
+   */
+  _dndRightTexts(zone) {
+    const targeted = [...new Set(this.dndState.draggables.filter((d) => d.correctZone === zone.label && d.text).map((d) => d.text))];
+    const own = zone.correctDraggable || '';
+    return !own ? targeted : targeted.includes(own) ? targeted : [own];
   }
 
   _dndGroupNames() {
@@ -1748,7 +1780,21 @@ class ContentEditorManager {
         if (drag.correctZone === zone.label) opt.selected = true;
         zoneSelect.appendChild(opt);
       });
-      zoneSelect.addEventListener('change', () => { drag.correctZone = zoneSelect.value; });
+      zoneSelect.addEventListener('change', () => {
+        const before = drag.correctZone;
+        drag.correctZone = zoneSelect.value;
+        const zoneOf = (label) => this.dndState.dropZones.find((z) => z.label === label);
+        // Neue Zone ohne Erwartetes Wort: dieses Element eintragen.
+        const target = zoneOf(drag.correctZone);
+        if (target && !target.correctDraggable) target.correctDraggable = drag.text;
+        // Alte Zone erwartete genau dieses Element: auf ein verbliebenes umstellen.
+        const old = before && before !== drag.correctZone ? zoneOf(before) : null;
+        if (old && old.correctDraggable === drag.text
+          && !this.dndState.draggables.some((d) => d !== drag && d.text === drag.text && d.correctZone === before)) {
+          old.correctDraggable = this.dndState.draggables.find((d) => d.correctZone === before && d.text)?.text || '';
+        }
+        this.refreshDndZonesList();
+      });
 
       const chkWrap = document.createElement('label');
       chkWrap.style.display = 'flex';

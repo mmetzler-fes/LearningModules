@@ -33,6 +33,9 @@ COPY --from=builder /app/dist ./dist
 # Copy static frontend (served at runtime via ServeStaticModule from src/renderer)
 COPY src/renderer ./src/renderer
 
+# H5P-Bibliotheken für den H5P-Export (scripts/update-h5p-libraries.sh)
+COPY assets/h5p ./assets/h5p
+
 # SQLite data directory (mounted as volume)
 RUN mkdir -p data
 

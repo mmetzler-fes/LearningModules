@@ -459,7 +459,10 @@ export class BrowserApi {
     const plain = /filename="([^"]+)"/i.exec(disposition);
     const name = star ? decodeURIComponent(star[1]) : plain ? plain[1] : fallbackName;
     downloadBlob(await res.blob(), name);
-    return { success: true };
+    // Bericht des Servers (z. B. beim Moodle-Export: Übersprungenes)
+    let report = null;
+    try { report = JSON.parse(decodeURIComponent(res.headers.get('X-Export-Report') || '')); } catch (_) {}
+    return { success: true, ...(report || {}) };
   }
 
   _pickAndUpload(accept, url, extra = {}) {
@@ -716,6 +719,11 @@ export class BrowserApi {
       };
       input.click();
     });
+  }
+
+  /** Moodle-XML (Fragensammlung) – nur die selbst verfassten Module. */
+  exportTopicAsMoodle(topicId) {
+    return this._download(`/api/interchange/topics/${encodeURIComponent(topicId)}/export-moodle`, 'thema.xml');
   }
 
   /** Unverschlüsselt als H5P – nur die selbst verfassten Module. */

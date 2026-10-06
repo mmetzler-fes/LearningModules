@@ -8,6 +8,7 @@ import { User } from '../../entities/user.entity';
 import { TopicsService } from '../../../topics/topics.service';
 import { MasterKeyService } from '../../crypto/master-key.service';
 import { H5pService } from '../h5p/h5p.service';
+import { exportMoodleXml } from '../moodle/moodle-export';
 
 /**
  * Export von Themen.
@@ -80,10 +81,17 @@ export class ExportService {
     };
   }
 
+  /** Moodle-XML (Fragensammlung) nur mit den eigenen, aktiven Modulen. */
+  async exportMoodle(topicId: string, user: any) {
+    const { topic, modules } = await this.plainSource(topicId, user);
+    const active = modules.filter((m) => !m.parentId && m.moduleSelected !== false);
+    return { title: topic.title, ...exportMoodleXml(topic.title, active) };
+  }
+
   /** H5P nur mit den eigenen Modulen. */
   async exportH5p(topicId: string, user: any) {
     const { topic, modules } = await this.plainSource(topicId, user);
-    return { title: topic.title, buffer: await this.h5p.generateH5pBuffer(topic, modules) };
+    return { title: topic.title, ...this.h5p.generateH5p(topic, modules) };
   }
 
   /**

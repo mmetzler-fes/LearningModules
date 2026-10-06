@@ -441,6 +441,7 @@ export class TopicsView {
           <div class="confirm-actions" style="justify-content:flex-start">
             <button class="btn btn-secondary" id="btnExpJson" ${own ? '' : 'disabled'}>📤 JSON</button>
             <button class="btn btn-secondary" id="btnExpH5p" ${own ? '' : 'disabled'}>📦 H5P</button>
+            <button class="btn btn-secondary" id="btnExpMoodle" ${own ? '' : 'disabled'} title="Fragensammlung für Moodle-Tests (Moodle-XML)">🎓 Moodle-XML</button>
           </div>
         </div>
         <div class="settings-group" style="margin-top:14px">
@@ -466,7 +467,20 @@ export class TopicsView {
       else this.app.showToast('Export fehlgeschlagen: ' + (res?.error || '?'), 'error');
     };
     overlay.querySelector('#btnExpJson').addEventListener('click', () => run(() => this.app.api.exportTopic(topic.id), t('topics.exported')));
-    overlay.querySelector('#btnExpH5p').addEventListener('click', () => run(() => this.app.api.exportTopicAsH5p(topic.id), '📦 H5P exportiert!'));
+    overlay.querySelector('#btnExpH5p').addEventListener('click', async () => {
+      const res = await this.app.api.exportTopicAsH5p(topic.id);
+      if (!res || !res.success) { this.app.showToast('Export fehlgeschlagen: ' + (res?.error || '?'), 'error'); return; }
+      this.app.showToast(`📦 H5P-Fragenset mit ${res.count ?? ''} Frage(n) exportiert.`, 'success');
+      close();
+      showImportReport({ skipped: res.skipped || [], notes: res.notes || [] }, '📋 Export-Bericht');
+    });
+    overlay.querySelector('#btnExpMoodle').addEventListener('click', async () => {
+      const res = await this.app.api.exportTopicAsMoodle(topic.id);
+      if (!res || !res.success) { this.app.showToast('Export fehlgeschlagen: ' + (res?.error || '?'), 'error'); return; }
+      this.app.showToast(`🎓 ${res.count ?? ''} Moodle-Frage(n) exportiert – in Moodle unter Fragensammlung → Import → Moodle-XML einlesen.`, 'success');
+      close();
+      showImportReport({ skipped: res.skipped || [], notes: res.notes || [] }, '📋 Export-Bericht');
+    });
     overlay.querySelector('#btnExpEnc').addEventListener('click', () => run(() => this.app.api.exportTopicEncrypted(topic.id), '🔒 Verschlüsselt exportiert'));
   }
 

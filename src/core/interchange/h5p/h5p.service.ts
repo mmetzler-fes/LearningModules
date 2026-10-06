@@ -1,12 +1,21 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import AdmZip from 'adm-zip';
+import * as fs from 'fs';
+import * as path from 'path';
 import { LearningTopic } from '../../entities/learning-topic.entity';
 import { LearningModule } from '../../entities/learning-module.entity';
+import { buildH5pPackage, H5pExportResult } from './h5p-export';
 
+/**
+ * H5P-Export. Der Aufbau des Pakets steckt in h5p-export.ts; hier nur das
+ * Laden der mitgelieferten Bibliotheken (assets/h5p/libraries.zip).
+ */
 @Injectable()
 export class H5pService {
+  private libraries: Buffer | null = null;
+
+  // Der H5P-Import im InterchangeController legt Themen über diese Repositories an.
   constructor(
     @InjectRepository(LearningTopic)
     private readonly topicRepo: Repository<LearningTopic>,
@@ -14,74 +23,28 @@ export class H5pService {
     private readonly moduleRepo: Repository<LearningModule>,
   ) {}
 
+  private loadLibraries(): Buffer {
+    if (this.libraries) return this.libraries;
+    // dist/core/interchange/h5p → Projektwurzel; im Container ist es /app.
+    const candidates = [
+      path.resolve(__dirname, '../../../../assets/h5p/libraries.zip'),
+      path.resolve(process.cwd(), 'assets/h5p/libraries.zip'),
+    ];
+    const file = candidates.find((f) => fs.existsSync(f));
+    if (!file) throw new Error('H5P-Bibliotheken fehlen (assets/h5p/libraries.zip).');
+    this.libraries = fs.readFileSync(file);
+    return this.libraries;
+  }
+
   /**
    * Baut das H5P-Paket aus den übergebenen Modulen. Welche das sind,
    * entscheidet der Aufrufer (ExportService) – unverschlüsselt sind es nur
    * die selbst verfassten.
    */
-  async generateH5pBuffer(topic: LearningTopic, modules: LearningModule[]): Promise<Buffer> {
-    const zip = new AdmZip();
-
-    // 1. h5p.json
-    const h5pJson = {
-      title: topic.title,
-      mainLibrary: 'H5P.QuestionSet',
-      embedTypes: ['iframe'],
-      language: 'de',
-      license: 'U',
-      preloadedDependencies: [
-        { machineName: 'H5P.QuestionSet', majorVersion: 1, minorVersion: 20 },
-        { machineName: 'H5P.FontIcons', majorVersion: 1, minorVersion: 0 },
-      ],
-    };
-    zip.addFile('h5p.json', Buffer.from(JSON.stringify(h5pJson, null, 2), 'utf-8'));
-
-    // 2. content/content.json
-    const selectedModules = modules.filter((m) => !m.parentId && m.moduleSelected !== false);
-    const questions = selectedModules.map(mod => this.mapModuleToH5p(mod));
-
-    const contentJson = {
-      introPage: { showIntroPage: false, title: topic.title },
-      progressType: 'dots',
-      passPercentage: 50,
-      questions,
-      texts: {
-        prevButton: 'Zurück',
-        nextButton: 'Weiter',
-        finishButton: 'Fertig',
-        submitButton: 'Abschicken',
-      },
-    };
-    zip.addFile('content/content.json', Buffer.from(JSON.stringify(contentJson, null, 2), 'utf-8'));
-
-    this.extractAndAddImages(zip, topic);
-
-    return zip.toBuffer();
-  }
-
-  private mapModuleToH5p(module: LearningModule) {
-    return {
-      library: this.getH5pLibrary(module.type),
-      params: module.type === 'worksheet' ? { text: (module.content as any)?.html || '' } : module.content,
-      subContentId: module.id,
-      metadata: { title: module.title },
-    };
-  }
-
-  private getH5pLibrary(type: string): string {
-    const map: Record<string, string> = {
-      'multiChoice': 'H5P.MultiChoice 1.14',
-      'dragTheWords': 'H5P.DragText 1.8',
-      'markTheWords': 'H5P.MarkTheWords 1.9',
-      'essay': 'H5P.Essay 1.2',
-      // Reiner Text ist in H5P keine Frage; AdvancedText ist der Textbaustein.
-      'worksheet': 'H5P.AdvancedText 1.1',
-      'iframeEmbedder': 'H5P.IframeEmbedder 1.0',
-    };
-    return map[type] || 'H5P.MultiChoice 1.14';
-  }
-
-  private extractAndAddImages(zip: any, topic: LearningTopic) {
-    // Shared asset management logic would go here
+  generateH5p(topic: LearningTopic, modules: LearningModule[]): H5pExportResult {
+    const active = modules
+      .filter((m) => !m.parentId && m.moduleSelected !== false)
+      .map((m) => ({ id: m.id, type: m.type, title: m.title, description: m.description, content: m.content }));
+    return buildH5pPackage(topic.title, active, this.loadLibraries());
   }
 }

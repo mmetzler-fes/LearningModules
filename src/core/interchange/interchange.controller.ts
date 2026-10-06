@@ -107,10 +107,31 @@ export class InterchangeController {
     sendFile(res, Buffer.from(JSON.stringify(data, null, 2), 'utf-8'), fileName(data.topic.title, 'json'), 'application/json');
   }
 
-  /** H5P, nur die selbst verfassten Module. */
+  /**
+   * Moodle-XML, nur die selbst verfassten Module. Was Moodle nicht kennt oder
+   * nur vereinfacht ankommt, steht im Kopf X-Export-Report (JSON, URL-kodiert).
+   */
+  @Get('topics/:id/export-moodle')
+  async exportMoodle(@Param('id') id: string, @Request() req: any, @Res() res: Response) {
+    const { title, xml, count, skipped, notes } = await this.exportService.exportMoodle(id, req.user);
+    if (count === 0) {
+      throw new BadRequestException(`Keine Aufgabe dieses Themas lässt sich als Moodle-Frage exportieren. ${skipped.join('; ')}`);
+    }
+    res.setHeader('X-Export-Report', encodeURIComponent(JSON.stringify({ count, skipped, notes })));
+    sendFile(res, Buffer.from(xml, 'utf-8'), fileName(title, 'xml'), 'application/xml');
+  }
+
+  /**
+   * H5P-Fragenset samt Bibliotheken, nur die selbst verfassten Module. Bericht
+   * wie beim Moodle-Export im Kopf X-Export-Report.
+   */
   @Get('topics/:id/export-h5p')
   async exportH5p(@Param('id') id: string, @Request() req: any, @Res() res: Response) {
-    const { title, buffer } = await this.exportService.exportH5p(id, req.user);
+    const { title, buffer, count, skipped, notes } = await this.exportService.exportH5p(id, req.user);
+    if (count === 0) {
+      throw new BadRequestException(`Keine Aufgabe dieses Themas lässt sich als H5P exportieren. ${skipped.join('; ')}`);
+    }
+    res.setHeader('X-Export-Report', encodeURIComponent(JSON.stringify({ count, skipped, notes })));
     sendFile(res, buffer, fileName(title, 'h5p'), 'application/octet-stream');
   }
 

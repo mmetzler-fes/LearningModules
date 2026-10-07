@@ -303,7 +303,7 @@ export class BrowserApi {
     return this._publicPost(`/api/public/contest/host/${encodeURIComponent(hostToken)}/${action}`, body);
   }
   contestJoin(token, body) {
-    return this._publicPost(`/api/public/contest/${encodeURIComponent(token)}/join`, body);
+    return this._publicPost(`/api/public/contest/${encodeURIComponent(token)}/join`, { ...body, pcName: pcName() });
   }
   contestAnswer(token, body) {
     return this._publicPost(`/api/public/contest/${encodeURIComponent(token)}/answer`, body);
@@ -313,7 +313,7 @@ export class BrowserApi {
     return fetch('/api/public/results', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
+      body: JSON.stringify({ ...data, pcName: pcName() }),
     }).then((r) => r.json());
   }
 
@@ -768,6 +768,11 @@ export class BrowserApi {
  * weil der Download eine Authorization-Kopfzeile braucht – ein einfacher
  * Link zum Endpunkt käme ohne Token an.
  */
+/** Rechnername aus dem Start-Link dieser Sitzung (siehe app.js), sonst undefined. */
+function pcName() {
+  try { return sessionStorage.getItem('lm_pc') || undefined; } catch (_) { return undefined; }
+}
+
 export function downloadBlob(blob, filename) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');

@@ -14,6 +14,7 @@ import { ClassesService } from '../classes/classes.service';
 import { TimingsService } from '../timings/timings.service';
 import { forStudents, contentOf } from '../core/public/student-view';
 import { baseUrl, renderQr } from '../core/share/link-url';
+import { cleanPcName } from '../core/public/pc-name';
 
 /**
  * Aufgabentypen, die der Browser selbst bewertet (siehe answer-eval.js).
@@ -84,6 +85,8 @@ interface Player {
   answers: Array<RoundAnswer | undefined>;
   streams: Set<Response>;
   ip: string | null;
+  /** Rechnername aus dem Start-Link, falls vorhanden. */
+  pc: string | null;
 }
 
 interface Question {
@@ -387,7 +390,7 @@ export class ContestService implements OnModuleDestroy {
 
   async join(
     token: string,
-    body: { studentName?: string; password?: string; playerId?: string; secret?: string },
+    body: { studentName?: string; password?: string; playerId?: string; secret?: string; pcName?: string },
     ip: string | null,
   ) {
     const link = await this.linkByToken(token);
@@ -438,6 +441,7 @@ export class ContestService implements OnModuleDestroy {
       answers: [],
       streams: new Set(),
       ip,
+      pc: cleanPcName(body?.pcName),
     };
     s.players.set(player.id, player);
     this.broadcast(s);
@@ -570,6 +574,7 @@ export class ContestService implements OnModuleDestroy {
         score: p.score,
         maxScore,
         ipAddress: p.ip || undefined,
+        pcName: p.pc,
         linkId: s.linkId,
         linkName: s.linkName,
         mode: 'contest',

@@ -76,4 +76,8 @@ export class Result extends BaseEntity {
 
   @Column({ nullable: true })
   ipAddress: string;
+
+  /** Rechnername aus dem Start-Link (…&pc=%COMPUTERNAME%), sonst leer. */
+  @Column({ type: 'varchar', nullable: true })
+  pcName: string | null;
 }

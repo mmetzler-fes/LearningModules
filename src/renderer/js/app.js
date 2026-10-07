@@ -429,6 +429,13 @@ class App {
       await this.loginView.initLoginScreen();
 
       const params = new URLSearchParams(window.location.search);
+      // Rechnername aus dem Start-Link (…&pc=%COMPUTERNAME%) für diese Sitzung
+      // merken; er geht mit jedem Ergebnis mit. Der nicht ersetzte Platzhalter
+      // zählt nicht.
+      const pc = (params.get('pc') || '').trim();
+      if (/^[A-Za-z0-9._-]{1,63}$/.test(pc)) {
+        try { sessionStorage.setItem('lm_pc', pc); } catch (_) { /* ohne Rechnername */ }
+      }
       // Quiz-Arena leiten: ?wh=<Leitungs-Token> – ohne Anmeldung, z. B. am Beamer.
       const hostToken = params.get('wh');
       if (hostToken) {

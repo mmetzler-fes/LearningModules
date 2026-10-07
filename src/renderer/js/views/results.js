@@ -312,9 +312,10 @@ export class ResultsView {
             ${r.rank ? `<span class="result-mode-badge">${r.rank <= 3 ? ['🥇', '🥈', '🥉'][r.rank - 1] : '🏅'} Platz ${r.rank}${r.playerCount ? ` von ${r.playerCount}` : ''}</span>` : ''}
             <span class="result-date">${new Date(r.timestamp).toLocaleString('de-DE')}</span>
           </span>
-          ${r.systemUsername || r.ipAddress ? `
+          ${r.systemUsername || r.ipAddress || r.pcName ? `
             <span class="result-card-origin">
               ${r.systemUsername ? `[${escapeHtml(r.systemUsername)}]` : ''}
+              ${r.pcName ? `💻 ${escapeHtml(r.pcName)}` : ''}
               ${r.ipAddress ? `(${escapeHtml(r.ipAddress)})` : ''}
             </span>` : ''}
         </div>

@@ -4,6 +4,8 @@ import { TagFilter, TagPicker, renderAreaGroups, chipHtml } from './tags.js';
 import { GRADABLE_TYPES } from '../answer-eval.js';
 import { saveRedirectFile } from './contest.js';
 import { pickClass } from './classes.js';
+import { downloadBlob } from '../api.js';
+import { buildUrlShortcut, withPcPlaceholder } from '../lnk.js';
 
 // ==================== THEMEN-LINKS ====================
 
@@ -984,6 +986,18 @@ export class LinksView {
         ok ? 'Blatt als Bild kopiert – in OneNote einfügen mit Strg+V.' : 'Als Bild kopieren klappt hier nicht – bitte drucken.',
         ok ? 'success' : 'error',
       );
+    });
+
+    // Windows-Verknüpfung: Doppelklick öffnet den Link; mit &pc=%COMPUTERNAME%
+    // kommt – wenn Windows den Platzhalter einsetzt – der Rechnername mit.
+    document.getElementById('btnSaveLinkShareLnk')?.addEventListener('click', () => {
+      const url = this._shareData?.url;
+      if (!url) return;
+      const title = document.getElementById('linkShareInfo')?.textContent?.trim() || 'LearningModules';
+      const d = this._shareData || {};
+      const name = [d.name || 'Start-Link', d.className].filter(Boolean).join(' ').replace(/[\\/:*?"<>|]+/g, '').replace(/\s+/g, '_').slice(0, 60);
+      downloadBlob(new Blob([buildUrlShortcut(withPcPlaceholder(url), title.slice(0, 200))], { type: 'application/octet-stream' }), `${name}.lnk`);
+      this.app.showToast('Start-Link gespeichert – an die Schüler verteilen, Doppelklick öffnet den Link.', 'success');
     });
 
     document.getElementById('btnPrintLinkShare')?.addEventListener('click', () => {

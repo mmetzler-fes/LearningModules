@@ -18,6 +18,7 @@ import { issueTicket, readTicket } from '../../classes/student-ticket';
 import { TimingsService } from '../../timings/timings.service';
 import { contentOf, forStudents } from './student-view';
 import * as crypto from 'crypto';
+import { cleanPcName } from './pc-name';
 
 const MAX_RECORDING_BYTES = 25 * 1024 * 1024;
 
@@ -328,6 +329,8 @@ export class PublicController {
       score: number;
       maxScore: number;
       payload?: any;
+      /** Rechnername aus dem Start-Link, falls vorhanden. */
+      pcName?: string;
     },
     @Req() req: any,
   ) {
@@ -390,6 +393,7 @@ export class PublicController {
       maxScore: body.maxScore,
       payload: body.payload || null,
       ipAddress: ipAddress || null,
+      pcName: cleanPcName(body.pcName),
       linkId: link?.id,
       linkName: link ? link.name : quickTopicTitle ?? undefined,
       linkKind: quickTopicTitle !== null ? 'quick' : undefined,

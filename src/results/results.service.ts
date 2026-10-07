@@ -21,6 +21,7 @@ export function resultView(r: Result) {
     timestamp: r.createdAt.toISOString(),
     details: r.payload?.details || [],
     ipAddress: r.ipAddress || null,
+    pcName: r.pcName || null,
     linkId: r.linkId || null,
     linkName: r.linkName || null,
     linkKind: r.linkKind || null,
@@ -84,7 +85,8 @@ export class ResultsService {
       version: 1,
       exportedAt: new Date().toISOString(),
       schoolYears: years?.length ? years : null,
-      results: results.map(({ ipAddress: _ip, ...r }) => r),
+      // IP und Rechnername bleiben auf diesem Server.
+      results: results.map(({ ipAddress: _ip, pcName: _pc, ...r }) => r),
     };
   }
 

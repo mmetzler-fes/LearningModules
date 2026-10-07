@@ -36,6 +36,9 @@ COPY src/renderer ./src/renderer
 # H5P-Bibliotheken für den H5P-Export (scripts/update-h5p-libraries.sh)
 COPY assets/h5p ./assets/h5p
 
+# Dokumentation – die App zeigt sie unter "Hilfe" an
+COPY docs ./docs
+
 # SQLite data directory (mounted as volume)
 RUN mkdir -p data
 

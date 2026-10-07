@@ -17,6 +17,7 @@ import { CompanionSettingsView } from './views/companion-settings.js';
 import { ClassesView } from './views/classes.js';
 import { ClassResultsView } from './views/class-results.js';
 import { AiPromptView } from './views/ai-prompt-view.js';
+import { HelpView } from './views/help-view.js';
 
 // ==================== APP COORDINATOR ====================
 
@@ -67,6 +68,7 @@ class App {
     this.classesView  = new ClassesView(this);
     this.classResultsView = new ClassResultsView(this);
     this.aiPromptView = new AiPromptView(this);
+    this.helpView = new HelpView(this);
   }
 
   showToast(message, type = 'info') {
@@ -175,6 +177,7 @@ class App {
       case 'teacher-class-results': this.classResultsView.refresh(); break;
       case 'teacher-companion': this.companionView.refresh(); break;
       case 'teacher-ai-prompt': this.aiPromptView.refresh(); break;
+      case 'teacher-help':      this.helpView.refresh(); break;
       case 'teacher-tags':      this.tagsView.refresh(); break;
       case 'teacher-shop':      this.shopView.refresh(); break;
       case 'admin-settings':    this.adminView.refreshSettings(); break;

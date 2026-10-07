@@ -4290,3 +4290,29 @@ body {
 .import-report { max-width: 640px; max-height: 85vh; overflow: auto; }
 .import-report-list { margin: 4px 0 12px 18px; padding: 0; font-size: 0.9rem; }
 .import-report-list li { margin: 2px 0; }
+
+/* ---- Hilfe ---- */
+.help-panel { max-width: 980px; }
+.help-group { margin-bottom: 28px; }
+.help-group h3 { margin-bottom: 10px; }
+.help-docs { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
+.help-doc-card { background: var(--bg-secondary); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 14px 16px; }
+.help-doc-title { font-weight: 700; font-size: 1.02rem; color: var(--accent); text-decoration: none; }
+.help-doc-title:hover, .help-doc-sections a:hover, .help-article a:hover, .help-back a:hover { text-decoration: underline; }
+.help-doc-sections { margin: 8px 0 0; padding-left: 18px; font-size: 0.88rem; line-height: 1.6; }
+.help-doc-sections a, .help-back a, .help-article a { color: var(--accent); text-decoration: none; }
+.help-back { margin: 0 0 12px; }
+.help-article { background: var(--bg-secondary); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 20px 28px; line-height: 1.6; }
+.help-article h1 { font-size: 1.5rem; margin: 0 0 12px; }
+.help-article h2 { font-size: 1.2rem; margin: 26px 0 8px; padding-top: 6px; border-top: 1px solid var(--border); scroll-margin-top: 16px; }
+.help-article h3 { font-size: 1.05rem; margin: 18px 0 6px; scroll-margin-top: 16px; }
+.help-article p, .help-article ul, .help-article ol { margin: 0 0 10px; }
+.help-article ul, .help-article ol { padding-left: 22px; }
+.help-article code { background: var(--bg-primary); border-radius: 4px; padding: 1px 5px; font-size: 0.88em; }
+.help-code { background: var(--bg-primary); border-radius: var(--radius-sm); padding: 10px 14px; overflow-x: auto; font-size: 0.86rem; }
+.help-code code { background: none; padding: 0; }
+.help-table-wrap { overflow-x: auto; margin: 0 0 12px; }
+.help-table { border-collapse: collapse; font-size: 0.9rem; }
+.help-table th, .help-table td { border: 1px solid var(--border); padding: 6px 10px; text-align: left; vertical-align: top; }
+.help-table th { background: var(--bg-primary); }
+.help-article blockquote { border-left: 3px solid var(--accent); margin: 0 0 10px; padding: 4px 12px; color: var(--text-secondary); }

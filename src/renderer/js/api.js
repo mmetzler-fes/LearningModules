@@ -425,6 +425,10 @@ export class BrowserApi {
     return this._download('/api/admin/backup', `lernmodule-backup-${new Date().toISOString().slice(0, 10)}.lmbak`,
       { method: 'POST', body: JSON.stringify(creds || {}) });
   }
+  // ---------- Hilfe ----------
+  getHelpOverview() { return this._fetch('/api/help'); }
+  getHelpPage(name) { return this._fetch(`/api/help/${encodeURIComponent(name)}`); }
+
   getCloudBackup() { return this._fetch('/api/admin/cloud-backup'); }
   saveCloudBackup(body) {
     return this._fetch('/api/admin/cloud-backup', { method: 'POST', body: JSON.stringify(body) });

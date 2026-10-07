@@ -39,6 +39,7 @@ import { ClassesModule } from './classes/classes.module';
 import { join } from 'path';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
+import { HelpModule } from './help/help.module';
 
 @Module({
   imports: [
@@ -82,6 +83,7 @@ import { AppService } from './app.service';
     CompanionModule,
     ContestModule,
     ClassesModule,
+    HelpModule,
   ],
   controllers: [AppController],
   providers: [AppService],

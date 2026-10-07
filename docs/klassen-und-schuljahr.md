@@ -106,8 +106,31 @@ dazukommen; **Danach strikt** ist vorgewählt.
 
 - die **Klassenliste des SchülerLernTools** (`.ods`, mit dem App-Passwort
   verschlüsselt): Klassenseite → `⋯` → Klassenliste exportieren;
-- jede andere Tabelle (`.ods`) oder **CSV-Datei** mit einer Kopfzeile, die
-  die Spalten `Name` (oder `Nachname`) und `Vorname` enthält.
+- jede andere Tabelle – **LibreOffice (`.ods`), Excel (`.xlsx`)** oder
+  **CSV** – mit einer Kopfzeile, die die Spalten `Name` (oder `Nachname`) und
+  `Vorname` enthält.
+
+**📄 Vorlage** (in der Klasse und neben *Klassen einlesen*) lädt eine
+passende Tabelle als LibreOffice-, Excel- oder CSV-Datei:
+
+| Klasse | TG12 | |
+|---|---|---|
+| | | |
+| **Name** | **Vorname** | **Schüler-ID** |
+| Mustermann | Max | |
+| Musterfrau | Erika | |
+
+- Die Kopfzeile darf in den ersten 15 Zeilen stehen, darüber z. B. ein Titel.
+  Groß-/Kleinschreibung und Spaltenreihenfolge sind egal, weitere Spalten
+  werden ignoriert.
+- `Schüler-ID` ist freiwillig; damit erkennt ein späteres Einlesen dieselben
+  Schüler auch nach einer Namensänderung.
+- Die Zeile `Klasse | …` braucht nur *Klassen einlesen*; mehrere Klassen in
+  einer Datei = ein Blatt je Klasse (nur `.ods`/`.xlsx`).
+- CSV: Trennzeichen Semikolon, Komma oder Tabulator; Zeichensatz UTF-8 (in
+  Excel „CSV UTF-8“ wählen, sonst werden Umlaute zu Zeichensalat).
+- Mit Passwort geschützte Excel-Dateien gehen nicht – bitte ohne Passwort
+  speichern. Verschlüsselte `.ods` (z. B. aus dem SchülerLernTool) gehen.
 
 Übernommen werden nur Name, Vorname und – falls vorhanden – die
 `Schüler-ID`. Betrieb, Fotos, Kurse und Noten bleiben im SchülerLernTool.

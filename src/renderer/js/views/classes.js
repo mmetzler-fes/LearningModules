@@ -1,5 +1,7 @@
-import { escapeHtml, escapeAttr } from '../utils.js';
+import { escapeHtml, escapeAttr, showContextMenu } from '../utils.js';
 import { readStudentList, readClassLists, needsPassword, WrongPassword } from '../odf/student-list.js';
+import { buildOds, buildXlsx, buildCsv } from '../odf/sheet-templates.js';
+import { downloadBlob } from '../api.js';
 import { renderRetentionNotice } from './results.js';
 
 // ==================== KLASSEN ====================
@@ -162,6 +164,7 @@ export class ClassesView {
     });
     this._btnNew?.addEventListener('click', () => this._createClass());
     this._btnImportAll?.addEventListener('click', () => this._fileInputAll.click());
+    document.getElementById('btnClassesTemplate')?.addEventListener('click', (e) => this._templateMenu(e.currentTarget));
     this._fileInputAll?.addEventListener('change', () => {
       const file = this._fileInputAll.files?.[0];
       this._fileInputAll.value = '';
@@ -311,6 +314,7 @@ export class ClassesView {
     this._list.classList.remove('hidden');
     this._btnNew.classList.remove('hidden');
     this._btnImportAll?.classList.remove('hidden');
+    document.getElementById('btnClassesTemplate')?.classList.remove('hidden');
 
     const classes = await this.app.api.getClasses(this._year);
     if (failed(classes)) {
@@ -401,6 +405,7 @@ export class ClassesView {
     this._notices.innerHTML = '';
     this._btnNew.classList.add('hidden');
     this._btnImportAll?.classList.add('hidden');
+    document.getElementById('btnClassesTemplate')?.classList.add('hidden');
     this._detail.classList.remove('hidden');
 
     const students = klasse.students || [];
@@ -410,7 +415,8 @@ export class ClassesView {
         <button class="btn btn-secondary btn-sm btn-class-back">← Alle Klassen</button>
         <h3>🏫 ${escapeHtml(klasse.name)} <span class="class-year">${escapeHtml(klasse.schoolYear || '')}</span></h3>
         <div class="link-card-actions">
-          <button class="btn btn-secondary btn-sm btn-class-import" title="Klassenliste aus dem SchülerLernTool oder Tabelle mit Name und Vorname">📥 Schülerliste einlesen</button>
+          <button class="btn btn-secondary btn-sm btn-class-import" title="Klassenliste aus dem SchülerLernTool oder Tabelle (LibreOffice, Excel, CSV) mit Name und Vorname">📥 Schülerliste einlesen</button>
+          <button class="btn btn-secondary btn-sm btn-class-template" title="Leere Tabelle mit den passenden Spalten zum Ausfüllen">📄 Vorlage</button>
           <button class="btn btn-secondary btn-sm btn-class-rename">✏️ Umbenennen</button>
           <button class="btn btn-secondary btn-sm btn-class-share" title="Kolleginnen und Kollegen bekommen eine eigene Kopie mit dieser Schülerliste">👥 Teilen</button>
         </div>
@@ -459,6 +465,7 @@ export class ClassesView {
     });
     this._detail.querySelector('.btn-class-back').addEventListener('click', () => { this._openId = null; this.refresh(); });
     this._detail.querySelector('.btn-class-import').addEventListener('click', () => this._fileInput.click());
+    this._detail.querySelector('.btn-class-template').addEventListener('click', (e) => this._templateMenu(e.currentTarget, klasse.name));
     this._detail.querySelector('.btn-class-rename').addEventListener('click', () => this._renameClass(klasse));
     this._detail.querySelector('.btn-class-share').addEventListener('click', () => this._shareClass(klasse));
     this.app.api.getClassShares(klasse.id).then((shares) => {
@@ -592,6 +599,26 @@ export class ClassesView {
    * Datei lesen (im Browser, auch das Passwort bleibt hier), Vorschau vom
    * Server holen, nach Bestätigung übernehmen.
    */
+  /**
+   * Vorlage für die Schülerliste: LibreOffice, Excel oder CSV. Der Klassenname
+   * steht schon drin, wenn die Vorlage aus einer Klasse heraus kommt.
+   */
+  _templateMenu(anchor, className = '') {
+    const rows = [['Klasse', className || 'TG12'], [], ['Name', 'Vorname', 'Schüler-ID'],
+      ['Mustermann', 'Max', ''], ['Musterfrau', 'Erika', '']];
+    const base = `Schuelerliste${className ? '_' + className.replace(/[^\w-]+/g, '') : ''}`;
+    const save = (blob, ext) => {
+      downloadBlob(blob, `${base}.${ext}`);
+      this.app.showToast('Vorlage gespeichert – Beispielnamen ersetzen, dann über „📥 … einlesen“ übernehmen.', 'success');
+    };
+    const r = anchor.getBoundingClientRect();
+    showContextMenu(r.left, r.bottom + 4, [
+      { label: '📗 LibreOffice (.ods)', onClick: () => save(buildOds(rows), 'ods') },
+      { label: '📘 Excel (.xlsx)', onClick: () => save(buildXlsx(rows), 'xlsx') },
+      { label: '📄 CSV (.csv)', onClick: () => save(buildCsv(rows), 'csv') },
+    ]);
+  }
+
   /**
    * Datei öffnen – bei Bedarf mit Passwort, das nur hier im Browser bleibt.
    * `reader` liest den Inhalt; `null` bei Abbruch oder Fehler (mit Meldung).

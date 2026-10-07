@@ -73,13 +73,13 @@ function loadArgon2() {
  * verlässlich, im lokalen Kopf fehlen sie bei nachgestelltem Datenblock.
  * Liefert { Pfad: Uint8Array } mit den entpackten Einträgen.
  */
-async function unzip(bytes) {
+export async function unzip(bytes) {
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   let eocd = -1;
   for (let i = bytes.length - 22; i >= Math.max(0, bytes.length - 22 - 0xffff); i--) {
     if (view.getUint32(i, true) === 0x06054b50) { eocd = i; break; }
   }
-  if (eocd < 0) throw new Error('Die Datei ist keine OpenDocument-Datei.');
+  if (eocd < 0) throw new Error('Die Datei ist keine Tabelle im OpenDocument- oder Excel-Format.');
   const count = view.getUint16(eocd + 10, true);
   let p = view.getUint32(eocd + 16, true);
   const decoder = new TextDecoder();

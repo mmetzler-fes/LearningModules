@@ -1,11 +1,12 @@
 // Schülerliste aus einer Datei lesen: die Klassenliste des SchülerLernTools
-// (.ods, meist verschlüsselt) oder jede andere Tabelle bzw. CSV-Datei mit
-// den Spalten "Name" und "Vorname".
+// (.ods, meist verschlüsselt) oder jede andere Tabelle – LibreOffice (.ods),
+// Excel (.xlsx) oder CSV – mit den Spalten "Name" und "Vorname".
 //
 // Übernommen werden nur Name, Vorname und – falls vorhanden – die
 // Schüler-ID. Betrieb, Kurse und Noten der Klassenliste bleiben, wo sie sind.
 
 import { openOdf, odfInfo, WrongPassword } from './odf-read.js';
+import { readXlsxSheets } from './xlsx-read.js';
 
 export { WrongPassword };
 
@@ -56,9 +57,13 @@ function readSheet(table) {
 }
 
 /** Zeilen aus CSV: Trennzeichen ; , oder Tab, Anführungszeichen wie in Calc/Excel. */
-function readCsv(text) {
-  const firstLine = text.split(/\r?\n/, 1)[0] || '';
-  const sep = [';', '\t', ','].sort((a, b) => firstLine.split(b).length - firstLine.split(a).length)[0];
+function readCsv(raw) {
+  // Excel schreibt bei "CSV UTF-8" eine Byte-Order-Mark vor die erste Zelle.
+  const text = String(raw).replace(/^\uFEFF/, '');
+  // Trennzeichen aus den ersten Zeilen bestimmen – über der Kopfzeile kann
+  // ein Titel ohne Trennzeichen stehen.
+  const head = text.split(/\r?\n/, 15).join('\n');
+  const sep = [';', '\t', ','].sort((a, b) => head.split(b).length - head.split(a).length)[0];
   const rows = [];
   let row = [];
   let cell = '';
@@ -127,7 +132,11 @@ export async function needsPassword(file) {
   return (await odfInfo(new Uint8Array(await file.arrayBuffer()))).encrypted;
 }
 
+const isXlsx = (file) => /\.xlsx$/i.test(file.name);
+const isOds = (file) => /\.ods$/i.test(file.name);
+
 async function sheetsOf(file, password) {
+  if (isXlsx(file)) return readXlsxSheets(new Uint8Array(await file.arrayBuffer()));
   const files = await openOdf(new Uint8Array(await file.arrayBuffer()), password || null);
   if (!files['content.xml']) throw new Error('Die Datei ist beschädigt.');
   const doc = new DOMParser().parseFromString(new TextDecoder().decode(files['content.xml']), 'application/xml');
@@ -142,7 +151,7 @@ async function sheetsOf(file, password) {
  */
 export async function readStudentList(file, password) {
   if (/\.(csv|txt)$/i.test(file.name)) return studentsFromRows(readCsv(await file.text()));
-  if (!/\.ods$/i.test(file.name)) throw new Error('Bitte eine .ods- oder .csv-Datei wählen.');
+  if (!isOds(file) && !isXlsx(file)) throw new Error('Bitte eine .ods-, .xlsx- oder .csv-Datei wählen.');
   const sheets = await sheetsOf(file, password);
   const sheet = sheets.find((s) => s.name === SHEET_NAME) || sheets[0];
   return studentsFromRows(sheet.rows);
@@ -155,7 +164,7 @@ export async function readStudentList(file, password) {
  * heraus. Eine Datei ohne solche Blätter gilt als eine einzige Klasse.
  */
 export async function readClassLists(file, password) {
-  if (!/\.ods$/i.test(file.name)) return [await readStudentList(file, password)];
+  if (!isOds(file) && !isXlsx(file)) return [await readStudentList(file, password)];
   const sheets = await sheetsOf(file, password);
   const classSheets = sheets.filter((s) => norm(s.rows[0]?.[0]) === 'klasse');
   if (classSheets.length === 0) return [await readStudentList(file, password)];

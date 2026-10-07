@@ -1,6 +1,7 @@
 import { escapeHtml, escapeAttr, generateId, showImportReport } from '../utils.js';
 import { ModuleDescriptionEditor } from '../desc-editor.js';
 import { TagPicker } from './tags.js';
+import { checkFormulaTask } from '../formula.js';
 
 // ==================== MODULES VIEW ====================
 
@@ -526,6 +527,12 @@ export class ModulesView {
     if (!title || !type) { this.app.showToast(t('module.missing.fields'), 'error'); return; }
 
     const content = state.contentEditor.collectData();
+    // Formelaufgabe: Formeln und Variablen vor dem Speichern prüfen – sonst
+    // sähen Schüler nur eine Fehlermeldung.
+    if (type === 'formula') {
+      const problems = checkFormulaTask(content);
+      if (problems.length) { this.app.showToast(`Formelaufgabe: ${problems.join(' · ')}`, 'error'); return; }
+    }
     const existing = state.editingModuleId ? state.currentTopicModules.find((m) => m.id === state.editingModuleId) : null;
 
     const moduleData = {

@@ -474,6 +474,11 @@ export class ContestView {
       try { solution = collectAnswer(this.question.module, this._hostView).correctAnswer || ''; } catch (_) {}
     }
     if (solution === '—' || /^\d+\/\d+$/.test(solution)) solution = '';
+    // Formelaufgabe: Jeder hatte eigene Werte – am Beamer die Formel, keine Zahl.
+    if (this.question?.module?.type === 'formula') {
+      solution = (this.question.module.content?.results || []).filter((r) => r?.formula)
+        .map((r) => `${r.label || 'Ergebnis'} = ${r.formula}${r.unit ? ` [${r.unit}]` : ''}`).join(' · ');
+    }
     screen.innerHTML = `
       ${this._hostTop(st, `Auswertung Aufgabe ${st.index + 1} von ${st.total}`)}
       <main class="contest-reveal">

@@ -1,6 +1,7 @@
 import { exportMoodleXml, nearestGrade } from './moodle-export';
 import { convertMoodleXml } from './moodle-import';
 import { parseXml, children } from './xml-lite';
+import { formulaEngine } from '../../formula/formula-engine';
 
 /** Kleines, gültiges PNG-Kopfstück mit gegebener Größe als data:-URL. */
 function pngDataUrl(width: number, height: number): string {
@@ -103,6 +104,34 @@ describe('Moodle-XML-Export', () => {
     } }]);
     expect(out.xml).toContain('@@PLUGINFILE@@/bild1_1.png');
     expect(back.modules[0].content.imageUrl).toBe(pngDataUrl(10, 10));
+  });
+
+  it('Formelaufgabe: je Ergebnis eine berechnete Frage, Rundreise rechnet gleich', () => {
+    const content = {
+      question: '<p>U = {U} V, R = {R} Ω (I ≈ {={U}/{R}} A)</p>',
+      variables: [{ name: 'U', min: 5, max: 24, decimals: 1 }, { name: 'R', min: 10, max: 470, decimals: 0 }],
+      results: [
+        { label: 'Strom I', formula: 'U/R', unit: 'A', tolerance: 1, toleranceType: 'relative', decimals: 3 },
+        { label: 'Leistung P', formula: 'U^2/R', unit: 'W', tolerance: 0.05, toleranceType: 'absolute', decimals: 2 },
+      ],
+    };
+    const { out, back } = roundTrip([{ type: 'formula', title: 'Ohm', content }]);
+    expect(out.count).toBe(2);
+    const qs = children(parseXml(out.xml), 'question').slice(1);
+    expect(qs.map((x) => x.attrs.type)).toEqual(['calculated', 'calculated']);
+    expect(out.xml).toContain('pow({U}, 2) / {R}');
+    expect(out.xml).toContain('{={U} / {R}}');
+    expect(out.xml).toContain('<tolerance>0.01</tolerance>');
+    expect(out.xml).toContain('<tolerancetype>2</tolerancetype>');
+    expect(out.xml.match(/<dataset_item>/g)?.length).toBe(2 * 2 * 10); // 2 Fragen × 2 Variablen × 10
+    // Zurück: zwei Formelaufgaben, die gleich rechnen
+    expect(back.modules.map((m) => m.type)).toEqual(['formula', 'formula']);
+    const [i, p] = back.modules.map((m) => m.content.results[0]);
+    expect(i).toMatchObject({ unit: 'A', tolerance: 1, toleranceType: 'relative', decimals: 3 });
+    expect(p).toMatchObject({ unit: 'W', tolerance: 0.05, toleranceType: 'absolute', decimals: 2 });
+    const f = formulaEngine();
+    expect(f.evaluate(p.formula, { U: 10, R: 5 })).toBe(20);
+    expect(back.modules[0].content.variables).toEqual(content.variables);
   });
 
   it('meldet, was Moodle nicht kennt', () => {

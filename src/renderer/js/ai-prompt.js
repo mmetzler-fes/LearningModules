@@ -7,7 +7,7 @@
 // Format und die Regeln, an denen KIs erfahrungsgemäß scheitern.
 
 /** Aufgabentypen, die der Generator anbietet – alle automatisch bewertbar. */
-export const AI_PROMPT_TYPES = ['multipleChoice', 'trueFalse', 'fillInTheBlanks', 'dragTheWords', 'markTheWords', 'dragAndDrop'];
+export const AI_PROMPT_TYPES = ['multipleChoice', 'trueFalse', 'fillInTheBlanks', 'dragTheWords', 'markTheWords', 'dragAndDrop', 'formula'];
 
 /**
  * Module je Antwort. Längere Antworten brechen KIs gern mitten im JSON ab
@@ -60,6 +60,19 @@ export const AI_PROMPT_EXAMPLES = {
     imageUrl: '',
     textField: 'Im Stromkreis liegen ein *Widerstand*, eine *Diode* und ein *Kondensator* an der Spannung.',
   },
+  formula: {
+    question: '<p>An einem Widerstand R = {R} Ω liegt die Spannung U = {U} V. Berechne Strom und Leistung.</p>',
+    imageUrl: '',
+    variables: [
+      { name: 'U', min: 5, max: 24, decimals: 1 },
+      { name: 'R', min: 10, max: 470, decimals: 0 },
+    ],
+    results: [
+      { label: 'Strom I', formula: 'U/R', unit: 'A', tolerance: 1, toleranceType: 'relative', decimals: 3 },
+      { label: 'Leistung P', formula: 'U^2/R', unit: 'W', tolerance: 1, toleranceType: 'relative', decimals: 2 },
+    ],
+    allowNewValues: true,
+  },
   dragAndDrop: {
     taskDescription: 'Ordne die Bauteile ihrer Einheit zu.',
     backgroundImage: '',
@@ -100,6 +113,12 @@ const RULES = {
     'Die richtig zu markierenden Wörter stehen im Text in *Sternchen*, alle anderen ohne.',
     'Jeder Satz braucht mindestens ein Wort in *Sternchen* – ohne Sternchen gibt es nichts zu markieren und die Aufgabe ist unlösbar.',
     'Mehrere Sätze mit \\n trennen.',
+  ],
+  formula: [
+    'Für Rechenaufgaben: Im Text stehen Variablen als {Name}; jeder Schüler bekommt Zufallswerte zwischen "min" und "max".',
+    'Formeln mit + - * / ^ und Klammern, Dezimalzahlen mit Punkt, Funktionen z. B. sqrt(), sin() (Bogenmaß), deg2rad(), rad2deg(), ln(), log10(), pi.',
+    'Wertebereiche so wählen, dass die Ergebnisse sinnvoll sind (keine Division durch 0, keine negativen Wurzeln).',
+    '"tolerance" in Prozent ("relative") oder als feste Abweichung ("absolute"); "decimals" = Nachkommastellen der Lösung.',
   ],
   dragAndDrop: [
     'Jede Zone hat eine eindeutige "label"; jedes Element nennt in "correctZone" genau diese Bezeichnung.',

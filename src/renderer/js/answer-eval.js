@@ -1,4 +1,5 @@
 import { scoreDictation, dictationOptions } from './dictation.js';
+import { evaluate, parseUserNumber, isWithinTolerance, formatNumber } from './formula.js';
 
 // ==================== AUSWERTUNG EINER AUFGABE ====================
 
@@ -32,7 +33,7 @@ export function dndExpectedMappings(content) {
  */
 export const GRADABLE_TYPES = new Set([
   'multipleChoice', 'trueFalse', 'fillInTheBlanks', 'markTheWords', 'dragTheWords',
-  'dictation', 'dragAndDrop', 'flashcards', 'arithmeticQuiz', 'branchingScenario',
+  'dictation', 'dragAndDrop', 'flashcards', 'arithmeticQuiz', 'branchingScenario', 'formula',
 ]);
 
 /**
@@ -157,6 +158,36 @@ export function collectAnswer(mod, root) {
       result.isCorrect = correct === inputs.length && inputs.length > 0;
       if (inputs.length > 0) {
         result.points = correct / inputs.length;
+        const pct = Math.round(result.points * 100);
+        result.score = `Richtig: ${pct}% | Falsch: ${100 - pct}%`;
+      }
+      break;
+    }
+    case 'formula': {
+      // Mit den Zufallswerten dieser Anzeige rechnen (h5p-renderer.js legt sie ab).
+      const box = root.querySelector('[data-formula-values]');
+      let values = {};
+      try { values = JSON.parse(box?.dataset.formulaValues || '{}'); } catch (_) { values = {}; }
+      const results = (content.results || []).filter((r) => r && r.formula);
+      const decimals = Object.fromEntries((content.variables || []).map((v) => [v.name, v.decimals ?? 0]));
+      const given = []; const expected = [];
+      let right = 0;
+      results.forEach((r, i) => {
+        const inp = root.querySelector(`[data-result-index="${i}"]`);
+        let correct = NaN;
+        try { correct = evaluate(r.formula, values); } catch (_) { /* Aufgabe fehlerhaft */ }
+        const ok = isWithinTolerance(parseUserNumber(inp?.value), correct, r);
+        if (ok) right++;
+        const label = r.label || `Ergebnis ${i + 1}`;
+        given.push(`${label} = ${inp?.value.trim() || '—'}${ok ? ' ✓' : ''}`);
+        expected.push(`${label} = ${formatNumber(correct, r.decimals ?? 2)} ${r.unit || ''}`.trim());
+      });
+      const shown = Object.entries(values).map(([k, v]) => `${k} = ${formatNumber(v, Math.max(0, decimals[k] ?? 0))}`).join(', ');
+      result.userAnswer = `${given.join(', ')}${shown ? ` (Werte: ${shown})` : ''}`;
+      result.correctAnswer = expected.join(', ');
+      result.isCorrect = results.length > 0 && right === results.length;
+      if (results.length) {
+        result.points = right / results.length;
         const pct = Math.round(result.points * 100);
         result.score = `Richtig: ${pct}% | Falsch: ${100 - pct}%`;
       }

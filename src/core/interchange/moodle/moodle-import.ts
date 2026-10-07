@@ -1,5 +1,6 @@
 import { XmlNode, parseXml, child, children, textOf, decodeEntities } from './xml-lite';
 import { imageSize } from './image-size';
+import { formulaEngine } from '../../formula/formula-engine';
 
 /**
  * Moodle-XML (Fragensammlung) → Module dieser App.
@@ -468,7 +469,59 @@ const convertDescription: Converter = (q, ctx) => {
   return { type: 'worksheet', description: '', content: { html: text.html + img } };
 };
 
+/**
+ * Berechnete Frage → Formelaufgabe. Die Datensätze werden Variablen
+ * (Bereich und Nachkommastellen), die volle Antwort die Formel. Moodle kennt
+ * je Frage ein Ergebnis.
+ */
+const convertCalculated: Converter = (q, ctx) => {
+  const f = formulaEngine();
+  const text = questionText(q, ctx);
+  const variables = children(child(q, 'dataset_definitions'), 'dataset_definition').map((d) => {
+    const name = textOf(d, 'name', 'text') || textOf(d, 'name');
+    const items = children(child(d, 'dataset_items'), 'dataset_item').map((it) => parseFloat(textOf(it, 'value'))).filter(Number.isFinite);
+    let min = parseFloat(textOf(d, 'minimum', 'text') || textOf(d, 'minimum'));
+    let max = parseFloat(textOf(d, 'maximum', 'text') || textOf(d, 'maximum'));
+    if (!Number.isFinite(min) && items.length) min = Math.min(...items);
+    if (!Number.isFinite(max) && items.length) max = Math.max(...items);
+    const decimals = parseInt(textOf(d, 'decimals', 'text') || textOf(d, 'decimals') || '1', 10);
+    return { name, min: Number.isFinite(min) ? min : 1, max: Number.isFinite(max) ? max : 10, decimals: Number.isFinite(decimals) ? decimals : 1 };
+  }).filter((v) => v.name);
+  const answers = children(q, 'answer');
+  const best = answers.find((a) => fraction(a) >= 100) || answers[0];
+  if (!best) return null;
+  const tolType = textOf(best, 'tolerancetype');
+  const tol = parseFloat(textOf(best, 'tolerance')) || 0;
+  if (tolType === '3') ctx.notes.push(`${ctx.name}: geometrische Toleranz als relative übernommen.`);
+  if (textOf(best, 'correctanswerformat') === '2') ctx.notes.push(`${ctx.name}: signifikante Stellen als Nachkommastellen übernommen.`);
+  if (answers.filter((a) => fraction(a) > 0).length > 1) ctx.notes.push(`${ctx.name}: nur die voll bewertete Antwortformel übernommen.`);
+  const unitNode = children(child(q, 'units'), 'unit').find((u) => parseFloat(textOf(u, 'multiplier')) === 1);
+  const content = {
+    question: text.html,
+    imageUrl: text.image,
+    variables,
+    results: [{
+      label: 'Ergebnis',
+      formula: f.fromMoodleFormula(textOf(best, 'text')),
+      unit: unitNode ? textOf(unitNode, 'unit_name') : '',
+      // Moodle: 1 = relativ (Anteil, 0.01 = 1 %), 2 = absolut, 3 = geometrisch
+      tolerance: tolType === '2' ? tol : Math.round(tol * 100 * 1e6) / 1e6,
+      toleranceType: tolType === '2' ? 'absolute' : 'relative',
+      decimals: parseInt(textOf(best, 'correctanswerlength') || '2', 10) || 2,
+    }],
+    allowNewValues: true,
+  };
+  const problems = f.checkFormulaTask(content);
+  if (problems.length) {
+    ctx.notes.push(`${ctx.name}: ${problems.join('; ')}`);
+    return null;
+  }
+  return { type: 'formula', description: '', content };
+};
+
 const CONVERTERS: Record<string, Converter> = {
+  calculated: convertCalculated,
+  calculatedsimple: convertCalculated,
   multichoice: convertMultichoice,
   truefalse: convertTrueFalse,
   shortanswer: convertShortAnswer,
@@ -486,9 +539,7 @@ const CONVERTERS: Record<string, Converter> = {
 };
 
 const UNSUPPORTED: Record<string, string> = {
-  calculated: 'Berechnete Fragen gibt es hier nicht',
-  calculatedsimple: 'Berechnete Fragen gibt es hier nicht',
-  calculatedmulti: 'Berechnete Fragen gibt es hier nicht',
+  calculatedmulti: 'Auswahlfragen mit Formeln gibt es hier (noch) nicht',
   randomsamatch: 'Zufällige Zuordnung braucht die Moodle-Fragensammlung',
   random: 'Zufallsfrage braucht die Moodle-Fragensammlung',
 };

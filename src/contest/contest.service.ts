@@ -23,7 +23,7 @@ import { cleanPcName } from '../core/public/pc-name';
  */
 const GRADABLE_TYPES = new Set([
   'multipleChoice', 'trueFalse', 'fillInTheBlanks', 'markTheWords', 'dragTheWords',
-  'dictation', 'dragAndDrop', 'flashcards', 'arithmeticQuiz', 'branchingScenario',
+  'dictation', 'dragAndDrop', 'flashcards', 'arithmeticQuiz', 'branchingScenario', 'formula',
 ]);
 
 /**

@@ -1,4 +1,5 @@
 import { imageSize } from './image-size';
+import { formulaEngine } from '../../formula/formula-engine';
 
 /**
  * Module dieser App → Moodle-XML (Fragensammlung), importierbar in Moodle
@@ -279,7 +280,77 @@ const exportWorksheet: Exporter = (c, ctx) => {
   return [head('description', ctx.name) + `    ${questionText([ctx.intro, html], '', ctx.files)}\n  </question>`];
 };
 
+/**
+ * Formelaufgabe → berechnete Frage(n). Moodle kennt je Frage ein Ergebnis –
+ * mehrere Ergebnisse werden mehrere Fragen. Moodle braucht fertige
+ * Zahlensätze; sie werden hier mit derselben Logik erzeugt wie im Browser.
+ */
+const DATASET_ITEMS = 10;
+const exportFormula: Exporter = (c, ctx) => {
+  const f = formulaEngine();
+  if (f.checkFormulaTask(c).length) return null;
+  const variables = (c.variables || []).filter((v: any) => v && v.name);
+  const results = (c.results || []).filter((r: any) => r && r.formula);
+  const sets: Array<Record<string, number>> = [];
+  for (let i = 0; i < DATASET_ITEMS; i++) {
+    const v = f.generateValues(variables, results);
+    if (v) sets.push(v);
+  }
+  if (!sets.length) return null;
+  // {=Formel} im Text in Moodles Schreibweise
+  const question = String(c.question || '').replace(/\{=([^{}]*(?:\{[^{}]*\}[^{}]*)*)\}/g, (m: string, expr: string) => {
+    try { return `{=${f.toMoodleFormula(expr)}}`; } catch { return m; }
+  });
+  const item = (set: Record<string, number>, name: string, i: number) =>
+    `        <dataset_item><number>${i + 1}</number><value>${set[name]}</value></dataset_item>`;
+  const datasets = variables.map((v: any) => [
+    '<dataset_definition>',
+    '    <status><text>private</text></status>',
+    `    <name><text>${esc(v.name)}</text></name>`,
+    '    <type>calculated</type>',
+    '    <distribution><text>uniform</text></distribution>',
+    `    <minimum><text>${Number(v.min)}</text></minimum>`,
+    `    <maximum><text>${Number(v.max)}</text></maximum>`,
+    `    <decimals><text>${Math.max(0, Number(v.decimals) || 0)}</text></decimals>`,
+    `    <itemcount>${sets.length}</itemcount>`,
+    '    <dataset_items>',
+    ...sets.map((set, i) => item(set, v.name, i)),
+    '    </dataset_items>',
+    `    <number_of_items>${sets.length}</number_of_items>`,
+    '</dataset_definition>',
+  ].join('\n')).join('\n');
+  return results.map((r: any, i: number) => {
+    const absolute = r.toleranceType === 'absolute';
+    const tol = Math.abs(Number(r.tolerance ?? 1)) || 0;
+    const asked = `<p><strong>Gesucht:</strong> ${esc(r.label || 'Ergebnis')}${r.unit ? ` in ${esc(r.unit)}` : ''}</p>`;
+    return head('calculated', results.length > 1 ? `${ctx.name} (${i + 1}/${results.length})` : ctx.name) + [
+      `    ${questionText([ctx.intro, question, asked], i === 0 ? c.imageUrl : '', ctx.files)}`,
+      '    <synchronize>1</synchronize>',
+      '    <single>0</single>',
+      '    <answernumbering>abc</answernumbering>',
+      '    <shuffleanswers>0</shuffleanswers>',
+      `    <answer fraction="100"><text>${esc(f.toMoodleFormula(r.formula))}</text>`,
+      `      <tolerance>${absolute ? tol : tol / 100}</tolerance>`,
+      `      <tolerancetype>${absolute ? 2 : 1}</tolerancetype>`,
+      '      <correctanswerformat>1</correctanswerformat>',
+      `      <correctanswerlength>${Math.max(0, Number(r.decimals ?? 2))}</correctanswerlength>`,
+      '      <feedback format="html"><text></text></feedback>',
+      '    </answer>',
+      '    <unitgradingtype>0</unitgradingtype>',
+      '    <unitpenalty>0.1</unitpenalty>',
+      '    <showunits>3</showunits>',
+      '    <unitsleft>0</unitsleft>',
+      ...(r.unit ? [`    <units><unit><multiplier>1</multiplier><unit_name>${esc(r.unit)}</unit_name></unit></units>`] : []),
+      '<dataset_definitions>',
+      datasets,
+      '</dataset_definitions>',
+      '  </question>',
+    ].join('\n');
+  });
+};
+
 const EXPORTERS: Record<string, Exporter> = {
+  formula: exportFormula,
   multipleChoice: exportMultipleChoice,
   trueFalse: exportTrueFalse,
   fillInTheBlanks: exportFillInTheBlanks,

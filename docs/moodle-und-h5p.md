@@ -27,7 +27,8 @@ In Moodle: **Fragensammlung → Export → Moodle-XML-Format**. Eine Kurssicheru
 | Drag and Drop Markierungen | Drag and Drop mit Bild | gleiche Marker → Ablagegruppe; Vielecke als Rechteck |
 | Freitext | Freitext | |
 | Beschreibung | Arbeitsblatt | |
-| Berechnet, Zufallsfragen | – | im Bericht |
+| Berechnet (`calculated`, `calculatedsimple`) | Formelaufgabe | siehe [Formelaufgabe](formelaufgabe.md) |
+| Auswahl mit Formeln, Zufallsfragen | – | im Bericht |
 
 Bilder kommen aus der Datei mit (Moodle bettet sie als Base64 ein), auch das
 alte Bildfeld aus Moodle 1.9. Verweise auf andere Anhänge (Audio, PDF)
@@ -54,6 +55,7 @@ Im Export-Dialog eines Themas (nur selbst verfasste, aktive Module):
 | Drag and Drop mit Bild, eins je Zone | Drag and Drop auf Bild | DragQuestion |
 | Drag and Drop mit Bild, mehrere je Zone | Drag and Drop Markierungen | DragQuestion |
 | Freitext | Freitext | Essay |
+| Formelaufgabe | je Ergebnis eine berechnete Frage | – |
 | Arbeitsblatt | Beschreibung | – |
 | übrige (Karteikarten, Diktat, …) | – | – |
 

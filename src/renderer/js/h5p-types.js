@@ -339,6 +339,35 @@ const H5P_TYPES = {
       { key: 'passPercentage', type: 'number', label: 'Bestehensgrenze (%)', default: 100, advanced: true },
     ],
   },
+  formula: {
+    id: 'formula',
+    name: 'Formelaufgabe',
+    icon: '🧮',
+    description: 'Rechenaufgabe mit Formel: jeder Schüler bekommt eigene Zufallswerte, bewertet wird mit Toleranz.',
+    category: 'Quiz',
+    fields: [
+      { key: 'question', type: 'richtext', label: 'Aufgabentext – Variablen als {Name}, Zwischenwerte als {=Formel}', required: true },
+      { key: 'imageUrl', type: 'image', label: 'Bild (optional)' },
+      { key: 'variables', type: 'list', label: 'Variablen (je Schüler zufällig im Bereich)', itemFields: [
+        { key: 'name', type: 'text', label: 'Name (z. B. U)', required: true },
+        { key: 'min', type: 'number', label: 'Minimum', default: 1 },
+        { key: 'max', type: 'number', label: 'Maximum', default: 10 },
+        { key: 'decimals', type: 'number', label: 'Nachkommastellen', default: 0, step: 1 },
+      ]},
+      { key: 'results', type: 'list', label: 'Gesuchte Ergebnisse', itemFields: [
+        { key: 'label', type: 'text', label: 'Bezeichnung (z. B. Strom I)', required: true },
+        { key: 'formula', type: 'text', label: 'Formel (z. B. U/R, sqrt(R^2+X^2), 2*pi*f*L)', required: true },
+        { key: 'unit', type: 'text', label: 'Einheit (z. B. A)' },
+        { key: 'tolerance', type: 'number', label: 'Toleranz', default: 1 },
+        { key: 'toleranceType', type: 'select', label: 'Toleranz in', options: [
+          { value: 'relative', label: '% vom Ergebnis' },
+          { value: 'absolute', label: 'Einheiten (±)' },
+        ]},
+        { key: 'decimals', type: 'number', label: 'Nachkommastellen der Lösung', default: 2, step: 1 },
+      ]},
+      { key: 'allowNewValues', type: 'checkbox', label: '„🎲 Neue Werte“ zum Üben anbieten (nicht in der Klassenarbeit)', default: true },
+    ],
+  },
   trueFalse: {
     id: 'trueFalse',
     name: 'True False Question',

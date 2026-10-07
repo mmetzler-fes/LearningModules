@@ -441,7 +441,7 @@ const TYPE_NAMES: Record<string, string> = {
   worksheet: 'Arbeitsblatt', flashcards: 'Karteikarten', dictation: 'Diktat', arithmeticQuiz: 'Rechenquiz',
   branchingScenario: 'Verzweigung', video: 'Video', audioRecorder: 'Audio-Aufnahme', accordion: 'Akkordeon',
   collage: 'Collage', coursePresentation: 'Präsentation', dialogCards: 'Dialogkarten', imageHotspots: 'Bild-Hotspots',
-  iframeEmbedder: 'Eingebettete Seite',
+  iframeEmbedder: 'Eingebettete Seite', formula: 'Formelaufgabe',
 };
 
 export function buildH5pPackage(title: string, modules: H5pExportModule[], libraries: Buffer): H5pExportResult {

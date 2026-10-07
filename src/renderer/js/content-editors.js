@@ -802,6 +802,8 @@ class ContentEditorManager {
     const group = this.createFormGroup(field.label, field.required);
     const input = document.createElement('input');
     input.type = 'number';
+    // Ohne step nimmt der Browser nur ganze Zahlen an (z. B. keine Toleranz 0,5).
+    input.step = field.step || 'any';
     input.name = `content_${field.key}`;
     input.value = value !== undefined ? value : (field.default || 0);
     group.appendChild(input);

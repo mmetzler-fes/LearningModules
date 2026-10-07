@@ -2,6 +2,7 @@ import { videoSourceOf } from './video.js';
 import { normalizeBranching } from './branching.js';
 import { dtwAlternatives, dtwMatches, dndExpectedMappings } from './answer-eval.js';
 import { audioSourceOf, scoreDictation, dictationOptions } from './dictation.js';
+import { generateValues, fillPlaceholders, evaluate, parseUserNumber, isWithinTolerance, formatNumber, checkFormulaTask } from './formula.js';
 import { normalizeShareUrl, sanitizeModuleDescriptionHtml, sanitizeWorksheetHtml, escapeHtml, escapeAttr, hexTint, showContextMenu, attachPointerDrag } from './utils.js';
 
 /**
@@ -540,6 +541,65 @@ export class H5pRenderer {
           div, answerMap.some(({ inputEl }) => !inputEl.value.trim()), 'Erst alle Felder ausfüllen');
         answerMap.forEach(({ inputEl }) => inputEl.addEventListener('input', updateBlanksLock));
         updateBlanksLock();
+        break;
+      }
+
+      case 'formula': {
+        // Formelaufgabe: eigene Zufallswerte je Anzeige; sie stehen am
+        // Bereich (data-formula-values), damit die Auswertung (answer-eval.js)
+        // mit genau diesen Werten rechnet.
+        const variables = (content.variables || []).filter((v) => v && v.name);
+        const results = (content.results || []).filter((r) => r && r.formula);
+        const problems = checkFormulaTask(content);
+        if (problems.length) {
+          div.innerHTML = `<div class="formula-task formula-error"><strong>Die Formelaufgabe ist noch nicht vollständig:</strong>
+            <ul>${problems.map((p) => `<li>${escapeHtml(p)}</li>`).join('')}</ul></div>`;
+          break;
+        }
+        const showNewValues = !suppressFeedback && content.allowNewValues !== false;
+        const draw = () => {
+          const values = generateValues(variables, results) || {};
+          div.innerHTML = `
+            <div class="formula-task" data-formula-values="${escapeAttr(JSON.stringify(values))}">
+              <div class="formula-question">${sanitizeModuleDescriptionHtml(fillPlaceholders(content.question || '', values, variables))}</div>
+              ${this.renderModuleImage(content)}
+              <div class="formula-results">${results.map((r, i) => `
+                <label class="formula-row">
+                  <span class="formula-label">${escapeHtml(r.label || `Ergebnis ${i + 1}`)} =</span>
+                  <input type="text" inputmode="decimal" autocomplete="off" class="formula-input" data-result-index="${i}" />
+                  <span class="formula-unit">${escapeHtml(r.unit || '')}</span>
+                  <span class="formula-mark"></span>
+                </label>`).join('')}
+              </div>
+              <div class="formula-actions">
+                ${suppressFeedback ? '' : '<button type="button" class="btn btn-primary btn-sm formula-check">Überprüfen</button>'}
+                ${showNewValues ? '<button type="button" class="btn btn-secondary btn-sm formula-new">🎲 Neue Werte</button>' : ''}
+                <span class="hint">Komma oder Punkt, z. B. 0,25 oder 2,5e-3</span>
+              </div>
+              ${suppressFeedback ? '' : '<div class="formula-feedback"></div>'}
+            </div>`;
+          const inputs = [...div.querySelectorAll('.formula-input')];
+          div.querySelector('.formula-check')?.addEventListener('click', () => {
+            let right = 0;
+            inputs.forEach((inp) => {
+              const r = results[Number(inp.dataset.resultIndex)];
+              let correct = NaN;
+              try { correct = evaluate(r.formula, values); } catch (_) { /* gemeldet oben */ }
+              const ok = isWithinTolerance(parseUserNumber(inp.value), correct, r);
+              if (ok) right++;
+              inp.classList.toggle('is-right', ok);
+              inp.classList.toggle('is-wrong', !ok);
+              inp.closest('.formula-row').querySelector('.formula-mark').textContent = ok
+                ? '✓' : `✗ richtig: ${formatNumber(correct, r.decimals ?? 2)} ${r.unit || ''}`.trim();
+            });
+            div.querySelector('.formula-feedback').innerHTML = `<span style="font-weight:600;">${right} von ${inputs.length} richtig</span>`;
+          });
+          div.querySelector('.formula-new')?.addEventListener('click', draw);
+          const lock = () => this.setNextLock(div, inputs.some((inp) => !inp.value.trim()), 'Erst alle Ergebnisse eintragen');
+          inputs.forEach((inp) => inp.addEventListener('input', lock));
+          lock();
+        };
+        draw();
         break;
       }
 

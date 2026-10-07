@@ -4346,3 +4346,18 @@ body {
   .dnd-player-list > .dnd-player-draggables { grid-column: 1; grid-row: 2; margin-bottom: 12px; }
   .dnd-player-list > .dnd-player-canvas-wrap { grid-column: 1; grid-row: 3; }
 }
+
+/* ---- Formelaufgabe ---- */
+.formula-task { padding: 20px; background: var(--bg-primary); border-radius: var(--radius-md); }
+.formula-question { margin-bottom: 16px; line-height: 1.6; }
+.formula-results { display: flex; flex-direction: column; gap: 10px; margin: 12px 0; }
+.formula-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.formula-label { min-width: 120px; font-weight: 600; }
+.formula-input { width: 140px; padding: 6px 10px; border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 1rem; }
+.formula-input.is-right { border-color: var(--success); }
+.formula-input.is-wrong { border-color: var(--danger); }
+.formula-unit { min-width: 30px; }
+.formula-mark { font-size: 0.9rem; color: var(--text-secondary); }
+.formula-actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 8px; }
+.formula-feedback { margin-top: 12px; }
+.formula-error { border: 1px solid var(--danger); }

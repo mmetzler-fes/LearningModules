@@ -106,15 +106,37 @@ describe('Moodle-XML-Import', () => {
     expect(r.notes.some((n) => n.includes('Vieleck'))).toBe(true);
   });
 
+  it('berechnete Frage wird Formelaufgabe', () => {
+    const ds = (name: string, min: number, max: number, dec: number, values: number[]) => `<dataset_definition>
+      <status><text>private</text></status><name><text>${name}</text></name><type>calculated</type>
+      <distribution><text>uniform</text></distribution><minimum><text>${min}</text></minimum>
+      <maximum><text>${max}</text></maximum><decimals><text>${dec}</text></decimals><itemcount>${values.length}</itemcount>
+      <dataset_items>${values.map((v, i) => `<dataset_item><number>${i + 1}</number><value>${v}</value></dataset_item>`).join('')}</dataset_items>
+      <number_of_items>${values.length}</number_of_items></dataset_definition>`;
+    const r = convertMoodleXml(quiz(q('calculated', 'Ohm', text('<p>U = {U} V, R = {R} Ω. Strom?</p>')
+      + '<answer fraction="100"><text>{U}/{R}</text><tolerance>0.01</tolerance><tolerancetype>1</tolerancetype>'
+      + '<correctanswerformat>1</correctanswerformat><correctanswerlength>3</correctanswerlength></answer>'
+      + '<units><unit><multiplier>1</multiplier><unit_name>A</unit_name></unit></units>'
+      + `<dataset_definitions>${ds('U', 5, 24, 1, [12, 9.5])}${ds('R', 10, 470, 0, [47, 100])}</dataset_definitions>`)));
+    expect(r.modules[0]).toMatchObject({
+      type: 'formula',
+      content: {
+        question: '<p>U = {U} V, R = {R} Ω. Strom?</p>',
+        variables: [{ name: 'U', min: 5, max: 24, decimals: 1 }, { name: 'R', min: 10, max: 470, decimals: 0 }],
+        results: [{ formula: 'U/R', unit: 'A', tolerance: 1, toleranceType: 'relative', decimals: 3 }],
+      },
+    });
+  });
+
   it('meldet nicht unterstützte und leere Fragen', () => {
     const r = convertMoodleXml(quiz(
-      q('calculated', 'Rechnung', text('{a}+{b}'))
+      q('calculatedmulti', 'Rechnung', text('{a}+{b}'))
       + q('multichoice', 'Leer', text('Ohne Antworten'))
       + q('essay', 'Aufsatz', text('Schreibe.')),
     ));
     expect(r.modules.map((m) => m.type)).toEqual(['essay']);
     expect(r.skipped).toEqual([
-      'Rechnung (calculated): Berechnete Fragen gibt es hier nicht',
+      'Rechnung (calculatedmulti): Auswahlfragen mit Formeln gibt es hier (noch) nicht',
       'Leer (multichoice): Inhalt unvollständig – nichts zum Übernehmen',
     ]);
   });

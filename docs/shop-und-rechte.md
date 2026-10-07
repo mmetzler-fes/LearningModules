@@ -170,6 +170,16 @@ Dahinter kommt der Ordnername. Fehlt der Ordner, legt die App ihn an (eine
 Ebene). Als Passwort ein **App-Passwort** verwenden (Nextcloud → Einstellungen →
 Sicherheit). Es lässt sich jederzeit widerrufen, ohne das Login zu ändern.
 
+**Oder per Freigabelink:** Statt der WebDAV-Adresse einen Nextcloud-Freigabelink
+(`https://cloud.schule.de/s/KÜRZEL`) eines Ordners mit dem Recht „Bearbeiten“
+eintragen, Benutzername leer lassen. Hat die Freigabe ein Passwort, kommt es
+ins Passwortfeld. Die App nutzt dann die öffentliche WebDAV-Schnittstelle der
+Freigabe (`/public.php/webdav/`, Benutzer = Kürzel) – ein Nextcloud-Konto oder
+App-Passwort braucht es nicht. Die Freigabe sollte ein Passwort haben: Wer den
+Link kennt, kann die Backups sonst herunterladen (verschlüsselt) und löschen.
+Eine „Dateiablage“ (nur Hochladen) reicht nicht – die App muss den Ordner
+auflisten und alte Backups löschen können.
+
 Je Lauf: Backup erzeugen, hochladen, prüfen, ob es vollständig angekommen ist.
 **Erst danach** werden die ältesten gelöscht, bis nur noch die eingestellte
 Anzahl übrig ist. Schlägt etwas fehl, wird nichts gelöscht. Angefasst werden

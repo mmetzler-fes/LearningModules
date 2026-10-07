@@ -1071,18 +1071,22 @@
               „Dateieinstellungen“, z.&nbsp;B. <code>https://cloud.schule.de/remote.php/dav/files/BENUTZER/</code> –
               dahinter den Ordnernamen anhängen. Als Passwort ein <strong>App-Passwort</strong> verwenden
               (Nextcloud → Einstellungen → Sicherheit), nicht das Login-Passwort.
-              Den Masterkey nicht im selben Ordner ablegen.</p>
+              Den Masterkey nicht im selben Ordner ablegen.<br>
+              <strong>Oder einfacher:</strong> einen <strong>Nextcloud-Freigabelink</strong> (<code>https://…/s/…</code>) eines Ordners
+              mit Recht „Bearbeiten“ eintragen – dann Benutzername leer lassen, Passwort nur, wenn die Freigabe eins hat.
+              Am besten die Freigabe mit Passwort schützen: Wer den Link kennt, kann die (verschlüsselten) Backups sonst
+              herunterladen und löschen.</p>
             <p class="hint" id="cloudBackupStatus" style="margin:12px 0 16px;"></p>
             <div class="form-group">
-              <label for="cbUrl">WebDAV-Adresse des Ordners</label>
+              <label for="cbUrl">WebDAV-Adresse des Ordners oder Nextcloud-Freigabelink</label>
               <input type="url" id="cbUrl" placeholder="https://cloud.schule.de/remote.php/dav/files/BENUTZER/LernModule-Backups/" autocomplete="off" />
             </div>
             <div class="form-group">
-              <label for="cbUser">Benutzername</label>
+              <label for="cbUser">Benutzername <span class="hint">(leer bei Freigabelink)</span></label>
               <input type="text" id="cbUser" autocomplete="off" />
             </div>
             <div class="form-group">
-              <label for="cbPassword">App-Passwort</label>
+              <label for="cbPassword">App-Passwort <span class="hint">(bei Freigabelink: Passwort der Freigabe, falls gesetzt)</span></label>
               <input type="password" id="cbPassword" autocomplete="new-password" placeholder="leer = unverändert" />
             </div>
             <div class="form-group">

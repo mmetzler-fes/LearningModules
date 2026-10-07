@@ -6,6 +6,7 @@ import { User } from '../core/entities/user.entity';
 import { MasterKeyService } from '../core/crypto/master-key.service';
 import { MailService } from '../core/mail/mail.service';
 import { BackupService } from './backup.service';
+import { parseNextcloudShare } from '../core/share/nextcloud-upload';
 
 /**
  * Automatisches Backup in einen WebDAV-Ordner, typischerweise Nextcloud.
@@ -15,6 +16,11 @@ import { BackupService } from './backup.service';
  * nur noch `keep` übrig sind. Schlägt etwas fehl, wird nichts gelöscht.
  * Angefasst werden ausschließlich Dateien mit dem eigenen Namensmuster.
  *
+ * Als Ziel taugt auch ein Nextcloud-Freigabelink (https://…/s/KÜRZEL) mit
+ * Bearbeitungsrecht: Er wird zur öffentlichen WebDAV-Adresse der Freigabe
+ * (Benutzer = Kürzel, Passwort = Freigabepasswort oder leer). Dann braucht
+ * es kein Nextcloud-Konto und kein App-Passwort.
+ *
  * Der Zeitplan rechnet mit "Slots": dem letzten planmäßigen Zeitpunkt vor
  * jetzt. Liegt der letzte Versuch davor, ist ein Lauf fällig. Damit holt ein
  * Server, der zum Termin aus war, das Backup beim nächsten Start nach.
@@ -23,7 +29,7 @@ import { BackupService } from './backup.service';
  */
 export interface CloudBackupConfig {
   enabled: boolean;
-  /** WebDAV-Adresse des Ordners, z. B. https://cloud/remote.php/dav/files/USER/Backups/ */
+  /** WebDAV-Adresse des Ordners (https://cloud/remote.php/dav/files/USER/Backups/) oder Nextcloud-Freigabelink */
   url: string;
   username: string;
   /** App-Passwort, verschlüsselt mit dem App-Secret. Wird nie ausgegeben. */
@@ -135,7 +141,8 @@ export class CloudBackupService implements OnApplicationBootstrap, OnModuleDestr
           throw new BadRequestException('Die WebDAV-Adresse muss mit https:// beginnen.');
         }
       }
-      cfg.url = url ? (url.endsWith('/') ? url : `${url}/`) : '';
+      // Freigabelinks bleiben, wie sie sind; Ordneradressen enden mit "/".
+      cfg.url = !url ? '' : this.share(url) ? url : url.endsWith('/') ? url : `${url}/`;
     }
     if (input.username !== undefined) cfg.username = String(input.username || '').trim();
     if (input.password) cfg.passwordSealed = this.masterKey.sealSecret(String(input.password));
@@ -144,8 +151,8 @@ export class CloudBackupService implements OnApplicationBootstrap, OnModuleDestr
     if (input.hour !== undefined) cfg.hour = this.int(input.hour, 0, 23, 'Uhrzeit');
     if (input.keep !== undefined) cfg.keep = this.int(input.keep, 1, 100, 'Anzahl der Backups');
     if (input.enabled !== undefined) cfg.enabled = !!input.enabled;
-    if (cfg.enabled && (!cfg.url || !cfg.username || !cfg.passwordSealed)) {
-      throw new BadRequestException('Zum Einschalten braucht es Adresse, Benutzer und App-Passwort.');
+    if (cfg.enabled && !this.ready(cfg)) {
+      throw new BadRequestException('Zum Einschalten braucht es Adresse, Benutzer und App-Passwort – oder einen Nextcloud-Freigabelink.');
     }
     await this.configRepo.save(this.configRepo.create({ key: CONFIG_KEY, value: cfg }));
     return this.status();
@@ -190,7 +197,7 @@ export class CloudBackupService implements OnApplicationBootstrap, OnModuleDestr
 
   private async tick() {
     const cfg = await this.config();
-    if (!cfg.enabled || !cfg.url || !cfg.passwordSealed) return;
+    if (!cfg.enabled || !this.ready(cfg)) return;
     const st = await this.state();
     const now = new Date();
     const slot = this.lastSlot(cfg, now);
@@ -205,20 +212,46 @@ export class CloudBackupService implements OnApplicationBootstrap, OnModuleDestr
 
   // ---- WebDAV ----
 
-  private async auth(cfg: CloudBackupConfig) {
-    if (!cfg.url || !cfg.username || !cfg.passwordSealed) {
-      throw new BadRequestException('Bitte zuerst Adresse, Benutzer und App-Passwort speichern.');
+  /** Nextcloud-Freigabe hinter der Adresse, sonst null. */
+  private share(url: string) {
+    try {
+      return parseNextcloudShare(url);
+    } catch {
+      return null;
     }
-    const password = this.masterKey.unsealSecret(cfg.passwordSealed);
-    return 'Basic ' + Buffer.from(`${cfg.username}:${password}`).toString('base64');
   }
 
-  private async dav(cfg: CloudBackupConfig, method: string, url: string, body?: Buffer | string, headers: Record<string, string> = {}) {
+  /** Genug eingetragen, um loszulegen? Eine Freigabe braucht weder Benutzer noch Passwort. */
+  private ready(cfg: CloudBackupConfig) {
+    if (!cfg.url) return false;
+    return !!this.share(cfg.url) || (!!cfg.username && !!cfg.passwordSealed);
+  }
+
+  /** WebDAV-Adresse des Zielordners, mit "/" am Ende. */
+  private folder(cfg: CloudBackupConfig) {
+    const share = this.share(cfg.url);
+    return share ? `${share.base}/public.php/webdav/` : cfg.url;
+  }
+
+  private async auth(cfg: CloudBackupConfig) {
+    if (!this.ready(cfg)) {
+      throw new BadRequestException('Bitte zuerst Adresse, Benutzer und App-Passwort speichern – oder einen Nextcloud-Freigabelink.');
+    }
+    const password = cfg.passwordSealed ? this.masterKey.unsealSecret(cfg.passwordSealed) : '';
+    const share = this.share(cfg.url);
+    // Öffentliches WebDAV einer Freigabe: Benutzer ist das Kürzel des Links.
+    const user = share ? share.token : cfg.username;
+    return 'Basic ' + Buffer.from(`${user}:${password}`).toString('base64');
+  }
+
+  /** Anfrage an eine Datei im Zielordner ("" = der Ordner selbst). */
+  private async dav(cfg: CloudBackupConfig, method: string, file: string, body?: Buffer | string, headers: Record<string, string> = {}) {
     let res: Response;
     try {
-      res = await fetch(url, {
+      res = await fetch(this.folder(cfg) + file, {
         method,
-        headers: { Authorization: await this.auth(cfg), ...headers },
+        // Nextcloud verlangt den Kopf bei öffentlichen Freigaben (CSRF-Schutz).
+        headers: { Authorization: await this.auth(cfg), 'X-Requested-With': 'XMLHttpRequest', ...headers },
         body: body as any,
         signal: AbortSignal.timeout(5 * 60 * 1000),
       });
@@ -229,11 +262,14 @@ export class CloudBackupService implements OnApplicationBootstrap, OnModuleDestr
     return res;
   }
 
-  private explain(res: Response, what: string): never {
+  private explain(cfg: CloudBackupConfig, res: Response, what: string): never {
+    const share = !!this.share(cfg.url);
     const reasons: Record<number, string> = {
-      401: 'Anmeldung abgelehnt – Benutzername und App-Passwort prüfen',
-      403: 'keine Schreibrechte in diesem Ordner',
-      404: 'Ordner nicht gefunden – Adresse prüfen',
+      401: share
+        ? 'Anmeldung abgelehnt – hat die Freigabe ein Passwort? Dann im Feld Passwort eintragen'
+        : 'Anmeldung abgelehnt – Benutzername und App-Passwort prüfen',
+      403: share ? 'die Freigabe erlaubt kein Bearbeiten (in Nextcloud „Bearbeiten“ erlauben)' : 'keine Schreibrechte in diesem Ordner',
+      404: share ? 'Freigabe nicht gefunden – Link abgelaufen oder gelöscht?' : 'Ordner nicht gefunden – Adresse prüfen',
       405: 'die Adresse ist kein WebDAV-Ordner',
       507: 'kein Speicherplatz mehr frei',
     };
@@ -242,18 +278,18 @@ export class CloudBackupService implements OnApplicationBootstrap, OnModuleDestr
 
   /** Legt den Zielordner an, falls es ihn noch nicht gibt (eine Ebene). */
   private async ensureFolder(cfg: CloudBackupConfig) {
-    const res = await this.dav(cfg, 'PROPFIND', cfg.url, undefined, { Depth: '0' });
+    const res = await this.dav(cfg, 'PROPFIND', '', undefined, { Depth: '0' });
     if (res.status === 207 || res.ok) return;
-    if (res.status !== 404) this.explain(res, 'Ordner nicht lesbar');
-    const made = await this.dav(cfg, 'MKCOL', cfg.url);
-    if (!made.ok) this.explain(made, 'Ordner konnte nicht angelegt werden');
+    if (res.status !== 404) this.explain(cfg, res, 'Ordner nicht lesbar');
+    const made = await this.dav(cfg, 'MKCOL', '');
+    if (!made.ok) this.explain(cfg, made, 'Ordner konnte nicht angelegt werden');
   }
 
   /** Die eigenen Backups im Ordner, neueste zuerst. */
   async list(cfgIn?: CloudBackupConfig) {
     const cfg = cfgIn || (await this.config());
-    const res = await this.dav(cfg, 'PROPFIND', cfg.url, undefined, { Depth: '1' });
-    if (res.status !== 207 && !res.ok) this.explain(res, 'Ordner nicht lesbar');
+    const res = await this.dav(cfg, 'PROPFIND', '', undefined, { Depth: '1' });
+    if (res.status !== 207 && !res.ok) this.explain(cfg, res, 'Ordner nicht lesbar');
     const xml = await res.text();
     const files: Array<{ name: string; size: number | null }> = [];
     for (const block of xml.split(/<(?:[a-z0-9]+:)?response[\s>]/i).slice(1)) {
@@ -271,10 +307,10 @@ export class CloudBackupService implements OnApplicationBootstrap, OnModuleDestr
   async test() {
     const cfg = await this.config();
     await this.ensureFolder(cfg);
-    const put = await this.dav(cfg, 'PUT', cfg.url + TEST_FILE, `Verbindungstest ${new Date().toISOString()}`);
-    if (!put.ok) this.explain(put, 'Schreiben fehlgeschlagen');
-    const del = await this.dav(cfg, 'DELETE', cfg.url + TEST_FILE);
-    if (!del.ok && del.status !== 404) this.explain(del, 'Löschen fehlgeschlagen');
+    const put = await this.dav(cfg, 'PUT', TEST_FILE, `Verbindungstest ${new Date().toISOString()}`);
+    if (!put.ok) this.explain(cfg, put, 'Schreiben fehlgeschlagen');
+    const del = await this.dav(cfg, 'DELETE', TEST_FILE);
+    if (!del.ok && del.status !== 404) this.explain(cfg, del, 'Löschen fehlgeschlagen');
     const files = await this.list(cfg);
     return { success: true, message: `Verbindung in Ordnung – ${files.length} Backup${files.length === 1 ? '' : 's'} im Ordner.` };
   }
@@ -296,10 +332,10 @@ export class CloudBackupService implements OnApplicationBootstrap, OnModuleDestr
       const name = this.fileName(now);
       const buffer = await this.backup.create();
       await this.ensureFolder(cfg);
-      const put = await this.dav(cfg, 'PUT', cfg.url + encodeURIComponent(name), buffer, {
+      const put = await this.dav(cfg, 'PUT', encodeURIComponent(name), buffer, {
         'Content-Type': 'application/octet-stream',
       });
-      if (!put.ok) this.explain(put, 'Hochladen fehlgeschlagen');
+      if (!put.ok) this.explain(cfg, put, 'Hochladen fehlgeschlagen');
 
       // Erst prüfen, dann aufräumen: Ein Backup, das nicht angekommen ist,
       // darf kein älteres verdrängen.
@@ -310,7 +346,7 @@ export class CloudBackupService implements OnApplicationBootstrap, OnModuleDestr
       }
       const removed: string[] = [];
       for (const old of files.slice(cfg.keep)) {
-        const del = await this.dav(cfg, 'DELETE', cfg.url + encodeURIComponent(old.name));
+        const del = await this.dav(cfg, 'DELETE', encodeURIComponent(old.name));
         if (del.ok || del.status === 404) removed.push(old.name);
       }
 
@@ -355,8 +391,8 @@ export class CloudBackupService implements OnApplicationBootstrap, OnModuleDestr
   async restoreFromCloud(name: string) {
     if (!FILE_PATTERN.test(String(name || ''))) throw new BadRequestException('Unbekannte Backup-Datei.');
     const cfg = await this.config();
-    const res = await this.dav(cfg, 'GET', cfg.url + encodeURIComponent(name));
-    if (!res.ok) this.explain(res, 'Herunterladen fehlgeschlagen');
+    const res = await this.dav(cfg, 'GET', encodeURIComponent(name));
+    if (!res.ok) this.explain(cfg, res, 'Herunterladen fehlgeschlagen');
     return this.backup.restore(Buffer.from(await res.arrayBuffer()));
   }
 }

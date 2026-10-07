@@ -24,6 +24,9 @@ const MAX_PRICE = 100000;
  *   Buyer   – hat eine Kopie erworben. Darf sie bearbeiten und kostenlos zur
  *             Nutzung weitergeben, an höchstens N Personen.
  */
+/** Tage nach dem Kauf, in denen ein bezahltes Nutzungsrecht mit Erstattung zurückgegeben werden kann. */
+export const REFUND_DAYS = 14;
+
 @Injectable()
 export class ShopService {
   constructor(
@@ -504,21 +507,46 @@ export class ShopService {
     return copy.id;
   }
 
+  /** Bis wann ein bezahltes Nutzungsrecht mit Erstattung zurückgegeben werden kann (sonst null). */
+  static refundUntil(grant: UseGrant): Date | null {
+    if (!(grant.pricePaid > 0) || !grant.createdAt) return null;
+    return new Date(new Date(grant.createdAt).getTime() + REFUND_DAYS * 24 * 60 * 60 * 1000);
+  }
+
   /**
-   * Nutzungsrecht beenden. Der Inhaber kann es jederzeit zurückgeben (ohne
-   * Erstattung). Der Anbieter kann nur kostenlose Rechte entziehen – was
-   * bezahlt wurde, bleibt.
+   * Nutzungsrecht beenden. Der Inhaber kann es jederzeit zurückgeben –
+   * innerhalb von REFUND_DAYS Tagen nach dem Kauf mit Erstattung (so lässt
+   * sich ein Thema per Use ausprobieren), danach ohne. Der Anbieter kann nur
+   * kostenlose Rechte entziehen – was bezahlt wurde, bleibt.
    */
   async revokeGrant(grantId: string, user: any) {
     const grant = await this.grantRepo.findOne({ where: { id: grantId } });
     if (!grant) throw new NotFoundException('Nutzungsrecht nicht gefunden.');
+    const offer = grant.offerId ? await this.offerRepo.findOne({ where: { id: grant.offerId } }) : null;
     if (grant.userId !== user.userId) {
-      const offer = grant.offerId ? await this.offerRepo.findOne({ where: { id: grant.offerId } }) : null;
       if (!offer || offer.sellerId !== user.userId) throw new ForbiddenException('Das ist nicht dein Angebot.');
       if (grant.pricePaid > 0) throw new ForbiddenException('Ein bezahltes Nutzungsrecht lässt sich nicht entziehen.');
+      await this.grantRepo.remove(grant);
+      return { success: true };
     }
-    await this.grantRepo.remove(grant);
-    return { success: true };
+
+    const until = ShopService.refundUntil(grant);
+    const sellerId = offer?.sellerId || grant.creatorId;
+    let refunded = 0;
+    await this.dataSource.transaction(async (manager) => {
+      if (until && until.getTime() >= Date.now() && sellerId && sellerId !== user.userId) {
+        const topic = await this.topicRepo.findOne({ where: { id: grant.topicId } });
+        const note = `Rückgabe Use: ${topic?.title || 'Thema'}`;
+        // Ins Minus geht kein Konto: Hat der Anbieter weniger, gibt es so viel zurück, wie da ist.
+        refunded = Math.min(grant.pricePaid, await this.points.balance(sellerId, manager));
+        if (refunded > 0) {
+          await this.points.book(manager, sellerId, -refunded, 'refund', note);
+          await this.points.book(manager, user.userId, refunded, 'refund', note);
+        }
+      }
+      await manager.getRepository(UseGrant).remove(grant);
+    });
+    return { success: true, refunded, pricePaid: grant.pricePaid, balance: await this.points.balance(user.userId) };
   }
 
   /** Eine gelöschte Gruppe aus allen Zielgruppen nehmen. */

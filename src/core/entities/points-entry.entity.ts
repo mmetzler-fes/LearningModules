@@ -9,6 +9,7 @@ export type PointsReason =
   | 'start'
   | 'purchase'
   | 'sale'
+  | 'refund'
   | 'yearly-decay'
   | 'yearly-bonus'
   | 'merge'

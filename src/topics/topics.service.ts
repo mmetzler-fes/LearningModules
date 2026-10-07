@@ -305,6 +305,7 @@ export class TopicsService {
             pricePaid: g.pricePaid,
             viaBuyer: offers.find((o) => o.id === g.offerId)?.kind === 'buyer',
             since: g.createdAt,
+            refundUntil: ShopService.refundUntil(g),
           })),
         };
       })

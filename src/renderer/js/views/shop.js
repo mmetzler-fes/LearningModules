@@ -20,6 +20,7 @@ const REASON_LABELS = {
   start: 'Startguthaben',
   purchase: 'Kauf',
   sale: 'Verkauf',
+  refund: 'Erstattung',
   'yearly-decay': 'Jahresabzug',
   'yearly-bonus': 'Jahresgeschenk',
   merge: 'Konto übernommen',
@@ -172,10 +173,13 @@ export class ShopView {
         'Du wirst Owner und Buyer: Du darfst die Kopie bearbeiten und eigene Module ergänzen. ' +
         `Die vorhandenen Module bleiben auf ${o.creators.join(', ')} als Creator verzeichnet. ` +
         'Weitergeben kannst du die Kopie nur zur Nutzung (Use), kostenlos und an wenige Personen.' +
-        (o.copies ? `\n\nDu hast dieses Thema schon ${o.copies}× kopiert.` : '')
+        (o.copies ? `\n\nDu hast dieses Thema schon ${o.copies}× kopiert.` : '') +
+        (price > 0 ? '\n\nEine Kopie lässt sich nicht zurückgeben.' +
+          (o.allowUse ? ' Zum Ausprobieren erst „🔗 Use“ wählen – das kannst du 14 Tage lang mit Erstattung zurückgeben.' : '') : '')
       : `„${o.title}" ${cost} zur Nutzung erwerben?\n\n` +
         'Du verwendest das Original in deinen eigenen Themen- und Quick-Links, die Ergebnisse kommen zu dir. ' +
-        'Änderungen des Creators wirken sofort. Bearbeiten und weitergeben kannst du es nicht.';
+        'Änderungen des Creators wirken sofort. Bearbeiten und weitergeben kannst du es nicht.' +
+        (price > 0 ? '\n\nInnerhalb von 14 Tagen kannst du es unter „Zur Nutzung erworben“ zurückgeben und bekommst die Punkte erstattet.' : '');
     if (!(await this.app.appConfirm(text))) return;
 
     btn.disabled = true;

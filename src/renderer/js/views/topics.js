@@ -598,6 +598,10 @@ export class TopicsView {
     const card = document.createElement('div');
     card.className = 'topic-card topic-shared';
     const paid = entry.grants.reduce((n, g) => n + (g.pricePaid || 0), 0);
+    const openRefund = entry.grants.map((g) => g.refundUntil && new Date(g.refundUntil)).filter((d) => d && d.getTime() >= Date.now()).sort((a, b) => a - b)[0];
+    const refundBadge = openRefund
+      ? `<span class="topic-shared-badge" title="Bis dahin gibt es beim Zurückgeben die Punkte zurück">↩ Rückgabe mit Erstattung bis ${openRefund.toLocaleDateString('de-DE')}</span>`
+      : '';
     card.innerHTML = `
       <div class="topic-card-header">
         <div class="topic-card-info">
@@ -609,6 +613,7 @@ export class TopicsView {
             <span class="topic-shared-badge" style="margin-left:8px">von ${escapeHtml(entry.ownerName)}</span>
             <span class="topic-shared-badge" title="Creator der Module">✍️ ${entry.creators.map(escapeHtml).join(', ')}</span>
             <span class="topic-shared-badge use">${paid ? `🪙 ${paid} Punkte bezahlt` : 'kostenlos'}</span>
+            ${refundBadge}
           </div>
         </div>
         <div class="topic-card-actions">
@@ -625,20 +630,30 @@ export class TopicsView {
       this._openQuickLinkDialog({ id: entry.id, title: entry.title }));
 
     card.querySelector('.btn-return-grant').addEventListener('click', async (e) => {
+      // Innerhalb von 14 Tagen nach dem Kauf gibt es die Punkte zurück.
+      const now = Date.now();
+      const refundable = entry.grants.filter((g) => g.pricePaid > 0 && g.refundUntil && new Date(g.refundUntil).getTime() >= now);
+      const refundSum = refundable.reduce((n, g) => n + g.pricePaid, 0);
+      const until = refundable.map((g) => new Date(g.refundUntil)).sort((a, b) => a - b)[0];
       const ok = await this.app.appConfirm(
         `Nutzungsrecht an „${entry.title}" zurückgeben?\n\n` +
-        (paid ? 'Bezahlte Punkte werden nicht erstattet. ' : '') +
+        (refundSum ? `Du bekommst ${refundSum} Punkte erstattet (Rückgabe mit Erstattung bis ${until.toLocaleDateString('de-DE')}). `
+          : paid ? 'Die 14 Tage für eine Erstattung sind vorbei – bezahlte Punkte werden nicht erstattet. ' : '') +
         'Deine Themen- und Quick-Links liefern das Thema danach nicht mehr aus.',
       );
       if (!ok) return;
       const btn = e.currentTarget;
       btn.disabled = true;
       try {
+        let refunded = 0;
         for (const g of entry.grants) {
           const res = await this.app.api.revokeGrant(g.id);
           if (!res || !res.success) throw new Error(res?.message || 'Zurückgeben fehlgeschlagen');
+          refunded += res.refunded || 0;
         }
-        this.app.showToast('Nutzungsrecht zurückgegeben', 'info');
+        this.app.showToast(refunded
+          ? `Nutzungsrecht zurückgegeben – ${refunded} Punkte erstattet${refunded < refundSum ? ' (mehr hatte der Anbieter nicht mehr)' : ''}.`
+          : 'Nutzungsrecht zurückgegeben', 'info');
         this.refreshSharedTopics();
       } catch (err) {
         this.app.showToast('Fehler: ' + err.message, 'error');

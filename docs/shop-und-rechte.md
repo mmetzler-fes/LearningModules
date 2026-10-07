@@ -76,7 +76,19 @@ dafür nicht.
 
 **Zur Nutzung erworben:** Unter der eigenen Themenliste stehen die Themen mit
 Nutzungsrecht, jeweils mit *Ansehen*, eigenem *Quick-Link* und *Zurückgeben*.
-Beim Zurückgeben gibt es keine Erstattung.
+
+**Ausprobieren per Use – 14 Tage Rückgabe:** Ein bezahltes Nutzungsrecht
+lässt sich **innerhalb von 14 Tagen** nach dem Kauf mit **Erstattung** der
+Punkte zurückgeben; die Karte zeigt „Rückgabe mit Erstattung bis …“. So lässt
+sich ein Thema erst per Use ausprobieren und danach gegebenenfalls als Kopie
+kaufen – eine eigene Vorschau braucht es nicht. Nach den 14 Tagen geht die
+Rückgabe ohne Erstattung. Ins Minus geht dabei kein Konto: Hat der Anbieter
+die Punkte schon ausgegeben, wird erstattet, was er noch hat. Beide sehen die
+Buchung als „Erstattung“ im Punktekonto.
+
+**Kopien lassen sich nicht zurückgeben:** Sie gehören dem Käufer, und ihre
+Module lassen sich weiterkopieren – eine Rückgabe ließe sich nicht prüfen.
+Der Kaufdialog weist darauf hin.
 
 **Löschen durch den Creator:** Wer für die Nutzung eines Themas **bezahlt**
 hat, bekommt beim Löschen automatisch eine **eigene Kopie** dessen, was er
@@ -97,7 +109,7 @@ Kostenlos Überlassenes kann der Anbieter wieder zurücknehmen.
 | Angebot zurückziehen | bleibt | bleibt | bleibt |
 | Anbieter entzieht einzeln | – | nicht möglich | möglich |
 | Creator löscht das Thema | bleibt | wird eigene Kopie | verfällt |
-| Käufer gibt zurück | – | ohne Erstattung | ja |
+| Käufer gibt zurück | nicht möglich | in 14 Tagen mit Erstattung, danach ohne | ja |
 
 ## Punkte
 

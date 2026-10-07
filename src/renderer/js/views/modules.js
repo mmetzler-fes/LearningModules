@@ -231,6 +231,21 @@ export class ModulesView {
     if (this._btnExportTopic) this._btnExportTopic.style.display = currentTopicId ? '' : 'none';
   }
 
+  /**
+   * Titel des Lernthemas als Überschrift und im Pfad – statt einer
+   * zusätzlichen Zeile; lange Titel kürzt das CSS auf eine Zeile.
+   */
+  _showTopicTitle(topic) {
+    const title = topic?.title || '';
+    const heading = document.getElementById('modulesViewTitle');
+    const crumb = document.getElementById('currentTopicName');
+    if (heading) {
+      heading.textContent = title ? `📚 ${title}` : t('modules.title');
+      heading.title = title;
+    }
+    if (crumb) crumb.textContent = title || '—';
+  }
+
   async refresh() {
     const { state } = this.app;
     const { currentTopicId } = state;
@@ -247,6 +262,7 @@ export class ModulesView {
     }
 
     const topic = state.topics.find((t) => t.id === currentTopicId);
+    this._showTopicTitle(topic);
     const rawSummary = topic && topic.h5pImportMode === 'raw' ? (topic.h5pRawSummary || state.currentTopicRawSummary) : null;
     state.currentTopicRawSummary = rawSummary || null;
     this._updateToolbarForTopicMode();

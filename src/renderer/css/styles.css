@@ -711,6 +711,17 @@ body {
 
 .breadcrumb-current {
   color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+/* Thementitel als Überschrift der Modulübersicht – eine Zeile, Rest per … */
+.modules-view-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* ===== Modules List ===== */

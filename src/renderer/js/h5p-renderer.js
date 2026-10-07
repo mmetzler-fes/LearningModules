@@ -1031,7 +1031,7 @@ export class H5pRenderer {
         const colors   = ['#3b82f6','#ef4444','#10b981','#f59e0b','#8b5cf6','#ec4899','#06b6d4','#84cc16'];
 
         div.innerHTML = `
-          <div class="dnd-player">
+          <div class="dnd-player${hasImage ? '' : ' dnd-player-list'}">
             ${content.taskDescription ? `<div class="dnd-player-desc" style="margin-bottom:16px;">${sanitizeModuleDescriptionHtml(content.taskDescription)}</div>` : ''}
             <div class="dnd-player-draggables" id="dndDraggables"></div>
             <div class="dnd-player-canvas-wrap">
@@ -1106,7 +1106,21 @@ export class H5pRenderer {
           { label: '✕ Element entfernen', danger: true, onClick: () => returnToBank(drag) },
         ]);
 
-        zones.forEach((z, i) => {
+        // "Reihenfolge mischen": jeder bekommt eine andere Reihenfolge, damit
+        // niemand vom Nachbarn abliest. Zonen auf einem Bild haben feste
+        // Plätze – gemischt werden dort nur die ziehbaren Elemente.
+        const mixed = (list) => {
+          const out = [...list];
+          for (let k = out.length - 1; k > 0; k--) {
+            const j = Math.floor(Math.random() * (k + 1));
+            [out[k], out[j]] = [out[j], out[k]];
+          }
+          return out;
+        };
+        const zoneOrder = content.randomOrder && !hasImage ? mixed(zones) : zones;
+        const dragOrder = content.randomOrder ? mixed(drags) : drags;
+
+        zoneOrder.forEach((z, i) => {
           const zoneEl = document.createElement('div');
           zoneEl.className = 'dnd-player-zone';
           const color = colors[i % colors.length];
@@ -1149,7 +1163,7 @@ export class H5pRenderer {
           else div.querySelector('#dndZonesLegacy').appendChild(zoneEl);
         });
 
-        drags.forEach((d, i) => {
+        dragOrder.forEach((d, i) => {
           let cloneCounter = 0;
           const createDraggableNode = (isClone = false) => {
             const drag = document.createElement('div');

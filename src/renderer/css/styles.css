@@ -4331,3 +4331,18 @@ body {
 .help-popup-source { margin: 0 0 8px; }
 .help-article-compact { border: none; padding: 0; background: none; }
 .help-article-compact h2:first-child, .help-article-compact h3:first-child { border-top: none; margin-top: 0; padding-top: 0; }
+
+/* ---- Drag and Drop ohne Bild (Zuordnung, z. B. aus Quizzy): Begriffe links,
+   Elemente rechts – nebeneinander statt weit untereinander. ---- */
+.dnd-player-list { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); column-gap: 16px; align-items: start; }
+.dnd-player-list > * { grid-column: 1 / -1; }
+.dnd-player-list > .dnd-player-canvas-wrap { grid-column: 1; grid-row: 2; }
+.dnd-player-list > .dnd-player-draggables { grid-column: 2; grid-row: 2; margin-bottom: 0; }
+.dnd-player-list .dnd-player-zone-label { font-size: 0.92rem; padding: 4px 10px; white-space: normal; }
+.dnd-player-list .dnd-player-zone { min-height: 64px !important; }
+.dnd-player-list .dnd-player-drag { font-weight: 500; line-height: 1.35; }
+@media (max-width: 760px) {
+  .dnd-player-list { grid-template-columns: minmax(0, 1fr); }
+  .dnd-player-list > .dnd-player-draggables { grid-column: 1; grid-row: 2; margin-bottom: 12px; }
+  .dnd-player-list > .dnd-player-canvas-wrap { grid-column: 1; grid-row: 3; }
+}

@@ -1051,6 +1051,7 @@ class ContentEditorManager {
   renderDragAndDropEditor(typeDef, data) {
     this.dndState = {
       backgroundImage: data.backgroundImage || '',
+      randomOrder: !!data.randomOrder,
       dropZones: (data.dropZones || []).map((z, i) => {
         let correctDraggable = z.correctDraggable || '';
         // If missing, try to infer from draggables for a robust editor UI
@@ -1085,6 +1086,16 @@ class ContentEditorManager {
 
     // Task description (rich text)
     this.renderRichtextField(this.container, { key: 'dnd_taskDescription', label: 'Aufgabenbeschreibung', type: 'richtext' }, data.taskDescription || '');
+
+    // Reihenfolge je Schüler mischen (gegen Abschreiben vom Nachbarn)
+    const mixRow = document.createElement('label');
+    mixRow.className = 'tag-filter-mode dnd-random-order';
+    mixRow.innerHTML = '<input type="checkbox" /> <span><strong>🔀 Reihenfolge mischen</strong> – jeder Schüler sieht die ziehbaren '
+      + 'Elemente (ohne Hintergrundbild auch die Zonen) in anderer Reihenfolge.</span>';
+    const mixBox = mixRow.querySelector('input');
+    mixBox.checked = this.dndState.randomOrder;
+    mixBox.addEventListener('change', () => { this.dndState.randomOrder = mixBox.checked; });
+    this.container.appendChild(mixRow);
 
     // Background image section
     const imgGroup = this.createFormGroup('Hintergrundbild *');
@@ -1839,6 +1850,7 @@ class ContentEditorManager {
     return {
       taskDescription: descHidden ? descHidden.value : (descFallback ? descFallback.value : ''),
       backgroundImage: this.dndState.backgroundImage,
+      randomOrder: !!this.dndState.randomOrder,
       dropZones: this.dndState.dropZones.map((z) => ({
         label: z.label,
         correctDraggable: z.correctDraggable,

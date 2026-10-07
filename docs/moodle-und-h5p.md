@@ -77,6 +77,28 @@ gilt wie früher nur die Zone. Der Editor hält beide Seiten gleich und zeigt
 „✓ n richtig: …“ an der Zone. Der H5P-Import übernimmt solche Zonen jetzt
 vollständig.
 
+## Quizzy-Quiz übernehmen
+
+Zuordnungsquizze aus Quizzy (JSON mit `quizname` und `items` aus `query` /
+`answer`) wandelt ein Skript in ein importierbares Thema um:
+
+```bash
+node scripts/quizzy-to-learningmodules.mjs quiz_SPS_Grundbegriffe.json
+```
+
+Es entsteht `SPS Grundbegriffe.learningmodules.json` – einlesen über
+**📥 Thema importieren**. Je Quiz eine Drag-and-Drop-Aufgabe ohne Bild: links
+die Begriffe, rechts die Erklärungen zum Zuordnen, **🔀 Reihenfolge mischen**
+eingeschaltet (jeder Schüler sieht eine andere Reihenfolge, wie in Quizzy).
+
+- Mehrere Dateien auf einmal: alle Dateinamen angeben (`quiz_*.json`).
+- `--ein-thema "Titel"` legt alle Quizze als Aufgaben eines Themas an.
+- `--paket 6` teilt lange Quizze in Aufgaben zu höchstens 6 Paaren.
+- `--ausgabe ordner` schreibt die Ergebnisse in einen anderen Ordner.
+
+**🔀 Reihenfolge mischen** gibt es im Drag-and-Drop-Editor für jede Aufgabe:
+gemischt werden die ziehbaren Elemente, ohne Hintergrundbild auch die Zonen.
+
 ## H5P-Bibliotheken aktualisieren
 
 Die Bibliotheken liegen in `assets/h5p/libraries.zip` und kommen vom

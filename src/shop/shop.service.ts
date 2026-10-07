@@ -433,6 +433,33 @@ export class ShopService {
   }
 
   /**
+   * Vor dem Löschen eines Themas: Wer für die Nutzung bezahlt hat, bekommt
+   * eine eigene Kopie dessen, was er nutzen durfte – Bezahltes geht nicht
+   * verloren. Kostenlose Nutzungsrechte verfallen mit dem Thema.
+   * Liefert die Zahl der angelegten Kopien.
+   */
+  async preservePaidUse(topicId: string): Promise<number> {
+    const grants = (await this.grantRepo.find({ where: { topicId } })).filter((g) => g.pricePaid > 0);
+    if (!grants.length) return 0;
+    const topic = await this.topicRepo.findOne({ where: { id: topicId }, relations: ['modules'] });
+    if (!topic) return 0;
+    const owner = await this.userRepo.findOne({ where: { id: topic.ownerId } });
+    let made = 0;
+    await this.dataSource.transaction(async (manager) => {
+      for (const g of grants) {
+        // Gleicher Umfang wie beim Nutzen: nur die Module des Anbieters bzw. alle
+        const all = topic.modules || [];
+        const direct = new Set(all.filter((m) => g.scope === 'all' || m.creatorId === g.creatorId).map((m) => m.id));
+        const modules = all.filter((m) => direct.has(m.id) || (!!m.parentId && direct.has(m.parentId)));
+        if (!modules.length) continue;
+        await this.copyTopic(manager, topic, modules, { userId: g.userId }, this.label(owner || undefined));
+        made++;
+      }
+    });
+    return made;
+  }
+
+  /**
    * Legt die Kopie an. Der Käufer wird Owner und Buyer, der Creator jedes
    * Moduls bleibt verzeichnet. Zugangsdaten und Tags des Originals kommen
    * nicht mit; die Kopie startet gesperrt – erst ansehen, dann freigeben.

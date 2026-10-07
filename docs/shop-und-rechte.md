@@ -65,7 +65,8 @@ den Anbieter, in der Kopie bzw. Nutzungsrecht entstehen.
 
 **Zurückziehen:** Das Angebot verschwindet aus dem Shop. Wer schon gekauft hat,
 behält Kopie bzw. Nutzungsrecht. Kostenlose Nutzungsrechte kann der Anbieter
-einzeln entziehen, bezahlte nicht.
+einzeln entziehen, bezahlte nicht (Übersicht unter
+[Was mit Erworbenem passiert](#was-mit-erworbenem-passiert)).
 
 **Weitergabe als Buyer:** Im selben Dialog, Abschnitt „Zur Nutzung
 weitergeben“. Nur Personen und Gruppen, nicht „alle“. Höchstens so viele
@@ -77,9 +78,26 @@ dafür nicht.
 Nutzungsrecht, jeweils mit *Ansehen*, eigenem *Quick-Link* und *Zurückgeben*.
 Beim Zurückgeben gibt es keine Erstattung.
 
-**Löschen durch den Creator:** Ein Thema oder Modul, das andere per Use
-verwenden, ist danach auch bei ihnen weg. Die Oberfläche nennt vorher die
-Anzahl.
+**Löschen durch den Creator:** Wer für die Nutzung eines Themas **bezahlt**
+hat, bekommt beim Löschen automatisch eine **eigene Kopie** dessen, was er
+nutzen durfte (gesperrt, mit Herkunftsangabe – wie beim Kauf einer Kopie).
+Bezahltes geht so nicht verloren. **Kostenlose** Nutzungsrechte verfallen mit
+dem Thema. Die Oberfläche nennt vorher beide Zahlen.
+
+Einzelne Module löschen oder ändern wirkt dagegen sofort auch bei allen, die
+das Thema per Use verwenden – das ist der Sinn von Use gegenüber Copy.
+
+### Was mit Erworbenem passiert
+
+Grundsatz: **Eine Kopie gehört dem Käufer, Bezahltes bleibt erhalten.**
+Kostenlos Überlassenes kann der Anbieter wieder zurücknehmen.
+
+| Fall | Kopie | Use bezahlt | Use kostenlos |
+|---|---|---|---|
+| Angebot zurückziehen | bleibt | bleibt | bleibt |
+| Anbieter entzieht einzeln | – | nicht möglich | möglich |
+| Creator löscht das Thema | bleibt | wird eigene Kopie | verfällt |
+| Käufer gibt zurück | – | ohne Erstattung | ja |
 
 ## Punkte
 

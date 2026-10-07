@@ -314,13 +314,17 @@ export class TopicsView {
     card.querySelector('.btn-delete-topic').addEventListener('click', async () => {
       // Wer das Thema per "Use" verwendet, verliert es mit – das gehört vor
       // die Entscheidung.
-      const users = topic.useCount
-        ? `\n\n${topic.useCount} Person${topic.useCount === 1 ? ' verwendet' : 'en verwenden'} dieses Thema über den Shop ` +
-          'und verliert es damit ebenfalls – auch wenn dafür bezahlt wurde.'
-        : '';
+      const paid = topic.paidUseCount || 0;
+      const free = (topic.useCount || 0) - paid;
+      const users = [
+        paid ? `${paid} Person${paid === 1 ? ' hat' : 'en haben'} für die Nutzung bezahlt und bekomm${paid === 1 ? 't' : 'en'} automatisch eine eigene Kopie.` : '',
+        free ? `${free} Person${free === 1 ? ' verwendet' : 'en verwenden'} dieses Thema kostenlos über den Shop und verlier${free === 1 ? 't' : 'en'} es.` : '',
+      ].filter(Boolean).map((x) => `\n\n${x}`).join('');
       if (!(await this.app.appConfirm(t('topics.delete.confirm', { title: topic.title }) + users))) return;
-      await this.app.api.deleteTopic(topic.id);
-      this.app.showToast(t('topics.deleted'), 'info');
+      const res = await this.app.api.deleteTopic(topic.id);
+      this.app.showToast(res?.preservedCopies
+        ? `${t('topics.deleted')} ${res.preservedCopies} Käufer hab${res.preservedCopies === 1 ? '' : 'en'} eine eigene Kopie erhalten.`
+        : t('topics.deleted'), 'info');
       this.refresh();
     });
 

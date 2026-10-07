@@ -9,6 +9,7 @@ import { TopicLink } from '../core/entities/topic-link.entity';
 import { TagsService } from '../tags/tags.service';
 import { ShopOffer } from '../core/entities/shop-offer.entity';
 import { UseGrant } from '../core/entities/use-grant.entity';
+import { ShopService } from '../shop/shop.service';
 import { School } from '../core/entities/school.entity';
 import { baseUrl, renderQr } from '../core/share/link-url';
 import * as crypto from 'crypto';
@@ -26,6 +27,7 @@ function withoutUploadTarget<T>(m: T): T {
 @Injectable()
 export class TopicsService {
   constructor(
+    private readonly shop: ShopService,
     @InjectRepository(LearningTopic)
     private readonly topicRepo: Repository<LearningTopic>,
     @InjectRepository(LearningModule)
@@ -125,6 +127,7 @@ export class TopicsService {
         foreignModuleCount: modules.length - own,
         foreignCreators,
         useCount: grants.filter((g) => g.topicId === t.id).length,
+        paidUseCount: grants.filter((g) => g.topicId === t.id && g.pricePaid > 0).length,
         creatorOffer: offerOf('creator'),
         buyerShare: offerOf('buyer'),
       };
@@ -653,11 +656,14 @@ export class TopicsService {
   }
 
   /**
-   * Löscht ein Thema. Wer es per "Use" verwendet, verliert es damit auch –
-   * die Oberfläche warnt vorher (siehe `useCount` in findAll).
+   * Löscht ein Thema. Wer für die Nutzung bezahlt hat, bekommt vorher eine
+   * eigene Kopie (ShopService.preservePaidUse); kostenlose Nutzungsrechte
+   * verfallen. Die Oberfläche warnt vorher (useCount, paidUseCount).
    */
   async remove(id: string, user: any) {
     const topic = await this.findOneFor(id, user, 'owner');
+    // Erst sichern, dann löschen – scheitert das Kopieren, bleibt alles stehen.
+    const preservedCopies = await this.shop.preservePaidUse(id);
     if (topic.modules && topic.modules.length > 0) {
       await this.moduleRepo.remove(topic.modules);
     }
@@ -669,7 +675,7 @@ export class TopicsService {
     const grants = await this.grantRepo.count({ where: { topicId: id } });
     await this.grantRepo.delete({ topicId: id });
     await this.topicRepo.remove(topic);
-    return { success: true, revokedUseGrants: grants };
+    return { success: true, revokedUseGrants: grants - preservedCopies, preservedCopies };
   }
 
   /**

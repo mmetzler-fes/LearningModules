@@ -36,7 +36,8 @@ darunter die eigenen Klassen dieses Jahres.
   und Schuljahr eindeutig.
 - **Schülerlisten sind je Lehrkraft**, nicht schulweit: Nicht jede Lehrkraft
   soll alle Schülerdaten sehen. Zwei Lehrkräfte derselben Klasse pflegen
-  deshalb (vorerst) je eine eigene Liste.
+  deshalb (vorerst) je eine eigene Liste – die sich aber per
+  [Klasse teilen](#klasse-teilen) weitergeben lässt.
 - Zum Schuljahreswechsel eine Klasse **nicht umbenennen**, sondern ins neue
   Jahr übernehmen (kommt mit dem Assistenten, siehe unten) – sonst stehen die
   Ergebnisse des alten Jahres unter dem neuen Namen.
@@ -52,6 +53,13 @@ Schülers entstanden. Die Lehrkraft bestätigt sie (✓), korrigiert sie (✏️
 oder ordnet sie einem Schüler der Liste zu (⇄) – seine Ergebnisse gehen
 dann mit, der Eintrag verschwindet. Eine Namenskorrektur ändert auch den
 Namen in den Ergebnissen des Schülers.
+
+**Arbeit sparen:** Vorerst dürfen Schülerlisten unter Kolleginnen und
+Kollegen geteilt werden, damit nicht jede Lehrkraft dieselbe Klasse neu
+anlegen muss. Mit **👥 Teilen** in der Schülerliste bekommen sie eine eigene
+Kopie von Klasse und Schülerliste (siehe [Klasse teilen](#klasse-teilen)).
+Eine Kopie entsteht nur bei Kolleginnen und Kollegen der eigenen Schule,
+die das Angebot annehmen.
 
 ## Anmeldung über Klassenlinks
 

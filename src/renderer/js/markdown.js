@@ -131,3 +131,22 @@ export function renderMarkdown(md) {
   }
   return out.join('\n');
 }
+
+/**
+ * Nur ein Abschnitt: von der Überschrift mit diesem Anker bis zur nächsten
+ * Überschrift derselben oder einer höheren Ebene. Ohne Treffer null.
+ */
+export function sectionOf(md, anchor) {
+  const lines = String(md || '').replace(/\r\n?/g, '\n').split('\n');
+  let start = -1;
+  let level = 0;
+  let inFence = false;
+  for (let i = 0; i < lines.length; i++) {
+    if (/^\s*```/.test(lines[i])) inFence = !inFence;
+    const h = !inFence && /^(#{1,4})\s+(.*)$/.exec(lines[i]);
+    if (!h) continue;
+    if (start < 0 && slug(h[2]) === anchor) { start = i; level = h[1].length; continue; }
+    if (start >= 0 && h[1].length <= level) return lines.slice(start, i).join('\n');
+  }
+  return start >= 0 ? lines.slice(start).join('\n') : null;
+}

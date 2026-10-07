@@ -6,6 +6,7 @@ import { saveRedirectFile } from './contest.js';
 import { pickClass } from './classes.js';
 import { downloadBlob } from '../api.js';
 import { buildUrlShortcut, withPcPlaceholder } from '../lnk.js';
+import { helpHint } from './help-view.js';
 
 // ==================== THEMEN-LINKS ====================
 
@@ -831,7 +832,7 @@ export class LinksView {
     overlay.className = 'confirm-overlay';
     overlay.innerHTML = `
       <div class="import-modules-card quicklink-card">
-        <h3>🏆 Quiz-Arena – ${escapeHtml(res.name)}</h3>
+        <h3>🏆 Quiz-Arena – ${escapeHtml(res.name)} ${helpHint('lernbegleitung-und-quiz-arena#quiz-arena', 'Hilfe: Quiz-Arena')}</h3>
 
         <div class="form-group">
           <label>1. Wartebereich öffnen (für dich, z. B. am Beamer)</label>

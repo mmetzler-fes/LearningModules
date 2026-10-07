@@ -1,5 +1,5 @@
 import { escapeHtml, escapeAttr } from '../utils.js';
-import { renderMarkdown } from '../markdown.js';
+import { renderMarkdown, sectionOf } from '../markdown.js';
 
 // ==================== HILFE ====================
 
@@ -79,4 +79,59 @@ export class HelpView {
       this.box.querySelector(`#help-${CSS.escape(a.dataset.anchor)}`)?.scrollIntoView({ block: 'start' });
     }
   }
+}
+
+/**
+ * Hilfe an Ort und Stelle: Ein Element mit data-help="datei#anker" öffnet
+ * den Abschnitt in einem Fenster über der Seite – auch über Dialogen, damit
+ * dort nichts verloren geht. Von dort führt ein Link zur ganzen Seite.
+ */
+export async function openHelpPopup(app, ref) {
+  const [name, anchor = ''] = String(ref || '').split('#');
+  const overlay = document.createElement('div');
+  overlay.className = 'confirm-overlay help-popup-overlay';
+  overlay.innerHTML = `
+    <div class="import-modules-card help-popup" role="dialog" aria-label="Hilfe">
+      <div class="help-popup-body"><p class="hint">Wird geladen …</p></div>
+      <div class="confirm-actions">
+        <button type="button" class="btn btn-secondary btn-full">📖 Ganze Hilfeseite</button>
+        <button type="button" class="btn btn-primary btn-close">Schließen</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+  const close = () => { overlay.remove(); document.removeEventListener('keydown', onKey, true); };
+  const onKey = (e) => { if (e.key === 'Escape') { e.stopPropagation(); close(); } };
+  document.addEventListener('keydown', onKey, true);
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+  overlay.querySelector('.btn-close').addEventListener('click', close);
+  overlay.querySelector('.btn-full').addEventListener('click', () => {
+    close();
+    // Offene Dialoge darunter schließen, die Hilfeseite ersetzt sie.
+    document.querySelectorAll('.confirm-overlay').forEach((o) => (o.id ? o.classList.add('hidden') : o.remove()));
+    app.navigateToView('teacher-help');
+    app.helpView.showPage(name, anchor);
+  });
+
+  const body = overlay.querySelector('.help-popup-body');
+  const page = await app.api.getHelpPage(name).catch(() => null);
+  if (!page || !page.markdown) {
+    body.innerHTML = `<p class="login-error">${escapeHtml(page?.message || 'Diese Hilfe ist nicht verfügbar.')}</p>`;
+    return;
+  }
+  const md = (anchor && sectionOf(page.markdown, anchor)) || page.markdown;
+  body.innerHTML = `<p class="hint help-popup-source">📖 ${escapeHtml(page.title || '')}</p>
+    <article class="help-article help-article-compact">${renderMarkdown(md)}</article>`;
+  // Verweise innerhalb des Fensters: andere Hilfeseiten im selben Fenster öffnen.
+  body.addEventListener('click', (e) => {
+    const a = e.target.closest('a[data-doc], a[data-anchor]');
+    if (!a) return;
+    e.preventDefault();
+    close();
+    openHelpPopup(app, `${a.dataset.doc || name}#${a.dataset.anchor || ''}`);
+  });
+}
+
+/** Ein kleines ❓, das auf einen Hilfeabschnitt verweist (für HTML-Schablonen). */
+export function helpHint(ref, title = 'Hilfe zu diesem Bereich') {
+  return `<button type="button" class="help-hint" data-help="${escapeAttr(ref)}" title="${escapeAttr(title)}" aria-label="${escapeAttr(title)}">?</button>`;
 }

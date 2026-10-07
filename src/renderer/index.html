@@ -306,9 +306,10 @@
         <div class="topic-actions-bar">
           <button class="btn btn-primary" id="btnNewTopic" data-i18n="topics.new">➕ Neues Lernthema</button>
           <button class="btn btn-secondary" id="btnImportTopic" data-i18n="topics.import"
-            title="JSON-Datei oder verschlüsselter Export (.lmenc)">📥 Thema importieren</button>
+            title="JSON-Datei, Moodle-XML oder verschlüsselter Export (.lmenc)">📥 Thema importieren</button>
           <button class="btn btn-secondary" id="btnImportH5p">📦 H5P importieren</button>
           <button class="btn btn-secondary" id="btnExportH5p" disabled title="Thema als H5P exportieren">📦 H5P exportieren</button>
+          <button type="button" class="help-hint" data-help="moodle-und-h5p#einlesen" title="Hilfe: Themen einlesen (JSON, Moodle-XML, H5P)" aria-label="Hilfe: Themen einlesen (JSON, Moodle-XML, H5P)">?</button>
         </div>
         <div class="tag-filter-bar">
           <input type="text" id="topicTagSearch" class="search-input" placeholder="Tags suchen, z. B. Arduino…" />
@@ -488,7 +489,7 @@
       <!-- Teacher: Klassenergebnisse -->
       <section class="view" id="view-teacher-class-results">
         <div class="view-header">
-          <h2>📈 Klassenergebnisse</h2>
+          <h2>📈 Klassenergebnisse <button type="button" class="help-hint" data-help="klassen-und-schuljahr#klassenergebnisse" title="Hilfe zu diesem Bereich" aria-label="Hilfe zu diesem Bereich">?</button></h2>
           <p class="subtitle">Ergebnisse über Klassenlinks, nach Klasse und Schüler. Ergebnisse ohne Klasse stehen
             weiter unter <strong>📊 Ergebnisse</strong>.</p>
         </div>
@@ -528,7 +529,7 @@
       <!-- Teacher: Schülerfreigaben (intern: Themen-Links) -->
       <section class="view" id="view-teacher-links">
         <div class="view-header">
-          <h2>🔗 Schülerfreigaben</h2>
+          <h2>🔗 Schülerfreigaben <button type="button" class="help-hint" data-help="themen-links" title="Hilfe zu diesem Bereich" aria-label="Hilfe zu diesem Bereich">?</button></h2>
           <p class="subtitle">Unter <strong>Themen</strong> legst du fest, welche Aufgaben drankommen und in welchem Modus
             gearbeitet wird. <strong>🔗 Link &amp; QR</strong> fragt nach der Klasse und legt den Link unter
             <strong>Klassen</strong> ab – Ergebnisse darüber stehen dann unter der Klasse.</p>
@@ -654,7 +655,7 @@
       <!-- Teacher: Lernbegleiter (Eule) und Tusch für die Quiz-Arena -->
       <section class="view" id="view-teacher-companion">
         <div class="view-header">
-          <h2>🦉 Lernbegleiter</h2>
+          <h2>🦉 Lernbegleiter <button type="button" class="help-hint" data-help="lernbegleitung-und-quiz-arena#lernbegleiter-einstellen" title="Hilfe zu diesem Bereich" aria-label="Hilfe zu diesem Bereich">?</button></h2>
           <p class="subtitle">Die Lerneule kommentiert in der <strong>Lernbegleitung</strong> jeden Versuch.
             Hier legst du ihre Kommentare fest, wie viele Joker es gibt und wie lange die Denkpause nach
             dem Raten dauert – und welcher Tusch in der <strong>Quiz-Arena</strong> die Sieger feiert.</p>
@@ -674,7 +675,7 @@
       <!-- Teacher: KI-Prompt-Generator -->
       <section class="view" id="view-teacher-ai-prompt">
         <div class="view-header">
-          <h2>🤖 KI-Prompt für ein neues Lernthema</h2>
+          <h2>🤖 KI-Prompt für ein neues Lernthema <button type="button" class="help-hint" data-help="ki-prompt" title="Hilfe zu diesem Bereich" aria-label="Hilfe zu diesem Bereich">?</button></h2>
           <p class="subtitle">Der Prompt beschreibt der KI das Importformat genau. Ihre Antwort als <code>.json</code> speichern
             und unter <strong>🏠 LernModule → 📥 Thema importieren</strong> einlesen. Alle angebotenen Typen sind automatisch
             bewertbar – sie laufen in Quiz, Lernbegleitung und Quiz-Arena. Deine Angaben merkt sich der Browser.</p>
@@ -685,7 +686,7 @@
       <!-- Teacher: Klassen -->
       <section class="view" id="view-teacher-classes">
         <div class="view-header">
-          <h2>🏫 Klassen</h2>
+          <h2>🏫 Klassen <button type="button" class="help-hint" data-help="klassen-und-schuljahr" title="Hilfe zu diesem Bereich" aria-label="Hilfe zu diesem Bereich">?</button></h2>
           <p class="subtitle">Deine Klassen je Schuljahr mit ihren Schülerlisten. Die Listen siehst nur du.
             Schüler kommen hinzu, wenn sie sich über einen Klassenlink anmelden, oder du liest sie aus dem
             SchülerLernTool ein (Eigenschaften → Klassen für LearningModules). Mit <strong>🔒 strikt</strong> kommt
@@ -699,6 +700,7 @@
           <button class="btn btn-secondary" id="btnImportClasses"
             title="Export „Klassen für LearningModules“ aus dem SchülerLernTool oder eine Tabelle (LibreOffice, Excel, CSV)">📥 Klassen einlesen</button>
           <button class="btn btn-secondary" id="btnClassesTemplate" title="Leere Tabelle mit den passenden Spalten – je Klasse ein Blatt">📄 Vorlage</button>
+          <button type="button" class="help-hint" data-help="klassen-und-schuljahr#klassen-einlesen-schuelerlerntool" title="Hilfe: Klassen einlesen" aria-label="Hilfe: Klassen einlesen">?</button>
         </div>
         <div id="classesNotices"></div>
         <div id="classesList" class="links-list"></div>
@@ -1077,7 +1079,7 @@
           </div>
 
           <div class="settings-group" style="margin-top:24px;">
-            <h3>☁️ Automatisches Backup (WebDAV / Nextcloud)</h3>
+            <h3>☁️ Automatisches Backup (WebDAV / Nextcloud) <button type="button" class="help-hint" data-help="shop-und-rechte#automatisches-backup-in-die-cloud-webdav-nextcloud" title="Hilfe zu diesem Bereich" aria-label="Hilfe zu diesem Bereich">?</button></h3>
             <p class="hint">Legt das verschlüsselte Backup regelmäßig in einem Cloud-Ordner ab und behält dort nur die
               neuesten. Ältere werden erst gelöscht, wenn das neue sicher angekommen ist.
               <strong>Nextcloud:</strong> Die WebDAV-Adresse steht in der Dateiansicht unten links unter
@@ -1211,7 +1213,7 @@
   <!-- Themen-Link versenden: QR-Code und URL -->
   <div id="linkShareOverlay" class="confirm-overlay hidden">
     <div class="import-modules-card quicklink-card" id="linkShareCard">
-      <h3 id="linkShareTitle">🔗 Schülerfreigabe – Link für Schüler</h3>
+      <h3><span id="linkShareTitle">🔗 Schülerfreigabe – Link für Schüler</span> <button type="button" class="help-hint" data-help="themen-links#versenden-immer-fuer-eine-klasse" title="Hilfe zu diesem Bereich" aria-label="Hilfe zu diesem Bereich">?</button></h3>
       <p class="hint" id="linkShareInfo"></p>
       <p class="login-error hidden" id="linkShareWarning"></p>
 
@@ -1238,6 +1240,7 @@
         <button type="button" class="btn btn-secondary" id="btnPrintLinkShare">🖨 Drucken</button>
         <button type="button" class="btn btn-secondary" id="btnSaveLinkShareLnk"
           title="Windows-Verknüpfung zum Verteilen: öffnet den Link per Doppelklick und meldet, wenn Windows es zulässt, den Rechnernamen mit">💾 Start-Link (.lnk)</button>
+        <button type="button" class="help-hint" data-help="themen-links#start-link-lnk-und-rechnername" title="Hilfe: Start-Link und Rechnername" aria-label="Hilfe: Start-Link und Rechnername">?</button>
         <button type="button" class="btn btn-secondary" id="btnRegenLinkShare" title="Alter Link wird ungültig">🔄 Neu</button>
         <button type="button" class="btn btn-danger" id="btnRevokeLinkShare" title="Link abschalten">🚫 Zurückziehen</button>
         <button type="button" class="btn btn-primary" id="btnCloseLinkShare">Fertig</button>

@@ -1,6 +1,7 @@
 import { escapeHtml, escapeAttr, showImportReport } from '../utils.js';
 import { pickClass } from './classes.js';
 import { TagFilter, TagPicker, renderAreaGroups, orderByArea, chipHtml } from './tags.js';
+import { helpHint } from './help-view.js';
 
 // ==================== TOPICS VIEW ====================
 
@@ -431,7 +432,7 @@ export class TopicsView {
     overlay.className = 'confirm-overlay';
     overlay.innerHTML = `
       <div class="import-modules-card" style="min-width:420px; max-width:560px">
-        <h3>📤 Exportieren: <em>${escapeHtml(info.title)}</em></h3>
+        <h3>📤 Exportieren: <em>${escapeHtml(info.title)}</em> ${helpHint('moodle-und-h5p#ausgeben', 'Hilfe: Exportieren als Moodle-XML und H5P')}</h3>
         ${foreign > 0 && own > 0 ? `<p class="login-error">⚠️ Dieses Thema enthält ${foreign} fremde${foreign === 1 ? 's' : ''} Modul${foreign === 1 ? '' : 'e'}.
           Unverschlüsselt werden nur deine ${own} eigenen exportiert.</p>` : ''}
         ${own === 0 ? '<p class="login-error">Dieses Thema enthält keine von dir verfassten Module – es lässt sich nur verschlüsselt exportieren.</p>' : ''}

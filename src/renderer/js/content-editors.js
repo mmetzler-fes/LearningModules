@@ -1691,7 +1691,8 @@ class ContentEditorManager {
 
     const multiHint = document.createElement('p');
     multiHint.className = 'dnd-group-hint';
-    multiHint.textContent = '🧺 Mehrere richtige Elemente je Zone: Bei den ziehbaren Elementen dieselbe Zone als Ziel wählen – die Zone ist dann richtig, wenn alle drin liegen.';
+    multiHint.innerHTML = '🧺 Mehrere richtige Elemente je Zone: Bei den ziehbaren Elementen dieselbe Zone als Ziel wählen – die Zone ist dann richtig, wenn alle drin liegen. '
+      + '<button type="button" class="help-hint" data-help="moodle-und-h5p#drag-and-drop-mehrere-elemente-je-zone" title="Hilfe: mehrere Elemente je Zone" aria-label="Hilfe">?</button>';
     list.appendChild(multiHint);
 
     const hint = document.createElement('p');

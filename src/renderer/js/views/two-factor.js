@@ -1,5 +1,6 @@
 import { escapeHtml } from '../utils.js';
 import { downloadBlob } from '../api.js';
+import { helpHint } from './help-view.js';
 
 // ==================== ZWEI-FAKTOR-ANMELDUNG ====================
 
@@ -47,7 +48,7 @@ export class TwoFactorDialog {
 
     if (!status.enabled) {
       this._render(`
-        <h3>🔐 Zwei-Faktor-Anmeldung</h3>
+        <h3>🔐 Zwei-Faktor-Anmeldung ${helpHint('zwei-faktor', 'Hilfe: Zwei-Faktor-Anmeldung')}</h3>
         <p>Zusätzlich zum Passwort fragt die Anmeldung nach einem 6-stelligen Code aus einer
           Authenticator-App auf deinem Handy (z. B. Microsoft oder Google Authenticator, FreeOTP, Aegis, 2FAS).
           Ein erbeutetes Passwort allein reicht dann nicht mehr.</p>
@@ -61,7 +62,7 @@ export class TwoFactorDialog {
 
     const since = status.enabledAt ? new Date(status.enabledAt).toLocaleDateString('de-DE') : '';
     this._render(`
-      <h3>🔐 Zwei-Faktor-Anmeldung</h3>
+      <h3>🔐 Zwei-Faktor-Anmeldung ${helpHint('zwei-faktor', 'Hilfe: Zwei-Faktor-Anmeldung')}</h3>
       <p class="hint">Status: <strong>aktiv</strong>${since ? ` seit ${since}` : ''} ·
         noch <strong>${status.recoveryLeft}</strong> Wiederherstellungscode${status.recoveryLeft === 1 ? '' : 's'}</p>
       ${status.recoveryLeft <= 2 ? '<p class="login-error">Nur noch wenige Wiederherstellungscodes – erzeuge neue.</p>' : ''}

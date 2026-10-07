@@ -17,7 +17,7 @@ import { CompanionSettingsView } from './views/companion-settings.js';
 import { ClassesView } from './views/classes.js';
 import { ClassResultsView } from './views/class-results.js';
 import { AiPromptView } from './views/ai-prompt-view.js';
-import { HelpView } from './views/help-view.js';
+import { HelpView, openHelpPopup } from './views/help-view.js';
 
 // ==================== APP COORDINATOR ====================
 
@@ -69,6 +69,15 @@ class App {
     this.classResultsView = new ClassResultsView(this);
     this.aiPromptView = new AiPromptView(this);
     this.helpView = new HelpView(this);
+    // ❓ neben erklärungsbedürftigen Stellen (data-help="datei#anker"), auch in
+    // Dialogen, die erst später entstehen – deshalb ein Lauscher fürs Dokument.
+    document.addEventListener('click', (e) => {
+      const hint = e.target.closest('[data-help]');
+      if (!hint) return;
+      e.preventDefault();
+      e.stopPropagation();
+      openHelpPopup(this, hint.dataset.help);
+    }, true);
   }
 
   showToast(message, type = 'info') {

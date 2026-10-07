@@ -3,6 +3,7 @@ import { readStudentList, readClassLists, needsPassword, WrongPassword } from '.
 import { buildOds, buildXlsx, buildCsv } from '../odf/sheet-templates.js';
 import { downloadBlob } from '../api.js';
 import { renderRetentionNotice } from './results.js';
+import { helpHint } from './help-view.js';
 
 // ==================== KLASSEN ====================
 
@@ -417,6 +418,7 @@ export class ClassesView {
         <div class="link-card-actions">
           <button class="btn btn-secondary btn-sm btn-class-import" title="Klassenliste aus dem SchülerLernTool oder Tabelle (LibreOffice, Excel, CSV) mit Name und Vorname">📥 Schülerliste einlesen</button>
           <button class="btn btn-secondary btn-sm btn-class-template" title="Leere Tabelle mit den passenden Spalten zum Ausfüllen">📄 Vorlage</button>
+          ${helpHint('klassen-und-schuljahr#schuelerliste-einlesen', 'Hilfe: Schülerliste einlesen')}
           <button class="btn btn-secondary btn-sm btn-class-rename">✏️ Umbenennen</button>
           <button class="btn btn-secondary btn-sm btn-class-share" title="Kolleginnen und Kollegen bekommen eine eigene Kopie mit dieser Schülerliste">👥 Teilen</button>
         </div>
@@ -428,6 +430,7 @@ export class ClassesView {
         <span><strong>🔒 strikt</strong> – über Klassenlinks kommt nur hinein, wer eindeutig in der Liste steht
           (Vorname, bei Gleichnamigen dazu der Anfang des Nachnamens). Aus: Unbekannte Namen kommen als
           unbestätigte Einträge dazu – praktisch kurz für Nachzügler.</span>
+        ${helpHint('klassen-und-schuljahr#anmeldung-ueber-klassenlinks', 'Hilfe: Anmeldung über Klassenlinks')}
       </label>
 
       <form class="class-add-student">

@@ -13,6 +13,7 @@ import { isSchoolYear, schoolYearOfDate, compareSchoolYearsDesc, splitSchoolYear
 import { planStudentImport, nameKey, ImportRow } from './student-import';
 import { matchStudent, splitTypedName, normalizeName } from './name-match';
 import { isExpired, deleteAfter, oldestKeptYear } from './retention';
+import { shortName } from './short-name';
 
 const SCHOOL_YEAR_KEY = 'school_year';
 /** Wann der Admin ins aktuelle Schuljahr gewechselt hat: `{ year, at }` – Grundlage der Löschfrist. */
@@ -198,11 +199,19 @@ export class ClassesService implements OnApplicationBootstrap, OnModuleDestroy {
    * unbestätigten Eintrag auf (oder findet den von neulich wieder); die
    * Lehrkraft bestätigt ihn oder führt ihn mit einem Schüler zusammen.
    */
-  async resolveStudent(klasse: StudentClass, typedName: string): Promise<{ studentId: string; name: string }> {
+  /**
+   * `name` ist der volle Name (für Ergebnisse), `shortName` der Vorname plus
+   * nötige Buchstaben des Nachnamens (für Anzeigen wie die Quiz-Arena).
+   */
+  async resolveStudent(klasse: StudentClass, typedName: string): Promise<{ studentId: string; name: string; shortName: string }> {
     const students = await this.studentRepo.find({ where: { classId: klasse.id } });
     const found = matchStudent(typedName, students);
     if (found.kind === 'match') {
-      return { studentId: found.student.id, name: `${found.student.firstName} ${found.student.lastName}`.trim() };
+      return {
+        studentId: found.student.id,
+        name: `${found.student.firstName} ${found.student.lastName}`.trim(),
+        shortName: shortName(found.student, students),
+      };
     }
     if (klasse.strict) {
       throw new ForbiddenException(
@@ -214,14 +223,18 @@ export class ClassesService implements OnApplicationBootstrap, OnModuleDestroy {
     const typed = splitTypedName(typedName);
     const key = normalizeName(`${typed.firstName} ${typed.lastName}`);
     const again = students.find((s) => s.status === 'pending' && normalizeName(`${s.firstName} ${s.lastName}`) === key);
-    if (again) return { studentId: again.id, name: `${again.firstName} ${again.lastName}`.trim() };
+    if (again) return { studentId: again.id, name: `${again.firstName} ${again.lastName}`.trim(), shortName: shortName(again, students) };
     const created = await this.studentRepo.save(
       this.studentRepo.create({
         id: crypto.randomUUID(), classId: klasse.id, firstName: typed.firstName.slice(0, 80),
         lastName: typed.lastName.slice(0, 80), status: 'pending', importId: null,
       }),
     );
-    return { studentId: created.id, name: `${created.firstName} ${created.lastName}`.trim() };
+    return {
+      studentId: created.id,
+      name: `${created.firstName} ${created.lastName}`.trim(),
+      shortName: shortName(created, [...students, created]),
+    };
   }
 
   /**

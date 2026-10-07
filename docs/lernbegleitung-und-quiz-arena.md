@@ -95,7 +95,10 @@ Wie Kahoot, aber mit den eigenen Aufgaben.
    - den **Schüler-Link** mit QR-Code, ebenfalls als Datei speicherbar.
 3. Im Wartebereich steht der QR-Code groß. Schüler scannen, geben ihren Namen
    ein und erscheinen sofort in der Liste. Unpassende Namen entfernt die
-   Lehrkraft mit ✕.
+   Lehrkraft mit ✕. Über einen Klassenlink wird der Name der Schülerliste
+   zugeordnet; angezeigt wird dann nur der **Vorname**, bei gleichen Vornamen
+   in der Klasse mit so vielen Buchstaben des Nachnamens wie nötig („Max S.“).
+   Die Ergebnisliste enthält weiterhin den vollen Namen.
 4. **▶️ Quiz-Arena starten.** Alle bekommen dieselbe Aufgabe gleichzeitig auf
    ihr Gerät; am Beamer stehen die Aufgabe, der Countdown und wie viele schon
    geantwortet haben.

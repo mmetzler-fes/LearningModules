@@ -71,7 +71,13 @@ interface RoundAnswer {
 interface Player {
   id: string;
   secret: string;
+  /** Voller Name – so steht er in den Ergebnissen. */
   name: string;
+  /**
+   * Angezeigter Name: über einen Klassenlink nur der Vorname (bei Bedarf mit
+   * Anfang des Nachnamens), sonst wie eingegeben.
+   */
+  label: string;
   /** Eintrag der Schülerliste (nur über einen Klassenlink). */
   studentId: string | null;
   score: number;
@@ -397,7 +403,7 @@ export class ContestService implements OnModuleDestroy {
     // Nach einem Neuladen derselbe Platz mit denselben Punkten.
     const back = body?.playerId ? s.players.get(body.playerId) : undefined;
     if (back && body.secret && back.secret === body.secret) {
-      return { playerId: back.id, secret: back.secret, name: back.name, linkName: s.linkName };
+      return { playerId: back.id, secret: back.secret, name: back.label, linkName: s.linkName };
     }
     if (body?.playerId && s.kicked.has(body.playerId)) {
       throw new ForbiddenException('Du wurdest von der Lehrkraft aus der Quiz-Arena entfernt.');
@@ -407,23 +413,26 @@ export class ContestService implements OnModuleDestroy {
     if (!name) throw new BadRequestException('Bitte den Namen eingeben.');
     // Klassenlink: Name einem Schüler der Klassenliste zuordnen (strikt: nur so).
     let studentId: string | null = null;
+    let label = name;
     const klasse = await this.classesService.findById(link.classId);
     if (klasse) {
       const who = await this.classesService.resolveStudent(klasse, name);
       studentId = who.studentId;
       name = who.name.slice(0, MAX_NAME);
+      label = who.shortName.slice(0, MAX_NAME) || name;
       if ([...s.players.values()].some((p) => p.studentId === studentId)) {
         throw new ConflictException(`${name} ist schon in der Quiz-Arena – nach einem Neuladen bitte dasselbe Gerät verwenden.`);
       }
     }
-    const taken = [...s.players.values()].some((p) => p.name.toLowerCase() === name.toLowerCase());
-    if (taken) throw new ConflictException(`Der Name „${name}“ ist schon vergeben – bitte z. B. mit Nachnamen ergänzen.`);
+    const taken = [...s.players.values()].some((p) => p.label.toLowerCase() === label.toLowerCase());
+    if (taken) throw new ConflictException(`Der Name „${label}“ ist schon vergeben – bitte z. B. mit Nachnamen ergänzen.`);
     if (s.players.size >= MAX_PLAYERS) throw new ConflictException('Die Quiz-Arena ist voll.');
 
     const player: Player = {
       id: crypto.randomUUID(),
       secret: crypto.randomBytes(16).toString('base64url'),
       name,
+      label,
       studentId,
       score: 0,
       answers: [],
@@ -432,7 +441,7 @@ export class ContestService implements OnModuleDestroy {
     };
     s.players.set(player.id, player);
     this.broadcast(s);
-    return { playerId: player.id, secret: player.secret, name: player.name, linkName: s.linkName };
+    return { playerId: player.id, secret: player.secret, name: player.label, linkName: s.linkName };
   }
 
   private async playerOf(token: string, playerId: string, secret: string): Promise<{ s: Session; p: Player }> {
@@ -633,7 +642,7 @@ export class ContestService implements OnModuleDestroy {
     const list = [...s.players.values()]
       .map((p) => ({
         id: p.id,
-        name: p.name,
+        name: p.label,
         score: p.score,
         lastPoints: s.index >= 0 ? p.answers[s.index]?.points ?? 0 : 0,
       }))
@@ -674,7 +683,7 @@ export class ContestService implements OnModuleDestroy {
       players: [...s.players.values()]
         .map((p) => ({
           id: p.id,
-          name: p.name,
+          name: p.label,
           score: p.score,
           answered: s.index >= 0 && !!p.answers[s.index],
           online: p.streams.size > 0,
@@ -702,7 +711,7 @@ export class ContestService implements OnModuleDestroy {
       answered: !!mine,
       me: {
         id: p.id,
-        name: p.name,
+        name: p.label,
         score: settled ? p.score : p.score - (mine?.points ?? 0),
         rank: settled ? me?.rank || null : null,
         lastPoints: settled ? mine?.points ?? 0 : null,

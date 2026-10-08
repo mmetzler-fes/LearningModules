@@ -105,11 +105,11 @@ export class BrowserApi {
     return this._fetch('/api/auth/me');
   }
 
-  register(email, password, displayName) {
+  register(email, displayName) {
     return fetch('/api/auth/register', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password, displayName }),
+      body: JSON.stringify({ email, displayName }),
     }).then((r) => r.json());
   }
 

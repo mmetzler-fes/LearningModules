@@ -116,7 +116,8 @@ export class SmtpMailService extends MailService {
         `E-Mail:         ${params.to}\n` +
         `Initialpasswort: ${params.password}\n\n` +
         `Bitte melden Sie sich an. Beim ersten Login werden Sie aufgefordert,\n` +
-        `ein eigenes Passwort zu vergeben.\n`,
+        `ein eigenes Passwort zu vergeben.\n\n` +
+        `Falls Sie diesen Zugang nicht erwartet haben, können Sie diese E-Mail ignorieren.\n`,
     );
   }
 

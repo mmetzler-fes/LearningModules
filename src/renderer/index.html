@@ -160,12 +160,11 @@
               <label for="registerDisplayName">Anzeigename</label>
               <input type="text" id="registerDisplayName" placeholder="Vor- und Nachname..." autocomplete="name" />
             </div>
-            <div class="form-group">
-              <label for="registerPassword">Passwort * (mind. 6 Zeichen)</label>
-              <input type="password" id="registerPassword" required placeholder="Passwort..." autocomplete="new-password" />
-            </div>
+            <p class="hint">Du bekommst ein Initialpasswort an diese Adresse – so ist sichergestellt, dass sie dir gehört.
+              Beim ersten Anmelden legst du ein eigenes Passwort fest.</p>
             <p id="registerError" class="login-error hidden">Registrierung fehlgeschlagen.</p>
-            <button type="submit" class="btn btn-primary btn-full">✅ Registrieren</button>
+            <p id="registerMessage" class="hint hidden" style="color:var(--success); font-weight:600;"></p>
+            <button type="submit" class="btn btn-primary btn-full">✉️ Passwort per E-Mail anfordern</button>
           </form>
           <button class="btn btn-secondary btn-full" id="btnBackToLoginFromRegister" style="margin-top:8px;">← Zurück zum Login</button>
         </div>

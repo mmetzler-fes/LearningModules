@@ -10,7 +10,9 @@ Schule. Der Hauptadmin legt Schulen an; Lehrkräfte mit dem Zusatzrecht
   `*.schule.de` inkl. Subdomains, einzelne Adressen).
 - Beim Registrieren, beim Anlegen durch den Admin und bei jedem Login wird
   eine Lehrkraft **ohne Schule** zugeordnet, wenn ihre Adresse auf genau eine
-  Whitelist passt. „Jetzt zuordnen“ macht das sofort für alle bestehenden
+  Whitelist passt. Beim Registrieren ist die Adresse vorher geprüft: Das
+  Initialpasswort kommt per E-Mail (siehe *Benutzerverwaltung →
+  Selbstregistrierung*). „Jetzt zuordnen“ macht das sofort für alle bestehenden
   Konten – mit Vorschau.
 - Passt eine Adresse auf mehrere Whitelists, wird nicht zugeordnet; das Konto
   steht unter „Schulen“ als Konflikt und der Hauptadmin entscheidet.

@@ -75,9 +75,9 @@ export class AuthController {
     return this.twoFactor.disable(req.user.userId, body?.code || '');
   }
 
-  /** Teacher self-registration */
+  /** Selbstregistrierung: Initialpasswort per Mail, keine Anmeldung ohne sie. */
   @Post('register')
-  async register(@Body() body: { email: string; password: string; displayName?: string }) {
+  async register(@Body() body: { email: string; displayName?: string }) {
     return this.authService.registerTeacher(body);
   }
 

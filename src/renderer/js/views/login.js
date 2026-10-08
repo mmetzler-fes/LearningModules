@@ -46,7 +46,7 @@ export class LoginView {
     this._registerInner = document.getElementById('registerForm');
     this._regEmail      = document.getElementById('registerEmail');
     this._regDisplayName = document.getElementById('registerDisplayName');
-    this._regPassword   = document.getElementById('registerPassword');
+    this._regMessage    = document.getElementById('registerMessage');
     this._regError      = document.getElementById('registerError');
     this._btnShowReg    = document.getElementById('btnShowRegister');
     this._btnBackReg    = document.getElementById('btnBackToLoginFromRegister');
@@ -113,6 +113,7 @@ export class LoginView {
         if (this._teacherLoginForm) this._teacherLoginForm.classList.add('hidden');
         if (this._registerForm) this._registerForm.classList.remove('hidden');
         if (this._regError) this._regError.classList.add('hidden');
+        if (this._regMessage) this._regMessage.classList.add('hidden');
       });
     }
     if (this._btnBackReg) {
@@ -545,24 +546,27 @@ export class LoginView {
     return true;
   }
 
+  /**
+   * Registrieren heißt jetzt: Initialpasswort per Mail anfordern. Angemeldet
+   * wird erst mit dem Passwort aus der Mail – so ist die Adresse geprüft.
+   */
   async _onRegister(e) {
     e.preventDefault();
     const email       = this._regEmail ? this._regEmail.value.trim() : '';
-    const password    = this._regPassword ? this._regPassword.value : '';
     const displayName = this._regDisplayName ? this._regDisplayName.value.trim() : '';
-    if (!email || !password) return;
+    if (!email) return;
+    if (this._regError) this._regError.classList.add('hidden');
+    if (this._regMessage) this._regMessage.classList.add('hidden');
     try {
-      const res = await this.app.api.register(email, password, displayName);
-      if (res.token) {
-        this.app.authStore.setToken(res.token, false);
-        this.app.state.currentUser = {
-          name: res.displayName || res.username || email, role: 'teacher', id: res.id, username: email, email, ...schoolFields(res),
-        };
-        if (this._registerForm) this._registerForm.classList.add('hidden');
-        if (this._teacherLoginForm) this._teacherLoginForm.classList.remove('hidden');
-        await this.enterApp();
-      } else {
-        if (this._regError) { this._regError.textContent = res.error || 'Registrierung fehlgeschlagen'; this._regError.classList.remove('hidden'); }
+      const res = await this.app.api.register(email, displayName);
+      if (res && res.success) {
+        if (this._regMessage) { this._regMessage.textContent = res.message; this._regMessage.classList.remove('hidden'); }
+        // Gleich zum Anmelden – die Adresse steht schon drin.
+        if (this._adminUsername) this._adminUsername.value = email;
+        this._registerInner?.reset();
+      } else if (this._regError) {
+        this._regError.textContent = res?.message || res?.error || 'Registrierung fehlgeschlagen';
+        this._regError.classList.remove('hidden');
       }
     } catch (_) {
       if (this._regError) { this._regError.textContent = 'Server nicht erreichbar'; this._regError.classList.remove('hidden'); }
@@ -622,7 +626,7 @@ export class LoginView {
     if (this._forgotMsg)         { this._forgotMsg.textContent = ''; this._forgotMsg.classList.add('hidden'); }
     if (this._regEmail)          this._regEmail.value = '';
     if (this._regDisplayName)    this._regDisplayName.value = '';
-    if (this._regPassword)       this._regPassword.value = '';
+    if (this._regMessage)        this._regMessage.classList.add('hidden');
     if (this._regError)          this._regError.classList.add('hidden');
   }
 

@@ -66,6 +66,24 @@ Die Rolle lässt sich in der Benutzerliste über das Auswahlfeld ändern
 **Achtung:** Eine Rollenänderung wirkt erst, wenn der Betroffene sich neu
 anmeldet. Sein bestehendes Token trägt die alte Rolle bis zu 24 Stunden.
 
+## Selbstregistrierung von Lehrkräften
+
+Auf der Anmeldeseite unter **Registrieren** gibt eine Lehrkraft ihre
+E-Mail-Adresse (und auf Wunsch einen Namen) ein. Ein Passwort wählt sie dabei
+**nicht**: Sie bekommt ein **Initialpasswort per E-Mail** und meldet sich damit
+an; beim ersten Login legt sie ein eigenes fest. So ist die Adresse geprüft –
+wer die Mail nicht bekommt, kommt nicht hinein.
+
+- Die globale Whitelist/Blacklist entscheidet, ob registriert werden darf.
+- Passt die Adresse auf die Whitelist genau einer **Schule**, wird das Konto
+  gleich dieser Schule zugeordnet – unbedenklich, weil es erst mit dem
+  Passwort aus der Mail nutzbar ist.
+- **Ohne Mailversand** (`MAIL_TRANSPORT` nicht `smtp`) gibt es keine
+  Selbstregistrierung; Konten legt dann der Admin an.
+- Ist die Adresse schon registriert, kommt dieselbe Antwort, aber keine Mail –
+  so lässt sich nicht ausprobieren, wer ein Konto hat. Wer sein Passwort nicht
+  mehr weiß, nutzt **Passwort vergessen**.
+
 ## Whitelist / Blacklist
 
 Erlaubte Schreibweisen für Einträge:

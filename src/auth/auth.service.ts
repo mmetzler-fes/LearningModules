@@ -202,29 +202,52 @@ export class AuthService {
 
   // ---- Teacher self-registration ----
 
-  async registerTeacher(data: { email: string; password: string; displayName?: string }) {
-    if (!data.email || !data.email.includes('@')) {
+  /**
+   * Selbstregistrierung einer Lehrkraft. Das Passwort wählt sie nicht selbst:
+   * Sie bekommt ein Initialpasswort per Mail – erst wer die Mail erhält, kann
+   * sich anmelden. So ist die Adresse geprüft, bevor das Konto genutzt wird,
+   * und die Zuordnung zur Schule über deren Whitelist ist unbedenklich.
+   *
+   * Ohne Mailversand gibt es keine Selbstregistrierung (ein Passwort auf dem
+   * Bildschirm würde die Prüfung aushebeln). Für bereits registrierte
+   * Adressen kommt dieselbe Antwort, damit sich nicht ausprobieren lässt,
+   * wer ein Konto hat – verschickt wird dann nichts ("Passwort vergessen").
+   */
+  async registerTeacher(data: { email: string; displayName?: string }) {
+    const email = String(data?.email || '').trim();
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       throw new BadRequestException('Gültige E-Mail-Adresse erforderlich.');
     }
-    if (!data.password || data.password.length < 6) {
-      throw new BadRequestException('Passwort muss mindestens 6 Zeichen lang sein.');
-    }
-    await this.checkAllowed(data.email, 'teacher');
+    await this.checkAllowed(email, 'teacher');
+    const done = {
+      success: true,
+      message: `Falls die Adresse noch nicht registriert ist, kommt gleich eine E-Mail mit einem Initialpasswort an ${email}. `
+        + 'Damit anmelden – danach legst du ein eigenes Passwort fest.',
+    };
 
-    const existing = await this.userRepo.findOne({ where: { email: data.email } });
-    if (existing) throw new BadRequestException('Diese E-Mail-Adresse ist bereits registriert.');
+    const existing = await this.userRepo.findOne({ where: { email } });
+    if (existing) return done;
 
-    const user = this.userRepo.create({
+    const password = this.generatePassword();
+    const displayName = String(data?.displayName || '').trim() || email;
+    const saved = await this.userRepo.save(this.userRepo.create({
       id: crypto.randomUUID(),
-      email: data.email,
-      username: data.email,
-      passwordHash: this.hashPassword(data.password),
+      email,
+      username: email,
+      passwordHash: this.hashPassword(password),
       role: 'teacher',
-      displayName: data.displayName || data.email,
-    });
-    const saved = await this.userRepo.save(user);
+      displayName,
+      mustChangePassword: true,
+    }));
+    const mail = await this.mailService.sendInitialPassword({ to: email, displayName, password, role: 'teacher' });
+    if (!mail.delivered) {
+      await this.userRepo.remove(saved);
+      throw new BadRequestException(
+        'Registrieren geht nur mit E-Mail-Versand, und der ist hier (noch) nicht eingerichtet. Bitte wende dich an den Admin.',
+      );
+    }
     await this.schools.autoAssign(saved);
-    return await this.buildSession(saved);
+    return done;
   }
 
   // ---- Admin legt einen Benutzer an (Lehrer oder Admin) ----

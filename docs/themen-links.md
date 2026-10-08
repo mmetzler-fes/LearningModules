@@ -39,6 +39,12 @@ Bei den Inhalten gibt es zwei Wege:
   Modul Submodule, lassen sich auch die einzeln wählen. Ist nur das
   Elternmodul angehakt, gilt das ganze Modul.
 
+Ist das ganze Thema angehakt (so beginnen Freigaben aus dem
+[Quick-Link](quick-link.md)), sind unter *Module zeigen* alle Module
+angehakt. Ein Klick auf ein Modul wechselt zur Einzelauswahl: Das Modul fällt
+heraus, alle anderen bleiben gewählt. Später ergänzte Module kommen dann nicht
+mehr automatisch dazu.
+
 ## Die Modi
 
 | Modus | Verhalten | Ergebnis |

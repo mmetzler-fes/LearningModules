@@ -625,6 +625,20 @@ export class LinksView {
         return this._selection.get(topic.id);
       };
 
+      // Ausgegraute Module bei "ganzes Thema" wirkten wie gesperrt – gerade
+      // bei Freigaben aus dem Quick-Link, die immer das ganze Thema enthalten.
+      // Ein Klick auf ein Modul wechselt deshalb zur Einzelauswahl mit allen
+      // Modulen; danach greift die Änderung.
+      const moduleEntry = () => {
+        const cur = ensureEntry();
+        if (cur.all) {
+          cur.all = false;
+          cur.moduleIds = new Set(modules.map((m) => m.id));
+          chkAll.checked = false;
+        }
+        return cur;
+      };
+
       const renderModules = () => {
         modulesBox.innerHTML = '';
         const sel = this._selection.get(topic.id);
@@ -635,13 +649,13 @@ export class LinksView {
           row.innerHTML = `
             <label class="link-tree-check">
               <input type="checkbox" class="chk-module" value="${escapeAttr(root.id)}"
-                ${sel?.all || sel?.moduleIds.has(root.id) ? 'checked' : ''} ${sel?.all ? 'disabled' : ''} />
+                ${sel?.all || sel?.moduleIds.has(root.id) ? 'checked' : ''} />
               <span>${escapeHtml(root.title)}</span>
             </label>
             ${kids.length ? '<div class="link-tree-submodules"></div>' : ''}`;
 
           row.querySelector('.chk-module').addEventListener('change', (e) => {
-            const cur = ensureEntry();
+            const cur = moduleEntry();
             if (e.target.checked) cur.moduleIds.add(root.id);
             else cur.moduleIds.delete(root.id);
             this._updateSelectionSummary();
@@ -653,10 +667,10 @@ export class LinksView {
             sub.className = 'link-tree-check link-tree-subcheck';
             sub.innerHTML = `
               <input type="checkbox" class="chk-submodule" value="${escapeAttr(kid.id)}"
-                ${sel?.all || sel?.moduleIds.has(kid.id) ? 'checked' : ''} ${sel?.all ? 'disabled' : ''} />
+                ${sel?.all || sel?.moduleIds.has(kid.id) ? 'checked' : ''} />
               <span>${escapeHtml(kid.title)}</span>`;
             sub.querySelector('input').addEventListener('change', (e) => {
-              const cur = ensureEntry();
+              const cur = moduleEntry();
               if (e.target.checked) cur.moduleIds.add(kid.id);
               else cur.moduleIds.delete(kid.id);
               this._updateSelectionSummary();

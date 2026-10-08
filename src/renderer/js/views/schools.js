@@ -1,5 +1,6 @@
 import { escapeHtml, escapeAttr } from '../utils.js';
 import { TagsView } from './tags.js';
+import { bindPasswordChoice } from './admin.js';
 
 // ==================== SCHULEN ====================
 
@@ -421,8 +422,8 @@ export class MySchoolView {
     overlay.innerHTML = `
       <form class="import-modules-card" style="min-width:360px; max-width:460px">
         <h3>➕ Lehrkraft anlegen</h3>
-        <p class="hint">Das Konto gehört danach zu „${escapeHtml(this._data?.name || 'eurer Schule')}“. Das
-          Initialpasswort wird per E-Mail verschickt; beim ersten Login vergibt die Lehrkraft ein eigenes.</p>
+        <p class="hint">Das Konto gehört danach zu „${escapeHtml(this._data?.name || 'eurer Schule')}“. Beim ersten
+          Login vergibt die Lehrkraft ein eigenes Passwort.</p>
         <div class="form-group">
           <label>E-Mail-Adresse *</label>
           <input type="email" class="nt-email" required placeholder="name@schule.de" autocomplete="off" />
@@ -431,6 +432,14 @@ export class MySchoolView {
           <label>Anzeigename</label>
           <input type="text" class="nt-name" placeholder="z. B. Max Mustermann" autocomplete="off" />
         </div>
+        <div class="form-group pw-choice">
+                <label>Initialpasswort</label>
+                <label class="tag-filter-mode"><input type="radio" name="ntPwMode" value="mail" checked /> <span>✉️ automatisch erzeugen und per E-Mail senden</span></label>
+                <label class="tag-filter-mode"><input type="radio" name="ntPwMode" value="manual" /> <span>🔑 selbst festlegen und persönlich übergeben (z. B. Praktikanten ohne eigene E-Mail)</span></label>
+                <input type="text" class="pw-manual hidden" id="ntPassword" minlength="8" placeholder="mindestens 8 Zeichen" autocomplete="off" />
+                <p class="hint pw-manual-hint hidden">Ohne erreichbare Adresse eine Platzhalter-Adresse als Anmeldenamen verwenden, z. B. praktikant1@schule.de.
+                  Beim ersten Login legt die Person ein eigenes Passwort fest. Vergessene Passwörter setzt der Admin zurück.</p>
+              </div>
         <div class="confirm-actions">
           <button type="submit" class="btn btn-primary">Anlegen</button>
           <button type="button" class="btn btn-secondary nt-cancel">Abbrechen</button>
@@ -439,11 +448,21 @@ export class MySchoolView {
     document.body.appendChild(overlay);
     const close = () => overlay.remove();
     overlay.querySelector('.nt-cancel').addEventListener('click', close);
-    overlay.querySelector('form').addEventListener('submit', async (e) => {
+    const form = overlay.querySelector('form');
+    bindPasswordChoice(form);
+    form.addEventListener('submit', async (e) => {
       e.preventDefault();
+      const manual = form.querySelector('input[name="ntPwMode"]:checked')?.value === 'manual';
+      const password = form.querySelector('.pw-manual').value.trim();
+      if (manual && password.length < 8) {
+        this.app.showToast('Bitte ein Initialpasswort mit mindestens 8 Zeichen festlegen.', 'error');
+        return;
+      }
       const res = await this.app.api.mySchoolCreateTeacher({
         email: overlay.querySelector('.nt-email').value.trim(),
         displayName: overlay.querySelector('.nt-name').value.trim(),
+        sendMail: !manual,
+        password: manual ? password : undefined,
       });
       if (failed(res) || !res.id) {
         this.app.showToast('Fehler: ' + (res?.message || 'Anlegen fehlgeschlagen'), 'error');

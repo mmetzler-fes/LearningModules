@@ -327,8 +327,8 @@ export class BrowserApi {
       body: JSON.stringify({ role }),
     });
   }
-  resetUserPassword(userId) {
-    return this._fetch(`/api/admin/users/${userId}/reset-password`, { method: 'POST' });
+  resetUserPassword(userId, sendMail = true) {
+    return this._fetch(`/api/admin/users/${userId}/reset-password`, { method: 'POST', body: JSON.stringify({ sendMail }) });
   }
   getAdminWhitelistBlacklist() { return this._fetch('/api/admin/whitelist-blacklist'); }
   saveAdminWhitelistBlacklist(data) {

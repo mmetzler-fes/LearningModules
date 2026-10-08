@@ -112,7 +112,7 @@ export class AdminController {
   @Post('users')
   async createUser(
     @Request() req: any,
-    @Body() body: { email: string; role?: RoleLevel | UserRole; displayName?: string; schoolId?: string | null },
+    @Body() body: { email: string; role?: RoleLevel | UserRole; displayName?: string; schoolId?: string | null; password?: string; sendMail?: boolean },
   ) {
     this.requireAdmin(req);
     const level: RoleLevel = body.role === 'admin' ? 'admin' : body.role === 'schooladmin' ? 'schooladmin' : 'teacher';
@@ -124,6 +124,8 @@ export class AdminController {
       email: body.email,
       role: level === 'admin' ? 'admin' : 'teacher',
       displayName: body.displayName,
+      password: body.sendMail === false ? body.password : undefined,
+      sendMail: body.sendMail !== false,
     });
     if (body.schoolId) {
       await this.schools.assign(res.id, { schoolId: body.schoolId, isSchoolAdmin: level === 'schooladmin' });
@@ -133,9 +135,9 @@ export class AdminController {
 
   // ---- Reset a user's password to a new generated one ----
   @Post('users/:id/reset-password')
-  async resetUserPassword(@Request() req: any, @Param('id') id: string) {
+  async resetUserPassword(@Request() req: any, @Param('id') id: string, @Body() body: { sendMail?: boolean }) {
     this.requireAdmin(req);
-    return this.authService.resetUserPassword(id);
+    return this.authService.resetUserPassword(id, { sendMail: body?.sendMail !== false });
   }
 
   // ---- Rollenstufe ändern: Lehrer, Schuladmin (+ Lehrer), Admin (alle Rechte) ----

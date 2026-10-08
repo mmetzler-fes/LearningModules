@@ -23,7 +23,7 @@ export class MySchoolTeachersController {
   ) {}
 
   @Post()
-  async create(@Request() req: any, @Body() body: { email?: string; displayName?: string }) {
+  async create(@Request() req: any, @Body() body: { email?: string; displayName?: string; password?: string; sendMail?: boolean }) {
     const school = await this.schools.requireMayCreateTeachers(req.user);
     const email = String(body?.email || '').trim().toLowerCase();
     if (!email) throw new BadRequestException('Bitte eine E-Mail-Adresse angeben.');
@@ -31,6 +31,8 @@ export class MySchoolTeachersController {
       email,
       role: 'teacher',
       displayName: String(body?.displayName || '').trim() || undefined,
+      password: body?.sendMail === false ? String(body?.password || '') : undefined,
+      sendMail: body?.sendMail !== false,
     });
     // Fest der eigenen Schule zuordnen – auch wenn die Whitelist auf eine
     // andere passen würde.

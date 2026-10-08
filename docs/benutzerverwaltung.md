@@ -66,6 +66,24 @@ Die Rolle lässt sich in der Benutzerliste über das Auswahlfeld ändern
 **Achtung:** Eine Rollenänderung wirkt erst, wenn der Betroffene sich neu
 anmeldet. Sein bestehendes Token trägt die alte Rolle bis zu 24 Stunden.
 
+## Initialpasswort selbst festlegen (z. B. Praktikanten)
+
+Beim Anlegen (Admin unter *Benutzer*, Schuladmin unter *Meine Schule*) gibt es
+zwei Wege für das Initialpasswort:
+
+- **✉️ automatisch erzeugen und per E-Mail senden** – der Normalfall.
+- **🔑 selbst festlegen und persönlich übergeben** – für Personen ohne eigene
+  E-Mail-Adresse, etwa Schulpraktikanten. Das Passwort (mindestens 8 Zeichen)
+  legt, wer anlegt, selbst fest; es wird **keine** E-Mail verschickt. Als
+  Anmeldename dient eine Platzhalter-Adresse, z. B. `praktikant1@schule.de`
+  (sie muss zur Whitelist passen). Beim ersten Login legt die Person ein
+  eigenes Passwort fest.
+
+**Passwort vergessen?** An eine Platzhalter-Adresse kommt keine Mail an.
+Deshalb fragt *Passwort zurücksetzen* beim Admin: **✉️ Per E-Mail senden**
+oder **👁 Anzeigen statt senden** – dann erscheint das neue Passwort einmalig
+zum persönlichen Weitergeben, und es geht keine Mail hinaus.
+
 ## Selbstregistrierung von Lehrkräften
 
 Auf der Anmeldeseite unter **Registrieren** gibt eine Lehrkraft ihre

@@ -259,7 +259,7 @@ export class AuthService {
    * NICHT auf. Ohne Versandweg wird es einmalig zurückgegeben, damit der Admin
    * es dem neuen Benutzer persönlich übergeben kann.
    */
-  async createUser(data: { email: string; role: UserRole; displayName?: string; password?: string }) {
+  async createUser(data: { email: string; role: UserRole; displayName?: string; password?: string; sendMail?: boolean }) {
     if (!data.email || !data.email.includes('@')) {
       throw new BadRequestException('Gültige E-Mail-Adresse erforderlich.');
     }
@@ -276,6 +276,12 @@ export class AuthService {
     if (supplied && supplied.length < 8) {
       throw new BadRequestException('Ein vorgegebenes Passwort braucht mindestens 8 Zeichen.');
     }
+    // Ohne E-Mail (z. B. Praktikanten mit Platzhalter-Adresse): Das
+    // Passwort legt, wer anlegt, selbst fest und übergibt es persönlich.
+    const withoutMail = data.sendMail === false;
+    if (withoutMail && !supplied) {
+      throw new BadRequestException('Ohne E-Mail bitte ein Initialpasswort festlegen (mindestens 8 Zeichen).');
+    }
     const initialPassword = supplied || this.generatePassword();
     const displayName = data.displayName || data.email;
     const user = this.userRepo.create({
@@ -289,6 +295,13 @@ export class AuthService {
     });
     const saved = await this.userRepo.save(user);
     await this.schools.autoAssign(saved);
+
+    if (withoutMail) {
+      return {
+        id: saved.id, email: saved.email, role: saved.role, displayName: saved.displayName,
+        mailSent: false, passwordSetByCreator: true,
+      };
+    }
 
     const mail = await this.mailService.sendInitialPassword({
       to: saved.email,
@@ -309,8 +322,12 @@ export class AuthService {
     };
   }
 
-  /** Bestehendes Konto auf ein neues Initialpasswort zurücksetzen (Admin). */
-  async resetUserPassword(userId: string) {
+  /**
+   * Bestehendes Konto auf ein neues Initialpasswort zurücksetzen (Admin).
+   * Mit sendMail === false wird nichts verschickt, das Passwort einmalig
+   * angezeigt – für Konten ohne erreichbare Adresse (Praktikanten).
+   */
+  async resetUserPassword(userId: string, opts: { sendMail?: boolean } = {}) {
     const user = await this.userRepo.findOne({ where: { id: userId } });
     if (!user) throw new BadRequestException('Benutzer nicht gefunden.');
 
@@ -318,6 +335,13 @@ export class AuthService {
     user.passwordHash = this.hashPassword(newPassword);
     user.mustChangePassword = true;
     await this.userRepo.save(user);
+
+    if (opts.sendMail === false) {
+      return {
+        id: user.id, email: user.email, displayName: user.displayName,
+        mailSent: false, mailInfo: 'Anzeige statt E-Mail gewählt', initialPassword: newPassword,
+      };
+    }
 
     const mail = await this.mailService.sendPasswordReset({
       to: user.email,

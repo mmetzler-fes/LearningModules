@@ -64,25 +64,35 @@ export class AdminView {
     if (btnCancelUser && userFormOverlay) {
       btnCancelUser.addEventListener('click', () => {
         userFormOverlay.classList.add('hidden');
-        if (userForm) userForm.reset();
+        if (userForm) { userForm.reset(); syncPasswordChoice(userForm); }
       });
     }
     if (userForm) {
+      bindPasswordChoice(userForm);
       userForm.addEventListener('submit', async (e) => {
         e.preventDefault();
         const email       = document.getElementById('userFormEmail')?.value.trim();
         const displayName = document.getElementById('userFormDisplayName')?.value.trim();
         const role        = document.getElementById('userFormRole')?.value || 'teacher';
         const schoolId    = document.getElementById('userFormSchool')?.value || null;
+        const manual      = userForm.querySelector('input[name="userFormPwMode"]:checked')?.value === 'manual';
+        const password    = document.getElementById('userFormPassword')?.value || '';
         if (!email) return;
+        if (manual && password.trim().length < 8) {
+          this.app.showToast('Bitte ein Initialpasswort mit mindestens 8 Zeichen festlegen.', 'error');
+          return;
+        }
         if (role === 'schooladmin' && !schoolId) {
           this.app.showToast('Bitte eine Schule für den Schuladmin wählen.', 'error');
           return;
         }
         try {
-          const res = await this.app.api.createUser({ email, role, displayName, schoolId });
+          const res = await this.app.api.createUser({
+            email, role, displayName, schoolId, sendMail: !manual, password: manual ? password.trim() : undefined,
+          });
           if (res && res.id) {
             userForm.reset();
+            syncPasswordChoice(userForm);
             userFormOverlay.classList.add('hidden');
             await this.refreshUsers(res.id);
             this._showCredentials(res, 'Benutzer angelegt');
@@ -252,7 +262,12 @@ export class AdminView {
     const pwField = document.getElementById('credentialsPassword');
     const mailInfo = document.getElementById('credentialsMailInfo');
 
-    if (res.initialPassword) {
+    if (res.passwordSetByCreator) {
+      pwGroup.classList.add('hidden');
+      pwField.textContent = '';
+      mailInfo.textContent = 'Keine E-Mail verschickt – das Initialpasswort hast du selbst festgelegt. Bitte persönlich übergeben; '
+        + 'beim ersten Login legt die Person ein eigenes fest.';
+    } else if (res.initialPassword) {
       pwGroup.classList.remove('hidden');
       pwField.textContent = res.initialPassword;
       mailInfo.textContent = res.mailInfo
@@ -297,13 +312,10 @@ export class AdminView {
   async _resetPassword(userId) {
     const user = this._usersCache.find((u) => u.id === userId);
     if (!user) return;
-    const confirmed = await this.app.appConfirm(
-      `Neues Initialpasswort für "${user.displayName || user.email}" erzeugen?\n\n` +
-      'Es wird anschließend einmalig angezeigt. Das bisherige Passwort wird ungültig.',
-    );
-    if (!confirmed) return;
+    const choice = await chooseResetMode(user.displayName || user.email);
+    if (!choice) return;
     try {
-      const res = await this.app.api.resetUserPassword(userId);
+      const res = await this.app.api.resetUserPassword(userId, choice === 'mail');
       if (res && res.id) {
         await this.refreshUsers();
         this._showCredentials(res, 'Passwort zurückgesetzt');
@@ -1110,4 +1122,47 @@ export class AdminView {
       </div>`;
     return item;
   }
+}
+
+/**
+ * Auswahl "per E-Mail" / "selbst festlegen" beim Anlegen: Passwortfeld und
+ * Hinweis nur zeigen, wenn selbst festgelegt wird. Für Admin- und
+ * Schuladmin-Formular (siehe schools.js).
+ */
+export function bindPasswordChoice(form) {
+  form.querySelectorAll('.pw-choice input[type="radio"]').forEach((r) => r.addEventListener('change', () => syncPasswordChoice(form)));
+  syncPasswordChoice(form);
+}
+
+/** Passwortfeld und Hinweis passend zur gewählten Option ein- oder ausblenden. */
+function syncPasswordChoice(form) {
+  const manual = form.querySelector('.pw-choice input[type="radio"]:checked')?.value === 'manual';
+  const field = form.querySelector('.pw-manual');
+  form.querySelector('.pw-manual')?.classList.toggle('hidden', !manual);
+  form.querySelector('.pw-manual-hint')?.classList.toggle('hidden', !manual);
+  if (field) field.required = manual;
+}
+
+/** Zurücksetzen: neues Passwort per E-Mail senden oder (ohne E-Mail) anzeigen. Liefert 'mail', 'show' oder null. */
+function chooseResetMode(name) {
+  return new Promise((resolve) => {
+    const overlay = document.createElement('div');
+    overlay.className = 'confirm-overlay';
+    overlay.innerHTML = `
+      <div class="import-modules-card" style="max-width:480px">
+        <h3>🔑 Neues Initialpasswort</h3>
+        <p>Für „${escapeHtml(name)}“ ein neues Passwort erzeugen? Das bisherige wird ungültig; beim nächsten Login
+          legt die Person ein eigenes fest.</p>
+        <div class="confirm-actions" style="flex-wrap:wrap">
+          <button type="button" class="btn btn-primary" data-mode="mail">✉️ Per E-Mail senden</button>
+          <button type="button" class="btn btn-secondary" data-mode="show" title="Für Konten ohne erreichbare E-Mail, z. B. Praktikanten">👁 Anzeigen statt senden</button>
+          <button type="button" class="btn btn-secondary" data-mode="">Abbrechen</button>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+    overlay.querySelectorAll('[data-mode]').forEach((b) => b.addEventListener('click', () => {
+      overlay.remove();
+      resolve(b.dataset.mode || null);
+    }));
+  });
 }

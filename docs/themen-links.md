@@ -36,13 +36,15 @@ Bei den Inhalten gibt es zwei Wege:
 
 - **Ganzes Thema** – später ergänzte Module sind automatisch dabei.
 - **Einzelne Module** – über *Module zeigen* aufklappen und ankreuzen. Hat ein
-  Modul Submodule, lassen sich auch die einzeln wählen. Ist nur das
-  Elternmodul angehakt, gilt das ganze Modul.
+  Modul Submodule, lassen sich auch die einzeln wählen. Das Elternmodul
+  schaltet alle seine Submodule mit; ist das letzte Submodul abgewählt, fällt
+  auch das Elternmodul heraus.
 
 Ist das ganze Thema angehakt (so beginnen Freigaben aus dem
 [Quick-Link](quick-link.md)), sind unter *Module zeigen* alle Module
-angehakt. Ein Klick auf ein Modul wechselt zur Einzelauswahl: Das Modul fällt
-heraus, alle anderen bleiben gewählt. Später ergänzte Module kommen dann nicht
+angehakt. Ein Klick auf ein Modul oder Submodul wechselt zur Einzelauswahl:
+Es fällt heraus, alle anderen bleiben gewählt – das Thema muss dafür nicht
+erst abgewählt werden. Später ergänzte Module kommen dann nicht
 mehr automatisch dazu.
 
 ## Die Modi

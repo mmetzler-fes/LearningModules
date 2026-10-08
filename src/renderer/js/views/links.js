@@ -644,6 +644,8 @@ export class LinksView {
         const sel = this._selection.get(topic.id);
         for (const root of roots) {
           const kids = modules.filter((m) => m.parentId === root.id);
+          // Nur das Elternmodul gespeichert heißt: das ganze Modul.
+          const wholeRoot = !!sel?.moduleIds.has(root.id) && !kids.some((k) => sel.moduleIds.has(k.id));
           const row = document.createElement('div');
           row.className = 'link-tree-module';
           row.innerHTML = `
@@ -654,10 +656,18 @@ export class LinksView {
             </label>
             ${kids.length ? '<div class="link-tree-submodules"></div>' : ''}`;
 
-          row.querySelector('.chk-module').addEventListener('change', (e) => {
+          // Elternmodul und Submodule bleiben im Gleichklang: Das Elternmodul
+          // schaltet alle Submodule mit, und ist das letzte Submodul abgewählt,
+          // fällt auch das Elternmodul heraus – sonst gälte wieder das ganze Modul.
+          const rootChk = row.querySelector('.chk-module');
+          const kidChks = () => [...row.querySelectorAll('.chk-submodule')];
+          rootChk.addEventListener('change', (e) => {
             const cur = moduleEntry();
-            if (e.target.checked) cur.moduleIds.add(root.id);
-            else cur.moduleIds.delete(root.id);
+            for (const id of [root.id, ...kids.map((k) => k.id)]) {
+              if (e.target.checked) cur.moduleIds.add(id);
+              else cur.moduleIds.delete(id);
+            }
+            kidChks().forEach((c) => { c.checked = e.target.checked; });
             this._updateSelectionSummary();
           });
 
@@ -667,12 +677,18 @@ export class LinksView {
             sub.className = 'link-tree-check link-tree-subcheck';
             sub.innerHTML = `
               <input type="checkbox" class="chk-submodule" value="${escapeAttr(kid.id)}"
-                ${sel?.all || sel?.moduleIds.has(kid.id) ? 'checked' : ''} />
+                ${sel?.all || wholeRoot || sel?.moduleIds.has(kid.id) ? 'checked' : ''} />
               <span>${escapeHtml(kid.title)}</span>`;
-            sub.querySelector('input').addEventListener('change', (e) => {
+            sub.querySelector('input').addEventListener('change', () => {
               const cur = moduleEntry();
-              if (e.target.checked) cur.moduleIds.add(kid.id);
-              else cur.moduleIds.delete(kid.id);
+              for (const c of kidChks()) {
+                if (c.checked) cur.moduleIds.add(c.value);
+                else cur.moduleIds.delete(c.value);
+              }
+              const anyKid = kidChks().some((c) => c.checked);
+              rootChk.checked = anyKid;
+              if (anyKid) cur.moduleIds.add(root.id);
+              else cur.moduleIds.delete(root.id);
               this._updateSelectionSummary();
             });
             subBox.appendChild(sub);

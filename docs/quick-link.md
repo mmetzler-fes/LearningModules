@@ -22,9 +22,13 @@ Klassenlink – ein zweiter Klick für dieselbe Klasse zeigt den vorhandenen.
 ## Der Quick-Link gehört der Lehrkraft, nicht dem Thema
 
 Jede Lehrkraft hat ihren **eigenen** Quick-Link auf ein Thema – auch auf eines,
-das ihr eine Kollegin nur zur Nutzung freigegeben hat. Im Bereich
-„📤 Von Kolleginnen und Kollegen freigegeben" steht dafür derselbe Knopf
-**🔗 Quick-Link**.
+das sie im Shop zur Nutzung (**Use**) erworben hat. Im Bereich
+„Zur Nutzung erworben" steht dafür derselbe Knopf **🔗 Quick-Link**; eine
+eigene Freigabe ist dafür nicht nötig.
+
+Eine im Shop erworbene **Kopie** ist dagegen ein eigenes Thema und beginnt
+**nicht freigegeben**. Ein Klick auf **🔗 Quick-Link** fragt dann, ob das
+Thema gleich freigegeben werden soll.
 
 Das ist dieselbe Trennung wie beim [Themen-Link](themen-links.md):
 
@@ -52,7 +56,7 @@ Ein Quick-Link entsteht **nur**, wenn das Thema tatsächlich startbar ist:
 
 | Situation | Verhalten |
 |---|---|
-| Eigenes Thema nicht freigegeben | Button deaktiviert, Server verweigert (403) |
+| Eigenes Thema nicht freigegeben | Button fragt, ob freigegeben werden soll; Server verweigert (403) |
 | Kein Modul freigegeben | Server verweigert (403) |
 | Eigenes Thema nachträglich deaktiviert | Bestehender Link liefert 403 |
 | Token neu erzeugt | Alter Link sofort ungültig (404) |

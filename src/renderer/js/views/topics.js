@@ -291,8 +291,8 @@ export class TopicsView {
             <span class="toggle-slider"></span>
           </label>
           <button class="btn btn-primary btn-sm btn-open-topic" title="Module verwalten">📦 Module</button>
-          <button class="btn btn-secondary btn-sm btn-quick-link" ${topic.selected ? '' : 'disabled'}
-            title="${topic.selected ? 'Link + QR-Code für eine Klasse' : 'Erst freigeben, dann ist ein Quick-Link möglich'}">🔗 Quick-Link</button>
+          <button class="btn btn-secondary btn-sm btn-quick-link"
+            title="${topic.selected ? 'Link + QR-Code für eine Klasse' : 'Noch nicht freigegeben – beim Klick lässt es sich gleich freigeben'}">🔗 Quick-Link</button>
           <button class="btn btn-secondary btn-sm btn-edit-topic" title="Bearbeiten">✏️</button>
           <button class="btn btn-secondary btn-sm btn-share-topic" title="Im Shop anbieten oder weitergeben">👥</button>
           <button class="btn btn-secondary btn-sm btn-export-topic" title="Exportieren (JSON, H5P oder verschlüsselt)">📤</button>
@@ -341,6 +341,17 @@ export class TopicsView {
    * (?q=) bleiben gültig, ihre Ergebnisse stehen unter "ohne Klasse".
    */
   async _createQuickClassLink(topic) {
+    // Ein ausgegrauter Knopf erklärte nicht, was fehlt – gerade bei frisch
+    // erworbenen Kopien, die gesperrt beginnen. Deshalb hier nachfragen.
+    if (!topic.selected) {
+      const ok = await this.app.appConfirm(
+        `„${topic.title}" ist noch nicht für Schüler freigegeben. Ein Quick-Link führt erst nach der Freigabe zum Thema.\n\nJetzt freigeben und den Quick-Link erstellen?`,
+      );
+      if (!ok) return;
+      await this.app.api.toggleTopicSelection(topic.id, true);
+      topic.selected = true;
+      this.refresh();
+    }
     const classes = await pickClass(this.app, {
       title: `🔗 Quick-Link – ${topic.title}`,
       hint: 'Für welche Klassen? Ergebnisse über einen Link stehen dann unter seiner Klasse.',
@@ -627,7 +638,7 @@ export class TopicsView {
     // Der Quick-Link gehört mir, nicht dem Eigentümer des Themas: Der Dialog
     // ist derselbe wie bei eigenen Themen, der Token ein eigener.
     card.querySelector('.btn-quick-shared').addEventListener('click', () =>
-      this._openQuickLinkDialog({ id: entry.id, title: entry.title }));
+      this._createQuickClassLink({ id: entry.id, title: entry.title, selected: true }));
 
     card.querySelector('.btn-return-grant').addEventListener('click', async (e) => {
       // Innerhalb von 14 Tagen nach dem Kauf gibt es die Punkte zurück.

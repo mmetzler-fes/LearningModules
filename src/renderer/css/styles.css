@@ -4447,19 +4447,28 @@ body {
 .nb-field { display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; font-weight: 600; font-size: 0.9rem; }
 .nb-field input, .nb-field textarea { font: inherit; font-weight: normal; padding: 8px 10px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg-primary); color: var(--text-primary); }
 .nb-targets { display: flex; flex-direction: column; max-height: 55vh; overflow: auto; border: 1px solid var(--border); border-radius: var(--radius-sm); margin-bottom: 12px; }
-.nb-target {
+.nb-target-row {
   --depth: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-bottom: 1px solid var(--border);
+  padding-left: calc(var(--depth) * 20px);
+}
+.nb-target {
+  flex: 1;
   text-align: left;
   background: none;
   border: none;
-  border-bottom: 1px solid var(--border);
-  padding: 8px 10px 8px calc(10px + var(--depth) * 20px);
+  padding: 8px 10px;
   font: inherit;
   color: var(--text-primary);
   cursor: pointer;
 }
 .nb-target:hover:not(:disabled) { background: var(--accent-light); }
-.nb-target:disabled { cursor: default; color: var(--text-secondary); font-weight: 600; }
+.nb-target:disabled { cursor: default; color: var(--text-secondary); }
+.nb-target-heading { font-weight: 600; }
+.nb-target-extra { margin-right: 8px; white-space: nowrap; }
 
 @media (max-width: 640px) {
   .nb-row { padding-left: calc(4px + var(--depth) * 14px); }

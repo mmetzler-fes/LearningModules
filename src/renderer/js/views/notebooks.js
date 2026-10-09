@@ -842,23 +842,30 @@ export class NotebooksView {
   // ---------- Ziel wählen ----------
 
   /** Liste möglicher Ziele mit Einrückung; liefert den gewählten Wert oder undefined. */
-  _pickTarget(title, entries) {
+  _pickTarget(title, entries, hint = '') {
     return new Promise((resolve) => {
       const overlay = document.createElement('div');
       overlay.className = 'confirm-overlay';
+      // Ein Eintrag kann zusätzlich einen kleinen Knopf tragen (e.extra: { label, value }),
+      // z. B. „neues Lernthema hier“ an einem Abschnitt.
       overlay.innerHTML = `
         <div class="import-modules-card nb-dialog">
           <h3>${escapeHtml(title)}</h3>
+          ${hint ? `<p class="hint">${escapeHtml(hint)}</p>` : ''}
           <div class="nb-targets">${entries.map((e, i) => `
-            <button type="button" class="nb-target" data-i="${i}" style="--depth:${e.depth}" ${e.disabled ? 'disabled' : ''}>
-              ${e.icon} ${escapeHtml(e.label)}${e.note ? ` <span class="hint">${escapeHtml(e.note)}</span>` : ''}
-            </button>`).join('')}
+            <div class="nb-target-row" style="--depth:${e.depth}">
+              <button type="button" class="nb-target ${e.heading ? 'nb-target-heading' : ''}" data-i="${i}" ${e.disabled ? 'disabled' : ''}>
+                ${e.icon} ${escapeHtml(e.label)}${e.note ? ` <span class="hint">${escapeHtml(e.note)}</span>` : ''}
+              </button>
+              ${e.extra ? `<button type="button" class="btn btn-secondary btn-sm nb-target-extra" data-i="${i}">${escapeHtml(e.extra.label)}</button>` : ''}
+            </div>`).join('')}
           </div>
           <div class="confirm-actions"><button type="button" class="btn btn-secondary btn-cancel">Abbrechen</button></div>
         </div>`;
       document.body.appendChild(overlay);
       const done = (v) => { overlay.remove(); resolve(v); };
       overlay.querySelectorAll('.nb-target').forEach((b) => b.addEventListener('click', () => done(entries[Number(b.dataset.i)].value)));
+      overlay.querySelectorAll('.nb-target-extra').forEach((b) => b.addEventListener('click', () => done(entries[Number(b.dataset.i)].extra.value)));
       overlay.querySelector('.btn-cancel').addEventListener('click', () => done(undefined));
       overlay.addEventListener('click', (e) => { if (e.target === overlay) done(undefined); });
     });
@@ -908,6 +915,12 @@ export class NotebooksView {
   }
 
   /** Eigene Lernthemen als Ziel für ein Modul, gruppiert nach ihrem Platz. */
+  /**
+   * Ziel für ein Modul: ein eigenes Lernthema. Books, Bereiche und
+   * Abschnitte sind nur Überschriften – mit „➕ neues Lernthema hier“ lässt
+   * sich aber auch ein leerer Abschnitt wählen: Dort entsteht dann ein
+   * Lernthema, und das Modul kommt hinein.
+   */
   async _moduleTargetDialog(topic, mod, mode) {
     const entries = [];
     const addTopics = (nodeId, depth) => {
@@ -916,20 +929,33 @@ export class NotebooksView {
         entries.push({ icon: '📘', label: t.title, depth, value: t.id, disabled: t.id === topic.id && mode === 'move', note: t.id === topic.id ? '(hier)' : '' });
       }
     };
-    if (this._topicsIn(null).some((t) => t.isOwn)) {
-      entries.push({ icon: '📥', label: 'Unsortiert', depth: 0, value: undefined, disabled: true });
-      addTopics(null, 1);
-    }
+    const newHere = (nodeId) => ({ label: '➕ neues Lernthema hier', value: { newIn: nodeId } });
+    entries.push({ icon: '📥', label: 'Unsortiert', depth: 0, value: undefined, disabled: true, heading: true, extra: newHere(null) });
+    addTopics(null, 1);
     const walk = (parentId, depth) => {
       for (const n of this._nodesIn(parentId)) {
-        entries.push({ icon: KIND[n.kind].icon, label: n.title, depth, value: undefined, disabled: true });
+        entries.push({ icon: KIND[n.kind].icon, label: n.title, depth, value: undefined, disabled: true, heading: true, extra: newHere(n.id) });
         walk(n.id, depth + 1);
         addTopics(n.id, depth + 1);
       }
     };
     walk(null, 0);
-    const target = await this._pickTarget(`${mode === 'move' ? '↔️ Verschieben' : '📄 Kopieren'}: „${mod.title}“ nach …`, entries);
+    const target = await this._pickTarget(
+      `${mode === 'move' ? '↔️ Verschieben' : '📄 Kopieren'}: „${mod.title}“ nach …`,
+      entries,
+      'Ein Modul gehört in ein Lernthema (📘). Für einen leeren Abschnitt: „➕ neues Lernthema hier“.',
+    );
     if (!target) return;
+    if (typeof target === 'object' && 'newIn' in target) {
+      const title = await this._ask('➕ Neues Lernthema für das Modul', 'Titel', mod.title);
+      if (!title) return;
+      const created = await this.app.api.saveTopic({ title, description: '' });
+      if (failed(created) || !created.id) { this.app.showToast('Fehler: ' + (created?.message || 'Anlegen fehlgeschlagen'), 'error'); return; }
+      await this.app.api.moveInNotebook('topic', created.id, target.newIn, null);
+      if (target.newIn) this._open.add('n:' + target.newIn);
+      await this._transferModule(topic, mod, created.id, mode);
+      return;
+    }
     await this._transferModule(topic, mod, target, mode);
   }
 

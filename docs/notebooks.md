@@ -104,6 +104,12 @@ Am Computer lässt sich jede Zeile ziehen:
 
 Auf Tablets und Handys geht dasselbe über **↔️ Verschieben nach…**.
 
+**Ein Modul verschieben oder kopieren:** Ziel ist immer ein Lernthema (📘).
+Books, Bereiche und Abschnitte stehen im Dialog als Überschriften; mit
+**➕ neues Lernthema hier** daneben lässt sich auch ein leerer Abschnitt wählen –
+dort entsteht ein Lernthema (Titel vorgeschlagen: der des Moduls), und das
+Modul kommt hinein.
+
 ### Kopieren
 
 Kopien starten **nicht freigegeben**, damit nichts ungewollt bei den

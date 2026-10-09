@@ -1322,6 +1322,9 @@ body {
 }
 
 .dnd-zone-right { flex-basis: 100%; font-size: 0.85rem; color: var(--success); }
+.dnd-zone-warn { flex-basis: 100%; font-size: 0.85rem; color: #b45309; font-weight: 600; }
+[data-theme="dark"] .dnd-zone-warn { color: #fbbf24; }
+.dnd-howto { margin: 0 0 10px; }
 
 .dnd-zone-pos {
   font-size: 0.8rem;

@@ -70,14 +70,53 @@ als feststehendes Element oben, die ziehbaren Elemente starten im Streifen
 darunter. Bewertet wird wie bei H5P üblich: +1 je richtig abgelegtem Element,
 −1 je falschem (Strafpunkte).
 
-## Drag and Drop: mehrere Elemente je Zone
+## Drag and Drop: Zuordnung im Editor
 
-Eine Zone darf mehrere richtige Elemente haben: alle, deren **Ziel** sie ist.
-Die Zone ist richtig, wenn alle drin liegen. Das **Erwartete Wort** der Zone
-muss dabei eines davon sein oder leer bleiben; widersprechen sich beide Seiten,
-gilt wie früher nur die Zone. Der Editor hält beide Seiten gleich und zeigt
-„✓ n richtig: …“ an der Zone. Der H5P-Import übernimmt solche Zonen jetzt
-vollständig.
+Jede Zuordnung steht im Editor an zwei Stellen – es ist dieselbe Angabe, von
+zwei Seiten gesehen:
+
+- **oben bei der Zone:** „Erwartetes Element“,
+- **unten beim ziehbaren Element:** „Ziel“.
+
+Der Editor hält beide gleich: Wählst du oben bei einer Zone ein Element, trägt
+er unten dessen Ziel ein, und umgekehrt.
+
+| Was du willst | oben (bei der Zone) | unten (beim Element) |
+|---|---|---|
+| Ein Begriff je Zone | ✅ | ✅ |
+| Derselbe Begriff in mehreren Zonen | ✅ bei jeder Zone wählen, unten „mehrfach“ ankreuzen | ❌ ein Element hat nur ein Ziel |
+| Mehrere Begriffe in einer Zone | ❌ oben gibt es nur ein Feld | ✅ bei jedem Element dieselbe Zone als Ziel |
+
+**Empfehlung:** Für einen Begriff je Zone immer **oben** zuordnen. Unten nur,
+wenn eine Zone bewusst mehrere Begriffe aufnehmen soll – wählst du unten eine
+Zone, die schon einen Begriff erwartet, erwartet sie danach beide („✓ 2
+richtig“). Ungewollt? Unten beim falschen Element das Ziel auf „— Keine Zone —“
+stellen.
+
+### Ein Begriff je Zone (der Normalfall)
+
+Oben bei **jeder Zone das erwartete Element wählen** – mehr ist nicht nötig.
+Wechselst du es später, verliert das vorher gewählte Element sein Ziel bei
+dieser Zone wieder.
+
+**Derselbe Begriff in mehreren Zonen** (z. B. „#iStep“ an vier Stellen):
+unten beim Element **„mehrfach“** ankreuzen. Sonst liegt der Begriff nur
+einmal in der Ablage, und die Aufgabe ist nicht lösbar – der Editor warnt dann
+an der Zone („⚠ … liegt aber nur 1× in der Ablage“) und beim Speichern.
+
+### Mehrere Elemente je Zone
+
+Eine Zone darf auch mehrere richtige Elemente haben: unten bei weiteren
+Elementen **dieselbe Zone als Ziel** wählen. Die Zone ist richtig, wenn alle
+drin liegen; an der Zone steht dann „✓ n richtig: …“. Das Erwartete Element
+oben muss dabei eines davon sein oder leer bleiben; widersprechen sich beide
+Seiten, gilt nur die Zone. Der H5P-Import übernimmt solche Zonen vollständig.
+
+### Vertauschbare Zonen (Ablagegruppen)
+
+Zonen derselben **Gruppe** sind untereinander vertauschbar – etwa die zwei
+gleichwertigen Eingänge eines Gatters: Ein Element zählt als richtig, wenn es
+in irgendeiner Zone seiner Gruppe liegt.
 
 ## Quizzy-Quiz übernehmen
 

@@ -220,6 +220,32 @@ class FormatPainter {
   }
 }
 
+/**
+ * Begriffe, die öfter erwartet werden, als sie in der Ablage liegen:
+ * Map Text → { zones, pieces }. Mehrfach verwendbare Elemente reichen immer.
+ * Dieselbe Regel wie die Auswertung (dndExpectedMappings in answer-eval.js).
+ */
+function dndShortage(content) {
+  const zones = (content && content.dropZones) || [];
+  const drags = ((content && content.draggables) || []).filter((d) => d.text);
+  const demand = new Map();
+  for (const z of zones) {
+    if (!z.label) continue;
+    const targeted = [...new Set(drags.filter((d) => d.correctZone === z.label).map((d) => d.text))];
+    const own = z.correctDraggable || '';
+    const texts = !own ? targeted : targeted.includes(own) ? targeted : [own];
+    for (const t of texts) demand.set(t, (demand.get(t) || 0) + 1);
+  }
+  const out = new Map();
+  for (const [text, need] of demand) {
+    const same = drags.filter((d) => d.text === text);
+    if (same.some((d) => d.multiple)) continue;
+    if (need > same.length) out.set(text, { zones: need, pieces: same.length });
+  }
+  return out;
+}
+if (typeof window !== 'undefined') window.dndShortage = dndShortage;
+
 class ContentEditorManager {
   constructor(containerEl) {
     this.container = containerEl;
@@ -1582,6 +1608,17 @@ class ContentEditorManager {
       return;
     }
 
+    // Kurzanleitung: Der häufigste Fall braucht nur die Auswahl an der Zone.
+    const howto = document.createElement('p');
+    howto.className = 'dnd-group-hint dnd-howto';
+    howto.innerHTML = '👉 <strong>Ein Begriff je Zone:</strong> hier bei jeder Zone das erwartete Element wählen – fertig. '
+      + 'Das „Ziel“ bei den ziehbaren Elementen unten trägt der Editor dann selbst ein; es ist dieselbe Zuordnung von der anderen Seite. '
+      + 'Derselbe Begriff in mehreren Zonen: unten beim Element „mehrfach“ ankreuzen. '
+      + '<button type="button" class="help-hint" data-help="moodle-und-h5p#ein-begriff-je-zone-der-normalfall" title="Hilfe: Zuordnung" aria-label="Hilfe">?</button>';
+    list.appendChild(howto);
+
+    const shortage = dndShortage(this.dndState);
+
     const colors = ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16'];
     this.dndState.dropZones.forEach((zone, i) => {
       const item = document.createElement('div');
@@ -1636,7 +1673,16 @@ class ContentEditorManager {
         dragSelect.appendChild(opt);
       });
       dragSelect.addEventListener('change', () => {
+        const before = zone.correctDraggable;
         zone.correctDraggable = dragSelect.value;
+        // Das bisher erwartete Element zielte meist wegen dieser Wahl auf die
+        // Zone – beim Wechsel loslassen. Sonst hätte die Zone unbemerkt zwei
+        // richtige Elemente (alt und neu).
+        if (before && before !== zone.correctDraggable) {
+          this.dndState.draggables.forEach((d) => {
+            if (d.text === before && d.correctZone === zone.label) d.correctZone = '';
+          });
+        }
         // Beide Seiten gleich halten: Das gewählte Element zielt auf die Zone,
         // sofern es noch kein Ziel hat.
         this.dndState.draggables.forEach((d) => {
@@ -1651,6 +1697,11 @@ class ContentEditorManager {
       const rightInfo = document.createElement('span');
       rightInfo.className = 'dnd-zone-right';
       rightInfo.textContent = rightTexts.length > 1 ? `✓ ${rightTexts.length} richtig: ${rightTexts.join(' · ')}` : '';
+      // Wird ein Begriff öfter erwartet, als er in der Ablage liegt, ist die Aufgabe nicht lösbar.
+      const short = rightTexts.filter((t) => shortage.has(t));
+      const warnInfo = document.createElement('span');
+      warnInfo.className = 'dnd-zone-warn';
+      warnInfo.textContent = short.map((t) => `⚠ „${t}“ wird in ${shortage.get(t).zones} Zonen erwartet, liegt aber nur ${shortage.get(t).pieces}× in der Ablage – unten bei „${t}“ „mehrfach“ ankreuzen.`).join(' ');
 
       const groupLabel = document.createElement('span');
       groupLabel.innerHTML = '&nbsp;🔀 Gruppe:&nbsp;';
@@ -1699,13 +1750,14 @@ class ContentEditorManager {
       item.appendChild(posLabel);
       item.appendChild(btnRemove);
       if (rightInfo.textContent) item.appendChild(rightInfo);
+      if (warnInfo.textContent) item.appendChild(warnInfo);
       list.appendChild(item);
     });
 
     const multiHint = document.createElement('p');
     multiHint.className = 'dnd-group-hint';
     multiHint.innerHTML = '🧺 Mehrere richtige Elemente je Zone: Bei den ziehbaren Elementen dieselbe Zone als Ziel wählen – die Zone ist dann richtig, wenn alle drin liegen. '
-      + '<button type="button" class="help-hint" data-help="moodle-und-h5p#drag-and-drop-mehrere-elemente-je-zone" title="Hilfe: mehrere Elemente je Zone" aria-label="Hilfe">?</button>';
+      + '<button type="button" class="help-hint" data-help="moodle-und-h5p#mehrere-elemente-je-zone" title="Hilfe: mehrere Elemente je Zone" aria-label="Hilfe">?</button>';
     list.appendChild(multiHint);
 
     const hint = document.createElement('p');
@@ -1822,7 +1874,7 @@ class ContentEditorManager {
       const chkInput = document.createElement('input');
       chkInput.type = 'checkbox';
       chkInput.checked = !!drag.multiple;
-      chkInput.addEventListener('change', () => { drag.multiple = chkInput.checked; });
+      chkInput.addEventListener('change', () => { drag.multiple = chkInput.checked; this.refreshDndZonesList(); });
       chkWrap.appendChild(chkInput);
       chkWrap.appendChild(document.createTextNode('Mehrfach nutzbar'));
 

@@ -735,9 +735,12 @@ export class ModulesView {
         ...zones.filter((z) => String(z.correctDraggable || '').trim()).map((z) => z.label),
       ]);
       const open = zones.filter((z) => !used.has(z.label)).length;
+      // Begriffe, die öfter erwartet werden, als sie in der Ablage liegen (dndShortage aus content-editors.js)
+      const short = typeof dndShortage === 'function' ? [...dndShortage(content)] : [];
       const issues = [
         !drags.length ? 'Es gibt noch keine ziehbaren Elemente – Schüler sehen nur Bild und Zonen.' : '',
         drags.length && open ? `${open} von ${zones.length} Zonen haben kein richtiges Element.` : '',
+        ...short.map(([text, n]) => `„${text}“ wird in ${n.zones} Zonen erwartet, liegt aber nur ${n.pieces}× in der Ablage – die Aufgabe ist so nicht lösbar (beim Element „mehrfach“ ankreuzen).`),
       ].filter(Boolean);
       if (issues.length && !(await this.app.appConfirm(`Drag and Drop unvollständig:\n\n${issues.join('\n')}\n\nTrotzdem speichern?`))) return;
     }

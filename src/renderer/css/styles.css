@@ -4488,3 +4488,41 @@ body {
 .nb-pick-topic { border-top: 1px solid var(--border); background: var(--bg-primary); }
 .nb-pick-module { padding-left: 34px; font-size: 0.92rem; }
 .shop-topic-head { margin: 6px 0 2px; font-weight: 600; }
+
+/* ---- Zoom getrennt für Seitenleiste und Inhalt ---- */
+.zoom-ctl { display: inline-flex; align-items: center; gap: 4px; }
+.zoom-ctl .btn-sm { padding: 2px 9px; min-width: 28px; }
+.zoom-value {
+  min-width: 52px;
+  background: none;
+  border: none;
+  color: var(--text-sidebar);
+  font: inherit;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+.zoom-value:hover { text-decoration: underline; }
+/* Schmale Seitenleiste: kein Platz – dort zoomt man mit den Fingern. */
+@media (max-width: 800px) { .zoom-row { display: none; } }
+
+/* ---- Drag and Drop mit Bild: Einpassen / Vergrößern ---- */
+.dnd-view-bar { display: flex; justify-content: flex-end; margin-bottom: 8px; }
+.dnd-view-toggle { display: inline-flex; border: 1px solid var(--border); border-radius: var(--radius-sm); overflow: hidden; }
+.dnd-view-toggle button {
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  border: none;
+  padding: 4px 10px;
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+.dnd-view-toggle button + button { border-left: 1px solid var(--border); }
+.dnd-view-toggle button.active { background: var(--accent); color: #fff; }
+/* Die Ablage bleibt beim Scrollen über das Bild in Reichweite. */
+.dnd-board > .dnd-player-draggables { position: sticky; top: 0; z-index: 5; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06); }
+/* Ablage neben dem Bild (breite Bildschirme, hohe Bilder) */
+.dnd-side .dnd-board { display: grid; grid-template-columns: 220px minmax(0, 1fr); column-gap: 16px; align-items: start; }
+.dnd-side .dnd-board > .dnd-player-draggables { flex-direction: column; align-items: stretch; margin-bottom: 0; }
+.dnd-side .dnd-player-canvas-wrap { margin-bottom: 0; }
+.dnd-side .dnd-player-canvas { margin: 0; }

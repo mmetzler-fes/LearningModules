@@ -266,6 +266,22 @@
             <label class="setting-label" data-i18n="settings.theme">Design</label>
             <button class="btn btn-secondary btn-sm btn-theme-toggle" id="btnThemeToggle">🌙</button>
           </div>
+          <div class="setting-row zoom-row" data-zoom="sidebar">
+            <span class="setting-label">Zoom Menü</span>
+            <span class="zoom-ctl">
+              <button type="button" class="btn btn-secondary btn-sm zoom-minus" aria-label="Menü verkleinern">−</button>
+              <button type="button" class="zoom-value" title="Auf 100 % zurücksetzen">100 %</button>
+              <button type="button" class="btn btn-secondary btn-sm zoom-plus" aria-label="Menü vergrößern">+</button>
+            </span>
+          </div>
+          <div class="setting-row zoom-row" data-zoom="content">
+            <span class="setting-label">Zoom Inhalt <button type="button" class="help-hint" data-help="ansicht-und-zoom#zoom-fuer-menue-und-inhalt" title="Hilfe: Zoom" aria-label="Hilfe: Zoom">?</button></span>
+            <span class="zoom-ctl">
+              <button type="button" class="btn btn-secondary btn-sm zoom-minus" aria-label="Inhalt verkleinern">−</button>
+              <button type="button" class="zoom-value" title="Auf 100 % zurücksetzen">100 %</button>
+              <button type="button" class="btn btn-secondary btn-sm zoom-plus" aria-label="Inhalt vergrößern">+</button>
+            </span>
+          </div>
           <div class="setting-row">
             <label class="setting-label" data-i18n="settings.language">Sprache</label>
             <select class="setting-select" id="langSelect">

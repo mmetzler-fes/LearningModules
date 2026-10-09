@@ -3,7 +3,7 @@ import { normalizeBranching } from './branching.js';
 import { dtwAlternatives, dtwMatches, dndExpectedMappings } from './answer-eval.js';
 import { audioSourceOf, scoreDictation, dictationOptions } from './dictation.js';
 import { generateValues, fillPlaceholders, evaluate, parseUserNumber, isWithinTolerance, formatNumber, checkFormulaTask } from './formula.js';
-import { normalizeShareUrl, sanitizeModuleDescriptionHtml, sanitizeWorksheetHtml, escapeHtml, escapeAttr, hexTint, showContextMenu, attachPointerDrag } from './utils.js';
+import { normalizeShareUrl, sanitizeModuleDescriptionHtml, sanitizeWorksheetHtml, escapeHtml, escapeAttr, hexTint, showContextMenu, attachPointerDrag, effectiveZoom } from './utils.js';
 
 /**
  * Nur http(s) einbetten. Ohne diese Schranke landeten `javascript:`- oder
@@ -38,6 +38,112 @@ function embeddedFrame(url, height, title, extraStyle = '') {
 /** Modultypen, deren Vorschau breiter als Fließtext sein darf. */
 const WIDE_TYPES = new Set(['dragAndDrop', 'imageHotspots', 'video', 'worksheet', 'coursePresentation',
   'branchingScenario', 'iframeEmbedder', 'collage']);
+
+// ---- Drag and Drop mit Bild: an den Bildschirm anpassen ----
+//
+// Hohe Bilder ragten über den Bildschirm hinaus: Jedes Element musste dann
+// über eine lange Strecke gezogen werden, während die Seite mitscrollt.
+// „Einpassen“ (Vorgabe) verkleinert Ablage und Bild, bis die ganze Aufgabe
+// auf einen Bildschirm passt – je nachdem, was das größere Bild ergibt, mit
+// der Ablage über oder neben dem Bild. „Vergrößern“ nutzt die volle Breite;
+// dann bleibt die Ablage beim Scrollen oben stehen. Die Zonen liegen in
+// Prozent des Bildes und wandern mit.
+
+const DND_VIEW_KEY = 'lm_dnd_view';
+/** Schmaler als so viele Bildschirm-Pixel wird das Bild nicht – sonst wird die Beschriftung unlesbar. */
+const DND_MIN_WIDTH = 320;
+/** Breite der Ablage, wenn sie neben dem Bild steht. */
+const DND_SIDE_BANK = 220;
+/** Ab dieser Breite darf die Ablage neben das Bild. */
+const DND_SIDE_FROM = 700;
+
+/**
+ * Sichtbare Höhe für die Aufgabe in Bildschirm-Pixeln: das Fenster bzw. der
+ * kleinste scrollende Vorfahre. Nicht einfach der nächste – die Vorschau
+ * etwa steckt in einem Container mit overflow:auto, der aber mitwächst.
+ */
+function visibleHeightFor(el) {
+  let h = window.innerHeight;
+  for (let n = el.parentElement; n; n = n.parentElement) {
+    const o = getComputedStyle(n).overflowY;
+    if (o === 'auto' || o === 'scroll' || o === 'hidden') h = Math.min(h, n.getBoundingClientRect().height);
+  }
+  return h;
+}
+
+function setupDndFit(div) {
+  const player = div.querySelector('.dnd-player');
+  const board = player?.querySelector('.dnd-board');
+  const bank = player?.querySelector('.dnd-player-draggables');
+  const canvas = player?.querySelector('.dnd-player-canvas');
+  const img = canvas?.querySelector('.dnd-player-img');
+  if (!board || !bank || !canvas || !img) return;
+  const buttons = player.querySelectorAll('.dnd-view-toggle button');
+  let mode = 'fit';
+  try { if (localStorage.getItem(DND_VIEW_KEY) === 'big') mode = 'big'; } catch (_) {}
+
+  const layout = () => {
+    buttons.forEach((b) => b.classList.toggle('active', b.dataset.view === mode));
+    player.classList.toggle('dnd-fit', mode === 'fit');
+    player.classList.remove('dnd-side');
+    canvas.style.maxWidth = '';
+    if (mode !== 'fit' || !img.naturalWidth || !player.isConnected) return;
+
+    // Alles in Pixeln vor dem Zoom: Bildschirmmaße durch den Inhaltszoom.
+    const z = effectiveZoom(player) || 1;
+    const viewH = visibleHeightFor(player) / z;
+    const ar = img.naturalWidth / img.naturalHeight;
+    const pr = player.getBoundingClientRect();
+    const br = board.getBoundingClientRect();
+    const width = br.width / z;
+    const bankH = bank.getBoundingClientRect().height / z;
+    // Die ganze Aufgabe soll auf einen Bildschirm: Aufgabentext und Umschalter
+    // darüber, Knöpfe und Rückmeldung darunter zählen mit, dazu Ränder.
+    const above = (br.top - pr.top) / z;
+    const below = (pr.bottom - br.bottom) / z;
+    const avail = viewH - above - below - 40;
+
+    const stacked = Math.min(width, (avail - bankH - 16) * ar);
+    const side = width >= DND_SIDE_FROM ? Math.min(width - DND_SIDE_BANK - 16, avail * ar) : 0;
+    const useSide = side > stacked * 1.1;
+    const room = useSide ? width - DND_SIDE_BANK - 16 : width;
+    const w = Math.max(Math.min(DND_MIN_WIDTH / z, room), useSide ? side : stacked);
+    player.classList.toggle('dnd-side', useSide);
+    canvas.style.maxWidth = `${Math.floor(w)}px`;
+  };
+
+  buttons.forEach((b) => b.addEventListener('click', () => {
+    mode = b.dataset.view === 'big' ? 'big' : 'fit';
+    try { localStorage.setItem(DND_VIEW_KEY, mode); } catch (_) {}
+    layout();
+    board.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }));
+
+  // Neu rechnen, wenn sich die Fläche ändert – nicht beim Ablegen (die Ablage
+  // schrumpft dann, und das Bild spränge mitten im Ziehen).
+  const onResize = () => {
+    if (!player.isConnected) {
+      window.removeEventListener('resize', onResize);
+      window.removeEventListener('lm-zoom', onResize);
+      return;
+    }
+    layout();
+  };
+  window.addEventListener('resize', onResize);
+  window.addEventListener('lm-zoom', onResize);
+  // Beim ersten Einpassen die Aufgabe ganz ins Bild holen (nur so weit wie
+  // nötig) – danach scrollt nur noch, wer selbst scrollt.
+  let shown = false;
+  const first = () => {
+    layout();
+    if (shown || mode !== 'fit' || !player.isConnected) return;
+    shown = true;
+    player.scrollIntoView({ block: 'nearest' });
+  };
+  if (img.complete && img.naturalWidth) requestAnimationFrame(first);
+  else img.addEventListener('load', first, { once: true });
+  layout();
+}
 
 export class H5pRenderer {
 
@@ -1093,12 +1199,20 @@ export class H5pRenderer {
         div.innerHTML = `
           <div class="dnd-player${hasImage ? '' : ' dnd-player-list'}">
             ${content.taskDescription ? `<div class="dnd-player-desc" style="margin-bottom:16px;">${sanitizeModuleDescriptionHtml(content.taskDescription)}</div>` : ''}
+            ${hasImage ? `<div class="dnd-view-bar">
+              <div class="dnd-view-toggle" role="group" aria-label="Größe der Aufgabe">
+                <button type="button" data-view="fit" title="Ganze Aufgabe auf einen Bildschirm">⤢ Einpassen</button>
+                <button type="button" data-view="big" title="Bild in voller Breite – größer, dafür scrollen">🔍 Vergrößern</button>
+              </div>
+            </div>
+            <div class="dnd-board">` : ''}
             <div class="dnd-player-draggables" id="dndDraggables"></div>
             <div class="dnd-player-canvas-wrap">
               ${hasImage
                 ? `<div class="dnd-player-canvas" id="dndCanvas"><img src="${content.backgroundImage}" class="dnd-player-img" draggable="false" /></div>`
                 : `<div class="dnd-player-canvas dnd-player-no-img" id="dndCanvas"><div id="dndZonesLegacy"></div></div>`}
             </div>
+            ${hasImage ? '</div>' : ''}
             <div style="display:flex; align-items:center; gap:12px; margin-top:16px;">
               ${suppressFeedback ? '' : '<button class="btn btn-primary btn-sm" id="dndCheck">Überprüfen</button>'}
               <button class="btn btn-secondary btn-sm" id="dndNext">Weiter →</button>
@@ -1320,6 +1434,7 @@ export class H5pRenderer {
           const dndNextBtn = div.querySelector('#dndNext');
           if (dndNextBtn) dndNextBtn.addEventListener('click', () => { const nb = document.getElementById('btnQuizNext'); if (nb) nb.click(); });
         }
+        if (hasImage) setupDndFit(div);
         break;
       }
 

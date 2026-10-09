@@ -444,6 +444,21 @@ function swallowNextClick() {
   setTimeout(() => window.removeEventListener('click', stop, true), 400);
 }
 
+/**
+ * Wie stark ein Element insgesamt gezoomt ist (CSS `zoom` aller Vorfahren,
+ * z. B. der Inhaltszoom aus der Seitenleiste). Koordinaten aus Maus- und
+ * Zeigerereignissen und getBoundingClientRect() sind Bildschirm-Pixel;
+ * Längen im Inneren gelten vor dem Zoom – geteilt durch diesen Faktor.
+ */
+export function effectiveZoom(el) {
+  let z = 1;
+  for (let n = el; n && n.nodeType === 1; n = n.parentElement) {
+    const v = parseFloat(getComputedStyle(n).zoom);
+    if (v > 0) z *= v;
+  }
+  return z;
+}
+
 export function attachPointerDrag(el, { onHover, onDrop, onLongPress, canLongPress, canDrag, scrollContainer } = {}) {
   el.draggable = false;
   el.addEventListener('pointerdown', (e) => {
@@ -451,7 +466,7 @@ export function attachPointerDrag(el, { onHover, onDrop, onLongPress, canLongPre
     if (canDrag && !canDrag()) return;
     const id = e.pointerId;
     const x0 = e.clientX, y0 = e.clientY;
-    let ghost = null, offX = 0, offY = 0;
+    let ghost = null, offX = 0, offY = 0, zoom = 1;
     let scrollSpeed = 0, scrollTimer = null;
     let pressTimer = null;
 
@@ -488,6 +503,9 @@ export function attachPointerDrag(el, { onHover, onDrop, onLongPress, canLongPre
         if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; }
         const r = el.getBoundingClientRect();
         offX = x0 - r.left; offY = y0 - r.top;
+        // Die Kopie hängt am body, außerhalb des gezoomten Inhalts – sie
+        // bekommt denselben Zoom, damit sie so groß aussieht wie das Original.
+        zoom = effectiveZoom(el);
         ghost = el.cloneNode(true);
         // Ohne id und data-*: Die Kopie soll fuer keine Auswertung wie ein
         // echtes Element aussehen.
@@ -495,15 +513,15 @@ export function attachPointerDrag(el, { onHover, onDrop, onLongPress, canLongPre
         Object.keys(ghost.dataset).forEach((k) => delete ghost.dataset[k]);
         ghost.classList.add('drag-ghost');
         Object.assign(ghost.style, {
-          position: 'fixed', margin: '0', width: r.width + 'px',
-          pointerEvents: 'none', zIndex: '10000',
+          position: 'fixed', margin: '0', width: r.width / zoom + 'px',
+          pointerEvents: 'none', zIndex: '10000', zoom: String(zoom),
         });
         document.body.appendChild(ghost);
         el.classList.add('dragging');
       }
       ev.preventDefault();
-      ghost.style.left = (ev.clientX - offX) + 'px';
-      ghost.style.top = (ev.clientY - offY) + 'px';
+      ghost.style.left = (ev.clientX - offX) / zoom + 'px';
+      ghost.style.top = (ev.clientY - offY) / zoom + 'px';
       if (onHover) onHover(hit(ev), info(ev));
       autoScroll(ev);
     };

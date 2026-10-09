@@ -224,10 +224,53 @@ class App {
       });
     }
 
+    this.initZoom();
+
     const langSelect = document.getElementById('langSelect');
     if (langSelect) {
       langSelect.value = getLanguage();
       langSelect.addEventListener('change', () => setLanguage(langSelect.value));
+    }
+  }
+
+  /**
+   * Zoom getrennt für Seitenleiste und Inhalt (CSS `zoom`), in festen Stufen
+   * und je Gerät gemerkt – am Beamer anders als am eigenen Rechner. Dialoge
+   * hängen am body und bleiben davon unberührt.
+   */
+  initZoom() {
+    const STEPS = [0.7, 0.8, 0.9, 1, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6];
+    const targets = { sidebar: document.getElementById('sidebar'), content: document.getElementById('mainContent') };
+    const key = (which) => `lm_zoom_${which}`;
+    const read = (which) => {
+      let v = 1;
+      try { v = parseFloat(localStorage.getItem(key(which))) || 1; } catch (_) {}
+      return STEPS.includes(v) ? v : 1;
+    };
+    const apply = (which, v) => {
+      const el = targets[which];
+      if (el) el.style.zoom = v === 1 ? '' : String(v);
+      const row = document.querySelector(`.zoom-row[data-zoom="${which}"]`);
+      if (row) {
+        row.querySelector('.zoom-value').textContent = `${Math.round(v * 100)} %`;
+        row.querySelector('.zoom-minus').disabled = v <= STEPS[0];
+        row.querySelector('.zoom-plus').disabled = v >= STEPS[STEPS.length - 1];
+      }
+      try { if (v === 1) localStorage.removeItem(key(which)); else localStorage.setItem(key(which), String(v)); } catch (_) {}
+      // Ansichten, die sich an die verfügbare Fläche anpassen (Drag and Drop), neu rechnen lassen.
+      window.dispatchEvent(new Event('lm-zoom'));
+    };
+    for (const which of Object.keys(targets)) {
+      apply(which, read(which));
+      const row = document.querySelector(`.zoom-row[data-zoom="${which}"]`);
+      if (!row) continue;
+      const step = (dir) => {
+        const i = STEPS.indexOf(read(which));
+        apply(which, STEPS[Math.min(STEPS.length - 1, Math.max(0, i + dir))]);
+      };
+      row.querySelector('.zoom-minus').addEventListener('click', () => step(-1));
+      row.querySelector('.zoom-plus').addEventListener('click', () => step(1));
+      row.querySelector('.zoom-value').addEventListener('click', () => apply(which, 1));
     }
   }
 

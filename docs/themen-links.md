@@ -182,6 +182,18 @@ Jeder gespeicherte Durchlauf trägt Schülername, Zeit, IP-Adresse, Linkname und
 Modus. In der Ergebnisliste lässt sich nach Schülername (Suchfeld) und nach
 Link (Auswahlfeld) filtern.
 
+Gegliedert ist die Liste nach Link (bzw. Klasse) und darin nach Schüler. Jede
+dieser kompakten Zeilen zeigt rechts, wann der neueste Durchlauf eingegangen
+ist (🕒 „heute 14:32“, „gestern …“, sonst mit Datum). Die Reihenfolge stellt
+das dritte Auswahlfeld ein:
+
+- **Neueste zuerst** (Vorgabe): Links und Schüler mit den zuletzt
+  eingegangenen Ergebnissen stehen oben.
+- **Alphabetisch**: nach Linkname bzw. Schülername.
+
+Die Wahl merkt sich der Browser. Innerhalb eines Schülers stehen die
+Durchläufe immer neueste zuerst.
+
 Der Linkname wird ins Ergebnis kopiert, nicht nur verwiesen. Die Liste bleibt
 damit lesbar, auch wenn der Link später umbenannt oder gelöscht wird.
 

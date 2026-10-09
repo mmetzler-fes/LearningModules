@@ -56,6 +56,7 @@ export class ResultsView {
     this._resultsList   = document.getElementById('resultsList');
     this._searchResults = document.getElementById('searchResults');
     this._filterLink    = document.getElementById('filterResultsLink');
+    this._sortSelect    = document.getElementById('sortResults');
     this._btnDeleteAll  = document.getElementById('btnDeleteAllResults');
     this._btnExport     = document.getElementById('btnExportResults');
 
@@ -69,6 +70,14 @@ export class ResultsView {
   _bindEvents() {
     if (this._searchResults) this._searchResults.addEventListener('input', () => this.refresh());
     if (this._filterLink) this._filterLink.addEventListener('change', () => this.refresh());
+    // Reihenfolge je Browser merken – wer lieber alphabetisch sucht, behält das.
+    if (this._sortSelect) {
+      try { this._sortSelect.value = localStorage.getItem('lm_results_sort') === 'alpha' ? 'alpha' : 'recent'; } catch (_) {}
+      this._sortSelect.addEventListener('change', () => {
+        try { localStorage.setItem('lm_results_sort', this._sortSelect.value); } catch (_) {}
+        this.refresh();
+      });
+    }
     if (this._btnDeleteAll) {
       this._btnDeleteAll.addEventListener('click', async () => {
         if (!(await this.app.appConfirm(t('results.delete.all.confirm')))) return;
@@ -195,6 +204,29 @@ export class ResultsView {
     return key.startsWith(QUICK_PREFIX) ? `${key.slice(QUICK_PREFIX.length)} (Quick-Link)` : key;
   }
 
+  /** Zeitpunkt des neuesten Durchlaufs einer Gruppe (ms). */
+  _latest(list) {
+    return list.reduce((max, r) => Math.max(max, Date.parse(r.timestamp) || 0), 0);
+  }
+
+  /** Kurzes Datum für die kompakte Zeile: „heute 14:32“, „gestern 09:10“, sonst „07.10.26 14:32“. */
+  _when(ms) {
+    if (!ms) return '';
+    const d = new Date(ms);
+    const time = d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+    const day = (x) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+    const diff = Math.round((day(new Date()) - day(d)) / 86400000);
+    if (diff === 0) return `heute ${time}`;
+    if (diff === 1) return `gestern ${time}`;
+    return `${d.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: '2-digit' })} ${time}`;
+  }
+
+  /** Gruppen ordnen: neueste zuerst (Vorgabe) oder alphabetisch (wie von _groupBy geliefert). */
+  _order(groups) {
+    if (this._sortSelect?.value === 'alpha') return groups;
+    return [...groups].sort(([, a], [, b]) => this._latest(b) - this._latest(a));
+  }
+
   /** "1 Durchlauf" statt "1 Durchläufe". */
   _runCount(n) {
     return n === 1 ? '1 Durchlauf' : `${n} Durchläufe`;
@@ -251,10 +283,10 @@ export class ResultsView {
   _renderGroups(results, { expandAll }) {
     // Nach sichtbarer Beschriftung sortieren, sonst stuenden alle Quick-Links
     // wegen ihres Praefixes gesammelt unter "q". "Ohne Link" bleibt am Ende.
-    const linkGroups = this._groupBy(results, (r) => this._linkKey(r), NO_LINK)
-      .sort(([a], [b]) => (a === NO_LINK) - (b === NO_LINK) || this._linkLabel(a).localeCompare(this._linkLabel(b), 'de'));
+    const linkGroups = this._order(this._groupBy(results, (r) => this._linkKey(r), NO_LINK)
+      .sort(([a], [b]) => (a === NO_LINK) - (b === NO_LINK) || this._linkLabel(a).localeCompare(this._linkLabel(b), 'de')));
     for (const [linkName, linkResults] of linkGroups) {
-      const students = this._groupBy(linkResults, (r) => r.studentName || r.username || '—', null);
+      const students = this._order(this._groupBy(linkResults, (r) => r.studentName || r.username || '—', null));
       // Quick-Link: unter dem Titel des Themas, zu dem er erzeugt wurde
       const title = linkName === NO_LINK
         ? '📄 Ohne Link'
@@ -266,7 +298,8 @@ export class ResultsView {
         'link::' + linkName,
         'result-group result-group-link',
         `<span class="result-group-title">${title}</span>
-         <span class="result-group-meta">${students.length} Schüler · ${this._runCount(linkResults.length)} · Ø ${this._avg(linkResults)}%</span>`,
+         <span class="result-group-meta">${students.length} Schüler · ${this._runCount(linkResults.length)} · Ø ${this._avg(linkResults)}%</span>
+         <span class="result-group-date" title="Neuester Durchlauf">🕒 ${this._when(this._latest(linkResults))}</span>`,
         expandAll,
       );
 
@@ -280,7 +313,8 @@ export class ResultsView {
           `student::${linkName}::${studentName}`,
           'result-group result-group-student',
           `<span class="result-group-title">${escapeHtml(studentName)}</span>
-           <span class="result-group-meta">${this._runCount(runs.length)} · Ø ${this._avg(runs)}%${runs.length > 1 ? ` · bester ${best}%` : ''}</span>`,
+           <span class="result-group-meta">${this._runCount(runs.length)} · Ø ${this._avg(runs)}%${runs.length > 1 ? ` · bester ${best}%` : ''}</span>
+           <span class="result-group-date" title="Neuester Durchlauf">🕒 ${this._when(this._latest(runs))}</span>`,
           expandAll,
         );
 

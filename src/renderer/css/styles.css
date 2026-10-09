@@ -4526,3 +4526,16 @@ body {
 .dnd-side .dnd-board > .dnd-player-draggables { flex-direction: column; align-items: stretch; margin-bottom: 0; }
 .dnd-side .dnd-player-canvas-wrap { margin-bottom: 0; }
 .dnd-side .dnd-player-canvas { margin: 0; }
+
+/* Neuester Durchlauf in der kompakten Zeile – in einer Flucht rechts. */
+.result-group-date {
+  min-width: 128px;
+  text-align: right;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+@media (max-width: 640px) { .result-group-date { min-width: 0; } }
+.zoom-row .setting-label { white-space: nowrap; display: inline-flex; align-items: center; gap: 4px; }
+.zoom-row .help-hint { width: 16px; height: 16px; min-width: 16px; font-size: 0.65rem; line-height: 1; padding: 0; }

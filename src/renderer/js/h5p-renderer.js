@@ -1434,6 +1434,11 @@ export class H5pRenderer {
           const dndNextBtn = div.querySelector('#dndNext');
           if (dndNextBtn) dndNextBtn.addEventListener('click', () => { const nb = document.getElementById('btnQuizNext'); if (nb) nb.click(); });
         }
+        // Ohne Elemente gäbe es nur eine leere Ablage – lieber sagen, was fehlt.
+        if (!drags.length) {
+          dragsEl.innerHTML = '<p class="dnd-player-empty">Diese Aufgabe hat noch keine ziehbaren Elemente. '
+            + 'Lehrkräfte ergänzen sie im Modul-Editor unter „Ziehbare Elemente“.</p>';
+        }
         if (hasImage) setupDndFit(div);
         break;
       }

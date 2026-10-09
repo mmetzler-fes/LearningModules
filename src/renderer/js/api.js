@@ -388,6 +388,15 @@ export class BrowserApi {
     return res.json();
   }
 
+  // ---------- Entwürfe des Modul-Editors ----------
+  listDrafts(topicId) { return this._fetch(`/api/drafts${topicId ? `?topicId=${encodeURIComponent(topicId)}` : ''}`); }
+  getDraft(key) { return this._fetch(`/api/drafts/${encodeURIComponent(key)}`); }
+  /** body: { topicId, moduleId, data }; keepalive für das Schließen des Tabs (nur kleine Entwürfe). */
+  saveDraft(key, body, keepalive = false) {
+    return this._fetch(`/api/drafts/${encodeURIComponent(key)}`, { method: 'PUT', body: JSON.stringify(body), keepalive });
+  }
+  deleteDraft(key) { return this._fetch(`/api/drafts/${encodeURIComponent(key)}`, { method: 'DELETE' }); }
+
   // ---------- Topics ----------
   getTopics() { return this._fetch('/api/topics'); }
   saveTopic(topicData, isUpdate = false) {

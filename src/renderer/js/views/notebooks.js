@@ -61,6 +61,11 @@ export class NotebooksView {
       return;
     }
     this._data = data;
+    // Module mit offenem Entwurf (nicht gespeicherte Änderungen) markieren.
+    try {
+      const drafts = await this.app.api.listDrafts();
+      this._draftIds = new Set((Array.isArray(drafts) ? drafts : []).map((d) => d.moduleId).filter(Boolean));
+    } catch (_) { this._draftIds = new Set(); }
     // Die Modul-Ansichten lesen Tags und Rechte aus state.topics.
     this.app.state.topics = data.topics;
     if (!(this.app.state.tags || []).length) await this.app.loadTags();
@@ -328,10 +333,10 @@ export class NotebooksView {
       key: 'm:' + mod.id, depth, icon: type.icon || '🧩', title: mod.title, twisty: false,
       cls: `nb-module ${on ? '' : 'nb-off'} ${this._query && this._matches(mod.title) ? 'nb-hit' : ''}`,
       meta: escapeHtml(type.name || mod.type),
-      extra: own
+      extra: (this._draftIds?.has(mod.id) ? '<span class="nb-badge" title="Nicht gespeicherte Änderungen – beim Bearbeiten wiederherstellbar">📝 Entwurf</span>' : '') + (own
         ? `<button type="button" class="nb-status ${on ? 'on' : ''}" title="${on ? 'Aktiv – klicken zum Deaktivieren' : 'Inaktiv – klicken zum Aktivieren'}">${on ? '●' : '○'}</button>
            <button type="button" class="nb-edit" title="Bearbeiten">✏️</button>`
-        : '',
+        : ''),
       drag: own && !mod.parentId ? { type: 'module', id: mod.id, topicId: topic.id } : null,
     });
     row.querySelector('.nb-title').addEventListener('click', () => this.app.modulesView.openFrom('teacher-notebooks', topic.id, mod, own ? 'edit' : 'preview'));

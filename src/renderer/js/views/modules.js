@@ -49,6 +49,15 @@ export class ModulesView {
     this._tagPicker = new TagPicker(app, document.getElementById('moduleTags'));
 
     this._bindEvents();
+
+    // Tab schließen oder neu laden mit ungesicherten Änderungen: noch einmal
+    // sichern und den Browser nachfragen lassen.
+    window.addEventListener('beforeunload', (e) => {
+      if (!this._draft || !this._isDirty() || this._snapshot() === this._draft.sent) return;
+      this._tickDraft(true);
+      e.preventDefault();
+      e.returnValue = '';
+    });
   }
 
   _bindEvents() {
@@ -65,10 +74,7 @@ export class ModulesView {
     }
 
     if (this._btnCreate) {
-      this._btnCreate.addEventListener('click', () => {
-        this._resetModuleForm();
-        this.app.navigateToView('create-module');
-      });
+      this._btnCreate.addEventListener('click', () => this.openNew());
     }
 
     // Beide Export-Knöpfe führen in denselben Dialog: Er weiß, welche Module
@@ -171,7 +177,12 @@ export class ModulesView {
       this._moduleForm.addEventListener('submit', (e) => this._onModuleFormSubmit(e));
     }
     if (this._btnCancelModule) {
-      this._btnCancelModule.addEventListener('click', () => {
+      this._btnCancelModule.addEventListener('click', async () => {
+        if (this._draft && this._isDirty()) {
+          const ok = await this.app.appConfirm('Ungespeicherte Änderungen verwerfen?\n\nDer gesicherte Entwurf wird dabei gelöscht. Mit „Abbrechen“ bleibst du im Editor.');
+          if (!ok) return;
+        }
+        await this._discardDraft();
         this._resetModuleForm();
         this.app.navigateToView(this.backView());
       });
@@ -203,10 +214,7 @@ export class ModulesView {
     const full = mod ? this.app.state.currentTopicModules.find((m) => m.id === mod.id) || mod : null;
     if (action === 'preview' && full) this._openPlayer(full);
     else if (full) this._openEditor(full);
-    else {
-      this._resetModuleForm();
-      this.app.navigateToView('create-module');
-    }
+    else await this.openNew();
   }
 
   populateTypeSelects() {
@@ -332,6 +340,12 @@ export class ModulesView {
     }
 
     state.currentTopicModules = await this.app.api.getTopicModules(currentTopicId);
+    // Offene Entwürfe: an den Modulen markieren, neue oben anbieten.
+    let drafts = [];
+    try { drafts = await this.app.api.listDrafts(currentTopicId); } catch (_) {}
+    if (!Array.isArray(drafts)) drafts = [];
+    const draftIds = new Set(drafts.map((d) => d.moduleId).filter(Boolean));
+    const newDrafts = drafts.filter((d) => !d.moduleId);
     const search = (this._searchModules.value || '').toLowerCase().trim();
     const typeFilter = this._filterType ? this._filterType.value : '';
     let filtered = state.currentTopicModules;
@@ -339,6 +353,16 @@ export class ModulesView {
     if (typeFilter) filtered = filtered.filter((m) => m.type === typeFilter);
 
     this._modulesList.innerHTML = '';
+
+    if (newDrafts.length) {
+      const note = document.createElement('div');
+      note.className = 'class-notice draft-notice';
+      note.innerHTML = `<div>📝 Nicht gespeicherter neuer Modul-Entwurf${newDrafts[0].title ? ` „${escapeHtml(newDrafts[0].title)}“` : ''}
+        vom ${new Date(newDrafts[0].updatedAt).toLocaleString('de-DE')}${newDrafts.length > 1 ? ` (und ${newDrafts.length - 1} weitere)` : ''}.</div>
+        <button type="button" class="btn btn-secondary btn-sm">Fortsetzen</button>`;
+      note.querySelector('button').addEventListener('click', () => this.openNew());
+      this._modulesList.appendChild(note);
+    }
 
     if (filtered.length === 0) {
       const empty = document.createElement('div');
@@ -389,6 +413,7 @@ export class ModulesView {
           <div class="module-card-title">${escapeHtml(mod.title)}</div>
           <div class="module-card-meta">
             <span class="module-card-type">${typeDef.name || mod.type}</span>
+            ${draftIds.has(mod.id) ? '<span class="topic-shared-badge draft-badge" title="Nicht gespeicherte Änderungen – beim Bearbeiten wiederherstellbar">📝 Entwurf</span>' : ''}
             ${mod.createdAt ? new Date(mod.createdAt).toLocaleDateString('de-DE') : ''}
             ${mod.isMine === false ? `<span class="topic-shared-badge" title="Creator dieses Moduls – bleibt auch nach deiner Bearbeitung verzeichnet. Unverschlüsselt exportieren kann es nur der Creator.">✍️ ${escapeHtml(mod.creatorName || 'Unbekannt')}</span>` : ''}
           </div>
@@ -473,7 +498,7 @@ export class ModulesView {
     this.app.renderer.renderPreview(mod, typeDef, this._h5pContainer);
   }
 
-  _openEditor(mod) {
+  async _openEditor(mod) {
     this.app.state.editingModuleId = mod.id;
     this._createViewTitle.textContent = t('module.edit.title');
     this._moduleIdInput.value = mod.id;
@@ -486,6 +511,150 @@ export class ModulesView {
     this._renderInheritedHint();
     this.app.navigateToView('create-module');
     this.app.state.contentEditor.render(mod.type, mod.content || {});
+    await this._beginDraft(mod.id, mod.id, mod.title);
+  }
+
+  // ---- Entwürfe: laufend auf dem Server gesichert, auf jedem Gerät abrufbar ----
+  //
+  // Der Editor sichert alle paar Sekunden seinen Stand als Entwurf, solange
+  // er sich vom gespeicherten Modul unterscheidet. Veröffentlicht wird erst
+  // mit „Modul speichern“ – danach ist der Entwurf weg. Öffnet man das Modul
+  // wieder (auch an einem anderen Gerät), gibt es ihn zur Wiederherstellung.
+
+  /** Neues Modul: einen offenen Entwurf für ein neues Modul in diesem Thema anbieten. */
+  async openNew() {
+    this._resetModuleForm();
+    this.app.navigateToView('create-module');
+    const topicId = this.app.state.currentTopicId;
+    let drafts = [];
+    try { drafts = await this.app.api.listDrafts(topicId); } catch (_) {}
+    const open = Array.isArray(drafts) ? drafts.filter((d) => !d.moduleId) : [];
+    let key = `new:${generateId()}`;
+    if (open.length) {
+      const d = open[0];
+      const restore = await this.app.appConfirm(
+        `Es gibt einen nicht gespeicherten neuen Modul-Entwurf${d.title ? ` „${d.title}“` : ''} vom ${new Date(d.updatedAt).toLocaleString('de-DE')}.\n\n`
+        + 'Fortsetzen? Mit „Abbrechen“ wird er verworfen und du beginnst neu.',
+      );
+      if (restore) {
+        const full = await this.app.api.getDraft(d.draftKey).catch(() => null);
+        if (full && full.data) { this._applyDraftData(full.data); key = d.draftKey; }
+      } else {
+        await this.app.api.deleteDraft(d.draftKey).catch(() => {});
+      }
+    }
+    // Das neue Modul behält die ID des Entwurfs – so findet „Speichern“ ihn wieder.
+    this._newModuleId = key.slice(4);
+    await this._beginDraft(key, null, null, { checkExisting: false });
+  }
+
+  /** Einen gespeicherten Entwurf ins Formular übernehmen. */
+  _applyDraftData(data) {
+    this._moduleTitleInput.value = data.title || '';
+    this._moduleTypeSelect.value = data.type || '';
+    this._descEditor.setHtml(data.description || '');
+    const inherited = new Set(this._topicTagIds());
+    this._tagPicker.render((data.tagIds || []).filter((id) => !inherited.has(id)));
+    if (data.type) this.app.state.contentEditor.render(data.type, data.content || {});
+    else this.app.state.contentEditor.clear();
+  }
+
+  /** Aktueller Stand des Editors als Text – zum Vergleichen und Sichern. */
+  _snapshot() {
+    const type = this._moduleTypeSelect.value;
+    let content = {};
+    try { content = type ? this.app.state.contentEditor.collectData() : {}; } catch (_) { content = {}; }
+    return JSON.stringify({
+      title: this._moduleTitleInput.value,
+      type,
+      description: this._descEditor.getHtml(),
+      content,
+      tagIds: this._tagPicker.selectedIds,
+    });
+  }
+
+  _isDirty() {
+    return !!this._draft && this._snapshot() !== this._draft.baseline;
+  }
+
+  /**
+   * Sicherung starten. Beim Bearbeiten eines Moduls wird vorher nach einem
+   * Entwurf gefragt (wiederherstellen oder verwerfen).
+   */
+  async _beginDraft(key, moduleId, title, { checkExisting = true } = {}) {
+    this._stopDraft();
+    const topicId = this.app.state.currentTopicId;
+    // Erst nach dem Zeichnen des Editors vergleichen – sonst fehlen Felder.
+    await new Promise((r) => setTimeout(r, 0));
+    const baseline = this._snapshot();
+    if (checkExisting) {
+      const existing = await this.app.api.getDraft(key).catch(() => null);
+      if (existing && existing.data && JSON.stringify(existing.data) !== baseline) {
+        const restore = await this.app.appConfirm(
+          `Für „${title || existing.title || 'dieses Modul'}“ gibt es einen nicht gespeicherten Entwurf vom ${new Date(existing.updatedAt).toLocaleString('de-DE')}`
+          + ' – vielleicht von einem anderen Gerät.\n\nWiederherstellen? Mit „Abbrechen“ wird er verworfen.',
+        );
+        if (restore) this._applyDraftData(existing.data);
+        else await this.app.api.deleteDraft(key).catch(() => {});
+      }
+    }
+    // baseline bleibt der gespeicherte Stand: Ein wiederhergestellter Entwurf
+    // gilt damit als Änderung und wird weiter gesichert.
+    this._draft = { key, topicId, moduleId, baseline, sent: null, status: document.getElementById('moduleDraftStatus') };
+    if (this._snapshot() !== baseline) this._draft.sent = baseline; // sofort sichern lassen
+    this._setDraftStatus('');
+    this._draft.timer = setInterval(() => this._tickDraft(), 4000);
+  }
+
+  _setDraftStatus(text) {
+    const el = this._draft?.status;
+    if (el) el.textContent = text;
+  }
+
+  /** Sichern, wenn sich seit der letzten Sicherung etwas geändert hat. */
+  async _tickDraft(keepalive = false) {
+    const d = this._draft;
+    if (!d || d.busy) return;
+    const snap = this._snapshot();
+    if (snap === (d.sent ?? d.baseline)) return;
+    d.busy = true;
+    try {
+      if (snap === d.baseline) {
+        // Zurück auf den gespeicherten Stand: kein Entwurf mehr nötig.
+        await this.app.api.deleteDraft(d.key);
+        this._setDraftStatus('');
+      } else {
+        const res = await this.app.api.saveDraft(d.key, { topicId: d.topicId, moduleId: d.moduleId, data: JSON.parse(snap) }, keepalive);
+        if (res && res.success === false) throw new Error(res.message || 'Sichern fehlgeschlagen');
+        this._setDraftStatus(`💾 Entwurf gesichert ${new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })} – noch nicht veröffentlicht`);
+      }
+      d.sent = snap;
+    } catch (_) {
+      this._setDraftStatus('⚠️ Entwurf konnte nicht gesichert werden – bitte speichern');
+    } finally {
+      d.busy = false;
+    }
+  }
+
+  _stopDraft() {
+    if (this._draft?.timer) clearInterval(this._draft.timer);
+    this._draft = null;
+  }
+
+  /** Editor wird ohne Speichern verlassen (anderer Menüpunkt): letzten Stand sichern. */
+  async leaveEditor() {
+    if (!this._draft) return;
+    const dirty = this._isDirty();
+    await this._tickDraft();
+    this._stopDraft();
+    if (dirty) this.app.showToast('Nicht gespeicherte Änderungen sind als Entwurf gesichert – beim nächsten Öffnen kannst du weitermachen.', 'info');
+  }
+
+  /** Nach dem Speichern oder bewusstem Verwerfen: Entwurf löschen. */
+  async _discardDraft() {
+    const d = this._draft;
+    this._stopDraft();
+    if (d) await this.app.api.deleteDraft(d.key).catch(() => {});
   }
 
   /**
@@ -556,10 +725,26 @@ export class ModulesView {
       const problems = checkFormulaTask(content);
       if (problems.length) { this.app.showToast(`Formelaufgabe: ${problems.join(' · ')}`, 'error'); return; }
     }
+    // Drag and Drop ohne ziehbare Elemente sähe beim Schüler nur Bild und
+    // Zonen – nichts zum Ziehen. Speichern geht (Zwischenstand), aber mit Rückfrage.
+    if (type === 'dragAndDrop') {
+      const drags = (content.draggables || []).filter((d) => String(d.text || '').trim());
+      const zones = content.dropZones || [];
+      const used = new Set([
+        ...drags.map((d) => d.correctZone).filter(Boolean),
+        ...zones.filter((z) => String(z.correctDraggable || '').trim()).map((z) => z.label),
+      ]);
+      const open = zones.filter((z) => !used.has(z.label)).length;
+      const issues = [
+        !drags.length ? 'Es gibt noch keine ziehbaren Elemente – Schüler sehen nur Bild und Zonen.' : '',
+        drags.length && open ? `${open} von ${zones.length} Zonen haben kein richtiges Element.` : '',
+      ].filter(Boolean);
+      if (issues.length && !(await this.app.appConfirm(`Drag and Drop unvollständig:\n\n${issues.join('\n')}\n\nTrotzdem speichern?`))) return;
+    }
     const existing = state.editingModuleId ? state.currentTopicModules.find((m) => m.id === state.editingModuleId) : null;
 
     const moduleData = {
-      id: state.editingModuleId || generateId(),
+      id: state.editingModuleId || this._newModuleId || generateId(),
       title, type, description, content,
       tagIds: this._tagPicker.selectedIds,
       moduleSelected: existing ? existing.moduleSelected : true,
@@ -571,6 +756,8 @@ export class ModulesView {
     if (result.success) {
       this.app.showToast(state.editingModuleId ? t('module.updated') : t('module.saved'), 'success');
       state.currentTopicModules = await api.getTopicModules(state.currentTopicId);
+      await this._discardDraft();
+      this._newModuleId = null;
       this._resetModuleForm();
       this.app.navigateToView(this.backView());
     } else {

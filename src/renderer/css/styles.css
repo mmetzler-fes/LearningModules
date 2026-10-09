@@ -4539,3 +4539,10 @@ body {
 @media (max-width: 640px) { .result-group-date { min-width: 0; } }
 .zoom-row .setting-label { white-space: nowrap; display: inline-flex; align-items: center; gap: 4px; }
 .zoom-row .help-hint { width: 16px; height: 16px; min-width: 16px; font-size: 0.65rem; line-height: 1; padding: 0; }
+.dnd-player-empty { margin: 0; font-size: 0.9rem; color: var(--text-secondary); }
+
+/* ---- Entwürfe des Modul-Editors ---- */
+.draft-status { align-self: center; font-size: 0.85rem; color: var(--text-secondary); }
+.draft-badge { background: #fef9c3; color: #854d0e; border-color: #fde68a; }
+[data-theme="dark"] .draft-badge { background: #422006; color: #fde68a; border-color: #854d0e; }
+.draft-notice { margin-bottom: 12px; }

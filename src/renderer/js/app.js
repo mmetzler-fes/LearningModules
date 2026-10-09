@@ -152,6 +152,11 @@ class App {
 
   navigateToView(viewName) {
     const { state } = this;
+    // Den Modul-Editor ohne Speichern verlassen: letzten Stand als Entwurf sichern.
+    if (viewName !== 'create-module' && this.modulesView?._draft
+      && document.getElementById('view-create-module')?.classList.contains('active')) {
+      this.modulesView.leaveEditor();
+    }
     // Das Dashboard ist in den LernModulen aufgegangen; ein gemerkter alter
     // Menüpunkt (sessionStorage) führt dorthin.
     if (viewName === 'teacher-dashboard') viewName = 'teacher-topics';

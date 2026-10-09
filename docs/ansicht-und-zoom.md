@@ -8,12 +8,19 @@ Unten in der Seitenleiste stehen zwei Regler:
 - **Zoom Inhalt** – alles rechts davon.
 
 Beide gehen in Stufen von 70 % bis 160 %. Ein Klick auf die Prozentzahl setzt
-auf 100 % zurück. Die Einstellung gilt für dieses Gerät und diesen Browser –
+auf 100 % zurück.
+
+**Strg + Mausrad** zoomt den Bereich, über dem der Mauszeiger steht: über der
+Seitenleiste das Menü, über dem Inhalt den Inhalt – in denselben Stufen, die
+Regler zeigen den Wert an. Zusammenziehen mit zwei Fingern auf dem Touchpad
+wirkt genauso. **Strg + Plus/Minus** bzw. **Strg + 0** sind weiterhin der
+Zoom des Browsers für die ganze Seite. Die Einstellung gilt für dieses Gerät und diesen Browser –
 am Beamer-Rechner kann sie anders sein als am eigenen. Dialoge (Rückfragen,
 Auswahlfenster) bleiben in normaler Größe.
 
-Bei schmaler Seitenleiste (Tablet, Handy) fehlen die Regler; dort zoomt man
-mit zwei Fingern.
+Im Durchlauf (Schüler-Ansicht) stehen die Regler oben in der Seitenleiste.
+Bei schmaler Seitenleiste (Tablet, Handy) fehlen sie; dort zoomt man mit zwei
+Fingern.
 
 ## Drag and Drop mit Bild
 
@@ -24,7 +31,8 @@ Umschalter:
 - **⤢ Einpassen** (Vorgabe): Die ganze Aufgabe – Text, Ablage, Bild und
   Knöpfe – wird so verkleinert, dass sie auf einen Bildschirm passt. Je
   nachdem, was das größere Bild ergibt, steht die Ablage über dem Bild oder
-  daneben. Schmaler als 320 Bildschirm-Pixel wird das Bild nicht, damit die
+  daneben. Daneben nimmt sie die übrige Breite und verteilt die Elemente auf
+  mehrere Spalten; reicht der Platz trotzdem nicht, scrollt nur die Ablage. Schmaler als 320 Bildschirm-Pixel wird das Bild nicht, damit die
   Beschriftung lesbar bleibt; bei sehr hohen Bildern bleibt dann ein Rest zum
   Scrollen.
 - **🔍 Vergrößern**: Das Bild nutzt die volle Breite und wird dafür höher als

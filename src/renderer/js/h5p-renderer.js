@@ -52,8 +52,13 @@ const WIDE_TYPES = new Set(['dragAndDrop', 'imageHotspots', 'video', 'worksheet'
 const DND_VIEW_KEY = 'lm_dnd_view';
 /** Schmaler als so viele Bildschirm-Pixel wird das Bild nicht – sonst wird die Beschriftung unlesbar. */
 const DND_MIN_WIDTH = 320;
-/** Breite der Ablage, wenn sie neben dem Bild steht. */
+/**
+ * Ablage neben dem Bild: mindestens so breit; sie bekommt den Rest der
+ * Breite (bis zum Höchstwert) und verteilt die Elemente auf mehrere Spalten –
+ * so passen auch viele Elemente auf einen Bildschirm.
+ */
 const DND_SIDE_BANK = 220;
+const DND_SIDE_BANK_MAX = 960;
 /** Ab dieser Breite darf die Ablage neben das Bild. */
 const DND_SIDE_FROM = 700;
 
@@ -87,6 +92,8 @@ function setupDndFit(div) {
     player.classList.toggle('dnd-fit', mode === 'fit');
     player.classList.remove('dnd-side');
     canvas.style.maxWidth = '';
+    board.style.gridTemplateColumns = '';
+    bank.style.maxHeight = '';
     if (mode !== 'fit' || !img.naturalWidth || !player.isConnected) return;
 
     // Alles in Pixeln vor dem Zoom: Bildschirmmaße durch den Inhaltszoom.
@@ -110,6 +117,13 @@ function setupDndFit(div) {
     const w = Math.max(Math.min(DND_MIN_WIDTH / z, room), useSide ? side : stacked);
     player.classList.toggle('dnd-side', useSide);
     canvas.style.maxWidth = `${Math.floor(w)}px`;
+    if (useSide) {
+      // Die Ablage nimmt die übrige Breite und bleibt so hoch wie die Fläche;
+      // passt es trotzdem nicht, scrollt nur die Ablage.
+      const bankW = Math.max(DND_SIDE_BANK, Math.min(DND_SIDE_BANK_MAX, width - Math.floor(w) - 16));
+      board.style.gridTemplateColumns = `${Math.floor(bankW)}px ${Math.floor(w)}px`;
+      bank.style.maxHeight = `${Math.floor(Math.max(200, avail))}px`;
+    }
   };
 
   buttons.forEach((b) => b.addEventListener('click', () => {

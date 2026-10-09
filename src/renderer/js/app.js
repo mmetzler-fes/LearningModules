@@ -277,6 +277,26 @@ class App {
       row.querySelector('.zoom-plus').addEventListener('click', () => step(1));
       row.querySelector('.zoom-value').addEventListener('click', () => apply(which, 1));
     }
+
+    // Strg + Mausrad zoomt den Bereich unter dem Mauszeiger – Seitenleiste oder
+    // Inhalt – statt der ganzen Seite. Zusammenziehen auf dem Touchpad kommt
+    // im Browser ebenso an. Strg + Plus/Minus bleibt der Browser-Zoom.
+    // Ein Rad-Klick (≈100) ist eine Stufe; kleine Touchpad-Schritte sammeln sich.
+    for (const which of Object.keys(targets)) {
+      const el = targets[which];
+      if (!el) continue;
+      let acc = 0;
+      el.addEventListener('wheel', (e) => {
+        if (!e.ctrlKey) return;
+        e.preventDefault();
+        acc += e.deltaMode === 1 ? e.deltaY * 33 : e.deltaY;
+        if (Math.abs(acc) < 50) return;
+        const dir = acc < 0 ? 1 : -1;
+        acc = 0;
+        const i = STEPS.indexOf(read(which));
+        apply(which, STEPS[Math.min(STEPS.length - 1, Math.max(0, i + dir))]);
+      }, { passive: false });
+    }
   }
 
   /**

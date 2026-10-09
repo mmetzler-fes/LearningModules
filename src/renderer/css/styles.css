@@ -4523,7 +4523,16 @@ body {
 .dnd-board > .dnd-player-draggables { position: sticky; top: 0; z-index: 5; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06); }
 /* Ablage neben dem Bild (breite Bildschirme, hohe Bilder) */
 .dnd-side .dnd-board { display: grid; grid-template-columns: 220px minmax(0, 1fr); column-gap: 16px; align-items: start; }
-.dnd-side .dnd-board > .dnd-player-draggables { flex-direction: column; align-items: stretch; margin-bottom: 0; }
+.dnd-side .dnd-board > .dnd-player-draggables {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  align-content: start;
+  align-items: start;
+  margin-bottom: 0;
+  overflow-y: auto;
+}
+/* Bild an den rechten Rand – unter den Umschalter, der Freiraum liegt dazwischen. */
+.dnd-side .dnd-board { justify-content: space-between; }
 .dnd-side .dnd-player-canvas-wrap { margin-bottom: 0; }
 .dnd-side .dnd-player-canvas { margin: 0; }
 
@@ -4546,3 +4555,10 @@ body {
 .draft-badge { background: #fef9c3; color: #854d0e; border-color: #fde68a; }
 [data-theme="dark"] .draft-badge { background: #422006; color: #fde68a; border-color: #854d0e; }
 .draft-notice { margin-bottom: 12px; }
+
+/* Durchlauf (Schüler-Ansicht): Die Einstellungen stehen dort kompakt in einer
+   Zeile – die beiden Zoom-Regler bekommen je eine eigene Zeile mit Beschriftung,
+   sonst ragen sie aus der Seitenleiste und sind nicht zu unterscheiden. */
+.student-run .sidebar-settings { flex-wrap: wrap; row-gap: 6px; }
+.student-run .sidebar-settings .zoom-row { flex: 1 0 100%; order: 2; }
+.student-run .sidebar-settings .zoom-row .setting-label { display: inline-flex; }

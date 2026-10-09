@@ -166,7 +166,8 @@ export class ShopService {
       });
     }
     out.sort((a, b) => a.title.localeCompare(b.title, 'de'));
-    return { balance: await this.points.balance(user.userId), offers: out };
+    const { minBalance } = await this.points.getSettings();
+    return { balance: await this.points.balance(user.userId), minBalance, offers: out };
   }
 
   // ---- Anbieten ----
@@ -400,11 +401,15 @@ export class ShopService {
     let copyId: string | null = null;
     await this.dataSource.transaction(async (manager) => {
       if (price > 0) {
+        // Ins Minus darf es gehen – bis zur Untergrenze, falls der Admin eine gesetzt hat.
         const balance = await this.points.balance(user.userId, manager);
-        if (balance < price) {
-          throw new BadRequestException(`Dafür brauchst du ${price} Punkte – auf deinem Konto sind ${balance}.`);
+        const { minBalance } = await this.points.getSettings();
+        if (!PointsService.canSpend(balance, price, minBalance)) {
+          throw new BadRequestException(
+            `Dafür sind ${price} Punkte nötig – auf deinem Konto sind ${balance}, und unter ${minBalance} geht es nicht. Teile selbst etwas, dann kommen Punkte dazu.`,
+          );
         }
-        await this.points.book(manager, user.userId, -price, 'purchase', `${mode === 'copy' ? 'Copy' : 'Use'}: ${topic.title}`);
+        await this.points.book(manager, user.userId, -price, 'purchase', `${mode === 'copy' ? 'Copy' : 'Use'}: ${topic.title}`, null);
         await this.points.book(manager, offer.sellerId, price, 'sale', `${mode === 'copy' ? 'Copy' : 'Use'}: ${topic.title}`);
       }
 
@@ -537,10 +542,10 @@ export class ShopService {
       if (until && until.getTime() >= Date.now() && sellerId && sellerId !== user.userId) {
         const topic = await this.topicRepo.findOne({ where: { id: grant.topicId } });
         const note = `Rückgabe Use: ${topic?.title || 'Thema'}`;
-        // Ins Minus geht kein Konto: Hat der Anbieter weniger, gibt es so viel zurück, wie da ist.
-        refunded = Math.min(grant.pricePaid, await this.points.balance(sellerId, manager));
+        // Erstattet wird immer voll – notfalls rutscht der Anbieter dafür ins Minus.
+        refunded = grant.pricePaid;
         if (refunded > 0) {
-          await this.points.book(manager, sellerId, -refunded, 'refund', note);
+          await this.points.book(manager, sellerId, -refunded, 'refund', note, null);
           await this.points.book(manager, user.userId, refunded, 'refund', note);
         }
       }

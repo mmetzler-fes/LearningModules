@@ -1,4 +1,4 @@
-import { Injectable, Logger, OnApplicationBootstrap, OnModuleDestroy, BadRequestException } from '@nestjs/common';
+import { Injectable, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { EntityManager, Repository } from 'typeorm';
 import * as crypto from 'crypto';
@@ -10,30 +10,31 @@ import { PointsEntry, PointsReason } from '../core/entities/points-entry.entity'
 export interface PointsSettings {
   /** Guthaben eines neuen Kontos. */
   startPoints: number;
-  /** Abzug am 1.1. in Prozent des Kontostands. */
-  yearlyDecayPercent: number;
-  /** Geschenk an alle aktiven Konten am 1.1. – nach dem Abzug. */
-  yearlyBonus: number;
   /** Höchstzahl an Personen, an die ein Buyer eine Kopie zur Nutzung weitergibt. */
   buyerShareMax: number;
+  /**
+   * Untergrenze für Einkäufe: Ein Kauf geht, solange der Kontostand danach
+   * nicht darunter liegt. null = keine Grenze. Punkte sind vor allem
+   * Rückmeldung fürs Teilen – Tauschen soll nicht am Kontostand scheitern.
+   */
+  minBalance: number | null;
 }
 
 export const DEFAULT_POINTS_SETTINGS: PointsSettings = {
   startPoints: 200,
-  yearlyDecayPercent: 10,
-  yearlyBonus: 100,
   buyerShareMax: 10,
+  minBalance: null,
 };
 
 const SETTINGS_KEY = 'points_settings';
-const LAST_YEARLY_KEY = 'points_last_yearly';
 
 /**
  * Punktekonten für den Shop.
  *
- * Der Gedanke: Wer teilt, bekommt Punkte; wer nimmt, gibt welche ab. Damit
- * genug im Umlauf ist und Horten sich nicht lohnt, verliert jedes Konto am
- * 1.1. einen Anteil und bekommt danach einen festen Betrag geschenkt.
+ * Der Gedanke: Wer teilt, bekommt Punkte; wer nimmt, gibt welche ab. Punkte
+ * sind vor allem Rückmeldung fürs Teilen – Konten dürfen deshalb ins Minus
+ * (siehe `minBalance`). Einen Abzug oder ein Geschenk zum Jahreswechsel gibt
+ * es nicht mehr (bis Oktober 2026); alte Buchungen dazu bleiben im Konto.
  *
  * Ein Konto wird erst beim ersten Zugriff mit dem Startguthaben eröffnet
  * (`points` ist bis dahin null). So muss das Anlegen eines Benutzers nichts
@@ -41,9 +42,7 @@ const LAST_YEARLY_KEY = 'points_last_yearly';
  * Startguthaben.
  */
 @Injectable()
-export class PointsService implements OnApplicationBootstrap, OnModuleDestroy {
-  private readonly logger = new Logger(PointsService.name);
-  private timer: NodeJS.Timeout | null = null;
+export class PointsService {
 
   constructor(
     @InjectRepository(User) private readonly userRepo: Repository<User>,
@@ -55,7 +54,14 @@ export class PointsService implements OnApplicationBootstrap, OnModuleDestroy {
 
   async getSettings(): Promise<PointsSettings> {
     const entry = await this.configRepo.findOne({ where: { key: SETTINGS_KEY } });
-    return { ...DEFAULT_POINTS_SETTINGS, ...(entry?.value || {}) };
+    // Nur bekannte Felder – gespeicherte Altlasten (z. B. der frühere
+    // Jahresabzug) sollen nicht wieder auftauchen.
+    const saved = entry?.value || {};
+    const out = { ...DEFAULT_POINTS_SETTINGS };
+    for (const key of Object.keys(out) as (keyof PointsSettings)[]) {
+      if (saved[key] !== undefined) (out as any)[key] = saved[key];
+    }
+    return out;
   }
 
   async saveSettings(input: Partial<PointsSettings>): Promise<PointsSettings> {
@@ -69,12 +75,12 @@ export class PointsService implements OnApplicationBootstrap, OnModuleDestroy {
       return n;
     };
     if (input.startPoints !== undefined) next.startPoints = intIn(input.startPoints, 0, 100000, 'Startguthaben');
-    if (input.yearlyDecayPercent !== undefined) {
-      next.yearlyDecayPercent = intIn(input.yearlyDecayPercent, 0, 100, 'Jährlicher Abzug');
-    }
-    if (input.yearlyBonus !== undefined) next.yearlyBonus = intIn(input.yearlyBonus, 0, 100000, 'Jahresgeschenk');
     if (input.buyerShareMax !== undefined) {
       next.buyerShareMax = intIn(input.buyerShareMax, 0, 1000, 'Weitergabe durch Käufer');
+    }
+    if (input.minBalance !== undefined) {
+      const raw = input.minBalance as any;
+      next.minBalance = raw === null || raw === '' ? null : intIn(raw, -1000000, 0, 'Untergrenze');
     }
     await this.configRepo.save(this.configRepo.create({ key: SETTINGS_KEY, value: next }));
     return next;
@@ -106,8 +112,18 @@ export class PointsService implements OnApplicationBootstrap, OnModuleDestroy {
   }
 
   /**
-   * Bucht `delta` Punkte. Ins Minus geht es nie – die Prüfung steht hier und
-   * nicht beim Aufrufer, damit kein Weg daran vorbeiführt.
+   * Darf ein Konto mit diesem Stand für `price` einkaufen? Ohne Untergrenze
+   * immer; sonst darf der Stand danach nicht darunter liegen.
+   */
+  static canSpend(balance: number, price: number, minBalance: number | null): boolean {
+    return minBalance === null || balance - price >= minBalance;
+  }
+
+  /**
+   * Bucht `delta` Punkte. `floor` ist der niedrigste erlaubte Stand danach:
+   * 0, wenn nichts angegeben ist; null erlaubt jeden Stand. Ins Minus geht es
+   * also nur, wo der Aufrufer es ausdrücklich zulässt – beim Einkauf (mit der
+   * Untergrenze aus den Einstellungen) und bei Erstattungen.
    */
   async book(
     manager: EntityManager | undefined,
@@ -115,11 +131,12 @@ export class PointsService implements OnApplicationBootstrap, OnModuleDestroy {
     delta: number,
     reason: PointsReason,
     note?: string,
+    floor: number | null = 0,
   ): Promise<number> {
     const users = manager ? manager.getRepository(User) : this.userRepo;
     const user = await this.open(userId, manager);
     const next = (user.points ?? 0) + delta;
-    if (next < 0) throw new BadRequestException('Nicht genug Punkte auf dem Konto.');
+    if (delta < 0 && floor !== null && next < floor) throw new BadRequestException('Nicht genug Punkte auf dem Konto.');
     user.points = next;
     await users.save(user);
     await this.log(manager, userId, delta, next, reason, note);
@@ -142,56 +159,5 @@ export class PointsService implements OnApplicationBootstrap, OnModuleDestroy {
 
   async ledger(userId: string, limit = 100) {
     return this.entryRepo.find({ where: { userId }, order: { createdAt: 'DESC' }, take: limit });
-  }
-
-  // ---- Jahreswechsel ----
-
-  onApplicationBootstrap() {
-    this.runYearlyIfDue().catch((err) => this.logger.error('Jahreswechsel der Punkte fehlgeschlagen', err));
-    // Läuft der Server über Neujahr durch, greift die Prüfung spätestens
-    // sechs Stunden später; sonst beim nächsten Start.
-    this.timer = setInterval(
-      () => this.runYearlyIfDue().catch((err) => this.logger.error('Jahreswechsel der Punkte fehlgeschlagen', err)),
-      6 * 60 * 60 * 1000,
-    );
-    this.timer.unref?.();
-  }
-
-  onModuleDestroy() {
-    if (this.timer) clearInterval(this.timer);
-  }
-
-  /**
-   * Holt jeden verpassten 1.1. nach: erst der prozentuale Abzug (abgerundet),
-   * dann das Geschenk. Beim allerersten Lauf wird nur das Jahr vermerkt –
-   * rückwirkend wird nichts abgezogen.
-   */
-  async runYearlyIfDue(now = new Date()) {
-    const year = now.getFullYear();
-    const entry = await this.configRepo.findOne({ where: { key: LAST_YEARLY_KEY } });
-    const last = typeof entry?.value === 'number' ? entry.value : null;
-
-    if (last === null) {
-      await this.configRepo.save(this.configRepo.create({ key: LAST_YEARLY_KEY, value: year }));
-      return 0;
-    }
-    if (last >= year) return 0;
-
-    const settings = await this.getSettings();
-    // Deaktivierte Konten ruhen: Sie verlieren nichts und bekommen nichts.
-    const users = await this.userRepo.find({ where: { active: true } });
-    for (let y = last + 1; y <= year; y++) {
-      for (const u of users) {
-        const current = await this.balance(u.id);
-        const decay = Math.floor((current * settings.yearlyDecayPercent) / 100);
-        if (decay > 0) await this.book(undefined, u.id, -decay, 'yearly-decay', `Jahreswechsel ${y}`);
-        if (settings.yearlyBonus > 0) {
-          await this.book(undefined, u.id, settings.yearlyBonus, 'yearly-bonus', `Jahreswechsel ${y}`);
-        }
-      }
-      this.logger.log(`Jahreswechsel ${y}: ${users.length} Punktekonten angepasst`);
-    }
-    await this.configRepo.save(this.configRepo.create({ key: LAST_YEARLY_KEY, value: year }));
-    return users.length;
   }
 }

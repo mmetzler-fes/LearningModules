@@ -217,7 +217,8 @@ export class AccountsService {
     // Punkte addieren; die Buchungen des alten Kontos wandern mit.
     const fromPoints = await this.points.balance(from.id);
     await this.entryRepo.update({ userId: from.id }, { userId: to.id });
-    if (fromPoints > 0) await this.points.book(undefined, to.id, fromPoints, 'merge', `Übernommen von ${from.email}`);
+    // Auch ein Minus zieht mit um – sonst ließe es sich per Kontowechsel loswerden.
+    if (fromPoints !== 0) await this.points.book(undefined, to.id, fromPoints, 'merge', `Übernommen von ${from.email}`, null);
 
     const fresh = await this.userRepo.findOne({ where: { id: to.id } });
     if (!fresh) throw new BadRequestException('Zielkonto nicht gefunden.');

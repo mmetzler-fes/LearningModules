@@ -270,6 +270,8 @@ class App {
       info.appendChild(badge);
     }
     badge.textContent = `🪙 ${balance}`;
+    // Im Minus zu sein ist erlaubt – aber man soll es sehen.
+    badge.classList.toggle('negative', balance < 0);
   }
 
   async loadPoints() {

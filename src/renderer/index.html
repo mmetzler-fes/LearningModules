@@ -1056,16 +1056,14 @@
               <input type="number" id="ptsStart" min="0" step="1" />
             </div>
             <div class="form-group">
-              <label for="ptsDecay">Abzug am 1.1. (Prozent des Kontostands)</label>
-              <input type="number" id="ptsDecay" min="0" max="100" step="1" />
-            </div>
-            <div class="form-group">
-              <label for="ptsBonus">Geschenk am 1.1. (nach dem Abzug)</label>
-              <input type="number" id="ptsBonus" min="0" step="1" />
-            </div>
-            <div class="form-group">
               <label for="ptsShareMax">Weitergabe gekaufter Inhalte: höchstens so viele Personen</label>
               <input type="number" id="ptsShareMax" min="0" step="1" />
+            </div>
+            <div class="form-group">
+              <label for="ptsMinBalance">Untergrenze für Einkäufe (leer = keine)</label>
+              <input type="number" id="ptsMinBalance" max="0" step="1" placeholder="keine" />
+              <p class="hint">Konten dürfen ins Minus gehen, damit Tauschen nicht am Kontostand scheitert. Mit einer
+                Untergrenze, z. B. −500, ist darunter kein Einkauf mehr möglich. Erstattungen gehen immer.</p>
             </div>
             <div class="form-actions">
               <button class="btn btn-primary" id="btnSavePoints">💾 Speichern</button>

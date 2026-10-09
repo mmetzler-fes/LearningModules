@@ -3339,6 +3339,8 @@ body {
   cursor: pointer;
 }
 
+.points-badge.negative { color: #fca5a5; background: rgba(239, 68, 68, 0.22); }
+
 .shop-card .topic-card-meta { flex-wrap: wrap; gap: 6px; }
 
 .shop-modules { margin-top: 8px; font-size: 0.9em; color: var(--text-secondary); }
@@ -4467,3 +4469,4 @@ body {
 .nb-chips .tag-chip { font-size: 0.72rem; padding: 0 7px; }
 @media (max-width: 800px) { .nav-btn.nav-sub { padding-left: 12px; } }
 @media (max-width: 640px) { .nb-chips { display: none; } }
+.stat-number.negative { color: var(--danger); }

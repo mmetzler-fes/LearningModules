@@ -680,7 +680,7 @@ export class TopicsView {
         refunded += res.refunded || 0;
       }
       this.app.showToast(refunded
-        ? `Nutzungsrecht zurückgegeben – ${refunded} Punkte erstattet${refunded < refundSum ? ' (mehr hatte der Anbieter nicht mehr)' : ''}.`
+        ? `Nutzungsrecht zurückgegeben – ${refunded} Punkte erstattet.`
         : 'Nutzungsrecht zurückgegeben', 'info');
       return true;
     } catch (err) {

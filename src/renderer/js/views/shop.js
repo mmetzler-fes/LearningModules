@@ -21,6 +21,7 @@ const REASON_LABELS = {
   purchase: 'Kauf',
   sale: 'Verkauf',
   refund: 'Erstattung',
+  // Gibt es nicht mehr – ältere Buchungen sollen aber lesbar bleiben.
   'yearly-decay': 'Jahresabzug',
   'yearly-bonus': 'Jahresgeschenk',
   merge: 'Konto übernommen',
@@ -112,6 +113,8 @@ export class ShopView {
 
   _offerCard(o) {
     const balance = this._catalog?.balance ?? 0;
+    // Ins Minus darf es gehen; nur unter eine vom Admin gesetzte Untergrenze nicht.
+    const minBalance = this._catalog?.minBalance ?? null;
     const card = document.createElement('div');
     card.className = 'topic-card shop-card';
     const otherCreators = o.creators.filter((c) => c !== o.sellerName);
@@ -124,11 +127,11 @@ export class ShopView {
       if (mode === 'use' && o.hasUse) {
         return '<button class="btn btn-secondary btn-sm" disabled title="Du verwendest dieses Thema bereits">✓ In Verwendung</button>';
       }
-      const poor = price > balance;
+      const poor = minBalance !== null && balance - price < minBalance;
       const label = mode === 'copy' ? '📥 Copy' : '🔗 Use';
       const priceLabel = price === 0 ? 'frei' : points(price);
       return `<button class="btn ${mode === 'copy' ? 'btn-primary' : 'btn-secondary'} btn-sm btn-acquire" data-mode="${mode}"
-        ${poor ? 'disabled' : ''} title="${poor ? 'Nicht genug Punkte' : mode === 'copy'
+        ${poor ? 'disabled' : ''} title="${poor ? `Dein Konto darf nicht unter ${minBalance} Punkte fallen` : mode === 'copy'
           ? 'Eigene Kopie: bearbeiten erlaubt, Weitergabe nur zur Nutzung'
           : 'Original in eigenen Links verwenden – Änderungen des Creators wirken sofort'}">
         ${label} · ${priceLabel}</button>`;
@@ -328,12 +331,12 @@ export class ShopView {
       </tr>`).join('');
     this._content.innerHTML = `
       <div class="stats-grid">
-        <div class="stat-card"><div class="stat-number">${data.balance}</div><div class="stat-label">Punkte auf deinem Konto</div></div>
+        <div class="stat-card"><div class="stat-number${data.balance < 0 ? ' negative' : ''}">${data.balance}</div><div class="stat-label">Punkte auf deinem Konto</div></div>
       </div>
       <p class="hint">So funktioniert es: Wer etwas aus dem Shop nimmt, zahlt den Preis an den Creator.
-        Am 1.1. werden ${s.yearlyDecayPercent ?? 10} % jedes Kontos abgezogen, danach bekommt jeder
-        ${points(s.yearlyBonus ?? 100)} geschenkt – Punkte sind zum Tauschen da, nicht zum Sparen.
-        Neue Konten starten mit ${points(s.startPoints ?? 200)}.</p>
+        Punkte sind vor allem eine Rückmeldung dafür, selbst etwas zu teilen – das Konto darf deshalb ins Minus
+        gehen${typeof s.minBalance === 'number' ? `, für Einkäufe bis ${points(s.minBalance)}` : ''}.
+        Neue Konten starten mit ${s.startPoints ?? 200} Punkt${(s.startPoints ?? 200) === 1 ? "" : "en"}.</p>
       ${rows ? `<table class="shop-ledger">
         <thead><tr><th>Datum</th><th>Art</th><th>Wofür</th><th>Punkte</th><th>Stand</th></tr></thead>
         <tbody>${rows}</tbody></table>` : '<p class="hint">Noch keine Buchungen.</p>'}`;

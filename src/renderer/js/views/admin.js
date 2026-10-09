@@ -487,9 +487,8 @@ export class AdminView {
       const [pts, key] = await Promise.all([this.app.api.getPointsSettings(), this.app.api.getMasterKeyStatus()]);
       const set = (id, v) => { const el = document.getElementById(id); if (el) el.value = v ?? ''; };
       set('ptsStart', pts.startPoints);
-      set('ptsDecay', pts.yearlyDecayPercent);
-      set('ptsBonus', pts.yearlyBonus);
       set('ptsShareMax', pts.buyerShareMax);
+      set('ptsMinBalance', pts.minBalance);
       const status = document.getElementById('masterKeyStatus');
       if (status) {
         status.innerHTML = key.fingerprint
@@ -691,9 +690,8 @@ export class AdminView {
       const num = (id) => Number(document.getElementById(id)?.value);
       const res = await this.app.api.savePointsSettings({
         startPoints: num('ptsStart'),
-        yearlyDecayPercent: num('ptsDecay'),
-        yearlyBonus: num('ptsBonus'),
         buyerShareMax: num('ptsShareMax'),
+        minBalance: (document.getElementById('ptsMinBalance')?.value ?? '').trim() === '' ? null : num('ptsMinBalance'),
       });
       if (res && typeof res.startPoints === 'number') this.app.showToast('Punkteregeln gespeichert', 'success');
       else this.app.showToast('Fehler: ' + (res?.message || '?'), 'error');

@@ -4,8 +4,8 @@
 
 Material soll häufiger getauscht werden. Dafür gibt es einen **Shop** mit
 einem **Punktekonto**: Wer teilt, bekommt Punkte, und wer nimmt, gibt welche ab.
-Punkte zu horten lohnt sich nicht, weil jedes Konto zum Jahreswechsel einen Teil
-verliert und danach etwas geschenkt bekommt. So bleibt genug im Umlauf.
+Punkte sind dabei vor allem eine Rückmeldung, selbst etwas einzustellen – das
+Konto darf ins Minus gehen, damit der Tausch nicht am Kontostand scheitert.
 
 Zugleich gilt: Nur was jemand **selbst verfasst** hat, darf die App
 unverschlüsselt verlassen. Alles andere geht nur verschlüsselt mit dem
@@ -59,9 +59,13 @@ Je Modus gibt es einen eigenen Preis. 0 heißt frei. Die Zielgruppe ist „alle�
 oder eine Auswahl aus Personen und Gruppen.
 
 **Erwerben:** Der Shop zeigt alle Angebote anderer, die man sehen darf.
-„👥 an dich geteilt“ kennzeichnet gezielte Angebote. Gekauft werden kann nur,
-wer genug Punkte hat. Die Punkte gehen in derselben Transaktion vom Käufer an
-den Anbieter, in der Kopie bzw. Nutzungsrecht entstehen.
+„👥 an dich geteilt“ kennzeichnet gezielte Angebote. Kaufen geht auch ohne
+genug Punkte: Das Konto darf ins Minus gehen – Punkte sind vor allem eine
+Rückmeldung dafür, selbst etwas zu teilen, und sollen den Tausch nicht
+bremsen. Hat der Admin eine **Untergrenze** gesetzt, ist darunter kein Kauf
+mehr möglich (siehe [Punkte](#punkte)). Die Punkte gehen in derselben
+Transaktion vom Käufer an den Anbieter, in der Kopie bzw. Nutzungsrecht
+entstehen.
 
 **Zurückziehen:** Das Angebot verschwindet aus dem Shop. Wer schon gekauft hat,
 behält Kopie bzw. Nutzungsrecht. Kostenlose Nutzungsrechte kann der Anbieter
@@ -82,9 +86,9 @@ lässt sich **innerhalb von 14 Tagen** nach dem Kauf mit **Erstattung** der
 Punkte zurückgeben; die Karte zeigt „Rückgabe mit Erstattung bis …“. So lässt
 sich ein Thema erst per Use ausprobieren und danach gegebenenfalls als Kopie
 kaufen – eine eigene Vorschau braucht es nicht. Nach den 14 Tagen geht die
-Rückgabe ohne Erstattung. Ins Minus geht dabei kein Konto: Hat der Anbieter
-die Punkte schon ausgegeben, wird erstattet, was er noch hat. Beide sehen die
-Buchung als „Erstattung“ im Punktekonto.
+Rückgabe ohne Erstattung. Erstattet wird immer der volle Betrag – hat der
+Anbieter die Punkte schon ausgegeben, rutscht er dafür ins Minus. Beide sehen
+die Buchung als „Erstattung“ im Punktekonto.
 
 **Kopien lassen sich nicht zurückgeben:** Sie gehören dem Käufer, und ihre
 Module lassen sich weiterkopieren – eine Rückgabe ließe sich nicht prüfen.
@@ -116,20 +120,23 @@ Kostenlos Überlassenes kann der Anbieter wieder zurücknehmen.
 | Einstellung (Admin → Shop & Sicherheit) | Vorgabe |
 |---|---|
 | Startguthaben neuer Konten | 200 |
-| Abzug am 1.1. in Prozent | 10 |
-| Geschenk am 1.1. (nach dem Abzug) | 100 |
 | Weitergabe durch Buyer: höchstens Personen | 10 |
+| Untergrenze für Einkäufe (leer = keine) | keine |
 
 - Ein Konto wird beim ersten Zugriff eröffnet (`users.points` ist bis dahin
   `null`). Damit bekommen auch Konten aus der Zeit vor dem Shop ihr
   Startguthaben.
-- Der Jahreswechsel prüft beim Start und danach alle sechs Stunden, ob ein
-  1.1. ansteht. Verpasste Jahre werden nachgeholt. Beim allerersten Lauf wird
-  nur das Jahr vermerkt (`system_config.points_last_yearly`); rückwirkend wird
-  nichts abgezogen.
-- Deaktivierte Konten ruhen: kein Abzug, kein Geschenk.
-- Ins Minus geht kein Konto. Jede Buchung steht in `points_entries` und ist
-  im Shop unter *Punktekonto* sichtbar.
+- **Konten dürfen ins Minus gehen** – durch Einkäufe (bis zur Untergrenze,
+  falls gesetzt) und durch Erstattungen (immer). Der Punktestand oben links
+  ist dann rot.
+- Mit einer Untergrenze, z. B. −500, ist ein Kauf nur möglich, solange der
+  Stand danach nicht darunter liegt. Ohne Untergrenze gibt es keine Grenze.
+- Beim Zusammenführen zweier Konten (z. B. nach einem Wechsel der
+  E-Mail-Adresse) zieht auch ein Minus mit um.
+- Einen Abzug oder ein Geschenk zum Jahreswechsel gibt es nicht (mehr).
+  Frühere Buchungen dazu bleiben im Punktekonto stehen.
+- Jede Buchung steht in `points_entries` und ist im Shop unter *Punktekonto*
+  sichtbar.
 
 ## Export und Verschlüsselung
 

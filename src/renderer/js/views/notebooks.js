@@ -74,6 +74,12 @@ export class NotebooksView {
     const { nodes, placements, topics, granted } = this._data;
     this._nodes = new Map(nodes.map((n) => [n.id, n]));
     this._topics = new Map([...topics, ...granted].map((t) => [t.id, t]));
+    // Per Use erworbene Books, Bereiche, Abschnitte: ein Eintrag wie ein
+    // Lernthema (Platz „offer:<id>“), darin die Struktur des Anbieters.
+    for (const m of this._data.mirrors || []) {
+      const key = 'offer:' + m.offerId;
+      this._topics.set(key, { id: key, title: m.title, isMirror: true, mirror: m, modules: [] });
+    }
     this._childNodes = new Map();
     for (const n of [...nodes].sort((a, b) => a.orderIndex - b.orderIndex)) {
       const key = n.parentId || '';
@@ -170,6 +176,7 @@ export class NotebooksView {
   }
 
   _topicHasMatch(topic) {
+    if (topic.isMirror) return this._matches(topic.title) || topic.mirror.topics.some((t) => this._topicHasMatch(t));
     return this._matches(topic.title) || (topic.modules || []).some((m) => this._matches(m.title));
   }
 
@@ -260,7 +267,8 @@ export class NotebooksView {
     return wrap;
   }
 
-  _renderTopic(topic, depth) {
+  _renderTopic(topic, depth, inMirror = false) {
+    if (topic.isMirror) return this._renderMirror(topic, depth);
     const key = 't:' + topic.id;
     // Bei der Suche nur aufklappen, wenn ein Modul passt – sonst wird es unübersichtlich.
     const open = this._query ? (topic.modules || []).some((m) => this._matches(m.title)) : this._open.has(key);
@@ -275,7 +283,7 @@ export class NotebooksView {
       cls: `nb-topic ${own ? '' : 'nb-granted'} ${own && !topic.selected ? 'nb-off' : ''}`,
       meta: `${roots.length} Modul${roots.length === 1 ? '' : 'e'}`,
       extra: status,
-      drag: { type: 'topic', id: topic.id },
+      drag: inMirror ? null : { type: 'topic', id: topic.id },
     });
     row.querySelector('.nb-status')?.addEventListener('click', async (e) => {
       e.stopPropagation();
@@ -283,8 +291,8 @@ export class NotebooksView {
       topic.selected = !topic.selected;
       this._render();
     });
-    this._menuOn(row, () => (own ? this._topicMenu(topic) : this._grantedMenu(topic)));
-    this._bindDrop(row, { type: 'topic', id: topic.id, own });
+    this._menuOn(row, () => (own ? this._topicMenu(topic) : inMirror ? this._mirrorTopicMenu(topic) : this._grantedMenu(topic)));
+    if (inMirror) { row.draggable = false; row.classList.add('nb-mirror-row'); } else this._bindDrop(row, { type: 'topic', id: topic.id, own });
     wrap.appendChild(row);
 
     if (open) {
@@ -342,6 +350,123 @@ export class NotebooksView {
     return row;
   }
 
+  // ---------- Erworbene Bereiche (Spiegel) ----------
+
+  /**
+   * Ein per Use erworbenes Book, Bereich oder Abschnitt: die Struktur des
+   * Anbieters, schreibgeschützt und immer aktuell. Als Ganzes lässt es sich
+   * verschieben; darin ändert sich nur, was der Anbieter ändert.
+   */
+  _renderMirror(item, depth) {
+    const m = item.mirror;
+    const key = 'x:' + m.offerId;
+    const open = this._isOpen(key);
+    const root = m.nodes.find((n) => !n.parentId);
+    const count = m.topics.length;
+    const wrap = document.createElement('div');
+    const row = this._row({
+      key, depth, icon: KIND[m.kind]?.icon || '📂', title: m.title, open,
+      cls: 'nb-node nb-mirror',
+      meta: `${count} Lernthem${count === 1 ? 'a' : 'en'}${m.onlyForeign ? ' · nur die erworbenen Module (zu deiner Kopie)' : ''}`,
+      extra: `<span class="nb-badge" title="Zur Nutzung erworben – gehört ${escapeAttr(m.sellerName)}; was dort dazukommt, erscheint hier automatisch">🔗 ${escapeHtml(m.sellerName)}</span>`,
+      drag: { type: 'topic', id: item.id },
+    });
+    this._menuOn(row, () => this._mirrorMenu(item));
+    this._bindDrop(row, { type: 'topic', id: item.id, own: false });
+    wrap.appendChild(row);
+    if (open && root) this._renderMirrorChildren(wrap, m, root.id, depth + 1);
+    return wrap;
+  }
+
+  _renderMirrorChildren(wrap, m, nodeId, depth) {
+    const topicsById = new Map(m.topics.map((t) => [t.id, t]));
+    for (const n of m.nodes.filter((x) => x.parentId === nodeId).sort((a, b) => a.orderIndex - b.orderIndex)) {
+      const key = `x:${m.offerId}:${n.id}`;
+      const open = this._isOpen(key);
+      const row = this._row({ key, depth, icon: KIND[n.kind].icon, title: n.title, open, cls: 'nb-node nb-mirror-row' });
+      row.querySelector('.nb-menu-btn').remove();
+      wrap.appendChild(row);
+      if (open) this._renderMirrorChildren(wrap, m, n.id, depth + 1);
+    }
+    for (const p of m.placements.filter((x) => x.nodeId === nodeId).sort((a, b) => a.orderIndex - b.orderIndex)) {
+      const t = topicsById.get(p.topicId);
+      if (!t || (this._query && !this._topicHasMatch(t))) continue;
+      wrap.appendChild(this._renderTopic({ ...t, isOwn: false }, depth, true));
+    }
+  }
+
+  _mirrorMenu(item) {
+    const m = item.mirror;
+    const items = [
+      { label: '🔗 Quick-Link', title: 'Ein Klassenlink mit allen Lernthemen darin', run: () => this._quickLinkNode({ id: item.id, title: m.title, kind: m.kind }) },
+      { label: '↔️ Verschieben nach…', run: () => this._moveTopicDialog(item) },
+    ];
+    // Das Nutzungsrecht zu einer Kopie gehört zur Kopie.
+    if (!m.onlyForeign) {
+      items.push('-', {
+        label: '↩ Zurückgeben', danger: true,
+        run: async () => {
+          const grants = m.grants.filter((g) => !g.onlyForeign);
+          if (await this.app.topicsView.returnGrant({ title: m.title, grants })) this.refresh();
+        },
+      });
+    }
+    return items;
+  }
+
+  _mirrorTopicMenu(topic) {
+    return [
+      { label: '🔗 Quick-Link', run: () => this.app.topicsView._createQuickClassLink({ id: topic.id, title: topic.title, selected: true }) },
+      { label: '👁 Ansehen', run: () => this.app.topicsView._openSharedTopicViewer(topic) },
+    ];
+  }
+
+  // ---------- Anbieten ----------
+
+  /**
+   * Module auswählen und als eigenes Angebot in den Shop stellen – aus einem
+   * Lernthema oder allen eigenen Lernthemen unter einem Knoten.
+   */
+  async _offerSelection({ nodeId = null, topicId = null }) {
+    const topics = topicId
+      ? [this._topics.get(topicId)]
+      : this._topicsBelow(nodeId).filter((t) => t.isOwn);
+    const withModules = topics.filter((t) => t && (t.modules || []).some((m) => !m.parentId));
+    if (!withModules.length) { this.app.showToast('Darin gibt es keine eigenen Lernthemen mit Modulen.', 'error'); return; }
+    const overlay = document.createElement('div');
+    overlay.className = 'confirm-overlay';
+    overlay.innerHTML = `
+      <div class="import-modules-card nb-dialog">
+        <h3>🧩 Module auswählen und anbieten</h3>
+        <p class="hint">Die Auswahl wird ein eigenes Angebot im Shop. Erworbene Module (✳) lassen sich nur zur Nutzung anbieten.</p>
+        <div class="nb-targets nb-pick">${withModules.map((t) => `
+          <label class="nb-pick-topic"><input type="checkbox" class="nb-pick-all" data-topic="${escapeAttr(t.id)}" /> 📘 <strong>${escapeHtml(t.title)}</strong></label>
+          ${(t.modules || []).filter((m) => !m.parentId).sort((a, b) => a.orderIndex - b.orderIndex).map((m) => `
+            <label class="nb-pick-module"><input type="checkbox" class="nb-pick-mod" data-topic="${escapeAttr(t.id)}" value="${escapeAttr(m.id)}" />
+              ${escapeHtml(m.title)}${m.isMine === false ? ' <span class="hint" title="erworben – nur zur Nutzung">✳</span>' : ''}</label>`).join('')}`).join('')}
+        </div>
+        <div class="confirm-actions">
+          <button type="button" class="btn btn-primary btn-ok" disabled>Weiter zum Angebot</button>
+          <button type="button" class="btn btn-secondary btn-cancel">Abbrechen</button>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+    const ok = overlay.querySelector('.btn-ok');
+    const chosen = () => [...overlay.querySelectorAll('.nb-pick-mod:checked')].map((c) => c.value);
+    const sync = () => { ok.disabled = chosen().length === 0; };
+    overlay.querySelectorAll('.nb-pick-all').forEach((all) => all.addEventListener('change', () => {
+      overlay.querySelectorAll(`.nb-pick-mod[data-topic="${all.dataset.topic}"]`).forEach((c) => { c.checked = all.checked; });
+      sync();
+    }));
+    overlay.querySelectorAll('.nb-pick-mod').forEach((c) => c.addEventListener('change', sync));
+    overlay.querySelector('.btn-cancel').addEventListener('click', () => overlay.remove());
+    ok.addEventListener('click', () => {
+      const ids = chosen();
+      overlay.remove();
+      this.app.shopView.openForModules(ids);
+    });
+  }
+
   // ---------- Kontextmenü ----------
 
   _openMenu(items, x, y) {
@@ -387,6 +512,8 @@ export class NotebooksView {
     items.push({ label: '➕ Neues Lernthema', run: () => this._createTopic(node.id) });
     items.push('-');
     items.push({ label: '🔗 Quick-Link', title: 'Ein Klassenlink mit allen Lernthemen darin', run: () => this._quickLinkNode(node) });
+    items.push({ label: '🛒 Teilen', title: 'Im Shop anbieten – Käufer mit „Use“ bekommen auch, was später dazukommt', run: () => this.app.shopView.openForNode(node.id) });
+    items.push({ label: '🧩 Module auswählen und anbieten…', run: () => this._offerSelection({ nodeId: node.id }) });
     items.push({ label: '✅ Alle Lernthemen freigeben', run: () => this._setSelected(node, true) });
     items.push({ label: '⛔ Alle Lernthemen sperren', run: () => this._setSelected(node, false) });
     items.push('-');
@@ -405,6 +532,7 @@ export class NotebooksView {
     return [
       { label: '🔗 Quick-Link', run: () => this.app.topicsView._createQuickClassLink(topic) },
       { label: '🛒 Teilen', title: 'Im Shop anbieten oder weitergeben', run: () => this.app.shopView.openForTopic(topic.id) },
+      { label: '🧩 Module auswählen und anbieten…', run: () => this._offerSelection({ topicId: topic.id }) },
       { label: '⬇️ Download', title: 'JSON, Moodle-XML, H5P oder verschlüsselt', run: () => this.app.topicsView.openExportDialog(topic) },
       '-',
       { label: '➕ Neues Modul', run: () => this.app.modulesView.openFrom('teacher-notebooks', topic.id, null) },
@@ -621,7 +749,8 @@ export class NotebooksView {
   }
 
   async _quickLinkNode(node) {
-    const below = this._topicsBelow(node.id);
+    const mirror = this._topics.get(node.id)?.mirror;
+    const below = mirror ? mirror.topics : this._topicsBelow(node.id).flatMap((t) => (t.isMirror ? t.mirror.topics : [t]));
     if (!below.length) { this.app.showToast('Darin ist noch kein Lernthema.', 'error'); return; }
     // Gesperrte eigene Themen kämen nicht mit – lieber vorher fragen.
     const locked = below.filter((t) => t.isOwn && !t.selected && (t.modules || []).length);

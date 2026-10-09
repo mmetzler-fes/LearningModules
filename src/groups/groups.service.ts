@@ -3,27 +3,17 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { TeacherGroup } from '../core/entities/teacher-group.entity';
 import { User } from '../core/entities/user.entity';
-import { UseGrant } from '../core/entities/use-grant.entity';
 import * as crypto from 'crypto';
 
-/** Präfix, mit dem eine Gruppe in der Zielgruppe eines Shop-Angebots steht. */
-export const GROUP_PREFIX = 'group:';
-
-/** Macht aus einer Gruppen-ID den Eintrag, wie er in der Zielgruppe eines Angebots steht. */
-export const groupRef = (id: string) => `${GROUP_PREFIX}${id}`;
-
-/** Die Gruppen-ID aus einem Eintrag, oder null bei einer Einzelperson. */
-export const groupIdOf = (entry: string): string | null =>
-  typeof entry === 'string' && entry.startsWith(GROUP_PREFIX)
-    ? entry.slice(GROUP_PREFIX.length)
-    : null;
+export { GROUP_PREFIX, groupRef, groupIdOf } from './group-ref';
+import { ShopService } from '../shop/shop.service';
 
 @Injectable()
 export class GroupsService {
   constructor(
     @InjectRepository(TeacherGroup) private readonly groupRepo: Repository<TeacherGroup>,
     @InjectRepository(User) private readonly userRepo: Repository<User>,
-    @InjectRepository(UseGrant) private readonly grantRepo: Repository<UseGrant>,
+    private readonly shop: ShopService,
   ) {}
 
   // ---- Mitgliedschaft auflösen ----
@@ -58,14 +48,14 @@ export class GroupsService {
   }
 
   /**
-   * Die Nutzungsrechte (Modus "Use") eines Benutzers – aus demselben Grund
-   * wie die Gruppen einmal pro Anfrage geladen: `accessLevel()` und
-   * `visibleModules()` laufen in Schleifen und bleiben so ohne Abfrage.
+   * Die Nutzungsrechte (Modus "Use") eines Benutzers, aufgelöst nach
+   * Lernthemen – aus demselben Grund wie die Gruppen einmal pro Anfrage
+   * geladen: `accessLevel()` und `visibleModules()` laufen in Schleifen und
+   * bleiben so ohne Abfrage. Rechte an einem Bereich umfassen dabei, was
+   * jetzt darin liegt (siehe ShopService.expandGrants).
    */
-  async grantsFor(userId: string): Promise<Array<{ topicId: string; scope: 'creator' | 'all'; creatorId: string | null }>> {
-    if (!userId) return [];
-    const grants = await this.grantRepo.find({ where: { userId } });
-    return grants.map((g) => ({ topicId: g.topicId, scope: g.scope, creatorId: g.creatorId }));
+  async grantsFor(userId: string) {
+    return this.shop.expandGrants(userId);
   }
 
   // ---- Verwaltung (Hauptadmin, Schuladmin für die eigene Schule) ----

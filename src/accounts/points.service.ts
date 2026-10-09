@@ -10,8 +10,6 @@ import { PointsEntry, PointsReason } from '../core/entities/points-entry.entity'
 export interface PointsSettings {
   /** Guthaben eines neuen Kontos. */
   startPoints: number;
-  /** Höchstzahl an Personen, an die ein Buyer eine Kopie zur Nutzung weitergibt. */
-  buyerShareMax: number;
   /**
    * Untergrenze für Einkäufe: Ein Kauf geht, solange der Kontostand danach
    * nicht darunter liegt. null = keine Grenze. Punkte sind vor allem
@@ -22,7 +20,6 @@ export interface PointsSettings {
 
 export const DEFAULT_POINTS_SETTINGS: PointsSettings = {
   startPoints: 200,
-  buyerShareMax: 10,
   minBalance: null,
 };
 
@@ -75,9 +72,6 @@ export class PointsService {
       return n;
     };
     if (input.startPoints !== undefined) next.startPoints = intIn(input.startPoints, 0, 100000, 'Startguthaben');
-    if (input.buyerShareMax !== undefined) {
-      next.buyerShareMax = intIn(input.buyerShareMax, 0, 1000, 'Weitergabe durch Käufer');
-    }
     if (input.minBalance !== undefined) {
       const raw = input.minBalance as any;
       next.minBalance = raw === null || raw === '' ? null : intIn(raw, -1000000, 0, 'Untergrenze');

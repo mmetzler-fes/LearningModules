@@ -8,16 +8,20 @@ import { TopicsModule } from '../topics/topics.module';
 import { TagsModule } from '../tags/tags.module';
 import { LinksModule } from '../links/links.module';
 import { InterchangeModule } from '../core/interchange/interchange.module';
+import { ShopModule } from '../shop/shop.module';
+import { ShopOffer } from '../core/entities/shop-offer.entity';
+import { User } from '../core/entities/user.entity';
 import { NotebooksService } from './notebooks.service';
 import { NotebooksController } from './notebooks.controller';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([NotebookNode, NotebookPlacement, LearningTopic, LearningModule]),
+    TypeOrmModule.forFeature([NotebookNode, NotebookPlacement, LearningTopic, LearningModule, ShopOffer, User]),
     TopicsModule,
     TagsModule,
     LinksModule,
     InterchangeModule,
+    ShopModule,
   ],
   controllers: [NotebooksController],
   providers: [NotebooksService],

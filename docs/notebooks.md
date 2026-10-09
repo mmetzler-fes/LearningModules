@@ -48,6 +48,11 @@ Später gilt:
   – außer du legst sie über das Menü eines Books, Bereichs oder Abschnitts an.
 - Im Shop zur Nutzung erworbene Lernthemen landen im Book **Erworben**. Von
   dort kannst du sie verschieben wie eigene.
+- Ein per Use erworbenes **Book, Bereich oder Abschnitt** erscheint dort als
+  schreibgeschützter Spiegel (*kursiv*, mit 🔗 und dem Namen des Anbieters):
+  die Struktur des Anbieters, immer aktuell. Er lässt sich als Ganzes
+  verschieben; im Menü gibt es Quick-Link, Verschieben und Zurückgeben.
+  Näheres unter [Shop und Rechte](shop-und-rechte.md#der-shop).
 
 ## Tags werden vererbt
 
@@ -77,7 +82,8 @@ die Zeile.
 | Neu | Bereich, Abschnitt, Lernthema darin | Modul darin | – |
 | 🔗 Quick-Link | ein Klassenlink mit allen Lernthemen darin | Klassenlink | – |
 | Freigeben | alle Lernthemen darin freigeben oder sperren | ● / ○ | ● / ○ |
-| 🛒 Teilen | – | Angebot im Shop | – |
+| 🛒 Teilen | Angebot im Shop – wächst mit | Angebot im Shop | – |
+| 🧩 Module auswählen und anbieten | aus allen Lernthemen darin | aus diesem Lernthema | – |
 | ⬇️ Download | ZIP mit Struktur und Lernthemen (JSON) | wie bisher (JSON, Moodle, H5P, verschlüsselt) | – |
 | ↔️ Verschieben | an eine andere Stelle | in ein anderes Book usw. | in ein anderes Lernthema |
 | 📋 Kopieren | samt Inhalt, direkt dahinter | eigene Kopie, direkt dahinter | Duplizieren oder in ein anderes Lernthema |

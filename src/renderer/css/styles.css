@@ -4470,3 +4470,12 @@ body {
 @media (max-width: 800px) { .nav-btn.nav-sub { padding-left: 12px; } }
 @media (max-width: 640px) { .nb-chips { display: none; } }
 .stat-number.negative { color: var(--danger); }
+
+/* ---- Notebooks: erworbene Bereiche (Spiegel) und Auswahl fürs Anbieten ---- */
+.nb-mirror .nb-title { font-style: italic; }
+.nb-mirror-row .nb-title { color: var(--text-secondary); }
+.nb-pick { padding: 4px 0; }
+.nb-pick-topic, .nb-pick-module { display: flex; gap: 8px; align-items: center; padding: 6px 10px; cursor: pointer; }
+.nb-pick-topic { border-top: 1px solid var(--border); background: var(--bg-primary); }
+.nb-pick-module { padding-left: 34px; font-size: 0.92rem; }
+.shop-topic-head { margin: 6px 0 2px; font-weight: 600; }

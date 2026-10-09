@@ -9,6 +9,8 @@ import { TeacherGroup } from '../core/entities/teacher-group.entity';
 import { TopicLink } from '../core/entities/topic-link.entity';
 import { TopicQuickLink } from '../core/entities/topic-quick-link.entity';
 import { SystemConfig } from '../core/entities/system-config.entity';
+import { NotebookNode } from '../core/entities/notebook-node.entity';
+import { NotebookPlacement } from '../core/entities/notebook-placement.entity';
 import { AccountsModule } from '../accounts/accounts.module';
 import { ShopService } from './shop.service';
 import { ShopController } from './shop.controller';
@@ -18,6 +20,7 @@ import { RightsMigrationService } from './rights-migration.service';
   imports: [
     TypeOrmModule.forFeature([
       ShopOffer, UseGrant, LearningTopic, LearningModule, User, TeacherGroup, TopicLink, TopicQuickLink, SystemConfig,
+      NotebookNode, NotebookPlacement,
     ]),
     AccountsModule,
   ],

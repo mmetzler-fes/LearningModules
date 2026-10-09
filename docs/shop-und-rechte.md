@@ -20,14 +20,14 @@ und fremde Module mischen.
 |---|---|---|
 | **Creator** | hat das Modul verfasst | bleibt für immer verzeichnet, auch in Kopien und nach jeder Bearbeitung |
 | **Owner** | dem das Thema gehört, oder wer ein Nutzungsrecht hat | darf die Module benutzen |
-| **Buyer** | hat eine Kopie erworben | darf sie bearbeiten und zur Nutzung weitergeben |
+| **Buyer** | hat eine Kopie erworben | darf sie bearbeiten und im Shop zur Nutzung anbieten |
 
 Was daraus folgt:
 
 | | anbieten (Shop) | weitergeben | bearbeiten | offen exportieren |
 |---|---|---|---|---|
 | Creator + Owner | ✅ Copy/Use, mit Punkten oder frei | ✅ | ✅ | ✅ |
-| Owner + Buyer (Copy erworben) | – | nur **Use**, kostenlos, an höchstens N Personen | ✅ | – (nur verschlüsselt) |
+| Owner + Buyer (Copy erworben) | nur **Use** – mit Punkten oder frei, die Punkte gehen an den Creator | ✅ (über den Shop) | ✅ | – (nur verschlüsselt) |
 | nur Owner (Use erworben) | – | – | – | – |
 
 Bearbeitet ein Buyer seine Kopie, bleiben die vorhandenen Module auf ihren
@@ -44,9 +44,27 @@ nicht, sonst ließe sich die Kennung mit einem Klick abstreifen.
 Jede Weitergabe läuft über den Shop. Das gilt auch für das Teilen mit einer
 Gruppe: Es ist ein Angebot, das nur diese Gruppe sieht.
 
-**Anbieten:** Auf der Themenkarte → **👥**. Der Knopf führt direkt in den Shop
-zum Angebot für dieses Thema. Angeboten werden nur die selbst verfassten Module.
-Fremde Module im selben Thema gehören nie dazu.
+**Anbieten:** Angeboten wird eins von dreien:
+
+| Was | Wo | Umfang |
+|---|---|---|
+| 📘 ein **Lernthema** | Themenkarte → **👥**, oder Notebooks → ⋯ → 🛒 Teilen | alle Module des Themas |
+| 📓📂📑 ein **Book, Bereich oder Abschnitt** | [Notebooks](notebooks.md) → ⋯ → 🛒 Teilen | alle eigenen Lernthemen darin – auch, was später hineinkommt |
+| 🧩 eine **Auswahl von Modulen** | Notebooks → ⋯ → 🧩 Module auswählen und anbieten… | genau die gewählten Module, auch aus mehreren Lernthemen; mit eigenem Namen |
+
+Darin können **eigene** Module liegen und **erworbene** (aus einer gekauften
+Kopie, mit fremdem Creator). Für beide gilt:
+
+- **Eigene** lassen sich zum Kopieren (Copy) und Verwenden (Use) anbieten.
+- **Erworbene** nur zum Verwenden, und nur mit dem Häkchen **„Erworbene Module
+  mit anbieten“**. Kopieren darf sie niemand weiter.
+- Lernthemen, die man selbst nur per Use nutzt, gehören nie zum Angebot.
+
+Ein Angebot für einen Bereich **wächst mit**: Wer Use gekauft hat, bekommt
+automatisch auch, was der Anbieter später hineinlegt – Zwischenstände beim
+Ausbauen eines Bereichs sind so kein Problem. Wird der Bereich gelöscht, wird
+das Angebot zu einer festen Auswahl mit dem, was zuletzt darin lag; Gekauftes
+bleibt.
 
 - **Use**: Der Käufer verwendet das Original in eigenen Themen- und
   Quick-Links. Änderungen des Creators wirken sofort. Die Ergebnisse landen
@@ -57,6 +75,26 @@ Fremde Module im selben Thema gehören nie dazu.
 
 Je Modus gibt es einen eigenen Preis. 0 heißt frei. Die Zielgruppe ist „alle“
 oder eine Auswahl aus Personen und Gruppen.
+
+**Punkte gehen an die Creator:** Enthält ein Angebot Module mehrerer Creator,
+wird der Preis nach der Zahl ihrer Module aufgeteilt. Beispiel: 3 eigene und 2
+erworbene Module, Preis 12 → der Anbieter bekommt 8 (7 + 1 Rest aus dem
+Abrunden), der Creator der erworbenen 4. Anteile für gelöschte Konten gehen an
+den Anbieter. Im Punktekonto steht beim Creator „(Anteil als Creator)“.
+
+**Copy eines gemischten Angebots:** Kopiert werden die eigenen Module des
+Anbieters. Die erworbenen bekommt der Käufer ohne Aufpreis **zur Nutzung**
+dazu – kopieren lassen sie sich nicht. Bei einem Book, Bereich oder Abschnitt
+entsteht die Struktur in den Notebooks des Käufers (ein Book oben, alles
+andere im Book „Erworben“), die erworbenen Module stehen daneben als
+schreibgeschützter Spiegel. Kauft er später auch Use, wird daraus das volle
+Nutzungsrecht.
+
+**Use eines Books, Bereichs oder Abschnitts:** In den Notebooks des Käufers
+erscheint er im Book „Erworben“ als **schreibgeschützter Spiegel** mit der
+Struktur des Anbieters (🔗 und Name). Was der Anbieter dort ändert oder
+ergänzt, sieht der Käufer sofort. Den Spiegel kann er als Ganzes einsortieren
+und darüber einen Quick-Link für alle Lernthemen darin erzeugen.
 
 **Erwerben:** Der Shop zeigt alle Angebote anderer, die man sehen darf.
 „👥 an dich geteilt“ kennzeichnet gezielte Angebote. Kaufen geht auch ohne
@@ -72,23 +110,26 @@ behält Kopie bzw. Nutzungsrecht. Kostenlose Nutzungsrechte kann der Anbieter
 einzeln entziehen, bezahlte nicht (Übersicht unter
 [Was mit Erworbenem passiert](#was-mit-erworbenem-passiert)).
 
-**Weitergabe als Buyer:** Im selben Dialog, Abschnitt „Zur Nutzung
-weitergeben“. Nur Personen und Gruppen, nicht „alle“. Höchstens so viele
-Personen, wie der Admin erlaubt (Vorgabe 10). Gruppen zählen mit ihren
-Mitgliedern. Wer abgewählt wird, verliert die Nutzung sofort. Punkte gibt es
-dafür nicht.
+**Weitergabe gekaufter Kopien:** Läuft über das Häkchen „Erworbene Module mit
+anbieten“ – wie jedes andere Angebot, auch an alle und auch gegen Punkte (die
+gehen an den Creator). Eine Obergrenze an Personen gibt es nicht mehr. Ältere
+Weitergaben (vor diesem Umbau) gelten weiter; der Anbieten-Dialog zeigt sie
+unter „Frühere Weitergabe zur Nutzung“ und kann sie beenden.
 
 **Zur Nutzung erworben:** Unter der eigenen Themenliste stehen die Themen mit
 Nutzungsrecht, jeweils mit *Ansehen*, eigenem *Quick-Link* und *Zurückgeben*.
+Ein Recht an einem Bereich oder einer Auswahl gibt man als Ganzes zurück.
 
 **Ausprobieren per Use – 14 Tage Rückgabe:** Ein bezahltes Nutzungsrecht
 lässt sich **innerhalb von 14 Tagen** nach dem Kauf mit **Erstattung** der
 Punkte zurückgeben; die Karte zeigt „Rückgabe mit Erstattung bis …“. So lässt
 sich ein Thema erst per Use ausprobieren und danach gegebenenfalls als Kopie
 kaufen – eine eigene Vorschau braucht es nicht. Nach den 14 Tagen geht die
-Rückgabe ohne Erstattung. Erstattet wird immer der volle Betrag – hat der
-Anbieter die Punkte schon ausgegeben, rutscht er dafür ins Minus. Beide sehen
-die Buchung als „Erstattung“ im Punktekonto.
+Rückgabe ohne Erstattung. Erstattet wird immer der volle Betrag, und zwar von
+dort, wohin die Punkte gegangen sind (bei gemischten Angeboten anteilig von den
+Creatorn) – notfalls rutscht jemand dafür ins Minus. Alle Beteiligten sehen
+die Buchung als „Erstattung“ im Punktekonto. Das Nutzungsrecht, das zu einer
+Kopie gehört (die erworbenen Module), lässt sich nicht einzeln zurückgeben.
 
 **Kopien lassen sich nicht zurückgeben:** Sie gehören dem Käufer, und ihre
 Module lassen sich weiterkopieren – eine Rückgabe ließe sich nicht prüfen.
@@ -112,7 +153,8 @@ Kostenlos Überlassenes kann der Anbieter wieder zurücknehmen.
 |---|---|---|---|
 | Angebot zurückziehen | bleibt | bleibt | bleibt |
 | Anbieter entzieht einzeln | – | nicht möglich | möglich |
-| Creator löscht das Thema | bleibt | wird eigene Kopie | verfällt |
+| Anbieter löscht das Thema | bleibt | wird eigene Kopie (auch bei Rechten an einem Bereich oder einer Auswahl, die es umfassen) | verfällt |
+| Anbieter löscht den Bereich | bleibt | bleibt (Angebot wird feste Auswahl) | bleibt |
 | Käufer gibt zurück | nicht möglich | in 14 Tagen mit Erstattung, danach ohne | ja |
 
 ## Punkte
@@ -120,7 +162,6 @@ Kostenlos Überlassenes kann der Anbieter wieder zurücknehmen.
 | Einstellung (Admin → Shop & Sicherheit) | Vorgabe |
 |---|---|
 | Startguthaben neuer Konten | 200 |
-| Weitergabe durch Buyer: höchstens Personen | 10 |
 | Untergrenze für Einkäufe (leer = keine) | keine |
 
 - Ein Konto wird beim ersten Zugriff eröffnet (`users.points` ist bis dahin
@@ -297,12 +338,13 @@ Stelle tritt *Zurückgeben*.
 
 | Datei | Zweck |
 |---|---|
-| `src/core/entities/shop-offer.entity.ts` | Angebot (`creator`/`buyer`), Preise, Zielgruppe |
-| `src/core/entities/use-grant.entity.ts` | Nutzungsrecht; `scope` legt fest, welche Module sichtbar sind |
+| `src/core/entities/shop-offer.entity.ts` | Angebot: `scopeType` (topic/node/modules), `includeForeign`, Preise, Zielgruppe |
+| `src/core/entities/use-grant.entity.ts` | Nutzungsrecht; `paidTo` (wohin die Punkte gingen), `onlyForeign` (gehört zu einer Kopie) |
+| `src/shop/offer-rules.ts` | Umfang eines Angebots, Aufteilung des Preises, sichtbare Module |
 | `src/core/entities/points-entry.entity.ts` | Buchungen auf dem Punktekonto |
-| `src/shop/shop.service.ts` | Anbieten, Erwerben, Weitergeben, Entziehen |
+| `src/shop/shop.service.ts` | Anbieten, Erwerben, Entziehen; `coverage()` und `expandGrants()` lösen Angebote und Rechte auf |
 | `src/shop/rights-migration.service.ts` | Umstellung der Bestandsdaten |
-| `src/accounts/points.service.ts` | Punktekonto, Einstellungen, Jahreswechsel |
+| `src/accounts/points.service.ts` | Punktekonto, Einstellungen, Untergrenze |
 | `src/accounts/accounts.service.ts` | Deaktivieren, Reaktivieren, Löschen, Zusammenführen |
 | `src/core/crypto/master-key.service.ts` | Masterkey, Ver- und Entschlüsselung |
 | `src/core/interchange/export/export.service.ts` | Export mit Rechteprüfung, verschlüsselter Import |
@@ -312,11 +354,14 @@ Stelle tritt *Zurückgeben*.
 Der Zugriff auf ein Thema hängt weiter an einer Stelle: `accessLevel()` in
 `topics.service.ts` kennt `owner` (eigenes Thema; Admins immer) und `read`
 (Nutzungsrecht). Welche Module bei `read` sichtbar sind, entscheidet
-`visibleModules()`:
+`visibleModules()` über `visibleFor()` (offer-rules.ts):
 
-- Nutzungsrecht aus einem Creator-Angebot: nur die Module dieses Creators,
-  samt Untermodulen.
-- Nutzungsrecht aus der Weitergabe eines Buyers: alle Module.
+- `ShopService.expandGrants()` löst jedes Nutzungsrecht in Einträge je
+  Lernthema auf: `all` (alle Module), `creator` (die Module eines Creators –
+  ältere Angebote ohne erworbene Module) oder `list` (genau diese Module).
+- Bei Angeboten für einen Knoten geschieht das bei jeder Anfrage neu aus den
+  Notebooks des Anbieters – deshalb wächst das Recht mit.
+- Untermodule folgen immer ihrem Elternmodul.
 
 Das gilt überall, wo Module ausgeliefert werden: Modulliste, Themen-Link-
 Editor, Themen-Link und Quick-Link beim Schülerstart.
@@ -334,9 +379,10 @@ sofort draußen ist.
 | `GET` | `/api/shop/offers` | Angebote, die ich sehe, und mein Kontostand |
 | `GET` | `/api/shop/my-offers` | meine Angebote samt Nutzern |
 | `GET` | `/api/shop/points` | Kontostand, Buchungen, Regeln |
-| `GET` | `/api/shop/topics/:topicId` | Zustand des Anbieten-Dialogs |
-| `POST` | `/api/shop/topics/:topicId/creator-offer` | `{allowCopy, allowUse, priceCopy, priceUse, audience, active}` |
-| `POST` | `/api/shop/topics/:topicId/buyer-share` | `{audience}`; leer beendet die Weitergabe |
+| `GET` | `/api/shop/offer-state?type=topic\|node\|modules&id=…` | Zustand des Anbieten-Dialogs (neue Auswahl: `moduleIds=a,b,c`) |
+| `POST` | `/api/shop/offers` | `{type, topicId\|nodeId\|moduleIds, offerId?, title?, includeForeign, allowCopy, allowUse, priceCopy, priceUse, audience, active}` |
+| `GET` | `/api/shop/topics/:topicId` | wie offer-state für ein Thema (ältere Oberfläche) |
+| `POST` | `/api/shop/topics/:topicId/creator-offer` | Angebot für ein Thema, ohne erworbene Module (ältere Oberfläche) |
 | `DELETE` | `/api/shop/offers/:id` | Angebot zurückziehen bzw. Weitergabe beenden |
 | `POST` | `/api/shop/offers/:id/acquire` | `{mode: 'copy' \| 'use'}` |
 | `DELETE` | `/api/shop/grants/:id` | Nutzungsrecht zurückgeben oder kostenloses entziehen |

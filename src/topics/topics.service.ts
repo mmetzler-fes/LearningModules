@@ -10,6 +10,7 @@ import { TagsService } from '../tags/tags.service';
 import { ShopOffer } from '../core/entities/shop-offer.entity';
 import { UseGrant } from '../core/entities/use-grant.entity';
 import { ShopService } from '../shop/shop.service';
+import { visibleFor } from '../shop/offer-rules';
 import { School } from '../core/entities/school.entity';
 import { baseUrl, renderQr } from '../core/share/link-url';
 import * as crypto from 'crypto';
@@ -92,10 +93,11 @@ export class TopicsService {
    */
   private async withRights(topics: LearningTopic[], user: any) {
     const ids = topics.map((t) => t.id);
-    const [copies, offers, grants, names] = await Promise.all([
+    const [copies, offers, usage, names] = await Promise.all([
       ids.length ? this.topicRepo.find({ where: { copiedFromId: In(ids) } }) : ([] as LearningTopic[]),
       ids.length ? this.offerRepo.find({ where: { topicId: In(ids) } }) : ([] as ShopOffer[]),
-      ids.length ? this.grantRepo.find({ where: { topicId: In(ids) } }) : ([] as UseGrant[]),
+      // Wer das Thema verwendet – auch über Angebote für einen Bereich oder eine Auswahl.
+      this.shop.usageOfTopics(user.userId),
       this.userNames(),
     ]);
 
@@ -110,7 +112,7 @@ export class TopicsService {
       const own = modules.filter((m) => m.isMine).length;
       const foreignCreators = [...new Set(modules.filter((m) => !m.isMine).map((m) => m.creatorName))];
       const offerOf = (kind: string) => {
-        const o = offers.find((x) => x.topicId === t.id && x.kind === kind);
+        const o = offers.find((x) => x.topicId === t.id && x.kind === kind && x.scopeType === 'topic');
         return o
           ? {
               id: o.id, active: o.active, allowCopy: o.allowCopy, allowUse: o.allowUse,
@@ -126,8 +128,8 @@ export class TopicsService {
         ownModuleCount: own,
         foreignModuleCount: modules.length - own,
         foreignCreators,
-        useCount: grants.filter((g) => g.topicId === t.id).length,
-        paidUseCount: grants.filter((g) => g.topicId === t.id && g.pricePaid > 0).length,
+        useCount: usage.get(t.id)?.users.size || 0,
+        paidUseCount: usage.get(t.id)?.paid.size || 0,
         creatorOffer: offerOf('creator'),
         buyerShare: offerOf('buyer'),
       };
@@ -210,10 +212,7 @@ export class TopicsService {
     const grants: any[] = (Array.isArray(user.grants) ? user.grants : []).filter((g: any) => g && g.topicId === topic.id);
     // Die Nextcloud-Ablage eines Audio Recorders (Link, Passwort) gehört dem
     // Eigentümer und geht niemanden sonst etwas an.
-    if (grants.some((g) => g.scope === 'all')) return modules.map(withoutUploadTarget);
-    const creators = new Set(grants.map((g) => g.creatorId).filter(Boolean));
-    const direct = new Set(modules.filter((m) => m.creatorId && creators.has(m.creatorId)).map((m) => m.id));
-    return modules.filter((m) => direct.has(m.id) || (!!m.parentId && direct.has(m.parentId))).map(withoutUploadTarget);
+    return visibleFor(modules, grants).map(withoutUploadTarget);
   }
 
   private static readonly RANK = { none: 0, read: 1, write: 2, owner: 3 };
@@ -279,18 +278,19 @@ export class TopicsService {
    * "Zur Nutzung erworben" unter den eigenen Themen.
    */
   async findGranted(user: any) {
-    const grants = await this.grantRepo.find({ where: { userId: user.userId } });
-    if (grants.length === 0) return [];
-    const topics = await this.topicRepo.find({ where: { id: In([...new Set(grants.map((g) => g.topicId))]) } });
+    const entries = await this.shop.expandGrants(user.userId);
+    if (entries.length === 0) return [];
+    const topics = await this.topicRepo.find({ where: { id: In([...new Set(entries.map((e) => e.topicId))]) } });
     await this.attachModuleSummaries(topics);
     const names = await this.userNames();
-    const offers = await this.offerRepo.find({ where: { id: In(grants.map((g) => g.offerId).filter(Boolean) as string[]) } });
+    const offers = await this.offerRepo.find({ where: { id: In(entries.map((e) => e.offerId).filter(Boolean) as string[]) } });
+    const asUser = { ...user, grants: entries };
 
     return topics
       .filter((t) => t.ownerId !== user.userId)
       .map((t) => {
-        const mine = grants.filter((g) => g.topicId === t.id);
-        const visible = this.visibleModules(t, t.modules || [], user);
+        const mine = entries.filter((e) => e.topicId === t.id);
+        const visible = this.visibleModules(t, t.modules || [], asUser);
         return {
           id: t.id,
           title: t.title,
@@ -300,13 +300,21 @@ export class TopicsService {
           moduleCount: visible.filter((m) => !m.parentId).length,
           creators: [...new Set(visible.map((m) => (m.creatorId && names.get(m.creatorId)) || 'Unbekannt'))],
           origin: this.originOf(t),
-          grants: mine.map((g) => ({
-            id: g.id,
-            pricePaid: g.pricePaid,
-            viaBuyer: offers.find((o) => o.id === g.offerId)?.kind === 'buyer',
-            since: g.createdAt,
-            refundUntil: ShopService.refundUntil(g),
-          })),
+          grants: [...new Map(mine.map((e) => [e.grantId, e])).values()].map((e) => {
+            const offer = offers.find((o) => o.id === e.offerId);
+            return {
+              id: e.grantId,
+              pricePaid: e.pricePaid,
+              viaBuyer: offer?.kind === 'buyer',
+              // Recht an einem Bereich oder einer Auswahl: Zurückgeben gilt für das Ganze.
+              scopeType: e.scopeType,
+              offerId: e.offerId,
+              // Gehört zu einer Kopie – lässt sich nicht einzeln zurückgeben.
+              onlyForeign: e.onlyForeign,
+              since: e.createdAt,
+              refundUntil: ShopService.refundUntil({ pricePaid: e.pricePaid, createdAt: e.createdAt } as UseGrant),
+            };
+          }),
         };
       })
       .sort((a, b) => a.title.localeCompare(b.title, 'de'));

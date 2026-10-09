@@ -665,8 +665,11 @@ export class TopicsView {
     const refundable = entry.grants.filter((g) => g.pricePaid > 0 && g.refundUntil && new Date(g.refundUntil).getTime() >= now);
     const refundSum = refundable.reduce((n, g) => n + g.pricePaid, 0);
     const until = refundable.map((g) => new Date(g.refundUntil)).sort((a, b) => a - b)[0];
+    // Ein Recht an einem Bereich oder einer Auswahl gibt man als Ganzes zurück.
+    const whole = entry.grants.some((g) => g.scopeType === 'node' || g.scopeType === 'modules');
     const ok = await this.app.appConfirm(
       `Nutzungsrecht an „${entry.title}" zurückgeben?\n\n` +
+      (whole ? 'Es gilt für das ganze Angebot (Bereich bzw. Auswahl), zu dem dieses Lernthema gehört – zurückgegeben wird alles.\n\n' : '') +
       (refundSum ? `Du bekommst ${refundSum} Punkte erstattet (Rückgabe mit Erstattung bis ${until.toLocaleDateString('de-DE')}). `
         : paid ? 'Die 14 Tage für eine Erstattung sind vorbei – bezahlte Punkte werden nicht erstattet. ' : '') +
       'Deine Themen- und Quick-Links liefern das Thema danach nicht mehr aus.',

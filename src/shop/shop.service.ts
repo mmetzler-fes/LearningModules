@@ -1,15 +1,44 @@
 import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, In, Repository } from 'typeorm';
+import { DataSource, In, IsNull, Repository } from 'typeorm';
 import * as crypto from 'crypto';
-import { ShopOffer } from '../core/entities/shop-offer.entity';
+import { ShopOffer, OfferScope } from '../core/entities/shop-offer.entity';
+import { NotebookNode } from '../core/entities/notebook-node.entity';
+import { NotebookPlacement } from '../core/entities/notebook-placement.entity';
 import { UseGrant } from '../core/entities/use-grant.entity';
 import { LearningTopic } from '../core/entities/learning-topic.entity';
 import { LearningModule } from '../core/entities/learning-module.entity';
 import { User } from '../core/entities/user.entity';
 import { TeacherGroup } from '../core/entities/teacher-group.entity';
 import { PointsService } from '../accounts/points.service';
-import { groupIdOf } from '../groups/groups.service';
+import { groupIdOf } from '../groups/group-ref';
+import { offerRoots, splitPrice, visibleFor, withSubmodules } from './offer-rules';
+
+/** Ein Lernthema mit dem, was ein Angebot davon umfasst. */
+export interface Covered {
+  topic: LearningTopic;
+  /** Elternmodule im Angebot */
+  roots: LearningModule[];
+  /** samt Untermodulen */
+  modules: LearningModule[];
+}
+
+/** Ein Nutzungsrecht, aufgelöst auf ein Lernthema (siehe expandGrants). */
+export interface GrantEntry {
+  topicId: string;
+  scope: 'creator' | 'all' | 'list';
+  creatorId: string | null;
+  moduleIds?: string[];
+  grantId: string;
+  offerId: string | null;
+  pricePaid: number;
+  createdAt: Date;
+  scopeType: OfferScope;
+  onlyForeign: boolean;
+}
+
+/** Book in den Notebooks des Käufers für Erworbenes (wie NotebooksService). */
+const ACQUIRED_BOOK = 'Erworben';
 
 const MAX_PRICE = 100000;
 
@@ -21,8 +50,11 @@ const MAX_PRICE = 100000;
  *             Kopieren und/oder Verwenden, gegen Punkte oder frei.
  *   Owner   – das Thema gehört ihm (eigene Kopie) oder er hat ein
  *             Nutzungsrecht darauf.
- *   Buyer   – hat eine Kopie erworben. Darf sie bearbeiten und kostenlos zur
- *             Nutzung weitergeben, an höchstens N Personen.
+ *   Buyer   – hat eine Kopie erworben. Darf sie bearbeiten und die fremden
+ *             Module darin im Shop zur Nutzung anbieten (nicht zum Kopieren).
+ *
+ * Ein Angebot umfasst ein Lernthema, einen Notebook-Knoten oder eine Auswahl
+ * von Modulen (siehe offer-rules.ts). Punkte gehen anteilig an die Creator.
  */
 /** Tage nach dem Kauf, in denen ein bezahltes Nutzungsrecht mit Erstattung zurückgegeben werden kann. */
 export const REFUND_DAYS = 14;
@@ -36,6 +68,8 @@ export class ShopService {
     @InjectRepository(LearningModule) private readonly moduleRepo: Repository<LearningModule>,
     @InjectRepository(User) private readonly userRepo: Repository<User>,
     @InjectRepository(TeacherGroup) private readonly groupRepo: Repository<TeacherGroup>,
+    @InjectRepository(NotebookNode) private readonly nodeRepo: Repository<NotebookNode>,
+    @InjectRepository(NotebookPlacement) private readonly placeRepo: Repository<NotebookPlacement>,
     private readonly points: PointsService,
     private readonly dataSource: DataSource,
   ) {}
@@ -95,16 +129,6 @@ export class ShopService {
     return n;
   }
 
-  /**
-   * Die Module, die ein Angebot umfasst: beim Creator-Angebot nur seine
-   * eigenen (samt Untermodulen), bei der Weitergabe eines Buyers alle.
-   */
-  private scopeModules(offer: ShopOffer, modules: LearningModule[]): LearningModule[] {
-    if (offer.kind === 'buyer') return modules;
-    const direct = new Set(modules.filter((m) => m.creatorId === offer.sellerId).map((m) => m.id));
-    return modules.filter((m) => direct.has(m.id) || (!!m.parentId && direct.has(m.parentId)));
-  }
-
   /** Thema laden, das dem Benutzer wirklich gehört – Admin-Rechte zählen hier nicht. */
   private async ownTopic(topicId: string, user: any) {
     const topic = await this.topicRepo.findOne({ where: { id: topicId }, relations: ['modules'] });
@@ -113,6 +137,143 @@ export class ShopService {
       throw new ForbiddenException('Anbieten kann nur, wem das Thema gehört.');
     }
     return topic;
+  }
+
+  // ---- Umfang eines Angebots ----
+
+  /**
+   * Was ein Angebot gerade umfasst: je Lernthema des Anbieters die
+   * Elternmodule und alle Module samt Untermodulen. Bei einem Knoten zählt,
+   * was jetzt darin liegt – das Angebot wächst mit. Nur Themen, die dem
+   * Anbieter gehören; Themen, die er selbst nur nutzt, gibt er nicht weiter.
+   */
+  async coverage(offer: ShopOffer, opts: { onlyForeign?: boolean } = {}): Promise<Covered[]> {
+    let topicIds: string[] = [];
+    let onlyIds: Set<string> | null = null;
+    if (offer.scopeType === 'node') {
+      topicIds = await this.topicsInNode(offer.sellerId, offer.nodeId);
+    } else if (offer.scopeType === 'modules') {
+      onlyIds = new Set(offer.moduleIds || []);
+      if (!onlyIds.size) return [];
+      const picked = await this.moduleRepo.find({ where: { id: In([...onlyIds]) }, select: ['id', 'topicId'] });
+      topicIds = [...new Set(picked.map((m) => m.topicId))];
+    } else if (offer.topicId) {
+      topicIds = [offer.topicId];
+    }
+    if (!topicIds.length) return [];
+
+    const topics = await this.topicRepo.find({ where: { id: In(topicIds), ownerId: offer.sellerId } });
+    const byId = new Map(topics.map((t) => [t.id, t]));
+    const modules = await this.moduleRepo.find({ where: { topicId: In(topics.map((t) => t.id)) }, order: { orderIndex: 'ASC' } });
+    const includeForeign = offer.kind === 'buyer' || !!offer.includeForeign;
+
+    const out: Covered[] = [];
+    for (const id of topicIds) {
+      const topic = byId.get(id);
+      if (!topic) continue;
+      const own = modules.filter((m) => m.topicId === id);
+      const roots = offerRoots(own, offer.sellerId, { includeForeign, onlyForeign: opts.onlyForeign, onlyIds });
+      if (!roots.length) continue;
+      out.push({ topic, roots, modules: withSubmodules(own, new Set(roots.map((r) => r.id))) });
+    }
+    return out;
+  }
+
+  /** Eigene Lernthemen im Teilbaum eines Knotens, in der Reihenfolge der Notebooks. */
+  private async topicsInNode(sellerId: string, nodeId: string | null): Promise<string[]> {
+    if (!nodeId) return [];
+    const [nodes, places] = await Promise.all([
+      this.nodeRepo.find({ where: { ownerId: sellerId } }),
+      this.placeRepo.find({ where: { ownerId: sellerId } }),
+    ]);
+    if (!nodes.some((n) => n.id === nodeId)) return [];
+    const out: string[] = [];
+    const walk = (id: string) => {
+      places.filter((p) => p.nodeId === id).sort((a, b) => a.orderIndex - b.orderIndex).forEach((p) => out.push(p.topicId));
+      nodes.filter((n) => n.parentId === id).sort((a, b) => a.orderIndex - b.orderIndex).forEach((n) => walk(n.id));
+    };
+    walk(nodeId);
+    return out;
+  }
+
+  /** Anzeigename eines Angebots: Auswahl-Titel, Knoten oder Lernthema. */
+  private async offerTitle(offer: ShopOffer, covered?: Covered[]): Promise<string> {
+    if (offer.scopeType === 'modules') return offer.title || 'Auswahl von Modulen';
+    if (offer.scopeType === 'node') {
+      const node = offer.nodeId ? await this.nodeRepo.findOne({ where: { id: offer.nodeId } }) : null;
+      return node?.title || offer.title || 'Bereich';
+    }
+    const topic = covered?.[0]?.topic || (await this.topicRepo.findOne({ where: { id: offer.topicId } }));
+    return topic?.title || offer.title || 'Lernthema';
+  }
+
+  private async nodeKind(offer: ShopOffer): Promise<string | null> {
+    if (offer.scopeType !== 'node' || !offer.nodeId) return null;
+    return (await this.nodeRepo.findOne({ where: { id: offer.nodeId } }))?.kind || null;
+  }
+
+  /**
+   * Nutzungsrechte eines Benutzers, aufgelöst nach Lernthemen – die Form, in
+   * der `accessLevel()` und `visibleModules()` sie lesen (`req.user.grants`).
+   *
+   *   scope 'all'     – alle Module des Themas
+   *   scope 'creator' – die Module von `creatorId` (ältere Angebote)
+   *   scope 'list'    – genau `moduleIds` (Elternmodule; Untermodule kommen mit)
+   */
+  async expandGrants(userId: string): Promise<GrantEntry[]> {
+    if (!userId) return [];
+    const grants = await this.grantRepo.find({ where: { userId } });
+    if (!grants.length) return [];
+    const offerIds = grants.map((g) => g.offerId).filter(Boolean) as string[];
+    const offers = offerIds.length ? await this.offerRepo.find({ where: { id: In(offerIds) } }) : [];
+    const byId = new Map(offers.map((o) => [o.id, o]));
+    const out: GrantEntry[] = [];
+    for (const g of grants) out.push(...(await this.expandGrant(g, g.offerId ? byId.get(g.offerId) : undefined)));
+    return out;
+  }
+
+  /** Die Nutzungsrechte eines Benutzers mit der Art ihres Angebots (für die Notebooks). */
+  async grantsOf(userId: string): Promise<Array<UseGrant & { scopeType: OfferScope }>> {
+    const grants = await this.grantRepo.find({ where: { userId } });
+    const offerIds = grants.map((g) => g.offerId).filter(Boolean) as string[];
+    const offers = offerIds.length ? await this.offerRepo.find({ where: { id: In(offerIds) } }) : [];
+    const byId = new Map(offers.map((o) => [o.id, o]));
+    return grants.map((g) => Object.assign(g, { scopeType: (byId.get(g.offerId || '')?.scopeType || 'topic') as OfferScope }));
+  }
+
+  private async expandGrant(g: UseGrant, offer: ShopOffer | undefined): Promise<GrantEntry[]> {
+    const base = {
+      grantId: g.id, offerId: g.offerId, pricePaid: g.pricePaid, createdAt: g.createdAt,
+      scopeType: (offer?.scopeType || 'topic') as OfferScope, onlyForeign: !!g.onlyForeign,
+    };
+    // Ältere Rechte ohne Angebot, und Angebote für ein Lernthema: ohne Auflösung.
+    if (!offer) return [{ ...base, topicId: g.topicId, scope: g.scope, creatorId: g.creatorId }];
+    if (offer.scopeType === 'topic' && !g.onlyForeign) {
+      const all = offer.kind === 'buyer' || offer.includeForeign;
+      return [{ ...base, topicId: offer.topicId || g.topicId, scope: all ? 'all' : 'creator', creatorId: offer.sellerId }];
+    }
+    const covered = await this.coverage(offer, { onlyForeign: g.onlyForeign });
+    return covered.map((c) => ({ ...base, topicId: c.topic.id, scope: 'list' as const, creatorId: null, moduleIds: c.roots.map((r) => r.id) }));
+  }
+
+  /**
+   * Für die Themenkarten des Anbieters: wie viele das Thema verwenden und
+   * wie viele davon bezahlt haben – über alle seine Angebote.
+   */
+  async usageOfTopics(sellerId: string): Promise<Map<string, { users: Set<string>; paid: Set<string> }>> {
+    const offers = await this.offerRepo.find({ where: { sellerId } });
+    const out = new Map<string, { users: Set<string>; paid: Set<string> }>();
+    if (!offers.length) return out;
+    const grants = await this.grantRepo.find({ where: { offerId: In(offers.map((o) => o.id)) } });
+    const byId = new Map(offers.map((o) => [o.id, o]));
+    for (const g of grants) {
+      for (const e of await this.expandGrant(g, byId.get(g.offerId || ''))) {
+        if (!out.has(e.topicId)) out.set(e.topicId, { users: new Set(), paid: new Set() });
+        out.get(e.topicId)!.users.add(g.userId);
+        if (g.pricePaid > 0) out.get(e.topicId)!.paid.add(g.userId);
+      }
+    }
+    return out;
   }
 
   // ---- Shop-Ansicht ----
@@ -125,44 +286,50 @@ export class ShopService {
     const offers = (await this.offerRepo.find({ where: { active: true } })).filter(
       (o) => o.sellerId !== user.userId && this.visibleTo(o, user),
     );
-    const topicIds = [...new Set(offers.map((o) => o.topicId))];
-    const topics = topicIds.length
-      ? await this.topicRepo.find({ where: { id: In(topicIds) }, relations: ['modules'] })
-      : [];
-    const byId = new Map(topics.map((t) => [t.id, t]));
     const users = await this.names();
     const myGrants = await this.grantRepo.find({ where: { userId: user.userId } });
+    const topicIds = offers.filter((o) => o.scopeType === 'topic').map((o) => o.topicId);
     const myCopies = topicIds.length
       ? await this.topicRepo.find({ where: { ownerId: user.userId, copiedFromId: In(topicIds) } })
       : [];
 
     const out: any[] = [];
     for (const offer of offers) {
-      const topic = byId.get(offer.topicId);
-      if (!topic || topic.ownerId === user.userId) continue;
-      const modules = this.scopeModules(offer, topic.modules || []).sort((a, b) => a.orderIndex - b.orderIndex);
-      const roots = modules.filter((m) => !m.parentId);
-      if (roots.length === 0) continue;
+      const covered = await this.coverage(offer);
+      // Eigene Themen des Käufers (etwa eine Weitergabe an den Creator) nicht anbieten.
+      const mine = covered.filter((c) => c.topic.ownerId !== user.userId);
+      const roots = mine.flatMap((c) => c.roots);
+      if (!roots.length) continue;
       const seller = users.get(offer.sellerId);
+      const own = roots.filter((m) => m.creatorId === offer.sellerId);
+      const grant = myGrants.find((g) => g.offerId === offer.id);
       out.push({
         offerId: offer.id,
         kind: offer.kind,
-        topicId: topic.id,
-        title: topic.title,
-        description: topic.description,
+        scopeType: offer.scopeType,
+        nodeKind: await this.nodeKind(offer),
+        topicId: offer.scopeType === 'topic' ? offer.topicId : null,
+        title: await this.offerTitle(offer, mine),
+        description: offer.scopeType === 'topic' ? mine[0]?.topic.description : '',
+        topicCount: mine.length,
         sellerName: this.label(seller),
         sellerActive: seller ? seller.active !== false : false,
-        creators: [...new Set(modules.map((m) => this.label(users.get(m.creatorId || ''))))],
-        modules: roots.map((m) => ({ title: m.title, type: m.type })),
-        allowCopy: offer.allowCopy,
+        creators: [...new Set(roots.map((m) => this.label(users.get(m.creatorId || ''))))],
+        modules: mine.flatMap((c) => c.roots.map((m) => ({
+          title: m.title, type: m.type, topicTitle: c.topic.title, own: m.creatorId === offer.sellerId,
+        }))),
+        ownCount: own.length,
+        foreignCount: roots.length - own.length,
+        // Kopieren geht nur mit eigenen Modulen des Anbieters.
+        allowCopy: offer.allowCopy && own.length > 0,
         allowUse: offer.allowUse,
         priceCopy: offer.priceCopy,
         priceUse: offer.priceUse,
         // Für alle angeboten oder gezielt an mich bzw. meine Gruppe geteilt?
         sharedWithMe: !offer.audience.includes('*'),
-        hasUse: myGrants.some((g) => g.topicId === topic.id && g.offerId === offer.id),
-        copies: myCopies.filter((c) => c.copiedFromId === topic.id).length,
-        updatedAt: topic.updatedAt,
+        hasUse: !!grant && !grant.onlyForeign,
+        copies: offer.scopeType === 'topic' ? myCopies.filter((c) => c.copiedFromId === offer.topicId).length : 0,
+        updatedAt: offer.updatedAt,
       });
     }
     out.sort((a, b) => a.title.localeCompare(b.title, 'de'));
@@ -172,68 +339,130 @@ export class ShopService {
 
   // ---- Anbieten ----
 
-  /** Alles, was der Dialog "Im Shop anbieten" für ein Thema braucht. */
-  async topicOfferState(topicId: string, user: any) {
-    const topic = await this.ownTopic(topicId, user);
-    const modules = (topic.modules || []).filter((m) => !m.parentId);
-    const own = modules.filter((m) => m.creatorId === user.userId);
-    const offers = await this.offerRepo.find({ where: { topicId } });
-    const users = await this.names();
-    const settings = await this.points.getSettings();
+  /** Das Angebot zu einem Ziel (Thema oder Knoten) dieses Anbieters, falls es eins gibt. */
+  private async offerFor(type: OfferScope, targetId: string, user: any): Promise<ShopOffer | null> {
+    if (type === 'topic') return this.offerRepo.findOne({ where: { topicId: targetId, kind: 'creator', scopeType: 'topic' } });
+    if (type === 'node') return this.offerRepo.findOne({ where: { nodeId: targetId, sellerId: user.userId, scopeType: 'node' } });
+    const offer = await this.offerRepo.findOne({ where: { id: targetId } });
+    return offer && offer.sellerId === user.userId && offer.scopeType === 'modules' ? offer : null;
+  }
 
-    const describe = async (offer: ShopOffer | undefined) => {
-      if (!offer) return null;
-      const grants = await this.grantRepo.find({ where: { offerId: offer.id } });
-      return {
-        id: offer.id,
-        active: offer.active,
-        allowCopy: offer.allowCopy,
-        allowUse: offer.allowUse,
-        priceCopy: offer.priceCopy,
-        priceUse: offer.priceUse,
-        audience: offer.audience,
-        // Namen der eingetragenen Personen – auch aus anderen Schulen, die
-        // die Auswahlliste selbst nicht zeigt. Sonst fielen sie beim
-        // nächsten Speichern unbemerkt heraus.
-        audienceUsers: (offer.audience || [])
-          .filter((e) => users.has(e))
-          .map((id) => ({ id, label: this.label(users.get(id)), email: users.get(id)!.email })),
-        fromDeactivation: offer.fromDeactivation,
-        holders: grants.map((g) => ({
-          grantId: g.id,
-          name: this.label(users.get(g.userId)),
-          pricePaid: g.pricePaid,
-          since: g.createdAt,
-        })),
-      };
-    };
+  /** Prüft, dass das Ziel dem Benutzer gehört; liefert ein vorläufiges Angebot für die Vorschau. */
+  private async draftOffer(type: OfferScope, input: { topicId?: string; nodeId?: string; moduleIds?: string[] }, user: any) {
+    const draft = this.offerRepo.create({ sellerId: user.userId, kind: 'creator', scopeType: type, includeForeign: true, topicId: '' });
+    if (type === 'topic') {
+      await this.ownTopic(String(input.topicId || ''), user);
+      draft.topicId = String(input.topicId);
+    } else if (type === 'node') {
+      const node = await this.nodeRepo.findOne({ where: { id: String(input.nodeId || '') } });
+      if (!node || node.ownerId !== user.userId) throw new NotFoundException('Book, Bereich oder Abschnitt nicht gefunden.');
+      draft.nodeId = node.id;
+    } else if (type === 'modules') {
+      const ids = [...new Set((Array.isArray(input.moduleIds) ? input.moduleIds : []).map(String))];
+      if (!ids.length) throw new BadRequestException('Bitte mindestens ein Modul auswählen.');
+      const mods = await this.moduleRepo.find({ where: { id: In(ids) } });
+      const topics = await this.topicRepo.find({ where: { id: In([...new Set(mods.map((m) => m.topicId))]) } });
+      if (mods.length !== ids.length || topics.some((t) => t.ownerId !== user.userId)) {
+        throw new ForbiddenException('Anbieten lassen sich nur Module aus eigenen Lernthemen.');
+      }
+      // Untermodule hängen an ihrem Elternmodul – gewählt werden Elternmodule.
+      draft.moduleIds = [...new Set(mods.map((m) => m.parentId || m.id))];
+    } else {
+      throw new BadRequestException('Unbekannte Art des Angebots.');
+    }
+    return draft;
+  }
+
+  /**
+   * Alles, was der Dialog „Im Shop anbieten“ braucht: Titel, eigene und
+   * fremde Module, das bestehende Angebot mit seinen Inhabern.
+   */
+  async offerState(type: OfferScope, params: { id?: string; moduleIds?: string[] }, user: any) {
+    let offer: ShopOffer | null = null;
+    let draft: ShopOffer;
+    if (type === 'modules' && params.id) {
+      offer = await this.offerFor('modules', params.id, user);
+      if (!offer) throw new NotFoundException('Angebot nicht gefunden.');
+      draft = this.offerRepo.create({ ...offer, includeForeign: true });
+    } else {
+      draft = await this.draftOffer(type, { topicId: params.id, nodeId: params.id, moduleIds: params.moduleIds }, user);
+      if (type !== 'modules') offer = await this.offerFor(type, params.id || '', user);
+    }
+    const covered = await this.coverage(draft);
+    const roots = covered.flatMap((c) => c.roots);
+    const users = await this.names();
+    const legacy = type === 'topic' ? await this.offerRepo.findOne({ where: { topicId: params.id, kind: 'buyer' } }) : null;
 
     return {
-      topicId: topic.id,
-      title: topic.title,
-      ownModules: own.map((m) => m.title),
-      foreignModules: modules.filter((m) => m.creatorId !== user.userId).map((m) => ({
+      type,
+      targetId: type === 'modules' ? offer?.id || null : params.id,
+      topicId: type === 'topic' ? params.id : undefined,
+      nodeId: type === 'node' ? params.id : undefined,
+      moduleIds: draft.moduleIds || undefined,
+      nodeKind: await this.nodeKind(draft),
+      title: await this.offerTitle(offer || draft, covered),
+      topicCount: covered.length,
+      ownModules: roots.filter((m) => m.creatorId === user.userId).map((m) => m.title),
+      foreignModules: roots.filter((m) => m.creatorId !== user.userId).map((m) => ({
         title: m.title,
         creatorName: this.label(users.get(m.creatorId || '')),
       })),
-      canOfferAsCreator: own.length > 0,
-      canShareAsBuyer: modules.length > own.length,
-      buyerShareMax: settings.buyerShareMax,
-      copyCount: await this.topicRepo.count({ where: { copiedFromId: topic.id } }),
-      creatorOffer: await describe(offers.find((o) => o.kind === 'creator')),
-      buyerShare: await describe(offers.find((o) => o.kind === 'buyer')),
+      copyCount: type === 'topic' ? await this.topicRepo.count({ where: { copiedFromId: params.id } }) : 0,
+      offer: offer ? await this.describe(offer, users) : null,
+      legacyShare: legacy ? await this.describe(legacy, users) : null,
+    };
+  }
+
+  private async describe(offer: ShopOffer, users: Map<string, User>) {
+    const grants = await this.grantRepo.find({ where: { offerId: offer.id } });
+    return {
+      id: offer.id,
+      kind: offer.kind,
+      title: offer.title,
+      active: offer.active,
+      allowCopy: offer.allowCopy,
+      allowUse: offer.allowUse,
+      priceCopy: offer.priceCopy,
+      priceUse: offer.priceUse,
+      includeForeign: offer.kind === 'buyer' || !!offer.includeForeign,
+      audience: offer.audience,
+      // Namen der eingetragenen Personen – auch aus anderen Schulen, die
+      // die Auswahlliste selbst nicht zeigt. Sonst fielen sie beim
+      // nächsten Speichern unbemerkt heraus.
+      audienceUsers: (offer.audience || [])
+        .filter((e) => users.has(e))
+        .map((id) => ({ id, label: this.label(users.get(id)), email: users.get(id)!.email })),
+      fromDeactivation: offer.fromDeactivation,
+      holders: grants.filter((g) => !g.onlyForeign).map((g) => ({
+        grantId: g.id,
+        name: this.label(users.get(g.userId)),
+        pricePaid: g.pricePaid,
+        since: g.createdAt,
+      })),
     };
   }
 
   /**
-   * Angebot als Creator anlegen oder ändern. Angeboten werden nur die selbst
-   * verfassten Module des Themas – auch wenn es fremde enthält.
+   * Angebot anlegen oder ändern – für ein Lernthema, einen Knoten oder eine
+   * Auswahl von Modulen. Eigene Module lassen sich kopieren und nutzen,
+   * fremde (mit `includeForeign`) nur nutzen.
    */
-  async saveCreatorOffer(topicId: string, user: any, body: any) {
-    const topic = await this.ownTopic(topicId, user);
-    if (!(topic.modules || []).some((m) => m.creatorId === user.userId)) {
-      throw new ForbiddenException('Nur der Creator kann Module im Shop anbieten – dieses Thema enthält keine von dir verfassten.');
+  async saveOffer(user: any, body: any) {
+    const type = String(body?.type || 'topic') as OfferScope;
+    let offer: ShopOffer | null = null;
+    if (type === 'modules' && body?.offerId) {
+      offer = await this.offerFor('modules', String(body.offerId), user);
+      if (!offer) throw new NotFoundException('Angebot nicht gefunden.');
     }
+    const draft = await this.draftOffer(type, {
+      topicId: body?.topicId, nodeId: body?.nodeId, moduleIds: body?.moduleIds ?? offer?.moduleIds ?? [],
+    }, user);
+    if (!offer && type !== 'modules') offer = await this.offerFor(type, String(body?.topicId || body?.nodeId || ''), user);
+
+    const includeForeign = body?.includeForeign === undefined ? (offer ? offer.includeForeign : true) : !!body.includeForeign;
+    const covered = await this.coverage(Object.assign(this.offerRepo.create(draft), { includeForeign }));
+    const roots = covered.flatMap((c) => c.roots);
+    const own = roots.filter((m) => m.creatorId === user.userId);
 
     const allowCopy = !!body?.allowCopy;
     const allowUse = !!body?.allowUse;
@@ -241,13 +470,26 @@ export class ShopService {
     if (active && !allowCopy && !allowUse) {
       throw new BadRequestException('Bitte mindestens "Copy" oder "Use" anbieten – oder das Angebot zurückziehen.');
     }
+    if (active && !roots.length) {
+      throw new BadRequestException(own.length || !includeForeign
+        ? 'Darin ist nichts, was sich anbieten lässt – nur eigene Module oder, wenn gewünscht, erworbene zur Nutzung.'
+        : 'Darin ist kein Modul.');
+    }
+    if (active && allowCopy && !own.length) {
+      throw new BadRequestException('Zum Kopieren lassen sich nur eigene Module anbieten – hier gibt es keine. Bitte nur "Use" wählen.');
+    }
     const audience = await this.cleanAudience(body?.audience ?? ['*'], true);
     if (active && audience.length === 0) throw new BadRequestException('Bitte eine Zielgruppe wählen.');
 
-    let offer = await this.offerRepo.findOne({ where: { topicId, kind: 'creator' } });
-    if (!offer) offer = this.offerRepo.create({ id: crypto.randomUUID(), topicId, sellerId: user.userId, kind: 'creator' });
+    if (!offer) offer = this.offerRepo.create({ id: crypto.randomUUID(), sellerId: user.userId, kind: 'creator', scopeType: type });
     Object.assign(offer, {
       sellerId: user.userId,
+      scopeType: type,
+      topicId: draft.topicId || '',
+      nodeId: draft.nodeId ?? null,
+      moduleIds: type === 'modules' ? draft.moduleIds : null,
+      title: type === 'modules' ? String(body?.title || offer.title || '').trim().slice(0, 120) || 'Auswahl von Modulen' : null,
+      includeForeign,
       allowCopy,
       allowUse,
       priceCopy: this.price(body?.priceCopy, 'Preis für Copy'),
@@ -262,50 +504,21 @@ export class ShopService {
   }
 
   /**
-   * Weitergabe als Buyer: nur "Use", nur kostenlos, an höchstens N Personen.
-   * Wer aus der Zielgruppe fällt, verliert sein Nutzungsrecht sofort – es war
-   * geschenkt, und nur so bleibt die Obergrenze eine.
+   * Ein Knoten wird gelöscht: Seine Angebote werden zu festen Auswahlen mit
+   * dem, was gerade darin liegt – wer schon gekauft hat, behält es.
    */
-  async saveBuyerShare(topicId: string, user: any, body: any) {
-    const topic = await this.ownTopic(topicId, user);
-    if (!(topic.modules || []).some((m) => m.creatorId !== user.userId)) {
-      throw new BadRequestException('Alle Module dieses Themas stammen von dir – biete sie als Creator an.');
+  async freezeNodeOffers(nodeIds: string[]) {
+    if (!nodeIds.length) return 0;
+    const offers = await this.offerRepo.find({ where: { nodeId: In(nodeIds), scopeType: 'node' } });
+    for (const offer of offers) {
+      const covered = await this.coverage(offer);
+      offer.title = await this.offerTitle(offer, covered);
+      offer.moduleIds = covered.flatMap((c) => c.roots.map((r) => r.id));
+      offer.scopeType = 'modules';
+      offer.nodeId = null;
+      await this.offerRepo.save(offer);
     }
-    const audience = await this.cleanAudience(body?.audience, false);
-    const people = await this.expand(audience);
-    people.delete(user.userId);
-    const { buyerShareMax } = await this.points.getSettings();
-    if (people.size > buyerShareMax) {
-      throw new BadRequestException(
-        `Erworbene Inhalte dürfen an höchstens ${buyerShareMax} Personen weitergegeben werden – gewählt sind ${people.size}.`,
-      );
-    }
-
-    let offer = await this.offerRepo.findOne({ where: { topicId, kind: 'buyer' } });
-    if (audience.length === 0) {
-      if (offer) {
-        await this.grantRepo.delete({ offerId: offer.id });
-        await this.offerRepo.remove(offer);
-      }
-      return { success: true, removed: true };
-    }
-
-    if (!offer) offer = this.offerRepo.create({ id: crypto.randomUUID(), topicId, sellerId: user.userId, kind: 'buyer' });
-    Object.assign(offer, {
-      sellerId: user.userId,
-      allowCopy: false,
-      allowUse: true,
-      priceCopy: 0,
-      priceUse: 0,
-      audience,
-      active: true,
-    });
-    await this.offerRepo.save(offer);
-
-    const grants = await this.grantRepo.find({ where: { offerId: offer.id } });
-    const gone = grants.filter((g) => !people.has(g.userId));
-    if (gone.length) await this.grantRepo.remove(gone);
-    return { success: true, offerId: offer.id, revoked: gone.length };
+    return offers.length;
   }
 
   /**
@@ -329,32 +542,23 @@ export class ShopService {
   async myOffers(user: any) {
     const offers = await this.offerRepo.find({ where: { sellerId: user.userId } });
     if (offers.length === 0) return [];
-    const topics = await this.topicRepo.find({ where: { id: In(offers.map((o) => o.topicId)) } });
-    const byId = new Map(topics.map((t) => [t.id, t]));
     const users = await this.names();
     const out: any[] = [];
     for (const offer of offers) {
-      const topic = byId.get(offer.topicId);
-      if (!topic) continue;
-      const grants = await this.grantRepo.find({ where: { offerId: offer.id } });
+      const covered = await this.coverage(offer);
+      // Ein Lernthema, das es nicht mehr gibt, hat auch kein Angebot mehr.
+      if (offer.scopeType === 'topic' && !(await this.topicRepo.findOne({ where: { id: offer.topicId } }))) continue;
+      const d = await this.describe(offer, users);
       out.push({
-        id: offer.id,
-        kind: offer.kind,
-        topicId: topic.id,
-        title: topic.title,
-        active: offer.active,
-        allowCopy: offer.allowCopy,
-        allowUse: offer.allowUse,
-        priceCopy: offer.priceCopy,
-        priceUse: offer.priceUse,
-        audience: offer.audience,
-        copyCount: await this.topicRepo.count({ where: { copiedFromId: topic.id } }),
-        holders: grants.map((g) => ({
-          grantId: g.id,
-          name: this.label(users.get(g.userId)),
-          pricePaid: g.pricePaid,
-          since: g.createdAt,
-        })),
+        ...d,
+        scopeType: offer.scopeType,
+        topicId: offer.scopeType === 'topic' ? offer.topicId : null,
+        nodeId: offer.nodeId,
+        nodeKind: await this.nodeKind(offer),
+        title: await this.offerTitle(offer, covered),
+        topicCount: covered.length,
+        moduleCount: covered.reduce((n, c) => n + c.roots.length, 0),
+        copyCount: offer.scopeType === 'topic' ? await this.topicRepo.count({ where: { copiedFromId: offer.topicId } }) : 0,
       });
     }
     return out.sort((a, b) => a.title.localeCompare(b.title, 'de'));
@@ -365,9 +569,14 @@ export class ShopService {
   /**
    * Erwirbt ein Angebot im Modus "copy" oder "use".
    *
-   * Punkte gehen vom Käufer an den Anbieter, in einer Transaktion mit dem
-   * Anlegen von Kopie bzw. Nutzungsrecht – es wird nie bezahlt, ohne dass
-   * etwas ankommt, und nichts kommt ohne Bezahlung an.
+   * Punkte gehen vom Käufer an die Creator der enthaltenen Module (anteilig,
+   * siehe splitPrice), in einer Transaktion mit dem Anlegen von Kopie bzw.
+   * Nutzungsrecht – es wird nie bezahlt, ohne dass etwas ankommt, und nichts
+   * kommt ohne Bezahlung an.
+   *
+   * Copy kopiert nur die eigenen Module des Anbieters. Enthält das Angebot
+   * auch fremde, bekommt der Käufer sie dazu zur Nutzung – kopieren darf
+   * sie niemand weiter.
    */
   async acquire(offerId: string, mode: string, user: any) {
     if (mode !== 'copy' && mode !== 'use') throw new BadRequestException('Bitte "copy" oder "use" wählen.');
@@ -377,28 +586,28 @@ export class ShopService {
     if (mode === 'copy' && !offer.allowCopy) throw new ForbiddenException('Dieses Angebot ist nicht zum Kopieren.');
     if (mode === 'use' && !offer.allowUse) throw new ForbiddenException('Dieses Angebot ist nicht zum Verwenden.');
 
-    const topic = await this.topicRepo.findOne({ where: { id: offer.topicId }, relations: ['modules'] });
-    if (!topic) throw new NotFoundException('Das Thema gibt es nicht mehr.');
-    if (topic.ownerId === user.userId) throw new BadRequestException('Das Thema gehört dir bereits.');
-    const modules = this.scopeModules(offer, topic.modules || []);
-    if (modules.length === 0) throw new BadRequestException('Das Angebot enthält derzeit keine Module.');
-
-    if (mode === 'use') {
-      const existing = await this.grantRepo.findOne({ where: { userId: user.userId, topicId: topic.id, offerId: offer.id } });
-      if (existing) return { success: true, already: true, balance: await this.points.balance(user.userId) };
+    const covered = (await this.coverage(offer)).filter((c) => c.topic.ownerId !== user.userId);
+    if (!covered.length) {
+      throw new BadRequestException(offer.scopeType === 'topic' ? 'Das Thema gehört dir bereits oder enthält derzeit keine Module.' : 'Das Angebot enthält derzeit keine Module.');
     }
-    if (offer.kind === 'buyer') {
-      const people = await this.expand(offer.audience);
-      if (!people.has(user.userId)) throw new ForbiddenException('Diese Weitergabe gilt nicht für dich.');
-      const { buyerShareMax } = await this.points.getSettings();
-      const taken = await this.grantRepo.count({ where: { offerId: offer.id } });
-      if (taken >= buyerShareMax) throw new ForbiddenException('Die Weitergabe ist bereits ausgeschöpft.');
+    const roots = covered.flatMap((c) => c.roots);
+    const ownRoots = roots.filter((m) => m.creatorId === offer.sellerId);
+    if (mode === 'copy' && !ownRoots.length) throw new BadRequestException('Darin ist nichts zum Kopieren – nur zur Nutzung.');
+
+    const existing = await this.grantRepo.findOne({ where: { userId: user.userId, offerId: offer.id } });
+    if (mode === 'use' && existing && !existing.onlyForeign) {
+      return { success: true, already: true, balance: await this.points.balance(user.userId) };
     }
 
     const price = mode === 'copy' ? offer.priceCopy : offer.priceUse;
-    const seller = await this.userRepo.findOne({ where: { id: offer.sellerId } });
+    const users = await this.names();
+    const seller = users.get(offer.sellerId);
+    const known = new Set([...users.values()].filter((u) => u.active !== false).map((u) => u.id));
+    const shares = splitPrice(price, roots.map((m) => m.creatorId), offer.sellerId, user.userId, known);
+    const title = await this.offerTitle(offer, covered);
+    const note = `${mode === 'copy' ? 'Copy' : 'Use'}: ${title}`;
 
-    let copyId: string | null = null;
+    let copyIds: string[] = [];
     await this.dataSource.transaction(async (manager) => {
       if (price > 0) {
         // Ins Minus darf es gehen – bis zur Untergrenze, falls der Admin eine gesetzt hat.
@@ -409,56 +618,137 @@ export class ShopService {
             `Dafür sind ${price} Punkte nötig – auf deinem Konto sind ${balance}, und unter ${minBalance} geht es nicht. Teile selbst etwas, dann kommen Punkte dazu.`,
           );
         }
-        await this.points.book(manager, user.userId, -price, 'purchase', `${mode === 'copy' ? 'Copy' : 'Use'}: ${topic.title}`, null);
-        await this.points.book(manager, offer.sellerId, price, 'sale', `${mode === 'copy' ? 'Copy' : 'Use'}: ${topic.title}`);
+        await this.points.book(manager, user.userId, -price, 'purchase', note, null);
+        for (const [to, amount] of Object.entries(shares)) {
+          await this.points.book(manager, to, amount, 'sale', to === offer.sellerId ? note : `${note} (Anteil als Creator)`);
+        }
       }
 
+      const grants = manager.getRepository(UseGrant);
+      const grantTopicId = offer.scopeType === 'topic' ? offer.topicId : '';
       if (mode === 'use') {
-        await manager.getRepository(UseGrant).save(
-          manager.getRepository(UseGrant).create({
-            id: crypto.randomUUID(),
-            userId: user.userId,
-            topicId: topic.id,
-            offerId: offer.id,
-            scope: offer.kind === 'buyer' ? 'all' : 'creator',
-            creatorId: offer.kind === 'buyer' ? null : offer.sellerId,
-            pricePaid: price,
-          }),
-        );
+        if (existing) {
+          // Bisher nur die fremden Module (aus einer Kopie) – jetzt alles.
+          Object.assign(existing, { onlyForeign: false, pricePaid: price, paidTo: price > 0 ? shares : null });
+          await grants.save(existing);
+        } else {
+          await grants.save(grants.create({
+            id: crypto.randomUUID(), userId: user.userId, topicId: grantTopicId, offerId: offer.id,
+            scope: 'all', creatorId: offer.sellerId, pricePaid: price, paidTo: price > 0 ? shares : null, onlyForeign: false,
+          }));
+        }
         return;
       }
 
-      copyId = await this.copyTopic(manager, topic, modules, user, this.label(seller || undefined));
+      copyIds = offer.scopeType === 'node'
+        ? await this.copyNodeStructure(manager, offer, covered, user, this.label(seller))
+        : await this.copyCovered(manager, covered, offer.sellerId, user, this.label(seller));
+      // Fremde Module gibt es zur Kopie dazu – aber nur zur Nutzung.
+      if (roots.length > ownRoots.length && !existing) {
+        await grants.save(grants.create({
+          id: crypto.randomUUID(), userId: user.userId, topicId: grantTopicId, offerId: offer.id,
+          scope: 'all', creatorId: offer.sellerId, pricePaid: 0, paidTo: null, onlyForeign: true,
+        }));
+      }
     });
 
     return {
       success: true,
       mode,
-      topicId: copyId,
+      topicId: copyIds[0] || null,
+      copiedTopics: copyIds.length,
+      foreignForUse: mode === 'copy' ? roots.length - ownRoots.length : 0,
       price,
+      shares,
       balance: await this.points.balance(user.userId),
     };
   }
 
+  /** Je Lernthema eine Kopie mit den eigenen Modulen des Anbieters. */
+  private async copyCovered(manager: any, covered: Covered[], sellerId: string, user: any, sellerName: string): Promise<string[]> {
+    const ids: string[] = [];
+    for (const c of covered) {
+      const own = c.roots.filter((m) => m.creatorId === sellerId);
+      if (!own.length) continue;
+      ids.push(await this.copyTopic(manager, c.topic, withSubmodules(c.modules, new Set(own.map((m) => m.id))), user, sellerName));
+    }
+    return ids;
+  }
+
+  /**
+   * Kopie eines Books, Bereichs oder Abschnitts: Die Struktur entsteht in
+   * den Notebooks des Käufers – ein Book oben, alles andere im Book
+   * „Erworben“ –, darin die kopierten Lernthemen an ihrem Platz.
+   */
+  private async copyNodeStructure(manager: any, offer: ShopOffer, covered: Covered[], user: any, sellerName: string): Promise<string[]> {
+    const nodeRepo = manager.getRepository(NotebookNode);
+    const placeRepo = manager.getRepository(NotebookPlacement);
+    const [nodes, places] = await Promise.all([
+      this.nodeRepo.find({ where: { ownerId: offer.sellerId } }),
+      this.placeRepo.find({ where: { ownerId: offer.sellerId } }),
+    ]);
+    const root = nodes.find((n) => n.id === offer.nodeId);
+    if (!root) return this.copyCovered(manager, covered, offer.sellerId, user, sellerName);
+    const byTopic = new Map(covered.map((c) => [c.topic.id, c]));
+
+    let parentId: string | null = null;
+    if (root.kind !== 'book') parentId = (await this.acquiredBook(manager, user.userId)).id;
+    const siblings = await nodeRepo.count({ where: { ownerId: user.userId, parentId: (parentId ?? null) as any } });
+
+    const ids: string[] = [];
+    const build = async (src: NotebookNode, parent: string | null, orderIndex: number) => {
+      const node = await nodeRepo.save(nodeRepo.create({
+        id: crypto.randomUUID(), ownerId: user.userId, kind: src.kind, title: src.title, parentId: parent, orderIndex, tagIds: null,
+      }));
+      let i = 0;
+      for (const p of places.filter((x) => x.nodeId === src.id).sort((a, b) => a.orderIndex - b.orderIndex)) {
+        const c = byTopic.get(p.topicId);
+        const own = c ? c.roots.filter((m) => m.creatorId === offer.sellerId) : [];
+        if (!c || !own.length) continue;
+        const copyId = await this.copyTopic(manager, c.topic, withSubmodules(c.modules, new Set(own.map((m) => m.id))), user, sellerName);
+        await placeRepo.save(placeRepo.create({ id: crypto.randomUUID(), ownerId: user.userId, topicId: copyId, nodeId: node.id, orderIndex: i++ }));
+        ids.push(copyId);
+      }
+      const kids = nodes.filter((n) => n.parentId === src.id).sort((a, b) => a.orderIndex - b.orderIndex);
+      for (let k = 0; k < kids.length; k++) await build(kids[k], node.id, k);
+    };
+    await build(root, parentId, siblings);
+    return ids;
+  }
+
+  /** Das Book „Erworben“ des Käufers (wie in den Notebooks). */
+  private async acquiredBook(manager: any, userId: string): Promise<NotebookNode> {
+    const repo = manager.getRepository(NotebookNode);
+    const found = await repo.findOne({ where: { ownerId: userId, kind: 'book', title: ACQUIRED_BOOK, parentId: IsNull() } });
+    if (found) return found;
+    const count = await repo.count({ where: { ownerId: userId, kind: 'book' } });
+    return repo.save(repo.create({ id: crypto.randomUUID(), ownerId: userId, kind: 'book', title: ACQUIRED_BOOK, parentId: null, orderIndex: count, tagIds: null }));
+  }
+
   /**
    * Vor dem Löschen eines Themas: Wer für die Nutzung bezahlt hat, bekommt
-   * eine eigene Kopie dessen, was er nutzen durfte – Bezahltes geht nicht
-   * verloren. Kostenlose Nutzungsrechte verfallen mit dem Thema.
+   * eine eigene Kopie dessen, was er darin nutzen durfte – Bezahltes geht
+   * nicht verloren. Das gilt auch für Rechte an einem Bereich oder einer
+   * Auswahl, die dieses Thema umfassen. Kostenlose Nutzungsrechte verfallen.
    * Liefert die Zahl der angelegten Kopien.
    */
   async preservePaidUse(topicId: string): Promise<number> {
-    const grants = (await this.grantRepo.find({ where: { topicId } })).filter((g) => g.pricePaid > 0);
-    if (!grants.length) return 0;
     const topic = await this.topicRepo.findOne({ where: { id: topicId }, relations: ['modules'] });
     if (!topic) return 0;
+    const offers = await this.offerRepo.find({ where: { sellerId: topic.ownerId } });
+    const byId = new Map(offers.map((o) => [o.id, o]));
+    const paid = (await this.grantRepo.find()).filter(
+      (g) => g.pricePaid > 0 && ((g.offerId && byId.has(g.offerId)) || g.topicId === topicId),
+    );
+    if (!paid.length) return 0;
     const owner = await this.userRepo.findOne({ where: { id: topic.ownerId } });
+    const all = topic.modules || [];
     let made = 0;
     await this.dataSource.transaction(async (manager) => {
-      for (const g of grants) {
-        // Gleicher Umfang wie beim Nutzen: nur die Module des Anbieters bzw. alle
-        const all = topic.modules || [];
-        const direct = new Set(all.filter((m) => g.scope === 'all' || m.creatorId === g.creatorId).map((m) => m.id));
-        const modules = all.filter((m) => direct.has(m.id) || (!!m.parentId && direct.has(m.parentId)));
+      for (const g of paid) {
+        const entries = (await this.expandGrant(g, g.offerId ? byId.get(g.offerId) : undefined)).filter((e) => e.topicId === topicId);
+        if (!entries.length) continue;
+        const modules = visibleFor(all, entries);
         if (!modules.length) continue;
         await this.copyTopic(manager, topic, modules, { userId: g.userId }, this.label(owner || undefined));
         made++;
@@ -520,9 +810,12 @@ export class ShopService {
 
   /**
    * Nutzungsrecht beenden. Der Inhaber kann es jederzeit zurückgeben –
-   * innerhalb von REFUND_DAYS Tagen nach dem Kauf mit Erstattung (so lässt
-   * sich ein Thema per Use ausprobieren), danach ohne. Der Anbieter kann nur
-   * kostenlose Rechte entziehen – was bezahlt wurde, bleibt.
+   * innerhalb von REFUND_DAYS Tagen nach dem Kauf mit voller Erstattung (so
+   * lässt sich ein Angebot per Use ausprobieren), danach ohne. Die Punkte
+   * kommen von dort zurück, wohin sie gegangen sind – notfalls ins Minus.
+   * Der Anbieter kann nur kostenlose Rechte entziehen – was bezahlt wurde,
+   * bleibt. Das Nutzungsrecht zu einer Kopie (nur fremde Module) gehört zur
+   * Kopie und lässt sich nicht einzeln zurückgeben.
    */
   async revokeGrant(grantId: string, user: any) {
     const grant = await this.grantRepo.findOne({ where: { id: grantId } });
@@ -537,17 +830,21 @@ export class ShopService {
 
     const until = ShopService.refundUntil(grant);
     const sellerId = offer?.sellerId || grant.creatorId;
+    const paidTo: Record<string, number> = grant.paidTo && Object.keys(grant.paidTo).length
+      ? grant.paidTo
+      : sellerId ? { [sellerId]: grant.pricePaid } : {};
     let refunded = 0;
     await this.dataSource.transaction(async (manager) => {
-      if (until && until.getTime() >= Date.now() && sellerId && sellerId !== user.userId) {
-        const topic = await this.topicRepo.findOne({ where: { id: grant.topicId } });
-        const note = `Rückgabe Use: ${topic?.title || 'Thema'}`;
-        // Erstattet wird immer voll – notfalls rutscht der Anbieter dafür ins Minus.
-        refunded = grant.pricePaid;
-        if (refunded > 0) {
-          await this.points.book(manager, sellerId, -refunded, 'refund', note, null);
-          await this.points.book(manager, user.userId, refunded, 'refund', note);
+      if (until && until.getTime() >= Date.now()) {
+        const title = offer ? await this.offerTitle(offer) : (await this.topicRepo.findOne({ where: { id: grant.topicId } }))?.title;
+        const note = `Rückgabe Use: ${title || 'Thema'}`;
+        // Erstattet wird immer voll – wer die Punkte bekommen hat, gibt sie zurück, notfalls ins Minus.
+        for (const [from, amount] of Object.entries(paidTo)) {
+          if (!(amount > 0) || from === user.userId) continue;
+          await this.points.book(manager, from, -amount, 'refund', note, null);
+          refunded += amount;
         }
+        if (refunded > 0) await this.points.book(manager, user.userId, refunded, 'refund', note);
       }
       await manager.getRepository(UseGrant).remove(grant);
     });

@@ -10,7 +10,7 @@ import { TopicLink } from '../core/entities/topic-link.entity';
 import { TopicQuickLink } from '../core/entities/topic-quick-link.entity';
 import { ShopOffer } from '../core/entities/shop-offer.entity';
 import { UseGrant } from '../core/entities/use-grant.entity';
-import { groupIdOf } from '../groups/groups.service';
+import { groupIdOf } from '../groups/group-ref';
 
 /**
  * Überführt Bestandsdaten in das Rechtemodell mit Creator je Modul und Shop.

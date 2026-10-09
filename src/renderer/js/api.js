@@ -422,20 +422,19 @@ export class BrowserApi {
   getShopOffers() { return this._fetch('/api/shop/offers'); }
   getMyOffers() { return this._fetch('/api/shop/my-offers'); }
   getMyPoints() { return this._fetch('/api/shop/points'); }
-  getTopicOfferState(topicId) {
-    return this._fetch(`/api/shop/topics/${encodeURIComponent(topicId)}`);
+  /**
+   * Zustand des Anbieten-Dialogs. target: { type: 'topic'|'node'|'modules', id } –
+   * bei einer neuen Auswahl { type: 'modules', moduleIds }.
+   */
+  getOfferState(target) {
+    const q = new URLSearchParams({ type: target.type });
+    if (target.id) q.set('id', target.id);
+    if (target.moduleIds?.length) q.set('moduleIds', target.moduleIds.join(','));
+    return this._fetch(`/api/shop/offer-state?${q}`);
   }
-  saveCreatorOffer(topicId, body) {
-    return this._fetch(`/api/shop/topics/${encodeURIComponent(topicId)}/creator-offer`, {
-      method: 'POST',
-      body: JSON.stringify(body),
-    });
-  }
-  saveBuyerShare(topicId, audience) {
-    return this._fetch(`/api/shop/topics/${encodeURIComponent(topicId)}/buyer-share`, {
-      method: 'POST',
-      body: JSON.stringify({ audience }),
-    });
+  /** body: { type, topicId|nodeId|moduleIds, offerId?, title?, allowCopy, allowUse, priceCopy, priceUse, audience, includeForeign, active } */
+  saveOffer(body) {
+    return this._fetch('/api/shop/offers', { method: 'POST', body: JSON.stringify(body) });
   }
   withdrawOffer(offerId) {
     return this._fetch(`/api/shop/offers/${encodeURIComponent(offerId)}`, { method: 'DELETE' });

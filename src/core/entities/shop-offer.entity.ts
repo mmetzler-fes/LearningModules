@@ -19,11 +19,43 @@ import { BaseEntity } from './base.entity';
  */
 export type OfferKind = 'creator' | 'buyer';
 
+/**
+ * Was ein Angebot umfasst:
+ *   topic   – ein Lernthema (`topicId`)
+ *   node    – ein Book, Bereich oder Abschnitt aus den Notebooks des
+ *             Anbieters (`nodeId`) – mit allem, was später hineinkommt
+ *   modules – eine feste Auswahl von Modulen (`moduleIds`), auch aus
+ *             mehreren Lernthemen
+ */
+export type OfferScope = 'topic' | 'node' | 'modules';
+
 @Entity('shop_offers')
-@Index(['topicId', 'kind'], { unique: true })
+@Index(['sellerId'])
 export class ShopOffer extends BaseEntity {
-  @Column()
+  /** Bei `scopeType` 'topic' das Lernthema, sonst leer. */
+  @Column({ default: '' })
   topicId: string;
+
+  @Column({ type: 'varchar', length: 10, default: 'topic' })
+  scopeType: OfferScope;
+
+  @Column({ type: 'varchar', nullable: true })
+  nodeId: string | null;
+
+  /** Elternmodule einer festen Auswahl (Untermodule kommen mit). */
+  @Column('simple-json', { nullable: true })
+  moduleIds: string[] | null;
+
+  /** Anzeigename bei Auswahl-Angeboten; sonst gilt der Titel von Thema bzw. Knoten. */
+  @Column({ type: 'varchar', nullable: true })
+  title: string | null;
+
+  /**
+   * Fremde Module (als Kopie erworben) zur Nutzung mit anbieten. Kopieren
+   * lassen sie sich nie – nur die eigenen. Ältere Angebote: aus.
+   */
+  @Column({ default: false })
+  includeForeign: boolean;
 
   @Column()
   sellerId: string;
@@ -44,6 +76,10 @@ export class ShopOffer extends BaseEntity {
   priceUse: number;
 
   /**
+   * `buyer` gibt es nur noch bei älteren Angeboten (Weitergabe einer
+   * gekauften Kopie, alle Module, kostenlos). Neue Angebote sind `creator`
+   * und nehmen fremde Module über `includeForeign` mit.
+   *
    * Wer das Angebot sieht: ['*'] für alle, sonst Benutzer-IDs und
    * 'group:<id>'. Eine Gruppe wirkt fortlaufend, wie bisher bei Freigaben.
    */

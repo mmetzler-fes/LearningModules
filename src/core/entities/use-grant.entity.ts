@@ -20,7 +20,13 @@ export class UseGrant extends BaseEntity {
   @Column()
   userId: string;
 
-  @Column()
+  /**
+   * Bei Angeboten für ein Lernthema dessen ID. Bei Angeboten für einen
+   * Notebook-Knoten oder eine Auswahl leer – welche Themen und Module das
+   * Recht dann umfasst, ergibt sich laufend aus dem Angebot
+   * (ShopService.expandGrants).
+   */
+  @Column({ default: '' })
   topicId: string;
 
   @Column({ type: 'varchar', nullable: true })
@@ -35,4 +41,20 @@ export class UseGrant extends BaseEntity {
   /** Bezahlte Punkte. Nur kostenlose Rechte kann der Anbieter wieder entziehen. */
   @Column({ type: 'integer', default: 0 })
   pricePaid: number;
+
+  /**
+   * Wohin die Punkte gegangen sind ({ userId: Punkte }) – bei gemischten
+   * Angeboten anteilig an die Creator. Eine Erstattung nimmt sie von dort
+   * zurück. Ältere Rechte: leer, dann gilt der Anbieter.
+   */
+  @Column('simple-json', { nullable: true })
+  paidTo: Record<string, number> | null;
+
+  /**
+   * Nur die fremden Module des Angebots – das Nutzungsrecht, das zu einer
+   * Kopie gehört: Die eigenen Module des Anbieters hat der Käufer dann als
+   * Kopie, die fremden darf er nur verwenden.
+   */
+  @Column({ default: false })
+  onlyForeign: boolean;
 }

@@ -12,6 +12,9 @@ import { TagsService } from '../tags/tags.service';
 import { LinksService } from '../links/links.service';
 import { ExportService } from '../core/interchange/export/export.service';
 import { ImportService } from '../core/interchange/import/import.service';
+import { ShopService, GrantEntry } from '../shop/shop.service';
+import { ShopOffer } from '../core/entities/shop-offer.entity';
+import { User } from '../core/entities/user.entity';
 import { NodeKind, NODE_KINDS, KIND_LABEL, canHoldNode, insertAt, initialStructure, inheritTags, subtreeIds } from './notebook-rules';
 
 /**
@@ -62,7 +65,15 @@ export class NotebooksService {
     private readonly links: LinksService,
     private readonly exporter: ExportService,
     private readonly importer: ImportService,
+    private readonly shop: ShopService,
+    @InjectRepository(ShopOffer) private readonly offerRepo: Repository<ShopOffer>,
+    @InjectRepository(User) private readonly userRepo: Repository<User>,
   ) {}
+
+  /** Platz eines per Use erworbenen Knotens in den eigenen Notebooks. */
+  static mirrorKey(offerId: string) {
+    return `offer:${offerId}`;
+  }
 
   // ---- Lesen ----
 
@@ -78,10 +89,17 @@ export class NotebooksService {
       this.topics.findUsable(user),
     ]);
     const visible = new Map(usable.filter((t: any) => !t.isOwn).map((t: any) => [t.id, t.modules || []]));
-    const grantedTopics = granted.map((g: any) => ({ ...g, isOwn: false, modules: visible.get(g.id) || [] }));
+    const allGranted = granted.map((g: any) => ({ ...g, isOwn: false, modules: visible.get(g.id) || [] }));
+    // Was über ein Recht an einem Book, Bereich oder Abschnitt kommt, steht
+    // in dessen Spiegel; einzeln eingeordnet wird nur der Rest.
+    const grantedTopics = allGranted.filter((t: any) => t.grants.some((g: any) => g.scopeType !== 'node'));
+    const mirrors = await this.mirrors(user, allGranted);
 
     await this.ensureInitialized(user, ownBare);
-    await this.syncPlacements(user, ownBare.map((t) => t.id), grantedTopics.map((t: any) => t.id));
+    await this.syncPlacements(user, ownBare.map((t) => t.id), [
+      ...grantedTopics.map((t: any) => t.id),
+      ...mirrors.map((m) => NotebooksService.mirrorKey(m.offerId)),
+    ]);
     await this.applyInheritance(user);
     // Erst jetzt laden – die geerbten Tags sollen schon dran sein.
     const own = await this.topics.findAll(user);
@@ -95,7 +113,60 @@ export class NotebooksService {
       placements: placements.map(({ topicId, nodeId, orderIndex, inheritedTagIds }) => ({ topicId, nodeId, orderIndex, inheritedTagIds: inheritedTagIds || [] })),
       topics: own.map((t: any) => ({ ...t, isOwn: true })),
       granted: grantedTopics,
+      mirrors,
     };
+  }
+
+  /**
+   * Spiegel der per Use erworbenen Books, Bereiche und Abschnitte: die
+   * Struktur des Anbieters, wie sie jetzt ist, mit den Lernthemen, die das
+   * Recht umfasst. Schreibgeschützt; als Ganzes lässt er sich einsortieren.
+   */
+  private async mirrors(user: any, granted: any[]) {
+    const entries: GrantEntry[] = await this.shop.expandGrants(user.userId);
+    const byOffer = new Map<string, GrantEntry[]>();
+    for (const e of entries) {
+      if (e.scopeType !== 'node' || !e.offerId) continue;
+      if (!byOffer.has(e.offerId)) byOffer.set(e.offerId, []);
+      byOffer.get(e.offerId)!.push(e);
+    }
+    // Auch ein Recht, das gerade nichts umfasst (leerer Bereich), soll sichtbar bleiben.
+    const grantRows = await this.shop.grantsOf(user.userId);
+    for (const g of grantRows) if (g.scopeType === 'node' && g.offerId && !byOffer.has(g.offerId)) byOffer.set(g.offerId, []);
+    if (!byOffer.size) return [];
+
+    const offers = await this.offerRepo.find({ where: { id: In([...byOffer.keys()]) } });
+    const topicById = new Map(granted.map((t) => [t.id, t]));
+    const out: any[] = [];
+    for (const offer of offers) {
+      const [nodes, places, seller] = await Promise.all([
+        this.nodeRepo.find({ where: { ownerId: offer.sellerId } }),
+        this.placeRepo.find({ where: { ownerId: offer.sellerId } }),
+        this.userRepo.findOne({ where: { id: offer.sellerId } }),
+      ]);
+      const root = nodes.find((n) => n.id === offer.nodeId);
+      if (!root) continue;
+      const ids = subtreeIds(nodes, root.id);
+      const topicIds = new Set((byOffer.get(offer.id) || []).map((e) => e.topicId));
+      const myGrants = grantRows.filter((g) => g.offerId === offer.id);
+      out.push({
+        offerId: offer.id,
+        title: root.title,
+        kind: root.kind,
+        sellerName: seller ? seller.displayName || seller.email : 'Unbekannt',
+        onlyForeign: myGrants.every((g) => g.onlyForeign),
+        grants: myGrants.map((g) => ({
+          id: g.id, pricePaid: g.pricePaid, onlyForeign: g.onlyForeign, refundUntil: ShopService.refundUntil(g),
+        })),
+        nodes: nodes.filter((n) => ids.has(n.id)).map(({ id, kind, title, parentId, orderIndex }) => ({
+          id, kind, title, orderIndex, parentId: id === root.id ? null : parentId,
+        })),
+        placements: places.filter((p) => p.nodeId && ids.has(p.nodeId) && topicIds.has(p.topicId))
+          .map(({ topicId, nodeId, orderIndex }) => ({ topicId, nodeId, orderIndex })),
+        topics: [...topicIds].map((id) => topicById.get(id)).filter(Boolean),
+      });
+    }
+    return out;
   }
 
   /**
@@ -273,6 +344,9 @@ export class NotebooksService {
       this.placeRepo.find({ where: { ownerId: user.userId, nodeId: In([...ids]) }, order: { orderIndex: 'ASC' } }),
       this.placeRepo.count({ where: { ownerId: user.userId, nodeId: (target ?? null) as any } }),
     ]);
+    // Angebote für diese Knoten werden zu festen Auswahlen mit dem, was jetzt
+    // darin liegt – Gekauftes bleibt. Deshalb vor dem Umräumen.
+    await this.shop.freezeNodeOffers([...ids]);
     moving.forEach((p, i) => { p.nodeId = target; p.orderIndex = already + i; });
     if (moving.length) await this.placeRepo.save(moving);
     await this.nodeRepo.delete({ id: In([...ids]) });
@@ -452,8 +526,29 @@ export class NotebooksService {
    * die Antwort nennt sie, damit nichts unbemerkt fehlt.
    */
   async quickLink(id: string, user: any, classId: string, req?: any) {
-    const node = await this.ownNode(id, user);
-    const ids = await this.topicIdsBelow(node, user);
+    let node: { id: string; title: string };
+    let below: string[];
+    if (id.startsWith('offer:')) {
+      // Spiegel eines erworbenen Bereichs: alles, was das Recht jetzt umfasst.
+      const offerId = id.slice('offer:'.length);
+      const entries = (await this.shop.expandGrants(user.userId)).filter((e) => e.offerId === offerId);
+      if (!entries.length) throw new NotFoundException('Eintrag nicht gefunden.');
+      const offer = await this.offerRepo.findOne({ where: { id: offerId } });
+      const root = offer?.nodeId ? await this.nodeRepo.findOne({ where: { id: offer.nodeId } }) : null;
+      node = { id, title: root?.title || 'Erworben' };
+      below = [...new Set(entries.map((e) => e.topicId))];
+    } else {
+      const own = await this.ownNode(id, user);
+      node = own;
+      below = await this.topicIdsBelow(own, user);
+    }
+    const ids: string[] = [];
+    for (const t of below) {
+      if (!t.startsWith('offer:')) { ids.push(t); continue; }
+      // Ein erworbener Bereich im eigenen: seine Lernthemen gehören dazu.
+      const offerId = t.slice('offer:'.length);
+      (await this.shop.expandGrants(user.userId)).filter((e) => e.offerId === offerId).forEach((e) => ids.push(e.topicId));
+    }
     const usable = await this.topics.findUsable(user);
     const byId = new Map(usable.map((t: any) => [t.id, t]));
     const included: string[] = [];

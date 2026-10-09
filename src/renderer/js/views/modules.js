@@ -173,7 +173,7 @@ export class ModulesView {
     if (this._btnCancelModule) {
       this._btnCancelModule.addEventListener('click', () => {
         this._resetModuleForm();
-        this.app.navigateToView('teacher-modules');
+        this.app.navigateToView(this.backView());
       });
     }
 
@@ -181,9 +181,31 @@ export class ModulesView {
       this._btnBackFromPlayer.addEventListener('click', () => {
         this._h5pContainer.innerHTML = '';
         const { currentUser } = this.app.state;
-        if (currentUser && currentUser.role !== 'student') this.app.navigateToView('teacher-modules');
+        if (currentUser && currentUser.role !== 'student') this.app.navigateToView(this.backView());
         else this.app.navigateToView('student-quiz');
       });
+    }
+  }
+
+  /**
+   * Wohin Editor und Vorschau zurückführen: in die Modulliste oder – wenn
+   * das Modul aus den Notebooks heraus geöffnet wurde – dorthin.
+   */
+  backView() {
+    return this.app.state.returnView || 'teacher-modules';
+  }
+
+  /** Modul aus einer anderen Ansicht heraus bearbeiten, neu anlegen (mod = null) oder ansehen. */
+  async openFrom(view, topicId, mod, action = 'edit') {
+    this.app.state.returnView = view;
+    this.app.state.currentTopicId = topicId;
+    this.app.state.currentTopicModules = await this.app.api.getTopicModules(topicId);
+    const full = mod ? this.app.state.currentTopicModules.find((m) => m.id === mod.id) || mod : null;
+    if (action === 'preview' && full) this._openPlayer(full);
+    else if (full) this._openEditor(full);
+    else {
+      this._resetModuleForm();
+      this.app.navigateToView('create-module');
     }
   }
 
@@ -211,6 +233,7 @@ export class ModulesView {
   }
 
   async openTopicModules(topicId) {
+    this.app.state.returnView = null;
     this.app.state.currentTopicId = topicId;
     this.app.state.currentTopicModules = await this.app.api.getTopicModules(topicId);
     this.app.navigateToView('teacher-modules');
@@ -549,7 +572,7 @@ export class ModulesView {
       this.app.showToast(state.editingModuleId ? t('module.updated') : t('module.saved'), 'success');
       state.currentTopicModules = await api.getTopicModules(state.currentTopicId);
       this._resetModuleForm();
-      this.app.navigateToView('teacher-modules');
+      this.app.navigateToView(this.backView());
     } else {
       this.app.showToast(t('module.save.error'), 'error');
     }

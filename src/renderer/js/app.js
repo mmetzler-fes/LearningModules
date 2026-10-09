@@ -18,6 +18,7 @@ import { ClassesView } from './views/classes.js';
 import { ClassResultsView } from './views/class-results.js';
 import { AiPromptView } from './views/ai-prompt-view.js';
 import { HelpView, openHelpPopup } from './views/help-view.js';
+import { NotebooksView } from './views/notebooks.js';
 
 // ==================== APP COORDINATOR ====================
 
@@ -69,6 +70,7 @@ class App {
     this.classResultsView = new ClassResultsView(this);
     this.aiPromptView = new AiPromptView(this);
     this.helpView = new HelpView(this);
+    this.notebooksView = new NotebooksView(this);
     // ❓ neben erklärungsbedürftigen Stellen (data-help="datei#anker"), auch in
     // Dialogen, die erst später entstehen – deshalb ein Lauscher fürs Dokument.
     document.addEventListener('click', (e) => {
@@ -179,6 +181,7 @@ class App {
 
     switch (viewName) {
       case 'teacher-topics':    this.topicsView.refresh(); break;
+      case 'teacher-notebooks': this.notebooksView.refresh(); break;
       case 'teacher-modules':   this.modulesView.refresh(); break;
       case 'teacher-results':   this.resultsView.refresh(); break;
       case 'teacher-links':     this.linksView.refresh(); break;

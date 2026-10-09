@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, Repository } from 'typeorm';
+import { In, IsNull, Repository } from 'typeorm';
 import { ClassesService } from '../classes/classes.service';
 import { StudentClass } from '../core/entities/student-class.entity';
 import { TopicLink, LinkMode, LinkTopicSelection, LinkContestSettings } from '../core/entities/topic-link.entity';
@@ -473,6 +473,45 @@ export class LinksService {
   /** Klassenlink über den Quick-Link-Knopf eines Lernthemas. */
   async classLinkForTopic(topicId: string, classId: string, user: any, req?: any) {
     const rule = await this.topicsService.ensureQuickRule(topicId, user);
+    return this.classLink(rule.id, classId, user, false, req);
+  }
+
+  /**
+   * Klassenlinks über den Quick-Link eines Notebook-Knotens: eine Regel mit
+   * allen Lernthemen darin (Quiz, Lernbegleitung, Quiz-Arena), je Knoten
+   * genau eine. Ihr Inhalt folgt dem Knoten – bei jedem Aufruf wird die
+   * Auswahl neu gesetzt, auch im vorhandenen Klassenlink derselben Klasse.
+   */
+  async classLinkForNode(node: { id: string; title: string }, topicIds: string[], classId: string, user: any, req?: any) {
+    if (!topicIds.length) throw new BadRequestException('Darin ist kein Lernthema, das sich freigeben lässt.');
+    const selection = topicIds.map((topicId) => ({ topicId, all: true }));
+    let rule = await this.linkRepo.findOne({ where: { ownerId: user.userId, quickNodeId: node.id, classId: IsNull() } });
+    if (!rule) {
+      rule = this.linkRepo.create({
+        id: crypto.randomUUID(),
+        ownerId: user.userId,
+        token: null,
+        active: true,
+        modes: ['quiz', 'companion', 'contest'],
+        accessPassword: null,
+        singleAttempt: false,
+        tagIds: [],
+        companionSettings: null,
+        contestSettings: null,
+        quickTopicId: null,
+        quickNodeId: node.id,
+      });
+    }
+    rule.name = node.title;
+    rule.selection = selection;
+    await this.linkRepo.save(rule);
+
+    const existing = await this.linkRepo.findOne({ where: { ownerId: user.userId, templateId: rule.id, classId } });
+    if (existing) {
+      existing.selection = selection;
+      existing.name = node.title;
+      await this.linkRepo.save(existing);
+    }
     return this.classLink(rule.id, classId, user, false, req);
   }
 

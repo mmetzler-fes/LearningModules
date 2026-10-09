@@ -143,6 +143,10 @@ export class TopicLink extends BaseEntity {
   @Column({ type: 'varchar', nullable: true })
   quickTopicId: string | null;
 
+  /** Regel, die der Quick-Link eines Notebook-Knotens (Book, Bereich, Abschnitt) angelegt hat. */
+  @Column({ type: 'varchar', nullable: true })
+  quickNodeId: string | null;
+
   /** Zuletzt als Link oder QR-Code abgerufen – die Klassenübersicht zeigt den neuesten oben. */
   @Column({ type: 'datetime', nullable: true })
   lastSharedAt: Date | null;

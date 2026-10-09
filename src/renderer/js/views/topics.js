@@ -312,23 +312,29 @@ export class TopicsView {
     card.querySelector('.btn-edit-topic').addEventListener('click', () => this._openEditor(topic));
     card.querySelector('.btn-export-topic').addEventListener('click', () => this.openExportDialog(topic));
     card.querySelector('.btn-delete-topic').addEventListener('click', async () => {
-      // Wer das Thema per "Use" verwendet, verliert es mit – das gehört vor
-      // die Entscheidung.
-      const paid = topic.paidUseCount || 0;
-      const free = (topic.useCount || 0) - paid;
-      const users = [
-        paid ? `${paid} Person${paid === 1 ? ' hat' : 'en haben'} für die Nutzung bezahlt und bekomm${paid === 1 ? 't' : 'en'} automatisch eine eigene Kopie.` : '',
-        free ? `${free} Person${free === 1 ? ' verwendet' : 'en verwenden'} dieses Thema kostenlos über den Shop und verlier${free === 1 ? 't' : 'en'} es.` : '',
-      ].filter(Boolean).map((x) => `\n\n${x}`).join('');
-      if (!(await this.app.appConfirm(t('topics.delete.confirm', { title: topic.title }) + users))) return;
-      const res = await this.app.api.deleteTopic(topic.id);
-      this.app.showToast(res?.preservedCopies
-        ? `${t('topics.deleted')} ${res.preservedCopies} Käufer hab${res.preservedCopies === 1 ? '' : 'en'} eine eigene Kopie erhalten.`
-        : t('topics.deleted'), 'info');
-      this.refresh();
+      if (await this.deleteTopic(topic)) this.refresh();
     });
 
     return card;
+  }
+
+  /**
+   * Thema nach Rückfrage löschen; true, wenn gelöscht. Wer das Thema per
+   * "Use" verwendet, verliert es mit – das gehört vor die Entscheidung.
+   */
+  async deleteTopic(topic) {
+    const paid = topic.paidUseCount || 0;
+    const free = (topic.useCount || 0) - paid;
+    const users = [
+      paid ? `${paid} Person${paid === 1 ? ' hat' : 'en haben'} für die Nutzung bezahlt und bekomm${paid === 1 ? 't' : 'en'} automatisch eine eigene Kopie.` : '',
+      free ? `${free} Person${free === 1 ? ' verwendet' : 'en verwenden'} dieses Thema kostenlos über den Shop und verlier${free === 1 ? 't' : 'en'} es.` : '',
+    ].filter(Boolean).map((x) => `\n\n${x}`).join('');
+    if (!(await this.app.appConfirm(t('topics.delete.confirm', { title: topic.title }) + users))) return false;
+    const res = await this.app.api.deleteTopic(topic.id);
+    this.app.showToast(res?.preservedCopies
+      ? `${t('topics.deleted')} ${res.preservedCopies} Käufer hab${res.preservedCopies === 1 ? '' : 'en'} eine eigene Kopie erhalten.`
+      : t('topics.deleted'), 'info');
+    return true;
   }
 
   // ==================== QUICK-LINK ====================
@@ -641,37 +647,46 @@ export class TopicsView {
       this._createQuickClassLink({ id: entry.id, title: entry.title, selected: true }));
 
     card.querySelector('.btn-return-grant').addEventListener('click', async (e) => {
-      // Innerhalb von 14 Tagen nach dem Kauf gibt es die Punkte zurück.
-      const now = Date.now();
-      const refundable = entry.grants.filter((g) => g.pricePaid > 0 && g.refundUntil && new Date(g.refundUntil).getTime() >= now);
-      const refundSum = refundable.reduce((n, g) => n + g.pricePaid, 0);
-      const until = refundable.map((g) => new Date(g.refundUntil)).sort((a, b) => a - b)[0];
-      const ok = await this.app.appConfirm(
-        `Nutzungsrecht an „${entry.title}" zurückgeben?\n\n` +
-        (refundSum ? `Du bekommst ${refundSum} Punkte erstattet (Rückgabe mit Erstattung bis ${until.toLocaleDateString('de-DE')}). `
-          : paid ? 'Die 14 Tage für eine Erstattung sind vorbei – bezahlte Punkte werden nicht erstattet. ' : '') +
-        'Deine Themen- und Quick-Links liefern das Thema danach nicht mehr aus.',
-      );
-      if (!ok) return;
       const btn = e.currentTarget;
       btn.disabled = true;
-      try {
-        let refunded = 0;
-        for (const g of entry.grants) {
-          const res = await this.app.api.revokeGrant(g.id);
-          if (!res || !res.success) throw new Error(res?.message || 'Zurückgeben fehlgeschlagen');
-          refunded += res.refunded || 0;
-        }
-        this.app.showToast(refunded
-          ? `Nutzungsrecht zurückgegeben – ${refunded} Punkte erstattet${refunded < refundSum ? ' (mehr hatte der Anbieter nicht mehr)' : ''}.`
-          : 'Nutzungsrecht zurückgegeben', 'info');
-        this.refreshSharedTopics();
-      } catch (err) {
-        this.app.showToast('Fehler: ' + err.message, 'error');
-        btn.disabled = false;
-      }
+      if (await this.returnGrant(entry)) this.refreshSharedTopics();
+      else btn.disabled = false;
     });
     return card;
+  }
+
+  /**
+   * Nutzungsrecht nach Rückfrage zurückgeben; true, wenn zurückgegeben.
+   * Innerhalb von 14 Tagen nach dem Kauf gibt es die Punkte zurück.
+   */
+  async returnGrant(entry) {
+    const now = Date.now();
+    const paid = entry.grants.reduce((n, g) => n + (g.pricePaid || 0), 0);
+    const refundable = entry.grants.filter((g) => g.pricePaid > 0 && g.refundUntil && new Date(g.refundUntil).getTime() >= now);
+    const refundSum = refundable.reduce((n, g) => n + g.pricePaid, 0);
+    const until = refundable.map((g) => new Date(g.refundUntil)).sort((a, b) => a - b)[0];
+    const ok = await this.app.appConfirm(
+      `Nutzungsrecht an „${entry.title}" zurückgeben?\n\n` +
+      (refundSum ? `Du bekommst ${refundSum} Punkte erstattet (Rückgabe mit Erstattung bis ${until.toLocaleDateString('de-DE')}). `
+        : paid ? 'Die 14 Tage für eine Erstattung sind vorbei – bezahlte Punkte werden nicht erstattet. ' : '') +
+      'Deine Themen- und Quick-Links liefern das Thema danach nicht mehr aus.',
+    );
+    if (!ok) return false;
+    try {
+      let refunded = 0;
+      for (const g of entry.grants) {
+        const res = await this.app.api.revokeGrant(g.id);
+        if (!res || !res.success) throw new Error(res?.message || 'Zurückgeben fehlgeschlagen');
+        refunded += res.refunded || 0;
+      }
+      this.app.showToast(refunded
+        ? `Nutzungsrecht zurückgegeben – ${refunded} Punkte erstattet${refunded < refundSum ? ' (mehr hatte der Anbieter nicht mehr)' : ''}.`
+        : 'Nutzungsrecht zurückgegeben', 'info');
+      return true;
+    } catch (err) {
+      this.app.showToast('Fehler: ' + err.message, 'error');
+      return false;
+    }
   }
 
   /**

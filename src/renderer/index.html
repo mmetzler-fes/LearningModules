@@ -190,6 +190,9 @@
         <button class="nav-btn active" data-view="teacher-topics">
           <span class="nav-icon">🏠</span> <span data-i18n="nav.topics">LernModule</span>
         </button>
+        <button class="nav-btn nav-sub" data-view="teacher-notebooks">
+          <span class="nav-icon">📓</span> <span>Lernmodul-Notebooks</span>
+        </button>
         <button class="nav-btn" data-view="teacher-shop">
           <span class="nav-icon">🛒</span> Shop
         </button>
@@ -281,6 +284,24 @@
     <main class="main-content" id="mainContent">
 
       <!-- ==================== TEACHER VIEWS ==================== -->
+
+      <!-- Notebooks: Lernthemen in Book → Bereich → Abschnitt -->
+      <section class="view" id="view-teacher-notebooks">
+        <div class="view-header">
+          <h2>📓 Lernmodul-Notebooks
+            <button type="button" class="help-hint" data-help="notebooks" title="Hilfe: Notebooks" aria-label="Hilfe: Notebooks">?</button>
+          </h2>
+          <p class="subtitle">Lernthemen in Books, Bereichen und Abschnitten ordnen. Aktionen über ⋯ oder Rechtsklick, Verschieben auch per Ziehen.</p>
+        </div>
+        <div class="nb-toolbar">
+          <button class="btn btn-primary btn-sm" id="btnNotebookNewBook">➕ Neues Book</button>
+          <button class="btn btn-secondary btn-sm" id="btnNotebookImport" title="Notebook-Datei oder Lernthema (JSON, Moodle-XML, .lmenc) einlesen">📥 Importieren</button>
+          <button class="btn btn-secondary btn-sm" id="btnNotebookExpand" title="Alle Books, Bereiche und Abschnitte aufklappen">⊞ Aufklappen</button>
+          <button class="btn btn-secondary btn-sm" id="btnNotebookCollapse" title="Alles zuklappen">⊟ Zuklappen</button>
+          <input type="search" id="notebookSearch" class="search-input nb-search" placeholder="Suchen in Titeln von Lernthemen und Modulen…" />
+        </div>
+        <div id="notebookTree" class="nb-tree" role="tree"></div>
+      </section>
 
       <!-- Teacher Dashboard -->
       <!-- Teacher: Topic Management -->

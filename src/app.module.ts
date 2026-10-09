@@ -40,6 +40,9 @@ import { join } from 'path';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { HelpModule } from './help/help.module';
+import { NotebooksModule } from './notebooks/notebooks.module';
+import { NotebookNode } from './core/entities/notebook-node.entity';
+import { NotebookPlacement } from './core/entities/notebook-placement.entity';
 
 @Module({
   imports: [
@@ -62,7 +65,7 @@ import { HelpModule } from './help/help.module';
     TypeOrmModule.forRoot({
       type: 'sqlite',
       database: 'data/database.sqlite',
-      entities: [User, StudentClass, ClassStudent, LearningTopic, LearningModule, Result, School, SystemConfig, Tag, TopicLink, TopicQuickLink, TeacherGroup, ShopOffer, UseGrant, PointsEntry, ModuleTiming, ClassShare],
+      entities: [User, StudentClass, ClassStudent, LearningTopic, LearningModule, Result, School, SystemConfig, Tag, TopicLink, TopicQuickLink, TeacherGroup, ShopOffer, UseGrant, PointsEntry, ModuleTiming, ClassShare, NotebookNode, NotebookPlacement],
       synchronize: true,
     }),
     MailModule,
@@ -84,6 +87,7 @@ import { HelpModule } from './help/help.module';
     ContestModule,
     ClassesModule,
     HelpModule,
+    NotebooksModule,
   ],
   controllers: [AppController],
   providers: [AppService],

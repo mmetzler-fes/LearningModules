@@ -335,6 +335,59 @@ export class BrowserApi {
     return this._fetch('/api/admin/whitelist-blacklist', { method: 'POST', body: JSON.stringify(data) });
   }
 
+  // ---------- Notebooks (Book → Bereich → Abschnitt → Lernthema) ----------
+  getNotebooks() { return this._fetch('/api/notebooks'); }
+  createNotebookNode(kind, title, parentId = null) {
+    return this._fetch('/api/notebooks/nodes', { method: 'POST', body: JSON.stringify({ kind, title, parentId }) });
+  }
+  /** changes: { title?, tagIds? } – Tags vererben sich auf alle Lernthemen darunter. */
+  updateNotebookNode(id, changes) {
+    return this._fetch(`/api/notebooks/nodes/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(changes) });
+  }
+  deleteNotebookNode(id) {
+    return this._fetch(`/api/notebooks/nodes/${encodeURIComponent(id)}`, { method: 'DELETE' });
+  }
+  /** type 'node' | 'topic'; parentId null = oben bzw. „Unsortiert“; index = Position (leer = ans Ende). */
+  moveInNotebook(type, id, parentId, index = null) {
+    return this._fetch('/api/notebooks/move', { method: 'POST', body: JSON.stringify({ type, id, parentId, index }) });
+  }
+  copyNotebookNode(id) {
+    return this._fetch(`/api/notebooks/nodes/${encodeURIComponent(id)}/copy`, { method: 'POST' });
+  }
+  copyTopicInNotebook(topicId) {
+    return this._fetch(`/api/notebooks/topics/${encodeURIComponent(topicId)}/copy`, { method: 'POST' });
+  }
+  setNotebookNodeSelected(id, selected) {
+    return this._fetch(`/api/notebooks/nodes/${encodeURIComponent(id)}/selected`, { method: 'POST', body: JSON.stringify({ selected }) });
+  }
+  classLinkFromNotebookNode(id, classId) {
+    return this._fetch(`/api/notebooks/nodes/${encodeURIComponent(id)}/quick-link`, { method: 'POST', body: JSON.stringify({ classId }) });
+  }
+  exportNotebookNode(id) {
+    return this._download(`/api/notebooks/nodes/${encodeURIComponent(id)}/export`, 'notebook.zip');
+  }
+  /** Notebook-Datei (ZIP) einlesen, in parentId (leer = oben). */
+  async importNotebook(file, parentId = null) {
+    const formData = new FormData();
+    formData.append('file', file);
+    if (parentId) formData.append('parentId', parentId);
+    const token = this._auth.getToken();
+    const res = await fetch('/api/notebooks/import', {
+      method: 'POST', headers: token ? { Authorization: `Bearer ${token}` } : {}, body: formData,
+    });
+    return res.json();
+  }
+  /** Eine Themen-Datei (JSON, Moodle-XML, .lmenc) einlesen – liefert u. a. die neue topicId. */
+  async importTopicFile(file) {
+    const formData = new FormData();
+    formData.append('file', file);
+    const token = this._auth.getToken();
+    const res = await fetch('/api/interchange/import-json', {
+      method: 'POST', headers: token ? { Authorization: `Bearer ${token}` } : {}, body: formData,
+    });
+    return res.json();
+  }
+
   // ---------- Topics ----------
   getTopics() { return this._fetch('/api/topics'); }
   saveTopic(topicData, isUpdate = false) {

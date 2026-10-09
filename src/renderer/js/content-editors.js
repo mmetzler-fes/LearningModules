@@ -1416,6 +1416,11 @@ class ContentEditorManager {
       label.style.background = color;
       label.textContent = zone.label || `Zone ${i + 1}`;
       if (zone.group) label.textContent += ` · 🔀 ${zone.group}`;
+      // Zugeordnet? Dann gleich am Bild sehen, was erwartet wird – und was noch fehlt.
+      const right = this._dndRightTexts(zone);
+      if (right.length) label.textContent += ` → ${right.join(' · ')}`;
+      else overlay.classList.add('dnd-zone-unassigned');
+      overlay.title = right.length ? `Erwartet: ${right.join(', ')}` : 'Noch nichts zugeordnet – Doppelklick oder Rechtsklick › Zuordnen';
       overlay.appendChild(label);
 
       // Eckmarken: zeigen, wo die Groesse geaendert wird. Reine Anzeige, das
@@ -1430,7 +1435,15 @@ class ContentEditorManager {
       overlay.addEventListener('click', (e) => {
         e.stopPropagation();
         this.dndState.selectedZone = zone.id;
-        this.refreshDndCanvas();
+        // Nur die Markierung umschalten statt neu zu zeichnen – sonst wäre
+        // das Element beim zweiten Klick ein anderes und der Doppelklick käme nicht an.
+        canvas.querySelectorAll('.dnd-zone-overlay').forEach((o) => o.classList.toggle('selected', o === overlay));
+      });
+      // Doppelklick: gleich zuordnen
+      overlay.addEventListener('dblclick', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        this._openDndAssignPicker(zone, e.clientX, e.clientY);
       });
 
       // Rechtsklick (bzw. langes Tippen): Zone duplizieren oder loeschen
@@ -1438,6 +1451,7 @@ class ContentEditorManager {
         e.preventDefault();
         e.stopPropagation();
         showContextMenu(e.clientX, e.clientY, [
+          { label: '🎯 Zuordnen …', onClick: () => this._openDndAssignPicker(zone, e.clientX, e.clientY) },
           { label: '⧉ Duplizieren', onClick: () => this._duplicateDndZone(zone.id) },
           { label: '🗑 Ablagezone löschen', danger: true, onClick: () => this._removeDndZone(zone.id) },
         ]);
@@ -1447,6 +1461,98 @@ class ContentEditorManager {
 
       canvas.appendChild(overlay);
     });
+  }
+
+  /**
+   * Erwartetes Element einer Zone setzen – aus der Zonenliste oder per
+   * „Zuordnen“ direkt am Bild. Beide Seiten bleiben gleich: Das bisher
+   * erwartete Element lässt die Zone los (sonst hätte sie unbemerkt zwei
+   * richtige Elemente), das neue zielt auf sie, sofern es noch kein Ziel hat.
+   */
+  _dndSetZoneExpected(zone, value) {
+    const before = zone.correctDraggable;
+    zone.correctDraggable = value || '';
+    if (before && before !== zone.correctDraggable) {
+      this.dndState.draggables.forEach((d) => {
+        if (d.text === before && d.correctZone === zone.label) d.correctZone = '';
+      });
+    }
+    this.dndState.draggables.forEach((d) => {
+      if (d.text === zone.correctDraggable && !d.correctZone) d.correctZone = zone.label;
+    });
+    this.refreshDndDraggables();
+    this.refreshDndZonesList();
+    this.refreshDndCanvas();
+  }
+
+  /**
+   * Auswahl direkt an der Zone: alle Begriffe, mit Suche. Spart bei vielen
+   * Zonen das Hin- und Herscrollen zwischen Bild und Zonenliste. Begriffe,
+   * die schon andere Zonen erwarten, sind gekennzeichnet.
+   */
+  _openDndAssignPicker(zone, x, y) {
+    document.querySelectorAll('.ctx-menu').forEach((m) => m._close && m._close());
+    const texts = [...new Set(this.dndState.draggables.map((d) => d.text).filter(Boolean))];
+    const usedAt = (t) => this.dndState.dropZones
+      .filter((z) => z !== zone && this._dndRightTexts(z).includes(t))
+      .map((z) => z.label);
+    const multiple = (t) => this.dndState.draggables.some((d) => d.text === t && d.multiple);
+
+    const menu = document.createElement('div');
+    menu.className = 'ctx-menu dnd-assign-picker';
+    menu.innerHTML = `
+      <div class="dnd-assign-head">🎯 ${escapeHtml(zone.label)} erwartet:</div>
+      ${texts.length > 6 ? '<input type="search" class="dnd-assign-search" placeholder="Begriff suchen…" />' : ''}
+      <div class="dnd-assign-list"></div>`;
+    const list = menu.querySelector('.dnd-assign-list');
+    const search = menu.querySelector('.dnd-assign-search');
+    const close = () => {
+      menu.remove();
+      document.removeEventListener('pointerdown', onOutside, true);
+      document.removeEventListener('keydown', onKey, true);
+    };
+    const onOutside = (e) => { if (!menu.contains(e.target)) close(); };
+    const onKey = (e) => {
+      if (e.key === 'Escape') close();
+      if (e.key === 'Enter') {
+        const first = list.querySelector('.ctx-menu-item:not(.dnd-assign-none)');
+        if (first) { e.preventDefault(); first.click(); }
+      }
+    };
+    menu._close = close;
+    const choose = (value) => { close(); this._dndSetZoneExpected(zone, value); };
+    const render = () => {
+      const q = (search?.value || '').trim().toLowerCase();
+      list.innerHTML = '';
+      const none = document.createElement('button');
+      none.type = 'button';
+      none.className = 'ctx-menu-item dnd-assign-none';
+      none.textContent = '— Kein Element —';
+      none.addEventListener('click', () => choose(''));
+      if (!q) list.appendChild(none);
+      if (!texts.length) {
+        list.insertAdjacentHTML('beforeend', '<p class="dnd-assign-empty">Noch keine ziehbaren Elemente – unten unter „Ziehbare Elemente“ anlegen.</p>');
+      }
+      for (const t of texts.filter((t) => !q || t.toLowerCase().includes(q))) {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'ctx-menu-item' + (zone.correctDraggable === t ? ' active' : '');
+        const elsewhere = usedAt(t);
+        btn.innerHTML = `${zone.correctDraggable === t ? '✓ ' : ''}${escapeHtml(t)}`
+          + (elsewhere.length ? ` <span class="dnd-assign-used${multiple(t) ? '' : ' warn'}" title="${multiple(t) ? 'mehrfach verwendbar' : 'liegt nur einmal in der Ablage'}">schon bei ${escapeHtml(elsewhere.slice(0, 2).join(', '))}${elsewhere.length > 2 ? ' …' : ''}</span>` : '');
+        btn.addEventListener('click', () => choose(t));
+        list.appendChild(btn);
+      }
+    };
+    search?.addEventListener('input', render);
+    render();
+    document.body.appendChild(menu);
+    const r = menu.getBoundingClientRect();
+    menu.style.left = Math.max(4, Math.min(x, window.innerWidth - r.width - 4)) + 'px';
+    menu.style.top = Math.max(4, Math.min(y, window.innerHeight - r.height - 4)) + 'px';
+    document.addEventListener('pointerdown', onOutside, true);
+    document.addEventListener('keydown', onKey, true);
+    (search || list.querySelector('.ctx-menu-item.active') || list.querySelector('.ctx-menu-item'))?.focus();
   }
 
   /**
@@ -1611,7 +1717,8 @@ class ContentEditorManager {
     // Kurzanleitung: Der häufigste Fall braucht nur die Auswahl an der Zone.
     const howto = document.createElement('p');
     howto.className = 'dnd-group-hint dnd-howto';
-    howto.innerHTML = '👉 <strong>Ein Begriff je Zone:</strong> hier bei jeder Zone das erwartete Element wählen – fertig. '
+    howto.innerHTML = '👉 <strong>Ein Begriff je Zone:</strong> hier bei jeder Zone das erwartete Element wählen – oder direkt am Bild: '
+      + '<strong>Doppelklick auf die Zone</strong> (bzw. Rechtsklick › 🎯 Zuordnen). '
       + 'Das „Ziel“ bei den ziehbaren Elementen unten trägt der Editor dann selbst ein; es ist dieselbe Zuordnung von der anderen Seite. '
       + 'Derselbe Begriff in mehreren Zonen: unten beim Element „mehrfach“ ankreuzen. '
       + '<button type="button" class="help-hint" data-help="moodle-und-h5p#ein-begriff-je-zone-der-normalfall" title="Hilfe: Zuordnung" aria-label="Hilfe">?</button>';
@@ -1672,25 +1779,7 @@ class ContentEditorManager {
         if (zone.correctDraggable === dragText) opt.selected = true;
         dragSelect.appendChild(opt);
       });
-      dragSelect.addEventListener('change', () => {
-        const before = zone.correctDraggable;
-        zone.correctDraggable = dragSelect.value;
-        // Das bisher erwartete Element zielte meist wegen dieser Wahl auf die
-        // Zone – beim Wechsel loslassen. Sonst hätte die Zone unbemerkt zwei
-        // richtige Elemente (alt und neu).
-        if (before && before !== zone.correctDraggable) {
-          this.dndState.draggables.forEach((d) => {
-            if (d.text === before && d.correctZone === zone.label) d.correctZone = '';
-          });
-        }
-        // Beide Seiten gleich halten: Das gewählte Element zielt auf die Zone,
-        // sofern es noch kein Ziel hat.
-        this.dndState.draggables.forEach((d) => {
-          if (d.text === zone.correctDraggable && !d.correctZone) d.correctZone = zone.label;
-        });
-        this.refreshDndDraggables();
-        this.refreshDndZonesList();
-      });
+      dragSelect.addEventListener('change', () => this._dndSetZoneExpected(zone, dragSelect.value));
 
       // Was in diese Zone gehört – bei mehreren Elementen alle.
       const rightTexts = this._dndRightTexts(zone);

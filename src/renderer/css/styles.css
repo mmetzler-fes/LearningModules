@@ -4565,3 +4565,16 @@ body {
 .student-run .sidebar-settings { flex-wrap: wrap; row-gap: 6px; }
 .student-run .sidebar-settings .zoom-row { flex: 1 0 100%; order: 2; }
 .student-run .sidebar-settings .zoom-row .setting-label { display: inline-flex; }
+
+/* ---- Drag and Drop im Editor: direkt an der Zone zuordnen ---- */
+.dnd-assign-picker { min-width: 220px; max-width: min(360px, 92vw); max-height: 60vh; display: flex; flex-direction: column; }
+.dnd-assign-head { font-size: 0.8rem; font-weight: 700; padding: 6px 10px 4px; color: var(--text-secondary); }
+.dnd-assign-search { margin: 2px 6px 6px; padding: 6px 8px; border: 1px solid var(--border); border-radius: var(--radius-sm); font: inherit; font-size: 0.85rem; background: var(--bg-secondary); color: var(--text-primary); }
+.dnd-assign-list { overflow-y: auto; }
+.dnd-assign-picker .ctx-menu-item.active { font-weight: 700; background: var(--accent-light); }
+.dnd-assign-none { color: var(--text-secondary); }
+.dnd-assign-used { font-size: 0.75rem; color: var(--text-secondary); margin-left: 4px; }
+.dnd-assign-used.warn { color: #b45309; }
+.dnd-assign-empty { font-size: 0.8rem; color: var(--text-secondary); margin: 4px 10px; }
+/* Noch nicht zugeordnete Zonen fallen am Bild auf. */
+.dnd-zone-overlay.dnd-zone-unassigned { border-style: dashed !important; }

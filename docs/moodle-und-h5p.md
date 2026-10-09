@@ -96,6 +96,14 @@ stellen.
 ### Ein Begriff je Zone (der Normalfall)
 
 Oben bei **jeder Zone das erwartete Element wählen** – mehr ist nicht nötig.
+
+**Schneller direkt am Bild:** **Doppelklick auf eine Zone** (oder Rechtsklick ›
+**🎯 Zuordnen …**) öffnet die Liste aller Begriffe an Ort und Stelle – mit
+Suchfeld (tippen, Enter übernimmt den ersten Treffer). Begriffe, die schon
+andere Zonen erwarten, stehen mit „schon bei …“ dabei. Am Bild zeigt jede Zone
+ihren Begriff („Ablagezone 3 → xBG12“); noch nicht zugeordnete Zonen sind
+gestrichelt umrandet. So muss man bei vielen Zonen nicht zwischen Bild und
+Liste hin- und herscrollen.
 Wechselst du es später, verliert das vorher gewählte Element sein Ziel bei
 dieser Zone wieder.
 

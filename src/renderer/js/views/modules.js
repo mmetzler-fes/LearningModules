@@ -734,12 +734,14 @@ export class ModulesView {
         ...drags.map((d) => d.correctZone).filter(Boolean),
         ...zones.filter((z) => String(z.correctDraggable || '').trim()).map((z) => z.label),
       ]);
-      const open = zones.filter((z) => !used.has(z.label)).length;
+      const openZones = zones.filter((z) => !used.has(z.label)).map((z) => z.label);
+      const open = openZones.length;
+      const list = (names) => names.slice(0, 6).join(', ') + (names.length > 6 ? ` und ${names.length - 6} weitere` : '');
       // Begriffe, die öfter erwartet werden, als sie in der Ablage liegen (dndShortage aus content-editors.js)
       const short = typeof dndShortage === 'function' ? [...dndShortage(content)] : [];
       const issues = [
         !drags.length ? 'Es gibt noch keine ziehbaren Elemente – Schüler sehen nur Bild und Zonen.' : '',
-        drags.length && open ? `${open} von ${zones.length} Zonen haben kein richtiges Element.` : '',
+        drags.length && open ? `${open} von ${zones.length} Zonen ${open === 1 ? 'hat' : 'haben'} kein richtiges Element: ${list(openZones)}.` : '',
         ...short.map(([text, n]) => `„${text}“ wird in ${n.zones} Zonen erwartet, liegt aber nur ${n.pieces}× in der Ablage – die Aufgabe ist so nicht lösbar (beim Element „mehrfach“ ankreuzen).`),
       ].filter(Boolean);
       if (issues.length && !(await this.app.appConfirm(`Drag and Drop unvollständig:\n\n${issues.join('\n')}\n\nTrotzdem speichern?`))) return;

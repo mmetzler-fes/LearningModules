@@ -1791,6 +1791,14 @@ class ContentEditorManager {
       const warnInfo = document.createElement('span');
       warnInfo.className = 'dnd-zone-warn';
       warnInfo.textContent = short.map((t) => `⚠ „${t}“ wird in ${shortage.get(t).zones} Zonen erwartet, liegt aber nur ${shortage.get(t).pieces}× in der Ablage – unten bei „${t}“ „mehrfach“ ankreuzen.`).join(' ');
+      // Begriffe, die unten auf diese Zone zielen, aber nicht zählen, weil oben
+      // ein anderer erwartet wird – meist ein Überbleibsel früherer Zuordnungen.
+      const ignored = [...new Set(this.dndState.draggables
+        .filter((d) => d.text && d.correctZone === zone.label && !rightTexts.includes(d.text))
+        .map((d) => d.text))];
+      if (ignored.length) {
+        warnInfo.textContent += `${warnInfo.textContent ? ' ' : ''}⚠ ${ignored.map((t) => `„${t}“`).join(', ')} ${ignored.length === 1 ? 'zielt' : 'zielen'} unten auf diese Zone, ${ignored.length === 1 ? 'zählt' : 'zählen'} aber nicht – erwartet wird „${zone.correctDraggable}“. Unten das Ziel korrigieren oder auf „— Keine Zone —“ stellen.`;
+      }
 
       const groupLabel = document.createElement('span');
       groupLabel.innerHTML = '&nbsp;🔀 Gruppe:&nbsp;';

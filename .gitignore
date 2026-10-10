@@ -41,3 +41,6 @@ data/
 
 # Ignore results (if not needed)
 /results/
+
+# Sperrdateien von LibreOffice (solange eine Datei geöffnet ist)
+.~lock.*#

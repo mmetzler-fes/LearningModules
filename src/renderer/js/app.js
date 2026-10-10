@@ -104,6 +104,25 @@ class App {
     state.topics = await api.getTopics();
   }
 
+  /**
+   * Für Admins: welcher Server das ist – unter „Administration“ und im Tab.
+   * Wer mehrere Server betreut, soll nicht aus Versehen den falschen
+   * einstellen. `info` kommt nach dem Speichern direkt aus der Vernetzung.
+   */
+  async showServerName(info) {
+    const el = document.getElementById('adminServerName');
+    if (!el) return;
+    try {
+      if (!info) info = await (await fetch('/api/federation/info', { cache: 'no-store' })).json();
+    } catch (_) {
+      info = null;
+    }
+    const host = location.host;
+    const name = info?.name && info.name !== 'LearningModules' ? info.name : '';
+    el.innerHTML = `🖥 ${name ? `<strong>${escapeHtml(name)}</strong><br>` : ''}<span>${escapeHtml(host)}</span>`;
+    document.title = `${name || host} – LearningModules`;
+  }
+
   /** Tags der Lehrkraft – Grundlage für Filter und Auswahl. */
   async loadTags() {
     try {

@@ -4730,3 +4730,18 @@ body {
 .fed-peer-actions { display: flex; gap: 6px; align-items: flex-start; flex-wrap: wrap; }
 .fed-incoming { border-color: #fcd34d; }
 .fed-fp { font-size: 1.05em; letter-spacing: 0.04em; }
+
+/* Unter „Administration“: welcher Server das ist. */
+.server-name {
+  margin: 0 12px 8px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  font-size: 0.78em;
+  line-height: 1.35;
+  color: #e2e8f0;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  word-break: break-word;
+}
+.server-name:empty { display: none; }
+.server-name span { opacity: 0.75; }

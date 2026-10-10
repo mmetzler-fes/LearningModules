@@ -646,6 +646,7 @@ export class LoginView {
       studentNav.classList.add('hidden');
       if (adminNavEl) adminNavEl.classList.remove('hidden');
       this._userInfo.innerHTML = `<span class="user-role-badge admin">Admin</span> ${escapeHtml(currentUser.name)}`;
+      this.app.showServerName();
       if (this._btnDeleteAcc) this._btnDeleteAcc.classList.add('hidden');
     } else if (currentUser.role === 'teacher') {
       teacherNav.classList.remove('hidden');

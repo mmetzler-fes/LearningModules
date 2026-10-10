@@ -21,7 +21,9 @@ Beide Admins brauchen **Administration → 🌐 Vernetzung**.
 
 1. **Dieser Server:** Name, wie ihn andere sehen (z. B. „FES Esslingen“), und
    die öffentliche Adresse (z. B. `https://lm.schule.de`). Die Adresse ist
-   mit `APP_URL` vorbelegt. Speichern.
+   mit `APP_URL` vorbelegt. Speichern. Name und Adresse stehen danach in der
+   Seitenleiste unter *Administration* und im Browser-Tab – so ist immer
+   klar, welchen Server man gerade einstellt.
 2. **Admin A** trägt unter *Verbundene Server* die Adresse von B ein und klickt
    **Verbindung anfragen**. Bei A steht B dann als „angefragt“.
 3. **Admin B** sieht unter *📨 Anfragen* den Server A. Vor dem Annehmen den

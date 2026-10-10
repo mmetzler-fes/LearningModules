@@ -109,6 +109,7 @@ export class FederationAdminView {
     if (!res || !res.serverId) { this.app.showToast('Fehler: ' + (res?.message || '?'), 'error'); return; }
     this._data = res;
     this._render();
+    this.app.showServerName({ name: res.name });
     this.app.showToast('Gespeichert', 'success');
   }
 

@@ -1,0 +1,655 @@
+{
+ "source": "LearningModules – gemeinsame Ergänzung unter den OpenEduHub-Listen",
+ "version": 1,
+ "note": "Kennungen nie ändern oder neu vergeben – sie sind auf allen Servern gleich. Neue Einträge nur anhängen; Entferntes bleibt mit \"retired\": true stehen.",
+ "items": [
+  {
+   "id": "lm:elektrotechnik.grundlagen-der-elektrotechnik",
+   "facet": "subject",
+   "parent": "oeh-d:04005",
+   "label": "Grundlagen der Elektrotechnik"
+  },
+  {
+   "id": "lm:elektrotechnik.grundlagen-der-elektrotechnik.gleichstromtechnik",
+   "facet": "subject",
+   "parent": "lm:elektrotechnik.grundlagen-der-elektrotechnik",
+   "label": "Gleichstromtechnik"
+  },
+  {
+   "id": "lm:elektrotechnik.grundlagen-der-elektrotechnik.wechselstromtechnik",
+   "facet": "subject",
+   "parent": "lm:elektrotechnik.grundlagen-der-elektrotechnik",
+   "label": "Wechselstromtechnik"
+  },
+  {
+   "id": "lm:elektrotechnik.grundlagen-der-elektrotechnik.elektrisches-feld-und-magnetfeld",
+   "facet": "subject",
+   "parent": "lm:elektrotechnik.grundlagen-der-elektrotechnik",
+   "label": "Elektrisches Feld und Magnetfeld"
+  },
+  {
+   "id": "lm:elektrotechnik.grundlagen-der-elektrotechnik.elektrische-messtechnik",
+   "facet": "subject",
+   "parent": "lm:elektrotechnik.grundlagen-der-elektrotechnik",
+   "label": "Elektrische Messtechnik"
+  },
+  {
+   "id": "lm:elektrotechnik.elektronik",
+   "facet": "subject",
+   "parent": "oeh-d:04005",
+   "label": "Elektronik"
+  },
+  {
+   "id": "lm:elektrotechnik.elektronik.bauelemente",
+   "facet": "subject",
+   "parent": "lm:elektrotechnik.elektronik",
+   "label": "Bauelemente"
+  },
+  {
+   "id": "lm:elektrotechnik.elektronik.analogtechnik",
+   "facet": "subject",
+   "parent": "lm:elektrotechnik.elektronik",
+   "label": "Analogtechnik"
+  },
+  {
+   "id": "lm:elektrotechnik.elektronik.digitaltechnik",
+   "facet": "subject",
+   "parent": "lm:elektrotechnik.elektronik",
+   "label": "Digitaltechnik"
+  },
+  {
+   "id": "lm:elektrotechnik.elektronik.leistungselektronik",
+   "facet": "subject",
+   "parent": "lm:elektrotechnik.elektronik",
+   "label": "Leistungselektronik"
+  },
+  {
+   "id": "lm:elektrotechnik.automatisierungstechnik",
+   "facet": "subject",
+   "parent": "oeh-d:04005",
+   "label": "Automatisierungstechnik"
+  },
+  {
+   "id": "lm:elektrotechnik.automatisierungstechnik.sps-programmierung",
+   "facet": "subject",
+   "parent": "lm:elektrotechnik.automatisierungstechnik",
+   "label": "SPS-Programmierung"
+  },
+  {
+   "id": "lm:elektrotechnik.automatisierungstechnik.steuerungstechnik",
+   "facet": "subject",
+   "parent": "lm:elektrotechnik.automatisierungstechnik",
+   "label": "Steuerungstechnik"
+  },
+  {
+   "id": "lm:elektrotechnik.automatisierungstechnik.regelungstechnik",
+   "facet": "subject",
+   "parent": "lm:elektrotechnik.automatisierungstechnik",
+   "label": "Regelungstechnik"
+  },
+  {
+   "id": "lm:elektrotechnik.automatisierungstechnik.sensorik-und-aktorik",
+   "facet": "subject",
+   "parent": "lm:elektrotechnik.automatisierungstechnik",
+   "label": "Sensorik und Aktorik"
+  },
+  {
+   "id": "lm:elektrotechnik.automatisierungstechnik.industrielle-kommunikation",
+   "facet": "subject",
+   "parent": "lm:elektrotechnik.automatisierungstechnik",
+   "label": "Industrielle Kommunikation"
+  },
+  {
+   "id": "lm:elektrotechnik.automatisierungstechnik.antriebstechnik",
+   "facet": "subject",
+   "parent": "lm:elektrotechnik.automatisierungstechnik",
+   "label": "Antriebstechnik"
+  },
+  {
+   "id": "lm:elektrotechnik.energietechnik",
+   "facet": "subject",
+   "parent": "oeh-d:04005",
+   "label": "Energietechnik"
+  },
+  {
+   "id": "lm:elektrotechnik.energietechnik.elektrische-anlagen",
+   "facet": "subject",
+   "parent": "lm:elektrotechnik.energietechnik",
+   "label": "Elektrische Anlagen"
+  },
+  {
+   "id": "lm:elektrotechnik.energietechnik.elektrische-maschinen",
+   "facet": "subject",
+   "parent": "lm:elektrotechnik.energietechnik",
+   "label": "Elektrische Maschinen"
+  },
+  {
+   "id": "lm:elektrotechnik.energietechnik.erneuerbare-energien",
+   "facet": "subject",
+   "parent": "lm:elektrotechnik.energietechnik",
+   "label": "Erneuerbare Energien"
+  },
+  {
+   "id": "lm:elektrotechnik.energietechnik.schutzmassnahmen",
+   "facet": "subject",
+   "parent": "lm:elektrotechnik.energietechnik",
+   "label": "Schutzmaßnahmen"
+  },
+  {
+   "id": "lm:informatik.programmierung",
+   "facet": "subject",
+   "parent": "oeh-d:320",
+   "label": "Programmierung"
+  },
+  {
+   "id": "lm:informatik.programmierung.python",
+   "facet": "subject",
+   "parent": "lm:informatik.programmierung",
+   "label": "Python"
+  },
+  {
+   "id": "lm:informatik.programmierung.c-und-c",
+   "facet": "subject",
+   "parent": "lm:informatik.programmierung",
+   "label": "C und C++"
+  },
+  {
+   "id": "lm:informatik.programmierung.java",
+   "facet": "subject",
+   "parent": "lm:informatik.programmierung",
+   "label": "Java"
+  },
+  {
+   "id": "lm:informatik.programmierung.webentwicklung",
+   "facet": "subject",
+   "parent": "lm:informatik.programmierung",
+   "label": "Webentwicklung"
+  },
+  {
+   "id": "lm:informatik.programmierung.algorithmen-und-datenstrukturen",
+   "facet": "subject",
+   "parent": "lm:informatik.programmierung",
+   "label": "Algorithmen und Datenstrukturen"
+  },
+  {
+   "id": "lm:informatik.mikrocontroller",
+   "facet": "subject",
+   "parent": "oeh-d:320",
+   "label": "Mikrocontroller"
+  },
+  {
+   "id": "lm:informatik.mikrocontroller.arduino",
+   "facet": "subject",
+   "parent": "lm:informatik.mikrocontroller",
+   "label": "Arduino"
+  },
+  {
+   "id": "lm:informatik.mikrocontroller.esp32",
+   "facet": "subject",
+   "parent": "lm:informatik.mikrocontroller",
+   "label": "ESP32"
+  },
+  {
+   "id": "lm:informatik.mikrocontroller.raspberry-pi",
+   "facet": "subject",
+   "parent": "lm:informatik.mikrocontroller",
+   "label": "Raspberry Pi"
+  },
+  {
+   "id": "lm:informatik.netzwerktechnik",
+   "facet": "subject",
+   "parent": "oeh-d:320",
+   "label": "Netzwerktechnik"
+  },
+  {
+   "id": "lm:informatik.netzwerktechnik.grundlagen-netzwerke",
+   "facet": "subject",
+   "parent": "lm:informatik.netzwerktechnik",
+   "label": "Grundlagen Netzwerke"
+  },
+  {
+   "id": "lm:informatik.netzwerktechnik.tcp-ip",
+   "facet": "subject",
+   "parent": "lm:informatik.netzwerktechnik",
+   "label": "TCP/IP"
+  },
+  {
+   "id": "lm:informatik.netzwerktechnik.netzwerkdienste",
+   "facet": "subject",
+   "parent": "lm:informatik.netzwerktechnik",
+   "label": "Netzwerkdienste"
+  },
+  {
+   "id": "lm:informatik.datenbanken",
+   "facet": "subject",
+   "parent": "oeh-d:320",
+   "label": "Datenbanken"
+  },
+  {
+   "id": "lm:informatik.datenbanken.sql",
+   "facet": "subject",
+   "parent": "lm:informatik.datenbanken",
+   "label": "SQL"
+  },
+  {
+   "id": "lm:informatik.datenbanken.datenmodellierung",
+   "facet": "subject",
+   "parent": "lm:informatik.datenbanken",
+   "label": "Datenmodellierung"
+  },
+  {
+   "id": "lm:informatik.it-sicherheit",
+   "facet": "subject",
+   "parent": "oeh-d:320",
+   "label": "IT-Sicherheit"
+  },
+  {
+   "id": "lm:informatik.betriebssysteme",
+   "facet": "subject",
+   "parent": "oeh-d:320",
+   "label": "Betriebssysteme"
+  },
+  {
+   "id": "lm:informatik.kuenstliche-intelligenz",
+   "facet": "subject",
+   "parent": "oeh-d:320",
+   "label": "Künstliche Intelligenz"
+  },
+  {
+   "id": "lm:mechatronik.pneumatik-und-hydraulik",
+   "facet": "subject",
+   "parent": "oeh-d:oeh04010",
+   "label": "Pneumatik und Hydraulik"
+  },
+  {
+   "id": "lm:mechatronik.pneumatik-und-hydraulik.pneumatik",
+   "facet": "subject",
+   "parent": "lm:mechatronik.pneumatik-und-hydraulik",
+   "label": "Pneumatik"
+  },
+  {
+   "id": "lm:mechatronik.pneumatik-und-hydraulik.elektropneumatik",
+   "facet": "subject",
+   "parent": "lm:mechatronik.pneumatik-und-hydraulik",
+   "label": "Elektropneumatik"
+  },
+  {
+   "id": "lm:mechatronik.pneumatik-und-hydraulik.hydraulik",
+   "facet": "subject",
+   "parent": "lm:mechatronik.pneumatik-und-hydraulik",
+   "label": "Hydraulik"
+  },
+  {
+   "id": "lm:mechatronik.robotik",
+   "facet": "subject",
+   "parent": "oeh-d:oeh04010",
+   "label": "Robotik"
+  },
+  {
+   "id": "lm:mechatronik.mechatronische-systeme",
+   "facet": "subject",
+   "parent": "oeh-d:oeh04010",
+   "label": "Mechatronische Systeme"
+  },
+  {
+   "id": "lm:metalltechnik.fertigungstechnik",
+   "facet": "subject",
+   "parent": "oeh-d:04011",
+   "label": "Fertigungstechnik"
+  },
+  {
+   "id": "lm:metalltechnik.fertigungstechnik.spanende-fertigung",
+   "facet": "subject",
+   "parent": "lm:metalltechnik.fertigungstechnik",
+   "label": "Spanende Fertigung"
+  },
+  {
+   "id": "lm:metalltechnik.fertigungstechnik.cnc-technik",
+   "facet": "subject",
+   "parent": "lm:metalltechnik.fertigungstechnik",
+   "label": "CNC-Technik"
+  },
+  {
+   "id": "lm:metalltechnik.fertigungstechnik.fuegetechnik",
+   "facet": "subject",
+   "parent": "lm:metalltechnik.fertigungstechnik",
+   "label": "Fügetechnik"
+  },
+  {
+   "id": "lm:metalltechnik.technische-kommunikation",
+   "facet": "subject",
+   "parent": "oeh-d:04011",
+   "label": "Technische Kommunikation"
+  },
+  {
+   "id": "lm:metalltechnik.technische-kommunikation.technisches-zeichnen",
+   "facet": "subject",
+   "parent": "lm:metalltechnik.technische-kommunikation",
+   "label": "Technisches Zeichnen"
+  },
+  {
+   "id": "lm:metalltechnik.technische-kommunikation.cad",
+   "facet": "subject",
+   "parent": "lm:metalltechnik.technische-kommunikation",
+   "label": "CAD"
+  },
+  {
+   "id": "lm:metalltechnik.werkstofftechnik",
+   "facet": "subject",
+   "parent": "oeh-d:04011",
+   "label": "Werkstofftechnik"
+  },
+  {
+   "id": "lm:metalltechnik.maschinenelemente",
+   "facet": "subject",
+   "parent": "oeh-d:04011",
+   "label": "Maschinenelemente"
+  },
+  {
+   "id": "lm:metalltechnik.technische-mechanik",
+   "facet": "subject",
+   "parent": "oeh-d:04011",
+   "label": "Technische Mechanik"
+  },
+  {
+   "id": "lm:metalltechnik.technische-mechanik.statik",
+   "facet": "subject",
+   "parent": "lm:metalltechnik.technische-mechanik",
+   "label": "Statik"
+  },
+  {
+   "id": "lm:metalltechnik.technische-mechanik.festigkeitslehre",
+   "facet": "subject",
+   "parent": "lm:metalltechnik.technische-mechanik",
+   "label": "Festigkeitslehre"
+  },
+  {
+   "id": "lm:bautechnik.baukonstruktion",
+   "facet": "subject",
+   "parent": "oeh-d:04002",
+   "label": "Baukonstruktion"
+  },
+  {
+   "id": "lm:bautechnik.statik-im-bauwesen",
+   "facet": "subject",
+   "parent": "oeh-d:04002",
+   "label": "Statik im Bauwesen"
+  },
+  {
+   "id": "lm:bautechnik.gebaeudetechnik",
+   "facet": "subject",
+   "parent": "oeh-d:04002",
+   "label": "Gebäudetechnik"
+  },
+  {
+   "id": "lm:mathematik.arithmetik-und-algebra",
+   "facet": "subject",
+   "parent": "oeh-d:380",
+   "label": "Arithmetik und Algebra"
+  },
+  {
+   "id": "lm:mathematik.arithmetik-und-algebra.terme-und-gleichungen",
+   "facet": "subject",
+   "parent": "lm:mathematik.arithmetik-und-algebra",
+   "label": "Terme und Gleichungen"
+  },
+  {
+   "id": "lm:mathematik.arithmetik-und-algebra.funktionen",
+   "facet": "subject",
+   "parent": "lm:mathematik.arithmetik-und-algebra",
+   "label": "Funktionen"
+  },
+  {
+   "id": "lm:mathematik.geometrie",
+   "facet": "subject",
+   "parent": "oeh-d:380",
+   "label": "Geometrie"
+  },
+  {
+   "id": "lm:mathematik.geometrie.trigonometrie",
+   "facet": "subject",
+   "parent": "lm:mathematik.geometrie",
+   "label": "Trigonometrie"
+  },
+  {
+   "id": "lm:mathematik.geometrie.vektorrechnung",
+   "facet": "subject",
+   "parent": "lm:mathematik.geometrie",
+   "label": "Vektorrechnung"
+  },
+  {
+   "id": "lm:mathematik.analysis",
+   "facet": "subject",
+   "parent": "oeh-d:380",
+   "label": "Analysis"
+  },
+  {
+   "id": "lm:mathematik.analysis.differentialrechnung",
+   "facet": "subject",
+   "parent": "lm:mathematik.analysis",
+   "label": "Differentialrechnung"
+  },
+  {
+   "id": "lm:mathematik.analysis.integralrechnung",
+   "facet": "subject",
+   "parent": "lm:mathematik.analysis",
+   "label": "Integralrechnung"
+  },
+  {
+   "id": "lm:mathematik.stochastik",
+   "facet": "subject",
+   "parent": "oeh-d:380",
+   "label": "Stochastik"
+  },
+  {
+   "id": "lm:mathematik.technische-mathematik",
+   "facet": "subject",
+   "parent": "oeh-d:380",
+   "label": "Technische Mathematik"
+  },
+  {
+   "id": "lm:physik.mechanik",
+   "facet": "subject",
+   "parent": "oeh-d:460",
+   "label": "Mechanik"
+  },
+  {
+   "id": "lm:physik.elektrizitaetslehre",
+   "facet": "subject",
+   "parent": "oeh-d:460",
+   "label": "Elektrizitätslehre"
+  },
+  {
+   "id": "lm:physik.optik",
+   "facet": "subject",
+   "parent": "oeh-d:460",
+   "label": "Optik"
+  },
+  {
+   "id": "lm:physik.waermelehre",
+   "facet": "subject",
+   "parent": "oeh-d:460",
+   "label": "Wärmelehre"
+  },
+  {
+   "id": "lm:physik.schwingungen-und-wellen",
+   "facet": "subject",
+   "parent": "oeh-d:460",
+   "label": "Schwingungen und Wellen"
+  },
+  {
+   "id": "lm:chemie.allgemeine-chemie",
+   "facet": "subject",
+   "parent": "oeh-d:100",
+   "label": "Allgemeine Chemie"
+  },
+  {
+   "id": "lm:chemie.organische-chemie",
+   "facet": "subject",
+   "parent": "oeh-d:100",
+   "label": "Organische Chemie"
+  },
+  {
+   "id": "lm:deutsch.kommunikation",
+   "facet": "subject",
+   "parent": "oeh-d:120",
+   "label": "Kommunikation"
+  },
+  {
+   "id": "lm:deutsch.texte-schreiben",
+   "facet": "subject",
+   "parent": "oeh-d:120",
+   "label": "Texte schreiben"
+  },
+  {
+   "id": "lm:deutsch.rechtschreibung-und-grammatik",
+   "facet": "subject",
+   "parent": "oeh-d:120",
+   "label": "Rechtschreibung und Grammatik"
+  },
+  {
+   "id": "lm:deutsch.literatur",
+   "facet": "subject",
+   "parent": "oeh-d:120",
+   "label": "Literatur"
+  },
+  {
+   "id": "lm:englisch.technical-english",
+   "facet": "subject",
+   "parent": "oeh-d:20001",
+   "label": "Technical English"
+  },
+  {
+   "id": "lm:englisch.business-english",
+   "facet": "subject",
+   "parent": "oeh-d:20001",
+   "label": "Business English"
+  },
+  {
+   "id": "lm:englisch.grammar",
+   "facet": "subject",
+   "parent": "oeh-d:20001",
+   "label": "Grammar"
+  },
+  {
+   "id": "lm:englisch.vocabulary",
+   "facet": "subject",
+   "parent": "oeh-d:20001",
+   "label": "Vocabulary"
+  },
+  {
+   "id": "lm:wirtschaft-und-verwaltung.betriebswirtschaft",
+   "facet": "subject",
+   "parent": "oeh-d:04013",
+   "label": "Betriebswirtschaft"
+  },
+  {
+   "id": "lm:wirtschaft-und-verwaltung.rechnungswesen",
+   "facet": "subject",
+   "parent": "oeh-d:04013",
+   "label": "Rechnungswesen"
+  },
+  {
+   "id": "lm:wirtschaft-und-verwaltung.projektmanagement-im-betrieb",
+   "facet": "subject",
+   "parent": "oeh-d:04013",
+   "label": "Projektmanagement im Betrieb"
+  },
+  {
+   "id": "lm:wirtschaft-und-verwaltung.qualitaetsmanagement",
+   "facet": "subject",
+   "parent": "oeh-d:04013",
+   "label": "Qualitätsmanagement"
+  },
+  {
+   "id": "lm:arbeitssicherheit.elektrische-sicherheit",
+   "facet": "subject",
+   "parent": "oeh-d:04014",
+   "label": "Elektrische Sicherheit"
+  },
+  {
+   "id": "lm:arbeitssicherheit.gefaehrdungsbeurteilung",
+   "facet": "subject",
+   "parent": "oeh-d:04014",
+   "label": "Gefährdungsbeurteilung"
+  },
+  {
+   "id": "lm:stufe.berufliche_bildung.berufsschule-duale-ausbildung",
+   "facet": "stage",
+   "parent": "oeh-c:berufliche_bildung",
+   "label": "Berufsschule (duale Ausbildung)"
+  },
+  {
+   "id": "lm:stufe.berufliche_bildung.berufsfachschule",
+   "facet": "stage",
+   "parent": "oeh-c:berufliche_bildung",
+   "label": "Berufsfachschule"
+  },
+  {
+   "id": "lm:stufe.berufliche_bildung.fachoberschule",
+   "facet": "stage",
+   "parent": "oeh-c:berufliche_bildung",
+   "label": "Fachoberschule"
+  },
+  {
+   "id": "lm:stufe.berufliche_bildung.berufsoberschule",
+   "facet": "stage",
+   "parent": "oeh-c:berufliche_bildung",
+   "label": "Berufsoberschule"
+  },
+  {
+   "id": "lm:stufe.berufliche_bildung.berufliches-gymnasium",
+   "facet": "stage",
+   "parent": "oeh-c:berufliche_bildung",
+   "label": "Berufliches Gymnasium"
+  },
+  {
+   "id": "lm:stufe.berufliche_bildung.fachschule",
+   "facet": "stage",
+   "parent": "oeh-c:berufliche_bildung",
+   "label": "Fachschule"
+  },
+  {
+   "id": "lm:stufe.berufliche_bildung.berufsvorbereitung",
+   "facet": "stage",
+   "parent": "oeh-c:berufliche_bildung",
+   "label": "Berufsvorbereitung"
+  },
+  {
+   "id": "lm:stufe.sekundarstufe_2.gymnasiale-oberstufe",
+   "facet": "stage",
+   "parent": "oeh-c:sekundarstufe_2",
+   "label": "Gymnasiale Oberstufe"
+  },
+  {
+   "id": "lm:stufe.sekundarstufe_1.klassen-5-6",
+   "facet": "stage",
+   "parent": "oeh-c:sekundarstufe_1",
+   "label": "Klassen 5–6"
+  },
+  {
+   "id": "lm:stufe.sekundarstufe_1.klassen-7-8",
+   "facet": "stage",
+   "parent": "oeh-c:sekundarstufe_1",
+   "label": "Klassen 7–8"
+  },
+  {
+   "id": "lm:stufe.sekundarstufe_1.klassen-9-10",
+   "facet": "stage",
+   "parent": "oeh-c:sekundarstufe_1",
+   "label": "Klassen 9–10"
+  },
+  {
+   "id": "lm:stufe.fortbildung.meisterkurs",
+   "facet": "stage",
+   "parent": "oeh-c:fortbildung",
+   "label": "Meisterkurs"
+  },
+  {
+   "id": "lm:stufe.fortbildung.lehrkraeftefortbildung",
+   "facet": "stage",
+   "parent": "oeh-c:fortbildung",
+   "label": "Lehrkräftefortbildung"
+  }
+ ]
+}

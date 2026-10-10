@@ -12,12 +12,14 @@ import { UseGrant } from '../core/entities/use-grant.entity';
 import { TopicLink } from '../core/entities/topic-link.entity';
 import { TagsModule } from '../tags/tags.module';
 import { ShopModule } from '../shop/shop.module';
+import { CategoriesModule } from '../categories/categories.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([LearningTopic, LearningModule, User, TopicQuickLink, TopicLink, ShopOffer, UseGrant, School]),
     TagsModule,
     ShopModule,
+    CategoriesModule,
   ],
   controllers: [TopicsController],
   providers: [TopicsService],

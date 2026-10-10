@@ -1,4 +1,5 @@
 import { escapeHtml, escapeAttr } from '../utils.js';
+import { CategoryPicker, categoryChips, ensureCategories } from './categories.js';
 
 const DEFAULT_TAG_COLOR = '#4f7cff';
 
@@ -324,6 +325,8 @@ export class TagsView {
     this._areaWrap = $('tagAreaChoicesWrap');
     this._areaBox = $('tagAreaChoices');
     this._areaSelected = new Set();
+    const catBox = $('tagCategories');
+    this._catPicker = catBox ? new CategoryPicker(app, catBox) : null;
 
     this._bindEvents();
   }
@@ -415,6 +418,7 @@ export class TagsView {
     if (this._isArea) this._isArea.checked = false;
     this._areaSelected = new Set();
     this._renderAreaChoices();
+    this._catPicker?.render([]);
   }
 
   async _onSubmit(e) {
@@ -424,11 +428,12 @@ export class TagsView {
     const color = this._color?.value || null;
     const isArea = !!this._isArea?.checked;
     const areaIds = isArea ? [] : [...this._areaSelected];
+    const categoryIds = this._catPicker ? this._catPicker.selectedIds : undefined;
 
     try {
       const res = this._editId
-        ? await this._source.update(this._editId, { name, color, isArea, areaIds })
-        : await this._source.create({ name, color, isArea, areaIds });
+        ? await this._source.update(this._editId, { name, color, isArea, areaIds, categoryIds })
+        : await this._source.create({ name, color, isArea, areaIds, categoryIds });
       if (res && res.message && !res.id) {
         this.app.showToast(res.message, 'error');
         return;
@@ -452,6 +457,7 @@ export class TagsView {
     if (this._isArea) this._isArea.checked = !!tag.isArea;
     this._areaSelected = new Set(tag.areaIds || []);
     this._renderAreaChoices();
+    this._catPicker?.render(tag.categoryIds || []);
     this._form?.scrollIntoView({ behavior: 'smooth', block: 'center' });
   }
 
@@ -476,7 +482,9 @@ export class TagsView {
   }
 
   async refresh() {
-    const loaded = await this._source.load();
+    const [loaded] = await Promise.all([this._source.load(), ensureCategories(this.app)]);
+    // Ohne Bearbeitung zeigt das Formular einen neuen Tag – auch die Kategorie-Auswahl.
+    if (!this._editId) this._catPicker?.render([]);
     const tags = Array.isArray(loaded) ? loaded : [];
     this._tags = tags;
     this._renderAreaChoices();
@@ -569,7 +577,7 @@ export class TagsView {
   _buildRow(tag) {
     const row = document.createElement('div');
     row.className = 'tag-row';
-    row.innerHTML = `${chipHtml(tag)}<span class="tag-usage">${this._usage(tag)}</span>`;
+    row.innerHTML = `${chipHtml(tag)}${(tag.categoryIds || []).length ? `<span class="tag-cats">→ ${categoryChips(this.app, tag.categoryIds, { max: 3 })}</span>` : ''}<span class="tag-usage">${this._usage(tag)}</span>`;
     row.appendChild(this._actions(tag));
     return row;
   }

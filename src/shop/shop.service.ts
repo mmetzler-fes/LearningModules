@@ -13,6 +13,8 @@ import { TeacherGroup } from '../core/entities/teacher-group.entity';
 import { ContentFeedback } from '../core/entities/content-feedback.entity';
 import { groupIdOf } from '../groups/group-ref';
 import { UsageService } from '../impact/usage.service';
+import { CategoriesService } from '../categories/categories.service';
+import { hasSubject } from '../categories/category-rules';
 import { shouldHintSharing, summarizeRatings, RatingSummary } from '../impact/impact-rules';
 import { offerRoots, visibleFor, withSubmodules } from './offer-rules';
 
@@ -75,6 +77,7 @@ export class ShopService {
     @InjectRepository(NotebookPlacement) private readonly placeRepo: Repository<NotebookPlacement>,
     @InjectRepository(ContentFeedback) private readonly feedbackRepo: Repository<ContentFeedback>,
     private readonly usage: UsageService,
+    private readonly categories: CategoriesService,
     private readonly dataSource: DataSource,
   ) {}
 
@@ -326,6 +329,8 @@ export class ShopService {
         copies: offer.scopeType === 'topic' ? myCopies.filter((c) => c.copiedFromId === offer.topicId).length : 0,
         // Lernthemen darin, die ich bewerten kann: genutzt oder kopiert.
         rateable: [] as Array<{ topicId: string; title: string }>,
+        // Fach und Bildungsstufe: die des Angebots und die der Lernthemen darin.
+        categoryIds: await this.categoriesOf(offer, mine),
         rating: null as RatingSummary | null,
         updatedAt: offer.updatedAt,
       };
@@ -353,6 +358,12 @@ export class ShopService {
       giveAndTake: balance,
       shareHint: shouldHintSharing(balance.taken, balance.shared, shareHintAfter),
     };
+  }
+
+  /** Kategorien eines Angebots: eigene und die der enthaltenen Lernthemen (samt ihrer Tags). */
+  private async categoriesOf(offer: ShopOffer, covered: Covered[]): Promise<string[]> {
+    const fromTopics = await this.categories.effectiveFor(covered.map((c) => c.topic));
+    return [...new Set([...(offer.categoryIds || []), ...[...fromTopics.values()].flat()])];
   }
 
   /**
@@ -441,6 +452,8 @@ export class ShopService {
         creatorName: this.label(users.get(m.creatorId || '')),
       })),
       copyCount: type === 'topic' ? await this.topicRepo.count({ where: { copiedFromId: params.id } }) : 0,
+      // Einordnung, die schon aus den Lernthemen kommt (nur zur Ansicht).
+      topicCategoryIds: [...new Set([...(await this.categories.effectiveFor(covered.map((c) => c.topic))).values()].flat())],
       offer: offer ? await this.describe(offer, users) : null,
       legacyShare: legacy ? await this.describe(legacy, users) : null,
     };
@@ -456,6 +469,7 @@ export class ShopService {
       allowCopy: offer.allowCopy,
       allowUse: offer.allowUse,
       includeForeign: offer.kind === 'buyer' || !!offer.includeForeign,
+      categoryIds: offer.categoryIds || [],
       audience: offer.audience,
       // Namen der eingetragenen Personen – auch aus anderen Schulen, die
       // die Auswahlliste selbst nicht zeigt. Sonst fielen sie beim
@@ -512,6 +526,17 @@ export class ShopService {
     const audience = await this.cleanAudience(body?.audience ?? ['*'], true);
     if (active && audience.length === 0) throw new BadRequestException('Bitte eine Zielgruppe wählen.');
 
+    // Ohne Fach findet es im Shop niemand – und über Server hinweg schon gar nicht.
+    const categoryIds = body?.categoryIds !== undefined
+      ? await this.categories.clean(body.categoryIds, user, offer?.categoryIds || null)
+      : offer?.categoryIds || null;
+    if (active) {
+      const fromTopics = [...(await this.categories.effectiveFor(covered.map((c) => c.topic))).values()].flat();
+      if (!hasSubject([...(categoryIds || []), ...fromTopics], await this.categories.byId())) {
+        throw new BadRequestException('Bitte mindestens ein Fach wählen, damit andere das Angebot finden.');
+      }
+    }
+
     if (!offer) offer = this.offerRepo.create({ id: crypto.randomUUID(), sellerId: user.userId, kind: 'creator', scopeType: type });
     Object.assign(offer, {
       sellerId: user.userId,
@@ -521,6 +546,7 @@ export class ShopService {
       moduleIds: type === 'modules' ? draft.moduleIds : null,
       title: type === 'modules' ? String(body?.title || offer.title || '').trim().slice(0, 120) || 'Auswahl von Modulen' : null,
       includeForeign,
+      categoryIds,
       allowCopy,
       allowUse,
       // Preise gibt es nicht mehr (bis Oktober 2026).
@@ -590,6 +616,7 @@ export class ShopService {
         title: await this.offerTitle(offer, covered),
         topicCount: covered.length,
         moduleCount: covered.reduce((n, c) => n + c.roots.length, 0),
+        categoryIds: await this.categoriesOf(offer, covered),
         copyCount: offer.scopeType === 'topic' ? await this.topicRepo.count({ where: { copiedFromId: offer.topicId } }) : 0,
       });
     }
@@ -786,6 +813,8 @@ export class ShopService {
         copiedFromAuthor: sellerName,
         copiedFromTitle: source.title,
         permissions: source.permissions,
+        // Kategorien sind für alle gleich – anders als Tags kommen sie mit.
+        categoryIds: source.categoryIds || null,
       }),
     );
 

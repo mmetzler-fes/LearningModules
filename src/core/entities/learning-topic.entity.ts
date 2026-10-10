@@ -89,4 +89,11 @@ export class LearningTopic extends BaseEntity {
 
   @OneToMany('LearningModule', (m: any) => m.topic, { cascade: true })
   modules: LearningModule[];
+
+  /**
+   * Kategorien (Fach, Bildungsstufe; siehe Category). Dazu kommen beim Suchen
+   * die Kategorien der Tags, die das Lernthema trägt.
+   */
+  @Column('simple-json', { nullable: true })
+  categoryIds: string[] | null;
 }

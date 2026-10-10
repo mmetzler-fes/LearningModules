@@ -1,0 +1,69 @@
+{
+ "source": "OpenEduHub / WirLernenOnline – oeh-metadata-vocabs",
+ "url": "https://github.com/openeduhub/oeh-metadata-vocabs/blob/master/educationalContext.ttl",
+ "license": "CC0-1.0",
+ "retrieved": "2026-10-10",
+ "note": "Unverändert übernommen (Name deutsch, Kennung, URI). Aktualisieren: node scripts/update-oeh-vocabs.mjs (docs/kategorien.md).",
+ "concepts": [
+  {
+   "id": "elementarbereich",
+   "uri": "http://w3id.org/openeduhub/vocabs/educationalContext/elementarbereich",
+   "label": "Elementarbereich"
+  },
+  {
+   "id": "schule",
+   "uri": "http://w3id.org/openeduhub/vocabs/educationalContext/schule",
+   "label": "Schule"
+  },
+  {
+   "id": "grundschule",
+   "uri": "http://w3id.org/openeduhub/vocabs/educationalContext/grundschule",
+   "label": "Primarstufe"
+  },
+  {
+   "id": "sekundarstufe_1",
+   "uri": "http://w3id.org/openeduhub/vocabs/educationalContext/sekundarstufe_1",
+   "label": "Sekundarstufe I"
+  },
+  {
+   "id": "sekundarstufe_2",
+   "uri": "http://w3id.org/openeduhub/vocabs/educationalContext/sekundarstufe_2",
+   "label": "Sekundarstufe II"
+  },
+  {
+   "id": "hochschule",
+   "uri": "http://w3id.org/openeduhub/vocabs/educationalContext/hochschule",
+   "label": "Hochschule"
+  },
+  {
+   "id": "berufliche_bildung",
+   "uri": "http://w3id.org/openeduhub/vocabs/educationalContext/berufliche_bildung",
+   "label": "Berufliche Bildung"
+  },
+  {
+   "id": "fortbildung",
+   "uri": "http://w3id.org/openeduhub/vocabs/educationalContext/fortbildung",
+   "label": "Fortbildung"
+  },
+  {
+   "id": "erwachsenenbildung",
+   "uri": "http://w3id.org/openeduhub/vocabs/educationalContext/erwachsenenbildung",
+   "label": "Erwachsenenbildung"
+  },
+  {
+   "id": "foerderschule",
+   "uri": "http://w3id.org/openeduhub/vocabs/educationalContext/foerderschule",
+   "label": "Förderschule"
+  },
+  {
+   "id": "fernunterricht",
+   "uri": "http://w3id.org/openeduhub/vocabs/educationalContext/fernunterricht",
+   "label": "Fernunterricht"
+  },
+  {
+   "id": "informelles_lernen",
+   "uri": "http://w3id.org/openeduhub/vocabs/educationalContext/informelles_lernen",
+   "label": "Informelles Lernen"
+  }
+ ]
+}

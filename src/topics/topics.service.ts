@@ -10,6 +10,7 @@ import { TagsService } from '../tags/tags.service';
 import { ShopOffer } from '../core/entities/shop-offer.entity';
 import { UseGrant } from '../core/entities/use-grant.entity';
 import { ShopService } from '../shop/shop.service';
+import { CategoriesService } from '../categories/categories.service';
 import { visibleFor } from '../shop/offer-rules';
 import { School } from '../core/entities/school.entity';
 import { baseUrl, renderQr } from '../core/share/link-url';
@@ -29,6 +30,7 @@ function withoutUploadTarget<T>(m: T): T {
 export class TopicsService {
   constructor(
     private readonly shop: ShopService,
+    private readonly categories: CategoriesService,
     @InjectRepository(LearningTopic)
     private readonly topicRepo: Repository<LearningTopic>,
     @InjectRepository(LearningModule)
@@ -617,6 +619,7 @@ export class TopicsService {
       ownerId: user.userId,
       visibility: (topicData as any).visibility || 'locked',
       tagIds: await this.tagsService.sanitizeIds(user, (topicData as any).tagIds),
+      categoryIds: await this.categories.clean((topicData as any).categoryIds, user),
     });
     return this.topicRepo.save(topic);
   }
@@ -716,6 +719,8 @@ export class TopicsService {
     // Nur eigene Tags akzeptieren – sonst könnte eine manipulierte Anfrage
     // fremde Tag-IDs am Thema hinterlassen.
     if (data.tagIds !== undefined) topic.tagIds = await this.tagsService.sanitizeIds(user, data.tagIds);
+    // Einordnen darf nur der Eigentümer; nur bekannte, wählbare Kategorien.
+    if (isOwner && data.categoryIds !== undefined) topic.categoryIds = await this.categories.clean(data.categoryIds, user, topic.categoryIds);
 
     // Auto-promote visibility when activating: selected=true + visibility='locked' → 'public'
     if (topic.selected && topic.visibility === 'locked') {

@@ -101,4 +101,12 @@ export class ShopOffer extends BaseEntity {
 
   @Column('simple-json', { nullable: true })
   savedState: any;
+
+  /**
+   * Einordnung des Angebots (Fach, Bildungsstufe). Zusammen mit den
+   * Kategorien der enthaltenen Lernthemen ergibt sie, wo es im Shop
+   * gefunden wird. Beim Anbieten ist mindestens ein Fach nötig.
+   */
+  @Column('simple-json', { nullable: true })
+  categoryIds: string[] | null;
 }

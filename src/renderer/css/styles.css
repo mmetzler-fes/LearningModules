@@ -4621,3 +4621,97 @@ body {
 .dnd-assign-empty { font-size: 0.8rem; color: var(--text-secondary); margin: 4px 10px; }
 /* Noch nicht zugeordnete Zonen fallen am Bild auf. */
 .dnd-zone-overlay.dnd-zone-unassigned { border-style: dashed !important; }
+
+/* ==================== KATEGORIEN (Fach, Bildungsstufe) ==================== */
+
+.cat-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 9px;
+  margin: 2px 4px 2px 0;
+  border-radius: 6px;
+  font-size: 0.8em;
+  font-weight: 600;
+  border: 1px solid var(--border);
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  white-space: nowrap;
+}
+.cat-chip.cat-subject { border-color: #93c5fd; background: rgba(59, 130, 246, 0.08); }
+.cat-chip.cat-stage { border-color: #c4b5fd; background: rgba(139, 92, 246, 0.08); }
+.cat-chip.cat-proposed { border-style: dashed; }
+.cat-chip.cat-hidden { opacity: 0.6; text-decoration: line-through; }
+.cat-chip.cat-more { font-weight: 500; }
+.cat-chip-x {
+  background: none;
+  border: none;
+  padding: 0 0 0 2px;
+  cursor: pointer;
+  color: var(--text-secondary);
+  font-size: 0.95em;
+}
+.cat-chip-x:hover { color: var(--danger, #ef4444); }
+.shop-cats { margin: 4px 0 2px; }
+.tag-cats { margin: 0 8px; color: var(--text-secondary); }
+.cat-fixed { color: var(--text-secondary); margin-left: 4px; }
+
+.cat-picker { border: 1px solid var(--border); border-radius: 10px; padding: 10px; background: var(--bg-secondary); }
+.cat-selected { min-height: 26px; margin-bottom: 8px; }
+.cat-toolbar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 6px; }
+.cat-facets { display: flex; gap: 4px; }
+.cat-facet-btn {
+  border: 1px solid var(--border);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  padding: 4px 10px;
+  border-radius: 99px;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.88em;
+}
+.cat-facet-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+.cat-search { flex: 1; min-width: 140px; padding: 5px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-primary); color: var(--text-primary); }
+.cat-tree { max-height: 260px; overflow: auto; border-top: 1px solid var(--border); padding-top: 4px; }
+.cat-row { display: flex; align-items: center; gap: 2px; padding-left: calc(var(--depth, 0) * 20px); }
+.cat-toggle {
+  width: 22px;
+  height: 22px;
+  flex: 0 0 22px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: var(--text-secondary);
+  font-size: 0.9em;
+}
+.cat-toggle-space { display: inline-block; width: 22px; flex: 0 0 22px; }
+.cat-label { display: flex; align-items: center; gap: 6px; padding: 3px 0; cursor: pointer; font-size: 0.92em; }
+.cat-label.cat-hit span { font-weight: 700; }
+.cat-propose { margin-top: 6px; font-size: 0.9em; }
+.cat-propose summary { cursor: pointer; color: var(--accent); }
+.cat-propose-row { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+.cat-propose-row select, .cat-propose-row input { flex: 1; min-width: 140px; }
+.shop-cat-filter { max-width: 220px; }
+
+.cat-admin-list, .cat-admin-tree { display: flex; flex-direction: column; gap: 2px; }
+.cat-admin-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 4px 8px;
+  border-radius: 8px;
+}
+.cat-admin-row:hover { background: var(--accent-light); }
+.cat-tree-row { padding-left: calc(8px + var(--depth, 0) * 22px); }
+.cat-admin-info { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.cat-admin-actions { display: flex; gap: 4px; flex-wrap: wrap; }
+.cat-admin-row.cat-hidden .cat-admin-info > span:first-of-type { opacity: 0.55; text-decoration: line-through; }
+.cat-admin-new { display: flex; gap: 6px; flex-wrap: wrap; margin: 6px 0 10px; }
+.cat-admin-new select, .cat-admin-new input { flex: 1; min-width: 160px; }
+.cat-src { font-size: 0.72em; padding: 1px 6px; border-radius: 99px; border: 1px solid var(--border); color: var(--text-secondary); }
+.cat-src-local { border-color: #fcd34d; }
+.nb-dialog { max-height: 90vh; overflow: auto; }
+.cat-picker .cat-label { font-weight: 400; margin: 0; }
+.cat-picker .cat-label input { margin: 0; }

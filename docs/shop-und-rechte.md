@@ -80,7 +80,9 @@ das Angebot zu einer festen Auswahl mit dem, was zuletzt darin lag;
   erst ansehen, dann für Schüler freigeben. Jedes kopierte Modul merkt sich
   sein Original – so kommt seine Nutzung beim Creator an.
 
-Die Zielgruppe ist „alle“ oder eine Auswahl aus Personen und Gruppen.
+Die Zielgruppe ist „alle“ oder eine Auswahl aus Personen und Gruppen. Zum
+Anbieten ist mindestens ein **Fach** nötig, damit andere es finden – siehe
+[Kategorien](kategorien.md).
 
 **Copy eines gemischten Angebots:** Kopiert werden die eigenen Module des
 Anbieters. Die erworbenen bekommt man **zur Nutzung**
@@ -97,7 +99,8 @@ ergänzt, sieht der Käufer sofort. Den Spiegel kann er als Ganzes einsortieren
 und darüber einen Quick-Link für alle Lernthemen darin erzeugen.
 
 **Übernehmen:** Der Shop zeigt alle Angebote anderer, die man sehen darf.
-„👥 an dich geteilt“ kennzeichnet gezielte Angebote. Jede Karte zeigt die
+„👥 an dich geteilt“ kennzeichnet gezielte Angebote. Oben lässt sich nach
+Fach und Bildungsstufe filtern. Jede Karte zeigt die
 Bewertung (★ Durchschnitt, Zahl der Bewertungen, 👍 Danke). Ein Klick auf
 einen Namen zeigt alle Angebote mit Modulen dieses Creators und was er teilt.
 Wer ein Angebot nutzt oder kopiert hat, kann es mit **⭐ Bewerten** bewerten.

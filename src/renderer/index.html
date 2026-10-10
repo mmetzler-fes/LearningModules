@@ -233,6 +233,8 @@
           <span class="nav-icon">🏫</span> Schulen
         </button>        <button class="nav-btn" data-view="admin-groups">
           <span class="nav-icon">👥</span> Gruppen
+        </button>        <button class="nav-btn" data-view="admin-categories">
+          <span class="nav-icon">🗂</span> Kategorien
         </button>        <button class="nav-btn" data-view="admin-whitelist">
           <span class="nav-icon">🔒</span> Whitelist / Blacklist
         </button>
@@ -380,6 +382,10 @@
                 <textarea id="topicDescription" rows="3" data-i18n-placeholder="topics.form.desc.placeholder" placeholder="Optionale Beschreibung..."></textarea>
               </div>
               <div class="form-group">
+                <label>Einordnung – Fach und Bildungsstufe <button type="button" class="help-hint" data-help="kategorien" title="Hilfe: Kategorien" aria-label="Hilfe: Kategorien">?</button></label>
+                <div id="topicCategories"></div>
+              </div>
+              <div class="form-group">
                 <label>Tags</label>
                 <div id="topicTags" class="tag-picker-wrap"></div>
               </div>
@@ -411,6 +417,8 @@
         </div>
         <div class="tag-filter-bar" id="shopFilterBar">
           <input type="text" id="shopSearch" class="search-input" placeholder="Suchen nach Titel, Modul oder Person…" />
+          <select id="shopSubject" class="shop-cat-filter" aria-label="Fach"><option value="">📚 Alle Fächer</option></select>
+          <select id="shopStage" class="shop-cat-filter" aria-label="Bildungsstufe"><option value="">🎓 Alle Stufen</option></select>
           <label class="tag-filter-mode">
             <input type="checkbox" id="shopOnlyShared" />
             <span>nur an mich geteilt</span>
@@ -785,6 +793,11 @@
                 <div id="tagAreaChoices" class="tag-picker"></div>
               </div>
             </div>
+            <div class="form-group">
+              <label>Steht für Kategorie(n) <button type="button" class="help-hint" data-help="kategorien#tags-und-kategorien" title="Hilfe: Tags und Kategorien" aria-label="Hilfe: Tags und Kategorien">?</button></label>
+              <span class="hint">Lernthemen mit diesem Tag gelten als so eingeordnet – z. B. Tag „TIA-Portal“ → SPS-Programmierung.</span>
+              <div id="tagCategories"></div>
+            </div>
             <div class="form-actions">
               <button type="submit" class="btn btn-primary">Speichern</button>
               <button type="button" class="btn btn-secondary hidden" id="btnCancelTag">Abbrechen</button>
@@ -974,6 +987,11 @@
                   <div id="schoolTagAreaChoices" class="tag-picker"></div>
                 </div>
               </div>
+              <div class="form-group">
+                <label>Steht für Kategorie(n)</label>
+                <span class="hint">Lernthemen mit diesem Tag gelten als so eingeordnet.</span>
+                <div id="schoolTagCategories"></div>
+              </div>
               <div class="form-actions">
                 <button type="submit" class="btn btn-primary">Speichern</button>
                 <button type="button" class="btn btn-secondary hidden" id="schoolBtnCancelTag">Abbrechen</button>
@@ -1006,6 +1024,16 @@
           </div>
         </div>
         <div id="adminGroupsContainer" class="topics-list"></div>
+      </section>
+
+      <section class="view" id="view-admin-categories">
+        <div class="view-header">
+          <h2>🗂 Kategorien <button type="button" class="help-hint" data-help="kategorien#fuer-admins" title="Hilfe: Kategorien pflegen" aria-label="Hilfe: Kategorien pflegen">?</button></h2>
+          <p class="subtitle">Fach und Bildungsstufe – für alle Lehrkräfte gleich, damit Material im Shop und über verbundene Server
+            hinweg gefunden wird. Ebene 1 kommt von OpenEduHub, darunter eine gemeinsame Liste; ergänzen, bestätigen und
+            ausblenden geht hier.</p>
+        </div>
+        <div class="settings-panel" id="adminCategoriesContent"></div>
       </section>
 
       <section class="view" id="view-admin-whitelist">

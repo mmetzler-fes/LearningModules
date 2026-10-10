@@ -44,4 +44,11 @@ export class Tag extends BaseEntity {
   /** Themengebiete, zu denen dieser Tag gehört (nur bei normalen Tags). */
   @Column('simple-json', { nullable: true })
   areaIds: string[] | null;
+
+  /**
+   * Kategorien, für die dieser Tag steht: Jedes Lernthema mit diesem Tag gilt
+   * als so eingeordnet (z. B. Tag „TIA-Portal“ → SPS-Programmierung).
+   */
+  @Column('simple-json', { nullable: true })
+  categoryIds: string[] | null;
 }

@@ -2,6 +2,7 @@ import { escapeHtml, escapeAttr, showImportReport } from '../utils.js';
 import { pickClass } from './classes.js';
 import { TagPicker, chipHtml } from './tags.js';
 import { openFeedbackDialog } from './feedback.js';
+import { CategoryPicker, openCategoryDialog } from './categories.js';
 
 // ==================== NOTEBOOKS ====================
 //
@@ -535,6 +536,7 @@ export class NotebooksView {
     items.push({ label: '📋 Kopieren', run: () => this._copyNode(node) });
     items.push({ label: '✏️ Umbenennen', run: () => this._renameNode(node) });
     items.push({ label: '🏷 Tags', title: 'Tags vererben sich auf alle Lernthemen darunter', run: () => this._editNodeTags(node) });
+    items.push({ label: '🗂 Alles darin einordnen…', title: 'Fach und Bildungsstufe für alle eigenen Lernthemen darin', run: () => this._categorizeNode(node) });
     items.push('-');
     items.push({ label: '🗑 Löschen', danger: true, run: () => this._deleteNode(node) });
     return items;
@@ -555,6 +557,7 @@ export class NotebooksView {
       { label: '↔️ Verschieben nach…', run: () => this._moveTopicDialog(topic) },
       { label: '📋 Kopieren', run: () => this._copyTopic(topic) },
       { label: '✏️ Umbenennen / Beschreibung', run: () => this._editTopic(topic) },
+      { label: '🗂 Einordnen…', title: 'Fach und Bildungsstufe – für alle gleich, damit andere es im Shop finden', run: () => this._categorizeTopic(topic) },
       ...(fromShop ? [this._rateItem(topic.id, '⭐ Original bewerten')] : []),
       '-',
       { label: '🗑 Löschen', danger: true, run: async () => { if (await this.app.topicsView.deleteTopic(topic)) this.refresh(); } },
@@ -702,6 +705,38 @@ export class NotebooksView {
     await this.refresh();
   }
 
+  /** Fach und Bildungsstufe eines eigenen Lernthemas. */
+  async _categorizeTopic(topic) {
+    const res = await openCategoryDialog(this.app, {
+      title: `🗂 Einordnen: <em>${escapeHtml(topic.title)}</em>`,
+      intro: 'Fach und Bildungsstufe sind für alle gleich – so finden andere dein Material im Shop.',
+      selected: topic.categoryIds || [],
+    });
+    if (!res) return;
+    const saved = await this.app.api.saveTopic({ id: topic.id, categoryIds: res.ids }, true);
+    if (failed(saved)) { this.app.showToast('Fehler: ' + (saved?.message || 'Speichern fehlgeschlagen'), 'error'); return; }
+    this.app.showToast('Eingeordnet', 'success');
+    await this.refresh();
+  }
+
+  /** Alle eigenen Lernthemen eines Books, Bereichs oder Abschnitts auf einmal einordnen. */
+  async _categorizeNode(node) {
+    const res = await openCategoryDialog(this.app, {
+      title: `🗂 Alles in ${KIND[node.kind].icon} <em>${escapeHtml(node.title)}</em> einordnen`,
+      intro: 'Die gewählten Kategorien kommen zu allen eigenen Lernthemen darin dazu – auch in Unterordnern. Was die Lernthemen schon tragen, bleibt. „Entfernen“ nimmt die gewählten wieder weg.',
+      actions: [
+        { id: 'add', label: '➕ Hinzufügen', primary: true },
+        { id: 'remove', label: '➖ Entfernen', danger: true },
+      ],
+    });
+    if (!res) return;
+    if (!res.ids.length) { this.app.showToast('Bitte mindestens eine Kategorie wählen.', 'error'); return; }
+    const out = await this.app.api.categorizeNode(node.id, res.ids, res.action);
+    if (failed(out)) { this.app.showToast('Fehler: ' + (out?.message || '?'), 'error'); return; }
+    this.app.showToast(`${out.topics} Lernthem${out.topics === 1 ? 'a' : 'en'} ${res.action === 'add' ? 'eingeordnet' : 'geändert'}.`, 'success');
+    await this.refresh();
+  }
+
   /** Titel, Beschreibung und Tags eines eigenen Lernthemas. */
   async _editTopic(topic) {
     // Geerbte Tags kommen vom Platz und lassen sich hier nicht abwählen.
@@ -714,6 +749,7 @@ export class NotebooksView {
         <label class="nb-field">Titel<input type="text" name="title" maxlength="200" required value="${escapeAttr(topic.title)}" /></label>
         <label class="nb-field">Beschreibung<textarea name="description" rows="3">${escapeHtml(topic.description || '')}</textarea></label>
         ${inherited.length ? `<div class="nb-field">Geerbt von Book, Bereich oder Abschnitt<span>${this._chips(inherited)}</span></div>` : ''}
+        <div class="nb-field">Fach und Bildungsstufe<div class="nb-cats"></div></div>
         <div class="nb-field">Eigene Tags<div class="nb-tags"></div></div>
         <div class="confirm-actions">
           <button type="submit" class="btn btn-primary">Speichern</button>
@@ -723,6 +759,8 @@ export class NotebooksView {
     document.body.appendChild(overlay);
     const picker = new TagPicker(this.app, overlay.querySelector('.nb-tags'));
     picker.render((topic.tagIds || []).filter((id) => !inherited.includes(id)));
+    const cats = new CategoryPicker(this.app, overlay.querySelector('.nb-cats'));
+    cats.render(topic.categoryIds || []);
     const close = () => overlay.remove();
     overlay.querySelector('.btn-cancel').addEventListener('click', close);
     overlay.querySelector('form').addEventListener('submit', async (e) => {
@@ -733,6 +771,7 @@ export class NotebooksView {
         title: form.title.value.trim(),
         description: form.description.value.trim(),
         tagIds: [...new Set([...picker.selectedIds, ...inherited])],
+        categoryIds: cats.selectedIds,
       }, true);
       if (failed(res)) { this.app.showToast('Fehler: ' + (res?.message || 'Speichern fehlgeschlagen'), 'error'); return; }
       close();

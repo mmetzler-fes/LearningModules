@@ -14,6 +14,7 @@ import { NotebookPlacement } from '../core/entities/notebook-placement.entity';
 import { ContentFeedback } from '../core/entities/content-feedback.entity';
 import { AccountsModule } from '../accounts/accounts.module';
 import { UsageModule } from '../impact/usage.module';
+import { CategoriesModule } from '../categories/categories.module';
 import { ShopService } from './shop.service';
 import { ShopController } from './shop.controller';
 import { RightsMigrationService } from './rights-migration.service';
@@ -26,6 +27,7 @@ import { RightsMigrationService } from './rights-migration.service';
     ]),
     AccountsModule,
     UsageModule,
+    CategoriesModule,
   ],
   controllers: [ShopController],
   providers: [ShopService, RightsMigrationService],

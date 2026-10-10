@@ -1,3 +1,4 @@
+import { CategoriesService } from '../categories/categories.service';
 import { Injectable, NotFoundException, ConflictException, BadRequestException, OnModuleInit, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
@@ -19,7 +20,7 @@ interface TagScope {
   schoolId: string | null;
 }
 
-type TagData = { name?: string; color?: string; isArea?: boolean; areaIds?: string[] };
+type TagData = { name?: string; color?: string; isArea?: boolean; areaIds?: string[]; categoryIds?: string[] };
 
 const schoolOwner = (schoolId: string) => `school:${schoolId}`;
 
@@ -34,6 +35,7 @@ export class TagsService implements OnModuleInit {
     @InjectRepository(LearningModule) private readonly moduleRepo: Repository<LearningModule>,
     @InjectRepository(User) private readonly userRepo: Repository<User>,
     private readonly schools: SchoolsService,
+    private readonly categories: CategoriesService,
   ) {}
 
   /**
@@ -126,6 +128,7 @@ export class TagsService implements OnModuleInit {
         isArea: !!tag.isArea,
         isSchoolTag: !!tag.schoolId,
         areaIds: tag.isArea ? [] : (tag.areaIds || []).filter((id) => areas.has(id)),
+        categoryIds: tag.categoryIds || [],
         topicCount: topics.filter((t) => (t.tagIds || []).includes(tag.id)).length,
         linkCount: links.filter((l) => (l.tagIds || []).includes(tag.id)).length,
         // Module erben die Tags ihres Themas – sie zählen also mit.
@@ -219,7 +222,7 @@ export class TagsService implements OnModuleInit {
     if (dirty.length) await this.tagRepo.save(dirty);
   }
 
-  private async createIn(scope: TagScope, data: TagData, user?: any) {
+  private async createIn(scope: TagScope, data: TagData, user?: any, catUser: any = user) {
     const name = this.normalize(data?.name || '');
     await this.assertNameFree(scope, name, undefined, user);
     const id = crypto.randomUUID();
@@ -232,6 +235,7 @@ export class TagsService implements OnModuleInit {
       schoolId: scope.schoolId,
       isArea,
       areaIds: isArea ? null : await this.sanitizeAreaIds(scope, data?.areaIds, id, user),
+      categoryIds: catUser ? await this.categories.clean(data?.categoryIds, catUser) : null,
     });
     return this.tagRepo.save(tag);
   }
@@ -242,7 +246,7 @@ export class TagsService implements OnModuleInit {
     return tag;
   }
 
-  private async updateIn(scope: TagScope, id: string, data: TagData, user?: any) {
+  private async updateIn(scope: TagScope, id: string, data: TagData, user?: any, catUser: any = user) {
     const tag = await this.findIn(scope, id);
     if (data?.name !== undefined) {
       const name = this.normalize(data.name);
@@ -258,6 +262,8 @@ export class TagsService implements OnModuleInit {
     }
     if (tag.isArea) tag.areaIds = null;
     else if (data?.areaIds !== undefined) tag.areaIds = await this.sanitizeAreaIds(scope, data.areaIds, id, user);
+    // Wofür der Tag steht: Lernthemen mit diesem Tag gelten als so eingeordnet.
+    if (data?.categoryIds !== undefined && catUser) tag.categoryIds = await this.categories.clean(data.categoryIds, catUser, tag.categoryIds);
     return this.tagRepo.save(tag);
   }
 
@@ -295,11 +301,11 @@ export class TagsService implements OnModuleInit {
   // ---- Tag-Struktur der Schule (Schuladmin) ----
 
   async createSchoolTag(user: any, data: TagData) {
-    return this.createIn(await this.schoolScope(user), data);
+    return this.createIn(await this.schoolScope(user), data, undefined, user);
   }
 
   async updateSchoolTag(id: string, user: any, data: TagData) {
-    return this.updateIn(await this.schoolScope(user), id, data);
+    return this.updateIn(await this.schoolScope(user), id, data, undefined, user);
   }
 
   async removeSchoolTag(id: string, user: any) {

@@ -433,6 +433,20 @@ export class BrowserApi {
   /** Buchungen des früheren Punktekontos (bis Oktober 2026). */
   getPointsHistory() { return this._fetch('/api/shop/points'); }
 
+  // ---------- Kategorien (Fach, Bildungsstufe) ----------
+  getCategories() { return this._fetch('/api/categories'); }
+  getCategoryUsage() { return this._fetch('/api/categories/usage'); }
+  /** { parentId, label } – Admin auch { facet, label } ganz oben. */
+  proposeCategory(body) { return this._fetch('/api/categories', { method: 'POST', body: JSON.stringify(body) }); }
+  /** Admin: { label?, status?: 'active' | 'hidden' } */
+  updateCategory(id, body) { return this._fetch(`/api/categories/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(body) }); }
+  mergeCategory(id, into) { return this._fetch(`/api/categories/${encodeURIComponent(id)}/merge`, { method: 'POST', body: JSON.stringify({ into }) }); }
+  deleteCategory(id) { return this._fetch(`/api/categories/${encodeURIComponent(id)}`, { method: 'DELETE' }); }
+  /** Alle eigenen Lernthemen in einem Book, Bereich oder Abschnitt: mode 'add' | 'remove'. */
+  categorizeNode(nodeId, categoryIds, mode = 'add') {
+    return this._fetch(`/api/categories/nodes/${encodeURIComponent(nodeId)}`, { method: 'POST', body: JSON.stringify({ categoryIds, mode }) });
+  }
+
   // ---------- Nutzung und Bewertung ----------
   getMyImpact() { return this._fetch('/api/impact/mine'); }
   getCreatorImpact(userId) { return this._fetch(`/api/impact/creators/${encodeURIComponent(userId)}`); }

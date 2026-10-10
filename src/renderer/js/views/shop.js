@@ -1,5 +1,6 @@
 import { escapeHtml, escapeAttr } from '../utils.js';
 import { openFeedbackDialog, ratingBadge } from './feedback.js';
+import { CategoryPicker, categoryChips, categoryOptions, ensureCategories, withDescendants } from './categories.js';
 
 // ==================== LERNMODULE-SHOP ====================
 //
@@ -55,6 +56,8 @@ export class ShopView {
     this._creatorFilter = null;
     this._search = document.getElementById('shopSearch');
     this._onlyShared = document.getElementById('shopOnlyShared');
+    this._subject = document.getElementById('shopSubject');
+    this._stage = document.getElementById('shopStage');
     this._filterBar = document.getElementById('shopFilterBar');
 
     document.querySelectorAll('#view-teacher-shop .admin-tab').forEach((btn) => {
@@ -62,6 +65,8 @@ export class ShopView {
     });
     this._search?.addEventListener('input', () => this._renderOffers());
     this._onlyShared?.addEventListener('change', () => this._renderOffers());
+    this._subject?.addEventListener('change', () => this._renderOffers());
+    this._stage?.addEventListener('change', () => this._renderOffers());
   }
 
   async refresh() {
@@ -94,7 +99,8 @@ export class ShopView {
     this._content.innerHTML = '<p class="hint">Wird geladen…</p>';
     try {
       if (this._tab === 'offers') {
-        this._catalog = await this.app.api.getShopOffers();
+        [this._catalog] = await Promise.all([this.app.api.getShopOffers(), ensureCategories(this.app)]);
+        this._fillCategoryFilters();
         this._renderOffers();
       } else if (this._tab === 'mine') {
         await this._renderMine();
@@ -114,8 +120,13 @@ export class ShopView {
     const q = (this._search?.value || '').toLowerCase().trim();
     const onlyShared = !!this._onlyShared?.checked;
     const creator = this._creatorFilter;
+    // „Elektrotechnik“ findet auch alles darunter, etwa „SPS-Programmierung“.
+    const subject = this._subject?.value ? withDescendants(this.app, [this._subject.value]) : null;
+    const stage = this._stage?.value ? withDescendants(this.app, [this._stage.value]) : null;
     const list = all.filter((o) => {
       if (onlyShared && !o.sharedWithMe) return false;
+      if (subject && !(o.categoryIds || []).some((id) => subject.has(id))) return false;
+      if (stage && !(o.categoryIds || []).some((id) => stage.has(id))) return false;
       if (creator && !(o.creatorList || []).some((c) => c.id === creator.id)) return false;
       if (!q) return true;
       return [o.title, o.description, o.sellerName, ...o.modules.map((m) => m.title)]
@@ -133,6 +144,17 @@ export class ShopView {
       return;
     }
     for (const offer of list) this._content.appendChild(this._offerCard(offer));
+  }
+
+  /** Fach- und Stufen-Auswahl: nur, was in den Angeboten vorkommt (samt Oberbegriffen). */
+  _fillCategoryFilters() {
+    const used = new Set((this._catalog?.offers || []).flatMap((o) => o.categoryIds || []));
+    for (const [sel, facet, all] of [[this._subject, 'subject', '📚 Alle Fächer'], [this._stage, 'stage', '🎓 Alle Stufen']]) {
+      if (!sel) continue;
+      const current = sel.value;
+      sel.innerHTML = `<option value="">${all}</option>` + categoryOptions(this.app, facet, { onlyUsed: used });
+      sel.value = [...sel.options].some((o) => o.value === current) ? current : '';
+    }
   }
 
   /** Freundlicher Hinweis für alle, die viel übernommen und noch nichts geteilt haben. */
@@ -203,6 +225,7 @@ export class ShopView {
         <div class="topic-card-info">
           <h3 class="topic-card-title">${scope.icon} ${escapeHtml(o.title)}</h3>
           <p class="topic-card-desc">${escapeHtml(o.description || '')}</p>
+          ${(o.categoryIds || []).length ? `<div class="shop-cats">${categoryChips(this.app, o.categoryIds)}</div>` : ''}
           <div class="topic-card-meta">
             <span class="topic-shared-badge" title="${o.scopeType === 'node' ? 'Kommt beim Anbieter etwas dazu, gehört es bei Use automatisch dazu' : ''}">${scope.label}${o.scopeType !== 'topic' ? ` · ${o.topicCount} Lernthem${o.topicCount === 1 ? 'a' : 'en'}` : ''}</span>
             <span class="topic-module-count">${o.modules.length} Modul${o.modules.length === 1 ? "" : "e"}</span>
@@ -322,7 +345,7 @@ export class ShopView {
   // ---- Meine Angebote ----
 
   async _renderMine() {
-    const [offers, topics] = await Promise.all([this.app.api.getMyOffers(), this.app.api.getTopics()]);
+    const [offers, topics] = await Promise.all([this.app.api.getMyOffers(), this.app.api.getTopics(), ensureCategories(this.app)]);
     this._content.innerHTML = '';
 
     const intro = document.createElement('p');
@@ -370,6 +393,9 @@ export class ShopView {
               <span class="topic-shared-badge">${this._audienceText(o.audience)}</span>
               ${o.kind === 'creator' && o.copyCount ? `<span class="topic-shared-badge">📋 ${o.copyCount}× kopiert</span>` : ''}
             </div>
+            <div class="shop-cats">${(o.categoryIds || []).some((id) => this.app.state.categoryById?.get(id)?.facet === 'subject')
+              ? categoryChips(this.app, o.categoryIds)
+              : `${categoryChips(this.app, o.categoryIds)}<span class="topic-status inactive" title="Ohne Fach findet es im Shop kaum jemand – beim nächsten Speichern ist eins nötig">📚 noch kein Fach</span>`}</div>
             ${this._holdersHtml(o.holders)}
           </div>
           <div class="topic-card-actions">
@@ -573,6 +599,12 @@ export class ShopView {
           <span><strong>Erworbene Module mit anbieten</strong> – nur zur Nutzung (Use), kopieren lassen sie sich nicht.
             Ihre Nutzung zählt für ihre Creator.</span></label>` : ''}
 
+        <div class="form-group">
+          <label>Einordnung – mindestens ein Fach <button type="button" class="help-hint" data-help="kategorien" title="Hilfe: Kategorien" aria-label="Hilfe: Kategorien">?</button></label>
+          ${(state.topicCategoryIds || []).length ? '<span class="hint">Was nach dem + steht, kommt schon aus den Lernthemen (oder ihren Tags) und zählt mit.</span>' : ''}
+          <div class="co-cats"></div>
+        </div>
+
         <div class="shop-mode-row">
           <label class="share-flag"><input type="checkbox" id="coUse" ${!offer || offer.allowUse ? 'checked' : ''} />
             <span><strong>Use</strong> – Original verwenden${foreign ? ' (eigene und erworbene)' : ''}</span></label>
@@ -620,6 +652,8 @@ export class ShopView {
         </div>
       </div>`;
     document.body.appendChild(overlay);
+    const catPicker = new CategoryPicker(this.app, overlay.querySelector('.co-cats'), { fixed: state.topicCategoryIds || [] });
+    catPicker.render(offer?.categoryIds || []);
 
     const close = () => overlay.remove();
     const done = (msg) => {
@@ -674,6 +708,7 @@ export class ShopView {
         allowUse: overlay.querySelector('#coUse').checked,
         allowCopy: overlay.querySelector('#coCopy').checked,
         audience: audience.length ? audience : ['*'],
+        categoryIds: catPicker.selectedIds,
         active: true,
       };
       const res = await api.saveOffer(body);

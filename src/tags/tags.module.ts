@@ -1,3 +1,4 @@
+import { CategoriesModule } from '../categories/categories.module';
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { TagsService } from './tags.service';
@@ -10,7 +11,7 @@ import { User } from '../core/entities/user.entity';
 import { SchoolsModule } from '../core/schools/schools.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Tag, LearningTopic, TopicLink, LearningModule, User]), SchoolsModule],
+  imports: [TypeOrmModule.forFeature([Tag, LearningTopic, TopicLink, LearningModule, User]), SchoolsModule, CategoriesModule],
   controllers: [TagsController],
   providers: [TagsService],
   exports: [TagsService],

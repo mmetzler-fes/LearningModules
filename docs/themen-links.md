@@ -220,19 +220,16 @@ Entitäten: `TopicLink` (`src/core/entities/topic-link.entity.ts`) und `Tag`.
 Die Auswahl steht als JSON im Feld `selection`; aufgelöst wird sie in
 `LinksService.resolveModules()`.
 
-## Start-Link (.lnk) und Rechnername
+## Link als Datei (.html)
 
-Im Dialog **🔗 Link & QR** lädt **💾 Start-Link (.lnk)** eine
-Windows-Verknüpfung herunter. Doppelklick öffnet den Link im Standardbrowser
-(über `explorer.exe` – geht auch ohne cmd/PowerShell). Praktisch für
-Klassenarbeiten: Schüler müssen nichts abtippen.
+Im Dialog **🔗 Link & QR** speichert **💾 Als Datei (.html)** eine kleine
+Datei, die beim Öffnen sofort zum Link springt. Zum Ablegen auf dem
+Schul-Laufwerk, in Moodle, Teams oder im Klassenordner: Schüler öffnen sie per
+Doppelklick im Standardbrowser und müssen nichts abtippen.
 
-Die Verknüpfung hängt `&pc=%COMPUTERNAME%` an die Adresse. Setzt Windows den
-Rechnernamen ein, merkt sich die App ihn für die Sitzung und speichert ihn bei
-jedem Ergebnis (auch in der Quiz-Arena); die Ergebnisliste zeigt ihn als
-„💻 R204-PC07“ neben der IP-Adresse. Kommt der Platzhalter unersetzt an, wird
-er ignoriert. Erlaubt sind nur Zeichen aus Rechnernamen (`A-Z a-z 0-9 . _ -`).
-Wie die IP-Adresse geht der Rechnername nicht in Ergebnis-Exporte.
+Die Datei enthält nur den Link – Name und Klasse stehen im Dateinamen und im
+Titel. Wird der Link neu erzeugt oder zurückgezogen, führt auch die Datei ins
+Leere; dann eine neue speichern.
 
-Ein QR-Code oder ein angeklickter Link kann den Rechnernamen nicht liefern –
-nur Windows setzt `%COMPUTERNAME%` ein, und nur beim Start einer Verknüpfung.
+Ältere Ergebnisse aus der Zeit des Start-Links (.lnk) zeigen noch den
+Rechnernamen („💻 R204-PC07“); neue bekommen keinen mehr.

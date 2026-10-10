@@ -87,6 +87,22 @@ dazu; wer sich erneut so anmeldet, landet beim selben Eintrag. Für
 Nachzügler strikt kurz ausschalten, anmelden lassen, wieder einschalten und
 den Eintrag bestätigen oder zuordnen.
 
+### Testschüler
+
+Um einen Klassenlink selbst durchzuspielen, braucht es keinen Eintrag in der
+Schülerliste: **🏫 Klassen → 🧪 Testschüler** – Name (z. B. „Test Kai“) und
+ein eigenes Testpasswort (mindestens 4 Zeichen) einmal festlegen.
+
+- Er gilt für **alle eigenen Klassenlinks**, auch bei 🔒 strikter Anmeldung,
+  und an jedem Gerät, auch am Schüler-PC.
+- Auf der Startseite den Namen eingeben (Groß/klein egal) → die Seite fragt
+  nach dem **🧪 Testpasswort** → los. Ein Passwort des Links gilt zusätzlich.
+- Das Ergebnis heißt „🧪 Test Kai“ und steht unter **📊 Ergebnisse** – nicht
+  in der Klassenauswertung und nicht unter „Geteilt & genutzt“.
+- Das Testpasswort wird nur als Hash gespeichert; ändern geht jederzeit
+  (Feld leer lassen behält das bisherige), **Entfernen** schaltet den
+  Testschüler ab.
+
 ## Klassen einlesen (SchülerLernTool)
 
 Im SchülerLernTool unter **Eigenschaften → 🎓 Klassen für LearningModules

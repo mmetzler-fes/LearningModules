@@ -13,6 +13,7 @@ import { CompanionService } from '../companion/companion.service';
 import { ClassesService } from '../classes/classes.service';
 import { TimingsService } from '../timings/timings.service';
 import { UsageService } from '../impact/usage.service';
+import { isTestStudent } from '../classes/test-student';
 import { forStudents, contentOf } from '../core/public/student-view';
 import { baseUrl, renderQr } from '../core/share/link-url';
 import { cleanPcName } from '../core/public/pc-name';
@@ -392,7 +393,7 @@ export class ContestService implements OnModuleDestroy {
 
   async join(
     token: string,
-    body: { studentName?: string; password?: string; playerId?: string; secret?: string; pcName?: string },
+    body: { studentName?: string; password?: string; playerId?: string; secret?: string; pcName?: string; testPassword?: string },
     ip: string | null,
   ) {
     const link = await this.linkByToken(token);
@@ -421,7 +422,7 @@ export class ContestService implements OnModuleDestroy {
     let label = name;
     const klasse = await this.classesService.findById(link.classId);
     if (klasse) {
-      const who = await this.classesService.resolveStudent(klasse, name);
+      const who = await this.classesService.resolveStudent(klasse, name, body?.testPassword ? String(body.testPassword) : undefined);
       studentId = who.studentId;
       name = who.name.slice(0, MAX_NAME);
       label = who.shortName.slice(0, MAX_NAME) || name;
@@ -607,7 +608,10 @@ export class ContestService implements OnModuleDestroy {
       });
     });
     if (rows.length) await this.resultRepo.save(rows);
-    for (const r of rows) await this.usageService.recordRunSafely({ teacherId: r.teacherId, classId: r.classId, details: r.payload?.details });
+    for (const r of rows) {
+      if (isTestStudent(r.studentId)) continue;
+      await this.usageService.recordRunSafely({ teacherId: r.teacherId, classId: r.classId, details: r.payload?.details });
+    }
   }
 
   // ---- Zustand senden ----

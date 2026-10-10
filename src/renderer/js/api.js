@@ -157,11 +157,11 @@ export class BrowserApi {
   }
 
   /** Durchlauf starten: prüft Name, Passwort und Modus und liefert die Module. */
-  startLinkRun(token, { studentName, password, mode }) {
+  startLinkRun(token, { studentName, password, mode, testPassword }) {
     return fetch(`/api/public/link/${encodeURIComponent(token)}/start`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ studentName, password, mode }),
+      body: JSON.stringify({ studentName, password, mode, testPassword }),
     }).then((r) => r.json());
   }
 
@@ -303,7 +303,7 @@ export class BrowserApi {
     return this._publicPost(`/api/public/contest/host/${encodeURIComponent(hostToken)}/${action}`, body);
   }
   contestJoin(token, body) {
-    return this._publicPost(`/api/public/contest/${encodeURIComponent(token)}/join`, { ...body, pcName: pcName() });
+    return this._publicPost(`/api/public/contest/${encodeURIComponent(token)}/join`, body);
   }
   contestAnswer(token, body) {
     return this._publicPost(`/api/public/contest/${encodeURIComponent(token)}/answer`, body);
@@ -313,7 +313,7 @@ export class BrowserApi {
     return fetch('/api/public/results', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...data, pcName: pcName() }),
+      body: JSON.stringify(data),
     }).then((r) => r.json());
   }
 
@@ -446,6 +446,11 @@ export class BrowserApi {
   categorizeNode(nodeId, categoryIds, mode = 'add') {
     return this._fetch(`/api/categories/nodes/${encodeURIComponent(nodeId)}`, { method: 'POST', body: JSON.stringify({ categoryIds, mode }) });
   }
+
+  // ---------- Testschüler (docs/klassen-und-schuljahr.md) ----------
+  getTestStudent() { return this._fetch('/api/classes/test-student'); }
+  saveTestStudent(body) { return this._fetch('/api/classes/test-student', { method: 'PUT', body: JSON.stringify(body) }); }
+  removeTestStudent() { return this._fetch('/api/classes/test-student', { method: 'DELETE' }); }
 
   // ---------- Inhalte übergeben (docs/uebergabe.md) ----------
   getHandovers() { return this._fetch('/api/handovers'); }
@@ -882,11 +887,6 @@ export class BrowserApi {
  * weil der Download eine Authorization-Kopfzeile braucht – ein einfacher
  * Link zum Endpunkt käme ohne Token an.
  */
-/** Rechnername aus dem Start-Link dieser Sitzung (siehe app.js), sonst undefined. */
-function pcName() {
-  try { return sessionStorage.getItem('lm_pc') || undefined; } catch (_) { return undefined; }
-}
-
 export function downloadBlob(blob, filename) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');

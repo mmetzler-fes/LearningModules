@@ -1,6 +1,7 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
+import { isTestStudent } from '../classes/test-student';
 import { Result } from '../core/entities/result.entity';
 import { ClassesService } from '../classes/classes.service';
 import { isExpired } from '../classes/retention';
@@ -54,7 +55,9 @@ export class ResultsService {
       where: { classId, teacherId: user.userId },
       order: { createdAt: 'DESC' },
     });
-    return { class: klasse, results: results.map(resultView) };
+    // Testläufe der Lehrkraft (🧪) gehören nicht in die Klassenauswertung –
+    // sie stehen unter „Ergebnisse“.
+    return { class: klasse, results: results.filter((r) => !isTestStudent(r.studentId)).map(resultView) };
   }
 
   async findAll(user: any) {

@@ -347,6 +347,13 @@ export class LoginView {
 
     const nameInput = document.getElementById('linkEntryName');
     nameInput?.focus();
+    // Testschüler der Lehrkraft: Das Feld erscheint erst, wenn der Server danach fragt.
+    const testGroup = document.getElementById('linkEntryTestPwGroup');
+    const testInput = document.getElementById('linkEntryTestPassword');
+    const askTestPassword = () => {
+      testGroup?.classList.remove('hidden');
+      testInput?.focus();
+    };
 
     const form = document.getElementById('linkEntryForm');
     const errText = document.getElementById('linkEntryFormError');
@@ -357,24 +364,27 @@ export class LoginView {
       const studentName = nameInput.value.trim();
       if (!studentName) return;
       const password = pwInput ? pwInput.value : '';
+      const testPassword = testGroup && !testGroup.classList.contains('hidden') ? testInput.value : undefined;
       const mode = multi
         ? form.querySelector('input[name="linkEntryMode"]:checked')?.value
         : info.modes[0];
 
       if (mode === 'contest') {
-        const err = await this.app.contestView.joinAsPlayer(token, { studentName, password });
-        if (err && errText) { errText.textContent = err; errText.classList.remove('hidden'); }
+        const err = await this.app.contestView.joinAsPlayer(token, { studentName, password, testPassword });
+        if (err?.needTestPassword) askTestPassword();
+        if (err && errText) { errText.textContent = err.message; errText.classList.remove('hidden'); }
         return;
       }
 
       let data;
       try {
-        data = await this.app.api.startLinkRun(token, { studentName, password, mode });
+        data = await this.app.api.startLinkRun(token, { studentName, password, mode, testPassword });
       } catch (_) {
         if (errText) { errText.textContent = 'Der Server ist nicht erreichbar.'; errText.classList.remove('hidden'); }
         return;
       }
       if (!data || !data.topics) {
+        if (data?.needTestPassword) askTestPassword();
         if (errText) {
           errText.textContent = data?.message || 'Der Start ist fehlgeschlagen.';
           errText.classList.remove('hidden');

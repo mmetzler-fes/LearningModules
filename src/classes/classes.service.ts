@@ -14,6 +14,7 @@ import { planStudentImport, nameKey, ImportRow } from './student-import';
 import { matchStudent, splitTypedName, normalizeName } from './name-match';
 import { isExpired, deleteAfter, oldestKeptYear } from './retention';
 import { shortName } from './short-name';
+import { hashTestPassword, isTestName, testLabel, testStudentId, verifyTestPassword, MIN_TEST_PASSWORD } from './test-student';
 
 const SCHOOL_YEAR_KEY = 'school_year';
 /** Wann der Admin ins aktuelle Schuljahr gewechselt hat: `{ year, at }` – Grundlage der Löschfrist. */
@@ -203,7 +204,19 @@ export class ClassesService implements OnApplicationBootstrap, OnModuleDestroy {
    * `name` ist der volle Name (für Ergebnisse), `shortName` der Vorname plus
    * nötige Buchstaben des Nachnamens (für Anzeigen wie die Quiz-Arena).
    */
-  async resolveStudent(klasse: StudentClass, typedName: string): Promise<{ studentId: string; name: string; shortName: string }> {
+  async resolveStudent(klasse: StudentClass, typedName: string, testPassword?: string): Promise<{ studentId: string; name: string; shortName: string }> {
+    // Testschüler der Lehrkraft: gilt in allen ihren Klassen, auch strikten.
+    const owner = klasse.ownerId ? await this.userRepo.findOne({ where: { id: klasse.ownerId } }) : null;
+    if (owner?.testStudentName && owner.testStudentSecret && isTestName(typedName, owner.testStudentName)) {
+      if (!testPassword) {
+        throw new ForbiddenException({ statusCode: 403, message: 'Testschüler: bitte das Testpasswort eingeben.', needTestPassword: true });
+      }
+      if (!verifyTestPassword(testPassword, owner.testStudentSecret)) {
+        throw new ForbiddenException({ statusCode: 403, message: 'Falsches Testpasswort.', needTestPassword: true });
+      }
+      const label = testLabel(owner.testStudentName);
+      return { studentId: testStudentId(owner.id), name: label, shortName: label };
+    }
     const students = await this.studentRepo.find({ where: { classId: klasse.id } });
     const found = matchStudent(typedName, students);
     if (found.kind === 'match') {
@@ -235,6 +248,33 @@ export class ClassesService implements OnApplicationBootstrap, OnModuleDestroy {
       name: `${created.firstName} ${created.lastName}`.trim(),
       shortName: shortName(created, [...students, created]),
     };
+  }
+
+  // ---- Testschüler ----
+
+  async getTestStudent(user: any) {
+    const u = await this.userRepo.findOne({ where: { id: user.userId } });
+    return { name: u?.testStudentName || null, hasPassword: !!u?.testStudentSecret };
+  }
+
+  /** `{ name, password? }` – ohne Passwort bleibt das bisherige (nur beim ersten Mal nötig). */
+  async saveTestStudent(user: any, body: any) {
+    const u = await this.userRepo.findOne({ where: { id: user.userId } });
+    if (!u) throw new NotFoundException('Konto nicht gefunden.');
+    const name = String(body?.name || '').replace(/\s+/g, ' ').trim().slice(0, 60);
+    if (normalizeName(name).length < 3) throw new BadRequestException('Bitte einen Namen mit mindestens 3 Buchstaben, z. B. „Test Kai“.');
+    const password = String(body?.password || '');
+    if (password && password.length < MIN_TEST_PASSWORD) throw new BadRequestException(`Das Testpasswort braucht mindestens ${MIN_TEST_PASSWORD} Zeichen.`);
+    if (!password && !u.testStudentSecret) throw new BadRequestException('Bitte ein Testpasswort vergeben.');
+    u.testStudentName = name;
+    if (password) u.testStudentSecret = hashTestPassword(password);
+    await this.userRepo.save(u);
+    return { success: true, name };
+  }
+
+  async removeTestStudent(user: any) {
+    await this.userRepo.update({ id: user.userId }, { testStudentName: null, testStudentSecret: null });
+    return { success: true };
   }
 
   /**

@@ -581,15 +581,18 @@ export class ContestView {
     } catch (_) { /* ohne Wiederaufnahme */ }
   }
 
-  /** Beitritt aus dem Namensformular. Liefert eine Fehlermeldung oder null. */
-  async joinAsPlayer(token, { studentName, password }) {
+  /**
+   * Beitritt aus dem Namensformular. Liefert null oder einen Fehler
+   * `{ message, needTestPassword }` (Testschüler der Lehrkraft).
+   */
+  async joinAsPlayer(token, { studentName, password, testPassword }) {
     let res;
     try {
-      res = await this.app.api.contestJoin(token, { studentName, password });
+      res = await this.app.api.contestJoin(token, { studentName, password, testPassword });
     } catch (_) {
-      return 'Der Server ist nicht erreichbar.';
+      return { message: 'Der Server ist nicht erreichbar.' };
     }
-    if (!res || !res.playerId) return res?.message || 'Beitritt fehlgeschlagen.';
+    if (!res || !res.playerId) return { message: res?.message || 'Beitritt fehlgeschlagen.', needTestPassword: !!res?.needTestPassword };
     this._saveSession(token, { playerId: res.playerId, secret: res.secret, name: res.name });
     this._enterPlayer(token, res);
     return null;

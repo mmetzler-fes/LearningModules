@@ -20,6 +20,23 @@ export class ClassesController {
     return this.classesService.setSchoolYear(req.user, body?.schoolYear);
   }
 
+  /** Mein Testschüler (Name; ob ein Passwort gesetzt ist). */
+  @Get('test-student')
+  async testStudent(@Request() req: any) {
+    return this.classesService.getTestStudent(req.user);
+  }
+
+  /** `{ name, password? }` */
+  @Put('test-student')
+  async saveTestStudent(@Request() req: any, @Body() body: any) {
+    return this.classesService.saveTestStudent(req.user, body);
+  }
+
+  @Delete('test-student')
+  async removeTestStudent(@Request() req: any) {
+    return this.classesService.removeTestStudent(req.user);
+  }
+
   /** Löschregel: Was von mir wird wann gelöscht? */
   @Get('retention')
   async retention(@Request() req: any) {

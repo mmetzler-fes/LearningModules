@@ -15,6 +15,7 @@ import { GroupsService } from '../../groups/groups.service';
 import { CompanionService } from '../../companion/companion.service';
 import { ClassesService } from '../../classes/classes.service';
 import { issueTicket, readTicket } from '../../classes/student-ticket';
+import { isTestStudent } from '../../classes/test-student';
 import { TimingsService } from '../../timings/timings.service';
 import { UsageService } from '../../impact/usage.service';
 import { contentOf, forStudents } from './student-view';
@@ -152,7 +153,7 @@ export class PublicController {
   @Post('link/:token/start')
   async startLink(
     @Param('token') token: string,
-    @Body() body: { studentName?: string; password?: string; mode?: string },
+    @Body() body: { studentName?: string; password?: string; mode?: string; testPassword?: string },
   ) {
     const { link, access } = await this.findAccessByToken(token);
     const allowed = modesFor(link, access);
@@ -183,7 +184,7 @@ export class PublicController {
     const klasse = await this.classesService.findById(link.classId);
     let studentId: string | null = null;
     if (klasse) {
-      const who = await this.classesService.resolveStudent(klasse, studentName);
+      const who = await this.classesService.resolveStudent(klasse, studentName, body?.testPassword);
       studentId = who.studentId;
       studentName = who.name;
     }
@@ -411,8 +412,10 @@ export class PublicController {
     if (link || quickTopicTitle !== null) {
       await this.timingsService.record(body.payload?.details, result.mode).catch(() => undefined);
     }
-    // Wirkung für die Creator: gezählt am Original, ohne Namen.
-    await this.usageService.recordRunSafely({ teacherId: teacher.id, classId: result.classId, details: body.payload?.details });
+    // Wirkung für die Creator: gezählt am Original, ohne Namen – Testläufe der Lehrkraft nicht.
+    if (!isTestStudent(result.studentId)) {
+      await this.usageService.recordRunSafely({ teacherId: teacher.id, classId: result.classId, details: body.payload?.details });
+    }
     return { success: true, id: saved.id };
   }
 }

@@ -65,6 +65,10 @@
               <label for="linkEntryName">Dein Name</label>
               <input type="text" id="linkEntryName" required placeholder="Vor- und Nachname..." autocomplete="off" />
             </div>
+            <div class="form-group hidden" id="linkEntryTestPwGroup">
+              <label for="linkEntryTestPassword">🧪 Testpasswort</label>
+              <input type="password" id="linkEntryTestPassword" placeholder="Passwort deines Testschülers" autocomplete="off" />
+            </div>
             <div class="form-group hidden" id="linkEntryPasswordGroup">
               <label for="linkEntryPassword">Passwort</label>
               <input type="password" id="linkEntryPassword" placeholder="Passwort der Lehrkraft" autocomplete="off" />
@@ -757,6 +761,7 @@
             title="Export „Klassen für LearningModules“ aus dem SchülerLernTool oder eine Tabelle (LibreOffice, Excel, CSV)">📥 Klassen einlesen</button>
           <button class="btn btn-secondary" id="btnClassesTemplate" title="Leere Tabelle mit den passenden Spalten – je Klasse ein Blatt">📄 Vorlage</button>
           <button type="button" class="help-hint" data-help="klassen-und-schuljahr#klassen-einlesen-schuelerlerntool" title="Hilfe: Klassen einlesen" aria-label="Hilfe: Klassen einlesen">?</button>
+          <button class="btn btn-secondary" id="btnTestStudent" title="Eigener Testschüler: Klassenlinks selbst durchspielen, auch bei strikter Anmeldung">🧪 Testschüler</button>
         </div>
         <div id="classesNotices"></div>
         <div id="classesList" class="links-list"></div>
@@ -1319,9 +1324,9 @@
         <button type="button" class="btn btn-secondary" id="btnCopyLinkShareSheet"
           title="Blatt als Bild in die Zwischenablage, z. B. für OneNote">🖼 Als Bild kopieren</button>
         <button type="button" class="btn btn-secondary" id="btnPrintLinkShare">🖨 Drucken</button>
-        <button type="button" class="btn btn-secondary" id="btnSaveLinkShareLnk"
-          title="Windows-Verknüpfung zum Verteilen: öffnet den Link per Doppelklick und meldet, wenn Windows es zulässt, den Rechnernamen mit">💾 Start-Link (.lnk)</button>
-        <button type="button" class="help-hint" data-help="themen-links#start-link-lnk-und-rechnername" title="Hilfe: Start-Link und Rechnername" aria-label="Hilfe: Start-Link und Rechnername">?</button>
+        <button type="button" class="btn btn-secondary" id="btnSaveLinkShareHtml"
+          title="Datei zum Verteilen (z. B. auf dem Schul-Laufwerk oder in Moodle): Doppelklick öffnet den Link im Browser">💾 Als Datei (.html)</button>
+        <button type="button" class="help-hint" data-help="themen-links#link-als-datei-html" title="Hilfe: Link als Datei" aria-label="Hilfe: Link als Datei">?</button>
         <button type="button" class="btn btn-secondary" id="btnRegenLinkShare" title="Alter Link wird ungültig">🔄 Neu</button>
         <button type="button" class="btn btn-danger" id="btnRevokeLinkShare" title="Link abschalten">🚫 Zurückziehen</button>
         <button type="button" class="btn btn-primary" id="btnCloseLinkShare">Fertig</button>

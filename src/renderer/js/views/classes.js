@@ -157,7 +157,57 @@ export class ClassesView {
     this._bindEvents();
   }
 
+  /**
+   * Eigener Testschüler: Name und Passwort, mit denen die Lehrkraft jeden
+   * ihrer Klassenlinks selbst durchspielen kann – auch bei strikter Anmeldung.
+   */
+  async _openTestStudent() {
+    const cur = await this.app.api.getTestStudent();
+    const me = (this.app.state.currentUser?.name || '').split(/\s+/)[0] || '';
+    const overlay = document.createElement('div');
+    overlay.className = 'confirm-overlay';
+    overlay.innerHTML = `
+      <form class="import-modules-card" style="min-width:min(440px,94vw); max-width:560px">
+        <h3>🧪 Testschüler <button type="button" class="help-hint" data-help="klassen-und-schuljahr#testschueler" title="Hilfe: Testschüler" aria-label="Hilfe">?</button></h3>
+        <p class="hint">Mit diesem Namen kommst du über jeden deiner Klassenlinks hinein – auch bei 🔒 strikter Anmeldung,
+          ohne Eintrag in der Schülerliste. Nach dem Namen fragt die Seite nach dem Testpasswort. Deine Testläufe stehen
+          unter „Ergebnisse“ mit 🧪, nicht in der Klassenauswertung.</p>
+        <div class="form-group">
+          <label for="tsName">Name</label>
+          <input type="text" id="tsName" maxlength="60" value="${escapeAttr(cur?.name || (me ? `Test ${me}` : 'Test'))}" required />
+        </div>
+        <div class="form-group">
+          <label for="tsPassword">Testpasswort ${cur?.hasPassword ? '<span class="hint">(leer lassen = bisheriges behalten)</span>' : ''}</label>
+          <input type="password" id="tsPassword" minlength="4" autocomplete="new-password" ${cur?.hasPassword ? '' : 'required'} placeholder="mindestens 4 Zeichen" />
+        </div>
+        <div class="confirm-actions">
+          <button type="submit" class="btn btn-primary">Speichern</button>
+          ${cur?.name ? '<button type="button" class="btn btn-danger" id="tsRemove">Entfernen</button>' : ''}
+          <button type="button" class="btn btn-secondary" id="tsClose">Abbrechen</button>
+        </div>
+      </form>`;
+    document.body.appendChild(overlay);
+    const close = () => overlay.remove();
+    overlay.querySelector('#tsClose').addEventListener('click', close);
+    overlay.querySelector('#tsRemove')?.addEventListener('click', async () => {
+      await this.app.api.removeTestStudent();
+      this.app.showToast('Testschüler entfernt', 'info');
+      close();
+    });
+    overlay.querySelector('form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const res = await this.app.api.saveTestStudent({
+        name: overlay.querySelector('#tsName').value.trim(),
+        password: overlay.querySelector('#tsPassword').value,
+      });
+      if (!res || !res.success) { this.app.showToast('Fehler: ' + (res?.message || '?'), 'error'); return; }
+      this.app.showToast(`Testschüler „${res.name}“ gespeichert – im Klassenlink diesen Namen eingeben.`, 'success');
+      close();
+    });
+  }
+
   _bindEvents() {
+    document.getElementById('btnTestStudent')?.addEventListener('click', () => this._openTestStudent());
     this._yearSelect?.addEventListener('change', () => {
       this._year = this._yearSelect.value;
       this._openId = null;

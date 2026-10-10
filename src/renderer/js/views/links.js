@@ -5,7 +5,6 @@ import { GRADABLE_TYPES } from '../answer-eval.js';
 import { saveRedirectFile } from './contest.js';
 import { pickClass } from './classes.js';
 import { downloadBlob } from '../api.js';
-import { buildUrlShortcut, withPcPlaceholder } from '../lnk.js';
 import { helpHint } from './help-view.js';
 
 // ==================== THEMEN-LINKS ====================
@@ -1019,16 +1018,16 @@ export class LinksView {
       );
     });
 
-    // Windows-Verknüpfung: Doppelklick öffnet den Link; mit &pc=%COMPUTERNAME%
-    // kommt – wenn Windows den Platzhalter einsetzt – der Rechnername mit.
-    document.getElementById('btnSaveLinkShareLnk')?.addEventListener('click', () => {
+    // Als Datei: Eine kleine HTML-Seite, die beim Öffnen sofort zum Link
+    // springt – zum Ablegen auf dem Schul-Laufwerk, in Moodle oder Teams.
+    document.getElementById('btnSaveLinkShareHtml')?.addEventListener('click', () => {
       const url = this._shareData?.url;
       if (!url) return;
-      const title = document.getElementById('linkShareInfo')?.textContent?.trim() || 'LearningModules';
       const d = this._shareData || {};
-      const name = [d.name || 'Start-Link', d.className].filter(Boolean).join(' ').replace(/[\\/:*?"<>|]+/g, '').replace(/\s+/g, '_').slice(0, 60);
-      downloadBlob(new Blob([buildUrlShortcut(withPcPlaceholder(url), title.slice(0, 200))], { type: 'application/octet-stream' }), `${name}.lnk`);
-      this.app.showToast('Start-Link gespeichert – an die Schüler verteilen, Doppelklick öffnet den Link.', 'success');
+      const title = [d.name || 'LearningModules', d.className].filter(Boolean).join(' · ');
+      const name = [d.name || 'Link', d.className].filter(Boolean).join(' ').replace(/[\\/:*?"<>|]+/g, '').replace(/\s+/g, '_').slice(0, 60);
+      downloadBlob(new Blob([redirectHtml(url, title)], { type: 'text/html;charset=utf-8' }), `${name}.html`);
+      this.app.showToast('Datei gespeichert – Doppelklick öffnet den Link im Browser.', 'success');
     });
 
     document.getElementById('btnPrintLinkShare')?.addEventListener('click', () => {
@@ -1060,4 +1059,27 @@ export class LinksView {
       this.refresh();
     });
   }
+}
+
+/**
+ * Kleine HTML-Seite, die sofort zur Adresse weiterleitet – per Meta-Refresh
+ * und Skript, falls eins von beiden gesperrt ist; sonst bleibt ein Link zum
+ * Anklicken.
+ */
+function redirectHtml(url, title) {
+  const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  return `<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="refresh" content="0; url=${esc(url)}">
+<title>${esc(title)}</title>
+<script>location.replace(${JSON.stringify(url).replace(/</g, '\\u003c')});</script>
+</head>
+<body style="font-family: sans-serif; text-align: center; margin-top: 15vh">
+<p>Weiter zu <strong>${esc(title)}</strong> …</p>
+<p><a href="${esc(url)}">Falls nichts passiert: hier klicken</a></p>
+</body>
+</html>
+`;
 }

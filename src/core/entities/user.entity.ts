@@ -141,4 +141,16 @@ export class User extends BaseEntity {
 
   @Column({ nullable: true, type: 'datetime' })
   resetPasswordExpires: Date;
+
+  /**
+   * Testschüler der Lehrkraft (docs/klassen-und-schuljahr.md): Mit diesem
+   * Namen und dem Passwort kommt sie über jeden ihrer Klassenlinks hinein –
+   * auch bei strikter Anmeldung, ohne Eintrag in der Schülerliste. Das
+   * Passwort steht nur als Hash da („salt:hash“, scrypt).
+   */
+  @Column({ type: 'varchar', nullable: true })
+  testStudentName: string | null;
+
+  @Column({ type: 'varchar', nullable: true })
+  testStudentSecret: string | null;
 }

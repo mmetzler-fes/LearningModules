@@ -124,13 +124,26 @@ body {
 /* ===== Login Screen ===== */
 .login-screen {
   display: flex;
-  align-items: center;
+  /* Nicht per align-items zentrieren: Ist die Karte höher als das Fenster
+     (niedriger Bildschirm, Passwort, mehrere Modi), ragte sie oben und unten
+     hinaus – ohne Scrollleiste, der Start-Knopf blieb unerreichbar. Mit
+     margin: auto an der Karte bleibt sie mittig, solange sie passt, und
+     sonst lässt sich scrollen. */
+  align-items: flex-start;
   justify-content: center;
   position: fixed;
   inset: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 16px;
   background: var(--login-bg);
   z-index: 100;
 }
+
+.login-screen > * {
+  margin: auto;
+}
+
 
 .login-card {
   background: var(--bg-secondary);
@@ -4760,3 +4773,14 @@ body {
 .acc-code code { font-size: 1.3em; letter-spacing: 0.12em; padding: 2px 8px; background: var(--accent-light); border-radius: 6px; }
 .acc-auto { margin-top: 4px; font-size: 0.9em; }
 .acc-new h4 { margin: 0 0 4px; }
+
+
+/* Niedrige Bildschirme (Laptop mit Zoom, Handy quer): Kopf der Anmeldekarte
+   kompakter, damit Name, Modi und Start-Knopf möglichst ohne Scrollen passen. */
+@media (max-height: 760px) {
+  .login-card { padding: 24px 28px; }
+  .login-header { margin-bottom: 14px; }
+  .login-logo { font-size: 2rem; margin-bottom: 4px; }
+  .login-header h1 { font-size: 1.4rem; }
+  .login-credit { margin-top: 4px; font-size: 0.7rem; }
+}

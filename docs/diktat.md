@@ -9,13 +9,24 @@ vergleicht Wort für Wort und zeigt jeden Fehler.
 2. Je Satz die **korrekte Schreibweise** eintragen – sie ist zugleich die
    Lösung.
 3. Ton je Satz, in dieser Reihenfolge:
-   - **Audio-Datei** hochladen (MP3, M4A, OGG, WAV – z. B. mit dem Handy
-     aufgenommen), oder
+   - **🎙 Aufnehmen** direkt im Editor: Knopf drücken, Satz sprechen,
+     **⏹ Stopp**. Der Player zeigt die Aufnahme; **🎙 Neu aufnehmen**
+     ersetzt sie. Höchstens 2 Minuten je Aufnahme. Der Browser fragt beim
+     ersten Mal nach dem Mikrofon. Chrome und Firefox nehmen im Format Opus
+     auf – das spielen ältere iPads (vor iOS 17) evtl. nicht ab; der Editor
+     weist darauf hin. Mit Safari aufgenommen (AAC) läuft es überall.
+   - **Audio-Datei** hochladen (MP3, M4A, OGG, WAV, WebM/.weba – z. B. mit
+     dem Handy aufgenommen), oder
    - **Audio-URL**: Link auf eine Audiodatei (https). Nextcloud-Freigabelinks
      (`…/s/<Kürzel>`) werden automatisch zum Direktlink `…/s/<Kürzel>/download`.
      Die Freigabe muss ohne Passwort sein, „Download verbergen“ aus.
    - **nichts**: Der Browser liest den Satz selbst vor (Sprachausgabe in der
-     gewählten Sprache). Die Stimme hängt vom Gerät ab.
+     gewählten Sprache). Die Stimme hängt vom Gerät ab – hat ein Browser
+     keine Stimme für die Sprache (unter Linux häufig), bleibt es still.
+
+   Aufnahme und hochgeladene Datei werden ins Modul eingebettet und kommen
+   bei jeder Kopie mit, auch über [verbundene Server](vernetzung.md). Ein
+   Link bleibt ein Link – die Datei muss dann für alle erreichbar sein.
 4. Einstellungen:
    - **Wie oft darf jeder Satz gehört werden?** 0 = beliebig.
    - **„Langsam abspielen“ anbieten**: zweiter Knopf mit 70 % Tempo.

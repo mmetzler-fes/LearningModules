@@ -625,14 +625,88 @@ class ContentEditorManager {
       preview.innerHTML = '';
       preview.textContent = 'Kein Audio ausgewählt';
       btnRemove.style.display = 'none';
+      btnRec.textContent = '🎙 Aufnehmen';
+      note.textContent = '';
+    });
+
+    // Direkt im Editor aufnehmen: Der Ton landet wie eine hochgeladene Datei
+    // im Modul (data:-URL) – ohne Umweg über Download und Upload.
+    const note = document.createElement('div');
+    note.className = 'audio-field-note hint';
+    const setAudio = (dataUrl) => {
+      hidden.value = dataUrl;
+      preview.innerHTML = `<audio controls src="${dataUrl}" style="width:100%;max-width:320px;"></audio>`;
+      btnRemove.style.display = '';
+    };
+    const btnRec = document.createElement('button');
+    btnRec.type = 'button';
+    btnRec.className = 'btn btn-secondary btn-sm audio-rec-btn';
+    btnRec.textContent = '🎙 Aufnehmen';
+    let rec = null;
+    btnRec.addEventListener('click', async () => {
+      if (rec) { rec.stop(); return; }
+      if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
+        note.textContent = 'Dieser Browser kann nicht aufnehmen – bitte eine Datei auswählen.';
+        return;
+      }
+      let stream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      } catch (_) {
+        note.textContent = 'Kein Zugriff aufs Mikrofon – bitte im Browser erlauben (Schloss-Symbol in der Adresszeile).';
+        return;
+      }
+      // MP4 (AAC) zuerst: Das spielen auch ältere iPads ab. Sonst WebM.
+      const type = ['audio/mp4;codecs=mp4a.40.2', 'audio/mp4', 'audio/webm;codecs=opus', 'audio/webm', 'audio/ogg']
+        .find((t) => MediaRecorder.isTypeSupported?.(t)) || '';
+      const chunks = [];
+      rec = new MediaRecorder(stream, type ? { mimeType: type } : undefined);
+      const started = Date.now();
+      const MAX_MS = 120000;
+      const tick = () => {
+        const sec = Math.floor((Date.now() - started) / 1000);
+        btnRec.textContent = `⏹ Stopp (${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')})`;
+        if (Date.now() - started >= MAX_MS && rec?.state === 'recording') rec.stop();
+      };
+      const timer = setInterval(tick, 250);
+      tick();
+      btnRec.classList.add('recording');
+      btnFile.disabled = true;
+      note.textContent = 'Aufnahme läuft … (höchstens 2 Minuten)';
+      rec.ondataavailable = (e) => { if (e.data && e.data.size) chunks.push(e.data); };
+      rec.onstop = () => {
+        clearInterval(timer);
+        stream.getTracks().forEach((t) => t.stop());
+        const mime = rec.mimeType || type || 'audio/webm';
+        rec = null;
+        btnRec.classList.remove('recording');
+        btnRec.textContent = '🎙 Neu aufnehmen';
+        btnFile.disabled = false;
+        // Ohne Codec-Angabe: „data:audio/mp4;base64,…“ verstehen alle Player.
+        const blob = new Blob(chunks, { type: mime.split(';')[0] });
+        if (!blob.size) { note.textContent = 'Die Aufnahme ist leer – bitte noch einmal.'; return; }
+        const reader = new FileReader();
+        reader.onload = () => {
+          setAudio(reader.result);
+          // AAC (Safari) läuft überall; Opus (Chrome, Firefox – in WebM oder MP4) erst ab iOS 17.
+          const kb = Math.round(blob.size / 1024);
+          note.textContent = /mp4a|aac/i.test(mime) || (/mp4/.test(mime) && !/opus/i.test(mime))
+            ? `Aufgenommen (${kb} KB) – nicht vergessen zu speichern.`
+            : `Aufgenommen (${kb} KB) – nicht vergessen zu speichern. Hinweis: Auf älteren iPads (vor iOS 17) lässt sich diese Aufnahme evtl. nicht abspielen; dafür mit Safari aufnehmen oder eine MP3 auswählen.`;
+        };
+        reader.readAsDataURL(blob);
+      };
+      rec.start();
     });
 
     btnRow.appendChild(btnFile);
+    btnRow.appendChild(btnRec);
     btnRow.appendChild(btnRemove);
 
     wrap.appendChild(hidden);
     wrap.appendChild(preview);
     wrap.appendChild(btnRow);
+    wrap.appendChild(note);
     group.appendChild(wrap);
     parent.appendChild(group);
   }

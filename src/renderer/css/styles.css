@@ -4745,3 +4745,7 @@ body {
 }
 .server-name:empty { display: none; }
 .server-name span { opacity: 0.75; }
+
+/* Aufnahme im Audiofeld des Editors */
+.audio-rec-btn.recording { background: #fee2e2; border-color: #ef4444; color: #b91c1c; }
+.audio-field-note:empty { display: none; }

@@ -5,7 +5,9 @@ import { json, urlencoded } from 'express';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
-  app.use(json({ limit: '50mb' }));
+  // Den rohen Inhalt merken: Signierte Aufrufe verbundener Server werden
+  // über genau diese Bytes geprüft (docs/vernetzung.md).
+  app.use(json({ limit: '50mb', verify: (req: any, _res, buf) => { req.rawBody = buf; } }));
   app.use(urlencoded({ limit: '50mb', extended: true }));
   app.setGlobalPrefix('api');
 

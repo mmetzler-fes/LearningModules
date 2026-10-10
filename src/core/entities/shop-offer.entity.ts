@@ -109,4 +109,11 @@ export class ShopOffer extends BaseEntity {
    */
   @Column('simple-json', { nullable: true })
   categoryIds: string[] | null;
+
+  /**
+   * Auch für verbundene Server (docs/vernetzung.md). Nur bei Angeboten für
+   * alle; hinaus gehen nur die eigenen Module des Anbieters.
+   */
+  @Column({ default: false })
+  federated: boolean;
 }

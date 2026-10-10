@@ -4715,3 +4715,18 @@ body {
 .nb-dialog { max-height: 90vh; overflow: auto; }
 .cat-picker .cat-label { font-weight: 400; margin: 0; }
 .cat-picker .cat-label input { margin: 0; }
+
+/* ==================== VERNETZUNG ==================== */
+.shop-remote-head { margin: 22px 0 8px; font-size: 1.05em; color: var(--text-secondary); }
+.shop-remote { border-left: 4px solid #a78bfa; }
+.topic-shared-badge.remote-badge { background: rgba(139, 92, 246, 0.12); color: #6d28d9; }
+[data-theme="dark"] .topic-shared-badge.remote-badge { color: #c4b5fd; }
+.fed-request { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+.fed-request input { flex: 1; min-width: 240px; }
+.fed-peer { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; margin-bottom: 8px; }
+.fed-peer.fed-pending { border-color: #fcd34d; }
+.fed-peer.fed-inactive { opacity: 0.7; }
+.fed-peer-meta { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-top: 4px; }
+.fed-peer-actions { display: flex; gap: 6px; align-items: flex-start; flex-wrap: wrap; }
+.fed-incoming { border-color: #fcd34d; }
+.fed-fp { font-size: 1.05em; letter-spacing: 0.04em; }

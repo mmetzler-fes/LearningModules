@@ -36,6 +36,10 @@ services:
       APP_SECRET: ${APP_SECRET}
       # Zeitzone für den Zeitplan des automatischen Backups (sonst UTC).
       TZ: Europe/Berlin
+      # Vernetzung mit anderen Servern (docs/vernetzung.md): Die öffentliche
+      # Adresse kommt aus APP_URL. Die Uhr des Hosts muss stimmen (NTP).
+      # Nur zum Ausprobieren ohne https, nie im Betrieb:
+      # FEDERATION_ALLOW_HTTP: "1"
 
 networks:
   proxy-nw:

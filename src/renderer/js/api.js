@@ -447,6 +447,16 @@ export class BrowserApi {
     return this._fetch(`/api/categories/nodes/${encodeURIComponent(nodeId)}`, { method: 'POST', body: JSON.stringify({ categoryIds, mode }) });
   }
 
+  // ---------- Vernetzung (docs/vernetzung.md) ----------
+  getRemoteOffers() { return this._fetch('/api/federation/offers'); }
+  copyRemoteOffer(peerId, offerId) {
+    return this._fetch(`/api/federation/offers/${encodeURIComponent(peerId)}/${encodeURIComponent(offerId)}/copy`, { method: 'POST' });
+  }
+  getFederation() { return this._fetch('/api/admin/federation'); }
+  saveFederationSettings(body) { return this._fetch('/api/admin/federation/settings', { method: 'POST', body: JSON.stringify(body) }); }
+  requestPeer(url) { return this._fetch('/api/admin/federation/peers', { method: 'POST', body: JSON.stringify({ url }) }); }
+  peerAction(id, action) { return this._fetch(`/api/admin/federation/peers/${encodeURIComponent(id)}/${action}`, { method: 'POST' }); }
+
   // ---------- Nutzung und Bewertung ----------
   getMyImpact() { return this._fetch('/api/impact/mine'); }
   getCreatorImpact(userId) { return this._fetch(`/api/impact/creators/${encodeURIComponent(userId)}`); }

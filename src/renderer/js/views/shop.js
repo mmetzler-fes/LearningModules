@@ -57,6 +57,8 @@ export class ShopView {
     this._search = document.getElementById('shopSearch');
     this._onlyShared = document.getElementById('shopOnlyShared');
     this._subject = document.getElementById('shopSubject');
+    this._remoteToggle = document.getElementById('shopRemote');
+    this._remoteToggle?.addEventListener('change', () => this._renderOffers());
     this._stage = document.getElementById('shopStage');
     this._filterBar = document.getElementById('shopFilterBar');
 
@@ -99,7 +101,15 @@ export class ShopView {
     this._content.innerHTML = '<p class="hint">Wird geladen…</p>';
     try {
       if (this._tab === 'offers') {
-        [this._catalog] = await Promise.all([this.app.api.getShopOffers(), ensureCategories(this.app)]);
+        const [catalog, remote] = await Promise.all([
+          this.app.api.getShopOffers(),
+          // Verbundene Server: Fehlt die Vernetzung, bleibt es beim eigenen Shop.
+          this.app.api.getRemoteOffers().catch(() => null),
+          ensureCategories(this.app),
+        ]);
+        this._catalog = catalog;
+        this._remote = Array.isArray(remote?.offers) ? remote.offers : [];
+        document.getElementById('shopRemoteWrap')?.classList.toggle('hidden', !(remote?.peers > 0));
         this._fillCategoryFilters();
         this._renderOffers();
       } else if (this._tab === 'mine') {
@@ -123,32 +133,96 @@ export class ShopView {
     // „Elektrotechnik“ findet auch alles darunter, etwa „SPS-Programmierung“.
     const subject = this._subject?.value ? withDescendants(this.app, [this._subject.value]) : null;
     const stage = this._stage?.value ? withDescendants(this.app, [this._stage.value]) : null;
-    const list = all.filter((o) => {
-      if (onlyShared && !o.sharedWithMe) return false;
+    const match = (o) => {
       if (subject && !(o.categoryIds || []).some((id) => subject.has(id))) return false;
       if (stage && !(o.categoryIds || []).some((id) => stage.has(id))) return false;
-      if (creator && !(o.creatorList || []).some((c) => c.id === creator.id)) return false;
       if (!q) return true;
-      return [o.title, o.description, o.sellerName, ...o.modules.map((m) => m.title)]
+      return [o.title, o.description, o.sellerName, o.peerName, ...o.modules.map((m) => m.title)]
         .some((s) => (s || '').toLowerCase().includes(q));
+    };
+    // Andere Server: nicht bei „an mich geteilt“ und nicht beim Filter nach einer Person von hier.
+    const remote = this._remoteToggle?.checked !== false && !onlyShared && !creator ? (this._remote || []).filter(match) : [];
+    const list = all.filter((o) => {
+      if (onlyShared && !o.sharedWithMe) return false;
+      if (creator && !(o.creatorList || []).some((c) => c.id === creator.id)) return false;
+      return match(o);
     });
 
     this._content.innerHTML = '';
     if (this._catalog?.shareHint) this._content.appendChild(this._shareHint());
     if (creator) this._content.appendChild(this._creatorBanner(creator));
-    if (list.length === 0) {
-      const html = all.length === 0
+    if (list.length === 0 && remote.length === 0) {
+      const html = all.length === 0 && !(this._remote || []).length
         ? '<div class="empty-state"><span class="empty-icon">🛒</span><p>Im Moment bietet niemand etwas an.</p></div>'
         : '<div class="empty-state"><span class="empty-icon">🔍</span><p>Kein Angebot passt zur Suche.</p></div>';
       this._content.insertAdjacentHTML('beforeend', html);
       return;
     }
     for (const offer of list) this._content.appendChild(this._offerCard(offer));
+    if (remote.length) {
+      const head = document.createElement('h3');
+      head.className = 'shop-remote-head';
+      head.textContent = '🌐 Von verbundenen Servern';
+      this._content.appendChild(head);
+      for (const offer of remote.sort((a, b) => a.title.localeCompare(b.title, 'de'))) this._content.appendChild(this._remoteCard(offer));
+    }
+  }
+
+  /** Angebot eines verbundenen Servers: nur Copy, Use über Server hinweg kommt später. */
+  _remoteCard(o) {
+    const card = document.createElement('div');
+    card.className = 'topic-card shop-card shop-remote';
+    const typeOf = (t) => (typeof H5P_TYPES !== 'undefined' && H5P_TYPES[t]) || {};
+    const scope = SCOPE_LABEL[o.scopeType === 'node' ? o.nodeKind : o.scopeType] || SCOPE_LABEL.topic;
+    card.innerHTML = `
+      <div class="topic-card-header">
+        <div class="topic-card-info">
+          <h3 class="topic-card-title">${scope.icon} ${escapeHtml(o.title)}</h3>
+          <p class="topic-card-desc">${escapeHtml(o.description || '')}</p>
+          ${(o.categoryIds || []).length ? `<div class="shop-cats">${categoryChips(this.app, o.categoryIds)}</div>` : ''}
+          <div class="topic-card-meta">
+            <span class="topic-shared-badge remote-badge" title="Von einem verbundenen Server">🌐 ${escapeHtml(o.peerName)}</span>
+            <span class="topic-shared-badge">${scope.label}${o.scopeType !== 'topic' ? ` · ${o.topicCount} Lernthem${o.topicCount === 1 ? 'a' : 'en'}` : ''}</span>
+            <span class="topic-module-count">${o.modules.length} Modul${o.modules.length === 1 ? '' : 'e'}</span>
+            <span class="topic-shared-badge">von ${escapeHtml(o.sellerName)}</span>
+            ${ratingBadge(o.rating)}
+            ${o.copies ? `<span class="topic-shared-badge">📋 schon ${o.copies}× kopiert</span>` : ''}
+          </div>
+          <details class="shop-modules">
+            <summary>Module anzeigen</summary>
+            ${this._moduleListHtml(o, typeOf)}
+          </details>
+        </div>
+        <div class="topic-card-actions">
+          <button class="btn btn-secondary btn-sm" disabled title="Use über Server hinweg kommt noch – bis dahin eine eigene Kopie">🔗 Use</button>
+          ${o.allowCopy ? '<button class="btn btn-primary btn-sm btn-acquire-remote" title="Eigene Kopie: bearbeiten erlaubt, Weitergabe nur zur Nutzung">📥 Copy</button>' : ''}
+        </div>
+      </div>`;
+    card.querySelector('.btn-acquire-remote')?.addEventListener('click', (e) => this._acquireRemote(o, e.currentTarget));
+    return card;
+  }
+
+  async _acquireRemote(o, btn) {
+    const text = `Eigene Kopie von „${o.title}“ von ${o.peerName} übernehmen?\n\n`
+      + 'Sie liegt danach unter deinen Lernthemen, gesperrt, bis du sie freigibst. Du darfst sie bearbeiten und eigene Module ergänzen. '
+      + `Die Module bleiben auf ${o.sellerName} @ ${o.peerName} verzeichnet; ${o.peerName} erfährt deinen Namen, damit die Creator sehen, wo ihr Material ankommt.`
+      + (o.copies ? `\n\nDu hast das schon ${o.copies}× kopiert.` : '');
+    if (!(await this.app.appConfirm(text))) return;
+    btn.disabled = true;
+    try {
+      const res = await this.app.api.copyRemoteOffer(o.peerId, o.offerId);
+      if (!res || !res.success) throw new Error(res?.message || 'Übernehmen fehlgeschlagen');
+      this.app.showToast(`„${o.title}“ liegt jetzt in deinen Lernthemen – gesperrt, bis du es freigibst.`, 'success');
+      await this.refresh();
+    } catch (err) {
+      this.app.showToast('Fehler: ' + err.message, 'error');
+      btn.disabled = false;
+    }
   }
 
   /** Fach- und Stufen-Auswahl: nur, was in den Angeboten vorkommt (samt Oberbegriffen). */
   _fillCategoryFilters() {
-    const used = new Set((this._catalog?.offers || []).flatMap((o) => o.categoryIds || []));
+    const used = new Set([...(this._catalog?.offers || []), ...(this._remote || [])].flatMap((o) => o.categoryIds || []));
     for (const [sel, facet, all] of [[this._subject, 'subject', '📚 Alle Fächer'], [this._stage, 'stage', '🎓 Alle Stufen']]) {
       if (!sel) continue;
       const current = sel.value;
@@ -391,6 +465,7 @@ export class ShopView {
               ${o.includeForeign && o.kind !== 'buyer' ? '<span class="topic-shared-badge" title="Erworbene Module zur Nutzung mit angeboten">+ erworbene zur Nutzung</span>' : ''}
               <span class="topic-shared-badge use">${modes}</span>
               <span class="topic-shared-badge">${this._audienceText(o.audience)}</span>
+              ${o.federated ? '<span class="topic-shared-badge remote-badge" title="Auch für verbundene Server – dort mit deinen eigenen Modulen">🌐 verbundene Server</span>' : ''}
               ${o.kind === 'creator' && o.copyCount ? `<span class="topic-shared-badge">📋 ${o.copyCount}× kopiert</span>` : ''}
             </div>
             <div class="shop-cats">${(o.categoryIds || []).some((id) => this.app.state.categoryById?.get(id)?.facet === 'subject')
@@ -618,6 +693,11 @@ export class ShopView {
         <p class="hint"><strong>Für wen?</strong> Ohne Auswahl einzelner Personen oder Gruppen sehen es alle.</p>
         <label class="share-flag shop-all"><input type="checkbox" class="co-all" ${audience0.includes('*') ? 'checked' : ''} />
           <span><strong>Alle Kolleginnen und Kollegen</strong></span></label>
+        ${state.federationPeers ? `
+        <label class="share-flag co-fed-wrap" title="Nur bei „alle“ – hinaus gehen nur deine eigenen Module">
+          <input type="checkbox" id="coFederated" ${offer?.federated ? 'checked' : ''} />
+          <span><strong>🌐 Auch für verbundene Server</strong> (${state.federationPeers}) – dort lässt es sich kopieren.
+            Hinaus gehen nur deine eigenen Module, mit deinem Namen; nie Schülerdaten.</span></label>` : ''}
         <div class="share-user-list co-list">
           ${groups.map((g) => `
             <label class="share-user-row"><input type="checkbox" class="co-entry" value="group:${escapeAttr(g.id)}"
@@ -670,7 +750,12 @@ export class ShopView {
     const picked = () => [...overlay.querySelectorAll('.co-entry:checked')].map((cb) => cb.value);
     // "Alle" schaltet die Einzelauswahl ab – sonst wäre der Zustand widersprüchlich.
     const coAll = overlay.querySelector('.co-all');
-    const syncAll = () => overlay.querySelectorAll('.co-entry').forEach((cb) => { cb.disabled = !!coAll.checked; });
+    const coFed = overlay.querySelector('#coFederated');
+    const syncAll = () => {
+      overlay.querySelectorAll('.co-entry').forEach((cb) => { cb.disabled = !!coAll.checked; });
+      // Andere Server bekommen nur, was hier im Haus für alle angeboten wird.
+      if (coFed) { coFed.disabled = !coAll.checked; if (!coAll.checked) coFed.checked = false; }
+    };
     coAll.addEventListener('change', syncAll);
     syncAll();
 
@@ -709,6 +794,7 @@ export class ShopView {
         allowCopy: overlay.querySelector('#coCopy').checked,
         audience: audience.length ? audience : ['*'],
         categoryIds: catPicker.selectedIds,
+        federated: !!coFed?.checked,
         active: true,
       };
       const res = await api.saveOffer(body);

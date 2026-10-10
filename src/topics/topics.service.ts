@@ -11,6 +11,8 @@ import { ShopOffer } from '../core/entities/shop-offer.entity';
 import { UseGrant } from '../core/entities/use-grant.entity';
 import { ShopService } from '../shop/shop.service';
 import { CategoriesService } from '../categories/categories.service';
+import { RemotePerson } from '../core/entities/remote-person.entity';
+import { FederationPeer } from '../core/entities/federation-peer.entity';
 import { visibleFor } from '../shop/offer-rules';
 import { School } from '../core/entities/school.entity';
 import { baseUrl, renderQr } from '../core/share/link-url';
@@ -48,6 +50,8 @@ export class TopicsService {
     @InjectRepository(School)
     private readonly schoolRepo: Repository<School>,
     private readonly tagsService: TagsService,
+    @InjectRepository(RemotePerson) private readonly personRepo: Repository<RemotePerson>,
+    @InjectRepository(FederationPeer) private readonly peerRepo: Repository<FederationPeer>,
   ) {}
 
   async findAll(user: any) {
@@ -138,10 +142,13 @@ export class TopicsService {
     });
   }
 
-  /** Anzeigenamen aller Konten, für die Nennung der Creator. */
+  /** Anzeigenamen aller Konten und der Creator auf verbundenen Servern („Name @ Server“). */
   async userNames(): Promise<Map<string, string>> {
-    const users = await this.userRepo.find();
-    return new Map(users.map((u) => [u.id, u.displayName || u.email]));
+    const [users, persons, peers] = await Promise.all([this.userRepo.find(), this.personRepo.find(), this.peerRepo.find()]);
+    const out = new Map(users.map((u) => [u.id, u.displayName || u.email]));
+    const peerName = new Map(peers.map((p) => [p.id, p.name]));
+    for (const p of persons) out.set(p.id, `${p.name} @ ${peerName.get(p.peerId) || 'anderer Server'}`);
+    return out;
   }
 
   /** Ein Modul mit Name seines Creators und der Angabe, ob es mein eigenes ist. */

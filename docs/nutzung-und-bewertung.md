@@ -17,8 +17,8 @@ Shop → **📈 Geteilt & genutzt** zeigt für alle Module, die du verfasst hast
 
 | Zahl | Bedeutung |
 |---|---|
-| Lehrkräfte erreicht | andere Lehrkräfte, die dein Material nutzen (Use), kopiert haben oder damit unterrichten |
-| Schulen | an wie vielen Schulen diese Lehrkräfte sind (erscheint erst ab einer) |
+| Lehrkräfte erreicht | andere Lehrkräfte, die dein Material nutzen (Use), kopiert haben oder damit unterrichten – auch auf [verbundenen Servern](vernetzung.md) |
+| Schulen | an wie vielen Schulen diese Lehrkräfte sind (erscheint erst ab einer); jeder verbundene Server, auf dem kopiert wurde, zählt als eine |
 | Bearbeitungen im Unterricht | je Modul und Schülerdurchlauf eine – über deine Links und die anderer |
 | Klassen | Klassen mit Klassenlink, die damit gearbeitet haben, auch deine eigenen |
 | Nützlichkeit, 👍 Danke | Durchschnitt der Sterne und Zahl der Danke |

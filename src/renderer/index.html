@@ -235,6 +235,8 @@
           <span class="nav-icon">👥</span> Gruppen
         </button>        <button class="nav-btn" data-view="admin-categories">
           <span class="nav-icon">🗂</span> Kategorien
+        </button>        <button class="nav-btn" data-view="admin-federation">
+          <span class="nav-icon">🌐</span> Vernetzung
         </button>        <button class="nav-btn" data-view="admin-whitelist">
           <span class="nav-icon">🔒</span> Whitelist / Blacklist
         </button>
@@ -419,6 +421,10 @@
           <input type="text" id="shopSearch" class="search-input" placeholder="Suchen nach Titel, Modul oder Person…" />
           <select id="shopSubject" class="shop-cat-filter" aria-label="Fach"><option value="">📚 Alle Fächer</option></select>
           <select id="shopStage" class="shop-cat-filter" aria-label="Bildungsstufe"><option value="">🎓 Alle Stufen</option></select>
+          <label class="tag-filter-mode hidden" id="shopRemoteWrap" title="Angebote verbundener Server zeigen">
+            <input type="checkbox" id="shopRemote" checked />
+            <span>🌐 andere Server</span>
+          </label>
           <label class="tag-filter-mode">
             <input type="checkbox" id="shopOnlyShared" />
             <span>nur an mich geteilt</span>
@@ -1034,6 +1040,15 @@
             ausblenden geht hier.</p>
         </div>
         <div class="settings-panel" id="adminCategoriesContent"></div>
+      </section>
+
+      <section class="view" id="view-admin-federation">
+        <div class="view-header">
+          <h2>🌐 Vernetzung <button type="button" class="help-hint" data-help="vernetzung" title="Hilfe: Vernetzung" aria-label="Hilfe: Vernetzung">?</button></h2>
+          <p class="subtitle">Andere LearningModules-Server verbinden: Ihre Angebote erscheinen im Shop, und Lehrkräfte können sie
+            kopieren. Ausgetauscht werden nur Inhalte, die ihre Creator dafür freigegeben haben – nie Schülerdaten.</p>
+        </div>
+        <div class="settings-panel" id="adminFederationContent"></div>
       </section>
 
       <section class="view" id="view-admin-whitelist">

@@ -1,3 +1,5 @@
+import { RemotePerson } from '../core/entities/remote-person.entity';
+import { FederationPeer } from '../core/entities/federation-peer.entity';
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { TopicsService } from './topics.service';
@@ -16,7 +18,7 @@ import { CategoriesModule } from '../categories/categories.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([LearningTopic, LearningModule, User, TopicQuickLink, TopicLink, ShopOffer, UseGrant, School]),
+    TypeOrmModule.forFeature([LearningTopic, LearningModule, User, TopicQuickLink, TopicLink, ShopOffer, UseGrant, School, RemotePerson, FederationPeer]),
     TagsModule,
     ShopModule,
     CategoriesModule,

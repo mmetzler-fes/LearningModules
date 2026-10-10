@@ -8,6 +8,7 @@ import { UseGrant } from '../core/entities/use-grant.entity';
 import { ShopOffer } from '../core/entities/shop-offer.entity';
 import { User } from '../core/entities/user.entity';
 import { ContentFeedback } from '../core/entities/content-feedback.entity';
+import { FederationCopy } from '../core/entities/federation-copy.entity';
 import { ShopService } from '../shop/shop.service';
 import { visibleFor } from '../shop/offer-rules';
 import { UsageService } from './usage.service';
@@ -47,6 +48,7 @@ export class ImpactService {
     @InjectRepository(ShopOffer) private readonly offerRepo: Repository<ShopOffer>,
     @InjectRepository(User) private readonly userRepo: Repository<User>,
     @InjectRepository(ContentFeedback) private readonly feedbackRepo: Repository<ContentFeedback>,
+    @InjectRepository(FederationCopy) private readonly fedCopyRepo: Repository<FederationCopy>,
     private readonly shop: ShopService,
     private readonly usage: UsageService,
   ) {}
@@ -120,6 +122,16 @@ export class ImpactService {
       if (t && t.ownerId !== creatorId) groupOf(originOf(m))?._copiers.add(t.ownerId);
     }
 
+    // Kopien auf verbundenen Servern (die kopierten Lernthemen von hier).
+    const peersReached = new Set<string>();
+    if (topicIds.length) {
+      for (const c of await this.fedCopyRepo.find()) {
+        const hit = (c.topicIds || []).filter((id) => groups.has(id));
+        for (const id of hit) groups.get(id)!._copiers.add(c.personId);
+        if (hit.length) peersReached.add(c.peerId);
+      }
+    }
+
     // Nutzungsrechte anderer, die meine Module sichtbar machen.
     await this.collectUses(creatorId, (origin, userId) => groupOf(origin)?._users.add(userId));
 
@@ -164,7 +176,8 @@ export class ImpactService {
     }
     list.sort((a, b) => b.teachers - a.teachers || b.runs - a.runs || a.title.localeCompare(b.title, 'de'));
 
-    const schools = new Set([...reached].map((id) => userById.get(id)?.schoolId).filter(Boolean));
+    // Schulen hier im Haus, dazu jeder verbundene Server, auf dem kopiert wurde.
+    const schools = new Set([...[...reached].map((id) => userById.get(id)?.schoolId).filter(Boolean), ...[...peersReached].map((p) => `peer:${p}`)]);
     const totals = {
       topics: list.filter((t) => !t.gone).length,
       modules: home.size,

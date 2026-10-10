@@ -11,6 +11,8 @@ import { LearningModule } from '../core/entities/learning-module.entity';
 import { User } from '../core/entities/user.entity';
 import { TeacherGroup } from '../core/entities/teacher-group.entity';
 import { ContentFeedback } from '../core/entities/content-feedback.entity';
+import { FederationPeer } from '../core/entities/federation-peer.entity';
+import { RemotePerson } from '../core/entities/remote-person.entity';
 import { groupIdOf } from '../groups/group-ref';
 import { UsageService } from '../impact/usage.service';
 import { CategoriesService } from '../categories/categories.service';
@@ -76,6 +78,8 @@ export class ShopService {
     @InjectRepository(NotebookNode) private readonly nodeRepo: Repository<NotebookNode>,
     @InjectRepository(NotebookPlacement) private readonly placeRepo: Repository<NotebookPlacement>,
     @InjectRepository(ContentFeedback) private readonly feedbackRepo: Repository<ContentFeedback>,
+    @InjectRepository(FederationPeer) private readonly peerRepo: Repository<FederationPeer>,
+    @InjectRepository(RemotePerson) private readonly personRepo: Repository<RemotePerson>,
     private readonly usage: UsageService,
     private readonly categories: CategoriesService,
     private readonly dataSource: DataSource,
@@ -83,9 +87,24 @@ export class ShopService {
 
   // ---- Hilfen ----
 
+  /**
+   * Anzeigenamen: Konten hier und Lehrkräfte verbundener Server (Creator
+   * kopierter Module, `remote:<server>:<id>`), letztere als „Name @ Server“.
+   */
   private async names(): Promise<Map<string, User>> {
-    const users = await this.userRepo.find();
-    return new Map(users.map((u) => [u.id, u]));
+    const [users, persons, peers] = await Promise.all([this.userRepo.find(), this.personRepo.find(), this.peerRepo.find()]);
+    const out = new Map(users.map((u) => [u.id, u]));
+    const peerName = new Map(peers.map((p) => [p.id, p.name]));
+    for (const p of persons) {
+      out.set(p.id, Object.assign(new User(), { id: p.id, displayName: `${p.name} @ ${peerName.get(p.peerId) || 'anderer Server'}`, email: '', active: true }));
+    }
+    return out;
+  }
+
+  /** Name für verbundene Server: nie die E-Mail-Adresse. */
+  private publicName(u: User | undefined) {
+    const name = (u?.displayName || '').trim();
+    return name && name !== u?.email && !name.includes('@') ? name : 'Lehrkraft';
   }
 
   private label(u: User | undefined) {
@@ -452,6 +471,8 @@ export class ShopService {
         creatorName: this.label(users.get(m.creatorId || '')),
       })),
       copyCount: type === 'topic' ? await this.topicRepo.count({ where: { copiedFromId: params.id } }) : 0,
+      // Gibt es verbundene Server? Dann lässt sich das Angebot auch dort zeigen.
+      federationPeers: await this.peerRepo.count({ where: { status: 'active' } }),
       // Einordnung, die schon aus den Lernthemen kommt (nur zur Ansicht).
       topicCategoryIds: [...new Set([...(await this.categories.effectiveFor(covered.map((c) => c.topic))).values()].flat())],
       offer: offer ? await this.describe(offer, users) : null,
@@ -470,6 +491,7 @@ export class ShopService {
       allowUse: offer.allowUse,
       includeForeign: offer.kind === 'buyer' || !!offer.includeForeign,
       categoryIds: offer.categoryIds || [],
+      federated: !!offer.federated,
       audience: offer.audience,
       // Namen der eingetragenen Personen – auch aus anderen Schulen, die
       // die Auswahlliste selbst nicht zeigt. Sonst fielen sie beim
@@ -547,6 +569,8 @@ export class ShopService {
       title: type === 'modules' ? String(body?.title || offer.title || '').trim().slice(0, 120) || 'Auswahl von Modulen' : null,
       includeForeign,
       categoryIds,
+      // Andere Server sehen nur, was ohnehin für alle hier im Haus angeboten wird.
+      federated: !!body?.federated && audience.includes('*'),
       allowCopy,
       allowUse,
       // Preise gibt es nicht mehr (bis Oktober 2026).
@@ -753,6 +777,103 @@ export class ShopService {
     if (found) return found;
     const count = await repo.count({ where: { ownerId: userId, kind: 'book' } });
     return repo.save(repo.create({ id: crypto.randomUUID(), ownerId: userId, kind: 'book', title: ACQUIRED_BOOK, parentId: null, orderIndex: count, tagIds: null }));
+  }
+
+  // ---- Für verbundene Server (docs/vernetzung.md) ----
+
+  /** Angebote, die verbundene Server sehen: aktiv, für alle, mit Häkchen – und nur mit den eigenen Modulen des Anbieters. */
+  private async federatedOffer(offerId?: string): Promise<ShopOffer[]> {
+    const where: any = { active: true, federated: true };
+    if (offerId) where.id = offerId;
+    return (await this.offerRepo.find({ where })).filter((o) => Array.isArray(o.audience) && o.audience.includes('*') && (o.allowCopy || o.allowUse));
+  }
+
+  /** Nur die eigenen Module des Anbieters – fremde verlassen den Server nie. */
+  private async ownCoverage(offer: ShopOffer): Promise<Covered[]> {
+    return (await this.coverage(offer))
+      .map((c) => {
+        const roots = c.roots.filter((m) => m.creatorId === offer.sellerId);
+        return { topic: c.topic, roots, modules: withSubmodules(c.modules, new Set(roots.map((r) => r.id))) };
+      })
+      .filter((c) => c.roots.length);
+  }
+
+  /** Der Katalog für verbundene Server, samt den Kategorien, die darin vorkommen (mit Oberbegriffen). */
+  async federatedCatalog() {
+    const users = await this.names();
+    const byId = await this.categories.byId();
+    const out: any[] = [];
+    const usedCats = new Set<string>();
+    for (const offer of await this.federatedOffer()) {
+      const covered = await this.ownCoverage(offer);
+      if (!covered.length) continue;
+      const seller = users.get(offer.sellerId);
+      // Lernthemen von Konten anderer Server gehen nicht weiter.
+      if (!seller || offer.sellerId.startsWith('remote:')) continue;
+      const categoryIds = await this.categoriesOf(offer, covered);
+      for (const id of categoryIds) {
+        let c = byId.get(id);
+        while (c && !usedCats.has(c.id)) { usedCats.add(c.id); c = c.parentId ? byId.get(c.parentId) : undefined; }
+      }
+      const feedback = await this.feedbackRepo.find({ where: { topicId: In(covered.map((c) => c.topic.id)) } });
+      out.push({
+        offerId: offer.id,
+        title: await this.offerTitle(offer, covered),
+        description: offer.scopeType === 'topic' ? covered[0]?.topic.description || '' : '',
+        scopeType: offer.scopeType,
+        nodeKind: await this.nodeKind(offer),
+        topicCount: covered.length,
+        topicIds: covered.map((c) => c.topic.id),
+        modules: covered.flatMap((c) => c.roots.map((m) => ({ title: m.title, type: m.type, topicTitle: c.topic.title }))),
+        seller: { id: offer.sellerId, name: this.publicName(seller) },
+        allowCopy: offer.allowCopy,
+        // Use über Server hinweg kommt später; bis dahin nur Copy.
+        allowUse: false,
+        categoryIds,
+        rating: summarizeRatings(feedback),
+        updatedAt: offer.updatedAt,
+      });
+    }
+    const categories = [...usedCats].map((id) => byId.get(id)!).map((c) => ({ id: c.id, facet: c.facet, parentId: c.parentId, label: c.label }));
+    return { offers: out, categories };
+  }
+
+  /**
+   * Was ein verbundener Server für ein Copy bekommt: je Lernthema die eigenen
+   * Module des Anbieters, mit Creator und Herkunft. Liefert null, wenn das
+   * Angebot (so) nicht für verbundene Server da ist.
+   */
+  async federatedCopyPayload(offerId: string) {
+    const [offer] = await this.federatedOffer(offerId);
+    if (!offer || !offer.allowCopy) return null;
+    const covered = await this.ownCoverage(offer);
+    if (!covered.length) return null;
+    const users = await this.names();
+    const seller = users.get(offer.sellerId);
+    return {
+      offer: { id: offer.id, title: await this.offerTitle(offer, covered) },
+      topics: covered.map((c) => ({
+        id: c.topic.id,
+        title: c.topic.title,
+        description: c.topic.description || '',
+        ownerId: c.topic.ownerId,
+        ownerName: this.publicName(seller),
+        categoryIds: c.topic.categoryIds || [],
+        modules: c.modules.map((m) => ({
+          id: m.id,
+          parentId: m.parentId || null,
+          type: m.type,
+          title: m.title,
+          description: m.description || '',
+          content: m.content,
+          orderIndex: m.orderIndex,
+          moduleSelected: m.moduleSelected !== false,
+          creatorId: m.creatorId,
+          creatorName: this.publicName(users.get(m.creatorId || '')),
+          originId: m.originId || m.id,
+        })),
+      })),
+    };
   }
 
   /**

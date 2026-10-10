@@ -50,6 +50,11 @@ import { ContentFeedback } from './core/entities/content-feedback.entity';
 import { ImpactModule } from './impact/impact.module';
 import { Category } from './core/entities/category.entity';
 import { CategoriesModule } from './categories/categories.module';
+import { FederationPeer } from './core/entities/federation-peer.entity';
+import { RemoteOffer } from './core/entities/remote-offer.entity';
+import { RemotePerson } from './core/entities/remote-person.entity';
+import { FederationCopy } from './core/entities/federation-copy.entity';
+import { FederationModule } from './federation/federation.module';
 
 @Module({
   imports: [
@@ -72,7 +77,7 @@ import { CategoriesModule } from './categories/categories.module';
     TypeOrmModule.forRoot({
       type: 'sqlite',
       database: 'data/database.sqlite',
-      entities: [User, StudentClass, ClassStudent, LearningTopic, LearningModule, Result, School, SystemConfig, Tag, TopicLink, TopicQuickLink, TeacherGroup, ShopOffer, UseGrant, PointsEntry, ModuleTiming, ClassShare, NotebookNode, NotebookPlacement, ModuleDraft, UsageCount, ContentFeedback, Category],
+      entities: [User, StudentClass, ClassStudent, LearningTopic, LearningModule, Result, School, SystemConfig, Tag, TopicLink, TopicQuickLink, TeacherGroup, ShopOffer, UseGrant, PointsEntry, ModuleTiming, ClassShare, NotebookNode, NotebookPlacement, ModuleDraft, UsageCount, ContentFeedback, Category, FederationPeer, RemoteOffer, RemotePerson, FederationCopy],
       synchronize: true,
     }),
     MailModule,
@@ -98,6 +103,7 @@ import { CategoriesModule } from './categories/categories.module';
     DraftsModule,
     ImpactModule,
     CategoriesModule,
+    FederationModule,
   ],
   controllers: [AppController],
   providers: [AppService],

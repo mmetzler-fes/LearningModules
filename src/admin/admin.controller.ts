@@ -15,7 +15,7 @@ import { UserSheetService } from './user-sheet.service';
 import { BackupService } from './backup.service';
 import { CloudBackupService } from './cloud-backup.service';
 import { AccountsService } from '../accounts/accounts.service';
-import { PointsService } from '../accounts/points.service';
+import { UsageService } from '../impact/usage.service';
 import { MasterKeyService } from '../core/crypto/master-key.service';
 import { TwoFactorService } from '../accounts/two-factor.service';
 import { LearningModule } from '../core/entities/learning-module.entity';
@@ -43,7 +43,7 @@ export class AdminController {
     @InjectRepository(School) private readonly schoolRepo: Repository<School>,
     private readonly userSheet: UserSheetService,
     private readonly accounts: AccountsService,
-    private readonly points: PointsService,
+    private readonly usage: UsageService,
     private readonly masterKey: MasterKeyService,
     private readonly backup: BackupService,
     private readonly cloudBackup: CloudBackupService,
@@ -91,14 +91,12 @@ export class AdminController {
   async getAllUsers(@Request() req: any) {
     this.requireAdmin(req);
     const users = await this.userRepo.find();
-    const { startPoints } = await this.points.getSettings();
     // Creator-Kennung je Konto in einem Rutsch statt einer Abfrage pro Zeile.
     const modules = await this.moduleRepo.find({ select: ['id', 'creatorId'] });
     const creators = new Set(modules.map((m) => m.creatorId));
     // Geheimnisse bleiben im Server – auch die verschlüsselten.
     return users.map(({ passwordHash, resetPasswordToken, totpSecret, totpPending, totpRecovery, totpLastStep, ...u }) => ({
       ...u,
-      points: u.points ?? startPoints,
       isCreator: creators.has(u.id),
     }));
   }
@@ -202,18 +200,18 @@ export class AdminController {
     return this.accounts.reactivate(target);
   }
 
-  // ---- Punkte ----
+  // ---- Wirkung: Hinweis zum Teilen ----
 
-  @Get('points-settings')
-  async getPointsSettings(@Request() req: any) {
+  @Get('impact-settings')
+  async getImpactSettings(@Request() req: any) {
     this.requireAdmin(req);
-    return this.points.getSettings();
+    return this.usage.getSettings();
   }
 
-  @Post('points-settings')
-  async savePointsSettings(@Request() req: any, @Body() body: any) {
+  @Post('impact-settings')
+  async saveImpactSettings(@Request() req: any, @Body() body: any) {
     this.requireAdmin(req);
-    return this.points.saveSettings(body || {});
+    return this.usage.saveSettings(body || {});
   }
 
   // ---- Masterkey ----

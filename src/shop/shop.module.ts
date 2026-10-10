@@ -11,7 +11,9 @@ import { TopicQuickLink } from '../core/entities/topic-quick-link.entity';
 import { SystemConfig } from '../core/entities/system-config.entity';
 import { NotebookNode } from '../core/entities/notebook-node.entity';
 import { NotebookPlacement } from '../core/entities/notebook-placement.entity';
+import { ContentFeedback } from '../core/entities/content-feedback.entity';
 import { AccountsModule } from '../accounts/accounts.module';
+import { UsageModule } from '../impact/usage.module';
 import { ShopService } from './shop.service';
 import { ShopController } from './shop.controller';
 import { RightsMigrationService } from './rights-migration.service';
@@ -20,9 +22,10 @@ import { RightsMigrationService } from './rights-migration.service';
   imports: [
     TypeOrmModule.forFeature([
       ShopOffer, UseGrant, LearningTopic, LearningModule, User, TeacherGroup, TopicLink, TopicQuickLink, SystemConfig,
-      NotebookNode, NotebookPlacement,
+      NotebookNode, NotebookPlacement, ContentFeedback,
     ]),
     AccountsModule,
+    UsageModule,
   ],
   controllers: [ShopController],
   providers: [ShopService, RightsMigrationService],

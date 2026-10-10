@@ -56,4 +56,13 @@ export class LearningModule extends BaseEntity {
    */
   @Column({ type: 'varchar', nullable: true })
   creatorId: string | null;
+
+  /**
+   * Herkunft einer Kopie: das ursprüngliche Modul, aus dem sie – auch über
+   * mehrere Stufen – entstanden ist. Leer bei einem Original. Bleibt bei
+   * jeder weiteren Kopie gleich, damit Nutzung und Bewertung beim Creator des
+   * Originals ankommen (siehe docs/nutzung-und-bewertung.md).
+   */
+  @Column({ type: 'varchar', nullable: true })
+  originId: string | null;
 }

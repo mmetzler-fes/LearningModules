@@ -13,9 +13,10 @@ import { GroupsModule } from '../../groups/groups.module';
 import { CompanionModule } from '../../companion/companion.module';
 import { ClassesModule } from '../../classes/classes.module';
 import { TimingsModule } from '../../timings/timings.module';
+import { UsageModule } from '../../impact/usage.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([User, LearningTopic, LearningModule, Result, TopicLink, TopicQuickLink]), LinksModule, TopicsModule, GroupsModule, CompanionModule, ClassesModule, TimingsModule],
+  imports: [TypeOrmModule.forFeature([User, LearningTopic, LearningModule, Result, TopicLink, TopicQuickLink]), LinksModule, TopicsModule, GroupsModule, CompanionModule, ClassesModule, TimingsModule, UsageModule],
   controllers: [PublicController],
 })
 export class PublicModule {}

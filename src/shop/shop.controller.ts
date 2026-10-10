@@ -12,7 +12,7 @@ export class ShopController {
     private readonly points: PointsService,
   ) {}
 
-  /** Angebote anderer und an mich Geteiltes, samt Kontostand. */
+  /** Angebote anderer und an mich Geteiltes, samt Geben und Nehmen. */
   @Get('offers')
   async catalog(@Request() req: any) {
     return this.shop.catalog(req.user);
@@ -24,15 +24,10 @@ export class ShopController {
     return this.shop.myOffers(req.user);
   }
 
-  /** Kontostand, Buchungen und die geltenden Regeln. */
+  /** Buchungen des früheren Punktekontos (bis Oktober 2026), zum Nachlesen. */
   @Get('points')
   async myPoints(@Request() req: any) {
-    const [balance, entries, settings] = await Promise.all([
-      this.points.balance(req.user.userId),
-      this.points.ledger(req.user.userId),
-      this.points.getSettings(),
-    ]);
-    return { balance, entries, settings };
+    return { entries: await this.points.ledger(req.user.userId) };
   }
 
   /**
@@ -53,7 +48,7 @@ export class ShopController {
 
   /**
    * Angebot anlegen oder ändern: `{ type, topicId | nodeId | moduleIds,
-   * offerId?, title?, allowCopy, allowUse, priceCopy, priceUse, audience,
+   * offerId?, title?, allowCopy, allowUse, audience,
    * includeForeign, active }`.
    */
   @Post('offers')

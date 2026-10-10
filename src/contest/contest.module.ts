@@ -7,11 +7,12 @@ import { LinksModule } from '../links/links.module';
 import { CompanionModule } from '../companion/companion.module';
 import { ClassesModule } from '../classes/classes.module';
 import { TimingsModule } from '../timings/timings.module';
+import { UsageModule } from '../impact/usage.module';
 import { ContestService } from './contest.service';
 import { ContestController } from './contest.controller';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([TopicLink, User, Result]), LinksModule, CompanionModule, ClassesModule, TimingsModule],
+  imports: [TypeOrmModule.forFeature([TopicLink, User, Result]), LinksModule, CompanionModule, ClassesModule, TimingsModule, UsageModule],
   controllers: [ContestController],
   providers: [ContestService],
 })

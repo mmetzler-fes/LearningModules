@@ -90,8 +90,9 @@ die Zeile.
 | ✏️ / 🏷 | Umbenennen, Tags (werden vererbt) | Titel, Beschreibung, eigene Tags | Bearbeiten |
 | 🗑 Löschen | nur die Ordner – die Lernthemen rücken eine Ebene höher | Lernthema löschen | Modul löschen |
 
-Für erworbene Lernthemen gibt es Quick-Link, Ansehen, Verschieben und
-Zurückgeben.
+Für erworbene Lernthemen gibt es Quick-Link, Ansehen, Verschieben,
+**⭐ Bewerten** und Zurückgeben. Eine Kopie aus dem Shop hat zusätzlich
+**⭐ Original bewerten** – siehe [Nutzung und Bewertung](nutzung-und-bewertung.md).
 
 ### Ziehen und Ablegen
 

@@ -48,41 +48,6 @@ export function offerRoots<T extends ModuleLike>(
 }
 
 /**
- * Verteilt den Preis auf die Creator der enthaltenen Module, im Verhältnis
- * ihrer Modulzahl. So bekommt jeder für das, was er geschaffen hat – auch wenn
- * ein anderer es weiterreicht. Anteile ohne bekannten Creator, für gelöschte
- * Konten oder für den Käufer selbst gehen an den Anbieter, ebenso Reste aus
- * dem Abrunden.
- *
- * `creators` ist je Elternmodul der Creator; `known` die Konten, die es gibt.
- */
-export function splitPrice(
-  price: number,
-  creators: Array<string | null | undefined>,
-  sellerId: string,
-  buyerId: string,
-  known: Set<string>,
-): Record<string, number> {
-  if (!(price > 0)) return {};
-  const counts = new Map<string, number>();
-  for (const c of creators) {
-    const to = c && known.has(c) && c !== buyerId ? c : sellerId;
-    counts.set(to, (counts.get(to) || 0) + 1);
-  }
-  const total = creators.length || 1;
-  const out: Record<string, number> = {};
-  let given = 0;
-  for (const [to, n] of counts) {
-    const share = Math.floor((price * n) / total);
-    if (share > 0) out[to] = share;
-    given += share;
-  }
-  if (price - given > 0) out[sellerId] = (out[sellerId] || 0) + (price - given);
-  if (!creators.length) return { [sellerId]: price };
-  return out;
-}
-
-/**
  * Die Module eines Lernthemas, die über diese Nutzungsrechte sichtbar sind
  * (Einträge aus ShopService.expandGrants für dieses Thema). Untermodule
  * folgen ihrem Elternmodul.

@@ -1,4 +1,4 @@
-import { offerRoots, splitPrice, withSubmodules } from './offer-rules';
+import { offerRoots, withSubmodules } from './offer-rules';
 
 const mods = [
   { id: 'a', creatorId: 'S' },
@@ -24,26 +24,5 @@ describe('Angebote: Umfang', () => {
 
   it('Untermodule kommen mit', () => {
     expect(withSubmodules(mods, new Set(['a'])).map((m) => m.id)).toEqual(['a', 'a1']);
-  });
-});
-
-describe('Angebote: Punkte auf die Creator verteilen', () => {
-  const known = new Set(['S', 'C', 'D', 'K']);
-
-  it('nach Modulzahl, Rest an den Anbieter', () => {
-    // 2 Module von S, 1 von C, Preis 10 → C 3, S 6 + 1 Rest
-    expect(splitPrice(10, ['S', 'S', 'C'], 'S', 'K', known)).toEqual({ S: 7, C: 3 });
-  });
-
-  it('gelöschte Konten und der Käufer selbst zählen für den Anbieter', () => {
-    expect(splitPrice(9, ['S', 'X', 'K'], 'S', 'K', known)).toEqual({ S: 9 });
-  });
-
-  it('kostenlos: keine Buchungen', () => {
-    expect(splitPrice(0, ['S', 'C'], 'S', 'K', known)).toEqual({});
-  });
-
-  it('nur fremde Module: alles an deren Creator', () => {
-    expect(splitPrice(12, ['C', 'D'], 'S', 'K', known)).toEqual({ C: 6, D: 6 });
   });
 });

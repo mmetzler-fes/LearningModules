@@ -12,6 +12,7 @@ import { LinksService, contestSettingsOf } from '../links/links.service';
 import { CompanionService } from '../companion/companion.service';
 import { ClassesService } from '../classes/classes.service';
 import { TimingsService } from '../timings/timings.service';
+import { UsageService } from '../impact/usage.service';
 import { forStudents, contentOf } from '../core/public/student-view';
 import { baseUrl, renderQr } from '../core/share/link-url';
 import { cleanPcName } from '../core/public/pc-name';
@@ -164,6 +165,7 @@ export class ContestService implements OnModuleDestroy {
     private readonly companionService: CompanionService,
     private readonly classesService: ClassesService,
     private readonly timingsService: TimingsService,
+    private readonly usageService: UsageService,
   ) {
     // Kommentarzeilen halten Proxys davon ab, ruhige Verbindungen zu kappen.
     this.heartbeat = setInterval(() => {
@@ -605,6 +607,7 @@ export class ContestService implements OnModuleDestroy {
       });
     });
     if (rows.length) await this.resultRepo.save(rows);
+    for (const r of rows) await this.usageService.recordRunSafely({ teacherId: r.teacherId, classId: r.classId, details: r.payload?.details });
   }
 
   // ---- Zustand senden ----

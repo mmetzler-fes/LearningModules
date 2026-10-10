@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, In, IsNull, Repository } from 'typeorm';
+import { DataSource, In, IsNull, Not, Repository } from 'typeorm';
 import * as crypto from 'crypto';
 import { ShopOffer, OfferScope } from '../core/entities/shop-offer.entity';
 import { NotebookNode } from '../core/entities/notebook-node.entity';
@@ -10,9 +10,11 @@ import { LearningTopic } from '../core/entities/learning-topic.entity';
 import { LearningModule } from '../core/entities/learning-module.entity';
 import { User } from '../core/entities/user.entity';
 import { TeacherGroup } from '../core/entities/teacher-group.entity';
-import { PointsService } from '../accounts/points.service';
+import { ContentFeedback } from '../core/entities/content-feedback.entity';
 import { groupIdOf } from '../groups/group-ref';
-import { offerRoots, splitPrice, visibleFor, withSubmodules } from './offer-rules';
+import { UsageService } from '../impact/usage.service';
+import { shouldHintSharing, summarizeRatings, RatingSummary } from '../impact/impact-rules';
+import { offerRoots, visibleFor, withSubmodules } from './offer-rules';
 
 /** Ein Lernthema mit dem, was ein Angebot davon umfasst. */
 export interface Covered {
@@ -31,6 +33,7 @@ export interface GrantEntry {
   moduleIds?: string[];
   grantId: string;
   offerId: string | null;
+  /** Punkte aus der Zeit vor Oktober 2026; neue Rechte: 0. */
   pricePaid: number;
   createdAt: Date;
   scopeType: OfferScope;
@@ -40,25 +43,25 @@ export interface GrantEntry {
 /** Book in den Notebooks des Käufers für Erworbenes (wie NotebooksService). */
 const ACQUIRED_BOOK = 'Erworben';
 
-const MAX_PRICE = 100000;
-
 /**
  * Der Lernmodule-Shop: Jede Weitergabe von Inhalten läuft hierüber.
  *
  * Rechte je Modul (siehe docs/shop-und-rechte.md):
  *   Creator – hat das Modul verfasst. Nur er bietet es im Shop an, zum
- *             Kopieren und/oder Verwenden, gegen Punkte oder frei.
+ *             Kopieren und/oder Verwenden.
  *   Owner   – das Thema gehört ihm (eigene Kopie) oder er hat ein
  *             Nutzungsrecht darauf.
  *   Buyer   – hat eine Kopie erworben. Darf sie bearbeiten und die fremden
  *             Module darin im Shop zur Nutzung anbieten (nicht zum Kopieren).
  *
  * Ein Angebot umfasst ein Lernthema, einen Notebook-Knoten oder eine Auswahl
- * von Modulen (siehe offer-rules.ts). Punkte gehen anteilig an die Creator.
+ * von Modulen (siehe offer-rules.ts).
+ *
+ * Alles ist frei. Punkte gab es bis Oktober 2026; an ihre Stelle trat die
+ * sichtbare Wirkung (docs/nutzung-und-bewertung.md). Rechte, für die damals
+ * bezahlt wurde (`pricePaid`), behalten ihren Schutz: Der Anbieter kann sie
+ * nicht entziehen, und beim Löschen des Themas bekommt der Inhaber eine Kopie.
  */
-/** Tage nach dem Kauf, in denen ein bezahltes Nutzungsrecht mit Erstattung zurückgegeben werden kann. */
-export const REFUND_DAYS = 14;
-
 @Injectable()
 export class ShopService {
   constructor(
@@ -70,7 +73,8 @@ export class ShopService {
     @InjectRepository(TeacherGroup) private readonly groupRepo: Repository<TeacherGroup>,
     @InjectRepository(NotebookNode) private readonly nodeRepo: Repository<NotebookNode>,
     @InjectRepository(NotebookPlacement) private readonly placeRepo: Repository<NotebookPlacement>,
-    private readonly points: PointsService,
+    @InjectRepository(ContentFeedback) private readonly feedbackRepo: Repository<ContentFeedback>,
+    private readonly usage: UsageService,
     private readonly dataSource: DataSource,
   ) {}
 
@@ -119,14 +123,6 @@ export class ShopService {
     const userIds = new Set(users.filter((u) => u.active !== false).map((u) => u.id));
     const groupRefs = new Set(groups.map((g) => `group:${g.id}`));
     return raw.filter((e) => userIds.has(e) || groupRefs.has(e));
-  }
-
-  private price(v: any, field: string): number {
-    const n = Number(v ?? 0);
-    if (!Number.isInteger(n) || n < 0 || n > MAX_PRICE) {
-      throw new BadRequestException(`${field}: bitte eine ganze Zahl zwischen 0 und ${MAX_PRICE}.`);
-    }
-    return n;
   }
 
   /** Thema laden, das dem Benutzer wirklich gehört – Admin-Rechte zählen hier nicht. */
@@ -288,22 +284,21 @@ export class ShopService {
     );
     const users = await this.names();
     const myGrants = await this.grantRepo.find({ where: { userId: user.userId } });
-    const topicIds = offers.filter((o) => o.scopeType === 'topic').map((o) => o.topicId);
-    const myCopies = topicIds.length
-      ? await this.topicRepo.find({ where: { ownerId: user.userId, copiedFromId: In(topicIds) } })
-      : [];
+    const myCopies = await this.topicRepo.find({ where: { ownerId: user.userId, copiedFromId: Not(IsNull()) } });
 
     const out: any[] = [];
+    const listed: Array<{ entry: any; topicIds: string[] }> = [];
     for (const offer of offers) {
       const covered = await this.coverage(offer);
       // Eigene Themen des Käufers (etwa eine Weitergabe an den Creator) nicht anbieten.
       const mine = covered.filter((c) => c.topic.ownerId !== user.userId);
       const roots = mine.flatMap((c) => c.roots);
       if (!roots.length) continue;
+      const creatorIds = [...new Set(roots.map((m) => m.creatorId).filter(Boolean) as string[])];
       const seller = users.get(offer.sellerId);
       const own = roots.filter((m) => m.creatorId === offer.sellerId);
       const grant = myGrants.find((g) => g.offerId === offer.id);
-      out.push({
+      const entry = {
         offerId: offer.id,
         kind: offer.kind,
         scopeType: offer.scopeType,
@@ -312,9 +307,11 @@ export class ShopService {
         title: await this.offerTitle(offer, mine),
         description: offer.scopeType === 'topic' ? mine[0]?.topic.description : '',
         topicCount: mine.length,
+        sellerId: offer.sellerId,
         sellerName: this.label(seller),
         sellerActive: seller ? seller.active !== false : false,
         creators: [...new Set(roots.map((m) => this.label(users.get(m.creatorId || ''))))],
+        creatorList: creatorIds.map((id) => ({ id, name: this.label(users.get(id)) })),
         modules: mine.flatMap((c) => c.roots.map((m) => ({
           title: m.title, type: m.type, topicTitle: c.topic.title, own: m.creatorId === offer.sellerId,
         }))),
@@ -323,18 +320,54 @@ export class ShopService {
         // Kopieren geht nur mit eigenen Modulen des Anbieters.
         allowCopy: offer.allowCopy && own.length > 0,
         allowUse: offer.allowUse,
-        priceCopy: offer.priceCopy,
-        priceUse: offer.priceUse,
         // Für alle angeboten oder gezielt an mich bzw. meine Gruppe geteilt?
         sharedWithMe: !offer.audience.includes('*'),
         hasUse: !!grant && !grant.onlyForeign,
         copies: offer.scopeType === 'topic' ? myCopies.filter((c) => c.copiedFromId === offer.topicId).length : 0,
+        // Lernthemen darin, die ich bewerten kann: genutzt oder kopiert.
+        rateable: [] as Array<{ topicId: string; title: string }>,
+        rating: null as RatingSummary | null,
         updatedAt: offer.updatedAt,
-      });
+      };
+      const usedTopics = new Set([
+        ...(grant ? mine.map((c) => c.topic.id) : []),
+        ...myCopies.filter((c) => mine.some((m) => m.topic.id === c.copiedFromId)).map((c) => c.copiedFromId as string),
+      ]);
+      entry.rateable = mine.filter((c) => usedTopics.has(c.topic.id)).map((c) => ({ topicId: c.topic.id, title: c.topic.title }));
+      out.push(entry);
+      listed.push({ entry, topicIds: mine.map((c) => c.topic.id) });
     }
+
+    // Bewertungen der enthaltenen Lernthemen, zusammengefasst je Angebot.
+    const allTopicIds = [...new Set(listed.flatMap((l) => l.topicIds))];
+    const feedback = allTopicIds.length ? await this.feedbackRepo.find({ where: { topicId: In(allTopicIds) } }) : [];
+    for (const l of listed) {
+      const ids = new Set(l.topicIds);
+      l.entry.rating = summarizeRatings(feedback.filter((f) => ids.has(f.topicId)));
+    }
+
     out.sort((a, b) => a.title.localeCompare(b.title, 'de'));
-    const { minBalance } = await this.points.getSettings();
-    return { balance: await this.points.balance(user.userId), minBalance, offers: out };
+    const [{ shareHintAfter }, balance] = await Promise.all([this.usage.getSettings(), this.giveAndTake(user.userId)]);
+    return {
+      offers: out,
+      giveAndTake: balance,
+      shareHint: shouldHintSharing(balance.taken, balance.shared, shareHintAfter),
+    };
+  }
+
+  /**
+   * Geben und Nehmen einer Lehrkraft: Wie viele eigene Angebote stehen im
+   * Shop, und wie oft hat sie etwas übernommen (Kopien und Nutzungsrechte)?
+   */
+  async giveAndTake(userId: string): Promise<{ shared: number; taken: number; copies: number; uses: number }> {
+    const [shared, copies, grants] = await Promise.all([
+      this.offerRepo.count({ where: { sellerId: userId, active: true } }),
+      this.topicRepo.find({ where: { ownerId: userId, copiedFromId: Not(IsNull()) }, select: ['id', 'copiedFromOwnerId'] }),
+      this.grantRepo.find({ where: { userId, onlyForeign: false }, select: ['id'] }),
+    ]);
+    // Eigene Duplikate zählen nicht als Übernahme.
+    const taken = copies.filter((c) => c.copiedFromOwnerId !== userId).length;
+    return { shared, taken: taken + grants.length, copies: taken, uses: grants.length };
   }
 
   // ---- Anbieten ----
@@ -422,8 +455,6 @@ export class ShopService {
       active: offer.active,
       allowCopy: offer.allowCopy,
       allowUse: offer.allowUse,
-      priceCopy: offer.priceCopy,
-      priceUse: offer.priceUse,
       includeForeign: offer.kind === 'buyer' || !!offer.includeForeign,
       audience: offer.audience,
       // Namen der eingetragenen Personen – auch aus anderen Schulen, die
@@ -492,8 +523,9 @@ export class ShopService {
       includeForeign,
       allowCopy,
       allowUse,
-      priceCopy: this.price(body?.priceCopy, 'Preis für Copy'),
-      priceUse: this.price(body?.priceUse, 'Preis für Use'),
+      // Preise gibt es nicht mehr (bis Oktober 2026).
+      priceCopy: 0,
+      priceUse: 0,
       audience,
       active,
       fromDeactivation: false,
@@ -567,16 +599,12 @@ export class ShopService {
   // ---- Erwerben ----
 
   /**
-   * Erwirbt ein Angebot im Modus "copy" oder "use".
-   *
-   * Punkte gehen vom Käufer an die Creator der enthaltenen Module (anteilig,
-   * siehe splitPrice), in einer Transaktion mit dem Anlegen von Kopie bzw.
-   * Nutzungsrecht – es wird nie bezahlt, ohne dass etwas ankommt, und nichts
-   * kommt ohne Bezahlung an.
+   * Erwirbt ein Angebot im Modus "copy" oder "use" – frei, ohne Punkte.
    *
    * Copy kopiert nur die eigenen Module des Anbieters. Enthält das Angebot
    * auch fremde, bekommt der Käufer sie dazu zur Nutzung – kopieren darf
-   * sie niemand weiter.
+   * sie niemand weiter. Jede Kopie merkt sich ihr Original (`originId`), so
+   * kommt ihre Nutzung beim Creator an.
    */
   async acquire(offerId: string, mode: string, user: any) {
     if (mode !== 'copy' && mode !== 'use') throw new BadRequestException('Bitte "copy" oder "use" wählen.');
@@ -595,46 +623,24 @@ export class ShopService {
     if (mode === 'copy' && !ownRoots.length) throw new BadRequestException('Darin ist nichts zum Kopieren – nur zur Nutzung.');
 
     const existing = await this.grantRepo.findOne({ where: { userId: user.userId, offerId: offer.id } });
-    if (mode === 'use' && existing && !existing.onlyForeign) {
-      return { success: true, already: true, balance: await this.points.balance(user.userId) };
-    }
+    if (mode === 'use' && existing && !existing.onlyForeign) return { success: true, already: true };
 
-    const price = mode === 'copy' ? offer.priceCopy : offer.priceUse;
     const users = await this.names();
     const seller = users.get(offer.sellerId);
-    const known = new Set([...users.values()].filter((u) => u.active !== false).map((u) => u.id));
-    const shares = splitPrice(price, roots.map((m) => m.creatorId), offer.sellerId, user.userId, known);
-    const title = await this.offerTitle(offer, covered);
-    const note = `${mode === 'copy' ? 'Copy' : 'Use'}: ${title}`;
 
     let copyIds: string[] = [];
     await this.dataSource.transaction(async (manager) => {
-      if (price > 0) {
-        // Ins Minus darf es gehen – bis zur Untergrenze, falls der Admin eine gesetzt hat.
-        const balance = await this.points.balance(user.userId, manager);
-        const { minBalance } = await this.points.getSettings();
-        if (!PointsService.canSpend(balance, price, minBalance)) {
-          throw new BadRequestException(
-            `Dafür sind ${price} Punkte nötig – auf deinem Konto sind ${balance}, und unter ${minBalance} geht es nicht. Teile selbst etwas, dann kommen Punkte dazu.`,
-          );
-        }
-        await this.points.book(manager, user.userId, -price, 'purchase', note, null);
-        for (const [to, amount] of Object.entries(shares)) {
-          await this.points.book(manager, to, amount, 'sale', to === offer.sellerId ? note : `${note} (Anteil als Creator)`);
-        }
-      }
-
       const grants = manager.getRepository(UseGrant);
       const grantTopicId = offer.scopeType === 'topic' ? offer.topicId : '';
       if (mode === 'use') {
         if (existing) {
           // Bisher nur die fremden Module (aus einer Kopie) – jetzt alles.
-          Object.assign(existing, { onlyForeign: false, pricePaid: price, paidTo: price > 0 ? shares : null });
+          existing.onlyForeign = false;
           await grants.save(existing);
         } else {
           await grants.save(grants.create({
             id: crypto.randomUUID(), userId: user.userId, topicId: grantTopicId, offerId: offer.id,
-            scope: 'all', creatorId: offer.sellerId, pricePaid: price, paidTo: price > 0 ? shares : null, onlyForeign: false,
+            scope: 'all', creatorId: offer.sellerId, pricePaid: 0, paidTo: null, onlyForeign: false,
           }));
         }
         return;
@@ -658,9 +664,6 @@ export class ShopService {
       topicId: copyIds[0] || null,
       copiedTopics: copyIds.length,
       foreignForUse: mode === 'copy' ? roots.length - ownRoots.length : 0,
-      price,
-      shares,
-      balance: await this.points.balance(user.userId),
     };
   }
 
@@ -796,59 +799,30 @@ export class ShopService {
         parentId: m.parentId ? idMap.get(m.parentId) || null : null,
         // Tags gehören dem Anbieter und existieren beim Käufer nicht.
         tagIds: null,
+        // Nutzung und Bewertung der Kopie zählen für das Original.
+        originId: m.originId || m.id,
       });
     });
     if (copies.length) await moduleRepo.save(copies);
     return copy.id;
   }
 
-  /** Bis wann ein bezahltes Nutzungsrecht mit Erstattung zurückgegeben werden kann (sonst null). */
-  static refundUntil(grant: UseGrant): Date | null {
-    if (!(grant.pricePaid > 0) || !grant.createdAt) return null;
-    return new Date(new Date(grant.createdAt).getTime() + REFUND_DAYS * 24 * 60 * 60 * 1000);
-  }
-
   /**
-   * Nutzungsrecht beenden. Der Inhaber kann es jederzeit zurückgeben –
-   * innerhalb von REFUND_DAYS Tagen nach dem Kauf mit voller Erstattung (so
-   * lässt sich ein Angebot per Use ausprobieren), danach ohne. Die Punkte
-   * kommen von dort zurück, wohin sie gegangen sind – notfalls ins Minus.
-   * Der Anbieter kann nur kostenlose Rechte entziehen – was bezahlt wurde,
-   * bleibt. Das Nutzungsrecht zu einer Kopie (nur fremde Module) gehört zur
-   * Kopie und lässt sich nicht einzeln zurückgeben.
+   * Nutzungsrecht beenden. Der Inhaber kann es jederzeit zurückgeben. Der
+   * Anbieter kann es entziehen – außer bei Rechten, für die früher Punkte
+   * bezahlt wurden. Das Nutzungsrecht zu einer Kopie (nur fremde Module)
+   * gehört zur Kopie und wird mit ihr zurückgegeben.
    */
   async revokeGrant(grantId: string, user: any) {
     const grant = await this.grantRepo.findOne({ where: { id: grantId } });
     if (!grant) throw new NotFoundException('Nutzungsrecht nicht gefunden.');
-    const offer = grant.offerId ? await this.offerRepo.findOne({ where: { id: grant.offerId } }) : null;
     if (grant.userId !== user.userId) {
+      const offer = grant.offerId ? await this.offerRepo.findOne({ where: { id: grant.offerId } }) : null;
       if (!offer || offer.sellerId !== user.userId) throw new ForbiddenException('Das ist nicht dein Angebot.');
-      if (grant.pricePaid > 0) throw new ForbiddenException('Ein bezahltes Nutzungsrecht lässt sich nicht entziehen.');
-      await this.grantRepo.remove(grant);
-      return { success: true };
+      if (grant.pricePaid > 0) throw new ForbiddenException('Für dieses Nutzungsrecht wurden früher Punkte bezahlt – es lässt sich nicht entziehen.');
     }
-
-    const until = ShopService.refundUntil(grant);
-    const sellerId = offer?.sellerId || grant.creatorId;
-    const paidTo: Record<string, number> = grant.paidTo && Object.keys(grant.paidTo).length
-      ? grant.paidTo
-      : sellerId ? { [sellerId]: grant.pricePaid } : {};
-    let refunded = 0;
-    await this.dataSource.transaction(async (manager) => {
-      if (until && until.getTime() >= Date.now()) {
-        const title = offer ? await this.offerTitle(offer) : (await this.topicRepo.findOne({ where: { id: grant.topicId } }))?.title;
-        const note = `Rückgabe Use: ${title || 'Thema'}`;
-        // Erstattet wird immer voll – wer die Punkte bekommen hat, gibt sie zurück, notfalls ins Minus.
-        for (const [from, amount] of Object.entries(paidTo)) {
-          if (!(amount > 0) || from === user.userId) continue;
-          await this.points.book(manager, from, -amount, 'refund', note, null);
-          refunded += amount;
-        }
-        if (refunded > 0) await this.points.book(manager, user.userId, refunded, 'refund', note);
-      }
-      await manager.getRepository(UseGrant).remove(grant);
-    });
-    return { success: true, refunded, pricePaid: grant.pricePaid, balance: await this.points.balance(user.userId) };
+    await this.grantRepo.remove(grant);
+    return { success: true };
   }
 
   /** Eine gelöschte Gruppe aus allen Zielgruppen nehmen. */

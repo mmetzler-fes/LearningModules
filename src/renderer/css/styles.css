@@ -3322,27 +3322,70 @@ body {
 
 /* ==================== LERNMODULE-SHOP ==================== */
 
-.shop-balance {
-  font-weight: 700;
-  font-size: 1.05em;
-  padding: 6px 14px;
-  border-radius: 99px;
-  background: var(--accent-light);
-  color: var(--accent-hover);
-}
-
-.points-badge {
-  display: inline-block;
-  margin-left: 6px;
-  padding: 1px 8px;
-  border-radius: 99px;
-  font-size: 0.8em;
-  font-weight: 600;
-  background: rgba(255, 255, 255, 0.12);
+/* Knopf, der wie ein Link aussieht – etwa Creator-Namen im Shop. */
+.link-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  color: var(--accent);
   cursor: pointer;
+  text-decoration: underline dotted;
+  text-underline-offset: 2px;
 }
+.link-btn:hover { color: var(--accent-hover); text-decoration-style: solid; }
 
-.points-badge.negative { color: #fca5a5; background: rgba(239, 68, 68, 0.22); }
+/* ---- Bewertung ---- */
+.rating-stars { color: #d97706; font-weight: 600; white-space: nowrap; }
+.rating-thanks { white-space: nowrap; }
+.star-input { display: flex; align-items: center; gap: 2px; flex-wrap: wrap; }
+.star-btn {
+  background: none;
+  border: none;
+  font-size: 2rem;
+  line-height: 1;
+  padding: 2px 3px;
+  cursor: pointer;
+  color: var(--border);
+  transition: transform 0.1s, color 0.1s;
+}
+.star-btn.on { color: #f59e0b; }
+.star-btn:hover { transform: scale(1.15); }
+.star-btn:focus-visible { outline: 2px solid var(--accent); border-radius: 4px; }
+.star-clear { margin-left: 8px; }
+.feedback-card textarea { width: 100%; box-sizing: border-box; }
+.choose-list { display: flex; flex-direction: column; gap: 6px; margin: 12px 0; }
+.choose-list .choose-item { text-align: left; }
+
+/* ---- Hinweis zum Teilen, Creator-Filter ---- */
+.share-hint, .creator-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 16px;
+  margin-bottom: 14px;
+  border-radius: 10px;
+  background: var(--accent-light);
+  border: 1px solid var(--border);
+}
+.share-hint-icon { font-size: 1.6rem; line-height: 1; }
+.share-hint-actions { margin-top: 8px; display: flex; gap: 8px; flex-wrap: wrap; }
+.creator-banner { align-items: center; justify-content: space-between; flex-wrap: wrap; }
+.creator-banner-stats { margin-left: 4px; }
+
+/* ---- Geteilt & genutzt ---- */
+.impact-h { margin: 18px 0 6px; }
+.give-take { margin: 12px 0 16px; }
+.give-take.nudge { padding: 10px 14px; border-radius: 10px; background: var(--accent-light); }
+.impact-table td:nth-child(n+2), .impact-table th:nth-child(n+2) { text-align: center; }
+.impact-comments { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 8px; }
+.impact-comment { padding: 10px 14px; border-radius: 10px; background: var(--bg-secondary); border: 1px solid var(--border); }
+.impact-comment-head { display: flex; flex-wrap: wrap; gap: 8px; align-items: baseline; }
+.impact-comment-text { margin-top: 4px; white-space: pre-wrap; }
+.points-history { margin-top: 20px; }
+@media (max-width: 640px) {
+  .impact-table { display: block; overflow-x: auto; }
+}
 
 .shop-card .topic-card-meta { flex-wrap: wrap; gap: 6px; }
 

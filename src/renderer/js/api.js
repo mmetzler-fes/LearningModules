@@ -430,7 +430,17 @@ export class BrowserApi {
   // ---------- Lernmodule-Shop ----------
   getShopOffers() { return this._fetch('/api/shop/offers'); }
   getMyOffers() { return this._fetch('/api/shop/my-offers'); }
-  getMyPoints() { return this._fetch('/api/shop/points'); }
+  /** Buchungen des früheren Punktekontos (bis Oktober 2026). */
+  getPointsHistory() { return this._fetch('/api/shop/points'); }
+
+  // ---------- Nutzung und Bewertung ----------
+  getMyImpact() { return this._fetch('/api/impact/mine'); }
+  getCreatorImpact(userId) { return this._fetch(`/api/impact/creators/${encodeURIComponent(userId)}`); }
+  getFeedback(topicId) { return this._fetch(`/api/impact/feedback/${encodeURIComponent(topicId)}`); }
+  /** body: { stars: 1–5 | null, thanks, comment } – alles leer löscht die Rückmeldung. */
+  saveFeedback(topicId, body) {
+    return this._fetch(`/api/impact/feedback/${encodeURIComponent(topicId)}`, { method: 'POST', body: JSON.stringify(body) });
+  }
   /**
    * Zustand des Anbieten-Dialogs. target: { type: 'topic'|'node'|'modules', id } –
    * bei einer neuen Auswahl { type: 'modules', moduleIds }.
@@ -441,7 +451,7 @@ export class BrowserApi {
     if (target.moduleIds?.length) q.set('moduleIds', target.moduleIds.join(','));
     return this._fetch(`/api/shop/offer-state?${q}`);
   }
-  /** body: { type, topicId|nodeId|moduleIds, offerId?, title?, allowCopy, allowUse, priceCopy, priceUse, audience, includeForeign, active } */
+  /** body: { type, topicId|nodeId|moduleIds, offerId?, title?, allowCopy, allowUse, audience, includeForeign, active } */
   saveOffer(body) {
     return this._fetch('/api/shop/offers', { method: 'POST', body: JSON.stringify(body) });
   }
@@ -455,7 +465,7 @@ export class BrowserApi {
       body: JSON.stringify({ mode }),
     });
   }
-  /** Nutzungsrecht zurückgeben (eigenes) bzw. kostenloses entziehen (als Anbieter). */
+  /** Nutzungsrecht zurückgeben (eigenes) bzw. entziehen (als Anbieter). */
   revokeGrant(grantId) {
     return this._fetch(`/api/shop/grants/${encodeURIComponent(grantId)}`, { method: 'DELETE' });
   }
@@ -473,9 +483,9 @@ export class BrowserApi {
   reactivateUser(userId) {
     return this._fetch(`/api/admin/users/${encodeURIComponent(userId)}/reactivate`, { method: 'POST' });
   }
-  getPointsSettings() { return this._fetch('/api/admin/points-settings'); }
-  savePointsSettings(body) {
-    return this._fetch('/api/admin/points-settings', { method: 'POST', body: JSON.stringify(body) });
+  getImpactSettings() { return this._fetch('/api/admin/impact-settings'); }
+  saveImpactSettings(body) {
+    return this._fetch('/api/admin/impact-settings', { method: 'POST', body: JSON.stringify(body) });
   }
   getMasterKeyStatus() { return this._fetch('/api/admin/master-key'); }
   /** creds: { password, code } – erneute Bestätigung für heikle Aktionen. */

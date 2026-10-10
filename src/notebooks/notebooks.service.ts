@@ -156,7 +156,7 @@ export class NotebooksService {
         sellerName: seller ? seller.displayName || seller.email : 'Unbekannt',
         onlyForeign: myGrants.every((g) => g.onlyForeign),
         grants: myGrants.map((g) => ({
-          id: g.id, pricePaid: g.pricePaid, onlyForeign: g.onlyForeign, refundUntil: ShopService.refundUntil(g),
+          id: g.id, pricePaid: g.pricePaid, onlyForeign: g.onlyForeign,
         })),
         nodes: nodes.filter((n) => ids.has(n.id)).map(({ id, kind, title, parentId, orderIndex }) => ({
           id, kind, title, orderIndex, parentId: id === root.id ? null : parentId,
@@ -444,6 +444,7 @@ export class NotebooksService {
         id: idMap.get(id),
         topicId: topic.id,
         parentId: m.parentId ? idMap.get(m.parentId) || null : null,
+        originId: m.originId || m.id,
       });
     });
     if (modules.length) await this.moduleRepo.save(modules);

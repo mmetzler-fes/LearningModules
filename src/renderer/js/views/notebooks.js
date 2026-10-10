@@ -1,6 +1,7 @@
 import { escapeHtml, escapeAttr, showImportReport } from '../utils.js';
 import { pickClass } from './classes.js';
 import { TagPicker, chipHtml } from './tags.js';
+import { openFeedbackDialog } from './feedback.js';
 
 // ==================== NOTEBOOKS ====================
 //
@@ -423,7 +424,13 @@ export class NotebooksView {
     return [
       { label: '🔗 Quick-Link', run: () => this.app.topicsView._createQuickClassLink({ id: topic.id, title: topic.title, selected: true }) },
       { label: '👁 Ansehen', run: () => this.app.topicsView._openSharedTopicViewer(topic) },
+      this._rateItem(topic.id),
     ];
+  }
+
+  /** Bewerten eines genutzten oder kopierten Lernthemas (bei einer Kopie: das Original). */
+  _rateItem(topicId, label = '⭐ Bewerten') {
+    return { label, title: 'Nützlichkeit bewerten, Danke sagen, Rückmeldung an die Creator', run: () => openFeedbackDialog(this.app, topicId) };
   }
 
   // ---------- Anbieten ----------
@@ -534,6 +541,8 @@ export class NotebooksView {
   }
 
   _topicMenu(topic) {
+    const me = this.app.state.currentUser?.id;
+    const fromShop = topic.copiedFromOwnerId && topic.copiedFromOwnerId !== me;
     return [
       { label: '🔗 Quick-Link', run: () => this.app.topicsView._createQuickClassLink(topic) },
       { label: '🛒 Teilen', title: 'Im Shop anbieten oder weitergeben', run: () => this.app.shopView.openForTopic(topic.id) },
@@ -546,6 +555,7 @@ export class NotebooksView {
       { label: '↔️ Verschieben nach…', run: () => this._moveTopicDialog(topic) },
       { label: '📋 Kopieren', run: () => this._copyTopic(topic) },
       { label: '✏️ Umbenennen / Beschreibung', run: () => this._editTopic(topic) },
+      ...(fromShop ? [this._rateItem(topic.id, '⭐ Original bewerten')] : []),
       '-',
       { label: '🗑 Löschen', danger: true, run: async () => { if (await this.app.topicsView.deleteTopic(topic)) this.refresh(); } },
     ];
@@ -556,6 +566,7 @@ export class NotebooksView {
       { label: '🔗 Quick-Link', run: () => this.app.topicsView._createQuickClassLink({ id: topic.id, title: topic.title, selected: true }) },
       { label: '👁 Ansehen', run: () => this.app.topicsView._openSharedTopicViewer(topic) },
       { label: '↔️ Verschieben nach…', run: () => this._moveTopicDialog(topic) },
+      this._rateItem(topic.id),
       '-',
       { label: '↩ Zurückgeben', danger: true, run: async () => { if (await this.app.topicsView.returnGrant(topic)) this.refresh(); } },
     ];

@@ -118,6 +118,7 @@ export class ImportService {
         // Was als offene Datei hereinkommt, ist neues Material in dieser App:
         // Creator ist, wer es importiert.
         creatorId: user.userId,
+        originId: null,
         // Tags stammen aus dem Quellkonto und existieren hier nicht. Sie
         // mitzuschleppen hiesse, unauffloesbare IDs am Modul zu hinterlassen.
         tagIds: null,

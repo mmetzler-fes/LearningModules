@@ -1,4 +1,5 @@
 import { escapeHtml, escapeAttr } from '../utils.js';
+import { openFeedbackDialog, ratingBadge } from './feedback.js';
 
 // ==================== LERNMODULE-SHOP ====================
 //
@@ -12,11 +13,15 @@ import { escapeHtml, escapeAttr } from '../utils.js';
 //
 // Angeboten werden ein Lernthema, ein Book/Bereich/Abschnitt aus den
 // Notebooks (wächst mit) oder eine Auswahl von Modulen. Eigene Module lassen
-// sich kopieren und nutzen, erworbene nur nutzen. Die Punkte gehen anteilig
-// an die Creator.
+// sich kopieren und nutzen, erworbene nur nutzen.
+//
+// Alles ist frei. Statt Punkten zeigt „Geteilt & genutzt“, wen das eigene
+// Material erreicht, und wer etwas nutzt, kann es bewerten
+// (docs/nutzung-und-bewertung.md).
 
-const TABS = ['offers', 'mine', 'points'];
+const TABS = ['offers', 'mine', 'impact'];
 
+/** Arten der früheren Punkte-Buchungen (bis Oktober 2026), für den Verlauf. */
 const REASON_LABELS = {
   start: 'Startguthaben',
   purchase: 'Kauf',
@@ -46,7 +51,8 @@ export class ShopView {
     this.app = app;
     this._tab = 'offers';
     this._content = document.getElementById('shopContent');
-    this._balance = document.getElementById('shopBalance');
+    /** Nur Angebote mit Modulen dieses Creators: { id, name } oder null. */
+    this._creatorFilter = null;
     this._search = document.getElementById('shopSearch');
     this._onlyShared = document.getElementById('shopOnlyShared');
     this._filterBar = document.getElementById('shopFilterBar');
@@ -89,23 +95,15 @@ export class ShopView {
     try {
       if (this._tab === 'offers') {
         this._catalog = await this.app.api.getShopOffers();
-        this._setBalance(this._catalog?.balance);
         this._renderOffers();
       } else if (this._tab === 'mine') {
         await this._renderMine();
       } else {
-        await this._renderPoints();
+        await this._renderImpact();
       }
     } catch (err) {
       this._content.innerHTML = `<p class="login-error">Fehler: ${escapeHtml(err.message)}</p>`;
     }
-  }
-
-  _setBalance(balance) {
-    if (typeof balance !== 'number') return;
-    this._lastBalance = balance;
-    if (this._balance) this._balance.textContent = `🪙 ${points(balance)}`;
-    this.app.updatePointsBadge?.(balance);
   }
 
   // ---- Angebote ----
@@ -115,49 +113,90 @@ export class ShopView {
     const all = (this._catalog && this._catalog.offers) || [];
     const q = (this._search?.value || '').toLowerCase().trim();
     const onlyShared = !!this._onlyShared?.checked;
+    const creator = this._creatorFilter;
     const list = all.filter((o) => {
       if (onlyShared && !o.sharedWithMe) return false;
+      if (creator && !(o.creatorList || []).some((c) => c.id === creator.id)) return false;
       if (!q) return true;
       return [o.title, o.description, o.sellerName, ...o.modules.map((m) => m.title)]
         .some((s) => (s || '').toLowerCase().includes(q));
     });
 
     this._content.innerHTML = '';
+    if (this._catalog?.shareHint) this._content.appendChild(this._shareHint());
+    if (creator) this._content.appendChild(this._creatorBanner(creator));
     if (list.length === 0) {
-      this._content.innerHTML = all.length === 0
+      const html = all.length === 0
         ? '<div class="empty-state"><span class="empty-icon">🛒</span><p>Im Moment bietet niemand etwas an.</p></div>'
         : '<div class="empty-state"><span class="empty-icon">🔍</span><p>Kein Angebot passt zur Suche.</p></div>';
+      this._content.insertAdjacentHTML('beforeend', html);
       return;
     }
     for (const offer of list) this._content.appendChild(this._offerCard(offer));
   }
 
+  /** Freundlicher Hinweis für alle, die viel übernommen und noch nichts geteilt haben. */
+  _shareHint() {
+    const g = this._catalog.giveAndTake || {};
+    const box = document.createElement('div');
+    box.className = 'share-hint';
+    box.innerHTML = `
+      <span class="share-hint-icon">🤝</span>
+      <div><strong>Material teilen &amp; Wirkung schenken.</strong>
+        Du hast schon ${g.taken}× etwas aus dem Shop übernommen – magst du auch etwas teilen?
+        Ein Lernthema, das bei dir gut läuft, hilft anderen genauso.
+        <div class="share-hint-actions">
+          <button class="btn btn-primary btn-sm" data-go="mine">🏷 Etwas anbieten</button>
+          <button class="btn btn-secondary btn-sm" data-go="impact">📈 Geteilt & genutzt</button>
+        </div></div>`;
+    box.querySelectorAll('[data-go]').forEach((b) => b.addEventListener('click', () => this._showTab(b.dataset.go)));
+    return box;
+  }
+
+  /** Kopfzeile beim Filter nach einem Creator: was er teilt und wen es erreicht. */
+  _creatorBanner(creator) {
+    const box = document.createElement('div');
+    box.className = 'creator-banner';
+    box.innerHTML = `<div class="creator-banner-text">✍️ Angebote mit Modulen von <strong>${escapeHtml(creator.name)}</strong>
+      <span class="hint creator-banner-stats">…</span></div>
+      <button class="btn btn-secondary btn-sm">✕ alle Angebote</button>`;
+    box.querySelector('button').addEventListener('click', () => { this._creatorFilter = null; this._renderOffers(); });
+    this.app.api.getCreatorImpact(creator.id).then((s) => {
+      if (!s || s.id !== creator.id) return;
+      const parts = [
+        `${s.modules} Modul${s.modules === 1 ? '' : 'e'} verfasst`,
+        s.teachers ? `genutzt von ${s.teachers} Lehrkr${s.teachers === 1 ? 'aft' : 'äften'}${s.schools > 1 ? ` an ${s.schools} Schulen` : ''}` : null,
+        s.runs ? `${s.runs} Bearbeitungen im Unterricht` : null,
+        s.rating?.count ? `★ ${String(s.rating.avg).replace('.', ',')} (${s.rating.count})` : null,
+        s.rating?.thanks ? `👍 ${s.rating.thanks}` : null,
+      ].filter(Boolean);
+      box.querySelector('.creator-banner-stats').textContent = '· ' + parts.join(' · ');
+    }).catch(() => {});
+    return box;
+  }
+
   _offerCard(o) {
-    const balance = this._catalog?.balance ?? 0;
-    // Ins Minus darf es gehen; nur unter eine vom Admin gesetzte Untergrenze nicht.
-    const minBalance = this._catalog?.minBalance ?? null;
     const card = document.createElement('div');
     card.className = 'topic-card shop-card';
-    const otherCreators = o.creators.filter((c) => c !== o.sellerName);
+    const otherCreators = (o.creatorList || []).filter((c) => c.id !== o.sellerId);
+    const creatorLink = (c) => `<button type="button" class="link-btn creator-link" data-creator="${escapeAttr(c.id)}" data-name="${escapeAttr(c.name)}" title="Alle Angebote mit Modulen von ${escapeAttr(c.name)}">${escapeHtml(c.name)}</button>`;
     const typeOf = (t) => (typeof H5P_TYPES !== 'undefined' && H5P_TYPES[t]) || {};
     const scope = SCOPE_LABEL[o.scopeType === 'node' ? o.nodeKind : o.scopeType] || SCOPE_LABEL.topic;
 
     const button = (mode) => {
       const allowed = mode === 'copy' ? o.allowCopy : o.allowUse;
       if (!allowed) return '';
-      const price = mode === 'copy' ? o.priceCopy : o.priceUse;
       if (mode === 'use' && o.hasUse) {
         return '<button class="btn btn-secondary btn-sm" disabled title="Du verwendest das bereits">✓ In Verwendung</button>';
       }
-      const poor = minBalance !== null && balance - price < minBalance;
       const label = mode === 'copy' ? '📥 Copy' : '🔗 Use';
-      const priceLabel = price === 0 ? 'frei' : points(price);
       return `<button class="btn ${mode === 'copy' ? 'btn-primary' : 'btn-secondary'} btn-sm btn-acquire" data-mode="${mode}"
-        ${poor ? 'disabled' : ''} title="${poor ? `Dein Konto darf nicht unter ${minBalance} Punkte fallen` : mode === 'copy'
+        title="${escapeAttr(mode === 'copy'
           ? (o.foreignCount ? `Eigene Kopie der ${o.ownCount} Module von ${o.sellerName}; die übrigen ${o.foreignCount} bekommst du zur Nutzung dazu` : 'Eigene Kopie: bearbeiten erlaubt, Weitergabe nur zur Nutzung')
-          : 'Original in eigenen Links verwenden – Änderungen des Creators wirken sofort'}">
-        ${label} · ${priceLabel}</button>`;
+          : 'Original in eigenen Links verwenden – Änderungen des Creators wirken sofort')}">
+        ${label}</button>`;
     };
+    const rateable = o.rateable || [];
 
     card.innerHTML = `
       <div class="topic-card-header">
@@ -168,11 +207,12 @@ export class ShopView {
             <span class="topic-shared-badge" title="${o.scopeType === 'node' ? 'Kommt beim Anbieter etwas dazu, gehört es bei Use automatisch dazu' : ''}">${scope.label}${o.scopeType !== 'topic' ? ` · ${o.topicCount} Lernthem${o.topicCount === 1 ? 'a' : 'en'}` : ''}</span>
             <span class="topic-module-count">${o.modules.length} Modul${o.modules.length === 1 ? "" : "e"}</span>
             ${o.foreignCount ? `<span class="topic-shared-badge" title="Hat der Anbieter selbst erworben – nur zur Nutzung, nicht zum Kopieren">${o.foreignCount} davon nur zur Nutzung</span>` : ''}
-            <span class="topic-shared-badge">von ${escapeHtml(o.sellerName)}</span>
-            ${otherCreators.length ? `<span class="topic-shared-badge" title="Creator der Module">✍️ ${otherCreators.map(escapeHtml).join(', ')}</span>` : ''}
+            <span class="topic-shared-badge">von ${creatorLink({ id: o.sellerId, name: o.sellerName })}</span>
+            ${otherCreators.length ? `<span class="topic-shared-badge" title="Creator der Module">✍️ ${otherCreators.map(creatorLink).join(', ')}</span>` : ''}
+            ${ratingBadge(o.rating)}
             ${o.sharedWithMe ? '<span class="topic-shared-badge use">👥 an dich geteilt</span>' : ''}
-            ${o.kind === 'buyer' ? '<span class="topic-shared-badge" title="Weitergabe einer gekauften Kopie: nur zur Nutzung, kostenlos">↪ Weitergabe</span>' : ''}
-            ${!o.sellerActive ? '<span class="topic-status inactive" title="Das Konto ist deaktiviert – seine Inhalte sind kostenlos">Konto deaktiviert</span>' : ''}
+            ${o.kind === 'buyer' ? '<span class="topic-shared-badge" title="Weitergabe einer erworbenen Kopie: nur zur Nutzung">↪ Weitergabe</span>' : ''}
+            ${!o.sellerActive ? '<span class="topic-status inactive" title="Das Konto ist deaktiviert – seine Inhalte bleiben im Shop">Konto deaktiviert</span>' : ''}
             ${o.copies ? `<span class="topic-shared-badge">📋 ${o.copies}× kopiert</span>` : ''}
           </div>
           <details class="shop-modules">
@@ -183,12 +223,21 @@ export class ShopView {
         <div class="topic-card-actions">
           ${button('use')}
           ${button('copy')}
+          ${rateable.length ? '<button class="btn btn-secondary btn-sm btn-rate" title="Nützlichkeit bewerten, Danke sagen, Rückmeldung geben">⭐ Bewerten</button>' : ''}
         </div>
       </div>`;
 
     card.querySelectorAll('.btn-acquire').forEach((btn) => {
       btn.addEventListener('click', () => this._acquire(o, btn.dataset.mode, btn));
     });
+    card.querySelectorAll('.creator-link').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        this._creatorFilter = { id: btn.dataset.creator, name: btn.dataset.name };
+        this._renderOffers();
+        this._content.scrollIntoView?.({ block: 'start' });
+      });
+    });
+    card.querySelector('.btn-rate')?.addEventListener('click', () => this._rate(o));
     return card;
   }
 
@@ -204,34 +253,58 @@ export class ShopView {
     return [...groups].map(([title, list]) => `<p class="shop-topic-head">📘 ${escapeHtml(title)}</p><ul>${list.map(item).join('')}</ul>`).join('');
   }
 
+  /** Bewerten – bei mehreren genutzten Lernthemen im Angebot erst eins wählen. */
+  async _rate(o) {
+    const list = o.rateable || [];
+    let topicId = list[0]?.topicId;
+    if (list.length > 1) {
+      topicId = await this._choose('Welches Lernthema möchtest du bewerten?', list.map((t) => ({ value: t.topicId, label: `📘 ${t.title}` })));
+      if (!topicId) return;
+    }
+    if (topicId && (await openFeedbackDialog(this.app, topicId))) await this.refresh();
+  }
+
+  /** Eine Wahl aus wenigen Möglichkeiten; liefert den Wert oder null. */
+  _choose(title, options) {
+    return new Promise((resolve) => {
+      const overlay = document.createElement('div');
+      overlay.className = 'confirm-overlay';
+      overlay.innerHTML = `
+        <div class="import-modules-card" style="min-width:min(380px,92vw)">
+          <h3>${escapeHtml(title)}</h3>
+          <div class="choose-list">${options.map((o, i) => `<button class="btn btn-secondary choose-item" data-i="${i}">${escapeHtml(o.label)}</button>`).join('')}</div>
+          <div class="confirm-actions"><button class="btn btn-secondary choose-cancel">Abbrechen</button></div>
+        </div>`;
+      document.body.appendChild(overlay);
+      const done = (v) => { overlay.remove(); resolve(v); };
+      overlay.querySelectorAll('.choose-item').forEach((b) => b.addEventListener('click', () => done(options[Number(b.dataset.i)].value)));
+      overlay.querySelector('.choose-cancel').addEventListener('click', () => done(null));
+      overlay.addEventListener('click', (e) => { if (e.target === overlay) done(null); });
+    });
+  }
+
   async _acquire(o, mode, btn) {
-    const price = mode === 'copy' ? o.priceCopy : o.priceUse;
-    const cost = price === 0 ? 'kostenlos' : `für ${points(price)}`;
     const where = o.scopeType === 'node'
       ? (o.nodeKind === 'book' ? 'als eigenes Book in deinen Notebooks' : 'in deinen Notebooks im Book „Erworben“')
       : 'unter deinen Lernthemen';
     const text = mode === 'copy'
-      ? `Eigene Kopie von „${o.title}" ${cost} erwerben?\n\n` +
+      ? `Eigene Kopie von „${o.title}" übernehmen?\n\n` +
         `Sie liegt danach ${where}, gesperrt, bis du sie freigibst. Du darfst sie bearbeiten und eigene Module ergänzen. ` +
         `Die Module bleiben auf ihre Creator (${o.creators.join(', ')}) verzeichnet. ` +
         (o.foreignCount
           ? `\n\nKopiert werden die ${o.ownCount} Module von ${o.sellerName}. Die übrigen ${o.foreignCount} hat ${o.sellerName} selbst erworben – sie bekommst du ohne Aufpreis zur Nutzung (Use), kopieren lassen sie sich nicht.`
           : '') +
-        (o.copies ? `\n\nDu hast das schon ${o.copies}× kopiert.` : '') +
-        (price > 0 ? '\n\nEine Kopie lässt sich nicht zurückgeben.' +
-          (o.allowUse ? ' Zum Ausprobieren erst „🔗 Use“ wählen – das kannst du 14 Tage lang mit Erstattung zurückgeben.' : '') : '')
-      : `„${o.title}" ${cost} zur Nutzung erwerben?\n\n` +
+        (o.copies ? `\n\nDu hast das schon ${o.copies}× kopiert.` : '')
+      : `„${o.title}" zur Nutzung übernehmen?\n\n` +
         'Du verwendest das Original in deinen eigenen Themen- und Quick-Links, die Ergebnisse kommen zu dir. ' +
         'Änderungen des Anbieters wirken sofort' + (o.scopeType === 'node' ? ', und was er später hineinlegt, gehört automatisch dazu' : '') + '. ' +
-        'Bearbeiten und weitergeben kannst du es nicht.' +
-        (price > 0 ? '\n\nInnerhalb von 14 Tagen kannst du es zurückgeben und bekommst die Punkte erstattet.' : '');
+        'Bearbeiten und weitergeben kannst du es nicht; zurückgeben geht jederzeit.';
     if (!(await this.app.appConfirm(text))) return;
 
     btn.disabled = true;
     try {
       const res = await this.app.api.acquireOffer(o.offerId, mode);
-      if (!res || !res.success) throw new Error(res?.message || 'Erwerb fehlgeschlagen');
-      this._setBalance(res.balance);
+      if (!res || !res.success) throw new Error(res?.message || 'Übernehmen fehlgeschlagen');
       this.app.showToast(
         mode === 'copy'
           ? `„${o.title}" liegt jetzt ${o.scopeType === 'node' ? 'in deinen Notebooks' : 'in deinen Lernthemen'} – gesperrt, bis du es freigibst.`
@@ -284,10 +357,7 @@ export class ShopView {
     for (const o of offers) {
       const card = document.createElement('div');
       card.className = `topic-card ${o.active ? '' : 'topic-inactive'}`;
-      const modes = [
-        o.allowUse ? `🔗 Use · ${o.priceUse ? points(o.priceUse) : 'frei'}` : null,
-        o.allowCopy ? `📥 Copy · ${o.priceCopy ? points(o.priceCopy) : 'frei'}` : null,
-      ].filter(Boolean).join(' &nbsp; ');
+      const modes = [o.allowUse ? '🔗 Use' : null, o.allowCopy ? '📥 Copy' : null].filter(Boolean).join(' &nbsp; ');
       card.innerHTML = `
         <div class="topic-card-header">
           <div class="topic-card-info">
@@ -329,12 +399,12 @@ export class ShopView {
     return parts.length ? `👥 ${parts.join(' + ')}` : 'niemand';
   }
 
-  /** Wer ein Nutzungsrecht hat. Nur kostenlose lassen sich entziehen. */
+  /** Wer ein Nutzungsrecht hat. Rechte, für die früher Punkte bezahlt wurden, lassen sich nicht entziehen. */
   _holdersHtml(holders) {
     if (!holders || holders.length === 0) return '';
     return `<details class="shop-modules"><summary>${holders.length} verwenden das Thema</summary><ul>
-      ${holders.map((h) => `<li>${escapeHtml(h.name)} · ${h.pricePaid ? points(h.pricePaid) : 'kostenlos'}
-        ${h.pricePaid ? '' : `<button class="btn btn-secondary btn-sm btn-revoke-holder" data-grant="${escapeAttr(h.grantId)}" title="Kostenloses Nutzungsrecht entziehen">entziehen</button>`}</li>`).join('')}
+      ${holders.map((h) => `<li>${escapeHtml(h.name)}${h.pricePaid ? ` <span class="hint" title="Aus der Zeit der Punkte – lässt sich nicht entziehen">(früher ${points(h.pricePaid)} bezahlt)</span>` : ''}
+        ${h.pricePaid ? '' : `<button class="btn btn-secondary btn-sm btn-revoke-holder" data-grant="${escapeAttr(h.grantId)}" title="Nutzungsrecht entziehen">entziehen</button>`}</li>`).join('')}
     </ul></details>`;
   }
 
@@ -354,7 +424,7 @@ export class ShopView {
   async _withdraw(o) {
     const text = o.kind === 'buyer'
       ? 'Weitergabe beenden? Alle, die das Thema darüber verwenden, verlieren es sofort.'
-      : 'Angebot zurückziehen? Es verschwindet aus dem Shop. Wer schon gekauft hat, behält Kopie bzw. Nutzungsrecht.';
+      : 'Angebot zurückziehen? Es verschwindet aus dem Shop. Wer es schon übernommen hat, behält Kopie bzw. Nutzungsrecht.';
     if (!(await this.app.appConfirm(text))) return;
     const res = await this.app.api.withdrawOffer(o.id);
     if (res && res.success) {
@@ -363,31 +433,79 @@ export class ShopView {
     } else this.app.showToast('Fehler: ' + (res?.message || '?'), 'error');
   }
 
-  // ---- Punktekonto ----
+  // ---- Geteilt & genutzt: was aus dem eigenen Material wird ----
 
-  async _renderPoints() {
-    const data = await this.app.api.getMyPoints();
-    this._setBalance(data.balance);
-    const s = data.settings || {};
-    const rows = (data.entries || []).map((e) => `
+  async _renderImpact() {
+    const data = await this.app.api.getMyImpact();
+    const t = data.totals || {};
+    const g = data.giveAndTake || {};
+    const num = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+    const stat = (n, label, title = '') => `<div class="stat-card" title="${escapeAttr(title)}"><div class="stat-number">${n}</div><div class="stat-label">${label}</div></div>`;
+    const avg = (r) => (r && r.count ? `★ ${String(r.avg).replace('.', ',')}` : '–');
+
+    const rows = (data.topics || []).map((x) => `
       <tr>
-        <td>${new Date(e.createdAt).toLocaleDateString('de-DE')}</td>
-        <td>${escapeHtml(REASON_LABELS[e.reason] || e.reason)}</td>
-        <td>${escapeHtml(e.note || '')}</td>
-        <td class="shop-delta ${e.delta < 0 ? 'neg' : 'pos'}">${e.delta > 0 ? '+' : ''}${e.delta}</td>
-        <td>${e.balance}</td>
+        <td>📘 ${escapeHtml(x.title)}${x.gone ? ' <span class="hint" title="Das Original gibt es nicht mehr – gezählt wird über die Kopien weiter">(Original gelöscht)</span>' : ''}
+          ${x.offered ? ' <span class="topic-shared-badge owner" title="Steht im Shop">🛒</span>' : ''}</td>
+        <td>${x.modules}</td>
+        <td>${x.teachers || '–'}</td>
+        <td>${x.usedBy || '–'}</td>
+        <td>${x.copiedBy || '–'}</td>
+        <td title="davon ${x.runsByOthers} über Links anderer Lehrkräfte">${x.runs || '–'}</td>
+        <td>${x.classes || '–'}</td>
+        <td>${avg(x.rating)}${x.rating?.count ? ` <span class="hint">(${x.rating.count})</span>` : ''}${x.rating?.thanks ? ` · 👍 ${x.rating.thanks}` : ''}</td>
       </tr>`).join('');
+
+    const comments = (data.comments || []).map((c) => `
+      <li class="impact-comment">
+        <div class="impact-comment-head"><strong>${escapeHtml(c.name)}</strong> zu 📘 ${escapeHtml(c.topicTitle)}
+          ${c.stars ? `<span class="rating-stars">${'★'.repeat(c.stars)}${'☆'.repeat(5 - c.stars)}</span>` : ''}${c.thanks ? ' 👍' : ''}
+          <span class="hint">${new Date(c.date).toLocaleDateString('de-DE')}</span></div>
+        <div class="impact-comment-text">${escapeHtml(c.comment)}</div>
+      </li>`).join('');
+
+    const balance = g.shared === 0 && g.taken > 0
+      ? `Du hast ${num(g.taken, 'Mal', 'Mal')} etwas übernommen (${g.copies} Kopien, ${g.uses} zur Nutzung) und selbst noch nichts angeboten. Magst du etwas teilen?`
+      : `Du bietest ${num(g.shared, 'Angebot', 'Angebote')} an und hast ${num(g.taken, 'Mal', 'Mal')} etwas übernommen (${g.copies} Kopien, ${g.uses} zur Nutzung).`;
+
     this._content.innerHTML = `
+      <h3 class="impact-h">Geteilt & genutzt <button type="button" class="help-hint" data-help="nutzung-und-bewertung" title="Hilfe: Nutzung und Bewertung" aria-label="Hilfe: Nutzung und Bewertung">?</button></h3>
+      <p class="hint">Wo dein Material im Unterricht ankommt – auch über Kopien bei anderen und wenn sie es weiterreichen.
+        Gezählt wird ohne Schülernamen.</p>
       <div class="stats-grid">
-        <div class="stat-card"><div class="stat-number${data.balance < 0 ? ' negative' : ''}">${data.balance}</div><div class="stat-label">Punkte auf deinem Konto</div></div>
+        ${stat(t.teachers || 0, `Lehrkr${t.teachers === 1 ? 'aft' : 'äfte'} erreicht`, 'Andere Lehrkräfte, die dein Material nutzen, kopiert haben oder damit unterrichten')}
+        ${t.schools ? stat(t.schools, `Schule${t.schools === 1 ? '' : 'n'}`) : ''}
+        ${stat(t.runs || 0, 'Bearbeitungen im Unterricht', `davon ${t.runsByOthers || 0} bei anderen Lehrkräften`)}
+        ${stat(t.classes || 0, `Klasse${t.classes === 1 ? '' : 'n'}`, 'Klassen mit Klassenlink, die damit gearbeitet haben – auch deine eigenen')}
+        ${stat(avg(t.rating), `Nützlichkeit${t.rating?.count ? ` (${t.rating.count})` : ''}`)}
+        ${stat(t.rating?.thanks || 0, '👍 Danke')}
       </div>
-      <p class="hint">So funktioniert es: Wer etwas aus dem Shop nimmt, zahlt den Preis an den Creator.
-        Punkte sind vor allem eine Rückmeldung dafür, selbst etwas zu teilen – das Konto darf deshalb ins Minus
-        gehen${typeof s.minBalance === 'number' ? `, für Einkäufe bis ${points(s.minBalance)}` : ''}.
-        Neue Konten starten mit ${s.startPoints ?? 200} Punkt${(s.startPoints ?? 200) === 1 ? "" : "en"}.</p>
-      ${rows ? `<table class="shop-ledger">
-        <thead><tr><th>Datum</th><th>Art</th><th>Wofür</th><th>Punkte</th><th>Stand</th></tr></thead>
-        <tbody>${rows}</tbody></table>` : '<p class="hint">Noch keine Buchungen.</p>'}`;
+      <p class="give-take ${g.shared === 0 && g.taken > 0 ? 'nudge' : ''}">🤝 ${balance}</p>
+      ${rows ? `<table class="shop-ledger impact-table">
+        <thead><tr><th>Lernthema</th><th>Module</th><th title="Andere Lehrkräfte insgesamt">Lehrkräfte</th><th title="Über ein Nutzungsrecht (Use)">Use</th><th title="Mit einer eigenen Kopie">Kopien</th><th title="Bearbeitungen im Unterricht">Bearb.</th><th>Klassen</th><th>Bewertung</th></tr></thead>
+        <tbody>${rows}</tbody></table>`
+        : '<div class="empty-state"><span class="empty-icon">✍️</span><p>Du hast noch keine eigenen Module verfasst.</p></div>'}
+      <h3 class="impact-h">💬 Rückmeldungen</h3>
+      ${comments ? `<ul class="impact-comments">${comments}</ul>` : '<p class="hint">Noch keine Rückmeldungen mit Text.</p>'}
+      <details class="shop-modules points-history"><summary>Frühere Punkte-Buchungen (bis Oktober 2026)</summary><div class="points-history-body hint">Wird geladen…</div></details>`;
+
+    const hist = this._content.querySelector('.points-history');
+    hist.addEventListener('toggle', async () => {
+      if (!hist.open || hist.dataset.loaded) return;
+      hist.dataset.loaded = '1';
+      const body = hist.querySelector('.points-history-body');
+      try {
+        const { entries } = await this.app.api.getPointsHistory();
+        body.classList.remove('hint');
+        body.innerHTML = (entries || []).length
+          ? `<table class="shop-ledger"><thead><tr><th>Datum</th><th>Art</th><th>Wofür</th><th>Punkte</th></tr></thead><tbody>${entries.map((e) => `
+              <tr><td>${new Date(e.createdAt).toLocaleDateString('de-DE')}</td><td>${escapeHtml(REASON_LABELS[e.reason] || e.reason)}</td>
+              <td>${escapeHtml(e.note || '')}</td><td class="shop-delta ${e.delta < 0 ? 'neg' : 'pos'}">${e.delta > 0 ? '+' : ''}${e.delta}</td></tr>`).join('')}</tbody></table>`
+          : '<p class="hint">Keine Buchungen.</p>';
+      } catch (err) {
+        body.textContent = 'Fehler: ' + err.message;
+      }
+    });
   }
 
   // ---- Anbieten ----
@@ -397,8 +515,7 @@ export class ShopView {
    * eine Auswahl von Modulen. target: { type, id } bzw. { type: 'modules', moduleIds }.
    *
    * Eigene Module lassen sich kopieren und nutzen; erworbene (fremde) nur
-   * nutzen, und nur, wenn man sie ausdrücklich mit anbietet. Die Punkte gehen
-   * anteilig an die Creator.
+   * nutzen, und nur, wenn man sie ausdrücklich mit anbietet.
    */
   async openOfferDialog(target) {
     if (typeof target === 'string') target = { type: 'topic', id: target };
@@ -454,19 +571,17 @@ export class ShopView {
         ${foreign ? `
         <label class="share-flag"><input type="checkbox" id="coForeign" ${!offer || offer.includeForeign ? 'checked' : ''} />
           <span><strong>Erworbene Module mit anbieten</strong> – nur zur Nutzung (Use), kopieren lassen sie sich nicht.
-            Die Punkte dafür gehen an ihre Creator.</span></label>` : ''}
+            Ihre Nutzung zählt für ihre Creator.</span></label>` : ''}
 
         <div class="shop-mode-row">
           <label class="share-flag"><input type="checkbox" id="coUse" ${!offer || offer.allowUse ? 'checked' : ''} />
             <span><strong>Use</strong> – Original verwenden${foreign ? ' (eigene und erworbene)' : ''}</span></label>
-          <input type="number" id="coPriceUse" min="0" step="1" value="${offer ? offer.priceUse : 0}" class="shop-price" /> Punkte
         </div>
         <div class="shop-mode-row">
           <label class="share-flag"><input type="checkbox" id="coCopy" ${offer && offer.allowCopy ? 'checked' : ''} ${own ? '' : 'disabled'} />
-            <span><strong>Copy</strong> – eigene Kopie ${own ? (foreign ? '(nur deine Module; die erworbenen bekommt der Käufer zur Nutzung dazu)' : '') : '(geht nur mit eigenen Modulen)'}</span></label>
-          <input type="number" id="coPriceCopy" min="0" step="1" value="${offer ? offer.priceCopy : 0}" class="shop-price" ${own ? '' : 'disabled'} /> Punkte
+            <span><strong>Copy</strong> – eigene Kopie ${own ? (foreign ? '(nur deine Module; die erworbenen bekommt man zur Nutzung dazu)' : '') : '(geht nur mit eigenen Modulen)'}</span></label>
         </div>
-        <p class="hint">0 Punkte heißt frei. Enthält das Angebot Module anderer Creator, bekommt jeder den Anteil seiner Module.</p>
+        <p class="hint">Alles im Shop ist frei. Unter „📈 Geteilt & genutzt“ siehst du, wen dein Material erreicht – auch über Kopien.</p>
 
         <p class="hint"><strong>Für wen?</strong> Ohne Auswahl einzelner Personen oder Gruppen sehen es alle.</p>
         <label class="share-flag shop-all"><input type="checkbox" class="co-all" ${audience0.includes('*') ? 'checked' : ''} />
@@ -558,8 +673,6 @@ export class ShopView {
         includeForeign: overlay.querySelector('#coForeign') ? overlay.querySelector('#coForeign').checked : true,
         allowUse: overlay.querySelector('#coUse').checked,
         allowCopy: overlay.querySelector('#coCopy').checked,
-        priceUse: Number(overlay.querySelector('#coPriceUse').value || 0),
-        priceCopy: Number(overlay.querySelector('#coPriceCopy').value || 0),
         audience: audience.length ? audience : ['*'],
         active: true,
       };
@@ -569,7 +682,7 @@ export class ShopView {
     });
 
     overlay.querySelector('#btnWithdrawOffer')?.addEventListener('click', async () => {
-      if (!(await this.app.appConfirm('Angebot zurückziehen? Wer schon gekauft hat, behält Kopie bzw. Nutzungsrecht.'))) return;
+      if (!(await this.app.appConfirm('Angebot zurückziehen? Wer es schon übernommen hat, behält Kopie bzw. Nutzungsrecht.'))) return;
       const res = await api.withdrawOffer(offer.id);
       if (res && res.success) done('Angebot zurückgezogen');
       else this.app.showToast('Fehler: ' + (res?.message || '?'), 'error');

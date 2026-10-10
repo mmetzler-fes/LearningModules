@@ -12,18 +12,20 @@ import { TeacherGroup } from '../core/entities/teacher-group.entity';
 import { ShopOffer } from '../core/entities/shop-offer.entity';
 import { UseGrant } from '../core/entities/use-grant.entity';
 import { PointsEntry } from '../core/entities/points-entry.entity';
+import { UsageCount } from '../core/entities/usage-count.entity';
+import { ContentFeedback } from '../core/entities/content-feedback.entity';
 import { StudentClass } from '../core/entities/student-class.entity';
 import { AccountsService } from './accounts.service';
 import { HandoverService } from './handover.service';
 import { PointsService } from './points.service';
 import { TwoFactorService } from './two-factor.service';
 
-/** Konten über ihren ganzen Lebenszyklus, samt Punktekonto. */
+/** Konten über ihren ganzen Lebenszyklus (samt den früheren Punkte-Buchungen). */
 @Module({
   imports: [
     TypeOrmModule.forFeature([
       User, SystemConfig, LearningTopic, LearningModule, TopicLink, TopicQuickLink,
-      Tag, Result, TeacherGroup, ShopOffer, UseGrant, PointsEntry, StudentClass,
+      Tag, Result, TeacherGroup, ShopOffer, UseGrant, PointsEntry, StudentClass, UsageCount, ContentFeedback,
     ]),
   ],
   providers: [AccountsService, HandoverService, PointsService, TwoFactorService],

@@ -45,6 +45,9 @@ import { DraftsModule } from './drafts/drafts.module';
 import { ModuleDraft } from './core/entities/module-draft.entity';
 import { NotebookNode } from './core/entities/notebook-node.entity';
 import { NotebookPlacement } from './core/entities/notebook-placement.entity';
+import { UsageCount } from './core/entities/usage-count.entity';
+import { ContentFeedback } from './core/entities/content-feedback.entity';
+import { ImpactModule } from './impact/impact.module';
 
 @Module({
   imports: [
@@ -67,7 +70,7 @@ import { NotebookPlacement } from './core/entities/notebook-placement.entity';
     TypeOrmModule.forRoot({
       type: 'sqlite',
       database: 'data/database.sqlite',
-      entities: [User, StudentClass, ClassStudent, LearningTopic, LearningModule, Result, School, SystemConfig, Tag, TopicLink, TopicQuickLink, TeacherGroup, ShopOffer, UseGrant, PointsEntry, ModuleTiming, ClassShare, NotebookNode, NotebookPlacement, ModuleDraft],
+      entities: [User, StudentClass, ClassStudent, LearningTopic, LearningModule, Result, School, SystemConfig, Tag, TopicLink, TopicQuickLink, TeacherGroup, ShopOffer, UseGrant, PointsEntry, ModuleTiming, ClassShare, NotebookNode, NotebookPlacement, ModuleDraft, UsageCount, ContentFeedback],
       synchronize: true,
     }),
     MailModule,
@@ -91,6 +94,7 @@ import { NotebookPlacement } from './core/entities/notebook-placement.entity';
     HelpModule,
     NotebooksModule,
     DraftsModule,
+    ImpactModule,
   ],
   controllers: [AppController],
   providers: [AppService],

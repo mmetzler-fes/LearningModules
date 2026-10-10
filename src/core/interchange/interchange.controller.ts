@@ -69,6 +69,7 @@ export class InterchangeController {
         // Eine offen hereinkommende H5P-Datei ist neues Material: Creator ist,
         // wer sie importiert.
         creatorId: user.userId,
+        originId: null,
       });
       return mod;
     });

@@ -160,7 +160,7 @@ Ausdrucken und Verteilen.
 
 Wer mindestens ein Modul verfasst hat, wird beim Löschen **nur deaktiviert**.
 Das gilt beim Löschen durch den Benutzer selbst wie durch den Admin. Seine
-Inhalte bleiben erhalten und stehen allen für 0 Punkte im Shop. Er kann sich
+Inhalte bleiben erhalten und stehen allen frei im Shop. Er kann sich
 nicht anmelden, seine Links sind gesperrt. In der Benutzerliste trägt er
 „⏸ deaktiviert“, und **▶ Reaktivieren** schaltet ihn wieder frei.
 

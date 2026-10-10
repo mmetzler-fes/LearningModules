@@ -9,8 +9,9 @@ import { TopicQuickLink } from '../core/entities/topic-quick-link.entity';
 import { ShopOffer } from '../core/entities/shop-offer.entity';
 import { UseGrant } from '../core/entities/use-grant.entity';
 import { PointsEntry } from '../core/entities/points-entry.entity';
+import { UsageCount } from '../core/entities/usage-count.entity';
+import { ContentFeedback } from '../core/entities/content-feedback.entity';
 import { HandoverService } from './handover.service';
-import { PointsService } from './points.service';
 
 /**
  * Lebenszyklus eines Kontos: löschen bzw. deaktivieren, reaktivieren,
@@ -18,7 +19,8 @@ import { PointsService } from './points.service';
  *
  * Die Grundregel: Wer Creator ist – also mindestens ein Modul verfasst hat,
  * das noch irgendwo existiert –, wird nie gelöscht, nur deaktiviert. Seine
- * Inhalte stehen dann für 0 Punkte im Shop. Wer nichts verfasst hat, wird
+ * Inhalte stehen dann frei für alle im Shop, und seine Wirkung bleibt an
+ * ihnen sichtbar. Wer nichts verfasst hat, wird
  * tatsächlich gelöscht; seine erworbenen Rechte verfallen.
  */
 @Injectable()
@@ -33,8 +35,9 @@ export class AccountsService {
     @InjectRepository(ShopOffer) private readonly offerRepo: Repository<ShopOffer>,
     @InjectRepository(UseGrant) private readonly grantRepo: Repository<UseGrant>,
     @InjectRepository(PointsEntry) private readonly entryRepo: Repository<PointsEntry>,
+    @InjectRepository(UsageCount) private readonly usageRepo: Repository<UsageCount>,
+    @InjectRepository(ContentFeedback) private readonly feedbackRepo: Repository<ContentFeedback>,
     private readonly handover: HandoverService,
-    private readonly points: PointsService,
   ) {}
 
   /** Creator ist, wer mindestens ein noch existierendes Modul verfasst hat. */
@@ -74,7 +77,7 @@ export class AccountsService {
   // ---- Deaktivieren / Reaktivieren ----
 
   /**
-   * Deaktiviert ein Konto und stellt seine Inhalte für 0 Punkte in den Shop,
+   * Deaktiviert ein Konto und stellt seine Inhalte frei in den Shop,
    * zum Kopieren und Verwenden, für alle. Ein bestehendes Angebot wird dabei
    * gesichert, damit eine Reaktivierung es wiederherstellen kann.
    */
@@ -120,7 +123,7 @@ export class AccountsService {
       await this.offerRepo.save(offer);
       count++;
     }
-    this.logger.log(`Konto ${target.email} deaktiviert, ${count} Themen für 0 Punkte im Shop`);
+    this.logger.log(`Konto ${target.email} deaktiviert, ${count} Themen frei im Shop`);
     return count;
   }
 
@@ -163,6 +166,7 @@ export class AccountsService {
     await this.grantRepo.delete({ userId: target.id });
     await this.offerRepo.delete({ sellerId: target.id });
     await this.entryRepo.delete({ userId: target.id });
+    await this.feedbackRepo.delete({ userId: target.id });
     await this.userRepo.delete({ id: target.id });
     return { ...moved, topicsDeleted: topics.length };
   }
@@ -181,7 +185,7 @@ export class AccountsService {
 
   /**
    * Führt `from` in `to` zusammen: Inhalte, Creator-Kennung, Angebote,
-   * Rechte, Links, Ergebnisse und Punkte gehen an `to`, danach wird `from`
+   * Rechte, Links, Ergebnisse und Rückmeldungen gehen an `to`, danach wird `from`
    * gelöscht. `to` behält Passwort und E-Mail; Admin ist, wer es in einem
    * der beiden Konten war.
    */
@@ -214,11 +218,10 @@ export class AccountsService {
       }
     }
 
-    // Punkte addieren; die Buchungen des alten Kontos wandern mit.
-    const fromPoints = await this.points.balance(from.id);
+    // Die früheren Punkte-Buchungen wandern mit, ebenso Wirkung und Rückmeldungen.
     await this.entryRepo.update({ userId: from.id }, { userId: to.id });
-    // Auch ein Minus zieht mit um – sonst ließe es sich per Kontowechsel loswerden.
-    if (fromPoints !== 0) await this.points.book(undefined, to.id, fromPoints, 'merge', `Übernommen von ${from.email}`, null);
+    await this.mergeUsage(from.id, to.id);
+    await this.mergeFeedback(from.id, to.id);
 
     const fresh = await this.userRepo.findOne({ where: { id: to.id } });
     if (!fresh) throw new BadRequestException('Zielkonto nicht gefunden.');
@@ -240,5 +243,30 @@ export class AccountsService {
 
     this.logger.log(`Konto ${from.email} in ${fresh.email} zusammengeführt`);
     return { success: true, belongings };
+  }
+
+  /** Nutzungszähler: Was über Links von `from` lief, zählt jetzt für `to`. */
+  private async mergeUsage(fromId: string, toId: string) {
+    await this.usageRepo.query(
+      `INSERT INTO usage_counts (id, originId, teacherId, classId, period, runs, createdAt, updatedAt)
+       SELECT lower(hex(randomblob(16))), originId, ?, classId, period, runs, createdAt, updatedAt
+       FROM usage_counts WHERE teacherId = ?
+       ON CONFLICT (originId, teacherId, classId, period) DO UPDATE SET runs = runs + excluded.runs`,
+      [toId, fromId],
+    );
+    await this.usageRepo.delete({ teacherId: fromId });
+  }
+
+  /** Rückmeldungen von `from` gehen an `to` – außer `to` hat dasselbe Lernthema schon bewertet. */
+  private async mergeFeedback(fromId: string, toId: string) {
+    const [mine, theirs] = await Promise.all([
+      this.feedbackRepo.find({ where: { userId: fromId } }),
+      this.feedbackRepo.find({ where: { userId: toId } }),
+    ]);
+    const taken = new Set(theirs.map((f) => f.topicId));
+    for (const f of mine) {
+      if (taken.has(f.topicId)) await this.feedbackRepo.remove(f);
+      else await this.feedbackRepo.update({ id: f.id }, { userId: toId });
+    }
   }
 }

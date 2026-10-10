@@ -2,6 +2,7 @@ import { escapeHtml, escapeAttr, showImportReport } from '../utils.js';
 import { pickClass } from './classes.js';
 import { TagFilter, TagPicker, renderAreaGroups, orderByArea, chipHtml } from './tags.js';
 import { helpHint } from './help-view.js';
+import { openFeedbackDialog } from './feedback.js';
 
 // ==================== TOPICS VIEW ====================
 
@@ -307,6 +308,7 @@ export class TopicsView {
       this.app.showToast(e.target.checked ? t('topics.activated') : t('topics.deactivated'), 'info');
       this.refresh();
     });
+    card.querySelector('.btn-rate-origin')?.addEventListener('click', () => openFeedbackDialog(this.app, topic.id));
     card.querySelector('.btn-open-topic').addEventListener('click', () => this.app.modulesView.openTopicModules(topic.id));
     card.querySelector('.btn-quick-link').addEventListener('click', () => this._createQuickClassLink(topic));
     card.querySelector('.btn-edit-topic').addEventListener('click', () => this._openEditor(topic));
@@ -326,13 +328,13 @@ export class TopicsView {
     const paid = topic.paidUseCount || 0;
     const free = (topic.useCount || 0) - paid;
     const users = [
-      paid ? `${paid} Person${paid === 1 ? ' hat' : 'en haben'} für die Nutzung bezahlt und bekomm${paid === 1 ? 't' : 'en'} automatisch eine eigene Kopie.` : '',
-      free ? `${free} Person${free === 1 ? ' verwendet' : 'en verwenden'} dieses Thema kostenlos über den Shop und verlier${free === 1 ? 't' : 'en'} es.` : '',
+      paid ? `${paid} Person${paid === 1 ? ' hat' : 'en haben'} früher Punkte für die Nutzung bezahlt und bekomm${paid === 1 ? 't' : 'en'} automatisch eine eigene Kopie.` : '',
+      free ? `${free} Person${free === 1 ? ' verwendet' : 'en verwenden'} dieses Thema über den Shop und verlier${free === 1 ? 't' : 'en'} es.` : '',
     ].filter(Boolean).map((x) => `\n\n${x}`).join('');
     if (!(await this.app.appConfirm(t('topics.delete.confirm', { title: topic.title }) + users))) return false;
     const res = await this.app.api.deleteTopic(topic.id);
     this.app.showToast(res?.preservedCopies
-      ? `${t('topics.deleted')} ${res.preservedCopies} Käufer hab${res.preservedCopies === 1 ? '' : 'en'} eine eigene Kopie erhalten.`
+      ? `${t('topics.deleted')} ${res.preservedCopies} Person${res.preservedCopies === 1 ? ' hat' : 'en haben'} eine eigene Kopie erhalten.`
       : t('topics.deleted'), 'info');
     return true;
   }
@@ -408,10 +410,7 @@ export class TopicsView {
     }
     const co = topic.creatorOffer;
     if (co && co.active) {
-      const modes = [
-        co.allowUse ? `Use ${co.priceUse ? co.priceUse + ' P' : 'frei'}` : null,
-        co.allowCopy ? `Copy ${co.priceCopy ? co.priceCopy + ' P' : 'frei'}` : null,
-      ].filter(Boolean).join(' · ');
+      const modes = [co.allowUse ? 'Use' : null, co.allowCopy ? 'Copy' : null].filter(Boolean).join(' · ');
       out.push(`<span class="topic-shared-badge owner">🛒 im Shop: ${modes}</span>`);
     }
     const bs = topic.buyerShare;
@@ -515,8 +514,13 @@ export class TopicsView {
     const origin = topic && topic.origin;
     if (!origin) return '';
     const title = origin.title ? `„${escapeHtml(origin.title)}"` : 'einem Thema';
+    // Eine Kopie aus dem Shop lässt sich bewerten – bewertet wird das Original.
+    const me = this.app.state.currentUser?.userId || this.app.state.currentUser?.id;
+    const rate = topic.copiedFromOwnerId && topic.copiedFromOwnerId !== me && topic.ownerId === me
+      ? ' · <button type="button" class="link-btn btn-rate-origin" title="Das Original bewerten: Nützlichkeit, Danke, Rückmeldung">⭐ Bewerten</button>'
+      : '';
     return `<p class="topic-card-desc" style="opacity:.75; font-size:.85em">
-      📋 Kopie von ${title} · Ursprung: ${escapeHtml(origin.author)}</p>`;
+      📋 Kopie von ${title} · Ursprung: ${escapeHtml(origin.author)}${rate}</p>`;
   }
 
   _openEditor(topic) {
@@ -614,11 +618,6 @@ export class TopicsView {
   _grantedTopicCard(entry) {
     const card = document.createElement('div');
     card.className = 'topic-card topic-shared';
-    const paid = entry.grants.reduce((n, g) => n + (g.pricePaid || 0), 0);
-    const openRefund = entry.grants.map((g) => g.refundUntil && new Date(g.refundUntil)).filter((d) => d && d.getTime() >= Date.now()).sort((a, b) => a - b)[0];
-    const refundBadge = openRefund
-      ? `<span class="topic-shared-badge" title="Bis dahin gibt es beim Zurückgeben die Punkte zurück">↩ Rückgabe mit Erstattung bis ${openRefund.toLocaleDateString('de-DE')}</span>`
-      : '';
     card.innerHTML = `
       <div class="topic-card-header">
         <div class="topic-card-info">
@@ -629,13 +628,12 @@ export class TopicsView {
             <span class="topic-module-count">${entry.moduleCount} Module</span>
             <span class="topic-shared-badge" style="margin-left:8px">von ${escapeHtml(entry.ownerName)}</span>
             <span class="topic-shared-badge" title="Creator der Module">✍️ ${entry.creators.map(escapeHtml).join(', ')}</span>
-            <span class="topic-shared-badge use">${paid ? `🪙 ${paid} Punkte bezahlt` : 'kostenlos'}</span>
-            ${refundBadge}
           </div>
         </div>
         <div class="topic-card-actions">
           <button class="btn btn-secondary btn-sm btn-view-shared" title="Module ansehen (nur Anzeige)">👁 Ansehen</button>
           <button class="btn btn-secondary btn-sm btn-quick-shared" title="Eigener Quick-Link auf dieses Thema – die Ergebnisse kommen zu mir">🔗 Quick-Link</button>
+          <button class="btn btn-secondary btn-sm btn-rate-shared" title="Nützlichkeit bewerten, Danke sagen, Rückmeldung geben">⭐ Bewerten</button>
           <button class="btn btn-danger btn-sm btn-return-grant" title="Nutzungsrecht zurückgeben">↩ Zurückgeben</button>
         </div>
       </div>`;
@@ -646,6 +644,8 @@ export class TopicsView {
     card.querySelector('.btn-quick-shared').addEventListener('click', () =>
       this._createQuickClassLink({ id: entry.id, title: entry.title, selected: true }));
 
+    card.querySelector('.btn-rate-shared').addEventListener('click', () => openFeedbackDialog(this.app, entry.id));
+
     card.querySelector('.btn-return-grant').addEventListener('click', async (e) => {
       const btn = e.currentTarget;
       btn.disabled = true;
@@ -655,36 +655,22 @@ export class TopicsView {
     return card;
   }
 
-  /**
-   * Nutzungsrecht nach Rückfrage zurückgeben; true, wenn zurückgegeben.
-   * Innerhalb von 14 Tagen nach dem Kauf gibt es die Punkte zurück.
-   */
+  /** Nutzungsrecht nach Rückfrage zurückgeben; true, wenn zurückgegeben. */
   async returnGrant(entry) {
-    const now = Date.now();
-    const paid = entry.grants.reduce((n, g) => n + (g.pricePaid || 0), 0);
-    const refundable = entry.grants.filter((g) => g.pricePaid > 0 && g.refundUntil && new Date(g.refundUntil).getTime() >= now);
-    const refundSum = refundable.reduce((n, g) => n + g.pricePaid, 0);
-    const until = refundable.map((g) => new Date(g.refundUntil)).sort((a, b) => a - b)[0];
     // Ein Recht an einem Bereich oder einer Auswahl gibt man als Ganzes zurück.
     const whole = entry.grants.some((g) => g.scopeType === 'node' || g.scopeType === 'modules');
     const ok = await this.app.appConfirm(
       `Nutzungsrecht an „${entry.title}" zurückgeben?\n\n` +
       (whole ? 'Es gilt für das ganze Angebot (Bereich bzw. Auswahl), zu dem dieses Lernthema gehört – zurückgegeben wird alles.\n\n' : '') +
-      (refundSum ? `Du bekommst ${refundSum} Punkte erstattet (Rückgabe mit Erstattung bis ${until.toLocaleDateString('de-DE')}). `
-        : paid ? 'Die 14 Tage für eine Erstattung sind vorbei – bezahlte Punkte werden nicht erstattet. ' : '') +
       'Deine Themen- und Quick-Links liefern das Thema danach nicht mehr aus.',
     );
     if (!ok) return false;
     try {
-      let refunded = 0;
       for (const g of entry.grants) {
         const res = await this.app.api.revokeGrant(g.id);
         if (!res || !res.success) throw new Error(res?.message || 'Zurückgeben fehlgeschlagen');
-        refunded += res.refunded || 0;
       }
-      this.app.showToast(refunded
-        ? `Nutzungsrecht zurückgegeben – ${refunded} Punkte erstattet.`
-        : 'Nutzungsrecht zurückgegeben', 'info');
+      this.app.showToast('Nutzungsrecht zurückgegeben', 'info');
       return true;
     } catch (err) {
       this.app.showToast('Fehler: ' + err.message, 'error');

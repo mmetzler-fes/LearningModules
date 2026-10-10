@@ -116,7 +116,7 @@ export class TopicsService {
         return o
           ? {
               id: o.id, active: o.active, allowCopy: o.allowCopy, allowUse: o.allowUse,
-              priceCopy: o.priceCopy, priceUse: o.priceUse, audience: o.audience,
+              audience: o.audience,
             }
           : null;
       };
@@ -312,7 +312,6 @@ export class TopicsService {
               // Gehört zu einer Kopie – lässt sich nicht einzeln zurückgeben.
               onlyForeign: e.onlyForeign,
               since: e.createdAt,
-              refundUntil: ShopService.refundUntil({ pricePaid: e.pricePaid, createdAt: e.createdAt } as UseGrant),
             };
           }),
         };
@@ -647,12 +646,14 @@ export class TopicsService {
     if (existing && existing.topicId !== topic.id) {
       throw new ForbiddenException('Das Modul gehört zu einem anderen Thema.');
     }
-    const { creatorId: _ignored, ...data } = moduleData as any;
+    // Ebenso die Herkunft: Sie entsteht nur beim Kopieren auf dem Server.
+    const { creatorId: _ignored, originId: _origin, ...data } = moduleData as any;
     const creatorId = existing ? existing.creatorId : user.userId;
 
     const module = this.moduleRepo.create({
       ...data,
       creatorId,
+      originId: existing ? existing.originId : null,
       ...(tagIds !== undefined ? { tagIds } : {}),
       // Ohne id schlug das Anlegen bisher mit einem NOT-NULL-Fehler fehl. Eine
       // mitgeschickte id bleibt erhalten, denn derselbe Aufruf aktualisiert
@@ -812,6 +813,7 @@ export class TopicsService {
         // Nur im selben Thema braucht die Kopie einen eigenen Namen – sonst
         // stünden zwei identische Einträge untereinander.
         title: sameTopic ? `${m.title} (Kopie)` : m.title,
+        originId: m.originId || m.id,
       });
     });
 

@@ -16,6 +16,7 @@ import { CompanionService } from '../../companion/companion.service';
 import { ClassesService } from '../../classes/classes.service';
 import { issueTicket, readTicket } from '../../classes/student-ticket';
 import { TimingsService } from '../../timings/timings.service';
+import { UsageService } from '../../impact/usage.service';
 import { contentOf, forStudents } from './student-view';
 import * as crypto from 'crypto';
 import { cleanPcName } from './pc-name';
@@ -37,6 +38,7 @@ export class PublicController {
     private readonly companionService: CompanionService,
     private readonly classesService: ClassesService,
     private readonly timingsService: TimingsService,
+    private readonly usageService: UsageService,
   ) {}
 
   /**
@@ -409,6 +411,8 @@ export class PublicController {
     if (link || quickTopicTitle !== null) {
       await this.timingsService.record(body.payload?.details, result.mode).catch(() => undefined);
     }
+    // Wirkung für die Creator: gezählt am Original, ohne Namen.
+    await this.usageService.recordRunSafely({ teacherId: teacher.id, classId: result.classId, details: body.payload?.details });
     return { success: true, id: saved.id };
   }
 }

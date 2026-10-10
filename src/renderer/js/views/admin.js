@@ -371,9 +371,8 @@ export class AdminView {
           <strong>${escapeHtml(u.displayName || u.username || u.email)}</strong>
           <span style="color:var(--text-secondary);font-size:0.9em">${escapeHtml(u.email || u.username)}</span>
           ${roleBadge(u)}
-          ${u.active === false ? '<span class="topic-status inactive" title="Kann sich nicht anmelden; Inhalte stehen kostenlos im Shop">⏸ deaktiviert</span>' : ''}
+          ${u.active === false ? '<span class="topic-status inactive" title="Kann sich nicht anmelden; Inhalte stehen frei im Shop">⏸ deaktiviert</span>' : ''}
           ${u.isCreator ? '<span class="topic-shared-badge" title="Hat Module verfasst – wird beim Löschen nur deaktiviert">✍️ Creator</span>' : ''}
-          <span class="topic-shared-badge" title="Punktekonto">🪙 ${u.points ?? 0}</span>
           ${u.totpEnabled ? '<span class="topic-shared-badge" title="Meldet sich mit Zwei-Faktor-Code an">🔐 2FA</span>' : ''}
           ${u.pendingMergeFrom ? '<span class="hint">✉️ wartet auf Bestätigung eines E-Mail-Wechsels</span>' : ''}
           ${u.mustChangePassword && !u.pendingMergeFrom ? '<span class="hint">🔑 hat sein Passwort noch nicht geändert</span>' : ''}
@@ -430,7 +429,7 @@ export class AdminView {
   }
 
   /**
-   * Entfernen. Creator werden nur deaktiviert, ihre Inhalte gehen für 0 Punkte
+   * Entfernen. Creator werden nur deaktiviert, ihre Inhalte gehen frei
    * in den Shop; alle anderen werden gelöscht. Das gehört vor die
    * Entscheidung, nicht in eine Meldung danach.
    */
@@ -484,10 +483,9 @@ export class AdminView {
 
   async refreshSettings() {
     try {
-      const [pts, key] = await Promise.all([this.app.api.getPointsSettings(), this.app.api.getMasterKeyStatus()]);
+      const [imp, key] = await Promise.all([this.app.api.getImpactSettings(), this.app.api.getMasterKeyStatus()]);
       const set = (id, v) => { const el = document.getElementById(id); if (el) el.value = v ?? ''; };
-      set('ptsStart', pts.startPoints);
-      set('ptsMinBalance', pts.minBalance);
+      set('impShareHint', imp.shareHintAfter);
       const status = document.getElementById('masterKeyStatus');
       if (status) {
         status.innerHTML = key.fingerprint
@@ -685,13 +683,9 @@ export class AdminView {
   _bindSettings() {
     this._bindCloudBackup();
     this._bindSchoolYear();
-    document.getElementById('btnSavePoints')?.addEventListener('click', async () => {
-      const num = (id) => Number(document.getElementById(id)?.value);
-      const res = await this.app.api.savePointsSettings({
-        startPoints: num('ptsStart'),
-        minBalance: (document.getElementById('ptsMinBalance')?.value ?? '').trim() === '' ? null : num('ptsMinBalance'),
-      });
-      if (res && typeof res.startPoints === 'number') this.app.showToast('Punkteregeln gespeichert', 'success');
+    document.getElementById('btnSaveImpact')?.addEventListener('click', async () => {
+      const res = await this.app.api.saveImpactSettings({ shareHintAfter: Number(document.getElementById('impShareHint')?.value) });
+      if (res && typeof res.shareHintAfter === 'number') this.app.showToast('Gespeichert', 'success');
       else this.app.showToast('Fehler: ' + (res?.message || '?'), 'error');
     });
 

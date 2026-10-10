@@ -670,7 +670,6 @@ export class LoginView {
 
     this.app.setupNavigation();
     await this.app.loadTopics();
-    if (currentUser.role === 'admin' || currentUser.role === 'teacher') this.app.loadPoints();
 
     if (currentUser.role === 'admin' || currentUser.role === 'teacher') {
       this.app.navigateToView(startView || 'teacher-topics');

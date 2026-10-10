@@ -325,30 +325,6 @@ class App {
     if (done) await done();
   }
 
-  /** Kontostand neben dem Namen in der Seitenleiste. */
-  updatePointsBadge(balance) {
-    const info = document.getElementById('userInfo');
-    if (!info || typeof balance !== 'number') return;
-    let badge = info.querySelector('.points-badge');
-    if (!badge) {
-      badge = document.createElement('span');
-      badge.className = 'points-badge';
-      badge.title = 'Punkte für den Lernmodule-Shop';
-      badge.addEventListener('click', () => this.navigateToView('teacher-shop'));
-      info.appendChild(badge);
-    }
-    badge.textContent = `🪙 ${balance}`;
-    // Im Minus zu sein ist erlaubt – aber man soll es sehen.
-    badge.classList.toggle('negative', balance < 0);
-  }
-
-  async loadPoints() {
-    try {
-      const data = await this.api.getMyPoints();
-      if (data && typeof data.balance === 'number') this.updatePointsBadge(data.balance);
-    } catch (_) {}
-  }
-
   /**
    * E-Mail-Adresse ändern. Zwei Wege, die der Server unterscheidet: neue
    * Adresse (Initialpasswort dorthin, Übernahme nach dem ersten Login) oder
@@ -413,7 +389,6 @@ class App {
             nameEl.append(` ${res.session.displayName}`);
           }
           await this.loadTopics();
-          await this.loadPoints();
           this.navigateToView('teacher-topics');
           this.showToast(
             `Konten zusammengeführt – du bist jetzt als ${res.session.email} angemeldet.` +

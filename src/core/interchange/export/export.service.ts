@@ -1,6 +1,6 @@
 import { Injectable, ForbiddenException, BadRequestException, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import * as crypto from 'crypto';
 import { LearningTopic } from '../../entities/learning-topic.entity';
 import { LearningModule } from '../../entities/learning-module.entity';
@@ -161,6 +161,7 @@ export class ExportService {
       // aktuellen Konto (nach einem Zusammenführen ist das eine neue ID).
       m.creatorId && mine.has(m.creatorId) ? user.userId : m.creatorId || null,
     );
+    await this.linkOrigins(modules);
     if (modules.length) await this.moduleRepo.save(modules);
     return { success: true, topicId: topic.id, topicTitle: topic.title, importedCount: modules.filter((m) => !m.parentId).length };
   }
@@ -178,7 +179,24 @@ export class ExportService {
         parentId: m.parentId ? idMap.get(String(m.parentId)) || null : null,
         creatorId: creatorOf(m),
         tagIds: null,
+        originId: m.originId || (id ? String(id) : null),
       });
     });
+  }
+
+  /**
+   * Herkunft wiederhergestellter Module: Gibt es das Original hier noch, zählt
+   * die Kopie für dieses Original. Sonst – etwa nach einem Verlust – wird das
+   * eingelesene Modul selbst zum Original, damit seine Wirkung nicht ins
+   * Leere läuft.
+   */
+  private async linkOrigins(modules: LearningModule[]) {
+    const ids = [...new Set(modules.map((m) => m.originId).filter(Boolean) as string[])];
+    const found = new Set<string>();
+    for (let i = 0; i < ids.length; i += 500) {
+      const rows = await this.moduleRepo.find({ where: { id: In(ids.slice(i, i + 500)) }, select: ['id'] });
+      rows.forEach((r) => found.add(r.id));
+    }
+    for (const m of modules) if (m.originId && !found.has(m.originId)) m.originId = null;
   }
 }

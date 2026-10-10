@@ -11,7 +11,7 @@ export const HELP_GROUPS: Array<{ title: string; icon: string; files: string[] }
   { title: 'Lernthemen und Aufgaben', icon: '📚', files: ['notebooks', 'entwuerfe', 'ansicht-und-zoom', 'ki-prompt', 'formelaufgabe', 'arbeitsblaetter', 'diktat', 'audio-recorder', 'moodle-und-h5p'] },
   { title: 'Unterricht mit Schülern', icon: '🏫', files: ['themen-links', 'quick-link', 'klassen-und-schuljahr', 'lernbegleitung-und-quiz-arena'] },
   { title: 'Konto und Sicherheit', icon: '🔐', files: ['zwei-faktor'] },
-  { title: 'Administration', icon: '⚙️', files: ['benutzerverwaltung', 'benutzer-tabelle', 'schulen', 'shop-und-rechte'] },
+  { title: 'Administration', icon: '⚙️', files: ['benutzerverwaltung', 'benutzer-tabelle', 'schulen', 'shop-und-rechte', 'nutzung-und-bewertung'] },
 ];
 
 /** Überschriften, deren Abschnitte (samt Unterabschnitten) nur Entwickler betreffen. */

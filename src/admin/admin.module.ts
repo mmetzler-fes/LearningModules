@@ -18,6 +18,7 @@ import { AccountsModule } from '../accounts/accounts.module';
 import { UserSheetService } from './user-sheet.service';
 import { AuthModule } from '../auth/auth.module';
 import { SchoolsModule } from '../core/schools/schools.module';
+import { UsageModule } from '../impact/usage.module';
 
 @Module({
   imports: [
@@ -25,6 +26,7 @@ import { SchoolsModule } from '../core/schools/schools.module';
     AuthModule,
     AccountsModule,
     SchoolsModule,
+    UsageModule,
   ],
   controllers: [AdminController, MySchoolTeachersController],
   providers: [UserSheetService, BackupService, CloudBackupService],

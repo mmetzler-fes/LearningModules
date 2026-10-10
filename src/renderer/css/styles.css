@@ -4749,3 +4749,14 @@ body {
 /* Aufnahme im Audiofeld des Editors */
 .audio-rec-btn.recording { background: #fee2e2; border-color: #ef4444; color: #b91c1c; }
 .audio-field-note:empty { display: none; }
+
+/* Inhalte übergeben */
+.handover-what { width: 100%; border-collapse: collapse; margin: 8px 0 12px; font-size: 0.9em; }
+.handover-what td { padding: 6px 8px; border-top: 1px solid var(--border); vertical-align: top; }
+.handover-what td:first-child { white-space: nowrap; font-weight: 600; }
+.acc-step { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 8px 0; }
+.acc-step input { width: 9em; }
+.acc-code { width: 100%; margin-top: 4px; }
+.acc-code code { font-size: 1.3em; letter-spacing: 0.12em; padding: 2px 8px; background: var(--accent-light); border-radius: 6px; }
+.acc-auto { margin-top: 4px; font-size: 0.9em; }
+.acc-new h4 { margin: 0 0 4px; }

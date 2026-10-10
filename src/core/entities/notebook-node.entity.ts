@@ -34,4 +34,8 @@ export class NotebookNode extends BaseEntity {
    */
   @Column('simple-json', { nullable: true })
   tagIds: string[] | null;
+
+  /** Beim Abgleich angelegt: der Knoten auf dem anderen Server (`remote:<server>:<id>`). */
+  @Column({ type: 'varchar', nullable: true })
+  syncSource: string | null;
 }

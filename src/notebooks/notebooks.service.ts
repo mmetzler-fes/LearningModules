@@ -424,7 +424,9 @@ export class NotebooksService {
 
   private async duplicateTopic(source: LearningTopic, user: any, title: string): Promise<LearningTopic> {
     const {
-      id: _id, modules: _m, createdAt: _c, updatedAt: _u, quickToken: _q, subscribeKey: _k, accessPassword: _p, ...rest
+      id: _id, modules: _m, createdAt: _c, updatedAt: _u, quickToken: _q, subscribeKey: _k, accessPassword: _p,
+      // Ein Duplikat ist eigenständig – kein Gegenstück eines Abgleichs.
+      syncSource: _s, syncHash: _h, syncedAt: _t, ...rest
     } = source as any;
     const topic: LearningTopic = await this.topicRepo.save(this.topicRepo.create({
       ...(rest as Partial<LearningTopic>),

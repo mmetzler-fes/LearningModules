@@ -4,6 +4,8 @@ import { TagFilter, TagPicker, renderAreaGroups, orderByArea, chipHtml } from '.
 import { helpHint } from './help-view.js';
 import { openFeedbackDialog } from './feedback.js';
 import { CategoryPicker, categoryChips, ensureCategories } from './categories.js';
+import { openHandoverDialog, renderIncomingHandovers } from './handover.js';
+import { openAccountLinksDialog } from './account-links.js';
 
 // ==================== TOPICS VIEW ====================
 
@@ -55,6 +57,9 @@ export class TopicsView {
   _bindEvents() {
     document.getElementById('btnH5pTypes')?.addEventListener('click', () => this._openH5pTypes());
     document.getElementById('btnAiPrompt')?.addEventListener('click', () => this.app.navigateToView('teacher-ai-prompt'));
+    document.getElementById('btnHandover')?.addEventListener('click', () => openHandoverDialog(this.app));
+    document.getElementById('btnAccountLinks')?.addEventListener('click', () => openAccountLinksDialog(this.app));
+
     if (this._btnNew) {
       this._btnNew.addEventListener('click', () => {
         this.app.state.editingTopicId = null;
@@ -117,6 +122,7 @@ export class TopicsView {
 
   async refresh() {
     this.refreshSharedTopics();
+    renderIncomingHandovers(this.app, document.getElementById('handoverIncoming'));
     // Themen und Tags gleichzeitig laden statt nacheinander.
     await Promise.all([this.app.loadTopics(), this.app.loadTags(), ensureCategories(this.app)]);
     this._filter.render();

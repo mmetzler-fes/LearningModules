@@ -1,6 +1,7 @@
-import { Controller, Get, Post, Param, Body, UseGuards, Request, Req } from '@nestjs/common';
+import { Controller, Get, Post, Delete, Param, Body, UseGuards, Request, Req } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { FederationService } from './federation.service';
+import { AccountSyncService } from './account-sync.service';
 
 /**
  * Endpunkte für andere Server (ohne Anmeldung, dafür signiert – siehe
@@ -8,7 +9,10 @@ import { FederationService } from './federation.service';
  */
 @Controller('federation')
 export class FederationController {
-  constructor(private readonly federation: FederationService) {}
+  constructor(
+    private readonly federation: FederationService,
+    private readonly accounts: AccountSyncService,
+  ) {}
 
   // ---- Server untereinander ----
 
@@ -43,7 +47,62 @@ export class FederationController {
     return this.federation.serveCopy(req, offerId);
   }
 
+  @Post('link/confirm')
+  async linkConfirm(@Req() req: any) {
+    return this.accounts.receiveConfirm(req);
+  }
+
+  @Post('link/export')
+  async linkExport(@Req() req: any) {
+    return this.accounts.serveExport(req);
+  }
+
+  @Post('link/unlink')
+  async linkUnlink(@Req() req: any) {
+    return this.accounts.receiveUnlink(req);
+  }
+
   // ---- Lehrkräfte ----
+
+  /** Verknüpfte Konten auf anderen Servern. */
+  @Get('links')
+  @UseGuards(JwtAuthGuard)
+  async links(@Request() req: any) {
+    return this.accounts.mine(req.user);
+  }
+
+  /** `{ peerId }` – Code erzeugen, der drüben eingegeben wird. */
+  @Post('links/code')
+  @UseGuards(JwtAuthGuard)
+  async linkCode(@Request() req: any, @Body() body: any) {
+    return this.accounts.createCode(req.user, body);
+  }
+
+  /** `{ peerId, code }` – Code von drüben eingeben. */
+  @Post('links')
+  @UseGuards(JwtAuthGuard)
+  async linkEnter(@Request() req: any, @Body() body: any) {
+    return this.accounts.enterCode(req.user, body);
+  }
+
+  @Post('links/:id/sync')
+  @UseGuards(JwtAuthGuard)
+  async linkSync(@Param('id') id: string, @Request() req: any) {
+    return this.accounts.syncNow(id, req.user);
+  }
+
+  /** `{ autoSync }` */
+  @Post('links/:id')
+  @UseGuards(JwtAuthGuard)
+  async linkUpdate(@Param('id') id: string, @Request() req: any, @Body() body: any) {
+    return this.accounts.update(id, req.user, body);
+  }
+
+  @Delete('links/:id')
+  @UseGuards(JwtAuthGuard)
+  async linkDelete(@Param('id') id: string, @Request() req: any) {
+    return this.accounts.unlink(id, req.user);
+  }
 
   /** Angebote verbundener Server für den Shop. */
   @Get('offers')

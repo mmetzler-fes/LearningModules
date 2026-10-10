@@ -155,6 +155,12 @@ Für Lehrkräfte und Admins (angemeldet):
 | `POST` | `/api/admin/federation/peers/:id/end` | ablehnen, zurückziehen, trennen |
 | `POST` | `/api/admin/federation/peers/:id/sync` | Katalog jetzt abgleichen |
 
+## Eigenes Konto auf beiden Servern
+
+Wer auf beiden Servern ein Konto hat, kann sie verknüpfen und die eigenen
+Inhalte von einem zum anderen holen – siehe [Inhalte übergeben und
+abgleichen](uebergabe.md#mein-konto-auf-anderen-servern).
+
 ## Was noch kommt
 
 - **Use über Server hinweg** als schreibgeschützte Spiegelkopie, die sich vom

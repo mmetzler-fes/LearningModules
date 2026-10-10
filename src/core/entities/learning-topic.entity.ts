@@ -96,4 +96,19 @@ export class LearningTopic extends BaseEntity {
    */
   @Column('simple-json', { nullable: true })
   categoryIds: string[] | null;
+
+  /**
+   * Abgleich mit dem eigenen Konto auf einem verbundenen Server
+   * (docs/uebergabe.md): woher das Lernthema kommt
+   * (`remote:<server>:<Lernthema dort>`), der Stand beim letzten Abgleich
+   * (Prüfsumme – weicht der jetzige ab, wurde hier geändert) und wann.
+   */
+  @Column({ type: 'varchar', nullable: true })
+  syncSource: string | null;
+
+  @Column({ type: 'varchar', nullable: true })
+  syncHash: string | null;
+
+  @Column({ type: 'datetime', nullable: true })
+  syncedAt: Date | null;
 }

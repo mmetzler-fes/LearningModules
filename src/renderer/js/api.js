@@ -447,6 +447,21 @@ export class BrowserApi {
     return this._fetch(`/api/categories/nodes/${encodeURIComponent(nodeId)}`, { method: 'POST', body: JSON.stringify({ categoryIds, mode }) });
   }
 
+  // ---------- Inhalte übergeben (docs/uebergabe.md) ----------
+  getHandovers() { return this._fetch('/api/handovers'); }
+  requestHandover(body) { return this._fetch('/api/handovers', { method: 'POST', body: JSON.stringify(body) }); }
+  acceptHandover(id) { return this._fetch(`/api/handovers/${encodeURIComponent(id)}/accept`, { method: 'POST' }); }
+  declineHandover(id) { return this._fetch(`/api/handovers/${encodeURIComponent(id)}/decline`, { method: 'POST' }); }
+  withdrawHandover(id) { return this._fetch(`/api/handovers/${encodeURIComponent(id)}`, { method: 'DELETE' }); }
+
+  // ---------- Eigenes Konto auf anderen Servern (docs/uebergabe.md) ----------
+  getAccountLinks() { return this._fetch('/api/federation/links'); }
+  createLinkCode(peerId) { return this._fetch('/api/federation/links/code', { method: 'POST', body: JSON.stringify({ peerId }) }); }
+  enterLinkCode(peerId, code) { return this._fetch('/api/federation/links', { method: 'POST', body: JSON.stringify({ peerId, code }) }); }
+  syncAccountLink(id) { return this._fetch(`/api/federation/links/${encodeURIComponent(id)}/sync`, { method: 'POST' }); }
+  updateAccountLink(id, body) { return this._fetch(`/api/federation/links/${encodeURIComponent(id)}`, { method: 'POST', body: JSON.stringify(body) }); }
+  unlinkAccount(id) { return this._fetch(`/api/federation/links/${encodeURIComponent(id)}`, { method: 'DELETE' }); }
+
   // ---------- Vernetzung (docs/vernetzung.md) ----------
   getRemoteOffers() { return this._fetch('/api/federation/offers'); }
   copyRemoteOffer(peerId, offerId) {

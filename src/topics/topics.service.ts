@@ -618,6 +618,7 @@ export class TopicsService {
     // Herkunft und Freigabelisten setzt nie der Client.
     const {
       copiedFromId: _a, copiedFromOwnerId: _b, copiedFromAuthor: _c, copiedFromTitle: _d,
+      syncSource: _s, syncHash: _h, syncedAt: _t,
       sharedWith: _e, sharedAccess: _f, modules: _g, ...data
     } = topicData as any;
     const topic = this.topicRepo.create({

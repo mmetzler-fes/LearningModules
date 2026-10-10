@@ -259,7 +259,7 @@ export class FederationService implements OnApplicationBootstrap, OnModuleDestro
   }
 
   /** Signierter Aufruf; liefert die Antwort als JSON oder wirft mit der Meldung des anderen. */
-  private async call(peer: FederationPeer, method: string, path: string, body?: any, allowNotActive = false): Promise<any> {
+  async call(peer: FederationPeer, method: string, path: string, body?: any, allowNotActive = false): Promise<any> {
     if (!allowNotActive && peer.status === 'ended') throw new BadRequestException('Der Server ist nicht verbunden.');
     const me = await this.identity();
     const raw = body === undefined ? '' : JSON.stringify(body);

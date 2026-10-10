@@ -1,10 +1,10 @@
 {
   "name": "LearningModules",
   "version": "0.0.1",
-  "description": "",
-  "author": "",
+  "description": "Lernplattform für Schulen: Lernthemen aus H5P-artigen Modulen, Klassenlinks, Shop und vernetzte Server",
+  "author": "Martin Metzler",
   "private": true,
-  "license": "UNLICENSED",
+  "license": "AGPL-3.0-or-later",
   "scripts": {
     "build": "nest build",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",

@@ -18,6 +18,10 @@ RUN bun run build
 # ---- Production stage ----
 FROM node:22-slim AS runner
 
+LABEL org.opencontainers.image.title="LearningModules" \
+      org.opencontainers.image.source="https://github.com/mmetzler-fes/LearningModules" \
+      org.opencontainers.image.licenses="AGPL-3.0-or-later"
+
 WORKDIR /app
 
 # Build tools required for native addon (sqlite3)

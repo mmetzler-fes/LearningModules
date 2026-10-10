@@ -1,98 +1,92 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# LearningModules
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+Lernplattform für Schulen, im Browser und auf dem eigenen Server.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+Lehrkräfte bauen **Lernthemen** aus Modulen: Quiz, Lückentext, Zuordnen,
+Drag and Drop, Diktat, Arbeitsblatt und weitere H5P-artige Aufgaben.
+Schüler brauchen kein Konto, sie starten über einen Link oder QR-Code.
+Ergebnisse und Namen bleiben auf dem Server der Schule.
 
-## Description
+> **Material teilen & Wirkung schenken.** Lehrkräfte geben Lernthemen im
+> Shop weiter, zum Nutzen oder als eigene Kopie, und sehen, wo ihr Material
+> im Unterricht ankommt. Verbundene Server tauschen ihre Angebote aus.
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+## Funktionen
 
-## Project setup
+- **Lernthemen und Module** mit Editor, Vorschau und laufend gesicherten Entwürfen
+- **Import** von Moodle-Fragen (XML), H5P-Dateien und JSON; Export als H5P und JSON
+- **Notebooks** zum Ordnen (Book › Bereich › Abschnitt), Tags und einheitliche
+  Kategorien (Fach, Bildungsstufe; Ebene 1 aus den OpenEduHub-Vokabularen)
+- **Klassen** je Schuljahr mit Schülerliste, strikte Anmeldung, Testschüler
+- **Links für Schüler**: Quick-Link, Klassenlink, QR-Code, Klassenarbeit,
+  Lernen mit Lösungen, Lernbegleiter, Quiz-Arena
+- **Ergebnisse** je Schüler und Aufgabe, Klassenergebnisse, Löschregel
+- **Shop** zum Teilen (Use oder Copy), Bewertungen, „Geteilt & genutzt“
+- **Vernetzung** mehrerer Server mit signiertem Handshake; Konten über Server
+  hinweg verknüpfen und Inhalte abgleichen
+- **Sicherheit**: Zwei-Faktor-Anmeldung, verschlüsselte Exporte und Backups
+  (Masterkey), automatisches Backup per WebDAV/Nextcloud
 
-```bash
-$ bun install
-```
+Die Anleitungen stehen in [`docs/`](docs/). Die App zeigt sie auch selbst unter
+**📖 Hilfe**.
 
-## Compile and run the project
+## Betrieb mit Docker
 
-```bash
-# development
-$ bun run start
+Ein fertiges Image baut GitHub bei jedem Push:
+`ghcr.io/mmetzler-fes/learningmodules-server:latest`.
 
-# watch mode
-$ bun run start:dev
+1. [`docker-compose.example.yaml`](docker-compose.example.yaml) als
+   `docker-compose.yaml` kopieren und anpassen (Adresse, Mailversand).
+2. Daneben eine `.env` mit eigenen Geheimnissen anlegen:
+   ```bash
+   printf 'JWT_SECRET=%s\nAPP_SECRET=%s\n' "$(openssl rand -hex 32)" "$(openssl rand -hex 32)" > .env
+   chmod 600 .env
+   ```
+3. `docker compose up -d` und die App hinter einen Reverse Proxy mit https
+   stellen (Port 3000 im Container).
+4. **Sofort** anmelden: Eine leere Datenbank legt den Admin
+   `admin@localhost` / `admin123` an. Das Passwort muss beim ersten Anmelden
+   geändert werden.
 
-# production mode
-$ bun run start:prod
-```
+Die Daten liegen in `./data` (SQLite-Datenbank, verschlüsselte Schlüssel).
+Ordner mit `chmod 700`, Dateien mit `600`.
 
-## Run tests
-
-```bash
-# unit tests
-$ bun run test
-
-# e2e tests
-$ bun run test:e2e
-
-# test coverage
-$ bun run test:cov
-```
-
-## Deployment
-
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
-
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
+## Entwicklung
 
 ```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
+npm install
+npm run start:dev      # http://localhost:3000
+npm test               # Unit-Tests (jest)
+npx tsc --noEmit       # Typprüfung
 ```
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+Backend: NestJS mit TypeORM und SQLite (`src/`). Frontend: ES-Module ohne
+Build-Schritt (`src/renderer/`).
 
-## Resources
+## Lizenz
 
-Check out a few resources that may come in handy when working with NestJS:
+Copyright © 2026 Martin Metzler
 
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
+LearningModules ist freie Software: Sie dürfen sie unter den Bedingungen der
+**GNU Affero General Public License** weitergeben und verändern, wie von der
+Free Software Foundation veröffentlicht, entweder Version 3 der Lizenz oder
+(nach Ihrer Wahl) jede spätere Version
+([`AGPL-3.0-or-later`](https://spdx.org/licenses/AGPL-3.0-or-later.html)).
+Das ist dieselbe Lizenz wie bei Nextcloud.
 
-## Support
+Die Software wird ohne jede Gewährleistung bereitgestellt, siehe
+[`LICENSE`](LICENSE).
 
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
+**Was die AGPL für Schulen bedeutet:** Einsetzen, auf dem eigenen Server
+betreiben und verändern ist erlaubt. Wer eine **veränderte** Fassung für
+andere über das Netz betreibt, muss deren Nutzern den Quelltext dieser
+Fassung anbieten. Die Anmeldeseite verlinkt dafür auf dieses Repository. Bei
+einer eigenen Fassung gehört dort der Link zu deren Quelltext hin.
 
-## Stay in touch
+**Nicht von der Lizenz erfasst** sind die Inhalte, die Lehrkräfte in der App
+erstellen. Sie gehören ihren Urhebern, die über ihre Weitergabe selbst
+entscheiden.
 
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
-
-## License
-
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+**Bestandteile Dritter** behalten ihre eigenen Lizenzen, unter anderem die
+H5P-Bibliotheken in `assets/h5p` und die OpenEduHub-Vokabulare in
+`src/categories/vocab` (CC0-1.0).

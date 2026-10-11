@@ -4,9 +4,11 @@ Unter **📓 Lernmodul-Notebooks** ordnest du deine Lernthemen wie in OneNote:
 
 **📓 Book → 📂 Bereich → 📑 Abschnitt → 📘 Lernthema → Module**
 
-Die Reihenfolge der Ebenen steht fest, Zwischenebenen dürfen fehlen: Ein
-Lernthema kann direkt in einem Book oder Bereich liegen, ein Abschnitt direkt
-in einem Book. Die Ordnung gehört dir allein – Kolleginnen und Schüler sehen
+**Bereiche lassen sich ineinander schachteln** (Bereich › Bereich ›
+Abschnitt), insgesamt bis zu acht Ebenen, das Book mitgezählt. Ein
+**Abschnitt** ist die unterste Ordner-Ebene: Er enthält nur Lernthemen.
+Zwischenebenen dürfen fehlen: Ein Lernthema kann direkt in einem Book oder
+Bereich liegen, ein Abschnitt direkt in einem Book. Die Ordnung gehört dir allein – Kolleginnen und Schüler sehen
 sie nicht, und an Inhalt, Freigaben oder Shop ändert sie nichts.
 
 Die bisherige Liste unter **🏠 LernModule** bleibt und eignet sich zum Suchen
@@ -79,7 +81,9 @@ die Zeile.
 
 | | Book, Bereich, Abschnitt | Lernthema | Modul |
 |---|---|---|---|
-| Neu | Bereich, Abschnitt, Lernthema darin | Modul darin | – |
+| Neu | Bereich, Abschnitt, Lernthema darin (im Abschnitt nur Lernthema) | Modul darin | – |
+| ⤵ / ⤴ Umwandeln | Bereich ↔ Abschnitt, Bereich oder Abschnitt → Book | – | – |
+| 📂 Bereich darüber einfügen | neuer Bereich an dieser Stelle, der Eintrag kommt hinein | – | – |
 | 🔗 Quick-Link | ein Klassenlink mit allen Lernthemen darin | Klassenlink | – |
 | Freigeben | alle Lernthemen darin freigeben oder sperren | ● / ○ | ● / ○ |
 | 🛒 Teilen | Angebot im Shop – wächst mit | Angebot im Shop | – |
@@ -95,12 +99,37 @@ Für erworbene Lernthemen gibt es Quick-Link, Ansehen, Verschieben,
 **⭐ Bewerten** und Zurückgeben. Eine Kopie aus dem Shop hat zusätzlich
 **⭐ Original bewerten** – siehe [Nutzung und Bewertung](nutzung-und-bewertung.md).
 
+### Hoch- und runterstufen
+
+Im Menü eines Bereichs oder Abschnitts:
+
+- **⤵ In Abschnitt umwandeln** (Bereich): geht, solange keine Bereiche oder
+  Abschnitte darin liegen – ein Abschnitt enthält nur Lernthemen. Sonst ist
+  der Punkt ausgegraut.
+- **⤴ In Bereich umwandeln** (Abschnitt): Er kann danach selbst Bereiche und
+  Abschnitte aufnehmen.
+- **⤴ Zu Book machen**: wandert samt Inhalt ganz nach oben, ans Ende der
+  Books.
+- **📂 Bereich darüber einfügen…**: Ein neuer Bereich entsteht genau an
+  dieser Stelle, der Eintrag kommt hinein – etwa um mehrere Abschnitte unter
+  einem gemeinsamen Bereich zu sammeln.
+
+Lernthemen, Tags (samt Vererbung) und Angebote im Shop bleiben dabei
+erhalten.
+
 ### Ziehen und Ablegen
 
-Am Computer lässt sich jede Zeile ziehen:
+Am Computer lässt sich jede Zeile ziehen. Beim Ablegen auf einem Book,
+Bereich oder Abschnitt zählt, wo die Maus steht:
 
-- auf ein Book, einen Bereich oder Abschnitt, der sie aufnehmen kann → hinein,
-- auf eine Zeile derselben Art → davor,
+- **oberes Drittel der Zeile** → davor einsortieren (blaue Linie oben),
+- **darunter** → hinein, wenn der Ordner das aufnehmen kann (gestrichelter
+  Rahmen), sonst davor.
+
+So lässt sich ein Bereich in einen anderen Bereich legen oder zwischen
+gleichrangigen Bereichen umsortieren. Außerdem:
+
+- ein Lernthema auf einen Ordner → hinein, auf ein anderes Lernthema → davor,
 - ein Modul auf ein anderes Modul → davor (auch in ein anderes Lernthema),
   auf ein Lernthema → hinein.
 
@@ -150,7 +179,8 @@ einen gleichnamigen Tag gibt.
 
 ## Technik
 
-Struktur in `notebook_nodes` (Book, Bereich, Abschnitt; mit `tagIds`), Platz
+Struktur in `notebook_nodes` (Book, Bereich, Abschnitt; mit `tagIds`;
+Bereiche ineinander, höchstens `MAX_NODE_DEPTH` = 8 Ebenen), Platz
 der Lernthemen je Lehrkraft in `notebook_placements` (mit `inheritedTagIds`:
 was das Thema nur über den Platz trägt). Regeln zur Schachtelung, Erstbefüllung
 und Vererbung in `src/notebooks/notebook-rules.ts`, Endpunkte unter

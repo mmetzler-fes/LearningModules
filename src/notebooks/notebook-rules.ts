@@ -2,10 +2,12 @@
  * Regeln der Notebook-Struktur, ohne Datenbank – damit sie sich einzeln
  * prüfen lassen (notebook-rules.spec.ts).
  *
- * Book → Bereich → Abschnitt → Lernthema. Die Reihenfolge der Ebenen steht
- * fest, Zwischenebenen dürfen fehlen: Ein Lernthema kann direkt in einem Book
- * liegen, ein Abschnitt direkt in einem Book. So muss niemand für ein
- * einzelnes Lernthema erst Bereich und Abschnitt anlegen.
+ * Book → Bereich → Abschnitt → Lernthema. Bereiche lassen sich ineinander
+ * schachteln (Bereich › Bereich › Abschnitt), Abschnitte sind die unterste
+ * Ordner-Ebene und enthalten nur Lernthemen. Zwischenebenen dürfen fehlen: Ein
+ * Lernthema kann direkt in einem Book liegen, ein Abschnitt direkt in einem
+ * Book. So muss niemand für ein einzelnes Lernthema erst Bereich und
+ * Abschnitt anlegen.
  */
 
 export type NodeKind = 'book' | 'area' | 'section';
@@ -18,18 +20,62 @@ export const KIND_LABEL: Record<NodeKind, string> = {
   section: 'Abschnitt',
 };
 
-/** Ebene: book 0, area 1, section 2. */
-const DEPTH: Record<NodeKind, number> = { book: 0, area: 1, section: 2 };
+/** So tief dürfen Ordner reichen, das Book mitgezählt (Book › 6 Bereiche › Abschnitt). */
+export const MAX_NODE_DEPTH = 8;
 
 /**
  * Darf ein Knoten dieser Art unter `parentKind` hängen? `null` = oberste
- * Ebene. Nur Books stehen oben; alles andere braucht einen Elternknoten
- * einer höheren Ebene.
+ * Ebene. Nur Books stehen oben. Books und Bereiche nehmen Bereiche und
+ * Abschnitte auf, Abschnitte keine Ordner mehr.
  */
 export function canHoldNode(parentKind: NodeKind | null, kind: NodeKind): boolean {
   if (kind === 'book') return parentKind === null;
   if (parentKind === null) return false;
-  return DEPTH[parentKind] < DEPTH[kind];
+  return parentKind !== 'section';
+}
+
+type TreeNode = { id: string; parentId: string | null };
+
+/** Ebene eines Knotens: Book = 1. */
+export function nodeDepth(nodes: TreeNode[], id: string): number {
+  const byId = new Map(nodes.map((n) => [n.id, n]));
+  let d = 0;
+  let cur = byId.get(id);
+  const seen = new Set<string>();
+  while (cur && !seen.has(cur.id)) {
+    seen.add(cur.id);
+    d++;
+    cur = cur.parentId ? byId.get(cur.parentId) : undefined;
+  }
+  return d;
+}
+
+/** Wie viele Ebenen ein Knoten samt allem darunter belegt (ohne Unterordner: 1). */
+export function subtreeHeight(nodes: TreeNode[], id: string): number {
+  const kids = nodes.filter((n) => n.parentId === id);
+  return 1 + (kids.length ? Math.max(...kids.map((k) => subtreeHeight(nodes, k.id))) : 0);
+}
+
+/** Passt `id` samt Unterordnern unter `parentId` (null = ganz oben), ohne zu tief zu werden? */
+export function fitsDepth(nodes: TreeNode[], id: string, parentId: string | null, extraLevels = 0): boolean {
+  const base = parentId ? nodeDepth(nodes, parentId) : 0;
+  return base + extraLevels + subtreeHeight(nodes, id) <= MAX_NODE_DEPTH;
+}
+
+/**
+ * Umwandeln: Bereich ↔ Abschnitt, Bereich oder Abschnitt → Book. Liefert
+ * den Grund, wenn es nicht geht, sonst null.
+ *   area → section: nur ohne Unterordner – ein Abschnitt enthält nur Lernthemen
+ *   → book: wandert dabei ganz nach oben
+ *   book → …: nicht hier, ein Book hat keinen Platz darüber
+ */
+export function cannotConvert(kind: NodeKind, to: NodeKind, hasChildNodes: boolean): string | null {
+  if (kind === to) return 'Das ist es schon.';
+  if (kind === 'book') return 'Ein Book lässt sich nicht umwandeln – stattdessen seinen Inhalt verschieben.';
+  if (to === 'section' && hasChildNodes) {
+    return 'Ein Abschnitt enthält nur Lernthemen. Bitte zuerst die Bereiche und Abschnitte darin woandershin verschieben.';
+  }
+  return null;
 }
 
 /** Lernthemen dürfen in jedem Knoten liegen, ohne Knoten stehen sie unter „Unsortiert“. */

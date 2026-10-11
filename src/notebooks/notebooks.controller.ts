@@ -32,6 +32,18 @@ export class NotebooksController {
     return this.notebooks.updateNode(id, req.user, body);
   }
 
+  /** Hoch- oder runterstufen: `{ kind: 'area' | 'section' | 'book' }`. */
+  @Post('nodes/:id/convert')
+  async convert(@Param('id') id: string, @Request() req: any, @Body() body: any) {
+    return this.notebooks.convertNode(id, req.user, body);
+  }
+
+  /** Bereich darüber einfügen: `{ title }` – der Knoten kommt in den neuen Bereich. */
+  @Post('nodes/:id/wrap')
+  async wrap(@Param('id') id: string, @Request() req: any, @Body() body: any) {
+    return this.notebooks.wrapNode(id, req.user, body);
+  }
+
   /** Lernthemen darin bleiben erhalten und rücken eine Ebene nach oben. */
   @Delete('nodes/:id')
   async remove(@Param('id') id: string, @Request() req: any) {

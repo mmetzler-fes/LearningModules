@@ -4784,3 +4784,4 @@ body {
   .login-header h1 { font-size: 1.4rem; }
   .login-credit { margin-top: 4px; font-size: 0.7rem; }
 }
+.nb-menu-item:disabled { opacity: 0.45; cursor: not-allowed; background: none; }

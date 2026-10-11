@@ -351,6 +351,14 @@ export class BrowserApi {
   moveInNotebook(type, id, parentId, index = null) {
     return this._fetch('/api/notebooks/move', { method: 'POST', body: JSON.stringify({ type, id, parentId, index }) });
   }
+  /** Hoch- oder runterstufen: kind 'area' | 'section' | 'book'. */
+  convertNotebookNode(id, kind) {
+    return this._fetch(`/api/notebooks/nodes/${encodeURIComponent(id)}/convert`, { method: 'POST', body: JSON.stringify({ kind }) });
+  }
+  /** Bereich darüber einfügen: neuer Bereich an der Stelle des Knotens, der Knoten kommt hinein. */
+  wrapNotebookNode(id, title) {
+    return this._fetch(`/api/notebooks/nodes/${encodeURIComponent(id)}/wrap`, { method: 'POST', body: JSON.stringify({ title }) });
+  }
   copyNotebookNode(id) {
     return this._fetch(`/api/notebooks/nodes/${encodeURIComponent(id)}/copy`, { method: 'POST' });
   }

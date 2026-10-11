@@ -1,17 +1,48 @@
-import { canHoldNode, insertAt, initialStructure, inheritTags, subtreeIds } from './notebook-rules';
+import { canHoldNode, cannotConvert, fitsDepth, insertAt, initialStructure, inheritTags, nodeDepth, subtreeHeight, subtreeIds, MAX_NODE_DEPTH } from './notebook-rules';
 
 describe('Notebook-Regeln', () => {
-  it('Books nur oben, darunter nur tiefere Ebenen', () => {
+  it('Books nur oben, Bereiche schachtelbar, Abschnitte ohne Ordner', () => {
     expect(canHoldNode(null, 'book')).toBe(true);
     expect(canHoldNode(null, 'area')).toBe(false);
     expect(canHoldNode(null, 'section')).toBe(false);
     expect(canHoldNode('book', 'book')).toBe(false);
     expect(canHoldNode('book', 'area')).toBe(true);
     expect(canHoldNode('book', 'section')).toBe(true); // Bereich darf fehlen
-    expect(canHoldNode('area', 'area')).toBe(false);
+    expect(canHoldNode('area', 'area')).toBe(true); // Bereiche ineinander
     expect(canHoldNode('area', 'section')).toBe(true);
+    expect(canHoldNode('area', 'book')).toBe(false);
     expect(canHoldNode('section', 'section')).toBe(false);
     expect(canHoldNode('section', 'area')).toBe(false);
+  });
+
+  it('Tiefe: Ebene, Höhe eines Teilbaums, Grenze', () => {
+    const nodes = [
+      { id: 'b', parentId: null },
+      { id: 'a1', parentId: 'b' },
+      { id: 'a2', parentId: 'a1' },
+      { id: 's', parentId: 'a2' },
+      { id: 'x', parentId: 'b' },
+    ];
+    expect(nodeDepth(nodes, 'b')).toBe(1);
+    expect(nodeDepth(nodes, 's')).toBe(4);
+    expect(subtreeHeight(nodes, 'a1')).toBe(3);
+    expect(subtreeHeight(nodes, 's')).toBe(1);
+    expect(fitsDepth(nodes, 'a1', 'x')).toBe(true);
+    // Eine Kette bis an die Grenze: darunter passt nichts mehr.
+    const chain = Array.from({ length: MAX_NODE_DEPTH }, (_, i) => ({ id: `n${i}`, parentId: i ? `n${i - 1}` : null }));
+    expect(fitsDepth([...chain, { id: 'z', parentId: null }], 'z', `n${MAX_NODE_DEPTH - 2}`)).toBe(true);
+    expect(fitsDepth([...chain, { id: 'z', parentId: null }], 'z', `n${MAX_NODE_DEPTH - 1}`)).toBe(false);
+    // Bereich darüber einfügen kostet eine Ebene.
+    expect(fitsDepth(chain, 'n1', 'n0', 1)).toBe(false);
+  });
+
+  it('Umwandeln', () => {
+    expect(cannotConvert('area', 'section', false)).toBeNull();
+    expect(cannotConvert('area', 'section', true)).toMatch(/nur Lernthemen/);
+    expect(cannotConvert('section', 'area', false)).toBeNull();
+    expect(cannotConvert('area', 'book', true)).toBeNull();
+    expect(cannotConvert('book', 'area', false)).toMatch(/Book/);
+    expect(cannotConvert('area', 'area', false)).toMatch(/schon/);
   });
 
   it('fügt an der Position ein und verschiebt innerhalb der Liste', () => {

@@ -15,7 +15,7 @@ import { ImportService } from '../core/interchange/import/import.service';
 import { ShopService, GrantEntry } from '../shop/shop.service';
 import { ShopOffer } from '../core/entities/shop-offer.entity';
 import { User } from '../core/entities/user.entity';
-import { NodeKind, NODE_KINDS, KIND_LABEL, canHoldNode, insertAt, initialStructure, inheritTags, subtreeIds } from './notebook-rules';
+import { NodeKind, NODE_KINDS, KIND_LABEL, MAX_NODE_DEPTH, canHoldNode, cannotConvert, fitsDepth, nodeDepth, insertAt, initialStructure, inheritTags, subtreeIds } from './notebook-rules';
 
 /**
  * Notebook-Datei (Download eines Books, Bereichs oder Abschnitts): ein ZIP mit
@@ -307,11 +307,18 @@ export class NotebooksService {
     return `Ein ${KIND_LABEL[kind]} passt nicht in ${parent.kind === 'section' ? 'einen Abschnitt' : parent.kind === 'area' ? 'einen Bereich' : 'ein Book'}.`;
   }
 
+  private tooDeep(): string {
+    return `So tief geht es nicht – höchstens ${MAX_NODE_DEPTH} Ebenen, das Book mitgezählt.`;
+  }
+
   async createNode(user: any, body: { kind?: string; title?: string; parentId?: string | null; tagIds?: string[] }) {
     const kind = String(body?.kind || '') as NodeKind;
     if (!NODE_KINDS.includes(kind)) throw new BadRequestException('Unbekannte Art.');
     const parent = await this.parentOrNull(body?.parentId, user);
     if (!canHoldNode(parent?.kind ?? null, kind)) throw new BadRequestException(this.placeError(kind, parent));
+    if (parent && nodeDepth(await this.nodeRepo.find({ where: { ownerId: user.userId } }), parent.id) >= MAX_NODE_DEPTH) {
+      throw new BadRequestException(this.tooDeep());
+    }
     const count = await this.nodeRepo.count({ where: { ownerId: user.userId, parentId: (parent?.id ?? null) as any } });
     const node = await this.nodeRepo.save(this.nodeRepo.create({
       id: crypto.randomUUID(), ownerId: user.userId, kind, title: this.cleanTitle(body?.title), parentId: parent?.id ?? null, orderIndex: count,
@@ -354,6 +361,54 @@ export class NotebooksService {
     return { success: true, movedTopics: moving.length };
   }
 
+  // ---- Umwandeln, Bereich darüber einfügen ----
+
+  /**
+   * Hoch- oder runterstufen: `{ kind }` – Bereich ↔ Abschnitt, Bereich oder
+   * Abschnitt → Book. Ein neues Book wandert nach oben, ans Ende der Books.
+   * Inhalt, Tags und Angebote bleiben.
+   */
+  async convertNode(id: string, user: any, body: { kind?: string }) {
+    const node = await this.ownNode(id, user);
+    const to = String(body?.kind || '') as NodeKind;
+    if (!NODE_KINDS.includes(to)) throw new BadRequestException('Unbekannte Art.');
+    const all = await this.nodeRepo.find({ where: { ownerId: user.userId } });
+    const why = cannotConvert(node.kind, to, all.some((n) => n.parentId === node.id));
+    if (why) throw new BadRequestException(why);
+    if (to === 'book') {
+      node.parentId = null;
+      node.orderIndex = all.filter((n) => !n.parentId).length;
+    } else {
+      const parent = all.find((n) => n.id === node.parentId);
+      if (!canHoldNode(parent?.kind ?? null, to)) throw new BadRequestException(this.placeError(to, parent || null));
+    }
+    const from = node.kind;
+    node.kind = to;
+    await this.nodeRepo.save(node);
+    if (to === 'book') await this.applyInheritance(user);
+    return { success: true, from, kind: to };
+  }
+
+  /**
+   * Bereich darüber einfügen: Ein neuer Bereich entsteht an der Stelle des
+   * Knotens, der Knoten kommt hinein. `{ title }`
+   */
+  async wrapNode(id: string, user: any, body: { title?: string }) {
+    const node = await this.ownNode(id, user);
+    if (node.kind === 'book') throw new BadRequestException('Über einem Book ist kein Platz – Books stehen ganz oben.');
+    const all = await this.nodeRepo.find({ where: { ownerId: user.userId } });
+    if (!fitsDepth(all, node.id, node.parentId, 1)) throw new BadRequestException(this.tooDeep());
+    const area = this.nodeRepo.create({
+      id: crypto.randomUUID(), ownerId: user.userId, kind: 'area', title: this.cleanTitle(body?.title),
+      parentId: node.parentId, orderIndex: node.orderIndex, tagIds: null,
+    });
+    node.parentId = area.id;
+    node.orderIndex = 0;
+    await this.nodeRepo.save([area, node]);
+    await this.applyInheritance(user);
+    return { success: true, id: area.id, title: area.title };
+  }
+
   // ---- Verschieben ----
 
   /**
@@ -370,6 +425,7 @@ export class NotebooksService {
       if (!canHoldNode(parent?.kind ?? null, node.kind)) throw new BadRequestException(this.placeError(node.kind, parent));
       const all = await this.nodeRepo.find({ where: { ownerId: user.userId } });
       if (parentId && subtreeIds(all, node.id).has(parentId)) throw new BadRequestException('Ein Eintrag kann nicht in sich selbst liegen.');
+      if (!fitsDepth(all, node.id, parentId)) throw new BadRequestException(this.tooDeep());
       const previousParent = node.parentId;
       node.parentId = parentId;
       const siblings = all.filter((n) => n.parentId === parentId && n.id !== node.id).sort((a, b) => a.orderIndex - b.orderIndex);
@@ -667,7 +723,8 @@ export class NotebooksService {
 
     let topics = 0;
     const failed: string[] = [];
-    const create = async (src: any, kindHere: NodeKind, parentHere: string | null, orderIndex: number) => {
+    const baseDepth = parent ? nodeDepth(await this.nodeRepo.find({ where: { ownerId: user.userId } }), parent.id) : 0;
+    const create = async (src: any, kindHere: NodeKind, parentHere: string | null, orderIndex: number, level: number) => {
       const node = await this.nodeRepo.save(this.nodeRepo.create({
         id: crypto.randomUUID(), ownerId: user.userId, kind: kindHere, title: this.cleanTitle(src.title || KIND_LABEL[kindHere]),
         parentId: parentHere, orderIndex, tagIds: tagIdsOf(src.tags),
@@ -687,13 +744,14 @@ export class NotebooksService {
       const kids = Array.isArray(src.children) ? src.children : [];
       for (let k = 0; k < kids.length; k++) {
         const kidKind = kids[k]?.kind as NodeKind;
-        if (!NODE_KINDS.includes(kidKind) || !canHoldNode(kindHere, kidKind)) continue;
-        await create(kids[k], kidKind, node.id, k);
+        if (!NODE_KINDS.includes(kidKind) || !canHoldNode(kindHere, kidKind) || level >= MAX_NODE_DEPTH) continue;
+        await create(kids[k], kidKind, node.id, k, level + 1);
       }
       return node;
     };
     const count = await this.nodeRepo.count({ where: { ownerId: user.userId, parentId: (parent?.id ?? null) as any } });
-    const node = await create(data.node, kind, parent?.id ?? null, count);
+    if (baseDepth >= MAX_NODE_DEPTH) throw new BadRequestException(this.tooDeep());
+    const node = await create(data.node, kind, parent?.id ?? null, count, baseDepth + 1);
     await this.applyInheritance(user);
     return { success: true, id: node.id, title: node.title, importedTopics: topics, failed };
   }

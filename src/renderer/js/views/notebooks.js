@@ -16,13 +16,15 @@ const KIND = {
   area: { icon: '📂', label: 'Bereich', a: 'einen Bereich' },
   section: { icon: '📑', label: 'Abschnitt', a: 'einen Abschnitt' },
 };
-const DEPTH = { book: 0, area: 1, section: 2 };
-
-/** Wie auf dem Server (notebook-rules.ts): Books oben, darunter nur tiefere Ebenen. */
+/**
+ * Wie auf dem Server (notebook-rules.ts): Books oben; Books und Bereiche
+ * nehmen Bereiche und Abschnitte auf – Bereiche also auch ineinander –,
+ * Abschnitte nur noch Lernthemen.
+ */
 function canHoldNode(parentKind, kind) {
   if (kind === 'book') return parentKind === null;
   if (parentKind === null) return false;
-  return DEPTH[parentKind] < DEPTH[kind];
+  return parentKind !== 'section';
 }
 
 const OPEN_KEY = 'lm_nb_open';
@@ -495,6 +497,7 @@ export class NotebooksView {
       btn.className = item.danger ? 'nb-menu-item danger' : 'nb-menu-item';
       btn.textContent = item.label;
       if (item.title) btn.title = item.title;
+      if (item.disabled) btn.disabled = true;
       btn.addEventListener('click', (e) => {
         e.stopPropagation();
         this._closeMenu();
@@ -520,7 +523,7 @@ export class NotebooksView {
 
   _nodeMenu(node) {
     const items = [];
-    if (node.kind === 'book') items.push({ label: '➕ Neuer Bereich', run: () => this._createNode('area', node.id) });
+    if (node.kind !== 'section') items.push({ label: '➕ Neuer Bereich', run: () => this._createNode('area', node.id) });
     if (node.kind !== 'section') items.push({ label: '➕ Neuer Abschnitt', run: () => this._createNode('section', node.id) });
     items.push({ label: '➕ Neues Lernthema', run: () => this._createTopic(node.id) });
     items.push('-');
@@ -535,6 +538,21 @@ export class NotebooksView {
     items.push({ label: '↔️ Verschieben nach…', run: () => this._moveNodeDialog(node) });
     items.push({ label: '📋 Kopieren', run: () => this._copyNode(node) });
     items.push({ label: '✏️ Umbenennen', run: () => this._renameNode(node) });
+    // Hoch- und runterstufen
+    if (node.kind === 'area') {
+      const hasFolders = this._nodesIn(node.id).length > 0;
+      items.push({
+        label: '⤵ In Abschnitt umwandeln',
+        title: hasFolders ? 'Geht erst, wenn keine Bereiche oder Abschnitte mehr darin liegen – ein Abschnitt enthält nur Lernthemen' : 'Bleibt an seinem Platz, enthält danach nur noch Lernthemen',
+        disabled: hasFolders,
+        run: () => this._convertNode(node, 'section'),
+      });
+    }
+    if (node.kind === 'section') items.push({ label: '⤴ In Bereich umwandeln', title: 'Kann danach selbst Bereiche und Abschnitte aufnehmen', run: () => this._convertNode(node, 'area') });
+    if (node.kind !== 'book') {
+      items.push({ label: '⤴ Zu Book machen', title: 'Wandert samt Inhalt ganz nach oben', run: () => this._convertNode(node, 'book') });
+      items.push({ label: '📂 Bereich darüber einfügen…', title: 'Neuer Bereich an dieser Stelle – dieser Eintrag kommt hinein', run: () => this._wrapNode(node) });
+    }
     items.push({ label: '🏷 Tags', title: 'Tags vererben sich auf alle Lernthemen darunter', run: () => this._editNodeTags(node) });
     items.push({ label: '🗂 Alles darin einordnen…', title: 'Fach und Bildungsstufe für alle eigenen Lernthemen darin', run: () => this._categorizeNode(node) });
     items.push('-');
@@ -667,6 +685,26 @@ export class NotebooksView {
     const res = await this.app.api.createNotebookNode(kind, title, parentId);
     if (failed(res)) { this.app.showToast('Fehler: ' + (res?.message || 'Anlegen fehlgeschlagen'), 'error'); return; }
     if (parentId) this._open.add('n:' + parentId);
+    this._saveOpen();
+    await this.refresh();
+  }
+
+  /** Hoch- oder runterstufen. */
+  async _convertNode(node, kind) {
+    const res = await this.app.api.convertNotebookNode(node.id, kind);
+    if (failed(res)) { this.app.showToast('Fehler: ' + (res?.message || 'Umwandeln fehlgeschlagen'), 'error'); return; }
+    const asNoun = { book: 'ein Book', area: 'ein Bereich', section: 'ein Abschnitt' };
+    this.app.showToast(`„${node.title}“ ist jetzt ${asNoun[kind]}.`, 'success');
+    await this.refresh();
+  }
+
+  /** Bereich darüber einfügen: neuer Bereich an dieser Stelle, der Eintrag kommt hinein. */
+  async _wrapNode(node) {
+    const title = await this._ask(`📂 Bereich über „${node.title}“ einfügen`, 'Name des neuen Bereichs');
+    if (!title) return;
+    const res = await this.app.api.wrapNotebookNode(node.id, title);
+    if (failed(res)) { this.app.showToast('Fehler: ' + (res?.message || 'Einfügen fehlgeschlagen'), 'error'); return; }
+    this._open.add('n:' + res.id);
     this._saveOpen();
     await this.refresh();
   }
@@ -1034,18 +1072,20 @@ export class NotebooksView {
    * Was passiert, wenn `drag` auf `target` fällt: { mode: 'into'|'before', … }
    * oder null, wenn es dort nicht hingehört.
    */
-  _dropPlan(drag, target) {
+  _dropPlan(drag, target, zone = 'middle') {
     if (!drag) return null;
     if (drag.type === 'node') {
       if (target.type !== 'node' || !target.kind || target.id === drag.id || this._isInside(target.id, drag.id)) return null;
-      if (canHoldNode(target.kind, drag.kind)) return { mode: 'into', parentId: target.id };
       const node = this._nodes.get(target.id);
       const parentKind = node.parentId ? this._nodes.get(node.parentId)?.kind : null;
-      if (canHoldNode(parentKind ?? null, drag.kind)) {
-        const index = this._nodesIn(node.parentId).filter((n) => n.id !== drag.id).findIndex((n) => n.id === node.id);
-        return { mode: 'before', parentId: node.parentId, index };
-      }
-      return null;
+      const before = canHoldNode(parentKind ?? null, drag.kind)
+        ? { mode: 'before', parentId: node.parentId, index: this._nodesIn(node.parentId).filter((n) => n.id !== drag.id).findIndex((n) => n.id === node.id) }
+        : null;
+      const into = canHoldNode(target.kind, drag.kind) ? { mode: 'into', parentId: target.id } : null;
+      // Oberes Drittel der Zeile: davor einsortieren, sonst hinein – so lassen
+      // sich gleichrangige Bereiche umsortieren und trotzdem ineinanderlegen.
+      if (zone === 'top') return before || into;
+      return into || before;
     }
     if (drag.type === 'topic') {
       if (target.type === 'node') return { mode: 'into', parentId: target.id };
@@ -1065,8 +1105,12 @@ export class NotebooksView {
   }
 
   _bindDrop(row, target) {
+    const zoneOf = (e) => {
+      const r = row.getBoundingClientRect();
+      return e.clientY - r.top < r.height / 3 ? 'top' : 'middle';
+    };
     row.addEventListener('dragover', (e) => {
-      const plan = this._dropPlan(this._drag, target);
+      const plan = this._dropPlan(this._drag, target, zoneOf(e));
       if (!plan) return;
       e.preventDefault();
       e.dataTransfer.dropEffect = 'move';
@@ -1078,7 +1122,7 @@ export class NotebooksView {
       e.preventDefault();
       row.classList.remove('nb-drop-into', 'nb-drop-before');
       const drag = this._drag;
-      const plan = this._dropPlan(drag, target);
+      const plan = this._dropPlan(drag, target, zoneOf(e));
       this._drag = null;
       if (!plan) return;
       try {

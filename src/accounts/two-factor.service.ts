@@ -5,10 +5,9 @@ import { User } from '../core/entities/user.entity';
 import { MasterKeyService } from '../core/crypto/master-key.service';
 import { renderQr } from '../core/share/link-url';
 import {
-  generateSecret, verifyCode, isUsedCode, otpauthUrl, generateRecoveryCodes, hashRecoveryCode,
+  generateSecret, verifyCode, isUsedCode, otpauthUrl, generateRecoveryCodes, hashRecoveryCode, issuerFor,
 } from '../auth/totp';
 
-const ISSUER = 'LernModule';
 const MAX_FAILURES = 5;
 const LOCK_MS = 15 * 60 * 1000;
 
@@ -141,7 +140,7 @@ export class TwoFactorService {
     const secret = generateSecret();
     user.totpPending = this.seal(secret);
     await this.userRepo.save(user);
-    const url = otpauthUrl(ISSUER, user.email, secret);
+    const url = otpauthUrl(issuerFor(process.env.APP_URL), user.email, secret);
     return { secret, otpauthUrl: url, qrSvg: await renderQr(url) };
   }
 

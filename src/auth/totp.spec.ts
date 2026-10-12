@@ -1,4 +1,4 @@
-import { codeAt, generateSecret, isUsedCode, verifyCode } from './totp';
+import { codeAt, generateSecret, isUsedCode, issuerFor, otpauthUrl, verifyCode } from './totp';
 
 describe('Zwei-Faktor: Codes', () => {
   const secret = generateSecret();
@@ -28,5 +28,18 @@ describe('Zwei-Faktor: Codes', () => {
     const wrong = codeAt(secret, step) === '000000' ? '111111' : '000000';
     expect(isUsedCode(secret, wrong, step)).toBe(false);
     expect(isUsedCode(secret, codeAt(secret, step), null)).toBe(false);
+  });
+});
+
+describe('Zwei-Faktor: Eintrag in der App', () => {
+  it('trägt die Adresse des Servers, damit mehrere Server unterscheidbar sind', () => {
+    expect(issuerFor('https://lm-test.metzlercloud.de')).toBe('LernModule (lm-test.metzlercloud.de)');
+    expect(issuerFor('https://lm.schule.de:8443/')).toBe('LernModule (lm.schule.de:8443)');
+    expect(issuerFor('http://localhost:3000')).toBe('LernModule');
+    expect(issuerFor(undefined)).toBe('LernModule');
+    expect(issuerFor('kaputt')).toBe('LernModule');
+    const url = otpauthUrl(issuerFor('https://lm.schule.de'), 'a@b.de', 'ABC');
+    expect(decodeURIComponent(url)).toContain('LernModule (lm.schule.de):a@b.de');
+    expect(new URL(url).searchParams.get('issuer')).toBe('LernModule (lm.schule.de)');
   });
 });

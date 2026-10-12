@@ -21,6 +21,16 @@ Wiederherstellungscode. **Jeder Code gilt nur einmal**, und danach auch kein
 denselben Code; dann meldet die App „Dieser Code wurde gerade schon
 verwendet“ – auf den nächsten warten (höchstens 30 Sekunden).
 
+**Der Eintrag in der App** heißt „LernModule (Adresse des Servers)“, z. B.
+„LernModule (lm.schule.de)“. Wer mehrere Server nutzt (etwa Schule und
+Testserver), hat je Server einen eigenen Eintrag mit eigenen Codes – der Code
+muss vom Eintrag dieses Servers stammen. Einträge aus der Zeit vor dieser
+Benennung heißen nur „LernModule“; stehen dort zwei gleichnamige, gehört
+der jüngere meist zur letzten Einrichtung. Am sichersten: 2FA mit einem
+Wiederherstellungscode ausschalten, die alten Einträge in der App löschen und
+neu einrichten. Auch ein abgebrochenes „Einrichten“ kann einen Eintrag in der
+App hinterlassen, der nie gilt.
+
 ## Handy verloren
 
 Der Hauptadmin (Benutzerverwaltung) oder der Schuladmin (Meine Schule, sofern

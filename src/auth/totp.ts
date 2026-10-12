@@ -96,6 +96,21 @@ export function isUsedCode(secret: string, code: string, lastStep: number | null
     && crypto.timingSafeEqual(Buffer.from(codeAt(secret, step)), Buffer.from(clean)));
 }
 
+/**
+ * Name des Eintrags in der Authenticator-App: mit der Adresse des Servers,
+ * sonst stünden bei mehreren Servern (Schule, Testserver) gleich aussehende
+ * Einträge mit verschiedenen Codes nebeneinander.
+ */
+export function issuerFor(appUrl: string | null | undefined): string {
+  let host = '';
+  try {
+    host = appUrl ? new URL(appUrl).host : '';
+  } catch {
+    host = '';
+  }
+  return host && host !== 'localhost' && !host.startsWith('localhost:') ? `LernModule (${host})` : 'LernModule';
+}
+
 /** Inhalt des QR-Codes für die Authenticator-App. */
 export function otpauthUrl(issuer: string, account: string, secret: string): string {
   const label = encodeURIComponent(`${issuer}:${account}`);

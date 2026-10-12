@@ -664,7 +664,15 @@ export class TagFilter {
       return;
     }
     if (visible.length === 0) {
-      this._chips.innerHTML = '<span class="hint">Kein Tag passt zur Eingabe.</span>';
+      // Das Feld sucht nur Tags. Ohne angehakten Tag bleiben die Einträge
+      // darunter ungefiltert – das soll niemanden verwirren.
+      this._chips.innerHTML = `<span class="hint">Kein Tag heißt so – dieses Feld sucht nur Tags, die Liste darunter ist nicht gefiltert.</span>
+        <button type="button" class="btn btn-secondary btn-sm tag-filter-clear">✕ Eingabe löschen</button>`;
+      this._chips.querySelector('.tag-filter-clear').addEventListener('click', () => {
+        this._search.value = '';
+        this.render();
+        this._search.focus();
+      });
       return;
     }
 

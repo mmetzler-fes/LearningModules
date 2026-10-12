@@ -360,7 +360,7 @@
           <button type="button" class="help-hint" data-help="moodle-und-h5p#einlesen" title="Hilfe: Themen einlesen (JSON, Moodle-XML, H5P)" aria-label="Hilfe: Themen einlesen (JSON, Moodle-XML, H5P)">?</button>
         </div>
         <div class="tag-filter-bar">
-          <input type="text" id="topicTagSearch" class="search-input" placeholder="Tags suchen, z. B. Arduino…" />
+          <input type="search" id="topicTagSearch" class="search-input" autocomplete="off" spellcheck="false" placeholder="Tags suchen, z. B. Arduino…" />
           <label class="tag-filter-mode">
             <input type="checkbox" id="topicTagFilterAll" />
             <span title="Aus: mindestens ein Tag muss passen. An: alle gewählten Tags müssen passen.">alle Tags müssen passen</span>
@@ -426,7 +426,7 @@
           <button class="admin-tab" data-tab="impact">📈 Geteilt & genutzt</button>
         </div>
         <div class="tag-filter-bar" id="shopFilterBar">
-          <input type="text" id="shopSearch" class="search-input" placeholder="Suchen nach Titel, Modul oder Person…" />
+          <input type="search" id="shopSearch" class="search-input" autocomplete="off" spellcheck="false" placeholder="Suchen nach Titel, Modul oder Person…" />
           <select id="shopSubject" class="shop-cat-filter" aria-label="Fach"><option value="">📚 Alle Fächer</option></select>
           <select id="shopStage" class="shop-cat-filter" aria-label="Bildungsstufe"><option value="">🎓 Alle Stufen</option></select>
           <label class="tag-filter-mode hidden" id="shopRemoteWrap" title="Angebote verbundener Server zeigen">
@@ -451,7 +451,7 @@
           </div>
           <h2 id="modulesViewTitle" class="modules-view-title">Module verwalten</h2>
           <div class="header-actions">
-            <input type="text" id="searchModules" class="search-input" data-i18n-placeholder="modules.search.placeholder" placeholder="Module durchsuchen..." />
+            <input type="search" id="searchModules" class="search-input" autocomplete="off" spellcheck="false" data-i18n-placeholder="modules.search.placeholder" placeholder="Module durchsuchen..." />
             <select id="filterType" class="filter-select">
               <option value="" data-i18n="modules.filter.all">Alle Typen</option>
             </select>
@@ -567,7 +567,7 @@
           <h2 data-i18n="results.title">Quiz-Ergebnisse</h2>
           <p class="subtitle" data-i18n="results.subtitle">Übersicht aller Schüler-Ergebnisse</p>
           <div class="header-actions">
-            <input type="text" id="searchResults" class="search-input" data-i18n-placeholder="results.search.placeholder" placeholder="Nach Schüler filtern..." />
+            <input type="search" id="searchResults" class="search-input" autocomplete="off" spellcheck="false" data-i18n-placeholder="results.search.placeholder" placeholder="Nach Schüler filtern..." />
             <select id="filterResultsLink" class="search-input" title="Nach Schülerfreigabe oder Quick-Link filtern">
               <option value="">Alle Links</option>
             </select>
@@ -607,7 +607,7 @@
         </div>
 
         <div class="tag-filter-bar">
-          <input type="text" id="linkTagSearch" class="search-input" placeholder="Tags suchen, z. B. Arduino…" />
+          <input type="search" id="linkTagSearch" class="search-input" autocomplete="off" spellcheck="false" placeholder="Tags suchen, z. B. Arduino…" />
           <label class="tag-filter-mode">
             <input type="checkbox" id="linkTagFilterAll" />
             <span title="Aus: mindestens ein Tag muss passen. An: alle gewählten Tags müssen passen.">alle Tags müssen passen</span>

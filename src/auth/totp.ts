@@ -55,7 +55,7 @@ export function currentStep(now = Date.now()): number {
   return Math.floor(now / 1000 / STEP_SECONDS);
 }
 
-function codeAt(secret: string, step: number): string {
+export function codeAt(secret: string, step: number): string {
   const counter = Buffer.alloc(8);
   counter.writeBigUInt64BE(BigInt(step));
   const hmac = crypto.createHmac('sha1', base32Decode(secret)).update(counter).digest();
@@ -80,6 +80,20 @@ export function verifyCode(secret: string, code: string, lastStep: number | null
     if (crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(clean))) return step;
   }
   return null;
+}
+
+/**
+ * Passt der Code, war aber schon verwendet (Schritt bis `lastStep`)? Dann
+ * stimmt er – er gilt nur kein zweites Mal. Gerade direkt nach der Anmeldung
+ * zeigt die App oft noch denselben Code; die Meldung soll dann nicht „falsch“
+ * sagen, sondern „kurz auf den nächsten warten“.
+ */
+export function isUsedCode(secret: string, code: string, lastStep: number | null): boolean {
+  const clean = String(code || '').replace(/\s+/g, '');
+  if (lastStep === null || !/^\d{6}$/.test(clean)) return false;
+  const now = currentStep();
+  return [now - 1, now, now + 1].some((step) => step <= lastStep
+    && crypto.timingSafeEqual(Buffer.from(codeAt(secret, step)), Buffer.from(clean)));
 }
 
 /** Inhalt des QR-Codes für die Authenticator-App. */

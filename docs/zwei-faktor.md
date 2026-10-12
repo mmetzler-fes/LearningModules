@@ -12,7 +12,14 @@ eingeben. Danach erscheinen **10 Wiederherstellungscodes** – nur dieses eine
 Mal. Jeder gilt einmal und ersetzt den Code aus der App, wenn das Handy fehlt.
 
 Im selben Dialog: neue Wiederherstellungscodes erzeugen (braucht einen
-aktuellen Code) oder 2FA ausschalten (braucht Passwort und Code).
+aktuellen Code) oder 2FA ausschalten.
+
+**Ausschalten** braucht zwei Dinge: das **Anmeldepasswort** und den
+**aktuellen 6-stelligen Code aus der Authenticator-App** – oder einen
+Wiederherstellungscode. **Jeder Code gilt nur einmal**, und danach auch kein
+älterer mehr. Wer sich gerade erst angemeldet hat, sieht in der App oft noch
+denselben Code; dann meldet die App „Dieser Code wurde gerade schon
+verwendet“ – auf den nächsten warten (höchstens 30 Sekunden).
 
 ## Handy verloren
 

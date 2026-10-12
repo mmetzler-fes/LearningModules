@@ -78,10 +78,12 @@ export class TwoFactorDialog {
 
       <div class="two-factor-block">
         <h4>Ausschalten</h4>
-        <p class="hint">Zum Beispiel vor einem Handywechsel – danach neu einrichten.</p>
-        <div class="form-group"><input type="password" class="pw-disable" placeholder="Dein Passwort" autocomplete="current-password" /></div>
+        <p class="hint">Zum Beispiel vor einem Handywechsel – danach neu einrichten. Nötig sind dein Anmeldepasswort und der
+          aktuelle 6-stellige Code aus der Authenticator-App (oder ein Wiederherstellungscode). Jeder Code gilt nur einmal:
+          Hast du dich gerade erst angemeldet, kurz auf den nächsten Code warten.</p>
+        <div class="form-group"><input type="password" class="pw-disable" placeholder="Dein Anmeldepasswort" autocomplete="current-password" /></div>
         <div class="school-row">
-          <input type="text" class="otp-input code-disable" maxlength="12" placeholder="Code oder Wiederherstellungscode" />
+          <input type="text" class="otp-input code-disable" maxlength="12" autocomplete="one-time-code" placeholder="Code aus der App oder Wiederherstellungscode" />
           <button class="btn btn-danger btn-2fa-disable">2FA ausschalten</button>
         </div>
       </div>

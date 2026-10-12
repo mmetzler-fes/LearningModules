@@ -5,7 +5,7 @@ import { User } from '../core/entities/user.entity';
 import { MasterKeyService } from '../core/crypto/master-key.service';
 import { renderQr } from '../core/share/link-url';
 import {
-  generateSecret, verifyCode, otpauthUrl, generateRecoveryCodes, hashRecoveryCode,
+  generateSecret, verifyCode, isUsedCode, otpauthUrl, generateRecoveryCodes, hashRecoveryCode,
 } from '../auth/totp';
 
 const ISSUER = 'LernModule';
@@ -92,6 +92,10 @@ export class TwoFactorService {
         this.failures.delete(user.id);
         return 'recovery';
       }
+    }
+    // Richtiger, aber schon verbrauchter Code: kein Fehlversuch, sondern ein Hinweis.
+    if (user.totpSecret && isUsedCode(this.unseal(user.totpSecret), clean, user.totpLastStep ?? null)) {
+      throw new UnauthorizedException('Dieser Code wurde gerade schon verwendet – jeder Code gilt nur einmal. Bitte auf den nächsten Code in der App warten (höchstens 30 Sekunden).');
     }
     this.recordFailure(user.id);
     throw new UnauthorizedException(

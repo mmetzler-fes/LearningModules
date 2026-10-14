@@ -47,9 +47,17 @@ export class AuthStore {
       // frisch angelegte Benutzer oder Themen tauchen dann nicht auf.
       cache: 'no-store',
       headers: { ...(opts.headers || {}), ...this.getHeaders() },
-    }).then((r) => {
-      if (r.status === 401) this.setToken(null);
-      return r.json();
+    }).then(async (r) => {
+      if (r.status !== 401) return r.json();
+      this.setToken(null);
+      const body = await r.json().catch(() => ({}));
+      // Während der Arbeit: Neue Nutzungsbedingungen beenden die Sitzung –
+      // neu laden führt zur Anmeldung, die sie dann abfragt.
+      if (/Nutzungsbedingungen/.test(body?.message || '') && !this._reloading) {
+        this._reloading = true;
+        window.location.reload();
+      }
+      return body;
     });
   }
 }
@@ -84,6 +92,14 @@ export class BrowserApi {
   }
 
   // ---------- 2FA des eigenen Kontos ----------
+  /** Zustimmung zu den Nutzungsbedingungen bei der Anmeldung; liefert die Sitzung. */
+  acceptTerms(challenge) {
+    return fetch('/api/auth/login/terms', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ challenge, accept: true }),
+    }).then((r) => r.json());
+  }
   getTwoFactor() { return this._fetch('/api/auth/2fa'); }
   setupTwoFactor() { return this._fetch('/api/auth/2fa/setup', { method: 'POST' }); }
   enableTwoFactor(code) {

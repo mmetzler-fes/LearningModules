@@ -1,5 +1,6 @@
 import { escapeHtml } from '../utils.js';
 import { downloadBlob } from '../api.js';
+import { printPermissionSheet } from '../terms-print.js';
 
 /** Rollenstufe eines Kontos für die Oberfläche. */
 const userLevel = (u) => (u.role === 'admin' ? 'admin' : u.isSchoolAdmin && u.schoolId ? 'schooladmin' : 'teacher');
@@ -525,6 +526,7 @@ export class AdminView {
       } else this.app.showToast('Fehler: ' + (res?.message || '?'), 'error');
     };
     document.getElementById('btnSaveSchoolYear')?.addEventListener('click', () => save(input?.value || ''));
+    document.getElementById('btnPrintPermission')?.addEventListener('click', () => printPermissionSheet(this.app));
     document.getElementById('btnNextSchoolYear')?.addEventListener('click', () => {
       const m = /^SJ(\d{2})-(\d{2})$/.exec(String(input?.value || '').trim().toUpperCase());
       if (!m || !input) return;

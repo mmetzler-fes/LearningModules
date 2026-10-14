@@ -5,6 +5,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { GroupsService } from '../../groups/groups.service';
 import { User } from '../../core/entities/user.entity';
+import { hasAcceptedTerms, TERMS_REQUIRED_MESSAGE } from '../terms';
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
@@ -35,6 +36,9 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     const user = await this.userRepo.findOne({ where: { id: payload.sub } });
     if (!user) throw new UnauthorizedException('Dieses Konto gibt es nicht mehr.');
     if (user.active === false) throw new UnauthorizedException('Dieses Konto ist deaktiviert.');
+    // Sitzungen aus der Zeit vor der Zustimmung (oder vor einer neuen Fassung)
+    // gelten nicht – einmal neu anmelden und bestätigen.
+    if (!hasAcceptedTerms(user)) throw new UnauthorizedException(TERMS_REQUIRED_MESSAGE);
     return {
       userId: payload.sub,
       email: user.email,

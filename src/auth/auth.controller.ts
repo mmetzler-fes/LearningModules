@@ -3,6 +3,7 @@ import { AuthService } from './auth.service';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { AllowPendingPassword } from './guards/allow-pending-password.decorator';
 import { TwoFactorService } from '../accounts/two-factor.service';
+import { TERMS_VERSION, termsMarkdown } from './terms';
 
 @Controller('auth')
 export class AuthController {
@@ -16,6 +17,19 @@ export class AuthController {
   @HttpCode(200)
   async login(@Body() body: { email: string; password: string; remember?: boolean }) {
     return this.authService.login(body.email, body.password, !!body.remember);
+  }
+
+  /** Aktuelle Fassung der Nutzungsbedingungen (öffentlich, etwa zum Nachlesen vor der Anmeldung). */
+  @Get('terms')
+  terms() {
+    return { version: TERMS_VERSION, markdown: termsMarkdown() };
+  }
+
+  /** Zustimmung bei der Anmeldung: `{ challenge, accept: true }` – liefert die Sitzung. */
+  @Post('login/terms')
+  @HttpCode(200)
+  async loginTerms(@Body() body: { challenge?: string; accept?: boolean }) {
+    return this.authService.acceptTerms(body?.challenge || '', body?.accept === true);
   }
 
   /**

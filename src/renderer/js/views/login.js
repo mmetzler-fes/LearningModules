@@ -1,4 +1,5 @@
 import { escapeHtml, escapeAttr } from '../utils.js';
+import { renderMarkdown } from '../markdown.js';
 
 /** Schule und Schuladmin-Recht aus der Login-/Session-Antwort des Servers. */
 function schoolFields(res) {
@@ -439,6 +440,12 @@ export class LoginView {
 
   /** Sitzung aus der Login-Antwort übernehmen – nach Passwort bzw. nach dem 2FA-Code. */
   async _finishLogin(res, errEl) {
+    // Letzter Schritt vor der Sitzung: Nutzungsbedingungen bestätigen.
+    if (res && res.termsRequired) {
+      errEl.classList.add('hidden');
+      this._showTerms(res, errEl);
+      return true;
+    }
     if (!(res && res.token && (res.role === 'admin' || res.role === 'teacher'))) {
       errEl.textContent = res?.message || res?.error || 'Falsche Anmeldedaten';
       errEl.classList.remove('hidden');
@@ -480,7 +487,7 @@ export class LoginView {
       if (!code) return;
       try {
         const res = await this.app.api.loginTwoFactor(this._challenge, code);
-        if (res && res.token && res.usedRecoveryCode) {
+        if (res && (res.token || res.termsRequired) && res.usedRecoveryCode) {
           this.app.showToast(
             `Wiederherstellungscode verbraucht – noch ${res.recoveryLeft} übrig. Unter „🔐 Zwei-Faktor“ lassen sich neue erzeugen.`,
             res.recoveryLeft <= 2 ? 'error' : 'info',
@@ -495,6 +502,62 @@ export class LoginView {
         err.textContent = 'Server nicht erreichbar';
         err.classList.remove('hidden');
       }
+    });
+  }
+
+  /**
+   * Nutzungsbedingungen (docs/nutzungsbedingungen.md) – einmalig, und wieder,
+   * wenn sich die Fassung ändert. Ohne Zustimmung keine Sitzung.
+   */
+  _showTerms(res, errEl) {
+    document.querySelector('.terms-overlay')?.remove();
+    const overlay = document.createElement('div');
+    overlay.className = 'confirm-overlay terms-overlay';
+    overlay.innerHTML = `
+      <div class="import-modules-card terms-card" role="dialog" aria-modal="true" aria-labelledby="termsTitle">
+        <article class="terms-body help-article">${renderMarkdown(res.terms?.markdown || '')}</article>
+        <div class="terms-footer">
+          <label class="share-flag"><input type="checkbox" id="termsAgree" />
+            <span><strong>Ich habe die Nutzungsbedingungen gelesen und stimme ihnen zu. Meine Schulleitung hat die Nutzung erlaubt.</strong></span></label>
+          <p class="login-error hidden" id="termsError"></p>
+          <div class="confirm-actions">
+            <button class="btn btn-primary" id="termsAccept" disabled>Ich stimme zu</button>
+            <button class="btn btn-secondary" id="termsDecline">Ablehnen</button>
+          </div>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+    overlay.querySelector('.terms-body h1')?.setAttribute('id', 'termsTitle');
+    const agree = overlay.querySelector('#termsAgree');
+    const accept = overlay.querySelector('#termsAccept');
+    const error = overlay.querySelector('#termsError');
+    agree.addEventListener('change', () => { accept.disabled = !agree.checked; });
+    overlay.querySelector('#termsDecline').addEventListener('click', () => {
+      overlay.remove();
+      this._hideTwoFactorStep('Ohne Zustimmung zu den Nutzungsbedingungen ist keine Anmeldung möglich.');
+    });
+    accept.addEventListener('click', async () => {
+      accept.disabled = true;
+      let out;
+      try {
+        out = await this.app.api.acceptTerms(res.challenge);
+      } catch (_) {
+        out = { message: 'Server nicht erreichbar' };
+      }
+      if (!out || !out.token) {
+        // Abgelaufen o. Ä.: zurück zum Passwort.
+        if (out?.statusCode === 401) {
+          overlay.remove();
+          this._hideTwoFactorStep(out.message);
+          return;
+        }
+        error.textContent = out?.message || 'Zustimmen fehlgeschlagen';
+        error.classList.remove('hidden');
+        accept.disabled = false;
+        return;
+      }
+      overlay.remove();
+      await this._finishLogin(out, errEl);
     });
   }
 
@@ -537,6 +600,11 @@ export class LoginView {
     }
     if (!res || !res.id || (res.role !== 'admin' && res.role !== 'teacher')) {
       app.authStore.setToken(null);
+      // Neue Nutzungsbedingungen: Die alte Sitzung gilt nicht mehr – sagen, warum.
+      if (/Nutzungsbedingungen/.test(res?.message || '') && this._adminLoginErr) {
+        this._adminLoginErr.textContent = res.message;
+        this._adminLoginErr.classList.remove('hidden');
+      }
       return false;
     }
     app.state.currentUser = {

@@ -4785,3 +4785,15 @@ body {
   .login-credit { margin-top: 4px; font-size: 0.7rem; }
 }
 .nb-menu-item:disabled { opacity: 0.45; cursor: not-allowed; background: none; }
+
+/* Nutzungsbedingungen bei der Anmeldung: Text scrollt, Zustimmung bleibt sichtbar. */
+.terms-overlay { z-index: 300; }
+.terms-card {
+  width: min(760px, 94vw);
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+}
+.terms-body { overflow-y: auto; padding: 20px 24px 8px; }
+.terms-footer { border-top: 1px solid var(--border); padding: 12px 24px 16px; background: var(--bg-secondary); }

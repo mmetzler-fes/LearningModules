@@ -7,6 +7,7 @@ import { SystemConfig } from '../core/entities/system-config.entity';
 import { MailService } from '../core/mail/mail.service';
 import { AccountsService } from '../accounts/accounts.service';
 import { SchoolsService } from '../core/schools/schools.service';
+import { TERMS_VERSION, hasAcceptedTerms, termsMarkdown } from './terms';
 import { TwoFactorService } from '../accounts/two-factor.service';
 
 /**
@@ -117,7 +118,45 @@ export class AuthService {
       };
     }
     await this.schools.autoAssign(user);
-    return await this.buildSession(user, remember);
+    return this.sessionOrTerms(user, remember);
+  }
+
+  /**
+   * Letzter Schritt vor der Sitzung: Hat das Konto der aktuellen Fassung der
+   * Nutzungsbedingungen zugestimmt? Wenn nicht, gibt es statt der Sitzung ein
+   * kurzlebiges Zwischen-Token und den Text zum Bestätigen.
+   */
+  private async sessionOrTerms(user: User, remember: boolean, extra: Record<string, any> = {}) {
+    if (!hasAcceptedTerms(user)) {
+      return {
+        termsRequired: true,
+        challenge: this.jwtService.sign(
+          { sub: user.id, purpose: 'terms', rem: !!remember },
+          { secret: CHALLENGE_SECRET, expiresIn: '30m' },
+        ),
+        terms: { version: TERMS_VERSION, markdown: termsMarkdown() },
+        ...extra,
+      };
+    }
+    return { ...(await this.buildSession(user, remember)), ...extra };
+  }
+
+  /** Zustimmung zu den Nutzungsbedingungen bei der Anmeldung; liefert die Sitzung. */
+  async acceptTerms(challenge: string, accept: boolean) {
+    let payload: any;
+    try {
+      payload = this.jwtService.verify(String(challenge || ''), { secret: CHALLENGE_SECRET });
+    } catch {
+      throw new UnauthorizedException('Die Anmeldung ist abgelaufen. Bitte noch einmal mit dem Passwort beginnen.');
+    }
+    if (payload?.purpose !== 'terms') throw new UnauthorizedException('Ungültige Anmeldung.');
+    if (accept !== true) throw new BadRequestException('Ohne Zustimmung zu den Nutzungsbedingungen ist keine Anmeldung möglich.');
+    const user = await this.userRepo.findOne({ where: { id: payload.sub } });
+    if (!user || user.active === false) throw new UnauthorizedException('Dieses Konto ist nicht verfügbar.');
+    user.termsVersion = TERMS_VERSION;
+    user.termsAcceptedAt = new Date();
+    await this.userRepo.save(user);
+    return this.buildSession(user, !!payload.rem);
   }
 
   /** Zweiter Schritt der Anmeldung: Code aus der App oder ein Wiederherstellungscode. */
@@ -134,11 +173,10 @@ export class AuthService {
 
     const result = await this.twoFactor.verifyLogin(user, code);
     await this.schools.autoAssign(user);
-    return {
-      ...(await this.buildSession(user, !!payload.rem)),
+    return this.sessionOrTerms(user, !!payload.rem, {
       usedRecoveryCode: result.method === 'recovery',
       recoveryLeft: result.recoveryLeft,
-    };
+    });
   }
 
   /** Passwort des angemeldeten Kontos prüfen – etwa bevor 2FA abgeschaltet wird. */

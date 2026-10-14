@@ -153,4 +153,14 @@ export class User extends BaseEntity {
 
   @Column({ type: 'varchar', nullable: true })
   testStudentSecret: string | null;
+
+  /**
+   * Bestätigte Fassung der Nutzungsbedingungen (src/auth/terms.ts) und wann.
+   * Ohne Zustimmung zur aktuellen Fassung gibt es keine Sitzung.
+   */
+  @Column({ type: 'integer', nullable: true })
+  termsVersion: number | null;
+
+  @Column({ type: 'datetime', nullable: true })
+  termsAcceptedAt: Date | null;
 }

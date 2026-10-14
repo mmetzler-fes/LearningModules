@@ -1,7 +1,7 @@
 import { escapeHtml, escapeAttr } from '../utils.js';
 import { TagsView } from './tags.js';
 import { bindPasswordChoice } from './admin.js';
-import { printPermissionSheet } from '../terms-print.js';
+import { printPermissionSheet, downloadPermissionOdt } from '../terms-print.js';
 
 // ==================== SCHULEN ====================
 
@@ -331,6 +331,8 @@ export class MySchoolView {
     document.getElementById('btnMySchoolNewTeacher')?.addEventListener('click', () => this._createTeacher());
     document.getElementById('btnMySchoolPrintPermission')?.addEventListener('click', () =>
       printPermissionSheet(this.app, { schoolName: this._data?.name || '' }));
+    document.getElementById('btnMySchoolPermissionOdt')?.addEventListener('click', () =>
+      downloadPermissionOdt(this.app, { schoolName: this._data?.name || '' }));
 
     document.getElementById('btnNewSchoolGroup')?.addEventListener('click', () =>
       this.app.adminView.openGroupEditor(null, this._data?.teachers || [], { onChanged: () => this.refresh() }));

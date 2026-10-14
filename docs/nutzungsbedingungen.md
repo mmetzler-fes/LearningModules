@@ -115,7 +115,8 @@ erlauben, gerade wenn der Server nicht von der Schule selbst betrieben wird.
 drucken** (Schuladmins: unter **🏫 Meine Schule**) öffnet ein Blatt zum
 Ausdrucken:
 
-- Schule, Adresse und Name des Servers, Betreiber und Ansprechperson,
+- Schule, Adresse und Name des Servers, Betreiber, Hosting-Anbieter
+  (Rechenzentrum) und Ansprechperson,
 - die Erklärung der Schulleitung, dass sie den Einsatz erlaubt und – falls
   nicht Schule oder Träger den Server betreiben – mit dem Betreiber
   einverstanden ist,
@@ -123,6 +124,18 @@ Ausdrucken:
   Auftragsverarbeitung) und zur Vernetzung mit anderen Servern,
 - Unterschriften von Schulleitung und Betreiber,
 - als Anlage die Nutzungsbedingungen in der aktuellen Fassung.
+
+**Betreiber** ist, wer den Server mietet und verwaltet; der
+**Hosting-Anbieter** stellt nur das Rechenzentrum (etwa Hetzner). Betreibt
+nicht die Schule oder ihr Träger den Server, braucht es einen Vertrag zur
+Auftragsverarbeitung (Art. 28 DSGVO) zwischen Schule und Betreiber – der
+Betreiber hat seinerseits einen mit dem Hosting-Anbieter, der damit
+Unterauftragsverarbeiter ist. Ist die Schule selbst Kundin des
+Hosting-Anbieters, schließt sie den Vertrag direkt mit ihm.
+
+Daneben lädt **📄 Als .odt herunterladen** dasselbe Blatt als
+LibreOffice-Dokument – praktisch, wenn Angaben wie Betreiber oder
+Ansprechperson am Rechner eingetragen werden sollen, bevor es gedruckt wird.
 
 Gespeichert wird dabei nichts. Das unterschriebene Original bleibt bei der
 Schule, eine Kopie beim Betreiber. Bei einer neuen Fassung der Bedingungen

@@ -147,7 +147,7 @@ export class TopicsService {
     const [users, persons, peers] = await Promise.all([this.userRepo.find(), this.personRepo.find(), this.peerRepo.find()]);
     const out = new Map(users.map((u) => [u.id, u.displayName || u.email]));
     const peerName = new Map(peers.map((p) => [p.id, p.name]));
-    for (const p of persons) out.set(p.id, `${p.name} @ ${peerName.get(p.peerId) || 'anderer Server'}`);
+    for (const p of persons) out.set(p.id, `${p.name} @ ${p.serverName || peerName.get(p.peerId) || 'anderer Server'}`);
     return out;
   }
 

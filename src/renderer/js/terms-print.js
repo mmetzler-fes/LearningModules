@@ -73,6 +73,12 @@ ${check('Anders geregelt: ________________________')}
 <h2>Vernetzung mit anderen Servern</h2>
 ${check('erlaubt – es gehen nur geteilte Angebote und Namen von Lehrkräften hinaus, nie Schülerdaten')}
 ${check('nicht erlaubt')}
+<p>Vertrauensnetzwerk – verbundene Server reichen Angebote an ihre Partner weiter, auch an Server, die
+die Schule nicht selbst ausgewählt hat. Weitergereicht wird nur, wofür eine Lehrkraft beim Anbieten
+eingewilligt und eine Lizenz gewählt hat; wer über das Netz kopiert, erscheint beim Ursprung nur als
+„Lehrkraft @ Server“. Teilnehmen dürfen nur Server in der EU.</p>
+${check('Teilnahme am Vertrauensnetzwerk erlaubt; der Server steht in der EU, und Betreiber und Hosting-Anbieter übermitteln keine Daten in Länder außerhalb der EU.')}
+${check('Teilnahme am Vertrauensnetzwerk nicht erlaubt')}
 
 <div class="sign">
   <div>Ort, Datum</div>

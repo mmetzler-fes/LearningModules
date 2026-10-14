@@ -38,6 +38,16 @@ const REASON_LABELS = {
 const points = (n) => `${n} Punkt${n === 1 ? '' : 'e'}`;
 
 /** Was ein Angebot umfasst – für Karten und Dialog. */
+// Wie LICENSES in federation-rules.ts – der Dialog bekommt die Liste vom Server.
+const LICENSE_LABEL = {
+  'CC-BY-SA-4.0': 'CC BY-SA 4.0',
+  'CC-BY-4.0': 'CC BY 4.0',
+  'CC0-1.0': 'CC0 1.0',
+  'CC-BY-NC-SA-4.0': 'CC BY-NC-SA 4.0',
+  'network-only': 'nur im Vertrauensnetzwerk (keine freie Lizenz)',
+};
+const licenseLabel = (key) => LICENSE_LABEL[key] || key;
+
 const SCOPE_LABEL = {
   topic: { icon: '📘', label: 'Lernthema' },
   book: { icon: '📓', label: 'Book' },
@@ -181,7 +191,8 @@ export class ShopView {
           <p class="topic-card-desc">${escapeHtml(o.description || '')}</p>
           ${(o.categoryIds || []).length ? `<div class="shop-cats">${categoryChips(this.app, o.categoryIds)}</div>` : ''}
           <div class="topic-card-meta">
-            <span class="topic-shared-badge remote-badge" title="Von einem verbundenen Server">🌐 ${escapeHtml(o.peerName)}</span>
+            <span class="topic-shared-badge remote-badge" title="${(o.via || []).length ? `Aus dem Vertrauensnetzwerk, über ${escapeAttr(o.via.join(' → '))}` : 'Von einem verbundenen Server'}">${(o.via || []).length ? '🕸' : '🌐'} ${escapeHtml(o.peerName)}${(o.via || []).length ? ` <span class="hint">über ${escapeHtml(o.via.join(' → '))}</span>` : ''}</span>
+            ${o.license ? `<span class="topic-shared-badge" title="Lizenz">⚖ ${escapeHtml(licenseLabel(o.license))}</span>` : ''}
             <span class="topic-shared-badge">${scope.label}${o.scopeType !== 'topic' ? ` · ${o.topicCount} Lernthem${o.topicCount === 1 ? 'a' : 'en'}` : ''}</span>
             <span class="topic-module-count">${o.modules.length} Modul${o.modules.length === 1 ? '' : 'e'}</span>
             <span class="topic-shared-badge">von ${escapeHtml(o.sellerName)}</span>
@@ -205,7 +216,11 @@ export class ShopView {
   async _acquireRemote(o, btn) {
     const text = `Eigene Kopie von „${o.title}“ von ${o.peerName} übernehmen?\n\n`
       + 'Sie liegt danach unter deinen Lernthemen, gesperrt, bis du sie freigibst. Du darfst sie bearbeiten und eigene Module ergänzen. '
-      + `Die Module bleiben auf ${o.sellerName} @ ${o.peerName} verzeichnet; ${o.peerName} erfährt deinen Namen, damit die Creator sehen, wo ihr Material ankommt.`
+      + `Die Module bleiben auf ${o.sellerName} @ ${o.peerName} verzeichnet; `
+      + ((o.via || []).length
+        ? `es kommt über das Vertrauensnetzwerk (${o.via.join(' → ')}). ${o.via[o.via.length - 1]} erfährt deinen Namen, ${o.peerName} nur „Lehrkraft“ und den Namen dieses Servers.`
+        : `${o.peerName} erfährt deinen Namen, damit die Creator sehen, wo ihr Material ankommt.`)
+      + (o.license ? `\n\nLizenz: ${licenseLabel(o.license)}` : '')
       + (o.copies ? `\n\nDu hast das schon ${o.copies}× kopiert.` : '');
     if (!(await this.app.appConfirm(text))) return;
     btn.disabled = true;
@@ -466,6 +481,7 @@ export class ShopView {
               <span class="topic-shared-badge use">${modes}</span>
               <span class="topic-shared-badge">${this._audienceText(o.audience)}</span>
               ${o.federated ? '<span class="topic-shared-badge remote-badge" title="Auch für verbundene Server – dort mit deinen eigenen Modulen">🌐 verbundene Server</span>' : ''}
+              ${o.network ? `<span class="topic-shared-badge remote-badge" title="Auch im Vertrauensnetzwerk weitergegeben${o.license ? ' – ' + escapeAttr(licenseLabel(o.license)) : ''}">🕸 Vertrauensnetzwerk</span>` : ''}
               ${o.kind === 'creator' && o.copyCount ? `<span class="topic-shared-badge">📋 ${o.copyCount}× kopiert</span>` : ''}
             </div>
             <div class="shop-cats">${(o.categoryIds || []).some((id) => this.app.state.categoryById?.get(id)?.facet === 'subject')
@@ -698,6 +714,31 @@ export class ShopView {
           <input type="checkbox" id="coFederated" ${offer?.federated ? 'checked' : ''} />
           <span><strong>🌐 Auch für verbundene Server</strong> (${state.federationPeers}) – dort lässt es sich kopieren.
             Hinaus gehen nur deine eigenen Module, mit deinem Namen; nie Schülerdaten.</span></label>` : ''}
+        ${state.federationPeers && state.network?.active ? `
+        <div class="co-net-wrap">
+          <label class="share-flag" title="Nur zusammen mit 🌐">
+            <input type="checkbox" id="coNetwork" ${offer?.network ? 'checked' : ''} />
+            <span><strong>🕸 Auch im Vertrauensnetzwerk</strong> (derzeit ${state.network.servers} Server, alle in der EU) –
+              verbundene Server reichen es an ihre Partner weiter.</span></label>
+          <div class="co-net-details">
+            <div class="form-group">
+              <label for="coLicense">Lizenz</label>
+              <select id="coLicense">
+                <option value="">– bitte wählen –</option>
+                ${Object.entries(state.licenses || LICENSE_LABEL).map(([k, v]) => `<option value="${escapeAttr(k)}" ${offer?.license === k ? 'selected' : ''}>${escapeHtml(v)}</option>`).join('')}
+              </select>
+              <span class="hint">CC BY-SA ist für Unterrichtsmaterial üblich: Andere dürfen es bearbeiten und weitergeben, mit deinem Namen und unter derselben Lizenz.</span>
+            </div>
+            ${offer?.network && offer.networkConsentAt ? `
+            <p class="hint">✅ Eingewilligt am ${new Date(offer.networkConsentAt).toLocaleDateString('de-DE')}. Widerrufen: Häkchen entfernen und speichern oder das Angebot zurückziehen.</p>` : `
+            <label class="share-flag"><input type="checkbox" id="coNetConsent" />
+              <span>Ich habe die Inhalte selbst erstellt oder sie stehen unter einer freien Lizenz, die die Weitergabe erlaubt –
+                nichts, was nur im eigenen Unterricht erlaubt ist (§ 60a UrhG, Scans aus Schulbüchern, fremde Bilder).
+                Ich willige ein, dass Titel, Beschreibung, Modultitel, Einordnung, Bewertung und mein Name an alle Server im
+                Vertrauensnetzwerk gehen und Lehrkräfte dort Kopien anlegen. Widerrufen kann ich jederzeit, indem ich das Häkchen
+                entferne oder das Angebot zurückziehe; es verschwindet dann beim nächsten Abgleich, schon angelegte Kopien bleiben.</span></label>`}
+          </div>
+        </div>` : ''}
         <div class="share-user-list co-list">
           ${groups.map((g) => `
             <label class="share-user-row"><input type="checkbox" class="co-entry" value="group:${escapeAttr(g.id)}"
@@ -751,12 +792,21 @@ export class ShopView {
     // "Alle" schaltet die Einzelauswahl ab – sonst wäre der Zustand widersprüchlich.
     const coAll = overlay.querySelector('.co-all');
     const coFed = overlay.querySelector('#coFederated');
+    const coNet = overlay.querySelector('#coNetwork');
     const syncAll = () => {
       overlay.querySelectorAll('.co-entry').forEach((cb) => { cb.disabled = !!coAll.checked; });
       // Andere Server bekommen nur, was hier im Haus für alle angeboten wird.
       if (coFed) { coFed.disabled = !coAll.checked; if (!coAll.checked) coFed.checked = false; }
+      // Das Vertrauensnetzwerk nur zusammen mit den verbundenen Servern.
+      if (coNet) {
+        coNet.disabled = !coFed?.checked;
+        if (!coFed?.checked) coNet.checked = false;
+        overlay.querySelector('.co-net-details').classList.toggle('hidden', !coNet.checked);
+      }
     };
     coAll.addEventListener('change', syncAll);
+    coFed?.addEventListener('change', syncAll);
+    coNet?.addEventListener('change', syncAll);
     syncAll();
 
     // Person einer anderen Schule über die genaue E-Mail-Adresse ergänzen.
@@ -795,8 +845,16 @@ export class ShopView {
         audience: audience.length ? audience : ['*'],
         categoryIds: catPicker.selectedIds,
         federated: !!coFed?.checked,
+        network: !!coNet?.checked,
+        license: overlay.querySelector('#coLicense')?.value || undefined,
+        networkConsent: !!overlay.querySelector('#coNetConsent')?.checked,
         active: true,
       };
+      if (body.network && !body.license) { this.app.showToast('Bitte eine Lizenz für das Vertrauensnetzwerk wählen.', 'error'); return; }
+      if (body.network && overlay.querySelector('#coNetConsent') && !body.networkConsent) {
+        this.app.showToast('Bitte Rechte und Einwilligung für das Vertrauensnetzwerk bestätigen.', 'error');
+        return;
+      }
       const res = await api.saveOffer(body);
       if (res && res.success) done('Angebot steht im Shop');
       else this.app.showToast('Fehler: ' + (res?.message || '?'), 'error');

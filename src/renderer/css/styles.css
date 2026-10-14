@@ -4736,6 +4736,9 @@ body {
 [data-theme="dark"] .topic-shared-badge.remote-badge { color: #c4b5fd; }
 .fed-request { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
 .fed-request input { flex: 1; min-width: 240px; }
+.co-net-wrap { margin: 2px 0 6px; }
+.co-net-details { margin: 4px 0 8px 26px; padding-left: 10px; border-left: 2px solid var(--border); }
+.co-net-details .form-group { margin-bottom: 6px; }
 .fed-peer { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; margin-bottom: 8px; }
 .fed-peer.fed-pending { border-color: #fcd34d; }
 .fed-peer.fed-inactive { opacity: 0.7; }

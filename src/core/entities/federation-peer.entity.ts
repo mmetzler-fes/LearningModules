@@ -48,4 +48,15 @@ export class FederationPeer {
   /** Zahl der Angebote beim letzten Abgleich. */
   @Column({ type: 'integer', default: 0 })
   offerCount: number;
+
+  /**
+   * Nimmt der andere am Vertrauensnetzwerk teil (und hat erklärt, dass er in
+   * der EU steht)? Stand des letzten Abgleichs.
+   */
+  @Column({ default: false })
+  network: boolean;
+
+  /** Server im Vertrauensnetzwerk, die der andere kennt (ohne uns) – Stand des letzten Abgleichs. */
+  @Column('simple-json', { nullable: true })
+  networkServers: { serverId: string; name: string; hops: number }[] | null;
 }

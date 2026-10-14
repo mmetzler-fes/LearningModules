@@ -13,6 +13,8 @@ import { TeacherGroup } from '../core/entities/teacher-group.entity';
 import { ContentFeedback } from '../core/entities/content-feedback.entity';
 import { FederationPeer } from '../core/entities/federation-peer.entity';
 import { RemotePerson } from '../core/entities/remote-person.entity';
+import { SystemConfig } from '../core/entities/system-config.entity';
+import { LICENSES, networkMembers } from '../federation/federation-rules';
 import { groupIdOf } from '../groups/group-ref';
 import { UsageService } from '../impact/usage.service';
 import { CategoriesService } from '../categories/categories.service';
@@ -80,6 +82,7 @@ export class ShopService {
     @InjectRepository(ContentFeedback) private readonly feedbackRepo: Repository<ContentFeedback>,
     @InjectRepository(FederationPeer) private readonly peerRepo: Repository<FederationPeer>,
     @InjectRepository(RemotePerson) private readonly personRepo: Repository<RemotePerson>,
+    @InjectRepository(SystemConfig) private readonly configRepo: Repository<SystemConfig>,
     private readonly usage: UsageService,
     private readonly categories: CategoriesService,
     private readonly dataSource: DataSource,
@@ -96,7 +99,7 @@ export class ShopService {
     const out = new Map(users.map((u) => [u.id, u]));
     const peerName = new Map(peers.map((p) => [p.id, p.name]));
     for (const p of persons) {
-      out.set(p.id, Object.assign(new User(), { id: p.id, displayName: `${p.name} @ ${peerName.get(p.peerId) || 'anderer Server'}`, email: '', active: true }));
+      out.set(p.id, Object.assign(new User(), { id: p.id, displayName: `${p.name} @ ${p.serverName || peerName.get(p.peerId) || 'anderer Server'}`, email: '', active: true }));
     }
     return out;
   }
@@ -473,6 +476,9 @@ export class ShopService {
       copyCount: type === 'topic' ? await this.topicRepo.count({ where: { copiedFromId: params.id } }) : 0,
       // Gibt es verbundene Server? Dann lässt sich das Angebot auch dort zeigen.
       federationPeers: await this.peerRepo.count({ where: { status: 'active' } }),
+      // Nimmt dieser Server am Vertrauensnetzwerk teil? Dann auch dorthin weiterzugeben.
+      network: await this.networkState(),
+      licenses: LICENSES,
       // Einordnung, die schon aus den Lernthemen kommt (nur zur Ansicht).
       topicCategoryIds: [...new Set([...(await this.categories.effectiveFor(covered.map((c) => c.topic))).values()].flat())],
       offer: offer ? await this.describe(offer, users) : null,
@@ -492,6 +498,9 @@ export class ShopService {
       includeForeign: offer.kind === 'buyer' || !!offer.includeForeign,
       categoryIds: offer.categoryIds || [],
       federated: !!offer.federated,
+      network: !!offer.network,
+      networkConsentAt: offer.networkConsentAt,
+      license: offer.license,
       audience: offer.audience,
       // Namen der eingetragenen Personen – auch aus anderen Schulen, die
       // die Auswahlliste selbst nicht zeigt. Sonst fielen sie beim
@@ -559,7 +568,21 @@ export class ShopService {
       }
     }
 
+    // Vertrauensnetzwerk: nur mit 🌐, nur wenn dieser Server teilnimmt, mit
+    // Lizenz und – beim Einschalten – mit Einwilligung und Bestätigung der Rechte.
+    const federated = !!body?.federated && audience.includes('*');
+    const network = federated && !!body?.network;
+    const license = body?.license !== undefined ? (LICENSES[String(body.license)] ? String(body.license) : null) : offer?.license ?? null;
+    if (network) {
+      if (!(await this.networkState()).active) throw new BadRequestException('Dieser Server nimmt nicht am Vertrauensnetzwerk teil.');
+      if (!license) throw new BadRequestException('Bitte eine Lizenz wählen, unter der das Angebot im Vertrauensnetzwerk steht.');
+      if (!offer?.network && body?.networkConsent !== true) {
+        throw new BadRequestException('Bitte bestätigen, dass du die Rechte an den Inhalten hast und der Weitergabe im Vertrauensnetzwerk zustimmst.');
+      }
+    }
+
     if (!offer) offer = this.offerRepo.create({ id: crypto.randomUUID(), sellerId: user.userId, kind: 'creator', scopeType: type });
+    const networkConsentAt = network ? (offer.network && offer.networkConsentAt ? offer.networkConsentAt : new Date()) : null;
     Object.assign(offer, {
       sellerId: user.userId,
       scopeType: type,
@@ -570,7 +593,10 @@ export class ShopService {
       includeForeign,
       categoryIds,
       // Andere Server sehen nur, was ohnehin für alle hier im Haus angeboten wird.
-      federated: !!body?.federated && audience.includes('*'),
+      federated,
+      network,
+      networkConsentAt,
+      license,
       allowCopy,
       allowUse,
       // Preise gibt es nicht mehr (bis Oktober 2026).
@@ -798,6 +824,17 @@ export class ShopService {
       .filter((c) => c.roots.length);
   }
 
+  /**
+   * Nimmt dieser Server am Vertrauensnetzwerk teil, und wie viele Server
+   * darin kennt er? Die Einstellung liegt bei der Identität der Vernetzung.
+   */
+  async networkState(): Promise<{ active: boolean; servers: number }> {
+    const v = (await this.configRepo.findOne({ where: { key: 'federation_identity' } }))?.value;
+    if (!v?.network || !v?.eu) return { active: false, servers: 0 };
+    const peers = await this.peerRepo.find({ where: { status: 'active', network: true } });
+    return { active: true, servers: networkMembers(peers.map((p) => ({ id: p.id, name: p.name, servers: p.networkServers })), v.serverId).length };
+  }
+
   /** Der Katalog für verbundene Server, samt den Kategorien, die darin vorkommen (mit Oberbegriffen). */
   async federatedCatalog() {
     const users = await this.names();
@@ -832,6 +869,9 @@ export class ShopService {
         categoryIds,
         rating: summarizeRatings(feedback),
         updatedAt: offer.updatedAt,
+        // Darf im Vertrauensnetzwerk weitergereicht werden (Einwilligung der Lehrkraft).
+        network: !!offer.network,
+        license: offer.license || null,
       });
     }
     const categories = [...usedCats].map((id) => byId.get(id)!).map((c) => ({ id: c.id, facet: c.facet, parentId: c.parentId, label: c.label }));
@@ -841,17 +881,19 @@ export class ShopService {
   /**
    * Was ein verbundener Server für ein Copy bekommt: je Lernthema die eigenen
    * Module des Anbieters, mit Creator und Herkunft. Liefert null, wenn das
-   * Angebot (so) nicht für verbundene Server da ist.
+   * Angebot (so) nicht für verbundene Server da ist. `relayed`: Die Anfrage
+   * kommt über das Vertrauensnetzwerk – dann nur mit Einwilligung.
    */
-  async federatedCopyPayload(offerId: string) {
+  async federatedCopyPayload(offerId: string, relayed = false) {
     const [offer] = await this.federatedOffer(offerId);
     if (!offer || !offer.allowCopy) return null;
+    if (relayed && !offer.network) return null;
     const covered = await this.ownCoverage(offer);
     if (!covered.length) return null;
     const users = await this.names();
     const seller = users.get(offer.sellerId);
     return {
-      offer: { id: offer.id, title: await this.offerTitle(offer, covered) },
+      offer: { id: offer.id, title: await this.offerTitle(offer, covered), license: offer.license || null },
       topics: covered.map((c) => ({
         id: c.topic.id,
         title: c.topic.title,

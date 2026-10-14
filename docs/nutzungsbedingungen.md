@@ -1,6 +1,6 @@
 # Nutzungsbedingungen
 
-*Fassung 1 · Stand: Oktober 2026*
+*Fassung 2 · Stand: Oktober 2026 (neu: Vertrauensnetzwerk)*
 
 Bevor du LearningModules nutzt, bestätige bitte einmalig die folgenden
 Punkte. Ohne Zustimmung ist keine Anmeldung möglich. Ändern sich die
@@ -95,6 +95,15 @@ Bilder, Ton, Arbeitsblätter und Links.
 - **Teilen:** Was du im Shop anbietest, dürfen andere Lehrkräfte – auch auf
   verbundenen Servern – so nutzen, wie du es freigibst (Use oder Copy). Dein
   Name wird als Verfasser genannt.
+- **Vertrauensnetzwerk:** Nimmt dieser Server teil, kannst du ein Angebot
+  zusätzlich im Vertrauensnetzwerk freigeben. Verbundene Server reichen es
+  dann an ihre Partner weiter – an Server, die deine Schule nicht selbst
+  ausgewählt hat, alle in der EU. Dafür wählst du eine Lizenz, bestätigst die
+  Rechte an den Inhalten und willigst beim Anbieten ausdrücklich ein. Die
+  Einwilligung ist freiwillig und jederzeit widerrufbar: Häkchen entfernen
+  oder Angebot zurückziehen. Kopierst du selbst etwas aus dem Netz, erfährt
+  der Ursprungsserver nicht deinen Namen, nur „Lehrkraft“ und den Namen
+  deines Servers.
 
 Der Betreiber darf Inhalte sperren oder entfernen, die gegen diese Regeln
 oder gegen geltendes Recht verstoßen.
@@ -121,7 +130,8 @@ Ausdrucken:
   nicht Schule oder Träger den Server betreiben – mit dem Betreiber
   einverstanden ist,
 - Ankreuzfelder zum Datenschutz (Datenschutzbeauftragte informiert,
-  Auftragsverarbeitung) und zur Vernetzung mit anderen Servern,
+  Auftragsverarbeitung), zur Vernetzung mit anderen Servern und zur
+  Teilnahme am Vertrauensnetzwerk,
 - Unterschriften von Schulleitung und Betreiber,
 - als Anlage die Nutzungsbedingungen in der aktuellen Fassung.
 

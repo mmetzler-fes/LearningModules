@@ -36,7 +36,8 @@ Fragen beide sich gegenseitig an, sind sie ohne weiteren Klick verbunden.
 **Trennen** geht jederzeit einseitig; der andere erfährt es. Danach
 verschwinden die Angebote aus dem Shop – was schon kopiert wurde, bleibt auf
 beiden Seiten. Verbindungen gelten nur direkt: Ist A mit B und B mit C
-verbunden, sieht A die Angebote von C nicht.
+verbunden, sieht A die Angebote von C nicht – außer alle drei nehmen am
+[Vertrauensnetzwerk](#vertrauensnetzwerk) teil.
 
 ## Anbieten
 
@@ -91,6 +92,69 @@ Wer einen Server verbindet, vertraut dessen Admin: Inhalte von dort erscheinen
 hier wie Material von Kolleginnen und Kollegen. Verbindet nur Server, deren
 Betreiber ihr kennt. Jede Verbindung lässt sich jederzeit trennen.
 
+## Vertrauensnetzwerk
+
+Neben den direkten Verbindungen gibt es ein Vertrauensnetzwerk. Dazu gehört
+jeder Server, der teilnimmt und mit mindestens einem anderen Teilnehmer
+verbunden ist. Ist A mit B und B mit C verbunden und nehmen alle drei teil,
+sieht A im Shop auch Angebote von C – sofern die Lehrkraft auf C sie dafür
+freigegeben hat. Eine direkte Verbindung zwischen A und C entsteht dabei
+nicht: Alles läuft über B.
+
+**Teilnehmen** (Admin, **🌐 Vernetzung → 🕸 Vertrauensnetzwerk**):
+
+1. Erklären, dass der Server in einem Rechenzentrum in der **EU** steht und
+   Betreiber und Hosting-Anbieter nichts in Länder außerhalb der EU
+   übermitteln. Ohne diese Erklärung lässt sich die Teilnahme nicht
+   einschalten – und schaltet sich aus, wenn sie entfernt wird.
+2. Bestätigen, dass die **Schulleitung** die Teilnahme schriftlich erlaubt
+   hat – das Blatt *Erlaubnis der Schulleitung* hat dafür ein eigenes
+   Ankreuzfeld.
+3. **Am Vertrauensnetzwerk teilnehmen** einschalten. Die Kataloge werden neu
+   abgeglichen; unter dem Schalter stehen die bekannten Server im Netz.
+
+Verbundene Teilnehmer tragen in der Liste der Verbindungen „🕸 im Netz“.
+Aussteigen geht jederzeit: Weitergereichte Angebote verschwinden sofort aus
+dem Shop, direkte Verbindungen bleiben.
+
+**Anbieten** (Lehrkraft): Im Dialog **🛒 Im Shop anbieten** steht unter 🌐,
+wenn der Server teilnimmt, **🕸 Auch im Vertrauensnetzwerk**. Dazu gehören:
+
+- eine **Lizenz** (CC BY-SA 4.0, CC BY 4.0, CC0, CC BY-NC-SA 4.0 oder „nur im
+  Vertrauensnetzwerk“), die mit dem Angebot hinausgeht,
+- beim Einschalten die **Bestätigung**, dass die Inhalte selbst erstellt oder
+  frei lizenziert sind – nichts, was nur nach § 60a UrhG im eigenen
+  Unterricht erlaubt ist –, und die **Einwilligung**, dass Titel,
+  Beschreibung, Modultitel, Einordnung, Bewertung und der eigene Name an alle
+  Server im Netz gehen. Der Zeitpunkt wird gespeichert.
+
+Die Einwilligung gilt je Angebot, nicht pauschal mit den
+Nutzungsbedingungen – so bleibt sie freiwillig. Widerruf: Häkchen entfernen
+oder Angebot zurückziehen. Es verschwindet dann beim nächsten Abgleich jeder
+Station (stündlich); schon angelegte Kopien bleiben.
+
+**Übernehmen:** Im Shop tragen solche Angebote 🕸, den Ursprungsserver und
+den Weg („über B“). Ein Copy läuft über dieselben Server zurück:
+
+- Der direkt verbundene Server (B) erfährt den Namen der Lehrkraft wie bei
+  jedem Copy.
+- Der Ursprung (C) erfährt nur **„Lehrkraft @ A“** und eine Pseudonym-Kennung
+  (Hash aus Server und Konto) – so zählen zwei Copies derselben Person einmal,
+  ohne dass C weiß, wer es war.
+- Creator bleibt die Lehrkraft auf C („Carla Creator @ C“).
+
+**Grenzen:**
+
+- Ein Angebot läuft über höchstens sechs Server (Ursprung mitgezählt). Kreise
+  werden erkannt: Kein Server nimmt ein Angebot an, auf dessen Weg er selbst
+  schon steht, und reicht keins an einen Server zurück, über den es kam.
+- Kommt dasselbe Angebot auf zwei Wegen an, zeigt der Shop den kürzeren.
+- Weitergereicht wird nur zwischen zwei Teilnehmern: Nimmt B teil, A aber
+  nicht, sieht A nur die eigenen Angebote von B.
+- Die EU-Erklärung ist eine Erklärung des jeweiligen Admins; prüfen lässt sie
+  sich technisch nicht. Wer einen Server verbindet, vertraut ihr – wie dem
+  Admin selbst.
+
 ## Technik
 
 | Datei | Zweck |
@@ -98,9 +162,9 @@ Betreiber ihr kennt. Jede Verbindung lässt sich jederzeit trennen.
 | `src/federation/federation-rules.ts` | Signatur (Ed25519), Zeitfenster, Adressen, Abbildung der Kategorien |
 | `src/federation/federation.service.ts` | Identität, Handshake, signierte Aufrufe, Katalogabgleich, Copy |
 | `src/shop/shop.service.ts` | `federatedCatalog()`, `federatedCopyPayload()` – was hinausgeht |
-| `src/core/entities/federation-peer.entity.ts` | verbundene Server (`outgoing`, `incoming`, `active`, `ended`) |
-| `src/core/entities/remote-offer.entity.ts` | Angebote der anderen, Stand des letzten Abgleichs |
-| `src/core/entities/remote-person.entity.ts` | Lehrkräfte drüben (`remote:<server>:<id>`), nur Name |
+| `src/core/entities/federation-peer.entity.ts` | verbundene Server (`outgoing`, `incoming`, `active`, `ended`), Teilnahme am Netz und dort bekannte Server |
+| `src/core/entities/remote-offer.entity.ts` | Angebote der anderen samt Ursprung und Weg, Stand des letzten Abgleichs |
+| `src/core/entities/remote-person.entity.ts` | Lehrkräfte drüben (`remote:<server>:<id>`), nur Name; im Netz mit Server-Name |
 | `src/core/entities/federation-copy.entity.ts` | wer drüben was von hier kopiert hat |
 | `src/renderer/js/views/federation-admin.js` | Admin-Seite |
 
@@ -123,6 +187,20 @@ kann sich niemand für einen fremden Server ausgeben. Nimmt Admin B an, schickt
 B `POST /api/federation/accept`. Ändert sich der Schlüssel eines verbundenen
 Servers, steht er wieder unter *Anfragen*.
 
+**Vertrauensnetzwerk:** `federation_identity` trägt zusätzlich `eu`,
+`network` und `networkSince`. Der Katalog meldet `server.network`; nehmen
+beide teil, enthält er auch weitergereichte Angebote und unter
+`network.servers` die bekannten Teilnehmer mit Abstand (ohne die, die nur
+über den Anfragenden bekannt sind). Jedes Angebot trägt `origin`
+(`serverId`, `name`, `offerId` dort) und `path` – die Server vom Ursprung bis
+zum Lieferanten. Weitergereichte Angebote heißen beim Weitergeben
+`<nächster Server>:<Angebot dort>`; fragt jemand ein Copy unter einer solchen
+Kennung an, leitet der Server es eine Station weiter, mit `person.relayed`,
+Name „Lehrkraft“, `person.server` und einem Pseudonym statt der Kennung. Der
+Ursprung liefert nur Angebote mit Einwilligung (`ShopOffer.network`) aus.
+Herkunft kopierter Inhalte bezieht sich auf den Ursprung, nicht auf den
+Server dazwischen.
+
 **Herkunft kopierter Inhalte:** Lernthema `copiedFromId` =
 `remote:<server>:<Lernthema dort>`, Module `creatorId` =
 `remote:<server>:<Creator dort>` und `originId` = `remote:<server>:<Original
@@ -139,8 +217,8 @@ Zwischen Servern (signiert, außer `info` und `hello`):
 | `POST` | `/api/federation/hello` | Anfrage (signiert mit dem mitgeschickten Schlüssel) |
 | `POST` | `/api/federation/accept` | angenommen |
 | `POST` | `/api/federation/goodbye` | getrennt bzw. abgelehnt |
-| `GET` | `/api/federation/catalog` | Angebote mit 🌐 und die darin vorkommenden Kategorien |
-| `POST` | `/api/federation/serve/:offerId/copy` | `{person: {id, name}}` – Inhalt für ein Copy |
+| `GET` | `/api/federation/catalog` | Angebote mit 🌐 (im Netz auch weitergereichte), die darin vorkommenden Kategorien, bekannte Server im Netz |
+| `POST` | `/api/federation/serve/:offerId/copy` | `{person: {id, name, relayed?, server?}}` – Inhalt für ein Copy, bei `<Server>:<Angebot>` weitergeleitet |
 
 Für Lehrkräfte und Admins (angemeldet):
 
@@ -149,7 +227,7 @@ Für Lehrkräfte und Admins (angemeldet):
 | `GET` | `/api/federation/offers` | Angebote verbundener Server für den Shop |
 | `POST` | `/api/federation/offers/:peerId/:offerId/copy` | Copy übernehmen |
 | `GET` | `/api/admin/federation` | Identität und Verbindungen |
-| `POST` | `/api/admin/federation/settings` | `{name, url}` |
+| `POST` | `/api/admin/federation/settings` | `{name, url, eu, network, permission}` |
 | `POST` | `/api/admin/federation/peers` | `{url}` – Verbindung anfragen |
 | `POST` | `/api/admin/federation/peers/:id/accept` | annehmen |
 | `POST` | `/api/admin/federation/peers/:id/end` | ablehnen, zurückziehen, trennen |

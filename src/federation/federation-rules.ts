@@ -116,3 +116,95 @@ export function mapCategories(ids: string[], theirs: RemoteCategory[], known: Se
 
 /** Höchstens so viele Angebote nimmt ein Katalogabgleich an. */
 export const MAX_REMOTE_OFFERS = 2000;
+
+// ---- Vertrauensnetzwerk (docs/vernetzung.md#vertrauensnetzwerk) ----
+
+/**
+ * Höchstens so viele Server stehen im Weg eines weitergereichten Angebots,
+ * den Ursprung mitgezählt. Schützt vor Schleifen, die keiner bemerkt, und
+ * hält die Wege kurz.
+ */
+export const MAX_PATH = 6;
+
+/** Lizenzen, unter die eine Lehrkraft ein Angebot im Vertrauensnetzwerk stellt. */
+export const LICENSES: Record<string, string> = {
+  'CC-BY-SA-4.0': 'CC BY-SA 4.0',
+  'CC-BY-4.0': 'CC BY 4.0',
+  'CC0-1.0': 'CC0 1.0',
+  'CC-BY-NC-SA-4.0': 'CC BY-NC-SA 4.0',
+  'network-only': 'nur im Vertrauensnetzwerk (keine freie Lizenz)',
+};
+
+export interface PathEntry {
+  serverId: string;
+  name: string;
+}
+
+/**
+ * Weg eines Angebots aus einem fremden Katalog, bereinigt: Ursprung zuerst,
+ * der liefernde Server zuletzt. Fehlt er (ältere Server), ist es ein eigenes
+ * Angebot des Lieferanten. Liefert null, wenn der Weg nicht beim Lieferanten
+ * endet, zu lang ist oder doppelt durch einen Server läuft.
+ */
+export function cleanPath(input: unknown, from: PathEntry): PathEntry[] | null {
+  if (!Array.isArray(input) || !input.length) return [from];
+  if (input.length > MAX_PATH) return null;
+  const path = input.map((p: any) => ({ serverId: String(p?.serverId || '').slice(0, 64), name: String(p?.name || 'anderer Server').slice(0, 80) }));
+  if (path.some((p) => !p.serverId)) return null;
+  if (new Set(path.map((p) => p.serverId)).size !== path.length) return null;
+  if (path[path.length - 1].serverId !== from.serverId) return null;
+  return path;
+}
+
+/**
+ * Je Angebot (Ursprungsserver + Angebot dort) nur der kürzeste Weg – kommt
+ * dasselbe über zwei Server an, zeigt der Shop es einmal.
+ */
+export function shortestRoutes<T extends { origin: string; path: unknown[] }>(entries: T[]): T[] {
+  const best = new Map<string, T>();
+  for (const e of entries) {
+    const cur = best.get(e.origin);
+    if (!cur || e.path.length < cur.path.length) best.set(e.origin, e);
+  }
+  return [...best.values()];
+}
+
+export interface NetworkServer extends PathEntry {
+  /** 1 = direkt verbunden, 2 = über einen Server, … */
+  hops: number;
+}
+
+/**
+ * Welche Server im Vertrauensnetzwerk bekannt sind: die direkt verbundenen
+ * Teilnehmer und, was diese melden, eine Station weiter. Doppelte zählen mit
+ * dem kürzesten Abstand; `self` fehlt immer. Was weiter als MAX_PATH entfernt
+ * ist, fällt heraus – so verschwinden auch Server, die nur noch über einen
+ * Kreis gemeldet werden, nach wenigen Abgleichen.
+ */
+export function networkMembers(
+  peers: { id: string; name: string; servers?: NetworkServer[] | null }[],
+  self: string,
+): NetworkServer[] {
+  const out = new Map<string, NetworkServer>();
+  const add = (s: NetworkServer) => {
+    if (!s.serverId || s.serverId === self || s.hops > MAX_PATH) return;
+    const cur = out.get(s.serverId);
+    if (!cur || s.hops < cur.hops) out.set(s.serverId, s);
+  };
+  for (const p of peers) {
+    add({ serverId: p.id, name: p.name, hops: 1 });
+    for (const s of Array.isArray(p.servers) ? p.servers : []) {
+      add({ serverId: String(s?.serverId || '').slice(0, 64), name: String(s?.name || 'anderer Server').slice(0, 80), hops: (Number(s?.hops) || MAX_PATH) + 1 });
+    }
+  }
+  return [...out.values()].sort((a, b) => a.hops - b.hops || a.name.localeCompare(b.name, 'de'));
+}
+
+/**
+ * Kennung einer Lehrkraft, die über mehrere Server hinweg kopiert: Der
+ * Ursprung erfährt nie ihren Namen oder ihre Kennung, nur einen festen Wert
+ * je Server und Person – so zählen zwei Copies derselben Person einmal.
+ */
+export function pseudonym(serverId: string, personId: string): string {
+  return 'p' + crypto.createHash('sha256').update(`${serverId}\n${personId}`).digest('hex').slice(0, 24);
+}

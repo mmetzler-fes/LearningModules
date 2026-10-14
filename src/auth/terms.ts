@@ -7,7 +7,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { forTeachers } from '../help/help-docs';
 
-export const TERMS_VERSION = 1;
+export const TERMS_VERSION = 2;
 
 /** Hat dieses Konto der aktuellen Fassung zugestimmt? */
 export function hasAcceptedTerms(user: { termsVersion?: number | null } | null | undefined): boolean {

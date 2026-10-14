@@ -4,7 +4,7 @@ import { escapeHtml, escapeAttr } from '../utils.js';
 //
 // Eigene Identität (Name, öffentliche Adresse, Fingerabdruck), Anfrage an
 // einen anderen Server, Liste der Verbindungen mit Annehmen, Trennen und
-// Abgleich. Siehe docs/vernetzung.md.
+// Abgleich; Teilnahme am Vertrauensnetzwerk. Siehe docs/vernetzung.md.
 
 const STATUS = {
   active: { label: '✅ verbunden', cls: 'active' },
@@ -54,6 +54,27 @@ export class FederationAdminView {
         <div class="form-actions"><button class="btn btn-primary" id="fedSave">💾 Speichern</button></div>
       </div>
 
+      <div class="settings-group">
+        <h3>🕸 Vertrauensnetzwerk</h3>
+        <p class="hint">Nehmen verbundene Server teil, reichen sie Angebote weiter, für die Lehrkräfte eingewilligt haben – so sieht
+          ihr auch Angebote der Partner eurer Partner, ohne direkt verbunden zu sein. Über mehrere Stationen erfährt der Ursprung
+          nur „Lehrkraft @ Server“, keinen Namen. Teilnehmen dürfen nur Server in der EU.</p>
+        <label class="share-flag"><input type="checkbox" id="fedEu" ${d.eu ? 'checked' : ''} />
+          <span><strong>Dieser Server steht in einem Rechenzentrum in der EU</strong>, und auch Betreiber und Hosting-Anbieter
+            übermitteln die Daten nicht in Länder außerhalb der EU.</span></label>
+        ${d.network ? `
+        <label class="share-flag"><input type="checkbox" id="fedNetwork" checked />
+          <span><strong>Am Vertrauensnetzwerk teilnehmen</strong> – seit ${when(d.networkSince)}</span></label>
+        <p class="hint">${d.networkServers.length
+          ? `Bekannte Server im Netz (${d.networkServers.length}): ${d.networkServers.map((x) => `${escapeHtml(x.name)} <span class="hint">(${x.hops === 1 ? 'direkt' : `über ${x.hops - 1} Server`})</span>`).join(', ')}`
+          : 'Noch kein verbundener Server nimmt teil – oder es wurde seit dem Einschalten noch nicht abgeglichen.'}</p>` : `
+        <label class="share-flag"><input type="checkbox" id="fedNetwork" ${d.eu ? '' : 'disabled'} />
+          <span><strong>Am Vertrauensnetzwerk teilnehmen</strong></span></label>
+        <label class="share-flag"><input type="checkbox" id="fedPermission" ${d.eu ? '' : 'disabled'} />
+          <span>Die Schulleitung hat die Teilnahme schriftlich erlaubt (<em>Erlaubnis der Schulleitung</em>, Ankreuzfeld „Vertrauensnetzwerk“).</span></label>`}
+        <div class="form-actions"><button class="btn btn-primary" id="fedNetSave">💾 Speichern</button></div>
+      </div>
+
       ${incoming.length ? `
       <div class="settings-group fed-incoming">
         <h3>📨 Anfragen</h3>
@@ -70,6 +91,14 @@ export class FederationAdminView {
       </div>`;
 
     this._root.querySelector('#fedSave').addEventListener('click', () => this._save());
+    this._root.querySelector('#fedNetSave').addEventListener('click', () => this._saveNetwork());
+    const eu = this._root.querySelector('#fedEu');
+    eu.addEventListener('change', () => {
+      for (const id of ['#fedNetwork', '#fedPermission']) {
+        const cb = this._root.querySelector(id);
+        if (cb && !d.network) { cb.disabled = !eu.checked; if (!eu.checked) cb.checked = false; }
+      }
+    });
     this._root.querySelector('#fedRequest').addEventListener('click', () => this._request());
     this._root.querySelector('#fedPeerUrl').addEventListener('keydown', (e) => { if (e.key === 'Enter') this._request(); });
     this._root.querySelectorAll('[data-peer-act]').forEach((b) => b.addEventListener('click', () => this._act(b.dataset.peer, b.dataset.peerAct, b)));
@@ -93,6 +122,7 @@ export class FederationAdminView {
             <span class="topic-status ${s.cls === 'active' ? 'active' : s.cls === 'inactive' ? 'inactive' : ''}">${s.label}</span>
             <span class="hint">Fingerabdruck <code>${escapeHtml(p.fingerprint)}</code></span>
             ${p.status === 'active' ? `<span class="hint">${p.offerCount} Angebot${p.offerCount === 1 ? '' : 'e'} · abgeglichen ${when(p.lastSyncAt)}</span>` : ''}
+            ${p.status === 'active' && p.network ? '<span class="topic-shared-badge remote-badge" title="Nimmt am Vertrauensnetzwerk teil">🕸 im Netz</span>' : ''}
           </div>
           ${p.lastError ? `<p class="login-error">${escapeHtml(p.lastError)}</p>` : ''}
           ${p.status === 'incoming' ? '<p class="hint">Bitte vor dem Annehmen den Fingerabdruck mit dem anderen Admin vergleichen.</p>' : ''}
@@ -111,6 +141,22 @@ export class FederationAdminView {
     this._render();
     this.app.showServerName({ name: res.name });
     this.app.showToast('Gespeichert', 'success');
+  }
+
+  async _saveNetwork() {
+    const d = this._data;
+    const eu = this._root.querySelector('#fedEu').checked;
+    const network = this._root.querySelector('#fedNetwork').checked && eu;
+    if (d.network && !network && !(await this.app.appConfirm(
+      'Aus dem Vertrauensnetzwerk aussteigen?\n\nAngebote, die über andere Server kamen, verschwinden sofort aus dem Shop; '
+      + 'die verbundenen Server reichen beim nächsten Abgleich nichts mehr weiter. Direkte Verbindungen bleiben.'))) return;
+    const res = await this.app.api.saveFederationSettings({
+      eu, network, permission: !!this._root.querySelector('#fedPermission')?.checked,
+    });
+    if (!res || !res.serverId) { this.app.showToast('Fehler: ' + (res?.message || '?'), 'error'); return; }
+    this._data = res;
+    this._render();
+    this.app.showToast(res.network && !d.network ? 'Teilnahme eingeschaltet – die Kataloge werden neu abgeglichen.' : 'Gespeichert', 'success');
   }
 
   async _request() {

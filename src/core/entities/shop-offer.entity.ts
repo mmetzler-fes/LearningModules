@@ -116,4 +116,20 @@ export class ShopOffer extends BaseEntity {
    */
   @Column({ default: false })
   federated: boolean;
+
+  /**
+   * Auch im Vertrauensnetzwerk weitergeben – an Server, mit denen dieser
+   * nicht direkt verbunden ist. Nur zusammen mit `federated`; die Lehrkraft
+   * willigt dabei ein und bestätigt die Rechte an den Inhalten
+   * (`networkConsentAt`).
+   */
+  @Column({ default: false })
+  network: boolean;
+
+  @Column({ type: 'datetime', nullable: true })
+  networkConsentAt: Date | null;
+
+  /** Lizenz, unter der das Angebot hinausgeht (Schlüssel aus LICENSES); im Vertrauensnetzwerk Pflicht. */
+  @Column({ type: 'varchar', nullable: true })
+  license: string | null;
 }

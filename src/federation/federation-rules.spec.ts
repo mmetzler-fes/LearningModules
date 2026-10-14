@@ -1,4 +1,4 @@
-import { canonical, fingerprint, freshDate, mapCategories, newKeyPair, normalizeUrl, parseRemoteRef, remoteRef, sign, verify, MAX_SKEW_MS } from './federation-rules';
+import { canonical, cleanPath, fingerprint, freshDate, mapCategories, networkMembers, newKeyPair, normalizeUrl, parseRemoteRef, pseudonym, remoteRef, shortestRoutes, sign, verify, MAX_PATH, MAX_SKEW_MS } from './federation-rules';
 
 describe('Vernetzung: Signatur', () => {
   const a = newKeyPair();
@@ -60,5 +60,48 @@ describe('Vernetzung: Kategorien abbilden', () => {
   it('Bekanntes bleibt, Unbekanntes wird zum nächsten bekannten Oberbegriff', () => {
     const known = new Set(['oeh-d:04005', 'lm:et.at']);
     expect(mapCategories(['local:x', 'oeh-d:04005', 'local:y', 'gibtsnicht'], theirs, known).sort()).toEqual(['lm:et.at', 'oeh-d:04005']);
+  });
+});
+
+describe('Vertrauensnetzwerk', () => {
+  const B = { serverId: 'B', name: 'Schule B' };
+  const C = { serverId: 'C', name: 'Schule C' };
+
+  it('Weg: ohne Angabe ein eigenes Angebot des Lieferanten', () => {
+    expect(cleanPath(undefined, B)).toEqual([B]);
+    expect(cleanPath([], B)).toEqual([B]);
+  });
+
+  it('Weg: muss beim Lieferanten enden, ohne Doppel, nicht zu lang', () => {
+    expect(cleanPath([C, B], B)).toEqual([C, B]);
+    expect(cleanPath([B, C], B)).toBeNull();
+    expect(cleanPath([C, C, B], B)).toBeNull();
+    expect(cleanPath([{ serverId: '' }, B], B)).toBeNull();
+    const long = Array.from({ length: MAX_PATH }, (_, i) => ({ serverId: `S${i}`, name: `S${i}` }));
+    expect(cleanPath([...long.slice(0, MAX_PATH - 1), B], B)).toHaveLength(MAX_PATH);
+    expect(cleanPath([...long, B], B)).toBeNull();
+  });
+
+  it('dasselbe Angebot auf zwei Wegen: der kürzere', () => {
+    const r = shortestRoutes([
+      { origin: 'D:1', path: [1, 2, 3], via: 'lang' },
+      { origin: 'D:1', path: [1, 2], via: 'kurz' },
+      { origin: 'D:2', path: [1, 2, 3], via: 'einzig' },
+    ]);
+    expect(r.map((x) => x.via).sort()).toEqual(['einzig', 'kurz']);
+  });
+
+  it('bekannte Server: kürzester Abstand, ohne sich selbst, nicht zu weit', () => {
+    const m = networkMembers([
+      { id: 'B', name: 'B', servers: [{ serverId: 'C', name: 'C', hops: 1 }, { serverId: 'A', name: 'A', hops: 1 }, { serverId: 'F', name: 'F', hops: MAX_PATH }] },
+      { id: 'C', name: 'C', servers: [{ serverId: 'D', name: 'D', hops: 1 }] },
+    ], 'A');
+    expect(m.map((x) => [x.serverId, x.hops])).toEqual([['B', 1], ['C', 1], ['D', 2]]);
+  });
+
+  it('Pseudonym: fest je Server und Person, verrät die Kennung nicht', () => {
+    expect(pseudonym('A', 'u1')).toBe(pseudonym('A', 'u1'));
+    expect(pseudonym('A', 'u1')).not.toBe(pseudonym('B', 'u1'));
+    expect(pseudonym('A', 'u1')).not.toContain('u1');
   });
 });

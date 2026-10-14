@@ -1,0 +1,103 @@
+# Eigenes Moodle zum Testen des Austauschs (Moodle-XML, H5P) – hinter
+# demselben nginx-Proxy wie LearningModules.
+#
+# Einrichtung (eigenes Verzeichnis, z. B. ~/moodle):
+#
+#   1. Diese Datei als docker-compose.yaml ablegen.
+#   2. Passwörter in eine .env daneben – NICHT hier eintragen:
+#        cat > .env <<'EOF'
+#        MOODLE_DB_PASSWORD=<langes zufälliges Passwort>
+#        MOODLE_ADMIN_PASSWORD=<Passwort für den Moodle-Admin>
+#        MOODLE_SMTP_PASSWORD=<Passwort des Postfachs info@metzlercloud.de>
+#        EOF
+#        chmod 600 .env
+#      (Zufallswert z. B. mit: openssl rand -base64 24)
+#   3. DNS: A-/AAAA-Eintrag moodle.metzlercloud.de auf den Server.
+#   4. docker compose up -d   – der erste Start richtet Moodle ein (einige
+#      Minuten, Fortschritt: docker compose logs -f moodle).
+#   5. Im Proxy einen Host anlegen: moodle.metzlercloud.de → http://moodle:8080,
+#      mit SSL-Zertifikat (Let's Encrypt) und "Websockets" aus.
+#   6. Anmelden als "admin" mit MOODLE_ADMIN_PASSWORD.
+#
+# Image: erseco/alpine-moodle (nginx + PHP-FPM auf Alpine, aktiv gepflegt;
+# das früher übliche Bitnami-Image wird nicht mehr frei aktualisiert).
+# Den Moodle-Cron erledigt der Container selbst.
+
+services:
+  moodle:
+    image: erseco/alpine-moodle:latest
+    container_name: moodle
+    restart: unless-stopped
+    depends_on:
+      - moodle-db
+    networks:
+      - proxy-nw
+      - moodle-intern
+    expose:
+      - "8080"
+    environment:
+      SITE_URL: https://moodle.metzlercloud.de
+      # TLS endet am Proxy; Moodle muss trotzdem https-Adressen erzeugen.
+      SSLPROXY: "true"
+      REVERSEPROXY: "false"
+      DB_TYPE: pgsql
+      DB_HOST: moodle-db
+      DB_NAME: moodle
+      DB_USER: moodle
+      DB_PASS: ${MOODLE_DB_PASSWORD}
+      MOODLE_USERNAME: admin
+      MOODLE_PASSWORD: ${MOODLE_ADMIN_PASSWORD}
+      MOODLE_EMAIL: admin@metzlercloud.de
+      MOODLE_SITENAME: Moodle-Test
+      MOODLE_LANGUAGE: de
+      # Mailversand über dasselbe Postfach wie LearningModules. Werte wie dort
+      # (SMTP_HOST, SMTP_PORT); Port 587 → tls, Port 465 → ssl.
+      SMTP_HOST: smtp.dein-provider.de
+      SMTP_PORT: "587"
+      SMTP_PROTOCOL: tls
+      SMTP_USER: info@metzlercloud.de
+      SMTP_PASSWORD: ${MOODLE_SMTP_PASSWORD}
+      # Absender muss das Postfach selbst sein (oder ein erlaubter Alias),
+      # sonst lehnt der Mailserver ab bzw. die Mail scheitert an SPF/DMARC.
+      MOODLE_MAIL_NOREPLY_ADDRESS: info@metzlercloud.de
+      MOODLE_MAIL_PREFIX: "[Moodle-Test]"
+      # Große H5P-Pakete und Fragensammlungen hochladen können
+      client_max_body_size: 100M
+      post_max_size: 100M
+      upload_max_filesize: 100M
+      memory_limit: 256M
+      TZ: Europe/Berlin
+    # Benannte Volumes statt Ordner: Der Container läuft nicht als root und
+    # bekommt so von Anfang an Schreibrechte.
+    volumes:
+      - moodledata:/var/www/moodledata
+      - moodlehtml:/var/www/html
+    # Obergrenze, damit ein Testsystem den Server nicht ausbremst
+    mem_limit: 1g
+    cpus: 1.0
+
+  moodle-db:
+    image: postgres:17-alpine
+    container_name: moodle-db
+    restart: unless-stopped
+    networks:
+      - moodle-intern
+    environment:
+      POSTGRES_DB: moodle
+      POSTGRES_USER: moodle
+      POSTGRES_PASSWORD: ${MOODLE_DB_PASSWORD}
+    volumes:
+      - moodle-postgres:/var/lib/postgresql/data
+    mem_limit: 512m
+
+networks:
+  proxy-nw:
+    external: true
+    name: nginx-proxy-network
+  # Die Datenbank hängt nur hier – vom Proxy-Netz aus nicht erreichbar.
+  moodle-intern:
+
+volumes:
+  moodledata:
+  moodlehtml:
+  moodle-postgres:

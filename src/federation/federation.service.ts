@@ -2,7 +2,7 @@ import {
   Injectable, Logger, OnApplicationBootstrap, OnModuleDestroy, BadRequestException, ForbiddenException, NotFoundException, UnauthorizedException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, In, Like, Repository } from 'typeorm';
+import { DataSource, In, Like, Not, Repository } from 'typeorm';
 import * as crypto from 'crypto';
 import { SystemConfig } from '../core/entities/system-config.entity';
 import { FederationPeer } from '../core/entities/federation-peer.entity';
@@ -119,7 +119,8 @@ export class FederationService implements OnApplicationBootstrap, OnModuleDestro
         return this.cached;
       } catch {
         this.logger.warn('Schlüssel der Vernetzung lässt sich nicht lesen (anderes App-Secret?) – dieser Server bekommt eine neue Kennung.');
-        await this.peerRepo.update({}, { status: 'ended' });
+        // Ohne Bedingung verweigert TypeORM das Update – dann bliebe die Identität kaputt.
+        await this.peerRepo.update({ status: Not('ended') }, { status: 'ended' });
       }
     }
     const keys = newKeyPair();

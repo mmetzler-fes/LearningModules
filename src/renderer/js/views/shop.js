@@ -641,7 +641,8 @@ export class ShopView {
     let users = [];
     let groups = [];
     try {
-      [state, users, groups] = await Promise.all([api.getOfferState(target), api.getColleagues(), api.getGroups()]);
+      // Die Auswahl der Einordnung braucht die Kategorien – der Dialog öffnet auch aus LernModule und Notebooks.
+      [state, users, groups] = await Promise.all([api.getOfferState(target), api.getColleagues(), api.getGroups(), ensureCategories(this.app)]);
     } catch (err) {
       this.app.showToast('Fehler: ' + err.message, 'error');
       return;
@@ -692,7 +693,9 @@ export class ShopView {
 
         <div class="form-group">
           <label>Einordnung – mindestens ein Fach <button type="button" class="help-hint" data-help="kategorien" title="Hilfe: Kategorien" aria-label="Hilfe: Kategorien">?</button></label>
-          ${(state.topicCategoryIds || []).length ? '<span class="hint">Was nach dem + steht, kommt schon aus den Lernthemen (oder ihren Tags) und zählt mit.</span>' : ''}
+          <span class="hint">${(state.suggestedCategoryIds || []).length
+            ? 'Vorgeschlagen aus den Lernthemen, ihren Tags und früheren Angeboten – bitte prüfen; ✕ nimmt einen Begriff heraus.'
+            : 'Damit andere es im Shop finden – hier im Haus und auf verbundenen Servern. Gilt für alles im Angebot, auch was später hinzukommt.'}</span>
           <div class="co-cats"></div>
         </div>
 
@@ -773,8 +776,8 @@ export class ShopView {
         </div>
       </div>`;
     document.body.appendChild(overlay);
-    const catPicker = new CategoryPicker(this.app, overlay.querySelector('.co-cats'), { fixed: state.topicCategoryIds || [] });
-    catPicker.render(offer?.categoryIds || []);
+    const catPicker = new CategoryPicker(this.app, overlay.querySelector('.co-cats'));
+    catPicker.render(offer?.categoryIds?.length ? offer.categoryIds : state.suggestedCategoryIds || []);
 
     const close = () => overlay.remove();
     const done = (msg) => {

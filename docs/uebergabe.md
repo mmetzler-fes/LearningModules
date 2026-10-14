@@ -57,7 +57,8 @@ anbieten, exportieren und bearbeiten.
 
 - **Notebooks:** Books, Bereiche und Abschnitte, in denen etwas liegt, kommen
   mit („… (Servername)“). Was du hier umsortierst, bleibt so.
-- **Kategorien** kommen mit, Tags nicht – sie sind deine Ordnung je Server.
+- **Kategorien** kommen mit (als Vorschlag, wenn du etwas anbietest), Tags
+  nicht – sie sind deine Ordnung je Server.
 - Neue Lernthemen starten **gesperrt**, wie jede Kopie.
 - **Fremde Module** (die du drüben selbst erworben hast) bleiben drüben.
 

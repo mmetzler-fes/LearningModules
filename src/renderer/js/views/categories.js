@@ -108,12 +108,10 @@ export function withAncestors(app, ids) {
  * Begriffe als Chips, und „Begriff vorschlagen“, wenn etwas fehlt.
  */
 export class CategoryPicker {
-  constructor(app, container, { fixed = [] } = {}) {
+  constructor(app, container) {
     this.app = app;
     this._root = container;
     this._selected = new Set();
-    /** Kategorien, die von anderswo kommen (Tags, Lernthemen) – nur zur Ansicht. */
-    this._fixed = new Set(fixed);
     this._facet = 'subject';
     this._open = new Set();
     this._query = '';
@@ -198,9 +196,7 @@ export class CategoryPicker {
 
   _drawSelected() {
     const own = [...this._selected];
-    const fixed = [...this._fixed].filter((id) => !this._selected.has(id));
-    this._sel.innerHTML = (own.length ? categoryChips(this.app, own, { removable: true }) : '<span class="hint">Noch nicht eingeordnet.</span>')
-      + (fixed.length ? `<span class="cat-fixed" title="Kommt aus den Tags bzw. den Lernthemen darin">+ ${categoryChips(this.app, fixed, { max: 6 })}</span>` : '');
+    this._sel.innerHTML = own.length ? categoryChips(this.app, own, { removable: true }) : '<span class="hint">Noch nicht eingeordnet.</span>';
   }
 
   _visible() {
@@ -273,32 +269,4 @@ export class CategoryPicker {
       : this.app.state.currentUser?.role === 'admin' ? `„${label}“ angelegt und ausgewählt.`
         : `„${label}“ vorgeschlagen und ausgewählt.`, 'success');
   }
-}
-
-/**
- * Dialog nur zum Einordnen. `actions`: [{ id, label, primary? }] – liefert
- * { action, ids } oder null bei Abbruch.
- */
-export async function openCategoryDialog(app, { title, intro = '', selected = [], fixed = [], actions = [{ id: 'save', label: 'Speichern', primary: true }] }) {
-  await ensureCategories(app);
-  return new Promise((resolve) => {
-    const overlay = document.createElement('div');
-    overlay.className = 'confirm-overlay';
-    overlay.innerHTML = `
-      <div class="import-modules-card cat-dialog" style="min-width:min(520px,94vw); max-width:680px; max-height:90vh; overflow:auto">
-        <h3>${title}</h3>
-        ${intro ? `<p class="hint">${intro}</p>` : ''}
-        <div class="cat-dialog-picker"></div>
-        <div class="confirm-actions">
-          ${actions.map((a) => `<button type="button" class="btn ${a.primary ? 'btn-primary' : a.danger ? 'btn-danger' : 'btn-secondary'}" data-action="${escapeAttr(a.id)}">${a.label}</button>`).join('')}
-          <button type="button" class="btn btn-secondary" data-action="">Abbrechen</button>
-        </div>
-      </div>`;
-    document.body.appendChild(overlay);
-    const picker = new CategoryPicker(app, overlay.querySelector('.cat-dialog-picker'), { fixed });
-    picker.render(selected);
-    const done = (v) => { overlay.remove(); resolve(v); };
-    overlay.querySelectorAll('[data-action]').forEach((b) => b.addEventListener('click', () => done(b.dataset.action ? { action: b.dataset.action, ids: picker.selectedIds } : null)));
-    overlay.addEventListener('click', (e) => { if (e.target === overlay) done(null); });
-  });
 }

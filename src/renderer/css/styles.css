@@ -4667,7 +4667,6 @@ body {
 .cat-chip-x:hover { color: var(--danger, #ef4444); }
 .shop-cats { margin: 4px 0 2px; }
 .tag-cats { margin: 0 8px; color: var(--text-secondary); }
-.cat-fixed { color: var(--text-secondary); margin-left: 4px; }
 
 .cat-picker { border: 1px solid var(--border); border-radius: 10px; padding: 10px; background: var(--bg-secondary); }
 .cat-selected { min-height: 26px; margin-bottom: 8px; }

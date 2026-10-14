@@ -92,7 +92,6 @@ die Zeile.
 | ↔️ Verschieben | an eine andere Stelle | in ein anderes Book usw. | in ein anderes Lernthema |
 | 📋 Kopieren | samt Inhalt, direkt dahinter | eigene Kopie, direkt dahinter | Duplizieren oder in ein anderes Lernthema |
 | ✏️ / 🏷 | Umbenennen, Tags (werden vererbt) | Titel, Beschreibung, eigene Tags | Bearbeiten |
-| 🗂 Einordnen | Fach und Bildungsstufe für alle Lernthemen darin | Fach und Bildungsstufe | – |
 | 🗑 Löschen | nur die Ordner – die Lernthemen rücken eine Ebene höher | Lernthema löschen | Modul löschen |
 
 Für erworbene Lernthemen gibt es Quick-Link, Ansehen, Verschieben,
@@ -188,6 +187,7 @@ und Vererbung in `src/notebooks/notebook-rules.ts`, Endpunkte unter
 Laden neu berechnet (`applyInheritance`). Quick-Link-Regeln eines Knotens
 tragen `quickNodeId`.
 
-Fach und Bildungsstufe: siehe [Kategorien](kategorien.md).
+Fach und Bildungsstufe gibt es nur beim Anbieten im Shop – siehe
+[Kategorien](kategorien.md).
 
 Code: `src/notebooks/`, `src/renderer/js/views/notebooks.js`.

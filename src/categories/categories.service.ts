@@ -8,9 +8,6 @@ import { Category, CategoryFacet } from '../core/entities/category.entity';
 import { LearningTopic } from '../core/entities/learning-topic.entity';
 import { Tag } from '../core/entities/tag.entity';
 import { ShopOffer } from '../core/entities/shop-offer.entity';
-import { NotebookNode } from '../core/entities/notebook-node.entity';
-import { NotebookPlacement } from '../core/entities/notebook-placement.entity';
-import { subtreeIds } from '../notebooks/notebook-rules';
 import {
   cannotAddUnder, cleanIds, cleanLabel, effectiveOf, seedRows, selectable, siblingWithLabel, VocabFiles,
 } from './category-rules';
@@ -35,8 +32,6 @@ export class CategoriesService implements OnApplicationBootstrap {
     @InjectRepository(LearningTopic) private readonly topicRepo: Repository<LearningTopic>,
     @InjectRepository(Tag) private readonly tagRepo: Repository<Tag>,
     @InjectRepository(ShopOffer) private readonly offerRepo: Repository<ShopOffer>,
-    @InjectRepository(NotebookNode) private readonly nodeRepo: Repository<NotebookNode>,
-    @InjectRepository(NotebookPlacement) private readonly placeRepo: Repository<NotebookPlacement>,
   ) {}
 
   // ---- Ausgelieferte Listen übernehmen ----
@@ -262,34 +257,6 @@ export class CategoriesService implements OnApplicationBootstrap {
       n += rows.length;
     }
     return n;
-  }
-
-  // ---- Einordnen ----
-
-  /**
-   * Alle eigenen Lernthemen in einem Book, Bereich oder Abschnitt einordnen.
-   * `mode` add: Kategorien dazunehmen, remove: wegnehmen.
-   */
-  async applyToNode(nodeId: string, user: any, body: any) {
-    const node = await this.nodeRepo.findOne({ where: { id: nodeId } });
-    if (!node || node.ownerId !== user.userId) throw new NotFoundException('Book, Bereich oder Abschnitt nicht gefunden.');
-    const mode = body?.mode === 'remove' ? 'remove' : 'add';
-    const ids = mode === 'add' ? (await this.clean(body?.categoryIds, user)) || [] : (Array.isArray(body?.categoryIds) ? body.categoryIds.map(String) : []);
-    if (!ids.length) throw new BadRequestException('Bitte mindestens eine Kategorie wählen.');
-    const [nodes, places] = await Promise.all([
-      this.nodeRepo.find({ where: { ownerId: user.userId } }),
-      this.placeRepo.find({ where: { ownerId: user.userId } }),
-    ]);
-    const inside = subtreeIds(nodes, node.id);
-    const topicIds = places.filter((p) => p.nodeId && inside.has(p.nodeId)).map((p) => p.topicId);
-    const topics = topicIds.length ? await this.topicRepo.find({ where: { id: In(topicIds), ownerId: user.userId } }) : [];
-    for (const t of topics) {
-      const cur = new Set(t.categoryIds || []);
-      for (const id of ids) mode === 'add' ? cur.add(id) : cur.delete(id);
-      t.categoryIds = cur.size ? [...cur] : null;
-    }
-    if (topics.length) await this.topicRepo.save(topics);
-    return { success: true, topics: topics.length };
   }
 
   /** Für die Admin-Übersicht: wie oft jede Kategorie direkt zugeordnet ist. */

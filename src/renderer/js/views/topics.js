@@ -3,7 +3,6 @@ import { pickClass } from './classes.js';
 import { TagFilter, TagPicker, renderAreaGroups, orderByArea, chipHtml } from './tags.js';
 import { helpHint } from './help-view.js';
 import { openFeedbackDialog } from './feedback.js';
-import { CategoryPicker, categoryChips, ensureCategories } from './categories.js';
 import { openHandoverDialog, renderIncomingHandovers } from './handover.js';
 import { openAccountLinksDialog } from './account-links.js';
 
@@ -40,7 +39,6 @@ export class TopicsView {
     this._exportBtnCancel = document.getElementById('exportH5pBtnCancel');
     this._section         = document.getElementById('view-teacher-topics');
     this._tagPicker       = new TagPicker(app, document.getElementById('topicTags'));
-    this._catPicker       = new CategoryPicker(app, document.getElementById('topicCategories'));
 
     this._filter = new TagFilter(app, {
       searchInput: document.getElementById('topicTagSearch'),
@@ -68,7 +66,6 @@ export class TopicsView {
         this._descInput.value = '';
         if (this._subscribeKeyEl) this._subscribeKeyEl.value = '';
         this._tagPicker.render([]);
-        this._catPicker.render([]);
         this._showForm();
       });
     }
@@ -124,7 +121,7 @@ export class TopicsView {
     this.refreshSharedTopics();
     renderIncomingHandovers(this.app, document.getElementById('handoverIncoming'));
     // Themen und Tags gleichzeitig laden statt nacheinander.
-    await Promise.all([this.app.loadTopics(), this.app.loadTags(), ensureCategories(this.app)]);
+    await Promise.all([this.app.loadTopics(), this.app.loadTags()]);
     this._filter.render();
     this._hideForm();
     this._render();
@@ -293,7 +290,7 @@ export class TopicsView {
             <span class="topic-status ${topic.selected ? 'active' : 'inactive'}">${topic.selected ? '✅ Aktiv' : '❌ Inaktiv'}</span>
             ${this._rightsBadges(topic)}
           </div>
-          <div class="topic-card-tags">${categoryChips(this.app, topic.categoryIds)}${this._renderTagChips(topic.tagIds, areaId)}</div>
+          <div class="topic-card-tags">${this._renderTagChips(topic.tagIds, areaId)}</div>
         </div>
         <div class="topic-card-actions">
           <label class="toggle-switch" title="Für Schüler freigeben">
@@ -539,7 +536,6 @@ export class TopicsView {
     this._descInput.value = topic.description || '';
     if (this._subscribeKeyEl) this._subscribeKeyEl.value = topic.subscribeKey || '';
     this._tagPicker.render(topic.tagIds || []);
-    this._catPicker.render(topic.categoryIds || []);
     this._showForm();
   }
 
@@ -557,7 +553,6 @@ export class TopicsView {
       description: this._descInput.value.trim(),
       subscribeKey: this._subscribeKeyEl ? (this._subscribeKeyEl.value.trim() || null) : undefined,
       tagIds: this._tagPicker.selectedIds,
-      categoryIds: this._catPicker.selectedIds,
       selected: state.editingTopicId ? (topics.find((t) => t.id === state.editingTopicId) || {}).selected || false : false,
       createdAt: state.editingTopicId ? (topics.find((t) => t.id === state.editingTopicId) || {}).createdAt || new Date().toISOString() : new Date().toISOString(),
     };

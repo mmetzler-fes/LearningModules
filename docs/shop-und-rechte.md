@@ -81,8 +81,8 @@ das Angebot zu einer festen Auswahl mit dem, was zuletzt darin lag;
   sein Original – so kommt seine Nutzung beim Creator an.
 
 Die Zielgruppe ist „alle“ oder eine Auswahl aus Personen und Gruppen. Zum
-Anbieten ist mindestens ein **Fach** nötig, damit andere es finden – siehe
-[Kategorien](kategorien.md). Mit **🌐 Auch für verbundene Server** erscheint ein
+Anbieten ist mindestens ein **Fach** nötig, damit andere es finden. Der Dialog
+schlägt eins vor; eingeordnet wird nur hier – siehe [Kategorien](kategorien.md). Mit **🌐 Auch für verbundene Server** erscheint ein
 Angebot für alle auch auf anderen Servern – siehe [Vernetzung](vernetzung.md).
 
 **Copy eines gemischten Angebots:** Kopiert werden die eigenen Module des

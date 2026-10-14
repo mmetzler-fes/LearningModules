@@ -466,10 +466,6 @@ export class BrowserApi {
   updateCategory(id, body) { return this._fetch(`/api/categories/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(body) }); }
   mergeCategory(id, into) { return this._fetch(`/api/categories/${encodeURIComponent(id)}/merge`, { method: 'POST', body: JSON.stringify({ into }) }); }
   deleteCategory(id) { return this._fetch(`/api/categories/${encodeURIComponent(id)}`, { method: 'DELETE' }); }
-  /** Alle eigenen Lernthemen in einem Book, Bereich oder Abschnitt: mode 'add' | 'remove'. */
-  categorizeNode(nodeId, categoryIds, mode = 'add') {
-    return this._fetch(`/api/categories/nodes/${encodeURIComponent(nodeId)}`, { method: 'POST', body: JSON.stringify({ categoryIds, mode }) });
-  }
 
   // ---------- Testschüler (docs/klassen-und-schuljahr.md) ----------
   getTestStudent() { return this._fetch('/api/classes/test-student'); }

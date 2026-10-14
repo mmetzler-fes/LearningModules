@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, ForbiddenException, BadRequestException, OnApplicationBootstrap } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, In, IsNull, Not, Repository } from 'typeorm';
 import * as crypto from 'crypto';
@@ -69,7 +69,9 @@ const ACQUIRED_BOOK = 'Erworben';
  * nicht entziehen, und beim Löschen des Themas bekommt der Inhaber eine Kopie.
  */
 @Injectable()
-export class ShopService {
+export class ShopService implements OnApplicationBootstrap {
+  private readonly logger = new Logger(ShopService.name);
+
   constructor(
     @InjectRepository(ShopOffer) private readonly offerRepo: Repository<ShopOffer>,
     @InjectRepository(UseGrant) private readonly grantRepo: Repository<UseGrant>,
@@ -351,8 +353,8 @@ export class ShopService {
         copies: offer.scopeType === 'topic' ? myCopies.filter((c) => c.copiedFromId === offer.topicId).length : 0,
         // Lernthemen darin, die ich bewerten kann: genutzt oder kopiert.
         rateable: [] as Array<{ topicId: string; title: string }>,
-        // Fach und Bildungsstufe: die des Angebots und die der Lernthemen darin.
-        categoryIds: await this.categoriesOf(offer, mine),
+        // Fach und Bildungsstufe des Angebots.
+        categoryIds: this.categoriesOf(offer),
         rating: null as RatingSummary | null,
         updatedAt: offer.updatedAt,
       };
@@ -382,10 +384,55 @@ export class ShopService {
     };
   }
 
-  /** Kategorien eines Angebots: eigene und die der enthaltenen Lernthemen (samt ihrer Tags). */
-  private async categoriesOf(offer: ShopOffer, covered: Covered[]): Promise<string[]> {
-    const fromTopics = await this.categories.effectiveFor(covered.map((c) => c.topic));
-    return [...new Set([...(offer.categoryIds || []), ...[...fromTopics.values()].flat()])];
+  /**
+   * Kategorien eines Angebots. Eingeordnet wird nur noch beim Anbieten
+   * (docs/kategorien.md); was an Lernthemen und Tags hängt, ist bloß ein
+   * Vorschlag für den Dialog.
+   */
+  private categoriesOf(offer: ShopOffer): string[] {
+    return offer.categoryIds || [];
+  }
+
+  /**
+   * Vorschlag für die Einordnung eines neuen Angebots: was die Lernthemen
+   * darin tragen (auch aus Kopien und über Tags) und wie frühere Angebote
+   * derselben Lehrkraft mit denselben Lernthemen eingeordnet sind.
+   */
+  private async suggestCategories(covered: Covered[], sellerId: string, except?: string): Promise<string[]> {
+    const out = new Set([...(await this.categories.effectiveFor(covered.map((c) => c.topic))).values()].flat());
+    const topicIds = new Set(covered.map((c) => c.topic.id));
+    for (const other of await this.offerRepo.find({ where: { sellerId, kind: 'creator' } })) {
+      if (other.id === except || !(other.categoryIds || []).length) continue;
+      if ((await this.coverage(other)).some((c) => topicIds.has(c.topic.id))) for (const id of other.categoryIds!) out.add(id);
+    }
+    const byId = await this.categories.byId();
+    return [...out].filter((id) => byId.has(id));
+  }
+
+  /**
+   * Einmalig beim Umstellen: Bis dahin zählten zu einem Angebot auch die
+   * Kategorien seiner Lernthemen (samt Tags). Die wandern jetzt ins Angebot,
+   * damit keines seine Einordnung verliert.
+   */
+  async onApplicationBootstrap() {
+    try {
+      const key = 'offer_categories_migrated';
+      if (await this.configRepo.findOne({ where: { key } })) return;
+      let n = 0;
+      for (const offer of await this.offerRepo.find()) {
+        const covered = await this.coverage(offer);
+        const fromTopics = [...(await this.categories.effectiveFor(covered.map((c) => c.topic))).values()].flat();
+        const merged = [...new Set([...(offer.categoryIds || []), ...fromTopics])];
+        if (merged.length === (offer.categoryIds || []).length) continue;
+        offer.categoryIds = merged;
+        await this.offerRepo.save(offer);
+        n++;
+      }
+      await this.configRepo.save(this.configRepo.create({ key, value: { at: new Date().toISOString(), offers: n } }));
+      if (n) this.logger.log(`Einordnung der Lernthemen in ${n} Angebot${n === 1 ? '' : 'e'} übernommen.`);
+    } catch (err) {
+      this.logger.error('Übernahme der Einordnung in die Angebote fehlgeschlagen', err as any);
+    }
   }
 
   /**
@@ -479,8 +526,8 @@ export class ShopService {
       // Nimmt dieser Server am Vertrauensnetzwerk teil? Dann auch dorthin weiterzugeben.
       network: await this.networkState(),
       licenses: LICENSES,
-      // Einordnung, die schon aus den Lernthemen kommt (nur zur Ansicht).
-      topicCategoryIds: [...new Set([...(await this.categories.effectiveFor(covered.map((c) => c.topic))).values()].flat())],
+      // Vorschlag für die Einordnung, solange das Angebot noch keine hat.
+      suggestedCategoryIds: offer?.categoryIds?.length ? [] : await this.suggestCategories(covered, user.userId, offer?.id),
       offer: offer ? await this.describe(offer, users) : null,
       legacyShare: legacy ? await this.describe(legacy, users) : null,
     };
@@ -558,14 +605,12 @@ export class ShopService {
     if (active && audience.length === 0) throw new BadRequestException('Bitte eine Zielgruppe wählen.');
 
     // Ohne Fach findet es im Shop niemand – und über Server hinweg schon gar nicht.
+    // Ohne Angabe (ältere Aufrufe) gilt, was der Dialog vorschlagen würde.
     const categoryIds = body?.categoryIds !== undefined
       ? await this.categories.clean(body.categoryIds, user, offer?.categoryIds || null)
-      : offer?.categoryIds || null;
-    if (active) {
-      const fromTopics = [...(await this.categories.effectiveFor(covered.map((c) => c.topic))).values()].flat();
-      if (!hasSubject([...(categoryIds || []), ...fromTopics], await this.categories.byId())) {
-        throw new BadRequestException('Bitte mindestens ein Fach wählen, damit andere das Angebot finden.');
-      }
+      : offer?.categoryIds?.length ? offer.categoryIds : await this.suggestCategories(covered, user.userId, offer?.id);
+    if (active && !hasSubject(categoryIds || [], await this.categories.byId())) {
+      throw new BadRequestException('Bitte mindestens ein Fach wählen, damit andere das Angebot finden.');
     }
 
     // Vertrauensnetzwerk: nur mit 🌐, nur wenn dieser Server teilnimmt, mit
@@ -666,7 +711,7 @@ export class ShopService {
         title: await this.offerTitle(offer, covered),
         topicCount: covered.length,
         moduleCount: covered.reduce((n, c) => n + c.roots.length, 0),
-        categoryIds: await this.categoriesOf(offer, covered),
+        categoryIds: this.categoriesOf(offer),
         copyCount: offer.scopeType === 'topic' ? await this.topicRepo.count({ where: { copiedFromId: offer.topicId } }) : 0,
       });
     }
@@ -725,7 +770,7 @@ export class ShopService {
 
       copyIds = offer.scopeType === 'node'
         ? await this.copyNodeStructure(manager, offer, covered, user, this.label(seller))
-        : await this.copyCovered(manager, covered, offer.sellerId, user, this.label(seller));
+        : await this.copyCovered(manager, covered, offer.sellerId, user, this.label(seller), offer.categoryIds);
       // Fremde Module gibt es zur Kopie dazu – aber nur zur Nutzung.
       if (roots.length > ownRoots.length && !existing) {
         await grants.save(grants.create({
@@ -745,12 +790,12 @@ export class ShopService {
   }
 
   /** Je Lernthema eine Kopie mit den eigenen Modulen des Anbieters. */
-  private async copyCovered(manager: any, covered: Covered[], sellerId: string, user: any, sellerName: string): Promise<string[]> {
+  private async copyCovered(manager: any, covered: Covered[], sellerId: string, user: any, sellerName: string, categoryIds: string[] | null): Promise<string[]> {
     const ids: string[] = [];
     for (const c of covered) {
       const own = c.roots.filter((m) => m.creatorId === sellerId);
       if (!own.length) continue;
-      ids.push(await this.copyTopic(manager, c.topic, withSubmodules(c.modules, new Set(own.map((m) => m.id))), user, sellerName));
+      ids.push(await this.copyTopic(manager, c.topic, withSubmodules(c.modules, new Set(own.map((m) => m.id))), user, sellerName, categoryIds));
     }
     return ids;
   }
@@ -768,7 +813,7 @@ export class ShopService {
       this.placeRepo.find({ where: { ownerId: offer.sellerId } }),
     ]);
     const root = nodes.find((n) => n.id === offer.nodeId);
-    if (!root) return this.copyCovered(manager, covered, offer.sellerId, user, sellerName);
+    if (!root) return this.copyCovered(manager, covered, offer.sellerId, user, sellerName, offer.categoryIds);
     const byTopic = new Map(covered.map((c) => [c.topic.id, c]));
 
     let parentId: string | null = null;
@@ -785,7 +830,7 @@ export class ShopService {
         const c = byTopic.get(p.topicId);
         const own = c ? c.roots.filter((m) => m.creatorId === offer.sellerId) : [];
         if (!c || !own.length) continue;
-        const copyId = await this.copyTopic(manager, c.topic, withSubmodules(c.modules, new Set(own.map((m) => m.id))), user, sellerName);
+        const copyId = await this.copyTopic(manager, c.topic, withSubmodules(c.modules, new Set(own.map((m) => m.id))), user, sellerName, offer.categoryIds);
         await placeRepo.save(placeRepo.create({ id: crypto.randomUUID(), ownerId: user.userId, topicId: copyId, nodeId: node.id, orderIndex: i++ }));
         ids.push(copyId);
       }
@@ -847,7 +892,7 @@ export class ShopService {
       const seller = users.get(offer.sellerId);
       // Lernthemen von Konten anderer Server gehen nicht weiter.
       if (!seller || offer.sellerId.startsWith('remote:')) continue;
-      const categoryIds = await this.categoriesOf(offer, covered);
+      const categoryIds = this.categoriesOf(offer);
       for (const id of categoryIds) {
         let c = byId.get(id);
         while (c && !usedCats.has(c.id)) { usedCats.add(c.id); c = c.parentId ? byId.get(c.parentId) : undefined; }
@@ -900,7 +945,7 @@ export class ShopService {
         description: c.topic.description || '',
         ownerId: c.topic.ownerId,
         ownerName: this.publicName(seller),
-        categoryIds: c.topic.categoryIds || [],
+        categoryIds: offer.categoryIds?.length ? offer.categoryIds : c.topic.categoryIds || [],
         modules: c.modules.map((m) => ({
           id: m.id,
           parentId: m.parentId || null,
@@ -954,8 +999,10 @@ export class ShopService {
    * Legt die Kopie an. Der Käufer wird Owner und Buyer, der Creator jedes
    * Moduls bleibt verzeichnet. Zugangsdaten und Tags des Originals kommen
    * nicht mit; die Kopie startet gesperrt – erst ansehen, dann freigeben.
+   * Die Einordnung des Angebots kommt mit – als Vorschlag, falls der Käufer
+   * später selbst etwas daraus anbietet.
    */
-  private async copyTopic(manager: any, source: LearningTopic, modules: LearningModule[], user: any, sellerName: string) {
+  private async copyTopic(manager: any, source: LearningTopic, modules: LearningModule[], user: any, sellerName: string, categoryIds: string[] | null = null) {
     const topicRepo = manager.getRepository(LearningTopic);
     const moduleRepo = manager.getRepository(LearningModule);
     const copy = await topicRepo.save(
@@ -977,7 +1024,7 @@ export class ShopService {
         copiedFromTitle: source.title,
         permissions: source.permissions,
         // Kategorien sind für alle gleich – anders als Tags kommen sie mit.
-        categoryIds: source.categoryIds || null,
+        categoryIds: categoryIds?.length ? categoryIds : source.categoryIds || null,
       }),
     );
 

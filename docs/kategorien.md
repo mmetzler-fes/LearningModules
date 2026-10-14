@@ -17,21 +17,29 @@ Server hinweg, gibt es zusätzlich **Kategorien**, die für alle gleich sind:
   die Schularten der beruflichen Bildung.
 - **Fehlt etwas**, schlägst du es vor (siehe unten).
 
-Ein Lernthema kann mehrere Fächer und Stufen tragen. Die Suche im Shop findet
+Ein Angebot kann mehrere Fächer und Stufen tragen. Die Suche im Shop findet
 mit einem Oberbegriff auch alles darunter: „Elektrotechnik“ findet auch
 „SPS-Programmierung“.
 
-## Einordnen
+## Einordnen – nur beim Anbieten
 
-- **🏠 LernModule → ✏️** an einem Lernthema: *Einordnung – Fach und
-  Bildungsstufe*.
-- **Notebooks → ⋯ → 🗂 Einordnen…** an einem Lernthema, oder im Dialog
-  *✏️ Umbenennen / Beschreibung*.
-- **Notebooks → ⋯ → 🗂 Alles darin einordnen…** an einem Book, Bereich oder
-  Abschnitt: Die gewählten Kategorien kommen zu allen eigenen Lernthemen darin
-  dazu, auch in Unterordnern. **➖ Entfernen** nimmt sie wieder weg. Was die
-  Lernthemen sonst tragen, bleibt.
-- **Beim Anbieten im Shop** (siehe unten).
+Die Einordnung dient allein dazu, dass andere ein Angebot im Shop finden – hier
+im Haus und auf verbundenen Servern. Für den Unterricht spielt sie keine
+Rolle. Deshalb wird sie nur dort abgefragt, wo sie gebraucht wird: im Dialog
+**🛒 Im Shop anbieten**, egal ob ein Lernthema, ein Book, Bereich oder
+Abschnitt oder eine Auswahl von Modulen angeboten wird.
+
+- **Mindestens ein Fach ist nötig.**
+- Die Einordnung gehört zum **Angebot**. Bei einem Book, Bereich oder Abschnitt
+  gilt sie auch für alles, was später hineinkommt.
+- Der Dialog ist **vorausgefüllt**, solange das Angebot noch keine Einordnung
+  hat. Der Vorschlag kommt aus
+  - Kopien aus dem Shop und Übernahmen von anderen Servern – sie bringen die
+    Einordnung des Originals mit,
+  - Tags, die für Kategorien stehen (siehe unten), auch geerbten,
+  - früheren eigenen Angeboten mit denselben Lernthemen.
+
+  Meist genügt es, den Vorschlag zu prüfen; ✕ nimmt einen Begriff heraus.
 
 In der Auswahl wechselst du oben zwischen 📚 Fach und 🎓 Bildungsstufe. ▸ klappt
 eine Ebene auf, die Suche zeigt Treffer samt ihren Oberbegriffen. Was gewählt
@@ -54,10 +62,10 @@ wählen, Namen eingeben, *Vorschlagen*.
 
 Ein Tag kann für Kategorien **stehen**: Unter **🏷 Tags → bearbeiten → Steht
 für Kategorie(n)** z. B. den Tag „TIA-Portal“ mit *SPS-Programmierung*
-verbinden. Jedes Lernthema mit diesem Tag gilt dann als so eingeordnet – auch,
-wenn es den Tag über ein Book oder einen Bereich in den
-[Notebooks](notebooks.md) erbt. So lässt sich eine bestehende Tag-Ordnung mit
-wenigen Klicks übertragen.
+verbinden. Bietest du ein Lernthema mit diesem Tag an – auch eins, das den Tag
+über ein Book oder einen Bereich in den [Notebooks](notebooks.md) erbt –,
+schlägt der Dialog diese Einordnung vor. So muss man mit einer bestehenden
+Tag-Ordnung beim Anbieten kaum noch etwas auswählen.
 
 Schuladmins können das ebenso für Schul-Tags festlegen.
 
@@ -67,14 +75,15 @@ Schuladmins können das ebenso für Schul-Tags festlegen.
   in den Angeboten vorkommt.
 - Jede Karte zeigt ihre Kategorien. Steht ein Begriff und sein Oberbegriff
   beide da, genügt der genauere; der Tooltip zeigt den ganzen Pfad.
-- **Beim Anbieten ist mindestens ein Fach nötig.** Der Dialog zeigt nach dem
-  „+“, was schon aus den Lernthemen (oder ihren Tags) kommt – das zählt mit.
-  Für einen Bereich oder eine Auswahl von Modulen lässt sich das Angebot auch
-  als Ganzes einordnen.
 - Ältere Angebote ohne Fach bleiben im Shop; unter *Meine Angebote* steht
   dann „📚 noch kein Fach“, und beim nächsten Speichern ist eins nötig.
-- Bei einer **Kopie** aus dem Shop kommen die Kategorien mit (anders als die
-  Tags, die dem Anbieter gehören).
+- Bei einer **Kopie** aus dem Shop kommt die Einordnung des Angebots mit
+  (anders als die Tags, die dem Anbieter gehören) – unsichtbar, als Vorschlag
+  für ein eigenes Angebot.
+- **Umstellung:** Früher ließen sich Lernthemen auch in *LernModule* und in
+  den Notebooks einordnen, und diese Einordnung zählte für jedes Angebot mit.
+  Beim ersten Start mit der neuen Fassung wurde sie einmalig in die Angebote
+  übernommen; seitdem zählt nur, was am Angebot steht.
 
 ## Für Admins
 
@@ -110,7 +119,8 @@ Update.
 | `src/categories/vocab/oeh-discipline.json`, `oeh-educational-context.json` | OpenEduHub, Ebene 1 (CC0-1.0) |
 | `src/categories/vocab/lm-shared.json` | gemeinsame Ergänzung, Ebene 2–3 |
 | `src/categories/category-rules.ts` | Regeln ohne Datenbank: Ebenen, Auswahl bereinigen, Kategorien eines Lernthemas, Vorschlagsprüfung |
-| `src/categories/categories.service.ts` | Übernahme beim Start, Vorschlagen, Pflegen, Zusammenführen, Einordnen eines Notebook-Knotens |
+| `src/categories/categories.service.ts` | Übernahme beim Start, Vorschlagen, Pflegen, Zusammenführen |
+| `src/shop/shop.service.ts` | Einordnung eines Angebots, Vorschlag dafür (`suggestCategories`), einmalige Übernahme beim Umstellen |
 | `src/renderer/js/views/categories.js` | Auswahl, Chips, Filter |
 | `src/renderer/js/views/categories-admin.js` | Admin-Seite |
 
@@ -130,12 +140,19 @@ bleibt ausgeblendet. Die Dateien kopiert der Build nach `dist/categories/vocab`
 aktuellen Listen und schreibt die beiden JSON-Dateien neu. Was dort wegfällt,
 bleibt hier stehen.
 
-**Zuordnung:** `categoryIds` an Lernthemen, Tags und Angeboten (je höchstens
-20). Die Kategorien eines Lernthemas sind seine eigenen und die seiner Tags
-(`effectiveOf`); die eines Angebots zusätzlich seine eigenen. Nur der
-Eigentümer ordnet ein Lernthema ein; der Server nimmt nur bekannte, für den
-Benutzer wählbare Kennungen an – Zugeordnetes, das inzwischen ausgeblendet
-ist, bleibt beim Speichern erhalten.
+**Zuordnung:** Maßgeblich ist allein `categoryIds` am Angebot (höchstens 20).
+`categoryIds` an Lernthemen und Tags sind nur noch Vorschläge: Lernthemen
+bekommen sie aus Kopien, Übernahmen und dem Bestand vor der Umstellung, und
+die Oberfläche bietet kein Feld mehr dafür. Der Vorschlag für ein neues
+Angebot sind die Kategorien seiner Lernthemen samt ihrer Tags (`effectiveOf`)
+und die früherer eigener Angebote mit denselben Lernthemen. Der Server nimmt
+nur bekannte, für den Benutzer wählbare Kennungen an – Zugeordnetes, das
+inzwischen ausgeblendet ist, bleibt beim Speichern erhalten.
+
+**Umstellung:** Beim ersten Start schreibt `ShopService.onApplicationBootstrap`
+in jedes Angebot, was bis dahin für es zählte (eigene Kategorien + die der
+Lernthemen samt Tags), und merkt sich das in `system_config` unter
+`offer_categories_migrated`.
 
 ### Endpunkte
 
@@ -147,7 +164,8 @@ ist, bleibt beim Speichern erhalten.
 | `POST` | `/api/categories/:id/merge` | Admin: `{into}` |
 | `DELETE` | `/api/categories/:id` | Admin bzw. eigener Vorschlag: löschen, Zuordnungen an den Oberbegriff |
 | `GET` | `/api/categories/usage` | Admin: Zahl der Zuordnungen je Kategorie |
-| `POST` | `/api/categories/nodes/:nodeId` | `{categoryIds, mode: 'add' \| 'remove'}` für alle eigenen Lernthemen eines Notebook-Knotens |
 
-Lernthemen (`PATCH /api/topics/:id`), Tags (`POST`/`PATCH /api/tags`) und
-Angebote (`POST /api/shop/offers`) nehmen `categoryIds` mit.
+Angebote (`POST /api/shop/offers`) und Tags (`POST`/`PATCH /api/tags`) nehmen
+`categoryIds` mit. Ohne `categoryIds` gilt bei einem neuen Angebot der
+Vorschlag. `GET /api/shop/offer-state` liefert ihn als
+`suggestedCategoryIds`, solange das Angebot keine Einordnung hat.

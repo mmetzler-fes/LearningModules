@@ -42,10 +42,4 @@ export class CategoriesController {
   async remove(@Param('id') id: string, @Request() req: any) {
     return this.categories.remove(id, req.user);
   }
-
-  /** Alle eigenen Lernthemen in einem Notebook-Knoten: `{ categoryIds, mode: 'add' | 'remove' }`. */
-  @Post('nodes/:nodeId')
-  async applyToNode(@Param('nodeId') nodeId: string, @Request() req: any, @Body() body: any) {
-    return this.categories.applyToNode(nodeId, req.user, body);
-  }
 }

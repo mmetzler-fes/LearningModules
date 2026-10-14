@@ -139,6 +139,14 @@ export class TopicLink extends BaseEntity {
   @Column({ type: 'varchar', nullable: true })
   templateId: string | null;
 
+  /**
+   * Klassenlink: einzeln bearbeitet (Inhalte, Modi, Passwort …). Beim
+   * Nachziehen einer geänderten Regel ist er dann nicht vorausgewählt.
+   * Übernimmt er den Stand der Regel, ist er wieder ein gewöhnlicher Klassenlink.
+   */
+  @Column({ default: false })
+  customized: boolean;
+
   /** Regel, die der Quick-Link-Knopf eines Lernthemas angelegt hat. */
   @Column({ type: 'varchar', nullable: true })
   quickTopicId: string | null;

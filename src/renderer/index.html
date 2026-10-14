@@ -696,6 +696,14 @@
               <div class="form-group">
                 <label>Inhalte *</label>
                 <p class="hint" id="linkSelectionSummary">Noch nichts ausgewählt.</p>
+                <div class="tag-filter-bar link-tree-filter">
+                  <input type="search" id="linkTreeTagSearch" class="search-input" autocomplete="off" spellcheck="false" placeholder="Themen nach Tags filtern, z. B. Arduino…" />
+                  <label class="tag-filter-mode">
+                    <input type="checkbox" id="linkTreeTagFilterAll" />
+                    <span title="Aus: mindestens ein Tag muss passen. An: alle gewählten Tags müssen passen.">alle Tags müssen passen</span>
+                  </label>
+                  <div id="linkTreeTagChips" class="tag-filter-chips"></div>
+                </div>
                 <div id="linkTopicTree" class="link-tree"></div>
               </div>
 

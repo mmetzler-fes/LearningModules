@@ -3216,6 +3216,10 @@ body {
 .link-mode-choice-text small { color: var(--text-secondary); }
 
 /* ---- Auswahlbaum: Thema → Modul → Submodul ---- */
+/* Tag-Filter über der Themenauswahl einer Schülerfreigabe */
+.link-tree-filter { padding: 8px 10px; margin: 6px 0 8px; gap: 8px 12px; }
+.link-tree-filter-info { margin: 0 0 6px; }
+
 .link-tree {
   max-height: 420px;
   overflow-y: auto;

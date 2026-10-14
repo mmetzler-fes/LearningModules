@@ -264,6 +264,13 @@ export class BrowserApi {
     return this._fetch(`/api/links/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(data) });
   }
   deleteLink(id) { return this._fetch(`/api/links/${encodeURIComponent(id)}`, { method: 'DELETE' }); }
+  /** Stand einer Freigabe in ihre Klassenlinks übernehmen; ohne `classLinkIds` in alle. */
+  syncClassLinks(ruleId, classLinkIds) {
+    return this._fetch(`/api/links/${encodeURIComponent(ruleId)}/sync-class-links`, {
+      method: 'POST',
+      body: JSON.stringify({ classLinkIds }),
+    });
+  }
   /** Klassenlink aus einer Regel; `adoptTokens` übergibt deren alten Link an die Klasse. */
   createClassLink(ruleId, classId, adoptTokens = false) {
     return this._fetch(`/api/links/${encodeURIComponent(ruleId)}/class-link`, {

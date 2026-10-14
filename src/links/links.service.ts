@@ -12,6 +12,7 @@ import { GroupsService } from '../groups/groups.service';
 import { CompanionService } from '../companion/companion.service';
 import { baseUrl, renderQr } from '../core/share/link-url';
 import * as crypto from 'crypto';
+import { applyRule, differsFromRule, syncedState } from './link-sync';
 
 const ALL_MODES: LinkMode[] = ['quiz', 'exam', 'learn', 'companion', 'contest'];
 
@@ -249,6 +250,7 @@ export class LinksService {
     const links = await this.linkRepo.find({ where: { ownerId: user.userId } });
     links.sort((a, b) => a.name.localeCompare(b.name, 'de'));
     const classes = await this.classesOf(links);
+    const byId = new Map(links.map((l) => [l.id, l]));
 
     const base = baseUrl(req);
     return Promise.all(
@@ -256,6 +258,7 @@ export class LinksService {
         const resolved = await this.resolveModules(link);
         return {
           ...this.publicShape(link, classes.get(link.classId || '')),
+          ...this.syncInfo(link, links, byId, classes),
           url: link.token ? `${base}/?l=${link.token}` : null,
           topicCount: resolved.length,
           moduleCount: resolved.reduce((n, r) => n + r.modules.length, 0),
@@ -264,6 +267,30 @@ export class LinksService {
         };
       }),
     );
+  }
+
+  /**
+   * Abgleich mit der Regel. Klassenlink: weicht er ab, wurde er einzeln
+   * geändert? Regel: ihre Klassenlinks mit denselben Angaben – danach fragt
+   * die App beim Speichern, wer den neuen Stand übernimmt.
+   */
+  private syncInfo(link: TopicLink, all: TopicLink[], byId: Map<string, TopicLink>, classes: Map<string, StudentClass>) {
+    if (link.classId) {
+      const rule = link.templateId ? byId.get(link.templateId) : undefined;
+      return { customized: !!link.customized, differsFromRule: !!rule && differsFromRule(link, rule) };
+    }
+    return {
+      classLinks: all
+        .filter((l) => l.templateId === link.id && l.classId)
+        .map((l) => ({
+          id: l.id,
+          className: classes.get(l.classId || '')?.name ?? null,
+          active: l.active,
+          customized: !!l.customized,
+          differs: differsFromRule(l, link),
+        }))
+        .sort((a, b) => String(a.className).localeCompare(String(b.className), 'de')),
+    };
   }
 
   /** Klassen der Klassenlinks, nach ID. */
@@ -295,8 +322,14 @@ export class LinksService {
   async findOne(id: string, user: any, req?: any) {
     const link = await this.own(id, user);
     const resolved = await this.resolveModules(link);
+    // Für den Abgleich: die Regel bzw. die Klassenlinks dieser Regel.
+    const related = await this.linkRepo.find({
+      where: link.classId ? { id: link.templateId || '-', ownerId: user.userId } : { templateId: link.id, ownerId: user.userId },
+    });
+    const all = [link, ...related];
     return {
       ...this.publicShape(link, await this.classesService.findById(link.classId)),
+      ...this.syncInfo(link, all, new Map(all.map((l) => [l.id, l])), await this.classesOf(all)),
       url: link.token ? `${baseUrl(req)}/?l=${link.token}` : null,
       topicCount: resolved.length,
       moduleCount: resolved.reduce((n, r) => n + r.modules.length, 0),
@@ -330,6 +363,7 @@ export class LinksService {
 
   async update(id: string, user: any, body: any, req?: any) {
     const link = await this.own(id, user);
+    const before = syncedState(link);
 
     if (body?.name !== undefined) {
       const name = String(body.name).trim();
@@ -349,9 +383,31 @@ export class LinksService {
     if (body?.accessPassword !== undefined) {
       link.accessPassword = String(body.accessPassword).trim() || null;
     }
+    // Ein Klassenlink, der hier selbst geändert wird, gilt als einzeln
+    // angepasst – Aktivieren/Deaktivieren zählt nicht dazu.
+    if (link.classId && syncedState(link) !== before) link.customized = true;
 
     await this.linkRepo.save(link);
     return this.findOne(id, user, req);
+  }
+
+  /**
+   * Stand einer Regel in ihre Klassenlinks übernehmen: `classLinkIds` wählt
+   * aus, ohne Angabe gilt für alle. Tokens, Aktivierung und Ergebnisse
+   * bleiben je Klasse.
+   */
+  async syncClassLinks(ruleId: string, user: any, classLinkIds?: string[]) {
+    const rule = await this.own(ruleId, user);
+    if (rule.classId) throw new BadRequestException('Das ist ein Klassenlink, keine Freigabe.');
+    let targets = await this.linkRepo.find({ where: { ownerId: user.userId, templateId: rule.id } });
+    targets = targets.filter((l) => l.classId);
+    if (Array.isArray(classLinkIds)) {
+      const wanted = new Set(classLinkIds.map(String));
+      targets = targets.filter((l) => wanted.has(l.id));
+    }
+    for (const l of targets) applyRule(l, rule);
+    if (targets.length) await this.linkRepo.save(targets);
+    return { success: true, updated: targets.length };
   }
 
   async remove(id: string, user: any) {

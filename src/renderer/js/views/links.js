@@ -90,6 +90,16 @@ export class LinksView {
       modeToggle: document.getElementById('linkTagFilterAll'),
       onChange: () => this._renderList(),
     });
+    // Filter der Themenauswahl im Formular – bei vielen Lernthemen sonst
+    // eine endlose Liste. Ohne Tag zeigt er alles.
+    this._treeFilter = new TagFilter(app, {
+      searchInput: document.getElementById('linkTreeTagSearch'),
+      chipList: document.getElementById('linkTreeTagChips'),
+      modeToggle: document.getElementById('linkTreeTagFilterAll'),
+      onChange: () => this._renderTree(),
+      // Die Auswahl der Themengebiete gehört zur Seite, nicht ins Formular.
+      areaButton: false,
+    });
 
     this._bindEvents();
   }
@@ -313,6 +323,7 @@ export class LinksView {
   _buildCard(link, areaId = null) {
     const isClass = !!link.classId;
     const classLinks = isClass ? 0 : (this._links || []).filter((l) => l.templateId === link.id).length;
+    const differing = isClass ? 0 : (link.classLinks || []).filter((c) => c.differs).length;
     const card = document.createElement('div');
     card.className = 'link-card' + (link.active ? '' : ' link-card-inactive');
     const off = link.active ? '' : 'disabled title="Link ist deaktiviert"';
@@ -335,7 +346,11 @@ export class LinksView {
           ${link.usesForeignContent ? ' · nutzt fremde Inhalte' : ''}
           ${isClass && link.lastSharedAt ? ` · zuletzt gezeigt ${new Date(link.lastSharedAt).toLocaleDateString('de-DE')}` : ''}
           ${!isClass && classLinks ? ` · ${classLinks === 1 ? '1 Klassenlink' : `${classLinks} Klassenlinks`}` : ''}
+          ${!isClass && differing ? ` · <span class="link-differs-count" title="Diese Klassenlinks haben einen anderen Stand als die Freigabe">${differing} weich${differing === 1 ? 't' : 'en'} ab</span>` : ''}
         </p>
+        ${isClass && link.differsFromRule ? `
+          <p class="link-card-warning link-differs">⚠ weicht von der Freigabe ab${link.customized ? ' – hier einzeln geändert' : ''}.
+            <button type="button" class="btn btn-secondary btn-sm btn-link-sync" title="Inhalte, Modi und Passwort der Freigabe übernehmen – Link und QR-Code bleiben">⤵ Stand der Freigabe übernehmen</button></p>` : ''}
         ${link.hasLegacyLink ? `
           <p class="link-legacy-note">Alter Link ohne Klasse ist noch gültig – Ergebnisse darüber stehen unter „ohne Klasse“.
             <button type="button" class="btn btn-secondary btn-sm btn-link-adopt">🏫 Einer Klasse zuordnen</button></p>` : ''}
@@ -362,6 +377,17 @@ export class LinksView {
     card.querySelector('.btn-link-contest')?.addEventListener('click', () => share('contest'));
     card.querySelector('.btn-link-adopt')?.addEventListener('click', () => this._shareForClass(link, 'practice', true));
     card.querySelector('.btn-link-edit').addEventListener('click', () => this._openEditor(link));
+    card.querySelector('.btn-link-sync')?.addEventListener('click', async () => {
+      const text = `Stand der Freigabe in den Klassenlink für ${link.className || 'diese Klasse'} übernehmen?\n\n`
+        + 'Inhalte, Modi, Einstellungen und Passwort kommen aus der Freigabe'
+        + (link.customized ? ' – die Änderungen, die nur hier gemacht wurden, gehen dabei verloren' : '')
+        + '. Link, QR-Code und Ergebnisse bleiben.';
+      if (!(await this.app.appConfirm(text))) return;
+      const res = await this.app.api.syncClassLinks(link.templateId, [link.id]);
+      if (!res?.success) { this.app.showToast('Fehler: ' + (res?.message || '?'), 'error'); return; }
+      this.app.showToast('Klassenlink auf den Stand der Freigabe gebracht.', 'success');
+      this.refresh();
+    });
     card.querySelector('.btn-link-toggle').addEventListener('click', async () => {
       await this.app.api.updateLink(link.id, { active: !link.active });
       this.app.showToast(link.active ? 'Freigabe deaktiviert.' : 'Freigabe aktiviert.', 'info');
@@ -419,6 +445,9 @@ export class LinksView {
         moduleIds: new Set(entry.moduleIds || []),
       });
     }
+    // Wer die Liste schon auf ein Thema gefiltert hat, will meist genau
+    // dessen Lernthemen freigeben – der Filter der Seite gilt deshalb auch hier.
+    this._treeFilter.setSelection(this._filter.selectedIds, this._filter.mode);
     this._renderTree();
     this._syncModeDependentFields();
 
@@ -578,12 +607,29 @@ export class LinksView {
    * automatisch mit; sonst gilt genau das, was angehakt ist.
    */
   _renderTree() {
-    const topics = this._usableTopics || [];
+    const all = this._usableTopics || [];
     this._treeBox.innerHTML = '';
 
-    if (topics.length === 0) {
+    if (all.length === 0) {
       this._treeBox.innerHTML = '<div class="empty-state"><p>Noch keine Lernthemen angelegt.</p></div>';
       return;
+    }
+
+    // Tag-Filter: Angehakte Themen bleiben immer sichtbar – sonst verschwände
+    // ein Teil der Auswahl unbemerkt aus dem Blick.
+    const filtered = this._treeFilter.selectedIds.length > 0;
+    const topics = all.filter((t) => this._selection.has(t.id) || this._treeFilter.matches(t));
+    if (filtered) {
+      const info = document.createElement('p');
+      info.className = 'hint link-tree-filter-info';
+      info.textContent = topics.length === 0
+        ? 'Kein Lernthema trägt die gewählten Tags.'
+        : `${topics.length} von ${all.length} Themen – gefiltert nach Tags; angehakte bleiben immer sichtbar.`;
+      this._treeBox.appendChild(info);
+      if (topics.length === 0) {
+        this._updateSelectionSummary();
+        return;
+      }
     }
 
     let foreignHeaderDone = false;
@@ -829,18 +875,69 @@ export class LinksView {
         this.app.showToast(res?.message || 'Speichern fehlgeschlagen.', 'error');
         return;
       }
-      const copies = this._editId && !res.classId ? (this._links || []).filter((l) => l.templateId === res.id).length : 0;
-      this.app.showToast(
-        copies
-          ? 'Freigabe gespeichert. Vorhandene Klassenlinks bleiben unverändert – sie bearbeitest du unter 🏫 Klassen.'
-          : this._editId ? 'Freigabe gespeichert.' : 'Freigabe angelegt.',
-        'success',
-      );
+      const wasEdit = !!this._editId;
       this._closeEditor();
+      // Geänderte Freigabe mit Klassenlinks: fragen, wer den neuen Stand übernimmt.
+      const pending = !res.classId ? (res.classLinks || []).filter((c) => c.differs) : [];
+      if (wasEdit && pending.length) {
+        await this._askSyncClassLinks(res, pending);
+      } else {
+        this.app.showToast(
+          res.classId ? `Klassenlink gespeichert – die Änderung gilt nur für 🏫 ${res.className || 'diese Klasse'}.`
+            : wasEdit ? 'Freigabe gespeichert.' : 'Freigabe angelegt.',
+          'success',
+        );
+      }
       await this.refresh();
     } catch (err) {
       this.app.showToast('Fehler: ' + err.message, 'error');
     }
+  }
+
+  /**
+   * Nach dem Speichern einer Freigabe: Welche ihrer Klassenlinks sollen den
+   * neuen Stand übernehmen? Vorausgewählt sind alle, die nicht einzeln
+   * geändert wurden. Link, QR-Code und Ergebnisse bleiben je Klasse.
+   */
+  _askSyncClassLinks(rule, pending) {
+    return new Promise((resolve) => {
+      const overlay = document.createElement('div');
+      overlay.className = 'confirm-overlay';
+      overlay.innerHTML = `
+        <div class="import-modules-card" style="min-width:min(420px,92vw); max-width:560px">
+          <h3>Freigabe gespeichert – auch die Klassenlinks ändern?</h3>
+          <p class="hint">„${escapeHtml(rule.name)}“ hat ${pending.length === 1 ? 'einen Klassenlink' : `${pending.length} Klassenlinks`}
+            mit einem anderen Stand. Übernehmen für:</p>
+          <div class="share-user-list">
+            ${pending.map((c) => `
+              <label class="share-user-row"><input type="checkbox" class="sync-cl" value="${escapeAttr(c.id)}" ${c.customized ? '' : 'checked'} />
+                <span class="share-user-name">🏫 ${escapeHtml(c.className || 'ohne Klasse')}
+                  ${c.customized ? '<span class="import-module-type" title="Dieser Klassenlink wurde einzeln bearbeitet – seine Änderungen gingen verloren">einzeln geändert</span>' : ''}
+                  ${c.active ? '' : '<span class="import-module-type">deaktiviert</span>'}</span></label>`).join('')}
+          </div>
+          <p class="hint" style="margin-bottom:14px">Übernommen werden Inhalte, Modi, Einstellungen und Passwort. Link, QR-Code und Ergebnisse
+            bleiben – ausgeteilte Zettel gelten weiter. Schreibt eine Klasse gerade eine Klassenarbeit, nimm sie hier heraus.</p>
+          <div class="confirm-actions">
+            <button type="button" class="btn btn-primary" data-act="sync">Übernehmen</button>
+            <button type="button" class="btn btn-secondary" data-act="skip">Klassenlinks so lassen</button>
+          </div>
+        </div>`;
+      document.body.appendChild(overlay);
+      const done = async (sync) => {
+        const ids = [...overlay.querySelectorAll('.sync-cl:checked')].map((cb) => cb.value);
+        overlay.remove();
+        if (sync && ids.length) {
+          const res = await this.app.api.syncClassLinks(rule.id, ids);
+          if (!res?.success) this.app.showToast('Fehler: ' + (res?.message || '?'), 'error');
+          else this.app.showToast(`Freigabe gespeichert und in ${res.updated === 1 ? 'einen Klassenlink' : `${res.updated} Klassenlinks`} übernommen.`, 'success');
+        } else {
+          this.app.showToast('Freigabe gespeichert. Die Klassenlinks bleiben, wie sie sind – sie tragen den Hinweis „weicht ab“.', 'info');
+        }
+        resolve();
+      };
+      overlay.querySelector('[data-act="sync"]').addEventListener('click', () => done(true));
+      overlay.querySelector('[data-act="skip"]').addEventListener('click', () => done(false));
+    });
   }
 
   // ---------- Quiz-Arena ----------

@@ -32,6 +32,14 @@ Verwendest du fremde Inhalte, landen die Ergebnisse trotzdem bei dir, denn
 dafür zählt der Eigentümer des Links. Siehe
 [Rechtemodell und Shop](shop-und-rechte.md).
 
+Bei vielen Lernthemen hilft der **Tag-Filter** über der Auswahl: Ohne
+angehakten Tag stehen alle Themen da, mit Tags nur die passenden – auch über
+Tags, die ein Thema von seinem Book oder Bereich in den
+[Notebooks](notebooks.md) erbt. Beim Öffnen übernimmt er den Tag-Filter der
+Seite: Wer die Liste auf „Arduino“ gefiltert hat, sieht in einer neuen
+Freigabe gleich nur die Arduino-Themen. Bereits angehakte Themen bleiben
+immer sichtbar, auch wenn sie nicht zum Filter passen.
+
 Bei den Inhalten gibt es zwei Wege:
 
 - **Ganzes Thema** – später ergänzte Module sind automatisch dabei.
@@ -109,9 +117,33 @@ gewünschten Dialog. Je Regel und Klasse gibt
 es höchstens einen Klassenlink; ein zweites Mal zeigt den vorhandenen.
 
 Der Klassenlink ist danach eigenständig: Er lässt sich bearbeiten,
-deaktivieren und löschen, ohne die Regel zu berühren. Umgekehrt ändert das
-Bearbeiten der Regel vorhandene Klassenlinks nicht – nur neue übernehmen den
-neuen Stand. Wird eine Klasse gelöscht, verschwinden ihre Klassenlinks mit.
+deaktivieren und löschen, ohne die Regel zu berühren. Wird eine Klasse
+gelöscht, verschwinden ihre Klassenlinks mit.
+
+### Freigabe ändern – und die Klassenlinks?
+
+Speicherst du eine geänderte Freigabe, die schon Klassenlinks hat, fragt die
+App nach: **Auch die Klassenlinks ändern?** Aufgeführt sind die Klassenlinks,
+deren Stand jetzt abweicht.
+
+- Vorausgewählt sind alle – außer denen, die du **einzeln geändert** hast
+  (etwa eine Parallelklasse mit weniger Themen). Die sind gekennzeichnet,
+  denn ihre eigenen Änderungen gingen beim Übernehmen verloren.
+- Übernommen werden Name, Inhalte, Modi, die Einstellungen von Lernbegleitung
+  und Quiz-Arena, „einmalige Teilnahme", Tags und Passwort.
+- **Link, QR-Code, aktiv/deaktiviert und die Ergebnisse bleiben** je Klasse.
+  Ausgeteilte Zettel gelten also weiter.
+- Schreibt eine Klasse gerade eine Klassenarbeit, nimm sie heraus – sonst
+  ändert sich der Inhalt mitten im Lauf.
+
+Ein Klassenlink, der von seiner Freigabe abweicht, trägt auf seiner Karte
+**⚠ weicht von der Freigabe ab** (mit „hier einzeln geändert", wenn es eine
+eigene Änderung ist). **⤵ Stand der Freigabe übernehmen** zieht ihn nach.
+Die Karte der Freigabe zeigt, wie viele ihrer Klassenlinks abweichen.
+
+Technik: `src/links/link-sync.ts` (welche Felder übernommen werden, Vergleich),
+`TopicLink.customized`, `POST /api/links/:id/sync-class-links`
+(`{ classLinkIds? }`, ohne Angabe alle).
 
 Ergebnisse über einen Klassenlink tragen Klasse und deren Schuljahr; die
 Ergebnisliste zeigt je Klasse eine eigene Gruppe.

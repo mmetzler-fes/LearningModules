@@ -56,6 +56,12 @@ export class LinksController {
     return this.linksService.remove(id, req.user);
   }
 
+  /** Freigabe: ihren Stand in Klassenlinks übernehmen – `{ classLinkIds? }`, ohne Angabe alle. */
+  @Post(':id/sync-class-links')
+  async syncClassLinks(@Param('id') id: string, @Request() req: any, @Body() body: any) {
+    return this.linksService.syncClassLinks(id, req.user, Array.isArray(body?.classLinkIds) ? body.classLinkIds : undefined);
+  }
+
   /**
    * Link zum Versenden abrufen (URL + QR); `{regenerate:true}` erneuert ihn.
    * `{access:'exam'}` liefert den eigenen Link der Klassenarbeit.

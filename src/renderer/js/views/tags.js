@@ -591,7 +591,7 @@ export class TagsView {
  * und muss die Logik nicht kennen.
  */
 export class TagFilter {
-  constructor(app, { searchInput, chipList, modeToggle, onChange }) {
+  constructor(app, { searchInput, chipList, modeToggle, onChange, areaButton = true }) {
     this.app = app;
     this._search = searchInput;
     this._chips = chipList;
@@ -607,7 +607,7 @@ export class TagFilter {
     });
 
     // Persönliche Auswahl der Themengebiete direkt aus der Filterleiste.
-    const modeLabel = this._modeToggle?.closest('label');
+    const modeLabel = areaButton ? this._modeToggle?.closest('label') : null;
     if (modeLabel) {
       const btn = document.createElement('button');
       btn.type = 'button';
@@ -634,6 +634,20 @@ export class TagFilter {
   get selectedIds() {
     this._pruneSelection();
     return [...this._selected];
+  }
+
+  /** 'any' (mindestens ein Tag) oder 'all' (alle gewählten Tags). */
+  get mode() {
+    return this._mode;
+  }
+
+  /** Auswahl von außen setzen, etwa aus einem anderen Filter übernehmen. */
+  setSelection(ids = [], mode = 'any') {
+    this._selected = new Set(ids);
+    this._mode = mode === 'all' ? 'all' : 'any';
+    if (this._modeToggle) this._modeToggle.checked = this._mode === 'all';
+    if (this._search) this._search.value = '';
+    this.render();
   }
 
   /**

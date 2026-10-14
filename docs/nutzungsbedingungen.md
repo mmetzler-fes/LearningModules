@@ -1,6 +1,6 @@
 # Nutzungsbedingungen
 
-*Fassung 2 · Stand: Oktober 2026 (neu: Vertrauensnetzwerk)*
+*Fassung 1 · Stand: Oktober 2026*
 
 Bevor du LearningModules nutzt, bestätige bitte einmalig die folgenden
 Punkte. Ohne Zustimmung ist keine Anmeldung möglich. Ändern sich die

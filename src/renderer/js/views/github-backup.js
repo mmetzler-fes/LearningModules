@@ -48,7 +48,10 @@ export async function openGithubBackupDialog(app) {
   const close = () => overlay.remove();
   overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
 
-  const render = async () => {
+  // Ergebnis der letzten Aktion – bleibt im Dialog stehen, anders als ein Toast.
+  let message = null;
+  const render = async (msg = null) => {
+    message = msg;
     const data = await app.api.getGithubBackup();
     if (!data || data.statusCode) { card.innerHTML = `<p class="login-error">Fehler: ${escapeHtml(data?.message || '?')}</p>`; return; }
     const head = `<h3>💾 GitHub-Backup <button type="button" class="help-hint" data-help="github-backup" title="Hilfe" aria-label="Hilfe">?</button></h3>`;
@@ -99,6 +102,7 @@ export async function openGithubBackupDialog(app) {
           <button class="btn btn-secondary gh-run" ${c.hasToken && c.repo ? '' : 'disabled'}>⬆ Jetzt sichern</button>
           ${data.configured ? '<button class="btn btn-danger gh-disconnect">Trennen</button>' : ''}
         </div>
+        <p class="gh-message" style="margin-top:10px"></p>
       </div>
 
       ${c.hasToken && c.repo ? `
@@ -113,6 +117,13 @@ export async function openGithubBackupDialog(app) {
       <div class="confirm-actions"><button class="btn btn-secondary gh-close">Schließen</button></div>`;
 
     const $ = (sel) => card.querySelector(sel);
+    // Ohne neu zu zeichnen – Eingaben bleiben stehen.
+    const say = (msg) => {
+      const el = $('.gh-message');
+      el.className = `${msg?.error ? 'login-error' : 'hint'} gh-message`;
+      el.textContent = msg?.text || '';
+    };
+    say(message);
     $('.gh-close').addEventListener('click', close);
     $('#ghInterval').addEventListener('change', (e) => { $('#ghWeekday').disabled = e.target.value === 'daily'; });
     const form = () => ({
@@ -132,25 +143,25 @@ export async function openGithubBackupDialog(app) {
 
     $('.gh-save').addEventListener('click', async (e) => {
       const res = await busy(e.currentTarget, '⏳ Speichert…', () => app.api.saveGithubBackup(form()));
-      if (!res || res.statusCode) { app.showToast('Fehler: ' + (res?.message || '?'), 'error'); return; }
+      if (!res || res.statusCode) { say({ error: true, text: '❌ ' + (res?.message || 'Unbekannter Fehler') }); return; }
       app.showToast('Gespeichert.', 'success');
-      render();
+      render({ text: '✅ Gespeichert.' });
     });
     $('.gh-test')?.addEventListener('click', async (e) => {
       // Vorher speichern, damit genau das Eingetragene geprüft wird – aber ohne einzuschalten.
       const saved = await app.api.saveGithubBackup({ ...form(), enabled: undefined });
-      if (!saved || saved.statusCode) { app.showToast('Fehler: ' + (saved?.message || '?'), 'error'); return; }
+      if (!saved || saved.statusCode) { say({ error: true, text: '❌ ' + (saved?.message || 'Unbekannter Fehler') }); return; }
       const res = await busy(e.currentTarget, '⏳ Prüft…', () => app.api.testGithubBackup());
-      if (!res || !res.success) { app.showToast('Fehler: ' + (res?.message || '?'), 'error'); return; }
+      if (!res || !res.success) { say({ error: true, text: '❌ ' + (res?.message || 'Unbekannter Fehler') }); return; }
       app.showToast(res.message, 'success');
-      if (res.warning) app.showToast(res.warning, 'error');
-      render();
+      render(res.warning ? { error: true, text: `${res.message} ${res.warning}` } : { text: `✅ ${res.message}` });
     });
     $('.gh-run')?.addEventListener('click', async (e) => {
       const res = await busy(e.currentTarget, '⏳ Sichert…', () => app.api.runGithubBackup());
-      if (!res || !res.success) app.showToast('Fehler: ' + (res?.message || '?'), 'error');
-      else app.showToast(res.commit ? `Gesichert: ${runSummary(res)}.` : 'Nichts geändert – das Backup ist aktuell.', 'success');
-      render();
+      if (!res || !res.success) { say({ error: true, text: '❌ ' + (res?.message || 'Unbekannter Fehler') }); return; }
+      const text = res.commit ? `Gesichert: ${runSummary(res)}.` : 'Nichts geändert – das Backup ist aktuell.';
+      app.showToast(text, 'success');
+      render({ text: `✅ ${text}` });
     });
     $('.gh-disconnect')?.addEventListener('click', async () => {
       if (!(await app.appConfirm('GitHub-Backup trennen? Token und Einstellungen werden hier gelöscht. Das Repository auf GitHub bleibt, wie es ist.'))) return;

@@ -15,6 +15,7 @@ import { PointsEntry } from '../core/entities/points-entry.entity';
 import { UsageCount } from '../core/entities/usage-count.entity';
 import { ContentFeedback } from '../core/entities/content-feedback.entity';
 import { StudentClass } from '../core/entities/student-class.entity';
+import { GithubBackup } from '../core/entities/github-backup.entity';
 import { AccountsService } from './accounts.service';
 import { HandoverService } from './handover.service';
 import { PointsService } from './points.service';
@@ -25,7 +26,7 @@ import { TwoFactorService } from './two-factor.service';
   imports: [
     TypeOrmModule.forFeature([
       User, SystemConfig, LearningTopic, LearningModule, TopicLink, TopicQuickLink,
-      Tag, Result, TeacherGroup, ShopOffer, UseGrant, PointsEntry, StudentClass, UsageCount, ContentFeedback,
+      Tag, Result, TeacherGroup, ShopOffer, UseGrant, PointsEntry, StudentClass, UsageCount, ContentFeedback, GithubBackup,
     ]),
   ],
   providers: [AccountsService, HandoverService, PointsService, TwoFactorService],

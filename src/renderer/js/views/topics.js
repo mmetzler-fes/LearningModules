@@ -5,6 +5,7 @@ import { helpHint } from './help-view.js';
 import { openFeedbackDialog } from './feedback.js';
 import { openHandoverDialog, renderIncomingHandovers } from './handover.js';
 import { openAccountLinksDialog } from './account-links.js';
+import { openGithubBackupDialog } from './github-backup.js';
 
 // ==================== TOPICS VIEW ====================
 
@@ -57,6 +58,7 @@ export class TopicsView {
     document.getElementById('btnAiPrompt')?.addEventListener('click', () => this.app.navigateToView('teacher-ai-prompt'));
     document.getElementById('btnHandover')?.addEventListener('click', () => openHandoverDialog(this.app));
     document.getElementById('btnAccountLinks')?.addEventListener('click', () => openAccountLinksDialog(this.app));
+    document.getElementById('btnGithubBackup')?.addEventListener('click', () => openGithubBackupDialog(this.app));
 
     if (this._btnNew) {
       this._btnNew.addEventListener('click', () => {

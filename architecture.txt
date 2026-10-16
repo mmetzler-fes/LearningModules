@@ -74,6 +74,10 @@ BACKEND – src/
                                 verschlüsselt mit dem Masterkey; Restore
     cloud-backup.service.ts     Automatisches Backup per WebDAV (Nextcloud):
                                 Zeitplan, Aufbewahrung, Restore aus der Cloud
+  github-backup/                GitHub-Backup je Lehrkraft (docs/github-backup.md)
+    backup-plan.ts              Abgleich per Git-Blob-SHA, Dateinamen, Index
+    github-api.ts               REST-Zugriff (Git-Data-API, ein Commit je Lauf)
+    github-backup.service.ts    Einstellungen, Zeitplan, Lauf, Wiederherstellen
   accounts/                     Lebenszyklus von Konten
     accounts.service.ts         Creator deaktivieren (Inhalte für 0 Punkte in
                                 den Shop), reaktivieren, Nicht-Creator löschen,

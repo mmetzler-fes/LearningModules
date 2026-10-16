@@ -7,6 +7,7 @@ import { MasterKeyService } from '../core/crypto/master-key.service';
 import { MailService } from '../core/mail/mail.service';
 import { BackupService } from './backup.service';
 import { parseNextcloudShare } from '../core/share/nextcloud-upload';
+import { isDue, nextSlot } from '../core/schedule/slot';
 
 /**
  * Automatisches Backup in einen WebDAV-Ordner, typischerweise Nextcloud.
@@ -54,8 +55,6 @@ const CONFIG_KEY = 'cloud_backup_config';
 const STATE_KEY = 'cloud_backup_state';
 const FILE_PATTERN = /^lernmodule-backup-\d{4}-\d{2}-\d{2}-\d{4}\.lmbak$/;
 const TEST_FILE = 'lernmodule-verbindungstest.txt';
-const HOUR = 60 * 60 * 1000;
-const DAY = 24 * HOUR;
 
 const DEFAULT_CONFIG: CloudBackupConfig = {
   enabled: false,
@@ -118,7 +117,7 @@ export class CloudBackupService implements OnApplicationBootstrap, OnModuleDestr
     return {
       config: { ...rest, hasPassword: !!passwordSealed },
       state,
-      nextRunAt: cfg.enabled ? new Date(this.lastSlot(cfg, new Date()).getTime() + this.period(cfg)).toISOString() : null,
+      nextRunAt: cfg.enabled ? nextSlot(cfg, new Date()).toISOString() : null,
       serverTime: new Date().toString(),
     };
   }
@@ -168,21 +167,6 @@ export class CloudBackupService implements OnApplicationBootstrap, OnModuleDestr
 
   // ---- Zeitplan ----
 
-  private period(cfg: CloudBackupConfig) {
-    return cfg.interval === 'daily' ? DAY : 7 * DAY;
-  }
-
-  /** Der letzte planmäßige Zeitpunkt, der nicht in der Zukunft liegt. */
-  private lastSlot(cfg: CloudBackupConfig, now: Date): Date {
-    const slot = new Date(now);
-    slot.setHours(cfg.hour, 0, 0, 0);
-    if (cfg.interval === 'weekly') {
-      slot.setDate(slot.getDate() - ((slot.getDay() - cfg.weekday + 7) % 7));
-    }
-    if (slot > now) slot.setDate(slot.getDate() - (cfg.interval === 'daily' ? 1 : 7));
-    return slot;
-  }
-
   onApplicationBootstrap() {
     const tick = () => this.tick().catch((err) => this.logger.error('Prüfung des Cloud-Backups fehlgeschlagen', err));
     // Kurz warten, damit der Start nicht mit einem großen Backup beginnt.
@@ -198,16 +182,7 @@ export class CloudBackupService implements OnApplicationBootstrap, OnModuleDestr
   private async tick() {
     const cfg = await this.config();
     if (!cfg.enabled || !this.ready(cfg)) return;
-    const st = await this.state();
-    const now = new Date();
-    const slot = this.lastSlot(cfg, now);
-    const lastAttempt = st.lastAttemptAt ? new Date(st.lastAttemptAt) : null;
-    const lastSuccess = st.lastSuccessAt ? new Date(st.lastSuccessAt) : null;
-
-    const due = !lastAttempt || lastAttempt < slot;
-    const retry = st.lastStatus === 'error' && (!lastSuccess || lastSuccess < slot) && !!lastAttempt
-      && now.getTime() - lastAttempt.getTime() >= HOUR;
-    if (due || retry) await this.run();
+    if (isDue(cfg, await this.state(), new Date())) await this.run();
   }
 
   // ---- WebDAV ----

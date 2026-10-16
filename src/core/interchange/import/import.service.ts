@@ -64,7 +64,8 @@ export class ImportService {
     return { ...result, skipped: converted.skipped, notes: converted.notes };
   }
 
-  private async importTopicData(importData: any, user: any, targetTopicId?: string) {
+  /** Ein bereits gelesenes Thema im Format des JSON-Exports einspielen. */
+  async importTopicData(importData: any, user: any, targetTopicId?: string) {
     let importModules = [];
     let topicTitle = 'Importiertes Thema';
     let topicDesc = '';

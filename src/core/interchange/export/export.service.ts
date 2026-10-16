@@ -10,6 +10,35 @@ import { MasterKeyService } from '../../crypto/master-key.service';
 import { H5pService } from '../h5p/h5p.service';
 import { exportMoodleXml } from '../moodle/moodle-export';
 
+/** Eigene Module (samt Untermodulen) aus einer Liste. */
+export function ownModules(modules: LearningModule[], userId: string) {
+  const direct = new Set(modules.filter((m) => m.creatorId === userId).map((m) => m.id));
+  return modules.filter((m) => direct.has(m.id) || (!!m.parentId && direct.has(m.parentId)));
+}
+
+/**
+ * Offenes JSON eines Themas – Format des JSON-Exports und des GitHub-Backups.
+ * Ohne Zeitstempel: Dieselben Inhalte ergeben dieselbe Datei.
+ */
+export function topicJson(topic: { title: string; description: string }, modules: LearningModule[]) {
+  return {
+    topic: {
+      title: topic.title,
+      description: topic.description,
+      modules: modules.map((m) => ({
+        id: m.id,
+        parentId: m.parentId || null,
+        type: m.type,
+        title: m.title,
+        description: m.description,
+        content: m.content,
+        orderIndex: m.orderIndex,
+        moduleSelected: m.moduleSelected,
+      })),
+    },
+  };
+}
+
 /**
  * Export von Themen.
  *
@@ -30,12 +59,6 @@ export class ExportService {
     private readonly h5p: H5pService,
   ) {}
 
-  /** Eigene Module (samt Untermodulen) aus einer Liste. */
-  private ownModules(modules: LearningModule[], userId: string) {
-    const direct = new Set(modules.filter((m) => m.creatorId === userId).map((m) => m.id));
-    return modules.filter((m) => direct.has(m.id) || (!!m.parentId && direct.has(m.parentId)));
-  }
-
   /** Was der Export-Dialog vorab wissen muss. */
   async info(topicId: string, user: any) {
     const topic = await this.topics.findOneFor(topicId, user, 'read');
@@ -51,7 +74,7 @@ export class ExportService {
 
   private async plainSource(topicId: string, user: any) {
     const topic = await this.topics.findOneFor(topicId, user, 'read');
-    const modules = this.ownModules(topic.modules || [], user.userId).sort((a, b) => a.orderIndex - b.orderIndex);
+    const modules = ownModules(topic.modules || [], user.userId).sort((a, b) => a.orderIndex - b.orderIndex);
     if (modules.length === 0) {
       throw new ForbiddenException(
         'Unverschlüsselt exportieren lassen sich nur selbst verfasste Module – dieses Thema enthält keine. Bitte verschlüsselt exportieren.',
@@ -63,22 +86,7 @@ export class ExportService {
   /** JSON nur mit den eigenen Modulen. */
   async exportJson(topicId: string, user: any) {
     const { topic, modules } = await this.plainSource(topicId, user);
-    return {
-      topic: {
-        title: topic.title,
-        description: topic.description,
-        modules: modules.map((m) => ({
-          id: m.id,
-          parentId: m.parentId || null,
-          type: m.type,
-          title: m.title,
-          description: m.description,
-          content: m.content,
-          orderIndex: m.orderIndex,
-          moduleSelected: m.moduleSelected,
-        })),
-      },
-    };
+    return topicJson(topic, modules);
   }
 
   /** Moodle-XML (Fragensammlung) nur mit den eigenen, aktiven Modulen. */

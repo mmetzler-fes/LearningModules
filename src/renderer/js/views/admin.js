@@ -496,6 +496,7 @@ export class AdminView {
           : 'Noch kein Masterkey gesetzt.';
       }
       await this._refreshCloudBackup();
+      await this._refreshGithubBackup();
       await this._refreshSchoolYear();
     } catch (err) {
       this.app.showToast('Fehler: ' + err.message, 'error');
@@ -534,6 +535,26 @@ export class AdminView {
       const two = (n) => String(n % 100).padStart(2, '0');
       input.value = `SJ${two(Number(m[1]) + 1)}-${two(Number(m[2]) + 1)}`;
       input.focus();
+    });
+  }
+
+  // ---- GitHub-Backup der Lehrkräfte ----
+
+  async _refreshGithubBackup() {
+    const res = await this.app.api.getGithubBackupAllowed();
+    const cb = document.getElementById('ghAllowed');
+    if (cb && res && !res.statusCode) cb.checked = res.allowed !== false;
+  }
+
+  _bindGithubBackup() {
+    document.getElementById('ghAllowed')?.addEventListener('change', async (e) => {
+      const res = await this.app.api.setGithubBackupAllowed(e.target.checked);
+      if (!res || res.statusCode) {
+        this.app.showToast('Fehler: ' + (res?.message || '?'), 'error');
+        e.target.checked = !e.target.checked;
+        return;
+      }
+      this.app.showToast(res.allowed ? 'GitHub-Backup erlaubt.' : 'GitHub-Backup abgeschaltet.', 'success');
     });
   }
 
@@ -685,6 +706,7 @@ export class AdminView {
 
   _bindSettings() {
     this._bindCloudBackup();
+    this._bindGithubBackup();
     this._bindSchoolYear();
     document.getElementById('btnSaveImpact')?.addEventListener('click', async () => {
       const res = await this.app.api.saveImpactSettings({ shareHintAfter: Number(document.getElementById('impShareHint')?.value) });

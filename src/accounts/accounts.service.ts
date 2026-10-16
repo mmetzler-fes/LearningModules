@@ -11,6 +11,7 @@ import { UseGrant } from '../core/entities/use-grant.entity';
 import { PointsEntry } from '../core/entities/points-entry.entity';
 import { UsageCount } from '../core/entities/usage-count.entity';
 import { ContentFeedback } from '../core/entities/content-feedback.entity';
+import { GithubBackup } from '../core/entities/github-backup.entity';
 import { HandoverService } from './handover.service';
 
 /**
@@ -37,6 +38,7 @@ export class AccountsService {
     @InjectRepository(PointsEntry) private readonly entryRepo: Repository<PointsEntry>,
     @InjectRepository(UsageCount) private readonly usageRepo: Repository<UsageCount>,
     @InjectRepository(ContentFeedback) private readonly feedbackRepo: Repository<ContentFeedback>,
+    @InjectRepository(GithubBackup) private readonly githubRepo: Repository<GithubBackup>,
     private readonly handover: HandoverService,
   ) {}
 
@@ -167,6 +169,7 @@ export class AccountsService {
     await this.offerRepo.delete({ sellerId: target.id });
     await this.entryRepo.delete({ userId: target.id });
     await this.feedbackRepo.delete({ userId: target.id });
+    await this.githubRepo.delete({ userId: target.id });
     await this.userRepo.delete({ id: target.id });
     return { ...moved, topicsDeleted: topics.length };
   }
@@ -237,6 +240,10 @@ export class AccountsService {
     fresh.pendingMergeFrom = null;
     fresh.active = true;
     await this.userRepo.save(fresh);
+
+    // GitHub-Backup zieht mit um, sofern das Zielkonto noch keins hat.
+    if (await this.githubRepo.findOne({ where: { userId: fresh.id } })) await this.githubRepo.delete({ userId: from.id });
+    else await this.githubRepo.update({ userId: from.id }, { userId: fresh.id });
 
     await this.userRepo.update({ pendingMergeFrom: from.id }, { pendingMergeFrom: null });
     await this.userRepo.delete({ id: from.id });

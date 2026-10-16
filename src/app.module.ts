@@ -10,6 +10,7 @@ import { LearningModule } from './core/entities/learning-module.entity';
 import { Result } from './core/entities/result.entity';
 import { School } from './core/entities/school.entity';
 import { SystemConfig } from './core/entities/system-config.entity';
+import { GithubBackup } from './core/entities/github-backup.entity';
 import { Tag } from './core/entities/tag.entity';
 import { TopicLink } from './core/entities/topic-link.entity';
 import { TopicQuickLink } from './core/entities/topic-quick-link.entity';
@@ -55,6 +56,7 @@ import { RemoteOffer } from './core/entities/remote-offer.entity';
 import { RemotePerson } from './core/entities/remote-person.entity';
 import { FederationCopy } from './core/entities/federation-copy.entity';
 import { FederationModule } from './federation/federation.module';
+import { GithubBackupModule } from './github-backup/github-backup.module';
 import { ContentHandover } from './core/entities/content-handover.entity';
 import { HandoverModule } from './handover/handover.module';
 import { AccountLink } from './core/entities/account-link.entity';
@@ -81,7 +83,7 @@ import { LinkCode } from './core/entities/link-code.entity';
     TypeOrmModule.forRoot({
       type: 'sqlite',
       database: 'data/database.sqlite',
-      entities: [User, StudentClass, ClassStudent, LearningTopic, LearningModule, Result, School, SystemConfig, Tag, TopicLink, TopicQuickLink, TeacherGroup, ShopOffer, UseGrant, PointsEntry, ModuleTiming, ClassShare, NotebookNode, NotebookPlacement, ModuleDraft, UsageCount, ContentFeedback, Category, FederationPeer, RemoteOffer, RemotePerson, FederationCopy, ContentHandover, AccountLink, LinkCode],
+      entities: [User, StudentClass, ClassStudent, LearningTopic, LearningModule, Result, School, SystemConfig, Tag, TopicLink, TopicQuickLink, TeacherGroup, ShopOffer, UseGrant, PointsEntry, ModuleTiming, ClassShare, NotebookNode, NotebookPlacement, ModuleDraft, UsageCount, ContentFeedback, Category, FederationPeer, RemoteOffer, RemotePerson, FederationCopy, ContentHandover, AccountLink, LinkCode, GithubBackup],
       synchronize: true,
     }),
     MailModule,
@@ -108,6 +110,7 @@ import { LinkCode } from './core/entities/link-code.entity';
     ImpactModule,
     CategoriesModule,
     FederationModule,
+    GithubBackupModule,
     HandoverModule,
   ],
   controllers: [AppController],

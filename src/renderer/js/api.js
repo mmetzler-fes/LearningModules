@@ -494,6 +494,21 @@ export class BrowserApi {
   updateAccountLink(id, body) { return this._fetch(`/api/federation/links/${encodeURIComponent(id)}`, { method: 'POST', body: JSON.stringify(body) }); }
   unlinkAccount(id) { return this._fetch(`/api/federation/links/${encodeURIComponent(id)}`, { method: 'DELETE' }); }
 
+  // ---------- GitHub-Backup der eigenen Inhalte ----------
+  getGithubBackup() { return this._fetch('/api/github-backup'); }
+  saveGithubBackup(body) { return this._fetch('/api/github-backup', { method: 'POST', body: JSON.stringify(body) }); }
+  disconnectGithubBackup() { return this._fetch('/api/github-backup', { method: 'DELETE' }); }
+  testGithubBackup() { return this._fetch('/api/github-backup/test', { method: 'POST' }); }
+  runGithubBackup() { return this._fetch('/api/github-backup/run', { method: 'POST' }); }
+  listGithubBackupFiles() { return this._fetch('/api/github-backup/files'); }
+  getGithubBackupVersions(path) { return this._fetch(`/api/github-backup/versions?path=${encodeURIComponent(path)}`); }
+  previewGithubBackup(path, ref) {
+    return this._fetch(`/api/github-backup/preview?path=${encodeURIComponent(path)}${ref ? `&ref=${encodeURIComponent(ref)}` : ''}`);
+  }
+  restoreGithubBackup(body) { return this._fetch('/api/github-backup/restore', { method: 'POST', body: JSON.stringify(body) }); }
+  getGithubBackupAllowed() { return this._fetch('/api/github-backup/admin'); }
+  setGithubBackupAllowed(allowed) { return this._fetch('/api/github-backup/admin', { method: 'POST', body: JSON.stringify({ allowed }) }); }
+
   // ---------- Vernetzung (docs/vernetzung.md) ----------
   getRemoteOffers() { return this._fetch('/api/federation/offers'); }
   copyRemoteOffer(peerId, offerId) {

@@ -148,10 +148,13 @@ export async function openGithubBackupDialog(app) {
       render({ text: '✅ Gespeichert.' });
     });
     $('.gh-test')?.addEventListener('click', async (e) => {
+      // Vor dem ersten await festhalten – danach ist e.currentTarget null.
+      const btn = e.currentTarget;
       // Vorher speichern, damit genau das Eingetragene geprüft wird – aber ohne einzuschalten.
-      const saved = await app.api.saveGithubBackup({ ...form(), enabled: undefined });
-      if (!saved || saved.statusCode) { say({ error: true, text: '❌ ' + (saved?.message || 'Unbekannter Fehler') }); return; }
-      const res = await busy(e.currentTarget, '⏳ Prüft…', () => app.api.testGithubBackup());
+      const res = await busy(btn, '⏳ Prüft…', async () => {
+        const saved = await app.api.saveGithubBackup({ ...form(), enabled: undefined });
+        return !saved || saved.statusCode ? saved : app.api.testGithubBackup();
+      });
       if (!res || !res.success) { say({ error: true, text: '❌ ' + (res?.message || 'Unbekannter Fehler') }); return; }
       app.showToast(res.message, 'success');
       render(res.warning ? { error: true, text: `${res.message} ${res.warning}` } : { text: `✅ ${res.message}` });

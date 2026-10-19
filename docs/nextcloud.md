@@ -83,6 +83,28 @@ den es dort nicht gibt, bleibt leer; der Import-Bericht nennt ihn. Ist keine
 Nextcloud verbunden, bleiben die Bildfelder leer, und der Bericht sagt, dass
 erst die Nextcloud verbunden werden sollte.
 
+### Bilder erst von einer KI erzeugen lassen
+
+Für Wörter ohne passende Bilder (z. B. ein Memory Bild ↔ Wort): im KI-Prompt
+unter **🎨 Bilder erst von einer KI erzeugen lassen**
+
+1. die Wörter eintragen (je Zeile eines), Stil und Ordner prüfen – der Ordner
+   ist ohne Angabe das Thema des Prompts;
+2. **🎨 Prompt für Bilder** – kopieren und in einer Bild-KI (ChatGPT, Gemini,
+   Copilot …) einfügen. Der Prompt gibt einen einheitlichen Stil vor, verbietet
+   Text im Bild (sonst verrät das Bild die Lösung) und nennt je Wort einen
+   festen Dateinamen;
+3. die Bilder herunterladen und mit **📤 Bilder hochladen** oder per
+   Hineinziehen hinzufügen. Die App ordnet sie den Wörtern zu – auch bei
+   Namen wie „ChatGPT Image dog (1).png“; falsche oder fehlende Zuordnungen
+   lassen sich je Wort auswählen. Umbenennen beim Speichern ist nicht nötig;
+4. **⬆ In die Nextcloud laden** – jedes Bild kommt unter dem Namen seines
+   Wortes in den Ordner. Eine neue Fassung ersetzt die alte.
+
+Danach ist der Ordner im Quiz-Prompt gewählt und angehakt; der Prompt bietet
+die Bilder der KI an. Das klappt auch im Ordner der Schule, auf den man in der
+Nextcloud selbst keinen Zugriff hat.
+
 ## Vorhandene Bilder auslagern
 
 Im Dialog unter **Vorhandene Bilder auslagern** → **🔍 Bilder in der App

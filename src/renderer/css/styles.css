@@ -4970,3 +4970,13 @@ body {
 .nc-migrate-list { list-style: none; margin: 10px 0; padding: 0; }
 .nc-migrate-list li { display: flex; gap: 10px; flex-wrap: wrap; align-items: baseline; padding: 4px 0; }
 .nc-migrate-state { font-size: 0.85rem; color: var(--text-secondary); }
+
+/* KI-Prompt: Bilder zu Wörtern erzeugen lassen (views/ai-prompt-view.js) */
+.ai-img-gen { margin-top: 10px; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 8px 12px; }
+.ai-img-gen > summary { cursor: pointer; font-weight: 600; }
+.ai-img-gen.is-dragover { outline: 3px dashed var(--accent); outline-offset: -4px; }
+.ai-img-gen textarea, .ai-img-gen input { width: 100%; }
+.ai-img-drop { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin: 10px 0; }
+.ai-img-assign { border-collapse: collapse; margin: 6px 0; }
+.ai-img-assign td { padding: 3px 8px 3px 0; }
+.ai-img-assign select { max-width: 280px; }

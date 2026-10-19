@@ -1,6 +1,7 @@
 import { escapeHtml, escapeAttr } from '../utils.js';
 import { AI_PROMPT_TYPES, AI_PROMPT_PART_SIZE, buildAiPrompt } from '../ai-prompt.js';
 import { nextcloudState } from './nextcloud.js';
+import { DEFAULT_IMAGE_STYLE, parseImageWords, buildImagePrompt, matchImageFiles } from '../image-words.js';
 
 // ==================== KI-PROMPT-GENERATOR ====================
 
@@ -45,6 +46,78 @@ export class AiPromptView {
       : '<option value="">(noch keine Ordner unter „Bilder“)</option>';
   }
 
+  // ---------- Bilder zu Wörtern von einer KI erzeugen lassen ----------
+
+  /** Ordner, in den die erzeugten Bilder kommen: eingetragen, sonst das Thema. */
+  _imgFolder() {
+    const f = this.form.elements;
+    return f.imgFolder.value.trim() || f.title.value.trim() || 'KI-Bilder';
+  }
+
+  /** Zuordnung Wort → Datei neu berechnen und als Tabelle zeigen. */
+  _renderImgTable() {
+    const box = this.form.querySelector('.ai-img-table');
+    const words = parseImageWords(this.form.elements.imgWords.value);
+    const files = this._imgFiles || [];
+    if (!words.length || !files.length) { box.innerHTML = ''; this._imgAssign = []; this._updateImgButton(); return; }
+    this._imgAssign = matchImageFiles(words, files.map((f) => f.name)).assigned;
+    const option = (i, sel) => `<option value="${i}" ${i === sel ? 'selected' : ''}>${i < 0 ? '— fehlt —' : escapeHtml(files[i].name)}</option>`;
+    box.innerHTML = `<table class="ai-img-assign"><tbody>${words.map((w, k) => `
+      <tr><td>${escapeHtml(w.word)}</td>
+        <td><select data-k="${k}">${[-1, ...files.map((_, i) => i)].map((i) => option(i, this._imgAssign[k])).join('')}</select></td>
+        <td class="ai-img-state">${this._imgAssign[k] >= 0 ? '✅' : '❌'}</td></tr>`).join('')}</tbody></table>`;
+    box.querySelectorAll('select').forEach((sel) => sel.addEventListener('change', () => {
+      this._imgAssign[Number(sel.dataset.k)] = Number(sel.value);
+      sel.closest('tr').querySelector('.ai-img-state').textContent = Number(sel.value) >= 0 ? '✅' : '❌';
+      this._updateImgButton();
+    }));
+    this._updateImgButton();
+  }
+
+  _updateImgButton() {
+    const n = (this._imgAssign || []).filter((i) => i >= 0).length;
+    const btn = this.form.querySelector('.btn-img-upload');
+    btn.disabled = !n;
+    btn.textContent = n ? `⬆ ${n} Bild${n === 1 ? '' : 'er'} nach „Bilder/${this._imgFolder()}“ laden` : '⬆ In die Nextcloud laden';
+  }
+
+  _addImgFiles(list) {
+    const images = [...list].filter((f) => /^image\/(png|jpeg|gif|webp|svg\+xml)$/.test(f.type));
+    if (images.length < list.length) this.app.showToast('Nur Bilder (PNG, JPEG, GIF, WebP, SVG) lassen sich hochladen.', 'info');
+    this._imgFiles = [...(this._imgFiles || []), ...images];
+    this._renderImgTable();
+  }
+
+  /** Zugeordnete Bilder unter dem Namen ihres Wortes hochladen; danach bietet der Quiz-Prompt den Ordner an. */
+  async _uploadImgFiles() {
+    const words = parseImageWords(this.form.elements.imgWords.value);
+    const folder = this._imgFolder();
+    const msg = this.form.querySelector('.ai-img-message');
+    const btn = this.form.querySelector('.btn-img-upload');
+    btn.disabled = true;
+    let ok = 0;
+    const failed = [];
+    for (const [k, w] of words.entries()) {
+      const i = (this._imgAssign || [])[k];
+      if (i === undefined || i < 0) continue;
+      msg.textContent = `⏳ ${w.word} …`;
+      const res = await this.app.api.uploadNextcloudImage(this._imgFiles[i], null, { folder, name: w.slug, replace: true });
+      if (res?.success) ok++; else failed.push(`${w.word}: ${res?.message || 'Fehler'}`);
+    }
+    this._ncLoaded = false;
+    await this._updateNextcloud();
+    const select = this.form.elements.ncFolder;
+    if ([...select.options].some((o) => o.value === folder)) select.value = folder;
+    this.form.elements.ncUse.checked = true;
+    this._save();
+    const missing = words.length - ok - failed.length;
+    msg.className = `hint ai-img-message${failed.length ? ' login-error' : ''}`;
+    msg.textContent = `${ok ? `✅ ${ok} Bild${ok === 1 ? '' : 'er'} in „Bilder/${folder}“ – der Quiz-Prompt bietet sie jetzt an.` : ''}`
+      + (missing > 0 ? ` ${missing} Wort${missing === 1 ? '' : 'e'} ohne Bild.` : '')
+      + (failed.length ? ` ❌ ${failed.join('; ')}` : '');
+    btn.disabled = false;
+  }
+
   _load() {
     try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}') || {}; } catch (_) { return {}; }
   }
@@ -63,6 +136,9 @@ export class AiPromptView {
       linkImages: f.linkImages.checked,
       ncUse: f.ncUse.checked,
       ncFolder: f.ncFolder.value,
+      imgWords: f.imgWords.value,
+      imgStyle: f.imgStyle.value,
+      imgFolder: f.imgFolder.value,
     };
   }
 
@@ -102,7 +178,31 @@ export class AiPromptView {
             <span>☁️ Bilder aus meiner Nextcloud anbieten</span></label>
           <label>Ordner unter „Bilder“ <select name="ncFolder"><option value="${v('ncFolder')}">${escapeHtml(saved.ncFolder || '…')}</option></select></label>
           <span class="hint">Die KI bekommt die Dateinamen dieses Ordners und darf nur daraus wählen – sprechende Namen wie
-            <code>flughafen-gate.jpg</code> helfen. Beim Import werden daraus Links auf deine Nextcloud.</span></div>
+            <code>flughafen-gate.jpg</code> helfen. Beim Import werden daraus Links auf deine Nextcloud.</span>
+          <details class="ai-img-gen">
+            <summary>🎨 Bilder erst von einer KI erzeugen lassen</summary>
+            <p class="hint">Für Wörter, zu denen es noch keine Bilder gibt: Hier einen Prompt für eine Bild-KI (ChatGPT, Gemini,
+              Copilot …) erzeugen, die Bilder dort erstellen lassen und herunterladen, dann hier hochladen. Jedes Bild bekommt
+              den Namen seines Wortes; danach bietet der Quiz-Prompt sie an.</p>
+            <label>Wörter / Begriffe (je Zeile eines)
+              <textarea name="imgWords" rows="5" placeholder="Hund&#10;Katze&#10;Pferd">${escapeHtml(saved.imgWords || '')}</textarea></label>
+            <div class="ai-prompt-row">
+              <label>Stil <input name="imgStyle" value="${v('imgStyle', DEFAULT_IMAGE_STYLE)}" /></label>
+              <label>Ordner unter „Bilder“ <input name="imgFolder" value="${v('imgFolder')}" placeholder="leer = Thema" /></label>
+            </div>
+            <div class="confirm-actions"><button type="button" class="btn btn-secondary btn-img-prompt">🎨 Prompt für Bilder</button></div>
+            <div class="ai-img-prompt hidden">
+              <textarea readonly rows="10" class="ai-img-output"></textarea>
+              <div class="confirm-actions"><button type="button" class="btn btn-secondary btn-img-copy">📋 Kopieren</button></div>
+            </div>
+            <div class="ai-img-drop">
+              <button type="button" class="btn btn-secondary btn-img-pick">📤 Bilder hochladen</button>
+              <span class="hint">oder hierher ziehen – die Zuordnung zu den Wörtern macht die App, falsche lassen sich unten ändern.</span>
+            </div>
+            <div class="ai-img-table"></div>
+            <div class="confirm-actions"><button type="button" class="btn btn-primary btn-img-upload" disabled>⬆ In die Nextcloud laden</button></div>
+            <p class="hint ai-img-message"></p>
+          </details></div>
         <div class="confirm-actions">
           <button type="submit" class="btn btn-primary">✨ Prompt erzeugen</button>
         </div>
@@ -120,6 +220,33 @@ export class AiPromptView {
     this.form = form;
     const output = form.querySelector('.ai-prompt-output');
     form.addEventListener('input', () => this._save());
+    // Bilder zu Wörtern von einer KI erzeugen lassen
+    form.querySelector('.btn-img-prompt').addEventListener('click', () => {
+      const words = parseImageWords(form.elements.imgWords.value);
+      if (!words.length) { this.app.showToast('Bitte zuerst Wörter eintragen, je Zeile eines.', 'error'); return; }
+      form.querySelector('.ai-img-output').value = buildImagePrompt(words, form.elements.imgStyle.value.trim(), form.elements.language.value.trim() || 'Deutsch');
+      form.querySelector('.ai-img-prompt').classList.remove('hidden');
+    });
+    form.querySelector('.btn-img-copy').addEventListener('click', async () => {
+      const out = form.querySelector('.ai-img-output');
+      try { await navigator.clipboard.writeText(out.value); this.app.showToast('Prompt kopiert – in der Bild-KI einfügen.', 'success'); } catch (_) { out.select(); }
+    });
+    form.querySelector('.btn-img-pick').addEventListener('click', () => {
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.multiple = true;
+      input.accept = 'image/png,image/jpeg,image/gif,image/webp,image/svg+xml';
+      input.onchange = () => this._addImgFiles(input.files);
+      input.click();
+    });
+    const drop = form.querySelector('.ai-img-gen');
+    drop.addEventListener('dragover', (e) => { e.preventDefault(); drop.classList.add('is-dragover'); });
+    drop.addEventListener('dragleave', (e) => { if (!drop.contains(e.relatedTarget)) drop.classList.remove('is-dragover'); });
+    drop.addEventListener('drop', (e) => { e.preventDefault(); drop.classList.remove('is-dragover'); this._addImgFiles(e.dataTransfer?.files || []); });
+    form.elements.imgWords.addEventListener('input', () => this._renderImgTable());
+    form.elements.imgFolder.addEventListener('input', () => this._updateImgButton());
+    form.elements.title.addEventListener('input', () => this._updateImgButton());
+    form.querySelector('.btn-img-upload').addEventListener('click', () => this._uploadImgFiles());
     form.addEventListener('change', () => this._save());
 
     form.addEventListener('submit', async (e) => {

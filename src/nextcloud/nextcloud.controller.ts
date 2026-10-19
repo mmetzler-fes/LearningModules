@@ -36,11 +36,14 @@ export class NextcloudController {
     return this.nextcloud.disconnect(req.user);
   }
 
-  /** Bild hochladen (Feld `file`, dazu `topicId`) – liefert die Lese-URL. */
+  /** Bild hochladen (Feld `file`, dazu `topicId` – oder `folder`, `name`, `replace`) – liefert den Link. */
   @Post('images')
   @UseInterceptors(FileInterceptor('file', { limits: { fileSize: MAX_IMAGE_BYTES + 1024 } }))
   async upload(@Request() req: any, @UploadedFile() file: Express.Multer.File) {
-    return this.nextcloud.uploadImage(req.user, req.body?.topicId || undefined, file, baseUrl(req));
+    const b = req.body || {};
+    return this.nextcloud.uploadImage(req.user, b.topicId || undefined, file, baseUrl(req), {
+      folder: b.folder || undefined, name: b.name || undefined, replace: b.replace === 'true',
+    });
   }
 
   /** `{ enabled?, hour? }` – tägliches Backup der eigenen Inhalte nach <Hauptordner>/Backups. */

@@ -498,10 +498,14 @@ export class BrowserApi {
   runNextcloudBackup() { return this._fetch('/api/nextcloud/backup/run', { method: 'POST' }); }
   getNextcloudMigration() { return this._fetch('/api/nextcloud/migrate'); }
   migrateNextcloudTopic(topicId) { return this._fetch('/api/nextcloud/migrate', { method: 'POST', body: JSON.stringify({ topicId }) }); }
-  async uploadNextcloudImage(file, topicId) {
+  /** `extra`: { folder, name, replace } – Ordner statt Thema, Dateiname, gleichnamiges ersetzen. */
+  async uploadNextcloudImage(file, topicId, extra = {}) {
     const form = new FormData();
     form.append('file', file);
     if (topicId) form.append('topicId', topicId);
+    if (extra.folder) form.append('folder', extra.folder);
+    if (extra.name) form.append('name', extra.name);
+    if (extra.replace) form.append('replace', 'true');
     const token = this._auth.getToken();
     try {
       const res = await fetch('/api/nextcloud/images', { method: 'POST', headers: token ? { Authorization: `Bearer ${token}` } : {}, body: form });

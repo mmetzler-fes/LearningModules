@@ -373,19 +373,28 @@ export class NextcloudService {
     return safeFolderName(t?.title || '', 'Ohne Thema');
   }
 
-  /** Bild in den Ordner des Themas hochladen; Ergebnis: der Link. */
-  async uploadImage(user: any, topicId: string | undefined, file: { originalname: string; mimetype: string; buffer: Buffer; size: number }, appBase?: string) {
+  /**
+   * Bild in den Ordner des Themas hochladen; Ergebnis: der Link.
+   * `opts.folder` statt des Themas (Bilder für einen KI-Prompt), `opts.name`
+   * als Dateiname, `opts.replace`: gleichnamiges Bild ersetzen statt -2 anhängen.
+   */
+  async uploadImage(
+    user: any, topicId: string | undefined,
+    file: { originalname: string; mimetype: string; buffer: Buffer; size: number },
+    appBase?: string, opts: { folder?: string; name?: string; replace?: boolean } = {},
+  ) {
     if (!file?.buffer?.length) throw new BadRequestException('Keine Datei empfangen.');
     if (!IMAGE_TYPES[file.mimetype]) throw new BadRequestException('Nur Bilder (PNG, JPEG, GIF, WebP, SVG) lassen sich hochladen.');
     if (file.size > MAX_IMAGE_BYTES) throw new BadRequestException('Das Bild ist größer als 15 MB.');
     const { l, nc, root, school } = await this.effective(user.userId, appBase);
-    const sub = await this.topicFolder(topicId);
+    const sub = opts.folder ? safeFolderName(opts.folder) : await this.topicFolder(topicId);
     await nc.ensureFolder([...root, sub]);
-    // Gleicher Name schon da: -2, -3 … anhängen statt überschreiben – ein
-    // anderes Modul könnte das alte Bild noch zeigen.
-    const wanted = imageFileName(Buffer.from(file.originalname || '', 'latin1').toString('utf-8'), file.mimetype);
+    const wanted = imageFileName(opts.name || Buffer.from(file.originalname || '', 'latin1').toString('utf-8'), file.mimetype);
     let name = wanted;
-    for (let n = 2; await nc.exists([...root, sub, name]); n++) {
+    // Gleicher Name schon da: -2, -3 … anhängen statt überschreiben – ein
+    // anderes Modul könnte das alte Bild noch zeigen. Beim Erzeugen für einen
+    // KI-Prompt ersetzt eine neue Fassung die alte (noch nicht verwendet).
+    for (let n = 2; !opts.replace && await nc.exists([...root, sub, name]); n++) {
       if (n > 99) throw new BadRequestException('Zu viele Dateien mit diesem Namen.');
       name = wanted.replace(/(\.[^.]+)$/, `-${n}$1`);
     }

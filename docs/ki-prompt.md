@@ -55,7 +55,10 @@ ergänzt man im Editor.
   davor oder danach gespeichert werden – der Import nimmt nur das JSON darin.
 - Bei verbundener Nextcloud kann der Prompt die Bilder eines Ordners anbieten:
   Die KI wählt nur aus der Liste (`nc:<Ordner>/<Datei>`), der Import macht
-  daraus Links (siehe [Nextcloud](nextcloud.md#bilder-im-ki-prompt)).
+  daraus Links (siehe [Nextcloud](nextcloud.md#bilder-im-ki-prompt)). Fehlen
+  Bilder, erzeugt **🎨 Prompt für Bilder** einen Prompt für eine Bild-KI mit
+  festen Dateinamen je Wort; die heruntergeladenen Bilder lädt die App danach
+  in den Ordner.
 - Kleine Abweichungen gleicht der Import an: Reihenfolge-Elemente als bloße
   Texte, Memory-Paare als `["Hund", "dog"]`, Kreuzworträtsel mit `word`/`hint`
   statt `answer`/`clue`.

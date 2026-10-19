@@ -52,7 +52,7 @@ export function planNextcloudBackup(files: BackupFile[], previous: Record<string
 }
 
 /**
- * Backup der eigenen Inhalte in die Nextcloud der Lehrkraft (docs/nextcloud.md):
+ * Backup der eigenen Inhalte in den freigegebenen Nextcloud-Ordner der Lehrkraft (Unterordner Backups, docs/nextcloud.md):
  * je Lernthema eine JSON-Datei im Format des JSON-Exports – nur selbst
  * verfasste Module, wie beim offenen Export. Hochgeladen wird nur, was sich
  * geändert hat; ältere Stände hält die Versionsverwaltung der Nextcloud.
@@ -152,14 +152,14 @@ export class NextcloudBackupService implements OnApplicationBootstrap, OnModuleD
       l.backupAttemptAt = now;
       await this.linkRepo.save(l);
 
-      await nc.ensureFolder([l.folder, BACKUPS]);
-      const present = new Set((await nc.list([l.folder, BACKUPS])).filter((e) => !e.isFolder).map((e) => e.name));
-      if (!present.has(README_NAME)) await nc.put([l.folder, BACKUPS, README_NAME], Buffer.from(README, 'utf-8'), 'text/plain; charset=utf-8');
+      await nc.ensureFolder([BACKUPS]);
+      const present = new Set((await nc.list([BACKUPS])).filter((e) => !e.isFolder).map((e) => e.name));
+      if (!present.has(README_NAME)) await nc.put([BACKUPS, README_NAME], Buffer.from(README, 'utf-8'), 'text/plain; charset=utf-8');
       const files = await this.collect(userId);
       const plan = planNextcloudBackup(files, l.backupFiles || {}, present);
       const done = { ...(l.backupFiles || {}) };
       for (const f of plan.upload) {
-        await nc.put([l.folder, BACKUPS, f.file], Buffer.from(f.content, 'utf-8'), 'application/json');
+        await nc.put([BACKUPS, f.file], Buffer.from(f.content, 'utf-8'), 'application/json');
         done[f.topicId] = { file: f.file, hash: f.hash };
       }
       const result = { created: plan.created, updated: plan.updated, unchanged: plan.unchanged };

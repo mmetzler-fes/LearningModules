@@ -2,9 +2,9 @@ import { Entity, Column, Index } from 'typeorm';
 import { BaseEntity } from './base.entity';
 
 /**
- * Nextcloud einer Lehrkraft (docs/nextcloud.md): Bilder der Module liegen
- * dort statt in der Datenbank – je Lernthema ein Ordner
- * <folder>/Bilder/<Thema>/, gelesen über eine reine Lesefreigabe.
+ * Nextcloud einer Lehrkraft (docs/nextcloud.md): ein freigegebener Ordner
+ * mit Passwort – die App sieht nur ihn, kein Konto. Darin Bilder/<Thema>/
+ * und Backups/.
  */
 @Entity('nextcloud_links')
 @Index(['userId'], { unique: true })
@@ -16,28 +16,36 @@ export class NextcloudLink extends BaseEntity {
   @Column({ default: '' })
   baseUrl: string;
 
-  /** Anmeldename, wie eingegeben. */
-  @Column({ default: '' })
-  username: string;
-
-  /** Benutzer-ID für WebDAV (kann vom Anmeldenamen abweichen, z. B. bei LDAP). */
+  /** Kürzel der Ordnerfreigabe (…/s/<Kürzel>), mit „Hochladen und Bearbeiten“. */
   @Column({ type: 'varchar', nullable: true })
-  davUser: string | null;
+  shareToken: string | null;
 
-  /** App-Passwort, verschlüsselt mit dem App-Secret. Wird nie ausgegeben. */
+  /** Passwort der Freigabe, verschlüsselt mit dem App-Secret. Wird nie ausgegeben. */
   @Column({ type: 'text', nullable: true })
   passwordSealed: string | null;
 
-  /** Hauptordner in der Nextcloud, darin Bilder/<Thema>/. */
-  @Column({ default: 'LearningModules' })
-  folder: string;
+  /** Welcher WebDAV-Weg der Freigabe funktioniert (je nach Nextcloud-Version). */
+  @Column({ type: 'varchar', length: 10, nullable: true })
+  davMode: 'classic' | 'files' | null;
 
-  /** Kürzel der Lesefreigabe von <folder>/Bilder (…/s/<Kürzel>). */
+  /**
+   * Optional: offene Lesefreigabe nur des Unterordners Bilder. Dann laden
+   * Schüler Bilder direkt aus der Nextcloud; sonst reicht der Server sie durch.
+   */
   @Column({ type: 'varchar', nullable: true })
   imageShareToken: string | null;
 
+  /**
+   * Unterordner im Nextcloud-Ordner der Schule (Admin-Backup), wenn die
+   * Lehrkraft keine eigene Freigabe hat: Bilder/<serverFolder>/<Thema>/.
+   * Wird einmal festgelegt und bleibt – sonst gingen Links kaputt.
+   */
   @Column({ type: 'varchar', nullable: true })
-  displayName: string | null;
+  serverFolder: string | null;
+
+  /** Öffentliche Adresse dieser App beim Verbinden – für die Bild-Links über den Server. */
+  @Column({ type: 'varchar', nullable: true })
+  appBase: string | null;
 
   @Column({ type: 'datetime', nullable: true })
   verifiedAt: Date | null;

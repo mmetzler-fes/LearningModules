@@ -9,28 +9,55 @@ täglich in die Nextcloud sichern.
 
 ## Einrichten
 
-Im Home-Menü (🏠 LernModule) → **☁️ Nextcloud**:
+Im Home-Menü (🏠 LernModule) → **☁️ Nextcloud**. Die App bekommt **nie ein
+Nextcloud-Konto oder App-Passwort** – nur einen freigegebenen Ordner und
+sieht damit ausschließlich diesen.
 
-| Feld | Bedeutung |
-|---|---|
-| Adresse | z. B. `https://cloud.meine-schule.de` – eine kopierte Browser-Adresse geht auch. Hat der Admin ein automatisches Backup in eine Nextcloud eingerichtet, steht deren Adresse als Vorschlag da (nur die Adresse – Zugangsdaten des Backups werden nicht übernommen). |
-| Benutzername | dein Nextcloud-Benutzername |
-| App-Passwort | in der Nextcloud unter **Persönliche Einstellungen → Sicherheit → Neues App-Passwort erstellen**. Nicht dein normales Passwort: Ein App-Passwort lässt sich dort jederzeit einzeln widerrufen. |
-| Hauptordner | Vorgabe `LearningModules`; darin legt die App `Bilder/` an |
+### Ordner der Schule – nichts zu tun
 
-**🔌 Verbinden** speichert und prüft sofort: Anmeldung, Ordner
-`<Hauptordner>/Bilder` und eine **Lesefreigabe** dieses Ordners (die App legt
-sie an, wenn es noch keine gibt). Das App-Passwort wird verschlüsselt
-gespeichert und nie wieder angezeigt.
+Hat der Admin das automatische Backup in eine Nextcloud eingerichtet und
+erlaubt, dass Lehrkräfte den Ordner für Bilder nutzen, steht im Dialog „Die
+Schule stellt einen Nextcloud-Ordner bereit“. Bilder landen dann in
+`Bilder/<dein Name> (<Kennung>)/<Thema>/` in diesem Ordner. Eine eigene
+Freigabe ist nicht nötig.
 
-**Trennen** vergisst die Zugangsdaten. Die Bilder bleiben in der Nextcloud,
-die Links in den Modulen funktionieren weiter, solange die Freigabe besteht.
+### Eigene Freigabe
+
+1. In der Nextcloud einen Ordner anlegen, z. B. `LearningModules`.
+2. **Teilen → Link teilen**, **„Hochladen und Bearbeiten erlauben“**, ein
+   **Passwort** setzen, Link kopieren.
+3. Im Dialog Freigabelink und Passwort eintragen → **🔌 Verbinden**.
+
+Verbinden prüft sofort: Die Freigabe öffnet sich mit dem Passwort, die App
+legt den Unterordner `Bilder` an und schreibt (und löscht) eine Prüfdatei.
+Das Passwort wird verschlüsselt gespeichert und nie wieder angezeigt. Eine
+eigene Freigabe hat Vorrang vor dem Ordner der Schule.
+
+Eine „Dateiablage“ (nur Hochladen) reicht nicht: Die App muss den Ordner auch
+lesen können (Bildauswahl, Auslieferung an Schüler).
+
+### Wie die Bilder zu den Schülern kommen
+
+Schülerinnen und Schüler kennen das Passwort nicht. Deshalb holt **dieser
+Server** die Bilder mit dem Passwort aus der Nextcloud und reicht sie durch –
+er speichert sie dabei nicht. In der Nextcloud ist nichts öffentlich.
+
+**Optional – direkt aus der Nextcloud:** Wer den Server entlasten will, teilt
+den Unterordner `Bilder` zusätzlich **nur lesend und ohne Passwort** und trägt
+diesen Link unter *Optional: Bilder direkt aus der Nextcloud laden* ein. Die
+App prüft beim Verbinden, dass er wirklich auf `Bilder` zeigt. Dann laden die
+Schüler die Bilder direkt – sie sind aber für jeden mit Link sichtbar, also
+**keine Fotos von Schülerinnen und Schülern**.
+
+**Eigene Freigabe trennen** vergisst Link und Passwort. Die Dateien bleiben in
+der Nextcloud; Bilder, die über den Server liefen, sind in den Modulen dann
+nicht mehr zu sehen.
 
 ## Bilder einfügen
 
 - **📁 Bild auswählen** (in jedem Bildfeld, beim Drag-and-Drop-Hintergrund,
-  bei Bild-Hotspots und beim Einfügen ins Arbeitsblatt) lädt das Bild in den Ordner
-  `<Hauptordner>/Bilder/<Thema>/` hoch. Gibt es den Dateinamen dort schon,
+  bei Bild-Hotspots und beim Einfügen ins Arbeitsblatt) lädt das Bild in den
+  Ordner `Bilder/<Thema>/` hoch (im Ordner der Schule: `Bilder/<dein Name>/<Thema>/`). Gibt es den Dateinamen dort schon,
   bekommt das neue Bild `-2`, `-3` … angehängt – nichts wird überschrieben.
 - **☁️ Aus Nextcloud** zeigt die Bilder eines Ordners, vorgewählt der des
   aktuellen Themas, und fügt eines mit einem Klick ein. Bilder lassen sich
@@ -45,7 +72,7 @@ neue Bilder im Ordner mit dem neuen Namen; vorhandene Links bleiben gültig.
 
 ## Bilder im KI-Prompt
 
-Im **🤖 KI-Prompt** erscheint bei verbundener Nextcloud **☁️ Bilder aus
+Im **🤖 KI-Prompt** erscheint bei verbundener Nextcloud (eigene Freigabe oder Ordner der Schule) **☁️ Bilder aus
 meiner Nextcloud anbieten** mit der Wahl eines Ordners unter `Bilder`. Die KI
 bekommt die Dateinamen dieses Ordners als Liste (`nc:<Ordner>/<Datei>`) und
 darf nur daraus wählen – sie erfindet so keine Links. Sprechende Dateinamen
@@ -75,39 +102,37 @@ sagt, wie viele. Der JSON-Export enthält die Links, so wie sie im Modul stehen.
 
 ## Backup
 
-Unter **Backup deiner Inhalte**: **Täglich sichern um …** und **⬆ Jetzt
-sichern**. Gesichert wird nach `<Hauptordner>/Backups/` – je Lernthema eine
-JSON-Datei (`<Titel> (<Kennung>).json`), nur selbst verfasste Module wie beim
-offenen Export, und nur, wenn sich etwas geändert hat. Ältere Stände zeigt
-die Nextcloud bei jeder Datei unter **Versionen**. Zurückholen: Datei
-herunterladen und über **📥 Thema importieren** einlesen. Gelöschte Themen
-bleiben im Ordner liegen. Schlägt ein Backup fehl, kommt eine Mail, und die
-App versucht es stündlich erneut.
+Nur mit **eigener Freigabe**: Unter **Backup deiner Inhalte** → **Täglich
+sichern um …** und **⬆ Jetzt sichern**. Gesichert wird in den Unterordner
+`Backups` – je Lernthema eine JSON-Datei (`<Titel> (<Kennung>).json`), nur
+selbst verfasste Module wie beim offenen Export, und nur, wenn sich etwas
+geändert hat. Ältere Stände zeigt die Nextcloud bei jeder Datei unter
+**Versionen**. Zurückholen: Datei herunterladen und über **📥 Thema
+importieren** einlesen. Schlägt ein Backup fehl, kommt eine Mail, und die App
+versucht es stündlich erneut.
 
-Das ist unabhängig vom automatischen Backup des Admins (ganzer Server,
-verschlüsselt, mit eigenen Zugangsdaten). Die Lesefreigabe betrifft nur den
-Ordner `Bilder` – `Backups` ist nicht freigegeben und enthält auch die
-Lösungen, also bitte nicht öffentlich teilen.
+Im Ordner der Schule gibt es kein eigenes Backup je Lehrkraft – dort sichert
+das automatische Backup des Admins ohnehin den ganzen Server (verschlüsselt).
 
 ## Wichtig
 
-- Die Bilder sind über die **öffentliche Lesefreigabe** erreichbar – für
-  jeden, der den Link kennt. Für Unterrichtsmaterial ist das in Ordnung,
-  **Fotos von Schülerinnen und Schülern gehören nicht hinein**.
-- Die Lesefreigabe gilt nur für den Ordner `Bilder`. Andere Ordner – etwa
-  der des automatischen Backups – bleiben davon unberührt und so geschützt
-  wie eingerichtet.
-- Wer eine Datei in der Nextcloud löscht, verschiebt oder die Freigabe
-  aufhebt, macht die Bilder in allen Modulen kaputt, die sie zeigen – auch
-  bei Lehrkräften, die das Thema über den Shop nutzen.
-- Die Freigabe darf nur lesen. Eine Freigabe mit Hochladerecht nimmt die App
-  nicht: Ihr Link steckt in jeder Bild-URL, die Schüler sehen.
+- Die App sieht nur den freigegebenen Ordner – kein Konto, keine anderen
+  Dateien. Wer Link und Passwort der Freigabe kennt, kann den Ordner
+  bearbeiten; das Passwort bleibt deshalb in der App verschlüsselt.
+- Wer eine Datei in der Nextcloud löscht oder verschiebt, macht das Bild in
+  allen Modulen kaputt, die es zeigen – auch bei Lehrkräften, die das Thema
+  über den Shop nutzen.
+- Der Ordnername ist der Titel des Themas. Wird das Thema umbenannt, landen
+  neue Bilder im Ordner mit dem neuen Namen; vorhandene Links bleiben gültig.
 
 ## Technik
 
-Hochgeladen wird über den Server (die Nextcloud erlaubt dem Browser keine
-Zugriffe von fremden Seiten): WebDAV unter `remote.php/dav/files/<Benutzer-ID>/`,
-die Freigabe über die OCS-Schnittstelle (`files_sharing`). Die Bild-URL hat
-die Form `<Adresse>/s/<Freigabe>/download?path=/<Thema>&files=<Datei>`. Nur
-https, keine internen Adressen, keine Weiterleitungen. Code:
+Alles läuft über den Server (die Nextcloud erlaubt dem Browser keine Zugriffe
+von fremden Seiten) und die öffentliche WebDAV-Schnittstelle der Freigabe:
+`/public.php/webdav/` (Benutzer = Kürzel) oder in neueren Versionen
+`/public.php/dav/files/<Kürzel>/`. Bild-Links über den Server:
+`/api/nextcloud/files/…` (eigene Freigabe) bzw. `/api/nextcloud/school/…`
+(Ordner der Schule) – getrennt, damit ein späterer Wechsel keine Links
+zerstört. Ausgeliefert werden nur Bilddateien unter `Bilder/`. Nur https,
+keine internen Adressen, keine Weiterleitungen. Code:
 `src/nextcloud/`, Oberfläche in `src/renderer/js/views/nextcloud.js`.

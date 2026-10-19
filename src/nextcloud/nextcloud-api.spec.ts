@@ -1,4 +1,4 @@
-import { NextcloudClient, parseNextcloudBase, parsePropfind, safeFolderName, shareFileUrl } from './nextcloud-api';
+import { ShareClient, parseNextcloudBase, parsePropfind, safeFolderName, shareFileUrl } from './nextcloud-api';
 import { imageFileName, mapDataImages } from './nextcloud.service';
 
 describe('Nextcloud: Adressen und Namen', () => {
@@ -50,49 +50,37 @@ function fakeCloud(rules: Array<[RegExp, (url: string, init: any) => { status: n
   return { calls, fetchImpl };
 }
 
-describe('Nextcloud-Client', () => {
-  it('nutzt für WebDAV die Benutzer-ID aus der Anmeldung, nicht den Anmeldenamen', async () => {
+describe('Freigabe-Client (nur der freigegebene Ordner, kein Konto)', () => {
+  it('findet den WebDAV-Weg: erst klassisch, sonst der neuere', async () => {
     const { calls, fetchImpl } = fakeCloud([
-      [/GET .*cloud\/user/, () => ({ status: 200, body: { ocs: { data: { id: 'mmuster', 'display-name': 'Max Muster' } } } })],
-      [/MKCOL/, () => ({ status: 405 })],
+      [/PROPFIND https:\/\/c\.de\/public\.php\/webdav\//, () => ({ status: 404 })],
+      [/PROPFIND https:\/\/c\.de\/public\.php\/dav\/files\/Tok1\//, () => ({ status: 207, body: '<d:multistatus xmlns:d="DAV:"/>' })],
     ]);
-    const nc = new NextcloudClient('https://c.de', 'max@schule.de', 'pw', null, fetchImpl);
-    expect(await nc.userInfo()).toEqual({ id: 'mmuster', displayName: 'Max Muster' });
-    await nc.ensureFolder(['LM', 'Bilder']);
-    expect(calls.filter((c) => c.method === 'MKCOL').map((c) => c.url)).toEqual([
-      'https://c.de/remote.php/dav/files/mmuster/LM',
-      'https://c.de/remote.php/dav/files/mmuster/LM/Bilder',
-    ]);
-    expect(calls[0].init.headers.Authorization).toBe(`Basic ${Buffer.from('max@schule.de:pw').toString('base64')}`);
-    expect(calls[0].init.redirect).toBe('manual');
+    const nc = new ShareClient('https://c.de', 'Tok1', 'geheim', 'classic', fetchImpl);
+    expect(await nc.detectMode()).toBe('files');
+    expect(calls[0].init.headers.Authorization).toBe(`Basic ${Buffer.from('Tok1:geheim').toString('base64')}`);
+    expect(calls[1].init.headers.Authorization).toBe(`Basic ${Buffer.from('anonymous:geheim').toString('base64')}`);
+    expect(calls.every((c) => c.init.redirect === 'manual')).toBe(true);
   });
 
-  it('verwendet eine vorhandene Lesefreigabe, aber keine mit Schreibrecht', async () => {
-    const { calls, fetchImpl } = fakeCloud([
-      [/GET .*shares/, () => ({ status: 200, body: { ocs: { data: [
-        { share_type: 3, permissions: 15, token: 'SCHREIB' },
-        { share_type: 3, permissions: 1, token: 'NURLESEN' },
-      ] } } })],
+  it('arbeitet nur relativ zum freigegebenen Ordner', async () => {
+    const { calls, fetchImpl } = fakeCloud([[/MKCOL/, () => ({ status: 405 })], [/PUT/, () => ({ status: 201 })]]);
+    const nc = new ShareClient('https://c.de', 'Tok1', 'pw', 'classic', fetchImpl);
+    await nc.ensureFolder(['Bilder', 'Englisch Reisen']);
+    await nc.put(['Bilder', 'Englisch Reisen', 'gate.jpg'], Buffer.from('x'), 'image/jpeg');
+    expect(calls.map((c) => `${c.method} ${c.url}`)).toEqual([
+      'MKCOL https://c.de/public.php/webdav/Bilder',
+      'MKCOL https://c.de/public.php/webdav/Bilder/Englisch%20Reisen',
+      'PUT https://c.de/public.php/webdav/Bilder/Englisch%20Reisen/gate.jpg',
     ]);
-    const nc = new NextcloudClient('https://c.de', 'u', 'pw', 'u', fetchImpl);
-    expect(await nc.ensureReadShare(['LM', 'Bilder'])).toBe('NURLESEN');
-    expect(calls.some((c) => c.method === 'POST')).toBe(false);
   });
 
-  it('legt sonst eine reine Lesefreigabe an', async () => {
-    const { calls, fetchImpl } = fakeCloud([
-      [/GET .*shares/, () => ({ status: 200, body: { ocs: { data: [{ share_type: 3, permissions: 31, token: 'X' }] } } })],
-      [/POST .*shares/, () => ({ status: 200, body: { ocs: { data: { token: 'NEU' } } } })],
-    ]);
-    const nc = new NextcloudClient('https://c.de', 'u', 'pw', 'u', fetchImpl);
-    expect(await nc.ensureReadShare(['LM', 'Bilder'])).toBe('NEU');
-    const post = calls.find((c) => c.method === 'POST')!;
-    expect(Object.fromEntries(new URLSearchParams(post.init.body))).toEqual({ path: '/LM/Bilder', shareType: '3', permissions: '1' });
-  });
-
-  it('meldet ein falsches App-Passwort verständlich', async () => {
-    const { fetchImpl } = fakeCloud([[/cloud\/user/, () => ({ status: 401 })]]);
-    await expect(new NextcloudClient('https://c.de', 'u', 'falsch', null, fetchImpl).userInfo()).rejects.toThrow(/App-Passwort/);
+  it('meldet falsches Passwort und fehlendes Schreibrecht verständlich', async () => {
+    const wrong = fakeCloud([[/PROPFIND/, () => ({ status: 401 })]]);
+    await expect(new ShareClient('https://c.de', 'T', 'falsch', 'classic', wrong.fetchImpl).detectMode()).rejects.toThrow(/Passwort der Freigabe/);
+    const readOnly = fakeCloud([[/PUT/, () => ({ status: 403 })]]);
+    await expect(new ShareClient('https://c.de', 'T', 'pw', 'classic', readOnly.fetchImpl).put(['a.png'], Buffer.from('x'), 'image/png'))
+      .rejects.toThrow(/Hochladen und Bearbeiten erlauben/);
   });
 });
 

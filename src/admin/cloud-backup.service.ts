@@ -40,6 +40,8 @@ export interface CloudBackupConfig {
   weekday: number;
   hour: number;
   keep: number;
+  /** Lehrkräfte dürfen den Ordner für Bilder nutzen (Bilder/<Lehrkraft>/<Thema>, docs/nextcloud.md). */
+  teacherImages: boolean;
 }
 
 interface CloudBackupState {
@@ -65,6 +67,7 @@ const DEFAULT_CONFIG: CloudBackupConfig = {
   weekday: 0,
   hour: 3,
   keep: 4,
+  teacherImages: false,
 };
 
 const EMPTY_STATE: CloudBackupState = {
@@ -150,6 +153,10 @@ export class CloudBackupService implements OnApplicationBootstrap, OnModuleDestr
     if (input.hour !== undefined) cfg.hour = this.int(input.hour, 0, 23, 'Uhrzeit');
     if (input.keep !== undefined) cfg.keep = this.int(input.keep, 1, 100, 'Anzahl der Backups');
     if (input.enabled !== undefined) cfg.enabled = !!input.enabled;
+    if (input.teacherImages !== undefined) cfg.teacherImages = !!input.teacherImages;
+    if (cfg.teacherImages && !this.ready(cfg)) {
+      throw new BadRequestException('Für Bilder der Lehrkräfte braucht es erst eine funktionierende Verbindung (Adresse und Zugangsdaten).');
+    }
     if (cfg.enabled && !this.ready(cfg)) {
       throw new BadRequestException('Zum Einschalten braucht es Adresse, Benutzer und App-Passwort – oder einen Nextcloud-Freigabelink.');
     }

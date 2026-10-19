@@ -242,6 +242,15 @@ Link kennt, kann die Backups sonst herunterladen (verschlüsselt) und löschen.
 Eine „Dateiablage“ (nur Hochladen) reicht nicht – die App muss den Ordner
 auflisten und alte Backups löschen können.
 
+**Bilder der Lehrkräfte im selben Ordner:** Mit dem Häkchen *Lehrkräfte dürfen
+diesen Ordner für Bilder nutzen* speichert die App Bilder, die Lehrkräfte in
+Module einfügen, im Unterordner `Bilder/<Lehrkraft>/<Thema>/` dieses Ordners –
+ohne dass eine Lehrkraft etwas einrichten muss. Schülerinnen und Schüler
+bekommen die Bilder über den Server, der sie mit denselben Zugangsdaten holt;
+in der Nextcloud wird nichts öffentlich. Die Backups bleiben davon unberührt
+(gelöscht werden nur `.lmbak`-Dateien). Hat eine Lehrkraft eine eigene
+Freigabe eingetragen, nutzt sie diese. Siehe [Nextcloud](nextcloud.md).
+
 Je Lauf: Backup erzeugen, hochladen, prüfen, ob es vollständig angekommen ist.
 **Erst danach** werden die ältesten gelöscht, bis nur noch die eingestellte
 Anzahl übrig ist. Schlägt etwas fehl, wird nichts gelöscht. Angefasst werden

@@ -193,45 +193,55 @@ export async function openNextcloudDialog(app) {
     const data = await refreshNextcloud(app);
     if (!data || data.statusCode) { card.innerHTML = `<p class="login-error">Fehler: ${escapeHtml(data?.message || '?')}</p>`; return; }
     const c = data.config;
-    const status = data.ready
-      ? `✅ Verbunden als <strong>${escapeHtml(data.displayName || c.username)}</strong>. Bilder landen in
-         <strong>${escapeHtml(data.imagesFolder)}/&lt;Thema&gt;</strong>${data.openUrl ? ` – <a href="${escapeAttr(data.openUrl)}" target="_blank" rel="noopener">Ordner öffnen ↗</a>` : ''}.`
-      : data.configured ? '⚠️ Gespeichert, aber noch nicht verbunden – bitte „Verbinden“ wählen.' : '';
-    card.innerHTML = `
-      <h3>☁️ Nextcloud <button type="button" class="help-hint" data-help="nextcloud" title="Hilfe" aria-label="Hilfe">?</button></h3>
-      <p class="hint">Bilder, die du in Module einfügst, speichert die App dann <strong>in deiner Nextcloud</strong> statt auf
-        dem Server – je Lernthema in einem eigenen Ordner. Im Modul steht nur der Link; die Schülerinnen und Schüler laden
-        das Bild direkt aus deiner Nextcloud. Im Bildfeld kommt <strong>☁️ Aus Nextcloud</strong> dazu: Bilder, die schon in
-        diesen Ordnern liegen, mit einem Klick einfügen.</p>
-      <p class="hint">⚠️ Die Bilder sind über eine <strong>öffentliche Lesefreigabe</strong> erreichbar – für jeden, der den
-        Link kennt. Für Unterrichtsmaterial ist das in Ordnung, <strong>Fotos von Schülerinnen und Schülern gehören nicht
-        hinein</strong>.</p>
-      ${status ? `<p class="hint nc-status">${status}</p>` : ''}
-      <div class="settings-group">
+    const own = data.mode === 'own';
+    const school = data.school || {};
+    const status = own
+      ? `✅ Eigene Freigabe verbunden – die App sieht nur diesen Ordner. Bilder landen in <strong>Bilder/&lt;Thema&gt;</strong>
+         und kommen ${data.directImages ? 'direkt aus der Nextcloud (Lesefreigabe)' : 'über diesen Server zu den Schülern'}.
+         ${data.openUrl ? `<a href="${escapeAttr(data.openUrl)}" target="_blank" rel="noopener">Ordner öffnen ↗</a>` : ''}`
+      : data.configured ? '⚠️ Eigene Freigabe gespeichert, aber nicht verbunden – bitte „Verbinden“ wählen.' : '';
+    const ownForm = `
+        <p class="hint">So legst du die Freigabe an: In der Nextcloud einen Ordner anlegen (z. B. <code>LearningModules</code>) →
+          <strong>Teilen → Link teilen</strong> → <strong>„Hochladen und Bearbeiten erlauben“</strong> → ein
+          <strong>Passwort</strong> setzen → Link kopieren. Die App sieht dann nur diesen Ordner – kein Konto, kein App-Passwort.</p>
         <div class="form-group">
-          <label for="ncBase">Adresse der Nextcloud${data.suggested ? ' <span class="hint">(vorgeschlagen: die Nextcloud des automatischen Backups dieses Servers)</span>' : ''}</label>
-          <input type="url" id="ncBase" value="${escapeAttr(c.baseUrl)}" placeholder="https://cloud.meine-schule.de" autocomplete="off" />
+          <label for="ncShare">Freigabelink des Ordners</label>
+          <input type="url" id="ncShare" value="${escapeAttr(c.shareUrl)}" autocomplete="off"
+            placeholder="${escapeAttr(data.suggestedBase ? `${data.suggestedBase}/s/…` : 'https://cloud.meine-schule.de/s/…')}" />
         </div>
         <div class="form-group">
-          <label for="ncUser">Benutzername</label>
-          <input type="text" id="ncUser" value="${escapeAttr(c.username)}" autocomplete="off" />
-        </div>
-        <div class="form-group">
-          <label for="ncPass">App-Passwort <span class="hint">(Nextcloud → Persönliche Einstellungen → Sicherheit → „Neues App-Passwort erstellen“ – nicht dein normales Passwort)</span></label>
+          <label for="ncPass">Passwort der Freigabe</label>
           <input type="password" id="ncPass" autocomplete="new-password"
-            placeholder="${c.hasPassword ? 'gespeichert – leer lassen = unverändert' : 'xxxxx-xxxxx-xxxxx-xxxxx-xxxxx'}" />
+            placeholder="${c.hasPassword ? 'gespeichert – leer lassen = unverändert' : 'Passwort, das du beim Teilen gesetzt hast'}" />
         </div>
-        <div class="form-group">
-          <label for="ncFolder">Hauptordner in der Nextcloud <span class="hint">(darin legt die App „Bilder/&lt;Thema&gt;“ an)</span></label>
-          <input type="text" id="ncFolder" value="${escapeAttr(c.folder)}" autocomplete="off" />
-        </div>
+        <details class="nc-advanced" ${c.readShareUrl ? 'open' : ''}>
+          <summary>Optional: Bilder direkt aus der Nextcloud laden</summary>
+          <p class="hint">Ohne Angabe holt dieser Server die Bilder mit dem Passwort und reicht sie an die Schüler durch – in der
+            Nextcloud ist dann nichts öffentlich. Soll der Server das nicht tun, den Unterordner <code>Bilder</code> (legt die App
+            beim Verbinden an) zusätzlich <strong>nur lesend und ohne Passwort</strong> teilen und den Link hier eintragen.
+            Diese Bilder sind dann für jeden mit Link sichtbar – keine Fotos von Schülerinnen und Schülern.</p>
+          <input type="url" id="ncRead" value="${escapeAttr(c.readShareUrl)}" autocomplete="off" placeholder="https://…/s/…" />
+        </details>
         <div class="form-actions">
           <button class="btn btn-primary nc-connect">🔌 Verbinden</button>
-          ${data.configured ? '<button class="btn btn-danger nc-disconnect">Trennen</button>' : ''}
+          ${data.configured ? '<button class="btn btn-danger nc-disconnect">Eigene Freigabe trennen</button>' : ''}
         </div>
-        <p class="nc-message" style="margin-top:10px"></p>
+        <p class="nc-message" style="margin-top:10px"></p>`;
+    card.innerHTML = `
+      <h3>☁️ Nextcloud <button type="button" class="help-hint" data-help="nextcloud" title="Hilfe" aria-label="Hilfe">?</button></h3>
+      <p class="hint">Bilder, die du in Module einfügst, speichert die App <strong>in einem Nextcloud-Ordner</strong> statt auf
+        dem Server – je Lernthema in einem eigenen Unterordner. Im Modul steht nur der Link. Im Bildfeld kommt
+        <strong>☁️ Aus Nextcloud</strong> dazu: Bilder, die schon dort liegen, mit einem Klick einfügen.</p>
+      ${school.available && !own ? `<p class="hint nc-status">✅ <strong>Die Schule stellt einen Nextcloud-Ordner bereit.</strong>
+        Deine Bilder landen dort in <strong>${escapeHtml(school.folder)}/&lt;Thema&gt;</strong> und kommen über diesen Server zu
+        den Schülern. Du musst nichts einrichten.</p>` : ''}
+      ${status ? `<p class="hint nc-status">${status}</p>` : ''}
+      <div class="settings-group">
+        ${school.available && !data.configured
+          ? `<details class="nc-own"><summary>Stattdessen eine eigene Nextcloud-Freigabe verwenden</summary>${ownForm}</details>`
+          : `<h4>${school.available ? 'Eigene Nextcloud-Freigabe' : 'Nextcloud-Freigabe'}</h4>${ownForm}`}
       </div>
-      ${data.ready ? backupHtml(data.backup) : ''}
+      ${own ? backupHtml(data.backup) : ''}
       ${data.ready ? `
       <div class="settings-group nc-migrate">
         <h4>Vorhandene Bilder auslagern</h4>
@@ -250,16 +260,16 @@ export async function openNextcloudDialog(app) {
       el.textContent = m?.text || '';
     };
     say(msg);
+    if (msg?.text) $('.nc-own')?.setAttribute('open', '');
     $('.nc-close').addEventListener('click', close);
     $('.nc-connect').addEventListener('click', async (e) => {
       const btn = e.currentTarget;
       btn.disabled = true;
       btn.textContent = '⏳ Verbinde …';
       const res = await app.api.saveNextcloud({
-        baseUrl: $('#ncBase').value, username: $('#ncUser').value,
-        password: $('#ncPass').value || undefined, folder: $('#ncFolder').value,
+        shareUrl: $('#ncShare').value, password: $('#ncPass').value || undefined, readShareUrl: $('#ncRead').value,
       });
-      if (!res || res.statusCode || !res.ready) {
+      if (!res || res.statusCode || res.mode !== 'own') {
         btn.disabled = false;
         btn.textContent = '🔌 Verbinden';
         await refreshNextcloud(app);
@@ -292,7 +302,7 @@ export async function openNextcloudDialog(app) {
       else { btn.disabled = false; btn.textContent = '⬆ Jetzt sichern'; sayBackup({ error: true, text: `❌ ${res?.message || 'Backup fehlgeschlagen'}` }); }
     });
     $('.nc-disconnect')?.addEventListener('click', async () => {
-      if (!(await app.appConfirm('Nextcloud trennen?\n\nDie Bilder bleiben in deiner Nextcloud, und die Links in den Modulen funktionieren weiter, solange die Freigabe besteht. Neue Bilder landen danach wieder in der App.'))) return;
+      if (!(await app.appConfirm('Eigene Freigabe trennen?\n\nDie Bilder bleiben in deiner Nextcloud. Bilder, die über diesen Server laufen, sind danach in den Modulen nicht mehr zu sehen – nur solche über eine Lesefreigabe bleiben sichtbar. Neue Bilder landen danach im Ordner der Schule (falls vorhanden), sonst wieder in der App.'))) return;
       await app.api.disconnectNextcloud();
       await render({ text: 'Getrennt.' });
     });

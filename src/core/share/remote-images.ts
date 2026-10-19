@@ -17,6 +17,8 @@ const TYPES = new Set(['image/png', 'image/jpeg', 'image/gif', 'image/webp', 'im
 const IMAGE_KEY = /image|background/i;
 
 type Fetch = typeof fetch;
+/** Bilder, die dieser Server selbst ausliefert (Nextcloud über den Server), ohne HTTP-Umweg holen. */
+export type LocalImage = (url: string) => Promise<{ type: string; data: Buffer } | null>;
 
 async function fetchImage(url: string, fetchImpl: Fetch): Promise<string | null> {
   try {
@@ -46,7 +48,12 @@ async function fetchImage(url: string, fetchImpl: Fetch): Promise<string | null>
  * Kopien der Module, verlinkte Bilder eingebettet. `failed`: Links, die sich
  * nicht holen ließen (bleiben als Link stehen).
  */
-export async function inlineRemoteImages<T extends { content?: any }>(modules: T[], fetchImpl: Fetch = fetch): Promise<{ modules: T[]; failed: string[] }> {
+export async function inlineRemoteImages<T extends { content?: any }>(modules: T[], fetchImpl: Fetch = fetch, local?: LocalImage): Promise<{ modules: T[]; failed: string[] }> {
+  const load = async (url: string) => {
+    const own = local ? await local(url).catch(() => null) : null;
+    if (own && TYPES.has(own.type) && own.data.length <= MAX_BYTES) return `data:${own.type};base64,${own.data.toString('base64')}`;
+    return fetchImage(url, fetchImpl);
+  };
   const cache = new Map<string, Promise<string | null>>();
   const failed = new Set<string>();
   const visit = async (value: any): Promise<any> => {
@@ -56,7 +63,7 @@ export async function inlineRemoteImages<T extends { content?: any }>(modules: T
     for (const [k, v] of Object.entries(value)) {
       if (typeof v === 'string' && IMAGE_KEY.test(k) && /^https?:\/\//i.test(v.trim())) {
         const url = v.trim();
-        if (!cache.has(url)) cache.set(url, fetchImage(url, fetchImpl));
+        if (!cache.has(url)) cache.set(url, load(url));
         const data = await cache.get(url)!;
         if (!data) failed.add(url);
         out[k] = data || v;

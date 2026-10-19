@@ -1,4 +1,4 @@
-import { Injectable, ForbiddenException, BadRequestException, NotFoundException } from '@nestjs/common';
+import { Injectable, ForbiddenException, BadRequestException, NotFoundException, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
 import * as crypto from 'crypto';
@@ -10,6 +10,7 @@ import { MasterKeyService } from '../../crypto/master-key.service';
 import { H5pService } from '../h5p/h5p.service';
 import { exportMoodleXml } from '../moodle/moodle-export';
 import { inlineRemoteImages } from '../../share/remote-images';
+import { NextcloudService } from '../../../nextcloud/nextcloud.service';
 
 /** Hinweis für den Export-Bericht, wenn verlinkte Bilder nicht eingebettet werden konnten. */
 const linkedNote = (failed: string[]) => failed.length
@@ -63,7 +64,13 @@ export class ExportService {
     private readonly topics: TopicsService,
     private readonly masterKey: MasterKeyService,
     private readonly h5p: H5pService,
+    @Optional() private readonly nextcloud?: NextcloudService,
   ) {}
+
+  /** Verlinkte Bilder einbetten; Bilder „über diesen Server“ direkt aus der Nextcloud. */
+  private inline<T extends { content?: any }>(modules: T[]) {
+    return inlineRemoteImages(modules, fetch, this.nextcloud ? (url) => this.nextcloud!.readImageByUrl(url) : undefined);
+  }
 
   /** Was der Export-Dialog vorab wissen muss. */
   async info(topicId: string, user: any) {
@@ -99,7 +106,7 @@ export class ExportService {
   async exportMoodle(topicId: string, user: any) {
     const { topic, modules } = await this.plainSource(topicId, user);
     // Verlinkte Bilder (z. B. Nextcloud) einbetten – die Datei soll für sich stehen.
-    const inlined = await inlineRemoteImages(modules.filter((m) => !m.parentId && m.moduleSelected !== false));
+    const inlined = await this.inline(modules.filter((m) => !m.parentId && m.moduleSelected !== false));
     const result = exportMoodleXml(topic.title, inlined.modules);
     return { title: topic.title, ...result, notes: [...result.notes, ...linkedNote(inlined.failed)] };
   }
@@ -107,7 +114,7 @@ export class ExportService {
   /** H5P nur mit den eigenen Modulen. */
   async exportH5p(topicId: string, user: any) {
     const { topic, modules } = await this.plainSource(topicId, user);
-    const inlined = await inlineRemoteImages(modules);
+    const inlined = await this.inline(modules);
     const result = this.h5p.generateH5p(topic, inlined.modules);
     return { title: topic.title, ...result, notes: [...result.notes, ...linkedNote(inlined.failed)] };
   }

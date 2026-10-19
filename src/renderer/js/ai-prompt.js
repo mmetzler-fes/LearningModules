@@ -6,8 +6,12 @@
 // passt sich der Prompt mit an. Dazu je Typ ein kleines Beispiel im echten
 // Format und die Regeln, an denen KIs erfahrungsgemäß scheitern.
 
-/** Aufgabentypen, die der Generator anbietet – alle automatisch bewertbar. */
-export const AI_PROMPT_TYPES = ['multipleChoice', 'trueFalse', 'fillInTheBlanks', 'dragTheWords', 'markTheWords', 'dragAndDrop', 'formula'];
+/**
+ * Aufgabentypen, die der Generator anbietet – alle automatisch bewertbar bis
+ * auf Memory, ein Übungsspiel (zählt nicht in die Punkte).
+ */
+export const AI_PROMPT_TYPES = ['multipleChoice', 'trueFalse', 'fillInTheBlanks', 'dragTheWords', 'markTheWords', 'dragAndDrop', 'formula',
+  'sorting', 'crossword', 'memory'];
 
 /**
  * Module je Antwort. Längere Antworten brechen KIs gern mitten im JSON ab
@@ -73,6 +77,40 @@ export const AI_PROMPT_EXAMPLES = {
     ],
     allowNewValues: true,
   },
+  sorting: {
+    taskDescription: 'Bringe die Arbeitsschritte beim Löten in die richtige Reihenfolge.',
+    items: [
+      { text: 'Bauteil einsetzen und Beinchen umbiegen', imageUrl: '' },
+      { text: 'Lötstelle mit der Lötspitze erwärmen', imageUrl: '' },
+      { text: 'Lötzinn zuführen', imageUrl: '' },
+      { text: 'Lötkolben abnehmen und abkühlen lassen', imageUrl: '' },
+      { text: 'Überstehende Beinchen abschneiden', imageUrl: '' },
+    ],
+    layout: 'vertical',
+  },
+  crossword: {
+    taskDescription: 'Löse das Kreuzworträtsel zu elektrischen Größen.',
+    words: [
+      { answer: 'Kondensator', clue: 'Bauteil, das elektrische Ladung speichert', imageUrl: '' },
+      { answer: 'Spannung', clue: 'Größe mit der Einheit Volt', imageUrl: '' },
+      { answer: 'Widerstand', clue: 'Bauteil, das den Strom begrenzt', imageUrl: '' },
+      { answer: 'Ampere', clue: 'Einheit der Stromstärke', imageUrl: '' },
+      { answer: 'Leistung', clue: 'Produkt aus Spannung und Strom', imageUrl: '' },
+      { answer: 'Diode', clue: 'Lässt Strom nur in eine Richtung durch', imageUrl: '' },
+    ],
+    seed: 0,
+  },
+  memory: {
+    taskDescription: 'Finde die Paare aus Größe und Einheit.',
+    pairs: [
+      { aText: 'Spannung', aImage: '', bText: 'Volt', bImage: '' },
+      { aText: 'Stromstärke', aImage: '', bText: 'Ampere', bImage: '' },
+      { aText: 'Widerstand', aImage: '', bText: 'Ohm', bImage: '' },
+      { aText: 'Kapazität', aImage: '', bText: 'Farad', bImage: '' },
+      { aText: 'Leistung', aImage: '', bText: 'Watt', bImage: '' },
+      { aText: 'Frequenz', aImage: '', bText: 'Hertz', bImage: '' },
+    ],
+  },
   dragAndDrop: {
     taskDescription: 'Ordne die Bauteile ihrer Einheit zu.',
     backgroundImage: '',
@@ -124,6 +162,23 @@ const RULES = {
     'Jede Zone hat eine eindeutige "label"; jedes Element nennt in "correctZone" genau diese Bezeichnung.',
     'Mehrere Elemente dürfen dieselbe Zone als "correctZone" haben (z. B. zwei SELECT-Ausdrücke in "Projektion") – die Zone ist dann richtig, wenn alle drin liegen. Weitere Elemente ohne Zone sind Ablenker ("correctZone": "").',
     'Positionen x, y, width, height in Prozent (0–100), Zonen dürfen sich nicht überlappen.',
+  ],
+  sorting: [
+    '"items" stehen in der RICHTIGEN Reihenfolge – die Plattform mischt sie für die Schüler selbst.',
+    '3–8 Elemente mit eindeutiger Reihenfolge (Arbeitsschritte, Zeitfolgen, Größen). Keine zwei Elemente, deren Reihenfolge strittig ist.',
+    'Jedes Element ist ein Objekt mit "text" (und "imageUrl"), keine bloße Zeichenkette. Elemente kurz halten.',
+    '"layout": "vertical"; "horizontal" nur bei sehr kurzen Texten.',
+  ],
+  crossword: [
+    '"answer" ist ein einzelnes Wort oder ein fester Begriff. Leerzeichen und Bindestriche fallen im Gitter weg; Umlaute und ß sind je ein Feld.',
+    '6–12 Wörter mit mindestens 3 Buchstaben, die gemeinsame Buchstaben haben – nur so kreuzen sie sich.',
+    '"clue" ist eine eindeutige Frage oder Umschreibung, die das Lösungswort nicht enthält.',
+    '"seed": 0 – das Gitter ordnet die Plattform selbst an.',
+  ],
+  memory: [
+    'Memory ist ein Übungsspiel ohne Bewertung (zählt nicht in die Punkte). Höchstens ein Memory je Thema, nur wenn es ausdrücklich gewünscht ist oder gut passt.',
+    '6–10 Paare. "aText" und "bText" gehören zusammen (Begriff ↔ Erklärung, Größe ↔ Einheit, Wort ↔ Übersetzung), höchstens etwa fünf Wörter je Karte.',
+    'Jede Karte passt zu genau einem Paar – keine zwei Karten mit gleicher Bedeutung.',
   ],
 };
 
@@ -186,12 +241,12 @@ export function buildAiPrompt(o) {
   if (link) {
     L.push(`Weitere Materialien liegen hier: ${link}`);
     if (o.linkImages) {
-      L.push('Bilder aus diesem öffentlichen Ordner darfst du als direkten Download-Link einbinden ("imageUrl" bzw. bei Drag and Drop "backgroundImage"),'
+      L.push('Bilder aus diesem öffentlichen Ordner darfst du als direkten Download-Link einbinden ("imageUrl", bei Drag and Drop "backgroundImage", bei Memory "aImage"/"bImage"),'
         + ' im Format <Ordner-Link>/download?path=/&files=<Dateiname>. Nur Dateien verwenden, die es dort wirklich gibt.');
     }
   }
   if (!link || !o.linkImages) {
-    L.push('Bilder: "imageUrl" und "backgroundImage" bleiben leer (""). Bilder ergänzt die Lehrkraft später.');
+    L.push('Bilder: "imageUrl", "backgroundImage", "aImage" und "bImage" bleiben leer (""). Bilder ergänzt die Lehrkraft später.');
   }
   L.push('');
 

@@ -1,4 +1,6 @@
-import { arenaSeconds } from './arena-seconds';
+import * as fs from 'fs';
+import * as path from 'path';
+import { arenaSeconds, TYPE_SECONDS } from './arena-seconds';
 
 describe('arenaSeconds', () => {
   it('braucht mindestens drei Messungen', () => {
@@ -23,5 +25,13 @@ describe('arenaSeconds', () => {
   it('bleibt zwischen 5 und 600 Sekunden', () => {
     expect(arenaSeconds([500, 600, 700])).toBe(5);
     expect(arenaSeconds([600000, 600000, 100000])).toBe(600);
+  });
+
+  it('Vorgabe je Typ ist im Browser dieselbe (Platzhalter im Freigabe-Formular)', () => {
+    const src = fs.readFileSync(path.resolve(__dirname, '../renderer/js/answer-eval.js'), 'utf-8');
+    const literal = /export const ARENA_TYPE_SECONDS = (\{[^}]*\});/.exec(src)?.[1] || '';
+    const browser = JSON.parse(literal.replace(/(\w+):/g, '"$1":')) as Record<string, number>;
+    expect(browser).toEqual(TYPE_SECONDS);
+    expect(TYPE_SECONDS.crossword).toBe(300);
   });
 });

@@ -11,6 +11,14 @@
  */
 
 export const MIN_SAMPLES = 3;
+
+/**
+ * Vorgabe je Aufgabentyp, wenn weder die Lehrkraft eine Zeit gesetzt hat noch
+ * genug Messungen da sind – statt der Standardzeit der Freigabe (meist 30 s),
+ * die für ein Kreuzworträtsel nie reicht. Gegenstück für den Platzhalter im
+ * Formular: ARENA_TYPE_SECONDS in answer-eval.js.
+ */
+export const TYPE_SECONDS: Record<string, number> = { crossword: 300 };
 export const MIN_SECONDS = 5;
 export const MAX_SECONDS = 600;
 

@@ -390,6 +390,59 @@ const H5P_TYPES = {
       { key: 'enableSolutionsButton', type: 'checkbox', label: 'Lösung anzeigen erlauben', default: true, advanced: true },
     ],
   },
+  sorting: {
+    id: 'sorting',
+    name: 'Reihenfolge',
+    icon: '↕️',
+    description: 'Elemente (Text oder Bild) in die richtige Reihenfolge bringen.',
+    category: 'Quiz',
+    fields: [
+      { key: 'taskDescription', type: 'richtext', label: 'Aufgabenbeschreibung' },
+      { key: 'items', type: 'list', label: 'Elemente – in der richtigen Reihenfolge eingeben, die Schüler sehen sie gemischt', itemFields: [
+        { key: 'text', type: 'text', label: 'Text' },
+        { key: 'imageUrl', type: 'image', label: 'Bild (optional, auch statt Text)' },
+      ]},
+      { key: 'layout', type: 'select', label: 'Anordnung', default: 'vertical', options: [
+        { value: 'vertical', label: 'Untereinander' },
+        { value: 'horizontal', label: 'Nebeneinander (z. B. für Bilder)' },
+      ]},
+    ],
+  },
+  memory: {
+    id: 'memory',
+    name: 'Memory',
+    icon: '🧠',
+    description: 'Paare aufdecken: gleiche Karten oder Bild und Begriff. Übungsspiel ohne Bewertung.',
+    category: 'Lernen',
+    // Übungsspiel: Wie viele Züge es braucht, ist eher Glück als Können –
+    // zählt in der Auswertung nicht mit, wie die Informationsmodule.
+    informational: true,
+    fields: [
+      { key: 'taskDescription', type: 'richtext', label: 'Aufgabenbeschreibung' },
+      { key: 'pairs', type: 'list', label: 'Paare', itemFields: [
+        { key: 'aText', type: 'text', label: 'Karte A: Text' },
+        { key: 'aImage', type: 'image', label: 'Karte A: Bild' },
+        { key: 'bText', type: 'text', label: 'Karte B: Text (Karte B leer = zwei gleiche Karten)' },
+        { key: 'bImage', type: 'image', label: 'Karte B: Bild' },
+      ]},
+    ],
+  },
+  crossword: {
+    id: 'crossword',
+    name: 'Kreuzworträtsel',
+    icon: '🔠',
+    description: 'Lösungswörter mit Hinweisen – das Gitter wird automatisch angeordnet.',
+    category: 'Quiz',
+    fields: [
+      { key: 'taskDescription', type: 'richtext', label: 'Aufgabenbeschreibung' },
+      { key: 'words', type: 'list', label: 'Wörter', itemFields: [
+        { key: 'answer', type: 'text', label: 'Lösungswort (Umlaute und ß sind je ein Feld, Leerzeichen und Bindestriche fallen weg)', required: true },
+        { key: 'clue', type: 'text', label: 'Hinweis / Frage', required: true },
+        { key: 'imageUrl', type: 'image', label: 'Bild zum Hinweis (optional)' },
+      ]},
+      { key: 'seed', type: 'crosswordLayout', label: 'Anordnung', default: 0 },
+    ],
+  },
   video: {
     id: 'video',
     name: 'Video',

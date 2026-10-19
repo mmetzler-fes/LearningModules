@@ -123,7 +123,8 @@ Für jede Aufgabe gilt die erste passende Zeit:
 
 1. die eigene Zeit der Lehrkraft unter *Zeit für einzelne Aufgaben anpassen*,
 2. die **gemessene Zeit** (⏱), sobald mindestens drei Messungen vorliegen,
-3. sonst die *Zeit je Aufgabe* der Freigabe (Vorgabe 30 s).
+3. beim **Kreuzworträtsel** sonst 5 Minuten,
+4. sonst die *Zeit je Aufgabe* der Freigabe (Vorgabe 30 s).
 
 Gemessen wird in **Quiz** und **Lernbegleitung** über Schülerfreigaben und
 Quick-Links: die Zeit von der Anzeige einer Aufgabe bis zur ersten Antwort –

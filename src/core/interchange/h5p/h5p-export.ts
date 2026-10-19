@@ -1,6 +1,7 @@
 import AdmZip from 'adm-zip';
 import { imageSize } from '../moodle/image-size';
 import { dndExpected } from '../moodle/moodle-export';
+import { puzzles } from '../../puzzles/puzzles';
 
 /**
  * Thema → H5P-Paket (H5P.QuestionSet mit einer Frage je Modul).
@@ -427,6 +428,91 @@ const convertDragQuestion: Converter = (c, ctx) => {
   })];
 };
 
+/**
+ * Reihenfolge → Drag and Drop mit nummerierten Plätzen (eine Sortieraufgabe
+ * nimmt das Fragenset nicht an). Links die Elemente gemischt, rechts die
+ * Plätze 1, 2, 3 … Gleiche Elemente passen auf die Plätze des jeweils anderen.
+ * Ein H5P-Element ist Text oder Bild – bei beidem gewinnt das Bild.
+ */
+const convertSorting: Converter = (c, ctx) => {
+  const p = puzzles();
+  const items = p.sortingItems(c);
+  if (items.length < 2) return null;
+  const imgs = items.map((it) => (it.imageUrl ? ctx.images.add(it.imageUrl, 'element') : null));
+  if (items.some((it, i) => it.imageUrl && !imgs[i])) ctx.notes.push(`${ctx.name}: nicht alle Bilder übernommen.`);
+  if (items.some((it, i) => it.text && imgs[i])) ctx.notes.push(`${ctx.name}: bei Elementen mit Bild und Text nur das Bild übernommen.`);
+
+  const W = 620;
+  const em = 16;
+  const pad = 0.5;
+  const rowH = imgs.some(Boolean) ? 6 : 2.5;
+  const H = items.length * (rowH + pad) * em + pad * em;
+  const half = W / em / 2;
+  const pctX = (e: number) => Math.round(((e * em) / W) * 10000) / 100;
+  const pctY = (e: number) => Math.round(((e * em) / H) * 10000) / 100;
+  const rowY = (i: number) => pad + i * (rowH + pad);
+
+  // Startplätze gemischt, aber fest: dieselbe Datei ergibt dasselbe Paket.
+  const start = p.shuffleForSorting(items, p.seededRandom(items.length * 31 + 7));
+  const slotOf = new Map(start.map((it, i) => [it.index, i]));
+  const elements = items.map((it, i) => ({
+    type: imgs[i]
+      ? {
+        library: ctx.store.ref('H5P.Image'),
+        params: fillDefaults(ctx.store.semantics('H5P.Image'), { file: { path: imgs[i]!.path, mime: imgs[i]!.mime, width: imgs[i]!.width, height: imgs[i]!.height }, alt: it.text }, null),
+        subContentId: ctx.sub(),
+        metadata: { contentType: 'Image', license: 'U', title: it.text.slice(0, 40) || `Bild ${i + 1}` },
+      }
+      : {
+        library: ctx.store.ref('H5P.AdvancedText'),
+        params: { text: `<p>${esc(it.text)}</p>` },
+        subContentId: ctx.sub(),
+        metadata: { contentType: 'Text', license: 'U', title: it.text.slice(0, 40) },
+      },
+    x: pctX(pad),
+    y: pctY(rowY(slotOf.get(it.index)!)),
+    width: half - 2 * pad,
+    height: rowH,
+    dropZones: items.map((_z, k) => String(k)),
+    backgroundOpacity: 100,
+    multiple: false,
+  }));
+  const dropZones = items.map((it, i) => ({
+    label: `<div>${i + 1}.</div>`,
+    showLabel: true,
+    x: pctX(half + pad),
+    y: pctY(rowY(i)),
+    width: half - 2 * pad,
+    height: rowH,
+    correctElements: items.filter((o) => o.key === it.key).map((o) => String(o.index)),
+    backgroundOpacity: 50,
+    tipsAndFeedback: { tip: '', feedbackOnCorrect: '', feedbackOnIncorrect: '' },
+    single: true,
+    autoAlign: true,
+  }));
+  return [sub(ctx, 'H5P.DragQuestion', {
+    question: {
+      settings: { size: { width: W, height: Math.round(H) } },
+      task: { elements, dropZones },
+    },
+    behaviour: { enableRetry: true, enableCheckButton: true, singlePoint: false, applyPenalties: true, showTitle: true },
+  })];
+};
+
+/** Kreuzworträtsel → Lückentext: je Hinweis eine Zeile mit dem Lösungswort als Lücke. */
+const convertCrossword: Converter = (c, ctx) => {
+  const words = puzzles().crosswordWords(c);
+  if (!words.length) return null;
+  ctx.notes.push(`${ctx.name}: Kreuzworträtsel gibt es im H5P-Fragenset nicht – als Lückentext exportiert.`);
+  if (words.some((w) => w.imageUrl)) ctx.notes.push(`${ctx.name}: Bilder zu den Hinweisen nicht übernommen.`);
+  return [sub(ctx, 'H5P.Blanks', {
+    media: media('', ctx),
+    text: ctx.intro + (c.taskDescription || ''),
+    questions: words.map((w) => `<p>${esc(w.clue || '…')}: *${esc(w.text.replace(/[*/]/g, ' '))}*</p>`),
+    behaviour: { caseSensitive: false, showSolutionsRequiresInput: true, enableRetry: true, enableSolutionsButton: true },
+  })];
+};
+
 const CONVERTERS: Record<string, Converter> = {
   multipleChoice: convertMultipleChoice,
   trueFalse: convertTrueFalse,
@@ -435,13 +521,15 @@ const CONVERTERS: Record<string, Converter> = {
   markTheWords: convertMarkTheWords,
   essay: convertEssay,
   dragAndDrop: convertDragQuestion,
+  sorting: convertSorting,
+  crossword: convertCrossword,
 };
 
 const TYPE_NAMES: Record<string, string> = {
   worksheet: 'Arbeitsblatt', flashcards: 'Karteikarten', dictation: 'Diktat', arithmeticQuiz: 'Rechenquiz',
   branchingScenario: 'Verzweigung', video: 'Video', audioRecorder: 'Audio-Aufnahme', accordion: 'Akkordeon',
   collage: 'Collage', coursePresentation: 'Präsentation', dialogCards: 'Dialogkarten', imageHotspots: 'Bild-Hotspots',
-  iframeEmbedder: 'Eingebettete Seite', formula: 'Formelaufgabe',
+  iframeEmbedder: 'Eingebettete Seite', formula: 'Formelaufgabe', memory: 'Memory',
 };
 
 export function buildH5pPackage(title: string, modules: H5pExportModule[], libraries: Buffer): H5pExportResult {
@@ -477,7 +565,7 @@ export function buildH5pPackage(title: string, modules: H5pExportModule[], libra
     }
     questions.push(...result);
     for (const q of result) used.add(q.library.split(' ')[0]);
-    if (m.type === 'dragAndDrop') { used.add('H5P.AdvancedText'); used.add('H5P.Image'); }
+    if (m.type === 'dragAndDrop' || m.type === 'sorting') { used.add('H5P.AdvancedText'); used.add('H5P.Image'); }
     if (JSON.stringify(result).includes('"H5P.Image ')) used.add('H5P.Image');
   }
 

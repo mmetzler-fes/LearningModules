@@ -12,6 +12,7 @@ import { LinksService, contestSettingsOf } from '../links/links.service';
 import { CompanionService } from '../companion/companion.service';
 import { ClassesService } from '../classes/classes.service';
 import { TimingsService } from '../timings/timings.service';
+import { TYPE_SECONDS } from '../timings/arena-seconds';
 import { UsageService } from '../impact/usage.service';
 import { isTestStudent } from '../classes/test-student';
 import { forStudents, contentOf } from '../core/public/student-view';
@@ -26,6 +27,7 @@ import { cleanPcName } from '../core/public/pc-name';
 const GRADABLE_TYPES = new Set([
   'multipleChoice', 'trueFalse', 'fillInTheBlanks', 'markTheWords', 'dragTheWords',
   'dictation', 'dragAndDrop', 'flashcards', 'arithmeticQuiz', 'branchingScenario', 'formula',
+  'sorting', 'crossword',
 ]);
 
 /**
@@ -236,7 +238,8 @@ export class ContestService implements OnModuleDestroy {
   /**
    * Aufgaben des Links, die sich automatisch bewerten lassen – in Link-Reihenfolge.
    * Zeit je Aufgabe: eigene Zeit der Lehrkraft, sonst die aus den gemessenen
-   * Bearbeitungszeiten, sonst die Standardzeit der Freigabe.
+   * Bearbeitungszeiten, sonst die Vorgabe des Typs (Kreuzworträtsel 5 min),
+   * sonst die Standardzeit der Freigabe.
    */
   private async loadQuestions(link: TopicLink): Promise<Question[]> {
     const cfg = contestSettingsOf(link);
@@ -253,7 +256,7 @@ export class ContestService implements OnModuleDestroy {
             module: part,
             topicId: topic.id,
             topicTitle: topic.title,
-            seconds: cfg.seconds[m.id] || measured.get(m.id)?.seconds || cfg.defaultSeconds,
+            seconds: cfg.seconds[m.id] || measured.get(m.id)?.seconds || TYPE_SECONDS[m.type] || cfg.defaultSeconds,
           });
         }
       }

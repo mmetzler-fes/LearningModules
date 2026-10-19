@@ -211,9 +211,15 @@ FRONTEND – src/renderer/
                           dragTheWords, markTheWords, coursePresentation,
                           dictation, dragAndDrop, iframeEmbedder, imageHotspots,
                           collage, audioRecorder, branchingScenario, video,
+                          sorting, memory, crossword (→ puzzle-views.js),
                           h5p_native, default
       startArithmeticQuiz(container, content, suppressFeedback)
                           Interaktives Rechenquiz-Widget
+
+  puzzles.js              Logik von Reihenfolge, Memory, Kreuzworträtsel
+                          (Mischen, Bewertung, Gitter mit Startwert); ohne DOM,
+                          Tests laden sie über src/core/puzzles/puzzles.ts
+  puzzle-views.js         Anzeige dieser drei Typen
 
   views/login.js
     LINK_MODE_LABELS      Beschriftung der drei Abfragemodi (auch in links.js)

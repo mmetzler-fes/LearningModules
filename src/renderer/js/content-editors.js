@@ -389,7 +389,70 @@ class ContentEditorManager {
       case 'uploadTest':
         this.renderUploadTestField(parent);
         break;
+      case 'crosswordLayout':
+        this.renderCrosswordLayoutField(parent, field, value);
+        break;
     }
+  }
+
+  /**
+   * Kreuzworträtsel: Vorschau des Gitters und „🎲 Neu anordnen“. Gespeichert
+   * wird nur der Startwert – das Gitter ergibt sich aus ihm und den Wörtern
+   * (puzzles.js), bei Lehrkraft und Schülern gleich.
+   */
+  renderCrosswordLayoutField(parent, field, value) {
+    const group = this.createFormGroup(field.label, false);
+    const hidden = document.createElement('input');
+    hidden.type = 'hidden';
+    hidden.name = `content_${field.key}`;
+    hidden.value = String(Number(value) || 0);
+    const box = document.createElement('div');
+    box.className = 'cw-editor';
+    box.innerHTML = `
+      <div class="cw-editor-bar">
+        <button type="button" class="btn btn-secondary btn-sm">🎲 Neu anordnen</button>
+        <span class="hint cw-editor-status"></span>
+      </div>
+      <div class="cw-editor-preview"></div>`;
+    group.append(hidden, box);
+    parent.appendChild(group);
+
+    const status = box.querySelector('.cw-editor-status');
+    const preview = box.querySelector('.cw-editor-preview');
+    const wordsField = H5P_TYPES.crossword.fields.find((f) => f.key === 'words');
+    const draw = async () => {
+      let lib;
+      try { lib = await import('./puzzles.js'); } catch (_) { return; }
+      if (!hidden.isConnected) return;
+      const { layout } = lib.buildCrossword({ words: this.collectFieldData(wordsField), seed: Number(hidden.value) || 0 });
+      if (!layout.entries.length) {
+        preview.innerHTML = '';
+        status.textContent = 'Noch keine Wörter mit mindestens zwei Buchstaben.';
+        return;
+      }
+      preview.innerHTML = `<div class="cw-mini" style="grid-template-columns:repeat(${layout.cols}, 1fr); max-width:${layout.cols * 22}px;">${
+        layout.cells.flat().map((ch) => (ch ? `<span>${escapeHtml(ch)}</span>` : '<i></i>')).join('')}</div>`;
+      status.textContent = `${layout.entries.length} Wörter, ${layout.rows} × ${layout.cols} Felder`
+        + (layout.islands ? ` · ${layout.islands} ohne gemeinsamen Buchstaben – ${layout.islands === 1 ? 'steht' : 'stehen'} frei darunter` : '');
+    };
+    box.querySelector('button').addEventListener('click', () => {
+      hidden.value = String(Math.floor(Math.random() * 1e9) + 1);
+      draw();
+    });
+    // Wörter ändern sich durch Tippen und durch Hinzufügen/Entfernen (Klick).
+    let timer = null;
+    const onChange = () => {
+      if (!hidden.isConnected) {
+        this.container.removeEventListener('input', onChange);
+        this.container.removeEventListener('click', onChange);
+        return;
+      }
+      clearTimeout(timer);
+      timer = setTimeout(draw, 400);
+    };
+    this.container.addEventListener('input', onChange);
+    this.container.addEventListener('click', onChange);
+    draw();
   }
 
   /**
@@ -1085,6 +1148,10 @@ class ContentEditorManager {
       case 'checkbox': {
         const el = this.container.querySelector(`[name="content_${field.key}"]`);
         return el ? el.checked : !!field.default;
+      }
+      case 'crosswordLayout': {
+        const el = this.container.querySelector(`[name="content_${field.key}"]`);
+        return el ? Number(el.value) || 0 : 0;
       }
       case 'list': {
         return this.collectListData(field);

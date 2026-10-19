@@ -28,6 +28,7 @@ In Moodle: **Fragensammlung → Export → Moodle-XML-Format**. Eine Kurssicheru
 | Freitext | Freitext | |
 | Beschreibung | Arbeitsblatt | |
 | Berechnet (`calculated`, `calculatedsimple`) | Formelaufgabe | siehe [Formelaufgabe](formelaufgabe.md) |
+| Anordnung (`ordering`) | Reihenfolge | Teilauswahl entfällt, Bild im Fragetext auch |
 | Auswahl mit Formeln, Zufallsfragen | – | im Bericht |
 
 Bilder kommen aus der Datei mit (Moodle bettet sie als Base64 ein), auch das
@@ -57,7 +58,14 @@ Im Export-Dialog eines Themas (nur selbst verfasste, aktive Module):
 | Freitext | Freitext | Essay |
 | Formelaufgabe | je Ergebnis eine berechnete Frage | – |
 | Arbeitsblatt | Beschreibung | – |
-| übrige (Karteikarten, Diktat, …) | – | – |
+| Reihenfolge | Anordnung (`ordering`) | DragQuestion mit Plätzen 1, 2, 3 … |
+| Kreuzworträtsel | Cloze, je Hinweis eine Lücke | Blanks, je Hinweis eine Lücke |
+| übrige (Memory, Karteikarten, Diktat, …) | – | – |
+
+Die Anordnung ist in neueren Moodle-Versionen eingebaut, in älteren muss das
+Plugin *Ordering* installiert sein. Bewertet wird dort wie in der App über
+Nachbarpaare. Ein H5P-Element ist Text oder Bild. Hat ein Element der
+Reihenfolge beides, kommt nur das Bild mit.
 
 Bei Lücken mit mehreren richtigen Wörtern (`*a|b*`) nehmen Moodle und H5P nur
 das erste. Ablagegruppen gibt es in Moodle nicht (feste Zuordnung); in H5P

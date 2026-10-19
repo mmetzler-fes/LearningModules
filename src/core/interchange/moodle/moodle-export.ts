@@ -1,5 +1,6 @@
 import { imageSize } from './image-size';
 import { formulaEngine } from '../../formula/formula-engine';
+import { puzzles } from '../../puzzles/puzzles';
 
 /**
  * Module dieser App → Moodle-XML (Fragensammlung), importierbar in Moodle
@@ -349,6 +350,50 @@ const exportFormula: Exporter = (c, ctx) => {
   });
 };
 
+/**
+ * Reihenfolge → Anordnung (qtype_ordering; in neueren Moodle-Versionen
+ * eingebaut, sonst als Plugin). Die Antworten stehen in der richtigen
+ * Reihenfolge, "fraction" ist die Stelle. Bewertet wird wie in der App über
+ * Nachbarpaare (RELATIVE_NEXT_EXCLUDE_LAST).
+ */
+const exportSorting: Exporter = (c, ctx) => {
+  const items = puzzles().sortingItems(c);
+  if (items.length < 2) return null;
+  ctx.notes.push(`${ctx.name}: braucht in Moodle den Fragetyp „Anordnung“ (Ordering).`);
+  const answers = items.map((it, i) => {
+    const f = it.imageUrl ? ctx.files.fromUrl(it.imageUrl) : null;
+    const img = f
+      ? `<img src="@@PLUGINFILE@@/${encodeURIComponent(f.name)}" alt="${esc(it.text)}" />`
+      : /^https?:\/\//i.test(it.imageUrl) ? `<img src="${esc(it.imageUrl)}" alt="${esc(it.text)}" />` : '';
+    if (it.imageUrl && !img) ctx.notes.push(`${ctx.name}: nicht alle Bilder übernommen.`);
+    const html = [img, it.text ? esc(it.text) : ''].filter(Boolean).join('<br />') || `Element ${i + 1}`;
+    return `    <answer fraction="${i + 1}" format="html"><text>${cdata(`<p>${html}</p>`)}</text>${f ? fileTag(f) : ''}</answer>`;
+  });
+  return [
+    head('ordering', ctx.name)
+    + `    ${questionText([ctx.intro, c.taskDescription || ''], '', ctx.files)}\n`
+    + `    <layouttype>${c.layout === 'horizontal' ? 'HORIZONTAL' : 'VERTICAL'}</layouttype>\n`
+    + '    <selecttype>ALL</selecttype>\n    <selectcount>0</selectcount>\n'
+    + '    <gradingtype>RELATIVE_NEXT_EXCLUDE_LAST</gradingtype>\n    <showgrading>SHOW</showgrading>\n'
+    + '    <numberingstyle>none</numberingstyle>\n'
+    + answers.join('\n') + '\n  </question>',
+  ];
+};
+
+/** Kreuzworträtsel → Cloze: je Hinweis eine Zeile mit Kurzantwort-Lücke. */
+const exportCrossword: Exporter = (c, ctx) => {
+  const words = puzzles().crosswordWords(c);
+  if (!words.length) return null;
+  ctx.notes.push(`${ctx.name}: Kreuzworträtsel gibt es in Moodle nicht – als Lückentext exportiert.`);
+  if (words.some((w) => w.imageUrl)) ctx.notes.push(`${ctx.name}: Bilder zu den Hinweisen nicht übernommen.`);
+  const lines = words.map((w) => `<p>${esc(w.clue || '…')}: {1:SHORTANSWER:=${clozeEsc(w.text)}}</p>`);
+  return [
+    head('cloze', ctx.name)
+    + `    ${questionText([ctx.intro, c.taskDescription || '', ...lines], '', ctx.files)}\n`
+    + '  </question>',
+  ];
+};
+
 const EXPORTERS: Record<string, Exporter> = {
   formula: exportFormula,
   multipleChoice: exportMultipleChoice,
@@ -358,13 +403,15 @@ const EXPORTERS: Record<string, Exporter> = {
   dragAndDrop: exportDragAndDrop,
   essay: exportEssay,
   worksheet: exportWorksheet,
+  sorting: exportSorting,
+  crossword: exportCrossword,
 };
 
 const TYPE_NAMES: Record<string, string> = {
   markTheWords: 'Mark the Words', flashcards: 'Karteikarten', dictation: 'Diktat', arithmeticQuiz: 'Rechenquiz',
   branchingScenario: 'Verzweigung', video: 'Video', audioRecorder: 'Audio-Aufnahme', accordion: 'Akkordeon',
   collage: 'Collage', coursePresentation: 'Präsentation', dialogCards: 'Dialogkarten', imageHotspots: 'Bild-Hotspots',
-  iframeEmbedder: 'Eingebettete Seite',
+  iframeEmbedder: 'Eingebettete Seite', memory: 'Memory',
 };
 
 export function exportMoodleXml(category: string, modules: ExportModule[]): MoodleExportResult {

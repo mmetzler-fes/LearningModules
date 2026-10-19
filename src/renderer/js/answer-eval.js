@@ -1,5 +1,6 @@
 import { scoreDictation, dictationOptions } from './dictation.js';
 import { evaluate, parseUserNumber, isWithinTolerance, formatNumber } from './formula.js';
+import { sortingItems, sortingLabel, scoreSorting, buildCrossword, crosswordLetters, scoreCrossword } from './puzzles.js';
 
 // ==================== AUSWERTUNG EINER AUFGABE ====================
 
@@ -34,7 +35,15 @@ export function dndExpectedMappings(content) {
 export const GRADABLE_TYPES = new Set([
   'multipleChoice', 'trueFalse', 'fillInTheBlanks', 'markTheWords', 'dragTheWords',
   'dictation', 'dragAndDrop', 'flashcards', 'arithmeticQuiz', 'branchingScenario', 'formula',
+  'sorting', 'crossword',
 ]);
+
+/**
+ * Quiz-Arena: Zeit je Typ, wenn weder eigene noch gemessene Zeit da ist
+ * (statt der Standardzeit der Freigabe). Gegenstück: TYPE_SECONDS in
+ * src/timings/arena-seconds.ts.
+ */
+export const ARENA_TYPE_SECONDS = { crossword: 300 };
 
 /**
  * Aufgaben, die sich nach dem Abschicken nicht mehr ändern lassen (Kopfrechnen
@@ -340,6 +349,47 @@ export function collectAnswer(mod, root) {
       result.isCorrect = correct === cards.length && cards.length > 0;
       break;
     }
+    case 'sorting': {
+      // Teilpunkte über Nachbarpaare (puzzles.js), gleiche Elemente vertauschbar.
+      const items = sortingItems(content);
+      const given = [...root.querySelectorAll('.sort-item')].map((el) => items[Number(el.dataset.index)]).filter(Boolean);
+      const score = scoreSorting(items.map((it) => it.key), given.map((it) => it.key));
+      result.userAnswer = given.map(sortingLabel).join(' → ') || '—';
+      result.correctAnswer = items.map(sortingLabel).join(' → ');
+      result.isCorrect = score.isCorrect;
+      result.points = score.points;
+      if (!score.isCorrect && score.totalPairs) result.score = `${score.pairs}/${score.totalPairs} Paare richtig hintereinander`;
+      break;
+    }
+    case 'crossword': {
+      // Das Gitter ergibt sich aus Wörtern und Startwert – wie in der Anzeige.
+      const puzzle = buildCrossword(content);
+      const letterAt = (r, c) => {
+        const inp = root.querySelector(`.cw-grid input[data-r="${r}"][data-c="${c}"]`);
+        const letters = crosswordLetters(inp ? inp.value : '');
+        return letters.length ? letters[letters.length - 1] : '';
+      };
+      const score = scoreCrossword(puzzle, letterAt);
+      const dir = { across: '→', down: '↓' };
+      result.userAnswer = score.perEntry.map((p) => `${p.number}${dir[p.dir]} ${p.given} ${p.ok ? '✓' : '✗'}`).join(', ');
+      result.correctAnswer = score.perEntry.map((p) => `${p.number}${dir[p.dir]} ${p.expected}`).join(', ');
+      result.isCorrect = score.total > 0 && score.correct === score.total;
+      if (score.total > 0) {
+        result.points = score.correct / score.total;
+        result.score = `${score.correct}/${score.total} Wörter richtig`;
+      }
+      break;
+    }
+    case 'memory': {
+      // Übungsspiel ohne Bewertung (informational); festgehalten wird nur, wie es ausging.
+      const board = root.querySelector('.mem-board');
+      const found = Number(board?.dataset.found) || 0;
+      const total = Number(board?.dataset.total) || 0;
+      result.infoAnswer = total && found === total
+        ? `Gelöst in ${board.dataset.moves} Zügen`
+        : `${found} von ${total} Paaren gefunden`;
+      break;
+    }
     default: {
       result.isCorrect = true; result.userAnswer = 'Angesehen'; result.correctAnswer = '—';
       break;
@@ -351,7 +401,8 @@ export function collectAnswer(mod, root) {
   if ((H5P_TYPES[mod.type] || {}).informational) {
     result.informational = true;
     result.isCorrect = true;
-    result.userAnswer = 'Gelesen';
+    result.userAnswer = result.infoAnswer || 'Gelesen';
+    delete result.infoAnswer;
     result.correctAnswer = '';
     result.points = null;
     return result;

@@ -2,6 +2,7 @@ import { escapeHtml, escapeAttr, generateId, showImportReport } from '../utils.j
 import { ModuleDescriptionEditor } from '../desc-editor.js';
 import { TagPicker } from './tags.js';
 import { checkFormulaTask } from '../formula.js';
+import { sortingItems, memoryPairs, crosswordLetters, crosswordWords } from '../puzzles.js';
 
 // ==================== MODULES VIEW ====================
 
@@ -725,6 +726,24 @@ export class ModulesView {
       const problems = checkFormulaTask(content);
       if (problems.length) { this.app.showToast(`Formelaufgabe: ${problems.join(' · ')}`, 'error'); return; }
     }
+    // Reihenfolge, Memory, Kreuzworträtsel mit zu wenig Inhalt: Schüler sähen
+    // nur einen Hinweis. Speichern geht (Zwischenstand), aber mit Rückfrage.
+    const puzzleIssues = {
+      sorting: () => [sortingItems(content).length < 2 ? 'Es braucht mindestens zwei Elemente.' : ''],
+      memory: () => [memoryPairs(content).length < 2 ? 'Es braucht mindestens zwei Paare.' : ''],
+      crossword: () => {
+        const short = (content.words || []).map((w) => String(w.answer || '').trim()).filter((a) => a && crosswordLetters(a).length < 2);
+        const words = crosswordWords(content);
+        const noClue = words.filter((w) => !w.clue).map((w) => w.text);
+        return [
+          !words.length ? 'Es gibt noch keine Lösungswörter.' : '',
+          short.length ? `Zu kurz, fällt weg: ${short.join(', ')}.` : '',
+          noClue.length ? `Ohne Hinweis: ${noClue.join(', ')}.` : '',
+        ];
+      },
+    }[type];
+    const puzzleProblems = puzzleIssues ? puzzleIssues().filter(Boolean) : [];
+    if (puzzleProblems.length && !(await this.app.appConfirm(`${H5P_TYPES[type].name} unvollständig:\n\n${puzzleProblems.join('\n')}\n\nTrotzdem speichern?`))) return;
     // Drag and Drop ohne ziehbare Elemente sähe beim Schüler nur Bild und
     // Zonen – nichts zum Ziehen. Speichern geht (Zwischenstand), aber mit Rückfrage.
     if (type === 'dragAndDrop') {

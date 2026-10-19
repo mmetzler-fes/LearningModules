@@ -6,6 +6,36 @@ import { LearningTopic } from '../../entities/learning-topic.entity';
 import { LearningModule } from '../../entities/learning-module.entity';
 import { convertMoodleXml, MoodleImportResult } from '../moodle/moodle-import';
 
+/**
+ * Kleine Abweichungen, die KIs trotz Beispiel gern machen, auf das Format
+ * der Editoren bringen: Reihenfolge mit bloßen Texten, Memory-Paare als
+ * [a, b], Kreuzworträtsel mit "word"/"hint" statt "answer"/"clue".
+ * Alles andere bleibt unverändert.
+ */
+export function normalizeImportedContent(type: string, content: any): any {
+  if (!content || typeof content !== 'object') return content;
+  const str = (v: unknown) => (typeof v === 'string' || typeof v === 'number' ? String(v) : '');
+  if (type === 'sorting' && Array.isArray(content.items)) {
+    content.items = content.items.map((it: any) => (it && typeof it === 'object' ? it : { text: str(it), imageUrl: '' }));
+  }
+  if (type === 'memory' && Array.isArray(content.pairs)) {
+    content.pairs = content.pairs.map((p: any) => {
+      if (Array.isArray(p)) return { aText: str(p[0]), aImage: '', bText: str(p[1]), bImage: '' };
+      if (p && typeof p === 'object' && !('aText' in p) && !('aImage' in p) && ('a' in p || 'b' in p)) {
+        return { aText: str(p.a), aImage: '', bText: str(p.b), bImage: '' };
+      }
+      return p;
+    });
+  }
+  if (type === 'crossword' && Array.isArray(content.words)) {
+    content.words = content.words.map((w: any) => (w && typeof w === 'object'
+      ? { ...w, answer: str(w.answer ?? w.word ?? w.solution), clue: str(w.clue ?? w.hint ?? w.question), imageUrl: str(w.imageUrl) }
+      : w));
+    if (typeof content.seed !== 'number') content.seed = Number(content.seed) || 0;
+  }
+  return content;
+}
+
 @Injectable()
 export class ImportService {
   constructor(
@@ -128,6 +158,7 @@ export class ImportService {
       if (mod.type === 'dragAndDrop' && mod.content) {
         this.syncDragAndDropMapping(mod.content);
       }
+      mod.content = normalizeImportedContent(mod.type, mod.content);
       return mod;
     });
 

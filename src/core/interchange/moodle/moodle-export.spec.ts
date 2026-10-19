@@ -134,6 +134,33 @@ describe('Moodle-XML-Export', () => {
     expect(back.modules[0].content.variables).toEqual(content.variables);
   });
 
+  it('Reihenfolge wird Anordnung (Ordering) – hin und zurück, mit Bild', () => {
+    const img = pngDataUrl(30, 20);
+    const { out, back } = roundTrip([{ type: 'sorting', title: 'Ablauf', content: {
+      taskDescription: '<p>Sortiere</p>', layout: 'horizontal',
+      items: [{ text: 'Planen' }, { text: '', imageUrl: img }, { text: 'Prüfen & <fertig>' }],
+    } }]);
+    const q = children(parseXml(out.xml), 'question')[1];
+    expect(q.attrs.type).toBe('ordering');
+    expect(children(q, 'answer').map((a) => a.attrs.fraction)).toEqual(['1', '2', '3']);
+    expect(out.xml).toContain('<layouttype>HORIZONTAL</layouttype>');
+    expect(back.modules[0]).toMatchObject({ type: 'sorting', content: {
+      layout: 'horizontal',
+      items: [{ text: 'Planen', imageUrl: '' }, { text: '', imageUrl: img }, { text: 'Prüfen & <fertig>' }],
+    } });
+  });
+
+  it('Kreuzworträtsel wird Lückentext, Memory bleibt draußen', () => {
+    const out = exportMoodleXml('T', [
+      { type: 'crossword', title: 'Rätsel', content: { words: [{ answer: 'Ohm', clue: 'Einheit R' }, { answer: 'Volt', clue: 'Einheit U' }] } },
+      { type: 'memory', title: 'Spiel', content: { pairs: [{ aText: 'a' }, { aText: 'b' }] } },
+    ]);
+    expect(out.count).toBe(1);
+    expect(out.xml).toContain('Einheit R: {1:SHORTANSWER:=Ohm}');
+    expect(out.skipped).toEqual(['Spiel: Memory gibt es in Moodle-Tests nicht']);
+    expect(out.notes[0]).toContain('als Lückentext');
+  });
+
   it('meldet, was Moodle nicht kennt', () => {
     const out = exportMoodleXml('T', [
       { type: 'markTheWords', title: 'Markieren', content: { textField: '*a* b' } },

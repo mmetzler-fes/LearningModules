@@ -101,6 +101,26 @@ describe('H5P-Export', () => {
     expect(back.topic.modules[0].content.answers[0]).toMatchObject({ text: 'blau', correct: true, tip: 'Genau' });
   });
 
+  it('Reihenfolge wird Drag and Drop mit nummerierten Plätzen, Kreuzworträtsel Lückentext', () => {
+    const more = buildH5pPackage('Spiele', [
+      { id: 's1', type: 'sorting', title: 'Ablauf', content: { items: [{ text: 'A' }, { text: 'B', imageUrl: pngDataUrl(40, 30) }, { text: 'A' }] } },
+      { id: 'c1', type: 'crossword', title: 'Rätsel', content: { words: [{ answer: 'Ohm', clue: 'Einheit R' }] } },
+      { id: 'm1', type: 'memory', title: 'Spiel', content: { pairs: [{ aText: 'a' }, { aText: 'b' }] } },
+    ], LIBS);
+    const c = JSON.parse(new AdmZip(more.buffer).getEntry('content/content.json')!.getData().toString('utf-8'));
+    expect(c.questions.map(lib)).toEqual(['H5P.DragQuestion', 'H5P.Blanks']);
+    expect(more.skipped).toEqual(['Spiel: Memory gibt es im H5P-Fragenset nicht']);
+    const dq = c.questions[0].params.question.task;
+    expect(dq.dropZones.map((z: any) => z.label)).toEqual(['<div>1.</div>', '<div>2.</div>', '<div>3.</div>']);
+    // Gleiche Elemente passen auf die Plätze des jeweils anderen
+    expect(dq.dropZones.map((z: any) => z.correctElements)).toEqual([['0', '2'], ['1'], ['0', '2']]);
+    expect(dq.elements[1].type.library).toBe('H5P.Image 1.1');
+    // Die Elemente starten nicht in der richtigen Reihenfolge
+    const startOrder = dq.elements.map((e: any, i: number) => [e.y, i]).sort((a: any, b: any) => a[0] - b[0]).map((x: any) => x[1]);
+    expect(startOrder).not.toEqual([0, 1, 2]);
+    expect(c.questions[1].params.questions).toEqual(['<p>Einheit R: *Ohm*</p>']);
+  });
+
   it('fillDefaults: Gruppe mit einem Feld wird flach gespeichert', () => {
     const sem = [{ name: 'g', type: 'group', fields: [{ name: 'x', type: 'text', default: 'A' }] }, { name: 'n', type: 'number', default: 3 }];
     expect(fillDefaults(sem, {}, null)).toEqual({ g: 'A', n: 3 });

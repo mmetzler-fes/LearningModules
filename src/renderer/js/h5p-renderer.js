@@ -3,6 +3,7 @@ import { normalizeBranching } from './branching.js';
 import { dtwAlternatives, dtwMatches, dndExpectedMappings } from './answer-eval.js';
 import { audioSourceOf, scoreDictation, dictationOptions } from './dictation.js';
 import { generateValues, fillPlaceholders, evaluate, parseUserNumber, isWithinTolerance, formatNumber, checkFormulaTask } from './formula.js';
+import { renderSorting, renderMemory, renderCrossword } from './puzzle-views.js';
 import { normalizeShareUrl, sanitizeModuleDescriptionHtml, sanitizeWorksheetHtml, escapeHtml, escapeAttr, hexTint, showContextMenu, attachPointerDrag, effectiveZoom } from './utils.js';
 
 /**
@@ -37,7 +38,7 @@ function embeddedFrame(url, height, title, extraStyle = '') {
 
 /** Modultypen, deren Vorschau breiter als Fließtext sein darf. */
 const WIDE_TYPES = new Set(['dragAndDrop', 'imageHotspots', 'video', 'worksheet', 'coursePresentation',
-  'branchingScenario', 'iframeEmbedder', 'collage']);
+  'branchingScenario', 'iframeEmbedder', 'collage', 'crossword']);
 
 // ---- Drag and Drop mit Bild: an den Bildschirm anpassen ----
 //
@@ -995,6 +996,19 @@ export class H5pRenderer {
         }
         break;
       }
+
+      // Reihenfolge, Memory und Kreuzworträtsel: puzzle-views.js
+      case 'sorting':
+        renderSorting(div, content, { suppressFeedback });
+        break;
+
+      case 'memory':
+        renderMemory(div, content);
+        break;
+
+      case 'crossword':
+        renderCrossword(div, content, { suppressFeedback });
+        break;
 
       case 'coursePresentation': {
         const slides = content.slides || [];

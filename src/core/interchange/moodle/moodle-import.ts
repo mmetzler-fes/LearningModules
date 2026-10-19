@@ -519,7 +519,37 @@ const convertCalculated: Converter = (q, ctx) => {
   return { type: 'formula', description: '', content };
 };
 
+/**
+ * Anordnung (qtype_ordering) → Reihenfolge. "fraction" ist die richtige
+ * Stelle; je Antwort Text und das erste Bild.
+ */
+const convertOrdering: Converter = (q, ctx) => {
+  const text = questionText(q, ctx);
+  const items = children(q, 'answer')
+    .map((a, i) => ({ a, i }))
+    .sort((x, y) => fraction(x.a) - fraction(y.a) || x.i - y.i)
+    .map(({ a }) => {
+      const r = richText(a, ctx);
+      return { text: htmlToText(r.html), imageUrl: r.image };
+    })
+    .filter((it) => it.text || it.imageUrl);
+  if (items.length < 2) return null;
+  if (text.image) ctx.notes.push(`${ctx.name}: Bild im Fragetext nicht übernommen.`);
+  const select = textOf(q, 'selecttype');
+  if (select && select !== 'ALL' && select !== '0') ctx.notes.push(`${ctx.name}: Teilauswahl nicht übernommen – alle Elemente werden sortiert.`);
+  return {
+    type: 'sorting',
+    description: '',
+    content: {
+      taskDescription: text.html,
+      items,
+      layout: /^(HORIZONTAL|1)$/i.test(textOf(q, 'layouttype')) ? 'horizontal' : 'vertical',
+    },
+  };
+};
+
 const CONVERTERS: Record<string, Converter> = {
+  ordering: convertOrdering,
   calculated: convertCalculated,
   calculatedsimple: convertCalculated,
   multichoice: convertMultichoice,

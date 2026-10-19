@@ -1,5 +1,6 @@
 import { escapeHtml, escapeAttr } from '../utils.js';
 import { renderMarkdown } from '../markdown.js';
+import { refreshNextcloud } from './nextcloud.js';
 
 /** Schule und Schuladmin-Recht aus der Login-/Session-Antwort des Servers. */
 function schoolFields(res) {
@@ -720,6 +721,7 @@ export class LoginView {
     const adminNavEl = document.getElementById('adminNav');
 
     if (currentUser.role === 'admin') {
+      refreshNextcloud(this.app);
       teacherNav.classList.remove('hidden');
       studentNav.classList.add('hidden');
       if (adminNavEl) adminNavEl.classList.remove('hidden');
@@ -727,6 +729,7 @@ export class LoginView {
       this.app.showServerName();
       if (this._btnDeleteAcc) this._btnDeleteAcc.classList.add('hidden');
     } else if (currentUser.role === 'teacher') {
+      refreshNextcloud(this.app);
       teacherNav.classList.remove('hidden');
       studentNav.classList.add('hidden');
       if (adminNavEl) adminNavEl.classList.add('hidden');

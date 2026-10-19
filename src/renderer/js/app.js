@@ -21,6 +21,7 @@ import { HelpView, openHelpPopup } from './views/help-view.js';
 import { NotebooksView } from './views/notebooks.js';
 import { CategoriesAdminView } from './views/categories-admin.js';
 import { FederationAdminView } from './views/federation-admin.js';
+import { nextcloudState, uploadImageToNextcloud, pickNextcloudImage } from './views/nextcloud.js';
 
 // ==================== APP COORDINATOR ====================
 
@@ -543,4 +544,10 @@ const app = new App();
 window.appNavigate = (v) => app.navigateToView(v);
 // Für die klassischen Skripte (content-editors.js), die keine Module importieren.
 window.appConfirm = (m) => app.appConfirm(m);
+// Nextcloud für Bilder (views/nextcloud.js): ready, upload(file) → URL | null | false, pick() → URL | null
+window.appNextcloud = {
+  get ready() { return nextcloudState.ready; },
+  upload: (file) => uploadImageToNextcloud(app, file),
+  pick: () => pickNextcloudImage(app),
+};
 app.init();

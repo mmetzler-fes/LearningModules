@@ -26,6 +26,8 @@ Ergebnisse und Namen bleiben auf dem Server der Schule.
   hinweg verknüpfen und Inhalte abgleichen
 - **Sicherheit**: Zwei-Faktor-Anmeldung, verschlüsselte Exporte und Backups
   (Masterkey), automatisches Backup per WebDAV/Nextcloud
+- **Nextcloud je Lehrkraft** für die Bilder der Module (je Thema ein Ordner,
+  Lesefreigabe statt Speicher auf dem Server)
 
 Die Anleitungen stehen in [`docs/`](docs/). Die App zeigt sie auch selbst unter
 **📖 Hilfe**.

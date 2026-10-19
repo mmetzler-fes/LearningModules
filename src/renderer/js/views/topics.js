@@ -7,6 +7,7 @@ import { openHandoverDialog, renderIncomingHandovers } from './handover.js';
 import { openAccountLinksDialog } from './account-links.js';
 import { openGithubBackupDialog } from './github-backup.js';
 import { openImportDialog } from './import-dialog.js';
+import { openNextcloudDialog } from './nextcloud.js';
 
 // ==================== TOPICS VIEW ====================
 
@@ -59,6 +60,7 @@ export class TopicsView {
     document.getElementById('btnHandover')?.addEventListener('click', () => openHandoverDialog(this.app));
     document.getElementById('btnAccountLinks')?.addEventListener('click', () => openAccountLinksDialog(this.app));
     document.getElementById('btnGithubBackup')?.addEventListener('click', () => openGithubBackupDialog(this.app));
+    document.getElementById('btnNextcloud')?.addEventListener('click', () => openNextcloudDialog(this.app));
 
     if (this._btnNew) {
       this._btnNew.addEventListener('click', () => {

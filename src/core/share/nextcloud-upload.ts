@@ -43,7 +43,7 @@ function isPrivateAddress(ip: string): boolean {
   return mapped ? isPrivateAddress(mapped[1]) : false;
 }
 
-async function assertPublicHost(base: string) {
+export async function assertPublicHost(base: string) {
   const host = new URL(base).hostname.replace(/^\[|\]$/g, '');
   if (/^localhost$/i.test(host) || host.endsWith('.local') || host.endsWith('.internal')) {
     throw new BadRequestException('Interne Adressen sind als Ablage nicht erlaubt.');

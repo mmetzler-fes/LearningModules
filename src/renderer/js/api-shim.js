@@ -57,14 +57,21 @@ window.electron = {
 };
 
 window.appApi = {
+  // Ergebnis `dataUrl`: das Bild als data:-URL – oder, mit verbundener
+  // Nextcloud, der Link auf die dort hochgeladene Datei (views/nextcloud.js).
   selectImage: async () => {
     return new Promise((resolve) => {
       const input = document.createElement('input');
       input.type = 'file';
       input.accept = 'image/*';
-      input.onchange = (e) => {
+      input.onchange = async (e) => {
         const file = e.target.files[0];
         if (!file) return resolve({ success: false });
+        if (window.appNextcloud && window.appNextcloud.ready) {
+          const url = await window.appNextcloud.upload(file);
+          if (url) return resolve({ success: true, dataUrl: url, nextcloud: true });
+          if (url === false) return resolve({ success: false }); // abgebrochen
+        }
         const reader = new FileReader();
         reader.onload = (ev) => {
           resolve({ success: true, dataUrl: ev.target.result });

@@ -47,6 +47,7 @@
           <label>Bild *</label>
           <div class="hs-ed-imagebar">
             <button type="button" class="btn btn-secondary btn-sm hs-ed-upload">📁 Bild hochladen</button>
+            ${window.appNextcloud && window.appNextcloud.ready ? '<button type="button" class="btn btn-secondary btn-sm hs-ed-cloud" title="Ein Bild aus den Ordnern deiner Nextcloud wählen">☁️ Aus Nextcloud</button>' : ''}
             <button type="button" class="btn btn-secondary btn-sm hs-ed-compose" title="Mehrere Bilder zu einem zusammenstellen">🧩 Zusammenstellen</button>
             <input type="text" class="hs-ed-url" placeholder="oder Bild-URL, z. B. Nextcloud-Freigabelink" value="${esc(this.state.imageUrl)}" />
             <button type="button" class="btn btn-danger btn-sm hs-ed-remove" title="Bild entfernen">✕</button>
@@ -82,6 +83,14 @@
         this.renderCanvas();
       });
       const urlInput = this.root.querySelector('.hs-ed-url');
+      this.root.querySelector('.hs-ed-cloud')?.addEventListener('click', async () => {
+        const url = await window.appNextcloud.pick();
+        if (!url) return;
+        this.state.imageUrl = url;
+        this.state.imageFile = '';
+        urlInput.value = url;
+        this.renderCanvas();
+      });
       urlInput.addEventListener('change', () => {
         this.state.imageUrl = urlInput.value.trim();
         this.state.imageFile = ''; // ein neuer Link ersetzt ein hochgeladenes Bild

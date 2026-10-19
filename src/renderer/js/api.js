@@ -483,6 +483,30 @@ export class BrowserApi {
   updateAccountLink(id, body) { return this._fetch(`/api/federation/links/${encodeURIComponent(id)}`, { method: 'POST', body: JSON.stringify(body) }); }
   unlinkAccount(id) { return this._fetch(`/api/federation/links/${encodeURIComponent(id)}`, { method: 'DELETE' }); }
 
+  // ---------- Nextcloud der Lehrkraft (Bilder) ----------
+  getNextcloud() { return this._fetch('/api/nextcloud'); }
+  saveNextcloud(body) { return this._fetch('/api/nextcloud', { method: 'POST', body: JSON.stringify(body) }); }
+  verifyNextcloud() { return this._fetch('/api/nextcloud/verify', { method: 'POST' }); }
+  disconnectNextcloud() { return this._fetch('/api/nextcloud', { method: 'DELETE' }); }
+  listNextcloudImages({ folder, topicId } = {}) {
+    const q = new URLSearchParams();
+    if (folder) q.set('folder', folder);
+    if (topicId) q.set('topicId', topicId);
+    return this._fetch(`/api/nextcloud/images?${q}`);
+  }
+  async uploadNextcloudImage(file, topicId) {
+    const form = new FormData();
+    form.append('file', file);
+    if (topicId) form.append('topicId', topicId);
+    const token = this._auth.getToken();
+    try {
+      const res = await fetch('/api/nextcloud/images', { method: 'POST', headers: token ? { Authorization: `Bearer ${token}` } : {}, body: form });
+      return await res.json();
+    } catch (err) {
+      return { success: false, message: err.message };
+    }
+  }
+
   // ---------- GitHub-Backup der eigenen Inhalte ----------
   getGithubBackup() { return this._fetch('/api/github-backup'); }
   saveGithubBackup(body) { return this._fetch('/api/github-backup', { method: 'POST', body: JSON.stringify(body) }); }

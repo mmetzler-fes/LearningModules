@@ -633,6 +633,22 @@ class ContentEditorManager {
     });
 
     btnRow.appendChild(btnFile);
+    // Bilder, die schon in der Nextcloud liegen (views/nextcloud.js)
+    if (window.appNextcloud && window.appNextcloud.ready) {
+      const btnCloud = document.createElement('button');
+      btnCloud.type = 'button';
+      btnCloud.className = 'btn btn-secondary btn-sm';
+      btnCloud.textContent = '☁️ Aus Nextcloud';
+      btnCloud.title = 'Ein Bild aus den Ordnern deiner Nextcloud wählen';
+      btnCloud.addEventListener('click', async () => {
+        const url = await window.appNextcloud.pick();
+        if (!url) return;
+        hidden.value = url;
+        preview.innerHTML = `<img src="${url}" />`;
+        btnRemove.style.display = '';
+      });
+      btnRow.appendChild(btnCloud);
+    }
     btnRow.appendChild(btnUrl);
     btnRow.appendChild(btnCompose);
     btnRow.appendChild(btnRemove);
@@ -1293,6 +1309,22 @@ class ContentEditorManager {
     btnComposeImg.title = 'Mehrere Bilder zu einem Hintergrundbild zusammenstellen (Collage)';
 
     imgControls.appendChild(btnSelectImg);
+    if (window.appNextcloud && window.appNextcloud.ready) {
+      const btnCloudImg = document.createElement('button');
+      btnCloudImg.type = 'button';
+      btnCloudImg.className = 'btn btn-secondary';
+      btnCloudImg.textContent = '☁️ Aus Nextcloud';
+      btnCloudImg.title = 'Ein Bild aus den Ordnern deiner Nextcloud wählen';
+      btnCloudImg.addEventListener('click', async () => {
+        const url = await window.appNextcloud.pick();
+        if (!url) return;
+        this.dndState.backgroundImage = url;
+        imgStatus.textContent = '✅ Bild aus der Nextcloud';
+        btnRemoveImg.style.display = '';
+        this.refreshDndCanvas();
+      });
+      imgControls.appendChild(btnCloudImg);
+    }
     imgControls.appendChild(btnComposeImg);
     imgControls.appendChild(imgStatus);
     imgControls.appendChild(btnRemoveImg);

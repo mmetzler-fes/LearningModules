@@ -4953,3 +4953,16 @@ body {
 }
 .import-dialog-chip-x { border: none; background: none; cursor: pointer; color: var(--text-secondary); font-size: 0.9rem; }
 .import-dialog-card [hidden] { display: none !important; }
+
+/* Nextcloud: Bildauswahl (views/nextcloud.js) */
+.import-modules-card.nc-picker { max-width: min(900px, 95vw); width: 95vw; max-height: 92vh; overflow-y: auto; }
+.nc-picker-bar { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-bottom: 12px; }
+.nc-picker-bar select { margin-left: 6px; }
+.nc-picker-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 10px; min-height: 120px; }
+.nc-picker-item {
+  display: flex; flex-direction: column; gap: 4px; padding: 6px; cursor: pointer;
+  border: 2px solid var(--border); border-radius: var(--radius-sm); background: var(--bg-primary); color: var(--text-primary);
+}
+.nc-picker-item:hover, .nc-picker-item:focus-visible { border-color: var(--accent); }
+.nc-picker-item img { width: 100%; aspect-ratio: 1; object-fit: contain; background: var(--bg-secondary); border-radius: 4px; }
+.nc-picker-item span { font-size: 0.78rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

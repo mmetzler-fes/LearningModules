@@ -12,6 +12,14 @@ geöffnete Thema) nehmen neben JSON auch `.xml`-Dateien aus Moodle an. Der
 Server erkennt das Format selbst (Wurzelelement `<quiz>`). Den Titel nimmt er
 aus der Fragenkategorie, sonst aus dem Dateinamen.
 
+**📋 JSON-Text importieren** (an beiden Stellen) nimmt den Text direkt aus
+der Zwischenablage: mit Strg+V einfügen, z. B. die Antwort einer KI. Der
+Dialog prüft sofort, ob es gültiges JSON ist – bei einem Fehler mit Zeile,
+Spalte und der betroffenen Zeile, bei einer abgeschnittenen KI-Antwort mit
+dem Hinweis „unvollständig“ – und zeigt, wie viele Module welchen Typs darin
+stehen. Erst dann lässt sich importieren. Ein Rahmen mit ```` ```json ```` und
+Text davor oder danach stört nicht; eingefügtes Moodle-XML geht auch.
+
 In Moodle: **Fragensammlung → Export → Moodle-XML-Format**. Eine Kurssicherung
 (`.mbz`, früher `moodle.xml` im ZIP) ist etwas anderes und wird nicht gelesen.
 

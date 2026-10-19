@@ -6,6 +6,7 @@ import { openFeedbackDialog } from './feedback.js';
 import { openHandoverDialog, renderIncomingHandovers } from './handover.js';
 import { openAccountLinksDialog } from './account-links.js';
 import { openGithubBackupDialog } from './github-backup.js';
+import { openJsonTextImport } from './json-text-import.js';
 
 // ==================== TOPICS VIEW ====================
 
@@ -84,6 +85,10 @@ export class TopicsView {
         }
       });
     }
+
+    document.getElementById('btnImportTopicText')?.addEventListener('click', () => {
+      openJsonTextImport(this.app, { onDone: () => this.refresh() });
+    });
 
     if (this._btnImportH5p) {
       this._btnImportH5p.addEventListener('click', async () => {

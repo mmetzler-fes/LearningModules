@@ -106,8 +106,9 @@ export class AiPromptView {
       const partsHint = form.querySelector('.ai-prompt-parts');
       partsHint.classList.toggle('hidden', parts < 2);
       partsHint.innerHTML = `Die KI antwortet in <strong>${parts} Teilen</strong> zu je höchstens ${AI_PROMPT_PART_SIZE} Modulen
-        – mit „weiter“ kommt der nächste. Jeden Teil als eigene <code>.json</code> speichern: Teil 1 über
-        <strong>🏠 LernModule → 📥 Thema importieren</strong>, die weiteren im neuen Thema über <strong>📥 Module importieren</strong>.`;
+        – mit „weiter“ kommt der nächste. Jeden Teil kopieren und einfügen: Teil 1 über
+        <strong>🏠 LernModule → 📋 JSON-Text importieren</strong>, die weiteren im neuen Thema ebenfalls über
+        <strong>📋 JSON-Text importieren</strong>. Als <code>.json</code> gespeichert geht es über 📥 Thema bzw. Module importieren.`;
       form.querySelector('.ai-prompt-result').classList.remove('hidden');
       output.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
     });

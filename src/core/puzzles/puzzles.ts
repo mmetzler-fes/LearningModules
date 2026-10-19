@@ -1,12 +1,9 @@
-import * as fs from 'fs';
-import * as path from 'path';
-import * as vm from 'vm';
+import { loadBrowserModule } from '../browser-module';
 
 /**
  * Logik von Reihenfolge und Kreuzworträtsel steht nur einmal: im
  * Browser-Modul src/renderer/js/puzzles.js. Der Server lädt dieselbe Datei
- * wie bei der Formelaufgabe (formula-engine.ts) – "export" wird entfernt
- * und die Namen eingesammelt.
+ * (browser-module.ts).
  */
 export interface Puzzles {
   seededRandom(seed: number): () => number;
@@ -29,24 +26,6 @@ export interface Puzzles {
   scoreCrossword(puzzle: any, letterAt: (r: number, c: number) => string): { perEntry: any[]; correct: number; total: number };
 }
 
-let loaded: Puzzles | null = null;
-
 export function puzzles(): Puzzles {
-  if (loaded) return loaded;
-  const candidates = [
-    path.resolve(__dirname, '../../renderer/js/puzzles.js'), // src/core/puzzles (Tests)
-    path.resolve(__dirname, '../../../src/renderer/js/puzzles.js'), // dist/core/puzzles
-    path.resolve(process.cwd(), 'src/renderer/js/puzzles.js'),
-  ];
-  const file = candidates.find((f) => fs.existsSync(f));
-  if (!file) throw new Error('src/renderer/js/puzzles.js fehlt.');
-  const names: string[] = [];
-  const source = fs.readFileSync(file, 'utf-8').replace(/^export (class|function|const) (\w+)/gm, (_m, kind: string, name: string) => {
-    names.push(name);
-    return `${kind} ${name}`;
-  });
-  const sandbox: any = {};
-  vm.runInNewContext(`${source}\n;__out = { ${names.join(', ')} };`, sandbox, { filename: file });
-  loaded = sandbox.__out as Puzzles;
-  return loaded;
+  return loadBrowserModule<Puzzles>('puzzles.js');
 }

@@ -356,6 +356,7 @@
           <button class="btn btn-primary" id="btnNewTopic" data-i18n="topics.new">➕ Neues Lernthema</button>
           <button class="btn btn-secondary" id="btnImportTopic" data-i18n="topics.import"
             title="JSON-Datei, Moodle-XML oder verschlüsselter Export (.lmenc)">📥 Thema importieren</button>
+          <button class="btn btn-secondary" id="btnImportTopicText" title="JSON-Text (z. B. die Antwort einer KI) einfügen, prüfen und als neues Thema importieren">📋 JSON-Text importieren</button>
           <button class="btn btn-secondary" id="btnImportH5p">📦 H5P importieren</button>
           <button class="btn btn-secondary" id="btnExportH5p" disabled title="Thema als H5P exportieren">📦 H5P exportieren</button>
           <button type="button" class="help-hint" data-help="moodle-und-h5p#einlesen" title="Hilfe: Themen einlesen (JSON, Moodle-XML, H5P)" aria-label="Hilfe: Themen einlesen (JSON, Moodle-XML, H5P)">?</button>
@@ -457,6 +458,7 @@
         <div class="topic-actions-bar">
           <button class="btn btn-primary" id="btnCreateModule" data-i18n="modules.new">➕ Neues Modul</button>
           <button class="btn btn-secondary" id="btnImportModules">📥 Module importieren</button>
+          <button class="btn btn-secondary" id="btnImportModulesText" title="JSON-Text (z. B. die Antwort einer KI) einfügen, prüfen und ins Thema importieren">📋 JSON-Text importieren</button>
           <button class="btn btn-secondary" id="btnExportCurrentTopic" data-i18n="modules.export">📤 Thema exportieren</button>
           <button class="btn btn-secondary" id="btnTransferModules" title="Ausgewählte Module verschieben/kopieren">🔄 Verschieben/Kopieren</button>
           <button class="btn btn-secondary" id="btnExportModulesAsH5p" title="Alle aktiven Module als einzelne H5P-Dateien exportieren">📦 Module als H5P</button>
@@ -741,9 +743,10 @@
       <section class="view" id="view-teacher-ai-prompt">
         <div class="view-header">
           <h2>🤖 KI-Prompt für ein neues Lernthema <button type="button" class="help-hint" data-help="ki-prompt" title="Hilfe zu diesem Bereich" aria-label="Hilfe zu diesem Bereich">?</button></h2>
-          <p class="subtitle">Der Prompt beschreibt der KI das Importformat genau. Ihre Antwort als <code>.json</code> speichern
-            und unter <strong>🏠 LernModule → 📥 Thema importieren</strong> einlesen. Alle angebotenen Typen sind automatisch
-            bewertbar – sie laufen in Quiz, Lernbegleitung und Quiz-Arena. Deine Angaben merkt sich der Browser.</p>
+          <p class="subtitle">Der Prompt beschreibt der KI das Importformat genau. Ihre Antwort kopieren und unter
+            <strong>🏠 LernModule → 📋 JSON-Text importieren</strong> einfügen (oder als <code>.json</code> speichern und über
+            📥 Thema importieren einlesen). Bis auf Memory sind alle angebotenen Typen automatisch bewertbar – sie laufen in
+            Quiz, Lernbegleitung und Quiz-Arena. Deine Angaben merkt sich der Browser.</p>
         </div>
         <div id="aiPromptPanel" class="ai-prompt-panel"></div>
       </section>

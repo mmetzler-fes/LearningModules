@@ -1,6 +1,7 @@
 import { escapeHtml, escapeAttr, generateId, showImportReport } from '../utils.js';
 import { ModuleDescriptionEditor } from '../desc-editor.js';
 import { TagPicker } from './tags.js';
+import { openJsonTextImport } from './json-text-import.js';
 import { checkFormulaTask } from '../formula.js';
 import { sortingItems, memoryPairs, crosswordLetters, crosswordWords } from '../puzzles.js';
 
@@ -15,6 +16,7 @@ export class ModulesView {
     this._filterType       = document.getElementById('filterType');
     this._btnCreate        = document.getElementById('btnCreateModule');
     this._btnImport        = document.getElementById('btnImportModules');
+    this._btnImportText    = document.getElementById('btnImportModulesText');
     this._btnExportTopic   = document.getElementById('btnExportCurrentTopic');
     this._btnExportH5p     = document.getElementById('btnExportModulesAsH5p');
     this._btnTransfer      = document.getElementById('btnTransferModules');
@@ -122,6 +124,12 @@ export class ModulesView {
         input.click();
       });
     }
+
+    this._btnImportText?.addEventListener('click', () => {
+      const topicId = this.app.state.currentTopicId;
+      if (!topicId) { this.app.showToast('Bitte zuerst ein Thema öffnen.', 'error'); return; }
+      openJsonTextImport(this.app, { topicId, onDone: () => this.loadTopicModules(topicId) });
+    });
 
     if (this._importBtnCancel) {
       this._importBtnCancel.addEventListener('click', () => {
@@ -259,6 +267,7 @@ export class ModulesView {
     const isRaw = !!currentTopicRawSummary;
     if (this._btnCreate) this._btnCreate.style.display = (!currentTopicId || isRaw) ? 'none' : '';
     if (this._btnImport) this._btnImport.style.display = (!currentTopicId || isRaw) ? 'none' : '';
+    if (this._btnImportText) this._btnImportText.style.display = (!currentTopicId || isRaw) ? 'none' : '';
     if (this._btnTransfer) this._btnTransfer.style.display = (!currentTopicId || isRaw) ? 'none' : '';
     if (this._btnExportH5p) this._btnExportH5p.style.display = (!currentTopicId || isRaw) ? 'none' : '';
     if (this._btnExportTopic) this._btnExportTopic.style.display = currentTopicId ? '' : 'none';

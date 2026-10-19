@@ -1,5 +1,5 @@
 import { NextcloudClient, parseNextcloudBase, parsePropfind, safeFolderName, shareFileUrl } from './nextcloud-api';
-import { imageFileName } from './nextcloud.service';
+import { imageFileName, mapDataImages } from './nextcloud.service';
 
 describe('Nextcloud: Adressen und Namen', () => {
   it('nimmt auch eine kopierte Browser-Adresse, aber nur https', () => {
@@ -101,5 +101,20 @@ describe('Vorschlag aus dem Admin-Backup', () => {
     expect(parseNextcloudBase('https://cloud.schule.de/s/AbC123XyZ')).toBe('https://cloud.schule.de');
     expect(parseNextcloudBase('https://cloud.schule.de/remote.php/dav/files/admin/Backups/')).toBe('https://cloud.schule.de');
     expect(parseNextcloudBase('https://schule.de/nc/index.php/s/AbC123')).toBe('https://schule.de/nc');
+  });
+});
+
+describe('Gespeicherte Bilder (data:) finden und ersetzen', () => {
+  const png = 'data:image/png;base64,iVBORw0KGgo=';
+  it('ersetzt ganze Feldwerte und Bilder mitten im HTML, sonst nichts', () => {
+    const content = { imageUrl: png, html: `<p>Text</p><img src="${png}" class="ws-float-left"><p>data:image/ im Text</p>`, n: 3, list: [{ aImage: png }, { aText: 'x' }] };
+    const out = mapDataImages(content, () => 'https://c.de/bild.png');
+    expect(out).toEqual({
+      imageUrl: 'https://c.de/bild.png',
+      html: '<p>Text</p><img src="https://c.de/bild.png" class="ws-float-left"><p>data:image/ im Text</p>',
+      n: 3,
+      list: [{ aImage: 'https://c.de/bild.png' }, { aText: 'x' }],
+    });
+    expect(content.imageUrl).toBe(png); // Original unverändert
   });
 });

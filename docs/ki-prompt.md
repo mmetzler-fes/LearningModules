@@ -53,6 +53,9 @@ ergänzt man im Editor.
   „unvollständig“.
 - Die KI-Antwort darf samt Markdown-Rahmen (```` ```json … ``` ````) und Text
   davor oder danach gespeichert werden – der Import nimmt nur das JSON darin.
+- Bei verbundener Nextcloud kann der Prompt die Bilder eines Ordners anbieten:
+  Die KI wählt nur aus der Liste (`nc:<Ordner>/<Datei>`), der Import macht
+  daraus Links (siehe [Nextcloud](nextcloud.md#bilder-im-ki-prompt)).
 - Kleine Abweichungen gleicht der Import an: Reihenfolge-Elemente als bloße
   Texte, Memory-Paare als `["Hund", "dog"]`, Kreuzworträtsel mit `word`/`hint`
   statt `answer`/`clue`.

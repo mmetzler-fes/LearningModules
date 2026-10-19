@@ -69,3 +69,37 @@ describe('Reihenfolge, Memory, Kreuzworträtsel im JSON', () => {
     });
   });
 });
+
+describe('Bilder aus dem KI-Prompt (nc:<Ordner>/<Datei>)', () => {
+  const mod = (content: any) => JSON.stringify({ topic: { title: 'T', modules: [{ title: '1', type: 'sorting', content }] } });
+  function svc(nextcloud: any) {
+    const saved: any[] = [];
+    const repo: any = { create: (x: any) => x, save: async (x: any) => { if (Array.isArray(x)) saved.push(...x); return x; }, findOne: async () => null };
+    return { s: new ImportService(repo, repo, nextcloud), saved };
+  }
+  const cloud = (ready: boolean) => ({
+    isReady: async () => ready,
+    resolveRefs: async (_u: string, refs: string[]) => new Map(refs.map((r) => [r, r === 'nc:Reisen/gate.jpg' ? 'https://c.de/s/T/download?files=gate.jpg' : null])),
+  });
+
+  it('macht daraus Lese-URLs der eigenen Nextcloud, Unbekanntes bleibt leer', async () => {
+    const { s, saved } = svc(cloud(true));
+    const res: any = await s.importTopicFromJson(mod({ items: [{ text: 'A', imageUrl: 'nc:Reisen/gate.jpg' }, { text: 'B', imageUrl: 'nc:Reisen/erfunden.jpg' }] }), user);
+    expect(saved[0].content.items.map((i: any) => i.imageUrl)).toEqual(['https://c.de/s/T/download?files=gate.jpg', '']);
+    expect(res.notes).toEqual(['Bilder nicht in deiner Nextcloud gefunden, Feld bleibt leer: Reisen/erfunden.jpg']);
+  });
+
+  it('ohne verbundene Nextcloud: Felder leer, Hinweis zum Verbinden', async () => {
+    const { s, saved } = svc(cloud(false));
+    const res: any = await s.importTopicFromJson(mod({ items: [{ text: 'A', imageUrl: 'nc:Reisen/gate.jpg' }, { text: 'B' }] }), user);
+    expect(saved[0].content.items[0].imageUrl).toBe('');
+    expect(res.notes[0]).toContain('verbinde deine Nextcloud');
+  });
+
+  it('lässt normale Inhalte in Ruhe', async () => {
+    const { s, saved } = svc(cloud(true));
+    const res: any = await s.importTopicFromJson(mod({ items: [{ text: 'nc: kein Verweis', imageUrl: 'https://x.de/a.png' }] }), user);
+    expect(saved[0].content.items[0]).toEqual({ text: 'nc: kein Verweis', imageUrl: 'https://x.de/a.png' });
+    expect(res.notes).toBeUndefined();
+  });
+});

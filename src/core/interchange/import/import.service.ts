@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { Injectable, BadRequestException, NotFoundException, ForbiddenException, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import * as crypto from 'crypto';
@@ -6,6 +6,7 @@ import { LearningTopic } from '../../entities/learning-topic.entity';
 import { LearningModule } from '../../entities/learning-module.entity';
 import { convertMoodleXml, MoodleImportResult } from '../moodle/moodle-import';
 import { loadBrowserModule } from '../../browser-module';
+import { NextcloudService, mapNcRefs } from '../../../nextcloud/nextcloud.service';
 
 /** Lesen des Importtexts – dieselbe Logik wie die Vorabprüfung im Browser. */
 interface JsonText {
@@ -50,6 +51,7 @@ export class ImportService {
     private readonly topicRepo: Repository<LearningTopic>,
     @InjectRepository(LearningModule)
     private readonly moduleRepo: Repository<LearningModule>,
+    @Optional() private readonly nextcloud?: NextcloudService,
   ) {}
 
   async importTopicFromJson(jsonString: string, user: any, targetTopicId?: string) {
@@ -160,6 +162,7 @@ export class ImportService {
       return mod;
     });
 
+    const notes = await this.resolveNextcloudRefs(newModules, user);
     await this.moduleRepo.save(newModules);
 
     return {
@@ -167,7 +170,27 @@ export class ImportService {
       topicId: savedTopic.id,
       topicTitle: savedTopic.title,
       importedCount: newModules.filter((m: any) => !m.parentId).length,
+      ...(notes.length ? { notes } : {}),
     };
+  }
+
+  /**
+   * Bilder aus dem KI-Prompt ("nc:<Ordner>/<Datei>") in Lese-URLs der eigenen
+   * Nextcloud verwandeln. Was sich nicht finden lässt, bleibt leer – ein
+   * kaputter Verweis im Modul hilft niemandem. Ergebnis: Hinweise für den Bericht.
+   */
+  private async resolveNextcloudRefs(modules: any[], user: any): Promise<string[]> {
+    const refs = new Set<string>();
+    for (const m of modules) mapNcRefs(m.content, (r) => { refs.add(r); return r; });
+    if (!refs.size) return [];
+    const ready = !!this.nextcloud && (await this.nextcloud.isReady(user.userId));
+    const urls = ready ? await this.nextcloud!.resolveRefs(user.userId, [...refs]) : new Map<string, string | null>();
+    const missing = [...refs].filter((r) => !urls.get(r));
+    for (const m of modules) m.content = mapNcRefs(m.content, (r) => urls.get(r) || '');
+    if (!missing.length) return [];
+    return [ready
+      ? `Bilder nicht in deiner Nextcloud gefunden, Feld bleibt leer: ${missing.map((r) => r.slice(3)).join(', ')}`
+      : `Die Datei verweist auf ${missing.length} Bild${missing.length === 1 ? '' : 'er'} in einer Nextcloud – verbinde deine Nextcloud im Home-Menü (☁️ Nextcloud) und importiere erneut.`];
   }
 
   private syncDragAndDropMapping(content: any) {

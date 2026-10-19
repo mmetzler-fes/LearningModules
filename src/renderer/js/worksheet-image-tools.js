@@ -58,6 +58,21 @@
     });
   }
 
+  /**
+   * Wie readImage, aber mit verbundener Nextcloud geht das (ggf. verkleinerte)
+   * Bild dorthin; im Text steht dann nur der Link (views/nextcloud.js).
+   * null = abgebrochen.
+   */
+  async function storeImage(file) {
+    const data = await readImage(file);
+    const nc = window.appNextcloud;
+    if (!nc || !nc.ready || !String(data.src).startsWith('data:')) return data;
+    const blob = await (await fetch(data.src)).blob();
+    const url = await nc.upload(new File([blob], file.name || 'bild', { type: blob.type }));
+    if (url === false) return null;
+    return url ? { ...data, src: url } : data;
+  }
+
   function pickFile() {
     return new Promise((resolve) => {
       const input = document.createElement('input');
@@ -160,11 +175,12 @@
     async insertFile(file) {
       let img;
       try {
-        img = await readImage(file);
+        img = await storeImage(file);
       } catch (err) {
         window.alert(err.message);
         return;
       }
+      if (!img) return;
       const el = document.createElement('img');
       el.src = img.src;
       el.alt = (file.name || '').replace(/\.[^.]+$/, '');
@@ -302,7 +318,8 @@
       const file = await pickFile();
       if (!file) return;
       try {
-        const data = await readImage(file);
+        const data = await storeImage(file);
+        if (!data) return;
         img.src = data.src;
         this.changed();
       } catch (err) {

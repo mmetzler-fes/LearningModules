@@ -41,4 +41,36 @@ export class NextcloudLink extends BaseEntity {
 
   @Column({ type: 'datetime', nullable: true })
   verifiedAt: Date | null;
+
+  // ---- Backup der eigenen Inhalte nach <folder>/Backups (täglich) ----
+
+  @Column({ default: false })
+  backupEnabled: boolean;
+
+  @Column({ type: 'integer', default: 18 })
+  backupHour: number;
+
+  @Column({ type: 'datetime', nullable: true })
+  backupAttemptAt: Date | null;
+
+  @Column({ type: 'datetime', nullable: true })
+  backupSuccessAt: Date | null;
+
+  @Column({ type: 'varchar', length: 10, nullable: true })
+  backupStatus: 'ok' | 'error' | null;
+
+  @Column({ type: 'text', nullable: true })
+  backupError: string | null;
+
+  /** Zahlen des letzten erfolgreichen Laufs. */
+  @Column('simple-json', { nullable: true })
+  backupResult: any;
+
+  /** Je Thema: Dateiname und Prüfsumme des zuletzt gesicherten Stands. */
+  @Column('simple-json', { nullable: true })
+  backupFiles: Record<string, { file: string; hash: string }> | null;
+
+  /** Mail zur aktuellen Fehlerserie schon verschickt. */
+  @Column({ default: false })
+  backupFailureNotified: boolean;
 }

@@ -8,11 +8,13 @@ import { LearningModule } from '../entities/learning-module.entity';
 import { User } from '../entities/user.entity';
 import { InterchangeController } from './interchange.controller';
 import { TopicsModule } from '../../topics/topics.module';
+import { NextcloudModule } from '../../nextcloud/nextcloud.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([LearningTopic, LearningModule, User]),
     TopicsModule,
+    NextcloudModule,
   ],
   providers: [H5pService, ImportService, ExportService],
   exports: [H5pService, ImportService, ExportService],

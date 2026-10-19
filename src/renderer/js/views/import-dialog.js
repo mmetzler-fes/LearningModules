@@ -85,6 +85,7 @@ export function openImportDialog(app, { topicId = null, h5p = false, extraFile =
     const kinds = s.types.map((t) => `${t.n}× ${escapeHtml(t.name)}`).join(', ');
     show(s.warnings.length ? 'warn' : 'ok',
       `✅ ${s.title && !topicId ? `Thema „${escapeHtml(s.title)}“ – ` : ''}${s.count} Modul${s.count === 1 ? '' : 'e'}: ${kinds}`
+      + (s.ncRefs ? ` · ☁️ ${s.ncRefs} Bild${s.ncRefs === 1 ? '' : 'er'} aus deiner Nextcloud werden verknüpft` : '')
       + (s.warnings.length ? `<p>⚠️ Hinweise:</p>${list(s.warnings)}` : ''));
     return true;
   };

@@ -4,10 +4,11 @@ import { Repository } from 'typeorm';
 import * as crypto from 'crypto';
 import { NextcloudLink } from '../core/entities/nextcloud-link.entity';
 import { LearningTopic } from '../core/entities/learning-topic.entity';
+import { LearningModule } from '../core/entities/learning-module.entity';
 import { SystemConfig } from '../core/entities/system-config.entity';
 import { MasterKeyService } from '../core/crypto/master-key.service';
 import { assertPublicHost, safeFileName } from '../core/share/nextcloud-upload';
-import { NextcloudClient, parseNextcloudBase, safeFolderName, shareFileUrl, sharePreviewUrl } from './nextcloud-api';
+import { DavEntry, NextcloudClient, parseNextcloudBase, safeFolderName, shareFileUrl, sharePreviewUrl } from './nextcloud-api';
 
 /** Bildtypen, die hochgeladen werden dürfen – und ihre Dateiendung. */
 export const IMAGE_TYPES: Record<string, string> = {
@@ -16,6 +17,43 @@ export const IMAGE_TYPES: Record<string, string> = {
 const IMAGE_EXT = /\.(png|jpe?g|gif|webp|svg)$/i;
 export const MAX_IMAGE_BYTES = 15 * 1024 * 1024;
 const IMAGES = 'Bilder';
+
+/**
+ * Verweis auf ein Bild in der Nextcloud der Lehrkraft, wie ihn der KI-Prompt
+ * vorgibt: "nc:<Ordner unter Bilder>/<Datei>". Der Import macht daraus die
+ * Lese-URL (resolveRefs).
+ */
+export const NC_REF = /^nc:([^/]+)\/([^/]+)$/;
+
+/** Alle nc:-Verweise in einem Modulinhalt (beliebig verschachtelt) ersetzen. */
+export function mapNcRefs(value: any, fn: (ref: string) => string): any {
+  if (typeof value === 'string') return NC_REF.test(value.trim()) ? fn(value.trim()) : value;
+  if (Array.isArray(value)) return value.map((v) => mapNcRefs(v, fn));
+  if (value && typeof value === 'object') {
+    for (const k of Object.keys(value)) value[k] = mapNcRefs(value[k], fn);
+  }
+  return value;
+}
+
+/**
+ * In der Datenbank gespeicherte Bilder (data:-URLs) – als ganzer Feldwert
+ * oder mitten im HTML eines Arbeitsblatts (<img src="data:…">).
+ */
+const DATA_IMAGE = /data:(image\/(?:png|jpeg|gif|webp|svg\+xml));base64,([A-Za-z0-9+/=]+)/g;
+
+/** Jedes data:-Bild in einem Inhalt (beliebig verschachtelt) durch fn(...) ersetzen. */
+export function mapDataImages(value: any, fn: (dataUrl: string, mime: string, base64: string) => string): any {
+  if (typeof value === 'string') {
+    return value.includes('data:image/') ? value.replace(DATA_IMAGE, (m, mime: string, b64: string) => fn(m, mime, b64)) : value;
+  }
+  if (Array.isArray(value)) return value.map((v) => mapDataImages(v, fn));
+  if (value && typeof value === 'object') {
+    const out: any = {};
+    for (const [k, v] of Object.entries(value)) out[k] = mapDataImages(v, fn);
+    return out;
+  }
+  return value;
+}
 
 /** Dateiname mit passender Endung; Endung des Typs gewinnt. */
 export function imageFileName(original: string, mime: string): string {
@@ -35,6 +73,7 @@ export class NextcloudService {
   constructor(
     @InjectRepository(NextcloudLink) private readonly linkRepo: Repository<NextcloudLink>,
     @InjectRepository(LearningTopic) private readonly topicRepo: Repository<LearningTopic>,
+    @InjectRepository(LearningModule) private readonly moduleRepo: Repository<LearningModule>,
     @InjectRepository(SystemConfig) private readonly configRepo: Repository<SystemConfig>,
     private readonly masterKey: MasterKeyService,
   ) {}
@@ -67,6 +106,12 @@ export class NextcloudService {
       displayName: l.displayName,
       verifiedAt: l.verifiedAt,
       imagesFolder: `${l.folder}/${IMAGES}`,
+      backup: {
+        enabled: l.backupEnabled, hour: l.backupHour, folder: `${l.folder}/Backups`,
+        lastAttemptAt: l.backupAttemptAt, lastSuccessAt: l.backupSuccessAt, lastStatus: l.backupStatus,
+        lastError: l.backupError, lastResult: l.backupResult,
+        openUrl: l.baseUrl ? `${l.baseUrl}/index.php/apps/files/?dir=${encodeURIComponent(`/${l.folder}/Backups`)}` : null,
+      },
       openUrl: l.baseUrl ? `${l.baseUrl}/index.php/apps/files/?dir=${encodeURIComponent(`/${l.folder}/${IMAGES}`)}` : null,
     };
   }
@@ -129,6 +174,13 @@ export class NextcloudService {
     return new NextcloudClient(l.baseUrl, l.username, password, l.davUser);
   }
 
+  /** Verbindung für andere Dienste (Backup): Eintrag und Client, sofern geprüft. */
+  async connection(userId: string) {
+    const l = await this.find(userId);
+    if (!l?.verifiedAt) throw new BadRequestException('Die Nextcloud ist nicht (mehr) verbunden – bitte im Home-Menü unter ☁️ Nextcloud prüfen.');
+    return { l, nc: await this.client(l) };
+  }
+
   private async ready(userId: string) {
     const l = await this.find(userId);
     if (!l?.verifiedAt || !l.imageShareToken) throw new BadRequestException('Die Nextcloud ist nicht (mehr) verbunden – bitte im Home-Menü unter ☁️ Nextcloud prüfen.');
@@ -160,6 +212,97 @@ export class NextcloudService {
     }
     await nc.put([l.folder, IMAGES, sub, name], file.buffer, file.mimetype);
     return { success: true, url: shareFileUrl(l.baseUrl, l.imageShareToken!, sub, name), name, folder: sub };
+  }
+
+  // ---- Vorhandene Bilder auslagern ----
+
+  /** Eigene Module der eigenen Themen – nur die werden verändert (nichts Gekauftes). */
+  private async ownTopicsWithModules(userId: string, topicId?: string) {
+    const topics = await this.topicRepo.find({ where: topicId ? { id: topicId, ownerId: userId } : { ownerId: userId }, relations: ['modules'] });
+    return topics.map((t) => ({ topic: t, modules: (t.modules || []).filter((m) => m.creatorId === userId) }));
+  }
+
+  /** Welche eigenen Themen noch Bilder in der Datenbank haben – je Thema Anzahl und Größe. */
+  async migrationPlan(user: any) {
+    await this.ready(user.userId);
+    const out: Array<{ topicId: string; title: string; images: number; bytes: number }> = [];
+    for (const { topic, modules } of await this.ownTopicsWithModules(user.userId)) {
+      const seen = new Map<string, number>();
+      for (const m of modules) {
+        mapDataImages(m.content, (d, _mime, b64) => { seen.set(d, Math.floor((b64.length * 3) / 4)); return d; });
+      }
+      if (seen.size) out.push({ topicId: topic.id, title: topic.title, images: seen.size, bytes: [...seen.values()].reduce((a, b) => a + b, 0) });
+    }
+    return { topics: out.sort((a, b) => b.bytes - a.bytes) };
+  }
+
+  /**
+   * Bilder eines Themas in seinen Nextcloud-Ordner hochladen und in den
+   * Modulen durch Links ersetzen. Gleiche Bilder gehen nur einmal hoch; der
+   * Dateiname enthält eine Prüfsumme, ein zweiter Lauf lädt nichts doppelt.
+   */
+  async migrateTopic(user: any, topicId: string) {
+    const { l, nc } = await this.ready(user.userId);
+    const [entry] = await this.ownTopicsWithModules(user.userId, topicId);
+    if (!entry) throw new BadRequestException('Thema nicht gefunden – auslagern lassen sich nur eigene Themen.');
+    const sub = safeFolderName(entry.topic.title, 'Ohne Thema');
+    const images = new Map<string, { mime: string; b64: string }>();
+    for (const m of entry.modules) mapDataImages(m.content, (d, mime, b64) => { images.set(d, { mime, b64 }); return d; });
+    if (!images.size) return { success: true, uploaded: 0, reused: 0, modules: 0, folder: sub };
+
+    await nc.ensureFolder([l.folder, IMAGES, sub]);
+    const existing = new Set((await nc.list([l.folder, IMAGES, sub])).map((e) => e.name));
+    const urls = new Map<string, string>();
+    let uploaded = 0;
+    let reused = 0;
+    for (const [dataUrl, { mime, b64 }] of images) {
+      const buffer = Buffer.from(b64, 'base64');
+      const hash = crypto.createHash('sha256').update(buffer).digest('hex').slice(0, 12);
+      const name = `bild-${hash}.${IMAGE_TYPES[mime] || 'png'}`;
+      if (existing.has(name)) reused++;
+      else { await nc.put([l.folder, IMAGES, sub, name], buffer, mime); uploaded++; }
+      urls.set(dataUrl, shareFileUrl(l.baseUrl, l.imageShareToken!, sub, name));
+    }
+    let changed = 0;
+    for (const m of entry.modules) {
+      const next = mapDataImages(m.content, (d) => urls.get(d) || d);
+      if (JSON.stringify(next) !== JSON.stringify(m.content)) {
+        await this.moduleRepo.update({ id: m.id }, { content: next });
+        changed++;
+      }
+    }
+    return { success: true, uploaded, reused, modules: changed, folder: sub };
+  }
+
+  /** Verbunden und geprüft? */
+  async isReady(userId: string) {
+    const l = await this.find(userId);
+    return !!(l?.verifiedAt && l.imageShareToken);
+  }
+
+  /**
+   * nc:-Verweise in Lese-URLs auflösen. Ergebnis je Verweis: URL oder null
+   * (keine Verbindung, Ordner oder Datei gibt es nicht).
+   */
+  async resolveRefs(userId: string, refs: string[]): Promise<Map<string, string | null>> {
+    const out = new Map<string, string | null>(refs.map((r) => [r, null]));
+    if (!refs.length) return out;
+    const l = await this.find(userId);
+    if (!l?.verifiedAt || !l.imageShareToken) return out;
+    const nc = await this.client(l);
+    const byFolder = new Map<string, string[]>();
+    for (const r of refs) {
+      const m = NC_REF.exec(r);
+      if (m) byFolder.set(m[1], [...(byFolder.get(m[1]) || []), r]);
+    }
+    for (const [folder, list] of byFolder) {
+      const names = new Set((await nc.list([l.folder, IMAGES, folder]).catch((): DavEntry[] => [])).filter((e) => !e.isFolder).map((e) => e.name));
+      for (const r of list) {
+        const name = NC_REF.exec(r)![2];
+        if (names.has(name)) out.set(r, shareFileUrl(l.baseUrl, l.imageShareToken, folder, name));
+      }
+    }
+    return out;
   }
 
   /**

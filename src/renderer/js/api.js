@@ -494,6 +494,10 @@ export class BrowserApi {
     if (topicId) q.set('topicId', topicId);
     return this._fetch(`/api/nextcloud/images?${q}`);
   }
+  saveNextcloudBackup(body) { return this._fetch('/api/nextcloud/backup', { method: 'POST', body: JSON.stringify(body) }); }
+  runNextcloudBackup() { return this._fetch('/api/nextcloud/backup/run', { method: 'POST' }); }
+  getNextcloudMigration() { return this._fetch('/api/nextcloud/migrate'); }
+  migrateNextcloudTopic(topicId) { return this._fetch('/api/nextcloud/migrate', { method: 'POST', body: JSON.stringify({ topicId }) }); }
   async uploadNextcloudImage(file, topicId) {
     const form = new FormData();
     form.append('file', file);

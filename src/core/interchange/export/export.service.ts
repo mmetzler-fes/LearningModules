@@ -9,6 +9,12 @@ import { TopicsService } from '../../../topics/topics.service';
 import { MasterKeyService } from '../../crypto/master-key.service';
 import { H5pService } from '../h5p/h5p.service';
 import { exportMoodleXml } from '../moodle/moodle-export';
+import { inlineRemoteImages } from '../../share/remote-images';
+
+/** Hinweis für den Export-Bericht, wenn verlinkte Bilder nicht eingebettet werden konnten. */
+const linkedNote = (failed: string[]) => failed.length
+  ? [`${failed.length} verlinkte${failed.length === 1 ? 's Bild ließ' : ' Bilder ließen'} sich nicht einbetten und ${failed.length === 1 ? 'bleibt ein Link' : 'bleiben Links'}.`]
+  : [];
 
 /** Eigene Module (samt Untermodulen) aus einer Liste. */
 export function ownModules(modules: LearningModule[], userId: string) {
@@ -92,14 +98,18 @@ export class ExportService {
   /** Moodle-XML (Fragensammlung) nur mit den eigenen, aktiven Modulen. */
   async exportMoodle(topicId: string, user: any) {
     const { topic, modules } = await this.plainSource(topicId, user);
-    const active = modules.filter((m) => !m.parentId && m.moduleSelected !== false);
-    return { title: topic.title, ...exportMoodleXml(topic.title, active) };
+    // Verlinkte Bilder (z. B. Nextcloud) einbetten – die Datei soll für sich stehen.
+    const inlined = await inlineRemoteImages(modules.filter((m) => !m.parentId && m.moduleSelected !== false));
+    const result = exportMoodleXml(topic.title, inlined.modules);
+    return { title: topic.title, ...result, notes: [...result.notes, ...linkedNote(inlined.failed)] };
   }
 
   /** H5P nur mit den eigenen Modulen. */
   async exportH5p(topicId: string, user: any) {
     const { topic, modules } = await this.plainSource(topicId, user);
-    return { title: topic.title, ...this.h5p.generateH5p(topic, modules) };
+    const inlined = await inlineRemoteImages(modules);
+    const result = this.h5p.generateH5p(topic, inlined.modules);
+    return { title: topic.title, ...result, notes: [...result.notes, ...linkedNote(inlined.failed)] };
   }
 
   /**

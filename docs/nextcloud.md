@@ -1,10 +1,11 @@
-# Nextcloud für Bilder
+# Nextcloud für Bilder und Backup
 
 Bilder in Modulen liegen sonst in der Datenbank der App – jedes Bild macht
 sie, jedes Backup und jede Quiz-Seite größer. Mit verbundener Nextcloud
 speichert die App neue Bilder **in deiner Nextcloud**: je Lernthema in einem
 eigenen Ordner. Im Modul steht nur noch der Link; Schülerinnen und Schüler
-laden das Bild direkt aus deiner Nextcloud.
+laden das Bild direkt aus deiner Nextcloud. Dazu kann die App deine Inhalte
+täglich in die Nextcloud sichern.
 
 ## Einrichten
 
@@ -27,8 +28,8 @@ die Links in den Modulen funktionieren weiter, solange die Freigabe besteht.
 
 ## Bilder einfügen
 
-- **📁 Bild auswählen** (in jedem Bildfeld, beim Drag-and-Drop-Hintergrund
-  und bei Bild-Hotspots) lädt das Bild in den Ordner
+- **📁 Bild auswählen** (in jedem Bildfeld, beim Drag-and-Drop-Hintergrund,
+  bei Bild-Hotspots und beim Einfügen ins Arbeitsblatt) lädt das Bild in den Ordner
   `<Hauptordner>/Bilder/<Thema>/` hoch. Gibt es den Dateinamen dort schon,
   bekommt das neue Bild `-2`, `-3` … angehängt – nichts wird überschrieben.
 - **☁️ Aus Nextcloud** zeigt die Bilder eines Ordners, vorgewählt der des
@@ -41,6 +42,52 @@ Ohne verbundene Nextcloud bleibt alles wie bisher.
 
 Der Ordnername ist der Titel des Themas. Wird das Thema umbenannt, landen
 neue Bilder im Ordner mit dem neuen Namen; vorhandene Links bleiben gültig.
+
+## Bilder im KI-Prompt
+
+Im **🤖 KI-Prompt** erscheint bei verbundener Nextcloud **☁️ Bilder aus
+meiner Nextcloud anbieten** mit der Wahl eines Ordners unter `Bilder`. Die KI
+bekommt die Dateinamen dieses Ordners als Liste (`nc:<Ordner>/<Datei>`) und
+darf nur daraus wählen – sie erfindet so keine Links. Sprechende Dateinamen
+wie `flughafen-gate.jpg` helfen ihr bei der Wahl.
+
+Beim Import macht die App daraus die Links auf deine Nextcloud. Ein Eintrag,
+den es dort nicht gibt, bleibt leer; der Import-Bericht nennt ihn. Ist keine
+Nextcloud verbunden, bleiben die Bildfelder leer, und der Bericht sagt, dass
+erst die Nextcloud verbunden werden sollte.
+
+## Vorhandene Bilder auslagern
+
+Im Dialog unter **Vorhandene Bilder auslagern** → **🔍 Bilder in der App
+suchen** listet die App deine Themen, in denen noch Bilder in der App liegen
+(mit Anzahl und Größe). **📤 In die Nextcloud auslagern** lädt sie Thema für
+Thema in den jeweiligen Ordner und ersetzt sie in den Modulen durch Links –
+auch Bilder mitten im Text eines Arbeitsblatts. Gleiche Bilder gehen nur
+einmal hoch (Dateiname `bild-<Prüfsumme>`); ein zweiter Lauf lädt nichts
+doppelt. Gekaufte oder übernommene Module bleiben unverändert.
+
+## Export
+
+Beim Export als **H5P** oder **Moodle-XML** holt der Server verlinkte Bilder
+und bettet sie in die Datei ein – sie funktioniert dann auch ohne deine
+Nextcloud. Was sich nicht holen lässt, bleibt ein Link; der Export-Bericht
+sagt, wie viele. Der JSON-Export enthält die Links, so wie sie im Modul stehen.
+
+## Backup
+
+Unter **Backup deiner Inhalte**: **Täglich sichern um …** und **⬆ Jetzt
+sichern**. Gesichert wird nach `<Hauptordner>/Backups/` – je Lernthema eine
+JSON-Datei (`<Titel> (<Kennung>).json`), nur selbst verfasste Module wie beim
+offenen Export, und nur, wenn sich etwas geändert hat. Ältere Stände zeigt
+die Nextcloud bei jeder Datei unter **Versionen**. Zurückholen: Datei
+herunterladen und über **📥 Thema importieren** einlesen. Gelöschte Themen
+bleiben im Ordner liegen. Schlägt ein Backup fehl, kommt eine Mail, und die
+App versucht es stündlich erneut.
+
+Das ist unabhängig vom automatischen Backup des Admins (ganzer Server,
+verschlüsselt, mit eigenen Zugangsdaten). Die Lesefreigabe betrifft nur den
+Ordner `Bilder` – `Backups` ist nicht freigegeben und enthält auch die
+Lösungen, also bitte nicht öffentlich teilen.
 
 ## Wichtig
 

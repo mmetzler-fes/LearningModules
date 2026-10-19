@@ -94,6 +94,90 @@ export function pickNextcloudImage(app) {
   });
 }
 
+// ---------- Backup in die Nextcloud ----------
+
+const when = (d) => (d ? new Date(d).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' }) : '–');
+
+function backupSummary(r) {
+  if (!r) return '';
+  const parts = [];
+  if (r.created) parts.push(`${r.created} neu`);
+  if (r.updated) parts.push(`${r.updated} geändert`);
+  parts.push(`${r.unchanged || 0} unverändert`);
+  return parts.join(', ');
+}
+
+function backupHtml(b) {
+  if (!b) return '';
+  const hours = Array.from({ length: 24 }, (_, h) => `<option value="${h}" ${h === b.hour ? 'selected' : ''}>${String(h).padStart(2, '0')}:00 Uhr</option>`).join('');
+  const last = b.lastStatus === 'ok'
+    ? `Letztes Backup: ${when(b.lastSuccessAt)} (${escapeHtml(backupSummary(b.lastResult))}).`
+    : b.lastStatus === 'error'
+      ? `<span class="login-error" style="display:inline">❌ Letzter Versuch ${when(b.lastAttemptAt)} fehlgeschlagen: ${escapeHtml(b.lastError || '')}</span>`
+      : '';
+  return `
+    <div class="settings-group nc-backup">
+      <h4>Backup deiner Inhalte</h4>
+      <p class="hint">Sichert deine selbst verfassten Module täglich nach <strong>${escapeHtml(b.folder)}</strong> – je Lernthema
+        eine JSON-Datei, nur wenn sich etwas geändert hat. Ältere Stände zeigt die Nextcloud bei jeder Datei unter
+        „Versionen“. Zurückholen: Datei herunterladen und über 📥 Thema importieren einlesen.
+        ${b.openUrl ? `<a href="${escapeAttr(b.openUrl)}" target="_blank" rel="noopener">Ordner öffnen ↗</a>` : ''}</p>
+      <div class="shop-mode-row">
+        <label class="share-flag"><input type="checkbox" id="ncBackupOn" ${b.enabled ? 'checked' : ''} /> <span>Täglich sichern um</span></label>
+        <select id="ncBackupHour">${hours}</select>
+        <button class="btn btn-secondary nc-backup-run">⬆ Jetzt sichern</button>
+      </div>
+      ${last ? `<p class="hint">${last}</p>` : ''}
+      <p class="nc-backup-message hint"></p>
+    </div>`;
+}
+
+// ---------- Vorhandene Bilder auslagern ----------
+
+const mb = (bytes) => `${(bytes / 1024 / 1024).toLocaleString('de-DE', { maximumFractionDigits: 1 })} MB`;
+
+/** Eigene Themen mit Bildern in der App auflisten und auf Wunsch Thema für Thema auslagern. */
+async function scanMigration(app, body) {
+  body.innerHTML = '<p class="hint">Suche …</p>';
+  const plan = await app.api.getNextcloudMigration();
+  if (!plan || plan.statusCode || !plan.topics) { body.innerHTML = `<p class="login-error">${escapeHtml(plan?.message || 'Fehler')}</p>`; return; }
+  if (!plan.topics.length) { body.innerHTML = '<p class="hint">✅ In deinen Themen liegen keine Bilder mehr in der App.</p>'; return; }
+  const total = plan.topics.reduce((a, t) => a + t.bytes, 0);
+  body.innerHTML = `
+    <ul class="nc-migrate-list">${plan.topics.map((t) => `
+      <li><label><input type="checkbox" value="${escapeAttr(t.topicId)}" checked />
+        ${escapeHtml(t.title)} <span class="hint">– ${t.images} Bild${t.images === 1 ? '' : 'er'}, ${mb(t.bytes)}</span></label>
+        <span class="nc-migrate-state"></span></li>`).join('')}
+    </ul>
+    <p class="hint">Zusammen ${mb(total)}.</p>
+    <button class="btn btn-primary nc-migrate-run">📤 In die Nextcloud auslagern</button>
+    <p class="nc-migrate-result hint"></p>`;
+  body.querySelector('.nc-migrate-run').addEventListener('click', async (e) => {
+    const btn = e.currentTarget;
+    btn.disabled = true;
+    let done = 0;
+    let failed = 0;
+    for (const box of body.querySelectorAll('input[type=checkbox]:checked')) {
+      const state = box.closest('li').querySelector('.nc-migrate-state');
+      state.textContent = '⏳';
+      // Thema für Thema – eine einzige lange Anfrage liefe in Zeitüberschreitungen.
+      const res = await app.api.migrateNextcloudTopic(box.value);
+      if (res?.success) {
+        done++;
+        state.textContent = `✅ ${res.uploaded} hochgeladen${res.reused ? `, ${res.reused} schon da` : ''} → ${res.folder}`;
+      } else {
+        failed++;
+        state.textContent = `❌ ${res?.message || 'Fehler'}`;
+      }
+      box.disabled = true;
+    }
+    const themen = (n) => `${n} ${n === 1 ? 'Thema' : 'Themen'}`;
+    body.querySelector('.nc-migrate-result').textContent = failed
+      ? `${themen(done)} ausgelagert, ${failed} mit Fehler – „Bilder in der App suchen“ zeigt, was noch fehlt.`
+      : `✅ ${themen(done)} ausgelagert.`;
+  });
+}
+
 // ---------- Einstellungen (Home-Menü) ----------
 
 export async function openNextcloudDialog(app) {
@@ -105,7 +189,7 @@ export async function openNextcloudDialog(app) {
   const close = () => overlay.remove();
   overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
 
-  const render = async (msg = null) => {
+  const render = async (msg = null, backupMsg = null) => {
     const data = await refreshNextcloud(app);
     if (!data || data.statusCode) { card.innerHTML = `<p class="login-error">Fehler: ${escapeHtml(data?.message || '?')}</p>`; return; }
     const c = data.config;
@@ -147,6 +231,16 @@ export async function openNextcloudDialog(app) {
         </div>
         <p class="nc-message" style="margin-top:10px"></p>
       </div>
+      ${data.ready ? backupHtml(data.backup) : ''}
+      ${data.ready ? `
+      <div class="settings-group nc-migrate">
+        <h4>Vorhandene Bilder auslagern</h4>
+        <p class="hint">Bilder, die schon in deinen Modulen stecken, liegen noch in der App. Hier wandern sie in die Ordner
+          deiner Themen; in den Modulen steht danach der Link. Gleiche Bilder gehen nur einmal hoch. Gekaufte oder
+          übernommene Module bleiben unverändert.</p>
+        <button class="btn btn-secondary nc-migrate-scan">🔍 Bilder in der App suchen</button>
+        <div class="nc-migrate-body"></div>
+      </div>` : ''}
       <div class="confirm-actions"><button class="btn btn-secondary nc-close">Schließen</button></div>`;
 
     const $ = (sel) => card.querySelector(sel);
@@ -173,6 +267,29 @@ export async function openNextcloudDialog(app) {
         return;
       }
       await render({ text: `✅ ${res.message}` });
+    });
+    $('.nc-migrate-scan')?.addEventListener('click', () => scanMigration(app, $('.nc-migrate-body')));
+    // Backup: Einstellungen speichern sich beim Ändern; „Jetzt sichern“ läuft sofort.
+    const sayBackup = (m) => {
+      const el = $('.nc-backup-message');
+      el.className = `${m?.error ? 'login-error' : 'hint'} nc-backup-message`;
+      el.textContent = m?.text || '';
+    };
+    const saveBackup = async () => {
+      const res = await app.api.saveNextcloudBackup({ enabled: $('#ncBackupOn').checked, hour: Number($('#ncBackupHour').value) });
+      if (!res?.success) sayBackup({ error: true, text: `❌ ${res?.message || 'Speichern fehlgeschlagen'}` });
+      else sayBackup({ text: res.enabled ? `Gespeichert – nächstes Backup ${when(res.nextRunAt)}.` : 'Automatisches Backup ausgeschaltet.' });
+    };
+    if ($('.nc-backup-message')) sayBackup(backupMsg);
+    $('#ncBackupOn')?.addEventListener('change', saveBackup);
+    $('#ncBackupHour')?.addEventListener('change', saveBackup);
+    $('.nc-backup-run')?.addEventListener('click', async (e) => {
+      const btn = e.currentTarget;
+      btn.disabled = true;
+      btn.textContent = '⏳ Sichere …';
+      const res = await app.api.runNextcloudBackup();
+      if (res?.success) await render(null, { text: `✅ Gesichert: ${backupSummary(res)}.` });
+      else { btn.disabled = false; btn.textContent = '⬆ Jetzt sichern'; sayBackup({ error: true, text: `❌ ${res?.message || 'Backup fehlgeschlagen'}` }); }
     });
     $('.nc-disconnect')?.addEventListener('click', async () => {
       if (!(await app.appConfirm('Nextcloud trennen?\n\nDie Bilder bleiben in deiner Nextcloud, und die Links in den Modulen funktionieren weiter, solange die Freigabe besteht. Neue Bilder landen danach wieder in der App.'))) return;

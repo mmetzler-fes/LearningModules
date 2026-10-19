@@ -35,7 +35,9 @@ describe('Importtext prüfen (src/renderer/js/json-text.js)', () => {
   it('prüft den Aufbau: Probleme verhindern den Import, Warnungen nicht', () => {
     const names = { trueFalse: 'Wahr/Falsch', sorting: 'Reihenfolge' };
     const ok = j.summarizeImport(j.extractJson(topic).data, names);
-    expect(ok).toMatchObject({ title: 'T', count: 1, problems: [], warnings: [], types: [{ type: 'trueFalse', n: 1, name: 'Wahr/Falsch' }] });
+    expect(ok).toMatchObject({ title: 'T', count: 1, ncRefs: 0, problems: [], warnings: [], types: [{ type: 'trueFalse', n: 1, name: 'Wahr/Falsch' }] });
+    const withImages = j.summarizeImport({ modules: [{ title: 'a', type: 'sorting', content: { items: [{ imageUrl: 'nc:Reisen/a.jpg' }, { imageUrl: 'nc: kein' }] } }] }, names);
+    expect(withImages.ncRefs).toBe(1);
 
     const odd = j.summarizeImport({ modules: [{ type: 'quatsch', content: {} }, { title: 'x' }, 'nein'] }, names);
     expect(odd.problems).toEqual(['Modul 2 („x“): "type" fehlt.', 'Modul 3: ist kein Objekt.']);

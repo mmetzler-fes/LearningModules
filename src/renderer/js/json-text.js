@@ -109,9 +109,18 @@ export function summarizeImport(data, typeNames = {}) {
     if (!m.title) warnings.push(`${label}: ohne Titel.`);
     if (m.type) counts.set(m.type, (counts.get(m.type) || 0) + 1);
   });
+  // Bilder aus dem KI-Prompt ("nc:<Ordner>/<Datei>"), die der Import verknüpft.
+  let ncRefs = 0;
+  const walk = (v) => {
+    if (typeof v === 'string') { if (/^nc:[^/]+\/[^/]+$/.test(v.trim())) ncRefs++; }
+    else if (Array.isArray(v)) v.forEach(walk);
+    else if (v && typeof v === 'object') Object.values(v).forEach(walk);
+  };
+  (Array.isArray(modules) ? modules : []).forEach((m) => walk(m && m.content));
   return {
     title: (topic && topic.title) || '',
     count: Array.isArray(modules) ? modules.length : 0,
+    ncRefs,
     types: [...counts].map(([type, n]) => ({ type, n, name: typeNames[type] || type })),
     problems,
     warnings,

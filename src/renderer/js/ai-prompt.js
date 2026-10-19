@@ -208,7 +208,8 @@ function typeName(type) {
 /**
  * Prompt aus den Angaben des Dialogs.
  * @param o.title, o.description, o.level, o.language, o.count, o.types,
- *          o.files (Dateinamen, Text), o.link, o.linkImages
+ *          o.files (Dateinamen, Text), o.link, o.linkImages,
+ *          o.ncImages (Bilder der eigenen Nextcloud als "nc:<Ordner>/<Datei>")
  */
 export function buildAiPrompt(o) {
   const types = AI_PROMPT_TYPES.filter((t) => o.types.includes(t));
@@ -238,14 +239,24 @@ export function buildAiPrompt(o) {
   } else {
     L.push('Falls Materialien angehängt sind, verwende ausschließlich deren Inhalte. Sonst stütze dich auf gesichertes Fachwissen passend zur Beschreibung.');
   }
+  // Bilder aus der eigenen Nextcloud: Die KI wählt nur aus der Liste, der
+  // Import macht aus "nc:<Ordner>/<Datei>" die Lese-URL. Eine URL selbst zu
+  // bauen, überfordert KIs – sie erfinden dann Dateien.
+  const ncImages = (o.ncImages || []).filter(Boolean);
+  if (ncImages.length) {
+    L.push('Bilder: Es gibt NUR die folgenden Bilder. Trage in "imageUrl", "backgroundImage", "aImage" bzw. "bImage" einen dieser Werte'
+      + ' genau so ein, wie er hier steht (mit "nc:"), oder lass das Feld leer (""). Wähle ein Bild nur, wenn sein Dateiname wirklich'
+      + ' zur Aufgabe passt; jedes Bild höchstens einmal. Erfinde keine Bilder und keine URLs.');
+    for (const r of ncImages) L.push(`- ${r}`);
+  }
   if (link) {
     L.push(`Weitere Materialien liegen hier: ${link}`);
-    if (o.linkImages) {
+    if (o.linkImages && !ncImages.length) {
       L.push('Bilder aus diesem öffentlichen Ordner darfst du als direkten Download-Link einbinden ("imageUrl", bei Drag and Drop "backgroundImage", bei Memory "aImage"/"bImage"),'
         + ' im Format <Ordner-Link>/download?path=/&files=<Dateiname>. Nur Dateien verwenden, die es dort wirklich gibt.');
     }
   }
-  if (!link || !o.linkImages) {
+  if (!ncImages.length && (!link || !o.linkImages)) {
     L.push('Bilder: "imageUrl", "backgroundImage", "aImage" und "bImage" bleiben leer (""). Bilder ergänzt die Lehrkraft später.');
   }
   L.push('');

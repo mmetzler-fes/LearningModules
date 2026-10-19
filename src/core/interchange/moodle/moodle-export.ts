@@ -195,9 +195,24 @@ const exportDragTheWords: Exporter = (c, ctx) => {
 };
 
 /**
- * Drag and Drop. Ohne Bild: Zuordnung (Element → Zone). Mit Bild und je
- * Zone einem Element: Drag and Drop auf Bild; sonst Markierungen, denn nur
- * dort dürfen mehrere Elemente in einer Zone liegen.
+ * Teilfrage einer Zuordnung aus einer Zone: Bild (als Datei der Teilfrage)
+ * und Name – der Name fehlt, wenn er verborgen ist.
+ */
+function zoneSubquestion(z: any, answer: string, files: Files): string {
+  const f = z.imageUrl ? files.fromUrl(z.imageUrl) : null;
+  let img = '';
+  if (f) img = `<img src="@@PLUGINFILE@@/${encodeURIComponent(f.name)}" alt="${esc(z.hideText ? '' : z.label)}" />`;
+  else if (/^https?:\/\//i.test(z.imageUrl || '')) img = `<img src="${esc(z.imageUrl)}" alt="" />`;
+  const name = img && z.hideText ? '' : esc(z.label);
+  const html = `<p>${img}${img && name ? '<br />' : ''}${name}</p>`;
+  return `    <subquestion format="html"><text>${cdata(html)}</text>${f ? fileTag(f) : ''}<answer><text>${esc(answer)}</text></answer></subquestion>`;
+}
+
+/**
+ * Drag and Drop. Ohne Bild: Zuordnung – bei Paaren je Zone eine Teilfrage
+ * (mit Bild), sonst je Element (Element → Zone). Mit Bild und je Zone
+ * einem Element: Drag and Drop auf Bild; sonst Markierungen, denn nur dort
+ * dürfen mehrere Elemente in einer Zone liegen.
  */
 const exportDragAndDrop: Exporter = (c, ctx) => {
   const expected = dndExpected(c);
@@ -210,6 +225,25 @@ const exportDragAndDrop: Exporter = (c, ctx) => {
   const size = bg && imageSize(bg.buffer);
   if (!bg || !size) {
     if (c.backgroundImage) ctx.notes.push(`${ctx.name}: Hintergrundbild nicht eingebettet – als Zuordnung ohne Bild exportiert.`);
+    // In Moodle wählt man Antworten aus einer Liste – dort gibt es nur Text.
+    if ((c.draggables || []).some((d: any) => d && d.imageUrl)) {
+      ctx.notes.push(`${ctx.name}: Bilder der ziehbaren Elemente gibt es in der Moodle-Zuordnung nicht – nur ihr Text übernommen.`);
+    }
+    if (c.layout === 'pairs' && !c.backgroundImage) {
+      // Paare: links die feste Karte (auch mit Bild), rechts die Antwort zur Auswahl.
+      const subs = zones.filter((z) => z.label && expected.some((e) => e.zone === z.label))
+        .map((z) => zoneSubquestion(z, expected.find((e) => e.zone === z.label)!.text, ctx.files));
+      const extra = (c.draggables || []).filter((d: any) => d && d.text && !usedTexts.has(d.text))
+        .map((d: any) => `    <subquestion format="html"><text></text><answer><text>${esc(d.text)}</text></answer></subquestion>`);
+      if (subs.length < 2) return null; // Moodle verlangt mindestens zwei Paare
+      return [
+        head('match', ctx.name)
+        + `    ${questionText([...intro, '<p>Ordne zu.</p>'], '', ctx.files)}\n`
+        + '    <shuffleanswers>true</shuffleanswers>\n'
+        + [...subs, ...extra].join('\n') + '\n  </question>',
+      ];
+    }
+    if (zones.some((z) => z.imageUrl)) ctx.notes.push(`${ctx.name}: Bilder an Zonen nicht übernommen – die Zonen sind in Moodle Antworten zur Auswahl.`);
     // Zuordnung: links die Elemente, rechts die Zonen als Auswahl.
     const subs = expected.map((e) => `    <subquestion format="html"><text>${cdata(esc(e.text))}</text><answer><text>${esc(e.zone)}</text></answer></subquestion>`);
     const unusedZones = zones.filter((z) => z.label && !expected.some((e) => e.zone === z.label));

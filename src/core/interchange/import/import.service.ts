@@ -17,7 +17,8 @@ const jsonText = () => loadBrowserModule<JsonText>('json-text.js');
 /**
  * Kleine Abweichungen, die KIs trotz Beispiel gern machen, auf das Format
  * der Editoren bringen: Reihenfolge mit bloßen Texten, Memory-Paare als
- * [a, b], Kreuzworträtsel mit "word"/"hint" statt "answer"/"clue".
+ * [a, b], Kreuzworträtsel mit "word"/"hint" statt "answer"/"clue",
+ * Drag and Drop mit unbekannter Darstellung.
  * Alles andere bleibt unverändert.
  */
 export function normalizeImportedContent(type: string, content: any): any {
@@ -40,6 +41,17 @@ export function normalizeImportedContent(type: string, content: any): any {
       ? { ...w, answer: str(w.answer ?? w.word ?? w.solution), clue: str(w.clue ?? w.hint ?? w.question), imageUrl: str(w.imageUrl) }
       : w));
     if (typeof content.seed !== 'number') content.seed = Number(content.seed) || 0;
+  }
+  if (type === 'dragAndDrop') {
+    // Paare nur mit "pairs"; Bild und "Text verbergen" an Zonen und Elementen.
+    content.layout = content.layout === 'pairs' ? 'pairs' : '';
+    const withImage = (o: any) => {
+      if (!o || typeof o !== 'object') return o;
+      const imageUrl = str(o.imageUrl);
+      return { ...o, imageUrl, hideText: !!imageUrl && (o.hideText === true || o.hideText === 'true') };
+    };
+    if (Array.isArray(content.dropZones)) content.dropZones = content.dropZones.map(withImage);
+    if (Array.isArray(content.draggables)) content.draggables = content.draggables.map(withImage);
   }
   return content;
 }

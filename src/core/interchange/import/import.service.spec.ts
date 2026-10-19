@@ -67,6 +67,14 @@ describe('Reihenfolge, Memory, Kreuzworträtsel im JSON', () => {
     expect(normalizeImportedContent('crossword', { words: [{ word: 'Ohm', hint: 'Einheit R' }] })).toEqual({
       words: [{ word: 'Ohm', hint: 'Einheit R', answer: 'Ohm', clue: 'Einheit R', imageUrl: '' }], seed: 0,
     });
+    // Drag and Drop: nur "pairs" gilt, "Text verbergen" nur mit Bild
+    expect(normalizeImportedContent('dragAndDrop', {
+      layout: 'Paare', dropZones: [{ label: 'A', hideText: true }], draggables: [{ text: 'a', imageUrl: 'nc:x/a.png', hideText: 'true' }],
+    })).toEqual({
+      layout: '', dropZones: [{ label: 'A', imageUrl: '', hideText: false }],
+      draggables: [{ text: 'a', imageUrl: 'nc:x/a.png', hideText: true }],
+    });
+    expect(normalizeImportedContent('dragAndDrop', { layout: 'pairs' }).layout).toBe('pairs');
   });
 });
 

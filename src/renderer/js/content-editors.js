@@ -19,6 +19,8 @@ const dndSnap = (v) => Math.round(v / DND_GRID) * DND_GRID;
 const DND_DEFAULT_ZONE_PX = 96 / 2.54;
 // Kleiner laesst sich eine Zone nicht ziehen oder zeichnen.
 const DND_MIN_ZONE_PX = 12;
+const DND_NO_IMAGE_TEXT = 'Ohne Hintergrundbild stehen die Zonen als Liste untereinander – z. B. zum Zuordnen in Gruppen. '
+  + 'Für Zonen auf einem Bild zuerst ein Hintergrundbild wählen.';
 
 /**
  * Kleines Kontextmenue an der Zeigerposition. Schliesst bei Klick daneben,
@@ -1253,17 +1255,25 @@ class ContentEditorManager {
           y: z.y ?? 10,
           width: z.width ?? 20,
           height: z.height ?? 15,
+          imageUrl: z.imageUrl || '',
+          hideText: !!z.hideText,
         };
       }),
       draggables: (data.draggables || []).map((d) => ({
         text: d.text || '',
         correctZone: d.correctZone || '',
         multiple: !!d.multiple,
+        imageUrl: d.imageUrl || '',
+        hideText: !!d.hideText,
       })),
       nextZoneId: (data.dropZones || []).length,
       selectedZone: null,
       drawMode: false,
+      // 'pairs': Paar-Liste statt Zonen (nur ohne Hintergrundbild), sonst frei
+      layout: data.layout === 'pairs' && !data.backgroundImage ? 'pairs' : '',
+      pairs: [],
     };
+    if (this.dndState.layout === 'pairs') this.dndState.pairs = this._dndPairsFromState().pairs;
 
     const heading = document.createElement('h4');
     heading.textContent = `${typeDef.icon} ${typeDef.name} — Inhalt konfigurieren`;
@@ -1281,6 +1291,44 @@ class ContentEditorManager {
     mixBox.checked = this.dndState.randomOrder;
     mixBox.addEventListener('change', () => { this.dndState.randomOrder = mixBox.checked; });
     this.container.appendChild(mixRow);
+
+    // Darstellung: frei (Zonen auf einem Bild oder als Liste) oder Paare
+    const layoutRow = document.createElement('div');
+    layoutRow.className = 'dnd-layout-switch';
+    layoutRow.innerHTML = `
+      <span class="dnd-layout-title">Darstellung:</span>
+      <label><input type="radio" name="dndLayout" value="" /> <span><strong>🖼 Frei</strong> – Zonen auf einem Bild oder ohne Bild als Liste (z. B. Gruppen)</span></label>
+      <label><input type="radio" name="dndLayout" value="pairs" /> <span><strong>🔗 Paare</strong> – je Zeile eine feste Karte und genau ein Platz</span></label>
+      <button type="button" class="help-hint" data-help="moodle-und-h5p#paare-zuordnen" title="Hilfe: Paare" aria-label="Hilfe">?</button>`;
+    layoutRow.querySelectorAll('input').forEach((r) => {
+      r.checked = r.value === this.dndState.layout;
+      r.addEventListener('change', () => { if (r.checked) this._dndSwitchLayout(r.value); });
+    });
+    this.container.appendChild(layoutRow);
+
+    // Paare: Liste A ↔ B
+    const pairsGroup = this.createFormGroup('Paare');
+    pairsGroup.classList.add('dnd-pairs-group');
+    const pairsHint = document.createElement('p');
+    pairsHint.className = 'dnd-group-hint';
+    pairsHint.textContent = 'Links die feste Karte, rechts, was die Schüler daneben ziehen. Beide Seiten dürfen ein Bild haben. '
+      + 'Eine Zeile ohne linke Karte ist ein Ablenker – das Element liegt in der Ablage, gehört aber nirgends hin.';
+    pairsGroup.appendChild(pairsHint);
+    const pairsList = document.createElement('div');
+    pairsList.className = 'dnd-pairs-list';
+    pairsList.id = 'dnd-pairs-list';
+    pairsGroup.appendChild(pairsList);
+    const btnAddPair = document.createElement('button');
+    btnAddPair.type = 'button';
+    btnAddPair.className = 'btn-add-item';
+    btnAddPair.textContent = '+ Paar hinzufügen';
+    btnAddPair.addEventListener('click', () => {
+      this.dndState.pairs.push(this._dndBlankPair());
+      this.refreshDndPairs();
+      pairsList.querySelector('.dnd-pair-row:last-child input')?.focus();
+    });
+    pairsGroup.appendChild(btnAddPair);
+    this.container.appendChild(pairsGroup);
 
     // Background image section
     const imgGroup = this.createFormGroup('Hintergrundbild *');
@@ -1321,7 +1369,7 @@ class ContentEditorManager {
         this.dndState.backgroundImage = url;
         imgStatus.textContent = '✅ Bild aus der Nextcloud';
         btnRemoveImg.style.display = '';
-        this.refreshDndCanvas();
+        this._dndBackgroundChanged();
       });
       imgControls.appendChild(btnCloudImg);
     }
@@ -1341,7 +1389,7 @@ class ContentEditorManager {
 
     const placeholder = document.createElement('div');
     placeholder.className = 'dnd-canvas-placeholder';
-    placeholder.textContent = 'Bild wird hier angezeigt. Wähle zuerst ein Hintergrundbild aus.';
+    placeholder.textContent = DND_NO_IMAGE_TEXT;
 
     canvasContainer.appendChild(placeholder);
     canvasGroup.appendChild(canvasContainer);
@@ -1398,7 +1446,7 @@ class ContentEditorManager {
     btnAddDrag.className = 'btn-add-item';
     btnAddDrag.textContent = '+ Ziehbares Element hinzufügen';
     btnAddDrag.addEventListener('click', () => {
-      this.dndState.draggables.push({ text: '', correctZone: '', multiple: false });
+      this.dndState.draggables.push({ text: '', correctZone: '', multiple: false, imageUrl: '', hideText: false });
       this.refreshDndDraggables();
     });
     dragsGroup.appendChild(btnAddDrag);
@@ -1411,7 +1459,7 @@ class ContentEditorManager {
         this.dndState.backgroundImage = result.dataUrl;
         imgStatus.textContent = '✅ Bild geladen';
         btnRemoveImg.style.display = '';
-        this.refreshDndCanvas();
+        this._dndBackgroundChanged();
       }
     });
     btnComposeImg.addEventListener('click', async () => {
@@ -1421,19 +1469,25 @@ class ContentEditorManager {
       this.dndState.backgroundImage = dataUrl;
       imgStatus.textContent = '✅ Zusammengestelltes Bild';
       btnRemoveImg.style.display = '';
-      this.refreshDndCanvas();
+      this._dndBackgroundChanged();
     });
     btnRemoveImg.addEventListener('click', () => {
       this.dndState.backgroundImage = '';
       imgStatus.textContent = 'Kein Bild ausgewählt';
       btnRemoveImg.style.display = 'none';
-      this.refreshDndCanvas();
+      this._dndBackgroundChanged();
     });
 
     // Wire up zone buttons
     btnAddZone.addEventListener('click', () => {
-      if (!this.dndState.backgroundImage) return;
       const id = this.dndState.nextZoneId++;
+      // Ohne Bild: Zone in der Liste, die Lage spielt keine Rolle.
+      if (!this.dndState.backgroundImage) {
+        this.dndState.dropZones.push({ id, label: `Ablagezone ${id + 1}`, correctDraggable: '', group: '', x: 5, y: 5, width: 40, height: 10, imageUrl: '', hideText: false });
+        this.refreshDndZonesList();
+        this.refreshDndDraggables();
+        return;
+      }
       // Ca. 1 x 1 cm, mittig im Bild
       const rect = canvasContainer.getBoundingClientRect();
       const width = rect.width ? dndSnap((DND_DEFAULT_ZONE_PX / rect.width) * 100) : 5;
@@ -1470,10 +1524,190 @@ class ContentEditorManager {
     // Draw mode pointer events on canvas
     this._setupDndDrawing(canvasContainer);
 
+    this._dndFreeEls = [imgGroup, canvasGroup, zonesGroup, dragsGroup];
+    this._dndPairsEl = pairsGroup;
+    this._dndImageButtons = () => {
+      const has = !!this.dndState.backgroundImage;
+      btnDrawZone.disabled = !has;
+      btnDrawZone.title = has ? '' : 'Zonen zeichnen geht nur auf einem Hintergrundbild';
+    };
+
     // Initial render
     this.refreshDndCanvas();
     this.refreshDndZonesList();
     this.refreshDndDraggables();
+    this.refreshDndPairs();
+    this._dndShowLayout();
+  }
+
+  /** Mit oder ohne Hintergrundbild ändern sich Zonenliste und Werkzeuge. */
+  _dndBackgroundChanged() {
+    this.refreshDndCanvas();
+    this.refreshDndZonesList();
+    this._dndImageButtons();
+  }
+
+  _dndBlankPair() {
+    const side = () => ({ text: '', imageUrl: '', hideText: false });
+    return { a: side(), b: side() };
+  }
+
+  /** Paare aus den Zonen und Elementen des Editors (dnd-pairs.js). */
+  _dndPairsFromState() {
+    const conv = window.dndPairs;
+    if (!conv) return { pairs: [], problems: [] };
+    return conv.pairsFromContent({ dropZones: this.dndState.dropZones, draggables: this.dndState.draggables });
+  }
+
+  /** Zonen und Elemente aus der Paar-Liste übernehmen. */
+  _dndStateFromPairs() {
+    const { dropZones, draggables } = window.dndPairs.contentFromPairs(this.dndState.pairs);
+    this.dndState.dropZones = dropZones.map((z, i) => ({ ...z, id: i }));
+    this.dndState.nextZoneId = dropZones.length;
+    this.dndState.draggables = draggables;
+    this.dndState.selectedZone = null;
+  }
+
+  _dndShowLayout() {
+    const pairs = this.dndState.layout === 'pairs';
+    this._dndFreeEls.forEach((el) => { el.style.display = pairs ? 'none' : ''; });
+    this._dndPairsEl.style.display = pairs ? '' : 'none';
+    this._dndImageButtons();
+  }
+
+  /**
+   * Darstellung wechseln. Zu Paaren: Hintergrundbild fällt weg, und was
+   * Paare nicht abbilden, wird vorher genannt. Zurück: Die Paare werden
+   * Zonen und Elemente in der Liste.
+   */
+  async _dndSwitchLayout(layout) {
+    const ask = window.appConfirm || ((m) => Promise.resolve(window.confirm(m)));
+    const radios = this.container.querySelectorAll('input[name="dndLayout"]');
+    const restore = () => radios.forEach((r) => { r.checked = r.value === this.dndState.layout; });
+    if (layout === 'pairs') {
+      const { pairs, problems } = this._dndPairsFromState();
+      const notes = [
+        this.dndState.backgroundImage ? 'Das Hintergrundbild fällt weg – Paare stehen in zwei Spalten ohne Bild.' : '',
+        ...problems,
+      ].filter(Boolean);
+      if (notes.length && !(await ask(`Zu Paaren wechseln?\n\n${notes.join('\n')}`))) { restore(); return; }
+      this.dndState.backgroundImage = '';
+      const imgStatus = this.container.querySelector('.dnd-img-status');
+      if (imgStatus) imgStatus.textContent = 'Kein Bild ausgewählt';
+      const btnRemove = this.container.querySelector('.dnd-img-controls .btn-danger');
+      if (btnRemove) btnRemove.style.display = 'none';
+      this.dndState.pairs = pairs.length ? pairs : [this._dndBlankPair(), this._dndBlankPair()];
+      this.dndState.layout = 'pairs';
+      this.refreshDndPairs();
+    } else {
+      this._dndStateFromPairs();
+      this.dndState.layout = '';
+      this.refreshDndCanvas();
+      this.refreshDndZonesList();
+      this.refreshDndDraggables();
+    }
+    this._dndShowLayout();
+  }
+
+  /**
+   * Bild wählen: Datei, Nextcloud oder URL – als kleines Menü am Knopf.
+   * `done(url)` kommt nur, wenn wirklich ein Bild gewählt wurde.
+   */
+  _dndPickImage(anchor, done) {
+    const r = anchor.getBoundingClientRect();
+    const items = [{ label: '📁 Datei auswählen', onClick: async () => {
+      const res = await appApi.selectImage();
+      if (res && res.success) done(res.dataUrl);
+    } }];
+    if (window.appNextcloud && window.appNextcloud.ready) {
+      items.push({ label: '☁️ Aus Nextcloud', onClick: async () => { const url = await window.appNextcloud.pick(); if (url) done(url); } });
+    }
+    items.push({ label: '🔗 URL eingeben', onClick: () => {
+      const url = prompt('Bild-URL eingeben:', '');
+      if (url && url.trim()) done(url.trim());
+    } });
+    showContextMenu(r.left, r.bottom + 2, items);
+  }
+
+  /**
+   * Bild einer Zone, eines Elements oder einer Paar-Seite: Vorschau zum
+   * Ändern, Entfernen und „Text verbergen“ – der Text verriete sonst oft die
+   * Lösung (Bild eines Hundes mit „Hund“ darunter).
+   */
+  _dndImageControl(obj, onChange) {
+    const wrap = document.createElement('span');
+    wrap.className = 'dnd-img-ctl';
+    const pick = (anchor) => this._dndPickImage(anchor, (url) => { obj.imageUrl = url; render(); onChange(); });
+    const render = () => {
+      wrap.innerHTML = '';
+      if (!obj.imageUrl) {
+        const add = document.createElement('button');
+        add.type = 'button';
+        add.className = 'btn btn-secondary btn-sm';
+        add.textContent = '🖼';
+        add.title = 'Bild hinzufügen';
+        add.addEventListener('click', () => pick(add));
+        wrap.appendChild(add);
+        return;
+      }
+      const thumb = document.createElement('img');
+      thumb.className = 'dnd-img-thumb';
+      thumb.src = obj.imageUrl;
+      thumb.alt = '';
+      thumb.title = 'Bild ändern';
+      thumb.addEventListener('click', () => pick(thumb));
+      const rm = document.createElement('button');
+      rm.type = 'button';
+      rm.className = 'btn btn-danger btn-sm';
+      rm.textContent = '✕';
+      rm.title = 'Bild entfernen';
+      rm.addEventListener('click', () => { obj.imageUrl = ''; obj.hideText = false; render(); onChange(); });
+      const hide = document.createElement('label');
+      hide.className = 'dnd-hide-text';
+      hide.title = 'Nur das Bild zeigen. Der Text dient dann nur der Auswertung.';
+      hide.innerHTML = '<input type="checkbox" /> Text verbergen';
+      const box = hide.querySelector('input');
+      box.checked = !!obj.hideText;
+      box.addEventListener('change', () => { obj.hideText = box.checked; onChange(); });
+      wrap.append(thumb, rm, hide);
+    };
+    render();
+    return wrap;
+  }
+
+  refreshDndPairs() {
+    const list = this.container.querySelector('#dnd-pairs-list');
+    if (!list) return;
+    list.innerHTML = '';
+    const sideEditor = (s, placeholder) => {
+      const box = document.createElement('div');
+      box.className = 'dnd-pair-side';
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.value = s.text;
+      input.placeholder = placeholder;
+      input.addEventListener('input', () => { s.text = input.value; });
+      box.append(input, this._dndImageControl(s, () => {}));
+      return box;
+    };
+    this.dndState.pairs.forEach((p, i) => {
+      const row = document.createElement('div');
+      row.className = 'dnd-pair-row';
+      const num = document.createElement('span');
+      num.className = 'dnd-drag-num';
+      num.textContent = `${i + 1}`;
+      const arrow = document.createElement('span');
+      arrow.className = 'dnd-pair-arrow';
+      arrow.textContent = '↔';
+      const btnRemove = document.createElement('button');
+      btnRemove.type = 'button';
+      btnRemove.className = 'btn btn-danger btn-sm';
+      btnRemove.textContent = '✕';
+      btnRemove.title = 'Paar löschen';
+      btnRemove.addEventListener('click', () => { this.dndState.pairs.splice(i, 1); this.refreshDndPairs(); });
+      row.append(num, sideEditor(p.a, 'Feste Karte (links) …'), arrow, sideEditor(p.b, 'Zum Ziehen (rechts) …'), btnRemove);
+      list.appendChild(row);
+    });
   }
 
   _setupDndDrawing(canvas) {
@@ -1549,7 +1783,7 @@ class ContentEditorManager {
       if (img) img.remove();
       const ph = document.createElement('div');
       ph.className = 'dnd-canvas-placeholder';
-      ph.textContent = 'Bild wird hier angezeigt. Wähle zuerst ein Hintergrundbild aus.';
+      ph.textContent = DND_NO_IMAGE_TEXT;
       canvas.appendChild(ph);
       return;
     }
@@ -2013,11 +2247,13 @@ class ContentEditorManager {
 
       item.appendChild(colorDot);
       item.appendChild(labelInput);
+      // Bilder an Zonen gibt es nur ohne Hintergrundbild (Liste).
+      if (!this.dndState.backgroundImage) item.appendChild(this._dndImageControl(zone, () => {}));
       item.appendChild(targetLabel);
       item.appendChild(dragSelect);
       item.appendChild(groupLabel);
       item.appendChild(groupSelect);
-      item.appendChild(posLabel);
+      if (this.dndState.backgroundImage) item.appendChild(posLabel);
       item.appendChild(btnRemove);
       if (rightInfo.textContent) item.appendChild(rightInfo);
       if (warnInfo.textContent) item.appendChild(warnInfo);
@@ -2160,6 +2396,7 @@ class ContentEditorManager {
       item.appendChild(numLabel);
       item.appendChild(wordLabel);
       item.appendChild(textInput);
+      item.appendChild(this._dndImageControl(drag, () => {}));
       item.appendChild(targetLabel);
       item.appendChild(zoneSelect);
       item.appendChild(chkWrap);
@@ -2171,10 +2408,20 @@ class ContentEditorManager {
   collectDragAndDropData() {
     const descHidden = this.container.querySelector('[name="content_dnd_taskDescription"]');
     const descFallback = this.container.querySelector('#dnd-editor-desc');
+    const taskDescription = descHidden ? descHidden.value : (descFallback ? descFallback.value : '');
+    if (this.dndState.layout === 'pairs') {
+      return {
+        taskDescription, backgroundImage: '', randomOrder: !!this.dndState.randomOrder, layout: 'pairs',
+        ...window.dndPairs.contentFromPairs(this.dndState.pairs),
+      };
+    }
+    // Bilder an Zonen nur ohne Hintergrundbild – auf dem Bild zeigt sie niemand.
+    const noBg = !this.dndState.backgroundImage;
     return {
-      taskDescription: descHidden ? descHidden.value : (descFallback ? descFallback.value : ''),
+      taskDescription,
       backgroundImage: this.dndState.backgroundImage,
       randomOrder: !!this.dndState.randomOrder,
+      layout: '',
       dropZones: this.dndState.dropZones.map((z) => ({
         label: z.label,
         correctDraggable: z.correctDraggable,
@@ -2183,11 +2430,15 @@ class ContentEditorManager {
         y: z.y,
         width: z.width,
         height: z.height,
+        imageUrl: noBg ? z.imageUrl || '' : '',
+        hideText: noBg && !!z.imageUrl && !!z.hideText,
       })),
       draggables: this.dndState.draggables.filter((d) => d.text.trim()).map((d) => ({
         text: d.text,
         correctZone: d.correctZone,
         multiple: d.multiple,
+        imageUrl: d.imageUrl || '',
+        hideText: !!d.imageUrl && !!d.hideText,
       })),
     };
   }

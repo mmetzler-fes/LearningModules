@@ -265,13 +265,23 @@ const convertDragIntoText: Converter = (q, ctx) => {
   };
 };
 
-/** Zuordnung: je Teilfrage eine Zone, die Antworten als ziehbare Elemente. */
+/**
+ * Zuordnung: je Teilfrage eine Zone, die Antworten als ziehbare Elemente.
+ * Ohne Bild im Fragetext als Paare; ein Bild in der Teilfrage wird das Bild
+ * der Zone (ohne Text: Name nur für die Auswertung, verborgen).
+ */
 const convertMatch: Converter = (q, ctx) => {
   const text = questionText(q, ctx);
-  const subs = children(q, 'subquestion').map((s) => ({
-    label: htmlToText(textOf(s, 'text')),
-    answer: htmlToText(textOf(s, 'answer', 'text')),
-  })).filter((s) => s.answer);
+  const subs = children(q, 'subquestion').map((s, i) => {
+    const rich = richText(s, ctx);
+    const label = htmlToText(rich.html);
+    return {
+      label: label || (rich.image ? `Bild ${i + 1}` : ''),
+      image: rich.image,
+      hideText: !!rich.image && !label,
+      answer: htmlToText(textOf(s, 'answer', 'text')),
+    };
+  }).filter((s) => s.answer);
   const pairs = subs.filter((s) => s.label);
   if (pairs.length === 0) return null;
   const cols = pairs.length > 4 ? 3 : 2;
@@ -286,9 +296,12 @@ const convertMatch: Converter = (q, ctx) => {
     content: {
       taskDescription: text.html,
       backgroundImage: text.image,
-      dropZones: pairs.map((_p, i) => ({
+      // Mit Bild im Fragetext liegen die Zonen darauf (wie bisher), sonst Paare.
+      layout: text.image ? '' : 'pairs',
+      dropZones: pairs.map((p, i) => ({
         label: labels[i], x: 5 + (i % cols) * w, y: 5 + Math.floor(i / cols) * (h + 3), width: w - 4, height: h,
-        correctDraggable: pairs[i].answer, group: '',
+        correctDraggable: p.answer, group: '',
+        imageUrl: text.image ? '' : p.image, hideText: !text.image && p.hideText,
       })),
       draggables: [
         ...pairs.map((p, i) => ({ text: p.answer, correctZone: labels[i], multiple: false })),

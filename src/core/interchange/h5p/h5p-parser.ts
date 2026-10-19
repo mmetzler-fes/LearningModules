@@ -144,64 +144,121 @@ function convertH5pToNative(machineName: string, params: any, h5pImages: Record<
       );
       const settings = (params.question && params.question.settings) || {};
       const taskData = (params.question && params.question.task) || {};
-      const elements = Array.isArray(taskData.elements) ? taskData.elements : [];
-      const dropZones = Array.isArray(taskData.dropZones) ? taskData.dropZones : [];
+      const elements: any[] = Array.isArray(taskData.elements) ? taskData.elements : [];
+      const dropZones: any[] = Array.isArray(taskData.dropZones) ? taskData.dropZones : [];
+      // Fläche in px; Breite/Höhe von Elementen und Zonen stehen in em (16 px).
+      const W = Number(settings.size && settings.size.width) || 620;
+      const H = Number(settings.size && settings.size.height) || 310;
+      const EM = 16;
+
+      const isImage = (el: any) => String((el.type && el.type.library) || '').startsWith('H5P.Image');
+      const imageOf = (el: any) => {
+        const p = el.type && el.type.params && el.type.params.file && el.type.params.file.path;
+        const f = p ? path.basename(p) : '';
+        return f && h5pImages[f] ? h5pImages[f] : '';
+      };
+      const textOf = (el: any, i: number) => {
+        const p = (el.type && el.type.params) || {};
+        if (isImage(el)) return stripHtml(p.alt || (el.type.metadata && el.type.metadata.title) || '') || `Bild ${i + 1}`;
+        return stripHtml(p.text || '') || `Element ${i + 1}`;
+      };
+      // Feststehend = auf keine Zone ziehbar (Hintergrund, Beschriftungen).
+      const isFixed = (el: any) => !Array.isArray(el.dropZones) || el.dropZones.length === 0;
 
       const backgroundPath =
         (settings.background && settings.background.path) ||
         (settings.background && settings.background.originalImage && settings.background.originalImage.path) ||
         '';
       const backgroundFile = backgroundPath ? path.basename(backgroundPath) : '';
-      const backgroundImage = backgroundFile && h5pImages[backgroundFile] ? h5pImages[backgroundFile] : '';
+      let backgroundImage = backgroundFile && h5pImages[backgroundFile] ? h5pImages[backgroundFile] : '';
+      // Unser H5P-Export legt das Bild als feststehendes Element oben über
+      // die ganze Breite (Elemente starten darunter). Dann zählen Lage und
+      // Größe der Zonen relativ zu diesem Bild.
+      let bgIndex = -1;
+      let imageH = H;
+      if (!backgroundImage) {
+        bgIndex = elements.findIndex((el) => isFixed(el) && isImage(el) && imageOf(el)
+          && (Number(el.x) || 0) < 1 && (Number(el.y) || 0) < 1 && (Number(el.width) || 0) * EM >= 0.9 * W);
+        if (bgIndex >= 0) {
+          backgroundImage = imageOf(elements[bgIndex]);
+          imageH = Math.min(H, (Number(elements[bgIndex].height) || 0) * EM) || H;
+        }
+      }
+      const pctOfImageY = (yPct: number) => (yPct * H) / imageH;
+      // Auf das Raster des Editors (Viertelprozent)
+      const round = (v: number) => Math.round(v * 4) / 4;
+
+      // Feststehende Karten links neben einer Zone (Liste, Paare) gehören zu ihr.
+      const cards = new Map<number, { text?: string; image?: string }>();
+      elements.forEach((el, i) => {
+        if (i === bgIndex || !isFixed(el)) return;
+        const top = Number(el.y) || 0;
+        const bottom = top + ((Number(el.height) || 0) * EM * 100) / H;
+        const k = dropZones.findIndex((dz) => {
+          const zTop = Number(dz.y) || 0;
+          const zBottom = zTop + ((Number(dz.height) || 0) * EM * 100) / H;
+          return (Number(dz.x) || 0) > (Number(el.x) || 0) && zTop < bottom && zBottom > top;
+        });
+        if (k < 0) return;
+        const card = cards.get(k) || {};
+        if (isImage(el)) card.image = card.image || imageOf(el);
+        else card.text = card.text || stripHtml((el.type && el.type.params && el.type.params.text) || '');
+        cards.set(k, card);
+      });
 
       const mappedDropZones = dropZones.map((dz: any, i: number) => {
         const correctIndices = Array.isArray(dz.correctElements) ? dz.correctElements : [];
         let correctDraggable = '';
         if (correctIndices.length > 0) {
           const firstIdx = parseInt(correctIndices[0], 10);
-          if (!isNaN(firstIdx) && elements[firstIdx]) {
-            const el = elements[firstIdx];
-            const rawText = el.type && el.type.params
-              ? el.type.params.text || (el.type.params.file && el.type.params.file.path) || ''
-              : '';
-            correctDraggable = stripHtml(rawText) || `Element ${firstIdx + 1}`;
-          }
+          if (!isNaN(firstIdx) && elements[firstIdx]) correctDraggable = textOf(elements[firstIdx], firstIdx);
         }
+        const card = cards.get(i) || {};
+        const image = card.image || '';
         return {
-          label: stripHtml(dz.label || '') || `Zone ${i + 1}`,
-          x: Math.round(dz.x || 0),
-          y: Math.round(dz.y || 0),
-          width: Math.round(dz.width || 20),
-          height: Math.round(dz.height || 20),
+          label: stripHtml(dz.label || '') || card.text || `Zone ${i + 1}`,
+          x: Math.round(Number(dz.x) || 0),
+          y: Math.round(bgIndex >= 0 ? pctOfImageY(Number(dz.y) || 0) : Number(dz.y) || 0),
+          width: round(((Number(dz.width) || 0) * EM * 100) / W) || 20,
+          height: round(((Number(dz.height) || 0) * EM * 100) / imageH) || 20,
           correctDraggable, // Set this side of the mapping too
+          imageUrl: image,
+          // Nur das Bild gezeigt, Name verborgen
+          hideText: !!image && dz.showLabel === false,
         };
       });
 
       const draggables = elements
         .map((el: any, i: number) => {
+          if (isFixed(el)) return null;
           const correctZoneIdx = dropZones.findIndex(
             (dz: any) => Array.isArray(dz.correctElements) && dz.correctElements.includes(String(i))
           );
-          const rawText =
-            el.type && el.type.params
-              ? el.type.params.text || (el.type.params.file && el.type.params.file.path) || ''
-              : '';
-          const text = stripHtml(rawText) || `Element ${i + 1}`;
+          const imageUrl = isImage(el) ? imageOf(el) : '';
           return {
-            text,
+            text: textOf(el, i),
             // H5P "unbegrenzt": jedes Ziehen erzeugt eine Kopie.
             multiple: !!el.multiple,
             correctZone:
               correctZoneIdx >= 0 && mappedDropZones[correctZoneIdx]
                 ? mappedDropZones[correctZoneIdx].label
                 : '',
+            imageUrl,
+            hideText: !!imageUrl,
           };
         })
-        .filter((d: any) => d.text.trim());
+        .filter((d: any) => d && d.text.trim());
+
+      // Jede Zone mit Karte und höchstens einem richtigen Element: Paare.
+      const pairs = !backgroundImage && dropZones.length > 0
+        && dropZones.every((dz: any, i: number) => cards.has(i) && (dz.correctElements || []).length <= 1);
 
       return {
         type: 'dragAndDrop',
-        content: { taskDescription: taskDesc, backgroundImage, dropZones: mappedDropZones, draggables },
+        content: {
+          taskDescription: taskDesc, backgroundImage, layout: pairs ? 'pairs' : '',
+          dropZones: mappedDropZones, draggables,
+        },
       };
     }
 

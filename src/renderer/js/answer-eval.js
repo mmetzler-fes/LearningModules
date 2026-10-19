@@ -28,6 +28,14 @@ export function dndExpectedMappings(content) {
 }
 
 /**
+ * Drag and Drop als Paare: ohne Hintergrundbild zwei Spalten, je Zeile eine
+ * feste Karte und genau ein Platz. Mit Bild gilt die freie Anordnung.
+ */
+export function dndIsPairs(content) {
+  return !!content && content.layout === 'pairs' && !content.backgroundImage;
+}
+
+/**
  * Aufgabentypen, die sich automatisch bewerten lassen. Nur sie taugen für
  * die Lernbegleitung (mehrere Versuche) und die Quiz-Arena; Freitext,
  * Audio-Aufnahme und reine Informationen bewertet kein Automat.
@@ -309,7 +317,8 @@ export function collectAnswer(mod, root) {
       let correct = 0; let incorrect = 0; const placements = [];
       const satisfiedDefs = new Set();
       dragEls.forEach((el) => {
-        const currentZone = el.dataset.currentZone || ''; const text = el.textContent;
+        // data-text: Elemente mit Bild oder verborgenem Text zeigen ihn nicht an.
+        const currentZone = el.dataset.currentZone || ''; const text = el.dataset.text ?? el.textContent;
         const isMultipleSource = el.dataset.multiple === 'true' && !currentZone;
         if (currentZone) {
           const currentGroup = zoneGroup.get(currentZone) || '';

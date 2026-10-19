@@ -1301,6 +1301,9 @@ body {
   margin-bottom: 6px;
 }
 
+/* Nicht die volle Breite wie sonst in .form-group – sonst bricht die Zeile um. */
+.dnd-zone-item .dnd-zone-group-input { width: auto; max-width: 180px; }
+
 .dnd-zone-group-input {
   padding: 4px 8px;
   border: 1px solid var(--border);
@@ -1345,9 +1348,34 @@ body {
   white-space: nowrap;
 }
 
+/* Darstellung (frei / Paare) und Paar-Liste im Editor */
+.dnd-layout-switch {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px 18px;
+  margin: 10px 0 14px; font-size: 0.9rem;
+}
+.dnd-layout-switch label { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+.dnd-layout-title { font-weight: 600; }
+.dnd-pair-row {
+  display: grid; grid-template-columns: auto minmax(0, 1fr) auto minmax(0, 1fr) auto; align-items: center; gap: 10px;
+  padding: 8px 12px; margin-bottom: 6px;
+  background: var(--bg-secondary); border: 1px solid var(--border); border-radius: var(--radius-sm);
+}
+.dnd-pair-side { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-width: 0; }
+.dnd-pair-side > input { flex: 1 1 140px; min-width: 0; }
+.dnd-pair-arrow { color: var(--text-secondary); font-size: 1.1rem; }
+@media (max-width: 760px) {
+  .dnd-pair-row { grid-template-columns: auto minmax(0, 1fr) auto; }
+  .dnd-pair-arrow { display: none; }
+  .dnd-pair-row > .dnd-pair-side:nth-of-type(2) { grid-column: 2; }
+}
+.dnd-img-ctl { display: inline-flex; align-items: center; gap: 6px; }
+.dnd-img-thumb { height: 34px; max-width: 60px; object-fit: contain; border: 1px solid var(--border); border-radius: 4px; cursor: pointer; background: #fff; }
+.dnd-hide-text { display: inline-flex; align-items: center; gap: 4px; font-size: 0.8rem; color: var(--text-secondary); cursor: pointer; }
+
 .dnd-drag-item {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 10px;
   padding: 8px 12px;
   background: var(--bg-secondary);
@@ -4412,6 +4440,32 @@ body {
   .dnd-player-list > .dnd-player-draggables { grid-column: 1; grid-row: 2; margin-bottom: 12px; }
   .dnd-player-list > .dnd-player-canvas-wrap { grid-column: 1; grid-row: 3; }
 }
+/* Ohne Bild bleibt der Name der Zone sichtbar, auch wenn etwas darin liegt –
+   sonst wüsste man bei Gruppen nicht mehr, welche Gruppe das ist. */
+.dnd-player-list .dnd-player-zone .dnd-player-zone-label,
+.dnd-player-list .dnd-player-zone:has(.dnd-player-drag.placed) .dnd-player-zone-label {
+  position: static; display: inline-flex; flex-direction: column; align-items: center; gap: 4px;
+  align-self: flex-start; margin: 6px; border-radius: 4px;
+}
+.dnd-player-list .dnd-player-drag.placed { font-size: 0.85rem; padding: 4px 10px; white-space: normal; }
+/* Bilder an Zonen und Elementen */
+.dnd-face-img { display: block; max-width: 100%; max-height: 96px; object-fit: contain; border-radius: 4px; pointer-events: none; }
+.dnd-player-list .dnd-player-zone-label.dnd-has-img { background: var(--bg-primary) !important; color: var(--text-primary); border: 2px solid; border-color: inherit; }
+/* Ein Bild-Element macht die Textelemente daneben nicht mit hoch. */
+.dnd-player-list .dnd-player-draggables { align-items: center; }
+.dnd-player-drag.dnd-has-img {
+  display: inline-flex; flex-direction: column; align-items: center; gap: 4px; padding: 4px;
+  background: var(--bg-primary); color: var(--text-primary); border: 2px solid var(--accent);
+}
+.dnd-player-drag.dnd-has-img.placed { padding: 2px; }
+.dnd-player-drag.dnd-has-img.placed .dnd-face-img { max-height: 64px; }
+/* Paare: je Zeile links die feste Karte, rechts genau ein Platz */
+.dnd-player-pairs .dnd-player-zone {
+  display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: center; gap: 8px; padding: 6px;
+}
+.dnd-player-pairs .dnd-player-zone .dnd-player-zone-label,
+.dnd-player-pairs .dnd-player-zone:has(.dnd-player-drag.placed) .dnd-player-zone-label { margin: 0; align-self: stretch; justify-content: center; }
+.dnd-player-pairs .dnd-player-zone-items { align-self: stretch; min-height: 44px; border: 2px dashed currentColor; border-radius: 4px; }
 
 /* ---- Formelaufgabe ---- */
 .formula-task { padding: 20px; background: var(--bg-primary); border-radius: var(--radius-md); }

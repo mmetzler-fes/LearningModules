@@ -112,17 +112,18 @@ export const AI_PROMPT_EXAMPLES = {
     ],
   },
   dragAndDrop: {
-    taskDescription: 'Ordne die Bauteile ihrer Einheit zu.',
-    backgroundImage: '',
+    taskDescription: 'Ordne jedem Bauteil seine Einheit zu.',
+    layout: 'pairs',
     dropZones: [
-      { label: 'Ohm', x: 5, y: 10, width: 28, height: 30 },
-      { label: 'Farad', x: 36, y: 10, width: 28, height: 30 },
-      { label: 'Henry', x: 67, y: 10, width: 28, height: 30 },
+      { label: 'Widerstand', correctDraggable: 'Ohm', imageUrl: '', hideText: false },
+      { label: 'Kondensator', correctDraggable: 'Farad', imageUrl: '', hideText: false },
+      { label: 'Spule', correctDraggable: 'Henry', imageUrl: '', hideText: false },
     ],
     draggables: [
-      { text: 'Widerstand', correctZone: 'Ohm', multiple: false },
-      { text: 'Kondensator', correctZone: 'Farad', multiple: false },
-      { text: 'Spule', correctZone: 'Henry', multiple: false },
+      { text: 'Ohm', correctZone: 'Widerstand', imageUrl: '', hideText: false, multiple: false },
+      { text: 'Farad', correctZone: 'Kondensator', imageUrl: '', hideText: false, multiple: false },
+      { text: 'Henry', correctZone: 'Spule', imageUrl: '', hideText: false, multiple: false },
+      { text: 'Volt', correctZone: '', imageUrl: '', hideText: false, multiple: false },
     ],
   },
 };
@@ -159,9 +160,12 @@ const RULES = {
     '"tolerance" in Prozent ("relative") oder als feste Abweichung ("absolute"); "decimals" = Nachkommastellen der Lösung.',
   ],
   dragAndDrop: [
-    'Jede Zone hat eine eindeutige "label"; jedes Element nennt in "correctZone" genau diese Bezeichnung.',
-    'Mehrere Elemente dürfen dieselbe Zone als "correctZone" haben (z. B. zwei SELECT-Ausdrücke in "Projektion") – die Zone ist dann richtig, wenn alle drin liegen. Weitere Elemente ohne Zone sind Ablenker ("correctZone": "").',
-    'Positionen x, y, width, height in Prozent (0–100), Zonen dürfen sich nicht überlappen.',
+    'Kein Hintergrundbild und keine Positionen: Die Zonen stehen als Liste, die Plattform ordnet sie selbst an.',
+    'Paare (Begriff ↔ Erklärung, Wort ↔ Übersetzung, Bild ↔ Wort): "layout": "pairs", je Zone genau ein Element. 4–8 Paare.',
+    'Gruppen (Elemente in Kategorien einsortieren): "layout": "", 2–4 Zonen als Gruppennamen, je Gruppe 2–5 Elemente mit dieser Zone als "correctZone".',
+    'Jede Zone hat eine eindeutige "label"; jedes Element nennt in "correctZone" genau diese Bezeichnung. Bei Paaren steht in "correctDraggable" der Text des passenden Elements.',
+    'Ablenker sind Elemente mit "correctZone": "" – höchstens zwei.',
+    'Bild statt Text (nur mit einem Bild aus der Liste oben): "imageUrl" setzen und "hideText": true, wenn der Text die Lösung verraten würde. "label" bzw. "text" bleibt trotzdem ausgefüllt und eindeutig.',
   ],
   sorting: [
     '"items" stehen in der RICHTIGEN Reihenfolge – die Plattform mischt sie für die Schüler selbst.',
@@ -196,7 +200,7 @@ function describeFields(type) {
   for (const f of def.fields || []) {
     if (f.advanced) continue;
     out.push(line(f));
-    if (f.type === 'list') for (const sub of f.itemFields || []) out.push(line(sub, '    '));
+    if (f.type === 'list') for (const sub of f.itemFields || []) if (!sub.advanced) out.push(line(sub, '    '));
   }
   return out;
 }
@@ -244,7 +248,7 @@ export function buildAiPrompt(o) {
   // bauen, überfordert KIs – sie erfinden dann Dateien.
   const ncImages = (o.ncImages || []).filter(Boolean);
   if (ncImages.length) {
-    L.push('Bilder: Es gibt NUR die folgenden Bilder. Trage in "imageUrl", "backgroundImage", "aImage" bzw. "bImage" einen dieser Werte'
+    L.push('Bilder: Es gibt NUR die folgenden Bilder. Trage in "imageUrl", "aImage" bzw. "bImage" einen dieser Werte'
       + ' genau so ein, wie er hier steht (mit "nc:"), oder lass das Feld leer (""). Wähle ein Bild nur, wenn sein Dateiname wirklich'
       + ' zur Aufgabe passt; jedes Bild höchstens einmal. Erfinde keine Bilder und keine URLs.');
     for (const r of ncImages) L.push(`- ${r}`);
@@ -252,12 +256,12 @@ export function buildAiPrompt(o) {
   if (link) {
     L.push(`Weitere Materialien liegen hier: ${link}`);
     if (o.linkImages && !ncImages.length) {
-      L.push('Bilder aus diesem öffentlichen Ordner darfst du als direkten Download-Link einbinden ("imageUrl", bei Drag and Drop "backgroundImage", bei Memory "aImage"/"bImage"),'
+      L.push('Bilder aus diesem öffentlichen Ordner darfst du als direkten Download-Link einbinden ("imageUrl", bei Memory "aImage"/"bImage"),'
         + ' im Format <Ordner-Link>/download?path=/&files=<Dateiname>. Nur Dateien verwenden, die es dort wirklich gibt.');
     }
   }
   if (!ncImages.length && (!link || !o.linkImages)) {
-    L.push('Bilder: "imageUrl", "backgroundImage", "aImage" und "bImage" bleiben leer (""). Bilder ergänzt die Lehrkraft später.');
+    L.push('Bilder: "imageUrl", "aImage" und "bImage" bleiben leer (""). Bilder ergänzt die Lehrkraft später.');
   }
   L.push('');
 

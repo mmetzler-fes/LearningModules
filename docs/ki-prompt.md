@@ -36,8 +36,10 @@ ergänzt man im Editor.
   - Lückentext: `*Antwort*`, Alternativen mit `/`
   - Drag the Words: `*Wort*`, Alternativen mit `|`, Ablenker in `distractors`
   - Wahr/Falsch: `correctAnswer` als Text `"true"`/`"false"`
-  - Drag and Drop: mehrere Elemente dürfen dieselbe Zone als Ziel haben (alle
-    müssen hinein), Positionen in Prozent
+  - Drag and Drop: nur ohne Hintergrundbild und ohne Positionen – als Paare
+    (`"layout": "pairs"`, je Zone genau ein Element) oder als Gruppen (mehrere
+    Elemente je Zone). Zonen auf einem Bild kann eine KI nicht sinnvoll setzen;
+    sie ergänzt die Lehrkraft bei Bedarf selbst im Editor
   - Reihenfolge: Elemente in der **richtigen** Reihenfolge angeben (die App
     mischt selbst), 3–8 Elemente mit eindeutiger Folge
   - Kreuzworträtsel: 6–12 Wörter mit gemeinsamen Buchstaben, Hinweise ohne

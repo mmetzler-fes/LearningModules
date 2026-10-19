@@ -19,5 +19,6 @@ describe('Browser-Module im Server laden', () => {
     for (const file of ['json-text.js', 'puzzles.js', 'formula.js']) {
       expect(Object.keys(loadBrowserModule<object>(file)).length).toBeGreaterThan(2);
     }
+    expect(Object.keys(loadBrowserModule<object>('dnd-pairs.js'))).toEqual(['contentFromPairs', 'pairsFromContent']);
   });
 });

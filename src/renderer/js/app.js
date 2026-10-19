@@ -22,6 +22,7 @@ import { NotebooksView } from './views/notebooks.js';
 import { CategoriesAdminView } from './views/categories-admin.js';
 import { FederationAdminView } from './views/federation-admin.js';
 import { nextcloudState, uploadImageToNextcloud, pickNextcloudImage } from './views/nextcloud.js';
+import { contentFromPairs, pairsFromContent } from './dnd-pairs.js';
 
 // ==================== APP COORDINATOR ====================
 
@@ -544,6 +545,8 @@ const app = new App();
 window.appNavigate = (v) => app.navigateToView(v);
 // Für die klassischen Skripte (content-editors.js), die keine Module importieren.
 window.appConfirm = (m) => app.appConfirm(m);
+// Drag and Drop als Paare (dnd-pairs.js) für den Editor in content-editors.js
+window.dndPairs = { contentFromPairs, pairsFromContent };
 // Nextcloud für Bilder (views/nextcloud.js): ready, upload(file) → URL | null | false, pick() → URL | null
 window.appNextcloud = {
   get ready() { return nextcloudState.ready; },

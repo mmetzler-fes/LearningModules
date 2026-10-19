@@ -82,6 +82,27 @@ describe('Moodle-XML-Export', () => {
     expect(children(q, 'subquestion').length).toBe(3);
   });
 
+  it('Paare: je Zone eine Teilfrage mit Bild, zurück wieder als Paare', () => {
+    const { out, back } = roundTrip([{ type: 'dragAndDrop', title: 'Tiere', content: {
+      layout: 'pairs',
+      dropZones: [{ label: 'Hund' }, { label: 'Bild 2', imageUrl: pngDataUrl(20, 20), hideText: true }, { label: 'Katze', imageUrl: pngDataUrl(20, 20) }],
+      draggables: [{ text: 'dog', correctZone: 'Hund' }, { text: 'mouse', correctZone: 'Bild 2' },
+        { text: 'cat', correctZone: 'Katze', imageUrl: pngDataUrl(20, 20) }, { text: 'bird', correctZone: '' }],
+    } }]);
+    const q = children(parseXml(out.xml), 'question')[1];
+    expect(q.attrs.type).toBe('match');
+    const subs = children(q, 'subquestion');
+    expect(subs.map((x) => children(x, 'file').length)).toEqual([0, 1, 1, 0]);
+    expect(out.notes).toEqual(['Tiere: Bilder der ziehbaren Elemente gibt es in der Moodle-Zuordnung nicht – nur ihr Text übernommen.']);
+
+    const c = back.modules[0].content;
+    expect(c.layout).toBe('pairs');
+    expect(c.dropZones.map((z: any) => [z.label, z.correctDraggable, !!z.imageUrl, z.hideText])).toEqual([
+      ['Hund', 'dog', false, false], ['Bild 2', 'mouse', true, true], ['Katze', 'cat', true, false],
+    ]);
+    expect(c.draggables.map((x: any) => [x.text, x.correctZone])).toEqual([['dog', 'Hund'], ['mouse', 'Bild 2'], ['cat', 'Katze'], ['bird', '']]);
+  });
+
   it('Drag and Drop mit Bild: eins je Zone → auf Bild, mehrere → Markierungen', () => {
     const bg = pngDataUrl(400, 200);
     const one = { dropZones: [{ label: 'A', x: 10, y: 20, width: 20, height: 10, correctDraggable: 'a' }, { label: 'B', x: 50, y: 50, width: 20, height: 10 }],

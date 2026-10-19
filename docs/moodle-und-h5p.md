@@ -65,7 +65,8 @@ Im Export-Dialog eines Themas (nur selbst verfasste, aktive Module):
 | Lückentext | Cloze mit Kurzantwort-Lücken | Blanks |
 | Drag the Words | Drag and Drop in Text | DragText |
 | Mark the Words | – | MarkTheWords |
-| Drag and Drop ohne Bild | Zuordnung (Element → Zone) | DragQuestion |
+| Drag and Drop als Paare | Zuordnung (feste Karte → Antwort, mit Bild) | DragQuestion, je Zeile Karte und Zone |
+| Drag and Drop ohne Bild | Zuordnung (Element → Zone) | DragQuestion, je Zeile Zone |
 | Drag and Drop mit Bild, eins je Zone | Drag and Drop auf Bild | DragQuestion |
 | Drag and Drop mit Bild, mehrere je Zone | Drag and Drop Markierungen | DragQuestion |
 | Freitext | Freitext | Essay |
@@ -88,10 +89,61 @@ nimmt jede Zone der Gruppe alle Elemente der Gruppe an, aber nur eins zur Zeit.
 
 H5P streckt ein Hintergrundbild auf die ganze Fläche. Deshalb liegt das Bild
 als feststehendes Element oben, die ziehbaren Elemente starten im Streifen
-darunter. Bewertet wird wie bei H5P üblich: +1 je richtig abgelegtem Element,
+darunter. Ohne Hintergrundbild (Liste, Gruppen, Paare) bekommt jede Zone eine
+eigene Zeile: links eine feststehende Karte mit ihrem Namen oder Bild, rechts
+die Zone. Bewertet wird wie bei H5P üblich: +1 je richtig abgelegtem Element,
 −1 je falschem (Strafpunkte).
 
+Unser H5P-Import liest solche Pakete wieder ein: Das feststehende Bild oben
+wird wieder Hintergrundbild, die Karten links werden Name bzw. Bild ihrer Zone,
+und eine Aufgabe mit Karte und einem Element je Zeile wird wieder Paare.
+
+### Bilder bei Drag and Drop
+
+| | App und JSON | H5P | Moodle-XML |
+|---|---|---|---|
+| Bild an einem ziehbaren Element | ✅ | ✅ als Bild-Element (hat es auch Text, nur das Bild) | ❌ nur der Text – Antworten sind dort reine Auswahl |
+| Bild an einer Zone (ohne Hintergrundbild) | ✅ | ✅ als feststehende Karte links | ✅ bei Paaren in der Teilfrage, sonst ❌ |
+
+Was nicht mitkommt, nennt der Export-Dialog.
+
 ## Drag and Drop: Zuordnung im Editor
+
+Oben wählst du die **Darstellung**:
+
+- **🖼 Frei** – Zonen auf einem Hintergrundbild oder, ohne Bild, als Liste
+  untereinander. Ohne Bild eignet sich das zum Einsortieren in Gruppen: Je
+  Gruppe eine Zone („Säugetier“, „Vogel“, …), die Elemente zielen darauf (siehe
+  [Mehrere Elemente je Zone](#mehrere-elemente-je-zone)).
+- **🔗 Paare** – je Zeile eine feste Karte und genau ein Platz daneben (siehe
+  [Paare zuordnen](#paare-zuordnen)).
+
+### Paare zuordnen
+
+Für Begriff ↔ Erklärung, Wort ↔ Übersetzung, Bild ↔ Wort. Im Editor steht
+eine einfache Liste:
+
+| links (feste Karte) | ↔ | rechts (zum Ziehen) |
+|---|---|---|
+| Hund | ↔ | dog |
+| 🖼 Bild einer Katze | ↔ | cat |
+| *(leer)* | ↔ | mouse – ein **Ablenker** |
+
+- Beide Seiten dürfen ein **Bild** haben (🖼: Datei, Nextcloud oder URL).
+- **Text verbergen** zeigt nur das Bild – sonst verrät „Katze“ unter dem
+  Katzenbild die Lösung. Der Text zählt dann nur für die Auswertung. Eine
+  Seite nur mit Bild bekommt dafür einen Namen wie „Bild 2“.
+- Bei Schülern stehen die Paare in zwei Spalten. Je Zeile passt genau ein
+  Element; ein zweites schiebt das erste zurück in die Ablage.
+- Bewertet wird wie sonst bei Drag and Drop: Teilpunkte je richtig
+  abgelegtem Element.
+
+Gespeichert wird wie immer als Zonen und Elemente, nur mit der Angabe
+`"layout": "pairs"`. Deshalb gelten Export und Import unverändert (siehe
+[Bilder bei Drag and Drop](#bilder-bei-drag-and-drop)). Wechselst du von
+„Frei“ zu „Paare“, fällt ein Hintergrundbild weg. Was Paare nicht abbilden
+können (mehrere Elemente je Zone, Ablagegruppen, „mehrfach“), nennt der Editor
+vorher. Zurück zu „Frei“ werden die Paare Zonen und Elemente der Liste.
 
 Jede Zuordnung steht im Editor an zwei Stellen – es ist dieselbe Angabe, von
 zwei Seiten gesehen:

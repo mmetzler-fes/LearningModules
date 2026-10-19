@@ -325,10 +325,16 @@ const convertEssay: Converter = (c, ctx) => [sub(ctx, 'H5P.Essay', {
 })];
 
 /**
- * Drag and Drop. H5P streckt ein Hintergrundbild auf die ganze Fläche; damit
- * die Elemente keine Zone verdecken, liegt das Bild als feststehendes
- * Element oben und die ziehbaren Elemente starten im Streifen darunter.
- * Maße: x/y in Prozent der Fläche, Breite/Höhe in em (1 em = Breite/16).
+ * Drag and Drop. Maße: x/y in Prozent der Fläche, Breite/Höhe in em
+ * (16 px). Die ziehbaren Elemente starten in einem Streifen unten.
+ *
+ * Mit Hintergrundbild: H5P streckt ein Hintergrundbild auf die ganze
+ * Fläche; damit die Elemente keine Zone verdecken, liegt das Bild als
+ * feststehendes Element oben, die Zonen an ihrer Stelle darauf.
+ *
+ * Ohne Bild (Liste, Gruppen, Paare): je Zone eine Zeile, links eine feste
+ * Karte mit Text oder Bild, rechts die Zone. Die Lage aus dem Editor zählt
+ * dort nicht – sie ist ohne Bild bedeutungslos.
  */
 const convertDragQuestion: Converter = (c, ctx) => {
   const expected = dndExpected(c);
@@ -337,27 +343,37 @@ const convertDragQuestion: Converter = (c, ctx) => {
   const drags: any[] = (c.draggables || []).filter((d: any) => String(d.text || '').trim());
 
   const W = 620;
-  const bg = c.backgroundImage ? ctx.images.add(c.backgroundImage, 'hintergrund') : null;
-  if (c.backgroundImage && !bg) ctx.notes.push(`${ctx.name}: Hintergrundbild nicht übernommen.`);
-  const Hi = bg?.width && bg?.height ? Math.round((W * bg.height) / bg.width) : Math.round(W * 0.5);
-
-  // Ziehbare Elemente zeilenweise im Streifen unter dem Bild anordnen.
   const em = 16;
   const pad = 0.5;
-  const rowH = 2.5;
-  let cx = pad;
-  let row = 0;
-  const placed = drags.map((d) => {
-    const w = Math.min(W / em - 2 * pad, Math.max(3, String(d.text).length * 0.55 + 1.5));
-    if (cx + w > W / em - pad) { cx = pad; row++; }
-    const pos = { x: cx, row, w };
-    cx += w + pad;
-    return pos;
+  const textH = 2;
+  const imageH = 5;
+  const wEm = W / em;
+  const bg = c.backgroundImage ? ctx.images.add(c.backgroundImage, 'hintergrund') : null;
+  if (c.backgroundImage && !bg) ctx.notes.push(`${ctx.name}: Hintergrundbild nicht übernommen.`);
+
+  const textType = (text: string) => ({
+    library: ctx.store.ref('H5P.AdvancedText'),
+    params: { text: `<p>${esc(text)}</p>` },
+    subContentId: ctx.sub(),
+    metadata: { contentType: 'Text', license: 'U', title: String(text).slice(0, 40) },
   });
-  const Hs = (row + 1) * rowH * em + pad * em * 2;
-  const Hc = Hi + Hs;
-  const pctX = (px: number) => Math.round((px / W) * 10000) / 100;
-  const pctY = (px: number) => Math.round((px / Hc) * 10000) / 100;
+  const imageType = (img: { path: string; mime: string; width?: number; height?: number }, alt: string, title: string) => ({
+    library: ctx.store.ref('H5P.Image'),
+    params: fillDefaults(ctx.store.semantics('H5P.Image'), { file: { path: img.path, mime: img.mime, width: img.width, height: img.height }, alt }, null),
+    subContentId: ctx.sub(),
+    metadata: { contentType: 'Image', license: 'U', title: title.slice(0, 40) || 'Bild' },
+  });
+  // Bildbreite in em bei gegebener Höhe, nach Seitenverhältnis
+  const imageW = (img: { width?: number; height?: number }, h: number) =>
+    Math.max(3, Math.min(10, img.width && img.height ? (h * img.width) / img.height : h));
+
+  // Ein H5P-Element ist Text oder Bild – bei beidem gewinnt das Bild.
+  const dragImgs = drags.map((d) => (d.imageUrl ? ctx.images.add(d.imageUrl, 'element') : null));
+  if (drags.some((d, i) => d.imageUrl && !dragImgs[i])) ctx.notes.push(`${ctx.name}: nicht alle Bilder der Elemente übernommen.`);
+  if (drags.some((d, i) => dragImgs[i] && !d.hideText)) ctx.notes.push(`${ctx.name}: bei Elementen mit Bild und Text nur das Bild übernommen.`);
+  const sizes = drags.map((d, i) => (dragImgs[i]
+    ? { w: imageW(dragImgs[i]!, imageH), h: imageH }
+    : { w: Math.min(wEm - 2 * pad, Math.max(3, String(d.text).length * 0.55 + 1.5)), h: textH }));
 
   // Zonen einer Ablagegruppe sind vertauschbar: jede nimmt alle richtigen
   // Elemente der Gruppe an, aber nur eins zur Zeit.
@@ -367,61 +383,97 @@ const convertDragQuestion: Converter = (c, ctx) => {
   };
   const correctFor = (z: any) => {
     const texts = zoneTargets(z);
-    return drags.map((d, i) => (texts.includes(d.text) ? String(i) : null)).filter((x): x is string => x !== null);
+    return drags.map((d, i) => (texts.includes(d.text) ? i : -1)).filter((i) => i >= 0);
   };
+  const single = (z: any) => !!z.group || expected.filter((e) => e.zone === z.label).length <= 1;
 
-  const elements: any[] = [];
+  // Feste Elemente (Hintergrund, Karten) und Zonen in em; Umrechnung in Prozent am Ende.
+  const fixed: Array<{ type: any; x: number; y: number; w: number; h: number }> = [];
+  const zoneBoxes: Array<{ x: number; y: number; w: number; h: number; showLabel: boolean }> = [];
+  let top = 0;
   if (bg) {
-    elements.push({
-      type: {
-        library: ctx.store.ref('H5P.Image'),
-        params: fillDefaults(ctx.store.semantics('H5P.Image'), { file: { path: bg.path, mime: bg.mime, width: bg.width, height: bg.height }, alt: '' }, null),
-        subContentId: ctx.sub(),
-        metadata: { contentType: 'Image', license: 'U', title: 'Hintergrund' },
-      },
-      x: 0, y: 0, width: W / em, height: Hi / em, dropZones: [], backgroundOpacity: 0, multiple: false,
+    const hi = bg.width && bg.height ? (W * bg.height) / bg.width / em : (W * 0.5) / em;
+    fixed.push({ type: imageType(bg, '', 'Hintergrund'), x: 0, y: 0, w: wEm, h: hi });
+    for (const z of zones) {
+      zoneBoxes.push({
+        x: ((Number(z.x) || 0) / 100) * wEm,
+        y: ((Number(z.y) || 0) / 100) * hi,
+        w: Math.round(((Number(z.width) || 20) / 100) * wEm * 100) / 100,
+        h: Math.round(((Number(z.height) || 15) / 100) * hi * 100) / 100,
+        showLabel: true,
+      });
+    }
+    top = hi;
+  } else {
+    const half = wEm / 2;
+    const zoneImgs = zones.map((z) => (z.imageUrl ? ctx.images.add(z.imageUrl, 'zone') : null));
+    if (zones.some((z, i) => z.imageUrl && !zoneImgs[i])) ctx.notes.push(`${ctx.name}: nicht alle Bilder der Zonen übernommen.`);
+    top = pad;
+    zones.forEach((z, i) => {
+      const img = zoneImgs[i];
+      const right = correctFor(z);
+      const tallest = Math.max(textH, ...right.map((k) => sizes[k].h));
+      const lines = single(z) ? 1 : Math.ceil(right.length / 2);
+      const h = Math.max(img ? imageH : textH, lines * (tallest + pad) + pad);
+      fixed.push(img
+        ? { type: imageType(img, z.hideText ? '' : z.label, z.label), x: pad, y: top, w: imageW(img, imageH), h: imageH }
+        : { type: textType(z.label), x: pad, y: top, w: half - 2 * pad, h: textH });
+      // Mit Bild steht der Name an der Zone – außer er ist verborgen.
+      zoneBoxes.push({ x: half + pad, y: top, w: half - 2 * pad, h, showLabel: !!img && !z.hideText });
+      top += h + pad;
     });
   }
+
+  // Ziehbare Elemente zeilenweise im Streifen darunter anordnen.
+  let cx = pad;
+  let rowTop = 0;
+  let rowH = 0;
+  const placed = sizes.map((s) => {
+    if (cx > pad && cx + s.w > wEm - pad) { cx = pad; rowTop += rowH + pad; rowH = 0; }
+    const pos = { x: cx, y: top + pad + rowTop };
+    cx += s.w + pad;
+    rowH = Math.max(rowH, s.h);
+    return pos;
+  });
+  const H = (top + pad + rowTop + rowH + pad) * em;
+  const pctX = (e: number) => Math.round(((e * em) / W) * 10000) / 100;
+  const pctY = (e: number) => Math.round(((e * em) / H) * 10000) / 100;
+
+  const elements: any[] = fixed.map((f) => ({
+    type: f.type, x: pctX(f.x), y: pctY(f.y), width: f.w, height: f.h, dropZones: [], backgroundOpacity: 0, multiple: false,
+  }));
   const offset = elements.length;
   drags.forEach((d, i) => {
     elements.push({
-      type: {
-        library: ctx.store.ref('H5P.AdvancedText'),
-        params: { text: `<p>${esc(d.text)}</p>` },
-        subContentId: ctx.sub(),
-        metadata: { contentType: 'Text', license: 'U', title: String(d.text).slice(0, 40) },
-      },
-      x: pctX(placed[i].x * em),
-      y: pctY(Hi + pad * em + placed[i].row * rowH * em),
-      width: placed[i].w,
-      height: rowH - 0.5,
+      type: dragImgs[i] ? imageType(dragImgs[i]!, d.text, d.text) : textType(d.text),
+      x: pctX(placed[i].x),
+      y: pctY(placed[i].y),
+      width: sizes[i].w,
+      height: sizes[i].h,
       dropZones: zones.map((_z, k) => String(k)),
       backgroundOpacity: 100,
       multiple: !!d.multiple,
     });
   });
 
-  const dropZones = zones.map((z) => {
-    const correct = correctFor(z).map((i) => String(Number(i) + offset));
-    return {
-      label: `<div>${esc(z.label)}</div>`,
-      showLabel: true,
-      x: pctX(((Number(z.x) || 0) / 100) * W),
-      y: pctY(((Number(z.y) || 0) / 100) * Hi),
-      width: Math.round((((Number(z.width) || 20) / 100) * W / em) * 100) / 100,
-      height: Math.round((((Number(z.height) || 15) / 100) * Hi / em) * 100) / 100,
-      correctElements: correct,
-      backgroundOpacity: 50,
-      tipsAndFeedback: { tip: '', feedbackOnCorrect: '', feedbackOnIncorrect: '' },
-      // Mehrere richtige Elemente brauchen Platz für alle; eine Gruppenzone nimmt eins.
-      single: !!z.group || expected.filter((e) => e.zone === z.label).length <= 1,
-      autoAlign: true,
-    };
-  });
+  const dropZones = zones.map((z, k) => ({
+    label: `<div>${esc(z.label)}</div>`,
+    showLabel: zoneBoxes[k].showLabel,
+    x: pctX(zoneBoxes[k].x),
+    y: pctY(zoneBoxes[k].y),
+    width: zoneBoxes[k].w,
+    height: zoneBoxes[k].h,
+    correctElements: correctFor(z).map((i) => String(i + offset)),
+    backgroundOpacity: 50,
+    tipsAndFeedback: { tip: '', feedbackOnCorrect: '', feedbackOnIncorrect: '' },
+    // Mehrere richtige Elemente brauchen Platz für alle; eine Gruppenzone nimmt eins.
+    single: single(z),
+    autoAlign: true,
+  }));
 
   return [sub(ctx, 'H5P.DragQuestion', {
     question: {
-      settings: { size: { width: W, height: Hc } },
+      settings: { size: { width: W, height: Math.round(H) } },
       task: { elements, dropZones },
     },
     behaviour: { enableRetry: true, enableCheckButton: true, singlePoint: false, applyPenalties: true, showTitle: true },

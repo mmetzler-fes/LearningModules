@@ -101,6 +101,54 @@ describe('H5P-Export', () => {
     expect(back.topic.modules[0].content.answers[0]).toMatchObject({ text: 'blau', correct: true, tip: 'Genau' });
   });
 
+  it('Rundreise Drag and Drop mit Bild: Hintergrund statt Element, Zonen relativ zum Bild', () => {
+    const back = processH5pBuffer(result.buffer, 'SQL-Grundlagen.h5p');
+    const dnd = back.topic.modules.find((m: any) => m.type === 'dragAndDrop').content;
+    expect(dnd.backgroundImage).toMatch(/^data:image\/png;base64,/);
+    expect(dnd.draggables.map((x: any) => x.text)).toEqual(['SELECT a', 'SELECT b', 'WHERE x', 'ORDER BY']);
+    expect(dnd.dropZones.map((z: any) => [z.label, z.x, z.y, z.width, z.height])).toEqual([['Projektion', 0, 0, 50, 50], ['Selektion', 50, 0, 50, 50]]);
+  });
+
+  it('Paare: je Zeile feste Karte und Zone, Bilder als H5P.Image – und zurück', () => {
+    const pairs = buildH5pPackage('Tiere', [{ id: 'p1', type: 'dragAndDrop', title: 'Tiere', content: {
+      layout: 'pairs',
+      dropZones: [
+        { label: 'Hund', correctDraggable: 'dog' },
+        { label: 'Bild 2', correctDraggable: 'cat', imageUrl: pngDataUrl(40, 40), hideText: true },
+      ],
+      draggables: [
+        { text: 'dog', correctZone: 'Hund' },
+        { text: 'cat', correctZone: 'Bild 2' },
+        { text: 'Maus', correctZone: '', imageUrl: pngDataUrl(80, 40), hideText: true },
+      ],
+    } }], LIBS);
+    expect(pairs.notes).toEqual([]);
+    const c = JSON.parse(new AdmZip(pairs.buffer).getEntry('content/content.json')!.getData().toString('utf-8'));
+    const dq = c.questions[0].params.question.task;
+    const lib = (e: any) => e.type.library.split(' ')[0];
+    // Zwei feste Karten (Text, Bild), dann die drei ziehbaren Elemente
+    expect(dq.elements.map((e: any) => [lib(e), e.dropZones.length])).toEqual([
+      ['H5P.AdvancedText', 0], ['H5P.Image', 0], ['H5P.AdvancedText', 2], ['H5P.AdvancedText', 2], ['H5P.Image', 2],
+    ]);
+    expect(dq.elements[4].width).toBe(10); // Seitenverhältnis 2:1 bei 5 em Höhe
+    expect(dq.dropZones.map((z: any) => [z.correctElements, z.single, z.showLabel])).toEqual([[['2'], true, false], [['3'], true, false]]);
+    // Karte und Zone stehen in derselben Zeile, die Zone rechts
+    for (const k of [0, 1]) {
+      expect(dq.dropZones[k].y).toBe(dq.elements[k].y);
+      expect(dq.dropZones[k].x).toBeGreaterThan(dq.elements[k].x);
+    }
+
+    const back = processH5pBuffer(pairs.buffer, 'Tiere.h5p').topic.modules[0].content;
+    expect(back.layout).toBe('pairs');
+    expect(back.backgroundImage).toBe('');
+    expect(back.dropZones.map((z: any) => [z.label, z.correctDraggable, !!z.imageUrl, z.hideText])).toEqual([
+      ['Hund', 'dog', false, false], ['Bild 2', 'cat', true, true],
+    ]);
+    expect(back.draggables.map((x: any) => [x.text, x.correctZone, !!x.imageUrl, x.hideText])).toEqual([
+      ['dog', 'Hund', false, false], ['cat', 'Bild 2', false, false], ['Maus', '', true, true],
+    ]);
+  });
+
   it('Reihenfolge wird Drag and Drop mit nummerierten Plätzen, Kreuzworträtsel Lückentext', () => {
     const more = buildH5pPackage('Spiele', [
       { id: 's1', type: 'sorting', title: 'Ablauf', content: { items: [{ text: 'A' }, { text: 'B', imageUrl: pngDataUrl(40, 30) }, { text: 'A' }] } },

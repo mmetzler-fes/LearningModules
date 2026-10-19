@@ -1,6 +1,6 @@
 import { videoSourceOf } from './video.js';
 import { normalizeBranching } from './branching.js';
-import { dtwAlternatives, dtwMatches, dndExpectedMappings } from './answer-eval.js';
+import { dtwAlternatives, dtwMatches, dndExpectedMappings, dndIsPairs } from './answer-eval.js';
 import { audioSourceOf, scoreDictation, dictationOptions } from './dictation.js';
 import { generateValues, fillPlaceholders, evaluate, parseUserNumber, isWithinTolerance, formatNumber, checkFormulaTask } from './formula.js';
 import { renderSorting, renderMemory, renderCrossword } from './puzzle-views.js';
@@ -1220,12 +1220,22 @@ export class H5pRenderer {
 
       case 'dragAndDrop': {
         const hasImage = !!content.backgroundImage;
+        const pairs    = dndIsPairs(content);
         const zones    = content.dropZones   || [];
         const drags    = content.draggables  || [];
         const colors   = ['#3b82f6','#ef4444','#10b981','#f59e0b','#8b5cf6','#ec4899','#06b6d4','#84cc16'];
 
+        // Bild und Text einer Zone oder eines Elements. Verborgener Text
+        // (hideText) steht nur bei Bildern zur Wahl – sonst verriete er die
+        // Lösung, z. B. „Hund“ unter dem Bild eines Hundes.
+        const faceHtml = (text, imageUrl, hideText) => {
+          if (!imageUrl) return escapeHtml(text);
+          const img = `<img class="dnd-face-img" src="${escapeAttr(normalizeShareUrl(imageUrl))}" alt="${hideText ? '' : escapeAttr(text)}" draggable="false" />`;
+          return hideText ? img : `${img}<span class="dnd-face-text">${escapeHtml(text)}</span>`;
+        };
+
         div.innerHTML = `
-          <div class="dnd-player${hasImage ? '' : ' dnd-player-list'}">
+          <div class="dnd-player${hasImage ? '' : ' dnd-player-list'}${pairs ? ' dnd-player-pairs' : ''}">
             ${content.taskDescription ? `<div class="dnd-player-desc" style="margin-bottom:16px;">${sanitizeModuleDescriptionHtml(content.taskDescription)}</div>` : ''}
             ${hasImage ? `<div class="dnd-view-bar">
               <div class="dnd-view-toggle" role="group" aria-label="Größe der Aufgabe">
@@ -1269,6 +1279,10 @@ export class H5pRenderer {
         };
 
         const placeInZone = (dragBtn, zoneEl) => {
+          // Paare: ein Platz je Zeile – was dort lag, geht zurück in die Ablage.
+          if (pairs) {
+            zoneEl.querySelectorAll('.dnd-player-drag.placed').forEach((old) => { if (old !== dragBtn) returnToBank(old); });
+          }
           let elToPlace = dragBtn;
           if (dragBtn.dataset.multiple === 'true' && dragBtn.parentElement === dragsEl && typeof dragBtn.cloneSelf === 'function') elToPlace = dragBtn.cloneSelf();
           elToPlace.dataset.currentZone = zoneEl.dataset.zone;
@@ -1339,7 +1353,8 @@ export class H5pRenderer {
           // wuerde die Aufgabe verraten.
           zoneEl.style.background = hexTint(color, 0.25);
           zoneEl.dataset.zone = z.label;
-          zoneEl.innerHTML = `<span class="dnd-player-zone-label" style="background:${color}">${escapeHtml(z.label)}</span><div class="dnd-player-zone-items" data-zone="${escapeAttr(z.label)}"></div>`;
+          const face = hasImage ? escapeHtml(z.label) : faceHtml(z.label, z.imageUrl, z.hideText);
+          zoneEl.innerHTML = `<span class="dnd-player-zone-label${!hasImage && z.imageUrl ? ' dnd-has-img' : ''}" style="background:${color}">${face}</span><div class="dnd-player-zone-items" data-zone="${escapeAttr(z.label)}"></div>`;
           // Die ganze belegte Zone ist Anfasser fuer ihr Element: Abgelegte
           // Elemente sind klein und ragen oft ueber die Zone hinaus, mit dem
           // Finger trifft man sonst leicht nur die Zone. Das Antippen wird als
@@ -1369,7 +1384,9 @@ export class H5pRenderer {
           let cloneCounter = 0;
           const createDraggableNode = (isClone = false) => {
             const drag = document.createElement('div');
-            drag.className = 'dnd-player-drag'; drag.textContent = d.text;
+            drag.className = 'dnd-player-drag' + (d.imageUrl ? ' dnd-has-img' : '');
+            drag.innerHTML = faceHtml(d.text, d.imageUrl, d.hideText);
+            drag.dataset.text = d.text;
             drag.dataset.dragId = isClone ? `drag-${i}-${++cloneCounter}` : `drag-${i}`;
             drag.dataset.correctZone = d.correctZone || ''; drag.dataset.currentZone = '';
             drag.dataset.multiple = d.multiple ? 'true' : 'false';
@@ -1428,7 +1445,7 @@ export class H5pRenderer {
                 const zoneLabel = z.dataset.zone;
                 const group = zoneGroup.get(zoneLabel) || '';
                 z.querySelectorAll('.dnd-player-drag.placed').forEach((item) => {
-                  const matchIdx = expected.findIndex((m, i) => !used.has(i) && m.text === item.textContent && (m.zone === zoneLabel || (group && group === (zoneGroup.get(m.zone) || ''))));
+                  const matchIdx = expected.findIndex((m, i) => !used.has(i) && m.text === item.dataset.text && (m.zone === zoneLabel || (group && group === (zoneGroup.get(m.zone) || ''))));
                   itemOk.set(item, matchIdx !== -1);
                   if (matchIdx !== -1) used.add(matchIdx);
                 });

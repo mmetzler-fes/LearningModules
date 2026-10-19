@@ -6,7 +6,7 @@ import { openFeedbackDialog } from './feedback.js';
 import { openHandoverDialog, renderIncomingHandovers } from './handover.js';
 import { openAccountLinksDialog } from './account-links.js';
 import { openGithubBackupDialog } from './github-backup.js';
-import { openJsonTextImport } from './json-text-import.js';
+import { openImportDialog } from './import-dialog.js';
 
 // ==================== TOPICS VIEW ====================
 
@@ -32,7 +32,6 @@ export class TopicsView {
     this._descInput       = document.getElementById('topicDescription');
     this._btnNew          = document.getElementById('btnNewTopic');
     this._btnImport       = document.getElementById('btnImportTopic');
-    this._btnImportH5p    = document.getElementById('btnImportH5p');
     this._btnExportH5p    = document.getElementById('btnExportH5p');
     this._btnCancel       = document.getElementById('btnCancelTopic');
     this._subscribeKeyEl  = document.getElementById('topicSubscribeKey');
@@ -73,34 +72,10 @@ export class TopicsView {
       });
     }
 
-    if (this._btnImport) {
-      this._btnImport.addEventListener('click', async () => {
-        const result = await this.app.api.importTopic();
-        if (result.success) {
-          this.app.showToast(t('topics.import.success', { title: result.topicTitle || 'Thema', count: result.importedCount }), 'success');
-          showImportReport(result);
-          this.refresh();
-        } else if (result.error) {
-          this.app.showToast(t('topics.import.error') + result.error, 'error');
-        }
-      });
-    }
-
-    document.getElementById('btnImportTopicText')?.addEventListener('click', () => {
-      openJsonTextImport(this.app, { onDone: () => this.refresh() });
+    // Ein Dialog für Datei (JSON, Moodle-XML, .lmenc, H5P) und eingefügten Text.
+    this._btnImport?.addEventListener('click', () => {
+      openImportDialog(this.app, { h5p: true, onDone: () => this.refresh() });
     });
-
-    if (this._btnImportH5p) {
-      this._btnImportH5p.addEventListener('click', async () => {
-        const result = await this.app.api.importH5p({ importMode: 'native' });
-        if (result.success) {
-          this.app.showToast(`🎉 H5P "${result.topicTitle}" importiert — ${result.importedCount} Modul(e) angelegt!`, 'success');
-          this.refresh();
-        } else if (result.error) {
-          this.app.showToast('❌ H5P-Import fehlgeschlagen: ' + result.error, 'error');
-        }
-      });
-    }
 
     if (this._btnExportH5p) {
       this._btnExportH5p.addEventListener('click', () => this._onExportH5p());

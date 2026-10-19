@@ -2,9 +2,9 @@
 
 Im Hauptmenü unter **🤖 KI-Prompt** (auch über den Knopf in 🏠 LernModule) entsteht ein Prompt, mit dem eine KI
 (ChatGPT, Claude, Le Chat …) ein Lernthema als JSON-Datei erstellt. Die
-Antwort der KI kopieren und über **📋 JSON-Text importieren** einfügen – der
-Dialog prüft sie vor dem Import. Alternativ als `.json` speichern und über
-**📥 Thema importieren** einlesen.
+Antwort der KI kopieren, **📥 Thema importieren** öffnen und mit Strg+V
+einfügen – der Dialog prüft sie vor dem Import. Als `.json` gespeichert geht
+es im selben Dialog über **📄 Datei wählen**.
 
 ## Angaben
 
@@ -48,9 +48,8 @@ ergänzt man im Editor.
 - Mehr als 5 Module: Die KI antwortet in Teilen zu höchstens 5 Modulen, jeder
   Teil eine vollständige Datei; mit „weiter“ kommt der nächste. Lange Antworten
   brechen KIs sonst mitten im JSON ab (Gemini etwa nach sechs Modulen). Teil 1
-  auf der Startseite über **📋 JSON-Text importieren** (oder 📥 Thema
-  importieren), die weiteren im neuen Thema über **📋 JSON-Text importieren**
-  bzw. **📥 Module importieren**. Eine abgeschnittene Datei meldet der Import als
+  auf der Startseite über **📥 Thema importieren**, die weiteren im neuen
+  Thema über **📥 Module importieren** – jeweils einfügen oder als Datei. Eine abgeschnittene Datei meldet der Import als
   „unvollständig“.
 - Die KI-Antwort darf samt Markdown-Rahmen (```` ```json … ``` ````) und Text
   davor oder danach gespeichert werden – der Import nimmt nur das JSON darin.

@@ -171,8 +171,11 @@ fehlen; die Meldung und `notebook.json` (`skipped`) nennen sie.
 
 **📥 Importieren** (oben oder im Menü: **Hier importieren**) liest eine
 Notebook-Datei (`.zip`) als neues Book, neuen Bereich oder Abschnitt ein –
-oder eine einzelne Themen-Datei (JSON, Moodle-XML, verschlüsselt) als
-Lernthema an dieser Stelle. Eine Notebook-Datei, die oben eingelesen wird,
+oder ein einzelnes Lernthema an dieser Stelle: als Datei (JSON, Moodle-XML,
+H5P, verschlüsselt) oder als eingefügter Text, z. B. die Antwort einer KI.
+Im Menü eines Lernthemas kommen mit **📥 Module importieren** die Module in
+dieses Thema. Wie geprüft wird, steht unter
+[Austausch mit Moodle und H5P](moodle-und-h5p.md#einlesen). Eine Notebook-Datei, die oben eingelesen wird,
 wird dort zum Book. Tags kommen über ihren Namen an, wenn es im Konto schon
 einen gleichnamigen Tag gibt.
 

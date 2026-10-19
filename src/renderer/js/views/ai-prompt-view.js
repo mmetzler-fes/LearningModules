@@ -8,7 +8,7 @@ const STORAGE_KEY = 'lm_ai_prompt';
 /**
  * Eigene Seite "KI-Prompt": Angaben zum Quiz sammeln, daraus einen Prompt
  * bauen, der der KI das Importformat genau vorgibt. Die Antwort der KI kommt
- * als .json über "📥 Thema importieren" herein.
+ * über "📥 Thema importieren" herein (eingefügt oder als .json).
  *
  * Früher ein Popup – ein Klick daneben schloss es samt Eingaben. Jetzt bleibt
  * das Formular beim Wechsel der Ansicht stehen, und jede Eingabe landet sofort
@@ -107,8 +107,8 @@ export class AiPromptView {
       partsHint.classList.toggle('hidden', parts < 2);
       partsHint.innerHTML = `Die KI antwortet in <strong>${parts} Teilen</strong> zu je höchstens ${AI_PROMPT_PART_SIZE} Modulen
         – mit „weiter“ kommt der nächste. Jeden Teil kopieren und einfügen: Teil 1 über
-        <strong>🏠 LernModule → 📋 JSON-Text importieren</strong>, die weiteren im neuen Thema ebenfalls über
-        <strong>📋 JSON-Text importieren</strong>. Als <code>.json</code> gespeichert geht es über 📥 Thema bzw. Module importieren.`;
+        <strong>🏠 LernModule → 📥 Thema importieren</strong>, die weiteren im neuen Thema über
+        <strong>📥 Module importieren</strong> – jeweils einfügen oder als <code>.json</code>-Datei wählen.`;
       form.querySelector('.ai-prompt-result').classList.remove('hidden');
       output.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
     });

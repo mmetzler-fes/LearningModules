@@ -1,6 +1,6 @@
 /**
  * Eingefügten bzw. hochgeladenen Importtext lesen und prüfen – dieselbe
- * Logik für den Dialog „JSON-Text importieren“ (Vorabprüfung im Browser) und
+ * Logik für den Import-Dialog (views/import-dialog.js, Vorabprüfung) und
  * den Server (import.service.ts lädt diese Datei, siehe browser-module.ts).
  * Ohne DOM und ohne Importe.
  */

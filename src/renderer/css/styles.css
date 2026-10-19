@@ -4926,8 +4926,8 @@ body {
 }
 .cw-mini span { background: var(--bg-secondary); border: 1px solid var(--border); }
 
-/* Dialog „JSON-Text importieren“ (views/json-text-import.js) */
-.import-modules-card.json-text-card { max-width: min(860px, 95vw); width: 95vw; max-height: 95vh; overflow-y: auto; }
+/* Import-Dialog: Datei oder eingefügter Text (views/import-dialog.js) */
+.import-modules-card.import-dialog-card { max-width: min(860px, 95vw); width: 95vw; max-height: 95vh; overflow-y: auto; }
 .json-text-input {
   width: 100%; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.85rem;
   padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm);
@@ -4944,4 +4944,12 @@ body {
   margin: 8px 0 0; padding: 6px 8px; overflow-x: auto; white-space: pre; font-size: 0.8rem;
   background: var(--bg-secondary); color: var(--text-primary); border-radius: 4px;
 }
-.json-text-card .btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.import-dialog-card .btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.import-dialog-card.is-dragover { outline: 3px dashed var(--accent); outline-offset: -8px; }
+.import-dialog-file { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
+.import-dialog-chip {
+  display: inline-flex; align-items: center; gap: 6px; padding: 4px 6px 4px 10px;
+  background: var(--accent-light); border-radius: 999px; font-weight: 600;
+}
+.import-dialog-chip-x { border: none; background: none; cursor: pointer; color: var(--text-secondary); font-size: 0.9rem; }
+.import-dialog-card [hidden] { display: none !important; }

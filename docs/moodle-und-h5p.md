@@ -7,18 +7,23 @@ einlesen. Was dabei nicht oder nur vereinfacht übernommen wird, zeigt ein
 
 ## Einlesen
 
-**📥 Thema importieren** (neues Thema) und **📥 Module importieren** (ins
-geöffnete Thema) nehmen neben JSON auch `.xml`-Dateien aus Moodle an. Der
-Server erkennt das Format selbst (Wurzelelement `<quiz>`). Den Titel nimmt er
-aus der Fragenkategorie, sonst aus dem Dateinamen.
+**📥 Thema importieren** (Startseite, neues Thema), **📥 Module importieren**
+(Modulliste, ins geöffnete Thema) und **📥 Importieren** in den Notebooks
+öffnen denselben Dialog. Darin entweder
 
-**📋 JSON-Text importieren** (an beiden Stellen) nimmt den Text direkt aus
-der Zwischenablage: mit Strg+V einfügen, z. B. die Antwort einer KI. Der
-Dialog prüft sofort, ob es gültiges JSON ist – bei einem Fehler mit Zeile,
-Spalte und der betroffenen Zeile, bei einer abgeschnittenen KI-Antwort mit
-dem Hinweis „unvollständig“ – und zeigt, wie viele Module welchen Typs darin
-stehen. Erst dann lässt sich importieren. Ein Rahmen mit ```` ```json ```` und
-Text davor oder danach stört nicht; eingefügtes Moodle-XML geht auch.
+- **📄 Datei wählen** oder eine Datei in den Dialog ziehen: JSON, Moodle-XML
+  (`.xml`), verschlüsselter Export (`.lmenc`); für ein neues Thema auch H5P
+  (`.h5p`), in den Notebooks auch eine Notebook-Datei (`.zip`) – oder
+- **Text mit Strg+V einfügen**, z. B. die Antwort einer KI. Ein Rahmen
+  mit ```` ```json ```` und Text davor oder danach stört nicht; Moodle-XML als
+  Text geht auch.
+
+JSON und Moodle-XML prüft der Dialog sofort – ob Datei oder Text: bei einem
+Fehler mit Zeile, Spalte und der betroffenen Zeile, bei einer abgeschnittenen
+KI-Antwort mit dem Hinweis „unvollständig“; sonst zeigt er, wie viele Module
+welchen Typs darin stehen. Erst dann lässt sich importieren. Den Titel eines
+Moodle-Imports nimmt der Server aus der Fragenkategorie, sonst aus dem
+Dateinamen.
 
 In Moodle: **Fragensammlung → Export → Moodle-XML-Format**. Eine Kurssicherung
 (`.mbz`, früher `moodle.xml` im ZIP) ist etwas anderes und wird nicht gelesen.

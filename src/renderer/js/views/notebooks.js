@@ -1,7 +1,8 @@
-import { escapeHtml, escapeAttr, showImportReport } from '../utils.js';
+import { escapeHtml, escapeAttr } from '../utils.js';
 import { pickClass } from './classes.js';
 import { TagPicker, chipHtml } from './tags.js';
 import { openFeedbackDialog } from './feedback.js';
+import { openImportDialog } from './import-dialog.js';
 
 // ==================== NOTEBOOKS ====================
 //
@@ -568,6 +569,7 @@ export class NotebooksView {
       { label: '⬇️ Download', title: 'JSON, Moodle-XML, H5P oder verschlüsselt', run: () => this.app.topicsView.openExportDialog(topic) },
       '-',
       { label: '➕ Neues Modul', run: () => this.app.modulesView.openFrom('teacher-notebooks', topic.id, null) },
+      { label: '📥 Module importieren', title: 'Datei oder eingefügter Text (z. B. KI-Antwort) als Module in dieses Thema', run: () => this._import(null, topic) },
       { label: '📦 Modulliste öffnen', title: 'Die gewohnte Modulverwaltung dieses Themas', run: () => this.app.modulesView.openTopicModules(topic.id) },
       '-',
       { label: '↔️ Verschieben nach…', run: () => this._moveTopicDialog(topic) },
@@ -836,35 +838,39 @@ export class NotebooksView {
   }
 
   /**
-   * Einlesen: Notebook-Datei (ZIP aus „Download“) als neuer Knoten, sonst
-   * eine Themen-Datei (JSON, Moodle-XML, verschlüsselt) als Lernthema hierher.
+   * Einlesen über den Import-Dialog (views/import-dialog.js): mit `topic` als
+   * Module in dieses Thema; sonst eine Notebook-Datei (ZIP aus „Download“)
+   * als neuer Knoten bzw. ein Lernthema (Datei oder eingefügter Text) in den
+   * Knoten `parentId`.
    */
-  _import(parentId) {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = '.zip,.json,.lmenc,.xml';
-    input.onchange = async () => {
-      const file = input.files[0];
-      if (!file) return;
-      if (/\.zip$/i.test(file.name)) {
-        const res = await this.app.api.importNotebook(file, parentId);
-        if (failed(res)) { this.app.showToast('Fehler: ' + (res?.message || 'Import fehlgeschlagen'), 'error'); return; }
-        const failedNote = res.failed?.length ? ` Nicht einlesbar: ${res.failed.join(', ')}.` : '';
-        this.app.showToast(`„${res.title}“ eingelesen – ${res.importedTopics} Lernthem${res.importedTopics === 1 ? 'a' : 'en'}.${failedNote}`, failedNote ? 'info' : 'success');
-        if (parentId) this._open.add('n:' + parentId);
-        this._open.add('n:' + res.id);
-      } else {
-        const res = await this.app.api.importTopicFile(file);
-        if (!res || !res.success) { this.app.showToast('Fehler: ' + (res?.message || 'Import fehlgeschlagen'), 'error'); return; }
-        await this.app.api.moveInNotebook('topic', res.topicId, parentId, null);
-        showImportReport(res);
-        this.app.showToast(`„${res.topicTitle}“ eingelesen – ${res.importedCount} Modul(e).`, 'success');
-        this._open.add('n:' + (parentId || ''));
-      }
-      this._saveOpen();
-      await this.refresh();
-    };
-    input.click();
+  _import(parentId, topic = null) {
+    const done = async () => { this._saveOpen(); await this.refresh(); };
+    openImportDialog(this.app, {
+      topicId: topic ? topic.id : null,
+      h5p: !topic,
+      extraFile: topic ? null : {
+        ext: 'zip',
+        label: '🗂 Notebook-Datei – wird als Book, Bereich oder Abschnitt mit allen Lernthemen eingelesen.',
+        run: async (file) => {
+          const res = await this.app.api.importNotebook(file, parentId);
+          if (failed(res)) { this.app.showToast('Fehler: ' + (res?.message || 'Import fehlgeschlagen'), 'error'); return false; }
+          const failedNote = res.failed?.length ? ` Nicht einlesbar: ${res.failed.join(', ')}.` : '';
+          this.app.showToast(`„${res.title}“ eingelesen – ${res.importedTopics} Lernthem${res.importedTopics === 1 ? 'a' : 'en'}.${failedNote}`, failedNote ? 'info' : 'success');
+          if (parentId) this._open.add('n:' + parentId);
+          this._open.add('n:' + res.id);
+          await done();
+          return true;
+        },
+      },
+      onDone: async (res) => {
+        if (topic) this._open.add('t:' + topic.id);
+        else {
+          await this.app.api.moveInNotebook('topic', res.topicId, parentId, null);
+          this._open.add('n:' + (parentId || ''));
+        }
+        await done();
+      },
+    });
   }
 
   async _deleteModule(topic, mod) {

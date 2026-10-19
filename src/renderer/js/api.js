@@ -408,17 +408,6 @@ export class BrowserApi {
     });
     return res.json();
   }
-  /** Eine Themen-Datei (JSON, Moodle-XML, .lmenc) einlesen – liefert u. a. die neue topicId. */
-  async importTopicFile(file) {
-    const formData = new FormData();
-    formData.append('file', file);
-    const token = this._auth.getToken();
-    const res = await fetch('/api/interchange/import-json', {
-      method: 'POST', headers: token ? { Authorization: `Bearer ${token}` } : {}, body: formData,
-    });
-    return res.json();
-  }
-
   // ---------- Entwürfe des Modul-Editors ----------
   listDrafts(topicId) { return this._fetch(`/api/drafts${topicId ? `?topicId=${encodeURIComponent(topicId)}` : ''}`); }
   getDraft(key) { return this._fetch(`/api/drafts/${encodeURIComponent(key)}`); }
@@ -824,62 +813,6 @@ export class BrowserApi {
   /** Das ganze Thema, verschlüsselt mit dem Masterkey. */
   exportTopicEncrypted(topicId) {
     return this._download(`/api/interchange/topics/${encodeURIComponent(topicId)}/export-encrypted`, 'thema.lmenc');
-  }
-
-  importTopic() {
-    return new Promise((resolve) => {
-      const input = document.createElement('input');
-      input.type = 'file';
-      // .lmenc = verschlüsselter Export dieser App, .xml = Moodle-Fragensammlung;
-      // der Server erkennt das Format selbst.
-      input.accept = '.json,.lmenc,.xml';
-      input.onchange = async (e) => {
-        const file = e.target.files[0];
-        if (!file) return resolve({ success: false });
-        const formData = new FormData();
-        formData.append('file', file);
-        const token = this._auth.getToken();
-        const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
-        try {
-          const res = await fetch('/api/interchange/import-json', { method: 'POST', headers, body: formData });
-          const data = await res.json();
-          if (data.success) {
-            resolve({ success: true, topicTitle: data.topicTitle, importedCount: data.importedCount, skipped: data.skipped, notes: data.notes });
-          } else {
-            resolve({ success: false, error: data.message || data.error || 'Unbekannter Fehler' });
-          }
-        } catch (err) {
-          resolve({ success: false, error: err.message });
-        }
-      };
-      input.click();
-    });
-  }
-
-  importH5p(options) {
-    return new Promise((resolve) => {
-      const input = document.createElement('input');
-      input.type = 'file';
-      input.accept = '.h5p';
-      input.onchange = async (e) => {
-        const file = e.target.files[0];
-        if (!file) return resolve({ success: false });
-        const formData = new FormData();
-        formData.append('file', file);
-        const token = this._auth.getToken();
-        const headers = {};
-        if (token) headers['Authorization'] = `Bearer ${token}`;
-        if (options && options.importMode) headers['X-Import-Mode'] = options.importMode;
-        try {
-          const res = await fetch('/api/interchange/h5p/upload', { method: 'POST', headers, body: formData });
-          const data = await res.json();
-          resolve(data);
-        } catch (err) {
-          resolve({ success: false, error: err.message });
-        }
-      };
-      input.click();
-    });
   }
 
   /** Moodle-XML (Fragensammlung) – nur die selbst verfassten Module. */

@@ -1,7 +1,7 @@
-import { escapeHtml, escapeAttr, generateId, showImportReport } from '../utils.js';
+import { escapeHtml, escapeAttr, generateId } from '../utils.js';
 import { ModuleDescriptionEditor } from '../desc-editor.js';
 import { TagPicker } from './tags.js';
-import { openJsonTextImport } from './json-text-import.js';
+import { openImportDialog } from './import-dialog.js';
 import { checkFormulaTask } from '../formula.js';
 import { sortingItems, memoryPairs, crosswordLetters, crosswordWords } from '../puzzles.js';
 
@@ -16,7 +16,6 @@ export class ModulesView {
     this._filterType       = document.getElementById('filterType');
     this._btnCreate        = document.getElementById('btnCreateModule');
     this._btnImport        = document.getElementById('btnImportModules');
-    this._btnImportText    = document.getElementById('btnImportModulesText');
     this._btnExportTopic   = document.getElementById('btnExportCurrentTopic');
     this._btnExportH5p     = document.getElementById('btnExportModulesAsH5p');
     this._btnTransfer      = document.getElementById('btnTransferModules');
@@ -89,46 +88,11 @@ export class ModulesView {
     this._btnExportTopic?.addEventListener('click', openExport);
     this._btnExportH5p?.addEventListener('click', openExport);
 
-    // Import Modules — must be called synchronously in click handler to open file dialog
-    if (this._btnImport) {
-      this._btnImport.addEventListener('click', () => {
-        if (!this.app.state.currentTopicId) {
-          this.app.showToast('Bitte zuerst ein Thema öffnen.', 'error');
-          return;
-        }
-        const input = document.createElement('input');
-        input.type = 'file';
-        input.accept = '.json,.xml';
-        input.onchange = async (e) => {
-          const file = e.target.files[0];
-          if (!file) return;
-          const formData = new FormData();
-          formData.append('file', file);
-          formData.append('topicId', this.app.state.currentTopicId);
-          const token = this.app.authStore.getToken();
-          const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
-          try {
-            const res = await fetch('/api/interchange/import-json', { method: 'POST', headers, body: formData });
-            const data = await res.json();
-            if (data.success) {
-              this.app.showToast(`${data.importedCount} Modul(e) importiert.`, 'success');
-              showImportReport(data);
-              await this.loadTopicModules(this.app.state.currentTopicId);
-            } else {
-              this.app.showToast('Import fehlgeschlagen: ' + (data.message || 'Unbekannter Fehler'), 'error');
-            }
-          } catch (err) {
-            this.app.showToast('Import fehlgeschlagen: ' + err.message, 'error');
-          }
-        };
-        input.click();
-      });
-    }
-
-    this._btnImportText?.addEventListener('click', () => {
+    // Ein Dialog für Datei (JSON, Moodle-XML, .lmenc) und eingefügten Text.
+    this._btnImport?.addEventListener('click', () => {
       const topicId = this.app.state.currentTopicId;
       if (!topicId) { this.app.showToast('Bitte zuerst ein Thema öffnen.', 'error'); return; }
-      openJsonTextImport(this.app, { topicId, onDone: () => this.loadTopicModules(topicId) });
+      openImportDialog(this.app, { topicId, onDone: () => this.loadTopicModules(topicId) });
     });
 
     if (this._importBtnCancel) {
@@ -267,7 +231,6 @@ export class ModulesView {
     const isRaw = !!currentTopicRawSummary;
     if (this._btnCreate) this._btnCreate.style.display = (!currentTopicId || isRaw) ? 'none' : '';
     if (this._btnImport) this._btnImport.style.display = (!currentTopicId || isRaw) ? 'none' : '';
-    if (this._btnImportText) this._btnImportText.style.display = (!currentTopicId || isRaw) ? 'none' : '';
     if (this._btnTransfer) this._btnTransfer.style.display = (!currentTopicId || isRaw) ? 'none' : '';
     if (this._btnExportH5p) this._btnExportH5p.style.display = (!currentTopicId || isRaw) ? 'none' : '';
     if (this._btnExportTopic) this._btnExportTopic.style.display = currentTopicId ? '' : 'none';

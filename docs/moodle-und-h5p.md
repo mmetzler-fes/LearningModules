@@ -209,9 +209,11 @@ node scripts/quizzy-to-learningmodules.mjs quiz_SPS_Grundbegriffe.json
 ```
 
 Es entsteht `SPS Grundbegriffe.learningmodules.json` – einlesen über
-**📥 Thema importieren**. Je Quiz eine Drag-and-Drop-Aufgabe ohne Bild: links
-die Begriffe, rechts die Erklärungen zum Zuordnen, **🔀 Reihenfolge mischen**
-eingeschaltet (jeder Schüler sieht eine andere Reihenfolge, wie in Quizzy).
+**📥 Thema importieren**. Je Quiz eine Drag-and-Drop-Aufgabe in der Darstellung
+[Paare](#paare-zuordnen): links die Begriffe, rechts je ein Platz für die
+Erklärung, **🔀 Reihenfolge mischen** eingeschaltet (jeder Schüler sieht eine
+andere Reihenfolge, wie in Quizzy). Ältere Dateien ohne `"layout": "pairs"`
+erscheinen als Liste – im Editor genügt ein Klick auf **🔗 Paare**.
 
 - Mehrere Dateien auf einmal: alle Dateinamen angeben (`quiz_*.json`).
 - `--ein-thema "Titel"` legt alle Quizze als Aufgaben eines Themas an.

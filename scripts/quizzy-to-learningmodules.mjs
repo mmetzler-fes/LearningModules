@@ -4,8 +4,8 @@
 //
 // Quizzy zeigt alle Paare (Begriff → Erklärung) gleichzeitig, in wechselnder
 // Reihenfolge, und lässt sie zuordnen. Daraus wird je Quiz eine Drag-and-Drop-
-// Aufgabe ohne Hintergrundbild: die Begriffe als Zonen, die Erklärungen zum
-// Hineinziehen, "Reihenfolge mischen" eingeschaltet.
+// Aufgabe in der Darstellung "Paare": links die Begriffe, rechts je ein Platz
+// für die Erklärung, "Reihenfolge mischen" eingeschaltet.
 //
 // Aufruf:
 //   node scripts/quizzy-to-learningmodules.mjs quiz1.json [quiz2.json …]
@@ -91,9 +91,9 @@ function dragAndDrop(title, pairs) {
       taskDescription: '<p>Ordne jedem Begriff die passende Erklärung zu.</p>',
       backgroundImage: '',
       randomOrder: true,
-      dropZones: unique.map((p) => ({
-        label: p.term, correctDraggable: p.text, group: '', x: 0, y: 0, width: 100, height: 10,
-      })),
+      layout: 'pairs',
+      // Ohne Hintergrundbild ordnet die App die Zonen selbst an – keine Lage nötig.
+      dropZones: unique.map((p) => ({ label: p.term, correctDraggable: p.text, group: '' })),
       draggables: unique.map((p) => ({ text: p.text, correctZone: p.term, multiple: false })),
     },
   };

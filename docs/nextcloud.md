@@ -44,6 +44,15 @@ App prüft beim Verbinden, dass er wirklich auf `Bilder` zeigt. Dann laden die
 Schüler die Bilder direkt – sie sind aber für jeden mit Link sichtbar, also
 **keine Fotos von Schülerinnen und Schülern**.
 
+**Lesefreigabe zurückziehen:** Erst im Dialog das Feld leeren und
+**🔌 Verbinden** wählen. Dann hängt die App alle direkten Links in den Modulen
+auf den Weg über den Server um, und die Lesefreigabe kann in der Nextcloud
+gelöscht werden. Wird stattdessen eine neue Lesefreigabe eingetragen, zeigen
+die Links auf die neue. Löscht jemand die Lesefreigabe zuerst in der
+Nextcloud, merkt die App das (Prüfung beim Start und höchstens alle sechs
+Stunden beim Öffnen des Dialogs), stellt genauso um und zeigt einen Hinweis.
+Bis dahin fehlen die Bilder in den Modulen.
+
 **Freigabe trennen** vergisst Link und Passwort. Die Dateien bleiben in
 der Nextcloud; Bilder, die über den Server liefen, sind in den Modulen dann
 nicht mehr zu sehen.
@@ -60,10 +69,36 @@ nicht mehr zu sehen.
 - Klappt das Hochladen nicht, fragt die App, ob das Bild stattdessen wie
   bisher in der App gespeichert werden soll.
 
-Ohne verbundene Nextcloud bleibt alles wie bisher.
+Ohne verbundene Nextcloud bleibt das Bild in der App – siehe
+[Grenze für Bilder in der App](#grenze-fuer-bilder-in-der-app).
 
 Der Ordnername ist der Titel des Themas. Wird das Thema umbenannt, landen
 neue Bilder im Ordner mit dem neuen Namen; vorhandene Links bleiben gültig.
+
+## Grenze für Bilder in der App
+
+Ohne eigene Freigabe landen Bilder auf dem Server der App. Damit er nicht
+vollläuft:
+
+- **Verkleinern:** Fotos über 1600 px oder 600 KB rechnet der Browser vor dem
+  Speichern herunter (JPEG bleibt JPEG, alles andere wird PNG – Transparenz und
+  scharfe Kanten bleiben). SVG und GIF bleiben unverändert. Mit Nextcloud geht
+  das Bild unverändert dorthin.
+- **Hinweis** (Standard ab 20 MB je Lehrkraft): Beim Einfügen erscheint ein
+  Hinweis mit dem Stand, am Knopf ☁️ Nextcloud ein Punkt, im Dialog der Stand.
+- **Grenze** (Standard 50 MB): Neue Bilder lassen sich nicht mehr in der App
+  speichern; die App bietet an, die Nextcloud einzurichten. Vorhandene Bilder
+  bleiben, Module lassen sich weiter bearbeiten und speichern – der Server lehnt
+  nur ein Speichern ab, mit dem **neue** Bilder in der App dazukämen (der
+  Entwurf bleibt erhalten). Nach dem Verbinden bringt *Vorhandene Bilder
+  auslagern* alles in die Nextcloud.
+- **Gezählt** werden die Bilder in selbst verfassten Modulen der eigenen
+  Themen, jedes Bild einmal – dasselbe, was sich auslagern lässt. Gekauftes und
+  Übernommenes zählt nicht. Mit verbundener Nextcloud gibt es keine Grenze.
+
+Die Werte stellt der Admin unter **Administration → Shop & Sicherheit → 🖼
+Bilder in der App** ein (0 = aus). Bilder über einen Import oder eine Kopie
+aus dem Shop prüft die Grenze nicht.
 
 ## Bilder im KI-Prompt
 

@@ -1,4 +1,5 @@
 import { escapeHtml, escapeAttr } from '../utils.js';
+import { loadQuota, quotaHtml, refreshQuotaBadge } from './image-store.js';
 
 // ==================== NEXTCLOUD DER LEHRKRAFT ====================
 //
@@ -15,6 +16,7 @@ export const nextcloudState = { ready: false };
 export async function refreshNextcloud(app) {
   const data = await app.api.getNextcloud().catch(() => null);
   nextcloudState.ready = !!data?.ready;
+  void refreshQuotaBadge(app).catch(() => undefined);
   return data;
 }
 
@@ -171,6 +173,7 @@ async function scanMigration(app, body) {
       }
       box.disabled = true;
     }
+    void refreshQuotaBadge(app).catch(() => undefined);
     const themen = (n) => `${n} ${n === 1 ? 'Thema' : 'Themen'}`;
     body.querySelector('.nc-migrate-result').textContent = failed
       ? `${themen(done)} ausgelagert, ${failed} mit Fehler – „Bilder in der App suchen“ zeigt, was noch fehlt.`
@@ -216,6 +219,7 @@ export async function openNextcloudDialog(app) {
 
   const render = async (msg = null, backupMsg = null) => {
     const data = await refreshNextcloud(app);
+    const quota = data?.ready ? null : await loadQuota(app, true);
     if (!data || data.statusCode) { card.innerHTML = `<p class="login-error">Fehler: ${escapeHtml(data?.message || '?')}</p>`; return; }
     const c = data.config;
     const own = data.mode === 'own';
@@ -245,6 +249,9 @@ export async function openNextcloudDialog(app) {
             beim Verbinden an) zusätzlich <strong>nur lesend und ohne Passwort</strong> teilen und den Link hier eintragen.
             Diese Bilder sind dann für jeden mit Link sichtbar – keine Fotos von Schülerinnen und Schülern.</p>
           <input type="url" id="ncRead" value="${escapeAttr(c.readShareUrl)}" autocomplete="off" placeholder="https://…/s/…" />
+          <p class="hint"><strong>Zurückziehen:</strong> erst hier das Feld leeren und „Verbinden“ wählen – dann laufen die Bilder in
+            allen Modulen über diesen Server, und die Lesefreigabe kann in der Nextcloud gelöscht werden. Löscht man sie zuerst in
+            der Nextcloud, merkt die App das nach einigen Stunden und stellt dann ebenfalls um.</p>
         </details>
         <div class="form-actions">
           <button class="btn btn-primary nc-connect">🔌 Verbinden</button>
@@ -257,6 +264,10 @@ export async function openNextcloudDialog(app) {
         dem Server – je Lernthema in einem eigenen Unterordner. Im Modul steht nur der Link. Im Bildfeld kommt
         <strong>☁️ Aus Nextcloud</strong> dazu: Bilder, die schon dort liegen, mit einem Klick einfügen.</p>
       ${status ? `<p class="hint nc-status">${status}</p>` : ''}
+      ${quotaHtml(quota)}
+      ${data.readShareLostAt && !data.directImages ? `<p class="hint nc-status">ℹ️ Die Lesefreigabe für <code>Bilder</code> gab es in der
+        Nextcloud nicht mehr (${when(data.readShareLostAt)}). Die Bilder laufen seitdem über diesen Server – in den Modulen fehlt
+        nichts. Wer wieder direkt laden will, trägt unten eine neue Lesefreigabe ein.</p>` : ''}
       ${legacyHtml(data.legacy, own)}
       <div class="settings-group">
         <h4>Nextcloud-Freigabe</h4>${ownForm}

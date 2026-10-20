@@ -57,6 +57,29 @@ export function mapDataImages(value: any, fn: (dataUrl: string, mime: string, ba
   return value;
 }
 
+/**
+ * Bilder in der App (data:-URLs) – Größe je verschiedenem Bild. Schlüssel ist
+ * eine Prüfsumme, damit dasselbe Bild in mehreren Modulen nur einmal zählt.
+ */
+export function dataImageSizes(contents: any[]): Map<string, number> {
+  const out = new Map<string, number>();
+  for (const c of contents) {
+    mapDataImages(c, (d, _mime, b64) => {
+      const pad = b64.endsWith('==') ? 2 : b64.endsWith('=') ? 1 : 0;
+      out.set(crypto.createHash('sha1').update(b64).digest('hex'), Math.floor((b64.length * 3) / 4) - pad);
+      return d;
+    });
+  }
+  return out;
+}
+
+const sum = (m: Map<string, number>) => [...m.values()].reduce((a, b) => a + b, 0);
+
+/** Grenzen für Bilder in der App je Lehrkraft (MB, 0 = keine) – der Admin stellt sie ein. */
+export const IMAGE_QUOTA_KEY = 'image_quota';
+export const DEFAULT_IMAGE_QUOTA = { warnMb: 20, limitMb: 50 };
+const MB = 1024 * 1024;
+
 /** Dateiname mit passender Endung; Endung des Typs gewinnt. */
 export function imageFileName(original: string, mime: string): string {
   const ext = IMAGE_TYPES[mime] || 'png';
@@ -160,6 +183,7 @@ export class NextcloudService implements OnApplicationBootstrap {
       };
     }
     if (l.verifiedAt && l.serverFolder && !l.legacyMovedAt) this.startAdopt(l, false);
+    if (l.imageShareToken) void this.checkReadShareAlive(l).catch(() => undefined);
     return {
       configured: true,
       ready: !!l.verifiedAt,
@@ -171,6 +195,7 @@ export class NextcloudService implements OnApplicationBootstrap {
         hasPassword: !!l.passwordSealed,
       },
       directImages: !!l.imageShareToken,
+      readShareLostAt: l.readShareLostAt,
       verifiedAt: l.verifiedAt,
       imagesFolder: IMAGES,
       openUrl: this.shareLink(l),
@@ -200,6 +225,7 @@ export class NextcloudService implements OnApplicationBootstrap {
       readToken = read.token;
     }
     const l = (await this.find(user.userId)) || this.linkRepo.create({ id: crypto.randomUUID(), userId: user.userId });
+    const oldRead = l.imageShareToken && l.baseUrl ? { base: l.baseUrl, token: l.imageShareToken } : null;
     // Noch keine Freigabe gespeichert: Ein altes Passwort (etwa das App-Passwort
     // der Vorversion) gilt nicht als Passwort der Freigabe.
     if (!l.shareToken) l.passwordSealed = null;
@@ -207,9 +233,16 @@ export class NextcloudService implements OnApplicationBootstrap {
     if (input.password !== undefined && input.password !== null && String(input.password) !== '') {
       l.passwordSealed = this.masterKey.sealSecret(String(input.password));
     }
-    Object.assign(l, { baseUrl: base, shareToken: share.token, imageShareToken: readToken, appBase });
+    Object.assign(l, { baseUrl: base, shareToken: share.token, imageShareToken: readToken, appBase, readShareLostAt: null });
     await this.linkRepo.save(l);
-    return this.verify(user, appBase);
+    const res: any = await this.verify(user, appBase);
+    // Lesefreigabe entfernt oder gewechselt: direkte Links auf die alte umhängen,
+    // damit die alte Freigabe danach gelöscht werden kann.
+    if (oldRead && oldRead.token !== readToken) {
+      const n = await this.relinkReadShare(l, oldRead.base, oldRead.token);
+      if (n) res.message += ` ${n} Modul(e) zeigen jetzt ${readToken ? 'auf die neue Lesefreigabe' : 'auf den Weg über diesen Server'} – die alte Lesefreigabe kann in der Nextcloud gelöscht werden.`;
+    }
+    return res;
   }
 
   /**
@@ -351,6 +384,79 @@ export class NextcloudService implements OnApplicationBootstrap {
     return this.readImage(m[2], decodeURIComponent(m[3]), decodeURIComponent(m[4]), m[1] === 'school');
   }
 
+  // ---- Grenze für Bilder in der App ----
+
+  async quotaSettings(): Promise<{ warnMb: number; limitMb: number }> {
+    const row = await this.configRepo.findOne({ where: { key: IMAGE_QUOTA_KEY } });
+    return { ...DEFAULT_IMAGE_QUOTA, ...(row?.value || {}) };
+  }
+
+  /** Admin: `{ warnMb, limitMb }` – ganze MB, 0 = keine Grenze. */
+  async saveQuotaSettings(input: any) {
+    const int = (v: any, what: string) => {
+      const n = Number(v);
+      if (!Number.isInteger(n) || n < 0 || n > 100000) throw new BadRequestException(`${what}: bitte eine ganze Zahl ab 0 (MB).`);
+      return n;
+    };
+    const cur = await this.quotaSettings();
+    const next = {
+      warnMb: input.warnMb !== undefined ? int(input.warnMb, 'Hinweis ab') : cur.warnMb,
+      limitMb: input.limitMb !== undefined ? int(input.limitMb, 'Grenze') : cur.limitMb,
+    };
+    if (next.warnMb && next.limitMb && next.warnMb > next.limitMb) throw new BadRequestException('Der Hinweis muss vor der Grenze kommen.');
+    await this.configRepo.save(this.configRepo.create({ key: IMAGE_QUOTA_KEY, value: next }));
+    return next;
+  }
+
+  /**
+   * Bilder in der App aus selbst verfassten Modulen der eigenen Themen – was
+   * „Vorhandene Bilder auslagern“ in die Nextcloud bringen kann. Gekauftes
+   * und Übernommenes zählt nicht. `except`: dieses Modul auslassen.
+   */
+  private async appImages(userId: string, except?: string) {
+    const qb = this.moduleRepo.createQueryBuilder('m')
+      .innerJoin('m.topic', 't')
+      .select(['m.id', 'm.content'])
+      .where('m.creatorId = :u AND t.ownerId = :u AND m.content LIKE :d', { u: userId, d: '%data:image/%' });
+    const rows = await qb.getMany();
+    return dataImageSizes(rows.filter((m) => m.id !== except).map((m) => m.content));
+  }
+
+  /** Stand für die Oberfläche: belegt, Hinweis ab, Grenze (Bytes, 0 = keine), Nextcloud verbunden? */
+  async quota(user: any) {
+    const q = await this.quotaSettings();
+    const ready = await this.isReady(user.userId);
+    const used = sum(await this.appImages(user.userId));
+    const warn = q.warnMb * MB;
+    const limit = q.limitMb * MB;
+    return {
+      usedBytes: used, warnBytes: warn, limitBytes: limit, nextcloud: ready,
+      state: ready ? 'nextcloud' : limit && used >= limit ? 'full' : warn && used >= warn ? 'warn' : 'ok',
+    };
+  }
+
+  /**
+   * Beim Speichern eines Moduls: Kommen Bilder in der App dazu, obwohl die
+   * Grenze erreicht ist, wird abgelehnt. Ohne neue Bilder geht Speichern
+   * immer – auch über der Grenze. Mit Nextcloud gibt es keine Grenze.
+   */
+  async assertAppImagesAllowed(user: any, module: { id?: string; topicOwnerId?: string; creatorId?: string | null }, oldContent: any, newContent: any) {
+    const before = dataImageSizes([oldContent]);
+    const after = dataImageSizes([newContent]);
+    const added = [...after.keys()].filter((k) => !before.has(k));
+    if (!added.length) return;
+    // Nur, was zählt: selbst verfasst im eigenen Thema.
+    if (module.creatorId !== user.userId || module.topicOwnerId !== user.userId) return;
+    const { limitMb } = await this.quotaSettings();
+    if (!limitMb || (await this.isReady(user.userId))) return;
+    const others = await this.appImages(user.userId, module.id);
+    for (const [k, v] of after) others.set(k, v);
+    if (sum(others) > limitMb * MB) {
+      throw new BadRequestException(`Deine Bilder in der App haben die Grenze von ${limitMb} MB erreicht – neue Bilder lassen sich nicht mehr in der App speichern. `
+        + 'Bitte im Home-Menü unter ☁️ Nextcloud eine Freigabe verbinden (dort lassen sich auch die vorhandenen Bilder auslagern) – oder das neue Bild wieder entfernen.');
+    }
+  }
+
   // ---- Bilder aus dem früheren Ordner der Schule übernehmen ----
 
   /** Laufende Übernahmen (Benutzer-ID) – nie zwei gleichzeitig für dieselbe Lehrkraft. */
@@ -432,6 +538,9 @@ export class NextcloudService implements OnApplicationBootstrap {
           this.logger.log(`Alte Bilder-Links umgehängt: ${r.modules} Module, ${r.drafts} Entwürfe, ${r.copied} Bilder kopiert, ${r.reused} schon da, ${r.missing} nicht gefunden, ${r.skipped} ohne Freigabe der Lehrkraft`);
         }
       }).catch((err) => this.logger.warn(`Alte Bilder-Links umhängen fehlgeschlagen: ${err?.message || err}`));
+      void this.linkRepo.find().then(async (links) => {
+        for (const l of links) if (l.imageShareToken) await this.checkReadShareAlive(l).catch(() => undefined);
+      }).catch(() => undefined);
     }, 5000);
   }
 
@@ -580,6 +689,72 @@ export class NextcloudService implements OnApplicationBootstrap {
       return out;
     }
     return value;
+  }
+
+  // ---- Lesefreigabe: zurückgezogen oder verschwunden ----
+
+  /**
+   * Gibt es die Lesefreigabe noch? Höchstens alle 6 Stunden geprüft. Ist sie
+   * in der Nextcloud gelöscht (404), laufen die Bilder ab jetzt über diesen
+   * Server: Kürzel vergessen, direkte Links umhängen, Hinweis im Dialog.
+   * Netzfehler zählen nicht – nur eine klare Antwort „gibt es nicht“.
+   */
+  async checkReadShareAlive(l: NextcloudLink, force = false) {
+    if (!l.imageShareToken || !l.baseUrl || !l.verifiedAt) return true;
+    if (!force && l.readShareCheckedAt && Date.now() - new Date(l.readShareCheckedAt).getTime() < 6 * 3600 * 1000) return true;
+    l.readShareCheckedAt = new Date();
+    await this.linkRepo.update({ id: l.id }, { readShareCheckedAt: l.readShareCheckedAt });
+    await assertPublicHost(l.baseUrl);
+    const res = await fetch(`${l.baseUrl}/s/${encodeURIComponent(l.imageShareToken)}`, { redirect: 'manual' });
+    if (res.status !== 404) return true;
+    const token = l.imageShareToken;
+    Object.assign(l, { imageShareToken: null, readShareLostAt: new Date() });
+    await this.linkRepo.update({ id: l.id }, { imageShareToken: null, readShareLostAt: l.readShareLostAt });
+    const n = await this.relinkReadShare(l, l.baseUrl, token);
+    this.logger.warn(`Lesefreigabe von ${l.userId} nicht mehr vorhanden – ${n} Modul(e) auf den Weg über den Server umgestellt`);
+    return false;
+  }
+
+  /**
+   * Direkte Links einer (alten) Lesefreigabe – …/s/<Kürzel>/download?path=/<Ordner>&files=<Datei>,
+   * im HTML auch mit &amp; – auf den aktuellen Weg umhängen (neue
+   * Lesefreigabe oder über diesen Server). Liefert die Zahl geänderter Module
+   * und Entwürfe. Die Dateien liegen ja weiter in Bilder/ der Freigabe.
+   */
+  async relinkReadShare(l: NextcloudLink, base: string, token: string) {
+    const esc = (x: string) => x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const re = new RegExp(`${esc(base)}/s/${esc(token)}/download\\?path=([^&"'\\s<>#]*)&(?:amp;)?files=([^&"'\\s<>#]+)`, 'g');
+    const swap = (v: any): any => {
+      if (typeof v === 'string') {
+        return v.includes(`/s/${token}/`) ? v.replace(re, (m, path: string, file: string) => {
+          try {
+            const sub = decodeURIComponent(path).replace(/^\/+|\/+$/g, '');
+            const name = decodeURIComponent(file);
+            return sub && safePart(sub) && safePart(name) ? this.imageUrl(l, sub, name) : m;
+          } catch { return m; }
+        }) : v;
+      }
+      if (Array.isArray(v)) return v.map(swap);
+      if (v && typeof v === 'object') {
+        const out: any = {};
+        for (const [k, x] of Object.entries(v)) out[k] = swap(x);
+        return out;
+      }
+      return v;
+    };
+    const needle = `%/s/${token}/download%`;
+    let n = 0;
+    const mods = await this.moduleRepo.createQueryBuilder('m').select(['m.id', 'm.content']).where('m.content LIKE :n', { n: needle }).getMany();
+    for (const m of mods) {
+      const next = swap(m.content);
+      if (JSON.stringify(next) !== JSON.stringify(m.content)) { await this.moduleRepo.update({ id: m.id }, { content: next }); n++; }
+    }
+    const drafts = await this.draftRepo.createQueryBuilder('d').select(['d.id', 'd.data']).where('d.data LIKE :n', { n: needle }).getMany();
+    for (const d of drafts) {
+      const next = swap(d.data);
+      if (JSON.stringify(next) !== JSON.stringify(d.data)) { await this.draftRepo.update({ id: d.id }, { data: next }); n++; }
+    }
+    return n;
   }
 
   /** Ordnername eines Themas: sein Titel (lesbar in der Nextcloud). */

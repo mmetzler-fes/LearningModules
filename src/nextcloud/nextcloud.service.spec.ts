@@ -1,4 +1,4 @@
-import { NextcloudService } from './nextcloud.service';
+import { NextcloudService, dataImageSizes } from './nextcloud.service';
 
 const CLOUD = 'https://93.184.216.34'; // öffentliche Adresse – keine DNS-Abfrage nötig
 const APP = 'https://lm.schule.de';
@@ -11,6 +11,7 @@ const USER_ID = 'a1b2c3d4-0000-4000-8000-000000000001';
 function fakeNextcloud() {
   const files = new Map<string, Buffer>();
   const calls: string[] = [];
+  const alive = new Set(['LeseTok', 'NeuTok']); // offene Lesefreigaben, die es gibt
   const impl = async (url: string, init: any = {}) => {
     const method = init.method || 'GET';
     calls.push(`${method} ${url}`);
@@ -43,6 +44,7 @@ function fakeNextcloud() {
     if (method === 'MKCOL') return res(201);
     if (method === 'PUT') { files.set(key, Buffer.from(init.body)); return res(201); }
     if (method === 'DELETE') { files.delete(key); return res(204); }
+    if (method === 'GET' && /\/s\/[^/?]+$/.test(url)) return res(alive.has(url.split('/s/')[1]) ? 200 : 404);
     if (method === 'GET') {
       // Lesefreigabe: /s/<Kürzel>/download?path=/&files=<Datei> → im Bilder-Ordner der eigenen Freigabe
       const m = /\/s\/[^/]+\/download\?path=([^&]*)&files=(.*)$/.exec(url);
@@ -51,7 +53,7 @@ function fakeNextcloud() {
     }
     return res(405);
   };
-  return { files, calls, impl };
+  return { files, calls, alive, impl };
 }
 
 /** Repositories im Speicher, mit LIKE-Suche über den JSON-Inhalt. */
@@ -60,10 +62,12 @@ function fakeRepo(rows: any[], field: string) {
     rows,
     createQueryBuilder: () => {
       let needle = '';
+      let creator: string | undefined;
       const qb: any = {
         select: () => qb,
-        where: (_c: string, p: any) => { needle = String(p.n).replace(/^%|%$/g, ''); return qb; },
-        getMany: async () => rows.filter((r) => JSON.stringify(r[field]).includes(needle)),
+        innerJoin: () => qb,
+        where: (_c: string, p: any) => { needle = String(p.n ?? p.d).replace(/^%|%$/g, ''); creator = p.u; return qb; },
+        getMany: async () => rows.filter((r) => JSON.stringify(r[field]).includes(needle) && (!creator || r.creatorId === creator)),
       };
       return qb;
     },
@@ -85,7 +89,12 @@ function setup(cloudBackup: any) {
     find: async ({ where }: any) => topics.filter((t) => where.id._value.includes(t.id)),
   };
   const moduleRepo: any = { ...fakeRepo([], 'content'), find: async () => [] };
-  const configRepo: any = { findOne: async () => (cloudBackup ? { value: cloudBackup } : null) };
+  const config = new Map<string, any>(cloudBackup ? [['cloud_backup_config', cloudBackup]] : []);
+  const configRepo: any = {
+    findOne: async ({ where }: any) => (config.has(where.key) ? { value: config.get(where.key) } : null),
+    create: (x: any) => x,
+    save: async (x: any) => config.set(x.key, x.value),
+  };
   const draftRepo: any = fakeRepo([], 'data');
   const masterKey: any = { sealSecret: (s: string) => `sealed:${s}`, unsealSecret: (s: string) => s.replace(/^sealed:/, '') };
   return { links, topics, moduleRepo, draftRepo, svc: new NextcloudService(linkRepo, topicRepo, moduleRepo, configRepo, draftRepo, masterKey) };
@@ -259,5 +268,100 @@ describe('Nextcloud: alte Links im ganzen Material umhängen', () => {
     env.moduleRepo.rows.push({ id: 'm', topicId: 'tq', content: { image: oldUrl('Reisen', 'gate.png') } });
     expect(await env.svc.relinkAll()).toMatchObject({ modules: 0, skipped: 1 });
     expect(env.moduleRepo.rows[0].content.image).toBe(oldUrl('Reisen', 'gate.png'));
+  });
+});
+
+describe('Grenze für Bilder in der App', () => {
+  let cloud: ReturnType<typeof fakeNextcloud>;
+  beforeEach(() => { cloud = fakeNextcloud(); jest.spyOn(global, 'fetch').mockImplementation(cloud.impl as any); });
+  afterEach(() => jest.restoreAllMocks());
+
+  const img = (kb: number, seed = 'a') => `data:image/png;base64,${Buffer.alloc(kb * 1024, seed).toString('base64')}`;
+  const mine = { id: 'm1', creatorId: USER_ID, topicOwnerId: USER_ID };
+
+  it('zählt gleiche Bilder einmal', () => {
+    const sizes = dataImageSizes([{ a: img(10) }, { b: [img(10), `<img src="${img(5, 'b')}">`] }]);
+    expect(sizes.size).toBe(2);
+    expect([...sizes.values()].sort((x, y) => x - y)).toEqual([5 * 1024, 10 * 1024]);
+  });
+
+  it('Standard: Hinweis ab 20 MB, Grenze 50 MB – der Admin stellt um', async () => {
+    const { svc } = setup(null);
+    expect(await svc.quotaSettings()).toEqual({ warnMb: 20, limitMb: 50 });
+    await expect(svc.saveQuotaSettings({ warnMb: 60 })).rejects.toThrow(/vor der Grenze/);
+    expect(await svc.saveQuotaSettings({ warnMb: 1, limitMb: 2 })).toEqual({ warnMb: 1, limitMb: 2 });
+    expect(await svc.quotaSettings()).toEqual({ warnMb: 1, limitMb: 2 });
+  });
+
+  it('lehnt nur neu hinzugekommene Bilder über der Grenze ab', async () => {
+    const { svc, moduleRepo } = setup(null);
+    await svc.saveQuotaSettings({ warnMb: 1, limitMb: 2 });
+    moduleRepo.rows.push({ id: 'alt', creatorId: USER_ID, content: { image: img(1500, 'x') } });
+    expect(await svc.quota(user)).toMatchObject({ state: 'warn', usedBytes: 1500 * 1024 });
+    // Neues Bild darüber hinaus → abgelehnt
+    await expect(svc.assertAppImagesAllowed(user, mine, null, { image: img(600) })).rejects.toThrow(/Grenze von 2 MB/);
+    // Ohne neues Bild geht Speichern immer
+    await expect(svc.assertAppImagesAllowed(user, mine, { image: img(600) }, { image: img(600), text: 'neu' })).resolves.toBeUndefined();
+    // Kleines Bild passt noch
+    await expect(svc.assertAppImagesAllowed(user, mine, null, { image: img(100) })).resolves.toBeUndefined();
+    // Gekauftes / fremdes Thema zählt nicht
+    await expect(svc.assertAppImagesAllowed(user, { ...mine, topicOwnerId: 'jemand' }, null, { image: img(900) })).resolves.toBeUndefined();
+    // Grenze 0 = keine
+    await svc.saveQuotaSettings({ warnMb: 0, limitMb: 0 });
+    await expect(svc.assertAppImagesAllowed(user, mine, null, { image: img(900) })).resolves.toBeUndefined();
+  });
+
+  it('mit Nextcloud gibt es keine Grenze', async () => {
+    const { svc, moduleRepo } = setup(null);
+    await svc.saveQuotaSettings({ warnMb: 1, limitMb: 1 });
+    moduleRepo.rows.push({ id: 'alt', creatorId: USER_ID, content: { image: img(1500, 'x') } });
+    await svc.connect(user, { shareUrl: `${CLOUD}/s/EigenTok`, password: 'pw' }, APP);
+    expect(await svc.quota(user)).toMatchObject({ state: 'nextcloud' });
+    await expect(svc.assertAppImagesAllowed(user, mine, null, { image: img(900) })).resolves.toBeUndefined();
+  });
+});
+
+describe('Lesefreigabe zurückziehen', () => {
+  let cloud: ReturnType<typeof fakeNextcloud>;
+  beforeEach(() => { cloud = fakeNextcloud(); jest.spyOn(global, 'fetch').mockImplementation(cloud.impl as any); });
+  afterEach(() => jest.restoreAllMocks());
+
+  const direct = (tok: string) => `${CLOUD}/s/${tok}/download?path=%2FEnglisch%20Reisen&files=gate%20(1).png`;
+
+  async function withReadShare() {
+    const env = setup(null);
+    await env.svc.connect(user, { shareUrl: `${CLOUD}/s/EigenTok`, password: 'pw', readShareUrl: `${CLOUD}/s/LeseTok` }, APP);
+    env.moduleRepo.rows.push({ id: 'm', content: { image: direct('LeseTok'), html: `<img src="${direct('LeseTok').replace('&', '&amp;')}">` } });
+    const proxy = `${APP}/api/nextcloud/files/${env.links[0].id}/Englisch%20Reisen/gate%20(1).png`;
+    return { ...env, proxy };
+  }
+
+  it('Feld geleert: direkte Links laufen über den Server', async () => {
+    const { svc, moduleRepo, proxy } = await withReadShare();
+    const res: any = await svc.connect(user, { shareUrl: `${CLOUD}/s/EigenTok`, readShareUrl: '' }, APP);
+    expect(moduleRepo.rows[0].content).toEqual({ image: proxy, html: `<img src="${proxy}">` });
+    expect(res.message).toMatch(/alte Lesefreigabe kann in der Nextcloud gelöscht werden/);
+  });
+
+  it('neue Lesefreigabe: Links zeigen auf die neue', async () => {
+    const { svc, moduleRepo } = await withReadShare();
+    cloud.files.set('EigenTok/public.php/webdav/Bilder/lm-verbindungstest.txt', Buffer.from('')); // Prüfdatei wird neu geschrieben
+    await svc.connect(user, { shareUrl: `${CLOUD}/s/EigenTok`, readShareUrl: `${CLOUD}/s/NeuTok` }, APP);
+    expect(moduleRepo.rows[0].content.image).toBe(direct('NeuTok'));
+  });
+
+  it('in der Nextcloud gelöscht: erkannt, umgestellt, Hinweis', async () => {
+    const { svc, moduleRepo, links, proxy } = await withReadShare();
+    cloud.alive.delete('LeseTok');
+    expect(await svc.checkReadShareAlive(links[0], true)).toBe(false);
+    expect(moduleRepo.rows[0].content.image).toBe(proxy);
+    expect(links[0].imageShareToken).toBeNull();
+    expect(await svc.status(user)).toMatchObject({ directImages: false, readShareLostAt: expect.any(Date) });
+  });
+
+  it('noch da: nichts ändert sich', async () => {
+    const { svc, moduleRepo, links } = await withReadShare();
+    expect(await svc.checkReadShareAlive(links[0], true)).toBe(true);
+    expect(moduleRepo.rows[0].content.image).toBe(direct('LeseTok'));
   });
 });

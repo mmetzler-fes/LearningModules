@@ -35,6 +35,14 @@ export class NextcloudLink extends BaseEntity {
   @Column({ type: 'varchar', nullable: true })
   imageShareToken: string | null;
 
+  /** Die Lesefreigabe war in der Nextcloud nicht mehr da – Links laufen seitdem über den Server (Hinweis im Dialog). */
+  @Column({ type: 'datetime', nullable: true })
+  readShareLostAt: Date | null;
+
+  /** Zuletzt geprüft, ob die Lesefreigabe noch erreichbar ist. */
+  @Column({ type: 'datetime', nullable: true })
+  readShareCheckedAt: Date | null;
+
   /**
    * Früher: Unterordner im Nextcloud-Ordner der Schule (Admin-Backup), wenn
    * die Lehrkraft keine eigene Freigabe hatte: Bilder/<serverFolder>/<Thema>/.

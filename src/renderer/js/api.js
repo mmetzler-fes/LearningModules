@@ -497,6 +497,9 @@ export class BrowserApi {
   saveNextcloudBackup(body) { return this._fetch('/api/nextcloud/backup', { method: 'POST', body: JSON.stringify(body) }); }
   runNextcloudBackup() { return this._fetch('/api/nextcloud/backup/run', { method: 'POST' }); }
   getNextcloudMigration() { return this._fetch('/api/nextcloud/migrate'); }
+  getImageQuota() { return this._fetch('/api/nextcloud/quota'); }
+  getImageQuotaSettings() { return this._fetch('/api/nextcloud/quota-settings'); }
+  saveImageQuotaSettings(body) { return this._fetch('/api/nextcloud/quota-settings', { method: 'POST', body: JSON.stringify(body) }); }
   migrateNextcloudTopic(topicId) { return this._fetch('/api/nextcloud/migrate', { method: 'POST', body: JSON.stringify({ topicId }) }); }
   /** `extra`: { folder, name, replace } – Ordner statt Thema, Dateiname, gleichnamiges ersetzen. */
   async uploadNextcloudImage(file, topicId, extra = {}) {

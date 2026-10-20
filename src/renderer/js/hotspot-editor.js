@@ -77,8 +77,18 @@
       });
       this.root.querySelector('.hs-ed-compose').addEventListener('click', async () => {
         if (typeof openImageComposer !== 'function') return;
-        const dataUrl = await openImageComposer();
+        const composed = await openImageComposer();
+        if (!composed) return;
+        // Wie jedes Bild: Nextcloud oder App mit Grenze (views/image-store.js).
+        const dataUrl = window.appImages ? await window.appImages.store(composed, 'zusammenstellung.png') : composed;
         if (!dataUrl) return;
+        if (!String(dataUrl).startsWith('data:')) {
+          this.state.imageUrl = dataUrl;
+          this.state.imageFile = '';
+          urlInput.value = dataUrl;
+          this.renderCanvas();
+          return;
+        }
         this.state.imageFile = dataUrl;
         this.renderCanvas();
       });

@@ -22,6 +22,7 @@ import { NotebooksView } from './views/notebooks.js';
 import { CategoriesAdminView } from './views/categories-admin.js';
 import { FederationAdminView } from './views/federation-admin.js';
 import { nextcloudState, uploadImageToNextcloud, pickNextcloudImage } from './views/nextcloud.js';
+import { storeImage } from './views/image-store.js';
 import { contentFromPairs, pairsFromContent } from './dnd-pairs.js';
 
 // ==================== APP COORDINATOR ====================
@@ -552,5 +553,10 @@ window.appNextcloud = {
   get ready() { return nextcloudState.ready; },
   upload: (file) => uploadImageToNextcloud(app, file),
   pick: () => pickNextcloudImage(app),
+};
+// Jedes Bild für ein Modul (views/image-store.js): Nextcloud oder – verkleinert,
+// mit Grenze – in die App. store(File|Blob|data:-URL, name) → Link | data:-URL | false
+window.appImages = {
+  store: (input, name) => storeImage(app, input, name),
 };
 app.init();

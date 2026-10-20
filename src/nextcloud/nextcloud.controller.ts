@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Delete, Body, Query, Param, UseGuards, Request, Res, UploadedFile, UseInterceptors } from '@nestjs/common';
+import { Controller, Get, Post, Delete, Body, Query, Param, UseGuards, Request, Res, UploadedFile, UseInterceptors, ForbiddenException } from '@nestjs/common';
 import type { Response } from 'express';
 import { baseUrl } from '../core/share/link-url';
 import { FileInterceptor } from '@nestjs/platform-express';
@@ -18,6 +18,25 @@ export class NextcloudController {
   @Get()
   async status(@Request() req: any) {
     return this.nextcloud.status(req.user);
+  }
+
+  /** Bilder in der App: belegt, Hinweis ab, Grenze – für den Hinweis beim Einfügen. */
+  @Get('quota')
+  async quota(@Request() req: any) {
+    return this.nextcloud.quota(req.user);
+  }
+
+  /** Admin: Grenzen für Bilder in der App (MB, 0 = keine). */
+  @Get('quota-settings')
+  async quotaSettings(@Request() req: any) {
+    if (req.user.role !== 'admin') throw new ForbiddenException('Nur Admins haben Zugriff.');
+    return this.nextcloud.quotaSettings();
+  }
+
+  @Post('quota-settings')
+  async saveQuotaSettings(@Request() req: any, @Body() body: any) {
+    if (req.user.role !== 'admin') throw new ForbiddenException('Nur Admins haben Zugriff.');
+    return this.nextcloud.saveQuotaSettings(body || {});
   }
 
   /** `{ shareUrl, password?, readShareUrl? }` – speichert und prüft gleich. */

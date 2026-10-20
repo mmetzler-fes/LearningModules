@@ -67,17 +67,10 @@ window.appApi = {
       input.onchange = async (e) => {
         const file = e.target.files[0];
         if (!file) return resolve({ success: false });
-        if (window.appNextcloud && window.appNextcloud.ready) {
-          const url = await window.appNextcloud.upload(file);
-          if (url) return resolve({ success: true, dataUrl: url, nextcloud: true });
-          if (url === false) return resolve({ success: false }); // abgebrochen
-        }
-        const reader = new FileReader();
-        reader.onload = (ev) => {
-          resolve({ success: true, dataUrl: ev.target.result });
-        };
-        reader.onerror = () => resolve({ success: false });
-        reader.readAsDataURL(file);
+        // Nextcloud oder – verkleinert und mit Grenze – in die App (views/image-store.js).
+        const url = await window.appImages.store(file, file.name).catch(() => false);
+        if (!url) return resolve({ success: false }); // abgebrochen oder Grenze erreicht
+        resolve({ success: true, dataUrl: url, nextcloud: !String(url).startsWith('data:') });
       };
       input.click();
     });

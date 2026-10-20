@@ -2,6 +2,7 @@ import { Injectable, NotFoundException, ForbiddenException, BadRequestException 
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, IsNull, Repository } from 'typeorm';
 import { LearningTopic } from '../core/entities/learning-topic.entity';
+import { NextcloudService } from '../nextcloud/nextcloud.service';
 import { LearningModule } from '../core/entities/learning-module.entity';
 import { User } from '../core/entities/user.entity';
 import { TopicQuickLink } from '../core/entities/topic-quick-link.entity';
@@ -32,6 +33,7 @@ function withoutUploadTarget<T>(m: T): T {
 export class TopicsService {
   constructor(
     private readonly shop: ShopService,
+    private readonly nextcloud: NextcloudService,
     private readonly categories: CategoriesService,
     @InjectRepository(LearningTopic)
     private readonly topicRepo: Repository<LearningTopic>,
@@ -660,6 +662,10 @@ export class TopicsService {
     // Ebenso die Herkunft: Sie entsteht nur beim Kopieren auf dem Server.
     const { creatorId: _ignored, originId: _origin, ...data } = moduleData as any;
     const creatorId = existing ? existing.creatorId : user.userId;
+    // Grenze für Bilder in der App (docs/nextcloud.md) – nur neu hinzugekommene zählen.
+    if (data.content !== undefined) {
+      await this.nextcloud.assertAppImagesAllowed(user, { id: existing?.id, topicOwnerId: topic.ownerId, creatorId }, existing?.content, data.content);
+    }
 
     const module = this.moduleRepo.create({
       ...data,

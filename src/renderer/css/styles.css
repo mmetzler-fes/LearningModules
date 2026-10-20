@@ -3582,6 +3582,12 @@ body {
 .tag-area-children { display: flex; flex-wrap: wrap; gap: 10px; }
 
 .tag-area-settings { grid-column: 1 / -1; display: flex; flex-direction: column; gap: 10px; }
+/* Knopf ☁️ Nextcloud: Bilder in der App über dem Hinweis (views/image-store.js) */
+#btnNextcloud.nc-attention { position: relative; }
+#btnNextcloud.nc-attention::after {
+  content: ''; position: absolute; top: -3px; right: -3px; width: 10px; height: 10px;
+  border-radius: 50%; background: var(--warning, #f59e0b); border: 2px solid var(--bg-primary, #fff);
+}
 .tag-shop-cat-line { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 .tag-shop-cat-picker:not(:empty) { margin-top: 8px; }
 .tag-cats { margin: 0 8px; color: var(--text-secondary); }

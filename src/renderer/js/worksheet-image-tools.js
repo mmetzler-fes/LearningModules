@@ -65,12 +65,10 @@
    */
   async function storeImage(file) {
     const data = await readImage(file);
-    const nc = window.appNextcloud;
-    if (!nc || !nc.ready || !String(data.src).startsWith('data:')) return data;
-    const blob = await (await fetch(data.src)).blob();
-    const url = await nc.upload(new File([blob], file.name || 'bild', { type: blob.type }));
-    if (url === false) return null;
-    return url ? { ...data, src: url } : data;
+    if (!String(data.src).startsWith('data:') || !window.appImages) return data;
+    // Nextcloud oder App mit Grenze (views/image-store.js); false = abgebrochen.
+    const src = await window.appImages.store(data.src, file.name || 'bild.png');
+    return src ? { ...data, src } : null;
   }
 
   function pickFile() {
@@ -113,7 +111,9 @@
       compose.addEventListener('mousedown', (e) => e.preventDefault());
       compose.addEventListener('click', async () => {
         if (typeof openImageComposer !== 'function') return;
-        const dataUrl = await openImageComposer();
+        const composed = await openImageComposer();
+        if (!composed) return;
+        const dataUrl = window.appImages ? await window.appImages.store(composed, 'zusammenstellung.png') : composed;
         if (!dataUrl) return;
         const el = document.createElement('img');
         el.src = dataUrl;

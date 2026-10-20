@@ -487,6 +487,8 @@ export class AdminView {
       const [imp, key] = await Promise.all([this.app.api.getImpactSettings(), this.app.api.getMasterKeyStatus()]);
       const set = (id, v) => { const el = document.getElementById(id); if (el) el.value = v ?? ''; };
       set('impShareHint', imp.shareHintAfter);
+      const iq = await this.app.api.getImageQuotaSettings().catch(() => null);
+      if (iq && typeof iq.limitMb === 'number') { set('iqWarn', iq.warnMb); set('iqLimit', iq.limitMb); }
       const status = document.getElementById('masterKeyStatus');
       if (status) {
         status.innerHTML = key.fingerprint
@@ -711,6 +713,15 @@ export class AdminView {
     document.getElementById('btnSaveImpact')?.addEventListener('click', async () => {
       const res = await this.app.api.saveImpactSettings({ shareHintAfter: Number(document.getElementById('impShareHint')?.value) });
       if (res && typeof res.shareHintAfter === 'number') this.app.showToast('Gespeichert', 'success');
+      else this.app.showToast('Fehler: ' + (res?.message || '?'), 'error');
+    });
+
+    document.getElementById('btnSaveImageQuota')?.addEventListener('click', async () => {
+      const res = await this.app.api.saveImageQuotaSettings({
+        warnMb: Number(document.getElementById('iqWarn')?.value || 0),
+        limitMb: Number(document.getElementById('iqLimit')?.value || 0),
+      });
+      if (res && typeof res.limitMb === 'number') this.app.showToast('Gespeichert', 'success');
       else this.app.showToast('Fehler: ' + (res?.message || '?'), 'error');
     });
 

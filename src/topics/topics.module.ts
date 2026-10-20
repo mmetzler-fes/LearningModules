@@ -15,6 +15,7 @@ import { TopicLink } from '../core/entities/topic-link.entity';
 import { TagsModule } from '../tags/tags.module';
 import { ShopModule } from '../shop/shop.module';
 import { CategoriesModule } from '../categories/categories.module';
+import { NextcloudModule } from '../nextcloud/nextcloud.module';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { CategoriesModule } from '../categories/categories.module';
     TagsModule,
     ShopModule,
     CategoriesModule,
+    NextcloudModule,
   ],
   controllers: [TopicsController],
   providers: [TopicsService],

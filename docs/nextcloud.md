@@ -81,14 +81,23 @@ lesen können (Bildauswahl, Auslieferung an Schüler).
 
 Schülerinnen und Schüler kennen das Passwort nicht. Deshalb holt **dieser
 Server** die Bilder mit dem Passwort aus der Nextcloud und reicht sie durch –
-er speichert sie dabei nicht. In der Nextcloud ist nichts öffentlich.
+er speichert sie dabei nicht.
+
+**Ohne Lesefreigabe (empfohlen):** Der Ordner bleibt durch das Passwort
+geschützt; niemand außer dir und dem Server kann ihn öffnen oder
+durchblättern. Im Modul steht ein Link auf diesen Server
+(`…/api/nextcloud/files/<Kennung>/<Thema>/<Bild>`). Wer einen solchen Link hat –
+etwa aus einem Quiz kopiert –, kann dieses **eine Bild** ansehen, ohne
+Anmeldung (Schüler haben keine), aber weder den Ordner noch andere Bilder.
 
 **Optional – direkt aus der Nextcloud:** Wer den Server entlasten will, teilt
 den Unterordner `Bilder` zusätzlich **nur lesend und ohne Passwort** und trägt
 diesen Link unter *Optional: Bilder direkt aus der Nextcloud laden* ein. Die
 App prüft beim Verbinden, dass er wirklich auf `Bilder` zeigt. Dann laden die
-Schüler die Bilder direkt – sie sind aber für jeden mit Link sichtbar, also
-**keine Fotos von Schülerinnen und Schülern**.
+Schüler die Bilder direkt aus der Nextcloud. Der Link dieser Lesefreigabe
+steckt aber in jedem Bild-Link – **wer ein Bild aus einem Modul hat, kann damit
+den ganzen Ordner `Bilder` ansehen und herunterladen**. Nur für Bilder, die
+öffentlich sein dürfen – **keine Fotos von Schülerinnen und Schülern**.
 
 **Lesefreigabe zurückziehen:** Erst im Dialog das Feld leeren und
 **🔌 Verbinden** wählen. Dann hängt die App alle direkten Links in den Modulen

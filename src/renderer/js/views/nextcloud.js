@@ -388,11 +388,13 @@ export async function openNextcloudDialog(app) {
             placeholder="${c.hasPassword ? 'gespeichert – leer lassen = unverändert' : 'Passwort, das du beim Teilen gesetzt hast'}" />
         </div>
         <details class="nc-advanced" ${c.readShareUrl ? 'open' : ''}>
-          <summary>Optional: Bilder direkt aus der Nextcloud laden</summary>
-          <p class="hint">Ohne Angabe holt dieser Server die Bilder mit dem Passwort und reicht sie an die Schüler durch – in der
-            Nextcloud ist dann nichts öffentlich. Soll der Server das nicht tun, den Unterordner <code>Bilder</code> zusätzlich
-            <strong>nur lesend und ohne Passwort</strong> teilen und den Link hier eintragen. Diese Bilder sind dann für jeden mit
-            Link sichtbar – keine Fotos von Schülerinnen und Schülern.</p>
+          <summary>Optional: Bilder direkt aus der Nextcloud laden (entlastet diesen Server)</summary>
+          <p class="hint"><strong>Ohne Eintrag (empfohlen):</strong> Dein Ordner bleibt durch das Passwort geschützt. Schüler bekommen
+            die Bilder über diesen Server – wer ein Bild im Modul sieht, kann nur dieses eine Bild aufrufen, nicht deinen Ordner.</p>
+          <p class="hint"><strong>Mit Eintrag:</strong> Den Unterordner <code>Bilder</code> zusätzlich <strong>ohne Passwort, nur
+            lesend</strong> teilen und den Link hier eintragen. Dann laden Schüler direkt aus der Nextcloud – aber <strong>jeder, der
+            ein Bild aus einem Modul hat, kann damit den ganzen Ordner <code>Bilder</code> ansehen</strong>. Nur für Bilder, die
+            öffentlich sein dürfen – keine Fotos von Schülerinnen und Schülern.</p>
           <input type="url" id="ncRead" value="${escapeAttr(c.readShareUrl)}" autocomplete="off" placeholder="https://…/s/…" />
           <p class="hint"><strong>Zurückziehen:</strong> erst hier das Feld leeren und „Verbinden“ wählen, dann die Lesefreigabe in der
             Nextcloud löschen.</p>

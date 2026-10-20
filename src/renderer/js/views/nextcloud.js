@@ -178,6 +178,31 @@ async function scanMigration(app, body) {
   });
 }
 
+// ---------- Bilder aus dem früheren Ordner der Schule ----------
+
+/**
+ * Früher konnten Bilder im Nextcloud-Ordner des Admin-Backups liegen. Die
+ * App übernimmt sie in die eigene Freigabe, sobald die verbunden ist.
+ */
+function legacyHtml(legacy, own) {
+  if (!legacy) return '';
+  const r = legacy.result || {};
+  const counts = () => {
+    const parts = [`${r.copied || 0} kopiert`];
+    if (r.reused) parts.push(`${r.reused} schon vorhanden`);
+    if (r.missing) parts.push(`${r.missing} nicht lesbar`);
+    parts.push(`${r.modules || 0} Module umgestellt`);
+    return parts.join(', ');
+  };
+  let text;
+  if (!legacy.pending) text = `✅ Deine Bilder aus dem früheren Ordner der Schule sind übernommen (${when(legacy.movedAt)}: ${escapeHtml(counts())}).`;
+  else if (legacy.running) text = '⏳ Deine Bilder aus dem früheren Ordner der Schule werden gerade in deine Freigabe übernommen …';
+  else if (own && r.error) text = `<span class="login-error" style="display:inline">❌ Übernahme der Bilder aus dem früheren Ordner der Schule fehlgeschlagen: ${escapeHtml(r.error)}</span> Die App versucht es später erneut; „Verbinden“ startet sofort einen neuen Versuch.`;
+  else if (own) text = '⏳ Deine Bilder aus dem früheren Ordner der Schule werden in deine Freigabe übernommen …';
+  else text = '📦 Deine bisherigen Bilder liegen noch im Nextcloud-Ordner der Schule und bleiben in den Modulen sichtbar. Neue Bilder speichert die App erst wieder in einer Nextcloud, wenn du unten <strong>deine eigene Freigabe</strong> verbindest – dann übernimmt sie auch die bisherigen Bilder dorthin und stellt die Links in deinen Modulen um.';
+  return `<p class="hint nc-status">${text}</p>`;
+}
+
 // ---------- Einstellungen (Home-Menü) ----------
 
 export async function openNextcloudDialog(app) {
@@ -194,7 +219,6 @@ export async function openNextcloudDialog(app) {
     if (!data || data.statusCode) { card.innerHTML = `<p class="login-error">Fehler: ${escapeHtml(data?.message || '?')}</p>`; return; }
     const c = data.config;
     const own = data.mode === 'own';
-    const school = data.school || {};
     const status = own
       ? `✅ Eigene Freigabe verbunden – die App sieht nur diesen Ordner. Bilder landen in <strong>Bilder/&lt;Thema&gt;</strong>
          und kommen ${data.directImages ? 'direkt aus der Nextcloud (Lesefreigabe)' : 'über diesen Server zu den Schülern'}.
@@ -224,7 +248,7 @@ export async function openNextcloudDialog(app) {
         </details>
         <div class="form-actions">
           <button class="btn btn-primary nc-connect">🔌 Verbinden</button>
-          ${data.configured ? '<button class="btn btn-danger nc-disconnect">Eigene Freigabe trennen</button>' : ''}
+          ${data.configured ? '<button class="btn btn-danger nc-disconnect">Freigabe trennen</button>' : ''}
         </div>
         <p class="nc-message" style="margin-top:10px"></p>`;
     card.innerHTML = `
@@ -232,14 +256,10 @@ export async function openNextcloudDialog(app) {
       <p class="hint">Bilder, die du in Module einfügst, speichert die App <strong>in einem Nextcloud-Ordner</strong> statt auf
         dem Server – je Lernthema in einem eigenen Unterordner. Im Modul steht nur der Link. Im Bildfeld kommt
         <strong>☁️ Aus Nextcloud</strong> dazu: Bilder, die schon dort liegen, mit einem Klick einfügen.</p>
-      ${school.available && !own ? `<p class="hint nc-status">✅ <strong>Die Schule stellt einen Nextcloud-Ordner bereit.</strong>
-        Deine Bilder landen dort in <strong>${escapeHtml(school.folder)}/&lt;Thema&gt;</strong> und kommen über diesen Server zu
-        den Schülern. Du musst nichts einrichten.</p>` : ''}
       ${status ? `<p class="hint nc-status">${status}</p>` : ''}
+      ${legacyHtml(data.legacy, own)}
       <div class="settings-group">
-        ${school.available && !data.configured
-          ? `<details class="nc-own"><summary>Stattdessen eine eigene Nextcloud-Freigabe verwenden</summary>${ownForm}</details>`
-          : `<h4>${school.available ? 'Eigene Nextcloud-Freigabe' : 'Nextcloud-Freigabe'}</h4>${ownForm}`}
+        <h4>Nextcloud-Freigabe</h4>${ownForm}
       </div>
       ${own ? backupHtml(data.backup) : ''}
       ${data.ready ? `
@@ -260,7 +280,8 @@ export async function openNextcloudDialog(app) {
       el.textContent = m?.text || '';
     };
     say(msg);
-    if (msg?.text) $('.nc-own')?.setAttribute('open', '');
+    // Übernahme läuft im Hintergrund – Stand nachladen, solange der Dialog offen ist.
+    if (data.legacy?.running) setTimeout(() => { if (overlay.isConnected) render(); }, 4000);
     $('.nc-close').addEventListener('click', close);
     $('.nc-connect').addEventListener('click', async (e) => {
       const btn = e.currentTarget;
@@ -302,7 +323,7 @@ export async function openNextcloudDialog(app) {
       else { btn.disabled = false; btn.textContent = '⬆ Jetzt sichern'; sayBackup({ error: true, text: `❌ ${res?.message || 'Backup fehlgeschlagen'}` }); }
     });
     $('.nc-disconnect')?.addEventListener('click', async () => {
-      if (!(await app.appConfirm('Eigene Freigabe trennen?\n\nDie Bilder bleiben in deiner Nextcloud. Bilder, die über diesen Server laufen, sind danach in den Modulen nicht mehr zu sehen – nur solche über eine Lesefreigabe bleiben sichtbar. Neue Bilder landen danach im Ordner der Schule (falls vorhanden), sonst wieder in der App.'))) return;
+      if (!(await app.appConfirm('Freigabe trennen?\n\nDie Bilder bleiben in deiner Nextcloud. Bilder, die über diesen Server laufen, sind danach in den Modulen nicht mehr zu sehen – nur solche über eine Lesefreigabe bleiben sichtbar. Neue Bilder landen danach wieder in der App.'))) return;
       await app.api.disconnectNextcloud();
       await render({ text: 'Getrennt.' });
     });

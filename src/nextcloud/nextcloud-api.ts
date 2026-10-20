@@ -114,7 +114,7 @@ export class ShareClient {
 
   /**
    * Ein WebDAV-Ordner, den das Admin-Backup über ein Konto erreicht
-   * (…/remote.php/dav/files/<Benutzer>/<Ordner>/). Nur für den Schulordner.
+   * (…/remote.php/dav/files/<Benutzer>/<Ordner>/). Nur für den früheren Schulordner.
    */
   static accountFolder(rootUrl: string, user: string, password: string, fetchImpl: Fetch = fetch) {
     const c = new ShareClient(new URL(rootUrl).origin, '', password, 'classic', fetchImpl);

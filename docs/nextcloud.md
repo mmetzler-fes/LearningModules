@@ -13,15 +13,11 @@ Im Home-Menü (🏠 LernModule) → **☁️ Nextcloud**. Die App bekommt **nie 
 Nextcloud-Konto oder App-Passwort** – nur einen freigegebenen Ordner und
 sieht damit ausschließlich diesen.
 
-### Ordner der Schule – nichts zu tun
+Bilder liegen immer in der Nextcloud **der Lehrkraft** – nicht beim Admin:
+Ein Server kann mehrere Schulen haben, und der Ordner des Admins gehört nicht
+allen. Ohne eigene Freigabe bleiben neue Bilder wie bisher in der App.
 
-Hat der Admin das automatische Backup in eine Nextcloud eingerichtet und
-erlaubt, dass Lehrkräfte den Ordner für Bilder nutzen, steht im Dialog „Die
-Schule stellt einen Nextcloud-Ordner bereit“. Bilder landen dann in
-`Bilder/<dein Name> (<Kennung>)/<Thema>/` in diesem Ordner. Eine eigene
-Freigabe ist nicht nötig.
-
-### Eigene Freigabe
+### Freigabe einrichten
 
 1. In der Nextcloud einen Ordner anlegen, z. B. `LearningModules`.
 2. **Teilen → Link teilen**, **„Hochladen und Bearbeiten erlauben“**, ein
@@ -30,8 +26,7 @@ Freigabe ist nicht nötig.
 
 Verbinden prüft sofort: Die Freigabe öffnet sich mit dem Passwort, die App
 legt den Unterordner `Bilder` an und schreibt (und löscht) eine Prüfdatei.
-Das Passwort wird verschlüsselt gespeichert und nie wieder angezeigt. Eine
-eigene Freigabe hat Vorrang vor dem Ordner der Schule.
+Das Passwort wird verschlüsselt gespeichert und nie wieder angezeigt.
 
 Eine „Dateiablage“ (nur Hochladen) reicht nicht: Die App muss den Ordner auch
 lesen können (Bildauswahl, Auslieferung an Schüler).
@@ -49,7 +44,7 @@ App prüft beim Verbinden, dass er wirklich auf `Bilder` zeigt. Dann laden die
 Schüler die Bilder direkt – sie sind aber für jeden mit Link sichtbar, also
 **keine Fotos von Schülerinnen und Schülern**.
 
-**Eigene Freigabe trennen** vergisst Link und Passwort. Die Dateien bleiben in
+**Freigabe trennen** vergisst Link und Passwort. Die Dateien bleiben in
 der Nextcloud; Bilder, die über den Server liefen, sind in den Modulen dann
 nicht mehr zu sehen.
 
@@ -57,7 +52,7 @@ nicht mehr zu sehen.
 
 - **📁 Bild auswählen** (in jedem Bildfeld, beim Drag-and-Drop-Hintergrund,
   bei Bild-Hotspots und beim Einfügen ins Arbeitsblatt) lädt das Bild in den
-  Ordner `Bilder/<Thema>/` hoch (im Ordner der Schule: `Bilder/<dein Name>/<Thema>/`). Gibt es den Dateinamen dort schon,
+  Ordner `Bilder/<Thema>/` hoch. Gibt es den Dateinamen dort schon,
   bekommt das neue Bild `-2`, `-3` … angehängt – nichts wird überschrieben.
 - **☁️ Aus Nextcloud** zeigt die Bilder eines Ordners, vorgewählt der des
   aktuellen Themas, und fügt eines mit einem Klick ein. Bilder lassen sich
@@ -72,7 +67,7 @@ neue Bilder im Ordner mit dem neuen Namen; vorhandene Links bleiben gültig.
 
 ## Bilder im KI-Prompt
 
-Im **🤖 KI-Prompt** erscheint bei verbundener Nextcloud (eigene Freigabe oder Ordner der Schule) **☁️ Bilder aus
+Im **🤖 KI-Prompt** erscheint bei verbundener Nextcloud **☁️ Bilder aus
 meiner Nextcloud anbieten** mit der Wahl eines Ordners unter `Bilder`. Die KI
 bekommt die Dateinamen dieses Ordners als Liste (`nc:<Ordner>/<Datei>`) und
 darf nur daraus wählen – sie erfindet so keine Links. Sprechende Dateinamen
@@ -102,8 +97,24 @@ unter **🎨 Bilder erst von einer KI erzeugen lassen**
    Wortes in den Ordner. Eine neue Fassung ersetzt die alte.
 
 Danach ist der Ordner im Quiz-Prompt gewählt und angehakt; der Prompt bietet
-die Bilder der KI an. Das klappt auch im Ordner der Schule, auf den man in der
-Nextcloud selbst keinen Zugriff hat.
+die Bilder der KI an.
+
+## Bilder aus dem früheren Ordner der Schule
+
+Eine frühere Version konnte Bilder im Nextcloud-Ordner des automatischen
+Backups (beim Admin) ablegen, in `Bilder/<Name> (<Kennung>)/<Thema>/`. Diese
+Bilder bleiben in den Modulen sichtbar – der Server liefert sie weiter aus.
+Neue Bilder kommen dort aber nicht mehr hin.
+
+Sobald die Lehrkraft ihre **eigene Freigabe verbindet**, kopiert die App diese
+Bilder im Hintergrund nach `Bilder/<Thema>/` der eigenen Freigabe und stellt
+die Links in allen Modulen und Entwürfen um (auch in Kopien aus dem Shop auf
+diesem Server). Ein gleichnamiges, gleiches Bild wird wiederverwendet, ein
+anderes bekommt `-2`, `-3` … angehängt. Der Dialog zeigt den Fortschritt und
+das Ergebnis. Schlägt etwas fehl, versucht die App es später erneut,
+„Verbinden“ sofort. Die alten Dateien bleiben beim Admin liegen, alte Links
+(etwa in exportierten Dateien oder auf verbundenen Servern) funktionieren
+also weiter.
 
 ## Vorhandene Bilder auslagern
 
@@ -124,7 +135,7 @@ sagt, wie viele. Der JSON-Export enthält die Links, so wie sie im Modul stehen.
 
 ## Backup
 
-Nur mit **eigener Freigabe**: Unter **Backup deiner Inhalte** → **Täglich
+Unter **Backup deiner Inhalte** → **Täglich
 sichern um …** und **⬆ Jetzt sichern**. Gesichert wird in den Unterordner
 `Backups` – je Lernthema eine JSON-Datei (`<Titel> (<Kennung>).json`), nur
 selbst verfasste Module wie beim offenen Export, und nur, wenn sich etwas
@@ -133,8 +144,6 @@ geändert hat. Ältere Stände zeigt die Nextcloud bei jeder Datei unter
 importieren** einlesen. Schlägt ein Backup fehl, kommt eine Mail, und die App
 versucht es stündlich erneut.
 
-Im Ordner der Schule gibt es kein eigenes Backup je Lehrkraft – dort sichert
-das automatische Backup des Admins ohnehin den ganzen Server (verschlüsselt).
 
 ## Wichtig
 
@@ -153,8 +162,7 @@ Alles läuft über den Server (die Nextcloud erlaubt dem Browser keine Zugriffe
 von fremden Seiten) und die öffentliche WebDAV-Schnittstelle der Freigabe:
 `/public.php/webdav/` (Benutzer = Kürzel) oder in neueren Versionen
 `/public.php/dav/files/<Kürzel>/`. Bild-Links über den Server:
-`/api/nextcloud/files/…` (eigene Freigabe) bzw. `/api/nextcloud/school/…`
-(Ordner der Schule) – getrennt, damit ein späterer Wechsel keine Links
-zerstört. Ausgeliefert werden nur Bilddateien unter `Bilder/`. Nur https,
+`/api/nextcloud/files/…`; `/api/nextcloud/school/…` nur noch für Bilder im
+früheren Ordner der Schule. Ausgeliefert werden nur Bilddateien unter `Bilder/`. Nur https,
 keine internen Adressen, keine Weiterleitungen. Code:
 `src/nextcloud/`, Oberfläche in `src/renderer/js/views/nextcloud.js`.

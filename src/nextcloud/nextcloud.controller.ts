@@ -41,7 +41,7 @@ export class NextcloudController {
   @UseInterceptors(FileInterceptor('file', { limits: { fileSize: MAX_IMAGE_BYTES + 1024 } }))
   async upload(@Request() req: any, @UploadedFile() file: Express.Multer.File) {
     const b = req.body || {};
-    return this.nextcloud.uploadImage(req.user, b.topicId || undefined, file, baseUrl(req), {
+    return this.nextcloud.uploadImage(req.user, b.topicId || undefined, file, {
       folder: b.folder || undefined, name: b.name || undefined, replace: b.replace === 'true',
     });
   }
@@ -66,12 +66,12 @@ export class NextcloudController {
   /** `{ topicId }` – Bilder dieses Themas in die Nextcloud auslagern. */
   @Post('migrate')
   async migrate(@Request() req: any, @Body() body: any) {
-    return this.nextcloud.migrateTopic(req.user, String(body?.topicId || ''), baseUrl(req));
+    return this.nextcloud.migrateTopic(req.user, String(body?.topicId || ''));
   }
 
   @Get('images')
   async list(@Request() req: any, @Query('folder') folder?: string, @Query('topicId') topicId?: string) {
-    return this.nextcloud.listImages(req.user, { folder, topicId }, baseUrl(req));
+    return this.nextcloud.listImages(req.user, { folder, topicId });
   }
 }
 
@@ -79,7 +79,7 @@ export class NextcloudController {
  * Bilder für Schüler – ohne Anmeldung, die haben Schüler nicht. Der Server
  * holt das Bild mit dem Passwort der Freigabe und reicht es durch; er
  * speichert es nicht. Nur Bilder unter Bilder/… (siehe readImage).
- * /files: eigene Freigabe der Lehrkraft, /school: Ordner der Schule.
+ * /files: Freigabe der Lehrkraft, /school: alte Bilder im früheren Ordner der Schule.
  */
 @Controller('nextcloud')
 export class NextcloudFilesController {

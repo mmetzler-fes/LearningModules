@@ -599,8 +599,6 @@ export class AdminView {
     set('cbHour', String(c.hour));
     set('cbKeep', c.keep);
     document.getElementById('cbEnabled').checked = !!c.enabled;
-    const teacherImages = document.getElementById('cbTeacherImages');
-    if (teacherImages) teacherImages.checked = !!c.teacherImages;
     document.getElementById('cbPassword').placeholder = c.hasPassword ? 'gespeichert – leer lassen = unverändert' : 'App-Passwort eingeben';
     document.getElementById('cbWeekday').disabled = c.interval === 'daily';
 
@@ -630,7 +628,6 @@ export class AdminView {
       hour: Number(v('cbHour')),
       keep: Number(v('cbKeep')),
       enabled: document.getElementById('cbEnabled').checked,
-      teacherImages: !!document.getElementById('cbTeacherImages')?.checked,
     };
   }
 

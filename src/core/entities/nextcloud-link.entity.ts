@@ -36,12 +36,20 @@ export class NextcloudLink extends BaseEntity {
   imageShareToken: string | null;
 
   /**
-   * Unterordner im Nextcloud-Ordner der Schule (Admin-Backup), wenn die
-   * Lehrkraft keine eigene Freigabe hat: Bilder/<serverFolder>/<Thema>/.
-   * Wird einmal festgelegt und bleibt – sonst gingen Links kaputt.
+   * Früher: Unterordner im Nextcloud-Ordner der Schule (Admin-Backup), wenn
+   * die Lehrkraft keine eigene Freigabe hatte: Bilder/<serverFolder>/<Thema>/.
+   * Neue Bilder landen dort nicht mehr; alte Links bleiben gültig.
    */
   @Column({ type: 'varchar', nullable: true })
   serverFolder: string | null;
+
+  /** Bilder aus serverFolder in die eigene Freigabe übernommen und Links umgestellt. */
+  @Column({ type: 'datetime', nullable: true })
+  legacyMovedAt: Date | null;
+
+  /** Zahlen bzw. Fehler des letzten Übernahme-Versuchs (attemptAt, copied, reused, modules, error …). */
+  @Column('simple-json', { nullable: true })
+  legacyResult: any;
 
   /** Öffentliche Adresse dieser App beim Verbinden – für die Bild-Links über den Server. */
   @Column({ type: 'varchar', nullable: true })

@@ -570,3 +570,37 @@ describe('Nextcloud der Schule', () => {
     expect(await svc.status(user)).toMatchObject({ mode: 'school' });
   });
 });
+
+describe('Bilder aus der App automatisch auslagern', () => {
+  let cloud: ReturnType<typeof fakeNextcloud>;
+  beforeEach(() => { cloud = fakeNextcloud(); jest.spyOn(global, 'fetch').mockImplementation(cloud.impl as any); });
+  afterEach(() => jest.restoreAllMocks());
+
+  const img = (seed: string) => `data:image/png;base64,${Buffer.alloc(200, seed).toString('base64')}`;
+
+  it('lagert in die Ablage der Themen-Eigentümerin aus – auch Gekauftes, gleiche Bilder einmal', async () => {
+    const env = setup(null);
+    env.users[0].schoolId = 's1';
+    await env.school.connect({ userId: 'adm', isSchoolAdmin: true, schoolId: 's1' }, { shareUrl: `${CLOUD}/s/SchulNC`, password: 'x' }, APP);
+    env.topics.push({ id: 'tq', ownerId: USER_ID, title: 'Reisen' }, { id: 'fremd', ownerId: 'niemand', title: 'X' });
+    env.moduleRepo.rows.push(
+      // gekauft: Verfasserin ist jemand anderes
+      { id: 'k', topicId: 'tq', creatorId: 'verkaeuferin', content: { image: img('a'), html: `<p><img src="${img('a')}"></p>` } },
+      { id: 'e', topicId: 'tq', creatorId: USER_ID, content: { image: img('b') } },
+      // Thema einer Lehrkraft ohne Ablage: bleibt
+      { id: 'f', topicId: 'fremd', creatorId: 'niemand', content: { image: img('c') } },
+    );
+    const r = await env.svc.followOwners();
+    expect(r).toMatchObject({ offloaded: 2 });
+    const k = env.moduleRepo.rows[0].content;
+    expect(k.image).toMatch(/\/api\/nextcloud\/sch\/.+\/Reisen\/bild-[0-9a-f]{12}\.png$/);
+    expect(k.html).toBe(`<p><img src="${k.image}"></p>`);
+    expect(env.moduleRepo.rows[1].content.image).toContain('/api/nextcloud/sch/');
+    expect(env.moduleRepo.rows[2].content.image).toBe(img('c'));
+    const stored = [...cloud.files.keys()].filter((key) => key.includes('/Reisen/bild-'));
+    expect(stored).toHaveLength(2);
+    expect((await env.svc.readImageByUrl(k.image))?.data.length).toBe(200);
+    // Zweiter Lauf: nichts mehr zu tun.
+    expect(await env.svc.followOwners()).toMatchObject({ offloaded: 0 });
+  });
+});

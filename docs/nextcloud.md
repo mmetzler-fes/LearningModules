@@ -44,6 +44,10 @@ Backup je Lehrkraft gibt es nur mit eigener Freigabe.
   **Kopien aus dem Shop** (die Bilder kommen in die Ablage der Käuferin, sofern
   sie eine hat). Hat die Lehrkraft keine Ablage, bleibt der Link – das Bild
   kommt weiter aus dem alten Ordner.
+- **Bilder aus der App** in Modulen ihrer Themen – auch gekauften und
+  übernommenen – lagert die App ebenfalls automatisch dorthin aus (siehe
+  [Vorhandene Bilder auslagern](#vorhandene-bilder-auslagern)). So leert sich
+  der Speicher des Servers nach und nach.
 - **Fester Schulordner:** Jeder Link nennt die Schul-Nextcloud und den Ordner
   (`/api/nextcloud/sch/<Schule>/<Ordner>/…`). Ein Schulwechsel oder ein
   gelöschtes Konto macht ihn nicht kaputt.
@@ -237,7 +241,15 @@ suchen** listet die App deine Themen, in denen noch Bilder in der App liegen
 Thema in den jeweiligen Ordner und ersetzt sie in den Modulen durch Links –
 auch Bilder mitten im Text eines Arbeitsblatts. Gleiche Bilder gehen nur
 einmal hoch (Dateiname `bild-<Prüfsumme>`); ein zweiter Lauf lädt nichts
-doppelt. Gekaufte oder übernommene Module bleiben unverändert.
+doppelt. Gekaufte oder übernommene Module bleiben dabei unverändert.
+
+**Automatisch:** Das muss niemand anstoßen. Sobald eine Lehrkraft eine Ablage
+hat (eigene Freigabe oder Nextcloud der Schule), lagert die App beim Start und
+danach stündlich alle Bilder aus der App aus, die in Modulen ihrer Themen
+stecken – **auch in gekauften und übernommenen**. Je Lauf höchstens 300
+Module, damit der erste Durchgang den Server nicht ausbremst; der Rest folgt
+in den nächsten Läufen. Das Server-Log meldet, wie viel ausgelagert wurde.
+Der Knopf oben macht dasselbe für die eigenen Module sofort.
 
 ## Export
 

@@ -9,7 +9,7 @@ import { ModuleDraft } from '../core/entities/module-draft.entity';
 import { User } from '../core/entities/user.entity';
 import { MasterKeyService } from '../core/crypto/master-key.service';
 import { assertPublicHost, parseNextcloudShare } from '../core/share/nextcloud-upload';
-import { ShareClient, parseNextcloudBase } from './nextcloud-api';
+import { DavEntry, ShareClient, parseNextcloudBase } from './nextcloud-api';
 import { NextcloudService } from './nextcloud.service';
 
 const IMAGES = 'Bilder';
@@ -150,8 +150,8 @@ export class SchoolNextcloudService {
       const u = l ? await this.userRepo.findOne({ where: { id: l.userId } }) : null;
       let images = 0;
       let bytes = 0;
-      for (const t of (await nc.list([IMAGES, f.name]).catch(() => [])).filter((e) => e.isFolder)) {
-        for (const e of await nc.list([IMAGES, f.name, t.name]).catch(() => [])) if (!e.isFolder) { images++; bytes += e.size; }
+      for (const t of (await nc.list([IMAGES, f.name]).catch((): DavEntry[] => [])).filter((e) => e.isFolder)) {
+        for (const e of await nc.list([IMAGES, f.name, t.name]).catch((): DavEntry[] => [])) if (!e.isFolder) { images++; bytes += e.size; }
       }
       out.push({
         folder: f.name,

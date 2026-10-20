@@ -683,6 +683,9 @@ export class NextcloudService implements OnApplicationBootstrap {
       if (r && (r.modules || r.drafts || r.missing)) {
         this.logger.log(`Bilder umgehängt: ${r.modules} Module, ${r.drafts} Entwürfe, ${r.copied} Bilder kopiert, ${r.reused} schon da, ${r.missing} nicht gefunden, ${r.skipped} ohne Ablage der Lehrkraft`);
       }
+      if (r?.offloaded) {
+        this.logger.log(`Bilder aus der App ausgelagert: ${r.offloaded} Module, ${(r.offloadedBytes / 1024 / 1024).toFixed(1)} MB`);
+      }
     }).catch((err) => this.logger.warn(`Bilder umhängen fehlgeschlagen: ${err?.message || err}`));
     setTimeout(() => {
       run();
@@ -714,7 +717,7 @@ export class NextcloudService implements OnApplicationBootstrap {
   }
 
   private async doFollowOwners() {
-    const result = { modules: 0, drafts: 0, copied: 0, reused: 0, missing: 0, skipped: 0 };
+    const result = { modules: 0, drafts: 0, copied: 0, reused: 0, missing: 0, skipped: 0, offloaded: 0, offloadedBytes: 0 };
     const links = await this.linkRepo.find();
     const byToken = new Map(links.filter((l) => l.imageShareToken).map((l) => [l.imageShareToken!, l]));
     const needles = ['%/api/nextcloud/%', ...(byToken.size ? ['%/download?path=%'] : [])];
@@ -725,15 +728,6 @@ export class NextcloudService implements OnApplicationBootstrap {
     const drafts = await this.draftRepo.createQueryBuilder('d')
       .select(['d.id', 'd.data', 'd.userId'])
       .where(`(${needles.map((_, i) => `d.data LIKE :n${i}`).join(' OR ')})`, params).getMany();
-    if (!mods.length && !drafts.length) return result;
-
-    // Themen-Eigentümer, auch für Untermodule (Thema über das Elternmodul).
-    const parentIds = [...new Set(mods.filter((m) => !m.topicId && m.parentId).map((m) => m.parentId))];
-    const parents = parentIds.length ? await this.moduleRepo.find({ where: { id: In(parentIds) }, select: ['id', 'topicId'] }) : [];
-    const topicOf = (m: LearningModule) => m.topicId || parents.find((p) => p.id === m.parentId)?.topicId || null;
-    const topicIds = [...new Set(mods.map(topicOf).filter(Boolean))] as string[];
-    const topics = topicIds.length ? await this.topicRepo.find({ where: { id: In(topicIds) }, select: ['id', 'ownerId'] }) : [];
-    const ownerOfTopic = new Map(topics.map((t) => [t.id, t.ownerId]));
 
     const stores = new Map<string, Promise<ImageStore | null>>();
     const store = (userId: string | null | undefined) => {
@@ -741,6 +735,13 @@ export class NextcloudService implements OnApplicationBootstrap {
       if (!stores.has(userId)) stores.set(userId, this.storeFor(userId).catch(() => null));
       return stores.get(userId)!;
     };
+    // Bilder, die noch in der App liegen, ebenfalls in die Ablage bringen.
+    if (!mods.length && !drafts.length) {
+      await this.offloadAppImages(result, store);
+      return result;
+    }
+
+    const { topicOf, ownerOfTopic } = await this.topicsOf(mods);
     const linkById = new Map(links.map((l) => [l.id, l]));
     const isHome = (ref: ImageRef, s: ImageStore) => s.kind === 'own'
       ? (ref.kind === 'files' || ref.kind === 'direct') && ref.linkId === s.l.id
@@ -777,7 +778,77 @@ export class NextcloudService implements OnApplicationBootstrap {
       const next = await this.swapRefs(d.data, byToken, (ref) => move([d.userId], ref));
       if (JSON.stringify(next) !== before) { await this.draftRepo.update({ id: d.id }, { data: next }); result.drafts++; }
     }
+    await this.offloadAppImages(result, store);
     return result;
+  }
+
+  /** Thema (auch über das Elternmodul) und dessen Eigentümerin und Titel je Modul. */
+  private async topicsOf(mods: LearningModule[]) {
+    const parentIds = [...new Set(mods.filter((m) => !m.topicId && m.parentId).map((m) => m.parentId))];
+    const parents = parentIds.length ? await this.moduleRepo.find({ where: { id: In(parentIds) }, select: ['id', 'topicId'] }) : [];
+    const topicOf = (m: LearningModule) => m.topicId || parents.find((p) => p.id === m.parentId)?.topicId || null;
+    const topicIds = [...new Set(mods.map(topicOf).filter(Boolean))] as string[];
+    const topics = topicIds.length ? await this.topicRepo.find({ where: { id: In(topicIds) }, select: ['id', 'ownerId', 'title'] }) : [];
+    return {
+      topicOf,
+      ownerOfTopic: new Map(topics.map((t) => [t.id, t.ownerId])),
+      titleOfTopic: new Map(topics.map((t) => [t.id, t.title])),
+    };
+  }
+
+  /** Höchstens so viele Module je Lauf auslagern – der erste Durchgang soll den Server nicht blockieren. */
+  static OFFLOAD_PER_RUN = 300;
+
+  /**
+   * Bilder, die noch in der App liegen (data:-URLs, auch mitten im HTML eines
+   * Arbeitsblatts), in die Ablage der Lehrkraft bringen, der das Thema gehört
+   * – auch in gekauften und übernommenen Modulen. Ziel: Bilder/<Thema>/ der
+   * Ablage, Dateiname mit Prüfsumme (bild-<…>), gleiche Bilder nur einmal.
+   * Ohne Ablage bleibt alles in der App.
+   */
+  private async offloadAppImages(result: any, store: (userId: string | null | undefined) => Promise<ImageStore | null>) {
+    const mods = await this.moduleRepo.createQueryBuilder('m')
+      .select(['m.id', 'm.content', 'm.topicId', 'm.parentId'])
+      .where('m.content LIKE :d', { d: '%data:image/%' }).getMany();
+    if (!mods.length) return;
+    const { topicOf, ownerOfTopic, titleOfTopic } = await this.topicsOf(mods);
+    const present = new Map<string, Promise<Set<string>>>();
+    let n = 0;
+    for (const m of mods) {
+      if (n >= NextcloudService.OFFLOAD_PER_RUN) break;
+      const topicId = topicOf(m);
+      const s = await store(ownerOfTopic.get(topicId || ''));
+      if (!s) continue;
+      const sub = safeFolderName(titleOfTopic.get(topicId || '') || '', 'Ohne Thema');
+      const images = new Map<string, { mime: string; b64: string }>();
+      mapDataImages(m.content, (d, mime, b64) => { images.set(d, { mime, b64 }); return d; });
+      if (!images.size) continue;
+      n++;
+      const key = `${s.kind}:${s.snc?.id || s.l.id}:${s.root.join('/')}/${sub}`;
+      if (!present.has(key)) {
+        present.set(key, (async () => {
+          await s.nc.ensureFolder([...s.root, sub]);
+          return new Set((await s.nc.list([...s.root, sub])).map((e) => e.name));
+        })());
+      }
+      const names = await present.get(key)!;
+      const urls = new Map<string, string>();
+      try {
+        for (const [dataUrl, { mime, b64 }] of images) {
+          const buffer = Buffer.from(b64, 'base64');
+          const name = `bild-${crypto.createHash('sha256').update(buffer).digest('hex').slice(0, 12)}.${IMAGE_TYPES[mime] || 'png'}`;
+          if (!names.has(name)) { await s.nc.put([...s.root, sub, name], buffer, mime); names.add(name); result.offloadedBytes += buffer.length; }
+          urls.set(dataUrl, s.url(sub, name));
+        }
+      } catch (err: any) {
+        // Ablage gerade nicht erreichbar – beim nächsten Lauf wieder.
+        this.logger.warn(`Bilder auslagern (Modul ${m.id}) fehlgeschlagen: ${err?.message || err}`);
+        continue;
+      }
+      const next = mapDataImages(m.content, (d) => urls.get(d) || d);
+      await this.moduleRepo.update({ id: m.id }, { content: next });
+      result.offloaded++;
+    }
   }
 
   /**

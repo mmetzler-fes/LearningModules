@@ -10,7 +10,7 @@ import { User } from '../core/entities/user.entity';
 import { MasterKeyService } from '../core/crypto/master-key.service';
 import { assertPublicHost, parseNextcloudShare } from '../core/share/nextcloud-upload';
 import { DavEntry, OPEN_SHARE_MESSAGE, ShareClient, parseNextcloudBase, shareIsOpen } from './nextcloud-api';
-import { NextcloudService } from './nextcloud.service';
+import { NextcloudService, rememberShare } from './nextcloud.service';
 
 const IMAGES = 'Bilder';
 const CHECK_FILE = 'lm-verbindungstest.txt';
@@ -117,6 +117,9 @@ export class SchoolNextcloudService {
       try { password = this.masterKey.unsealSecret(r.passwordSealed); } catch { /* unten: Passwort falsch */ }
     }
     const p = await this.probe(input?.shareUrl, password);
+    // Auch eine kaputte oder getrennte bisherige Freigabe merken: Fehlende
+    // Bilder holt die App aus ihr in die neue (rememberShare).
+    if (r.shareToken !== p.token || r.baseUrl !== p.base) rememberShare(r, await this.references(r));
     Object.assign(r, {
       baseUrl: p.base, shareToken: p.token, davMode: p.mode, verifiedAt: new Date(), insecureAt: null, appBase,
       passwordSealed: password ? this.masterKey.sealSecret(password) : null,
@@ -135,7 +138,9 @@ export class SchoolNextcloudService {
     if (r.verifiedAt && !force && (await this.references(r)) > 0) {
       throw new BadRequestException('In Modulen stecken noch Bilder aus der Nextcloud der Schule – erst umziehen oder ausdrücklich trotzdem trennen.');
     }
-    // Die Zeile bleibt: Ihre Kennung steckt in den Bild-Links.
+    // Die Zeile bleibt: Ihre Kennung steckt in den Bild-Links. Hängen noch
+    // Links an der Freigabe, bleibt sie Quelle für diese Bilder.
+    rememberShare(r, await this.references(r));
     Object.assign(r, { shareToken: null, passwordSealed: null, davMode: null, verifiedAt: null });
     await this.repo.save(r);
     return { success: true };
@@ -218,6 +223,7 @@ export class SchoolNextcloudService {
           }
           job.copied++;
         }
+        rememberShare(r, await this.references(r));
         Object.assign(r, {
           baseUrl: target.base, shareToken: target.token, davMode: target.mode, verifiedAt: new Date(), insecureAt: null, appBase,
           passwordSealed: password ? this.masterKey.sealSecret(password) : null,

@@ -578,6 +578,24 @@ describe('Nextcloud der Schule', () => {
     expect(await svc.status(user)).toMatchObject({ ready: false, mode: null });
   });
 
+  it('trotzdem trennen und eine andere verbinden: die Bilder kommen aus der früheren mit', async () => {
+    const { svc, school, moduleRepo, topics } = await scene();
+    const up = await svc.uploadImage(user, 't1', png);
+    const second = await svc.uploadImage(user, 't1', { ...png, originalname: 'tor.png' });
+    topics.push({ id: 't1', ownerId: USER_ID });
+    moduleRepo.rows.push({ id: 'm', topicId: 't1', creatorId: USER_ID, content: { image: up.url, other: second.url } });
+    await school.disconnect(admin, true);
+    await school.connect(admin, { shareUrl: `${CLOUD}/s/Andere`, password: 'x' }, APP);
+    // Gleich nach dem Wechsel liefert der Server aus der früheren Freigabe.
+    expect((await svc.readImageByUrl(up.url))?.data.toString()).toBe('PNGDATA');
+    // Eins liegt nirgends mehr: wird der Lehrkraft gemeldet.
+    cloud.files.delete(inSchool(`${FOLDER}/Englisch Reisen/tor.png`));
+    await svc.followOwners();
+    expect(cloud.files.has(`Andere/public.php/webdav/Bilder/${FOLDER}/Englisch Reisen/gate.png`)).toBe(true);
+    expect(moduleRepo.rows[0].content.image).toBe(up.url);
+    expect(((await svc.status(user)) as any).imageCheck).toMatchObject({ count: 1, missing: [{ sub: 'Englisch Reisen', name: 'tor.png' }] });
+  });
+
   it('eigene Freigabe trennen: Bilder in die Nextcloud der Schule übernehmen', async () => {
     const { svc, moduleRepo, topics, snc } = await scene();
     await svc.connect(user, { shareUrl: `${CLOUD}/s/EigenTok`, password: 'pw' }, APP);

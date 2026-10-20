@@ -1,5 +1,6 @@
 import { Entity, Column, Index } from 'typeorm';
 import { BaseEntity } from './base.entity';
+import type { PreviousShare } from './nextcloud-link.entity';
 
 /**
  * Nextcloud einer Schule für die Bilder ihrer Lehrkräfte (docs/nextcloud.md):
@@ -44,4 +45,8 @@ export class SchoolNextcloud extends BaseEntity {
   /** Letzter Umzug: { at, from, copied, error? }. */
   @Column('simple-json', { nullable: true })
   moveResult: any;
+
+  /** Frühere Freigaben, solange Links daran hingen – Quelle für fehlende Bilder (wie bei NextcloudLink). */
+  @Column('simple-json', { nullable: true })
+  previousShares: PreviousShare[] | null;
 }

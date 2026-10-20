@@ -57,7 +57,11 @@ Backup je Lehrkraft gibt es nur mit eigener Freigabe.
   stecken. **🗑 Löschen** gibt es erst, wenn kein Modul mehr eines davon zeigt.
 - **Umziehen** in eine andere Freigabe kopiert alle Ordner mit und schaltet
   erst danach um; die Links bleiben gleich. **Trennen** geht, solange Bilder
-  in Modulen stecken, nur mit ausdrücklicher Bestätigung – sie fehlen dann.
+  in Modulen stecken, nur mit ausdrücklicher Bestätigung – sie fehlen dann,
+  bis wieder eine Freigabe verbunden ist. Wie bei der eigenen Freigabe merkt
+  sich die App die bisherige und holt fehlende Bilder aus ihr nach (siehe
+  [Frühere Freigaben](#fruehere-freigaben)); was nirgends mehr liegt, sieht
+  die Lehrkraft in ihrem Nextcloud-Dialog.
 - Wer Link und Passwort kennt, sieht die Bilder aller Lehrkräfte der Schule –
   also keine Fotos von Schülerinnen und Schülern.
 - Trennt eine Lehrkraft ihre **eigene Freigabe**, bietet der Dialog

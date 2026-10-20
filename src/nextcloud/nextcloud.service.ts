@@ -24,6 +24,27 @@ const IMAGES = 'Bilder';
 /** So lange dient eine frühere Freigabe als Quelle für fehlende Bilder. */
 const PREVIOUS_SHARE_DAYS = 180;
 
+/** Eintrag mit Freigabe und früheren Freigaben: NextcloudLink oder SchoolNextcloud. */
+type SharedRow = Pick<NextcloudLink, 'baseUrl' | 'shareToken' | 'passwordSealed' | 'davMode' | 'previousShares'>;
+
+/**
+ * Die Bild-Links tragen nur die Kennung des Eintrags, nicht die Freigabe.
+ * Wird eine andere eingetragen oder getrennt, zeigen sie auf die neue (oder
+ * ins Leere). Damit nichts fehlt, merkt sich der Eintrag die bisherige
+ * Freigabe, solange noch Links (`references`) daran hängen: Fehlende Bilder
+ * liefert der Server dann aus ihr, und followOwners kopiert sie in die jetzige.
+ */
+export function rememberShare(row: SharedRow, references: number) {
+  if (!row.baseUrl || !row.shareToken || !references) return;
+  const cutoff = Date.now() - PREVIOUS_SHARE_DAYS * 24 * 3600 * 1000;
+  const rest = (row.previousShares || []).filter((p) =>
+    !(p.baseUrl === row.baseUrl && p.shareToken === row.shareToken) && new Date(p.at).getTime() > cutoff);
+  row.previousShares = [
+    { baseUrl: row.baseUrl, shareToken: row.shareToken, passwordSealed: row.passwordSealed, davMode: row.davMode, at: new Date().toISOString() },
+    ...rest,
+  ].slice(0, 5);
+}
+
 /**
  * Verweis auf ein Bild in der Nextcloud der Lehrkraft, wie ihn der KI-Prompt
  * vorgibt: "nc:<Ordner unter Bilder>/<Datei>". Der Import macht daraus die
@@ -293,6 +314,7 @@ export class NextcloudService implements OnApplicationBootstrap {
     if (!l || !l.shareToken) {
       return {
         configured: false, ready: !!school, mode: school ? 'school' : null, legacy, school: schoolInfo,
+        imageCheck: (school && l?.imageCheck) || null,
         suggestedBase: await this.suggestedBase(), config: { shareUrl: '', hasPassword: false },
       };
     }
@@ -429,36 +451,25 @@ export class NextcloudService implements OnApplicationBootstrap {
 
   // ---- Frühere Freigaben: Bilder gehen beim Wechseln nicht verloren ----
 
-  /**
-   * Die Bild-Links tragen nur die Kennung des Eintrags, nicht die Freigabe.
-   * Wird eine andere eingetragen oder getrennt, zeigen sie auf die neue (oder
-   * ins Leere). Damit nichts fehlt, merkt sich der Eintrag die bisherige
-   * Freigabe, solange noch Links daran hängen: Fehlende Bilder liefert der
-   * Server dann aus ihr, und followOwners kopiert sie in die jetzige.
-   */
+  /** Bisherige Freigabe merken, falls noch Links daran hängen (siehe rememberShare oben). */
   private async rememberShare(l: NextcloudLink) {
-    if (!l.baseUrl || !l.shareToken) return;
-    if (!(await this.countReferences(l))) return;
-    const cutoff = Date.now() - PREVIOUS_SHARE_DAYS * 24 * 3600 * 1000;
-    const rest = (l.previousShares || []).filter((p) =>
-      !(p.baseUrl === l.baseUrl && p.shareToken === l.shareToken) && new Date(p.at).getTime() > cutoff);
-    l.previousShares = [
-      { baseUrl: l.baseUrl, shareToken: l.shareToken, passwordSealed: l.passwordSealed, davMode: l.davMode, at: new Date().toISOString() },
-      ...rest,
-    ].slice(0, 5);
+    rememberShare(l, await this.countReferences(l));
   }
 
-  /** Bild Bilder/<sub>/<name> aus einer früheren Freigabe des Eintrags – null, wenn keine es hat. */
-  private async fromPrevious(l: NextcloudLink, sub: string, name: string): Promise<{ type: string; data: Buffer } | null> {
+  /**
+   * Bild <root>/<sub>/<name> aus einer früheren Freigabe (eigene: root Bilder,
+   * Schule: Bilder/<Lehrkraft>) – null, wenn keine es hat.
+   */
+  async fromPrevious(row: SharedRow, root: string[], sub: string, name: string): Promise<{ type: string; data: Buffer } | null> {
     const cutoff = Date.now() - PREVIOUS_SHARE_DAYS * 24 * 3600 * 1000;
-    for (const p of l.previousShares || []) {
-      if ((p.baseUrl === l.baseUrl && p.shareToken === l.shareToken) || new Date(p.at).getTime() <= cutoff) continue;
+    for (const p of row.previousShares || []) {
+      if ((p.baseUrl === row.baseUrl && p.shareToken === row.shareToken) || new Date(p.at).getTime() <= cutoff) continue;
       try {
         const password = p.passwordSealed ? this.masterKey.unsealSecret(p.passwordSealed) : '';
         await assertPublicHost(p.baseUrl);
         const nc = new ShareClient(p.baseUrl, p.shareToken, password, p.davMode || 'classic');
         if (!p.davMode) p.davMode = await nc.detectMode();
-        const file = await nc.get([IMAGES, sub, name]);
+        const file = await nc.get([...root, sub, name]);
         if (file) return file;
       } catch { /* nicht (mehr) erreichbar – nächste */ }
     }
@@ -508,11 +519,13 @@ export class NextcloudService implements OnApplicationBootstrap {
     if (!safePart(sub) || !safePart(name) || !IMAGE_EXT.test(name)) return null;
     let nc: ShareClient | null = null;
     let root: string[] = [];
-    let own: NextcloudLink | null = null;
+    let row: SharedRow | null = null;
     if (ref.kind === 'sch') {
       if (!ref.folder || !safePart(ref.folder)) return null;
       const snc = await this.schoolNcRepo.findOne({ where: { id: ref.sncId } });
-      nc = snc?.shareToken && snc.verifiedAt ? await this.schoolNcClient(snc) : null;
+      if (!snc) return null;
+      row = snc;
+      nc = snc.shareToken && snc.verifiedAt ? await this.schoolNcClient(snc).catch(() => null) : null;
       root = [IMAGES, ref.folder];
     } else {
       const l = await this.linkRepo.findOne({ where: { id: ref.linkId } });
@@ -521,14 +534,14 @@ export class NextcloudService implements OnApplicationBootstrap {
         nc = l.serverFolder ? await this.schoolClient() : null;
         root = [IMAGES, l.serverFolder || ''];
       } else {
-        own = l;
+        row = l;
         nc = l.shareToken && l.verifiedAt ? await this.client(l).catch(() => null) : null;
         root = [IMAGES];
       }
     }
     let file = nc ? await nc.get([...root, sub, name]).catch(() => null) : null;
     // Fehlt es in der jetzigen Freigabe, liegt es vielleicht noch in einer früheren.
-    if (!file && own) file = await this.fromPrevious(own, sub, name);
+    if (!file && row) file = await this.fromPrevious(row, root, sub, name);
     if (!file) return null;
     const ext = name.split('.').pop()!.toLowerCase().replace('jpg', 'jpeg');
     const type = IMAGE_TYPES[file.type.split(';')[0].trim()] ? file.type.split(';')[0].trim() : (ext === 'svg' ? 'image/svg+xml' : `image/${ext}`);
@@ -764,21 +777,22 @@ export class NextcloudService implements OnApplicationBootstrap {
       ? (ref.kind === 'files' || ref.kind === 'direct') && ref.linkId === s.l.id
       : ref.kind === 'sch' && ref.sncId === s.snc!.id && ref.folder === s.root[1];
 
-    // Liegt ein Bild, das schon in der eigenen Freigabe sein sollte, auch da?
+    // Liegt ein Bild, das schon in der Ablage sein sollte (eigene Freigabe oder
+    // Ordner in der Nextcloud der Schule), auch da?
     // Sonst aus einer früheren Freigabe holen (gleicher Name – der Link bleibt).
     const listed = new Map<string, Promise<Set<string> | null>>();
     const checks = new Map<string, { missing: Map<string, { sub: string; name: string }>; restored: number }>();
     const checkHome = async (s: ImageStore, ref: ImageRef) => {
       if (!checks.has(s.l.id)) checks.set(s.l.id, { missing: new Map(), restored: 0 });
       const check = checks.get(s.l.id)!;
-      const key = `${s.l.id}|${ref.sub}`;
+      const key = `${s.root.join('/')}|${s.snc?.id || s.l.id}|${ref.sub}`;
       if (!listed.has(key)) {
         listed.set(key, s.nc.list([...s.root, ref.sub]).then((es) => new Set(es.map((e) => e.name))).catch(() => null));
       }
       const names = await listed.get(key)!;
       // Freigabe gerade nicht erreichbar: nichts behaupten.
       if (!names || names.has(ref.name)) return;
-      const file = await this.fromPrevious(s.l, ref.sub, ref.name);
+      const file = await this.fromPrevious(s.kind === 'own' ? s.l : s.snc!, s.root, ref.sub, ref.name);
       if (file) {
         try {
           await s.nc.ensureFolder([...s.root, ref.sub]);
@@ -805,7 +819,7 @@ export class NextcloudService implements OnApplicationBootstrap {
         for (const o of chain) if (!s) s = await store(o);
         if (!s) { result.skipped++; return null; }
         if (isHome(ref, s)) {
-          if (s.kind === 'own') await checkHome(s, ref);
+          await checkHome(s, ref);
           return null;
         }
         const file = await this.readRef(ref).catch(() => null);

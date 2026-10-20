@@ -7,10 +7,13 @@ import { loadBrowserModule } from '../core/browser-module';
  */
 export interface DocSpecEngine {
   validateDocSpec(spec: unknown): string[];
-  renderDocSpecHtml(spec: unknown, options?: { showSolutions?: boolean; showPageBreaks?: boolean }): string;
+  renderDocSpecHtml(spec: unknown, options?: { showSolutions?: boolean; showPageBreaks?: boolean; refs?: Record<string, { pfad: string; titel: string }> }): string;
   starmathToMathml(src: string): string;
   textLines(text: string): string[];
   richText(text: string): string;
+  resolveRefText(text: string, refs: Record<string, { pfad: string; titel: string }> | null): string;
+  resolveDocRefs<T>(value: T, refs: Record<string, { pfad: string; titel: string }> | null): T;
+  docRefSlugs(value: unknown): string[];
   DOC_BLOCK_TYPES: string[];
 }
 

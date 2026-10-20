@@ -35,6 +35,14 @@ export class NotebookNode extends BaseEntity {
   @Column('simple-json', { nullable: true })
   tagIds: string[] | null;
 
+  /**
+   * Einstellungen für Dokumente darunter (Modultyp „Dokument“): Kursname,
+   * Titelmuster, Autor, Nummerierung, KI-Vorgaben – vererben sich nach unten
+   * (src/worksheets/numbering.ts). Null bei Ordnern ohne eigene Angaben.
+   */
+  @Column('simple-json', { nullable: true })
+  docSettings: Record<string, any> | null;
+
   /** Beim Abgleich angelegt: der Knoten auf dem anderen Server (`remote:<server>:<id>`). */
   @Column({ type: 'varchar', nullable: true })
   syncSource: string | null;

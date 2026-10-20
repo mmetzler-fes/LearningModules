@@ -193,7 +193,7 @@ export class NotebooksView {
     return !!this._query || this._open.has(key);
   }
 
-  _row({ key, depth, icon, title, meta = '', extra = '', twisty = true, open = false, cls = '', drag = null }) {
+  _row({ key, depth, icon, title, num = '', meta = '', extra = '', twisty = true, open = false, cls = '', drag = null }) {
     const row = document.createElement('div');
     row.className = `nb-row ${cls}`;
     row.style.setProperty('--depth', depth);
@@ -202,6 +202,7 @@ export class NotebooksView {
     row.innerHTML = `
       ${twisty ? `<button type="button" class="nb-twisty" aria-expanded="${open}" title="${open ? 'Zuklappen' : 'Aufklappen'}">${open ? '▾' : '▸'}</button>` : '<span class="nb-twisty-space"></span>'}
       <span class="nb-icon" aria-hidden="true">${icon}</span>
+      ${num ? `<span class="nb-num" title="Nummer der Dokumente">${escapeHtml(num)}</span>` : ''}
       <span class="nb-title" title="${escapeAttr(title)}">${escapeHtml(title)}</span>
       ${meta ? `<span class="nb-meta">${meta}</span>` : ''}
       ${extra}
@@ -256,8 +257,8 @@ export class NotebooksView {
 
     const wrap = document.createElement('div');
     const row = this._row({
-      key, depth, icon: KIND[node.kind].icon, title: node.title, open,
-      cls: `nb-node nb-kind-${node.kind}`, meta: parts.join(' · '), extra: this._chips(node.tagIds),
+      key, depth, icon: KIND[node.kind].icon, title: node.title, open, num: this._data.nodeNumbers?.[node.id] || '',
+      cls: `nb-node nb-kind-${node.kind}`, meta: parts.join(' · '), extra: this._chips(node.tagIds) + this._docBadge(node),
       drag: { type: 'node', id: node.id, kind: node.kind },
     });
     this._menuOn(row, () => this._nodeMenu(node));
@@ -334,7 +335,7 @@ export class NotebooksView {
     const own = topic.isOwn;
     const on = mod.moduleSelected !== false;
     const row = this._row({
-      key: 'm:' + mod.id, depth, icon: type.icon || '🧩', title: mod.title, twisty: false,
+      key: 'm:' + mod.id, depth, icon: type.icon || '🧩', title: mod.title, twisty: false, num: this._data.docNumbers?.[mod.id] || '',
       cls: `nb-module ${on ? '' : 'nb-off'} ${this._query && this._matches(mod.title) ? 'nb-hit' : ''}`,
       meta: escapeHtml(type.name || mod.type),
       extra: (this._draftIds?.has(mod.id) ? '<span class="nb-badge" title="Nicht gespeicherte Änderungen – beim Bearbeiten wiederherstellbar">📝 Entwurf</span>' : '') + (own
@@ -554,9 +555,92 @@ export class NotebooksView {
       items.push({ label: '📂 Bereich darüber einfügen…', title: 'Neuer Bereich an dieser Stelle – dieser Eintrag kommt hinein', run: () => this._wrapNode(node) });
     }
     items.push({ label: '🏷 Tags', title: 'Tags vererben sich auf alle Lernthemen darunter', run: () => this._editNodeTags(node) });
+    if (this._docsEnabled()) {
+      items.push('-');
+      items.push({ label: '📄 Dokument-Einstellungen…', title: 'Kurs, Kopfzeile, Nummerierung und KI-Vorgaben für die Dokumente darunter', run: () => this._editDocSettings(node) });
+      items.push({ label: '⬇️ Als Kurs exportieren', title: 'Dokumente darunter als Kurs für den Arbeitsblatt-Generator (ZIP)', run: () => this._exportCourse(node) });
+    }
     items.push('-');
     items.push({ label: '🗑 Löschen', danger: true, run: () => this._deleteNode(node) });
     return items;
+  }
+
+  // ---------- Dokumente (Modultyp „Dokument“, Freischaltung 'worksheets') ----------
+
+  _docsEnabled() {
+    return (this.app.state.currentUser?.features || []).includes('worksheets');
+  }
+
+  /** Kleines Zeichen an Ordnern mit eigenen Dokument-Einstellungen. */
+  _docBadge(node) {
+    const s = node.docSettings;
+    if (!s) return '';
+    const bits = [s.kurs && `Kurs „${s.kurs}“`, s.numberRoot && 'Zählung beginnt hier', s.numberFlat && 'durchgezählt'].filter(Boolean);
+    return bits.length ? `<span class="nb-badge" title="${escapeAttr(bits.join(' · '))}">📄</span>` : '';
+  }
+
+  async _editDocSettings(node) {
+    const s = node.docSettings || {};
+    const inherited = this._inheritedDocSettings(node.parentId);
+    const overlay = document.createElement('div');
+    overlay.className = 'confirm-overlay';
+    overlay.innerHTML = `
+      <form class="import-modules-card nb-dialog nb-doc-settings">
+        <h3>📄 Dokument-Einstellungen – ${escapeHtml(node.title)}</h3>
+        <p class="hint">Gelten für alle Dokumente darunter; leere Felder übernehmen, was darüber eingestellt ist.</p>
+        <div class="form-group"><label>Kursname</label>
+          <input name="kurs" maxlength="120" value="${escapeAttr(s.kurs || '')}" placeholder="${escapeAttr(inherited.kurs || 'z. B. Arduino')}"></div>
+        <div class="form-group"><label>Kopfzeile (Titelmuster)</label>
+          <input name="titelmuster" maxlength="200" value="${escapeAttr(s.titelmuster || '')}" placeholder="${escapeAttr(inherited.titelmuster || '{kurs} {pfad} – {titel}')}">
+          <span class="hint">Platzhalter: {kurs} {pfad} (z. B. 2.1) {nummer} (nur die letzte Stelle) {titel} {abschnitt} {autor}</span></div>
+        <div class="form-group"><label>Autor</label>
+          <input name="autor" maxlength="120" value="${escapeAttr(s.autor || '')}" placeholder="${escapeAttr(inherited.autor || '')}"></div>
+        <div class="form-group">
+          <label class="nb-check"><input type="checkbox" name="numberRoot" ${s.numberRoot || (s.numberRoot !== false && s.kurs) || node.kind === 'book' ? 'checked' : ''} ${node.kind === 'book' ? 'disabled' : ''}> Zählung beginnt hier
+            <span class="hint">– Ordner darüber erscheinen nicht in der Nummer${node.kind === 'book' ? ' (bei einem Book immer)' : '; mit eigenem Kursnamen von selbst'}</span></label>
+          <label class="nb-check"><input type="checkbox" name="numberFlat" ${s.numberFlat ? 'checked' : ''}> Darunter durchzählen
+            <span class="hint">– keine weiteren Ebenen, Unterordner gliedern nur noch</span></label>
+        </div>
+        <div class="form-group"><label>KI-Vorgaben</label>
+          <textarea name="aiGuidelines" rows="6" maxlength="20000" placeholder="Fachliche Vorgaben für die KI, z. B. Hardware, Programmiersprache, Niveau">${escapeHtml(s.aiGuidelines || '')}</textarea></div>
+        <div class="confirm-actions">
+          <button type="submit" class="btn btn-primary">Speichern</button>
+          <button type="button" class="btn btn-secondary btn-cancel">Abbrechen</button>
+        </div>
+      </form>`;
+    document.body.appendChild(overlay);
+    const form = overlay.querySelector('form');
+    const close = () => overlay.remove();
+    overlay.querySelector('.btn-cancel').addEventListener('click', close);
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const f = form.elements;
+      const res = await this.app.api.updateDocSettings(node.id, {
+        kurs: f.kurs.value, titelmuster: f.titelmuster.value, autor: f.autor.value, aiGuidelines: f.aiGuidelines.value,
+        // Ein Ordner mit eigenem Kurs zählt von selbst neu – abgewählt heißt dann ausdrücklich nein.
+        numberRoot: node.kind === 'book' ? null : f.numberRoot.checked ? true : (f.kurs.value.trim() ? false : null),
+        numberFlat: f.numberFlat.checked ? true : null,
+      });
+      if (failed(res)) { this.app.showToast('Fehler: ' + (res?.message || 'Speichern fehlgeschlagen'), 'error'); return; }
+      close();
+      await this.refresh();
+    });
+  }
+
+  /** Was oberhalb eines Ordners eingestellt ist – als Platzhalter im Dialog. */
+  _inheritedDocSettings(nodeId) {
+    const out = {};
+    for (let n = nodeId ? this._nodes.get(nodeId) : null; n; n = n.parentId ? this._nodes.get(n.parentId) : null) {
+      for (const k of ['kurs', 'titelmuster', 'autor']) if (!out[k] && n.docSettings?.[k]) out[k] = n.docSettings[k];
+    }
+    return out;
+  }
+
+  async _exportCourse(node) {
+    const res = await this.app.api.exportCourse(node.id);
+    if (!res.success) { this.app.showToast('Fehler: ' + (res.error || 'Export fehlgeschlagen'), 'error'); return; }
+    const notes = res.skipped?.length ? ` Hinweise: ${res.skipped.join(' · ')}` : '';
+    this.app.showToast(`${res.count} Dokument${res.count === 1 ? '' : 'e'} als Kurs exportiert.${notes}`, notes ? 'info' : 'success');
   }
 
   _topicMenu(topic) {
@@ -850,11 +934,14 @@ export class NotebooksView {
       h5p: !topic,
       extraFile: topic ? null : {
         ext: 'zip',
-        label: '🗂 Notebook-Datei – wird als Book, Bereich oder Abschnitt mit allen Lernthemen eingelesen.',
+        label: this._docsEnabled()
+          ? '🗂 Notebook-Datei oder Kurs aus dem Arbeitsblatt-Generator (ZIP mit kurs.yaml) – wird als Book, Bereich oder Abschnitt eingelesen.'
+          : '🗂 Notebook-Datei – wird als Book, Bereich oder Abschnitt mit allen Lernthemen eingelesen.',
         run: async (file) => {
           const res = await this.app.api.importNotebook(file, parentId);
           if (failed(res)) { this.app.showToast('Fehler: ' + (res?.message || 'Import fehlgeschlagen'), 'error'); return false; }
-          const failedNote = res.failed?.length ? ` Nicht einlesbar: ${res.failed.join(', ')}.` : '';
+          const failedNote = (res.failed?.length ? ` Nicht einlesbar: ${res.failed.join(', ')}.` : '')
+            + (res.warnings?.length ? ` Hinweise: ${res.warnings.join(' · ')}` : '');
           this.app.showToast(`„${res.title}“ eingelesen – ${res.importedTopics} Lernthem${res.importedTopics === 1 ? 'a' : 'en'}.${failedNote}`, failedNote ? 'info' : 'success');
           if (parentId) this._open.add('n:' + parentId);
           this._open.add('n:' + res.id);

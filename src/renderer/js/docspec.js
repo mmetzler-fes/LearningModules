@@ -160,6 +160,53 @@ export function richText(text) {
   }).join('<br>');
 }
 
+// ==================== Verweise auf andere Blätter ====================
+
+// {{blatt:06_verzweigungen}} → „1.6“, {{blatt:a..b}} → „2.1–2.6“,
+// {{titel:06_verzweigungen}} → „Verzweigungen“. Die Nummern kommen vom
+// Server (src/worksheets/numbering.ts) und ändern sich beim Umsortieren.
+const SLUG = '[A-Za-z0-9_\\-ÄÖÜäöüß]+';
+const REF_RE = new RegExp(`\\{\\{\\s*(blatt|titel)\\s*:\\s*(${SLUG})(?:\\s*\\.\\.\\s*(${SLUG}))?\\s*\\}\\}`, 'g');
+// Felder, in denen {{…}} wörtlich gemeint ist.
+const NO_REF_KEYS = ['code', 'math', 'src', 'file'];
+
+/**
+ * Verweise in einem Text auflösen. refs = { slug: { pfad, titel } }; ohne
+ * refs (keine Nummern bekannt) bleibt ein lesbarer Platzhalter stehen.
+ */
+export function resolveRefText(text, refs) {
+  return String(text).replace(REF_RE, (m, kind, a, b) => {
+    if (!refs) return kind === 'titel' ? a : `[${b ? `${a}–${b}` : a}]`;
+    const ra = refs[a];
+    const rb = b ? refs[b] : null;
+    if (!ra || (b && !rb)) return `⚠ Blatt fehlt: ${!ra ? a : b}`;
+    if (kind === 'titel') return ra.titel;
+    const num = (r) => r.pfad || r.titel;
+    return b ? `${num(ra)}–${num(rb)}` : num(ra);
+  });
+}
+
+/** Alle Verweise einer Spec auflösen (liefert eine Kopie). */
+export function resolveDocRefs(value, refs, key = '') {
+  if (typeof value === 'string') return NO_REF_KEYS.includes(key) ? value : resolveRefText(value, refs);
+  if (Array.isArray(value)) return value.map((v) => resolveDocRefs(v, refs, key));
+  if (value && typeof value === 'object') {
+    const out = {};
+    for (const [k, v] of Object.entries(value)) out[k] = resolveDocRefs(v, refs, k);
+    return out;
+  }
+  return value;
+}
+
+/** Slugs, auf die eine Spec verweist – für den Hinweis „Blatt fehlt“. */
+export function docRefSlugs(value, key = '', out = []) {
+  if (typeof value === 'string' && !NO_REF_KEYS.includes(key)) {
+    for (const m of value.matchAll(REF_RE)) out.push(m[2], ...(m[3] ? [m[3]] : []));
+  } else if (Array.isArray(value)) value.forEach((v) => docRefSlugs(v, key, out));
+  else if (value && typeof value === 'object') for (const [k, v] of Object.entries(value)) docRefSlugs(v, k, out);
+  return [...new Set(out)];
+}
+
 // ==================== Formeln (StarMath → MathML) ====================
 
 export class StarMathError extends Error {}
@@ -390,9 +437,11 @@ export function starmathToMathml(src) {
  * Spec → HTML für die Anzeige in der App. Lösungen stehen im HTML, sind aber
  * ausgeblendet, solange der Container die Klasse `ds-hide-solutions` trägt
  * (options.showSolutions = true lässt sie weg).
- * options.showPageBreaks zeigt Seitenumbrüche als Linie (Editor-Vorschau).
+ * options.showPageBreaks zeigt Seitenumbrüche als Linie (Editor-Vorschau),
+ * options.refs löst Verweise auf andere Blätter auf (resolveRefText).
  */
 export function renderDocSpecHtml(spec, options = {}) {
+  spec = resolveDocRefs(spec, options.refs || null);
   const ctx = { counters: [0, 0, 0], options };
   const body = Array.isArray(spec?.content) ? renderBlocksHtml(spec.content, ctx) : '';
   return `<div class="docspec${options.showSolutions ? '' : ' ds-hide-solutions'}">${body}</div>`;

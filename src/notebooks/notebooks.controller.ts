@@ -1,8 +1,11 @@
-import { Controller, Get, Post, Patch, Delete, Body, Param, Request, Res, UseGuards, UseInterceptors, UploadedFile, BadRequestException } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Body, Param, Request, Res, UseGuards, UseInterceptors, UploadedFile, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import type { Response } from 'express';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { NotebooksService } from './notebooks.service';
+import { FeatureGuard, RequireFeature } from '../features/feature.guard';
+import { FeaturesService } from '../features/features.service';
+import { CourseService } from '../worksheets/course.service';
 
 /** Dateiname ohne Zeichen, die Betriebssysteme stören. */
 function fileName(title: string): string {
@@ -12,7 +15,11 @@ function fileName(title: string): string {
 @Controller('notebooks')
 @UseGuards(JwtAuthGuard)
 export class NotebooksController {
-  constructor(private readonly notebooks: NotebooksService) {}
+  constructor(
+    private readonly notebooks: NotebooksService,
+    private readonly courses: CourseService,
+    private readonly features: FeaturesService,
+  ) {}
 
   /** Struktur, Plätze und Themen (eigene und mit Nutzungsrecht). */
   @Get()
@@ -30,6 +37,17 @@ export class NotebooksController {
   @Patch('nodes/:id')
   async update(@Param('id') id: string, @Request() req: any, @Body() body: { title?: string; tagIds?: string[] }) {
     return this.notebooks.updateNode(id, req.user, body);
+  }
+
+  /**
+   * Dokument-Einstellungen eines Ordners: `{ kurs?, titelmuster?, autor?,
+   * meta?, numberRoot?, numberFlat?, aiGuidelines? }` – nur mit Freischaltung.
+   */
+  @Patch('nodes/:id/doc-settings')
+  @UseGuards(FeatureGuard)
+  @RequireFeature('worksheets')
+  async docSettings(@Param('id') id: string, @Request() req: any, @Body() body: any) {
+    return this.notebooks.updateDocSettings(id, req.user, body);
   }
 
   /** Hoch- oder runterstufen: `{ kind: 'area' | 'section' | 'book' }`. */
@@ -88,11 +106,36 @@ export class NotebooksController {
     res.send(buffer);
   }
 
-  /** Notebook-Datei (ZIP) hochladen; Feld `parentId` = Ziel (leer = oben). */
+  /**
+   * Notebook-Datei (ZIP) hochladen; Feld `parentId` = Ziel (leer = oben).
+   * Ein Kurs aus dem Arbeitsblatt-Generator (ZIP mit kurs.yaml) wird – mit
+   * freigeschalteten Dokumenten – als Book bzw. Bereich mit Abschnitten
+   * eingelesen (src/worksheets/course.service.ts).
+   */
   @Post('import')
   @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 100 * 1024 * 1024 } }))
   async import(@UploadedFile() file: Express.Multer.File, @Request() req: any) {
     if (!file?.buffer?.length) throw new BadRequestException('Keine Datei empfangen.');
+    if (CourseService.isCourseZip(file.buffer)) {
+      if (!(await this.features.has(req.user.userId, 'worksheets'))) {
+        throw new ForbiddenException('Das ist ein Kurs aus dem Arbeitsblatt-Generator – dafür müssen Dokumente für dein Konto freigeschaltet sein.');
+      }
+      const res = await this.courses.importCourse(req.user, file.buffer, req.body?.parentId || null);
+      await this.notebooks.applyInheritance(req.user);
+      return res;
+    }
     return this.notebooks.importNode(req.user, file.buffer, req.body?.parentId || null);
+  }
+
+  /** Dokumente darunter als Kurs für den Arbeitsblatt-Generator (ZIP: kurs.yaml, NN_blatt/…, skripte/). */
+  @Get('nodes/:id/course-export')
+  @UseGuards(FeatureGuard)
+  @RequireFeature('worksheets')
+  async courseExport(@Param('id') id: string, @Request() req: any, @Res() res: Response) {
+    const { kuerzel, buffer, count, warnings } = await this.courses.exportCourse(req.user, id);
+    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(`${kuerzel}.kurs.zip`)}`);
+    res.setHeader('X-Export-Report', encodeURIComponent(JSON.stringify({ count, skipped: warnings })));
+    res.send(buffer);
   }
 }

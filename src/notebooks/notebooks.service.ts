@@ -15,6 +15,9 @@ import { ImportService } from '../core/interchange/import/import.service';
 import { ShopService, GrantEntry } from '../shop/shop.service';
 import { ShopOffer } from '../core/entities/shop-offer.entity';
 import { User } from '../core/entities/user.entity';
+import { DocNumberingService } from '../worksheets/doc-numbering.service';
+import { sanitizeDocSettings } from '../worksheets/numbering';
+import { FeaturesService } from '../features/features.service';
 import { NodeKind, NODE_KINDS, KIND_LABEL, MAX_NODE_DEPTH, canHoldNode, cannotConvert, fitsDepth, nodeDepth, insertAt, initialStructure, inheritTags, subtreeIds } from './notebook-rules';
 
 /**
@@ -68,6 +71,8 @@ export class NotebooksService {
     private readonly shop: ShopService,
     @InjectRepository(ShopOffer) private readonly offerRepo: Repository<ShopOffer>,
     @InjectRepository(User) private readonly userRepo: Repository<User>,
+    private readonly features: FeaturesService,
+    private readonly docNumbering: DocNumberingService,
   ) {}
 
   /** Platz eines per Use erworbenen Knotens in den eigenen Notebooks. */
@@ -108,8 +113,13 @@ export class NotebooksService {
       this.nodeRepo.find({ where: { ownerId: user.userId }, order: { orderIndex: 'ASC' } }),
       this.placeRepo.find({ where: { ownerId: user.userId }, order: { orderIndex: 'ASC' } }),
     ]);
+    // Dokumente (Modultyp „Dokument“): Nummern und Ordner-Einstellungen nur mit Freischaltung.
+    const docs = (await this.features.has(user.userId, 'worksheets')) ? await this.docNumbering.treeNumbers(user.userId) : null;
     return {
-      nodes: nodes.map(({ id, kind, title, parentId, orderIndex, tagIds }) => ({ id, kind, title, parentId, orderIndex, tagIds: tagIds || [] })),
+      nodes: nodes.map(({ id, kind, title, parentId, orderIndex, tagIds, docSettings }) => ({
+        id, kind, title, parentId, orderIndex, tagIds: tagIds || [], ...(docs ? { docSettings: docSettings || null } : {}),
+      })),
+      ...(docs || {}),
       placements: placements.map(({ topicId, nodeId, orderIndex, inheritedTagIds }) => ({ topicId, nodeId, orderIndex, inheritedTagIds: inheritedTagIds || [] })),
       topics: own.map((t: any) => ({ ...t, isOwn: true })),
       granted: grantedTopics,
@@ -335,6 +345,14 @@ export class NotebooksService {
     await this.nodeRepo.save(node);
     if (body?.tagIds !== undefined) await this.applyInheritance(user);
     return { success: true };
+  }
+
+  /** Einstellungen für Dokumente darunter (Kurs, Titelmuster, Nummerierung, KI-Vorgaben). */
+  async updateDocSettings(id: string, user: any, body: any) {
+    const node = await this.ownNode(id, user);
+    node.docSettings = sanitizeDocSettings(body, node.docSettings);
+    await this.nodeRepo.save(node);
+    return { success: true, docSettings: node.docSettings };
   }
 
   /**

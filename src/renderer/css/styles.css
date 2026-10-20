@@ -4646,6 +4646,10 @@ body {
 .nb-title { overflow: hidden; text-overflow: ellipsis; min-width: 0; cursor: pointer; }
 .nb-node > .nb-title, .nb-node .nb-title { font-weight: 600; }
 .nb-kind-book .nb-title { font-size: 1.02rem; }
+.nb-num { color: var(--text-secondary); font-variant-numeric: tabular-nums; margin-right: 6px; font-size: 0.9em; }
+.nb-doc-settings { max-width: 560px; }
+.nb-doc-settings .nb-check { display: block; font-weight: normal; margin: 4px 0; }
+.nb-doc-settings textarea { width: 100%; font-family: inherit; }
 .nb-meta { color: var(--text-secondary); font-size: 0.82rem; margin-left: 4px; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .nb-row .nb-menu-btn { margin-left: auto; font-weight: 700; }
 .nb-status { font-size: 1rem; }

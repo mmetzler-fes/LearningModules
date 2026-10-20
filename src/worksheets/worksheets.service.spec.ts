@@ -1,21 +1,42 @@
 import { BadRequestException } from '@nestjs/common';
-import { WorksheetsService, widthInCm } from './worksheets.service';
+import { DocContext, WorksheetsService, widthInCm } from './worksheets.service';
 import { WorksheetRendererClient } from './renderer.client';
 
 const PNG = 'data:image/png;base64,iVBORw0KGgo=';
+const user = { userId: 'u1' };
+
+const ctx = (over: Partial<DocContext> = {}): DocContext => ({
+  pfad: '2.1', slug: '13_ad', folder: 'Sensoren',
+  course: { kurs: 'Arduino', titelmuster: '{kurs} {pfad} – {titel}', autor: 'M. M.', meta: { SCHULE: 'FES' } },
+  refs: { '13_ad': { pfad: '2.1', titel: 'AD-Wandler' }, '06_v': { pfad: '1.6', titel: 'Verzweigungen' } },
+  ...over,
+});
 
 describe('WorksheetsService.prepare', () => {
   const service = new WorksheetsService({} as WorksheetRendererClient);
 
-  it('Titel des Moduls wird Titel des Blatts, Titelmuster ohne Kurs', () => {
-    const { job } = service.prepare({ titel: 'alt', nummer: 3, content: ['x'] }, 'Ohmsches Gesetz', ['odt']);
-    expect(job.spec).toEqual({ titel: 'Ohmsches Gesetz', content: ['x'] });
-    expect(job.course).toEqual({ titelmuster: '{titel}' });
+  it('ohne Notebook: Titel des Moduls ist die Kopfzeile', async () => {
+    const { job } = await service.prepare({ titel: 'alt', nummer: 3, kurs: 'X', content: ['x'] }, 'Ohmsches Gesetz', ['odt']);
+    expect(job.spec).toEqual({ titel: 'Ohmsches Gesetz', meta: { TITEL: 'Ohmsches Gesetz' }, content: ['x'] });
     expect(job.outputs).toEqual(['odt']);
   });
 
-  it('Bilder aus der App gehen als Datei mit, auch verschachtelt', () => {
-    const { job, warnings } = service.prepare({ content: [
+  it('mit Notebook: Kopfzeile aus dem Kurs, Verweise aufgelöst, Kurs-Meta übernommen', async () => {
+    const { job, warnings } = await service.prepare(
+      { content: ['Siehe Blatt {{blatt:06_v}} und {{blatt:weg}}'] }, 'Der AD-Wandler', ['pdf'], ctx());
+    expect(job.spec.meta).toEqual({ SCHULE: 'FES', TITEL: 'Arduino 2.1 – Der AD-Wandler' });
+    expect(job.spec.content).toEqual(['Siehe Blatt 1.6 und ⚠ Blatt fehlt: weg']);
+    expect(job.course).toEqual({ autor: 'M. M.' });
+    expect(warnings).toEqual(['Verweis auf fehlende Blätter: weg']);
+  });
+
+  it('eigene Kopfzeile in meta.TITEL (Klassenarbeit) hat Vorrang', async () => {
+    const { job } = await service.prepare({ meta: { TITEL: 'Arduino – KA' }, content: ['x'] }, 'KA', ['odt'], ctx());
+    expect(job.spec.meta.TITEL).toBe('Arduino – KA');
+  });
+
+  it('Bilder aus der App gehen als Datei mit, auch verschachtelt', async () => {
+    const { job, warnings } = await service.prepare({ content: [
       { type: 'task', title: 'A', blocks: [{ type: 'image', src: PNG, width: '50%', caption: 'Schaltung' }] },
     ] }, 'T', ['pdf']);
     expect(warnings).toEqual([]);
@@ -23,8 +44,16 @@ describe('WorksheetsService.prepare', () => {
     expect(job.spec.content[0].blocks[0]).toEqual({ type: 'image', file: 'bilder/bild-1.png', width: '8.25cm', caption: 'Schaltung' });
   });
 
-  it('nicht druckbare Bilder und Dateiverweise werden zum Hinweis', () => {
-    const { job, warnings } = service.prepare({ content: [
+  it('Bilder aus der Nextcloud holt der Server über ihren App-Link', async () => {
+    const nextcloud = { readImageByUrl: jest.fn().mockResolvedValue({ type: 'image/jpeg', data: Buffer.from('jpg') }) };
+    const s = new WorksheetsService({} as WorksheetRendererClient, undefined, undefined, undefined, nextcloud as any);
+    const { job } = await s.prepare({ content: [{ type: 'image', src: '/api/nextcloud/files/x/Thema/a.jpg' }] }, 'T', ['pdf']);
+    expect(nextcloud.readImageByUrl).toHaveBeenCalledWith('/api/nextcloud/files/x/Thema/a.jpg');
+    expect(job.files).toEqual({ 'bilder/bild-1.jpg': Buffer.from('jpg').toString('base64') });
+  });
+
+  it('nicht druckbare Bilder und Dateiverweise werden zum Hinweis', async () => {
+    const { job, warnings } = await service.prepare({ content: [
       { type: 'image', src: 'https://cloud.example/a.png', caption: 'Foto' },
       { type: 'image', src: 'data:image/webp;base64,AAAA' },
       { type: 'code', file: 'quellcodes/a.ino' },
@@ -39,20 +68,29 @@ describe('WorksheetsService.prepare', () => {
   });
 });
 
+describe('WorksheetsService.header', () => {
+  it('Titelmuster mit Abschnitt; ohne Nummer ohne Reste', () => {
+    expect(WorksheetsService.header(ctx({ course: { kurs: 'Arduino', titelmuster: '{abschnitt} {nummer}: {titel}', autor: '', meta: {} } }), 'AD'))
+      .toBe('Sensoren 1: AD');
+    expect(WorksheetsService.header(ctx({ pfad: '' }), 'KA')).toBe('Arduino – KA');
+    expect(WorksheetsService.header(null, '')).toBe('Dokument');
+  });
+});
+
 describe('WorksheetsService.render', () => {
   it('lehnt fehlerhafte Specs mit der Fehlerliste ab, ohne den Renderer zu fragen', async () => {
     const renderer = { render: jest.fn() } as unknown as WorksheetRendererClient;
     const service = new WorksheetsService(renderer);
-    await expect(service.render({ content: [{ type: 'task' }] }, 'T', 'odt')).rejects.toBeInstanceOf(BadRequestException);
+    await expect(service.render(user, { spec: { content: [{ type: 'task' }] }, title: 'T', output: 'odt' })).rejects.toBeInstanceOf(BadRequestException);
     expect(renderer.render).not.toHaveBeenCalled();
   });
 
   it('liefert die Datei und sammelt Hinweise', async () => {
     const renderer = { render: jest.fn().mockResolvedValue({ files: { pdf: Buffer.from('%PDF') }, warnings: ['vom Renderer'] }) };
     const service = new WorksheetsService(renderer as unknown as WorksheetRendererClient);
-    const out = await service.render({ content: [{ type: 'image', src: 'https://x/a.png' }] }, 'T', 'pdf');
+    const out = await service.render(user, { spec: { content: [{ type: 'image', src: 'https://x/a.png' }] }, title: 'T', output: 'pdf' });
     expect(out.file.toString()).toBe('%PDF');
-    expect(out.warnings).toEqual([expect.stringContaining('Nextcloud'), 'vom Renderer']);
+    expect(out.warnings).toEqual([expect.stringContaining('aus dem Netz'), 'vom Renderer']);
   });
 });
 

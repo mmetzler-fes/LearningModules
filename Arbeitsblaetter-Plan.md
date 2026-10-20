@@ -135,8 +135,8 @@ Dazu oben am Modul: **⬇ PDF** (und für die Lehrkraft ⬇ .odt, ⬇ Lösung).
   - Beides am Book = durchgehend 1 bis n wie heute im Generator
     („Arduino 13 – Der AD-Wandler“).
 - **Regeln:** Lernthemen sind keine Ebene, ihre Dokumente zählen einzeln im
-  Ordner. Dokumente und Unterordner eines Ordners stehen in einer Reihe
-  (Dokument 1, Unterordner 2 mit 2.1, 2.2, Dokument 3). Ordner ohne Dokumente
+  Ordner. In einem Ordner zählen wie im Baum erst die Unterordner, dann die
+  Lernthemen (Unterordner 1 mit 1.1, 1.2, danach Dokument 2). Ordner ohne Dokumente
   bekommen keine Nummer (keine Lücken). Der Notebook-Baum zeigt die
   Ordnernummern grau vor dem Namen. Die Nextcloud-Ordner tragen dieselben.
 
@@ -486,7 +486,7 @@ Speichern bzw. Verschieben stößt das Rendern und den Abgleich an.
 |---|---|---|
 | 0 ✅ | Generator nach `worksheet-renderer/` umziehen, HTTP-Dienst, Dockerfile, CI; privates Repo auf neuen Pfad umstellen | `make pdf` geht weiter, `curl` liefert .odt/.pdf |
 | 1 ✅ | Funktionsschalter, Modultyp „Dokument (neu)“ mit Web-Ansicht (inkl. StarMath→MathML), YAML-Editor, Downloads | Blätter in der App ansehen und drucken |
-| 2 | Kurs-Einstellungen am Knoten, Pfadnummern mit Zählbeginn/Durchzählen je Ordner, Verweise `{{blatt:…}}`, Import (Abschnitte aus Skripten)/Export .zip | deine Kurse sind drin und lassen sich umsortieren |
+| 2 ✅ | Kurs-Einstellungen am Knoten, Pfadnummern mit Zählbeginn/Durchzählen je Ordner, Verweise `{{blatt:…}}`, Import (Abschnitte aus Skripten)/Export .zip | deine Kurse sind drin und lassen sich umsortieren |
 | 3 | Spec-Erweiterung (Inline-Formatierung, heading, box, float, Zellverbund) in Web-Ansicht und Generator; .odt-Import → Spec | beliebige .odt-Dokumente als Dokument-Modul |
 | 4 | Nextcloud-Abbild mit Soll/Ist-Abgleich, `_Gesichert/`, Speicheranzeige | Dateien auch ohne App |
 | 5 | KI-Prompt-Reiter (optional mit Quiz-Modulen) | Blätter per KI ohne Terminal |

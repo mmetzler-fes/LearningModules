@@ -114,12 +114,25 @@ BACKEND – src/
                                 (SystemConfig 'features', User.features).
                                 FeatureGuard + @RequireFeature() für Routen;
                                 Login und /me liefern features mit
-  worksheets/                   Modultyp „Dokument“ drucken: Spec prüfen
-                                (docspec.ts lädt src/renderer/js/docspec.js),
-                                Bilder aufbereiten, an den Renderer
-                                (renderer.client.ts) → .odt/.pdf.
-                                POST /api/worksheets/render, nur mit Feature
-                                'worksheets'
+  worksheets/                   Modultyp „Dokument“ (nur mit Feature 'worksheets')
+    numbering.ts                Nummern je Ordner (Pfadnummer 2.1, Zählbeginn,
+                                Durchzählen), Kopfzeile aus dem Titelmuster,
+                                Verweisziele; settingsAt() vererbt die
+                                Dokument-Einstellungen der Ordner
+    doc-numbering.service.ts    dieselbe Nummerierung mit Daten aus der DB
+                                (liest vom Inhalt nur kind/slug)
+    worksheets.service.ts       Druck: Spec prüfen (docspec.js), Kontext aus
+                                dem Notebook, Verweise auflösen, Bilder
+                                (data: und Nextcloud) mitgeben → Renderer
+                                (renderer.client.ts). POST /api/worksheets/
+                                render und /context
+    course-format.ts            Kurse des Generators lesen (readCourse) und
+                                schreiben (writeCourse) – ohne DB
+    course.service.ts           Kurs-ZIP → Book/Bereich mit Abschnitten aus
+                                den Skripten, je Blatt ein Lernthema; Export
+                                eines Knotens als Kurs. Import über POST
+                                /api/notebooks/import (erkennt kurs.yaml),
+                                Export GET /api/notebooks/nodes/:id/course-export
   core/share/link-url.ts        Öffentliche Adresse + QR-Code (Quick- und Themen-Link)
   core/public/public.controller.ts
                                 Schülerzugang ohne Konto; resolveQuickToken()

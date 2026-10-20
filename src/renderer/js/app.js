@@ -25,7 +25,7 @@ import { nextcloudState, uploadImageToNextcloud, pickNextcloudImage } from './vi
 import { storeImage } from './views/image-store.js';
 import { contentFromPairs, pairsFromContent } from './dnd-pairs.js';
 // Editor des Modultyps „Dokument“ – hängt sich an window.DocSpecEditor.
-import './docspec-editor.js';
+import { useModuleSource } from './docspec-editor.js';
 
 // ==================== APP COORDINATOR ====================
 
@@ -34,6 +34,8 @@ class App {
     this.authStore = new AuthStore();
     this.api = new BrowserApi(this.authStore);
     this.renderer = new H5pRenderer();
+    // Der Dokument-Editor holt sich Nummer und Kopfzeile des bearbeiteten Moduls.
+    useModuleSource(() => this.state.editingModuleId);
 
     this.state = {
       currentUser: null,

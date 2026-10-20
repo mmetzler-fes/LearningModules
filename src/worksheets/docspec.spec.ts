@@ -172,3 +172,40 @@ describe('renderDocSpecHtml', () => {
       .toContain('<code class="ds-missing">{a</code></div><p class="ds-text">danach</p>');
   });
 });
+
+describe('Verweise', () => {
+  const refs = { '06_verzweigungen': { pfad: '1.6', titel: 'Verzweigungen' }, '13_ad': { pfad: '2.1', titel: 'AD-Wandler' },
+    '18_us': { pfad: '2.6', titel: 'Ultraschall' }, ka: { pfad: '', titel: 'Klassenarbeit' } };
+
+  it('löst Nummer, Bereich und Titel auf', () => {
+    expect(ds.resolveRefText('siehe Blatt {{blatt:06_verzweigungen}} ({{titel:06_verzweigungen}})', refs))
+      .toBe('siehe Blatt 1.6 (Verzweigungen)');
+    expect(ds.resolveRefText('Blätter {{ blatt:13_ad..18_us }}', refs)).toBe('Blätter 2.1–2.6');
+    expect(ds.resolveRefText('{{blatt:ka}}', refs)).toBe('Klassenarbeit');
+  });
+
+  it('meldet fehlende Blätter sichtbar, ohne Nummern bleibt ein Platzhalter', () => {
+    expect(ds.resolveRefText('{{blatt:weg}}', refs)).toBe('⚠ Blatt fehlt: weg');
+    expect(ds.resolveRefText('{{blatt:13_ad..weg}}', refs)).toBe('⚠ Blatt fehlt: weg');
+    expect(ds.resolveRefText('{{blatt:13_ad..18_us}} {{titel:x}}', null)).toBe('[13_ad–18_us] x');
+  });
+
+  it('Code, Formeln und Bildquellen bleiben unberührt; Slugs werden gefunden', () => {
+    const spec = { content: [
+      { type: 'text', text: 'Siehe {{blatt:13_ad}}' },
+      { type: 'code', code: '{{blatt:13_ad}}' },
+      { type: 'table', rows: [['{{titel:18_us}}']] },
+    ] };
+    const out = ds.resolveDocRefs(spec, refs) as any;
+    expect(out.content[0].text).toBe('Siehe 2.1');
+    expect(out.content[1].code).toBe('{{blatt:13_ad}}');
+    expect(out.content[2].rows[0][0]).toBe('Ultraschall');
+    expect(spec.content[0].text).toBe('Siehe {{blatt:13_ad}}'); // Original unverändert
+    expect(ds.docRefSlugs(spec)).toEqual(['13_ad', '18_us']);
+  });
+
+  it('die Web-Ansicht löst mit refs auf', () => {
+    expect(ds.renderDocSpecHtml({ content: ['Blatt {{blatt:13_ad}}'] }, { refs })).toContain('Blatt 2.1');
+    expect(ds.renderDocSpecHtml({ content: ['Blatt {{blatt:13_ad}}'] })).toContain('Blatt [13_ad]');
+  });
+});

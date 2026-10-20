@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Get, HttpCode, Post, Res, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, HttpCode, Post, Request, Res, UseGuards } from '@nestjs/common';
 import type { Response } from 'express';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { FeatureGuard, RequireFeature } from '../features/feature.guard';
@@ -25,17 +25,30 @@ export class WorksheetsController {
   }
 
   /**
-   * { spec, title, output } → die Datei. Gerendert wird der Stand aus dem
-   * Editor, auch ungespeichert. Hinweise des Renderers (z. B. Bilder, die
+   * { moduleId, title } → Nummer, Kopfzeile, Kursangaben und Verweisziele
+   * des Dokuments im Notebook.
+   */
+  @Post('context')
+  @HttpCode(200)
+  context(@Request() req: any, @Body() body: { moduleId?: string; title?: string }) {
+    if (!body?.moduleId) throw new BadRequestException('moduleId fehlt.');
+    return this.worksheets.editorContext(req.user, String(body.moduleId), String(body.title || '').slice(0, 200));
+  }
+
+  /**
+   * { spec, title, output, moduleId? } → die Datei. Gerendert wird der Stand
+   * aus dem Editor, auch ungespeichert; mit moduleId samt Nummer, Kopfzeile
+   * und Verweisen aus dem Notebook. Hinweise des Renderers (z. B. Bilder, die
    * nicht in den Druck kommen) stehen in X-Worksheet-Warnings.
    */
   @Post('render')
   @HttpCode(200)
-  async render(@Body() body: { spec?: unknown; title?: string; output?: string }, @Res() res: Response) {
+  async render(@Request() req: any, @Body() body: { spec?: unknown; title?: string; output?: string; moduleId?: string }, @Res() res: Response) {
     const output = String(body?.output || '') as WorksheetOutput;
     if (!WORKSHEET_OUTPUTS.includes(output)) throw new BadRequestException(`output: ${WORKSHEET_OUTPUTS.join(', ')}`);
     const title = String(body?.title || '').trim().slice(0, 200);
-    const { file, warnings } = await this.worksheets.render(body?.spec, title, output);
+    const moduleId = body?.moduleId ? String(body.moduleId) : undefined;
+    const { file, warnings } = await this.worksheets.render(req.user, { spec: body?.spec, title, output, moduleId });
     const type = FILE_TYPES[output];
     const name = `${fileName(title || 'Dokument')}${type.suffix}.${type.ext}`;
     res.setHeader('Content-Type', type.mime);

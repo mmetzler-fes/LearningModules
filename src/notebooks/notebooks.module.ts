@@ -13,6 +13,8 @@ import { ShopOffer } from '../core/entities/shop-offer.entity';
 import { User } from '../core/entities/user.entity';
 import { NotebooksService } from './notebooks.service';
 import { NotebooksController } from './notebooks.controller';
+import { FeaturesModule } from '../features/features.module';
+import { WorksheetsModule } from '../worksheets/worksheets.module';
 
 @Module({
   imports: [
@@ -22,6 +24,8 @@ import { NotebooksController } from './notebooks.controller';
     LinksModule,
     InterchangeModule,
     ShopModule,
+    FeaturesModule,
+    WorksheetsModule,
   ],
   controllers: [NotebooksController],
   providers: [NotebooksService],

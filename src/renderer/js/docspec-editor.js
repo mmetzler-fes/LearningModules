@@ -10,7 +10,7 @@
  * deshalb an window.DocSpecEditor.
  */
 import { load as yamlLoad, dump as yamlDump } from './vendor/js-yaml.js';
-import { validateDocSpec, renderDocSpecHtml } from './docspec.js';
+import { validateDocSpec, renderDocSpecHtml, docRefSlugs } from './docspec.js';
 import { downloadBlob } from './api.js';
 import { escapeHtml } from './utils.js';
 
@@ -39,6 +39,12 @@ const OUTPUTS = [
   { output: 'loesung', label: '⬇ Lösung .odt', title: 'Lösungsblatt für LibreOffice Writer' },
 ];
 
+/** Welches Modul gerade bearbeitet wird – setzt app.js (useModuleSource). */
+let moduleSource = () => null;
+export function useModuleSource(fn) {
+  moduleSource = fn;
+}
+
 function token() {
   return sessionStorage.getItem('lm_token') || localStorage.getItem('lm_token');
 }
@@ -58,6 +64,7 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
       <label class="ds-editor-toggle"><input type="checkbox" class="ds-show-solutions"> Lösungen zeigen</label>
       <span class="ds-editor-status hint"></span>
     </div>
+    <div class="ds-editor-header hint" hidden></div>
     <div class="ds-editor-panes">
       <textarea class="ds-yaml" spellcheck="false" aria-label="Inhalt als YAML"></textarea>
       <div class="ds-preview module-description-content"></div>
@@ -72,6 +79,29 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
   const hidden = root.querySelector('input[type="hidden"]');
   const status = root.querySelector('.ds-editor-status');
   const showSolutions = root.querySelector('.ds-show-solutions');
+  const headerEl = root.querySelector('.ds-editor-header');
+  const titleInput = document.getElementById('moduleTitle');
+  const moduleId = moduleSource();
+
+  // Platz im Notebook: Nummer, Kopfzeile, Verweisziele (nur für gespeicherte Module).
+  let ctx = null;
+  const loadContext = async () => {
+    if (!moduleId) return;
+    try {
+      const res = await fetch('/api/worksheets/context', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(token() ? { Authorization: `Bearer ${token()}` } : {}) },
+        body: JSON.stringify({ moduleId, title: titleInput?.value.trim() || '' }),
+      });
+      if (!res.ok) return;
+      ctx = await res.json();
+      headerEl.hidden = false;
+      headerEl.textContent = `Kopfzeile im Druck: ${ctx.header}`;
+      update();
+    } catch (_) { /* ohne Kontext bleibt die Vorschau ohne Nummern */ }
+  };
+  let titleTimer = null;
+  titleInput?.addEventListener('input', () => { clearTimeout(titleTimer); titleTimer = setTimeout(loadContext, 600); });
 
   let spec = null;
   const update = () => {
@@ -86,8 +116,10 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
     spec = parsed;
     hidden.value = JSON.stringify(spec);
     const errors = validateDocSpec(spec);
-    errorsEl.innerHTML = errors.map((e) => `<p class="ds-error">⚠️ ${escapeHtml(e)}</p>`).join('');
-    preview.innerHTML = renderDocSpecHtml(spec, { showSolutions: showSolutions.checked, showPageBreaks: true });
+    const missing = ctx?.refs ? docRefSlugs(spec).filter((s) => !ctx.refs[s]) : [];
+    errorsEl.innerHTML = errors.map((e) => `<p class="ds-error">⚠️ ${escapeHtml(e)}</p>`).join('')
+      + (missing.length ? `<p class="ds-error">⚠️ Verweis auf fehlende Blätter: ${escapeHtml(missing.join(', '))}</p>` : '');
+    preview.innerHTML = renderDocSpecHtml(spec, { showSolutions: showSolutions.checked, showPageBreaks: true, refs: ctx?.refs || undefined });
   };
 
   let timer = null;
@@ -120,7 +152,7 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
       const res = await fetch('/api/worksheets/render', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...(token() ? { Authorization: `Bearer ${token()}` } : {}) },
-        body: JSON.stringify({ spec, title, output }),
+        body: JSON.stringify({ spec, title, output, ...(moduleId ? { moduleId } : {}) }),
       });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
@@ -150,6 +182,7 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
 
   textarea.value = toYaml(value);
   update();
+  loadContext();
 }
 
 window.DocSpecEditor = { mount: mountDocSpecEditor };

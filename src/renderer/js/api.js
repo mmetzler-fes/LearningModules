@@ -397,6 +397,14 @@ export class BrowserApi {
   exportNotebookNode(id) {
     return this._download(`/api/notebooks/nodes/${encodeURIComponent(id)}/export`, 'notebook.zip');
   }
+  /** Dokumente darunter als Kurs für den Arbeitsblatt-Generator. */
+  exportCourse(id) {
+    return this._download(`/api/notebooks/nodes/${encodeURIComponent(id)}/course-export`, 'kurs.zip');
+  }
+  /** Dokument-Einstellungen eines Ordners (Kurs, Titelmuster, Nummerierung, KI-Vorgaben). */
+  updateDocSettings(id, settings) {
+    return this._fetch(`/api/notebooks/nodes/${encodeURIComponent(id)}/doc-settings`, { method: 'PATCH', body: JSON.stringify(settings) });
+  }
   /** Notebook-Datei (ZIP) einlesen, in parentId (leer = oben). */
   async importNotebook(file, parentId = null) {
     const formData = new FormData();

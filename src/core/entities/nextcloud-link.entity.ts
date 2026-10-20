@@ -1,4 +1,13 @@
 import { Entity, Column, Index } from 'typeorm';
+
+export interface PreviousShare {
+  baseUrl: string;
+  shareToken: string;
+  passwordSealed: string | null;
+  davMode: 'classic' | 'files' | null;
+  /** Seit wann nicht mehr verbunden (ISO). */
+  at: string;
+}
 import { BaseEntity } from './base.entity';
 
 /**
@@ -47,6 +56,18 @@ export class NextcloudLink extends BaseEntity {
   /** Letzter Umzug in eine andere Freigabe: { at, from, copied, error? } (Hinweis im Dialog). */
   @Column('simple-json', { nullable: true })
   moveResult: any;
+
+  /**
+   * Frühere Freigaben (nach Trennen, Wechsel oder Umzug, solange noch Links
+   * daran hingen) – Quelle für Bilder, die in der jetzigen fehlen. Neueste
+   * zuerst, höchstens fünf, je 180 Tage.
+   */
+  @Column('simple-json', { nullable: true })
+  previousShares: PreviousShare[] | null;
+
+  /** Letzte Prüfung der verlinkten Bilder: { at, count, missing: [{ sub, name }], restored }. */
+  @Column('simple-json', { nullable: true })
+  imageCheck: any;
 
   /**
    * Früher: Unterordner im Nextcloud-Ordner der Schule (Admin-Backup), wenn

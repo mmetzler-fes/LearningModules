@@ -118,7 +118,8 @@ aus dem Shop. Ohne Bilder wird gleich getrennt, sonst gibt es drei Wege:
 - **🚚 Zu einer anderen Nextcloud umziehen** (siehe unten).
 - **Trotzdem trennen:** mit Liste der betroffenen Themen. Die Bilder fehlen
   dann in den Modulen; die Dateien bleiben in der Nextcloud. Wer später
-  dieselbe Freigabe wieder verbindet, hat alle Bilder zurück.
+  dieselbe oder eine andere Freigabe verbindet, hat alle Bilder zurück (siehe
+  [Frühere Freigaben](#fruehere-freigaben)).
 
 ### Umziehen
 
@@ -133,8 +134,24 @@ verbunden – nichts fehlt. Die alte Freigabe wird nicht verändert und kann
 nach dem Umzug gelöscht werden.
 
 Einen anderen Freigabelink oben einfach einzutragen, lässt die App nicht zu,
-solange Bilder aus der bisherigen in Modulen stecken – sonst zeigten alle ins
-Leere.
+solange die bisherige verbunden ist und Bilder aus ihr in Modulen stecken.
+
+### Frühere Freigaben
+
+Die Bild-Links tragen nur die Kennung der Lehrkraft, nicht die Freigabe. Ist
+die bisherige Freigabe nicht mehr verbunden (getrennt, Ordner gelöscht,
+Prüfung fehlgeschlagen) und wird eine andere eingetragen, zeigten die Links
+sonst auf Dateien, die es in der neuen nicht gibt. Deshalb merkt sich die App
+beim Trennen, Wechseln und Umziehen die bisherige Freigabe (samt Passwort,
+verschlüsselt), solange noch Links daran hängen – höchstens fünf, je 180 Tage:
+
+- Fehlt ein Bild in der jetzigen Freigabe, liefert der Server es aus einer
+  früheren.
+- Beim Prüfen und danach stündlich kopiert die App solche Bilder unter
+  demselben Namen in die jetzige Freigabe – die Links bleiben gleich.
+- Was in keiner Freigabe mehr liegt, listet der Nextcloud-Dialog
+  („⚠️ … fehlen in deiner Freigabe“) mit Pfad. Wer die Dateien dort wieder
+  ablegt, hat die Bilder sofort zurück.
 
 ## Bilder einfügen
 

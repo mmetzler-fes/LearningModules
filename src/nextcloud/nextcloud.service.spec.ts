@@ -425,6 +425,40 @@ describe('Freigabe trennen und umziehen', () => {
     await expect(svc.connect(user, { shareUrl: `${CLOUD}/s/NeueTok`, password: 'x' }, APP)).rejects.toThrow(/Umziehen/);
   });
 
+  it('andere Freigabe, nachdem die alte nicht mehr verbunden war: die Bilder kommen aus der alten mit', async () => {
+    const { svc, links, url } = await connected();
+    links[0].verifiedAt = null; // etwa nachdem der Ordner gelöscht war
+    await svc.connect(user, { shareUrl: `${CLOUD}/s/AndereTok`, password: 'pw2' }, APP);
+    expect(links[0].previousShares).toMatchObject([{ shareToken: 'EigenTok', passwordSealed: 'sealed:pw' }]);
+    // Schon vor dem Kopieren liefert der Server aus der früheren Freigabe.
+    expect((await svc.readImageByUrl(url('gate.png')))?.data.length).toBe(3000);
+    await svc.followOwners();
+    expect(cloud.files.get('AndereTok/public.php/webdav/Bilder/Reisen/gate.png')?.length).toBe(3000);
+    expect(cloud.files.get('AndereTok/public.php/webdav/Bilder/Reisen/hund (1).png')?.length).toBe(1000);
+    expect(links[0].imageCheck).toMatchObject({ count: 0 });
+  });
+
+  it('trennen und später eine andere verbinden: die Bilder kommen mit', async () => {
+    const { svc, links } = await connected();
+    await svc.disconnect(user, true);
+    expect(links[0].previousShares).toHaveLength(1);
+    await svc.connect(user, { shareUrl: `${CLOUD}/s/AndereTok`, password: 'pw2' }, APP);
+    await svc.followOwners();
+    expect(cloud.files.get('AndereTok/public.php/webdav/Bilder/Reisen/gate.png')?.length).toBe(3000);
+  });
+
+  it('meldet verlinkte Bilder, die nirgends mehr liegen', async () => {
+    const { svc, links } = await connected();
+    cloud.files.delete('EigenTok/public.php/webdav/Bilder/Reisen/gate.png');
+    await svc.followOwners();
+    expect(links[0].imageCheck).toMatchObject({ count: 1, missing: [{ sub: 'Reisen', name: 'gate.png' }] });
+    expect(((await svc.status(user)) as any).imageCheck.count).toBe(1);
+    // Wieder abgelegt – die Meldung verschwindet beim nächsten Lauf.
+    cloud.files.set('EigenTok/public.php/webdav/Bilder/Reisen/gate.png', Buffer.alloc(3000, 'g'));
+    await svc.followOwners();
+    expect(links[0].imageCheck).toMatchObject({ count: 0 });
+  });
+
   it('umziehen kopiert Bilder/ und schaltet erst danach um – Links bleiben gültig', async () => {
     const { svc, links, moduleRepo, url } = await connected();
     const res = await svc.startMove(user, { shareUrl: `${CLOUD}/s/NeueTok`, password: 'neu' }, APP);

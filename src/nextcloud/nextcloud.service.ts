@@ -21,6 +21,8 @@ export const IMAGE_TYPES: Record<string, string> = {
 const IMAGE_EXT = /\.(png|jpe?g|gif|webp|svg)$/i;
 export const MAX_IMAGE_BYTES = 15 * 1024 * 1024;
 const IMAGES = 'Bilder';
+/** So lange dient eine frühere Freigabe als Quelle für fehlende Bilder. */
+const PREVIOUS_SHARE_DAYS = 180;
 
 /**
  * Verweis auf ein Bild in der Nextcloud der Lehrkraft, wie ihn der KI-Prompt
@@ -308,6 +310,8 @@ export class NextcloudService implements OnApplicationBootstrap {
       insecure: !!l.insecureAt,
       readShareLostAt: l.readShareLostAt,
       move: this.moves.get(l.userId) || (l.moveResult ? { ...l.moveResult, running: false } : null),
+      // Verlinkte Bilder, die in der Freigabe fehlen (followOwners, stündlich und nach dem Prüfen).
+      imageCheck: l.imageCheck || null,
       verifiedAt: l.verifiedAt,
       imagesFolder: IMAGES,
       openUrl: this.shareLink(l),
@@ -343,7 +347,9 @@ export class NextcloudService implements OnApplicationBootstrap {
     }
     await assertPublicHost(base);
     if (await shareIsOpen(base, share.token)) throw new BadRequestException(OPEN_SHARE_MESSAGE);
-    if (!same) Object.assign(l, { davMode: null, verifiedAt: null });
+    // Auch eine kaputte oder getrennte bisherige Freigabe merken: Fehlende
+    // Bilder holt die App beim Prüfen aus ihr in die neue.
+    if (!same) { await this.rememberShare(l); Object.assign(l, { davMode: null, verifiedAt: null }); }
     if (given) l.passwordSealed = this.masterKey.sealSecret(String(input.password));
     Object.assign(l, { baseUrl: base, shareToken: share.token, appBase });
     await this.linkRepo.save(l);
@@ -393,6 +399,8 @@ export class NextcloudService implements OnApplicationBootstrap {
       throw new BadRequestException('In Modulen stecken noch Bilder aus dieser Freigabe – erst zurückholen, umziehen oder ausdrücklich trotzdem trennen.');
     }
     if (l) {
+      // Hängen noch Links daran, bleibt sie Quelle für diese Bilder (rememberShare).
+      await this.rememberShare(l);
       Object.assign(l, { baseUrl: '', shareToken: null, passwordSealed: null, davMode: null, imageShareToken: null, verifiedAt: null, insecureAt: null, backupEnabled: false });
       await this.linkRepo.save(l);
     }
@@ -417,6 +425,44 @@ export class NextcloudService implements OnApplicationBootstrap {
       await this.linkRepo.save(l);
     }
     return nc;
+  }
+
+  // ---- Frühere Freigaben: Bilder gehen beim Wechseln nicht verloren ----
+
+  /**
+   * Die Bild-Links tragen nur die Kennung des Eintrags, nicht die Freigabe.
+   * Wird eine andere eingetragen oder getrennt, zeigen sie auf die neue (oder
+   * ins Leere). Damit nichts fehlt, merkt sich der Eintrag die bisherige
+   * Freigabe, solange noch Links daran hängen: Fehlende Bilder liefert der
+   * Server dann aus ihr, und followOwners kopiert sie in die jetzige.
+   */
+  private async rememberShare(l: NextcloudLink) {
+    if (!l.baseUrl || !l.shareToken) return;
+    if (!(await this.countReferences(l))) return;
+    const cutoff = Date.now() - PREVIOUS_SHARE_DAYS * 24 * 3600 * 1000;
+    const rest = (l.previousShares || []).filter((p) =>
+      !(p.baseUrl === l.baseUrl && p.shareToken === l.shareToken) && new Date(p.at).getTime() > cutoff);
+    l.previousShares = [
+      { baseUrl: l.baseUrl, shareToken: l.shareToken, passwordSealed: l.passwordSealed, davMode: l.davMode, at: new Date().toISOString() },
+      ...rest,
+    ].slice(0, 5);
+  }
+
+  /** Bild Bilder/<sub>/<name> aus einer früheren Freigabe des Eintrags – null, wenn keine es hat. */
+  private async fromPrevious(l: NextcloudLink, sub: string, name: string): Promise<{ type: string; data: Buffer } | null> {
+    const cutoff = Date.now() - PREVIOUS_SHARE_DAYS * 24 * 3600 * 1000;
+    for (const p of l.previousShares || []) {
+      if ((p.baseUrl === l.baseUrl && p.shareToken === l.shareToken) || new Date(p.at).getTime() <= cutoff) continue;
+      try {
+        const password = p.passwordSealed ? this.masterKey.unsealSecret(p.passwordSealed) : '';
+        await assertPublicHost(p.baseUrl);
+        const nc = new ShareClient(p.baseUrl, p.shareToken, password, p.davMode || 'classic');
+        if (!p.davMode) p.davMode = await nc.detectMode();
+        const file = await nc.get([IMAGES, sub, name]);
+        if (file) return file;
+      } catch { /* nicht (mehr) erreichbar – nächste */ }
+    }
+    return null;
   }
 
   /** Verbindung für andere Dienste (Backup): Eintrag und Client, sofern geprüft. */
@@ -462,6 +508,7 @@ export class NextcloudService implements OnApplicationBootstrap {
     if (!safePart(sub) || !safePart(name) || !IMAGE_EXT.test(name)) return null;
     let nc: ShareClient | null = null;
     let root: string[] = [];
+    let own: NextcloudLink | null = null;
     if (ref.kind === 'sch') {
       if (!ref.folder || !safePart(ref.folder)) return null;
       const snc = await this.schoolNcRepo.findOne({ where: { id: ref.sncId } });
@@ -474,12 +521,14 @@ export class NextcloudService implements OnApplicationBootstrap {
         nc = l.serverFolder ? await this.schoolClient() : null;
         root = [IMAGES, l.serverFolder || ''];
       } else {
-        nc = l.shareToken && l.verifiedAt ? await this.client(l) : null;
+        own = l;
+        nc = l.shareToken && l.verifiedAt ? await this.client(l).catch(() => null) : null;
         root = [IMAGES];
       }
     }
-    if (!nc) return null;
-    const file = await nc.get([...root, sub, name]).catch(() => null);
+    let file = nc ? await nc.get([...root, sub, name]).catch(() => null) : null;
+    // Fehlt es in der jetzigen Freigabe, liegt es vielleicht noch in einer früheren.
+    if (!file && own) file = await this.fromPrevious(own, sub, name);
     if (!file) return null;
     const ext = name.split('.').pop()!.toLowerCase().replace('jpg', 'jpeg');
     const type = IMAGE_TYPES[file.type.split(';')[0].trim()] ? file.type.split(';')[0].trim() : (ext === 'svg' ? 'image/svg+xml' : `image/${ext}`);
@@ -649,8 +698,8 @@ export class NextcloudService implements OnApplicationBootstrap {
    */
   onApplicationBootstrap() {
     const run = () => void this.followOwners().then((r) => {
-      if (r && (r.modules || r.drafts || r.missing)) {
-        this.logger.log(`Bilder umgehängt: ${r.modules} Module, ${r.drafts} Entwürfe, ${r.copied} Bilder kopiert, ${r.reused} schon da, ${r.missing} nicht gefunden, ${r.skipped} ohne Ablage der Lehrkraft`);
+      if (r && (r.modules || r.drafts || r.missing || r.restored)) {
+        this.logger.log(`Bilder umgehängt: ${r.modules} Module, ${r.drafts} Entwürfe, ${r.copied} Bilder kopiert, ${r.reused} schon da, ${r.restored} aus früherer Freigabe zurückgeholt, ${r.missing} nicht gefunden, ${r.skipped} ohne Ablage der Lehrkraft`);
       }
       if (r?.offloaded) {
         this.logger.log(`Bilder aus der App ausgelagert: ${r.offloaded} Module, ${(r.offloadedBytes / 1024 / 1024).toFixed(1)} MB`);
@@ -685,7 +734,7 @@ export class NextcloudService implements OnApplicationBootstrap {
   }
 
   private async doFollowOwners() {
-    const result = { modules: 0, drafts: 0, copied: 0, reused: 0, missing: 0, skipped: 0, offloaded: 0, offloadedBytes: 0 };
+    const result = { modules: 0, drafts: 0, copied: 0, reused: 0, missing: 0, restored: 0, skipped: 0, offloaded: 0, offloadedBytes: 0 };
     const links = await this.linkRepo.find();
     const byToken = new Map(links.filter((l) => l.imageShareToken).map((l) => [l.imageShareToken!, l]));
     const needles = ['%/api/nextcloud/%', ...(byToken.size ? ['%/download?path=%'] : [])];
@@ -715,6 +764,36 @@ export class NextcloudService implements OnApplicationBootstrap {
       ? (ref.kind === 'files' || ref.kind === 'direct') && ref.linkId === s.l.id
       : ref.kind === 'sch' && ref.sncId === s.snc!.id && ref.folder === s.root[1];
 
+    // Liegt ein Bild, das schon in der eigenen Freigabe sein sollte, auch da?
+    // Sonst aus einer früheren Freigabe holen (gleicher Name – der Link bleibt).
+    const listed = new Map<string, Promise<Set<string> | null>>();
+    const checks = new Map<string, { missing: Map<string, { sub: string; name: string }>; restored: number }>();
+    const checkHome = async (s: ImageStore, ref: ImageRef) => {
+      if (!checks.has(s.l.id)) checks.set(s.l.id, { missing: new Map(), restored: 0 });
+      const check = checks.get(s.l.id)!;
+      const key = `${s.l.id}|${ref.sub}`;
+      if (!listed.has(key)) {
+        listed.set(key, s.nc.list([...s.root, ref.sub]).then((es) => new Set(es.map((e) => e.name))).catch(() => null));
+      }
+      const names = await listed.get(key)!;
+      // Freigabe gerade nicht erreichbar: nichts behaupten.
+      if (!names || names.has(ref.name)) return;
+      const file = await this.fromPrevious(s.l, ref.sub, ref.name);
+      if (file) {
+        try {
+          await s.nc.ensureFolder([...s.root, ref.sub]);
+          const type = file.type.split(';')[0].trim();
+          await s.nc.put([...s.root, ref.sub, ref.name], file.data, IMAGE_TYPES[type] ? type : 'application/octet-stream');
+          names.add(ref.name);
+          check.restored++;
+          result.restored++;
+          return;
+        } catch { /* zählt als fehlend */ }
+      }
+      check.missing.set(`${ref.sub}/${ref.name}`, { sub: ref.sub, name: ref.name });
+      result.missing++;
+    };
+
     const done = new Map<string, Promise<string | null>>();
     const move = (owners: Array<string | null | undefined>, ref: ImageRef) => {
       // Alte Links aufs Admin-Backup retten auch Verfasser oder Hochladende, falls
@@ -725,7 +804,10 @@ export class NextcloudService implements OnApplicationBootstrap {
         let s: ImageStore | null = null;
         for (const o of chain) if (!s) s = await store(o);
         if (!s) { result.skipped++; return null; }
-        if (isHome(ref, s)) return null;
+        if (isHome(ref, s)) {
+          if (s.kind === 'own') await checkHome(s, ref);
+          return null;
+        }
         const file = await this.readRef(ref).catch(() => null);
         const placed = await this.placeImage(s.nc, s.root, ref.sub, ref.name, file);
         if (!placed) { result.missing++; return null; }
@@ -745,6 +827,16 @@ export class NextcloudService implements OnApplicationBootstrap {
       const before = JSON.stringify(d.data);
       const next = await this.swapRefs(d.data, byToken, (ref) => move([d.userId], ref));
       if (JSON.stringify(next) !== before) { await this.draftRepo.update({ id: d.id }, { data: next }); result.drafts++; }
+    }
+    // Ergebnis je Freigabe für den Dialog.
+    const at = new Date().toISOString();
+    for (const [id, c] of checks) {
+      const missing = [...c.missing.values()].sort((a, b) => `${a.sub}/${a.name}`.localeCompare(`${b.sub}/${b.name}`, 'de'));
+      await this.linkRepo.update({ id }, { imageCheck: { at, count: missing.length, missing: missing.slice(0, 50), restored: c.restored } as any });
+    }
+    // Hängt nichts mehr an einer Freigabe, fehlt dort auch nichts.
+    for (const l of links) {
+      if (l.imageCheck?.count && !checks.has(l.id)) await this.linkRepo.update({ id: l.id }, { imageCheck: null as any });
     }
     await this.offloadAppImages(result, store);
     return result;
@@ -1217,6 +1309,7 @@ export class NextcloudService implements OnApplicationBootstrap {
         }
         const fresh = (await this.find(l.userId))!;
         const oldRead = fresh.imageShareToken ? { base: fresh.baseUrl, token: fresh.imageShareToken } : null;
+        await this.rememberShare(fresh);
         Object.assign(fresh, {
           baseUrl: base, shareToken: share.token, passwordSealed: password ? this.masterKey.sealSecret(password) : null,
           davMode: mode, verifiedAt: new Date(), imageShareToken: null, insecureAt: null, appBase,

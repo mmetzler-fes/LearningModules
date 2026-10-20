@@ -326,6 +326,22 @@ function moveHtml(m) {
   return `<p class="hint nc-status">✅ Umgezogen am ${when(m.at)} (${m.copied} Bilder kopiert). Die alte Freigabe (${escapeHtml(m.from || '')}) wird nicht mehr gebraucht und kann gelöscht werden.</p>`;
 }
 
+/** Verlinkte Bilder, die in der Freigabe fehlen bzw. aus einer früheren zurückgeholt wurden. */
+function imageCheckHtml(c) {
+  if (!c) return '';
+  const out = [];
+  if (c.restored) out.push(`<p class="hint nc-status">♻️ ${c.restored} Bild${c.restored === 1 ? '' : 'er'} aus deiner früheren Freigabe in die jetzige kopiert (${when(c.at)}).</p>`);
+  if (c.count) {
+    const list = c.missing.map((m) => `<li><code>Bilder/${escapeHtml(m.sub)}/${escapeHtml(m.name)}</code></li>`).join('');
+    out.push(`<details class="hint nc-status" open><summary><span class="login-error" style="display:inline">⚠️ ${c.count} Bild${c.count === 1 ? '' : 'er'} aus deinen Modulen
+      ${c.count === 1 ? 'fehlt' : 'fehlen'} in deiner Freigabe</span> (Stand ${when(c.at)})</summary>
+      <p>Lege die Dateien wieder genau so in deiner Nextcloud ab – die Links in den Modulen funktionieren dann sofort wieder.
+      Die App prüft stündlich; „Speichern und prüfen“ stößt sofort eine neue Prüfung an (Dialog danach neu öffnen).</p>
+      <ul class="nc-migrate-list">${list}</ul>${c.count > c.missing.length ? `<p>… und ${c.count - c.missing.length} weitere.</p>` : ''}</details>`);
+  }
+  return out.join('');
+}
+
 // ---------- Einstellungen (Home-Menü) ----------
 
 export async function openNextcloudDialog(app) {
@@ -369,6 +385,7 @@ export async function openNextcloudDialog(app) {
           kommen seit ${when(data.readShareLostAt)} über diesen Server, in den Modulen fehlt nichts. Du kannst sie in der Nextcloud löschen.</p>` : '',
       legacyHtml(data.legacy, own, schoolMode),
       moveHtml(data.move),
+      own ? imageCheckHtml(data.imageCheck) : '',
     ].filter(Boolean).join('');
 
     const howTo = `<p class="hint">So legst du die Freigabe an: In der Nextcloud einen Ordner anlegen (z. B. <code>LearningModules</code>) →

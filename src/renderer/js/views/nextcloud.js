@@ -109,7 +109,7 @@ function backupSummary(r) {
   return parts.join(', ');
 }
 
-function backupHtml(b) {
+function backupHtml(b, open = false) {
   if (!b) return '';
   const hours = Array.from({ length: 24 }, (_, h) => `<option value="${h}" ${h === b.hour ? 'selected' : ''}>${String(h).padStart(2, '0')}:00 Uhr</option>`).join('');
   const last = b.lastStatus === 'ok'
@@ -117,9 +117,13 @@ function backupHtml(b) {
     : b.lastStatus === 'error'
       ? `<span class="login-error" style="display:inline">❌ Letzter Versuch ${when(b.lastAttemptAt)} fehlgeschlagen: ${escapeHtml(b.lastError || '')}</span>`
       : '';
+  const state = !b.enabled ? 'aus'
+    : b.lastStatus === 'error' ? '❌ fehlgeschlagen'
+      : `täglich ${String(b.hour).padStart(2, '0')}:00${b.lastSuccessAt ? ` · zuletzt ${when(b.lastSuccessAt)}` : ''}`;
   return `
-    <div class="settings-group nc-backup">
-      <h4>Backup deiner Inhalte</h4>
+    <details class="nc-section nc-backup" ${b.lastStatus === 'error' || open ? 'open' : ''}>
+      <summary>💾 Backup deiner Inhalte <span class="nc-sum-state">${escapeHtml(state)}</span></summary>
+      <div class="nc-section-body">
       <p class="hint">Sichert deine selbst verfassten Module täglich nach <strong>${escapeHtml(b.folder)}</strong> – je Lernthema
         eine JSON-Datei, nur wenn sich etwas geändert hat. Ältere Stände zeigt die Nextcloud bei jeder Datei unter
         „Versionen“. Zurückholen: Datei herunterladen und über 📥 Thema importieren einlesen.
@@ -131,7 +135,8 @@ function backupHtml(b) {
       </div>
       ${last ? `<p class="hint">${last}</p>` : ''}
       <p class="nc-backup-message hint"></p>
-    </div>`;
+      </div>
+    </details>`;
 }
 
 // ---------- Vorhandene Bilder auslagern ----------
@@ -187,8 +192,12 @@ async function scanMigration(app, body) {
  * Früher konnten Bilder im Nextcloud-Ordner des Admin-Backups liegen. Die
  * App übernimmt sie in die eigene Freigabe, sobald die verbunden ist.
  */
-function legacyHtml(legacy, own) {
+function legacyHtml(legacy, own, school) {
   if (!legacy) return '';
+  // Erledigtes nur noch zwei Wochen lang zeigen.
+  if (!legacy.pending && Date.now() - new Date(legacy.movedAt).getTime() > 14 * 24 * 3600 * 1000) return '';
+  // Mit Schul-Nextcloud wandern verwendete Bilder von selbst dorthin.
+  if (legacy.pending && school && !own) return '';
   const r = legacy.result || {};
   const counts = () => {
     const parts = [`${r.copied || 0} kopiert`];
@@ -202,7 +211,7 @@ function legacyHtml(legacy, own) {
   else if (legacy.running) text = '⏳ Deine Bilder aus dem früheren Ordner der Schule werden gerade in deine Freigabe übernommen …';
   else if (own && r.error) text = `<span class="login-error" style="display:inline">❌ Übernahme der Bilder aus dem früheren Ordner der Schule fehlgeschlagen: ${escapeHtml(r.error)}</span> Die App versucht es später erneut; „Verbinden“ startet sofort einen neuen Versuch.`;
   else if (own) text = '⏳ Deine Bilder aus dem früheren Ordner der Schule werden in deine Freigabe übernommen …';
-  else text = '📦 Deine bisherigen Bilder liegen noch im Nextcloud-Ordner der Schule und bleiben in den Modulen sichtbar. Neue Bilder speichert die App erst wieder in einer Nextcloud, wenn du unten <strong>deine eigene Freigabe</strong> verbindest – dann übernimmt sie auch die bisherigen Bilder dorthin und stellt die Links in deinen Modulen um.';
+  else text = '📦 Deine bisherigen Bilder liegen noch im früheren Ordner der Schule und bleiben in den Modulen sichtbar. Sobald du unten eine Freigabe verbindest, übernimmt die App sie dorthin.';
   return `<p class="hint nc-status">${text}</p>`;
 }
 
@@ -334,16 +343,40 @@ export async function openNextcloudDialog(app) {
     if (!data || data.statusCode) { card.innerHTML = `<p class="login-error">Fehler: ${escapeHtml(data?.message || '?')}</p>`; return; }
     const c = data.config;
     const own = data.mode === 'own';
-    const status = own
-      ? `✅ Eigene Freigabe verbunden – die App sieht nur diesen Ordner. Bilder landen in <strong>Bilder/&lt;Thema&gt;</strong>
-         und kommen ${data.directImages ? 'direkt aus der Nextcloud (Lesefreigabe)' : 'über diesen Server zu den Schülern'}.
-         ${data.openUrl ? `<a href="${escapeAttr(data.openUrl)}" target="_blank" rel="noopener">Ordner öffnen ↗</a>` : ''}`
-      : data.configured ? '⚠️ Eigene Freigabe gespeichert, aber nicht verbunden – bitte „Verbinden“ wählen.' : '';
     const schoolMode = data.mode === 'school';
-    const ownForm = `
-        <p class="hint">So legst du die Freigabe an: In der Nextcloud einen Ordner anlegen (z. B. <code>LearningModules</code>) →
+    const host = (() => { try { return new URL(c.shareUrl).host; } catch (_) { return ''; } })();
+    const open = (url) => (url ? ` · <a href="${escapeAttr(url)}" target="_blank" rel="noopener">Ordner öffnen ↗</a>` : '');
+
+    // Oben: wohin die Bilder gerade gehen – auf einen Blick.
+    const hero = own
+      ? { cls: 'ok', title: `Deine Bilder landen in <strong>deiner Nextcloud</strong>${host ? ` <span class="hint">(${escapeHtml(host)})</span>` : ''}`,
+        sub: `Ordner <code>Bilder/&lt;Thema&gt;</code> · ${data.directImages ? 'Schüler laden direkt aus der Nextcloud' : 'kommen über diesen Server zu den Schülern'}${open(data.openUrl)}` }
+      : schoolMode
+        ? { cls: 'ok', title: 'Deine Bilder landen in der <strong>Nextcloud deiner Schule</strong>',
+          sub: `Ordner <code>${escapeHtml(data.school.folder)}/&lt;Thema&gt;</code> · du musst nichts einrichten · der Schuladmin kann den Ordner sehen` }
+        : data.configured
+          ? { cls: 'warn', title: '⚠️ Freigabe gespeichert, aber <strong>nicht verbunden</strong>', sub: 'Bitte unter „Verbindung“ erneut verbinden.' }
+          : { cls: 'none', title: 'Deine Bilder landen <strong>in der App</strong> (auf dem Server, verkleinert)',
+            sub: 'Mit einer Nextcloud-Freigabe liegen sie stattdessen in deiner Cloud – je Thema ein Ordner, im Modul steht nur der Link, und im Bildfeld kommt <strong>☁️ Aus Nextcloud</strong> dazu.' };
+
+    const notices = [
+      quotaHtml(quota),
+      data.readShareLostAt && !data.directImages ? `<p class="hint nc-status">ℹ️ Die Lesefreigabe gab es in der Nextcloud nicht mehr
+        (${when(data.readShareLostAt)}) – die Bilder laufen seitdem über diesen Server, es fehlt nichts.</p>` : '',
+      legacyHtml(data.legacy, own, schoolMode),
+      moveHtml(data.move),
+    ].filter(Boolean).join('');
+
+    const howTo = `<p class="hint">So legst du die Freigabe an: In der Nextcloud einen Ordner anlegen (z. B. <code>LearningModules</code>) →
           <strong>Teilen → Link teilen</strong> → <strong>„Hochladen und Bearbeiten erlauben“</strong> → ein
-          <strong>Passwort</strong> setzen → Link kopieren. Die App sieht dann nur diesen Ordner – kein Konto, kein App-Passwort.</p>
+          <strong>Passwort</strong> setzen → Link kopieren. Die App sieht dann nur diesen Ordner – kein Konto, kein App-Passwort.</p>`;
+    const connState = own ? '✅ verbunden' : data.configured ? '⚠️ nicht verbunden' : schoolMode ? 'optional – geht vor' : 'nicht eingerichtet';
+    const connOpen = !own && (!schoolMode || data.configured || msg?.text);
+    const connection = `
+      <details class="nc-section nc-own" ${connOpen ? 'open' : ''}>
+        <summary>🔗 ${schoolMode ? 'Eigene Freigabe' : 'Verbindung'} <span class="nc-sum-state">${connState}</span></summary>
+        <div class="nc-section-body">
+        ${own ? `<details class="nc-howto"><summary>Wie lege ich eine Freigabe an?</summary>${howTo}</details>` : howTo}
         <div class="form-group">
           <label for="ncShare">Freigabelink des Ordners</label>
           <input type="url" id="ncShare" value="${escapeAttr(c.shareUrl)}" autocomplete="off"
@@ -357,62 +390,59 @@ export async function openNextcloudDialog(app) {
         <details class="nc-advanced" ${c.readShareUrl ? 'open' : ''}>
           <summary>Optional: Bilder direkt aus der Nextcloud laden</summary>
           <p class="hint">Ohne Angabe holt dieser Server die Bilder mit dem Passwort und reicht sie an die Schüler durch – in der
-            Nextcloud ist dann nichts öffentlich. Soll der Server das nicht tun, den Unterordner <code>Bilder</code> (legt die App
-            beim Verbinden an) zusätzlich <strong>nur lesend und ohne Passwort</strong> teilen und den Link hier eintragen.
-            Diese Bilder sind dann für jeden mit Link sichtbar – keine Fotos von Schülerinnen und Schülern.</p>
+            Nextcloud ist dann nichts öffentlich. Soll der Server das nicht tun, den Unterordner <code>Bilder</code> zusätzlich
+            <strong>nur lesend und ohne Passwort</strong> teilen und den Link hier eintragen. Diese Bilder sind dann für jeden mit
+            Link sichtbar – keine Fotos von Schülerinnen und Schülern.</p>
           <input type="url" id="ncRead" value="${escapeAttr(c.readShareUrl)}" autocomplete="off" placeholder="https://…/s/…" />
-          <p class="hint"><strong>Zurückziehen:</strong> erst hier das Feld leeren und „Verbinden“ wählen – dann laufen die Bilder in
-            allen Modulen über diesen Server, und die Lesefreigabe kann in der Nextcloud gelöscht werden. Löscht man sie zuerst in
-            der Nextcloud, merkt die App das nach einigen Stunden und stellt dann ebenfalls um.</p>
+          <p class="hint"><strong>Zurückziehen:</strong> erst hier das Feld leeren und „Verbinden“ wählen, dann die Lesefreigabe in der
+            Nextcloud löschen.</p>
         </details>
         <div class="form-actions">
-          <button class="btn btn-primary nc-connect">🔌 Verbinden</button>
+          <button class="btn btn-primary nc-connect">🔌 ${own ? 'Speichern und prüfen' : 'Verbinden'}</button>
           ${data.configured ? '<button class="btn btn-danger nc-disconnect">Freigabe trennen</button>' : ''}
         </div>
         <div class="nc-disconnect-box"></div>
         <p class="nc-message" style="margin-top:10px"></p>
-        ${own ? `
-        <details class="nc-move">
-          <summary>🚚 Zu einer anderen Nextcloud umziehen</summary>
-          <p class="hint">Etwa bei einem Schulwechsel oder einer neuen Cloud: Neue Ordnerfreigabe wie oben anlegen (Hochladen und
-            Bearbeiten erlaubt, mit Passwort) und hier eintragen. Die App prüft sie, kopiert den Ordner <code>Bilder</code>
-            hinüber und schaltet erst danach um – in den Modulen bleibt alles sichtbar. Die alte Freigabe wird nicht verändert.</p>
+        </div>
+      </details>`;
+
+    const move = own ? `
+      <details class="nc-section nc-move">
+        <summary>🚚 Zu einer anderen Nextcloud umziehen <span class="nc-sum-state">${data.move?.running ? '⏳ läuft' : ''}</span></summary>
+        <div class="nc-section-body">
+          <p class="hint">Etwa bei einem Schulwechsel oder einer neuen Cloud: Neue Ordnerfreigabe anlegen (Hochladen und Bearbeiten
+            erlaubt, mit Passwort) und hier eintragen. Die App prüft sie, kopiert den Ordner <code>Bilder</code> hinüber und schaltet
+            erst danach um – in den Modulen bleibt alles sichtbar. Die alte Freigabe wird nicht verändert.</p>
           <div class="form-group"><label for="ncMoveShare">Neuer Freigabelink</label>
             <input type="url" id="ncMoveShare" autocomplete="off" placeholder="https://…/s/…" /></div>
           <div class="form-group"><label for="ncMovePass">Passwort der neuen Freigabe</label>
             <input type="password" id="ncMovePass" autocomplete="new-password" /></div>
           <button class="btn btn-primary nc-move-run" ${data.move?.running ? 'disabled' : ''}>🚚 Umziehen</button>
-        </details>` : ''}`;
+        </div>
+      </details>` : '';
+
+    const migrate = data.ready ? `
+      <details class="nc-section nc-migrate">
+        <summary>📤 Bilder aus der App auslagern <span class="nc-sum-state">läuft automatisch stündlich</span></summary>
+        <div class="nc-section-body">
+          <p class="hint">Bilder, die noch in der App liegen, wandern von selbst in die Ordner deiner Themen – auch aus gekauften und
+            übernommenen Modulen; im Modul steht danach der Link. Hier geht es für deine eigenen Module sofort.</p>
+          <button class="btn btn-secondary nc-migrate-scan">🔍 Bilder in der App suchen</button>
+          <div class="nc-migrate-body"></div>
+        </div>
+      </details>` : '';
+
     card.innerHTML = `
       <h3>☁️ Nextcloud <button type="button" class="help-hint" data-help="nextcloud" title="Hilfe" aria-label="Hilfe">?</button></h3>
-      <p class="hint">Bilder, die du in Module einfügst, speichert die App <strong>in einem Nextcloud-Ordner</strong> statt auf
-        dem Server – je Lernthema in einem eigenen Unterordner. Im Modul steht nur der Link. Im Bildfeld kommt
-        <strong>☁️ Aus Nextcloud</strong> dazu: Bilder, die schon dort liegen, mit einem Klick einfügen.</p>
-      ${schoolMode ? `<p class="hint nc-status">✅ <strong>Deine Schule stellt eine Nextcloud bereit.</strong> Deine Bilder landen dort in
-        <strong>${escapeHtml(data.school.folder)}/&lt;Thema&gt;</strong> und kommen über diesen Server zu den Schülern – du musst nichts
-        einrichten. Der Schuladmin kann diesen Ordner sehen. Eine eigene Freigabe geht vor; deine Bilder ziehen dann mit.</p>` : ''}
-      ${status ? `<p class="hint nc-status">${status}</p>` : ''}
-      ${quotaHtml(quota)}
-      ${data.readShareLostAt && !data.directImages ? `<p class="hint nc-status">ℹ️ Die Lesefreigabe für <code>Bilder</code> gab es in der
-        Nextcloud nicht mehr (${when(data.readShareLostAt)}). Die Bilder laufen seitdem über diesen Server – in den Modulen fehlt
-        nichts. Wer wieder direkt laden will, trägt unten eine neue Lesefreigabe ein.</p>` : ''}
-      ${legacyHtml(data.legacy, own)}
-      ${moveHtml(data.move)}
-      <div class="settings-group">
-        ${schoolMode && !data.configured
-          ? `<details class="nc-own"><summary>Stattdessen eine eigene Nextcloud-Freigabe verwenden (geht vor)</summary>${ownForm}</details>`
-          : `<h4>${data.school?.available ? 'Eigene Nextcloud-Freigabe' : 'Nextcloud-Freigabe'}</h4>${ownForm}`}
+      <div class="nc-hero nc-hero-${hero.cls}">
+        <div class="nc-hero-title">${hero.title}</div>
+        <div class="nc-hero-sub hint">${hero.sub}</div>
       </div>
-      ${own ? backupHtml(data.backup) : ''}
-      ${data.ready ? `
-      <div class="settings-group nc-migrate">
-        <h4>Vorhandene Bilder auslagern</h4>
-        <p class="hint">Bilder, die schon in deinen Modulen stecken, liegen noch in der App. Hier wandern sie in die Ordner
-          deiner Themen; in den Modulen steht danach der Link. Gleiche Bilder gehen nur einmal hoch. Gekaufte oder
-          übernommene Module bleiben unverändert.</p>
-        <button class="btn btn-secondary nc-migrate-scan">🔍 Bilder in der App suchen</button>
-        <div class="nc-migrate-body"></div>
-      </div>` : ''}
+      ${notices ? `<div class="nc-notices">${notices}</div>` : ''}
+      ${connection}
+      ${move}
+      ${own ? backupHtml(data.backup, !!backupMsg) : ''}
+      ${migrate}
       <div class="confirm-actions"><button class="btn btn-secondary nc-close">Schließen</button></div>`;
 
     const $ = (sel) => card.querySelector(sel);

@@ -3582,6 +3582,25 @@ body {
 .tag-area-children { display: flex; flex-wrap: wrap; gap: 10px; }
 
 .tag-area-settings { grid-column: 1 / -1; display: flex; flex-direction: column; gap: 10px; }
+/* Nextcloud-Dialog (views/nextcloud.js): Status oben, darunter aufklappbare Bereiche */
+.nc-hero { border-left: 4px solid var(--border); background: var(--bg-primary); border-radius: var(--radius-sm); padding: 12px 14px; margin: 8px 0 12px; }
+.nc-hero-ok { border-left-color: var(--success); }
+.nc-hero-warn { border-left-color: var(--warning); }
+.nc-hero-none { border-left-color: var(--accent); }
+.nc-hero-title { font-size: 1.02em; }
+.nc-hero-sub { margin-top: 4px; }
+.nc-notices .nc-status { margin: 4px 0; }
+.nc-section { border: 1px solid var(--border); border-radius: var(--radius-sm); margin: 10px 0; background: var(--bg-secondary); }
+.nc-section > summary { padding: 10px 14px; cursor: pointer; font-weight: 600; display: flex; align-items: baseline; gap: 10px; }
+.nc-section > summary::-webkit-details-marker { display: none; }
+.nc-section > summary::before { content: '▸'; color: var(--text-secondary); }
+.nc-section[open] > summary::before { content: '▾'; }
+.nc-section[open] > summary { border-bottom: 1px solid var(--border); }
+.nc-sum-state { margin-left: auto; font-weight: 400; font-size: 0.88em; color: var(--text-secondary); text-align: right; }
+.nc-section-body { padding: 10px 14px 14px; }
+.nc-howto > summary { cursor: pointer; color: var(--accent); font-size: 0.92em; margin-bottom: 6px; }
+.nc-section-body > .hint:first-child, .nc-howto > .hint { margin: 0 0 12px; }
+
 /* Knopf ☁️ Nextcloud: Bilder in der App über dem Hinweis (views/image-store.js) */
 #btnNextcloud.nc-attention { position: relative; }
 #btnNextcloud.nc-attention::after {

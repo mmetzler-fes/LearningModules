@@ -157,6 +157,15 @@ unter der Klasse.
 Der Dialog zeigt QR-Code und URL, dazu *Kopieren*, *Drucken*, *Neu* und
 *Zurückziehen*.
 
+**📓 OneNote-Seite kopieren** legt eine Seite „Lernmodul-Übung <Name>“ in die
+Zwischenablage (bei der Klassenarbeit „Lernmodul-Klassenarbeit <Name>“): die
+Infos aus dem Dialog, den QR-Code als Bild und den Link als **anklickbaren
+Text**. In OneNote eine neue Seite anlegen und mit Strg+V einfügen. Die
+Überschrift steht dabei im Text der Seite. Als Seitentitel muss man sie selbst
+hineinkopieren, denn das Einfügen füllt das Titelfeld von OneNote nicht.
+*🖼 Als Bild kopieren* dagegen kopiert das ganze Blatt als ein Bild, darin
+lässt sich der Link nicht anklicken.
+
 Der Token bleibt stabil. Ausgeteilte Zettel behalten ihre Gültigkeit, bis
 bewusst *Neu* oder *Zurückziehen* gewählt wird.
 

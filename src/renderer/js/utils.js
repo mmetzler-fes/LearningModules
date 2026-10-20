@@ -333,6 +333,49 @@ export async function copyShareSheetAsPng({ title, subtitle, svg, url, qrSize = 
 }
 
 /**
+ * Legt eine fertige OneNote-Seite in die Zwischenablage: Überschrift, Zeilen
+ * mit Infos, QR-Code als Bild und den Link als anklickbaren Text (nicht im
+ * Bild). Als HTML – das übernimmt OneNote samt Formatierung – und als
+ * einfacher Text für Programme ohne HTML. Gibt zurück, ob es geklappt hat.
+ */
+export async function copyOneNotePage({ title, lines = [], svg, url, qrSize = 240 }) {
+  if (!url) return false;
+  const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  try {
+    let qr = '';
+    if (svg) {
+      const xml = new XMLSerializer().serializeToString(svg);
+      const img = new Image();
+      img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(xml);
+      await img.decode();
+      const size = qrSize * 2;             // doppelte Auflösung, scannt auch ausgedruckt
+      const canvas = document.createElement('canvas');
+      canvas.width = size;
+      canvas.height = size;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, size, size);
+      ctx.drawImage(img, 0, 0, size, size);
+      qr = `<p><img src="${canvas.toDataURL('image/png')}" width="${qrSize}" height="${qrSize}" alt="QR-Code"></p>`;
+    }
+    const html = `<html><body>
+<h1>${esc(title)}</h1>
+${lines.filter(Boolean).map((l) => `<p>${esc(l)}</p>`).join('\n')}
+${qr}
+<p><b>Link:</b> <a href="${esc(url)}">${esc(url)}</a></p>
+</body></html>`;
+    const text = [title, '', ...lines.filter(Boolean), '', `Link: ${url}`].join('\n');
+    await navigator.clipboard.write([new ClipboardItem({
+      'text/html': new Blob([html], { type: 'text/html' }),
+      'text/plain': new Blob([text], { type: 'text/plain' }),
+    })]);
+    return true;
+  } catch (_) {
+    return false;
+  }
+}
+
+/**
  * Kopiert einen QR-Code (SVG) als PNG in die Zwischenablage – zum Einfügen
  * in Arbeitsblätter, Präsentationen oder Moodle. Das SVG wird über ein
  * Canvas gerastert, bewusst großzügig, damit es beim Ausdrucken scharf bleibt.

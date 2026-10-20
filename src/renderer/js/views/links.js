@@ -1,4 +1,4 @@
-import { escapeHtml, escapeAttr, copyQrSvgAsPng, copyShareSheetAsPng } from '../utils.js';
+import { escapeHtml, escapeAttr, copyQrSvgAsPng, copyShareSheetAsPng, copyOneNotePage } from '../utils.js';
 import { LINK_MODE_LABELS } from './login.js';
 import { TagFilter, TagPicker, renderAreaGroups, chipHtml } from './tags.js';
 import { GRADABLE_TYPES, ARENA_TYPE_SECONDS } from '../answer-eval.js';
@@ -1111,6 +1111,27 @@ export class LinksView {
       });
       this.app.showToast(
         ok ? 'Blatt als Bild kopiert – in OneNote einfügen mit Strg+V.' : 'Als Bild kopieren klappt hier nicht – bitte drucken.',
+        ok ? 'success' : 'error',
+      );
+    });
+
+    // OneNote-Seite: wie das Blatt, aber als formatierter Text – der Link
+    // bleibt anklickbar. Titel „Lernmodul-Übung <Name>“.
+    document.getElementById('btnCopyLinkShareOneNote')?.addEventListener('click', async () => {
+      const d = this._shareData;
+      if (!d?.url) return;
+      const exam = this._shareAccess === 'exam';
+      const ok = await copyOneNotePage({
+        title: `${exam ? 'Lernmodul-Klassenarbeit' : 'Lernmodul-Übung'} ${d.name || ''}`.trim(),
+        lines: [
+          document.getElementById('linkShareInfo')?.textContent || '',
+          SHARE_TEXTS[this._shareAccess || 'practice'].hint,
+        ],
+        svg: document.querySelector('#linkShareQr svg'),
+        url: d.url,
+      });
+      this.app.showToast(
+        ok ? 'OneNote-Seite kopiert – in OneNote auf einer neuen Seite mit Strg+V einfügen.' : 'Kopieren klappt hier nicht – bitte „Als Bild kopieren“ oder den Link nutzen.',
         ok ? 'success' : 'error',
       );
     });

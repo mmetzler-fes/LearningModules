@@ -137,7 +137,7 @@ BACKEND – src/
     h5p/h5p.service.ts          H5P-Paket parsen & generieren
     h5p/h5p-parser.ts           H5P-Format-Hilfsfunktionen
 
-  core/database/migration/      Demo-Daten & DB-Migration (Entwicklung)
+  core/database/migration/      DB-Migration beim Start
   core/schools/                 Schulverwaltung
 
 --------------------------------------------------------------------------------

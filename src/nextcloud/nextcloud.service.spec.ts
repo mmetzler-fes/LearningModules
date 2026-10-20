@@ -593,7 +593,7 @@ describe('Nextcloud der Schule', () => {
     await svc.followOwners();
     expect(cloud.files.has(`Andere/public.php/webdav/Bilder/${FOLDER}/Englisch Reisen/gate.png`)).toBe(true);
     expect(moduleRepo.rows[0].content.image).toBe(up.url);
-    expect(((await svc.status(user)) as any).imageCheck).toMatchObject({ count: 1, missing: [{ sub: 'Englisch Reisen', name: 'tor.png' }] });
+    expect(((await svc.status(user)) as any).imageCheck).toMatchObject({ count: 1, missing: [{ sub: 'Englisch Reisen', name: 'tor.png', path: `Bilder/${FOLDER}/Englisch Reisen/tor.png` }] });
   });
 
   it('eigene Freigabe trennen: Bilder in die Nextcloud der Schule übernehmen', async () => {

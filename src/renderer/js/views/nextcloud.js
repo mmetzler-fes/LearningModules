@@ -327,15 +327,16 @@ function moveHtml(m) {
 }
 
 /** Verlinkte Bilder, die in der Freigabe fehlen bzw. aus einer früheren zurückgeholt wurden. */
-function imageCheckHtml(c) {
+function imageCheckHtml(c, school = false) {
   if (!c) return '';
   const out = [];
   if (c.restored) out.push(`<p class="hint nc-status">♻️ ${c.restored} Bild${c.restored === 1 ? '' : 'er'} aus einer früheren Freigabe in die jetzige kopiert (${when(c.at)}).</p>`);
   if (c.count) {
-    const list = c.missing.map((m) => `<li><code>Bilder/${escapeHtml(m.sub)}/${escapeHtml(m.name)}</code></li>`).join('');
+    const list = c.missing.map((m) => `<li><code>${escapeHtml(m.path || `Bilder/${m.sub}/${m.name}`)}</code></li>`).join('');
     out.push(`<details class="hint nc-status" open><summary><span class="login-error" style="display:inline">⚠️ ${c.count} Bild${c.count === 1 ? '' : 'er'} aus deinen Modulen
       ${c.count === 1 ? 'fehlt' : 'fehlen'} in der Nextcloud</span> (Stand ${when(c.at)})</summary>
-      <p>Lege die Dateien wieder genau so in deiner Nextcloud ab – die Links in den Modulen funktionieren dann sofort wieder.
+      <p>${school ? 'Sie liegen in der Nextcloud der Schule – bitte den Schuladmin, sie dort wieder abzulegen.'
+        : 'Lege die Dateien wieder genau so in deiner Nextcloud ab.'} Die Links in den Modulen funktionieren dann sofort wieder.
       Die App prüft stündlich; „Speichern und prüfen“ stößt sofort eine neue Prüfung an (Dialog danach neu öffnen).</p>
       <ul class="nc-migrate-list">${list}</ul>${c.count > c.missing.length ? `<p>… und ${c.count - c.missing.length} weitere.</p>` : ''}</details>`);
   }
@@ -385,7 +386,7 @@ export async function openNextcloudDialog(app) {
           kommen seit ${when(data.readShareLostAt)} über diesen Server, in den Modulen fehlt nichts. Du kannst sie in der Nextcloud löschen.</p>` : '',
       legacyHtml(data.legacy, own, schoolMode),
       moveHtml(data.move),
-      own || schoolMode ? imageCheckHtml(data.imageCheck) : '',
+      own || schoolMode ? imageCheckHtml(data.imageCheck, !own) : '',
     ].filter(Boolean).join('');
 
     const howTo = `<p class="hint">So legst du die Freigabe an: In der Nextcloud einen Ordner anlegen (z. B. <code>LearningModules</code>) →

@@ -781,7 +781,7 @@ export class NextcloudService implements OnApplicationBootstrap {
     // Ordner in der Nextcloud der Schule), auch da?
     // Sonst aus einer früheren Freigabe holen (gleicher Name – der Link bleibt).
     const listed = new Map<string, Promise<Set<string> | null>>();
-    const checks = new Map<string, { missing: Map<string, { sub: string; name: string }>; restored: number }>();
+    const checks = new Map<string, { missing: Map<string, { sub: string; name: string; path: string }>; restored: number }>();
     const checkHome = async (s: ImageStore, ref: ImageRef) => {
       if (!checks.has(s.l.id)) checks.set(s.l.id, { missing: new Map(), restored: 0 });
       const check = checks.get(s.l.id)!;
@@ -804,7 +804,7 @@ export class NextcloudService implements OnApplicationBootstrap {
           return;
         } catch { /* zählt als fehlend */ }
       }
-      check.missing.set(`${ref.sub}/${ref.name}`, { sub: ref.sub, name: ref.name });
+      check.missing.set(`${ref.sub}/${ref.name}`, { sub: ref.sub, name: ref.name, path: [...s.root, ref.sub, ref.name].join('/') });
       result.missing++;
     };
 

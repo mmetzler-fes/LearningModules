@@ -600,6 +600,17 @@ export class BrowserApi {
     });
   }
 
+  // ---------- Admin: Funktionen in Entwicklung (src/features) ----------
+  getFeatures() { return this._fetch('/api/admin/features'); }
+  setFeatureMode(feature, mode) {
+    return this._fetch('/api/admin/features/mode', { method: 'POST', body: JSON.stringify({ feature, mode }) });
+  }
+  setUserFeature(userId, feature, enabled) {
+    return this._fetch(`/api/admin/features/users/${encodeURIComponent(userId)}`, {
+      method: 'POST', body: JSON.stringify({ feature, enabled }),
+    });
+  }
+
   // ---------- Admin: Shop & Sicherheit ----------
   reactivateUser(userId) {
     return this._fetch(`/api/admin/users/${encodeURIComponent(userId)}/reactivate`, { method: 'POST' });

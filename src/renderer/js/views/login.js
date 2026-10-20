@@ -2,12 +2,16 @@ import { escapeHtml, escapeAttr } from '../utils.js';
 import { renderMarkdown } from '../markdown.js';
 import { refreshNextcloud } from './nextcloud.js';
 
-/** Schule und Schuladmin-Recht aus der Login-/Session-Antwort des Servers. */
+/**
+ * Schule, Schuladmin-Recht und freigeschaltete Funktionen (src/features) aus
+ * der Login-/Session-Antwort des Servers.
+ */
 function schoolFields(res) {
   return {
     schoolId: res.schoolId || null,
     schoolName: res.schoolName || null,
     isSchoolAdmin: !!res.isSchoolAdmin,
+    features: Array.isArray(res.features) ? res.features : [],
   };
 }
 
@@ -715,6 +719,8 @@ export class LoginView {
 
     this._loginScreen.classList.add('hidden');
     this._appContainer.classList.remove('hidden');
+    // Modultypen hängen an freigeschalteten Funktionen – erst jetzt bekannt.
+    this.app.modulesView.populateTypeSelects();
 
     const teacherNav = document.getElementById('teacherNav');
     const studentNav = document.getElementById('studentNav');

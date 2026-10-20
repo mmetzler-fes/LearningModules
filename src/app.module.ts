@@ -62,6 +62,8 @@ import { GithubBackupModule } from './github-backup/github-backup.module';
 import { NextcloudModule } from './nextcloud/nextcloud.module';
 import { ContentHandover } from './core/entities/content-handover.entity';
 import { HandoverModule } from './handover/handover.module';
+import { FeaturesModule } from './features/features.module';
+import { WorksheetsModule } from './worksheets/worksheets.module';
 import { AccountLink } from './core/entities/account-link.entity';
 import { LinkCode } from './core/entities/link-code.entity';
 
@@ -116,6 +118,8 @@ import { LinkCode } from './core/entities/link-code.entity';
     GithubBackupModule,
     NextcloudModule,
     HandoverModule,
+    FeaturesModule,
+    WorksheetsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

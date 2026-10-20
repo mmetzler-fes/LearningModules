@@ -24,6 +24,8 @@ import { FederationAdminView } from './views/federation-admin.js';
 import { nextcloudState, uploadImageToNextcloud, pickNextcloudImage } from './views/nextcloud.js';
 import { storeImage } from './views/image-store.js';
 import { contentFromPairs, pairsFromContent } from './dnd-pairs.js';
+// Editor des Modultyps „Dokument“ – hängt sich an window.DocSpecEditor.
+import './docspec-editor.js';
 
 // ==================== APP COORDINATOR ====================
 

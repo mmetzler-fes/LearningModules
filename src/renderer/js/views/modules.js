@@ -192,6 +192,10 @@ export class ModulesView {
 
   populateTypeSelects() {
     const types = getH5pTypesArray();
+    // Typen einer nicht freigeschalteten Funktion (src/features) bietet die
+    // App nicht an – wie abgelöste Typen bleiben vorhandene Module aber offen.
+    const features = this.app.state.currentUser?.features || [];
+    const offered = (t) => !t.feature || features.includes(t.feature);
     if (this._moduleTypeSelect) {
       this._moduleTypeSelect.innerHTML = '<option value="">— Modultyp wählen —</option>';
       for (const t of types) {
@@ -199,13 +203,13 @@ export class ModulesView {
         opt.value = t.id; opt.textContent = `${t.icon} ${t.name}`;
         // Abgelöste Typen: für neue Module nicht mehr wählbar, bestehende
         // lassen sich aber weiter öffnen und bearbeiten.
-        if (t.deprecated) opt.hidden = true;
+        if (t.deprecated || !offered(t)) opt.hidden = true;
         this._moduleTypeSelect.appendChild(opt);
       }
     }
     if (this._filterType) {
       this._filterType.innerHTML = '<option value="">Alle Typen</option>';
-      for (const t of types) {
+      for (const t of types.filter(offered)) {
         const opt = document.createElement('option');
         opt.value = t.id; opt.textContent = `${t.icon} ${t.name}`;
         this._filterType.appendChild(opt);

@@ -163,4 +163,12 @@ export class User extends BaseEntity {
 
   @Column({ type: 'datetime', nullable: true })
   termsAcceptedAt: Date | null;
+
+  /**
+   * Einzeln freigeschaltete Funktionen in Entwicklung (src/features), z. B.
+   * ['worksheets']. Ob sie wirken, entscheidet zusätzlich die Einstellung des
+   * Admins (aus / ausgewählte / alle).
+   */
+  @Column('simple-json', { nullable: true })
+  features: string[] | null;
 }

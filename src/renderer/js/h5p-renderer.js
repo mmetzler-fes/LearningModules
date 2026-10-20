@@ -5,6 +5,7 @@ import { audioSourceOf, scoreDictation, dictationOptions } from './dictation.js'
 import { generateValues, fillPlaceholders, evaluate, parseUserNumber, isWithinTolerance, formatNumber, checkFormulaTask } from './formula.js';
 import { renderSorting, renderMemory, renderCrossword } from './puzzle-views.js';
 import { normalizeShareUrl, sanitizeModuleDescriptionHtml, sanitizeWorksheetHtml, escapeHtml, escapeAttr, hexTint, showContextMenu, attachPointerDrag, effectiveZoom } from './utils.js';
+import { renderDocSpecHtml } from './docspec.js';
 
 /**
  * Nur http(s) einbetten. Ohne diese Schranke landeten `javascript:`- oder
@@ -1514,6 +1515,24 @@ export class H5pRenderer {
         div.innerHTML = html.trim()
           ? `<div class="worksheet-content module-description-content">${html}</div>`
           : '<p style="color:var(--text-secondary);">Noch kein Inhalt.</p>';
+        break;
+      }
+
+      case 'document': {
+        const spec = content.spec && typeof content.spec === 'object' ? content.spec : { content: [] };
+        div.innerHTML = renderDocSpecHtml(spec);
+        // Lösungen: in der Vorschau zum Aufdecken, im Quiz bleiben sie verborgen.
+        if (!options.quizMode && div.querySelector('.ds-solution')) {
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = 'btn btn-secondary btn-sm ds-solutions-toggle';
+          btn.textContent = '💡 Lösungen zeigen';
+          btn.addEventListener('click', () => {
+            const hidden = div.querySelector('.docspec').classList.toggle('ds-hide-solutions');
+            btn.textContent = hidden ? '💡 Lösungen zeigen' : '🙈 Lösungen verbergen';
+          });
+          div.prepend(btn);
+        }
         break;
       }
 

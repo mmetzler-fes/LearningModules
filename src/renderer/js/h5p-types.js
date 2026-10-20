@@ -125,6 +125,29 @@ const H5P_TYPES = {
       { key: 'html', type: 'worksheet', label: 'Inhalt', required: true },
     ],
   },
+  /**
+   * Dokument: Arbeitsblatt, Klassenarbeit oder Text als Blöcke
+   * (worksheet-renderer/SPEC.md). In der App als Web-Ansicht (docspec.js),
+   * gedruckt über den Renderer als .odt/.pdf mit Lösungsblatt.
+   */
+  document: {
+    id: 'document',
+    name: 'Dokument',
+    icon: '📄',
+    description: 'Arbeitsblatt, Klassenarbeit oder Text – in der App lesbar und als .odt/.pdf mit Lösungsblatt druckbar.',
+    category: 'Darstellung',
+    informational: true,
+    // Nur mit freigeschalteter Funktion (Administration → Benutzer).
+    feature: 'worksheets',
+    fields: [
+      { key: 'kind', type: 'select', label: 'Art', default: 'arbeitsblatt', options: [
+        { value: 'arbeitsblatt', label: 'Arbeitsblatt' },
+        { value: 'klassenarbeit', label: 'Klassenarbeit' },
+        { value: 'text', label: 'Text' },
+      ]},
+      { key: 'spec', type: 'docspec', label: 'Inhalt', required: true },
+    ],
+  },
   dialogCards: {
     id: 'dialogCards',
     name: 'Dialog Cards',

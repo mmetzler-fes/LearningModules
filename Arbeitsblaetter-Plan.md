@@ -484,8 +484,8 @@ Speichern bzw. Verschieben stößt das Rendern und den Abgleich an.
 
 | Phase | Inhalt | Ergebnis |
 |---|---|---|
-| 0 | Generator nach `worksheet-renderer/` umziehen, HTTP-Dienst, Dockerfile, CI; privates Repo auf neuen Pfad umstellen | `make pdf` geht weiter, `curl` liefert .odt/.pdf |
-| 1 | Funktionsschalter, Modultyp „Dokument (neu)“ mit Web-Ansicht (inkl. StarMath→MathML), YAML-Editor, Downloads | Blätter in der App ansehen und drucken |
+| 0 ✅ | Generator nach `worksheet-renderer/` umziehen, HTTP-Dienst, Dockerfile, CI; privates Repo auf neuen Pfad umstellen | `make pdf` geht weiter, `curl` liefert .odt/.pdf |
+| 1 ✅ | Funktionsschalter, Modultyp „Dokument (neu)“ mit Web-Ansicht (inkl. StarMath→MathML), YAML-Editor, Downloads | Blätter in der App ansehen und drucken |
 | 2 | Kurs-Einstellungen am Knoten, Pfadnummern mit Zählbeginn/Durchzählen je Ordner, Verweise `{{blatt:…}}`, Import (Abschnitte aus Skripten)/Export .zip | deine Kurse sind drin und lassen sich umsortieren |
 | 3 | Spec-Erweiterung (Inline-Formatierung, heading, box, float, Zellverbund) in Web-Ansicht und Generator; .odt-Import → Spec | beliebige .odt-Dokumente als Dokument-Modul |
 | 4 | Nextcloud-Abbild mit Soll/Ist-Abgleich, `_Gesichert/`, Speicheranzeige | Dateien auch ohne App |

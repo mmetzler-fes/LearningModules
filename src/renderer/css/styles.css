@@ -3526,6 +3526,103 @@ body {
 /* Zeichnungen haben schwarze Linien auf transparentem Grund – im dunklen Design hell hinterlegen. */
 [data-theme="dark"] .worksheet-content img { background: #fff; border-radius: 4px; }
 
+/* Funktionen in Entwicklung (Benutzerverwaltung) */
+.features-bar { margin: 0 0 12px; padding: 8px 12px; border: 1px dashed var(--border); border-radius: var(--radius-sm); background: var(--bg-secondary); }
+.features-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; }
+.user-feature { display: inline-flex; align-items: center; gap: 4px; font-size: 0.85em; margin: 0; white-space: nowrap; }
+
+/* ==================== DOKUMENT (docspec.js) ==================== */
+
+.docspec { line-height: 1.55; overflow-wrap: anywhere; }
+.docspec .ds-heading { margin: 1.2em 0 0.5em; }
+.docspec h2.ds-heading { font-size: 1.35em; }
+.docspec h3.ds-heading { font-size: 1.15em; }
+.docspec h4.ds-heading { font-size: 1em; }
+.docspec .ds-num { color: var(--text-secondary); margin-right: 0.3em; }
+/* Gewollte Lücken („J = I / A,   [J] = A/mm²“) bleiben wie im Druck stehen. */
+.docspec .ds-text { margin: 0 0 0.6em; white-space: pre-wrap; }
+.docspec .ds-note { margin: 0 0 0.6em; color: var(--text-secondary); }
+.docspec .ds-list { margin: 0 0 0.6em; padding-left: 1.4em; }
+.docspec .ds-caption { margin: 0.6em 0 0.2em; font-size: 0.9em; }
+.docspec .ds-code {
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
+  overflow-x: auto;
+  font-size: 0.9em;
+  margin: 0 0 0.8em;
+}
+.docspec .ds-table-wrap { overflow-x: auto; margin: 0 0 0.8em; }
+.docspec .ds-table { border-collapse: collapse; }
+.docspec .ds-table th,
+.docspec .ds-table td { border: 1px solid var(--border); padding: 4px 8px; vertical-align: top; }
+.docspec .ds-table th { background: var(--bg-primary); }
+.docspec .ds-formula { margin: 0.6em 0; text-align: center; overflow-x: auto; }
+.docspec .ds-formula math { font-size: 1.15em; }
+.docspec .ds-formula-left { text-align: left; }
+.docspec .ds-formula-left math { display: inline-block; }
+.docspec .ds-image { margin: 0.6em 0; text-align: center; }
+.docspec .ds-image img { max-width: 100%; height: auto; }
+.docspec .ds-image figcaption { font-size: 0.85em; font-weight: 600; margin-top: 0.3em; }
+/* Karopapier zum Eintragen, Kästchen 0,5 cm wie im Druck */
+.docspec .ds-karo {
+  margin: 0.4em 0 0.8em;
+  border: 1px solid var(--text-secondary);
+  background-image:
+    linear-gradient(to right, var(--border) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--border) 1px, transparent 1px);
+  background-size: 0.5cm 0.5cm;
+  max-width: 16.5cm;
+}
+.docspec .ds-solution {
+  color: var(--danger);
+  border-left: 3px solid var(--danger);
+  padding: 2px 0 2px 10px;
+  margin: 0 0 0.8em;
+}
+.docspec .ds-solution-label { font-weight: 600; margin: 0 0 0.3em; font-size: 0.9em; }
+.docspec.ds-hide-solutions .ds-solution { display: none; }
+.docspec .ds-pagebreak {
+  border-top: 1px dashed var(--border);
+  margin: 1.2em 0;
+  text-align: center;
+  line-height: 0;
+}
+.docspec .ds-pagebreak span { background: var(--bg-secondary); color: var(--text-secondary); font-size: 0.75em; padding: 0 8px; }
+.docspec .ds-missing { color: var(--text-secondary); font-style: italic; }
+.ds-solutions-toggle { margin-bottom: 12px; }
+
+/* Editor: YAML links, Vorschau rechts; schmal untereinander */
+.ds-editor-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; margin-bottom: 8px; }
+.ds-editor-toggle { display: inline-flex; align-items: center; gap: 4px; font-weight: normal; margin: 0 0 0 6px; }
+.ds-editor-status { flex-basis: 100%; font-size: 0.85em; }
+.ds-editor-panes { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; }
+.ds-yaml {
+  width: 100%;
+  min-height: 480px;
+  height: 65vh;
+  resize: vertical;
+  font-family: ui-monospace, 'DejaVu Sans Mono', Consolas, monospace;
+  font-size: 0.85em;
+  line-height: 1.45;
+  tab-size: 2;
+}
+.ds-preview {
+  height: 65vh;
+  min-height: 480px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 10px 14px;
+  background: var(--bg-secondary);
+}
+.ds-editor-errors .ds-error { color: var(--danger); margin: 4px 0 0; font-size: 0.85em; }
+@media (max-width: 900px) {
+  .ds-editor-panes { grid-template-columns: 1fr; }
+  .ds-yaml, .ds-preview { height: 45vh; min-height: 300px; }
+}
+
 /* ---- Themengebiete: aufklappbare Abschnitte und gegliederte Tag-Auswahl ---- */
 .tag-chip.area-chip {
   font-size: 0.9em;

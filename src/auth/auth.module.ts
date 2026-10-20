@@ -10,6 +10,7 @@ import { SystemConfig } from '../core/entities/system-config.entity';
 import { GroupsModule } from '../groups/groups.module';
 import { AccountsModule } from '../accounts/accounts.module';
 import { SchoolsModule } from '../core/schools/schools.module';
+import { FeaturesModule } from '../features/features.module';
 
 @Module({
   imports: [
@@ -17,6 +18,7 @@ import { SchoolsModule } from '../core/schools/schools.module';
     GroupsModule,
     AccountsModule,
     SchoolsModule,
+    FeaturesModule,
     PassportModule,
     JwtModule.register({
       secret: process.env.JWT_SECRET || 'secretKey',

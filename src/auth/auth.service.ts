@@ -7,6 +7,7 @@ import { SystemConfig } from '../core/entities/system-config.entity';
 import { MailService } from '../core/mail/mail.service';
 import { AccountsService } from '../accounts/accounts.service';
 import { SchoolsService } from '../core/schools/schools.service';
+import { FeaturesService } from '../features/features.service';
 import { TERMS_VERSION, hasAcceptedTerms, termsMarkdown } from './terms';
 import { TwoFactorService } from '../accounts/two-factor.service';
 
@@ -36,6 +37,7 @@ export class AuthService {
     private readonly accounts: AccountsService,
     private readonly schools: SchoolsService,
     private readonly twoFactor: TwoFactorService,
+    private readonly features: FeaturesService,
   ) {}
 
   // ---- Password generation ----
@@ -202,6 +204,7 @@ export class AuthService {
       displayName: user.displayName || user.email,
       mustChangePassword,
       ...(await this.schoolInfo(user)),
+      features: await this.features.enabledFor(user),
     };
   }
 
@@ -225,6 +228,7 @@ export class AuthService {
       displayName: user.displayName || user.email,
       mustChangePassword: !!user.mustChangePassword,
       ...(await this.schoolInfo(user)),
+      features: await this.features.enabledFor(user),
     };
   }
 

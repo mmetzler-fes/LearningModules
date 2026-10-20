@@ -109,6 +109,17 @@ BACKEND – src/
                                 Arbeitsspeicher, Server-Sent Events; am Ende
                                 ein Ergebnis je Schüler (mode 'contest')
 
+  features/                     Funktionen in Entwicklung freischalten: je
+                                Funktion aus / ausgewählte Konten / alle
+                                (SystemConfig 'features', User.features).
+                                FeatureGuard + @RequireFeature() für Routen;
+                                Login und /me liefern features mit
+  worksheets/                   Modultyp „Dokument“ drucken: Spec prüfen
+                                (docspec.ts lädt src/renderer/js/docspec.js),
+                                Bilder aufbereiten, an den Renderer
+                                (renderer.client.ts) → .odt/.pdf.
+                                POST /api/worksheets/render, nur mit Feature
+                                'worksheets'
   core/share/link-url.ts        Öffentliche Adresse + QR-Code (Quick- und Themen-Link)
   core/public/public.controller.ts
                                 Schülerzugang ohne Konto; resolveQuickToken()
@@ -197,6 +208,15 @@ FRONTEND – src/renderer/
       setHtml(value)      Setzt HTML-Inhalt
       _applyCommand()     Führt execCommand aus
       _syncInput()        Synchronisiert hidden Input
+
+  docspec.js            Modultyp „Dokument“ (Browser UND Server, ohne
+                        Importe): validateDocSpec(), renderDocSpecHtml()
+                        (Nummern, Karo, Lösungen wie der Generator),
+                        starmathToMathml() für Formeln
+  docspec-editor.js     YAML-Editor mit Vorschau und Druck (.odt/.pdf über
+                        /api/worksheets/render); window.DocSpecEditor für
+                        content-editors.js (Feldtyp 'docspec')
+  vendor/js-yaml.js     js-yaml 4.1.1 (MIT) als ES-Modul
 
   h5p-renderer.js
     class H5pRenderer

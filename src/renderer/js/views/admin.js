@@ -330,9 +330,13 @@ export class AdminView {
 
   async refreshUsers(highlightId) {
     try {
-      const [users, schools] = await Promise.all([this.app.api.getAllUsers(), this.app.api.getSchools()]);
+      const [users, schools, features] = await Promise.all([
+        this.app.api.getAllUsers(), this.app.api.getSchools(), this.app.api.getFeatures().catch(() => null),
+      ]);
       this._usersCache = Array.isArray(users) ? users : [];
       this._schools = Array.isArray(schools?.schools) ? schools.schools : [];
+      this._features = Array.isArray(features?.features) ? features.features : [];
+      this._renderFeaturesBar();
       this._renderUsersList();
       if (highlightId) {
         const row = document.querySelector(`.admin-list-item[data-id="${highlightId}"]`);
@@ -379,6 +383,7 @@ export class AdminView {
           ${u.mustChangePassword && !u.pendingMergeFrom ? '<span class="hint">🔑 hat sein Passwort noch nicht geändert</span>' : ''}
         </div>
         <div class="admin-list-item-actions">
+          ${this._userFeatureToggles(u)}
           <select class="user-school-select" title="Schule zuordnen – gilt dann fest, die Whitelist ändert es nicht mehr">
             <option value="">– keine Schule –</option>
             ${(this._schools || []).map((sc) => `<option value="${escapeHtml(sc.id)}" ${u.schoolId === sc.id ? 'selected' : ''}>🏫 ${escapeHtml(sc.name)}</option>`).join('')}
@@ -400,6 +405,7 @@ export class AdminView {
       item.querySelector('.user-school-select').addEventListener('change', (e) => this._assignSchool(u, { schoolId: e.target.value || null }));
 
       item.querySelector('.btn-reset-password').addEventListener('click', () => this._resetPassword(u.id));
+      item.querySelectorAll('input[data-feature]').forEach((box) => box.addEventListener('change', () => this._setUserFeature(u, box)));
       item.querySelector('.btn-reset-2fa')?.addEventListener('click', async () => {
         const name = u.displayName || u.email;
         if (!(await this.app.appConfirm(`Zwei-Faktor-Anmeldung von "${name}" zurücksetzen?\n\n` +
@@ -412,6 +418,67 @@ export class AdminView {
       item.querySelector('.btn-reactivate-user')?.addEventListener('click', () => this._reactivateUser(u));
       container.appendChild(item);
     }
+  }
+
+  /**
+   * Funktionen in Entwicklung (src/features): je Funktion aus / nur
+   * ausgewählte Konten / alle. Ohne Voraussetzung (z. B. Renderer) bleibt sie
+   * aus, egal was eingestellt ist.
+   */
+  _renderFeaturesBar() {
+    const bar = document.getElementById('featuresBar');
+    if (!bar) return;
+    bar.classList.toggle('hidden', !this._features.length);
+    bar.innerHTML = this._features.map((f) => `
+      <div class="features-row" data-feature="${escapeHtml(f.id)}">
+        <strong>🧪 ${escapeHtml(f.label)}</strong>
+        <select class="feature-mode" ${f.available ? '' : 'disabled'}>
+          <option value="off" ${f.mode === 'off' ? 'selected' : ''}>aus</option>
+          <option value="selected" ${f.mode === 'selected' ? 'selected' : ''}>nur ausgewählte Konten</option>
+          <option value="all" ${f.mode === 'all' ? 'selected' : ''}>alle</option>
+        </select>
+        ${f.available ? '' : `<span class="hint">⚠️ auf diesem Server nicht möglich – fehlt: ${escapeHtml(f.needs)}</span>`}
+      </div>`).join('');
+    bar.querySelectorAll('.features-row').forEach((row) => {
+      row.querySelector('.feature-mode').addEventListener('change', async (e) => {
+        const res = await this.app.api.setFeatureMode(row.dataset.feature, e.target.value);
+        if (!res || !Array.isArray(res.features)) { this.app.showToast('Fehler: ' + (res?.message || '?'), 'error'); return; }
+        this._features = res.features;
+        this._renderFeaturesBar();
+        this._renderUsersList();
+        await this._refreshOwnFeatures();
+      });
+    });
+  }
+
+  /** Häkchen je Funktion am Konto – nur bei „ausgewählte Konten“, bei „alle“ zur Info. */
+  _userFeatureToggles(u) {
+    const own = Array.isArray(u.features) ? u.features : [];
+    return (this._features || []).filter((f) => f.available && f.mode !== 'off').map((f) => `
+      <label class="user-feature" title="${escapeHtml(f.label)}${f.mode === 'all' ? ' – gilt für alle' : ''}">
+        <input type="checkbox" data-feature="${escapeHtml(f.id)}" ${f.mode === 'all' || own.includes(f.id) ? 'checked' : ''} ${f.mode === 'all' ? 'disabled' : ''}>
+        🧪 ${escapeHtml(f.id === 'worksheets' ? 'Dokumente' : f.id)}
+      </label>`).join('');
+  }
+
+  async _setUserFeature(user, box) {
+    const res = await this.app.api.setUserFeature(user.id, box.dataset.feature, box.checked);
+    if (!res || !res.success) {
+      box.checked = !box.checked;
+      this.app.showToast('Fehler: ' + (res?.message || '?'), 'error');
+      return;
+    }
+    user.features = res.features;
+    this.app.showToast(box.checked ? 'Freigeschaltet – gilt ab der nächsten Anmeldung bzw. nach Neuladen' : 'Freischaltung entfernt', 'success');
+    if (user.id === this.app.state.currentUser?.id) await this._refreshOwnFeatures();
+  }
+
+  /** Eigene Freischaltung sofort übernehmen (Modultypen im Editor). */
+  async _refreshOwnFeatures() {
+    const me = await this.app.api.me().catch(() => null);
+    if (!me || !this.app.state.currentUser) return;
+    this.app.state.currentUser.features = Array.isArray(me.features) ? me.features : [];
+    this.app.modulesView.populateTypeSelects();
   }
 
   /** Schule bzw. Schuladmin-Recht setzen; danach die Liste neu laden. */

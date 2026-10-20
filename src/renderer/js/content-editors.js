@@ -361,6 +361,9 @@ class ContentEditorManager {
       case 'worksheet':
         this.renderWorksheetField(parent, field, value);
         break;
+      case 'docspec':
+        this.renderDocspecField(parent, field, value);
+        break;
       case 'textarea':
         this.renderTextareaField(parent, field, value);
         break;
@@ -490,6 +493,19 @@ class ContentEditorManager {
       }
     });
     parent.appendChild(row);
+  }
+
+  /**
+   * Inhalt eines Dokuments (Modultyp „Dokument“): YAML-Editor mit
+   * Web-Vorschau und Druck. Der Editor ist ein ES-Modul (docspec-editor.js)
+   * und hängt sich an window.DocSpecEditor.
+   */
+  renderDocspecField(parent, field, value) {
+    if (!window.DocSpecEditor) {
+      parent.insertAdjacentHTML('beforeend', '<p class="hint">Der Dokument-Editor lädt noch – bitte das Modul erneut öffnen.</p>');
+      return;
+    }
+    window.DocSpecEditor.mount(parent, { name: `content_${field.key}`, label: field.label, value });
   }
 
   /**
@@ -1166,6 +1182,11 @@ class ContentEditorManager {
       case 'checkbox': {
         const el = this.container.querySelector(`[name="content_${field.key}"]`);
         return el ? el.checked : !!field.default;
+      }
+      case 'docspec': {
+        // Der Editor hält den letzten lesbaren Stand als JSON bereit.
+        const el = this.container.querySelector(`[name="content_${field.key}"]`);
+        try { return el && el.value ? JSON.parse(el.value) : { content: [] }; } catch (_) { return { content: [] }; }
       }
       case 'crosswordLayout': {
         const el = this.container.querySelector(`[name="content_${field.key}"]`);

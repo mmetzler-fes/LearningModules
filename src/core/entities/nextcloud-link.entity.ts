@@ -29,19 +29,20 @@ export class NextcloudLink extends BaseEntity {
   davMode: 'classic' | 'files' | null;
 
   /**
-   * Optional: offene Lesefreigabe nur des Unterordners Bilder. Dann laden
-   * Schüler Bilder direkt aus der Nextcloud; sonst reicht der Server sie durch.
+   * Früher: offene Lesefreigabe nur des Unterordners Bilder (Schüler luden
+   * direkt aus der Nextcloud). Gibt es nicht mehr – beim Start werden solche
+   * Links auf den Weg über den Server umgehängt und das Kürzel geleert.
    */
   @Column({ type: 'varchar', nullable: true })
   imageShareToken: string | null;
 
-  /** Die Lesefreigabe war in der Nextcloud nicht mehr da – Links laufen seitdem über den Server (Hinweis im Dialog). */
+  /** Wann die Lesefreigabe entfiel – für einen Hinweis im Dialog („kann gelöscht werden“). */
   @Column({ type: 'datetime', nullable: true })
   readShareLostAt: Date | null;
 
-  /** Zuletzt geprüft, ob die Lesefreigabe noch erreichbar ist. */
+  /** Die Freigabe ließ sich bei der letzten Prüfung ohne Passwort öffnen (Warnung im Dialog). */
   @Column({ type: 'datetime', nullable: true })
-  readShareCheckedAt: Date | null;
+  insecureAt: Date | null;
 
   /** Letzter Umzug in eine andere Freigabe: { at, from, copied, error? } (Hinweis im Dialog). */
   @Column('simple-json', { nullable: true })

@@ -12,7 +12,7 @@ import { User } from '../core/entities/user.entity';
 import { MasterKeyService } from '../core/crypto/master-key.service';
 import { assertPublicHost, parseNextcloudShare, safeFileName } from '../core/share/nextcloud-upload';
 import { baseUrl } from '../core/share/link-url';
-import { DavEntry, ShareClient, parseNextcloudBase, safeFolderName, shareFileUrl, sharePreviewUrl } from './nextcloud-api';
+import { DavEntry, OPEN_SHARE_MESSAGE, ShareClient, parseNextcloudBase, safeFolderName, shareIsOpen } from './nextcloud-api';
 
 /** Bildtypen, die hochgeladen werden dürfen – und ihre Dateiendung. */
 export const IMAGE_TYPES: Record<string, string> = {
@@ -291,11 +291,10 @@ export class NextcloudService implements OnApplicationBootstrap {
     if (!l || !l.shareToken) {
       return {
         configured: false, ready: !!school, mode: school ? 'school' : null, legacy, school: schoolInfo,
-        suggestedBase: await this.suggestedBase(), config: { shareUrl: '', readShareUrl: '', hasPassword: false },
+        suggestedBase: await this.suggestedBase(), config: { shareUrl: '', hasPassword: false },
       };
     }
     if (l.verifiedAt && l.serverFolder && !l.legacyMovedAt) this.startAdopt(l, false);
-    if (l.imageShareToken) void this.checkReadShareAlive(l).catch(() => undefined);
     return {
       configured: true,
       ready: !!l.verifiedAt || !!school,
@@ -304,10 +303,9 @@ export class NextcloudService implements OnApplicationBootstrap {
       legacy: legacy && { ...legacy, running: this.adopting.has(l.userId) },
       config: {
         shareUrl: this.shareLink(l),
-        readShareUrl: l.imageShareToken ? `${l.baseUrl}/s/${l.imageShareToken}` : '',
         hasPassword: !!l.passwordSealed,
       },
-      directImages: !!l.imageShareToken,
+      insecure: !!l.insecureAt,
       readShareLostAt: l.readShareLostAt,
       move: this.moves.get(l.userId) || (l.moveResult ? { ...l.moveResult, running: false } : null),
       verifiedAt: l.verifiedAt,
@@ -323,45 +321,33 @@ export class NextcloudService implements OnApplicationBootstrap {
   }
 
   /**
-   * Speichern und gleich prüfen. `{ shareUrl, password?, readShareUrl? }` –
-   * leeres Passwort lässt das gespeicherte. `appBase`: öffentliche Adresse
-   * dieser App (für die Bild-Links über den Server).
+   * Speichern und gleich prüfen. `{ shareUrl, password? }` – leeres Passwort
+   * lässt das gespeicherte (nur bei derselben Freigabe). Freigaben ohne
+   * Passwort nimmt die App nicht an. `appBase`: öffentliche Adresse dieser App
+   * (für die Bild-Links über den Server).
    */
   async connect(user: any, input: any, appBase: string) {
     const share = parseNextcloudShare(input.shareUrl);
     const base = parseNextcloudBase(share.base);
     if (!base) throw new BadRequestException('Der Freigabelink muss mit https:// beginnen.');
-    let readToken: string | null = null;
-    if (String(input.readShareUrl || '').trim()) {
-      const read = parseNextcloudShare(input.readShareUrl);
-      if (parseNextcloudBase(read.base) !== base) throw new BadRequestException('Die Lesefreigabe muss aus derselben Nextcloud stammen.');
-      if (read.token === share.token) throw new BadRequestException('Die Lesefreigabe muss ein eigener Link nur für den Ordner „Bilder“ sein – nicht derselbe wie oben.');
-      readToken = read.token;
-    }
     const l = (await this.find(user.userId)) || this.linkRepo.create({ id: crypto.randomUUID(), userId: user.userId });
-    const oldRead = l.imageShareToken && l.baseUrl ? { base: l.baseUrl, token: l.imageShareToken } : null;
+    const same = l.baseUrl === base && l.shareToken === share.token;
     // Eine andere Freigabe einfach eintragen ließe alle Bilder ins Leere zeigen
     // (die Links bleiben, die Dateien liegen in der alten) – dafür gibt es „Umziehen“.
-    if (l.verifiedAt && l.shareToken && (l.shareToken !== share.token || l.baseUrl !== base) && (await this.countReferences(l)) > 0) {
+    if (l.verifiedAt && l.shareToken && !same && (await this.countReferences(l)) > 0) {
       throw new BadRequestException('In deinen Modulen stecken Bilder aus der bisherigen Freigabe. Für eine andere Nextcloud bitte „🚚 Umziehen“ verwenden – das kopiert die Bilder mit.');
     }
-    // Noch keine Freigabe gespeichert: Ein altes Passwort (etwa das App-Passwort
-    // der Vorversion) gilt nicht als Passwort der Freigabe.
-    if (!l.shareToken) l.passwordSealed = null;
-    if (l.baseUrl !== base || l.shareToken !== share.token) Object.assign(l, { davMode: null, verifiedAt: null });
-    if (input.password !== undefined && input.password !== null && String(input.password) !== '') {
-      l.passwordSealed = this.masterKey.sealSecret(String(input.password));
+    const given = input.password !== undefined && input.password !== null && String(input.password) !== '';
+    if (!given && !(same && l.passwordSealed)) {
+      throw new BadRequestException('Bitte das Passwort der Freigabe angeben – Freigaben ohne Passwort nimmt die App nicht an.');
     }
-    Object.assign(l, { baseUrl: base, shareToken: share.token, imageShareToken: readToken, appBase, readShareLostAt: null });
+    await assertPublicHost(base);
+    if (await shareIsOpen(base, share.token)) throw new BadRequestException(OPEN_SHARE_MESSAGE);
+    if (!same) Object.assign(l, { davMode: null, verifiedAt: null });
+    if (given) l.passwordSealed = this.masterKey.sealSecret(String(input.password));
+    Object.assign(l, { baseUrl: base, shareToken: share.token, appBase });
     await this.linkRepo.save(l);
-    const res: any = await this.verify(user, appBase);
-    // Lesefreigabe entfernt oder gewechselt: direkte Links auf die alte umhängen,
-    // damit die alte Freigabe danach gelöscht werden kann.
-    if (oldRead && oldRead.token !== readToken) {
-      const n = await this.relinkReadShare(l, oldRead.base, oldRead.token);
-      if (n) res.message += ` ${n} Modul(e) zeigen jetzt ${readToken ? 'auf die neue Lesefreigabe' : 'auf den Weg über diesen Server'} – die alte Lesefreigabe kann in der Nextcloud gelöscht werden.`;
-    }
-    return res;
+    return this.verify(user, appBase);
   }
 
   /**
@@ -377,9 +363,10 @@ export class NextcloudService implements OnApplicationBootstrap {
       await nc.ensureFolder([IMAGES]);
       const stamp = `LearningModules-Verbindungstest ${crypto.randomUUID()}`;
       await nc.put([IMAGES, CHECK_FILE], Buffer.from(stamp, 'utf-8'), 'text/plain');
-      if (l.imageShareToken) await this.checkReadShare(l, stamp);
       await nc.remove([IMAGES, CHECK_FILE]);
-      Object.assign(l, { verifiedAt: new Date(), ...(appBase ? { appBase } : {}) });
+      // Ohne Passwort offen? Nicht abschalten (sonst fehlen alle Bilder), aber warnen.
+      const open = await shareIsOpen(l.baseUrl, l.shareToken);
+      Object.assign(l, { verifiedAt: new Date(), insecureAt: open ? new Date() : null, ...(appBase ? { appBase } : {}) });
       await this.linkRepo.save(l);
       // Eigene Bilder aus dem früheren Schulordner übernehmen – das hängt auch
       // die Links um; sonst nur umhängen (etwa Bilder, die der Admin hochlud).
@@ -392,21 +379,8 @@ export class NextcloudService implements OnApplicationBootstrap {
     }
     return {
       ...(await this.status(user)),
-      message: `Verbunden – die App sieht nur den freigegebenen Ordner. Bilder kommen ${l.imageShareToken ? 'direkt aus der Nextcloud' : 'über diesen Server'}.`,
+      message: l.insecureAt ? OPEN_SHARE_MESSAGE : 'Verbunden – die App sieht nur den freigegebenen Ordner; die Bilder kommen über diesen Server zu den Schülern.',
     };
-  }
-
-  /** Zeigt die Lesefreigabe wirklich auf Bilder/? Die eben geschriebene Prüfdatei muss dort lesbar sein. */
-  private async checkReadShare(l: NextcloudLink, stamp: string) {
-    let text = '';
-    try {
-      const res = await fetch(shareFileUrl(l.baseUrl, l.imageShareToken!, '', CHECK_FILE), { redirect: 'manual' });
-      text = res.ok ? await res.text() : '';
-    } catch { /* unten gemeldet */ }
-    if (text !== stamp) {
-      throw new BadRequestException('Die Lesefreigabe zeigt nicht auf den Ordner „Bilder“ (oder hat ein Passwort). '
-        + 'Bitte in der Nextcloud den Ordner „Bilder“ (im freigegebenen Ordner) ohne Passwort zum Lesen teilen – oder das Feld leer lassen.');
-    }
   }
 
   /**
@@ -419,7 +393,7 @@ export class NextcloudService implements OnApplicationBootstrap {
       throw new BadRequestException('In Modulen stecken noch Bilder aus dieser Freigabe – erst zurückholen, umziehen oder ausdrücklich trotzdem trennen.');
     }
     if (l) {
-      Object.assign(l, { baseUrl: '', shareToken: null, passwordSealed: null, davMode: null, imageShareToken: null, verifiedAt: null, backupEnabled: false });
+      Object.assign(l, { baseUrl: '', shareToken: null, passwordSealed: null, davMode: null, imageShareToken: null, verifiedAt: null, insecureAt: null, backupEnabled: false });
       await this.linkRepo.save(l);
     }
     return { success: true };
@@ -461,17 +435,12 @@ export class NextcloudService implements OnApplicationBootstrap {
   // ---- Bild-Links ----
 
   /**
-   * Link, unter dem Schüler ein Bild sehen: direkt (Lesefreigabe) oder über
-   * diesen Server. /school/… gibt es nur noch für alte Bilder im früheren
-   * Ordner der Schule – getrennte Wege, damit sie gültig bleiben.
+   * Link, unter dem Schüler ein Bild sehen – immer über diesen Server, der es
+   * mit dem Passwort holt. /school/… gibt es nur noch für alte Bilder im
+   * früheren Ordner des Admin-Backups – getrennte Wege, damit sie gültig bleiben.
    */
   imageUrl(l: NextcloudLink, sub: string, name: string) {
-    if (l.imageShareToken) return shareFileUrl(l.baseUrl, l.imageShareToken, sub, name);
     return `${l.appBase || baseUrl()}/api/nextcloud/files/${l.id}/${encodeURIComponent(sub)}/${encodeURIComponent(name)}`;
-  }
-
-  private previewUrl(l: NextcloudLink, sub: string, name: string) {
-    return l.imageShareToken ? sharePreviewUrl(l.baseUrl, l.imageShareToken, sub, name) : this.imageUrl(l, sub, name);
   }
 
   /**
@@ -688,10 +657,9 @@ export class NextcloudService implements OnApplicationBootstrap {
       }
     }).catch((err) => this.logger.warn(`Bilder umhängen fehlgeschlagen: ${err?.message || err}`));
     setTimeout(() => {
-      run();
-      void this.linkRepo.find().then(async (links) => {
-        for (const l of links) if (l.imageShareToken) await this.checkReadShareAlive(l).catch(() => undefined);
-      }).catch(() => undefined);
+      void this.dropReadShares().catch((err) => this.logger.warn(`Lesefreigaben umstellen fehlgeschlagen: ${err?.message || err}`))
+        .then(() => this.checkProtection()).catch(() => undefined)
+        .then(run);
     }, 5000).unref?.();
     setInterval(run, 60 * 60 * 1000).unref?.();
   }
@@ -927,35 +895,45 @@ export class NextcloudService implements OnApplicationBootstrap {
     return value;
   }
 
-  // ---- Lesefreigabe: zurückgezogen oder verschwunden ----
+  // ---- Nur Freigaben mit Passwort ----
 
   /**
-   * Gibt es die Lesefreigabe noch? Höchstens alle 6 Stunden geprüft. Ist sie
-   * in der Nextcloud gelöscht (404), laufen die Bilder ab jetzt über diesen
-   * Server: Kürzel vergessen, direkte Links umhängen, Hinweis im Dialog.
-   * Netzfehler zählen nicht – nur eine klare Antwort „gibt es nicht“.
+   * Lesefreigaben (ohne Passwort, Schüler luden direkt aus der Nextcloud) gibt
+   * es nicht mehr: Ihre Links laufen ab jetzt über diesen Server, das Kürzel
+   * wird vergessen. Im Dialog steht danach, dass sie gelöscht werden kann.
    */
-  async checkReadShareAlive(l: NextcloudLink, force = false) {
-    if (!l.imageShareToken || !l.baseUrl || !l.verifiedAt) return true;
-    if (!force && l.readShareCheckedAt && Date.now() - new Date(l.readShareCheckedAt).getTime() < 6 * 3600 * 1000) return true;
-    l.readShareCheckedAt = new Date();
-    await this.linkRepo.update({ id: l.id }, { readShareCheckedAt: l.readShareCheckedAt });
-    await assertPublicHost(l.baseUrl);
-    const res = await fetch(`${l.baseUrl}/s/${encodeURIComponent(l.imageShareToken)}`, { redirect: 'manual' });
-    if (res.status !== 404) return true;
-    const token = l.imageShareToken;
-    Object.assign(l, { imageShareToken: null, readShareLostAt: new Date() });
-    await this.linkRepo.update({ id: l.id }, { imageShareToken: null, readShareLostAt: l.readShareLostAt });
-    const n = await this.relinkReadShare(l, l.baseUrl, token);
-    this.logger.warn(`Lesefreigabe von ${l.userId} nicht mehr vorhanden – ${n} Modul(e) auf den Weg über den Server umgestellt`);
-    return false;
+  async dropReadShares() {
+    let n = 0;
+    for (const l of await this.linkRepo.find()) {
+      if (!l.imageShareToken) continue;
+      const token = l.imageShareToken;
+      Object.assign(l, { imageShareToken: null, readShareLostAt: new Date() });
+      await this.linkRepo.update({ id: l.id }, { imageShareToken: null, readShareLostAt: l.readShareLostAt });
+      if (l.baseUrl) n += await this.relinkReadShare(l, l.baseUrl, token);
+    }
+    if (n) this.logger.log(`Lesefreigaben entfallen: ${n} Module/Entwürfe laufen jetzt über den Server`);
+    return n;
+  }
+
+  /** Verbundene Freigaben (Lehrkräfte und Schulen), die sich ohne Passwort öffnen lassen, markieren. */
+  async checkProtection() {
+    for (const l of await this.linkRepo.find()) {
+      if (!l.shareToken || !l.verifiedAt || !l.baseUrl) continue;
+      const open = await shareIsOpen(l.baseUrl, l.shareToken);
+      if (open !== !!l.insecureAt) await this.linkRepo.update({ id: l.id }, { insecureAt: open ? new Date() : null });
+    }
+    for (const r of await this.schoolNcRepo.find()) {
+      if (!r.shareToken || !r.verifiedAt || !r.baseUrl) continue;
+      const open = await shareIsOpen(r.baseUrl, r.shareToken);
+      if (open !== !!r.insecureAt) await this.schoolNcRepo.update({ id: r.id }, { insecureAt: open ? new Date() : null });
+    }
   }
 
   /**
    * Direkte Links einer (alten) Lesefreigabe – …/s/<Kürzel>/download?path=/<Ordner>&files=<Datei>,
-   * im HTML auch mit &amp; – auf den aktuellen Weg umhängen (neue
-   * Lesefreigabe oder über diesen Server). Liefert die Zahl geänderter Module
-   * und Entwürfe. Die Dateien liegen ja weiter in Bilder/ der Freigabe.
+   * im HTML auch mit &amp; – auf den Weg über diesen Server umhängen. Liefert
+   * die Zahl geänderter Module und Entwürfe. Die Dateien liegen ja weiter in
+   * Bilder/ der Freigabe.
    */
   async relinkReadShare(l: NextcloudLink, base: string, token: string) {
     const esc = (x: string) => x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -1207,7 +1185,9 @@ export class NextcloudService implements OnApplicationBootstrap {
     if (!base) throw new BadRequestException('Der Freigabelink muss mit https:// beginnen.');
     if (base === l.baseUrl && share.token === l.shareToken) throw new BadRequestException('Das ist die bisherige Freigabe.');
     const password = String(input?.password || '');
+    if (!password) throw new BadRequestException('Bitte das Passwort der neuen Freigabe angeben – Freigaben ohne Passwort nimmt die App nicht an.');
     await assertPublicHost(base);
+    if (await shareIsOpen(base, share.token)) throw new BadRequestException(OPEN_SHARE_MESSAGE);
     const target = new ShareClient(base, share.token, password, 'classic');
     const mode = await target.detectMode();
     await target.ensureFolder([IMAGES]);
@@ -1239,7 +1219,7 @@ export class NextcloudService implements OnApplicationBootstrap {
         const oldRead = fresh.imageShareToken ? { base: fresh.baseUrl, token: fresh.imageShareToken } : null;
         Object.assign(fresh, {
           baseUrl: base, shareToken: share.token, passwordSealed: password ? this.masterKey.sealSecret(password) : null,
-          davMode: mode, verifiedAt: new Date(), imageShareToken: null, readShareLostAt: null, readShareCheckedAt: null, appBase,
+          davMode: mode, verifiedAt: new Date(), imageShareToken: null, insecureAt: null, appBase,
           moveResult: { at: new Date().toISOString(), from: job.from, copied: job.copied },
         });
         await this.linkRepo.save(fresh);
@@ -1385,7 +1365,7 @@ export class NextcloudService implements OnApplicationBootstrap {
    * Bilder. Ohne `folder` der Ordner des Themas.
    */
   async listImages(user: any, opts: { folder?: string; topicId?: string }) {
-    const { kind, l, nc, root, url } = await this.effective(user.userId);
+    const { nc, root, url } = await this.effective(user.userId);
     const entries = await nc.list(root);
     const folders = entries.filter((e) => e.isFolder).map((e) => e.name).sort((a, b) => a.localeCompare(b, 'de'));
     const current = opts.folder ? safeFolderName(opts.folder) : await this.topicFolder(opts.topicId);
@@ -1393,7 +1373,7 @@ export class NextcloudService implements OnApplicationBootstrap {
     const images = files
       .filter((e) => !e.isFolder && (IMAGE_TYPES[e.contentType] || IMAGE_EXT.test(e.name)))
       .sort((a, b) => String(b.modified).localeCompare(String(a.modified)) || a.name.localeCompare(b.name, 'de'))
-      .map((e) => ({ name: e.name, size: e.size, url: url(current, e.name), previewUrl: kind === 'own' ? this.previewUrl(l, current, e.name) : url(current, e.name) }));
+      .map((e) => ({ name: e.name, size: e.size, url: url(current, e.name), previewUrl: url(current, e.name) }));
     return { folders, current, images };
   }
 }

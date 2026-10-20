@@ -348,9 +348,12 @@ export async function openNextcloudDialog(app) {
     const open = (url) => (url ? ` · <a href="${escapeAttr(url)}" target="_blank" rel="noopener">Ordner öffnen ↗</a>` : '');
 
     // Oben: wohin die Bilder gerade gehen – auf einen Blick.
-    const hero = own
+    const hero = own && data.insecure
+      ? { cls: 'warn', title: '⚠️ Deine Freigabe lässt sich <strong>ohne Passwort öffnen</strong>',
+        sub: 'Jeder, der den Freigabelink kennt, kann deinen Ordner lesen und ändern. Bitte in der Nextcloud beim Teilen ein Passwort setzen und es unter „Verbindung“ eintragen. Deine Bilder funktionieren bis dahin weiter.' }
+      : own
       ? { cls: 'ok', title: `Deine Bilder landen in <strong>deiner Nextcloud</strong>${host ? ` <span class="hint">(${escapeHtml(host)})</span>` : ''}`,
-        sub: `Ordner <code>Bilder/&lt;Thema&gt;</code> · ${data.directImages ? 'Schüler laden direkt aus der Nextcloud' : 'kommen über diesen Server zu den Schülern'}${open(data.openUrl)}` }
+        sub: `Ordner <code>Bilder/&lt;Thema&gt;</code> · geschützt durch das Passwort · kommen über diesen Server zu den Schülern${open(data.openUrl)}` }
       : schoolMode
         ? { cls: 'ok', title: 'Deine Bilder landen in der <strong>Nextcloud deiner Schule</strong>',
           sub: `Ordner <code>${escapeHtml(data.school.folder)}/&lt;Thema&gt;</code> · du musst nichts einrichten · der Schuladmin kann den Ordner sehen` }
@@ -361,17 +364,19 @@ export async function openNextcloudDialog(app) {
 
     const notices = [
       quotaHtml(quota),
-      data.readShareLostAt && !data.directImages ? `<p class="hint nc-status">ℹ️ Die Lesefreigabe gab es in der Nextcloud nicht mehr
-        (${when(data.readShareLostAt)}) – die Bilder laufen seitdem über diesen Server, es fehlt nichts.</p>` : '',
+      data.readShareLostAt && Date.now() - new Date(data.readShareLostAt).getTime() < 30 * 24 * 3600 * 1000
+        ? `<p class="hint nc-status">ℹ️ Die frühere Lesefreigabe für <code>Bilder</code> (ohne Passwort) wird nicht mehr verwendet – die Bilder
+          kommen seit ${when(data.readShareLostAt)} über diesen Server, in den Modulen fehlt nichts. Du kannst sie in der Nextcloud löschen.</p>` : '',
       legacyHtml(data.legacy, own, schoolMode),
       moveHtml(data.move),
     ].filter(Boolean).join('');
 
     const howTo = `<p class="hint">So legst du die Freigabe an: In der Nextcloud einen Ordner anlegen (z. B. <code>LearningModules</code>) →
           <strong>Teilen → Link teilen</strong> → <strong>„Hochladen und Bearbeiten erlauben“</strong> → ein
-          <strong>Passwort</strong> setzen → Link kopieren. Die App sieht dann nur diesen Ordner – kein Konto, kein App-Passwort.</p>`;
-    const connState = own ? '✅ verbunden' : data.configured ? '⚠️ nicht verbunden' : schoolMode ? 'optional – geht vor' : 'nicht eingerichtet';
-    const connOpen = !own && (!schoolMode || data.configured || msg?.text);
+          <strong>Passwort</strong> setzen → Link kopieren. Die App sieht dann nur diesen Ordner – kein Konto, kein App-Passwort.
+          Freigaben ohne Passwort nimmt sie nicht an.</p>`;
+    const connState = own && data.insecure ? '⚠️ ohne Passwort' : own ? '✅ verbunden' : data.configured ? '⚠️ nicht verbunden' : schoolMode ? 'optional – geht vor' : 'nicht eingerichtet';
+    const connOpen = (!own && (!schoolMode || data.configured || msg?.text)) || (own && data.insecure);
     const connection = `
       <details class="nc-section nc-own" ${connOpen ? 'open' : ''}>
         <summary>🔗 ${schoolMode ? 'Eigene Freigabe' : 'Verbindung'} <span class="nc-sum-state">${connState}</span></summary>
@@ -383,22 +388,10 @@ export async function openNextcloudDialog(app) {
             placeholder="${escapeAttr(data.suggestedBase ? `${data.suggestedBase}/s/…` : 'https://cloud.meine-schule.de/s/…')}" />
         </div>
         <div class="form-group">
-          <label for="ncPass">Passwort der Freigabe</label>
+          <label for="ncPass">Passwort der Freigabe (Pflicht)</label>
           <input type="password" id="ncPass" autocomplete="new-password"
             placeholder="${c.hasPassword ? 'gespeichert – leer lassen = unverändert' : 'Passwort, das du beim Teilen gesetzt hast'}" />
         </div>
-        <details class="nc-advanced" ${c.readShareUrl ? 'open' : ''}>
-          <summary>Optional: Bilder direkt aus der Nextcloud laden (entlastet diesen Server)</summary>
-          <p class="hint"><strong>Ohne Eintrag (empfohlen):</strong> Dein Ordner bleibt durch das Passwort geschützt. Schüler bekommen
-            die Bilder über diesen Server – wer ein Bild im Modul sieht, kann nur dieses eine Bild aufrufen, nicht deinen Ordner.</p>
-          <p class="hint"><strong>Mit Eintrag:</strong> Den Unterordner <code>Bilder</code> zusätzlich <strong>ohne Passwort, nur
-            lesend</strong> teilen und den Link hier eintragen. Dann laden Schüler direkt aus der Nextcloud – aber <strong>jeder, der
-            ein Bild aus einem Modul hat, kann damit den ganzen Ordner <code>Bilder</code> ansehen</strong>. Nur für Bilder, die
-            öffentlich sein dürfen – keine Fotos von Schülerinnen und Schülern.</p>
-          <input type="url" id="ncRead" value="${escapeAttr(c.readShareUrl)}" autocomplete="off" placeholder="https://…/s/…" />
-          <p class="hint"><strong>Zurückziehen:</strong> erst hier das Feld leeren und „Verbinden“ wählen, dann die Lesefreigabe in der
-            Nextcloud löschen.</p>
-        </details>
         <div class="form-actions">
           <button class="btn btn-primary nc-connect">🔌 ${own ? 'Speichern und prüfen' : 'Verbinden'}</button>
           ${data.configured ? '<button class="btn btn-danger nc-disconnect">Freigabe trennen</button>' : ''}
@@ -417,7 +410,7 @@ export async function openNextcloudDialog(app) {
             erst danach um – in den Modulen bleibt alles sichtbar. Die alte Freigabe wird nicht verändert.</p>
           <div class="form-group"><label for="ncMoveShare">Neuer Freigabelink</label>
             <input type="url" id="ncMoveShare" autocomplete="off" placeholder="https://…/s/…" /></div>
-          <div class="form-group"><label for="ncMovePass">Passwort der neuen Freigabe</label>
+          <div class="form-group"><label for="ncMovePass">Passwort der neuen Freigabe (Pflicht)</label>
             <input type="password" id="ncMovePass" autocomplete="new-password" /></div>
           <button class="btn btn-primary nc-move-run" ${data.move?.running ? 'disabled' : ''}>🚚 Umziehen</button>
         </div>
@@ -464,7 +457,7 @@ export async function openNextcloudDialog(app) {
       btn.disabled = true;
       btn.textContent = '⏳ Verbinde …';
       const res = await app.api.saveNextcloud({
-        shareUrl: $('#ncShare').value, password: $('#ncPass').value || undefined, readShareUrl: $('#ncRead').value,
+        shareUrl: $('#ncShare').value, password: $('#ncPass').value || undefined,
       });
       if (!res || res.statusCode || res.mode !== 'own') {
         btn.disabled = false;

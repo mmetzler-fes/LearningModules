@@ -13,11 +13,12 @@ function fakeNextcloud() {
   const files = new Map<string, Buffer>();
   const calls: string[] = [];
   const alive = new Set(['LeseTok', 'NeuTok']); // offene Lesefreigaben, die es gibt
+  const open = new Set<string>(); // Freigaben ohne Passwort – alle anderen wollen eins
   const impl = async (url: string, init: any = {}) => {
     const method = init.method || 'GET';
     calls.push(`${method} ${url}`);
     const auth = String(init.headers?.Authorization || '');
-    const token = auth ? Buffer.from(auth.replace(/^Basic /, ''), 'base64').toString().split(':')[0] : '';
+    const [token, password] = auth ? Buffer.from(auth.replace(/^Basic /, ''), 'base64').toString().split(':') : ['', ''];
     const path = decodeURIComponent(url.replace(/^https:\/\/[^/]+/, '').split('?')[0]);
     const key = token + path;
     const res = (status: number, body: any = '', type = 'text/plain') => ({
@@ -25,6 +26,7 @@ function fakeNextcloud() {
       headers: new Map([['content-type', type]]),
       text: async () => String(body), arrayBuffer: async () => Buffer.from(body), json: async () => JSON.parse(body),
     });
+    if (auth && !password && !open.has(token)) return res(401);
     if (method === 'PROPFIND') {
       if (init.headers?.Depth !== '1') return res(path.endsWith('/') || files.has(key) ? 207 : 404, '<d:multistatus xmlns:d="DAV:"/>');
       // Tiefe 1: direkte Kinder – Dateien und Ordner, in denen Dateien liegen.
@@ -55,7 +57,7 @@ function fakeNextcloud() {
     }
     return res(405);
   };
-  return { files, calls, alive, impl };
+  return { files, calls, alive, open, impl };
 }
 
 /** Repositories im Speicher, mit LIKE-Suche über den JSON-Inhalt. */
@@ -112,6 +114,7 @@ function setup(cloudBackup: any) {
     create: (x: any) => ({ ...x }),
     save: async (x: any) => { if (!schoolNc.includes(x)) schoolNc.push(x); return x; },
     update: async ({ id }: any, patch: any) => Object.assign(schoolNc.find((r) => r.id === id), patch),
+    find: async () => schoolNc,
   };
   const svc = new NextcloudService(linkRepo, topicRepo, moduleRepo, configRepo, draftRepo, masterKey, userRepo, schoolNcRepo);
   const school = new SchoolNextcloudService(schoolNcRepo, linkRepo, moduleRepo, draftRepo, userRepo, masterKey, svc);
@@ -210,17 +213,14 @@ describe('Nextcloud: eigene Freigabe der Lehrkraft', () => {
     expect(cloud.files.has('EigenTok/public.php/webdav/Bilder/Englisch Reisen/gate.png')).toBe(true);
   });
 
-  it('prüft eine Lesefreigabe für Bilder und liefert dann direkte Links', async () => {
+  it('nimmt nur Freigaben mit Passwort an', async () => {
     const { svc } = setup(null);
-    await svc.connect(user, { shareUrl: `${CLOUD}/s/EigenTok`, password: 'pw', readShareUrl: `${CLOUD}/s/LeseTok` }, APP);
-    const up = await svc.uploadImage(user, 't1', png);
-    expect(up.url).toBe(`${CLOUD}/s/LeseTok/download?path=%2FEnglisch%20Reisen&files=gate.png`);
-  });
-
-  it('lehnt dieselbe Freigabe als Lesefreigabe ab', async () => {
-    const { svc } = setup(null);
-    await expect(svc.connect(user, { shareUrl: `${CLOUD}/s/EigenTok`, password: 'pw', readShareUrl: `${CLOUD}/s/EigenTok` }, APP))
-      .rejects.toThrow(/eigener Link/);
+    await expect(svc.connect(user, { shareUrl: `${CLOUD}/s/EigenTok` }, APP)).rejects.toThrow(/Passwort der Freigabe angeben/);
+    cloud.open.add('OffenTok');
+    await expect(svc.connect(user, { shareUrl: `${CLOUD}/s/OffenTok`, password: 'egal' }, APP)).rejects.toThrow(/ohne Passwort öffnen/);
+    // Dieselbe Freigabe erneut speichern: gespeichertes Passwort genügt.
+    await svc.connect(user, { shareUrl: `${CLOUD}/s/EigenTok`, password: 'pw' }, APP);
+    await expect(svc.connect(user, { shareUrl: `${CLOUD}/s/EigenTok` }, APP)).resolves.toMatchObject({ mode: 'own', insecure: false });
   });
 });
 
@@ -339,48 +339,35 @@ describe('Grenze für Bilder in der App', () => {
   });
 });
 
-describe('Lesefreigabe zurückziehen', () => {
+describe('Lesefreigaben entfallen, Freigaben ohne Passwort werden gemeldet', () => {
   let cloud: ReturnType<typeof fakeNextcloud>;
   beforeEach(() => { cloud = fakeNextcloud(); jest.spyOn(global, 'fetch').mockImplementation(cloud.impl as any); });
   afterEach(() => jest.restoreAllMocks());
 
   const direct = (tok: string) => `${CLOUD}/s/${tok}/download?path=%2FEnglisch%20Reisen&files=gate%20(1).png`;
 
-  async function withReadShare() {
-    const env = setup(null);
-    await env.svc.connect(user, { shareUrl: `${CLOUD}/s/EigenTok`, password: 'pw', readShareUrl: `${CLOUD}/s/LeseTok` }, APP);
-    env.moduleRepo.rows.push({ id: 'm', content: { image: direct('LeseTok'), html: `<img src="${direct('LeseTok').replace('&', '&amp;')}">` } });
-    const proxy = `${APP}/api/nextcloud/files/${env.links[0].id}/Englisch%20Reisen/gate%20(1).png`;
-    return { ...env, proxy };
-  }
-
-  it('Feld geleert: direkte Links laufen über den Server', async () => {
-    const { svc, moduleRepo, proxy } = await withReadShare();
-    const res: any = await svc.connect(user, { shareUrl: `${CLOUD}/s/EigenTok`, readShareUrl: '' }, APP);
+  it('direkte Links einer früheren Lesefreigabe laufen danach über den Server', async () => {
+    const { svc, links, moduleRepo } = setup(null);
+    await svc.connect(user, { shareUrl: `${CLOUD}/s/EigenTok`, password: 'pw' }, APP);
+    links[0].imageShareToken = 'LeseTok'; // wie aus einer früheren Fassung
+    moduleRepo.rows.push({ id: 'm', content: { image: direct('LeseTok'), html: `<img src="${direct('LeseTok').replace('&', '&amp;')}">` } });
+    expect(await svc.dropReadShares()).toBe(1);
+    const proxy = `${APP}/api/nextcloud/files/${links[0].id}/Englisch%20Reisen/gate%20(1).png`;
     expect(moduleRepo.rows[0].content).toEqual({ image: proxy, html: `<img src="${proxy}">` });
-    expect(res.message).toMatch(/alte Lesefreigabe kann in der Nextcloud gelöscht werden/);
-  });
-
-  it('neue Lesefreigabe: Links zeigen auf die neue', async () => {
-    const { svc, moduleRepo } = await withReadShare();
-    cloud.files.set('EigenTok/public.php/webdav/Bilder/lm-verbindungstest.txt', Buffer.from('')); // Prüfdatei wird neu geschrieben
-    await svc.connect(user, { shareUrl: `${CLOUD}/s/EigenTok`, readShareUrl: `${CLOUD}/s/NeuTok` }, APP);
-    expect(moduleRepo.rows[0].content.image).toBe(direct('NeuTok'));
-  });
-
-  it('in der Nextcloud gelöscht: erkannt, umgestellt, Hinweis', async () => {
-    const { svc, moduleRepo, links, proxy } = await withReadShare();
-    cloud.alive.delete('LeseTok');
-    expect(await svc.checkReadShareAlive(links[0], true)).toBe(false);
-    expect(moduleRepo.rows[0].content.image).toBe(proxy);
     expect(links[0].imageShareToken).toBeNull();
-    expect(await svc.status(user)).toMatchObject({ directImages: false, readShareLostAt: expect.any(Date) });
+    expect(await svc.status(user)).toMatchObject({ readShareLostAt: expect.any(Date) });
   });
 
-  it('noch da: nichts ändert sich', async () => {
-    const { svc, moduleRepo, links } = await withReadShare();
-    expect(await svc.checkReadShareAlive(links[0], true)).toBe(true);
-    expect(moduleRepo.rows[0].content.image).toBe(direct('LeseTok'));
+  it('eine bestehende Freigabe ohne Passwort bleibt verbunden, wird aber gemeldet', async () => {
+    const { svc, links } = setup(null);
+    await svc.connect(user, { shareUrl: `${CLOUD}/s/EigenTok`, password: 'pw' }, APP);
+    cloud.open.add('EigenTok'); // später in der Nextcloud das Passwort entfernt
+    await svc.checkProtection();
+    expect(links[0].insecureAt).toBeInstanceOf(Date);
+    expect(await svc.status(user)).toMatchObject({ mode: 'own', ready: true, insecure: true });
+    cloud.open.delete('EigenTok');
+    await svc.checkProtection();
+    expect(await svc.status(user)).toMatchObject({ insecure: false });
   });
 });
 
@@ -602,5 +589,25 @@ describe('Bilder aus der App automatisch auslagern', () => {
     expect((await env.svc.readImageByUrl(k.image))?.data.length).toBe(200);
     // Zweiter Lauf: nichts mehr zu tun.
     expect(await env.svc.followOwners()).toMatchObject({ offloaded: 0 });
+  });
+});
+
+describe('Nextcloud der Schule: nur mit Passwort', () => {
+  let cloud: ReturnType<typeof fakeNextcloud>;
+  beforeEach(() => { cloud = fakeNextcloud(); jest.spyOn(global, 'fetch').mockImplementation(cloud.impl as any); });
+  afterEach(() => jest.restoreAllMocks());
+  const admin = { userId: 'adm', isSchoolAdmin: true, schoolId: 's1' };
+
+  it('lehnt Freigaben ohne Passwort ab – beim Verbinden und beim Umziehen', async () => {
+    const { school, svc, schoolNc } = setup(null);
+    await expect(school.connect(admin, { shareUrl: `${CLOUD}/s/SchulNC` }, APP)).rejects.toThrow(/Passwort der Freigabe angeben/);
+    cloud.open.add('Offen');
+    await expect(school.connect(admin, { shareUrl: `${CLOUD}/s/Offen`, password: 'x' }, APP)).rejects.toThrow(/ohne Passwort öffnen/);
+    await school.connect(admin, { shareUrl: `${CLOUD}/s/SchulNC`, password: 'x' }, APP);
+    await expect(school.startMove(admin, { shareUrl: `${CLOUD}/s/Offen`, password: 'x' }, APP)).rejects.toThrow(/ohne Passwort öffnen/);
+    cloud.open.add('SchulNC');
+    await svc.checkProtection();
+    expect(schoolNc[0].insecureAt).toBeInstanceOf(Date);
+    expect(await school.status(admin)).toMatchObject({ verified: true, insecure: true });
   });
 });

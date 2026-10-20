@@ -74,6 +74,14 @@ Verbinden prüft sofort: Die Freigabe öffnet sich mit dem Passwort, die App
 legt den Unterordner `Bilder` an und schreibt (und löscht) eine Prüfdatei.
 Das Passwort wird verschlüsselt gespeichert und nie wieder angezeigt.
 
+**Nur mit Passwort:** Freigaben ohne Passwort nimmt die App nicht an – wer den
+Link kennt, könnte den Ordner sonst lesen und ändern. Sie prüft das, indem sie
+die Freigabe auch ohne Passwort zu öffnen versucht; gelingt das, lehnt sie ab.
+Bei schon verbundenen Freigaben (Lehrkraft und Schule) prüft sie es bei jedem
+Start: Lässt sich eine ohne Passwort öffnen – etwa weil es in der Nextcloud
+entfernt wurde –, bleibt sie verbunden (sonst fehlten alle Bilder), der
+Dialog warnt aber deutlich, bis ein Passwort gesetzt und eingetragen ist.
+
 Eine „Dateiablage“ (nur Hochladen) reicht nicht: Die App muss den Ordner auch
 lesen können (Bildauswahl, Auslieferung an Schüler).
 
@@ -83,30 +91,18 @@ Schülerinnen und Schüler kennen das Passwort nicht. Deshalb holt **dieser
 Server** die Bilder mit dem Passwort aus der Nextcloud und reicht sie durch –
 er speichert sie dabei nicht.
 
-**Ohne Lesefreigabe (empfohlen):** Der Ordner bleibt durch das Passwort
-geschützt; niemand außer dir und dem Server kann ihn öffnen oder
-durchblättern. Im Modul steht ein Link auf diesen Server
-(`…/api/nextcloud/files/<Kennung>/<Thema>/<Bild>`). Wer einen solchen Link hat –
-etwa aus einem Quiz kopiert –, kann dieses **eine Bild** ansehen, ohne
-Anmeldung (Schüler haben keine), aber weder den Ordner noch andere Bilder.
+Der Ordner bleibt durch das Passwort geschützt; niemand außer dir und dem
+Server kann ihn öffnen oder durchblättern. Im Modul steht ein Link auf diesen
+Server (`…/api/nextcloud/files/<Kennung>/<Thema>/<Bild>`). Wer einen solchen
+Link hat – etwa aus einem Quiz kopiert –, kann dieses **eine Bild** ansehen,
+ohne Anmeldung (Schüler haben keine), aber weder den Ordner noch andere
+Bilder. Öffentlich ist in der Nextcloud nichts.
 
-**Optional – direkt aus der Nextcloud:** Wer den Server entlasten will, teilt
-den Unterordner `Bilder` zusätzlich **nur lesend und ohne Passwort** und trägt
-diesen Link unter *Optional: Bilder direkt aus der Nextcloud laden* ein. Die
-App prüft beim Verbinden, dass er wirklich auf `Bilder` zeigt. Dann laden die
-Schüler die Bilder direkt aus der Nextcloud. Der Link dieser Lesefreigabe
-steckt aber in jedem Bild-Link – **wer ein Bild aus einem Modul hat, kann damit
-den ganzen Ordner `Bilder` ansehen und herunterladen**. Nur für Bilder, die
-öffentlich sein dürfen – **keine Fotos von Schülerinnen und Schülern**.
-
-**Lesefreigabe zurückziehen:** Erst im Dialog das Feld leeren und
-**🔌 Verbinden** wählen. Dann hängt die App alle direkten Links in den Modulen
-auf den Weg über den Server um, und die Lesefreigabe kann in der Nextcloud
-gelöscht werden. Wird stattdessen eine neue Lesefreigabe eingetragen, zeigen
-die Links auf die neue. Löscht jemand die Lesefreigabe zuerst in der
-Nextcloud, merkt die App das (Prüfung beim Start und höchstens alle sechs
-Stunden beim Öffnen des Dialogs), stellt genauso um und zeigt einen Hinweis.
-Bis dahin fehlen die Bilder in den Modulen.
+**Frühere Lesefreigaben:** Eine ältere Fassung erlaubte zusätzlich eine
+Lesefreigabe des Ordners `Bilder` ohne Passwort, aus der Schüler direkt luden.
+Die gibt es nicht mehr: Beim Start hängt die App solche Links auf den Weg über
+den Server um; der Dialog weist darauf hin, dass die Lesefreigabe in der
+Nextcloud gelöscht werden kann.
 
 ### Freigabe trennen
 
@@ -130,8 +126,8 @@ Für eine andere Nextcloud (Schulwechsel, neue Cloud) unter **🚚 Zu einer
 anderen Nextcloud umziehen** die neue Ordnerfreigabe und ihr Passwort
 eintragen. Die App prüft sie sofort (Passwort, Schreibprobe), kopiert dann im
 Hintergrund den Ordner `Bilder` hinüber und schaltet **erst danach** um. Die
-Links in den Modulen bleiben gleich und zeigen ab dann auf die neue Freigabe;
-direkte Links einer Lesefreigabe laufen danach über den Server. Der Dialog
+Links in den Modulen bleiben gleich und zeigen ab dann auf die neue Freigabe.
+Auch die neue Freigabe muss ein Passwort haben. Der Dialog
 zeigt den Fortschritt. Bricht der Umzug ab, bleibt die bisherige Freigabe
 verbunden – nichts fehlt. Die alte Freigabe wird nicht verändert und kann
 nach dem Umzug gelöscht werden.

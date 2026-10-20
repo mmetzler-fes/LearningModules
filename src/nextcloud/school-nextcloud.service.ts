@@ -9,7 +9,7 @@ import { ModuleDraft } from '../core/entities/module-draft.entity';
 import { User } from '../core/entities/user.entity';
 import { MasterKeyService } from '../core/crypto/master-key.service';
 import { assertPublicHost, parseNextcloudShare } from '../core/share/nextcloud-upload';
-import { DavEntry, ShareClient, parseNextcloudBase } from './nextcloud-api';
+import { DavEntry, OPEN_SHARE_MESSAGE, ShareClient, parseNextcloudBase, shareIsOpen } from './nextcloud-api';
 import { NextcloudService } from './nextcloud.service';
 
 const IMAGES = 'Bilder';
@@ -76,17 +76,24 @@ export class SchoolNextcloudService {
       verifiedAt: r.verifiedAt,
       shareUrl: this.shareLink(r),
       hasPassword: !!r.passwordSealed,
+      insecure: !!r.insecureAt,
       references: await this.references(r),
       move: this.moves.get(schoolId) || (r.moveResult ? { ...r.moveResult, running: false } : null),
     };
   }
 
-  /** Neue Freigabe prüfen: öffnen (Passwort), Ordner Bilder anlegen, eine Datei schreiben und löschen. */
+  /**
+   * Neue Freigabe prüfen: Sie muss ein Passwort haben (ohne darf sie sich nicht
+   * öffnen lassen), sich mit ihm öffnen lassen, Ordner Bilder anlegen, eine
+   * Datei schreiben und löschen.
+   */
   private async probe(shareUrl: string, password: string) {
     const share = parseNextcloudShare(shareUrl);
     const base = parseNextcloudBase(share.base);
     if (!base) throw new BadRequestException('Der Freigabelink muss mit https:// beginnen.');
+    if (!password) throw new BadRequestException('Bitte das Passwort der Freigabe angeben – Freigaben ohne Passwort nimmt die App nicht an.');
     await assertPublicHost(base);
+    if (await shareIsOpen(base, share.token)) throw new BadRequestException(OPEN_SHARE_MESSAGE);
     const nc = new ShareClient(base, share.token, password, 'classic');
     const mode = await nc.detectMode();
     await nc.ensureFolder([IMAGES]);
@@ -111,7 +118,7 @@ export class SchoolNextcloudService {
     }
     const p = await this.probe(input?.shareUrl, password);
     Object.assign(r, {
-      baseUrl: p.base, shareToken: p.token, davMode: p.mode, verifiedAt: new Date(), appBase,
+      baseUrl: p.base, shareToken: p.token, davMode: p.mode, verifiedAt: new Date(), insecureAt: null, appBase,
       passwordSealed: password ? this.masterKey.sealSecret(password) : null,
     });
     await this.repo.save(r);
@@ -212,7 +219,7 @@ export class SchoolNextcloudService {
           job.copied++;
         }
         Object.assign(r, {
-          baseUrl: target.base, shareToken: target.token, davMode: target.mode, verifiedAt: new Date(), appBase,
+          baseUrl: target.base, shareToken: target.token, davMode: target.mode, verifiedAt: new Date(), insecureAt: null, appBase,
           passwordSealed: password ? this.masterKey.sealSecret(password) : null,
           moveResult: { at: new Date().toISOString(), from: job.from, copied: job.copied },
         });

@@ -216,3 +216,20 @@ export class ShareClient {
     await this.request('DELETE', parts).catch(() => undefined);
   }
 }
+
+/**
+ * Lässt sich die Freigabe auch ohne Passwort öffnen? Dann kann jeder, der den
+ * Link kennt, den Ordner lesen und bearbeiten – die App nimmt solche
+ * Freigaben nicht an. Nur eine klare Antwort „offen“ zählt; Netzfehler nicht.
+ */
+export async function shareIsOpen(base: string, token: string, fetchImpl: Fetch = fetch): Promise<boolean> {
+  try {
+    await new ShareClient(base, token, '', 'classic', fetchImpl).detectMode();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export const OPEN_SHARE_MESSAGE = 'Diese Freigabe lässt sich ohne Passwort öffnen – dann könnte jeder mit dem Link den Ordner lesen und ändern. '
+  + 'Bitte in der Nextcloud beim Teilen ein Passwort setzen und hier eintragen.';

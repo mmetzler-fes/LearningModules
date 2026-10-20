@@ -24,7 +24,10 @@ export async function renderSchoolNextcloud(app, box, msg = null) {
   if (!data || data.statusCode) { box.innerHTML = `<p class="login-error">${escapeHtml(data?.message || 'Fehler')}</p>`; return; }
   const ok = data.configured && data.verified;
   const host = (() => { try { return new URL(data.shareUrl).host; } catch (_) { return ''; } })();
-  const hero = ok
+  const hero = ok && data.insecure
+    ? { cls: 'warn', title: '⚠️ Die Freigabe der Schule lässt sich <strong>ohne Passwort öffnen</strong>',
+      sub: 'Jeder, der den Freigabelink kennt, kann die Bilder aller Lehrkräfte lesen und ändern. Bitte in der Nextcloud beim Teilen ein Passwort setzen und unter „Verbindung“ eintragen. Die Bilder funktionieren bis dahin weiter.' }
+    : ok
     ? { cls: 'ok', title: `Lehrkräfte ohne eigene Freigabe legen ihre Bilder in der <strong>Nextcloud der Schule</strong> ab${host ? ` <span class="hint">(${escapeHtml(host)})</span>` : ''}`,
       sub: `Je Lehrkraft ein Ordner <code>Bilder/&lt;Name&gt;/&lt;Thema&gt;</code> · Bilder daraus stecken in ${data.references} Modul(en) · <a href="${escapeAttr(data.shareUrl)}" target="_blank" rel="noopener">Ordner öffnen ↗</a>` }
     : data.configured
@@ -38,17 +41,17 @@ export async function renderSchoolNextcloud(app, box, msg = null) {
       <div class="nc-hero-sub hint">${hero.sub}</div>
     </div>
     ${moveHtml(data.move)}
-    <details class="nc-section snc-conn" ${ok ? '' : 'open'}>
-      <summary>🔗 Verbindung <span class="nc-sum-state">${ok ? '✅ verbunden' : data.configured ? '⚠️ nicht verbunden' : 'nicht eingerichtet'}</span></summary>
+    <details class="nc-section snc-conn" ${ok && !data.insecure ? '' : 'open'}>
+      <summary>🔗 Verbindung <span class="nc-sum-state">${ok && data.insecure ? '⚠️ ohne Passwort' : ok ? '✅ verbunden' : data.configured ? '⚠️ nicht verbunden' : 'nicht eingerichtet'}</span></summary>
       <div class="nc-section-body">
         <p class="hint">Freigabe anlegen: In der Nextcloud der Schule einen Ordner anlegen (z. B. <code>LearningModules-Bilder</code>)
           → <strong>Teilen → Link teilen</strong> → <strong>„Hochladen und Bearbeiten erlauben“</strong> → <strong>Passwort</strong>
-          setzen → Link kopieren. Die Bilder kommen über diesen Server zu den Schülern; in der Nextcloud ist nichts öffentlich.
-          Wer die Freigabe kennt, sieht alle Bilder – also keine Fotos von Schülerinnen und Schülern. Eine eigene Freigabe einer
-          Lehrkraft geht vor.</p>
+          setzen → Link kopieren. Freigaben ohne Passwort nimmt die App nicht an. Die Bilder kommen über diesen Server zu den
+          Schülern; in der Nextcloud ist nichts öffentlich. Wer Link und Passwort kennt, sieht die Bilder aller Lehrkräfte.
+          Eine eigene Freigabe einer Lehrkraft geht vor.</p>
         <div class="form-group"><label for="sncShare">Freigabelink des Ordners</label>
           <input type="url" id="sncShare" value="${escapeAttr(data.shareUrl || '')}" autocomplete="off" placeholder="https://cloud.meine-schule.de/s/…" /></div>
-        <div class="form-group"><label for="sncPass">Passwort der Freigabe</label>
+        <div class="form-group"><label for="sncPass">Passwort der Freigabe (Pflicht)</label>
           <input type="password" id="sncPass" autocomplete="new-password" placeholder="${data.hasPassword ? 'gespeichert – leer lassen = unverändert' : 'Passwort, das beim Teilen gesetzt wurde'}" /></div>
         <div class="form-actions">
           <button class="btn btn-primary snc-connect">🔌 ${ok ? 'Speichern und prüfen' : 'Verbinden'}</button>
@@ -64,7 +67,7 @@ export async function renderSchoolNextcloud(app, box, msg = null) {
         <p class="hint">Neue Ordnerfreigabe (Hochladen und Bearbeiten, mit Passwort) eintragen. Die App prüft sie, kopiert alle Bilder
           hinüber und schaltet erst danach um – in den Modulen bleibt alles sichtbar.</p>
         <div class="form-group"><label for="sncMoveShare">Neuer Freigabelink</label><input type="url" id="sncMoveShare" autocomplete="off" placeholder="https://…/s/…" /></div>
-        <div class="form-group"><label for="sncMovePass">Passwort</label><input type="password" id="sncMovePass" autocomplete="new-password" /></div>
+        <div class="form-group"><label for="sncMovePass">Passwort (Pflicht)</label><input type="password" id="sncMovePass" autocomplete="new-password" /></div>
         <button class="btn btn-primary snc-move-run" ${data.move?.running ? 'disabled' : ''}>🚚 Umziehen</button>
       </div>
     </details>

@@ -33,6 +33,10 @@ export class SchoolNextcloud extends BaseEntity {
   @Column({ type: 'datetime', nullable: true })
   verifiedAt: Date | null;
 
+  /** Die Freigabe ließ sich bei der letzten Prüfung ohne Passwort öffnen (Warnung). */
+  @Column({ type: 'datetime', nullable: true })
+  insecureAt: Date | null;
+
   /** Öffentliche Adresse dieser App beim Verbinden – für die Bild-Links. */
   @Column({ type: 'varchar', nullable: true })
   appBase: string | null;

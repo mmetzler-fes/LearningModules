@@ -9,3 +9,4 @@ coverage/
 assets/*.xlsx
 assets/*.csv
 test/
+worksheet-renderer/

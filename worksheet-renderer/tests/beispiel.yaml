@@ -1,0 +1,50 @@
+# Beispielblatt mit allen Blocktypen – Testfall für Generator und Dienst.
+nummer: 1
+titel: Beispielblatt
+kurs: Beispiel
+titelmuster: "{kurs} {nummer} – {titel}"
+
+content:
+  - type: section
+    text: Worum es geht
+  - type: text
+    text: |-
+      Dieses Blatt zeigt alle Blocktypen des Generators.
+
+      Ein zweiter Absatz.
+  - type: list
+    items: [Erster Punkt, Zweiter Punkt]
+  - type: task
+    title: Ohmsches Gesetz
+    text: Berechne den Strom für U = 12 V und R = 240 Ω.
+    blocks:
+      - type: formula
+        math: 'I = U over R'
+      - type: karo
+        lines: 4
+      - type: solution
+        blocks:
+          - type: text
+            text: I = 12 V / 240 Ω = 50 mA
+  - type: task
+    title: Programm lesen
+    blocks:
+      - type: code
+        caption: blink.ino
+        code: |-
+          void loop() {
+            digitalWrite(LED, HIGH);
+            delay(500);
+          }
+      - type: table
+        caption: Operatoren
+        header: [Operator, Bedeutung]
+        rows:
+          - ["==", "prüft auf Gleichheit"]
+          - ["!=", "prüft auf Ungleichheit"]
+      - type: note
+        text: Ein kursiver Hinweis.
+      - type: solution
+        blocks:
+          - type: code
+            code: digitalWrite(LED, LOW);

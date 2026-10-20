@@ -1,0 +1,18 @@
+# Zuordnung: Blocktyp aus der Spec -> Formatvorlage in templates/AB_Vorlage3.ott.
+# Vorhandene Vorlagen anzeigen:
+#   .venv/bin/python tools/inspect_ott.py templates/AB_Vorlage3.ott
+
+section: Heading_20_1        # Themenabschnitt, Gliederungsebene 1 -> "1."
+task: Heading_20_2           # Aufgabe,         Gliederungsebene 2 -> "1.1"
+subtask: Heading_20_3        # Teilaufgabe,     Gliederungsebene 3 -> "1.1.1"
+text: Standard               # Fließtext
+code: Quelltext              # Codebeispiel (Monospace, grau) – von prepare_template.py ergänzt
+list: List                   # Absatzvorlage innerhalb von Aufzählungen
+solution_text: Lösung        # rot + ausgeblendet (Vorlage der Schule)
+solution_code: LösungQuelltext
+emphasis: Hinweis            # Zeichenvorlage kursiv
+caption: Abbildung           # Zeichenvorlage für Bildunterschriften (Arial fett 8 pt)
+code_inline: Codewort        # Zeichenvorlage Monospace im Fließtext
+overlay_text: LoesungSichtbar       # nur im Lösungsblatt: rot über dem Karoraster
+overlay_code: LoesungSichtbarCode
+karo: Table_20_Contents             # Absatzvorlage in den Karo-Zellen

@@ -1,0 +1,166 @@
+# Spec-Format der Arbeitsblätter
+
+Gilt für `tools/make_worksheet.py`, `tools/make_script.py` und den Renderer-Dienst.
+Fachliche und redaktionelle Vorgaben gehören nicht hierher, sondern in das Projekt
+mit den Kursen (z. B. dessen `CLAUDE.md`).
+
+## Spec-Format
+
+`kurs.yaml` liefert die Vorgaben (Vorlage, Titelmuster, Kursname), die Spec
+ergänzt nur noch das Blatt:
+
+```yaml
+nummer: 6                       # Nummer im Kurs
+titel: Verzweigungen            # ergibt mit dem Titelmuster den Kopfzeilentitel
+slug: 06_verzweigungen          # optional, sonst der Ordnername
+
+content:
+  - type: section               # Überschrift Ebene 1 -> "1."
+    text: …
+  - type: task                  # Überschrift Ebene 2 -> "1.1"
+    title: …
+    text: …                     # optionaler Einleitungstext
+    blocks: [ … ]               # verschachtelte Blöcke
+  - type: subtask               # Ebene 3 -> "1.1.1"
+  - type: text                  # Fließtext; Leerzeile trennt Absätze
+  - type: list
+    items: [ … ]
+  - type: code                  # Monospace, grau hinterlegt
+    caption: "datei.html"       # optional, kursiv darüber
+    code: |-                    # entweder Code inline …
+      …
+    file: quellcodes/x.html     # … oder aus einer Datei
+    from_line: 5                # optionaler Zeilenausschnitt
+    to_line: 20
+  - type: image                 # Bild (PNG/JPEG/SVG), Höhe aus dem Seitenverhältnis
+    file: quellen/schaltung.svg
+    width: 9cm
+    caption: "Brückenschaltung"    # Zeichenvorlage „Abbildung" (Arial fett 8 pt)
+  - type: table                 # Spaltenbreiten und Schriftgröße berechnet der
+    caption: "Operatoren"       # Renderer aus dem Inhalt; die Tabelle wird nie
+    header: [Operator, Bedeutung]   # über einen Seitenumbruch getrennt
+    rows:
+      - ["==", "prüft auf Gleichheit"]
+  - type: formula               # freistehende Formel im Formeleditor (StarMath)
+    math: '{U_a} over {U_e} = {X_C} over sqrt{R^2 + X_C^2}'
+    align: center               # optional; center (Vorgabe) oder left
+    text: "…"                   # optionaler Ersatztext, siehe Fallstricke
+  - type: note                  # kursiver Hinweis
+    text: …
+  - type: solution              # Arbeitsblatt: ausgeblendet; Lösungsblatt: rot über dem Karo
+    title: "Lösung:"
+    blocks: [ … ]
+  - type: karo                  # Karopapier zum handschriftlichen Eintragen
+    lines: 6                    # Anzahl Karozeilen à 0,5 cm
+  - type: spacer                # nur Leerraum, ohne Raster
+    lines: 4
+  - type: pagebreak
+```
+
+`file:`-Pfade werden in dieser Reihenfolge gesucht: Ordner der Spec →
+Kursordner → Projektwurzel. Also `code/vorlage.html` neben der Spec oder
+`quellcodes/addition1.html` im Kurs.
+
+Die Nummerierung erzeugt LibreOffice aus der Gliederungsebene – nie „Aufgabe 3"
+in den Titel schreiben.
+
+## Lösungsblatt
+
+Im Lösungsblatt wird jeder `solution`-Block dem davorstehenden `karo`-Block als
+Overlay zugeordnet: rote Schrift in einem transparenten Rahmen über dem Raster.
+Das Raster wächst dafür bis `KARO_MAX_ROWS` mit; längere Lösungen stehen
+darunter. Deshalb sollte auf jede Aufgabe mit Lösung auch ein `karo`-Block folgen.
+
+## Wie ein Skript entsteht
+
+Ein Skript (Kompendium) fasst die Arbeitsblätter eines Themas zum Nachlesen
+zusammen – gleicher Stoff, nur ohne Karopapier zum Eintragen.
+
+1. `kurse/<kurs>/skripte/<name>.yaml` listet Titel und Blätter auf.
+2. `make skript` rendert nach `build/<kuerzel>/Skript_<Thema>.odt` und
+   `…_Lösung.odt`; darin sind die Musterlösungen rot sichtbar.
+
+```yaml
+titel: Mikrocontroller programmieren – Grundlagen
+slug: Skript_Grundlagen        # optional, sonst Skript_<Dateiname>
+kopfzeile: Arduino (ESP32) – Grundlagen    # optional, sonst "<Kurs> – <titel>"
+blaetter:                      # Reihenfolge im Skript; oder: alle
+  - 01_mikrocontroller_erste_led
+  - 02_digitale_ausgaenge
+```
+
+Vorlage (`skript_template`) und `autor` stehen in der `kurs.yaml`. Die
+Gliederung rutscht gegenüber dem Arbeitsblatt eine Ebene tiefer: Ebene 1 ist
+der `titel` des Blatts, Ebene 2 sein „Schritt n – …", Ebene 3 die Aufgabe.
+Titelseite, Kopfzeile und Inhaltsverzeichnis kommen aus der Vorlage; die
+Verzeichniseinträge und ihre Seitenzahlen erzeugt der Renderer (Ebene 1 und 2).
+
+## Fallstricke
+
+* YAML: Listeneinträge mit Komma oder Doppelpunkt in Anführungszeichen setzen.
+  Das Komma gehört **in** die Anführungszeichen.
+* Formatvorlagennamen mit Leerzeichen findet odfpy nicht (deshalb
+  `LösungQuelltext` statt `Lösung Quelltext`).
+* Innerhalb von Textrahmen wendet LibreOffice **keine** benannten Formatvorlagen
+  aus `styles.xml` an. Vorlagen für Rahmeninhalte müssen automatische Vorlagen
+  sein (`doc.automaticstyles`).
+* Bilder in einer Musterlösung erscheinen **nicht** im Overlay über dem
+  Karoraster (im Rahmen wird der Bildrahmen nicht dargestellt). Ein `solution`
+  mit `image` gehört deshalb in einen eigenen Block **ohne** unmittelbar
+  davorstehendes `karo` – dann steht er im Arbeitsblatt ausgeblendet an seiner
+  Stelle und wird im Lösungsblatt sichtbar.
+* In Codeblöcken bleiben Leerzeichenkolonnen erhalten (`<text:s>`), damit
+  ausgerichtete Kommentare nicht verrutschen. Kästchen- und Pfeilzeichen
+  (`│ └ ← →`) stammen aus einer Ersatzschrift anderer Breite und zerstören die
+  Ausrichtung – in Codeblöcken nur ASCII (`| + - <--`) verwenden.
+* Tabellen bekommen ihre Spaltenbreiten aus dem Inhalt (längster Text als
+  Wunsch-, längstes Wort als Mindestbreite) und rutschen bei viel Umbruch auf
+  10 oder 9 pt. Wer eine Tabelle schmaler haben will, kürzt also den Text in
+  der breitesten Spalte – Breiten von Hand gibt es nicht.
+* Formeln (`type: formula`) sind echte Formeleditor-Objekte: eine Formel je
+  Absatz, StarMath-Schreibweise (`over`, `sqrt{…}`, `^2`, `_C`, `cdot`, `%pi`,
+  `left( … right)`, Text in Anführungszeichen). Der Rahmen bekommt bewusst
+  keine Größe – LibreOffice rechnet sie beim Laden aus der Formel aus. Im
+  Fließtext (mitten im Satz) gibt es keine Formeln; dort bleibt die
+  Schreibweise mit `√( … )` und `_C`.
+* Im Lösungsrahmen über dem Karoraster stellt LibreOffice weder Bilder noch
+  Objekte dar. Eine Formel in einem `solution`-Block wird dort deshalb durch
+  ihren Ersatztext ersetzt (aus `text:` oder automatisch aus der Formel
+  abgeleitet); im Arbeitsblatt, im Skript und außerhalb von Lösungen steht das
+  Objekt selbst. Rechenwege in Lösungen schreibt man daher weiter als Text.
+* Der Renderer kennt keine Auszeichnung im Fließtext: `**fett**` landet
+  wörtlich mit Sternchen im Dokument. Hervorhebungen also über `note`, eine
+  eigene Zeile oder die Wortwahl lösen. Die einzige Ausnahme ist der
+  tiefgestellte Index für Formelzeichen: `n_S` wird zu n mit tiefgestelltem S,
+  mehrbuchstabige Indizes in geschweifte Klammern (`P_{Schlupf}`). Die Basis
+  ist genau ein Buchstabe, dem kein Wortzeichen vorausgeht – Bezeichner wie
+  `to_line`, `AB_Vorlage` oder `01_drehfeld` bleiben also unangetastet. In
+  Codeblöcken wird nichts umgesetzt; im Fließtext schreibt `\_` einen
+  gewöhnlichen Unterstrich (`c\_str()`). Nicht indiziert werden Bezeichnungen,
+  die nur so *aussehen* wie ein Formelzeichen: Klemmen und Betriebsmittel
+  (`U1, V1, W1`, `L1`, `Q11`), Normreihen und Klassen (`E12`, `IE2`, `S1`) und
+  Schaltungsnamen (`RC`-Tiefpass).
+* Zeilenumbrüche im Fließtext: Ein einfacher Umbruch der Spec ist meist nur
+  Satzspiegel und wird zum Leerzeichen. Er bleibt aber als Zeilenumbruch
+  erhalten, wenn die Zeile kürzer als 70 Zeichen ist, die Folgezeile mit einer
+  Aufzählung („b) …", „2. …") beginnt, beide Zeilen mit einer Zuweisung
+  beginnen (`X = …`, `x := …`), die Zeile mit „:" endet und die Folgezeile
+  eingerückt ist, oder eine der Zeilen Lücken aus mehreren Leerzeichen hat
+  (`text_lines` in `make_worksheet.py`). Rechenzeilen also einfach
+  untereinander schreiben.
+* Mehrere Leerzeichen bleiben im Dokument erhalten (`<text:s>`) – auch
+  Einrückungen am Zeilenanfang. Formel und Einheit trennt man mit Komma und
+  drei Leerzeichen: `J = I / A,   [J] = A/mm²`; mehrere Formeln in einer
+  Zeile mit einer breiteren Lücke.
+* Bilder in der Vorlage gehören als PNG hinein, nicht als eingebettetes PDF.
+  Aus einem PDF-Bild übernimmt LibreOffice beim Export zwar den Zeichenbefehl
+  `/a0 gs`, nicht aber dessen Definition; strenge Betrachter (OneNote) lassen
+  die Grafik dann weg. Ein Logo als PDF in der Schulvorlage lässt sich in deren
+  `.patch.yaml` über `dateien:` durch ein PNG ersetzen. Prüfen lässt sich das mit `pdftoppm`: Meldet es
+  „ExtGState 'a0' is unknown", steckt wieder ein PDF-Bild in der Vorlage.
+* PDF-Erzeugung nur gesammelt in einem `soffice`-Aufruf: Läuft schon eine
+  LibreOffice-Instanz, kehrt ein zweiter Aufruf ohne Fehlercode und ohne
+  Ergebnis zurück.
+* Im Skript gibt es kein Karoraster: Dort bleiben die Lösungen an ihrem Platz
+  (`ctx["skip"]`), statt in ein Overlay über dem Raster zu wandern.
+* Nach jeder Änderung neu bauen und die Seitenzahl prüfen.

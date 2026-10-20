@@ -40,6 +40,22 @@ services:
       # Adresse kommt aus APP_URL. Die Uhr des Hosts muss stimmen (NTP).
       # Nur zum Ausprobieren ohne https, nie im Betrieb:
       # FEDERATION_ALLOW_HTTP: "1"
+      # Arbeitsblätter (.odt/.pdf) – nur mit dem Renderer unten:
+      # WORKSHEET_RENDERER_URL: http://worksheet-renderer:8090
+      # WORKSHEET_RENDERER_TOKEN: ${WORKSHEET_RENDERER_TOKEN}
+
+  # Optional: Renderer für Arbeitsblätter (worksheet-renderer/README.md).
+  # Eigenes Image mit LibreOffice; nur im internen Netz, kein Port nach außen.
+  # Das Token (beliebige lange Zeichenfolge) steht in der .env wie SMTP_PASS.
+  # worksheet-renderer:
+  #   image: ghcr.io/mmetzler-fes/worksheet-renderer:latest
+  #   container_name: worksheet-renderer
+  #   restart: always
+  #   networks:
+  #     - proxy-nw
+  #   environment:
+  #     WORKSHEET_RENDERER_TOKEN: ${WORKSHEET_RENDERER_TOKEN}
+  #     RENDERER_WORKERS: "2"
 
 networks:
   proxy-nw:

@@ -305,6 +305,24 @@ FRONTEND – src/renderer/
       (Speichern via _btnSaveWBL-Listener)
 
 --------------------------------------------------------------------------------
+ARBEITSBLATT-RENDERER – worksheet-renderer/  (Plan: Arbeitsblaetter-Plan.md)
+--------------------------------------------------------------------------------
+
+  Eigener Python-Dienst und eigenes Image (LibreOffice), nicht im App-Image
+  (.dockerignore). Spec (JSON) + Vorlage (.ott) → .odt/.pdf + Lösungsblatt.
+  README.md: Kommandozeile und HTTP-API; SPEC.md: Blockformat.
+
+  tools/make_worksheet.py      Generator; GEN = dieser Ordner (Grundvorlage,
+                               styles.yaml), ROOT = Projekt mit kurse/
+                               (ARBEITSBLATT_ROOT oder aktuelles Verzeichnis)
+  tools/make_script.py         Skript (Kompendium) aus mehreren Blättern
+  server.py                    GET /health, POST /render (Bearer-Token);
+                               je Auftrag ein Prozess in eigenem Temp-Ordner,
+                               RENDERER_WORKERS Plätze mit eigenem LO-Profil
+  templates/Grundvorlage.ott   neutrale Vorlage ohne Schullogo
+  tests/                       unittest gegen den laufenden Dienst
+
+--------------------------------------------------------------------------------
 DATENFLUSS (Login → Quiz)
 --------------------------------------------------------------------------------
 
@@ -365,5 +383,7 @@ UMGEBUNGSVARIABLEN
   JWT_SECRET        Token-Signaturschlüssel (Standard: 'secretKey')
   PORT              HTTP-Port (Standard: 3000)
   DATABASE_PATH     Pfad zur SQLite-Datei (Standard: data/database.sqlite)
+  WORKSHEET_RENDERER_URL    Adresse des Arbeitsblatt-Renderers (optional)
+  WORKSHEET_RENDERER_TOKEN  gemeinsames Geheimnis mit dem Renderer
 
 ================================================================================

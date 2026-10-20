@@ -196,6 +196,7 @@ export class NextcloudService implements OnApplicationBootstrap {
       },
       directImages: !!l.imageShareToken,
       readShareLostAt: l.readShareLostAt,
+      move: this.moves.get(l.userId) || (l.moveResult ? { ...l.moveResult, running: false } : null),
       verifiedAt: l.verifiedAt,
       imagesFolder: IMAGES,
       openUrl: this.shareLink(l),
@@ -226,6 +227,11 @@ export class NextcloudService implements OnApplicationBootstrap {
     }
     const l = (await this.find(user.userId)) || this.linkRepo.create({ id: crypto.randomUUID(), userId: user.userId });
     const oldRead = l.imageShareToken && l.baseUrl ? { base: l.baseUrl, token: l.imageShareToken } : null;
+    // Eine andere Freigabe einfach eintragen ließe alle Bilder ins Leere zeigen
+    // (die Links bleiben, die Dateien liegen in der alten) – dafür gibt es „Umziehen“.
+    if (l.verifiedAt && l.shareToken && (l.shareToken !== share.token || l.baseUrl !== base) && (await this.countReferences(l)) > 0) {
+      throw new BadRequestException('In deinen Modulen stecken Bilder aus der bisherigen Freigabe. Für eine andere Nextcloud bitte „🚚 Umziehen“ verwenden – das kopiert die Bilder mit.');
+    }
     // Noch keine Freigabe gespeichert: Ein altes Passwort (etwa das App-Passwort
     // der Vorversion) gilt nicht als Passwort der Freigabe.
     if (!l.shareToken) l.passwordSealed = null;
@@ -294,8 +300,11 @@ export class NextcloudService implements OnApplicationBootstrap {
    * Eigene Freigabe vergessen. In der Nextcloud bleibt alles, wie es ist. Der
    * Eintrag selbst bleibt – seine Kennung steckt in alten Bild-Links.
    */
-  async disconnect(user: any) {
+  async disconnect(user: any, force = false) {
     const l = await this.find(user.userId);
+    if (l?.verifiedAt && !force && (await this.countReferences(l)) > 0) {
+      throw new BadRequestException('In Modulen stecken noch Bilder aus dieser Freigabe – erst zurückholen, umziehen oder ausdrücklich trotzdem trennen.');
+    }
     if (l) {
       Object.assign(l, { baseUrl: '', shareToken: null, passwordSealed: null, davMode: null, imageShareToken: null, verifiedAt: null, backupEnabled: false });
       await this.linkRepo.save(l);
@@ -755,6 +764,230 @@ export class NextcloudService implements OnApplicationBootstrap {
       if (JSON.stringify(next) !== JSON.stringify(d.data)) { await this.draftRepo.update({ id: d.id }, { data: next }); n++; }
     }
     return n;
+  }
+
+  // ---- Trennen: Überblick und Bilder zurückholen ----
+
+  /** Suchmuster für Links auf diese Freigabe: über den Server und direkt (Lesefreigabe). */
+  private ownNeedles(l: NextcloudLink) {
+    const out = [`%/api/nextcloud/files/${l.id}/%`];
+    if (l.imageShareToken) out.push(`%/s/${l.imageShareToken}/download%`);
+    return out;
+  }
+
+  /** Module und Entwürfe mit Links auf diese Freigabe. */
+  private async referencing(l: NextcloudLink) {
+    const needles = this.ownNeedles(l);
+    const where = needles.map((_, i) => `m.content LIKE :n${i}`).join(' OR ');
+    const params = Object.fromEntries(needles.map((n, i) => [`n${i}`, n]));
+    const mods = await this.moduleRepo.createQueryBuilder('m')
+      .select(['m.id', 'm.content', 'm.topicId', 'm.parentId']).where(`(${where})`, params).getMany();
+    const dwhere = needles.map((_, i) => `d.data LIKE :n${i}`).join(' OR ');
+    const drafts = await this.draftRepo.createQueryBuilder('d')
+      .select(['d.id', 'd.data', 'd.userId']).where(`(${dwhere})`, params).getMany();
+    return { mods, drafts };
+  }
+
+  private async countReferences(l: NextcloudLink) {
+    const { mods, drafts } = await this.referencing(l);
+    return mods.length + drafts.length;
+  }
+
+  /**
+   * Jeden Link auf diese Freigabe in einem Inhalt durch fn(sub, name) ersetzen
+   * (null lässt ihn stehen): …/api/nextcloud/files/<Eintrag>/<Ordner>/<Datei>
+   * und, bei Lesefreigabe, …/s/<Kürzel>/download?path=/<Ordner>&files=<Datei>.
+   */
+  private swapOwnUrls(value: any, l: NextcloudLink, fn: (sub: string, name: string) => string | null): any {
+    if (typeof value === 'string') {
+      let out = value;
+      if (out.includes(`/api/nextcloud/files/${l.id}/`)) {
+        const re = new RegExp(`(?:https?://[^\\s"'<>]*?)?/api/nextcloud/files/${l.id}/([^/?#"\\s<>]+)/([^/?#"\\s<>]+)`, 'gi');
+        out = out.replace(re, (m, sub: string, name: string) => {
+          // Endet der Name mitten im HTML auf ' oder ), das zur Not abschneiden.
+          for (let tail = ''; name; tail = name.slice(-1) + tail, name = name.slice(0, -1)) {
+            try {
+              const file = decodeURIComponent(name);
+              if (IMAGE_EXT.test(file)) { const url = fn(decodeURIComponent(sub), file); return url ? url + tail : m; }
+            } catch { return m; }
+            if (!/['")]$/.test(name)) break;
+          }
+          return m;
+        });
+      }
+      if (l.imageShareToken && out.includes(`/s/${l.imageShareToken}/download`)) {
+        const esc = (x: string) => x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const re = new RegExp(`${esc(l.baseUrl)}/s/${esc(l.imageShareToken)}/download\\?path=([^&"'\\s<>#]*)&(?:amp;)?files=([^&"'\\s<>#]+)`, 'g');
+        out = out.replace(re, (m, path: string, file: string) => {
+          try { return fn(decodeURIComponent(path).replace(/^\/+|\/+$/g, ''), decodeURIComponent(file)) || m; } catch { return m; }
+        });
+      }
+      return out;
+    }
+    if (Array.isArray(value)) return value.map((v) => this.swapOwnUrls(v, l, fn));
+    if (value && typeof value === 'object') {
+      const out: any = {};
+      for (const [k, v] of Object.entries(value)) out[k] = this.swapOwnUrls(v, l, fn);
+      return out;
+    }
+    return value;
+  }
+
+  /**
+   * Was an der Freigabe hängt – für „Freigabe trennen“: Bilder (mit Größe und
+   * einem Abruf-Link über diesen Server), Themen, Entwürfe, dazu Stand und
+   * Grenze der Bilder in der App. `fits`: passt alles zurück in die App?
+   */
+  async usage(user: any) {
+    const l = await this.find(user.userId);
+    if (!l?.shareToken || !l.verifiedAt) return { count: 0, bytes: 0, images: [], topics: [], drafts: 0, fits: true };
+    const nc = await this.client(l);
+    const { mods, drafts } = await this.referencing(l);
+    const images = new Map<string, { sub: string; name: string; size: number; missing: boolean; fetchUrl: string }>();
+    const collect = (v: any) => this.swapOwnUrls(v, l, (sub, name) => {
+      if (safePart(sub) && safePart(name)) {
+        images.set(`${sub}/${name}`, { sub, name, size: 0, missing: true, fetchUrl: `/api/nextcloud/files/${l.id}/${encodeURIComponent(sub)}/${encodeURIComponent(name)}` });
+      }
+      return null;
+    });
+    mods.forEach((m) => collect(m.content));
+    drafts.forEach((d) => collect(d.data));
+    for (const sub of new Set([...images.values()].map((i) => i.sub))) {
+      const entries = await nc.list([IMAGES, sub]).catch((): DavEntry[] => []);
+      for (const e of entries) {
+        const img = images.get(`${sub}/${e.name}`);
+        if (img) Object.assign(img, { size: e.size, missing: false });
+      }
+    }
+    // Themen – auch über Untermodule; „mine“: gehört der Lehrkraft selbst.
+    const parentIds = [...new Set(mods.filter((m) => !m.topicId && m.parentId).map((m) => m.parentId))];
+    const parents = parentIds.length ? await this.moduleRepo.find({ where: { id: In(parentIds) }, select: ['id', 'topicId'] }) : [];
+    const topicIds = [...new Set(mods.map((m) => m.topicId || parents.find((p) => p.id === m.parentId)?.topicId).filter(Boolean))] as string[];
+    const topics = topicIds.length ? await this.topicRepo.find({ where: { id: In(topicIds) }, select: ['id', 'title', 'ownerId'] }) : [];
+    const list = [...images.values()];
+    const bytes = list.reduce((a, i) => a + i.size, 0);
+    const q = await this.quotaSettings();
+    const used = sum(await this.appImages(user.userId));
+    return {
+      count: list.length, bytes, missing: list.filter((i) => i.missing).length, images: list,
+      topics: topics.map((t) => ({ id: t.id, title: t.title, mine: t.ownerId === user.userId })).sort((a, b) => a.title.localeCompare(b.title, 'de')),
+      drafts: drafts.length,
+      appUsedBytes: used, limitBytes: q.limitMb * MB,
+      // Obergrenze: ungekürzt. Der Browser verkleinert beim Zurückholen, das wird meist deutlich weniger.
+      fits: !q.limitMb || used + bytes <= q.limitMb * MB,
+    };
+  }
+
+  /**
+   * Bilder zurück in die App: `items` = [{ sub, name, dataUrl }] (im Browser
+   * verkleinert). Ersetzt die Links in allen Modulen und Entwürfen. Strikt:
+   * Liegt die Lehrkraft damit über der Grenze, wird nichts geändert.
+   */
+  async returnImages(user: any, items: Array<{ sub: string; name: string; dataUrl: string }>) {
+    const l = await this.find(user.userId);
+    if (!l?.shareToken || !l.verifiedAt) throw new BadRequestException('Keine Freigabe verbunden.');
+    const map = new Map<string, string>();
+    for (const it of Array.isArray(items) ? items : []) {
+      const d = String(it?.dataUrl || '');
+      if (!/^data:image\/(png|jpeg|gif|webp|svg\+xml);base64,[A-Za-z0-9+/=]+$/.test(d)) throw new BadRequestException(`Kein gültiges Bild: ${it?.name}`);
+      map.set(`${it.sub}/${it.name}`, d);
+    }
+    if (!map.size) return { modules: 0, drafts: 0, images: 0 };
+    const { limitMb } = await this.quotaSettings();
+    if (limitMb) {
+      const usage = await this.appImages(user.userId);
+      for (const [k, v] of dataImageSizes([[...map.values()]])) usage.set(k, v);
+      if (sum(usage) > limitMb * MB) {
+        throw new BadRequestException(`Zusammen mit diesen Bildern lägen deine Bilder in der App über der Grenze von ${limitMb} MB – zurückholen geht nicht. Bitte stattdessen umziehen.`);
+      }
+    }
+    const { mods, drafts } = await this.referencing(l);
+    const swap = (v: any) => this.swapOwnUrls(v, l, (sub, name) => map.get(`${sub}/${name}`) || null);
+    let modules = 0;
+    let dr = 0;
+    for (const m of mods) {
+      const next = swap(m.content);
+      if (JSON.stringify(next) !== JSON.stringify(m.content)) { await this.moduleRepo.update({ id: m.id }, { content: next }); modules++; }
+    }
+    for (const d of drafts) {
+      const next = swap(d.data);
+      if (JSON.stringify(next) !== JSON.stringify(d.data)) { await this.draftRepo.update({ id: d.id }, { data: next }); dr++; }
+    }
+    return { modules, drafts: dr, images: map.size };
+  }
+
+  // ---- Umziehen in eine andere Freigabe ----
+
+  /** Laufende Umzüge je Lehrkraft (Fortschritt für den Dialog). */
+  private readonly moves = new Map<string, { running: boolean; copied: number; total: number; from: string; error?: string }>();
+
+  /**
+   * In eine andere Freigabe umziehen: Die neue wird gleich geprüft (Passwort,
+   * Schreibprobe); dann kopiert die App im Hintergrund den Ordner Bilder
+   * hinüber und schaltet erst danach um. Die Links in den Modulen bleiben
+   * gleich – sie zeigen ab dann auf die neue Freigabe. Direkte Links einer
+   * Lesefreigabe laufen danach über den Server (die gehört zur alten).
+   * Die alte Freigabe bleibt unangetastet.
+   */
+  async startMove(user: any, input: any, appBase: string) {
+    const l = await this.find(user.userId);
+    if (!l?.shareToken || !l.verifiedAt) throw new BadRequestException('Erst eine Freigabe verbinden – umziehen geht nur von einer verbundenen aus.');
+    if (this.moves.get(l.userId)?.running) throw new BadRequestException('Der Umzug läuft schon.');
+    const share = parseNextcloudShare(input?.shareUrl);
+    const base = parseNextcloudBase(share.base);
+    if (!base) throw new BadRequestException('Der Freigabelink muss mit https:// beginnen.');
+    if (base === l.baseUrl && share.token === l.shareToken) throw new BadRequestException('Das ist die bisherige Freigabe.');
+    const password = String(input?.password || '');
+    await assertPublicHost(base);
+    const target = new ShareClient(base, share.token, password, 'classic');
+    const mode = await target.detectMode();
+    await target.ensureFolder([IMAGES]);
+    await target.put([IMAGES, CHECK_FILE], Buffer.from('LearningModules-Umzug', 'utf-8'), 'text/plain');
+    await target.remove([IMAGES, CHECK_FILE]);
+
+    const job = { running: true, copied: 0, total: 0, from: this.shareLink(l) };
+    this.moves.set(l.userId, job);
+    void (async () => {
+      try {
+        const old = await this.client(l);
+        const folders = (await old.list([IMAGES])).filter((e) => e.isFolder && safePart(e.name));
+        const files: Array<[string, string]> = [];
+        for (const f of folders) {
+          for (const e of await old.list([IMAGES, f.name])) if (!e.isFolder && safePart(e.name)) files.push([f.name, e.name]);
+        }
+        job.total = files.length;
+        const made = new Set<string>();
+        for (const [sub, name] of files) {
+          const file = await old.get([IMAGES, sub, name]);
+          if (file) {
+            if (!made.has(sub)) { await target.ensureFolder([IMAGES, sub]); made.add(sub); }
+            const type = file.type.split(';')[0].trim();
+            await target.put([IMAGES, sub, name], file.data, type || 'application/octet-stream');
+          }
+          job.copied++;
+        }
+        const fresh = (await this.find(l.userId))!;
+        const oldRead = fresh.imageShareToken ? { base: fresh.baseUrl, token: fresh.imageShareToken } : null;
+        Object.assign(fresh, {
+          baseUrl: base, shareToken: share.token, passwordSealed: password ? this.masterKey.sealSecret(password) : null,
+          davMode: mode, verifiedAt: new Date(), imageShareToken: null, readShareLostAt: null, readShareCheckedAt: null, appBase,
+          moveResult: { at: new Date().toISOString(), from: job.from, copied: job.copied },
+        });
+        await this.linkRepo.save(fresh);
+        if (oldRead) await this.relinkReadShare(fresh, oldRead.base, oldRead.token);
+      } catch (err: any) {
+        const moveResult: any = { at: new Date().toISOString(), from: job.from, copied: job.copied, error: String(err?.message || err) };
+        await this.linkRepo.update({ id: l.id }, { moveResult });
+      } finally {
+        this.moves.delete(l.userId);
+      }
+    })();
+    return { success: true, message: 'Neue Freigabe geprüft – die Bilder werden jetzt hinüberkopiert. Erst danach schaltet die App um.' };
+  }
+
+  /** Für Tests: auf einen laufenden Umzug warten. */
+  async waitForMove(userId: string) {
+    while (this.moves.get(userId)?.running) await new Promise((r) => setTimeout(r, 5));
   }
 
   /** Ordnername eines Themas: sein Titel (lesbar in der Nextcloud). */

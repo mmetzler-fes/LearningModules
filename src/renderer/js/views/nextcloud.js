@@ -1,5 +1,5 @@
 import { escapeHtml, escapeAttr } from '../utils.js';
-import { loadQuota, quotaHtml, refreshQuotaBadge } from './image-store.js';
+import { loadQuota, quotaHtml, refreshQuotaBadge, shrinkImage } from './image-store.js';
 
 // ==================== NEXTCLOUD DER LEHRKRAFT ====================
 //
@@ -206,6 +206,103 @@ function legacyHtml(legacy, own) {
   return `<p class="hint nc-status">${text}</p>`;
 }
 
+// ---------- Freigabe trennen: Überblick, zurückholen, umziehen ----------
+
+const BATCH_BYTES = 8 * 1024 * 1024;   // je Anfrage höchstens so viele Bilddaten
+
+/**
+ * Vor dem Trennen: was hängt an der Freigabe? Dann zurückholen (verkleinert,
+ * nur unter der Grenze), umziehen oder ausdrücklich trotzdem trennen.
+ * `done(msg)` zeichnet den Dialog neu.
+ */
+async function disconnectFlow(app, box, openMove, done) {
+  box.innerHTML = '<p class="hint">Prüfe, welche Bilder an der Freigabe hängen …</p>';
+  const u = await app.api.getNextcloudUsage();
+  if (!u || u.statusCode) { box.innerHTML = `<p class="login-error">${escapeHtml(u?.message || 'Fehler')}</p>`; return; }
+  if (!u.count) {
+    if (!(await app.appConfirm('Freigabe trennen?\n\nIn den Modulen stecken keine Bilder aus dieser Freigabe. Neue Bilder landen danach wieder in der App.'))) { box.innerHTML = ''; return; }
+    await app.api.disconnectNextcloud();
+    await done({ text: 'Getrennt.' });
+    return;
+  }
+  const others = u.topics.filter((t) => !t.mine);
+  const room = u.limitBytes ? Math.max(0, u.limitBytes - u.appUsedBytes) : null;
+  box.innerHTML = `
+    <div class="nc-disconnect-panel">
+      <p><strong>An dieser Freigabe hängen ${u.count} Bild${u.count === 1 ? '' : 'er'} (${mb(u.bytes)})</strong> in
+        ${u.topics.length} Thema/Themen${others.length ? `, davon ${others.length} bei anderen Lehrkräften (Kopien aus dem Shop)` : ''}${u.drafts ? ` und ${u.drafts} Entwurf/Entwürfen` : ''}.
+        Nach dem Trennen fehlen sie dort.</p>
+      <ul class="nc-migrate-list">${u.topics.map((t) => `<li>${escapeHtml(t.title)}${t.mine ? '' : ' <span class="hint">(andere Lehrkraft)</span>'}</li>`).join('')}</ul>
+      <p class="hint">${room === null ? 'Für Bilder in der App gibt es keine Grenze.'
+        : `In der App ist noch Platz für ${mb(room)} (Grenze ${mb(u.limitBytes)}). Beim Zurückholen werden die Bilder verkleinert – ob es passt, zeigt sich danach.`}</p>
+      <div class="form-actions">
+        <button class="btn btn-primary nc-return">⬇ Zurück in die App holen und trennen</button>
+        <button class="btn btn-secondary nc-to-move">🚚 Zu einer anderen Nextcloud umziehen</button>
+        <button class="btn btn-danger nc-force">Trotzdem trennen</button>
+        <button class="btn btn-secondary nc-cancel-disconnect">Abbrechen</button>
+      </div>
+      <p class="nc-return-state hint"></p>
+    </div>`;
+  const state = box.querySelector('.nc-return-state');
+  box.querySelector('.nc-cancel-disconnect').addEventListener('click', () => { box.innerHTML = ''; });
+  box.querySelector('.nc-to-move').addEventListener('click', () => { box.innerHTML = ''; openMove(); });
+  box.querySelector('.nc-force').addEventListener('click', async () => {
+    const list = u.topics.slice(0, 15).map((t) => `• ${t.title}`).join('\n') + (u.topics.length > 15 ? `\n… und ${u.topics.length - 15} weitere` : '');
+    if (!(await app.appConfirm(`Wirklich trennen?\n\nIn diesen Themen fehlen danach ${u.count} Bilder:\n${list}\n\nDie Dateien bleiben in deiner Nextcloud. Wer später dieselbe Freigabe wieder verbindet, hat sie zurück.`))) return;
+    await app.api.disconnectNextcloud(true);
+    await done({ text: 'Getrennt – die Bilder aus der Freigabe fehlen jetzt in den Modulen.' });
+  });
+  box.querySelector('.nc-return').addEventListener('click', async (e) => {
+    const buttons = box.querySelectorAll('button');
+    buttons.forEach((b) => { b.disabled = true; });
+    const fail = (text) => { state.className = 'nc-return-state login-error'; state.textContent = text; buttons.forEach((b) => { b.disabled = false; }); };
+    // 1. Alle holen und verkleinern – erst dann ist klar, ob es unter die Grenze passt.
+    const items = [];
+    let i = 0;
+    let missing = 0;
+    for (const img of u.images) {
+      state.textContent = `⏳ Hole und verkleinere ${++i} von ${u.images.length} …`;
+      try {
+        const res = await fetch(img.fetchUrl);
+        if (!res.ok) { missing++; continue; }
+        const dataUrl = await shrinkImage(await res.blob());
+        items.push({ sub: img.sub, name: img.name, dataUrl, size: Math.floor((dataUrl.length - dataUrl.indexOf(',') - 1) * 3 / 4) });
+      } catch (_) { missing++; }
+    }
+    const total = items.reduce((a, x) => a + x.size, 0);
+    if (room !== null && total > room) {
+      fail(`Verkleinert sind es ${mb(total)} – in der App ist nur noch Platz für ${mb(room)}. Zurückholen geht nicht; bitte umziehen.`);
+      return;
+    }
+    // 2. In Paketen zurückschicken; der Server prüft die Grenze strikt.
+    let sent = 0;
+    for (let k = 0; k < items.length;) {
+      const batch = [];
+      let bytes = 0;
+      while (k < items.length && (!batch.length || bytes + items[k].size <= BATCH_BYTES)) { bytes += items[k].size; batch.push(items[k++]); }
+      state.textContent = `⏳ Speichere in der App … ${sent} von ${items.length}`;
+      const res = await app.api.returnNextcloudImages(batch.map(({ sub, name, dataUrl }) => ({ sub, name, dataUrl })));
+      if (!res || res.statusCode) { fail(`❌ ${res?.message || 'Zurückholen fehlgeschlagen'} – ${sent} Bilder sind schon zurück, die Freigabe ist noch verbunden.`); return; }
+      sent += batch.length;
+    }
+    if (missing && !(await app.appConfirm(`${sent} Bilder sind zurück in der App. ${missing} ließen sich nicht holen (nicht mehr in der Nextcloud?) und fehlen nach dem Trennen.\n\nTrotzdem trennen?`))) {
+      fail(`${sent} Bilder sind zurück; die Freigabe bleibt verbunden.`);
+      return;
+    }
+    await app.api.disconnectNextcloud(true);
+    void refreshQuotaBadge(app).catch(() => undefined);
+    await done({ text: `✅ ${sent} Bilder sind zurück in der App (${mb(total)}), die Freigabe ist getrennt.` });
+  });
+}
+
+/** Stand eines Umzugs für den Dialog. */
+function moveHtml(m) {
+  if (!m) return '';
+  if (m.running) return `<p class="hint nc-status">🚚 Umzug läuft: ${m.copied} von ${m.total || '…'} Bildern kopiert. Erst danach schaltet die App auf die neue Freigabe um.</p>`;
+  if (m.error) return `<p class="hint nc-status"><span class="login-error" style="display:inline">❌ Umzug am ${when(m.at)} abgebrochen: ${escapeHtml(m.error)}</span> Die bisherige Freigabe ist weiter verbunden – nichts fehlt.</p>`;
+  return `<p class="hint nc-status">✅ Umgezogen am ${when(m.at)} (${m.copied} Bilder kopiert). Die alte Freigabe (${escapeHtml(m.from || '')}) wird nicht mehr gebraucht und kann gelöscht werden.</p>`;
+}
+
 // ---------- Einstellungen (Home-Menü) ----------
 
 export async function openNextcloudDialog(app) {
@@ -257,7 +354,20 @@ export async function openNextcloudDialog(app) {
           <button class="btn btn-primary nc-connect">🔌 Verbinden</button>
           ${data.configured ? '<button class="btn btn-danger nc-disconnect">Freigabe trennen</button>' : ''}
         </div>
-        <p class="nc-message" style="margin-top:10px"></p>`;
+        <div class="nc-disconnect-box"></div>
+        <p class="nc-message" style="margin-top:10px"></p>
+        ${own ? `
+        <details class="nc-move">
+          <summary>🚚 Zu einer anderen Nextcloud umziehen</summary>
+          <p class="hint">Etwa bei einem Schulwechsel oder einer neuen Cloud: Neue Ordnerfreigabe wie oben anlegen (Hochladen und
+            Bearbeiten erlaubt, mit Passwort) und hier eintragen. Die App prüft sie, kopiert den Ordner <code>Bilder</code>
+            hinüber und schaltet erst danach um – in den Modulen bleibt alles sichtbar. Die alte Freigabe wird nicht verändert.</p>
+          <div class="form-group"><label for="ncMoveShare">Neuer Freigabelink</label>
+            <input type="url" id="ncMoveShare" autocomplete="off" placeholder="https://…/s/…" /></div>
+          <div class="form-group"><label for="ncMovePass">Passwort der neuen Freigabe</label>
+            <input type="password" id="ncMovePass" autocomplete="new-password" /></div>
+          <button class="btn btn-primary nc-move-run" ${data.move?.running ? 'disabled' : ''}>🚚 Umziehen</button>
+        </details>` : ''}`;
     card.innerHTML = `
       <h3>☁️ Nextcloud <button type="button" class="help-hint" data-help="nextcloud" title="Hilfe" aria-label="Hilfe">?</button></h3>
       <p class="hint">Bilder, die du in Module einfügst, speichert die App <strong>in einem Nextcloud-Ordner</strong> statt auf
@@ -269,6 +379,7 @@ export async function openNextcloudDialog(app) {
         Nextcloud nicht mehr (${when(data.readShareLostAt)}). Die Bilder laufen seitdem über diesen Server – in den Modulen fehlt
         nichts. Wer wieder direkt laden will, trägt unten eine neue Lesefreigabe ein.</p>` : ''}
       ${legacyHtml(data.legacy, own)}
+      ${moveHtml(data.move)}
       <div class="settings-group">
         <h4>Nextcloud-Freigabe</h4>${ownForm}
       </div>
@@ -292,7 +403,7 @@ export async function openNextcloudDialog(app) {
     };
     say(msg);
     // Übernahme läuft im Hintergrund – Stand nachladen, solange der Dialog offen ist.
-    if (data.legacy?.running) setTimeout(() => { if (overlay.isConnected) render(); }, 4000);
+    if (data.legacy?.running || data.move?.running) setTimeout(() => { if (overlay.isConnected) render(); }, 4000);
     $('.nc-close').addEventListener('click', close);
     $('.nc-connect').addEventListener('click', async (e) => {
       const btn = e.currentTarget;
@@ -333,10 +444,27 @@ export async function openNextcloudDialog(app) {
       if (res?.success) await render(null, { text: `✅ Gesichert: ${backupSummary(res)}.` });
       else { btn.disabled = false; btn.textContent = '⬆ Jetzt sichern'; sayBackup({ error: true, text: `❌ ${res?.message || 'Backup fehlgeschlagen'}` }); }
     });
-    $('.nc-disconnect')?.addEventListener('click', async () => {
-      if (!(await app.appConfirm('Freigabe trennen?\n\nDie Bilder bleiben in deiner Nextcloud. Bilder, die über diesen Server laufen, sind danach in den Modulen nicht mehr zu sehen – nur solche über eine Lesefreigabe bleiben sichtbar. Neue Bilder landen danach wieder in der App.'))) return;
-      await app.api.disconnectNextcloud();
-      await render({ text: 'Getrennt.' });
+    const openMove = () => { const d = $('.nc-move'); if (d) { d.open = true; d.scrollIntoView({ behavior: 'smooth', block: 'center' }); $('#ncMoveShare')?.focus(); } };
+    $('.nc-disconnect')?.addEventListener('click', () => {
+      if (!own) {
+        // Nie verbunden gewesen (nur gespeichert): einfach vergessen.
+        void app.api.disconnectNextcloud(true).then(() => render({ text: 'Getrennt.' }));
+        return;
+      }
+      void disconnectFlow(app, $('.nc-disconnect-box'), openMove, (m) => render(m));
+    });
+    $('.nc-move-run')?.addEventListener('click', async (e) => {
+      const btn = e.currentTarget;
+      btn.disabled = true;
+      btn.textContent = '⏳ Prüfe neue Freigabe …';
+      const res = await app.api.moveNextcloud({ shareUrl: $('#ncMoveShare').value, password: $('#ncMovePass').value });
+      if (!res?.success) {
+        btn.disabled = false;
+        btn.textContent = '🚚 Umziehen';
+        say({ error: true, text: `❌ ${res?.message || 'Umziehen fehlgeschlagen'}` });
+        return;
+      }
+      await render({ text: `✅ ${res.message}` });
     });
   };
   await render();

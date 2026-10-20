@@ -53,9 +53,37 @@ Nextcloud, merkt die App das (Prüfung beim Start und höchstens alle sechs
 Stunden beim Öffnen des Dialogs), stellt genauso um und zeigt einen Hinweis.
 Bis dahin fehlen die Bilder in den Modulen.
 
-**Freigabe trennen** vergisst Link und Passwort. Die Dateien bleiben in
-der Nextcloud; Bilder, die über den Server liefen, sind in den Modulen dann
-nicht mehr zu sehen.
+### Freigabe trennen
+
+**Freigabe trennen** zeigt zuerst, was an der Freigabe hängt: wie viele Bilder
+(und wie groß) in welchen Themen stecken – auch in Kopien anderer Lehrkräfte
+aus dem Shop. Ohne Bilder wird gleich getrennt, sonst gibt es drei Wege:
+
+- **⬇ Zurück in die App holen und trennen:** Der Browser holt jedes Bild,
+  verkleinert es wie beim Einfügen und speichert es wieder in den Modulen; erst
+  danach wird getrennt. Das geht nur, solange die Bilder in der App damit unter
+  der [Grenze](#grenze-fuer-bilder-in-der-app) bleiben – sonst bricht die App
+  ab, bevor sich etwas ändert, und schlägt das Umziehen vor.
+- **🚚 Zu einer anderen Nextcloud umziehen** (siehe unten).
+- **Trotzdem trennen:** mit Liste der betroffenen Themen. Die Bilder fehlen
+  dann in den Modulen; die Dateien bleiben in der Nextcloud. Wer später
+  dieselbe Freigabe wieder verbindet, hat alle Bilder zurück.
+
+### Umziehen
+
+Für eine andere Nextcloud (Schulwechsel, neue Cloud) unter **🚚 Zu einer
+anderen Nextcloud umziehen** die neue Ordnerfreigabe und ihr Passwort
+eintragen. Die App prüft sie sofort (Passwort, Schreibprobe), kopiert dann im
+Hintergrund den Ordner `Bilder` hinüber und schaltet **erst danach** um. Die
+Links in den Modulen bleiben gleich und zeigen ab dann auf die neue Freigabe;
+direkte Links einer Lesefreigabe laufen danach über den Server. Der Dialog
+zeigt den Fortschritt. Bricht der Umzug ab, bleibt die bisherige Freigabe
+verbunden – nichts fehlt. Die alte Freigabe wird nicht verändert und kann
+nach dem Umzug gelöscht werden.
+
+Einen anderen Freigabelink oben einfach einzutragen, lässt die App nicht zu,
+solange Bilder aus der bisherigen in Modulen stecken – sonst zeigten alle ins
+Leere.
 
 ## Bilder einfügen
 

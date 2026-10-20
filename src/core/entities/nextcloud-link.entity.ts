@@ -43,6 +43,10 @@ export class NextcloudLink extends BaseEntity {
   @Column({ type: 'datetime', nullable: true })
   readShareCheckedAt: Date | null;
 
+  /** Letzter Umzug in eine andere Freigabe: { at, from, copied, error? } (Hinweis im Dialog). */
+  @Column('simple-json', { nullable: true })
+  moveResult: any;
+
   /**
    * Früher: Unterordner im Nextcloud-Ordner der Schule (Admin-Backup), wenn
    * die Lehrkraft keine eigene Freigabe hatte: Bilder/<serverFolder>/<Thema>/.

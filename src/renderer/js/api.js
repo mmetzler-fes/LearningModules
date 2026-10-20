@@ -487,7 +487,10 @@ export class BrowserApi {
   getNextcloud() { return this._fetch('/api/nextcloud'); }
   saveNextcloud(body) { return this._fetch('/api/nextcloud', { method: 'POST', body: JSON.stringify(body) }); }
   verifyNextcloud() { return this._fetch('/api/nextcloud/verify', { method: 'POST' }); }
-  disconnectNextcloud() { return this._fetch('/api/nextcloud', { method: 'DELETE' }); }
+  disconnectNextcloud(force = false) { return this._fetch(`/api/nextcloud${force ? '?force=1' : ''}`, { method: 'DELETE' }); }
+  getNextcloudUsage() { return this._fetch('/api/nextcloud/usage'); }
+  returnNextcloudImages(items) { return this._fetch('/api/nextcloud/return', { method: 'POST', body: JSON.stringify({ items }) }); }
+  moveNextcloud(body) { return this._fetch('/api/nextcloud/move', { method: 'POST', body: JSON.stringify(body) }); }
   listNextcloudImages({ folder, topicId } = {}) {
     const q = new URLSearchParams();
     if (folder) q.set('folder', folder);

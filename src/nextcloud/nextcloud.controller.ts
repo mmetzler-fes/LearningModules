@@ -50,9 +50,28 @@ export class NextcloudController {
     return this.nextcloud.verify(req.user, baseUrl(req));
   }
 
+  /** `?force=1`: auch trennen, wenn noch Bilder aus der Freigabe in Modulen stecken. */
   @Delete()
-  async disconnect(@Request() req: any) {
-    return this.nextcloud.disconnect(req.user);
+  async disconnect(@Request() req: any, @Query('force') force?: string) {
+    return this.nextcloud.disconnect(req.user, force === '1');
+  }
+
+  /** Was an der Freigabe hängt – vor dem Trennen. */
+  @Get('usage')
+  async usage(@Request() req: any) {
+    return this.nextcloud.usage(req.user);
+  }
+
+  /** `{ items: [{ sub, name, dataUrl }] }` – Bilder zurück in die App (im Browser verkleinert). */
+  @Post('return')
+  async returnImages(@Request() req: any, @Body() body: any) {
+    return this.nextcloud.returnImages(req.user, body?.items || []);
+  }
+
+  /** `{ shareUrl, password }` – in eine andere Freigabe umziehen (Bilder werden mitkopiert). */
+  @Post('move')
+  async move(@Request() req: any, @Body() body: any) {
+    return this.nextcloud.startMove(req.user, body || {}, baseUrl(req));
   }
 
   /** Bild hochladen (Feld `file`, dazu `topicId` – oder `folder`, `name`, `replace`) – liefert den Link. */

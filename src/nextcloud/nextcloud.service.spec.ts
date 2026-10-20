@@ -37,7 +37,8 @@ function fakeNextcloud() {
       if (!kids.size && !path.endsWith('/')) return res(404);
       const href = (n: string) => encodeURI(path.replace(/\/$/, '') + '/' + n);
       const xml = [...kids].map(([n, folder]) => `<d:response><d:href>${href(n)}</d:href><d:propstat><d:prop>`
-        + (folder ? '<d:resourcetype><d:collection/></d:resourcetype>' : '<d:resourcetype/><d:getcontenttype>image/png</d:getcontenttype>')
+        + (folder ? '<d:resourcetype><d:collection/></d:resourcetype>'
+          : `<d:resourcetype/><d:getcontenttype>image/png</d:getcontenttype><d:getcontentlength>${files.get(dir + n)?.length ?? 0}</d:getcontentlength>`)
         + '</d:prop></d:propstat></d:response>').join('');
       return res(207, `<d:multistatus xmlns:d="DAV:">${xml}</d:multistatus>`);
     }
@@ -61,13 +62,17 @@ function fakeRepo(rows: any[], field: string) {
   return {
     rows,
     createQueryBuilder: () => {
-      let needle = '';
+      let needles: string[] = [];
       let creator: string | undefined;
       const qb: any = {
         select: () => qb,
         innerJoin: () => qb,
-        where: (_c: string, p: any) => { needle = String(p.n ?? p.d).replace(/^%|%$/g, ''); creator = p.u; return qb; },
-        getMany: async () => rows.filter((r) => JSON.stringify(r[field]).includes(needle) && (!creator || r.creatorId === creator)),
+        where: (_c: string, p: any) => {
+          needles = Object.entries(p).filter(([k]) => k !== 'u').map(([, v]) => String(v).replace(/^%|%$/g, ''));
+          creator = p.u;
+          return qb;
+        },
+        getMany: async () => rows.filter((r) => needles.some((n) => JSON.stringify(r[field]).includes(n)) && (!creator || r.creatorId === creator)),
       };
       return qb;
     },
@@ -363,5 +368,73 @@ describe('Lesefreigabe zurückziehen', () => {
     const { svc, moduleRepo, links } = await withReadShare();
     expect(await svc.checkReadShareAlive(links[0], true)).toBe(true);
     expect(moduleRepo.rows[0].content.image).toBe(direct('LeseTok'));
+  });
+});
+
+describe('Freigabe trennen und umziehen', () => {
+  let cloud: ReturnType<typeof fakeNextcloud>;
+  beforeEach(() => { cloud = fakeNextcloud(); jest.spyOn(global, 'fetch').mockImplementation(cloud.impl as any); });
+  afterEach(() => jest.restoreAllMocks());
+
+  /** Verbunden, zwei Bilder in der Freigabe, beide in einem Modul (eins im HTML). */
+  async function connected() {
+    const env = setup(null);
+    await env.svc.connect(user, { shareUrl: `${CLOUD}/s/EigenTok`, password: 'pw' }, APP);
+    const id = env.links[0].id;
+    cloud.files.set('EigenTok/public.php/webdav/Bilder/Reisen/gate.png', Buffer.alloc(3000, 'g'));
+    cloud.files.set('EigenTok/public.php/webdav/Bilder/Reisen/hund (1).png', Buffer.alloc(1000, 'h'));
+    const url = (n: string) => `${APP}/api/nextcloud/files/${id}/Reisen/${encodeURIComponent(n)}`;
+    env.topics.push({ id: 't1', title: 'Reisen', ownerId: USER_ID });
+    env.moduleRepo.rows.push({ id: 'm', topicId: 't1', creatorId: USER_ID, content: { image: url('gate.png'), html: `<img src='${url('hund (1).png')}'>` } });
+    return { ...env, id, url };
+  }
+  const png = (seed: string) => `data:image/png;base64,${Buffer.alloc(500, seed).toString('base64')}`;
+
+  it('Überblick: Bilder, Größe, Themen, passt in die App', async () => {
+    const { svc } = await connected();
+    const u: any = await svc.usage(user);
+    expect(u).toMatchObject({ count: 2, bytes: 4000, missing: 0, drafts: 0, fits: true, topics: [{ id: 't1', title: 'Reisen', mine: true }] });
+    expect(u.images.map((i: any) => i.name).sort()).toEqual(['gate.png', 'hund (1).png']);
+  });
+
+  it('trennen nur ausdrücklich, solange Bilder in Modulen stecken', async () => {
+    const { svc, links } = await connected();
+    await expect(svc.disconnect(user)).rejects.toThrow(/zurückholen, umziehen/);
+    await svc.disconnect(user, true);
+    expect(links[0].shareToken).toBeNull();
+  });
+
+  it('zurückholen ersetzt die Links – strikt unter der Grenze', async () => {
+    const { svc, moduleRepo } = await connected();
+    await svc.saveQuotaSettings({ warnMb: 0, limitMb: 1 });
+    const big = `data:image/png;base64,${Buffer.alloc(1100 * 1024, 'x').toString('base64')}`;
+    await expect(svc.returnImages(user, [{ sub: 'Reisen', name: 'gate.png', dataUrl: big }])).rejects.toThrow(/über der Grenze/);
+    expect(moduleRepo.rows[0].content.image).toContain('/api/nextcloud/files/');
+    const r = await svc.returnImages(user, [
+      { sub: 'Reisen', name: 'gate.png', dataUrl: png('g') },
+      { sub: 'Reisen', name: 'hund (1).png', dataUrl: png('h') },
+    ]);
+    expect(r).toMatchObject({ modules: 1, images: 2 });
+    expect(moduleRepo.rows[0].content).toEqual({ image: png('g'), html: `<img src='${png('h')}'>` });
+    // Danach hängt nichts mehr dran – trennen geht ohne Nachfrage.
+    await expect(svc.disconnect(user)).resolves.toMatchObject({ success: true });
+  });
+
+  it('eine andere Freigabe einfach eintragen geht nicht – dafür gibt es Umziehen', async () => {
+    const { svc } = await connected();
+    await expect(svc.connect(user, { shareUrl: `${CLOUD}/s/NeueTok`, password: 'x' }, APP)).rejects.toThrow(/Umziehen/);
+  });
+
+  it('umziehen kopiert Bilder/ und schaltet erst danach um – Links bleiben gültig', async () => {
+    const { svc, links, moduleRepo, url } = await connected();
+    const res = await svc.startMove(user, { shareUrl: `${CLOUD}/s/NeueTok`, password: 'neu' }, APP);
+    expect(res.success).toBe(true);
+    await svc.waitForMove(USER_ID);
+    expect(cloud.files.get('NeueTok/public.php/webdav/Bilder/Reisen/hund (1).png')?.length).toBe(1000);
+    expect(links[0]).toMatchObject({ shareToken: 'NeueTok', passwordSealed: 'sealed:neu', moveResult: { copied: 2 } });
+    expect(moduleRepo.rows[0].content.image).toBe(url('gate.png'));
+    // Der Link liefert jetzt aus der neuen Freigabe.
+    cloud.files.delete('EigenTok/public.php/webdav/Bilder/Reisen/gate.png');
+    expect((await svc.readImageByUrl(url('gate.png')))?.data.length).toBe(3000);
   });
 });

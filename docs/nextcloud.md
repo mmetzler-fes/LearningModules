@@ -13,9 +13,51 @@ Im Home-Menü (🏠 LernModule) → **☁️ Nextcloud**. Die App bekommt **nie 
 Nextcloud-Konto oder App-Passwort** – nur einen freigegebenen Ordner und
 sieht damit ausschließlich diesen.
 
-Bilder liegen immer in der Nextcloud **der Lehrkraft** – nicht beim Admin:
-Ein Server kann mehrere Schulen haben, und der Ordner des Admins gehört nicht
-allen. Ohne eigene Freigabe bleiben neue Bilder wie bisher in der App.
+Wohin Bilder gehen (die „Ablage“ der Lehrkraft):
+
+1. in die **eigene Freigabe** der Lehrkraft, wenn sie eine verbunden hat;
+2. sonst in die **[Nextcloud der Schule](#nextcloud-der-schule)**, wenn der
+   Schuladmin eine eingerichtet hat – die Lehrkraft muss dann nichts tun;
+3. sonst bleiben sie verkleinert in der App
+   ([Grenze](#grenze-fuer-bilder-in-der-app)).
+
+Die Nextcloud des Hauptadmins (automatisches Backup) nimmt keine Bilder auf:
+Ein Server kann mehrere Schulen haben, und dieser Ordner gehört nicht allen.
+
+## Nextcloud der Schule
+
+Unter **🏫 Meine Schule → ☁️ Nextcloud der Schule für Bilder** trägt der
+Schuladmin einen Freigabelink ein (Ordner in der Schul-Nextcloud, *Hochladen
+und Bearbeiten erlauben*, mit Passwort). Lehrkräfte der Schule ohne eigene
+Freigabe legen ihre Bilder dann dort ab, jede in einem eigenen Ordner
+`Bilder/<Name> (<Kennung>)/<Thema>/`. Im Nextcloud-Dialog der Lehrkraft steht
+„Deine Schule stellt eine Nextcloud bereit“; alles andere (☁️ Aus Nextcloud,
+KI-Prompt, Auslagern) funktioniert wie mit eigener Freigabe. Ein tägliches
+Backup je Lehrkraft gibt es nur mit eigener Freigabe.
+
+- **Bilder folgen dem Thema.** Jedes Bild gehört in die Ablage der Lehrkraft,
+  der das Thema gehört. Liegt es woanders, kopiert die App es dorthin und
+  hängt den Link um – beim Start, stündlich und nach jedem Verbinden. Das
+  gilt beim **Schulwechsel** (sobald die neue Schule eine Nextcloud hat oder
+  die Lehrkraft eine eigene Freigabe), bei einer **eigenen Freigabe**, die
+  später dazukommt (sie geht vor, die Bilder ziehen mit), und bei
+  **Kopien aus dem Shop** (die Bilder kommen in die Ablage der Käuferin, sofern
+  sie eine hat). Hat die Lehrkraft keine Ablage, bleibt der Link – das Bild
+  kommt weiter aus dem alten Ordner.
+- **Fester Schulordner:** Jeder Link nennt die Schul-Nextcloud und den Ordner
+  (`/api/nextcloud/sch/<Schule>/<Ordner>/…`). Ein Schulwechsel oder ein
+  gelöschtes Konto macht ihn nicht kaputt.
+- **Erst danach aufräumen:** Unter *🗂 Ordner der Lehrkräfte – aufräumen*
+  sieht der Schuladmin je Ordner, wem er gehört, ob die Lehrkraft noch an der
+  Schule ist, wie viele Bilder darin liegen und in wie vielen Modulen sie noch
+  stecken. **🗑 Löschen** gibt es erst, wenn kein Modul mehr eines davon zeigt.
+- **Umziehen** in eine andere Freigabe kopiert alle Ordner mit und schaltet
+  erst danach um; die Links bleiben gleich. **Trennen** geht, solange Bilder
+  in Modulen stecken, nur mit ausdrücklicher Bestätigung – sie fehlen dann.
+- Wer Link und Passwort kennt, sieht die Bilder aller Lehrkräfte der Schule –
+  also keine Fotos von Schülerinnen und Schülern.
+- Trennt eine Lehrkraft ihre **eigene Freigabe**, bietet der Dialog
+  **🏫 In die Nextcloud der Schule übernehmen und trennen** an.
 
 ### Freigabe einrichten
 
@@ -172,11 +214,11 @@ Neue Bilder kommen dort aber nicht mehr hin.
 Sobald die Lehrkraft ihre **eigene Freigabe verbindet**, kopiert die App diese
 Bilder im Hintergrund nach `Bilder/<Thema>/` der eigenen Freigabe.
 
-Zusätzlich geht die App **alles Material** durch – bei jedem Start und nach
-jedem „Verbinden“: Jeder Link auf den früheren Ordner der Schule in einem
-Modul oder Entwurf wird auf die Freigabe der Lehrkraft umgehängt, **der das
-Thema gehört** (sonst des Verfassers, sonst dessen, der das Bild hochgeladen
-hat) – auch wenn das Bild z. B. vom Admin stammt. Fehlt das Bild dort, kopiert
+Zusätzlich hängt „Bilder folgen dem Thema“ (siehe
+[Nextcloud der Schule](#nextcloud-der-schule)) jeden Link auf den früheren
+Ordner in die Ablage der Lehrkraft um, **der das Thema gehört** (sonst des
+Verfassers, sonst dessen, der das Bild hochgeladen hat) – eigene Freigabe
+oder Nextcloud der Schule, auch wenn das Bild z. B. vom Admin stammt. Fehlt das Bild dort, kopiert
 die App es hinüber; liegt es schon dort, nimmt sie es (auch wenn es beim Admin
 inzwischen gelöscht ist). Hat noch niemand davon eine eigene Freigabe, bleibt
 der Link, bis jemand verbindet. Das Server-Log meldet, wie viel umgehängt
@@ -233,7 +275,9 @@ Alles läuft über den Server (die Nextcloud erlaubt dem Browser keine Zugriffe
 von fremden Seiten) und die öffentliche WebDAV-Schnittstelle der Freigabe:
 `/public.php/webdav/` (Benutzer = Kürzel) oder in neueren Versionen
 `/public.php/dav/files/<Kürzel>/`. Bild-Links über den Server:
-`/api/nextcloud/files/…`; `/api/nextcloud/school/…` nur noch für Bilder im
-früheren Ordner der Schule. Ausgeliefert werden nur Bilddateien unter `Bilder/`. Nur https,
+`/api/nextcloud/files/…` (eigene Freigabe), `/api/nextcloud/sch/<Schule>/<Ordner>/…`
+(Nextcloud der Schule, `school_nextcloud`); `/api/nextcloud/school/…` nur noch
+für Bilder im früheren Ordner des Admin-Backups. Schuladmin-Endpunkte unter
+`/api/my-school/nextcloud` (Code: `school-nextcloud.service.ts`). Ausgeliefert werden nur Bilddateien unter `Bilder/`. Nur https,
 keine internen Adressen, keine Weiterleitungen. Code:
 `src/nextcloud/`, Oberfläche in `src/renderer/js/views/nextcloud.js`.

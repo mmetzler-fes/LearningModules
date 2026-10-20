@@ -236,7 +236,8 @@ async function disconnectFlow(app, box, openMove, done) {
       <p class="hint">${room === null ? 'Für Bilder in der App gibt es keine Grenze.'
         : `In der App ist noch Platz für ${mb(room)} (Grenze ${mb(u.limitBytes)}). Beim Zurückholen werden die Bilder verkleinert – ob es passt, zeigt sich danach.`}</p>
       <div class="form-actions">
-        <button class="btn btn-primary nc-return">⬇ Zurück in die App holen und trennen</button>
+        ${u.school ? '<button class="btn btn-primary nc-hand-over">🏫 In die Nextcloud der Schule übernehmen und trennen</button>' : ''}
+        <button class="btn ${u.school ? 'btn-secondary' : 'btn-primary'} nc-return">⬇ Zurück in die App holen und trennen</button>
         <button class="btn btn-secondary nc-to-move">🚚 Zu einer anderen Nextcloud umziehen</button>
         <button class="btn btn-danger nc-force">Trotzdem trennen</button>
         <button class="btn btn-secondary nc-cancel-disconnect">Abbrechen</button>
@@ -245,6 +246,19 @@ async function disconnectFlow(app, box, openMove, done) {
     </div>`;
   const state = box.querySelector('.nc-return-state');
   box.querySelector('.nc-cancel-disconnect').addEventListener('click', () => { box.innerHTML = ''; });
+  box.querySelector('.nc-hand-over')?.addEventListener('click', async () => {
+    box.querySelectorAll('button').forEach((b) => { b.disabled = true; });
+    state.className = 'nc-return-state hint';
+    state.textContent = `⏳ Kopiere ${u.count} Bilder in die Nextcloud der Schule …`;
+    const res = await app.api.handOverNextcloud();
+    if (!res?.success) {
+      state.className = 'nc-return-state login-error';
+      state.textContent = `❌ ${res?.message || 'Übernehmen fehlgeschlagen'} – die Freigabe ist noch verbunden.`;
+      box.querySelectorAll('button').forEach((b) => { b.disabled = false; });
+      return;
+    }
+    await done({ text: `✅ ${res.images} Bilder liegen jetzt in der Nextcloud der Schule${res.missing ? ` (${res.missing} ließen sich nicht holen)` : ''}, die eigene Freigabe ist getrennt.` });
+  });
   box.querySelector('.nc-to-move').addEventListener('click', () => { box.innerHTML = ''; openMove(); });
   box.querySelector('.nc-force').addEventListener('click', async () => {
     const list = u.topics.slice(0, 15).map((t) => `• ${t.title}`).join('\n') + (u.topics.length > 15 ? `\n… und ${u.topics.length - 15} weitere` : '');
@@ -325,6 +339,7 @@ export async function openNextcloudDialog(app) {
          und kommen ${data.directImages ? 'direkt aus der Nextcloud (Lesefreigabe)' : 'über diesen Server zu den Schülern'}.
          ${data.openUrl ? `<a href="${escapeAttr(data.openUrl)}" target="_blank" rel="noopener">Ordner öffnen ↗</a>` : ''}`
       : data.configured ? '⚠️ Eigene Freigabe gespeichert, aber nicht verbunden – bitte „Verbinden“ wählen.' : '';
+    const schoolMode = data.mode === 'school';
     const ownForm = `
         <p class="hint">So legst du die Freigabe an: In der Nextcloud einen Ordner anlegen (z. B. <code>LearningModules</code>) →
           <strong>Teilen → Link teilen</strong> → <strong>„Hochladen und Bearbeiten erlauben“</strong> → ein
@@ -373,6 +388,9 @@ export async function openNextcloudDialog(app) {
       <p class="hint">Bilder, die du in Module einfügst, speichert die App <strong>in einem Nextcloud-Ordner</strong> statt auf
         dem Server – je Lernthema in einem eigenen Unterordner. Im Modul steht nur der Link. Im Bildfeld kommt
         <strong>☁️ Aus Nextcloud</strong> dazu: Bilder, die schon dort liegen, mit einem Klick einfügen.</p>
+      ${schoolMode ? `<p class="hint nc-status">✅ <strong>Deine Schule stellt eine Nextcloud bereit.</strong> Deine Bilder landen dort in
+        <strong>${escapeHtml(data.school.folder)}/&lt;Thema&gt;</strong> und kommen über diesen Server zu den Schülern – du musst nichts
+        einrichten. Der Schuladmin kann diesen Ordner sehen. Eine eigene Freigabe geht vor; deine Bilder ziehen dann mit.</p>` : ''}
       ${status ? `<p class="hint nc-status">${status}</p>` : ''}
       ${quotaHtml(quota)}
       ${data.readShareLostAt && !data.directImages ? `<p class="hint nc-status">ℹ️ Die Lesefreigabe für <code>Bilder</code> gab es in der
@@ -381,7 +399,9 @@ export async function openNextcloudDialog(app) {
       ${legacyHtml(data.legacy, own)}
       ${moveHtml(data.move)}
       <div class="settings-group">
-        <h4>Nextcloud-Freigabe</h4>${ownForm}
+        ${schoolMode && !data.configured
+          ? `<details class="nc-own"><summary>Stattdessen eine eigene Nextcloud-Freigabe verwenden (geht vor)</summary>${ownForm}</details>`
+          : `<h4>${data.school?.available ? 'Eigene Nextcloud-Freigabe' : 'Nextcloud-Freigabe'}</h4>${ownForm}`}
       </div>
       ${own ? backupHtml(data.backup) : ''}
       ${data.ready ? `
@@ -402,6 +422,8 @@ export async function openNextcloudDialog(app) {
       el.textContent = m?.text || '';
     };
     say(msg);
+    // Meldung zur eigenen Freigabe sichtbar halten, auch wenn ihr Formular eingeklappt ist.
+    if (msg?.text) $('.nc-own')?.setAttribute('open', '');
     // Übernahme läuft im Hintergrund – Stand nachladen, solange der Dialog offen ist.
     if (data.legacy?.running || data.move?.running) setTimeout(() => { if (overlay.isConnected) render(); }, 4000);
     $('.nc-close').addEventListener('click', close);

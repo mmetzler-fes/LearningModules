@@ -5,6 +5,7 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { NextcloudService, MAX_IMAGE_BYTES } from './nextcloud.service';
 import { NextcloudBackupService } from './nextcloud-backup.service';
+import { SchoolNextcloudService } from './school-nextcloud.service';
 
 /** Nextcloud der Lehrkraft für Bilder – siehe docs/nextcloud.md. */
 @Controller('nextcloud')
@@ -62,6 +63,12 @@ export class NextcloudController {
     return this.nextcloud.usage(req.user);
   }
 
+  /** Eigene Freigabe trennen, Bilder dabei in die Nextcloud der Schule übernehmen. */
+  @Post('hand-over')
+  async handOver(@Request() req: any) {
+    return this.nextcloud.handOverToSchool(req.user);
+  }
+
   /** `{ items: [{ sub, name, dataUrl }] }` – Bilder zurück in die App (im Browser verkleinert). */
   @Post('return')
   async returnImages(@Request() req: any, @Body() body: any) {
@@ -117,7 +124,8 @@ export class NextcloudController {
  * Bilder für Schüler – ohne Anmeldung, die haben Schüler nicht. Der Server
  * holt das Bild mit dem Passwort der Freigabe und reicht es durch; er
  * speichert es nicht. Nur Bilder unter Bilder/… (siehe readImage).
- * /files: Freigabe der Lehrkraft, /school: alte Bilder im früheren Ordner der Schule.
+ * /files: Freigabe der Lehrkraft, /sch: Nextcloud der Schule,
+ * /school: alte Bilder im früheren Ordner des Admin-Backups.
  */
 @Controller('nextcloud')
 export class NextcloudFilesController {
@@ -126,6 +134,12 @@ export class NextcloudFilesController {
   @Get('files/:link/:folder/:name')
   async own(@Param('link') link: string, @Param('folder') folder: string, @Param('name') name: string, @Res() res: Response) {
     return this.send(res, await this.nextcloud.readImage(link, folder, name, false).catch(() => null));
+  }
+
+  /** Nextcloud einer Schule: Bilder/<Lehrkraft>/<Ordner>/<Datei>. */
+  @Get('sch/:school/:teacher/:folder/:name')
+  async schoolShare(@Param('school') school: string, @Param('teacher') teacher: string, @Param('folder') folder: string, @Param('name') name: string, @Res() res: Response) {
+    return this.send(res, await this.nextcloud.readSchoolImage(school, teacher, folder, name).catch(() => null));
   }
 
   @Get('school/:link/:folder/:name')
@@ -141,5 +155,45 @@ export class NextcloudFilesController {
     // Ein SVG direkt aufgerufen darf auf dieser Seite kein Skript ausführen.
     res.setHeader('Content-Security-Policy', "default-src 'none'; style-src 'unsafe-inline'; sandbox");
     res.send(file.data);
+  }
+}
+
+/** Nextcloud der Schule – nur für Schuladmins (docs/nextcloud.md). */
+@Controller('my-school/nextcloud')
+@UseGuards(JwtAuthGuard)
+export class SchoolNextcloudController {
+  constructor(private readonly school: SchoolNextcloudService) {}
+
+  @Get()
+  async status(@Request() req: any) {
+    return this.school.status(req.user);
+  }
+
+  /** `{ shareUrl, password? }` – speichert und prüft gleich. */
+  @Post()
+  async connect(@Request() req: any, @Body() body: any) {
+    return this.school.connect(req.user, body || {}, baseUrl(req));
+  }
+
+  /** `?force=1`: auch trennen, wenn noch Bilder daraus in Modulen stecken. */
+  @Delete()
+  async disconnect(@Request() req: any, @Query('force') force?: string) {
+    return this.school.disconnect(req.user, force === '1');
+  }
+
+  @Get('folders')
+  async folders(@Request() req: any) {
+    return this.school.folders(req.user);
+  }
+
+  @Delete('folders/:folder')
+  async removeFolder(@Request() req: any, @Param('folder') folder: string) {
+    return this.school.removeFolder(req.user, folder);
+  }
+
+  /** `{ shareUrl, password }` – umziehen, Bilder werden mitkopiert. */
+  @Post('move')
+  async move(@Request() req: any, @Body() body: any) {
+    return this.school.startMove(req.user, body || {}, baseUrl(req));
   }
 }

@@ -7,6 +7,8 @@ import { LearningTopic } from '../core/entities/learning-topic.entity';
 import { LearningModule } from '../core/entities/learning-module.entity';
 import { SystemConfig } from '../core/entities/system-config.entity';
 import { ModuleDraft } from '../core/entities/module-draft.entity';
+import { SchoolNextcloud } from '../core/entities/school-nextcloud.entity';
+import { User } from '../core/entities/user.entity';
 import { MasterKeyService } from '../core/crypto/master-key.service';
 import { assertPublicHost, parseNextcloudShare, safeFileName } from '../core/share/nextcloud-upload';
 import { baseUrl } from '../core/share/link-url';
@@ -93,15 +95,55 @@ const CHECK_FILE = 'lm-verbindungstest.txt';
 /** Teil eines Pfads, wie er in einer Bild-URL steht: kein Schrägstrich, kein „..“. */
 const safePart = (p: string) => !!p && !/[\\/]/.test(p) && p !== '.' && p !== '..';
 
+/** String.replace mit asynchronem Ersatz – der Reihe nach, nicht parallel. */
+async function replaceAsync(text: string, re: RegExp, fn: (...m: any[]) => Promise<string>): Promise<string> {
+  let out = '';
+  let last = 0;
+  for (const m of text.matchAll(re)) {
+    out += text.slice(last, m.index) + (await fn(...m));
+    last = m.index! + m[0].length;
+  }
+  return out + text.slice(last);
+}
+
+/**
+ * Wohin die Bilder einer Lehrkraft gehen („Ablage“): ihre eigene Freigabe
+ * (Bilder/<Thema>/) oder – ohne eigene – die Nextcloud ihrer Schule
+ * (Bilder/<Lehrkraft>/<Thema>/). `url` baut den Link für ein Bild darin.
+ */
+export interface ImageStore {
+  kind: 'own' | 'school';
+  l: NextcloudLink;
+  snc?: SchoolNextcloud;
+  nc: ShareClient;
+  root: string[];
+  url: (sub: string, name: string) => string;
+}
+
+/** Ein Bild-Link, zerlegt: wo das Bild liegt. */
+interface ImageRef {
+  kind: 'files' | 'school' | 'sch' | 'direct';
+  linkId?: string;
+  sncId?: string;
+  folder?: string;
+  sub: string;
+  name: string;
+}
+
 /**
  * Nextcloud je Lehrkraft (docs/nextcloud.md) – über einen freigegebenen
  * Ordner mit Passwort, kein Konto: Die App sieht nur diesen Ordner. Darin
- * Bilder/<Thema>/ und Backups/.
+ * Bilder/<Thema>/ und Backups/. Ohne eigene Freigabe die Nextcloud der
+ * Schule, falls der Schuladmin eine eingerichtet hat; sonst bleiben Bilder in
+ * der App.
  *
- * Ohne eigene Freigabe bleiben Bilder in der App. Früher konnten Bilder im
- * Ordner des Admin-Backups liegen (Bilder/<Lehrkraft>/<Thema>/); deren Links
- * funktionieren weiter, und sobald die Lehrkraft eine eigene Freigabe
- * verbindet, wandern sie dorthin (adoptSchoolImages).
+ * Bilder folgen dem Thema (followOwners): Liegt ein Bild nicht in der Ablage
+ * der Lehrkraft, der das Thema gehört – nach einem Schulwechsel, einer neuen
+ * eigenen Freigabe, bei einer Kopie aus dem Shop –, kopiert die App es dorthin
+ * und hängt den Link um. Die alte Datei bleibt; aufräumen kann man danach.
+ *
+ * Früher konnten Bilder im Ordner des Admin-Backups liegen (/school/…); auch
+ * die wandern so in die Ablage der Lehrkraft.
  *
  * Schüler kennen das Passwort nicht. Bilder erreichen sie deshalb über
  * diesen Server (er holt sie mit dem Passwort und reicht sie durch, ohne sie
@@ -119,6 +161,8 @@ export class NextcloudService implements OnApplicationBootstrap {
     @InjectRepository(SystemConfig) private readonly configRepo: Repository<SystemConfig>,
     @InjectRepository(ModuleDraft) private readonly draftRepo: Repository<ModuleDraft>,
     private readonly masterKey: MasterKeyService,
+    @InjectRepository(User) private readonly userRepo: Repository<User>,
+    @InjectRepository(SchoolNextcloud) private readonly schoolNcRepo: Repository<SchoolNextcloud>,
   ) {}
 
   private find(userId: string) {
@@ -149,11 +193,74 @@ export class NextcloudService implements OnApplicationBootstrap {
     return ShareClient.accountFolder(cfg.url, cfg.username, password);
   }
 
-  /** Wohin die Bilder einer Lehrkraft gehen: nur die eigene, geprüfte Freigabe. */
-  private async effective(userId: string): Promise<{ l: NextcloudLink; nc: ShareClient; root: string[] }> {
+  // ---- Ablage: eigene Freigabe oder Nextcloud der Schule ----
+
+  /** Nextcloud der Schule dieser Lehrkraft, sofern eingerichtet und geprüft. */
+  private async schoolShareOf(userId: string): Promise<{ user: User; snc: SchoolNextcloud } | null> {
+    const user = await this.userRepo.findOne({ where: { id: userId } });
+    if (!user?.schoolId) return null;
+    const snc = await this.schoolNcRepo.findOne({ where: { schoolId: user.schoolId } });
+    return snc?.shareToken && snc.verifiedAt ? { user, snc } : null;
+  }
+
+  /** Client für die Freigabe einer Schule. */
+  async schoolNcClient(snc: SchoolNextcloud, needMode = true) {
+    if (!snc.baseUrl || !snc.shareToken) throw new BadRequestException('Die Schule hat keine Nextcloud verbunden.');
+    let password = '';
+    try { password = snc.passwordSealed ? this.masterKey.unsealSecret(snc.passwordSealed) : ''; } catch {
+      throw new BadRequestException('Das gespeicherte Passwort der Schul-Freigabe lässt sich nicht mehr lesen – bitte neu eintragen.');
+    }
+    await assertPublicHost(snc.baseUrl);
+    const nc = new ShareClient(snc.baseUrl, snc.shareToken, password, snc.davMode || 'classic');
+    if (needMode && !snc.davMode) {
+      snc.davMode = await nc.detectMode();
+      await this.schoolNcRepo.update({ id: snc.id }, { davMode: snc.davMode });
+    }
+    return nc;
+  }
+
+  /** Link auf ein Bild in der Nextcloud einer Schule (immer über diesen Server). */
+  schoolUrl(snc: SchoolNextcloud, folder: string, sub: string, name: string) {
+    const e = encodeURIComponent;
+    return `${snc.appBase || baseUrl()}/api/nextcloud/sch/${snc.id}/${e(folder)}/${e(sub)}/${e(name)}`;
+  }
+
+  /** Eintrag der Lehrkraft, angelegt bei Bedarf; legt ihren Ordner in Schul-Freigaben einmal fest. */
+  private async rowFor(userId: string, user?: User | null) {
+    let l = await this.find(userId);
+    if (!l) l = this.linkRepo.create({ id: crypto.randomUUID(), userId });
+    if (!l.schoolFolder) {
+      const u = user || await this.userRepo.findOne({ where: { id: userId } });
+      const name = u?.displayName || String(u?.email || '').split('@')[0] || 'Lehrkraft';
+      // Wer schon im früheren Schulordner einen hatte, behält den Namen.
+      l.schoolFolder = l.serverFolder || `${safeFolderName(name, 'Lehrkraft')} (${userId.slice(0, 8)})`;
+      l = await this.linkRepo.save(l);
+    }
+    return l;
+  }
+
+  /**
+   * Ablage einer Lehrkraft: eigene geprüfte Freigabe, sonst die Nextcloud der
+   * Schule, sonst null (Bilder bleiben in der App). `skipOwn`: nur die Schule.
+   */
+  async storeFor(userId: string, opts: { skipOwn?: boolean } = {}): Promise<ImageStore | null> {
     const own = await this.find(userId);
-    if (!own?.shareToken || !own.verifiedAt) throw new BadRequestException('Keine Nextcloud verbunden – im Home-Menü unter ☁️ Nextcloud eine Freigabe eintragen.');
-    return { l: own, nc: await this.client(own), root: [IMAGES] };
+    if (!opts.skipOwn && own?.shareToken && own.verifiedAt) {
+      return { kind: 'own', l: own, nc: await this.client(own), root: [IMAGES], url: (sub, name) => this.imageUrl(own, sub, name) };
+    }
+    const school = await this.schoolShareOf(userId);
+    if (!school) return null;
+    const { snc } = school;
+    const l = await this.rowFor(userId, school.user);
+    const folder = l.schoolFolder!;
+    return { kind: 'school', l, snc, nc: await this.schoolNcClient(snc), root: [IMAGES, folder], url: (sub, name) => this.schoolUrl(snc, folder, sub, name) };
+  }
+
+  /** Wie storeFor, aber mit Fehlermeldung statt null. */
+  private async effective(userId: string): Promise<ImageStore> {
+    const store = await this.storeFor(userId);
+    if (!store) throw new BadRequestException('Keine Nextcloud verbunden – im Home-Menü unter ☁️ Nextcloud eine Freigabe eintragen.');
+    return store;
   }
 
   /**
@@ -176,9 +283,14 @@ export class NextcloudService implements OnApplicationBootstrap {
     const legacy = l?.serverFolder
       ? { pending: !l.legacyMovedAt, running: this.adopting.has(l.userId), movedAt: l.legacyMovedAt, result: l.legacyResult }
       : null;
+    // Nextcloud der Schule – greift, solange keine eigene Freigabe verbunden ist.
+    const school = await this.schoolShareOf(user.userId);
+    const schoolInfo = school
+      ? { available: true, folder: `${IMAGES}/${l?.schoolFolder || l?.serverFolder || '<dein Name>'}` }
+      : { available: false };
     if (!l || !l.shareToken) {
       return {
-        configured: false, ready: false, mode: null, legacy,
+        configured: false, ready: !!school, mode: school ? 'school' : null, legacy, school: schoolInfo,
         suggestedBase: await this.suggestedBase(), config: { shareUrl: '', readShareUrl: '', hasPassword: false },
       };
     }
@@ -186,8 +298,9 @@ export class NextcloudService implements OnApplicationBootstrap {
     if (l.imageShareToken) void this.checkReadShareAlive(l).catch(() => undefined);
     return {
       configured: true,
-      ready: !!l.verifiedAt,
-      mode: l.verifiedAt ? 'own' : null,
+      ready: !!l.verifiedAt || !!school,
+      mode: l.verifiedAt ? 'own' : school ? 'school' : null,
+      school: schoolInfo,
       legacy: legacy && { ...legacy, running: this.adopting.has(l.userId) },
       config: {
         shareUrl: this.shareLink(l),
@@ -271,7 +384,7 @@ export class NextcloudService implements OnApplicationBootstrap {
       // Eigene Bilder aus dem früheren Schulordner übernehmen – das hängt auch
       // die Links um; sonst nur umhängen (etwa Bilder, die der Admin hochlud).
       if (l.serverFolder && !l.legacyMovedAt) this.startAdopt(l, true);
-      else void this.relinkAll().catch(() => undefined);
+      else void this.followOwners().catch(() => undefined);
     } catch (err) {
       l.verifiedAt = null;
       await this.linkRepo.save(l);
@@ -339,10 +452,10 @@ export class NextcloudService implements OnApplicationBootstrap {
     return { l, nc: await this.client(l) };
   }
 
-  /** Verbunden und geprüft? */
+  /** Gibt es eine Ablage (eigene Freigabe oder Nextcloud der Schule)? */
   async isReady(userId: string) {
     const l = await this.find(userId);
-    return !!(l?.shareToken && l.verifiedAt);
+    return !!(l?.shareToken && l.verifiedAt) || !!(await this.schoolShareOf(userId));
   }
 
   // ---- Bild-Links ----
@@ -366,17 +479,35 @@ export class NextcloudService implements OnApplicationBootstrap {
    * haben keine). Nur Bilder unter Bilder/<Ordner>/; null, wenn es das nicht gibt.
    */
   async readImage(linkId: string, sub: string, name: string, school = false): Promise<{ type: string; data: Buffer } | null> {
+    return this.readRef({ kind: school ? 'school' : 'files', linkId, sub, name });
+  }
+
+  /** Bild in der Nextcloud einer Schule: Bilder/<Ordner>/<Thema>/<Datei>. */
+  async readSchoolImage(sncId: string, folder: string, sub: string, name: string) {
+    return this.readRef({ kind: 'sch', sncId, folder, sub, name });
+  }
+
+  /** Bild zu einem zerlegten Link lesen – null, wenn es (dort) nicht zu haben ist. */
+  private async readRef(ref: ImageRef): Promise<{ type: string; data: Buffer } | null> {
+    const { sub, name } = ref;
     if (!safePart(sub) || !safePart(name) || !IMAGE_EXT.test(name)) return null;
-    const l = await this.linkRepo.findOne({ where: { id: linkId } });
-    if (!l) return null;
-    let nc: ShareClient | null;
-    let root: string[];
-    if (school) {
-      nc = l.serverFolder ? await this.schoolClient() : null;
-      root = [IMAGES, l.serverFolder || ''];
+    let nc: ShareClient | null = null;
+    let root: string[] = [];
+    if (ref.kind === 'sch') {
+      if (!ref.folder || !safePart(ref.folder)) return null;
+      const snc = await this.schoolNcRepo.findOne({ where: { id: ref.sncId } });
+      nc = snc?.shareToken && snc.verifiedAt ? await this.schoolNcClient(snc) : null;
+      root = [IMAGES, ref.folder];
     } else {
-      nc = l.shareToken && l.verifiedAt ? await this.client(l) : null;
-      root = [IMAGES];
+      const l = await this.linkRepo.findOne({ where: { id: ref.linkId } });
+      if (!l) return null;
+      if (ref.kind === 'school') {
+        nc = l.serverFolder ? await this.schoolClient() : null;
+        root = [IMAGES, l.serverFolder || ''];
+      } else {
+        nc = l.shareToken && l.verifiedAt ? await this.client(l) : null;
+        root = [IMAGES];
+      }
     }
     if (!nc) return null;
     const file = await nc.get([...root, sub, name]).catch(() => null);
@@ -388,9 +519,13 @@ export class NextcloudService implements OnApplicationBootstrap {
 
   /** Erkennt Links „über diesen Server“ und liefert das Bild (für den Export). */
   async readImageByUrl(url: string) {
-    const m = /\/api\/nextcloud\/(files|school)\/([0-9a-f-]{36})\/([^/?#]+)\/([^/?#]+)$/i.exec(String(url || ''));
+    const u = String(url || '');
+    const d = (x: string) => { try { return decodeURIComponent(x); } catch { return ''; } };
+    const sch = /\/api\/nextcloud\/sch\/([0-9a-f-]{36})\/([^/?#]+)\/([^/?#]+)\/([^/?#]+)$/i.exec(u);
+    if (sch) return this.readRef({ kind: 'sch', sncId: sch[1], folder: d(sch[2]), sub: d(sch[3]), name: d(sch[4]) });
+    const m = /\/api\/nextcloud\/(files|school)\/([0-9a-f-]{36})\/([^/?#]+)\/([^/?#]+)$/i.exec(u);
     if (!m) return null;
-    return this.readImage(m[2], decodeURIComponent(m[3]), decodeURIComponent(m[4]), m[1] === 'school');
+    return this.readRef({ kind: m[1] as 'files' | 'school', linkId: m[2], sub: d(m[3]), name: d(m[4]) });
   }
 
   // ---- Grenze für Bilder in der App ----
@@ -518,13 +653,13 @@ export class NextcloudService implements OnApplicationBootstrap {
         const files = (await school.list([...oldRoot, sub])).filter((e) => !e.isFolder && IMAGE_EXT.test(e.name) && safePart(e.name));
         for (const f of files) {
           const file = await school.get([...oldRoot, sub, f.name]);
-          const placed = file ? await this.placeImage(nc, sub, f.name, file) : null;
+          const placed = file ? await this.placeImage(nc, [IMAGES], sub, f.name, file) : null;
           if (!placed) result.missing++;
           else result[placed.copied ? 'copied' : 'reused']++;
         }
       }
       // Links umhängen: in allem Material, nicht nur in eigenen Modulen.
-      const r = await this.relinkAll();
+      const r = await this.followOwners();
       Object.assign(result, { modules: r.modules, drafts: r.drafts });
       Object.assign(l, { legacyMovedAt: new Date(), legacyResult: result });
     } catch (err: any) {
@@ -535,53 +670,63 @@ export class NextcloudService implements OnApplicationBootstrap {
     return l.legacyResult;
   }
 
-  // ---- Alte Links auf den Schulordner umhängen (alles Material) ----
+  // ---- Bilder folgen dem Thema (alles Material) ----
 
-  private relinking: Promise<any> | null = null;
+  private following: Promise<any> | null = null;
 
-  /** Beim Start einmal alles Material durchgehen – im Hintergrund, der Start wartet nicht. */
+  /**
+   * Beim Start einmal alles Material durchgehen und danach stündlich – im
+   * Hintergrund, der Start wartet nicht. Dazu die Lesefreigaben prüfen.
+   */
   onApplicationBootstrap() {
+    const run = () => void this.followOwners().then((r) => {
+      if (r && (r.modules || r.drafts || r.missing)) {
+        this.logger.log(`Bilder umgehängt: ${r.modules} Module, ${r.drafts} Entwürfe, ${r.copied} Bilder kopiert, ${r.reused} schon da, ${r.missing} nicht gefunden, ${r.skipped} ohne Ablage der Lehrkraft`);
+      }
+    }).catch((err) => this.logger.warn(`Bilder umhängen fehlgeschlagen: ${err?.message || err}`));
     setTimeout(() => {
-      void this.relinkAll().then((r) => {
-        if (r && (r.modules || r.drafts || r.missing)) {
-          this.logger.log(`Alte Bilder-Links umgehängt: ${r.modules} Module, ${r.drafts} Entwürfe, ${r.copied} Bilder kopiert, ${r.reused} schon da, ${r.missing} nicht gefunden, ${r.skipped} ohne Freigabe der Lehrkraft`);
-        }
-      }).catch((err) => this.logger.warn(`Alte Bilder-Links umhängen fehlgeschlagen: ${err?.message || err}`));
+      run();
       void this.linkRepo.find().then(async (links) => {
         for (const l of links) if (l.imageShareToken) await this.checkReadShareAlive(l).catch(() => undefined);
       }).catch(() => undefined);
-    }, 5000);
+    }, 5000).unref?.();
+    setInterval(run, 60 * 60 * 1000).unref?.();
+  }
+
+  /** Früherer Name – hängt jetzt alles um, nicht nur die alten Schul-Links. */
+  relinkAll(): Promise<any> {
+    return this.followOwners();
   }
 
   /**
-   * Alle Links /api/nextcloud/school/<Eintrag>/<Ordner>/<Datei> in Modulen und
-   * Entwürfen auf die Freigabe einer Lehrkraft umhängen – bei Modulen der
-   * Lehrkraft, der das Thema gehört (sonst Verfasser, sonst wer das Bild
-   * hochgeladen hat), bei Entwürfen ihrer Lehrkraft. Nur, wer eine geprüfte
-   * eigene Freigabe hat; die anderen bleiben, bis sie verbinden.
-   *
-   * Das Bild kommt aus dem Schulordner in Bilder/<Ordner>/ der Freigabe;
-   * liegt dort schon ein gleiches (oder ist es im Schulordner schon gelöscht,
-   * dort aber gleichnamig vorhanden), wird es wiederverwendet. Läuft nie
-   * doppelt; ein zweiter Aufruf wartet auf den laufenden.
+   * Jedes Bild in einem Modul gehört in die Ablage der Lehrkraft, der das
+   * Thema gehört (bei einem Entwurf: dessen Lehrkraft). Liegt es woanders –
+   * in einer anderen Freigabe, der Nextcloud einer anderen Schule, im Ordner
+   * einer Kollegin oder im früheren Ordner des Admin-Backups –, kopiert die
+   * App es in Bilder/<Thema>/ der Ablage und hängt den Link um. Hat die
+   * Lehrkraft keine Ablage, bleibt der Link. Gleiche Bilder werden
+   * wiederverwendet; ist die Quelle weg, gilt ein gleichnamiges in der Ablage.
+   * Läuft nie doppelt; ein zweiter Aufruf wartet auf den laufenden.
    */
-  relinkAll(): Promise<any> {
-    if (!this.relinking) this.relinking = this.doRelinkAll().finally(() => { this.relinking = null; });
-    return this.relinking;
+  followOwners(): Promise<any> {
+    if (!this.following) this.following = this.doFollowOwners().finally(() => { this.following = null; });
+    return this.following;
   }
 
-  private async doRelinkAll() {
+  private async doFollowOwners() {
     const result = { modules: 0, drafts: 0, copied: 0, reused: 0, missing: 0, skipped: 0 };
-    const needle = '%/api/nextcloud/school/%';
+    const links = await this.linkRepo.find();
+    const byToken = new Map(links.filter((l) => l.imageShareToken).map((l) => [l.imageShareToken!, l]));
+    const needles = ['%/api/nextcloud/%', ...(byToken.size ? ['%/download?path=%'] : [])];
+    const params = Object.fromEntries(needles.map((n, i) => [`n${i}`, n]));
     const mods = await this.moduleRepo.createQueryBuilder('m')
       .select(['m.id', 'm.content', 'm.topicId', 'm.parentId', 'm.creatorId'])
-      .where('m.content LIKE :n', { n: needle }).getMany();
+      .where(`(${needles.map((_, i) => `m.content LIKE :n${i}`).join(' OR ')})`, params).getMany();
     const drafts = await this.draftRepo.createQueryBuilder('d')
       .select(['d.id', 'd.data', 'd.userId'])
-      .where('d.data LIKE :n', { n: needle }).getMany();
+      .where(`(${needles.map((_, i) => `d.data LIKE :n${i}`).join(' OR ')})`, params).getMany();
     if (!mods.length && !drafts.length) return result;
 
-    const school = await this.schoolClient();
     // Themen-Eigentümer, auch für Untermodule (Thema über das Elternmodul).
     const parentIds = [...new Set(mods.filter((m) => !m.topicId && m.parentId).map((m) => m.parentId))];
     const parents = parentIds.length ? await this.moduleRepo.find({ where: { id: In(parentIds) }, select: ['id', 'topicId'] }) : [];
@@ -590,111 +735,122 @@ export class NextcloudService implements OnApplicationBootstrap {
     const topics = topicIds.length ? await this.topicRepo.find({ where: { id: In(topicIds) }, select: ['id', 'ownerId'] }) : [];
     const ownerOfTopic = new Map(topics.map((t) => [t.id, t.ownerId]));
 
-    // Je Lehrkraft ihre Freigabe (nur geprüfte) – einmal geöffnet.
-    const targets = new Map<string, Promise<{ l: NextcloudLink; nc: ShareClient } | null>>();
-    const target = (userId: string | null | undefined) => {
+    const stores = new Map<string, Promise<ImageStore | null>>();
+    const store = (userId: string | null | undefined) => {
       if (!userId) return Promise.resolve(null);
-      if (!targets.has(userId)) {
-        targets.set(userId, (async () => {
-          const l = await this.find(userId);
-          return l?.shareToken && l.verifiedAt ? { l, nc: await this.client(l) } : null;
-        })().catch(() => null));
-      }
-      return targets.get(userId)!;
+      if (!stores.has(userId)) stores.set(userId, this.storeFor(userId).catch(() => null));
+      return stores.get(userId)!;
     };
-    const sources = new Map<string, Promise<NextcloudLink | null>>();
-    const source = (linkId: string) => {
-      if (!sources.has(linkId)) sources.set(linkId, this.linkRepo.findOne({ where: { id: linkId } }));
-      return sources.get(linkId)!;
-    };
+    const linkById = new Map(links.map((l) => [l.id, l]));
+    const isHome = (ref: ImageRef, s: ImageStore) => s.kind === 'own'
+      ? (ref.kind === 'files' || ref.kind === 'direct') && ref.linkId === s.l.id
+      : ref.kind === 'sch' && ref.sncId === s.snc!.id && ref.folder === s.root[1];
 
-    // Ein Bild in die Freigabe bringen; Ergebnis: neuer Link oder null. Je Ziel nur einmal.
     const done = new Map<string, Promise<string | null>>();
-    const move = (owners: Array<string | null | undefined>, linkId: string, sub: string, name: string) => {
-      const key = `${owners.join(',')}|${linkId}|${sub}|${name}`;
+    const move = (owners: Array<string | null | undefined>, ref: ImageRef) => {
+      // Alte Links aufs Admin-Backup retten auch Verfasser oder Hochladende, falls
+      // die Eigentümerin keine Ablage hat – sonst gehört das Bild zum Thema.
+      const chain = ref.kind === 'school' ? [...owners, linkById.get(ref.linkId!)?.userId] : owners.slice(0, 1);
+      const key = `${chain.join(',')}|${JSON.stringify(ref)}`;
       if (!done.has(key)) done.set(key, (async () => {
-        const src = await source(linkId);
-        let t: { l: NextcloudLink; nc: ShareClient } | null = null;
-        for (const o of [...owners, src?.userId]) if (!t) t = await target(o);
-        if (!t) { result.skipped++; return null; }
-        if (!safePart(sub) || !safePart(name) || !IMAGE_EXT.test(name)) { result.missing++; return null; }
-        const file = school && src?.serverFolder ? await school.get([IMAGES, src.serverFolder, sub, name]).catch(() => null) : null;
-        const placed = await this.placeImage(t.nc, sub, name, file);
+        let s: ImageStore | null = null;
+        for (const o of chain) if (!s) s = await store(o);
+        if (!s) { result.skipped++; return null; }
+        if (isHome(ref, s)) return null;
+        const file = await this.readRef(ref).catch(() => null);
+        const placed = await this.placeImage(s.nc, s.root, ref.sub, ref.name, file);
         if (!placed) { result.missing++; return null; }
         result[placed.copied ? 'copied' : 'reused']++;
-        return this.imageUrl(t.l, sub, placed.name);
+        return s.url(ref.sub, placed.name);
       })());
       return done.get(key)!;
     };
 
     for (const m of mods) {
       const owners = [ownerOfTopic.get(topicOf(m) || ''), m.creatorId];
-      const next = await this.swapSchoolUrls(m.content, (linkId, sub, name) => move(owners, linkId, sub, name));
-      if (JSON.stringify(next) !== JSON.stringify(m.content)) { await this.moduleRepo.update({ id: m.id }, { content: next }); result.modules++; }
+      const before = JSON.stringify(m.content);
+      const next = await this.swapRefs(m.content, byToken, (ref) => move(owners, ref));
+      if (JSON.stringify(next) !== before) { await this.moduleRepo.update({ id: m.id }, { content: next }); result.modules++; }
     }
     for (const d of drafts) {
-      const next = await this.swapSchoolUrls(d.data, (linkId, sub, name) => move([d.userId], linkId, sub, name));
-      if (JSON.stringify(next) !== JSON.stringify(d.data)) { await this.draftRepo.update({ id: d.id }, { data: next }); result.drafts++; }
+      const before = JSON.stringify(d.data);
+      const next = await this.swapRefs(d.data, byToken, (ref) => move([d.userId], ref));
+      if (JSON.stringify(next) !== before) { await this.draftRepo.update({ id: d.id }, { data: next }); result.drafts++; }
     }
     return result;
   }
 
   /**
-   * Bild nach Bilder/<sub>/ der Freigabe: gleichnamig und gleich → wiederverwenden,
-   * gleichnamig und anders → -2, -3 …; ohne Quelle (im Schulordner gelöscht)
-   * gilt ein gleichnamiges vorhandenes Bild. null, wenn es nichts gibt.
+   * Bild nach <root>/<sub>/ einer Ablage: gleichnamig und gleich → wiederverwenden,
+   * gleichnamig und anders → -2, -3 …; ohne Quelle (dort gelöscht) gilt ein
+   * gleichnamiges vorhandenes Bild. null, wenn es nichts gibt.
    */
-  private async placeImage(nc: ShareClient, sub: string, name: string, file: { type: string; data: Buffer } | null) {
-    const present = new Set((await nc.list([IMAGES, sub]).catch((): DavEntry[] => [])).map((e) => e.name));
+  private async placeImage(nc: ShareClient, root: string[], sub: string, name: string, file: { type: string; data: Buffer } | null) {
+    const present = new Set((await nc.list([...root, sub]).catch((): DavEntry[] => [])).map((e) => e.name));
     if (!file) return present.has(name) ? { name, copied: false } : null;
     let target = name;
     for (let n = 2; present.has(target); n++) {
-      const mine = await nc.get([IMAGES, sub, target]);
+      const mine = await nc.get([...root, sub, target]);
       if (mine && mine.data.equals(file.data)) return { name: target, copied: false };
       if (n > 99) throw new Error(`Zu viele Dateien mit dem Namen ${name}.`);
       target = name.replace(/(\.[^.]+)$/, `-${n}$1`);
     }
-    await nc.ensureFolder([IMAGES, sub]);
+    await nc.ensureFolder([...root, sub]);
     const type = file.type.split(';')[0].trim();
-    await nc.put([IMAGES, sub, target], file.data, IMAGE_TYPES[type] ? type : 'application/octet-stream');
+    await nc.put([...root, sub, target], file.data, IMAGE_TYPES[type] ? type : 'application/octet-stream');
     return { name: target, copied: true };
   }
 
   /**
-   * Jeden Link auf den Schulordner in einem Inhalt (beliebig verschachtelt,
-   * auch mitten im HTML) durch fn(...) ersetzen; null lässt ihn stehen.
-   * Ordner- und Dateinamen dürfen ( ) ' enthalten – encodeURIComponent lässt
-   * sie stehen. Endet ein Name mitten im HTML auf ' oder ), wird das zur Not
-   * abgeschnitten.
+   * Jeden Bild-Link in einem Inhalt (beliebig verschachtelt, auch mitten im
+   * HTML) zerlegen und durch fn(ref) ersetzen; null lässt ihn stehen. Erkannt
+   * werden …/api/nextcloud/files|school/<Eintrag>/<Ordner>/<Datei>,
+   * …/api/nextcloud/sch/<Schule>/<Lehrkraft>/<Ordner>/<Datei> und direkte
+   * Links bekannter Lesefreigaben. Namen dürfen ( ) ' enthalten –
+   * encodeURIComponent lässt sie stehen; endet einer mitten im HTML darauf,
+   * wird das zur Not abgeschnitten.
    */
-  private async swapSchoolUrls(value: any, fn: (linkId: string, sub: string, name: string) => Promise<string | null>): Promise<any> {
+  private async swapRefs(value: any, byToken: Map<string, NextcloudLink>, fn: (ref: ImageRef) => Promise<string | null>): Promise<any> {
     if (typeof value === 'string') {
-      if (!value.includes('/api/nextcloud/school/')) return value;
-      const re = /(?:https?:\/\/[^\s"'<>]*?)?\/api\/nextcloud\/school\/([0-9a-f-]{36})\/([^/?#"\s<>]+)\/([^/?#"\s<>]+)/gi;
-      let out = '';
-      let last = 0;
-      for (const m of value.matchAll(re)) {
-        let name = m[3];
-        let tail = '';
-        let url: string | null = null;
-        const dec = (x: string) => { try { return decodeURIComponent(x); } catch { return null; } };
-        for (;;) {
-          const sub = dec(m[2]);
-          const file = dec(name);
-          if (sub && file && IMAGE_EXT.test(file)) url = await fn(m[1].toLowerCase(), sub, file);
-          if (url || !/['")]$/.test(name)) break;
-          tail = name.slice(-1) + tail;
-          name = name.slice(0, -1);
-        }
-        out += value.slice(last, m.index) + (url ? url + tail : m[0]);
-        last = m.index! + m[0].length;
+      let out = value;
+      const dec = (x: string) => { try { return decodeURIComponent(x); } catch { return null; } };
+      const seg = '([^/?#"\\s<>]+)';
+      if (out.includes('/api/nextcloud/')) {
+        const re = new RegExp(`(?:https?://[^\\s"'<>]*?)?/api/nextcloud/(?:(files|school)/([0-9a-f-]{36})|sch/([0-9a-f-]{36})/${seg})/${seg}/${seg}`, 'gi');
+        out = await replaceAsync(out, re, async (m: string, kind: string, linkId: string, sncId: string, folder: string, sub: string, rawName: string) => {
+          let name = rawName;
+          let tail = '';
+          for (;;) {
+            const d = { sub: dec(sub), name: dec(name), folder: folder ? dec(folder) : undefined };
+            if (d.sub && d.name && IMAGE_EXT.test(d.name) && (!folder || d.folder)) {
+              const ref: ImageRef = sncId
+                ? { kind: 'sch', sncId: sncId.toLowerCase(), folder: d.folder!, sub: d.sub, name: d.name }
+                : { kind: kind.toLowerCase() as 'files' | 'school', linkId: linkId.toLowerCase(), sub: d.sub, name: d.name };
+              const url = await fn(ref);
+              return url ? url + tail : m;
+            }
+            if (!/['")]$/.test(name)) return m;
+            tail = name.slice(-1) + tail;
+            name = name.slice(0, -1);
+          }
+        });
       }
-      return out + value.slice(last);
+      if (byToken.size && out.includes('/download?path=')) {
+        const re = /https?:\/\/[^\s"'<>]+?\/s\/([A-Za-z0-9]+)\/download\?path=([^&"'\s<>#]*)&(?:amp;)?files=([^&"'\s<>#]+)/g;
+        out = await replaceAsync(out, re, async (m: string, token: string, path: string, file: string) => {
+          const l = byToken.get(token);
+          const sub = dec(path)?.replace(/^\/+|\/+$/g, '');
+          const name = dec(file);
+          if (!l || !sub || !name) return m;
+          return (await fn({ kind: 'direct', linkId: l.id, sub, name })) || m;
+        });
+      }
+      return out;
     }
-    if (Array.isArray(value)) return Promise.all(value.map((v) => this.swapSchoolUrls(v, fn)));
+    if (Array.isArray(value)) return Promise.all(value.map((v) => this.swapRefs(v, byToken, fn)));
     if (value && typeof value === 'object') {
       const out: any = {};
-      for (const [k, v] of Object.entries(value)) out[k] = await this.swapSchoolUrls(v, fn);
+      for (const [k, v] of Object.entries(value)) out[k] = await this.swapRefs(v, byToken, fn);
       return out;
     }
     return value;
@@ -875,7 +1031,49 @@ export class NextcloudService implements OnApplicationBootstrap {
       appUsedBytes: used, limitBytes: q.limitMb * MB,
       // Obergrenze: ungekürzt. Der Browser verkleinert beim Zurückholen, das wird meist deutlich weniger.
       fits: !q.limitMb || used + bytes <= q.limitMb * MB,
+      // Hat die Schule eine Nextcloud? Dann können die Bilder dorthin.
+      school: !!(await this.schoolShareOf(user.userId)),
     };
+  }
+
+  /**
+   * Eigene Freigabe trennen und die Bilder dabei in die Nextcloud der Schule
+   * übernehmen: jedes Bild, das in einem Modul oder Entwurf steckt, nach
+   * Bilder/<Lehrkraft>/<Thema>/ kopieren, die Links umhängen, dann trennen.
+   * Fehlt ein Bild, bleibt sein Link (und fehlt nach dem Trennen).
+   */
+  async handOverToSchool(user: any) {
+    const l = await this.find(user.userId);
+    if (!l?.shareToken || !l.verifiedAt) throw new BadRequestException('Keine eigene Freigabe verbunden.');
+    const target = await this.storeFor(user.userId, { skipOwn: true });
+    if (!target) throw new BadRequestException('Deine Schule hat keine Nextcloud eingerichtet.');
+    const nc = await this.client(l);
+    const { mods, drafts } = await this.referencing(l);
+    const wanted = new Map<string, { sub: string; name: string }>();
+    const collect = (v: any) => this.swapOwnUrls(v, l, (sub, name) => { wanted.set(`${sub}/${name}`, { sub, name }); return null; });
+    mods.forEach((m) => collect(m.content));
+    drafts.forEach((d) => collect(d.data));
+    const map = new Map<string, string>();
+    let missing = 0;
+    for (const [key, { sub, name }] of wanted) {
+      if (!safePart(sub) || !safePart(name)) { missing++; continue; }
+      const file = await nc.get([IMAGES, sub, name]).catch(() => null);
+      const placed = await this.placeImage(target.nc, target.root, sub, name, file);
+      if (placed) map.set(key, target.url(sub, placed.name)); else missing++;
+    }
+    const swap = (v: any) => this.swapOwnUrls(v, l, (sub, name) => map.get(`${sub}/${name}`) || null);
+    let modules = 0;
+    let dr = 0;
+    for (const m of mods) {
+      const next = swap(m.content);
+      if (JSON.stringify(next) !== JSON.stringify(m.content)) { await this.moduleRepo.update({ id: m.id }, { content: next }); modules++; }
+    }
+    for (const d of drafts) {
+      const next = swap(d.data);
+      if (JSON.stringify(next) !== JSON.stringify(d.data)) { await this.draftRepo.update({ id: d.id }, { data: next }); dr++; }
+    }
+    await this.disconnect(user, true);
+    return { success: true, images: map.size, missing, modules, drafts: dr };
   }
 
   /**
@@ -1010,7 +1208,7 @@ export class NextcloudService implements OnApplicationBootstrap {
     if (!file?.buffer?.length) throw new BadRequestException('Keine Datei empfangen.');
     if (!IMAGE_TYPES[file.mimetype]) throw new BadRequestException('Nur Bilder (PNG, JPEG, GIF, WebP, SVG) lassen sich hochladen.');
     if (file.size > MAX_IMAGE_BYTES) throw new BadRequestException('Das Bild ist größer als 15 MB.');
-    const { l, nc, root } = await this.effective(user.userId);
+    const { nc, root, url } = await this.effective(user.userId);
     const sub = opts.folder ? safeFolderName(opts.folder) : await this.topicFolder(topicId);
     await nc.ensureFolder([...root, sub]);
     const wanted = imageFileName(opts.name || Buffer.from(file.originalname || '', 'latin1').toString('utf-8'), file.mimetype);
@@ -1023,7 +1221,7 @@ export class NextcloudService implements OnApplicationBootstrap {
       name = wanted.replace(/(\.[^.]+)$/, `-${n}$1`);
     }
     await nc.put([...root, sub, name], file.buffer, file.mimetype);
-    return { success: true, url: this.imageUrl(l, sub, name), name, folder: sub };
+    return { success: true, url: url(sub, name), name, folder: sub };
   }
 
   // ---- Vorhandene Bilder auslagern ----
@@ -1054,7 +1252,7 @@ export class NextcloudService implements OnApplicationBootstrap {
    * Dateiname enthält eine Prüfsumme, ein zweiter Lauf lädt nichts doppelt.
    */
   async migrateTopic(user: any, topicId: string) {
-    const { l, nc, root } = await this.effective(user.userId);
+    const { nc, root, url } = await this.effective(user.userId);
     const [entry] = await this.ownTopicsWithModules(user.userId, topicId);
     if (!entry) throw new BadRequestException('Thema nicht gefunden – auslagern lassen sich nur eigene Themen.');
     const sub = safeFolderName(entry.topic.title, 'Ohne Thema');
@@ -1073,7 +1271,7 @@ export class NextcloudService implements OnApplicationBootstrap {
       const name = `bild-${hash}.${IMAGE_TYPES[mime] || 'png'}`;
       if (existing.has(name)) reused++;
       else { await nc.put([...root, sub, name], buffer, mime); uploaded++; }
-      urls.set(dataUrl, this.imageUrl(l, sub, name));
+      urls.set(dataUrl, url(sub, name));
     }
     let changed = 0;
     for (const m of entry.modules) {
@@ -1095,7 +1293,7 @@ export class NextcloudService implements OnApplicationBootstrap {
     if (!refs.length) return out;
     const eff = await this.effective(userId).catch(() => null);
     if (!eff) return out;
-    const { l, nc, root } = eff;
+    const { nc, root, url } = eff;
     const byFolder = new Map<string, string[]>();
     for (const r of refs) {
       const m = NC_REF.exec(r);
@@ -1105,7 +1303,7 @@ export class NextcloudService implements OnApplicationBootstrap {
       const names = new Set((await nc.list([...root, folder]).catch((): DavEntry[] => [])).filter((e) => !e.isFolder).map((e) => e.name));
       for (const r of list) {
         const name = NC_REF.exec(r)![2];
-        if (names.has(name)) out.set(r, this.imageUrl(l, folder, name));
+        if (names.has(name)) out.set(r, url(folder, name));
       }
     }
     return out;
@@ -1116,7 +1314,7 @@ export class NextcloudService implements OnApplicationBootstrap {
    * Bilder. Ohne `folder` der Ordner des Themas.
    */
   async listImages(user: any, opts: { folder?: string; topicId?: string }) {
-    const { l, nc, root } = await this.effective(user.userId);
+    const { kind, l, nc, root, url } = await this.effective(user.userId);
     const entries = await nc.list(root);
     const folders = entries.filter((e) => e.isFolder).map((e) => e.name).sort((a, b) => a.localeCompare(b, 'de'));
     const current = opts.folder ? safeFolderName(opts.folder) : await this.topicFolder(opts.topicId);
@@ -1124,7 +1322,7 @@ export class NextcloudService implements OnApplicationBootstrap {
     const images = files
       .filter((e) => !e.isFolder && (IMAGE_TYPES[e.contentType] || IMAGE_EXT.test(e.name)))
       .sort((a, b) => String(b.modified).localeCompare(String(a.modified)) || a.name.localeCompare(b.name, 'de'))
-      .map((e) => ({ name: e.name, size: e.size, url: this.imageUrl(l, current, e.name), previewUrl: this.previewUrl(l, current, e.name) }));
+      .map((e) => ({ name: e.name, size: e.size, url: url(current, e.name), previewUrl: kind === 'own' ? this.previewUrl(l, current, e.name) : url(current, e.name) }));
     return { folders, current, images };
   }
 }

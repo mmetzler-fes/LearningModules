@@ -491,6 +491,14 @@ export class BrowserApi {
   getNextcloudUsage() { return this._fetch('/api/nextcloud/usage'); }
   returnNextcloudImages(items) { return this._fetch('/api/nextcloud/return', { method: 'POST', body: JSON.stringify({ items }) }); }
   moveNextcloud(body) { return this._fetch('/api/nextcloud/move', { method: 'POST', body: JSON.stringify(body) }); }
+  handOverNextcloud() { return this._fetch('/api/nextcloud/hand-over', { method: 'POST' }); }
+  // Nextcloud der Schule (Schuladmin)
+  getSchoolNextcloud() { return this._fetch('/api/my-school/nextcloud'); }
+  connectSchoolNextcloud(body) { return this._fetch('/api/my-school/nextcloud', { method: 'POST', body: JSON.stringify(body) }); }
+  disconnectSchoolNextcloud(force = false) { return this._fetch(`/api/my-school/nextcloud${force ? '?force=1' : ''}`, { method: 'DELETE' }); }
+  getSchoolNextcloudFolders() { return this._fetch('/api/my-school/nextcloud/folders'); }
+  removeSchoolNextcloudFolder(folder) { return this._fetch(`/api/my-school/nextcloud/folders/${encodeURIComponent(folder)}`, { method: 'DELETE' }); }
+  moveSchoolNextcloud(body) { return this._fetch('/api/my-school/nextcloud/move', { method: 'POST', body: JSON.stringify(body) }); }
   listNextcloudImages({ folder, topicId } = {}) {
     const q = new URLSearchParams();
     if (folder) q.set('folder', folder);

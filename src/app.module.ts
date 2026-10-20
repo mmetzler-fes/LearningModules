@@ -12,6 +12,7 @@ import { School } from './core/entities/school.entity';
 import { SystemConfig } from './core/entities/system-config.entity';
 import { GithubBackup } from './core/entities/github-backup.entity';
 import { NextcloudLink } from './core/entities/nextcloud-link.entity';
+import { SchoolNextcloud } from './core/entities/school-nextcloud.entity';
 import { Tag } from './core/entities/tag.entity';
 import { TopicLink } from './core/entities/topic-link.entity';
 import { TopicQuickLink } from './core/entities/topic-quick-link.entity';
@@ -85,7 +86,7 @@ import { LinkCode } from './core/entities/link-code.entity';
     TypeOrmModule.forRoot({
       type: 'sqlite',
       database: 'data/database.sqlite',
-      entities: [User, StudentClass, ClassStudent, LearningTopic, LearningModule, Result, School, SystemConfig, Tag, TopicLink, TopicQuickLink, TeacherGroup, ShopOffer, UseGrant, PointsEntry, ModuleTiming, ClassShare, NotebookNode, NotebookPlacement, ModuleDraft, UsageCount, ContentFeedback, Category, FederationPeer, RemoteOffer, RemotePerson, FederationCopy, ContentHandover, AccountLink, LinkCode, GithubBackup, NextcloudLink],
+      entities: [User, StudentClass, ClassStudent, LearningTopic, LearningModule, Result, School, SystemConfig, Tag, TopicLink, TopicQuickLink, TeacherGroup, ShopOffer, UseGrant, PointsEntry, ModuleTiming, ClassShare, NotebookNode, NotebookPlacement, ModuleDraft, UsageCount, ContentFeedback, Category, FederationPeer, RemoteOffer, RemotePerson, FederationCopy, ContentHandover, AccountLink, LinkCode, GithubBackup, NextcloudLink, SchoolNextcloud],
       synchronize: true,
     }),
     MailModule,

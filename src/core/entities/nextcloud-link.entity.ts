@@ -55,6 +55,13 @@ export class NextcloudLink extends BaseEntity {
   @Column({ type: 'varchar', nullable: true })
   serverFolder: string | null;
 
+  /**
+   * Ordner der Lehrkraft in der Nextcloud ihrer Schule: Bilder/<schoolFolder>/<Thema>/.
+   * Einmal festgelegt; der Name steht in den Bild-Links (/api/nextcloud/sch/…).
+   */
+  @Column({ type: 'varchar', nullable: true })
+  schoolFolder: string | null;
+
   /** Bilder aus serverFolder in die eigene Freigabe übernommen und Links umgestellt. */
   @Column({ type: 'datetime', nullable: true })
   legacyMovedAt: Date | null;

@@ -33,6 +33,7 @@ getrennt: Sie regelt nur, wer sich überhaupt registrieren darf.
 | Neue Lehrkräfte für die Schule anlegen | ✔ | ✔ ¹ | |
 | Gruppen der Schule pflegen | ✔ | ✔ | |
 | Tag-Struktur der Schule pflegen | | ✔ | nutzen |
+| [Nextcloud der Schule für Bilder](nextcloud.md#nextcloud-der-schule) einrichten, umziehen, aufräumen | | ✔ | nutzen |
 | Schulübergreifende Gruppen pflegen | ✔ | | |
 
 ¹ Der Hauptadmin kann diese Rechte je Schule entziehen.

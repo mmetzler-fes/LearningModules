@@ -1,5 +1,6 @@
 import { escapeHtml, escapeAttr } from '../utils.js';
 import { TagsView } from './tags.js';
+import { renderSchoolNextcloud } from './school-nextcloud.js';
 import { bindPasswordChoice } from './admin.js';
 import { printPermissionSheet, downloadPermissionOdt } from '../terms-print.js';
 
@@ -355,6 +356,7 @@ export class MySchoolView {
     this._renderWhitelist(data);
     document.getElementById('btnMySchoolNewTeacher')?.classList.toggle('hidden', !data.adminsMayCreateTeachers);
     await this._tagsView.refresh();
+    void renderSchoolNextcloud(this.app, document.getElementById('mySchoolNextcloud'));
 
     const own = (Array.isArray(groups) ? groups : []).filter((g) => g.schoolId === data.id);
     if (this._groups) this.app.adminView.renderGroupList(this._groups, own, data.teachers, { onChanged: () => this.refresh() });

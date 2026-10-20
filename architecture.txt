@@ -229,6 +229,9 @@ FRONTEND – src/renderer/
   docspec-editor.js     YAML-Editor mit Vorschau und Druck (.odt/.pdf über
                         /api/worksheets/render); window.DocSpecEditor für
                         content-editors.js (Feldtyp 'docspec')
+  docspec-html.js       HTML → Spec im Browser (DOMParser): .odt-Import im
+                        Editor und Umwandlung alter Module „Text /
+                        Arbeitsblatt“; escapeMarkup() schützt wörtlichen Text
   vendor/js-yaml.js     js-yaml 4.1.1 (MIT) als ES-Modul
 
   h5p-renderer.js

@@ -145,6 +145,7 @@ describe('writeCourse', () => {
       'arduino/03_x/arbeitsblatt.yaml', 'arduino/CLAUDE.md', 'arduino/ka_01_10/arbeitsblatt.yaml', 'arduino/kurs.yaml', 'arduino/skripte/skript_grundlagen.yaml',
     ]);
     expect(read('01_led/arbeitsblatt.yaml')).toContain('file: bilder/bild-1.png');
+    expect(read('01_led/arbeitsblatt.yaml')).toContain('width: 9.00cm');
     expect(out.warnings).toEqual([expect.stringContaining('03_x: Bild ohne Datei')]);
   });
 
@@ -165,6 +166,6 @@ describe('writeCourse', () => {
     expect(plan.settings).toMatchObject({ kurs: 'Arduino', autor: 'M. M.', aiGuidelines: 'Vorgaben' });
     expect(plan.sections).toEqual([{ title: 'Grundlagen', skript: { titel: 'Mikrocontroller – Grundlagen', slug: 'Skript_Grundlagen' }, sheets: ['01_led', '02_ausgaenge'] }]);
     expect(plan.exams).toEqual(['ka_01_10']);
-    expect(plan.sheets.get('01_led')!.content.spec.content[0]).toEqual({ type: 'image', src: 'data:image/png;base64,iVA=', width: '9cm' });
+    expect(plan.sheets.get('01_led')!.content.spec.content[0]).toEqual({ type: 'image', src: 'data:image/png;base64,iVA=', width: '9.00cm' });
   });
 });

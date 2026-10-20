@@ -55,8 +55,8 @@ from odf.style import (
     TextProperties,
 )
 from odf.draw import Frame, Image, Object, TextBox
-from odf.table import Table, TableCell, TableColumn, TableRow
-from odf.text import H, LineBreak, List, ListItem, ListLevelStyleBullet, ListStyle, P, S, Span
+from odf.table import CoveredTableCell, Table, TableCell, TableColumn, TableRow
+from odf.text import A, H, LineBreak, List, ListItem, ListLevelStyleBullet, ListLevelStyleNumber, ListStyle, P, S, Span
 
 # Zwei Wurzeln: GEN ist dieser Generator (Code, Grundvorlage, styles.yaml),
 # ROOT das Projekt mit kurse/, eigenen Vorlagen und build/ – beim CLI-Aufruf
@@ -95,6 +95,35 @@ LIST_START_RE = re.compile(r"\s*(?:\(?[a-z]\)|\d+[.)]|[–•-])\s")
 GAP_RE = re.compile(r"\S {2,}\S")
 # „U_N = …", „xT2_3 := …", „xWORKPOS_1 (QM11) := …" am Zeilenanfang
 ASSIGN_START_RE = re.compile(r"\s*[^\s=:]+(?: \([^)]*\))? ?:?= ")
+
+# Auszeichnung im Fließtext (SPEC.md): **fett**, *kursiv*, ++unterstrichen++,
+# ~~durchgestrichen~~, `code`, ^{hoch}, _{tief} (nach jedem Zeichen),
+# [Text](https://…). Die Zeichen wirken nur am Wortrand („8*7“ bleibt eine
+# Rechnung). Ein Backslash davor schreibt das Zeichen selbst. Zeilen
+# ohne diese Zeichen laufen unverändert über den bisherigen Weg.
+INLINE_RE = re.compile(
+    r"\\(?P<esc>[\\*`\[\]^~+{}])"
+    r"|`(?P<code>[^`\n]+)`"
+    r"|(?<![\w*])\*\*\*(?P<bi>\S(?:.*?\S)?)\*\*\*(?![\w*])"
+    r"|(?<![\w*])\*\*(?P<b>\S(?:.*?\S)?)\*\*(?![\w*])"
+    r"|(?<![\w*])\*(?P<i>[^\s*](?:.*?[^\s*])?)\*(?![\w*])"
+    r"|(?<![\w+])\+\+(?P<u>\S(?:.*?\S)?)\+\+(?![\w+])"
+    r"|(?<![\w~])~~(?P<s>\S(?:.*?\S)?)~~(?![\w~])"
+    r"|\^\{(?P<sup>[^}]{1,40})\}"
+    r"|_\{(?P<sub>[^}]{1,24})\}"
+    r"|\[(?P<atext>[^\]\n]+)\]\((?P<href>(?:https?://|mailto:)[^)\s]+)\)"
+)
+INLINE_HINT_RE = re.compile(r"\\[\\*`\[\]^~+{}]|`|\*|\+\+|~~|\^\{|_\{|\]\(")
+INLINE_STYLES = {
+    "b": ("AB_Fett", {"fontweight": "bold", "fontweightasian": "bold", "fontweightcomplex": "bold"}),
+    "i": ("AB_Kursiv", {"fontstyle": "italic", "fontstyleasian": "italic", "fontstylecomplex": "italic"}),
+    "u": ("AB_Unterstrichen", {"textunderlinestyle": "solid", "textunderlinewidth": "auto", "textunderlinecolor": "font-color"}),
+    "s": ("AB_Durchgestrichen", {"textlinethroughstyle": "solid", "textlinethroughtype": "single"}),
+    "sup": ("AB_Hoch", {"textposition": "super 58%"}),
+}
+# Dokument, in dem gerade gerendert wird – für Zeichenvorlagen, die erst bei
+# Bedarf entstehen (set_inline_context).
+_inline: dict[str, Any] = {}
 
 TEXT_MIMETYPE = "application/vnd.oasis.opendocument.text"
 TEMPLATE_MIMETYPE = "application/vnd.oasis.opendocument.text-template"
@@ -360,6 +389,72 @@ def ensure_subscript_style(doc, present: set[str]) -> str:
     return SUBSCRIPT_STYLE
 
 
+def set_inline_context(doc, present: set[str], styles: dict[str, str]) -> None:
+    """Vor dem Rendern: wohin Zeichenvorlagen der Auszeichnung gehören."""
+    _inline.update(doc=doc, present=present, code=styles.get("code_inline", "Codewort"))
+
+
+def inline_style(kind: str) -> str:
+    """Automatische Zeichenvorlage für fett, kursiv … – erst bei Bedarf."""
+    name, props = INLINE_STYLES[kind]
+    if name not in _inline["present"]:
+        style = Style(name=name, family="text")
+        style.addElement(TextProperties(**props))
+        _inline["doc"].automaticstyles.addElement(style)
+        _inline["present"].add(name)
+    return name
+
+
+def parse_inline(text: str) -> list[tuple[str, Any]]:
+    """Text → Knoten: ("text", s), ("b"|"i"|"u"|"s", [...]), ("sup"|"sub"|"code", s), ("a", (href, [...]))."""
+    nodes: list[tuple[str, Any]] = []
+    def add_text(t: str) -> None:
+        if not t:
+            return
+        if nodes and nodes[-1][0] == "text":
+            nodes[-1] = ("text", nodes[-1][1] + t)
+        else:
+            nodes.append(("text", t))
+    pos = 0
+    for m in INLINE_RE.finditer(text):
+        add_text(text[pos:m.start()])
+        pos = m.end()
+        kind = m.lastgroup if m.lastgroup != "href" else "a"
+        if m.group("esc") is not None:
+            add_text(m.group("esc"))
+        elif m.group("href") is not None:
+            nodes.append(("a", (m.group("href"), parse_inline(m.group("atext")))))
+        elif kind == "bi":
+            nodes.append(("b", [("i", parse_inline(m.group("bi")))]))
+        elif kind in ("b", "i", "u", "s"):
+            nodes.append((kind, parse_inline(m.group(kind))))
+        else:
+            nodes.append((kind, m.group(kind)))
+    add_text(text[pos:])
+    return nodes
+
+
+def add_inline(el: Element, nodes: list[tuple[str, Any]], line_start: bool) -> None:
+    for kind, value in nodes:
+        if kind == "text":
+            add_subscripted(el, value, line_start)
+        elif kind in ("b", "i", "u", "s"):
+            span = Span(stylename=inline_style(kind))
+            add_inline(span, value, False)
+            el.addElement(span)
+        elif kind == "sup":
+            el.addElement(Span(stylename=inline_style("sup"), text=value))
+        elif kind == "sub":
+            el.addElement(Span(stylename=SUBSCRIPT_STYLE, text=value))
+        elif kind == "code":
+            el.addElement(Span(stylename=_inline.get("code", "Codewort"), text=value))
+        elif kind == "a":
+            link = A(href=value[0], type="simple")
+            add_inline(link, value[1], False)
+            el.addElement(link)
+        line_start = False
+
+
 def text_lines(text: str) -> list[str]:
     """Zeilen, die im Dokument einzeln stehen sollen.
 
@@ -377,6 +472,11 @@ def text_lines(text: str) -> list[str]:
     lines = text.split("\n")
     out = [lines[0]]
     for prev, line in zip(lines, lines[1:]):
+        # Ein Backslash am Zeilenende erzwingt den Umbruch (und verschwindet).
+        if prev.rstrip().endswith("\\"):
+            out[-1] = out[-1].rstrip()[:-1].rstrip()
+            out.append(line)
+            continue
         hard = (LIST_START_RE.match(line)
                 or (ASSIGN_START_RE.match(prev) and ASSIGN_START_RE.match(line))
                 or (prev.rstrip().endswith(":") and line[:1] == " ")
@@ -424,14 +524,22 @@ def add_rich_text(el: Element, text: str) -> None:
     for n, line in enumerate(text_lines(text)):
         if n:
             el.addElement(LineBreak())
-        pos = 0
-        for match in SUBSCRIPT_RE.finditer(line):
-            add_spaced_text(el, (line[pos:match.start()] + match.group(1)).replace("\\_", "_"),
-                            line_start=pos == 0)
-            el.addElement(Span(stylename=SUBSCRIPT_STYLE,
-                               text=match.group(2) or match.group(3)))
-            pos = match.end()
-        add_spaced_text(el, line[pos:].replace("\\_", "_"), line_start=pos == 0)
+        if INLINE_HINT_RE.search(line) and _inline:
+            add_inline(el, parse_inline(line), True)
+        else:
+            add_subscripted(el, line, True)
+
+
+def add_subscripted(el: Element, line: str, line_start: bool) -> None:
+    """Text mit `n_S`-Indizes und erhaltenen Lücken anhängen."""
+    pos = 0
+    for match in SUBSCRIPT_RE.finditer(line):
+        add_spaced_text(el, (line[pos:match.start()] + match.group(1)).replace("\\_", "_"),
+                        line_start=line_start and pos == 0)
+        el.addElement(Span(stylename=SUBSCRIPT_STYLE,
+                           text=match.group(2) or match.group(3)))
+        pos = match.end()
+    add_spaced_text(el, line[pos:].replace("\\_", "_"), line_start=line_start and pos == 0)
 
 
 def rich_p(stylename: str, text: str) -> Element:
@@ -620,12 +728,16 @@ def image_frame(doc, block: dict[str, Any], search: list[Path], index: int) -> E
         width, height = image_size(path, width)
 
     href = doc.addPicture(str(path))
+    extra: dict[str, Any] = {}
+    if block.get("border"):
+        extra["stylename"] = ensure_image_border_style(doc)
     frame = Frame(
         name=f"Bild{index}",
         anchortype="as-char",
         width=f"{width:.2f}cm",
         height=f"{height:.2f}cm",
         zindex="0",
+        **extra,
     )
     frame.addElement(Image(href=href))
     return frame
@@ -775,13 +887,134 @@ def code_paragraphs(code: str, style: str) -> list[Element]:
     return paragraphs
 
 
-def bullet_list(items: list[str], para_style: str, list_style: str) -> Element:
+def bullet_list(items: list[Any], para_style: str, list_style: str) -> Element:
+    """Aufzählung; ein Punkt darf {text, items} sein und Unterpunkte haben."""
     lst = List(stylename=list_style)
     for item in items:
         li = ListItem()
-        li.addElement(rich_p(para_style, item))
+        if isinstance(item, dict):
+            li.addElement(rich_p(para_style, str(item.get("text", ""))))
+            if item.get("items"):
+                li.addElement(bullet_list(item["items"], para_style, list_style))
+        else:
+            li.addElement(rich_p(para_style, item))
         lst.addElement(li)
     return lst
+
+
+def ensure_number_list_style(doc, name: str = "AB_Nummerierung") -> str:
+    """Nummerierte Liste 1. 2. 3. (Unterpunkte a) b) c)), erst bei Bedarf."""
+    for ls in doc.styles.getElementsByType(ListStyle):
+        if ls.getAttribute("name") == name:
+            return name
+    ls = ListStyle(name=name)
+    for level in range(1, 4):
+        num = ListLevelStyleNumber(level=str(level), numformat="1" if level != 2 else "a",
+                                   numsuffix="." if level != 2 else ")")
+        props = ListLevelProperties()
+        props.setAttribute("listlevelpositionandspacemode", "label-alignment")
+        align = ListLevelLabelAlignment(labelfollowedby="listtab")
+        align.setAttribute("listtabstopposition", f"{0.7 * level:.2f}cm")
+        align.setAttribute("textindent", "-0.5cm")
+        align.setAttribute("marginleft", f"{0.7 * level:.2f}cm")
+        props.addElement(align)
+        num.addElement(props)
+        ls.addElement(num)
+    doc.styles.addElement(ls)
+    return name
+
+
+def ensure_align_style(doc, present: set[str], base: str, align: str) -> str:
+    """Absatzvorlage wie `base`, aber zentriert, rechtsbündig oder im Blocksatz."""
+    name = f"AB_{align.capitalize()}_{base}"
+    if name not in present:
+        style = Style(name=name, family="paragraph", parentstylename=base)
+        style.addElement(ParagraphProperties(textalign=align))
+        doc.automaticstyles.addElement(style)
+        present.add(name)
+    return name
+
+
+def ensure_box_styles(doc, present: set[str], shaded: bool) -> str:
+    """Kasten: einzellige Tabelle mit Rahmen, auf Wunsch grau hinterlegt."""
+    if "ABKasten" not in present:
+        table = Style(name="ABKasten", family="table")
+        table.addElement(TableProperties(width=f"{TABLE_WIDTH_CM}cm", margintop="0.2cm",
+                                         marginbottom="0.2cm", align="margins"))
+        col = Style(name="ABKasten.Sp", family="table-column")
+        col.addElement(TableColumnProperties(columnwidth=f"{TABLE_WIDTH_CM}cm"))
+        for style in (table, col):
+            doc.automaticstyles.addElement(style)
+            present.add(style.getAttribute("name"))
+    name = "ABKasten.ZG" if shaded else "ABKasten.Z"
+    if name not in present:
+        cell = Style(name=name, family="table-cell")
+        props = {"padding": "0.2cm", "border": "0.5pt solid #000000"}
+        if shaded:
+            props["backgroundcolor"] = "#eeeeee"
+        cell.addElement(TableCellProperties(**props))
+        doc.automaticstyles.addElement(cell)
+        present.add(name)
+    return name
+
+
+def ensure_image_border_style(doc) -> Style:
+    """Rahmenvorlage für umrandete Bilder (Style-Objekt für den Frame)."""
+    style = getattr(doc, "bildrahmen", None)
+    if style is None:
+        style = Style(name="AB_Bild_Rahmen", family="graphic")
+        style.addElement(GraphicProperties(border="0.5pt solid #000000", padding="0.05cm"))
+        doc.automaticstyles.addElement(style)
+        doc.bildrahmen = style
+    return style
+
+
+def ensure_float_styles(doc, present: set[str]) -> None:
+    """Randlose Tabelle für Bild neben Text (float_group)."""
+    if "ABNeben" in present:
+        return
+    table = Style(name="ABNeben", family="table")
+    table.addElement(TableProperties(width=f"{TABLE_WIDTH_CM}cm", margintop="0.1cm",
+                                     marginbottom="0.1cm", align="margins"))
+    cell = Style(name="ABNeben.Z", family="table-cell")
+    cell.addElement(TableCellProperties(padding="0cm", border="none", verticalalign="top"))
+    for style in (table, cell):
+        doc.automaticstyles.addElement(style)
+        present.add(style.getAttribute("name"))
+
+
+def float_group(image: dict[str, Any], texts: list[Any], styles: dict[str, str], ctx: dict[str, Any]) -> list[Element]:
+    """Bild mit float: left/right samt den folgenden Text-, Listen- und
+    Hinweisblöcken als zweispaltige, randlose Tabelle – so fließt der Text
+    neben dem Bild, und nichts darunter kann es überdecken."""
+    doc, present = ctx["doc"], ctx["present"]
+    ensure_float_styles(doc, present)
+    width = min(float(str(image.get("width", "6")).removesuffix("cm")), TABLE_WIDTH_CM - 4)
+    gap = 0.4
+    side = image.get("float")
+    widths = [width + gap, TABLE_WIDTH_CM - width - gap]
+    if side == "right":
+        widths.reverse()
+    index = ctx["float_index"] = ctx.get("float_index", 0) + 1
+    table = Table(name=f"Neben{index}", stylename="ABNeben")
+    for col, w in enumerate(widths):
+        name = f"ABNeben.Sp{index}.{col}"
+        style = Style(name=name, family="table-column")
+        style.addElement(TableColumnProperties(columnwidth=f"{w:.3f}cm"))
+        doc.automaticstyles.addElement(style)
+        present.add(name)
+        table.addElement(TableColumn(stylename=name))
+    picture = TableCell(valuetype="string", stylename="ABNeben.Z")
+    for el in render_block({k: v for k, v in image.items() if k != "float"}, styles, ctx):
+        picture.addElement(el)
+    text = TableCell(valuetype="string", stylename="ABNeben.Z")
+    for el in render_blocks(texts, styles, ctx) or [P(stylename=styles["text"])]:
+        text.addElement(el)
+    tr = TableRow()
+    for cell in ([picture, text] if side != "right" else [text, picture]):
+        tr.addElement(cell)
+    table.addElement(tr)
+    return [table]
 
 
 def overlay_rows(elements: list[Element]) -> int:
@@ -989,6 +1222,8 @@ def content_table(block: dict[str, Any], styles: dict[str, str],
     also nach dem Inhalt.
     """
     index = ctx["table_index"]
+    if any(isinstance(c, dict) for row in [block.get("header") or []] + list(block.get("rows") or []) for c in row):
+        return spanned_table(block, styles, ctx)
     rows = [list(map(str, row)) for row in block.get("rows") or []]
     header = [str(c) for c in block.get("header") or []]
     columns = max([len(header)] + [len(r) for r in rows] or [1])
@@ -1026,6 +1261,73 @@ def content_table(block: dict[str, Any], styles: dict[str, str],
         add_row(header, head_style)
     for row in rows:
         add_row(row, cell_style)
+    return table
+
+
+def spanned_table(block: dict[str, Any], styles: dict[str, str], ctx: dict[str, Any]) -> Element:
+    """Tabelle mit verbundenen Zellen: Eine Zelle darf {text, colspan, rowspan}
+    sein. Die Zeilen nennen nur die sichtbaren Zellen (wie in HTML); verdeckte
+    Stellen ergänzt diese Funktion."""
+    index = ctx["table_index"]
+    def cell_of(c: Any) -> tuple[str, int, int]:
+        if isinstance(c, dict):
+            return (str(c.get("text", "")), max(1, int(c.get("colspan") or 1)), max(1, int(c.get("rowspan") or 1)))
+        return (str(c), 1, 1)
+    header = [cell_of(c) for c in block.get("header") or []]
+    source = ([header] if header else []) + [[cell_of(c) for c in row] for row in block.get("rows") or []]
+    # Raster: start[(r, c)] = (text, colspan, rowspan); covered = verdeckte Stellen
+    start: dict[tuple[int, int], tuple[str, int, int]] = {}
+    covered: set[tuple[int, int]] = set()
+    columns = 1
+    for r, row in enumerate(source):
+        c = 0
+        for text, cs, rs in row:
+            while (r, c) in covered:
+                c += 1
+            start[(r, c)] = (text, cs, rs)
+            for dr in range(rs):
+                for dc in range(cs):
+                    if dr or dc:
+                        covered.add((r + dr, c + dc))
+            c += cs
+            columns = max(columns, c)
+    nrows = max([r for r, _ in list(start) + list(covered)] + [len(source) - 1]) + 1
+    gemessen = [[(start[(r, c)][0] if (r, c) in start and start[(r, c)][1] == 1 else "", bool(header) and r == 0)
+                 for c in range(columns)] for r in range(nrows)]
+    size, widths = table_layout(gemessen)
+    head_style, cell_style = styles["table_head"], styles["table_cell"]
+    if size != TABLE_SIZES_PT[0]:
+        head_style = ensure_table_size_style(ctx["doc"], ctx["present"], head_style, size)
+        cell_style = ensure_table_size_style(ctx["doc"], ctx["present"], cell_style, size)
+    table = Table(name=f"Tab{index}", stylename="ABTabelle")
+    for col, width in enumerate(widths):
+        name = f"ABTabelle.Sp{index}.{col}"
+        if name not in ctx["present"]:
+            style = Style(name=name, family="table-column")
+            style.addElement(TableColumnProperties(columnwidth=f"{width:.3f}cm"))
+            ctx["doc"].automaticstyles.addElement(style)
+            ctx["present"].add(name)
+        table.addElement(TableColumn(stylename=name))
+    for r in range(nrows):
+        tr = TableRow()
+        for c in range(columns):
+            if (r, c) in start:
+                text, cs, rs = start[(r, c)]
+                attrs: dict[str, Any] = {}
+                if cs > 1:
+                    attrs["numbercolumnsspanned"] = cs
+                if rs > 1:
+                    attrs["numberrowsspanned"] = rs
+                tc = TableCell(valuetype="string", stylename="ABTabelle.Z", **attrs)
+                tc.addElement(rich_p(head_style if header and r == 0 else cell_style, text))
+                tr.addElement(tc)
+            elif (r, c) in covered:
+                tr.addElement(CoveredTableCell())
+            else:
+                tc = TableCell(valuetype="string", stylename="ABTabelle.Z")
+                tc.addElement(P(stylename=cell_style))
+                tr.addElement(tc)
+        table.addElement(tr)
     return table
 
 
@@ -1075,9 +1377,22 @@ def render_blocks(blocks: Any, styles: dict[str, str], ctx: dict[str, Any]) -> l
 
     result: list[Element] = []
     vorheriger = None
-    for block in blocks:
+    i = 0
+    while i < len(blocks):
+        block = blocks[i]
+        i += 1
         if block is None:
             continue
+        if isinstance(block, dict) and block.get("type") == "image" and block.get("float") in ("left", "right"):
+            texts = []
+            while i < len(blocks) and (isinstance(blocks[i], str) or (isinstance(blocks[i], dict)
+                                       and blocks[i].get("type", "text") in ("text", "list", "note"))):
+                texts.append(blocks[i])
+                i += 1
+            if texts:
+                result.extend(float_group(block, texts, styles, ctx))
+                vorheriger = "image"
+                continue
         # Der Vorgängertyp entscheidet z. B. über den Abstand nach einer Aufzählung.
         ctx["prev_kind"] = vorheriger
         result.extend(render_block(block, styles, ctx))
@@ -1161,9 +1476,38 @@ def render_block(block: Any, styles: dict[str, str], ctx: dict[str, Any]) -> lis
             out.extend(render_block({"type": "text", "text": block["text"]}, styles, ctx))
         out.extend(children(block.get("blocks")))
 
+    elif kind == "heading":
+        # Überschrift ohne Nummer: gleiche Vorlage wie section/task/subtask,
+        # aber als Listenkopf – die Gliederungsnummer zählt nicht mit.
+        level = min(3, max(1, int(block.get("level", 1))))
+        heading = H(outlinelevel=level + ctx.get("level_shift", 0),
+                    stylename=styles[("section", "task", "subtask")[level - 1]], islistheader="true")
+        add_rich_text(heading, str(block.get("text", block.get("title", ""))))
+        out.append(heading)
+
+    elif kind == "box":
+        index = ctx["box_index"] = ctx.get("box_index", 0) + 1
+        cell_style = ensure_box_styles(ctx["doc"], ctx["present"], bool(block.get("shaded")))
+        table = Table(name=f"Kasten{index}", stylename="ABKasten")
+        table.addElement(TableColumn(stylename="ABKasten.Sp"))
+        tr = TableRow()
+        tc = TableCell(valuetype="string", stylename=cell_style)
+        if block.get("title"):
+            tc.addElement(rich_p(text_style, f"**{block['title']}**"))
+        inner = children(block.get("blocks"))
+        if block.get("text"):
+            inner = render_block({"type": "text", "text": block["text"]}, styles, ctx) + inner
+        for el in inner or [P(stylename=text_style)]:
+            tc.addElement(el)
+        tr.addElement(tc)
+        table.addElement(tr)
+        out.append(table)
+
     elif kind == "text":
         # Direkt hinter einer Aufzählung etwas Luft, damit der Absatz sich
         # sichtbar von den Punkten absetzt.
+        if block.get("align") in ("center", "right", "justify"):
+            text_style = ensure_align_style(ctx["doc"], ctx["present"], text_style, block["align"])
         erster_style = (abstand_style(ctx, text_style)
                         if ctx.get("prev_kind") == "list" else text_style)
         for i, para in enumerate(str(block["text"]).split("\n\n")):
@@ -1177,7 +1521,8 @@ def render_block(block: Any, styles: dict[str, str], ctx: dict[str, Any]) -> lis
         out.extend(code_paragraphs(read_code(block, ctx["search"]), code_style))
 
     elif kind == "list":
-        out.append(bullet_list(block["items"], text_style, ctx["list_style"]))
+        style = ensure_number_list_style(ctx["doc"]) if block.get("ordered") else ctx["list_style"]
+        out.append(bullet_list(block["items"], text_style, style))
 
     elif kind == "note":
         p = P(stylename=text_style)
@@ -1200,7 +1545,10 @@ def render_block(block: Any, styles: dict[str, str], ctx: dict[str, Any]) -> lis
     elif kind == "image":
         ctx["image_index"] += 1
         # Bild und Unterschrift bleiben zusammen auf einer Seite
-        para = P(stylename=keep_style(ctx, text_style) if block.get("caption") else text_style)
+        para_style = text_style
+        if block.get("float") == "center":
+            para_style = ensure_align_style(ctx["doc"], ctx["present"], text_style, "center")
+        para = P(stylename=keep_style(ctx, para_style) if block.get("caption") else para_style)
         para.addElement(image_frame(ctx["doc"], block, ctx["search"], ctx["image_index"]))
         out.append(para)
         if block.get("caption"):
@@ -1295,6 +1643,7 @@ def insert_content(doc, spec: dict[str, Any], styles: dict[str, str], mode: str,
     ensure_subscript_style(doc, present)
     ensure_table_styles(doc, present)
     frame_style = ensure_overlay_styles(doc, present)
+    set_inline_context(doc, present, styles)
     ctx: dict[str, Any] = {
         "doc": doc,
         "mode": mode,

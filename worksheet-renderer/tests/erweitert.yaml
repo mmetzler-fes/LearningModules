@@ -1,0 +1,50 @@
+# Erweiterte Blöcke (Phase 3): Auszeichnung, Überschriften ohne Nummer,
+# Ausrichtung, Listen, verbundene Zellen, umflossene Bilder, Kasten.
+titel: Erweiterte Blöcke
+content:
+  - type: heading
+    level: 1
+    text: Einleitung ohne Nummer
+  - type: text
+    text: |-
+      Text mit **fett**, *kursiv*, ***beidem***, ++unterstrichen++, ~~durchgestrichen~~,
+      `code`, x^{2}, CO_{2} und einem [Link](https://example.org). Rechnung 8*7 bleibt.
+      Zeile mit Umbruch\
+      danach die nächste Zeile.
+  - type: text
+    align: center
+    text: Zentrierter Absatz
+  - type: section
+    text: Erster nummerierter Abschnitt
+  - type: list
+    ordered: true
+    items:
+      - Erster Punkt
+      - text: Zweiter Punkt mit Unterpunkten
+        items: [Unterpunkt a, Unterpunkt b]
+      - Dritter Punkt
+  - type: image
+    file: bild.png
+    width: 4cm
+    float: left
+    border: true
+  - type: text
+    text: |-
+      Dieser Text fließt rechts am Bild vorbei. Dieser Text fließt rechts am Bild vorbei.
+      Dieser Text fließt rechts am Bild vorbei. Dieser Text fließt rechts am Bild vorbei.
+  - type: table
+    header: [{text: Gruppe, colspan: 2}, Wert]
+    rows:
+      - [{text: A, rowspan: 2}, a1, "1"]
+      - [a2, "2"]
+      - [B, b1, "3"]
+  - type: box
+    title: Merke
+    shaded: true
+    blocks:
+      - type: text
+        text: Inhalt im **Kasten**.
+      - type: karo
+        lines: 2
+      - type: solution
+        blocks: [Lösung im Kasten]

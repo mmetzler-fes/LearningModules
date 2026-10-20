@@ -3591,6 +3591,16 @@ body {
 }
 .docspec .ds-pagebreak span { background: var(--bg-secondary); color: var(--text-secondary); font-size: 0.75em; padding: 0 8px; }
 .docspec .ds-missing { color: var(--text-secondary); font-style: italic; }
+.docspec .ds-text code, .docspec .ds-list code, .docspec td code { font-size: 0.9em; background: var(--bg-primary); padding: 0 3px; border-radius: 3px; }
+.docspec .ds-image-border img { border: 1px solid var(--text-secondary); padding: 2px; }
+.docspec .ds-float { display: flex; gap: 0.4cm; align-items: flex-start; margin: 0.4em 0; }
+.docspec .ds-float-right { flex-direction: row-reverse; }
+.docspec .ds-float .ds-image { margin: 0; flex: 0 0 auto; max-width: 50%; }
+.docspec .ds-float-text { flex: 1 1 auto; min-width: 0; }
+.docspec .ds-box { border: 1px solid var(--text-secondary); border-radius: 2px; padding: 8px 12px; margin: 0.6em 0; }
+.docspec .ds-box-shaded { background: var(--bg-primary); }
+.docspec .ds-box-title { margin: 0 0 0.3em; }
+@media (max-width: 600px) { .docspec .ds-float { flex-direction: column; } .docspec .ds-float .ds-image { max-width: 100%; } }
 .ds-solutions-toggle { margin-bottom: 12px; }
 
 /* Editor: YAML links, Vorschau rechts; schmal untereinander */

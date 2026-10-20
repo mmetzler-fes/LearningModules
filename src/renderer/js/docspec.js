@@ -9,11 +9,13 @@
 // Gliederungsnummern 1. / 1.1 / 1.1.1, gewollte Zeilenumbrüche im Fließtext,
 // `n_S` mit tiefgestelltem S, Lösungen zunächst ausgeblendet.
 
-export const DOC_BLOCK_TYPES = ['section', 'task', 'subtask', 'text', 'list', 'code', 'image', 'table',
-  'formula', 'note', 'solution', 'karo', 'spacer', 'pagebreak'];
+export const DOC_BLOCK_TYPES = ['section', 'task', 'subtask', 'heading', 'text', 'list', 'code', 'image', 'table',
+  'formula', 'note', 'solution', 'box', 'karo', 'spacer', 'pagebreak'];
 
 const HEADING_TYPES = ['section', 'task', 'subtask'];
-const WITH_BLOCKS = ['section', 'task', 'subtask', 'solution'];
+const WITH_BLOCKS = ['section', 'task', 'subtask', 'solution', 'box'];
+const ALIGNS = ['left', 'center', 'right', 'justify'];
+const FLOATS = ['left', 'right', 'center'];
 // Bildquellen, die in der App angezeigt werden dürfen. Verweise per `file:`
 // gibt es nur im Kurs-Projekt des Generators.
 const IMAGE_SRC_RE = /^(data:image\/(png|jpeg|gif|webp|svg\+xml);base64,|https:\/\/|\/api\/)/i;
@@ -44,6 +46,18 @@ export function validateDocSpec(spec) {
   return errors;
 }
 
+function listItemsOk(items, depth) {
+  return depth <= 3 && items.every((it) => isText(it)
+    || (it && typeof it === 'object' && isText(it.text) && (it.items === undefined || (Array.isArray(it.items) && listItemsOk(it.items, depth + 1)))));
+}
+
+function cellOk(c) {
+  if (isText(c)) return true;
+  if (!c || typeof c !== 'object' || Array.isArray(c)) return false;
+  const span = (v) => v === undefined || (Number.isInteger(v) && v >= 1 && v <= 20);
+  return (c.text === undefined || isText(c.text)) && span(c.colspan) && span(c.rowspan);
+}
+
 function checkBlocks(blocks, path, errors, inSolution) {
   blocks.forEach((block, i) => checkBlock(block, `${path}[${i}]`, errors, inSolution));
 }
@@ -69,13 +83,23 @@ function checkBlock(block, path, errors, inSolution) {
     case 'subtask':
       need(isText(block.title) || isText(block.text), 'title fehlt.');
       break;
+    case 'heading':
+      need(isText(block.text) || isText(block.title), 'text (Überschrift) fehlt.');
+      if (block.level !== undefined) need([1, 2, 3].includes(block.level), 'level: 1, 2 oder 3.');
+      break;
     case 'text':
+      need(isText(block.text), 'text fehlt.');
+      if (block.align !== undefined) need(ALIGNS.includes(block.align), `align: ${ALIGNS.join(', ')}.`);
+      break;
     case 'note':
       need(isText(block.text), 'text fehlt.');
       break;
     case 'list':
       need(Array.isArray(block.items) && block.items.length > 0, 'items: Liste mit mindestens einem Punkt fehlt.');
-      if (Array.isArray(block.items)) need(block.items.every(isText), 'items: Jeder Punkt muss ein Text sein.');
+      if (Array.isArray(block.items)) need(listItemsOk(block.items, 1), 'items: Jeder Punkt ist ein Text oder { text, items } (höchstens 3 Ebenen).');
+      break;
+    case 'box':
+      need(Array.isArray(block.blocks) || isText(block.text), 'blocks oder text fehlt.');
       break;
     case 'code':
       need(isText(block.code) || isText(block.file), 'code fehlt.');
@@ -84,11 +108,18 @@ function checkBlock(block, path, errors, inSolution) {
       need(isText(block.src) || isText(block.file), 'src (Bild) fehlt.');
       if (isText(block.src)) need(IMAGE_SRC_RE.test(String(block.src)), 'src: nur Bilder als data:image/… oder https://.');
       if (block.width !== undefined) need(CSS_LENGTH_RE.test(String(block.width)), 'width: z. B. 9cm.');
+      if (block.float !== undefined) need(FLOATS.includes(block.float), `float: ${FLOATS.join(', ')}.`);
       break;
     case 'table':
       need(Array.isArray(block.rows) && block.rows.length > 0, 'rows: Liste der Zeilen fehlt.');
       if (Array.isArray(block.rows)) need(block.rows.every((r) => Array.isArray(r)), 'rows: Jede Zeile muss eine Liste sein, z. B. ["a", "b"].');
       if (block.header !== undefined) need(Array.isArray(block.header), 'header muss eine Liste sein.');
+      for (const row of [...(Array.isArray(block.header) ? [block.header] : []), ...(Array.isArray(block.rows) ? block.rows : [])]) {
+        if (Array.isArray(row) && !row.every(cellOk)) {
+          errors.push(`${at}: Zelle ist ein Text oder { text, colspan, rowspan } mit Zahlen von 1 bis 20.`);
+          break;
+        }
+      }
       break;
     case 'formula':
       need(isText(block.math) && String(block.math).trim() !== '', 'math (Formel) fehlt.');
@@ -135,6 +166,12 @@ export function textLines(text) {
   for (let i = 1; i < lines.length; i++) {
     const prev = lines[i - 1];
     const line = lines[i];
+    // Ein Backslash am Zeilenende erzwingt den Umbruch (und verschwindet).
+    if (prev.trimEnd().endsWith('\\')) {
+      out[out.length - 1] = out[out.length - 1].trimEnd().slice(0, -1).trimEnd();
+      out.push(line);
+      continue;
+    }
     const hard = LIST_START_RE.test(line)
       || (ASSIGN_START_RE.test(prev) && ASSIGN_START_RE.test(line))
       || (prev.trimEnd().endsWith(':') && line.startsWith(' '))
@@ -146,18 +183,65 @@ export function textLines(text) {
   return out;
 }
 
-/** Text → HTML: gewollte Umbrüche als <br>, Indizes tiefgestellt. */
+// Auszeichnung wie im Generator (INLINE_RE in make_worksheet.py): **fett**,
+// *kursiv*, ++unterstrichen++, ~~durchgestrichen~~, `code`, ^{hoch}, _{tief},
+// [Text](https://…). Die Zeichen wirken nur am Wortrand – „8*7“ bleibt eine
+// Rechnung. Ein Backslash davor schreibt das Zeichen selbst.
+const INLINE_RE = new RegExp([
+  '\\\\(?<esc>[\\\\*`\\[\\]^~+{}])',
+  '`(?<code>[^`\\n]+)`',
+  '(?<![\\w*])\\*\\*\\*(?<bi>\\S(?:.*?\\S)?)\\*\\*\\*(?![\\w*])',
+  '(?<![\\w*])\\*\\*(?<b>\\S(?:.*?\\S)?)\\*\\*(?![\\w*])',
+  '(?<![\\w*])\\*(?<i>[^\\s*](?:.*?[^\\s*])?)\\*(?![\\w*])',
+  '(?<![\\w+])\\+\\+(?<u>\\S(?:.*?\\S)?)\\+\\+(?![\\w+])',
+  '(?<![\\w~])~~(?<s>\\S(?:.*?\\S)?)~~(?![\\w~])',
+  '\\^\\{(?<sup>[^}]{1,40})\\}',
+  '_\\{(?<sub>[^}]{1,24})\\}',
+  '\\[(?<atext>[^\\]\\n]+)\\]\\((?<href>(?:https?://|mailto:)[^)\\s]+)\\)',
+].join('|'), 'g');
+
+/** Unbeschriebener Text: `n_S`-Indizes wie bisher. */
+function plainText(text) {
+  let html = '';
+  let pos = 0;
+  for (const m of text.matchAll(SUBSCRIPT_RE)) {
+    html += esc((text.slice(pos, m.index) + m[1]).replace(/\\_/g, '_'));
+    html += `<sub>${esc(m[2] || m[3])}</sub>`;
+    pos = m.index + m[0].length;
+  }
+  return html + esc(text.slice(pos).replace(/\\_/g, '_'));
+}
+
+/** Eine Zeile mit Auszeichnung → HTML. */
+export function inlineHtml(line) {
+  let html = '';
+  let buf = '';
+  let pos = 0;
+  const flush = () => { html += plainText(buf); buf = ''; };
+  for (const m of String(line).matchAll(new RegExp(INLINE_RE.source, 'g'))) {
+    buf += line.slice(pos, m.index);
+    pos = m.index + m[0].length;
+    const g = m.groups;
+    if (g.esc !== undefined) { buf += g.esc; continue; }
+    flush();
+    if (g.code !== undefined) html += `<code>${esc(g.code)}</code>`;
+    else if (g.bi !== undefined) html += `<strong><em>${inlineHtml(g.bi)}</em></strong>`;
+    else if (g.b !== undefined) html += `<strong>${inlineHtml(g.b)}</strong>`;
+    else if (g.i !== undefined) html += `<em>${inlineHtml(g.i)}</em>`;
+    else if (g.u !== undefined) html += `<u>${inlineHtml(g.u)}</u>`;
+    else if (g.s !== undefined) html += `<s>${inlineHtml(g.s)}</s>`;
+    else if (g.sup !== undefined) html += `<sup>${esc(g.sup)}</sup>`;
+    else if (g.sub !== undefined) html += `<sub>${esc(g.sub)}</sub>`;
+    else if (g.href !== undefined) html += `<a href="${esc(g.href)}" target="_blank" rel="noopener noreferrer">${inlineHtml(g.atext)}</a>`;
+  }
+  buf += String(line).slice(pos);
+  flush();
+  return html;
+}
+
+/** Text → HTML: gewollte Umbrüche als <br>, Auszeichnung und Indizes. */
 export function richText(text) {
-  return textLines(text).map((line) => {
-    let html = '';
-    let pos = 0;
-    for (const m of line.matchAll(SUBSCRIPT_RE)) {
-      html += esc((line.slice(pos, m.index) + m[1]).replace(/\\_/g, '_'));
-      html += `<sub>${esc(m[2] || m[3])}</sub>`;
-      pos = m.index + m[0].length;
-    }
-    return html + esc(line.slice(pos).replace(/\\_/g, '_'));
-  }).join('<br>');
+  return textLines(text).map(inlineHtml).join('<br>');
 }
 
 // ==================== Verweise auf andere Blätter ====================
@@ -448,7 +532,35 @@ export function renderDocSpecHtml(spec, options = {}) {
 }
 
 function renderBlocksHtml(blocks, ctx) {
-  return (blocks || []).map((b) => renderBlockHtml(b, ctx)).join('');
+  const list = blocks || [];
+  let html = '';
+  for (let i = 0; i < list.length; i++) {
+    const b = list[i];
+    // Bild mit float: left/right und die folgenden Texte stehen nebeneinander (wie im Druck).
+    if (b && typeof b === 'object' && b.type === 'image' && (b.float === 'left' || b.float === 'right')) {
+      const texts = [];
+      while (i + 1 < list.length && (isText(list[i + 1]) || (list[i + 1] && ['text', 'list', 'note'].includes(list[i + 1].type || 'text')))) texts.push(list[++i]);
+      if (texts.length) {
+        html += `<div class="ds-float ds-float-${b.float}">${renderBlockHtml({ ...b, float: undefined }, ctx)}<div class="ds-float-text">${renderBlocksHtml(texts, ctx)}</div></div>`;
+        continue;
+      }
+    }
+    html += renderBlockHtml(b, ctx);
+  }
+  return html;
+}
+
+function listHtml(items, ordered) {
+  const tag = ordered ? 'ol' : 'ul';
+  return `<${tag} class="ds-list">${(items || []).map((it) => (isText(it)
+    ? `<li>${richText(it)}</li>`
+    : `<li>${richText(it?.text ?? '')}${Array.isArray(it?.items) ? listHtml(it.items, ordered) : ''}</li>`)).join('')}</${tag}>`;
+}
+
+function cellHtml(tag, c) {
+  if (isText(c)) return `<${tag}>${richText(c)}</${tag}>`;
+  const span = (name, v) => (Number.isInteger(v) && v > 1 && v <= 20 ? ` ${name}="${v}"` : '');
+  return `<${tag}${span('colspan', c?.colspan)}${span('rowspan', c?.rowspan)}>${richText(c?.text ?? '')}</${tag}>`;
 }
 
 function headingNumber(type, c) {
@@ -476,12 +588,23 @@ function renderBlockHtml(block, ctx) {
       if (block.title !== undefined && isText(block.text)) html += paragraphs(block.text);
       return html + renderBlocksHtml(block.blocks, ctx);
     }
-    case 'text':
-      return isText(block.text) ? paragraphs(block.text) : '';
+    case 'heading': {
+      const level = [1, 2, 3].includes(block.level) ? block.level + 1 : 2;
+      return `<h${level} class="ds-heading ds-plain">${richText(block.text ?? block.title ?? '')}</h${level}>`;
+    }
+    case 'text': {
+      if (!isText(block.text)) return '';
+      const html = paragraphs(block.text);
+      return ALIGNS.includes(block.align) && block.align !== 'left' ? html.replace(/<p class="ds-text">/g, `<p class="ds-text" style="text-align:${block.align}">`) : html;
+    }
+    case 'box': {
+      const title = isText(block.title) ? `<p class="ds-box-title"><strong>${richText(block.title)}</strong></p>` : '';
+      return `<div class="ds-box${block.shaded ? ' ds-box-shaded' : ''}">${title}${isText(block.text) ? paragraphs(block.text) : ''}${renderBlocksHtml(block.blocks, ctx)}</div>`;
+    }
     case 'note':
       return isText(block.text) ? `<p class="ds-note"><em>${richText(block.text)}</em></p>` : '';
     case 'list':
-      return `<ul class="ds-list">${(block.items || []).map((it) => `<li>${richText(it)}</li>`).join('')}</ul>`;
+      return listHtml(block.items, !!block.ordered);
     case 'code': {
       const caption = isText(block.caption) ? `<p class="ds-caption"><em>${esc(block.caption)}</em></p>` : '';
       const code = isText(block.code)
@@ -495,14 +618,15 @@ function renderBlockHtml(block, ctx) {
         ? `<img src="${esc(block.src)}" alt="${esc(block.alt ?? block.caption ?? '')}"${width}>`
         : `<span class="ds-missing">Bild ${esc(block.file ?? '')}</span>`;
       const caption = isText(block.caption) ? `<figcaption>${richText(block.caption)}</figcaption>` : '';
-      return `<figure class="ds-image">${img}${caption}</figure>`;
+      const cls = `ds-image${block.border ? ' ds-image-border' : ''}${FLOATS.includes(block.float) ? ` ds-image-${block.float}` : ''}`;
+      return `<figure class="${cls}">${img}${caption}</figure>`;
     }
     case 'table': {
       const caption = isText(block.caption) ? `<p class="ds-caption"><em>${esc(block.caption)}</em></p>` : '';
       const head = Array.isArray(block.header)
-        ? `<thead><tr>${block.header.map((c) => `<th>${richText(c ?? '')}</th>`).join('')}</tr></thead>` : '';
+        ? `<thead><tr>${block.header.map((c) => cellHtml('th', c ?? '')).join('')}</tr></thead>` : '';
       const rows = (block.rows || []).filter(Array.isArray)
-        .map((r) => `<tr>${r.map((c) => `<td>${richText(c ?? '')}</td>`).join('')}</tr>`).join('');
+        .map((r) => `<tr>${r.map((c) => cellHtml('td', c ?? '')).join('')}</tr>`).join('');
       return `${caption}<div class="ds-table-wrap"><table class="ds-table">${head}<tbody>${rows}</tbody></table></div>`;
     }
     case 'formula': {

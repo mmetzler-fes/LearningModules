@@ -55,7 +55,52 @@ content:
   - type: spacer                # nur Leerraum, ohne Raster
     lines: 4
   - type: pagebreak
+  - type: heading               # Überschrift OHNE Nummer, zählt nicht mit
+    level: 1                    # 1–3 (wie section/task/subtask)
+    text: Vorwort
+  - type: box                   # Kasten mit Rahmen, darin beliebige Blöcke
+    title: Merke                # optional, fett
+    shaded: true                # optional, grau hinterlegt
+    blocks: [ … ]
 ```
+
+### Erweiterungen
+
+```yaml
+  - type: text
+    align: center               # left | center | right | justify
+    text: |-
+      **fett**, *kursiv*, ***beides***, ++unterstrichen++, ~~durchgestrichen~~,
+      `code`, x^{2}, CO_{2}, [Link](https://example.org)
+      Zeile mit Backslash am Ende\
+      erzwingt den Umbruch.
+  - type: list
+    ordered: true               # 1. 2. 3. (zweite Ebene a) b) c))
+    items:
+      - Punkt
+      - text: Punkt mit Unterpunkten
+        items: [a, b]           # bis zu 3 Ebenen
+  - type: table
+    header: [{text: Gruppe, colspan: 2}, Wert]
+    rows:                       # nur sichtbare Zellen nennen, wie in HTML
+      - [{text: A, rowspan: 2}, a1, "1"]
+      - [a2, "2"]
+  - type: image
+    file: schaltung.png         # in der App: src (data: oder Nextcloud-Link)
+    width: 6cm
+    float: left                 # left | right: folgende text/list/note stehen daneben
+    border: true                # center: eigene Zeile, mittig
+```
+
+Ein Bild mit `float: left/right` bildet mit den direkt folgenden Text-,
+Listen- und Hinweisblöcken eine randlose zweispaltige Gruppe – im Druck eine
+Tabelle, online nebeneinander. So kann nichts Nachfolgendes das Bild verdecken.
+
+### Verweise (nur in LearningModules)
+
+`{{blatt:06_verzweigungen}}` → aktuelle Nummer, `{{blatt:a..b}}` → Bereich,
+`{{titel:…}}` → Titel. Beim Export als Kurs werden sie durch die Nummern
+ersetzt.
 
 `file:`-Pfade werden in dieser Reihenfolge gesucht: Ordner der Spec →
 Kursordner → Projektwurzel. Also `code/vorlage.html` neben der Spec oder
@@ -128,18 +173,19 @@ Verzeichniseinträge und ihre Seitenzahlen erzeugt der Renderer (Ebene 1 und 2).
   ihren Ersatztext ersetzt (aus `text:` oder automatisch aus der Formel
   abgeleitet); im Arbeitsblatt, im Skript und außerhalb von Lösungen steht das
   Objekt selbst. Rechenwege in Lösungen schreibt man daher weiter als Text.
-* Der Renderer kennt keine Auszeichnung im Fließtext: `**fett**` landet
-  wörtlich mit Sternchen im Dokument. Hervorhebungen also über `note`, eine
-  eigene Zeile oder die Wortwahl lösen. Die einzige Ausnahme ist der
-  tiefgestellte Index für Formelzeichen: `n_S` wird zu n mit tiefgestelltem S,
-  mehrbuchstabige Indizes in geschweifte Klammern (`P_{Schlupf}`). Die Basis
-  ist genau ein Buchstabe, dem kein Wortzeichen vorausgeht – Bezeichner wie
-  `to_line`, `AB_Vorlage` oder `01_drehfeld` bleiben also unangetastet. In
+* Tiefgestellte Indizes für Formelzeichen: `n_S` wird zu n mit tiefgestelltem
+  S, mehrbuchstabige Indizes in geschweifte Klammern (`P_{Schlupf}`). Ohne
+  Klammern ist die Basis genau ein Buchstabe, dem kein Wortzeichen vorausgeht –
+  Bezeichner wie `to_line`, `AB_Vorlage` oder `01_drehfeld` bleiben also
+  unangetastet. Mit Klammern wirkt `_{…}` nach jedem Zeichen (`CO_{2}`). In
   Codeblöcken wird nichts umgesetzt; im Fließtext schreibt `\_` einen
   gewöhnlichen Unterstrich (`c\_str()`). Nicht indiziert werden Bezeichnungen,
   die nur so *aussehen* wie ein Formelzeichen: Klemmen und Betriebsmittel
   (`U1, V1, W1`, `L1`, `Q11`), Normreihen und Klassen (`E12`, `IE2`, `S1`) und
   Schaltungsnamen (`RC`-Tiefpass).
+* Auszeichnung wirkt nur am Wortrand: `8*7` oder `a**b` bleiben, wie sie sind.
+  Hochgestellt nur mit Klammern (`x^{2}`) – `10^9` bleibt eine Schreibweise.
+  Ein Backslash schreibt das Zeichen selbst (`\*`, `` \` ``, `\[`).
 * Zeilenumbrüche im Fließtext: Ein einfacher Umbruch der Spec ist meist nur
   Satzspiegel und wird zum Leerzeichen. Er bleibt aber als Zeilenumbruch
   erhalten, wenn die Zeile kürzer als 70 Zeichen ist, die Folgezeile mit einer

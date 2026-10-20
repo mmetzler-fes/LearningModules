@@ -54,6 +54,7 @@ from make_worksheet import (  # noqa: E402  (Pfad muss vorher stehen)
     existing_styles,
     find_template,
     fix_mimetype,
+    set_inline_context,
     iter_text_elements,
     load_course,
     merge_spec,
@@ -217,6 +218,7 @@ def render_sheets(doc, spec: dict[str, Any], course: dict[str, Any], course_dir:
     ensure_subscript_style(doc, present)
     ensure_table_styles(doc, present)
     frame_style = ensure_overlay_styles(doc, present)
+    set_inline_context(doc, present, styles)
 
     elements: list[Element] = []
     for nummer, path in enumerate(sheet_specs(spec, course_dir), start=1):

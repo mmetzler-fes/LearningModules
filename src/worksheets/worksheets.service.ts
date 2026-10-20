@@ -7,10 +7,11 @@ import { NextcloudService } from '../nextcloud/nextcloud.service';
 import { docSpec } from './docspec';
 import { DocNumberingService } from './doc-numbering.service';
 import { formatHeader } from './numbering';
+import { widthInCm } from './course-format';
+
+export { widthInCm };
 import { RenderJob, WorksheetOutput, WorksheetRendererClient } from './renderer.client';
 
-/** Druckbreite der Grundvorlage in cm (Textbreite, 33 Karos à 0,5 cm). */
-const TEXT_WIDTH_CM = 16.5;
 const PRINTABLE_IMAGES: Record<string, string> = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/svg+xml': 'svg' };
 
 type Refs = Record<string, { pfad: string; titel: string }>;
@@ -167,11 +168,3 @@ export class WorksheetsService {
   }
 }
 
-/** Breitenangabe der Web-Ansicht (9cm, 90mm, 50%, 300px) → cm für den Generator. */
-export function widthInCm(width: unknown): string | null {
-  const m = /^(\d+(?:\.\d+)?)(cm|mm|px|%)$/.exec(typeof width === 'string' || typeof width === 'number' ? String(width) : '');
-  if (!m) return null;
-  const v = parseFloat(m[1]);
-  const cm = m[2] === 'cm' ? v : m[2] === 'mm' ? v / 10 : m[2] === '%' ? (v / 100) * TEXT_WIDTH_CM : v / 37.8;
-  return `${Math.min(cm, TEXT_WIDTH_CM).toFixed(2)}cm`;
-}

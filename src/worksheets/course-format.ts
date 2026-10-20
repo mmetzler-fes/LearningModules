@@ -45,6 +45,19 @@ const SPEC_DROP = ['nummer', 'titel', 'slug', 'template', 'skript_template', 'ku
 
 export class CourseFormatError extends Error {}
 
+/** Druckbreite der Grundvorlage in cm (Textbreite, 33 Karos à 0,5 cm). */
+const TEXT_WIDTH_CM = 16.5;
+
+/** Breitenangabe der Web-Ansicht (9cm, 90mm, 50%, 300px) → cm für den Generator. */
+export function widthInCm(width: unknown): string | null {
+  const m = /^(\d+(?:\.\d+)?)(cm|mm|px|%)$/.exec(typeof width === 'string' || typeof width === 'number' ? String(width) : '');
+  if (!m) return null;
+  const v = parseFloat(m[1]);
+  const cm = m[2] === 'cm' ? v : m[2] === 'mm' ? v / 10 : m[2] === '%' ? (v / 100) * TEXT_WIDTH_CM : v / 37.8;
+  return `${Math.min(cm, TEXT_WIDTH_CM).toFixed(2)}cm`;
+}
+
+
 const natural = (a: string, b: string) => a.localeCompare(b, 'de', { numeric: true });
 
 function parseYaml(text: string, where: string): any {
@@ -257,7 +270,8 @@ export function writeCourse(
         if (m && ext) {
           const name = `bilder/bild-${++n}.${ext}`;
           put(`${e.folder}/${name}`, Buffer.from(m[2], 'base64'));
-          out = { ...rest, file: name };
+          // Der Generator rechnet in cm (Pixel aus dem .odt-Import umrechnen).
+          out = { ...rest, file: name, ...(rest.width !== undefined ? { width: widthInCm(rest.width) || '12cm' } : {}) };
         } else {
           warnings.push(`${e.folder}: Bild ohne Datei (${String(b.src).slice(0, 60)}) – als Hinweis exportiert.`);
           out = { type: 'note', text: `[${b.caption || 'Bild'}]` };

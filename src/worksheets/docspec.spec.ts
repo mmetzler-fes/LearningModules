@@ -117,7 +117,7 @@ describe('validateDocSpec', () => {
       'content[3].blocks[0] (solution): Lösung in einer Lösung ist nicht möglich.',
       expect.stringContaining('content[4] (formula): Formel –'),
       'content[5] (image): src: nur Bilder als data:image/… oder https://.',
-      'content[6] (text): blocks gibt es nur bei section, task, subtask, solution.',
+      'content[6] (text): blocks gibt es nur bei section, task, subtask, solution, box.',
     ]);
   });
 
@@ -207,5 +207,68 @@ describe('Verweise', () => {
   it('die Web-Ansicht löst mit refs auf', () => {
     expect(ds.renderDocSpecHtml({ content: ['Blatt {{blatt:13_ad}}'] }, { refs })).toContain('Blatt 2.1');
     expect(ds.renderDocSpecHtml({ content: ['Blatt {{blatt:13_ad}}'] })).toContain('Blatt [13_ad]');
+  });
+});
+
+describe('Phase 3: Auszeichnung und neue Blöcke', () => {
+  it('Auszeichnung wie im Generator, nur am Wortrand', () => {
+    expect(ds.richText('**fett**, *kursiv*, ***beides***, ++u++, ~~s~~, `c`, x^{2}, CO_{2}, [L](https://a.b)'))
+      .toBe('<strong>fett</strong>, <em>kursiv</em>, <strong><em>beides</em></strong>, <u>u</u>, <s>s</s>, <code>c</code>, '
+        + 'x<sup>2</sup>, CO<sub>2</sub>, <a href="https://a.b" target="_blank" rel="noopener noreferrer">L</a>');
+    expect(ds.richText('"8*7 = 56" und a**b**c, 10^9, C++')).toBe('&quot;8*7 = 56&quot; und a**b**c, 10^9, C++');
+    expect(ds.richText('\\*kein\\* **<b>**')).toBe('*kein* <strong>&lt;b&gt;</strong>');
+    expect(ds.richText('[x](javascript:alert(1))')).toBe('[x](javascript:alert(1))');
+  });
+
+  it('Backslash am Zeilenende erzwingt den Umbruch', () => {
+    expect(ds.textLines(`${'x'.repeat(80)}\\\nweiter`)).toEqual(['x'.repeat(80), 'weiter']);
+  });
+
+  it('Überschrift ohne Nummer zählt nicht mit', () => {
+    const html = ds.renderDocSpecHtml({ content: [{ type: 'heading', text: 'Vorwort' }, { type: 'section', text: 'A' }] });
+    expect(html).toContain('<h2 class="ds-heading ds-plain">Vorwort</h2>');
+    expect(html).toContain('<span class="ds-num">1.</span> A');
+  });
+
+  it('Ausrichtung, verschachtelte und nummerierte Listen', () => {
+    const html = ds.renderDocSpecHtml({ content: [
+      { type: 'text', align: 'center', text: 'Mitte' },
+      { type: 'list', ordered: true, items: ['a', { text: 'b', items: ['b1'] }] },
+    ] });
+    expect(html).toContain('<p class="ds-text" style="text-align:center">Mitte</p>');
+    expect(html).toContain('<ol class="ds-list"><li>a</li><li>b<ol class="ds-list"><li>b1</li></ol></li></ol>');
+  });
+
+  it('verbundene Zellen, Kasten, Bild neben Text', () => {
+    const html = ds.renderDocSpecHtml({ content: [
+      { type: 'table', header: [{ text: 'G', colspan: 2 }], rows: [[{ text: 'A', rowspan: 2 }, 'a1'], ['a2']] },
+      { type: 'box', title: 'Merke', shaded: true, blocks: ['Inhalt'] },
+      { type: 'image', src: 'https://x/a.png', float: 'right', border: true },
+      'Daneben',
+      { type: 'karo' },
+    ] });
+    expect(html).toContain('<th colspan="2">G</th>');
+    expect(html).toContain('<td rowspan="2">A</td><td>a1</td></tr><tr><td>a2</td>');
+    expect(html).toContain('<div class="ds-box ds-box-shaded"><p class="ds-box-title"><strong>Merke</strong></p><p class="ds-text">Inhalt</p></div>');
+    expect(html).toMatch(/<div class="ds-float ds-float-right"><figure class="ds-image ds-image-border">.*<div class="ds-float-text"><p class="ds-text">Daneben<\/p><\/div><\/div><div class="ds-karo"/);
+  });
+
+  it('Prüfung der neuen Felder', () => {
+    expect(ds.validateDocSpec({ content: [
+      { type: 'heading', text: 'x', level: 4 },
+      { type: 'text', text: 'x', align: 'mitte' },
+      { type: 'list', items: [{ items: [] }] },
+      { type: 'table', rows: [[{ text: 'x', colspan: 0 }]] },
+      { type: 'image', src: 'https://a/b.png', float: 'oben' },
+      { type: 'box' },
+      { type: 'box', blocks: [{ type: 'solution', blocks: [{ type: 'karo' }] }] },
+    ] })).toEqual([
+      'content[0] (heading): level: 1, 2 oder 3.',
+      'content[1] (text): align: left, center, right, justify.',
+      'content[2] (list): items: Jeder Punkt ist ein Text oder { text, items } (höchstens 3 Ebenen).',
+      'content[3] (table): Zelle ist ein Text oder { text, colspan, rowspan } mit Zahlen von 1 bis 20.',
+      'content[4] (image): float: left, right, center.',
+      'content[5] (box): blocks oder text fehlt.',
+    ]);
   });
 });

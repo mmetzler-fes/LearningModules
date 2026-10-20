@@ -13,6 +13,7 @@ import { load as yamlLoad, dump as yamlDump } from './vendor/js-yaml.js';
 import { validateDocSpec, renderDocSpecHtml, docRefSlugs } from './docspec.js';
 import { downloadBlob } from './api.js';
 import { escapeHtml } from './utils.js';
+import { htmlToDocSpec } from './docspec-html.js';
 
 /** Startinhalt eines neuen Dokuments – zeigt das Format an einem Beispiel. */
 const STARTER = `content:
@@ -62,6 +63,7 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
     <div class="ds-editor-bar">
       ${OUTPUTS.map((o) => `<button type="button" class="btn btn-secondary btn-sm" data-output="${o.output}" title="${o.title}">${o.label}</button>`).join('')}
       <label class="ds-editor-toggle"><input type="checkbox" class="ds-show-solutions"> Lösungen zeigen</label>
+      <button type="button" class="btn btn-secondary btn-sm ds-import-odt" title="Writer-Dokument übernehmen: Überschriften, Absätze, Listen, Tabellen, Bilder, Textrahmen">📄 Aus .odt übernehmen</button>
       <span class="ds-editor-status hint"></span>
     </div>
     <div class="ds-editor-header hint" hidden></div>
@@ -132,6 +134,36 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
     textarea.dispatchEvent(new Event('input'));
   });
   showSolutions.addEventListener('change', update);
+
+  root.querySelector('.ds-import-odt').addEventListener('click', () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.odt,.ott,.fodt,application/vnd.oasis.opendocument.text';
+    input.onchange = async () => {
+      const file = input.files[0];
+      if (!file) return;
+      const ask = window.appConfirm || ((m) => Promise.resolve(window.confirm(m)));
+      const empty = !spec || !Array.isArray(spec.content) || !spec.content.length || textarea.value === STARTER;
+      if (!empty && !(await ask('Den bisherigen Inhalt durch das Dokument ersetzen?'))) return;
+      status.textContent = 'Wird übernommen …';
+      try {
+        const form = new FormData();
+        form.append('file', file);
+        const res = await fetch('/api/interchange/odt-to-html', { method: 'POST', headers: token() ? { Authorization: `Bearer ${token()}` } : {}, body: form });
+        const data = await res.json();
+        if (!res.ok || !data.success) throw new Error(data.message || `HTTP ${res.status}`);
+        const { spec: imported, warnings } = htmlToDocSpec(data.html);
+        textarea.value = toYaml(imported);
+        if (titleInput && !titleInput.value.trim()) titleInput.value = data.title || '';
+        update();
+        const all = [...(data.warnings || []), ...warnings];
+        status.innerHTML = `✅ Übernommen: ${imported.content.length} Blöcke.` + (all.length ? ` ${all.map((w) => `⚠️ ${escapeHtml(w)}`).join(' ')}` : '');
+      } catch (err) {
+        status.textContent = `❌ Übernahme fehlgeschlagen: ${err.message}`;
+      }
+    };
+    input.click();
+  });
 
   for (const btn of root.querySelectorAll('[data-output]')) {
     btn.addEventListener('click', () => print(btn.dataset.output, btn));

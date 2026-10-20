@@ -101,6 +101,68 @@ export function effectiveOf(
   return [...out];
 }
 
+/**
+ * Kategorien je Tag samt denen seiner Themengebiete: Ein Tag „Arduino“ unter
+ * dem Themengebiet „Informatik“ zählt auch als Informatik. `tags` muss die
+ * Themengebiete mit enthalten.
+ */
+export function tagCategoriesWithAreas(
+  tags: Array<{ id: string; categoryIds?: string[] | null; areaIds?: string[] | null }>,
+): Map<string, string[]> {
+  const own = new Map(tags.map((t) => [t.id, t.categoryIds || []]));
+  const out = new Map<string, string[]>();
+  for (const t of tags) {
+    const ids = new Set(t.categoryIds || []);
+    for (const a of t.areaIds || []) for (const c of own.get(a) || []) ids.add(c);
+    if (ids.size) out.set(t.id, [...ids]);
+  }
+  return out;
+}
+
+/** Vergleichbare Form eines Namens: klein, ohne Satzzeichen und Emojis. */
+const normName = (s: string) => String(s || '')
+  .toLocaleLowerCase('de')
+  .normalize('NFC')
+  .replace(/[^\p{L}\p{N}]+/gu, ' ')
+  .trim();
+
+/**
+ * Übliche Kurzformen von Fächern an Schulen → Name in der Fächerliste.
+ * Nur Eindeutiges – im Zweifel lieber nichts erkennen.
+ */
+const SUBJECT_ALIASES: Record<string, string> = {
+  mathe: 'mathematik', ma: 'mathematik',
+  info: 'informatik', inf: 'informatik', it: 'informatik', edv: 'informatik',
+  et: 'elektrotechnik', elektro: 'elektrotechnik', elektronik: 'elektrotechnik',
+  engl: 'englisch', franz: 'französisch', frz: 'französisch',
+  sp: 'spanisch', span: 'spanisch', lat: 'latein', ital: 'italienisch',
+  ph: 'physik', phy: 'physik', ch: 'chemie', bio: 'biologie', bi: 'biologie',
+  geo: 'geografie', geographie: 'geografie', erdkunde: 'geografie', ek: 'geografie',
+  ge: 'geschichte', gesch: 'geschichte', gk: 'gesellschaftskunde', gemeinschaftskunde: 'gesellschaftskunde', sozialkunde: 'gesellschaftskunde',
+  reli: 'religion', rel: 'religion', eth: 'ethik', phil: 'philosophie', mu: 'musik', ku: 'kunst',
+  sport: 'sport', spo: 'sport', psych: 'psychologie', päd: 'pädagogik',
+  metall: 'metalltechnik', holz: 'holztechnik', bau: 'bautechnik',
+  bwl: 'wirtschaft und verwaltung', wirtschaft: 'wirtschaft und verwaltung',
+  daz: 'deutsch als zweitsprache',
+};
+
+/**
+ * Fach zu einem Namen wie „Mathe“ oder „📁 Informatik“ – für Themengebiete,
+ * damit Lernthemen darunter im Shop schon eingeordnet sind. Nur aktive
+ * Fächer, gleichnamig oder über eine Kurzform; bei mehreren das oberste.
+ * Sonst null.
+ */
+export function guessSubject(name: string, all: CategoryLike[]): string | null {
+  const n = normName(name);
+  if (!n) return null;
+  const wanted = new Set([n, SUBJECT_ALIASES[n]].filter(Boolean));
+  const byId = new Map(all.map((c) => [c.id, c]));
+  const hits = all
+    .filter((c) => c.facet === 'subject' && c.status === 'active' && wanted.has(normName(c.label)))
+    .sort((a, b) => depthOf(a.id, byId) - depthOf(b.id, byId));
+  return hits[0]?.id ?? null;
+}
+
 /** Enthält die Auswahl ein Fach? */
 export function hasSubject(ids: string[], byId: Map<string, CategoryLike>): boolean {
   return ids.some((id) => byId.get(id)?.facet === 'subject');

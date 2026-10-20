@@ -1,7 +1,8 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import {
-  cannotAddUnder, cleanIds, cleanLabel, depthOf, effectiveOf, hasSubject, MAX_DEPTH, seedRows, siblingWithLabel, withAncestors, withDescendants,
+  cannotAddUnder, cleanIds, cleanLabel, depthOf, effectiveOf, guessSubject, hasSubject, MAX_DEPTH, seedRows, siblingWithLabel,
+  tagCategoriesWithAreas, withAncestors, withDescendants,
   CategoryLike,
 } from './category-rules';
 
@@ -70,6 +71,42 @@ describe('Kategorien: Auswahl', () => {
   });
 });
 
+describe('Themengebiete: Fach am Namen erkennen', () => {
+  it('gleichnamig, über Kurzformen und ohne Emojis', () => {
+    expect(guessSubject('Elektrotechnik', cats)).toBe('et');
+    expect(guessSubject('  📁 elektrotechnik ', cats)).toBe('et');
+    expect(guessSubject('ET', cats)).toBe('et');
+    expect(guessSubject('SPS-Programmierung', cats)).toBe('sps');
+  });
+
+  it('nichts Ausgeblendetes, keine fremden Vorschläge, keine Stufen, sonst null', () => {
+    expect(guessSubject('Alt', cats)).toBeNull();
+    expect(guessSubject('TIA-Portal', cats)).toBeNull();
+    expect(guessSubject('Fachschule', cats)).toBeNull();
+    expect(guessSubject('Arduino', cats)).toBeNull();
+    expect(guessSubject('', cats)).toBeNull();
+  });
+
+  it('bei gleichem Namen das oberste', () => {
+    const twice: CategoryLike[] = [...cats, { id: 'et2', facet: 'subject', parentId: 'at', label: 'Elektrotechnik', status: 'active' }];
+    expect(guessSubject('Elektrotechnik', twice)).toBe('et');
+  });
+});
+
+describe('Tags erben das Fach ihrer Themengebiete', () => {
+  it('eigene und die der Themengebiete, ohne Doppelte', () => {
+    const map = tagCategoriesWithAreas([
+      { id: 'area', categoryIds: ['inf'] },
+      { id: 'arduino', categoryIds: null, areaIds: ['area'] },
+      { id: 'tia', categoryIds: ['sps', 'inf'], areaIds: ['area'] },
+      { id: 'leer', categoryIds: [], areaIds: ['fehlt'] },
+    ]);
+    expect(map.get('arduino')).toEqual(['inf']);
+    expect(map.get('tia')).toEqual(['sps', 'inf']);
+    expect(map.has('leer')).toBe(false);
+  });
+});
+
 describe('Ausgelieferte Listen', () => {
   const dir = path.join(__dirname, 'vocab');
   const read = (f: string) => JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8'));
@@ -98,5 +135,27 @@ describe('Ausgelieferte Listen', () => {
   it('OpenEduHub-Fächer und -Stufen mit Adresse', () => {
     expect(all.get('oeh-d:04005')?.label).toBe('Elektrotechnik');
     expect(all.get('oeh-c:berufliche_bildung')?.uri).toBe('http://w3id.org/openeduhub/vocabs/educationalContext/berufliche_bildung');
+  });
+});
+
+describe('Themengebiete: Fächer der ausgelieferten Liste', () => {
+  const dir = path.join(__dirname, 'vocab');
+  const read = (f: string) => JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8'));
+  const all = seedRows({
+    discipline: read('oeh-discipline.json'),
+    context: read('oeh-educational-context.json'),
+    shared: read('lm-shared.json'),
+  }).map((r) => ({ ...r, status: 'active' as const }));
+  const label = (name: string) => all.find((c) => c.id === guessSubject(name, all))?.label;
+
+  it('erkennt übliche Namen von Themengebieten', () => {
+    expect(label('Mathe')).toBe('Mathematik');
+    expect(label('Informatik')).toBe('Informatik');
+    expect(label('Deutsch')).toBe('Deutsch');
+    expect(label('Englisch')).toBe('Englisch');
+    expect(label('Elektrotechnik')).toBe('Elektrotechnik');
+    expect(label('Physik')).toBe('Physik');
+    expect(label('Spanisch')).toBe('Spanisch');
+    expect(label('Erdkunde')).toBe('Geografie');
   });
 });

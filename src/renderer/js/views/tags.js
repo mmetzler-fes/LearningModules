@@ -1,5 +1,5 @@
-import { escapeHtml, escapeAttr } from '../utils.js';
 import { CategoryPicker, categoryChips, ensureCategories } from './categories.js';
+import { escapeHtml, escapeAttr } from '../utils.js';
 
 const DEFAULT_TAG_COLOR = '#4f7cff';
 
@@ -325,8 +325,9 @@ export class TagsView {
     this._areaWrap = $('tagAreaChoicesWrap');
     this._areaBox = $('tagAreaChoices');
     this._areaSelected = new Set();
-    const catBox = $('tagCategories');
-    this._catPicker = catBox ? new CategoryPicker(app, catBox) : null;
+    this._shopCat = $('tagShopCategory');
+    this._shopCatIds = null;   // gespeicherte Einordnung des Themengebiets (null = noch nie)
+    this._catPicker = null;    // erst bei „ändern“ – sonst bleibt das Formular schlank
 
     this._bindEvents();
   }
@@ -341,7 +342,36 @@ export class TagsView {
     // Beim Verlassen unfertige Eingaben auf den zuletzt gueltigen Wert zurueckholen.
     this._hex?.addEventListener('blur', () => this._setColor(this._color?.value));
     this._btnCopyColor?.addEventListener('click', () => this._copyColor());
-    this._isArea?.addEventListener('change', () => this._renderAreaChoices());
+    this._isArea?.addEventListener('change', () => { this._renderAreaChoices(); this._renderShopCategory(); });
+  }
+
+  /**
+   * Fach eines Themengebiets für den Shop – eine Zeile statt Auswahlbaum.
+   * Ohne Eingriff erkennt der Server es am Namen („Mathe“ → Mathematik);
+   * „ändern“ öffnet die Auswahl (nur Fächer).
+   */
+  _renderShopCategory() {
+    const box = this._shopCat;
+    if (!box) return;
+    const show = !!this._isArea?.checked;
+    box.classList.toggle('hidden', !show);
+    if (!show) { box.innerHTML = ''; this._catPicker = null; return; }
+    const ids = this._shopCatIds || [];
+    const current = ids.length ? categoryChips(this.app, ids)
+      : !this._editId || this._shopCatIds == null ? '<span class="hint">wird beim Speichern am Namen erkannt</span>'
+        : '<span class="hint">kein Fach</span>';
+    box.innerHTML = `
+      <div class="tag-shop-cat-line">🛒 Im Shop: ${current}
+        <button type="button" class="link-btn tag-shop-cat-edit">ändern</button>
+        <button type="button" class="help-hint" data-help="kategorien#themengebiete-und-faecher" title="Hilfe: Themengebiete und Fächer" aria-label="Hilfe: Themengebiete und Fächer">?</button>
+      </div>
+      <div class="tag-shop-cat-picker"></div>`;
+    this._catPicker = null;
+    box.querySelector('.tag-shop-cat-edit').addEventListener('click', (e) => {
+      e.currentTarget.remove();
+      this._catPicker = new CategoryPicker(this.app, box.querySelector('.tag-shop-cat-picker'), { facets: ['subject'] });
+      this._catPicker.render(ids);
+    });
   }
 
   /**
@@ -417,8 +447,9 @@ export class TagsView {
     this._btnCancel?.classList.add('hidden');
     if (this._isArea) this._isArea.checked = false;
     this._areaSelected = new Set();
+    this._shopCatIds = null;
     this._renderAreaChoices();
-    this._catPicker?.render([]);
+    this._renderShopCategory();
   }
 
   async _onSubmit(e) {
@@ -428,7 +459,8 @@ export class TagsView {
     const color = this._color?.value || null;
     const isArea = !!this._isArea?.checked;
     const areaIds = isArea ? [] : [...this._areaSelected];
-    const categoryIds = this._catPicker ? this._catPicker.selectedIds : undefined;
+    // Nur mitschicken, wenn die Auswahl offen war – sonst erkennt der Server das Fach.
+    const categoryIds = isArea && this._catPicker ? this._catPicker.selectedIds : undefined;
 
     try {
       const res = this._editId
@@ -456,8 +488,9 @@ export class TagsView {
     this._btnCancel?.classList.remove('hidden');
     if (this._isArea) this._isArea.checked = !!tag.isArea;
     this._areaSelected = new Set(tag.areaIds || []);
+    this._shopCatIds = tag.categoryIds ?? null;
     this._renderAreaChoices();
-    this._catPicker?.render(tag.categoryIds || []);
+    this._renderShopCategory();
     this._form?.scrollIntoView({ behavior: 'smooth', block: 'center' });
   }
 
@@ -483,8 +516,6 @@ export class TagsView {
 
   async refresh() {
     const [loaded] = await Promise.all([this._source.load(), ensureCategories(this.app)]);
-    // Ohne Bearbeitung zeigt das Formular einen neuen Tag – auch die Kategorie-Auswahl.
-    if (!this._editId) this._catPicker?.render([]);
     const tags = Array.isArray(loaded) ? loaded : [];
     this._tags = tags;
     this._renderAreaChoices();
@@ -577,7 +608,8 @@ export class TagsView {
   _buildRow(tag) {
     const row = document.createElement('div');
     row.className = 'tag-row';
-    row.innerHTML = `${chipHtml(tag)}${(tag.categoryIds || []).length ? `<span class="tag-cats">→ ${categoryChips(this.app, tag.categoryIds, { max: 3 })}</span>` : ''}<span class="tag-usage">${this._usage(tag)}</span>`;
+    const cats = tag.isArea && (tag.categoryIds || []).length ? `<span class="tag-cats" title="Fach im Shop">🛒 ${categoryChips(this.app, tag.categoryIds, { max: 2 })}</span>` : '';
+    row.innerHTML = `${chipHtml(tag)}${cats}<span class="tag-usage">${this._usage(tag)}</span>`;
     row.appendChild(this._actions(tag));
     return row;
   }

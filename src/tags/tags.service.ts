@@ -1,5 +1,5 @@
 import { CategoriesService } from '../categories/categories.service';
-import { Injectable, NotFoundException, ConflictException, BadRequestException, OnModuleInit, Logger } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException, BadRequestException, OnModuleInit, OnApplicationBootstrap, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
 import { Tag } from '../core/entities/tag.entity';
@@ -25,7 +25,7 @@ type TagData = { name?: string; color?: string; isArea?: boolean; areaIds?: stri
 const schoolOwner = (schoolId: string) => `school:${schoolId}`;
 
 @Injectable()
-export class TagsService implements OnModuleInit {
+export class TagsService implements OnModuleInit, OnApplicationBootstrap {
   private readonly logger = new Logger(TagsService.name);
 
   constructor(
@@ -128,7 +128,8 @@ export class TagsService implements OnModuleInit {
         isArea: !!tag.isArea,
         isSchoolTag: !!tag.schoolId,
         areaIds: tag.isArea ? [] : (tag.areaIds || []).filter((id) => areas.has(id)),
-        categoryIds: tag.categoryIds || [],
+        // null: noch nie eingeordnet (Themengebiet: Fach wird am Namen erkannt), []: bewusst ohne.
+        categoryIds: tag.categoryIds ?? null,
         topicCount: topics.filter((t) => (t.tagIds || []).includes(tag.id)).length,
         linkCount: links.filter((l) => (l.tagIds || []).includes(tag.id)).length,
         // Module erben die Tags ihres Themas – sie zählen also mit.
@@ -235,7 +236,7 @@ export class TagsService implements OnModuleInit {
       schoolId: scope.schoolId,
       isArea,
       areaIds: isArea ? null : await this.sanitizeAreaIds(scope, data?.areaIds, id, user),
-      categoryIds: catUser ? await this.categories.clean(data?.categoryIds, catUser) : null,
+      categoryIds: await this.categoriesFor(isArea, name, data?.categoryIds, catUser),
     });
     return this.tagRepo.save(tag);
   }
@@ -263,8 +264,50 @@ export class TagsService implements OnModuleInit {
     if (tag.isArea) tag.areaIds = null;
     else if (data?.areaIds !== undefined) tag.areaIds = await this.sanitizeAreaIds(scope, data.areaIds, id, user);
     // Wofür der Tag steht: Lernthemen mit diesem Tag gelten als so eingeordnet.
-    if (data?.categoryIds !== undefined && catUser) tag.categoryIds = await this.categories.clean(data.categoryIds, catUser, tag.categoryIds);
+    if (data?.categoryIds !== undefined && catUser) {
+      const ids = await this.categories.clean(data.categoryIds, catUser, tag.categoryIds);
+      // Bei Themengebieten heißt [] „bewusst ohne Fach“ – nicht neu erkennen.
+      tag.categoryIds = ids ?? (tag.isArea ? [] : null);
+    } else if (tag.isArea && tag.categoryIds == null) {
+      tag.categoryIds = await this.categories.guessForArea(tag.name);
+    }
     return this.tagRepo.save(tag);
+  }
+
+  /**
+   * Einordnung eines neuen Tags: wie angegeben – bei einem Themengebiet ohne
+   * Angabe das Fach, das sein Name nahelegt („Mathe“ → Mathematik). Die
+   * Einordnung dient nur als Vorschlag beim Anbieten im Shop.
+   */
+  private async categoriesFor(isArea: boolean, name: string, input: unknown, catUser: any) {
+    if (input !== undefined && catUser) {
+      const ids = await this.categories.clean(input, catUser);
+      return ids ?? (isArea ? [] : null);
+    }
+    return isArea ? this.categories.guessForArea(name) : null;
+  }
+
+  /**
+   * Themengebiete, die noch nie eingeordnet wurden (null), bekommen einmal
+   * das Fach zu ihrem Namen – etwa nach dem Update auf diese Fassung. Wer das
+   * Fach entfernt hat ([]), bleibt dabei.
+   */
+  async onApplicationBootstrap() {
+    try {
+      const areas = await this.tagRepo.find({ where: { isArea: true } });
+      const changed: Tag[] = [];
+      for (const t of areas) {
+        if (t.categoryIds != null) continue;
+        const ids = await this.categories.guessForArea(t.name);
+        if (ids) { t.categoryIds = ids; changed.push(t); }
+      }
+      if (changed.length) {
+        await this.tagRepo.save(changed);
+        this.logger.log(`Themengebiete: ${changed.length} anhand des Namens einem Fach zugeordnet`);
+      }
+    } catch (err: any) {
+      this.logger.warn(`Themengebiete einordnen fehlgeschlagen: ${err?.message || err}`);
+    }
   }
 
   /**

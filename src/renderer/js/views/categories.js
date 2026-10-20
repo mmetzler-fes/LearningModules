@@ -108,11 +108,13 @@ export function withAncestors(app, ids) {
  * Begriffe als Chips, und „Begriff vorschlagen“, wenn etwas fehlt.
  */
 export class CategoryPicker {
-  constructor(app, container) {
+  /** `facets`: welche Facetten wählbar sind – z. B. nur ['subject'] bei Themengebieten. */
+  constructor(app, container, { facets = Object.keys(FACETS) } = {}) {
     this.app = app;
     this._root = container;
     this._selected = new Set();
-    this._facet = 'subject';
+    this._facets = facets;
+    this._facet = facets[0];
     this._open = new Set();
     this._query = '';
   }
@@ -135,9 +137,9 @@ export class CategoryPicker {
       <div class="cat-picker">
         <div class="cat-selected"></div>
         <div class="cat-toolbar">
-          <div class="cat-facets" role="tablist">
-            ${Object.entries(FACETS).map(([k, f]) => `<button type="button" class="cat-facet-btn" data-facet="${k}" role="tab">${f.icon} ${f.label}</button>`).join('')}
-          </div>
+          ${this._facets.length > 1 ? `<div class="cat-facets" role="tablist">
+            ${this._facets.map((k) => `<button type="button" class="cat-facet-btn" data-facet="${k}" role="tab">${FACETS[k].icon} ${FACETS[k].label}</button>`).join('')}
+          </div>` : ''}
           <input type="search" class="cat-search" placeholder="Suchen, z. B. SPS" aria-label="Kategorie suchen" />
         </div>
         <div class="cat-tree" role="tree"></div>

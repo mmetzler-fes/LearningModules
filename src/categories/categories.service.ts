@@ -9,7 +9,7 @@ import { LearningTopic } from '../core/entities/learning-topic.entity';
 import { Tag } from '../core/entities/tag.entity';
 import { ShopOffer } from '../core/entities/shop-offer.entity';
 import {
-  cannotAddUnder, cleanIds, cleanLabel, effectiveOf, seedRows, selectable, siblingWithLabel, VocabFiles,
+  cannotAddUnder, cleanIds, cleanLabel, effectiveOf, guessSubject, seedRows, selectable, siblingWithLabel, tagCategoriesWithAreas, VocabFiles,
 } from './category-rules';
 
 /**
@@ -116,12 +116,21 @@ export class CategoriesService implements OnApplicationBootstrap {
     return ids.length ? ids : null;
   }
 
-  /** Tag → seine Kategorien, für die Tags dieser Lernthemen. */
+  /** Tag → seine Kategorien samt denen seiner Themengebiete, für die Tags dieser Lernthemen. */
   async tagCategories(topics: Array<{ tagIds?: string[] | null }>): Promise<Map<string, string[]>> {
     const ids = [...new Set(topics.flatMap((t) => t.tagIds || []))];
     if (!ids.length) return new Map();
-    const tags = await this.tagRepo.find({ where: { id: In(ids) }, select: ['id', 'categoryIds'] });
-    return new Map(tags.filter((t) => t.categoryIds?.length).map((t) => [t.id, t.categoryIds as string[]]));
+    const tags = await this.tagRepo.find({ where: { id: In(ids) }, select: ['id', 'categoryIds', 'areaIds'] });
+    const areaIds = [...new Set(tags.flatMap((t) => t.areaIds || []))].filter((id) => !ids.includes(id));
+    const areas = areaIds.length ? await this.tagRepo.find({ where: { id: In(areaIds) }, select: ['id', 'categoryIds', 'areaIds'] }) : [];
+    const all = tagCategoriesWithAreas([...tags, ...areas]);
+    return new Map(ids.filter((id) => all.has(id)).map((id) => [id, all.get(id)!]));
+  }
+
+  /** Fach zu einem Themengebiets-Namen (guessSubject) – als Auswahl oder null. */
+  async guessForArea(name: string): Promise<string[] | null> {
+    const id = guessSubject(name, await this.all());
+    return id ? [id] : null;
   }
 
   /** Kategorien je Lernthema: eigene und die seiner Tags. */

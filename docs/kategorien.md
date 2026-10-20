@@ -36,7 +36,9 @@ Abschnitt oder eine Auswahl von Modulen angeboten wird.
   hat. Der Vorschlag kommt aus
   - Kopien aus dem Shop und Übernahmen von anderen Servern – sie bringen die
     Einordnung des Originals mit,
-  - Tags, die für Kategorien stehen (siehe unten), auch geerbten,
+  - dem Fach der Themengebiete, unter denen die Tags des Lernthemas stehen
+    (siehe unten), und Tags, die früher mit Kategorien verbunden wurden – auch
+    geerbten,
   - früheren eigenen Angeboten mit denselben Lernthemen.
 
   Meist genügt es, den Vorschlag zu prüfen; ✕ nimmt einen Begriff heraus.
@@ -58,16 +60,30 @@ wählen, Namen eingeben, *Vorschlagen*.
 - Neue Fächer oder Stufen der **obersten** Ebene legt nur der Admin an.
 - Unter der untersten Ebene (Fach: Ebene 3, Stufe: Ebene 2) geht nichts mehr.
 
-## Tags und Kategorien
+## Themengebiete und Fächer
 
-Ein Tag kann für Kategorien **stehen**: Unter **🏷 Tags → bearbeiten → Steht
-für Kategorie(n)** z. B. den Tag „TIA-Portal“ mit *SPS-Programmierung*
-verbinden. Bietest du ein Lernthema mit diesem Tag an – auch eins, das den Tag
-über ein Book oder einen Bereich in den [Notebooks](notebooks.md) erbt –,
-schlägt der Dialog diese Einordnung vor. So muss man mit einer bestehenden
-Tag-Ordnung beim Anbieten kaum noch etwas auswählen.
+Eingeordnet wird erst beim Anbieten im Shop. Damit das meist schon fertig
+vorausgefüllt ist, hat jedes **Themengebiet** ein Fach – normale Tags nicht.
 
-Schuladmins können das ebenso für Schul-Tags festlegen.
+- Die App **erkennt das Fach am Namen** und speichert es gleich: „Mathe“ →
+  *Mathematik*, „Informatik“ → *Informatik*, auch übliche Kürzel wie „ET“, „Bio“
+  oder „Erdkunde“. Das gilt für neue Themengebiete und einmalig für alle
+  bestehenden. Was die App nicht sicher erkennt (etwa „Projekte“), bleibt ohne
+  Fach.
+- Im Tag-Formular steht bei einem Themengebiet nur eine Zeile **🛒 Im Shop:
+  📚 Mathematik · ändern**. *ändern* öffnet die Auswahl (nur Fächer, keine
+  Bildungsstufe). Wer das Fach dort entfernt, behält das – die App erkennt es
+  dann nicht neu.
+- **Tags erben das Fach ihrer Themengebiete:** Ein Lernthema mit dem Tag
+  „Arduino“ unter dem Themengebiet *Informatik* bekommt im Shop-Dialog
+  *Informatik* vorgeschlagen – auch, wenn es den Tag über ein Book oder einen
+  Bereich in den [Notebooks](notebooks.md) erbt.
+- Lehrkräfte legen das für ihre eigenen Themengebiete fest, Schuladmins für die
+  der Schule – davon haben dann alle Lehrkräfte der Schule etwas.
+
+Früher konnte auch ein normaler Tag für Kategorien stehen (etwa „TIA-Portal“ →
+*SPS-Programmierung*). Diese Verbindungen bleiben unsichtbar erhalten und
+fließen weiter in den Vorschlag ein.
 
 ## Im Shop
 
@@ -142,8 +158,12 @@ bleibt hier stehen.
 
 **Zuordnung:** Maßgeblich ist allein `categoryIds` am Angebot (höchstens 20).
 `categoryIds` an Lernthemen und Tags sind nur noch Vorschläge: Lernthemen
-bekommen sie aus Kopien, Übernahmen und dem Bestand vor der Umstellung, und
-die Oberfläche bietet kein Feld mehr dafür. Der Vorschlag für ein neues
+bekommen sie aus Kopien, Übernahmen und dem Bestand vor der Umstellung, Tags
+aus dem Bestand; die Oberfläche bietet ein Feld dafür nur noch bei
+Themengebieten. Dort heißt `null` „noch nie eingeordnet“ (dann erkennt
+`guessSubject` das Fach am Namen – beim Speichern und einmal beim Start in
+`TagsService.onApplicationBootstrap`), `[]` „bewusst ohne Fach“. Ein Tag zählt
+mit den Kategorien seiner Themengebiete (`tagCategoriesWithAreas`). Der Vorschlag für ein neues
 Angebot sind die Kategorien seiner Lernthemen samt ihrer Tags (`effectiveOf`)
 und die früherer eigener Angebote mit denselben Lernthemen. Der Server nimmt
 nur bekannte, für den Benutzer wählbare Kennungen an – Zugeordnetes, das

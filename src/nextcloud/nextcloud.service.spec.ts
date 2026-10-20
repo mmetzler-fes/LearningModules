@@ -79,12 +79,16 @@ function setup(cloudBackup: any) {
     save: async (x: any) => { if (!links.includes(x)) links.push(x); x.createdAt = x.createdAt || new Date(); return x; },
     update: async ({ id }: any, patch: any) => Object.assign(links.find((l) => l.id === id), patch),
   };
-  const topicRepo: any = { findOne: async () => ({ id: 't1', title: 'Englisch Reisen' }) };
-  const moduleRepo: any = fakeRepo([], 'content');
+  const topics: any[] = [];
+  const topicRepo: any = {
+    findOne: async () => ({ id: 't1', title: 'Englisch Reisen' }),
+    find: async ({ where }: any) => topics.filter((t) => where.id._value.includes(t.id)),
+  };
+  const moduleRepo: any = { ...fakeRepo([], 'content'), find: async () => [] };
   const configRepo: any = { findOne: async () => (cloudBackup ? { value: cloudBackup } : null) };
   const draftRepo: any = fakeRepo([], 'data');
   const masterKey: any = { sealSecret: (s: string) => `sealed:${s}`, unsealSecret: (s: string) => s.replace(/^sealed:/, '') };
-  return { links, moduleRepo, draftRepo, svc: new NextcloudService(linkRepo, topicRepo, moduleRepo, configRepo, draftRepo, masterKey) };
+  return { links, topics, moduleRepo, draftRepo, svc: new NextcloudService(linkRepo, topicRepo, moduleRepo, configRepo, draftRepo, masterKey) };
 }
 
 const png = { originalname: 'gate.png', mimetype: 'image/png', buffer: Buffer.from('PNGDATA'), size: 7 };
@@ -190,5 +194,70 @@ describe('Nextcloud: eigene Freigabe der Lehrkraft', () => {
     const { svc } = setup(null);
     await expect(svc.connect(user, { shareUrl: `${CLOUD}/s/EigenTok`, password: 'pw', readShareUrl: `${CLOUD}/s/EigenTok` }, APP))
       .rejects.toThrow(/eigener Link/);
+  });
+});
+
+describe('Nextcloud: alte Links im ganzen Material umhängen', () => {
+  let cloud: ReturnType<typeof fakeNextcloud>;
+  beforeEach(() => { cloud = fakeNextcloud(); jest.spyOn(global, 'fetch').mockImplementation(cloud.impl as any); });
+  afterEach(() => jest.restoreAllMocks());
+
+  const ADMIN = 'a1b2c3d4-0000-4000-8000-0000000000ad';
+  const ADMIN_LINK = 'f0f0f0f0-0000-4000-8000-0000000000ad';
+  const school = (folder: string, file: string) => `SchulTok/public.php/webdav/Bilder/Admin (a1b2c3d4)/${folder}/${file}`;
+  const oldUrl = (folder: string, file: string) => `${APP}/api/nextcloud/school/${ADMIN_LINK}/${encodeURIComponent(folder)}/${encodeURIComponent(file)}`;
+
+  /** Admin hat Bilder im Schulordner hochgeladen; die Lehrkraft (USER_ID) besitzt das Thema. */
+  async function scene() {
+    const env = setup(schoolCfg);
+    env.links.push({ id: ADMIN_LINK, userId: ADMIN, serverFolder: 'Admin (a1b2c3d4)', appBase: APP, shareToken: null });
+    env.topics.push({ id: 'tq', ownerId: USER_ID });
+    await env.svc.connect(user, { shareUrl: `${CLOUD}/s/EigenTok`, password: 'pw' }, APP);
+    await env.svc.relinkAll();
+    return env;
+  }
+
+  it('hängt Drag & Drop mit Klammern und Apostroph im Namen um – auch Bilder, die der Admin hochlud', async () => {
+    cloud.files.set(school('Travel Quiz (A1-A2)', 'dog (1).png'), Buffer.from('DOG'));
+    cloud.files.set(school('Travel Quiz (A1-A2)', "it's.png"), Buffer.from('ITS'));
+    const env = await scene();
+    env.moduleRepo.rows.push({
+      id: 'dnd', topicId: 'tq', creatorId: ADMIN,
+      content: {
+        zones: [{ label: 'Hund', imageUrl: oldUrl('Travel Quiz (A1-A2)', 'dog (1).png') }],
+        draggables: [{ text: 'x', imageUrl: oldUrl('Travel Quiz (A1-A2)', "it's.png") }],
+        html: `<img src='${oldUrl('Travel Quiz (A1-A2)', 'dog (1).png')}'>`,
+      },
+    });
+    const r = await env.svc.relinkAll();
+    const me = env.links.find((l) => l.userId === USER_ID).id;
+    const newUrl = (f: string) => `${APP}/api/nextcloud/files/${me}/${encodeURIComponent('Travel Quiz (A1-A2)')}/${encodeURIComponent(f)}`;
+    expect(env.moduleRepo.rows[0].content).toEqual({
+      zones: [{ label: 'Hund', imageUrl: newUrl('dog (1).png') }],
+      draggables: [{ text: 'x', imageUrl: newUrl("it's.png") }],
+      html: `<img src='${newUrl('dog (1).png')}'>`,
+    });
+    expect(cloud.files.get('EigenTok/public.php/webdav/Bilder/Travel Quiz (A1-A2)/dog (1).png')?.toString()).toBe('DOG');
+    expect(r).toMatchObject({ modules: 1, copied: 2, missing: 0 });
+    // Zweiter Lauf: nichts mehr zu tun.
+    expect(await env.svc.relinkAll()).toMatchObject({ modules: 0, copied: 0 });
+  });
+
+  it('nutzt ein schon kopiertes Bild, auch wenn es beim Admin gelöscht ist', async () => {
+    const env = await scene();
+    cloud.files.set('EigenTok/public.php/webdav/Bilder/Reisen/gate.png', Buffer.from('PNG'));
+    env.moduleRepo.rows.push({ id: 'm', topicId: 'tq', content: { image: oldUrl('Reisen', 'gate.png') } });
+    expect(await env.svc.relinkAll()).toMatchObject({ modules: 1, reused: 1, missing: 0 });
+    expect(env.moduleRepo.rows[0].content.image).toContain('/api/nextcloud/files/');
+  });
+
+  it('lässt Links stehen, solange die Lehrkraft keine Freigabe hat', async () => {
+    const env = setup(schoolCfg);
+    env.links.push({ id: ADMIN_LINK, userId: ADMIN, serverFolder: 'Admin (a1b2c3d4)', appBase: APP, shareToken: null });
+    env.topics.push({ id: 'tq', ownerId: USER_ID });
+    cloud.files.set(school('Reisen', 'gate.png'), Buffer.from('PNG'));
+    env.moduleRepo.rows.push({ id: 'm', topicId: 'tq', content: { image: oldUrl('Reisen', 'gate.png') } });
+    expect(await env.svc.relinkAll()).toMatchObject({ modules: 0, skipped: 1 });
+    expect(env.moduleRepo.rows[0].content.image).toBe(oldUrl('Reisen', 'gate.png'));
   });
 });

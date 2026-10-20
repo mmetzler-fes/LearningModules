@@ -107,9 +107,17 @@ Bilder bleiben in den Modulen sichtbar – der Server liefert sie weiter aus.
 Neue Bilder kommen dort aber nicht mehr hin.
 
 Sobald die Lehrkraft ihre **eigene Freigabe verbindet**, kopiert die App diese
-Bilder im Hintergrund nach `Bilder/<Thema>/` der eigenen Freigabe und stellt
-die Links in allen Modulen und Entwürfen um (auch in Kopien aus dem Shop auf
-diesem Server). Ein gleichnamiges, gleiches Bild wird wiederverwendet, ein
+Bilder im Hintergrund nach `Bilder/<Thema>/` der eigenen Freigabe.
+
+Zusätzlich geht die App **alles Material** durch – bei jedem Start und nach
+jedem „Verbinden“: Jeder Link auf den früheren Ordner der Schule in einem
+Modul oder Entwurf wird auf die Freigabe der Lehrkraft umgehängt, **der das
+Thema gehört** (sonst des Verfassers, sonst dessen, der das Bild hochgeladen
+hat) – auch wenn das Bild z. B. vom Admin stammt. Fehlt das Bild dort, kopiert
+die App es hinüber; liegt es schon dort, nimmt sie es (auch wenn es beim Admin
+inzwischen gelöscht ist). Hat noch niemand davon eine eigene Freigabe, bleibt
+der Link, bis jemand verbindet. Das Server-Log meldet, wie viel umgehängt
+wurde. Ein gleichnamiges, gleiches Bild wird wiederverwendet, ein
 anderes bekommt `-2`, `-3` … angehängt. Der Dialog zeigt den Fortschritt und
 das Ergebnis. Schlägt etwas fehl, versucht die App es später erneut,
 „Verbinden“ sofort. Die alten Dateien bleiben beim Admin liegen, alte Links

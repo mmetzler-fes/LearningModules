@@ -1,6 +1,6 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import { Injectable, BadRequestException, Logger, OnApplicationBootstrap } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import * as crypto from 'crypto';
 import { NextcloudLink } from '../core/entities/nextcloud-link.entity';
 import { LearningTopic } from '../core/entities/learning-topic.entity';
@@ -86,7 +86,9 @@ const safePart = (p: string) => !!p && !/[\\/]/.test(p) && p !== '.' && p !== '.
  * Lesefreigabe nur für Bilder/ eingetragen hat, direkt aus der Nextcloud.
  */
 @Injectable()
-export class NextcloudService {
+export class NextcloudService implements OnApplicationBootstrap {
+  private readonly logger = new Logger(NextcloudService.name);
+
   constructor(
     @InjectRepository(NextcloudLink) private readonly linkRepo: Repository<NextcloudLink>,
     @InjectRepository(LearningTopic) private readonly topicRepo: Repository<LearningTopic>,
@@ -227,7 +229,10 @@ export class NextcloudService {
       await nc.remove([IMAGES, CHECK_FILE]);
       Object.assign(l, { verifiedAt: new Date(), ...(appBase ? { appBase } : {}) });
       await this.linkRepo.save(l);
+      // Eigene Bilder aus dem früheren Schulordner übernehmen – das hängt auch
+      // die Links um; sonst nur umhängen (etwa Bilder, die der Admin hochlud).
       if (l.serverFolder && !l.legacyMovedAt) this.startAdopt(l, true);
+      else void this.relinkAll().catch(() => undefined);
     } catch (err) {
       l.verifiedAt = null;
       await this.linkRepo.save(l);
@@ -391,36 +396,21 @@ export class NextcloudService {
       if (!school) throw new Error('Der frühere Ordner der Schule (Admin-Backup) ist nicht erreichbar.');
       const nc = await this.client(l);
       const oldRoot = [IMAGES, l.serverFolder];
-      const urls = new Map<string, string>(); // "<Ordner>/<Datei>" → neuer Link
       const folders = (await school.list(oldRoot).catch((): DavEntry[] => [])).filter((e) => e.isFolder);
       for (const folder of folders) {
         const sub = folder.name;
         if (!safePart(sub)) continue;
         const files = (await school.list([...oldRoot, sub])).filter((e) => !e.isFolder && IMAGE_EXT.test(e.name) && safePart(e.name));
-        if (!files.length) continue;
-        await nc.ensureFolder([IMAGES, sub]);
-        const present = new Set((await nc.list([IMAGES, sub])).map((e) => e.name));
         for (const f of files) {
           const file = await school.get([...oldRoot, sub, f.name]);
-          if (!file) { result.missing++; continue; }
-          let name = f.name;
-          for (let n = 2; present.has(name); n++) {
-            const mine = await nc.get([IMAGES, sub, name]);
-            if (mine && mine.data.equals(file.data)) break;
-            if (n > 99) throw new Error(`Zu viele Dateien mit dem Namen ${f.name}.`);
-            name = f.name.replace(/(\.[^.]+)$/, `-${n}$1`);
-          }
-          if (present.has(name)) result.reused++;
-          else {
-            const type = file.type.split(';')[0].trim();
-            await nc.put([IMAGES, sub, name], file.data, IMAGE_TYPES[type] ? type : 'application/octet-stream');
-            present.add(name);
-            result.copied++;
-          }
-          urls.set(`${sub}/${f.name}`, this.imageUrl(l, sub, name));
+          const placed = file ? await this.placeImage(nc, sub, f.name, file) : null;
+          if (!placed) result.missing++;
+          else result[placed.copied ? 'copied' : 'reused']++;
         }
       }
-      Object.assign(result, await this.relinkSchoolImages(l.id, urls));
+      // Links umhängen: in allem Material, nicht nur in eigenen Modulen.
+      const r = await this.relinkAll();
+      Object.assign(result, { modules: r.modules, drafts: r.drafts });
       Object.assign(l, { legacyMovedAt: new Date(), legacyResult: result });
     } catch (err: any) {
       Object.assign(l, { legacyResult: { ...result, error: String(err?.message || err) } });
@@ -430,38 +420,166 @@ export class NextcloudService {
     return l.legacyResult;
   }
 
-  /** Links /api/nextcloud/school/<Eintrag>/<Ordner>/<Datei> in Modulen und Entwürfen ersetzen. */
-  private async relinkSchoolImages(linkId: string, urls: Map<string, string>) {
-    const pattern = new RegExp(`(?:https?://[^\\s"'<>()]*?)?/api/nextcloud/school/${linkId}/([^/?#"'\\s<>()]+)/([^/?#"'\\s<>()]+)`, 'g');
-    const swap = (v: any): any => {
-      if (typeof v === 'string') {
-        return v.includes(linkId) ? v.replace(pattern, (m, sub: string, name: string) => {
-          try { return urls.get(`${decodeURIComponent(sub)}/${decodeURIComponent(name)}`) || m; } catch { return m; }
-        }) : v;
+  // ---- Alte Links auf den Schulordner umhängen (alles Material) ----
+
+  private relinking: Promise<any> | null = null;
+
+  /** Beim Start einmal alles Material durchgehen – im Hintergrund, der Start wartet nicht. */
+  onApplicationBootstrap() {
+    setTimeout(() => {
+      void this.relinkAll().then((r) => {
+        if (r && (r.modules || r.drafts || r.missing)) {
+          this.logger.log(`Alte Bilder-Links umgehängt: ${r.modules} Module, ${r.drafts} Entwürfe, ${r.copied} Bilder kopiert, ${r.reused} schon da, ${r.missing} nicht gefunden, ${r.skipped} ohne Freigabe der Lehrkraft`);
+        }
+      }).catch((err) => this.logger.warn(`Alte Bilder-Links umhängen fehlgeschlagen: ${err?.message || err}`));
+    }, 5000);
+  }
+
+  /**
+   * Alle Links /api/nextcloud/school/<Eintrag>/<Ordner>/<Datei> in Modulen und
+   * Entwürfen auf die Freigabe einer Lehrkraft umhängen – bei Modulen der
+   * Lehrkraft, der das Thema gehört (sonst Verfasser, sonst wer das Bild
+   * hochgeladen hat), bei Entwürfen ihrer Lehrkraft. Nur, wer eine geprüfte
+   * eigene Freigabe hat; die anderen bleiben, bis sie verbinden.
+   *
+   * Das Bild kommt aus dem Schulordner in Bilder/<Ordner>/ der Freigabe;
+   * liegt dort schon ein gleiches (oder ist es im Schulordner schon gelöscht,
+   * dort aber gleichnamig vorhanden), wird es wiederverwendet. Läuft nie
+   * doppelt; ein zweiter Aufruf wartet auf den laufenden.
+   */
+  relinkAll(): Promise<any> {
+    if (!this.relinking) this.relinking = this.doRelinkAll().finally(() => { this.relinking = null; });
+    return this.relinking;
+  }
+
+  private async doRelinkAll() {
+    const result = { modules: 0, drafts: 0, copied: 0, reused: 0, missing: 0, skipped: 0 };
+    const needle = '%/api/nextcloud/school/%';
+    const mods = await this.moduleRepo.createQueryBuilder('m')
+      .select(['m.id', 'm.content', 'm.topicId', 'm.parentId', 'm.creatorId'])
+      .where('m.content LIKE :n', { n: needle }).getMany();
+    const drafts = await this.draftRepo.createQueryBuilder('d')
+      .select(['d.id', 'd.data', 'd.userId'])
+      .where('d.data LIKE :n', { n: needle }).getMany();
+    if (!mods.length && !drafts.length) return result;
+
+    const school = await this.schoolClient();
+    // Themen-Eigentümer, auch für Untermodule (Thema über das Elternmodul).
+    const parentIds = [...new Set(mods.filter((m) => !m.topicId && m.parentId).map((m) => m.parentId))];
+    const parents = parentIds.length ? await this.moduleRepo.find({ where: { id: In(parentIds) }, select: ['id', 'topicId'] }) : [];
+    const topicOf = (m: LearningModule) => m.topicId || parents.find((p) => p.id === m.parentId)?.topicId || null;
+    const topicIds = [...new Set(mods.map(topicOf).filter(Boolean))] as string[];
+    const topics = topicIds.length ? await this.topicRepo.find({ where: { id: In(topicIds) }, select: ['id', 'ownerId'] }) : [];
+    const ownerOfTopic = new Map(topics.map((t) => [t.id, t.ownerId]));
+
+    // Je Lehrkraft ihre Freigabe (nur geprüfte) – einmal geöffnet.
+    const targets = new Map<string, Promise<{ l: NextcloudLink; nc: ShareClient } | null>>();
+    const target = (userId: string | null | undefined) => {
+      if (!userId) return Promise.resolve(null);
+      if (!targets.has(userId)) {
+        targets.set(userId, (async () => {
+          const l = await this.find(userId);
+          return l?.shareToken && l.verifiedAt ? { l, nc: await this.client(l) } : null;
+        })().catch(() => null));
       }
-      if (Array.isArray(v)) return v.map(swap);
-      if (v && typeof v === 'object') {
-        const out: any = {};
-        for (const [k, x] of Object.entries(v)) out[k] = swap(x);
-        return out;
-      }
-      return v;
+      return targets.get(userId)!;
     };
-    const needle = `%/api/nextcloud/school/${linkId}/%`;
-    let modules = 0;
-    let drafts = 0;
-    if (!urls.size) return { modules, drafts };
-    const mods = await this.moduleRepo.createQueryBuilder('m').select(['m.id', 'm.content']).where('m.content LIKE :n', { n: needle }).getMany();
+    const sources = new Map<string, Promise<NextcloudLink | null>>();
+    const source = (linkId: string) => {
+      if (!sources.has(linkId)) sources.set(linkId, this.linkRepo.findOne({ where: { id: linkId } }));
+      return sources.get(linkId)!;
+    };
+
+    // Ein Bild in die Freigabe bringen; Ergebnis: neuer Link oder null. Je Ziel nur einmal.
+    const done = new Map<string, Promise<string | null>>();
+    const move = (owners: Array<string | null | undefined>, linkId: string, sub: string, name: string) => {
+      const key = `${owners.join(',')}|${linkId}|${sub}|${name}`;
+      if (!done.has(key)) done.set(key, (async () => {
+        const src = await source(linkId);
+        let t: { l: NextcloudLink; nc: ShareClient } | null = null;
+        for (const o of [...owners, src?.userId]) if (!t) t = await target(o);
+        if (!t) { result.skipped++; return null; }
+        if (!safePart(sub) || !safePart(name) || !IMAGE_EXT.test(name)) { result.missing++; return null; }
+        const file = school && src?.serverFolder ? await school.get([IMAGES, src.serverFolder, sub, name]).catch(() => null) : null;
+        const placed = await this.placeImage(t.nc, sub, name, file);
+        if (!placed) { result.missing++; return null; }
+        result[placed.copied ? 'copied' : 'reused']++;
+        return this.imageUrl(t.l, sub, placed.name);
+      })());
+      return done.get(key)!;
+    };
+
     for (const m of mods) {
-      const next = swap(m.content);
-      if (JSON.stringify(next) !== JSON.stringify(m.content)) { await this.moduleRepo.update({ id: m.id }, { content: next }); modules++; }
+      const owners = [ownerOfTopic.get(topicOf(m) || ''), m.creatorId];
+      const next = await this.swapSchoolUrls(m.content, (linkId, sub, name) => move(owners, linkId, sub, name));
+      if (JSON.stringify(next) !== JSON.stringify(m.content)) { await this.moduleRepo.update({ id: m.id }, { content: next }); result.modules++; }
     }
-    const dr = await this.draftRepo.createQueryBuilder('d').select(['d.id', 'd.data']).where('d.data LIKE :n', { n: needle }).getMany();
-    for (const d of dr) {
-      const next = swap(d.data);
-      if (JSON.stringify(next) !== JSON.stringify(d.data)) { await this.draftRepo.update({ id: d.id }, { data: next }); drafts++; }
+    for (const d of drafts) {
+      const next = await this.swapSchoolUrls(d.data, (linkId, sub, name) => move([d.userId], linkId, sub, name));
+      if (JSON.stringify(next) !== JSON.stringify(d.data)) { await this.draftRepo.update({ id: d.id }, { data: next }); result.drafts++; }
     }
-    return { modules, drafts };
+    return result;
+  }
+
+  /**
+   * Bild nach Bilder/<sub>/ der Freigabe: gleichnamig und gleich → wiederverwenden,
+   * gleichnamig und anders → -2, -3 …; ohne Quelle (im Schulordner gelöscht)
+   * gilt ein gleichnamiges vorhandenes Bild. null, wenn es nichts gibt.
+   */
+  private async placeImage(nc: ShareClient, sub: string, name: string, file: { type: string; data: Buffer } | null) {
+    const present = new Set((await nc.list([IMAGES, sub]).catch((): DavEntry[] => [])).map((e) => e.name));
+    if (!file) return present.has(name) ? { name, copied: false } : null;
+    let target = name;
+    for (let n = 2; present.has(target); n++) {
+      const mine = await nc.get([IMAGES, sub, target]);
+      if (mine && mine.data.equals(file.data)) return { name: target, copied: false };
+      if (n > 99) throw new Error(`Zu viele Dateien mit dem Namen ${name}.`);
+      target = name.replace(/(\.[^.]+)$/, `-${n}$1`);
+    }
+    await nc.ensureFolder([IMAGES, sub]);
+    const type = file.type.split(';')[0].trim();
+    await nc.put([IMAGES, sub, target], file.data, IMAGE_TYPES[type] ? type : 'application/octet-stream');
+    return { name: target, copied: true };
+  }
+
+  /**
+   * Jeden Link auf den Schulordner in einem Inhalt (beliebig verschachtelt,
+   * auch mitten im HTML) durch fn(...) ersetzen; null lässt ihn stehen.
+   * Ordner- und Dateinamen dürfen ( ) ' enthalten – encodeURIComponent lässt
+   * sie stehen. Endet ein Name mitten im HTML auf ' oder ), wird das zur Not
+   * abgeschnitten.
+   */
+  private async swapSchoolUrls(value: any, fn: (linkId: string, sub: string, name: string) => Promise<string | null>): Promise<any> {
+    if (typeof value === 'string') {
+      if (!value.includes('/api/nextcloud/school/')) return value;
+      const re = /(?:https?:\/\/[^\s"'<>]*?)?\/api\/nextcloud\/school\/([0-9a-f-]{36})\/([^/?#"\s<>]+)\/([^/?#"\s<>]+)/gi;
+      let out = '';
+      let last = 0;
+      for (const m of value.matchAll(re)) {
+        let name = m[3];
+        let tail = '';
+        let url: string | null = null;
+        const dec = (x: string) => { try { return decodeURIComponent(x); } catch { return null; } };
+        for (;;) {
+          const sub = dec(m[2]);
+          const file = dec(name);
+          if (sub && file && IMAGE_EXT.test(file)) url = await fn(m[1].toLowerCase(), sub, file);
+          if (url || !/['")]$/.test(name)) break;
+          tail = name.slice(-1) + tail;
+          name = name.slice(0, -1);
+        }
+        out += value.slice(last, m.index) + (url ? url + tail : m[0]);
+        last = m.index! + m[0].length;
+      }
+      return out + value.slice(last);
+    }
+    if (Array.isArray(value)) return Promise.all(value.map((v) => this.swapSchoolUrls(v, fn)));
+    if (value && typeof value === 'object') {
+      const out: any = {};
+      for (const [k, v] of Object.entries(value)) out[k] = await this.swapSchoolUrls(v, fn);
+      return out;
+    }
+    return value;
   }
 
   /** Ordnername eines Themas: sein Titel (lesbar in der Nextcloud). */

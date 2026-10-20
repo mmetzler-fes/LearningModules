@@ -2,6 +2,7 @@ import { escapeHtml, escapeAttr } from '../utils.js';
 import { AI_PROMPT_TYPES, AI_PROMPT_PART_SIZE, buildAiPrompt } from '../ai-prompt.js';
 import { nextcloudState } from './nextcloud.js';
 import { DEFAULT_IMAGE_STYLE, parseImageWords, buildImagePrompt, matchImageFiles } from '../image-words.js';
+import { DocPromptView } from './doc-prompt-view.js';
 
 // ==================== KI-PROMPT-GENERATOR ====================
 
@@ -26,6 +27,40 @@ export class AiPromptView {
     // Nur einmal zeichnen – sonst wären Eingaben und erzeugter Prompt weg.
     if (this.box && !this.form) this._render();
     if (this.form) this._updateNextcloud();
+    this._tabs();
+  }
+
+  /** Reiter „Quiz-Thema | Dokument“ – Dokumente nur mit Freischaltung 'worksheets'. */
+  _tabs() {
+    if (!this.box) return;
+    const docs = (this.app.state.currentUser?.features || []).includes('worksheets');
+    if (!docs) {
+      this._tabBar?.remove();
+      this._docBox?.remove();
+      this._tabBar = this._docBox = this._docView = null;
+      this.box.classList.remove('hidden');
+      return;
+    }
+    if (this._tabBar) return;
+    this._tabBar = document.createElement('div');
+    this._tabBar.className = 'admin-tabs ai-prompt-tabs';
+    this._tabBar.innerHTML = `<button type="button" class="admin-tab active" data-tab="quiz">🧠 Quiz-Thema</button>
+      <button type="button" class="admin-tab" data-tab="doc">📄 Dokument (Arbeitsblatt, Klassenarbeit, Text)</button>`;
+    this._docBox = document.createElement('div');
+    this._docBox.className = 'ai-prompt-panel hidden';
+    this.box.before(this._tabBar);
+    this.box.after(this._docBox);
+    this._tabBar.addEventListener('click', async (e) => {
+      const tab = e.target.closest('[data-tab]')?.dataset.tab;
+      if (!tab) return;
+      this._tabBar.querySelectorAll('[data-tab]').forEach((b) => b.classList.toggle('active', b.dataset.tab === tab));
+      this.box.classList.toggle('hidden', tab !== 'quiz');
+      this._docBox.classList.toggle('hidden', tab !== 'doc');
+      if (tab === 'doc' && !this._docView) {
+        this._docView = new DocPromptView(this.app, this._docBox);
+        await this._docView.render();
+      }
+    });
   }
 
   /**

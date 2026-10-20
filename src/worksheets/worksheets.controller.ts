@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Get, HttpCode, Post, Request, Res, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, HttpCode, Post, Query, Request, Res, UseGuards } from '@nestjs/common';
 import type { Response } from 'express';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { FeatureGuard, RequireFeature } from '../features/feature.guard';
@@ -23,6 +23,12 @@ export class WorksheetsController {
   @Get('status')
   status() {
     return this.worksheets.status();
+  }
+
+  /** Für den KI-Prompt: Kurs, KI-Vorgaben und vorhandene Blätter eines Zielordners (?nodeId=). */
+  @Get('prompt-context')
+  promptContext(@Request() req: any, @Query('nodeId') nodeId?: string) {
+    return this.worksheets.promptContext(req.user, nodeId || null);
   }
 
   /** Nextcloud-Abbild der eigenen Dokumente: Ablage, Umfang, Fehler. */

@@ -6,7 +6,8 @@ import { LearningTopic } from '../core/entities/learning-topic.entity';
 import { NextcloudService } from '../nextcloud/nextcloud.service';
 import { docSpec } from './docspec';
 import { DocNumberingService } from './doc-numbering.service';
-import { formatHeader } from './numbering';
+import { formatHeader, settingsAt } from './numbering';
+import { NotebookNode } from '../core/entities/notebook-node.entity';
 import { widthInCm } from './course-format';
 
 export { widthInCm };
@@ -39,7 +40,31 @@ export class WorksheetsService {
     @Optional() @InjectRepository(LearningModule) private readonly moduleRepo?: Repository<LearningModule>,
     @Optional() @InjectRepository(LearningTopic) private readonly topicRepo?: Repository<LearningTopic>,
     @Optional() private readonly nextcloud?: NextcloudService,
+    @Optional() @InjectRepository(NotebookNode) private readonly nodeRepo?: Repository<NotebookNode>,
   ) {}
+
+  /**
+   * Für den KI-Prompt: was an einem Zielordner gilt (Kurs, KI-Vorgaben) und
+   * welche Blätter es im selben Book schon gibt (für Verweise {{blatt:…}}).
+   */
+  async promptContext(user: any, nodeId: string | null) {
+    const nodes = await this.nodeRepo!.find({ where: { ownerId: user.userId } });
+    if (nodeId && !nodes.some((n) => n.id === nodeId)) throw new NotFoundException('Ordner nicht gefunden.');
+    const settings = settingsAt(nodes, nodeId);
+    const byId = new Map(nodes.map((n) => [n.id, n]));
+    const bookOf = (id: string | null) => {
+      let n = id ? byId.get(id) : undefined;
+      const seen = new Set<string>();
+      while (n?.parentId && byId.has(n.parentId) && !seen.has(n.id)) { seen.add(n.id); n = byId.get(n.parentId); }
+      return n?.id ?? null;
+    };
+    const book = bookOf(nodeId);
+    const numbering = await this.numbering!.numberingFor(user.userId);
+    const sheets = [...numbering.docs.values()]
+      .filter((d) => (d.nodeId ? bookOf(d.nodeId) : null) === book)
+      .map((d) => ({ slug: d.slug, pfad: d.pfad, titel: d.title }));
+    return { kurs: settings.kurs || '', aiGuidelines: settings.aiGuidelines || '', sheets };
+  }
 
   async status() {
     return { configured: this.renderer.configured(), renderer: await this.renderer.health() };

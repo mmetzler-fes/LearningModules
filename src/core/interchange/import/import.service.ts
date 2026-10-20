@@ -1,3 +1,4 @@
+import { docSpec } from '../../../worksheets/docspec';
 import { Injectable, BadRequestException, NotFoundException, ForbiddenException, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -175,6 +176,12 @@ export class ImportService {
     });
 
     const notes = await this.resolveNextcloudRefs(newModules, user);
+    // Dokumente (Modultyp „Dokument“, z. B. aus dem KI-Prompt): Fehler gleich melden.
+    for (const m of newModules) {
+      if (m.type !== 'document') continue;
+      const errors = docSpec().validateDocSpec(m.content?.spec);
+      if (errors.length) notes.push(`„${m.title}“ enthält Fehler (im Editor markiert): ${errors.slice(0, 3).join(' · ')}${errors.length > 3 ? ' …' : ''}`);
+    }
     await this.moduleRepo.save(newModules);
 
     return {

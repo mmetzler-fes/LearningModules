@@ -237,6 +237,10 @@ FRONTEND – src/renderer/
   docspec-editor.js     YAML-Editor mit Vorschau und Druck (.odt/.pdf über
                         /api/worksheets/render); window.DocSpecEditor für
                         content-editors.js (Feldtyp 'docspec')
+  views/doc-prompt-view.js  KI-Prompt für Dokumente (Reiter in der KI-Prompt-
+                        Ansicht, buildDocPrompt in ai-prompt.js): Zielordner
+                        mit Kurs, KI-Vorgaben und Blättern für Verweise;
+                        Antwort = Themen-JSON mit Modul type "document"
   docspec-html.js       HTML → Spec im Browser (DOMParser): .odt-Import im
                         Editor und Umwandlung alter Module „Text /
                         Arbeitsblatt“; escapeMarkup() schützt wörtlichen Text

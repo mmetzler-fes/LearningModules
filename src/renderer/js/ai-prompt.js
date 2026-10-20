@@ -205,6 +205,24 @@ function describeFields(type) {
   return out;
 }
 
+/** Beschreibung der Quiz-Typen (Felder, Regeln, Beispiel) – auch für den Dokument-Prompt. */
+export function describeQuizTypes(types) {
+  const L = [];
+  for (const t of types) {
+    L.push('');
+    L.push(`### "${t}" – ${typeName(t)}`);
+    L.push('Felder in "content":');
+    L.push(...describeFields(t));
+    L.push('Regeln:');
+    for (const r of RULES[t] || []) L.push(`- ${r}`);
+    L.push('Beispiel für "content":');
+    L.push('```json');
+    L.push(JSON.stringify(AI_PROMPT_EXAMPLES[t], null, 2));
+    L.push('```');
+  }
+  return L;
+}
+
 function typeName(type) {
   return (typeof H5P_TYPES !== 'undefined' && H5P_TYPES[type]?.name) || type;
 }
@@ -281,18 +299,7 @@ export function buildAiPrompt(o) {
   L.push('');
 
   L.push('## Aufgabentypen');
-  for (const t of types) {
-    L.push('');
-    L.push(`### "${t}" – ${typeName(t)}`);
-    L.push('Felder in "content":');
-    L.push(...describeFields(t));
-    L.push('Regeln:');
-    for (const r of RULES[t] || []) L.push(`- ${r}`);
-    L.push('Beispiel für "content":');
-    L.push('```json');
-    L.push(JSON.stringify(AI_PROMPT_EXAMPLES[t], null, 2));
-    L.push('```');
-  }
+  L.push(...describeQuizTypes(types));
   L.push('');
 
   L.push('## Ausgabe');
@@ -309,5 +316,146 @@ export function buildAiPrompt(o) {
   L.push('- Lücken- und Markieraufgaben vor der Ausgabe prüfen: Stehen die Lösungswörter wirklich in *Sternchen*?');
   L.push('- Gültiges JSON: doppelte Anführungszeichen, keine Kommentare, kein Komma nach dem letzten Element.');
   L.push('- Prüfe vor der Ausgabe jede Aufgabe auf fachliche Richtigkeit und eindeutige Lösung.');
+  return L.join('\n');
+}
+
+// ==================== Dokumente (Modultyp „Dokument“) ====================
+
+/** Kleines, vollständiges Beispiel einer Dokument-Spec. */
+export const DOC_PROMPT_EXAMPLE = {
+  content: [
+    { type: 'section', text: 'Worum es geht' },
+    { type: 'list', items: ['Du kannst das ohmsche Gesetz anwenden.', 'Du kannst Ströme in einfachen Schaltungen berechnen.'] },
+    { type: 'section', text: 'Schritt 1 – Spannung, Strom, Widerstand' },
+    { type: 'text', text: 'Der **Widerstand** R begrenzt den Strom. Es gilt:' },
+    { type: 'formula', math: 'I = U over R' },
+    { type: 'task', title: 'Strom berechnen', text: 'Berechne den Strom für U = 12 V und R = 240 Ω.', blocks: [
+      { type: 'karo', lines: 4 },
+      { type: 'solution', blocks: [{ type: 'text', text: 'I = U / R = 12 V / 240 Ω = 0,05 A = 50 mA' }] },
+    ] },
+  ],
+};
+
+/**
+ * Prompt für Dokumente (Arbeitsblatt, Klassenarbeit, Text). Jedes Blatt ist
+ * eine eigene JSON-Datei im Format von „📥 Thema importieren“ mit einem Modul
+ * vom Typ "document" – auf Wunsch gefolgt von passenden Quiz-Modulen.
+ * @param o.title, o.description, o.kind, o.level, o.language, o.pages, o.sheets,
+ *          o.quizCount, o.quizTypes, o.files, o.ncImages, o.guidelines, o.kurs,
+ *          o.existing ([{slug, pfad, titel}] für Verweise)
+ */
+export function buildDocPrompt(o) {
+  const kind = ['arbeitsblatt', 'klassenarbeit', 'text'].includes(o.kind) ? o.kind : 'arbeitsblatt';
+  const kindName = { arbeitsblatt: 'Arbeitsblatt', klassenarbeit: 'Klassenarbeit', text: 'Text zum Lesen' }[kind];
+  const sheets = Math.max(1, Math.min(10, Number(o.sheets) || 1));
+  const quiz = Math.max(0, Math.min(10, Number(o.quizCount) || 0));
+  const quizTypes = (o.quizTypes || []).filter((t) => AI_PROMPT_TYPES.includes(t));
+  const files = String(o.files || '').split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
+  const ncImages = (o.ncImages || []).filter(Boolean);
+  const L = [];
+
+  L.push(`Du erstellst ${sheets === 1 ? `ein ${kindName}` : `${sheets} aufeinander aufbauende Dokumente (${kindName})`} für den Unterricht.`);
+  L.push('Das Ergebnis ist eine JSON-Datei je Blatt, die eine Lernplattform direkt importiert und daraus eine Web-Ansicht sowie ein druckfertiges Blatt mit Lösungsblatt (LibreOffice) erzeugt. Halte das Format exakt ein.');
+  L.push('');
+  L.push('## Auftrag');
+  if (o.kurs) L.push(`- Kurs: ${o.kurs}`);
+  if (o.title) L.push(`- Thema: ${o.title}`);
+  L.push(`- Fragestellung / Inhalt: ${o.description}`);
+  if (o.level) L.push(`- Klassenstufe/Niveau: ${o.level}`);
+  L.push(`- Sprache: ${o.language || 'Deutsch'}`);
+  L.push(`- Umfang: etwa ${Math.max(1, Number(o.pages) || 3)} Seiten A4 je Blatt (gedruckt).`);
+  if (quiz) L.push(`- Zusätzlich ${quiz} Quiz-Module zum selben Stoff, im selben Thema hinter dem Dokument.`);
+  L.push('');
+
+  if (o.guidelines) {
+    L.push('## Fachliche Vorgaben der Lehrkraft (verbindlich)');
+    L.push(String(o.guidelines).trim());
+    L.push('');
+  }
+
+  L.push('## Inhalte');
+  if (files.length) {
+    L.push('Verwende ausschließlich die Inhalte der angehängten Materialien:');
+    for (const f of files) L.push(`- ${f}`);
+    L.push('Erfinde keine Fakten, die dort nicht stehen.');
+  } else {
+    L.push('Falls Materialien angehängt sind, verwende ausschließlich deren Inhalte. Sonst stütze dich auf gesichertes Fachwissen.');
+  }
+  if (ncImages.length) {
+    L.push('Bilder: Es gibt NUR die folgenden Bilder. Ein Bild ist ein Block {"type": "image", "src": "<Wert genau wie hier>", "width": "8cm", "caption": "…"}; nur verwenden, wenn der Dateiname wirklich passt.');
+    for (const r of ncImages) L.push(`- ${r}`);
+  } else {
+    L.push('Bilder: keine image-Blöcke verwenden. Wo eine Abbildung hilft, schreibe einen note-Block „[Abbildung: …]“ als Platzhalter.');
+  }
+  L.push('');
+
+  L.push('## Dateiformat (je Blatt eine Datei)');
+  L.push('```json');
+  const modules = [{ title: o.title || 'Titel des Blatts', type: 'document', description: '', orderIndex: 0, content: { kind, spec: { content: ['… Blöcke, siehe unten …'] } } }];
+  if (quiz) modules.push({ title: '1. Kurzer Titel der Aufgabe', type: quizTypes[0] || 'multipleChoice', description: '', content: { '…': 'je nach Typ, siehe unten' }, orderIndex: 1 });
+  L.push(JSON.stringify({ topic: { title: o.title || 'Titel des Blatts', description: 'Ein Satz, worum es geht.', modules } }, null, 2));
+  L.push('```');
+  L.push('');
+
+  L.push('## Blöcke in "content.spec.content"');
+  L.push('Ein Blatt ist eine Liste von Blöcken. Überschriften nummeriert das System selbst – nie „Aufgabe 3“ oder „1.2“ in einen Titel schreiben.');
+  L.push('- {"type": "section", "text": "…"} – Abschnitt (Ebene 1, nummeriert 1., 2., …)');
+  L.push('- {"type": "task", "title": "…", "text": "Aufgabenstellung", "blocks": [ … ]} – Aufgabe (Ebene 2, 1.1 …); "subtask" ebenso für Ebene 3');
+  L.push('- {"type": "heading", "level": 1, "text": "…"} – Überschrift OHNE Nummer');
+  L.push('- {"type": "text", "text": "…"} – Fließtext; eine Leerzeile (\\n\\n) trennt Absätze; optional "align": "center"');
+  L.push('- {"type": "list", "items": ["…", {"text": "…", "items": ["…"]}]} – Aufzählung; "ordered": true für 1. 2. 3.');
+  L.push('- {"type": "note", "text": "…"} – kursiver Hinweis');
+  L.push('- {"type": "code", "caption": "datei.ino", "code": "…"} – Quelltext, Zeilen mit \\n');
+  L.push('- {"type": "formula", "math": "I = U over R"} – freistehende Formel in StarMath (LibreOffice): over, sqrt{…}, x^2, U_A, cdot, %pi, left( … right), Text in "…"');
+  L.push('- {"type": "table", "header": ["…", "…"], "rows": [["…", "…"]]} – Tabelle; eine Zelle darf {"text": "…", "colspan": 2} oder "rowspan" sein');
+  L.push('- {"type": "box", "title": "Merke", "blocks": [ … ]} – Kasten mit Rahmen');
+  L.push('- {"type": "karo", "lines": 6} – Karopapier zum Schreiben (Zeilen à 0,5 cm)');
+  L.push('- {"type": "solution", "blocks": [ … ]} – Musterlösung: im Arbeitsblatt ausgeblendet, im Lösungsblatt rot über dem Karo davor');
+  L.push('- {"type": "spacer", "lines": 3} und {"type": "pagebreak"} – nur sparsam');
+  L.push('Auszeichnung im Text: **fett**, *kursiv*, `code`, x^{2}, CO_{2}, n_S (Index), [Link](https://…). Ein \\ am Zeilenende erzwingt den Umbruch.');
+  L.push('');
+  L.push('Beispiel für "content.spec":');
+  L.push('```json');
+  L.push(JSON.stringify(DOC_PROMPT_EXAMPLE, null, 2));
+  L.push('```');
+  L.push('');
+
+  L.push('## Regeln');
+  if (kind === 'arbeitsblatt') {
+    L.push('- Aufbau: „Worum es geht“ mit Lernzielen → mehrere Abschnitte „Schritt n – …“ → „Sicherung“ mit Abschlussübung.');
+    L.push('- Kleinschrittig: erst erklären, dann ein Beispiel zeigen, dann üben lassen. Neue Begriffe beim ersten Auftreten erklären.');
+  } else if (kind === 'klassenarbeit') {
+    L.push('- Keine Erklärteile: nur Aufgaben (task) mit Punktzahl im Titel, z. B. „Strom berechnen (4 P)“. Am Anfang ein note mit Hilfsmitteln und Gesamtpunktzahl.');
+  } else {
+    L.push('- Ein gut lesbarer Text mit Überschriften (heading/section), Beispielen und Merkkästen (box); Aufgaben nur, wo sie dem Verständnis dienen.');
+  }
+  if (kind !== 'text') {
+    L.push('- Zu jeder Aufgabe gehören ein karo-Block und direkt danach ein solution-Block. Karozeilen nach Antwortumfang: kurze Antwort 4–6, Erklärung 6–8, Rechnung zwei je Rechenschritt.');
+    L.push('- Musterlösungen erklären auch das Warum, nicht nur das Ergebnis. Typische Fehler gezielt als Aufgabe aufgreifen.');
+  }
+  const existing = (o.existing || []).filter((e) => e && e.slug);
+  if (existing.length) {
+    L.push('- Verweise auf vorhandene Blätter nur so: {{blatt:<slug>}} ergibt die Nummer, {{titel:<slug>}} den Titel. Vorhandene Blätter:');
+    for (const e of existing.slice(0, 80)) L.push(`  - ${e.slug}: ${e.pfad ? `${e.pfad} ` : ''}${e.titel}`);
+  }
+  if (sheets > 1) L.push('- Gib jedem Blatt in "content.slug" einen Kurznamen (klein, mit _), damit spätere Blätter mit {{blatt:…}} darauf verweisen können.');
+  L.push('');
+
+  if (quiz) {
+    L.push('## Quiz-Module (nach dem Dokument, orderIndex 1, 2 …)');
+    L.push(`Etwa ${quiz} Module zum Stoff des Blatts, sinnvoll verteilt auf: ${quizTypes.map(typeName).join(', ')}.`);
+    L.push(...describeQuizTypes(quizTypes));
+    L.push('');
+  }
+
+  L.push('## Ausgabe');
+  if (sheets > 1) {
+    L.push(`- Je Antwort GENAU EIN Blatt als vollständige JSON-Datei in einem einzigen \`\`\`json-Codeblock – insgesamt ${sheets} Antworten.`);
+    L.push(`- Plane vorher alle Blätter, damit sie aufeinander aufbauen und sich nichts wiederholt. Nach dem Codeblock nur die Zeile „Blatt x von ${sheets} – schreibe »weiter« für das nächste.“ (beim letzten weglassen).`);
+  } else {
+    L.push('- Gib NUR den JSON-Code in einem einzigen ```json-Codeblock aus – kein Text davor oder danach.');
+  }
+  L.push('- Gültiges JSON: doppelte Anführungszeichen, Zeilenumbrüche in Texten als \\n, keine Kommentare, kein Komma nach dem letzten Element.');
+  L.push('- Prüfe vor der Ausgabe alles auf fachliche Richtigkeit und eindeutige Lösungen.');
   return L.join('\n');
 }

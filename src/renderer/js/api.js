@@ -403,6 +403,7 @@ export class BrowserApi {
   }
   /** Nextcloud-Abbild der Dokumente: Stand bzw. jetzt abgleichen. */
   getDocMirror() { return this._fetch('/api/worksheets/mirror'); }
+  getDocPromptContext(nodeId) { return this._fetch(`/api/worksheets/prompt-context${nodeId ? `?nodeId=${encodeURIComponent(nodeId)}` : ''}`); }
   syncDocMirror() { return this._fetch('/api/worksheets/mirror/sync', { method: 'POST' }); }
   /** Dokument-Einstellungen eines Ordners (Kurs, Titelmuster, Nummerierung, KI-Vorgaben). */
   updateDocSettings(id, settings) {

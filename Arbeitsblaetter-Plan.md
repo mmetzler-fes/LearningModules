@@ -489,7 +489,7 @@ Speichern bzw. Verschieben stößt das Rendern und den Abgleich an.
 | 2 ✅ | Kurs-Einstellungen am Knoten, Pfadnummern mit Zählbeginn/Durchzählen je Ordner, Verweise `{{blatt:…}}`, Import (Abschnitte aus Skripten)/Export .zip | deine Kurse sind drin und lassen sich umsortieren |
 | 3 ✅ | Spec-Erweiterung (Inline-Formatierung, heading, box, float, Zellverbund) in Web-Ansicht und Generator; .odt-Import → Spec | beliebige .odt-Dokumente als Dokument-Modul |
 | 4 ✅ | Nextcloud-Abbild mit Soll/Ist-Abgleich, `_Gesichert/`, Speicheranzeige | Dateien auch ohne App |
-| 5 | KI-Prompt-Reiter (optional mit Quiz-Modulen) | Blätter per KI ohne Terminal |
+| 5 ✅ | KI-Prompt-Reiter (optional mit Quiz-Modulen) | Blätter per KI ohne Terminal |
 | 6 | Rich-Text-Editor auf Spec umstellen (HTML ↔ Spec), Vorlagen hochladen | bequem bearbeiten, eigene Vorlagen |
 | 7 | Migration der alten HTML-Module, alter Typ entfällt; Schüler-PDF, OneNote-Seite für Knoten, Schuladmin-Freischaltung, Skripte | bereit für alle |
 

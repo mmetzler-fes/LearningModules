@@ -4656,6 +4656,10 @@ body {
 .nb-title { overflow: hidden; text-overflow: ellipsis; min-width: 0; cursor: pointer; }
 .nb-node > .nb-title, .nb-node .nb-title { font-weight: 600; }
 .nb-kind-book .nb-title { font-size: 1.02rem; }
+.nb-mirror-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; margin: 0 0 10px; padding: 6px 10px; border: 1px dashed var(--border); border-radius: var(--radius-sm); font-size: 0.88em; }
+.nb-mirror-bar code { font-size: 0.95em; }
+.nb-warn { color: var(--warning); }
+.nb-formats { display: flex; flex-wrap: wrap; gap: 4px 14px; }
 .nb-num { color: var(--text-secondary); font-variant-numeric: tabular-nums; margin-right: 6px; font-size: 0.9em; }
 .nb-doc-settings { max-width: 560px; }
 .nb-doc-settings .nb-check { display: block; font-weight: normal; margin: 4px 0; }

@@ -3,6 +3,7 @@ import type { Response } from 'express';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { FeatureGuard, RequireFeature } from '../features/feature.guard';
 import { WorksheetsService } from './worksheets.service';
+import { DocMirrorService } from './doc-mirror.service';
 import { WORKSHEET_OUTPUTS, WorksheetOutput } from './renderer.client';
 
 const FILE_TYPES: Record<WorksheetOutput, { mime: string; ext: string; suffix: string }> = {
@@ -17,11 +18,25 @@ const FILE_TYPES: Record<WorksheetOutput, { mime: string; ext: string; suffix: s
 @UseGuards(JwtAuthGuard, FeatureGuard)
 @RequireFeature('worksheets')
 export class WorksheetsController {
-  constructor(private readonly worksheets: WorksheetsService) {}
+  constructor(private readonly worksheets: WorksheetsService, private readonly mirror: DocMirrorService) {}
 
   @Get('status')
   status() {
     return this.worksheets.status();
+  }
+
+  /** Nextcloud-Abbild der eigenen Dokumente: Ablage, Umfang, Fehler. */
+  @Get('mirror')
+  mirrorStatus(@Request() req: any) {
+    return this.mirror.status(req.user.userId);
+  }
+
+  /** Jetzt abgleichen (wartet auf das Ergebnis). */
+  @Post('mirror/sync')
+  @HttpCode(200)
+  async mirrorSync(@Request() req: any) {
+    const result = await this.mirror.syncUser(req.user.userId);
+    return { ...result, status: await this.mirror.status(req.user.userId) };
   }
 
   /**

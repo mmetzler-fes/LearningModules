@@ -14,6 +14,15 @@ export interface DavEntry {
   contentType: string;
   size: number;
   modified: string;
+  /** Nur, wenn die Antwort sie enthält (ETag der Datei bzw. Größe eines Ordners). */
+  etag?: string;
+}
+
+/** Eigenschaften einer einzelnen Datei bzw. eines Ordners (ShareClient.stat). */
+export interface DavStat {
+  isFolder: boolean;
+  size: number;
+  etag: string;
 }
 
 /**
@@ -74,12 +83,14 @@ export function parsePropfind(xml: string, folderHref: string): DavEntry[] {
     if (!href) continue;
     const path = norm(new URL(href, 'https://x').pathname);
     if (path === self) continue;
+    const etag = tag(block, 'getetag').replace(/&quot;|"/g, '');
     out.push({
       name: path.split('/').pop() || '',
       isFolder: /<(?:[\w-]+:)?collection\s*\/>/i.test(block),
       contentType: tag(block, 'getcontenttype'),
       size: Number(tag(block, 'getcontentlength')) || 0,
       modified: tag(block, 'getlastmodified'),
+      ...(etag ? { etag } : {}),
     });
   }
   return out.filter((e) => e.name);
@@ -87,6 +98,8 @@ export function parsePropfind(xml: string, folderHref: string): DavEntry[] {
 
 const PROPFIND_BODY = '<?xml version="1.0"?><d:propfind xmlns:d="DAV:"><d:prop>'
   + '<d:resourcetype/><d:getcontenttype/><d:getcontentlength/><d:getlastmodified/></d:prop></d:propfind>';
+const STAT_BODY = '<?xml version="1.0"?><d:propfind xmlns:d="DAV:" xmlns:oc="http://owncloud.org/ns"><d:prop>'
+  + '<d:resourcetype/><d:getcontentlength/><d:getetag/><oc:size/><d:quota-used-bytes/></d:prop></d:propfind>';
 
 /**
  * WebDAV einer Freigabe: klassisch unter /public.php/webdav (Benutzer = Kürzel
@@ -199,9 +212,33 @@ export class ShareClient {
     return parsePropfind(await res.text(), this.url(parts));
   }
 
-  async put(parts: string[], data: Buffer, contentType: string) {
+  /** Hochladen; liefert das ETag der neuen Fassung, wenn die Nextcloud es nennt. */
+  async put(parts: string[], data: Buffer, contentType: string): Promise<string> {
     const res = await this.request('PUT', parts, { body: new Uint8Array(data), headers: { 'Content-Type': contentType || 'application/octet-stream' } });
     if (!res.ok) this.fail(res.status, 'Hochladen');
+    return String(res.headers?.get?.('oc-etag') || res.headers?.get?.('etag') || '').replace(/"/g, '');
+  }
+
+  /** ETag und Größe (Ordner: Gesamtgröße); null, wenn es den Pfad nicht gibt. */
+  async stat(parts: string[]): Promise<DavStat | null> {
+    const res = await this.request('PROPFIND', parts, { body: STAT_BODY, headers: { Depth: '0', 'Content-Type': 'application/xml' } });
+    if (res.status === 404) return null;
+    if (res.status !== 207) this.fail(res.status, 'Datei prüfen');
+    const xml = await res.text();
+    const tag = (name: string) => new RegExp(`<(?:[\\w-]+:)?${name}\\b[^>]*>([^<]*)</(?:[\\w-]+:)?${name}>`, 'i').exec(xml)?.[1] ?? '';
+    const isFolder = /<(?:[\w-]+:)?collection\s*\/>/i.test(xml);
+    return {
+      isFolder,
+      size: Number(isFolder ? tag('size') || tag('quota-used-bytes') : tag('getcontentlength')) || 0,
+      etag: tag('getetag').replace(/&quot;|"/g, ''),
+    };
+  }
+
+  /** Verschieben bzw. umbenennen innerhalb der Freigabe; überschreibt nie (Overwrite: F). */
+  async move(from: string[], to: string[]) {
+    const res = await this.request('MOVE', from, { headers: { Destination: this.url(to), Overwrite: 'F' } });
+    if (res.status === 412) throw new BadRequestException(`Ziel gibt es schon: ${to.join('/')}`);
+    if (!res.ok) this.fail(res.status, 'Verschieben');
   }
 
   /** Datei lesen; null, wenn es sie nicht gibt. */

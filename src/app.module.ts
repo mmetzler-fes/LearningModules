@@ -63,6 +63,7 @@ import { NextcloudModule } from './nextcloud/nextcloud.module';
 import { ContentHandover } from './core/entities/content-handover.entity';
 import { HandoverModule } from './handover/handover.module';
 import { FeaturesModule } from './features/features.module';
+import { DocMirror } from './core/entities/doc-mirror.entity';
 import { WorksheetsModule } from './worksheets/worksheets.module';
 import { AccountLink } from './core/entities/account-link.entity';
 import { LinkCode } from './core/entities/link-code.entity';
@@ -88,7 +89,7 @@ import { LinkCode } from './core/entities/link-code.entity';
     TypeOrmModule.forRoot({
       type: 'sqlite',
       database: 'data/database.sqlite',
-      entities: [User, StudentClass, ClassStudent, LearningTopic, LearningModule, Result, School, SystemConfig, Tag, TopicLink, TopicQuickLink, TeacherGroup, ShopOffer, UseGrant, PointsEntry, ModuleTiming, ClassShare, NotebookNode, NotebookPlacement, ModuleDraft, UsageCount, ContentFeedback, Category, FederationPeer, RemoteOffer, RemotePerson, FederationCopy, ContentHandover, AccountLink, LinkCode, GithubBackup, NextcloudLink, SchoolNextcloud],
+      entities: [User, StudentClass, ClassStudent, LearningTopic, LearningModule, Result, School, SystemConfig, Tag, TopicLink, TopicQuickLink, TeacherGroup, ShopOffer, UseGrant, PointsEntry, ModuleTiming, ClassShare, NotebookNode, NotebookPlacement, ModuleDraft, UsageCount, ContentFeedback, Category, FederationPeer, RemoteOffer, RemotePerson, FederationCopy, ContentHandover, AccountLink, LinkCode, GithubBackup, NextcloudLink, SchoolNextcloud, DocMirror],
       synchronize: true,
     }),
     MailModule,

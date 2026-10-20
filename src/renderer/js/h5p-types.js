@@ -146,6 +146,7 @@ const H5P_TYPES = {
         { value: 'text', label: 'Text' },
       ]},
       { key: 'spec', type: 'docspec', label: 'Inhalt', required: true },
+      { key: 'handMaintained', type: 'checkbox', advanced: true, label: 'In der Nextcloud von Hand gepflegt – die App schreibt die Dateien nicht mehr neu, verschiebt sie aber mit' },
     ],
   },
   dialogCards: {

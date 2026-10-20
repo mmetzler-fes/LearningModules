@@ -76,6 +76,13 @@ export class WorksheetsService {
     }) || title || 'Dokument';
   }
 
+  /** Mehrere Formate in einem Auftrag (Nextcloud-Abbild). */
+  async renderFiles(spec: Record<string, any>, title: string, outputs: WorksheetOutput[], ctx: DocContext | null) {
+    const { job, warnings } = await this.prepare(spec, title, outputs, ctx);
+    const result = await this.renderer.render(job);
+    return { files: result.files, warnings: [...warnings, ...result.warnings] };
+  }
+
   async render(user: any, body: { spec: unknown; title: string; output: WorksheetOutput; moduleId?: string }) {
     const errors = docSpec().validateDocSpec(body.spec);
     if (errors.length) throw new BadRequestException({ message: 'Das Dokument enthält Fehler.', errors });

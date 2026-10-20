@@ -401,6 +401,9 @@ export class BrowserApi {
   exportCourse(id) {
     return this._download(`/api/notebooks/nodes/${encodeURIComponent(id)}/course-export`, 'kurs.zip');
   }
+  /** Nextcloud-Abbild der Dokumente: Stand bzw. jetzt abgleichen. */
+  getDocMirror() { return this._fetch('/api/worksheets/mirror'); }
+  syncDocMirror() { return this._fetch('/api/worksheets/mirror/sync', { method: 'POST' }); }
   /** Dokument-Einstellungen eines Ordners (Kurs, Titelmuster, Nummerierung, KI-Vorgaben). */
   updateDocSettings(id, settings) {
     return this._fetch(`/api/notebooks/nodes/${encodeURIComponent(id)}/doc-settings`, { method: 'PATCH', body: JSON.stringify(settings) });

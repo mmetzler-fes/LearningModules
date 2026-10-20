@@ -1,3 +1,4 @@
+import { docChanged } from '../core/events/doc-changes';
 import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, IsNull, Repository } from 'typeorm';
@@ -679,7 +680,9 @@ export class TopicsService {
       topicId: topic.id,
       orderIndex,
     });
-    return this.moduleRepo.save(module);
+    const saved = await this.moduleRepo.save(module);
+    docChanged(topic.ownerId); // Nextcloud-Abbild der Dokumente (src/worksheets)
+    return saved;
   }
 
   /**
@@ -698,6 +701,7 @@ export class TopicsService {
     // sonst blieben tote Tokens in der Tabelle zurück. Ebenso Angebote und
     // Nutzungsrechte: Sie zeigten sonst ins Leere.
     await this.quickRepo.delete({ topicId: id });
+    docChanged(topic.ownerId);
     await this.offerRepo.delete({ topicId: id });
     const grants = await this.grantRepo.count({ where: { topicId: id } });
     await this.grantRepo.delete({ topicId: id });
@@ -748,6 +752,7 @@ export class TopicsService {
     const module = topic.modules.find(m => m.id === moduleId);
     if (!module) throw new NotFoundException('Modul nicht gefunden');
     await this.moduleRepo.remove(module);
+    docChanged(topic.ownerId);
     return { success: true };
   }
 
@@ -819,6 +824,7 @@ export class TopicsService {
       await this.moduleRepo.save(picked);
       // Im Quellthema bleiben sonst Lücken in der Reihenfolge zurück.
       await this.compactOrder(source.id, ids);
+      docChanged(user.userId);
       return { success: true, count: picked.length, mode, targetTopicId: target.id };
     }
 
@@ -854,6 +860,7 @@ export class TopicsService {
       await this.moduleRepo.save(copies);
     }
 
+    docChanged(user.userId);
     return { success: true, count: copies.length, mode, targetTopicId: target.id };
   }
 
@@ -880,6 +887,7 @@ export class TopicsService {
     if (updates.length > 0) {
       await this.moduleRepo.save(updates);
     }
+    docChanged(topic.ownerId);
     return { success: true };
   }
 }

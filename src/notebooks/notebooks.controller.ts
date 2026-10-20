@@ -6,6 +6,7 @@ import { NotebooksService } from './notebooks.service';
 import { FeatureGuard, RequireFeature } from '../features/feature.guard';
 import { FeaturesService } from '../features/features.service';
 import { CourseService } from '../worksheets/course.service';
+import { docChanged } from '../core/events/doc-changes';
 
 /** Dateiname ohne Zeichen, die Betriebssysteme stören. */
 function fileName(title: string): string {
@@ -30,13 +31,17 @@ export class NotebooksController {
   /** `{ kind: 'book'|'area'|'section', title, parentId }` */
   @Post('nodes')
   async create(@Request() req: any, @Body() body: any) {
-    return this.notebooks.createNode(req.user, body);
+    const result = await this.notebooks.createNode(req.user, body);
+    docChanged(req.user.userId); // Nextcloud-Abbild der Dokumente
+    return result;
   }
 
   /** `{ title?, tagIds? }` – Tags vererben sich auf alle Lernthemen darunter. */
   @Patch('nodes/:id')
   async update(@Param('id') id: string, @Request() req: any, @Body() body: { title?: string; tagIds?: string[] }) {
-    return this.notebooks.updateNode(id, req.user, body);
+    const result = await this.notebooks.updateNode(id, req.user, body);
+    docChanged(req.user.userId); // Nextcloud-Abbild der Dokumente
+    return result;
   }
 
   /**
@@ -47,41 +52,55 @@ export class NotebooksController {
   @UseGuards(FeatureGuard)
   @RequireFeature('worksheets')
   async docSettings(@Param('id') id: string, @Request() req: any, @Body() body: any) {
-    return this.notebooks.updateDocSettings(id, req.user, body);
+    const result = await this.notebooks.updateDocSettings(id, req.user, body);
+    docChanged(req.user.userId); // Nextcloud-Abbild der Dokumente
+    return result;
   }
 
   /** Hoch- oder runterstufen: `{ kind: 'area' | 'section' | 'book' }`. */
   @Post('nodes/:id/convert')
   async convert(@Param('id') id: string, @Request() req: any, @Body() body: any) {
-    return this.notebooks.convertNode(id, req.user, body);
+    const result = await this.notebooks.convertNode(id, req.user, body);
+    docChanged(req.user.userId); // Nextcloud-Abbild der Dokumente
+    return result;
   }
 
   /** Bereich darüber einfügen: `{ title }` – der Knoten kommt in den neuen Bereich. */
   @Post('nodes/:id/wrap')
   async wrap(@Param('id') id: string, @Request() req: any, @Body() body: any) {
-    return this.notebooks.wrapNode(id, req.user, body);
+    const result = await this.notebooks.wrapNode(id, req.user, body);
+    docChanged(req.user.userId); // Nextcloud-Abbild der Dokumente
+    return result;
   }
 
   /** Lernthemen darin bleiben erhalten und rücken eine Ebene nach oben. */
   @Delete('nodes/:id')
   async remove(@Param('id') id: string, @Request() req: any) {
-    return this.notebooks.deleteNode(id, req.user);
+    const result = await this.notebooks.deleteNode(id, req.user);
+    docChanged(req.user.userId); // Nextcloud-Abbild der Dokumente
+    return result;
   }
 
   /** `{ type: 'node'|'topic', id, parentId, index }` */
   @Post('move')
   async move(@Request() req: any, @Body() body: any) {
-    return this.notebooks.move(req.user, body);
+    const result = await this.notebooks.move(req.user, body);
+    docChanged(req.user.userId); // Nextcloud-Abbild der Dokumente
+    return result;
   }
 
   @Post('nodes/:id/copy')
   async copyNode(@Param('id') id: string, @Request() req: any) {
-    return this.notebooks.copyNode(id, req.user);
+    const result = await this.notebooks.copyNode(id, req.user);
+    docChanged(req.user.userId); // Nextcloud-Abbild der Dokumente
+    return result;
   }
 
   @Post('topics/:topicId/copy')
   async copyTopic(@Param('topicId') topicId: string, @Request() req: any, @Body() body: { title?: string }) {
-    return this.notebooks.copyTopic(req.user, topicId, body?.title);
+    const result = await this.notebooks.copyTopic(req.user, topicId, body?.title);
+    docChanged(req.user.userId); // Nextcloud-Abbild der Dokumente
+    return result;
   }
 
   /** `{ selected: boolean }` – alle eigenen Lernthemen darin. */
@@ -122,9 +141,12 @@ export class NotebooksController {
       }
       const res = await this.courses.importCourse(req.user, file.buffer, req.body?.parentId || null);
       await this.notebooks.applyInheritance(req.user);
+      docChanged(req.user.userId);
       return res;
     }
-    return this.notebooks.importNode(req.user, file.buffer, req.body?.parentId || null);
+    const result = await this.notebooks.importNode(req.user, file.buffer, req.body?.parentId || null);
+    docChanged(req.user.userId); // Nextcloud-Abbild der Dokumente
+    return result;
   }
 
   /** Dokumente darunter als Kurs für den Arbeitsblatt-Generator (ZIP: kurs.yaml, NN_blatt/…, skripte/). */

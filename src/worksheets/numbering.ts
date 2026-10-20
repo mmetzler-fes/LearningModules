@@ -25,7 +25,11 @@ export interface DocSettings {
   numberFlat?: boolean;
   aiGuidelines?: string;
   skript?: { titel?: string; kopfzeile?: string; slug?: string };
+  /** Formate im Nextcloud-Abbild (odt, loesung, pdf, loesung_pdf); ohne Angabe alle. */
+  formats?: string[];
 }
+
+export const PRINT_FORMATS = ['odt', 'loesung', 'pdf', 'loesung_pdf'];
 
 export interface NumNode {
   id: string;
@@ -129,6 +133,7 @@ export function settingsAt(nodes: NumNode[], nodeId: string | null): DocSettings
   for (const n of chain) {
     const s = n.docSettings || {};
     for (const key of ['kurs', 'titelmuster', 'autor', 'aiGuidelines'] as const) if (s[key]) out[key] = s[key];
+    if (Array.isArray(s.formats)) out.formats = s.formats;
     if (s.meta && typeof s.meta === 'object') out.meta = { ...(out.meta || {}), ...s.meta };
   }
   return out;
@@ -152,6 +157,10 @@ export function sanitizeDocSettings(input: any, existing: DocSettings | null | u
   for (const key of ['numberRoot', 'numberFlat'] as const) {
     if (!(key in src)) continue;
     if (src[key] === true || src[key] === false) out[key] = src[key]; else delete out[key];
+  }
+  if ('formats' in src) {
+    if (Array.isArray(src.formats)) out.formats = PRINT_FORMATS.filter((f) => src.formats.includes(f));
+    else delete out.formats;
   }
   if ('meta' in src) {
     const meta: Record<string, string> = {};

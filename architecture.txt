@@ -126,6 +126,12 @@ BACKEND – src/
                                 (data: und Nextcloud) mitgeben → Renderer
                                 (renderer.client.ts). POST /api/worksheets/
                                 render und /context
+    doc-mirror.ts               Nextcloud-Abbild ohne DB: Soll/Ist je Datei
+                                (Pfad + ETag), umziehen statt neu schreiben,
+                                Fremdes und Handfassungen nach _Gesichert/
+    doc-mirror.service.ts       Abbild je Lehrkraft: beim Start, stündlich,
+                                1 min nach Änderungen (core/events/
+                                doc-changes.ts), GET/POST /api/worksheets/mirror
     course-format.ts            Kurse des Generators lesen (readCourse) und
                                 schreiben (writeCourse) – ohne DB
     course.service.ts           Kurs-ZIP → Book/Bereich mit Abschnitten aus
@@ -134,6 +140,8 @@ BACKEND – src/
                                 /api/notebooks/import (erkennt kurs.yaml),
                                 Export GET /api/notebooks/nodes/:id/course-export
   core/share/link-url.ts        Öffentliche Adresse + QR-Code (Quick- und Themen-Link)
+  core/events/doc-changes.ts    Bus „Dokumente geändert“ (Themen, Notebooks →
+                                Nextcloud-Abbild), ohne Modul-Abhängigkeiten
   core/public/public.controller.ts
                                 Schülerzugang ohne Konto; resolveQuickToken()
                                 bestimmt aus dem Token die zuständige Lehrkraft

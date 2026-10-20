@@ -41,6 +41,7 @@ export class NotebooksView {
   constructor(app) {
     this.app = app;
     this._tree = document.getElementById('notebookTree');
+    this._mirrorBar = document.getElementById('nbMirrorBar');
     this._search = document.getElementById('notebookSearch');
     this._data = null;
     this._open = loadOpen();
@@ -65,6 +66,7 @@ export class NotebooksView {
       return;
     }
     this._data = data;
+    void this._loadMirror();
     // Module mit offenem Entwurf (nicht gespeicherte Änderungen) markieren.
     try {
       const drafts = await this.app.api.listDrafts();
@@ -338,7 +340,8 @@ export class NotebooksView {
       key: 'm:' + mod.id, depth, icon: type.icon || '🧩', title: mod.title, twisty: false, num: this._data.docNumbers?.[mod.id] || '',
       cls: `nb-module ${on ? '' : 'nb-off'} ${this._query && this._matches(mod.title) ? 'nb-hit' : ''}`,
       meta: escapeHtml(type.name || mod.type),
-      extra: (this._draftIds?.has(mod.id) ? '<span class="nb-badge" title="Nicht gespeicherte Änderungen – beim Bearbeiten wiederherstellbar">📝 Entwurf</span>' : '') + (own
+      extra: (this._draftIds?.has(mod.id) ? '<span class="nb-badge" title="Nicht gespeicherte Änderungen – beim Bearbeiten wiederherstellbar">📝 Entwurf</span>' : '')
+        + (this._mirrorErrors?.has(mod.id) ? `<span class="nb-badge nb-warn" title="${escapeAttr(`Nextcloud: ${this._mirrorErrors.get(mod.id)}`)}">☁️ ⚠</span>` : '') + (own
         ? `<button type="button" class="nb-status ${on ? 'on' : ''}" title="${on ? 'Aktiv – klicken zum Deaktivieren' : 'Inaktiv – klicken zum Aktivieren'}">${on ? '●' : '○'}</button>
            <button type="button" class="nb-edit" title="Bearbeiten">✏️</button>`
         : ''),
@@ -567,6 +570,47 @@ export class NotebooksView {
 
   // ---------- Dokumente (Modultyp „Dokument“, Freischaltung 'worksheets') ----------
 
+  /** Stand des Nextcloud-Abbilds über dem Baum. */
+  async _loadMirror() {
+    if (!this._mirrorBar) return;
+    if (!this._docsEnabled()) { this._mirrorBar.classList.add('hidden'); return; }
+    const st = await this.app.api.getDocMirror().catch(() => null);
+    if (!st || failed(st)) { this._mirrorBar.classList.add('hidden'); return; }
+    this._renderMirror(st);
+  }
+
+  _renderMirror(st) {
+    const bar = this._mirrorBar;
+    const hadErrors = this._mirrorErrors?.size || 0;
+    this._mirrorErrors = new Map((st.errors || []).map((e) => [e.moduleId, e.error]));
+    bar.classList.remove('hidden');
+    if (!st.store) {
+      bar.innerHTML = '<span class="hint">☁️ Dokumente kommen in die Nextcloud, sobald eine verbunden ist (Home-Menü → ☁️ Nextcloud).</span>';
+      return;
+    }
+    const mb = st.size != null ? ` · ${(st.size / 1024 / 1024).toFixed(1)} MB` : '';
+    const when = st.lastSync ? ` · zuletzt ${new Date(st.lastSync).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' })}` : '';
+    const errs = st.errors?.length ? ` · <span class="nb-warn" title="${escapeAttr(st.errors.map((e) => `${e.title}: ${e.error}`).join('\n'))}">⚠ ${st.errors.length} Fehler</span>` : '';
+    bar.innerHTML = `<span>☁️ Nextcloud: <code>${escapeHtml(st.folder)}</code> – ${st.documents} Dokument${st.documents === 1 ? '' : 'e'}, ${st.files} Dateien${mb}${when}${errs}${st.running ? ' · läuft …' : ''}</span>
+      <button type="button" class="btn btn-secondary btn-sm">⟳ Jetzt abgleichen</button>`;
+    bar.querySelector('button').addEventListener('click', async (e) => {
+      e.target.disabled = true;
+      e.target.textContent = 'Wird abgeglichen …';
+      const res = await this.app.api.syncDocMirror().catch((err) => ({ message: err.message }));
+      if (failed(res) || !res.status) {
+        this.app.showToast('Fehler: ' + (res?.message || 'Abgleich fehlgeschlagen'), 'error');
+        e.target.disabled = false;
+        e.target.textContent = '⟳ Jetzt abgleichen';
+        return;
+      }
+      const r = res.report;
+      if (res.skipped) this.app.showToast('Abgleich übersprungen: ' + ({ store: 'keine Nextcloud verbunden', renderer: 'kein Renderer eingetragen', feature: 'nicht freigeschaltet' }[res.skipped] || res.skipped), 'info');
+      else this.app.showToast(`Nextcloud abgeglichen: ${r.written} geschrieben, ${r.moved} verschoben, ${r.saved} gesichert${r.errors.length ? `, ${r.errors.length} Fehler` : ''}.`, r.errors.length ? 'info' : 'success');
+      this._renderMirror(res.status);
+      if (hadErrors || res.status.errors?.length) this._render();
+    });
+  }
+
   _docsEnabled() {
     return (this.app.state.currentUser?.features || []).includes('worksheets');
   }
@@ -601,6 +645,10 @@ export class NotebooksView {
           <label class="nb-check"><input type="checkbox" name="numberFlat" ${s.numberFlat ? 'checked' : ''}> Darunter durchzählen
             <span class="hint">– keine weiteren Ebenen, Unterordner gliedern nur noch</span></label>
         </div>
+        <div class="form-group"><label>Dateien in der Nextcloud</label>
+          <div class="nb-formats">${[['odt', 'Blatt .odt'], ['loesung', 'Lösung .odt'], ['pdf', 'Blatt .pdf'], ['loesung_pdf', 'Lösung .pdf']].map(([f, l]) =>
+            `<label class="nb-check"><input type="checkbox" name="format" value="${f}" ${(s.formats || inherited.formats || ['odt', 'loesung', 'pdf', 'loesung_pdf']).includes(f) ? 'checked' : ''}> ${l}</label>`).join('')}</div>
+          <span class="hint">Dazu immer die Quelle unter _Quellen/ (YAML).</span></div>
         <div class="form-group"><label>KI-Vorgaben</label>
           <textarea name="aiGuidelines" rows="6" maxlength="20000" placeholder="Fachliche Vorgaben für die KI, z. B. Hardware, Programmiersprache, Niveau">${escapeHtml(s.aiGuidelines || '')}</textarea></div>
         <div class="confirm-actions">
@@ -620,6 +668,7 @@ export class NotebooksView {
         // Ein Ordner mit eigenem Kurs zählt von selbst neu – abgewählt heißt dann ausdrücklich nein.
         numberRoot: node.kind === 'book' ? null : f.numberRoot.checked ? true : (f.kurs.value.trim() ? false : null),
         numberFlat: f.numberFlat.checked ? true : null,
+        formats: [...form.querySelectorAll('input[name="format"]:checked')].map((x) => x.value),
       });
       if (failed(res)) { this.app.showToast('Fehler: ' + (res?.message || 'Speichern fehlgeschlagen'), 'error'); return; }
       close();
@@ -631,7 +680,7 @@ export class NotebooksView {
   _inheritedDocSettings(nodeId) {
     const out = {};
     for (let n = nodeId ? this._nodes.get(nodeId) : null; n; n = n.parentId ? this._nodes.get(n.parentId) : null) {
-      for (const k of ['kurs', 'titelmuster', 'autor']) if (!out[k] && n.docSettings?.[k]) out[k] = n.docSettings[k];
+      for (const k of ['kurs', 'titelmuster', 'autor', 'formats']) if (!out[k] && n.docSettings?.[k]) out[k] = n.docSettings[k];
     }
     return out;
   }

@@ -18,6 +18,7 @@ import { User } from '../core/entities/user.entity';
 import { DocNumberingService } from '../worksheets/doc-numbering.service';
 import { sanitizeDocSettings } from '../worksheets/numbering';
 import { FeaturesService } from '../features/features.service';
+import { docChanged } from '../core/events/doc-changes';
 import { NodeKind, NODE_KINDS, KIND_LABEL, MAX_NODE_DEPTH, canHoldNode, cannotConvert, fitsDepth, nodeDepth, insertAt, initialStructure, inheritTags, subtreeIds } from './notebook-rules';
 
 /**

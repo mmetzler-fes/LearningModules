@@ -90,10 +90,9 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
               ['justifyLeft', '⇤', 'Linksbündig'], ['justifyCenter', '↔', 'Zentriert'], ['justifyRight', '⇥', 'Rechtsbündig'], ['createLink', '🔗', 'Link']]
               .map(([cmd, label, title]) => `<button type="button" class="rt-btn" data-cmd="${cmd}" title="${title}">${label}</button>`).join('')}
             <select class="ds-vinsert" title="Baustein einfügen">
-              <option value="">➕ Einfügen …</option><option value="karo">Karo</option><option value="solution">Lösung</option>
+              <option value="">➕ Einfügen …</option><option value="karo">Karo</option><option value="quiz">🧩 Quiz aus dem Lernthema</option><option value="solution">Lösung</option>
               <option value="formula">Formel</option><option value="code">Code</option><option value="table">Tabelle</option>
               <option value="box">Kasten</option><option value="spacer">Platz</option><option value="pagebreak">Seitenumbruch</option>
-              <option value="quiz">🧩 Quiz aus dem Lernthema</option>
             </select>
           </div>
           <div class="ds-surface worksheet-content" contenteditable="true" spellcheck="true" aria-label="Inhalt bearbeiten"></div>
@@ -334,16 +333,7 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
     const what = e.target.value;
     e.target.value = '';
     if (!what) return;
-    if (what === 'quiz') {
-      const after = currentBlock();
-      const block = await pickQuiz();
-      if (!block) return;
-      const tmp = document.createElement('div');
-      tmp.innerHTML = `${widgetHtml(block)}<p><br></p>`;
-      const nodes = [...tmp.childNodes];
-      if (after?.isConnected) after.after(...nodes); else surface.append(...nodes);
-      return;
-    }
+    if (what === 'quiz') { insertQuiz(); return; }
     const html = what === 'table' ? '<table><thead><tr><th>Spalte 1</th><th>Spalte 2</th></tr></thead><tbody><tr><td>…</td><td>…</td></tr></tbody></table>'
       : what === 'box' ? '<div class="ws-box" data-title="Merke"><p>…</p></div>'
         : widgetHtml(STARTERS[what]);
@@ -381,6 +371,17 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
       done({ type: 'quiz', module: m.id, title: m.title || 'Quiz' });
     }));
   });
+
+  /** Quiz an der Schreibmarke einfügen. */
+  const insertQuiz = async () => {
+    const after = currentBlock();
+    const block = await pickQuiz();
+    if (!block) return;
+    const tmp = document.createElement('div');
+    tmp.innerHTML = `${widgetHtml(block)}<p><br></p>`;
+    const nodes = [...tmp.childNodes];
+    if (after?.isConnected) after.after(...nodes); else surface.append(...nodes);
+  };
 
   /** Baustein als YAML bearbeiten. */
   const editWidget = (w) => {

@@ -124,9 +124,9 @@ Kurs-Projekt mit `make` bauen.
 
 ## Quiz im Dokument
 
-Im Editor **➕ Einfügen … → 🧩 Quiz aus dem Lernthema** wählt ein Modul aus
+Im Editor (Reiter **✏️ Bearbeiten**) wählt **➕ Einfügen … → 🧩 Quiz aus dem Lernthema** ein Modul aus
 demselben Lernthema (z. B. Multiple Choice oder Lückentext). Es steht als
-Baustein im Blatt (`type: quiz`, `module: <Modul-ID>`).
+Baustein an der Schreibmarke im Blatt (`type: quiz`, `module: <Modul-ID>`).
 
 - **Im Durchlauf** bearbeiten Schüler das Quiz direkt im Blatt; die Antworten
   zählen beim Weiterblättern mit ins Ergebnis. Als eigener Schritt kommt es

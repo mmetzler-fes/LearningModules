@@ -90,6 +90,11 @@ import { LinkCode } from './core/entities/link-code.entity';
     TypeOrmModule.forRoot({
       type: 'sqlite',
       database: 'data/database.sqlite',
+      // WAL: Lesen wartet nicht auf Schreiben (viele Abgaben gleichzeitig);
+      // neben der Datei liegen dann -wal und -shm. busyTimeout: kurz warten
+      // statt „database is locked“.
+      enableWAL: true,
+      busyTimeout: 5000,
       entities: [User, StudentClass, ClassStudent, LearningTopic, LearningModule, Result, School, SystemConfig, Tag, TopicLink, TopicQuickLink, TeacherGroup, ShopOffer, UseGrant, PointsEntry, ModuleTiming, ClassShare, NotebookNode, NotebookPlacement, ModuleDraft, UsageCount, ContentFeedback, Category, FederationPeer, RemoteOffer, RemotePerson, FederationCopy, ContentHandover, AccountLink, LinkCode, GithubBackup, NextcloudLink, SchoolNextcloud, DocMirror, WorksheetTemplate],
       synchronize: true,
     }),

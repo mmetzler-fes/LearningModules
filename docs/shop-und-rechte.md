@@ -214,6 +214,12 @@ Dateien legt die App nicht ab – Bilder und Arbeitsblätter stehen in der
 Datenbank und sind damit im Backup. Masterkeys und App-Secret gehören nicht
 zum Backup: Sie gehören zum Server, nicht zu den Daten.
 
+Die Datenbank läuft im **WAL-Modus** von SQLite: Lesen wartet nicht auf
+Schreiben. Neben `data/database.sqlite` liegen deshalb `database.sqlite-wal`
+und `database.sqlite-shm` – sie gehören dazu. Wer den Ordner `data/` von
+Hand sichert, kopiert alle drei bei gestoppter App (oder nimmt das Backup
+der App, das den Stand über SQLite selbst holt).
+
 ### Automatisches Backup in die Cloud (WebDAV / Nextcloud)
 
 Unter Administration → Shop & Sicherheit → *Automatisches Backup* stellt der

@@ -62,6 +62,9 @@ export class BackupService {
     await this.dataSource.destroy();
     try {
       if (fs.existsSync(dbPath)) fs.copyFileSync(dbPath, `${dbPath}.before-restore`);
+      // WAL-Modus: Reste der alten Datenbank (-wal, -shm) würden sonst auf
+      // die eingespielte angewendet und sie beschädigen.
+      for (const suffix of ['-wal', '-shm']) if (fs.existsSync(dbPath + suffix)) fs.unlinkSync(dbPath + suffix);
       fs.writeFileSync(dbPath, database);
     } finally {
       await this.dataSource.initialize();

@@ -327,11 +327,14 @@
           <button class="btn btn-secondary btn-sm" id="btnNotebookImport" title="Notebook-Datei (.zip), Lernthema als Datei (JSON, Moodle-XML, H5P, .lmenc) oder eingefügter Text">📥 Importieren</button>
           <button class="btn btn-secondary btn-sm" id="btnNotebookExpand" title="Alle Books, Bereiche und Abschnitte aufklappen">⊞ Aufklappen</button>
           <button class="btn btn-secondary btn-sm" id="btnNotebookCollapse" title="Alles zuklappen">⊟ Zuklappen</button>
+          <button class="btn btn-secondary btn-sm" id="btnNotebookSelect" aria-pressed="false" title="Mehrere Module oder Lernthemen auswählen – auch mit Strg+Klick, Umschalt+Klick für einen Bereich">☑ Auswählen</button>
           <button class="btn btn-secondary btn-sm hidden" id="btnDocTemplates" title="LibreOffice-Vorlagen für den Druck von Dokumenten">🖨 Vorlagen</button>
           <input type="search" id="notebookSearch" class="search-input nb-search" placeholder="Suchen in Titeln von Lernthemen und Modulen…" />
         </div>
         <!-- Nextcloud-Abbild der Dokumente (nur mit Freischaltung, notebooks.js) -->
         <div id="nbMirrorBar" class="nb-mirror-bar hidden"></div>
+        <!-- Mehrfachauswahl: Aktionen für alle gewählten Einträge (notebooks.js) -->
+        <div id="nbSelBar" class="nb-sel-bar hidden" role="toolbar" aria-label="Auswahl"></div>
         <div id="notebookTree" class="nb-tree" role="tree"></div>
       </section>
 

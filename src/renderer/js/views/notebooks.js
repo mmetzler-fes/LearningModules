@@ -48,6 +48,14 @@ export class NotebooksView {
     this._data = null;
     this._open = loadOpen();
     this._drag = null;
+    // Mehrfachauswahl: Schlüssel ('m:<id>' bzw. 't:<id>') → { type, id, topicId }.
+    // Immer nur eine Sorte; `_selMode` zeigt Kästchen (auch ohne Strg).
+    this._sel = new Map();
+    this._selMode = false;
+    this._selAnchor = null;
+    this._selBar = document.getElementById('nbSelBar');
+    this._btnSelect = document.getElementById('btnNotebookSelect');
+    this._btnSelect?.addEventListener('click', () => this._setSelMode(!this._selMode));
 
     document.getElementById('btnNotebookNewBook')?.addEventListener('click', () => this._createNode('book', null));
     document.getElementById('btnNotebookImport')?.addEventListener('click', () => this._import(null));
@@ -57,7 +65,11 @@ export class NotebooksView {
 
     // Kontextmenü schließen: Klick daneben, Escape, Scrollen.
     document.addEventListener('click', (e) => { if (!e.target.closest('.nb-menu')) this._closeMenu(); });
-    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') this._closeMenu(); });
+    document.addEventListener('keydown', (e) => {
+      if (e.key !== 'Escape') return;
+      if (!this._menu && this._sel.size && !document.querySelector('.confirm-overlay:not(.hidden)')) this._clearSel();
+      this._closeMenu();
+    });
     window.addEventListener('resize', () => this._closeMenu());
   }
 
@@ -169,6 +181,7 @@ export class NotebooksView {
       if (el) frag.appendChild(el);
     }
     this._tree.appendChild(frag);
+    this._syncSel();
 
     if (!this._tree.children.length) {
       this._tree.innerHTML = query
@@ -306,7 +319,10 @@ export class NotebooksView {
       this._render();
     });
     this._menuOn(row, () => (own ? this._topicMenu(topic) : inMirror ? this._mirrorTopicMenu(topic) : this._grantedMenu(topic)));
-    if (inMirror) { row.draggable = false; row.classList.add('nb-mirror-row'); } else this._bindDrop(row, { type: 'topic', id: topic.id, own });
+    if (inMirror) { row.draggable = false; row.classList.add('nb-mirror-row'); } else {
+      this._bindDrop(row, { type: 'topic', id: topic.id, own });
+      this._selectable(row, { type: 'topic', id: topic.id, own });
+    }
     wrap.appendChild(row);
 
     if (open) {
@@ -361,7 +377,10 @@ export class NotebooksView {
       this._render();
     });
     this._menuOn(row, () => this._moduleMenu(topic, mod));
-    if (own && !mod.parentId) this._bindDrop(row, { type: 'module', id: mod.id, topicId: topic.id });
+    if (own && !mod.parentId) {
+      this._bindDrop(row, { type: 'module', id: mod.id, topicId: topic.id });
+      this._selectable(row, { type: 'module', id: mod.id, topicId: topic.id });
+    }
     return row;
   }
 
@@ -1254,11 +1273,24 @@ export class NotebooksView {
    * Lernthema, und das Modul kommt hinein.
    */
   async _moduleTargetDialog(topic, mod, mode) {
+    const target = await this._pickModuleTarget(
+      `${mode === 'move' ? '↔️ Verschieben' : '📄 Kopieren'}: „${mod.title}“ nach …`,
+      mode === 'move' ? topic.id : null, topic.id, mod.title,
+    );
+    if (target) await this._transferModule(topic, mod, target, mode);
+  }
+
+  /**
+   * Eigenes Lernthema als Ziel wählen – oder in einem Abschnitt ein neues
+   * anlegen. `blocked`: nicht wählbar (Verschieben in sich selbst), `here`:
+   * als „(hier)“ markiert. Liefert die Themen-ID oder null.
+   */
+  async _pickModuleTarget(title, blocked, here, newTitle) {
     const entries = [];
     const addTopics = (nodeId, depth) => {
       for (const t of this._topicsIn(nodeId)) {
         if (!t.isOwn) continue;
-        entries.push({ icon: '📘', label: t.title, depth, value: t.id, disabled: t.id === topic.id && mode === 'move', note: t.id === topic.id ? '(hier)' : '' });
+        entries.push({ icon: '📘', label: t.title, depth, value: t.id, disabled: t.id === blocked, note: t.id === here ? '(hier)' : '' });
       }
     };
     const newHere = (nodeId) => ({ label: '➕ neues Lernthema hier', value: { newIn: nodeId } });
@@ -1272,30 +1304,242 @@ export class NotebooksView {
       }
     };
     walk(null, 0);
-    const target = await this._pickTarget(
-      `${mode === 'move' ? '↔️ Verschieben' : '📄 Kopieren'}: „${mod.title}“ nach …`,
-      entries,
-      'Ein Modul gehört in ein Lernthema (📘). Für einen leeren Abschnitt: „➕ neues Lernthema hier“.',
-    );
-    if (!target) return;
+    const target = await this._pickTarget(title, entries,
+      'Ein Modul gehört in ein Lernthema (📘). Für einen leeren Abschnitt: „➕ neues Lernthema hier“.');
+    if (!target) return null;
     if (typeof target === 'object' && 'newIn' in target) {
-      const title = await this._ask('➕ Neues Lernthema für das Modul', 'Titel', mod.title);
-      if (!title) return;
-      const created = await this.app.api.saveTopic({ title, description: '' });
-      if (failed(created) || !created.id) { this.app.showToast('Fehler: ' + (created?.message || 'Anlegen fehlgeschlagen'), 'error'); return; }
+      const name = await this._ask('➕ Neues Lernthema für das Modul', 'Titel', newTitle);
+      if (!name) return null;
+      const created = await this.app.api.saveTopic({ title: name, description: '' });
+      if (failed(created) || !created.id) { this.app.showToast('Fehler: ' + (created?.message || 'Anlegen fehlgeschlagen'), 'error'); return null; }
       await this.app.api.moveInNotebook('topic', created.id, target.newIn, null);
       if (target.newIn) this._open.add('n:' + target.newIn);
-      await this._transferModule(topic, mod, created.id, mode);
-      return;
+      return created.id;
     }
-    await this._transferModule(topic, mod, target, mode);
+    return target;
+  }
+
+  // ---------- Mehrfachauswahl ----------
+
+  _setSelMode(on) {
+    this._selMode = on;
+    this._btnSelect?.classList.toggle('active', on);
+    this._btnSelect?.setAttribute('aria-pressed', String(on));
+    if (!on) this._sel.clear();
+    this._render();
+  }
+
+  /**
+   * Zeile auswählbar machen. Strg/⌘+Klick schaltet um, Umschalt+Klick wählt
+   * bis zur zuletzt geklickten Zeile; im Auswahlmodus genügt ein Klick.
+   * Knöpfe in der Zeile (⋯, ●, ✏️, ▸) behalten ihre Aufgabe.
+   */
+  _selectable(row, item) {
+    const key = (item.type === 'module' ? 'm:' : 't:') + item.id;
+    row.dataset.selKey = key;
+    row.classList.toggle('nb-selected', this._sel.has(key));
+    if (this._selMode) {
+      const box = document.createElement('input');
+      box.type = 'checkbox';
+      box.className = 'nb-select';
+      box.checked = this._sel.has(key);
+      box.title = 'Auswählen';
+      box.tabIndex = -1;
+      row.prepend(box);
+    }
+    row.addEventListener('click', (e) => {
+      if (!(e.ctrlKey || e.metaKey || e.shiftKey || this._selMode)) return;
+      if (e.target.closest('.nb-menu-btn, .nb-status, .nb-edit, .nb-twisty')) return;
+      e.preventDefault();
+      e.stopPropagation();
+      if (e.shiftKey && this._selAnchor) this._selectRange(this._selAnchor, key, item.type);
+      else this._toggleSel(key, item);
+      this._selAnchor = key;
+    }, true);
+  }
+
+  _toggleSel(key, item) {
+    const first = this._sel.values().next().value;
+    if (first && first.type !== item.type) this._sel.clear();
+    if (this._sel.has(key)) this._sel.delete(key); else this._sel.set(key, item);
+    this._syncSel();
+  }
+
+  /** Alle sichtbaren Zeilen derselben Sorte zwischen zwei Schlüsseln. */
+  _selectRange(fromKey, toKey, type) {
+    const prefix = type === 'module' ? 'm:' : 't:';
+    const rows = [...this._tree.querySelectorAll(`[data-sel-key^="${prefix}"]`)];
+    const a = rows.findIndex((r) => r.dataset.selKey === fromKey);
+    const b = rows.findIndex((r) => r.dataset.selKey === toKey);
+    if (a < 0 || b < 0) return;
+    const first = this._sel.values().next().value;
+    if (first && first.type !== type) this._sel.clear();
+    for (const r of rows.slice(Math.min(a, b), Math.max(a, b) + 1)) {
+      const k = r.dataset.selKey;
+      const id = k.slice(2);
+      this._sel.set(k, type === 'module'
+        ? { type, id, topicId: this._moduleTopic(id) }
+        : { type, id, own: this._topics.get(id)?.isOwn });
+    }
+    this._syncSel();
+  }
+
+  _moduleTopic(moduleId) {
+    for (const t of this._topics.values()) if ((t.modules || []).some((m) => m.id === moduleId)) return t.id;
+    return null;
+  }
+
+  _clearSel() {
+    this._sel.clear();
+    this._selAnchor = null;
+    this._syncSel();
+  }
+
+  /** Gewählte Einträge in Baumreihenfolge (sichtbare zuerst). */
+  _selItems() {
+    const order = [...this._tree.querySelectorAll('[data-sel-key]')].map((r) => r.dataset.selKey);
+    return [...this._sel.entries()]
+      .sort(([a], [b]) => (order.indexOf(a) + 1 || 1e9) - (order.indexOf(b) + 1 || 1e9))
+      .map(([, v]) => v);
+  }
+
+  /** Zeilen markieren und die Leiste der Auswahl zeigen – ohne den Baum neu aufzubauen. */
+  _syncSel() {
+    this._tree.querySelectorAll('[data-sel-key]').forEach((r) => {
+      const on = this._sel.has(r.dataset.selKey);
+      r.classList.toggle('nb-selected', on);
+      const box = r.querySelector(':scope > .nb-select');
+      if (box) box.checked = on;
+    });
+    const bar = this._selBar;
+    if (!bar) return;
+    const items = this._selItems();
+    bar.classList.toggle('hidden', !items.length);
+    if (!items.length) { bar.innerHTML = ''; return; }
+    const modules = items[0].type === 'module';
+    const n = items.length;
+    const label = modules ? `${n} Modul${n === 1 ? '' : 'e'}` : `${n} Lernthem${n === 1 ? 'a' : 'en'}`;
+    const actions = modules
+      ? [['move', '↔️ Verschieben nach…'], ['copy', '📄 Kopieren nach…'], ['on', '● Aktivieren'], ['off', '○ Deaktivieren'], ['delete', '🗑 Löschen']]
+      : [['move', '↔️ Verschieben nach…'], ['on', '● Freigeben'], ['off', '○ Sperren']];
+    bar.innerHTML = `<strong>☑ ${label} ausgewählt</strong>
+      ${actions.map(([act, text]) => `<button type="button" class="btn btn-${act === 'delete' ? 'danger' : 'secondary'} btn-sm" data-act="${act}">${text}</button>`).join('')}
+      <button type="button" class="btn btn-secondary btn-sm" data-act="clear" title="Auswahl aufheben (Esc)">✕</button>
+      <span class="hint">Ziehen einer gewählten Zeile nimmt alle mit.</span>`;
+    bar.querySelectorAll('[data-act]').forEach((b) => b.addEventListener('click', () => this._selAction(b.dataset.act)));
+  }
+
+  async _selAction(act) {
+    const items = this._selItems();
+    if (act === 'clear' || !items.length) { this._clearSel(); return; }
+    const modules = items[0].type === 'module';
+    const n = items.length;
+    try {
+      if (modules && (act === 'move' || act === 'copy')) {
+        const sources = [...new Set(items.map((i) => i.topicId))];
+        const target = await this._pickModuleTarget(
+          `${act === 'move' ? '↔️ Verschieben' : '📄 Kopieren'}: ${n} Modul${n === 1 ? '' : 'e'} nach …`,
+          act === 'move' && sources.length === 1 ? sources[0] : null, sources.length === 1 ? sources[0] : null,
+          this._topics.get(sources[0])?.title || 'Neues Lernthema',
+        );
+        if (!target) return;
+        if (act === 'move') await this._moveModules(items, target);
+        else await this._copyModules(items, target);
+      } else if (!modules && act === 'move') {
+        const target = await this._pickTarget(`↔️ ${n} Lernthem${n === 1 ? 'a' : 'en'} verschieben nach …`,
+          [{ icon: '📥', label: 'Unsortiert', depth: 0, value: null }, ...this._nodeEntries(() => true)]);
+        if (target === undefined) return;
+        await this._moveTopics(items, target, null);
+      } else if (act === 'on' || act === 'off') {
+        for (const i of items) {
+          if (modules) await this.app.api.toggleModuleSelection(i.topicId, i.id, act === 'on');
+          else if (i.own) await this.app.api.toggleTopicSelection(i.id, act === 'on');
+        }
+        const skipped = modules ? 0 : items.filter((i) => !i.own).length;
+        this.app.showToast(`${n - skipped} ${modules ? (act === 'on' ? 'aktiviert' : 'deaktiviert') : (act === 'on' ? 'freigegeben' : 'gesperrt')}.${skipped ? ` ${skipped} erworbene übersprungen.` : ''}`, 'success');
+        await this.refresh();
+        this._syncSel();
+        return;
+      } else if (modules && act === 'delete') {
+        if (!(await this.app.appConfirm(`${n} Modul${n === 1 ? '' : 'e'} löschen? Das lässt sich nicht rückgängig machen.`))) return;
+        for (const i of items) {
+          const res = await this.app.api.deleteModule(i.topicId, i.id);
+          if (failed(res)) { this.app.showToast('Fehler: ' + (res?.message || 'Löschen fehlgeschlagen'), 'error'); break; }
+        }
+      } else return;
+    } catch (err) {
+      this.app.showToast('Fehler: ' + err.message, 'error');
+    }
+    this._clearSel();
+    await this.refresh();
+  }
+
+  /**
+   * Module (aus einem oder mehreren Lernthemen) in ein Lernthema verschieben,
+   * in ihrer Reihenfolge – mit `beforeId` vor dieses Modul, sonst ans Ende.
+   */
+  async _moveModules(items, targetTopicId, beforeId = null) {
+    const groups = new Map();
+    for (const i of items) groups.set(i.topicId, [...(groups.get(i.topicId) || []), i.id]);
+    for (const [src, ids] of groups) {
+      if (src === targetTopicId) continue;
+      const res = await this.app.api.transferModules(src, targetTopicId, ids, 'move');
+      if (failed(res)) { this.app.showToast('Fehler: ' + (res?.message || 'Verschieben fehlgeschlagen'), 'error'); break; }
+    }
+    if (beforeId || groups.has(targetTopicId)) {
+      await this.refresh();
+      const all = (this._topics.get(targetTopicId)?.modules || []).filter((m) => !m.parentId)
+        .sort((a, b) => a.orderIndex - b.orderIndex).map((m) => m.id);
+      const moving = items.map((i) => i.id).filter((id) => all.includes(id));
+      const rest = all.filter((id) => !moving.includes(id));
+      const at = beforeId ? rest.indexOf(beforeId) : -1;
+      rest.splice(at < 0 ? rest.length : at, 0, ...moving);
+      await this.app.api.reorderModules(targetTopicId, rest);
+    }
+    this._open.add('t:' + targetTopicId);
+    this._saveOpen();
+    this._clearSel();
+    await this.refresh();
+  }
+
+  async _copyModules(items, targetTopicId) {
+    const groups = new Map();
+    for (const i of items) groups.set(i.topicId, [...(groups.get(i.topicId) || []), i.id]);
+    for (const [src, ids] of groups) {
+      const res = await this.app.api.transferModules(src, targetTopicId, ids, 'copy');
+      if (failed(res)) { this.app.showToast('Fehler: ' + (res?.message || 'Kopieren fehlgeschlagen'), 'error'); break; }
+    }
+    this._open.add('t:' + targetTopicId);
+    this._saveOpen();
+  }
+
+  /**
+   * Lernthemen in einen Knoten (null = Unsortiert) verschieben. Mit `index`
+   * an diese Stelle, in ihrer Reihenfolge: erst alle ans Ende, dann eines
+   * nach dem anderen an seinen Platz – so stören die noch nicht platzierten
+   * die Zählung nicht.
+   */
+  async _moveTopics(items, parentId, index) {
+    for (const i of items) {
+      const res = await this.app.api.moveInNotebook('topic', i.id, parentId, null);
+      if (failed(res)) { this.app.showToast('Fehler: ' + (res?.message || 'Verschieben fehlgeschlagen'), 'error'); await this.refresh(); return; }
+    }
+    if (index !== null && index !== undefined) {
+      for (const [k, i] of items.entries()) await this.app.api.moveInNotebook('topic', i.id, parentId, index + k);
+    }
+    this._open.add('n:' + (parentId || ''));
+    this._saveOpen();
+    this._clearSel();
+    await this.refresh();
   }
 
   // ---------- Ziehen und Ablegen ----------
 
   _bindDrag(row, drag) {
     row.addEventListener('dragstart', (e) => {
-      this._drag = drag;
+      // Gewählte Zeile: alle gewählten ziehen mit.
+      const key = row.dataset.selKey;
+      this._drag = key && this._sel.has(key) && this._sel.size > 1 ? { ...drag, multi: this._selItems() } : drag;
       e.dataTransfer.effectAllowed = 'move';
       try { e.dataTransfer.setData('text/plain', drag.id); } catch (_) {}
       row.classList.add('nb-dragging');
@@ -1313,6 +1557,13 @@ export class NotebooksView {
    */
   _dropPlan(drag, target, zone = 'middle') {
     if (!drag) return null;
+    if (drag.multi) {
+      // Nicht auf einen der gezogenen Einträge.
+      if (drag.multi.some((i) => i.id === target.id)) return null;
+      if (drag.type === 'module' && target.type === 'topic' && target.own) {
+        return drag.multi.every((i) => i.topicId === target.id) ? null : { mode: 'into', topicId: target.id };
+      }
+    }
     if (drag.type === 'node') {
       if (target.type !== 'node' || !target.kind || target.id === drag.id || this._isInside(target.id, drag.id)) return null;
       const node = this._nodes.get(target.id);
@@ -1365,6 +1616,16 @@ export class NotebooksView {
       this._drag = null;
       if (!plan) return;
       try {
+        if (drag.multi) {
+          if (drag.type === 'module') await this._moveModules(drag.multi, plan.topicId, plan.beforeId || null);
+          else if (plan.mode === 'into') await this._moveTopics(drag.multi, plan.parentId, null);
+          else {
+            const moving = new Set(drag.multi.map((i) => i.id));
+            const index = this._topicsIn(plan.parentId).filter((t) => !moving.has(t.id)).findIndex((t) => t.id === target.id);
+            await this._moveTopics(drag.multi, plan.parentId, index < 0 ? null : index);
+          }
+          return;
+        }
         if (drag.type === 'module') {
           const topic = this._topics.get(drag.topicId);
           const mod = (topic.modules || []).find((m) => m.id === drag.id);

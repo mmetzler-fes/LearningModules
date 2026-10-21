@@ -527,7 +527,7 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
     selectWidget(w && surface.contains(w) ? w : null);
   });
   const widgetKeysActive = () => mode === 'visual' && selectedWidget && surface.contains(selectedWidget)
-    && !document.querySelector('.confirm-overlay') && (document.activeElement === surface || document.activeElement === document.body || surface.contains(document.activeElement));
+    && !document.querySelector('.confirm-overlay:not(.hidden)') && (document.activeElement === surface || document.activeElement === document.body || surface.contains(document.activeElement));
   document.addEventListener('keydown', (e) => {
     if (!widgetKeysActive()) return;
     if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); widgetAction('del', selectedWidget); }

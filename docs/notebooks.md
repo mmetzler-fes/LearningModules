@@ -140,6 +140,24 @@ Books, Bereiche und Abschnitte stehen im Dialog als Überschriften; mit
 dort entsteht ein Lernthema (Titel vorgeschlagen: der des Moduls), und das
 Modul kommt hinein.
 
+### Mehrere auf einmal
+
+**Strg+Klick** (Mac: ⌘+Klick) wählt Module oder Lernthemen einzeln dazu,
+**Umschalt+Klick** alle bis zur zuletzt geklickten Zeile. **☑ Auswählen** in
+der Leiste zeigt Kästchen – dann genügt ein einfacher Klick (auch am
+Tablet). Gewählt wird immer nur eine Sorte: Module (eigene) oder
+Lernthemen.
+
+Über dem Baum steht dann, was gewählt ist, mit den Aktionen für alle:
+
+| Gewählt | Aktionen |
+|---|---|
+| Module | Verschieben nach…, Kopieren nach…, Aktivieren, Deaktivieren, Löschen |
+| Lernthemen | Verschieben nach…, Freigeben, Sperren (erworbene bleiben, wie sie sind) |
+
+Wer eine gewählte Zeile **zieht**, nimmt alle gewählten mit – in ihrer
+Reihenfolge, auch aus verschiedenen Lernthemen. **Esc** hebt die Auswahl auf.
+
 ### Kopieren
 
 Kopien starten **nicht freigegeben**, damit nichts ungewollt bei den

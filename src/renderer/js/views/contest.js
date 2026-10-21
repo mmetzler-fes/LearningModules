@@ -583,9 +583,11 @@ export class ContestView {
 
   /**
    * Beitritt aus dem Namensformular. Liefert null oder einen Fehler
-   * `{ message, needTestPassword }` (Testschüler der Lehrkraft).
+   * `{ message, needTestPassword }` (Testschüler der Lehrkraft). `pageToken`:
+   * Token der Adresse, wenn er abweicht (Quick-Link, Klasse erst gewählt) –
+   * damit ein Neuladen den Platz wiederfindet.
    */
-  async joinAsPlayer(token, { studentName, password, testPassword }) {
+  async joinAsPlayer(token, { studentName, password, testPassword }, pageToken = null) {
     let res;
     try {
       res = await this.app.api.contestJoin(token, { studentName, password, testPassword });
@@ -594,17 +596,19 @@ export class ContestView {
     }
     if (!res || !res.playerId) return { message: res?.message || 'Beitritt fehlgeschlagen.', needTestPassword: !!res?.needTestPassword };
     this._saveSession(token, { playerId: res.playerId, secret: res.secret, name: res.name });
+    if (pageToken && pageToken !== token) this._saveSession(pageToken, { playerId: res.playerId, secret: res.secret, name: res.name, token });
     this._enterPlayer(token, res);
     return null;
   }
 
   /** Nach einem Neuladen: mit gespeicherter Spieler-ID weiter. */
-  async resumePlayer(token) {
-    const saved = this._loadSession(token);
+  async resumePlayer(pageToken) {
+    const saved = this._loadSession(pageToken);
     if (!saved?.playerId) return false;
+    const token = saved.token || pageToken;
     const res = await this.app.api.contestJoin(token, { playerId: saved.playerId, secret: saved.secret }).catch(() => null);
     if (!res || !res.playerId) {
-      this._saveSession(token, null);
+      this._saveSession(pageToken, null);
       return false;
     }
     this._enterPlayer(token, res);

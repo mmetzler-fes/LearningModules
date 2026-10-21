@@ -1,23 +1,71 @@
 # Quick-Link: Schüler starten per Link oder QR-Code
 
-> **Seit den Klassenlinks** erzeugt der Knopf keinen eigenen Link mehr,
-> sondern einen [Klassenlink](klassen-und-schuljahr.md). Ältere Quick-Links
-> (`/?q=…`) bleiben gültig; Ergebnisse darüber stehen unter „ohne Klasse“.
-> Der Rest dieser Seite beschreibt diese älteren Links.
+Ein Quick-Link ist **ein** Link für ein Lernthema (bzw. ein Book, einen
+Bereich oder Abschnitt im Notebook) – ohne Klasse in der Adresse. Er passt
+deshalb auf gedruckte Blätter und gilt auch im nächsten Schuljahr weiter.
 
 ## Für die Lehrkraft
 
-Auf der Karte eines Lernthemas gibt es den Button **🔗 Quick-Link**. Er fragt
-nach der Klasse (oder legt eine neue an) und erzeugt daraus einen Klassenlink
-für das ganze Thema mit **Quiz**, **🦉 Lernbegleitung** und **🏆 Quiz-Arena**.
-Danach wechselt die App zu **Schülerfreigaben → 🏫 Klassen**, wo Link und
-QR-Code gleich offen sind.
+**🔗 Quick-Link** auf der Karte eines Lernthemas (oder im Menü eines
+Notebook-Eintrags):
 
-Grundlage ist eine Regel unter **Schülerfreigaben → 📚 Themen**, benannt nach
-dem Lernthema und mit dessen Tags. Sie entsteht beim ersten Klick; eine beim
-früheren Quick-Link angelegte Freigabe wird weiterverwendet. Wer die Regel
-löscht, bekommt beim nächsten Klick eine neue. Je Klasse gibt es einen
-Klassenlink – ein zweiter Klick für dieselbe Klasse zeigt den vorhandenen.
+1. Beim ersten Mal die **Klassen wählen**, aus denen Schüler später wählen
+   (auch keine) → **Quick-Link erstellen**.
+2. Danach öffnet der Knopf Link & QR-Code mit
+   - **✏️ Anpassen** – Klassen ändern. Link und QR-Code bleiben gleich.
+   - **🚫 Zurückziehen** – der Link und alle seine Varianten (unten) sind
+     sofort ungültig. Danach lässt sich ein neuer erstellen; die Klassenauswahl
+     wird vorgeschlagen.
+
+Ein „Neu erzeugen“ gibt es nicht: Wer einen neuen Token braucht, zieht zurück
+und erstellt neu – so ist klar, dass verteilte Codes verloren gehen.
+
+Unter **Schülerfreigaben → 🏫 Klassen** steht je gewählter Klasse der
+Quick-Link als **Variante mit vorgewählter Klasse** (Abzeichen 🔗 Quick-Link).
+Damit kann man einer Klasse einen Link geben, bei dem die Klassenauswahl
+entfällt. Dort gibt es auch die **🏆 Quiz-Arena** der Klasse: Den
+Leitungs-Link öffnet nur die Lehrkraft (z. B. am Beamer), Schüler kommen über
+den QR-Code im Wartebereich hinein.
+
+Hinter jeder Klasse steht ihr Klassenlink. Eine abgewählte Klasse behält ihn
+als gewöhnlichen Klassenlink – samt Ergebnissen.
+
+| Adresse | Schüler sehen |
+|---|---|
+| `/?l=<token>` | Klassenauswahl und Name |
+| `/?l=<token>.<klasse>` | nur den Namen (Klasse steht fest) |
+
+Ist die Klasse einer Variante nicht mehr ausgewählt, zeigt die App die
+Klassenauswahl statt eines Fehlers. Zur Auswahl stehen nur Klassen des
+aktuellen Schuljahrs.
+
+### Schuljahreswechsel
+
+Die Klassen-ID bleibt beim Wechsel nicht gleich – jede Klasse gehört zu einem
+Schuljahr, mit eigener Schülerliste und Löschfrist
+([Klassen und Schuljahr](klassen-und-schuljahr.md#schuljahreswechsel)).
+Der Quick-Link folgt trotzdem:
+
+- **Übernommene Klasse** (TG11-1 → TG12-1): Sie ersetzt die alte in der
+  Auswahl. Eine gedruckte Variante mit der alten Klasse führt über die Kette
+  der Vorgänger zur Klasse, die jetzt ausgewählt ist – auch nach mehreren
+  Jahren. Ergebnisse landen in der neuen Klasse.
+- **Nicht mehr benötigte Klasse:** Sie fällt aus der Auswahl, ihre Variante
+  ist **erloschen** („Diesen Link gibt es nicht mehr“).
+- Der Quick-Link selbst (ohne Klasse) bleibt gültig.
+
+## Für die Schüler
+
+Link öffnen oder QR scannen → Klasse wählen → Name eingeben. Der Name wird wie
+beim [Klassenlink](klassen-und-schuljahr.md) der Schülerliste zugeordnet
+(„unbestätigt“, „🔒 strikt“ gelten wie dort), das Ergebnis steht unter der
+Klasse. Ohne gewählte Klassen genügt der Name; Ergebnisse stehen dann unter
+„ohne Klasse“.
+
+## Ältere Quick-Links
+
+Quick-Links aus der Zeit vor den Klassen (`/?q=…`) bleiben gültig; Ergebnisse
+darüber stehen unter „ohne Klasse“. Die folgenden Abschnitte beschreiben sie.
 
 ## Der Quick-Link gehört der Lehrkraft, nicht dem Thema
 
@@ -45,10 +93,8 @@ Links der Kolleginnen auf dasselbe Thema bleiben gültig.
 Zieht der Eigentümer die Nutzungsfreigabe zurück, ist der fremde Quick-Link
 sofort tot – die Prüfung läuft bei jedem Schülerstart neu.
 
-## Für die Schüler
-
-Link öffnen oder QR scannen → Name eintippen → das Quiz startet sofort.
-Eine Anmeldung gibt es für Schüler nicht mehr; der Link ist der Zugang.
+Bei den älteren Links: Link öffnen oder QR scannen → Name eintippen → das
+Quiz startet sofort.
 
 ## Freigabe-Regeln
 

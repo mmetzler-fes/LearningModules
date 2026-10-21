@@ -604,6 +604,20 @@ export class NotebooksService {
    * die Antwort nennt sie, damit nichts unbemerkt fehlt.
    */
   async quickLink(id: string, user: any, classId: string, req?: any) {
+    const { node, included, notReleased } = await this.quickTopics(id, user);
+    const link = await this.links.classLinkForNode(node, included, String(classId || ''), user, req);
+    return { ...link, includedCount: included.length, notReleased };
+  }
+
+  /** Quick-Link des Knotens erstellen bzw. seine Klassen anpassen (`classIds`). */
+  async saveQuickLink(id: string, user: any, classIds: unknown, req?: any) {
+    const { node, included, notReleased } = await this.quickTopics(id, user);
+    const res = await this.links.saveQuickForNode(node, included, classIds, user, req);
+    return { ...res, includedCount: included.length, notReleased };
+  }
+
+  /** Knoten und seine startbaren Lernthemen – wirft, wenn keins dabei ist. */
+  private async quickTopics(id: string, user: any) {
     let node: { id: string; title: string };
     let below: string[];
     if (id.startsWith('offer:')) {
@@ -644,8 +658,7 @@ export class NotebooksService {
         ? `Darin ist kein freigegebenes Lernthema. Nicht freigegeben: ${notReleased.join(', ')}.`
         : 'Darin ist kein Lernthema mit freigegebenen Modulen.');
     }
-    const link = await this.links.classLinkForNode(node, included, String(classId || ''), user, req);
-    return { ...link, includedCount: included.length, notReleased };
+    return { node, included, notReleased };
   }
 
   // ---- Download und Import ----

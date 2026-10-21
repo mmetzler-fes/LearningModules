@@ -31,6 +31,11 @@ const SHARE_TEXTS = {
     hint: 'Schüler öffnen den Link oder scannen den Code, geben ihren Namen ein und wählen, wie sie üben '
       + '(Quiz, Lernen mit Lösungen, Lernbegleitung – je nachdem, was du freigegeben hast).',
   },
+  quick: {
+    title: '🔗 Quick-Link',
+    hint: 'Ein Link für alle: Schüler öffnen ihn oder scannen den Code, wählen ihre Klasse und geben ihren Namen ein. '
+      + 'Er bleibt gleich, auch wenn du die Klassen anpasst – so passt er auf gedruckte Blätter.',
+  },
   exam: {
     title: '📝 Klassenarbeit – eigener Link',
     hint: 'Dieser Link führt direkt in die Klassenarbeit – getrennt vom Übungslink. Wer ihn hat, kommt hinein: '
@@ -175,6 +180,59 @@ export class LinksView {
     this._pending = kind ? { id: link.id, kind } : null;
     if (document.getElementById('view-teacher-links')?.classList.contains('active')) this.refresh();
     else this.app.navigateToView('teacher-links');
+  }
+
+  /**
+   * Quick-Link eines Lernthemas (`kind` 'topic') bzw. Notebook-Knotens
+   * ('node'): ein Link ohne Klasse, Schüler wählen sie aus der Auswahl.
+   * Gibt es noch keinen, erst die Klassen wählen und erstellen; danach
+   * Link & QR mit „Anpassen“ und „Zurückziehen“.
+   */
+  async openQuickLink({ kind, id, title }) {
+    let res = await this.app.api.getQuickLink(kind, id).catch(() => null);
+    if (typeof res?.exists !== 'boolean') { this.app.showToast('Fehler: ' + (res?.message || 'Quick-Link nicht abrufbar'), 'error'); return; }
+    if (!res.exists) {
+      const picked = await pickClass(this.app, {
+        title: `🔗 Quick-Link – ${title}`,
+        hint: 'Ein Link für alle: Schüler wählen nach dem Öffnen ihre Klasse aus dieser Auswahl, Ergebnisse stehen dann unter ihrer Klasse. '
+          + 'Ohne Klasse geben sie nur ihren Namen ein.',
+        multiple: true,
+        preselected: res.classIds || [],
+        okLabel: '🔗 Quick-Link erstellen',
+        allowNone: true,
+      });
+      if (!picked) return;
+      res = await this.app.api.saveQuickLink(kind, id, picked.map((c) => c.id)).catch(() => null);
+      if (!res?.exists) { this.app.showToast('Fehler: ' + (res?.message || 'Quick-Link konnte nicht erstellt werden.'), 'error'); return; }
+    } else if (kind === 'node') {
+      // Der Inhalt folgt dem Knoten: neu dazugekommene Lernthemen gleich aufnehmen.
+      const again = await this.app.api.saveQuickLink(kind, id, res.quick.classes.map((c) => c.id)).catch(() => null);
+      if (again?.exists) res = again;
+    }
+    if (res.notReleased?.length) this.app.showToast(`Nicht freigegeben, daher nicht dabei: ${res.notReleased.join(', ')}.`, 'info');
+    await this._openShareDialog(res, 'practice');
+  }
+
+  /** Klassen des offenen Quick-Links ändern – Link und QR-Code bleiben. */
+  async _editQuickClasses() {
+    const quick = this._shareData?.quick;
+    if (!quick) return;
+    const picked = await pickClass(this.app, {
+      title: `✏️ Quick-Link – ${this._shareData.name}`,
+      hint: 'Aus diesen Klassen wählen Schüler nach dem Öffnen. Link und QR-Code bleiben gleich. '
+        + 'Eine abgewählte Klasse behält ihren Klassenlink mit allen Ergebnissen.',
+      multiple: true,
+      preselected: quick.classes.map((c) => c.id),
+      okLabel: '💾 Übernehmen',
+      allowNone: true,
+    });
+    if (!picked) return;
+    const kind = quick.nodeId ? 'node' : 'topic';
+    const res = await this.app.api.saveQuickLink(kind, quick.nodeId || quick.topicId, picked.map((c) => c.id)).catch(() => null);
+    if (!res?.exists) { this.app.showToast('Fehler: ' + (res?.message || 'Speichern fehlgeschlagen'), 'error'); return; }
+    this.app.showToast('Klassen des Quick-Links angepasst.', 'success');
+    await this._loadShare(false);
+    if (document.getElementById('view-teacher-links')?.classList.contains('active')) this.refresh();
   }
 
   /**
@@ -334,6 +392,7 @@ export class LinksView {
           ${link.hasPassword ? '<span class="link-badge" title="Passwort erforderlich">🔒</span>' : ''}
           ${link.singleAttempt ? '<span class="link-badge" title="Klassenarbeit nur einmal">1×</span>' : ''}
           ${isClass ? `<span class="link-class-chip">🏫 ${escapeHtml(link.className || '?')}</span>` : ''}
+          ${link.isQuick || link.viaQuick ? `<span class="link-badge" title="${link.isQuick ? 'Quick-Link: ein Link, Schüler wählen ihre Klasse' : 'Variante des Quick-Links mit dieser Klasse'}">🔗 Quick-Link</span>` : ''}
         </h3>
         <div class="link-card-modes">
           ${(link.modes || []).map((m) => `
@@ -371,7 +430,9 @@ export class LinksView {
     // Eine Regel verteilt man über einen Klassenlink: erst die Klasse, dann Link & QR.
     const share = (kind) => (isClass
       ? (kind === 'contest' ? this._openContestDialog(link) : this._openShareDialog(link, kind))
-      : this._shareForClass(link, kind));
+      : link.isQuick && kind === 'practice'
+        ? this.openQuickLink({ kind: link.quickNodeId ? 'node' : 'topic', id: link.quickNodeId || link.quickTopicId, title: link.name })
+        : this._shareForClass(link, kind));
     card.querySelector('.btn-link-share')?.addEventListener('click', () => share('practice'));
     card.querySelector('.btn-link-exam')?.addEventListener('click', () => share('exam'));
     card.querySelector('.btn-link-contest')?.addEventListener('click', () => share('contest'));
@@ -1056,17 +1117,41 @@ export class LinksView {
 
       this._shareData = res;
       const modeNames = (res.modes || []).map((m) => LINK_MODE_LABELS[m]?.label || m).join(', ');
-      info.textContent = `${res.name} · ${res.moduleCount} Aufgabe(n) · ${modeNames}`;
+      info.textContent = [res.name, res.className, `${res.moduleCount} Aufgabe(n)`, modeNames].filter(Boolean).join(' · ');
+      this._showQuickParts(res);
       urlBox.value = res.url;
       // QR-SVG kommt vom eigenen Server (qrcode-Bibliothek), kein Fremdinhalt.
       qrBox.innerHTML = res.qrSvg || '<p class="hint">QR-Code nicht verfügbar – bitte den Link verwenden.</p>';
     } catch (err) {
       this._shareData = null;
+      this._showQuickParts(null);
       qrBox.innerHTML = '';
       info.textContent = this._shareLink.name;
       warning.textContent = err.message;
       warning.classList.remove('hidden');
     }
+  }
+
+  /**
+   * Quick-Link: Klassen mit „Anpassen“, kein „Neu“. Seine Varianten unter
+   * „Klassen“ lassen sich nur über den Quick-Link ändern oder zurückziehen.
+   */
+  _showQuickParts(res) {
+    const quick = res?.quick || null;
+    const box = document.getElementById('linkShareQuick');
+    box?.classList.toggle('hidden', !quick);
+    if (quick) {
+      document.getElementById('linkShareQuickClasses').textContent = quick.classes.length
+        ? `${quick.classes.map((c) => c.name).join(', ')} – Schüler wählen ihre Klasse nach dem Öffnen.`
+        : 'Keine – Schüler geben nur ihren Namen ein, Ergebnisse stehen unter „ohne Klasse“.';
+    }
+    const texts = quick ? SHARE_TEXTS.quick : SHARE_TEXTS[this._shareAccess || 'practice'];
+    document.getElementById('linkShareTitle').textContent = quick ? `${texts.title} – ${res.name}` : texts.title;
+    document.getElementById('linkShareHint').textContent = res?.viaQuick
+      ? `${texts.hint} Das ist der Quick-Link mit vorgewählter Klasse ${res.className || ''} – Schüler geben nur ihren Namen ein. Ändern und zurückziehen über den Quick-Link.`
+      : texts.hint;
+    document.getElementById('btnRegenLinkShare')?.classList.toggle('hidden', !!(quick || res?.viaQuick));
+    document.getElementById('btnRevokeLinkShare')?.classList.toggle('hidden', !!res?.viaQuick);
   }
 
   _bindShareDialog() {
@@ -1104,7 +1189,7 @@ export class LinksView {
     // Dasselbe Blatt wie beim Drucken, nur als Bild fuer die Zwischenablage.
     document.getElementById('btnCopyLinkShareSheet')?.addEventListener('click', async () => {
       const ok = await copyShareSheetAsPng({
-        title: SHARE_TEXTS[this._shareAccess || 'practice'].title.replace(/^\S+\s/, ''),
+        title: (this._shareData?.quick ? SHARE_TEXTS.quick : SHARE_TEXTS[this._shareAccess || 'practice']).title.replace(/^\S+\s/, ''),
         subtitle: document.getElementById('linkShareInfo')?.textContent || '',
         svg: document.querySelector('#linkShareQr svg'),
         url: this._shareData?.url || '',
@@ -1166,9 +1251,14 @@ export class LinksView {
       if (ok) await this._loadShare(true);
     });
 
+    document.getElementById('btnEditQuickClasses')?.addEventListener('click', () => this._editQuickClasses());
+
     document.getElementById('btnRevokeLinkShare')?.addEventListener('click', async () => {
-      const ok = await this.app.appConfirm(
-        'Link zurückziehen? Schüler kommen danach nicht mehr hinein, der Eintrag bleibt aber erhalten.',
+      const ok = await this.app.appConfirm(this._shareData?.quick
+        ? 'Quick-Link zurückziehen?\n\nAlle verteilten und gedruckten QR-Codes dieses Quick-Links funktionieren danach nicht mehr – '
+          + 'auch seine Varianten mit Klasse unter „🏫 Klassen“. Danach lässt sich ein neuer Quick-Link erstellen; '
+          + 'die Klassenlinks und Ergebnisse bleiben.'
+        : 'Link zurückziehen? Schüler kommen danach nicht mehr hinein, der Eintrag bleibt aber erhalten.',
       );
       if (!ok) return;
       await this.app.api.revokeLink(this._shareLink.id, this._shareAccess);

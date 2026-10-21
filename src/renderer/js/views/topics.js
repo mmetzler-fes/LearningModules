@@ -1,5 +1,4 @@
 import { escapeHtml, escapeAttr, showImportReport } from '../utils.js';
-import { pickClass } from './classes.js';
 import { TagFilter, TagPicker, renderAreaGroups, orderByArea, chipHtml } from './tags.js';
 import { helpHint } from './help-view.js';
 import { openFeedbackDialog } from './feedback.js';
@@ -283,7 +282,7 @@ export class TopicsView {
           </label>
           <button class="btn btn-primary btn-sm btn-open-topic" title="Module verwalten">📦 Module</button>
           <button class="btn btn-secondary btn-sm btn-quick-link"
-            title="${topic.selected ? 'Link + QR-Code für eine Klasse' : 'Noch nicht freigegeben – beim Klick lässt es sich gleich freigeben'}">🔗 Quick-Link</button>
+            title="${topic.selected ? 'Ein Link + QR-Code für das Thema – Schüler wählen ihre Klasse' : 'Noch nicht freigegeben – beim Klick lässt es sich gleich freigeben'}">🔗 Quick-Link</button>
           <button class="btn btn-secondary btn-sm btn-edit-topic" title="Bearbeiten">✏️</button>
           <button class="btn btn-secondary btn-sm btn-share-topic" title="Im Shop anbieten oder weitergeben">👥</button>
           <button class="btn btn-secondary btn-sm btn-export-topic" title="Exportieren (JSON, H5P oder verschlüsselt)">📤</button>
@@ -332,11 +331,10 @@ export class TopicsView {
   // ==================== QUICK-LINK ====================
 
   /**
-   * Quick-Link: Klassen wählen (oder anlegen), daraus entsteht je Klasse ein
-   * Klassenlink für das ganze Thema – Parallelklassen in einem Rutsch.
-   * Danach geht es zur Klassenübersicht der Schülerfreigaben; bei einer
-   * Klasse sind Link und QR-Code gleich offen. Früher verteilte Quick-Links
-   * (?q=) bleiben gültig, ihre Ergebnisse stehen unter "ohne Klasse".
+   * Quick-Link: ein Link für das ganze Thema, Schüler wählen ihre Klasse aus
+   * der Auswahl der Lehrkraft (views/links.js → openQuickLink). Früher
+   * verteilte Quick-Links (?q=) bleiben gültig, ihre Ergebnisse stehen unter
+   * "ohne Klasse".
    */
   async _createQuickClassLink(topic) {
     // Ein ausgegrauter Knopf erklärte nicht, was fehlt – gerade bei frisch
@@ -350,13 +348,7 @@ export class TopicsView {
       topic.selected = true;
       this.refresh();
     }
-    const classes = await pickClass(this.app, {
-      title: `🔗 Quick-Link – ${topic.title}`,
-      hint: 'Für welche Klassen? Ergebnisse über einen Link stehen dann unter seiner Klasse.',
-      multiple: true,
-    });
-    if (!classes || !classes.length) return;
-    await this.app.linksView.createClassLinks(classes, (klasse) => this.app.api.classLinkFromTopic(topic.id, klasse.id), 'practice');
+    await this.app.linksView.openQuickLink({ kind: 'topic', id: topic.id, title: topic.title });
   }
 
   /**

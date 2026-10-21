@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Delete, Body, Param, Query, UseGuards, Request } from '@nestjs/common';
+import { Controller, Get, Post, Put, Patch, Delete, Body, Param, Query, UseGuards, Request } from '@nestjs/common';
 import { LinksService } from './links.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { TimingsService } from '../timings/timings.service';
@@ -34,6 +34,26 @@ export class LinksController {
   @Post('from-topic/:topicId')
   async fromTopic(@Param('topicId') topicId: string, @Request() req: any, @Body() body: { classId?: string }) {
     return this.linksService.classLinkForTopic(topicId, String(body?.classId || ''), req.user, req);
+  }
+
+  /**
+   * Quick-Link eines Lernthemas bzw. Notebook-Knotens: `{ exists:false }`,
+   * solange keiner erstellt (oder er zurückgezogen) ist.
+   */
+  @Get('quick/topic/:topicId')
+  async quickOfTopic(@Param('topicId') topicId: string, @Request() req: any) {
+    return this.linksService.getQuick(req.user, { topicId }, req);
+  }
+
+  @Get('quick/node/:nodeId')
+  async quickOfNode(@Param('nodeId') nodeId: string, @Request() req: any) {
+    return this.linksService.getQuick(req.user, { nodeId }, req);
+  }
+
+  /** Quick-Link eines Lernthemas erstellen bzw. seine Klassen anpassen (`{ classIds }`). */
+  @Put('quick/topic/:topicId')
+  async saveQuickOfTopic(@Param('topicId') topicId: string, @Request() req: any, @Body() body: { classIds?: string[] }) {
+    return this.linksService.saveQuickForTopic(topicId, body?.classIds, req.user, req);
   }
 
   @Get(':id')

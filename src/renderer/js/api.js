@@ -282,7 +282,18 @@ export class BrowserApi {
   getArenaTimes(moduleIds) {
     return this._fetch('/api/links/arena-times', { method: 'POST', body: JSON.stringify({ moduleIds }) });
   }
-  /** Quick-Link-Knopf: Klassenlink für ein ganzes Lernthema. */
+  /** Quick-Link eines Lernthemas (`kind` 'topic') oder Notebook-Knotens ('node'): `{ exists:false }` ohne. */
+  getQuickLink(kind, id) {
+    return this._fetch(`/api/links/quick/${kind === 'node' ? 'node' : 'topic'}/${encodeURIComponent(id)}`);
+  }
+  /** Quick-Link erstellen bzw. Klassen anpassen – Klassen, aus denen Schüler wählen. */
+  saveQuickLink(kind, id, classIds) {
+    const url = kind === 'node'
+      ? `/api/notebooks/nodes/${encodeURIComponent(id)}/quick`
+      : `/api/links/quick/topic/${encodeURIComponent(id)}`;
+    return this._fetch(url, { method: 'PUT', body: JSON.stringify({ classIds }) });
+  }
+  /** Klassenlink für ein ganzes Lernthema. */
   classLinkFromTopic(topicId, classId) {
     return this._fetch(`/api/links/from-topic/${encodeURIComponent(topicId)}`, {
       method: 'POST',

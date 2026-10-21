@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Delete, Body, Param, Request, Res, UseGuards, UseInterceptors, UploadedFile, BadRequestException, ForbiddenException } from '@nestjs/common';
+import { Controller, Get, Post, Put, Patch, Delete, Body, Param, Request, Res, UseGuards, UseInterceptors, UploadedFile, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import type { Response } from 'express';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -113,6 +113,15 @@ export class NotebooksController {
   @Post('nodes/:id/quick-link')
   async quickLink(@Param('id') id: string, @Request() req: any, @Body() body: { classId?: string }) {
     return this.notebooks.quickLink(id, req.user, String(body?.classId || ''), req);
+  }
+
+  /**
+   * Quick-Link des Knotens: ein Link mit allen startbaren Lernthemen darin,
+   * Schüler wählen ihre Klasse aus `classIds`. Erstellt ihn beim ersten Mal.
+   */
+  @Put('nodes/:id/quick')
+  async saveQuick(@Param('id') id: string, @Request() req: any, @Body() body: { classIds?: string[] }) {
+    return this.notebooks.saveQuickLink(id, req.user, body?.classIds, req);
   }
 
   /** ZIP: notebook.json (Struktur) + topics/*.json (gewohnter JSON-Export je Lernthema). */

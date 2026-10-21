@@ -56,7 +56,12 @@ export function formDialog({ title, hint = '', fields, submitLabel = 'Speichern'
  * so in einem Rutsch ihren Link. Eine neu angelegte Klasse ist gleich
  * gewählt; "Links erzeugen" liefert die gewählten Klassen als Liste.
  */
-export async function pickClass(app, { title, hint = '', multiple = false }) {
+/**
+ * Klasse(n) wählen oder anlegen. Mehrfachauswahl: `preselected` (IDs) ist
+ * schon gewählt, `okLabel` beschriftet den Knopf, `allowNone` lässt ihn auch
+ * ohne Klasse zu. Liefert `null` bei Abbruch.
+ */
+export async function pickClass(app, { title, hint = '', multiple = false, preselected = [], okLabel = null, allowNone = false }) {
   const info = await app.api.getSchoolYear();
   if (failed(info)) { app.showToast('Fehler: ' + (info?.message || 'Schuljahr nicht abrufbar'), 'error'); return null; }
   const classes = await app.api.getClasses(info.current);
@@ -91,8 +96,8 @@ export async function pickClass(app, { title, hint = '', multiple = false }) {
     const done = (value) => { overlay.remove(); resolve(value); };
     const syncOk = () => {
       if (!okBtn) return;
-      okBtn.disabled = chosen.size === 0;
-      okBtn.textContent = chosen.size > 1 ? `🔗 ${chosen.size} Links erzeugen` : '🔗 Link erzeugen';
+      okBtn.disabled = chosen.size === 0 && !allowNone;
+      okBtn.textContent = okLabel || (chosen.size > 1 ? `🔗 ${chosen.size} Links erzeugen` : '🔗 Link erzeugen');
     };
     const toggle = (btn, on) => {
       const id = btn.dataset.id;
@@ -105,7 +110,10 @@ export async function pickClass(app, { title, hint = '', multiple = false }) {
       if (multiple) toggle(btn, !chosen.has(btn.dataset.id));
       else done(classes.find((c) => c.id === btn.dataset.id));
     });
-    overlay.querySelectorAll('.class-picker-choice').forEach(bindChoice);
+    overlay.querySelectorAll('.class-picker-choice').forEach((btn) => {
+      bindChoice(btn);
+      if (multiple && preselected.includes(btn.dataset.id)) toggle(btn, true);
+    });
     overlay.querySelector('.btn-cancel').addEventListener('click', () => done(null));
     overlay.addEventListener('click', (e) => { if (e.target === overlay) done(null); });
     okBtn?.addEventListener('click', () => done(classes.filter((c) => chosen.has(c.id))));

@@ -61,6 +61,10 @@
             <p id="linkEntryMeta" class="hint"></p>
           </div>
           <form id="linkEntryForm" class="login-form">
+            <div class="form-group hidden" id="linkEntryClassGroup">
+              <label for="linkEntryClass">Deine Klasse</label>
+              <select id="linkEntryClass"></select>
+            </div>
             <div class="form-group">
               <label for="linkEntryName">Dein Name</label>
               <input type="text" id="linkEntryName" required placeholder="Vor- und Nachname..." autocomplete="off" />
@@ -1372,6 +1376,13 @@
       </div>
 
       <p class="hint" id="linkShareHint"></p>
+
+      <div class="form-group hidden" id="linkShareQuick">
+        <label>Klassen zur Auswahl</label>
+        <p class="hint" id="linkShareQuickClasses"></p>
+        <button type="button" class="btn btn-secondary btn-sm quicklink-copy" id="btnEditQuickClasses"
+          title="Klassen ändern – Link und QR-Code bleiben gleich">✏️ Anpassen</button>
+      </div>
 
       <div class="confirm-actions">
         <button type="button" class="btn btn-secondary" id="btnCopyLinkShareSheet"

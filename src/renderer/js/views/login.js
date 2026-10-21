@@ -294,6 +294,22 @@ export class LoginView {
     loading.classList.add('hidden');
     ready.classList.remove('hidden');
 
+    // Quick-Link: Klasse aus der Auswahl der Lehrkraft. Weiter geht es dann
+    // mit `<token>.<klasse>` – dahinter steht der Klassenlink.
+    const choices = info.classChoices || [];
+    const classGroup = document.getElementById('linkEntryClassGroup');
+    const classSel = document.getElementById('linkEntryClass');
+    classGroup?.classList.toggle('hidden', !choices.length);
+    if (classSel) {
+      classSel.required = choices.length > 0;
+      classSel.innerHTML = choices.length
+        ? '<option value="">– bitte wählen –</option>'
+          + choices.map((c) => `<option value="${escapeAttr(c.id)}">${escapeHtml(c.name)}</option>`).join('')
+        : '';
+    }
+    const baseToken = info.token || token;
+    const runToken = () => (choices.length && classSel?.value ? `${baseToken}.${classSel.value}` : baseToken);
+
     document.getElementById('linkEntryTitle').textContent = info.className ? `${info.name} · ${info.className}` : info.name;
     const parts = [`${info.moduleCount} Aufgabe${info.moduleCount !== 1 ? 'n' : ''}`];
     if (info.topicTitles?.length) parts.push(info.topicTitles.join(' · '));
@@ -352,7 +368,7 @@ export class LoginView {
     }
 
     const nameInput = document.getElementById('linkEntryName');
-    nameInput?.focus();
+    (choices.length ? classSel : nameInput)?.focus();
     // Testschüler der Lehrkraft: Das Feld erscheint erst, wenn der Server danach fragt.
     const testGroup = document.getElementById('linkEntryTestPwGroup');
     const testInput = document.getElementById('linkEntryTestPassword');
@@ -369,6 +385,8 @@ export class LoginView {
 
       const studentName = nameInput.value.trim();
       if (!studentName) return;
+      if (choices.length && !classSel.value) { classSel.focus(); return; }
+      const runAs = runToken();
       const password = pwInput ? pwInput.value : '';
       const testPassword = testGroup && !testGroup.classList.contains('hidden') ? testInput.value : undefined;
       const mode = multi
@@ -376,7 +394,7 @@ export class LoginView {
         : info.modes[0];
 
       if (mode === 'contest') {
-        const err = await this.app.contestView.joinAsPlayer(token, { studentName, password, testPassword });
+        const err = await this.app.contestView.joinAsPlayer(runAs, { studentName, password, testPassword }, token);
         if (err?.needTestPassword) askTestPassword();
         if (err && errText) { errText.textContent = err.message; errText.classList.remove('hidden'); }
         return;
@@ -384,7 +402,7 @@ export class LoginView {
 
       let data;
       try {
-        data = await this.app.api.startLinkRun(token, { studentName, password, mode, testPassword });
+        data = await this.app.api.startLinkRun(runAs, { studentName, password, mode, testPassword });
       } catch (_) {
         if (errText) { errText.textContent = 'Der Server ist nicht erreichbar.'; errText.classList.remove('hidden'); }
         return;
@@ -397,7 +415,7 @@ export class LoginView {
         }
         return;
       }
-      await this._enterLinkRun(token, data, password);
+      await this._enterLinkRun(runAs, data, password);
     });
 
     return true;

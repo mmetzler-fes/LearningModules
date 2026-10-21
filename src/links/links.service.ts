@@ -13,10 +13,13 @@ import { CompanionService } from '../companion/companion.service';
 import { baseUrl, renderQr } from '../core/share/link-url';
 import * as crypto from 'crypto';
 import { applyRule, differsFromRule, syncedState } from './link-sync';
+import { isQuickRule, quickToken, splitQuickToken } from './quick-token';
 
 const ALL_MODES: LinkMode[] = ['quiz', 'exam', 'learn', 'companion', 'contest'];
 
 const NEEDS_CLASS = 'Links gibt es nur für eine Klasse – bitte über „Link & QR“ eine Klasse wählen.';
+
+const QUICK_MANAGED = 'Dieser Link gehört zum Quick-Link – Klassen über den Quick-Link anpassen, zurückziehen dort.';
 
 /** Modi, zwischen denen Schüler über den Übungslink ("Link & QR") wählen. */
 export const PRACTICE_MODES: LinkMode[] = ['quiz', 'learn', 'companion'];
@@ -259,7 +262,7 @@ export class LinksService {
         return {
           ...this.publicShape(link, classes.get(link.classId || '')),
           ...this.syncInfo(link, links, byId, classes),
-          url: link.token ? `${base}/?l=${link.token}` : null,
+          url: this.urlToken(link, byId) ? `${base}/?l=${this.urlToken(link, byId)}` : null,
           topicCount: resolved.length,
           moduleCount: resolved.reduce((n, r) => n + r.modules.length, 0),
           unavailableTopics: await this.countUnavailable(link),
@@ -277,7 +280,11 @@ export class LinksService {
   private syncInfo(link: TopicLink, all: TopicLink[], byId: Map<string, TopicLink>, classes: Map<string, StudentClass>) {
     if (link.classId) {
       const rule = link.templateId ? byId.get(link.templateId) : undefined;
-      return { customized: !!link.customized, differsFromRule: !!rule && differsFromRule(link, rule) };
+      return {
+        customized: !!link.customized,
+        differsFromRule: !!rule && differsFromRule(link, rule),
+        viaQuick: !!this.quickVariant(link, rule),
+      };
     }
     return {
       classLinks: all
@@ -312,7 +319,8 @@ export class LinksService {
       hasPassword: !!accessPassword,
       hasExamLink: !!examToken,
       // Regel aus der Zeit vor den Klassen, deren alter Link noch gilt.
-      hasLegacyLink: !link.classId && !!(link.token || examToken || _host),
+      hasLegacyLink: !link.classId && !isQuickRule(link) && !!(link.token || examToken || _host),
+      isQuick: isQuickRule(link),
       className: klasse?.name ?? null,
       schoolYear: klasse?.schoolYear ?? null,
       contestSettings: contestSettingsOf(link),
@@ -327,10 +335,11 @@ export class LinksService {
       where: link.classId ? { id: link.templateId || '-', ownerId: user.userId } : { templateId: link.id, ownerId: user.userId },
     });
     const all = [link, ...related];
+    const byId = new Map(all.map((l) => [l.id, l]));
     return {
       ...this.publicShape(link, await this.classesService.findById(link.classId)),
-      ...this.syncInfo(link, all, new Map(all.map((l) => [l.id, l])), await this.classesOf(all)),
-      url: link.token ? `${baseUrl(req)}/?l=${link.token}` : null,
+      ...this.syncInfo(link, all, byId, await this.classesOf(all)),
+      url: this.urlToken(link, byId) ? `${baseUrl(req)}/?l=${this.urlToken(link, byId)}` : null,
       topicCount: resolved.length,
       moduleCount: resolved.reduce((n, r) => n + r.modules.length, 0),
       unavailableTopics: await this.countUnavailable(link),
@@ -426,11 +435,19 @@ export class LinksService {
       throw new BadRequestException('Für diese Freigabe ist die Klassenarbeit nicht eingeschaltet.');
     }
     const field = access === 'exam' ? 'examToken' : 'token';
-    if (!link.classId && (!link[field] || regenerate)) throw new BadRequestException(NEEDS_CLASS);
-    if (!link[field] || regenerate) link[field] = crypto.randomBytes(12).toString('base64url');
+    // Quick-Link und seine Klassen-Varianten: neu gibt es nur über Zurückziehen und Erstellen.
+    const rule = link.classId && link.templateId ? await this.linkRepo.findOne({ where: { id: link.templateId } }) : null;
+    const variant = access === 'practice' ? this.quickVariant(link, rule) : null;
+    const quick = access === 'practice' && isQuickRule(link);
+    if (regenerate && (variant || quick)) throw new BadRequestException(QUICK_MANAGED);
+    if (quick && !link.token) throw new BadRequestException('Der Quick-Link ist zurückgezogen – bitte neu erstellen.');
+    if (!variant) {
+      if (!link.classId && (!link[field] || regenerate)) throw new BadRequestException(NEEDS_CLASS);
+      if (!link[field] || regenerate) link[field] = crypto.randomBytes(12).toString('base64url');
+    }
     link.lastSharedAt = new Date();
     await this.linkRepo.save(link);
-    const token = link[field] as string;
+    const token = variant || (link[field] as string);
     const url = `${baseUrl(req)}/?l=${token}`;
     const resolved = await this.resolveModules(link);
     return {
@@ -440,9 +457,12 @@ export class LinksService {
       qrSvg: await renderQr(url),
       linkId: link.id,
       name: link.name,
+      className: (await this.classesService.findById(link.classId))?.name ?? null,
       active: link.active,
       modes: modesFor(link, access),
       moduleCount: resolved.reduce((n, r) => n + r.modules.length, 0),
+      viaQuick: !!variant,
+      quick: quick ? await this.quickInfo(link) : null,
     };
   }
 
@@ -459,11 +479,13 @@ export class LinksService {
       throw new BadRequestException(NEEDS_CLASS);
     }
     if (!link.contestHostToken || regenerate) link.contestHostToken = crypto.randomBytes(18).toString('base64url');
-    if (!link.token) link.token = crypto.randomBytes(12).toString('base64url');
+    // Über den Quick-Link: Schüler kommen über seine Variante mit dieser Klasse.
+    const join = await this.practiceToken(link);
+    if (!join) link.token = crypto.randomBytes(12).toString('base64url');
     link.lastSharedAt = new Date();
     await this.linkRepo.save(link);
     const base = baseUrl(req);
-    const joinUrl = `${base}/?l=${link.token}&m=contest`;
+    const joinUrl = `${base}/?l=${join || link.token}&m=contest`;
     return {
       name: link.name,
       active: link.active,
@@ -473,7 +495,185 @@ export class LinksService {
     };
   }
 
+  // ---- Quick-Link ----
+
+  /**
+   * Variante des Quick-Links für diesen Klassenlink (`<token>.<klasse>`) –
+   * solange die Regel ein Quick-Link mit Token ist und die Klasse ausgewählt hat.
+   */
+  private quickVariant(link: TopicLink, rule: TopicLink | null | undefined): string | null {
+    if (!link.classId || !rule || rule.id !== link.templateId || !isQuickRule(rule) || !rule.token) return null;
+    return (rule.classIds || []).includes(link.classId) ? quickToken(rule.token, link.classId) : null;
+  }
+
+  /** Token in der Adresse: Variante des Quick-Links, sonst der eigene. */
+  private urlToken(link: TopicLink, byId: Map<string, TopicLink>): string | null {
+    return this.quickVariant(link, link.templateId ? byId.get(link.templateId) : null) || link.token;
+  }
+
+  /** Schüler-Token eines Links, wie er in Adressen steht (Variante oder eigener). */
+  async practiceToken(link: TopicLink): Promise<string | null> {
+    const rule = link.classId && link.templateId ? await this.linkRepo.findOne({ where: { id: link.templateId } }) : null;
+    return this.quickVariant(link, rule) || link.token;
+  }
+
+  /** Klassen eines Quick-Links, aus denen Schüler wählen – nur die des aktuellen Schuljahrs. */
+  async quickClasses(rule: TopicLink): Promise<StudentClass[]> {
+    const year = await this.classesService.currentSchoolYear();
+    const out: StudentClass[] = [];
+    for (const id of rule.classIds || []) {
+      const klasse = await this.classesService.findById(id);
+      if (klasse && klasse.ownerId === rule.ownerId && klasse.schoolYear === year) out.push(klasse);
+    }
+    return out.sort((a, b) => a.name.localeCompare(b.name, 'de', { numeric: true }));
+  }
+
+  private async quickInfo(rule: TopicLink) {
+    return {
+      topicId: rule.quickTopicId,
+      nodeId: rule.quickNodeId,
+      classes: (await this.quickClasses(rule)).map((c) => ({ id: c.id, name: c.name })),
+    };
+  }
+
+  /**
+   * Klasse einer Variante `<quick>.<klasse>`: die Klasse selbst oder – nach
+   * Schuljahreswechseln – ihr Nachfolger, der jetzt ausgewählt ist. So gelten
+   * gedruckte Codes über Jahre. `dropped`: Die Klasse (bzw. ein Nachfolger)
+   * wurde aufgegeben, der Link ist erloschen. `null`: nicht (mehr) ausgewählt.
+   */
+  private async quickClassOf(rule: TopicLink, classId: string): Promise<string | 'dropped' | null> {
+    const chosen = rule.classIds || [];
+    let id: string | null = classId;
+    for (let step = 0; id && step < 30; step++) {
+      if (chosen.includes(id)) return id;
+      const klasse = await this.classesService.findById(id);
+      if (!klasse || klasse.ownerId !== rule.ownerId) return null;
+      if (klasse.rolledOver === 'dropped') return 'dropped';
+      id = (await this.classesService.successorOf(id, rule.ownerId))?.id ?? null;
+    }
+    return null;
+  }
+
+  /** Variante eines Quick-Links, deren Klasse aufgegeben wurde – erloschen. */
+  async isDroppedVariant(value: string): Promise<boolean> {
+    const parts = splitQuickToken(value || '');
+    if (!parts) return false;
+    const rule = await this.linkRepo.findOne({ where: { token: parts.token } });
+    return isQuickRule(rule) && (await this.quickClassOf(rule!, parts.classId)) === 'dropped';
+  }
+
+  /**
+   * Schlüssel aus einer Schüler-Adresse → Link. `<quick>.<klasse>` führt zum
+   * Klassenlink dieser Klasse bzw. ihres Nachfolgers (beim ersten Mal
+   * angelegt); ist keine davon ausgewählt, gilt der Schlüssel als unbekannt.
+   * `quick` ist dann die Regel dahinter – ist sie deaktiviert, ruhen auch
+   * ihre Varianten.
+   */
+  async linkOfToken(value: string): Promise<{ link: TopicLink; access: LinkAccess; quick?: TopicLink } | null> {
+    if (!value) return null;
+    const parts = splitQuickToken(value);
+    if (parts) {
+      const rule = await this.linkRepo.findOne({ where: { token: parts.token } });
+      if (!isQuickRule(rule)) return null;
+      const classId = await this.quickClassOf(rule!, parts.classId);
+      if (!classId || classId === 'dropped') return null;
+      let link = await this.linkRepo.findOne({ where: { ownerId: rule!.ownerId, templateId: rule!.id, classId } });
+      if (!link) link = await this.linkRepo.save(this.copyForClass(rule!, classId));
+      return { link, access: 'practice', quick: rule! };
+    }
+    const practice = await this.linkRepo.findOne({ where: { token: value } });
+    if (practice) return { link: practice, access: 'practice' };
+    const exam = await this.linkRepo.findOne({ where: { examToken: value } });
+    return exam ? { link: exam, access: 'exam' } : null;
+  }
+
+  /** Quick-Link eines Lernthemas bzw. Knotens – `null`, solange keiner erstellt ist. */
+  async getQuick(user: any, where: { topicId?: string; nodeId?: string }, req?: any) {
+    const rule = await this.findQuickRule(user, where);
+    if (!rule?.token) return { exists: false, classIds: rule?.classIds || [] };
+    return { exists: true, ...(await this.findOne(rule.id, user, req)), quick: await this.quickInfo(rule) };
+  }
+
+  private findQuickRule(user: any, where: { topicId?: string; nodeId?: string }) {
+    if (where.topicId) return this.linkRepo.findOne({ where: { ownerId: user.userId, quickTopicId: where.topicId, classId: IsNull() } });
+    if (where.nodeId) return this.linkRepo.findOne({ where: { ownerId: user.userId, quickNodeId: where.nodeId, classId: IsNull() } });
+    return Promise.resolve(null);
+  }
+
+  /** Quick-Link eines Lernthemas erstellen oder seine Klassen anpassen. */
+  async saveQuickForTopic(topicId: string, classIds: unknown, user: any, req?: any) {
+    const rule = await this.topicsService.ensureQuickRule(topicId, user);
+    return this.saveQuick(rule, classIds, user, req);
+  }
+
+  /**
+   * Quick-Link eines Notebook-Knotens: Inhalt folgt dem Knoten (wie beim
+   * Klassenlink über den Knoten) – auch in den Klassenlinks der Auswahl.
+   */
+  async saveQuickForNode(node: { id: string; title: string }, topicIds: string[], classIds: unknown, user: any, req?: any) {
+    const rule = await this.nodeRule(node, topicIds, user);
+    const chosen = await this.cleanClassIds(classIds, user);
+    const existing = (await this.linkRepo.find({ where: { ownerId: user.userId, templateId: rule.id } }))
+      .filter((l) => l.classId && chosen.includes(l.classId));
+    for (const l of existing) { l.selection = rule.selection; l.name = rule.name; }
+    if (existing.length) await this.linkRepo.save(existing);
+    return this.saveQuick(rule, chosen, user, req);
+  }
+
+  /**
+   * Token (falls noch keiner) und Klassenauswahl setzen; je gewählter Klasse
+   * gibt es danach ihren Klassenlink. Abgewählte Klassen behalten ihn als
+   * gewöhnlichen Klassenlink – samt Ergebnissen.
+   */
+  private async saveQuick(rule: TopicLink, classIds: unknown, user: any, req?: any) {
+    rule.classIds = await this.cleanClassIds(classIds, user);
+    if (!rule.token) rule.token = crypto.randomBytes(12).toString('base64url');
+    rule.lastSharedAt = new Date();
+    await this.linkRepo.save(rule);
+    for (const id of rule.classIds) {
+      const has = await this.linkRepo.findOne({ where: { ownerId: user.userId, templateId: rule.id, classId: id } });
+      if (!has) await this.linkRepo.save(this.copyForClass(rule, id));
+    }
+    return this.getQuick(user, { topicId: rule.quickTopicId || undefined, nodeId: rule.quickNodeId || undefined }, req);
+  }
+
+  /** Nur eigene Klassen, jede einmal. */
+  private async cleanClassIds(classIds: unknown, user: any): Promise<string[]> {
+    const out: string[] = [];
+    for (const id of Array.isArray(classIds) ? classIds.map(String) : []) {
+      if (out.includes(id)) continue;
+      const klasse = await this.classesService.findById(id);
+      if (klasse && klasse.ownerId === user.userId) out.push(id);
+    }
+    return out;
+  }
+
   // ---- Klassenlinks ----
+
+  /** Neuer Klassenlink als Kopie der Regel – ohne Tokens, die kommen beim Verteilen. */
+  private copyForClass(rule: TopicLink, classId: string): TopicLink {
+    return this.linkRepo.create({
+      id: crypto.randomUUID(),
+      name: rule.name,
+      ownerId: rule.ownerId,
+      token: null,
+      examToken: null,
+      contestHostToken: null,
+      active: true,
+      modes: rule.modes,
+      selection: rule.selection,
+      accessPassword: rule.accessPassword,
+      singleAttempt: rule.singleAttempt,
+      tagIds: rule.tagIds,
+      companionSettings: rule.companionSettings,
+      contestSettings: rule.contestSettings,
+      classId,
+      templateId: rule.id,
+      quickTopicId: null,
+      lastSharedAt: new Date(),
+    });
+  }
 
   /**
    * Klassenlink aus einer Regel: eine Kopie mit Klasse und eigenem Token.
@@ -490,29 +690,9 @@ export class LinksService {
     const klasse = await this.classesService.ownedClass(classId, user);
 
     let link = await this.linkRepo.findOne({ where: { ownerId: user.userId, templateId: rule.id, classId: klasse.id } });
-    if (!link) {
-      link = this.linkRepo.create({
-        id: crypto.randomUUID(),
-        name: rule.name,
-        ownerId: user.userId,
-        token: null,
-        examToken: null,
-        contestHostToken: null,
-        active: true,
-        modes: rule.modes,
-        selection: rule.selection,
-        accessPassword: rule.accessPassword,
-        singleAttempt: rule.singleAttempt,
-        tagIds: rule.tagIds,
-        companionSettings: rule.companionSettings,
-        contestSettings: rule.contestSettings,
-        classId: klasse.id,
-        templateId: rule.id,
-        quickTopicId: null,
-        lastSharedAt: new Date(),
-      });
-    }
+    if (!link) link = this.copyForClass(rule, klasse.id);
     if (adoptTokens) {
+      if (isQuickRule(rule)) throw new BadRequestException(QUICK_MANAGED);
       // Erst die Regel freigeben – die Tokens sind eindeutig.
       const tokens = { token: rule.token, examToken: rule.examToken, contestHostToken: rule.contestHostToken };
       rule.token = null;
@@ -539,6 +719,18 @@ export class LinksService {
    * Auswahl neu gesetzt, auch im vorhandenen Klassenlink derselben Klasse.
    */
   async classLinkForNode(node: { id: string; title: string }, topicIds: string[], classId: string, user: any, req?: any) {
+    const rule = await this.nodeRule(node, topicIds, user);
+    const existing = await this.linkRepo.findOne({ where: { ownerId: user.userId, templateId: rule.id, classId } });
+    if (existing) {
+      existing.selection = rule.selection;
+      existing.name = node.title;
+      await this.linkRepo.save(existing);
+    }
+    return this.classLink(rule.id, classId, user, false, req);
+  }
+
+  /** Regel des Knotens (je Knoten genau eine), Auswahl und Name auf dem Stand des Knotens. */
+  private async nodeRule(node: { id: string; title: string }, topicIds: string[], user: any): Promise<TopicLink> {
     if (!topicIds.length) throw new BadRequestException('Darin ist kein Lernthema, das sich freigeben lässt.');
     const selection = topicIds.map((topicId) => ({ topicId, all: true }));
     let rule = await this.linkRepo.findOne({ where: { ownerId: user.userId, quickNodeId: node.id, classId: IsNull() } });
@@ -560,15 +752,7 @@ export class LinksService {
     }
     rule.name = node.title;
     rule.selection = selection;
-    await this.linkRepo.save(rule);
-
-    const existing = await this.linkRepo.findOne({ where: { ownerId: user.userId, templateId: rule.id, classId } });
-    if (existing) {
-      existing.selection = selection;
-      existing.name = node.title;
-      await this.linkRepo.save(existing);
-    }
-    return this.classLink(rule.id, classId, user, false, req);
+    return this.linkRepo.save(rule);
   }
 
   /** Token entwerten, ohne den Link zu löschen. */

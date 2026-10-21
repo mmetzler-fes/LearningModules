@@ -24,6 +24,7 @@ import { UsageService } from '../../impact/usage.service';
 import { contentOf, forStudents } from './student-view';
 import * as crypto from 'crypto';
 import { cleanPcName } from './pc-name';
+import { isQuickRule, splitQuickToken } from '../../links/quick-token';
 
 const MAX_RECORDING_BYTES = 25 * 1024 * 1024;
 
@@ -167,14 +168,25 @@ export class PublicController {
    */
   @Get('link/:token')
   async getLink(@Param('token') token: string) {
-    const { link, access } = await this.findAccessByToken(token);
+    // Quick-Link mit einer Klasse, die nicht mehr ausgewählt ist: dann eben
+    // mit Klassenauswahl – ausgeteilte Codes führen nicht ins Leere.
+    const parts = splitQuickToken(token);
+    if (parts && (await this.linksService.isDroppedVariant(token))) {
+      throw new NotFoundException('Diesen Link gibt es nicht mehr – die Klasse wurde zum neuen Schuljahr aufgelöst.');
+    }
+    const asked = parts && !(await this.linksService.linkOfToken(token)) ? parts.token : token;
+    const { link, access } = await this.findAccessByToken(asked);
     const resolved = await this.linksService.resolveModules(link);
 
     const klasse = await this.classesService.findById(link.classId);
+    const choices = isQuickRule(link) ? await this.linksService.quickClasses(link) : [];
     return {
       linkId: link.id,
+      // Adresse, mit der es weitergeht – mit Klassenauswahl hängt die Klasse daran.
+      token: asked,
       name: link.name,
       className: klasse?.name ?? null,
+      classChoices: choices.map((c) => ({ id: c.id, name: c.name })),
       // Übungslink: Quiz, Lernen mit Lösungen, Lernbegleitung zur Wahl.
       // Link der Klassenarbeit: nur die Klassenarbeit.
       modes: modesFor(link, access),
@@ -200,6 +212,9 @@ export class PublicController {
   ) {
     const { link, access } = await this.findAccessByToken(token);
     const allowed = modesFor(link, access);
+    if (isQuickRule(link) && (await this.linksService.quickClasses(link)).length) {
+      throw new BadRequestException('Bitte zuerst die Klasse wählen.');
+    }
 
     let studentName = (body?.studentName || '').trim().replace(/\s+/g, ' ');
     if (!studentName) throw new BadRequestException('Bitte den Namen eingeben.');
@@ -332,12 +347,8 @@ export class PublicController {
    * Link zu einem Schlüssel: Übungslink (`token`) oder Link der
    * Klassenarbeit (`examToken`). Ohne Prüfung auf "aktiv".
    */
-  private async linkOfToken(token: string): Promise<{ link: TopicLink; access: LinkAccess } | null> {
-    if (!token) return null;
-    const practice = await this.linkRepo.findOne({ where: { token } });
-    if (practice) return { link: practice, access: 'practice' };
-    const exam = await this.linkRepo.findOne({ where: { examToken: token } });
-    return exam ? { link: exam, access: 'exam' } : null;
+  private linkOfToken(token: string): Promise<{ link: TopicLink; access: LinkAccess; quick?: TopicLink } | null> {
+    return this.linksService.linkOfToken(token);
   }
 
   /** Gemeinsame Prüfung: Token bekannt, Link aktiv. */
@@ -350,7 +361,7 @@ export class PublicController {
     const found = await this.linkOfToken(token);
     if (!found) throw new NotFoundException('Dieser Link ist ungültig oder wurde zurückgezogen.');
     const { link } = found;
-    if (!link.active) throw new ForbiddenException('Dieser Link ist derzeit deaktiviert.');
+    if (!link.active || found.quick?.active === false) throw new ForbiddenException('Dieser Link ist derzeit deaktiviert.');
     // Links eines deaktivierten Kontos ruhen mit ihm.
     const owner = await this.userRepo.findOne({ where: { id: link.ownerId } });
     if (!owner || owner.active === false) throw new ForbiddenException('Dieser Link ist derzeit gesperrt.');

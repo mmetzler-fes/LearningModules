@@ -413,7 +413,7 @@ export class NotebooksView {
   _mirrorMenu(item) {
     const m = item.mirror;
     const items = [
-      { label: '🔗 Quick-Link', title: 'Ein Klassenlink mit allen Lernthemen darin', run: () => this._quickLinkNode({ id: item.id, title: m.title, kind: m.kind }) },
+      { label: '🔗 Quick-Link', title: 'Ein Link mit allen Lernthemen darin – Schüler wählen ihre Klasse', run: () => this._quickLinkNode({ id: item.id, title: m.title, kind: m.kind }) },
       { label: '↔️ Verschieben nach…', run: () => this._moveTopicDialog(item) },
     ];
     // Das Nutzungsrecht zu einer Kopie gehört zur Kopie.
@@ -533,7 +533,7 @@ export class NotebooksView {
     if (node.kind !== 'section') items.push({ label: '➕ Neuer Abschnitt', run: () => this._createNode('section', node.id) });
     items.push({ label: '➕ Neues Lernthema', run: () => this._createTopic(node.id) });
     items.push('-');
-    items.push({ label: '🔗 Quick-Link', title: 'Ein Klassenlink mit allen Lernthemen darin', run: () => this._quickLinkNode(node) });
+    items.push({ label: '🔗 Quick-Link', title: 'Ein Link mit allen Lernthemen darin – Schüler wählen ihre Klasse', run: () => this._quickLinkNode(node) });
     items.push({ label: '🛒 Teilen', title: 'Im Shop anbieten – Käufer mit „Use“ bekommen auch, was später dazukommt', run: () => this.app.shopView.openForNode(node.id) });
     items.push({ label: '🧩 Module auswählen und anbieten…', run: () => this._offerSelection({ nodeId: node.id }) });
     items.push({ label: '✅ Alle Lernthemen freigeben', run: () => this._setSelected(node, true) });
@@ -1094,13 +1094,9 @@ export class NotebooksView {
         await this.refresh();
       }
     }
-    const classes = await pickClass(this.app, {
-      title: `🔗 Quick-Link – ${node.title}`,
-      hint: `Ein Klassenlink mit allen Lernthemen aus ${KIND[node.kind].a === 'ein Book' ? 'diesem Book' : `diesem ${KIND[node.kind].label}`}. Kommen später Lernthemen dazu, holt ein neuer Quick-Link sie in denselben Link.`,
-      multiple: true,
-    });
-    if (!classes || !classes.length) return;
-    await this.app.linksView.createClassLinks(classes, (k) => this.app.api.classLinkFromNotebookNode(node.id, k.id), 'practice');
+    // Ein Link mit allen Lernthemen darin. Später dazugekommene holt jedes
+    // Öffnen in denselben Link (openQuickLink).
+    await this.app.linksView.openQuickLink({ kind: 'node', id: node.id, title: node.title });
   }
 
   async _download(node) {

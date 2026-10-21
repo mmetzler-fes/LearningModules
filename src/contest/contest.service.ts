@@ -232,7 +232,10 @@ export class ContestService implements OnModuleDestroy {
 
   private async linkByToken(token: string): Promise<TopicLink> {
     if (!token) throw new NotFoundException('Ungültiger Link.');
-    return this.checkLink(await this.linkRepo.findOne({ where: { token } }));
+    // Auch der Quick-Link mit Klasse (`<token>.<klasse>`): dahinter steht ihr Klassenlink.
+    const found = await this.linksService.linkOfToken(token);
+    if (found?.quick?.active === false) throw new ForbiddenException('Diese Freigabe ist derzeit deaktiviert.');
+    return this.checkLink(found?.access === 'practice' ? found.link : null);
   }
 
   /**
@@ -269,11 +272,12 @@ export class ContestService implements OnModuleDestroy {
   /** Wartebereich öffnen – oder die schon laufende Quiz-Arena wieder aufnehmen. */
   async hostOpen(hostToken: string, req: any) {
     const link = await this.linkByHostToken(hostToken);
-    if (!link.token) {
+    const join = await this.linksService.practiceToken(link);
+    if (!join) {
       throw new ForbiddenException('Der Schüler-Link dieser Freigabe ist zurückgezogen. Bitte zuerst neu erzeugen.');
     }
     let s = this.sessions.get(link.id);
-    const joinUrl = `${baseUrl(req)}/?l=${link.token}&m=contest`;
+    const joinUrl = `${baseUrl(req)}/?l=${join}&m=contest`;
     if (!s) {
       const cfg = contestSettingsOf(link);
       const companion = await this.companionService.effectiveFor(link.ownerId);

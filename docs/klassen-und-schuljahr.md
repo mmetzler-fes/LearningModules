@@ -200,6 +200,9 @@ Klasse des Vorjahres:
   QR-Codes gelten weiter, neue Ergebnisse landen im neuen Jahr.
 - Nicht angehakt: **nicht mehr benötigt** – ihre Klassenlinks werden
   deaktiviert.
+- [Quick-Links](quick-link.md) folgen immer, auch ohne „Links mitnehmen“:
+  Die übernommene Klasse ersetzt die alte in ihrer Klassenauswahl, eine nicht
+  mehr benötigte fällt heraus.
 
 *Später* lässt alles offen; der Hinweis bleibt, bis über jede Klasse
 entschieden ist.

@@ -186,6 +186,11 @@ export class ClassesService implements OnApplicationBootstrap, OnModuleDestroy {
     return this.own(id, user);
   }
 
+  /** Klasse, die beim Schuljahreswechsel aus dieser übernommen wurde – oder `null`. */
+  async successorOf(id: string, ownerId: string): Promise<StudentClass | null> {
+    return this.classRepo.findOne({ where: { predecessorId: id, ownerId } });
+  }
+
   /** Klasse ohne Rechteprüfung – für das Speichern von Ergebnissen über einen Klassenlink. */
   async findById(id: string | null | undefined): Promise<StudentClass | null> {
     return id ? this.classRepo.findOne({ where: { id } }) : null;
@@ -404,6 +409,9 @@ export class ClassesService implements OnApplicationBootstrap, OnModuleDestroy {
    * Vorjahres. `moveLinks` hängt ihre Klassenlinks an die neue Klasse, damit
    * ausgeteilte QR-Codes weiter gelten. Nicht übernommene Klassen gelten als
    * aufgegeben, ihre Klassenlinks werden deaktiviert.
+   *
+   * Quick-Links (Regeln mit `classIds`) folgen immer: Die übernommene Klasse
+   * ersetzt die alte in ihrer Auswahl, eine aufgegebene fällt heraus.
    */
   async rollover(user: any, body: { items?: Array<{ classId?: string; take?: boolean; name?: string; moveLinks?: boolean }> }) {
     const info = await this.rolloverInfo(user);
@@ -411,6 +419,8 @@ export class ClassesService implements OnApplicationBootstrap, OnModuleDestroy {
     const openIds = new Set(info.classes.map((c) => c.id));
     const taken: string[] = [];
     const dropped: string[] = [];
+    /** alte Klassen-ID → neue (übernommen) bzw. `null` (aufgegeben) */
+    const moved = new Map<string, string | null>();
 
     for (const item of items) {
       if (!item?.classId || !openIds.has(item.classId)) continue;
@@ -420,6 +430,7 @@ export class ClassesService implements OnApplicationBootstrap, OnModuleDestroy {
         old.rolledOver = 'dropped';
         await this.classRepo.save(old);
         dropped.push(old.name);
+        moved.set(old.id, null);
         continue;
       }
       const name = cleanName(item.name, 40) || old.name;
@@ -443,8 +454,21 @@ export class ClassesService implements OnApplicationBootstrap, OnModuleDestroy {
       old.rolledOver = 'copied';
       await this.classRepo.save(old);
       taken.push(name);
+      moved.set(old.id, klasse.id);
     }
+    await this.moveQuickClasses(user, moved);
     return { success: true, taken, dropped };
+  }
+
+  private async moveQuickClasses(user: any, moved: Map<string, string | null>) {
+    if (!moved.size) return;
+    const rules = (await this.linkRepo.find({ where: { ownerId: user.userId, classId: IsNull() } }))
+      .filter((l) => (l.classIds || []).some((id) => moved.has(id)));
+    for (const rule of rules) {
+      const next = (rule.classIds || []).map((id) => (moved.has(id) ? moved.get(id)! : id)).filter((id): id is string => !!id);
+      rule.classIds = [...new Set(next)];
+    }
+    if (rules.length) await this.linkRepo.save(rules);
   }
 
   // ---- Teilen ----

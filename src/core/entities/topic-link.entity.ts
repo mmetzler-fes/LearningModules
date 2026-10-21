@@ -155,6 +155,14 @@ export class TopicLink extends BaseEntity {
   @Column({ type: 'varchar', nullable: true })
   quickNodeId: string | null;
 
+  /**
+   * Quick-Link (Regel mit `quickTopicId`/`quickNodeId` und Token): Klassen,
+   * aus denen Schüler nach dem Öffnen wählen (links/quick-token.ts). Je Klasse
+   * steht dahinter ihr Klassenlink. Leer: ohne Klasse wie früher.
+   */
+  @Column('simple-json', { nullable: true })
+  classIds: string[] | null;
+
   /** Zuletzt als Link oder QR-Code abgerufen – die Klassenübersicht zeigt den neuesten oben. */
   @Column({ type: 'datetime', nullable: true })
   lastSharedAt: Date | null;

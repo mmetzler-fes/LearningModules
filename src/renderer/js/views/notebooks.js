@@ -42,6 +42,7 @@ export class NotebooksView {
     this.app = app;
     this._tree = document.getElementById('notebookTree');
     this._mirrorBar = document.getElementById('nbMirrorBar');
+    document.getElementById('btnDocTemplates')?.addEventListener('click', () => this._templatesDialog());
     this._search = document.getElementById('notebookSearch');
     this._data = null;
     this._open = loadOpen();
@@ -570,8 +571,79 @@ export class NotebooksView {
 
   // ---------- Dokumente (Modultyp „Dokument“, Freischaltung 'worksheets') ----------
 
+  /** Vorlagen verwalten: eigene, und als Schuladmin die der Schule. */
+  async _templatesDialog() {
+    const overlay = document.createElement('div');
+    overlay.className = 'confirm-overlay';
+    overlay.innerHTML = `<div class="import-modules-card nb-dialog nb-templates">
+        <h3>🖨 Vorlagen für den Druck</h3>
+        <p class="hint">LibreOffice-Vorlagen (.ott) mit <code>{{TITEL}}</code> in der Kopfzeile und einem Absatz <code>{{INHALT}}</code>.
+          Welche gilt: am Ordner gewählt → dein Standard (★) → Standard der Schule → Grundvorlage.</p>
+        <div class="nb-tpl-list"></div>
+        <form class="nb-tpl-upload">
+          <h4>Neue Vorlage</h4>
+          <div class="ai-prompt-row">
+            <label>Datei <input type="file" name="file" accept=".ott,.odt,application/vnd.oasis.opendocument.text-template,application/vnd.oasis.opendocument.text" required></label>
+            <label>Name <input name="name" maxlength="80" placeholder="z. B. Schulvorlage AB"></label>
+            <label>Art <select name="kind"><option value="arbeitsblatt">Arbeitsblatt (auch Text)</option><option value="klassenarbeit">Klassenarbeit</option></select></label>
+            <label class="nb-tpl-scope hidden">Für <select name="scope"><option value="own">mich</option><option value="school">die ganze Schule</option></select></label>
+          </div>
+          <div class="confirm-actions"><button type="submit" class="btn btn-primary">⬆ Hochladen und prüfen</button></div>
+          <p class="hint nb-tpl-msg"></p>
+        </form>
+        <div class="confirm-actions"><button type="button" class="btn btn-secondary btn-close">Schließen</button></div>
+      </div>`;
+    document.body.appendChild(overlay);
+    overlay.querySelector('.btn-close').addEventListener('click', () => overlay.remove());
+    const list = overlay.querySelector('.nb-tpl-list');
+    const msg = overlay.querySelector('.nb-tpl-msg');
+    const load = async () => {
+      const res = await this.app.api.listDocTemplates();
+      if (failed(res)) { list.innerHTML = `<p class="hint">Fehler: ${escapeHtml(res?.message || '?')}</p>`; return; }
+      overlay.querySelector('.nb-tpl-scope').classList.toggle('hidden', !res.mayManageSchool);
+      const kinds = { arbeitsblatt: 'Arbeitsblatt', klassenarbeit: 'Klassenarbeit' };
+      list.innerHTML = res.templates.length ? `<table class="nb-tpl-table"><thead><tr><th></th><th>Name</th><th>Art</th><th>Für</th><th></th></tr></thead><tbody>
+        ${res.templates.map((t) => {
+          const mine = t.scope === 'own' || res.mayManageSchool;
+          return `<tr data-id="${escapeAttr(t.id)}">
+            <td><button type="button" class="nb-tpl-star" ${mine ? '' : 'disabled'} title="${t.isDefault ? 'Standard – klicken zum Aufheben' : 'Als Standard für diese Art setzen'}">${t.isDefault ? '★' : '☆'}</button></td>
+            <td>${escapeHtml(t.name)}${!t.hasContent ? ' <span class="nb-warn" title="Kein Absatz {{INHALT}} – der Inhalt kommt ans Ende">⚠</span>' : ''}</td>
+            <td>${kinds[t.kind] || t.kind}</td><td>${t.scope === 'own' ? 'mich' : 'Schule'}</td>
+            <td><button type="button" class="btn btn-secondary btn-sm nb-tpl-sample">🖨 Probeblatt</button>
+              ${mine ? '<button type="button" class="btn btn-danger btn-sm nb-tpl-del">🗑</button>' : ''}</td></tr>`;
+        }).join('')}</tbody></table>` : '<p class="hint">Noch keine Vorlagen – es gilt die Grundvorlage.</p>';
+      list.querySelectorAll('tr[data-id]').forEach((tr) => {
+        const t = res.templates.find((x) => x.id === tr.dataset.id);
+        tr.querySelector('.nb-tpl-star').addEventListener('click', async () => { await this.app.api.setDocTemplateDefault(t.id, !t.isDefault); load(); });
+        tr.querySelector('.nb-tpl-del')?.addEventListener('click', async () => {
+          if (!(await this.app.appConfirm(`Vorlage „${t.name}“ löschen? Dokumente, die sie nutzen, bekommen den Standard bzw. die Grundvorlage.`))) return;
+          await this.app.api.deleteDocTemplate(t.id);
+          load();
+        });
+        tr.querySelector('.nb-tpl-sample').addEventListener('click', async (e) => {
+          const win = window.open('', '_blank');
+          e.target.disabled = true;
+          try { win.location.href = URL.createObjectURL(await this.app.api.docTemplateSample(t.id)); } catch (err) { win?.close(); this.app.showToast('Fehler: ' + err.message, 'error'); }
+          e.target.disabled = false;
+        });
+      });
+    };
+    overlay.querySelector('.nb-tpl-upload').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const f = e.target.elements;
+      msg.textContent = 'Wird hochgeladen und geprüft …';
+      const res = await this.app.api.uploadDocTemplate(f.file.files[0], { name: f.name.value, kind: f.kind.value, scope: f.scope.value });
+      if (failed(res) || !res.success) { msg.textContent = `❌ ${res?.message || 'Hochladen fehlgeschlagen'}`; return; }
+      msg.textContent = res.warnings?.length ? `✅ Hochgeladen – ⚠️ ${res.warnings.join(' ⚠️ ')}` : '✅ Hochgeladen.';
+      e.target.reset();
+      load();
+    });
+    load();
+  }
+
   /** Stand des Nextcloud-Abbilds über dem Baum. */
   async _loadMirror() {
+    document.getElementById('btnDocTemplates')?.classList.toggle('hidden', !this._docsEnabled());
     if (!this._mirrorBar) return;
     if (!this._docsEnabled()) { this._mirrorBar.classList.add('hidden'); return; }
     const st = await this.app.api.getDocMirror().catch(() => null);
@@ -626,6 +698,10 @@ export class NotebooksView {
   async _editDocSettings(node) {
     const s = node.docSettings || {};
     const inherited = this._inheritedDocSettings(node.parentId);
+    const tplRes = await this.app.api.listDocTemplates().catch(() => null);
+    const tpls = Array.isArray(tplRes?.templates) ? tplRes.templates : [];
+    const tplSelect = (kind, label) => `<label>${label} <select name="tpl_${kind}"><option value="">wie darüber bzw. Standard</option>
+      ${tpls.filter((t) => t.kind === kind).map((t) => `<option value="${escapeAttr(t.id)}" ${s.templates?.[kind] === t.id ? 'selected' : ''}>${escapeHtml(t.name)}${t.scope === 'school' ? ' (Schule)' : ''}</option>`).join('')}</select></label>`;
     const overlay = document.createElement('div');
     overlay.className = 'confirm-overlay';
     overlay.innerHTML = `
@@ -645,6 +721,9 @@ export class NotebooksView {
           <label class="nb-check"><input type="checkbox" name="numberFlat" ${s.numberFlat ? 'checked' : ''}> Darunter durchzählen
             <span class="hint">– keine weiteren Ebenen, Unterordner gliedern nur noch</span></label>
         </div>
+        <div class="form-group"><label>Vorlage für den Druck</label>
+          <div class="ai-prompt-row">${tplSelect('arbeitsblatt', 'Arbeitsblatt / Text')}${tplSelect('klassenarbeit', 'Klassenarbeit')}</div>
+          <span class="hint">Vorlagen verwalten: 🖨 Vorlagen über dem Baum.</span></div>
         <div class="form-group"><label>Dateien in der Nextcloud</label>
           <div class="nb-formats">${[['odt', 'Blatt .odt'], ['loesung', 'Lösung .odt'], ['pdf', 'Blatt .pdf'], ['loesung_pdf', 'Lösung .pdf']].map(([f, l]) =>
             `<label class="nb-check"><input type="checkbox" name="format" value="${f}" ${(s.formats || inherited.formats || ['odt', 'loesung', 'pdf', 'loesung_pdf']).includes(f) ? 'checked' : ''}> ${l}</label>`).join('')}</div>
@@ -669,6 +748,7 @@ export class NotebooksView {
         numberRoot: node.kind === 'book' ? null : f.numberRoot.checked ? true : (f.kurs.value.trim() ? false : null),
         numberFlat: f.numberFlat.checked ? true : null,
         formats: [...form.querySelectorAll('input[name="format"]:checked')].map((x) => x.value),
+        templates: { arbeitsblatt: f.tpl_arbeitsblatt.value || undefined, klassenarbeit: f.tpl_klassenarbeit.value || undefined },
       });
       if (failed(res)) { this.app.showToast('Fehler: ' + (res?.message || 'Speichern fehlgeschlagen'), 'error'); return; }
       close();

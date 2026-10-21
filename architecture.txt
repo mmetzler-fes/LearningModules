@@ -132,6 +132,10 @@ BACKEND – src/
     doc-mirror.service.ts       Abbild je Lehrkraft: beim Start, stündlich,
                                 1 min nach Änderungen (core/events/
                                 doc-changes.ts), GET/POST /api/worksheets/mirror
+    templates.service.ts        Vorlagen (.ott) je Lehrkraft und Schule, Prüfung
+                                über den Renderer (/inspect); resolve(): Ordner
+                                (vererbt) → eigener Standard → Schulstandard →
+                                Grundvorlage. /api/worksheets/templates
     course-format.ts            Kurse des Generators lesen (readCourse) und
                                 schreiben (writeCourse) – ohne DB
     course.service.ts           Kurs-ZIP → Book/Bereich mit Abschnitten aus
@@ -241,9 +245,11 @@ FRONTEND – src/renderer/
                         Ansicht, buildDocPrompt in ai-prompt.js): Zielordner
                         mit Kurs, KI-Vorgaben und Blättern für Verweise;
                         Antwort = Themen-JSON mit Modul type "document"
-  docspec-html.js       HTML → Spec im Browser (DOMParser): .odt-Import im
-                        Editor und Umwandlung alter Module „Text /
-                        Arbeitsblatt“; escapeMarkup() schützt wörtlichen Text
+  docspec-html.js       HTML ↔ Spec im Browser: htmlToDocSpec() für .odt-
+                        Import, visuellen Editor und alte Module;
+                        specToEditorHtml()/widgetHtml() für den visuellen
+                        Editor (Bausteine = div.ds-widget mit data-block);
+                        escapeMarkup() schützt wörtlichen Text
   vendor/js-yaml.js     js-yaml 4.1.1 (MIT) als ES-Modul
 
   h5p-renderer.js

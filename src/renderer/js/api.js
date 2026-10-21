@@ -403,6 +403,28 @@ export class BrowserApi {
   }
   /** Nextcloud-Abbild der Dokumente: Stand bzw. jetzt abgleichen. */
   getDocMirror() { return this._fetch('/api/worksheets/mirror'); }
+  // Vorlagen für den Druck von Dokumenten
+  listDocTemplates() { return this._fetch('/api/worksheets/templates'); }
+  async uploadDocTemplate(file, { name, kind, scope }) {
+    const form = new FormData();
+    form.append('file', file);
+    form.append('name', name || '');
+    form.append('kind', kind);
+    form.append('scope', scope || 'own');
+    const token = this._auth.getToken();
+    const res = await fetch('/api/worksheets/templates', { method: 'POST', headers: token ? { Authorization: `Bearer ${token}` } : {}, body: form });
+    return res.json().catch(() => ({ message: `HTTP ${res.status}` }));
+  }
+  setDocTemplateDefault(id, on) {
+    return this._fetch(`/api/worksheets/templates/${encodeURIComponent(id)}/default`, { method: 'POST', body: JSON.stringify({ on }) });
+  }
+  deleteDocTemplate(id) { return this._fetch(`/api/worksheets/templates/${encodeURIComponent(id)}`, { method: 'DELETE' }); }
+  async docTemplateSample(id) {
+    const token = this._auth.getToken();
+    const res = await fetch(`/api/worksheets/templates/${encodeURIComponent(id)}/sample`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+    if (!res.ok) throw new Error((await res.json().catch(() => ({}))).message || `HTTP ${res.status}`);
+    return res.blob();
+  }
   getDocPromptContext(nodeId) { return this._fetch(`/api/worksheets/prompt-context${nodeId ? `?nodeId=${encodeURIComponent(nodeId)}` : ''}`); }
   syncDocMirror() { return this._fetch('/api/worksheets/mirror/sync', { method: 'POST' }); }
   /** Dokument-Einstellungen eines Ordners (Kurs, Titelmuster, Nummerierung, KI-Vorgaben). */

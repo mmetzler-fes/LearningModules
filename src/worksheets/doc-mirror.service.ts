@@ -17,6 +17,7 @@ import { WorksheetRendererClient, WorksheetOutput } from './renderer.client';
 import { docSpec } from './docspec';
 import { PRINT_FORMATS, settingsAt } from './numbering';
 import { DOC_FOLDER, DesiredDoc, MirrorArt, MirrorRecord, MirrorReport, mirrorDocs } from './doc-mirror';
+import { TemplatesService, templateKindOf } from './templates.service';
 
 /** Erhöhen, wenn sich am Druck etwas ändert, das alle Dateien neu braucht. */
 const RENDER_EPOCH = 1;
@@ -45,6 +46,7 @@ export class DocMirrorService implements OnApplicationBootstrap {
     private readonly worksheets: WorksheetsService,
     private readonly renderer: WorksheetRendererClient,
     private readonly features: FeaturesService,
+    private readonly templates: TemplatesService,
     @Optional() private readonly nextcloud?: NextcloudService,
   ) {}
 
@@ -131,12 +133,15 @@ export class DocMirrorService implements OnApplicationBootstrap {
       });
     };
 
+    const templateOf = this.templates.resolver(userId, nodes);
     const docs: DesiredDoc[] = [];
     for (const info of n.docs.values()) {
       const mod = modById.get(info.moduleId);
       const spec = mod?.content?.spec;
       if (!mod || !spec || typeof spec !== 'object') continue;
-      const ctx: DocContext = { pfad: info.pfad, slug: info.slug, course: info.course, folder: info.folder, refs: n.refs.get(info.scope) || {} };
+      const tpl = await templateOf(info.nodeId, templateKindOf(info.kind));
+      const ctx: DocContext = { pfad: info.pfad, slug: info.slug, course: info.course, folder: info.folder, refs: n.refs.get(info.scope) || {},
+        template: tpl ? { id: tpl.id, updatedAt: tpl.updatedAt, data: tpl.data } : null };
       const settings = settingsAt(nodes, info.nodeId);
       const formats = (Array.isArray(settings.formats) ? settings.formats : PRINT_FORMATS) as MirrorArt[];
       const header = WorksheetsService.header(ctx, mod.title);
@@ -146,7 +151,7 @@ export class DocMirrorService implements OnApplicationBootstrap {
         folder: folderOf(info.nodeId),
         base: safeFolderName(info.nummer !== null ? `${String(info.nummer).padStart(2, '0')} ${mod.title}` : mod.title),
         formats,
-        hash: crypto.createHash('sha256').update(JSON.stringify({ v: RENDER_EPOCH, resolved, title: mod.title, header, course: ctx.course, formats })).digest('hex'),
+        hash: crypto.createHash('sha256').update(JSON.stringify({ v: RENDER_EPOCH, resolved, title: mod.title, header, course: ctx.course, formats, template: tpl ? `${tpl.id}@${new Date(tpl.updatedAt).getTime()}` : null })).digest('hex'),
         handMaintained: !!mod.content?.handMaintained,
         yaml: yamlDump({ titel: mod.title, ...spec }, { lineWidth: -1, noRefs: true }),
         render: async (arts) => {

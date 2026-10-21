@@ -6,6 +6,7 @@
 GET  /health   Version, API-Stand, ob LibreOffice da ist
 POST /render   JSON {spec, course?, template?, files?, outputs?}
                → {files: {odt|loesung|pdf|loesung_pdf: base64}, warnings: [...]}
+POST /inspect  JSON {template} → Platzhalter und Formatvorlagen einer .ott
 
 Jeder Auftrag läuft als eigener Prozess von tools/make_worksheet.py in einem
 frischen Temp-Verzeichnis (ARBEITSBLATT_ROOT). Der Generator liest nur dort –
@@ -18,6 +19,9 @@ from __future__ import annotations
 
 import base64
 import binascii
+import io
+import re
+import zipfile
 import hmac
 import json
 import os
@@ -165,6 +169,26 @@ def render(job: dict[str, Any], slot: int) -> tuple[dict[str, str], list[str]]:
         shutil.rmtree(root, ignore_errors=True)
 
 
+PLACEHOLDER_RE = re.compile(r"\{\{\s*([A-Za-z0-9_.]+)\s*\}\}")
+
+
+def inspect_template(data: bytes) -> dict[str, Any]:
+    """Platzhalter ({{TITEL}}, {{INHALT}} …) und Absatzvorlagen einer Vorlage."""
+    try:
+        z = zipfile.ZipFile(io.BytesIO(data))
+        styles = z.read("styles.xml").decode("utf-8", "replace")
+        content = z.read("content.xml").decode("utf-8", "replace")
+    except (zipfile.BadZipFile, KeyError):
+        raise BadRequest("Keine LibreOffice-Vorlage (.ott/.odt)")
+    # Platzhalter können über mehrere Textstücke verteilt sein – Tags vorher entfernen.
+    plain = re.sub(r"<[^>]+>", "", styles + content)
+    names = sorted(set(PLACEHOLDER_RE.findall(plain)))
+    paragraph = sorted({m.group(1) for tag in re.findall(r"<style:style\b[^>]*>", styles)
+                        if 'style:family="paragraph"' in tag for m in [re.search(r'style:name="([^"]+)"', tag)] if m})
+    return {"placeholders": names, "hasTitle": "TITEL" in names, "hasContent": "INHALT" in names,
+            "paragraphStyles": paragraph}
+
+
 class Handler(BaseHTTPRequestHandler):
     server_version = "worksheet-renderer"
 
@@ -184,7 +208,7 @@ class Handler(BaseHTTPRequestHandler):
                              "soffice": soffice_available(), "workers": WORKERS})
 
     def do_POST(self) -> None:
-        if self.path != "/render":
+        if self.path not in ("/render", "/inspect"):
             self.send_json(404, {"error": "Unbekannter Pfad"})
             return
         if TOKEN and not hmac.compare_digest(self.headers.get("Authorization", ""), f"Bearer {TOKEN}"):
@@ -205,6 +229,12 @@ class Handler(BaseHTTPRequestHandler):
             self.send_json(400, {"error": str(e)})
             return
 
+        if self.path == "/inspect":
+            try:
+                self.send_json(200, inspect_template(decode(job.get("template"), "template")))
+            except BadRequest as e:
+                self.send_json(400, {"error": str(e)})
+            return
         try:
             slot = slots.get(timeout=TIMEOUT)
         except queue.Empty:

@@ -50,6 +50,25 @@ export class WorksheetRendererClient {
     }
   }
 
+  /** Vorlage prüfen: Platzhalter ({{TITEL}}, {{INHALT}}) und Absatzvorlagen. */
+  async inspect(templateBase64: string): Promise<{ placeholders: string[]; hasTitle: boolean; hasContent: boolean; paragraphStyles: string[] }> {
+    if (!this.configured()) throw new ServiceUnavailableException('Kein Renderer eingetragen (WORKSHEET_RENDERER_URL).');
+    let res: Response;
+    try {
+      res = await fetch(`${this.base()}/inspect`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(process.env.WORKSHEET_RENDERER_TOKEN ? { Authorization: `Bearer ${process.env.WORKSHEET_RENDERER_TOKEN}` } : {}) },
+        body: JSON.stringify({ template: templateBase64 }),
+        signal: AbortSignal.timeout(30_000),
+      });
+    } catch {
+      throw new ServiceUnavailableException('Der Renderer ist gerade nicht erreichbar.');
+    }
+    const body: any = await res.json().catch(() => ({}));
+    if (!res.ok) throw new UnprocessableEntityException(body.error || 'Die Vorlage ließ sich nicht prüfen.');
+    return body;
+  }
+
   async render(job: RenderJob): Promise<RenderResult> {
     if (!this.configured()) throw new ServiceUnavailableException('Kein Renderer eingetragen (WORKSHEET_RENDERER_URL).');
     let res: Response;

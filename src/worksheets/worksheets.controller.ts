@@ -1,9 +1,11 @@
-import { BadRequestException, Body, Controller, Get, HttpCode, Post, Query, Request, Res, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, Get, HttpCode, Param, Post, Query, Request, Res, UploadedFile, UseGuards, UseInterceptors } from '@nestjs/common';
 import type { Response } from 'express';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { FeatureGuard, RequireFeature } from '../features/feature.guard';
 import { WorksheetsService } from './worksheets.service';
 import { DocMirrorService } from './doc-mirror.service';
+import { TemplatesService } from './templates.service';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { WORKSHEET_OUTPUTS, WorksheetOutput } from './renderer.client';
 
 const FILE_TYPES: Record<WorksheetOutput, { mime: string; ext: string; suffix: string }> = {
@@ -18,7 +20,45 @@ const FILE_TYPES: Record<WorksheetOutput, { mime: string; ext: string; suffix: s
 @UseGuards(JwtAuthGuard, FeatureGuard)
 @RequireFeature('worksheets')
 export class WorksheetsController {
-  constructor(private readonly worksheets: WorksheetsService, private readonly mirror: DocMirrorService) {}
+  constructor(
+    private readonly worksheets: WorksheetsService,
+    private readonly mirror: DocMirrorService,
+    private readonly templates: TemplatesService,
+  ) {}
+
+  // ---- Vorlagen (eigene und der Schule) ----
+
+  @Get('templates')
+  listTemplates(@Request() req: any) {
+    return this.templates.list(req.user.userId);
+  }
+
+  /** Hochladen: Felder file, name, kind (arbeitsblatt|klassenarbeit), scope (own|school). */
+  @Post('templates')
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 5 * 1024 * 1024 } }))
+  uploadTemplate(@Request() req: any, @UploadedFile() file: Express.Multer.File) {
+    return this.templates.upload(req.user.userId, { ...req.body, buffer: file?.buffer });
+  }
+
+  @Post('templates/:id/default')
+  @HttpCode(200)
+  defaultTemplate(@Request() req: any, @Param('id') id: string, @Body() body: { on?: boolean }) {
+    return this.templates.setDefault(req.user.userId, id, body?.on !== false);
+  }
+
+  @Delete('templates/:id')
+  removeTemplate(@Request() req: any, @Param('id') id: string) {
+    return this.templates.remove(req.user.userId, id);
+  }
+
+  /** Probeblatt mit dieser Vorlage als PDF. */
+  @Get('templates/:id/sample')
+  async sampleTemplate(@Request() req: any, @Param('id') id: string, @Res() res: Response) {
+    const pdf = await this.worksheets.sample(req.user.userId, id);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', 'inline; filename="Probeblatt.pdf"');
+    res.send(pdf);
+  }
 
   @Get('status')
   status() {
@@ -64,12 +104,13 @@ export class WorksheetsController {
    */
   @Post('render')
   @HttpCode(200)
-  async render(@Request() req: any, @Body() body: { spec?: unknown; title?: string; output?: string; moduleId?: string }, @Res() res: Response) {
+  async render(@Request() req: any, @Body() body: { spec?: unknown; title?: string; output?: string; moduleId?: string; kind?: string }, @Res() res: Response) {
     const output = String(body?.output || '') as WorksheetOutput;
     if (!WORKSHEET_OUTPUTS.includes(output)) throw new BadRequestException(`output: ${WORKSHEET_OUTPUTS.join(', ')}`);
     const title = String(body?.title || '').trim().slice(0, 200);
     const moduleId = body?.moduleId ? String(body.moduleId) : undefined;
-    const { file, warnings } = await this.worksheets.render(req.user, { spec: body?.spec, title, output, moduleId });
+    const kind = typeof body?.kind === 'string' ? body.kind : undefined;
+    const { file, warnings } = await this.worksheets.render(req.user, { spec: body?.spec, title, output, moduleId, kind });
     const type = FILE_TYPES[output];
     const name = `${fileName(title || 'Dokument')}${type.suffix}.${type.ext}`;
     res.setHeader('Content-Type', type.mime);

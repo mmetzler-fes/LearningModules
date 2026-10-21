@@ -27,6 +27,8 @@ export interface DocSettings {
   skript?: { titel?: string; kopfzeile?: string; slug?: string };
   /** Formate im Nextcloud-Abbild (odt, loesung, pdf, loesung_pdf); ohne Angabe alle. */
   formats?: string[];
+  /** Vorlage je Art (WorksheetTemplate.id); ohne Angabe Standard der Lehrkraft bzw. Schule. */
+  templates?: { arbeitsblatt?: string; klassenarbeit?: string };
 }
 
 export const PRINT_FORMATS = ['odt', 'loesung', 'pdf', 'loesung_pdf'];
@@ -66,6 +68,8 @@ export interface DocInfo {
   title: string;
   /** Titel des Ordners, in dem das Dokument liegt ({abschnitt}) */
   folder: string;
+  /** Art des Dokuments (arbeitsblatt, klassenarbeit, text) */
+  kind: string;
   course: CourseInfo;
   /** fertige Kopfzeile */
   header: string;
@@ -134,6 +138,7 @@ export function settingsAt(nodes: NumNode[], nodeId: string | null): DocSettings
     const s = n.docSettings || {};
     for (const key of ['kurs', 'titelmuster', 'autor', 'aiGuidelines'] as const) if (s[key]) out[key] = s[key];
     if (Array.isArray(s.formats)) out.formats = s.formats;
+    if (s.templates && typeof s.templates === 'object') out.templates = { ...(out.templates || {}), ...s.templates };
     if (s.meta && typeof s.meta === 'object') out.meta = { ...(out.meta || {}), ...s.meta };
   }
   return out;
@@ -161,6 +166,14 @@ export function sanitizeDocSettings(input: any, existing: DocSettings | null | u
   if ('formats' in src) {
     if (Array.isArray(src.formats)) out.formats = PRINT_FORMATS.filter((f) => src.formats.includes(f));
     else delete out.formats;
+  }
+  if ('templates' in src) {
+    const t: Record<string, string> = {};
+    for (const kind of ['arbeitsblatt', 'klassenarbeit']) {
+      const v = src.templates?.[kind];
+      if (typeof v === 'string' && /^[\w-]{1,64}$/.test(v)) t[kind] = v;
+    }
+    if (Object.keys(t).length) out.templates = t; else delete out.templates;
   }
   if ('meta' in src) {
     const meta: Record<string, string> = {};
@@ -238,7 +251,7 @@ export function numberDocuments(nodes: NumNode[], placements: NumPlacement[], mo
     used[slug] = { pfad, titel: m.title };
     refs.set(scope, used);
     docs.set(m.id, {
-      moduleId: m.id, topicId: m.topicId, nodeId, pfad, nummer: path ? path[path.length - 1] : null, scope, slug, title: m.title, folder, course,
+      moduleId: m.id, topicId: m.topicId, nodeId, pfad, nummer: path ? path[path.length - 1] : null, scope, slug, title: m.title, folder, kind: String(m.content?.kind || 'arbeitsblatt'), course,
       header: formatHeader(course.titelmuster, {
         kurs: course.kurs, pfad, nummer: path ? String(path[path.length - 1]) : '', titel: m.title, autor: course.autor, abschnitt: folder,
       }),

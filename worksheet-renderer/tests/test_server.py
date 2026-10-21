@@ -120,6 +120,15 @@ class RendererTest(unittest.TestCase):
                                                 "template": base64.b64encode(vorlage).decode()})
         self.assertEqual(status, 200, body)
 
+    def test_inspect(self):
+        vorlage = (server.GEN / "templates" / "Grundvorlage.ott").read_bytes()
+        status, body = self.request("/inspect", {"template": base64.b64encode(vorlage).decode()})
+        self.assertEqual(status, 200, body)
+        self.assertTrue(body["hasTitle"] and body["hasContent"])
+        self.assertIn("Heading_20_1", body["paragraphStyles"])
+        status, _ = self.request("/inspect", {"template": base64.b64encode(b"kein zip").decode()})
+        self.assertEqual(status, 400)
+
     @unittest.skipUnless(server.soffice_available(), "LibreOffice nicht installiert")
     def test_pdf(self):
         status, body = self.request("/render", {"spec": BEISPIEL, "outputs": ["pdf", "loesung_pdf"]})

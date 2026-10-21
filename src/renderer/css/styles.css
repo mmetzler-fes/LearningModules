@@ -3600,6 +3600,14 @@ body {
 .docspec .ds-box { border: 1px solid var(--text-secondary); border-radius: 2px; padding: 8px 12px; margin: 0.6em 0; }
 .docspec .ds-box-shaded { background: var(--bg-primary); }
 .docspec .ds-box-title { margin: 0 0 0.3em; }
+/* Quiz aus dem Lernthema: Platzhalter, im Durchlauf läuft das Modul darin. */
+.docspec .ds-quiz { border: 2px dashed var(--accent, var(--primary)); border-radius: var(--radius-md, 6px); padding: 10px 14px; margin: 0.8em 0; }
+.docspec .ds-quiz-live { border-style: solid; }
+.docspec .ds-quiz-title { margin: 0 0 0.3em; font-weight: 600; }
+.docspec .ds-quiz-hint { margin: 0; color: var(--text-secondary); font-size: 0.9em; }
+.docspec .ds-quiz-slot { margin-top: 0.5em; }
+.ds-quiz-choices { display: flex; flex-direction: column; gap: 6px; margin: 10px 0; max-height: 50vh; overflow: auto; }
+.ds-quiz-choices .btn { text-align: left; }
 @media (max-width: 600px) { .docspec .ds-float { flex-direction: column; } .docspec .ds-float .ds-image { max-width: 100%; } }
 .ds-solutions-toggle { margin-bottom: 12px; }
 

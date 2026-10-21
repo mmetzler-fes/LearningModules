@@ -1601,6 +1601,13 @@ def render_block(block: Any, styles: dict[str, str], ctx: dict[str, Any]) -> lis
     elif kind == "pagebreak":
         out.append(P(stylename=ctx["pagebreak_style"], text=""))
 
+    elif kind == "quiz":
+        # Quiz aus LearningModules: Die App setzt vor dem Druck QR-Code und
+        # Adresse ein. Hier (Kurs-Projekt) bleibt nur ein Hinweis.
+        p = P(stylename=text_style)
+        p.addElement(rich_span(styles["emphasis"], f"[Quiz: {block.get('title') or 'Quiz'} – online in LearningModules]"))
+        out.append(p)
+
     else:
         raise ValueError(f"Unbekannter Blocktyp: {kind!r}")
 

@@ -141,7 +141,9 @@ export class DocMirrorService implements OnApplicationBootstrap {
       if (!mod || !spec || typeof spec !== 'object') continue;
       const tpl = await templateOf(info.nodeId, templateKindOf(info.kind));
       const ctx: DocContext = { pfad: info.pfad, slug: info.slug, course: info.course, folder: info.folder, refs: n.refs.get(info.scope) || {},
-        template: tpl ? { id: tpl.id, updatedAt: tpl.updatedAt, data: tpl.data } : null };
+        template: tpl ? { id: tpl.id, updatedAt: tpl.updatedAt, data: tpl.data } : null, topicId: mod.topicId, ownerId: userId };
+      // Quiz-Blöcke tragen den Quick-Link im QR-Code – ein neuer Link heißt neu drucken.
+      const quick = JSON.stringify(spec).includes('"quiz"') ? await this.worksheets.quickTokenFor(userId, mod.topicId) : null;
       const settings = settingsAt(nodes, info.nodeId);
       const formats = (Array.isArray(settings.formats) ? settings.formats : PRINT_FORMATS) as MirrorArt[];
       const header = WorksheetsService.header(ctx, mod.title);
@@ -151,7 +153,7 @@ export class DocMirrorService implements OnApplicationBootstrap {
         folder: folderOf(info.nodeId),
         base: safeFolderName(info.nummer !== null ? `${String(info.nummer).padStart(2, '0')} ${mod.title}` : mod.title),
         formats,
-        hash: crypto.createHash('sha256').update(JSON.stringify({ v: RENDER_EPOCH, resolved, title: mod.title, header, course: ctx.course, formats, template: tpl ? `${tpl.id}@${new Date(tpl.updatedAt).getTime()}` : null })).digest('hex'),
+        hash: crypto.createHash('sha256').update(JSON.stringify({ v: RENDER_EPOCH, resolved, title: mod.title, header, course: ctx.course, formats, template: tpl ? `${tpl.id}@${new Date(tpl.updatedAt).getTime()}` : null, ...(quick !== null ? { quick } : {}) })).digest('hex'),
         handMaintained: !!mod.content?.handMaintained,
         yaml: yamlDump({ titel: mod.title, ...spec }, { lineWidth: -1, noRefs: true }),
         render: async (arts) => {

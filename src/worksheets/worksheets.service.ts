@@ -1,6 +1,8 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, Repository } from 'typeorm';
+import { In, IsNull, Not, Repository } from 'typeorm';
+import { TopicLink } from '../core/entities/topic-link.entity';
+import { baseUrl, renderQr } from '../core/share/link-url';
 import { LearningModule } from '../core/entities/learning-module.entity';
 import { LearningTopic } from '../core/entities/learning-topic.entity';
 import { NextcloudService } from '../nextcloud/nextcloud.service';
@@ -28,6 +30,14 @@ export interface DocContext {
   refs: Refs | null;
   /** Vorlage für den Druck; fehlt sie, gilt die Grundvorlage des Renderers. */
   template?: { id: string; updatedAt: Date; data: string } | null;
+  /**
+   * Lernthema des Dokuments und seine Lehrkraft – für Quiz-Blöcke: QR-Code
+   * über ihren Quick-Link. Fehlt es, steht im Druck nur ein Hinweis.
+   */
+  topicId?: string;
+  ownerId?: string;
+  /** Öffentliche Adresse der App für die Quiz-Links (sonst APP_URL). */
+  base?: string;
 }
 
 /** Probeblatt für Vorlagen: zeigt Überschriften, Text, Karo, Lösung, Tabelle, Formel, Code. */
@@ -61,7 +71,15 @@ export class WorksheetsService {
     @Optional() private readonly nextcloud?: NextcloudService,
     @Optional() @InjectRepository(NotebookNode) private readonly nodeRepo?: Repository<NotebookNode>,
     @Optional() private readonly templates?: TemplatesService,
+    @Optional() @InjectRepository(TopicLink) private readonly linkRepo?: Repository<TopicLink>,
   ) {}
+
+  /** Token des Quick-Links dieser Lehrkraft auf das Lernthema – oder `null`. */
+  async quickTokenFor(ownerId: string, topicId: string): Promise<string | null> {
+    if (!this.linkRepo) return null;
+    const rule = await this.linkRepo.findOne({ where: { ownerId, quickTopicId: topicId, classId: IsNull(), token: Not(IsNull()) } });
+    return rule?.token ?? null;
+  }
 
   private async templateFor(userId: string, nodeId: string | null, docKind: string | undefined) {
     const t = this.templates ? await this.templates.resolve(userId, nodeId, templateKindOf(docKind)) : null;
@@ -118,10 +136,10 @@ export class WorksheetsService {
     if (!info) {
       // Noch nicht gespeichert oder nicht vom Typ „Dokument“: ohne Nummer.
       return { pfad: '', slug: '', course: { kurs: '', titelmuster: '{titel}', autor: '', meta: {} }, folder: '', refs: null,
-        template: await this.templateFor(user.userId, null, kind) };
+        template: await this.templateFor(user.userId, null, kind), topicId: topic.id, ownerId: topic.ownerId };
     }
     return { pfad: info.pfad, slug: info.slug, course: info.course, folder: info.folder, refs: n.refs.get(info.scope) || {},
-      template: await this.templateFor(user.userId, info.nodeId, kind || info.kind) };
+      template: await this.templateFor(user.userId, info.nodeId, kind || info.kind), topicId: topic.id, ownerId: topic.ownerId };
   }
 
   /** Kontext samt fertiger Kopfzeile (mit dem Titel aus dem Editor) – für den Editor. */
@@ -171,7 +189,8 @@ export class WorksheetsService {
       const mod = mods.find((m) => m.id === id);
       const info = n.docs.get(id)!;
       if (!mod?.content?.spec || docSpec().validateDocSpec(mod.content.spec).length) { warnings.push(`„${mod?.title || id}“ enthält Fehler und fehlt im Skript.`); continue; }
-      const ctx: DocContext = { pfad: info.pfad, slug: info.slug, course: info.course, folder: info.folder, refs: n.refs.get(info.scope) || {} };
+      const ctx: DocContext = { pfad: info.pfad, slug: info.slug, course: info.course, folder: info.folder, refs: n.refs.get(info.scope) || {},
+        topicId: mod.topicId, ownerId: user.userId };
       const { job, warnings: w } = await this.prepare(mod.content.spec, mod.title, [], ctx);
       const folder = String(i + 1).padStart(2, '0');
       for (const [name, data] of Object.entries(job.files || {})) files[`${folder}/${name}`] = data;
@@ -202,12 +221,13 @@ export class WorksheetsService {
     return { files: result.files, warnings: [...warnings, ...result.warnings] };
   }
 
-  async render(user: any, body: { spec: unknown; title: string; output: WorksheetOutput; moduleId?: string; kind?: string }) {
+  async render(user: any, body: { spec: unknown; title: string; output: WorksheetOutput; moduleId?: string; kind?: string }, req?: any) {
     const errors = docSpec().validateDocSpec(body.spec);
     if (errors.length) throw new BadRequestException({ message: 'Das Dokument enthält Fehler.', errors });
     const ctx = body.moduleId ? await this.context(user, body.moduleId, body.kind)
       : this.templates ? { pfad: '', slug: '', course: { kurs: '', titelmuster: '{titel}', autor: '', meta: {} }, folder: '', refs: null, template: await this.templateFor(user.userId, null, body.kind) }
         : null;
+    if (ctx && req) ctx.base = baseUrl(req);
     const { job, warnings } = await this.prepare(body.spec as Record<string, any>, body.title, [body.output], ctx);
     const result = await this.renderer.render(job);
     const file = result.files[body.output];
@@ -259,10 +279,39 @@ export class WorksheetsService {
       return { ...rest, file: name, width: width || '12cm' };
     };
 
+    // Quiz aus dem Lernthema: Kasten mit QR-Code und Adresse über den
+    // Quick-Link – wer scannt, bearbeitet genau dieses Modul (&mod=).
+    const quizBlock = async (block: Record<string, any>): Promise<Record<string, any>> => {
+      const id = String(block.module ?? '');
+      const mod = id && this.moduleRepo ? await this.moduleRepo.findOne({ where: { id }, select: ['id', 'topicId', 'title'] }) : null;
+      const title = String(block.title || mod?.title || 'Quiz');
+      if (!mod || !ctx?.topicId || mod.topicId !== ctx.topicId || !ctx.ownerId) {
+        warnings.push(`Quiz „${title}“: Das Modul liegt nicht in diesem Lernthema – im Druck steht ein Hinweis.`);
+        return { type: 'note', text: `[Quiz: ${title}]` };
+      }
+      const token = await this.quickTokenFor(ctx.ownerId, ctx.topicId);
+      if (!token) {
+        warnings.push(`Quiz „${title}“: Für das Lernthema gibt es noch keinen Quick-Link – im Druck fehlt der QR-Code.`);
+        return { type: 'box', title: `Quiz: ${title}`, blocks: [{ type: 'note', text: 'Online in LearningModules – der QR-Code erscheint, sobald für das Lernthema ein Quick-Link erstellt ist.' }] };
+      }
+      const url = `${ctx.base || baseUrl()}/?l=${token}&mod=${mod.id}`;
+      const blocks: Record<string, any>[] = [];
+      const svg = await renderQr(url);
+      if (svg) {
+        const name = `bilder/quiz-${++n}.svg`;
+        files[name] = Buffer.from(svg, 'utf-8').toString('base64');
+        blocks.push({ type: 'image', file: name, width: '3.5cm', float: 'left' });
+      }
+      // Als Code: Die Adresse bleibt, wie sie ist (kein `_` als Tiefstellung).
+      blocks.push({ type: 'text', text: 'QR-Code scannen oder die Adresse öffnen:' }, { type: 'code', code: url });
+      return { type: 'box', title: `Quiz: ${title}`, blocks };
+    };
+
     const walk = async (blocks: any[]): Promise<any[]> => {
       const out: any[] = [];
       for (const block of blocks) {
         if (!block || typeof block !== 'object') out.push(block);
+        else if (block.type === 'quiz') out.push(await quizBlock(block));
         else if (block.type === 'image' && block.src !== undefined) out.push(await imageBlock(block));
         else if (block.type === 'code' && block.file !== undefined && block.code === undefined) {
           warnings.push(`Code aus „${block.file}“ gibt es nur im Kurs-Projekt – im Druck steht ein Hinweis.`);

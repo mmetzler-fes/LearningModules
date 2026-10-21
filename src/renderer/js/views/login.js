@@ -254,7 +254,7 @@ export class LoginView {
    * hat – zwischen Quiz, Klassenarbeit und Lernen mit Lösungen. Ist nur ein
    * Modus erlaubt, startet er ohne Rückfrage.
    */
-  async startLinkEntry(token, presetMode = null) {
+  async startLinkEntry(token, presetMode = null, onlyModule = null) {
     // Quiz-Arena nach einem Neuladen: mit demselben Platz weiter, ohne neue Namenseingabe.
     if (await this.app.contestView.resumePlayer(token)) return true;
 
@@ -415,14 +415,14 @@ export class LoginView {
         }
         return;
       }
-      await this._enterLinkRun(runAs, data, password);
+      await this._enterLinkRun(runAs, data, password, onlyModule);
     });
 
     return true;
   }
 
   /** Übergibt den geprüften Durchlauf an die Quiz-Ansicht. */
-  async _enterLinkRun(token, data, password = '') {
+  async _enterLinkRun(token, data, password = '', onlyModule = null) {
     const { app } = this;
     app.authStore.setToken(null);
     app.state.currentUser = { name: data.studentName, role: 'student', teacherEmail: data.teacherEmail };
@@ -439,7 +439,7 @@ export class LoginView {
     };
 
     await this.enterApp();
-    await app.quizView.startLinkRun(data);
+    await app.quizView.startLinkRun(data, { onlyModule });
   }
 
   async _onAdminLogin(e) {

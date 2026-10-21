@@ -62,6 +62,9 @@ content:
     title: Merke                # optional, fett
     shaded: true                # optional, grau hinterlegt
     blocks: [ … ]
+  - type: quiz                  # nur LearningModules: Modul aus demselben Lernthema
+    module: <Modul-ID>          # im Durchlauf direkt im Blatt; im Druck setzt die App
+    title: Kurzquiz Ohm         #   QR-Code und Adresse ein; hier nur ein Hinweis
 ```
 
 ### Erweiterungen

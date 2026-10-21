@@ -46,6 +46,12 @@ export function useModuleSource(fn) {
   moduleSource = fn;
 }
 
+/** Module des Lernthemas, in dem das Dokument liegt – für „Quiz einfügen“ (app.js). */
+let topicModules = () => [];
+export function useTopicModules(fn) {
+  topicModules = fn;
+}
+
 function token() {
   return sessionStorage.getItem('lm_token') || localStorage.getItem('lm_token');
 }
@@ -87,6 +93,7 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
               <option value="">➕ Einfügen …</option><option value="karo">Karo</option><option value="solution">Lösung</option>
               <option value="formula">Formel</option><option value="code">Code</option><option value="table">Tabelle</option>
               <option value="box">Kasten</option><option value="spacer">Platz</option><option value="pagebreak">Seitenumbruch</option>
+              <option value="quiz">🧩 Quiz aus dem Lernthema</option>
             </select>
           </div>
           <div class="ds-surface worksheet-content" contenteditable="true" spellcheck="true" aria-label="Inhalt bearbeiten"></div>
@@ -323,10 +330,20 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
     spacer: { type: 'spacer', lines: 3 },
     pagebreak: { type: 'pagebreak' },
   };
-  root.querySelector('.ds-vinsert').addEventListener('change', (e) => {
+  root.querySelector('.ds-vinsert').addEventListener('change', async (e) => {
     const what = e.target.value;
     e.target.value = '';
     if (!what) return;
+    if (what === 'quiz') {
+      const after = currentBlock();
+      const block = await pickQuiz();
+      if (!block) return;
+      const tmp = document.createElement('div');
+      tmp.innerHTML = `${widgetHtml(block)}<p><br></p>`;
+      const nodes = [...tmp.childNodes];
+      if (after?.isConnected) after.after(...nodes); else surface.append(...nodes);
+      return;
+    }
     const html = what === 'table' ? '<table><thead><tr><th>Spalte 1</th><th>Spalte 2</th></tr></thead><tbody><tr><td>…</td><td>…</td></tr></tbody></table>'
       : what === 'box' ? '<div class="ws-box" data-title="Merke"><p>…</p></div>'
         : widgetHtml(STARTERS[what]);
@@ -336,6 +353,33 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
     const nodes = [...tmp.childNodes];
     if (after) after.after(...nodes); else surface.append(...nodes);
     if (what in STARTERS && what !== 'pagebreak') editWidget(nodes[0]);
+  });
+
+  /**
+   * Quiz einfügen: ein Modul desselben Lernthemas wählen. Dokumente und
+   * Infoseiten fehlen in der Liste – sie sind kein Quiz.
+   */
+  const pickQuiz = () => new Promise((resolve) => {
+    const own = moduleSource();
+    const mods = (topicModules() || []).filter((m) => m && m.id && m.id !== own && !m.parentId && m.type !== 'document');
+    const overlay = document.createElement('div');
+    overlay.className = 'confirm-overlay';
+    overlay.innerHTML = `<div class="import-modules-card ds-quiz-picker">
+        <h3>🧩 Quiz einfügen</h3>
+        <p class="hint">${mods.length
+          ? 'Ein Modul aus diesem Lernthema. Im Durchlauf bearbeiten Schüler es direkt im Blatt; im Druck stehen QR-Code und Adresse (über deinen Quick-Link).'
+          : 'In diesem Lernthema gibt es noch kein anderes Modul. Lege das Quiz zuerst als Modul im Lernthema an und füge es dann hier ein.'}</p>
+        <div class="ds-quiz-choices">${mods.map((m) => `<button type="button" class="btn btn-secondary ds-quiz-choice" data-id="${escapeHtml(m.id)}">${escapeHtml(m.title || m.type)}</button>`).join('')}</div>
+        <div class="confirm-actions"><button type="button" class="btn btn-secondary ds-q-cancel">Abbrechen</button></div>
+      </div>`;
+    document.body.appendChild(overlay);
+    const done = (v) => { overlay.remove(); resolve(v); };
+    overlay.querySelector('.ds-q-cancel').addEventListener('click', () => done(null));
+    overlay.addEventListener('click', (ev) => { if (ev.target === overlay) done(null); });
+    overlay.querySelectorAll('.ds-quiz-choice').forEach((btn) => btn.addEventListener('click', () => {
+      const m = mods.find((x) => x.id === btn.dataset.id);
+      done({ type: 'quiz', module: m.id, title: m.title || 'Quiz' });
+    }));
   });
 
   /** Baustein als YAML bearbeiten. */

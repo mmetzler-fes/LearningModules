@@ -122,6 +122,25 @@ Kurs-Projekt mit `make` bauen.
 - **📓 Dokumente als OneNote-Seite** legt die Gliederung der Dokumente mit
   einem Klassenlink und QR-Code in die Zwischenablage.
 
+## Quiz im Dokument
+
+Im Editor **➕ Einfügen … → 🧩 Quiz aus dem Lernthema** wählt ein Modul aus
+demselben Lernthema (z. B. Multiple Choice oder Lückentext). Es steht als
+Baustein im Blatt (`type: quiz`, `module: <Modul-ID>`).
+
+- **Im Durchlauf** bearbeiten Schüler das Quiz direkt im Blatt; die Antworten
+  zählen beim Weiterblättern mit ins Ergebnis. Als eigener Schritt kommt es
+  dann nicht noch einmal – außer in der Lernbegleitung, die jede Aufgabe
+  einzeln begleitet (dort steht im Blatt ein Hinweis).
+- **Im Druck** (PDF, .odt, Nextcloud-Abbild, Schüler-PDF) steht ein Kasten mit
+  QR-Code und Adresse über den [Quick-Link](quick-link.md) des Lernthemas
+  (`?l=<token>&mod=<modul>`): Wer scannt, bearbeitet genau dieses Quiz. Ohne
+  Quick-Link steht dort ein Hinweis. Wird der Quick-Link zurückgezogen oder neu
+  erstellt, druckt das Nextcloud-Abbild die Blätter neu.
+- Ist das Modul nicht freigegeben, sehen Schüler im Blatt einen Hinweis.
+- Im Kurs-Export und im Generator wird daraus ein Hinweis
+  („[Quiz: … – online in LearningModules]“) – Module gibt es dort nicht.
+
 ## Für Schüler
 
 Dokumente erscheinen in Themen-Links und Quick-Links wie andere Module, als

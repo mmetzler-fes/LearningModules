@@ -2,6 +2,7 @@ import { escapeHtml } from '../utils.js';
 import { collectAnswer, splitTrueFalse } from '../answer-eval.js';
 import { CompanionRun, COMPANION_MAX } from './companion-run.js';
 import { TaskTimer } from '../task-timer.js';
+import { planRun } from '../doc-quiz.js';
 
 // ==================== QUIZ VIEW ====================
 
@@ -41,6 +42,7 @@ export class QuizView {
         if (this._isLearnRun() && !qs.revealed) {
           qs.answers[qs.currentIndex] = collectAnswer(mod, this._quizModuleContainer);
           this._revealSolution(qs.answers[qs.currentIndex]);
+          for (const { answer, slot } of this._collectEmbedded()) this._revealSolution(answer, slot);
           qs.revealed = true;
           (qs.revealedAt || (qs.revealedAt = {}))[qs.currentIndex] = true;
           this._btnQuizNext.textContent =
@@ -50,6 +52,7 @@ export class QuizView {
 
         this._taskTimer?.answered(qs.currentIndex);
         qs.answers[qs.currentIndex] = collectAnswer(mod, this._quizModuleContainer);
+        this._collectEmbedded();
         this._goNext();
       });
     }
@@ -60,6 +63,7 @@ export class QuizView {
         if (!state.quizState || state.quizState.currentIndex <= 0) return;
         const mod = state.quizState.modules[state.quizState.currentIndex];
         state.quizState.answers[state.quizState.currentIndex] = collectAnswer(mod, this._quizModuleContainer);
+        this._collectEmbedded();
         state.quizState.currentIndex--;
         this._renderModule();
       });
@@ -144,7 +148,7 @@ export class QuizView {
    * werden zu einem Durchlauf zusammengezogen – in der Reihenfolge, in der
    * die Lehrkraft sie angeordnet hat.
    */
-  async startLinkRun(data) {
+  async startLinkRun(data, { onlyModule = null } = {}) {
     const modules = [];
     for (const topic of data.topics || []) {
       for (const mod of topic.modules || []) {
@@ -155,6 +159,10 @@ export class QuizView {
       this.app.showToast('Dieser Link enthält derzeit keine Aufgaben.', 'error');
       return;
     }
+    if (onlyModule && !modules.some((m) => m.id === onlyModule)) {
+      this.app.showToast('Dieses Quiz ist gerade nicht freigegeben – es geht mit dem ganzen Lernthema weiter.', 'info');
+    }
+    const plan = planRun(modules, { companion: data.mode === 'companion', onlyModule });
 
     this.app.state.quizState = {
       // Das Ergebnis hängt am ersten Thema des Links; welche Aufgaben
@@ -163,7 +171,9 @@ export class QuizView {
       // Themenname und Linkname getrennt halten – sonst stünde in der
       // Ergebnisliste zweimal dasselbe.
       topicTitle: (data.topics || []).map((t) => t.title).join(', '),
-      modules: splitTrueFalse(modules),
+      modules: splitTrueFalse(plan.steps),
+      embedded: plan.embedded,
+      embeddedAnswers: {},
       currentIndex: 0,
       answers: [],
       startTime: Date.now(),
@@ -200,11 +210,14 @@ export class QuizView {
     }
     const modules = source.filter((m) => m.moduleSelected !== false);
     if (modules.length === 0) { this.app.showToast(t('quiz.no.modules'), 'error'); return; }
+    const plan = planRun(modules);
 
     this.app.state.quizState = {
       topicId: freshTopic.id,
       topicTitle: freshTopic.title,
-      modules: splitTrueFalse(modules),
+      modules: splitTrueFalse(plan.steps),
+      embedded: plan.embedded,
+      embeddedAnswers: {},
       currentIndex: 0,
       answers: [],
       startTime: Date.now(),
@@ -324,6 +337,9 @@ export class QuizView {
         // Die Lernbegleitung gibt die Rückmeldung selbst – die eingebauten
         // Prüfknöpfe der Aufgaben würden sie umgehen.
         examMode: this._isExamRun() || !!this._companion,
+        // Quizze im Dokument (planRun); in der Lernbegleitung kommen sie als eigene Aufgabe.
+        embedModule: (id) => qs.embedded?.get(id) || null,
+        embedMissingText: this._companion ? 'Dieses Quiz kommt gleich als eigene Aufgabe.' : undefined,
         // Für Aufgaben, die etwas hochladen (Audio Recorder)
         upload: {
           linkToken: qs.linkToken || null,
@@ -353,7 +369,7 @@ export class QuizView {
    * stammt aus derselben Auswertung, die auch das Ergebnis erzeugt – so
    * kann die angezeigte Lösung gar nicht von der Bewertung abweichen.
    */
-  _revealSolution(answer) {
+  _revealSolution(answer, target = null) {
     const panel = document.createElement('div');
     panel.className = 'quiz-solution-panel';
     panel.innerHTML = `
@@ -363,8 +379,25 @@ export class QuizView {
       ${answer.score ? `<p><strong>Auswertung:</strong> ${escapeHtml(String(answer.score))}</p>` : ''}`;
     const qs = this.app.state.quizState;
     // In die Ansicht der Aufgabe, damit die Lösung beim Zurückblättern mitkommt.
-    ((qs && qs.views && qs.views[qs.currentIndex]) || this._quizModuleContainer).appendChild(panel);
+    (target || (qs && qs.views && qs.views[qs.currentIndex]) || this._quizModuleContainer).appendChild(panel);
     panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+
+  /**
+   * Antworten der Quizze im Dokument des aktuellen Schritts – je Schritt
+   * gemerkt, beim Zurückblättern überschrieben. Liefert `{ answer, slot }`.
+   */
+  _collectEmbedded() {
+    const qs = this.app.state.quizState;
+    const view = qs?.views?.[qs.currentIndex];
+    if (!view || !qs.embedded?.size) return [];
+    const found = [];
+    view.querySelectorAll('form.ds-quiz-slot').forEach((slot) => {
+      const mod = qs.embedded.get(slot.dataset.module);
+      if (mod) found.push({ answer: collectAnswer(mod, slot), slot });
+    });
+    if (found.length) (qs.embeddedAnswers || (qs.embeddedAnswers = {}))[qs.currentIndex] = found.map((f) => f.answer);
+    return found;
   }
 
   async _finishQuiz() {
@@ -384,14 +417,19 @@ export class QuizView {
     const timer = this._taskTimer;
     this._taskTimer = null;
     timer?.dispose();
-    const details = quizState.answers
-      .map((a, i) => (a && timer?.msOf(i) !== undefined ? { ...a, ms: timer.msOf(i) } : a))
-      .filter(Boolean);
+    // Je Schritt seine Antwort, dahinter die der Quizze in seinem Dokument.
+    const ordered = [];
+    for (let i = 0; i < quizState.modules.length; i++) {
+      if (quizState.answers[i]) ordered.push({ a: quizState.answers[i], step: i });
+      for (const e of quizState.embeddedAnswers?.[i] || []) ordered.push({ a: e, step: -1 });
+    }
+    const answers = ordered.map((o) => o.a);
+    const details = ordered.map(({ a, step }) => (step >= 0 && timer?.msOf(step) !== undefined ? { ...a, ms: timer.msOf(step) } : a));
     // Informationsmodule bleiben in der Liste sichtbar, aber aus der
     // Rechnung heraus – sonst hinge die Prozentzahl daran, wie viele
     // Infoseiten ein Thema enthält. Dasselbe gilt in der Lernbegleitung für
     // Aufgaben, die kein Automat bewerten kann.
-    const graded = quizState.answers.filter((a) => a && !a.informational && !a.ungraded);
+    const graded = answers.filter((a) => !a.informational && !a.ungraded);
     // Lernbegleitung: Lernpunkte statt Anteilen, 10 je Aufgabe.
     const rawScore = companion
       ? graded.reduce((sum, a) => sum + (a.lernpunkte || 0), 0)
@@ -429,7 +467,7 @@ export class QuizView {
     } else {
       send = () => api.saveQuizResult({
         username: currentUser.name, topicId: quizState.topicId, topicTitle: quizState.topicTitle,
-        score, totalQuestions: total, percentage, details: quizState.answers,
+        score, totalQuestions: total, percentage, details: answers,
       });
     }
     const trySend = async () => {
@@ -471,7 +509,7 @@ export class QuizView {
         <div class="quiz-result-details">
           ${isExam
             ? '<p style="color:var(--text-secondary);">Klassenarbeit: Die Detail-Rückmeldung ist ausgeblendet.</p>'
-            : quizState.answers.filter(Boolean).map((a, i) => `
+            : answers.map((a, i) => `
               <div class="result-detail-item ${a.informational ? '' : a.isCorrect ? 'correct' : 'wrong'}">
                 <span class="result-detail-icon">${a.informational ? 'ℹ️' : a.isCorrect ? '✅' : '❌'}</span>
                 <div>

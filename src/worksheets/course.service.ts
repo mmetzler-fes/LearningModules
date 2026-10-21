@@ -15,6 +15,20 @@ import { CourseFiles, CourseFormatError, ExportDoc, readCourse, writeCourse } fr
 import { docSpec } from './docspec';
 import { settingsAt } from './numbering';
 
+/**
+ * Quiz-Blöcke verweisen auf Module der App – im Kurs-Projekt gibt es die
+ * nicht. Dort steht stattdessen ein Hinweis.
+ */
+function withoutQuizzes(spec: any): any {
+  const walk = (v: any): any => {
+    if (Array.isArray(v)) return v.map(walk);
+    if (!v || typeof v !== 'object') return v;
+    if (v.type === 'quiz') return { type: 'note', text: `[Quiz: ${v.title || 'Quiz'} – online in LearningModules]` };
+    return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, walk(x)]));
+  };
+  return walk(spec);
+}
+
 /** Obergrenze beim Entpacken – schützt vor ZIP-Bomben (wie beim Notebook-Import). */
 const MAX_UNPACKED = 200 * 1024 * 1024;
 
@@ -151,7 +165,7 @@ export class CourseService {
         if (m.type !== 'document' || !m.content?.spec) continue;
         docs.push({
           title: m.title, kind: m.content.kind || 'arbeitsblatt', slug: String(m.content.slug || m.title), section: o.section,
-          spec: await this.withAppImages(m.content.spec),
+          spec: withoutQuizzes(await this.withAppImages(m.content.spec)),
         });
       }
     }

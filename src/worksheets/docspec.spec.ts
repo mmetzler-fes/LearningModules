@@ -272,3 +272,17 @@ describe('Phase 3: Auszeichnung und neue Blöcke', () => {
     ]);
   });
 });
+
+describe('Block quiz', () => {
+  it('braucht ein Modul und steht nicht in einer Lösung', () => {
+    expect(ds.validateDocSpec({ content: [{ type: 'quiz', module: 'm1', title: 'Kurzquiz' }] })).toEqual([]);
+    expect(ds.validateDocSpec({ content: [{ type: 'quiz' }] }).join()).toMatch(/module/);
+    expect(ds.validateDocSpec({ content: [{ type: 'solution', blocks: [{ type: 'quiz', module: 'm1' }] }] }).join()).toMatch(/Lösung/);
+  });
+
+  it('zeigt einen Platzhalter mit dem Modul', () => {
+    const html = ds.renderDocSpecHtml({ content: [{ type: 'quiz', module: 'm1', title: 'Kurzquiz' }] });
+    expect(html).toContain('data-module="m1"');
+    expect(html).toContain('Kurzquiz');
+  });
+});

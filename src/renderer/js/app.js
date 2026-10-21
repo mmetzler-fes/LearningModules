@@ -25,7 +25,7 @@ import { nextcloudState, uploadImageToNextcloud, pickNextcloudImage } from './vi
 import { storeImage } from './views/image-store.js';
 import { contentFromPairs, pairsFromContent } from './dnd-pairs.js';
 // Editor des Modultyps „Dokument“ – hängt sich an window.DocSpecEditor.
-import { useModuleSource } from './docspec-editor.js';
+import { useModuleSource, useTopicModules } from './docspec-editor.js';
 
 // ==================== APP COORDINATOR ====================
 
@@ -36,6 +36,7 @@ class App {
     this.renderer = new H5pRenderer();
     // Der Dokument-Editor holt sich Nummer und Kopfzeile des bearbeiteten Moduls.
     useModuleSource(() => this.state.editingModuleId);
+    useTopicModules(() => this.state.currentTopicModules || []);
 
     this.state = {
       currentUser: null,
@@ -528,10 +529,11 @@ class App {
         return;
       }
       // Themen-Link: ?l=<token> – Name, ggf. Passwort, ggf. Modusauswahl;
-      // &m=contest führt direkt in den Wartebereich der Quiz-Arena.
+      // &m=contest führt direkt in den Wartebereich der Quiz-Arena,
+      // &mod=<modul> nur in dieses eine Modul (QR-Code eines Quiz im Dokument).
       const linkToken = params.get('l');
       if (linkToken) {
-        await this.loginView.startLinkEntry(linkToken, params.get('m') === 'contest' ? 'contest' : null);
+        await this.loginView.startLinkEntry(linkToken, params.get('m') === 'contest' ? 'contest' : null, params.get('mod'));
         return;
       }
       // Quick-Link: ?q=<token> führt direkt zur Namenseingabe

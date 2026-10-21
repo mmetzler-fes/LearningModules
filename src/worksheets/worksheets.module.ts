@@ -11,6 +11,7 @@ import { DocMigrationService } from './doc-migration.service';
 import { DocMigrationController } from './doc-migration.controller';
 import { WorksheetTemplate } from '../core/entities/worksheet-template.entity';
 import { User } from '../core/entities/user.entity';
+import { TopicLink } from '../core/entities/topic-link.entity';
 import { FeaturesModule } from '../features/features.module';
 import { NextcloudModule } from '../nextcloud/nextcloud.module';
 import { WorksheetsController } from './worksheets.controller';
@@ -22,7 +23,7 @@ import { InterchangeModule } from '../core/interchange/interchange.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([NotebookNode, NotebookPlacement, LearningTopic, LearningModule, DocMirror, WorksheetTemplate, User]),
+    TypeOrmModule.forFeature([NotebookNode, NotebookPlacement, LearningTopic, LearningModule, DocMirror, WorksheetTemplate, User, TopicLink]),
     FeaturesModule,
     NextcloudModule,
     InterchangeModule,

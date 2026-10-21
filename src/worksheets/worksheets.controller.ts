@@ -122,7 +122,7 @@ export class WorksheetsController {
     const title = String(body?.title || '').trim().slice(0, 200);
     const moduleId = body?.moduleId ? String(body.moduleId) : undefined;
     const kind = typeof body?.kind === 'string' ? body.kind : undefined;
-    const { file, warnings } = await this.worksheets.render(req.user, { spec: body?.spec, title, output, moduleId, kind });
+    const { file, warnings } = await this.worksheets.render(req.user, { spec: body?.spec, title, output, moduleId, kind }, req);
     const type = FILE_TYPES[output];
     const name = `${fileName(title || 'Dokument')}${type.suffix}.${type.ext}`;
     res.setHeader('Content-Type', type.mime);

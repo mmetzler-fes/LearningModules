@@ -1521,6 +1521,29 @@ export class H5pRenderer {
       case 'document': {
         const spec = content.spec && typeof content.spec === 'object' ? content.spec : { content: [] };
         div.innerHTML = renderDocSpecHtml(spec);
+        // Eingebettete Quizze: im Durchlauf liefert options.embedModule das Modul
+        // (views/quiz.js). Jedes läuft in einem eigenen <form> – so stören sich
+        // gleichnamige Optionsfelder zweier Quizze nicht.
+        if (typeof options.embedModule === 'function') {
+          div.querySelectorAll('.ds-quiz[data-module]').forEach((box) => {
+            const emb = options.embedModule(box.dataset.module);
+            const hint = box.querySelector('.ds-quiz-hint');
+            if (!emb) {
+              if (hint) hint.textContent = options.embedMissingText || 'Dieses Quiz ist gerade nicht freigegeben.';
+              return;
+            }
+            hint?.remove();
+            let embContent = emb.content || {};
+            if (typeof embContent === 'string') { try { embContent = JSON.parse(embContent); } catch (_) { embContent = {}; } }
+            const slot = document.createElement('form');
+            slot.className = 'ds-quiz-slot';
+            slot.dataset.module = emb.id;
+            slot.addEventListener('submit', (e) => e.preventDefault());
+            slot.appendChild(this.createTypePreview(emb.type, embContent, { ...options, embedModule: undefined, moduleId: emb.id, title: emb.title }));
+            box.classList.add('ds-quiz-live');
+            box.appendChild(slot);
+          });
+        }
         // Schüler: das Blatt als PDF (POST /api/public/document/:id/pdf).
         const up = options.upload;
         if (up && (up.linkToken || up.quickToken) && options.moduleId) {

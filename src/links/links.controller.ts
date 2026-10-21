@@ -2,6 +2,7 @@ import { Controller, Get, Post, Put, Patch, Delete, Body, Param, Query, UseGuard
 import { LinksService } from './links.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { TimingsService } from '../timings/timings.service';
+import { docChanged } from '../core/events/doc-changes';
 
 /**
  * Themen-Links: benannte Zugänge für Schüler, die Themen/Module bündeln und
@@ -53,7 +54,9 @@ export class LinksController {
   /** Quick-Link eines Lernthemas erstellen bzw. seine Klassen anpassen (`{ classIds }`). */
   @Put('quick/topic/:topicId')
   async saveQuickOfTopic(@Param('topicId') topicId: string, @Request() req: any, @Body() body: { classIds?: string[] }) {
-    return this.linksService.saveQuickForTopic(topicId, body?.classIds, req.user, req);
+    const res = await this.linksService.saveQuickForTopic(topicId, body?.classIds, req.user, req);
+    docChanged(req.user.userId); // Quiz-Blöcke im Nextcloud-Abbild tragen den Quick-Link
+    return res;
   }
 
   @Get(':id')
@@ -113,6 +116,8 @@ export class LinksController {
   /** Token entwerten – verteilte Links und QR-Codes wirken nicht mehr. */
   @Delete(':id/share')
   async revoke(@Param('id') id: string, @Request() req: any, @Query('access') access?: string) {
-    return this.linksService.revoke(id, req.user, access === 'exam' ? 'exam' : 'practice');
+    const res = await this.linksService.revoke(id, req.user, access === 'exam' ? 'exam' : 'practice');
+    docChanged(req.user.userId); // Quick-Link zurückgezogen: QR-Codes in Dokumenten neu drucken
+    return res;
   }
 }

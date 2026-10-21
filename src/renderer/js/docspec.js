@@ -10,7 +10,7 @@
 // `n_S` mit tiefgestelltem S, Lösungen zunächst ausgeblendet.
 
 export const DOC_BLOCK_TYPES = ['section', 'task', 'subtask', 'heading', 'text', 'list', 'code', 'image', 'table',
-  'formula', 'note', 'solution', 'box', 'karo', 'spacer', 'pagebreak'];
+  'formula', 'note', 'solution', 'box', 'karo', 'spacer', 'pagebreak', 'quiz'];
 
 const HEADING_TYPES = ['section', 'task', 'subtask'];
 const WITH_BLOCKS = ['section', 'task', 'subtask', 'solution', 'box'];
@@ -130,6 +130,12 @@ function checkBlock(block, path, errors, inSolution) {
     case 'solution':
       need(!inSolution, 'Lösung in einer Lösung ist nicht möglich.');
       need(Array.isArray(block.blocks) || isText(block.text), 'blocks oder text fehlt.');
+      break;
+    case 'quiz':
+      // Ein Modul aus demselben Lernthema: im Durchlauf direkt im Blatt, im Druck QR-Code und Adresse.
+      need(isText(block.module) && String(block.module).trim() !== '', 'module (Modul des Lernthemas) fehlt.');
+      need(!inSolution, 'Ein Quiz in einer Lösung ist nicht möglich.');
+      if (block.title !== undefined) need(isText(block.title), 'title muss ein Text sein.');
       break;
     case 'karo':
     case 'spacer':
@@ -650,6 +656,10 @@ function renderBlockHtml(block, ctx) {
     }
     case 'pagebreak':
       return ctx.options.showPageBreaks ? '<div class="ds-pagebreak"><span>Seitenumbruch</span></div>' : '';
+    case 'quiz':
+      // Platzhalter; im Durchlauf hängt h5p-renderer.js das Modul hinein.
+      return `<div class="ds-quiz" data-module="${esc(block.module ?? '')}"><p class="ds-quiz-title">🧩 ${richText(isText(block.title) ? block.title : 'Quiz')}</p>`
+        + '<p class="ds-quiz-hint">Beim Bearbeiten des Lernthemas läuft das Quiz hier im Blatt, im Druck stehen QR-Code und Adresse.</p></div>';
     default:
       return '';
   }

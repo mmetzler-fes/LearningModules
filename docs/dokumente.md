@@ -23,9 +23,14 @@ Der Editor startet im Modus **✏️ Bearbeiten** – wie ein Textprogramm:
   **Teilaufgabe** (1.1.1), Überschrift ohne Nummer, Hinweis.
 - **Fett, kursiv, unterstrichen, durchgestrichen, hoch/tief**, Listen,
   Ausrichtung, Links, **🖼 Bild** (Größe, Lage, Rahmen per Klick aufs Bild).
-- **➕ Einfügen …**: Karo (Platz zum Schreiben), Lösung, Formel, Code, Tabelle,
-  Kasten, Platz, Seitenumbruch. Graue **Bausteine** öffnen sich mit einem
-  Doppelklick.
+- **➕ Einfügen …**: Karo (Platz zum Schreiben), Quiz aus dem Lernthema,
+  Lösung, Formel, Code, Tabelle, Kasten, Platz, Seitenumbruch – an der
+  Schreibmarke bzw. hinter dem gewählten Baustein.
+- Graue **Bausteine** wählt ein Klick (blauer Rahmen). Die Leiste daran
+  verschiebt (**↑ ↓**, auch Alt+↑/↓), verdoppelt (**⧉**), bearbeitet (**✏️**,
+  auch Doppelklick oder Enter) und löscht (**✕**, auch Entf). **Strg+C / X**
+  kopiert den gewählten Baustein als YAML; **Strg+V** setzt kopierte Bausteine
+  (auch aus dem YAML-Reiter) hinter den gewählten.
 - Eine **Lösung** gehört hinter ein Karo: Im Arbeitsblatt ist sie
   ausgeblendet, im Lösungsblatt steht sie rot über dem Karo.
 
@@ -35,7 +40,11 @@ Dateien vom aktuellen Stand, auch ungespeichert.
 
 **⌨ YAML** zeigt dasselbe Dokument als Text – praktisch zum schnellen Ändern
 vieler Stellen oder für Antworten einer KI. Das Format beschreibt die Datei
-`worksheet-renderer/SPEC.md`.
+`worksheet-renderer/SPEC.md`. Hilfen beim Einrücken: **Enter** übernimmt die
+Einrückung (nach `- ` und `:` eine Stufe tiefer), **Tab / Umschalt+Tab**
+rücken markierte Zeilen ein und aus, **Strg+V** passt die Einrückung des
+Eingefügten an die Schreibmarke an. Das eigene **➕ Einfügen …** setzt einen
+Baustein hinter den Block, in dem die Schreibmarke steht.
 
 **📄 Aus .odt übernehmen** liest ein Writer-Dokument ein: Überschriften,
 Absätze, Listen, Tabellen (auch verbundene Zellen), Bilder mit ihrer Lage und

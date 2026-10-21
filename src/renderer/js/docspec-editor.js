@@ -14,6 +14,7 @@ import { validateDocSpec, renderDocSpecHtml, docRefSlugs } from './docspec.js';
 import { downloadBlob } from './api.js';
 import { escapeHtml } from './utils.js';
 import { htmlToDocSpec, specToEditorHtml, widgetHtml } from './docspec-html.js';
+import { newlineIndent, shiftLines, reindentPaste, insertAfterItem } from './yaml-edit.js';
 
 /** Startinhalt eines neuen Dokuments – zeigt das Format an einem Beispiel. */
 const STARTER = `content:
@@ -98,6 +99,14 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
           <div class="ds-surface worksheet-content" contenteditable="true" spellcheck="true" aria-label="Inhalt bearbeiten"></div>
           <p class="hint">Bausteine (grau) per Doppelklick bearbeiten. Lösungen folgen auf ein Karo und erscheinen im Lösungsblatt darüber.</p>
         </div>
+        <div class="ds-ybar" hidden>
+          <select class="ds-yinsert" title="Baustein hinter dem Block einfügen, in dem die Schreibmarke steht">
+            <option value="">➕ Einfügen …</option><option value="karo">Karo</option><option value="quiz">🧩 Quiz aus dem Lernthema</option><option value="solution">Lösung</option>
+            <option value="formula">Formel</option><option value="code">Code</option><option value="table">Tabelle</option>
+            <option value="box">Kasten</option><option value="spacer">Platz</option><option value="pagebreak">Seitenumbruch</option>
+          </select>
+          <span class="hint">Enter rückt passend ein, Tab / Umschalt+Tab rücken markierte Zeilen, eingefügter Text passt sich der Einrückung an.</span>
+        </div>
         <textarea class="ds-yaml" spellcheck="false" aria-label="Inhalt als YAML"></textarea>
       </div>
       <div class="ds-preview module-description-content"></div>
@@ -157,12 +166,56 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
 
   let timer = null;
   textarea.addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(update, 250); });
-  // Tab rückt ein, statt das Feld zu verlassen – YAML lebt von Einrückung.
-  textarea.addEventListener('keydown', (e) => {
-    if (e.key !== 'Tab' || e.shiftKey || e.ctrlKey || e.altKey) return;
-    e.preventDefault();
-    textarea.setRangeText('  ', textarea.selectionStart, textarea.selectionEnd, 'end');
+  // YAML lebt von Einrückung (yaml-edit.js): Tab rückt ein statt das Feld
+  // zu verlassen, Enter übernimmt die Einrückung, Eingefügtes passt sich an.
+  const replaceYaml = (text, start, end = start) => {
+    textarea.value = text;
+    textarea.setSelectionRange(start, end);
     textarea.dispatchEvent(new Event('input'));
+  };
+  textarea.addEventListener('keydown', (e) => {
+    if (e.ctrlKey || e.altKey || e.metaKey) return;
+    const { selectionStart: a, selectionEnd: b, value } = textarea;
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      if (a === b && !e.shiftKey) {
+        textarea.setRangeText('  ', a, b, 'end');
+        textarea.dispatchEvent(new Event('input'));
+        return;
+      }
+      const res = shiftLines(value, a, b, e.shiftKey ? -1 : 1);
+      replaceYaml(res.text, a === b ? Math.max(res.start, a - 2) : res.start, a === b ? Math.max(res.start, a - 2) : res.end);
+    } else if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      const line = value.slice(value.lastIndexOf('\n', a - 1) + 1, a);
+      textarea.setRangeText(`\n${newlineIndent(line)}`, a, b, 'end');
+      textarea.dispatchEvent(new Event('input'));
+    }
+  });
+  textarea.addEventListener('paste', (e) => {
+    const text = e.clipboardData?.getData('text/plain') || '';
+    const a = textarea.selectionStart;
+    const before = textarea.value.slice(textarea.value.lastIndexOf('\n', a - 1) + 1, a);
+    if (!text.includes('\n') || before.trim()) return;
+    e.preventDefault();
+    textarea.setRangeText(reindentPaste(text, before.length), a, textarea.selectionEnd, 'end');
+    textarea.dispatchEvent(new Event('input'));
+  });
+  root.querySelector('.ds-yinsert').addEventListener('change', async (e) => {
+    const what = e.target.value;
+    e.target.value = '';
+    if (!what) return;
+    const pos = textarea.selectionStart;
+    const block = what === 'quiz' ? await pickQuiz() : STARTERS[what];
+    if (!block) return;
+    const item = yamlDump([block], { lineWidth: -1, noRefs: true });
+    const res = insertAfterItem(textarea.value, pos, item);
+    if (res) { replaceYaml(res.text, res.pos); textarea.focus(); return; }
+    let current;
+    try { current = yamlLoad(textarea.value) ?? {}; } catch (_) { status.textContent = 'Erst den YAML-Fehler beheben, dann einfügen.'; return; }
+    if (!Array.isArray(current.content)) current.content = [];
+    current.content.push(block);
+    replaceYaml(toYaml(current), 0);
   });
   showSolutions.addEventListener('change', update);
 
@@ -279,13 +332,16 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
     mode = next;
     visual.hidden = mode !== 'visual';
     textarea.hidden = mode !== 'yaml';
+    root.querySelector('.ds-ybar').hidden = mode !== 'yaml';
+    selectWidget(null);
     root.querySelectorAll('[data-mode]').forEach((b) => b.classList.toggle('active', b.dataset.mode === mode));
     try { localStorage.setItem('lm_ds_mode', mode); } catch (_) { /* egal */ }
   };
   root.querySelectorAll('[data-mode]').forEach((b) => b.addEventListener('click', () => setMode(b.dataset.mode)));
 
-  /** Block-Element der Schreibmarke (direktes Kind der Fläche bzw. eines Kastens). */
+  /** Block-Element der Schreibmarke (direktes Kind der Fläche bzw. eines Kastens) – oder der gewählte Baustein. */
   const currentBlock = () => {
+    if (selectedWidget && surface.contains(selectedWidget)) return selectedWidget;
     const sel = window.getSelection();
     let n = sel && sel.rangeCount ? sel.getRangeAt(0).startContainer : null;
     if (n && n.nodeType === 3) n = n.parentNode;
@@ -328,6 +384,9 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
     code: { type: 'code', code: '// Quelltext' },
     spacer: { type: 'spacer', lines: 3 },
     pagebreak: { type: 'pagebreak' },
+    // nur fürs YAML-Einfügen – im Bearbeiten-Reiter sind Tabelle und Kasten Text
+    table: { type: 'table', header: ['Spalte 1', 'Spalte 2'], rows: [['…', '…']] },
+    box: { type: 'box', title: 'Merke', blocks: [{ type: 'text', text: '…' }] },
   };
   root.querySelector('.ds-vinsert').addEventListener('change', async (e) => {
     const what = e.target.value;
@@ -337,12 +396,9 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
     const html = what === 'table' ? '<table><thead><tr><th>Spalte 1</th><th>Spalte 2</th></tr></thead><tbody><tr><td>…</td><td>…</td></tr></tbody></table>'
       : what === 'box' ? '<div class="ws-box" data-title="Merke"><p>…</p></div>'
         : widgetHtml(STARTERS[what]);
-    const tmp = document.createElement('div');
-    tmp.innerHTML = `${html}<p><br></p>`;
-    const after = currentBlock();
-    const nodes = [...tmp.childNodes];
-    if (after) after.after(...nodes); else surface.append(...nodes);
-    if (what in STARTERS && what !== 'pagebreak') editWidget(nodes[0]);
+    const nodes = placeHtml(html, currentBlock());
+    if (nodes[0].classList?.contains('ds-widget')) selectWidget(nodes[0]);
+    if (!['table', 'box', 'pagebreak'].includes(what)) editWidget(nodes[0]);
   });
 
   /**
@@ -372,15 +428,26 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
     }));
   });
 
+  /**
+   * HTML hinter `after` (bzw. ans Ende) setzen. Eine leere Zeile zum
+   * Weiterschreiben nur am Ende – mitten im Blatt würde sie zu „Platz“.
+   */
+  const placeHtml = (html, after) => {
+    const tmp = document.createElement('div');
+    tmp.innerHTML = html;
+    const nodes = [...tmp.childNodes];
+    if (after?.isConnected) after.after(...nodes); else surface.append(...nodes);
+    const last = nodes[nodes.length - 1];
+    if (last && !last.nextSibling) last.after(Object.assign(document.createElement('p'), { innerHTML: '<br>' }));
+    return nodes;
+  };
+
   /** Quiz an der Schreibmarke einfügen. */
   const insertQuiz = async () => {
     const after = currentBlock();
     const block = await pickQuiz();
     if (!block) return;
-    const tmp = document.createElement('div');
-    tmp.innerHTML = `${widgetHtml(block)}<p><br></p>`;
-    const nodes = [...tmp.childNodes];
-    if (after?.isConnected) after.after(...nodes); else surface.append(...nodes);
+    selectWidget(placeHtml(widgetHtml(block), after)[0]);
   };
 
   /** Baustein als YAML bearbeiten. */
@@ -404,7 +471,7 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
     ta.focus();
     const close = () => overlay.remove();
     overlay.querySelector('.ds-w-cancel').addEventListener('click', close);
-    overlay.querySelector('.ds-w-del').addEventListener('click', () => { w.remove(); close(); });
+    overlay.querySelector('.ds-w-del').addEventListener('click', () => { if (w === selectedWidget) selectWidget(null); w.remove(); close(); });
     overlay.querySelector('form').addEventListener('submit', (ev) => {
       ev.preventDefault();
       let next;
@@ -413,10 +480,87 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
       if (errs.length) { overlay.querySelector('.ds-error').textContent = errs.join(' · '); return; }
       const tmp = document.createElement('div');
       tmp.innerHTML = widgetHtml(next);
-      w.replaceWith(tmp.firstElementChild);
+      const fresh = tmp.firstElementChild;
+      w.replaceWith(fresh);
+      selectWidget(fresh);
       close();
     });
   };
+  // ---- Bausteine wählen, verschieben, kopieren ----
+  // Bausteine (Karo, Lösung, Quiz …) sind nicht editierbar – eine Schreibmarke
+  // davor oder dahinter gibt es nicht. Ein Klick wählt sie; „Einfügen“ setzt
+  // dann dahinter, die Leiste am Baustein verschiebt, verdoppelt, löscht.
+  let selectedWidget = null;
+  const WBAR = [['up', '↑', 'Nach oben'], ['down', '↓', 'Nach unten'], ['dup', '⧉', 'Verdoppeln'], ['edit', '✏️', 'Bearbeiten'], ['del', '✕', 'Entfernen']];
+  function selectWidget(w) {
+    if (selectedWidget && selectedWidget !== w) {
+      selectedWidget.classList.remove('ds-widget-selected');
+      selectedWidget.querySelector(':scope > .ds-wbar')?.remove();
+    }
+    selectedWidget = w || null;
+    if (!w || w.classList.contains('ds-widget-selected')) return;
+    w.classList.add('ds-widget-selected');
+    const bar = document.createElement('span');
+    bar.className = 'ds-wbar';
+    bar.innerHTML = WBAR.map(([act, label, title]) => `<button type="button" data-act="${act}" title="${title}">${label}</button>`).join('');
+    w.appendChild(bar);
+  }
+  const cleanWidget = (w) => {
+    const copy = w.cloneNode(true);
+    copy.classList.remove('ds-widget-selected');
+    copy.querySelector(':scope > .ds-wbar')?.remove();
+    return copy;
+  };
+  const blockOf = (w) => { try { return JSON.parse(decodeURIComponent(w.dataset.block)); } catch (_) { return null; } };
+  const widgetAction = (act, w) => {
+    if (act === 'up' && w.previousElementSibling) w.previousElementSibling.before(w);
+    else if (act === 'down' && w.nextElementSibling) w.nextElementSibling.after(w);
+    else if (act === 'dup') { const copy = cleanWidget(w); w.after(copy); selectWidget(copy); }
+    else if (act === 'edit') editWidget(w);
+    else if (act === 'del') { selectWidget(null); w.remove(); }
+    w.scrollIntoView?.({ block: 'nearest' });
+  };
+  surface.addEventListener('click', (e) => {
+    const btn = e.target.closest('.ds-wbar [data-act]');
+    if (btn) { e.preventDefault(); widgetAction(btn.dataset.act, btn.closest('.ds-widget')); return; }
+    const w = e.target.closest('.ds-widget');
+    selectWidget(w && surface.contains(w) ? w : null);
+  });
+  const widgetKeysActive = () => mode === 'visual' && selectedWidget && surface.contains(selectedWidget)
+    && !document.querySelector('.confirm-overlay') && (document.activeElement === surface || document.activeElement === document.body || surface.contains(document.activeElement));
+  document.addEventListener('keydown', (e) => {
+    if (!widgetKeysActive()) return;
+    if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); widgetAction('del', selectedWidget); }
+    else if (e.key === 'Escape') selectWidget(null);
+    else if (e.key === 'Enter') { e.preventDefault(); editWidget(selectedWidget); }
+    else if (e.altKey && e.key === 'ArrowUp') { e.preventDefault(); widgetAction('up', selectedWidget); }
+    else if (e.altKey && e.key === 'ArrowDown') { e.preventDefault(); widgetAction('down', selectedWidget); }
+  });
+  // Kopieren als YAML (`- type: …`) – passt so ins YAML-Feld und zurück.
+  const copyWidget = (e, cut) => {
+    if (!widgetKeysActive() || !window.getSelection()?.isCollapsed) return;
+    const block = blockOf(selectedWidget);
+    if (!block) return;
+    e.preventDefault();
+    e.clipboardData.setData('text/plain', yamlDump([block], { lineWidth: -1, noRefs: true }));
+    if (cut) widgetAction('del', selectedWidget);
+  };
+  document.addEventListener('copy', (e) => copyWidget(e, false));
+  document.addEventListener('cut', (e) => copyWidget(e, true));
+  // Einfügen von YAML-Bausteinen (aus dem YAML-Feld oder kopiert): als Bausteine statt Text.
+  surface.addEventListener('paste', (e) => {
+    const text = (e.clipboardData?.getData('text/plain') || '').trim();
+    if (!/^(- )?type: /.test(text)) return;
+    let blocks;
+    try { blocks = yamlLoad(text); } catch (_) { return; }
+    if (blocks && !Array.isArray(blocks)) blocks = [blocks];
+    if (!Array.isArray(blocks) || !blocks.length || validateDocSpec({ content: blocks }).length) return;
+    e.preventDefault();
+    const nodes = placeHtml(specToEditorHtml({ content: blocks }), currentBlock());
+    const firstWidget = nodes.find((n) => n.classList?.contains('ds-widget'));
+    selectWidget(firstWidget || null);
+  });
+
   surface.addEventListener('dblclick', (e) => {
     const w = e.target.closest('.ds-widget');
     if (w && surface.contains(w)) editWidget(w);

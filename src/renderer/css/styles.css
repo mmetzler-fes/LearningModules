@@ -3648,6 +3648,13 @@ body {
 .ds-widget { position: relative; margin: 6px 0; padding: 4px 8px 4px 8px; border: 1px dashed var(--text-secondary); border-radius: var(--radius-sm); background: var(--bg-primary); cursor: pointer; user-select: none; }
 .ds-widget .ds-solution { margin: 0; }
 .ds-widget-label { position: absolute; top: -0.7em; right: 8px; font-size: 0.7em; background: var(--bg-secondary); padding: 0 4px; color: var(--text-secondary); }
+/* Gewählter Baustein: Rahmen und Leiste (verschieben, verdoppeln, bearbeiten, löschen). */
+.ds-widget.ds-widget-selected { border: 2px solid var(--accent); padding: 3px 7px; }
+.ds-wbar { position: absolute; top: -0.9em; left: 8px; display: flex; gap: 2px; z-index: 2; }
+.ds-wbar button { font-size: 0.75em; line-height: 1; padding: 2px 6px; border: 1px solid var(--accent); border-radius: var(--radius-sm); background: var(--bg-secondary); color: var(--text-primary); cursor: pointer; }
+.ds-wbar button:hover { background: var(--accent); color: #fff; }
+.ds-ybar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 6px; }
+.ds-ybar .hint { font-size: 0.8em; }
 .ds-widget-dialog { max-width: 640px; width: 90vw; }
 .ds-widget-dialog textarea { width: 100%; font-family: ui-monospace, 'DejaVu Sans Mono', monospace; }
 @media (max-width: 900px) { .ds-surface { height: 45vh; min-height: 300px; } }

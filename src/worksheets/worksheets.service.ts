@@ -15,6 +15,10 @@ import { widthInCm } from './course-format';
 
 export { widthInCm };
 import { RenderJob, WorksheetOutput, WorksheetRendererClient } from './renderer.client';
+import { PdfAiClient } from './pdf-ai.client';
+
+/** Wie ein PDF übernommen wird: Struktur erkennen, Seiten als Bilder, KI-Erkennung (docling). */
+export type PdfImportMode = 'text' | 'pages' | 'ai';
 
 const PRINTABLE_IMAGES: Record<string, string> = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/svg+xml': 'svg' };
 
@@ -72,7 +76,22 @@ export class WorksheetsService {
     @Optional() @InjectRepository(NotebookNode) private readonly nodeRepo?: Repository<NotebookNode>,
     @Optional() private readonly templates?: TemplatesService,
     @Optional() @InjectRepository(TopicLink) private readonly linkRepo?: Repository<TopicLink>,
+    @Optional() private readonly pdfAi?: PdfAiClient,
   ) {}
+
+  /**
+   * PDF → Dokument. `text` und `pages` macht der Renderer, `ai` der Dienst
+   * pdf-ai. Das Ergebnis wird wie jedes Dokument geprüft; Fehler darin
+   * stehen als Hinweis da (der Editor markiert sie).
+   */
+  async importPdf(pdf: Buffer, mode: PdfImportMode, ocr = false) {
+    if (!pdf?.length || pdf.subarray(0, 4).toString('latin1') !== '%PDF') throw new BadRequestException('Das ist kein PDF.');
+    const result = mode === 'ai'
+      ? await (this.pdfAi ?? (() => { throw new BadRequestException('Keine KI-Erkennung eingerichtet.'); })()).convert(pdf, ocr)
+      : await this.renderer.importPdf(pdf, mode === 'pages' ? 'pages' : 'text');
+    const errors = docSpec().validateDocSpec(result.spec);
+    return { ...result, mode, warnings: [...result.warnings, ...errors.map((e) => `Im Ergebnis: ${e}`)] };
+  }
 
   /** Token des Quick-Links dieser Lehrkraft auf das Lernthema – oder `null`. */
   async quickTokenFor(ownerId: string, topicId: string): Promise<string | null> {
@@ -119,7 +138,12 @@ export class WorksheetsService {
   }
 
   async status() {
-    return { configured: this.renderer.configured(), renderer: await this.renderer.health() };
+    return {
+      configured: this.renderer.configured(),
+      renderer: await this.renderer.health(),
+      // PDF-Import: Struktur/Seiten über den Renderer, KI-Erkennung über pdf-ai
+      pdfAi: this.pdfAi?.configured() ? (await this.pdfAi.health()) ?? { ok: false } : null,
+    };
   }
 
   /**

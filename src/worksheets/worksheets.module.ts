@@ -17,6 +17,7 @@ import { NextcloudModule } from '../nextcloud/nextcloud.module';
 import { WorksheetsController } from './worksheets.controller';
 import { WorksheetsService } from './worksheets.service';
 import { WorksheetRendererClient } from './renderer.client';
+import { PdfAiClient } from './pdf-ai.client';
 import { DocNumberingService } from './doc-numbering.service';
 import { CourseService } from './course.service';
 import { InterchangeModule } from '../core/interchange/interchange.module';
@@ -29,7 +30,7 @@ import { InterchangeModule } from '../core/interchange/interchange.module';
     InterchangeModule,
   ],
   controllers: [WorksheetsController, DocMigrationController],
-  providers: [WorksheetsService, WorksheetRendererClient, DocNumberingService, CourseService, DocMirrorService, TemplatesService, DocMigrationService],
+  providers: [WorksheetsService, WorksheetRendererClient, PdfAiClient, DocNumberingService, CourseService, DocMirrorService, TemplatesService, DocMigrationService],
   exports: [WorksheetsService, DocNumberingService, CourseService, DocMirrorService, TemplatesService],
 })
 export class WorksheetsModule {}

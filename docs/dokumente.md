@@ -46,10 +46,23 @@ rücken markierte Zeilen ein und aus, **Strg+V** passt die Einrückung des
 Eingefügten an die Schreibmarke an. Das eigene **➕ Einfügen …** setzt einen
 Baustein hinter den Block, in dem die Schreibmarke steht.
 
-**📄 Aus .odt übernehmen** liest ein Writer-Dokument ein: Überschriften,
+**📄 Übernehmen (.odt, .pdf)** liest ein Writer-Dokument ein: Überschriften,
 Absätze, Listen, Tabellen (auch verbundene Zellen), Bilder mit ihrer Lage und
 Textrahmen. Formeln aus dem Formeleditor und Bilder in Tabellen kommen nicht
 mit; der Editor nennt, was fehlt.
+
+Ein **PDF** kennt keine Struktur, nur Zeichen an Positionen – der Import
+erschließt sie. Zur Wahl stehen:
+
+| Art | Was | Braucht |
+|---|---|---|
+| 📝 Text mit Struktur | Überschriften (Größe, Fettdruck, Nummern wie 2.1), Absätze, Listen, Tabellen, Code, Karos, Bilder und Zeichnungen mit Unterschrift, einfache Formeln; rote Schrift (Lösungsblatt) wird zur Lösung | Renderer |
+| 🖼 Seiten als Bilder | jede Seite als Bild – sieht aus wie das PDF, nicht bearbeitbar | Renderer |
+| 🤖 KI-Erkennung | trainierte Modelle (docling) auf dem eigenen Server: besser bei Tabellen, Spalten und gescannten Seiten (OCR), langsamer | Dienst `pdf-ai` |
+
+Gibt es das Writer-Original noch, ist dessen Import immer genauer. Danach im
+Editor prüfen: Formeln, Karos und Lösungsfelder lassen sich aus einem PDF nur
+ungefähr erkennen; mehrzeilige Formeln kommen als Bild.
 
 ### Formatierung im Text
 

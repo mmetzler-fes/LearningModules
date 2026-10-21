@@ -41,6 +41,7 @@ import yaml
 GEN = Path(__file__).resolve().parent
 TOOL = GEN / "tools" / "make_worksheet.py"
 SCRIPT_TOOL = GEN / "tools" / "make_script.py"
+PDF_TOOL = GEN / "tools" / "pdf_import.py"
 API = 1
 VERSION = os.environ.get("RENDERER_VERSION", "dev")
 TOKEN = os.environ.get("WORKSHEET_RENDERER_TOKEN", "")
@@ -256,6 +257,28 @@ def render_script(job: dict[str, Any], slot: int) -> tuple[dict[str, str], list[
         shutil.rmtree(root, ignore_errors=True)
 
 
+def import_pdf(job: dict[str, Any]) -> dict[str, Any]:
+    """PDF → Spec (tools/pdf_import.py) in einem eigenen Prozess mit Zeitgrenze."""
+    data = decode(job.get("pdf"), "pdf")
+    mode = job.get("mode") or "text"
+    if mode not in ("text", "pages"):
+        raise BadRequest("mode: text oder pages")
+    try:
+        proc = subprocess.run([sys.executable, str(PDF_TOOL), "-", mode], input=data,
+                              capture_output=True, timeout=TIMEOUT)
+    except subprocess.TimeoutExpired as e:
+        raise RenderFailed(f"Das PDF braucht zu lange (über {TIMEOUT} s).", []) from e
+    try:
+        result = json.loads(proc.stdout.decode("utf-8") or "null")
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        result = None
+    if not isinstance(result, dict):
+        raise RenderFailed(failure_from(proc.stderr.decode("utf-8", "replace")) or "PDF-Import gescheitert", [])
+    if result.get("error"):
+        raise RenderFailed(str(result["error"]), [])
+    return result
+
+
 class Handler(BaseHTTPRequestHandler):
     server_version = "worksheet-renderer"
 
@@ -275,7 +298,7 @@ class Handler(BaseHTTPRequestHandler):
                              "soffice": soffice_available(), "workers": WORKERS})
 
     def do_POST(self) -> None:
-        if self.path not in ("/render", "/inspect", "/render-script"):
+        if self.path not in ("/render", "/inspect", "/render-script", "/import-pdf"):
             self.send_json(404, {"error": "Unbekannter Pfad"})
             return
         if TOKEN and not hmac.compare_digest(self.headers.get("Authorization", ""), f"Bearer {TOKEN}"):
@@ -308,6 +331,9 @@ class Handler(BaseHTTPRequestHandler):
             self.send_json(503, {"error": "Renderer ausgelastet, später erneut versuchen"})
             return
         try:
+            if self.path == "/import-pdf":
+                self.send_json(200, import_pdf(job))
+                return
             files, warnings = (render_script if self.path == "/render-script" else render)(job, slot)
             self.send_json(200, {"files": files, "warnings": warnings})
         except BadRequest as e:

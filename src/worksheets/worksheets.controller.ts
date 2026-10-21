@@ -7,6 +7,9 @@ import { DocMirrorService } from './doc-mirror.service';
 import { TemplatesService } from './templates.service';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { WORKSHEET_OUTPUTS, WorksheetOutput } from './renderer.client';
+import type { PdfImportMode } from './worksheets.service';
+
+const MAX_PDF_BYTES = 40 * 1024 * 1024;
 
 const FILE_TYPES: Record<WorksheetOutput, { mime: string; ext: string; suffix: string }> = {
   odt: { mime: 'application/vnd.oasis.opendocument.text', ext: 'odt', suffix: '' },
@@ -58,6 +61,19 @@ export class WorksheetsController {
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', 'inline; filename="Probeblatt.pdf"');
     res.send(pdf);
+  }
+
+  /**
+   * PDF als Dokument übernehmen: Feld `file`, `mode` text | pages | ai,
+   * `ocr` (nur ai) – liefert `{ spec, title, warnings }` für den Editor.
+   */
+  @Post('import-pdf')
+  @HttpCode(200)
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: MAX_PDF_BYTES } }))
+  async importPdf(@UploadedFile() file: Express.Multer.File, @Body() body: { mode?: string; ocr?: string }) {
+    if (!file?.buffer?.length) throw new BadRequestException('Keine Datei empfangen.');
+    const mode: PdfImportMode = body?.mode === 'pages' ? 'pages' : body?.mode === 'ai' ? 'ai' : 'text';
+    return this.worksheets.importPdf(file.buffer, mode, body?.ocr === 'true');
   }
 
   @Get('status')

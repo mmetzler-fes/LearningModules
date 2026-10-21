@@ -43,6 +43,9 @@ services:
       # Arbeitsblätter (.odt/.pdf) – nur mit dem Renderer unten:
       # WORKSHEET_RENDERER_URL: http://worksheet-renderer:8090
       # WORKSHEET_RENDERER_TOKEN: ${WORKSHEET_RENDERER_TOKEN}
+      # PDF-Import mit KI-Erkennung – nur mit dem Dienst pdf-ai unten:
+      # PDF_AI_URL: http://pdf-ai:8091
+      # PDF_AI_TOKEN: ${PDF_AI_TOKEN}
 
   # Optional: Renderer für Arbeitsblätter (worksheet-renderer/README.md).
   # Eigenes Image mit LibreOffice; nur im internen Netz, kein Port nach außen.
@@ -56,6 +59,18 @@ services:
   #   environment:
   #     WORKSHEET_RENDERER_TOKEN: ${WORKSHEET_RENDERER_TOKEN}
   #     RENDERER_WORKERS: "2"
+
+  # Optional: PDF-Import mit KI-Erkennung (pdf-ai/README.md). Großes Image
+  # (PyTorch, Modelle), braucht während einer Erkennung 1,5–2 GB Speicher.
+  # Ohne ihn gibt es „Text mit Struktur“ und „Seiten als Bilder“ (Renderer).
+  # pdf-ai:
+  #   image: ghcr.io/mmetzler-fes/pdf-ai:latest
+  #   container_name: pdf-ai
+  #   restart: always
+  #   networks:
+  #     - proxy-nw
+  #   environment:
+  #     PDF_AI_TOKEN: ${PDF_AI_TOKEN}
 
 networks:
   proxy-nw:

@@ -149,5 +149,38 @@ class RendererTest(unittest.TestCase):
             self.assertTrue(base64.b64decode(body["files"][key]).startswith(b"%PDF"))
 
 
+    # ---- PDF-Import ----
+
+    def test_import_kein_pdf(self):
+        status, body = self.request("/import-pdf", {"pdf": base64.b64encode(b"hallo").decode(), "mode": "text"})
+        self.assertEqual(status, 422)
+        self.assertIn("kein PDF", body["error"])
+
+    def test_import_seiten_als_bilder(self):
+        import pypdfium2 as pdfium
+        doc = pdfium.PdfDocument.new()
+        doc.new_page(595, 842)
+        doc.new_page(595, 842)
+        buf = io.BytesIO()
+        doc.save(buf)
+        status, body = self.request("/import-pdf", {"pdf": base64.b64encode(buf.getvalue()).decode(), "mode": "pages"})
+        self.assertEqual(status, 200, body)
+        self.assertEqual([b["type"] for b in body["spec"]["content"]], ["image", "pagebreak", "image"])
+        self.assertTrue(body["spec"]["content"][0]["src"].startswith("data:image/jpeg;base64,"))
+
+    @unittest.skipUnless(server.soffice_available(), "LibreOffice nicht installiert")
+    def test_import_hin_und_zurueck(self):
+        """Beispielblatt drucken und wieder einlesen: Gliederung und Code kommen zurück."""
+        status, body = self.request("/render", {"spec": BEISPIEL, "outputs": ["pdf"]})
+        self.assertEqual(status, 200, body)
+        status, body = self.request("/import-pdf", {"pdf": body["files"]["pdf"], "mode": "text"})
+        self.assertEqual(status, 200, body)
+        blocks = body["spec"]["content"]
+        titles = [b.get("text") or b.get("title") for b in blocks if b["type"] in ("section", "task")]
+        self.assertIn("Worum es geht", titles)
+        self.assertIn("Ohmsches Gesetz", titles)
+        self.assertTrue(any(b["type"] == "karo" for b in blocks))
+
+
 if __name__ == "__main__":
     unittest.main()

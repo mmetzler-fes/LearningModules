@@ -24,6 +24,39 @@ export interface RenderResult {
   warnings: string[];
 }
 
+export interface PdfImportResult {
+  spec: { content: any[] };
+  title: string;
+  warnings: string[];
+}
+
+/**
+ * PDF an einen Import-Dienst schicken (Renderer bzw. pdf-ai) – beide
+ * antworten mit `{ spec, title, warnings }` oder `{ error }`.
+ */
+export async function postPdf(url: string, token: string | undefined, body: Record<string, any>, logger: Logger, name: string, timeoutMs = 300_000): Promise<PdfImportResult> {
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+  } catch (err: any) {
+    logger.warn(`${name} nicht erreichbar: ${err?.message || err}`);
+    throw new ServiceUnavailableException(`Der ${name} ist gerade nicht erreichbar.`);
+  }
+  const data: any = await res.json().catch(() => ({}));
+  if (res.status === 401) {
+    logger.error(`${name} lehnt das Token ab.`);
+    throw new ServiceUnavailableException(`Der ${name} ist falsch eingerichtet (Token).`);
+  }
+  if (!res.ok) throw new UnprocessableEntityException(data.error || `Das PDF ließ sich nicht übernehmen (${res.status}).`);
+  if (!data?.spec || !Array.isArray(data.spec.content)) throw new UnprocessableEntityException('Der Import lieferte kein Dokument.');
+  return { spec: data.spec, title: String(data.title || ''), warnings: Array.isArray(data.warnings) ? data.warnings.map(String) : [] };
+}
+
 /** Ein PDF dauert 1–3 s; der Renderer wartet selbst bis zu 120 s auf einen freien Platz. */
 const RENDER_TIMEOUT_MS = 150_000;
 
@@ -67,6 +100,15 @@ export class WorksheetRendererClient {
     const body: any = await res.json().catch(() => ({}));
     if (!res.ok) throw new UnprocessableEntityException(body.error || 'Die Vorlage ließ sich nicht prüfen.');
     return body;
+  }
+
+  /**
+   * PDF → Spec (POST /import-pdf, worksheet-renderer/tools/pdf_import.py):
+   * `text` erkennt die Struktur, `pages` liefert jede Seite als Bild.
+   */
+  async importPdf(pdf: Buffer, mode: 'text' | 'pages'): Promise<PdfImportResult> {
+    if (!this.configured()) throw new ServiceUnavailableException('Kein Renderer eingetragen (WORKSHEET_RENDERER_URL).');
+    return postPdf(`${this.base()}/import-pdf`, process.env.WORKSHEET_RENDERER_TOKEN, { pdf: pdf.toString('base64'), mode }, this.logger, 'Renderer');
   }
 
   /** Skript (Kompendium) aus mehreren Blättern (POST /render-script). */

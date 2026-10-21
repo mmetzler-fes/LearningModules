@@ -85,6 +85,21 @@ nur, was so mitkommt. `template`, `slug` und `kuerzel` in Spec oder Kurs
 | 422 | Generator gescheitert (z. B. Datei fehlt), `{ "error", "warnings" }` |
 | 503 | alle Arbeitsplätze länger als `RENDERER_TIMEOUT` belegt |
 
+### `POST /import-pdf`
+
+PDF → Dokument (`tools/pdf_import.py`), ohne trainierte Modelle:
+
+```json
+{ "pdf": "<base64>", "mode": "text" }
+```
+
+`text` erkennt Überschriften (Größe, Fettdruck, Gliederungsnummern), Absätze,
+Listen, Tabellen, Code (Monospace), Karos, Bilder und Zeichnungen samt
+Unterschrift, einzeilige Formeln, rote Schrift als Lösung. `pages` liefert
+jede Seite als Bild. Antwort `{ "spec", "title", "warnings" }`, bei Fehlern
+422 mit `{ "error" }`. Die KI-Erkennung (docling) ist ein eigener Container:
+`../pdf-ai/`.
+
 Jeder Auftrag läuft als eigener Prozess in einem frischen Temp-Verzeichnis, das
 danach gelöscht wird. Gleichzeitig laufen höchstens `RENDERER_WORKERS`
 Aufträge, jeder mit eigenem LibreOffice-Profil – sonst gibt ein zweiter

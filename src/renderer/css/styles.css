@@ -3608,6 +3608,11 @@ body {
 .docspec .ds-quiz-slot { margin-top: 0.5em; }
 .ds-quiz-choices { display: flex; flex-direction: column; gap: 6px; margin: 10px 0; max-height: 50vh; overflow: auto; }
 .ds-quiz-choices .btn { text-align: left; }
+.ds-pdf-dialog { max-width: 560px; }
+.ds-pdf-choices { display: flex; flex-direction: column; gap: 8px; margin: 10px 0; }
+.ds-pdf-choice { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; text-align: left; white-space: normal; }
+.ds-pdf-choice small { color: var(--text-secondary); font-weight: normal; }
+.ds-pdf-ocr { display: block; margin: 4px 0 8px; font-size: 0.9em; }
 @media (max-width: 600px) { .docspec .ds-float { flex-direction: column; } .docspec .ds-float .ds-image { max-width: 100%; } }
 .ds-solutions-toggle { margin-bottom: 12px; }
 
@@ -3654,6 +3659,7 @@ body {
 .ds-wbar button { font-size: 0.75em; line-height: 1; padding: 2px 6px; border: 1px solid var(--accent); border-radius: var(--radius-sm); background: var(--bg-secondary); color: var(--text-primary); cursor: pointer; }
 .ds-wbar button:hover { background: var(--accent); color: #fff; }
 .ds-ybar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 6px; }
+.ds-ybar[hidden] { display: none; }
 .ds-ybar .hint { font-size: 0.8em; }
 .ds-widget-dialog { max-width: 640px; width: 90vw; }
 .ds-widget-dialog textarea { width: 100%; font-family: ui-monospace, 'DejaVu Sans Mono', monospace; }

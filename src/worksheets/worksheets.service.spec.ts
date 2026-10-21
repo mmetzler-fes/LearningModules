@@ -100,3 +100,30 @@ describe('widthInCm', () => {
   ])('%s → %s', (w, cm) => expect(widthInCm(w)).toBe(cm));
   it('unbekannt → null', () => expect(widthInCm('breit')).toBeNull());
 });
+
+describe('WorksheetsService.importPdf', () => {
+  const pdf = Buffer.from('%PDF-1.7 …');
+  const renderer = (spec: any) => ({ importPdf: jest.fn().mockResolvedValue({ spec, title: 'Blatt', warnings: ['w'] }) }) as any;
+  const ai = (spec: any) => ({ convert: jest.fn().mockResolvedValue({ spec, title: 'KI', warnings: [] }) }) as any;
+
+  it('lehnt Nicht-PDFs ab', async () => {
+    await expect(new WorksheetsService(renderer({ content: [] })).importPdf(Buffer.from('hallo'), 'text')).rejects.toThrow(BadRequestException);
+  });
+
+  it('Text und Seiten über den Renderer, KI über pdf-ai', async () => {
+    const r = renderer({ content: [{ type: 'section', text: 'A' }] });
+    const k = ai({ content: [{ type: 'text', text: 'B' }] });
+    const service = new WorksheetsService(r, undefined, undefined, undefined, undefined, undefined, undefined, undefined, k);
+    expect((await service.importPdf(pdf, 'pages')).mode).toBe('pages');
+    expect(r.importPdf).toHaveBeenCalledWith(pdf, 'pages');
+    const res = await service.importPdf(pdf, 'ai', true);
+    expect(k.convert).toHaveBeenCalledWith(pdf, true);
+    expect(res.title).toBe('KI');
+  });
+
+  it('meldet Fehler im Ergebnis als Hinweis', async () => {
+    const res = await new WorksheetsService(renderer({ content: [{ type: 'gibtsnicht' }] })).importPdf(pdf, 'text');
+    expect(res.warnings[0]).toBe('w');
+    expect(res.warnings.some((w) => /Unbekannter Blocktyp/.test(w))).toBe(true);
+  });
+});

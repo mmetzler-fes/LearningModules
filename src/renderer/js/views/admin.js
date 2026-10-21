@@ -532,7 +532,7 @@ export class AdminView {
     return (this._features || []).filter((f) => f.available && f.mode !== 'off').map((f) => `
       <label class="user-feature" title="${escapeHtml(f.label)}${f.mode === 'all' ? ' – gilt für alle' : ''}">
         <input type="checkbox" data-feature="${escapeHtml(f.id)}" ${f.mode === 'all' || own.includes(f.id) ? 'checked' : ''} ${f.mode === 'all' ? 'disabled' : ''}>
-        🧪 ${escapeHtml(f.id === 'worksheets' ? 'Dokumente' : f.id)}
+        🧪 ${escapeHtml(f.short || f.id)}
       </label>`).join('');
   }
 

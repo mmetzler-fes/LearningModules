@@ -16,9 +16,17 @@ import { SystemConfig } from '../core/entities/system-config.entity';
  */
 export type FeatureMode = 'off' | 'selected' | 'all';
 
-export const FEATURES: Record<string, { label: string; available: () => boolean; needs: string }> = {
+export const FEATURES: Record<string, { label: string; short: string; available: () => boolean; needs: string }> = {
   worksheets: {
     label: 'Arbeitsblätter (Modultyp „Dokument“, Druck als .odt/.pdf)',
+    short: 'Dokumente',
+    available: () => !!process.env.WORKSHEET_RENDERER_URL,
+    needs: 'WORKSHEET_RENDERER_URL (Renderer-Container, worksheet-renderer/README.md)',
+  },
+  // Wirkt nur zusammen mit 'worksheets' – der Import steckt im Dokument-Editor.
+  pdfImport: {
+    label: 'PDF-Import in Dokumente (Text mit Struktur, Seiten als Bilder, KI-Erkennung)',
+    short: 'PDF-Import',
     available: () => !!process.env.WORKSHEET_RENDERER_URL,
     needs: 'WORKSHEET_RENDERER_URL (Renderer-Container, worksheet-renderer/README.md)',
   },
@@ -59,7 +67,7 @@ export class FeaturesService {
     const modes = await this.modes();
     return {
       features: Object.entries(FEATURES).map(([id, f]) => ({
-        id, label: f.label, mode: modes[id], available: f.available(), needs: f.needs,
+        id, label: f.label, short: f.short, mode: modes[id], available: f.available(), needs: f.needs,
       })),
     };
   }
@@ -93,7 +101,7 @@ export class FeaturesService {
     const modes = await this.modes();
     return {
       features: Object.entries(FEATURES).map(([id, f]) => ({
-        id, label: f.label, mode: modes[id], available: f.available(), mayEnable: f.available() && modes[id] === 'selected',
+        id, label: f.label, short: f.short, mode: modes[id], available: f.available(), mayEnable: f.available() && modes[id] === 'selected',
       })),
     };
   }

@@ -23,6 +23,9 @@ from collections import Counter
 from typing import Any
 
 MAX_PAGES = 40
+# Seitenbild höchstens so viele Pixel (≈ A4 bei 150 dpi ×1,5) – Plakate und
+# falsch angegebene Seitengrößen würden sonst Gigabytes belegen.
+MAX_PAGE_PIXELS = 3_000_000
 PT_TO_CM = 2.54 / 72
 TEXT_WIDTH_CM = 16.5
 
@@ -92,7 +95,9 @@ def pages_to_spec(data: bytes, dpi: int = 150) -> tuple[dict[str, Any], list[str
     content: list[dict[str, Any]] = []
     for i in range(min(count, MAX_PAGES)):
         page = pdf[i]
-        image = page.render(scale=dpi / 72).to_pil()
+        w, h = page.get_size()
+        scale = min(dpi / 72, (MAX_PAGE_PIXELS / max(w * h, 1.0)) ** 0.5)
+        image = page.render(scale=scale).to_pil()
         if i:
             content.append({"type": "pagebreak"})
         content.append({"type": "image", "src": _jpeg_data_uri(image), "width": f"{TEXT_WIDTH_CM}cm",
@@ -228,6 +233,8 @@ def _merge_boxes(boxes: list[list[float]], gap: float = 6.0) -> list[list[float]
 def _crop_image(page, box, resolution: int = 150):
     x0, top, x1, bottom = box
     bbox = (max(0, x0), max(0, top), min(page.width, x1), min(page.height, bottom))
+    area = max((bbox[2] - bbox[0]) * (bbox[3] - bbox[1]), 1.0)
+    resolution = min(resolution, int(72 * (MAX_PAGE_PIXELS / area) ** 0.5))
     return page.crop(bbox).to_image(resolution=resolution).original
 
 

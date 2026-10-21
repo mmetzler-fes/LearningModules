@@ -70,7 +70,7 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
     <div class="ds-editor-bar">
       ${OUTPUTS.map((o) => `<button type="button" class="btn btn-secondary btn-sm" data-output="${o.output}" title="${o.title}">${o.label}</button>`).join('')}
       <label class="ds-editor-toggle"><input type="checkbox" class="ds-show-solutions"> Lösungen zeigen</label>
-      <button type="button" class="btn btn-secondary btn-sm ds-import-odt" title="Writer-Dokument (.odt) oder PDF übernehmen: Überschriften, Absätze, Listen, Tabellen, Bilder">📄 Übernehmen (.odt, .pdf)</button>
+      <button type="button" class="btn btn-secondary btn-sm ds-import-odt" title="Writer-Dokument (.odt) übernehmen: Überschriften, Absätze, Listen, Tabellen, Bilder">📄 Aus .odt übernehmen</button>
       <span class="ds-editor-status hint"></span>
     </div>
     <div class="ds-editor-header hint" hidden></div>
@@ -232,13 +232,26 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
     status.innerHTML = `✅ Übernommen: ${imported.content.length} Blöcke.` + (warnings.length ? ` ${warnings.map((w) => `⚠️ ${escapeHtml(w)}`).join(' ')}` : '');
   };
 
+  /** Darf dieses Konto PDFs übernehmen (Freischaltung 'pdfImport')? Bestimmt Knopf und Dateiauswahl. */
+  const workerStatus = () => fetch('/api/worksheets/status', { headers: token() ? { Authorization: `Bearer ${token()}` } : {} }).then((r) => r.json()).catch(() => ({}));
+  const importButton = root.querySelector('.ds-import-odt');
+  let pdfAllowed = false;
+  workerStatus().then((info) => {
+    pdfAllowed = !!info.pdfImport;
+    if (pdfAllowed) {
+      importButton.textContent = '📄 Übernehmen (.odt, .pdf)';
+      importButton.title = 'Writer-Dokument (.odt) oder PDF übernehmen: Überschriften, Absätze, Listen, Tabellen, Bilder';
+    }
+  });
+
   /** Wie ein PDF übernommen wird – je nach eingerichteten Diensten (GET /api/worksheets/status). */
   const askPdfMode = async () => {
-    const info = await fetch('/api/worksheets/status', { headers: token() ? { Authorization: `Bearer ${token()}` } : {} }).then((r) => r.json()).catch(() => ({}));
+    const info = await workerStatus();
     const choices = [
       { mode: 'text', label: '📝 Text mit Struktur', hint: 'Überschriften, Absätze, Listen, Tabellen, Code, Bilder – zum Weiterbearbeiten. Gut für Blätter aus Writer oder Word.', ok: !!info.configured },
       { mode: 'pages', label: '🖼 Seiten als Bilder', hint: 'Sieht genau aus wie das PDF, lässt sich aber nicht bearbeiten.', ok: !!info.configured },
-      { mode: 'ai', label: '🤖 KI-Erkennung', hint: 'Trainierte Modelle auf dem Server (docling): besser bei Tabellen, Spalten und Scans, dafür langsamer.', ok: !!info.pdfAi?.ok },
+      { mode: 'ai', label: '🤖 KI-Erkennung', hint: 'Trainierte Modelle auf dem Server (docling): besser bei Tabellen, Spalten und Scans, dafür langsamer.', ok: !!info.pdfAi?.ok,
+        missing: info.pdfAi ? 'Der KI-Dienst (pdf-ai) antwortet gerade nicht.' : 'Auf diesem Server nicht eingerichtet (Dienst pdf-ai, siehe pdf-ai/README.md).' },
     ];
     if (!choices.some((c) => c.ok)) { status.textContent = '❌ Für PDFs ist auf diesem Server kein Dienst eingerichtet (Renderer bzw. pdf-ai).'; return null; }
     return new Promise((resolve) => {
@@ -248,7 +261,7 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
           <h3>📄 PDF übernehmen</h3>
           <div class="ds-pdf-choices">${choices.map((c) => `
             <button type="button" class="btn btn-secondary ds-pdf-choice" data-mode="${c.mode}" ${c.ok ? '' : 'disabled'}>
-              <strong>${c.label}</strong><small>${escapeHtml(c.ok ? c.hint : 'Auf diesem Server nicht eingerichtet.')}</small>
+              <strong>${c.label}</strong><small>${escapeHtml(c.ok ? c.hint : c.missing || 'Auf diesem Server nicht eingerichtet.')}</small>
             </button>`).join('')}</div>
           ${info.pdfAi?.ok ? '<label class="ds-pdf-ocr"><input type="checkbox"> Gescanntes PDF – Text erkennen (OCR, nur KI-Erkennung)</label>' : ''}
           <p class="hint">Danach im Editor prüfen: Formeln, Karos und Lösungsfelder lassen sich aus einem PDF nur ungefähr erkennen.</p>
@@ -263,14 +276,15 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
     });
   };
 
-  root.querySelector('.ds-import-odt').addEventListener('click', () => {
+  importButton.addEventListener('click', () => {
     const input = document.createElement('input');
     input.type = 'file';
-    input.accept = '.odt,.ott,.fodt,.pdf,application/vnd.oasis.opendocument.text,application/pdf';
+    input.accept = '.odt,.ott,.fodt,application/vnd.oasis.opendocument.text' + (pdfAllowed ? ',.pdf,application/pdf' : '');
     input.onchange = async () => {
       const file = input.files[0];
       if (!file) return;
       const isPdf = /\.pdf$/i.test(file.name) || file.type === 'application/pdf';
+      if (isPdf && !pdfAllowed) { status.textContent = '❌ PDF-Import ist für dein Konto nicht freigeschaltet.'; return; }
       const ask = window.appConfirm || ((m) => Promise.resolve(window.confirm(m)));
       const empty = !spec || !Array.isArray(spec.content) || !spec.content.length || textarea.value === STARTER;
       const choice = isPdf ? await askPdfMode() : null;

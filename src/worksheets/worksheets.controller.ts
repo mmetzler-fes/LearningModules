@@ -2,6 +2,7 @@ import { BadRequestException, Body, Controller, Delete, Get, HttpCode, Param, Po
 import type { Response } from 'express';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { FeatureGuard, RequireFeature } from '../features/feature.guard';
+import { FeaturesService } from '../features/features.service';
 import { WorksheetsService } from './worksheets.service';
 import { DocMirrorService } from './doc-mirror.service';
 import { TemplatesService } from './templates.service';
@@ -27,6 +28,7 @@ export class WorksheetsController {
     private readonly worksheets: WorksheetsService,
     private readonly mirror: DocMirrorService,
     private readonly templates: TemplatesService,
+    private readonly features: FeaturesService,
   ) {}
 
   // ---- Vorlagen (eigene und der Schule) ----
@@ -69,6 +71,7 @@ export class WorksheetsController {
    */
   @Post('import-pdf')
   @HttpCode(200)
+  @RequireFeature('pdfImport')
   @UseInterceptors(FileInterceptor('file', { limits: { fileSize: MAX_PDF_BYTES } }))
   async importPdf(@UploadedFile() file: Express.Multer.File, @Body() body: { mode?: string; ocr?: string }) {
     if (!file?.buffer?.length) throw new BadRequestException('Keine Datei empfangen.');
@@ -76,9 +79,10 @@ export class WorksheetsController {
     return this.worksheets.importPdf(file.buffer, mode, body?.ocr === 'true');
   }
 
+  /** Renderer/pdf-ai erreichbar? Dazu, ob dieses Konto PDFs übernehmen darf. */
   @Get('status')
-  status() {
-    return this.worksheets.status();
+  async status(@Request() req: any) {
+    return { ...(await this.worksheets.status()), pdfImport: await this.features.has(req.user.userId, 'pdfImport') };
   }
 
   /** Skript (Kompendium) aller Arbeitsblätter unter einem Ordner: output = odt | loesung | pdf | loesung_pdf. */

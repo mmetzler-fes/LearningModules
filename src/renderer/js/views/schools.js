@@ -400,7 +400,7 @@ export class MySchoolView {
         <div class="admin-list-item-info">${teacherInfo(t)}${t.id === me ? '<span class="hint">(du)</span>' : ''}</div>
         <div class="admin-list-item-actions">${(this._features || []).map((f) => `
           <label class="user-feature" title="${escapeHtml(f.label)}"><input type="checkbox" data-feature="${escapeHtml(f.id)}" ${(t.features || []).includes(f.id) ? 'checked' : ''}>
-            🧪 ${escapeHtml(f.id === 'worksheets' ? 'Dokumente' : f.id)}</label>`).join('')}${editable ? `
+            🧪 ${escapeHtml(f.short || f.id)}</label>`).join('')}${editable ? `
           ${t.active === false
             ? '<button class="btn btn-primary btn-sm btn-reactivate">▶ Reaktivieren</button>'
             : '<button class="btn btn-secondary btn-sm btn-deactivate">⏸ Deaktivieren</button>'}

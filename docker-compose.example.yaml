@@ -56,9 +56,21 @@ services:
   #   restart: always
   #   networks:
   #     - proxy-nw
+  #   # Obergrenze, damit ein Auftrag nie den ganzen Server lahmlegt; wird sie
+  #   # erreicht, beendet Docker den Container und startet ihn neu.
+  #   mem_limit: 1536m
+  #   labels:
+  #     autoheal: "true"            # hängt er, startet autoheal (unten) ihn neu
+  #   # Aufträge und LibreOffice-Profile im Arbeitsspeicher statt auf der Platte;
+  #   # bei jedem Neustart leer.
+  #   tmpfs:
+  #     - /tmp:size=512m
+  #   logging:
+  #     options: { max-size: "10m", max-file: "3" }
   #   environment:
   #     WORKSHEET_RENDERER_TOKEN: ${WORKSHEET_RENDERER_TOKEN}
   #     RENDERER_WORKERS: "2"
+  #     RENDERER_PDF_MEM_MB: "1024" # je PDF-Import, darunter mem_limit halten
 
   # Optional: PDF-Import mit KI-Erkennung (pdf-ai/README.md). Großes Image
   # (PyTorch, Modelle), braucht während einer Erkennung 1,5–2 GB Speicher.
@@ -69,8 +81,25 @@ services:
   #   restart: always
   #   networks:
   #     - proxy-nw
+  #   mem_limit: 3g
+  #   labels:
+  #     autoheal: "true"
   #   environment:
   #     PDF_AI_TOKEN: ${PDF_AI_TOKEN}
+
+  # Optional: startet Container neu, deren HEALTHCHECK fehlschlägt (Renderer,
+  # pdf-ai). `restart: always` greift nur, wenn ein Container sich beendet –
+  # ein hängender, „unhealthy“ Container bliebe sonst stehen. Achtung: Zugriff
+  # auf docker.sock heißt volle Kontrolle über Docker auf dem Host.
+  # autoheal:
+  #   image: willfarrell/autoheal:1.2.0
+  #   container_name: autoheal
+  #   restart: always
+  #   environment:
+  #     AUTOHEAL_CONTAINER_LABEL: autoheal
+  #     AUTOHEAL_INTERVAL: "30"
+  #   volumes:
+  #     - /var/run/docker.sock:/var/run/docker.sock
 
 networks:
   proxy-nw:

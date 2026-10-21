@@ -112,6 +112,7 @@ Aufträge, jeder mit eigenem LibreOffice-Profil – sonst gibt ein zweiter
 | `RENDERER_WORKERS` | `2` | gleichzeitige Aufträge (je PDF kurz 150–300 MB RAM) |
 | `RENDERER_TIMEOUT` | `120` | Sekunden je Auftrag und fürs Warten auf einen Platz |
 | `RENDERER_MAX_BODY_MB` | `40` | |
+| `RENDERER_PDF_MEM_MB` | `1024` | Speichergrenze je PDF-Import; darüber bricht er mit Meldung ab |
 | `RENDERER_PROFILE_DIR` | Temp-Verzeichnis | LibreOffice-Profile je Arbeitsplatz |
 
 ## Container

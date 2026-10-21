@@ -52,7 +52,10 @@ Textrahmen. Formeln aus dem Formeleditor und Bilder in Tabellen kommen nicht
 mit; der Editor nennt, was fehlt.
 
 Ein **PDF** kennt keine Struktur, nur Zeichen an Positionen – der Import
-erschließt sie. Zur Wahl stehen:
+erschließt sie. PDFs nimmt der Knopf nur an, wenn der Admin zusätzlich die
+Funktion **🧪 PDF-Import** freigeschaltet hat (wie die Dokumente: aus, nur
+ausgewählte Konten oder alle); sonst heißt er „Aus .odt übernehmen“. Zur Wahl
+stehen:
 
 | Art | Was | Braucht |
 |---|---|---|

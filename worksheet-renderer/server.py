@@ -28,10 +28,12 @@ import hmac
 import json
 import os
 import queue
+import resource
 import shutil
 import subprocess
 import sys
 import tempfile
+import traceback
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path, PurePosixPath
 from typing import Any
@@ -48,6 +50,9 @@ TOKEN = os.environ.get("WORKSHEET_RENDERER_TOKEN", "")
 WORKERS = max(1, int(os.environ.get("RENDERER_WORKERS", "2")))
 TIMEOUT = int(os.environ.get("RENDERER_TIMEOUT", "120"))
 MAX_BODY = int(os.environ.get("RENDERER_MAX_BODY_MB", "40")) * 1024 * 1024
+# Obergrenze für den Speicher eines PDF-Imports – ein bösartiges oder riesiges
+# PDF soll den Prozess beenden, nicht den Container oder gar den Host.
+PDF_MEM = int(os.environ.get("RENDERER_PDF_MEM_MB", "1024")) * 1024 * 1024
 PROFILES = Path(os.environ.get("RENDERER_PROFILE_DIR") or Path(tempfile.gettempdir()) / "worksheet-renderer")
 
 # Ausgabe → Dateiname, den make_worksheet.py mit `-o out` für slug "blatt" schreibt.
@@ -257,15 +262,19 @@ def render_script(job: dict[str, Any], slot: int) -> tuple[dict[str, str], list[
         shutil.rmtree(root, ignore_errors=True)
 
 
+def _limit_memory() -> None:
+    resource.setrlimit(resource.RLIMIT_AS, (PDF_MEM, PDF_MEM))
+
+
 def import_pdf(job: dict[str, Any]) -> dict[str, Any]:
-    """PDF → Spec (tools/pdf_import.py) in einem eigenen Prozess mit Zeitgrenze."""
+    """PDF → Spec (tools/pdf_import.py) in einem eigenen Prozess mit Zeit- und Speichergrenze."""
     data = decode(job.get("pdf"), "pdf")
     mode = job.get("mode") or "text"
     if mode not in ("text", "pages"):
         raise BadRequest("mode: text oder pages")
     try:
         proc = subprocess.run([sys.executable, str(PDF_TOOL), "-", mode], input=data,
-                              capture_output=True, timeout=TIMEOUT)
+                              capture_output=True, timeout=TIMEOUT, preexec_fn=_limit_memory)
     except subprocess.TimeoutExpired as e:
         raise RenderFailed(f"Das PDF braucht zu lange (über {TIMEOUT} s).", []) from e
     try:
@@ -273,7 +282,13 @@ def import_pdf(job: dict[str, Any]) -> dict[str, Any]:
     except (json.JSONDecodeError, UnicodeDecodeError):
         result = None
     if not isinstance(result, dict):
-        raise RenderFailed(failure_from(proc.stderr.decode("utf-8", "replace")) or "PDF-Import gescheitert", [])
+        stderr = proc.stderr.decode("utf-8", "replace")
+        sys.stderr.write(f"PDF-Import ({mode}) gescheitert, Rückgabe {proc.returncode}:\n{stderr[-4000:]}\n")
+        if "MemoryError" in stderr or "Cannot allocate memory" in stderr or proc.returncode in (-9, 137):
+            raise RenderFailed(f"Das PDF braucht zu viel Speicher (über {PDF_MEM // 1024 // 1024} MB).", [])
+        if proc.returncode < 0:
+            raise RenderFailed(f"PDF-Import abgestürzt (Signal {-proc.returncode}).", [])
+        raise RenderFailed(failure_from(stderr) or "PDF-Import gescheitert", [])
     if result.get("error"):
         raise RenderFailed(str(result["error"]), [])
     return result
@@ -340,6 +355,9 @@ class Handler(BaseHTTPRequestHandler):
             self.send_json(400, {"error": str(e)})
         except RenderFailed as e:
             self.send_json(422, {"error": str(e), "warnings": e.warnings})
+        except Exception as e:  # noqa: BLE001 – Antwort statt abgerissener Verbindung
+            traceback.print_exc()
+            self.send_json(500, {"error": f"Interner Fehler im Renderer: {type(e).__name__}: {e}"})
         finally:
             slots.put(slot)
 

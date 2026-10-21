@@ -5,10 +5,11 @@ import { SystemConfig } from '../core/entities/system-config.entity';
 import { FeaturesService } from './features.service';
 import { FeaturesController } from './features.controller';
 import { FeatureGuard } from './feature.guard';
+import { SchoolFeaturesController } from './school-features.controller';
 
 @Module({
   imports: [TypeOrmModule.forFeature([User, SystemConfig])],
-  controllers: [FeaturesController],
+  controllers: [FeaturesController, SchoolFeaturesController],
   providers: [FeaturesService, FeatureGuard],
   exports: [FeaturesService, FeatureGuard],
 })

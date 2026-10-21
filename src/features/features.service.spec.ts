@@ -58,3 +58,29 @@ describe('FeaturesService', () => {
     expect(config.features).toEqual({ worksheets: 'selected' });
   });
 });
+
+describe('FeaturesService: Schuladmin', () => {
+  beforeEach(() => { process.env.WORKSHEET_RENDERER_URL = 'http://renderer:8090'; });
+  function school(mode: string) {
+    const users: Record<string, any> = { t1: { id: 't1', schoolId: 's1', features: null }, t2: { id: 't2', schoolId: 's2', features: null } };
+    const config: Record<string, any> = { features: { worksheets: mode } };
+    const service = new FeaturesService(
+      { findOne: async ({ where }: any) => users[where.id] || null, save: async (u: any) => { users[u.id] = u; return u; } } as any,
+      { findOne: async ({ where }: any) => (config[where.key] ? { key: where.key, value: config[where.key] } : null), save: async () => undefined } as any,
+    );
+    return { service, users };
+  }
+  const admin = { userId: 'a', schoolId: 's1', isSchoolAdmin: true };
+
+  it('schaltet Lehrkräfte der eigenen Schule frei, wenn der Hauptadmin „ausgewählte“ eingestellt hat', async () => {
+    const { service, users } = school('selected');
+    await service.setForSchoolTeacher(admin, 't1', 'worksheets', true);
+    expect(users.t1.features).toEqual(['worksheets']);
+    expect((await service.schoolOverview(admin)).features[0].mayEnable).toBe(true);
+  });
+  it('nicht für fremde Schulen, nicht ohne Schuladmin-Recht, nicht bei „aus“', async () => {
+    await expect(school('selected').service.setForSchoolTeacher(admin, 't2', 'worksheets', true)).rejects.toThrow('eigenen Schule');
+    await expect(school('selected').service.setForSchoolTeacher({ userId: 'x', schoolId: 's1', isSchoolAdmin: false }, 't1', 'worksheets', true)).rejects.toThrow('Schuladmins');
+    await expect(school('off').service.setForSchoolTeacher(admin, 't1', 'worksheets', true)).rejects.toThrow('Hauptadmin');
+  });
+});

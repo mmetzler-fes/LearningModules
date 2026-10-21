@@ -296,6 +296,13 @@ importieren** einlesen. Schlägt ein Backup fehl, kommt eine Mail, und die App
 versucht es stündlich erneut.
 
 
+## Dokumente als Dateien
+
+Mit freigeschalteten [Dokumenten](dokumente.md#in-der-nextcloud) legt die
+App jedes Dokument zusätzlich als .odt und PDF (Blatt und Lösung) im Ordner
+**Arbeitsblätter** ab – in der Ordnerstruktur des Notebooks. Mit der
+Nextcloud der Schule unter `Arbeitsblätter/<Name> (<Kennung>)/`.
+
 ## Wichtig
 
 - Die App sieht nur den freigegebenen Ordner – kein Konto, keine anderen

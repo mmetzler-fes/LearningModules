@@ -1,4 +1,5 @@
-import { Controller, Get, Post, Body, Param, Req, NotFoundException, ForbiddenException, BadRequestException, UseInterceptors, UploadedFile } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Req, Res, HttpCode, NotFoundException, ForbiddenException, BadRequestException, UseInterceptors, UploadedFile } from '@nestjs/common';
+import type { Response } from 'express';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { uploadToNextcloud, fileStamp } from '../share/nextcloud-upload';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -15,6 +16,8 @@ import { GroupsService } from '../../groups/groups.service';
 import { CompanionService } from '../../companion/companion.service';
 import { ClassesService } from '../../classes/classes.service';
 import { issueTicket, readTicket } from '../../classes/student-ticket';
+import { WorksheetsService } from '../../worksheets/worksheets.service';
+import { FeaturesService } from '../../features/features.service';
 import { isTestStudent } from '../../classes/test-student';
 import { TimingsService } from '../../timings/timings.service';
 import { UsageService } from '../../impact/usage.service';
@@ -40,7 +43,47 @@ export class PublicController {
     private readonly classesService: ClassesService,
     private readonly timingsService: TimingsService,
     private readonly usageService: UsageService,
+    private readonly worksheets: WorksheetsService,
+    private readonly features: FeaturesService,
   ) {}
+
+  /**
+   * POST /public/document/:moduleId/pdf – ein Dokument (Modultyp „Dokument“)
+   * als PDF für Schüler. Nur, wenn der Link bzw. Quick-Link das Modul enthält
+   * (bei Passwort: Passwort oder Schülerausweis vom Start) und die Lehrkraft,
+   * der das Thema gehört, Dokumente freigeschaltet hat. Ohne Lösungen.
+   */
+  @Post('document/:moduleId/pdf')
+  @HttpCode(200)
+  async documentPdf(
+    @Param('moduleId') moduleId: string,
+    @Body() body: { linkToken?: string; quickToken?: string; password?: string; studentTicket?: string },
+    @Res() res: Response,
+  ) {
+    let modules: LearningModule[] = [];
+    if (body?.linkToken) {
+      const { link } = await this.findAccessByToken(String(body.linkToken));
+      if (link.accessPassword && (body.password || '') !== link.accessPassword && !readTicket(body.studentTicket, link.id)) {
+        throw new ForbiddenException('Falsches Passwort.');
+      }
+      modules = (await this.linksService.resolveModules(link)).flatMap((r) => r.modules);
+    } else if (body?.quickToken) {
+      const { topic } = await this.resolveQuickToken(String(body.quickToken));
+      modules = (topic.modules || []).filter((m) => m.moduleSelected !== false);
+    } else {
+      throw new BadRequestException('Link fehlt.');
+    }
+    const listed = modules.find((m) => m.id === moduleId);
+    if (!listed) throw new NotFoundException('Dokument nicht gefunden.');
+    const mod = await this.moduleRepo.findOne({ where: { id: moduleId } });
+    if (!mod || mod.type !== 'document' || !mod.content?.spec) throw new NotFoundException('Dokument nicht gefunden.');
+    const topic = await this.topicRepo.findOne({ where: { id: mod.topicId }, select: ['id', 'ownerId'] });
+    if (!topic || !(await this.features.has(topic.ownerId, 'worksheets'))) throw new ForbiddenException('Für dieses Dokument gibt es kein PDF.');
+    const { file } = await this.worksheets.render({ userId: topic.ownerId }, { spec: mod.content.spec, title: mod.title, output: 'pdf', moduleId: mod.id });
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename*=UTF-8''${encodeURIComponent(`${mod.title || 'Dokument'}.pdf`)}`);
+    res.send(file);
+  }
 
   /**
    * GET /public/quick/:token

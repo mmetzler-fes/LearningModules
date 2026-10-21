@@ -8,8 +8,8 @@ import { NotebookNode } from '../core/entities/notebook-node.entity';
 import { WorksheetRendererClient } from './renderer.client';
 import { settingsAt } from './numbering';
 
-export type TemplateKind = 'arbeitsblatt' | 'klassenarbeit';
-const KINDS: TemplateKind[] = ['arbeitsblatt', 'klassenarbeit'];
+export type TemplateKind = 'arbeitsblatt' | 'klassenarbeit' | 'skript';
+const KINDS: TemplateKind[] = ['arbeitsblatt', 'klassenarbeit', 'skript'];
 const MAX_BYTES = 5 * 1024 * 1024;
 const MAX_NAME = 80;
 
@@ -58,14 +58,14 @@ export class TemplatesService {
   async upload(userId: string, input: { name?: string; kind?: string; scope?: string; buffer?: Buffer }) {
     const u = await this.userOf(userId);
     const kind = KINDS.includes(input.kind as TemplateKind) ? (input.kind as TemplateKind) : null;
-    if (!kind) throw new BadRequestException('Art: arbeitsblatt oder klassenarbeit.');
+    if (!kind) throw new BadRequestException('Art: arbeitsblatt, klassenarbeit oder skript.');
     if (!input.buffer?.length) throw new BadRequestException('Keine Datei empfangen.');
     if (input.buffer.length > MAX_BYTES) throw new BadRequestException('Die Vorlage ist größer als 5 MB.');
     const school = input.scope === 'school';
     if (school && !u.mayManageSchool) throw new ForbiddenException('Schulvorlagen legt der Schuladmin an.');
     const data = input.buffer.toString('base64');
     const inspect = await this.renderer.inspect(data);
-    const name = String(input.name || '').trim().slice(0, MAX_NAME) || (kind === 'klassenarbeit' ? 'Klassenarbeit' : 'Arbeitsblatt');
+    const name = String(input.name || '').trim().slice(0, MAX_NAME) || ({ klassenarbeit: 'Klassenarbeit', skript: 'Skript' } as Record<string, string>)[kind] || 'Arbeitsblatt';
     const row = await this.repo.save(this.repo.create({
       id: crypto.randomUUID(), ownerId: school ? null : userId, schoolId: school ? u.schoolId : null,
       name, kind, data, size: input.buffer.length, isDefault: false, inspect,

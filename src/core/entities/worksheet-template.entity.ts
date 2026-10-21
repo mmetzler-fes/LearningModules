@@ -21,7 +21,7 @@ export class WorksheetTemplate extends BaseEntity {
   name: string;
 
   @Column({ type: 'varchar', length: 20 })
-  kind: 'arbeitsblatt' | 'klassenarbeit';
+  kind: 'arbeitsblatt' | 'klassenarbeit' | 'skript';
 
   /** Die .ott als base64 – klein, und so im Backup enthalten. */
   @Column('text')

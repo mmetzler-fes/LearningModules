@@ -1,4 +1,5 @@
-import { escapeHtml, escapeAttr } from '../utils.js';
+import { escapeHtml, escapeAttr, copyOneNotePage } from '../utils.js';
+import { downloadBlob } from '../api.js';
 import { pickClass } from './classes.js';
 import { TagPicker, chipHtml } from './tags.js';
 import { openFeedbackDialog } from './feedback.js';
@@ -563,6 +564,9 @@ export class NotebooksView {
       items.push('-');
       items.push({ label: '📄 Dokument-Einstellungen…', title: 'Kurs, Kopfzeile, Nummerierung und KI-Vorgaben für die Dokumente darunter', run: () => this._editDocSettings(node) });
       items.push({ label: '⬇️ Als Kurs exportieren', title: 'Dokumente darunter als Kurs für den Arbeitsblatt-Generator (ZIP)', run: () => this._exportCourse(node) });
+      items.push({ label: '📚 Als Skript (PDF)', title: 'Alle Arbeitsblätter darunter als Skript mit Inhaltsverzeichnis – zum Nachlesen, ohne Karopapier', run: () => this._script(node, 'pdf') });
+      items.push({ label: '📚 Skript als .odt / Lösung', title: 'Skript für LibreOffice, dazu die Fassung mit sichtbaren Lösungen', run: () => this._script(node, 'odt') });
+      items.push({ label: '📓 Dokumente als OneNote-Seite', title: 'Gliederung der Dokumente mit Klassenlink und QR-Code in die Zwischenablage', run: () => this._oneNoteDocs(node) });
     }
     items.push('-');
     items.push({ label: '🗑 Löschen', danger: true, run: () => this._deleteNode(node) });
@@ -585,7 +589,7 @@ export class NotebooksView {
           <div class="ai-prompt-row">
             <label>Datei <input type="file" name="file" accept=".ott,.odt,application/vnd.oasis.opendocument.text-template,application/vnd.oasis.opendocument.text" required></label>
             <label>Name <input name="name" maxlength="80" placeholder="z. B. Schulvorlage AB"></label>
-            <label>Art <select name="kind"><option value="arbeitsblatt">Arbeitsblatt (auch Text)</option><option value="klassenarbeit">Klassenarbeit</option></select></label>
+            <label>Art <select name="kind"><option value="arbeitsblatt">Arbeitsblatt (auch Text)</option><option value="klassenarbeit">Klassenarbeit</option><option value="skript">Skript (mit Inhaltsverzeichnis)</option></select></label>
             <label class="nb-tpl-scope hidden">Für <select name="scope"><option value="own">mich</option><option value="school">die ganze Schule</option></select></label>
           </div>
           <div class="confirm-actions"><button type="submit" class="btn btn-primary">⬆ Hochladen und prüfen</button></div>
@@ -601,7 +605,7 @@ export class NotebooksView {
       const res = await this.app.api.listDocTemplates();
       if (failed(res)) { list.innerHTML = `<p class="hint">Fehler: ${escapeHtml(res?.message || '?')}</p>`; return; }
       overlay.querySelector('.nb-tpl-scope').classList.toggle('hidden', !res.mayManageSchool);
-      const kinds = { arbeitsblatt: 'Arbeitsblatt', klassenarbeit: 'Klassenarbeit' };
+      const kinds = { arbeitsblatt: 'Arbeitsblatt', klassenarbeit: 'Klassenarbeit', skript: 'Skript' };
       list.innerHTML = res.templates.length ? `<table class="nb-tpl-table"><thead><tr><th></th><th>Name</th><th>Art</th><th>Für</th><th></th></tr></thead><tbody>
         ${res.templates.map((t) => {
           const mine = t.scope === 'own' || res.mayManageSchool;
@@ -687,6 +691,62 @@ export class NotebooksView {
     return (this.app.state.currentUser?.features || []).includes('worksheets');
   }
 
+  /** Dokumente unterhalb eines Ordners in der Reihenfolge des Baums: „2.1 Der AD-Wandler“. */
+  _docLines(nodeId) {
+    const lines = [];
+    const docs = (t) => (t.modules || []).filter((m) => m.type === 'document').sort((a, b) => a.orderIndex - b.orderIndex);
+    const walk = (id) => {
+      for (const k of this._nodesIn(id)) walk(k.id);
+      for (const t of this._topicsIn(id)) {
+        if (t.isMirror) continue;
+        for (const m of docs(t)) lines.push(`${this._data.docNumbers?.[m.id] ? `${this._data.docNumbers[m.id]} ` : ''}${m.title}`);
+      }
+    };
+    walk(nodeId);
+    return lines;
+  }
+
+  /** Skript eines Ordners: PDF im neuen Fenster bzw. .odt und Lösung als Download. */
+  async _script(node, kind) {
+    const win = kind === 'pdf' ? window.open('', '_blank') : null;
+    this.app.showToast('Skript wird erzeugt – das kann bei vielen Blättern eine Weile dauern …', 'info');
+    try {
+      const outputs = kind === 'pdf' ? ['pdf'] : ['odt', 'loesung'];
+      let notes = [];
+      for (const output of outputs) {
+        const { blob, name, warnings } = await this.app.api.docScript(node.id, output);
+        notes = warnings;
+        if (win) win.location.href = URL.createObjectURL(blob);
+        else downloadBlob(blob, name);
+      }
+      this.app.showToast(notes.length ? `Skript erzeugt – Hinweise: ${notes.join(' · ')}` : 'Skript erzeugt.', notes.length ? 'info' : 'success');
+    } catch (err) {
+      win?.close();
+      this.app.showToast('Fehler: ' + err.message, 'error');
+    }
+  }
+
+  /** OneNote-Seite: Gliederung der Dokumente, Klassenlink und QR-Code. */
+  async _oneNoteDocs(node) {
+    const lines = this._docLines(node.id);
+    if (!lines.length) { this.app.showToast('Darin liegen keine Dokumente.', 'error'); return; }
+    const classes = await pickClass(this.app, {
+      title: `📓 OneNote-Seite – ${node.title}`,
+      hint: 'Für welche Klasse? Die Seite enthält die Gliederung der Dokumente und einen Klassenlink zu allen Lernthemen darin – Schüler sehen die Dokumente dort und können sie als PDF holen.',
+      multiple: false,
+    });
+    const klasse = Array.isArray(classes) ? classes[0] : classes;
+    if (!klasse) return;
+    const link = await this.app.api.classLinkFromNotebookNode(node.id, klasse.id);
+    if (!link?.id) { this.app.showToast('Fehler: ' + (link?.message || 'Link konnte nicht erzeugt werden.'), 'error'); return; }
+    const share = await this.app.api.shareLink(link.id, false, 'practice');
+    if (!share?.url) { this.app.showToast('Fehler: ' + (share?.message || 'Link konnte nicht erzeugt werden.'), 'error'); return; }
+    const box = document.createElement('div');
+    box.innerHTML = share.qrSvg || '';
+    const ok = await copyOneNotePage({ title: `${node.title} – ${klasse.name}`, lines, svg: box.querySelector('svg'), url: share.url });
+    this.app.showToast(ok ? 'OneNote-Seite kopiert – in OneNote einfügen mit Strg+V.' : 'Kopieren klappt hier nicht – bitte den Link aus der Link-Ansicht nehmen.', ok ? 'success' : 'error');
+  }
+
   /** Kleines Zeichen an Ordnern mit eigenen Dokument-Einstellungen. */
   _docBadge(node) {
     const s = node.docSettings;
@@ -722,7 +782,7 @@ export class NotebooksView {
             <span class="hint">– keine weiteren Ebenen, Unterordner gliedern nur noch</span></label>
         </div>
         <div class="form-group"><label>Vorlage für den Druck</label>
-          <div class="ai-prompt-row">${tplSelect('arbeitsblatt', 'Arbeitsblatt / Text')}${tplSelect('klassenarbeit', 'Klassenarbeit')}</div>
+          <div class="ai-prompt-row">${tplSelect('arbeitsblatt', 'Arbeitsblatt / Text')}${tplSelect('klassenarbeit', 'Klassenarbeit')}${tplSelect('skript', 'Skript')}</div>
           <span class="hint">Vorlagen verwalten: 🖨 Vorlagen über dem Baum.</span></div>
         <div class="form-group"><label>Dateien in der Nextcloud</label>
           <div class="nb-formats">${[['odt', 'Blatt .odt'], ['loesung', 'Lösung .odt'], ['pdf', 'Blatt .pdf'], ['loesung_pdf', 'Lösung .pdf']].map(([f, l]) =>
@@ -748,7 +808,7 @@ export class NotebooksView {
         numberRoot: node.kind === 'book' ? null : f.numberRoot.checked ? true : (f.kurs.value.trim() ? false : null),
         numberFlat: f.numberFlat.checked ? true : null,
         formats: [...form.querySelectorAll('input[name="format"]:checked')].map((x) => x.value),
-        templates: { arbeitsblatt: f.tpl_arbeitsblatt.value || undefined, klassenarbeit: f.tpl_klassenarbeit.value || undefined },
+        templates: { arbeitsblatt: f.tpl_arbeitsblatt.value || undefined, klassenarbeit: f.tpl_klassenarbeit.value || undefined, skript: f.tpl_skript.value || undefined },
       });
       if (failed(res)) { this.app.showToast('Fehler: ' + (res?.message || 'Speichern fehlgeschlagen'), 'error'); return; }
       close();

@@ -69,11 +69,16 @@ export class WorksheetRendererClient {
     return body;
   }
 
-  async render(job: RenderJob): Promise<RenderResult> {
+  /** Skript (Kompendium) aus mehreren Blättern (POST /render-script). */
+  renderScript(job: { sheets: Array<{ titel: string; spec: Record<string, any> }>; course?: Record<string, any>; skript?: Record<string, any>; template?: string; files?: Record<string, string>; outputs: WorksheetOutput[] }) {
+    return this.render(job as any, '/render-script');
+  }
+
+  async render(job: RenderJob, path = '/render'): Promise<RenderResult> {
     if (!this.configured()) throw new ServiceUnavailableException('Kein Renderer eingetragen (WORKSHEET_RENDERER_URL).');
     let res: Response;
     try {
-      res = await fetch(`${this.base()}/render`, {
+      res = await fetch(`${this.base()}${path}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

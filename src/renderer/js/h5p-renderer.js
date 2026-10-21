@@ -1521,6 +1521,32 @@ export class H5pRenderer {
       case 'document': {
         const spec = content.spec && typeof content.spec === 'object' ? content.spec : { content: [] };
         div.innerHTML = renderDocSpecHtml(spec);
+        // Schüler: das Blatt als PDF (POST /api/public/document/:id/pdf).
+        const up = options.upload;
+        if (up && (up.linkToken || up.quickToken) && options.moduleId) {
+          const pdfBtn = document.createElement('button');
+          pdfBtn.type = 'button';
+          pdfBtn.className = 'btn btn-secondary btn-sm ds-pdf-btn';
+          pdfBtn.textContent = '⬇ Als PDF';
+          pdfBtn.addEventListener('click', async () => {
+            const win = window.open('', '_blank');
+            pdfBtn.disabled = true;
+            try {
+              const res = await fetch(`/api/public/document/${encodeURIComponent(options.moduleId)}/pdf`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ linkToken: up.linkToken || undefined, quickToken: up.quickToken || undefined, password: up.password || undefined, studentTicket: up.studentTicket || undefined }),
+              });
+              if (!res.ok) throw new Error((await res.json().catch(() => ({}))).message || `HTTP ${res.status}`);
+              win.location.href = URL.createObjectURL(await res.blob());
+            } catch (err) {
+              win?.close();
+              pdfBtn.textContent = `⚠️ ${err.message}`;
+            }
+            pdfBtn.disabled = false;
+          });
+          div.prepend(pdfBtn);
+        }
         // Lösungen: in der Vorschau zum Aufdecken, im Quiz bleiben sie verborgen.
         if (!options.quizMode && div.querySelector('.ds-solution')) {
           const btn = document.createElement('button');

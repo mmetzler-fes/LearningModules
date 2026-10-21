@@ -344,6 +344,9 @@ export class MySchoolView {
     let groups;
     try {
       [data, groups] = await Promise.all([this.app.api.getMySchool(), this.app.api.getGroups()]);
+      // Funktionen in Entwicklung, die der Schuladmin freischalten darf (Hauptadmin: „ausgewählte Konten“).
+      const feats = await this.app.api.getMySchoolFeatures().catch(() => null);
+      this._features = Array.isArray(feats?.features) ? feats.features.filter((f) => f.mayEnable) : [];
     } catch (err) {
       this.app.showToast('Fehler: ' + err.message, 'error');
       return;
@@ -395,7 +398,9 @@ export class MySchoolView {
       row.className = 'admin-list-item';
       row.innerHTML = `
         <div class="admin-list-item-info">${teacherInfo(t)}${t.id === me ? '<span class="hint">(du)</span>' : ''}</div>
-        <div class="admin-list-item-actions">${editable ? `
+        <div class="admin-list-item-actions">${(this._features || []).map((f) => `
+          <label class="user-feature" title="${escapeHtml(f.label)}"><input type="checkbox" data-feature="${escapeHtml(f.id)}" ${(t.features || []).includes(f.id) ? 'checked' : ''}>
+            🧪 ${escapeHtml(f.id === 'worksheets' ? 'Dokumente' : f.id)}</label>`).join('')}${editable ? `
           ${t.active === false
             ? '<button class="btn btn-primary btn-sm btn-reactivate">▶ Reaktivieren</button>'
             : '<button class="btn btn-secondary btn-sm btn-deactivate">⏸ Deaktivieren</button>'}
@@ -414,6 +419,12 @@ export class MySchoolView {
         'Bitte nur nach Rückfrage bei der Person selbst – etwa wenn das Handy verloren ist.'));
       row.querySelector('.btn-reactivate')?.addEventListener('click', () => this._action(t, 'reactivate',
         `${t.displayName} wieder freischalten?`));
+      row.querySelectorAll('input[data-feature]').forEach((box) => box.addEventListener('change', async () => {
+        const res = await this.app.api.setMySchoolFeature(t.id, box.dataset.feature, box.checked);
+        if (!res || !res.success) { box.checked = !box.checked; this.app.showToast('Fehler: ' + (res?.message || '?'), 'error'); return; }
+        t.features = res.features;
+        this.app.showToast(box.checked ? `Für ${t.displayName} freigeschaltet – gilt nach dem nächsten Anmelden.` : 'Freischaltung entfernt', 'success');
+      }));
       this._teachers.appendChild(row);
     }
   }

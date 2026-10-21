@@ -491,7 +491,7 @@ Speichern bzw. Verschieben stößt das Rendern und den Abgleich an.
 | 4 ✅ | Nextcloud-Abbild mit Soll/Ist-Abgleich, `_Gesichert/`, Speicheranzeige | Dateien auch ohne App |
 | 5 ✅ | KI-Prompt-Reiter (optional mit Quiz-Modulen) | Blätter per KI ohne Terminal |
 | 6 ✅ | Rich-Text-Editor auf Spec umstellen (HTML ↔ Spec), Vorlagen hochladen | bequem bearbeiten, eigene Vorlagen |
-| 7 | Migration der alten HTML-Module, alter Typ entfällt; Schüler-PDF, OneNote-Seite für Knoten, Schuladmin-Freischaltung, Skripte | bereit für alle |
+| 7 ✅ | Migration der alten HTML-Module, alter Typ entfällt; Schüler-PDF, OneNote-Seite für Knoten, Schuladmin-Freischaltung, Skripte | bereit für alle |
 
 ---
 
@@ -512,4 +512,14 @@ Entschieden:
 - App führend, Nextcloud als Abbild, Konflikte → `_Gesichert/`.
 - Freischaltung zunächst nur durch den Hauptadmin.
 
-Noch offen: nichts Grundsätzliches. Details klären sich in Phase 0/1.
+Umgesetzt (Stand 2026-10-21): alle Phasen. Abweichungen vom Entwurf:
+- KI-Antworten kommen im gewohnten Themen-JSON (Modul type "document") statt
+  als YAML – so laufen Import, Teile und Quiz-Module wie bisher.
+- Die Migration alter Module ist eine Admin-Aktion (Probelauf, Umwandeln,
+  Rückgängig) und erst möglich, wenn Dokumente für alle freigeschaltet sind;
+  die Umwandlung HTML → Spec läuft im Browser.
+- Bild neben Text (float) ist im Druck eine randlose zweispaltige Tabelle –
+  LibreOffice lässt Tabellen sonst ein umflossenes Bild überdecken.
+- Im Ordner zählen erst die Unterordner, dann die Lernthemen (wie im Baum).
+- H5P-Fragensets kennen keinen Textbaustein; Dokumente werden dort
+  übersprungen, in Moodle-XML werden sie eine Beschreibung ohne Lösungen.

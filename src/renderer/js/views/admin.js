@@ -1,4 +1,6 @@
 import { escapeHtml } from '../utils.js';
+import { htmlToDocSpec } from '../docspec-html.js';
+import { validateDocSpec } from '../docspec.js';
 import { downloadBlob } from '../api.js';
 import { printPermissionSheet, downloadPermissionOdt } from '../terms-print.js';
 
@@ -438,7 +440,9 @@ export class AdminView {
           <option value="all" ${f.mode === 'all' ? 'selected' : ''}>alle</option>
         </select>
         ${f.available ? '' : `<span class="hint">⚠️ auf diesem Server nicht möglich – fehlt: ${escapeHtml(f.needs)}</span>`}
+        ${f.id === 'worksheets' && f.mode === 'all' ? '<button type="button" class="btn btn-secondary btn-sm btn-doc-migration">🔄 Alte Text-Module umwandeln …</button>' : ''}
       </div>`).join('');
+    bar.querySelector('.btn-doc-migration')?.addEventListener('click', () => this._docMigrationDialog());
     bar.querySelectorAll('.features-row').forEach((row) => {
       row.querySelector('.feature-mode').addEventListener('change', async (e) => {
         const res = await this.app.api.setFeatureMode(row.dataset.feature, e.target.value);
@@ -448,6 +452,77 @@ export class AdminView {
         this._renderUsersList();
         await this._refreshOwnFeatures();
       });
+    });
+  }
+
+  /**
+   * Alte Module „Text / Arbeitsblatt“ (HTML) in Dokumente umwandeln. Die
+   * Umwandlung läuft hier im Browser (docspec-html.js); der Server speichert
+   * und hebt das alte HTML auf – „Rückgängig“ stellt es wieder her.
+   */
+  async _docMigrationDialog() {
+    const ov = await this.app.api.docMigrationOverview();
+    if (!ov || ov.message) { this.app.showToast('Fehler: ' + (ov?.message || '?'), 'error'); return; }
+    const overlay = document.createElement('div');
+    overlay.className = 'confirm-overlay';
+    overlay.innerHTML = `<div class="import-modules-card nb-dialog">
+        <h3>🔄 Alte Text-Module in Dokumente umwandeln</h3>
+        <p>${ov.legacy} Module vom Typ „Text / Arbeitsblatt“ warten auf die Umwandlung, ${ov.migrated} sind schon umgewandelt.</p>
+        <p class="hint">Jedes Modul wird ein Dokument der Art „Text“ – in der App gleich lesbar, zusätzlich druckbar. Das alte HTML bleibt
+          am Modul gespeichert; „Rückgängig“ stellt alle umgewandelten Module wieder her. Erst den Probelauf ansehen.</p>
+        <div class="doc-mig-result hint"></div>
+        <div class="confirm-actions">
+          <button type="button" class="btn btn-secondary doc-mig-test" ${ov.legacy ? '' : 'disabled'}>🔍 Probelauf</button>
+          <button type="button" class="btn btn-primary doc-mig-run" disabled>Umwandeln</button>
+          <button type="button" class="btn btn-danger doc-mig-undo" ${ov.migrated ? '' : 'disabled'}>↩ Rückgängig</button>
+          <button type="button" class="btn btn-secondary doc-mig-close">Schließen</button>
+        </div></div>`;
+    document.body.appendChild(overlay);
+    const out = overlay.querySelector('.doc-mig-result');
+    const close = () => overlay.remove();
+    overlay.querySelector('.doc-mig-close').addEventListener('click', close);
+    let converted = [];
+    // Alle Seiten holen und umwandeln – ohne zu speichern.
+    overlay.querySelector('.doc-mig-test').addEventListener('click', async (e) => {
+      e.target.disabled = true;
+      converted = [];
+      const problems = [];
+      const warnCount = {};
+      for (let offset = 0; offset < ov.legacy; offset += ov.page) {
+        out.textContent = `Wird umgewandelt … ${offset} / ${ov.legacy}`;
+        const page = await this.app.api.docMigrationPage(offset);
+        for (const m of page?.modules || []) {
+          const { spec, warnings } = htmlToDocSpec(m.html);
+          const errors = validateDocSpec(spec);
+          if (errors.length) problems.push(`${m.title}: ${errors[0]}`);
+          else converted.push({ id: m.id, spec });
+          for (const w of warnings) warnCount[w.replace(/\d+/g, 'n')] = (warnCount[w.replace(/\d+/g, 'n')] || 0) + 1;
+        }
+      }
+      out.innerHTML = `✅ ${converted.length} lassen sich umwandeln${problems.length ? `, ⚠️ ${problems.length} nicht: ${problems.slice(0, 5).map(escapeHtml).join(' · ')}` : ''}.`
+        + (Object.keys(warnCount).length ? `<br>Hinweise: ${Object.entries(warnCount).map(([w, n]) => `${escapeHtml(w)} (${n}×)`).join(' · ')}` : '');
+      overlay.querySelector('.doc-mig-run').disabled = !converted.length;
+      e.target.disabled = false;
+    });
+    overlay.querySelector('.doc-mig-run').addEventListener('click', async (e) => {
+      if (!(await this.app.appConfirm(`${converted.length} Module bei allen Lehrkräften in Dokumente umwandeln?`))) return;
+      e.target.disabled = true;
+      let done = 0;
+      const failedAll = [];
+      for (let i = 0; i < converted.length; i += ov.page) {
+        const res = await this.app.api.docMigrationApply(converted.slice(i, i + ov.page));
+        if (!res || res.message) { out.textContent = `❌ ${res?.message || 'Fehler'}`; return; }
+        done += res.converted;
+        failedAll.push(...(res.failed || []));
+        out.textContent = `Umgewandelt: ${done} / ${converted.length}`;
+      }
+      out.textContent = `✅ ${done} Module umgewandelt.${failedAll.length ? ` ${failedAll.length} nicht.` : ''}`;
+      overlay.querySelector('.doc-mig-undo').disabled = false;
+    });
+    overlay.querySelector('.doc-mig-undo').addEventListener('click', async () => {
+      if (!(await this.app.appConfirm('Alle umgewandelten Module wieder zu „Text / Arbeitsblatt“ machen? Änderungen, die seitdem an diesen Dokumenten gemacht wurden, gehen verloren.'))) return;
+      const res = await this.app.api.docMigrationRollback();
+      out.textContent = res && !res.message ? `↩ ${res.restored} Module zurückgestellt.` : `❌ ${res?.message || 'Fehler'}`;
     });
   }
 

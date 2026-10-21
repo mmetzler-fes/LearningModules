@@ -113,7 +113,10 @@ BACKEND – src/
                                 Funktion aus / ausgewählte Konten / alle
                                 (SystemConfig 'features', User.features).
                                 FeatureGuard + @RequireFeature() für Routen;
-                                Login und /me liefern features mit
+                                Login und /me liefern features mit;
+                                school-features.controller.ts: Schuladmin
+                                schaltet Lehrkräfte der Schule frei (nur bei
+                                „ausgewählte Konten“)
   worksheets/                   Modultyp „Dokument“ (nur mit Feature 'worksheets')
     numbering.ts                Nummern je Ordner (Pfadnummer 2.1, Zählbeginn,
                                 Durchzählen), Kopfzeile aus dem Titelmuster,
@@ -136,6 +139,12 @@ BACKEND – src/
                                 über den Renderer (/inspect); resolve(): Ordner
                                 (vererbt) → eigener Standard → Schulstandard →
                                 Grundvorlage. /api/worksheets/templates
+    doc-migration.*             alte Module „Text / Arbeitsblatt“ → Dokument
+                                (Admin, nur bei Freischaltung für alle);
+                                Umwandlung im Browser, legacyHtml bleibt,
+                                rollback(). /api/admin/doc-migration
+    renderScript()              Skript eines Ordners (worksheets.service.ts),
+                                Renderer POST /render-script
     course-format.ts            Kurse des Generators lesen (readCourse) und
                                 schreiben (writeCourse) – ohne DB
     course.service.ts           Kurs-ZIP → Book/Bereich mit Abschnitten aus
@@ -148,7 +157,9 @@ BACKEND – src/
                                 Nextcloud-Abbild), ohne Modul-Abhängigkeiten
   core/public/public.controller.ts
                                 Schülerzugang ohne Konto; resolveQuickToken()
-                                bestimmt aus dem Token die zuständige Lehrkraft
+                                bestimmt aus dem Token die zuständige Lehrkraft;
+                                POST document/:id/pdf: Dokument als PDF für
+                                Schüler (nur im Link enthaltene Module)
 
   core/interchange/             Import / Export
     ods/ods.ts                  Minimaler ODS-Leser/-Schreiber ohne Fremd-

@@ -24,6 +24,7 @@ function teacherView(u: User) {
     mustChangePassword: !!u.mustChangePassword,
     schoolManual: !!u.schoolManual,
     totpEnabled: !!u.totpEnabled,
+    features: Array.isArray(u.features) ? u.features : [],
   };
 }
 

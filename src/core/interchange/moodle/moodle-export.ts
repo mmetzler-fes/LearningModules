@@ -1,3 +1,4 @@
+import { docSpec } from '../../../worksheets/docspec';
 import { imageSize } from './image-size';
 import { formulaEngine } from '../../formula/formula-engine';
 import { puzzles } from '../../puzzles/puzzles';
@@ -315,6 +316,21 @@ const exportWorksheet: Exporter = (c, ctx) => {
   return [head('description', ctx.name) + `    ${questionText([ctx.intro, html], '', ctx.files)}\n  </question>`];
 };
 
+/** Lösungen aus einer Dokument-Spec entfernen (in Moodle gibt es kein Ausblenden). */
+function withoutSolutions(blocks: any): any {
+  return Array.isArray(blocks)
+    ? blocks.filter((b) => !(b && typeof b === 'object' && b.type === 'solution'))
+      .map((b) => (b && typeof b === 'object' && Array.isArray(b.blocks) ? { ...b, blocks: withoutSolutions(b.blocks) } : b))
+    : blocks;
+}
+
+/** Dokument (Modultyp „Dokument“) → Textseite wie „Text / Arbeitsblatt“, ohne Lösungen. */
+const exportDocument: Exporter = (c, ctx) => {
+  if (!c?.spec || !Array.isArray(c.spec.content)) return null;
+  const html = docSpec().renderDocSpecHtml({ ...c.spec, content: withoutSolutions(c.spec.content) }, { showSolutions: true });
+  return exportWorksheet({ html }, ctx);
+};
+
 /**
  * Formelaufgabe → berechnete Frage(n). Moodle kennt je Frage ein Ergebnis –
  * mehrere Ergebnisse werden mehrere Fragen. Moodle braucht fertige
@@ -437,6 +453,7 @@ const EXPORTERS: Record<string, Exporter> = {
   dragAndDrop: exportDragAndDrop,
   essay: exportEssay,
   worksheet: exportWorksheet,
+  document: exportDocument,
   sorting: exportSorting,
   crossword: exportCrossword,
 };

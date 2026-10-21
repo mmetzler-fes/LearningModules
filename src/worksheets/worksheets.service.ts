@@ -1,6 +1,6 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { LearningModule } from '../core/entities/learning-module.entity';
 import { LearningTopic } from '../core/entities/learning-topic.entity';
 import { NextcloudService } from '../nextcloud/nextcloud.service';
@@ -135,6 +135,64 @@ export class WorksheetsService {
     return formatHeader(ctx.course.titelmuster, {
       kurs: ctx.course.kurs, pfad: ctx.pfad, nummer: ctx.pfad.split('.').pop() || '', titel: title, autor: ctx.course.autor, abschnitt: ctx.folder,
     }) || title || 'Dokument';
+  }
+
+  /**
+   * Skript (Kompendium) aus allen Arbeitsblättern unter einem Ordner, in der
+   * Reihenfolge des Baums – Verweise, Bilder und Kursangaben wie beim Blatt.
+   */
+  async renderScript(user: any, nodeId: string, output: WorksheetOutput) {
+    const nodes = await this.nodeRepo!.find({ where: { ownerId: user.userId } });
+    const node = nodes.find((n) => n.id === nodeId);
+    if (!node) throw new NotFoundException('Ordner nicht gefunden.');
+    const n = await this.numbering!.numberingFor(user.userId);
+    const below = new Set<string>([nodeId]);
+    for (let grew = true; grew;) {
+      grew = false;
+      for (const x of nodes) if (x.parentId && below.has(x.parentId) && !below.has(x.id)) { below.add(x.id); grew = true; }
+    }
+    // Reihenfolge des Baums: Unterordner vor Lernthemen, darin die Modulreihenfolge.
+    const order: string[] = [];
+    const byOrder = (a: any, b: any) => a.orderIndex - b.orderIndex;
+    const infos = [...n.docs.values()].filter((d) => d.nodeId && below.has(d.nodeId) && d.kind === 'arbeitsblatt');
+    const visit = (id: string) => {
+      for (const k of nodes.filter((x) => x.parentId === id).sort(byOrder)) visit(k.id);
+      for (const d of infos.filter((d) => d.nodeId === id)) order.push(d.moduleId);
+    };
+    visit(nodeId);
+    // Die Nummerierung legt die Dokumente schon in Baumreihenfolge an (Lernthemen, dann Module).
+    const sorted = order;
+    if (!sorted.length) throw new BadRequestException('Unter diesem Ordner liegen keine Arbeitsblätter.');
+    const mods = await this.moduleRepo!.find({ where: { id: In(sorted) } });
+    const sheets: Array<{ titel: string; spec: Record<string, any> }> = [];
+    const files: Record<string, string> = {};
+    const warnings: string[] = [];
+    for (const [i, id] of sorted.entries()) {
+      const mod = mods.find((m) => m.id === id);
+      const info = n.docs.get(id)!;
+      if (!mod?.content?.spec || docSpec().validateDocSpec(mod.content.spec).length) { warnings.push(`„${mod?.title || id}“ enthält Fehler und fehlt im Skript.`); continue; }
+      const ctx: DocContext = { pfad: info.pfad, slug: info.slug, course: info.course, folder: info.folder, refs: n.refs.get(info.scope) || {} };
+      const { job, warnings: w } = await this.prepare(mod.content.spec, mod.title, [], ctx);
+      const folder = String(i + 1).padStart(2, '0');
+      for (const [name, data] of Object.entries(job.files || {})) files[`${folder}/${name}`] = data;
+      const { meta: _m, ...spec } = job.spec;
+      sheets.push({ titel: mod.title, spec });
+      warnings.push(...w);
+    }
+    const settings = settingsAt(nodes, nodeId);
+    const skript = node.docSettings?.skript || {};
+    const tpl = this.templates ? await this.templates.resolve(user.userId, nodeId, 'skript', nodes) : null;
+    const result = await this.renderer.renderScript({
+      sheets,
+      course: { kurs: settings.kurs || '', autor: settings.autor || '', ...(settings.meta ? { meta: settings.meta } : {}) },
+      skript: { titel: skript.titel || node.title, kopfzeile: skript.kopfzeile || [settings.kurs, node.title].filter(Boolean).join(' – ') },
+      ...(tpl ? { template: tpl.data } : {}),
+      files,
+      outputs: [output],
+    });
+    const file = result.files[output];
+    if (!file) throw new BadRequestException('Der Renderer hat die Datei nicht geliefert.');
+    return { file, title: skript.titel || node.title, warnings: [...warnings, ...result.warnings] };
   }
 
   /** Mehrere Formate in einem Auftrag (Nextcloud-Abbild). */

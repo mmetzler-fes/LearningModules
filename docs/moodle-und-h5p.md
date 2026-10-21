@@ -107,6 +107,12 @@ und eine Aufgabe mit Karte und einem Element je Zeile wird wieder Paare.
 
 Was nicht mitkommt, nennt der Export-Dialog.
 
+### Dokumente
+
+Ein [Dokument](dokumente.md) wird in Moodle-XML eine Textseite
+(„Beschreibung“) – ohne Lösungen, denn ausblenden kann Moodle sie nicht. Im
+H5P-Fragenset gibt es dafür keinen Baustein; es wird übersprungen.
+
 ## Drag and Drop: Zuordnung im Editor
 
 Oben wählst du die **Darstellung**:

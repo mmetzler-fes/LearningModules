@@ -328,6 +328,8 @@ export class QuizView {
         upload: {
           linkToken: qs.linkToken || null,
           quickToken: qs.quickToken || null,
+          password: this.app.state.linkSession?.password || '',
+          studentTicket: this.app.state.linkSession?.studentTicket || null,
           studentName: this.app.state.currentUser?.name || '',
         },
       });

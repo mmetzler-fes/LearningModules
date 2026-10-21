@@ -121,6 +121,8 @@ const H5P_TYPES = {
     category: 'Darstellung',
     // Reine Information, keine Aufgabe: zählt in der Auswertung nicht mit.
     informational: true,
+    // Mit freigeschalteten Dokumenten ersetzt „Dokument“ diesen Typ (bestehende bleiben offen).
+    replacedByFeature: 'worksheets',
     fields: [
       { key: 'html', type: 'worksheet', label: 'Inhalt', required: true },
     ],

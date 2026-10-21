@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { User } from '../core/entities/user.entity';
@@ -82,6 +82,29 @@ export class FeaturesService {
     user.features = set.size ? [...set] : null;
     await this.userRepo.save(user);
     return { success: true, features: user.features || [] };
+  }
+
+  /**
+   * Schuladmin: Lehrkräfte der eigenen Schule freischalten – nur, wenn der
+   * Hauptadmin die Funktion auf „ausgewählte Konten“ gestellt hat.
+   */
+  async schoolOverview(admin: { schoolId?: string | null; isSchoolAdmin?: boolean }) {
+    if (!admin?.isSchoolAdmin || !admin.schoolId) throw new ForbiddenException('Nur für Schuladmins.');
+    const modes = await this.modes();
+    return {
+      features: Object.entries(FEATURES).map(([id, f]) => ({
+        id, label: f.label, mode: modes[id], available: f.available(), mayEnable: f.available() && modes[id] === 'selected',
+      })),
+    };
+  }
+
+  async setForSchoolTeacher(admin: { userId: string; schoolId?: string | null; isSchoolAdmin?: boolean }, userId: string, feature: string, enabled: boolean) {
+    if (!admin?.isSchoolAdmin || !admin.schoolId) throw new ForbiddenException('Nur für Schuladmins.');
+    this.known(feature);
+    if ((await this.modes())[feature] !== 'selected') throw new ForbiddenException('Diese Funktion schaltet derzeit nur der Hauptadmin frei.');
+    const target = await this.userRepo.findOne({ where: { id: userId } });
+    if (!target || target.schoolId !== admin.schoolId) throw new ForbiddenException('Nur Lehrkräfte der eigenen Schule.');
+    return this.setForUser(userId, feature, enabled);
   }
 
   private known(feature: string) {

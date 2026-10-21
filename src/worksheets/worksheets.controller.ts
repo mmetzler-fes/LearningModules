@@ -65,6 +65,18 @@ export class WorksheetsController {
     return this.worksheets.status();
   }
 
+  /** Skript (Kompendium) aller Arbeitsblätter unter einem Ordner: output = odt | loesung | pdf | loesung_pdf. */
+  @Get('script/:nodeId/:output')
+  async script(@Request() req: any, @Param('nodeId') nodeId: string, @Param('output') output: string, @Res() res: Response) {
+    if (!WORKSHEET_OUTPUTS.includes(output as WorksheetOutput)) throw new BadRequestException(`output: ${WORKSHEET_OUTPUTS.join(', ')}`);
+    const { file, title, warnings } = await this.worksheets.renderScript(req.user, nodeId, output as WorksheetOutput);
+    const type = FILE_TYPES[output as WorksheetOutput];
+    res.setHeader('Content-Type', type.mime);
+    res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(`Skript ${fileName(title)}${type.suffix}.${type.ext}`)}`);
+    res.setHeader('X-Worksheet-Warnings', encodeURIComponent(JSON.stringify(warnings)));
+    res.send(file);
+  }
+
   /** Für den KI-Prompt: Kurs, KI-Vorgaben und vorhandene Blätter eines Zielordners (?nodeId=). */
   @Get('prompt-context')
   promptContext(@Request() req: any, @Query('nodeId') nodeId?: string) {

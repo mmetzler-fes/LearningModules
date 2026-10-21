@@ -173,6 +173,26 @@ Konten: **[shop-und-rechte.md](shop-und-rechte.md#konten)**.
 
 Der letzte aktive Admin lässt sich weder löschen noch herabstufen.
 
+## Funktionen in Entwicklung
+
+Oben in der Benutzerverwaltung stehen Funktionen, die noch erprobt werden –
+derzeit **🧪 Arbeitsblätter** ([Dokumente](dokumente.md)). Je Funktion:
+
+- **aus** – niemand sieht sie,
+- **nur ausgewählte Konten** – Häkchen 🧪 an den Konten in der Liste; der
+  Schuladmin kann dann auch Lehrkräfte seiner Schule freischalten
+  (🏫 Meine Schule),
+- **alle**.
+
+Was ein Server nicht kann (für Dokumente: kein Renderer eingetragen), bleibt
+aus, egal was eingestellt ist. Ein Entzug wirkt sofort; eine Freischaltung
+nach dem nächsten Anmelden bzw. Neuladen.
+
+Sind Dokumente für **alle** freigeschaltet, wandelt **🔄 Alte Text-Module
+umwandeln …** die Module „Text / Arbeitsblatt“ in Dokumente um: erst ein
+Probelauf, der zeigt, was gelingt, dann die Umwandlung. Das alte HTML bleibt
+am Modul; **↩ Rückgängig** stellt alle umgewandelten Module wieder her.
+
 ## Beteiligte Dateien
 
 | Datei | Zweck |

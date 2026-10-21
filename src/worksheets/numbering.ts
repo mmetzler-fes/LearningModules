@@ -28,7 +28,7 @@ export interface DocSettings {
   /** Formate im Nextcloud-Abbild (odt, loesung, pdf, loesung_pdf); ohne Angabe alle. */
   formats?: string[];
   /** Vorlage je Art (WorksheetTemplate.id); ohne Angabe Standard der Lehrkraft bzw. Schule. */
-  templates?: { arbeitsblatt?: string; klassenarbeit?: string };
+  templates?: { arbeitsblatt?: string; klassenarbeit?: string; skript?: string };
 }
 
 export const PRINT_FORMATS = ['odt', 'loesung', 'pdf', 'loesung_pdf'];
@@ -169,7 +169,7 @@ export function sanitizeDocSettings(input: any, existing: DocSettings | null | u
   }
   if ('templates' in src) {
     const t: Record<string, string> = {};
-    for (const kind of ['arbeitsblatt', 'klassenarbeit']) {
+    for (const kind of ['arbeitsblatt', 'klassenarbeit', 'skript']) {
       const v = src.templates?.[kind];
       if (typeof v === 'string' && /^[\w-]{1,64}$/.test(v)) t[kind] = v;
     }

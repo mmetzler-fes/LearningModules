@@ -7,6 +7,8 @@ GET  /health   Version, API-Stand, ob LibreOffice da ist
 POST /render   JSON {spec, course?, template?, files?, outputs?}
                → {files: {odt|loesung|pdf|loesung_pdf: base64}, warnings: [...]}
 POST /inspect  JSON {template} → Platzhalter und Formatvorlagen einer .ott
+POST /render-script  JSON {sheets: [{titel, spec}], course?, skript?, template?, files?, outputs?}
+               → Skript (Kompendium) aus mehreren Blättern, wie make_script.py
 
 Jeder Auftrag läuft als eigener Prozess von tools/make_worksheet.py in einem
 frischen Temp-Verzeichnis (ARBEITSBLATT_ROOT). Der Generator liest nur dort –
@@ -38,6 +40,7 @@ import yaml
 
 GEN = Path(__file__).resolve().parent
 TOOL = GEN / "tools" / "make_worksheet.py"
+SCRIPT_TOOL = GEN / "tools" / "make_script.py"
 API = 1
 VERSION = os.environ.get("RENDERER_VERSION", "dev")
 TOKEN = os.environ.get("WORKSHEET_RENDERER_TOKEN", "")
@@ -189,6 +192,70 @@ def inspect_template(data: bytes) -> dict[str, Any]:
             "paragraphStyles": paragraph}
 
 
+def render_script(job: dict[str, Any], slot: int) -> tuple[dict[str, str], list[str]]:
+    """Mehrere Blätter → Skript. Blatt n liegt in NN/arbeitsblatt.yaml; seine
+    Dateien kommen über files als „NN/…“ mit."""
+    sheets = job.get("sheets")
+    if not isinstance(sheets, list) or not sheets or not all(isinstance(x, dict) and isinstance(x.get("spec"), dict) for x in sheets):
+        raise BadRequest("sheets: Liste von {titel, spec} erwartet")
+    course = job.get("course") or {}
+    skript = job.get("skript") or {}
+    outputs = job.get("outputs") or list(OUTPUTS)
+    if not isinstance(outputs, list) or any(o not in OUTPUTS for o in outputs):
+        raise BadRequest(f"outputs: Auswahl aus {', '.join(OUTPUTS)}")
+    files = job.get("files") or {}
+    course = {k: v for k, v in course.items() if k not in RESERVED and k != "skript_template"} if isinstance(course, dict) else {}
+    root = Path(tempfile.mkdtemp(prefix="skript-"))
+    try:
+        for name, data in (files.items() if isinstance(files, dict) else []):
+            target = safe_path(root, name)
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(decode(data, f"files[{name}]"))
+        if job.get("template"):
+            (root / "vorlage.ott").write_bytes(decode(job["template"], "template"))
+            course["skript_template"] = "vorlage.ott"
+        (root / "kurs.yaml").write_text(yaml.safe_dump(course, allow_unicode=True), encoding="utf-8")
+        folders = []
+        for i, sheet in enumerate(sheets, start=1):
+            folder = f"{i:02d}"
+            folders.append(folder)
+            spec = {k: v for k, v in sheet["spec"].items() if k not in RESERVED}
+            spec["titel"] = str(sheet.get("titel") or spec.get("titel") or folder)
+            (root / folder).mkdir(exist_ok=True)
+            (root / folder / "arbeitsblatt.yaml").write_text(yaml.safe_dump(spec, allow_unicode=True, sort_keys=False), encoding="utf-8")
+        (root / "skripte").mkdir()
+        sk = {"titel": str(skript.get("titel") or "Skript"), "slug": "skript", "blaetter": folders}
+        if skript.get("kopfzeile"):
+            sk["kopfzeile"] = str(skript["kopfzeile"])
+        (root / "skripte" / "skript.yaml").write_text(yaml.safe_dump(sk, allow_unicode=True), encoding="utf-8")
+
+        args = [sys.executable, str(SCRIPT_TOOL), "skripte/skript.yaml", "-o", "out"]
+        if any(o in outputs for o in ("loesung", "loesung_pdf")):
+            args.append("--loesung")
+        if any(o.endswith("pdf") for o in outputs):
+            if not soffice_available():
+                raise RenderFailed("PDF nicht möglich: LibreOffice fehlt im Renderer", [])
+            args.append("--pdf")
+        env = dict(os.environ, ARBEITSBLATT_ROOT=str(root), SOFFICE_PROFILE=str(PROFILES / f"lo-{slot}"))
+        try:
+            proc = subprocess.run(args, cwd=root, env=env, capture_output=True, text=True, timeout=TIMEOUT * 2)
+        except subprocess.TimeoutExpired:
+            raise RenderFailed(f"Zeitüberschreitung nach {TIMEOUT * 2} s", []) from None
+        warnings = warnings_from(proc.stderr)
+        if proc.returncode != 0:
+            raise RenderFailed(failure_from(proc.stderr), warnings)
+        names = {"odt": "skript.odt", "loesung": "skript_Lösung.odt", "pdf": "skript.pdf", "loesung_pdf": "skript_Lösung.pdf"}
+        result = {}
+        for out in outputs:
+            path = root / "out" / names[out]
+            if not path.exists():
+                raise RenderFailed(f"{names[out]} wurde nicht erzeugt", warnings)
+            result[out] = base64.b64encode(path.read_bytes()).decode("ascii")
+        return result, warnings
+    finally:
+        shutil.rmtree(root, ignore_errors=True)
+
+
 class Handler(BaseHTTPRequestHandler):
     server_version = "worksheet-renderer"
 
@@ -208,7 +275,7 @@ class Handler(BaseHTTPRequestHandler):
                              "soffice": soffice_available(), "workers": WORKERS})
 
     def do_POST(self) -> None:
-        if self.path not in ("/render", "/inspect"):
+        if self.path not in ("/render", "/inspect", "/render-script"):
             self.send_json(404, {"error": "Unbekannter Pfad"})
             return
         if TOKEN and not hmac.compare_digest(self.headers.get("Authorization", ""), f"Bearer {TOKEN}"):
@@ -241,7 +308,7 @@ class Handler(BaseHTTPRequestHandler):
             self.send_json(503, {"error": "Renderer ausgelastet, später erneut versuchen"})
             return
         try:
-            files, warnings = render(job, slot)
+            files, warnings = (render_script if self.path == "/render-script" else render)(job, slot)
             self.send_json(200, {"files": files, "warnings": warnings})
         except BadRequest as e:
             self.send_json(400, {"error": str(e)})

@@ -401,6 +401,17 @@ export class BrowserApi {
   exportCourse(id) {
     return this._download(`/api/notebooks/nodes/${encodeURIComponent(id)}/course-export`, 'kurs.zip');
   }
+  /** Skript (Kompendium) aller Arbeitsblätter unter einem Ordner. */
+  async docScript(nodeId, output) {
+    const token = this._auth.getToken();
+    const res = await fetch(`/api/worksheets/script/${encodeURIComponent(nodeId)}/${output}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+    if (!res.ok) throw new Error((await res.json().catch(() => ({}))).message || `HTTP ${res.status}`);
+    const disposition = res.headers.get('Content-Disposition') || '';
+    const star = /filename\*=UTF-8''([^;]+)/i.exec(disposition);
+    let warnings = [];
+    try { warnings = JSON.parse(decodeURIComponent(res.headers.get('X-Worksheet-Warnings') || '[]')); } catch (_) { /* ohne */ }
+    return { blob: await res.blob(), name: star ? decodeURIComponent(star[1]) : `Skript.${output.endsWith('pdf') ? 'pdf' : 'odt'}`, warnings };
+  }
   /** Nextcloud-Abbild der Dokumente: Stand bzw. jetzt abgleichen. */
   getDocMirror() { return this._fetch('/api/worksheets/mirror'); }
   // Vorlagen für den Druck von Dokumenten
@@ -639,6 +650,10 @@ export class BrowserApi {
   setFeatureMode(feature, mode) {
     return this._fetch('/api/admin/features/mode', { method: 'POST', body: JSON.stringify({ feature, mode }) });
   }
+  docMigrationOverview() { return this._fetch('/api/admin/doc-migration'); }
+  docMigrationPage(offset) { return this._fetch(`/api/admin/doc-migration/modules?offset=${Number(offset) || 0}`); }
+  docMigrationApply(items) { return this._fetch('/api/admin/doc-migration/apply', { method: 'POST', body: JSON.stringify({ items }) }); }
+  docMigrationRollback() { return this._fetch('/api/admin/doc-migration/rollback', { method: 'POST' }); }
   setUserFeature(userId, feature, enabled) {
     return this._fetch(`/api/admin/features/users/${encodeURIComponent(userId)}`, {
       method: 'POST', body: JSON.stringify({ feature, enabled }),
@@ -811,6 +826,10 @@ export class BrowserApi {
 
   // ---------- Meine Schule (Schuladmin) ----------
   getMySchool() { return this._fetch('/api/my-school'); }
+  getMySchoolFeatures() { return this._fetch('/api/my-school/features'); }
+  setMySchoolFeature(userId, feature, enabled) {
+    return this._fetch(`/api/my-school/features/users/${encodeURIComponent(userId)}`, { method: 'POST', body: JSON.stringify({ feature, enabled }) });
+  }
   saveMySchoolWhitelist(whitelist) {
     return this._fetch('/api/my-school/whitelist', { method: 'PUT', body: JSON.stringify({ whitelist }) });
   }

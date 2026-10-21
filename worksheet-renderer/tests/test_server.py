@@ -129,6 +129,18 @@ class RendererTest(unittest.TestCase):
         status, _ = self.request("/inspect", {"template": base64.b64encode(b"kein zip").decode()})
         self.assertEqual(status, 400)
 
+    def test_skript(self):
+        sheets = [{"titel": "Erstes Blatt", "spec": BEISPIEL}, {"titel": "Zweites Blatt", "spec": {"content": [{"type": "section", "text": "Nur Text"}]}}]
+        status, body = self.request("/render-script", {"sheets": sheets, "course": {"kurs": "Probe", "autor": "M. M."},
+                                                       "skript": {"titel": "Probe-Skript"}, "outputs": ["odt", "loesung"]})
+        self.assertEqual(status, 200, body)
+        content = self.content_xml(body["files"]["odt"])
+        self.assertIn("Erstes Blatt", content)
+        self.assertIn("Zweites Blatt", content)
+        self.assertIn("Inhaltsverzeichnis", content)
+        status, _ = self.request("/render-script", {"sheets": []})
+        self.assertEqual(status, 400)
+
     @unittest.skipUnless(server.soffice_available(), "LibreOffice nicht installiert")
     def test_pdf(self):
         status, body = self.request("/render", {"spec": BEISPIEL, "outputs": ["pdf", "loesung_pdf"]})

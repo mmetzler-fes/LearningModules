@@ -397,14 +397,14 @@ export class LoginView {
         }
         return;
       }
-      await this._enterLinkRun(token, data);
+      await this._enterLinkRun(token, data, password);
     });
 
     return true;
   }
 
   /** Übergibt den geprüften Durchlauf an die Quiz-Ansicht. */
-  async _enterLinkRun(token, data) {
+  async _enterLinkRun(token, data, password = '') {
     const { app } = this;
     app.authStore.setToken(null);
     app.state.currentUser = { name: data.studentName, role: 'student', teacherEmail: data.teacherEmail };
@@ -416,6 +416,8 @@ export class LoginView {
       mode: data.mode,
       // Klassenlink: Schülerausweis vom Start – beim Speichern zählt er, nicht der Name.
       studentTicket: data.studentTicket || null,
+      // Für das PDF eines Dokuments (passwortgeschützter Link ohne Klasse).
+      password: password || '',
     };
 
     await this.enterApp();

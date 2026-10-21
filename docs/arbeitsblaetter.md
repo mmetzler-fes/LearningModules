@@ -1,5 +1,10 @@
 # Text / Arbeitsblatt
 
+> Mit freigeschalteten [Dokumenten](dokumente.md) gibt es einen Nachfolger:
+> Das Dokument kann dasselbe, wird zusätzlich als Arbeitsblatt mit
+> Lösungsblatt gedruckt und übernimmt .odt-Dateien ebenso. Bestehende Module
+> dieses Typs bleiben, bis der Admin sie umwandelt.
+
 Der Modultyp **Text / Arbeitsblatt** (📝) zeigt formatierten Text direkt in der
 App an: Überschriften, Absätze, Listen, Tabellen, Bilder und Textrahmen. Er
 ersetzt das frühere Modul „Dokument / PDF“.

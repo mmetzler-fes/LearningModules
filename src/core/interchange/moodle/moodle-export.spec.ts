@@ -202,3 +202,16 @@ describe('Moodle-XML-Export', () => {
     expect(back.modules[0].content.taskDescription).toBe('a ]]> b');
   });
 });
+
+describe('Moodle-Export: Dokument', () => {
+  it('wird eine Textseite ohne Lösungen', () => {
+    const res = exportMoodleXml('Test', [{ id: 'd1', title: 'Blatt', type: 'document', description: '', content: { spec: { content: [
+      { type: 'section', text: 'Worum es geht' },
+      { type: 'task', title: 'Rechnen', blocks: [{ type: 'karo', lines: 2 }, { type: 'solution', blocks: ['GEHEIM'] }] },
+    ] } } } as any]);
+    expect(res.count).toBe(1);
+    expect(res.xml).toContain('type="description"');
+    expect(res.xml).toContain('Worum es geht');
+    expect(res.xml).not.toContain('GEHEIM');
+  });
+});

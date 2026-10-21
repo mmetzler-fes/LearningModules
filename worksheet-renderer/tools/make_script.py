@@ -270,7 +270,7 @@ def build(spec_path: Path, out_dir: Path | None, template_override: Path | None,
     spec = yaml.safe_load(spec_path.read_text(encoding="utf-8")) or {}
 
     template = template_override or find_template(
-        spec.get("template", course.get("skript_template", "templates/Kompendium.vorbereitet.ott"))
+        spec.get("template", course.get("skript_template", "templates/Grundvorlage-Skript.ott"))
     )
     if not template.exists():
         raise SystemExit(f"Vorlage nicht gefunden: {template}")

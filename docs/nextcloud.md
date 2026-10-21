@@ -175,6 +175,12 @@ Ohne verbundene Nextcloud bleibt das Bild in der App – siehe
 Der Ordnername ist der Titel des Themas. Wird das Thema umbenannt, landen
 neue Bilder im Ordner mit dem neuen Namen; vorhandene Links bleiben gültig.
 
+Bilder werden vor dem Hochladen verkleinert (längste Kante 1600 px, wie in
+der App). Meldet die App trotzdem, die Nextcloud nehme eine Datei nicht an,
+ist die Grenze des Webservers vor der Nextcloud zu klein – bei nginx
+`client_max_body_size` (Vorgabe 1 MB) erhöhen. Die genaue Ursache steht im
+Log des Servers (`NextcloudApi`).
+
 ## Grenze für Bilder in der App
 
 Ohne eigene Freigabe landen Bilder auf dem Server der App. Damit er nicht

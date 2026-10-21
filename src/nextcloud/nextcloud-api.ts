@@ -1,4 +1,12 @@
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, Logger } from '@nestjs/common';
+
+const logger = new Logger('NextcloudApi');
+
+/** Größe für Meldungen, z. B. „5,2 MB“. */
+const mb = (bytes: number) => `${(bytes / 1024 / 1024).toLocaleString('de-DE', { maximumFractionDigits: 1 })} MB`;
+
+/** Größe eines Request-Bodys (Buffer, Uint8Array, Text). */
+const bodySize = (body: any) => (typeof body === 'string' ? Buffer.byteLength(body) : Number(body?.byteLength) || 0);
 
 /**
  * Zugriff auf einen freigegebenen Ordner in der Nextcloud einer Lehrkraft:
@@ -101,6 +109,11 @@ const PROPFIND_BODY = '<?xml version="1.0"?><d:propfind xmlns:d="DAV:"><d:prop>'
 const STAT_BODY = '<?xml version="1.0"?><d:propfind xmlns:d="DAV:" xmlns:oc="http://owncloud.org/ns"><d:prop>'
   + '<d:resourcetype/><d:getcontentlength/><d:getetag/><oc:size/><d:quota-used-bytes/></d:prop></d:propfind>';
 
+function tooLarge(size: number) {
+  return `Die Nextcloud nimmt die Datei${size ? ` (${mb(size)})` : ''} nicht an – sie ist zu groß für den Webserver davor. `
+    + 'Bitte ein kleineres Bild nehmen oder die Grenze erhöhen (nginx: client_max_body_size).';
+}
+
 /**
  * WebDAV einer Freigabe: klassisch unter /public.php/webdav (Benutzer = Kürzel
  * der Freigabe) oder neuer unter /public.php/dav/files/<Kürzel> (Benutzer
@@ -159,15 +172,23 @@ export class ShareClient {
         body: opts.body,
       });
     } catch (err: any) {
-      throw new BadRequestException(err?.name === 'AbortError'
-        ? 'Die Nextcloud antwortet nicht (Zeitüberschreitung).'
-        : 'Die Nextcloud ist nicht erreichbar – stimmt der Freigabelink?');
+      if (err?.name === 'AbortError') throw new BadRequestException('Die Nextcloud antwortet nicht (Zeitüberschreitung).');
+      // Die eigentliche Ursache (ECONNRESET, ENOTFOUND, Zertifikat …) steht
+      // in err.cause – für die Fehlersuche ins Log.
+      const cause = err?.cause?.code || err?.cause?.message || err?.message || String(err);
+      const size = bodySize(opts.body);
+      logger.warn(`${method} ${new URL(this.url(parts)).host} gescheitert: ${cause}${size ? ` (${mb(size)})` : ''}`);
+      // Bricht die Verbindung beim Hochladen einer größeren Datei ab, war es
+      // fast immer die Größengrenze des Webservers vor der Nextcloud.
+      if (method === 'PUT' && size > 512 * 1024) throw new BadRequestException(tooLarge(size));
+      throw new BadRequestException(`Die Nextcloud ist nicht erreichbar – stimmt der Freigabelink? (${cause})`);
     } finally {
       clearTimeout(timer);
     }
   }
 
-  private fail(status: number, what: string): never {
+  private fail(status: number, what: string, size = 0): never {
+    if (status === 413) throw new BadRequestException(tooLarge(size));
     if (status === 401) throw new BadRequestException('Das Passwort der Freigabe stimmt nicht.');
     if (status === 403) throw new BadRequestException(`Die Freigabe erlaubt das nicht (${what}) – in der Nextcloud „Hochladen und Bearbeiten erlauben“ wählen.`);
     if (status === 404) throw new BadRequestException('Die Freigabe wurde nicht gefunden oder ist abgelaufen.');
@@ -215,7 +236,7 @@ export class ShareClient {
   /** Hochladen; liefert das ETag der neuen Fassung, wenn die Nextcloud es nennt. */
   async put(parts: string[], data: Buffer, contentType: string): Promise<string> {
     const res = await this.request('PUT', parts, { body: new Uint8Array(data), headers: { 'Content-Type': contentType || 'application/octet-stream' } });
-    if (!res.ok) this.fail(res.status, 'Hochladen');
+    if (!res.ok) this.fail(res.status, 'Hochladen', data.length);
     return String(res.headers?.get?.('oc-etag') || res.headers?.get?.('etag') || '').replace(/"/g, '');
   }
 

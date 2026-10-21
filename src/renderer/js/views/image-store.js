@@ -84,8 +84,12 @@ async function showLimitReached(app, q) {
  */
 export async function storeImage(app, input, name = 'bild.png') {
   if (nextcloudState.ready) {
-    const blob = await toBlob(input);
-    const file = blob instanceof File ? blob : new File([blob], name, { type: blob.type || 'image/png' });
+    // Auch hier verkleinern: Ein Foto in voller Größe (oft 5 MB und mehr)
+    // scheitert sonst am Webserver vor vielen Nextclouds (nginx: 1 MB), und
+    // Schüler laden es langsam.
+    const original = await toBlob(input);
+    const blob = await toBlob(await shrinkImage(original));
+    const file = new File([blob], (original instanceof File && original.name) || name, { type: blob.type || original.type || 'image/png' });
     const url = await uploadImageToNextcloud(app, file);
     if (url) return url;
     if (url === false) return false;

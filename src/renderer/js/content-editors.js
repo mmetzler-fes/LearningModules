@@ -510,7 +510,8 @@ class ContentEditorManager {
 
   /**
    * Inhalt eines Arbeitsblatts: Texteditor plus Übernahme aus einem
-   * Writer-Dokument (.odt). Die Umwandlung macht der Server; zurück kommt
+   * Writer-Dokument (.odt) oder einer Word-Datei (.docx – der Server wandelt
+   * sie vorher mit LibreOffice um). Die Umwandlung macht der Server; zurück kommt
    * HTML, das hier im Editor landet und vor dem Speichern noch geändert
    * werden kann.
    */
@@ -518,7 +519,7 @@ class ContentEditorManager {
     const bar = document.createElement('div');
     bar.className = 'worksheet-import';
     bar.innerHTML = `
-      <button type="button" class="btn btn-secondary btn-sm">📄 Aus LibreOffice Writer (.odt) übernehmen</button>
+      <button type="button" class="btn btn-secondary btn-sm">📄 Aus Writer oder Word übernehmen (.odt, .docx)</button>
       <span class="hint">Überschriften, Absätze, Listen, Tabellen, Bilder und Zeichnungen.
         Das Seitenlayout wird vereinfacht. Bilder danach anklicken, um Größe und Lage anzupassen.</span>
       <div class="worksheet-import-status hint"></div>`;
@@ -537,14 +538,17 @@ class ContentEditorManager {
     bar.querySelector('button').addEventListener('click', () => {
       const input = document.createElement('input');
       input.type = 'file';
-      input.accept = '.odt,.ott,.fodt,application/vnd.oasis.opendocument.text';
+      input.accept = '.odt,.ott,.fodt,.docx,.doc,.rtf,application/vnd.oasis.opendocument.text,'
+        + 'application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/msword';
       input.onchange = async () => {
         const file = input.files[0];
         if (!file) return;
         // Der Bestätigungsdialog der App, sofern sie ihn bereitstellt.
         const ask = window.appConfirm || ((m) => Promise.resolve(window.confirm(m)));
         if ((surface.textContent.trim() || surface.querySelector('img')) && !(await ask('Den bisherigen Inhalt durch das Dokument ersetzen?'))) return;
-        status.textContent = 'Wird übernommen …';
+        status.textContent = /\.(docx|doc|rtf)$/i.test(file.name)
+          ? 'Word-Datei wird mit LibreOffice umgewandelt und übernommen – das dauert einige Sekunden …'
+          : 'Wird übernommen …';
         const form = new FormData();
         form.append('file', file);
         const token = sessionStorage.getItem('lm_token') || localStorage.getItem('lm_token');

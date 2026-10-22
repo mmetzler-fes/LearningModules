@@ -117,7 +117,7 @@ const H5P_TYPES = {
     id: 'worksheet',
     name: 'Text / Arbeitsblatt',
     icon: '📝',
-    description: 'Text mit Überschriften, Tabellen und Bildern – selbst schreiben oder aus LibreOffice Writer (.odt) übernehmen.',
+    description: 'Text mit Überschriften, Tabellen und Bildern – selbst schreiben oder aus Writer (.odt) bzw. Word (.docx) übernehmen.',
     category: 'Darstellung',
     // Reine Information, keine Aufgabe: zählt in der Auswertung nicht mit.
     informational: true,

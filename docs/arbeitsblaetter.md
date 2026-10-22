@@ -13,12 +13,18 @@ Wie bei allen Informationsmodulen zählt er in der Auswertung nicht als
 Aufgabe. Er lässt sich mit Aufgaben wie Lückentext oder Multiple Choice im
 selben Thema kombinieren.
 
-## Aus LibreOffice Writer übernehmen
+## Aus LibreOffice Writer oder Word übernehmen
 
-Im Modul-Editor → **📄 Aus LibreOffice Writer (.odt) übernehmen**. Der Server
-wandelt das Dokument um und gibt das Ergebnis in den Editor. Dort lässt es sich
-vor dem Speichern noch ändern. Ist der Modultitel leer, wird der Titel des
-Dokuments übernommen (bzw. die erste Überschrift).
+Im Modul-Editor → **📄 Aus Writer oder Word übernehmen (.odt, .docx)**. Der
+Server wandelt das Dokument um und gibt das Ergebnis in den Editor. Dort lässt
+es sich vor dem Speichern noch ändern. Ist der Modultitel leer, wird der Titel
+des Dokuments übernommen (bzw. die erste Überschrift).
+
+**Word-Dateien** (.docx, auch .doc und .rtf) wandelt der Renderer vorher mit
+LibreOffice in eine .odt um – das dauert einige Sekunden länger. Was
+LibreOffice beim Öffnen anders darstellt als Word (etwa verschobene Bilder oder
+Textfelder), kommt so auch in der App an; danach lässt sich alles im Editor
+nachbessern. Ohne eingerichteten Renderer geht nur .odt.
 
 | Im Dokument | In der App |
 |---|---|
@@ -86,7 +92,7 @@ und Ereignisattribute werden entfernt.
 | Datei | Zweck |
 |---|---|
 | `src/core/interchange/odt/odt.ts` | .odt → HTML, ohne Fremdbibliothek; Zeichnungen → SVG |
-| `POST /api/interchange/odt-to-html` | Datei hochladen, HTML + Warnungen zurück (nichts wird gespeichert) |
+| `POST /api/interchange/odt-to-html` | Datei hochladen, HTML + Warnungen zurück (nichts wird gespeichert); .docx/.doc/.rtf erst über den Renderer (`POST /convert-odt`) nach .odt |
 | `src/renderer/js/content-editors.js` | Feldtyp `worksheet`: Editor + Übernahme |
 | `src/renderer/js/worksheet-image-tools.js` | Bildwerkzeuge im Editor |
 | `src/renderer/js/utils.js` | `sanitizeWorksheetHtml()` |

@@ -9,6 +9,8 @@ POST /render   JSON {spec, course?, template?, files?, outputs?}
 POST /inspect  JSON {template} → Platzhalter und Formatvorlagen einer .ott
 POST /render-script  JSON {sheets: [{titel, spec}], course?, skript?, template?, files?, outputs?}
                → Skript (Kompendium) aus mehreren Blättern, wie make_script.py
+POST /convert-odt    JSON {file, name} → {odt: base64}: Word-Datei (.docx, .doc, .rtf)
+               mit LibreOffice nach .odt – für den .odt-Import der App
 
 Jeder Auftrag läuft als eigener Prozess von tools/make_worksheet.py in einem
 frischen Temp-Verzeichnis (ARBEITSBLATT_ROOT). Der Generator liest nur dort –
@@ -262,6 +264,40 @@ def render_script(job: dict[str, Any], slot: int) -> tuple[dict[str, str], list[
         shutil.rmtree(root, ignore_errors=True)
 
 
+# Was /convert-odt annimmt – LibreOffice erkennt das Format am Inhalt, die
+# Endung entscheidet nur, welche Dateien wir überhaupt hineinlassen.
+CONVERT_EXT = (".docx", ".doc", ".rtf")
+
+
+def convert_odt(job: dict[str, Any], slot: int) -> dict[str, str]:
+    """Word-Datei → .odt (soffice --convert-to odt) mit eigenem Profil je Arbeitsplatz."""
+    data = decode(job.get("file"), "file")
+    ext = Path(str(job.get("name") or "")).suffix.lower()
+    if ext not in CONVERT_EXT:
+        raise BadRequest(f"Umwandeln nur für {', '.join(CONVERT_EXT)}")
+    soffice = shutil.which("soffice") or shutil.which("libreoffice")
+    if not soffice:
+        raise RenderFailed("Umwandeln nicht möglich: LibreOffice fehlt im Renderer", [])
+    root = Path(tempfile.mkdtemp(prefix="umwandeln-"))
+    try:
+        src = root / f"dokument{ext}"
+        src.write_bytes(data)
+        profile = (PROFILES / f"lo-{slot}").resolve().as_uri()
+        try:
+            proc = subprocess.run([soffice, f"-env:UserInstallation={profile}", "--headless",
+                                   "--convert-to", "odt", "--outdir", str(root / "out"), str(src)],
+                                  capture_output=True, text=True, timeout=TIMEOUT)
+        except subprocess.TimeoutExpired:
+            raise RenderFailed(f"Umwandeln braucht zu lange (über {TIMEOUT} s).", []) from None
+        out = root / "out" / "dokument.odt"
+        if not out.exists():
+            sys.stderr.write(f"Umwandeln gescheitert, Rückgabe {proc.returncode}:\n{proc.stderr[-2000:]}\n")
+            raise RenderFailed("Die Datei ließ sich nicht umwandeln – ist es ein Word-Dokument?", [])
+        return {"odt": base64.b64encode(out.read_bytes()).decode("ascii")}
+    finally:
+        shutil.rmtree(root, ignore_errors=True)
+
+
 def _limit_memory() -> None:
     resource.setrlimit(resource.RLIMIT_AS, (PDF_MEM, PDF_MEM))
 
@@ -313,7 +349,7 @@ class Handler(BaseHTTPRequestHandler):
                              "soffice": soffice_available(), "workers": WORKERS})
 
     def do_POST(self) -> None:
-        if self.path not in ("/render", "/inspect", "/render-script", "/import-pdf"):
+        if self.path not in ("/render", "/inspect", "/render-script", "/import-pdf", "/convert-odt"):
             self.send_json(404, {"error": "Unbekannter Pfad"})
             return
         if TOKEN and not hmac.compare_digest(self.headers.get("Authorization", ""), f"Bearer {TOKEN}"):
@@ -348,6 +384,9 @@ class Handler(BaseHTTPRequestHandler):
         try:
             if self.path == "/import-pdf":
                 self.send_json(200, import_pdf(job))
+                return
+            if self.path == "/convert-odt":
+                self.send_json(200, convert_odt(job, slot))
                 return
             files, warnings = (render_script if self.path == "/render-script" else render)(job, slot)
             self.send_json(200, {"files": files, "warnings": warnings})

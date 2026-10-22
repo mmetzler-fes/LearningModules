@@ -182,5 +182,33 @@ class RendererTest(unittest.TestCase):
         self.assertTrue(any(b["type"] == "karo" for b in blocks))
 
 
+    # ---- Word nach .odt ----
+
+    def test_umwandeln_nur_word(self):
+        status, body = self.request("/convert-odt", {"file": base64.b64encode(b"x").decode(), "name": "a.exe"})
+        self.assertEqual(status, 400)
+        self.assertIn(".docx", body["error"])
+
+    @unittest.skipUnless(server.soffice_available(), "LibreOffice nicht installiert")
+    def test_umwandeln_docx(self):
+        """Beispielblatt als .odt erzeugen, mit LibreOffice nach .docx – und über den Dienst zurück."""
+        import shutil, subprocess, tempfile
+        status, body = self.request("/render", {"spec": BEISPIEL, "outputs": ["odt"]})
+        self.assertEqual(status, 200, body)
+        tmp = Path(tempfile.mkdtemp())
+        try:
+            (tmp / "blatt.odt").write_bytes(base64.b64decode(body["files"]["odt"]))
+            soffice = shutil.which("soffice") or shutil.which("libreoffice")
+            subprocess.run([soffice, f"-env:UserInstallation={(tmp / 'profil').as_uri()}", "--headless",
+                            "--convert-to", "docx", "--outdir", str(tmp), str(tmp / "blatt.odt")],
+                           check=True, capture_output=True, timeout=120)
+            docx = (tmp / "blatt.docx").read_bytes()
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+        status, body = self.request("/convert-odt", {"file": base64.b64encode(docx).decode(), "name": "Blatt.DOCX"})
+        self.assertEqual(status, 200, body)
+        self.assertIn("Ohmsches Gesetz", self.content_xml(body["odt"]))
+
+
 if __name__ == "__main__":
     unittest.main()

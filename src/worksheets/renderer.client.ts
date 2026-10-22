@@ -111,6 +111,33 @@ export class WorksheetRendererClient {
     return postPdf(`${this.base()}/import-pdf`, process.env.WORKSHEET_RENDERER_TOKEN, { pdf: pdf.toString('base64'), mode }, this.logger, 'Renderer');
   }
 
+  /**
+   * Word-Datei (.docx, .doc, .rtf) mit LibreOffice nach .odt (POST /convert-odt) –
+   * für den .odt-Import. Dauert ein paar Sekunden.
+   */
+  async convertToOdt(file: Buffer, name: string): Promise<Buffer> {
+    if (!this.configured()) throw new ServiceUnavailableException('Word-Dateien lassen sich nur mit dem Renderer umwandeln – bitte als .odt speichern.');
+    let res: Response;
+    try {
+      res = await fetch(`${this.base()}/convert-odt`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(process.env.WORKSHEET_RENDERER_TOKEN ? { Authorization: `Bearer ${process.env.WORKSHEET_RENDERER_TOKEN}` } : {}) },
+        body: JSON.stringify({ file: file.toString('base64'), name }),
+        signal: AbortSignal.timeout(RENDER_TIMEOUT_MS),
+      });
+    } catch (err: any) {
+      this.logger.warn(`Renderer nicht erreichbar: ${err?.message || err}`);
+      throw new ServiceUnavailableException('Der Renderer ist gerade nicht erreichbar.');
+    }
+    const body: any = await res.json().catch(() => ({}));
+    if (res.status === 401) {
+      this.logger.error('Renderer lehnt das Token ab.');
+      throw new ServiceUnavailableException('Der Renderer ist falsch eingerichtet (Token).');
+    }
+    if (!res.ok || typeof body.odt !== 'string') throw new UnprocessableEntityException(body.error || `Die Datei ließ sich nicht umwandeln (${res.status}).`);
+    return Buffer.from(body.odt, 'base64');
+  }
+
   /** Skript (Kompendium) aus mehreren Blättern (POST /render-script). */
   renderScript(job: { sheets: Array<{ titel: string; spec: Record<string, any> }>; course?: Record<string, any>; skript?: Record<string, any>; template?: string; files?: Record<string, string>; outputs: WorksheetOutput[] }) {
     return this.render(job as any, '/render-script');

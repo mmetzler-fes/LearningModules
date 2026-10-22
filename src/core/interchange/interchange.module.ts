@@ -9,6 +9,7 @@ import { User } from '../entities/user.entity';
 import { InterchangeController } from './interchange.controller';
 import { TopicsModule } from '../../topics/topics.module';
 import { NextcloudModule } from '../../nextcloud/nextcloud.module';
+import { WorksheetRendererClient } from '../../worksheets/renderer.client';
 
 @Module({
   imports: [
@@ -16,7 +17,8 @@ import { NextcloudModule } from '../../nextcloud/nextcloud.module';
     TopicsModule,
     NextcloudModule,
   ],
-  providers: [H5pService, ImportService, ExportService],
+  // Renderer-Client ohne eigene Abhängigkeiten: Word → .odt für den Import.
+  providers: [H5pService, ImportService, ExportService, WorksheetRendererClient],
   exports: [H5pService, ImportService, ExportService],
   controllers: [InterchangeController],
 })

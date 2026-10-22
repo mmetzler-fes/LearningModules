@@ -100,6 +100,18 @@ jede Seite als Bild. Antwort `{ "spec", "title", "warnings" }`, bei Fehlern
 422 mit `{ "error" }`. Die KI-Erkennung (docling) ist ein eigener Container:
 `../pdf-ai/`.
 
+### `POST /convert-odt`
+
+Word-Datei → .odt mit LibreOffice, für den .odt-Import der App:
+
+```json
+{ "file": "<base64>", "name": "Blatt.docx" }
+```
+
+Erlaubt sind `.docx`, `.doc` und `.rtf` (an der Endung von `name`). Antwort
+`{ "odt": "<base64>" }`; 400 bei anderer Endung, 422, wenn LibreOffice fehlt
+oder nichts erzeugt.
+
 Jeder Auftrag läuft als eigener Prozess in einem frischen Temp-Verzeichnis, das
 danach gelöscht wird. Gleichzeitig laufen höchstens `RENDERER_WORKERS`
 Aufträge, jeder mit eigenem LibreOffice-Profil – sonst gibt ein zweiter

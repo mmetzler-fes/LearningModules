@@ -45,6 +45,7 @@ const ICON_PATHS = {
   zoomOut: 'M11 4a7 7 0 100 14 7 7 0 000-14zM20 20l-4-4M8 11h6',
   fit: 'M4 12h16M7.5 8.5L4 12l3.5 3.5M16.5 8.5L20 12l-3.5 3.5',
   trash: 'M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3',
+  pin: 'M14.5 3.5l6 6M17.5 6.5l-4.3 4.3-4.4-.9-2.3 2.3 7.3 7.3 2.3-2.3-.9-4.4 4.3-4.3M9.5 14.5L4 20',
 };
 const icon = (name) => `<svg class="ink-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="${ICON_PATHS[name]}"/></svg>`;
 const MAX_PIXELS = 12e6;    // Obergrenze je Hintergrund-Leinwand (iPad Safari: ~16 Mio.)
@@ -128,7 +129,7 @@ export async function openInkEditor({ title = 'Arbeitsblatt', key, loadPdf = nul
 
   const state = {
     tool: 'pen', color: COLORS[0], marker: MARKERS[0], widthIdx: 1, textSizeIdx: 1,
-    zoom: 1, fingerDraws: false, variant: 'blatt',
+    zoom: 1, fingerDraws: false, pinned: false, variant: 'blatt',
     selection: null,          // { page, ids: Set }
     undo: [], redo: [],
   };
@@ -162,6 +163,7 @@ export async function openInkEditor({ title = 'Arbeitsblatt', key, loadPdf = nul
         ${btn('ink-redo', 'redo', 'Wiederholen')}
       </span>
       <span class="ink-group">
+        ${btn('ink-pin', 'pin', 'Seite feststellen – sie verschiebt sich beim Zeichnen nicht mehr (auch nicht mit dem Finger)')}
         ${btn('ink-finger', 'finger', 'Mit dem Finger zeichnen (sonst scrollt der Finger, gezeichnet wird mit Stift oder Maus)')}
         <select class="ink-bg-select" title="Hintergrund" aria-label="Hintergrund">
           ${loadPdf ? '<option value="pdf">📄 Arbeitsblatt</option>' : ''}
@@ -227,6 +229,8 @@ export async function openInkEditor({ title = 'Arbeitsblatt', key, loadPdf = nul
     $('.ink-delete').hidden = !state.selection?.ids.size;
     $('.ink-finger').classList.toggle('active', state.fingerDraws);
     overlay.classList.toggle('ink-finger-off', !state.fingerDraws);
+    $('.ink-pin').classList.toggle('active', state.pinned);
+    overlay.classList.toggle('ink-pinned', state.pinned);
     overlay.classList.toggle('ink-tool-text', state.tool === 'text');
     $('.ink-bg-select').value = doc.bg;
     $('.ink-solution')?.classList.toggle('active', state.variant === 'loesung');
@@ -260,6 +264,16 @@ export async function openInkEditor({ title = 'Arbeitsblatt', key, loadPdf = nul
   $('.ink-redo').addEventListener('click', () => history(state.redo, state.undo));
   $('.ink-delete').addEventListener('click', () => deleteSelection());
   $('.ink-finger').addEventListener('click', () => { state.fingerDraws = !state.fingerDraws; paintToolbar(); });
+  $('.ink-pin').addEventListener('click', () => { state.pinned = !state.pinned; paintToolbar(); });
+  // Apple Pencil: Safari scrollt mit dem Stift wie mit dem Finger. Berührungen
+  // des Stifts (touchType 'stylus') deshalb anhalten, bevor Safari scrollt –
+  // der Finger scrollt weiter. Festgestellt (📌) scrollt gar nichts.
+  const holdStylus = (e) => {
+    if (e.target.closest?.('.ink-text')) return; // ins Textfeld tippen bleibt möglich
+    if (state.pinned || [...e.touches].some((t) => t.touchType === 'stylus')) e.preventDefault();
+  };
+  scroller.addEventListener('touchstart', holdStylus, { passive: false });
+  scroller.addEventListener('touchmove', holdStylus, { passive: false });
   $('.ink-zoom-in').addEventListener('click', () => setZoom(state.zoom * 1.25));
   $('.ink-zoom-out').addEventListener('click', () => setZoom(state.zoom / 1.25));
   $('.ink-zoom-fit').addEventListener('click', () => setZoom(fitZoom()));

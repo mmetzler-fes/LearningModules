@@ -5416,6 +5416,9 @@ body.ink-open { overflow: hidden; }
 /* Finger scrollt, Stift und Maus zeichnen – außer „Mit Finger zeichnen“ ist an. */
 .ink-page { touch-action: none; }
 .ink-finger-off .ink-page { touch-action: pan-x pan-y; }
+/* 📌 Seite festgestellt: nichts scrollt, weder Stift noch Finger. */
+.ink-pinned .ink-scroll { overflow: hidden; touch-action: none; }
+.ink-pinned .ink-page, .ink-pinned.ink-finger-off .ink-page { touch-action: none; }
 .ink-svg { overflow: visible; }
 .ink-marker { mix-blend-mode: multiply; opacity: 0.55; }
 .ink-sel-rect { fill: rgba(59, 130, 246, 0.08); stroke: #3b82f6; stroke-width: 0.8; stroke-dasharray: 4 3; }

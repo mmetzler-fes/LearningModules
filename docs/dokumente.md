@@ -207,6 +207,10 @@ wenn die Lehrkraft des Lernthemas freigeschaltet ist.
   eigenes Bild oder PDF. Bei Karo, Linien und Leer fügt **＋📄** Seiten an.
   Die Beschriftung bleibt beim Wechsel stehen.
 - **💡 Lösungsblatt** einblenden – nur für Lehrkräfte (Vorschau, Notebooks).
+- **📌 Seite feststellen:** Die Pin-Nadel arretiert die Seite – sie
+  verschiebt sich beim Zeichnen nicht mehr, auch nicht mit dem Finger.
+  Nochmal antippen löst sie. Der Apple Pencil scrollt ohnehin nicht, nur der
+  Finger.
 - **☝️ Finger:** Normalerweise scrollt der Finger, gezeichnet wird mit Stift
   oder Maus. Ist ☝️ an, zeichnet auch der Finger. Solange der Stift schreibt,
   zählt die aufliegende Hand nicht.

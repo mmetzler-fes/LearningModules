@@ -95,6 +95,7 @@ const TRANSLATIONS = {
     'module.saved': 'Modul erstellt!',
     'module.updated': 'Modul aktualisiert!',
     'module.save.error': 'Fehler beim Speichern.',
+    'module.save.offline': 'Nicht gespeichert – der Server ist gerade nicht erreichbar. Deine Änderungen bleiben im Editor (und als Entwurf); bitte gleich noch einmal speichern.',
     'module.missing.topic': 'Kein Thema ausgewählt.',
     'module.missing.fields': 'Bitte Titel und Modultyp angeben.',
 
@@ -259,6 +260,7 @@ const TRANSLATIONS = {
     'module.saved': 'Module created!',
     'module.updated': 'Module updated!',
     'module.save.error': 'Error saving.',
+    'module.save.offline': 'Not saved – the server is not reachable right now. Your changes stay in the editor (and as a draft); please save again in a moment.',
     'module.missing.topic': 'No topic selected.',
     'module.missing.fields': 'Please provide title and module type.',
 

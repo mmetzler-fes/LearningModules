@@ -701,6 +701,25 @@ export class NextcloudService implements OnApplicationBootstrap {
     return l.legacyResult;
   }
 
+  /**
+   * Inhalt eines Moduls oder Entwurfs frisch lesen, mit fn umschreiben und
+   * speichern. Die Läufe hier lesen alles am Anfang und brauchen dann für
+   * Nextcloud-Zugriffe Minuten – schrieben sie den Stand vom Anfang zurück,
+   * wäre weg, was die Lehrkraft inzwischen gespeichert hat (etwa neu
+   * eingefügte Bilder: Datei in der Nextcloud, Link im Modul verloren).
+   * true, wenn sich etwas geändert hat.
+   */
+  private async rewrite(kind: 'module' | 'draft', id: string, fn: (value: any) => any): Promise<boolean> {
+    const repo: Repository<any> = kind === 'module' ? this.moduleRepo : this.draftRepo;
+    const field = kind === 'module' ? 'content' : 'data';
+    const row = await repo.findOne({ where: { id }, select: ['id', field] });
+    if (!row) return false;
+    const next = await fn(row[field]);
+    if (JSON.stringify(next) === JSON.stringify(row[field])) return false;
+    await repo.update({ id }, { [field]: next });
+    return true;
+  }
+
   // ---- Bilder folgen dem Thema (alles Material) ----
 
   private following: Promise<any> | null = null;
@@ -831,16 +850,18 @@ export class NextcloudService implements OnApplicationBootstrap {
       return done.get(key)!;
     };
 
+    // Erst am gelesenen Stand kopieren (das dauert), dann am frischen umhängen –
+    // move merkt sich die Ergebnisse, der zweite Durchgang geht schnell.
     for (const m of mods) {
       const owners = [ownerOfTopic.get(topicOf(m) || ''), m.creatorId];
-      const before = JSON.stringify(m.content);
-      const next = await this.swapRefs(m.content, byToken, (ref) => move(owners, ref));
-      if (JSON.stringify(next) !== before) { await this.moduleRepo.update({ id: m.id }, { content: next }); result.modules++; }
+      const swap = (v: any) => this.swapRefs(v, byToken, (ref) => move(owners, ref));
+      if (JSON.stringify(await swap(m.content)) === JSON.stringify(m.content)) continue;
+      if (await this.rewrite('module', m.id, swap)) result.modules++;
     }
     for (const d of drafts) {
-      const before = JSON.stringify(d.data);
-      const next = await this.swapRefs(d.data, byToken, (ref) => move([d.userId], ref));
-      if (JSON.stringify(next) !== before) { await this.draftRepo.update({ id: d.id }, { data: next }); result.drafts++; }
+      const swap = (v: any) => this.swapRefs(v, byToken, (ref) => move([d.userId], ref));
+      if (JSON.stringify(await swap(d.data)) === JSON.stringify(d.data)) continue;
+      if (await this.rewrite('draft', d.id, swap)) result.drafts++;
     }
     // Ergebnis je Freigabe für den Dialog.
     const at = new Date().toISOString();
@@ -905,23 +926,23 @@ export class NextcloudService implements OnApplicationBootstrap {
           return new Set((await s.nc.list([...s.root, sub])).map((e) => e.name));
         })());
       }
-      const names = await present.get(key)!;
-      const urls = new Map<string, string>();
+      // Jeder Fehler gilt nur für dieses Modul: Eine Ablage, die gerade nicht
+      // mitspielt (Ordner anlegen, Liste, Hochladen, Datenbank belegt), darf die
+      // Module der anderen Lehrkräfte nicht aufhalten. Beim nächsten Lauf wieder.
       try {
+        const names = await present.get(key)!;
+        const urls = new Map<string, string>();
         for (const [dataUrl, { mime, b64 }] of images) {
           const buffer = Buffer.from(b64, 'base64');
           const name = `bild-${crypto.createHash('sha256').update(buffer).digest('hex').slice(0, 12)}.${IMAGE_TYPES[mime] || 'png'}`;
           if (!names.has(name)) { await s.nc.put([...s.root, sub, name], buffer, mime); names.add(name); result.offloadedBytes += buffer.length; }
           urls.set(dataUrl, s.url(sub, name));
         }
+        // Bilder, die inzwischen dazukamen, bleiben bis zum nächsten Lauf in der App.
+        if (await this.rewrite('module', m.id, (c) => mapDataImages(c, (d) => urls.get(d) || d))) result.offloaded++;
       } catch (err: any) {
-        // Ablage gerade nicht erreichbar – beim nächsten Lauf wieder.
         this.logger.warn(`Bilder auslagern (Modul ${m.id}) fehlgeschlagen: ${err?.message || err}`);
-        continue;
       }
-      const next = mapDataImages(m.content, (d) => urls.get(d) || d);
-      await this.moduleRepo.update({ id: m.id }, { content: next });
-      result.offloaded++;
     }
   }
 
@@ -1065,15 +1086,9 @@ export class NextcloudService implements OnApplicationBootstrap {
     const needle = `%/s/${token}/download%`;
     let n = 0;
     const mods = await this.moduleRepo.createQueryBuilder('m').select(['m.id', 'm.content']).where('m.content LIKE :n', { n: needle }).getMany();
-    for (const m of mods) {
-      const next = swap(m.content);
-      if (JSON.stringify(next) !== JSON.stringify(m.content)) { await this.moduleRepo.update({ id: m.id }, { content: next }); n++; }
-    }
+    for (const m of mods) if (await this.rewrite('module', m.id, swap)) n++;
     const drafts = await this.draftRepo.createQueryBuilder('d').select(['d.id', 'd.data']).where('d.data LIKE :n', { n: needle }).getMany();
-    for (const d of drafts) {
-      const next = swap(d.data);
-      if (JSON.stringify(next) !== JSON.stringify(d.data)) { await this.draftRepo.update({ id: d.id }, { data: next }); n++; }
-    }
+    for (const d of drafts) if (await this.rewrite('draft', d.id, swap)) n++;
     return n;
   }
 
@@ -1219,14 +1234,8 @@ export class NextcloudService implements OnApplicationBootstrap {
     const swap = (v: any) => this.swapOwnUrls(v, l, (sub, name) => map.get(`${sub}/${name}`) || null);
     let modules = 0;
     let dr = 0;
-    for (const m of mods) {
-      const next = swap(m.content);
-      if (JSON.stringify(next) !== JSON.stringify(m.content)) { await this.moduleRepo.update({ id: m.id }, { content: next }); modules++; }
-    }
-    for (const d of drafts) {
-      const next = swap(d.data);
-      if (JSON.stringify(next) !== JSON.stringify(d.data)) { await this.draftRepo.update({ id: d.id }, { data: next }); dr++; }
-    }
+    for (const m of mods) if (await this.rewrite('module', m.id, swap)) modules++;
+    for (const d of drafts) if (await this.rewrite('draft', d.id, swap)) dr++;
     await this.disconnect(user, true);
     return { success: true, images: map.size, missing, modules, drafts: dr };
   }
@@ -1258,14 +1267,8 @@ export class NextcloudService implements OnApplicationBootstrap {
     const swap = (v: any) => this.swapOwnUrls(v, l, (sub, name) => map.get(`${sub}/${name}`) || null);
     let modules = 0;
     let dr = 0;
-    for (const m of mods) {
-      const next = swap(m.content);
-      if (JSON.stringify(next) !== JSON.stringify(m.content)) { await this.moduleRepo.update({ id: m.id }, { content: next }); modules++; }
-    }
-    for (const d of drafts) {
-      const next = swap(d.data);
-      if (JSON.stringify(next) !== JSON.stringify(d.data)) { await this.draftRepo.update({ id: d.id }, { data: next }); dr++; }
-    }
+    for (const m of mods) if (await this.rewrite('module', m.id, swap)) modules++;
+    for (const d of drafts) if (await this.rewrite('draft', d.id, swap)) dr++;
     return { modules, drafts: dr, images: map.size };
   }
 
@@ -1433,11 +1436,7 @@ export class NextcloudService implements OnApplicationBootstrap {
     }
     let changed = 0;
     for (const m of entry.modules) {
-      const next = mapDataImages(m.content, (d) => urls.get(d) || d);
-      if (JSON.stringify(next) !== JSON.stringify(m.content)) {
-        await this.moduleRepo.update({ id: m.id }, { content: next });
-        changed++;
-      }
+      if (await this.rewrite('module', m.id, (c) => mapDataImages(c, (d) => urls.get(d) || d))) changed++;
     }
     return { success: true, uploaded, reused, modules: changed, folder: sub };
   }

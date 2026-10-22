@@ -752,7 +752,13 @@ export class ModulesView {
       updatedAt: new Date().toISOString(),
     };
 
-    const result = await api.saveModule(state.currentTopicId, moduleData);
+    // Server gerade weg (Neustart, Netz): Dann kommt eine Fehlerseite statt
+    // JSON – ohne Meldung hielte die Lehrkraft das Modul für gespeichert.
+    const result = await api.saveModule(state.currentTopicId, moduleData).catch(() => ({ offline: true }));
+    if (result.offline) {
+      this.app.showToast(t('module.save.offline'), 'error');
+      return;
+    }
     if (result.success) {
       this.app.showToast(state.editingModuleId ? t('module.updated') : t('module.saved'), 'success');
       state.currentTopicModules = await api.getTopicModules(state.currentTopicId);

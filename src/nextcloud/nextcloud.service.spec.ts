@@ -75,10 +75,12 @@ function fakeRepo(rows: any[], field: string) {
           creator = p.u;
           return qb;
         },
-        getMany: async () => rows.filter((r) => needles.some((n) => JSON.stringify(r[field]).includes(n)) && (!creator || r.creatorId === creator)),
+        // Kopien wie aus der Datenbank: Spätere Änderungen an den Zeilen sieht der Aufrufer nicht.
+        getMany: async () => structuredClone(rows.filter((r) => needles.some((n) => JSON.stringify(r[field]).includes(n)) && (!creator || r.creatorId === creator))),
       };
       return qb;
     },
+    findOne: async ({ where }: any) => rows.find((r) => r.id === where.id) || null,
     update: async ({ id }: any, patch: any) => Object.assign(rows.find((r) => r.id === id), patch),
   };
 }
@@ -641,6 +643,27 @@ describe('Bilder aus der App automatisch auslagern', () => {
     expect((await env.svc.readImageByUrl(k.image))?.data.length).toBe(200);
     // Zweiter Lauf: nichts mehr zu tun.
     expect(await env.svc.followOwners()).toMatchObject({ offloaded: 0 });
+  });
+
+  it('überschreibt nicht, was die Lehrkraft während des Hochladens gespeichert hat', async () => {
+    const env = setup(null);
+    env.users[0].schoolId = 's1';
+    await env.school.connect({ userId: 'adm', isSchoolAdmin: true, schoolId: 's1' }, { shareUrl: `${CLOUD}/s/SchulNC`, password: 'x' }, APP);
+    env.topics.push({ id: 'tq', ownerId: USER_ID, title: 'Reisen' });
+    env.moduleRepo.rows.push({ id: 'e', topicId: 'tq', creatorId: USER_ID, content: { image: img('b'), extra: '' } });
+    const neu = `${APP}/api/nextcloud/sch/x/Max/Reisen/bild-neu.png`;
+    const impl = cloud.impl;
+    jest.spyOn(global, 'fetch').mockImplementation((async (url: string, opts: any) => {
+      // Die Lehrkraft speichert, während der Lauf das alte Bild hochlädt.
+      if (opts?.method === 'PUT' && String(url).includes('/Reisen/bild-')) {
+        env.moduleRepo.rows[0].content = { image: img('b'), extra: neu };
+      }
+      return impl(url, opts);
+    }) as any);
+    await env.svc.followOwners();
+    const c = env.moduleRepo.rows[0].content;
+    expect(c.extra).toBe(neu);
+    expect(c.image).toContain('/api/nextcloud/sch/');
   });
 });
 

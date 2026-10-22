@@ -180,6 +180,19 @@ export class NotebookPreview {
     this._select({ kind: 'module', key, id: mod.id, topicId: topic.id, topic, mod });
     this._clear();
     const own = topic.isOwn;
+    // Dokumente mit der Freischaltung „Stift-Editor“: oben, damit man ihn auch weiter unten im Blatt findet.
+    if (mod.type === 'document' && this.app.state.currentUser?.features?.includes('inkEditor')) {
+      this._button('✍️ Stift', 'Das Blatt mit Stift, Finger oder Maus beschriften – gespeichert auf diesem Gerät', async (e) => {
+        const b = e.currentTarget;
+        b.disabled = true;
+        try {
+          const full = (await this._topicModules(topic).catch(() => [])).find((m) => m.id === mod.id) || mod;
+          const { openDocumentInk } = await import('../ink/ink-open.js');
+          await openDocumentInk({ mode: 'teacher', mod: full });
+        } catch (err) { this.app.showToast(`Stift-Editor: ${err.message}`, 'error'); }
+        b.disabled = false;
+      });
+    }
     if (own) this._button('✏️ Bearbeiten', 'Im Modul-Editor öffnen (auch Doppelklick auf den Titel)', () => this.app.modulesView.openFrom('teacher-notebooks', topic.id, mod, 'edit'));
     this._button('⛶ Vollbild', 'Vorschau über die ganze Seite', () => this.app.modulesView.openFrom('teacher-notebooks', topic.id, mod, 'preview'));
     this._body.innerHTML = '<p class="hint">Wird geladen …</p>';

@@ -178,7 +178,7 @@ aufdecken, im Quiz bleiben sie verborgen.
 
 ## Mit Stift bearbeiten (in Erprobung)
 
-**✍️ Bearbeiten** über einem Dokument öffnet das Blatt so, wie es gedruckt
+**✍️ Mit Stift bearbeiten** über einem Dokument (in der Notebook-Vorschau auch **✍️ Stift** oben in der Kopfzeile) öffnet das Blatt so, wie es gedruckt
 wird – zum Beschriften mit Stift (iPad mit Apple Pencil), Finger oder Maus.
 Der Knopf erscheint erst mit der Freischaltung **🧪 Stift-Editor**
 ([Benutzerverwaltung](benutzerverwaltung.md#funktionen-in-entwicklung)):

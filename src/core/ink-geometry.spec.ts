@@ -70,3 +70,52 @@ describe('Stift-Editor: Geometrie (ink-geometry.js)', () => {
     expect(g.ruling('leer', 100, 100)).toEqual([]);
   });
 });
+
+interface Ruler {
+  CM: number;
+  rulerToPage(r: any, lx: number, ly: number): number[];
+  pageToRuler(r: any, x: number, y: number): number[];
+  rulerEdges(r: any): number[][][];
+  inRuler(r: any, x: number, y: number): boolean;
+  projectOnSegment(x: number, y: number, a: number[], b: number[]): number[];
+  nearEdge(r: any, x: number, y: number, reach: number): number[][] | null;
+  snapAngle(deg: number, step: number): number;
+}
+const R = loadBrowserModule<Ruler>('ink/ink-geometry.js');
+const close = (a: number[], b: number[]) => a.every((v, i) => Math.abs(v - b[i]) < 1e-6);
+
+describe('Stift-Editor: Geodreieck (ink-geometry.js)', () => {
+  const flat = { cx: 300, cy: 400, angle: 0, L: 16 * R.CM };
+
+  it('Ecken: lange Kante waagrecht, Spitze darüber – gedreht um 90° senkrecht', () => {
+    const [[A, B], , [T]] = R.rulerEdges(flat);
+    expect(close(A, [300 - 8 * R.CM, 400])).toBe(true);
+    expect(close(B, [300 + 8 * R.CM, 400])).toBe(true);
+    expect(close(T, [300, 400 - 8 * R.CM])).toBe(true);
+    const turned = { ...flat, angle: 90 };
+    expect(close(R.rulerToPage(turned, 10, 0), [300, 410])).toBe(true);
+    expect(close(R.pageToRuler(turned, 300, 410), [10, 0])).toBe(true);
+  });
+
+  it('Punkt auf dem Dreieck', () => {
+    expect(R.inRuler(flat, 300, 350)).toBe(true);
+    expect(R.inRuler(flat, 300, 405)).toBe(false); // unter der langen Kante
+    expect(R.inRuler(flat, 300 + 7 * R.CM, 400 - 2 * R.CM)).toBe(false); // neben dem Schenkel
+  });
+
+  it('Stift an der Kante: Kante finden und genau darauf zeichnen', () => {
+    const edge = R.nearEdge(flat, 320, 404, 6)!;
+    expect(edge).not.toBeNull();
+    expect(close(R.projectOnSegment(320, 404, edge[0], edge[1]), [320, 400])).toBe(true);
+    expect(R.nearEdge(flat, 320, 420, 6)).toBeNull();
+    // Am Ende der Kante bleibt der Strich auf der Kante.
+    expect(close(R.projectOnSegment(9999, 400, edge[0], edge[1]), edge[1])).toBe(true);
+  });
+
+  it('Winkel in 1°- bzw. 5°-Schritten, immer 0 … 360', () => {
+    expect(R.snapAngle(37.4, 1)).toBe(37);
+    expect(R.snapAngle(37.4, 5)).toBe(35);
+    expect(R.snapAngle(-3, 1)).toBe(357);
+    expect(R.snapAngle(361, 1)).toBe(1);
+  });
+});

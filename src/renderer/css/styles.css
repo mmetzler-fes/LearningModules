@@ -5352,7 +5352,10 @@ body.ink-open { overflow: hidden; }
   position: fixed; inset: 0; z-index: 2000;
   display: flex; flex-direction: column;
   background: #e2e8f0;
+  /* Ziehen und langes Drücken markieren keinen Text und öffnen kein Menü (iPad). */
+  -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
 }
+.ink-overlay .ink-text { -webkit-user-select: text; user-select: text; }
 .ink-toolbar {
   display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px;
   padding: 6px 10px;
@@ -5402,3 +5405,26 @@ body.ink-open { overflow: hidden; }
   .ink-title { display: none; }
   .ink-btn { min-width: 36px; height: 36px; }
 }
+/* Geodreieck (js/ink/ink-ruler.js): nur das Dreieck nimmt Eingaben an –
+   daneben scrollt der Finger weiter, und der Stift zeichnet. */
+.ink-ruler {
+  position: absolute; z-index: 3;
+  transform-origin: 50% 100%;
+  clip-path: polygon(0 100%, 50% 0, 100% 100%);
+  touch-action: none; cursor: move;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.25));
+}
+.ink-ruler svg { display: block; width: 100%; height: 100%; overflow: visible; }
+.ink-ruler .ir-body { fill: rgba(225, 240, 250, 0.55); stroke: #2b2a29; stroke-width: 0.4; }
+.ink-ruler .ir-grid { stroke: rgba(43, 42, 41, 0.18); stroke-width: 0.15; }
+.ink-ruler .ir-grid-cm { stroke: rgba(43, 42, 41, 0.32); }
+.ink-ruler .ir-tick { stroke: #2b2a29; stroke-width: 0.17; }
+.ink-ruler .ir-num { fill: #2b2a29; text-anchor: middle; font-family: Arial, sans-serif; }
+.ink-ruler .ir-num-in { fill: #6b7280; }
+.ink-ruler .ir-arc { fill: none; stroke: #ffed00; stroke-width: 4.5; opacity: 0.85; }
+.ink-ruler .ir-center { fill: none; stroke: #2b2a29; stroke-width: 0.25; }
+.ink-ruler .ir-handle circle { fill: #fff; stroke: var(--accent, #3b82f6); stroke-width: 0.8; }
+.ink-ruler .ir-handle text { fill: var(--accent, #3b82f6); text-anchor: middle; font-family: Arial, sans-serif; }
+.ink-ruler [data-handle="rotate"] { cursor: grab; }
+.ink-ruler [data-handle="resize"] { cursor: nwse-resize; }
+.ink-ruler .ir-angle { fill: #1e293b; text-anchor: middle; font-weight: 700; font-family: Arial, sans-serif; }

@@ -1,4 +1,8 @@
-import { A4, strokeOutline, polyline, hitsStroke, bounds, inSelection, moved, ruling } from './ink-geometry.js';
+import {
+  A4, CM, strokeOutline, polyline, hitsStroke, bounds, inSelection, moved, ruling,
+  pageToRuler, inRuler, nearEdge, projectOnSegment, snapAngle,
+} from './ink-geometry.js';
+import { rulerSvg, rulerHandles } from './ink-ruler.js';
 
 // ==================== STIFT-EDITOR ====================
 //
@@ -7,7 +11,9 @@ import { A4, strokeOutline, polyline, hitsStroke, bounds, inSelection, moved, ru
 // leer oder ein eigenes Bild/PDF), darüber eine Ebene zum Beschriften:
 // Stift mit Druck, Textmarker, Radierer, Auswahl (verschieben, löschen),
 // Textfelder. In der Ansicht der Lehrkraft lässt sich das Lösungsblatt als
-// Hintergrund einblenden.
+// Hintergrund einblenden. Dazu ein Geodreieck: verschieben, drehen (1°,
+// mit Umschalt 5°; zwei Finger; Mausrad), an der Ecke vergrößern – setzt der
+// Stift an seiner Kante an, zeichnet er genau an ihr entlang.
 //
 // Gespeichert wird vorerst nur auf diesem Gerät (IndexedDB) – Abgabe und
 // Auswertung kommen später. Koordinaten in PDF-Punkten der Seite, damit die
@@ -19,6 +25,9 @@ const WIDTHS = { pen: [1.1, 1.9, 3.2], marker: [9, 14, 20] };
 const ERASER = 7;           // Radius des Radierers in Punkten
 const TEXT_SIZE = 13;       // Schriftgröße der Textfelder in Punkten
 const MAX_PIXELS = 12e6;    // Obergrenze je Hintergrund-Leinwand (iPad Safari: ~16 Mio.)
+const RULER_REACH = 12;     // So nah (Bildschirmpunkte) muss der Stift an die Kante des Geodreiecks
+const RULER_MIN = 6 * CM;
+const RULER_MAX = 32 * CM;
 
 // ---------- Speicher auf diesem Gerät ----------
 
@@ -117,6 +126,9 @@ export async function openInkEditor({ title = 'Arbeitsblatt', key, loadPdf = nul
         <button type="button" class="ink-btn" data-tool="select" title="Auswählen: Rechteck aufziehen, dann verschieben oder löschen">⬚</button>
         <button type="button" class="ink-btn" data-tool="text" title="Textfeld: auf die Seite tippen und schreiben">T</button>
       </span>
+      <span class="ink-group">
+        <button type="button" class="ink-btn ink-ruler-toggle" title="Geodreieck ein- und ausblenden – drehen am ⟳ (Umschalt: 5°), mit zwei Fingern oder dem Mausrad; vergrößern am ⤢">📐</button>
+      </span>
       <span class="ink-group ink-colors"></span>
       <span class="ink-group ink-widths">
         ${[0, 1, 2].map((i) => `<button type="button" class="ink-btn ink-width" data-width="${i}" title="${['dünn', 'mittel', 'dick'][i]}"><i style="--d:${4 + i * 4}px"></i></button>`).join('')}
@@ -172,6 +184,7 @@ export async function openInkEditor({ title = 'Arbeitsblatt', key, loadPdf = nul
     $('.ink-solution')?.classList.toggle('active', state.variant === 'loesung');
     if ($('.ink-solution')) $('.ink-solution').hidden = doc.bg !== 'pdf';
     $('.ink-add-page').hidden = !['karo', 'linien', 'leer'].includes(doc.bg);
+    $('.ink-ruler-toggle').classList.toggle('active', !!doc.ruler?.visible);
   };
 
   overlay.querySelector('.ink-tools').addEventListener('click', (e) => {
@@ -224,6 +237,20 @@ export async function openInkEditor({ title = 'Arbeitsblatt', key, loadPdf = nul
     void layout();
   });
   $('.ink-close').addEventListener('click', () => close());
+  $('.ink-ruler-toggle').addEventListener('click', () => {
+    if (doc.ruler?.visible) doc.ruler.visible = false;
+    else {
+      // Auf die Seite, die gerade zu sehen ist, waagrecht in die Mitte.
+      const mid = scroller.getBoundingClientRect().top + scroller.clientHeight / 2;
+      const page = pages.find((pg) => pg.el.getBoundingClientRect().bottom > mid) || pages[0];
+      const r = page.el.getBoundingClientRect();
+      const L = doc.ruler?.L || 16 * CM;
+      const cy = Math.min(page.h - 0.5 * CM, Math.max(L / 2 + 0.5 * CM, (mid - r.top) / state.zoom + L / 4));
+      doc.ruler = { visible: true, page: page.i, cx: page.w / 2, cy, angle: 0, L };
+    }
+    renderRuler();
+    changed();
+  });
 
   const pickFile = () => new Promise((resolve) => {
     const input = document.createElement('input');
@@ -312,6 +339,7 @@ export async function openInkEditor({ title = 'Arbeitsblatt', key, loadPdf = nul
     pagesEl.innerHTML = '';
     pages = sizes.map((s, i) => buildPage(i, s));
     for (const p of pages) { drawItems(p.i); }
+    renderRuler();
     for (const p of pages) await drawBackground(p, bg);
     status('');
     paintToolbar();
@@ -374,6 +402,102 @@ export async function openInkEditor({ title = 'Arbeitsblatt', key, loadPdf = nul
     state.zoom = Math.max(0.3, Math.min(4, z));
     state.zoomSet = true;
     void layout().then(() => { scroller.scrollTop = keep * scroller.scrollHeight; });
+  }
+
+  // ---------- Geodreieck ----------
+  const angleText = (r) => `${(360 - r.angle) % 360}°`;
+
+  function renderRuler() {
+    overlay.querySelectorAll('.ink-ruler').forEach((el) => el.remove());
+    const r = doc.ruler;
+    const p = r?.visible ? pages[r.page] : null;
+    if (!p) return;
+    const el = document.createElement('div');
+    el.className = 'ink-ruler';
+    p.el.appendChild(el);
+    // Mausrad dreht (1°, mit Umschalt 5°).
+    el.addEventListener('wheel', (e) => {
+      e.preventDefault();
+      const step = e.shiftKey ? 5 : 1;
+      r.angle = snapAngle(r.angle + (e.deltaY > 0 ? step : -step), step);
+      placeRuler();
+      changed();
+    }, { passive: false });
+    placeRuler(true);
+  }
+
+  function placeRuler(redraw = false) {
+    const r = doc.ruler;
+    const el = overlay.querySelector('.ink-ruler');
+    if (!r || !el) return;
+    const z = state.zoom;
+    if (redraw || Number(el.dataset.L) !== r.L) {
+      el.innerHTML = rulerSvg(r.L, z, angleText(r));
+      el.dataset.L = r.L;
+    } else {
+      const t = el.querySelector('.ir-angle');
+      if (t) t.textContent = angleText(r);
+    }
+    Object.assign(el.style, {
+      left: `${(r.cx - r.L / 2) * z}px`, top: `${(r.cy - r.L / 2) * z}px`,
+      width: `${r.L * z}px`, height: `${(r.L / 2) * z}px`, transform: `rotate(${r.angle}deg)`,
+    });
+  }
+
+  /** Griff unter dem Punkt (in Seitenkoordinaten), sonst null. */
+  function rulerHandleAt(r, x, y) {
+    const [lx, ly] = pageToRuler(r, x, y);
+    const g = rulerHandles(r.L, state.zoom);
+    for (const [name, h] of Object.entries(g)) if (Math.hypot(lx - h.x, ly - h.y) <= h.r * 1.4) return name;
+    return null;
+  }
+
+  // Verschieben, Drehen, Vergrößern – mit einem oder zwei Fingern, Stift oder Maus.
+  let rulerDrag = null; // { pointers: Map(id → [x, y]), mode, start }
+  function rulerStart(e, x, y, handle) {
+    const r = doc.ruler;
+    if (!rulerDrag) rulerDrag = { pointers: new Map() };
+    rulerDrag.pointers.set(e.pointerId, [x, y]);
+    if (rulerDrag.pointers.size === 2) {
+      const [a, b] = [...rulerDrag.pointers.values()];
+      rulerDrag.mode = 'twist';
+      rulerDrag.start = { a, b, angle: r.angle, cx: r.cx, cy: r.cy };
+    } else {
+      rulerDrag.mode = handle || 'move';
+      rulerDrag.start = { x, y, cx: r.cx, cy: r.cy };
+    }
+  }
+  function rulerMove(e, x, y) {
+    const r = doc.ruler;
+    rulerDrag.pointers.set(e.pointerId, [x, y]);
+    const s = rulerDrag.start;
+    if (rulerDrag.mode === 'move') {
+      r.cx = s.cx + x - s.x;
+      r.cy = s.cy + y - s.y;
+    } else if (rulerDrag.mode === 'rotate') {
+      // Der Griff liegt senkrecht über der Mitte: Winkel zur Mitte + 90°.
+      const step = e.shiftKey ? 5 : 1;
+      r.angle = snapAngle((Math.atan2(y - r.cy, x - r.cx) * 180) / Math.PI + 90, step);
+    } else if (rulerDrag.mode === 'resize') {
+      const [lx] = pageToRuler(r, x, y);
+      const L = Math.round((2 * (lx + 1.35 * CM)) / CM) * CM; // ganze Zentimeter
+      r.L = Math.max(RULER_MIN, Math.min(RULER_MAX, L));
+    } else if (rulerDrag.mode === 'twist') {
+      const [a, b] = [...rulerDrag.pointers.values()];
+      const turn = (p, q) => (Math.atan2(q[1] - p[1], q[0] - p[0]) * 180) / Math.PI;
+      r.angle = snapAngle(s.angle + turn(a, b) - turn(s.a, s.b), 1);
+      r.cx = s.cx + (a[0] + b[0]) / 2 - (s.a[0] + s.b[0]) / 2;
+      r.cy = s.cy + (a[1] + b[1]) / 2 - (s.a[1] + s.b[1]) / 2;
+    }
+    placeRuler();
+  }
+  function rulerEnd(e) {
+    rulerDrag.pointers.delete(e.pointerId);
+    if (!rulerDrag.pointers.size) { rulerDrag = null; changed(); return; }
+    // Ein Finger bleibt liegen: mit ihm weiter verschieben.
+    const [[, pos]] = [...rulerDrag.pointers.entries()];
+    rulerDrag.mode = 'move';
+    rulerDrag.start = { x: pos[0], y: pos[1], cx: doc.ruler.cx, cy: doc.ruler.cy };
   }
 
   // ---------- Zeichnen der Beschriftung ----------
@@ -484,13 +608,32 @@ export async function openInkEditor({ title = 'Arbeitsblatt', key, loadPdf = nul
 
     p.el.addEventListener('pointerdown', (e) => {
       if (e.pointerType === 'pen') penDown = true;
-      // Handballen: Solange der Stift schreibt, zählt kein Finger. Ohne
-      // „Mit Finger zeichnen“ scrollt der Finger (touch-action im CSS).
-      if (e.pointerType === 'touch' && (penDown || !state.fingerDraws)) return;
+      // Handballen: Solange der Stift schreibt, zählt kein Finger.
+      if (e.pointerType === 'touch' && penDown) return;
       if (e.button > 0 && e.button !== 5) return;
       const [x, y] = toPage(e);
       // Stift mit Radierer-Ende (Windows Ink / Wacom): radiert.
       const tool = e.button === 5 || (e.buttons & 32) ? 'eraser' : state.tool;
+      const draws = e.pointerType !== 'touch' || state.fingerDraws;
+
+      // Geodreieck: Griffe drehen/vergrößern; setzt der Stift an einer Kante
+      // an, läuft der Strich genau an ihr entlang; sonst wird es verschoben.
+      const ruler = doc.ruler?.visible && doc.ruler.page === p.i ? doc.ruler : null;
+      let snap = null;
+      if (ruler) {
+        const inside = inRuler(ruler, x, y);
+        const handle = inside ? rulerHandleAt(ruler, x, y) : null;
+        if (!handle && draws && (tool === 'pen' || tool === 'marker')) snap = nearEdge(ruler, x, y, RULER_REACH / state.zoom);
+        if (handle || (inside && !snap) || (rulerDrag && e.pointerType === 'touch' && inside)) {
+          e.preventDefault();
+          p.el.setPointerCapture?.(e.pointerId);
+          rulerStart(e, x, y, handle);
+          return;
+        }
+      }
+
+      // Ohne „Mit Finger zeichnen“ scrollt der Finger (touch-action im CSS).
+      if (!draws) return;
       e.preventDefault();
       p.el.setPointerCapture?.(e.pointerId);
 
@@ -498,8 +641,11 @@ export async function openInkEditor({ title = 'Arbeitsblatt', key, loadPdf = nul
         const marker = tool === 'marker';
         gesture = {
           kind: 'stroke', id: e.pointerId,
-          item: { id: uid(), type: 'stroke', tool, color: marker ? state.marker : state.color, width: WIDTHS[tool][state.widthIdx], points: [[x, y, pressureOf(e)]] },
+          item: { id: uid(), type: 'stroke', tool, color: marker ? state.marker : state.color, width: WIDTHS[tool][state.widthIdx], points: [] },
+          snap,
         };
+        const [sx, sy] = snap ? projectOnSegment(x, y, snap[0], snap[1]) : [x, y];
+        gesture.item.points.push([sx, sy, pressureOf(e)]);
         gesture.el = itemSvg(gesture.item);
         p.svg.querySelector(marker ? '.ink-marker' : '.ink-live').appendChild(gesture.el);
       } else if (tool === 'eraser') {
@@ -525,11 +671,14 @@ export async function openInkEditor({ title = 'Arbeitsblatt', key, loadPdf = nul
     });
 
     const move = (e) => {
+      if (rulerDrag?.pointers.has(e.pointerId)) { const [x, y] = toPage(e); rulerMove(e, x, y); return; }
       if (!gesture || e.pointerId !== gesture.id) return;
       const events = e.getCoalescedEvents ? e.getCoalescedEvents() : [e];
       if (gesture.kind === 'stroke') {
         for (const ev of events.length ? events : [e]) {
-          const [x, y] = toPage(ev);
+          let [x, y] = toPage(ev);
+          // Am Geodreieck: genau auf der Kante bleiben.
+          if (gesture.snap) [x, y] = projectOnSegment(x, y, gesture.snap[0], gesture.snap[1]);
           const last = gesture.item.points[gesture.item.points.length - 1];
           if (Math.hypot(x - last[0], y - last[1]) < 0.4) continue;
           gesture.item.points.push([x, y, pressureOf(ev)]);
@@ -562,6 +711,7 @@ export async function openInkEditor({ title = 'Arbeitsblatt', key, loadPdf = nul
 
     const up = (e) => {
       if (e.pointerType === 'pen') penDown = false;
+      if (rulerDrag?.pointers.has(e.pointerId)) { rulerEnd(e); return; }
       if (!gesture || e.pointerId !== gesture.id) return;
       const g = gesture;
       gesture = null;

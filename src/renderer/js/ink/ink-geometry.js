@@ -138,3 +138,63 @@ export function ruling(kind, w, h) {
   }
   return out;
 }
+
+// ---------- Geodreieck ----------
+//
+// Beschrieben durch die Mitte der langen Kante (cx, cy = Nullpunkt der
+// Skala), den Drehwinkel in Grad (im Uhrzeigersinn, wie CSS rotate) und die
+// Länge L der langen Kante in Punkten. Die Spitze liegt L/2 über der Mitte.
+
+export const CM = 72 / 2.54;
+
+/** Punkt in Koordinaten des Geodreiecks (x entlang der Kante, y nach oben negativ) → Seite. */
+export function rulerToPage(r, lx, ly) {
+  const a = (r.angle * Math.PI) / 180;
+  return [r.cx + lx * Math.cos(a) - ly * Math.sin(a), r.cy + lx * Math.sin(a) + ly * Math.cos(a)];
+}
+
+/** Seite → Koordinaten des Geodreiecks. */
+export function pageToRuler(r, x, y) {
+  const a = (r.angle * Math.PI) / 180;
+  const dx = x - r.cx;
+  const dy = y - r.cy;
+  return [dx * Math.cos(a) + dy * Math.sin(a), -dx * Math.sin(a) + dy * Math.cos(a)];
+}
+
+/** Die drei Kanten [Anfang, Ende] auf der Seite: lange Kante, rechte, linke. */
+export function rulerEdges(r) {
+  const A = rulerToPage(r, -r.L / 2, 0);
+  const B = rulerToPage(r, r.L / 2, 0);
+  const T = rulerToPage(r, 0, -r.L / 2);
+  return [[A, B], [B, T], [T, A]];
+}
+
+/** Liegt der Punkt auf dem Geodreieck? */
+export function inRuler(r, x, y) {
+  const [lx, ly] = pageToRuler(r, x, y);
+  return ly <= 0 && -ly <= r.L / 2 - Math.abs(lx);
+}
+
+/** Punkt auf die Strecke a–b fällen (am Ende abgeschnitten). */
+export function projectOnSegment(x, y, a, b) {
+  const dx = b[0] - a[0];
+  const dy = b[1] - a[1];
+  const len2 = dx * dx + dy * dy;
+  const t = len2 ? Math.max(0, Math.min(1, ((x - a[0]) * dx + (y - a[1]) * dy) / len2)) : 0;
+  return [a[0] + t * dx, a[1] + t * dy];
+}
+
+/** Die Kante, an der der Stift ansetzt (Abstand ≤ reach), sonst null. */
+export function nearEdge(r, x, y, reach) {
+  let best = null;
+  for (const edge of rulerEdges(r)) {
+    const d = distToSegment(x, y, edge[0], edge[1]);
+    if (d <= reach && (!best || d < best.d)) best = { edge, d };
+  }
+  return best?.edge || null;
+}
+
+/** Winkel auf ganze Schritte runden und auf 0 … 360 bringen. */
+export function snapAngle(deg, step) {
+  return ((Math.round(deg / step) * step) % 360 + 360) % 360;
+}

@@ -193,13 +193,22 @@ wird – zum Beschriften mit Stift (iPad mit Apple Pencil), Finger oder Maus:
 - **☝️ Finger:** Normalerweise scrollt der Finger, gezeichnet wird mit Stift
   oder Maus. Ist ☝️ an, zeichnet auch der Finger. Solange der Stift schreibt,
   zählt die aufliegende Hand nicht.
+- **📐 Geodreieck** blendet ein Geodreieck ein und aus. Verschieben: auf das
+  Dreieck tippen und ziehen. Drehen: am **⟳** ziehen (in 1°-Schritten, mit
+  gedrückter Umschalttaste in 5°-Schritten), mit zwei Fingern oder mit dem
+  Mausrad; der Winkel steht darunter. Vergrößern und verkleinern: am **⤢** in
+  der Ecke – die Skala bleibt in echten Zentimetern, ein größeres Dreieck hat
+  nur mehr Striche. **Setzt der Stift an einer Kante an**, läuft der Strich
+  genau an ihr entlang – an der langen Kante wie an den Schenkeln, mit Stift,
+  Maus oder (mit ☝️) Finger. Neben dem Dreieck scrollt der Finger weiter.
 
 Gespeichert wird vorerst **nur auf diesem Gerät** (im Browser) – getrennt für
 Schüler und Lehrkräfte. Abgeben und Auswerten kommen später. Für das Blatt als
 Hintergrund braucht es den Renderer; ohne ihn bleiben Karo, Linien und eigene
 Bilder.
 
-Technik: `src/renderer/js/ink/` (Geometrie in `ink-geometry.js`, getestet),
+Technik: `src/renderer/js/ink/` (Geometrie in `ink-geometry.js`, getestet;
+Zeichnung des Geodreiecks in `ink-ruler.js`),
 PDFs mit pdf.js (`js/vendor/pdfjs/`, legacy build für ältere iPads).
 Koordinaten in PDF-Punkten der Seite – die Striche bleiben bei jedem Zoom an
 derselben Stelle des Blatts.

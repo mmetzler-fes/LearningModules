@@ -1,11 +1,41 @@
 import { escapeHtml, escapeAttr } from '../utils.js';
+import { setFoldState } from '../fold.js';
 
-// ==================== NEXTCLOUD DER SCHULE (Schuladmin) ====================
+// ============ NEXTCLOUD DER SCHULE (Schuladmin) / DES SERVERS (Admin) ============
 //
 // Ein Freigabelink für die Bilder aller Lehrkräfte der Schule: Wer keine
 // eigene Freigabe hat, legt Bilder dort ab (Bilder/<Lehrkraft>/<Thema>/).
+// Die des Servers nimmt die Bilder der Lehrkräfte auf, deren Schule keine hat.
 // Dazu Umziehen, Trennen und die Ordner-Übersicht zum Aufräumen.
 // Siehe docs/nextcloud.md.
+
+/** Texte, die sich zwischen Schule und Server unterscheiden. */
+const TEXT = {
+  school: {
+    name: 'Nextcloud der Schule',
+    insecure: 'Die Freigabe der Schule',
+    ok: 'Lehrkräfte ohne eigene Freigabe legen ihre Bilder in der <strong>Nextcloud der Schule</strong> ab',
+    none: 'Noch <strong>keine Nextcloud der Schule</strong> – Bilder landen bei den Lehrkräften selbst, in der Nextcloud des Servers oder in der App',
+    noneSub: 'Mit einem Freigabelink hier legen alle Lehrkräfte ohne eigene Freigabe ihre Bilder automatisch in der Schul-Nextcloud ab – ohne selbst etwas einzurichten.',
+    where: 'In der Nextcloud der Schule einen Ordner anlegen (z. B. <code>LearningModules-Bilder</code>)',
+    folders: 'Hat eine Lehrkraft die Schule verlassen, wandern ihre Bilder mit, sobald sie eine neue Ablage hat (Nextcloud der neuen Schule oder eigene Freigabe).',
+    gone: 'nicht mehr an der Schule',
+    who: 'bei allen Lehrkräften ohne eigene Freigabe',
+    after: 'Neue Bilder landen danach in eigenen Freigaben, in der Nextcloud des Servers oder in der App.',
+  },
+  server: {
+    name: 'Nextcloud des Servers',
+    insecure: 'Die Freigabe des Servers',
+    ok: 'Lehrkräfte ohne eigene Freigabe, deren Schule keine Nextcloud hat, legen ihre Bilder in der <strong>Nextcloud des Servers</strong> ab',
+    none: 'Noch <strong>keine Nextcloud des Servers</strong> – ohne eigene oder Schul-Nextcloud landen Bilder in der App',
+    noneSub: 'Mit einem Freigabelink hier liegen die Bilder aller Lehrkräfte ohne eigene Freigabe und ohne Schul-Nextcloud in dieser Nextcloud statt auf dem Server. Verbindet eine Schule später ihre eigene, ziehen die Bilder ihrer Lehrkräfte dorthin.',
+    where: 'In einer Nextcloud einen eigenen Ordner anlegen (nicht den des Backups, z. B. <code>LearningModules-Bilder</code>)',
+    folders: 'Bekommt die Schule einer Lehrkraft eine Nextcloud (oder die Lehrkraft eine eigene Freigabe), wandern ihre Bilder dorthin.',
+    gone: 'hat jetzt eine andere Ablage',
+    who: 'bei allen Lehrkräften ohne eigene Freigabe und ohne Schul-Nextcloud',
+    after: 'Neue Bilder dieser Lehrkräfte landen danach wieder in der App.',
+  },
+};
 
 const mb = (bytes) => `${(bytes / 1024 / 1024).toLocaleString('de-DE', { maximumFractionDigits: 1 })} MB`;
 const when = (d) => (d ? new Date(d).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' }) : '–');
@@ -17,23 +47,25 @@ function moveHtml(m) {
   return `<p class="hint nc-status">✅ Umgezogen am ${when(m.at)} (${m.copied} Bilder). Die alte Freigabe (${escapeHtml(m.from || '')}) kann gelöscht werden.</p>`;
 }
 
-/** Bereich „☁️ Nextcloud der Schule“ in `box` zeichnen. */
-export async function renderSchoolNextcloud(app, box, msg = null) {
+/** Bereich „☁️ Nextcloud der Schule“ (`server`: des Servers) in `box` zeichnen. */
+export async function renderSchoolNextcloud(app, box, msg = null, server = false) {
   if (!box) return;
-  const data = await app.api.getSchoolNextcloud().catch(() => null);
+  const T = TEXT[server ? 'server' : 'school'];
+  const again = (m) => renderSchoolNextcloud(app, box, m, server);
+  const data = await app.api.getSchoolNextcloud(server).catch(() => null);
   if (!data || data.statusCode) { box.innerHTML = `<p class="login-error">${escapeHtml(data?.message || 'Fehler')}</p>`; return; }
   const ok = data.configured && data.verified;
+  setFoldState(box, ok && data.insecure ? '⚠️ ohne Passwort' : ok ? '✅ verbunden' : data.configured ? '⚠️ nicht verbunden' : 'nicht eingerichtet');
   const host = (() => { try { return new URL(data.shareUrl).host; } catch (_) { return ''; } })();
   const hero = ok && data.insecure
-    ? { cls: 'warn', title: '⚠️ Die Freigabe der Schule lässt sich <strong>ohne Passwort öffnen</strong>',
+    ? { cls: 'warn', title: `⚠️ ${T.insecure} lässt sich <strong>ohne Passwort öffnen</strong>`,
       sub: 'Jeder, der den Freigabelink kennt, kann die Bilder aller Lehrkräfte lesen und ändern. Bitte in der Nextcloud beim Teilen ein Passwort setzen und unter „Verbindung“ eintragen. Die Bilder funktionieren bis dahin weiter.' }
     : ok
-    ? { cls: 'ok', title: `Lehrkräfte ohne eigene Freigabe legen ihre Bilder in der <strong>Nextcloud der Schule</strong> ab${host ? ` <span class="hint">(${escapeHtml(host)})</span>` : ''}`,
+    ? { cls: 'ok', title: `${T.ok}${host ? ` <span class="hint">(${escapeHtml(host)})</span>` : ''}`,
       sub: `Je Lehrkraft ein Ordner <code>Bilder/&lt;Name&gt;/&lt;Thema&gt;</code> · Bilder daraus stecken in ${data.references} Modul(en) · <a href="${escapeAttr(data.shareUrl)}" target="_blank" rel="noopener">Ordner öffnen ↗</a>` }
     : data.configured
       ? { cls: 'warn', title: '⚠️ Freigabe gespeichert, aber <strong>nicht verbunden</strong>', sub: 'Bitte unter „Verbindung“ erneut verbinden.' }
-      : { cls: 'none', title: 'Noch <strong>keine Nextcloud der Schule</strong> – Bilder landen bei den Lehrkräften selbst oder in der App',
-        sub: 'Mit einem Freigabelink hier legen alle Lehrkräfte ohne eigene Freigabe ihre Bilder automatisch in der Schul-Nextcloud ab – ohne selbst etwas einzurichten.' };
+      : { cls: 'none', title: T.none, sub: T.noneSub };
 
   box.innerHTML = `
     <div class="nc-hero nc-hero-${hero.cls}">
@@ -44,11 +76,12 @@ export async function renderSchoolNextcloud(app, box, msg = null) {
     <details class="nc-section snc-conn" ${ok && !data.insecure ? '' : 'open'}>
       <summary>🔗 Verbindung <span class="nc-sum-state">${ok && data.insecure ? '⚠️ ohne Passwort' : ok ? '✅ verbunden' : data.configured ? '⚠️ nicht verbunden' : 'nicht eingerichtet'}</span></summary>
       <div class="nc-section-body">
-        <p class="hint">Freigabe anlegen: In der Nextcloud der Schule einen Ordner anlegen (z. B. <code>LearningModules-Bilder</code>)
+        <p class="hint">Freigabe anlegen: ${T.where}
           → <strong>Teilen → Link teilen</strong> → <strong>„Hochladen und Bearbeiten erlauben“</strong> → <strong>Passwort</strong>
           setzen → Link kopieren. Freigaben ohne Passwort nimmt die App nicht an. Die Bilder kommen über diesen Server zu den
           Schülern; in der Nextcloud ist nichts öffentlich. Wer Link und Passwort kennt, sieht die Bilder aller Lehrkräfte.
-          Eine eigene Freigabe einer Lehrkraft geht vor.</p>
+          Eine eigene Freigabe einer Lehrkraft geht vor${server ? ', ebenso die Nextcloud ihrer Schule' : ''}. Der Ordner muss ein
+          eigener sein – nicht der einer Lehrkraft${server ? ' oder einer Schule' : ', einer anderen Schule oder des Servers'}.</p>
         <div class="form-group"><label for="sncShare">Freigabelink des Ordners</label>
           <input type="url" id="sncShare" value="${escapeAttr(data.shareUrl || '')}" autocomplete="off" placeholder="https://cloud.meine-schule.de/s/…" /></div>
         <div class="form-group"><label for="sncPass">Passwort der Freigabe (Pflicht)</label>
@@ -74,8 +107,7 @@ export async function renderSchoolNextcloud(app, box, msg = null) {
     <details class="nc-section snc-folders">
       <summary>🗂 Ordner der Lehrkräfte <span class="nc-sum-state">aufräumen</span></summary>
       <div class="nc-section-body">
-        <p class="hint">Hat eine Lehrkraft die Schule verlassen, wandern ihre Bilder mit, sobald sie eine neue Ablage hat (Nextcloud der
-          neuen Schule oder eigene Freigabe). Erst wenn ein Ordner in keinem Modul mehr verwendet wird, lässt er sich löschen.</p>
+        <p class="hint">${T.folders} Erst wenn ein Ordner in keinem Modul mehr verwendet wird, lässt er sich löschen.</p>
         <div class="snc-folder-list"><p class="hint">Wird geladen …</p></div>
       </div>
     </details>` : ''}`;
@@ -85,50 +117,51 @@ export async function renderSchoolNextcloud(app, box, msg = null) {
   say(msg);
   // Meldungen zur Verbindung sichtbar halten, auch wenn der Bereich eingeklappt ist.
   if (msg?.text) $('.snc-conn')?.setAttribute('open', '');
-  if (data.move?.running) setTimeout(() => { if (box.isConnected) renderSchoolNextcloud(app, box); }, 4000);
+  if (data.move?.running) setTimeout(() => { if (box.isConnected) again(); }, 4000);
 
   $('.snc-connect').addEventListener('click', async (e) => {
     e.currentTarget.disabled = true;
     e.currentTarget.textContent = '⏳ Verbinde …';
-    const res = await app.api.connectSchoolNextcloud({ shareUrl: $('#sncShare').value, password: $('#sncPass').value || undefined });
-    if (!res || res.statusCode || !res.verified) { await renderSchoolNextcloud(app, box, { error: true, text: `❌ ${res?.message || 'Verbindung fehlgeschlagen.'}` }); return; }
-    await renderSchoolNextcloud(app, box, { text: `✅ ${res.message}` });
+    const res = await app.api.connectSchoolNextcloud({ shareUrl: $('#sncShare').value, password: $('#sncPass').value || undefined }, server);
+    if (!res || res.statusCode || !res.verified) { await again({ error: true, text: `❌ ${res?.message || 'Verbindung fehlgeschlagen.'}` }); return; }
+    await again({ text: `✅ ${res.message}` });
   });
 
   $('.snc-disconnect')?.addEventListener('click', async () => {
     let force = false;
     if (data.references > 0) {
-      if (!(await app.appConfirm(`Trennen?\n\nBilder aus der Nextcloud der Schule stecken in ${data.references} Modul(en). Nach dem Trennen fehlen sie dort – bei allen Lehrkräften ohne eigene Freigabe.\n\nBesser: „Zu einer anderen Nextcloud umziehen“. Trotzdem trennen?`))) return;
+      if (!(await app.appConfirm(`Trennen?\n\nBilder aus der ${T.name} stecken in ${data.references} Modul(en). Nach dem Trennen fehlen sie dort – ${T.who}.\n\nBesser: „Zu einer anderen Nextcloud umziehen“. Trotzdem trennen?`))) return;
       force = true;
-    } else if (!(await app.appConfirm('Nextcloud der Schule trennen? Neue Bilder landen danach wieder in der App (oder in eigenen Freigaben).'))) return;
-    const res = await app.api.disconnectSchoolNextcloud(force);
-    await renderSchoolNextcloud(app, box, res?.success ? { text: 'Getrennt.' } : { error: true, text: `❌ ${res?.message || 'Fehler'}` });
+    } else if (!(await app.appConfirm(`${T.name} trennen? ${T.after}`))) return;
+    const res = await app.api.disconnectSchoolNextcloud(force, server);
+    await again(res?.success ? { text: 'Getrennt.' } : { error: true, text: `❌ ${res?.message || 'Fehler'}` });
   });
 
   $('.snc-move-run')?.addEventListener('click', async (e) => {
     e.currentTarget.disabled = true;
     e.currentTarget.textContent = '⏳ Prüfe neue Freigabe …';
-    const res = await app.api.moveSchoolNextcloud({ shareUrl: $('#sncMoveShare').value, password: $('#sncMovePass').value });
-    await renderSchoolNextcloud(app, box, res?.success ? { text: `✅ ${res.message}` } : { error: true, text: `❌ ${res?.message || 'Umziehen fehlgeschlagen'}` });
+    const res = await app.api.moveSchoolNextcloud({ shareUrl: $('#sncMoveShare').value, password: $('#sncMovePass').value }, server);
+    await again(res?.success ? { text: `✅ ${res.message}` } : { error: true, text: `❌ ${res?.message || 'Umziehen fehlgeschlagen'}` });
   });
 
   $('.snc-folders')?.addEventListener('toggle', async (e) => {
     if (!e.currentTarget.open) return;
     const list = $('.snc-folder-list');
-    const res = await app.api.getSchoolNextcloudFolders();
+    const res = await app.api.getSchoolNextcloudFolders(server);
     if (!res?.folders) { list.innerHTML = `<p class="login-error">${escapeHtml(res?.message || 'Fehler')}</p>`; return; }
     if (!res.folders.length) { list.innerHTML = '<p class="hint">Noch keine Ordner.</p>'; return; }
     list.innerHTML = `<table class="class-students"><thead><tr><th>Lehrkraft</th><th>Bilder</th><th>verwendet in</th><th></th></tr></thead><tbody>
       ${res.folders.map((f) => `<tr>
-        <td>${f.teacher ? escapeHtml(f.teacher) : '<span class="hint">unbekannt</span>'}${f.atSchool ? '' : ' <span class="hint">(nicht mehr an der Schule)</span>'}
+        <td>${f.teacher ? escapeHtml(f.teacher) : '<span class="hint">unbekannt</span>'}${f.atSchool ? '' : ` <span class="hint">(${T.gone})</span>`}
           <br><span class="hint" style="font-size:0.85em">📁 ${escapeHtml(f.folder)}</span></td>
         <td>${f.images} · ${mb(f.bytes)}</td>
         <td>${f.references ? `${f.references} Modul(en)` : '<span class="hint">nirgends</span>'}</td>
-        <td>${f.references ? '' : `<button class="btn btn-danger btn-sm snc-rm" data-folder="${escapeAttr(f.folder)}">🗑 Löschen</button>`}</td>
+        <td>${!f.removable ? '<span class="hint" title="Kein Ordner einer Lehrkraft – die App löscht ihn nicht.">kein Lehrkraft-Ordner</span>'
+          : f.references ? '' : `<button class="btn btn-danger btn-sm snc-rm" data-folder="${escapeAttr(f.folder)}">🗑 Löschen</button>`}</td>
       </tr>`).join('')}</tbody></table>`;
     list.querySelectorAll('.snc-rm').forEach((b) => b.addEventListener('click', async () => {
-      if (!(await app.appConfirm(`Ordner „${b.dataset.folder}“ in der Nextcloud der Schule löschen? Kein Modul verwendet ihn mehr.`))) return;
-      const r = await app.api.removeSchoolNextcloudFolder(b.dataset.folder);
+      if (!(await app.appConfirm(`Ordner „${b.dataset.folder}“ in der ${T.name} löschen? Kein Modul verwendet ihn mehr.`))) return;
+      const r = await app.api.removeSchoolNextcloudFolder(b.dataset.folder, server);
       if (!r?.success) { app.showToast(`Fehler: ${r?.message || '?'}`, 'error'); return; }
       app.showToast('Ordner gelöscht.', 'success');
       b.closest('tr').remove();

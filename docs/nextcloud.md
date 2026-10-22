@@ -18,11 +18,23 @@ Wohin Bilder gehen (die „Ablage“ der Lehrkraft):
 1. in die **eigene Freigabe** der Lehrkraft, wenn sie eine verbunden hat;
 2. sonst in die **[Nextcloud der Schule](#nextcloud-der-schule)**, wenn der
    Schuladmin eine eingerichtet hat – die Lehrkraft muss dann nichts tun;
-3. sonst bleiben sie verkleinert in der App
+3. sonst in die **[Nextcloud des Servers](#nextcloud-des-servers)**, wenn der
+   Admin eine eingerichtet hat;
+4. sonst bleiben sie verkleinert in der App
    ([Grenze](#grenze-fuer-bilder-in-der-app)).
 
-Die Nextcloud des Hauptadmins (automatisches Backup) nimmt keine Bilder auf:
-Ein Server kann mehrere Schulen haben, und dieser Ordner gehört nicht allen.
+Haben Admin und alle Schulen eine Nextcloud verbunden, liegen keine neuen
+Bilder mehr auf dem Server; vorhandene lagert die App nach und nach aus. In
+der Datenbank bleiben Module, Ergebnisse und Konten, und die Bilder laufen
+weiter über den Server zu den Schülern (siehe
+[Wie die Bilder zu den Schülern kommen](#wie-die-bilder-zu-den-schuelern-kommen)).
+
+**Eine feste Ablage:** Es zählt die erste *eingerichtete* Ablage der Liste.
+Ist sie gerade nicht erreichbar, meldet die App das beim Einfügen
+(„Bild nicht gespeichert …“) und weicht weder auf eine andere Nextcloud noch
+in die App aus – sonst lägen die Bilder verstreut. Wechseln geht nur
+ausdrücklich: eigene Freigabe verbinden, [umziehen](#umziehen) oder die eigene
+Freigabe an die Schule (bzw. den Server) abgeben, etwa vor der Pensionierung.
 
 ## Nextcloud der Schule
 
@@ -54,7 +66,17 @@ Backup je Lehrkraft gibt es nur mit eigener Freigabe.
 - **Erst danach aufräumen:** Unter *🗂 Ordner der Lehrkräfte – aufräumen*
   sieht der Schuladmin je Ordner, wem er gehört, ob die Lehrkraft noch an der
   Schule ist, wie viele Bilder darin liegen und in wie vielen Modulen sie noch
-  stecken. **🗑 Löschen** gibt es erst, wenn kein Modul mehr eines davon zeigt.
+  stecken. **🗑 Löschen** gibt es erst, wenn kein Modul mehr eines davon zeigt,
+  und nur für Ordner von Lehrkräften (`<Name> (<Kennung>)`). Andere Ordner,
+  etwa von Hand angelegte, zeigt die Liste als „kein Lehrkraft-Ordner“; die
+  App löscht sie nicht.
+- **Eigener Ordner je Ablage:** Die Nextcloud der Schule, die des Servers,
+  die anderer Schulen und die eigenen Freigaben der Lehrkräfte müssen
+  verschiedene Ordner sein – auch beim Schuladmin, der als Lehrkraft seine
+  eigene Freigabe hat. Verbinden und Umziehen lehnen einen solchen Ordner ab. Die App erkennt ihn am
+  Freigabelink und an der Datei `.lm-ablage.json`, die sie im Ordner ablegt
+  (so auch hinter einem zweiten Link auf denselben Ordner). Wird ein Ordner
+  dort nicht mehr gebraucht, die Datei löschen – oder die andere Ebene trennen.
 - **Umziehen** in eine andere Freigabe kopiert alle Ordner mit und schaltet
   erst danach um; die Links bleiben gleich. **Trennen** geht, solange Bilder
   in Modulen stecken, nur mit ausdrücklicher Bestätigung – sie fehlen dann,
@@ -65,7 +87,31 @@ Backup je Lehrkraft gibt es nur mit eigener Freigabe.
 - Wer Link und Passwort kennt, sieht die Bilder aller Lehrkräfte der Schule –
   also keine Fotos von Schülerinnen und Schülern.
 - Trennt eine Lehrkraft ihre **eigene Freigabe**, bietet der Dialog
-  **🏫 In die Nextcloud der Schule übernehmen und trennen** an.
+  **🏫 In die Nextcloud der Schule übernehmen und trennen** an (ohne
+  Schul-Nextcloud: *… des Servers*). Die Bilder werden kopiert, die Links
+  umgehängt, dann wird getrennt – so bleibt alles sichtbar, auch wenn die
+  Lehrkraft die Schule verlässt.
+
+## Nextcloud des Servers
+
+Unter **Administration → Shop & Sicherheit → ☁️ Nextcloud des Servers für
+Bilder** richtet der Admin eine Freigabe ein – genauso wie der Schuladmin die
+der Schule (Freigabelink mit Passwort, Umziehen, Trennen, Aufräumen). Sie
+nimmt die Bilder aller Lehrkräfte auf, die weder eine eigene Freigabe noch
+eine Schule mit Nextcloud haben – auch von Lehrkräften ohne Schule. Ordner und
+Links wie bei der Schule: `Bilder/<Name> (<Kennung>)/<Thema>/`,
+`/api/nextcloud/sch/<Kennung>/…`.
+
+- **Getrennt vom Backup:** Das [automatische Backup](shop-und-rechte.md#automatisches-backup-in-die-cloud-webdav-nextcloud)
+  bleibt, wo es ist – nur der Admin kann den Server wiederherstellen. Die
+  Bilder brauchen einen eigenen Ordner.
+- **Schule kommt dazu:** Verbindet eine Schule später ihre Nextcloud, ziehen
+  die Bilder ihrer Lehrkräfte von selbst dorthin („Bilder folgen dem Thema“).
+  In der Ordner-Übersicht des Admins steht der Ordner dann als „hat jetzt
+  eine andere Ablage“ und lässt sich löschen, sobald kein Modul mehr ein Bild
+  daraus zeigt.
+- Wer Link und Passwort kennt, sieht die Bilder aller dieser Lehrkräfte – der
+  Admin also auch. Keine Fotos von Schülerinnen und Schülern.
 
 ### Freigabe einrichten
 
@@ -166,8 +212,9 @@ verschlüsselt), solange noch Links daran hängen – höchstens fünf, je 180 T
 - **☁️ Aus Nextcloud** zeigt die Bilder eines Ordners, vorgewählt der des
   aktuellen Themas, und fügt eines mit einem Klick ein. Bilder lassen sich
   also auch direkt in der Nextcloud in diese Ordner legen.
-- Klappt das Hochladen nicht, fragt die App, ob das Bild stattdessen wie
-  bisher in der App gespeichert werden soll.
+- Klappt das Hochladen nicht (Nextcloud nicht erreichbar, Datei zu groß …),
+  meldet die App „❌ Bild nicht gespeichert“ mit dem Grund. Das Bild landet
+  dann nicht in der App – bitte später erneut einfügen.
 
 Ohne verbundene Nextcloud bleibt das Bild in der App – siehe
 [Grenze für Bilder in der App](#grenze-fuer-bilder-in-der-app).
@@ -329,6 +376,8 @@ von fremden Seiten) und die öffentliche WebDAV-Schnittstelle der Freigabe:
 `/api/nextcloud/files/…` (eigene Freigabe), `/api/nextcloud/sch/<Schule>/<Ordner>/…`
 (Nextcloud der Schule, `school_nextcloud`); `/api/nextcloud/school/…` nur noch
 für Bilder im früheren Ordner des Admin-Backups. Schuladmin-Endpunkte unter
-`/api/my-school/nextcloud` (Code: `school-nextcloud.service.ts`). Ausgeliefert werden nur Bilddateien unter `Bilder/`. Nur https,
+`/api/my-school/nextcloud`, Admin-Endpunkte für die des Servers unter
+`/api/server-nextcloud` (Eintrag in `school_nextcloud` mit der Kennung
+`__server__`; Code: `school-nextcloud.service.ts`). Ausgeliefert werden nur Bilddateien unter `Bilder/`. Nur https,
 keine internen Adressen, keine Weiterleitungen. Code:
 `src/nextcloud/`, Oberfläche in `src/renderer/js/views/nextcloud.js`.

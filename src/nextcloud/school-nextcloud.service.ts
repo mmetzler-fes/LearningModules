@@ -10,11 +10,17 @@ import { User } from '../core/entities/user.entity';
 import { MasterKeyService } from '../core/crypto/master-key.service';
 import { assertPublicHost, parseNextcloudShare } from '../core/share/nextcloud-upload';
 import { DavEntry, OPEN_SHARE_MESSAGE, ShareClient, parseNextcloudBase, shareIsOpen } from './nextcloud-api';
-import { NextcloudService, rememberShare } from './nextcloud.service';
+import { NextcloudService, SERVER_SCOPE, rememberShare } from './nextcloud.service';
 
 const IMAGES = 'Bilder';
 const CHECK_FILE = 'lm-verbindungstest.txt';
 const safePart = (p: string) => !!p && !/[\\/]/.test(p) && p !== '.' && p !== '..';
+/**
+ * Ordner einer Lehrkraft: „<Name> (<Kennung>)“. Nur solche bietet das
+ * Aufräumen zum Löschen an – was sonst unter Bilder/ liegt (von Hand angelegt,
+ * Themen-Ordner einer eigenen Ablage), prüfen die Verweise nicht.
+ */
+const TEACHER_FOLDER = /\([0-9a-f]{8}\)$/i;
 
 /**
  * Nextcloud der Schule für die Bilder aller Lehrkräfte (docs/nextcloud.md) –
@@ -25,6 +31,10 @@ const safePart = (p: string) => !!p && !/[\\/]/.test(p) && p !== '.' && p !== '.
  * Hier: verbinden, trennen (nur ausdrücklich, solange Bilder in Modulen
  * stecken), umziehen (Bilder werden mitkopiert, Links bleiben gleich) und die
  * Übersicht der Lehrkraft-Ordner zum Aufräumen.
+ *
+ * `schoolId` ist die Schule (vom Schuladmin, siehe schoolOf) oder
+ * SERVER_SCOPE: die Nextcloud des Servers, eingerichtet vom Admin, für
+ * Lehrkräfte, deren Schule keine hat.
  */
 @Injectable()
 export class SchoolNextcloudService {
@@ -39,7 +49,7 @@ export class SchoolNextcloudService {
   ) {}
 
   /** Die Schule, die `user` verwalten darf – sonst 403. */
-  private schoolOf(user: any): string {
+  schoolOf(user: any): string {
     if (!user?.isSchoolAdmin || !user?.schoolId) throw new ForbiddenException('Nur für Schuladmins.');
     return user.schoolId;
   }
@@ -66,8 +76,7 @@ export class SchoolNextcloudService {
 
   private readonly moves = new Map<string, { running: boolean; copied: number; total: number; from: string; error?: string }>();
 
-  async status(user: any) {
-    const schoolId = this.schoolOf(user);
+  async status(schoolId: string) {
     const r = await this.repo.findOne({ where: { schoolId } });
     if (!r?.shareToken) return { configured: false, verified: false, shareUrl: '', hasPassword: false, references: 0, move: r?.moveResult || null };
     return {
@@ -103,8 +112,7 @@ export class SchoolNextcloudService {
   }
 
   /** `{ shareUrl, password? }` – leeres Passwort lässt das gespeicherte. */
-  async connect(user: any, input: any, appBase: string) {
-    const schoolId = this.schoolOf(user);
+  async connect(schoolId: string, input: any, appBase: string) {
     const r = await this.row(schoolId);
     const share = parseNextcloudShare(input?.shareUrl);
     const base = parseNextcloudBase(share.base);
@@ -117,22 +125,24 @@ export class SchoolNextcloudService {
       try { password = this.masterKey.unsealSecret(r.passwordSealed); } catch { /* unten: Passwort falsch */ }
     }
     const p = await this.probe(input?.shareUrl, password);
+    const same = r.shareToken === p.token && r.baseUrl === p.base;
+    if (!same) await this.nextcloud.assertSeparate({ kind: 'school', id: r.id }, p.base, p.token, p.nc);
     // Auch eine kaputte oder getrennte bisherige Freigabe merken: Fehlende
     // Bilder holt die App aus ihr in die neue (rememberShare).
-    if (r.shareToken !== p.token || r.baseUrl !== p.base) rememberShare(r, await this.references(r));
+    if (!same) rememberShare(r, await this.references(r));
     Object.assign(r, {
       baseUrl: p.base, shareToken: p.token, davMode: p.mode, verifiedAt: new Date(), insecureAt: null, appBase,
       passwordSealed: password ? this.masterKey.sealSecret(password) : null,
     });
     await this.repo.save(r);
+    await this.nextcloud.claimShare({ kind: 'school', id: r.id }, p.nc).catch(() => undefined);
     // Bilder, die schon woanders liegen (früherer Admin-Ordner, Kolleginnen), wandern nach.
     void this.nextcloud.followOwners().catch(() => undefined);
-    return { ...(await this.status(user)), message: 'Verbunden – Lehrkräfte ohne eigene Freigabe legen ihre Bilder jetzt hier ab.' };
+    return { ...(await this.status(schoolId)), message: 'Verbunden – Lehrkräfte ohne eigene Freigabe legen ihre Bilder jetzt hier ab.' };
   }
 
   /** Trennen. Stecken noch Bilder in Modulen, nur mit `force` – sie fehlen dann dort. */
-  async disconnect(user: any, force = false) {
-    const schoolId = this.schoolOf(user);
+  async disconnect(schoolId: string, force = false) {
     const r = await this.repo.findOne({ where: { schoolId } });
     if (!r) return { success: true };
     if (r.verifiedAt && !force && (await this.references(r)) > 0) {
@@ -151,8 +161,7 @@ export class SchoolNextcloudService {
    * Schule ist, wie viele Bilder darin liegen und in wie vielen Modulen sie
    * noch stecken. Ohne Verweise kann der Ordner weg.
    */
-  async folders(user: any) {
-    const schoolId = this.schoolOf(user);
+  async folders(schoolId: string) {
     const r = await this.repo.findOne({ where: { schoolId } });
     if (!r?.shareToken || !r.verifiedAt) return { folders: [] };
     const nc = await this.nextcloud.schoolNcClient(r);
@@ -168,7 +177,9 @@ export class SchoolNextcloudService {
       out.push({
         folder: f.name,
         teacher: u ? u.displayName || u.email : null,
-        atSchool: !!u && u.schoolId === schoolId,
+        // Server: Gibt es das Konto noch, und hat seine Schule keine eigene Nextcloud?
+        atSchool: !!u && (schoolId === SERVER_SCOPE ? (await this.nextcloud.schoolShareOf(u.id))?.snc.id === r.id : u.schoolId === schoolId),
+        removable: TEACHER_FOLDER.test(f.name),
         images, bytes,
         references: await this.references(r, f.name),
       });
@@ -177,11 +188,11 @@ export class SchoolNextcloudService {
   }
 
   /** Ordner einer Lehrkraft löschen – nur, wenn kein Modul mehr ein Bild daraus zeigt. */
-  async removeFolder(user: any, folder: string) {
-    const schoolId = this.schoolOf(user);
+  async removeFolder(schoolId: string, folder: string) {
     const r = await this.repo.findOne({ where: { schoolId } });
     if (!r?.shareToken || !r.verifiedAt) throw new BadRequestException('Die Schule hat keine Nextcloud verbunden.');
     if (!safePart(folder)) throw new BadRequestException('Ungültiger Ordner.');
+    if (!TEACHER_FOLDER.test(folder)) throw new BadRequestException('Das ist kein Ordner einer Lehrkraft („Name (Kennung)“) – die App löscht ihn nicht. Bei Bedarf in der Nextcloud selbst löschen.');
     const n = await this.references(r, folder);
     if (n) throw new BadRequestException(`Bilder aus diesem Ordner stecken noch in ${n} Modul(en) oder Entwürfen – erst danach löschen.`);
     await (await this.nextcloud.schoolNcClient(r)).remove([IMAGES, folder]);
@@ -193,8 +204,7 @@ export class SchoolNextcloudService {
    * (alle Lehrkraft- und Themen-Ordner) kopieren und erst danach umschalten.
    * Die Links bleiben gleich (sie enthalten die Kennung der Schule).
    */
-  async startMove(user: any, input: any, appBase: string) {
-    const schoolId = this.schoolOf(user);
+  async startMove(schoolId: string, input: any, appBase: string) {
     const r = await this.repo.findOne({ where: { schoolId } });
     if (!r?.shareToken || !r.verifiedAt) throw new BadRequestException('Erst eine Freigabe verbinden – umziehen geht nur von einer verbundenen aus.');
     if (this.moves.get(schoolId)?.running) throw new BadRequestException('Der Umzug läuft schon.');
@@ -202,6 +212,7 @@ export class SchoolNextcloudService {
     if (parseNextcloudBase(share.base) === r.baseUrl && share.token === r.shareToken) throw new BadRequestException('Das ist die bisherige Freigabe.');
     const password = String(input?.password || '');
     const target = await this.probe(input?.shareUrl, password);
+    await this.nextcloud.assertSeparate({ kind: 'school', id: r.id }, target.base, target.token, target.nc);
     const job = { running: true, copied: 0, total: 0, from: this.shareLink(r) };
     this.moves.set(schoolId, job);
     void (async () => {
@@ -230,6 +241,7 @@ export class SchoolNextcloudService {
           moveResult: { at: new Date().toISOString(), from: job.from, copied: job.copied },
         });
         await this.repo.save(r);
+        await this.nextcloud.claimShare({ kind: 'school', id: r.id }, target.nc).catch(() => undefined);
       } catch (err: any) {
         const moveResult: any = { at: new Date().toISOString(), from: job.from, copied: job.copied, error: String(err?.message || err) };
         await this.repo.update({ id: r.id }, { moveResult });

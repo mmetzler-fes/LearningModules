@@ -90,10 +90,8 @@ export async function storeImage(app, input, name = 'bild.png') {
     const original = await toBlob(input);
     const blob = await toBlob(await shrinkImage(original));
     const file = new File([blob], (original instanceof File && original.name) || name, { type: blob.type || original.type || 'image/png' });
-    const url = await uploadImageToNextcloud(app, file);
-    if (url) return url;
-    if (url === false) return false;
-    // null: Hochladen klappte nicht, die Lehrkraft will es in der App – weiter unten.
+    // Klappt das Hochladen nicht, nicht in die App ausweichen: Meldung, kein Bild.
+    return (await uploadImageToNextcloud(app, file)) || false;
   }
   const q = await loadQuota(app);
   const limited = q && !q.nextcloud && q.limitBytes > 0;

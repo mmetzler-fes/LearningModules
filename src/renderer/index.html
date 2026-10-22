@@ -1165,7 +1165,7 @@
           </div>
           <div class="settings-group">
             <h3>🖼 Bilder in der App <button type="button" class="help-hint" data-help="nextcloud#grenze-fuer-bilder-in-der-app" title="Hilfe: Grenze für Bilder" aria-label="Hilfe: Grenze für Bilder">?</button></h3>
-            <p class="hint">Ohne eigene Nextcloud-Freigabe speichert die App Bilder der Lehrkräfte hier auf dem Server (verkleinert auf
+            <p class="hint">Ohne Nextcloud (eigene, der Schule oder des Servers) speichert die App Bilder der Lehrkräfte hier auf dem Server (verkleinert auf
               höchstens 1600 px). Gezählt werden je Lehrkraft die Bilder in selbst verfassten Modulen. Mit Nextcloud gibt es keine Grenze.</p>
             <div class="form-group">
               <label for="iqWarn">Hinweis zur Nextcloud ab (MB je Lehrkraft, 0 = nie)</label>
@@ -1179,6 +1179,10 @@
             <div class="form-actions">
               <button class="btn btn-primary" id="btnSaveImageQuota">💾 Speichern</button>
             </div>
+          </div>
+          <div class="settings-group">
+            <h3>☁️ Nextcloud des Servers für Bilder <button type="button" class="help-hint" data-help="nextcloud#nextcloud-des-servers" title="Hilfe" aria-label="Hilfe">?</button></h3>
+            <div id="adminServerNextcloud"><p class="hint">Wird geladen …</p></div>
           </div>
 
           <div class="settings-group" style="margin-top:24px;">

@@ -248,9 +248,10 @@ Link kennt, kann die Backups sonst herunterladen (verschlüsselt) und löschen.
 Eine „Dateiablage“ (nur Hochladen) reicht nicht – die App muss den Ordner
 auflisten und alte Backups löschen können.
 
-**Bilder der Lehrkräfte:** Bilder speichert jede Lehrkraft in ihrer eigenen
-Nextcloud-Freigabe – auf einem Server mit mehreren Schulen gehört der Ordner
-des Admins nicht allen. Ältere Bilder im Unterordner `Bilder/<Lehrkraft>/`
+**Bilder der Lehrkräfte:** Dieser Backup-Ordner nimmt keine Bilder auf. Für
+Lehrkräfte ohne eigene Freigabe und ohne Schul-Nextcloud richtet der Admin
+dafür eine eigene [Nextcloud des Servers](nextcloud.md#nextcloud-des-servers)
+ein (Bereich *☁️ Nextcloud des Servers für Bilder*). Ältere Bilder im Unterordner `Bilder/<Lehrkraft>/`
 dieses Backup-Ordners (aus einer früheren Version) bleiben über den Server
 erreichbar, bis die Lehrkraft ihre eigene Freigabe verbindet; dann übernimmt
 die App sie dorthin. Die Backup-Adresse deshalb nicht ändern, solange dort

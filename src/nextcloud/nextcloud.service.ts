@@ -115,6 +115,38 @@ export function imageFileName(original: string, mime: string): string {
 /** Prüfdatei beim Verbinden: zeigt, dass Schreiben und (optional) die Lesefreigabe stimmen. */
 const CHECK_FILE = 'lm-verbindungstest.txt';
 
+/**
+ * Kennungsdatei im Wurzelordner einer Ablage: wer den Ordner nutzt – eine
+ * Lehrkraft (eigene Freigabe) oder eine Schule. So erkennt die App denselben
+ * Ordner auch hinter einem anderen Freigabelink.
+ */
+export const OWNER_FILE = '.lm-ablage.json';
+/** `school`: Nextcloud einer Schule oder des Servers (Eintrag in school_nextcloud). */
+export type ShareOwner = { kind: 'own' | 'school'; id: string };
+
+/**
+ * Nextcloud des Servers für Bilder, eingerichtet vom Admin: ein Eintrag in
+ * school_nextcloud mit dieser Kennung statt einer Schule. Sie nimmt die
+ * Bilder aller Lehrkräfte auf, deren Schule keine Nextcloud hat.
+ */
+export const SERVER_SCOPE = '__server__';
+
+/** Teilen dürfen sich einen Ordner nur Lehrkräfte – Schulen und Server räumen auf. */
+const clashes = (me: ShareOwner, o: ShareOwner) => !(o.kind === me.kind && o.id === me.id) && !(o.kind === 'own' && me.kind === 'own');
+
+const separateMessage = (other: ShareOwner['kind']) => (other === 'school'
+  ? 'Diesen Ordner nutzt schon eine Schule (oder der Server) als Nextcloud für die Bilder ihrer Lehrkräfte – bitte einen eigenen Ordner freigeben.'
+  : 'Diesen Ordner nutzt schon eine Lehrkraft als eigene Ablage – bitte einen eigenen Ordner freigeben.');
+
+async function readOwner(nc: ShareClient): Promise<ShareOwner | null> {
+  const f = await nc.get([OWNER_FILE]).catch(() => null);
+  if (!f) return null;
+  try {
+    const o = JSON.parse(f.data.toString('utf-8'));
+    return (o?.kind === 'own' || o?.kind === 'school') && typeof o.id === 'string' ? o : null;
+  } catch { return null; }
+}
+
 /** Teil eines Pfads, wie er in einer Bild-URL steht: kein Schrägstrich, kein „..“. */
 const safePart = (p: string) => !!p && !/[\\/]/.test(p) && p !== '.' && p !== '..';
 
@@ -216,14 +248,23 @@ export class NextcloudService implements OnApplicationBootstrap {
     return ShareClient.accountFolder(cfg.url, cfg.username, password);
   }
 
-  // ---- Ablage: eigene Freigabe oder Nextcloud der Schule ----
+  // ---- Ablage: eigene Freigabe, Nextcloud der Schule oder des Servers ----
 
-  /** Nextcloud der Schule dieser Lehrkraft, sofern eingerichtet und geprüft. */
-  private async schoolShareOf(userId: string): Promise<{ user: User; snc: SchoolNextcloud } | null> {
+  /**
+   * Nextcloud der Schule dieser Lehrkraft, sonst die des Servers – die erste,
+   * die eingerichtet und geprüft ist. Ist sie gerade nicht erreichbar, scheitert
+   * das Hochladen mit Meldung; ausgewichen wird nicht (sonst lägen die Bilder
+   * verstreut).
+   */
+  async schoolShareOf(userId: string): Promise<{ user: User; snc: SchoolNextcloud } | null> {
     const user = await this.userRepo.findOne({ where: { id: userId } });
-    if (!user?.schoolId) return null;
-    const snc = await this.schoolNcRepo.findOne({ where: { schoolId: user.schoolId } });
-    return snc?.shareToken && snc.verifiedAt ? { user, snc } : null;
+    if (!user) return null;
+    for (const schoolId of [user.schoolId, SERVER_SCOPE]) {
+      if (!schoolId) continue;
+      const snc = await this.schoolNcRepo.findOne({ where: { schoolId } });
+      if (snc?.shareToken && snc.verifiedAt) return { user, snc };
+    }
+    return null;
   }
 
   /** Client für die Freigabe einer Schule. */
@@ -240,6 +281,52 @@ export class NextcloudService implements OnApplicationBootstrap {
       await this.schoolNcRepo.update({ id: snc.id }, { davMode: snc.davMode });
     }
     return nc;
+  }
+
+  /**
+   * Jede Ablage einer Schule (oder des Servers) braucht einen eigenen Ordner –
+   * getrennt von den eigenen Freigaben der Lehrkräfte und von den anderen
+   * Schulen: Alle legen unter Bilder/ an, und das Aufräumen einer Schule hielte
+   * fremde Ordner für Ordner ohne Verweise. Prüft den Link und – mit `nc` –
+   * die Kennungsdatei (derselbe Ordner hinter einem anderen Link). Ein
+   * Schuladmin wählt so als Lehrkraft einen anderen Ordner als für die Schule.
+   */
+  async assertSeparate(me: ShareOwner, base: string, token: string, nc?: ShareClient) {
+    const where = { baseUrl: base, shareToken: token };
+    const school = await this.schoolNcRepo.findOne({ where });
+    if (school?.verifiedAt && clashes(me, { kind: 'school', id: school.id })) throw new BadRequestException(separateMessage('school'));
+    if (me.kind === 'school' && (await this.linkRepo.findOne({ where }))?.verifiedAt) throw new BadRequestException(separateMessage('own'));
+    const owner = nc ? await readOwner(nc) : null;
+    if (owner && clashes(me, owner) && (await this.ownerConnected(owner))) {
+      throw new BadRequestException(`${separateMessage(owner.kind)} (Wird er dort nicht mehr gebraucht: die Datei ${OWNER_FILE} im Ordner löschen.)`);
+    }
+  }
+
+  /** Kennungsdatei schreiben – nicht über die einer anderen Ablage, solange die den Ordner nutzt. */
+  async claimShare(me: ShareOwner, nc: ShareClient) {
+    const owner = await readOwner(nc);
+    if (owner && owner.kind === me.kind && owner.id === me.id) return;
+    if (owner && clashes(me, owner) && (await this.ownerConnected(owner))) return;
+    await nc.put([OWNER_FILE], Buffer.from(JSON.stringify(me), 'utf-8'), 'application/json');
+  }
+
+  private async ownerConnected(o: ShareOwner) {
+    const row = o.kind === 'own'
+      ? await this.linkRepo.findOne({ where: { id: o.id } })
+      : await this.schoolNcRepo.findOne({ where: { id: o.id } });
+    return !!(row?.shareToken && row.verifiedAt);
+  }
+
+  /** Verbundene Ablagen ohne Kennungsdatei (von vor ihrer Einführung) bekommen eine. */
+  async claimAll() {
+    for (const l of await this.linkRepo.find()) {
+      if (!l.shareToken || !l.verifiedAt) continue;
+      await this.claimShare({ kind: 'own', id: l.id }, await this.client(l)).catch(() => undefined);
+    }
+    for (const r of await this.schoolNcRepo.find()) {
+      if (!r.shareToken || !r.verifiedAt) continue;
+      await this.claimShare({ kind: 'school', id: r.id }, await this.schoolNcClient(r)).catch(() => undefined);
+    }
   }
 
   /** Link auf ein Bild in der Nextcloud einer Schule (immer über diesen Server). */
@@ -309,7 +396,7 @@ export class NextcloudService implements OnApplicationBootstrap {
     // Nextcloud der Schule – greift, solange keine eigene Freigabe verbunden ist.
     const school = await this.schoolShareOf(user.userId);
     const schoolInfo = school
-      ? { available: true, folder: `${IMAGES}/${l?.schoolFolder || l?.serverFolder || '<dein Name>'}` }
+      ? { available: true, server: school.snc.schoolId === SERVER_SCOPE, folder: `${IMAGES}/${l?.schoolFolder || l?.serverFolder || '<dein Name>'}` }
       : { available: false };
     if (!l || !l.shareToken) {
       return {
@@ -367,6 +454,7 @@ export class NextcloudService implements OnApplicationBootstrap {
     if (!given && !(same && l.passwordSealed)) {
       throw new BadRequestException('Bitte das Passwort der Freigabe angeben – Freigaben ohne Passwort nimmt die App nicht an.');
     }
+    if (!same) await this.assertSeparate({ kind: 'own', id: l.id }, base, share.token);
     await assertPublicHost(base);
     if (await shareIsOpen(base, share.token)) throw new BadRequestException(OPEN_SHARE_MESSAGE);
     // Auch eine kaputte oder getrennte bisherige Freigabe merken: Fehlende
@@ -375,14 +463,15 @@ export class NextcloudService implements OnApplicationBootstrap {
     if (given) l.passwordSealed = this.masterKey.sealSecret(String(input.password));
     Object.assign(l, { baseUrl: base, shareToken: share.token, appBase });
     await this.linkRepo.save(l);
-    return this.verify(user, appBase);
+    return this.verify(user, appBase, !same);
   }
 
   /**
    * Freigabe prüfen: öffnen (Passwort), Ordner Bilder anlegen, eine Datei
    * schreiben – und, falls eingetragen, über die Lesefreigabe wieder lesen.
+   * `fresh`: neu eingetragen – dann darf der Ordner nicht der einer Schule sein.
    */
-  async verify(user: any, appBase?: string) {
+  async verify(user: any, appBase?: string, fresh = false) {
     const l = await this.find(user.userId);
     if (!l || !l.shareToken) throw new BadRequestException('Bitte zuerst den Freigabelink eintragen.');
     try {
@@ -392,6 +481,8 @@ export class NextcloudService implements OnApplicationBootstrap {
       const stamp = `LearningModules-Verbindungstest ${crypto.randomUUID()}`;
       await nc.put([IMAGES, CHECK_FILE], Buffer.from(stamp, 'utf-8'), 'text/plain');
       await nc.remove([IMAGES, CHECK_FILE]);
+      if (fresh) await this.assertSeparate({ kind: 'own', id: l.id }, l.baseUrl, l.shareToken, nc);
+      await this.claimShare({ kind: 'own', id: l.id }, nc);
       // Ohne Passwort offen? Nicht abschalten (sonst fehlen alle Bilder), aber warnen.
       const open = await shareIsOpen(l.baseUrl, l.shareToken);
       Object.assign(l, { verifiedAt: new Date(), insecureAt: open ? new Date() : null, ...(appBase ? { appBase } : {}) });
@@ -740,6 +831,7 @@ export class NextcloudService implements OnApplicationBootstrap {
     setTimeout(() => {
       void this.dropReadShares().catch((err) => this.logger.warn(`Lesefreigaben umstellen fehlgeschlagen: ${err?.message || err}`))
         .then(() => this.checkProtection()).catch(() => undefined)
+        .then(() => this.claimAll()).catch(() => undefined)
         .then(run);
     }, 5000).unref?.();
     setInterval(run, 60 * 60 * 1000).unref?.();
@@ -1194,6 +1286,7 @@ export class NextcloudService implements OnApplicationBootstrap {
     const bytes = list.reduce((a, i) => a + i.size, 0);
     const q = await this.quotaSettings();
     const used = sum(await this.appImages(user.userId));
+    const shared = await this.schoolShareOf(user.userId);
     return {
       count: list.length, bytes, missing: list.filter((i) => i.missing).length, images: list,
       topics: topics.map((t) => ({ id: t.id, title: t.title, mine: t.ownerId === user.userId })).sort((a, b) => a.title.localeCompare(b.title, 'de')),
@@ -1201,22 +1294,24 @@ export class NextcloudService implements OnApplicationBootstrap {
       appUsedBytes: used, limitBytes: q.limitMb * MB,
       // Obergrenze: ungekürzt. Der Browser verkleinert beim Zurückholen, das wird meist deutlich weniger.
       fits: !q.limitMb || used + bytes <= q.limitMb * MB,
-      // Hat die Schule eine Nextcloud? Dann können die Bilder dorthin.
-      school: !!(await this.schoolShareOf(user.userId)),
+      // Hat die Schule (oder der Server) eine Nextcloud? Dann können die Bilder dorthin.
+      school: !!shared,
+      schoolServer: shared?.snc.schoolId === SERVER_SCOPE,
     };
   }
 
   /**
    * Eigene Freigabe trennen und die Bilder dabei in die Nextcloud der Schule
-   * übernehmen: jedes Bild, das in einem Modul oder Entwurf steckt, nach
-   * Bilder/<Lehrkraft>/<Thema>/ kopieren, die Links umhängen, dann trennen.
+   * (ohne sie: des Servers) übernehmen – etwa vor der Pensionierung: jedes
+   * Bild, das in einem Modul oder Entwurf steckt, nach Bilder/<Lehrkraft>/<Thema>/
+   * kopieren, die Links umhängen, dann trennen.
    * Fehlt ein Bild, bleibt sein Link (und fehlt nach dem Trennen).
    */
   async handOverToSchool(user: any) {
     const l = await this.find(user.userId);
     if (!l?.shareToken || !l.verifiedAt) throw new BadRequestException('Keine eigene Freigabe verbunden.');
     const target = await this.storeFor(user.userId, { skipOwn: true });
-    if (!target) throw new BadRequestException('Deine Schule hat keine Nextcloud eingerichtet.');
+    if (!target) throw new BadRequestException('Weder deine Schule noch der Server haben eine Nextcloud eingerichtet.');
     const nc = await this.client(l);
     const { mods, drafts } = await this.referencing(l);
     const wanted = new Map<string, { sub: string; name: string }>();
@@ -1302,6 +1397,7 @@ export class NextcloudService implements OnApplicationBootstrap {
     await target.ensureFolder([IMAGES]);
     await target.put([IMAGES, CHECK_FILE], Buffer.from('LearningModules-Umzug', 'utf-8'), 'text/plain');
     await target.remove([IMAGES, CHECK_FILE]);
+    await this.assertSeparate({ kind: 'own', id: l.id }, base, share.token, target);
 
     const job = { running: true, copied: 0, total: 0, from: this.shareLink(l) };
     this.moves.set(l.userId, job);
@@ -1333,6 +1429,7 @@ export class NextcloudService implements OnApplicationBootstrap {
           moveResult: { at: new Date().toISOString(), from: job.from, copied: job.copied },
         });
         await this.linkRepo.save(fresh);
+        await this.claimShare({ kind: 'own', id: fresh.id }, target).catch(() => undefined);
         if (oldRead) await this.relinkReadShare(fresh, oldRead.base, oldRead.token);
       } catch (err: any) {
         const moveResult: any = { at: new Date().toISOString(), from: job.from, copied: job.copied, error: String(err?.message || err) };

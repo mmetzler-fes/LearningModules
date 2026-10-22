@@ -3,6 +3,7 @@ import { htmlToDocSpec } from '../docspec-html.js';
 import { validateDocSpec } from '../docspec.js';
 import { downloadBlob } from '../api.js';
 import { printPermissionSheet, downloadPermissionOdt } from '../terms-print.js';
+import { renderSchoolNextcloud } from './school-nextcloud.js';
 
 /** Rollenstufe eines Kontos für die Oberfläche. */
 const userLevel = (u) => (u.role === 'admin' ? 'admin' : u.isSchoolAdmin && u.schoolId ? 'schooladmin' : 'teacher');
@@ -631,6 +632,7 @@ export class AdminView {
       set('impShareHint', imp.shareHintAfter);
       const iq = await this.app.api.getImageQuotaSettings().catch(() => null);
       if (iq && typeof iq.limitMb === 'number') { set('iqWarn', iq.warnMb); set('iqLimit', iq.limitMb); }
+      void renderSchoolNextcloud(this.app, document.getElementById('adminServerNextcloud'), null, true);
       const status = document.getElementById('masterKeyStatus');
       if (status) {
         status.innerHTML = key.fingerprint

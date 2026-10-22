@@ -28,7 +28,8 @@ function currentTopicId(app) {
 /**
  * Bild in die Nextcloud hochladen. Ergebnis: Lese-URL; null, wenn keine
  * Nextcloud verbunden ist (dann bleibt es beim Bild in der App). Bei einem
- * Fehler fragt der Dialog, ob das Bild stattdessen in der App landen soll.
+ * Fehler false mit Meldung – das Bild landet dann nicht in der App, sonst
+ * lägen die Bilder verstreut (docs/nextcloud.md).
  */
 export async function uploadImageToNextcloud(app, file) {
   if (!nextcloudState.ready) return null;
@@ -37,8 +38,8 @@ export async function uploadImageToNextcloud(app, file) {
     app.showToast(`☁️ In der Nextcloud gespeichert: ${res.folder}/${res.name}`, 'success');
     return res.url;
   }
-  const keep = await app.appConfirm(`Hochladen in die Nextcloud fehlgeschlagen:\n${res?.message || 'unbekannter Fehler'}\n\nBild stattdessen in der App speichern?`);
-  return keep ? null : false;
+  app.showToast(`❌ Bild nicht gespeichert: ${res?.message || 'Die Nextcloud ist nicht erreichbar.'} Bitte später erneut versuchen.`, 'error');
+  return false;
 }
 
 // ---------- Bild aus der Nextcloud wählen ----------
@@ -245,7 +246,7 @@ async function disconnectFlow(app, box, openMove, done) {
       <p class="hint">${room === null ? 'Für Bilder in der App gibt es keine Grenze.'
         : `In der App ist noch Platz für ${mb(room)} (Grenze ${mb(u.limitBytes)}). Beim Zurückholen werden die Bilder verkleinert – ob es passt, zeigt sich danach.`}</p>
       <div class="form-actions">
-        ${u.school ? '<button class="btn btn-primary nc-hand-over">🏫 In die Nextcloud der Schule übernehmen und trennen</button>' : ''}
+        ${u.school ? `<button class="btn btn-primary nc-hand-over">🏫 In die Nextcloud ${u.schoolServer ? 'des Servers' : 'der Schule'} übernehmen und trennen</button>` : ''}
         <button class="btn ${u.school ? 'btn-secondary' : 'btn-primary'} nc-return">⬇ Zurück in die App holen und trennen</button>
         <button class="btn btn-secondary nc-to-move">🚚 Zu einer anderen Nextcloud umziehen</button>
         <button class="btn btn-danger nc-force">Trotzdem trennen</button>
@@ -255,10 +256,11 @@ async function disconnectFlow(app, box, openMove, done) {
     </div>`;
   const state = box.querySelector('.nc-return-state');
   box.querySelector('.nc-cancel-disconnect').addEventListener('click', () => { box.innerHTML = ''; });
+  const target = u.schoolServer ? 'Nextcloud des Servers' : 'Nextcloud der Schule';
   box.querySelector('.nc-hand-over')?.addEventListener('click', async () => {
     box.querySelectorAll('button').forEach((b) => { b.disabled = true; });
     state.className = 'nc-return-state hint';
-    state.textContent = `⏳ Kopiere ${u.count} Bilder in die Nextcloud der Schule …`;
+    state.textContent = `⏳ Kopiere ${u.count} Bilder in die ${target} …`;
     const res = await app.api.handOverNextcloud();
     if (!res?.success) {
       state.className = 'nc-return-state login-error';
@@ -266,7 +268,7 @@ async function disconnectFlow(app, box, openMove, done) {
       box.querySelectorAll('button').forEach((b) => { b.disabled = false; });
       return;
     }
-    await done({ text: `✅ ${res.images} Bilder liegen jetzt in der Nextcloud der Schule${res.missing ? ` (${res.missing} ließen sich nicht holen)` : ''}, die eigene Freigabe ist getrennt.` });
+    await done({ text: `✅ ${res.images} Bilder liegen jetzt in der ${target}${res.missing ? ` (${res.missing} ließen sich nicht holen)` : ''}, die eigene Freigabe ist getrennt.` });
   });
   box.querySelector('.nc-to-move').addEventListener('click', () => { box.innerHTML = ''; openMove(); });
   box.querySelector('.nc-force').addEventListener('click', async () => {
@@ -372,8 +374,8 @@ export async function openNextcloudDialog(app) {
       ? { cls: 'ok', title: `Deine Bilder landen in <strong>deiner Nextcloud</strong>${host ? ` <span class="hint">(${escapeHtml(host)})</span>` : ''}`,
         sub: `Ordner <code>Bilder/&lt;Thema&gt;</code> · geschützt durch das Passwort · kommen über diesen Server zu den Schülern${open(data.openUrl)}` }
       : schoolMode
-        ? { cls: 'ok', title: 'Deine Bilder landen in der <strong>Nextcloud deiner Schule</strong>',
-          sub: `Ordner <code>${escapeHtml(data.school.folder)}/&lt;Thema&gt;</code> · du musst nichts einrichten · der Schuladmin kann den Ordner sehen` }
+        ? { cls: 'ok', title: `Deine Bilder landen in der <strong>${data.school.server ? 'Nextcloud des Servers' : 'Nextcloud deiner Schule'}</strong>`,
+          sub: `Ordner <code>${escapeHtml(data.school.folder)}/&lt;Thema&gt;</code> · du musst nichts einrichten · der ${data.school.server ? 'Admin' : 'Schuladmin'} kann den Ordner sehen – also keine Fotos von Schülerinnen und Schülern` }
         : data.configured
           ? { cls: 'warn', title: '⚠️ Freigabe gespeichert, aber <strong>nicht verbunden</strong>', sub: 'Bitte unter „Verbindung“ erneut verbinden.' }
           : { cls: 'none', title: 'Deine Bilder landen <strong>in der App</strong> (auf dem Server, verkleinert)',

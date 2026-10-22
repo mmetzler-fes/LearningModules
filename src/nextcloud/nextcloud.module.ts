@@ -7,7 +7,7 @@ import { SystemConfig } from '../core/entities/system-config.entity';
 import { User } from '../core/entities/user.entity';
 import { ModuleDraft } from '../core/entities/module-draft.entity';
 import { SchoolNextcloud } from '../core/entities/school-nextcloud.entity';
-import { NextcloudController, NextcloudFilesController, SchoolNextcloudController } from './nextcloud.controller';
+import { NextcloudController, NextcloudFilesController, SchoolNextcloudController, ServerNextcloudController } from './nextcloud.controller';
 import { SchoolNextcloudService } from './school-nextcloud.service';
 import { NextcloudService } from './nextcloud.service';
 import { NextcloudBackupService } from './nextcloud-backup.service';
@@ -15,7 +15,7 @@ import { NextcloudBackupService } from './nextcloud-backup.service';
 /** Nextcloud je Lehrkraft für die Bilder der Module – siehe docs/nextcloud.md. */
 @Module({
   imports: [TypeOrmModule.forFeature([NextcloudLink, LearningTopic, LearningModule, SystemConfig, User, ModuleDraft, SchoolNextcloud])],
-  controllers: [NextcloudController, NextcloudFilesController, SchoolNextcloudController],
+  controllers: [NextcloudController, NextcloudFilesController, SchoolNextcloudController, ServerNextcloudController],
   providers: [NextcloudService, NextcloudBackupService, SchoolNextcloudService],
   exports: [NextcloudService],
 })

@@ -1,3 +1,6 @@
+/** Nextcloud für viele Lehrkräfte: die der Schule (Schuladmin) oder die des Servers (Admin). */
+const sharedNc = (server) => (server ? '/api/server-nextcloud' : '/api/my-school/nextcloud');
+
 // ==================== AUTH STORE ====================
 
 const TOKEN_KEY = 'lm_token';
@@ -549,12 +552,13 @@ export class BrowserApi {
   moveNextcloud(body) { return this._fetch('/api/nextcloud/move', { method: 'POST', body: JSON.stringify(body) }); }
   handOverNextcloud() { return this._fetch('/api/nextcloud/hand-over', { method: 'POST' }); }
   // Nextcloud der Schule (Schuladmin)
-  getSchoolNextcloud() { return this._fetch('/api/my-school/nextcloud'); }
-  connectSchoolNextcloud(body) { return this._fetch('/api/my-school/nextcloud', { method: 'POST', body: JSON.stringify(body) }); }
-  disconnectSchoolNextcloud(force = false) { return this._fetch(`/api/my-school/nextcloud${force ? '?force=1' : ''}`, { method: 'DELETE' }); }
-  getSchoolNextcloudFolders() { return this._fetch('/api/my-school/nextcloud/folders'); }
-  removeSchoolNextcloudFolder(folder) { return this._fetch(`/api/my-school/nextcloud/folders/${encodeURIComponent(folder)}`, { method: 'DELETE' }); }
-  moveSchoolNextcloud(body) { return this._fetch('/api/my-school/nextcloud/move', { method: 'POST', body: JSON.stringify(body) }); }
+  // server = true: Nextcloud des Servers (Admin) statt der der Schule – gleiche Endpunkte.
+  getSchoolNextcloud(server = false) { return this._fetch(sharedNc(server)); }
+  connectSchoolNextcloud(body, server = false) { return this._fetch(sharedNc(server), { method: 'POST', body: JSON.stringify(body) }); }
+  disconnectSchoolNextcloud(force = false, server = false) { return this._fetch(`${sharedNc(server)}${force ? '?force=1' : ''}`, { method: 'DELETE' }); }
+  getSchoolNextcloudFolders(server = false) { return this._fetch(`${sharedNc(server)}/folders`); }
+  removeSchoolNextcloudFolder(folder, server = false) { return this._fetch(`${sharedNc(server)}/folders/${encodeURIComponent(folder)}`, { method: 'DELETE' }); }
+  moveSchoolNextcloud(body, server = false) { return this._fetch(`${sharedNc(server)}/move`, { method: 'POST', body: JSON.stringify(body) }); }
   listNextcloudImages({ folder, topicId } = {}) {
     const q = new URLSearchParams();
     if (folder) q.set('folder', folder);

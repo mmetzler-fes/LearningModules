@@ -3,7 +3,7 @@ import type { Response } from 'express';
 import { baseUrl } from '../core/share/link-url';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { NextcloudService, MAX_IMAGE_BYTES } from './nextcloud.service';
+import { NextcloudService, MAX_IMAGE_BYTES, SERVER_SCOPE } from './nextcloud.service';
 import { NextcloudBackupService } from './nextcloud-backup.service';
 import { SchoolNextcloudService } from './school-nextcloud.service';
 
@@ -158,42 +158,68 @@ export class NextcloudFilesController {
   }
 }
 
-/** Nextcloud der Schule – nur für Schuladmins (docs/nextcloud.md). */
-@Controller('my-school/nextcloud')
-@UseGuards(JwtAuthGuard)
-export class SchoolNextcloudController {
-  constructor(private readonly school: SchoolNextcloudService) {}
+/**
+ * Eine Nextcloud für die Bilder vieler Lehrkräfte (school_nextcloud): die der
+ * Schule oder die des Servers. Die Unterklasse sagt, welche – und wer darf.
+ */
+abstract class SharedNextcloudController {
+  constructor(protected readonly school: SchoolNextcloudService) {}
+
+  protected abstract scope(req: any): string;
 
   @Get()
   async status(@Request() req: any) {
-    return this.school.status(req.user);
+    return this.school.status(this.scope(req));
   }
 
   /** `{ shareUrl, password? }` – speichert und prüft gleich. */
   @Post()
   async connect(@Request() req: any, @Body() body: any) {
-    return this.school.connect(req.user, body || {}, baseUrl(req));
+    return this.school.connect(this.scope(req), body || {}, baseUrl(req));
   }
 
   /** `?force=1`: auch trennen, wenn noch Bilder daraus in Modulen stecken. */
   @Delete()
   async disconnect(@Request() req: any, @Query('force') force?: string) {
-    return this.school.disconnect(req.user, force === '1');
+    return this.school.disconnect(this.scope(req), force === '1');
   }
 
   @Get('folders')
   async folders(@Request() req: any) {
-    return this.school.folders(req.user);
+    return this.school.folders(this.scope(req));
   }
 
   @Delete('folders/:folder')
   async removeFolder(@Request() req: any, @Param('folder') folder: string) {
-    return this.school.removeFolder(req.user, folder);
+    return this.school.removeFolder(this.scope(req), folder);
   }
 
   /** `{ shareUrl, password }` – umziehen, Bilder werden mitkopiert. */
   @Post('move')
   async move(@Request() req: any, @Body() body: any) {
-    return this.school.startMove(req.user, body || {}, baseUrl(req));
+    return this.school.startMove(this.scope(req), body || {}, baseUrl(req));
+  }
+}
+
+/** Nextcloud der Schule – nur für Schuladmins (docs/nextcloud.md). */
+@Controller('my-school/nextcloud')
+@UseGuards(JwtAuthGuard)
+export class SchoolNextcloudController extends SharedNextcloudController {
+  constructor(school: SchoolNextcloudService) { super(school); }
+
+  protected scope(req: any) {
+    return this.school.schoolOf(req.user);
+  }
+}
+
+/** Nextcloud des Servers für Lehrkräfte, deren Schule keine hat – nur für Admins. */
+@Controller('server-nextcloud')
+@UseGuards(JwtAuthGuard)
+export class ServerNextcloudController extends SharedNextcloudController {
+  constructor(school: SchoolNextcloudService) { super(school); }
+
+  protected scope(req: any) {
+    if (req.user?.role !== 'admin') throw new ForbiddenException('Nur Admins haben Zugriff.');
+    return SERVER_SCOPE;
   }
 }

@@ -1,4 +1,4 @@
-import { NextcloudService, dataImageSizes } from './nextcloud.service';
+import { NextcloudService, OWNER_FILE, SERVER_SCOPE, dataImageSizes } from './nextcloud.service';
 import { SchoolNextcloudService } from './school-nextcloud.service';
 
 const CLOUD = 'https://93.184.216.34'; // öffentliche Adresse – keine DNS-Abfrage nötig
@@ -480,7 +480,6 @@ describe('Nextcloud der Schule', () => {
   beforeEach(() => { cloud = fakeNextcloud(); jest.spyOn(global, 'fetch').mockImplementation(cloud.impl as any); });
   afterEach(() => jest.restoreAllMocks());
 
-  const admin = { userId: 'adm', isSchoolAdmin: true, schoolId: 's1' };
   const FOLDER = 'Max Muster (a1b2c3d4)';
   const inSchool = (path: string) => `SchulNC/public.php/webdav/Bilder/${path}`;
 
@@ -488,15 +487,16 @@ describe('Nextcloud der Schule', () => {
   async function scene() {
     const env = setup(null);
     env.users[0].schoolId = 's1';
-    await env.school.connect(admin, { shareUrl: `${CLOUD}/s/SchulNC`, password: 'schule' }, APP);
+    await env.school.connect('s1', { shareUrl: `${CLOUD}/s/SchulNC`, password: 'schule' }, APP);
     return { ...env, snc: env.schoolNc[0] };
   }
   const schUrl = (snc: any, folder: string, sub: string, name: string) =>
     `${APP}/api/nextcloud/sch/${snc.id}/${encodeURIComponent(folder)}/${encodeURIComponent(sub)}/${encodeURIComponent(name)}`;
 
-  it('nur für Schuladmins', async () => {
+  it('nur für Schuladmins', () => {
     const { school } = setup(null);
-    await expect(school.status({ userId: 'x', schoolId: 's1' })).rejects.toThrow(/Schuladmins/);
+    expect(() => school.schoolOf({ userId: 'x', schoolId: 's1' })).toThrow(/Schuladmins/);
+    expect(school.schoolOf({ userId: 'adm', isSchoolAdmin: true, schoolId: 's1' })).toBe('s1');
   });
 
   it('Lehrkräfte ohne eigene Freigabe legen Bilder in Bilder/<Lehrkraft>/<Thema>/ ab', async () => {
@@ -543,23 +543,22 @@ describe('Nextcloud der Schule', () => {
     topics.push({ id: 't1', ownerId: USER_ID });
     moduleRepo.rows.push({ id: 'm', topicId: 't1', creatorId: USER_ID, content: { image: up.url } });
     // Ordner-Übersicht: in Gebrauch – löschen geht nicht.
-    expect((await school.folders(admin)).folders).toMatchObject([{ folder: FOLDER, teacher: 'Max Muster', atSchool: true, images: 1, references: 1 }]);
-    await expect(school.removeFolder(admin, FOLDER)).rejects.toThrow(/noch in 1/);
+    expect((await school.folders('s1')).folders).toMatchObject([{ folder: FOLDER, teacher: 'Max Muster', atSchool: true, images: 1, references: 1 }]);
+    await expect(school.removeFolder('s1', FOLDER)).rejects.toThrow(/noch in 1/);
     // Wechsel an eine Schule ohne Nextcloud: der Link bleibt und funktioniert.
     users[0].schoolId = 's2';
     await svc.followOwners();
     expect(moduleRepo.rows[0].content.image).toBe(up.url);
-    expect((await school.folders(admin)).folders[0]).toMatchObject({ atSchool: false, references: 1 });
+    expect((await school.folders('s1')).folders[0]).toMatchObject({ atSchool: false, references: 1 });
     // Die neue Schule verbindet ihre Nextcloud → Bilder ziehen mit.
-    const admin2 = { userId: 'adm2', isSchoolAdmin: true, schoolId: 's2' };
-    await school.connect(admin2, { shareUrl: `${CLOUD}/s/NeueSchule`, password: 'x' }, APP);
+    await school.connect('s2', { shareUrl: `${CLOUD}/s/NeueSchule`, password: 'x' }, APP);
     await svc.followOwners();
     expect(moduleRepo.rows[0].content.image).toContain('/api/nextcloud/sch/');
     expect(moduleRepo.rows[0].content.image).not.toContain(snc.id);
     expect(cloud.files.has(`NeueSchule/public.php/webdav/Bilder/${FOLDER}/Englisch Reisen/gate.png`)).toBe(true);
     // Jetzt kann die alte Schule aufräumen.
-    expect((await school.folders(admin)).folders[0]).toMatchObject({ references: 0 });
-    await school.removeFolder(admin, FOLDER);
+    expect((await school.folders('s1')).folders[0]).toMatchObject({ references: 0 });
+    await school.removeFolder('s1', FOLDER);
     expect(cloud.files.has(inSchool(`${FOLDER}/Englisch Reisen/gate.png`))).toBe(false);
   });
 
@@ -568,15 +567,15 @@ describe('Nextcloud der Schule', () => {
     const up = await svc.uploadImage(user, 't1', png);
     topics.push({ id: 't1', ownerId: USER_ID });
     moduleRepo.rows.push({ id: 'm', topicId: 't1', creatorId: USER_ID, content: { image: up.url } });
-    await expect(school.disconnect(admin)).rejects.toThrow(/trotzdem trennen/);
-    await expect(school.connect(admin, { shareUrl: `${CLOUD}/s/Andere`, password: 'x' }, APP)).rejects.toThrow(/Umziehen/);
-    await school.startMove(admin, { shareUrl: `${CLOUD}/s/Andere`, password: 'x' }, APP);
+    await expect(school.disconnect('s1')).rejects.toThrow(/trotzdem trennen/);
+    await expect(school.connect('s1', { shareUrl: `${CLOUD}/s/Andere`, password: 'x' }, APP)).rejects.toThrow(/Umziehen/);
+    await school.startMove('s1', { shareUrl: `${CLOUD}/s/Andere`, password: 'x' }, APP);
     await school.waitForMove('s1');
     expect(cloud.files.has(`Andere/public.php/webdav/Bilder/${FOLDER}/Englisch Reisen/gate.png`)).toBe(true);
-    expect((await school.status(admin)).shareUrl).toBe(`${CLOUD}/s/Andere`);
+    expect((await school.status('s1')).shareUrl).toBe(`${CLOUD}/s/Andere`);
     cloud.files.delete(inSchool(`${FOLDER}/Englisch Reisen/gate.png`));
     expect((await svc.readImageByUrl(up.url))?.data.toString()).toBe('PNGDATA');
-    await school.disconnect(admin, true);
+    await school.disconnect('s1', true);
     expect(await svc.status(user)).toMatchObject({ ready: false, mode: null });
   });
 
@@ -586,8 +585,8 @@ describe('Nextcloud der Schule', () => {
     const second = await svc.uploadImage(user, 't1', { ...png, originalname: 'tor.png' });
     topics.push({ id: 't1', ownerId: USER_ID });
     moduleRepo.rows.push({ id: 'm', topicId: 't1', creatorId: USER_ID, content: { image: up.url, other: second.url } });
-    await school.disconnect(admin, true);
-    await school.connect(admin, { shareUrl: `${CLOUD}/s/Andere`, password: 'x' }, APP);
+    await school.disconnect('s1', true);
+    await school.connect('s1', { shareUrl: `${CLOUD}/s/Andere`, password: 'x' }, APP);
     // Gleich nach dem Wechsel liefert der Server aus der früheren Freigabe.
     expect((await svc.readImageByUrl(up.url))?.data.toString()).toBe('PNGDATA');
     // Eins liegt nirgends mehr: wird der Lehrkraft gemeldet.
@@ -596,6 +595,37 @@ describe('Nextcloud der Schule', () => {
     expect(cloud.files.has(`Andere/public.php/webdav/Bilder/${FOLDER}/Englisch Reisen/gate.png`)).toBe(true);
     expect(moduleRepo.rows[0].content.image).toBe(up.url);
     expect(((await svc.status(user)) as any).imageCheck).toMatchObject({ count: 1, missing: [{ sub: 'Englisch Reisen', name: 'tor.png', path: `Bilder/${FOLDER}/Englisch Reisen/tor.png` }] });
+  });
+
+  it('Schuladmin als Lehrkraft: eigene Ablage nur in einem anderen Ordner als dem der Schule', async () => {
+    const { svc, school } = await scene();
+    await expect(svc.connect(user, { shareUrl: `${CLOUD}/s/SchulNC`, password: 'schule' }, APP)).rejects.toThrow(/eigenen Ordner/);
+    await svc.connect(user, { shareUrl: `${CLOUD}/s/EigenTok`, password: 'pw' }, APP);
+    expect(await svc.status(user)).toMatchObject({ mode: 'own' });
+    expect(JSON.parse(cloud.files.get(`EigenTok/public.php/webdav/${OWNER_FILE}`)!.toString())).toMatchObject({ kind: 'own' });
+    expect(JSON.parse(cloud.files.get(`SchulNC/public.php/webdav/${OWNER_FILE}`)!.toString())).toMatchObject({ kind: 'school' });
+    // Umgekehrt: die Schule nicht in den Ordner der Lehrkraft umziehen.
+    await expect(school.startMove('s1', { shareUrl: `${CLOUD}/s/EigenTok`, password: 'pw' }, APP)).rejects.toThrow(/eigenen Ordner/);
+  });
+
+  it('erkennt denselben Ordner hinter einem anderen Freigabelink', async () => {
+    const { svc, school } = await scene();
+    // Zweiter Link auf den Ordner der Schule: gleiche Kennungsdatei.
+    cloud.files.set(`ZweitLink/public.php/webdav/${OWNER_FILE}`, cloud.files.get(`SchulNC/public.php/webdav/${OWNER_FILE}`)!);
+    await expect(svc.connect(user, { shareUrl: `${CLOUD}/s/ZweitLink`, password: 'pw' }, APP)).rejects.toThrow(new RegExp(OWNER_FILE.replace('.', '\\.')));
+    expect(await svc.status(user)).toMatchObject({ mode: 'school' });
+    // Nutzt die Schule ihn nicht mehr, geht er.
+    await school.disconnect('s1', true);
+    await svc.connect(user, { shareUrl: `${CLOUD}/s/ZweitLink`, password: 'pw' }, APP);
+    expect(JSON.parse(cloud.files.get(`ZweitLink/public.php/webdav/${OWNER_FILE}`)!.toString())).toMatchObject({ kind: 'own' });
+  });
+
+  it('aufräumen löscht nur Ordner von Lehrkräften', async () => {
+    const { school } = await scene();
+    cloud.files.set(inSchool('Englisch Reisen/gate.png'), Buffer.from('PNG'));
+    expect((await school.folders('s1')).folders).toMatchObject([{ folder: 'Englisch Reisen', removable: false, references: 0 }]);
+    await expect(school.removeFolder('s1', 'Englisch Reisen')).rejects.toThrow(/kein Ordner einer Lehrkraft/);
+    expect(cloud.files.has(inSchool('Englisch Reisen/gate.png'))).toBe(true);
   });
 
   it('eigene Freigabe trennen: Bilder in die Nextcloud der Schule übernehmen', async () => {
@@ -612,6 +642,65 @@ describe('Nextcloud der Schule', () => {
   });
 });
 
+describe('Nextcloud des Servers', () => {
+  let cloud: ReturnType<typeof fakeNextcloud>;
+  beforeEach(() => { cloud = fakeNextcloud(); jest.spyOn(global, 'fetch').mockImplementation(cloud.impl as any); });
+  afterEach(() => jest.restoreAllMocks());
+
+  const FOLDER = 'Max Muster (a1b2c3d4)';
+
+  /** Max (USER_ID) an Schule s1 ohne Nextcloud; der Admin hat die des Servers verbunden. */
+  async function scene() {
+    const env = setup(null);
+    env.users[0].schoolId = 's1';
+    await env.school.connect(SERVER_SCOPE, { shareUrl: `${CLOUD}/s/ServerNC`, password: 'srv' }, APP);
+    return { ...env, server: env.schoolNc[0] };
+  }
+
+  it('nimmt die Bilder von Lehrkräften auf, deren Schule keine Nextcloud hat – auch ohne Schule', async () => {
+    const { svc, users } = await scene();
+    expect(await svc.status(user)).toMatchObject({ ready: true, mode: 'school', school: { available: true, server: true } });
+    await svc.uploadImage(user, 't1', png);
+    expect(cloud.files.has(`ServerNC/public.php/webdav/Bilder/${FOLDER}/Englisch Reisen/gate.png`)).toBe(true);
+    users[0].schoolId = null;
+    expect(await svc.status(user)).toMatchObject({ mode: 'school', school: { server: true } });
+  });
+
+  it('verbindet die Schule später ihre Nextcloud, ziehen die Bilder dorthin', async () => {
+    const { svc, school, moduleRepo, topics, server } = await scene();
+    const up = await svc.uploadImage(user, 't1', png);
+    topics.push({ id: 't1', ownerId: USER_ID });
+    moduleRepo.rows.push({ id: 'm', topicId: 't1', creatorId: USER_ID, content: { image: up.url } });
+    expect((await school.folders(SERVER_SCOPE)).folders).toMatchObject([{ folder: FOLDER, atSchool: true, references: 1 }]);
+    await school.connect('s1', { shareUrl: `${CLOUD}/s/SchulNC`, password: 'schule' }, APP);
+    expect(await svc.status(user)).toMatchObject({ school: { server: false } });
+    await svc.followOwners();
+    expect(moduleRepo.rows[0].content.image).toContain('/api/nextcloud/sch/');
+    expect(moduleRepo.rows[0].content.image).not.toContain(server.id);
+    expect(cloud.files.has(`SchulNC/public.php/webdav/Bilder/${FOLDER}/Englisch Reisen/gate.png`)).toBe(true);
+    // Beim Server ist der Ordner jetzt frei zum Aufräumen.
+    expect((await school.folders(SERVER_SCOPE)).folders).toMatchObject([{ folder: FOLDER, atSchool: false, references: 0 }]);
+  });
+
+  it('Schule und Server brauchen verschiedene Ordner', async () => {
+    const { school } = await scene();
+    await expect(school.connect('s1', { shareUrl: `${CLOUD}/s/ServerNC`, password: 'srv' }, APP)).rejects.toThrow(/eigenen Ordner/);
+    cloud.files.set(`Zweit/public.php/webdav/${OWNER_FILE}`, cloud.files.get(`ServerNC/public.php/webdav/${OWNER_FILE}`)!);
+    await expect(school.connect('s1', { shareUrl: `${CLOUD}/s/Zweit`, password: 'x' }, APP)).rejects.toThrow(/eigenen Ordner/);
+  });
+
+  it('eigene Freigabe abgeben (etwa vor der Pensionierung): ohne Schul-Nextcloud an die des Servers', async () => {
+    const { svc, moduleRepo, topics, server } = await scene();
+    await svc.connect(user, { shareUrl: `${CLOUD}/s/EigenTok`, password: 'pw' }, APP);
+    const up = await svc.uploadImage(user, 't1', png);
+    topics.push({ id: 't1', ownerId: USER_ID });
+    moduleRepo.rows.push({ id: 'm', topicId: 't1', creatorId: USER_ID, content: { image: up.url } });
+    expect(await svc.usage(user)).toMatchObject({ school: true, schoolServer: true });
+    expect(await svc.handOverToSchool(user)).toMatchObject({ images: 1, missing: 0, modules: 1 });
+    expect(moduleRepo.rows[0].content.image).toContain(`/api/nextcloud/sch/${server.id}/`);
+  });
+});
+
 describe('Bilder aus der App automatisch auslagern', () => {
   let cloud: ReturnType<typeof fakeNextcloud>;
   beforeEach(() => { cloud = fakeNextcloud(); jest.spyOn(global, 'fetch').mockImplementation(cloud.impl as any); });
@@ -622,7 +711,7 @@ describe('Bilder aus der App automatisch auslagern', () => {
   it('lagert in die Ablage der Themen-Eigentümerin aus – auch Gekauftes, gleiche Bilder einmal', async () => {
     const env = setup(null);
     env.users[0].schoolId = 's1';
-    await env.school.connect({ userId: 'adm', isSchoolAdmin: true, schoolId: 's1' }, { shareUrl: `${CLOUD}/s/SchulNC`, password: 'x' }, APP);
+    await env.school.connect('s1', { shareUrl: `${CLOUD}/s/SchulNC`, password: 'x' }, APP);
     env.topics.push({ id: 'tq', ownerId: USER_ID, title: 'Reisen' }, { id: 'fremd', ownerId: 'niemand', title: 'X' });
     env.moduleRepo.rows.push(
       // gekauft: Verfasserin ist jemand anderes
@@ -648,7 +737,7 @@ describe('Bilder aus der App automatisch auslagern', () => {
   it('überschreibt nicht, was die Lehrkraft während des Hochladens gespeichert hat', async () => {
     const env = setup(null);
     env.users[0].schoolId = 's1';
-    await env.school.connect({ userId: 'adm', isSchoolAdmin: true, schoolId: 's1' }, { shareUrl: `${CLOUD}/s/SchulNC`, password: 'x' }, APP);
+    await env.school.connect('s1', { shareUrl: `${CLOUD}/s/SchulNC`, password: 'x' }, APP);
     env.topics.push({ id: 'tq', ownerId: USER_ID, title: 'Reisen' });
     env.moduleRepo.rows.push({ id: 'e', topicId: 'tq', creatorId: USER_ID, content: { image: img('b'), extra: '' } });
     const neu = `${APP}/api/nextcloud/sch/x/Max/Reisen/bild-neu.png`;
@@ -671,18 +760,17 @@ describe('Nextcloud der Schule: nur mit Passwort', () => {
   let cloud: ReturnType<typeof fakeNextcloud>;
   beforeEach(() => { cloud = fakeNextcloud(); jest.spyOn(global, 'fetch').mockImplementation(cloud.impl as any); });
   afterEach(() => jest.restoreAllMocks());
-  const admin = { userId: 'adm', isSchoolAdmin: true, schoolId: 's1' };
 
   it('lehnt Freigaben ohne Passwort ab – beim Verbinden und beim Umziehen', async () => {
     const { school, svc, schoolNc } = setup(null);
-    await expect(school.connect(admin, { shareUrl: `${CLOUD}/s/SchulNC` }, APP)).rejects.toThrow(/Passwort der Freigabe angeben/);
+    await expect(school.connect('s1', { shareUrl: `${CLOUD}/s/SchulNC` }, APP)).rejects.toThrow(/Passwort der Freigabe angeben/);
     cloud.open.add('Offen');
-    await expect(school.connect(admin, { shareUrl: `${CLOUD}/s/Offen`, password: 'x' }, APP)).rejects.toThrow(/ohne Passwort öffnen/);
-    await school.connect(admin, { shareUrl: `${CLOUD}/s/SchulNC`, password: 'x' }, APP);
-    await expect(school.startMove(admin, { shareUrl: `${CLOUD}/s/Offen`, password: 'x' }, APP)).rejects.toThrow(/ohne Passwort öffnen/);
+    await expect(school.connect('s1', { shareUrl: `${CLOUD}/s/Offen`, password: 'x' }, APP)).rejects.toThrow(/ohne Passwort öffnen/);
+    await school.connect('s1', { shareUrl: `${CLOUD}/s/SchulNC`, password: 'x' }, APP);
+    await expect(school.startMove('s1', { shareUrl: `${CLOUD}/s/Offen`, password: 'x' }, APP)).rejects.toThrow(/ohne Passwort öffnen/);
     cloud.open.add('SchulNC');
     await svc.checkProtection();
     expect(schoolNc[0].insecureAt).toBeInstanceOf(Date);
-    expect(await school.status(admin)).toMatchObject({ verified: true, insecure: true });
+    expect(await school.status('s1')).toMatchObject({ verified: true, insecure: true });
   });
 });

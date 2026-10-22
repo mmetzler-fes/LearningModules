@@ -34,6 +34,7 @@ getrennt: Sie regelt nur, wer sich überhaupt registrieren darf.
 | Gruppen der Schule pflegen | ✔ | ✔ | |
 | Tag-Struktur der Schule pflegen | | ✔ | nutzen |
 | [Nextcloud der Schule für Bilder](nextcloud.md#nextcloud-der-schule) einrichten, umziehen, aufräumen | | ✔ | nutzen |
+| [Nextcloud des Servers für Bilder](nextcloud.md#nextcloud-des-servers) (Schulen ohne eigene) | ✔ | | nutzen |
 | Schulübergreifende Gruppen pflegen | ✔ | | |
 
 ¹ Der Hauptadmin kann diese Rechte je Schule entziehen.

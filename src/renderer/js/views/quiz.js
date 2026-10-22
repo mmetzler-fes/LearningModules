@@ -152,7 +152,8 @@ export class QuizView {
     const modules = [];
     for (const topic of data.topics || []) {
       for (const mod of topic.modules || []) {
-        modules.push({ ...mod, _topicId: topic.id, _topicTitle: topic.title });
+        // _inkEdit: „✍️ Bearbeiten“ über Dokumenten (Freischaltung der Lehrkraft des Themas).
+        modules.push({ ...mod, _topicId: topic.id, _topicTitle: topic.title, _inkEdit: !!topic.inkEdit });
       }
     }
     if (modules.length === 0) {
@@ -208,7 +209,9 @@ export class QuizView {
         .filter((m) => !m.parentId)
         .sort((a, b) => (a.orderIndex || 0) - (b.orderIndex || 0));
     }
-    const modules = source.filter((m) => m.moduleSelected !== false);
+    // Über den Quick-Link: „✍️ Bearbeiten“, wenn die Lehrkraft des Themas den Stift-Editor hat.
+    const inkEdit = !!(this.app.state.quickSession?.token && freshTopic.inkEdit);
+    const modules = source.filter((m) => m.moduleSelected !== false).map((m) => (inkEdit ? { ...m, _inkEdit: true } : m));
     if (modules.length === 0) { this.app.showToast(t('quiz.no.modules'), 'error'); return; }
     const plan = planRun(modules);
 
@@ -340,6 +343,7 @@ export class QuizView {
         // Quizze im Dokument (planRun); in der Lernbegleitung kommen sie als eigene Aufgabe.
         embedModule: (id) => qs.embedded?.get(id) || null,
         embedMissingText: this._companion ? 'Dieses Quiz kommt gleich als eigene Aufgabe.' : undefined,
+        inkEdit: mod._inkEdit ? 'student' : null,
         // Für Aufgaben, die etwas hochladen (Audio Recorder)
         upload: {
           linkToken: qs.linkToken || null,

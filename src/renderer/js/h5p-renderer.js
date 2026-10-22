@@ -1570,6 +1570,44 @@ export class H5pRenderer {
           });
           div.prepend(pdfBtn);
         }
+        // Mit Stift, Finger oder Maus bearbeiten (js/ink/ink-editor.js): Schüler
+        // über ihren Link (nur das Blatt), Lehrkräfte in Vorschau und Notebooks
+        // (dazu das Lösungsblatt). Gespeichert wird vorerst nur auf dem Gerät.
+        // Freischaltung „Stift-Editor“: die Aufrufer setzen inkEdit nur dann.
+        const inkMode = options.inkEdit === 'teacher' || (options.inkEdit === 'student' && up && (up.linkToken || up.quickToken)) ? options.inkEdit : null;
+        if (inkMode && options.moduleId) {
+          const inkBtn = document.createElement('button');
+          inkBtn.type = 'button';
+          inkBtn.className = 'btn btn-primary btn-sm ds-ink-btn';
+          inkBtn.textContent = '✍️ Bearbeiten';
+          inkBtn.title = 'Das Blatt mit Stift, Finger oder Maus beschriften – gespeichert auf diesem Gerät';
+          inkBtn.addEventListener('click', async () => {
+            inkBtn.disabled = true;
+            try {
+              const { openInkEditor } = await import('./ink/ink-editor.js');
+              const fetchPdf = async (variant) => {
+                const res = inkMode === 'student'
+                  ? await fetch(`/api/public/document/${encodeURIComponent(options.moduleId)}/pdf`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ linkToken: up.linkToken || undefined, quickToken: up.quickToken || undefined, password: up.password || undefined, studentTicket: up.studentTicket || undefined }),
+                  })
+                  : await fetch('/api/worksheets/render', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${sessionStorage.getItem('lm_token') || localStorage.getItem('lm_token') || ''}` },
+                    body: JSON.stringify({ spec, title: options.title || '', output: variant === 'loesung' ? 'loesung_pdf' : 'pdf', moduleId: options.moduleId, kind: content.kind }),
+                  });
+                if (!res.ok) throw new Error((await res.json().catch(() => ({}))).message || `HTTP ${res.status}`);
+                return res.arrayBuffer();
+              };
+              await openInkEditor({ title: options.title || 'Arbeitsblatt', key: `${inkMode}:${options.moduleId}`, loadPdf: fetchPdf, solutions: inkMode === 'teacher' });
+            } catch (err) {
+              inkBtn.textContent = `⚠️ ${err.message}`;
+            }
+            inkBtn.disabled = false;
+          });
+          div.prepend(inkBtn);
+        }
         // Lösungen: in der Vorschau zum Aufdecken, im Quiz bleiben sie verborgen.
         if (!options.quizMode && div.querySelector('.ds-solution')) {
           const btn = document.createElement('button');

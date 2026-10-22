@@ -101,7 +101,7 @@ export class PublicController {
       // Die Lehrkraft, die den Link verteilt hat – nicht zwingend die, von
       // der die Aufgaben stammen. Dort landen später die Ergebnisse.
       teacherEmail: teacher.email,
-      topic: { ...safeTopic, modules: (safeTopic.modules || []).map(forStudents) },
+      topic: { ...safeTopic, modules: (safeTopic.modules || []).map(forStudents), inkEdit: await this.inkEditFor(topic.ownerId) },
     };
   }
 
@@ -279,13 +279,22 @@ export class PublicController {
       companion: mode === 'companion'
         ? await this.companionService.effectiveFor(link.ownerId, link.companionSettings)
         : undefined,
-      topics: resolved.map((r) => ({
+      topics: await Promise.all(resolved.map(async (r) => ({
         id: r.topic.id,
         title: r.topic.title,
         description: r.topic.description,
         modules: r.modules.map(forStudents),
-      })),
+        inkEdit: await this.inkEditFor(r.topic.ownerId),
+      }))),
     };
+  }
+
+  /**
+   * Zeigt der Schülerzugang „✍️ Bearbeiten“ über Dokumenten? Nur, wenn die
+   * Lehrkraft, der das Lernthema gehört, Stift-Editor und Dokumente hat.
+   */
+  private async inkEditFor(ownerId: string) {
+    return (await this.features.has(ownerId, 'inkEditor')) && (await this.features.has(ownerId, 'worksheets'));
   }
 
   /**

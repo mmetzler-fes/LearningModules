@@ -176,7 +176,11 @@ Der letzte aktive Admin lässt sich weder löschen noch herabstufen.
 ## Funktionen in Entwicklung
 
 Oben in der Benutzerverwaltung stehen Funktionen, die noch erprobt werden –
-derzeit **🧪 Arbeitsblätter** ([Dokumente](dokumente.md)). Je Funktion:
+derzeit **🧪 Arbeitsblätter** ([Dokumente](dokumente.md)), **🧪 PDF-Import**
+und **🧪 Stift-Editor** ([Mit Stift bearbeiten](dokumente.md#mit-stift-bearbeiten-in-erprobung)).
+PDF-Import und Stift-Editor wirken nur zusammen mit den Arbeitsblättern.
+Den Stift-Editor sehen Schülerinnen und Schüler über ihren Link, wenn die
+Lehrkraft, der das Lernthema gehört, ihn freigeschaltet hat. Je Funktion:
 
 - **aus** – niemand sieht sie,
 - **nur ausgewählte Konten** – Häkchen 🧪 an den Konten in der Liste; der

@@ -23,12 +23,33 @@ nach Tags; beide zeigen dieselben Lernthemen.
   Abschnitte.
 - **Suchen** filtert nach Titeln von Lernthemen und Modulen und klappt die
   Treffer auf.
-- Ein aufgeklapptes Lernthema zeigt seine Module. Ein Klick auf ein Modul (oder
-  ✏️) öffnet den Editor; nach dem Speichern geht es hierher zurück.
+- Ein aufgeklapptes Lernthema zeigt seine Module. Ein Klick auf ein Modul
+  zeigt es rechts in der [Vorschau](#vorschau); **Doppelklick** oder ✏️ öffnet
+  den Editor, nach dem Speichern geht es hierher zurück.
 - **●** / **○** neben Lernthema und Modul zeigt, ob es für Schüler freigegeben
   bzw. aktiv ist – ein Klick schaltet um.
 - 📗 mit 🔗 und Namen: ein Lernthema, das du im Shop zur Nutzung erworben hast.
   Seine Module kannst du ansehen, aber nicht bearbeiten.
+
+## Vorschau
+
+Rechts neben dem Baum steht die **👁 Vorschau**:
+
+- **Modul:** so, wie die Schüler es über ihren Link sehen – zum Ausprobieren.
+  Ein **Dokument** erscheint als Lese-Seite ohne Lösungen, eingebettete Quizze
+  laufen mit. Ist das Lernthema nicht freigegeben oder das Modul inaktiv,
+  steht ein Hinweis darüber. **✏️ Bearbeiten** öffnet den Editor,
+  **⛶ Vollbild** die Vorschau über die ganze Seite.
+- **Lernthema:** Stand und Liste der Module – ein Klick zeigt das Modul.
+- **Book, Bereich, Abschnitt:** wie viele Lernthemen (und davon freigegeben)
+  und Module darin stecken.
+
+Die Zeile, die rechts zu sehen ist, ist im Baum markiert. **◀ / ▶** klappt
+Baum oder Vorschau zu einer schmalen Leiste zusammen und wieder auf. Ist die
+Vorschau zu, öffnet ein Klick auf ein Modul wie früher gleich den Editor. Die
+Breite der Vorschau lässt sich am Trenner ziehen (Doppelklick stellt sie
+zurück). Auf schmalen Bildschirmen steht die Vorschau unter dem Baum. Breite
+und Zustand merkt sich der Browser.
 
 ## Erster Aufruf
 
@@ -211,4 +232,5 @@ tragen `quickNodeId`.
 Fach und Bildungsstufe gibt es nur beim Anbieten im Shop – siehe
 [Kategorien](kategorien.md).
 
-Code: `src/notebooks/`, `src/renderer/js/views/notebooks.js`.
+Code: `src/notebooks/`, `src/renderer/js/views/notebooks.js`, Vorschau in
+`src/renderer/js/views/notebook-preview.js`.

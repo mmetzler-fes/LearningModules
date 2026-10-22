@@ -4,6 +4,7 @@ import { pickClass } from './classes.js';
 import { TagPicker, chipHtml } from './tags.js';
 import { openFeedbackDialog } from './feedback.js';
 import { openImportDialog } from './import-dialog.js';
+import { NotebookPreview } from './notebook-preview.js';
 
 // ==================== NOTEBOOKS ====================
 //
@@ -71,6 +72,7 @@ export class NotebooksView {
       this._closeMenu();
     });
     window.addEventListener('resize', () => this._closeMenu());
+    this._preview = new NotebookPreview(this);
   }
 
   async refresh() {
@@ -91,6 +93,7 @@ export class NotebooksView {
     if (!(this.app.state.tags || []).length) await this.app.loadTags();
     this._index();
     this._render();
+    this._preview.refresh();
   }
 
   // ---------- Daten ----------
@@ -212,7 +215,7 @@ export class NotebooksView {
 
   _row({ key, depth, icon, title, num = '', meta = '', extra = '', twisty = true, open = false, cls = '', drag = null }) {
     const row = document.createElement('div');
-    row.className = `nb-row ${cls}`;
+    row.className = `nb-row ${cls} ${this._preview?.currentKey === key ? 'nb-current' : ''}`;
     row.style.setProperty('--depth', depth);
     row.dataset.key = key;
     if (drag) row.draggable = true;
@@ -230,6 +233,13 @@ export class NotebooksView {
     }
     if (drag) this._bindDrag(row, drag);
     return row;
+  }
+
+  /** Die Zeile hervorheben, die rechts in der Vorschau steht. */
+  _markCurrent() {
+    const key = this._preview?.currentKey;
+    this._tree.querySelectorAll('.nb-row.nb-current').forEach((r) => r.classList.remove('nb-current'));
+    if (key) this._tree.querySelector(`.nb-row[data-key="${CSS.escape(key)}"]`)?.classList.add('nb-current');
   }
 
   _menuOn(row, items) {
@@ -278,6 +288,7 @@ export class NotebooksView {
       cls: `nb-node nb-kind-${node.kind}`, meta: parts.join(' · '), extra: this._chips(node.tagIds) + this._docBadge(node),
       drag: { type: 'node', id: node.id, kind: node.kind },
     });
+    row.querySelector('.nb-title').addEventListener('click', () => { if (this._preview.open) this._preview.showNode(node); });
     this._menuOn(row, () => this._nodeMenu(node));
     this._bindDrop(row, { type: 'node', id: node.id, kind: node.kind });
     wrap.appendChild(row);
@@ -318,6 +329,7 @@ export class NotebooksView {
       topic.selected = !topic.selected;
       this._render();
     });
+    row.querySelector('.nb-title').addEventListener('click', () => { if (this._preview.open) this._preview.showTopic(topic); });
     this._menuOn(row, () => (own ? this._topicMenu(topic) : inMirror ? this._mirrorTopicMenu(topic) : this._grantedMenu(topic)));
     if (inMirror) { row.draggable = false; row.classList.add('nb-mirror-row'); } else {
       this._bindDrop(row, { type: 'topic', id: topic.id, own });
@@ -365,7 +377,11 @@ export class NotebooksView {
         : ''),
       drag: own && !mod.parentId ? { type: 'module', id: mod.id, topicId: topic.id } : null,
     });
-    row.querySelector('.nb-title').addEventListener('click', () => this.app.modulesView.openFrom('teacher-notebooks', topic.id, mod, own ? 'edit' : 'preview'));
+    // Mit Vorschau: Klick zeigt das Modul rechts, Doppelklick (oder ✏️) öffnet den Editor.
+    const open = () => this.app.modulesView.openFrom('teacher-notebooks', topic.id, mod, own ? 'edit' : 'preview');
+    const title = row.querySelector('.nb-title');
+    title.addEventListener('click', () => { if (this._preview.open) this._preview.showModule(topic, mod); else open(); });
+    title.addEventListener('dblclick', () => { if (this._preview.open) open(); });
     row.querySelector('.nb-edit')?.addEventListener('click', (e) => {
       e.stopPropagation();
       this.app.modulesView.openFrom('teacher-notebooks', topic.id, mod, 'edit');

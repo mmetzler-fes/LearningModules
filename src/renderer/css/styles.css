@@ -4673,6 +4673,94 @@ body {
 .formula-feedback { margin-top: 12px; }
 .formula-error { border: 1px solid var(--danger); }
 
+/* ---- Lernmodul-Notebooks: Baum | Vorschau (notebook-preview.js) ---- */
+.nb-split { display: flex; align-items: flex-start; gap: 0; }
+.nb-pane { min-width: 0; display: flex; flex-direction: column; }
+.nb-pane-tree { flex: 1 1 auto; }
+.nb-pane-preview {
+  flex: 0 0 auto;
+  width: 46%;
+  position: sticky;
+  top: 12px;
+  max-height: calc(100vh - 24px);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+.nb-pane-head { display: flex; align-items: center; gap: 8px; min-height: 34px; padding: 0 4px 6px; }
+.nb-pane-preview .nb-pane-head { padding: 6px 8px; border-bottom: 1px solid var(--border); }
+.nb-pane-label { font-weight: 600; font-size: 0.9em; color: var(--text-secondary); white-space: nowrap; }
+.nb-preview-actions { display: flex; gap: 6px; margin-left: auto; flex-wrap: wrap; justify-content: flex-end; }
+.nb-pane-tree .nb-fold-btn { margin-left: auto; }
+.nb-fold-btn {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm, 6px);
+  color: var(--text-secondary);
+  cursor: pointer;
+  width: 28px;
+  height: 26px;
+  flex: 0 0 auto;
+}
+.nb-fold-btn:hover { background: var(--accent-light); color: var(--text-primary); }
+.nb-preview-body { overflow: auto; padding: 16px; flex: 1 1 auto; }
+.nb-preview-empty { padding: 24px 8px; }
+.nb-preview-title { margin: 0 0 4px; }
+.nb-preview-note { margin: 0 0 12px; padding: 6px 10px; border-left: 3px solid var(--warning, #d97706); }
+.nb-preview-list { padding-left: 1.6em; margin: 12px 0 0; }
+.nb-preview-list li { margin: 4px 0; }
+.nb-preview-list li.nb-preview-sub { margin-left: 1.4em; list-style: circle; }
+.nb-preview-list li.nb-off { opacity: 0.6; }
+.nb-preview-link { background: none; border: none; padding: 0; color: var(--accent); cursor: pointer; font: inherit; text-align: left; }
+.nb-preview-link:hover { text-decoration: underline; }
+.nb-preview-facts { padding-left: 1.2em; }
+.nb-splitter { flex: 0 0 10px; align-self: stretch; cursor: col-resize; position: relative; touch-action: none; }
+.nb-splitter::after {
+  content: '';
+  position: absolute;
+  top: 40px; bottom: 0; left: 4px;
+  width: 2px;
+  border-radius: 1px;
+  background: var(--border);
+}
+.nb-splitter:hover::after { background: var(--accent); }
+.nb-row.nb-current { background: color-mix(in srgb, var(--accent) 10%, transparent); box-shadow: inset 3px 0 0 var(--accent); }
+.nb-split.nb-preview-folded .nb-row.nb-current { background: none; box-shadow: none; }
+/* Zugeklappt: nur eine schmale Leiste mit Knopf und senkrechter Beschriftung. */
+.nb-split.nb-preview-folded .nb-splitter,
+.nb-split.nb-tree-folded .nb-splitter { display: none; }
+.nb-split.nb-preview-folded .nb-pane-preview,
+.nb-split.nb-tree-folded .nb-pane-tree { flex: 0 0 38px; width: 38px !important; }
+.nb-split.nb-tree-folded .nb-pane-preview { flex: 1 1 auto; width: auto; margin-left: 10px; }
+.nb-split.nb-preview-folded .nb-pane-preview { margin-left: 10px; }
+.nb-split.nb-preview-folded .nb-pane-preview > :not(.nb-pane-head),
+.nb-split.nb-tree-folded .nb-pane-tree > :not(.nb-pane-head),
+.nb-split.nb-preview-folded .nb-preview-actions { display: none; }
+.nb-split.nb-preview-folded .nb-pane-preview .nb-pane-head,
+.nb-split.nb-tree-folded .nb-pane-tree .nb-pane-head { flex-direction: column; padding: 6px 4px; border-bottom: none; gap: 10px; }
+.nb-split.nb-preview-folded .nb-pane-preview .nb-pane-label,
+.nb-split.nb-tree-folded .nb-pane-tree .nb-pane-label { writing-mode: vertical-rl; order: 2; }
+.nb-split.nb-tree-folded .nb-pane-tree .nb-fold-btn { margin-left: 0; }
+.nb-split.nb-tree-folded .nb-pane-tree {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+/* Schmal: Vorschau unter dem Baum statt daneben. */
+@media (max-width: 900px) {
+  .nb-split { flex-direction: column; align-items: stretch; }
+  .nb-splitter { display: none; }
+  .nb-pane-preview { width: auto !important; position: static; max-height: none; margin-top: 12px; }
+  .nb-split.nb-preview-folded .nb-pane-preview,
+  .nb-split.nb-tree-folded .nb-pane-tree { flex: 0 0 auto; width: auto !important; }
+  .nb-split.nb-preview-folded .nb-pane-preview .nb-pane-head,
+  .nb-split.nb-tree-folded .nb-pane-tree .nb-pane-head { flex-direction: row; }
+  .nb-split.nb-preview-folded .nb-pane-preview .nb-pane-label,
+  .nb-split.nb-tree-folded .nb-pane-tree .nb-pane-label { writing-mode: horizontal-tb; order: 0; }
+  .nb-split.nb-tree-folded .nb-pane-preview,
+  .nb-split.nb-preview-folded .nb-pane-preview { margin-left: 0; }
+}
+
 /* ---- Lernmodul-Notebooks: einzeiliger Baum ---- */
 .nav-btn.nav-sub { padding-left: 34px; font-size: 0.9rem; }
 .nb-toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 14px; }

@@ -335,7 +335,25 @@
         <div id="nbMirrorBar" class="nb-mirror-bar hidden"></div>
         <!-- Mehrfachauswahl: Aktionen für alle gewählten Einträge (notebooks.js) -->
         <div id="nbSelBar" class="nb-sel-bar hidden" role="toolbar" aria-label="Auswahl"></div>
-        <div id="notebookTree" class="nb-tree" role="tree"></div>
+        <!-- Baum | Vorschau (notebook-preview.js): beide Spalten zuklappbar, Breite ziehbar -->
+        <div id="nbSplit" class="nb-split">
+          <div class="nb-pane nb-pane-tree">
+            <div class="nb-pane-head">
+              <span class="nb-pane-label">📓 Notebooks</span>
+              <button type="button" class="nb-fold-btn" id="btnNbTreeFold" aria-expanded="true" title="Notebooks zuklappen">◀</button>
+            </div>
+            <div id="notebookTree" class="nb-tree" role="tree"></div>
+          </div>
+          <div class="nb-splitter" id="nbSplitter" role="separator" aria-orientation="vertical" title="Breite ziehen – Doppelklick stellt sie zurück"></div>
+          <aside class="nb-pane nb-pane-preview" id="nbPreviewPane" aria-label="Vorschau">
+            <div class="nb-pane-head">
+              <span class="nb-pane-label">👁 Vorschau</span>
+              <span class="nb-preview-actions" id="nbPreviewActions"></span>
+              <button type="button" class="nb-fold-btn" id="btnNbPreviewFold" aria-expanded="true" title="Vorschau zuklappen">▶</button>
+            </div>
+            <div class="nb-preview-body" id="nbPreviewBody"></div>
+          </aside>
+        </div>
       </section>
 
       <!-- Teacher Dashboard -->

@@ -474,7 +474,8 @@ export class ModulesView {
     this._playerTitle.textContent = mod.title;
     this.app.navigateToView('player');
     this._h5pContainer.innerHTML = '';
-    this.app.renderer.renderPreview(mod, typeDef, this._h5pContainer);
+    const teacher = this.app.state.currentUser && this.app.state.currentUser.role !== 'student';
+    this.app.renderer.renderPreview(mod, typeDef, this._h5pContainer, teacher ? { inkEdit: 'teacher' } : {});
   }
 
   async _openEditor(mod) {

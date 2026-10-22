@@ -176,6 +176,34 @@ Lese-Seite. Mit **⬇ Als PDF** holen sich Schüler das Blatt – ohne Lösungen
 Bei **Lernen mit Lösungen** und in der Vorschau lassen sich die Lösungen
 aufdecken, im Quiz bleiben sie verborgen.
 
+## Mit Stift bearbeiten (in Erprobung)
+
+**✍️ Bearbeiten** über einem Dokument öffnet das Blatt so, wie es gedruckt
+wird – zum Beschriften mit Stift (iPad mit Apple Pencil), Finger oder Maus:
+
+- **Werkzeuge:** ✏️ Stift (mit Druck), 🖍️ Textmarker (unter der Schrift),
+  🧽 Radierer (ganze Striche; auch das Radierer-Ende eines Windows-Stifts),
+  ⬚ Auswählen (Rechteck aufziehen, dann verschieben oder 🗑 löschen),
+  **T** Textfeld (auf die Seite tippen und schreiben). Dazu Farben, drei
+  Strichstärken, ↶ ↷ und Zoom.
+- **Hintergrund:** 📄 das Arbeitsblatt, ▦ Karo, ☰ Linien, ▢ Leer oder ein
+  eigenes Bild oder PDF. Bei Karo, Linien und Leer fügt **＋📄** Seiten an.
+  Die Beschriftung bleibt beim Wechsel stehen.
+- **💡 Lösungsblatt** einblenden – nur für Lehrkräfte (Vorschau, Notebooks).
+- **☝️ Finger:** Normalerweise scrollt der Finger, gezeichnet wird mit Stift
+  oder Maus. Ist ☝️ an, zeichnet auch der Finger. Solange der Stift schreibt,
+  zählt die aufliegende Hand nicht.
+
+Gespeichert wird vorerst **nur auf diesem Gerät** (im Browser) – getrennt für
+Schüler und Lehrkräfte. Abgeben und Auswerten kommen später. Für das Blatt als
+Hintergrund braucht es den Renderer; ohne ihn bleiben Karo, Linien und eigene
+Bilder.
+
+Technik: `src/renderer/js/ink/` (Geometrie in `ink-geometry.js`, getestet),
+PDFs mit pdf.js (`js/vendor/pdfjs/`, legacy build für ältere iPads).
+Koordinaten in PDF-Punkten der Seite – die Striche bleiben bei jedem Zoom an
+derselben Stelle des Blatts.
+
 ## In der Nextcloud
 
 Mit verbundener [Nextcloud](nextcloud.md) liegen alle Dokumente zusätzlich

@@ -210,6 +210,8 @@ export class NotebookPreview {
       // bleiben verborgen, Quizze im Dokument laufen mit.
       quizMode: true,
       embedModule: (id) => modules.find((m) => m.id === id) || null,
+      // Dokumente: „✍️ Bearbeiten“ mit Stift, dazu das Lösungsblatt einblendbar.
+      inkEdit: 'teacher',
     });
   }
 

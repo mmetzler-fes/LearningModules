@@ -2856,6 +2856,26 @@ body {
   font-size: 1em;
   font-weight: 700;
 }
+/* Aufklappbare Bereiche (fold.js): eingeklappt nur die Überschrift. */
+.settings-panel > .settings-group.foldable { margin-top: 0 !important; margin-bottom: 10px; }
+.settings-group.foldable > h3 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  user-select: none;
+}
+.settings-group.foldable > h3::before {
+  content: '▸';
+  color: var(--text-secondary);
+  transition: transform var(--transition);
+}
+.settings-group.foldable:not(.folded) > h3::before { transform: rotate(90deg); }
+.settings-group.foldable.folded { padding-top: 14px; padding-bottom: 14px; }
+.settings-group.foldable.folded > h3 { margin-bottom: 0; }
+.settings-group.foldable.folded > :not(h3) { display: none; }
+.settings-group.foldable > h3:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; border-radius: 4px; }
+.settings-group .fold-state { margin-left: auto; font-weight: 400; font-size: 0.85em; color: var(--text-secondary); }
 .setting-toggle-row {
   display: flex;
   align-items: center;

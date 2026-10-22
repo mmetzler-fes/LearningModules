@@ -23,6 +23,7 @@ import { CategoriesAdminView } from './views/categories-admin.js';
 import { FederationAdminView } from './views/federation-admin.js';
 import { nextcloudState, uploadImageToNextcloud, pickNextcloudImage } from './views/nextcloud.js';
 import { storeImage } from './views/image-store.js';
+import { initFolding } from './fold.js';
 import { contentFromPairs, pairsFromContent } from './dnd-pairs.js';
 // Editor des Modultyps „Dokument“ – hängt sich an window.DocSpecEditor.
 import { useModuleSource, useTopicModules } from './docspec-editor.js';
@@ -92,6 +93,8 @@ class App {
       e.stopPropagation();
       openHelpPopup(this, hint.dataset.help);
     }, true);
+    // Einstellungsseiten: nur Überschriften, ein Klick klappt auf.
+    initFolding();
   }
 
   showToast(message, type = 'info') {

@@ -1,6 +1,7 @@
 import { escapeHtml, escapeAttr } from '../utils.js';
 import { TagsView } from './tags.js';
 import { renderSchoolNextcloud } from './school-nextcloud.js';
+import { setFoldState } from '../fold.js';
 import { bindPasswordChoice } from './admin.js';
 import { printPermissionSheet, downloadPermissionOdt } from '../terms-print.js';
 
@@ -356,6 +357,7 @@ export class MySchoolView {
 
     if (this._title) this._title.textContent = `🏫 ${data.name}`;
     this._renderTeachers(data);
+    setFoldState(this._teachers, `${data.teachers.length}`);
     this._renderWhitelist(data);
     document.getElementById('btnMySchoolNewTeacher')?.classList.toggle('hidden', !data.adminsMayCreateTeachers);
     await this._tagsView.refresh();

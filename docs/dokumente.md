@@ -46,15 +46,18 @@ rücken markierte Zeilen ein und aus, **Strg+V** passt die Einrückung des
 Eingefügten an die Schreibmarke an. Das eigene **➕ Einfügen …** setzt einen
 Baustein hinter den Block, in dem die Schreibmarke steht.
 
-**📄 Übernehmen (.odt, .pdf)** liest ein Writer-Dokument ein: Überschriften,
-Absätze, Listen, Tabellen (auch verbundene Zellen), Bilder mit ihrer Lage und
-Textrahmen. Formeln aus dem Formeleditor und Bilder in Tabellen kommen nicht
-mit; der Editor nennt, was fehlt.
+**📄 Übernehmen (.odt, .docx, .pdf)** liest ein Writer-Dokument ein:
+Überschriften, Absätze, Listen, Tabellen (auch verbundene Zellen), Bilder mit
+ihrer Lage und Textrahmen. Formeln aus dem Formeleditor und Bilder in Tabellen
+kommen nicht mit; der Editor nennt, was fehlt. **Word-Dateien** (.docx, auch
+.doc und .rtf) wandelt der Renderer vorher mit LibreOffice in eine .odt um –
+das dauert einige Sekunden länger, und was LibreOffice anders darstellt als
+Word, kommt so auch hier an.
 
 Ein **PDF** kennt keine Struktur, nur Zeichen an Positionen – der Import
 erschließt sie. PDFs nimmt der Knopf nur an, wenn der Admin zusätzlich die
 Funktion **🧪 PDF-Import** freigeschaltet hat (wie die Dokumente: aus, nur
-ausgewählte Konten oder alle); sonst heißt er „Aus .odt übernehmen“. Zur Wahl
+ausgewählte Konten oder alle); sonst heißt er „Übernehmen (.odt, .docx)“. Zur Wahl
 stehen:
 
 | Art | Was | Braucht |

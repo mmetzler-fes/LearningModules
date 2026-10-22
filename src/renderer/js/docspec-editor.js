@@ -70,7 +70,7 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
     <div class="ds-editor-bar">
       ${OUTPUTS.map((o) => `<button type="button" class="btn btn-secondary btn-sm" data-output="${o.output}" title="${o.title}">${o.label}</button>`).join('')}
       <label class="ds-editor-toggle"><input type="checkbox" class="ds-show-solutions"> Lösungen zeigen</label>
-      <button type="button" class="btn btn-secondary btn-sm ds-import-odt" title="Writer-Dokument (.odt) übernehmen: Überschriften, Absätze, Listen, Tabellen, Bilder">📄 Aus .odt übernehmen</button>
+      <button type="button" class="btn btn-secondary btn-sm ds-import-odt" title="Writer- oder Word-Dokument (.odt, .docx) übernehmen: Überschriften, Absätze, Listen, Tabellen, Bilder">📄 Übernehmen (.odt, .docx)</button>
       <span class="ds-editor-status hint"></span>
     </div>
     <div class="ds-editor-header hint" hidden></div>
@@ -224,11 +224,7 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
     textarea.value = toYaml(imported);
     if (titleInput && !titleInput.value.trim()) titleInput.value = title || '';
     update();
-    if (mode === 'visual') {
-      syncing = true;
-      surface.innerHTML = specToEditorHtml(spec || { content: [] });
-      syncing = false;
-    }
+    if (mode === 'visual') setSurface(specToEditorHtml(spec || { content: [] }));
     status.innerHTML = `✅ Übernommen: ${imported.content.length} Blöcke.` + (warnings.length ? ` ${warnings.map((w) => `⚠️ ${escapeHtml(w)}`).join(' ')}` : '');
   };
 
@@ -239,8 +235,8 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
   workerStatus().then((info) => {
     pdfAllowed = !!info.pdfImport;
     if (pdfAllowed) {
-      importButton.textContent = '📄 Übernehmen (.odt, .pdf)';
-      importButton.title = 'Writer-Dokument (.odt) oder PDF übernehmen: Überschriften, Absätze, Listen, Tabellen, Bilder';
+      importButton.textContent = '📄 Übernehmen (.odt, .docx, .pdf)';
+      importButton.title = 'Writer- oder Word-Dokument (.odt, .docx) oder PDF übernehmen: Überschriften, Absätze, Listen, Tabellen, Bilder';
     }
   });
 
@@ -279,7 +275,9 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
   importButton.addEventListener('click', () => {
     const input = document.createElement('input');
     input.type = 'file';
-    input.accept = '.odt,.ott,.fodt,application/vnd.oasis.opendocument.text' + (pdfAllowed ? ',.pdf,application/pdf' : '');
+    input.accept = '.odt,.ott,.fodt,.docx,.doc,.rtf,application/vnd.oasis.opendocument.text,'
+      + 'application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/msword'
+      + (pdfAllowed ? ',.pdf,application/pdf' : '');
     input.onchange = async () => {
       const file = input.files[0];
       if (!file) return;
@@ -290,7 +288,9 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
       const choice = isPdf ? await askPdfMode() : null;
       if (isPdf && !choice) return;
       if (!empty && !(await ask('Den bisherigen Inhalt durch das Dokument ersetzen?'))) return;
-      status.textContent = isPdf && choice.mode === 'ai' ? 'KI-Erkennung läuft – das kann je Seite einige Sekunden dauern …' : 'Wird übernommen …';
+      status.textContent = isPdf && choice.mode === 'ai' ? 'KI-Erkennung läuft – das kann je Seite einige Sekunden dauern …'
+        : /\.(docx|doc|rtf)$/i.test(file.name) ? 'Word-Datei wird mit LibreOffice umgewandelt und übernommen – das dauert einige Sekunden …'
+          : 'Wird übernommen …';
       try {
         const form = new FormData();
         form.append('file', file);
@@ -368,6 +368,16 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
   const blockSelect = root.querySelector('.ds-vblock');
   let mode = 'yaml';
   let syncing = false;
+  // Inhalt der Ansicht setzen, ohne dass er als Bearbeitung zurück ins YAML
+  // fließt. Der MutationObserver meldet erst nach dem Setzen (asynchron) –
+  // die anstehenden Meldungen deshalb verwerfen. Sonst schriebe er den
+  // Inhalt beim Öffnen einmal um, und das Modul gälte als geändert.
+  const setSurface = (html) => {
+    syncing = true;
+    surface.innerHTML = html;
+    surfaceObserver.takeRecords();
+    syncing = false;
+  };
   let vTimer = null;
 
   const fromVisual = () => {
@@ -375,11 +385,12 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
     textarea.value = toYaml(next);
     update();
   };
-  new MutationObserver(() => {
+  const surfaceObserver = new MutationObserver(() => {
     if (syncing || mode !== 'visual') return;
     clearTimeout(vTimer);
     vTimer = setTimeout(fromVisual, 300);
-  }).observe(surface, { childList: true, subtree: true, characterData: true, attributes: true });
+  });
+  surfaceObserver.observe(surface, { childList: true, subtree: true, characterData: true, attributes: true });
   if (typeof window.WorksheetImageTools !== 'undefined') {
     new window.WorksheetImageTools(surface, document.createElement('input'), root.querySelector('.ds-vtoolbar'));
   }
@@ -388,9 +399,7 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
     if (next === 'visual') {
       update();
       try { yamlLoad(textarea.value); } catch (_) { status.textContent = 'Erst den YAML-Fehler beheben, dann umschalten.'; return; }
-      syncing = true;
-      surface.innerHTML = specToEditorHtml(spec || { content: [] });
-      syncing = false;
+      setSurface(specToEditorHtml(spec || { content: [] }));
     } else if (mode === 'visual') {
       clearTimeout(vTimer);
       fromVisual();

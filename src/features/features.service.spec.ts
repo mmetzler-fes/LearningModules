@@ -55,7 +55,7 @@ describe('FeaturesService', () => {
   it('speichert den Modus', async () => {
     const { service, config } = setup();
     await service.setMode('worksheets', 'selected');
-    expect(config.features).toEqual({ worksheets: 'selected', pdfImport: 'off' });
+    expect(config.features).toEqual({ worksheets: 'selected', pdfImport: 'off', inkEditor: 'off' });
   });
 });
 

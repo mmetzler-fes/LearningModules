@@ -179,7 +179,11 @@ aufdecken, im Quiz bleiben sie verborgen.
 ## Mit Stift bearbeiten (in Erprobung)
 
 **✍️ Bearbeiten** über einem Dokument öffnet das Blatt so, wie es gedruckt
-wird – zum Beschriften mit Stift (iPad mit Apple Pencil), Finger oder Maus:
+wird – zum Beschriften mit Stift (iPad mit Apple Pencil), Finger oder Maus.
+Der Knopf erscheint erst mit der Freischaltung **🧪 Stift-Editor**
+([Benutzerverwaltung](benutzerverwaltung.md#funktionen-in-entwicklung)):
+für die Lehrkraft in Vorschau und Notebooks, für Schüler über ihren Link,
+wenn die Lehrkraft des Lernthemas freigeschaltet ist.
 
 - **Werkzeuge:** ✏️ Stift (mit Druck), 🖍️ Textmarker (unter der Schrift),
   🧽 Radierer (ganze Striche; auch das Radierer-Ende eines Windows-Stifts),

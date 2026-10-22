@@ -1573,7 +1573,8 @@ export class H5pRenderer {
         // Mit Stift, Finger oder Maus bearbeiten (js/ink/ink-editor.js): Schüler
         // über ihren Link (nur das Blatt), Lehrkräfte in Vorschau und Notebooks
         // (dazu das Lösungsblatt). Gespeichert wird vorerst nur auf dem Gerät.
-        const inkMode = options.inkEdit || (up && (up.linkToken || up.quickToken) ? 'student' : null);
+        // Freischaltung „Stift-Editor“: die Aufrufer setzen inkEdit nur dann.
+        const inkMode = options.inkEdit === 'teacher' || (options.inkEdit === 'student' && up && (up.linkToken || up.quickToken)) ? options.inkEdit : null;
         if (inkMode && options.moduleId) {
           const inkBtn = document.createElement('button');
           inkBtn.type = 'button';

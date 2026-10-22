@@ -173,6 +173,8 @@ Baustein an der Schreibmarke im Blatt (`type: quiz`, `module: <Modul-ID>`).
 
 Dokumente erscheinen in Themen-Links und Quick-Links wie andere Module, als
 Lese-Seite. Mit **⬇ Als PDF** holen sich Schüler das Blatt – ohne Lösungen.
+Der Knopf steht (wie **✍️ Mit Stift bearbeiten**) rechts in der festen
+Titelleiste der Aufgabe und scrollt nicht mit dem Blatt weg.
 Bei **Lernen mit Lösungen** und in der Vorschau lassen sich die Lösungen
 aufdecken, im Quiz bleiben sie verborgen.
 
@@ -216,6 +218,10 @@ wenn die Lehrkraft des Lernthemas freigeschaltet ist.
   nur mehr Striche. **Setzt der Stift an einer Kante an**, läuft der Strich
   genau an ihr entlang – an der langen Kante wie an den Schenkeln, mit Stift,
   Maus oder (mit ☝️) Finger. Neben dem Dreieck scrollt der Finger weiter.
+
+Die Leiste bleibt immer oben: Solange der Editor offen ist, zoomt der
+Browser die Seite nicht (iPad: Zwei-Finger-Geste); Strg+Mausrad bzw. das
+Trackpad zoomt stattdessen das Blatt.
 
 Gespeichert wird vorerst **nur auf diesem Gerät** (im Browser) – getrennt für
 Schüler und Lehrkräfte. Abgeben und Auswerten kommen später. Für das Blatt als

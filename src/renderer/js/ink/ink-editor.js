@@ -470,6 +470,7 @@ export async function openInkEditor({ title = 'Arbeitsblatt', key, loadPdf = nul
     p.el.appendChild(el);
     // Mausrad dreht (1°, mit Umschalt 5°).
     el.addEventListener('wheel', (e) => {
+      if (e.ctrlKey) return; // Strg+Mausrad zoomt das Blatt
       e.preventDefault();
       const step = e.shiftKey ? 5 : 1;
       r.angle = snapAngle(r.angle + (e.deltaY > 0 ? step : -step), step);
@@ -920,11 +921,29 @@ export async function openInkEditor({ title = 'Arbeitsblatt', key, loadPdf = nul
     else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') { e.preventDefault(); history(e.shiftKey ? state.redo : state.undo, e.shiftKey ? state.undo : state.redo); }
   };
   document.addEventListener('keydown', onKey);
+  // Die Leiste bleibt oben: Der Browser darf die Seite nicht zoomen (iPad:
+  // Zwei-Finger-Geste in Safari; Trackpad bzw. Strg+Mausrad am Rechner).
+  // Strg+Mausrad zoomt stattdessen das Blatt.
+  const noZoom = (e) => e.preventDefault();
+  document.addEventListener('gesturestart', noZoom, { passive: false });
+  document.addEventListener('gesturechange', noZoom, { passive: false });
+  let wheelZoom = 1;
+  let wheelTimer = null;
+  const onWheel = (e) => {
+    if (!e.ctrlKey) return;
+    e.preventDefault();
+    wheelZoom *= Math.exp(-e.deltaY / 300);
+    clearTimeout(wheelTimer);
+    wheelTimer = setTimeout(() => { const f = wheelZoom; wheelZoom = 1; setZoom(state.zoom * f); }, 120);
+  };
+  overlay.addEventListener('wheel', onWheel, { passive: false });
 
   async function close() {
     if (document.activeElement?.classList?.contains('ink-text')) document.activeElement.blur();
     await persist();
     document.removeEventListener('keydown', onKey);
+    document.removeEventListener('gesturestart', noZoom);
+    document.removeEventListener('gesturechange', noZoom);
     for (const v of Object.values(pdfs)) Promise.resolve(v).then((d) => d?.destroy?.()).catch(() => {});
     overlay.remove();
     document.body.classList.remove('ink-open');

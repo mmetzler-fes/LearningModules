@@ -356,6 +356,17 @@ export class QuizView {
       qs.views[currentIndex] = view;
     }
 
+    // Knöpfe eines Dokuments (✍️ Mit Stift bearbeiten, ⬇ Als PDF) in die feste
+    // Titelleiste – dort scrollen sie nicht mit dem Blatt weg. Die Ansicht
+    // merkt sich ihre Leiste, damit sie beim Zurückblättern wieder hinkommt.
+    const actions = view._dsActions || (view._dsActions = view.querySelector('.ds-actions'));
+    if (actions) {
+      const slot = document.createElement('span');
+      slot.className = 'quiz-info-actions';
+      slot.appendChild(actions);
+      this._quizInfo.appendChild(slot);
+    }
+
     this._btnQuizNext.textContent = this._isLearnRun() && !qs.revealed
       ? '💡 Lösung anzeigen'
       : currentIndex < modules.length - 1 ? t('quiz.next') : t('quiz.finish');

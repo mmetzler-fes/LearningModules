@@ -3650,6 +3650,10 @@ body {
 .ds-pdf-ocr { display: block; margin: 4px 0 8px; font-size: 0.9em; }
 @media (max-width: 600px) { .docspec .ds-float { flex-direction: column; } .docspec .ds-float .ds-image { max-width: 100%; } }
 .ds-solutions-toggle { margin-bottom: 12px; }
+.ds-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+/* Im Quiz in der festen Titelleiste, rechts. */
+.quiz-info-actions { float: right; margin-left: 12px; }
+.quiz-info-actions .ds-actions { margin: 0; }
 
 /* Editor: YAML links, Vorschau rechts; schmal untereinander */
 .ds-editor-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; margin-bottom: 8px; }
@@ -5352,6 +5356,8 @@ body.ink-open { overflow: hidden; }
   position: fixed; inset: 0; z-index: 2000;
   display: flex; flex-direction: column;
   background: #e2e8f0;
+  /* Kein Zoomen der ganzen Seite – sonst rutscht die Leiste aus dem Bild (iPad). */
+  touch-action: pan-x pan-y;
   /* Ziehen und langes Drücken markieren keinen Text und öffnen kein Menü (iPad). */
   -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
 }

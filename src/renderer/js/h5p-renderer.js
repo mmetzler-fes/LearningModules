@@ -1544,6 +1544,13 @@ export class H5pRenderer {
             box.appendChild(slot);
           });
         }
+        // Knöpfe des Dokuments (✍️, ⬇ PDF) in einer eigenen Leiste über dem
+        // Blatt – das Quiz hängt sie in seine feste Titelleiste (quiz.js).
+        const actionsBar = () => {
+          let bar = div.querySelector(':scope > .ds-actions');
+          if (!bar) { bar = document.createElement('div'); bar.className = 'ds-actions'; div.prepend(bar); }
+          return bar;
+        };
         // Schüler: das Blatt als PDF (POST /api/public/document/:id/pdf).
         const up = options.upload;
         if (up && (up.linkToken || up.quickToken) && options.moduleId) {
@@ -1568,7 +1575,7 @@ export class H5pRenderer {
             }
             pdfBtn.disabled = false;
           });
-          div.prepend(pdfBtn);
+          actionsBar().appendChild(pdfBtn);
         }
         // Mit Stift, Finger oder Maus bearbeiten (js/ink/ink-editor.js): Schüler
         // über ihren Link (nur das Blatt), Lehrkräfte in Vorschau und Notebooks
@@ -1591,7 +1598,7 @@ export class H5pRenderer {
             }
             inkBtn.disabled = false;
           });
-          div.prepend(inkBtn);
+          actionsBar().prepend(inkBtn);
         }
         // Lösungen: in der Vorschau zum Aufdecken, im Quiz bleiben sie verborgen.
         if (!options.quizMode && div.querySelector('.ds-solution')) {

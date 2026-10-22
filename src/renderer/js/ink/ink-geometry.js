@@ -99,9 +99,24 @@ export function bounds(item) {
   return { x: x0 - pad, y: y0 - pad, w: x1 - x0 + 2 * pad, h: y1 - y0 + 2 * pad };
 }
 
+/** Schneiden sich die Strecken p–q und r–s? */
+function crosses(p, q, r, t) {
+  const o = (a, b, c) => Math.sign((b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]));
+  return o(p, q, r) !== o(p, q, t) && o(r, t, p) !== o(r, t, q);
+}
+
+/** Berührt die Strecke a–b das Rechteck (x0, y0, x1, y1)? */
+export function segmentInRect(a, b, x0, y0, x1, y1) {
+  const inside = (q) => q[0] >= x0 && q[0] <= x1 && q[1] >= y0 && q[1] <= y1;
+  if (inside(a) || inside(b)) return true;
+  const c = [[x0, y0], [x1, y0], [x1, y1], [x0, y1]];
+  return c.some((q, i) => crosses(a, b, q, c[(i + 1) % 4]));
+}
+
 /**
- * Liegt das Element in der Auswahl? Ein Strich, sobald einer seiner Punkte im
- * Rechteck liegt; ein Textfeld, sobald sich die Rechtecke überschneiden.
+ * Liegt das Element in der Auswahl? Ein Strich, sobald er das Rechteck
+ * berührt (auch eine gerade Linie in ihrer Mitte); ein Textfeld, sobald sich
+ * die Rechtecke überschneiden.
  */
 export function inSelection(item, rect) {
   const x0 = Math.min(rect.x, rect.x + rect.w);
@@ -112,7 +127,33 @@ export function inSelection(item, rect) {
     const b = bounds(item);
     return b.x < x1 && b.x + b.w > x0 && b.y < y1 && b.y + b.h > y0;
   }
-  return (item.points || []).some(([x, y]) => x >= x0 && x <= x1 && y >= y0 && y <= y1);
+  const pts = item.points || [];
+  if (pts.length === 1) return segmentInRect(pts[0], pts[0], x0, y0, x1, y1);
+  for (let i = 1; i < pts.length; i++) if (segmentInRect(pts[i - 1], pts[i], x0, y0, x1, y1)) return true;
+  return false;
+}
+
+/** Das oberste Element unter dem Punkt (Antippen zum Auswählen), sonst null. */
+export function itemAt(items, x, y, radius) {
+  for (let i = items.length - 1; i >= 0; i--) {
+    const it = items[i];
+    if (it.type === 'text') {
+      const b = bounds(it);
+      if (x >= b.x - radius && x <= b.x + b.w + radius && y >= b.y - radius && y <= b.y + b.h + radius) return it;
+    } else if (hitsStroke(it, x, y, radius)) return it;
+  }
+  return null;
+}
+
+/** Die beiden äußersten Punkte eines Strichs entlang der Richtung a → b. */
+export function extremesAlong(points, a, b) {
+  const dx = b[0] - a[0];
+  const dy = b[1] - a[1];
+  let lo = points[0];
+  let hi = points[0];
+  const t = (q) => (q[0] - a[0]) * dx + (q[1] - a[1]) * dy;
+  for (const q of points) { if (t(q) < t(lo)) lo = q; if (t(q) > t(hi)) hi = q; }
+  return [lo, hi];
 }
 
 /** Element verschieben (neue Kopie). */

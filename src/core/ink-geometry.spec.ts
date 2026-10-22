@@ -11,6 +11,9 @@ interface InkGeometry {
   hitsStroke(item: any, x: number, y: number, radius: number): boolean;
   bounds(item: any): { x: number; y: number; w: number; h: number };
   inSelection(item: any, rect: { x: number; y: number; w: number; h: number }): boolean;
+  segmentInRect(a: number[], b: number[], x0: number, y0: number, x1: number, y1: number): boolean;
+  itemAt(items: any[], x: number, y: number, radius: number): any;
+  extremesAlong(points: number[][], a: number[], b: number[]): number[][];
   moved(item: any, dx: number, dy: number): any;
   ruling(kind: string, w: number, h: number): number[][];
 }
@@ -52,6 +55,22 @@ describe('Stift-Editor: Geometrie (ink-geometry.js)', () => {
     const text = { type: 'text', x: 100, y: 100, w: 80, h: 20 };
     expect(g.inSelection(text, { x: 170, y: 110, w: 50, h: 50 })).toBe(true);
     expect(g.inSelection(text, { x: 190, y: 110, w: 50, h: 50 })).toBe(false);
+  });
+
+  it('Gerade Linie: Auswahl auch in ihrer Mitte, Antippen trifft das oberste Element', () => {
+    const line = { type: 'stroke', width: 2, line: true, points: [[0, 50, 0.5], [200, 50, 0.5]] };
+    expect(g.inSelection(line, { x: 90, y: 40, w: 20, h: 20 })).toBe(true); // keiner der beiden Punkte im Rechteck
+    expect(g.inSelection(line, { x: 90, y: 60, w: 20, h: 20 })).toBe(false);
+    expect(g.segmentInRect([0, 0], [10, 10], 20, 20, 30, 30)).toBe(false);
+    const text = { id: 't', type: 'text', x: 95, y: 40, w: 30, h: 20 };
+    expect(g.itemAt([line, text], 100, 50, 2)).toBe(text); // obenauf
+    expect(g.itemAt([line], 100, 53, 3)).toBe(line);
+    expect(g.itemAt([line], 100, 70, 3)).toBeNull();
+  });
+
+  it('Äußerste Punkte entlang einer Kante (Strich am Geodreieck wird zur Linie)', () => {
+    const pts = [[50, 0, 0.5], [10, 0, 0.5], [90, 0, 0.5], [60, 0, 0.5]];
+    expect(g.extremesAlong(pts, [0, 0], [100, 0])).toEqual([[10, 0, 0.5], [90, 0, 0.5]]);
   });
 
   it('Verschieben und Rechteck', () => {

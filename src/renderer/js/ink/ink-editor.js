@@ -1,6 +1,6 @@
 import {
   A4, CM, strokeOutline, polyline, hitsStroke, bounds, inSelection, moved, ruling,
-  pageToRuler, inRuler, nearEdge, projectOnSegment, snapAngle,
+  pageToRuler, inRuler, nearEdge, projectOnSegment, snapAngle, itemAt, extremesAlong,
 } from './ink-geometry.js';
 import { rulerSvg, rulerHandles } from './ink-ruler.js';
 
@@ -10,7 +10,8 @@ import { rulerSvg, rulerHandles } from './ink-ruler.js';
 // Papier. Unten liegt der Hintergrund (das PDF des Blatts, Karo, Linien,
 // leer oder ein eigenes Bild/PDF), darüber eine Ebene zum Beschriften:
 // Stift mit Druck, Textmarker, Radierer, Auswahl (verschieben, löschen),
-// Textfelder. In der Ansicht der Lehrkraft lässt sich das Lösungsblatt als
+// Textfelder. Bleibt der Stift am Ende eines Strichs kurz stehen, wird der
+// Strich zur geraden Linie; Linien haben im Auswahl-Modus zwei Anfasser. In der Ansicht der Lehrkraft lässt sich das Lösungsblatt als
 // Hintergrund einblenden. Dazu ein Geodreieck: verschieben, drehen (1°,
 // mit Umschalt 5°; zwei Finger; Mausrad), an der Ecke vergrößern – setzt der
 // Stift an seiner Kante an, zeichnet er genau an ihr entlang.
@@ -27,6 +28,9 @@ const TEXT_SIZE = 13;       // Schriftgröße der Textfelder in Punkten
 const MAX_PIXELS = 12e6;    // Obergrenze je Hintergrund-Leinwand (iPad Safari: ~16 Mio.)
 const RULER_REACH = 12;     // So nah (Bildschirmpunkte) muss der Stift an die Kante des Geodreiecks
 const RULER_MIN = 6 * CM;
+const HOLD_MS = 550;        // So lange still halten, dann wird der Strich zur Linie
+const HOLD_SLACK = 4;       // … und so wenig (Bildschirmpunkte) darf er sich dabei bewegen
+const HANDLE = 9;           // Anfasser einer Linie (Bildschirmpunkte, Radius)
 const RULER_MAX = 32 * CM;
 
 // ---------- Speicher auf diesem Gerät ----------
@@ -352,9 +356,10 @@ export async function openInkEditor({ title = 'Arbeitsblatt', key, loadPdf = nul
     el.innerHTML = `<canvas class="ink-bg"></canvas>
       <svg class="ink-svg" viewBox="0 0 ${w} ${h}" xmlns="http://www.w3.org/2000/svg">
         <g class="ink-marker"></g><g class="ink-pen"></g><g class="ink-live"></g>
-        <rect class="ink-sel-rect" hidden></rect><rect class="ink-sel-box" hidden></rect>
+        <rect class="ink-sel-rect" display="none"></rect><rect class="ink-sel-box" display="none"></rect>
       </svg>
-      <div class="ink-texts"></div>`;
+      <div class="ink-texts"></div>
+      <svg class="ink-top" viewBox="0 0 ${w} ${h}" xmlns="http://www.w3.org/2000/svg"><g class="ink-handles"></g></svg>`;
     pagesEl.appendChild(el);
     const page = { i, w, h, el, svg: el.querySelector('svg'), canvas: el.querySelector('canvas'), texts: el.querySelector('.ink-texts') };
     sizePage(page);
@@ -501,6 +506,8 @@ export async function openInkEditor({ title = 'Arbeitsblatt', key, loadPdf = nul
   }
 
   // ---------- Zeichnen der Beschriftung ----------
+  // SVG-Elemente kennen „hidden“ nicht zuverlässig – deshalb display.
+  const showSvg = (el, on) => { if (on) el.removeAttribute('display'); else el.setAttribute('display', 'none'); };
   const svgEl = (tag, attrs) => {
     const el = document.createElementNS('http://www.w3.org/2000/svg', tag);
     for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, v);
@@ -579,11 +586,48 @@ export async function openInkEditor({ title = 'Arbeitsblatt', key, loadPdf = nul
     for (const p of pages) {
       const box = p.svg.querySelector('.ink-sel-box');
       const b = state.selection?.page === p.i ? selectionBounds() : null;
-      box.hidden = !b;
+      showSvg(box, !!b);
       if (b) for (const [k, v] of Object.entries({ x: b.x, y: b.y, width: b.w, height: b.h })) box.setAttribute(k, v);
       p.svg.querySelectorAll('[data-id]').forEach((el) => el.classList.toggle('ink-selected', !!state.selection?.ids.has(el.dataset.id) && state.selection.page === p.i));
       p.texts.querySelectorAll('[data-id]').forEach((el) => el.classList.toggle('ink-selected', !!state.selection?.ids.has(el.dataset.id) && state.selection.page === p.i));
+      // Anfasser an beiden Enden gewählter Linien.
+      const handles = p.el.querySelector('.ink-top .ink-handles');
+      handles.innerHTML = '';
+      for (const it of selectedLines(p.i)) {
+        for (const [x, y] of it.points) handles.appendChild(svgEl('circle', { cx: x, cy: y, r: HANDLE / state.zoom, class: 'ink-handle' }));
+      }
     }
+  }
+
+  /** Gewählte gerade Linien auf der Seite. */
+  function selectedLines(page) {
+    const sel = state.selection;
+    if (!sel || sel.page !== page) return [];
+    return (doc.pages[page]?.items || []).filter((it) => it.line && sel.ids.has(it.id));
+  }
+
+  /** Anfasser unter dem Punkt: { id, idx } oder null. */
+  function handleAt(page, x, y) {
+    const reach = (HANDLE * 1.6) / state.zoom;
+    for (const it of selectedLines(page)) {
+      for (let idx = 0; idx < it.points.length; idx++) {
+        if (Math.hypot(x - it.points[idx][0], y - it.points[idx][1]) <= reach) return { id: it.id, idx };
+      }
+    }
+    return null;
+  }
+
+  /** Strich zur geraden Linie: vom ersten bis zum letzten Punkt, mit mittlerem Druck. */
+  function straighten(g) {
+    const pts = g.item.points;
+    const first = pts[0];
+    const last = pts[pts.length - 1];
+    if (Math.hypot(last[0] - first[0], last[1] - first[1]) < 8) return false; // ein Punkt bleibt ein Punkt
+    const p = pts.reduce((a, q) => a + (q[2] ?? 0.5), 0) / pts.length;
+    g.item.points = [[first[0], first[1], p], [last[0], last[1], p]];
+    g.line = true;
+    g.el?.setAttribute('d', g.item.tool === 'marker' ? polyline(g.item.points) : strokeOutline(g.item.points, g.item.width));
+    return true;
   }
 
   function deleteSelection() {
@@ -620,7 +664,10 @@ export async function openInkEditor({ title = 'Arbeitsblatt', key, loadPdf = nul
       // an, läuft der Strich genau an ihr entlang; sonst wird es verschoben.
       const ruler = doc.ruler?.visible && doc.ruler.page === p.i ? doc.ruler : null;
       let snap = null;
-      if (ruler) {
+      // Im Auswahl-Modus gehen Anfasser und Striche vor – auch unter dem Geodreieck
+      // (sonst käme man an Linien entlang seiner Kante nicht heran).
+      const selectsHere = tool === 'select' && (handleAt(p.i, x, y) || itemAt(doc.pages[p.i].items, x, y, 6 / state.zoom));
+      if (ruler && !selectsHere) {
         const inside = inRuler(ruler, x, y);
         const handle = inside ? rulerHandleAt(ruler, x, y) : null;
         if (!handle && draws && (tool === 'pen' || tool === 'marker')) snap = nearEdge(ruler, x, y, RULER_REACH / state.zoom);
@@ -648,13 +695,26 @@ export async function openInkEditor({ title = 'Arbeitsblatt', key, loadPdf = nul
         gesture.item.points.push([sx, sy, pressureOf(e)]);
         gesture.el = itemSvg(gesture.item);
         p.svg.querySelector(marker ? '.ink-marker' : '.ink-live').appendChild(gesture.el);
+        gesture.anchor = [e.clientX, e.clientY];
+        holdTimer(gesture);
       } else if (tool === 'eraser') {
         gesture = { kind: 'erase', id: e.pointerId, removed: false };
         erase(p.i, x, y, gesture);
       } else if (tool === 'select') {
+        const base = () => doc.pages[p.i].items.map((it) => ({ ...it }));
+        const handle = handleAt(p.i, x, y);
         const b = state.selection?.page === p.i ? selectionBounds() : null;
-        if (b && x >= b.x && x <= b.x + b.w && y >= b.y && y <= b.y + b.h) {
-          gesture = { kind: 'move', id: e.pointerId, from: [x, y], base: doc.pages[p.i].items.map((it) => ({ ...it })) };
+        const hit = itemAt(doc.pages[p.i].items, x, y, 6 / state.zoom);
+        if (handle) {
+          gesture = { kind: 'handle', id: e.pointerId, item: handle.id, idx: handle.idx, base: base() };
+        } else if (b && x >= b.x && x <= b.x + b.w && y >= b.y && y <= b.y + b.h) {
+          gesture = { kind: 'move', id: e.pointerId, from: [x, y], base: base() };
+        } else if (hit) {
+          // Antippen wählt das Element (eine Linie zeigt ihre Anfasser) – gleich weiterziehen verschiebt es.
+          state.selection = { page: p.i, ids: new Set([hit.id]) };
+          paintSelection();
+          paintToolbar();
+          gesture = { kind: 'move', id: e.pointerId, from: [x, y], base: base() };
         } else {
           clearSelection();
           gesture = { kind: 'rect', id: e.pointerId, from: [x, y] };
@@ -675,6 +735,19 @@ export async function openInkEditor({ title = 'Arbeitsblatt', key, loadPdf = nul
       if (!gesture || e.pointerId !== gesture.id) return;
       const events = e.getCoalescedEvents ? e.getCoalescedEvents() : [e];
       if (gesture.kind === 'stroke') {
+        // Bewegt sich der Stift, beginnt das Warten aufs Stillhalten neu.
+        if (Math.hypot(e.clientX - gesture.anchor[0], e.clientY - gesture.anchor[1]) > HOLD_SLACK) {
+          gesture.anchor = [e.clientX, e.clientY];
+          holdTimer(gesture);
+        }
+        if (gesture.line) {
+          // Schon eine Linie: das Ende folgt dem Stift (am Geodreieck auf der Kante).
+          let [x, y] = toPage(e);
+          if (gesture.snap) [x, y] = projectOnSegment(x, y, gesture.snap[0], gesture.snap[1]);
+          gesture.item.points[1] = [x, y, gesture.item.points[0][2]];
+          gesture.el.setAttribute('d', gesture.item.tool === 'marker' ? polyline(gesture.item.points) : strokeOutline(gesture.item.points, gesture.item.width));
+          return;
+        }
         for (const ev of events.length ? events : [e]) {
           let [x, y] = toPage(ev);
           // Am Geodreieck: genau auf der Kante bleiben.
@@ -695,10 +768,24 @@ export async function openInkEditor({ title = 'Arbeitsblatt', key, loadPdf = nul
       } else if (gesture.kind === 'rect') {
         const [x, y] = toPage(e);
         const r = p.svg.querySelector('.ink-sel-rect');
-        r.hidden = false;
+        showSvg(r, true);
         const [fx, fy] = gesture.from;
         for (const [k, v] of Object.entries({ x: Math.min(fx, x), y: Math.min(fy, y), width: Math.abs(x - fx), height: Math.abs(y - fy) })) r.setAttribute(k, v);
         gesture.to = [x, y];
+      } else if (gesture.kind === 'handle') {
+        let [x, y] = toPage(e);
+        // Am Geodreieck rastet das Ende auf der Kante ein.
+        const ruler = doc.ruler?.visible && doc.ruler.page === p.i ? doc.ruler : null;
+        const edge = ruler ? nearEdge(ruler, x, y, RULER_REACH / state.zoom) : null;
+        if (edge) [x, y] = projectOnSegment(x, y, edge[0], edge[1]);
+        doc.pages[p.i].items = gesture.base.map((it) => {
+          if (it.id !== gesture.item) return it;
+          const points = it.points.map((q) => q.slice());
+          points[gesture.idx] = [x, y, points[gesture.idx][2]];
+          return { ...it, points };
+        });
+        gesture.moved = true;
+        drawItems(p.i);
       } else if (gesture.kind === 'move') {
         const [x, y] = toPage(e);
         const dx = x - gesture.from[0];
@@ -717,7 +804,14 @@ export async function openInkEditor({ title = 'Arbeitsblatt', key, loadPdf = nul
       gesture = null;
       if (g.raf) cancelAnimationFrame(g.raf);
       if (g.kind === 'stroke') {
+        clearTimeout(g.hold);
         g.el.remove();
+        // Am Geodreieck gezogen: eine Linie zwischen den äußersten Punkten.
+        if (g.snap && !g.line && g.item.points.length > 1) {
+          const [lo, hi] = extremesAlong(g.item.points, g.snap[0], g.snap[1]);
+          if (Math.hypot(hi[0] - lo[0], hi[1] - lo[1]) >= 2) { g.item.points = [lo, hi]; g.line = true; }
+        }
+        if (g.line) g.item.line = true;
         snapshot();
         doc.pages[p.i].items.push(g.item);
         changed();
@@ -725,7 +819,7 @@ export async function openInkEditor({ title = 'Arbeitsblatt', key, loadPdf = nul
       } else if (g.kind === 'erase') {
         if (g.removed) changed();
       } else if (g.kind === 'rect') {
-        p.svg.querySelector('.ink-sel-rect').hidden = true;
+        showSvg(p.svg.querySelector('.ink-sel-rect'), false);
         if (g.to) {
           const rect = { x: g.from[0], y: g.from[1], w: g.to[0] - g.from[0], h: g.to[1] - g.from[1] };
           const ids = new Set(doc.pages[p.i].items.filter((it) => inSelection(it, rect)).map((it) => it.id));
@@ -733,7 +827,7 @@ export async function openInkEditor({ title = 'Arbeitsblatt', key, loadPdf = nul
           paintSelection();
           paintToolbar();
         }
-      } else if (g.kind === 'move' && g.moved) {
+      } else if ((g.kind === 'move' || g.kind === 'handle') && g.moved) {
         state.undo.push(JSON.stringify(doc.pages.map((pg, i) => (i === p.i ? { ...pg, items: g.base } : pg))));
         state.redo = [];
         changed();
@@ -742,6 +836,13 @@ export async function openInkEditor({ title = 'Arbeitsblatt', key, loadPdf = nul
     p.el.addEventListener('pointermove', move);
     p.el.addEventListener('pointerup', up);
     p.el.addEventListener('pointercancel', up);
+  }
+
+  /** Nach HOLD_MS ohne Bewegung wird der Strich zur Linie (nicht am Geodreieck – da ist er schon gerade). */
+  function holdTimer(g) {
+    clearTimeout(g.hold);
+    if (g.line || g.snap) return;
+    g.hold = setTimeout(() => straighten(g), HOLD_MS);
   }
 
   function pressureOf(e) {

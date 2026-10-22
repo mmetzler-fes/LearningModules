@@ -183,9 +183,15 @@ wird – zum Beschriften mit Stift (iPad mit Apple Pencil), Finger oder Maus:
 
 - **Werkzeuge:** ✏️ Stift (mit Druck), 🖍️ Textmarker (unter der Schrift),
   🧽 Radierer (ganze Striche; auch das Radierer-Ende eines Windows-Stifts),
-  ⬚ Auswählen (Rechteck aufziehen, dann verschieben oder 🗑 löschen),
-  **T** Textfeld (auf die Seite tippen und schreiben). Dazu Farben, drei
-  Strichstärken, ↶ ↷ und Zoom.
+  ⬚ Auswählen (einen Strich antippen oder ein Rechteck aufziehen, dann
+  verschieben oder 🗑 löschen), **T** Textfeld (auf die Seite tippen und
+  schreiben). Dazu Farben, drei Strichstärken, ↶ ↷ und Zoom.
+- **Gerade Linien:** Am Ende eines Strichs den Stift (oder die Maus) kurz
+  stillhalten – der Strich wird zur geraden Linie vom Anfang bis dorthin;
+  solange man noch drückt, folgt das Ende dem Stift. Auch ein Strich am
+  Geodreieck wird zur Linie. Eine angetippte Linie zeigt im Auswahl-Modus
+  **zwei Anfasser** an den Enden zum Verschieben; am Geodreieck rastet ein
+  Ende auf der Kante ein.
 - **Hintergrund:** 📄 das Arbeitsblatt, ▦ Karo, ☰ Linien, ▢ Leer oder ein
   eigenes Bild oder PDF. Bei Karo, Linien und Leer fügt **＋📄** Seiten an.
   Die Beschriftung bleibt beim Wechsel stehen.

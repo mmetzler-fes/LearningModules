@@ -185,6 +185,11 @@ Der Knopf erscheint erst mit der Freischaltung **🧪 Stift-Editor**
 für die Lehrkraft in Vorschau und Notebooks, für Schüler über ihren Link,
 wenn die Lehrkraft des Lernthemas freigeschaltet ist.
 
+- **Werkzeugleiste:** oben die Werkzeuge (Auswahl, Stift, Textmarker,
+  Radierer, Text, Geodreieck), Rückgängig, Finger, Hintergrund, Lösung und
+  Zoom; darunter schwebend die Einstellungen des gewählten Werkzeugs –
+  Strichstärken und Farben, beim Text die Schriftgröße, bei der Auswahl
+  „Löschen“.
 - **Werkzeuge:** ✏️ Stift (mit Druck), 🖍️ Textmarker (unter der Schrift),
   🧽 Radierer (ganze Striche; auch das Radierer-Ende eines Windows-Stifts),
   ⬚ Auswählen (einen Strich antippen oder ein Rechteck aufziehen, dann

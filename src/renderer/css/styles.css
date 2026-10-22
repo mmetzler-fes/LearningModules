@@ -5356,30 +5356,53 @@ body.ink-open { overflow: hidden; }
   -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
 }
 .ink-overlay .ink-text { -webkit-user-select: text; user-select: text; }
+/* „hidden“ gilt im Editor immer – auch gegen display: inline-flex der Knöpfe und Gruppen. */
+.ink-overlay [hidden] { display: none !important; }
 .ink-toolbar {
-  display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px;
+  display: flex; align-items: center; gap: 4px 10px;
   padding: 6px 10px;
+  overflow-x: auto; scrollbar-width: none;
   background: var(--bg-secondary); border-bottom: 1px solid var(--border);
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
 }
-.ink-title { font-weight: 600; max-width: 22ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ink-group { display: inline-flex; align-items: center; gap: 4px; }
+.ink-toolbar::-webkit-scrollbar { display: none; }
+.ink-title { font-weight: 600; max-width: 18ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ink-group { display: inline-flex; align-items: center; gap: 2px; flex: 0 0 auto; }
 .ink-btn {
-  min-width: 40px; height: 40px; /* Fingergröße */
-  border: 1px solid var(--border); border-radius: 8px;
-  background: var(--bg-primary); color: var(--text-primary);
-  font-size: 1.1rem; cursor: pointer; touch-action: manipulation;
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 40px; height: 40px; padding: 0; /* Fingergröße */
+  border: none; border-radius: 10px;
+  background: transparent; color: var(--text-primary);
+  font-size: 1rem; cursor: pointer; touch-action: manipulation;
 }
-.ink-btn:disabled { opacity: 0.4; cursor: default; }
-.ink-btn.active { background: var(--accent-light); border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
-.ink-color { min-width: 32px; width: 32px; height: 32px; border-radius: 50%; background: var(--c); }
+.ink-btn:hover { background: var(--bg-primary); }
+.ink-btn:disabled { opacity: 0.35; cursor: default; background: transparent; }
+.ink-btn.active { background: var(--accent-light); color: var(--accent); }
+.ink-icon { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.ink-sep { width: 1px; height: 24px; background: var(--border); margin: 0 6px; flex: 0 0 auto; }
+.ink-bg-select { height: 36px; border-radius: 10px; border: 1px solid var(--border); background: var(--bg-primary); color: var(--text-primary); padding: 0 6px; margin: 0 2px; }
+.ink-status { margin-left: auto; font-size: 0.8em; color: var(--text-secondary); white-space: nowrap; padding-left: 6px; }
+/* Unter der Leiste, schwebend: Einstellungen des gewählten Werkzeugs. */
+.ink-stage { position: relative; flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.ink-subbar {
+  position: absolute; top: 10px; left: 50%; transform: translateX(-50%); z-index: 20;
+  display: flex; align-items: center; gap: 4px;
+  max-width: calc(100% - 20px); overflow-x: auto; scrollbar-width: none;
+  padding: 4px 10px; border-radius: 999px;
+  background: var(--bg-secondary); border: 1px solid var(--border);
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.15);
+}
+.ink-subbar::-webkit-scrollbar { display: none; }
+.ink-width i { display: block; width: 26px; height: var(--h); border-radius: 3px; background: currentColor; }
+.ink-size { font-weight: 600; font-family: Georgia, serif; }
+.ink-color { min-width: 30px; width: 30px; height: 30px; border-radius: 50%; background: var(--c); margin: 0 3px; }
+.ink-color:hover { background: var(--c); filter: brightness(0.92); }
 .ink-btn.ink-color.active { background: var(--c); box-shadow: 0 0 0 2px var(--bg-secondary), 0 0 0 4px var(--accent); }
-.ink-width i { display: inline-block; width: var(--d); height: var(--d); border-radius: 50%; background: currentColor; }
-.ink-bg-select { height: 40px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg-primary); color: var(--text-primary); padding: 0 6px; }
-.ink-status { margin-left: auto; font-size: 0.85em; color: var(--text-secondary); }
-.ink-close { font-weight: 700; }
+.ink-labeled { gap: 6px; padding: 0 12px; color: #dc2626; font-weight: 600; }
+.ink-subhint { font-size: 0.85em; color: var(--text-secondary); white-space: nowrap; padding: 0 6px; }
+.ink-subhint:empty { display: none; }
+.ink-close { color: var(--text-secondary); }
 .ink-scroll { flex: 1; overflow: auto; -webkit-overflow-scrolling: touch; }
-.ink-pages { display: flex; flex-direction: column; align-items: center; gap: 16px; padding: 12px; min-width: min-content; }
+.ink-pages { display: flex; flex-direction: column; align-items: center; gap: 16px; padding: 64px 12px 12px; min-width: min-content; }
 .ink-page { position: relative; flex: 0 0 auto; background: #fff; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18); }
 .ink-bg, .ink-svg, .ink-texts, .ink-top { position: absolute; inset: 0; width: 100%; height: 100%; }
 /* Anfasser über allem (auch über dem Geodreieck); getroffen wird rechnerisch. */
@@ -5404,9 +5427,8 @@ body.ink-open { overflow: hidden; }
 .ink-tool-text .ink-text:focus { outline: 1.5px solid var(--accent); }
 .ink-text.ink-selected { outline: 1.5px dashed #3b82f6; }
 .ink-tool-text .ink-page { cursor: text; }
-@media (max-width: 700px) {
+@media (max-width: 900px) {
   .ink-title { display: none; }
-  .ink-btn { min-width: 36px; height: 36px; }
 }
 /* Geodreieck (js/ink/ink-ruler.js): nur das Dreieck nimmt Eingaben an –
    daneben scrollt der Finger weiter, und der Stift zeichnet. */

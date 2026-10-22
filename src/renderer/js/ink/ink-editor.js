@@ -20,11 +20,33 @@ import { rulerSvg, rulerHandles } from './ink-ruler.js';
 // Auswertung kommen später. Koordinaten in PDF-Punkten der Seite, damit die
 // Striche bei jedem Zoom an derselben Stelle des Blatts bleiben.
 
-const COLORS = ['#1e293b', '#2563eb', '#dc2626', '#16a34a'];
-const MARKERS = ['#fde047', '#86efac', '#f9a8d4', '#93c5fd'];
+const COLORS = ['#1e293b', '#2563eb', '#dc2626', '#16a34a', '#ea580c', '#9333ea'];
+const MARKERS = ['#fde047', '#86efac', '#f9a8d4', '#93c5fd', '#fdba74'];
 const WIDTHS = { pen: [1.1, 1.9, 3.2], marker: [9, 14, 20] };
 const ERASER = 7;           // Radius des Radierers in Punkten
-const TEXT_SIZE = 13;       // Schriftgröße der Textfelder in Punkten
+const TEXT_SIZE = 13;       // Schriftgröße der Textfelder in Punkten (mittel)
+const TEXT_SIZES = [10, 13, 18];
+
+// Symbole der Werkzeugleiste (selbst gezeichnet, 24 × 24, Linienstil).
+const ICON_PATHS = {
+  close: 'M6 6l12 12M18 6L6 18',
+  select: 'M4 7V5a1 1 0 011-1h2M11 4h2M17 4h2a1 1 0 011 1v2M20 11v2M20 17v2a1 1 0 01-1 1h-2M13 20h-2M7 20H5a1 1 0 01-1-1v-2M4 13v-2',
+  pen: 'M4 20l1.2-4.4L15.6 5.2a2.1 2.1 0 013 3L8.2 18.6 4 20zM13.8 7l3.2 3.2',
+  marker: 'M4 21h8M7.5 17.5l-2-2L15 5l4 4-9.5 9.5zM6.5 16.5L4 19',
+  eraser: 'M8 20h12M5.6 14.4l8.3-8.3a2 2 0 012.8 0l2.2 2.2a2 2 0 010 2.8L12 18H8.6zM9.6 10.4l4 4',
+  text: 'M4 4h16v16H4zM8.5 8.5h7M12 8.5v8',
+  ruler: 'M3.5 19.5L19.5 3.5v16zM7.5 19.5v-2M11.5 19.5v-3M15.5 19.5v-2M19.5 8.5h-2M19.5 12.5h-3',
+  undo: 'M9 13L4 8l5-5M4 8h10a6 6 0 010 12h-4',
+  redo: 'M15 13l5-5-5-5M20 8H10a6 6 0 000 12h4',
+  finger: 'M9 12V5.5a1.5 1.5 0 013 0V11M12 10.5V4.5a1.5 1.5 0 013 0V11M15 10.5V7a1.5 1.5 0 013 0v6a7 7 0 01-7 7h-.5a6 6 0 01-5-2.8L3.2 13a1.5 1.5 0 012.5-1.6L9 15',
+  bulb: 'M9 18h6M10 21h4M12 3a6 6 0 00-3.6 10.8V16h7.2v-2.2A6 6 0 0012 3z',
+  page: 'M6 3h8l4 4v14H6zM12 10v6M9 13h6',
+  zoomIn: 'M11 4a7 7 0 100 14 7 7 0 000-14zM20 20l-4-4M8 11h6M11 8v6',
+  zoomOut: 'M11 4a7 7 0 100 14 7 7 0 000-14zM20 20l-4-4M8 11h6',
+  fit: 'M4 12h16M7.5 8.5L4 12l3.5 3.5M16.5 8.5L20 12l-3.5 3.5',
+  trash: 'M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3',
+};
+const icon = (name) => `<svg class="ink-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="${ICON_PATHS[name]}"/></svg>`;
 const MAX_PIXELS = 12e6;    // Obergrenze je Hintergrund-Leinwand (iPad Safari: ~16 Mio.)
 const RULER_REACH = 12;     // So nah (Bildschirmpunkte) muss der Stift an die Kante des Geodreiecks
 const RULER_MIN = 6 * CM;
@@ -105,7 +127,7 @@ export async function openInkEditor({ title = 'Arbeitsblatt', key, loadPdf = nul
   if (doc.bg === 'file' && !fileBg) doc.bg = loadPdf ? 'pdf' : 'karo';
 
   const state = {
-    tool: 'pen', color: COLORS[0], marker: MARKERS[0], widthIdx: 1,
+    tool: 'pen', color: COLORS[0], marker: MARKERS[0], widthIdx: 1, textSizeIdx: 1,
     zoom: 1, fingerDraws: false, variant: 'blatt',
     selection: null,          // { page, ids: Set }
     undo: [], redo: [],
@@ -119,49 +141,60 @@ export async function openInkEditor({ title = 'Arbeitsblatt', key, loadPdf = nul
   overlay.className = 'ink-overlay ink-finger-off';
   overlay.setAttribute('role', 'dialog');
   overlay.setAttribute('aria-label', `Bearbeiten: ${title}`);
+  const tool = (name, ico, label) => `<button type="button" class="ink-btn" data-tool="${name}" title="${label}" aria-label="${label}">${icon(ico)}</button>`;
+  const btn = (cls, ico, label, extra = '') => `<button type="button" class="ink-btn ${cls}" title="${label}" aria-label="${label}"${extra}>${icon(ico)}</button>`;
+  // Oben die Werkzeuge (wie in GoodNotes), darunter schwebend die Einstellungen des gewählten Werkzeugs.
   overlay.innerHTML = `
     <div class="ink-toolbar" role="toolbar">
-      <button type="button" class="ink-btn ink-close" title="Schließen – die Beschriftung bleibt auf diesem Gerät gespeichert">✕</button>
+      ${btn('ink-close', 'close', 'Schließen – die Beschriftung bleibt auf diesem Gerät gespeichert')}
       <span class="ink-title">${esc(title)}</span>
       <span class="ink-group ink-tools">
-        <button type="button" class="ink-btn" data-tool="pen" title="Stift">✏️</button>
-        <button type="button" class="ink-btn" data-tool="marker" title="Textmarker">🖍️</button>
-        <button type="button" class="ink-btn" data-tool="eraser" title="Radierer – löscht ganze Striche">🧽</button>
-        <button type="button" class="ink-btn" data-tool="select" title="Auswählen: Rechteck aufziehen, dann verschieben oder löschen">⬚</button>
-        <button type="button" class="ink-btn" data-tool="text" title="Textfeld: auf die Seite tippen und schreiben">T</button>
+        ${tool('select', 'select', 'Auswählen: Strich antippen oder Rechteck aufziehen')}
+        ${tool('pen', 'pen', 'Stift – am Ende kurz halten: gerade Linie')}
+        ${tool('marker', 'marker', 'Textmarker')}
+        ${tool('eraser', 'eraser', 'Radierer – löscht ganze Striche')}
+        ${tool('text', 'text', 'Textfeld: auf die Seite tippen und schreiben')}
+        <span class="ink-sep"></span>
+        ${btn('ink-ruler-toggle', 'ruler', 'Geodreieck ein- und ausblenden – drehen am ⟳ (Umschalt: 5°), mit zwei Fingern oder dem Mausrad; vergrößern am ⤢')}
       </span>
       <span class="ink-group">
-        <button type="button" class="ink-btn ink-ruler-toggle" title="Geodreieck ein- und ausblenden – drehen am ⟳ (Umschalt: 5°), mit zwei Fingern oder dem Mausrad; vergrößern am ⤢">📐</button>
-      </span>
-      <span class="ink-group ink-colors"></span>
-      <span class="ink-group ink-widths">
-        ${[0, 1, 2].map((i) => `<button type="button" class="ink-btn ink-width" data-width="${i}" title="${['dünn', 'mittel', 'dick'][i]}"><i style="--d:${4 + i * 4}px"></i></button>`).join('')}
+        ${btn('ink-undo', 'undo', 'Rückgängig')}
+        ${btn('ink-redo', 'redo', 'Wiederholen')}
       </span>
       <span class="ink-group">
-        <button type="button" class="ink-btn ink-undo" title="Rückgängig">↶</button>
-        <button type="button" class="ink-btn ink-redo" title="Wiederholen">↷</button>
-        <button type="button" class="ink-btn ink-delete" title="Auswahl löschen" hidden>🗑</button>
-      </span>
-      <span class="ink-group">
-        <button type="button" class="ink-btn ink-finger" title="Mit dem Finger zeichnen (sonst scrollt der Finger, gezeichnet wird mit Stift oder Maus)">☝️</button>
-        <select class="ink-bg-select" title="Hintergrund">
+        ${btn('ink-finger', 'finger', 'Mit dem Finger zeichnen (sonst scrollt der Finger, gezeichnet wird mit Stift oder Maus)')}
+        <select class="ink-bg-select" title="Hintergrund" aria-label="Hintergrund">
           ${loadPdf ? '<option value="pdf">📄 Arbeitsblatt</option>' : ''}
           <option value="karo">▦ Karo</option>
           <option value="linien">☰ Linien</option>
           <option value="leer">▢ Leer</option>
           <option value="file">🖼 Bild oder PDF …</option>
         </select>
-        ${solutions && loadPdf ? '<button type="button" class="ink-btn ink-solution" title="Lösungsblatt als Hintergrund ein- und ausblenden">💡</button>' : ''}
-        <button type="button" class="ink-btn ink-add-page" title="Seite anfügen">＋📄</button>
+        ${solutions && loadPdf ? btn('ink-solution', 'bulb', 'Lösungsblatt als Hintergrund ein- und ausblenden') : ''}
+        ${btn('ink-add-page', 'page', 'Seite anfügen')}
       </span>
-      <span class="ink-group">
-        <button type="button" class="ink-btn ink-zoom-out" title="Verkleinern">−</button>
-        <button type="button" class="ink-btn ink-zoom-fit" title="Auf Breite">↔</button>
-        <button type="button" class="ink-btn ink-zoom-in" title="Vergrößern">＋</button>
+      <span class="ink-group ink-zoom">
+        ${btn('ink-zoom-out', 'zoomOut', 'Verkleinern')}
+        ${btn('ink-zoom-fit', 'fit', 'Auf Breite')}
+        ${btn('ink-zoom-in', 'zoomIn', 'Vergrößern')}
       </span>
       <span class="ink-status" aria-live="polite"></span>
     </div>
-    <div class="ink-scroll"><div class="ink-pages"></div></div>`;
+    <div class="ink-stage">
+      <div class="ink-subbar" role="toolbar" aria-label="Einstellungen des Werkzeugs">
+        <span class="ink-group ink-widths">
+          ${[0, 1, 2].map((i) => `<button type="button" class="ink-btn ink-width" data-width="${i}" title="${['dünn', 'mittel', 'dick'][i]}" aria-label="${['dünn', 'mittel', 'dick'][i]}"><i style="--h:${[1.5, 3, 5][i]}px"></i></button>`).join('')}
+        </span>
+        <span class="ink-group ink-sizes">
+          ${[0, 1, 2].map((i) => `<button type="button" class="ink-btn ink-size" data-size="${i}" title="Schrift ${['klein', 'mittel', 'groß'][i]}" style="font-size:${[12, 16, 21][i]}px">A</button>`).join('')}
+        </span>
+        <span class="ink-sep ink-sub-sep"></span>
+        <span class="ink-group ink-colors"></span>
+        <span class="ink-subhint"></span>
+        <button type="button" class="ink-btn ink-delete ink-labeled" title="Auswahl löschen (Entf)" hidden>${icon('trash')}<span>Löschen</span></button>
+      </div>
+      <div class="ink-scroll"><div class="ink-pages"></div></div>
+    </div>`;
   document.body.appendChild(overlay);
   document.body.classList.add('ink-open');
   const $ = (sel) => overlay.querySelector(sel);
@@ -175,9 +208,20 @@ export async function openInkEditor({ title = 'Arbeitsblatt', key, loadPdf = nul
     const list = state.tool === 'marker' ? MARKERS : COLORS;
     const current = state.tool === 'marker' ? state.marker : state.color;
     $('.ink-colors').innerHTML = list.map((c) => `<button type="button" class="ink-btn ink-color ${c === current ? 'active' : ''}" data-color="${c}" style="--c:${c}" title="Farbe"></button>`).join('');
-    $('.ink-colors').hidden = !['pen', 'marker', 'text'].includes(state.tool);
-    $('.ink-widths').hidden = !['pen', 'marker'].includes(state.tool);
-    overlay.querySelectorAll('.ink-width').forEach((b) => b.classList.toggle('active', Number(b.dataset.width) === state.widthIdx));
+    const drawing = ['pen', 'marker'].includes(state.tool);
+    $('.ink-colors').hidden = !drawing && state.tool !== 'text';
+    $('.ink-widths').hidden = !drawing;
+    $('.ink-sizes').hidden = state.tool !== 'text';
+    $('.ink-sub-sep').hidden = $('.ink-colors').hidden;
+    overlay.querySelectorAll('.ink-width').forEach((b) => {
+      b.classList.toggle('active', Number(b.dataset.width) === state.widthIdx);
+      b.querySelector('i').style.background = state.tool === 'marker' ? state.marker : state.color;
+    });
+    overlay.querySelectorAll('.ink-size').forEach((b) => b.classList.toggle('active', Number(b.dataset.size) === state.textSizeIdx));
+    $('.ink-subhint').textContent = {
+      eraser: 'Über einen Strich wischen – er wird ganz gelöscht.',
+      select: state.selection?.ids.size ? `${state.selection.ids.size} gewählt – ziehen zum Verschieben` : 'Strich antippen oder Rechteck aufziehen',
+    }[state.tool] || '';
     $('.ink-undo').disabled = !state.undo.length;
     $('.ink-redo').disabled = !state.redo.length;
     $('.ink-delete').hidden = !state.selection?.ids.size;
@@ -207,6 +251,10 @@ export async function openInkEditor({ title = 'Arbeitsblatt', key, loadPdf = nul
   $('.ink-widths').addEventListener('click', (e) => {
     const b = e.target.closest('[data-width]');
     if (b) { state.widthIdx = Number(b.dataset.width); paintToolbar(); }
+  });
+  $('.ink-sizes').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-size]');
+    if (b) { state.textSizeIdx = Number(b.dataset.size); paintToolbar(); }
   });
   $('.ink-undo').addEventListener('click', () => history(state.undo, state.redo));
   $('.ink-redo').addEventListener('click', () => history(state.redo, state.undo));
@@ -721,7 +769,8 @@ export async function openInkEditor({ title = 'Arbeitsblatt', key, loadPdf = nul
         }
       } else if (tool === 'text') {
         snapshot();
-        const item = { id: uid(), type: 'text', x, y: y - TEXT_SIZE * 0.7, w: 160, h: TEXT_SIZE * 1.4, text: '', color: state.color, size: TEXT_SIZE };
+        const size = TEXT_SIZES[state.textSizeIdx];
+        const item = { id: uid(), type: 'text', x, y: y - size * 0.7, w: 160, h: size * 1.4, text: '', color: state.color, size };
         doc.pages[p.i].items.push(item);
         const box = textBox(p, item);
         p.texts.appendChild(box);

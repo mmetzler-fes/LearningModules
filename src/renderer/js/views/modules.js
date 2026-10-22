@@ -36,6 +36,7 @@ export class ModulesView {
     this._moduleTitleInput = document.getElementById('moduleTitle');
     this._moduleTypeSelect = document.getElementById('moduleType');
     this._btnCancelModule  = document.getElementById('btnCancelModule');
+    this._btnCancelModuleTop = document.getElementById('btnCancelModuleTop');
     this._createViewTitle  = document.getElementById('createViewTitle');
     this._playerTitle      = document.getElementById('playerTitle');
     this._h5pContainer     = document.getElementById('h5pContainer');
@@ -149,17 +150,18 @@ export class ModulesView {
     if (this._moduleForm) {
       this._moduleForm.addEventListener('submit', (e) => this._onModuleFormSubmit(e));
     }
-    if (this._btnCancelModule) {
-      this._btnCancelModule.addEventListener('click', async () => {
-        if (this._draft && this._isDirty()) {
-          const ok = await this.app.appConfirm('Ungespeicherte Änderungen verwerfen?\n\nDer gesicherte Entwurf wird dabei gelöscht. Mit „Abbrechen“ bleibst du im Editor.');
-          if (!ok) return;
-        }
-        await this._discardDraft();
-        this._resetModuleForm();
-        this.app.navigateToView(this.backView());
-      });
-    }
+    // Abbrechen unten und oben in der Kopfzeile (die beim Scrollen stehen bleibt).
+    const cancel = async () => {
+      if (this._draft && this._isDirty()) {
+        const ok = await this.app.appConfirm('Ungespeicherte Änderungen verwerfen?\n\nDer gesicherte Entwurf wird dabei gelöscht. Mit „Abbrechen“ bleibst du im Editor.');
+        if (!ok) return;
+      }
+      await this._discardDraft();
+      this._resetModuleForm();
+      this.app.navigateToView(this.backView());
+    };
+    this._btnCancelModule?.addEventListener('click', cancel);
+    this._btnCancelModuleTop?.addEventListener('click', cancel);
 
     if (this._btnBackFromPlayer) {
       this._btnBackFromPlayer.addEventListener('click', () => {

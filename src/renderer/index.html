@@ -494,8 +494,13 @@
 
       <!-- Teacher: Create/Edit Module -->
       <section class="view" id="view-create-module">
-        <div class="view-header">
-          <h2 id="createViewTitle" data-i18n="module.create.title">Neues Modul erstellen</h2>
+        <!-- Bleibt beim Scrollen oben: Abbrechen und Speichern ohne Suchen nach unten -->
+        <div class="view-header editor-header">
+          <div class="player-header">
+            <button type="button" class="btn btn-secondary btn-back" id="btnCancelModuleTop" data-i18n="module.cancel.top">← Abbrechen</button>
+            <h2 id="createViewTitle" data-i18n="module.create.title">Neues Modul erstellen</h2>
+            <button type="submit" form="moduleForm" class="btn btn-primary editor-header-save" data-i18n="module.save">Modul speichern</button>
+          </div>
         </div>
         <form id="moduleForm" class="module-form">
           <input type="hidden" id="moduleId" />

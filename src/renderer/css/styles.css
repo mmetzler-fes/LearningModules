@@ -1967,6 +1967,21 @@ body {
   align-items: center;
   gap: 16px;
 }
+/* Modul-Editor: Kopfzeile bleibt beim Scrollen oben (Abbrechen, Speichern). */
+.editor-header {
+  position: sticky;
+  top: -32px; /* Polster von .main-content – die Leiste schließt oben bündig ab */
+  z-index: 20;
+  margin: -32px -40px 20px;
+  padding: 32px 40px 12px;
+  background: var(--bg-primary);
+  border-bottom: 1px solid var(--border);
+}
+.editor-header .player-header { flex-wrap: wrap; }
+.editor-header h2 { margin-bottom: 0; flex: 1 1 auto; min-width: 0; }
+@media (max-width: 800px) {
+  .editor-header { top: -20px; margin: -20px -20px 16px; padding: 20px 20px 10px; }
+}
 
 .h5p-container {
   background: var(--bg-secondary);

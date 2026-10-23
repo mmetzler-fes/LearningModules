@@ -30,7 +30,7 @@ export const lmHost = {
         primary: true,
         async onClick() {
           const { openDocumentInk } = await import('./ink/ink-open.js');
-          await openDocumentInk({ mode: inkMode, mod: { id: moduleId, title, content }, up });
+          await openDocumentInk({ mode: inkMode, mod: { id: moduleId, title, content }, up, embedModule: options.embedModule || null });
         },
       });
     }

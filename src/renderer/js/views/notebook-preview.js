@@ -186,9 +186,10 @@ export class NotebookPreview {
         const b = e.currentTarget;
         b.disabled = true;
         try {
-          const full = (await this._topicModules(topic).catch(() => [])).find((m) => m.id === mod.id) || mod;
+          const all = await this._topicModules(topic).catch(() => []);
+          const full = all.find((m) => m.id === mod.id) || mod;
           const { openDocumentInk } = await import('../ink/ink-open.js');
-          await openDocumentInk({ mode: 'teacher', mod: full });
+          await openDocumentInk({ mode: 'teacher', mod: full, embedModule: (id) => all.find((m) => m.id === id) || null });
         } catch (err) { this.app.showToast(`Stift-Editor: ${err.message}`, 'error'); }
         b.disabled = false;
       });

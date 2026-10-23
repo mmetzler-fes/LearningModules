@@ -203,10 +203,24 @@ wenn die Lehrkraft des Lernthemas freigeschaltet ist.
   Geodreieck wird zur Linie. Eine angetippte Linie zeigt im Auswahl-Modus
   **zwei Anfasser** an den Enden zum Verschieben; am Geodreieck rastet ein
   Ende auf der Kante ein.
-- **Hintergrund:** 📄 das Arbeitsblatt, ▦ Karo, ☰ Linien, ▢ Leer oder ein
-  eigenes Bild oder PDF. Bei Karo, Linien und Leer fügt **＋📄** Seiten an.
-  Die Beschriftung bleibt beim Wechsel stehen.
-- **💡 Lösungsblatt** einblenden – nur für Lehrkräfte (Vorschau, Notebooks).
+- **Hintergrund:** 🧾 **Dokument** (Vorgabe) – das Dokument selbst auf einem
+  A4-Blatt, ohne Umweg über ein PDF. Dazu 📄 das PDF, ▦ Karo, ☰ Linien, ▢ Leer
+  oder ein eigenes Bild oder PDF. Bei Karo, Linien und Leer fügt **＋📄** Seiten
+  an. Die Beschriftung des Dokuments und die der übrigen Hintergründe werden
+  getrennt gespeichert; beim Wechsel bleibt beides erhalten.
+- **Im Dokument** gehört jeder Strich zu dem Baustein, in dem er beginnt
+  (Absatz, Karo, Aufgabe …). Ändert sich etwas darüber – ein Karo wird länger,
+  ein Bild lädt nach, ein Quiz klappt auf –, rutschen die Striche mit. Das Blatt
+  ist immer 21 cm breit und nutzt mitgelieferte Schriften (Liberation, so breit
+  wie Arial): Auf iPad, PC und Handy bricht der Text an denselben Stellen um.
+- **Karos verlängern:** Unten am Karo sitzt ein blauer Anfasser – nach unten
+  ziehen macht es länger (in 0,5-cm-Schritten), nach oben wieder kürzer, aber
+  nie kürzer als im Dokument. Das geht für Lehrkräfte und Schüler und ändert
+  nur die eigene Beschriftung, nicht das Dokument.
+- **👆 Bedienen:** Eingebettete Quizze im Blatt ausfüllen. Der Finger bedient
+  sie immer (solange ☝️ aus ist), Stift und Maus nur mit diesem Werkzeug –
+  sonst schreiben sie.
+- **💡 Lösungen** einblenden – nur für Lehrkräfte (Vorschau, Notebooks).
 - **📌 Seite feststellen:** Die Pin-Nadel arretiert die Seite – sie
   verschiebt sich beim Zeichnen nicht mehr, auch nicht mit dem Finger.
   Nochmal antippen löst sie. Der Apple Pencil scrollt ohnehin nicht, nur der
@@ -228,15 +242,16 @@ Browser die Seite nicht (iPad: Zwei-Finger-Geste); Strg+Mausrad bzw. das
 Trackpad zoomt stattdessen das Blatt.
 
 Gespeichert wird vorerst **nur auf diesem Gerät** (im Browser) – getrennt für
-Schüler und Lehrkräfte. Abgeben und Auswerten kommen später. Für das Blatt als
-Hintergrund braucht es den Renderer; ohne ihn bleiben Karo, Linien und eigene
-Bilder.
+Schüler und Lehrkräfte. Abgeben und Auswerten kommen später. Für das PDF als
+Hintergrund braucht es den Renderer; das Dokument, Karo, Linien und eigene
+Bilder gehen ohne.
 
-Technik: `src/renderer/js/ink/` (Geometrie in `ink-geometry.js`, getestet;
-Zeichnung des Geodreiecks in `ink-ruler.js`),
-PDFs mit pdf.js (`js/vendor/pdfjs/`, legacy build für ältere iPads).
-Koordinaten in PDF-Punkten der Seite – die Striche bleiben bei jedem Zoom an
-derselben Stelle des Blatts.
+Technik: Der Editor gehört zu [lm-editor](https://github.com/mmetzler-fes/lm-editor)
+(Submodul `src/renderer/lm-editor`): `src/ink/ink-editor.js`, Geometrie in
+`ink-geometry.js` (getestet), Geodreieck in `ink-ruler.js`, das A4-Blatt in
+`src/css/paper.css`, PDFs mit pdf.js (`src/vendor/pdfjs/`, legacy build für
+ältere iPads). Hier in der App: `js/ink/ink-open.js`. Koordinaten in Punkten –
+die Striche bleiben bei jedem Zoom an derselben Stelle des Blatts.
 
 ## In der Nextcloud
 

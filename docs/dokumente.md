@@ -237,6 +237,12 @@ wenn die Lehrkraft des Lernthemas freigeschaltet ist.
   sie immer (solange ☝️ aus ist), Stift und Maus nur mit diesem Werkzeug –
   sonst schreiben sie.
 - **💡 Lösungen** einblenden – nur für Lehrkräfte (Vorschau, Notebooks).
+- **🖨 Drucken oder als PDF speichern** (Hintergrund „Dokument“): Arbeitsblatt
+  oder Lösungsblatt, jeweils mit oder ohne Beschriftung – über den Druckdialog
+  des Browsers („Als PDF speichern“; iPad: Teilen → Drucken). Ränder wie die
+  Schulvorlage, Seitenumbrüche aus dem Dokument; Schreibfelder, Bilder und
+  Formeln werden nicht über zwei Seiten zerrissen. Schüler sehen nur das
+  Arbeitsblatt. Quizze erscheinen so, wie sie gerade aussehen.
 - **📌 Seite feststellen:** Die Pin-Nadel arretiert die Seite – sie
   verschiebt sich beim Zeichnen nicht mehr, auch nicht mit dem Finger.
   Nochmal antippen löst sie. Der Apple Pencil scrollt ohnehin nicht, nur der

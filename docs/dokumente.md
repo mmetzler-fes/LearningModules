@@ -50,7 +50,8 @@ Baustein hinter den Block, in dem die Schreibmarke steht.
 **📄 Übernehmen (.odt, .docx, .pdf)** liest ein Writer-Dokument ein:
 Überschriften, Absätze, Listen, Tabellen (auch verbundene Zellen), Bilder mit
 ihrer Lage und Textrahmen. Formeln aus dem Formeleditor und Bilder in Tabellen
-kommen nicht mit; der Editor nennt, was fehlt. **Word-Dateien** (.docx, auch
+kommen nicht mit; der Editor nennt, was fehlt. Ausgeblendeter Text – so stehen die Lösungen im Arbeitsblatt – wird eine
+**Lösung**, bleibt also im Blatt verborgen. **Word-Dateien** (.docx, auch
 .doc und .rtf) wandelt der Renderer vorher mit LibreOffice in eine .odt um –
 das dauert einige Sekunden länger, und was LibreOffice anders darstellt als
 Word, kommt so auch hier an.
@@ -198,6 +199,11 @@ wenn die Lehrkraft des Lernthemas freigeschaltet ist.
   ⬚ Auswählen (einen Strich antippen oder ein Rechteck aufziehen, dann
   verschieben oder 🗑 löschen), **T** Textfeld (auf die Seite tippen und
   schreiben). Dazu Farben, drei Strichstärken, ↶ ↷ und Zoom.
+- **▭ Feld:** Ein Rechteck aufziehen – an der Stelle liegt dann ein weißes Feld
+  mit Karo, Linien oder leer und deckt ab, was darunter steht. So lässt sich
+  z. B. auf einer PDF-Seite eine ausgefüllte Tabelle durch frisches Karo
+  ersetzen. Danach ist das Feld gewählt: an den Ecken größer oder kleiner
+  ziehen, oben in der Leiste das Muster wechseln. Darauf schreibt man wie sonst.
 - **Auswahl bearbeiten:** Gewähltes lässt sich kopieren, ausschneiden,
   einfügen und duplizieren (Strg/⌘+C, X, V, D) sowie gruppieren (Strg+G) und
   wieder trennen (Strg+Umschalt+G). Dieselben Befehle hat das Menü der Auswahl:

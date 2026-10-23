@@ -2,7 +2,7 @@ import { escapeHtml } from '../utils.js';
 import { collectAnswer, splitTrueFalse } from '../answer-eval.js';
 import { CompanionRun, COMPANION_MAX } from './companion-run.js';
 import { TaskTimer } from '../task-timer.js';
-import { planRun } from '../doc-quiz.js';
+import { planRun } from '../../lm-editor/src/doc/doc-quiz.js';
 
 // ==================== QUIZ VIEW ====================
 

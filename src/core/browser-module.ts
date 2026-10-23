@@ -5,6 +5,7 @@ import * as vm from 'vm';
 /**
  * Ein Browser-Modul aus src/renderer/js im Server bzw. in den Tests laden –
  * für Logik, die es nur einmal geben soll (z. B. puzzles.js, json-text.js).
+ * Dateien aus dem Submodul lm-editor über '../lm-editor/src/…'.
  * Die Datei darf nichts importieren; "export" wird entfernt und die Namen
  * werden eingesammelt.
  *

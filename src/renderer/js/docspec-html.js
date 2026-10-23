@@ -14,7 +14,7 @@
  * data-ds="section|task|subtask|heading"); Karo, Lösung, Formel, Code usw.
  * werden feste Bausteine (div.ds-widget mit dem Block als data-block).
  */
-import { richText, renderDocSpecHtml } from './docspec.js';
+import { richText, renderDocSpecHtml } from '../lm-editor/src/doc/docspec.js';
 
 const MARKUP_CHARS = /[\\*`[\]]/g;
 

@@ -1,6 +1,6 @@
 import { loadBrowserModule } from './browser-module';
 
-/** Geometrie des Stift-Editors: src/renderer/js/ink/ink-geometry.js */
+/** Geometrie des Stift-Editors: src/renderer/lm-editor/src/ink/ink-geometry.js */
 interface InkGeometry {
   A4: { w: number; h: number };
   MM: number;
@@ -17,7 +17,7 @@ interface InkGeometry {
   moved(item: any, dx: number, dy: number): any;
   ruling(kind: string, w: number, h: number): number[][];
 }
-const g = loadBrowserModule<InkGeometry>('ink/ink-geometry.js');
+const g = loadBrowserModule<InkGeometry>('../lm-editor/src/ink/ink-geometry.js');
 
 describe('Stift-Editor: Geometrie (ink-geometry.js)', () => {
   const stroke = { type: 'stroke', width: 2, points: [[10, 10, 0.5], [50, 10, 0.5], [90, 10, 0.5]] };
@@ -100,7 +100,7 @@ interface Ruler {
   nearEdge(r: any, x: number, y: number, reach: number): number[][] | null;
   snapAngle(deg: number, step: number): number;
 }
-const R = loadBrowserModule<Ruler>('ink/ink-geometry.js');
+const R = loadBrowserModule<Ruler>('../lm-editor/src/ink/ink-geometry.js');
 const close = (a: number[], b: number[]) => a.every((v, i) => Math.abs(v - b[i]) < 1e-6);
 
 describe('Stift-Editor: Geodreieck (ink-geometry.js)', () => {

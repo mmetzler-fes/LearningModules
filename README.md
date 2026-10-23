@@ -57,6 +57,7 @@ Ordner mit `chmod 700`, Dateien mit `600`.
 ## Entwicklung
 
 ```bash
+git submodule update --init   # src/renderer/lm-editor (oder gleich: git clone --recursive)
 npm install
 npm run start:dev      # http://localhost:3000
 npm test               # Unit-Tests (jest)
@@ -64,7 +65,10 @@ npx tsc --noEmit       # Typprüfung
 ```
 
 Backend: NestJS mit TypeORM und SQLite (`src/`). Frontend: ES-Module ohne
-Build-Schritt (`src/renderer/`).
+Build-Schritt (`src/renderer/`). Dokument-Ansicht und Stift-Editor kommen nach
+und nach aus [lm-editor](https://github.com/mmetzler-fes/lm-editor), eingebunden
+als Submodul unter `src/renderer/lm-editor`. Änderungen daran dort machen und
+hier mit `git submodule update --remote` übernehmen.
 
 ## Lizenz
 

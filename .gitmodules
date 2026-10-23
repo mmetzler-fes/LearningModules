@@ -1,0 +1,3 @@
+[submodule "src/renderer/lm-editor"]
+	path = src/renderer/lm-editor
+	url = https://github.com/mmetzler-fes/lm-editor.git

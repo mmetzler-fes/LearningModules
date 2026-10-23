@@ -2,7 +2,7 @@ import { loadBrowserModule } from '../core/browser-module';
 
 /**
  * Prüfen und Anzeigen des Modultyps „Dokument“ gibt es nur einmal: als
- * Browser-Modul src/renderer/js/docspec.js. Der Server lädt dieselbe Datei –
+ * Browser-Modul src/renderer/lm-editor/src/doc/docspec.js (Submodul lm-editor). Der Server lädt dieselbe Datei –
  * so lehnt er dieselben Specs ab, die der Editor als fehlerhaft markiert.
  */
 export interface DocSpecEngine {
@@ -18,5 +18,5 @@ export interface DocSpecEngine {
 }
 
 export function docSpec(): DocSpecEngine {
-  return loadBrowserModule<DocSpecEngine>('docspec.js');
+  return loadBrowserModule<DocSpecEngine>('../lm-editor/src/doc/docspec.js');
 }

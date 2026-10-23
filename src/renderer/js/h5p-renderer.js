@@ -5,7 +5,7 @@ import { audioSourceOf, scoreDictation, dictationOptions } from './dictation.js'
 import { generateValues, fillPlaceholders, evaluate, parseUserNumber, isWithinTolerance, formatNumber, checkFormulaTask } from './formula.js';
 import { renderSorting, renderMemory, renderCrossword } from './puzzle-views.js';
 import { normalizeShareUrl, sanitizeModuleDescriptionHtml, sanitizeWorksheetHtml, escapeHtml, escapeAttr, hexTint, showContextMenu, attachPointerDrag, effectiveZoom } from './utils.js';
-import { renderDocSpecHtml } from './docspec.js';
+import { renderDocSpecHtml } from '../lm-editor/src/doc/docspec.js';
 
 /**
  * Nur http(s) einbetten. Ohne diese Schranke landeten `javascript:`- oder

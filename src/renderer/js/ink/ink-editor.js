@@ -1,8 +1,8 @@
 import {
   A4, CM, strokeOutline, polyline, hitsStroke, bounds, inSelection, moved, ruling,
   pageToRuler, inRuler, nearEdge, projectOnSegment, snapAngle, itemAt, extremesAlong,
-} from './ink-geometry.js';
-import { rulerSvg, rulerHandles } from './ink-ruler.js';
+} from '../../lm-editor/src/ink/ink-geometry.js';
+import { rulerSvg, rulerHandles } from '../../lm-editor/src/ink/ink-ruler.js';
 
 // ==================== STIFT-EDITOR ====================
 //

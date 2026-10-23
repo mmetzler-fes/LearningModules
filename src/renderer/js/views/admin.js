@@ -1,6 +1,6 @@
 import { escapeHtml } from '../utils.js';
 import { htmlToDocSpec } from '../docspec-html.js';
-import { validateDocSpec } from '../docspec.js';
+import { validateDocSpec } from '../../lm-editor/src/doc/docspec.js';
 import { downloadBlob } from '../api.js';
 import { printPermissionSheet, downloadPermissionOdt } from '../terms-print.js';
 import { renderSchoolNextcloud } from './school-nextcloud.js';

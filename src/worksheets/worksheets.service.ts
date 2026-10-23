@@ -62,7 +62,7 @@ export const SAMPLE_SPEC = {
 
 /**
  * Modultyp „Dokument“ drucken: Spec prüfen (dieselbe Prüfung wie im Editor,
- * src/renderer/js/docspec.js), Nummer, Kopfzeile und Verweise aus dem
+ * src/renderer/lm-editor/src/doc/docspec.js), Nummer, Kopfzeile und Verweise aus dem
  * Notebook dazunehmen, Bilder mitgeben, rendern.
  */
 @Injectable()

@@ -3,7 +3,7 @@ import { loadBrowserModule } from '../core/browser-module';
 const { quizIdsOf, planRun } = loadBrowserModule<{
   quizIdsOf(mod: any): string[];
   planRun(modules: any[], opts?: { companion?: boolean; onlyModule?: string | null }): { steps: any[]; embedded: Map<string, any> };
-}>('doc-quiz.js');
+}>('../lm-editor/src/doc/doc-quiz.js');
 
 const doc = (id: string, content: any[], topic = 't1') => ({ id, type: 'document', _topicId: topic, content: { spec: { content } } });
 const quiz = (id: string, topic = 't1') => ({ id, type: 'multipleChoice', _topicId: topic, content: {} });

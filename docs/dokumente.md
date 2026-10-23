@@ -198,6 +198,13 @@ wenn die Lehrkraft des Lernthemas freigeschaltet ist.
   ⬚ Auswählen (einen Strich antippen oder ein Rechteck aufziehen, dann
   verschieben oder 🗑 löschen), **T** Textfeld (auf die Seite tippen und
   schreiben). Dazu Farben, drei Strichstärken, ↶ ↷ und Zoom.
+- **Auswahl bearbeiten:** Gewähltes lässt sich kopieren, ausschneiden,
+  einfügen und duplizieren (Strg/⌘+C, X, V, D) sowie gruppieren (Strg+G) und
+  wieder trennen (Strg+Umschalt+G). Dieselben Befehle hat das Menü der Auswahl:
+  Rechtsklick, auf dem iPad lange auf die Auswahl drücken, oder der Knopf **⋯**.
+  Eine Gruppe wird immer ganz gewählt und verschoben. Eingefügt wird leicht
+  versetzt – oder mitten ins Sichtfeld, wenn das Original gerade nicht zu sehen
+  ist; Kopiertes lässt sich auch in ein anderes Blatt einfügen.
 - **Gerade Linien:** Am Ende eines Strichs den Stift (oder die Maus) kurz
   stillhalten – der Strich wird zur geraden Linie vom Anfang bis dorthin;
   solange man noch drückt, folgt das Ende dem Stift. Auch ein Strich am

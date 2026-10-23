@@ -91,7 +91,7 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
               ['justifyLeft', '⇤', 'Linksbündig'], ['justifyCenter', '↔', 'Zentriert'], ['justifyRight', '⇥', 'Rechtsbündig'], ['createLink', '🔗', 'Link']]
               .map(([cmd, label, title]) => `<button type="button" class="rt-btn" data-cmd="${cmd}" title="${title}">${label}</button>`).join('')}
             <select class="ds-vinsert" title="Baustein einfügen">
-              <option value="">➕ Einfügen …</option><option value="karo">Karo</option><option value="quiz">🧩 Quiz aus dem Lernthema</option><option value="solution">Lösung</option>
+              <option value="">➕ Einfügen …</option><option value="karo">Schreibfeld (Karo, Linien)</option><option value="quiz">🧩 Quiz aus dem Lernthema</option><option value="solution">Lösung</option>
               <option value="formula">Formel</option><option value="code">Code</option><option value="table">Tabelle</option>
               <option value="box">Kasten</option><option value="spacer">Platz</option><option value="pagebreak">Seitenumbruch</option>
             </select>
@@ -101,7 +101,7 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
         </div>
         <div class="ds-ybar" hidden>
           <select class="ds-yinsert" title="Baustein hinter dem Block einfügen, in dem die Schreibmarke steht">
-            <option value="">➕ Einfügen …</option><option value="karo">Karo</option><option value="quiz">🧩 Quiz aus dem Lernthema</option><option value="solution">Lösung</option>
+            <option value="">➕ Einfügen …</option><option value="karo">Schreibfeld (Karo, Linien)</option><option value="quiz">🧩 Quiz aus dem Lernthema</option><option value="solution">Lösung</option>
             <option value="formula">Formel</option><option value="code">Code</option><option value="table">Tabelle</option>
             <option value="box">Kasten</option><option value="spacer">Platz</option><option value="pagebreak">Seitenumbruch</option>
           </select>
@@ -531,8 +531,15 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
     try { block = JSON.parse(decodeURIComponent(w.dataset.block)); } catch (_) { return; }
     const overlay = document.createElement('div');
     overlay.className = 'confirm-overlay';
+    // Schreibfeld: Höhe, Breite und Muster als Felder – sie schreiben ins YAML darunter.
+    const field = block.type === 'karo' ? `<div class="ds-field-form">
+        <label>Höhe <input type="number" class="ds-f-h" min="0.5" max="30" step="0.5"> cm</label>
+        <label>Breite <input type="number" class="ds-f-w" min="1" max="16.5" step="0.5" placeholder="ganz"> cm</label>
+        <label>Muster <select class="ds-f-p"><option value="karo">▦ Karo</option><option value="linien">☰ Linien</option><option value="leer">▢ Leer</option></select></label>
+      </div>` : '';
     overlay.innerHTML = `<form class="import-modules-card ds-widget-dialog">
-        <h3>Baustein bearbeiten</h3>
+        <h3>${block.type === 'karo' ? 'Schreibfeld' : 'Baustein'} bearbeiten</h3>
+        ${field}
         <textarea class="ds-yaml" rows="12" spellcheck="false"></textarea>
         <p class="ds-error"></p>
         <div class="confirm-actions">
@@ -543,7 +550,23 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
     document.body.appendChild(overlay);
     const ta = overlay.querySelector('textarea');
     ta.value = yamlDump(block, { lineWidth: -1, noRefs: true });
-    ta.focus();
+    if (block.type === 'karo') {
+      const [h, wd, pat] = ['.ds-f-h', '.ds-f-w', '.ds-f-p'].map((sel) => overlay.querySelector(sel));
+      h.value = (Number.isInteger(block.lines) ? block.lines : 4) / 2;
+      wd.value = parseFloat(block.width) || '';
+      pat.value = block.pattern || 'karo';
+      const sync = () => {
+        let cur;
+        try { cur = yamlLoad(ta.value) || {}; } catch (_) { cur = { ...block }; }
+        cur.lines = Math.max(1, Math.min(60, Math.round(Number(h.value) * 2) || 1));
+        const cm = Math.round(Number(wd.value) * 2) / 2;
+        if (cm > 0 && cm < 16.5) cur.width = `${cm}cm`; else delete cur.width;
+        if (pat.value !== 'karo') cur.pattern = pat.value; else delete cur.pattern;
+        ta.value = yamlDump(cur, { lineWidth: -1, noRefs: true });
+      };
+      [h, wd, pat].forEach((el) => el.addEventListener('input', sync));
+      h.focus();
+    } else ta.focus();
     const close = () => overlay.remove();
     overlay.querySelector('.ds-w-cancel').addEventListener('click', close);
     overlay.querySelector('.ds-w-del').addEventListener('click', () => { if (w === selectedWidget) selectWidget(null); w.remove(); close(); });

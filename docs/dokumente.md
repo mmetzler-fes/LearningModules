@@ -23,7 +23,8 @@ Der Editor startet im Modus **✏️ Bearbeiten** – wie ein Textprogramm:
   **Teilaufgabe** (1.1.1), Überschrift ohne Nummer, Hinweis.
 - **Fett, kursiv, unterstrichen, durchgestrichen, hoch/tief**, Listen,
   Ausrichtung, Links, **🖼 Bild** (Größe, Lage, Rahmen per Klick aufs Bild).
-- **➕ Einfügen …**: Karo (Platz zum Schreiben), Quiz aus dem Lernthema,
+- **➕ Einfügen …**: Schreibfeld (Platz zum Schreiben – Karo, Linien oder leer,
+  Höhe und Breite wählbar: Doppelklick auf das Feld), Quiz aus dem Lernthema,
   Lösung, Formel, Code, Tabelle, Kasten, Platz, Seitenumbruch – an der
   Schreibmarke bzw. hinter dem gewählten Baustein.
 - Graue **Bausteine** wählt ein Klick (blauer Rahmen). Die Leiste daran
@@ -213,10 +214,12 @@ wenn die Lehrkraft des Lernthemas freigeschaltet ist.
   ein Bild lädt nach, ein Quiz klappt auf –, rutschen die Striche mit. Das Blatt
   ist immer 21 cm breit und nutzt mitgelieferte Schriften (Liberation, so breit
   wie Arial): Auf iPad, PC und Handy bricht der Text an denselben Stellen um.
-- **Karos verlängern:** Unten am Karo sitzt ein blauer Anfasser – nach unten
-  ziehen macht es länger (in 0,5-cm-Schritten), nach oben wieder kürzer, aber
-  nie kürzer als im Dokument. Das geht für Lehrkräfte und Schüler und ändert
-  nur die eigene Beschriftung, nicht das Dokument.
+- **Schreibfelder anpassen:** Unten am Feld sitzt ein blauer Anfasser – nach
+  unten ziehen macht es länger (in 0,5-cm-Schritten), nach oben wieder kürzer,
+  aber nie kürzer als im Dokument. Mit **⬚ Auswählen** kommen ein Anfasser
+  rechts (Breite), einer an der Ecke (beides) und oben im Feld ▦ Karo, ☰ Linien,
+  ▢ Leer dazu. Das geht für Lehrkräfte und Schüler und ändert nur die eigene
+  Beschriftung, nicht das Dokument.
 - **👆 Bedienen:** Eingebettete Quizze im Blatt ausfüllen. Der Finger bedient
   sie immer (solange ☝️ aus ist), Stift und Maus nur mit diesem Werkzeug –
   sonst schreiben sie.

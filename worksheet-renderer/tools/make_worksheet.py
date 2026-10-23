@@ -75,6 +75,9 @@ KARO_BORDER = "0.002cm"
 # Bis zu dieser Höhe wächst das Raster im Lösungsblatt mit, damit die Lösung
 # darüber Platz hat. Längere Lösungen (ganze Programme) stehen darunter.
 KARO_MAX_ROWS = 22
+# Muster eines Schreibfelds (Block `karo`): Karo, Linien (alle 1 cm) oder leer.
+KARO_PATTERNS = ("karo", "linien", "leer")
+LINE_GAP_CELLS = 2
 KARO_COLOR = "#808080"
 
 # Tiefgestellte Indizes im Fließtext: `n_S`, `M_A`, `P_{Schlupf}` -> n_S mit
@@ -661,20 +664,97 @@ def ensure_overlay_styles(doc, present: set[str]) -> Style:
     return frame
 
 
+def karo_columns(block: dict[str, Any]) -> int:
+    """Spalten zu 0,5 cm aus `width` (z. B. "8cm"); ohne Angabe die volle Satzbreite."""
+    width = str(block.get("width") or "").strip()
+    match = re.fullmatch(r"(\d+(?:\.\d+)?)\s*cm", width)
+    if not match:
+        return KARO_COLUMNS
+    return max(2, min(KARO_COLUMNS, round(float(match.group(1)) / KARO_CELL)))
+
+
+def ensure_field_style(doc, present: set[str], columns: int, pattern: str) -> tuple[str, str]:
+    """Tabellen- und Zellvorlage für ein schmaleres Raster bzw. Linien/leeres Feld.
+
+    Liefert (Tabellenvorlage, Zellvorlage). Linien: nur unten ein Strich, die
+    Zeile ist LINE_GAP_CELLS Karos hoch. Leer: ein einziges Feld mit Rahmen.
+    """
+    width = KARO_CELL * columns
+    name = f"Feld{pattern.capitalize()}{columns}"
+    if name not in present:
+        border = f"{KARO_BORDER} solid {KARO_COLOR}"
+        table = Style(name=name, family="table")
+        table.addElement(TableProperties(
+            width=f"{width:.3f}cm", margintop="0.2cm", marginbottom="0.2cm",
+            align="margins" if columns == KARO_COLUMNS else "left", maybreakbetweenrows="false"))
+        cell = Style(name=f"{name}.A1", family="table-cell")
+        if pattern == "linien":
+            cell.addElement(TableCellProperties(padding="0cm", borderleft="none", borderright="none",
+                                                bordertop="none", borderbottom=border))
+        else:
+            cell.addElement(TableCellProperties(padding="0cm", border=border))
+        column = Style(name=f"{name}.A", family="table-column")
+        column.addElement(TableColumnProperties(columnwidth=f"{width:.3f}cm"))
+        for style in (table, cell, column):
+            doc.automaticstyles.addElement(style)
+            present.add(style.getAttribute("name"))
+    return name, f"{name}.A1"
+
+
+def ensure_row_style(doc, present: set[str], cells: int) -> str:
+    """Zeilenvorlage mit fester Höhe (Vielfaches eines Karos)."""
+    name = f"Feld.Zeile{cells}"
+    if name not in present:
+        row = Style(name=name, family="table-row")
+        row.addElement(TableRowProperties(rowheight=f"{KARO_CELL * cells:.3f}cm"))
+        doc.automaticstyles.addElement(row)
+        present.add(name)
+    return name
+
+
 def karo_table(rows: int, para_style: str, index: int,
                overlay: list[Element] | None = None,
-               frame_style: Style | None = None) -> Element:
-    """Karoraster mit `rows` Zeilen zum handschriftlichen Eintragen.
+               frame_style: Style | None = None,
+               columns: int = KARO_COLUMNS, pattern: str = "karo",
+               ctx: dict[str, Any] | None = None) -> Element:
+    """Schreibfeld mit `rows` Karozeilen zum handschriftlichen Eintragen.
 
-    `overlay` legt eine Musterlösung als Textrahmen über das Raster.
+    `pattern`: Karo (Vorgabe), Linien (alle 1 cm) oder leer; `columns`: Breite
+    in Karos. `overlay` legt eine Musterlösung als Textrahmen über das Feld.
     """
-    table = Table(name=f"Karo{index}", stylename="Karo")
-    table.addElement(TableColumn(numbercolumnsrepeated=str(KARO_COLUMNS), stylename="Karo.A"))
+    if pattern not in KARO_PATTERNS:
+        pattern = "karo"
+    if pattern == "karo" and columns == KARO_COLUMNS:
+        table_style, row_style, cell_styles, cols = "Karo", "Karo.1", ("Karo.A1", "Karo.Z1"), KARO_COLUMNS
+        column_style = "Karo.A"
+    elif pattern == "karo":
+        # Schmaler: eigene Tabellenvorlage, Zellen wie beim vollen Raster.
+        table_style = f"Karo{columns}"
+        if table_style not in ctx["present"]:
+            table = Style(name=table_style, family="table")
+            table.addElement(TableProperties(width=f"{KARO_CELL * columns:.3f}cm", margintop="0.2cm",
+                                             marginbottom="0.2cm", align="left", maybreakbetweenrows="false"))
+            ctx["doc"].automaticstyles.addElement(table)
+            ctx["present"].add(table_style)
+        row_style, cell_styles, cols, column_style = "Karo.1", ("Karo.A1", "Karo.Z1"), columns, "Karo.A"
+    else:
+        table_style, cell = ensure_field_style(ctx["doc"], ctx["present"], columns, pattern)
+        cell_styles, cols, column_style = (cell, cell), 1, f"{table_style}.A"
+        if pattern == "linien":
+            row_style = ensure_row_style(ctx["doc"], ctx["present"], LINE_GAP_CELLS)
+            rows = max(1, round(rows / LINE_GAP_CELLS))
+        else:
+            row_style = ensure_row_style(ctx["doc"], ctx["present"], rows)
+            rows = 1
+
+    # Der Name beginnt mit „Karo“: keep_karo_with_question hält die Frage davor beim Feld.
+    table = Table(name=f"Karo{index}", stylename=table_style)
+    table.addElement(TableColumn(numbercolumnsrepeated=str(cols), stylename=column_style))
     for row in range(rows):
-        tr = TableRow(stylename="Karo.1")
-        for col in range(KARO_COLUMNS):
+        tr = TableRow(stylename=row_style)
+        for col in range(cols):
             cell = TableCell(valuetype="string",
-                             stylename="Karo.Z1" if col == KARO_COLUMNS - 1 else "Karo.A1")
+                             stylename=cell_styles[1] if col == cols - 1 else cell_styles[0])
             para = P(stylename=para_style)
             if overlay and row == 0 and col == 0:
                 para.addElement(solution_overlay(overlay, index, frame_style))
@@ -1591,6 +1671,9 @@ def render_block(block: Any, styles: dict[str, str], ctx: dict[str, Any]) -> lis
                 ctx["karo_index"],
                 overlay=block.get("_overlay"),
                 frame_style=ctx.get("frame_style"),
+                columns=karo_columns(block),
+                pattern=str(block.get("pattern") or "karo"),
+                ctx=ctx,
             )
         )
 

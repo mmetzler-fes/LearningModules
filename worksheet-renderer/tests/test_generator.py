@@ -57,6 +57,38 @@ class RenderTest(unittest.TestCase):
             styles = zipfile.ZipFile(root / "out" / "blatt.odt").read("styles.xml").decode()
             self.assertIn('style:name="AB_Nummerierung"', styles)
 
+    def test_schreibfelder(self):
+        """Block `karo` mit Breite und Muster: schmales Karo, Linien, leeres Feld."""
+        spec = (
+            "titel: Felder\ncontent:\n"
+            "  - {type: karo, lines: 4}\n"
+            "  - {type: karo, lines: 4, width: 8cm}\n"
+            "  - {type: karo, lines: 6, pattern: linien}\n"
+            "  - {type: karo, lines: 5, width: 10cm, pattern: leer}\n"
+            "  - {type: karo, lines: 3, width: 99cm}\n"
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "blatt").mkdir()
+            (root / "blatt" / "felder.yaml").write_text(spec, encoding="utf-8")
+            env = dict(os.environ, ARBEITSBLATT_ROOT=str(root))
+            subprocess.run([sys.executable, str(GEN / "tools" / "make_worksheet.py"), "blatt/felder.yaml",
+                            "-o", "out"], cwd=root, env=env, check=True, capture_output=True)
+            content = zipfile.ZipFile(root / "out" / "blatt.odt").read("content.xml").decode()
+            # volles Raster wie bisher, 8 cm = 16 Spalten, Linien je 1 cm (3 Zeilen), leer: ein Feld 2,5 cm
+            self.assertIn('table:name="Karo1" table:style-name="Karo"', content)
+            self.assertIn('style:name="Karo16"', content)
+            self.assertIn('style:width="8.000cm"', content)
+            self.assertIn('style:name="FeldLinien33"', content)
+            self.assertIn('style:name="Feld.Zeile2"', content)
+            self.assertIn('style:name="FeldLeer20"', content)
+            self.assertIn('style:name="Feld.Zeile5"', content)
+            # zu breit: höchstens die Satzbreite
+            self.assertIn('table:name="Karo5" table:style-name="Karo"', content)
+        self.assertEqual(mw.karo_columns({"width": "8cm"}), 16)
+        self.assertEqual(mw.karo_columns({"width": "0.2cm"}), 2)
+        self.assertEqual(mw.karo_columns({}), mw.KARO_COLUMNS)
+
 
 if __name__ == "__main__":
     unittest.main()

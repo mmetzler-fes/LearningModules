@@ -50,8 +50,10 @@ content:
   - type: solution              # Arbeitsblatt: ausgeblendet; Lösungsblatt: rot über dem Karo
     title: "Lösung:"
     blocks: [ … ]
-  - type: karo                  # Karopapier zum handschriftlichen Eintragen
-    lines: 6                    # Anzahl Karozeilen à 0,5 cm
+  - type: karo                  # Schreibfeld zum handschriftlichen Eintragen
+    lines: 6                    # Höhe in Karozeilen à 0,5 cm
+    width: 8cm                  # optional: Breite (0,5-cm-Schritte), sonst die Satzbreite
+    pattern: linien             # optional: karo (Vorgabe) | linien (alle 1 cm) | leer (nur Rahmen)
   - type: spacer                # nur Leerraum, ohne Raster
     lines: 4
   - type: pagebreak

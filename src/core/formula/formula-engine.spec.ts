@@ -2,7 +2,7 @@ import { formulaEngine } from './formula-engine';
 
 const f = formulaEngine();
 
-describe('Formel-Logik (src/renderer/js/formula.js)', () => {
+describe('Formel-Logik (src/renderer/lm-editor/src/modules/formula.js)', () => {
   it('rechnet mit Rangfolge, Potenz und Vorzeichen', () => {
     expect(f.evaluate('2 + 3 * 4')).toBe(14);
     expect(f.evaluate('(2 + 3) * 4')).toBe(20);

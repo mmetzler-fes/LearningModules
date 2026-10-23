@@ -1,7 +1,7 @@
 import { escapeHtml, escapeAttr, copyQrSvgAsPng, copyShareSheetAsPng, copyOneNotePage } from '../utils.js';
 import { LINK_MODE_LABELS } from './login.js';
 import { TagFilter, TagPicker, renderAreaGroups, chipHtml } from './tags.js';
-import { GRADABLE_TYPES, ARENA_TYPE_SECONDS } from '../answer-eval.js';
+import { GRADABLE_TYPES, ARENA_TYPE_SECONDS } from '../../lm-editor/src/modules/answer-eval.js';
 import { saveRedirectFile } from './contest.js';
 import { pickClass } from './classes.js';
 import { downloadBlob } from '../api.js';

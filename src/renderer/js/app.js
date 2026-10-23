@@ -1,5 +1,6 @@
 import { AuthStore, BrowserApi } from './api.js';
-import { H5pRenderer } from './h5p-renderer.js';
+import { H5pRenderer } from '../lm-editor/src/modules/h5p-renderer.js';
+import { lmHost } from './lm-host.js';
 import { appConfirm, showToast, escapeHtml } from './utils.js';
 import { LoginView } from './views/login.js';
 import { TopicsView } from './views/topics.js';
@@ -34,7 +35,7 @@ class App {
   constructor() {
     this.authStore = new AuthStore();
     this.api = new BrowserApi(this.authStore);
-    this.renderer = new H5pRenderer();
+    this.renderer = new H5pRenderer({ host: lmHost });
     // Der Dokument-Editor holt sich Nummer und Kopfzeile des bearbeiteten Moduls.
     useModuleSource(() => this.state.editingModuleId);
     useTopicModules(() => this.state.currentTopicModules || []);

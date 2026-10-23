@@ -245,4 +245,4 @@ aus `semantics.json`, Texte aus der deutschen Sprachdatei der Bibliothek.
 
 Code: `src/core/interchange/moodle/` (Import, Export, XML-Leser),
 `src/core/interchange/h5p/h5p-export.ts`, Bewertung in
-`src/renderer/js/answer-eval.js` (`dndExpectedMappings`).
+`src/renderer/lm-editor/src/modules/answer-eval.js` (`dndExpectedMappings`).

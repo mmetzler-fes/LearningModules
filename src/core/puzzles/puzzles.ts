@@ -2,7 +2,7 @@ import { loadBrowserModule } from '../browser-module';
 
 /**
  * Logik von Reihenfolge und Kreuzworträtsel steht nur einmal: im
- * Browser-Modul src/renderer/js/puzzles.js. Der Server lädt dieselbe Datei
+ * Browser-Modul src/renderer/lm-editor/src/modules/puzzles.js. Der Server lädt dieselbe Datei
  * (browser-module.ts).
  */
 export interface Puzzles {
@@ -27,5 +27,5 @@ export interface Puzzles {
 }
 
 export function puzzles(): Puzzles {
-  return loadBrowserModule<Puzzles>('puzzles.js');
+  return loadBrowserModule<Puzzles>('../lm-editor/src/modules/puzzles.js');
 }

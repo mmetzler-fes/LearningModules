@@ -427,7 +427,7 @@ class ContentEditorManager {
     const wordsField = H5P_TYPES.crossword.fields.find((f) => f.key === 'words');
     const draw = async () => {
       let lib;
-      try { lib = await import('./puzzles.js'); } catch (_) { return; }
+      try { lib = await import('../lm-editor/src/modules/puzzles.js'); } catch (_) { return; }
       if (!hidden.isConnected) return;
       const { layout } = lib.buildCrossword({ words: this.collectFieldData(wordsField), seed: Number(hidden.value) || 0 });
       if (!layout.entries.length) {

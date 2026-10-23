@@ -28,7 +28,7 @@ describe('arenaSeconds', () => {
   });
 
   it('Vorgabe je Typ ist im Browser dieselbe (Platzhalter im Freigabe-Formular)', () => {
-    const src = fs.readFileSync(path.resolve(__dirname, '../renderer/js/answer-eval.js'), 'utf-8');
+    const src = fs.readFileSync(path.resolve(__dirname, '../renderer/lm-editor/src/modules/answer-eval.js'), 'utf-8');
     const literal = /export const ARENA_TYPE_SECONDS = (\{[^}]*\});/.exec(src)?.[1] || '';
     const browser = JSON.parse(literal.replace(/(\w+):/g, '"$1":')) as Record<string, number>;
     expect(browser).toEqual(TYPE_SECONDS);

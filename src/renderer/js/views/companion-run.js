@@ -1,5 +1,5 @@
 import { escapeHtml } from '../utils.js';
-import { collectAnswer, GRADABLE_TYPES, ONE_SHOT_TYPES } from '../answer-eval.js';
+import { collectAnswer, GRADABLE_TYPES, ONE_SHOT_TYPES } from '../../lm-editor/src/modules/answer-eval.js';
 
 // ==================== LERNBEGLEITUNG ====================
 

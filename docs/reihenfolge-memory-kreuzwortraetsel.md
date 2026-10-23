@@ -94,6 +94,6 @@ Messungen aus Übungsdurchläufen vorliegen (dann gilt die gemessene Zeit).
 
 Siehe auch [Austausch mit Moodle und H5P](moodle-und-h5p.md).
 
-Code: `src/renderer/js/puzzles.js` (Logik: Mischen, Bewertung, Gitter),
-`src/renderer/js/puzzle-views.js` (Anzeige), Bewertung in
-`src/renderer/js/answer-eval.js`, Tests in `src/core/puzzles/puzzles.spec.ts`.
+Code: `src/renderer/lm-editor/src/modules/puzzles.js` (Logik: Mischen, Bewertung, Gitter),
+`src/renderer/lm-editor/src/modules/puzzle-views.js` (Anzeige), Bewertung in
+`src/renderer/lm-editor/src/modules/answer-eval.js`, Tests in `src/core/puzzles/puzzles.spec.ts`.

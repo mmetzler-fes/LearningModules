@@ -1,6 +1,6 @@
 import { escapeHtml, escapeAttr } from '../utils.js';
 import { downloadBlob } from '../api.js';
-import { collectAnswer } from '../answer-eval.js';
+import { collectAnswer } from '../../lm-editor/src/modules/answer-eval.js';
 
 // ==================== QUIZ-ARENA ====================
 

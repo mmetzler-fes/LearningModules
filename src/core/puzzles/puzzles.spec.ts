@@ -2,7 +2,7 @@ import { puzzles } from './puzzles';
 
 const p = puzzles();
 
-describe('Reihenfolge (src/renderer/js/puzzles.js)', () => {
+describe('Reihenfolge (src/renderer/lm-editor/src/modules/puzzles.js)', () => {
   const items = p.sortingItems({ items: [{ text: 'A' }, { text: '' }, { text: 'B', imageUrl: 'x.png' }, { text: 'C' }, { text: 'D' }] });
 
   it('überspringt leere Elemente und gibt Bildern ohne Text einen Namen', () => {
@@ -35,7 +35,7 @@ describe('Reihenfolge (src/renderer/js/puzzles.js)', () => {
   });
 });
 
-describe('Kreuzworträtsel (src/renderer/js/puzzles.js)', () => {
+describe('Kreuzworträtsel (src/renderer/lm-editor/src/modules/puzzles.js)', () => {
   it('schreibt einen Buchstaben je Feld', () => {
     expect(p.crosswordLetters('Straße').join('')).toBe('STRAßE');
     expect(p.crosswordLetters('Öl-Tank').join('')).toBe('ÖLTANK');

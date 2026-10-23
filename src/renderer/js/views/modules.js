@@ -2,8 +2,8 @@ import { escapeHtml, escapeAttr, generateId } from '../utils.js';
 import { ModuleDescriptionEditor } from '../desc-editor.js';
 import { TagPicker } from './tags.js';
 import { openImportDialog } from './import-dialog.js';
-import { checkFormulaTask } from '../formula.js';
-import { sortingItems, memoryPairs, crosswordLetters, crosswordWords } from '../puzzles.js';
+import { checkFormulaTask } from '../../lm-editor/src/modules/formula.js';
+import { sortingItems, memoryPairs, crosswordLetters, crosswordWords } from '../../lm-editor/src/modules/puzzles.js';
 
 // ==================== MODULES VIEW ====================
 

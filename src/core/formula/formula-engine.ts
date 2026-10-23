@@ -2,7 +2,7 @@ import { loadBrowserModule } from '../browser-module';
 
 /**
  * Die Formel-Logik der Formelaufgabe gibt es nur einmal: als Browser-Modul
- * src/renderer/js/formula.js. Der Server lädt dieselbe Datei – so rechnen
+ * src/renderer/lm-editor/src/modules/formula.js. Der Server lädt dieselbe Datei – so rechnen
  * Anzeige, Auswertung und Moodle-Import/-Export garantiert gleich.
  *
  * Die Datei hat keine Importe; geladen wird sie über browser-module.ts.
@@ -24,5 +24,5 @@ export interface FormulaEngine {
 }
 
 export function formulaEngine(): FormulaEngine {
-  return loadBrowserModule<FormulaEngine>('formula.js');
+  return loadBrowserModule<FormulaEngine>('../lm-editor/src/modules/formula.js');
 }

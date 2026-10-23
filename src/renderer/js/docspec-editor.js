@@ -13,7 +13,7 @@ import { load as yamlLoad, dump as yamlDump } from './vendor/js-yaml.js';
 import { validateDocSpec, renderDocSpecHtml, docRefSlugs } from '../lm-editor/src/doc/docspec.js';
 import { downloadBlob } from './api.js';
 import { escapeHtml } from './utils.js';
-import { htmlToDocSpec, specToEditorHtml, widgetHtml } from './docspec-html.js';
+import { htmlToDocSpec, specToEditorHtml, widgetHtml } from '../lm-editor/src/doc/docspec-html.js';
 import { newlineIndent, shiftLines, reindentPaste, insertAfterItem } from './yaml-edit.js';
 
 /** Startinhalt eines neuen Dokuments – zeigt das Format an einem Beispiel. */

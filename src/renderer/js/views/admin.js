@@ -1,5 +1,5 @@
 import { escapeHtml } from '../utils.js';
-import { htmlToDocSpec } from '../docspec-html.js';
+import { htmlToDocSpec } from '../../lm-editor/src/doc/docspec-html.js';
 import { validateDocSpec } from '../../lm-editor/src/doc/docspec.js';
 import { downloadBlob } from '../api.js';
 import { printPermissionSheet, downloadPermissionOdt } from '../terms-print.js';
@@ -458,7 +458,7 @@ export class AdminView {
 
   /**
    * Alte Module „Text / Arbeitsblatt“ (HTML) in Dokumente umwandeln. Die
-   * Umwandlung läuft hier im Browser (docspec-html.js); der Server speichert
+   * Umwandlung läuft hier im Browser (lm-editor/src/doc/docspec-html.js); der Server speichert
    * und hebt das alte HTML auf – „Rückgängig“ stellt es wieder her.
    */
   async _docMigrationDialog() {

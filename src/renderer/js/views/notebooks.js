@@ -5,6 +5,7 @@ import { TagPicker, chipHtml } from './tags.js';
 import { openFeedbackDialog } from './feedback.js';
 import { openImportDialog } from './import-dialog.js';
 import { openOneNoteImport } from './onenote-import.js';
+import { askConvertOptions, convertAttachment } from './attachment-convert.js';
 import { NotebookPreview } from './notebook-preview.js';
 
 // ==================== NOTEBOOKS ====================
@@ -912,6 +913,9 @@ export class NotebooksView {
       { label: '✏️ Bearbeiten', run: () => open('edit') },
       { label: '📋 Duplizieren', run: () => this._transferModule(topic, mod, topic.id, 'copy') },
     ];
+    if (mod.type === 'attachment' && this._docsEnabled()) {
+      items.push({ label: '📄 In Dokument umwandeln', title: 'Die PDFs dieses Anhangs als Dokumente übernehmen', run: () => this._convertAttachments([{ type: 'module', id: mod.id, topicId: topic.id }]) });
+    }
     if (!mod.parentId) {
       items.push({ label: '↔️ Verschieben nach…', run: () => this._moduleTargetDialog(topic, mod, 'move') });
       items.push({ label: '📄 Kopieren nach…', run: () => this._moduleTargetDialog(topic, mod, 'copy') });
@@ -1439,8 +1443,10 @@ export class NotebooksView {
     const modules = items[0].type === 'module';
     const n = items.length;
     const label = modules ? `${n} Modul${n === 1 ? '' : 'e'}` : `${n} Lernthem${n === 1 ? 'a' : 'en'}`;
+    const attachments = modules && this._docsEnabled() ? items.filter((i) => this._moduleOf(i)?.type === 'attachment').length : 0;
     const actions = modules
-      ? [['move', '↔️ Verschieben nach…'], ['copy', '📄 Kopieren nach…'], ['on', '● Aktivieren'], ['off', '○ Deaktivieren'], ['delete', '🗑 Löschen']]
+      ? [['move', '↔️ Verschieben nach…'], ['copy', '📄 Kopieren nach…'], ...(attachments ? [['convert', `📄 In Dokument umwandeln (${attachments})`]] : []),
+        ['on', '● Aktivieren'], ['off', '○ Deaktivieren'], ['delete', '🗑 Löschen']]
       : [['move', '↔️ Verschieben nach…'], ['on', '● Freigeben'], ['off', '○ Sperren']];
     bar.innerHTML = `<strong>☑ ${label} ausgewählt</strong>
       ${actions.map(([act, text]) => `<button type="button" class="btn btn-${act === 'delete' ? 'danger' : 'secondary'} btn-sm" data-act="${act}">${text}</button>`).join('')}
@@ -1480,6 +1486,9 @@ export class NotebooksView {
         await this.refresh();
         this._syncSel();
         return;
+      } else if (modules && act === 'convert') {
+        await this._convertAttachments(items);
+        return;
       } else if (modules && act === 'delete') {
         if (!(await this.app.appConfirm(`${n} Modul${n === 1 ? '' : 'e'} löschen? Das lässt sich nicht rückgängig machen.`))) return;
         for (const i of items) {
@@ -1492,6 +1501,49 @@ export class NotebooksView {
     }
     this._clearSel();
     await this.refresh();
+  }
+
+  /** Modul zu einem Eintrag der Auswahl ({ id, topicId }). */
+  _moduleOf(item) {
+    return (this._topics.get(item.topicId)?.modules || []).find((m) => m.id === item.id) || null;
+  }
+
+  /**
+   * Anhänge in Dokumente umwandeln (attachment-convert.js): je PDF ein
+   * Dokument an der Stelle des Anhangs. Läuft der Reihe nach, mit Fortschritt
+   * in einer Meldung; Fehler einzelner PDFs halten den Rest nicht auf.
+   */
+  async _convertAttachments(items) {
+    const list = items.filter((i) => this._moduleOf(i)?.type === 'attachment');
+    if (!list.length) return;
+    let opts;
+    try {
+      opts = await askConvertOptions({ count: list.length });
+    } catch (err) {
+      this.app.showToast(err.message, 'error');
+      return;
+    }
+    if (!opts) return;
+    const sum = { created: 0, failed: [], warnings: 0 };
+    for (const [k, i] of list.entries()) {
+      this.app.showToast(`📄 Wird umgewandelt (${k + 1} von ${list.length}): ${this._moduleOf(i)?.title || ''} …`, 'info');
+      try {
+        const r = await convertAttachment(this.app.api, i.topicId, i.id, opts);
+        sum.created += r.created.length;
+        sum.failed.push(...r.failed);
+        sum.warnings += r.warnings.length;
+      } catch (err) {
+        sum.failed.push(`${this._moduleOf(i)?.title || i.id}: ${err.message}`);
+      }
+      this._open.add('t:' + i.topicId);
+    }
+    this._saveOpen();
+    this._clearSel();
+    await this.refresh();
+    const msg = `${sum.created} Dokument${sum.created === 1 ? '' : 'e'} erstellt.`
+      + (sum.warnings ? ` ${sum.warnings} Hinweis${sum.warnings === 1 ? '' : 'e'} – bitte die Dokumente prüfen.` : '')
+      + (sum.failed.length ? ` Nicht umgewandelt: ${sum.failed.join(' · ')}` : '');
+    this.app.showToast(msg, sum.failed.length ? 'error' : 'success');
   }
 
   /**

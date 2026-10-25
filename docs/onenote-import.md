@@ -21,7 +21,12 @@ Layout der Seiten bleiben in OneNote.
 2. Der Browser liest die Datei und zeigt, was übernommen wird: je Abschnitt
    die Zahl der Seiten mit Anlagen, Dateien und Größe. Häkchen weg = nicht
    übernehmen.
-3. **✅ Übernehmen**. Der Fortschritt läuft unten im Dialog; den Dialog darf
+3. Wahlweise **📄 PDFs gleich in Dokumente umwandeln** (Vorgabe, wenn
+   „Dokumente“ und „PDF-Import“ freigeschaltet sind) – mit der Art (Text mit
+   Struktur, Seiten als Bilder, KI-Erkennung) und ob das PDF zusätzlich als
+   Anhang bleibt. Das dauert je PDF einige Sekunden. Später geht es auch
+   noch: siehe [Anhang → In ein Dokument umwandeln](anhang.md#in-ein-dokument-umwandeln).
+4. **✅ Übernehmen**. Der Fortschritt läuft unten im Dialog; den Dialog darf
    man schließen, nur den Tab nicht.
 
 Bei einem **Klassennotizbuch** kommen nur die **Inhaltsbibliothek** und
@@ -37,7 +42,7 @@ Seite kommen ebenfalls nicht mit.
 | Notizbuch | Book |
 | Abschnittsgruppe (z. B. Inhaltsbibliothek) | Abschnitt, mit Untergruppen ein Bereich |
 | Abschnitt | Lernthema |
-| Seite mit Anlagen | Modul 📎 Anhang mit allen Dateien der Seite |
+| Seite mit Anlagen | Modul 📎 Anhang mit allen Dateien der Seite – mit „umwandeln“ je PDF ein 📄 Dokument |
 | Unterseite | Modul „Seite › Unterseite“ |
 | Ausdruck mit Originaldatei | das Original-PDF |
 | Ausdruck ohne Original | PDF aus den Seitenbildern |

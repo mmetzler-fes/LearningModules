@@ -18,6 +18,23 @@ Dateien liegen dort neben den Bildern im Ordner des Lernthemas
 Nicht anhängen lassen sich `.json`- und `.lmenc`-Dateien – das sind Daten der
 App, die in derselben Freigabe liegen können. Zur Not als `.zip` packen.
 
+## In ein Dokument umwandeln
+
+PDF-Aufgabenblätter lassen sich zu **Dokumenten** machen – dann laufen sie
+in der App mit Stift-Editor, Bearbeitungen und Druck wie selbst
+geschriebene Blätter:
+
+- einzeln: im Menü des Anhangs **📄 In Dokument umwandeln**,
+- mehrere: **☑ Auswählen**, die Anhänge markieren (auch aus verschiedenen
+  Lernthemen), in der Leiste **📄 In Dokument umwandeln**.
+
+Gefragt wird die Art: **Text mit Struktur** (zum Weiterbearbeiten),
+**Seiten als Bilder** (sieht aus wie das PDF) oder **KI-Erkennung** (falls
+eingerichtet). Je PDF entsteht ein Dokument an der Stelle des Anhangs. Der
+Anhang verschwindet, außer „PDF-Anhang zusätzlich behalten“ ist an; Dateien,
+die keine PDFs sind, bleiben in ihm. Die PDFs bleiben in der Nextcloud.
+Braucht die Freischaltungen „Dokumente“ und „PDF-Import“.
+
 ## Für Schüler
 
 Jede Datei steht mit Namen und Größe da. Bei PDFs gibt es **Öffnen** (im
@@ -44,5 +61,6 @@ Herunterladen.
   `.json`, `.lmenc` und Nicht-Bilder aus dem früheren Ordner des Admin-Backups.
 
 Code: `src/nextcloud/nextcloud.service.ts` (uploadAttachment, STORED_EXT),
+`src/renderer/js/views/attachment-convert.js` (Umwandeln),
 `src/renderer/js/content-editors.js` (renderAttachmentsField),
 `src/renderer/lm-editor/src/modules/h5p-renderer.js` (Fall `attachment`).

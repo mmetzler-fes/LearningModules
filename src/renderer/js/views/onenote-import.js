@@ -2,6 +2,7 @@ import { escapeHtml, generateId } from '../utils.js';
 import { readCab } from '../cab.js';
 import { readOneSection, notebookPlan, sectionModules, jpegsToPdf } from '../onenote.js';
 import { nextcloudState } from './nextcloud.js';
+import { pdfConvertOptions, convertAttachment } from './attachment-convert.js';
 
 // ==================== ONENOTE ÜBERNEHMEN ====================
 //
@@ -99,6 +100,12 @@ export function openOneNoteImport(app, { onDone } = {}) {
       </div>
       <div class="onenote-status" aria-live="polite"></div>
       <div class="onenote-tree"></div>
+      <div class="onenote-convert" hidden>
+        <label><input type="checkbox" class="on-convert" checked> 📄 PDFs gleich in <strong>Dokumente</strong> umwandeln</label>
+        <label class="onenote-convert-mode">Art <select class="on-convert-mode"></select></label>
+        <label><input type="checkbox" class="on-keep"> PDF zusätzlich als Anhang behalten</label>
+        <span class="hint">Dauert je PDF einige Sekunden (KI-Erkennung länger). Andere Dateien bleiben Anhänge.</span>
+      </div>
       <div class="onenote-progress" hidden><progress max="1" value="0"></progress><span class="hint"></span></div>
       <div class="confirm-actions">
         <button type="button" class="btn btn-primary btn-run" disabled>✅ Übernehmen</button>
@@ -118,6 +125,15 @@ export function openOneNoteImport(app, { onDone } = {}) {
   const btnCancel = overlay.querySelector('.btn-cancel');
   let source = null;
   let key = '';
+  // Umwandeln in Dokumente – nur, wenn Konto und Server es können.
+  const convertBox = overlay.querySelector('.onenote-convert');
+  const convertMode = overlay.querySelector('.on-convert-mode');
+  pdfConvertOptions().then((opts) => {
+    const ok = opts.allowed ? opts.choices.filter((c) => c.ok) : [];
+    if (!ok.length) return;
+    convertMode.innerHTML = ok.map((c) => `<option value="${c.mode}" title="${escapeHtml(c.hint)}">${c.label}</option>`).join('');
+    convertBox.hidden = false;
+  });
   let running = false;
   let closed = false;
 
@@ -196,17 +212,20 @@ export function openOneNoteImport(app, { onDone } = {}) {
     const wanted = new Set([...tree.querySelectorAll('input:checked')].map((x) => x.dataset.path));
     running = true;
     btnRun.disabled = true;
-    tree.querySelectorAll('input').forEach((x) => { x.disabled = true; });
+    overlay.querySelectorAll('.onenote-tree input, .onenote-convert input, .onenote-convert select').forEach((x) => { x.disabled = true; });
     progress.hidden = false;
     try {
-      const report = await run(app, source, wanted, key, (done, total, text) => {
+      const convert = !convertBox.hidden && overlay.querySelector('.on-convert').checked
+        ? { mode: convertMode.value, keep: overlay.querySelector('.on-keep').checked } : null;
+      const report = await run(app, source, wanted, key, convert, (done, total, text) => {
         bar.max = total || 1;
         bar.value = done;
         barText.textContent = text;
       });
       running = false;
       const notes = report.warnings.length ? ` Hinweise: ${report.warnings.join(' · ')}` : '';
-      const msg = `„${source.title}“ übernommen – ${report.topics} Lernthem${report.topics === 1 ? 'a' : 'en'}, ${report.modules} Module, ${report.files} Dateien.${notes}`;
+      const docs = report.documents ? `, ${report.documents} Dokumente` : '';
+      const msg = `„${source.title}“ übernommen – ${report.topics} Lernthem${report.topics === 1 ? 'a' : 'en'}, ${report.modules} Module${docs}, ${report.files} Dateien.${notes}`;
       app.showToast(msg, report.warnings.length ? 'info' : 'success');
       if (onDone) await onDone(report);
       if (!closed) close();
@@ -223,10 +242,10 @@ export function openOneNoteImport(app, { onDone } = {}) {
  * Die Übernahme selbst. Was schon angelegt ist, steht in `localStorage`
  * (Schlüssel: Dateiname und -größe); ein zweiter Lauf überspringt es.
  */
-async function run(app, source, wanted, key, onProgress) {
+async function run(app, source, wanted, key, convert, onProgress) {
   const api = app.api;
   const state = loadProgress(key) || { bookId: null, nodes: {}, topics: {}, modules: {} };
-  const report = { topics: 0, modules: 0, files: 0, warnings: [] };
+  const report = { topics: 0, modules: 0, files: 0, documents: 0, warnings: [] };
   const save = () => saveProgress(key, state);
   const check = (res, what) => {
     if (failed(res)) throw new Error(`${what}: ${res?.message || 'Der Server antwortet nicht.'}`);
@@ -294,16 +313,28 @@ async function run(app, source, wanted, key, onProgress) {
           report.warnings.push(`Ausdruck ${p.name} ließ sich nicht als PDF zusammensetzen`);
         }
       }
+      let moduleId = null;
       if (files.length) {
         const now = new Date().toISOString();
-        check(await api.saveModule(topicId, {
+        moduleId = check(await api.saveModule(topicId, {
           id: generateId(), title: mod.title, type: 'attachment', description: '',
           content: { files }, moduleSelected: true, createdAt: now, updatedAt: now,
-        }), `Modul „${mod.title}“ speichern`);
+        }), `Modul „${mod.title}“ speichern`).id;
         report.modules++;
       }
+      // Ab hier zählt die Seite als übernommen – ein Abbruch beim Umwandeln legt sie nicht doppelt an.
       state.modules[section.path] = i + 1;
       save();
+      if (convert && moduleId && files.some((f) => f.type === 'application/pdf')) {
+        onProgress(done, total, `${section.title}: ${mod.title} – wird in ein Dokument umgewandelt …`);
+        try {
+          const r = await convertAttachment(api, topicId, moduleId, { mode: convert.mode, keep: convert.keep });
+          report.documents += r.created.length;
+          report.warnings.push(...r.failed.map((f) => `nicht umgewandelt: ${f}`));
+        } catch (e) {
+          report.warnings.push(`${mod.title}: nicht umgewandelt (${e.message})`);
+        }
+      }
       done++;
     }
   }

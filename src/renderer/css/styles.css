@@ -5413,3 +5413,6 @@ body {
 .cr-live-done { background: var(--score-good-bg); color: var(--score-good-text); }
 .cr-live-now { background: var(--score-medium-bg); color: var(--score-medium-text); }
 .cr-live-absent td { color: var(--text-secondary); }
+
+.onenote-convert { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); }
+.onenote-convert-mode { display: flex; align-items: center; gap: 8px; }

@@ -112,6 +112,25 @@ Erlaubt sind `.docx`, `.doc` und `.rtf` (an der Endung von `name`). Antwort
 `{ "odt": "<base64>" }`; 400 bei anderer Endung, 422, wenn LibreOffice fehlt
 oder nichts erzeugt.
 
+### `POST /export-drawings`
+
+Zeichnungen einer .odt so, wie LibreOffice sie zeichnet – für den .odt-Import
+der App (sonst baut sie Zeichnungen selbst nach):
+
+```json
+{ "odt": "<base64>" }
+```
+
+Antwort `{ "odt": "<base64>", "drawings": [{ "name": "lmdraw-1", "svg": "<base64>",
+"width_mm": 109.6, "height_mm": 88.0, "kind": "drawing" }], "warnings": [] }`.
+`odt` ist das Dokument, in dem jede exportierte Zeichnung `lmdraw-<n>` heißt;
+der Importer setzt für diese Namen das SVG ein. Exportiert werden Gruppen,
+Formen und Linien sowie Grafiken in SVM/WMF/EMF – keine Textrahmen, keine
+gewöhnlichen Bilder, nichts aus Kopf- und Fußzeile. Läuft über
+`tools/export_drawings.py` mit dem Python von LibreOffice (`python3-uno`,
+`RENDERER_UNO_PYTHON`, Vorgabe `/usr/bin/python3`); `GET /health` meldet es als
+`"drawings": true` (API-Stand 2).
+
 Jeder Auftrag läuft als eigener Prozess in einem frischen Temp-Verzeichnis, das
 danach gelöscht wird. Gleichzeitig laufen höchstens `RENDERER_WORKERS`
 Aufträge, jeder mit eigenem LibreOffice-Profil – sonst gibt ein zweiter
@@ -126,6 +145,7 @@ Aufträge, jeder mit eigenem LibreOffice-Profil – sonst gibt ein zweiter
 | `RENDERER_MAX_BODY_MB` | `40` | |
 | `RENDERER_PDF_MEM_MB` | `1024` | Speichergrenze je PDF-Import; darüber bricht er mit Meldung ab |
 | `RENDERER_PROFILE_DIR` | Temp-Verzeichnis | LibreOffice-Profile je Arbeitsplatz |
+| `RENDERER_UNO_PYTHON` | `/usr/bin/python3` | Python mit `uno` (Paket python3-uno) für `/export-drawings` |
 
 ## Container
 

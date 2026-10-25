@@ -37,7 +37,8 @@ nachbessern. Ohne eingerichteten Renderer geht nur .odt.
 | Bilder (PNG, JPEG, GIF, WebP, SVG) | eingebettet, in Rahmenbreite |
 | Frei verankertes Bild mit Textumfluss | links oder rechts umflossen wie im Dokument; breite Bilder in eigener Zeile |
 | Textrahmen | als Kasten an ihrer Stelle im Text |
-| Zeichnungen (Linien, Pfeile, Rechtecke, Ellipsen, Polygone, Pfade, Gruppen) | als SVG-Bild |
+| Zeichnungen (Linien, Pfeile, Rechtecke, Ellipsen, Polygone, Pfade, Gruppen) | als SVG-Bild – mit Renderer von LibreOffice gezeichnet, sonst nachgebaut |
+| Absatz mit Überschriften-Vorlage, aber länger als 200 Zeichen | als Text (sieht im Dokument auch so aus) |
 | Bildfüllung einer Form (z. B. Foto in einem Rechteck) | als Bild in der Form |
 | Mehrere Leerzeilen | eine Leerzeile |
 | Kopf- und Fußzeile, Fußnoten, Kommentare, Verzeichnisse | weggelassen |
@@ -47,7 +48,14 @@ positionierte Textrahmen stehen an ihrer Stelle im Textfluss. Schriftarten
 und -größen des Fließtexts übernimmt die App nicht; sie nutzt ihr eigenes
 Design.
 
-**Zeichnungen:** Alle Zeichnungselemente eines Absatzes werden zu einem Bild
+**Zeichnungen – mit Renderer von LibreOffice gezeichnet:** Ist der
+Renderer eingerichtet, öffnet er das Dokument in LibreOffice und exportiert
+jede Zeichnung (Gruppe, Form, Linie, Grafik in SVM/WMF/EMF) als SVG – genau
+so, wie sie im Dokument aussieht, mit Textfeldern, Bildern und Schriften.
+Zeichnungen in Kopf- und Fußzeile bleiben weg. Bekannte Grenze von
+LibreOffice: senkrechter Text in Formen kann im SVG verrutschen.
+
+**Zeichnungen – ohne Renderer nachgebaut:** Alle Zeichnungselemente eines Absatzes werden zu einem Bild
 zusammengefasst, zusammen mit den frei verankerten Bildern und Textrahmen
 desselben Absatzes. So bleiben Beschriftungen auf Fotos, Bilder nebeneinander
 und Ablaufpläne mit ihren Schrittkästen erhalten. Textrahmen behalten Rand,

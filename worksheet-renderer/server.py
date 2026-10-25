@@ -11,6 +11,9 @@ POST /render-script  JSON {sheets: [{titel, spec}], course?, skript?, template?,
                → Skript (Kompendium) aus mehreren Blättern, wie make_script.py
 POST /convert-odt    JSON {file, name} → {odt: base64}: Word-Datei (.docx, .doc, .rtf)
                mit LibreOffice nach .odt – für den .odt-Import der App
+POST /export-drawings JSON {odt} → {odt: base64, drawings: [{name, svg, width_mm, height_mm}], warnings}:
+               Zeichnungen, wie LibreOffice sie zeichnet; im Dokument heißen sie lmdraw-<n>
+               (tools/export_drawings.py, braucht python3-uno) – für den .odt-Import der App
 
 Jeder Auftrag läuft als eigener Prozess von tools/make_worksheet.py in einem
 frischen Temp-Verzeichnis (ARBEITSBLATT_ROOT). Der Generator liest nur dort –
@@ -46,7 +49,11 @@ GEN = Path(__file__).resolve().parent
 TOOL = GEN / "tools" / "make_worksheet.py"
 SCRIPT_TOOL = GEN / "tools" / "make_script.py"
 PDF_TOOL = GEN / "tools" / "pdf_import.py"
-API = 1
+DRAWINGS_TOOL = GEN / "tools" / "export_drawings.py"
+# Das Python mit der UNO-Anbindung von LibreOffice (Paket python3-uno) – nicht das des Servers.
+UNO_PYTHON = os.environ.get("RENDERER_UNO_PYTHON", "/usr/bin/python3")
+MAX_DRAWING_BYTES = 8 * 1024 * 1024
+API = 2
 VERSION = os.environ.get("RENDERER_VERSION", "dev")
 TOKEN = os.environ.get("WORKSHEET_RENDERER_TOKEN", "")
 WORKERS = max(1, int(os.environ.get("RENDERER_WORKERS", "2")))
@@ -298,6 +305,42 @@ def convert_odt(job: dict[str, Any], slot: int) -> dict[str, str]:
         shutil.rmtree(root, ignore_errors=True)
 
 
+def export_drawings(job: dict[str, Any], slot: int) -> dict[str, Any]:
+    """Zeichnungen einer .odt als SVG – so, wie LibreOffice sie zeichnet (tools/export_drawings.py)."""
+    data = decode(job.get("odt"), "odt")
+    if not Path(UNO_PYTHON).exists():
+        raise RenderFailed("Zeichnungen exportieren nicht möglich: python3-uno fehlt im Renderer", [])
+    root = Path(tempfile.mkdtemp(prefix="zeichnungen-"))
+    try:
+        src = root / "dokument.odt"
+        src.write_bytes(data)
+        out = root / "out"
+        try:
+            proc = subprocess.run([UNO_PYTHON, str(DRAWINGS_TOOL), str(src), str(out), str((PROFILES / f"uno-{slot}").resolve())],
+                                  capture_output=True, text=True, timeout=TIMEOUT)
+        except subprocess.TimeoutExpired:
+            raise RenderFailed(f"Zeichnungen exportieren braucht zu lange (über {TIMEOUT} s).", []) from None
+        result_file = out / "result.json"
+        marked = out / "marked.odt"
+        if proc.returncode != 0 or not result_file.exists() or not marked.exists():
+            sys.stderr.write(f"Zeichnungen exportieren gescheitert, Rückgabe {proc.returncode}:\n{proc.stderr[-2000:]}\n")
+            raise RenderFailed(failure_from(proc.stderr) or "Zeichnungen ließen sich nicht exportieren", [])
+        result = json.loads(result_file.read_text(encoding="utf-8"))
+        drawings, total = [], 0
+        warnings = list(result.get("warnings") or [])
+        for d in result.get("drawings") or []:
+            svg = (out / d["file"]).read_bytes()
+            total += len(svg)
+            if total > MAX_DRAWING_BYTES:
+                warnings.append("Zu viele bzw. zu große Zeichnungen – der Rest wird nachgebaut.")
+                break
+            drawings.append({"name": d["name"], "kind": d.get("kind"), "width_mm": d["width_mm"], "height_mm": d["height_mm"],
+                             "svg": base64.b64encode(svg).decode("ascii")})
+        return {"odt": base64.b64encode(marked.read_bytes()).decode("ascii"), "drawings": drawings, "warnings": warnings}
+    finally:
+        shutil.rmtree(root, ignore_errors=True)
+
+
 def _limit_memory() -> None:
     resource.setrlimit(resource.RLIMIT_AS, (PDF_MEM, PDF_MEM))
 
@@ -346,10 +389,11 @@ class Handler(BaseHTTPRequestHandler):
             self.send_json(404, {"error": "Unbekannter Pfad"})
             return
         self.send_json(200, {"ok": True, "api": API, "version": VERSION,
-                             "soffice": soffice_available(), "workers": WORKERS})
+                             "soffice": soffice_available(), "workers": WORKERS,
+                             "drawings": Path(UNO_PYTHON).exists()})
 
     def do_POST(self) -> None:
-        if self.path not in ("/render", "/inspect", "/render-script", "/import-pdf", "/convert-odt"):
+        if self.path not in ("/render", "/inspect", "/render-script", "/import-pdf", "/convert-odt", "/export-drawings"):
             self.send_json(404, {"error": "Unbekannter Pfad"})
             return
         if TOKEN and not hmac.compare_digest(self.headers.get("Authorization", ""), f"Bearer {TOKEN}"):
@@ -387,6 +431,9 @@ class Handler(BaseHTTPRequestHandler):
                 return
             if self.path == "/convert-odt":
                 self.send_json(200, convert_odt(job, slot))
+                return
+            if self.path == "/export-drawings":
+                self.send_json(200, export_drawings(job, slot))
                 return
             files, warnings = (render_script if self.path == "/render-script" else render)(job, slot)
             self.send_json(200, {"files": files, "warnings": warnings})

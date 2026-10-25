@@ -99,8 +99,13 @@ export class InterchangeController {
       odt = await this.renderer.convertToOdt(file.buffer, name);
       fileName = name.replace(/\.(docx|doc|rtf)$/i, '.odt');
     }
+    // Zeichnungen, wie LibreOffice sie zeichnet – sonst baut der Import sie nach.
+    const exported = await this.renderer.exportDrawings(odt);
     try {
-      return { success: true, ...odtToHtml(odt, fileName) };
+      const result = exported
+        ? odtToHtml(exported.odt, fileName, { drawings: exported.drawings })
+        : odtToHtml(odt, fileName);
+      return { success: true, ...result, warnings: [...result.warnings, ...(exported?.warnings || [])] };
     } catch (err: any) {
       throw new BadRequestException(err?.message || 'Die Datei konnte nicht gelesen werden.');
     }

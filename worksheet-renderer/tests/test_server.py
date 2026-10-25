@@ -58,8 +58,44 @@ class RendererTest(unittest.TestCase):
     def test_health(self):
         status, body = self.request("/health")
         self.assertEqual(status, 200)
-        self.assertEqual(body["api"], 1)
+        self.assertEqual(body["api"], 2)
         self.assertIn("soffice", body)
+        self.assertIn("drawings", body)
+
+    @unittest.skipUnless(server.soffice_available() and Path(server.UNO_PYTHON).exists()
+                         and os.system(f"{server.UNO_PYTHON} -c 'import uno' >/dev/null 2>&1") == 0,
+                         "LibreOffice bzw. python3-uno nicht installiert")
+    def test_zeichnungen_als_svg(self):
+        """Eine Form im Text wird lmdraw-1 mit SVG; eine Form in der Kopfzeile bleibt außen vor."""
+        ns = ('xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" '
+              'xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0" '
+              'xmlns:draw="urn:oasis:names:tc:opendocument:xmlns:drawing:1.0" '
+              'xmlns:svg="urn:oasis:names:tc:opendocument:xmlns:svg-compatible:1.0" '
+              'xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0" office:version="1.3"')
+        rect = ('<draw:rect text:anchor-type="paragraph" draw:name="{n}" svg:width="4cm" svg:height="2cm" '
+                'svg:x="0cm" svg:y="0cm"><text:p>{t}</text:p></draw:rect>')
+        content = (f'<?xml version="1.0" encoding="UTF-8"?><office:document-content {ns}><office:body><office:text>'
+                   f'<text:p>Vorher{rect.format(n="Form1", t="Kasten")}</text:p></office:text></office:body></office:document-content>')
+        styles = (f'<?xml version="1.0" encoding="UTF-8"?><office:document-styles {ns}><office:master-styles>'
+                  '<style:master-page style:name="Standard"><style:header>'
+                  f'<text:p>Kopf{rect.format(n="Logo", t="Schule")}</text:p></style:header></style:master-page>'
+                  '</office:master-styles></office:document-styles>')
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, "w") as z:
+            z.writestr("mimetype", "application/vnd.oasis.opendocument.text", compress_type=zipfile.ZIP_STORED)
+            z.writestr("content.xml", content)
+            z.writestr("styles.xml", styles)
+            z.writestr("META-INF/manifest.xml", '<?xml version="1.0" encoding="UTF-8"?><manifest:manifest '
+                       'xmlns:manifest="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0" manifest:version="1.3">'
+                       '<manifest:file-entry manifest:full-path="/" manifest:media-type="application/vnd.oasis.opendocument.text"/>'
+                       '<manifest:file-entry manifest:full-path="content.xml" manifest:media-type="text/xml"/>'
+                       '<manifest:file-entry manifest:full-path="styles.xml" manifest:media-type="text/xml"/></manifest:manifest>')
+        status, body = self.request("/export-drawings", {"odt": base64.b64encode(buf.getvalue()).decode()})
+        self.assertEqual(status, 200, body)
+        self.assertEqual([d["name"] for d in body["drawings"]], ["lmdraw-1"])
+        self.assertIn(b"<svg", base64.b64decode(body["drawings"][0]["svg"]))
+        self.assertAlmostEqual(body["drawings"][0]["width_mm"], 40, delta=1)
+        self.assertIn('draw:name="lmdraw-1"', self.content_xml(body["odt"]))
 
     def test_ohne_token_abgelehnt(self):
         status, _ = self.request("/render", {"spec": BEISPIEL}, token="falsch")

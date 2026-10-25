@@ -138,6 +138,37 @@ export class WorksheetRendererClient {
     return Buffer.from(body.odt, 'base64');
   }
 
+  /**
+   * Zeichnungen einer .odt, wie LibreOffice sie zeichnet (POST /export-drawings):
+   * das Dokument mit Namen `lmdraw-<n>` an den Zeichnungen und je Name das SVG.
+   * null, wenn der Renderer fehlt, es nicht kann oder scheitert – dann baut der
+   * Import die Zeichnungen wie bisher selbst nach.
+   */
+  async exportDrawings(odt: Buffer): Promise<{ odt: Buffer; drawings: Map<string, { svg: Buffer; widthMm: number }>; warnings: string[] } | null> {
+    if (!this.configured()) return null;
+    try {
+      const res = await fetch(`${this.base()}/export-drawings`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(process.env.WORKSHEET_RENDERER_TOKEN ? { Authorization: `Bearer ${process.env.WORKSHEET_RENDERER_TOKEN}` } : {}) },
+        body: JSON.stringify({ odt: odt.toString('base64') }),
+        signal: AbortSignal.timeout(RENDER_TIMEOUT_MS),
+      });
+      const body: any = await res.json().catch(() => ({}));
+      if (!res.ok || typeof body.odt !== 'string' || !Array.isArray(body.drawings)) {
+        if (res.status !== 404) this.logger.warn(`Zeichnungen exportieren: ${body.error || res.status}`);
+        return null;
+      }
+      const drawings = new Map<string, { svg: Buffer; widthMm: number }>();
+      for (const d of body.drawings) {
+        if (typeof d?.name === 'string' && typeof d.svg === 'string') drawings.set(d.name, { svg: Buffer.from(d.svg, 'base64'), widthMm: Number(d.width_mm) || 0 });
+      }
+      return { odt: Buffer.from(body.odt, 'base64'), drawings, warnings: Array.isArray(body.warnings) ? body.warnings.map(String) : [] };
+    } catch (err: any) {
+      this.logger.warn(`Zeichnungen exportieren: ${err?.message || err}`);
+      return null;
+    }
+  }
+
   /** Skript (Kompendium) aus mehreren Blättern (POST /render-script). */
   renderScript(job: { sheets: Array<{ titel: string; spec: Record<string, any> }>; course?: Record<string, any>; skript?: Record<string, any>; template?: string; files?: Record<string, string>; outputs: WorksheetOutput[] }) {
     return this.render(job as any, '/render-script');

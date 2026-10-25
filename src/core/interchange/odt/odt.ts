@@ -626,10 +626,22 @@ export interface OdtResult {
   title: string;
   html: string;
   warnings: string[];
-  stats: { headings: number; paragraphs: number; tables: number; images: number; drawings: number };
+  stats: { headings: number; paragraphs: number; tables: number; images: number; drawings: number; exported: number };
 }
 
-export function odtToHtml(buffer: Buffer, fileName = ''): OdtResult {
+export interface OdtOptions {
+  /**
+   * Zeichnungen, die LibreOffice schon gezeichnet hat (Renderer, POST
+   * /export-drawings): Name im Dokument (`lmdraw-<n>`) → SVG und Breite.
+   * Solche Elemente werden als Bild übernommen statt nachgebaut.
+   */
+  drawings?: Map<string, { svg: Buffer; widthMm: number }>;
+}
+
+/** So lang wird eine Überschrift nicht – ein Absatz mit Überschriften-Vorlage (sieht im Dokument aus wie Text). */
+const MAX_HEADING_CHARS = 200;
+
+export function odtToHtml(buffer: Buffer, fileName = '', opts: OdtOptions = {}): OdtResult {
   let zip: AdmZip;
   try {
     zip = new AdmZip(buffer);
@@ -653,7 +665,7 @@ export function odtToHtml(buffer: Buffer, fileName = ''): OdtResult {
   const body = find(content, 'office:text');
   if (!body) throw new Error('Das Dokument enthält keinen Text.');
 
-  const stats = { headings: 0, paragraphs: 0, tables: 0, images: 0, drawings: 0 };
+  const stats = { headings: 0, paragraphs: 0, tables: 0, images: 0, drawings: 0, exported: 0 };
   let skippedDrawings = 0;
   let skippedImages = 0;
   let skippedLarge = 0;
@@ -748,6 +760,16 @@ export function odtToHtml(buffer: Buffer, fileName = ''): OdtResult {
     return x + w / 2 > 320 ? 'right' : 'left';
   };
 
+  /** Von LibreOffice gezeichnet (OdtOptions.drawings)? Dann das SVG als Bild, sonst null. */
+  const exported = (c: XNode): string | null => {
+    const d = opts.drawings?.get(c.attrs['draw:name'] || '');
+    if (!d) return null;
+    stats.images++;
+    stats.exported++;
+    const width = d.widthMm ? Math.round((d.widthMm * 96) / 25.4) : 0;
+    return `<img src="data:image/svg+xml;base64,${d.svg.toString('base64')}" alt="Zeichnung"${width ? ` width="${width}"` : ''}>`;
+  };
+
   const inline = (n: XNode): Seg[] => {
     const out: Seg[] = [];
     // Zeichnungen eines Absatzes werden gesammelt und am Ende als ein Bild
@@ -763,6 +785,12 @@ export function odtToHtml(buffer: Buffer, fileName = ''): OdtResult {
         continue;
       }
       if (SKIP.has(c.name)) continue;
+      const ready = exported(c);
+      if (ready !== null) {
+        // Wie ein Buchstabe im Text bleibt im Text, sonst eine eigene Zeile.
+        out.push(c.attrs['text:anchor-type'] === 'as-char' ? { inline: ready } : { block: `<p>${ready.replace('<img ', '<img class="ws-img-center" ')}</p>` });
+        continue;
+      }
       switch (c.name) {
         case 'text:s': {
           const count = Math.min(Number(c.attrs['text:c'] || 1), 40);
@@ -949,7 +977,7 @@ export function odtToHtml(buffer: Buffer, fileName = ''): OdtResult {
     for (const c of elements(n)) {
       if (SKIP.has(c.name)) continue;
       if (c.name === 'text:p' || c.name === 'text:h') {
-        const tag = c.name === 'text:h' ? headingTag(c)
+        const tag = c.name === 'text:h' && textOf(c).trim().length <= MAX_HEADING_CHARS ? headingTag(c)
           : styles.inherits(c.attrs['text:style-name'], /^Title$/i) ? 'h2'
             : styles.inherits(c.attrs['text:style-name'], /^Subtitle$/i) ? 'h3' : 'p';
         const html = paragraph(c, tag);

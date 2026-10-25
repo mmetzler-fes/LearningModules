@@ -7,12 +7,13 @@ LABEL org.opencontainers.image.title="LearningModules worksheet-renderer" \
       org.opencontainers.image.source="https://github.com/mmetzler-fes/LearningModules" \
       org.opencontainers.image.licenses="AGPL-3.0-or-later"
 
-# Writer für die PDF-Umwandlung, Math für die Formelobjekte (StarMath).
+# Writer für die PDF-Umwandlung, Math für die Formelobjekte (StarMath),
+# Draw und python3-uno, um Zeichnungen aus .odt als SVG zu exportieren.
 # Liberation ist metrisch gleich zu Arial/Courier New – darauf rechnet der
 # Generator die Tabellenbreiten.
 RUN apt-get update \
  && apt-get install -y --no-install-recommends \
-      libreoffice-writer-nogui libreoffice-math-nogui \
+      libreoffice-writer-nogui libreoffice-math-nogui libreoffice-draw-nogui python3-uno \
       fonts-liberation fonts-dejavu-core \
  && rm -rf /var/lib/apt/lists/*
 

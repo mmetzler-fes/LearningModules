@@ -105,7 +105,7 @@ export function parsePropfind(xml: string, folderHref: string): DavEntry[] {
 }
 
 const PROPFIND_BODY = '<?xml version="1.0"?><d:propfind xmlns:d="DAV:"><d:prop>'
-  + '<d:resourcetype/><d:getcontenttype/><d:getcontentlength/><d:getlastmodified/></d:prop></d:propfind>';
+  + '<d:resourcetype/><d:getcontenttype/><d:getcontentlength/><d:getlastmodified/><d:getetag/></d:prop></d:propfind>';
 const STAT_BODY = '<?xml version="1.0"?><d:propfind xmlns:d="DAV:" xmlns:oc="http://owncloud.org/ns"><d:prop>'
   + '<d:resourcetype/><d:getcontentlength/><d:getetag/><oc:size/><d:quota-used-bytes/></d:prop></d:propfind>';
 

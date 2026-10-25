@@ -11,6 +11,16 @@ import { WorksheetRendererClient } from '../worksheets/renderer.client';
 /** Höchstens so oft je Lehrkraft und Ordner in die Nextcloud schauen. */
 const SYNC_EVERY_MS = 20_000;
 
+/**
+ * Link auf eine Datei über diesen Server als Pfad (/api/nextcloud/…): Die
+ * volle Adresse kennt der Server hinter einem Proxy oft nur als http://, und
+ * Dokumente nehmen als Bildquelle nur https:// oder /api/ an.
+ */
+export function appPath(url: string): string {
+  const m = /^https?:\/\/[^/]+(\/api\/.*)$/i.exec(String(url || ''));
+  return m ? m[1] : url;
+}
+
 /** `<svgUrl>` bzw. `<svgUrl>?v=<n>` – auch mitten in HTML oder JSON. */
 const versioned = (url: string) => new RegExp(`${url.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(\\?v=\\d+)?(?=["'\\\\\\s)<>]|$)`, 'g');
 
@@ -46,16 +56,20 @@ export class DrawingsService {
     drawings: Map<string, { svg: Buffer; odg?: Buffer; widthMm: number }>) {
     const out = new Map<string, { url: string; source: string }>();
     const stem = (docName || 'Zeichnung').replace(/\.[^.]+$/, '').slice(0, 60);
-    let n = 0;
-    for (const [name, d] of drawings) {
-      if (!d.odg) continue;
-      n++;
-      const stored = await this.nextcloud.storeDrawing(user, topicId, `${stem}-Zeichnung-${n}`, d.svg, d.odg);
+    const names = [...drawings].filter(([, d]) => d.odg).map(([name]) => name);
+    const stored = await this.nextcloud.storeDrawings(user, topicId, names.map((name, i) => {
+      const d = drawings.get(name)!;
+      return { stem: `${stem}-Zeichnung-${i + 1}`, svg: d.svg, odg: d.odg! };
+    }));
+    for (const [i, name] of names.entries()) {
+      const s = stored[i];
+      const svgUrl = appPath(s.svgUrl);
+      const odgUrl = appPath(s.odgUrl);
       await this.repo.save(this.repo.create({
-        id: crypto.randomUUID(), ownerId: user.userId, topicId, folder: stored.folder, odgName: stored.odgName,
-        svgName: stored.svgName, svgUrl: stored.svgUrl, odgUrl: stored.odgUrl, etag: stored.etag, version: 1,
+        id: crypto.randomUUID(), ownerId: user.userId, topicId, folder: s.folder, odgName: s.odgName,
+        svgName: s.svgName, svgUrl, odgUrl, etag: s.etag, version: 1,
       }));
-      out.set(name, { url: stored.svgUrl, source: stored.odgUrl });
+      out.set(name, { url: svgUrl, source: odgUrl });
     }
     return out;
   }

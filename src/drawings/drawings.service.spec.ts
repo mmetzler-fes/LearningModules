@@ -1,15 +1,16 @@
 import { DrawingsService } from './drawings.service';
 import { repo } from '../work/test-repo';
 
-const SVG_URL = 'https://lm.schule.de/api/nextcloud/files/l1/Physik/Blatt-Zeichnung-1.svg';
+const SVG_URL = 'http://intern:3000/api/nextcloud/files/l1/Physik/Blatt-Zeichnung-1.svg';
+const PATH = '/api/nextcloud/files/l1/Physik/Blatt-Zeichnung-1.svg';
 
 function setup() {
   const sources = repo();
   const topics = repo([{ id: 't1', ownerId: 'u1' }, { id: 't2', ownerId: 'fremd' }]);
   const modules = repo([
-    { id: 'm1', topicId: 't1', content: { spec: { content: [{ type: 'image', src: SVG_URL, source: 'x.odg' }] } } },
-    { id: 'm2', topicId: 't1', content: { html: `<img src="${SVG_URL}?v=1">` } },
-    { id: 'm3', topicId: 't2', content: { spec: { content: [{ type: 'image', src: SVG_URL }] } } },
+    { id: 'm1', topicId: 't1', content: { spec: { content: [{ type: 'image', src: PATH, source: 'x.odg' }] } } },
+    { id: 'm2', topicId: 't1', content: { html: `<img src="${PATH}?v=1">` } },
+    { id: 'm3', topicId: 't2', content: { spec: { content: [{ type: 'image', src: PATH }] } } },
   ]);
   (modules as any).find = async ({ where }: any) => modules.rows.filter((m) => (where.topicId?._value || [where.topicId]).includes(m.topicId));
   (topics as any).find = async ({ where }: any) => topics.rows.filter((t) => t.ownerId === where.ownerId);
@@ -17,7 +18,7 @@ function setup() {
   let etag = 'e1';
   const nextcloud: any = {
     isReady: async () => true,
-    storeDrawing: async (_u: any, _t: any, stem: string) => ({ folder: 'Physik', odgName: `${stem}.odg`, svgName: `${stem}.svg`, odgUrl: SVG_URL.replace('.svg', '.odg'), svgUrl: SVG_URL, etag }),
+    storeDrawings: async (_u: any, _t: any, items: any[]) => items.map((it) => ({ folder: 'Physik', odgName: `${it.stem}.odg`, svgName: `${it.stem}.svg`, odgUrl: SVG_URL.replace('.svg', '.odg'), svgUrl: SVG_URL, etag })),
     drawingFolder: async () => [{ name: 'Blatt-Zeichnung-1.odg', etag, modified: '' }],
     readOwnFile: async () => ({ type: 'application/vnd.oasis.opendocument.graphics', data: Buffer.from('PK-odg') }),
     writeOwnFile: async (_u: string, _f: string, name: string, data: Buffer) => { files[name] = data; return 'e-up'; },
@@ -37,7 +38,8 @@ describe('Zeichnungen mit Quelle', () => {
       ['lmdraw-2', { svg: Buffer.from('<svg/>'), widthMm: 40 }], // ohne .odg: bleibt im Dokument
     ]));
     expect([...stored.keys()]).toEqual(['lmdraw-1']);
-    expect(stored.get('lmdraw-1')).toEqual({ url: SVG_URL, source: SVG_URL.replace('.svg', '.odg') });
+    // Als Pfad auf diesem Server – unabhängig davon, unter welcher Adresse er sich kennt.
+    expect(stored.get('lmdraw-1')).toEqual({ url: PATH, source: PATH.replace('.svg', '.odg') });
     expect(sources.rows[0]).toMatchObject({ folder: 'Physik', odgName: 'Blatt-Zeichnung-1.odg', etag: 'e1', version: 1 });
   });
 
@@ -49,9 +51,9 @@ describe('Zeichnungen mit Quelle', () => {
     const res = await svc.sync(user, 't1', true);
     expect(res.updated).toEqual(['Blatt-Zeichnung-1.odg']);
     expect(files['Blatt-Zeichnung-1.svg'].toString()).toBe('<svg>neu</svg>');
-    expect(modules.rows[0].content.spec.content[0].src).toBe(`${SVG_URL}?v=2`);
-    expect(modules.rows[1].content.html).toBe(`<img src="${SVG_URL}?v=2">`);
-    expect(modules.rows[2].content.spec.content[0].src).toBe(SVG_URL); // fremdes Thema bleibt
+    expect(modules.rows[0].content.spec.content[0].src).toBe(`${PATH}?v=2`);
+    expect(modules.rows[1].content.html).toBe(`<img src="${PATH}?v=2">`);
+    expect(modules.rows[2].content.spec.content[0].src).toBe(PATH); // fremdes Thema bleibt
     // Gleich noch einmal ohne force: der Server bremst.
     setEtag('e3');
     expect((await svc.sync(user, 't1')).checked).toBe(0);

@@ -1529,18 +1529,42 @@ export class NextcloudService implements OnApplicationBootstrap {
   // ---- Zeichnungen mit Quelle (LibreOffice Draw) ----
 
   /**
-   * Zeichnung als Paar in den Ordner des Themas: `<stem>.odg` zum Bearbeiten
-   * (z. B. über den Nextcloud-Sync-Client in LibreOffice Draw) und `<stem>.svg`
-   * zum Anzeigen. Beide heißen gleich; ist der Name vergeben, -2, -3 …
+   * Zeichnungen als Paare in den Ordner des Themas: je `<stem>.odg` zum
+   * Bearbeiten (z. B. über den Nextcloud-Sync-Client in LibreOffice Draw) und
+   * `<stem>.svg` zum Anzeigen, gleich benannt; vergebene Namen bekommen -2, -3 …
+   * Ordner anlegen und auflisten einmal für alle – jede Anfrage an die
+   * Nextcloud kostet Zeit.
    */
-  async storeDrawing(user: any, topicId: string | undefined, stem: string, svg: Buffer, odg: Buffer) {
-    const wanted = `${safeFileName(stem).replace(/^\.+/, '') || 'zeichnung'}.odg`;
-    const odgRes = await this.place(user, topicId, wanted, odg, ATTACHMENT_TYPES.odg);
-    const svgName = odgRes.name.replace(/\.odg$/, '.svg');
-    const svgRes = await this.place(user, topicId, svgName, svg, 'image/svg+xml', { folder: odgRes.folder, replace: true });
-    const { nc, root } = await this.effective(user.userId);
-    const entry = (await nc.list([...root, odgRes.folder]).catch((): DavEntry[] => [])).find((e) => e.name === odgRes.name);
-    return { folder: odgRes.folder, odgName: odgRes.name, svgName, odgUrl: odgRes.url, svgUrl: svgRes.url, etag: entry?.etag || entry?.modified || '' };
+  async storeDrawings(user: any, topicId: string | undefined, items: Array<{ stem: string; svg: Buffer; odg: Buffer }>) {
+    const { nc, root, url } = await this.effective(user.userId);
+    const folder = await this.topicFolder(topicId);
+    await nc.ensureFolder([...root, folder]);
+    const taken = new Set((await nc.list([...root, folder]).catch((): DavEntry[] => [])).map((e) => e.name.toLowerCase()));
+    const out: Array<{ folder: string; odgName: string; svgName: string; odgUrl: string; svgUrl: string; etag: string }> = [];
+    for (const item of items) {
+      const base = safeFileName(item.stem).replace(/^\.+/, '') || 'zeichnung';
+      let stem = base;
+      for (let n = 2; taken.has(`${stem}.odg`.toLowerCase()) || taken.has(`${stem}.svg`.toLowerCase()); n++) {
+        if (n > 99) throw new BadRequestException('Zu viele Dateien mit diesem Namen.');
+        stem = `${base}-${n}`;
+      }
+      const odgName = `${stem}.odg`;
+      const svgName = `${stem}.svg`;
+      taken.add(odgName.toLowerCase());
+      taken.add(svgName.toLowerCase());
+      const etag = await nc.put([...root, folder, odgName], item.odg, ATTACHMENT_TYPES.odg);
+      await nc.put([...root, folder, svgName], item.svg, 'image/svg+xml');
+      out.push({ folder, odgName, svgName, odgUrl: url(folder, odgName), svgUrl: url(folder, svgName), etag });
+    }
+    // ETags, die der Server beim Hochladen nicht nennt: einmal nachlesen.
+    if (out.some((o) => !o.etag)) {
+      const entries = await nc.list([...root, folder]).catch((): DavEntry[] => []);
+      for (const o of out.filter((x) => !x.etag)) {
+        const e = entries.find((x) => x.name === o.odgName);
+        o.etag = e?.etag || e?.modified || '';
+      }
+    }
+    return out;
   }
 
   /** Dateien im Ordner eines Themas der eigenen Ablage – Name, ETag, Änderungszeit. */

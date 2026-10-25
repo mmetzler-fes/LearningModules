@@ -914,7 +914,16 @@ export class NotebooksView {
       { label: '📋 Duplizieren', run: () => this._transferModule(topic, mod, topic.id, 'copy') },
     ];
     if (mod.type === 'attachment' && this._docsEnabled()) {
-      items.push({ label: '📄 In Dokument umwandeln', title: 'Die PDFs dieses Anhangs als Dokumente übernehmen', run: () => this._convertAttachments([{ type: 'module', id: mod.id, topicId: topic.id }]) });
+      // Gehört das Modul zur Auswahl, gilt es für alle markierten Anhänge – wie in der Leiste.
+      const chosen = this._sel.has('m:' + mod.id)
+        ? this._selItems().filter((i) => i.type === 'module' && this._moduleOf(i)?.type === 'attachment')
+        : [];
+      const targets = chosen.length > 1 ? chosen : [{ type: 'module', id: mod.id, topicId: topic.id }];
+      items.push({
+        label: targets.length > 1 ? `📄 ${targets.length} Anhänge in Dokumente umwandeln` : '📄 In Dokument umwandeln',
+        title: 'Die PDFs als Dokumente übernehmen',
+        run: () => this._convertAttachments(targets),
+      });
     }
     if (!mod.parentId) {
       items.push({ label: '↔️ Verschieben nach…', run: () => this._moduleTargetDialog(topic, mod, 'move') });

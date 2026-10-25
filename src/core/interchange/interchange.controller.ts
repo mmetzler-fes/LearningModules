@@ -9,6 +9,7 @@ import { ExportService } from './export/export.service';
 import { MasterKeyService } from '../crypto/master-key.service';
 import { odtToHtml } from './odt/odt';
 import { WorksheetRendererClient } from '../../worksheets/renderer.client';
+import { DrawingsService } from '../../drawings/drawings.service';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { SchoolIsolationGuard } from '../../auth/guards/school-isolation.guard';
 
@@ -31,6 +32,7 @@ export class InterchangeController {
     private readonly exportService: ExportService,
     private readonly masterKey: MasterKeyService,
     private readonly renderer: WorksheetRendererClient,
+    private readonly drawings: DrawingsService,
   ) {}
 
   @Post('h5p/upload')
@@ -89,7 +91,7 @@ export class InterchangeController {
    */
   @Post('odt-to-html')
   @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 40 * 1024 * 1024 } }))
-  async odtToHtml(@UploadedFile() file: Express.Multer.File) {
+  async odtToHtml(@UploadedFile() file: Express.Multer.File, @Request() req: any) {
     if (!file || !file.buffer) throw new BadRequestException('Keine Datei empfangen.');
     // Multer liefert den Namen als latin1 – Umlaute sonst verstümmelt.
     const name = Buffer.from(file.originalname || '', 'latin1').toString('utf8');
@@ -101,11 +103,23 @@ export class InterchangeController {
     }
     // Zeichnungen, wie LibreOffice sie zeichnet – sonst baut der Import sie nach.
     const exported = await this.renderer.exportDrawings(odt);
+    // Mit Lernthema und Nextcloud: jede Zeichnung als .odg + .svg ablegen –
+    // bearbeitbar in LibreOffice Draw (docs/zeichnungen.md).
+    const topicId = String(req.body?.topicId || '') || undefined;
+    const warnings: string[] = [...(exported?.warnings || [])];
+    let stored: Map<string, { url: string; source: string }> | undefined;
+    if (exported?.drawings.size && (await this.drawings.canStore(req.user, topicId))) {
+      try {
+        stored = await this.drawings.storeImported(req.user, topicId!, fileName, exported.drawings);
+      } catch (err: any) {
+        warnings.push(`Zeichnungen nicht in der Nextcloud abgelegt (${err?.message || err}) – sie stehen nur im Dokument.`);
+      }
+    }
     try {
       const result = exported
-        ? odtToHtml(exported.odt, fileName, { drawings: exported.drawings })
+        ? odtToHtml(exported.odt, fileName, { drawings: exported.drawings, stored })
         : odtToHtml(odt, fileName);
-      return { success: true, ...result, warnings: [...result.warnings, ...(exported?.warnings || [])] };
+      return { success: true, ...result, warnings: [...result.warnings, ...warnings] };
     } catch (err: any) {
       throw new BadRequestException(err?.message || 'Die Datei konnte nicht gelesen werden.');
     }

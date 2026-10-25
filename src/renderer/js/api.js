@@ -261,6 +261,17 @@ export class BrowserApi {
     return this._fetch(`/api/work?${q}`);
   }
   getWork(id) { return this._fetch(`/api/work/${encodeURIComponent(id)}`); }
+  /** Zeichnungen mit Quelle (.odg in der Nextcloud) eines Lernthemas. */
+  listDrawings(topicId) { return this._fetch(`/api/drawings?topicId=${encodeURIComponent(topicId)}`); }
+  /** Geänderte .odg neu zeichnen lassen – `{ checked, updated: [...], failed: [...] }`. */
+  syncDrawings(topicId, force = false) { return this._fetch('/api/drawings/sync', { method: 'POST', body: JSON.stringify({ topicId, force }) }); }
+  async uploadDrawingOdg(id, file) {
+    const form = new FormData();
+    form.append('file', file);
+    const token = this._auth.getToken();
+    const res = await fetch(`/api/drawings/${encodeURIComponent(id)}/odg`, { method: 'POST', headers: token ? { Authorization: `Bearer ${token}` } : {}, body: form });
+    return res.json().catch(() => ({ success: false, message: `HTTP ${res.status}` }));
+  }
   /** Live-Ansicht einer Klasse: Schüler, Durchläufe der letzten Stunden, Stift-Aktivität. */
   getLiveClass(classId) { return this._fetch(`/api/live/class/${encodeURIComponent(classId)}`); }
   /** Klassenarbeiten (Versuche je Schüler), Filter: { classId, linkId }. */

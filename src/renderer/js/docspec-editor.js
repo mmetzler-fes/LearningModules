@@ -47,6 +47,12 @@ export function useModuleSource(fn) {
   moduleSource = fn;
 }
 
+/** Lernthema, in dem das Dokument liegt – Zeichnungen aus .odt landen in seinem Nextcloud-Ordner (app.js). */
+let topicSource = () => null;
+export function useTopicSource(fn) {
+  topicSource = fn;
+}
+
 /** Module des Lernthemas, in dem das Dokument liegt – für „Quiz einfügen“ (app.js). */
 let topicModules = () => [];
 export function useTopicModules(fn) {
@@ -294,6 +300,7 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
       try {
         const form = new FormData();
         form.append('file', file);
+        if (!isPdf && topicSource()) form.append('topicId', topicSource());
         if (isPdf) {
           form.append('mode', choice.mode);
           if (choice.ocr) form.append('ocr', 'true');

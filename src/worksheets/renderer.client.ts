@@ -144,7 +144,7 @@ export class WorksheetRendererClient {
    * null, wenn der Renderer fehlt, es nicht kann oder scheitert – dann baut der
    * Import die Zeichnungen wie bisher selbst nach.
    */
-  async exportDrawings(odt: Buffer): Promise<{ odt: Buffer; drawings: Map<string, { svg: Buffer; widthMm: number }>; warnings: string[] } | null> {
+  async exportDrawings(odt: Buffer): Promise<{ odt: Buffer; drawings: Map<string, { svg: Buffer; odg?: Buffer; widthMm: number }>; warnings: string[] } | null> {
     if (!this.configured()) return null;
     try {
       const res = await fetch(`${this.base()}/export-drawings`, {
@@ -158,15 +158,39 @@ export class WorksheetRendererClient {
         if (res.status !== 404) this.logger.warn(`Zeichnungen exportieren: ${body.error || res.status}`);
         return null;
       }
-      const drawings = new Map<string, { svg: Buffer; widthMm: number }>();
+      const drawings = new Map<string, { svg: Buffer; odg?: Buffer; widthMm: number }>();
       for (const d of body.drawings) {
-        if (typeof d?.name === 'string' && typeof d.svg === 'string') drawings.set(d.name, { svg: Buffer.from(d.svg, 'base64'), widthMm: Number(d.width_mm) || 0 });
+        if (typeof d?.name !== 'string' || typeof d.svg !== 'string') continue;
+        drawings.set(d.name, {
+          svg: Buffer.from(d.svg, 'base64'), widthMm: Number(d.width_mm) || 0,
+          ...(typeof d.odg === 'string' ? { odg: Buffer.from(d.odg, 'base64') } : {}),
+        });
       }
       return { odt: Buffer.from(body.odt, 'base64'), drawings, warnings: Array.isArray(body.warnings) ? body.warnings.map(String) : [] };
     } catch (err: any) {
       this.logger.warn(`Zeichnungen exportieren: ${err?.message || err}`);
       return null;
     }
+  }
+
+  /** Bearbeitete Zeichnung (.odg) wieder als SVG (POST /render-drawing). */
+  async renderDrawing(odg: Buffer): Promise<{ svg: Buffer; widthMm: number }> {
+    if (!this.configured()) throw new ServiceUnavailableException('Zeichnungen lassen sich nur mit dem Renderer neu zeichnen.');
+    let res: Response;
+    try {
+      res = await fetch(`${this.base()}/render-drawing`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(process.env.WORKSHEET_RENDERER_TOKEN ? { Authorization: `Bearer ${process.env.WORKSHEET_RENDERER_TOKEN}` } : {}) },
+        body: JSON.stringify({ odg: odg.toString('base64') }),
+        signal: AbortSignal.timeout(RENDER_TIMEOUT_MS),
+      });
+    } catch (err: any) {
+      this.logger.warn(`Renderer nicht erreichbar: ${err?.message || err}`);
+      throw new ServiceUnavailableException('Der Renderer ist gerade nicht erreichbar.');
+    }
+    const body: any = await res.json().catch(() => ({}));
+    if (!res.ok || typeof body.svg !== 'string') throw new UnprocessableEntityException(body.error || `Die Zeichnung ließ sich nicht umwandeln (${res.status}).`);
+    return { svg: Buffer.from(body.svg, 'base64'), widthMm: Number(body.width_mm) || 0 };
   }
 
   /** Skript (Kompendium) aus mehreren Blättern (POST /render-script). */

@@ -1,4 +1,5 @@
 import { escapeHtml } from '../utils.js';
+import { syncDrawings, openDrawingsDialog } from './drawings-dialog.js';
 
 // ==================== NOTEBOOKS: VORSCHAU-SPALTE ====================
 //
@@ -195,6 +196,12 @@ export class NotebookPreview {
       });
     }
     if (own) this._button('✏️ Bearbeiten', 'Im Modul-Editor öffnen (auch Doppelklick auf den Titel)', () => this.app.modulesView.openFrom('teacher-notebooks', topic.id, mod, 'edit'));
+    // Zeichnungen mit Quelle (.odg in der Nextcloud): Übersicht, und geänderte gleich neu zeichnen.
+    if (own && mod.type === 'document') {
+      const reload = async () => { this._modules.delete(topic.id); if (this.currentKey === key) await this.showModule(topic, mod); };
+      this._button('🖍 Zeichnungen', 'Zeichnungen dieses Lernthemas in LibreOffice Draw bearbeiten (.odg in der Nextcloud)', () => openDrawingsDialog(this.app, topic, { onChanged: reload }));
+      syncDrawings(this.app, topic.id, { quiet: true }).then((n) => { if (n) reload(); });
+    }
     this._button('⛶ Vollbild', 'Vorschau über die ganze Seite', () => this.app.modulesView.openFrom('teacher-notebooks', topic.id, mod, 'preview'));
     this._body.innerHTML = '<p class="hint">Wird geladen …</p>';
 

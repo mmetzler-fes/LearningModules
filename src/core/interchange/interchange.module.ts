@@ -10,12 +10,14 @@ import { InterchangeController } from './interchange.controller';
 import { TopicsModule } from '../../topics/topics.module';
 import { NextcloudModule } from '../../nextcloud/nextcloud.module';
 import { WorksheetRendererClient } from '../../worksheets/renderer.client';
+import { DrawingsModule } from '../../drawings/drawings.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([LearningTopic, LearningModule, User]),
     TopicsModule,
     NextcloudModule,
+    DrawingsModule,
   ],
   // Renderer-Client ohne eigene Abhängigkeiten: Word → .odt für den Import.
   providers: [H5pService, ImportService, ExportService, WorksheetRendererClient],

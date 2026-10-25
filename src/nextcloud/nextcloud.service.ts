@@ -678,7 +678,8 @@ export class NextcloudService implements OnApplicationBootstrap {
 
   /** Erkennt Links „über diesen Server“ und liefert das Bild (für den Export). */
   async readImageByUrl(url: string) {
-    const u = String(url || '');
+    // Fassung einer neu gezeichneten Zeichnung (?v=3) ändert nichts an der Datei.
+    const u = String(url || '').replace(/[?#].*$/, '');
     const d = (x: string) => { try { return decodeURIComponent(x); } catch { return ''; } };
     const sch = /\/api\/nextcloud\/sch\/([0-9a-f-]{36})\/([^/?#]+)\/([^/?#]+)\/([^/?#]+)$/i.exec(u);
     if (sch) return this.readRef({ kind: 'sch', sncId: sch[1], folder: d(sch[2]), sub: d(sch[3]), name: d(sch[4]) });
@@ -1523,6 +1524,43 @@ export class NextcloudService implements OnApplicationBootstrap {
     const type = ATTACHMENT_TYPES[wanted.split('.').pop()!] || 'application/octet-stream';
     const res = await this.place(user, topicId, wanted, file.buffer, type);
     return { ...res, size: file.size, type };
+  }
+
+  // ---- Zeichnungen mit Quelle (LibreOffice Draw) ----
+
+  /**
+   * Zeichnung als Paar in den Ordner des Themas: `<stem>.odg` zum Bearbeiten
+   * (z. B. über den Nextcloud-Sync-Client in LibreOffice Draw) und `<stem>.svg`
+   * zum Anzeigen. Beide heißen gleich; ist der Name vergeben, -2, -3 …
+   */
+  async storeDrawing(user: any, topicId: string | undefined, stem: string, svg: Buffer, odg: Buffer) {
+    const wanted = `${safeFileName(stem).replace(/^\.+/, '') || 'zeichnung'}.odg`;
+    const odgRes = await this.place(user, topicId, wanted, odg, ATTACHMENT_TYPES.odg);
+    const svgName = odgRes.name.replace(/\.odg$/, '.svg');
+    const svgRes = await this.place(user, topicId, svgName, svg, 'image/svg+xml', { folder: odgRes.folder, replace: true });
+    const { nc, root } = await this.effective(user.userId);
+    const entry = (await nc.list([...root, odgRes.folder]).catch((): DavEntry[] => [])).find((e) => e.name === odgRes.name);
+    return { folder: odgRes.folder, odgName: odgRes.name, svgName, odgUrl: odgRes.url, svgUrl: svgRes.url, etag: entry?.etag || entry?.modified || '' };
+  }
+
+  /** Dateien im Ordner eines Themas der eigenen Ablage – Name, ETag, Änderungszeit. */
+  async drawingFolder(userId: string, folder: string): Promise<DavEntry[]> {
+    if (!safePart(folder)) return [];
+    const { nc, root } = await this.effective(userId);
+    return nc.list([...root, folder]).catch((): DavEntry[] => []);
+  }
+
+  /** Eine Datei der eigenen Ablage lesen bzw. ersetzen (Zeichnungen). */
+  async readOwnFile(userId: string, folder: string, name: string) {
+    if (!safePart(folder) || !safePart(name)) return null;
+    const { nc, root } = await this.effective(userId);
+    return nc.get([...root, folder, name]);
+  }
+
+  async writeOwnFile(userId: string, folder: string, name: string, data: Buffer, type: string) {
+    if (!safePart(folder) || !safePart(name)) throw new BadRequestException('Ungültiger Dateiname.');
+    const { nc, root } = await this.effective(userId);
+    return nc.put([...root, folder, name], data, type);
   }
 
   /** Datei in Bilder/<Ordner>/ ablegen, ohne Gleichnamiges zu überschreiben (außer `replace`). */

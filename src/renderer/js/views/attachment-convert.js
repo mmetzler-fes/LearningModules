@@ -105,7 +105,7 @@ export const isDocumentFile = (f, pdf = true) => {
  * (POST /api/interchange/odt-to-html), .pdf über den Renderer bzw. pdf-ai
  * (`pdf`: { mode, ocr }). Ergebnis: `{ spec, title, warnings }`.
  */
-export async function fileToSpec(file, { pdf = null } = {}) {
+export async function fileToSpec(file, { pdf = null, topicId = null } = {}) {
   const base = file.name.replace(/\.[^.]+$/, '');
   if (/\.pdf$/i.test(file.name)) {
     if (!pdf) throw new Error('Für PDFs fehlt die Art der Umwandlung.');
@@ -114,6 +114,8 @@ export async function fileToSpec(file, { pdf = null } = {}) {
   }
   const form = new FormData();
   form.append('file', file);
+  // Mit Lernthema: Zeichnungen landen als .odg + .svg in seinem Nextcloud-Ordner.
+  if (topicId) form.append('topicId', topicId);
   const res = await fetch('/api/interchange/odt-to-html', { method: 'POST', headers: { Authorization: `Bearer ${token()}` }, body: form });
   const data = await res.json().catch(() => ({}));
   if (!res.ok || !data.success) throw new Error(data.message || `HTTP ${res.status}`);

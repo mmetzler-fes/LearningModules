@@ -96,6 +96,13 @@ class RendererTest(unittest.TestCase):
         self.assertIn(b"<svg", base64.b64decode(body["drawings"][0]["svg"]))
         self.assertAlmostEqual(body["drawings"][0]["width_mm"], 40, delta=1)
         self.assertIn('draw:name="lmdraw-1"', self.content_xml(body["odt"]))
+        # Die .odg zum Bearbeiten – und zurück ins SVG
+        odg = body["drawings"][0]["odg"]
+        self.assertTrue(zipfile.ZipFile(io.BytesIO(base64.b64decode(odg))).read("mimetype").startswith(b"application/vnd.oasis.opendocument.graphics"))
+        status, back = self.request("/render-drawing", {"odg": odg})
+        self.assertEqual(status, 200, back)
+        self.assertIn(b"<svg", base64.b64decode(back["svg"]))
+        self.assertAlmostEqual(back["width_mm"], 40, delta=1)
 
     def test_ohne_token_abgelehnt(self):
         status, _ = self.request("/render", {"spec": BEISPIEL}, token="falsch")

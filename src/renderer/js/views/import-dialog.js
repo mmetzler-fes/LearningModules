@@ -300,7 +300,7 @@ export function openImportDialog(app, { topicId = null, h5p = false, extraFile =
     for (const [n, f] of docFiles.entries()) {
       show('', `⏳ ${n + 1} von ${docFiles.length}: ${escapeHtml(f.name)} …`);
       try {
-        const { spec, title, warnings: w } = await fileToSpec(f, { pdf });
+        const { spec, title, warnings: w } = await fileToSpec(f, { pdf, topicId: target });
         const now = new Date().toISOString();
         const res = await app.api.saveModule(target, {
           id: generateId(), type: 'document', title, description: '',

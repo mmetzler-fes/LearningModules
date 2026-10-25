@@ -5,6 +5,7 @@ Aufruf (mit dem Python von LibreOffice bzw. python3-uno, nicht dem des
 Servers):
 
     python3 export_drawings.py eingabe.odt ausgabe-ordner [profil-ordner]
+    python3 export_drawings.py --render zeichnung.odg ausgabe-ordner [profil-ordner]
 
 LibreOffice öffnet das Dokument unsichtbar. Jede Zeichnung oben auf der
 Zeichenebene (Gruppe, Form, Linie, Grafik in einem Fremdformat wie SVM/WMF)
@@ -14,7 +15,12 @@ dem Importer überlassen. Ergebnis im Ausgabeordner:
 
     marked.odt      das Dokument mit den Namen
     lmdraw-<n>.svg  je Zeichnung
-    result.json     {"drawings": [{"name", "file", "width_mm", "height_mm"}], "warnings": [...]}
+    lmdraw-<n>.odg  je Zeichnung ein Draw-Dokument zum Bearbeiten (Seite so groß wie die Zeichnung)
+    result.json     {"drawings": [{"name", "file", "odg", "width_mm", "height_mm"}], "warnings": [...]}
+
+Mit ``--render`` wird eine (bearbeitete) .odg wieder ein SVG: alle Formen der
+ersten Seite, knapp zugeschnitten – ``drawing.svg`` und ``result.json`` mit
+``{"width_mm", "height_mm"}``.
 
 Der Importer (src/core/interchange/odt/odt.ts) setzt für Elemente mit diesen
 Namen das SVG ein, statt die Zeichnung selbst nachzubauen.
@@ -121,6 +127,88 @@ def kind_of(shape, tables: set[str]) -> str | None:
     return None
 
 
+MARGIN = 200  # 1/100 mm Rand um die Zeichnung in der .odg
+
+
+def to_odg(smgr, ctx, desktop, doc, shape, target: Path) -> None:
+    """Die Form über die (prozessinterne) Zwischenablage in ein neues Draw-Dokument;
+    die Seite wird so groß wie die Zeichnung."""
+    ctrl = doc.getCurrentController()
+    ctrl.select(shape)
+    clip = smgr.createInstanceWithContext("com.sun.star.datatransfer.clipboard.SystemClipboard", ctx)
+    clip.setContents(ctrl.getTransferable(), None)
+    draw = desktop.loadComponentFromURL("private:factory/sdraw", "_blank", 0, (prop("Hidden", True),))
+    try:
+        disp = smgr.createInstanceWithContext("com.sun.star.frame.DispatchHelper", ctx)
+        disp.executeDispatch(draw.getCurrentController().getFrame(), ".uno:Paste", "", 0, ())
+        page = draw.getDrawPages().getByIndex(0)
+        if page.getCount() == 0:
+            raise RuntimeError("nichts eingefügt")
+        left, top, right, bottom = bounds(page)
+        for i in range(page.getCount()):
+            s = page.getByIndex(i)
+            p = s.getPosition()
+            p.X += MARGIN - left
+            p.Y += MARGIN - top
+            s.setPosition(p)
+        for name in ("BorderLeft", "BorderRight", "BorderTop", "BorderBottom"):
+            page.setPropertyValue(name, 0)
+        page.Width = right - left + 2 * MARGIN
+        page.Height = bottom - top + 2 * MARGIN
+        draw.storeToURL(target.resolve().as_uri(), (prop("FilterName", "draw8"),))
+    finally:
+        draw.close(True)
+
+
+def bounds(page) -> tuple[int, int, int, int]:
+    xs, ys, xe, ye = [], [], [], []
+    for i in range(page.getCount()):
+        s = page.getByIndex(i)
+        p, z = s.getPosition(), s.getSize()
+        xs.append(p.X); ys.append(p.Y); xe.append(p.X + z.Width); ye.append(p.Y + z.Height)
+    return min(xs), min(ys), max(xe), max(ye)
+
+
+def render_odg(src: Path, out: Path, profile: Path) -> dict:
+    """Bearbeitete .odg → SVG aller Formen der ersten Seite."""
+    out.mkdir(parents=True, exist_ok=True)
+    proc, ctx = start_office(profile)
+    try:
+        smgr = ctx.ServiceManager
+        desktop = smgr.createInstanceWithContext("com.sun.star.frame.Desktop", ctx)
+        doc = desktop.loadComponentFromURL(src.resolve().as_uri(), "_blank", 0, (prop("Hidden", True), prop("ReadOnly", True)))
+        if doc is None:
+            raise RuntimeError("Die Zeichnung ließ sich nicht öffnen.")
+        try:
+            page = doc.getDrawPages().getByIndex(0)
+            if page.getCount() == 0:
+                raise RuntimeError("Die Zeichnung ist leer.")
+            shapes = smgr.createInstanceWithContext("com.sun.star.drawing.ShapeCollection", ctx)
+            for i in range(page.getCount()):
+                shapes.add(page.getByIndex(i))
+            left, top, right, bottom = bounds(page)
+            flt = smgr.createInstanceWithContext("com.sun.star.drawing.GraphicExportFilter", ctx)
+            flt.setSourceDocument(shapes)
+            target = out / "drawing.svg"
+            flt.filter((prop("URL", target.resolve().as_uri()), prop("MediaType", "image/svg+xml")))
+            if not target.exists() or target.stat().st_size == 0:
+                raise RuntimeError("LibreOffice hat kein SVG geschrieben.")
+            result = {"width_mm": round((right - left) / 100, 2), "height_mm": round((bottom - top) / 100, 2)}
+        finally:
+            doc.close(True)
+    finally:
+        try:
+            desktop.terminate()  # type: ignore[possibly-undefined]
+        except Exception:  # noqa: BLE001
+            pass
+        try:
+            proc.wait(timeout=10)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+    (out / "result.json").write_text(json.dumps(result), encoding="utf-8")
+    return result
+
+
 def export(src: Path, out: Path, profile: Path) -> dict:
     out.mkdir(parents=True, exist_ok=True)
     proc, ctx = start_office(profile)
@@ -155,8 +243,14 @@ def export(src: Path, out: Path, profile: Path) -> dict:
                         raise RuntimeError("leer")
                     shape.Name = name
                     size = shape.getSize()
-                    drawings.append({"name": name, "file": target.name, "kind": kind,
-                                     "width_mm": round(size.Width / 100, 2), "height_mm": round(size.Height / 100, 2)})
+                    entry = {"name": name, "file": target.name, "kind": kind,
+                             "width_mm": round(size.Width / 100, 2), "height_mm": round(size.Height / 100, 2)}
+                    try:
+                        to_odg(smgr, ctx, desktop, doc, shape, out / f"{name}.odg")
+                        entry["odg"] = f"{name}.odg"
+                    except Exception as err:  # noqa: BLE001 – dann eben ohne Quelle zum Bearbeiten
+                        warnings.append(f"Zeichnung {n}: keine .odg zum Bearbeiten ({err}).")
+                    drawings.append(entry)
                 except Exception as err:  # noqa: BLE001 – eine Zeichnung, nicht alles
                     warnings.append(f"Zeichnung {n} ließ sich nicht exportieren ({err}).")
             doc.storeToURL((out / "marked.odt").resolve().as_uri(), (prop("FilterName", "writer8"),))
@@ -180,9 +274,19 @@ def main() -> int:
     if len(sys.argv) < 3:
         print(__doc__, file=sys.stderr)
         return 2
-    src, out = Path(sys.argv[1]), Path(sys.argv[2])
-    profile = Path(sys.argv[3]) if len(sys.argv) > 3 else out / "profile"
+    args = sys.argv[1:]
+    render = args[0] == "--render"
+    if render:
+        args = args[1:]
+    if len(args) < 2:
+        print(__doc__, file=sys.stderr)
+        return 2
+    src, out = Path(args[0]), Path(args[1])
+    profile = Path(args[2]) if len(args) > 2 else out / "profile"
     try:
+        if render:
+            print(json.dumps(render_odg(src, out, profile)))
+            return 0
         result = export(src, out, profile)
     except Exception as err:  # noqa: BLE001
         print(f"Fehler: {err}", file=sys.stderr)

@@ -636,6 +636,12 @@ export interface OdtOptions {
    * Solche Elemente werden als Bild übernommen statt nachgebaut.
    */
   drawings?: Map<string, { svg: Buffer; widthMm: number }>;
+  /**
+   * Schon in der Nextcloud abgelegt (Zeichnung mit Quelle): Name → Link des
+   * SVG und der .odg. Dann steht der Link im Bild statt der Daten, dazu die
+   * Quelle (data-source) zum Bearbeiten in LibreOffice Draw.
+   */
+  stored?: Map<string, { url: string; source: string }>;
 }
 
 /** So lang wird eine Überschrift nicht – ein Absatz mit Überschriften-Vorlage (sieht im Dokument aus wie Text). */
@@ -767,7 +773,9 @@ export function odtToHtml(buffer: Buffer, fileName = '', opts: OdtOptions = {}):
     stats.images++;
     stats.exported++;
     const width = d.widthMm ? Math.round((d.widthMm * 96) / 25.4) : 0;
-    return `<img src="data:image/svg+xml;base64,${d.svg.toString('base64')}" alt="Zeichnung"${width ? ` width="${width}"` : ''}>`;
+    const stored = opts.stored?.get(c.attrs['draw:name'] || '');
+    const src = stored ? esc(stored.url) : `data:image/svg+xml;base64,${d.svg.toString('base64')}`;
+    return `<img src="${src}" alt="Zeichnung"${width ? ` width="${width}"` : ''}${stored ? ` data-source="${esc(stored.source)}"` : ''}>`;
   };
 
   const inline = (n: XNode): Seg[] => {

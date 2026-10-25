@@ -11,9 +11,11 @@ POST /render-script  JSON {sheets: [{titel, spec}], course?, skript?, template?,
                → Skript (Kompendium) aus mehreren Blättern, wie make_script.py
 POST /convert-odt    JSON {file, name} → {odt: base64}: Word-Datei (.docx, .doc, .rtf)
                mit LibreOffice nach .odt – für den .odt-Import der App
-POST /export-drawings JSON {odt} → {odt: base64, drawings: [{name, svg, width_mm, height_mm}], warnings}:
+POST /export-drawings JSON {odt} → {odt: base64, drawings: [{name, svg, odg, width_mm, height_mm}], warnings}:
                Zeichnungen, wie LibreOffice sie zeichnet; im Dokument heißen sie lmdraw-<n>
                (tools/export_drawings.py, braucht python3-uno) – für den .odt-Import der App
+POST /render-drawing JSON {odg} → {svg, width_mm, height_mm}: bearbeitete Zeichnung (LibreOffice Draw)
+               wieder als SVG – für Zeichnungen, die Lehrkräfte in der Nextcloud ändern
 
 Jeder Auftrag läuft als eigener Prozess von tools/make_worksheet.py in einem
 frischen Temp-Verzeichnis (ARBEITSBLATT_ROOT). Der Generator liest nur dort –
@@ -52,7 +54,7 @@ PDF_TOOL = GEN / "tools" / "pdf_import.py"
 DRAWINGS_TOOL = GEN / "tools" / "export_drawings.py"
 # Das Python mit der UNO-Anbindung von LibreOffice (Paket python3-uno) – nicht das des Servers.
 UNO_PYTHON = os.environ.get("RENDERER_UNO_PYTHON", "/usr/bin/python3")
-MAX_DRAWING_BYTES = 8 * 1024 * 1024
+MAX_DRAWING_BYTES = 30 * 1024 * 1024
 API = 2
 VERSION = os.environ.get("RENDERER_VERSION", "dev")
 TOKEN = os.environ.get("WORKSHEET_RENDERER_TOKEN", "")
@@ -330,13 +332,42 @@ def export_drawings(job: dict[str, Any], slot: int) -> dict[str, Any]:
         warnings = list(result.get("warnings") or [])
         for d in result.get("drawings") or []:
             svg = (out / d["file"]).read_bytes()
-            total += len(svg)
+            odg = (out / d["odg"]).read_bytes() if d.get("odg") else b""
+            total += len(svg) + len(odg)
             if total > MAX_DRAWING_BYTES:
                 warnings.append("Zu viele bzw. zu große Zeichnungen – der Rest wird nachgebaut.")
                 break
-            drawings.append({"name": d["name"], "kind": d.get("kind"), "width_mm": d["width_mm"], "height_mm": d["height_mm"],
-                             "svg": base64.b64encode(svg).decode("ascii")})
+            entry = {"name": d["name"], "kind": d.get("kind"), "width_mm": d["width_mm"], "height_mm": d["height_mm"],
+                     "svg": base64.b64encode(svg).decode("ascii")}
+            if odg:
+                entry["odg"] = base64.b64encode(odg).decode("ascii")
+            drawings.append(entry)
         return {"odt": base64.b64encode(marked.read_bytes()).decode("ascii"), "drawings": drawings, "warnings": warnings}
+    finally:
+        shutil.rmtree(root, ignore_errors=True)
+
+
+def render_drawing(job: dict[str, Any], slot: int) -> dict[str, Any]:
+    """Bearbeitete .odg (LibreOffice Draw) → SVG aller Formen (tools/export_drawings.py --render)."""
+    data = decode(job.get("odg"), "odg")
+    if not Path(UNO_PYTHON).exists():
+        raise RenderFailed("Zeichnungen umwandeln nicht möglich: python3-uno fehlt im Renderer", [])
+    root = Path(tempfile.mkdtemp(prefix="zeichnung-"))
+    try:
+        src = root / "zeichnung.odg"
+        src.write_bytes(data)
+        out = root / "out"
+        try:
+            proc = subprocess.run([UNO_PYTHON, str(DRAWINGS_TOOL), "--render", str(src), str(out), str((PROFILES / f"uno-{slot}").resolve())],
+                                  capture_output=True, text=True, timeout=TIMEOUT)
+        except subprocess.TimeoutExpired:
+            raise RenderFailed(f"Zeichnung umwandeln braucht zu lange (über {TIMEOUT} s).", []) from None
+        svg, result = out / "drawing.svg", out / "result.json"
+        if proc.returncode != 0 or not svg.exists() or not result.exists():
+            sys.stderr.write(f"Zeichnung umwandeln gescheitert, Rückgabe {proc.returncode}:\n{proc.stderr[-2000:]}\n")
+            raise RenderFailed(failure_from(proc.stderr) or "Die Zeichnung ließ sich nicht umwandeln – ist es eine .odg?", [])
+        size = json.loads(result.read_text(encoding="utf-8"))
+        return {"svg": base64.b64encode(svg.read_bytes()).decode("ascii"), **size}
     finally:
         shutil.rmtree(root, ignore_errors=True)
 
@@ -393,7 +424,7 @@ class Handler(BaseHTTPRequestHandler):
                              "drawings": Path(UNO_PYTHON).exists()})
 
     def do_POST(self) -> None:
-        if self.path not in ("/render", "/inspect", "/render-script", "/import-pdf", "/convert-odt", "/export-drawings"):
+        if self.path not in ("/render", "/inspect", "/render-script", "/import-pdf", "/convert-odt", "/export-drawings", "/render-drawing"):
             self.send_json(404, {"error": "Unbekannter Pfad"})
             return
         if TOKEN and not hmac.compare_digest(self.headers.get("Authorization", ""), f"Bearer {TOKEN}"):
@@ -434,6 +465,9 @@ class Handler(BaseHTTPRequestHandler):
                 return
             if self.path == "/export-drawings":
                 self.send_json(200, export_drawings(job, slot))
+                return
+            if self.path == "/render-drawing":
+                self.send_json(200, render_drawing(job, slot))
                 return
             files, warnings = (render_script if self.path == "/render-script" else render)(job, slot)
             self.send_json(200, {"files": files, "warnings": warnings})

@@ -5416,3 +5416,12 @@ body {
 
 .onenote-convert { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); }
 .onenote-convert-mode { display: flex; align-items: center; gap: 8px; }
+
+/* Zeichnungen mit Quelle (views/drawings-dialog.js) */
+.drawings-card { max-width: 760px; max-height: 90vh; overflow-y: auto; }
+.drawings-list { list-style: none; margin: 12px 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.drawings-list li { display: flex; gap: 12px; align-items: flex-start; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 8px; }
+.drawings-thumb { width: 140px; max-height: 110px; object-fit: contain; background: #fff; border: 1px solid var(--border); }
+.drawings-info { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.drawings-info code { overflow-wrap: anywhere; }
+.drawings-actions { display: flex; gap: 6px; flex-wrap: wrap; }

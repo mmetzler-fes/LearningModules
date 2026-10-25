@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import * as crypto from 'crypto';
 import { DocumentWork } from '../core/entities/document-work.entity';
+import { DocumentVersion } from '../core/entities/document-version.entity';
 import { ClassStudent } from '../core/entities/class-student.entity';
 import { User } from '../core/entities/user.entity';
 import { LinksService, LinkAccess } from '../links/links.service';
@@ -11,6 +12,8 @@ import { readTicket } from '../classes/student-ticket';
 import { isTestStudent } from '../classes/test-student';
 import { newPin, pinMatches, PinGuard } from './pin';
 import { ExamService } from './exam.service';
+import { LearningModule } from '../core/entities/learning-module.entity';
+import { contentOf, forStudents } from '../core/public/student-view';
 
 /** Größer wird ein Stand mit Strichen kaum; Bilder als Hintergrund speichert der Server nicht. */
 export const MAX_WORK_BYTES = 5 * 1024 * 1024;
@@ -37,6 +40,7 @@ export class WorkService {
 
   constructor(
     @InjectRepository(DocumentWork) private readonly workRepo: Repository<DocumentWork>,
+    @InjectRepository(DocumentVersion) private readonly versionRepo: Repository<DocumentVersion>,
     @InjectRepository(ClassStudent) private readonly studentRepo: Repository<ClassStudent>,
     @InjectRepository(User) private readonly userRepo: Repository<User>,
     private readonly links: LinksService,
@@ -58,11 +62,34 @@ export class WorkService {
     if (!ticket) throw new ForbiddenException('Die Anmeldung ist abgelaufen. Bitte den Link neu öffnen und den Namen eingeben.');
     const moduleId = String(body.moduleId || '');
     const resolved = await this.links.resolveModules(link);
-    const mod = resolved.flatMap((r) => r.modules).find((m) => m.id === moduleId);
+    const all = resolved.flatMap((r) => r.modules);
+    const mod = all.find((m) => m.id === moduleId);
     if (!mod || mod.type !== 'document') throw new NotFoundException('Dokument nicht gefunden.');
     const student = isTestStudent(ticket.s) ? null : await this.studentRepo.findOne({ where: { id: ticket.s, classId: klasse.id } });
     if (!student && !isTestStudent(ticket.s)) throw new ForbiddenException('Dieser Name steht nicht mehr in der Klassenliste.');
-    return { link, access: access as LinkAccess, klasse, ticket, mod, student };
+    return { link, access: access as LinkAccess, klasse, ticket, mod, student, all };
+  }
+
+  /** Fassung des Dokuments mit seinen Quizzen ablegen (einmal je Inhalt) – ihre Kennung. */
+  private async versionOf(mod: LearningModule, all: LearningModule[]) {
+    const content = contentOf(mod);
+    const ids = new Set<string>();
+    const visit = (v: any) => {
+      if (Array.isArray(v)) v.forEach(visit);
+      else if (v && typeof v === 'object') {
+        if (v.type === 'quiz' && typeof v.module === 'string') ids.add(v.module);
+        Object.values(v).forEach(visit);
+      }
+    };
+    visit(content.spec);
+    // Wie für Schüler (ohne Ablage-Zugang des Audio Recorders) – die Lehrkraft des Links muss nicht die des Quiz sein.
+    const embedded = all.filter((m) => ids.has(m.id)).map(forStudents).map((m) => ({ id: m.id, type: m.type, title: m.title, content: contentOf(m) }));
+    const snapshot = { title: mod.title || '', content, embedded };
+    const id = crypto.createHash('sha256').update(JSON.stringify(snapshot)).digest('hex');
+    if (!(await this.versionRepo.count({ where: { id } }))) {
+      await this.versionRepo.save(this.versionRepo.create({ id, moduleId: mod.id, ...snapshot }));
+    }
+    return id;
   }
 
   /** Schon einmal eine PIN gesehen? Dann muss sie stimmen (nicht in der Klassenarbeit). */
@@ -121,7 +148,7 @@ export class WorkService {
       });
     }
     Object.assign(work, {
-      data, bytes, studentName: a.ticket.n, className: a.klasse.name, moduleTitle: a.mod.title || '', topicId: a.mod.topicId || null,
+      data, bytes, studentName: a.ticket.n, versionId: await this.versionOf(a.mod, a.all), className: a.klasse.name, moduleTitle: a.mod.title || '', topicId: a.mod.topicId || null,
     });
     await this.workRepo.save(work);
 
@@ -152,6 +179,13 @@ export class WorkService {
     const work = await this.workRepo.findOne({ where: { id, teacherId: user.userId } });
     if (!work) throw new NotFoundException('Bearbeitung nicht gefunden.');
     return work;
+  }
+
+  /** Mit der Fassung des Blatts, die der Schüler vor sich hatte – zum Ansehen. */
+  async getWithVersion(user: any, id: string) {
+    const work = await this.get(user, id);
+    const version = work.versionId ? await this.versionRepo.findOne({ where: { id: work.versionId } }) : null;
+    return { ...work, version: version ? { title: version.title, content: version.content, embedded: version.embedded || [] } : null };
   }
 
   async remove(user: any, id: string) {

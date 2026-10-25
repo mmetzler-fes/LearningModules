@@ -17,7 +17,7 @@ export const lmHost = {
    * der Freischaltung „Stift-Editor“: 'teacher' in Vorschau und Notebooks,
    * 'student' über den Link.
    */
-  documentActions({ moduleId, title, content, options }) {
+  documentActions({ moduleId, title, content, options, el = null }) {
     if (!moduleId) return [];
     const up = options.upload;
     const actions = [];
@@ -32,7 +32,7 @@ export const lmHost = {
         primary: true,
         async onClick() {
           const { openDocumentInk } = await import('./ink/ink-open.js');
-          await openDocumentInk({ mode: inkMode, mod: { id: moduleId, title, content }, up, embedModule: options.embedModule || null });
+          await openDocumentInk({ mode: inkMode, mod: { id: moduleId, title, content }, up, embedModule: options.embedModule || null, sourceEl: el });
         },
       });
     }

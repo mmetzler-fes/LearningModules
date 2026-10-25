@@ -1,29 +1,10 @@
 import { WorkService } from './work.service';
 import { issueTicket } from '../classes/student-ticket';
 import { ExamService } from './exam.service';
-
-/** Kleine Tabelle im Speicher – genug für find/findOne/create/save/update/remove/delete. */
-export function repo(rows: any[] = []) {
-  const match = (r: any, where: any) => Object.entries(where || {}).every(([k, v]) => r[k] === v);
-  return {
-    rows,
-    findOne: async ({ where }: any) => rows.find((r) => match(r, where)) || null,
-    find: async ({ where }: any = {}) => rows.filter((r) => match(r, where)),
-    create: (x: any) => ({ ...x }),
-    save: async (x: any) => {
-      const i = rows.findIndex((r) => r.id === x.id);
-      x.updatedAt = new Date();
-      if (i >= 0) rows[i] = x; else rows.push(x);
-      return x;
-    },
-    update: async (where: any, changes: any) => { rows.filter((r) => match(r, where)).forEach((r) => Object.assign(r, changes)); },
-    remove: async (x: any) => { rows.splice(rows.indexOf(x), 1); },
-    delete: async (where: any) => { for (const r of rows.filter((x) => match(x, where))) rows.splice(rows.indexOf(r), 1); },
-  };
-}
+import { repo } from './test-repo';
 
 const LINK = { id: 'l1', ownerId: 't1', name: 'Physik', active: true, classId: 'c1', singleAttempt: true };
-const DOC = { id: 'd1', type: 'document', title: 'Blatt' };
+const DOC = { id: 'd1', type: 'document', title: 'Blatt', content: { spec: { content: [{ type: 'quiz', module: 'q1' }] } } };
 
 function setup(access: 'practice' | 'exam' = 'practice') {
   const works = repo();
@@ -36,8 +17,9 @@ function setup(access: 'practice' | 'exam' = 'practice') {
   const classes: any = { findById: async (id: string) => (id === 'c1' ? { id: 'c1', name: '10a' } : null) };
   const attempts = repo();
   const exams = new ExamService(attempts as any, links);
-  const svc = new WorkService(works as any, students as any, users as any, links, classes, exams);
-  return { svc, works, students, exams, attempts };
+  const versions = repo();
+  const svc = new WorkService(works as any, versions as any, students as any, users as any, links, classes, exams);
+  return { svc, works, students, exams, attempts, versions };
 }
 
 const data = { v: 1, bg: 'paper', pages: [{ items: [] }], layer: { blocks: { b1: { items: [{ id: 'x' }] } } } };
@@ -111,6 +93,17 @@ describe('Bearbeitungen der Schüler', () => {
     await expect(exams.begin(link, { id: 's1', name: 'Anna B' }, 2)).resolves.toMatchObject({ reentry: true });
     expect(await exams.isOpen('l1', 's1', 2)).toBe(true);
     expect(await exams.isOpen('l1', 's1', 1)).toBe(false);
+  });
+
+  it('hält die Fassung des Blatts mit seinen Quizzen fest – einmal je Inhalt', async () => {
+    const { svc, versions } = setup();
+    const first = await svc.save(body({ data }));
+    await svc.save(body({ data, pin: first.pin }));
+    expect(versions.rows).toHaveLength(1);
+    expect(versions.rows[0].embedded.map((m: any) => m.id)).toEqual(['q1']);
+    const id = (await svc.list({ userId: 't1' }))[0].id;
+    const full = await svc.getWithVersion({ userId: 't1' }, id);
+    expect(full.version).toMatchObject({ title: 'Blatt', content: DOC.content });
   });
 
   it('die Lehrkraft sieht nur Bearbeitungen ihrer Links', async () => {

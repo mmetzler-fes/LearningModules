@@ -51,7 +51,10 @@ export class ClassResultsView {
     this._classSel = document.getElementById('crClass');
     this._content  = document.getElementById('crContent');
     this._tabs     = document.querySelectorAll('[data-cr-tab]');
-    this._tab = ['students', 'tests', 'year'].includes(loadPref('lm_cr_tab')) ? loadPref('lm_cr_tab') : 'students';
+    this._tab = ['students', 'tests', 'year', 'works', 'live'].includes(loadPref('lm_cr_tab')) ? loadPref('lm_cr_tab') : 'students';
+    this._worksBy = loadPref('lm_cr_works_by') === 'link' ? 'link' : 'student';
+    this._liveTimer = null;
+    this._liveLink = null;
     this._year = null;
     this._classId = loadPref('lm_cr_class');
     this._data = null;
@@ -139,10 +142,139 @@ export class ClassResultsView {
         <p>Im ${escapeHtml(this._year || '')} gibt es noch keine Klassen.</p></div>`;
       return;
     }
+    if (this._tab !== 'live') this._stopLive();
+    if (this._tab === 'works') { this._renderWorks(); return; }
+    if (this._tab === 'live') { this._renderLive(); return; }
     if (!this._data) { this._content.innerHTML = ''; return; }
     if (this._tab === 'tests') this._renderTests();
     else if (this._tab === 'year') this._renderYear();
     else this._renderStudents();
+  }
+
+  // ---- Bearbeitungen: Blatt mit Stift- und Texteingaben je Schüler ----
+
+  /**
+   * Alle Bearbeitungen der Klasse, gruppiert nach Schüler oder nach Link;
+   * Gruppen und Einträge mit den neuesten Eingaben zuerst. „Ansehen“ zeigt
+   * das Blatt in der Fassung, die der Schüler hatte, mit seinen Eingaben.
+   */
+  async _renderWorks() {
+    const classId = this._classId;
+    this._content.innerHTML = '<p class="hint">Wird geladen …</p>';
+    const works = await this.app.api.listWorks({ classId });
+    if (classId !== this._classId || this._tab !== 'works') return;
+    if (failed(works)) { this._content.innerHTML = `<p class="hint">Fehler: ${escapeHtml(works?.message || '?')}</p>`; return; }
+    const when = (d) => new Date(d).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' });
+    const byStudent = this._worksBy === 'student';
+    const groups = new Map();
+    for (const w of works) {
+      const key = byStudent ? w.studentId : w.linkId;
+      if (!groups.has(key)) groups.set(key, { label: byStudent ? w.studentName : w.linkName || 'Link', items: [] });
+      groups.get(key).items.push(w);
+    }
+    const latest = (g) => Math.max(...g.items.map((w) => new Date(w.updatedAt).getTime()));
+    const sorted = [...groups.values()].sort((a, b) => latest(b) - latest(a));
+    this._content.innerHTML = `
+      <div class="cr-works-bar">
+        <span class="hint">Gruppieren nach</span>
+        <button type="button" class="btn btn-sm ${byStudent ? 'btn-primary' : 'btn-secondary'}" data-by="student">👤 Schüler</button>
+        <button type="button" class="btn btn-sm ${byStudent ? 'btn-secondary' : 'btn-primary'}" data-by="link">🔗 Link</button>
+        <span class="hint">· neueste Eingaben zuerst</span>
+      </div>
+      ${sorted.length ? sorted.map((g) => `
+        <details class="result-group" open>
+          <summary><strong>${escapeHtml(g.label)}</strong> <span class="hint">${g.items.length} Blatt · zuletzt ${escapeHtml(when(latest(g)))}</span></summary>
+          <ul class="cr-works-list">${g.items.sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt)).map((w) => `
+            <li data-id="${escapeAttr(w.id)}">
+              <span class="cr-work-title">${escapeHtml(w.moduleTitle || 'Dokument')}</span>
+              <span class="hint">${escapeHtml(byStudent ? w.linkName || '' : w.studentName)}${w.access === 'exam' ? ' · 📝 Klassenarbeit' : ''} · ${escapeHtml(when(w.updatedAt))}</span>
+              <button type="button" class="btn btn-secondary btn-sm btn-work-open">👁 Ansehen</button>
+            </li>`).join('')}</ul>
+        </details>`).join('') : `<div class="empty-state"><span class="empty-icon">✍️</span>
+          <p>Noch keine Bearbeitungen. Sie entstehen, wenn Schüler über einen Klassenlink ein Dokument mit „✍️ Mit Stift bearbeiten“ öffnen.</p></div>`}`;
+    this._content.querySelectorAll('[data-by]').forEach((btn) => btn.addEventListener('click', () => {
+      this._worksBy = btn.dataset.by;
+      savePref('lm_cr_works_by', this._worksBy);
+      this._renderWorks();
+    }));
+    this._content.querySelectorAll('.btn-work-open').forEach((btn) => btn.addEventListener('click', async () => {
+      btn.disabled = true;
+      try {
+        const full = await this.app.api.getWork(btn.closest('li').dataset.id);
+        if (failed(full)) throw new Error(full?.message || 'nicht gefunden');
+        const { openStudentWork } = await import('../ink/ink-open.js');
+        await openStudentWork(this.app.api, full);
+      } catch (err) {
+        this.app.showToast('Fehler: ' + err.message, 'error');
+      }
+      btn.disabled = false;
+    }));
+  }
+
+  // ---- Live: wer ist bei welcher Aufgabe? ----
+
+  _stopLive() {
+    clearTimeout(this._liveTimer);
+    this._liveTimer = null;
+  }
+
+  /**
+   * Alle Schüler der Klasse, je Aufgabe des gewählten Links ✓ erledigt,
+   * ▶ gerade dran; ✍️ wer in den letzten Minuten mit dem Stift schreibt.
+   * Frischt sich alle 5 Sekunden auf, solange der Reiter offen ist.
+   */
+  async _renderLive() {
+    this._stopLive();
+    const classId = this._classId;
+    const view = document.getElementById('view-teacher-class-results');
+    const live = await this.app.api.getLiveClass(classId);
+    if (classId !== this._classId || this._tab !== 'live' || !view?.classList.contains('active')) return;
+    if (failed(live)) { this._content.innerHTML = `<p class="hint">Fehler: ${escapeHtml(live?.message || '?')}</p>`; return; }
+    const now = new Date(live.now).getTime();
+    const links = new Map();
+    for (const r of live.runs) if (!links.has(r.linkId)) links.set(r.linkId, r.linkName || 'Link');
+    if (!links.has(this._liveLink)) this._liveLink = live.runs[0]?.linkId || null;
+    const runs = live.runs.filter((r) => r.linkId === this._liveLink);
+    const steps = runs.reduce((longest, r) => (r.steps.length > longest.length ? r.steps : longest), []);
+    const byStudent = new Map(runs.map((r) => [r.studentId, r]));
+    const inkBy = new Map();
+    for (const w of live.ink) {
+      if (now - new Date(w.updatedAt).getTime() > 10 * 60 * 1000) continue;
+      if (!inkBy.has(w.studentId) || new Date(inkBy.get(w.studentId).updatedAt) < new Date(w.updatedAt)) inkBy.set(w.studentId, w);
+    }
+    const ago = (d) => {
+      const m = Math.round((now - new Date(d).getTime()) / 60000);
+      return m < 1 ? 'gerade' : m < 60 ? `vor ${m} min` : `vor ${Math.round(m / 60)} h`;
+    };
+    const known = new Set(live.students.map((s) => s.id));
+    const rows = [...live.students, ...runs.filter((r) => !known.has(r.studentId)).map((r) => ({ id: r.studentId, name: r.studentName }))];
+    const finished = runs.filter((r) => r.finishedAt).length;
+    const cell = (r, i) => {
+      if (!r) return '<td></td>';
+      if (i < r.done) return '<td class="cr-live-done" title="erledigt">✓</td>';
+      if (i === r.done && !r.finishedAt) return '<td class="cr-live-now" title="gerade dran">▶</td>';
+      return '<td></td>';
+    };
+    this._content.innerHTML = links.size ? `
+      <div class="cr-works-bar">
+        <label>Link <select class="cr-live-link">${[...links].map(([id, name]) => `<option value="${escapeAttr(id)}" ${id === this._liveLink ? 'selected' : ''}>${escapeHtml(name)}</option>`).join('')}</select></label>
+        <span class="hint">${runs.length} von ${live.students.length} Schülern dabei · ${finished} fertig · frischt sich alle 5 s auf</span>
+      </div>
+      <div class="cr-live-wrap"><table class="cr-live">
+        <thead><tr><th>Schüler</th>${steps.map((t, i) => `<th title="${escapeAttr(t)}">${i + 1}</th>`).join('')}<th>Stand</th></tr></thead>
+        <tbody>${rows.map((s) => {
+          const r = byStudent.get(s.id);
+          const ink = inkBy.get(s.id);
+          const state = !r ? '<span class="hint">noch nicht gestartet</span>'
+            : r.finishedAt ? `✅ fertig <span class="hint">${escapeHtml(ago(r.finishedAt))}</span>`
+              : `${r.done}/${r.steps.length} <span class="hint">${escapeHtml(ago(r.updatedAt))}</span>`;
+          return `<tr class="${r ? '' : 'cr-live-absent'}"><td>${escapeHtml(s.name)}${ink ? ` <span title="schreibt mit dem Stift: ${escapeAttr(ink.moduleTitle)}">✍️</span>` : ''}</td>
+            ${steps.map((_, i) => cell(r, i)).join('')}<td>${state}</td></tr>`;
+        }).join('')}</tbody>
+      </table></div>` : `<div class="empty-state"><span class="empty-icon">📡</span>
+        <p>In den letzten 12 Stunden hat niemand aus dieser Klasse einen Klassenlink gestartet. Sobald es losgeht, erscheint es hier.</p></div>`;
+    this._content.querySelector('.cr-live-link')?.addEventListener('change', (e) => { this._liveLink = e.target.value; this._renderLive(); });
+    this._liveTimer = setTimeout(() => this._renderLive(), 5000);
   }
 
   // ---- Schüler: je Schüler alle Durchläufe ----

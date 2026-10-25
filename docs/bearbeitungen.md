@@ -7,6 +7,16 @@ einem anderen Gerät, und die Lehrkraft sieht, was geschrieben wurde.
 Gespeichert wird nur, was der Schüler hinzufügt: Striche, Textfelder, Felder
 und die Höhe der Karos – nicht das Dokument selbst.
 
+Dazu gehören auch die **Eingaben in eingebetteten Quizzen**, die ein Schüler
+im Stift-Fenster macht (Textfelder, Kästchen, Auswahllisten; Gezogenes bei
+Drag and Drop nicht). Sie wandern beim Schließen des Stift-Fensters in den
+Durchlauf zurück und zählen bei „Weiter“ wie dort eingetragen.
+
+**Wie gespeichert wird:** nur die Eingaben des Schülers – und einmal je
+Fassung das Blatt, wie er es vor sich hatte (mit seinen Quizzen). Die Ansicht
+setzt beides zusammen. Ändert die Lehrkraft das Dokument später, zeigt sie
+trotzdem das Blatt, auf dem der Schüler geschrieben hat.
+
 Ohne Klasse (gewöhnlicher Themenlink, Quick-Link ohne Klasse) bleibt die
 Beschriftung wie bisher auf dem Gerät.
 
@@ -58,10 +68,23 @@ dem ersten Gerät) kann danach nichts mehr speichern oder abgeben.
 
 ## Ansehen (Lehrkraft)
 
-🏫 Klassen → Klasse → **✍️ Bearbeitungen**: je Dokument und Link die Schüler
-mit Zeitpunkt. **Ansehen** öffnet das Blatt mit der Beschriftung des
-Schülers; geändert wird dabei nichts. 🗑 löscht eine Bearbeitung – der
-Schüler beginnt dann von vorn.
+**📈 Klassenergebnisse → ✍️ Bearbeitungen:** Klasse wählen, dann gruppiert
+**nach Schüler** oder **nach Link** – die neuesten Eingaben zuerst.
+**👁 Ansehen** öffnet das ganze Blatt mit Stift-, Text- und Quiz-Eingaben des
+Schülers; geändert wird dabei nichts.
+
+🏫 Klassen → Klasse → **✍️ Bearbeitungen** zeigt dasselbe je Dokument, mit
+🗑 zum Löschen – der Schüler beginnt dann von vorn.
+
+## Live
+
+**📈 Klassenergebnisse → 📡 Live:** alle Schüler der Klasse und je Aufgabe des
+gewählten Links ✓ erledigt oder ▶ gerade dran, dazu „fertig“ und wann sich
+zuletzt etwas getan hat. ✍️ hinter dem Namen: schreibt gerade (in den letzten
+10 Minuten) mit dem Stift. Wer noch nicht gestartet hat, steht grau da. Die
+Ansicht frischt sich alle 5 Sekunden auf, solange sie offen ist; gezeigt
+werden Durchläufe der letzten 12 Stunden, über Klassenlinks. Antworten oder
+Punkte zeigt sie nicht – die stehen wie gewohnt in den Ergebnissen.
 
 Bearbeitungen sind persönlich: Sie gehen mit, wenn ein unbestätigter Eintrag
 einem Schüler zugeordnet wird (⇄), und werden gelöscht mit dem Schüler, der
@@ -70,7 +93,12 @@ Klasse und durch die Löschregel des Schuljahrs.
 ## Technik
 
 - Tabelle `document_works`: je Link, Schüler und Modul ein Stand
-  (`data` = Stand des Stift-Editors, höchstens 5 MB). PIN in
+  (`data` = Stand des Stift-Editors mit `forms` = Quiz-Eingaben, höchstens
+  5 MB), `versionId` → `document_versions` (Prüfsumme über Titel, Inhalt und
+  eingebettete Quizze; einmal je Fassung).
+- Live: Tabelle `run_progress` je Link und Schüler (Aufgabentitel, erledigt,
+  fertig); `POST /api/public/run/progress` aus dem Durchlauf,
+  `GET /api/live/class/:id` für die Lehrkraft. PIN in
   `class_students.pin`, angezeigt am `pinShownAt`.
 - Schüler: `POST /api/public/work/load` und `/save` mit `linkToken`,
   `studentTicket`, `moduleId`, `pin` – 403 mit `needPin`, wenn die PIN fehlt

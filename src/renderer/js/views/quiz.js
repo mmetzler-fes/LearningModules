@@ -228,6 +228,22 @@ export class QuizView {
     if (data.mode === 'companion') this._companion = new CompanionRun(this, data.companion);
     this._enterPlayer(data.linkName);
     if (resumed) this.app.showToast(`Es geht bei Aufgabe ${this.app.state.quizState.currentIndex + 1} weiter – deine bisherigen Antworten sind gespeichert.`, 'success');
+    this._reportRun({ steps: steps.map((m) => m.title || ''), done: this.app.state.quizState.currentIndex });
+  }
+
+  /**
+   * Fortschritt für die Live-Ansicht der Lehrkraft (nur Klassenlinks mit
+   * Schülerausweis): beim Start die Aufgaben, danach wie viele erledigt sind.
+   */
+  _reportRun(body) {
+    const qs = this.app.state.quizState;
+    const ticket = this.app.state.linkSession?.studentTicket;
+    if (!qs?.linkToken || !ticket) return;
+    fetch('/api/public/run/progress', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ linkToken: qs.linkToken, studentTicket: ticket, mode: qs.mode, ...body }),
+    }).catch(() => undefined);
   }
 
   /**
@@ -324,6 +340,7 @@ export class QuizView {
     const qs = this.app.state.quizState;
     if (!qs) return;
     qs.currentIndex++;
+    if (qs.currentIndex < qs.modules.length) this._reportRun({ done: qs.currentIndex });
     if (qs.currentIndex >= qs.modules.length) this._finishQuiz();
     else this._renderModule();
   }
@@ -558,6 +575,7 @@ export class QuizView {
       }
     };
     const saved = send ? await trySend() : true;
+    this._reportRun({ done: quizState.modules.length, finished: true });
 
     this._quizPlayerArea.classList.add('hidden');
     this._quizResultArea.classList.remove('hidden');

@@ -184,7 +184,7 @@ wird. Dabei gilt:
 
 ## Klassenergebnisse
 
-Menüpunkt **📈 Klassenergebnisse**: Schuljahr und Klasse wählen, dann drei
+Menüpunkt **📈 Klassenergebnisse**: Schuljahr und Klasse wählen, dann die
 Reiter. Gezeigt werden die eigenen Ergebnisse über Klassenlinks; alles ohne
 Klasse steht weiter unter **📊 Ergebnisse**.
 
@@ -193,6 +193,10 @@ Klasse steht weiter unter **📊 Ergebnisse**.
 | 👥 Schüler | je Schüler (Name, Vorname) Durchläufe, Ø, zuletzt – aufgeklappt alle Durchläufe; darunter „nicht zugeordnet“ |
 | 📝 Tests | je Klassenlink die ganze Klasse: Durchläufe, bestes Ergebnis, zuletzt – und wer **fehlt noch** |
 | 📅 Jahresüberblick | je Schüler Durchläufe, verschiedene Tests, aktive Wochen, Ø, zuletzt – das Engagement übers Jahr |
+
+Dazu **✍️ Bearbeitungen** (Blätter mit Stift- und Texteingaben, nach Schüler
+oder Link) und **📡 Live** (wer gerade bei welcher Aufgabe ist) – siehe
+[Bearbeitungen und PIN](bearbeitungen.md#live).
 
 ## Schuljahreswechsel
 

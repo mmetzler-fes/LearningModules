@@ -5399,3 +5399,17 @@ body {
 .class-work-group ul { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
 .class-work-group li { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .class-work-group li > span:first-child { min-width: 10em; }
+
+/* Klassenergebnisse: Bearbeitungen und Live (views/class-results.js) */
+.cr-works-bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 8px 0 12px; }
+.cr-works-list { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.cr-works-list li { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.cr-work-title { font-weight: 600; min-width: 12em; }
+.cr-live-wrap { overflow-x: auto; }
+.cr-live { border-collapse: collapse; font-size: 0.9rem; }
+.cr-live th, .cr-live td { border: 1px solid var(--border); padding: 4px 8px; text-align: center; white-space: nowrap; }
+.cr-live td:first-child, .cr-live th:first-child { text-align: left; position: sticky; left: 0; background: var(--bg-secondary); }
+.cr-live td:last-child { text-align: left; }
+.cr-live-done { background: var(--score-good-bg); color: var(--score-good-text); }
+.cr-live-now { background: var(--score-medium-bg); color: var(--score-medium-text); }
+.cr-live-absent td { color: var(--text-secondary); }

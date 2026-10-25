@@ -261,6 +261,8 @@ export class BrowserApi {
     return this._fetch(`/api/work?${q}`);
   }
   getWork(id) { return this._fetch(`/api/work/${encodeURIComponent(id)}`); }
+  /** Live-Ansicht einer Klasse: Schüler, Durchläufe der letzten Stunden, Stift-Aktivität. */
+  getLiveClass(classId) { return this._fetch(`/api/live/class/${encodeURIComponent(classId)}`); }
   /** Klassenarbeiten (Versuche je Schüler), Filter: { classId, linkId }. */
   listExams(filter = {}) {
     const q = new URLSearchParams(Object.entries(filter).filter(([, v]) => v));

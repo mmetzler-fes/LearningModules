@@ -43,6 +43,10 @@ export class DocumentWork extends BaseEntity {
   @Column({ type: 'varchar', nullable: true })
   topicId: string | null;
 
+  /** Fassung des Dokuments beim letzten Speichern (DocumentVersion). */
+  @Column({ type: 'varchar', nullable: true })
+  versionId: string | null;
+
   /** Titel des Dokuments beim Speichern. */
   @Column({ default: '' })
   moduleTitle: string;

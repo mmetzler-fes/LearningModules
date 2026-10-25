@@ -14,18 +14,24 @@
  * `store`, `title`: anderswo speichern als auf dem Gerät (siehe openInkEditor).
  * Schüler mit Schülerausweis (Klassenlink) speichern bei der Lehrkraft
  * (work-store.js); sonst bleibt die Beschriftung auf dem Gerät.
+ * `sourceEl`: die Ansicht des Dokuments im Durchlauf – Quiz-Eingaben kommen
+ * von dort mit ins Stift-Fenster und beim Schließen wieder zurück, damit
+ * „Weiter“ sie auswertet.
  */
-export async function openDocumentInk({ mode, mod, up = null, embedModule = null, store = null, title = null }) {
+export async function openDocumentInk({ mode, mod, up = null, embedModule = null, store = null, title = null, sourceEl = null }) {
   if (!store && mode === 'student' && up?.linkToken && up?.studentTicket) {
     const { serverWorkStore } = await import('./work-store.js');
     const opened = await serverWorkStore({ up, moduleId: mod.id });
     if (!opened) return null;
     store = opened.store;
   }
-  const [{ openInkEditor }, { H5pRenderer }] = await Promise.all([
+  const [{ openInkEditor }, { H5pRenderer }, { captureForms, restoreForms }] = await Promise.all([
     import('../../lm-editor/src/ink/ink-editor.js'),
     import('../../lm-editor/src/modules/h5p-renderer.js'),
+    import('./form-state.js'),
   ]);
+  const fromSource = sourceEl ? captureForms(sourceEl) : null;
+  let lastForms = null;
   let content = mod.content || {};
   if (typeof content === 'string') { try { content = JSON.parse(content); } catch (_) { content = {}; } }
   const loadPdf = async (variant) => {
@@ -53,8 +59,12 @@ export async function openDocumentInk({ mode, mod, up = null, embedModule = null
       }));
       if (solutions) el.querySelector('.docspec')?.classList.remove('ds-hide-solutions');
     },
+    capture: (el) => (lastForms = captureForms(el)),
+    // Gespeicherte Eingaben; ohne sie, was im Durchlauf schon eingetragen war.
+    restore: (el, forms) => restoreForms(el, forms && Object.keys(forms).length ? forms : fromSource),
   };
-  return openInkEditor({ title: title || mod.title || 'Arbeitsblatt', key: `${mode}:${mod.id}`, loadPdf, solutions: mode === 'teacher', paper, store });
+  const onClose = () => { if (sourceEl && lastForms) restoreForms(sourceEl, lastForms); };
+  return openInkEditor({ title: title || mod.title || 'Arbeitsblatt', key: `${mode}:${mod.id}`, loadPdf, solutions: mode === 'teacher', paper, store, onClose });
 }
 
 /**
@@ -63,8 +73,17 @@ export async function openDocumentInk({ mode, mod, up = null, embedModule = null
  * `work`: Eintrag aus GET /api/work/:id; `api`: die Api der App.
  */
 export async function openStudentWork(api, work) {
-  const modules = work.topicId ? await api.getTopicModules(work.topicId) : [];
-  const mod = Array.isArray(modules) ? modules.find((m) => m.id === work.moduleId) : null;
+  // Das Blatt so, wie der Schüler es vor sich hatte (Fassung beim Speichern);
+  // ältere Bearbeitungen ohne Fassung zeigen das aktuelle Dokument.
+  let mod = null;
+  let modules = [];
+  if (work.version?.content) {
+    mod = { id: work.moduleId, title: work.version.title, type: 'document', content: work.version.content };
+    modules = work.version.embedded || [];
+  } else {
+    modules = work.topicId ? await api.getTopicModules(work.topicId) : [];
+    mod = Array.isArray(modules) ? modules.find((m) => m.id === work.moduleId) : null;
+  }
   if (!mod) throw new Error('Das Dokument gibt es nicht mehr.');
   return openDocumentInk({
     mode: 'teacher',

@@ -1,5 +1,6 @@
 import { Controller, Get, Post, Delete, Body, Param, Query, Request, UseGuards, HttpCode } from '@nestjs/common';
 import { ExamService } from './exam.service';
+import { LiveService } from './live.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { WorkService } from './work.service';
 import type { WorkAccess } from './work.service';
@@ -37,7 +38,7 @@ export class WorkController {
 
   @Get(':id')
   get(@Request() req: any, @Param('id') id: string) {
-    return this.work.get(req.user, id);
+    return this.work.getWithVersion(req.user, id);
   }
 
   @Delete(':id')
@@ -74,5 +75,29 @@ export class ExamController {
   @Post(':id/reentry')
   reentry(@Request() req: any, @Param('id') id: string, @Body() body: { allow?: boolean }) {
     return this.exams.setReentry(req.user, id, body?.allow !== false);
+  }
+}
+
+/** Fortschritt im Durchlauf (Schüler über einen Klassenlink). */
+@Controller('public/run')
+export class PublicRunController {
+  constructor(private readonly live: LiveService) {}
+
+  @Post('progress')
+  @HttpCode(200)
+  progress(@Body() body: any) {
+    return this.live.report(body);
+  }
+}
+
+/** Live-Ansicht einer Klasse. */
+@Controller('live')
+@UseGuards(JwtAuthGuard)
+export class LiveController {
+  constructor(private readonly live: LiveService) {}
+
+  @Get('class/:id')
+  ofClass(@Request() req: any, @Param('id') id: string) {
+    return this.live.ofClass(req.user, id);
   }
 }

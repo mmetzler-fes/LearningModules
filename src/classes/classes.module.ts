@@ -11,9 +11,10 @@ import { ClassShare } from '../core/entities/class-share.entity';
 import { User } from '../core/entities/user.entity';
 import { DocumentWork } from '../core/entities/document-work.entity';
 import { ExamAttempt } from '../core/entities/exam-attempt.entity';
+import { RunProgress } from '../core/entities/run-progress.entity';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([StudentClass, ClassStudent, SystemConfig, Result, TopicLink, ClassShare, User, DocumentWork, ExamAttempt])],
+  imports: [TypeOrmModule.forFeature([StudentClass, ClassStudent, SystemConfig, Result, TopicLink, ClassShare, User, DocumentWork, ExamAttempt, RunProgress])],
   controllers: [ClassesController],
   providers: [ClassesService],
   exports: [ClassesService],

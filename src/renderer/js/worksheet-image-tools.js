@@ -228,6 +228,7 @@
         <span class="ws-image-group">
           <button type="button" class="rt-btn ws-up" title="Einen Absatz nach oben">▲</button>
           <button type="button" class="rt-btn ws-down" title="Einen Absatz nach unten">▼</button>
+          <button type="button" class="rt-btn ws-draw hidden" title="Die Zeichnung als .odg in LibreOffice Draw bearbeiten (Nextcloud)">🖍 In Draw bearbeiten</button>
           <button type="button" class="rt-btn ws-replace" title="Anderes Bild an derselben Stelle">⟳ Ersetzen</button>
           <button type="button" class="rt-btn ws-delete" title="Bild löschen (Entf)">🗑</button>
           <button type="button" class="rt-btn ws-close" title="Auswahl aufheben (Esc)">✕</button>
@@ -256,6 +257,16 @@
       panel.querySelector('.ws-up').addEventListener('click', () => this.move(-1));
       panel.querySelector('.ws-down').addEventListener('click', () => this.move(1));
       panel.querySelector('.ws-replace').addEventListener('click', () => this.replace());
+      // Zeichnung mit Quelle (.odg in der Nextcloud): Übersicht der App (views/drawings-dialog.js).
+      panel.querySelector('.ws-draw').addEventListener('click', () => {
+        const img = this.selected;
+        if (!img || !window.appDrawings) return;
+        window.appDrawings.open(img.getAttribute('data-source'), (src) => {
+          if (!img.isConnected) return;
+          img.setAttribute('src', src);
+          this.changed();
+        });
+      });
       panel.querySelector('.ws-delete').addEventListener('click', () => this.remove());
       panel.querySelector('.ws-close').addEventListener('click', () => this.select(null));
       return panel;
@@ -269,6 +280,7 @@
       img.classList.add('ws-selected');
       this.panel.querySelector('.ws-border').checked = img.classList.contains('ws-img-border');
       this.panel.querySelector('.ws-alt').value = img.getAttribute('alt') || '';
+      this.panel.querySelector('.ws-draw').classList.toggle('hidden', !(img.getAttribute('data-source') && window.appDrawings));
       const current = LAYOUT_CLASSES.find((c) => img.classList.contains(c)) || '';
       this.panel.querySelectorAll('.ws-layout').forEach((b) => b.classList.toggle('active', b.dataset.cls === current));
       const width = Number(img.getAttribute('width')) || img.getBoundingClientRect().width;

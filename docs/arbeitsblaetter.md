@@ -52,8 +52,9 @@ Design.
 Renderer eingerichtet, öffnet er das Dokument in LibreOffice und exportiert
 jede Zeichnung (Gruppe, Form, Linie, Grafik in SVM/WMF/EMF) als SVG – genau
 so, wie sie im Dokument aussieht, mit Textfeldern, Bildern und Schriften.
-Zeichnungen in Kopf- und Fußzeile bleiben weg. Bekannte Grenze von
-LibreOffice: senkrechter Text in Formen kann im SVG verrutschen. Mit Nextcloud liegt jede
+Zeichnungen in Kopf- und Fußzeile bleiben weg. Gedrehten Text in
+eingebetteten Grafiken, den LibreOffice im SVG verrutscht, rückt der Renderer
+zurecht. Mit Nextcloud liegt jede
 Zeichnung zusätzlich als .odg im Ordner des Lernthemas und lässt sich in
 LibreOffice Draw ändern – siehe [Zeichnungen bearbeiten](zeichnungen.md).
 

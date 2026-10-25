@@ -31,7 +31,8 @@ dann nicht.
    Bild – in allen eigenen Dokumenten, die es zeigen, auch bei den Schülern.
 
 Sofort geht es mit **🖍 Zeichnungen → 🔄 Jetzt abgleichen** (in der
-Notebook-Vorschau eines Dokuments).
+Notebook-Vorschau eines Dokuments) – oder im Dokument-Editor: Bild anklicken,
+in der Bildleiste **🖍 In Draw bearbeiten**.
 
 ## Ohne Sync-Client
 
@@ -46,8 +47,10 @@ gleich neu.
   knapp zugeschnitten. Neue Formen dürfen dazukommen.
 - Name und Ordner der Datei nicht ändern – sonst findet die App sie nicht
   mehr (das Bild bleibt dann, wie es ist).
-- Senkrechter Text in Formen kann im Bild verrutschen (eine Eigenheit des
-  SVG-Exports von LibreOffice).
+- Gedrehter Text in eingebetteten Grafiken (SVM/WMF, z. B. ein senkrechtes
+  „Druckleiste“) setzt LibreOffice im SVG an die falsche Stelle; der Renderer
+  korrigiert das. Bei früher übernommenen Zeichnungen hilft: die .odg
+  unverändert wieder hochladen (⬆) oder das Dokument neu übernehmen.
 
 ## Technik
 

@@ -29,10 +29,20 @@ export async function syncDrawings(app, topicId, { force = false, quiet = false 
   return n;
 }
 
-/** Übersicht der Zeichnungen eines Lernthemas: wo die .odg liegt, herunter- und hochladen. */
-export async function openDrawingsDialog(app, topic, { onChanged } = {}) {
-  const list = await app.api.listDrawings(topic.id).catch(() => null);
-  if (failed(list)) { app.showToast(`Zeichnungen: ${list?.message || 'nicht abrufbar'}`, 'error'); return; }
+/**
+ * Übersicht der Zeichnungen eines Lernthemas: wo die .odg liegt, herunter- und
+ * hochladen. `only`: nur die Zeichnung mit diesem Link der .odg (aus dem Editor);
+ * `onChanged(list)` bekommt danach den neuen Stand.
+ */
+export async function openDrawingsDialog(app, topic, { onChanged, only = null } = {}) {
+  const all = await app.api.listDrawings(topic.id).catch(() => null);
+  if (failed(all)) { app.showToast(`Zeichnungen: ${all?.message || 'nicht abrufbar'}`, 'error'); return; }
+  const list = only ? all.filter((d) => d.odgUrl === only || only.endsWith(d.odgUrl)) : all;
+  if (only && !list.length) { app.showToast('Zu diesem Bild gibt es keine Zeichnung mit Quelle in diesem Lernthema.', 'info'); return; }
+  const changed = async () => {
+    const fresh = await app.api.listDrawings(topic.id).catch(() => null);
+    await onChanged?.(failed(fresh) ? [] : fresh);
+  };
   const overlay = document.createElement('div');
   overlay.className = 'confirm-overlay';
   const rows = () => list.map((d) => `
@@ -49,7 +59,7 @@ export async function openDrawingsDialog(app, topic, { onChanged } = {}) {
     </li>`).join('');
   overlay.innerHTML = `
     <div class="import-modules-card drawings-card" role="dialog" aria-modal="true">
-      <h3>🖍 Zeichnungen in „${escapeHtml(topic.title)}“</h3>
+      <h3>🖍 ${only ? 'Zeichnung bearbeiten' : `Zeichnungen in „${escapeHtml(topic.title)}“`}</h3>
       <p class="hint">Jede Zeichnung liegt in deiner Nextcloud als <strong>.odg</strong> (LibreOffice Draw) neben dem Bild, das die
         Dokumente zeigen. Am PC mit dem <strong>Nextcloud-Sync-Client</strong>: die .odg im Sync-Ordner öffnen, in Draw ändern,
         speichern – beim nächsten Öffnen des Dokuments (oder mit „Jetzt abgleichen“) zeichnet die App das Bild neu, auch für die
@@ -67,7 +77,7 @@ export async function openDrawingsDialog(app, topic, { onChanged } = {}) {
     e.currentTarget.disabled = true;
     const n = await syncDrawings(app, topic.id, { force: true });
     if (!n) app.showToast('Keine geänderten Zeichnungen gefunden.', 'info');
-    else { close(); await onChanged?.(); }
+    else { close(); await changed(); }
   });
   overlay.querySelectorAll('.drawings-upload').forEach((btn) => btn.addEventListener('click', () => {
     const id = btn.closest('li').dataset.id;
@@ -88,8 +98,23 @@ export async function openDrawingsDialog(app, topic, { onChanged } = {}) {
       }
       app.showToast('🖍 Zeichnung neu gezeichnet.', 'success');
       close();
-      await onChanged?.();
+      await changed();
     };
     picker.click();
   }));
+}
+
+/**
+ * Aus dem Dokument-Editor: die Zeichnung zu einem Bild (Link der .odg). Nach
+ * einer Änderung bekommt `onSrc` den neuen Link des Bildes (mit Fassung).
+ */
+export async function openDrawingForImage(app, topic, odgUrl, onSrc) {
+  if (!topic?.id) { app.showToast('Zeichnungen lassen sich nur in einem Lernthema bearbeiten.', 'info'); return; }
+  await openDrawingsDialog(app, topic, {
+    only: odgUrl,
+    onChanged: (list) => {
+      const d = list.find((x) => x.odgUrl === odgUrl || odgUrl.endsWith(x.odgUrl));
+      if (d) onSrc?.(`${d.svgUrl}?v=${d.version}`);
+    },
+  });
 }

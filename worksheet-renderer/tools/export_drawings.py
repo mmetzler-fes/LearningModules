@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -129,6 +130,26 @@ def kind_of(shape, tables: set[str]) -> str | None:
 
 MARGIN = 200  # 1/100 mm Rand um die Zeichnung in der .odg
 
+ROTATED_TEXT = re.compile(r'(<text[^>]*transform=")rotate\(([-\d.]+) [-\d.]+ [-\d.]+\)("[^>]*>(?:\s*<tspan[^>]*>)*)')
+TEXT_POS = re.compile(r'x="([-\d.]+)" y="([-\d.]+)"')
+
+
+def fix_rotated_text(svg: str) -> str:
+    """Gedrehter Text aus eingebetteten Grafiken (SVM/WMF): LibreOffice dreht ihn im
+    SVG um einen falschen Punkt, er landet weit neben der Stelle. Richtig ist die
+    Drehung um den Anfang des Textes – dort setzt LibreOffice den Text vor dem Drehen hin."""
+    def repl(m: re.Match) -> str:
+        pos = TEXT_POS.search(m.group(3))
+        return f'{m.group(1)}rotate({m.group(2)} {pos.group(1)} {pos.group(2)}){m.group(3)}' if pos else m.group(0)
+    return ROTATED_TEXT.sub(repl, svg)
+
+
+def write_fixed(path: Path) -> None:
+    text = path.read_text(encoding="utf-8")
+    fixed = fix_rotated_text(text)
+    if fixed != text:
+        path.write_text(fixed, encoding="utf-8")
+
 
 def to_odg(smgr, ctx, desktop, doc, shape, target: Path) -> None:
     """Die Form über die (prozessinterne) Zwischenablage in ein neues Draw-Dokument;
@@ -193,6 +214,7 @@ def render_odg(src: Path, out: Path, profile: Path) -> dict:
             flt.filter((prop("URL", target.resolve().as_uri()), prop("MediaType", "image/svg+xml")))
             if not target.exists() or target.stat().st_size == 0:
                 raise RuntimeError("LibreOffice hat kein SVG geschrieben.")
+            write_fixed(target)
             result = {"width_mm": round((right - left) / 100, 2), "height_mm": round((bottom - top) / 100, 2)}
         finally:
             doc.close(True)
@@ -241,6 +263,7 @@ def export(src: Path, out: Path, profile: Path) -> dict:
                     flt.filter((prop("URL", target.resolve().as_uri()), prop("MediaType", "image/svg+xml")))
                     if not target.exists() or target.stat().st_size == 0:
                         raise RuntimeError("leer")
+                    write_fixed(target)
                     shape.Name = name
                     size = shape.getSize()
                     entry = {"name": name, "file": target.name, "kind": kind,

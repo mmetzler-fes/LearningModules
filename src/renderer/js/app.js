@@ -22,6 +22,7 @@ import { HelpView, openHelpPopup } from './views/help-view.js';
 import { NotebooksView } from './views/notebooks.js';
 import { CategoriesAdminView } from './views/categories-admin.js';
 import { FederationAdminView } from './views/federation-admin.js';
+import { openDrawingForImage } from './views/drawings-dialog.js';
 import { nextcloudState, uploadImageToNextcloud, uploadAttachmentToNextcloud, pickNextcloudImage } from './views/nextcloud.js';
 import { storeImage } from './views/image-store.js';
 import { initFolding } from './fold.js';
@@ -566,6 +567,14 @@ window.appNextcloud = {
   upload: (file) => uploadImageToNextcloud(app, file),
   uploadAttachment: (file) => uploadAttachmentToNextcloud(app, file),
   pick: () => pickNextcloudImage(app),
+};
+// Zeichnungen mit Quelle (views/drawings-dialog.js) für die Bildleiste im Editor (worksheet-image-tools.js).
+window.appDrawings = {
+  open: (odgUrl, onSrc) => {
+    const id = app.state.currentTopicId;
+    const topic = (app.state.topics || []).find((t) => t.id === id) || (id ? { id, title: '' } : null);
+    return openDrawingForImage(app, topic, odgUrl, onSrc);
+  },
 };
 // Jedes Bild für ein Modul (views/image-store.js): Nextcloud oder – verkleinert,
 // mit Grenze – in die App. store(File|Blob|data:-URL, name) → Link | data:-URL | false

@@ -251,6 +251,17 @@ export class BrowserApi {
       body: JSON.stringify({ targetId }),
     });
   }
+  /** Neue PIN zum Weiterbearbeiten – der Schüler sieht sie beim nächsten Speichern. */
+  newClassStudentPin(classId, studentId) {
+    return this._fetch(`/api/classes/${encodeURIComponent(classId)}/students/${encodeURIComponent(studentId)}/pin`, { method: 'POST' });
+  }
+  /** Bearbeitungen der Schüler (Stift-Editor), Filter: { classId, linkId, moduleId }. */
+  listWorks(filter = {}) {
+    const q = new URLSearchParams(Object.entries(filter).filter(([, v]) => v));
+    return this._fetch(`/api/work?${q}`);
+  }
+  getWork(id) { return this._fetch(`/api/work/${encodeURIComponent(id)}`); }
+  deleteWork(id) { return this._fetch(`/api/work/${encodeURIComponent(id)}`, { method: 'DELETE' }); }
   /** Schülerliste einlesen; `dryRun` liefert nur die Vorschau. */
   importClassStudents(classId, students, dryRun) {
     return this._fetch(`/api/classes/${encodeURIComponent(classId)}/import`, {

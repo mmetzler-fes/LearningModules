@@ -25,7 +25,9 @@ export const lmHost = {
     if (inkMode) {
       actions.push({
         label: '✍️ Mit Stift bearbeiten',
-        title: 'Das Blatt mit Stift, Finger oder Maus beschriften – gespeichert auf diesem Gerät',
+        title: up?.studentTicket && up?.linkToken
+          ? 'Das Blatt mit Stift, Finger oder Maus beschriften – gespeichert bei der Lehrkraft, mit deiner PIN später weiter'
+          : 'Das Blatt mit Stift, Finger oder Maus beschriften – gespeichert auf diesem Gerät',
         className: 'ds-ink-btn',
         primary: true,
         async onClick() {

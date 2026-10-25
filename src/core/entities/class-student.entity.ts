@@ -33,4 +33,16 @@ export class ClassStudent extends BaseEntity {
    */
   @Column({ type: 'varchar', nullable: true })
   importId: string | null;
+
+  /**
+   * PIN zum Weiterbearbeiten (4 Ziffern), eine je Schüler für alle Links. Die
+   * Lehrkraft sieht sie in der Klassenliste; der Schüler bekommt sie einmal
+   * angezeigt – beim ersten Speichern überhaupt (`pinShownAt`). Danach fragt
+   * jeder Link danach (docs/bearbeitungen.md).
+   */
+  @Column({ type: 'varchar', length: 4, nullable: true })
+  pin: string | null;
+
+  @Column({ type: 'datetime', nullable: true })
+  pinShownAt: Date | null;
 }

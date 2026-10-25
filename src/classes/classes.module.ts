@@ -9,9 +9,10 @@ import { Result } from '../core/entities/result.entity';
 import { TopicLink } from '../core/entities/topic-link.entity';
 import { ClassShare } from '../core/entities/class-share.entity';
 import { User } from '../core/entities/user.entity';
+import { DocumentWork } from '../core/entities/document-work.entity';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([StudentClass, ClassStudent, SystemConfig, Result, TopicLink, ClassShare, User])],
+  imports: [TypeOrmModule.forFeature([StudentClass, ClassStudent, SystemConfig, Result, TopicLink, ClassShare, User, DocumentWork])],
   controllers: [ClassesController],
   providers: [ClassesService],
   exports: [ClassesService],

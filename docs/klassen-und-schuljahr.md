@@ -87,6 +87,13 @@ dazu; wer sich erneut so anmeldet, landet beim selben Eintrag. Für
 Nachzügler strikt kurz ausschalten, anmelden lassen, wieder einschalten und
 den Eintrag bestätigen oder zuordnen.
 
+### PIN zum Weiterbearbeiten
+
+Jeder Schüler hat eine PIN aus 4 Ziffern (Spalte **PIN** der Schülerliste,
+🔑 würfelt eine neue). Mit ihr arbeiten Schüler über Klassenlinks an ihren
+Blättern weiter; angezeigt wird sie ihnen einmal, beim ersten Speichern.
+Siehe [Bearbeitungen und PIN](bearbeitungen.md).
+
 ### Testschüler
 
 Um einen Klassenlink selbst durchzuspielen, braucht es keinen Eintrag in der
@@ -221,7 +228,7 @@ mit wem geteilt wurde und ob angenommen.
 Aufbewahrt werden das **aktuelle und die zwei vorigen Schuljahre** (im
 SJ26-27 also SJ24-25 bis SJ26-27). **30 Tage nach dem Schuljahreswechsel**
 löscht der Server ältere Klassen samt Schülerlisten, Klassenlinks, offenen
-Teilen-Angeboten und Ergebnissen. Ohne Wechsel durch den Admin zählt der
+Teilen-Angeboten, Ergebnissen und Bearbeitungen. Ohne Wechsel durch den Admin zählt der
 1. August.
 
 Vorher sehen die Lehrkräfte unter **🏫 Klassen** und **📊 Ergebnisse**

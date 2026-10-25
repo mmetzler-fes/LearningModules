@@ -5388,3 +5388,14 @@ body {
 .onenote-book, .onenote-group { font-weight: 600; }
 .onenote-progress { display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; }
 .onenote-progress progress { width: 100%; }
+
+/* PIN und Bearbeitungen (ink/work-store.js, views/classes.js) */
+.work-pin-card { max-width: 420px; }
+.work-pin-input { font-size: 1.6rem; letter-spacing: 0.4em; text-align: center; width: 8em; margin: 8px auto 12px; display: block; }
+.work-pin-show { font-size: 2rem; letter-spacing: 0.25em; font-family: var(--font-mono, monospace); }
+.class-student-pin { font-family: var(--font-mono, monospace); white-space: nowrap; }
+.class-works { margin-top: 20px; }
+.class-work-group { border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 8px 12px; margin-bottom: 8px; }
+.class-work-group ul { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.class-work-group li { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.class-work-group li > span:first-child { min-width: 10em; }

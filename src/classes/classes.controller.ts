@@ -145,6 +145,12 @@ export class ClassesController {
     return this.classesService.mergeStudent(id, studentId, req.user, String(body?.targetId || ''));
   }
 
+  /** Neue PIN zum Weiterbearbeiten würfeln – der Schüler sieht sie beim nächsten Speichern. */
+  @Post(':id/students/:studentId/pin')
+  async newStudentPin(@Param('id') id: string, @Param('studentId') studentId: string, @Request() req: any) {
+    return this.classesService.newStudentPin(id, studentId, req.user);
+  }
+
   @Delete(':id/students/:studentId')
   async removeStudent(@Param('id') id: string, @Param('studentId') studentId: string, @Request() req: any) {
     return this.classesService.removeStudent(id, studentId, req.user);

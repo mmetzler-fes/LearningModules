@@ -500,23 +500,27 @@ export class ClassesView {
       ${students.length === 0
         ? '<div class="empty-state"><p>Noch keine Schüler. Lege sie hier an oder lies die Klassenliste ein.</p></div>'
         : `<table class="class-students">
-            <thead><tr><th>Name</th><th>Vorname</th><th></th><th></th></tr></thead>
+            <thead><tr><th>Name</th><th>Vorname</th><th title="PIN zum Weiterbearbeiten von Blättern – der Schüler sieht sie einmal, beim ersten Speichern">PIN</th><th></th><th></th></tr></thead>
             <tbody>${students.map((s) => `
               <tr data-id="${escapeAttr(s.id)}" class="${s.status === 'pending' ? 'is-pending' : ''}">
                 <td>${escapeHtml(s.lastName) || '<span class="hint">–</span>'}</td>
                 <td>${escapeHtml(s.firstName)}</td>
+                <td class="class-student-pin" title="${s.pinShownAt ? 'Dem Schüler schon angezeigt' : 'Wird beim ersten Speichern angezeigt'}">${escapeHtml(s.pin || '')}${s.pinShownAt ? '' : ' <span class="hint">neu</span>'}</td>
                 <td>${s.status === 'pending' ? '<span class="class-pending-note">unbestätigt</span>' : ''}</td>
                 <td class="class-student-actions">
                   ${s.status === 'pending' ? '<button class="btn btn-secondary btn-sm btn-student-confirm" title="Bestätigen">✓</button>' : ''}
                   ${s.status === 'pending' && students.some((o) => o.status === 'confirmed') ? '<button class="btn btn-secondary btn-sm btn-student-merge" title="Einem Schüler der Liste zuordnen – seine Ergebnisse gehen mit">⇄</button>' : ''}
+                  <button class="btn btn-secondary btn-sm btn-student-pin" title="Neue PIN – z. B. vergessen oder weitergesagt">🔑</button>
                   <button class="btn btn-secondary btn-sm btn-student-edit" title="Bearbeiten">✏️</button>
                   <button class="btn btn-danger btn-sm btn-student-delete" title="Entfernen">🗑</button>
                 </td>
               </tr>`).join('')}
             </tbody>
-          </table>`}`;
+          </table>`}
+      <div class="class-works"></div>`;
 
     const byId = new Map(students.map((s) => [s.id, s]));
+    this._renderWorks(klasse);
     this._detail.querySelector('.chk-class-strict').addEventListener('change', async (e) => {
       const res = await this.app.api.updateClass(klasse.id, { strict: e.target.checked });
       if (failed(res)) { this.app.showToast('Fehler: ' + (res?.message || '?'), 'error'); e.target.checked = !e.target.checked; return; }
@@ -552,6 +556,13 @@ export class ClassesView {
       const s = byId.get(row.dataset.id);
       row.querySelector('.btn-student-confirm')?.addEventListener('click', () => this._updateStudent(klasse.id, s, { confirm: true }));
       row.querySelector('.btn-student-merge')?.addEventListener('click', () => this._mergeStudent(klasse, s, students));
+      row.querySelector('.btn-student-pin').addEventListener('click', async () => {
+        if (!(await this.app.appConfirm(`Neue PIN für „${s.firstName} ${s.lastName}“? Die alte gilt dann nicht mehr; die neue wird beim nächsten Speichern angezeigt. Die Bearbeitungen bleiben.`))) return;
+        const res = await this.app.api.newClassStudentPin(klasse.id, s.id);
+        if (failed(res)) { this.app.showToast('Fehler: ' + (res?.message || '?'), 'error'); return; }
+        this.app.showToast(`Neue PIN für ${s.firstName}: ${res.pin}`, 'success');
+        this._renderDetail();
+      });
       row.querySelector('.btn-student-edit').addEventListener('click', async () => {
         const values = await formDialog({
           title: '✏️ Schüler bearbeiten',
@@ -567,6 +578,55 @@ export class ClassesView {
         const res = await this.app.api.deleteClassStudent(klasse.id, s.id);
         if (failed(res)) { this.app.showToast('Fehler: ' + (res?.message || '?'), 'error'); return; }
         this._renderDetail();
+      });
+    });
+  }
+
+  /**
+   * Bearbeitungen der Schüler dieser Klasse (Stift-Editor über Klassenlinks):
+   * je Dokument die Schüler, mit Ansehen und Löschen.
+   */
+  async _renderWorks(klasse) {
+    const box = this._detail.querySelector('.class-works');
+    if (!box) return;
+    const works = await this.app.api.listWorks({ classId: klasse.id });
+    if (failed(works) || !works.length) { box.innerHTML = ''; return; }
+    const groups = new Map();
+    for (const w of works) {
+      const k = `${w.linkId}|${w.moduleId}`;
+      if (!groups.has(k)) groups.set(k, { title: w.moduleTitle, link: w.linkName, exam: w.access === 'exam', items: [] });
+      groups.get(k).items.push(w);
+    }
+    const when = (d) => new Date(d).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+    box.innerHTML = `<h4>✍️ Bearbeitungen</h4>
+      <p class="hint">Was Schüler über Klassenlinks mit dem Stift in Blätter geschrieben haben – sie arbeiten mit ihrer PIN daran weiter (außer in Klassenarbeiten).</p>
+      ${[...groups.values()].map((g) => `
+        <details class="class-work-group">
+          <summary><strong>${escapeHtml(g.title || 'Dokument')}</strong> <span class="hint">${escapeHtml(g.link || '')}${g.exam ? ' · Klassenarbeit' : ''} · ${g.items.length} Schüler</span></summary>
+          <ul>${g.items.sort((a, b) => a.studentName.localeCompare(b.studentName, 'de')).map((w) => `
+            <li data-id="${escapeAttr(w.id)}">
+              <span>${escapeHtml(w.studentName)}</span> <span class="hint">${escapeHtml(when(w.updatedAt))}</span>
+              <button class="btn btn-secondary btn-sm btn-work-open">Ansehen</button>
+              <button class="btn btn-danger btn-sm btn-work-delete" title="Bearbeitung löschen">🗑</button>
+            </li>`).join('')}</ul>
+        </details>`).join('')}`;
+    box.querySelectorAll('li[data-id]').forEach((li) => {
+      const w = works.find((x) => x.id === li.dataset.id);
+      li.querySelector('.btn-work-open').addEventListener('click', async () => {
+        try {
+          const full = await this.app.api.getWork(w.id);
+          if (failed(full)) throw new Error(full?.message || 'nicht gefunden');
+          const { openStudentWork } = await import('../ink/ink-open.js');
+          await openStudentWork(this.app.api, full);
+        } catch (err) {
+          this.app.showToast('Fehler: ' + err.message, 'error');
+        }
+      });
+      li.querySelector('.btn-work-delete').addEventListener('click', async () => {
+        if (!(await this.app.appConfirm(`Bearbeitung von „${w.studentName}“ an „${w.moduleTitle}“ löschen? Der Schüler beginnt dann von vorn.`))) return;
+        const res = await this.app.api.deleteWork(w.id);
+        if (failed(res)) { this.app.showToast('Fehler: ' + (res?.message || '?'), 'error'); return; }
+        this._renderWorks(klasse);
       });
     });
   }

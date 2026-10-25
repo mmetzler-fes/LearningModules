@@ -10,9 +10,18 @@
 /**
  * `mode`: 'teacher' | 'student'; `mod`: { id, title, content: { spec, kind } };
  * `up`: Zugang der Schüler ({ linkToken | quickToken, password, studentTicket });
- * `embedModule(id)`: Modul eines eingebetteten Quiz (wie im Durchlauf).
+ * `embedModule(id)`: Modul eines eingebetteten Quiz (wie im Durchlauf);
+ * `store`, `title`: anderswo speichern als auf dem Gerät (siehe openInkEditor).
+ * Schüler mit Schülerausweis (Klassenlink) speichern bei der Lehrkraft
+ * (work-store.js); sonst bleibt die Beschriftung auf dem Gerät.
  */
-export async function openDocumentInk({ mode, mod, up = null, embedModule = null }) {
+export async function openDocumentInk({ mode, mod, up = null, embedModule = null, store = null, title = null }) {
+  if (!store && mode === 'student' && up?.linkToken && up?.studentTicket) {
+    const { serverWorkStore } = await import('./work-store.js');
+    const opened = await serverWorkStore({ up, moduleId: mod.id });
+    if (!opened) return null;
+    store = opened.store;
+  }
   const [{ openInkEditor }, { H5pRenderer }] = await Promise.all([
     import('../../lm-editor/src/ink/ink-editor.js'),
     import('../../lm-editor/src/modules/h5p-renderer.js'),
@@ -45,5 +54,23 @@ export async function openDocumentInk({ mode, mod, up = null, embedModule = null
       if (solutions) el.querySelector('.docspec')?.classList.remove('ds-hide-solutions');
     },
   };
-  return openInkEditor({ title: mod.title || 'Arbeitsblatt', key: `${mode}:${mod.id}`, loadPdf, solutions: mode === 'teacher', paper });
+  return openInkEditor({ title: title || mod.title || 'Arbeitsblatt', key: `${mode}:${mod.id}`, loadPdf, solutions: mode === 'teacher', paper, store });
+}
+
+/**
+ * Bearbeitung eines Schülers ansehen (Lehrkraft): das Dokument mit seiner
+ * Beschriftung. Geändert wird dabei nichts – der Stand gehört dem Schüler.
+ * `work`: Eintrag aus GET /api/work/:id; `api`: die Api der App.
+ */
+export async function openStudentWork(api, work) {
+  const modules = work.topicId ? await api.getTopicModules(work.topicId) : [];
+  const mod = Array.isArray(modules) ? modules.find((m) => m.id === work.moduleId) : null;
+  if (!mod) throw new Error('Das Dokument gibt es nicht mehr.');
+  return openDocumentInk({
+    mode: 'teacher',
+    mod,
+    embedModule: (id) => modules.find((m) => m.id === id) || null,
+    title: `${work.studentName} – ${mod.title || work.moduleTitle}`,
+    store: { label: 'nicht (nur Ansicht)', load: async () => work.data, save: async () => true },
+  });
 }

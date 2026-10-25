@@ -66,6 +66,8 @@ import { FeaturesModule } from './features/features.module';
 import { DocMirror } from './core/entities/doc-mirror.entity';
 import { WorksheetTemplate } from './core/entities/worksheet-template.entity';
 import { WorksheetsModule } from './worksheets/worksheets.module';
+import { DocumentWork } from './core/entities/document-work.entity';
+import { WorkModule } from './work/work.module';
 import { AccountLink } from './core/entities/account-link.entity';
 import { LinkCode } from './core/entities/link-code.entity';
 
@@ -95,7 +97,7 @@ import { LinkCode } from './core/entities/link-code.entity';
       // statt „database is locked“.
       enableWAL: true,
       busyTimeout: 5000,
-      entities: [User, StudentClass, ClassStudent, LearningTopic, LearningModule, Result, School, SystemConfig, Tag, TopicLink, TopicQuickLink, TeacherGroup, ShopOffer, UseGrant, PointsEntry, ModuleTiming, ClassShare, NotebookNode, NotebookPlacement, ModuleDraft, UsageCount, ContentFeedback, Category, FederationPeer, RemoteOffer, RemotePerson, FederationCopy, ContentHandover, AccountLink, LinkCode, GithubBackup, NextcloudLink, SchoolNextcloud, DocMirror, WorksheetTemplate],
+      entities: [User, StudentClass, ClassStudent, LearningTopic, LearningModule, Result, School, SystemConfig, Tag, TopicLink, TopicQuickLink, TeacherGroup, ShopOffer, UseGrant, PointsEntry, ModuleTiming, ClassShare, NotebookNode, NotebookPlacement, ModuleDraft, UsageCount, ContentFeedback, Category, FederationPeer, RemoteOffer, RemotePerson, FederationCopy, ContentHandover, AccountLink, LinkCode, GithubBackup, NextcloudLink, SchoolNextcloud, DocMirror, WorksheetTemplate, DocumentWork],
       synchronize: true,
     }),
     MailModule,
@@ -127,6 +129,7 @@ import { LinkCode } from './core/entities/link-code.entity';
     HandoverModule,
     FeaturesModule,
     WorksheetsModule,
+    WorkModule,
   ],
   controllers: [AppController],
   providers: [AppService],

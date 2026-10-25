@@ -88,7 +88,40 @@ export async function pdfToSpec(pdf, name, { mode, ocr }) {
   return { spec: data.spec, warnings: data.warnings || [] };
 }
 
-const rootOrder = (modules, skip = new Set()) => (Array.isArray(modules) ? modules : [])
+/** Datei wählen; null bei Abbruch. Muss im Klick starten (iPad), daher ohne await davor. */
+function chooseFile(accept) {
+  return new Promise((resolve) => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = accept;
+    input.addEventListener('change', () => resolve(input.files[0] || null));
+    input.addEventListener('cancel', () => resolve(null));
+    input.click();
+  });
+}
+
+/**
+ * „PDF einfügen“ (Dokument-Editor, ⊕ im Stift-Editor): PDF wählen, Art der
+ * Umwandlung fragen, umwandeln. Ergebnis: `{ blocks, warnings, name }` oder
+ * null bei Abbruch. `onBusy(text)`: Hinweis, solange umgewandelt wird.
+ */
+export async function pickPdfBlocks({ onBusy = null } = {}) {
+  const file = await chooseFile('.pdf,application/pdf');
+  if (!file) return null;
+  if (!isPdfFile(file)) throw new Error('Das ist kein PDF.');
+  const choice = await askConvertOptions({
+    keepOption: false, heading: '📄 PDF einfügen',
+    intro: `„${file.name}“ wird umgewandelt und an dieser Stelle ins Dokument eingefügt.`,
+  });
+  if (!choice) return null;
+  onBusy?.(choice.mode === 'ai' ? 'KI-Erkennung läuft – das kann je Seite einige Sekunden dauern …' : 'PDF wird umgewandelt …');
+  const { spec, warnings } = await pdfToSpec(file, file.name, choice);
+  const blocks = Array.isArray(spec?.content) ? spec.content : [];
+  if (!blocks.length) throw new Error('Im PDF wurde nichts gefunden.');
+  return { blocks, warnings, name: file.name };
+}
+
+const rootOrder =(modules, skip = new Set()) => (Array.isArray(modules) ? modules : [])
   .filter((m) => !m.parentId && !skip.has(m.id))
   .sort((a, b) => (a.orderIndex || 0) - (b.orderIndex || 0))
   .map((m) => m.id);

@@ -25,7 +25,9 @@ Der Editor startet im Modus **✏️ Bearbeiten** – wie ein Textprogramm:
   Ausrichtung, Links, **🖼 Bild** (Größe, Lage, Rahmen per Klick aufs Bild).
 - **➕ Einfügen …**: Schreibfeld (Platz zum Schreiben – Karo, Linien oder leer,
   Höhe und Breite wählbar: Doppelklick auf das Feld), Quiz aus dem Lernthema,
-  Lösung, Formel, Code, Tabelle, Kasten, Platz, Seitenumbruch – an der
+  **📄 PDF an dieser Stelle** (mit Freischaltung „PDF-Import“: das PDF wird
+  wie bei „Übernehmen“ umgewandelt, aber eingefügt statt ersetzt), Lösung,
+  Formel, Code, Tabelle, Kasten, Platz, Seitenumbruch – an der
   Schreibmarke bzw. hinter dem gewählten Baustein.
 - Graue **Bausteine** wählt ein Klick (blauer Rahmen). Die Leiste daran
   verschiebt (**↑ ↓**, auch Alt+↑/↓), verdoppelt (**⧉**), bearbeitet (**✏️**,
@@ -255,6 +257,9 @@ wenn die Lehrkraft des Lernthemas freigeschaltet ist.
   **☰ Linien**. Die Lehrkraft fügt das Feld ins Dokument ein (eigene
   Lernthemen), Schüler nur in ihre eigene Beschriftung; ein selbst eingefügtes
   Feld entfernt das **✕** in der Feldleiste (mit ⬚ Auswählen) wieder.
+  Lehrkräfte haben im Menü außerdem **🧩 Quiz aus dem Lernthema** und
+  **📄 PDF an dieser Stelle** (Text mit Struktur, Seiten als Bilder oder
+  KI-Erkennung) – beides landet als Bausteine im Dokument.
 - **👆 Bedienen:** Eingebettete Quizze im Blatt ausfüllen. Der Finger bedient
   sie immer (solange ☝️ aus ist), Stift und Maus nur mit diesem Werkzeug –
   sonst schreiben sie.

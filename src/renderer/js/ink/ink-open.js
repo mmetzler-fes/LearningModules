@@ -1,3 +1,6 @@
+import { pickQuiz } from '../quiz-picker.js';
+import { pickPdfBlocks } from '../views/attachment-convert.js';
+
 // ==================== STIFT-EDITOR ÖFFNEN ====================
 //
 // Ein Dokument im Stift-Editor (lm-editor) öffnen – aus der Ansicht des
@@ -17,15 +20,18 @@
  * `sourceEl`: die Ansicht des Dokuments im Durchlauf – Quiz-Eingaben kommen
  * von dort mit ins Stift-Fenster und beim Schließen wieder zurück, damit
  * „Weiter“ sie auswertet.
+ * `editable` (Lehrkraft, eigenes Lernthema): ⊕ und Schreibfelder ändern das
+ * Dokument selbst, `onSaved()` danach; `topicModules`: Module des Lernthemas
+ * für „Quiz einfügen“.
  */
-export async function openDocumentInk({ mode, mod, up = null, embedModule = null, store = null, title = null, sourceEl = null, editable = false, onSaved = null }) {
+export async function openDocumentInk({ mode, mod, up = null, embedModule = null, store = null, title = null, sourceEl = null, editable = false, onSaved = null, topicModules = null }) {
   if (!store && mode === 'student' && up?.linkToken && up?.studentTicket) {
     const { serverWorkStore } = await import('./work-store.js');
     const opened = await serverWorkStore({ up, moduleId: mod.id });
     if (!opened) return null;
     store = opened.store;
   }
-  const [{ openInkEditor }, { H5pRenderer }, { captureForms, restoreForms }, { assignPathIds, pathId, newBlockId }] = await Promise.all([
+  const [{ openInkEditor }, { H5pRenderer }, { captureForms, restoreForms }, { assignPathIds, pathId, ensureBlockIds }] = await Promise.all([
     import('../../lm-editor/src/ink/ink-editor.js'),
     import('../../lm-editor/src/modules/h5p-renderer.js'),
     import('./form-state.js'),
@@ -97,26 +103,45 @@ export async function openDocumentInk({ mode, mod, up = null, embedModule = null
     onSaved?.();
   }
 
+  // Neue Bausteine bekommen feste IDs; alle anderen vorher ihre jetzige
+  // Position (pos…) – so bleiben Striche der Schüler an ihrem Baustein.
+  function specNow() {
+    const spec = content.spec && typeof content.spec === 'object' ? structuredClone(content.spec) : { content: [] };
+    if (!Array.isArray(spec.content)) spec.content = [];
+    return spec;
+  }
+
+  async function insertBlocks(after, blocks) {
+    const spec = specNow();
+    assignPathIds(spec);
+    // Mitgebrachte IDs (z. B. aus dem PDF) könnten schon vergeben sein.
+    const fresh = JSON.parse(JSON.stringify(blocks, (k, v) => (k === 'id' ? undefined : v)));
+    const ref = after ? blockRef(spec, after) : null;
+    if (!after) spec.content.unshift(...fresh);
+    else if (ref) ref.list.splice(ref.index + 1, 0, ...fresh);
+    else spec.content.push(...fresh);
+    ensureBlockIds(spec);
+    content = { ...content, spec };
+    await saveDocument();
+  }
+
   function documentEditing() {
-    const specNow = () => {
-      const spec = content.spec && typeof content.spec === 'object' ? structuredClone(content.spec) : { content: [] };
-      if (!Array.isArray(spec.content)) spec.content = [];
-      return spec;
-    };
     return {
-      // Neue Bausteine bekommen eine feste ID; alle anderen vorher ihre jetzige
-      // Position (pos…) – so bleiben Striche der Schüler an ihrem Baustein.
-      async insertBlock(after, block) {
-        const spec = specNow();
-        assignPathIds(spec);
-        const placed = { ...block, id: newBlockId() };
-        const ref = after ? blockRef(spec, after) : null;
-        if (!after) spec.content.unshift(placed);
-        else if (ref) ref.list.splice(ref.index + 1, 0, placed);
-        else spec.content.push(placed);
-        content = { ...content, spec };
-        await saveDocument();
-      },
+      insertBlock: (after, block) => insertBlocks(after, [block]),
+      // Weitere Einträge im ⊕-Menü; Abbruch im Dialog gibt false (nichts gespeichert).
+      insertItems: () => [
+        { label: '🧩 Quiz aus dem Lernthema', run: async (after) => {
+          const block = await pickQuiz(topicModules || [], mod.id);
+          if (!block) return false;
+          return insertBlocks(after, [block]);
+        } },
+        // Die Dateiauswahl muss noch im Antippen aufgehen (iPad) – daher kein await davor.
+        { label: '📄 PDF an dieser Stelle', run: async (after) => {
+          const res = await pickPdfBlocks();
+          if (!res) return false;
+          return insertBlocks(after, res.blocks);
+        } },
+      ],
       async setField(bid, field) {
         const spec = specNow();
         const ref = blockRef(spec, bid);

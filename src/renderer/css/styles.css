@@ -4834,7 +4834,7 @@ body {
 .nb-twisty-space { width: 22px; flex: none; }
 .nb-twisty:hover, .nb-menu-btn:hover, .nb-edit:hover, .nb-status:hover { background: var(--border); }
 .nb-icon { flex: none; }
-.nb-title { overflow: hidden; text-overflow: ellipsis; min-width: 0; cursor: pointer; }
+.nb-title { overflow: hidden; text-overflow: ellipsis; min-width: 5em; cursor: pointer; } /* Mindestbreite: auch ein Titel wie „1“ lässt sich gut anklicken */
 .nb-node > .nb-title, .nb-node .nb-title { font-weight: 600; }
 .nb-kind-book .nb-title { font-size: 1.02rem; }
 .nb-mirror-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; margin: 0 0 10px; padding: 6px 10px; border: 1px dashed var(--border); border-radius: var(--radius-sm); font-size: 0.88em; }

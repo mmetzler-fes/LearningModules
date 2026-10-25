@@ -1,5 +1,5 @@
 import AdmZip from 'adm-zip';
-import { odtToHtml } from './odt';
+import { odtToHtml, usableTitle } from './odt';
 
 /** Kleinstes Writer-Dokument mit dem gegebenen Inhalt von office:text. */
 function odt(body: string): Buffer {
@@ -40,5 +40,15 @@ describe('.odt-Import: Zeichnungen von LibreOffice', () => {
     const long = 'Das Tor einer Hofeinfahrt wird über den Taster geöffnet. '.repeat(5);
     const r = odtToHtml(odt(`<text:h text:outline-level="1">Projekt</text:h><text:h text:outline-level="2">${long}</text:h>`), 'x.odt');
     expect(r.html).toMatch(/^<h2>Projekt<\/h2><p>/);
+  });
+});
+
+describe('.odt-Import: Titel', () => {
+  it('Titel aus den Metadaten nur, wenn er nach einem Titel aussieht', () => {
+    expect(usableTitle('1')).toBe(false);
+    expect(usableTitle('Unbenannt 1')).toBe(false);
+    expect(usableTitle('AB')).toBe(false);
+    expect(usableTitle('Projekt Torsteuerung')).toBe(true);
+    expect(usableTitle('Ohm')).toBe(true);
   });
 });

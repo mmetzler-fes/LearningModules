@@ -647,6 +647,16 @@ export interface OdtOptions {
 /** So lang wird eine Überschrift nicht – ein Absatz mit Überschriften-Vorlage (sieht im Dokument aus wie Text). */
 const MAX_HEADING_CHARS = 200;
 
+/**
+ * Titel aus den Metadaten nur, wenn er nach einem Titel aussieht: Vorlagen
+ * tragen oft „1“, „Unbenannt“ oder den Namen der Vorlage – dann zählen die
+ * erste Überschrift bzw. der Dateiname.
+ */
+export function usableTitle(t: string): boolean {
+  const s = String(t || '').trim();
+  return (s.match(/\p{L}/gu) || []).length >= 3 && !/^(unbenannt|untitled|ohne titel|titel|dokument|document|vorlage)\s*\d*$/i.test(s);
+}
+
 export function odtToHtml(buffer: Buffer, fileName = '', opts: OdtOptions = {}): OdtResult {
   let zip: AdmZip;
   try {
@@ -1021,7 +1031,7 @@ export function odtToHtml(buffer: Buffer, fileName = '', opts: OdtOptions = {}):
   const metaTitle = meta ? textOf(find(parseXml(meta), 'dc:title') || '').trim() : '';
   const firstHeading = /<h[2-4][^>]*>([\s\S]*?)<\/h[2-4]>/.exec(html)?.[1].replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').trim();
   const fromFile = path.basename(fileName || '', path.extname(fileName || '')).replace(/[_-]+/g, ' ').trim();
-  const title = metaTitle || (firstHeading ? decodeHtml(firstHeading) : '') || fromFile || 'Arbeitsblatt';
+  const title = (usableTitle(metaTitle) ? metaTitle : '') || (firstHeading ? decodeHtml(firstHeading) : '') || fromFile || 'Arbeitsblatt';
 
   const warnings: string[] = [];
   if (stats.drawings) {

@@ -3967,6 +3967,14 @@ body {
 /* ---- Video ---- */
 .video-module { padding: 12px 0; }
 .video-title { margin: 0 0 10px; }
+
+/* Anhang: Dateien zum Öffnen und Herunterladen */
+.attachment-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.attachment-item { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg-primary); flex-wrap: wrap; }
+.attachment-icon { font-size: 1.4rem; }
+.attachment-name { flex: 1 1 200px; min-width: 0; overflow-wrap: anywhere; font-weight: 600; }
+.attachment-name small { display: block; font-weight: 400; color: var(--text-secondary); }
+.attachment-actions { display: flex; gap: 6px; }
 .video-frame { position: relative; width: 100%; max-width: calc((100vh - 160px) * 16 / 9); margin: 0 auto; aspect-ratio: 16 / 9; background: #000; border-radius: var(--radius-md); overflow: hidden; }
 .video-frame iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
 .video-player { display: block; width: 100%; max-height: 75vh; background: #000; border-radius: var(--radius-md); }
@@ -5359,3 +5367,24 @@ body {
 .ai-img-assign { border-collapse: collapse; margin: 6px 0; }
 .ai-img-assign td { padding: 3px 8px 3px 0; }
 .ai-img-assign select { max-width: 280px; }
+
+/* Anhang-Editor (content-editors.js) */
+.attachment-editor-list { list-style: none; margin: 0 0 8px; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.attachment-editor-list li { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.attachment-editor-list li a { flex: 1 1 200px; min-width: 0; overflow-wrap: anywhere; }
+.attachment-editor-actions { display: flex; gap: 4px; }
+.attachment-editor-bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+
+/* OneNote übernehmen (views/onenote-import.js) */
+.onenote-card { max-width: 680px; max-height: 90vh; overflow-y: auto; }
+.onenote-card.is-drop { outline: 2px dashed var(--primary); outline-offset: -6px; }
+.onenote-status { margin: 10px 0; font-size: 0.9rem; border-radius: var(--radius-sm); }
+.onenote-status.is-ok, .onenote-status.is-error { padding: 8px 10px; }
+.onenote-status.is-ok { background: var(--score-good-bg); color: var(--score-good-text); }
+.onenote-status.is-error { background: var(--score-poor-bg); color: var(--score-poor-text); }
+.onenote-tree { max-height: 340px; overflow-y: auto; margin-bottom: 12px; }
+.onenote-row { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; padding: 3px 0 3px calc(var(--depth, 0) * 18px); }
+.onenote-row .hint { font-size: 0.8rem; }
+.onenote-book, .onenote-group { font-weight: 600; }
+.onenote-progress { display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; }
+.onenote-progress progress { width: 100%; }

@@ -37,6 +37,23 @@ const H5P_TYPES = {
       { key: 'timeLimit', type: 'number', label: 'Zeitlimit (Sekunden, 0 = kein Limit)', default: 0 },
     ],
   },
+  /**
+   * Anhang: Dateien zum Öffnen (PDF) oder Herunterladen – mehr nicht. Sie
+   * liegen in der Nextcloud der Lehrkraft im Ordner des Themas, neben den
+   * Bildern (docs/anhang.md). Auch Ziel des OneNote-Imports.
+   */
+  attachment: {
+    id: 'attachment',
+    name: 'Anhang',
+    icon: '📎',
+    description: 'Dateien (z. B. PDF-Aufgabenblätter) zum Öffnen und Herunterladen – je Datei bis 50 MB, in deiner Nextcloud gespeichert.',
+    category: 'Medien',
+    // Reine Information, keine Aufgabe: zählt in der Auswertung nicht mit.
+    informational: true,
+    fields: [
+      { key: 'files', type: 'attachments', label: 'Dateien', required: true },
+    ],
+  },
   audioRecorder: {
     id: 'audioRecorder',
     name: 'Audio Recorder',

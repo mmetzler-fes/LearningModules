@@ -3,7 +3,7 @@ import type { Response } from 'express';
 import { baseUrl } from '../core/share/link-url';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { NextcloudService, MAX_IMAGE_BYTES, SERVER_SCOPE } from './nextcloud.service';
+import { NextcloudService, MAX_IMAGE_BYTES, MAX_ATTACHMENT_BYTES, SERVER_SCOPE } from './nextcloud.service';
 import { NextcloudBackupService } from './nextcloud-backup.service';
 import { SchoolNextcloudService } from './school-nextcloud.service';
 
@@ -91,6 +91,13 @@ export class NextcloudController {
     });
   }
 
+  /** Anhang hochladen (Feld `file`, dazu `topicId`) – liefert Link, Name und Größe. */
+  @Post('attachments')
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: MAX_ATTACHMENT_BYTES + 1024 } }))
+  async uploadAttachment(@Request() req: any, @UploadedFile() file: Express.Multer.File) {
+    return this.nextcloud.uploadAttachment(req.user, req.body?.topicId || undefined, file);
+  }
+
   /** `{ enabled?, hour? }` – tägliches Backup der eigenen Inhalte nach <Hauptordner>/Backups. */
   @Post('backup')
   async saveBackup(@Request() req: any, @Body() body: any) {
@@ -121,9 +128,9 @@ export class NextcloudController {
 }
 
 /**
- * Bilder für Schüler – ohne Anmeldung, die haben Schüler nicht. Der Server
- * holt das Bild mit dem Passwort der Freigabe und reicht es durch; er
- * speichert es nicht. Nur Bilder unter Bilder/… (siehe readImage).
+ * Bilder und Anhänge für Schüler – ohne Anmeldung, die haben Schüler nicht.
+ * Der Server holt die Datei mit dem Passwort der Freigabe und reicht sie
+ * durch; er speichert sie nicht. Nur Dateien unter Bilder/… (siehe readImage).
  * /files: Freigabe der Lehrkraft, /sch: Nextcloud der Schule,
  * /school: alte Bilder im früheren Ordner des Admin-Backups.
  */
@@ -133,27 +140,34 @@ export class NextcloudFilesController {
 
   @Get('files/:link/:folder/:name')
   async own(@Param('link') link: string, @Param('folder') folder: string, @Param('name') name: string, @Res() res: Response) {
-    return this.send(res, await this.nextcloud.readImage(link, folder, name, false).catch(() => null));
+    return this.send(res, await this.nextcloud.readImage(link, folder, name, false).catch(() => null), name);
   }
 
   /** Nextcloud einer Schule: Bilder/<Lehrkraft>/<Ordner>/<Datei>. */
   @Get('sch/:school/:teacher/:folder/:name')
   async schoolShare(@Param('school') school: string, @Param('teacher') teacher: string, @Param('folder') folder: string, @Param('name') name: string, @Res() res: Response) {
-    return this.send(res, await this.nextcloud.readSchoolImage(school, teacher, folder, name).catch(() => null));
+    return this.send(res, await this.nextcloud.readSchoolImage(school, teacher, folder, name).catch(() => null), name);
   }
 
   @Get('school/:link/:folder/:name')
   async school(@Param('link') link: string, @Param('folder') folder: string, @Param('name') name: string, @Res() res: Response) {
-    return this.send(res, await this.nextcloud.readImage(link, folder, name, true).catch(() => null));
+    return this.send(res, await this.nextcloud.readImage(link, folder, name, true).catch(() => null), name);
   }
 
-  private send(res: Response, file: { type: string; data: Buffer } | null) {
-    if (!file) { res.status(404).send('Bild nicht gefunden'); return; }
+  private send(res: Response, file: { type: string; data: Buffer } | null, name: string) {
+    if (!file) { res.status(404).send('Datei nicht gefunden'); return; }
     res.setHeader('Content-Type', file.type);
     res.setHeader('Cache-Control', 'public, max-age=3600');
     res.setHeader('X-Content-Type-Options', 'nosniff');
-    // Ein SVG direkt aufgerufen darf auf dieser Seite kein Skript ausführen.
-    res.setHeader('Content-Security-Policy', "default-src 'none'; style-src 'unsafe-inline'; sandbox");
+    if (file.type === 'application/pdf') {
+      // Zum Öffnen im Browser. Ohne „sandbox“: Damit zeigt Chrome kein PDF an;
+      // Skripte führt der PDF-Betrachter ohnehin nicht im Kontext der Seite aus.
+      res.setHeader('Content-Disposition', `inline; filename*=UTF-8''${encodeURIComponent(name)}`);
+    } else {
+      // Ein SVG oder ein Anhang direkt aufgerufen darf auf dieser Seite kein Skript ausführen.
+      res.setHeader('Content-Security-Policy', "default-src 'none'; style-src 'unsafe-inline'; sandbox");
+      if (!file.type.startsWith('image/')) res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(name)}`);
+    }
     res.send(file.data);
   }
 }

@@ -4,6 +4,7 @@ import { pickClass } from './classes.js';
 import { TagPicker, chipHtml } from './tags.js';
 import { openFeedbackDialog } from './feedback.js';
 import { openImportDialog } from './import-dialog.js';
+import { openOneNoteImport } from './onenote-import.js';
 import { NotebookPreview } from './notebook-preview.js';
 
 // ==================== NOTEBOOKS ====================
@@ -60,6 +61,9 @@ export class NotebooksView {
 
     document.getElementById('btnNotebookNewBook')?.addEventListener('click', () => this._createNode('book', null));
     document.getElementById('btnNotebookImport')?.addEventListener('click', () => this._import(null));
+    document.getElementById('btnNotebookOneNote')?.addEventListener('click', () => openOneNoteImport(this.app, {
+      onDone: async () => { this._saveOpen(); await this.refresh(); },
+    }));
     document.getElementById('btnNotebookExpand')?.addEventListener('click', () => this._expandAll(true));
     document.getElementById('btnNotebookCollapse')?.addEventListener('click', () => this._expandAll(false));
     this._search?.addEventListener('input', () => this._render());

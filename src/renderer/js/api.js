@@ -589,6 +589,21 @@ export class BrowserApi {
     }
   }
 
+  /** Anhang (Modultyp „Anhang“) in den Ordner des Themas – `{ success, url, name, size, type }`. */
+  async uploadNextcloudAttachment(file, topicId) {
+    const form = new FormData();
+    form.append('file', file);
+    if (topicId) form.append('topicId', topicId);
+    const token = this._auth.getToken();
+    try {
+      const res = await fetch('/api/nextcloud/attachments', { method: 'POST', headers: token ? { Authorization: `Bearer ${token}` } : {}, body: form });
+      if (res.status === 413) return { success: false, message: 'Die Datei ist größer als 50 MB.' };
+      return await res.json();
+    } catch (err) {
+      return { success: false, message: err.message };
+    }
+  }
+
   // ---------- GitHub-Backup der eigenen Inhalte ----------
   getGithubBackup() { return this._fetch('/api/github-backup'); }
   saveGithubBackup(body) { return this._fetch('/api/github-backup', { method: 'POST', body: JSON.stringify(body) }); }

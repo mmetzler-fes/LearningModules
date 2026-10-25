@@ -1,4 +1,4 @@
-import { NextcloudService, OWNER_FILE, SERVER_SCOPE, dataImageSizes } from './nextcloud.service';
+import { NextcloudService, OWNER_FILE, SERVER_SCOPE, attachmentFileName, dataImageSizes } from './nextcloud.service';
 import { SchoolNextcloudService } from './school-nextcloud.service';
 
 const CLOUD = 'https://93.184.216.34'; // öffentliche Adresse – keine DNS-Abfrage nötig
@@ -223,6 +223,42 @@ describe('Nextcloud: eigene Freigabe der Lehrkraft', () => {
     // Dieselbe Freigabe erneut speichern: gespeichertes Passwort genügt.
     await svc.connect(user, { shareUrl: `${CLOUD}/s/EigenTok`, password: 'pw' }, APP);
     await expect(svc.connect(user, { shareUrl: `${CLOUD}/s/EigenTok` }, APP)).resolves.toMatchObject({ mode: 'own', insecure: false });
+  });
+});
+
+describe('Nextcloud: Anhänge (Modultyp „Anhang“)', () => {
+  let cloud: ReturnType<typeof fakeNextcloud>;
+  beforeEach(() => { cloud = fakeNextcloud(); jest.spyOn(global, 'fetch').mockImplementation(cloud.impl as any); });
+  afterEach(() => jest.restoreAllMocks());
+  const pdf = { originalname: 'Blatt 1.PDF', mimetype: 'application/octet-stream', buffer: Buffer.from('%PDF-1.4'), size: 8 };
+
+  it('Dateiname: Endung klein, ohne Endung .bin', () => {
+    expect(attachmentFileName('Blatt 1.PDF')).toBe('Blatt-1.pdf');
+    expect(attachmentFileName('liesmich')).toBe('liesmich.bin');
+    expect(attachmentFileName('.versteckt.txt')).toBe('versteckt.txt');
+  });
+
+  it('lädt neben die Bilder des Themas und liefert sie mit Typ nach Endung aus', async () => {
+    const { svc, links } = setup(null);
+    await svc.connect(user, { shareUrl: `${CLOUD}/s/EigenTok`, password: 'pw' }, APP);
+    const up = await svc.uploadAttachment(user, 't1', pdf);
+    expect(up).toMatchObject({ name: 'Blatt-1.pdf', size: 8, type: 'application/pdf' });
+    expect(up.url).toBe(`${APP}/api/nextcloud/files/${links[0].id}/Englisch%20Reisen/Blatt-1.pdf`);
+    expect(cloud.files.has('EigenTok/public.php/webdav/Bilder/Englisch Reisen/Blatt-1.pdf')).toBe(true);
+    const file = await svc.readImage(links[0].id, 'Englisch Reisen', 'Blatt-1.pdf');
+    expect(file).toMatchObject({ type: 'application/pdf' });
+    // Für Export und Arbeitsblätter bleibt es bei Bildern.
+    expect(await svc.readImageByUrl(up.url)).toBeNull();
+  });
+
+  it('größer als 50 MB, .json und versteckte Dateien gehen nicht', async () => {
+    const { svc, links } = setup(null);
+    await svc.connect(user, { shareUrl: `${CLOUD}/s/EigenTok`, password: 'pw' }, APP);
+    await expect(svc.uploadAttachment(user, 't1', { ...pdf, size: 50 * 1024 * 1024 + 1 })).rejects.toThrow(/50 MB/);
+    await expect(svc.uploadAttachment(user, 't1', { ...pdf, originalname: 'daten.json' })).rejects.toThrow(/\.json/);
+    cloud.files.set('EigenTok/public.php/webdav/Bilder/Englisch Reisen/daten.json', Buffer.from('{}'));
+    expect(await svc.readImage(links[0].id, 'Englisch Reisen', 'daten.json')).toBeNull();
+    expect(await svc.readImage(links[0].id, 'Englisch Reisen', OWNER_FILE)).toBeNull();
   });
 });
 

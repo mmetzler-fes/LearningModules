@@ -462,7 +462,7 @@ const TYPE_NAMES: Record<string, string> = {
   markTheWords: 'Mark the Words', flashcards: 'Karteikarten', dictation: 'Diktat', arithmeticQuiz: 'Rechenquiz',
   branchingScenario: 'Verzweigung', video: 'Video', audioRecorder: 'Audio-Aufnahme', accordion: 'Akkordeon',
   collage: 'Collage', coursePresentation: 'Präsentation', dialogCards: 'Dialogkarten', imageHotspots: 'Bild-Hotspots',
-  iframeEmbedder: 'Eingebettete Seite', memory: 'Memory',
+  iframeEmbedder: 'Eingebettete Seite', attachment: 'Anhang', memory: 'Memory',
 };
 
 export function exportMoodleXml(category: string, modules: ExportModule[]): MoodleExportResult {

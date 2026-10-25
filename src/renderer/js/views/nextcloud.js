@@ -42,6 +42,18 @@ export async function uploadImageToNextcloud(app, file) {
   return false;
 }
 
+/**
+ * Anhang in die Nextcloud hochladen. Ergebnis: `{ url, name, size, type }`;
+ * null ohne verbundene Nextcloud, false bei einem Fehler (mit Meldung).
+ */
+export async function uploadAttachmentToNextcloud(app, file) {
+  if (!nextcloudState.ready) return null;
+  const res = await app.api.uploadNextcloudAttachment(file, currentTopicId(app));
+  if (res?.success && res.url) return { url: res.url, name: res.name, size: res.size, type: res.type };
+  app.showToast(`❌ ${file.name} nicht gespeichert: ${res?.message || 'Die Nextcloud ist nicht erreichbar.'}`, 'error');
+  return false;
+}
+
 // ---------- Bild aus der Nextcloud wählen ----------
 
 /** Auswahl aus den Ordnern unter Bilder/; Ergebnis: Lese-URL oder null. */

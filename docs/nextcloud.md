@@ -7,6 +7,10 @@ eigenen Ordner. Im Modul steht nur noch der Link; Schülerinnen und Schüler
 laden das Bild direkt aus deiner Nextcloud. Dazu kann die App deine Inhalte
 täglich in die Nextcloud sichern.
 
+Auch die Dateien des Moduls [📎 Anhang](anhang.md) liegen dort, neben den
+Bildern im Ordner des Lernthemas – ohne verbundene Nextcloud gibt es keine
+Anhänge.
+
 ## Einrichten
 
 Im Home-Menü (🏠 LernModule) → **☁️ Nextcloud**. Die App bekommt **nie ein

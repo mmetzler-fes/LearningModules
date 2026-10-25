@@ -218,6 +218,10 @@ dieses Thema. Wie geprüft wird, steht unter
 wird dort zum Book. Tags kommen über ihren Namen an, wenn es im Konto schon
 einen gleichnamigen Tag gibt.
 
+**🟪 OneNote übernehmen** holt ein exportiertes OneNote-Notizbuch (`.onepkg`)
+oder einzelne Abschnitte (`.one`) als neues Book – je Seite mit Anlagen ein
+Modul 📎 Anhang, siehe [OneNote übernehmen](onenote-import.md).
+
 ## Technik
 
 Struktur in `notebook_nodes` (Book, Bereich, Abschnitt; mit `tagIds`;

@@ -22,7 +22,7 @@ import { HelpView, openHelpPopup } from './views/help-view.js';
 import { NotebooksView } from './views/notebooks.js';
 import { CategoriesAdminView } from './views/categories-admin.js';
 import { FederationAdminView } from './views/federation-admin.js';
-import { nextcloudState, uploadImageToNextcloud, pickNextcloudImage } from './views/nextcloud.js';
+import { nextcloudState, uploadImageToNextcloud, uploadAttachmentToNextcloud, pickNextcloudImage } from './views/nextcloud.js';
 import { storeImage } from './views/image-store.js';
 import { initFolding } from './fold.js';
 import { contentFromPairs, pairsFromContent } from './dnd-pairs.js';
@@ -558,10 +558,12 @@ window.appNavigate = (v) => app.navigateToView(v);
 window.appConfirm = (m) => app.appConfirm(m);
 // Drag and Drop als Paare (dnd-pairs.js) für den Editor in content-editors.js
 window.dndPairs = { contentFromPairs, pairsFromContent };
-// Nextcloud für Bilder (views/nextcloud.js): ready, upload(file) → URL | null | false, pick() → URL | null
+// Nextcloud für Bilder (views/nextcloud.js): ready, upload(file) → URL | null | false, pick() → URL | null,
+// uploadAttachment(file) → { url, name, size, type } | null | false
 window.appNextcloud = {
   get ready() { return nextcloudState.ready; },
   upload: (file) => uploadImageToNextcloud(app, file),
+  uploadAttachment: (file) => uploadAttachmentToNextcloud(app, file),
   pick: () => pickNextcloudImage(app),
 };
 // Jedes Bild für ein Modul (views/image-store.js): Nextcloud oder – verkleinert,

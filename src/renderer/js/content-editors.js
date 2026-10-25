@@ -7,6 +7,13 @@ function escapeHtml(str) {
     .replace(/'/g, '&#039;');
 }
 
+/** Dateigröße lesbar: 830 KB, 4,2 MB. */
+function formatBytes(bytes) {
+  const n = Number(bytes) || 0;
+  if (n < 1024 * 1024) return `${Math.max(1, Math.round(n / 1024))} KB`;
+  return `${(n / (1024 * 1024)).toFixed(1).replace('.', ',')} MB`;
+}
+
 function escapeHtmlPreservingText(text) {
   return escapeHtml(String(text || '')).replace(/\n/g, '<br>');
 }
@@ -394,6 +401,9 @@ class ContentEditorManager {
       case 'uploadTest':
         this.renderUploadTestField(parent);
         break;
+      case 'attachments':
+        this.renderAttachmentsField(parent, field, value);
+        break;
       case 'crosswordLayout':
         this.renderCrosswordLayoutField(parent, field, value);
         break;
@@ -457,6 +467,78 @@ class ContentEditorManager {
     };
     this.container.addEventListener('input', onChange);
     this.container.addEventListener('click', onChange);
+    draw();
+  }
+
+  /**
+   * Anhang: Dateien hochladen (gleich in die Nextcloud, in den Ordner des
+   * Themas), sortieren, entfernen. Gespeichert wird je Datei
+   * `{ url, name, size, type }`; die Datei selbst bleibt in der Nextcloud.
+   */
+  renderAttachmentsField(parent, field, value) {
+    const group = this.createFormGroup(field.label, field.required);
+    const hidden = document.createElement('input');
+    hidden.type = 'hidden';
+    hidden.name = `content_${field.key}`;
+    let files = Array.isArray(value) ? value.filter((f) => f && f.url) : [];
+    const box = document.createElement('div');
+    box.className = 'attachment-editor';
+    const ready = !!(window.appNextcloud && window.appNextcloud.ready);
+    box.innerHTML = `
+      <ul class="attachment-editor-list"></ul>
+      <div class="attachment-editor-bar">
+        <input type="file" multiple hidden>
+        <button type="button" class="btn btn-secondary btn-sm" ${ready ? '' : 'disabled'}>📎 Dateien hinzufügen</button>
+        <span class="hint attachment-editor-status">${ready
+          ? 'Je Datei bis 50 MB – sie landen in deiner Nextcloud im Ordner des Lernthemas.'
+          : 'Anhänge brauchen eine verbundene Nextcloud: im Home-Menü unter ☁️ Nextcloud eine Freigabe eintragen.'}</span>
+      </div>`;
+    group.append(hidden, box);
+    parent.appendChild(group);
+
+    const list = box.querySelector('ul');
+    const input = box.querySelector('input[type=file]');
+    const status = box.querySelector('.attachment-editor-status');
+    const draw = () => {
+      hidden.value = JSON.stringify(files);
+      list.innerHTML = files.length ? files.map((f, i) => `
+        <li>
+          <a href="${escapeHtml(f.url)}" target="_blank" rel="noopener noreferrer">📄 ${escapeHtml(f.name)}</a>
+          <span class="hint">${formatBytes(f.size)}</span>
+          <span class="attachment-editor-actions">
+            <button type="button" class="btn btn-secondary btn-sm" data-move="-1" data-i="${i}" ${i ? '' : 'disabled'} title="Nach oben">↑</button>
+            <button type="button" class="btn btn-secondary btn-sm" data-move="1" data-i="${i}" ${i < files.length - 1 ? '' : 'disabled'} title="Nach unten">↓</button>
+            <button type="button" class="btn btn-danger btn-sm" data-remove="${i}" title="Aus dem Modul entfernen (in der Nextcloud bleibt die Datei)">✕</button>
+          </span>
+        </li>`).join('') : '<li class="hint">Noch keine Datei.</li>';
+    };
+    list.addEventListener('click', (e) => {
+      const btn = e.target.closest('button');
+      if (!btn) return;
+      if (btn.dataset.remove !== undefined) files.splice(Number(btn.dataset.remove), 1);
+      if (btn.dataset.move) {
+        const i = Number(btn.dataset.i);
+        const j = i + Number(btn.dataset.move);
+        [files[i], files[j]] = [files[j], files[i]];
+      }
+      draw();
+    });
+    box.querySelector('.attachment-editor-bar button').addEventListener('click', () => input.click());
+    input.addEventListener('change', async () => {
+      const chosen = [...input.files];
+      input.value = '';
+      for (const [n, file] of chosen.entries()) {
+        if (file.size > 50 * 1024 * 1024) {
+          status.textContent = `${file.name} ist größer als 50 MB und wurde nicht hochgeladen.`;
+          continue;
+        }
+        status.textContent = `Lädt hoch (${n + 1} von ${chosen.length}): ${file.name} …`;
+        const res = await window.appNextcloud.uploadAttachment(file);
+        if (res) files.push(res);
+        draw();
+      }
+      status.textContent = 'Je Datei bis 50 MB – sie landen in deiner Nextcloud im Ordner des Lernthemas.';
+    });
     draw();
   }
 
@@ -1186,6 +1268,10 @@ class ContentEditorManager {
       case 'checkbox': {
         const el = this.container.querySelector(`[name="content_${field.key}"]`);
         return el ? el.checked : !!field.default;
+      }
+      case 'attachments': {
+        const el = this.container.querySelector(`[name="content_${field.key}"]`);
+        try { return el && el.value ? JSON.parse(el.value) : []; } catch (_) { return []; }
       }
       case 'docspec': {
         // Der Editor hält den letzten lesbaren Stand als JSON bereit.

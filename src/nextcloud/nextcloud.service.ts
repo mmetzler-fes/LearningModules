@@ -20,6 +20,27 @@ export const IMAGE_TYPES: Record<string, string> = {
 };
 const IMAGE_EXT = /\.(png|jpe?g|gif|webp|svg)$/i;
 export const MAX_IMAGE_BYTES = 15 * 1024 * 1024;
+/**
+ * Anhänge (Modultyp „Anhang“) liegen neben den Bildern im Ordner des Themas –
+ * so ziehen Umzug, Übergabe und frühere Freigaben sie mit. Jede Datei mit
+ * Endung; was kein Bild ist, liefert der Server nur zum Herunterladen aus
+ * (PDF auch zum Öffnen im Browser, siehe NextcloudFilesController). Nie
+ * ausgeliefert: versteckte Dateien (.lm-ablage.json) und Daten der App
+ * (.json, .lmenc) – die dürfen in derselben Freigabe liegen.
+ */
+const STORED_EXT = /^(?!\.).*\.(?!(?:json|lmenc)$)[a-z0-9]{1,10}$/i;
+export const MAX_ATTACHMENT_BYTES = 50 * 1024 * 1024;
+/** Inhaltstyp der Anhänge nach Endung; Unbekanntes als Binärdatei. */
+const ATTACHMENT_TYPES: Record<string, string> = {
+  pdf: 'application/pdf', txt: 'text/plain', csv: 'text/csv', zip: 'application/zip',
+  odt: 'application/vnd.oasis.opendocument.text', ods: 'application/vnd.oasis.opendocument.spreadsheet',
+  odp: 'application/vnd.oasis.opendocument.presentation', odg: 'application/vnd.oasis.opendocument.graphics',
+  doc: 'application/msword', xls: 'application/vnd.ms-excel', ppt: 'application/vnd.ms-powerpoint',
+  docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  mp3: 'audio/mpeg', mp4: 'video/mp4',
+};
 const IMAGES = 'Bilder';
 /** So lange dient eine frühere Freigabe als Quelle für fehlende Bilder. */
 const PREVIOUS_SHARE_DAYS = 180;
@@ -109,6 +130,15 @@ const MB = 1024 * 1024;
 export function imageFileName(original: string, mime: string): string {
   const ext = IMAGE_TYPES[mime] || 'png';
   const stem = safeFileName(String(original || 'bild').replace(/\.[^.]*$/, '')) || 'bild';
+  return `${stem}.${ext}`;
+}
+
+/** Dateiname eines Anhangs: Name wie hochgeladen, Endung klein; ohne Endung `.bin`. */
+export function attachmentFileName(original: string): string {
+  const raw = String(original || '').trim();
+  const m = /\.([A-Za-z0-9]{1,10})$/.exec(raw);
+  const ext = m ? m[1].toLowerCase() : 'bin';
+  const stem = safeFileName(m ? raw.slice(0, -m[0].length) : raw).replace(/^\.+/, '') || 'anhang';
   return `${stem}.${ext}`;
 }
 
@@ -596,18 +626,22 @@ export class NextcloudService implements OnApplicationBootstrap {
    * haben keine). Nur Bilder unter Bilder/<Ordner>/; null, wenn es das nicht gibt.
    */
   async readImage(linkId: string, sub: string, name: string, school = false): Promise<{ type: string; data: Buffer } | null> {
-    return this.readRef({ kind: school ? 'school' : 'files', linkId, sub, name });
+    // Der frühere Ordner des Admin-Backups enthält nur Bilder – Anhänge gibt es dort nicht.
+    return this.readRef({ kind: school ? 'school' : 'files', linkId, sub, name }, !school);
   }
 
   /** Bild in der Nextcloud einer Schule: Bilder/<Ordner>/<Thema>/<Datei>. */
   async readSchoolImage(sncId: string, folder: string, sub: string, name: string) {
-    return this.readRef({ kind: 'sch', sncId, folder, sub, name });
+    return this.readRef({ kind: 'sch', sncId, folder, sub, name }, true);
   }
 
-  /** Bild zu einem zerlegten Link lesen – null, wenn es (dort) nicht zu haben ist. */
-  private async readRef(ref: ImageRef): Promise<{ type: string; data: Buffer } | null> {
+  /**
+   * Bild zu einem zerlegten Link lesen – null, wenn es (dort) nicht zu haben
+   * ist. `anyFile`: auch Anhänge (für den öffentlichen Abruf), sonst nur Bilder.
+   */
+  private async readRef(ref: ImageRef, anyFile = false): Promise<{ type: string; data: Buffer } | null> {
     const { sub, name } = ref;
-    if (!safePart(sub) || !safePart(name) || !IMAGE_EXT.test(name)) return null;
+    if (!safePart(sub) || !safePart(name) || !(anyFile ? STORED_EXT : IMAGE_EXT).test(name)) return null;
     let nc: ShareClient | null = null;
     let root: string[] = [];
     let row: SharedRow | null = null;
@@ -634,6 +668,9 @@ export class NextcloudService implements OnApplicationBootstrap {
     // Fehlt es in der jetzigen Freigabe, liegt es vielleicht noch in einer früheren.
     if (!file && row) file = await this.fromPrevious(row, root, sub, name);
     if (!file) return null;
+    if (!IMAGE_EXT.test(name)) {
+      return { type: ATTACHMENT_TYPES[name.split('.').pop()!.toLowerCase()] || 'application/octet-stream', data: file.data };
+    }
     const ext = name.split('.').pop()!.toLowerCase().replace('jpg', 'jpeg');
     const type = IMAGE_TYPES[file.type.split(';')[0].trim()] ? file.type.split(';')[0].trim() : (ext === 'svg' ? 'image/svg+xml' : `image/${ext}`);
     return { type, data: file.data };
@@ -933,7 +970,7 @@ export class NextcloudService implements OnApplicationBootstrap {
           await checkHome(s, ref);
           return null;
         }
-        const file = await this.readRef(ref).catch(() => null);
+        const file = await this.readRef(ref, ref.kind !== 'school').catch(() => null);
         const placed = await this.placeImage(s.nc, s.root, ref.sub, ref.name, file);
         if (!placed) { result.missing++; return null; }
         result[placed.copied ? 'copied' : 'reused']++;
@@ -1055,7 +1092,8 @@ export class NextcloudService implements OnApplicationBootstrap {
     }
     await nc.ensureFolder([...root, sub]);
     const type = file.type.split(';')[0].trim();
-    await nc.put([...root, sub, target], file.data, IMAGE_TYPES[type] ? type : 'application/octet-stream');
+    const known = IMAGE_TYPES[type] || ATTACHMENT_TYPES[target.split('.').pop()!.toLowerCase()] === type;
+    await nc.put([...root, sub, target], file.data, known ? type : 'application/octet-stream');
     return { name: target, copied: true };
   }
 
@@ -1080,7 +1118,7 @@ export class NextcloudService implements OnApplicationBootstrap {
           let tail = '';
           for (;;) {
             const d = { sub: dec(sub), name: dec(name), folder: folder ? dec(folder) : undefined };
-            if (d.sub && d.name && IMAGE_EXT.test(d.name) && (!folder || d.folder)) {
+            if (d.sub && d.name && STORED_EXT.test(d.name) && (!folder || d.folder)) {
               const ref: ImageRef = sncId
                 ? { kind: 'sch', sncId: sncId.toLowerCase(), folder: d.folder!, sub: d.sub, name: d.name }
                 : { kind: kind.toLowerCase() as 'files' | 'school', linkId: linkId.toLowerCase(), sub: d.sub, name: d.name };
@@ -1226,7 +1264,7 @@ export class NextcloudService implements OnApplicationBootstrap {
           for (let tail = ''; name; tail = name.slice(-1) + tail, name = name.slice(0, -1)) {
             try {
               const file = decodeURIComponent(name);
-              if (IMAGE_EXT.test(file)) { const url = fn(decodeURIComponent(sub), file); return url ? url + tail : m; }
+              if (STORED_EXT.test(file)) { const url = fn(decodeURIComponent(sub), file); return url ? url + tail : m; }
             } catch { return m; }
             if (!/['")]$/.test(name)) break;
           }
@@ -1466,19 +1504,44 @@ export class NextcloudService implements OnApplicationBootstrap {
     if (!file?.buffer?.length) throw new BadRequestException('Keine Datei empfangen.');
     if (!IMAGE_TYPES[file.mimetype]) throw new BadRequestException('Nur Bilder (PNG, JPEG, GIF, WebP, SVG) lassen sich hochladen.');
     if (file.size > MAX_IMAGE_BYTES) throw new BadRequestException('Das Bild ist größer als 15 MB.');
+    const wanted = imageFileName(opts.name || Buffer.from(file.originalname || '', 'latin1').toString('utf-8'), file.mimetype);
+    return this.place(user, topicId, wanted, file.buffer, file.mimetype, opts);
+  }
+
+  /**
+   * Anhang (Modultyp „Anhang“) in den Ordner des Themas hochladen – jede
+   * Datei bis 50 MB. Ergebnis: Link, Name und Größe für das Modul.
+   */
+  async uploadAttachment(
+    user: any, topicId: string | undefined,
+    file: { originalname: string; mimetype: string; buffer: Buffer; size: number },
+  ) {
+    if (!file?.buffer?.length) throw new BadRequestException('Keine Datei empfangen.');
+    if (file.size > MAX_ATTACHMENT_BYTES) throw new BadRequestException('Die Datei ist größer als 50 MB.');
+    const wanted = attachmentFileName(Buffer.from(file.originalname || '', 'latin1').toString('utf-8'));
+    if (!STORED_EXT.test(wanted)) throw new BadRequestException('Dateien vom Typ .json oder .lmenc lassen sich nicht anhängen – bitte als .zip packen.');
+    const type = ATTACHMENT_TYPES[wanted.split('.').pop()!] || 'application/octet-stream';
+    const res = await this.place(user, topicId, wanted, file.buffer, type);
+    return { ...res, size: file.size, type };
+  }
+
+  /** Datei in Bilder/<Ordner>/ ablegen, ohne Gleichnamiges zu überschreiben (außer `replace`). */
+  private async place(
+    user: any, topicId: string | undefined, wanted: string, data: Buffer, type: string,
+    opts: { folder?: string; replace?: boolean } = {},
+  ) {
     const { nc, root, url } = await this.effective(user.userId);
     const sub = opts.folder ? safeFolderName(opts.folder) : await this.topicFolder(topicId);
     await nc.ensureFolder([...root, sub]);
-    const wanted = imageFileName(opts.name || Buffer.from(file.originalname || '', 'latin1').toString('utf-8'), file.mimetype);
     let name = wanted;
     // Gleicher Name schon da: -2, -3 … anhängen statt überschreiben – ein
-    // anderes Modul könnte das alte Bild noch zeigen. Beim Erzeugen für einen
+    // anderes Modul könnte die alte Datei noch zeigen. Beim Erzeugen für einen
     // KI-Prompt ersetzt eine neue Fassung die alte (noch nicht verwendet).
     for (let n = 2; !opts.replace && await nc.exists([...root, sub, name]); n++) {
       if (n > 99) throw new BadRequestException('Zu viele Dateien mit diesem Namen.');
       name = wanted.replace(/(\.[^.]+)$/, `-${n}$1`);
     }
-    await nc.put([...root, sub, name], file.buffer, file.mimetype);
+    await nc.put([...root, sub, name], data, type);
     return { success: true, url: url(sub, name), name, folder: sub };
   }
 

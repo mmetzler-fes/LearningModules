@@ -1,5 +1,6 @@
-import { escapeHtml, showImportReport } from '../utils.js';
+import { escapeHtml, showImportReport, generateId } from '../utils.js';
 import { extractJson, looksLikeXml, summarizeImport } from '../json-text.js';
+import { DOCUMENT_EXTS, isDocumentFile, fileToSpec, askConvertOptions, pdfConvertOptions } from './attachment-convert.js';
 
 /**
  * Ein Dialog für jeden Import: Datei wählen bzw. hineinziehen oder Text mit
@@ -15,11 +16,18 @@ import { extractJson, looksLikeXml, summarizeImport } from '../json-text.js';
  *                   Notebook-ZIP: { ext: 'zip', label, run(file) → Promise<bool> }
  * @param onDone     nach erfolgreichem Import mit der Antwort des Servers
  *                   (topicId, topicTitle, importedCount …)
+ *
+ * Mit freigeschalteten Dokumenten nimmt der Dialog auch Writer- und
+ * Word-Dateien (.odt, .docx, .doc, .rtf) und – mit PDF-Import – PDFs an,
+ * auch mehrere auf einmal: Jede wird ein Modul „Dokument“.
  */
 export function openImportDialog(app, { topicId = null, h5p = false, extraFile = null, onDone } = {}) {
   const typeNames = Object.fromEntries(Object.values(typeof H5P_TYPES !== 'undefined' ? H5P_TYPES : {})
     .map((t) => [t.id, `${t.icon || ''} ${t.name}`.trim()]));
-  const exts = ['json', 'xml', 'lmenc', ...(h5p && !topicId ? ['h5p'] : []), ...(extraFile ? [extraFile.ext] : [])];
+  // Writer, Word (und PDF) als Dokument – nur mit freigeschalteten Dokumenten.
+  const docsOn = (app.state.currentUser?.features || []).includes('worksheets');
+  let pdfOn = false;
+  const exts = ['json', 'xml', 'lmenc', ...(h5p && !topicId ? ['h5p'] : []), ...(extraFile ? [extraFile.ext] : []), ...(docsOn ? DOCUMENT_EXTS : [])];
   const overlay = document.createElement('div');
   overlay.className = 'confirm-overlay';
   overlay.innerHTML = `
@@ -55,6 +63,17 @@ export function openImportDialog(app, { topicId = null, h5p = false, extraFile =
   const list = (items) => `<ul>${items.map((i) => `<li>${escapeHtml(i)}</li>`).join('')}</ul>`;
   let valid = false;
   let file = null; // gewählte Datei; dann zählt sie statt des Textfelds
+  let docFiles = []; // Writer-, Word- und PDF-Dateien – je eine wird ein Dokument
+  const extsHint = overlay.querySelector('.import-dialog-file .hint');
+  const showExts = () => { extsHint.textContent = `oder hierher ziehen – ${exts.map((e) => `.${e}`).join(', ')}${docsOn ? ' (Writer, Word' + (pdfOn ? ', PDF' : '') + ' auch mehrere: je eine wird ein Dokument)' : ''}`; };
+  if (docsOn) {
+    pdfConvertOptions().then((o) => {
+      pdfOn = o.allowed && o.choices.some((c) => c.ok);
+      if (pdfOn && !exts.includes('pdf')) exts.push('pdf');
+      showExts();
+    });
+    showExts();
+  }
   let fileText = null; // Inhalt einer JSON-/XML-Datei für die Prüfung
 
   const show = (kind, html) => {
@@ -93,7 +112,14 @@ export function openImportDialog(app, { topicId = null, h5p = false, extraFile =
   const extOf = (f) => (/\.([a-z0-9]+)$/i.exec(f.name)?.[1] || '').toLowerCase();
 
   const check = () => {
-    if (file) {
+    if (docFiles.length) {
+      const pdfs = docFiles.filter((f) => /\.pdf$/i.test(f.name)).length;
+      show('ok', `📄 ${docFiles.length === 1 ? escapeHtml(docFiles[0].name) : `${docFiles.length} Dateien`} – ${docFiles.length === 1 ? 'wird ein Modul' : 'werden je ein Modul'} „Dokument“`
+        + `${topicId ? ' in diesem Thema' : ' in einem neuen Lernthema'}.`
+        + (pdfs ? ' Für PDFs wird gleich nach der Art der Umwandlung gefragt.' : '')
+        + (docFiles.some((f) => /\.(docx|doc|rtf)$/i.test(f.name)) ? ' Word-Dateien wandelt LibreOffice um – das dauert je Datei einige Sekunden.' : ''));
+      valid = true;
+    } else if (file) {
       const ext = extOf(file);
       if (fileText !== null) valid = checkText(fileText);
       else if (ext === 'lmenc') { show('ok', '🔒 Verschlüsselter Export – wird beim Import entschlüsselt.'); valid = true; }
@@ -106,7 +132,30 @@ export function openImportDialog(app, { topicId = null, h5p = false, extraFile =
     btnImport.disabled = !valid;
   };
 
+  /** Mehrere Dateien: nur Writer, Word und PDF – je eine wird ein Dokument. */
+  const setFiles = async (list) => {
+    const all = [...(list || [])];
+    if (docsOn && all.length && all.every((f) => isDocumentFile(f, pdfOn))) {
+      docFiles = all;
+      file = null;
+      fileText = null;
+      chip.hidden = false;
+      chip.querySelector('.import-dialog-chip-name').textContent = all.length === 1 ? `📄 ${all[0].name}` : `📄 ${all.length} Dateien`;
+      input.value = '';
+      check();
+      return;
+    }
+    if (all.length > 1) {
+      docFiles = [];
+      show('error', `❌ Mehrere Dateien auf einmal gehen nur bei Writer-, Word-${pdfOn ? ' und PDF-' : ''}Dateien (je eine wird ein Dokument).`);
+      btnImport.disabled = true;
+      return;
+    }
+    await setFile(all[0] || null);
+  };
+
   const setFile = async (f) => {
+    docFiles = [];
     file = f;
     fileText = null;
     chip.hidden = !f;
@@ -124,7 +173,8 @@ export function openImportDialog(app, { topicId = null, h5p = false, extraFile =
     const picker = document.createElement('input');
     picker.type = 'file';
     picker.accept = exts.map((e) => `.${e}`).join(',');
-    picker.onchange = () => { if (picker.files[0]) setFile(picker.files[0]); };
+    picker.multiple = docsOn;
+    picker.onchange = () => { if (picker.files.length) setFiles(picker.files); };
     picker.click();
   });
   chip.querySelector('.import-dialog-chip-x').addEventListener('click', () => { setFile(null); input.focus(); });
@@ -133,14 +183,13 @@ export function openImportDialog(app, { topicId = null, h5p = false, extraFile =
   card.addEventListener('drop', (e) => {
     e.preventDefault();
     card.classList.remove('is-dragover');
-    const f = e.dataTransfer?.files?.[0];
-    if (f) setFile(f);
+    if (e.dataTransfer?.files?.length) setFiles(e.dataTransfer.files);
   });
 
   // Wer tippt oder einfügt, meint den Text – eine gewählte Datei tritt zurück.
   let timer = null;
   input.addEventListener('input', () => {
-    if (file) { file = null; fileText = null; chip.hidden = true; }
+    if (file || docFiles.length) { file = null; docFiles = []; fileText = null; chip.hidden = true; }
     clearTimeout(timer);
     timer = setTimeout(check, 250);
   });
@@ -176,6 +225,19 @@ export function openImportDialog(app, { topicId = null, h5p = false, extraFile =
     if (!valid) return;
     btnImport.disabled = true;
     btnImport.textContent = '⏳ Importiere …';
+    if (docFiles.length) {
+      const data = await importDocuments().catch((err) => {
+        if (err.message === 'abgebrochen') check();
+        else show('error', `❌ Import fehlgeschlagen: ${escapeHtml(err.message)}`);
+        return null;
+      });
+      if (!data) { btnImport.disabled = false; btnImport.textContent = '✅ Importieren'; return; }
+      close();
+      app.showToast(`${data.importedCount} Dokument${data.importedCount === 1 ? '' : 'e'} angelegt${data.failed.length ? ` – nicht übernommen: ${data.failed.join(' · ')}` : ''}.`, data.failed.length ? 'error' : 'success');
+      if (data.warnings.length) showImportReport({ notes: data.warnings }, '📋 Dokumente übernommen');
+      if (onDone) await onDone(data);
+      return;
+    }
     try {
       const ext = file ? extOf(file) : '';
       if (file && extraFile && ext === extraFile.ext) {
@@ -209,6 +271,51 @@ export function openImportDialog(app, { topicId = null, h5p = false, extraFile =
       show('error', `❌ Import fehlgeschlagen: ${escapeHtml(err.message)}`);
     }
   });
+
+  /**
+   * Je Datei ein Dokument – ins Thema oder in ein neues Lernthema (benannt
+   * nach der ersten Datei). Antwort wie beim Import: { topicId, topicTitle,
+   * importedCount }, dazu failed und warnings.
+   */
+  async function importDocuments() {
+    let pdf = null;
+    if (docFiles.some((f) => /\.pdf$/i.test(f.name))) {
+      pdf = await askConvertOptions({
+        count: docFiles.length, keepOption: false, heading: '📄 PDFs übernehmen',
+        intro: 'Wie sollen die PDFs zu Dokumenten werden?',
+      });
+      if (!pdf) throw new Error('abgebrochen');
+    }
+    let target = topicId;
+    let topicTitle = null;
+    if (!target) {
+      topicTitle = docFiles.length === 1 ? docFiles[0].name.replace(/\.[^.]+$/, '') : 'Dokumente';
+      const topic = await app.api.saveTopic({ title: topicTitle, description: '' });
+      if (!topic?.id) throw new Error(topic?.message || 'Lernthema konnte nicht angelegt werden.');
+      target = topic.id;
+    }
+    const failed = [];
+    const warnings = [];
+    let importedCount = 0;
+    for (const [n, f] of docFiles.entries()) {
+      show('', `⏳ ${n + 1} von ${docFiles.length}: ${escapeHtml(f.name)} …`);
+      try {
+        const { spec, title, warnings: w } = await fileToSpec(f, { pdf });
+        const now = new Date().toISOString();
+        const res = await app.api.saveModule(target, {
+          id: generateId(), type: 'document', title, description: '',
+          content: { kind: 'arbeitsblatt', spec }, moduleSelected: true, createdAt: now, updatedAt: now,
+        });
+        if (!res?.success) throw new Error(res?.message || 'Speichern fehlgeschlagen');
+        importedCount++;
+        warnings.push(...w.map((x) => `${f.name}: ${x}`));
+      } catch (err) {
+        failed.push(`${f.name}: ${err.message}`);
+      }
+    }
+    if (!importedCount) throw new Error(failed.join(' · ') || 'Keine Datei übernommen.');
+    return { topicId: target, topicTitle, importedCount, failed, warnings };
+  }
 
   input.focus();
 }

@@ -88,6 +88,20 @@ Im YAML-Modus (und wenn eine KI schreibt) gilt diese Schreibweise:
 Die Zeichen wirken nur am Wortrand: Rechnungen wie `8*7` oder `10^9` bleiben,
 wie sie sind.
 
+### Aus Writer, Word oder PDF
+
+Schneller als anlegen und hineinladen: **📥 Importieren** (Notebook-Ansicht,
+Lernthemen, oder im Lernthema **📥 Module importieren**) nimmt auch
+**.odt, .docx, .doc, .rtf** und – mit Freischaltung „PDF-Import“ – **.pdf**
+an, auch **mehrere Dateien auf einmal** (wählen oder hineinziehen). Jede Datei
+wird ein Modul **📄 Dokument**: im geöffneten Lernthema, sonst in einem neuen
+(benannt nach der Datei bzw. „Dokumente“). Word-Dateien wandelt LibreOffice
+um, PDFs der Renderer bzw. die KI-Erkennung – gefragt wird einmal, wie.
+
+Im Editor geht es weiter wie bisher: **📄 Übernehmen (.odt, .docx)** über dem
+Inhalt ersetzt den Inhalt des geöffneten Dokuments. Ein PDF-**Anhang** lässt
+sich nachträglich umwandeln, siehe [Anhang](anhang.md#in-ein-dokument-umwandeln).
+
 ## Nummern und Kopfzeile
 
 Die Nummer eines Arbeitsblatts ergibt sich aus seinem Platz im

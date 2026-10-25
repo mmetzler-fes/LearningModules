@@ -1,4 +1,5 @@
 import { escapeHtml, generateId } from '../utils.js';
+import { htmlToDocSpec } from '../../lm-editor/src/doc/docspec-html.js';
 
 // ==================== ANHANG → DOKUMENT ====================
 //
@@ -44,7 +45,7 @@ export async function pdfConvertOptions() {
  * Dialog: Art der Umwandlung und ob der Anhang bleibt. Ergebnis
  * `{ mode, ocr, keep }` oder null. `count`: wie viele PDFs es sind.
  */
-export async function askConvertOptions({ count = 1, keepDefault = false } = {}) {
+export async function askConvertOptions({ count = 1, keepDefault = false, keepOption = true, heading = '📄 In Dokument umwandeln', intro = null } = {}) {
   const opts = await pdfConvertOptions();
   if (!opts.allowed) throw new Error('PDFs übernehmen ist für dein Konto nicht freigeschaltet (Administration → Benutzer: „PDF-Import“).');
   if (!opts.choices.some((c) => c.ok)) throw new Error('Für PDFs ist auf diesem Server kein Dienst eingerichtet (Renderer bzw. pdf-ai).');
@@ -52,14 +53,14 @@ export async function askConvertOptions({ count = 1, keepDefault = false } = {})
     const overlay = document.createElement('div');
     overlay.className = 'confirm-overlay';
     overlay.innerHTML = `<div class="import-modules-card ds-pdf-dialog">
-        <h3>📄 In Dokument umwandeln</h3>
-        <p class="hint">${count === 1 ? 'Das PDF wird' : `${count} PDFs werden`} zu Dokumenten – je PDF eins, direkt hinter dem Anhang.</p>
+        <h3>${escapeHtml(heading)}</h3>
+        <p class="hint">${escapeHtml(intro || `${count === 1 ? 'Das PDF wird' : `${count} PDFs werden`} zu Dokumenten – je PDF eins, direkt hinter dem Anhang.`)}</p>
         <div class="ds-pdf-choices">${opts.choices.map((c) => `
           <button type="button" class="btn btn-secondary ds-pdf-choice" data-mode="${c.mode}" ${c.ok ? '' : 'disabled'}>
             <strong>${c.label}</strong><small>${escapeHtml(c.ok ? c.hint : 'Auf diesem Server nicht eingerichtet.')}</small>
           </button>`).join('')}</div>
         ${opts.ocr ? '<label class="ds-pdf-ocr"><input type="checkbox" class="cv-ocr"> Gescannte PDFs – Text erkennen (OCR, nur KI-Erkennung)</label>' : ''}
-        <label class="ds-pdf-ocr"><input type="checkbox" class="cv-keep" ${keepDefault ? 'checked' : ''}> PDF-Anhang zusätzlich behalten</label>
+        ${keepOption ? `<label class="ds-pdf-ocr"><input type="checkbox" class="cv-keep" ${keepDefault ? 'checked' : ''}> PDF-Anhang zusätzlich behalten</label>` : ''}
         <p class="hint">Danach die Dokumente prüfen: Formeln, Karos und Lösungsfelder erkennt die Umwandlung nur ungefähr.</p>
         <div class="confirm-actions"><button type="button" class="btn btn-secondary cv-cancel">Abbrechen</button></div>
       </div>`;
@@ -91,6 +92,34 @@ const rootOrder = (modules, skip = new Set()) => (Array.isArray(modules) ? modul
   .filter((m) => !m.parentId && !skip.has(m.id))
   .sort((a, b) => (a.orderIndex || 0) - (b.orderIndex || 0))
   .map((m) => m.id);
+
+/** Writer, Word und PDF – was der Import als Dokument annimmt. */
+export const DOCUMENT_EXTS = ['odt', 'docx', 'doc', 'rtf'];
+export const isDocumentFile = (f, pdf = true) => {
+  const ext = (/\.([a-z0-9]+)$/i.exec(f?.name || '')?.[1] || '').toLowerCase();
+  return DOCUMENT_EXTS.includes(ext) || (pdf && ext === 'pdf');
+};
+
+/**
+ * Datei → Dokument (spec): .odt direkt, .docx/.doc/.rtf über LibreOffice
+ * (POST /api/interchange/odt-to-html), .pdf über den Renderer bzw. pdf-ai
+ * (`pdf`: { mode, ocr }). Ergebnis: `{ spec, title, warnings }`.
+ */
+export async function fileToSpec(file, { pdf = null } = {}) {
+  const base = file.name.replace(/\.[^.]+$/, '');
+  if (/\.pdf$/i.test(file.name)) {
+    if (!pdf) throw new Error('Für PDFs fehlt die Art der Umwandlung.');
+    const r = await pdfToSpec(file, file.name, pdf);
+    return { spec: r.spec, title: base, warnings: r.warnings };
+  }
+  const form = new FormData();
+  form.append('file', file);
+  const res = await fetch('/api/interchange/odt-to-html', { method: 'POST', headers: { Authorization: `Bearer ${token()}` }, body: form });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || !data.success) throw new Error(data.message || `HTTP ${res.status}`);
+  const { spec, warnings } = htmlToDocSpec(data.html);
+  return { spec, title: data.title || base, warnings: [...(data.warnings || []), ...warnings] };
+}
 
 /**
  * Ein Anhang-Modul umwandeln (Inhalt und Reihenfolge holt es frisch vom

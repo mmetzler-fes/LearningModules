@@ -261,6 +261,14 @@ export class BrowserApi {
     return this._fetch(`/api/work?${q}`);
   }
   getWork(id) { return this._fetch(`/api/work/${encodeURIComponent(id)}`); }
+  /** Klassenarbeiten (Versuche je Schüler), Filter: { classId, linkId }. */
+  listExams(filter = {}) {
+    const q = new URLSearchParams(Object.entries(filter).filter(([, v]) => v));
+    return this._fetch(`/api/exams?${q}`);
+  }
+  setExamReentry(id, allow = true) {
+    return this._fetch(`/api/exams/${encodeURIComponent(id)}/reentry`, { method: 'POST', body: JSON.stringify({ allow }) });
+  }
   deleteWork(id) { return this._fetch(`/api/work/${encodeURIComponent(id)}`, { method: 'DELETE' }); }
   /** Schülerliste einlesen; `dryRun` liefert nur die Vorschau. */
   importClassStudents(classId, students, dryRun) {

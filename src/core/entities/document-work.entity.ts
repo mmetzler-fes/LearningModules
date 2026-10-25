@@ -51,13 +51,6 @@ export class DocumentWork extends BaseEntity {
   @Column({ type: 'varchar', default: 'practice' })
   access: 'practice' | 'exam';
 
-  /**
-   * Klassenarbeit: Ablauf des Schülerausweises, mit dem sie begonnen wurde.
-   * Laden und Speichern nur mit demselben Ausweis – nachträglich geht nichts.
-   */
-  @Column({ type: 'bigint', nullable: true })
-  examSession: number | null;
-
   /** Stand des Stift-Editors: { v, bg, pages, layer, ruler, updatedAt }. */
   @Column('simple-json', { nullable: true })
   data: any;

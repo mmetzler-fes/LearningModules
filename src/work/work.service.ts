@@ -10,6 +10,7 @@ import { ClassesService } from '../classes/classes.service';
 import { readTicket } from '../classes/student-ticket';
 import { isTestStudent } from '../classes/test-student';
 import { newPin, pinMatches, PinGuard } from './pin';
+import { ExamService } from './exam.service';
 
 /** Größer wird ein Stand mit Strichen kaum; Bilder als Hintergrund speichert der Server nicht. */
 export const MAX_WORK_BYTES = 5 * 1024 * 1024;
@@ -27,8 +28,8 @@ export interface WorkAccess {
  * - nur über einen Klassenlink mit gültigem Schülerausweis,
  * - die PIN schützt das Weiterbearbeiten; angezeigt wird sie einmal, beim
  *   ersten Speichern überhaupt, danach fragt jeder Link nach ihr,
- * - Klassenarbeit: nur mit dem Ausweis, mit dem sie begonnen wurde – keine
- *   PIN, kein nachträgliches Öffnen.
+ * - Klassenarbeit: nur die laufende Anmeldung vor der Abgabe, ohne PIN;
+ *   einen Wiedereinstieg gibt die Lehrkraft frei (ExamService).
  */
 @Injectable()
 export class WorkService {
@@ -40,6 +41,7 @@ export class WorkService {
     @InjectRepository(User) private readonly userRepo: Repository<User>,
     private readonly links: LinksService,
     private readonly classes: ClassesService,
+    private readonly exams: ExamService,
   ) {}
 
   /** Link, Ausweis, Schüler und Dokument prüfen. */
@@ -76,6 +78,14 @@ export class WorkService {
     this.guard.passed(student.id);
   }
 
+  /** Klassenarbeit: nur die laufende Anmeldung, vor der Abgabe (Wiedereinstieg gibt die Lehrkraft frei). */
+  private async assertExamOpen(a: { access: LinkAccess; link: { id: string }; ticket: { s: string; e: number } }) {
+    if (a.access !== 'exam' || isTestStudent(a.ticket.s)) return;
+    if (!(await this.exams.isOpen(a.link.id, a.ticket.s, a.ticket.e))) {
+      throw new ForbiddenException('Diese Klassenarbeit ist abgegeben oder an einem anderen Gerät geöffnet – weiter geht es nur, wenn die Lehrkraft den Wiedereinstieg freigibt.');
+    }
+  }
+
   private find(linkId: string, studentId: string, moduleId: string) {
     return this.workRepo.findOne({ where: { linkId, studentId, moduleId } });
   }
@@ -84,11 +94,9 @@ export class WorkService {
   async load(body: WorkAccess) {
     const a = await this.access(body);
     this.checkPin(a.student, a.access, body.pin);
+    await this.assertExamOpen(a);
     const work = await this.find(a.link.id, a.ticket.s, a.mod.id);
     if (!work) return { data: null };
-    if (a.access === 'exam' && Number(work.examSession) !== a.ticket.e) {
-      throw new ForbiddenException('Diese Klassenarbeit ist abgegeben – nachträglich lässt sie sich nicht mehr öffnen.');
-    }
     return { data: work.data, updatedAt: work.updatedAt };
   }
 
@@ -104,15 +112,12 @@ export class WorkService {
     const bytes = Buffer.byteLength(JSON.stringify(data));
     if (bytes > MAX_WORK_BYTES) throw new PayloadTooLargeException('Die Bearbeitung ist zu groß (mehr als 5 MB).');
 
+    await this.assertExamOpen(a);
     let work = await this.find(a.link.id, a.ticket.s, a.mod.id);
-    if (work && a.access === 'exam' && Number(work.examSession) !== a.ticket.e) {
-      throw new ForbiddenException('Diese Klassenarbeit ist abgegeben – nachträglich lässt sie sich nicht mehr ändern.');
-    }
     if (!work) {
       work = this.workRepo.create({
         id: crypto.randomUUID(), teacherId: a.link.ownerId, linkId: a.link.id, linkName: a.link.name || '',
         studentId: a.ticket.s, classId: a.klasse.id, moduleId: a.mod.id, access: a.access,
-        examSession: a.access === 'exam' ? a.ticket.e : null,
       });
     }
     Object.assign(work, {

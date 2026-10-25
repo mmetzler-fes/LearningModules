@@ -6,6 +6,38 @@ import { planRun } from '../../lm-editor/src/doc/doc-quiz.js';
 
 // ==================== QUIZ VIEW ====================
 
+/**
+ * Schlüssel eines Schritts für den Zwischenstand der Klassenarbeit: das Modul,
+ * bei zerlegtem Wahr/Falsch dazu die Frage (sie kann gemischt sein).
+ */
+function stepKey(m) {
+  let content = m.type === 'trueFalse' ? m.content : null;
+  if (typeof content === 'string') { try { content = JSON.parse(content); } catch (_) { content = null; } }
+  const q = content?.questions?.length === 1 ? content.questions[0].question : null;
+  return q == null ? String(m.id) : `${m.id}|${q}`;
+}
+
+/**
+ * Schritte in die Reihenfolge des Zwischenstands bringen. Passt er nicht mehr
+ * (Lehrkraft hat Aufgaben geändert), null – dann geht es von vorn los.
+ */
+function stepsInSavedOrder(steps, savedKeys) {
+  if (!Array.isArray(savedKeys) || savedKeys.length !== steps.length) return null;
+  const pool = new Map();
+  for (const s of steps) {
+    const k = stepKey(s);
+    if (!pool.has(k)) pool.set(k, []);
+    pool.get(k).push(s);
+  }
+  const out = [];
+  for (const k of savedKeys) {
+    const s = pool.get(k)?.shift();
+    if (!s) return null;
+    out.push(s);
+  }
+  return out;
+}
+
 export class QuizView {
   constructor(app) {
     this.app = app;
@@ -53,6 +85,7 @@ export class QuizView {
         this._taskTimer?.answered(qs.currentIndex);
         qs.answers[qs.currentIndex] = collectAnswer(mod, this._quizModuleContainer);
         this._collectEmbedded();
+        this._saveExamProgress(qs.currentIndex + 1);
         this._goNext();
       });
     }
@@ -165,6 +198,13 @@ export class QuizView {
     }
     const plan = planRun(modules, { companion: data.mode === 'companion', onlyModule });
 
+    let steps = splitTrueFalse(plan.steps);
+    // Wiedereinstieg in eine Klassenarbeit: bis hierher beantwortet, in derselben Reihenfolge.
+    const resume = data.mode === 'exam' && data.examResume ? data.examResume : null;
+    const resumed = resume ? stepsInSavedOrder(steps, resume.steps) : null;
+    if (resume && !resumed) this.app.showToast('Die Aufgaben haben sich geändert – die Klassenarbeit beginnt von vorn.', 'info');
+    if (resumed) steps = resumed;
+
     this.app.state.quizState = {
       // Das Ergebnis hängt am ersten Thema des Links; welche Aufgaben
       // tatsächlich drankamen, steht ohnehin in den Details.
@@ -172,11 +212,11 @@ export class QuizView {
       // Themenname und Linkname getrennt halten – sonst stünde in der
       // Ergebnisliste zweimal dasselbe.
       topicTitle: (data.topics || []).map((t) => t.title).join(', '),
-      modules: splitTrueFalse(plan.steps),
+      modules: steps,
       embedded: plan.embedded,
-      embeddedAnswers: {},
-      currentIndex: 0,
-      answers: [],
+      embeddedAnswers: resumed ? { ...(resume.embeddedAnswers || {}) } : {},
+      currentIndex: resumed ? Math.min(Math.max(0, Number(resume.index) || 0), steps.length - 1) : 0,
+      answers: resumed ? [...resume.answers] : [],
       startTime: Date.now(),
       mode: data.mode,
       linkToken: this.app.state.linkSession?.token || null,
@@ -187,6 +227,29 @@ export class QuizView {
     this._endCompanion();
     if (data.mode === 'companion') this._companion = new CompanionRun(this, data.companion);
     this._enterPlayer(data.linkName);
+    if (resumed) this.app.showToast(`Es geht bei Aufgabe ${this.app.state.quizState.currentIndex + 1} weiter – deine bisherigen Antworten sind gespeichert.`, 'success');
+  }
+
+  /**
+   * Klassenarbeit über einen Klassenlink: Zwischenstand nach jeder Aufgabe
+   * an den Server – gibt die Lehrkraft einen Wiedereinstieg frei, geht es
+   * dort weiter. Ein Fehlschlag hält den Durchlauf nicht auf.
+   */
+  _saveExamProgress(index) {
+    const qs = this.app.state.quizState;
+    const ticket = this.app.state.linkSession?.studentTicket;
+    if (!qs || qs.mode !== 'exam' || !qs.linkToken || !ticket) return;
+    const progress = { steps: qs.modules.map(stepKey), index, answers: qs.answers, embeddedAnswers: qs.embeddedAnswers || {} };
+    fetch('/api/public/exam/progress', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ linkToken: qs.linkToken, studentTicket: ticket, progress }),
+    }).then(async (res) => {
+      if (res.status === 403) {
+        const data = await res.json().catch(() => ({}));
+        this.app.showToast(data.message || 'Die Klassenarbeit wurde an einem anderen Gerät fortgesetzt.', 'error');
+      }
+    }).catch(() => undefined);
   }
 
   async _startQuiz(topic) {

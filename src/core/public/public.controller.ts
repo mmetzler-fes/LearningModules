@@ -25,6 +25,7 @@ import { contentOf, forStudents } from './student-view';
 import * as crypto from 'crypto';
 import { cleanPcName } from './pc-name';
 import { isQuickRule, splitQuickToken } from '../../links/quick-token';
+import { ExamService } from '../../work/exam.service';
 
 const MAX_RECORDING_BYTES = 25 * 1024 * 1024;
 
@@ -46,6 +47,7 @@ export class PublicController {
     private readonly usageService: UsageService,
     private readonly worksheets: WorksheetsService,
     private readonly features: FeaturesService,
+    private readonly exams: ExamService,
   ) {}
 
   /**
@@ -247,7 +249,9 @@ export class PublicController {
       studentName = who.name;
     }
 
-    if (mode === 'exam' && link.singleAttempt) {
+    // Wiedereinstieg, den die Lehrkraft freigegeben hat: trotz früherer Abgabe.
+    const released = mode === 'exam' && (await this.exams.mayStartAgain(link, studentId));
+    if (mode === 'exam' && link.singleAttempt && !released) {
       const previous = await this.resultRepo.count({
         where: studentId ? { linkId: link.id, studentId, mode: 'exam' } : { linkId: link.id, studentName, mode: 'exam' },
       });
@@ -266,13 +270,21 @@ export class PublicController {
       throw new ForbiddenException('Dieser Link enthält derzeit keine Inhalte.');
     }
 
+    // Klassenarbeit über einen Klassenlink: Versuch festhalten (zweiter Start nur nach Freigabe).
+    const ticket = studentId ? issueTicket(link.id, studentId, studentName) : null;
+    const exam = mode === 'exam' && ticket
+      ? await this.exams.begin(link, { id: studentId, name: studentName }, readTicket(ticket, link.id)!.e)
+      : null;
+
     return {
       linkId: link.id,
       linkName: link.name,
       className: klasse?.name ?? null,
       mode,
       studentName,
-      studentTicket: studentId ? issueTicket(link.id, studentId, studentName) : null,
+      studentTicket: ticket,
+      // Wiedereinstieg: bis hierher beantwortet.
+      examResume: exam?.progress || undefined,
       teacherEmail: teacher.email,
       // Lernbegleitung: Kommentare, Joker und Zeitstrafe nach Schule,
       // Lehrkraft und Link.
@@ -446,6 +458,13 @@ export class PublicController {
     const ticket = klasse && link ? readTicket(body.studentTicket, link.id) : null;
     if (klasse?.strict && !ticket) {
       throw new ForbiddenException('Die Anmeldung ist abgelaufen. Bitte den Link neu öffnen und den Namen eingeben.');
+    }
+
+    // Klassenarbeit: nur die laufende Anmeldung gibt ab; nach einem Wiedereinstieg
+    // ersetzt die neue Abgabe die frühere (sie enthält deren Antworten).
+    if (link && linkMode === 'exam' && ticket) {
+      const { replaces } = await this.exams.submit(link, ticket.s, ticket.e);
+      if (replaces) await this.resultRepo.delete({ linkId: link.id, studentId: ticket.s, mode: 'exam' });
     }
 
     const result = this.resultRepo.create({

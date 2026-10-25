@@ -517,9 +517,11 @@ export class ClassesView {
               </tr>`).join('')}
             </tbody>
           </table>`}
+      <div class="class-exams"></div>
       <div class="class-works"></div>`;
 
     const byId = new Map(students.map((s) => [s.id, s]));
+    this._renderExams(klasse);
     this._renderWorks(klasse);
     this._detail.querySelector('.chk-class-strict').addEventListener('change', async (e) => {
       const res = await this.app.api.updateClass(klasse.id, { strict: e.target.checked });
@@ -578,6 +580,51 @@ export class ClassesView {
         const res = await this.app.api.deleteClassStudent(klasse.id, s.id);
         if (failed(res)) { this.app.showToast('Fehler: ' + (res?.message || '?'), 'error'); return; }
         this._renderDetail();
+      });
+    });
+  }
+
+  /**
+   * Klassenarbeiten dieser Klasse: wer begonnen und wer abgegeben hat. Ein
+   * zweiter Start (Browser geschlossen, Gerät gewechselt, nachträglich) geht
+   * nur nach 🔓 Freigabe – dann mit Zwischenstand und Blatt.
+   */
+  async _renderExams(klasse) {
+    const box = this._detail.querySelector('.class-exams');
+    if (!box) return;
+    const exams = await this.app.api.listExams({ classId: klasse.id });
+    if (failed(exams) || !exams.length) { box.innerHTML = ''; return; }
+    const groups = new Map();
+    for (const x of exams) {
+      if (!groups.has(x.linkId)) groups.set(x.linkId, { name: x.linkName, items: [] });
+      groups.get(x.linkId).items.push(x);
+    }
+    const when = (d) => new Date(d).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+    const status = (x) => x.reentryAllowed ? '🔓 Wiedereinstieg freigegeben'
+      : x.submittedAt ? `✅ abgegeben ${when(x.submittedAt)}` : `⏳ läuft seit ${when(x.updatedAt)} · ${x.answered} beantwortet`;
+    box.innerHTML = `<h4>📝 Klassenarbeiten</h4>
+      <p class="hint">Hat ein Schüler den Browser geschlossen oder soll nachträglich weiterschreiben: 🔓 freigeben – beim nächsten Start
+        geht es mit seinen Antworten und seinem Blatt weiter, genau einmal. Ohne Freigabe kommt niemand ein zweites Mal hinein.</p>
+      ${[...groups.values()].map((g) => `
+        <details class="class-work-group" open>
+          <summary><strong>${escapeHtml(g.name || 'Klassenarbeit')}</strong> <span class="hint">${g.items.length} Schüler</span></summary>
+          <ul>${g.items.sort((a, b) => a.studentName.localeCompare(b.studentName, 'de')).map((x) => `
+            <li data-id="${escapeAttr(x.id)}">
+              <span>${escapeHtml(x.studentName)}</span> <span class="hint">${escapeHtml(status(x))}${x.reentries ? ` · ${x.reentries}× wieder eingestiegen` : ''}</span>
+              ${x.reentryAllowed
+                ? '<button class="btn btn-secondary btn-sm btn-exam-reentry" data-allow="false">Freigabe zurücknehmen</button>'
+                : '<button class="btn btn-secondary btn-sm btn-exam-reentry" data-allow="true" title="Der nächste Start über den Link der Klassenarbeit setzt fort">🔓 Wiedereinstieg</button>'}
+            </li>`).join('')}</ul>
+        </details>`).join('')}`;
+    box.querySelectorAll('.btn-exam-reentry').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const x = exams.find((e) => e.id === btn.closest('li').dataset.id);
+        const allow = btn.dataset.allow === 'true';
+        if (allow && x.submittedAt && !(await this.app.appConfirm(`„${x.studentName}“ hat schon abgegeben. Wiedereinstieg trotzdem freigeben? Die neue Abgabe ersetzt die bisherige.`))) return;
+        const res = await this.app.api.setExamReentry(x.id, allow);
+        if (failed(res)) { this.app.showToast('Fehler: ' + (res?.message || '?'), 'error'); return; }
+        this.app.showToast(allow ? `${x.studentName} kann die Klassenarbeit jetzt noch einmal öffnen.` : 'Freigabe zurückgenommen.', 'success');
+        this._renderExams(klasse);
       });
     });
   }

@@ -10,6 +10,7 @@ import { TopicLink } from '../core/entities/topic-link.entity';
 import { ClassShare } from '../core/entities/class-share.entity';
 import { User } from '../core/entities/user.entity';
 import { DocumentWork } from '../core/entities/document-work.entity';
+import { ExamAttempt } from '../core/entities/exam-attempt.entity';
 import { newPin } from '../work/pin';
 import { isSchoolYear, schoolYearOfDate, compareSchoolYearsDesc, splitSchoolYearPrefix, shiftSchoolYear, suggestNextClassName } from './school-year';
 import { planStudentImport, nameKey, ImportRow } from './student-import';
@@ -51,6 +52,7 @@ export class ClassesService implements OnApplicationBootstrap, OnModuleDestroy {
     @InjectRepository(ClassShare) private readonly shareRepo: Repository<ClassShare>,
     @InjectRepository(User) private readonly userRepo: Repository<User>,
     @InjectRepository(DocumentWork) private readonly workRepo: Repository<DocumentWork>,
+    @InjectRepository(ExamAttempt) private readonly attemptRepo: Repository<ExamAttempt>,
   ) {}
 
   /**
@@ -129,6 +131,7 @@ export class ClassesService implements OnApplicationBootstrap, OnModuleDestroy {
       if (ids.length) {
         await this.studentRepo.delete({ classId: In(ids) });
         await this.workRepo.delete({ classId: In(ids) });
+        await this.attemptRepo.delete({ classId: In(ids) });
         await this.linkRepo.delete({ classId: In(ids) });
         await this.shareRepo.delete({ classId: In(ids) });
         await this.classRepo.delete({ id: In(ids) });
@@ -302,6 +305,11 @@ export class ClassesService implements OnApplicationBootstrap, OnModuleDestroy {
       if (taken) await this.workRepo.delete({ id: w.id });
       else await this.workRepo.update({ id: w.id }, { studentId: to.id, studentName: name });
     }
+    for (const x of await this.attemptRepo.find({ where: { studentId: from.id }, select: ['id', 'linkId'] })) {
+      const taken = await this.attemptRepo.count({ where: { studentId: to.id, linkId: x.linkId } });
+      if (taken) await this.attemptRepo.delete({ id: x.id });
+      else await this.attemptRepo.update({ id: x.id }, { studentId: to.id, studentName: name });
+    }
     await this.studentRepo.remove(from);
     return { success: true, moved: moved.affected ?? 0 };
   }
@@ -396,6 +404,7 @@ export class ClassesService implements OnApplicationBootstrap, OnModuleDestroy {
     await this.linkRepo.delete({ classId: id, ownerId: user.userId });
     await this.studentRepo.delete({ classId: id });
     await this.workRepo.delete({ classId: id });
+    await this.attemptRepo.delete({ classId: id });
     await this.shareRepo.delete({ classId: id, status: 'offered' });
     await this.classRepo.remove(klasse);
     return { success: true };
@@ -644,6 +653,7 @@ export class ClassesService implements OnApplicationBootstrap, OnModuleDestroy {
     await this.studentRepo.remove(student);
     // Bearbeitungen sind persönlich – sie gehen mit dem Schüler.
     await this.workRepo.delete({ studentId: student.id });
+    await this.attemptRepo.delete({ studentId: student.id });
     // Ergebnisse bleiben mit ihrem Namen stehen, gehören aber niemandem mehr.
     await this.resultRepo.update({ studentId: student.id }, { studentId: null });
     return { success: true };

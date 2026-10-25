@@ -1,8 +1,9 @@
 import { WorkService } from './work.service';
 import { issueTicket } from '../classes/student-ticket';
+import { ExamService } from './exam.service';
 
-/** Kleine Tabelle im Speicher – genug für find/findOne/create/save/update/remove. */
-function repo(rows: any[] = []) {
+/** Kleine Tabelle im Speicher – genug für find/findOne/create/save/update/remove/delete. */
+export function repo(rows: any[] = []) {
   const match = (r: any, where: any) => Object.entries(where || {}).every(([k, v]) => r[k] === v);
   return {
     rows,
@@ -17,10 +18,11 @@ function repo(rows: any[] = []) {
     },
     update: async (where: any, changes: any) => { rows.filter((r) => match(r, where)).forEach((r) => Object.assign(r, changes)); },
     remove: async (x: any) => { rows.splice(rows.indexOf(x), 1); },
+    delete: async (where: any) => { for (const r of rows.filter((x) => match(x, where))) rows.splice(rows.indexOf(r), 1); },
   };
 }
 
-const LINK = { id: 'l1', ownerId: 't1', name: 'Physik', active: true, classId: 'c1' };
+const LINK = { id: 'l1', ownerId: 't1', name: 'Physik', active: true, classId: 'c1', singleAttempt: true };
 const DOC = { id: 'd1', type: 'document', title: 'Blatt' };
 
 function setup(access: 'practice' | 'exam' = 'practice') {
@@ -32,8 +34,10 @@ function setup(access: 'practice' | 'exam' = 'practice') {
     resolveModules: async () => [{ topic: {}, modules: [DOC, { id: 'q1', type: 'multipleChoice' }] }],
   };
   const classes: any = { findById: async (id: string) => (id === 'c1' ? { id: 'c1', name: '10a' } : null) };
-  const svc = new WorkService(works as any, students as any, users as any, links, classes);
-  return { svc, works, students };
+  const attempts = repo();
+  const exams = new ExamService(attempts as any, links);
+  const svc = new WorkService(works as any, students as any, users as any, links, classes, exams);
+  return { svc, works, students, exams, attempts };
 }
 
 const data = { v: 1, bg: 'paper', pages: [{ items: [] }], layer: { blocks: { b1: { items: [{ id: 'x' }] } } } };
@@ -68,16 +72,45 @@ describe('Bearbeitungen der Schüler', () => {
     await expect(svc.save(body({ data: { v: 2 } }))).rejects.toThrow(/Kein gültiger Stand/);
   });
 
-  it('Klassenarbeit: keine PIN, aber nachträglich weder öffnen noch ändern', async () => {
-    const { svc } = setup('exam');
+  it('Klassenarbeit: keine PIN; zweiter Start nur nach Freigabe, dann mit Blatt und Zwischenstand', async () => {
+    const { svc, exams, attempts } = setup('exam');
     const start = Date.now();
     const ticket = issueTicket('l1', 's1', 'Anna B', start);
+    const e1 = start + 12 * 3600 * 1000;
+    await exams.begin(LINK as any, { id: 's1', name: 'Anna B' }, e1);
     const res = await svc.save(body({ studentTicket: ticket, data }));
     expect(res.pin).toBeUndefined();
-    expect((await svc.load(body({ studentTicket: ticket }))).data).toEqual(data);
+    const progress = { steps: ['m1', 'm2'], index: 1, answers: [{ isCorrect: true }], embeddedAnswers: {} };
+    await exams.saveProgress({ linkToken: 'tok', studentTicket: ticket, progress });
+
+    // Browser zu, Link neu geöffnet: ohne Freigabe kein zweiter Start.
+    const e2 = e1 + 60000;
     const later = issueTicket('l1', 's1', 'Anna B', start + 60000);
-    await expect(svc.load(body({ studentTicket: later }))).rejects.toThrow(/nachträglich/);
-    await expect(svc.save(body({ studentTicket: later, data }))).rejects.toThrow(/nachträglich/);
+    await expect(exams.begin(LINK as any, { id: 's1', name: 'Anna B' }, e2)).rejects.toThrow(/schon begonnen/);
+    await expect(svc.load(body({ studentTicket: later }))).rejects.toThrow(/Wiedereinstieg/);
+
+    // Lehrkraft gibt frei: Fortsetzen mit Zwischenstand, die alte Anmeldung ist abgemeldet.
+    await exams.setReentry({ userId: 't1' }, attempts.rows[0].id, true);
+    expect(await exams.mayStartAgain(LINK as any, 's1')).toBe(true);
+    const again = await exams.begin(LINK as any, { id: 's1', name: 'Anna B' }, e2);
+    expect(again.progress).toMatchObject({ index: 1, steps: ['m1', 'm2'] });
+    expect((await svc.load(body({ studentTicket: later }))).data).toEqual(data);
+    await expect(svc.save(body({ studentTicket: ticket, data }))).rejects.toThrow(/anderen Gerät/);
+    await expect(exams.submit(LINK as any, 's1', e1)).rejects.toThrow(/anderen Gerät/);
+
+    // Abgabe: ersetzt die frühere, danach ist wieder zu.
+    expect(await exams.submit(LINK as any, 's1', e2)).toEqual({ replaces: true });
+    await expect(svc.save(body({ studentTicket: later, data }))).rejects.toThrow(/abgegeben/);
+    await expect(exams.begin(LINK as any, { id: 's1', name: 'Anna B' }, e2 + 1)).rejects.toThrow(/schon abgegeben/);
+  });
+
+  it('Klassenarbeit ohne „nur ein Durchlauf“: ein neuer Start setzt einfach fort', async () => {
+    const { exams } = setup('exam');
+    const link = { ...LINK, singleAttempt: false } as any;
+    await exams.begin(link, { id: 's1', name: 'Anna B' }, 1);
+    await expect(exams.begin(link, { id: 's1', name: 'Anna B' }, 2)).resolves.toMatchObject({ reentry: true });
+    expect(await exams.isOpen('l1', 's1', 2)).toBe(true);
+    expect(await exams.isOpen('l1', 's1', 1)).toBe(false);
   });
 
   it('die Lehrkraft sieht nur Bearbeitungen ihrer Links', async () => {

@@ -32,6 +32,20 @@ const versioned = (url: string) => new RegExp(`${url.replace(/[.*+?^${}()|[\]\\]
 export class DrawingsService {
   private readonly logger = new Logger('Zeichnungen');
   private readonly lastSync = new Map<string, number>();
+  /** Je Lehrkraft und Lernthema eins nach dem anderen (Ablegen, Abgleich) – sonst wählen zwei Importe denselben Dateinamen. */
+  private readonly locks = new Map<string, Promise<unknown>>();
+
+  private async locked<T>(key: string, fn: () => Promise<T>): Promise<T> {
+    const before = this.locks.get(key) || Promise.resolve();
+    const run = before.catch(() => undefined).then(fn);
+    const tail = run.catch(() => undefined);
+    this.locks.set(key, tail);
+    try {
+      return await run;
+    } finally {
+      if (this.locks.get(key) === tail) this.locks.delete(key);
+    }
+  }
 
   constructor(
     @InjectRepository(DrawingSource) private readonly repo: Repository<DrawingSource>,
@@ -52,7 +66,12 @@ export class DrawingsService {
    * Zeichnungen aus dem .odt-Import ablegen: je Zeichnung .odg + .svg im
    * Ordner des Themas. Ergebnis: Name im Dokument → { url, source }.
    */
-  async storeImported(user: any, topicId: string, docName: string,
+  storeImported(user: any, topicId: string, docName: string,
+    drawings: Map<string, { svg: Buffer; odg?: Buffer; widthMm: number }>) {
+    return this.locked(`${user.userId}|${topicId}`, () => this.storeImportedNow(user, topicId, docName, drawings));
+  }
+
+  private async storeImportedNow(user: any, topicId: string, docName: string,
     drawings: Map<string, { svg: Buffer; odg?: Buffer; widthMm: number }>) {
     const out = new Map<string, { url: string; source: string }>();
     const stem = (docName || 'Zeichnung').replace(/\.[^.]+$/, '').slice(0, 60);
@@ -91,14 +110,26 @@ export class DrawingsService {
     const rows = await this.repo.find({ where });
     const result = { checked: 0, updated: [] as string[], failed: [] as string[] };
     if (!rows.length || !(await this.nextcloud.isReady(user.userId))) return result;
+    const byTopic = new Map<string, DrawingSource[]>();
+    for (const r of rows) byTopic.set(r.topicId || '', [...(byTopic.get(r.topicId || '') || []), r]);
+    for (const [topic, list] of byTopic) {
+      await this.locked(`${user.userId}|${topic}`, () => this.syncTopic(user, list, force, result));
+    }
+    return result;
+  }
+
+  /** Abgleich der Zeichnungen eines Lernthemas (unter der Sperre). */
+  private async syncTopic(user: any, list: DrawingSource[], force: boolean, result: { checked: number; updated: string[]; failed: string[] }) {
     const byFolder = new Map<string, DrawingSource[]>();
-    for (const r of rows) byFolder.set(r.folder, [...(byFolder.get(r.folder) || []), r]);
-    for (const [folder, list] of byFolder) {
+    for (const r of list) byFolder.set(r.folder, [...(byFolder.get(r.folder) || []), r]);
+    for (const [folder, rows] of byFolder) {
       const key = `${user.userId}|${folder}`;
       if (!force && Date.now() - (this.lastSync.get(key) || 0) < SYNC_EVERY_MS) continue;
       this.lastSync.set(key, Date.now());
       const entries = await this.nextcloud.drawingFolder(user.userId, folder);
-      for (const row of list) {
+      for (const stale of rows) {
+        // Frisch lesen: Ein Abgleich direkt davor kann die Zeile schon aktualisiert haben.
+        const row = (await this.repo.findOne({ where: { id: stale.id } })) || stale;
         result.checked++;
         const entry = entries.find((e) => e.name === row.odgName);
         const tag = entry ? entry.etag || entry.modified : '';
@@ -111,7 +142,6 @@ export class DrawingsService {
         }
       }
     }
-    return result;
   }
 
   /** .odg holen, neu zeichnen lassen, SVG ersetzen, Links in den Modulen auffrischen. */
@@ -149,6 +179,12 @@ export class DrawingsService {
    * in der Nextcloud und zeichnet gleich neu.
    */
   async upload(user: any, id: string, odg: Buffer) {
+    const found = await this.repo.findOne({ where: { id, ownerId: user.userId } });
+    if (!found) throw new NotFoundException('Zeichnung nicht gefunden.');
+    return this.locked(`${user.userId}|${found.topicId || ''}`, () => this.uploadNow(user, id, odg));
+  }
+
+  private async uploadNow(user: any, id: string, odg: Buffer) {
     const row = await this.repo.findOne({ where: { id, ownerId: user.userId } });
     if (!row) throw new NotFoundException('Zeichnung nicht gefunden.');
     if (!odg?.length || odg.subarray(0, 2).toString('latin1') !== 'PK') throw new BadRequestException('Das ist keine .odg-Datei.');

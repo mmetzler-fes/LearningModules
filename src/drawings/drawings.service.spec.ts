@@ -59,6 +59,25 @@ describe('Zeichnungen mit Quelle', () => {
     expect((await svc.sync(user, 't1')).checked).toBe(0);
   });
 
+  it('zwei gleichzeitige Importe in dasselbe Lernthema laufen nacheinander – keine doppelten Namen', async () => {
+    const { svc } = setup();
+    const order: string[] = [];
+    const taken = new Set<string>();
+    (svc as any).nextcloud.storeDrawings = async (_u: any, _t: any, items: any[]) => {
+      // Freie Namen wählen, dann (verzögert) „hochladen“ – wie gegen eine echte Nextcloud.
+      const names = items.map((it) => { let n = it.stem; for (let k = 2; taken.has(n); k++) n = `${it.stem}-${k}`; return n; });
+      order.push(`start ${names.join(',')}`);
+      await new Promise((r) => setTimeout(r, 20));
+      names.forEach((n) => taken.add(n));
+      order.push(`ende ${names.join(',')}`);
+      return names.map((n) => ({ folder: 'Physik', odgName: `${n}.odg`, svgName: `${n}.svg`, odgUrl: `/api/x/${n}.odg`, svgUrl: `/api/x/${n}.svg`, etag: 'e' }));
+    };
+    const one = () => new Map([['lmdraw-1', { svg: Buffer.from('<svg/>'), odg: Buffer.from('PK'), widthMm: 40 }]]);
+    const [a, b] = await Promise.all([svc.storeImported(user, 't1', 'Blatt.odt', one()), svc.storeImported(user, 't1', 'Blatt.odt', one())]);
+    expect(order).toEqual(['start Blatt-Zeichnung-1', 'ende Blatt-Zeichnung-1', 'start Blatt-Zeichnung-1-2', 'ende Blatt-Zeichnung-1-2']);
+    expect(a.get('lmdraw-1')!.url).not.toBe(b.get('lmdraw-1')!.url);
+  });
+
   it('Hochladen ersetzt die .odg und zeichnet gleich neu; nur .odg (ZIP) wird angenommen', async () => {
     const { svc, sources, files } = setup();
     await svc.storeImported(user, 't1', 'Blatt.odt', new Map([['lmdraw-1', { svg: Buffer.from('<svg/>'), odg: Buffer.from('PK'), widthMm: 40 }]]));

@@ -1524,26 +1524,45 @@ export class NotebooksView {
       return;
     }
     if (!opts) return;
-    const sum = { created: 0, failed: [], warnings: 0 };
-    for (const [k, i] of list.entries()) {
-      this.app.showToast(`📄 Wird umgewandelt (${k + 1} von ${list.length}): ${this._moduleOf(i)?.title || ''} …`, 'info');
+    // Fortschritt und Ergebnis je Anhang in einem Fenster – eine kurze Meldung ginge unter.
+    const overlay = document.createElement('div');
+    overlay.className = 'confirm-overlay';
+    overlay.innerHTML = `<div class="import-modules-card import-report">
+        <h3>📄 In Dokumente umwandeln</h3>
+        <ul class="import-report-list cv-list">${list.map((i) => `<li data-id="${escapeAttr(i.id)}">⏳ ${escapeHtml(this._moduleOf(i)?.title || i.id)}</li>`).join('')}</ul>
+        <p class="hint cv-summary">Läuft – je PDF einige Sekunden.</p>
+        <div class="confirm-actions"><button type="button" class="btn btn-primary cv-ok" disabled>OK</button></div>
+      </div>`;
+    document.body.appendChild(overlay);
+    const line = (id, html) => { const li = overlay.querySelector(`li[data-id="${CSS.escape(id)}"]`); if (li) li.innerHTML = html; };
+    let created = 0;
+    let problems = 0;
+    for (const i of list) {
+      const title = escapeHtml(this._moduleOf(i)?.title || i.id);
+      line(i.id, `🔄 ${title} – wird umgewandelt …`);
       try {
         const r = await convertAttachment(this.app.api, i.topicId, i.id, opts);
-        sum.created += r.created.length;
-        sum.failed.push(...r.failed);
-        sum.warnings += r.warnings.length;
+        created += r.created.length;
+        if (r.failed.length) { problems++; console.error('Umwandeln', i, r.failed); }
+        line(i.id, `${r.failed.length ? (r.created.length ? '⚠️' : '❌') : '✅'} ${title} – `
+          + `${r.created.length} Dokument${r.created.length === 1 ? '' : 'e'}`
+          + (r.warnings.length ? `, ${r.warnings.length} Hinweis${r.warnings.length === 1 ? '' : 'e'}` : '')
+          + (r.failed.length ? `<br><small>${r.failed.map(escapeHtml).join('<br>')}</small>` : ''));
       } catch (err) {
-        sum.failed.push(`${this._moduleOf(i)?.title || i.id}: ${err.message}`);
+        problems++;
+        console.error('Umwandeln', i, err);
+        line(i.id, `❌ ${title}<br><small>${escapeHtml(err.message)}</small>`);
       }
       this._open.add('t:' + i.topicId);
     }
+    overlay.querySelector('.cv-summary').textContent = `${created} Dokument${created === 1 ? '' : 'e'} erstellt`
+      + (problems ? ` · ${problems} Anhang/Anhänge mit Fehlern – siehe oben.` : ' – bitte kurz durchsehen.');
+    const ok = overlay.querySelector('.cv-ok');
+    ok.disabled = false;
+    ok.addEventListener('click', () => overlay.remove());
     this._saveOpen();
     this._clearSel();
     await this.refresh();
-    const msg = `${sum.created} Dokument${sum.created === 1 ? '' : 'e'} erstellt.`
-      + (sum.warnings ? ` ${sum.warnings} Hinweis${sum.warnings === 1 ? '' : 'e'} – bitte die Dokumente prüfen.` : '')
-      + (sum.failed.length ? ` Nicht umgewandelt: ${sum.failed.join(' · ')}` : '');
-    this.app.showToast(msg, sum.failed.length ? 'error' : 'success');
   }
 
   /**

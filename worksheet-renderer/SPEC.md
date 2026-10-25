@@ -53,7 +53,7 @@ content:
   - type: karo                  # Schreibfeld zum handschriftlichen Eintragen
     lines: 6                    # Höhe in Karozeilen à 0,5 cm
     width: 8cm                  # optional: Breite (0,5-cm-Schritte), sonst die Satzbreite
-    pattern: linien             # optional: karo (Vorgabe) | linien (alle 1 cm) | leer (nur Rahmen)
+    pattern: linien             # optional: karo (Vorgabe) | linien (alle 1 cm) | leer (nur Rahmen) | frei (unsichtbar, nur Platz)
   - type: spacer                # nur Leerraum, ohne Raster
     lines: 4
   - type: pagebreak

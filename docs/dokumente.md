@@ -23,11 +23,13 @@ Der Editor startet im Modus **✏️ Bearbeiten** – wie ein Textprogramm:
   **Teilaufgabe** (1.1.1), Überschrift ohne Nummer, Hinweis.
 - **Fett, kursiv, unterstrichen, durchgestrichen, hoch/tief**, Listen,
   Ausrichtung, Links, **🖼 Bild** (Größe, Lage, Rahmen per Klick aufs Bild).
-- **➕ Einfügen …**: Schreibfeld (Platz zum Schreiben – Karo, Linien oder leer,
-  Höhe und Breite wählbar: Doppelklick auf das Feld), Quiz aus dem Lernthema,
+- **➕ Einfügen …**: Schreibfeld (Platz zum Schreiben – Karo, Linien, leer mit
+  Rahmen oder unsichtbar; Höhe, Breite und Muster in einem kleinen Formular,
+  wieder per Doppelklick auf das Feld), Quiz aus dem Lernthema,
   **📄 PDF an dieser Stelle** (mit Freischaltung „PDF-Import“: das PDF wird
   wie bei „Übernehmen“ umgewandelt, aber eingefügt statt ersetzt), Lösung,
-  Formel, Code, Tabelle, Kasten, Platz, Seitenumbruch – an der
+  Formel, Code, Tabelle, Kasten, Platz (ein unsichtbares Schreibfeld; ältere
+  „Platz“-Bausteine werden beim Bearbeiten dazu), Seitenumbruch – an der
   Schreibmarke bzw. hinter dem gewählten Baustein.
 - Graue **Bausteine** wählt ein Klick (blauer Rahmen). Die Leiste daran
   verschiebt (**↑ ↓**, auch Alt+↑/↓), verdoppelt (**⧉**), bearbeitet (**✏️**,
@@ -247,7 +249,8 @@ wenn die Lehrkraft des Lernthemas freigeschaltet ist.
   unten ziehen macht es länger (in 0,5-cm-Schritten), nach oben wieder kürzer,
   aber nie kürzer als im Dokument. Mit **⬚ Auswählen** kommen ein Anfasser
   rechts (Breite), einer an der Ecke (beides) und oben im Feld ▦ Karo, ☰ Linien,
-  ▢ Leer dazu. Schüler ändern damit nur ihre eigene Beschriftung. Die
+  ▢ Leer, ◌ Unsichtbar dazu (unsichtbare Felder sind hier gestrichelt
+  angedeutet, im Druck nicht). Schüler ändern damit nur ihre eigene Beschriftung. Die
   Lehrkraft ändert in einem eigenen Lernthema das **Dokument selbst** (oben
   „💾 Im Dokument gespeichert“) – dann darf das Feld auch bis auf eine Zeile
   schrumpfen.

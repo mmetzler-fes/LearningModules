@@ -101,7 +101,7 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
             <select class="ds-vinsert" title="Baustein einfügen">
               <option value="">➕ Einfügen …</option><option value="karo">Schreibfeld (Karo, Linien)</option><option value="quiz">🧩 Quiz aus dem Lernthema</option><option value="solution">Lösung</option>
               <option value="formula">Formel</option><option value="code">Code</option><option value="table">Tabelle</option>
-              <option value="box">Kasten</option><option value="spacer">Platz</option><option value="pagebreak">Seitenumbruch</option>
+              <option value="box">Kasten</option><option value="spacer">Platz (unsichtbar)</option><option value="pagebreak">Seitenumbruch</option>
             </select>
           </div>
           <div class="ds-surface worksheet-content" contenteditable="true" spellcheck="true" aria-label="Inhalt bearbeiten"></div>
@@ -111,7 +111,7 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
           <select class="ds-yinsert" title="Baustein hinter dem Block einfügen, in dem die Schreibmarke steht">
             <option value="">➕ Einfügen …</option><option value="karo">Schreibfeld (Karo, Linien)</option><option value="quiz">🧩 Quiz aus dem Lernthema</option><option value="solution">Lösung</option>
             <option value="formula">Formel</option><option value="code">Code</option><option value="table">Tabelle</option>
-            <option value="box">Kasten</option><option value="spacer">Platz</option><option value="pagebreak">Seitenumbruch</option>
+            <option value="box">Kasten</option><option value="spacer">Platz (unsichtbar)</option><option value="pagebreak">Seitenumbruch</option>
           </select>
           <span class="hint">Enter rückt passend ein, Tab / Umschalt+Tab rücken markierte Zeilen, eingefügter Text passt sich der Einrückung an.</span>
         </div>
@@ -469,7 +469,8 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
     solution: { type: 'solution', blocks: [{ type: 'text', text: 'Musterlösung' }] },
     formula: { type: 'formula', math: 'U = R cdot I' },
     code: { type: 'code', code: '// Quelltext' },
-    spacer: { type: 'spacer', lines: 3 },
+    // „Platz“ ist ein unsichtbares Schreibfeld – Höhe, Breite und Muster lassen sich später ändern.
+    spacer: { type: 'karo', lines: 2, pattern: 'frei' },
     pagebreak: { type: 'pagebreak' },
     // nur fürs YAML-Einfügen – im Bearbeiten-Reiter sind Tabelle und Kasten Text
     table: { type: 'table', header: ['Spalte 1', 'Spalte 2'], rows: [['…', '…']] },
@@ -535,18 +536,21 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
   const editWidget = (w) => {
     let block;
     try { block = JSON.parse(decodeURIComponent(w.dataset.block)); } catch (_) { return; }
+    // Alter „Platz“: wird zum unsichtbaren Schreibfeld (gleiche Höhe ungefähr: eine Zeile ≈ 0,5 cm).
+    if (block.type === 'spacer') block = { ...(block.id ? { id: block.id } : {}), type: 'karo', lines: Number.isInteger(block.lines) ? block.lines : 3, pattern: 'frei' };
     const overlay = document.createElement('div');
     overlay.className = 'confirm-overlay';
     // Schreibfeld: Höhe, Breite und Muster als Felder – sie schreiben ins YAML darunter.
     const field = block.type === 'karo' ? `<div class="ds-field-form">
         <label>Höhe <input type="number" class="ds-f-h" min="0.5" max="30" step="0.5"> cm</label>
         <label>Breite <input type="number" class="ds-f-w" min="1" max="16.5" step="0.5" placeholder="ganz"> cm</label>
-        <label>Muster <select class="ds-f-p"><option value="karo">▦ Karo</option><option value="linien">☰ Linien</option><option value="leer">▢ Leer</option></select></label>
+        <label>Muster <select class="ds-f-p"><option value="karo">▦ Karo</option><option value="linien">☰ Linien</option><option value="leer">▢ Leer (Rahmen)</option><option value="frei">◌ Unsichtbar (nur Platz)</option></select></label>
       </div>` : '';
     overlay.innerHTML = `<form class="import-modules-card ds-widget-dialog">
         <h3>${block.type === 'karo' ? 'Schreibfeld' : 'Baustein'} bearbeiten</h3>
         ${field}
-        <textarea class="ds-yaml" rows="12" spellcheck="false"></textarea>
+        ${field ? '<details class="ds-field-yaml"><summary>Als YAML</summary><textarea class="ds-yaml" rows="6" spellcheck="false"></textarea></details>'
+          : '<textarea class="ds-yaml" rows="12" spellcheck="false"></textarea>'}
         <p class="ds-error"></p>
         <div class="confirm-actions">
           <button type="submit" class="btn btn-primary">Übernehmen</button>

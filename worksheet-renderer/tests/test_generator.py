@@ -66,6 +66,7 @@ class RenderTest(unittest.TestCase):
             "  - {type: karo, lines: 6, pattern: linien}\n"
             "  - {type: karo, lines: 5, width: 10cm, pattern: leer}\n"
             "  - {type: karo, lines: 3, width: 99cm}\n"
+            "  - {type: karo, lines: 2, pattern: frei}\n"
         )
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -85,6 +86,9 @@ class RenderTest(unittest.TestCase):
             self.assertIn('style:name="Feld.Zeile5"', content)
             # zu breit: höchstens die Satzbreite
             self.assertIn('table:name="Karo5" table:style-name="Karo"', content)
+            # frei: ein Feld ohne Rahmen
+            self.assertIn('style:name="FeldFrei33"', content)
+            self.assertRegex(content, r'style:name="FeldFrei33.A1"[^>]*>\s*<style:table-cell-properties[^>]*fo:border="none"')
         self.assertEqual(mw.karo_columns({"width": "8cm"}), 16)
         self.assertEqual(mw.karo_columns({"width": "0.2cm"}), 2)
         self.assertEqual(mw.karo_columns({}), mw.KARO_COLUMNS)

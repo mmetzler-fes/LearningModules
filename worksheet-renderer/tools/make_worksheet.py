@@ -75,8 +75,8 @@ KARO_BORDER = "0.002cm"
 # Bis zu dieser Höhe wächst das Raster im Lösungsblatt mit, damit die Lösung
 # darüber Platz hat. Längere Lösungen (ganze Programme) stehen darunter.
 KARO_MAX_ROWS = 22
-# Muster eines Schreibfelds (Block `karo`): Karo, Linien (alle 1 cm) oder leer.
-KARO_PATTERNS = ("karo", "linien", "leer")
+# Muster eines Schreibfelds (Block `karo`): Karo, Linien (alle 1 cm), leer (Rahmen) oder frei (unsichtbar).
+KARO_PATTERNS = ("karo", "linien", "leer", "frei")
 LINE_GAP_CELLS = 2
 KARO_COLOR = "#808080"
 
@@ -677,7 +677,8 @@ def ensure_field_style(doc, present: set[str], columns: int, pattern: str) -> tu
     """Tabellen- und Zellvorlage für ein schmaleres Raster bzw. Linien/leeres Feld.
 
     Liefert (Tabellenvorlage, Zellvorlage). Linien: nur unten ein Strich, die
-    Zeile ist LINE_GAP_CELLS Karos hoch. Leer: ein einziges Feld mit Rahmen.
+    Zeile ist LINE_GAP_CELLS Karos hoch. Leer: ein einziges Feld mit Rahmen;
+    frei: dasselbe ohne Rahmen (nur Platz).
     """
     width = KARO_CELL * columns
     name = f"Feld{pattern.capitalize()}{columns}"
@@ -691,6 +692,8 @@ def ensure_field_style(doc, present: set[str], columns: int, pattern: str) -> tu
         if pattern == "linien":
             cell.addElement(TableCellProperties(padding="0cm", borderleft="none", borderright="none",
                                                 bordertop="none", borderbottom=border))
+        elif pattern == "frei":
+            cell.addElement(TableCellProperties(padding="0cm", border="none"))
         else:
             cell.addElement(TableCellProperties(padding="0cm", border=border))
         column = Style(name=f"{name}.A", family="table-column")

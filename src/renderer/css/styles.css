@@ -3610,13 +3610,14 @@ body {
   background-size: 0.5cm 0.5cm;
   max-width: 16.5cm;
 }
-/* Schreibfeld mit Linien (alle 1 cm, wie im Druck ohne Rahmen) bzw. leer (nur Rahmen). */
+/* Schreibfeld mit Linien (alle 1 cm, wie im Druck ohne Rahmen), leer (nur Rahmen) bzw. frei (unsichtbar, nur Platz). */
 .docspec .ds-karo-linien {
   border: none;
   background-image: linear-gradient(to bottom, transparent calc(1cm - 1px), var(--text-secondary) calc(1cm - 1px));
   background-size: 100% 1cm;
 }
 .docspec .ds-karo-leer { background-image: none; }
+.docspec .ds-karo-frei { border: none; background-image: none; }
 .docspec .ds-solution {
   color: var(--danger);
   border-left: 3px solid var(--danger);

@@ -476,7 +476,21 @@ export class ModulesView {
     this._h5pContainer.innerHTML = '';
     const user = this.app.state.currentUser;
     const ink = user && user.role !== 'student' && (user.features || []).includes('inkEditor');
-    this.app.renderer.renderPreview(mod, typeDef, this._h5pContainer, ink ? { inkEdit: 'teacher' } : {});
+    // Modulliste = eigenes Lernthema: ⊕ im Stift-Editor fügt Schreibfelder, Quizze und PDFs ins Dokument ein.
+    const topicId = this.app.state.currentTopicId;
+    const modules = this.app.state.currentTopicModules || [];
+    this.app.renderer.renderPreview(mod, typeDef, this._h5pContainer, ink ? {
+      inkEdit: 'teacher',
+      embedModule: (id) => modules.find((m) => m.id === id) || null,
+      inkDocument: topicId ? {
+        module: mod, topicId, modules,
+        onSaved: async () => {
+          this.app.state.currentTopicModules = await this.app.api.getTopicModules(topicId);
+          const fresh = this.app.state.currentTopicModules.find((m) => m.id === mod.id);
+          if (fresh && document.getElementById('view-player')?.classList.contains('active')) this._openPlayer(fresh);
+        },
+      } : null,
+    } : {});
   }
 
   async _openEditor(mod) {

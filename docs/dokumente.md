@@ -262,7 +262,11 @@ wenn die Lehrkraft des Lernthemas freigeschaltet ist.
   Feld entfernt das **✕** in der Feldleiste (mit ⬚ Auswählen) wieder.
   Lehrkräfte haben im Menü außerdem **🧩 Quiz aus dem Lernthema** und
   **📄 PDF an dieser Stelle** (Text mit Struktur, Seiten als Bilder oder
-  KI-Erkennung) – beides landet als Bausteine im Dokument.
+  KI-Erkennung) – beides landet als Bausteine im Dokument. Das gilt in eigenen
+  Lernthemen überall, wo sich der Stift-Editor öffnen lässt: **✍️ Stift** oben
+  in der Notebook-Vorschau, **✍️ Mit Stift bearbeiten** am Dokument (Notebook-
+  Vorschau, Vollbild, Vorschau aus der Modulliste). Zur Auswahl stehen alle
+  Module des Lernthemas außer Dokumenten.
 - **👆 Bedienen:** Eingebettete Quizze im Blatt ausfüllen. Der Finger bedient
   sie immer (solange ☝️ aus ist), Stift und Maus nur mit diesem Werkzeug –
   sonst schreiben sie.

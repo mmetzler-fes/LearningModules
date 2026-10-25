@@ -15,7 +15,9 @@ export const lmHost = {
   /**
    * Knöpfe über einem Dokument. `options.inkEdit` setzen die Aufrufer nur mit
    * der Freischaltung „Stift-Editor“: 'teacher' in Vorschau und Notebooks,
-   * 'student' über den Link.
+   * 'student' über den Link. `options.inkDocument` (Lehrkraft, eigenes
+   * Lernthema): { module, topicId, modules, onSaved } – dann fügt das ⊕ im
+   * Stift-Editor Schreibfelder, Quizze und PDFs ins Dokument ein.
    */
   documentActions({ moduleId, title, content, options, el = null }) {
     if (!moduleId) return [];
@@ -32,7 +34,13 @@ export const lmHost = {
         primary: true,
         async onClick() {
           const { openDocumentInk } = await import('./ink/ink-open.js');
-          await openDocumentInk({ mode: inkMode, mod: { id: moduleId, title, content }, up, embedModule: options.embedModule || null, sourceEl: el });
+          const own = inkMode === 'teacher' && options.inkDocument?.topicId ? options.inkDocument : null;
+          await openDocumentInk({
+            mode: inkMode, up, embedModule: options.embedModule || null, sourceEl: el,
+            // Gespeichert wird das ganze Modul – daher das vollständige aus dem Lernthema.
+            mod: own ? { ...own.module, topicId: own.topicId } : { id: moduleId, title, content },
+            editable: !!own, topicModules: own?.modules || null, onSaved: own?.onSaved || null,
+          });
         },
       });
     }

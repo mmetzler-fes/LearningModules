@@ -239,6 +239,11 @@ export class NotebookPreview {
       // Dokumente: „✍️ Bearbeiten“ mit Stift, dazu das Lösungsblatt einblendbar
       // – nur mit der Freischaltung „Stift-Editor“.
       inkEdit: this.app.state.currentUser?.features?.includes('inkEditor') ? 'teacher' : null,
+      // Eigenes Lernthema: ⊕ im Stift-Editor fügt ins Dokument ein (wie „✍️ Stift“ oben).
+      inkDocument: topic.isOwn ? {
+        module: full, topicId: topic.id, modules,
+        onSaved: () => { this._modules.delete(topic.id); if (this.currentKey === key) this.showModule(topic, mod); },
+      } : null,
     });
   }
 

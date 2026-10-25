@@ -5425,3 +5425,6 @@ body {
 .drawings-info { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .drawings-info code { overflow-wrap: anywhere; }
 .drawings-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+
+/* Bilder in Tabellenzellen eines Dokuments (docspec.js) */
+.ds-cell-image { display: block; max-width: 100%; height: auto; margin: 4px 0; }

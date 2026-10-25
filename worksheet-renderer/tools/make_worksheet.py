@@ -1353,18 +1353,24 @@ def spanned_table(block: dict[str, Any], styles: dict[str, str], ctx: dict[str, 
         if isinstance(c, dict):
             return (str(c.get("text", "")), max(1, int(c.get("colspan") or 1)), max(1, int(c.get("rowspan") or 1)))
         return (str(c), 1, 1)
+    def images_of(c: Any) -> list[dict[str, Any]]:
+        return [i for i in (c.get("images") or []) if isinstance(i, dict) and i.get("file")] if isinstance(c, dict) else []
+    raw = ([list(block.get("header") or [])] if block.get("header") else []) + [list(row) for row in block.get("rows") or []]
     header = [cell_of(c) for c in block.get("header") or []]
     source = ([header] if header else []) + [[cell_of(c) for c in row] for row in block.get("rows") or []]
     # Raster: start[(r, c)] = (text, colspan, rowspan); covered = verdeckte Stellen
     start: dict[tuple[int, int], tuple[str, int, int]] = {}
+    pictures: dict[tuple[int, int], list[dict[str, Any]]] = {}
     covered: set[tuple[int, int]] = set()
     columns = 1
     for r, row in enumerate(source):
         c = 0
-        for text, cs, rs in row:
+        for k, (text, cs, rs) in enumerate(row):
             while (r, c) in covered:
                 c += 1
             start[(r, c)] = (text, cs, rs)
+            if images_of(raw[r][k]):
+                pictures[(r, c)] = images_of(raw[r][k])
             for dr in range(rs):
                 for dc in range(cs):
                     if dr or dc:
@@ -1375,6 +1381,7 @@ def spanned_table(block: dict[str, Any], styles: dict[str, str], ctx: dict[str, 
     gemessen = [[(start[(r, c)][0] if (r, c) in start and start[(r, c)][1] == 1 else "", bool(header) and r == 0)
                  for c in range(columns)] for r in range(nrows)]
     size, widths = table_layout(gemessen)
+    widths = widths_for_pictures(widths, pictures, start)
     head_style, cell_style = styles["table_head"], styles["table_cell"]
     if size != TABLE_SIZES_PT[0]:
         head_style = ensure_table_size_style(ctx["doc"], ctx["present"], head_style, size)
@@ -1399,7 +1406,16 @@ def spanned_table(block: dict[str, Any], styles: dict[str, str], ctx: dict[str, 
                 if rs > 1:
                     attrs["numberrowsspanned"] = rs
                 tc = TableCell(valuetype="string", stylename="ABTabelle.Z", **attrs)
-                tc.addElement(rich_p(head_style if header and r == 0 else cell_style, text))
+                style = head_style if header and r == 0 else cell_style
+                if text or (r, c) not in pictures:
+                    tc.addElement(rich_p(style, text))
+                room = sum(widths[c:c + cs]) - TABLE_PADDING_CM
+                for picture in pictures.get((r, c), []):
+                    ctx["image_index"] += 1
+                    width = min(float(str(picture.get("width", "12")).removesuffix("cm")), max(room, 1.0))
+                    para = P(stylename=style)
+                    para.addElement(image_frame(ctx["doc"], {**picture, "width": f"{width:.2f}cm"}, ctx["search"], ctx["image_index"]))
+                    tc.addElement(para)
                 tr.addElement(tc)
             elif (r, c) in covered:
                 tr.addElement(CoveredTableCell())
@@ -1409,6 +1425,32 @@ def spanned_table(block: dict[str, Any], styles: dict[str, str], ctx: dict[str, 
                 tr.addElement(tc)
         table.addElement(tr)
     return table
+
+
+def widths_for_pictures(widths: list[float], pictures: dict[tuple[int, int], list[dict[str, Any]]],
+                        start: dict[tuple[int, int], tuple[str, int, int]]) -> list[float]:
+    """Spalten mit Bildern so breit wie ihr breitestes Bild (Zellen ohne Verbund),
+    höchstens die Satzbreite; die übrigen Spalten teilen sich den Rest."""
+    need = [0.0] * len(widths)
+    for (r, c), items in pictures.items():
+        if start[(r, c)][1] != 1:
+            continue
+        for picture in items:
+            try:
+                need[c] = max(need[c], float(str(picture.get("width", "0")).removesuffix("cm")) + TABLE_PADDING_CM)
+            except ValueError:
+                pass
+    if not any(need):
+        return widths
+    wanted = sum(need)
+    if wanted >= TABLE_WIDTH_CM:          # Bilder breiter als die Seite: anteilig stauchen
+        return [n * TABLE_WIDTH_CM / wanted if n else 0.8 for n in need]
+    rest = TABLE_WIDTH_CM - wanted
+    text_cols = [i for i, n in enumerate(need) if not n]
+    if not text_cols:                     # nur Bildspalten: den Rest anteilig dazugeben
+        return [n + rest * n / wanted for n in need]
+    share = sum(widths[i] for i in text_cols) or len(text_cols)
+    return [n if n else rest * (widths[i] or 1) / share for i, n in enumerate(need)]
 
 
 def render_blocks(blocks: Any, styles: dict[str, str], ctx: dict[str, Any]) -> list[Element]:

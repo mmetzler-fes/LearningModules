@@ -90,6 +90,10 @@ content:
     rows:                       # nur sichtbare Zellen nennen, wie in HTML
       - [{text: A, rowspan: 2}, a1, "1"]
       - [a2, "2"]
+  - type: table                 # Bilder in Zellen (Baustein links, Diagramm rechts):
+    rows:                       # unter dem Text der Zelle; die Spalte wird so breit
+      - [{text: "Netzwerk 1:", images: [{file: ton.png, width: 6cm}]},   # wie das Bild
+         {images: [{file: diagramm.png, width: 9cm}]}]
   - type: image
     file: schaltung.png         # in der App: src (data: oder Nextcloud-Link)
     width: 6cm

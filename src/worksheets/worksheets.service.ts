@@ -331,11 +331,36 @@ export class WorksheetsService {
       return { type: 'box', title: `Quiz: ${title}`, blocks };
     };
 
+    // Bilder in Tabellenzellen: wie Bild-Bausteine als Datei mitgeben; was sich
+    // nicht drucken lässt, steht als Hinweis im Text der Zelle.
+    const tableCells = async (block: Record<string, any>) => {
+      const cell = async (c: any) => {
+        if (!c || typeof c !== 'object' || !Array.isArray(c.images) || !c.images.length) return c;
+        const images: any[] = [];
+        const notes: string[] = [];
+        for (const img of c.images) {
+          const done = await imageBlock({ type: 'image', ...img });
+          if (done.type === 'image') images.push({ file: done.file, width: done.width });
+          else notes.push(done.text);
+        }
+        const text = [c.text || '', ...notes].filter(Boolean).join(' ');
+        const { images: _i, ...rest } = c;
+        return { ...rest, text, ...(images.length ? { images } : {}) };
+      };
+      const row = (r: any) => (Array.isArray(r) ? Promise.all(r.map(cell)) : r);
+      return {
+        ...block,
+        ...(Array.isArray(block.header) ? { header: await row(block.header) } : {}),
+        rows: Array.isArray(block.rows) ? await Promise.all(block.rows.map(row)) : block.rows,
+      };
+    };
+
     const walk = async (blocks: any[]): Promise<any[]> => {
       const out: any[] = [];
       for (const block of blocks) {
         if (!block || typeof block !== 'object') out.push(block);
         else if (block.type === 'quiz') out.push(await quizBlock(block));
+        else if (block.type === 'table') out.push(await tableCells(block));
         else if (block.type === 'image' && block.src !== undefined) out.push(await imageBlock(block));
         else if (block.type === 'code' && block.file !== undefined && block.code === undefined) {
           warnings.push(`Code aus „${block.file}“ gibt es nur im Kurs-Projekt – im Druck steht ein Hinweis.`);

@@ -131,6 +131,24 @@ class RendererTest(unittest.TestCase):
         self.assertEqual(status, 200, body)
         self.assertIn("void setup() {}", self.content_xml(body["files"]["odt"]))
 
+    def test_bilder_in_tabellenzellen(self):
+        """Baustein links, Diagramm rechts: Die Bilder stehen in ihren Zellen, die Spalten passen dazu."""
+        bild = base64.b64encode((Path(__file__).parent / "bild.png").read_bytes()).decode()
+        spec = {"titel": "Zeitglieder", "content": [{"type": "table", "rows": [[
+            {"text": "Netzwerk 1:", "images": [{"file": "bilder/ton.png", "width": "6cm"}]},
+            {"text": "", "images": [{"file": "bilder/diagramm.png", "width": "9cm"}]},
+        ]]}]}
+        files = {"bilder/ton.png": bild, "bilder/diagramm.png": bild}
+        status, body = self.request("/render", {"spec": spec, "files": files, "outputs": ["odt"]})
+        self.assertEqual(status, 200, body)
+        xml = self.content_xml(body["files"]["odt"])
+        cells = xml.split("<table:table-cell")[1:]
+        self.assertEqual(len(cells), 2)
+        self.assertIn("Netzwerk 1:", cells[0])
+        self.assertIn("<draw:frame", cells[0])
+        self.assertIn("<draw:frame", cells[1])
+        self.assertIn('svg:width="9.00cm"', cells[1])
+
     def test_dateiname_mit_punkten_abgelehnt(self):
         files = {"../x.txt": base64.b64encode(b"x").decode()}
         status, body = self.request("/render", {"spec": BEISPIEL, "files": files})

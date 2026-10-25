@@ -33,7 +33,7 @@ nachbessern. Ohne eingerichteten Renderer geht nur .odt.
 | fett, kursiv, unterstrichen, durchgestrichen, hoch/tief | übernommen |
 | Ausrichtung zentriert / rechts / Blocksatz | übernommen |
 | Aufzählungen und Nummerierungen, auch verschachtelt | übernommen |
-| Tabellen inkl. verbundener Zellen | übernommen |
+| Tabellen inkl. verbundener Zellen | übernommen – Bilder bleiben in ihrer Zelle; in großen Tabellen (über 6 Zeilen oder 3 Spalten) folgen sie der Tabelle |
 | Bilder (PNG, JPEG, GIF, WebP, SVG) | eingebettet, in Rahmenbreite |
 | Frei verankertes Bild mit Textumfluss | links oder rechts umflossen wie im Dokument; breite Bilder in eigener Zeile |
 | Textrahmen | als Kasten an ihrer Stelle im Text |

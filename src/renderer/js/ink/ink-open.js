@@ -18,17 +18,18 @@
  * von dort mit ins Stift-Fenster und beim Schließen wieder zurück, damit
  * „Weiter“ sie auswertet.
  */
-export async function openDocumentInk({ mode, mod, up = null, embedModule = null, store = null, title = null, sourceEl = null }) {
+export async function openDocumentInk({ mode, mod, up = null, embedModule = null, store = null, title = null, sourceEl = null, editable = false, onSaved = null }) {
   if (!store && mode === 'student' && up?.linkToken && up?.studentTicket) {
     const { serverWorkStore } = await import('./work-store.js');
     const opened = await serverWorkStore({ up, moduleId: mod.id });
     if (!opened) return null;
     store = opened.store;
   }
-  const [{ openInkEditor }, { H5pRenderer }, { captureForms, restoreForms }] = await Promise.all([
+  const [{ openInkEditor }, { H5pRenderer }, { captureForms, restoreForms }, { assignPathIds, pathId, newBlockId }] = await Promise.all([
     import('../../lm-editor/src/ink/ink-editor.js'),
     import('../../lm-editor/src/modules/h5p-renderer.js'),
     import('./form-state.js'),
+    import('../../lm-editor/src/doc/ids.js'),
   ]);
   const fromSource = sourceEl ? captureForms(sourceEl) : null;
   let lastForms = null;
@@ -63,8 +64,71 @@ export async function openDocumentInk({ mode, mod, up = null, embedModule = null
     // Gespeicherte Eingaben; ohne sie, was im Durchlauf schon eingetragen war.
     restore: (el, forms) => restoreForms(el, forms && Object.keys(forms).length ? forms : fromSource),
   };
+  // Lehrkraft am eigenen Dokument: Einfügen und Schreibfelder gehen ins Dokument.
+  if (mode === 'teacher' && editable && mod.topicId) Object.assign(paper, documentEditing());
   const onClose = () => { if (sourceEl && lastForms) restoreForms(sourceEl, lastForms); };
   return openInkEditor({ title: title || mod.title || 'Arbeitsblatt', key: `${mode}:${mod.id}`, loadPdf, solutions: mode === 'teacher', paper, store, onClose });
+
+  /** Baustein zu einer ID der Stift-Ebene (feste ID, „p:2.0“ oder pos2x0) – mit seiner Liste. */
+  function blockRef(spec, bid) {
+    let found = null;
+    const go = (list, prefix) => {
+      if (!Array.isArray(list) || found) return;
+      list.forEach((b, i) => {
+        if (found || !b || typeof b !== 'object') return;
+        const path = prefix ? `${prefix}.${i}` : String(i);
+        if (b.id === bid || `p:${path}` === bid || pathId(path) === bid) found = { list, index: i, block: b };
+        else go(b.blocks, path);
+      });
+    };
+    go(spec?.content, '');
+    return found;
+  }
+
+  async function saveDocument() {
+    const token = sessionStorage.getItem('lm_token') || localStorage.getItem('lm_token') || '';
+    const res = await fetch(`/api/topics/${encodeURIComponent(mod.topicId)}/modules`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ ...mod, content, updatedAt: new Date().toISOString() }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || data.success === false) throw new Error(data.message || `Speichern fehlgeschlagen (${res.status})`);
+    onSaved?.();
+  }
+
+  function documentEditing() {
+    const specNow = () => {
+      const spec = content.spec && typeof content.spec === 'object' ? structuredClone(content.spec) : { content: [] };
+      if (!Array.isArray(spec.content)) spec.content = [];
+      return spec;
+    };
+    return {
+      // Neue Bausteine bekommen eine feste ID; alle anderen vorher ihre jetzige
+      // Position (pos…) – so bleiben Striche der Schüler an ihrem Baustein.
+      async insertBlock(after, block) {
+        const spec = specNow();
+        assignPathIds(spec);
+        const placed = { ...block, id: newBlockId() };
+        const ref = after ? blockRef(spec, after) : null;
+        if (!after) spec.content.unshift(placed);
+        else if (ref) ref.list.splice(ref.index + 1, 0, placed);
+        else spec.content.push(placed);
+        content = { ...content, spec };
+        await saveDocument();
+      },
+      async setField(bid, field) {
+        const spec = specNow();
+        const ref = blockRef(spec, bid);
+        if (!ref || ref.block.type !== 'karo') throw new Error('Schreibfeld nicht gefunden.');
+        ref.block.lines = field.lines;
+        if (field.width) ref.block.width = `${field.width}cm`; else delete ref.block.width;
+        if (field.pattern && field.pattern !== 'karo') ref.block.pattern = field.pattern; else delete ref.block.pattern;
+        content = { ...content, spec };
+        await saveDocument();
+      },
+    };
+  }
 }
 
 /**

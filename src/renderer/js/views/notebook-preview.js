@@ -190,7 +190,12 @@ export class NotebookPreview {
           const all = await this._topicModules(topic).catch(() => []);
           const full = all.find((m) => m.id === mod.id) || mod;
           const { openDocumentInk } = await import('../ink/ink-open.js');
-          await openDocumentInk({ mode: 'teacher', mod: full, embedModule: (id) => all.find((m) => m.id === id) || null });
+          // Eigenes Dokument: Einfügen (⊕) und Schreibfelder gehen ins Dokument; danach die Vorschau auffrischen.
+          await openDocumentInk({
+            mode: 'teacher', mod: full, embedModule: (id) => all.find((m) => m.id === id) || null,
+            editable: own,
+            onSaved: () => { this._modules.delete(topic.id); if (this.currentKey === key) this.showModule(topic, mod); },
+          });
         } catch (err) { this.app.showToast(`Stift-Editor: ${err.message}`, 'error'); }
         b.disabled = false;
       });

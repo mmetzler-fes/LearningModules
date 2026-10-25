@@ -245,8 +245,16 @@ wenn die Lehrkraft des Lernthemas freigeschaltet ist.
   unten ziehen macht es länger (in 0,5-cm-Schritten), nach oben wieder kürzer,
   aber nie kürzer als im Dokument. Mit **⬚ Auswählen** kommen ein Anfasser
   rechts (Breite), einer an der Ecke (beides) und oben im Feld ▦ Karo, ☰ Linien,
-  ▢ Leer dazu. Das geht für Lehrkräfte und Schüler und ändert nur die eigene
-  Beschriftung, nicht das Dokument.
+  ▢ Leer dazu. Schüler ändern damit nur ihre eigene Beschriftung. Die
+  Lehrkraft ändert in einem eigenen Lernthema das **Dokument selbst** (oben
+  „💾 Im Dokument gespeichert“) – dann darf das Feld auch bis auf eine Zeile
+  schrumpfen.
+- **⊕ Einfügen:** Links am Rand sitzen kleine ⊕ zwischen den Bausteinen
+  (vor dem ersten und hinter jedem). Antippen öffnet ein Menü: **▢ Schreibfeld**
+  (unsichtbar, eine Zeile hoch – am Anfasser größer ziehen), **▦ Karo** oder
+  **☰ Linien**. Die Lehrkraft fügt das Feld ins Dokument ein (eigene
+  Lernthemen), Schüler nur in ihre eigene Beschriftung; ein selbst eingefügtes
+  Feld entfernt das **✕** in der Feldleiste (mit ⬚ Auswählen) wieder.
 - **👆 Bedienen:** Eingebettete Quizze im Blatt ausfüllen. Der Finger bedient
   sie immer (solange ☝️ aus ist), Stift und Maus nur mit diesem Werkzeug –
   sonst schreiben sie.

@@ -207,6 +207,11 @@ Der Knopf erscheint erst mit der Freischaltung **🧪 Stift-Editor**
 für die Lehrkraft in Vorschau und Notebooks, für Schüler über ihren Link,
 wenn die Lehrkraft des Lernthemas freigeschaltet ist.
 
+- **💾 Speichern:** Gespeichert wird automatisch kurz nach jeder Änderung und
+  wenn das iPad in eine andere App wechselt; der Knopf neben ✕ speichert sofort.
+  Ein oranger Punkt daran heißt „noch nicht gespeichert“, grün „eben
+  gespeichert“. Ist die Leiste zu schmal (iPad hochkant), lässt sie sich zur
+  Seite wischen.
 - **Werkzeugleiste:** oben die Werkzeuge (Auswahl, Stift, Textmarker,
   Radierer, Text, Geodreieck), Rückgängig, Finger, Hintergrund, Lösung und
   Zoom; darunter schwebend die Einstellungen des gewählten Werkzeugs –

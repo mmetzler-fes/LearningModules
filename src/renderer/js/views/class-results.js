@@ -473,14 +473,15 @@ export class ClassResultsView {
   }
 
   /** Eine Zuweisung (Klassenlink) mit Inhalt und Knöpfen. */
-  _linkCard(link, buttons) {
+  _linkCard(link, buttons, body = null) {
     const n = link.topics.reduce((sum, t) => sum + t.units.length, 0);
-    return `<details class="result-group cb-link ${link.active ? '' : 'cb-off'}" data-link="${escapeAttr(link.id)}">
+    const open = this._openLinks?.has(link.id) ? 'open' : '';
+    return `<details class="result-group cb-link ${link.active ? '' : 'cb-off'}" data-link="${escapeAttr(link.id)}" ${open}>
       <summary><span class="result-group-title">🔗 ${escapeHtml(link.name)}${link.active ? '' : ' <small class="class-pending-note">deaktiviert</small>'}</span>
         <span class="result-group-meta">${link.topics.length} Lernthema/-themen · ${n} Modul${n === 1 ? '' : 'e'}
           ${link.practice.map((m) => `<span class="result-mode-badge">${escapeHtml(MODE_LABELS[m] || m)}</span>`).join('')}</span></summary>
       <div class="cb-link-actions">${buttons}</div>
-      ${this._unitsHtml(link.topics)}
+      ${body ?? this._unitsHtml(link.topics)}
     </details>`;
   }
 
@@ -489,6 +490,33 @@ export class ClassResultsView {
       const id = btn.closest('[data-link]').dataset.link;
       const res = await this.app.api.updateLink(id, { active: btn.dataset.active === 'on' });
       if (failed(res)) { this.app.showToast('Fehler: ' + (res?.message || '?'), 'error'); return; }
+      await this._classbook(true);
+      this._render();
+    }));
+  }
+
+  /** Inhalt einer Zuweisung mit Schaltern: ● an (Schüler sehen es), ○ aus – auch Neues, das dazugekommen ist. */
+  _availHtml(link) {
+    const sw = (on, attrs, what) => `<button type="button" class="nb-status ${on ? 'on' : ''}" ${attrs}
+      title="${on ? `Schüler sehen ${what} – klicken zum Ausschalten` : `Ausgeschaltet – klicken, damit die Schüler ${what} sehen`}">${on ? '●' : '○'}</button>`;
+    return `${link.available.map((t) => `<div class="cb-topic ${t.enabled ? '' : 'cb-item-off'}" data-topic="${escapeAttr(t.topicId)}">
+        <div class="cb-topic-title">${sw(t.enabled, 'data-toggle-topic', 'dieses Lernthema')} 📘 ${escapeHtml(t.title)}</div>
+        <ul class="cb-units">${t.modules.map((m) => `<li class="${m.enabled ? '' : 'cb-item-off'}">
+          <span>${sw(m.enabled, `data-toggle-module="${escapeAttr(m.id)}"`, 'dieses Modul')} ${TYPE_ICON[m.type] || '🧩'} ${escapeHtml(m.title || 'Modul')}</span></li>`).join('')}</ul>
+      </div>`).join('')}
+      ${link.notReleased?.length ? `<p class="hint">Im Notizbuch noch nicht für Schüler freigegeben, daher nicht wählbar: ${escapeHtml(link.notReleased.join(', '))}.</p>` : ''}`;
+  }
+
+  _bindToggles(out) {
+    out.querySelectorAll('[data-toggle-topic], [data-toggle-module]').forEach((btn) => btn.addEventListener('click', async (e) => {
+      e.preventDefault();
+      const linkId = btn.closest('[data-link]').dataset.link;
+      const topicId = btn.closest('[data-topic]').dataset.topic;
+      const res = await this.app.api.setClassbookItem(this._classId, linkId, {
+        topicId, moduleId: btn.dataset.toggleModule || undefined, enabled: !btn.classList.contains('on'),
+      });
+      if (failed(res)) { this.app.showToast('Fehler: ' + (res?.message || '?'), 'error'); return; }
+      this._openLinks = new Set([...out.querySelectorAll('details[data-link][open]')].map((d) => d.dataset.link));
       await this._classbook(true);
       this._render();
     }));
@@ -503,13 +531,14 @@ export class ClassResultsView {
         <div class="cr-works-bar">
           <button type="button" class="btn btn-primary btn-sm" id="cbAssign">➕ Aus dem Notizbuch zuweisen</button>
           <span class="hint">Die Schüler finden alles über den <a href="#" id="cbToSettings">Klassenbuch-Link</a>. Inhalte bleiben Verweise:
-            Änderungen im Notizbuch gelten sofort.</span>
+            Änderungen im Notizbuch gelten sofort. ● / ○ schaltet Lernthemen und Module für diese Klasse ein und aus –
+            was später dazukommt, ist zunächst aus.</span>
         </div>
         ${links.length ? links.map((l) => this._linkCard(l, `
           <button type="button" class="btn btn-secondary btn-sm" data-live>📡 Live</button>
           <button type="button" class="btn btn-secondary btn-sm" data-overview>📊 Ergebnisse</button>
           ${l.active ? '<button type="button" class="btn btn-secondary btn-sm" data-active="off" title="Schüler sehen die Aufgabe nicht mehr; Ergebnisse bleiben">⏸ Ausblenden</button>'
-            : '<button type="button" class="btn btn-secondary btn-sm" data-active="on">▶ Wieder zeigen</button>'}`)).join('')
+            : '<button type="button" class="btn btn-secondary btn-sm" data-active="on">▶ Wieder zeigen</button>'}`, this._availHtml(l))).join('')
           : `<div class="empty-state"><span class="empty-icon">📋</span>
               <p>Noch nichts zugewiesen. Wähle aus deinem Notizbuch ein Lernthema, einen Abschnitt, Bereich oder ein Book –
                 es erscheint dann bei den Schülern im Klassennotizbuch.</p></div>`}`;
@@ -525,6 +554,7 @@ export class ClassResultsView {
         this._switch('overview');
       }));
       this._bindActive(out);
+      this._bindToggles(out);
     });
   }
 
@@ -537,13 +567,12 @@ export class ClassResultsView {
   /** Lernthema oder Knoten aus dem Notizbuch als Klassenlink dieser Klasse. */
   async _assign() {
     const picked = await this._pickFromNotebook('➕ Der Klasse zuweisen',
-      'Ein Lernthema oder einen ganzen Bereich wählen. Bei einem Bereich kommen später dazugelegte Lernthemen mit, sobald du ihn erneut zuweist.');
+      'Ein Lernthema oder einen ganzen Bereich wählen. Was später dazukommt, erscheint hier ausgeschaltet – du schaltest es ein, wenn es so weit ist.');
     if (!picked) return;
-    const res = picked.type === 'node'
-      ? await this.app.api.classLinkFromNotebookNode(picked.id, this._classId)
-      : await this.app.api.classLinkFromTopic(picked.id, this._classId);
+    const res = await this.app.api.assignToClassbook(this._classId, picked.type, picked.id);
     if (failed(res)) { this.app.showToast('Fehler: ' + (res?.message || 'Zuweisen fehlgeschlagen'), 'error'); return; }
-    if (res.notReleased?.length) this.app.showToast(`Nicht freigegeben, daher nicht dabei: ${res.notReleased.join(', ')}.`, 'info');
+    if (res.existed) this.app.showToast(`„${picked.title}“ ist schon zugewiesen – Neues steht ausgeschaltet bereit.`, 'info');
+    else if (res.notReleased?.length) this.app.showToast(`Nicht freigegeben, daher nicht dabei: ${res.notReleased.join(', ')}.`, 'info');
     else this.app.showToast(`„${picked.title}“ ist zugewiesen.`, 'success');
     await this._classbook(true);
     this._render();

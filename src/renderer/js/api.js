@@ -1017,6 +1017,16 @@ export class BrowserApi {
   setClassbookTeacherItems(classId, items) {
     return this._fetch(`/api/classbook/${encodeURIComponent(classId)}/teacher-items`, { method: 'PUT', body: JSON.stringify({ items }) });
   }
+  /** Aus dem Notizbuch zuweisen: type 'topic' | 'node' → { linkId, existed, notReleased }. */
+  assignToClassbook(classId, type, id) {
+    return this._fetch(`/api/classbook/${encodeURIComponent(classId)}/assign`, { method: 'POST', body: JSON.stringify({ type, id }) });
+  }
+  /** Lernthema (ohne moduleId) oder Modul einer Zuweisung ein-/ausschalten. */
+  setClassbookItem(classId, linkId, { topicId, moduleId, enabled }) {
+    return this._fetch(`/api/classbook/${encodeURIComponent(classId)}/links/${encodeURIComponent(linkId)}/item`, {
+      method: 'PUT', body: JSON.stringify({ topicId, moduleId, enabled }),
+    });
+  }
   getClassbookOverview(classId) { return this._fetch(`/api/classbook/${encodeURIComponent(classId)}/overview`); }
   getClassResults(classId) { return this._fetch(`/api/results/class/${encodeURIComponent(classId)}`); }
   saveQuizResult(resultData) {

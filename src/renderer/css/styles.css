@@ -5485,3 +5485,6 @@ button.cb-unit:hover { color: var(--accent); text-decoration: underline; }
 .nb-switch-tab:hover { color: var(--text-primary); }
 .nb-switch-tab.active { color: var(--text-primary); border-bottom-color: var(--accent); font-weight: 600; cursor: default; }
 .cb-exam { display: flex; justify-content: space-between; align-items: center; gap: 10px; border: 2px solid var(--accent); border-radius: var(--radius-md); padding: 10px 14px; margin-bottom: 8px; background: var(--accent-light); }
+.cb-item-off > .cb-topic-title, li.cb-item-off { color: var(--text-secondary); }
+li.cb-item-off { text-decoration: line-through; text-decoration-color: var(--border); }
+.cb-units .nb-status, .cb-topic-title .nb-status { width: 26px; height: 26px; }

@@ -1,4 +1,4 @@
-import { endOfDay, firstLoginOpen, loginDecision, unitCells, examState } from './classbook-rules';
+import { endOfDay, firstLoginOpen, loginDecision, unitCells, examState, toggleSelection, explicitSelection, moduleOn } from './classbook-rules';
 
 const same = (a: string, b: string | null | undefined) => a === b;
 
@@ -71,5 +71,39 @@ describe('examState', () => {
   it('ohne „nur ein Durchlauf“: weiterschreiben, nach der Abgabe neu', () => {
     expect(examState({ submittedAt: null }, false)).toBe('running');
     expect(examState({ submittedAt: now }, false)).toBe('open');
+  });
+});
+
+describe('toggleSelection', () => {
+  const avail = [
+    { topicId: 'A', modules: [{ id: 'a1', subIds: [] }, { id: 'a2', subIds: ['a2x'] }] },
+    { topicId: 'B', modules: [{ id: 'b1', subIds: [] }] },
+  ];
+
+  it('Lernthema an: seine jetzigen Module; aus: leere Liste (bleibt zum Wiedereinschalten)', () => {
+    const on = toggleSelection([], avail, { topicId: 'B', enabled: true });
+    expect(on).toEqual([{ topicId: 'B', all: false, moduleIds: ['b1'] }]);
+    expect(toggleSelection(on, avail, { topicId: 'B', enabled: false })).toEqual([{ topicId: 'B', all: false, moduleIds: [] }]);
+  });
+
+  it('Modul an/aus macht „ganzes Thema“ ausdrücklich; letztes Modul aus = Thema aus', () => {
+    const sel = [{ topicId: 'A', all: true }];
+    const off = toggleSelection(sel, avail, { topicId: 'A', moduleId: 'a1', enabled: false });
+    expect(off).toEqual([{ topicId: 'A', all: false, moduleIds: ['a2'] }]);
+    expect(toggleSelection(off, avail, { topicId: 'A', moduleId: 'a2', enabled: false })).toEqual([{ topicId: 'A', all: false, moduleIds: [] }]);
+  });
+
+  it('Modul eines ausgeschalteten Themas schaltet das Thema mit diesem Modul ein; Reihenfolge wie verfügbar', () => {
+    const sel = [{ topicId: 'B', all: false, moduleIds: ['b1'] }];
+    expect(toggleSelection(sel, avail, { topicId: 'A', moduleId: 'a2', enabled: true }))
+      .toEqual([{ topicId: 'A', all: false, moduleIds: ['a2'] }, { topicId: 'B', all: false, moduleIds: ['b1'] }]);
+  });
+
+  it('gewähltes Submodul zählt fürs Modul', () => {
+    expect(moduleOn({ topicId: 'A', all: false, moduleIds: ['a2x'] }, avail[0].modules[1])).toBe(true);
+  });
+
+  it('explicitSelection: neue Module bleiben aus', () => {
+    expect(explicitSelection([{ topicId: 'A', all: true }], avail)).toEqual([{ topicId: 'A', all: false, moduleIds: ['a1', 'a2'] }]);
   });
 });

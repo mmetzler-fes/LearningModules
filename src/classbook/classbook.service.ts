@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, Repository } from 'typeorm';
+import { In, IsNull, Repository } from 'typeorm';
 import * as crypto from 'crypto';
 import { ClassNotebook, ClassNotebookItem } from '../core/entities/class-notebook.entity';
 import { ClassStudent } from '../core/entities/class-student.entity';
@@ -13,11 +13,12 @@ import { ExamAttempt } from '../core/entities/exam-attempt.entity';
 import { LearningModule } from '../core/entities/learning-module.entity';
 import { ClassesService } from '../classes/classes.service';
 import { LinksService, PRACTICE_MODES } from '../links/links.service';
+import { NotebooksService } from '../notebooks/notebooks.service';
 import { issueTicket, readTicket } from '../classes/student-ticket';
 import { isTestStudent } from '../classes/test-student';
 import { newPin, pinMatches, pinGuard } from '../work/pin';
 import { baseUrl, renderQr } from '../core/share/link-url';
-import { endOfDay, firstLoginOpen, loginDecision, unitCells, Unit, DetailLike, classbookTicketKey, examState } from './classbook-rules';
+import { endOfDay, firstLoginOpen, loginDecision, unitCells, Unit, DetailLike, classbookTicketKey, examState, toggleSelection, explicitSelection, moduleOn, AvailTopic, SelEntry } from './classbook-rules';
 
 const practiceModes = (link: TopicLink) => PRACTICE_MODES.filter((m) => (link.modes || []).includes(m));
 
@@ -49,6 +50,7 @@ export class ClassbookService {
     @InjectRepository(ExamAttempt) private readonly attemptRepo: Repository<ExamAttempt>,
     private readonly classes: ClassesService,
     private readonly links: LinksService,
+    private readonly notebooks: NotebooksService,
   ) {}
 
   /** Notizbuch der Klasse – beim ersten Aufruf angelegt. */
@@ -89,7 +91,20 @@ export class ClassbookService {
     const nb = await this.ensure(klasse);
     const url = `${baseUrl(req)}/?k=${nb.token}`;
     const students = await this.studentRepo.find({ where: { classId }, select: ['id', 'status', 'pinShownAt'] });
-    const links = await Promise.all((await this.classLinks(klasse)).map((l) => this.linkInfo(l)));
+    const links = await Promise.all((await this.classLinks(klasse)).map(async (l) => {
+      const info = await this.linkInfo(l);
+      const avail = await this.available(l, user);
+      const selection = (l.selection || []) as SelEntry[];
+      return {
+        ...info,
+        notReleased: avail.notReleased,
+        // Was die Zuweisung enthalten kann, mit Schalter je Lernthema und Modul.
+        available: avail.topics.map((t) => {
+          const entry = selection.find((e) => e.topicId === t.topicId);
+          return { ...t, enabled: !!entry && t.modules.some((m) => moduleOn(entry, m)), modules: t.modules.map((m) => ({ ...m, enabled: moduleOn(entry, m) })) };
+        }),
+      };
+    }));
     return {
       classId,
       className: klasse.name,
@@ -106,6 +121,82 @@ export class ClassbookService {
       },
       links: links.map(({ resolved: _r, ...l }) => l),
     };
+  }
+
+  /**
+   * Was eine Zuweisung enthalten kann: bei einem Bereich (Regel des Knotens)
+   * alle startbaren Lernthemen darin – auch später dazugelegte –, sonst die
+   * gewählten; je Lernthema alle Module, die der Lehrkraft zustehen.
+   */
+  private async available(link: TopicLink, user: any) {
+    const rule = link.templateId ? await this.linkRepo.findOne({ where: { id: link.templateId } }) : null;
+    const ids: string[] = [];
+    let notReleased: string[] = [];
+    if (rule?.quickNodeId) {
+      const found = await this.notebooks.topicsOfNode(rule.quickNodeId, user).catch(() => ({ included: [] as string[], notReleased: [] as string[] }));
+      ids.push(...found.included);
+      notReleased = found.notReleased;
+    }
+    if (rule?.quickTopicId && !ids.includes(rule.quickTopicId)) ids.push(rule.quickTopicId);
+    for (const e of [...(rule?.selection || []), ...(link.selection || [])]) if (!ids.includes(e.topicId)) ids.push(e.topicId);
+    const resolved = ids.length
+      ? await this.links.resolveModules(Object.assign(new TopicLink(), link, { selection: ids.map((topicId) => ({ topicId, all: true })) }))
+      : [];
+    const topics = resolved.map((r) => ({
+      topicId: r.topic.id,
+      title: r.topic.title,
+      modules: r.modules.map((m) => ({
+        id: m.id, title: m.title || '', type: m.type,
+        subIds: ((m as any).subModules || []).map((x: LearningModule) => x.id),
+      })),
+    }));
+    return { topics, notReleased };
+  }
+
+  private async ownClassLink(user: any, classId: string, linkId: string) {
+    await this.classes.ownedClass(classId, user);
+    const link = await this.linkRepo.findOne({ where: { id: linkId, classId, ownerId: user.userId } });
+    if (!link) throw new NotFoundException('Zuweisung nicht gefunden.');
+    return link;
+  }
+
+  /** `{ topicId, moduleId?, enabled }` – Lernthema oder Modul dieser Zuweisung ein- oder ausschalten. */
+  async setItem(user: any, classId: string, linkId: string, body: { topicId?: string; moduleId?: string; enabled?: boolean }) {
+    const link = await this.ownClassLink(user, classId, linkId);
+    const { topics } = await this.available(link, user);
+    const topicId = String(body?.topicId || '');
+    if (!topics.some((t) => t.topicId === topicId)) throw new BadRequestException('Dieses Lernthema gehört nicht zur Zuweisung.');
+    link.selection = toggleSelection((link.selection || []) as SelEntry[], topics as AvailTopic[], {
+      topicId, moduleId: body?.moduleId ? String(body.moduleId) : undefined, enabled: !!body?.enabled,
+    });
+    // Eigene Auswahl dieser Klasse – das Nachziehen einer Freigabe überschreibt sie nicht ungefragt.
+    link.customized = true;
+    await this.linkRepo.save(link);
+    return { success: true };
+  }
+
+  /**
+   * Lernthema oder Knoten des Notizbuchs zuweisen. Die Auswahl wird
+   * ausdrücklich: Später ergänzte Module und Lernthemen erscheinen
+   * ausgeschaltet. Eine schon vorhandene Zuweisung bleibt, wie sie ist.
+   */
+  async assign(user: any, classId: string, body: { type?: string; id?: string }, req?: any) {
+    const klasse = await this.classes.ownedClass(classId, user);
+    const id = String(body?.id || '');
+    const isNode = body?.type === 'node';
+    const rule = await this.linkRepo.findOne({ where: { ownerId: user.userId, classId: IsNull(), ...(isNode ? { quickNodeId: id } : { quickTopicId: id }) } });
+    const existing = rule ? await this.linkRepo.findOne({ where: { ownerId: user.userId, templateId: rule.id, classId: klasse.id } }) : null;
+    if (existing) return { linkId: existing.id, existed: true, notReleased: [] };
+    const created: any = isNode
+      ? await this.notebooks.quickLink(id, user, klasse.id, req)
+      : await this.links.classLinkForTopic(id, klasse.id, user, req);
+    const link = await this.linkRepo.findOne({ where: { id: created.id } });
+    if (link) {
+      const { topics } = await this.available(link, user);
+      link.selection = explicitSelection((link.selection || []) as SelEntry[], topics as AvailTopic[]);
+      await this.linkRepo.save(link);
+    }
+    return { linkId: created.id, existed: false, notReleased: created.notReleased || [] };
   }
 
   /** Erstanmeldung an (bis Ende des Tages) oder aus. */

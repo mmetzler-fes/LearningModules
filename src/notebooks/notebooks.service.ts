@@ -616,8 +616,28 @@ export class NotebooksService {
     return { ...res, includedCount: included.length, notReleased };
   }
 
+  /**
+   * Startbare Lernthemen eines Knotens fürs Klassennotizbuch (dort wächst eine
+   * Zuweisung mit) – leer statt Fehler, wenn keins dabei ist.
+   */
+  async topicsOfNode(id: string, user: any): Promise<{ included: string[]; notReleased: string[] }> {
+    const { included, notReleased } = await this.collectTopics(id, user);
+    return { included, notReleased };
+  }
+
   /** Knoten und seine startbaren Lernthemen – wirft, wenn keins dabei ist. */
   private async quickTopics(id: string, user: any) {
+    const found = await this.collectTopics(id, user);
+    if (!found.included.length) {
+      throw new BadRequestException(found.notReleased.length
+        ? `Darin ist kein freigegebenes Lernthema. Nicht freigegeben: ${found.notReleased.join(', ')}.`
+        : 'Darin ist kein Lernthema mit freigegebenen Modulen.');
+    }
+    return found;
+  }
+
+  /** Knoten, seine startbaren Lernthemen und die gesperrten (Titel). */
+  private async collectTopics(id: string, user: any) {
     let node: { id: string; title: string };
     let below: string[];
     if (id.startsWith('offer:')) {
@@ -652,11 +672,6 @@ export class NotebooksService {
       if (!active) continue;
       if (topic.isOwn && !topic.selected) { notReleased.push(topic.title); continue; }
       included.push(topicId);
-    }
-    if (!included.length) {
-      throw new BadRequestException(notReleased.length
-        ? `Darin ist kein freigegebenes Lernthema. Nicht freigegeben: ${notReleased.join(', ')}.`
-        : 'Darin ist kein Lernthema mit freigegebenen Modulen.');
     }
     return { node, included, notReleased };
   }

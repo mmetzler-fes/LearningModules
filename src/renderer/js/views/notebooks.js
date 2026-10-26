@@ -1184,16 +1184,16 @@ export class NotebooksView {
     });
     if (!picked?.length) return;
     const done = [];
+    const had = [];
     const notReleased = new Set();
     for (const c of picked) {
-      const res = kind === 'node'
-        ? await this.app.api.classLinkFromNotebookNode(node.id, c.id)
-        : await this.app.api.classLinkFromTopic(topic.id, c.id);
+      const res = await this.app.api.assignToClassbook(c.id, kind, kind === 'node' ? node.id : topic.id);
       if (!res || res.statusCode >= 400) { this.app.showToast(`Fehler bei ${c.name}: ${res?.message || '?'}`, 'error'); continue; }
-      done.push(c.name);
+      (res.existed ? had : done).push(c.name);
       (res.notReleased || []).forEach((n) => notReleased.add(n));
     }
     if (done.length) this.app.showToast(`„${title}“ steht jetzt im Klassennotizbuch von ${done.join(', ')}.`, 'success');
+    if (had.length) this.app.showToast(`Schon zugewiesen (${had.join(', ')}) – Neues steht dort ausgeschaltet bereit und lässt sich im Klassennotizbuch einschalten.`, 'info');
     if (notReleased.size) this.app.showToast(`Nicht freigegeben, daher nicht dabei: ${[...notReleased].join(', ')}.`, 'info');
   }
 

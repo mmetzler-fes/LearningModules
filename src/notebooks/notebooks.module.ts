@@ -29,5 +29,6 @@ import { WorksheetsModule } from '../worksheets/worksheets.module';
   ],
   controllers: [NotebooksController],
   providers: [NotebooksService],
+  exports: [NotebooksService],
 })
 export class NotebooksModule {}

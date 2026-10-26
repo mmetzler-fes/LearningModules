@@ -32,6 +32,19 @@ export class ClassbookController {
     return this.classbook.setTeacherItems(req.user, classId, body?.items);
   }
 
+  /** `{ type: 'topic'|'node', id }` – aus dem Notizbuch zuweisen. */
+  @Post(':classId/assign')
+  @HttpCode(200)
+  assign(@Request() req: any, @Param('classId') classId: string, @Body() body: { type?: string; id?: string }) {
+    return this.classbook.assign(req.user, classId, body, req);
+  }
+
+  /** `{ topicId, moduleId?, enabled }` – Lernthema oder Modul einer Zuweisung ein-/ausschalten. */
+  @Put(':classId/links/:linkId/item')
+  setItem(@Request() req: any, @Param('classId') classId: string, @Param('linkId') linkId: string, @Body() body: any) {
+    return this.classbook.setItem(req.user, classId, linkId, body);
+  }
+
   @Get(':classId/overview')
   overview(@Request() req: any, @Param('classId') classId: string) {
     return this.classbook.overview(req.user, classId);

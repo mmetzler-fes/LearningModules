@@ -101,3 +101,57 @@ export function examState(attempt: { submittedAt?: Date | null; reentryAllowed?:
   if (!singleAttempt) return attempt.submittedAt ? 'open' : 'running';
   return attempt.submittedAt ? 'submitted' : 'locked';
 }
+
+/** Eintrag der Auswahl eines Klassenlinks (wie LinkTopicSelection). */
+export interface SelEntry {
+  topicId: string;
+  all: boolean;
+  moduleIds?: string[];
+}
+
+/** Was eine Zuweisung enthalten kann: Lernthemen mit ihren Modulen (und deren Submodulen). */
+export interface AvailTopic {
+  topicId: string;
+  modules: Array<{ id: string; subIds: string[] }>;
+}
+
+/** Ist das Modul in der Auswahl? Ein gewähltes Submodul zählt fürs Modul. */
+export function moduleOn(entry: SelEntry | undefined | null, m: { id: string; subIds: string[] }): boolean {
+  return !!entry && (entry.all || (entry.moduleIds || []).some((id) => id === m.id || m.subIds.includes(id)));
+}
+
+/**
+ * Lernthema oder Modul im Klassennotizbuch ein- oder ausschalten. Die
+ * Auswahl wird dabei ausdrücklich (Modul-IDs statt „ganzes Thema“) – so sind
+ * später ergänzte Module zunächst aus. Ein Lernthema einschalten schaltet
+ * seine jetzigen Module ein; ohne eingeschaltetes Modul ist es aus – es
+ * bleibt aber mit leerer Liste stehen, damit es sich wieder einschalten lässt
+ * (der Durchlauf überspringt Lernthemen ohne Module).
+ * Reihenfolge wie in `available`, Unbekanntes bleibt hinten.
+ */
+export function toggleSelection(selection: SelEntry[], available: AvailTopic[], change: { topicId: string; moduleId?: string; enabled: boolean }): SelEntry[] {
+  const topic = available.find((t) => t.topicId === change.topicId);
+  if (!topic) return selection;
+  const entry = selection.find((e) => e.topicId === change.topicId);
+  const roots = topic.modules.map((m) => m.id);
+  let ids: string[];
+  if (!change.moduleId) {
+    ids = change.enabled ? roots : [];
+  } else {
+    const on = new Set(topic.modules.filter((m) => moduleOn(entry, m)).map((m) => m.id));
+    if (change.enabled) on.add(change.moduleId); else on.delete(change.moduleId);
+    ids = roots.filter((id) => on.has(id));
+  }
+  const merged = [...selection.filter((e) => e.topicId !== change.topicId), { topicId: topic.topicId, all: false, moduleIds: ids }];
+  const order = available.map((t) => t.topicId);
+  return [...order.flatMap((id) => merged.filter((e) => e.topicId === id)), ...merged.filter((e) => !order.includes(e.topicId))];
+}
+
+/** „Ganzes Thema“ durch die jetzigen Module ersetzen – neue kommen dann ausgeschaltet dazu. */
+export function explicitSelection(selection: SelEntry[], available: AvailTopic[]): SelEntry[] {
+  return selection.map((e) => {
+    if (!e.all) return e;
+    const topic = available.find((t) => t.topicId === e.topicId);
+    return { topicId: e.topicId, all: false, moduleIds: topic ? topic.modules.map((m) => m.id) : [] };
+  });
+}

@@ -28,7 +28,7 @@ function setup({ firstLogin = false } = {}) {
     practiceToken: async (l: any) => l.token,
   };
   const attempts = repo();
-  const svc = new ClassbookService(notebooks as any, students as any, results as any, works as any, links as any, users as any, attempts as any, classes, linksService);
+  const svc = new ClassbookService(notebooks as any, students as any, results as any, works as any, links as any, users as any, attempts as any, classes, linksService, {} as any);
   return { svc, students, links, notebooks, attempts };
 }
 
@@ -111,5 +111,27 @@ describe('Klassennotizbuch: Klassenarbeit', () => {
     expect((await svc.home('kb', ticket)).exams[0].state).toBe('submitted');
     attempts.rows[0].reentryAllowed = true;
     expect((await svc.home('kb', ticket)).exams[0].state).toBe('reentry');
+  });
+});
+
+describe('Klassennotizbuch: Lernthemen und Module schalten', () => {
+  it('Modul aus: Auswahl wird ausdrücklich, Schüler sehen es nicht mehr; Thema aus und wieder an', async () => {
+    const { svc, links } = setup();
+    const QUIZ2 = { id: 'm2', type: 'multipleChoice', title: 'Zweite', orderIndex: 1 };
+    links.rows[0].selection = [{ topicId: 't', all: true }];
+    (svc as any).links.resolveModules = async (l: any) => (l.selection || []).map((e: any) => ({
+      topic: { id: e.topicId, title: 'Strom' },
+      modules: [QUIZ, QUIZ2].filter((m) => e.all || (e.moduleIds || []).includes(m.id)),
+    }));
+    (svc as any).classes.ownedClass = async () => KLASSE;
+    const user = { userId: 't1' };
+    await svc.setItem(user, 'c1', 'l1', { topicId: 't', moduleId: 'm1', enabled: false });
+    expect(links.rows[0].selection).toEqual([{ topicId: 't', all: false, moduleIds: ['m2'] }]);
+    expect(links.rows[0].customized).toBe(true);
+    await svc.setItem(user, 'c1', 'l1', { topicId: 't', enabled: false });
+    expect(links.rows[0].selection).toEqual([{ topicId: 't', all: false, moduleIds: [] }]);
+    await svc.setItem(user, 'c1', 'l1', { topicId: 't', enabled: true });
+    expect(links.rows[0].selection).toEqual([{ topicId: 't', all: false, moduleIds: ['m1', 'm2'] }]);
+    await expect(svc.setItem(user, 'c1', 'l1', { topicId: 'x', enabled: true })).rejects.toThrow(/gehört nicht/);
   });
 });

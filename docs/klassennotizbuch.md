@@ -37,16 +37,34 @@ oder hier **➕ Aus dem Notizbuch zuweisen**: ein Lernthema oder einen ganzen
 Book, Bereich oder Abschnitt wählen. Gesperrte Lernthemen bietet die App
 vorher zur Freigabe an. Dahinter steht ein
 gewöhnlicher Klassenlink (wie beim Quick-Link), Inhalte bleiben Verweise:
-Änderungen im Notizbuch gelten sofort. Bei einem Bereich kommen später
-dazugelegte Lernthemen mit, wenn du ihn erneut zuweist.
+Änderungen im Notizbuch gelten sofort.
+
+#### Ein- und ausschalten, Neues
+
+Jede Zuweisung zeigt alle Lernthemen und Module, die sie enthalten kann, mit
+**●** (an – die Schüler sehen es) oder **○** (aus), je Klasse – so wie die
+Freigabe im Notizbuch, nur für diese Klasse.
+
+- Ein Lernthema einschalten schaltet seine jetzigen Module ein; ein Modul
+  einschalten schaltet sein Lernthema mit ein. Ist kein Modul an, ist das
+  Lernthema aus.
+- **Neues wächst mit, ist aber zunächst aus:** ein Modul, das du später im
+  Lernthema anlegst, und bei einem zugewiesenen Book, Bereich oder Abschnitt
+  jedes Lernthema, das du später hineinlegst. Du schaltest es ein, wenn es so
+  weit ist.
+- Lernthemen, die im Notizbuch noch nicht für Schüler freigegeben sind, stehen
+  als Hinweis darunter – erst freigeben, dann hier einschalten.
+- Ein zweites Zuweisen desselben Lernthemas oder Bereichs ändert nichts.
+- Ältere Zuweisungen mit „ganzes Thema“ zeigen alles als an; sobald du dort
+  etwas schaltest, gilt auch für sie: Neues kommt ausgeschaltet dazu.
 
 Auch Klassenlinks, die du anders angelegt hast (🔗 Schülerfreigaben,
 Quick-Link), stehen hier. Je Zuweisung:
 
 - **📡 Live** – gleich die Live-Ansicht dieser Aufgabe,
 - **📊 Ergebnisse** – die Ergebnisübersicht dieser Aufgabe,
-- **⏸ Ausblenden** – die Schüler sehen sie nicht mehr, Ergebnisse und Blätter
-  bleiben; **▶ Wieder zeigen** holt sie zurück.
+- **⏸ Ausblenden** – die Schüler sehen die ganze Zuweisung nicht mehr,
+  Ergebnisse und Blätter bleiben; **▶ Wieder zeigen** holt sie zurück.
 
 ### Ergebnisübersicht
 
@@ -126,8 +144,16 @@ sonst jeder anmelden. In der Ergebnisübersicht fehlen unbestätigte Einträge.
   (`topic_links.classId`), Schülerdaten `results` und `document_works`.
 - Regeln ohne Datenbank: `src/classbook/classbook-rules.ts` (Erstanmeldung bis
   Tagesende, PIN-Entscheidung, Stand je Modul aus `payload.details`).
-- Lehrkraft: `GET /api/classbook/:classId`, `POST …/first-login` `{ open }`,
-  `POST …/token`, `PUT …/teacher-items` `{ items }`, `GET …/overview`.
+- Lehrkraft: `GET /api/classbook/:classId` (je Zuweisung `available` mit
+  `enabled`), `POST …/first-login` `{ open }`, `POST …/token`,
+  `PUT …/teacher-items` `{ items }`, `GET …/overview`,
+  `POST …/assign` `{ type: 'topic'|'node', id }`,
+  `PUT …/links/:linkId/item` `{ topicId, moduleId?, enabled }`.
+- Ein- und ausschalten ändert die Auswahl des Klassenlinks: ausdrücklich je
+  Modul (`all: false`, `moduleIds`), ein ausgeschaltetes Lernthema bleibt mit
+  leerer Liste stehen (`toggleSelection`). Verfügbar ist bei einem Knoten alles
+  Startbare darin (`NotebooksService.topicsOfNode`), sonst die Lernthemen der
+  Regel und des Klassenlinks.
 - Schüler: `GET /api/public/classbook/:token`, `POST …/login`
   `{ name, pin?, testPassword? }` → `{ ticket, name, pending, pin? }`,
   `POST …/home` `{ ticket }` (mit `exams`: aktive Klassenarbeiten mit Link,

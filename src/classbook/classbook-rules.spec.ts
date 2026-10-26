@@ -1,4 +1,4 @@
-import { endOfDay, firstLoginOpen, loginDecision, unitCells } from './classbook-rules';
+import { endOfDay, firstLoginOpen, loginDecision, unitCells, examState } from './classbook-rules';
 
 const same = (a: string, b: string | null | undefined) => a === b;
 
@@ -57,5 +57,19 @@ describe('unitCells', () => {
   it('Punkte statt richtig/falsch', () => {
     const cells = unitCells([{ id: 'a', ids: ['a'] }], [{ details: [{ moduleId: 'a', points: 0.5 }] }], new Set());
     expect(cells.a.pct).toBe(50);
+  });
+});
+
+describe('examState', () => {
+  const now = new Date();
+  it('nur ein Durchlauf: begonnen oder abgegeben nur mit Freigabe weiter', () => {
+    expect(examState(null, true)).toBe('open');
+    expect(examState({ submittedAt: null }, true)).toBe('locked');
+    expect(examState({ submittedAt: now }, true)).toBe('submitted');
+    expect(examState({ submittedAt: now, reentryAllowed: true }, true)).toBe('reentry');
+  });
+  it('ohne „nur ein Durchlauf“: weiterschreiben, nach der Abgabe neu', () => {
+    expect(examState({ submittedAt: null }, false)).toBe('running');
+    expect(examState({ submittedAt: now }, false)).toBe('open');
   });
 });

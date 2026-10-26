@@ -27,8 +27,9 @@ function setup({ firstLogin = false } = {}) {
     resolveModules: async () => [{ topic: { id: 't', title: 'Strom' }, modules: [QUIZ] }],
     practiceToken: async (l: any) => l.token,
   };
-  const svc = new ClassbookService(notebooks as any, students as any, results as any, works as any, links as any, users as any, classes, linksService);
-  return { svc, students, links, notebooks };
+  const attempts = repo();
+  const svc = new ClassbookService(notebooks as any, students as any, results as any, works as any, links as any, users as any, attempts as any, classes, linksService);
+  return { svc, students, links, notebooks, attempts };
 }
 
 describe('Klassennotizbuch: Anmeldung', () => {
@@ -89,5 +90,26 @@ describe('Klassennotizbuch: Startseite', () => {
     const { linkToken } = await svc.enter('kb', { ticket, linkId: 'l1' });
     expect(linkToken).toBe(links.rows[0].token);
     await expect(svc.home('kb', 'falsch')).rejects.toMatchObject({ response: { expired: true } });
+  });
+});
+
+describe('Klassennotizbuch: Klassenarbeit', () => {
+  it('erscheint, solange sie aktiv ist und ihr Link erzeugt wurde; Start über ihren eigenen Link', async () => {
+    const { svc, links, attempts } = setup();
+    links.rows.push({ id: 'x1', classId: 'c1', ownerId: 't1', name: 'KA 1', active: true, modes: ['exam'], examToken: null, singleAttempt: true, createdAt: new Date() });
+    const { ticket } = await svc.login('kb', { name: 'Anna', pin: '1234' });
+    expect((await svc.home('kb', ticket)).exams).toEqual([]);
+    await expect(svc.enter('kb', { ticket, linkId: 'x1', exam: true })).rejects.toThrow(/nicht freigegeben/);
+
+    links.rows[1].examToken = 'ex';
+    expect((await svc.home('kb', ticket)).exams).toEqual([{ linkId: 'x1', name: 'KA 1', state: 'open' }]);
+    expect(await svc.enter('kb', { ticket, linkId: 'x1', exam: true })).toEqual({ linkToken: 'ex' });
+
+    attempts.rows.push({ id: 'a1', linkId: 'x1', studentId: 's1', submittedAt: null, reentryAllowed: false });
+    expect((await svc.home('kb', ticket)).exams[0].state).toBe('locked');
+    attempts.rows[0].submittedAt = new Date();
+    expect((await svc.home('kb', ticket)).exams[0].state).toBe('submitted');
+    attempts.rows[0].reentryAllowed = true;
+    expect((await svc.home('kb', ticket)).exams[0].state).toBe('reentry');
   });
 });

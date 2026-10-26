@@ -86,3 +86,18 @@ export function unitCells(units: Unit[], runs: Array<{ details?: DetailLike[] }>
   }
   return out;
 }
+
+/**
+ * Klassenarbeit im Klassennotizbuch des Schülers – nach denselben Regeln wie
+ * ExamService.begin: `open` starten, `running` weiterschreiben (ohne „nur ein
+ * Durchlauf“), `reentry` von der Lehrkraft freigegeben, `locked` begonnen
+ * und nur mit Freigabe weiter, `submitted` abgegeben.
+ */
+export type ExamState = 'open' | 'running' | 'reentry' | 'locked' | 'submitted';
+
+export function examState(attempt: { submittedAt?: Date | null; reentryAllowed?: boolean } | null | undefined, singleAttempt: boolean): ExamState {
+  if (!attempt) return 'open';
+  if (attempt.reentryAllowed) return 'reentry';
+  if (!singleAttempt) return attempt.submittedAt ? 'open' : 'running';
+  return attempt.submittedAt ? 'submitted' : 'locked';
+}

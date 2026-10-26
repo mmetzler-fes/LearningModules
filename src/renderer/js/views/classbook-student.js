@@ -180,11 +180,21 @@ export class ClassbookStudent {
       ? `<ul class="cb-list">${data.works.map((w) => `<li><button type="button" class="cb-unit" data-start="${escapeAttr(w.linkId)}" data-module="${escapeAttr(w.moduleId)}">📄 ${escapeHtml(w.title)}</button>
           <span class="hint">${escapeHtml(when(w.at))}</span></li>`).join('')}</ul>`
       : '<p class="hint">Noch keine Blätter – sie entstehen, wenn du ein Dokument mit „✍️ Mit Stift bearbeiten“ öffnest.</p>';
+    const EXAM_STATE = {
+      open: '<button type="button" class="btn btn-primary btn-sm" data-exam>📝 Klassenarbeit starten</button>',
+      running: '<button type="button" class="btn btn-primary btn-sm" data-exam>📝 Weiterschreiben</button>',
+      reentry: '<button type="button" class="btn btn-primary btn-sm" data-exam>📝 Wieder einsteigen</button>',
+      locked: '<span class="hint">Schon begonnen – zum Weiterschreiben gibt deine Lehrkraft den Wiedereinstieg frei.</span>',
+      submitted: '<span class="hint">✅ abgegeben</span>',
+    };
+    const exams = (data.exams || []).map((x) => `<div class="cb-exam" data-link="${escapeAttr(x.linkId)}">
+        <strong>📝 ${escapeHtml(x.name)}</strong>${EXAM_STATE[x.state] || ''}</div>`).join('');
     const el = this._show(`
       <div class="cb-head">
         <div><span class="quick-entry-label">📒 ${escapeHtml(data.className)}</span><h2>${escapeHtml(data.name)}</h2></div>
         <button type="button" class="btn btn-secondary btn-sm" id="cbLogout">Abmelden</button>
       </div>
+      ${exams ? `<h3 class="cb-section">📝 Klassenarbeit</h3>${exams}` : ''}
       <h3 class="cb-section">📋 Aufgaben</h3>
       ${assignments || '<p class="hint">Gerade sind keine Aufgaben freigegeben.</p>'}
       ${data.pending
@@ -196,6 +206,7 @@ export class ClassbookStudent {
       this._login();
     });
     el.querySelectorAll('[data-start]').forEach((btn) => btn.addEventListener('click', () => this._enter(btn.dataset.start, btn.dataset.mode || null, btn.dataset.module || null, btn)));
+    el.querySelectorAll('[data-exam]').forEach((btn) => btn.addEventListener('click', () => this._enter(btn.closest('[data-link]').dataset.link, 'exam', null, btn)));
     el.querySelectorAll('[data-contest]').forEach((btn) => btn.addEventListener('click', async () => {
       const res = await post(`${encodeURIComponent(this.token)}/enter`, { ticket: classbookSession()?.ticket, linkId: btn.dataset.contest }).catch(() => null);
       if (res?.linkToken) window.location.href = `/?l=${encodeURIComponent(res.linkToken)}&m=contest`;
@@ -211,7 +222,7 @@ export class ClassbookStudent {
     const chosen = mode || (assignment?.modes.includes('quiz') ? 'quiz' : assignment?.modes[0]) || 'quiz';
     if (btn) btn.disabled = true;
     try {
-      const res = await post(`${encodeURIComponent(this.token)}/enter`, { ticket: s?.ticket, linkId });
+      const res = await post(`${encodeURIComponent(this.token)}/enter`, { ticket: s?.ticket, linkId, exam: chosen === 'exam' });
       if (!res?.linkToken) throw new Error(res?.message || 'Diese Aufgabe ist gerade nicht freigegeben.');
       const data = await this.app.api.startLinkRun(res.linkToken, { mode: chosen, classTicket: s.ticket });
       if (!data?.topics) throw new Error(data?.message || 'Der Start ist fehlgeschlagen.');

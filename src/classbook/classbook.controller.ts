@@ -62,10 +62,10 @@ export class PublicClassbookController {
     return this.classbook.home(token, body?.ticket);
   }
 
-  /** `{ ticket, linkId }` → `{ linkToken }` für den Start mit `classTicket`. */
+  /** `{ ticket, linkId, exam? }` → `{ linkToken }` für den Start mit `classTicket` (Klassenarbeit: ihr eigener Link). */
   @Post(':token/enter')
   @HttpCode(200)
-  enter(@Param('token') token: string, @Body() body: { ticket?: string; linkId?: string }) {
+  enter(@Param('token') token: string, @Body() body: { ticket?: string; linkId?: string; exam?: boolean }) {
     return this.classbook.enter(token, body);
   }
 }

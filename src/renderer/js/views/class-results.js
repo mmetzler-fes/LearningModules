@@ -633,7 +633,7 @@ export class ClassResultsView {
       out.innerHTML = `
         <div class="cr-works-bar">
           <button type="button" class="btn btn-primary btn-sm" id="cbTeacherAdd">➕ Aus dem Notizbuch</button>
-          <span class="hint">Nur du siehst diesen Bereich – etwa Lösungen, Unterrichtsplanung oder Kopiervorlagen. Es sind Verweise auf dein Notizbuch.</span>
+          <span class="hint">Nur du siehst diesen Bereich – etwa Lösungen, Unterrichtsplanung oder Kopiervorlagen. Es sind Verweise auf dein Notizbuch; ein Klick zeigt die Vorschau, bearbeitet wird im 📓 Notizbuch.</span>
         </div>
         ${items.length ? items.map((it) => `
           <details class="result-group" open data-item="${escapeAttr(`${it.type}:${it.id}`)}">
@@ -663,7 +663,7 @@ export class ClassResultsView {
       out.querySelectorAll('[data-module]').forEach((btn) => btn.addEventListener('click', () => {
         const t = topics.get(btn.dataset.topic);
         const mod = (t?.modules || []).find((m) => m.id === btn.dataset.module);
-        if (mod) this.app.modulesView.openFrom('teacher-class-results', t.id, mod, t.isOwn ? 'edit' : 'preview');
+        if (mod) this.app.modulesView.openFrom('teacher-class-results', t.id, mod, 'preview');
       }));
     });
   }
@@ -674,7 +674,8 @@ export class ClassResultsView {
     this._section('exams', async (cb, out) => {
       const links = cb.links.filter((l) => l.exam);
       out.innerHTML = `
-        <p class="hint">Klassenarbeiten haben einen eigenen Link – zeig ihn erst zu Beginn. Angelegt werden sie unter
+        <p class="hint">Klassenarbeiten haben einen eigenen Link. Sobald du ihn mit <strong>📝 Link & QR</strong> erzeugt hast, steht die
+          Klassenarbeit auch im Klassennotizbuch der Schüler (mit PIN) – bis du sie deaktivierst. Angelegt werden sie unter
           <strong>🔗 Schülerfreigaben</strong> (Modus „Klassenarbeit“, dann für diese Klasse).</p>
         ${links.length ? links.map((l) => this._linkCard(l, `
           <button type="button" class="btn btn-primary btn-sm" data-exam-share>📝 Link & QR</button>

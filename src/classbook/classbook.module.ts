@@ -6,13 +6,14 @@ import { Result } from '../core/entities/result.entity';
 import { DocumentWork } from '../core/entities/document-work.entity';
 import { TopicLink } from '../core/entities/topic-link.entity';
 import { User } from '../core/entities/user.entity';
+import { ExamAttempt } from '../core/entities/exam-attempt.entity';
 import { LinksModule } from '../links/links.module';
 import { ClassesModule } from '../classes/classes.module';
 import { ClassbookService } from './classbook.service';
 import { ClassbookController, PublicClassbookController } from './classbook.controller';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([ClassNotebook, ClassStudent, Result, DocumentWork, TopicLink, User]), LinksModule, ClassesModule],
+  imports: [TypeOrmModule.forFeature([ClassNotebook, ClassStudent, Result, DocumentWork, TopicLink, User, ExamAttempt]), LinksModule, ClassesModule],
   controllers: [ClassbookController, PublicClassbookController],
   providers: [ClassbookService],
 })

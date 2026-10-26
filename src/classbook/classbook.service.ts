@@ -9,6 +9,7 @@ import { Result } from '../core/entities/result.entity';
 import { DocumentWork } from '../core/entities/document-work.entity';
 import { TopicLink } from '../core/entities/topic-link.entity';
 import { User } from '../core/entities/user.entity';
+import { ExamAttempt } from '../core/entities/exam-attempt.entity';
 import { LearningModule } from '../core/entities/learning-module.entity';
 import { ClassesService } from '../classes/classes.service';
 import { LinksService, PRACTICE_MODES } from '../links/links.service';
@@ -16,7 +17,7 @@ import { issueTicket, readTicket } from '../classes/student-ticket';
 import { isTestStudent } from '../classes/test-student';
 import { newPin, pinMatches, pinGuard } from '../work/pin';
 import { baseUrl, renderQr } from '../core/share/link-url';
-import { endOfDay, firstLoginOpen, loginDecision, unitCells, Unit, DetailLike, classbookTicketKey } from './classbook-rules';
+import { endOfDay, firstLoginOpen, loginDecision, unitCells, Unit, DetailLike, classbookTicketKey, examState } from './classbook-rules';
 
 const practiceModes = (link: TopicLink) => PRACTICE_MODES.filter((m) => (link.modes || []).includes(m));
 
@@ -45,6 +46,7 @@ export class ClassbookService {
     @InjectRepository(DocumentWork) private readonly workRepo: Repository<DocumentWork>,
     @InjectRepository(TopicLink) private readonly linkRepo: Repository<TopicLink>,
     @InjectRepository(User) private readonly userRepo: Repository<User>,
+    @InjectRepository(ExamAttempt) private readonly attemptRepo: Repository<ExamAttempt>,
     private readonly classes: ClassesService,
     private readonly links: LinksService,
   ) {}
@@ -243,8 +245,13 @@ export class ClassbookService {
   async home(token: string, ticket: unknown) {
     const { klasse, ticket: t, student } = await this.session(token, ticket);
     const confirmed = !!student && student.status !== 'pending';
-    const links = (await Promise.all((await this.classLinks(klasse)).filter((l) => l.active).map((l) => this.linkInfo(l))))
-      .filter((l) => l.practice.length || l.contest);
+    const active = (await this.classLinks(klasse)).filter((l) => l.active);
+    const links = (await Promise.all(active.map((l) => this.linkInfo(l)))).filter((l) => l.practice.length || l.contest);
+    // Laufende Klassenarbeiten: aktiv und ihr Link ist erzeugt (die Lehrkraft hat ihn ausgegeben).
+    const exams = await Promise.all(active.filter((l) => (l.modes || []).includes('exam') && l.examToken).map(async (l) => {
+      const attempt = await this.attemptRepo.findOne({ where: { linkId: l.id, studentId: t.s } });
+      return { linkId: l.id, name: l.name, state: isTestStudent(t.s) ? 'open' : examState(attempt, l.singleAttempt) };
+    }));
     const results = confirmed ? await this.resultRepo.find({ where: { classId: klasse.id, studentId: t.s }, order: { createdAt: 'DESC' } }) : [];
     const works = confirmed
       ? await this.workRepo.find({ where: { classId: klasse.id, studentId: t.s }, select: ['id', 'linkId', 'moduleId', 'moduleTitle', 'access', 'updatedAt'], order: { updatedAt: 'DESC' } })
@@ -253,6 +260,7 @@ export class ClassbookService {
       className: klasse.name,
       name: t.n,
       pending: !confirmed && !isTestStudent(t.s),
+      exams,
       assignments: links.map((l) => {
         const runs = results.filter((r) => r.linkId === l.id).map((r) => ({ details: (r.payload?.details || []) as DetailLike[] }));
         const mine = new Set(works.filter((w) => w.linkId === l.id).map((w) => w.moduleId));
@@ -278,10 +286,15 @@ export class ClassbookService {
    * Eine Zuweisung öffnen: Adresse des Klassenlinks. Den Durchlauf startet
    * dann der gewöhnliche Link-Start mit dem Ausweis des Klassennotizbuchs.
    */
-  async enter(token: string, body: { ticket?: string; linkId?: string }) {
+  async enter(token: string, body: { ticket?: string; linkId?: string; exam?: boolean }) {
     const { klasse } = await this.session(token, body?.ticket);
     const link = await this.linkRepo.findOne({ where: { id: String(body?.linkId || ''), classId: klasse.id } });
     if (!link || !link.active) throw new NotFoundException('Diese Aufgabe ist gerade nicht freigegeben.');
+    // Klassenarbeit: nur über ihren eigenen Link – den gibt es erst, wenn die Lehrkraft ihn ausgegeben hat.
+    if (body?.exam) {
+      if (!(link.modes || []).includes('exam') || !link.examToken) throw new NotFoundException('Diese Klassenarbeit ist gerade nicht freigegeben.');
+      return { linkToken: link.examToken };
+    }
     let linkToken = await this.links.practiceToken(link);
     if (!linkToken) {
       link.token = crypto.randomBytes(12).toString('base64url');

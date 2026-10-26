@@ -20,8 +20,8 @@ zwischen beiden.
 | Bereich | Inhalt |
 |---|---|
 | 📋 Inhaltsübersicht | was der Klasse zugewiesen ist – Lernthemen und Bereiche aus deinem Notizbuch |
-| 🔒 Nur für Lehrer | Material nur für dich, z. B. Lösungen oder Kopiervorlagen |
-| 📝 Klassenarbeiten | Klassenarbeiten der Klasse mit Link & QR, wer schreibt und wer abgegeben hat, Wiedereinstieg |
+| 🔒 Nur für Lehrer | Material nur für dich, z. B. Lösungen oder Kopiervorlagen; ein Klick zeigt die Vorschau |
+| 📝 Klassenarbeiten | Klassenarbeiten der Klasse mit Link & QR, wer schreibt und wer abgegeben hat, Wiedereinstieg – aktive stehen auch bei den Schülern |
 | 👥 Schülerdaten | je Schüler alle Ergebnisse (📈) und Blätter (✍️) |
 | 📊 Ergebnisübersicht | je Modul, wie weit jeder Schüler ist; dazu je Aufgabe und der Jahresüberblick |
 | 🏆 Quiz-Arena | Zuweisungen mit Quiz-Arena, Leitungs-Link |
@@ -94,12 +94,21 @@ Erstanmeldung offen ist.
   (bestes Ergebnis, ✓, ✍️). Ein Knopf je Modus startet die ganze Aufgabe
   (🧠 Quiz, 🦉 Lernbegleitung, 💡 Lernen …), ein Klick auf ein Modul nur dieses.
   Mit Quiz-Arena gibt es **🏆 Quiz-Arena**.
+- **📝 Klassenarbeit** (oben, nur während eine läuft): starten, weiterschreiben
+  oder – nach deiner Freigabe – wieder einsteigen; nach der Abgabe steht dort
+  „abgegeben“.
 - **📈 Meine Ergebnisse** und **✍️ Meine Blätter** – ein Blatt öffnet sich zum
-  Weiterschreiben. Klassenarbeiten stehen hier nicht.
+  Weiterschreiben. Ergebnisse und Blätter aus Klassenarbeiten stehen hier nicht.
 - Nach einer Aufgabe führt **📒 Zurück zum Klassenbuch** zurück, ohne neue
   Anmeldung (gilt, solange der Browser offen ist).
 
-Klassenarbeiten laufen weiter über ihren eigenen Link.
+### Klassenarbeit über das Klassennotizbuch
+
+Eine Klassenarbeit erscheint bei den Schülern, sobald du ihren Link mit
+**📝 Link & QR** erzeugt hast, und bleibt dort, bis du sie **⏸ deaktivierst**.
+Über das Klassennotizbuch kommen sie mit Name und PIN hinein – sicherer als
+der Link der Klassenarbeit allein, den es weiterhin gibt (ohne PIN).
+„Nur ein Durchlauf“ und der Wiedereinstieg gelten auf beiden Wegen gleich.
 
 ### Klassen ohne strikte Anmeldung
 
@@ -121,8 +130,9 @@ sonst jeder anmelden. In der Ergebnisübersicht fehlen unbestätigte Einträge.
   `POST …/token`, `PUT …/teacher-items` `{ items }`, `GET …/overview`.
 - Schüler: `GET /api/public/classbook/:token`, `POST …/login`
   `{ name, pin?, testPassword? }` → `{ ticket, name, pending, pin? }`,
-  `POST …/home` `{ ticket }`, `POST …/enter` `{ ticket, linkId }` →
-  `{ linkToken }`. Der Ausweis ist ein Schülerausweis für
+  `POST …/home` `{ ticket }` (mit `exams`: aktive Klassenarbeiten mit Link,
+  Zustand aus `exam_attempts`), `POST …/enter` `{ ticket, linkId, exam? }` →
+  `{ linkToken }` (Klassenarbeit: ihr `examToken`). Der Ausweis ist ein Schülerausweis für
   `classbook:<classId>`; `POST /api/public/link/:token/start` nimmt ihn als
   `classTicket` statt des Namens. Die PIN bremst dieselbe Sperre wie bei den
   Bearbeitungen (`pinGuard`).

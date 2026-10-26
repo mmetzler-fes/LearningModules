@@ -108,6 +108,24 @@ Nummern über den Spalten stehen unter der Tabelle mit Titel.
 **📝 Je Aufgabe** und **📅 Jahresüberblick** sind die Reiter der früheren
 Klassenergebnisse.
 
+## Schuljahreswechsel
+
+Beim **Übernehmen** einer Klasse ins neue Schuljahr (🏫 Klassen) geht das
+Klassennotizbuch mit – **alles ausgeschaltet**, bis du es im neuen Jahr mit ●
+einschaltest:
+
+- **Mit „Links mitnehmen“** wandern die Zuweisungen samt Link und QR-Code in
+  die neue Klasse, mit ihnen Bereiche, Abschnitte, Plätze und klasseneigene
+  Lernthemen. Das Klassennotizbuch der alten Klasse ist danach leer; ihre
+  Ergebnisse bleiben.
+- **Ohne** bekommt die neue Klasse eine Kopie: Bereiche, Abschnitte,
+  klasseneigene Lernthemen samt Modulen und die Zuweisungen – ohne Link-Schlüssel
+  (der Klassenbuch-Link der neuen Klasse führt hinein). Die alte Klasse bleibt,
+  wie sie ist.
+- Klassenarbeiten behalten ihren Inhalt (sie stehen nicht im Baum), werden
+  aber erst wieder sichtbar, wenn du ihren Link neu ausgibst.
+- Der 📍 Merker beginnt im neuen Jahr leer.
+
 ## Die Schüler
 
 ### Klassenbuch-Link und PIN
@@ -179,6 +197,9 @@ sonst jeder anmelden. In der Ergebnisübersicht fehlen unbestätigte Einträge.
   `POST/PATCH/DELETE /api/classbook/:classId/nodes[/:id]`, `POST …/move`
   `{ type: 'node'|'entry', id, parentId, index? }`, `POST …/topics`
   `{ title, nodeId? }`, `PATCH/DELETE …/entries/:linkId`; `assign` nimmt `nodeId`.
+- Schuljahreswechsel: `ClassesService.rollover` → `moveClassbook` (mit „Links
+  mitnehmen“) bzw. `copyClassbook` (Kopie, `planCopy` in
+  `src/classbook/classbook-rollover.ts`); ausgeschaltet per `switchedOff`.
 - Tabelle `class_notebooks` (je Klasse eine Zeile, beim ersten Aufruf
   angelegt): `token` (Klassenbuch-Link), `firstLoginUntil`, `teacherItems`
   (Verweise `{ type: 'topic'|'node', id }`). Zuweisungen sind die Klassenlinks

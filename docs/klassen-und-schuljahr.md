@@ -209,6 +209,9 @@ Klasse des Vorjahres:
   kopiert, „strikt“ bleibt; die alte Klasse bleibt mit ihren Ergebnissen.
 - **Links mitnehmen** hängt die Klassenlinks an die neue Klasse – ausgeteilte
   QR-Codes gelten weiter, neue Ergebnisse landen im neuen Jahr.
+- Das **[Klassennotizbuch](klassennotizbuch.md#schuljahreswechsel)** geht
+  mit: Bereiche, Abschnitte, klasseneigene Lernthemen und Zuweisungen –
+  alles ausgeschaltet, bis du es im neuen Jahr einschaltest.
 - Nicht angehakt: **nicht mehr benötigt** – ihre Klassenlinks werden
   deaktiviert.
 - [Quick-Links](quick-link.md) folgen immer, auch ohne „Links mitnehmen“:

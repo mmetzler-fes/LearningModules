@@ -12,6 +12,7 @@ import { User } from '../core/entities/user.entity';
 import { DocumentWork } from '../core/entities/document-work.entity';
 import { ExamAttempt } from '../core/entities/exam-attempt.entity';
 import { RunProgress } from '../core/entities/run-progress.entity';
+import { planCopy, switchedOff } from '../classbook/classbook-rollover';
 import { ClassNotebook } from '../core/entities/class-notebook.entity';
 import { ClassNotebookNode } from '../core/entities/class-notebook-node.entity';
 import { ClassNotebookPlace } from '../core/entities/class-notebook-place.entity';
@@ -518,7 +519,12 @@ export class ClassesService implements OnApplicationBootstrap, OnModuleDestroy {
           }),
         ),
       );
-      if (item.moveLinks) await this.linkRepo.update({ classId: old.id, ownerId: user.userId }, { classId: klasse.id });
+      if (item.moveLinks) {
+        await this.linkRepo.update({ classId: old.id, ownerId: user.userId }, { classId: klasse.id });
+        await this.moveClassbook(old.id, klasse.id, user);
+      } else {
+        await this.copyClassbook(old.id, klasse.id, user);
+      }
       old.rolledOver = 'copied';
       await this.classRepo.save(old);
       taken.push(name);
@@ -526,6 +532,57 @@ export class ClassesService implements OnApplicationBootstrap, OnModuleDestroy {
     }
     await this.moveQuickClasses(user, moved);
     return { success: true, taken, dropped };
+  }
+
+  /** Im Baum des Klassennotizbuchs (Übung oder klasseneigen) – sonst z. B. eine reine Klassenarbeit. */
+  private async inClassbookTree(classTopicIds: Set<string>) {
+    // Übungsmodi wie PRACTICE_MODES in links.service (Import gäbe einen Kreis).
+    const practice = ['quiz', 'learn', 'companion'];
+    return (l: TopicLink) => (l.modes || []).some((m) => practice.includes(m)) || (l.selection || []).some((e) => classTopicIds.has(e.topicId));
+  }
+
+  /**
+   * „Links mitnehmen“: Das Klassennotizbuch zieht mit – Bereiche, Plätze,
+   * klasseneigene Lernthemen. Ausgeschaltet, bis die Lehrkraft im neuen Jahr
+   * einschaltet (docs/klassennotizbuch.md).
+   */
+  private async moveClassbook(fromId: string, toId: string, user: any) {
+    await this.cbNodeRepo.update({ classId: fromId }, { classId: toId });
+    await this.cbPlaceRepo.update({ classId: fromId }, { classId: toId });
+    await this.topicRepo.update({ classId: fromId }, { classId: toId });
+    const own = new Set((await this.topicRepo.find({ where: { classId: toId }, select: ['id'] })).map((t) => t.id));
+    const inTree = await this.inClassbookTree(own);
+    const links = (await this.linkRepo.find({ where: { classId: toId, ownerId: user.userId } })).filter(inTree);
+    for (const l of links) {
+      l.selection = switchedOff(l.selection);
+      l.customized = true;
+    }
+    if (links.length) await this.linkRepo.save(links);
+  }
+
+  /** Ohne „Links mitnehmen“: Kopie des Klassennotizbuchs für die neue Klasse, ausgeschaltet, ohne Link-Schlüssel. */
+  private async copyClassbook(fromId: string, toId: string, user: any) {
+    const strip = <T extends object>(row: T) => { const { createdAt: _c, updatedAt: _u, ...rest } = row as any; return rest; };
+    const topics = await this.topicRepo.find({ where: { classId: fromId } });
+    const own = new Set(topics.map((t) => t.id));
+    const plan = planCopy({
+      nodes: await this.cbNodeRepo.find({ where: { classId: fromId } }),
+      places: await this.cbPlaceRepo.find({ where: { classId: fromId } }),
+      topics: topics.map(strip),
+      modules: (topics.length ? await this.moduleRepo.find({ where: { topicId: In([...own]) } }) : []).map(strip),
+      links: (await this.linkRepo.find({ where: { classId: fromId, ownerId: user.userId } })).map(strip),
+      newId: () => crypto.randomUUID(),
+      switchOff: await this.inClassbookTree(own),
+    });
+    if (plan.nodes.length) await this.cbNodeRepo.save(plan.nodes.map((n) => this.cbNodeRepo.create({ ...n, classId: toId })));
+    if (plan.topics.length) await this.topicRepo.save(plan.topics.map((t) => this.topicRepo.create({ ...t, classId: toId })));
+    // Submodule erst nach ihren Elternmodulen.
+    const roots = plan.modules.filter((m) => !m.parentId);
+    if (roots.length) await this.moduleRepo.save(roots.map((m) => this.moduleRepo.create(m as Partial<LearningModule>)));
+    const kids = plan.modules.filter((m) => m.parentId);
+    if (kids.length) await this.moduleRepo.save(kids.map((m) => this.moduleRepo.create(m as Partial<LearningModule>)));
+    if (plan.links.length) await this.linkRepo.save(plan.links.map((l) => this.linkRepo.create({ ...l, classId: toId, lastSharedAt: new Date() })));
+    if (plan.places.length) await this.cbPlaceRepo.save(plan.places.map((p) => this.cbPlaceRepo.create({ ...p, classId: toId })));
   }
 
   private async moveQuickClasses(user: any, moved: Map<string, string | null>) {

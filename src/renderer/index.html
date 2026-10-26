@@ -322,6 +322,10 @@
 
       <!-- Notebooks: Lernthemen in Book → Bereich → Abschnitt -->
       <section class="view" id="view-teacher-notebooks">
+        <div class="nb-switch" role="tablist" aria-label="Notizbuch oder Klassennotizbuch">
+          <button type="button" class="nb-switch-tab active" data-nb-switch="teacher-notebooks" role="tab">📓 Notizbuch</button>
+          <button type="button" class="nb-switch-tab" data-nb-switch="teacher-class-results" role="tab">📒 Klassennotizbuch</button>
+        </div>
         <div class="view-header">
           <h2>📓 Lernmodul-Notebooks
             <button type="button" class="help-hint" data-help="notebooks" title="Hilfe: Notebooks" aria-label="Hilfe: Notebooks">?</button>
@@ -581,6 +585,10 @@
 
       <!-- Teacher: Klassennotizbuch (früher Klassenergebnisse) – views/class-results.js -->
       <section class="view" id="view-teacher-class-results">
+        <div class="nb-switch" role="tablist" aria-label="Notizbuch oder Klassennotizbuch">
+          <button type="button" class="nb-switch-tab" data-nb-switch="teacher-notebooks" role="tab">📓 Notizbuch</button>
+          <button type="button" class="nb-switch-tab active" data-nb-switch="teacher-class-results" role="tab">📒 Klassennotizbuch</button>
+        </div>
         <div class="view-header">
           <h2>📒 Klassennotizbuch <button type="button" class="help-hint" data-help="klassennotizbuch" title="Hilfe zu diesem Bereich" aria-label="Hilfe zu diesem Bereich">?</button></h2>
           <p class="subtitle">Je Klasse Aufgaben, Klassenarbeiten, Schülerdaten und Ergebnisse – und der Klassenbuch-Link, über den

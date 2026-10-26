@@ -513,6 +513,11 @@ class App {
   }
 
   async init() {
+    // Reiter „📓 Notizbuch | 📒 Klassennotizbuch“ über beiden Ansichten.
+    document.addEventListener('click', (e) => {
+      const tab = e.target.closest('[data-nb-switch]');
+      if (tab && !tab.classList.contains('active')) this.navigateToView(tab.dataset.nbSwitch);
+    });
     this.initTheme();
     this.initGlobalEvents();
     applyTranslations();

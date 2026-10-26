@@ -12,8 +12,10 @@ Notizbuch.
 
 ## Bereiche
 
-Menüpunkt **📒 Klassennotizbuch**: Schuljahr und Klasse wählen, links die
-Bereiche.
+Menüpunkt **📒 Klassennotizbuch** – oder oben der Reiter neben
+**📓 Notizbuch**: Schuljahr und Klasse wählen, links die Bereiche. Das
+Notizbuch mit deinen Lernthemen bleibt, wie es ist; die Reiter wechseln
+zwischen beiden.
 
 | Bereich | Inhalt |
 |---|---|
@@ -28,8 +30,12 @@ Bereiche.
 
 ### Inhaltsübersicht
 
-**➕ Aus dem Notizbuch zuweisen** öffnet dein Notizbuch: ein Lernthema oder
-einen ganzen Book, Bereich oder Abschnitt wählen. Dahinter steht ein
+Zuweisen geht auf zwei Wegen: im **📓 Notizbuch** über das Kontextmenü
+(⋯ oder Rechtsklick) eines Lernthemas, Books, Bereichs oder Abschnitts
+**📒 Klassennotizbuch zuweisen…** – dann eine oder mehrere Klassen wählen –,
+oder hier **➕ Aus dem Notizbuch zuweisen**: ein Lernthema oder einen ganzen
+Book, Bereich oder Abschnitt wählen. Gesperrte Lernthemen bietet die App
+vorher zur Freigabe an. Dahinter steht ein
 gewöhnlicher Klassenlink (wie beim Quick-Link), Inhalte bleiben Verweise:
 Änderungen im Notizbuch gelten sofort. Bei einem Bereich kommen später
 dazugelegte Lernthemen mit, wenn du ihn erneut zuweist.

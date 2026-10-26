@@ -1,6 +1,8 @@
 # Lernmodul-Notebooks
 
-Unter **📓 Lernmodul-Notebooks** ordnest du deine Lernthemen wie in OneNote:
+Unter **📓 Lernmodul-Notebooks** ordnest du deine Lernthemen wie in OneNote.
+Oben wechseln zwei Reiter zwischen **📓 Notizbuch** (hier) und dem
+[📒 Klassennotizbuch](klassennotizbuch.md) deiner Klassen:
 
 **📓 Book → 📂 Bereich → 📑 Abschnitt → 📘 Lernthema → Module**
 
@@ -105,6 +107,7 @@ die Zeile.
 | Neu | Bereich, Abschnitt, Lernthema darin (im Abschnitt nur Lernthema) | Modul darin | – |
 | ⤵ / ⤴ Umwandeln | Bereich ↔ Abschnitt, Bereich oder Abschnitt → Book | – | – |
 | 📂 Bereich darüber einfügen | neuer Bereich an dieser Stelle, der Eintrag kommt hinein | – | – |
+| 📒 Klassennotizbuch zuweisen | ins [Klassennotizbuch](klassennotizbuch.md) einer oder mehrerer Klassen, alle Lernthemen darin | ins Klassennotizbuch | – |
 | 🔗 Quick-Link | ein Klassenlink mit allen Lernthemen darin | Klassenlink | – |
 | Freigeben | alle Lernthemen darin freigeben oder sperren | ● / ○ | ● / ○ |
 | 🛒 Teilen | Angebot im Shop – wächst mit | Angebot im Shop | – |

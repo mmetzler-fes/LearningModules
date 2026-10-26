@@ -5479,3 +5479,8 @@ button.cb-unit:hover { color: var(--accent); text-decoration: underline; }
 .cb-pin { font-size: 2.6rem; font-weight: 700; letter-spacing: 0.3em; text-align: center; margin: 12px 0; color: var(--accent); }
 .cb-pending { margin-top: 16px; }
 .user-info .cb-back { display: block; margin-top: 8px; }
+/* Reiter Notizbuch | Klassennotizbuch über beiden Ansichten */
+.nb-switch { display: flex; gap: 4px; border-bottom: 1px solid var(--border); margin-bottom: 14px; }
+.nb-switch-tab { background: none; border: none; border-bottom: 3px solid transparent; padding: 8px 16px; cursor: pointer; font: inherit; font-size: 1.02rem; color: var(--text-secondary); margin-bottom: -1px; }
+.nb-switch-tab:hover { color: var(--text-primary); }
+.nb-switch-tab.active { color: var(--text-primary); border-bottom-color: var(--accent); font-weight: 600; cursor: default; }

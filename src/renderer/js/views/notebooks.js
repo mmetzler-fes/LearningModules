@@ -453,6 +453,7 @@ export class NotebooksView {
   _mirrorMenu(item) {
     const m = item.mirror;
     const items = [
+      { label: '📒 Klassennotizbuch zuweisen…', title: 'In das Klassennotizbuch einer oder mehrerer Klassen – die Schüler finden es dort mit Name und PIN', run: () => this._assignToClassbook({ kind: 'node', node: { id: item.id, title: m.title, kind: m.kind } }) },
       { label: '🔗 Quick-Link', title: 'Ein Link mit allen Lernthemen darin – Schüler wählen ihre Klasse', run: () => this._quickLinkNode({ id: item.id, title: m.title, kind: m.kind }) },
       { label: '↔️ Verschieben nach…', run: () => this._moveTopicDialog(item) },
     ];
@@ -471,6 +472,7 @@ export class NotebooksView {
 
   _mirrorTopicMenu(topic) {
     return [
+      { label: '📒 Klassennotizbuch zuweisen…', title: 'In das Klassennotizbuch einer oder mehrerer Klassen – die Schüler finden es dort mit Name und PIN', run: () => this._assignToClassbook({ kind: 'topic', topic: { id: topic.id, title: topic.title, selected: true } }) },
       { label: '🔗 Quick-Link', run: () => this.app.topicsView._createQuickClassLink({ id: topic.id, title: topic.title, selected: true }) },
       { label: '👁 Ansehen', run: () => this.app.topicsView._openSharedTopicViewer(topic) },
       this._rateItem(topic.id),
@@ -573,6 +575,7 @@ export class NotebooksView {
     if (node.kind !== 'section') items.push({ label: '➕ Neuer Abschnitt', run: () => this._createNode('section', node.id) });
     items.push({ label: '➕ Neues Lernthema', run: () => this._createTopic(node.id) });
     items.push('-');
+    items.push({ label: '📒 Klassennotizbuch zuweisen…', title: 'In das Klassennotizbuch einer oder mehrerer Klassen – die Schüler finden es dort mit Name und PIN', run: () => this._assignToClassbook({ kind: 'node', node }) });
     items.push({ label: '🔗 Quick-Link', title: 'Ein Link mit allen Lernthemen darin – Schüler wählen ihre Klasse', run: () => this._quickLinkNode(node) });
     items.push({ label: '🛒 Teilen', title: 'Im Shop anbieten – Käufer mit „Use“ bekommen auch, was später dazukommt', run: () => this.app.shopView.openForNode(node.id) });
     items.push({ label: '🧩 Module auswählen und anbieten…', run: () => this._offerSelection({ nodeId: node.id }) });
@@ -876,6 +879,7 @@ export class NotebooksView {
     const me = this.app.state.currentUser?.id;
     const fromShop = topic.copiedFromOwnerId && topic.copiedFromOwnerId !== me;
     return [
+      { label: '📒 Klassennotizbuch zuweisen…', title: 'In das Klassennotizbuch einer oder mehrerer Klassen – die Schüler finden es dort mit Name und PIN', run: () => this._assignToClassbook({ kind: 'topic', topic }) },
       { label: '🔗 Quick-Link', run: () => this.app.topicsView._createQuickClassLink(topic) },
       { label: '🛒 Teilen', title: 'Im Shop anbieten oder weitergeben', run: () => this.app.shopView.openForTopic(topic.id) },
       { label: '🧩 Module auswählen und anbieten…', run: () => this._offerSelection({ topicId: topic.id }) },
@@ -896,6 +900,7 @@ export class NotebooksView {
 
   _grantedMenu(topic) {
     return [
+      { label: '📒 Klassennotizbuch zuweisen…', title: 'In das Klassennotizbuch einer oder mehrerer Klassen – die Schüler finden es dort mit Name und PIN', run: () => this._assignToClassbook({ kind: 'topic', topic: { id: topic.id, title: topic.title, selected: true } }) },
       { label: '🔗 Quick-Link', run: () => this.app.topicsView._createQuickClassLink({ id: topic.id, title: topic.title, selected: true }) },
       { label: '👁 Ansehen', run: () => this.app.topicsView._openSharedTopicViewer(topic) },
       { label: '↔️ Verschieben nach…', run: () => this._moveTopicDialog(topic) },
@@ -1130,25 +1135,66 @@ export class NotebooksView {
   }
 
   async _quickLinkNode(node) {
+    if (!(await this._releaseBelow(node, 'in den Quick-Link aufnehmen', 'entsteht der Link'))) return;
+    // Ein Link mit allen Lernthemen darin. Später dazugekommene holt jedes
+    // Öffnen in denselben Link (openQuickLink).
+    await this.app.linksView.openQuickLink({ kind: 'node', id: node.id, title: node.title });
+  }
+
+  /**
+   * Vor Quick-Link und Zuweisen: Gesperrte eigene Themen kämen nicht mit –
+   * lieber vorher fragen. false, wenn darin gar kein Lernthema liegt.
+   */
+  async _releaseBelow(node, what, otherwise) {
     const mirror = this._topics.get(node.id)?.mirror;
     const below = mirror ? mirror.topics : this._topicsBelow(node.id).flatMap((t) => (t.isMirror ? t.mirror.topics : [t]));
-    if (!below.length) { this.app.showToast('Darin ist noch kein Lernthema.', 'error'); return; }
-    // Gesperrte eigene Themen kämen nicht mit – lieber vorher fragen.
+    if (!below.length) { this.app.showToast('Darin ist noch kein Lernthema.', 'error'); return false; }
     const locked = below.filter((t) => t.isOwn && !t.selected && (t.modules || []).length);
     if (locked.length) {
       const names = locked.slice(0, 5).map((t) => `„${t.title}“`).join(', ') + (locked.length > 5 ? ` und ${locked.length - 5} weitere` : '');
       const release = await this.app.appConfirm(
         `${locked.length} Lernthem${locked.length === 1 ? 'a ist' : 'en sind'} noch nicht für Schüler freigegeben: ${names}.\n\n` +
-        'Jetzt alle freigeben und in den Quick-Link aufnehmen? Mit „Abbrechen“ entsteht der Link ohne sie.',
+        `Jetzt alle freigeben und ${what}? Mit „Abbrechen“ ${otherwise} ohne sie.`,
       );
       if (release) {
         await this.app.api.setNotebookNodeSelected(node.id, true);
         await this.refresh();
       }
     }
-    // Ein Link mit allen Lernthemen darin. Später dazugekommene holt jedes
-    // Öffnen in denselben Link (openQuickLink).
-    await this.app.linksView.openQuickLink({ kind: 'node', id: node.id, title: node.title });
+    return true;
+  }
+
+  /**
+   * Lernthema oder Knoten ins Klassennotizbuch einer oder mehrerer Klassen:
+   * je Klasse ein Klassenlink (Verweis – Änderungen gelten sofort).
+   */
+  async _assignToClassbook({ kind, node = null, topic = null }) {
+    const title = kind === 'node' ? node.title : topic.title;
+    if (kind === 'node' && !(await this._releaseBelow(node, 'zuweisen', 'wird zugewiesen'))) return;
+    if (kind === 'topic' && !topic.selected) {
+      if (!(await this.app.appConfirm(`„${title}“ ist noch nicht für Schüler freigegeben.\n\nJetzt freigeben und zuweisen?`))) return;
+      await this.app.api.toggleTopicSelection(topic.id, true);
+      await this.refresh();
+    }
+    const picked = await pickClass(this.app, {
+      title: `📒 Klassennotizbuch zuweisen – ${title}`,
+      hint: 'Erscheint in der Inhaltsübersicht der gewählten Klassen; die Schüler finden es über den Klassenbuch-Link.',
+      multiple: true,
+      okLabel: '📒 Zuweisen',
+    });
+    if (!picked?.length) return;
+    const done = [];
+    const notReleased = new Set();
+    for (const c of picked) {
+      const res = kind === 'node'
+        ? await this.app.api.classLinkFromNotebookNode(node.id, c.id)
+        : await this.app.api.classLinkFromTopic(topic.id, c.id);
+      if (!res || res.statusCode >= 400) { this.app.showToast(`Fehler bei ${c.name}: ${res?.message || '?'}`, 'error'); continue; }
+      done.push(c.name);
+      (res.notReleased || []).forEach((n) => notReleased.add(n));
+    }
+    if (done.length) this.app.showToast(`„${title}“ steht jetzt im Klassennotizbuch von ${done.join(', ')}.`, 'success');
+    if (notReleased.size) this.app.showToast(`Nicht freigegeben, daher nicht dabei: ${[...notReleased].join(', ')}.`, 'info');
   }
 
   async _download(node) {

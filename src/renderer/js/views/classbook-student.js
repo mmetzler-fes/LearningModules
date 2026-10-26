@@ -155,7 +155,7 @@ export class ClassbookStudent {
     this.data = data;
     document.querySelector('#loginScreen .login-card')?.classList.add('login-card-wide');
     const mk = data.marker;
-    const assignments = data.assignments.map((a) => {
+    const cardOf = (a) => {
       const modes = a.modes.map((m) => {
         const meta = LINK_MODE_LABELS[m];
         return meta ? `<button type="button" class="btn btn-primary btn-sm" data-start="${escapeAttr(a.linkId)}" data-mode="${escapeAttr(m)}" title="${escapeAttr(meta.hint)}">${meta.icon} ${escapeHtml(meta.label)}</button>` : '';
@@ -179,7 +179,31 @@ export class ClassbookStudent {
         </details>`;
         }).join('')}
       </details>`;
-    }).join('');
+    };
+    // Baum wie bei der Lehrkraft: Bereiche/Abschnitte eingeklappt – außer auf dem Weg zum 📍 Merker.
+    const nodes = data.nodes || [];
+    const inNode = (a, id) => {
+      for (let n = nodes.find((x) => x.id === a.nodeId); n; n = nodes.find((x) => x.id === n.parentId)) if (n.id === id) return true;
+      return false;
+    };
+    const markedLink = mk ? data.assignments.find((a) => a.linkId === mk.linkId) : null;
+    const level = (parentId) => {
+      const inner = nodes.filter((n) => n.parentId === parentId).sort((x, y) => x.orderIndex - y.orderIndex).map((n) => {
+        const body = level(n.id);
+        if (!body) return '';
+        const mine = data.assignments.filter((a) => a.nodeId === n.id || inNode(a, n.id));
+        const units = mine.flatMap((a) => a.topics.flatMap((t) => t.units));
+        const done = units.filter((u) => u.done || u.work).length;
+        return `<details class="cb-snode" ${markedLink && inNode(markedLink, n.id) ? 'open' : ''}>
+          <summary><span class="cb-node-title">${n.kind === 'section' ? '📑' : '📂'} ${escapeHtml(n.title)}</span>
+            <span class="hint">${data.pending ? `${units.length} Module` : `${done}/${units.length} erledigt`}</span>
+            ${markedLink && inNode(markedLink, n.id) ? '<span class="cb-here">📍</span>' : ''}</summary>
+          <div class="cb-node-body">${body}</div></details>`;
+      }).join('');
+      const cards = data.assignments.filter((a) => (a.nodeId || null) === parentId).sort((x, y) => (x.order ?? 0) - (y.order ?? 0)).map(cardOf).join('');
+      return inner + cards;
+    };
+    const assignments = level(null);
     const results = data.results.length
       ? `<ul class="cb-list">${data.results.map((r) => `<li><span>${escapeHtml(r.linkName || 'Aufgabe')} <span class="hint">${escapeHtml(LINK_MODE_LABELS[r.mode]?.label || r.mode || '')} · ${escapeHtml(when(r.at))}</span></span>
           ${r.maxScore ? `<span class="result-score ${pctClass(r.percentage)}">${r.percentage ?? Math.round((r.score / r.maxScore) * 100)} %</span>` : '<span class="hint">ohne Wertung</span>'}</li>`).join('')}</ul>`

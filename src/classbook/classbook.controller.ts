@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Body, Param, Request, UseGuards, HttpCode } from '@nestjs/common';
+import { Controller, Get, Post, Put, Patch, Delete, Body, Param, Request, UseGuards, HttpCode } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { ClassbookService } from './classbook.service';
 
@@ -32,10 +32,51 @@ export class ClassbookController {
     return this.classbook.setTeacherItems(req.user, classId, body?.items);
   }
 
-  /** `{ type: 'topic'|'node', id }` – aus dem Notizbuch zuweisen. */
+  /** `{ kind: 'area'|'section', title, parentId? }` – Bereich oder Abschnitt anlegen. */
+  @Post(':classId/nodes')
+  createNode(@Request() req: any, @Param('classId') classId: string, @Body() body: any) {
+    return this.classbook.createNode(req.user, classId, body);
+  }
+
+  @Patch(':classId/nodes/:id')
+  renameNode(@Request() req: any, @Param('classId') classId: string, @Param('id') id: string, @Body() body: { title?: string }) {
+    return this.classbook.renameNode(req.user, classId, id, body?.title);
+  }
+
+  /** Inhalt rückt eine Ebene höher. */
+  @Delete(':classId/nodes/:id')
+  deleteNode(@Request() req: any, @Param('classId') classId: string, @Param('id') id: string) {
+    return this.classbook.deleteNode(req.user, classId, id);
+  }
+
+  /** `{ type: 'node'|'entry', id, parentId, index? }` */
+  @Post(':classId/move')
+  @HttpCode(200)
+  move(@Request() req: any, @Param('classId') classId: string, @Body() body: any) {
+    return this.classbook.move(req.user, classId, body);
+  }
+
+  /** `{ title, nodeId? }` – klasseneigenes Lernthema. */
+  @Post(':classId/topics')
+  createTopic(@Request() req: any, @Param('classId') classId: string, @Body() body: any) {
+    return this.classbook.createTopic(req.user, classId, body);
+  }
+
+  @Patch(':classId/entries/:linkId')
+  renameEntry(@Request() req: any, @Param('classId') classId: string, @Param('linkId') linkId: string, @Body() body: { title?: string }) {
+    return this.classbook.renameEntry(req.user, classId, linkId, body?.title);
+  }
+
+  /** Zuweisung entfernen; klasseneigenes Lernthema samt Modulen löschen. */
+  @Delete(':classId/entries/:linkId')
+  deleteEntry(@Request() req: any, @Param('classId') classId: string, @Param('linkId') linkId: string) {
+    return this.classbook.deleteEntry(req.user, classId, linkId);
+  }
+
+  /** `{ type: 'topic'|'node', id, nodeId? }` – aus dem Notizbuch zuweisen. */
   @Post(':classId/assign')
   @HttpCode(200)
-  assign(@Request() req: any, @Param('classId') classId: string, @Body() body: { type?: string; id?: string }) {
+  assign(@Request() req: any, @Param('classId') classId: string, @Body() body: { type?: string; id?: string; nodeId?: string | null }) {
     return this.classbook.assign(req.user, classId, body, req);
   }
 

@@ -477,10 +477,10 @@ export class ClassResultsView {
     const n = link.topics.reduce((sum, t) => sum + t.units.length, 0);
     const open = this._openLinks?.has(link.id) ? 'open' : '';
     return `<details class="result-group cb-link ${link.active ? '' : 'cb-off'}" data-link="${escapeAttr(link.id)}" ${open}>
-      <summary><span class="result-group-title">🔗 ${escapeHtml(link.name)}${link.active ? '' : ' <small class="class-pending-note">deaktiviert</small>'}</span>
+      <summary><span class="result-group-title">${link.classTopicId ? '📘' : '🔗'} ${escapeHtml(link.name)}${link.active ? '' : ' <small class="class-pending-note">deaktiviert</small>'}</span>
         <span class="result-group-meta">${link.topics.length} Lernthema/-themen · ${n} Modul${n === 1 ? '' : 'e'}
           ${link.practice.map((m) => `<span class="result-mode-badge">${escapeHtml(MODE_LABELS[m] || m)}</span>`).join('')}</span></summary>
-      <div class="cb-link-actions">${buttons}</div>
+      <div class="cb-link-actions">${buttons}${body !== null && this._tab === 'content' ? '<button type="button" class="nb-menu-btn" data-entry-menu title="Aktionen" aria-label="Aktionen">⋯</button>' : ''}</div>
       ${body ?? this._unitsHtml(link.topics)}
     </details>`;
   }
@@ -504,7 +504,8 @@ export class ClassResultsView {
         <ul class="cb-units">${t.modules.map((m) => {
           const marked = this._cb?.marker?.linkId === link.id && this._cb.marker.moduleId === m.id;
           return `<li class="${m.enabled ? '' : 'cb-item-off'} ${marked ? 'cb-marked' : ''}">
-          <span>${sw(m.enabled, `data-toggle-module="${escapeAttr(m.id)}"`, 'dieses Modul')} ${TYPE_ICON[m.type] || '🧩'} ${escapeHtml(m.title || 'Modul')}</span>
+          <span>${sw(m.enabled, `data-toggle-module="${escapeAttr(m.id)}"`, 'dieses Modul')}
+            <button type="button" class="cb-unit" data-open-module="${escapeAttr(m.id)}" title="${link.classTopicId === t.topicId ? 'Bearbeiten' : 'Vorschau'}">${TYPE_ICON[m.type] || '🧩'} ${escapeHtml(m.title || 'Modul')}</button></span>
           ${m.enabled ? `<button type="button" class="cb-mark ${marked ? 'on' : ''}" data-mark="${escapeAttr(m.id)}"
             title="${marked ? 'Hier ist die Klasse gerade – klicken zum Entfernen' : 'Merker: Hier ist die Klasse gerade. Bei den Schülern ist dieses Modul dann aufgeklappt und hat den Fokus.'}">📍</button>` : ''}</li>`;
         }).join('')}</ul>
@@ -551,7 +552,8 @@ export class ClassResultsView {
 
   _renderContent() {
     this._section('content', (cb, out) => {
-      const links = cb.links.filter((l) => l.practice.length);
+      // Zuweisungen mit Übungsmodus und klasseneigene Lernthemen (auch noch ohne Module).
+      const links = cb.links.filter((l) => l.practice.length || l.classTopicId);
       const mk = this._markerInfo(cb);
       if (mk) (this._openLinks ||= new Set()).add(mk.link.id);
       out.innerHTML = `
@@ -560,21 +562,42 @@ export class ClassResultsView {
             <button type="button" class="btn btn-secondary btn-sm" data-unmark>Entfernen</button></div>`
           : '<p class="hint">📍 an einem Modul merkt, wo die Klasse gerade ist – bei den Schülern ist es dann aufgeklappt und hat den Fokus.</p>'}
         <div class="cr-works-bar">
-          <button type="button" class="btn btn-primary btn-sm" id="cbAssign">➕ Aus dem Notizbuch zuweisen</button>
-          <span class="hint">Die Schüler finden alles über den <a href="#" id="cbToSettings">Klassenbuch-Link</a>. Inhalte bleiben Verweise:
-            Änderungen im Notizbuch gelten sofort. ● / ○ schaltet Lernthemen und Module für diese Klasse ein und aus –
-            was später dazukommt, ist zunächst aus.</span>
+          <button type="button" class="btn btn-primary btn-sm" data-add="assign" title="Lernthema, Abschnitt, Bereich oder Book aus deinem Notizbuch – als Verweis">➕ Aus dem Notizbuch</button>
+          <button type="button" class="btn btn-secondary btn-sm" data-add="topic" title="Lernthema nur für diese Klasse, z. B. Aufgaben oder Dokumente">➕ Lernthema</button>
+          <button type="button" class="btn btn-secondary btn-sm" data-add="area">➕ Bereich</button>
+          <button type="button" class="btn btn-secondary btn-sm" data-add="section">➕ Abschnitt</button>
         </div>
-        ${links.length ? links.map((l) => this._linkCard(l, `
-          <button type="button" class="btn btn-secondary btn-sm" data-live>📡 Live</button>
-          <button type="button" class="btn btn-secondary btn-sm" data-overview>📊 Ergebnisse</button>
-          ${l.active ? '<button type="button" class="btn btn-secondary btn-sm" data-active="off" title="Schüler sehen die Aufgabe nicht mehr; Ergebnisse bleiben">⏸ Ausblenden</button>'
-            : '<button type="button" class="btn btn-secondary btn-sm" data-active="on">▶ Wieder zeigen</button>'}`, this._availHtml(l))).join('')
+        <p class="hint">Die Schüler sehen diesen Baum über den <a href="#" id="cbToSettings">Klassenbuch-Link</a>. 🔗 verweist aufs Notizbuch
+          (Änderungen dort gelten sofort), 📘 gehört nur dieser Klasse. ● / ○ schaltet Lernthemen und Module ein und aus –
+          was später dazukommt, ist zunächst aus. Aktionen über ⋯.</p>
+        <div class="cb-tree">${links.length || cb.nodes.length ? this._level(cb, links, null)
           : `<div class="empty-state"><span class="empty-icon">📋</span>
-              <p>Noch nichts zugewiesen. Wähle aus deinem Notizbuch ein Lernthema, einen Abschnitt, Bereich oder ein Book –
-                es erscheint dann bei den Schülern im Klassennotizbuch.</p></div>`}`;
+              <p>Noch leer. Weise aus deinem Notizbuch Lernthemen oder ganze Bereiche zu, lege eigene Lernthemen für diese Klasse an
+                und ordne alles in Bereichen und Abschnitten.</p></div>`}</div>`;
       out.querySelector('#cbToSettings')?.addEventListener('click', (e) => { e.preventDefault(); this._switch('settings'); });
-      out.querySelector('#cbAssign').addEventListener('click', () => this._assign());
+      out.querySelectorAll('[data-add]').forEach((btn) => btn.addEventListener('click', () => this._add(btn.dataset.add, null)));
+      out.querySelectorAll('[data-node-menu]').forEach((btn) => btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const node = cb.nodes.find((n) => n.id === btn.closest('[data-node]').dataset.node);
+        this._menu(this._nodeMenu(cb, node), btn);
+      }));
+      out.querySelectorAll('[data-entry-menu]').forEach((btn) => btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const link = cb.links.find((l) => l.id === btn.closest('[data-link]').dataset.link);
+        this._menu(this._entryMenu(cb, link), btn);
+      }));
+      out.querySelectorAll('details[data-node]').forEach((d) => d.addEventListener('toggle', () => {
+        (this._closedNodes ||= new Set())[d.open ? 'delete' : 'add'](d.dataset.node);
+      }));
+      out.querySelectorAll('[data-open-module]').forEach((btn) => btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        const link = cb.links.find((l) => l.id === btn.closest('[data-link]').dataset.link);
+        const topicId = btn.closest('[data-topic]').dataset.topic;
+        const own = link?.classTopicId === topicId;
+        this.app.modulesView.openFrom('teacher-class-results', topicId, { id: btn.dataset.openModule }, own ? 'edit' : 'preview');
+      }));
       out.querySelectorAll('[data-live]').forEach((btn) => btn.addEventListener('click', () => {
         this._liveLink = btn.closest('[data-link]').dataset.link;
         this._switch('live');
@@ -591,6 +614,191 @@ export class ClassResultsView {
     });
   }
 
+  /** Eine Ebene des Baums: erst Bereiche/Abschnitte, dann die Lernthemen darin. */
+  _level(cb, links, parentId) {
+    const nodes = cb.nodes.filter((n) => n.parentId === parentId).sort((a, b) => a.orderIndex - b.orderIndex);
+    const entries = links.filter((l) => l.nodeId === parentId).sort((a, b) => a.order - b.order);
+    const count = (id) => links.filter((l) => l.nodeId === id).length + cb.nodes.filter((n) => n.parentId === id).reduce((s, n) => s + count(n.id), 0);
+    const html = nodes.map((n) => `<details class="cb-node" data-node="${escapeAttr(n.id)}" ${this._closedNodes?.has(n.id) ? '' : 'open'}>
+        <summary><span class="cb-node-title">${NODE_ICON[n.kind]} ${escapeHtml(n.title)}</span>
+          <span class="hint">${count(n.id)} Lernthem${count(n.id) === 1 ? 'a' : 'en'}</span>
+          <button type="button" class="nb-menu-btn" data-node-menu title="Aktionen" aria-label="Aktionen">⋯</button></summary>
+        <div class="cb-node-body">${this._level(cb, links, n.id)}</div>
+      </details>`).join('')
+      + entries.map((l) => this._linkCard(l, `
+          <button type="button" class="btn btn-secondary btn-sm" data-live>📡 Live</button>
+          <button type="button" class="btn btn-secondary btn-sm" data-overview>📊 Ergebnisse</button>
+          ${l.active ? '<button type="button" class="btn btn-secondary btn-sm" data-active="off" title="Schüler sehen das Lernthema nicht mehr; Ergebnisse bleiben">⏸ Ausblenden</button>'
+            : '<button type="button" class="btn btn-secondary btn-sm" data-active="on">▶ Wieder zeigen</button>'}`, this._availHtml(l))).join('');
+    return html || (parentId ? '<p class="hint cb-empty">Noch leer – über ⋯ füllen.</p>' : '');
+  }
+
+  _nodeMenu(cb, node) {
+    const items = [];
+    if (node.kind === 'area') {
+      items.push({ label: '➕ Neuer Bereich', run: () => this._add('area', node.id) });
+      items.push({ label: '➕ Neuer Abschnitt', run: () => this._add('section', node.id) });
+    }
+    items.push({ label: '➕ Neues Lernthema hier', run: () => this._add('topic', node.id) });
+    items.push({ label: '➕ Aus dem Notizbuch hierher', run: () => this._add('assign', node.id) });
+    items.push('-');
+    items.push({ label: '↑ Nach oben', run: () => this._step('node', node, -1, cb) });
+    items.push({ label: '↓ Nach unten', run: () => this._step('node', node, +1, cb) });
+    items.push({ label: '↔️ Verschieben nach…', run: () => this._moveDialog(cb, 'node', node) });
+    items.push({ label: '✏️ Umbenennen', run: async () => {
+      const title = await this._askText('✏️ Umbenennen', node.title);
+      if (title) await this._call(this.app.api.renameClassbookNode(this._classId, node.id, title));
+    } });
+    items.push('-');
+    items.push({ label: '🗑 Löschen', danger: true, title: 'Was darin liegt, rückt eine Ebene höher', run: async () => {
+      if (!(await this.app.appConfirm(`„${node.title}“ löschen? Was darin liegt, rückt eine Ebene höher – es geht nichts verloren.`))) return;
+      await this._call(this.app.api.deleteClassbookNode(this._classId, node.id));
+    } });
+    return items;
+  }
+
+  _entryMenu(cb, link) {
+    const own = !!link.classTopicId;
+    const items = [];
+    if (own) items.push({ label: '➕ Neues Modul', title: 'Neue Module sind zunächst aus – mit ● einschalten', run: () => this.app.modulesView.openFrom('teacher-class-results', link.classTopicId, null) });
+    items.push({ label: '↑ Nach oben', run: () => this._step('entry', link, -1, cb) });
+    items.push({ label: '↓ Nach unten', run: () => this._step('entry', link, +1, cb) });
+    items.push({ label: '↔️ Verschieben nach…', run: () => this._moveDialog(cb, 'entry', link) });
+    items.push({ label: '✏️ Umbenennen', run: async () => {
+      const title = await this._askText('✏️ Umbenennen', link.name);
+      if (title) await this._call(this.app.api.renameClassbookEntry(this._classId, link.id, title));
+    } });
+    items.push('-');
+    items.push(own
+      ? { label: '🗑 Lernthema löschen', danger: true, run: async () => {
+        if (!(await this.app.appConfirm(`„${link.name}“ samt seinen Modulen löschen? Es gehört nur zu dieser Klasse. Ergebnisse der Schüler bleiben.`))) return;
+        await this._call(this.app.api.deleteClassbookEntry(this._classId, link.id));
+      } }
+      : { label: '🗑 Zuweisung entfernen', danger: true, title: 'Im Notizbuch bleibt alles; Ergebnisse der Schüler bleiben', run: async () => {
+        if (!(await this.app.appConfirm(`„${link.name}“ aus dem Klassennotizbuch nehmen? Im Notizbuch bleibt es, Ergebnisse der Schüler bleiben.`))) return;
+        await this._call(this.app.api.deleteClassbookEntry(this._classId, link.id));
+      } });
+    return items;
+  }
+
+  /** Aufruf, Fehler melden, neu zeichnen. */
+  async _call(promise) {
+    const res = await promise;
+    if (failed(res)) { this.app.showToast('Fehler: ' + (res?.message || '?'), 'error'); return null; }
+    this._openLinks = new Set([...this._content.querySelectorAll('details[data-link][open]')].map((d) => d.dataset.link));
+    await this._classbook(true);
+    this._render();
+    return res;
+  }
+
+  /** Neuer Bereich/Abschnitt, klasseneigenes Lernthema oder Zuweisung – oben oder in `nodeId`. */
+  async _add(what, nodeId) {
+    if (what === 'assign') { await this._assign(nodeId); return; }
+    if (what === 'topic') {
+      const title = await this._askText('➕ Lernthema nur für diese Klasse', '', 'Titel, z. B. „Projektwoche“');
+      if (!title) return;
+      const res = await this._call(this.app.api.createClassbookTopic(this._classId, title, nodeId));
+      if (res && await this.app.appConfirm(`„${title}“ ist angelegt. Gleich ein erstes Modul anlegen?`)) {
+        this.app.modulesView.openFrom('teacher-class-results', res.topicId, null);
+      }
+      return;
+    }
+    const title = await this._askText(what === 'area' ? '➕ Neuer Bereich' : '➕ Neuer Abschnitt', '', what === 'area' ? 'z. B. „1. Halbjahr“' : 'z. B. „Elektrischer Strom“');
+    if (title) await this._call(this.app.api.createClassbookNode(this._classId, what, title, nodeId));
+  }
+
+  /** Eine Stelle nach oben/unten unter demselben Elternteil. */
+  async _step(type, item, dir, cb) {
+    const parentId = type === 'node' ? item.parentId : item.nodeId;
+    const siblings = type === 'node'
+      ? cb.nodes.filter((n) => n.parentId === parentId).sort((a, b) => a.orderIndex - b.orderIndex)
+      : cb.links.filter((l) => (l.practice.length || l.classTopicId) && l.nodeId === parentId).sort((a, b) => a.order - b.order);
+    const i = siblings.findIndex((s) => s.id === item.id);
+    const to = i + dir;
+    if (i < 0 || to < 0 || to >= siblings.length) return;
+    await this._call(this.app.api.moveInClassbook(this._classId, { type, id: item.id, parentId, index: to }));
+  }
+
+  /** Ziel wählen: oben oder ein Bereich/Abschnitt (Bereiche nicht in Abschnitte oder sich selbst). */
+  async _moveDialog(cb, type, item) {
+    const inside = (id, anc) => { for (let n = cb.nodes.find((x) => x.id === id); n; n = cb.nodes.find((x) => x.id === n.parentId)) if (n.id === anc) return true; return false; };
+    const rows = [{ id: null, label: `📒 ${cb.className} (oberste Ebene)`, depth: 0 }];
+    const walk = (parentId, depth) => {
+      for (const n of cb.nodes.filter((x) => x.parentId === parentId).sort((a, b) => a.orderIndex - b.orderIndex)) {
+        const blocked = type === 'node' && (n.kind === 'section' || inside(n.id, item.id));
+        rows.push({ id: n.id, label: `${NODE_ICON[n.kind]} ${n.title}`, depth, blocked });
+        walk(n.id, depth + 1);
+      }
+    };
+    walk(null, 1);
+    const picked = await new Promise((resolve) => {
+      const overlay = document.createElement('div');
+      overlay.className = 'confirm-overlay';
+      overlay.innerHTML = `<div class="import-modules-card cb-picker" role="dialog" aria-modal="true">
+        <h3>↔️ Verschieben – ${escapeHtml(type === 'node' ? item.title : item.name)}</h3>
+        <ul class="cb-picker-list">${rows.map((r, i) => `<li style="padding-left:${0.4 + r.depth * 1.2}rem">
+          <button type="button" class="cb-picker-row" data-i="${i}" ${r.blocked ? 'disabled' : ''}>${escapeHtml(r.label)}</button></li>`).join('')}</ul>
+        <div class="confirm-actions"><button type="button" class="btn btn-secondary cb-picker-cancel">Abbrechen</button></div></div>`;
+      document.body.appendChild(overlay);
+      const done = (v) => { overlay.remove(); resolve(v); };
+      overlay.querySelector('.cb-picker-cancel').addEventListener('click', () => done(undefined));
+      overlay.querySelectorAll('[data-i]').forEach((b) => b.addEventListener('click', () => done(rows[Number(b.dataset.i)])));
+    });
+    if (!picked) return;
+    await this._call(this.app.api.moveInClassbook(this._classId, { type, id: item.id, parentId: picked.id, index: null }));
+  }
+
+  _menu(items, anchor) {
+    document.querySelector('.nb-menu.cb-popup')?.remove();
+    const menu = document.createElement('div');
+    menu.className = 'nb-menu cb-popup';
+    menu.setAttribute('role', 'menu');
+    for (const item of items) {
+      if (item === '-') { menu.appendChild(Object.assign(document.createElement('hr'), { className: 'nb-menu-sep' })); continue; }
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.setAttribute('role', 'menuitem');
+      btn.className = item.danger ? 'nb-menu-item danger' : 'nb-menu-item';
+      btn.textContent = item.label;
+      if (item.title) btn.title = item.title;
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        menu.remove();
+        Promise.resolve(item.run()).catch((err) => this.app.showToast('Fehler: ' + err.message, 'error'));
+      });
+      menu.appendChild(btn);
+    }
+    document.body.appendChild(menu);
+    const a = anchor.getBoundingClientRect();
+    const r = menu.getBoundingClientRect();
+    menu.style.left = `${Math.max(8, Math.min(a.right - r.width, window.innerWidth - r.width - 8))}px`;
+    menu.style.top = `${a.bottom + r.height > window.innerHeight - 8 ? Math.max(8, a.top - r.height) : a.bottom}px`;
+    menu.querySelector('button')?.focus();
+    const close = (e) => { if (!menu.contains(e.target)) { menu.remove(); document.removeEventListener('mousedown', close, true); } };
+    setTimeout(() => document.addEventListener('mousedown', close, true), 0);
+    menu.addEventListener('keydown', (e) => { if (e.key === 'Escape') menu.remove(); });
+  }
+
+  /** Kleiner Eingabedialog – Text oder null. */
+  _askText(title, value = '', placeholder = '') {
+    return new Promise((resolve) => {
+      const overlay = document.createElement('div');
+      overlay.className = 'confirm-overlay cb-ask';
+      overlay.innerHTML = `<form class="import-modules-card" role="dialog" aria-modal="true" style="max-width:480px">
+        <h3>${escapeHtml(title)}</h3>
+        <input type="text" class="search-input" style="width:100%" maxlength="200" value="${escapeAttr(value)}" placeholder="${escapeAttr(placeholder)}" required>
+        <div class="confirm-actions"><button type="submit" class="btn btn-primary">OK</button>
+          <button type="button" class="btn btn-secondary" data-cancel>Abbrechen</button></div></form>`;
+      document.body.appendChild(overlay);
+      const input = overlay.querySelector('input');
+      const done = (v) => { overlay.remove(); resolve(v); };
+      overlay.querySelector('[data-cancel]').addEventListener('click', () => done(null));
+      overlay.querySelector('form').addEventListener('submit', (e) => { e.preventDefault(); done(input.value.trim() || null); });
+      input.focus();
+      input.select();
+    });
+  }
+
   _switch(tab) {
     this._tab = tab;
     savePref('lm_cr_tab', tab);
@@ -598,11 +806,11 @@ export class ClassResultsView {
   }
 
   /** Lernthema oder Knoten aus dem Notizbuch als Klassenlink dieser Klasse. */
-  async _assign() {
+  async _assign(nodeId = null) {
     const picked = await this._pickFromNotebook('➕ Der Klasse zuweisen',
       'Ein Lernthema oder einen ganzen Bereich wählen. Was später dazukommt, erscheint hier ausgeschaltet – du schaltest es ein, wenn es so weit ist.');
     if (!picked) return;
-    const res = await this.app.api.assignToClassbook(this._classId, picked.type, picked.id);
+    const res = await this.app.api.assignToClassbook(this._classId, picked.type, picked.id, nodeId);
     if (failed(res)) { this.app.showToast('Fehler: ' + (res?.message || 'Zuweisen fehlgeschlagen'), 'error'); return; }
     if (res.existed) this.app.showToast(`„${picked.title}“ ist schon zugewiesen – Neues steht ausgeschaltet bereit.`, 'info');
     else if (res.notReleased?.length) this.app.showToast(`Nicht freigegeben, daher nicht dabei: ${res.notReleased.join(', ')}.`, 'info');

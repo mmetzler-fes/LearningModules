@@ -13,9 +13,13 @@ import { DocumentWork } from '../core/entities/document-work.entity';
 import { ExamAttempt } from '../core/entities/exam-attempt.entity';
 import { RunProgress } from '../core/entities/run-progress.entity';
 import { ClassNotebook } from '../core/entities/class-notebook.entity';
+import { ClassNotebookNode } from '../core/entities/class-notebook-node.entity';
+import { ClassNotebookPlace } from '../core/entities/class-notebook-place.entity';
+import { LearningTopic } from '../core/entities/learning-topic.entity';
+import { LearningModule } from '../core/entities/learning-module.entity';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([StudentClass, ClassStudent, SystemConfig, Result, TopicLink, ClassShare, User, DocumentWork, ExamAttempt, RunProgress, ClassNotebook])],
+  imports: [TypeOrmModule.forFeature([StudentClass, ClassStudent, SystemConfig, Result, TopicLink, ClassShare, User, DocumentWork, ExamAttempt, RunProgress, ClassNotebook, ClassNotebookNode, ClassNotebookPlace, LearningTopic, LearningModule])],
   controllers: [ClassesController],
   providers: [ClassesService],
   exports: [ClassesService],

@@ -13,6 +13,10 @@ import { DocumentWork } from '../core/entities/document-work.entity';
 import { ExamAttempt } from '../core/entities/exam-attempt.entity';
 import { RunProgress } from '../core/entities/run-progress.entity';
 import { ClassNotebook } from '../core/entities/class-notebook.entity';
+import { ClassNotebookNode } from '../core/entities/class-notebook-node.entity';
+import { ClassNotebookPlace } from '../core/entities/class-notebook-place.entity';
+import { LearningTopic } from '../core/entities/learning-topic.entity';
+import { LearningModule } from '../core/entities/learning-module.entity';
 import { newPin } from '../work/pin';
 import { isSchoolYear, schoolYearOfDate, compareSchoolYearsDesc, splitSchoolYearPrefix, shiftSchoolYear, suggestNextClassName } from './school-year';
 import { planStudentImport, nameKey, ImportRow } from './student-import';
@@ -57,7 +61,24 @@ export class ClassesService implements OnApplicationBootstrap, OnModuleDestroy {
     @InjectRepository(ExamAttempt) private readonly attemptRepo: Repository<ExamAttempt>,
     @InjectRepository(RunProgress) private readonly progressRepo: Repository<RunProgress>,
     @InjectRepository(ClassNotebook) private readonly notebookRepo: Repository<ClassNotebook>,
+    @InjectRepository(ClassNotebookNode) private readonly cbNodeRepo: Repository<ClassNotebookNode>,
+    @InjectRepository(ClassNotebookPlace) private readonly cbPlaceRepo: Repository<ClassNotebookPlace>,
+    @InjectRepository(LearningTopic) private readonly topicRepo: Repository<LearningTopic>,
+    @InjectRepository(LearningModule) private readonly moduleRepo: Repository<LearningModule>,
   ) {}
+
+  /** Klassennotizbuch mit: Baum, Plätze und klasseneigene Lernthemen samt Modulen. */
+  private async removeClassbook(classIds: string[]) {
+    if (!classIds.length) return;
+    await this.notebookRepo.delete({ classId: In(classIds) });
+    await this.cbNodeRepo.delete({ classId: In(classIds) });
+    await this.cbPlaceRepo.delete({ classId: In(classIds) });
+    const topics = await this.topicRepo.find({ where: { classId: In(classIds) }, select: ['id'] });
+    if (topics.length) {
+      await this.moduleRepo.delete({ topicId: In(topics.map((t) => t.id)) });
+      await this.topicRepo.delete({ id: In(topics.map((t) => t.id)) });
+    }
+  }
 
   /**
    * Bestand ohne Schuljahr kommt ins aktuelle: Klassen aus der Zeit vor den
@@ -137,7 +158,7 @@ export class ClassesService implements OnApplicationBootstrap, OnModuleDestroy {
         await this.workRepo.delete({ classId: In(ids) });
         await this.attemptRepo.delete({ classId: In(ids) });
         await this.progressRepo.delete({ classId: In(ids) });
-        await this.notebookRepo.delete({ classId: In(ids) });
+        await this.removeClassbook(ids);
         // Fassungen von Dokumenten, an denen niemand mehr schreibt.
         await this.workRepo.query('DELETE FROM document_versions WHERE id NOT IN (SELECT versionId FROM document_works WHERE versionId IS NOT NULL)');
         await this.linkRepo.delete({ classId: In(ids) });
@@ -415,7 +436,7 @@ export class ClassesService implements OnApplicationBootstrap, OnModuleDestroy {
     await this.workRepo.delete({ classId: id });
     await this.attemptRepo.delete({ classId: id });
     await this.progressRepo.delete({ classId: id });
-    await this.notebookRepo.delete({ classId: id });
+    await this.removeClassbook([id]);
     await this.shareRepo.delete({ classId: id, status: 'offered' });
     await this.classRepo.remove(klasse);
     return { success: true };

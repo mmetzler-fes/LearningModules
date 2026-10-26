@@ -1,4 +1,4 @@
-import { Entity, Column, OneToMany } from 'typeorm';
+import { Entity, Column, OneToMany, Index } from 'typeorm';
 import { BaseEntity } from './base.entity';
 import { LearningModule } from './learning-module.entity';
 
@@ -111,4 +111,13 @@ export class LearningTopic extends BaseEntity {
 
   @Column({ type: 'datetime', nullable: true })
   syncedAt: Date | null;
+
+  /**
+   * Klasseneigenes Lernthema: gehört nur zum Klassennotizbuch dieser Klasse
+   * (docs/klassennotizbuch.md) und erscheint nicht im Notizbuch, unter
+   * LernModule oder in Freigaben.
+   */
+  @Index()
+  @Column({ type: 'varchar', nullable: true })
+  classId: string | null;
 }

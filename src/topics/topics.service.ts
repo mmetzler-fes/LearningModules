@@ -60,7 +60,8 @@ export class TopicsService {
 
   async findAll(user: any) {
     // Lehrkräfte und Admins sehen hier nur die eigenen Themen.
-    const topics = await this.topicRepo.find({ where: { ownerId: user.userId }, order: { id: 'ASC' } });
+    // Klasseneigene Lernthemen gehören ins Klassennotizbuch, nicht hierher.
+    const topics = await this.topicRepo.find({ where: { ownerId: user.userId, classId: IsNull() }, order: { id: 'ASC' } });
     await this.attachModuleSummaries(topics);
     return this.withRights(topics, user);
   }
@@ -343,7 +344,7 @@ export class TopicsService {
   async findUsable(user: any) {
     const grantedIds = (Array.isArray(user.grants) ? user.grants : []).map((g: any) => g.topicId);
     const all = await this.topicRepo.find({
-      where: [{ ownerId: user.userId }, ...(grantedIds.length ? [{ id: In(grantedIds) }] : [])],
+      where: [{ ownerId: user.userId, classId: IsNull() }, ...(grantedIds.length ? [{ id: In(grantedIds), classId: IsNull() }] : [])],
     });
     await this.attachModuleSummaries(all);
     const names = await this.userNames();
@@ -623,7 +624,7 @@ export class TopicsService {
     const {
       copiedFromId: _a, copiedFromOwnerId: _b, copiedFromAuthor: _c, copiedFromTitle: _d,
       syncSource: _s, syncHash: _h, syncedAt: _t,
-      sharedWith: _e, sharedAccess: _f, modules: _g, ...data
+      sharedWith: _e, sharedAccess: _f, modules: _g, classId: _k, ...data
     } = topicData as any;
     const topic = this.topicRepo.create({
       ...data,

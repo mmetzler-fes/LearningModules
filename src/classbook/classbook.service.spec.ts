@@ -28,8 +28,13 @@ function setup({ firstLogin = false } = {}) {
     practiceToken: async (l: any) => l.token,
   };
   const attempts = repo();
-  const svc = new ClassbookService(notebooks as any, students as any, results as any, works as any, links as any, users as any, attempts as any, classes, linksService, {} as any);
-  return { svc, students, links, notebooks, attempts };
+  const nodes = repo();
+  const places = repo();
+  const topics = repo();
+  const modules = repo();
+  const svc = new ClassbookService(notebooks as any, students as any, results as any, works as any, links as any, users as any, attempts as any, classes, linksService, {} as any,
+    nodes as any, places as any, topics as any, modules as any);
+  return { svc, students, links, notebooks, attempts, nodes, places, topics, modules };
 }
 
 describe('Klassennotizbuch: Anmeldung', () => {
@@ -150,5 +155,49 @@ describe('Klassennotizbuch: 📍 Merker', () => {
     notebooks.rows[0].marker = { linkId: 'l1', topicId: 't', moduleId: 'weg' };
     expect((await svc.home('kb', ticket)).marker).toBeNull();
     expect((await svc.setMarker(user, 'c1', {})).marker).toBeNull();
+  });
+});
+
+describe('Klassennotizbuch: Baum und klasseneigene Lernthemen', () => {
+  const user = { userId: 't1' };
+  const ready = () => {
+    const ctx = setup();
+    (ctx.svc as any).classes.ownedClass = async () => KLASSE;
+    return ctx;
+  };
+
+  it('Bereiche und Abschnitte; Abschnitt nimmt keinen Bereich auf', async () => {
+    const { svc } = ready();
+    const area = await svc.createNode(user, 'c1', { kind: 'area', title: 'Halbjahr 1' });
+    const sec = await svc.createNode(user, 'c1', { kind: 'section', title: 'Strom', parentId: area.id });
+    await expect(svc.createNode(user, 'c1', { kind: 'area', title: 'X', parentId: sec.id })).rejects.toThrow(/nur Lernthemen/);
+    await expect(svc.createNode(user, 'c1', { kind: 'area', title: ' ' })).rejects.toThrow(/Namen/);
+  });
+
+  it('klasseneigenes Lernthema: Thema mit Klassenvermerk, Klassenlink, Platz; Löschen nimmt alles mit', async () => {
+    const { svc, topics, links, places, modules } = ready();
+    const sec = await svc.createNode(user, 'c1', { kind: 'section', title: 'Projekt' });
+    const { topicId, linkId } = await svc.createTopic(user, 'c1', { title: 'Projektwoche', nodeId: sec.id });
+    expect(topics.rows[0]).toMatchObject({ id: topicId, classId: 'c1', ownerId: 't1', selected: true });
+    expect(links.rows.find((l) => l.id === linkId)).toMatchObject({ classId: 'c1', selection: [{ topicId, all: false, moduleIds: [] }] });
+    expect(places.rows[0]).toMatchObject({ id: linkId, nodeId: sec.id });
+    modules.rows.push({ id: 'mx', topicId });
+    await svc.renameEntry(user, 'c1', linkId, 'Projektwoche 2');
+    expect(topics.rows[0].title).toBe('Projektwoche 2');
+    await svc.deleteEntry(user, 'c1', linkId);
+    expect(topics.rows).toEqual([]);
+    expect(modules.rows).toEqual([]);
+    expect(links.rows.some((l) => l.id === linkId)).toBe(false);
+  });
+
+  it('Bereich löschen: Lernthemen rücken hoch; Verschieben', async () => {
+    const { svc, places } = ready();
+    const area = await svc.createNode(user, 'c1', { kind: 'area', title: 'A' });
+    const { linkId } = await svc.createTopic(user, 'c1', { title: 'T', nodeId: area.id });
+    await svc.deleteNode(user, 'c1', area.id);
+    expect(places.rows.find((p) => p.id === linkId).nodeId).toBeNull();
+    const sec = await svc.createNode(user, 'c1', { kind: 'section', title: 'S' });
+    await svc.move(user, 'c1', { type: 'entry', id: linkId, parentId: sec.id, index: 0 });
+    expect(places.rows.find((p) => p.id === linkId).nodeId).toBe(sec.id);
   });
 });

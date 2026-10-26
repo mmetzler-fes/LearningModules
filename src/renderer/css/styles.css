@@ -5499,3 +5499,20 @@ details.cb-topic > summary .hint { font-weight: normal; margin-left: 6px; }
 .cb-mark:hover { opacity: 0.8; border-color: var(--border); }
 .cb-mark.on { opacity: 1; }
 .cb-marker-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; background: var(--score-medium-bg); padding: 8px 12px; border-radius: var(--radius-sm); margin-bottom: 10px; }
+/* Klassennotizbuch: Baum aus Bereichen und Abschnitten */
+.cb-node { margin: 6px 0; }
+.cb-node > summary { display: flex; align-items: center; gap: 8px; cursor: pointer; padding: 6px 8px; border-radius: var(--radius-sm); }
+.cb-node > summary:hover { background: var(--bg-primary); }
+.cb-node-title { font-weight: 600; }
+.cb-node > summary .nb-menu-btn { margin-left: auto; }
+.cb-node-body { margin-left: 14px; padding-left: 10px; border-left: 2px solid var(--border); }
+.cb-empty { margin: 4px 0 8px; }
+.cb-link-actions .nb-menu-btn { margin-left: auto; }
+.cb-units .cb-unit { padding: 0; }
+.cb-picker-row:disabled { color: var(--text-secondary); cursor: not-allowed; background: none; }
+.cb-snode { margin: 6px 0; }
+.cb-snode > summary { display: flex; align-items: center; gap: 8px; cursor: pointer; padding: 6px 4px; }
+.cb-node > summary, .cb-snode > summary { list-style: none; }
+.cb-node > summary::-webkit-details-marker, .cb-snode > summary::-webkit-details-marker { display: none; }
+.cb-node > summary::before, .cb-snode > summary::before { content: '▸'; color: var(--text-secondary); width: 1em; flex-shrink: 0; }
+.cb-node[open] > summary::before, .cb-snode[open] > summary::before { content: '▾'; }

@@ -71,6 +71,8 @@ import { ExamAttempt } from './core/entities/exam-attempt.entity';
 import { DocumentVersion } from './core/entities/document-version.entity';
 import { RunProgress } from './core/entities/run-progress.entity';
 import { ClassNotebook } from './core/entities/class-notebook.entity';
+import { ClassNotebookNode } from './core/entities/class-notebook-node.entity';
+import { ClassNotebookPlace } from './core/entities/class-notebook-place.entity';
 import { ClassbookModule } from './classbook/classbook.module';
 import { DrawingSource } from './core/entities/drawing-source.entity';
 import { DrawingsModule } from './drawings/drawings.module';
@@ -104,7 +106,7 @@ import { LinkCode } from './core/entities/link-code.entity';
       // statt „database is locked“.
       enableWAL: true,
       busyTimeout: 5000,
-      entities: [User, StudentClass, ClassStudent, LearningTopic, LearningModule, Result, School, SystemConfig, Tag, TopicLink, TopicQuickLink, TeacherGroup, ShopOffer, UseGrant, PointsEntry, ModuleTiming, ClassShare, NotebookNode, NotebookPlacement, ModuleDraft, UsageCount, ContentFeedback, Category, FederationPeer, RemoteOffer, RemotePerson, FederationCopy, ContentHandover, AccountLink, LinkCode, GithubBackup, NextcloudLink, SchoolNextcloud, DocMirror, WorksheetTemplate, DocumentWork, ExamAttempt, DocumentVersion, RunProgress, DrawingSource, ClassNotebook],
+      entities: [User, StudentClass, ClassStudent, LearningTopic, LearningModule, Result, School, SystemConfig, Tag, TopicLink, TopicQuickLink, TeacherGroup, ShopOffer, UseGrant, PointsEntry, ModuleTiming, ClassShare, NotebookNode, NotebookPlacement, ModuleDraft, UsageCount, ContentFeedback, Category, FederationPeer, RemoteOffer, RemotePerson, FederationCopy, ContentHandover, AccountLink, LinkCode, GithubBackup, NextcloudLink, SchoolNextcloud, DocMirror, WorksheetTemplate, DocumentWork, ExamAttempt, DocumentVersion, RunProgress, DrawingSource, ClassNotebook, ClassNotebookNode, ClassNotebookPlace],
       synchronize: true,
     }),
     MailModule,

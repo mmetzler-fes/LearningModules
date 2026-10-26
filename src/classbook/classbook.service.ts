@@ -10,7 +10,11 @@ import { DocumentWork } from '../core/entities/document-work.entity';
 import { TopicLink } from '../core/entities/topic-link.entity';
 import { User } from '../core/entities/user.entity';
 import { ExamAttempt } from '../core/entities/exam-attempt.entity';
+import { ClassNotebookNode } from '../core/entities/class-notebook-node.entity';
+import { ClassNotebookPlace } from '../core/entities/class-notebook-place.entity';
+import { LearningTopic } from '../core/entities/learning-topic.entity';
 import { LearningModule } from '../core/entities/learning-module.entity';
+import { canHoldNode, depthOf, nodeMoveError, reorder, dissolve, MAX_CLASS_DEPTH } from './classbook-tree';
 import { ClassesService } from '../classes/classes.service';
 import { LinksService, PRACTICE_MODES } from '../links/links.service';
 import { NotebooksService } from '../notebooks/notebooks.service';
@@ -51,6 +55,10 @@ export class ClassbookService {
     private readonly classes: ClassesService,
     private readonly links: LinksService,
     private readonly notebooks: NotebooksService,
+    @InjectRepository(ClassNotebookNode) private readonly nodeRepo: Repository<ClassNotebookNode>,
+    @InjectRepository(ClassNotebookPlace) private readonly placeRepo: Repository<ClassNotebookPlace>,
+    @InjectRepository(LearningTopic) private readonly topicRepo: Repository<LearningTopic>,
+    @InjectRepository(LearningModule) private readonly moduleRepo: Repository<LearningModule>,
   ) {}
 
   /** Notizbuch der Klasse – beim ersten Aufruf angelegt. */
@@ -63,10 +71,33 @@ export class ClassbookService {
     }));
   }
 
-  /** Klassenlinks der Klasse (die Zuweisungen), neueste zuerst. */
+  /** Klassenlinks der Klasse (die Zuweisungen), älteste zuerst. */
   private async classLinks(klasse: StudentClass): Promise<TopicLink[]> {
     const list = await this.linkRepo.find({ where: { classId: klasse.id, ownerId: klasse.ownerId || '' } });
-    return list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    return list.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+  }
+
+  /**
+   * Baum der Klasse: Bereiche/Abschnitte und je Zuweisung ihr Platz. Ohne
+   * eingetragenen Platz steht eine Zuweisung oben, hinter den übrigen.
+   */
+  private async tree(klasse: StudentClass, links: TopicLink[]) {
+    const nodes = (await this.nodeRepo.find({ where: { classId: klasse.id } })).sort((a, b) => a.orderIndex - b.orderIndex);
+    const places = new Map((await this.placeRepo.find({ where: { classId: klasse.id } })).map((p) => [p.id, p]));
+    const known = new Set(nodes.map((n) => n.id));
+    const placeOf = (l: TopicLink, i: number) => {
+      const p = places.get(l.id);
+      return p ? { nodeId: p.nodeId && known.has(p.nodeId) ? p.nodeId : null, order: p.orderIndex } : { nodeId: null, order: 100000 + i };
+    };
+    return {
+      nodes: nodes.map(({ id, kind, title, parentId, orderIndex }) => ({ id, kind, title, parentId: parentId && known.has(parentId) ? parentId : null, orderIndex })),
+      placeOf: new Map(links.map((l, i) => [l.id, placeOf(l, i)])),
+    };
+  }
+
+  /** Klasseneigene Lernthemen dieser Klasse (IDs). */
+  private async classTopicIds(classId: string) {
+    return new Set((await this.topicRepo.find({ where: { classId }, select: ['id'] })).map((t) => t.id));
   }
 
   private async linkInfo(link: TopicLink) {
@@ -91,12 +122,19 @@ export class ClassbookService {
     const nb = await this.ensure(klasse);
     const url = `${baseUrl(req)}/?k=${nb.token}`;
     const students = await this.studentRepo.find({ where: { classId }, select: ['id', 'status', 'pinShownAt'] });
-    const links = await Promise.all((await this.classLinks(klasse)).map(async (l) => {
+    const raw = await this.classLinks(klasse);
+    const { nodes, placeOf } = await this.tree(klasse, raw);
+    const own = await this.classTopicIds(klasse.id);
+    const links = await Promise.all(raw.map(async (l) => {
       const info = await this.linkInfo(l);
+      const ownTopic = (l.selection || []).map((e) => e.topicId).find((id) => own.has(id)) || null;
       const avail = await this.available(l, user);
       const selection = (l.selection || []) as SelEntry[];
       return {
         ...info,
+        ...placeOf.get(l.id),
+        // Klasseneigenes Lernthema (nur in diesem Klassennotizbuch) – sonst Verweis aufs Notizbuch.
+        classTopicId: ownTopic,
         notReleased: avail.notReleased,
         // Was die Zuweisung enthalten kann, mit Schalter je Lernthema und Modul.
         available: avail.topics.map((t) => {
@@ -115,6 +153,7 @@ export class ClassbookService {
       firstLoginUntil: firstLoginOpen(nb.firstLoginUntil) ? nb.firstLoginUntil : null,
       teacherItems: nb.teacherItems || [],
       marker: nb.marker || null,
+      nodes,
       students: {
         total: students.length,
         confirmed: students.filter((s) => s.status !== 'pending').length,
@@ -181,7 +220,7 @@ export class ClassbookService {
    * ausdrücklich: Später ergänzte Module und Lernthemen erscheinen
    * ausgeschaltet. Eine schon vorhandene Zuweisung bleibt, wie sie ist.
    */
-  async assign(user: any, classId: string, body: { type?: string; id?: string }, req?: any) {
+  async assign(user: any, classId: string, body: { type?: string; id?: string; nodeId?: string | null }, req?: any) {
     const klasse = await this.classes.ownedClass(classId, user);
     const id = String(body?.id || '');
     const isNode = body?.type === 'node';
@@ -196,8 +235,148 @@ export class ClassbookService {
       const { topics } = await this.available(link, user);
       link.selection = explicitSelection((link.selection || []) as SelEntry[], topics as AvailTopic[]);
       await this.linkRepo.save(link);
+      await this.placeAtEnd(klasse.id, link.id, await this.nodeOrNull(klasse.id, body?.nodeId));
     }
     return { linkId: created.id, existed: false, notReleased: created.notReleased || [] };
+  }
+
+  // ---- Baum: Bereiche, Abschnitte, Plätze der Lernthemen ----
+
+  private async nodeOrNull(classId: string, nodeId: unknown) {
+    if (!nodeId) return null;
+    const node = await this.nodeRepo.findOne({ where: { id: String(nodeId), classId } });
+    if (!node) throw new NotFoundException('Bereich nicht gefunden.');
+    return node.id;
+  }
+
+  private async placeAtEnd(classId: string, linkId: string, nodeId: string | null) {
+    const siblings = await this.placeRepo.find({ where: { classId, nodeId: nodeId ?? IsNull() } });
+    const orderIndex = Math.max(-1, ...siblings.filter((p) => p.id !== linkId).map((p) => p.orderIndex)) + 1;
+    await this.placeRepo.save(this.placeRepo.create({ id: linkId, classId, nodeId, orderIndex }));
+  }
+
+  /** `{ kind: 'area'|'section', title, parentId? }` */
+  async createNode(user: any, classId: string, body: { kind?: string; title?: string; parentId?: string | null }) {
+    await this.classes.ownedClass(classId, user);
+    const kind = body?.kind === 'section' ? 'section' : 'area';
+    const title = String(body?.title || '').trim().slice(0, 200);
+    if (!title) throw new BadRequestException('Bitte einen Namen eingeben.');
+    const nodes = await this.nodeRepo.find({ where: { classId } });
+    const parentId = body?.parentId ? String(body.parentId) : null;
+    const parent = parentId ? nodes.find((n) => n.id === parentId) || null : null;
+    if (parentId && !parent) throw new NotFoundException('Bereich nicht gefunden.');
+    if (!canHoldNode(parent)) throw new BadRequestException('Ein Abschnitt enthält nur Lernthemen.');
+    if (depthOf(nodes, parentId) + 1 > MAX_CLASS_DEPTH) throw new BadRequestException(`Höchstens ${MAX_CLASS_DEPTH} Ebenen.`);
+    const orderIndex = Math.max(-1, ...nodes.filter((n) => n.parentId === parentId).map((n) => n.orderIndex)) + 1;
+    return this.nodeRepo.save(this.nodeRepo.create({ id: crypto.randomUUID(), classId, kind, title, parentId, orderIndex }));
+  }
+
+  async renameNode(user: any, classId: string, id: string, title: unknown) {
+    await this.classes.ownedClass(classId, user);
+    const node = await this.nodeRepo.findOne({ where: { id, classId } });
+    if (!node) throw new NotFoundException('Bereich nicht gefunden.');
+    const t = String(title || '').trim().slice(0, 200);
+    if (!t) throw new BadRequestException('Bitte einen Namen eingeben.');
+    node.title = t;
+    return this.nodeRepo.save(node);
+  }
+
+  /** Bereich/Abschnitt löschen – sein Inhalt rückt eine Ebene höher. */
+  async deleteNode(user: any, classId: string, id: string) {
+    await this.classes.ownedClass(classId, user);
+    const nodes = await this.nodeRepo.find({ where: { classId } });
+    if (!nodes.some((n) => n.id === id)) throw new NotFoundException('Bereich nicht gefunden.');
+    const places = await this.placeRepo.find({ where: { classId } });
+    const moved = dissolve(nodes, places, id);
+    for (const n of moved.nodes) await this.nodeRepo.update({ id: n.id }, { parentId: n.parentId, orderIndex: n.orderIndex });
+    for (const e of moved.entries) await this.placeRepo.update({ id: e.id }, { nodeId: e.nodeId, orderIndex: e.orderIndex });
+    await this.nodeRepo.delete({ id, classId });
+    return { success: true };
+  }
+
+  /** `{ type: 'node'|'entry', id, parentId, index? }` – Bereich bzw. Lernthema an eine Stelle. */
+  async move(user: any, classId: string, body: { type?: string; id?: string; parentId?: string | null; index?: number | null }) {
+    const klasse = await this.classes.ownedClass(classId, user);
+    const id = String(body?.id || '');
+    const parentId = body?.parentId ? String(body.parentId) : null;
+    const index = Number.isInteger(body?.index) ? Number(body!.index) : null;
+    const nodes = await this.nodeRepo.find({ where: { classId } });
+    if (body?.type === 'node') {
+      if (!nodes.some((n) => n.id === id)) throw new NotFoundException('Bereich nicht gefunden.');
+      const err = nodeMoveError(nodes, id, parentId);
+      if (err) throw new BadRequestException(err);
+      const order = reorder(nodes.filter((n) => n.parentId === parentId), id, index);
+      for (const [nid, orderIndex] of order) await this.nodeRepo.update({ id: nid }, nid === id ? { parentId, orderIndex } : { orderIndex });
+      return { success: true };
+    }
+    const link = await this.linkRepo.findOne({ where: { id, classId: klasse.id } });
+    if (!link) throw new NotFoundException('Lernthema nicht gefunden.');
+    if (parentId && !nodes.some((n) => n.id === parentId)) throw new NotFoundException('Bereich nicht gefunden.');
+    // Zuweisungen ohne Platz (älter als der Baum) bekommen dabei ihren.
+    const links = await this.classLinks(klasse);
+    const { placeOf } = await this.tree(klasse, links);
+    const siblings = links.filter((l) => l.id !== id && placeOf.get(l.id)!.nodeId === parentId)
+      .map((l) => ({ id: l.id, orderIndex: placeOf.get(l.id)!.order }));
+    const order = reorder(siblings, id, index);
+    for (const [lid, orderIndex] of order) {
+      await this.placeRepo.save(this.placeRepo.create({ id: lid, classId: klasse.id, nodeId: parentId, orderIndex }));
+    }
+    return { success: true };
+  }
+
+  /**
+   * Klasseneigenes Lernthema anlegen (nur in diesem Klassennotizbuch): ein
+   * Lernthema mit Klassenvermerk und sein Klassenlink. Neue Module darin sind
+   * – wie überall im Klassennotizbuch – zunächst ausgeschaltet.
+   */
+  async createTopic(user: any, classId: string, body: { title?: string; nodeId?: string | null }) {
+    const klasse = await this.classes.ownedClass(classId, user);
+    const title = String(body?.title || '').trim().slice(0, 200);
+    if (!title) throw new BadRequestException('Bitte einen Titel eingeben.');
+    const nodeId = await this.nodeOrNull(klasse.id, body?.nodeId);
+    const topic = await this.topicRepo.save(this.topicRepo.create({
+      id: crypto.randomUUID(), title, ownerId: user.userId, classId: klasse.id, selected: true, visibility: 'locked',
+    }));
+    const link = await this.linkRepo.save(this.linkRepo.create({
+      id: crypto.randomUUID(), name: title, ownerId: user.userId, token: null, examToken: null, contestHostToken: null,
+      active: true, modes: ['quiz', 'companion'], selection: [{ topicId: topic.id, all: false, moduleIds: [] }],
+      accessPassword: null, singleAttempt: false, tagIds: [], companionSettings: null, contestSettings: null,
+      classId: klasse.id, templateId: null, customized: false, quickTopicId: null, quickNodeId: null, classIds: null,
+      lastSharedAt: new Date(),
+    }));
+    await this.placeAtEnd(klasse.id, link.id, nodeId);
+    return { topicId: topic.id, linkId: link.id };
+  }
+
+  /** Anzeigename einer Zuweisung; beim klasseneigenen Lernthema auch dessen Titel. */
+  async renameEntry(user: any, classId: string, linkId: string, title: unknown) {
+    const link = await this.ownClassLink(user, classId, linkId);
+    const t = String(title || '').trim().slice(0, 200);
+    if (!t) throw new BadRequestException('Bitte einen Namen eingeben.');
+    link.name = t;
+    await this.linkRepo.save(link);
+    const own = await this.classTopicIds(classId);
+    for (const e of link.selection || []) if (own.has(e.topicId)) await this.topicRepo.update({ id: e.topicId }, { title: t });
+    return { success: true };
+  }
+
+  /**
+   * Zuweisung entfernen; ein klasseneigenes Lernthema samt Modulen löschen.
+   * Ergebnisse bleiben (sie tragen ihre Namen selbst).
+   */
+  async deleteEntry(user: any, classId: string, linkId: string) {
+    const link = await this.ownClassLink(user, classId, linkId);
+    const own = await this.classTopicIds(classId);
+    for (const e of link.selection || []) {
+      if (!own.has(e.topicId)) continue;
+      await this.moduleRepo.delete({ topicId: e.topicId });
+      await this.topicRepo.delete({ id: e.topicId });
+    }
+    await this.placeRepo.delete({ id: link.id });
+    await this.linkRepo.delete({ id: link.id });
+    const nb = await this.repo.findOne({ where: { classId } });
+    if (nb?.marker?.linkId === link.id) await this.repo.update({ id: nb.id }, { marker: null });
+    return { success: true };
   }
 
   /** 📍 Merker setzen (`{ linkId, topicId, moduleId }`) oder entfernen (`null`/leer). */
@@ -354,8 +533,11 @@ export class ClassbookService {
   async home(token: string, ticket: unknown) {
     const { nb, klasse, ticket: t, student } = await this.session(token, ticket);
     const confirmed = !!student && student.status !== 'pending';
-    const active = (await this.classLinks(klasse)).filter((l) => l.active);
-    const links = (await Promise.all(active.map((l) => this.linkInfo(l)))).filter((l) => l.practice.length || l.contest);
+    const all = await this.classLinks(klasse);
+    const active = all.filter((l) => l.active);
+    // Ohne eingeschaltetes Modul gibt es für Schüler nichts zu sehen.
+    const links = (await Promise.all(active.map((l) => this.linkInfo(l)))).filter((l) => (l.practice.length || l.contest) && l.topics.length);
+    const { nodes, placeOf } = await this.tree(klasse, all);
     // Laufende Klassenarbeiten: aktiv und ihr Link ist erzeugt (die Lehrkraft hat ihn ausgegeben).
     const exams = await Promise.all(active.filter((l) => (l.modes || []).includes('exam') && l.examToken).map(async (l) => {
       const attempt = await this.attemptRepo.findOne({ where: { linkId: l.id, studentId: t.s } });
@@ -373,6 +555,8 @@ export class ClassbookService {
       // Nur, wenn die Schüler das Modul gerade sehen (Zuweisung aktiv, Modul eingeschaltet).
       marker: nb.marker && links.some((l) => l.id === nb.marker!.linkId
         && l.topics.some((tp) => tp.id === nb.marker!.topicId && tp.units.some((u) => u.id === nb.marker!.moduleId))) ? nb.marker : null,
+      // Bereiche und Abschnitte wie bei der Lehrkraft; leere blendet die Seite aus.
+      nodes: nodes.map(({ id, kind, title, parentId, orderIndex }) => ({ id, kind, title, parentId, orderIndex })),
       assignments: links.map((l) => {
         const runs = results.filter((r) => r.linkId === l.id).map((r) => ({ details: (r.payload?.details || []) as DetailLike[] }));
         const mine = new Set(works.filter((w) => w.linkId === l.id).map((w) => w.moduleId));
@@ -381,6 +565,7 @@ export class ClassbookService {
         return {
           linkId: l.id,
           name: l.name,
+          ...placeOf.get(l.id),
           modes: l.practice,
           contest: l.contest,
           topics: l.topics.map((tp) => ({ ...tp, units: tp.units.map((u) => ({ ...u, ...(cells[u.id] || {}) })) })),

@@ -1018,8 +1018,31 @@ export class BrowserApi {
     return this._fetch(`/api/classbook/${encodeURIComponent(classId)}/teacher-items`, { method: 'PUT', body: JSON.stringify({ items }) });
   }
   /** Aus dem Notizbuch zuweisen: type 'topic' | 'node' → { linkId, existed, notReleased }. */
-  assignToClassbook(classId, type, id) {
-    return this._fetch(`/api/classbook/${encodeURIComponent(classId)}/assign`, { method: 'POST', body: JSON.stringify({ type, id }) });
+  assignToClassbook(classId, type, id, nodeId = null) {
+    return this._fetch(`/api/classbook/${encodeURIComponent(classId)}/assign`, { method: 'POST', body: JSON.stringify({ type, id, nodeId }) });
+  }
+  // Baum des Klassennotizbuchs: Bereiche/Abschnitte, klasseneigene Lernthemen, Verschieben.
+  createClassbookNode(classId, kind, title, parentId = null) {
+    return this._fetch(`/api/classbook/${encodeURIComponent(classId)}/nodes`, { method: 'POST', body: JSON.stringify({ kind, title, parentId }) });
+  }
+  renameClassbookNode(classId, id, title) {
+    return this._fetch(`/api/classbook/${encodeURIComponent(classId)}/nodes/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify({ title }) });
+  }
+  deleteClassbookNode(classId, id) {
+    return this._fetch(`/api/classbook/${encodeURIComponent(classId)}/nodes/${encodeURIComponent(id)}`, { method: 'DELETE' });
+  }
+  /** { type: 'node'|'entry', id, parentId, index } */
+  moveInClassbook(classId, body) {
+    return this._fetch(`/api/classbook/${encodeURIComponent(classId)}/move`, { method: 'POST', body: JSON.stringify(body) });
+  }
+  createClassbookTopic(classId, title, nodeId = null) {
+    return this._fetch(`/api/classbook/${encodeURIComponent(classId)}/topics`, { method: 'POST', body: JSON.stringify({ title, nodeId }) });
+  }
+  renameClassbookEntry(classId, linkId, title) {
+    return this._fetch(`/api/classbook/${encodeURIComponent(classId)}/entries/${encodeURIComponent(linkId)}`, { method: 'PATCH', body: JSON.stringify({ title }) });
+  }
+  deleteClassbookEntry(classId, linkId) {
+    return this._fetch(`/api/classbook/${encodeURIComponent(classId)}/entries/${encodeURIComponent(linkId)}`, { method: 'DELETE' });
   }
   /** Lernthema (ohne moduleId) oder Modul einer Zuweisung ein-/ausschalten. */
   setClassbookItem(classId, linkId, { topicId, moduleId, enabled }) {

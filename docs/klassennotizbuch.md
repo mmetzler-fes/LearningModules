@@ -30,6 +30,27 @@ zwischen beiden.
 
 ### Inhaltsübersicht
 
+Die Inhaltsübersicht ist ein Baum wie im Notizbuch: Die Klasse ist das
+„Book“, darin **📂 Bereiche** und **📑 Abschnitte** (ein Abschnitt enthält nur
+Lernthemen), darin die Lernthemen. Die Schüler sehen denselben Baum.
+
+- Oben **➕ Aus dem Notizbuch**, **➕ Lernthema**, **➕ Bereich**,
+  **➕ Abschnitt**; an jedem Bereich/Abschnitt und Lernthema **⋯** mit
+  „Neues … hier“, ↑ / ↓, **↔️ Verschieben nach…**, Umbenennen, Löschen.
+- Einen Bereich oder Abschnitt löschen: Was darin liegt, rückt eine Ebene
+  höher – es geht nichts verloren.
+- **🔗 Zugewiesen** – Verweis auf ein Lernthema oder einen Bereich deines
+  Notizbuchs; „Zuweisung entfernen“ lässt es im Notizbuch, wie es ist.
+- **📘 Klasseneigen** – **➕ Lernthema** legt ein Lernthema nur für diese Klasse
+  an, z. B. Aufgaben oder Dokumente. Es erscheint nicht im Notizbuch, unter
+  LernModule oder in den Schülerfreigaben. **⋯ → ➕ Neues Modul** öffnet den
+  gewohnten Editor; ein Klick auf ein Modul bearbeitet es. Neue Module sind
+  wie überall hier zunächst aus (●). Löschen nimmt das Lernthema samt Modulen
+  mit; Ergebnisse der Schüler bleiben. Mit der Klasse (Löschen, Löschregel)
+  verschwinden auch ihre klasseneigenen Lernthemen.
+- Bei den Schülern sind Bereiche und Abschnitte eingeklappt, mit „x/y
+  erledigt“ – außer auf dem Weg zum 📍 Merker.
+
 Zuweisen geht auf zwei Wegen: im **📓 Notizbuch** über das Kontextmenü
 (⋯ oder Rechtsklick) eines Lernthemas, Books, Bereichs oder Abschnitts
 **📒 Klassennotizbuch zuweisen…** – dann eine oder mehrere Klassen wählen –,
@@ -150,6 +171,14 @@ sonst jeder anmelden. In der Ergebnisübersicht fehlen unbestätigte Einträge.
 
 ## Technik
 
+- Baum: `class_notebook_nodes` (Bereich/Abschnitt je Klasse, `parentId`,
+  `orderIndex`), `class_notebook_places` (Platz eines Klassenlinks, `id` = seine
+  ID; ohne Platz oben am Ende). Regeln in `src/classbook/classbook-tree.ts`.
+  Klasseneigene Lernthemen: `topics.classId` (aus `findAll`/`findUsable`
+  herausgefiltert), je eines mit eigenem Klassenlink ohne Regel. Endpunkte:
+  `POST/PATCH/DELETE /api/classbook/:classId/nodes[/:id]`, `POST …/move`
+  `{ type: 'node'|'entry', id, parentId, index? }`, `POST …/topics`
+  `{ title, nodeId? }`, `PATCH/DELETE …/entries/:linkId`; `assign` nimmt `nodeId`.
 - Tabelle `class_notebooks` (je Klasse eine Zeile, beim ersten Aufruf
   angelegt): `token` (Klassenbuch-Link), `firstLoginUntil`, `teacherItems`
   (Verweise `{ type: 'topic'|'node', id }`). Zuweisungen sind die Klassenlinks

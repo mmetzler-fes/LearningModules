@@ -1,4 +1,4 @@
-import { docSpec } from './docspec';
+import { docSpec, withBlockIds } from './docspec';
 
 const ds = docSpec();
 
@@ -284,5 +284,28 @@ describe('Block quiz', () => {
     const html = ds.renderDocSpecHtml({ content: [{ type: 'quiz', module: 'm1', title: 'Kurzquiz' }] });
     expect(html).toContain('data-module="m1"');
     expect(html).toContain('Kurzquiz');
+  });
+});
+
+describe('withBlockIds', () => {
+  it('fehlende IDs nach der Position, vorhandene bleiben; Text-JSON bleibt Text', () => {
+    const content = { kind: 'arbeitsblatt', spec: { content: [{ type: 'text', text: 'a' }, { id: 'abcd2345', type: 'karo' }, { type: 'task', title: 'T', blocks: [{ type: 'karo' }] }] } };
+    const out = withBlockIds(content);
+    expect(out.spec.content.map((b: any) => b.id)).toEqual(['pos0', 'abcd2345', 'pos2']);
+    expect((out.spec.content[2] as any).blocks[0].id).toBe('pos2x0');
+    const asText = withBlockIds(JSON.stringify({ spec: { content: [{ type: 'text' }] } }));
+    expect(JSON.parse(asText).spec.content[0].id).toBe('pos0');
+  });
+
+  it('belegte Position: neue zufällige ID (ohne crypto in der Sandbox)', () => {
+    const out = withBlockIds({ spec: { content: [{ type: 'text' }, { id: 'pos0', type: 'karo' }] } });
+    expect(out.spec.content[0].id).toMatch(/^[a-km-np-z2-9]{8}$/);
+    expect(out.spec.content[1].id).toBe('pos0');
+  });
+
+  it('ohne Spec unverändert', () => {
+    const c = { foo: 1 };
+    expect(withBlockIds(c)).toBe(c);
+    expect(withBlockIds('kein json')).toBe('kein json');
   });
 });

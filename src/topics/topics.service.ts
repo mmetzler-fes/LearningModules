@@ -18,6 +18,7 @@ import { FederationPeer } from '../core/entities/federation-peer.entity';
 import { visibleFor } from '../shop/offer-rules';
 import { School } from '../core/entities/school.entity';
 import { baseUrl, renderQr } from '../core/share/link-url';
+import { withBlockIds } from '../worksheets/docspec';
 import * as crypto from 'crypto';
 
 /** Audio Recorder ohne Ablage-Link und Passwort (siehe visibleModules). */
@@ -667,6 +668,7 @@ export class TopicsService {
     if (data.content !== undefined) {
       await this.nextcloud.assertAppImagesAllowed(user, { id: existing?.id, topicOwnerId: topic.ownerId, creatorId }, existing?.content, data.content);
     }
+    if (data.content !== undefined && (data.type ?? existing?.type) === 'document') data.content = withBlockIds(data.content);
 
     const module = this.moduleRepo.create({
       ...data,

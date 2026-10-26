@@ -14,6 +14,7 @@ import { validateDocSpec, renderDocSpecHtml, docRefSlugs } from '../lm-editor/sr
 import { downloadBlob } from './api.js';
 import { escapeHtml } from './utils.js';
 import { htmlToDocSpec, specToEditorHtml, widgetHtml } from '../lm-editor/src/doc/docspec-html.js';
+import { ensureBlockIds, stampBlockIds } from '../lm-editor/src/doc/ids.js';
 import { newlineIndent, shiftLines, reindentPaste, insertAfterItem } from './yaml-edit.js';
 import { pickQuiz as pickQuizFrom } from './quiz-picker.js';
 import { pickPdfBlocks } from './views/attachment-convert.js';
@@ -154,6 +155,8 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
   titleInput?.addEventListener('input', () => { clearTimeout(titleTimer); titleTimer = setTimeout(loadContext, 600); });
 
   let spec = null;
+  // Beispielinhalt eines neuen Dokuments, wie er im Feld steht (mit IDs) – noch unberührt?
+  let starterYaml = STARTER;
   const update = () => {
     let parsed;
     try {
@@ -164,6 +167,9 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
       return; // Vorschau und gespeicherter Stand bleiben beim letzten lesbaren.
     }
     spec = parsed;
+    // Feste Block-IDs – an ihnen hängen die Striche der Schüler. Neue Blöcke
+    // bekommen ihre ID ins YAML, sobald dort niemand tippt (sonst beim Verlassen).
+    if (document.activeElement !== textarea && ensureBlockIds(spec)) textarea.value = toYaml(spec);
     hidden.value = JSON.stringify(spec);
     const errors = validateDocSpec(spec);
     const missing = ctx?.refs ? docRefSlugs(spec).filter((s) => !ctx.refs[s]) : [];
@@ -174,6 +180,7 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
 
   let timer = null;
   textarea.addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(update, 250); });
+  textarea.addEventListener('blur', () => { clearTimeout(timer); update(); });
   // YAML lebt von Einrückung (yaml-edit.js): Tab rückt ein statt das Feld
   // zu verlassen, Enter übernimmt die Einrückung, Eingefügtes passt sich an.
   const replaceYaml = (text, start, end = start) => {
@@ -295,7 +302,7 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
       const isPdf = /\.pdf$/i.test(file.name) || file.type === 'application/pdf';
       if (isPdf && !pdfAllowed) { status.textContent = '❌ PDF-Import ist für dein Konto nicht freigeschaltet.'; return; }
       const ask = window.appConfirm || ((m) => Promise.resolve(window.confirm(m)));
-      const empty = !spec || !Array.isArray(spec.content) || !spec.content.length || textarea.value === STARTER;
+      const empty = !spec || !Array.isArray(spec.content) || !spec.content.length || textarea.value === starterYaml;
       const choice = isPdf ? await askPdfMode() : null;
       if (isPdf && !choice) return;
       if (!empty && !(await ask('Den bisherigen Inhalt durch das Dokument ersetzen?'))) return;
@@ -447,6 +454,7 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
     const tag = { p: 'p', note: 'p', section: 'h2', task: 'h3', subtask: 'h4', heading: 'h2' }[kind];
     const el = document.createElement(tag);
     if (kind !== 'p') el.dataset.ds = kind;
+    if (b.dataset.id) el.dataset.id = b.dataset.id;
     const inner = b.dataset.ds === 'note' && b.firstElementChild?.tagName === 'EM' ? b.firstElementChild.innerHTML : b.innerHTML;
     el.innerHTML = kind === 'note' ? `<em>${inner}</em>` : inner;
     b.replaceWith(el);
@@ -584,6 +592,8 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
       ev.preventDefault();
       let next;
       try { next = yamlLoad(ta.value); } catch (err) { overlay.querySelector('.ds-error').textContent = `YAML: ${err.reason || err.message}`; return; }
+      // Die feste ID bleibt, auch wenn sie im YAML gelöscht wurde.
+      if (block.id && next && typeof next === 'object' && next.id === undefined) next.id = block.id;
       const errs = validateDocSpec({ content: [next] });
       if (errs.length) { overlay.querySelector('.ds-error').textContent = errs.join(' · '); return; }
       const tmp = document.createElement('div');
@@ -674,8 +684,14 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
     if (w && surface.contains(w)) editWidget(w);
   });
 
-  textarea.value = toYaml(value);
+  // Fehlende Block-IDs nach der Position – wie die Striche der Schüler sie
+  // bisher kennen (ids.js). Vor dem Vergleichsstand des Entwurfs, gilt also
+  // nicht als Änderung.
+  const initialSpec = Array.isArray(value?.content) ? structuredClone(value) : value;
+  if (initialSpec !== value) stampBlockIds(initialSpec);
+  textarea.value = toYaml(initialSpec);
   update();
+  if (!Array.isArray(initialSpec?.content)) starterYaml = textarea.value;
   let initial = 'visual';
   try { initial = localStorage.getItem('lm_ds_mode') || 'visual'; } catch (_) { /* egal */ }
   setMode(initial === 'yaml' ? 'yaml' : 'visual');

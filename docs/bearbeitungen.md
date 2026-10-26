@@ -17,6 +17,13 @@ Fassung das Blatt, wie er es vor sich hatte (mit seinen Quizzen). Die Ansicht
 setzt beides zusammen. Ändert die Lehrkraft das Dokument später, zeigt sie
 trotzdem das Blatt, auf dem der Schüler geschrieben hat.
 
+**Ändert die Lehrkraft das Dokument**, bleiben die Striche an ihrem Baustein:
+Jeder Baustein hat eine feste Kennung, und ein Strich zählt ab der Oberkante
+seines Bausteins. Wird weiter oben etwas eingefügt, gelöscht oder länger,
+rutschen die folgenden Bausteine samt Strichen mit. Nur im geänderten
+Baustein selbst passen Striche nicht mehr genau, wenn sich dort der Inhalt
+verschiebt; Striche eines gelöschten Bausteins bleiben, wo sie zuletzt waren.
+
 Ohne Klasse (gewöhnlicher Themenlink, Quick-Link ohne Klasse) bleibt die
 Beschriftung wie bisher auf dem Gerät.
 
@@ -92,6 +99,11 @@ Klasse und durch die Löschregel des Schuljahrs.
 
 ## Technik
 
+- Feste Block-IDs (`lm-editor/src/doc/ids.js`): Der Dokument-Editor vergibt
+  fehlende beim Öffnen (`stampBlockIds`: zuerst die Position `pos3`, unter
+  der ältere Striche als `p:3` liegen) und trägt sie als `data-id` durch die
+  Bearbeiten-Ansicht (`docspec-html.js`); `TopicsService.addModule` ergänzt
+  fehlende beim Speichern (`withBlockIds`).
 - Tabelle `document_works`: je Link, Schüler und Modul ein Stand
   (`data` = Stand des Stift-Editors mit `forms` = Quiz-Eingaben, höchstens
   5 MB), `versionId` → `document_versions` (Prüfsumme über Titel, Inhalt und

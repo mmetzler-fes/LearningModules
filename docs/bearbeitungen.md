@@ -75,7 +75,7 @@ dem ersten Gerät) kann danach nichts mehr speichern oder abgeben.
 
 ## Ansehen (Lehrkraft)
 
-**📈 Klassenergebnisse → ✍️ Bearbeitungen:** Klasse wählen, dann gruppiert
+**📒 Klassennotizbuch → 👥 Schülerdaten → ✍️ Blätter:** Klasse wählen, dann gruppiert
 **nach Schüler** oder **nach Link** – die neuesten Eingaben zuerst.
 **👁 Ansehen** öffnet das ganze Blatt mit Stift-, Text- und Quiz-Eingaben des
 Schülers; geändert wird dabei nichts.
@@ -85,7 +85,7 @@ Schülers; geändert wird dabei nichts.
 
 ## Live
 
-**📈 Klassenergebnisse → 📡 Live:** alle Schüler der Klasse und je Aufgabe des
+**📒 Klassennotizbuch → 📡 Live:** alle Schüler der Klasse und je Aufgabe des
 gewählten Links ✓ erledigt oder ▶ gerade dran, dazu „fertig“ und wann sich
 zuletzt etwas getan hat. ✍️ hinter dem Namen: schreibt gerade (in den letzten
 10 Minuten) mit dem Stift. Wer noch nicht gestartet hat, steht grau da. Die

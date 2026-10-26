@@ -52,6 +52,9 @@
         </div>
       </div>
 
+      <!-- Klassennotizbuch (Schüler): Name und PIN, dann die Startseite – views/classbook-student.js -->
+      <div id="classbookSection" class="hidden"></div>
+
       <!-- Themen-Link: Name, ggf. Passwort, ggf. Modusauswahl -->
       <div id="linkEntrySection" class="hidden">
         <div id="linkEntryLoading" class="quick-entry-loading">
@@ -226,7 +229,7 @@
           <span class="nav-icon">📊</span> <span data-i18n="nav.results">Ergebnisse</span>
         </button>
         <button class="nav-btn" data-view="teacher-class-results">
-          <span class="nav-icon">📈</span> Klassenergebnisse
+          <span class="nav-icon">📒</span> Klassennotizbuch
         </button>
         <button class="nav-btn" data-view="teacher-help">
           <span class="nav-icon">📖</span> Hilfe
@@ -576,25 +579,30 @@
         </form>
       </section>
 
-      <!-- Teacher: Klassenergebnisse -->
+      <!-- Teacher: Klassennotizbuch (früher Klassenergebnisse) – views/class-results.js -->
       <section class="view" id="view-teacher-class-results">
         <div class="view-header">
-          <h2>📈 Klassenergebnisse <button type="button" class="help-hint" data-help="klassen-und-schuljahr#klassenergebnisse" title="Hilfe zu diesem Bereich" aria-label="Hilfe zu diesem Bereich">?</button></h2>
-          <p class="subtitle">Ergebnisse über Klassenlinks, nach Klasse und Schüler. Ergebnisse ohne Klasse stehen
-            weiter unter <strong>📊 Ergebnisse</strong>.</p>
+          <h2>📒 Klassennotizbuch <button type="button" class="help-hint" data-help="klassennotizbuch" title="Hilfe zu diesem Bereich" aria-label="Hilfe zu diesem Bereich">?</button></h2>
+          <p class="subtitle">Je Klasse Aufgaben, Klassenarbeiten, Schülerdaten und Ergebnisse – und der Klassenbuch-Link, über den
+            Schüler mit Name und PIN alles wiederfinden. Ergebnisse ohne Klasse stehen unter <strong>📊 Ergebnisse</strong>.</p>
         </div>
         <div class="link-class-bar">
           <label>Schuljahr <select id="crYear"></select></label>
           <label>Klasse <select id="crClass"></select></label>
         </div>
-        <div class="links-tabs" role="tablist">
-          <button type="button" class="links-tab active" data-cr-tab="students" role="tab">👥 Schüler</button>
-          <button type="button" class="links-tab" data-cr-tab="tests" role="tab">📝 Tests</button>
-          <button type="button" class="links-tab" data-cr-tab="year" role="tab">📅 Jahresüberblick</button>
-          <button type="button" class="links-tab" data-cr-tab="works" role="tab" title="Blätter mit Stift- und Texteingaben der Schüler">✍️ Bearbeitungen</button>
-          <button type="button" class="links-tab" data-cr-tab="live" role="tab" title="Wer ist gerade bei welcher Aufgabe?">📡 Live</button>
+        <div class="cb-layout">
+          <nav class="cb-sections" role="tablist" aria-label="Bereiche des Klassennotizbuchs">
+            <button type="button" class="cb-section-btn" data-cr-tab="content" role="tab" title="Was der Klasse zugewiesen ist – Verweise auf dein Notizbuch">📋 Inhaltsübersicht</button>
+            <button type="button" class="cb-section-btn" data-cr-tab="teacher" role="tab" title="Material nur für dich, z. B. Lösungen">🔒 Nur für Lehrer</button>
+            <button type="button" class="cb-section-btn" data-cr-tab="exams" role="tab">📝 Klassenarbeiten</button>
+            <button type="button" class="cb-section-btn" data-cr-tab="students" role="tab" title="Ergebnisse und Blätter je Schüler">👥 Schülerdaten</button>
+            <button type="button" class="cb-section-btn" data-cr-tab="overview" role="tab" title="Je Modul, wie weit jeder Schüler ist">📊 Ergebnisübersicht</button>
+            <button type="button" class="cb-section-btn" data-cr-tab="contest" role="tab">🏆 Quiz-Arena</button>
+            <button type="button" class="cb-section-btn" data-cr-tab="live" role="tab" title="Wer ist gerade bei welcher Aufgabe?">📡 Live</button>
+            <button type="button" class="cb-section-btn" data-cr-tab="settings" role="tab" title="Klassenbuch-Link, QR-Code, Erstanmeldung">⚙ Klassenbuch-Link</button>
+          </nav>
+          <div id="crContent"></div>
         </div>
-        <div id="crContent"></div>
       </section>
 
       <!-- Teacher: Results -->

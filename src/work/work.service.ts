@@ -10,7 +10,7 @@ import { LinksService, LinkAccess } from '../links/links.service';
 import { ClassesService } from '../classes/classes.service';
 import { readTicket } from '../classes/student-ticket';
 import { isTestStudent } from '../classes/test-student';
-import { newPin, pinMatches, PinGuard } from './pin';
+import { newPin, pinMatches, pinGuard } from './pin';
 import { ExamService } from './exam.service';
 import { LearningModule } from '../core/entities/learning-module.entity';
 import { contentOf, forStudents } from '../core/public/student-view';
@@ -36,7 +36,7 @@ export interface WorkAccess {
  */
 @Injectable()
 export class WorkService {
-  private readonly guard = new PinGuard();
+  private readonly guard = pinGuard;
 
   constructor(
     @InjectRepository(DocumentWork) private readonly workRepo: Repository<DocumentWork>,

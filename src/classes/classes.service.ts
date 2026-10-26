@@ -12,6 +12,7 @@ import { User } from '../core/entities/user.entity';
 import { DocumentWork } from '../core/entities/document-work.entity';
 import { ExamAttempt } from '../core/entities/exam-attempt.entity';
 import { RunProgress } from '../core/entities/run-progress.entity';
+import { ClassNotebook } from '../core/entities/class-notebook.entity';
 import { newPin } from '../work/pin';
 import { isSchoolYear, schoolYearOfDate, compareSchoolYearsDesc, splitSchoolYearPrefix, shiftSchoolYear, suggestNextClassName } from './school-year';
 import { planStudentImport, nameKey, ImportRow } from './student-import';
@@ -55,6 +56,7 @@ export class ClassesService implements OnApplicationBootstrap, OnModuleDestroy {
     @InjectRepository(DocumentWork) private readonly workRepo: Repository<DocumentWork>,
     @InjectRepository(ExamAttempt) private readonly attemptRepo: Repository<ExamAttempt>,
     @InjectRepository(RunProgress) private readonly progressRepo: Repository<RunProgress>,
+    @InjectRepository(ClassNotebook) private readonly notebookRepo: Repository<ClassNotebook>,
   ) {}
 
   /**
@@ -135,6 +137,7 @@ export class ClassesService implements OnApplicationBootstrap, OnModuleDestroy {
         await this.workRepo.delete({ classId: In(ids) });
         await this.attemptRepo.delete({ classId: In(ids) });
         await this.progressRepo.delete({ classId: In(ids) });
+        await this.notebookRepo.delete({ classId: In(ids) });
         // Fassungen von Dokumenten, an denen niemand mehr schreibt.
         await this.workRepo.query('DELETE FROM document_versions WHERE id NOT IN (SELECT versionId FROM document_works WHERE versionId IS NOT NULL)');
         await this.linkRepo.delete({ classId: In(ids) });
@@ -412,6 +415,7 @@ export class ClassesService implements OnApplicationBootstrap, OnModuleDestroy {
     await this.workRepo.delete({ classId: id });
     await this.attemptRepo.delete({ classId: id });
     await this.progressRepo.delete({ classId: id });
+    await this.notebookRepo.delete({ classId: id });
     await this.shareRepo.delete({ classId: id, status: 'offered' });
     await this.classRepo.remove(klasse);
     return { success: true };

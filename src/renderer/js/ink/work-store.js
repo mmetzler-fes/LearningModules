@@ -9,6 +9,11 @@
 // PIN je Schülerausweis, solange die Seite offen ist – nicht bei jedem Dokument neu fragen.
 const pins = new Map();
 
+/** PIN schon bekannt (Anmeldung im Klassennotizbuch) – dann fragt kein Blatt mehr danach. */
+export function rememberPin(studentTicket, pin) {
+  if (studentTicket && pin) pins.set(studentTicket, pin);
+}
+
 async function post(path, body) {
   const res = await fetch(`/api/public/work/${path}`, {
     method: 'POST',

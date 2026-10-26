@@ -589,8 +589,7 @@ export class ClassesView {
    * zweiter Start (Browser geschlossen, Gerät gewechselt, nachträglich) geht
    * nur nach 🔓 Freigabe – dann mit Zwischenstand und Blatt.
    */
-  async _renderExams(klasse) {
-    const box = this._detail.querySelector('.class-exams');
+  async _renderExams(klasse, box = this._detail.querySelector('.class-exams')) {
     if (!box) return;
     const exams = await this.app.api.listExams({ classId: klasse.id });
     if (failed(exams) || !exams.length) { box.innerHTML = ''; return; }
@@ -624,7 +623,7 @@ export class ClassesView {
         const res = await this.app.api.setExamReentry(x.id, allow);
         if (failed(res)) { this.app.showToast('Fehler: ' + (res?.message || '?'), 'error'); return; }
         this.app.showToast(allow ? `${x.studentName} kann die Klassenarbeit jetzt noch einmal öffnen.` : 'Freigabe zurückgenommen.', 'success');
-        this._renderExams(klasse);
+        this._renderExams(klasse, box);
       });
     });
   }

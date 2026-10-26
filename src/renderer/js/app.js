@@ -17,6 +17,7 @@ import { ContestView } from './views/contest.js';
 import { CompanionSettingsView } from './views/companion-settings.js';
 import { ClassesView } from './views/classes.js';
 import { ClassResultsView } from './views/class-results.js';
+import { ClassbookStudent } from './views/classbook-student.js';
 import { AiPromptView } from './views/ai-prompt-view.js';
 import { HelpView, openHelpPopup } from './views/help-view.js';
 import { NotebooksView } from './views/notebooks.js';
@@ -82,6 +83,7 @@ class App {
     this.companionView = new CompanionSettingsView(this);
     this.classesView  = new ClassesView(this);
     this.classResultsView = new ClassResultsView(this);
+    this.classbookStudent = new ClassbookStudent(this);
     this.aiPromptView = new AiPromptView(this);
     this.helpView = new HelpView(this);
     this.notebooksView = new NotebooksView(this);
@@ -537,6 +539,12 @@ class App {
       // Themen-Link: ?l=<token> – Name, ggf. Passwort, ggf. Modusauswahl;
       // &m=contest führt direkt in den Wartebereich der Quiz-Arena,
       // &mod=<modul> nur in dieses eine Modul (QR-Code eines Quiz im Dokument).
+      // Klassennotizbuch: ?k=<token> – Name und PIN, dann Aufgaben, Ergebnisse, Blätter.
+      const classbookToken = params.get('k');
+      if (classbookToken) {
+        await this.classbookStudent.start(classbookToken);
+        return;
+      }
       const linkToken = params.get('l');
       if (linkToken) {
         await this.loginView.startLinkEntry(linkToken, params.get('m') === 'contest' ? 'contest' : null, params.get('mod'));

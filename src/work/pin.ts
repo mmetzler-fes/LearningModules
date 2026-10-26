@@ -44,4 +44,12 @@ export class PinGuard {
   passed(key: string) {
     this.fails.delete(key);
   }
+
+  /** Alle Zähler zurück (Tests). */
+  reset() {
+    this.fails.clear();
+  }
 }
+
+/** Eine Bremse für alle Wege, auf denen eine PIN abgefragt wird (Bearbeitungen, Klassennotizbuch). */
+export const pinGuard = new PinGuard();

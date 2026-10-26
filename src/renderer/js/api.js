@@ -176,11 +176,12 @@ export class BrowserApi {
   }
 
   /** Durchlauf starten: prüft Name, Passwort und Modus und liefert die Module. */
-  startLinkRun(token, { studentName, password, mode, testPassword }) {
+  /** classTicket: Ausweis aus dem Klassennotizbuch statt Name (dort mit PIN angemeldet). */
+  startLinkRun(token, { studentName, password, mode, testPassword, classTicket }) {
     return fetch(`/api/public/link/${encodeURIComponent(token)}/start`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ studentName, password, mode, testPassword }),
+      body: JSON.stringify({ studentName, password, mode, testPassword, classTicket }),
     }).then((r) => r.json());
   }
 
@@ -1007,6 +1008,16 @@ export class BrowserApi {
   exportResults(years) { return this._fetch(`/api/results/export${years?.length ? `?years=${encodeURIComponent(years.join(','))}` : ''}`); }
   importResults(data) { return this._fetch('/api/results/import', { method: 'POST', body: JSON.stringify(data) }); }
   getRetention() { return this._fetch('/api/classes/retention'); }
+  // ---------- Klassennotizbuch (docs/klassennotizbuch.md) ----------
+  getClassbook(classId) { return this._fetch(`/api/classbook/${encodeURIComponent(classId)}`); }
+  setClassbookFirstLogin(classId, open) {
+    return this._fetch(`/api/classbook/${encodeURIComponent(classId)}/first-login`, { method: 'POST', body: JSON.stringify({ open }) });
+  }
+  renewClassbookToken(classId) { return this._fetch(`/api/classbook/${encodeURIComponent(classId)}/token`, { method: 'POST' }); }
+  setClassbookTeacherItems(classId, items) {
+    return this._fetch(`/api/classbook/${encodeURIComponent(classId)}/teacher-items`, { method: 'PUT', body: JSON.stringify({ items }) });
+  }
+  getClassbookOverview(classId) { return this._fetch(`/api/classbook/${encodeURIComponent(classId)}/overview`); }
   getClassResults(classId) { return this._fetch(`/api/results/class/${encodeURIComponent(classId)}`); }
   saveQuizResult(resultData) {
     return this._fetch('/api/results', { method: 'POST', body: JSON.stringify(resultData) });

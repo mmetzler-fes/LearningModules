@@ -1,6 +1,7 @@
 import { escapeHtml, escapeAttr } from '../utils.js';
 import { renderMarkdown } from '../markdown.js';
 import { refreshNextcloud } from './nextcloud.js';
+import { classbookSession, backToClassbook } from './classbook-student.js';
 
 /**
  * Schule, Schuladmin-Recht und freigeschaltete Funktionen (src/features) aus
@@ -767,6 +768,12 @@ export class LoginView {
       if (adminNavEl) adminNavEl.classList.add('hidden');
       if (this._btnDeleteAcc) this._btnDeleteAcc.classList.add('hidden');
       this._userInfo.innerHTML = `<span class="user-role-badge student">${t('role.student')}</span> ${escapeHtml(currentUser.name)}`;
+      // Aus dem Klassennotizbuch gestartet: dorthin zurück, ohne neue Anmeldung
+      // (unter dem Namen – die Menüleiste ist im Durchlauf ausgeblendet).
+      if (classbookSession()) {
+        this._userInfo.insertAdjacentHTML('beforeend', '<button type="button" class="btn btn-secondary btn-sm cb-back">📒 Zum Klassenbuch</button>');
+        this._userInfo.querySelector('.cb-back').addEventListener('click', () => backToClassbook());
+      }
     }
 
     // Schuladmin ist ein Zusatzrecht – das Menü kommt zu dem der Lehrkraft dazu.

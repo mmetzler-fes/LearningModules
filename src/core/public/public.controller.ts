@@ -26,6 +26,7 @@ import * as crypto from 'crypto';
 import { cleanPcName } from './pc-name';
 import { isQuickRule, splitQuickToken } from '../../links/quick-token';
 import { ExamService } from '../../work/exam.service';
+import { classbookTicketKey } from '../../classbook/classbook-rules';
 
 const MAX_RECORDING_BYTES = 25 * 1024 * 1024;
 
@@ -210,7 +211,7 @@ export class PublicController {
   @Post('link/:token/start')
   async startLink(
     @Param('token') token: string,
-    @Body() body: { studentName?: string; password?: string; mode?: string; testPassword?: string },
+    @Body() body: { studentName?: string; password?: string; mode?: string; testPassword?: string; classTicket?: string },
   ) {
     const { link, access } = await this.findAccessByToken(token);
     const allowed = modesFor(link, access);
@@ -219,7 +220,7 @@ export class PublicController {
     }
 
     let studentName = (body?.studentName || '').trim().replace(/\s+/g, ' ');
-    if (!studentName) throw new BadRequestException('Bitte den Namen eingeben.');
+    if (!studentName && !body?.classTicket) throw new BadRequestException('Bitte den Namen eingeben.');
 
     if (link.accessPassword && (body?.password || '') !== link.accessPassword) {
       throw new ForbiddenException('Falsches Passwort.');
@@ -243,10 +244,19 @@ export class PublicController {
     // steht dann sein Name aus der Liste, nicht die Schreibweise der Eingabe.
     const klasse = await this.classesService.findById(link.classId);
     let studentId: string | null = null;
-    if (klasse) {
+    if (klasse && body?.classTicket) {
+      // Aus dem Klassennotizbuch: dort schon mit Name und PIN angemeldet.
+      const t = readTicket(body.classTicket, classbookTicketKey(klasse.id));
+      if (!t) throw new ForbiddenException('Die Anmeldung im Klassennotizbuch ist abgelaufen. Bitte dort neu anmelden.');
+      studentId = t.s;
+      studentName = t.n;
+    } else if (klasse) {
+      if (!studentName) throw new BadRequestException('Bitte den Namen eingeben.');
       const who = await this.classesService.resolveStudent(klasse, studentName, body?.testPassword);
       studentId = who.studentId;
       studentName = who.name;
+    } else if (!studentName) {
+      throw new BadRequestException('Bitte den Namen eingeben.');
     }
 
     // Wiedereinstieg, den die Lehrkraft freigegeben hat: trotz früherer Abgabe.

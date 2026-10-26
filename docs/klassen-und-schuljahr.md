@@ -184,19 +184,19 @@ wird. Dabei gilt:
 
 ## Klassenergebnisse
 
-Menüpunkt **📈 Klassenergebnisse**: Schuljahr und Klasse wählen, dann die
-Reiter. Gezeigt werden die eigenen Ergebnisse über Klassenlinks; alles ohne
-Klasse steht weiter unter **📊 Ergebnisse**.
+Die Ergebnisse über Klassenlinks stehen im
+**[📒 Klassennotizbuch](klassennotizbuch.md)** der Klasse (früher eigener
+Menüpunkt „Klassenergebnisse“); alles ohne Klasse steht weiter unter
+**📊 Ergebnisse**.
 
-| Reiter | Inhalt |
+| Wo | Inhalt |
 |---|---|
-| 👥 Schüler | je Schüler (Name, Vorname) Durchläufe, Ø, zuletzt – aufgeklappt alle Durchläufe; darunter „nicht zugeordnet“ |
-| 📝 Tests | je Klassenlink die ganze Klasse: Durchläufe, bestes Ergebnis, zuletzt – und wer **fehlt noch** |
-| 📅 Jahresüberblick | je Schüler Durchläufe, verschiedene Tests, aktive Wochen, Ø, zuletzt – das Engagement übers Jahr |
-
-Dazu **✍️ Bearbeitungen** (Blätter mit Stift- und Texteingaben, nach Schüler
-oder Link) und **📡 Live** (wer gerade bei welcher Aufgabe ist) – siehe
-[Bearbeitungen und PIN](bearbeitungen.md#live).
+| 👥 Schülerdaten → 📈 Ergebnisse | je Schüler (Name, Vorname) Durchläufe, Ø, zuletzt – aufgeklappt alle Durchläufe; darunter „nicht zugeordnet“ |
+| 👥 Schülerdaten → ✍️ Blätter | Blätter mit Stift- und Texteingaben, nach Schüler oder Link |
+| 📊 Ergebnisübersicht → 🧩 Je Modul | je Zuweisung Schüler × Module: bestes Ergebnis, erledigt, Blatt |
+| 📊 Ergebnisübersicht → 📝 Je Aufgabe | je Klassenlink die ganze Klasse: Durchläufe, bestes Ergebnis, zuletzt – und wer **fehlt noch** |
+| 📊 Ergebnisübersicht → 📅 Jahresüberblick | je Schüler Durchläufe, verschiedene Tests, aktive Wochen, Ø, zuletzt – das Engagement übers Jahr |
+| 📡 Live | wer gerade bei welcher Aufgabe ist – siehe [Bearbeitungen und PIN](bearbeitungen.md#live) |
 
 ## Schuljahreswechsel
 

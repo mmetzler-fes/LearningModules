@@ -3,6 +3,7 @@ import { collectAnswer, splitTrueFalse } from '../../lm-editor/src/modules/answe
 import { CompanionRun, COMPANION_MAX } from './companion-run.js';
 import { TaskTimer } from '../task-timer.js';
 import { planRun } from '../../lm-editor/src/doc/doc-quiz.js';
+import { classbookSession, backToClassbook } from './classbook-student.js';
 
 // ==================== QUIZ VIEW ====================
 
@@ -111,6 +112,8 @@ export class QuizView {
         this.app.state.quizState = null;
         this._quizPlayerArea.classList.add('hidden');
         this._quizModuleContainer.innerHTML = '';
+        // Aus dem Klassennotizbuch: dorthin zurück statt auf die leere Themenauswahl.
+        if (this.app.state.currentUser?.role === 'student' && classbookSession()) { backToClassbook(); return; }
         this._quizTopicSelect.classList.remove('hidden');
         this._quizSubtitle.textContent = t('quiz.subtitle');
       });
@@ -617,7 +620,8 @@ export class QuizView {
               </div>`).join('')}
         </div>
         <div class="form-actions" style="justify-content:center; margin-top:24px;">
-          <button class="btn btn-primary" id="btnQuizRestart">${t('quiz.restart')}</button>
+          ${currentUser.role === 'student' && classbookSession() ? '<button class="btn btn-primary" id="btnQuizClassbook">📒 Zurück zum Klassenbuch</button>' : ''}
+          <button class="btn ${currentUser.role === 'student' && classbookSession() ? 'btn-secondary' : 'btn-primary'}" id="btnQuizRestart">${t('quiz.restart')}</button>
         </div>
       </div>`;
 
@@ -636,6 +640,11 @@ export class QuizView {
       }
     });
 
+    this._quizResultArea.querySelector('#btnQuizClassbook')?.addEventListener('click', async () => {
+      if (this._quizResultArea.querySelector('.quiz-save-failed')
+        && !(await this.app.appConfirm('Das Ergebnis wurde noch nicht gesendet und geht verloren. Trotzdem zurück?'))) return;
+      backToClassbook();
+    });
     this._quizResultArea.querySelector('#btnQuizRestart').addEventListener('click', async () => {
       // Nicht gesendetes Ergebnis nicht stillschweigend verwerfen.
       if (this._quizResultArea.querySelector('.quiz-save-failed')

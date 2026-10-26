@@ -45,6 +45,12 @@ export class ClassbookController {
     return this.classbook.setItem(req.user, classId, linkId, body);
   }
 
+  /** 📍 `{ linkId, topicId, moduleId }` setzt den Merker, `{}` entfernt ihn. */
+  @Put(':classId/marker')
+  marker(@Request() req: any, @Param('classId') classId: string, @Body() body: any) {
+    return this.classbook.setMarker(req.user, classId, body);
+  }
+
   @Get(':classId/overview')
   overview(@Request() req: any, @Param('classId') classId: string) {
     return this.classbook.overview(req.user, classId);

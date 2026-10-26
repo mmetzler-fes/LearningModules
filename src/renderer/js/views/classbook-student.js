@@ -154,22 +154,30 @@ export class ClassbookStudent {
     }
     this.data = data;
     document.querySelector('#loginScreen .login-card')?.classList.add('login-card-wide');
+    const mk = data.marker;
     const assignments = data.assignments.map((a) => {
       const modes = a.modes.map((m) => {
         const meta = LINK_MODE_LABELS[m];
         return meta ? `<button type="button" class="btn btn-primary btn-sm" data-start="${escapeAttr(a.linkId)}" data-mode="${escapeAttr(m)}" title="${escapeAttr(meta.hint)}">${meta.icon} ${escapeHtml(meta.label)}</button>` : '';
       }).join('');
       const contest = a.contest ? `<button type="button" class="btn btn-secondary btn-sm" data-contest="${escapeAttr(a.linkId)}">🏆 Quiz-Arena</button>` : '';
+      // Module eingeklappt; beim 📍-Merker der Lehrkraft ist sein Lernthema offen.
+      const marked = (t, u) => mk && mk.linkId === a.linkId && mk.topicId === t.id && (!u || mk.moduleId === u.id);
       return `<details class="cb-assignment" open>
         <summary><strong>${escapeHtml(a.name)}</strong></summary>
         <div class="cb-actions">${modes}${contest}</div>
-        ${a.topics.map((t) => `<div class="cb-topic">
-          <div class="cb-topic-title">📘 ${escapeHtml(t.title)}</div>
+        ${a.topics.map((t) => {
+          const done = t.units.filter((u) => u.done || u.work).length;
+          return `<details class="cb-topic" ${marked(t) ? 'open' : ''}>
+          <summary class="cb-topic-title">📘 ${escapeHtml(t.title)}
+            <span class="hint">${data.pending ? `${t.units.length} Module` : `${done}/${t.units.length} erledigt`}</span>
+            ${marked(t) ? '<span class="cb-here">📍 Hier sind wir</span>' : ''}</summary>
           <ul class="cb-units">${t.units.map((u) => `
-            <li>${a.modes.length ? `<button type="button" class="cb-unit" data-start="${escapeAttr(a.linkId)}" data-module="${escapeAttr(u.id)}">` : '<span class="cb-unit">'}
-              ${TYPE_ICON[u.type] || '🧩'} ${escapeHtml(u.title || 'Aufgabe')}${a.modes.length ? '</button>' : '</span>'}
+            <li class="${marked(t, u) ? 'cb-marked' : ''}">${a.modes.length ? `<button type="button" class="cb-unit" data-start="${escapeAttr(a.linkId)}" data-module="${escapeAttr(u.id)}">` : '<span class="cb-unit">'}
+              ${marked(t, u) ? '📍 ' : ''}${TYPE_ICON[u.type] || '🧩'} ${escapeHtml(u.title || 'Aufgabe')}${a.modes.length ? '</button>' : '</span>'}
               <span class="cb-state">${unitState(u)}</span></li>`).join('')}</ul>
-        </div>`).join('')}
+        </details>`;
+        }).join('')}
       </details>`;
     }).join('');
     const results = data.results.length
@@ -206,6 +214,12 @@ export class ClassbookStudent {
       this._login();
     });
     el.querySelectorAll('[data-start]').forEach((btn) => btn.addEventListener('click', () => this._enter(btn.dataset.start, btn.dataset.mode || null, btn.dataset.module || null, btn)));
+    // 📍 Merker: dorthin scrollen und den Fokus aufs Modul legen.
+    const here = el.querySelector('.cb-marked .cb-unit');
+    if (here) {
+      here.scrollIntoView({ block: 'center' });
+      here.focus({ preventScroll: true });
+    }
     el.querySelectorAll('[data-exam]').forEach((btn) => btn.addEventListener('click', () => this._enter(btn.closest('[data-link]').dataset.link, 'exam', null, btn)));
     el.querySelectorAll('[data-contest]').forEach((btn) => btn.addEventListener('click', async () => {
       const res = await post(`${encodeURIComponent(this.token)}/enter`, { ticket: classbookSession()?.ticket, linkId: btn.dataset.contest }).catch(() => null);

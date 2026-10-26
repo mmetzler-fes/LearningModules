@@ -2,7 +2,7 @@ import { Injectable, NotFoundException, ForbiddenException, BadRequestException 
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, IsNull, Repository } from 'typeorm';
 import * as crypto from 'crypto';
-import { ClassNotebook, ClassNotebookItem } from '../core/entities/class-notebook.entity';
+import { ClassNotebook, ClassNotebookItem, ClassNotebookMarker } from '../core/entities/class-notebook.entity';
 import { ClassStudent } from '../core/entities/class-student.entity';
 import { StudentClass } from '../core/entities/student-class.entity';
 import { Result } from '../core/entities/result.entity';
@@ -114,6 +114,7 @@ export class ClassbookService {
       qrSvg: await renderQr(url),
       firstLoginUntil: firstLoginOpen(nb.firstLoginUntil) ? nb.firstLoginUntil : null,
       teacherItems: nb.teacherItems || [],
+      marker: nb.marker || null,
       students: {
         total: students.length,
         confirmed: students.filter((s) => s.status !== 'pending').length,
@@ -197,6 +198,23 @@ export class ClassbookService {
       await this.linkRepo.save(link);
     }
     return { linkId: created.id, existed: false, notReleased: created.notReleased || [] };
+  }
+
+  /** 📍 Merker setzen (`{ linkId, topicId, moduleId }`) oder entfernen (`null`/leer). */
+  async setMarker(user: any, classId: string, body: Partial<ClassNotebookMarker> | null) {
+    const klasse = await this.classes.ownedClass(classId, user);
+    const nb = await this.ensure(klasse);
+    let marker: ClassNotebookMarker | null = null;
+    if (body?.linkId && body.moduleId) {
+      const link = await this.ownClassLink(user, classId, String(body.linkId));
+      const { topics } = await this.available(link, user);
+      const topic = topics.find((t) => t.modules.some((m) => m.id === body.moduleId));
+      if (!topic) throw new BadRequestException('Dieses Modul gehört nicht zur Zuweisung.');
+      marker = { linkId: link.id, topicId: topic.topicId, moduleId: String(body.moduleId) };
+    }
+    nb.marker = marker;
+    await this.repo.save(nb);
+    return { marker };
   }
 
   /** Erstanmeldung an (bis Ende des Tages) oder aus. */
@@ -320,12 +338,12 @@ export class ClassbookService {
   }
 
   private async session(token: string, ticket: unknown) {
-    const { klasse } = await this.byToken(token);
+    const { nb, klasse } = await this.byToken(token);
     const t = readTicket(ticket, classbookTicketKey(klasse.id));
     if (!t) throw new ForbiddenException({ statusCode: 403, expired: true, message: 'Die Anmeldung ist abgelaufen. Bitte neu anmelden.' });
     const student = isTestStudent(t.s) ? null : await this.studentRepo.findOne({ where: { id: t.s, classId: klasse.id } });
     if (!student && !isTestStudent(t.s)) throw new ForbiddenException({ statusCode: 403, expired: true, message: 'Dieser Name steht nicht mehr in der Klassenliste.' });
-    return { klasse, ticket: t, student };
+    return { nb, klasse, ticket: t, student };
   }
 
   /**
@@ -334,7 +352,7 @@ export class ClassbookService {
    * Zuweisungen – unter ihrem Namen könnte sich jeder anmelden.
    */
   async home(token: string, ticket: unknown) {
-    const { klasse, ticket: t, student } = await this.session(token, ticket);
+    const { nb, klasse, ticket: t, student } = await this.session(token, ticket);
     const confirmed = !!student && student.status !== 'pending';
     const active = (await this.classLinks(klasse)).filter((l) => l.active);
     const links = (await Promise.all(active.map((l) => this.linkInfo(l)))).filter((l) => l.practice.length || l.contest);
@@ -352,6 +370,9 @@ export class ClassbookService {
       name: t.n,
       pending: !confirmed && !isTestStudent(t.s),
       exams,
+      // Nur, wenn die Schüler das Modul gerade sehen (Zuweisung aktiv, Modul eingeschaltet).
+      marker: nb.marker && links.some((l) => l.id === nb.marker!.linkId
+        && l.topics.some((tp) => tp.id === nb.marker!.topicId && tp.units.some((u) => u.id === nb.marker!.moduleId))) ? nb.marker : null,
       assignments: links.map((l) => {
         const runs = results.filter((r) => r.linkId === l.id).map((r) => ({ details: (r.payload?.details || []) as DetailLike[] }));
         const mine = new Set(works.filter((w) => w.linkId === l.id).map((w) => w.moduleId));

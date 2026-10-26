@@ -1027,6 +1027,10 @@ export class BrowserApi {
       method: 'PUT', body: JSON.stringify({ topicId, moduleId, enabled }),
     });
   }
+  /** 📍 Merker: { linkId, moduleId } setzt, {} entfernt. */
+  setClassbookMarker(classId, marker) {
+    return this._fetch(`/api/classbook/${encodeURIComponent(classId)}/marker`, { method: 'PUT', body: JSON.stringify(marker || {}) });
+  }
   getClassbookOverview(classId) { return this._fetch(`/api/classbook/${encodeURIComponent(classId)}/overview`); }
   getClassResults(classId) { return this._fetch(`/api/results/class/${encodeURIComponent(classId)}`); }
   saveQuizResult(resultData) {

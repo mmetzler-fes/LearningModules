@@ -5488,3 +5488,14 @@ button.cb-unit:hover { color: var(--accent); text-decoration: underline; }
 .cb-item-off > .cb-topic-title, li.cb-item-off { color: var(--text-secondary); }
 li.cb-item-off { text-decoration: line-through; text-decoration-color: var(--border); }
 .cb-units .nb-status, .cb-topic-title .nb-status { width: 26px; height: 26px; }
+/* Klassennotizbuch: Lernthemen einklappbar, 📍 Merker */
+details.cb-topic > summary { cursor: pointer; list-style-position: inside; }
+details.cb-topic > summary .hint { font-weight: normal; margin-left: 6px; }
+.cb-here { margin-left: 8px; font-size: 0.85em; font-weight: 600; color: var(--warning); }
+.cb-units li.cb-marked { background: var(--score-medium-bg); border-radius: var(--radius-sm); padding-left: 6px; padding-right: 6px; }
+.cb-units li.cb-marked .cb-unit { font-weight: 600; }
+.cb-unit:focus-visible, .cb-unit:focus { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+.cb-mark { background: none; border: 1px solid transparent; border-radius: var(--radius-sm); cursor: pointer; opacity: 0.35; padding: 0 4px; font-size: 1rem; }
+.cb-mark:hover { opacity: 0.8; border-color: var(--border); }
+.cb-mark.on { opacity: 1; }
+.cb-marker-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; background: var(--score-medium-bg); padding: 8px 12px; border-radius: var(--radius-sm); margin-bottom: 10px; }

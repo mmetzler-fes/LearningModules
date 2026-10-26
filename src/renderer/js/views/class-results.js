@@ -501,10 +501,35 @@ export class ClassResultsView {
       title="${on ? `Schüler sehen ${what} – klicken zum Ausschalten` : `Ausgeschaltet – klicken, damit die Schüler ${what} sehen`}">${on ? '●' : '○'}</button>`;
     return `${link.available.map((t) => `<div class="cb-topic ${t.enabled ? '' : 'cb-item-off'}" data-topic="${escapeAttr(t.topicId)}">
         <div class="cb-topic-title">${sw(t.enabled, 'data-toggle-topic', 'dieses Lernthema')} 📘 ${escapeHtml(t.title)}</div>
-        <ul class="cb-units">${t.modules.map((m) => `<li class="${m.enabled ? '' : 'cb-item-off'}">
-          <span>${sw(m.enabled, `data-toggle-module="${escapeAttr(m.id)}"`, 'dieses Modul')} ${TYPE_ICON[m.type] || '🧩'} ${escapeHtml(m.title || 'Modul')}</span></li>`).join('')}</ul>
+        <ul class="cb-units">${t.modules.map((m) => {
+          const marked = this._cb?.marker?.linkId === link.id && this._cb.marker.moduleId === m.id;
+          return `<li class="${m.enabled ? '' : 'cb-item-off'} ${marked ? 'cb-marked' : ''}">
+          <span>${sw(m.enabled, `data-toggle-module="${escapeAttr(m.id)}"`, 'dieses Modul')} ${TYPE_ICON[m.type] || '🧩'} ${escapeHtml(m.title || 'Modul')}</span>
+          ${m.enabled ? `<button type="button" class="cb-mark ${marked ? 'on' : ''}" data-mark="${escapeAttr(m.id)}"
+            title="${marked ? 'Hier ist die Klasse gerade – klicken zum Entfernen' : 'Merker: Hier ist die Klasse gerade. Bei den Schülern ist dieses Modul dann aufgeklappt und hat den Fokus.'}">📍</button>` : ''}</li>`;
+        }).join('')}</ul>
       </div>`).join('')}
       ${link.notReleased?.length ? `<p class="hint">Im Notizbuch noch nicht für Schüler freigegeben, daher nicht wählbar: ${escapeHtml(link.notReleased.join(', '))}.</p>` : ''}`;
+  }
+
+  _bindMarker(out) {
+    out.querySelectorAll('[data-mark], [data-unmark]').forEach((btn) => btn.addEventListener('click', async (e) => {
+      e.preventDefault();
+      const off = btn.hasAttribute('data-unmark') || btn.classList.contains('on');
+      const res = await this.app.api.setClassbookMarker(this._classId, off ? {} : { linkId: btn.closest('[data-link]').dataset.link, moduleId: btn.dataset.mark });
+      if (failed(res)) { this.app.showToast('Fehler: ' + (res?.message || '?'), 'error'); return; }
+      this._openLinks = new Set([...out.querySelectorAll('details[data-link][open]')].map((d) => d.dataset.link));
+      await this._classbook(true);
+      this._render();
+    }));
+  }
+
+  /** Wo der Merker steht: Titel von Zuweisung und Modul – oder null. */
+  _markerInfo(cb) {
+    const mk = cb.marker;
+    const link = mk && cb.links.find((l) => l.id === mk.linkId);
+    const mod = link?.available.flatMap((t) => t.modules).find((m) => m.id === mk.moduleId);
+    return mod ? { link, mod } : null;
   }
 
   _bindToggles(out) {
@@ -527,7 +552,13 @@ export class ClassResultsView {
   _renderContent() {
     this._section('content', (cb, out) => {
       const links = cb.links.filter((l) => l.practice.length);
+      const mk = this._markerInfo(cb);
+      if (mk) (this._openLinks ||= new Set()).add(mk.link.id);
       out.innerHTML = `
+        ${mk ? `<div class="cb-marker-bar">📍 Die Klasse ist gerade bei <strong>${escapeHtml(mk.mod.title || 'Modul')}</strong>
+            <span class="hint">(${escapeHtml(mk.link.name)})${mk.mod.enabled && mk.link.active ? '' : ' – für die Schüler gerade ausgeschaltet'}</span>
+            <button type="button" class="btn btn-secondary btn-sm" data-unmark>Entfernen</button></div>`
+          : '<p class="hint">📍 an einem Modul merkt, wo die Klasse gerade ist – bei den Schülern ist es dann aufgeklappt und hat den Fokus.</p>'}
         <div class="cr-works-bar">
           <button type="button" class="btn btn-primary btn-sm" id="cbAssign">➕ Aus dem Notizbuch zuweisen</button>
           <span class="hint">Die Schüler finden alles über den <a href="#" id="cbToSettings">Klassenbuch-Link</a>. Inhalte bleiben Verweise:
@@ -555,6 +586,8 @@ export class ClassResultsView {
       }));
       this._bindActive(out);
       this._bindToggles(out);
+      this._bindMarker(out);
+      out.querySelector('.cb-marked')?.scrollIntoView({ block: 'center' });
     });
   }
 

@@ -7,6 +7,13 @@ export interface ClassNotebookItem {
   id: string;
 }
 
+/** Merker: Hier ist die Klasse gerade – ein Modul einer Zuweisung. */
+export interface ClassNotebookMarker {
+  linkId: string;
+  topicId: string;
+  moduleId: string;
+}
+
 /**
  * Klassennotizbuch: je Klasse genau eines, angelegt beim ersten Aufruf
  * (docs/klassennotizbuch.md). Inhalte und Schülerdaten liegen woanders – die
@@ -39,4 +46,8 @@ export class ClassNotebook extends BaseEntity {
   /** Bereich „Nur für Lehrer“: Verweise auf Lernthemen und Knoten des Notizbuchs. */
   @Column('simple-json', { nullable: true })
   teacherItems: ClassNotebookItem[] | null;
+
+  /** 📍 Wo die Klasse gerade ist: Bei den Schülern ist dieses Modul aufgeklappt und hat den Fokus. */
+  @Column('simple-json', { nullable: true })
+  marker: ClassNotebookMarker | null;
 }

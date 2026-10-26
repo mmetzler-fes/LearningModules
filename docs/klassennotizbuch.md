@@ -12,7 +12,7 @@ Notizbuch.
 
 ## Bereiche
 
-Menüpunkt **📒 Klassennotizbuch** – oder oben der Reiter neben
+Menüpunkt **📒 Klassennotizbuch** (direkt unter LernModule) – oder oben der Reiter neben
 **📓 Notizbuch**: Schuljahr und Klasse wählen, links die Bereiche. Das
 Notizbuch mit deinen Lernthemen bleibt, wie es ist; die Reiter wechseln
 zwischen beiden.
@@ -57,6 +57,16 @@ Freigabe im Notizbuch, nur für diese Klasse.
 - Ein zweites Zuweisen desselben Lernthemas oder Bereichs ändert nichts.
 - Ältere Zuweisungen mit „ganzes Thema“ zeigen alles als an; sobald du dort
   etwas schaltest, gilt auch für sie: Neues kommt ausgeschaltet dazu.
+
+#### 📍 Wo die Klasse gerade ist
+
+**📍** neben einem eingeschalteten Modul setzt den Merker: „Hier ist die
+Klasse gerade“. Oben in der Inhaltsübersicht steht dann, wo er sitzt, mit
+**Entfernen**; ein Klick auf 📍 an einem anderen Modul versetzt ihn. Bei den
+Schülern ist das Lernthema mit diesem Modul aufgeklappt, das Modul markiert
+(„📍 Hier sind wir“) und hat den Fokus – alle anderen Lernthemen sind
+eingeklappt. Ist das Modul für die Schüler gerade aus, sehen sie keinen
+Merker.
 
 Auch Klassenlinks, die du anders angelegt hast (🔗 Schülerfreigaben,
 Quick-Link), stehen hier. Je Zuweisung:
@@ -108,8 +118,10 @@ Erstanmeldung offen ist.
 
 ### Was die Schüler sehen
 
-- **📋 Aufgaben**: je Zuweisung die Lernthemen und Module mit ihrem Stand
-  (bestes Ergebnis, ✓, ✍️). Ein Knopf je Modus startet die ganze Aufgabe
+- **📋 Aufgaben**: je Zuweisung die Lernthemen – eingeklappt, mit „x/y
+  erledigt“ – und darin die Module mit ihrem Stand (bestes Ergebnis, ✓, ✍️).
+  Das Lernthema mit dem 📍 Merker der Lehrkraft ist offen, sein Modul hat den
+  Fokus. Ein Knopf je Modus startet die ganze Aufgabe
   (🧠 Quiz, 🦉 Lernbegleitung, 💡 Lernen …), ein Klick auf ein Modul nur dieses.
   Mit Quiz-Arena gibt es **🏆 Quiz-Arena**.
 - **📝 Klassenarbeit** (oben, nur während eine läuft): starten, weiterschreiben
@@ -148,7 +160,9 @@ sonst jeder anmelden. In der Ergebnisübersicht fehlen unbestätigte Einträge.
   `enabled`), `POST …/first-login` `{ open }`, `POST …/token`,
   `PUT …/teacher-items` `{ items }`, `GET …/overview`,
   `POST …/assign` `{ type: 'topic'|'node', id }`,
-  `PUT …/links/:linkId/item` `{ topicId, moduleId?, enabled }`.
+  `PUT …/links/:linkId/item` `{ topicId, moduleId?, enabled }`,
+  `PUT …/marker` `{ linkId, moduleId }` bzw. `{}` (`class_notebooks.marker`;
+  die Schüler bekommen ihn in `home` nur, wenn das Modul gerade sichtbar ist).
 - Ein- und ausschalten ändert die Auswahl des Klassenlinks: ausdrücklich je
   Modul (`all: false`, `moduleIds`), ein ausgeschaltetes Lernthema bleibt mit
   leerer Liste stehen (`toggleSelection`). Verfügbar ist bei einem Knoten alles

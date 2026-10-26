@@ -135,3 +135,20 @@ describe('Klassennotizbuch: Lernthemen und Module schalten', () => {
     await expect(svc.setItem(user, 'c1', 'l1', { topicId: 'x', enabled: true })).rejects.toThrow(/gehört nicht/);
   });
 });
+
+describe('Klassennotizbuch: 📍 Merker', () => {
+  it('Lehrkraft setzt ihn, Schüler sehen ihn nur bei sichtbarem Modul; entfernen', async () => {
+    const { svc, notebooks, links } = setup();
+    links.rows[0].selection = [{ topicId: 't', all: true }];
+    (svc as any).classes.ownedClass = async () => KLASSE;
+    const user = { userId: 't1' };
+    await expect(svc.setMarker(user, 'c1', { linkId: 'l1', moduleId: 'nix' })).rejects.toThrow(/gehört nicht/);
+    expect((await svc.setMarker(user, 'c1', { linkId: 'l1', moduleId: 'm1' })).marker).toEqual({ linkId: 'l1', topicId: 't', moduleId: 'm1' });
+    const { ticket } = await svc.login('kb', { name: 'Anna', pin: '1234' });
+    expect((await svc.home('kb', ticket)).marker).toEqual({ linkId: 'l1', topicId: 't', moduleId: 'm1' });
+    // Modul inzwischen nicht mehr bei den Schülern: kein Merker
+    notebooks.rows[0].marker = { linkId: 'l1', topicId: 't', moduleId: 'weg' };
+    expect((await svc.home('kb', ticket)).marker).toBeNull();
+    expect((await svc.setMarker(user, 'c1', {})).marker).toBeNull();
+  });
+});

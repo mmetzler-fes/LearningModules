@@ -3715,7 +3715,8 @@ body {
 .ds-surface h3[data-ds="task"]::before { content: 'Aufgabe: '; color: var(--text-secondary); font-weight: normal; font-size: 0.85em; }
 .ds-surface h4[data-ds="subtask"]::before { content: 'Teilaufgabe: '; color: var(--text-secondary); font-weight: normal; font-size: 0.85em; }
 .ds-surface p[data-ds="note"] { color: var(--text-secondary); }
-.ds-widget { position: relative; margin: 6px 0; padding: 4px 8px 4px 8px; border: 1px dashed var(--text-secondary); border-radius: var(--radius-sm); background: var(--bg-primary); cursor: pointer; user-select: none; }
+/* Wie im Druck: Bausteine beginnen unter einem schwebenden Bild, statt es zu überdecken. */
+.ds-widget { position: relative; clear: both; margin: 6px 0; padding: 4px 8px 4px 8px; border: 1px dashed var(--text-secondary); border-radius: var(--radius-sm); background: var(--bg-primary); cursor: pointer; user-select: none; }
 .ds-widget .ds-solution { margin: 0; }
 .ds-widget-label { position: absolute; top: -0.7em; right: 8px; font-size: 0.7em; background: var(--bg-secondary); padding: 0 4px; color: var(--text-secondary); }
 /* Gewählter Baustein: Rahmen und Leiste (verschieben, verdoppeln, bearbeiten, löschen). */

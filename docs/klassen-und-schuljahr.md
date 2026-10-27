@@ -110,6 +110,16 @@ ein eigenes Testpasswort (mindestens 4 Zeichen) einmal festlegen.
   (Feld leer lassen behält das bisherige), **Entfernen** schaltet den
   Testschüler ab.
 
+### Als Lehrkraft teilnehmen
+
+Ist im Browser eine Lehrkraft angemeldet (etwa in einer Fortbildung), zeigt
+die Eingabeseite eines Schülerlinks – Quick-Link, Klassenlink,
+Klassenbuch-Link – **👤 Als ‹Name› teilnehmen**: Der Name des Kontos wird
+eingesetzt und angemeldet. Danach gilt alles wie bei jedem Schüler: In einer
+offenen Klasse entsteht ein unbestätigter Eintrag, in einer strikten muss der
+Name in der Liste stehen; im Klassennotizbuch fragt die App wie üblich nach
+der PIN. Die Anmeldung als Lehrkraft bleibt bestehen.
+
 ## Klassen einlesen (SchülerLernTool)
 
 Im SchülerLernTool unter **Eigenschaften → 🎓 Klassen für LearningModules

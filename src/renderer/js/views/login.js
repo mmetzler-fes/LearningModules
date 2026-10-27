@@ -2,6 +2,7 @@ import { escapeHtml, escapeAttr } from '../utils.js';
 import { renderMarkdown } from '../markdown.js';
 import { refreshNextcloud } from './nextcloud.js';
 import { classbookSession, backToClassbook } from './classbook-student.js';
+import { offerTeacherName } from './teacher-as-student.js';
 
 /**
  * Schule, Schuladmin-Recht und freigeschaltete Funktionen (src/features) aus
@@ -224,6 +225,7 @@ export class LoginView {
 
     const nameInput = document.getElementById('quickEntryName');
     nameInput?.focus();
+    void offerTeacherName(nameInput, () => document.getElementById('quickEntryForm')?.requestSubmit());
 
     document.getElementById('quickEntryForm')?.addEventListener('submit', async (e) => {
       e.preventDefault();
@@ -374,6 +376,7 @@ export class LoginView {
 
     const nameInput = document.getElementById('linkEntryName');
     (choices.length ? classSel : nameInput)?.focus();
+    void offerTeacherName(nameInput, () => document.getElementById('linkEntryForm')?.requestSubmit());
     // Testschüler der Lehrkraft: Das Feld erscheint erst, wenn der Server danach fragt.
     const testGroup = document.getElementById('linkEntryTestPwGroup');
     const testInput = document.getElementById('linkEntryTestPassword');

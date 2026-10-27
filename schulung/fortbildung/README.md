@@ -64,7 +64,9 @@ sind die Lernthemen zunächst **gesperrt (○)** – mit ● freigeben (Mehrfach
 Teilnehmenden deren **Klassenbuch-Link** (QR am Beamer): Dann siehst du ihren
 Fortschritt live in 📡 Live und 📊 Ergebnisübersicht – genau das, was sie
 danach selbst nutzen. Ihre Namen fügst du dafür vorab in die Liste ein (oder
-lässt die Klasse offen und bestätigst sie).
+lässt die Klasse offen und bestätigst sie). Sind die Teilnehmenden in der App
+angemeldet, genügt auf der Eingabeseite **👤 Als ‹Name› teilnehmen** – kein
+Namen-Tippen, keine Tippfehler.
 
 ## Als Werbung teilen – mit Test-Zugang
 

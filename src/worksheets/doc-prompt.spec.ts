@@ -43,6 +43,16 @@ describe('buildDocPrompt', () => {
     expect(p).not.toContain('### "unbekannt"');
   });
 
+  it('vorhandene Blätter als Vorbild im selben Format', () => {
+    const spec = { content: [{ type: 'task', title: 'Messen', text: 'Miss die Spannung.' }] };
+    const p = ai.buildDocPrompt({ ...base, examples: [{ title: 'Spannung messen', kind: 'arbeitsblatt', spec }] });
+    expect(p).toContain('## Vorhandene Blätter als Vorbild');
+    expect(p).toContain('### Spannung messen');
+    expect(p).toContain(JSON.stringify(spec));
+    expect(p).toContain('übernimm aber keine Aufgaben wörtlich');
+    expect(ai.buildDocPrompt(base)).not.toContain('als Vorbild');
+  });
+
   it('Text ohne Karo-Regel', () => {
     expect(ai.buildDocPrompt({ ...base, kind: 'text' })).not.toContain('karo-Block und direkt danach');
   });

@@ -41,6 +41,7 @@ export class DocPromptView {
       files: f.files.value,
       ncUse: f.ncUse.checked,
       ncFolder: f.ncFolder.value,
+      exampleIds: [...this.form.querySelectorAll('input[name="example"]:checked')].map((b) => b.value),
     };
   }
 
@@ -69,6 +70,10 @@ export class DocPromptView {
             ${folders.map((f) => `<option value="${escapeAttr(f.id)}" ${f.id === saved.nodeId ? 'selected' : ''}>${escapeHtml(f.label)}</option>`).join('')}
           </select></label>
           <span class="hint doc-prompt-context"></span></div>
+        <div class="form-group doc-prompt-examples hidden">
+          <label>Vorhandene Blätter als Vorbild <span class="hint">– ihr Inhalt kommt in den Prompt (Stil, Niveau, Aufbau); keine Anhänge nötig</span></label>
+          <div class="doc-prompt-example-list"></div>
+        </div>
         <div class="form-group"><label>Thema / Titel
           <input name="title" maxlength="120" value="${v('title')}" placeholder="z. B. Der AD-Wandler" /></label></div>
         <div class="form-group"><label>Fragestellung und Inhalt *
@@ -96,6 +101,7 @@ export class DocPromptView {
         <div class="confirm-actions"><button type="submit" class="btn btn-primary">✨ Prompt erzeugen</button></div>
         <div class="ai-prompt-result hidden">
           <textarea readonly rows="16" class="ai-prompt-output"></textarea>
+          <p class="hint doc-prompt-size"></p>
           <p class="hint">Antwort der KI kopieren und im Notebook am Zielordner über <strong>⋯ → 📥 Hier importieren</strong> einfügen –
             bei mehreren Blättern jede Antwort einzeln. Fehler im Dokument markiert danach der Editor.</p>
           <div class="confirm-actions"><button type="button" class="btn btn-primary btn-copy">📋 Kopieren</button></div>
@@ -126,7 +132,15 @@ export class DocPromptView {
         const res = await this.app.api.listNextcloudImages({ folder: values.ncFolder });
         values.ncImages = (res?.images || []).map((img) => `nc:${res.current}/${img.name}`);
       }
+      if (values.exampleIds.length) {
+        const res = await this.app.api.getDocPromptExamples(values.exampleIds).catch(() => null);
+        if (!res?.examples) { this.app.showToast('Fehler: ' + (res?.message || 'Vorbilder nicht abrufbar'), 'error'); return; }
+        values.examples = res.examples;
+      }
       output.value = buildDocPrompt(values);
+      // Grobe Größe (≈ 4 Zeichen je Token) – lange Prompts schaffen nicht alle Chats.
+      const tokens = Math.round(output.value.length / 4 / 1000);
+      form.querySelector('.doc-prompt-size').textContent = `Umfang etwa ${tokens || '<1'}k Tokens${tokens > 30 ? ' – sehr lang; bei Abbrüchen weniger Vorbilder wählen.' : '.'}`;
       form.querySelector('.ai-prompt-result').classList.remove('hidden');
       output.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
     });
@@ -147,11 +161,24 @@ export class DocPromptView {
     const hint = this.form.querySelector('.doc-prompt-context');
     const res = await this.app.api.getDocPromptContext(nodeId).catch(() => null);
     this._ctx = res && !res.message ? res : null;
+    this._renderExamples();
     if (!this._ctx) { hint.textContent = ''; return; }
     const bits = [];
     if (this._ctx.kurs) bits.push(`Kurs „${this._ctx.kurs}“`);
     if (this._ctx.aiGuidelines) bits.push(`KI-Vorgaben (${this._ctx.aiGuidelines.length} Zeichen) fließen ein`);
     if (this._ctx.sheets?.length) bits.push(`${this._ctx.sheets.length} vorhandene Blätter für Verweise`);
     hint.textContent = bits.length ? bits.join(' · ') : 'Für diesen Ordner sind keine Kursangaben oder KI-Vorgaben eingestellt (⋯ → 📄 Dokument-Einstellungen).';
+  }
+
+  /** Blätter des Books zum Ankreuzen; die Auswahl bleibt gespeichert. */
+  _renderExamples() {
+    const box = this.form.querySelector('.doc-prompt-examples');
+    const sheets = (this._ctx?.sheets || []).filter((s) => s.id)
+      .sort((a, b) => String(a.pfad).localeCompare(String(b.pfad), 'de', { numeric: true }));
+    box.classList.toggle('hidden', !sheets.length);
+    const chosen = new Set(this._load().exampleIds || []);
+    box.querySelector('.doc-prompt-example-list').innerHTML = sheets.map((s) => `
+      <label class="tag-filter-option"><input type="checkbox" name="example" value="${escapeAttr(s.id)}" ${chosen.has(s.id) ? 'checked' : ''} />
+        ${s.pfad ? `<span class="hint">${escapeHtml(s.pfad)}</span> ` : ''}${escapeHtml(s.titel || s.slug || 'Blatt')}</label>`).join('');
   }
 }

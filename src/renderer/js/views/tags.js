@@ -860,3 +860,38 @@ export class TagPicker {
     return [...this._selected].filter((id) => known.has(id));
   }
 }
+
+/**
+ * Tags eines Lernthemas oder Moduls zuordnen und wieder entfernen.
+ * `inherited`: geerbte Tags (von Book, Bereich, Abschnitt oder dem
+ * Lernthema) – nur zur Anzeige, sie lassen sich hier nicht abwählen.
+ * Ergebnis: die gewählten eigenen Tag-IDs oder null (Abbrechen).
+ */
+export async function openTagDialog(app, { title, hint = '', selected = [], inherited = [] }) {
+  if (!(app.state.tags || []).length) await app.loadTags();
+  const byId = new Map((app.state.tags || []).map((t) => [t.id, t]));
+  const inh = (inherited || []).map((id) => byId.get(id)).filter(Boolean);
+  return new Promise((resolve) => {
+    const overlay = document.createElement('div');
+    overlay.className = 'confirm-overlay';
+    overlay.innerHTML = `
+      <form class="import-modules-card nb-dialog">
+        <h3>🏷 Tags – ${escapeHtml(title)}</h3>
+        ${hint ? `<p class="hint">${escapeHtml(hint)}</p>` : ''}
+        ${inh.length ? `<p class="hint">Geerbt: ${inh.map((t) => chipHtml(t)).join('')}</p>` : ''}
+        <p class="hint">Haken setzen ordnet zu, Haken entfernen nimmt den Tag wieder weg.</p>
+        <div class="nb-tags"></div>
+        <div class="confirm-actions">
+          <button type="submit" class="btn btn-primary">Speichern</button>
+          <button type="button" class="btn btn-secondary btn-cancel">Abbrechen</button>
+        </div>
+      </form>`;
+    document.body.appendChild(overlay);
+    const picker = new TagPicker(app, overlay.querySelector('.nb-tags'));
+    const inhSet = new Set(inherited || []);
+    picker.render((selected || []).filter((id) => !inhSet.has(id)));
+    const done = (v) => { overlay.remove(); resolve(v); };
+    overlay.querySelector('.btn-cancel').addEventListener('click', () => done(null));
+    overlay.querySelector('form').addEventListener('submit', (e) => { e.preventDefault(); done(picker.selectedIds); });
+  });
+}

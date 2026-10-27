@@ -24,6 +24,31 @@ import { pickPdfBlocks } from '../views/attachment-convert.js';
  * Dokument selbst, `onSaved()` danach; `topicModules`: Module des Lernthemas
  * für „Quiz einfügen“.
  */
+/**
+ * Gespeicherte Beschriftung über die Ansicht `el` eines Dokuments legen (nur
+ * zum Ansehen, lm-editor/src/ink/ink-view.js). Schüler mit Ausweis: der
+ * Stand bei der Lehrkraft (ohne PIN-Abfrage – fehlt sie, bleibt es ohne);
+ * sonst der auf diesem Gerät.
+ */
+export async function showSavedInk(el, { mode, up = null, moduleId, landscape = false }) {
+  const [{ showInkView, hasPaperInk }, { savedInk }] = await Promise.all([
+    import('../../lm-editor/src/ink/ink-view.js'),
+    import('../../lm-editor/src/ink/ink-editor.js'),
+  ]);
+  let stand = null;
+  if (mode === 'student' && up?.linkToken && up?.studentTicket) {
+    const { peekWork } = await import('./work-store.js');
+    stand = await peekWork({ up, moduleId });
+  } else {
+    stand = await savedInk(`${mode}:${moduleId}`);
+  }
+  if (!hasPaperInk(stand)) return false;
+  // Erst messen, wenn die Ansicht auf der Seite steht.
+  for (let i = 0; i < 50 && !el.isConnected; i++) await new Promise((r) => setTimeout(r, 100));
+  if (!el.isConnected) return false;
+  return showInkView(el, stand, { landscape });
+}
+
 export async function openDocumentInk({ mode, mod, up = null, embedModule = null, store = null, title = null, sourceEl = null, editable = false, onSaved = null, topicModules = null }) {
   if (!store && mode === 'student' && up?.linkToken && up?.studentTicket) {
     const { serverWorkStore } = await import('./work-store.js');
@@ -72,7 +97,11 @@ export async function openDocumentInk({ mode, mod, up = null, embedModule = null
   };
   // Lehrkraft am eigenen Dokument: Einfügen und Schreibfelder gehen ins Dokument.
   if (mode === 'teacher' && editable && mod.topicId) Object.assign(paper, documentEditing());
-  const onClose = () => { if (sourceEl && lastForms) restoreForms(sourceEl, lastForms); };
+  const onClose = () => {
+    if (sourceEl && lastForms) restoreForms(sourceEl, lastForms);
+    // Die neue Beschriftung gleich in der Ansicht zeigen.
+    if (sourceEl) void showSavedInk(sourceEl, { mode, up, moduleId: mod.id, landscape: paper.landscape });
+  };
   return openInkEditor({ title: title || mod.title || 'Arbeitsblatt', key: `${mode}:${mod.id}`, loadPdf, solutions: mode === 'teacher', paper, store, onClose });
 
   /** Baustein zu einer ID der Stift-Ebene (feste ID, „p:2.0“ oder pos2x0) – mit seiner Liste. */

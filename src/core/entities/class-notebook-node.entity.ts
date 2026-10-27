@@ -24,4 +24,19 @@ export class ClassNotebookNode extends BaseEntity {
 
   @Column({ type: 'integer', default: 0 })
   orderIndex: number;
+
+  /**
+   * Aus dem Notizbuch übernommen: der Knoten dort (NotebookNode-ID oder
+   * `offer:<id>` für einen erworbenen Bereich). Leer = in der Klasse angelegt.
+   */
+  @Column({ type: 'varchar', nullable: true })
+  sourceNodeId: string | null;
+
+  /**
+   * Wächst mit dem Notizbuch: Lernthemen und Knoten (IDs dort), die schon
+   * übernommen sind – Neues kommt ausgeschaltet dazu, Entferntes nicht wieder.
+   * Null bei Bereichen, die nur den Pfad bilden (sie wachsen nicht).
+   */
+  @Column('simple-json', { nullable: true })
+  seen: string[] | null;
 }

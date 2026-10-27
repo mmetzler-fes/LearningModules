@@ -11,6 +11,7 @@ import { TopicsService } from '../topics/topics.service';
 import { GroupsService } from '../groups/groups.service';
 import { CompanionService } from '../companion/companion.service';
 import { baseUrl, renderQr } from '../core/share/link-url';
+import { embeddedQuizIds } from '../core/public/student-view';
 import * as crypto from 'crypto';
 import { applyRule, differsFromRule, syncedState } from './link-sync';
 import { isQuickRule, quickToken, splitQuickToken } from './quick-token';
@@ -196,6 +197,12 @@ export class LinksService {
         .sort((a, b) => a.orderIndex - b.orderIndex);
 
       const chosen = new Set(entry.all ? ofTopic.map((m) => m.id) : entry.moduleIds || []);
+      // Quizze, die ein gewähltes Dokument einbettet, gehören dazu – sonst
+      // stünde im Dokument „gerade nicht freigegeben“. Der Durchlauf zeigt
+      // sie im Dokument und nicht noch einmal als eigene Aufgabe.
+      for (const m of ofTopic) {
+        if (chosen.has(m.id)) for (const id of embeddedQuizIds(m)) chosen.add(id);
+      }
 
       const roots = ofTopic.filter((m) => !m.parentId);
       const childrenOf = (id: string) =>

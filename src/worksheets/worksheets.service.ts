@@ -131,10 +131,37 @@ export class WorksheetsService {
     };
     const book = bookOf(nodeId);
     const numbering = await this.numbering!.numberingFor(user.userId);
-    const sheets = [...numbering.docs.values()]
-      .filter((d) => (d.nodeId ? bookOf(d.nodeId) : null) === book)
-      .map((d) => ({ slug: d.slug, pfad: d.pfad, titel: d.title }));
+    const sheets = [...numbering.docs.entries()]
+      .filter(([, d]) => (d.nodeId ? bookOf(d.nodeId) : null) === book)
+      .map(([id, d]) => ({ id, slug: d.slug, pfad: d.pfad, titel: d.title }));
     return { kurs: settings.kurs || '', aiGuidelines: settings.aiGuidelines || '', sheets };
+  }
+
+  /**
+   * Für den KI-Prompt: Inhalt eigener Dokumente als Vorbild (Stil, Niveau,
+   * Aufbau). Eingebettete Bilder (data:) fallen weg – sie blähen den Prompt
+   * nur auf; Bilder aus der Nextcloud (nc:…) bleiben als Name stehen.
+   */
+  async promptExamples(user: any, ids: string[]) {
+    const wanted = [...new Set(ids.map(String))].slice(0, 20);
+    if (!wanted.length) return { examples: [] };
+    const mods = await this.moduleRepo!.find({ where: { id: In(wanted), type: 'document' } });
+    const topics = await this.topicRepo!.find({ where: { id: In([...new Set(mods.map((m) => m.topicId))]) }, select: ['id', 'ownerId'] });
+    const own = new Set(topics.filter((t) => t.ownerId === user.userId).map((t) => t.id));
+    const strip = (v: any): any => {
+      if (typeof v === 'string') return v.startsWith('data:') ? '[eingebettetes Bild]' : v;
+      if (Array.isArray(v)) return v.map(strip);
+      if (v && typeof v === 'object') return Object.fromEntries(Object.entries(v).filter(([k]) => k !== 'id').map(([k, x]) => [k, strip(x)]));
+      return v;
+    };
+    const examples = wanted
+      .map((id) => mods.find((m) => m.id === id))
+      .filter((m): m is LearningModule => !!m && own.has(m.topicId))
+      .map((m) => {
+        const content = typeof m.content === 'string' ? JSON.parse(m.content || '{}') : m.content || {};
+        return { id: m.id, title: m.title || '', kind: content.kind || 'arbeitsblatt', spec: strip(content.spec || { content: [] }) };
+      });
+    return { examples };
   }
 
   async status() {

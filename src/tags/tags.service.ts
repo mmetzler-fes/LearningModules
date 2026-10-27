@@ -241,6 +241,35 @@ export class TagsService implements OnModuleInit, OnApplicationBootstrap {
     return this.tagRepo.save(tag);
   }
 
+  /**
+   * Tags fremder Inhalte übernehmen (Kopie aus dem Shop): Ein gleichnamiger
+   * eigener oder Schul-Tag wird genommen, ein fehlender angelegt – mit Farbe
+   * und Themengebiet. Liefert Quell-ID → eigene ID; was nicht klappt, fehlt.
+   */
+  async adoptFor(user: any, sourceIds: string[]): Promise<Map<string, string>> {
+    const out = new Map<string, string>();
+    const ids = [...new Set(sourceIds.filter(Boolean))];
+    if (!ids.length) return out;
+    const sources = await this.tagRepo.find({ where: { id: In(ids) } });
+    const areaIds = [...new Set(sources.flatMap((t) => t.areaIds || []))].filter((id) => !ids.includes(id));
+    const areas = [...sources.filter((t) => t.isArea), ...(areaIds.length ? await this.tagRepo.find({ where: { id: In(areaIds) } }) : [])];
+    const scope = this.ownScope(user);
+    const pool = [...(await this.inScope(scope)), ...(await this.schoolTagsOf(user))];
+    const adopt = async (src: Tag, areaIdsMine: string[]) => {
+      if (out.has(src.id)) return;
+      let mine = pool.find((t) => t.id === src.id) || pool.find((t) => t.name.toLowerCase() === src.name.toLowerCase() && t.isArea === src.isArea);
+      if (!mine) {
+        mine = await this.createIn(scope, { name: src.name, color: src.color || undefined, isArea: src.isArea, areaIds: areaIdsMine }, user).catch(() => undefined);
+        if (mine) pool.push(mine);
+      }
+      if (mine) out.set(src.id, mine.id);
+    };
+    // Themengebiete zuerst – die Tags darin brauchen ihre neue ID.
+    for (const a of areas) await adopt(a, []);
+    for (const t of sources.filter((x) => !x.isArea)) await adopt(t, (t.areaIds || []).map((id) => out.get(id)).filter((x): x is string => !!x));
+    return out;
+  }
+
   private async findIn(scope: TagScope, id: string) {
     const tag = await this.tagRepo.findOne({ where: { id } });
     if (!tag || tag.ownerId !== scope.ownerId) throw new NotFoundException('Tag nicht gefunden.');

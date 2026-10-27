@@ -18,6 +18,7 @@ import { LICENSES, networkMembers } from '../federation/federation-rules';
 import { groupIdOf } from '../groups/group-ref';
 import { UsageService } from '../impact/usage.service';
 import { CategoriesService } from '../categories/categories.service';
+import { TagsService } from '../tags/tags.service';
 import { hasSubject } from '../categories/category-rules';
 import { shouldHintSharing, summarizeRatings, RatingSummary } from '../impact/impact-rules';
 import { offerRoots, visibleFor, withSubmodules } from './offer-rules';
@@ -87,6 +88,7 @@ export class ShopService implements OnApplicationBootstrap {
     @InjectRepository(SystemConfig) private readonly configRepo: Repository<SystemConfig>,
     private readonly usage: UsageService,
     private readonly categories: CategoriesService,
+    private readonly tags: TagsService,
     private readonly dataSource: DataSource,
   ) {}
 
@@ -750,6 +752,11 @@ export class ShopService implements OnApplicationBootstrap {
     const users = await this.names();
     const seller = users.get(offer.sellerId);
 
+    // Tags des Anbieters: gleichnamige eigene nehmen, fehlende anlegen (vor der Transaktion).
+    const tagMap = mode === 'copy'
+      ? await this.tags.adoptFor(user, covered.flatMap((c) => [...(c.topic.tagIds || []), ...c.modules.flatMap((m) => m.tagIds || [])]))
+      : new Map<string, string>();
+
     let copyIds: string[] = [];
     await this.dataSource.transaction(async (manager) => {
       const grants = manager.getRepository(UseGrant);
@@ -769,8 +776,8 @@ export class ShopService implements OnApplicationBootstrap {
       }
 
       copyIds = offer.scopeType === 'node'
-        ? await this.copyNodeStructure(manager, offer, covered, user, this.label(seller))
-        : await this.copyCovered(manager, covered, offer.sellerId, user, this.label(seller), offer.categoryIds);
+        ? await this.copyNodeStructure(manager, offer, covered, user, this.label(seller), tagMap)
+        : await this.copyCovered(manager, covered, offer.sellerId, user, this.label(seller), offer.categoryIds, tagMap);
       // Fremde Module gibt es zur Kopie dazu – aber nur zur Nutzung.
       if (roots.length > ownRoots.length && !existing) {
         await grants.save(grants.create({
@@ -790,12 +797,12 @@ export class ShopService implements OnApplicationBootstrap {
   }
 
   /** Je Lernthema eine Kopie mit den eigenen Modulen des Anbieters. */
-  private async copyCovered(manager: any, covered: Covered[], sellerId: string, user: any, sellerName: string, categoryIds: string[] | null): Promise<string[]> {
+  private async copyCovered(manager: any, covered: Covered[], sellerId: string, user: any, sellerName: string, categoryIds: string[] | null, tagMap: Map<string, string> | null = null): Promise<string[]> {
     const ids: string[] = [];
     for (const c of covered) {
       const own = c.roots.filter((m) => m.creatorId === sellerId);
       if (!own.length) continue;
-      ids.push(await this.copyTopic(manager, c.topic, withSubmodules(c.modules, new Set(own.map((m) => m.id))), user, sellerName, categoryIds));
+      ids.push(await this.copyTopic(manager, c.topic, withSubmodules(c.modules, new Set(own.map((m) => m.id))), user, sellerName, categoryIds, tagMap));
     }
     return ids;
   }
@@ -805,7 +812,7 @@ export class ShopService implements OnApplicationBootstrap {
    * den Notebooks des Käufers – ein Book oben, alles andere im Book
    * „Erworben“ –, darin die kopierten Lernthemen an ihrem Platz.
    */
-  private async copyNodeStructure(manager: any, offer: ShopOffer, covered: Covered[], user: any, sellerName: string): Promise<string[]> {
+  private async copyNodeStructure(manager: any, offer: ShopOffer, covered: Covered[], user: any, sellerName: string, tagMap: Map<string, string> | null = null): Promise<string[]> {
     const nodeRepo = manager.getRepository(NotebookNode);
     const placeRepo = manager.getRepository(NotebookPlacement);
     const [nodes, places] = await Promise.all([
@@ -813,7 +820,7 @@ export class ShopService implements OnApplicationBootstrap {
       this.placeRepo.find({ where: { ownerId: offer.sellerId } }),
     ]);
     const root = nodes.find((n) => n.id === offer.nodeId);
-    if (!root) return this.copyCovered(manager, covered, offer.sellerId, user, sellerName, offer.categoryIds);
+    if (!root) return this.copyCovered(manager, covered, offer.sellerId, user, sellerName, offer.categoryIds, tagMap);
     const byTopic = new Map(covered.map((c) => [c.topic.id, c]));
 
     let parentId: string | null = null;
@@ -830,7 +837,7 @@ export class ShopService implements OnApplicationBootstrap {
         const c = byTopic.get(p.topicId);
         const own = c ? c.roots.filter((m) => m.creatorId === offer.sellerId) : [];
         if (!c || !own.length) continue;
-        const copyId = await this.copyTopic(manager, c.topic, withSubmodules(c.modules, new Set(own.map((m) => m.id))), user, sellerName, offer.categoryIds);
+        const copyId = await this.copyTopic(manager, c.topic, withSubmodules(c.modules, new Set(own.map((m) => m.id))), user, sellerName, offer.categoryIds, tagMap);
         await placeRepo.save(placeRepo.create({ id: crypto.randomUUID(), ownerId: user.userId, topicId: copyId, nodeId: node.id, orderIndex: i++ }));
         ids.push(copyId);
       }
@@ -997,12 +1004,17 @@ export class ShopService implements OnApplicationBootstrap {
 
   /**
    * Legt die Kopie an. Der Käufer wird Owner und Buyer, der Creator jedes
-   * Moduls bleibt verzeichnet. Zugangsdaten und Tags des Originals kommen
-   * nicht mit; die Kopie startet gesperrt – erst ansehen, dann freigeben.
+   * Moduls bleibt verzeichnet. Zugangsdaten kommen nicht mit, Tags über
+   * `tagMap` als eigene Tags des Käufers (TagsService.adoptFor); die Kopie
+   * startet gesperrt – erst ansehen, dann freigeben.
    * Die Einordnung des Angebots kommt mit – als Vorschlag, falls der Käufer
    * später selbst etwas daraus anbietet.
    */
-  private async copyTopic(manager: any, source: LearningTopic, modules: LearningModule[], user: any, sellerName: string, categoryIds: string[] | null = null) {
+  private async copyTopic(manager: any, source: LearningTopic, modules: LearningModule[], user: any, sellerName: string, categoryIds: string[] | null = null, tagMap: Map<string, string> | null = null) {
+    const mapTags = (ids: string[] | null | undefined) => {
+      const mine = [...new Set((ids || []).map((id) => tagMap?.get(id)).filter((x): x is string => !!x))];
+      return mine.length ? mine : null;
+    };
     const topicRepo = manager.getRepository(LearningTopic);
     const moduleRepo = manager.getRepository(LearningModule);
     const copy = await topicRepo.save(
@@ -1023,8 +1035,9 @@ export class ShopService implements OnApplicationBootstrap {
         copiedFromAuthor: sellerName,
         copiedFromTitle: source.title,
         permissions: source.permissions,
-        // Kategorien sind für alle gleich – anders als Tags kommen sie mit.
+        // Kategorien sind für alle gleich und kommen so mit.
         categoryIds: categoryIds?.length ? categoryIds : source.categoryIds || null,
+        tagIds: mapTags(source.tagIds),
       }),
     );
 
@@ -1036,8 +1049,8 @@ export class ShopService implements OnApplicationBootstrap {
         id: idMap.get(id),
         topicId: copy.id,
         parentId: m.parentId ? idMap.get(m.parentId) || null : null,
-        // Tags gehören dem Anbieter und existieren beim Käufer nicht.
-        tagIds: null,
+        // Tags des Anbieters als die gleichnamigen des Käufers.
+        tagIds: mapTags(m.tagIds),
         // Nutzung und Bewertung der Kopie zählen für das Original.
         originId: m.originId || m.id,
       });

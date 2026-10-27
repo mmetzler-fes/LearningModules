@@ -342,7 +342,8 @@ export const DOC_PROMPT_EXAMPLE = {
  * vom Typ "document" – auf Wunsch gefolgt von passenden Quiz-Modulen.
  * @param o.title, o.description, o.kind, o.level, o.language, o.pages, o.sheets,
  *          o.quizCount, o.quizTypes, o.files, o.ncImages, o.guidelines, o.kurs,
- *          o.existing ([{slug, pfad, titel}] für Verweise)
+ *          o.existing ([{slug, pfad, titel}] für Verweise),
+ *          o.examples ([{title, kind, spec}] – vorhandene Blätter als Vorbild)
  */
 export function buildDocPrompt(o) {
   const kind = ['arbeitsblatt', 'klassenarbeit', 'text'].includes(o.kind) ? o.kind : 'arbeitsblatt';
@@ -370,6 +371,20 @@ export function buildDocPrompt(o) {
   if (o.guidelines) {
     L.push('## Fachliche Vorgaben der Lehrkraft (verbindlich)');
     L.push(String(o.guidelines).trim());
+    L.push('');
+  }
+
+  // Vorhandene Blätter als Vorbild – im selben Format, das die KI liefern soll.
+  const examples = (o.examples || []).filter((e) => e && e.spec);
+  if (examples.length) {
+    L.push('## Vorhandene Blätter als Vorbild');
+    L.push(`${examples.length === 1 ? 'Dieses Blatt der Lehrkraft zeigt' : 'Diese Blätter der Lehrkraft zeigen'} Stil, Niveau, Aufbau und Art der Aufgaben – orientiere dich daran (Sprache, Länge der Aufgabenstellungen, Schreibfelder, Lösungen), übernimm aber keine Aufgaben wörtlich. Sie stehen im selben Format, das du liefern sollst ("content.spec").`);
+    for (const e of examples) {
+      L.push(`### ${e.title || 'Blatt'}${e.kind && e.kind !== 'arbeitsblatt' ? ` (${e.kind})` : ''}`);
+      L.push('```json');
+      L.push(JSON.stringify(e.spec));
+      L.push('```');
+    }
     L.push('');
   }
 

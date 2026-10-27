@@ -32,8 +32,8 @@ function setup({ firstLogin = false } = {}) {
   const places = repo();
   const topics = repo();
   const modules = repo();
-  const svc = new ClassbookService(notebooks as any, students as any, results as any, works as any, links as any, users as any, attempts as any, classes, linksService, {} as any,
-    nodes as any, places as any, topics as any, modules as any);
+  const svc = new ClassbookService(notebooks as any, students as any, results as any, works as any, links as any, users as any, attempts as any, classes, linksService, {} as any, { isOpen: () => false } as any,
+    nodes as any, places as any, topics as any, modules as any, repo() as any, repo() as any);
   return { svc, students, links, notebooks, attempts, nodes, places, topics, modules };
 }
 

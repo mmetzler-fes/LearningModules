@@ -24,7 +24,7 @@ zwischen beiden.
 | 📝 Klassenarbeiten | Klassenarbeiten der Klasse mit Link & QR, wer schreibt und wer abgegeben hat, Wiedereinstieg – aktive stehen auch bei den Schülern |
 | 👥 Schülerdaten | je Schüler alle Ergebnisse (📈) und Blätter (✍️) |
 | 📊 Ergebnisübersicht | je Modul, wie weit jeder Schüler ist; dazu je Aufgabe und der Jahresüberblick |
-| 🏆 Quiz-Arena | Zuweisungen mit Quiz-Arena, Leitungs-Link |
+| 🏆 Quiz-Arena | Zuweisungen mit Quiz-Arena: 🏆 Quiz-Arena starten, Leitungs-Link & QR-Code |
 | 📡 Live | wer gerade bei welcher Aufgabe ist |
 | ⚙ Klassenbuch-Link | Link und QR-Code für die Schüler, Erstanmeldung |
 
@@ -37,6 +37,10 @@ Lernthemen), darin die Lernthemen. Die Schüler sehen denselben Baum.
 - Oben **➕ Aus dem Notizbuch**, **➕ Lernthema**, **➕ Bereich**,
   **➕ Abschnitt**; an jedem Bereich/Abschnitt und Lernthema **⋯** mit
   „Neues … hier“, ↑ / ↓, **↔️ Verschieben nach…**, Umbenennen, Löschen.
+  Das ⋯ steht direkt in der Zeile (auch Rechtsklick auf die Zeile).
+- **Ziehen und Ablegen** wie im Notizbuch: eine Zeile fassen und oben oder
+  unten an eine andere Zeile legen (davor/dahinter) oder in die Mitte eines
+  Bereichs bzw. Abschnitts (hinein).
 - Einen Bereich oder Abschnitt löschen: Was darin liegt, rückt eine Ebene
   höher – es geht nichts verloren.
 - **🔗 Zugewiesen** – Verweis auf ein Lernthema oder einen Bereich deines
@@ -56,9 +60,22 @@ Zuweisen geht auf zwei Wegen: im **📓 Notizbuch** über das Kontextmenü
 **📒 Klassennotizbuch zuweisen…** – dann eine oder mehrere Klassen wählen –,
 oder hier **➕ Aus dem Notizbuch zuweisen**: ein Lernthema oder einen ganzen
 Book, Bereich oder Abschnitt wählen. Gesperrte Lernthemen bietet die App
-vorher zur Freigabe an. Dahinter steht ein
+vorher zur Freigabe an. Dahinter steht je Lernthema ein
 gewöhnlicher Klassenlink (wie beim Quick-Link), Inhalte bleiben Verweise:
 Änderungen im Notizbuch gelten sofort.
+
+**Ein Book, Bereich oder Abschnitt kommt als Baum:** Das Klassennotizbuch
+legt dieselben Bereiche und Abschnitte an, darin je Lernthema einen Eintrag –
+alles Verweise aufs Notizbuch. Dazu kommt der **Pfad darüber** (ohne das
+Book): Weist du den Abschnitt „Elektrischer Strom“ aus „Physik › 1. Halbjahr“
+zu, steht er im Klassennotizbuch unter „1. Halbjahr“. Gibt es dort schon einen
+gleichnamigen Bereich, wird er mitgenutzt; mit „➕ Aus dem Notizbuch hierher“
+beginnt der Pfad am gewählten Bereich. Danach lässt sich alles wie gewohnt
+verschieben und umbenennen. **Neues wächst mit:** Ein Lernthema, Bereich oder
+Abschnitt, den du später im Notizbuch dort anlegst (oder freigibst), erscheint
+an der entsprechenden Stelle – ausgeschaltet. Was du hier entfernst, kommt
+nicht wieder. Ein Lernthema, das die Klasse schon hat, kommt nicht doppelt.
+Ältere Zuweisungen eines ganzen Bereichs bleiben ein Eintrag.
 
 #### Ein- und ausschalten, Neues
 
@@ -78,6 +95,17 @@ Freigabe im Notizbuch, nur für diese Klasse.
 - Ein zweites Zuweisen desselben Lernthemas oder Bereichs ändert nichts.
 - Ältere Zuweisungen mit „ganzes Thema“ zeigen alles als an; sobald du dort
   etwas schaltest, gilt auch für sie: Neues kommt ausgeschaltet dazu.
+- **Ganze Ebenen schalten:** Jede Zuweisung, jeder Bereich und Abschnitt und
+  oben **Alles** (das ganze Klassennotizbuch) hat einen Schalter: **●** alles
+  an, **◐** teilweise, **○** alles aus. Ein Klick auf ○ oder ◐ schaltet alles
+  darunter ein, ein Klick auf ● alles aus.
+- **Quizze in einem Dokument** kommen mit dem Dokument: Ist das Dokument an,
+  sind seine eingebetteten Quizze für die Schüler da (blasses ●), auch wenn
+  sie selbst nicht eingeschaltet sind.
+- **⋯ oder Rechtsklick** an einem Modul: ✏️ Bearbeiten, 👁 Vorschau, 🏷 Tags; an
+  einem Lernthema: ➕ Neues Modul, 📦 Module bearbeiten, 🏷 Tags. Bei einer
+  Zuweisung (🔗) wirkt das auf das Original im Notizbuch – die Änderung gilt
+  überall, wo es zugewiesen ist. Erworbene Lernthemen lassen sich nur ansehen.
 
 #### 📍 Wo die Klasse gerade ist
 
@@ -162,7 +190,12 @@ Erstanmeldung offen ist.
   Das Lernthema mit dem 📍 Merker der Lehrkraft ist offen, sein Modul hat den
   Fokus. Ein Knopf je Modus startet die ganze Aufgabe
   (🧠 Quiz, 🦉 Lernbegleitung, 💡 Lernen …), ein Klick auf ein Modul nur dieses.
-  Mit Quiz-Arena gibt es **🏆 Quiz-Arena**.
+- **🏆 Quiz-Arena**: Sonst ausgeblendet. Sobald du unter 🏆 Quiz-Arena auf
+  **🏆 Quiz-Arena starten** klickst (der Wartebereich öffnet sich in einem neuen
+  Tab), sehen die Schüler im Klassennotizbuch nur noch die Arena und kommen
+  mit **🏆 In den Wartebereich** ohne Namenseingabe hinein – wer noch nicht
+  angemeldet ist, gibt vorher Name und PIN ein. Die Seite fragt alle 5 Sekunden
+  nach; nach dem Beenden ist wieder alles da.
 - **📝 Klassenarbeit** (oben, nur während eine läuft): starten, weiterschreiben
   oder – nach deiner Freigabe – wieder einsteigen; nach der Abgabe steht dort
   „abgegeben“.

@@ -103,6 +103,12 @@ export class WorksheetsController {
     return this.worksheets.promptContext(req.user, nodeId || null);
   }
 
+  /** Für den KI-Prompt: Inhalt eigener Dokumente als Vorbild (?ids=a,b). */
+  @Get('prompt-examples')
+  promptExamples(@Request() req: any, @Query('ids') ids?: string) {
+    return this.worksheets.promptExamples(req.user, String(ids || '').split(',').filter(Boolean));
+  }
+
   /** Nextcloud-Abbild der eigenen Dokumente: Ablage, Umfang, Fehler. */
   @Get('mirror')
   mirrorStatus(@Request() req: any) {

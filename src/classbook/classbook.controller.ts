@@ -86,6 +86,12 @@ export class ClassbookController {
     return this.classbook.setItem(req.user, classId, linkId, body);
   }
 
+  /** `{ linkIds, enabled }` – ganze Zuweisungen ein- oder ausschalten (Bereich, Abschnitt, alles). */
+  @Put(':classId/links-enabled')
+  setLinks(@Request() req: any, @Param('classId') classId: string, @Body() body: any) {
+    return this.classbook.setLinks(req.user, classId, body);
+  }
+
   /** 📍 `{ linkId, topicId, moduleId }` setzt den Merker, `{}` entfernt ihn. */
   @Put(':classId/marker')
   marker(@Request() req: any, @Param('classId') classId: string, @Body() body: any) {
@@ -120,6 +126,13 @@ export class PublicClassbookController {
   @HttpCode(200)
   home(@Param('token') token: string, @Body() body: { ticket?: string }) {
     return this.classbook.home(token, body?.ticket);
+  }
+
+  /** `{ ticket }` → `{ arena: { linkId, name } | null }` – die Schülerseite fragt regelmäßig nach. */
+  @Post(':token/arena')
+  @HttpCode(200)
+  arena(@Param('token') token: string, @Body() body: { ticket?: string }) {
+    return this.classbook.arena(token, body?.ticket);
   }
 
   /** `{ ticket, linkId, exam? }` → `{ linkToken }` für den Start mit `classTicket` (Klassenarbeit: ihr eigener Link). */

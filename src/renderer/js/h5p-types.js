@@ -255,7 +255,7 @@ const H5P_TYPES = {
   dragTheWords: {
     id: 'dragTheWords',
     name: 'Drag the Words',
-    icon: '📝',
+    icon: '🖱️',
     description: 'Wörter in Lücken eines Textes ziehen.',
     category: 'Sprache',
     fields: [

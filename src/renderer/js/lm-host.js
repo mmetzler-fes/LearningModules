@@ -24,6 +24,12 @@ export const lmHost = {
     const up = options.upload;
     const actions = [];
     const inkMode = options.inkEdit === 'teacher' || (options.inkEdit === 'student' && inRun(up)) ? options.inkEdit : null;
+    if (inkMode && el) {
+      // Was schon mit dem Stift beschriftet ist, steht auch in der Ansicht.
+      import('./ink/ink-open.js')
+        .then(({ showSavedInk }) => showSavedInk(el, { mode: inkMode, up, moduleId, landscape: content?.spec?.orientation === 'landscape' }))
+        .catch(() => { /* ohne Beschriftung */ });
+    }
     if (inkMode) {
       actions.push({
         label: '✍️ Mit Stift bearbeiten',

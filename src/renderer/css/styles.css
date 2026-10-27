@@ -3710,6 +3710,8 @@ body {
 .ds-ybar .hint { font-size: 0.8em; }
 .ds-widget-dialog { max-width: 640px; width: 90vw; }
 .ds-widget-dialog textarea { width: 100%; font-family: ui-monospace, 'DejaVu Sans Mono', monospace; }
+.ds-solution-dialog .admin-tabs { margin-bottom: 0.5rem; }
+.ds-sol-surface { min-height: 8rem; max-height: 50vh; overflow: auto; padding: 0.5rem 0.75rem; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg-primary); }
 .ds-field-form { display: flex; flex-wrap: wrap; gap: 8px 16px; margin: 0 0 10px; }
 .ds-field-form label { display: flex; align-items: center; gap: 6px; }
 .ds-field-form input { width: 5.5em; }
@@ -5488,6 +5490,10 @@ button.cb-unit:hover { color: var(--accent); text-decoration: underline; }
 .cb-item-off > .cb-topic-title, li.cb-item-off { color: var(--text-secondary); }
 li.cb-item-off { text-decoration: line-through; text-decoration-color: var(--border); }
 .cb-units .nb-status, .cb-topic-title .nb-status { width: 26px; height: 26px; }
+.cb-group-switch { width: 26px; height: 26px; margin-right: 0.3rem; vertical-align: middle; }
+.nb-status.part { color: var(--warning, #d97706); }
+.cb-via-doc { cursor: default; opacity: 0.6; }
+.cb-all-switch { display: inline-flex; align-items: center; margin-right: 0.5rem; font-size: 0.85rem; color: var(--text-secondary); }
 /* Klassennotizbuch: Lernthemen einklappbar, 📍 Merker */
 details.cb-topic > summary { cursor: pointer; list-style-position: inside; }
 details.cb-topic > summary .hint { font-weight: normal; margin-left: 6px; }
@@ -5508,6 +5514,10 @@ details.cb-topic > summary .hint { font-weight: normal; margin-left: 6px; }
 .cb-node-body { margin-left: 14px; padding-left: 10px; border-left: 2px solid var(--border); }
 .cb-empty { margin: 4px 0 8px; }
 .cb-link-actions .nb-menu-btn { margin-left: auto; }
+.cb-entry-menu { margin-left: auto; font-weight: 700; }
+.cb-node > summary, .cb-link > summary { border-top: 2px solid transparent; border-bottom: 2px solid transparent; }
+.cb-node > summary.nb-drop-after, .cb-link > summary.nb-drop-after { border-bottom-color: var(--accent); }
+.cb-dragging { opacity: 0.5; }
 .cb-units .cb-unit { padding: 0; }
 .cb-picker-row:disabled { color: var(--text-secondary); cursor: not-allowed; background: none; }
 .cb-snode { margin: 6px 0; }

@@ -620,9 +620,9 @@ export class NotebooksService {
    * Startbare Lernthemen eines Knotens fürs Klassennotizbuch (dort wächst eine
    * Zuweisung mit) – leer statt Fehler, wenn keins dabei ist.
    */
-  async topicsOfNode(id: string, user: any): Promise<{ included: string[]; notReleased: string[] }> {
-    const { included, notReleased } = await this.collectTopics(id, user);
-    return { included, notReleased };
+  async topicsOfNode(id: string, user: any): Promise<{ included: string[]; notReleased: string[]; title: string }> {
+    const { node, included, notReleased } = await this.collectTopics(id, user);
+    return { included, notReleased, title: node.title };
   }
 
   /** Knoten und seine startbaren Lernthemen – wirft, wenn keins dabei ist. */

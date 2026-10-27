@@ -267,6 +267,11 @@ export class ContestService implements OnModuleDestroy {
     return out;
   }
 
+  /** Hat die Lehrkraft für diese Freigabe den Wartebereich geöffnet (oder läuft die Arena)? */
+  isOpen(linkId: string): boolean {
+    return this.sessions.has(linkId);
+  }
+
   // ---- Leitung ----
 
   /** Wartebereich öffnen – oder die schon laufende Quiz-Arena wieder aufnehmen. */

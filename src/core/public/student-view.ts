@@ -15,3 +15,18 @@ export function forStudents<T extends { type?: string; content?: any }>(m: T): T
   return { ...m, content: { ...rest, uploadConfigured: !!uploadUrl } };
 }
 
+
+/** Module-IDs der Quizze, die ein Dokument einbettet (Block `quiz`, auch in Aufgaben und Kästen). */
+export function embeddedQuizIds(m: { type?: string; content?: any }): string[] {
+  if (m?.type !== 'document') return [];
+  const ids = new Set<string>();
+  const visit = (v: any) => {
+    if (Array.isArray(v)) v.forEach(visit);
+    else if (v && typeof v === 'object') {
+      if (v.type === 'quiz' && typeof v.module === 'string') ids.add(v.module);
+      Object.values(v).forEach(visit);
+    }
+  };
+  visit(contentOf(m).spec);
+  return [...ids];
+}

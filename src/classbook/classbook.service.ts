@@ -14,6 +14,8 @@ import { ClassNotebookNode } from '../core/entities/class-notebook-node.entity';
 import { ClassNotebookPlace } from '../core/entities/class-notebook-place.entity';
 import { LearningTopic } from '../core/entities/learning-topic.entity';
 import { LearningModule } from '../core/entities/learning-module.entity';
+import { NotebookNode } from '../core/entities/notebook-node.entity';
+import { NotebookPlacement } from '../core/entities/notebook-placement.entity';
 import { canHoldNode, depthOf, nodeMoveError, reorder, dissolve, MAX_CLASS_DEPTH } from './classbook-tree';
 import { ClassesService } from '../classes/classes.service';
 import { LinksService, PRACTICE_MODES } from '../links/links.service';
@@ -22,6 +24,8 @@ import { issueTicket, readTicket } from '../classes/student-ticket';
 import { isTestStudent } from '../classes/test-student';
 import { newPin, pinMatches, pinGuard } from '../work/pin';
 import { baseUrl, renderQr } from '../core/share/link-url';
+import { embeddedQuizIds } from '../core/public/student-view';
+import { ContestService } from '../contest/contest.service';
 import { endOfDay, firstLoginOpen, loginDecision, unitCells, Unit, DetailLike, classbookTicketKey, examState, toggleSelection, explicitSelection, moduleOn, AvailTopic, SelEntry } from './classbook-rules';
 
 const practiceModes = (link: TopicLink) => PRACTICE_MODES.filter((m) => (link.modes || []).includes(m));
@@ -55,10 +59,13 @@ export class ClassbookService {
     private readonly classes: ClassesService,
     private readonly links: LinksService,
     private readonly notebooks: NotebooksService,
+    private readonly contest: ContestService,
     @InjectRepository(ClassNotebookNode) private readonly nodeRepo: Repository<ClassNotebookNode>,
     @InjectRepository(ClassNotebookPlace) private readonly placeRepo: Repository<ClassNotebookPlace>,
     @InjectRepository(LearningTopic) private readonly topicRepo: Repository<LearningTopic>,
     @InjectRepository(LearningModule) private readonly moduleRepo: Repository<LearningModule>,
+    @InjectRepository(NotebookNode) private readonly nbNodeRepo: Repository<NotebookNode>,
+    @InjectRepository(NotebookPlacement) private readonly nbPlaceRepo: Repository<NotebookPlacement>,
   ) {}
 
   /** Notizbuch der Klasse – beim ersten Aufruf angelegt. */
@@ -120,6 +127,8 @@ export class ClassbookService {
   async forTeacher(user: any, classId: string, req?: any) {
     const klasse = await this.classes.ownedClass(classId, user);
     const nb = await this.ensure(klasse);
+    // Aus dem Notizbuch übernommene Bereiche: Neues dort kommt ausgeschaltet nach.
+    await this.syncMirrors(user, klasse, req).catch(() => undefined);
     const url = `${baseUrl(req)}/?k=${nb.token}`;
     const students = await this.studentRepo.find({ where: { classId }, select: ['id', 'status', 'pinShownAt'] });
     const raw = await this.classLinks(klasse);
@@ -139,7 +148,13 @@ export class ClassbookService {
         // Was die Zuweisung enthalten kann, mit Schalter je Lernthema und Modul.
         available: avail.topics.map((t) => {
           const entry = selection.find((e) => e.topicId === t.topicId);
-          return { ...t, enabled: !!entry && t.modules.some((m) => moduleOn(entry, m)), modules: t.modules.map((m) => ({ ...m, enabled: moduleOn(entry, m) })) };
+          // Quizze in einem eingeschalteten Dokument kommen mit ihm (siehe LinksService.resolveModules).
+          const viaDoc = new Set(t.modules.filter((m) => moduleOn(entry, m)).flatMap((m) => m.embeds));
+          return {
+            ...t,
+            enabled: !!entry && t.modules.some((m) => moduleOn(entry, m)),
+            modules: t.modules.map(({ embeds: _e, ...m }) => ({ ...m, enabled: moduleOn(entry, m) || viaDoc.has(m.id), viaDoc: !moduleOn(entry, m) && viaDoc.has(m.id) })),
+          };
         }),
       };
     }));
@@ -185,9 +200,13 @@ export class ClassbookService {
     const topics = resolved.map((r) => ({
       topicId: r.topic.id,
       title: r.topic.title,
+      // Eigene Lernthemen lassen sich von hier aus bearbeiten, erworbene nur ansehen.
+      canEdit: r.topic.ownerId === user.userId || user.role === 'admin',
+      tagIds: r.topic.tagIds || [],
       modules: r.modules.map((m) => ({
-        id: m.id, title: m.title || '', type: m.type,
+        id: m.id, title: m.title || '', type: m.type, tagIds: m.tagIds || [],
         subIds: ((m as any).subModules || []).map((x: LearningModule) => x.id),
+        embeds: embeddedQuizIds(m),
       })),
     }));
     return { topics, notReleased };
@@ -216,6 +235,24 @@ export class ClassbookService {
   }
 
   /**
+   * Ganze Zuweisungen ein- oder ausschalten – die eines Bereichs, Abschnitts
+   * oder des ganzen Klassennotizbuchs (die Liste stellt die Ansicht zusammen).
+   */
+  async setLinks(user: any, classId: string, body: { linkIds?: unknown; enabled?: boolean }) {
+    const ids = Array.isArray(body?.linkIds) ? body.linkIds.map(String) : [];
+    for (const linkId of ids) {
+      const link = await this.ownClassLink(user, classId, linkId);
+      const { topics } = await this.available(link, user);
+      let selection = (link.selection || []) as SelEntry[];
+      for (const t of topics) selection = toggleSelection(selection, topics as AvailTopic[], { topicId: t.topicId, enabled: !!body?.enabled });
+      link.selection = selection;
+      link.customized = true;
+      await this.linkRepo.save(link);
+    }
+    return { success: true, changed: ids.length };
+  }
+
+  /**
    * Lernthema oder Knoten des Notizbuchs zuweisen. Die Auswahl wird
    * ausdrücklich: Später ergänzte Module und Lernthemen erscheinen
    * ausgeschaltet. Eine schon vorhandene Zuweisung bleibt, wie sie ist.
@@ -223,13 +260,12 @@ export class ClassbookService {
   async assign(user: any, classId: string, body: { type?: string; id?: string; nodeId?: string | null }, req?: any) {
     const klasse = await this.classes.ownedClass(classId, user);
     const id = String(body?.id || '');
-    const isNode = body?.type === 'node';
-    const rule = await this.linkRepo.findOne({ where: { ownerId: user.userId, classId: IsNull(), ...(isNode ? { quickNodeId: id } : { quickTopicId: id }) } });
+    // Book, Bereich, Abschnitt: als Baum (assignTree).
+    if (body?.type === 'node') return this.assignTree(user, klasse, id, await this.nodeOrNull(klasse.id, body?.nodeId), req);
+    const rule = await this.linkRepo.findOne({ where: { ownerId: user.userId, classId: IsNull(), quickTopicId: id } });
     const existing = rule ? await this.linkRepo.findOne({ where: { ownerId: user.userId, templateId: rule.id, classId: klasse.id } }) : null;
     if (existing) return { linkId: existing.id, existed: true, notReleased: [] };
-    const created: any = isNode
-      ? await this.notebooks.quickLink(id, user, klasse.id, req)
-      : await this.links.classLinkForTopic(id, klasse.id, user, req);
+    const created: any = await this.links.classLinkForTopic(id, klasse.id, user, req);
     const link = await this.linkRepo.findOne({ where: { id: created.id } });
     if (link) {
       const { topics } = await this.available(link, user);
@@ -253,6 +289,134 @@ export class ClassbookService {
     const siblings = await this.placeRepo.find({ where: { classId, nodeId: nodeId ?? IsNull() } });
     const orderIndex = Math.max(-1, ...siblings.filter((p) => p.id !== linkId).map((p) => p.orderIndex)) + 1;
     await this.placeRepo.save(this.placeRepo.create({ id: linkId, classId, nodeId, orderIndex }));
+  }
+
+  // ---- Bereiche aus dem Notizbuch als Baum ----
+
+  /**
+   * Book, Bereich oder Abschnitt des Notizbuchs zuweisen: im Klassennotizbuch
+   * entsteht derselbe Baum – der Pfad darüber (ohne Book; ein gleichnamiger
+   * Bereich wird mitgenutzt), der Knoten selbst, seine Bereiche und
+   * Abschnitte, je Lernthema ein Eintrag. Die Einträge verweisen aufs
+   * Notizbuch. Später Dazugekommenes wächst ausgeschaltet nach (syncMirrors).
+   */
+  private async assignTree(user: any, klasse: StudentClass, sourceId: string, targetId: string | null, req?: any) {
+    const nbNodes = sourceId.startsWith('offer:') ? [] : await this.nbNodeRepo.find({ where: { ownerId: user.userId } });
+    const byId = new Map(nbNodes.map((n) => [n.id, n]));
+    let parentId = targetId;
+    let title: string;
+    let kind: 'area' | 'section' = 'area';
+    if (sourceId.startsWith('offer:')) {
+      title = (await this.notebooks.topicsOfNode(sourceId, user)).title || 'Erworben';
+    } else {
+      const src = byId.get(sourceId);
+      if (!src) throw new NotFoundException('Bereich nicht gefunden.');
+      title = src.title;
+      kind = src.kind === 'section' ? 'section' : 'area';
+      const path: NotebookNode[] = [];
+      for (let n = src.parentId ? byId.get(src.parentId) : undefined; n; n = n.parentId ? byId.get(n.parentId) : undefined) {
+        if (n.kind !== 'book') path.unshift(n);
+      }
+      for (const n of path) parentId = await this.mirrorNode(klasse.id, n.id, n.title, 'area', parentId);
+    }
+    const existed = (await this.nodeRepo.findOne({ where: { classId: klasse.id, sourceNodeId: sourceId } }))?.seen != null;
+    const nodeId = await this.mirrorNode(klasse.id, sourceId, title, kind, parentId);
+    const res = await this.fillMirror(user, klasse, nodeId, sourceId, nbNodes, { on: true, req });
+    return { linkId: null, nodeId, existed: existed && !res.added, added: res.added, notReleased: res.notReleased };
+  }
+
+  /**
+   * Knoten des Klassennotizbuchs zum Notizbuch-Knoten `sourceId`: schon
+   * übernommen (irgendwo in der Klasse) → der; sonst ein gleichnamiger,
+   * selbst angelegter unter `parentId`; sonst neu. Wo kein Knoten mehr
+   * hinpasst (Abschnitt, Tiefe), bleibt es beim Elternteil.
+   */
+  private async mirrorNode(classId: string, sourceId: string, title: string, kind: 'area' | 'section', parentId: string | null): Promise<string | null> {
+    const nodes = await this.nodeRepo.find({ where: { classId } });
+    const found = nodes.find((n) => n.sourceNodeId === sourceId);
+    if (found) return found.id;
+    const parent = parentId ? nodes.find((n) => n.id === parentId) || null : null;
+    if (!canHoldNode(parent) || depthOf(nodes, parentId) + 1 > MAX_CLASS_DEPTH) return parentId;
+    const same = nodes.find((n) => (n.parentId ?? null) === parentId && !n.sourceNodeId && n.kind === kind && n.title.trim().toLowerCase() === title.trim().toLowerCase());
+    if (same) {
+      await this.nodeRepo.update({ id: same.id }, { sourceNodeId: sourceId });
+      return same.id;
+    }
+    const orderIndex = Math.max(-1, ...nodes.filter((n) => (n.parentId ?? null) === parentId).map((n) => n.orderIndex)) + 1;
+    const made = await this.nodeRepo.save(this.nodeRepo.create({ id: crypto.randomUUID(), classId, kind, title, parentId, orderIndex, sourceNodeId: sourceId, seen: null }));
+    return made.id;
+  }
+
+  /**
+   * Inhalt eines übernommenen Knotens anlegen, was noch nicht übernommen ist:
+   * Unterbereiche/Abschnitte (rekursiv) und je freigegebenem Lernthema ein
+   * Eintrag. `on`: beim Zuweisen eingeschaltet, beim Nachwachsen aus. Ein
+   * Lernthema, das die Klasse schon hat, kommt nicht doppelt.
+   */
+  private async fillMirror(user: any, klasse: StudentClass, cbNodeId: string | null, sourceId: string, nbNodes: NotebookNode[], opts: { on: boolean; req?: any }): Promise<{ added: number; notReleased: string[] }> {
+    const node = cbNodeId ? await this.nodeRepo.findOne({ where: { id: cbNodeId, classId: klasse.id } }) : null;
+    const tracked = !!node && node.sourceNodeId === sourceId;
+    const seen = new Set<string>(tracked ? node!.seen || [] : []);
+    let added = 0;
+    const notReleased: string[] = [];
+    // Unterbereiche und Abschnitte, in der Reihenfolge des Notizbuchs.
+    const kids = nbNodes.filter((n) => n.parentId === sourceId).sort((a, b) => a.orderIndex - b.orderIndex);
+    for (const kid of kids) {
+      if (seen.has(kid.id)) continue;
+      seen.add(kid.id);
+      const kidId = await this.mirrorNode(klasse.id, kid.id, kid.title, kid.kind === 'section' ? 'section' : 'area', cbNodeId);
+      const r = await this.fillMirror(user, klasse, kidId, kid.id, nbNodes, opts);
+      added += r.added;
+      notReleased.push(...r.notReleased);
+    }
+    // Lernthemen direkt in diesem Knoten (ein erworbener Bereich darin: seine Lernthemen).
+    const startable = await this.notebooks.topicsOfNode(sourceId, user).catch(() => ({ included: [] as string[], notReleased: [] as string[] }));
+    const ok = new Set(startable.included);
+    let topicIds: string[];
+    if (sourceId.startsWith('offer:')) topicIds = startable.included;
+    else {
+      const places = (await this.nbPlaceRepo.find({ where: { ownerId: user.userId, nodeId: sourceId } })).sort((a, b) => a.orderIndex - b.orderIndex);
+      topicIds = [];
+      for (const p of places) {
+        if (!p.topicId.startsWith('offer:')) topicIds.push(p.topicId);
+        else topicIds.push(...(await this.notebooks.topicsOfNode(p.topicId, user).catch(() => ({ included: [] as string[] }))).included);
+      }
+    }
+    const inClass = new Set((await this.classLinks(klasse)).flatMap((l) => (l.selection || []).map((e) => e.topicId)));
+    for (const topicId of topicIds) {
+      if (seen.has(topicId)) continue;
+      // Gesperrte Lernthemen kommen, sobald sie freigegeben sind.
+      if (!ok.has(topicId)) continue;
+      seen.add(topicId);
+      if (inClass.has(topicId)) continue;
+      const created: any = await this.links.classLinkForTopic(topicId, klasse.id, user, opts.req);
+      const link = await this.linkRepo.findOne({ where: { id: created.id } });
+      if (!link) continue;
+      const { topics } = await this.available(link, user);
+      link.selection = opts.on
+        ? explicitSelection((link.selection || []) as SelEntry[], topics as AvailTopic[])
+        : (link.selection || []).map((e) => ({ topicId: e.topicId, all: false, moduleIds: [] }));
+      await this.linkRepo.save(link);
+      await this.placeAtEnd(klasse.id, link.id, cbNodeId);
+      inClass.add(topicId);
+      added++;
+    }
+    notReleased.push(...startable.notReleased);
+    if (tracked) await this.nodeRepo.update({ id: node!.id }, { seen: [...seen] as any });
+    return { added, notReleased: [...new Set(notReleased)] };
+  }
+
+  /** Übernommene Bereiche nachziehen: Neues aus dem Notizbuch kommt ausgeschaltet dazu. */
+  private async syncMirrors(user: any, klasse: StudentClass, req?: any) {
+    const growing = (await this.nodeRepo.find({ where: { classId: klasse.id } })).filter((n) => n.sourceNodeId && n.seen);
+    if (!growing.length) return;
+    const nbNodes = await this.nbNodeRepo.find({ where: { ownerId: user.userId } });
+    const known = new Set(nbNodes.map((n) => n.id));
+    for (const n of growing) {
+      // Im Notizbuch gelöscht: Der Bereich bleibt, wächst aber nicht mehr.
+      if (!n.sourceNodeId!.startsWith('offer:') && !known.has(n.sourceNodeId!)) continue;
+      await this.fillMirror(user, klasse, n.id, n.sourceNodeId!, nbNodes, { on: false, req });
+    }
   }
 
   /** `{ kind: 'area'|'section', title, parentId? }` */
@@ -535,8 +699,9 @@ export class ClassbookService {
     const confirmed = !!student && student.status !== 'pending';
     const all = await this.classLinks(klasse);
     const active = all.filter((l) => l.active);
-    // Ohne eingeschaltetes Modul gibt es für Schüler nichts zu sehen.
-    const links = (await Promise.all(active.map((l) => this.linkInfo(l)))).filter((l) => (l.practice.length || l.contest) && l.topics.length);
+    // Ohne eingeschaltetes Modul gibt es für Schüler nichts zu sehen. Die Quiz-Arena
+    // erscheint nur, solange die Lehrkraft ihren Wartebereich geöffnet hat (arena).
+    const links = (await Promise.all(active.map((l) => this.linkInfo(l)))).filter((l) => l.practice.length && l.topics.length);
     const { nodes, placeOf } = await this.tree(klasse, all);
     // Laufende Klassenarbeiten: aktiv und ihr Link ist erzeugt (die Lehrkraft hat ihn ausgegeben).
     const exams = await Promise.all(active.filter((l) => (l.modes || []).includes('exam') && l.examToken).map(async (l) => {
@@ -550,6 +715,7 @@ export class ClassbookService {
     return {
       className: klasse.name,
       name: t.n,
+      arena: this.openArena(active),
       pending: !confirmed && !isTestStudent(t.s),
       exams,
       // Nur, wenn die Schüler das Modul gerade sehen (Zuweisung aktiv, Modul eingeschaltet).
@@ -577,6 +743,21 @@ export class ClassbookService {
       })),
       works: works.filter((w) => w.access !== 'exam').map((w) => ({ linkId: w.linkId, moduleId: w.moduleId, title: w.moduleTitle || 'Dokument', at: w.updatedAt })),
     };
+  }
+
+  /**
+   * Quiz-Arena, deren Wartebereich die Lehrkraft gerade geöffnet hat – dann
+   * sehen die Schüler nur sie. Sonst null.
+   */
+  private openArena(links: TopicLink[]): { linkId: string; name: string } | null {
+    const open = links.find((l) => (l.modes || []).includes('contest') && this.contest.isOpen(l.id));
+    return open ? { linkId: open.id, name: open.name } : null;
+  }
+
+  /** Für das Nachfragen der Schülerseite: `{ arena }` (siehe openArena). */
+  async arena(token: string, ticket: unknown) {
+    const { klasse } = await this.session(token, ticket);
+    return { arena: this.openArena((await this.classLinks(klasse)).filter((l) => l.active)) };
   }
 
   /**

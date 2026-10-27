@@ -1,7 +1,7 @@
 import { escapeHtml, escapeAttr, copyOneNotePage } from '../utils.js';
 import { downloadBlob } from '../api.js';
 import { pickClass } from './classes.js';
-import { TagPicker, chipHtml } from './tags.js';
+import { TagPicker, chipHtml, openTagDialog } from './tags.js';
 import { openFeedbackDialog } from './feedback.js';
 import { openImportDialog } from './import-dialog.js';
 import { openOneNoteImport } from './onenote-import.js';
@@ -892,6 +892,7 @@ export class NotebooksView {
       { label: '↔️ Verschieben nach…', run: () => this._moveTopicDialog(topic) },
       { label: '📋 Kopieren', run: () => this._copyTopic(topic) },
       { label: '✏️ Umbenennen / Beschreibung', run: () => this._editTopic(topic) },
+      { label: '🏷 Tags…', title: 'Tags zuordnen oder wieder entfernen', run: () => this._editTopicTags(topic) },
       ...(fromShop ? [this._rateItem(topic.id, '⭐ Original bewerten')] : []),
       '-',
       { label: '🗑 Löschen', danger: true, run: async () => { if (await this.app.topicsView.deleteTopic(topic)) this.refresh(); } },
@@ -917,6 +918,7 @@ export class NotebooksView {
       { label: '👁 Vorschau', run: () => open('preview') },
       { label: '✏️ Bearbeiten', run: () => open('edit') },
       { label: '📋 Duplizieren', run: () => this._transferModule(topic, mod, topic.id, 'copy') },
+      { label: '🏷 Tags…', title: 'Tags zuordnen oder wieder entfernen', run: () => this._editModuleTags(topic, mod) },
     ];
     if (mod.type === 'attachment' && this._docsEnabled()) {
       // Gehört das Modul zur Auswahl, gilt es für alle markierten Anhänge – wie in der Leiste.
@@ -1069,6 +1071,26 @@ export class NotebooksView {
     this._open.add('n:' + nodeId);
     this._open.add('t:' + topic.id);
     this._saveOpen();
+    await this.refresh();
+  }
+
+  /** Eigene Tags eines Lernthemas; geerbte (vom Platz) bleiben. */
+  async _editTopicTags(topic) {
+    const inherited = this._placeOf.get(topic.id)?.inheritedTagIds || [];
+    const ids = await openTagDialog(this.app, { title: topic.title, selected: topic.tagIds || [], inherited });
+    if (!ids) return;
+    const res = await this.app.api.saveTopic({ id: topic.id, tagIds: [...new Set([...ids, ...inherited])] }, true);
+    if (failed(res)) { this.app.showToast('Fehler: ' + (res?.message || 'Speichern fehlgeschlagen'), 'error'); return; }
+    await this.refresh();
+  }
+
+  /** Tags eines Moduls; die des Lernthemas gelten ohnehin. */
+  async _editModuleTags(topic, mod) {
+    const ids = await openTagDialog(this.app, { title: mod.title || 'Modul', selected: mod.tagIds || [], inherited: topic.tagIds || [] });
+    if (!ids) return;
+    const res = await this.app.api.saveModule(topic.id, { id: mod.id, tagIds: ids });
+    if (failed(res)) { this.app.showToast('Fehler: ' + (res?.message || 'Speichern fehlgeschlagen'), 'error'); return; }
+    mod.tagIds = ids;
     await this.refresh();
   }
 
@@ -1429,7 +1451,9 @@ export class NotebooksView {
     row.addEventListener('click', (e) => {
       if (!(e.ctrlKey || e.metaKey || e.shiftKey || this._selMode)) return;
       if (e.target.closest('.nb-menu-btn, .nb-status, .nb-edit, .nb-twisty')) return;
-      e.preventDefault();
+      // Auf der Checkbox selbst nicht verhindern: Sonst setzt der Browser den
+      // Haken nach dem Klick zurück, und er stünde an der falschen Zeile.
+      if (!e.target.classList.contains('nb-select')) e.preventDefault();
       e.stopPropagation();
       if (e.shiftKey && this._selAnchor) this._selectRange(this._selAnchor, key, item.type);
       else this._toggleSel(key, item);

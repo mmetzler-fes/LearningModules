@@ -54,6 +54,15 @@ function dialog(html, { input = false } = {}) {
 
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
+/** Gespeicherter Stand ohne Nachfrage – nur, wenn keine PIN fehlt; sonst null. */
+export async function peekWork({ up, moduleId }) {
+  try {
+    return (await post('load', { linkToken: up.linkToken, studentTicket: up.studentTicket, moduleId, pin: pins.get(up.studentTicket) })).data || null;
+  } catch (_) {
+    return null;
+  }
+}
+
 /**
  * Speicher für einen Schüler mit Schülerausweis. Ergebnis: `{ store, initial }`
  * – `initial` ist der geladene Stand (oder null); `null` insgesamt, wenn der

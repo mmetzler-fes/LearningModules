@@ -15,5 +15,6 @@ import { ContestController } from './contest.controller';
   imports: [TypeOrmModule.forFeature([TopicLink, User, Result]), LinksModule, CompanionModule, ClassesModule, TimingsModule, UsageModule],
   controllers: [ContestController],
   providers: [ContestService],
+  exports: [ContestService],
 })
 export class ContestModule {}

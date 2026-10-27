@@ -484,6 +484,7 @@ export class BrowserApi {
     return res.blob();
   }
   getDocPromptContext(nodeId) { return this._fetch(`/api/worksheets/prompt-context${nodeId ? `?nodeId=${encodeURIComponent(nodeId)}` : ''}`); }
+  getDocPromptExamples(ids) { return this._fetch(`/api/worksheets/prompt-examples?ids=${encodeURIComponent(ids.join(','))}`); }
   syncDocMirror() { return this._fetch('/api/worksheets/mirror/sync', { method: 'POST' }); }
   /** Dokument-Einstellungen eines Ordners (Kurs, Titelmuster, Nummerierung, KI-Vorgaben). */
   updateDocSettings(id, settings) {
@@ -1045,6 +1046,12 @@ export class BrowserApi {
     return this._fetch(`/api/classbook/${encodeURIComponent(classId)}/entries/${encodeURIComponent(linkId)}`, { method: 'DELETE' });
   }
   /** Lernthema (ohne moduleId) oder Modul einer Zuweisung ein-/ausschalten. */
+  setClassbookLinks(classId, linkIds, enabled) {
+    return this._fetch(`/api/classbook/${encodeURIComponent(classId)}/links-enabled`, {
+      method: 'PUT', body: JSON.stringify({ linkIds, enabled }),
+    });
+  }
+
   setClassbookItem(classId, linkId, { topicId, moduleId, enabled }) {
     return this._fetch(`/api/classbook/${encodeURIComponent(classId)}/links/${encodeURIComponent(linkId)}/item`, {
       method: 'PUT', body: JSON.stringify({ topicId, moduleId, enabled }),

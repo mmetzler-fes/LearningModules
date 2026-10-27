@@ -540,10 +540,96 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
     selectWidget(placeHtml(widgetHtml(block), after)[0]);
   };
 
-  /** Baustein als YAML bearbeiten. */
+  /**
+   * Lösung bearbeiten: Reiter „Text“ (Texteditor wie das Blatt) und „YAML“.
+   * Bildet der Texteditor die Lösung nicht genau ab (gleiche Anzeige nach
+   * Hin- und Rückweg), öffnet der Dialog im YAML-Reiter.
+   */
+  const editSolution = (w, block) => {
+    const view = (blocks) => renderDocSpecHtml({ content: blocks || [] }, { showSolutions: true });
+    const toText = (blocks) => specToEditorHtml({ content: blocks || [] });
+    const fromText = (html) => htmlToDocSpec(html).spec.content;
+    const fits = view(fromText(toText(block.blocks))) === view(block.blocks);
+    const overlay = document.createElement('div');
+    overlay.className = 'confirm-overlay';
+    overlay.innerHTML = `<form class="import-modules-card ds-widget-dialog ds-solution-dialog">
+        <h3>Lösung bearbeiten</h3>
+        <div class="admin-tabs">
+          <button type="button" class="admin-tab" data-tab="text">✏️ Text</button>
+          <button type="button" class="admin-tab" data-tab="yaml">⌨ YAML</button>
+        </div>
+        <div class="ds-sol-text">
+          <div class="rich-text-toolbar">
+            ${[['bold', '<b>F</b>', 'Fett'], ['italic', '<i>K</i>', 'Kursiv'], ['underline', '<u>U</u>', 'Unterstrichen'],
+              ['superscript', 'x²', 'Hochgestellt'], ['subscript', 'x₂', 'Tiefgestellt'], ['insertUnorderedList', '•', 'Aufzählung'], ['insertOrderedList', '1.', 'Nummerierung']]
+              .map(([cmd, label, title]) => `<button type="button" class="rt-btn" data-cmd="${cmd}" title="${title}">${label}</button>`).join('')}
+          </div>
+          <div class="ds-surface ds-sol-surface worksheet-content" contenteditable="true" spellcheck="true" aria-label="Lösung"></div>
+        </div>
+        <div class="ds-sol-yaml" hidden>
+          ${fits ? '' : '<p class="hint">Diese Lösung enthält Teile, die der Texteditor nicht genau abbildet – deshalb hier als YAML.</p>'}
+          <textarea class="ds-yaml" rows="12" spellcheck="false"></textarea>
+        </div>
+        <p class="ds-error"></p>
+        <div class="confirm-actions">
+          <button type="submit" class="btn btn-primary">Übernehmen</button>
+          <button type="button" class="btn btn-danger ds-w-del">Entfernen</button>
+          <button type="button" class="btn btn-secondary ds-w-cancel">Abbrechen</button>
+        </div></form>`;
+    document.body.appendChild(overlay);
+    const surfaceEl = overlay.querySelector('.ds-sol-surface');
+    const ta = overlay.querySelector('textarea');
+    const err = overlay.querySelector('.ds-error');
+    surfaceEl.innerHTML = toText(block.blocks) || '<p><br></p>';
+    ta.value = yamlDump(block, { lineWidth: -1, noRefs: true });
+    let tab = null;
+    const current = () => (tab === 'text' ? { ...block, blocks: fromText(surfaceEl.innerHTML) } : yamlLoad(ta.value));
+    const show = (next) => {
+      // Beim Wechsel den Stand mitnehmen.
+      if (tab && next !== tab) {
+        try {
+          const cur = current();
+          if (next === 'yaml') ta.value = yamlDump(cur, { lineWidth: -1, noRefs: true });
+          else surfaceEl.innerHTML = toText(cur?.blocks) || '<p><br></p>';
+          err.textContent = '';
+        } catch (e) { err.textContent = `YAML: ${e.reason || e.message}`; return; }
+      }
+      tab = next;
+      overlay.querySelectorAll('[data-tab]').forEach((b) => b.classList.toggle('active', b.dataset.tab === tab));
+      overlay.querySelector('.ds-sol-text').hidden = tab !== 'text';
+      overlay.querySelector('.ds-sol-yaml').hidden = tab !== 'yaml';
+      (tab === 'text' ? surfaceEl : ta).focus();
+    };
+    overlay.querySelectorAll('[data-tab]').forEach((b) => b.addEventListener('click', () => show(b.dataset.tab)));
+    overlay.querySelectorAll('.rt-btn').forEach((b) => b.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      document.execCommand(b.dataset.cmd);
+    }));
+    show(fits ? 'text' : 'yaml');
+    const close = () => overlay.remove();
+    overlay.querySelector('.ds-w-cancel').addEventListener('click', close);
+    overlay.querySelector('.ds-w-del').addEventListener('click', () => { if (w === selectedWidget) selectWidget(null); w.remove(); close(); });
+    overlay.querySelector('form').addEventListener('submit', (ev) => {
+      ev.preventDefault();
+      let next;
+      try { next = current(); } catch (e) { err.textContent = `YAML: ${e.reason || e.message}`; return; }
+      if (block.id && next && typeof next === 'object' && next.id === undefined) next.id = block.id;
+      const errs = validateDocSpec({ content: [next] });
+      if (errs.length) { err.textContent = errs.join(' · '); return; }
+      const tmp = document.createElement('div');
+      tmp.innerHTML = widgetHtml(next);
+      const fresh = tmp.firstElementChild;
+      w.replaceWith(fresh);
+      selectWidget(fresh);
+      close();
+    });
+  };
+
+  /** Baustein als YAML bearbeiten (Lösung: editSolution). */
   const editWidget = (w) => {
     let block;
     try { block = JSON.parse(decodeURIComponent(w.dataset.block)); } catch (_) { return; }
+    if (block.type === 'solution') { editSolution(w, block); return; }
     // Alter „Platz“: wird zum unsichtbaren Schreibfeld (gleiche Höhe ungefähr: eine Zeile ≈ 0,5 cm).
     if (block.type === 'spacer') block = { ...(block.id ? { id: block.id } : {}), type: 'karo', lines: Number.isInteger(block.lines) ? block.lines : 3, pattern: 'frei' };
     const overlay = document.createElement('div');

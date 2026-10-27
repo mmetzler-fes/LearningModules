@@ -154,18 +154,19 @@ export class ClassbookStudent {
     }
     this.data = data;
     document.querySelector('#loginScreen .login-card')?.classList.add('login-card-wide');
+    this._watchArena();
+    if (data.arena) { this._arenaHome(data); return true; }
     const mk = data.marker;
     const cardOf = (a) => {
       const modes = a.modes.map((m) => {
         const meta = LINK_MODE_LABELS[m];
         return meta ? `<button type="button" class="btn btn-primary btn-sm" data-start="${escapeAttr(a.linkId)}" data-mode="${escapeAttr(m)}" title="${escapeAttr(meta.hint)}">${meta.icon} ${escapeHtml(meta.label)}</button>` : '';
       }).join('');
-      const contest = a.contest ? `<button type="button" class="btn btn-secondary btn-sm" data-contest="${escapeAttr(a.linkId)}">🏆 Quiz-Arena</button>` : '';
       // Module eingeklappt; beim 📍-Merker der Lehrkraft ist sein Lernthema offen.
       const marked = (t, u) => mk && mk.linkId === a.linkId && mk.topicId === t.id && (!u || mk.moduleId === u.id);
       return `<details class="cb-assignment" open>
         <summary><strong>${escapeHtml(a.name)}</strong></summary>
-        <div class="cb-actions">${modes}${contest}</div>
+        <div class="cb-actions">${modes}</div>
         ${a.topics.map((t) => {
           const done = t.units.filter((u) => u.done || u.work).length;
           return `<details class="cb-topic" ${marked(t) ? 'open' : ''}>
@@ -233,6 +234,7 @@ export class ClassbookStudent {
         ? '<p class="hint cb-pending">Deine Ergebnisse und Blätter erscheinen hier, sobald deine Lehrkraft deinen Namen in der Klassenliste bestätigt hat.</p>'
         : `<h3 class="cb-section">📈 Meine Ergebnisse</h3>${results}<h3 class="cb-section">✍️ Meine Blätter</h3>${works}`}`);
     el.querySelector('#cbLogout').addEventListener('click', () => {
+      this._stopWatch();
       saveSession(null);
       document.querySelector('#loginScreen .login-card')?.classList.remove('login-card-wide');
       this._login();
@@ -245,12 +247,57 @@ export class ClassbookStudent {
       here.focus({ preventScroll: true });
     }
     el.querySelectorAll('[data-exam]').forEach((btn) => btn.addEventListener('click', () => this._enter(btn.closest('[data-link]').dataset.link, 'exam', null, btn)));
-    el.querySelectorAll('[data-contest]').forEach((btn) => btn.addEventListener('click', async () => {
-      const res = await post(`${encodeURIComponent(this.token)}/enter`, { ticket: classbookSession()?.ticket, linkId: btn.dataset.contest }).catch(() => null);
-      if (res?.linkToken) window.location.href = `/?l=${encodeURIComponent(res.linkToken)}&m=contest`;
-      else this.app.showToast(res?.message || 'Die Quiz-Arena ist gerade nicht erreichbar.', 'error');
-    }));
     return true;
+  }
+
+  /**
+   * Quiz-Arena offen: Nur sie ist zu sehen. Angemeldet geht es mit dem Namen
+   * aus dem Klassennotizbuch direkt in den Wartebereich.
+   */
+  _arenaHome(data) {
+    const el = this._show(`
+      <div class="cb-head">
+        <div><span class="quick-entry-label">📒 ${escapeHtml(data.className)}</span><h2>${escapeHtml(data.name)}</h2></div>
+      </div>
+      <div class="quick-entry-topic cb-arena">
+        <span class="quick-entry-label">🏆 Quiz-Arena</span>
+        <h2>${escapeHtml(data.arena.name)}</h2>
+        <p>Deine Lehrkraft hat die Quiz-Arena geöffnet.</p>
+      </div>
+      <button type="button" class="btn btn-primary btn-full" id="cbArenaJoin">🏆 In den Wartebereich</button>`);
+    el.querySelector('#cbArenaJoin').addEventListener('click', async (e) => {
+      const btn = e.currentTarget;
+      btn.disabled = true;
+      const s = classbookSession();
+      const res = await post(`${encodeURIComponent(this.token)}/enter`, { ticket: s?.ticket, linkId: data.arena.linkId }).catch(() => null);
+      if (!res?.linkToken) {
+        this.app.showToast(res?.message || 'Die Quiz-Arena ist gerade nicht erreichbar.', 'error');
+        btn.disabled = false;
+        return;
+      }
+      this._stopWatch();
+      document.querySelector('#loginScreen .login-card')?.classList.remove('login-card-wide');
+      this._el.classList.add('hidden');
+      const err = await this.app.contestView.joinAsPlayer(res.linkToken, { studentName: s?.name || data.name, password: '' });
+      // Testschüler oder ein anderer Haken: über die gewohnte Namenseingabe der Arena.
+      if (err) window.location.href = `/?l=${encodeURIComponent(res.linkToken)}&m=contest`;
+    });
+  }
+
+  /** Alle 5 s fragen, ob die Lehrkraft die Quiz-Arena geöffnet oder beendet hat – dann neu aufbauen. */
+  _watchArena() {
+    this._stopWatch();
+    this._poll = setInterval(async () => {
+      if (this._el.classList.contains('hidden')) { this._stopWatch(); return; }
+      const res = await post(`${encodeURIComponent(this.token)}/arena`, { ticket: classbookSession()?.ticket }).catch(() => null);
+      if (!res || res.failed) return;
+      if ((res.arena?.linkId || null) !== (this.data?.arena?.linkId || null)) await this._home();
+    }, 5000);
+  }
+
+  _stopWatch() {
+    if (this._poll) clearInterval(this._poll);
+    this._poll = null;
   }
 
   /** Aufgabe starten – ganz oder nur ein Modul; ohne Modus der erste der Zuweisung. */

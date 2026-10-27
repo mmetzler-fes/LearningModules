@@ -150,6 +150,16 @@ Fragestellung, Art, Umfang und Anzahl der Blätter angeben, auf Wunsch
 passende Quiz-Module dazu. Den Prompt im KI-Chat einfügen, die Antwort im
 Notebook am Zielordner über **⋯ → 📥 Hier importieren** einlesen.
 
+**Vorhandene Blätter als Vorbild:** Unter dem Zielordner stehen die Blätter
+seines Books zum Ankreuzen. Ihr Inhalt kommt in den Prompt – im selben
+Format, das die KI liefern soll –, damit Stil, Niveau, Aufbau und Art der
+Aufgaben passen. Anhängen im Chat ist dafür nicht nötig. Eingebettete Bilder
+fallen dabei weg; Bilder aus der Nextcloud bleiben als Name stehen. Unter dem
+Prompt steht seine ungefähre Größe: Wird er sehr lang (über etwa 30 000
+Tokens) und bricht der Chat ab, weniger Vorbilder wählen. Vorhandene
+Arbeitsblätter holst du vorher über **📄 Übernehmen (.odt, .docx)**, den
+PDF-Import oder als Kurs (unten) in die App.
+
 ## Kurse aus dem Arbeitsblatt-Generator
 
 **📥 Hier importieren** nimmt auch ein ZIP mit einem Kursordner (`kurs.yaml`,
@@ -272,9 +282,15 @@ wenn die Lehrkraft des Lernthemas freigeschaltet ist.
   in der Notebook-Vorschau, **✍️ Mit Stift bearbeiten** am Dokument (Notebook-
   Vorschau, Vollbild, Vorschau aus der Modulliste). Zur Auswahl stehen alle
   Module des Lernthemas außer Dokumenten.
-- **👆 Bedienen:** Eingebettete Quizze im Blatt ausfüllen. Der Finger bedient
-  sie immer (solange ☝️ aus ist), Stift und Maus nur mit diesem Werkzeug –
-  sonst schreiben sie.
+- **👆 Bedienen:** Eingebettete Quizze im Blatt ausfüllen. **Auswählen und
+  Bedienen wechseln von selbst:** Wer mit einem der beiden auf ein Quiz tippt,
+  füllt es aus; daneben – oder auf einem Strich oder Textfeld über dem Quiz –
+  wird ausgewählt. Der Finger bedient Quizze immer (auch mit ☝️). Mit Stift,
+  Textmarker und Textfeld schreiben Stift und Maus auch über einem Quiz.
+- **⬚ Auswählen** an einem Textfeld: **✏️ Text bearbeiten** im Menü (⋯,
+  Rechtsklick, lange drücken) oder Doppelklick – es geht gleich weiter mit dem
+  Schreiben. Eine Farbe gilt sofort, auch für das Textfeld, in dem du gerade
+  schreibst.
 - **💡 Lösungen** einblenden – nur für Lehrkräfte (Vorschau, Notebooks).
 - **🖨 Drucken oder als PDF speichern** (Hintergrund „Dokument“): Arbeitsblatt
   oder Lösungsblatt, jeweils mit oder ohne Beschriftung – über den Druckdialog
@@ -282,13 +298,13 @@ wenn die Lehrkraft des Lernthemas freigeschaltet ist.
   Schulvorlage, Seitenumbrüche aus dem Dokument; Schreibfelder, Bilder und
   Formeln werden nicht über zwei Seiten zerrissen. Schüler sehen nur das
   Arbeitsblatt. Quizze erscheinen so, wie sie gerade aussehen.
-- **📌 Seite feststellen:** Die Pin-Nadel arretiert die Seite – sie
-  verschiebt sich beim Zeichnen nicht mehr, auch nicht mit dem Finger.
-  Nochmal antippen löst sie. Der Apple Pencil scrollt ohnehin nicht, nur der
-  Finger.
 - **☝️ Finger:** Normalerweise scrollt der Finger, gezeichnet wird mit Stift
-  oder Maus. Ist ☝️ an, zeichnet auch der Finger. Solange der Stift schreibt,
-  zählt die aufliegende Hand nicht.
+  oder Maus – der Apple Pencil verschiebt die Seite nie. Ist ☝️ an, zeichnet
+  auch der Finger, und die Seite steht still; scrollen geht dann mit zwei
+  Fingern. Solange der Stift schreibt, zählt die aufliegende Hand nicht.
+- **In der Ansicht:** Was mit dem Stift beschriftet ist, steht auch in der
+  gewöhnlichen Ansicht des Dokuments – das Blatt erscheint dann wie im
+  Stift-Editor (A4, auf die Breite verkleinert), nur zum Ansehen.
 - **📐 Geodreieck** blendet ein Geodreieck ein und aus. Verschieben: auf das
   Dreieck tippen und ziehen. Drehen: am **⟳** ziehen (in 1°-Schritten, mit
   gedrückter Umschalttaste in 5°-Schritten), mit zwei Fingern oder mit dem

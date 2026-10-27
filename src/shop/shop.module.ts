@@ -17,6 +17,7 @@ import { RemotePerson } from '../core/entities/remote-person.entity';
 import { AccountsModule } from '../accounts/accounts.module';
 import { UsageModule } from '../impact/usage.module';
 import { CategoriesModule } from '../categories/categories.module';
+import { TagsModule } from '../tags/tags.module';
 import { ShopService } from './shop.service';
 import { ShopController } from './shop.controller';
 import { RightsMigrationService } from './rights-migration.service';
@@ -30,6 +31,7 @@ import { RightsMigrationService } from './rights-migration.service';
     AccountsModule,
     UsageModule,
     CategoriesModule,
+    TagsModule,
   ],
   controllers: [ShopController],
   providers: [ShopService, RightsMigrationService],

@@ -51,6 +51,12 @@ gleich neu.
   „Druckleiste“) setzt LibreOffice im SVG an die falsche Stelle; der Renderer
   korrigiert das. Bei früher übernommenen Zeichnungen hilft: die .odg
   unverändert wieder hochladen (⬆) oder das Dokument neu übernehmen.
+- Lose Linien und kleine Formen, die sich berühren oder bis auf 1,5 mm
+  nahekommen, werden **eine** Zeichnung – auch wenn jede an einem anderen
+  Absatz hängt (z. B. ein Schaltzeichen aus einzelnen Linien in einer
+  Tabellenzelle). Gruppen und Formen über 3 cm bleiben für sich. Die
+  Zeichnung steht in der Zelle, in der die meisten Teile verankert sind.
+  Sicherer ist trotzdem: in Writer die Linien markieren und **gruppieren**.
 
 ## Technik
 

@@ -28,5 +28,26 @@ class FixRotatedText(unittest.TestCase):
         self.assertEqual(export_drawings.fix_rotated_text(svg), svg)
 
 
+
+class Clusters(unittest.TestCase):
+    def test_lose_linien_eines_schaltzeichens(self):
+        """Die Kontakte aus der Tabelle „Geberkontakte“: Linien an verschiedenen
+        Absätzen (Lage im Layout), dazu eine weit entfernte und eine aus einer anderen Spalte."""
+        boxes = {
+            15: ("T1:A", (3533, 9557, 3533, 10298)),
+            17: ("T1:A", (3004, 10212, 3501, 10699)),
+            16: ("T1:A", (3501, 10748, 3501, 11462)),
+            12: ("T1:A", (3537, 12695, 3537, 13436)),
+            11: ("T1:A", (3507, 13407, 3777, 14137)),
+            10: ("T1:A", (3538, 13508, 3861, 13508)),
+            9: ("T1:A", (3508, 14254, 3508, 14968)),
+            30: ("T1:B", (3510, 10300, 3510, 10900)),
+        }
+        self.assertEqual(sorted(export_drawings.clusters(boxes)), [[9, 10, 11, 12], [15, 16, 17]])
+
+    def test_einzelne_formen_bleiben(self):
+        self.assertEqual(export_drawings.clusters({1: ("body", (0, 0, 100, 100)), 2: ("body", (5000, 5000, 5100, 5100))}), [])
+
+
 if __name__ == "__main__":
     unittest.main()

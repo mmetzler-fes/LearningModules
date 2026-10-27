@@ -18,6 +18,11 @@ dem Importer überlassen. Ergebnis im Ausgabeordner:
     lmdraw-<n>.odg  je Zeichnung ein Draw-Dokument zum Bearbeiten (Seite so groß wie die Zeichnung)
     result.json     {"drawings": [{"name", "file", "odg", "width_mm", "height_mm"}], "warnings": [...]}
 
+Einzelne Formen, die sich berühren oder fast berühren (z. B. ein Schaltzeichen
+aus losen Linien, jede an einem anderen Absatz einer Tabellenzelle verankert),
+werden zu einer Zeichnung zusammengefasst: Die erste heißt ``lmdraw-<n>``, die
+übrigen ``lmdraw-<n>-teil<k>`` – der Importer lässt diese Teile weg.
+
 Mit ``--render`` wird eine (bearbeitete) .odg wieder ein SVG: alle Formen der
 ersten Seite, knapp zugeschnitten – ``drawing.svg`` und ``result.json`` mit
 ``{"width_mm", "height_mm"}``.
@@ -43,6 +48,11 @@ from com.sun.star.beans import PropertyValue  # type: ignore
 # Grafiken in diesen Formaten kann der Browser nicht – LibreOffice zeichnet sie.
 METAFILE = ("image/x-svm", "image/x-wmf", "image/x-emf", "image/wmf", "image/emf", "image/x-ms-bmp")
 MAX_DRAWINGS = 200
+# Formen mit höchstens diesem Abstand (1/100 mm) gehören zu einer Zeichnung.
+CLUSTER_GAP = 150
+# Nur kleine, lose Formen (Linien, Kreise eines Schaltzeichens) – fertige
+# Gruppen und große Zeichnungen bleiben für sich, auch wenn sie aneinanderstoßen.
+CLUSTER_MAX = 3000
 
 
 def prop(name: str, value) -> PropertyValue:
@@ -109,6 +119,74 @@ def in_header(shape, tables: set[str]) -> bool:
     except Exception:  # noqa: BLE001
         return False
     return False
+
+
+def layout_box(shape, view_cursor) -> tuple[str, tuple[int, int, int, int]] | None:
+    """Gruppe und Rechteck (1/100 mm) einer frei am Absatz bzw. Zeichen verankerten
+    Form im Layout – oder None, wenn sie nicht zusammengefasst werden soll.
+
+    Writer liefert die Lage relativ zum Absatz; dessen Höhe im Dokument kommt vom
+    View-Cursor. Waagerecht zählt die Lage im Absatz – vergleichbar nur in derselben
+    Spalte einer Tabelle bzw. im selben Text, daher die Gruppe."""
+    try:
+        if shape.AnchorType.value not in ("AT_PARAGRAPH", "AT_CHARACTER"):
+            return None
+        if shape.getShapeType() == "com.sun.star.drawing.GroupShape":
+            return None
+        if max(shape.getSize().Width, shape.getSize().Height) > CLUSTER_MAX:
+            return None
+        if shape.VertOrient != 0 or shape.HoriOrient != 0 or shape.VertOrientRelation not in (0, 1, 2, 9):
+            return None
+        anchor = shape.getAnchor()
+        text = anchor.getText()
+        if text.getImplementationName() == "SwXCell":
+            column = re.sub(r"\d+$", "", text.getPropertyValue("CellName"))
+            group = f"{anchor.TextTable.getName()}:{column}"
+        elif text.getImplementationName() == "SwXBodyText":
+            group = "body"
+        else:
+            return None
+        view_cursor.gotoRange(anchor.getStart(), False)
+        top = view_cursor.getPosition().Y
+        size = shape.getSize()
+        x, y = shape.HoriOrientPosition, top + shape.VertOrientPosition
+        return group, (x, y, x + size.Width, y + size.Height)
+    except Exception:  # noqa: BLE001 – dann bleibt die Form für sich
+        return None
+
+
+def anchor_name(shape) -> str:
+    """Wo eine Form verankert ist: Tabelle und Zelle, sonst der Text."""
+    try:
+        anchor = shape.getAnchor()
+        text = anchor.getText()
+        if text.getImplementationName() == "SwXCell":
+            return f"{anchor.TextTable.getName()}:{text.getPropertyValue('CellName')}"
+        return text.getImplementationName()
+    except Exception:  # noqa: BLE001
+        return ""
+
+
+def clusters(boxes: dict[int, tuple[str, tuple[int, int, int, int]]]) -> list[list[int]]:
+    """Formen (Index → Gruppe, Rechteck) zu Haufen, die sich bis auf CLUSTER_GAP nahekommen."""
+    parent = {i: i for i in boxes}
+
+    def root(i: int) -> int:
+        while parent[i] != i:
+            parent[i] = parent[parent[i]]
+            i = parent[i]
+        return i
+
+    items = list(boxes.items())
+    for k, (i, (gi, a)) in enumerate(items):
+        for j, (gj, b) in items[k + 1:]:
+            if gi == gj and a[0] - CLUSTER_GAP <= b[2] and b[0] - CLUSTER_GAP <= a[2] \
+                    and a[1] - CLUSTER_GAP <= b[3] and b[1] - CLUSTER_GAP <= a[3]:
+                parent[root(i)] = root(j)
+    out: dict[int, list[int]] = {}
+    for i in boxes:
+        out.setdefault(root(i), []).append(i)
+    return [sorted(c) for c in out.values() if len(c) > 1]
 
 
 def kind_of(shape, tables: set[str]) -> str | None:
@@ -246,10 +324,23 @@ def export(src: Path, out: Path, profile: Path) -> dict:
             page = doc.getDrawPage()
             shapes = [page.getByIndex(i) for i in range(page.getCount())]
             tables = body_tables(doc)
+            kinds = [kind_of(shape, tables) for shape in shapes]
+            # Lose Formen, die zusammen ein Bild ergeben: gemeinsam exportieren.
+            view_cursor = doc.getCurrentController().getViewCursor()
+            boxes = {i: box for i, shape in enumerate(shapes)
+                     if kinds[i] == "drawing" and (box := layout_box(shape, view_cursor))}
+            parts: dict[int, list[int]] = {}
+            for members in clusters(boxes):
+                # Die Zeichnung steht dort, wo die meisten Teile verankert sind.
+                anchors = [anchor_name(shapes[i]) for i in members]
+                counts = [anchors.count(a) for a in anchors]
+                head = members[counts.index(max(counts))]
+                parts[head] = [i for i in members if i != head]
+            absorbed = {i for rest in parts.values() for i in rest}
             n = 0
-            for shape in shapes:
-                kind = kind_of(shape, tables)
-                if not kind:
+            for index, shape in enumerate(shapes):
+                kind = kinds[index]
+                if not kind or index in absorbed:
                     continue
                 if n >= MAX_DRAWINGS:
                     warnings.append(f"Mehr als {MAX_DRAWINGS} Zeichnungen – der Rest wird nachgebaut.")
@@ -257,19 +348,35 @@ def export(src: Path, out: Path, profile: Path) -> dict:
                 n += 1
                 name = f"lmdraw-{n}"
                 target = out / f"{name}.svg"
+                members = [shape] + [shapes[i] for i in parts.get(index, [])]
+                source = shape
+                if len(members) > 1:
+                    source = smgr.createInstanceWithContext("com.sun.star.drawing.ShapeCollection", ctx)
+                    for m in members:
+                        source.add(m)
                 try:
                     flt = smgr.createInstanceWithContext("com.sun.star.drawing.GraphicExportFilter", ctx)
-                    flt.setSourceDocument(shape)
+                    flt.setSourceDocument(source)
                     flt.filter((prop("URL", target.resolve().as_uri()), prop("MediaType", "image/svg+xml")))
                     if not target.exists() or target.stat().st_size == 0:
                         raise RuntimeError("leer")
                     write_fixed(target)
                     shape.Name = name
-                    size = shape.getSize()
+                    for k, m in enumerate(members[1:], start=1):
+                        m.Name = f"{name}-teil{k}"
+                    if len(members) > 1:
+                        left, top, right, bottom = (min(boxes[i][1][0] for i in [index, *parts[index]]),
+                                                    min(boxes[i][1][1] for i in [index, *parts[index]]),
+                                                    max(boxes[i][1][2] for i in [index, *parts[index]]),
+                                                    max(boxes[i][1][3] for i in [index, *parts[index]]))
+                        width, height = right - left, bottom - top
+                    else:
+                        size = shape.getSize()
+                        width, height = size.Width, size.Height
                     entry = {"name": name, "file": target.name, "kind": kind,
-                             "width_mm": round(size.Width / 100, 2), "height_mm": round(size.Height / 100, 2)}
+                             "width_mm": round(width / 100, 2), "height_mm": round(height / 100, 2)}
                     try:
-                        to_odg(smgr, ctx, desktop, doc, shape, out / f"{name}.odg")
+                        to_odg(smgr, ctx, desktop, doc, source, out / f"{name}.odg")
                         entry["odg"] = f"{name}.odg"
                     except Exception as err:  # noqa: BLE001 – dann eben ohne Quelle zum Bearbeiten
                         warnings.append(f"Zeichnung {n}: keine .odg zum Bearbeiten ({err}).")

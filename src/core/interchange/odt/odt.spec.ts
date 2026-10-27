@@ -114,3 +114,15 @@ describe('.odt-Import: Tabellen mit Spaltenbreiten und Zeilenhöhen', () => {
     expect(odtToHtml(doc(styles, body), 'x.odt').html).not.toContain('colgroup');
   });
 });
+
+describe('.odt-Import: zusammengefasste Zeichnungen', () => {
+  it('Teile (lmdraw-<n>-teil<k>) fallen weg, die Zeichnung steht einmal da', () => {
+    const svg = Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><path d="M0 0L10 10"/></svg>');
+    const drawings = new Map([['lmdraw-1', { svg, widthMm: 5 }]]);
+    const line = (name: string) => `<draw:line text:anchor-type="paragraph" draw:name="${name}" svg:x1="0cm" svg:y1="0cm" svg:x2="0cm" svg:y2="1cm"/>`;
+    const r = odtToHtml(odt(`<text:p>${line('lmdraw-1')}Schließer</text:p><text:p>${line('lmdraw-1-teil1')}</text:p><text:p>${line('lmdraw-1-teil2')}</text:p>`), 'x.odt', { drawings });
+    expect(r.stats).toMatchObject({ exported: 1, drawings: 0 });
+    expect(r.html.match(/<img /g)).toHaveLength(1);
+    expect(r.html).toContain('Schließer');
+  });
+});

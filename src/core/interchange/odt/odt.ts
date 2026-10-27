@@ -792,8 +792,13 @@ export function odtToHtml(buffer: Buffer, fileName = '', opts: OdtOptions = {}):
     return x + w / 2 > 320 ? 'right' : 'left';
   };
 
-  /** Von LibreOffice gezeichnet (OdtOptions.drawings)? Dann das SVG als Bild, sonst null. */
+  /**
+   * Von LibreOffice gezeichnet (OdtOptions.drawings)? Dann das SVG als Bild, sonst null.
+   * '' für Teile einer zusammengefassten Zeichnung (lmdraw-<n>-teil<k>) – sie
+   * stecken schon im Bild von lmdraw-<n>.
+   */
   const exported = (c: XNode): string | null => {
+    if (opts.drawings && /^lmdraw-\d+-teil\d+$/.test(c.attrs['draw:name'] || '')) return '';
     const d = opts.drawings?.get(c.attrs['draw:name'] || '');
     if (!d) return null;
     stats.images++;
@@ -820,6 +825,7 @@ export function odtToHtml(buffer: Buffer, fileName = '', opts: OdtOptions = {}):
       }
       if (SKIP.has(c.name)) continue;
       const ready = exported(c);
+      if (ready === '') continue;
       if (ready !== null) {
         // Wie ein Buchstabe im Text bleibt im Text, sonst eine eigene Zeile.
         out.push(c.attrs['text:anchor-type'] === 'as-char' ? { inline: ready } : { block: `<p>${ready.replace('<img ', '<img class="ws-img-center" ')}</p>` });

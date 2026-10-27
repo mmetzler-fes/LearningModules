@@ -31,14 +31,19 @@ import { pickPdfBlocks } from '../views/attachment-convert.js';
  * sonst der auf diesem Gerät.
  */
 export async function showSavedInk(el, { mode, up = null, moduleId, landscape = false }) {
-  const [{ showInkView, hasPaperInk }, { savedInk }] = await Promise.all([
+  const [{ showInkView, hasPaperInk, mergeStands }, { savedInk }] = await Promise.all([
     import('../../lm-editor/src/ink/ink-view.js'),
     import('../../lm-editor/src/ink/ink-editor.js'),
   ]);
   let stand = null;
   if (mode === 'student' && up?.linkToken && up?.studentTicket) {
     const { peekWork } = await import('./work-store.js');
-    stand = await peekWork({ up, moduleId });
+    const res = await peekWork({ up, moduleId });
+    stand = mergeStands(res?.data || null, res?.teacher || null);
+  } else if (mode === 'teacher') {
+    // Eigenes Dokument: die Beschriftung auf dem Server – sonst die auf diesem Gerät.
+    const remote = await teacherInkGet(moduleId);
+    stand = (remote?.own && remote.data) || await savedInk(`${mode}:${moduleId}`);
   } else {
     stand = await savedInk(`${mode}:${moduleId}`);
   }
@@ -49,18 +54,63 @@ export async function showSavedInk(el, { mode, up = null, moduleId, landscape = 
   return showInkView(el, stand, { landscape });
 }
 
+// ---- Beschriftung der Lehrkraft auf dem Server (src/work/teacher-ink.service.ts) ----
+
+const authHeaders = () => ({ 'Content-Type': 'application/json', Authorization: `Bearer ${sessionStorage.getItem('lm_token') || localStorage.getItem('lm_token') || ''}` });
+
+/** `{ data, visibility, own }` – oder null (nicht angemeldet, Fehler). */
+export async function teacherInkGet(moduleId) {
+  try {
+    const res = await fetch(`/api/teacher-ink/${encodeURIComponent(moduleId)}`, { headers: authHeaders(), cache: 'no-store' });
+    return res.ok ? await res.json() : null;
+  } catch (_) { return null; }
+}
+
+/** `{ data?, visibility? }` speichern – `{ success, visibility }` oder null. */
+export async function teacherInkPut(moduleId, body) {
+  try {
+    const res = await fetch(`/api/teacher-ink/${encodeURIComponent(moduleId)}`, { method: 'PUT', headers: authHeaders(), body: JSON.stringify(body) });
+    return res.ok ? await res.json() : null;
+  } catch (_) { return null; }
+}
+
+/**
+ * Speicher für die Beschriftung der Lehrkraft auf ihrem eigenen Dokument:
+ * auf dem Server, auf allen Geräten. Was bisher nur auf diesem Gerät lag,
+ * kommt beim ersten Öffnen mit. Fremde Dokumente: null (dann wie bisher im Browser).
+ */
+async function teacherStore(moduleId) {
+  const remote = await teacherInkGet(moduleId);
+  if (!remote?.own) return null;
+  let initial = remote.data || null;
+  if (!initial) {
+    const { savedInk } = await import('../../lm-editor/src/ink/ink-editor.js');
+    initial = await savedInk(`teacher:${moduleId}`);
+  }
+  return {
+    label: 'auf dem Server',
+    load: async () => initial,
+    async save(data) { return (await teacherInkPut(moduleId, { data }))?.success === true; },
+  };
+}
+
 export async function openDocumentInk({ mode, mod, up = null, embedModule = null, store = null, title = null, sourceEl = null, editable = false, onSaved = null, topicModules = null }) {
+  // Beschriftung der Lehrkraft, die die Schüler unter ihrer eigenen sehen (nur zum Ansehen).
+  let teacherLayer = null;
   if (!store && mode === 'student' && up?.linkToken && up?.studentTicket) {
     const { serverWorkStore } = await import('./work-store.js');
     const opened = await serverWorkStore({ up, moduleId: mod.id });
     if (!opened) return null;
     store = opened.store;
+    teacherLayer = opened.teacher?.layer || null;
   }
-  const [{ openInkEditor }, { H5pRenderer }, { captureForms, restoreForms }, { assignPathIds, pathId, ensureBlockIds }] = await Promise.all([
+  if (!store && mode === 'teacher') store = await teacherStore(mod.id);
+  const [{ openInkEditor }, { H5pRenderer }, { captureForms, restoreForms }, { assignPathIds, pathId, ensureBlockIds }, { drawLayer }] = await Promise.all([
     import('../../lm-editor/src/ink/ink-editor.js'),
     import('../../lm-editor/src/modules/h5p-renderer.js'),
     import('./form-state.js'),
     import('../../lm-editor/src/doc/ids.js'),
+    import('../../lm-editor/src/ink/ink-view.js'),
   ]);
   const fromSource = sourceEl ? captureForms(sourceEl) : null;
   let lastForms = null;
@@ -89,6 +139,7 @@ export async function openDocumentInk({ mode, mod, up = null, embedModule = null
       el.appendChild(renderer.createTypePreview('document', content, {
         blockIds: true, quizMode: true, embedModule, upload: up, moduleId: mod.id, title: mod.title,
       }));
+      if (teacherLayer) drawLayer(el, teacherLayer, { className: 'ink-teacher-layer' });
       if (solutions) el.querySelector('.docspec')?.classList.remove('ds-hide-solutions');
     },
     capture: (el) => (lastForms = captureForms(el)),

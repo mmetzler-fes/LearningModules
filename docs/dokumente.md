@@ -102,8 +102,28 @@ wird ein Modul **📄 Dokument**: im geöffneten Lernthema, sonst in einem neuen
 (benannt nach der Datei bzw. „Dokumente“). Word-Dateien wandelt LibreOffice
 um, PDFs der Renderer bzw. die KI-Erkennung – gefragt wird einmal, wie.
 
-Im Editor geht es weiter wie bisher: **📄 Übernehmen (.odt, .docx)** über dem
-Inhalt ersetzt den Inhalt des geöffneten Dokuments. Ein PDF-**Anhang** lässt
+Im Editor geht es weiter wie bisher: **📄 Übernehmen…** über dem
+Inhalt ersetzt den Inhalt des geöffneten Dokuments.
+
+### Aus Xournal++ (.xopp)
+
+**📄 Übernehmen…** nimmt auch **.xopp**-Dateien von Xournal++ an. Eine .xopp
+enthält nur die Beschriftung; das PDF darunter ist bloß verknüpft – also die
+.xopp **zusammen mit ihrem PDF** auswählen (sonst fragt der Dialog danach und
+nennt den Dateinamen).
+
+- Das **PDF** läuft durch den gewohnten PDF-Import (Text mit Struktur, Seiten
+  als Bilder oder KI-Erkennung) und ist danach bearbeitbar wie jedes Dokument.
+- Die **Beschriftung** wird deine Beschriftung im Stift-Editor: echte
+  Stiftstriche (mit Druckstärke), Textmarker und Textfelder, **je Seite eine
+  Gruppe**. Sie steht ungefähr an der Stelle wie im PDF – beim Text-Import am
+  Baustein, der dort beginnt; das Dokument bricht anders um, also im
+  Stift-Editor nachschieben. Nach **Gruppierung aufheben** lässt sich jeder
+  Strich einzeln bearbeiten, radieren, umfärben.
+- Bilder in der Xournal-Beschriftung kommen nicht mit; bei der KI-Erkennung
+  ist die Lage unbekannt – dann steht die Beschriftung oben auf dem Blatt.
+- Ohne PDF (Karo- oder Linienpapier in Xournal): je Seite ein unsichtbares
+  Schreibfeld, darauf die Beschriftung. Ein PDF-**Anhang** lässt
 sich nachträglich umwandeln, siehe [Anhang](anhang.md#in-ein-dokument-umwandeln).
 
 ## Nummern und Kopfzeile
@@ -336,6 +356,23 @@ Technik: Der Editor gehört zu [lm-editor](https://github.com/mmetzler-fes/lm-ed
 `src/css/paper.css`, PDFs mit pdf.js (`src/vendor/pdfjs/`, legacy build für
 ältere iPads). Hier in der App: `js/ink/ink-open.js`. Koordinaten in Punkten –
 die Striche bleiben bei jedem Zoom an derselben Stelle des Blatts.
+
+### Deine Beschriftung: auf dem Server, nur für dich oder für alle
+
+Was du als Lehrkraft auf einem **eigenen** Dokument mit dem Stift schreibst,
+liegt auf dem Server – auf allen deinen Geräten gleich (was bisher nur im
+Browser lag, kommt beim ersten Öffnen mit). Über dem Dokument schaltet
+**🙈 Beschriftung: nur für mich** ↔ **👁 Beschriftung: für alle**:
+
+- **nur für mich** (Vorgabe) – wie eine Lösung; Schüler sehen sie nicht.
+- **für alle** – Schüler sehen sie in der Ansicht und im Stift-Editor unter
+  ihrer eigenen Beschriftung (nur ansehen, nicht ändern).
+
+**In das Dokument übernehmen:** Striche wählen (⬚ Auswählen), dann im Menü
+(⋯, Rechtsklick, lange drücken) **💡 Als Lösung ins Dokument** oder **🖼 Als
+Bild ins Dokument**. Sie werden ein Bild hinter dem Baustein an ihrer Stelle –
+als Lösung erscheinen sie im Lösungsblatt (auch im Druck). Aus der
+Beschriftung verschwinden sie; Strg+Z holt sie zurück.
 
 ## In der Nextcloud
 

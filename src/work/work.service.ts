@@ -1,4 +1,5 @@
-import { Injectable, NotFoundException, ForbiddenException, BadRequestException, PayloadTooLargeException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException, BadRequestException, PayloadTooLargeException, Optional } from '@nestjs/common';
+import { TeacherInkService } from './teacher-ink.service';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import * as crypto from 'crypto';
@@ -46,6 +47,7 @@ export class WorkService {
     private readonly links: LinksService,
     private readonly classes: ClassesService,
     private readonly exams: ExamService,
+    @Optional() private readonly teacherInk?: TeacherInkService,
   ) {}
 
   /** Link, Ausweis, Schüler und Dokument prüfen. */
@@ -123,8 +125,10 @@ export class WorkService {
     this.checkPin(a.student, a.access, body.pin);
     await this.assertExamOpen(a);
     const work = await this.find(a.link.id, a.ticket.s, a.mod.id);
-    if (!work) return { data: null };
-    return { data: work.data, updatedAt: work.updatedAt };
+    // Beschriftung der Lehrkraft, wenn sie „für alle“ ist – unter der eigenen.
+    const teacher = this.teacherInk ? await this.teacherInk.forStudents(a.mod.id) : null;
+    if (!work) return { data: null, teacher };
+    return { data: work.data, updatedAt: work.updatedAt, teacher };
   }
 
   /**

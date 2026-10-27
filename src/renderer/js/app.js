@@ -30,7 +30,7 @@ import { storeImage } from './views/image-store.js';
 import { initFolding } from './fold.js';
 import { contentFromPairs, pairsFromContent } from './dnd-pairs.js';
 // Editor des Modultyps „Dokument“ – hängt sich an window.DocSpecEditor.
-import { useModuleSource, useTopicModules, useTopicSource } from './docspec-editor.js';
+import { useModuleSource, useTopicModules, useTopicSource, useDocumentId } from './docspec-editor.js';
 
 // ==================== APP COORDINATOR ====================
 
@@ -42,6 +42,7 @@ class App {
     // Der Dokument-Editor holt sich Nummer und Kopfzeile des bearbeiteten Moduls.
     useModuleSource(() => this.state.editingModuleId);
     useTopicSource(() => this.state.currentTopicId);
+    useDocumentId(() => this.state.editingModuleId || this.modulesView?._newModuleId || null);
     useTopicModules(() => this.state.currentTopicModules || []);
 
     this.state = {

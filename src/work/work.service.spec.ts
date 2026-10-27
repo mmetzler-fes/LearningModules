@@ -30,7 +30,7 @@ const body = (extra: any = {}) => ({ linkToken: 'tok', studentTicket: issueTicke
 describe('Bearbeitungen der Schüler', () => {
   it('erstes Speichern zeigt die PIN – danach geht es nur mit ihr weiter', async () => {
     const { svc, students } = setup();
-    expect(await svc.load(body())).toEqual({ data: null });
+    expect(await svc.load(body())).toEqual({ data: null, teacher: null });
     const first = await svc.save(body({ data }));
     expect(first.pin).toMatch(/^\d{4}$/);
     expect(students.rows[0].pin).toBe(first.pin);

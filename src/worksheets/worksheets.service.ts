@@ -17,6 +17,15 @@ export { widthInCm };
 import { RenderJob, WorksheetOutput, WorksheetRendererClient } from './renderer.client';
 import { PdfAiClient } from './pdf-ai.client';
 
+/** Lage im PDF (`_pos` des Renderers) aus allen Bausteinen entfernen. */
+export function stripPositions(v: any): void {
+  if (Array.isArray(v)) v.forEach(stripPositions);
+  else if (v && typeof v === 'object') {
+    delete v._pos;
+    Object.values(v).forEach(stripPositions);
+  }
+}
+
 /** Wie ein PDF übernommen wird: Struktur erkennen, Seiten als Bilder, KI-Erkennung (docling). */
 export type PdfImportMode = 'text' | 'pages' | 'ai';
 
@@ -84,11 +93,13 @@ export class WorksheetsService {
    * pdf-ai. Das Ergebnis wird wie jedes Dokument geprüft; Fehler darin
    * stehen als Hinweis da (der Editor markiert sie).
    */
-  async importPdf(pdf: Buffer, mode: PdfImportMode, ocr = false) {
+  async importPdf(pdf: Buffer, mode: PdfImportMode, ocr = false, positions = false) {
     if (!pdf?.length || pdf.subarray(0, 4).toString('latin1') !== '%PDF') throw new BadRequestException('Das ist kein PDF.');
     const result = mode === 'ai'
       ? await (this.pdfAi ?? (() => { throw new BadRequestException('Keine KI-Erkennung eingerichtet.'); })()).convert(pdf, ocr)
       : await this.renderer.importPdf(pdf, mode === 'pages' ? 'pages' : 'text');
+    // `_pos` (Seite, Höhe im PDF) braucht nur der .xopp-Import – sonst landete es im Dokument.
+    if (!positions) stripPositions(result.spec);
     const errors = docSpec().validateDocSpec(result.spec);
     return { ...result, mode, warnings: [...result.warnings, ...errors.map((e) => `Im Ergebnis: ${e}`)] };
   }

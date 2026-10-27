@@ -73,10 +73,10 @@ export class WorksheetsController {
   @HttpCode(200)
   @RequireFeature('pdfImport')
   @UseInterceptors(FileInterceptor('file', { limits: { fileSize: MAX_PDF_BYTES } }))
-  async importPdf(@UploadedFile() file: Express.Multer.File, @Body() body: { mode?: string; ocr?: string }) {
+  async importPdf(@UploadedFile() file: Express.Multer.File, @Body() body: { mode?: string; ocr?: string; positions?: string }) {
     if (!file?.buffer?.length) throw new BadRequestException('Keine Datei empfangen.');
     const mode: PdfImportMode = body?.mode === 'pages' ? 'pages' : body?.mode === 'ai' ? 'ai' : 'text';
-    return this.worksheets.importPdf(file.buffer, mode, body?.ocr === 'true');
+    return this.worksheets.importPdf(file.buffer, mode, body?.ocr === 'true', body?.positions === 'true');
   }
 
   /** Renderer/pdf-ai erreichbar? Dazu, ob dieses Konto PDFs übernehmen darf. */

@@ -101,7 +101,7 @@ def pages_to_spec(data: bytes, dpi: int = 150) -> tuple[dict[str, Any], list[str
         if i:
             content.append({"type": "pagebreak"})
         content.append({"type": "image", "src": _jpeg_data_uri(image), "width": f"{TEXT_WIDTH_CM}cm",
-                        "alt": f"Seite {i + 1}"})
+                        "alt": f"Seite {i + 1}", "_pos": [i, 0]})
     title = (pdf.get_metadata_dict().get("Title") or "").strip()
     return {"content": content}, warnings, title
 
@@ -344,6 +344,8 @@ def _page_elements(page, index: int, warnings: list[str]) -> tuple[list[dict[str
     lines = _formulas(page, lines, elements, warnings)
     if not words and page.images:
         warnings.append(f"Seite {index + 1} enthält keinen Text – gescannt? Dafür „Seiten als Bilder“ oder die KI-Erkennung nehmen.")
+    for el in elements:
+        el.setdefault("page", index)  # Lage im PDF (_pos) für alle Bausteine
     return elements, lines
 
 
@@ -483,14 +485,22 @@ def text_to_spec(data: bytes) -> tuple[dict[str, Any], list[str], str]:
     prev_line: dict[str, Any] | None = None
     max_width = max((ln["x1"] - ln["x0"] for ln in all_lines), default=400)
 
-    def emit(block: dict[str, Any], red: bool = False) -> None:
+    def at(src: dict[str, Any] | None) -> list[float] | None:
+        """Lage im PDF (Seite, Höhe in pt) – `_pos` am Baustein. Damit legt der .xopp-Import
+        die Beschriftung an die passende Stelle; LearningModules entfernt es beim Übernehmen."""
+        return [int(src.get("page", 0)), round(float(src.get("top", 0)), 1)] if src else None
+
+    def emit(block: dict[str, Any], red: bool = False, src: dict[str, Any] | None = None) -> None:
+        pos = at(src)
         if red:
             last = content[-1] if content else None
             if last and last.get("type") == "solution":
                 last["blocks"].append(block)
             else:
-                content.append({"type": "solution", "blocks": [block]})
+                content.append({"type": "solution", "blocks": [block], **({"_pos": pos} if pos else {})})
         else:
+            if pos:
+                block["_pos"] = pos
             content.append(block)
 
     def flush() -> None:
@@ -515,10 +525,10 @@ def text_to_spec(data: bytes) -> tuple[dict[str, Any], list[str], str]:
                     text += "\n" + t  # kurze Zeile: gewollter Umbruch
                 else:
                     text += " " + t
-            emit({"type": "text", "text": text}, para["red"])
+            emit({"type": "text", "text": text}, para["red"], para["lines"][0])
             para = None
         if lst:
-            emit({"type": "list", "items": lst["items"], **({"ordered": True} if lst["ordered"] else {})}, lst["red"])
+            emit({"type": "list", "items": lst["items"], **({"ordered": True} if lst["ordered"] else {})}, lst["red"], lst.get("first"))
             lst = None
 
     images = [el for el in flow if el["kind"] == "block" and el["block"].get("type") == "image" and el["block"].get("alt") != "Formel"]
@@ -544,7 +554,7 @@ def text_to_spec(data: bytes) -> tuple[dict[str, Any], list[str], str]:
                 el["block"]["caption"] = para["lines"][0]["text"].strip()
                 para = None
             flush()
-            emit(el["block"])
+            emit(el["block"], src=el)
             prev_line = None
             continue
         ln = el
@@ -567,9 +577,9 @@ def text_to_spec(data: bytes) -> tuple[dict[str, Any], list[str], str]:
             if level == "section":
                 section_no += 1
             if ln["red"]:
-                emit({"type": "text", "text": clean}, True)
+                emit({"type": "text", "text": clean}, True, ln)
             else:
-                content.append(block)
+                emit(block, src=ln)
             prev_line = ln
             continue
         bullet = BULLET_RE.match(text)
@@ -585,7 +595,7 @@ def text_to_spec(data: bytes) -> tuple[dict[str, Any], list[str], str]:
             if lst and (lst["red"] != ln["red"] or bool(ordered) != lst["ordered"]):
                 flush()
             if not lst:
-                lst = {"items": [], "ordered": bool(ordered), "x0": ln["x0"], "red": ln["red"]}
+                lst = {"items": [], "ordered": bool(ordered), "x0": ln["x0"], "red": ln["red"], "first": ln}
             lst["items"].append((bullet or ordered).group(2).strip())
             lst["last"] = ln
         elif lst and ln["x0"] > lst["x0"] + 4 and gap < 0.8 * ln["size"]:

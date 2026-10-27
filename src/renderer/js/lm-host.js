@@ -50,6 +50,32 @@ export const lmHost = {
         },
       });
     }
+    // Eigenes Dokument: Wer sieht die Beschriftung der Lehrkraft? (Vorgabe: nur sie selbst)
+    if (inkMode === 'teacher' && options.inkDocument?.topicId && el) {
+      const label = (v) => (v === 'all' ? '👁 Beschriftung: für alle' : '🙈 Beschriftung: nur für mich');
+      let visibility = 'teacher';
+      import('./ink/ink-open.js').then(async ({ teacherInkGet }) => {
+        const res = await teacherInkGet(moduleId);
+        visibility = res?.visibility || 'teacher';
+        const btn = el.querySelector('.ds-ink-vis-btn');
+        if (btn) btn.textContent = label(visibility);
+      }).catch(() => {});
+      actions.push({
+        label: label(visibility),
+        title: 'Deine Beschriftung mit dem Stift: nur für dich (wie eine Lösung) oder auch für die Schüler – unter ihrer eigenen',
+        className: 'ds-ink-vis-btn',
+        async onClick() {
+          const { teacherInkPut } = await import('./ink/ink-open.js');
+          const next = visibility === 'all' ? 'teacher' : 'all';
+          const res = await teacherInkPut(moduleId, { visibility: next });
+          if (!res?.success) throw new Error('Nicht gespeichert');
+          visibility = res.visibility;
+          const btn = el.querySelector('.ds-ink-vis-btn');
+          // Der Renderer setzt danach den Text zurück – erst im nächsten Takt umschreiben.
+          setTimeout(() => { if (btn) btn.textContent = label(visibility); }, 0);
+        },
+      });
+    }
     // Schüler: das Blatt als PDF (POST /api/public/document/:id/pdf).
     if (inRun(up)) {
       actions.push({

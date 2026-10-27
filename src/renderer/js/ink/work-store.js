@@ -54,10 +54,14 @@ function dialog(html, { input = false } = {}) {
 
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
-/** Gespeicherter Stand ohne Nachfrage – nur, wenn keine PIN fehlt; sonst null. */
+/**
+ * Gespeicherter Stand ohne Nachfrage – `{ data, teacher }` (teacher: die
+ * Beschriftung der Lehrkraft, wenn sie für alle ist); null, wenn die PIN fehlt.
+ */
 export async function peekWork({ up, moduleId }) {
   try {
-    return (await post('load', { linkToken: up.linkToken, studentTicket: up.studentTicket, moduleId, pin: pins.get(up.studentTicket) })).data || null;
+    const res = await post('load', { linkToken: up.linkToken, studentTicket: up.studentTicket, moduleId, pin: pins.get(up.studentTicket) });
+    return { data: res.data || null, teacher: res.teacher || null };
   } catch (_) {
     return null;
   }
@@ -73,9 +77,12 @@ export async function serverWorkStore({ up, moduleId }) {
   const key = up.studentTicket;
   let message = 'Du hast hier schon einmal gearbeitet. Gib deine <strong>PIN</strong> ein (4 Ziffern) – sie wurde dir beim ersten Speichern angezeigt.';
   let initial = null;
+  let teacher = null; // Beschriftung der Lehrkraft, wenn sie für alle ist
   for (;;) {
     try {
-      initial = (await post('load', { ...base, pin: pins.get(key) })).data || null;
+      const res = await post('load', { ...base, pin: pins.get(key) });
+      initial = res.data || null;
+      teacher = res.teacher || null;
       break;
     } catch (err) {
       if (!err.needPin) throw err;
@@ -105,5 +112,5 @@ export async function serverWorkStore({ up, moduleId }) {
       }
     },
   };
-  return { store, initial };
+  return { store, initial, teacher };
 }

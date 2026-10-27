@@ -1,9 +1,29 @@
-import { Controller, Get, Post, Delete, Body, Param, Query, Request, UseGuards, HttpCode } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Body, Param, Query, Request, UseGuards, HttpCode } from '@nestjs/common';
 import { ExamService } from './exam.service';
 import { LiveService } from './live.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { WorkService } from './work.service';
+import { TeacherInkService } from './teacher-ink.service';
 import type { WorkAccess } from './work.service';
+
+/** Beschriftung der Lehrkraft auf ihrem Dokument (Stift-Editor, .xopp-Import). */
+@Controller('teacher-ink')
+@UseGuards(JwtAuthGuard)
+export class TeacherInkController {
+  constructor(private readonly ink: TeacherInkService) {}
+
+  /** → `{ data | null, visibility: 'teacher' | 'all', own }` */
+  @Get(':moduleId')
+  get(@Request() req: any, @Param('moduleId') moduleId: string) {
+    return this.ink.get(req.user, moduleId);
+  }
+
+  /** `{ data?, visibility? }` */
+  @Put(':moduleId')
+  put(@Request() req: any, @Param('moduleId') moduleId: string, @Body() body: any) {
+    return this.ink.put(req.user, moduleId, body);
+  }
+}
 
 /** Schüler über ihren Klassenlink – ohne Anmeldung, mit Schülerausweis (und PIN). */
 @Controller('public/work')

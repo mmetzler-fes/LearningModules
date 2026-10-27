@@ -9,8 +9,39 @@
   "background_color": "#f5f7fb",
   "theme_color": "#3b82f6",
   "icons": [
-    { "src": "icons/app-192.png", "sizes": "192x192", "type": "image/png" },
-    { "src": "icons/app-512.png", "sizes": "512x512", "type": "image/png" },
-    { "src": "icons/app-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+    {
+      "src": "icons/app-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "icons/app-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    },
+    {
+      "src": "icons/app-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "file_handlers": [
+    {
+      "action": "/",
+      "accept": {
+        "application/vnd.lm-editor.zlm+zip": [
+          ".zlm"
+        ]
+      },
+      "icons": [
+        {
+          "src": "icons/app-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ],
+      "launch_type": "single-client"
+    }
   ]
 }

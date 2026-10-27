@@ -84,6 +84,7 @@ class App {
     // Offen gelassene App (Desktop-Symbol, iPad) erneuert ihre Anmeldung auch unterwegs.
     setInterval(() => { void this.keepSessionFresh(); }, 6 * 3600 * 1000);
     this._offerInstall();
+    this._acceptFiles();
     this.contestView  = new ContestView(this);
     this.companionView = new CompanionSettingsView(this);
     this.classesView  = new ClassesView(this);
@@ -120,6 +121,23 @@ class App {
     if (!res?.token) return;
     this.authStore.setToken(res.token, true);
     try { localStorage.setItem('lm_token_fresh', String(Date.now())); } catch (_) { /* ohne Speicher */ }
+  }
+
+  /**
+   * Doppelklick auf eine Datei (installierte App, Chrome/Edge am PC):
+   * .zlm-Dateien zum Ansehen – auch vor der Anmeldung.
+   */
+  _acceptFiles() {
+    if (!('launchQueue' in window)) return;
+    window.launchQueue.setConsumer(async (params) => {
+      for (const handle of params.files || []) {
+        const file = await handle.getFile().catch(() => null);
+        if (!file) continue;
+        if (!/\.zlm$/i.test(file.name)) { this.showToast(`${file.name}: Geöffnet werden hier nur .zlm-Dateien.`, 'error'); continue; }
+        const { openZlmFile } = await import('./views/zlm-viewer.js');
+        await openZlmFile(this, file);
+      }
+    });
   }
 
   /**

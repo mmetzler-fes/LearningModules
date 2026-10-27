@@ -14,6 +14,17 @@ Adressleiste und Browserleisten, mit mehr Platz (z. B. für den Stift-Editor).
 Die App hat auf dem iPad ihren eigenen Speicher, getrennt von Safari – dort
 einmal neu anmelden (mit „Angemeldet bleiben“).
 
+### .zlm-Dateien per Doppelklick (PC)
+
+Ist LernModule am PC als App installiert (Chrome oder Edge), öffnet sie
+Dokumente des lm-editor (**.zlm**) zum Ansehen: Rechtsklick auf die Datei →
+„Öffnen mit“ → LernModule – oder LernModule dort als Standard festlegen, dann
+genügt ein Doppelklick. Beim ersten Mal fragt der Browser, ob die App die
+Datei öffnen darf. Zu sehen sind das Dokument mit Bildern, bedienbaren Quizzen
+und der Stiftbeschriftung aus der Datei; „Lösungen zeigen“ deckt die Lösungen
+auf. Dafür ist keine Anmeldung nötig, die Datei verlässt den PC nicht.
+Auf dem iPad geht das nicht – Web-Apps können dort keine Dateien übernehmen.
+
 ## Angemeldet bleiben
 
 Mit dem Häkchen **Angemeldet bleiben** (nur am eigenen Gerät) bleibt die
@@ -45,3 +56,4 @@ Wer das **Passwort ändert**, ist auf allen anderen Geräten abgemeldet.
 - `POST /api/auth/refresh` (die App höchstens einmal am Tag), `POST /api/auth/logout`,
   `GET /api/auth/sessions`, `DELETE /api/auth/sessions/:id`, `POST /api/auth/sessions/end-all`.
 - App-Symbol: `src/renderer/manifest.webmanifest`, `src/renderer/icons/`.
+- .zlm öffnen: `file_handlers` im Manifest, `launchQueue` in `app.js`, Anzeige `js/views/zlm-viewer.js`.

@@ -155,7 +155,11 @@ export class LoginView {
 
     // Logout
     if (this._btnLogout) {
-      this._btnLogout.addEventListener('click', () => this.showLoginScreen());
+      // Auch beim Server abmelden – das Token gilt danach nirgends mehr.
+      this._btnLogout.addEventListener('click', async () => {
+        await this.app.api.logoutSession().catch(() => null);
+        this.showLoginScreen();
+      });
     }
   }
 
@@ -646,6 +650,7 @@ export class LoginView {
       app.startForcedPasswordChange(() => this.enterApp());
       return true;
     }
+    void app.keepSessionFresh();
     await this.enterApp(app.lastView());
     return true;
   }

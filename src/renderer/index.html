@@ -5,6 +5,15 @@
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src * data:; font-src 'self' data:; media-src 'self' data: blob: https:; connect-src * data:; object-src 'none'; frame-src 'self' https:;" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>LearningModules</title>
+  <!-- Als App installierbar: Symbol auf dem Desktop bzw. Home-Bildschirm, eigenes Fenster ohne Browserleisten -->
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png" />
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
+  <meta name="theme-color" content="#3b82f6" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-title" content="LernModule" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <link rel="stylesheet" href="css/styles.css" />
   <!-- Stift-Editor und A4-Blatt (lm-editor), nach styles.css wie zuvor ihr Abschnitt darin -->
   <link rel="stylesheet" href="lm-editor/src/css/ink.css" />
@@ -118,13 +127,13 @@
           <form id="adminLoginForm" class="login-form">
             <div class="form-group">
               <label for="adminUsername">E-Mail-Adresse</label>
-              <input type="email" id="adminUsername" required placeholder="deine@email.de" autocomplete="off" />
+              <input type="email" id="adminUsername" required placeholder="deine@email.de" autocomplete="username" />
             </div>
             <div class="form-group">
               <label for="adminPassword">Passwort</label>
               <input type="password" id="adminPassword" required placeholder="Passwort..." autocomplete="current-password" />
             </div>
-            <label class="login-remember" title="Nur am eigenen Gerät: Die Anmeldung bleibt dann 7 Tage erhalten, auch nach dem Schließen des Browsers.">
+            <label class="login-remember" title="Nur am eigenen Gerät: Die Anmeldung bleibt erhalten, auch nach dem Schließen des Browsers – bis 90 Tage nach der letzten Nutzung. Beenden lässt sie sich jederzeit unter 📱 Geräte.">
               <input type="checkbox" id="loginRemember" /> Angemeldet bleiben <span class="hint">(nur am eigenen Gerät)</span>
             </label>
             <button type="submit" class="btn btn-primary btn-full">🔑 Anmelden</button>
@@ -309,6 +318,7 @@
             </select>
           </div>
         </div>
+        <button class="btn btn-secondary btn-full btn-sm hidden" id="btnInstallApp" title="Symbol auf dem Desktop bzw. im Startmenü, eigenes Fenster ohne Browserleisten">📲 Als App installieren</button>
         <button class="btn btn-secondary btn-full btn-sm" id="btnLogout" data-i18n="nav.logout">🚪 Abmelden</button>
         <button class="btn btn-danger btn-full btn-sm hidden" id="btnDeleteAccount" style="margin-top:4px;">🗑 Konto löschen</button>
         <span class="version-label">v2.0.0</span>
@@ -379,6 +389,7 @@
             <button class="btn btn-secondary btn-sm" id="btnChangeOwnPassword">🔑 Passwort ändern</button>
             <button class="btn btn-secondary btn-sm" id="btnChangeOwnEmail">✉️ E-Mail ändern</button>
             <button class="btn btn-secondary btn-sm" id="btnTwoFactor" title="Zwei-Faktor-Anmeldung mit einer Authenticator-App">🔐 Zwei-Faktor</button>
+            <button class="btn btn-secondary btn-sm" id="btnSessions" title="Wo du angemeldet bist – einzelne Geräte oder überall abmelden">📱 Geräte</button>
             <button class="btn btn-secondary btn-sm" id="btnHandover" title="Alle eigenen Inhalte an eine andere Lehrkraft übergeben">🎁 Inhalte übergeben</button>
             <button class="btn btn-secondary btn-sm" id="btnAccountLinks" title="Eigenes Konto auf einem verbundenen Server verknüpfen und die Inhalte von dort holen">🔗 Andere Server</button>
             <button class="btn btn-secondary btn-sm" id="btnGithubBackup" title="Eigene Inhalte regelmäßig in ein privates GitHub-Repository sichern und daraus wiederherstellen">💾 GitHub-Backup</button>

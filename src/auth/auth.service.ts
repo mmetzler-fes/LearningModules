@@ -18,13 +18,19 @@ import { TwoFactorService } from '../accounts/two-factor.service';
 const CHALLENGE_SECRET = `${process.env.JWT_SECRET || 'secretKey'}:2fa-challenge`;
 
 /**
- * Gültigkeit einer Sitzung: ohne "Angemeldet bleiben" ein Schultag, mit
- * Häkchen eine Woche. Das Häkchen steht im Token (`rem`), damit neu
- * ausgestellte Tokens (Passwortwechsel, Kontozusammenführung) es behalten.
+ * Gültigkeit des Tokens: ohne "Angemeldet bleiben" ein Schultag, mit Häkchen
+ * 90 Tage. Ob die Anmeldung noch gilt, entscheidet ihre Sitzung (`sid`,
+ * SessionsService) – sie läuft 90 Tage nach der letzten Nutzung ab, die App
+ * holt sich unterwegs ein frisches Token (POST /auth/refresh). Das Häkchen
+ * steht im Token (`rem`), damit neu ausgestellte Tokens es behalten.
  */
 const SESSION_SHORT = '12h';
-const SESSION_REMEMBER = '7d';
+const SESSION_REMEMBER = '90d';
+
+/** Woher eine Anmeldung kommt: der Gerätename für die Liste, oder die schon laufende Sitzung. */
+export interface SessionContext { device?: string; sid?: string | null }
 import * as crypto from 'crypto';
+import { SessionsService } from './sessions.service';
 import { emailMatchesPattern } from '../core/share/email-pattern';
 
 @Injectable()
@@ -38,6 +44,7 @@ export class AuthService {
     private readonly schools: SchoolsService,
     private readonly twoFactor: TwoFactorService,
     private readonly features: FeaturesService,
+    private readonly sessions: SessionsService,
   ) {}
 
   // ---- Password generation ----
@@ -99,7 +106,7 @@ export class AuthService {
 
   // ---- Login (teacher / admin by email + password) ----
 
-  async login(email: string, password: string, remember = false) {
+  async login(email: string, password: string, remember = false, ctx: SessionContext = {}) {
     if (!email || !password) throw new UnauthorizedException('E-Mail und Passwort erforderlich.');
     const user = await this.userRepo.findOne({ where: { email } });
     if (!user || !user.passwordHash || !this.verifyPassword(password, user.passwordHash)) {
@@ -114,13 +121,13 @@ export class AuthService {
       return {
         twoFactorRequired: true,
         challenge: this.jwtService.sign(
-          { sub: user.id, purpose: '2fa', rem: !!remember },
+          { sub: user.id, purpose: '2fa', rem: !!remember, dev: ctx.device || '' },
           { secret: CHALLENGE_SECRET, expiresIn: '5m' },
         ),
       };
     }
     await this.schools.autoAssign(user);
-    return this.sessionOrTerms(user, remember);
+    return this.sessionOrTerms(user, remember, {}, ctx);
   }
 
   /**
@@ -128,19 +135,19 @@ export class AuthService {
    * Nutzungsbedingungen zugestimmt? Wenn nicht, gibt es statt der Sitzung ein
    * kurzlebiges Zwischen-Token und den Text zum Bestätigen.
    */
-  private async sessionOrTerms(user: User, remember: boolean, extra: Record<string, any> = {}) {
+  private async sessionOrTerms(user: User, remember: boolean, extra: Record<string, any> = {}, ctx: SessionContext = {}) {
     if (!hasAcceptedTerms(user)) {
       return {
         termsRequired: true,
         challenge: this.jwtService.sign(
-          { sub: user.id, purpose: 'terms', rem: !!remember },
+          { sub: user.id, purpose: 'terms', rem: !!remember, dev: ctx.device || '' },
           { secret: CHALLENGE_SECRET, expiresIn: '30m' },
         ),
         terms: { version: TERMS_VERSION, markdown: termsMarkdown() },
         ...extra,
       };
     }
-    return { ...(await this.buildSession(user, remember)), ...extra };
+    return { ...(await this.buildSession(user, remember, ctx)), ...extra };
   }
 
   /** Zustimmung zu den Nutzungsbedingungen bei der Anmeldung; liefert die Sitzung. */
@@ -158,7 +165,7 @@ export class AuthService {
     user.termsVersion = TERMS_VERSION;
     user.termsAcceptedAt = new Date();
     await this.userRepo.save(user);
-    return this.buildSession(user, !!payload.rem);
+    return this.buildSession(user, !!payload.rem, { device: payload.dev });
   }
 
   /** Zweiter Schritt der Anmeldung: Code aus der App oder ein Wiederherstellungscode. */
@@ -178,7 +185,37 @@ export class AuthService {
     return this.sessionOrTerms(user, !!payload.rem, {
       usedRecoveryCode: result.method === 'recovery',
       recoveryLeft: result.recoveryLeft,
-    });
+    }, { device: payload.dev });
+  }
+
+  // ---- Anmeldungen je Gerät ----
+
+  /** Frisches Token für dieselbe Anmeldung – „Angemeldet bleiben“ gilt dann wieder 90 Tage. */
+  async refresh(userId: string, sid: string | null) {
+    if (!sid) throw new UnauthorizedException('Bitte neu anmelden.');
+    const session = await this.sessions.extend(sid, userId);
+    if (!session) throw new UnauthorizedException('Diese Anmeldung wurde beendet.');
+    const user = await this.userRepo.findOne({ where: { id: userId } });
+    if (!user || user.active === false) throw new UnauthorizedException('Dieses Konto ist nicht verfügbar.');
+    return { token: (await this.buildSession(user, session.remember, { sid })).token, remember: session.remember };
+  }
+
+  async listSessions(userId: string, sid: string | null) {
+    return (await this.sessions.list(userId)).map((s) => ({
+      id: s.id, label: s.label, remember: s.remember, current: s.id === sid,
+      createdAt: s.createdAt, lastSeenAt: s.lastSeenAt, expiresAt: s.expiresAt,
+    }));
+  }
+
+  async endSession(userId: string, id: string) {
+    await this.sessions.end(userId, String(id || ''));
+    return { success: true };
+  }
+
+  /** `others`: alle außer dieser Anmeldung, sonst wirklich alle (auch diese). */
+  async endAllSessions(userId: string, sid: string | null, others: boolean) {
+    await this.sessions.endAll(userId, others ? sid : null);
+    return { success: true };
   }
 
   /** Passwort des angemeldeten Kontos prüfen – etwa bevor 2FA abgeschaltet wird. */
@@ -209,7 +246,13 @@ export class AuthService {
   }
 
   /** Token + Benutzerdaten für die Antwort an das Frontend. */
-  private async buildSession(user: User, remember = false) {
+  /**
+   * Token zur Anmeldung. Mit `ctx.sid` (Passwort- oder Adresswechsel) bleibt
+   * es dieselbe Anmeldung, sonst entsteht eine neue für dieses Gerät.
+   */
+  private async buildSession(user: User, remember = false, ctx: SessionContext = {}) {
+    const running = ctx.sid ? await this.sessions.valid(ctx.sid, user.id) : null;
+    const session = running || await this.sessions.open(user.id, !!remember, ctx.device || 'Gerät');
     const payload = {
       sub: user.id,
       email: user.email,
@@ -217,6 +260,7 @@ export class AuthService {
       role: user.role,
       mustChangePassword: !!user.mustChangePassword,
       rem: !!remember,
+      sid: session.id,
     };
     return {
       token: this.jwtService.sign(payload, { expiresIn: remember ? SESSION_REMEMBER : SESSION_SHORT }),
@@ -449,6 +493,7 @@ export class AuthService {
     userId: string,
     body: { newEmail?: string; password?: string; targetPassword?: string },
     remember = false,
+    sid: string | null = null,
   ) {
     const me = await this.userRepo.findOne({ where: { id: userId } });
     if (!me) throw new BadRequestException('Benutzer nicht gefunden.');
@@ -479,7 +524,7 @@ export class AuthService {
       }
       await this.accounts.merge(me, target);
       const merged = await this.userRepo.findOne({ where: { id: target.id } });
-      return { success: true, merged: true, session: await this.buildSession(merged!, remember) };
+      return { success: true, merged: true, session: await this.buildSession(merged!, remember, { sid }) };
     }
 
     const pending = this.userRepo.create({
@@ -522,7 +567,7 @@ export class AuthService {
 
   // ---- Change password ----
 
-  async changePassword(userId: string, oldPassword: string, newPassword: string, remember = false) {
+  async changePassword(userId: string, oldPassword: string, newPassword: string, remember = false, sid: string | null = null) {
     if (!oldPassword || !newPassword) {
       throw new BadRequestException('Altes und neues Passwort sind erforderlich.');
     }
@@ -551,8 +596,10 @@ export class AuthService {
       }
     }
     const fresh = (await this.userRepo.findOne({ where: { id: userId } }))!;
+    // Wer das Passwort ändert, ist überall sonst abgemeldet – etwa wenn es jemand kannte.
+    await this.sessions.endAll(userId, sid);
     // Neues Token, damit das mustChangePassword-Flag im JWT nicht mehr sperrt.
-    const session = await this.buildSession(fresh, remember);
+    const session = await this.buildSession(fresh, remember, { sid });
     return {
       success: true,
       message: mergedFrom

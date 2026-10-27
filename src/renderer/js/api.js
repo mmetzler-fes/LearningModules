@@ -14,6 +14,21 @@ function writeStorage(store, value) {
 }
 
 /**
+ * Name dieses Geräts für die Liste der Anmeldungen, z. B. „iPad · Safari (App)“.
+ * Ein iPad meldet sich als Mac – erkennbar am Touchscreen.
+ */
+export function deviceName() {
+  const ua = navigator.userAgent || '';
+  const ipad = /iPad/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1);
+  const os = ipad ? 'iPad' : /iPhone/.test(ua) ? 'iPhone' : /Android/.test(ua) ? 'Android' : /Windows/.test(ua) ? 'Windows'
+    : /CrOS/.test(ua) ? 'Chromebook' : /Mac/.test(ua) ? 'Mac' : /Linux/.test(ua) ? 'Linux' : 'Gerät';
+  const browser = /Edg\//.test(ua) ? 'Edge' : /Firefox\/|FxiOS/.test(ua) ? 'Firefox' : /Chrome\/|CriOS/.test(ua) ? 'Chrome' : /Safari\//.test(ua) ? 'Safari' : 'Browser';
+  let app = false;
+  try { app = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true; } catch (_) { /* egal */ }
+  return `${os} · ${browser}${app ? ' (App)' : ''}`;
+}
+
+/**
  * Anmelde-Token im Browser. Ohne "Angemeldet bleiben" im sessionStorage –
  * es übersteht einen Reload, aber nicht das Schließen des Browsers. Mit
  * Häkchen im localStorage, bis es abläuft oder man sich abmeldet.
@@ -26,6 +41,11 @@ export class AuthStore {
 
   getToken() {
     return this._token || readStorage(sessionStorage) || readStorage(localStorage);
+  }
+
+  /** „Angemeldet bleiben“: Token im localStorage. */
+  get persistent() {
+    return this._persist && !!this.getToken();
   }
 
   /** persist: true = localStorage, false = sessionStorage; weggelassen = wie bisher. */
@@ -81,7 +101,7 @@ export class BrowserApi {
     return fetch('/api/auth/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password, remember }),
+      body: JSON.stringify({ email, password, remember, device: deviceName() }),
     }).then((r) => r.json());
   }
 
@@ -123,6 +143,13 @@ export class BrowserApi {
   me() {
     return this._fetch('/api/auth/me');
   }
+
+  // ---------- Anmeldungen je Gerät ----------
+  refreshSession() { return this._fetch('/api/auth/refresh', { method: 'POST' }); }
+  logoutSession() { return this._fetch('/api/auth/logout', { method: 'POST' }); }
+  listSessions() { return this._fetch('/api/auth/sessions'); }
+  endSession(id) { return this._fetch(`/api/auth/sessions/${encodeURIComponent(id)}`, { method: 'DELETE' }); }
+  endAllSessions(others) { return this._fetch('/api/auth/sessions/end-all', { method: 'POST', body: JSON.stringify({ others: !!others }) }); }
 
   register(email, displayName) {
     return fetch('/api/auth/register', {

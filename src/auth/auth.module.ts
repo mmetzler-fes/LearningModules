@@ -7,6 +7,8 @@ import { AuthController } from './auth.controller';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { User } from '../core/entities/user.entity';
 import { SystemConfig } from '../core/entities/system-config.entity';
+import { AuthSession } from '../core/entities/auth-session.entity';
+import { SessionsService } from './sessions.service';
 import { GroupsModule } from '../groups/groups.module';
 import { AccountsModule } from '../accounts/accounts.module';
 import { SchoolsModule } from '../core/schools/schools.module';
@@ -14,7 +16,7 @@ import { FeaturesModule } from '../features/features.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([User, SystemConfig]),
+    TypeOrmModule.forFeature([User, SystemConfig, AuthSession]),
     GroupsModule,
     AccountsModule,
     SchoolsModule,
@@ -26,7 +28,7 @@ import { FeaturesModule } from '../features/features.module';
       signOptions: { expiresIn: '12h' },
     }),
   ],
-  providers: [AuthService, JwtStrategy],
+  providers: [AuthService, JwtStrategy, SessionsService],
   controllers: [AuthController],
   exports: [AuthService],
 })

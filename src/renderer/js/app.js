@@ -13,6 +13,7 @@ import { TagsView } from './views/tags.js';
 import { ShopView } from './views/shop.js';
 import { SchoolsAdminView, MySchoolView } from './views/schools.js';
 import { TwoFactorDialog } from './views/two-factor.js';
+import { SessionsDialog } from './views/sessions.js';
 import { ContestView } from './views/contest.js';
 import { CompanionSettingsView } from './views/companion-settings.js';
 import { ClassesView } from './views/classes.js';
@@ -79,6 +80,10 @@ class App {
     this.schoolsView  = new SchoolsAdminView(this);
     this.mySchoolView = new MySchoolView(this);
     this.twoFactorDialog = new TwoFactorDialog(this);
+    this.sessionsDialog = new SessionsDialog(this);
+    // Offen gelassene App (Desktop-Symbol, iPad) erneuert ihre Anmeldung auch unterwegs.
+    setInterval(() => { void this.keepSessionFresh(); }, 6 * 3600 * 1000);
+    this._offerInstall();
     this.contestView  = new ContestView(this);
     this.companionView = new CompanionSettingsView(this);
     this.classesView  = new ClassesView(this);
@@ -100,6 +105,45 @@ class App {
     }, true);
     // Einstellungsseiten: nur Überschriften, ein Klick klappt auf.
     initFolding();
+  }
+
+  /**
+   * „Angemeldet bleiben“: höchstens einmal am Tag ein frisches Token holen.
+   * So endet die Anmeldung erst nach 90 Tagen ohne Nutzung (SessionsService).
+   */
+  async keepSessionFresh() {
+    if (!this.authStore.persistent) return;
+    let last = 0;
+    try { last = Number(localStorage.getItem('lm_token_fresh') || 0); } catch (_) { /* ohne Speicher */ }
+    if (Date.now() - last < 24 * 3600 * 1000) return;
+    const res = await this.api.refreshSession().catch(() => null);
+    if (!res?.token) return;
+    this.authStore.setToken(res.token, true);
+    try { localStorage.setItem('lm_token_fresh', String(Date.now())); } catch (_) { /* ohne Speicher */ }
+  }
+
+  /**
+   * „Als App installieren“ (Chrome, Edge): Der Knopf erscheint nur, wenn der
+   * Browser es anbietet und die App nicht schon installiert läuft. Auf dem
+   * iPad geht es über Teilen → Zum Home-Bildschirm (manifest.webmanifest).
+   */
+  _offerInstall() {
+    const btn = document.getElementById('btnInstallApp');
+    if (!btn) return;
+    let prompt = null;
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      prompt = e;
+      btn.classList.remove('hidden');
+    });
+    window.addEventListener('appinstalled', () => btn.classList.add('hidden'));
+    btn.addEventListener('click', async () => {
+      if (!prompt) return;
+      prompt.prompt();
+      await prompt.userChoice.catch(() => null);
+      prompt = null;
+      btn.classList.add('hidden');
+    });
   }
 
   showToast(message, type = 'info') {

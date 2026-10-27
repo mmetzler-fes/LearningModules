@@ -5545,3 +5545,8 @@ details.cb-topic > summary .hint { font-weight: normal; margin-left: 6px; }
 .module-tags-fold[open] > summary { margin-bottom: 8px; }
 .module-tags-summary { display: inline-flex; flex-wrap: wrap; gap: 4px; font-weight: normal; }
 .module-desc-fold > summary { cursor: pointer; }
+/* Angemeldete Geräte (views/sessions.js) */
+.sessions-card { max-width: 640px; width: 92vw; }
+.sessions-list { list-style: none; padding: 0; margin: 10px 0; display: flex; flex-direction: column; gap: 8px; }
+.sessions-list li { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 10px; border: 1px solid var(--border); border-radius: var(--radius-sm); }
+.sessions-list li.sessions-current { border-color: var(--accent); }

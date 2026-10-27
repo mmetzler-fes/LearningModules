@@ -1,4 +1,5 @@
-import { Controller, Get, Post, Delete, Body, UseGuards, Request, HttpCode } from '@nestjs/common';
+import { Controller, Get, Post, Delete, Body, UseGuards, Request, HttpCode, Headers, Param } from '@nestjs/common';
+import { cleanLabel, deviceLabel } from './device-label';
 import { AuthService } from './auth.service';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { AllowPendingPassword } from './guards/allow-pending-password.decorator';
@@ -15,8 +16,50 @@ export class AuthController {
   /** Teacher / Admin login via email + password */
   @Post('login')
   @HttpCode(200)
-  async login(@Body() body: { email: string; password: string; remember?: boolean }) {
-    return this.authService.login(body.email, body.password, !!body.remember);
+  async login(@Body() body: { email: string; password: string; remember?: boolean; device?: string }, @Headers('user-agent') ua?: string) {
+    return this.authService.login(body.email, body.password, !!body.remember, { device: cleanLabel(body.device) || deviceLabel(ua) });
+  }
+
+  // ---- Anmeldungen je Gerät ----
+
+  /** Frisches Token für diese Anmeldung (die App fragt einmal am Tag). */
+  @Post('refresh')
+  @UseGuards(JwtAuthGuard)
+  @AllowPendingPassword()
+  @HttpCode(200)
+  async refresh(@Request() req: any) {
+    return this.authService.refresh(req.user.userId, req.user.sid);
+  }
+
+  /** Abmelden: diese Anmeldung beenden. */
+  @Post('logout')
+  @UseGuards(JwtAuthGuard)
+  @AllowPendingPassword()
+  @HttpCode(200)
+  async logout(@Request() req: any) {
+    if (req.user.sid) await this.authService.endSession(req.user.userId, req.user.sid);
+    return { success: true };
+  }
+
+  /** Angemeldete Geräte des eigenen Kontos. */
+  @Get('sessions')
+  @UseGuards(JwtAuthGuard)
+  async sessions(@Request() req: any) {
+    return this.authService.listSessions(req.user.userId, req.user.sid);
+  }
+
+  @Delete('sessions/:id')
+  @UseGuards(JwtAuthGuard)
+  async endSession(@Request() req: any, @Param('id') id: string) {
+    return this.authService.endSession(req.user.userId, id);
+  }
+
+  /** `{ others: true }`: überall sonst abmelden; ohne: überall, auch hier. */
+  @Post('sessions/end-all')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(200)
+  async endAllSessions(@Request() req: any, @Body() body: { others?: boolean }) {
+    return this.authService.endAllSessions(req.user.userId, req.user.sid, body?.others === true);
   }
 
   /** Aktuelle Fassung der Nutzungsbedingungen (öffentlich, etwa zum Nachlesen vor der Anmeldung). */
@@ -108,7 +151,7 @@ export class AuthController {
   @AllowPendingPassword()
   @HttpCode(200)
   async changePassword(@Request() req: any, @Body() body: { oldPassword?: string; newPassword?: string }) {
-    return this.authService.changePassword(req.user.userId, body.oldPassword || '', body.newPassword || '', !!req.user.remember);
+    return this.authService.changePassword(req.user.userId, body.oldPassword || '', body.newPassword || '', !!req.user.remember, req.user.sid);
   }
 
   /**
@@ -119,7 +162,7 @@ export class AuthController {
   @UseGuards(JwtAuthGuard)
   @HttpCode(200)
   async changeEmail(@Request() req: any, @Body() body: { newEmail?: string; password?: string; targetPassword?: string }) {
-    return this.authService.changeEmail(req.user.userId, body || {}, !!req.user.remember);
+    return this.authService.changeEmail(req.user.userId, body || {}, !!req.user.remember, req.user.sid);
   }
 
   /** Eigenes Konto löschen – Creator werden nur deaktiviert. */

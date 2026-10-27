@@ -6,12 +6,14 @@ import { Repository } from 'typeorm';
 import { GroupsService } from '../../groups/groups.service';
 import { User } from '../../core/entities/user.entity';
 import { hasAcceptedTerms, TERMS_REQUIRED_MESSAGE } from '../terms';
+import { SessionsService } from '../sessions.service';
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
   constructor(
     private readonly groups: GroupsService,
     @InjectRepository(User) private readonly userRepo: Repository<User>,
+    private readonly sessions: SessionsService,
   ) {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
@@ -39,6 +41,11 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     // Sitzungen aus der Zeit vor der Zustimmung (oder vor einer neuen Fassung)
     // gelten nicht – einmal neu anmelden und bestätigen.
     if (!hasAcceptedTerms(user)) throw new UnauthorizedException(TERMS_REQUIRED_MESSAGE);
+    // Anmeldung auf einem anderen Gerät beendet (oder abgelaufen): das Token gilt nicht mehr.
+    // Tokens von vor den Sitzungen (ohne sid) laufen einfach aus.
+    if (payload.sid && !(await this.sessions.valid(payload.sid, payload.sub))) {
+      throw new UnauthorizedException('Diese Anmeldung wurde beendet. Bitte neu anmelden.');
+    }
     return {
       userId: payload.sub,
       email: user.email,
@@ -46,6 +53,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       role: payload.role,
       mustChangePassword: !!payload.mustChangePassword,
       remember: !!payload.rem,
+      sid: payload.sid || null,
       // Schule und Schuladmin-Recht frisch aus der Datenbank – ein Entzug
       // durch den Hauptadmin wirkt damit beim nächsten Klick.
       schoolId: user.schoolId || null,

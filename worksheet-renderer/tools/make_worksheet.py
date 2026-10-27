@@ -1103,13 +1103,13 @@ def para_variant(ctx: dict[str, Any], base: str, block: dict[str, Any]) -> str:
     if name not in ctx["present"]:
         props: dict[str, str] = {}
         if indent is not None:
-            props["marginleft"] = f"{indent}cm"
+            props["marginleft"] = f"{indent:g}cm"
         if first:
-            props["textindent"] = f"{first}cm"
+            props["textindent"] = f"{first:g}cm"
         if before is not None:
-            props["margintop"] = f"{before}cm"
+            props["margintop"] = f"{before:g}cm"
         if after is not None:
-            props["marginbottom"] = f"{after}cm"
+            props["marginbottom"] = f"{after:g}cm"
         if lh:
             props["lineheight"] = f"{round(lh * 100)}%"
         style = Style(name=name, family="paragraph", parentstylename=base)

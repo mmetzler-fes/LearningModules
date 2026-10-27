@@ -117,7 +117,7 @@ describe('validateDocSpec', () => {
       'content[3].blocks[0] (solution): Lösung in einer Lösung ist nicht möglich.',
       expect.stringContaining('content[4] (formula): Formel –'),
       'content[5] (image): src: nur Bilder als data:image/… oder https://.',
-      'content[6] (text): blocks gibt es nur bei section, task, subtask, solution, box.',
+      'content[6] (text): blocks gibt es nur bei section, task, subtask, solution, box, columns, column.',
     ]);
   });
 

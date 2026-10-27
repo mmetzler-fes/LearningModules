@@ -45,6 +45,12 @@ Der Editor startet im Modus **✏️ Bearbeiten** – wie ein Textprogramm:
   bzw. unteren Rand einer Zeile ziehen. Verbundene Zellen bleiben verbunden.
   Im Druck gelten die Breiten genau; Spalten ohne Breite teilen sich den Rest
   der Seite. Sind alle Spalten fest, ist die Tabelle so breit wie ihre Summe.
+- **▥ Spalten (nebeneinander)** im ➕-Menü: zwei Spalten mit gestrichelten
+  Hilfslinien, in jede kommt beliebiger Inhalt – Text, Bild, Tabelle, Karo.
+  Mit der Schreibmarke darin zeigt die Leiste **▥ Spalten**: Spalte
+  einfügen/löschen und ↔ Breite (oder Rand ziehen). Im Druck randlos
+  nebeneinander, am Handy untereinander. Beim .odt-Import wird eine Tabelle,
+  in deren Zellen weitere Tabellen stecken (Layout-Tabelle), zu Spalten.
 - Eine **Lösung** gehört hinter ein Karo: Im Arbeitsblatt ist sie
   ausgeblendet, im Lösungsblatt steht sie rot über dem Karo.
 

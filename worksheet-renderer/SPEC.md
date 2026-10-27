@@ -101,6 +101,13 @@ content:
       - [OPV, Operationsverstärker, "3"]
     widths: [3cm, "", 1.5cm]
     heights: ["", 2cm]
+  - type: columns               # Inhalte nebeneinander (2–4 Spalten, randlos),
+    blocks:                     # z. B. Schaltung links, Wertetabelle rechts;
+      - type: column            # je Spalte beliebige Bausteine, width optional
+        width: 9cm              # (leer = teilt sich den Rest)
+        blocks: [{type: image, file: schaltung.png, width: 8cm}]
+      - type: column
+        blocks: [{type: table, header: [C, B, A, X], rows: [["", "", "", ""]]}]
   - type: table                 # Abbildungen nebeneinander: ohne Linien, zentriert
     border: false
     rows:

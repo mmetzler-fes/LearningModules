@@ -3596,6 +3596,10 @@ body {
 .docspec .ds-table td { border: 1px solid var(--border); padding: 4px 8px; vertical-align: top; }
 /* Leere Zellen eine Zeile hoch – wie im Druck (Wertetabellen zum Ausfüllen) */
 .docspec .ds-table td:empty, .docspec .ds-table th:empty { height: 1.6em; }
+/* Spalten (type: columns): Inhalte nebeneinander, am Handy untereinander */
+.docspec .ds-columns { display: flex; gap: 0.5cm; align-items: flex-start; margin: 0.4em 0 0.8em; }
+.docspec .ds-column { flex: 1 1 0; min-width: 0; }
+@media (max-width: 600px) { .docspec .ds-columns { flex-direction: column; } .docspec .ds-column { flex-basis: auto !important; } }
 .docspec .ds-table th { background: var(--bg-primary); }
 .docspec .ds-table-plain th,
 .docspec .ds-table-plain td { border: none; text-align: center; vertical-align: bottom; }
@@ -3726,6 +3730,9 @@ body {
 /* Bilder in Zellen wie in Vorschau und Druck: untereinander unter dem Text (.ds-cell-image) */
 .ds-surface td img, .ds-surface th img { display: block; margin: 4px 0; }
 .ds-surface td:empty, .ds-surface th:empty { height: 1.6em; }
+/* Spalten (type: columns) im Editor: randlose Layout-Tabelle, Hilfslinien gestrichelt */
+.worksheet-content table.ws-columns > tbody > tr > td { border: 1px dashed var(--border); vertical-align: top; padding: 4px 6px; }
+.ds-tablebar.ds-tb-columns .ds-tb-notcols { display: none; }
 
 .ds-mode .admin-tab { padding: 4px 12px; font-size: 0.9em; }
 .ds-editor-bar .btn-sm { padding: 4px 10px; }

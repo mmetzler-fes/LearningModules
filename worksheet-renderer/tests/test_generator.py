@@ -119,6 +119,27 @@ class RenderTest(unittest.TestCase):
         self.assertIsNone(total)
         self.assertEqual(mw.fixed_widths([5.0], {})[0], [5.0])
 
+    def test_spalten(self):
+        """`type: columns`: randlose Tabelle, je Spalte eine Zelle; feste Breite und Rest."""
+        spec = (
+            "titel: Spalten\ncontent:\n"
+            "  - type: columns\n"
+            "    blocks:\n"
+            "      - {type: column, width: 9cm, blocks: [Links steht die Schaltung]}\n"
+            "      - {type: column, blocks: [{type: table, header: [C, X], rows: [['', '']]}]}\n"
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "blatt").mkdir()
+            (root / "blatt" / "sp.yaml").write_text(spec, encoding="utf-8")
+            env = dict(os.environ, ARBEITSBLATT_ROOT=str(root))
+            subprocess.run([sys.executable, str(GEN / "tools" / "make_worksheet.py"), "blatt/sp.yaml",
+                            "-o", "out"], cwd=root, env=env, check=True, capture_output=True)
+            content = zipfile.ZipFile(root / "out" / "blatt.odt").read("content.xml").decode()
+            self.assertIn('table:name="Neben1" table:style-name="ABNeben"', content)
+            self.assertRegex(content, r'style:name="ABNeben.Sp1.0"[^>]*>\s*<style:table-column-properties style:column-width="9.400cm"')
+            self.assertRegex(content, r'table:name="Neben1".*Links steht die Schaltung.*<table:table table:name="Tab\d+"')
+
 
 if __name__ == "__main__":
     unittest.main()

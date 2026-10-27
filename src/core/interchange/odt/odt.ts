@@ -1095,7 +1095,32 @@ export function odtToHtml(buffer: Buffer, fileName = '', opts: OdtOptions = {}):
     return lines >= 2 ? `${Math.round(lines * 0.55 * 10) / 10}cm` : '';
   };
 
+  /** Zeilen einer Tabelle, auch aus Kopfzeilen und Zeilengruppen. */
+  const tableRowsOf = (n: XNode): XNode[] => elements(n).flatMap((c) => (c.name === 'table:table-row' ? [c]
+    : ['table:table-header-rows', 'table:table-rows', 'table:table-row-group'].includes(c.name) ? tableRowsOf(c) : []));
+  /**
+   * Layout-Tabelle: Steckt in einer Zelle eine weitere Tabelle, ordnet die
+   * äußere nur nebeneinander an (z. B. Schaltung links, Wertetabelle rechts).
+   * Jede Zeile wird ein Spalten-Baustein (table.ws-columns → type: columns).
+   */
+  const layoutTable = (n: XNode): string | null => {
+    const rows = tableRowsOf(n);
+    const cellsOf = (r: XNode) => elements(r).filter((c) => c.name === 'table:table-cell');
+    // Nur mit mindestens zwei Zellen nebeneinander – eine einzelne Zelle mit Tabelle ist ein Kasten.
+    if (!rows.some((r) => cellsOf(r).length >= 2 && cellsOf(r).some((c) => elements(c).some((x) => x.name === 'table:table')))) return null;
+    const widths = columnWidths(n);
+    const cols = widths.length && widths.every(Boolean) ? `<colgroup>${widths.map((w) => `<col style="width:${w}">`).join('')}</colgroup>` : '';
+    return rows.map((r) => {
+      const cells = cellsOf(r).map((c) => blocks(c).replace(/^<p data-empty="1"><br><\/p>$/, ''));
+      if (cells.length < 2) return cells.join('');
+      if (cells.every((c) => !c.replace(/<p data-empty="1"><br><\/p>/g, '').trim())) return '';
+      return `<table class="ws-columns">${cols}<tbody><tr>${cells.map((c) => `<td>${c || '<p><br></p>'}</td>`).join('')}</tr></tbody></table>`;
+    }).join('');
+  };
+
   const table = (n: XNode): string => {
+    const layout = layoutTable(n);
+    if (layout !== null) return layout;
     stats.tables++;
     const rowsHtml = (container: XNode, cellTag: string): string => {
       let html = '';

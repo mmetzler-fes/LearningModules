@@ -168,6 +168,15 @@ describe('.odt-Import: Gliederung als Liste und Rahmen ohne Rand', () => {
     expect(html).not.toContain('lm-beside');
   });
 
+  it('Tabelle in einer Zelle: die äußere wird zu Spalten (table.ws-columns)', () => {
+    const body = '<table:table><table:table-row>'
+      + '<table:table-cell><text:p>Schaltung</text:p></table:table-cell>'
+      + `<table:table-cell>${table}</table:table-cell>`
+      + '</table:table-row><table:table-row><table:table-cell><text:p/></table:table-cell><table:table-cell><text:p/></table:table-cell></table:table-row></table:table>';
+    const { html } = odtToHtml(doc(styles, body), 'x.odt');
+    expect(html).toBe('<table class="ws-columns"><tbody><tr><td><p>Schaltung</p></td><td><table><tbody><tr><td><p>C</p></td><td><p>X</p></td></tr></tbody></table></td></tr></tbody></table>');
+  });
+
   it('Rahmen mit Rand bleibt ein Kasten, Listen ohne Überschriften bleiben Listen', () => {
     const body = `<text:p>Text${frame('fr2', '<text:p>Merke</text:p>')}</text:p>`
       + '<text:list text:style-name="L1"><text:list-item><text:p>eins</text:p></text:list-item><text:list-item><text:p>zwei</text:p></text:list-item></text:list>';

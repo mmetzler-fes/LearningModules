@@ -508,7 +508,9 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
   const blockOfNode = (node) => {
     let n = node && node.nodeType === 3 ? node.parentNode : node;
     if (!n || !surface.contains(n)) return null;
-    while (n && n !== surface && !(n.parentNode === surface || n.parentNode?.classList?.contains('ws-box'))) n = n.parentNode;
+    // Blöcke stehen direkt in der Fläche, in einem Kasten oder in einer Spalte (table.ws-columns).
+    const holder = (p) => p === surface || p?.classList?.contains('ws-box') || (p?.tagName === 'TD' && p.closest('table')?.classList.contains('ws-columns'));
+    while (n && n !== surface && !holder(n.parentNode)) n = n.parentNode;
     return n && n !== surface ? n : null;
   };
   // Letzter Block der Schreibmarke – das ➕ oder ein Menü nimmt ihn, wenn die Auswahl inzwischen woanders steht.
@@ -572,10 +574,11 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
     }
     const html = what === 'table' ? '<table><thead><tr><th>Spalte 1</th><th>Spalte 2</th></tr></thead><tbody><tr><td>…</td><td>…</td></tr></tbody></table>'
       : what === 'box' ? '<div class="ws-box" data-title="Merke"><p>…</p></div>'
-        : widgetHtml(STARTERS[what]);
+        : what === 'columns' ? '<table class="ws-columns"><tbody><tr><td><p>links …</p></td><td><p>rechts …</p></td></tr></tbody></table>'
+          : widgetHtml(STARTERS[what]);
     const nodes = placeHtml(html, after);
     if (nodes[0].classList?.contains('ds-widget')) selectWidget(nodes[0]);
-    if (!['table', 'box', 'pagebreak'].includes(what)) editWidget(nodes[0]);
+    if (!['table', 'box', 'columns', 'pagebreak'].includes(what)) editWidget(nodes[0]);
   };
 
   /** Menü zum Einfügen – am ➕ oder per Rechtsklick in den Text. Quizze des Lernthemas stehen direkt darin. */
@@ -596,7 +599,7 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
       ...(quizzes.length > QUIZ_MENU_MAX ? [['quiz', `🧩 Weitere Quizze (${quizzes.length})…`]] : !quizzes.length ? [['quiz', '🧩 Quiz aus dem Lernthema…']] : []),
       ...(pdfAllowed ? [['pdf', '📄 PDF an dieser Stelle']] : []),
       ['solution', '💡 Lösung'], ['formula', '∑ Formel'], ['code', '⌨ Code'], ['table', '▤ Tabelle'],
-      ['box', '▢ Kasten'], ['spacer', '◌ Platz (unsichtbar)'], ['pagebreak', '⤓ Seitenumbruch'],
+      ['box', '▢ Kasten'], ['columns', '▥ Spalten (nebeneinander)'], ['spacer', '◌ Platz (unsichtbar)'], ['pagebreak', '⤓ Seitenumbruch'],
       ['image', '🖼 Bild…'], ['compose', '🧩 Bilder zusammenstellen…'],
     ];
     showContextMenu(x, y, [...quizEntries, ...entries.map(([what, label]) => ({

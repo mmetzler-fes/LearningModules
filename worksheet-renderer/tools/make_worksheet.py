@@ -1100,6 +1100,42 @@ def float_group(image: dict[str, Any], texts: list[Any], styles: dict[str, str],
     return [table]
 
 
+def columns_table(block: dict[str, Any], children, ctx: dict[str, Any]) -> Element:
+    """Spalten (`type: columns`) nebeneinander: randlose Tabelle, je Spalte eine
+    Zelle mit ihren Bausteinen. Feste Breiten aus `width`, der Rest teilt sich
+    die Satzbreite; zwischen den Spalten 0,4 cm Luft."""
+    doc, present = ctx["doc"], ctx["present"]
+    ensure_float_styles(doc, present)
+    cols = [c for c in block.get("blocks") or [] if isinstance(c, dict) and c.get("type") == "column"][:4] or [{"blocks": []}]
+    gap = 0.4
+    room = TABLE_WIDTH_CM - gap * (len(cols) - 1)
+    fixed = [length_cm(c.get("width")) for c in cols]
+    fixed_sum = sum(f for f in fixed if f)
+    autos = sum(1 for f in fixed if not f)
+    scale = min(1.0, (room - 2.0 * autos) / fixed_sum) if fixed_sum else 1.0
+    rest = room - fixed_sum * scale
+    widths = [(f * scale if f else rest / autos) for f in fixed]
+    if not autos and rest > 0.05:   # alle fest und schmaler: Rest an die letzte Spalte
+        widths[-1] += rest
+    index = ctx["float_index"] = ctx.get("float_index", 0) + 1
+    table = Table(name=f"Neben{index}", stylename="ABNeben")
+    for col, w in enumerate(widths):
+        name = f"ABNeben.Sp{index}.{col}"
+        style = Style(name=name, family="table-column")
+        style.addElement(TableColumnProperties(columnwidth=f"{w + (gap if col < len(widths) - 1 else 0):.3f}cm"))
+        doc.automaticstyles.addElement(style)
+        present.add(name)
+        table.addElement(TableColumn(stylename=name))
+    tr = TableRow()
+    for c in cols:
+        cell = TableCell(valuetype="string", stylename="ABNeben.Z")
+        for el in children(c.get("blocks")) or [P(stylename="Standard")]:
+            cell.addElement(el)
+        tr.addElement(cell)
+    table.addElement(tr)
+    return table
+
+
 def overlay_rows(elements: list[Element]) -> int:
     """Geschätzte Karozeilen (0,5 cm), die die eingeblendete Lösung braucht.
 
@@ -1702,6 +1738,9 @@ def render_block(block: Any, styles: dict[str, str], ctx: dict[str, Any]) -> lis
         tr.addElement(tc)
         table.addElement(tr)
         out.append(table)
+
+    elif kind == "columns":
+        out.append(columns_table(block, children, ctx))
 
     elif kind == "text":
         # Direkt hinter einer Aufzählung etwas Luft, damit der Absatz sich

@@ -227,19 +227,19 @@ export function attachTableTools(surface, bar) {
   bar.hidden = true;
   bar.innerHTML = `
     <span class="ds-tablebar-label">▤ Tabelle</span>
-    <button type="button" class="rt-btn" data-t="rowAbove" title="Zeile darüber einfügen">⬆＋</button>
-    <button type="button" class="rt-btn" data-t="rowBelow" title="Zeile darunter einfügen">⬇＋</button>
-    <button type="button" class="rt-btn" data-t="rowDel" title="Zeile löschen">✕ Zeile</button>
-    <span class="ds-tablebar-sep"></span>
+    <button type="button" class="rt-btn ds-tb-notcols" data-t="rowAbove" title="Zeile darüber einfügen">⬆＋</button>
+    <button type="button" class="rt-btn ds-tb-notcols" data-t="rowBelow" title="Zeile darunter einfügen">⬇＋</button>
+    <button type="button" class="rt-btn ds-tb-notcols" data-t="rowDel" title="Zeile löschen">✕ Zeile</button>
+    <span class="ds-tablebar-sep ds-tb-notcols"></span>
     <button type="button" class="rt-btn" data-t="colLeft" title="Spalte links einfügen">⬅＋</button>
     <button type="button" class="rt-btn" data-t="colRight" title="Spalte rechts einfügen">➡＋</button>
     <button type="button" class="rt-btn" data-t="colDel" title="Spalte löschen">✕ Spalte</button>
     <span class="ds-tablebar-sep"></span>
     <label title="Breite dieser Spalte in cm – leer = automatisch (auch: Spaltenrand ziehen)">↔ <input type="text" class="ds-tb-width" inputmode="decimal" placeholder="auto" size="4"> cm</label>
-    <label title="Mindesthöhe dieser Zeile in cm – leer = automatisch (auch: unteren Zeilenrand ziehen)">↕ <input type="text" class="ds-tb-height" inputmode="decimal" placeholder="auto" size="4"> cm</label>
+    <label class="ds-tb-notcols" title="Mindesthöhe dieser Zeile in cm – leer = automatisch (auch: unteren Zeilenrand ziehen)">↕ <input type="text" class="ds-tb-height" inputmode="decimal" placeholder="auto" size="4"> cm</label>
     <span class="ds-tablebar-sep"></span>
-    <label title="Erste Zeile als Kopfzeile (fett)"><input type="checkbox" class="ds-tb-head"> Kopfzeile</label>
-    <label title="Linien zeigen – ohne z. B. für Abbildungen nebeneinander"><input type="checkbox" class="ds-tb-border"> Linien</label>
+    <label class="ds-tb-notcols" title="Erste Zeile als Kopfzeile (fett)"><input type="checkbox" class="ds-tb-head"> Kopfzeile</label>
+    <label class="ds-tb-notcols" title="Linien zeigen – ohne z. B. für Abbildungen nebeneinander"><input type="checkbox" class="ds-tb-border"> Linien</label>
     <button type="button" class="rt-btn" data-t="evenWidths" title="Alle festen Breiten entfernen – die Spalten richten sich wieder nach dem Inhalt">⇔ auto</button>
     <button type="button" class="rt-btn ds-tb-danger" data-t="tableDel" title="Ganze Tabelle löschen">🗑</button>`;
   const widthIn = bar.querySelector('.ds-tb-width');
@@ -264,6 +264,10 @@ export function attachTableTools(surface, bar) {
     const p = pos();
     bar.hidden = !p;
     if (!p) return;
+    // Spalten (table.ws-columns): nur Spalten einfügen/löschen und Breite.
+    const columns = p.table.classList.contains('ws-columns');
+    bar.classList.toggle('ds-tb-columns', columns);
+    bar.querySelector('.ds-tablebar-label').textContent = columns ? '▥ Spalten' : '▤ Tabelle';
     const col = [...p.table.children].find((c) => c.tagName === 'COLGROUP')?.children[p.c + p.cs - 1];
     if (document.activeElement !== widthIn) widthIn.value = col?.style.width ? String(parseFloat(col.style.width)).replace('.', ',') : '';
     const tr = p.g.rows[p.r];

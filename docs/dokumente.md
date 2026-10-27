@@ -314,6 +314,11 @@ wenn die Lehrkraft des Lernthemas freigeschaltet ist.
   füllt es aus; daneben – oder auf einem Strich oder Textfeld über dem Quiz –
   wird ausgewählt. Der Finger bedient Quizze immer (auch mit ☝️). Mit Stift,
   Textmarker und Textfeld schreiben Stift und Maus auch über einem Quiz.
+- **Rechtsklick** (am Mac auch Ctrl+Klick) zeichnet nie, sondern öffnet ein
+  Menü – in jedem Werkzeug: auf einem Strich oder Textfeld das Menü der
+  Auswahl, sonst Werkzeug wechseln, Rückgängig/Wiederholen, Einfügen und im
+  Dokument **➕ Hier einfügen** (Schreibfeld, Quiz …) hinter dem Baustein an
+  dieser Stelle.
 - **⬚ Auswählen** an einem Textfeld: **✏️ Text bearbeiten** im Menü (⋯,
   Rechtsklick, lange drücken) oder Doppelklick – es geht gleich weiter mit dem
   Schreiben. Eine Farbe gilt sofort, auch für das Textfeld, in dem du gerade

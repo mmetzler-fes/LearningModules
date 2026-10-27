@@ -118,7 +118,9 @@ Klassenbuch-Link – **👤 Als ‹Name› teilnehmen**: Der Name des Kontos wir
 eingesetzt und angemeldet. Danach gilt alles wie bei jedem Schüler: In einer
 offenen Klasse entsteht ein unbestätigter Eintrag, in einer strikten muss der
 Name in der Liste stehen; im Klassennotizbuch fragt die App wie üblich nach
-der PIN. Die Anmeldung als Lehrkraft bleibt bestehen.
+der PIN. Die Anmeldung als Lehrkraft bleibt bestehen. Das klappt auch in einem
+neuen Tab (die Seite fragt die offenen Tabs der App) – aber nur im selben
+Browser auf demselben Gerät, nicht über den QR-Code am Handy.
 
 ## Klassen einlesen (SchülerLernTool)
 

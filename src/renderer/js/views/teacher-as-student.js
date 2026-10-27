@@ -9,12 +9,30 @@ import { escapeHtml } from '../utils.js';
 // in der Liste. Die Anmeldung als Lehrkraft bleibt dabei bestehen.
 
 /**
+ * Ohne „Angemeldet bleiben“ liegt die Anmeldung nur im Tab, in dem sie
+ * geschah (sessionStorage) – ein Schülerlink im neuen Tab sieht sie nicht.
+ * Dann die offenen Tabs der App fragen (app.js antwortet). Nur für den
+ * Namen; diese Seite meldet sich damit nicht an und speichert nichts.
+ */
+function tokenFromOtherTab(wait = 500) {
+  if (typeof BroadcastChannel === 'undefined') return Promise.resolve(null);
+  return new Promise((resolve) => {
+    const ch = new BroadcastChannel('lm-auth');
+    const done = (v) => { clearTimeout(timer); ch.close(); resolve(v); };
+    const timer = setTimeout(() => done(null), wait);
+    ch.onmessage = (e) => { if (e.data?.type === 'token' && e.data.token) done(e.data.token); };
+    ch.postMessage({ type: 'who' });
+  });
+}
+
+/**
  * Knopf über `input` einfügen, wenn eine Lehrkraft angemeldet ist.
  * `onPick(name)`: was danach geschieht (z. B. Formular absenden).
  */
 export async function offerTeacherName(input, onPick) {
   if (!input || input.parentElement?.querySelector('.as-teacher-btn')) return;
-  const token = (() => { try { return sessionStorage.getItem('lm_token') || localStorage.getItem('lm_token'); } catch (_) { return null; } })();
+  const token = (() => { try { return sessionStorage.getItem('lm_token') || localStorage.getItem('lm_token'); } catch (_) { return null; } })()
+    || await tokenFromOtherTab();
   if (!token) return;
   let me = null;
   try {

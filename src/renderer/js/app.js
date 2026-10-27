@@ -85,6 +85,7 @@ class App {
     // Offen gelassene App (Desktop-Symbol, iPad) erneuert ihre Anmeldung auch unterwegs.
     setInterval(() => { void this.keepSessionFresh(); }, 6 * 3600 * 1000);
     this._offerInstall();
+    this._answerAuthAsk();
     this._acceptFiles();
     this.contestView  = new ContestView(this);
     this.companionView = new CompanionSettingsView(this);
@@ -137,6 +138,20 @@ class App {
       const { handleOpenedFiles } = await import('./views/file-open.js');
       await handleOpenedFiles(this, files);
     });
+  }
+
+  /**
+   * Ein Schülerlink in einem anderen Tab fragt, ob hier eine Lehrkraft
+   * angemeldet ist („Als ‹Name› teilnehmen“, views/teacher-as-student.js).
+   */
+  _answerAuthAsk() {
+    if (typeof BroadcastChannel === 'undefined') return;
+    const ch = new BroadcastChannel('lm-auth');
+    ch.onmessage = (e) => {
+      const role = this.state.currentUser?.role;
+      const token = this.authStore.getToken();
+      if (e.data?.type === 'who' && token && (role === 'teacher' || role === 'admin')) ch.postMessage({ type: 'token', token });
+    };
   }
 
   /** Nach der Anmeldung: Dateien, die vorher per „Öffnen mit“ kamen. */

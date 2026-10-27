@@ -126,3 +126,44 @@ describe('.odt-Import: zusammengefasste Zeichnungen', () => {
     expect(r.html).toContain('Schließer');
   });
 });
+
+describe('.odt-Import: Gliederung als Liste und Rahmen ohne Rand', () => {
+  const NS = 'xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0" '
+    + 'xmlns:table="urn:oasis:names:tc:opendocument:xmlns:table:1.0" xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0" '
+    + 'xmlns:fo="urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0" xmlns:draw="urn:oasis:names:tc:opendocument:xmlns:drawing:1.0" '
+    + 'xmlns:svg="urn:oasis:names:tc:opendocument:xmlns:svg-compatible:1.0"';
+  const doc = (styles: string, body: string) => {
+    const zip = new AdmZip();
+    zip.addFile('mimetype', Buffer.from('application/vnd.oasis.opendocument.text'));
+    zip.addFile('content.xml', Buffer.from(`<?xml version="1.0" encoding="UTF-8"?><office:document-content ${NS}>`
+      + `<office:automatic-styles>${styles}</office:automatic-styles><office:body><office:text>${body}</office:text></office:body></office:document-content>`));
+    return zip.toBuffer();
+  };
+  const styles = '<text:list-style style:name="L1"><text:list-level-style-number text:level="1" style:num-format="1"/>'
+    + '<text:list-level-style-number text:level="2" style:num-format="1"/><text:list-level-style-number text:level="3" style:num-format="1"/></text:list-style>'
+    + '<style:style style:name="fr1" style:family="graphic"><style:graphic-properties fo:border="none"/></style:style>'
+    + '<style:style style:name="fr2" style:family="graphic"><style:graphic-properties fo:border="0.06pt solid #000000"/></style:style>';
+  const frame = (style: string, inner: string) => `<draw:frame draw:style-name="${style}" text:anchor-type="paragraph" svg:x="11cm" svg:width="4cm"><draw:text-box>${inner}</draw:text-box></draw:frame>`;
+  const table = '<table:table><table:table-row><table:table-cell><text:p>C</text:p></table:table-cell><table:table-cell><text:p>X</text:p></table:table-cell></table:table-row></table:table>';
+
+  it('nummerierte Überschriften: Abschnitt, Aufgabe, Teilaufgabe – ohne Liste; der Rahmen ohne Rand liefert nur die Tabelle', () => {
+    const body = '<text:list text:style-name="L1"><text:list-item><text:h text:outline-level="1">Aufgaben</text:h>'
+      + '<text:list><text:list-item><text:h text:outline-level="2">Stromlaufplan</text:h>'
+      + `<text:list><text:list-item><text:h text:outline-level="3">Funktionsgleichung:${frame('fr1', table)}</text:h></text:list-item></text:list>`
+      + '</text:list-item></text:list></text:list-item></text:list>';
+    const { html } = odtToHtml(doc(styles, body), 'x.odt');
+    expect(html).not.toContain('<li>');
+    expect(html).toContain('<h2 data-ds="section">Aufgaben</h2>');
+    expect(html).toContain('<h3 data-ds="task">Stromlaufplan</h3>');
+    expect(html).toMatch(/<h4 data-ds="subtask">Funktionsgleichung:<\/h4><table>/);
+    expect(html).not.toContain('ws-box');
+  });
+
+  it('Rahmen mit Rand bleibt ein Kasten, Listen ohne Überschriften bleiben Listen', () => {
+    const body = `<text:p>Text${frame('fr2', '<text:p>Merke</text:p>')}</text:p>`
+      + '<text:list text:style-name="L1"><text:list-item><text:p>eins</text:p></text:list-item><text:list-item><text:p>zwei</text:p></text:list-item></text:list>';
+    const { html } = odtToHtml(doc(styles, body), 'x.odt');
+    expect(html).toContain('<div class="ws-box"><p>Merke</p></div>');
+    expect(html).toContain('<ol><li><p>eins</p></li><li><p>zwei</p></li></ol>');
+  });
+});

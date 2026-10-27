@@ -772,6 +772,16 @@ export function odtToHtml(buffer: Buffer, fileName = '', opts: OdtOptions = {}):
     return html;
   };
 
+  /**
+   * Inhalt eines Textrahmens: mit Rand ein Kasten, ohne Rand (fo:border="none")
+   * nur der Inhalt – solche Rahmen setzen z. B. eine Tabelle neben den Text.
+   */
+  const textBox = (frame: XNode, box: XNode): string => {
+    const inner = blocks(box);
+    if (!inner.trim()) return '';
+    return styles.graphic(frame.attrs['draw:style-name'], 'border') === 'none' ? inner : `<div class="ws-box">${inner}</div>`;
+  };
+
   /** Frei verankert (am Absatz, Zeichen, Seite) statt wie ein Buchstabe im Text. */
   const anchored = (c: XNode) => !!c.attrs['text:anchor-type'] && c.attrs['text:anchor-type'] !== 'as-char';
   const isImageFrame = (f: XNode) => elements(f).some((c) => c.name === 'draw:image');
@@ -870,8 +880,8 @@ export function odtToHtml(buffer: Buffer, fileName = '', opts: OdtOptions = {}):
           }
           const box = elements(c).find((x) => x.name === 'draw:text-box');
           if (box) {
-            const inner = blocks(box);
-            if (inner.trim()) out.push({ block: `<div class="ws-box">${inner}</div>` });
+            const inner = textBox(c, box);
+            if (inner) out.push({ block: inner });
             break;
           }
           if (elements(c).some((x) => x.name === 'draw:image' || x.name === 'draw:object' || x.name === 'draw:object-ole')) {
@@ -910,8 +920,8 @@ export function odtToHtml(buffer: Buffer, fileName = '', opts: OdtOptions = {}):
       }
       const box = elements(f).find((x) => x.name === 'draw:text-box');
       if (box) {
-        const inner = blocks(box);
-        if (inner.trim()) out.push({ block: `<div class="ws-box">${inner}</div>` });
+        const inner = textBox(f, box);
+        if (inner) out.push({ block: inner });
         continue;
       }
       if (elements(f).some((x) => x.name === 'draw:image' || x.name === 'draw:object' || x.name === 'draw:object-ole')) {
@@ -962,24 +972,45 @@ export function odtToHtml(buffer: Buffer, fileName = '', opts: OdtOptions = {}):
     return `h${Math.min(4, Math.max(2, level + 1))}`;
   };
 
+  /**
+   * Überschrift in einer nummerierten Gliederung: Abschnitt (1.), Aufgabe (1.1)
+   * oder Teilaufgabe (1.1.1) nach ihrer Ebene – die Nummer setzt das Dokument.
+   */
+  const numberedHeading = (c: XNode, tag: string): string => {
+    const html = paragraph(c, headingTag(c));
+    if (tag !== 'ol') return html;
+    const level = Number(c.attrs['text:outline-level'] || 1);
+    const ds = level <= 1 ? 'section' : level === 2 ? 'task' : 'subtask';
+    return html.replace(/<(h[2-6])(?=[ >])/, `<$1 data-ds="${ds}"`);
+  };
+  const hasHeading = (n: XNode): boolean => elements(n).some((c) => c.name === 'text:h' || (c.name !== 'table:table' && hasHeading(c)));
+  /**
+   * Liste – Punkte mit Überschriften (Gliederung aus Writer/Word: „2.1.2
+   * Funktionsgleichung“) aber ohne Liste: Die Nummern setzt das Dokument
+   * selbst (Abschnitt, Aufgabe, Teilaufgabe), und was darunter steht – etwa
+   * ein Rahmen mit Tabelle – bliebe sonst im Listenpunkt stecken.
+   */
   const list = (n: XNode, listStyle: string | undefined, depth: number): string => {
     const styleName = n.attrs['text:style-name'] || listStyle;
     const tag = styles.listType(styleName, depth);
-    const items = elements(n)
-      .filter((c) => c.name === 'text:list-item' || c.name === 'text:list-header')
-      .map((item) => {
-        const inner = elements(item)
-          .map((c) =>
-            c.name === 'text:list' ? list(c, styleName, depth + 1)
-              : c.name === 'text:p' ? paragraph(c, 'p').replace(/^<p data-empty="1"><br><\/p>$/, '')
-                : c.name === 'text:h' ? paragraph(c, headingTag(c))
-                  : blocks({ name: '#', attrs: {}, children: [c] }),
-          )
-          .join('');
-        return `<li>${inner}</li>`;
-      })
-      .join('');
-    return items ? `<${tag}>${items}</${tag}>` : '';
+    let html = '';
+    let open = '';
+    for (const item of elements(n).filter((c) => c.name === 'text:list-item' || c.name === 'text:list-header')) {
+      const inner = elements(item)
+        .map((c) =>
+          c.name === 'text:list' ? list(c, styleName, depth + 1)
+            : c.name === 'text:p' ? paragraph(c, 'p').replace(/^<p data-empty="1"><br><\/p>$/, '')
+              : c.name === 'text:h' ? numberedHeading(c, tag)
+                : blocks({ name: '#', attrs: {}, children: [c] }),
+        )
+        .join('');
+      if (hasHeading(item)) {
+        if (open) html += `<${tag}>${open}</${tag}>`;
+        open = '';
+        html += inner;
+      } else open += `<li>${inner}</li>`;
+    }
+    return html + (open ? `<${tag}>${open}</${tag}>` : '');
   };
 
   // Spaltenbreiten (<col style="width">) und Zeilenhöhen (<tr style="height">)

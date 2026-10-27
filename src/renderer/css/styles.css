@@ -3538,8 +3538,9 @@ body {
 .worksheet-content th,
 .worksheet-content td { border: 1px solid var(--border); padding: 6px 8px; vertical-align: top; }
 .worksheet-content th { background: var(--bg-primary); }
-.worksheet-content .ws-table-plain th,
-.worksheet-content .ws-table-plain td { border: 1px dashed var(--border); text-align: center; }
+/* Nur die eigenen Zellen – eine Tabelle in einer Zelle behält ihre Linien */
+.worksheet-content .ws-table-plain > * > tr > th,
+.worksheet-content .ws-table-plain > * > tr > td { border: 1px dashed var(--border); text-align: center; }
 .worksheet-content td p:last-child,
 .worksheet-content th p:last-child { margin-bottom: 0; }
 .worksheet-content .ws-box {
@@ -3601,18 +3602,19 @@ body {
 /* Zelle mit beside: Bilder neben dem Text */
 .docspec .ds-cell-beside { display: flex; align-items: center; gap: 8px; }
 /* Ausrichtung der Tabelle (align) – Zellen mit eigener Ausrichtung tragen sie im style */
-.docspec .ds-table.ds-align-left td, .docspec .ds-table.ds-align-left th { text-align: left; }
-.docspec .ds-table.ds-align-center td, .docspec .ds-table.ds-align-center th { text-align: center; }
-.docspec .ds-table.ds-align-right td, .docspec .ds-table.ds-align-right th { text-align: right; }
+.docspec .ds-table.ds-align-left > * > tr > td, .docspec .ds-table.ds-align-left > * > tr > th { text-align: left; }
+.docspec .ds-table.ds-align-center > * > tr > td, .docspec .ds-table.ds-align-center > * > tr > th { text-align: center; }
+.docspec .ds-table.ds-align-right > * > tr > td, .docspec .ds-table.ds-align-right > * > tr > th { text-align: right; }
 .docspec .ds-cell-beside .ds-cell-image { margin: 0; }
 /* Spalten (type: columns): Inhalte nebeneinander, am Handy untereinander */
 .docspec .ds-columns { display: flex; gap: 0.5cm; align-items: flex-start; margin: 0.4em 0 0.8em; }
 .docspec .ds-column { flex: 1 1 0; min-width: 0; }
 @media (max-width: 600px) { .docspec .ds-columns { flex-direction: column; } .docspec .ds-column { flex-basis: auto !important; } }
 .docspec .ds-table th { background: var(--bg-primary); }
-.docspec .ds-table-plain th,
-.docspec .ds-table-plain td { border: none; text-align: center; vertical-align: bottom; }
-.docspec .ds-table-plain tr:last-child td { vertical-align: top; }
+/* Nur die eigenen Zellen – eine Tabelle in einer Zelle behält ihre Linien */
+.docspec .ds-table-plain > * > tr > th,
+.docspec .ds-table-plain > * > tr > td { border: none; text-align: center; vertical-align: bottom; }
+.docspec .ds-table-plain > * > tr:last-child > td { vertical-align: top; }
 .docspec .ds-formula { margin: 0.6em 0; text-align: center; overflow-x: auto; }
 .docspec .ds-formula math { font-size: 1.15em; }
 .docspec .ds-formula-left { text-align: left; }

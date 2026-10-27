@@ -92,7 +92,7 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
         </div>
         <div class="ds-visual" hidden>
           <div class="ds-vtoolbar rich-text-toolbar">
-            <button type="button" class="rt-btn ds-vplus" title="Einfügen: Schreibfeld, Quiz, Lösung, Formel … (auch Rechtsklick in den Text)">➕</button>
+            <button type="button" class="rt-btn ds-vplus" title="Einfügen: Quiz, Schreibfeld, Lösung, Formel, Bild … (auch Rechtsklick in den Text)">➕</button>
             <select class="ds-vblock" title="Absatzart">
               <option value="p">Text</option><option value="section">Abschnitt (1.)</option><option value="task">Aufgabe (1.1)</option>
               <option value="subtask">Teilaufgabe (1.1.1)</option><option value="heading">Überschrift ohne Nummer</option><option value="note">Hinweis</option>
@@ -418,9 +418,9 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
   surfaceObserver.observe(surface, { childList: true, subtree: true, characterData: true, attributes: true });
   if (typeof window.WorksheetImageTools !== 'undefined') {
     new window.WorksheetImageTools(surface, document.createElement('input'), root.querySelector('.ds-vtoolbar'));
-    // Kompakt: nur das Zeichen, der Text steht im Tooltip.
-    const imgBtn = root.querySelector('.ds-vtoolbar .rt-btn-image');
-    if (imgBtn) imgBtn.textContent = '🖼';
+    // Selten gebraucht: Bild und Zusammenstellen stehen im Menü (➕, Rechtsklick), nicht in der Leiste.
+    // Die Knöpfe bleiben unsichtbar da – das Menü löst sie aus.
+    root.querySelectorAll('.ds-vtoolbar .rt-btn-image, .ds-vtoolbar .rt-btn-compose').forEach((b) => { b.style.display = 'none'; });
   }
 
   const setMode = (next) => {

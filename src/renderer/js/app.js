@@ -125,20 +125,25 @@ class App {
   }
 
   /**
-   * Doppelklick auf eine Datei (installierte App, Chrome/Edge am PC):
-   * .zlm-Dateien zum Ansehen – auch vor der Anmeldung.
+   * Rechte Maustaste → „Öffnen mit“ bzw. Doppelklick (installierte App,
+   * Chrome/Edge am PC): .zlm zum Ansehen, Writer/Word/PDF/.xopp umgewandelt
+   * mit „Im Notizbuch ablegen“ (views/file-open.js) – diese nach der Anmeldung.
    */
   _acceptFiles() {
     if (!('launchQueue' in window)) return;
     window.launchQueue.setConsumer(async (params) => {
-      for (const handle of params.files || []) {
-        const file = await handle.getFile().catch(() => null);
-        if (!file) continue;
-        if (!/\.zlm$/i.test(file.name)) { this.showToast(`${file.name}: Geöffnet werden hier nur .zlm-Dateien.`, 'error'); continue; }
-        const { openZlmFile } = await import('./views/zlm-viewer.js');
-        await openZlmFile(this, file);
-      }
+      const files = (await Promise.all((params.files || []).map((h) => h.getFile().catch(() => null)))).filter(Boolean);
+      if (!files.length) return;
+      const { handleOpenedFiles } = await import('./views/file-open.js');
+      await handleOpenedFiles(this, files);
     });
+  }
+
+  /** Nach der Anmeldung: Dateien, die vorher per „Öffnen mit“ kamen. */
+  async openPendingFiles() {
+    const { takePendingFiles, handleOpenedFiles } = await import('./views/file-open.js');
+    const files = takePendingFiles();
+    if (files.length) await handleOpenedFiles(this, files);
   }
 
   /**

@@ -76,16 +76,18 @@ export async function askConvertOptions({ count = 1, keepDefault = false, keepOp
 }
 
 /** PDF (Bytes oder Link) über den Renderer bzw. pdf-ai in ein Dokument (spec). */
-export async function pdfToSpec(pdf, name, { mode, ocr }) {
+export async function pdfToSpec(pdf, name, { mode, ocr, positions = false }) {
   const blob = pdf instanceof Blob ? pdf : new Blob([pdf], { type: 'application/pdf' });
   const form = new FormData();
   form.append('file', blob, name || 'blatt.pdf');
   form.append('mode', mode);
   if (ocr) form.append('ocr', 'true');
+  // Lage je Baustein im PDF (`_pos`) – nur für den .xopp-Import (xopp-import.js).
+  if (positions) form.append('positions', 'true');
   const res = await fetch('/api/worksheets/import-pdf', { method: 'POST', headers: { Authorization: `Bearer ${token()}` }, body: form });
   const data = await res.json().catch(() => ({}));
   if (!res.ok || !data.spec) throw new Error(data.message || `HTTP ${res.status}`);
-  return { spec: data.spec, warnings: data.warnings || [] };
+  return { spec: data.spec, warnings: data.warnings || [], title: data.title || '' };
 }
 
 /** Datei wählen; null bei Abbruch. Muss im Klick starten (iPad), daher ohne await davor. */

@@ -5560,5 +5560,6 @@ details.cb-topic > summary .hint { font-weight: normal; margin-left: 6px; }
 .zlm-viewer { position: fixed; inset: 0; z-index: 1000; display: flex; flex-direction: column; background: var(--bg-primary); }
 .zlm-viewer-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 16px; border-bottom: 1px solid var(--border); background: var(--bg-secondary); }
 .zlm-viewer-title .hint { margin-left: 8px; }
+.zlm-viewer-actions { display: flex; flex-wrap: wrap; gap: 6px; }
 .zlm-viewer-body { flex: 1; overflow: auto; padding: 16px; }
 .zlm-viewer-doc { max-width: 900px; margin: 0 auto; }

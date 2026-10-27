@@ -795,6 +795,7 @@ export class LoginView {
       this.app.navigateToView(startView || 'teacher-topics');
       this.app.classesView.checkRollover();
       if (currentUser.role === 'admin') this.app.adminView.load();
+      void this.app.openPendingFiles(); // per „Öffnen mit“ vor der Anmeldung gekommen
     } else {
       this.app.navigateToView('student-quiz');
     }

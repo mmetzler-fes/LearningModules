@@ -309,71 +309,34 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
    * (`_pos` der Bausteine), zunächst nur für sie sichtbar.
    */
   const importXopp = async (xoppFile, pdfFile) => {
-    const { readXopp, layerFromXopp } = await import('../lm-editor/src/import/xopp.js');
+    const { readXoppFile, xoppToDocument, saveTeacherInk } = await import('./xopp-import.js');
     let xopp;
-    try { xopp = readXopp(new Uint8Array(await xoppFile.arrayBuffer())); } catch (err) { status.textContent = `❌ ${err.message}`; return; }
+    try { xopp = await readXoppFile(xoppFile); } catch (err) { status.textContent = `❌ ${err.message}`; return; }
     const docId = documentId();
     if (!docId) { status.textContent = '❌ Die Beschriftung braucht ein Dokument – bitte das Modul neu öffnen.'; return; }
     const ask = window.appConfirm || ((m) => Promise.resolve(window.confirm(m)));
-    const needsPdf = xopp.pages.some((p) => p.pdfPage !== null);
-    if (needsPdf && !pdfAllowed) { status.textContent = '❌ Die .xopp beschriftet ein PDF – PDF-Import ist für dein Konto nicht freigeschaltet.'; return; }
-    if (needsPdf && !pdfFile) {
+    if (xopp.needsPdf && !pdfAllowed) { status.textContent = '❌ Die .xopp beschriftet ein PDF – PDF-Import ist für dein Konto nicht freigeschaltet.'; return; }
+    if (xopp.needsPdf && !pdfFile) {
       if (!(await ask(`Die .xopp beschriftet das PDF „${xopp.pdfName || '…'}“ – es steckt nicht in der .xopp-Datei.\n\nJetzt das PDF auswählen?`))) return;
       pdfFile = await pickFile('.pdf,application/pdf');
       if (!pdfFile) return;
     }
     const empty = !spec || !Array.isArray(spec.content) || !spec.content.length || textarea.value === starterYaml;
-    const choice = needsPdf ? await askPdfMode() : null;
-    if (needsPdf && !choice) return;
+    const choice = xopp.needsPdf ? await askPdfMode() : null;
+    if (xopp.needsPdf && !choice) return;
     if (!empty && !(await ask('Den bisherigen Inhalt durch das Dokument ersetzen?'))) return;
-    let imported;
-    let title = xoppFile.name.replace(/\.xopp$/i, '');
-    const warnings = [...xopp.warnings];
+    status.textContent = choice?.mode === 'ai' ? 'KI-Erkennung läuft – das kann je Seite einige Sekunden dauern …' : 'Wird übernommen …';
+    let result;
     try {
-      if (needsPdf) {
-        status.textContent = choice.mode === 'ai' ? 'KI-Erkennung läuft – das kann je Seite einige Sekunden dauern …' : 'PDF wird übernommen …';
-        const form = new FormData();
-        form.append('file', pdfFile);
-        form.append('mode', choice.mode);
-        form.append('positions', 'true');
-        if (choice.ocr) form.append('ocr', 'true');
-        const res = await fetch('/api/worksheets/import-pdf', { method: 'POST', headers: token() ? { Authorization: `Bearer ${token()}` } : {}, body: form });
-        const data = await res.json();
-        if (!res.ok || !data.spec) throw new Error(data.message || `HTTP ${res.status}`);
-        imported = data.spec;
-        title = data.title || title;
-        warnings.push(...(data.warnings || []));
-      } else {
-        // Ohne PDF (Karo-, Linienpapier): je Seite ein unsichtbares Schreibfeld in Seitenhöhe.
-        imported = { content: xopp.pages.map((p, i) => {
-          p.pdfPage = 1000 + i;
-          return { type: 'karo', pattern: 'frei', lines: Math.max(1, Math.min(60, Math.round(p.h / 14.17))), _pos: [1000 + i, 0] };
-        }) };
-      }
+      result = await xoppToDocument(xopp, { name: xoppFile.name, pdfFile, pdf: choice });
     } catch (err) {
       status.textContent = `❌ Übernahme fehlgeschlagen: ${err.message}`;
       return;
     }
-    // Feste IDs, daran hängt die Beschriftung; `_pos` nur für sie, nicht ins Dokument.
-    ensureBlockIds(imported);
-    const anchors = [];
-    const strip = (v) => {
-      if (Array.isArray(v)) v.forEach(strip);
-      else if (v && typeof v === 'object') { delete v._pos; Object.values(v).forEach(strip); }
-    };
-    for (const b of imported.content || []) if (Array.isArray(b?._pos) && b.id) anchors.push({ bid: b.id, page: b._pos[0], top: b._pos[1] });
-    strip(imported);
-    if (needsPdf && !anchors.length) warnings.push('Die Lage im PDF war nicht bekannt (KI-Erkennung) – die Beschriftung steht oben auf dem Blatt; bitte im Stift-Editor verschieben.');
-    const layer = layerFromXopp(xopp, anchors);
-    const count = xopp.pages.reduce((n, p) => n + p.items.length, 0);
-    const saved = count ? await fetch(`/api/teacher-ink/${encodeURIComponent(docId)}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json', ...(token() ? { Authorization: `Bearer ${token()}` } : {}) },
-      body: JSON.stringify({ data: { v: 1, bg: 'paper', pages: [{ items: [] }], layer } }),
-    }).then((r) => r.ok).catch(() => false) : true;
-    applyImported(imported, title, warnings);
-    status.innerHTML += count
-      ? (saved ? ` ✍️ ${count} Striche und Textfelder sind deine Beschriftung (nur für dich, je Seite eine Gruppe) – nach dem Speichern unter „✍️ Mit Stift bearbeiten“.`
+    const saved = result.stand ? await saveTeacherInk(docId, result.stand) : true;
+    applyImported(result.spec, result.title, result.warnings);
+    status.innerHTML += result.count
+      ? (saved ? ` ✍️ ${result.count} Striche und Textfelder sind deine Beschriftung (nur für dich, je Seite eine Gruppe) – nach dem Speichern unter „✍️ Mit Stift bearbeiten“.`
         : ' ⚠️ Die Beschriftung ließ sich nicht speichern.')
       : ' (Die .xopp enthält keine Beschriftung.)';
   };

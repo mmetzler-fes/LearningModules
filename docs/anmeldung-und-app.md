@@ -14,16 +14,33 @@ Adressleiste und Browserleisten, mit mehr Platz (z. B. für den Stift-Editor).
 Die App hat auf dem iPad ihren eigenen Speicher, getrennt von Safari – dort
 einmal neu anmelden (mit „Angemeldet bleiben“).
 
-### .zlm-Dateien per Doppelklick (PC)
+### Dateien mit LernModule öffnen (PC)
 
 Ist LernModule am PC als App installiert (Chrome oder Edge), öffnet sie
-Dokumente des lm-editor (**.zlm**) zum Ansehen: Rechtsklick auf die Datei →
-„Öffnen mit“ → LernModule – oder LernModule dort als Standard festlegen, dann
-genügt ein Doppelklick. Beim ersten Mal fragt der Browser, ob die App die
-Datei öffnen darf. Zu sehen sind das Dokument mit Bildern, bedienbaren Quizzen
-und der Stiftbeschriftung aus der Datei; „Lösungen zeigen“ deckt die Lösungen
-auf. Dafür ist keine Anmeldung nötig, die Datei verlässt den PC nicht.
+Dateien direkt aus dem Explorer: **rechte Maustaste → „Öffnen mit“ →
+LernModule** (oder LernModule als Standard festlegen, dann genügt ein
+Doppelklick). Beim ersten Mal fragt der Browser, ob die App die Datei öffnen
+darf.
+
+- **.zlm** (lm-editor): wird gleich angezeigt – ohne Anmeldung, die Datei
+  verlässt den PC nicht.
+- **.odt, .docx, .pdf**: werden wie beim Import umgewandelt (bei PDFs fragt die
+  App nach der Art) und angezeigt.
+- **.xopp** (Xournal++): mit ihrem PDF – beide markieren und zusammen öffnen;
+  fehlt das PDF, fragt die App danach. Angezeigt wird das Dokument mit deiner
+  Handschrift darüber.
+
+Für diese Umwandlung braucht es die Anmeldung; bist du nicht angemeldet,
+öffnet sich die Datei gleich nach der Anmeldung. Gespeichert ist zunächst
+nichts. **📓 Im Notizbuch ablegen…** macht daraus ein Modul „Dokument“: ein
+eigenes Lernthema wählen (das Dokument kommt dazu) oder einen Ordner bzw.
+„Unsortiert“ (dort entsteht ein neues Lernthema, Name änderbar). Die
+Handschrift einer .xopp wird dabei deine Beschriftung (nur für dich). Danach
+lässt es sich gleich bearbeiten.
+
 Auf dem iPad geht das nicht – Web-Apps können dort keine Dateien übernehmen.
+Hast du die App schon vor diesem Update installiert: einmal deinstallieren
+und neu installieren, damit Windows die neuen Dateitypen kennt.
 
 ## Angemeldet bleiben
 
@@ -56,4 +73,4 @@ Wer das **Passwort ändert**, ist auf allen anderen Geräten abgemeldet.
 - `POST /api/auth/refresh` (die App höchstens einmal am Tag), `POST /api/auth/logout`,
   `GET /api/auth/sessions`, `DELETE /api/auth/sessions/:id`, `POST /api/auth/sessions/end-all`.
 - App-Symbol: `src/renderer/manifest.webmanifest`, `src/renderer/icons/`.
-- .zlm öffnen: `file_handlers` im Manifest, `launchQueue` in `app.js`, Anzeige `js/views/zlm-viewer.js`.
+- Dateien öffnen: `file_handlers` im Manifest, `launchQueue` in `app.js`, `js/views/file-open.js`, Anzeige `js/views/zlm-viewer.js`.

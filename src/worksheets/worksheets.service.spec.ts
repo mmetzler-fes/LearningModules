@@ -60,6 +60,13 @@ describe('WorksheetsService.prepare', () => {
     expect(warnings).toEqual(['Eine Beschriftung ließ sich nicht drucken (unerwarteter Inhalt).']);
   });
 
+  it('Bilder in einer Tabelle in einer Zelle gehen auch als Datei mit', async () => {
+    const { job } = await service.prepare({ content: [
+      { type: 'table', rows: [[{ text: 'a', blocks: [{ type: 'image', src: PNG, width: '2cm' }] }]] },
+    ] }, 'T', ['pdf']);
+    expect(job.spec.content[0].rows[0][0].blocks[0]).toEqual({ type: 'image', file: 'bilder/bild-1.png', width: '2.00cm' });
+  });
+
   it('safeInkSvg: nur Zeichnung, keine Verweise', () => {
     expect(safeInkSvg('<svg xmlns="http://www.w3.org/2000/svg"><g><path d="M0 0"/><text><tspan>Hi</tspan></text></g></svg>')).toBe(true);
     expect(safeInkSvg('<svg><use href="#a"/></svg>')).toBe(false);

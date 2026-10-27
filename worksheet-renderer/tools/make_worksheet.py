@@ -1413,6 +1413,7 @@ def spanned_table(block: dict[str, Any], styles: dict[str, str], ctx: dict[str, 
     start: dict[tuple[int, int], tuple[str, int, int]] = {}
     pictures: dict[tuple[int, int], list[dict[str, Any]]] = {}
     beside: set[tuple[int, int]] = set()   # Bilder neben dem Text (`beside: true`)
+    inner_blocks: dict[tuple[int, int], list[Any]] = {}   # Bausteine in der Zelle (Tabelle in der Tabelle)
     covered: set[tuple[int, int]] = set()
     columns = 1
     for r, row in enumerate(source):
@@ -1421,6 +1422,8 @@ def spanned_table(block: dict[str, Any], styles: dict[str, str], ctx: dict[str, 
             while (r, c) in covered:
                 c += 1
             start[(r, c)] = (text, cs, rs)
+            if isinstance(raw[r][k], dict) and isinstance(raw[r][k].get("blocks"), list) and raw[r][k]["blocks"]:
+                inner_blocks[(r, c)] = raw[r][k]["blocks"]
             if images_of(raw[r][k]):
                 pictures[(r, c)] = images_of(raw[r][k])
                 if isinstance(raw[r][k], dict) and raw[r][k].get("beside"):
@@ -1465,9 +1468,11 @@ def spanned_table(block: dict[str, Any], styles: dict[str, str], ctx: dict[str, 
                         para.addElement(image_frame(ctx["doc"], {**picture, "width": f"{width:.2f}cm"}, ctx["search"],
                                                     ctx["image_index"], middle=True))
                     tc.addElement(para)
+                    for el in render_blocks(inner_blocks.get((r, c)), styles, ctx):
+                        tc.addElement(el)
                     tr.addElement(tc)
                     continue
-                if text or (r, c) not in pictures:
+                if text or ((r, c) not in pictures and (r, c) not in inner_blocks):
                     tc.addElement(rich_p(style, text))
                 for picture in pictures.get((r, c), []):
                     ctx["image_index"] += 1
@@ -1475,6 +1480,8 @@ def spanned_table(block: dict[str, Any], styles: dict[str, str], ctx: dict[str, 
                     para = P(stylename=style)
                     para.addElement(image_frame(ctx["doc"], {**picture, "width": f"{width:.2f}cm"}, ctx["search"], ctx["image_index"]))
                     tc.addElement(para)
+                for el in render_blocks(inner_blocks.get((r, c)), styles, ctx):
+                    tc.addElement(el)
                 tr.addElement(tc)
             elif (r, c) in covered:
                 tr.addElement(CoveredTableCell())

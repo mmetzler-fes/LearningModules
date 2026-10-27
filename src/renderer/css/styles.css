@@ -3721,6 +3721,11 @@ body {
 .ds-tablebar { flex-basis: 100%; display: flex; flex-wrap: wrap; gap: 2px 4px; align-items: center; padding: 3px 0 0; border-top: 1px solid var(--border); margin-top: 2px; font-size: 0.85em; }
 .ds-tablebar[hidden] { display: none; }
 .ds-tablebar [hidden] { display: none !important; }
+.ds-tb-hold { flex-basis: 100%; margin: 2px 0 0; font-size: 0.85em; }
+.ds-tb-hold[hidden] { display: none; }
+.ds-tb-hold .rt-btn { padding: 1px 6px; min-width: 0; font-size: 1em; }
+/* Tabelle in einer Zelle: etwas Luft, damit man daneben klicken kann */
+.worksheet-content td > table, .worksheet-content th > table { margin: 4px 0; }
 .ds-tablebar-label { font-weight: 600; color: var(--text-secondary); margin-right: 4px; }
 .ds-tablebar-sep { width: 1px; align-self: stretch; background: var(--border); margin: 0 4px; }
 .ds-tablebar label { display: inline-flex; align-items: center; gap: 3px; margin: 0 4px 0 0; font-weight: normal; white-space: nowrap; }

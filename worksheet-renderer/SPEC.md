@@ -108,6 +108,11 @@ content:
         blocks: [{type: image, file: schaltung.png, width: 8cm}]
       - type: column
         blocks: [{type: table, header: [C, B, A, X], rows: [["", "", "", ""]]}]
+  - type: table                 # Tabelle in der Tabelle: Bausteine einer Zelle
+    rows:                       # unter `blocks` (nach Text und Bildern)
+      - - Schaltung links
+        - text: "Wertetabelle:"
+          blocks: [{type: table, header: [C, B, A, X], rows: [["", "", "", ""]]}]
   - type: table                 # Bild neben dem Text der Zelle statt darunter
     rows:
       - [{text: Schließer, beside: true, images: [{file: schliesser.svg, width: 0.6cm}]}, betätigt, "1"]

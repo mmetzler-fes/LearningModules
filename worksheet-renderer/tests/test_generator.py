@@ -187,6 +187,24 @@ class RenderTest(unittest.TestCase):
             self.assertRegex(content, r'Schließer<text:s/><draw:frame draw:style-name="AB_BildMitte"')
             self.assertIn('style:vertical-pos="middle" style:vertical-rel="line"', content)
 
+    def test_tabelle_in_der_tabelle(self):
+        """Bausteine in einer Zelle (`blocks`): die innere Tabelle steht in der Zelle."""
+        spec = (
+            "titel: Geschachtelt\ncontent:\n"
+            "  - type: table\n"
+            "    rows:\n"
+            "      - [Links, {text: Rechts, blocks: [{type: table, header: [C, X], rows: [['', '']]}]}]\n"
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "blatt").mkdir()
+            (root / "blatt" / "sp.yaml").write_text(spec, encoding="utf-8")
+            env = dict(os.environ, ARBEITSBLATT_ROOT=str(root))
+            subprocess.run([sys.executable, str(GEN / "tools" / "make_worksheet.py"), "blatt/sp.yaml",
+                            "-o", "out"], cwd=root, env=env, check=True, capture_output=True)
+            content = zipfile.ZipFile(root / "out" / "blatt.odt").read("content.xml").decode()
+            self.assertRegex(content, r'Rechts</text:p><table:table table:name="Tab\d+"')
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -43,6 +43,12 @@ Der Editor startet im Modus **✏️ Bearbeiten** – wie ein Textprogramm:
   **Linien** an/aus, **⇔ auto** (alle festen Breiten weg) und 🗑 Tabelle
   löschen. Breite und Höhe gehen auch mit der Maus: rechten Rand einer Zelle
   bzw. unteren Rand einer Zeile ziehen. Verbundene Zellen bleiben verbunden.
+  **Tabelle verschieben oder schachteln:** In der Leiste **✂ Ausschneiden**,
+  dann die Schreibmarke in eine Zelle einer anderen Tabelle setzen und
+  **📥 Tabelle hier einfügen** – oder im Hinweis darunter „hinter den Absatz
+  der Schreibmarke“ (bzw. „zurück an die alte Stelle“). **⬚ Markieren**
+  wählt die ganze Tabelle für Strg+C / Strg+X. Eine Tabelle in einer Zelle
+  steht im YAML unter `blocks` der Zelle.
   Hat eine Zelle ein Bild, schaltet **Bild neben Text** es neben den Text
   (z. B. „Schließer“ und sein Schaltzeichen) statt darunter.
   Im Druck gelten die Breiten genau; Spalten ohne Breite teilen sich den Rest

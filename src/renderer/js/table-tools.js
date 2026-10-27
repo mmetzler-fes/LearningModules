@@ -241,6 +241,10 @@ export function attachTableTools(surface, bar) {
     <label class="ds-tb-notcols" title="Erste Zeile als Kopfzeile (fett)"><input type="checkbox" class="ds-tb-head"> Kopfzeile</label>
     <label class="ds-tb-notcols ds-tb-beside-label" title="Bilder dieser Zelle neben dem Text statt darunter"><input type="checkbox" class="ds-tb-beside"> Bild neben Text</label>
     <label class="ds-tb-notcols" title="Linien zeigen – ohne z. B. für Abbildungen nebeneinander"><input type="checkbox" class="ds-tb-border"> Linien</label>
+    <span class="ds-tablebar-sep"></span>
+    <button type="button" class="rt-btn" data-t="selectTable" title="Ganze Tabelle markieren – dann Strg+C / Strg+X">⬚ Markieren</button>
+    <button type="button" class="rt-btn" data-t="cutTable" title="Tabelle ausschneiden – danach in eine Zelle einer anderen Tabelle oder zwischen Absätze einfügen">✂ Ausschneiden</button>
+    <button type="button" class="rt-btn ds-tb-paste" data-t="pasteTable" title="Ausgeschnittene Tabelle hier einfügen – in diese Zelle" hidden>📥 Tabelle hier einfügen</button>
     <button type="button" class="rt-btn" data-t="evenWidths" title="Alle festen Breiten entfernen – die Spalten richten sich wieder nach dem Inhalt">⇔ auto</button>
     <button type="button" class="rt-btn ds-tb-danger" data-t="tableDel" title="Ganze Tabelle löschen">🗑</button>`;
   const widthIn = bar.querySelector('.ds-tb-width');
@@ -251,6 +255,40 @@ export function attachTableTools(surface, bar) {
 
   // Zuletzt gewählte Zelle – die Leiste wirkt auf sie, auch wenn der Fokus im Eingabefeld steht.
   let cell = null;
+  // Ausgeschnittene Tabelle, bis sie woanders eingefügt ist (in eine Zelle oder per Hinweis zwischen Absätze).
+  let held = null;
+  const pasteBtn = bar.querySelector('.ds-tb-paste');
+  const holdNote = document.createElement('div');
+  holdNote.className = 'ds-tb-hold hint';
+  holdNote.hidden = true;
+  holdNote.innerHTML = '✂ Tabelle ausgeschnitten – Schreibmarke in eine Zelle setzen und <b>📥 Tabelle hier einfügen</b>, oder <button type="button" class="rt-btn" data-hold="here">hinter den Absatz der Schreibmarke</button> <button type="button" class="rt-btn" data-hold="undo">zurück an die alte Stelle</button>';
+  bar.after(holdNote);
+  let heldFrom = null;
+  const showPaste = () => {
+    pasteBtn.hidden = !held;
+    holdNote.hidden = !held;
+  };
+  // Wo die Schreibmarke zuletzt in der Fläche stand (auch außerhalb von Tabellen).
+  let lastNode = null;
+  holdNote.addEventListener('mousedown', (e) => e.preventDefault());
+  holdNote.addEventListener('click', (e) => {
+    const what = e.target.closest('[data-hold]')?.dataset.hold;
+    if (!what || !held) return;
+    if (what === 'undo') {
+      const { parent, next } = heldFrom || {};
+      if (parent?.isConnected) parent.insertBefore(held, next?.parentNode === parent ? next : null);
+      else surface.appendChild(held);
+    } else {
+      // Hinter den Block der Schreibmarke: direktes Kind der Fläche, eines Kastens oder einer Zelle.
+      let n = lastNode && surface.contains(lastNode) ? (lastNode.nodeType === 3 ? lastNode.parentNode : lastNode) : null;
+      while (n && n !== surface && !(n.parentNode === surface || n.parentNode?.matches?.('div.ws-box, td, th'))) n = n.parentNode;
+      if (n && n !== surface) n.after(held); else surface.appendChild(held);
+    }
+    const first = cellsOf(rowsOf(held)[0] || document.createElement('tr'))[0];
+    held = null;
+    showPaste();
+    if (first) focusCell(first);
+  });
   const tableOf = (td) => td?.closest('table');
   const editable = (table) => table && surface.contains(table) && !table.closest('.ds-widget');
 
@@ -288,6 +326,7 @@ export function attachTableTools(surface, bar) {
       if (!bar.contains(document.activeElement)) { cell = null; bar.hidden = true; }
       return;
     }
+    lastNode = node;
     const el = node.nodeType === 3 ? node.parentNode : node;
     cell = el.closest?.('td, th') || null;
     show();
@@ -328,6 +367,30 @@ export function attachTableTools(surface, bar) {
         focusCell(g?.map[p.r]?.[Math.min(p.c, g.cols - 1)] || null);
         return;
       }
+      case 'selectTable': {
+        const range = document.createRange();
+        range.selectNode(table);
+        const sel = window.getSelection();
+        sel.removeAllRanges();
+        sel.addRange(range);
+        return;
+      }
+      case 'cutTable':
+        heldFrom = { parent: table.parentNode, next: table.nextSibling };
+        held = table;
+        table.remove();
+        focusCell(null);
+        showPaste();
+        return;
+      case 'pasteTable':
+        if (!held || !cell) return;
+        // Leere Zelle (nur <br>): die Tabelle ersetzt den Platzhalter.
+        if (!cell.textContent.trim() && !cell.querySelector('img, table')) cell.innerHTML = '';
+        cell.appendChild(held);
+        held = null;
+        showPaste();
+        focusCell(cellsOf(rowsOf(cell.lastElementChild)[0] || document.createElement('tr'))[0] || cell);
+        return;
       case 'evenWidths':
         [...table.children].filter((c) => c.tagName === 'COLGROUP').forEach((c) => c.remove());
         show();

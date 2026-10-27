@@ -385,6 +385,8 @@ export class WorksheetsService {
     // nicht drucken lässt, steht als Hinweis im Text der Zelle.
     const tableCells = async (block: Record<string, any>) => {
       const cell = async (c: any) => {
+        // Bausteine in der Zelle (Tabelle in der Tabelle) wie alle anderen.
+        if (c && typeof c === 'object' && Array.isArray(c.blocks)) c = { ...c, blocks: await walk(c.blocks) };
         if (!c || typeof c !== 'object' || !Array.isArray(c.images) || !c.images.length) return c;
         const images: any[] = [];
         const notes: string[] = [];

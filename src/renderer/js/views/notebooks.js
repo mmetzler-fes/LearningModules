@@ -805,6 +805,15 @@ export class NotebooksView {
     const tpls = Array.isArray(tplRes?.templates) ? tplRes.templates : [];
     const tplSelect = (kind, label) => `<label>${label} <select name="tpl_${kind}"><option value="">wie darüber bzw. Standard</option>
       ${tpls.filter((t) => t.kind === kind).map((t) => `<option value="${escapeAttr(t.id)}" ${s.templates?.[kind] === t.id ? 'selected' : ''}>${escapeHtml(t.name)}${t.scope === 'school' ? ' (Schule)' : ''}</option>`).join('')}</select></label>`;
+    // Größe eingebetteter Quizze im Blatt, je Art; leer = wie darüber.
+    const QUIZ_SIZE_TYPES = [['dragAndDrop', 'Drag and Drop'], ['dragTheWords', 'Drag the Words'], ['*', 'Übrige Quiz-Arten']];
+    const SIZES = [0.5, 0.6, 0.7, 0.8, 0.9, 1, 1.1, 1.25, 1.5];
+    const quizSelect = (type, label) => {
+      const above = inherited.quizScale?.[type];
+      return `<label>${label} <select name="qs_${type === '*' ? 'rest' : type}">
+        <option value="">wie darüber (${Math.round((above || (type === '*' ? 1 : inherited.quizScale?.['*'] || 1)) * 100)} %)</option>
+        ${SIZES.map((v) => `<option value="${v}" ${s.quizScale?.[type] === v ? 'selected' : ''}>${Math.round(v * 100)} %</option>`).join('')}</select></label>`;
+    };
     const overlay = document.createElement('div');
     overlay.className = 'confirm-overlay';
     overlay.innerHTML = `
@@ -831,6 +840,10 @@ export class NotebooksView {
           <div class="nb-formats">${[['odt', 'Blatt .odt'], ['loesung', 'Lösung .odt'], ['pdf', 'Blatt .pdf'], ['loesung_pdf', 'Lösung .pdf']].map(([f, l]) =>
             `<label class="nb-check"><input type="checkbox" name="format" value="${f}" ${(s.formats || inherited.formats || ['odt', 'loesung', 'pdf', 'loesung_pdf']).includes(f) ? 'checked' : ''}> ${l}</label>`).join('')}</div>
           <span class="hint">Dazu immer die Quelle unter _Quellen/ (YAML).</span></div>
+        <div class="form-group"><label>Quizze im Blatt – Größe</label>
+          <div class="ai-prompt-row">${QUIZ_SIZE_TYPES.map(([t, l]) => quizSelect(t, l)).join('')}</div>
+          <span class="hint">Wie groß eingebettete Quizze im Dokument erscheinen – für alle, auch die Schüler. Ein einzelnes Quiz kann abweichen
+            (Doppelklick im Dokument-Editor), und mit A− / A+ stellt jeder selbst nach.</span></div>
         <div class="form-group"><label>KI-Vorgaben</label>
           <textarea name="aiGuidelines" rows="6" maxlength="20000" placeholder="Fachliche Vorgaben für die KI, z. B. Hardware, Programmiersprache, Niveau">${escapeHtml(s.aiGuidelines || '')}</textarea></div>
         <div class="confirm-actions">
@@ -852,6 +865,9 @@ export class NotebooksView {
         numberFlat: f.numberFlat.checked ? true : null,
         formats: [...form.querySelectorAll('input[name="format"]:checked')].map((x) => x.value),
         templates: { arbeitsblatt: f.tpl_arbeitsblatt.value || undefined, klassenarbeit: f.tpl_klassenarbeit.value || undefined, skript: f.tpl_skript.value || undefined },
+        quizScale: Object.fromEntries(QUIZ_SIZE_TYPES
+          .map(([t]) => [t, Number(f[`qs_${t === '*' ? 'rest' : t}`].value)])
+          .filter(([, v]) => v > 0)),
       });
       if (failed(res)) { this.app.showToast('Fehler: ' + (res?.message || 'Speichern fehlgeschlagen'), 'error'); return; }
       close();
@@ -864,6 +880,8 @@ export class NotebooksView {
     const out = {};
     for (let n = nodeId ? this._nodes.get(nodeId) : null; n; n = n.parentId ? this._nodes.get(n.parentId) : null) {
       for (const k of ['kurs', 'titelmuster', 'autor', 'formats']) if (!out[k] && n.docSettings?.[k]) out[k] = n.docSettings[k];
+      // Quiz-Größen erben Art für Art – das Nähere gilt.
+      if (n.docSettings?.quizScale) out.quizScale = { ...n.docSettings.quizScale, ...(out.quizScale || {}) };
     }
     return out;
   }

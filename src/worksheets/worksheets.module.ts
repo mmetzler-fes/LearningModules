@@ -20,6 +20,7 @@ import { WorksheetRendererClient } from './renderer.client';
 import { PdfAiClient } from './pdf-ai.client';
 import { DocNumberingService } from './doc-numbering.service';
 import { CourseService } from './course.service';
+import { QuizScaleService } from './quiz-scale.service';
 import { InterchangeModule } from '../core/interchange/interchange.module';
 
 @Module({
@@ -30,7 +31,7 @@ import { InterchangeModule } from '../core/interchange/interchange.module';
     InterchangeModule,
   ],
   controllers: [WorksheetsController, DocMigrationController],
-  providers: [WorksheetsService, WorksheetRendererClient, PdfAiClient, DocNumberingService, CourseService, DocMirrorService, TemplatesService, DocMigrationService],
+  providers: [WorksheetsService, WorksheetRendererClient, PdfAiClient, DocNumberingService, CourseService, DocMirrorService, TemplatesService, DocMigrationService, QuizScaleService],
   exports: [WorksheetsService, DocNumberingService, CourseService, DocMirrorService, TemplatesService],
 })
 export class WorksheetsModule {}

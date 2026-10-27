@@ -29,7 +29,16 @@ export interface DocSettings {
   formats?: string[];
   /** Vorlage je Art (WorksheetTemplate.id); ohne Angabe Standard der Lehrkraft bzw. Schule. */
   templates?: { arbeitsblatt?: string; klassenarbeit?: string; skript?: string };
+  /**
+   * Größe eingebetteter Quizze im Blatt je Modultyp, `*` für die übrigen
+   * (0.5–1.5). Erben sich Typ für Typ nach unten; QuizScaleService schreibt
+   * sie in die Dokumente (spec.quizScale), die Anzeige liest sie dort.
+   */
+  quizScale?: Record<string, number>;
 }
+
+/** Erlaubte Größen eines Quiz im Blatt (wie A− / A+ in h5p-renderer.js). */
+export const QUIZ_SCALES = [0.5, 0.6, 0.7, 0.8, 0.9, 1, 1.1, 1.25, 1.5];
 
 export const PRINT_FORMATS = ['odt', 'loesung', 'pdf', 'loesung_pdf'];
 
@@ -140,6 +149,7 @@ export function settingsAt(nodes: NumNode[], nodeId: string | null): DocSettings
     if (Array.isArray(s.formats)) out.formats = s.formats;
     if (s.templates && typeof s.templates === 'object') out.templates = { ...(out.templates || {}), ...s.templates };
     if (s.meta && typeof s.meta === 'object') out.meta = { ...(out.meta || {}), ...s.meta };
+    if (s.quizScale && typeof s.quizScale === 'object') out.quizScale = { ...(out.quizScale || {}), ...s.quizScale };
   }
   return out;
 }
@@ -174,6 +184,15 @@ export function sanitizeDocSettings(input: any, existing: DocSettings | null | u
       if (typeof v === 'string' && /^[\w-]{1,64}$/.test(v)) t[kind] = v;
     }
     if (Object.keys(t).length) out.templates = t; else delete out.templates;
+  }
+  if ('quizScale' in src) {
+    const q: Record<string, number> = {};
+    if (src.quizScale && typeof src.quizScale === 'object' && !Array.isArray(src.quizScale)) {
+      for (const [k, v] of Object.entries(src.quizScale).slice(0, 40)) {
+        if (/^([A-Za-z][A-Za-z0-9]{0,39}|\*)$/.test(k) && QUIZ_SCALES.includes(Number(v))) q[k] = Number(v);
+      }
+    }
+    if (Object.keys(q).length) out.quizScale = q; else delete out.quizScale;
   }
   if ('meta' in src) {
     const meta: Record<string, string> = {};

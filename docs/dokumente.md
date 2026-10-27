@@ -197,8 +197,11 @@ Baustein an der Schreibmarke im Blatt (`type: quiz`, `module: <Modul-ID>`).
   erstellt, druckt das Nextcloud-Abbild die Blätter neu.
 - **Größe:** Quizze sind für die App gestaltet und wirken auf dem Blatt (vor allem
   im Stift-Editor) oft zu groß. **A− / A+** oben rechts am Quiz stellt es kleiner
-  oder größer (50–150 %); das Gerät merkt es sich je Quiz. Die Vorgabe für alle
-  setzt die Lehrkraft im Dokument-Editor: Doppelklick auf das Quiz → **Größe im Blatt**.
+  oder größer (50–150 %); das Gerät merkt es sich je Quiz. Vorgaben für alle,
+  auch die Schüler: im Notizbuch an Book, Bereich oder Abschnitt **⋯ → 📄
+  Dokument-Einstellungen → Quizze im Blatt – Größe**, je Art (Drag and Drop,
+  Drag the Words, übrige). Sie erben sich nach unten wie Kursname und Kopfzeile;
+  ein einzelnes Quiz weicht ab mit Doppelklick im Dokument-Editor → **Größe im Blatt**.
 - Ist das Modul nicht freigegeben, sehen Schüler im Blatt einen Hinweis.
 - Im Kurs-Export und im Generator wird daraus ein Hinweis
   („[Quiz: … – online in LearningModules]“) – Module gibt es dort nicht.

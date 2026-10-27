@@ -443,16 +443,24 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
   root.querySelectorAll('[data-mode]').forEach((b) => b.addEventListener('click', () => setMode(b.dataset.mode)));
 
   /** Block-Element der Schreibmarke (direktes Kind der Fläche bzw. eines Kastens) – oder der gewählte Baustein. */
-  const currentBlock = () => {
-    if (selectedWidget && surface.contains(selectedWidget)) return selectedWidget;
-    const sel = window.getSelection();
-    let n = sel && sel.rangeCount ? sel.getRangeAt(0).startContainer : null;
-    if (n && n.nodeType === 3) n = n.parentNode;
+  /** Block zu einem Knoten in der Fläche (direktes Kind der Fläche bzw. eines Kastens) – oder null. */
+  const blockOfNode = (node) => {
+    let n = node && node.nodeType === 3 ? node.parentNode : node;
+    if (!n || !surface.contains(n)) return null;
     while (n && n !== surface && !(n.parentNode === surface || n.parentNode?.classList?.contains('ws-box'))) n = n.parentNode;
     return n && n !== surface ? n : null;
   };
+  // Letzter Block der Schreibmarke – das ➕ oder ein Menü nimmt ihn, wenn die Auswahl inzwischen woanders steht.
+  let lastBlock = null;
+  const currentBlock = () => {
+    if (selectedWidget && surface.contains(selectedWidget)) return selectedWidget;
+    const sel = window.getSelection();
+    const here = blockOfNode(sel && sel.rangeCount ? sel.getRangeAt(0).startContainer : null);
+    return here || (lastBlock && surface.contains(lastBlock) ? lastBlock : null);
+  };
   document.addEventListener('selectionchange', () => {
     if (mode !== 'visual' || !surface.contains(document.getSelection()?.anchorNode)) return;
+    lastBlock = blockOfNode(document.getSelection().anchorNode) || lastBlock;
     const b = currentBlock();
     blockSelect.value = b?.dataset?.ds && b.dataset.ds !== 'note' ? b.dataset.ds : b?.dataset?.ds === 'note' ? 'note' : 'p';
   });
@@ -511,8 +519,8 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
 
   /** Menü zum Einfügen – am ➕ oder per Rechtsklick in den Text. Quizze des Lernthemas stehen direkt darin. */
   const QUIZ_MENU_MAX = 12;
-  const insertMenu = (x, y) => {
-    const after = currentBlock();
+  const insertMenu = (x, y, at = null) => {
+    const after = at || currentBlock();
     const quizzes = (topicModules() || []).filter((m) => m && m.id && m.id !== moduleSource() && !m.parentId && m.type !== 'document');
     const quizEntries = quizzes.slice(0, QUIZ_MENU_MAX).map((m) => ({
       label: `${window.H5P_TYPES?.[m.type]?.icon || '🧩'} ${m.title || m.type}`,
@@ -550,7 +558,9 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
   surface.addEventListener('contextmenu', (e) => {
     if (e.shiftKey) return; // Menü des Browsers (z. B. Rechtschreibung)
     e.preventDefault();
-    insertMenu(e.clientX, e.clientY);
+    // Die angeklickte Stelle zählt – nicht, wo die Schreibmarke vorher stand.
+    const widget = e.target.closest?.('.ds-widget');
+    insertMenu(e.clientX, e.clientY, (widget && surface.contains(widget) ? widget : null) || blockOfNode(e.target));
   });
 
   const pickQuiz = () => pickQuizFrom(topicModules(), moduleSource());

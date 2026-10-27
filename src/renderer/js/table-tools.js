@@ -242,7 +242,7 @@ export function attachTableTools(surface, bar) {
     <label class="ds-tb-notcols ds-tb-beside-label" title="Bilder dieser Zelle neben dem Text statt darunter"><input type="checkbox" class="ds-tb-beside"> Bild neben Text</label>
     <label class="ds-tb-notcols" title="Linien zeigen – ohne z. B. für Abbildungen nebeneinander"><input type="checkbox" class="ds-tb-border"> Linien</label>
     <span class="ds-tablebar-sep"></span>
-    <button type="button" class="rt-btn" data-t="selectTable" title="Ganze Tabelle markieren – dann Strg+C / Strg+X">⬚ Markieren</button>
+    <button type="button" class="rt-btn" data-t="selectTable" title="Ganze Tabelle wählen – dann gelten ↔ Breite und ↕ Höhe für alle Spalten bzw. Zeilen; Strg+C / Strg+X">⬚ Ganze Tabelle</button>
     <button type="button" class="rt-btn" data-t="cutTable" title="Tabelle ausschneiden – danach in eine Zelle einer anderen Tabelle oder zwischen Absätze einfügen">✂ Ausschneiden</button>
     <button type="button" class="rt-btn ds-tb-paste" data-t="pasteTable" title="Ausgeschnittene Tabelle hier einfügen – in diese Zelle" hidden>📥 Tabelle hier einfügen</button>
     <button type="button" class="rt-btn" data-t="evenWidths" title="Alle festen Breiten entfernen – die Spalten richten sich wieder nach dem Inhalt">⇔ auto</button>
@@ -308,6 +308,8 @@ export function attachTableTools(surface, bar) {
     if (what) placeHeld(what === 'here' ? 'after' : what);
   });
   const tableOf = (td) => td?.closest('table');
+  /** Ist die ganze Tabelle gewählt (Rahmen)? Dann gelten Breite und Höhe für alle. */
+  const wholeTable = (table) => !!table && table.classList.contains('ds-table-selected');
   const editable = (table) => table && surface.contains(table) && !table.closest('.ds-widget');
 
   const pos = () => {
@@ -325,11 +327,14 @@ export function attachTableTools(surface, bar) {
     // Spalten (table.ws-columns): nur Spalten einfügen/löschen und Breite.
     const columns = p.table.classList.contains('ws-columns');
     bar.classList.toggle('ds-tb-columns', columns);
-    bar.querySelector('.ds-tablebar-label').textContent = columns ? '▥ Spalten' : '▤ Tabelle';
+    const whole = wholeTable(p.table);
+    bar.querySelector('.ds-tablebar-label').textContent = columns ? '▥ Spalten' : whole ? '▤ Ganze Tabelle' : '▤ Tabelle';
     const col = [...p.table.children].find((c) => c.tagName === 'COLGROUP')?.children[p.c + p.cs - 1];
     if (document.activeElement !== widthIn) widthIn.value = col?.style.width ? String(parseFloat(col.style.width)).replace('.', ',') : '';
     const tr = p.g.rows[p.r];
-    if (document.activeElement !== heightIn) heightIn.value = tr.style.height ? String(parseFloat(tr.style.height)).replace('.', ',') : '';
+    // Ganze Tabelle: die gemeinsame Höhe aller Zeilen (sonst leer).
+    const heights = whole ? [...new Set(p.g.rows.map((r) => r.style.height || ''))] : [tr.style.height || ''];
+    if (document.activeElement !== heightIn) heightIn.value = heights.length === 1 && heights[0] ? String(parseFloat(heights[0])).replace('.', ',') : '';
     headBox.checked = [...p.table.children].some((c) => c.tagName === 'THEAD');
     borderBox.checked = !p.table.classList.contains('ws-table-plain');
     // Nur bei Zellen mit Bild.
@@ -385,14 +390,9 @@ export function attachTableTools(surface, bar) {
         focusCell(g?.map[p.r]?.[Math.min(p.c, g.cols - 1)] || null);
         return;
       }
-      case 'selectTable': {
-        const range = document.createRange();
-        range.selectNode(table);
-        const sel = window.getSelection();
-        sel.removeAllRanges();
-        sel.addRange(range);
+      case 'selectTable':
+        selectTable(table);
         return;
-      }
       case 'cutTable':
         cutTable(table);
         return;
@@ -430,8 +430,14 @@ export function attachTableTools(surface, bar) {
     input.classList.remove('ds-tb-bad');
     apply(p, cm);
   };
-  widthIn.addEventListener('change', () => applySize(widthIn, (p, cm) => setColumnWidth(p.table, p.c + p.cs - 1, cm)));
-  heightIn.addEventListener('change', () => applySize(heightIn, (p, cm) => setRowHeight(p.g.rows[p.r], cm)));
+  // Ist die ganze Tabelle gewählt (Markieren, Griff ⠿), gilt der Wert für alle Spalten bzw. Zeilen.
+  widthIn.addEventListener('change', () => applySize(widthIn, (p, cm) => {
+    const cols = wholeTable(p.table) ? [...Array(p.g.cols).keys()] : [p.c + p.cs - 1];
+    for (const c of cols) setColumnWidth(p.table, c, cm);
+  }));
+  heightIn.addEventListener('change', () => applySize(heightIn, (p, cm) => {
+    for (const tr of wholeTable(p.table) ? p.g.rows : [p.g.rows[p.r]]) setRowHeight(tr, cm);
+  }));
   [widthIn, heightIn].forEach((input) => input.addEventListener('keydown', (e) => {
     if (e.key !== 'Enter') return;
     e.preventDefault();
@@ -541,7 +547,12 @@ export function attachTableTools(surface, bar) {
       if (!selectedTable.getAttribute('class')) selectedTable.removeAttribute('class');
     }
     selectedTable = table && editable(table) ? table : null;
-    if (selectedTable) selectedTable.classList.add('ds-table-selected');
+    if (selectedTable) {
+      selectedTable.classList.add('ds-table-selected');
+      // Die Leiste wirkt auf diese Tabelle – auch ohne Schreibmarke darin.
+      if (!cell || cell.closest('table') !== selectedTable) cell = cellsOf(rowsOf(selectedTable)[0] || document.createElement('tr'))[0] || null;
+    }
+    show();
     grip.querySelector('.ds-grip-bar').hidden = !selectedTable;
     grip.classList.toggle('ds-grip-active', !!selectedTable);
     placeGrip(selectedTable || gripTable);
@@ -597,6 +608,13 @@ export function attachTableTools(surface, bar) {
       else if (e.altKey && e.key === 'ArrowUp') { e.preventDefault(); gripAction('up'); }
       else if (e.altKey && e.key === 'ArrowDown') { e.preventDefault(); gripAction('down'); }
       else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'x') { e.preventDefault(); gripAction('cut'); }
+      else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'c') {
+        // Kopieren macht der Browser – dafür die Tabelle markieren (Einfügen dann als Tabelle).
+        const range = document.createRange();
+        range.selectNode(selectedTable);
+        window.getSelection().removeAllRanges();
+        window.getSelection().addRange(range);
+      }
       return;
     }
     // Strg+V mit ausgeschnittener Tabelle: in die Zelle der Schreibmarke, sonst hinter ihren Absatz.

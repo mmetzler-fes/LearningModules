@@ -1250,6 +1250,11 @@ def ensure_table_styles(doc, present: set[str]) -> None:
         return
     border = "0.05pt solid #000000"
     # Ohne Linien (`border: false`), z. B. Abbildungen nebeneinander mit Unterschrift.
+    # Letzte Zeile oben (Bildunterschriften, eine einzelne Zeile mit Text) – wie die Ansicht.
+    plain_top = Style(name="ABTabelle.ZRT", family="table-cell")
+    plain_top.addElement(TableCellProperties(padding="0.1cm", border="none", verticalalign="top"))
+    doc.automaticstyles.addElement(plain_top)
+    present.add("ABTabelle.ZRT")
     plain = Style(name="ABTabelle.ZR", family="table-cell")
     plain.addElement(TableCellProperties(padding="0.1cm", border="none", verticalalign="bottom"))
     doc.automaticstyles.addElement(plain)
@@ -1452,10 +1457,14 @@ def content_table(block: dict[str, Any], styles: dict[str, str],
     cell_name, head_style, cell_style = plain_table_styles(block, ctx, head_style, cell_style)
     table, widths = table_with_columns(block, ctx, index, widths)
 
+    total_rows = len(rows) + (1 if header else 0)
+
     def add_row(cells: list[str], style: str) -> None:
-        tr = TableRow(**row_style(block, ctx, len(table.getElementsByType(TableRow))))
+        r = len(table.getElementsByType(TableRow))
+        tr = TableRow(**row_style(block, ctx, r))
+        name = "ABTabelle.ZRT" if cell_name == "ABTabelle.ZR" and r == total_rows - 1 else cell_name
         for col in range(columns):
-            tc = TableCell(valuetype="string", stylename=cell_name)
+            tc = TableCell(valuetype="string", stylename=name)
             tc.addElement(rich_p(style, cells[col] if col < len(cells) else ""))
             tr.addElement(tc)
         table.addElement(tr)
@@ -1533,8 +1542,10 @@ def spanned_table(block: dict[str, Any], styles: dict[str, str], ctx: dict[str, 
                     attrs["numbercolumnsspanned"] = cs
                 if rs > 1:
                     attrs["numberrowsspanned"] = rs
+                # Ohne Linien: Bilder unten bündig, die letzte Zeile (Unterschriften, Text) oben – wie die Ansicht.
+                own_name = "ABTabelle.ZRT" if cell_name == "ABTabelle.ZR" and r + start[(r, c)][2] - 1 == nrows - 1 else cell_name
                 tc = TableCell(valuetype="string",
-                               stylename=cell_with_background(ctx, cell_name, cell_bg[(r, c)]) if (r, c) in cell_bg else cell_name,
+                               stylename=cell_with_background(ctx, own_name, cell_bg[(r, c)]) if (r, c) in cell_bg else own_name,
                                **attrs)
                 style = head_style if header and r == 0 else cell_style
                 own = cell_align.get((r, c))

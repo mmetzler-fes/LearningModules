@@ -37,6 +37,9 @@ function loadOpen() {
   try { return new Set(JSON.parse(localStorage.getItem(OPEN_KEY) || '[]')); } catch (_) { return new Set(); }
 }
 
+/** Schlüssel der Mehrfachauswahl je Art. */
+const SEL_PREFIX = { module: 'm:', topic: 't:', node: 'k:' };
+
 function failed(res) {
   return !res || res.success === false || (res.statusCode && res.statusCode >= 400);
 }
@@ -296,6 +299,8 @@ export class NotebooksView {
     row.querySelector('.nb-title').addEventListener('click', () => { if (this._preview.open) this._preview.showNode(node); });
     this._menuOn(row, () => this._nodeMenu(node));
     this._bindDrop(row, { type: 'node', id: node.id, kind: node.kind });
+    // Bereiche und Abschnitte lassen sich mit auswählen (mehrere auf einmal verschieben); ein Book steht immer oben.
+    if (node.kind !== 'book') this._selectable(row, { type: 'node', id: node.id, kind: node.kind });
     wrap.appendChild(row);
     if (open) {
       for (const kid of kids) {
@@ -1370,6 +1375,33 @@ export class NotebooksView {
     await this.refresh();
   }
 
+  /**
+   * Mehrere Bereiche/Abschnitte auf einmal verschieben – ans Ende des Ziels,
+   * in ihrer Reihenfolge. Ziel: ein Ordner, der alle aufnehmen kann und in
+   * keinem von ihnen liegt (Regeln wie beim einzelnen Verschieben).
+   */
+  async _moveNodes(items) {
+    // Was in einem anderen gewählten Bereich liegt, wandert mit ihm – nicht einzeln.
+    const ids = items.map((i) => i.id).filter((id) => !items.some((o) => o.id !== id && this._isInside(id, o.id)));
+    const fits = (n) => ids.every((id) => {
+      const kind = this._nodes.get(id)?.kind;
+      return n.id !== id && !this._isInside(n.id, id) && canHoldNode(n.kind, kind);
+    });
+    const target = await this._pickTarget(`↔️ ${ids.length} Bereich${ids.length === 1 ? '' : 'e'}/Abschnitt${ids.length === 1 ? '' : 'e'} verschieben nach …`, this._nodeEntries(fits));
+    if (target === undefined) return;
+    const errors = [];
+    for (const id of ids) {
+      if (this._nodes.get(id)?.parentId === target) continue;
+      const res = await this.app.api.moveInNotebook('node', id, target, null);
+      if (failed(res)) errors.push(`${this._nodes.get(id)?.title || id}: ${res?.message || 'fehlgeschlagen'}`);
+    }
+    if (errors.length) this.app.showToast('Nicht verschoben – ' + errors.join(' · '), 'error');
+    this._open.add('n:' + target);
+    this._saveOpen();
+    this._clearSel();
+    await this.refresh();
+  }
+
   async _moveTopicDialog(topic) {
     const entries = [
       { icon: '📥', label: 'Unsortiert', depth: 0, value: null },
@@ -1454,7 +1486,7 @@ export class NotebooksView {
    * Knöpfe in der Zeile (⋯, ●, ✏️, ▸) behalten ihre Aufgabe.
    */
   _selectable(row, item) {
-    const key = (item.type === 'module' ? 'm:' : 't:') + item.id;
+    const key = SEL_PREFIX[item.type] + item.id;
     row.dataset.selKey = key;
     row.classList.toggle('nb-selected', this._sel.has(key));
     if (this._selMode) {
@@ -1488,7 +1520,7 @@ export class NotebooksView {
 
   /** Alle sichtbaren Zeilen derselben Sorte zwischen zwei Schlüsseln. */
   _selectRange(fromKey, toKey, type) {
-    const prefix = type === 'module' ? 'm:' : 't:';
+    const prefix = SEL_PREFIX[type];
     const rows = [...this._tree.querySelectorAll(`[data-sel-key^="${prefix}"]`)];
     const a = rows.findIndex((r) => r.dataset.selKey === fromKey);
     const b = rows.findIndex((r) => r.dataset.selKey === toKey);
@@ -1498,9 +1530,9 @@ export class NotebooksView {
     for (const r of rows.slice(Math.min(a, b), Math.max(a, b) + 1)) {
       const k = r.dataset.selKey;
       const id = k.slice(2);
-      this._sel.set(k, type === 'module'
-        ? { type, id, topicId: this._moduleTopic(id) }
-        : { type, id, own: this._topics.get(id)?.isOwn });
+      this._sel.set(k, type === 'module' ? { type, id, topicId: this._moduleTopic(id) }
+        : type === 'node' ? { type, id, kind: this._nodes.get(id)?.kind }
+          : { type, id, own: this._topics.get(id)?.isOwn });
     }
     this._syncSel();
   }
@@ -1538,10 +1570,11 @@ export class NotebooksView {
     bar.classList.toggle('hidden', !items.length);
     if (!items.length) { bar.innerHTML = ''; return; }
     const modules = items[0].type === 'module';
+    const nodes = items[0].type === 'node';
     const n = items.length;
-    const label = modules ? `${n} Modul${n === 1 ? '' : 'e'}` : `${n} Lernthem${n === 1 ? 'a' : 'en'}`;
+    const label = modules ? `${n} Modul${n === 1 ? '' : 'e'}` : nodes ? `${n} Bereich${n === 1 ? '' : 'e'}/Abschnitt${n === 1 ? '' : 'e'}` : `${n} Lernthem${n === 1 ? 'a' : 'en'}`;
     const attachments = modules && this._docsEnabled() ? items.filter((i) => this._moduleOf(i)?.type === 'attachment').length : 0;
-    const actions = modules
+    const actions = nodes ? [['move', '↔️ Verschieben nach…']] : modules
       ? [['move', '↔️ Verschieben nach…'], ['copy', '📄 Kopieren nach…'], ...(attachments ? [['convert', `📄 In Dokument umwandeln (${attachments})`]] : []),
         ['on', '● Aktivieren'], ['off', '○ Deaktivieren'], ['delete', '🗑 Löschen']]
       : [['move', '↔️ Verschieben nach…'], ['on', '● Freigeben'], ['off', '○ Sperren']];
@@ -1555,6 +1588,7 @@ export class NotebooksView {
   async _selAction(act) {
     const items = this._selItems();
     if (act === 'clear' || !items.length) { this._clearSel(); return; }
+    if (items[0].type === 'node' && act === 'move') { await this._moveNodes(items); return; }
     const modules = items[0].type === 'module';
     const n = items.length;
     try {
@@ -1727,7 +1761,8 @@ export class NotebooksView {
     row.addEventListener('dragstart', (e) => {
       // Gewählte Zeile: alle gewählten ziehen mit.
       const key = row.dataset.selKey;
-      this._drag = key && this._sel.has(key) && this._sel.size > 1 ? { ...drag, multi: this._selItems() } : drag;
+      // Bereiche/Abschnitte ziehen einzeln – mehrere verschiebt die Leiste der Auswahl.
+      this._drag = key && this._sel.has(key) && this._sel.size > 1 && drag.type !== 'node' ? { ...drag, multi: this._selItems() } : drag;
       e.dataTransfer.effectAllowed = 'move';
       try { e.dataTransfer.setData('text/plain', drag.id); } catch (_) {}
       row.classList.add('nb-dragging');

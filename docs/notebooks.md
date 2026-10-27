@@ -169,8 +169,8 @@ Modul kommt hinein.
 **Strg+Klick** (Mac: ⌘+Klick) wählt Module oder Lernthemen einzeln dazu,
 **Umschalt+Klick** alle bis zur zuletzt geklickten Zeile. **☑ Auswählen** in
 der Leiste zeigt Kästchen – dann genügt ein einfacher Klick (auch am
-Tablet). Gewählt wird immer nur eine Sorte: Module (eigene) oder
-Lernthemen.
+Tablet). Gewählt wird immer nur eine Sorte: Module (eigene), Lernthemen
+oder Bereiche/Abschnitte.
 
 Über dem Baum steht dann, was gewählt ist, mit den Aktionen für alle:
 
@@ -178,9 +178,15 @@ Lernthemen.
 |---|---|
 | Module | Verschieben nach…, Kopieren nach…, Aktivieren, Deaktivieren, Löschen |
 | Lernthemen | Verschieben nach…, Freigeben, Sperren (erworbene bleiben, wie sie sind) |
+| Bereiche/Abschnitte | Verschieben nach… (mit allem, was darin liegt) |
 
-Wer eine gewählte Zeile **zieht**, nimmt alle gewählten mit – in ihrer
-Reihenfolge, auch aus verschiedenen Lernthemen. **Esc** hebt die Auswahl auf.
+So wandert z. B. ein importiertes Book in einen eigenen Bereich: dessen
+Abschnitte wählen → **↔️ Verschieben nach…** → Ziel. Liegt ein gewählter
+Abschnitt in einem anderen gewählten, zieht er einfach mit.
+
+Wer ein gewähltes Modul oder Lernthema **zieht**, nimmt alle gewählten mit –
+in ihrer Reihenfolge, auch aus verschiedenen Lernthemen (Bereiche zieht man
+einzeln). **Esc** hebt die Auswahl auf.
 
 ### Kopieren
 

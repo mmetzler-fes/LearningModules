@@ -223,6 +223,86 @@ export function describeQuizTypes(types) {
   return L;
 }
 
+// ==================== Material aus eigenen Dokumenten ====================
+
+const cellText = (c) => String(c && typeof c === 'object' ? c.text ?? '' : c ?? '').replace(/\s*\n\s*/g, ' ').replace(/\|/g, '\\|');
+
+/**
+ * Inhalt eines Dokuments (docspec) als kompakter Text für den Prompt – kürzer
+ * als das JSON, und die KI liest ihn wie ein Blatt. Lösungen bleiben drin
+ * (markiert), Schreibfelder und Abstände fallen weg, Bilder werden zum
+ * Platzhalter mit Bildunterschrift.
+ */
+export function docSpecToText(spec) {
+  const out = [];
+  const list = (items, depth, ordered) => (items || []).forEach((it, i) => {
+    const text = typeof it === 'object' && it ? it.text : it;
+    out.push(`${'  '.repeat(depth)}${ordered ? `${i + 1}.` : '-'} ${String(text ?? '')}`);
+    if (it && typeof it === 'object' && Array.isArray(it.items)) list(it.items, depth + 1, ordered);
+  });
+  const walk = (blocks) => {
+    for (const b of Array.isArray(blocks) ? blocks : []) {
+      if (!b || typeof b !== 'object') continue;
+      switch (b.type) {
+        case 'section': out.push('', `## ${b.title || b.text || ''}`); break;
+        case 'task':
+        case 'subtask':
+          out.push('', `${b.type === 'task' ? '###' : '####'} Aufgabe: ${b.title || ''}`);
+          if (b.title && b.text) out.push(b.text);
+          else if (!b.title && b.text) out[out.length - 1] += String(b.text);
+          break;
+        case 'heading': out.push('', `${'#'.repeat(Math.min(4, (Number(b.level) || 1) + 1))} ${b.text || b.title || ''}`); break;
+        case 'text': out.push(String(b.text ?? '')); break;
+        case 'note': out.push(`Hinweis: ${b.text ?? ''}`); break;
+        case 'list': list(b.items, 0, !!b.ordered); break;
+        case 'code': out.push(`\`\`\`${b.caption ? ` ${b.caption}` : ''}`, String(b.code ?? ''), '```'); break;
+        case 'formula': out.push(`Formel (StarMath): ${b.math ?? ''}`); break;
+        case 'image': out.push(`[Abbildung${b.caption ? `: ${b.caption}` : ''}]`); break;
+        case 'quiz': out.push(`[Eingebettetes Quiz${b.title ? `: ${b.title}` : ''}]`); break;
+        case 'table': {
+          const rows = Array.isArray(b.rows) ? b.rows : [];
+          const head = Array.isArray(b.header) ? b.header : null;
+          const width = Math.max(1, ...[head, ...rows].filter(Array.isArray).map((r) => r.length));
+          const line = (r) => `| ${Array.from({ length: width }, (_, i) => cellText(r[i])).join(' | ')} |`;
+          out.push(line(head || Array(width).fill('')), `|${' --- |'.repeat(width)}`, ...rows.filter(Array.isArray).map(line));
+          break;
+        }
+        case 'box': out.push(`[Kasten${b.title ? `: ${b.title}` : ''}]`); if (b.text) out.push(b.text); break;
+        case 'solution': out.push('[Lösung]'); if (b.text) out.push(b.text); break;
+        default: break;
+      }
+      if (Array.isArray(b.blocks)) walk(b.blocks);
+      if (b.type === 'box') out.push('[Ende Kasten]');
+      if (b.type === 'solution') out.push('[Ende Lösung]');
+    }
+  };
+  if (spec?.title) out.push(`# ${spec.title}`);
+  walk(spec?.content);
+  return out.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+}
+
+/** Grobe Größe (≈ 4 Zeichen je Token) – lange Prompts schaffen nicht alle Chats. */
+export function promptSize(text) {
+  const tokens = Math.round(text.length / 4 / 1000);
+  return `Umfang etwa ${tokens || '<1'}k Tokens${tokens > 30 ? ' – sehr lang; bei Abbrüchen weniger Dokumente wählen oder in mehreren Durchgängen arbeiten.' : '.'}`;
+}
+
+/** Abschnitt „Material“: die Dokumente der Lehrkraft als Text, je mit Pfad und Titel. */
+function materialLines(material) {
+  const L = [];
+  L.push('## Material der Lehrkraft');
+  L.push(`Es folgen ${material.length === 1 ? 'ein Dokument' : `${material.length} Dokumente`} der Lehrkraft als Text (Lösungen stehen zwischen [Lösung] und [Ende Lösung], Formeln in StarMath, Abbildungen nur als [Abbildung: …]).`);
+  for (const m of material) {
+    L.push('');
+    L.push(`### ${m.path ? `${m.path} › ` : ''}${m.title || 'Dokument'}`);
+    L.push('"""');
+    L.push(String(m.text || '').trim() || '(leer)');
+    L.push('"""');
+  }
+  L.push('');
+  return L;
+}
+
 function typeName(type) {
   return (typeof H5P_TYPES !== 'undefined' && H5P_TYPES[type]?.name) || type;
 }
@@ -253,11 +333,14 @@ export function buildAiPrompt(o) {
   L.push('- Die Aufgaben steigen im Schwierigkeitsgrad an und decken die Inhalte breit ab.');
   L.push('');
 
+  const material = (o.material || []).filter((m) => m && m.text);
+  if (material.length) L.push(...materialLines(material));
   L.push('## Inhalte');
-  if (files.length) {
-    L.push('Verwende ausschließlich die Inhalte der angehängten Materialien:');
+  if (material.length || files.length) {
+    L.push(`Verwende ausschließlich ${material.length ? 'das Material oben' : ''}${material.length && files.length ? ' und ' : ''}${files.length ? 'die Inhalte der angehängten Materialien:' : '.'}`);
     for (const f of files) L.push(`- ${f}`);
     L.push('Erfinde keine Fakten, die dort nicht stehen. Fehlt etwas Wichtiges, lass es weg.');
+    if (material.length) L.push('Frage den Stoff ab, nicht die Blätter: keine Fragen nach Aufgabennummern, Überschriften oder dem Aufbau des Materials.');
   } else {
     L.push('Falls Materialien angehängt sind, verwende ausschließlich deren Inhalte. Sonst stütze dich auf gesichertes Fachwissen passend zur Beschreibung.');
   }
@@ -388,11 +471,14 @@ export function buildDocPrompt(o) {
     L.push('');
   }
 
+  const material = (o.material || []).filter((m) => m && m.text);
+  if (material.length) L.push(...materialLines(material));
   L.push('## Inhalte');
-  if (files.length) {
-    L.push('Verwende ausschließlich die Inhalte der angehängten Materialien:');
+  if (material.length || files.length) {
+    L.push(`Verwende ausschließlich ${material.length ? 'das Material oben' : ''}${material.length && files.length ? ' und ' : ''}${files.length ? 'die Inhalte der angehängten Materialien:' : '.'}`);
     for (const f of files) L.push(`- ${f}`);
     L.push('Erfinde keine Fakten, die dort nicht stehen.');
+    if (material.length) L.push('Das Material darf neu gegliedert, gekürzt, ergänzt um Erklärungen und Übungen und sprachlich verbessert werden – fachlich bleibt es dabei.');
   } else {
     L.push('Falls Materialien angehängt sind, verwende ausschließlich deren Inhalte. Sonst stütze dich auf gesichertes Fachwissen.');
   }

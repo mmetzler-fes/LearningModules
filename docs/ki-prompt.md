@@ -14,6 +14,7 @@ es im selben Dialog über **📄 Datei wählen**.
 | Beschreibung * | Was abgefragt werden soll, Schwerpunkte |
 | Klassenstufe / Niveau, Sprache, Anzahl Module | steuern Schwierigkeit und Umfang |
 | Aufgabentypen | Multiple Choice, Wahr/Falsch, Fill in the Blanks, Drag the Words, Mark the Words, Drag and Drop, Formelaufgabe, Reihenfolge, Kreuzworträtsel – alle automatisch bewertbar, also auch für Lernbegleitung und Quiz-Arena. Dazu Memory als Übungsspiel ohne Bewertung |
+| 📓 Inhalte aus dem Notizbuch | Book, Bereich, Abschnitt oder Lernthema wählen und die Dokumente darunter ankreuzen – ihr Text steht dann im Prompt (siehe unten) |
 | Materialien | Dateinamen der Unterlagen, die du im KI-Chat anhängst; die KI soll nur deren Inhalte verwenden |
 | Geteilter Ordner | z. B. ein Nextcloud-Link, als Quelle im Prompt; optional dürfen Bilder daraus per Download-Link eingebunden werden |
 
@@ -25,6 +26,27 @@ Nextcloud-Ordner kann eine KI meist nicht öffnen – die Seite braucht
 JavaScript und zeigt keine lesbare Dateiliste. Ohne Bild-Links bleiben
 `imageUrl`, `backgroundImage` und bei Memory `aImage`/`bImage` leer; Bilder
 ergänzt man im Editor.
+
+## Eigene Dokumente als Material
+
+Statt Dateien im KI-Chat anzuhängen (oft begrenzt), nimmt der Prompt den
+**Text eigener Dokumente** gleich mit – in beiden Reitern:
+
+- **🧠 Quiz-Thema:** Quizze zum Stoff der Blätter.
+- **📄 Dokument:** neue Blätter aus dem Material, z. B. besser gegliedert –
+  die Wünsche dazu in „Fragestellung und Inhalt“.
+
+Am schnellsten aus dem Notizbuch: am Book, Bereich, Abschnitt oder Lernthema
+**⋯ → 🤖 KI-Prompt: Quiz aus den Dokumenten** bzw. **… neue Dokumente
+daraus**. Die Seite öffnet mit dieser Quelle; einzelne Dokumente lassen sich
+abwählen (höchstens 80). Im Prompt steht je Dokument Pfad, Titel und Text:
+Überschriften und Aufgaben, Tabellen, Listen, Formeln (StarMath), Lösungen
+zwischen `[Lösung]` und `[Ende Lösung]`. Karo, Abstände und eingebettete
+Bilder fallen weg (Bilder bleiben als `[Abbildung: Bildunterschrift]`).
+
+Ist die Quelle ein Lernthema, gehören die Quizze dorthin: dort **⋯ → 📥
+Module importieren**. Der Umfang steht unter dem Prompt – über etwa 30k
+Tokens besser weniger Dokumente auf einmal nehmen.
 
 ## Was im Prompt steht
 
@@ -65,4 +87,4 @@ ergänzt man im Editor.
   Texte, Memory-Paare als `["Hund", "dog"]`, Kreuzworträtsel mit `word`/`hint`
   statt `answer`/`clue`.
 
-Code: `src/renderer/js/ai-prompt.js`, Seite in `views/ai-prompt-view.js`.
+Code: `src/renderer/js/ai-prompt.js` (auch `docSpecToText`), Seite in `views/ai-prompt-view.js`, Auswahl des Materials in `views/prompt-material.js`.

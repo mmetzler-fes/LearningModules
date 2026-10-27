@@ -615,6 +615,8 @@ export class NotebooksView {
       items.push({ label: '📚 Als Skript (PDF)', title: 'Alle Arbeitsblätter darunter als Skript mit Inhaltsverzeichnis – zum Nachlesen, ohne Karopapier', run: () => this._script(node, 'pdf') });
       items.push({ label: '📚 Skript als .odt / Lösung', title: 'Skript für LibreOffice, dazu die Fassung mit sichtbaren Lösungen', run: () => this._script(node, 'odt') });
       items.push({ label: '📓 Dokumente als OneNote-Seite', title: 'Gliederung der Dokumente mit Klassenlink und QR-Code in die Zwischenablage', run: () => this._oneNoteDocs(node) });
+      items.push({ label: '🤖 KI-Prompt: Quiz aus den Dokumenten', title: 'Der Text der Dokumente darunter kommt in den Prompt – keine Anhänge im KI-Chat', run: () => this.app.aiPromptView.openWithMaterial(`n:${node.id}`, 'quiz') });
+      items.push({ label: '🤖 KI-Prompt: neue Dokumente daraus', title: 'Die Dokumente darunter als Material für neue, besser gegliederte Blätter', run: () => this.app.aiPromptView.openWithMaterial(`n:${node.id}`, 'doc') });
     }
     items.push('-');
     items.push({ label: '🗑 Löschen', danger: true, run: () => this._deleteNode(node) });
@@ -911,6 +913,10 @@ export class NotebooksView {
       { label: '➕ Neues Modul', run: () => this.app.modulesView.openFrom('teacher-notebooks', topic.id, null) },
       { label: '📥 Module importieren', title: 'Datei oder eingefügter Text (z. B. KI-Antwort) als Module in dieses Thema', run: () => this._import(null, topic) },
       { label: '📦 Modulliste öffnen', title: 'Die gewohnte Modulverwaltung dieses Themas', run: () => this.app.modulesView.openTopicModules(topic.id) },
+      ...((topic.modules || []).some((m) => m.type === 'document') && this._docsEnabled() ? [
+        { label: '🤖 KI-Prompt: Quiz aus den Dokumenten', title: 'Der Text der Dokumente dieses Lernthemas kommt in den Prompt – die Antwort über „📥 Module importieren“ hierher', run: () => this.app.aiPromptView.openWithMaterial(`t:${topic.id}`, 'quiz') },
+        { label: '🤖 KI-Prompt: neue Dokumente daraus', title: 'Die Dokumente dieses Lernthemas als Material für neue, besser gegliederte Blätter', run: () => this.app.aiPromptView.openWithMaterial(`t:${topic.id}`, 'doc') },
+      ] : []),
       '-',
       { label: '↔️ Verschieben nach…', run: () => this._moveTopicDialog(topic) },
       { label: '📋 Kopieren', run: () => this._copyTopic(topic) },

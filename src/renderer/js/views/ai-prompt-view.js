@@ -1,12 +1,14 @@
 import { escapeHtml, escapeAttr } from '../utils.js';
-import { AI_PROMPT_TYPES, AI_PROMPT_PART_SIZE, buildAiPrompt } from '../ai-prompt.js';
+import { AI_PROMPT_TYPES, AI_PROMPT_PART_SIZE, buildAiPrompt, promptSize } from '../ai-prompt.js';
 import { nextcloudState } from './nextcloud.js';
 import { DEFAULT_IMAGE_STYLE, parseImageWords, buildImagePrompt, matchImageFiles } from '../image-words.js';
 import { DocPromptView } from './doc-prompt-view.js';
+import { PromptMaterial, presetPromptMaterial } from './prompt-material.js';
 
 // ==================== KI-PROMPT-GENERATOR ====================
 
 const STORAGE_KEY = 'lm_ai_prompt';
+
 
 /**
  * Eigene Seite "KI-Prompt": Angaben zum Quiz sammeln, daraus einen Prompt
@@ -28,6 +30,18 @@ export class AiPromptView {
     if (this.box && !this.form) this._render();
     if (this.form) this._updateNextcloud();
     this._tabs();
+  }
+
+  /**
+   * Aus dem Notizbuch (⋯ → 🤖 KI-Prompt): Book, Bereich, Abschnitt oder
+   * Lernthema als Material vorwählen und die Seite öffnen – im gewünschten Reiter.
+   */
+  async openWithMaterial(source, tab = 'quiz') {
+    presetPromptMaterial(source);
+    await this.app.navigateToView('teacher-ai-prompt');
+    await this._material?.render();
+    await this._docView?.material?.render();
+    this._tabBar?.querySelector(`[data-tab="${tab}"]`)?.click();
   }
 
   /** Reiter „Quiz-Thema | Dokument“ – Dokumente nur mit Freischaltung 'worksheets'. */
@@ -201,6 +215,7 @@ export class AiPromptView {
             <label class="tag-filter-option"><input type="checkbox" name="types" value="${type}" ${chosen.has(type) ? 'checked' : ''} />
               ${(H5P_TYPES[type] || {}).icon || ''} ${escapeHtml((H5P_TYPES[type] || {}).name || type)}</label>`).join('')}
           </div></div>
+        <div class="form-group pm-box"></div>
         <div class="form-group"><label>Materialien, die du im KI-Chat anhängst (Dateinamen, je Zeile einer – optional)
           <textarea name="files" rows="3" placeholder="Arbeitsblatt_Kondensator.pdf&#10;Infoblatt_Kapazität.docx">${escapeHtml(saved.files || '')}</textarea></label>
           <span class="hint">Am zuverlässigsten: die Dateien direkt im KI-Chat hochladen. Einen geteilten Ordner kann die KI meist nicht öffnen.</span></div>
@@ -243,6 +258,7 @@ export class AiPromptView {
         </div>
         <div class="ai-prompt-result hidden">
           <textarea readonly rows="16" class="ai-prompt-output"></textarea>
+          <p class="hint ai-prompt-size"></p>
           <p class="hint ai-prompt-parts hidden"></p>
           <div class="confirm-actions">
             <button type="button" class="btn btn-primary btn-copy">📋 Kopieren</button>
@@ -254,6 +270,8 @@ export class AiPromptView {
     const form = this.box.querySelector('form');
     this.form = form;
     const output = form.querySelector('.ai-prompt-output');
+    this._material = new PromptMaterial(this.app, form.querySelector('.pm-box'));
+    this._material.render();
     form.addEventListener('input', () => this._save());
     // Bilder zu Wörtern von einer KI erzeugen lassen
     form.querySelector('.btn-img-prompt').addEventListener('click', () => {
@@ -295,15 +313,23 @@ export class AiPromptView {
         values.ncImages = (res?.images || []).map((img) => `nc:${res.current}/${img.name}`);
         if (!values.ncImages.length) this.app.showToast(`Im Ordner „${values.ncFolder}“ liegen keine Bilder – Prompt ohne Bilder.`, 'info');
       }
+      try { values.material = await this._material.collect(); } catch (err) { this.app.showToast(err.message, 'error'); return; }
       output.value = buildAiPrompt(values);
+      form.querySelector('.ai-prompt-size').textContent = promptSize(output.value);
       // Viele Module kommen in Teilen – sonst bricht die KI mitten im JSON ab.
       const parts = Math.ceil(values.count / AI_PROMPT_PART_SIZE);
       const partsHint = form.querySelector('.ai-prompt-parts');
-      partsHint.classList.toggle('hidden', parts < 2);
-      partsHint.innerHTML = `Die KI antwortet in <strong>${parts} Teilen</strong> zu je höchstens ${AI_PROMPT_PART_SIZE} Modulen
-        – mit „weiter“ kommt der nächste. Jeden Teil kopieren und einfügen: Teil 1 über
-        <strong>🏠 LernModule → 📥 Thema importieren</strong>, die weiteren im neuen Thema über
-        <strong>📥 Module importieren</strong> – jeweils einfügen oder als <code>.json</code>-Datei wählen.`;
+      const target = values.material.length ? this._material.topic() : null;
+      partsHint.classList.toggle('hidden', parts < 2 && !target);
+      if (target) {
+        partsHint.innerHTML = `Die Antwort${parts > 1 ? ` (${parts} Teile, mit „weiter“)` : ''} gehört in <strong>„${escapeHtml(target.title)}“</strong>:
+          im Notizbuch dort <strong>⋯ → 📥 Module importieren</strong> – jeweils einfügen oder als <code>.json</code>-Datei wählen.`;
+      } else {
+        partsHint.innerHTML = `Die KI antwortet in <strong>${parts} Teilen</strong> zu je höchstens ${AI_PROMPT_PART_SIZE} Modulen
+          – mit „weiter“ kommt der nächste. Jeden Teil kopieren und einfügen: Teil 1 über
+          <strong>🏠 LernModule → 📥 Thema importieren</strong>, die weiteren im neuen Thema über
+          <strong>📥 Module importieren</strong> – jeweils einfügen oder als <code>.json</code>-Datei wählen.`;
+      }
       form.querySelector('.ai-prompt-result').classList.remove('hidden');
       output.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
     });

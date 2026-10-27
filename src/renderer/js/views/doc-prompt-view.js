@@ -1,6 +1,7 @@
 import { escapeHtml, escapeAttr } from '../utils.js';
-import { AI_PROMPT_TYPES, buildDocPrompt } from '../ai-prompt.js';
+import { AI_PROMPT_TYPES, buildDocPrompt, promptSize } from '../ai-prompt.js';
 import { nextcloudState } from './nextcloud.js';
+import { PromptMaterial } from './prompt-material.js';
 
 const STORAGE_KEY = 'lm_doc_prompt';
 const KINDS = [['arbeitsblatt', 'Arbeitsblatt'], ['klassenarbeit', 'Klassenarbeit'], ['text', 'Text zum Lesen']];
@@ -92,6 +93,7 @@ export class DocPromptView {
           <div class="ai-prompt-types">${AI_PROMPT_TYPES.map((type) => `
             <label class="tag-filter-option"><input type="checkbox" name="quizTypes" value="${type}" ${chosen.has(type) ? 'checked' : ''} />
               ${(H5P_TYPES[type] || {}).icon || ''} ${escapeHtml((H5P_TYPES[type] || {}).name || type)}</label>`).join('')}</div></div>
+        <div class="form-group pm-box"></div>
         <div class="form-group"><label>Materialien, die du im KI-Chat anhängst (Dateinamen, je Zeile einer – optional)
           <textarea name="files" rows="3" placeholder="Skript_AD-Wandler.pdf">${escapeHtml(saved.files || '')}</textarea></label></div>
         <div class="form-group ai-prompt-nc ${nextcloudState.ready ? '' : 'hidden'}">
@@ -109,6 +111,8 @@ export class DocPromptView {
       </form>`;
     const form = this.form = this.box.querySelector('form');
     const output = form.querySelector('.ai-prompt-output');
+    this.material = new PromptMaterial(this.app, form.querySelector('.pm-box'));
+    await this.material.render();
     form.addEventListener('input', () => this._save());
     form.addEventListener('change', () => this._save());
     form.elements.nodeId.addEventListener('change', () => this._loadContext());
@@ -137,10 +141,9 @@ export class DocPromptView {
         if (!res?.examples) { this.app.showToast('Fehler: ' + (res?.message || 'Vorbilder nicht abrufbar'), 'error'); return; }
         values.examples = res.examples;
       }
+      try { values.material = await this.material.collect(); } catch (err) { this.app.showToast(err.message, 'error'); return; }
       output.value = buildDocPrompt(values);
-      // Grobe Größe (≈ 4 Zeichen je Token) – lange Prompts schaffen nicht alle Chats.
-      const tokens = Math.round(output.value.length / 4 / 1000);
-      form.querySelector('.doc-prompt-size').textContent = `Umfang etwa ${tokens || '<1'}k Tokens${tokens > 30 ? ' – sehr lang; bei Abbrüchen weniger Vorbilder wählen.' : '.'}`;
+      form.querySelector('.doc-prompt-size').textContent = promptSize(output.value);
       form.querySelector('.ai-prompt-result').classList.remove('hidden');
       output.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
     });

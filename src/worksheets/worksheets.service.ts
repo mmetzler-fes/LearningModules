@@ -154,7 +154,7 @@ export class WorksheetsService {
    * nur auf; Bilder aus der Nextcloud (nc:…) bleiben als Name stehen.
    */
   async promptExamples(user: any, ids: string[]) {
-    const wanted = [...new Set(ids.map(String))].slice(0, 20);
+    const wanted = [...new Set(ids.map(String))].slice(0, 80);
     if (!wanted.length) return { examples: [] };
     const mods = await this.moduleRepo!.find({ where: { id: In(wanted), type: 'document' } });
     const topics = await this.topicRepo!.find({ where: { id: In([...new Set(mods.map((m) => m.topicId))]) }, select: ['id', 'ownerId'] });

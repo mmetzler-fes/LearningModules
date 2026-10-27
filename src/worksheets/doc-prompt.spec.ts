@@ -57,3 +57,44 @@ describe('buildDocPrompt', () => {
     expect(ai.buildDocPrompt({ ...base, kind: 'text' })).not.toContain('karo-Block und direkt danach');
   });
 });
+
+describe('Material aus eigenen Dokumenten', () => {
+  const spec = {
+    content: [
+      { type: 'section', text: 'Grundlagen' },
+      { type: 'text', text: 'Ein OPV verstärkt die **Differenz** der Eingänge.' },
+      { type: 'formula', math: 'V_u = -R_2 over R_1' },
+      { type: 'table', header: ['R1', 'R2'], rows: [['1 kΩ', { text: '10 kΩ' }]] },
+      { type: 'image', src: '[eingebettetes Bild]', caption: 'Invertierer' },
+      { type: 'task', title: 'Verstärkung', text: 'Berechne V_u.', blocks: [
+        { type: 'karo', lines: 4 },
+        { type: 'solution', blocks: [{ type: 'text', text: 'V_u = -10' }] },
+      ] },
+      { type: 'list', ordered: true, items: ['a', { text: 'b', items: ['b1'] }] },
+    ],
+  };
+
+  it('docSpecToText macht aus dem Blatt lesbaren Text', () => {
+    const t = ai.docSpecToText(spec);
+    expect(t).toContain('## Grundlagen');
+    expect(t).toContain('Formel (StarMath): V_u = -R_2 over R_1');
+    expect(t).toContain('| R1 | R2 |');
+    expect(t).toContain('| 1 kΩ | 10 kΩ |');
+    expect(t).toContain('[Abbildung: Invertierer]');
+    expect(t).toContain('### Aufgabe: Verstärkung\nBerechne V_u.');
+    expect(t).toContain('[Lösung]\nV_u = -10\n[Ende Lösung]');
+    expect(t).toContain('2. b\n  1. b1');
+    expect(t).not.toContain('karo');
+  });
+
+  it('beide Prompts nehmen das Material auf und verlangen nur dessen Inhalt', () => {
+    const material = [{ title: 'AB1 Invertierer', path: 'BPE8 › Grundlagen', text: ai.docSpecToText(spec) }];
+    const quiz = ai.buildAiPrompt({ description: 'OPV', types: ['multipleChoice'], count: 4, material });
+    expect(quiz).toContain('## Material der Lehrkraft');
+    expect(quiz).toContain('### BPE8 › Grundlagen › AB1 Invertierer');
+    expect(quiz).toContain('Verwende ausschließlich das Material oben.');
+    const doc = ai.buildDocPrompt({ description: 'neu gliedern', kind: 'arbeitsblatt', material });
+    expect(doc).toContain('## Material der Lehrkraft');
+    expect(doc).toContain('neu gegliedert');
+  });
+});

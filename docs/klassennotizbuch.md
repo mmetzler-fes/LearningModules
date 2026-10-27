@@ -75,7 +75,11 @@ verschieben und umbenennen. **Neues wächst mit:** Ein Lernthema, Bereich oder
 Abschnitt, den du später im Notizbuch dort anlegst (oder freigibst), erscheint
 an der entsprechenden Stelle – ausgeschaltet. Was du hier entfernst, kommt
 nicht wieder. Ein Lernthema, das die Klasse schon hat, kommt nicht doppelt.
-Ältere Zuweisungen eines ganzen Bereichs bleiben ein Eintrag.
+Auch ein **Quick-Link** auf einen Bereich, für den du die Klasse gewählt
+hast, und ältere Zuweisungen eines ganzen Bereichs erscheinen als Baum: Beim
+Öffnen des Klassennotizbuchs werden sie umgewandelt – an und aus wie bisher.
+Der Link selbst gilt weiter (verteilte QR-Codes, bisherige Ergebnisse), steht
+aber nicht mehr als eigener Eintrag im Baum.
 
 #### Ein- und ausschalten, Neues
 

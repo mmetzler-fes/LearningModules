@@ -94,7 +94,7 @@ export class ClassbookService {
     const known = new Set(nodes.map((n) => n.id));
     const placeOf = (l: TopicLink, i: number) => {
       const p = places.get(l.id);
-      return p ? { nodeId: p.nodeId && known.has(p.nodeId) ? p.nodeId : null, order: p.orderIndex } : { nodeId: null, order: 100000 + i };
+      return p ? { nodeId: p.nodeId && known.has(p.nodeId) ? p.nodeId : null, order: p.orderIndex, inTree: !p.hidden } : { nodeId: null, order: 100000 + i, inTree: true };
     };
     return {
       nodes: nodes.map(({ id, kind, title, parentId, orderIndex }) => ({ id, kind, title, parentId: parentId && known.has(parentId) ? parentId : null, orderIndex })),
@@ -300,7 +300,8 @@ export class ClassbookService {
    * Abschnitte, je Lernthema ein Eintrag. Die Einträge verweisen aufs
    * Notizbuch. Später Dazugekommenes wächst ausgeschaltet nach (syncMirrors).
    */
-  private async assignTree(user: any, klasse: StudentClass, sourceId: string, targetId: string | null, req?: any) {
+  private async assignTree(user: any, klasse: StudentClass, sourceId: string, targetId: string | null, req?: any,
+    from: { preset?: Map<string, SelEntry>; exclude?: string } = {}) {
     const nbNodes = sourceId.startsWith('offer:') ? [] : await this.nbNodeRepo.find({ where: { ownerId: user.userId } });
     const byId = new Map(nbNodes.map((n) => [n.id, n]));
     let parentId = targetId;
@@ -321,7 +322,7 @@ export class ClassbookService {
     }
     const existed = (await this.nodeRepo.findOne({ where: { classId: klasse.id, sourceNodeId: sourceId } }))?.seen != null;
     const nodeId = await this.mirrorNode(klasse.id, sourceId, title, kind, parentId);
-    const res = await this.fillMirror(user, klasse, nodeId, sourceId, nbNodes, { on: true, req });
+    const res = await this.fillMirror(user, klasse, nodeId, sourceId, nbNodes, { on: true, req, ...from });
     return { linkId: null, nodeId, existed: existed && !res.added, added: res.added, notReleased: res.notReleased };
   }
 
@@ -353,7 +354,8 @@ export class ClassbookService {
    * Eintrag. `on`: beim Zuweisen eingeschaltet, beim Nachwachsen aus. Ein
    * Lernthema, das die Klasse schon hat, kommt nicht doppelt.
    */
-  private async fillMirror(user: any, klasse: StudentClass, cbNodeId: string | null, sourceId: string, nbNodes: NotebookNode[], opts: { on: boolean; req?: any }): Promise<{ added: number; notReleased: string[] }> {
+  private async fillMirror(user: any, klasse: StudentClass, cbNodeId: string | null, sourceId: string, nbNodes: NotebookNode[],
+    opts: { on: boolean; req?: any; preset?: Map<string, SelEntry>; exclude?: string }): Promise<{ added: number; notReleased: string[] }> {
     const node = cbNodeId ? await this.nodeRepo.findOne({ where: { id: cbNodeId, classId: klasse.id } }) : null;
     const tracked = !!node && node.sourceNodeId === sourceId;
     const seen = new Set<string>(tracked ? node!.seen || [] : []);
@@ -382,7 +384,8 @@ export class ClassbookService {
         else topicIds.push(...(await this.notebooks.topicsOfNode(p.topicId, user).catch(() => ({ included: [] as string[] }))).included);
       }
     }
-    const inClass = new Set((await this.classLinks(klasse)).flatMap((l) => (l.selection || []).map((e) => e.topicId)));
+    // `exclude`: der Bereichs-Link, der gerade zum Baum wird – seine Lernthemen kommen einzeln.
+    const inClass = new Set((await this.classLinks(klasse)).filter((l) => l.id !== opts.exclude).flatMap((l) => (l.selection || []).map((e) => e.topicId)));
     for (const topicId of topicIds) {
       if (seen.has(topicId)) continue;
       // Gesperrte Lernthemen kommen, sobald sie freigegeben sind.
@@ -393,9 +396,12 @@ export class ClassbookService {
       const link = await this.linkRepo.findOne({ where: { id: created.id } });
       if (!link) continue;
       const { topics } = await this.available(link, user);
-      link.selection = opts.on
-        ? explicitSelection((link.selection || []) as SelEntry[], topics as AvailTopic[])
-        : (link.selection || []).map((e) => ({ topicId: e.topicId, all: false, moduleIds: [] }));
+      const was = opts.preset?.get(topicId);
+      const off = (link.selection || []).map((e) => ({ topicId: e.topicId, all: false, moduleIds: [] }));
+      link.selection = opts.preset
+        // Aus einem Bereichs-Link: an und aus wie dort.
+        ? (was ? explicitSelection([{ ...was, topicId }], topics as AvailTopic[]) : off)
+        : opts.on ? explicitSelection((link.selection || []) as SelEntry[], topics as AvailTopic[]) : off;
       await this.linkRepo.save(link);
       await this.placeAtEnd(klasse.id, link.id, cbNodeId);
       inClass.add(topicId);
@@ -406,8 +412,33 @@ export class ClassbookService {
     return { added, notReleased: [...new Set(notReleased)] };
   }
 
+  /**
+   * Links auf einen ganzen Bereich (Quick-Link mit Klasse, Zuweisung von vor
+   * dem Baum) zum Baum machen – wie „Klassennotizbuch zuweisen“: Bereiche,
+   * Abschnitte, je Lernthema ein Eintrag, an und aus wie im Link. Der Link
+   * selbst bleibt (QR-Codes, Ergebnisse), steht aber nicht mehr im Baum.
+   */
+  private async treeFromNodeLinks(user: any, klasse: StudentClass, req?: any) {
+    const links = await this.classLinks(klasse);
+    const places = new Map((await this.placeRepo.find({ where: { classId: klasse.id } })).map((p) => [p.id, p]));
+    for (const link of links) {
+      const place = places.get(link.id);
+      if (place?.hidden || !link.templateId) continue;
+      const rule = await this.linkRepo.findOne({ where: { id: link.templateId } });
+      if (!rule?.quickNodeId || rule.ownerId !== user.userId) continue;
+      const preset = new Map(((link.selection || []) as SelEntry[]).map((e) => [e.topicId, e]));
+      try {
+        await this.assignTree(user, klasse, rule.quickNodeId, place?.nodeId ?? null, req, { preset, exclude: link.id });
+      } catch {
+        continue; // Bereich im Notizbuch gelöscht – der Link bleibt, wie er ist.
+      }
+      await this.placeRepo.save(this.placeRepo.create({ id: link.id, classId: klasse.id, nodeId: place?.nodeId ?? null, orderIndex: place?.orderIndex ?? 0, hidden: true }));
+    }
+  }
+
   /** Übernommene Bereiche nachziehen: Neues aus dem Notizbuch kommt ausgeschaltet dazu. */
   private async syncMirrors(user: any, klasse: StudentClass, req?: any) {
+    await this.treeFromNodeLinks(user, klasse, req);
     const growing = (await this.nodeRepo.find({ where: { classId: klasse.id } })).filter((n) => n.sourceNodeId && n.seen);
     if (!growing.length) return;
     const nbNodes = await this.nbNodeRepo.find({ where: { ownerId: user.userId } });
@@ -479,7 +510,7 @@ export class ClassbookService {
     // Zuweisungen ohne Platz (älter als der Baum) bekommen dabei ihren.
     const links = await this.classLinks(klasse);
     const { placeOf } = await this.tree(klasse, links);
-    const siblings = links.filter((l) => l.id !== id && placeOf.get(l.id)!.nodeId === parentId)
+    const siblings = links.filter((l) => l.id !== id && placeOf.get(l.id)!.inTree && placeOf.get(l.id)!.nodeId === parentId)
       .map((l) => ({ id: l.id, orderIndex: placeOf.get(l.id)!.order }));
     const order = reorder(siblings, id, index);
     for (const [lid, orderIndex] of order) {
@@ -701,8 +732,10 @@ export class ClassbookService {
     const active = all.filter((l) => l.active);
     // Ohne eingeschaltetes Modul gibt es für Schüler nichts zu sehen. Die Quiz-Arena
     // erscheint nur, solange die Lehrkraft ihren Wartebereich geöffnet hat (arena).
-    const links = (await Promise.all(active.map((l) => this.linkInfo(l)))).filter((l) => l.practice.length && l.topics.length);
     const { nodes, placeOf } = await this.tree(klasse, all);
+    // Durch den Baum ersetzte Bereichs-Links stehen nicht mehr da – ihre Lernthemen einzeln im Baum.
+    const links = (await Promise.all(active.filter((l) => placeOf.get(l.id)?.inTree !== false).map((l) => this.linkInfo(l))))
+      .filter((l) => l.practice.length && l.topics.length);
     // Laufende Klassenarbeiten: aktiv und ihr Link ist erzeugt (die Lehrkraft hat ihn ausgegeben).
     const exams = await Promise.all(active.filter((l) => (l.modes || []).includes('exam') && l.examToken).map(async (l) => {
       const attempt = await this.attemptRepo.findOne({ where: { linkId: l.id, studentId: t.s } });

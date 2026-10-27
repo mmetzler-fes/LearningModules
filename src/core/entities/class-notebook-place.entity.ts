@@ -16,4 +16,12 @@ export class ClassNotebookPlace extends BaseEntity {
 
   @Column({ type: 'integer', default: 0 })
   orderIndex: number;
+
+  /**
+   * Durch den Baum ersetzt: ein Link auf einen ganzen Bereich (Quick-Link,
+   * ältere Zuweisung), dessen Lernthemen jetzt einzeln im Baum stehen. Der
+   * Link gilt weiter (QR-Codes, Ergebnisse), steht aber nicht mehr im Baum.
+   */
+  @Column({ default: false })
+  hidden: boolean;
 }

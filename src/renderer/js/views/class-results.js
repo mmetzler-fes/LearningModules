@@ -587,7 +587,7 @@ export class ClassResultsView {
   _renderContent() {
     this._section('content', (cb, out) => {
       // Zuweisungen mit Übungsmodus und klasseneigene Lernthemen (auch noch ohne Module).
-      const links = cb.links.filter((l) => l.practice.length || l.classTopicId);
+      const links = cb.links.filter((l) => (l.practice.length || l.classTopicId) && l.inTree !== false);
       const mk = this._markerInfo(cb);
       if (mk) (this._openLinks ||= new Set()).add(mk.link.id);
       out.innerHTML = `
@@ -879,7 +879,7 @@ export class ClassResultsView {
     const parentId = type === 'node' ? item.parentId : item.nodeId;
     const siblings = type === 'node'
       ? cb.nodes.filter((n) => n.parentId === parentId).sort((a, b) => a.orderIndex - b.orderIndex)
-      : cb.links.filter((l) => (l.practice.length || l.classTopicId) && l.nodeId === parentId).sort((a, b) => a.order - b.order);
+      : cb.links.filter((l) => (l.practice.length || l.classTopicId) && l.inTree !== false && l.nodeId === parentId).sort((a, b) => a.order - b.order);
     const i = siblings.findIndex((s) => s.id === item.id);
     const to = i + dir;
     if (i < 0 || to < 0 || to >= siblings.length) return;

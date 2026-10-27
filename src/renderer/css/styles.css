@@ -3596,6 +3596,8 @@ body {
 .docspec .ds-table td { border: 1px solid var(--border); padding: 4px 8px; vertical-align: top; }
 /* Leere Zellen eine Zeile hoch – wie im Druck (Wertetabellen zum Ausfüllen) */
 .docspec .ds-table td:empty, .docspec .ds-table th:empty { height: 1.6em; }
+/* Feste Zeilenhöhe (heights) gilt auch, wenn sie kleiner ist als eine Textzeile */
+.docspec .ds-table tr[style*="height"] > td:empty, .docspec .ds-table tr[style*="height"] > th:empty { height: auto; }
 /* Zelle mit beside: Bilder neben dem Text */
 .docspec .ds-cell-beside { display: flex; align-items: center; gap: 8px; }
 .docspec .ds-cell-beside .ds-cell-image { margin: 0; }
@@ -3740,6 +3742,7 @@ body {
 .ds-surface td img, .ds-surface th img { display: block; margin: 4px 0; }
 .ds-surface td.ws-cell-beside img, .ds-surface th.ws-cell-beside img { display: inline-block; vertical-align: middle; margin: 2px 0 2px 8px; }
 .ds-surface td:empty, .ds-surface th:empty { height: 1.6em; }
+.ds-surface tr[style*="height"] > td, .ds-surface tr[style*="height"] > th { height: auto; line-height: 1.1; padding-top: 2px; padding-bottom: 2px; }
 /* Spalten (type: columns) im Editor: randlose Layout-Tabelle, Hilfslinien gestrichelt */
 .worksheet-content table.ws-columns > tbody > tr > td { border: 1px dashed var(--border); vertical-align: top; padding: 4px 6px; }
 .ds-tablebar.ds-tb-columns .ds-tb-notcols { display: none; }

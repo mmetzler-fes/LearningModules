@@ -3721,6 +3721,8 @@ body {
 /* In der Schreibfläche: echte Tabelle, damit Spaltenbreiten (<col>) und Zeilenhöhen wirken */
 .ds-surface table { display: table; width: 100%; }
 .ds-surface table:has(> colgroup) { width: auto; }
+/* Bilder in Zellen wie in Vorschau und Druck: untereinander unter dem Text (.ds-cell-image) */
+.ds-surface td img, .ds-surface th img { display: block; margin: 4px 0; }
 
 .ds-mode .admin-tab { padding: 4px 12px; font-size: 0.9em; }
 .ds-editor-bar .btn-sm { padding: 4px 10px; }

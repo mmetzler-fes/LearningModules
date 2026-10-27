@@ -93,6 +93,32 @@ class RenderTest(unittest.TestCase):
         self.assertEqual(mw.karo_columns({"width": "0.2cm"}), 2)
         self.assertEqual(mw.karo_columns({}), mw.KARO_COLUMNS)
 
+    def test_tabelle_breiten_und_hoehen(self):
+        """`widths` legt Spalten fest (leer = automatisch), `heights` die Mindesthöhe je Zeile."""
+        spec = (
+            "titel: Tabellen\ncontent:\n"
+            "  - {type: table, header: [A, B, C], rows: [[a, b, c]], widths: [4cm, '', 30mm], heights: ['', 2cm]}\n"
+            "  - {type: table, rows: [[x, {text: y, colspan: 1}]], widths: [3cm, 5cm]}\n"
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "blatt").mkdir()
+            (root / "blatt" / "tab.yaml").write_text(spec, encoding="utf-8")
+            env = dict(os.environ, ARBEITSBLATT_ROOT=str(root))
+            subprocess.run([sys.executable, str(GEN / "tools" / "make_worksheet.py"), "blatt/tab.yaml",
+                            "-o", "out"], cwd=root, env=env, check=True, capture_output=True)
+            content = zipfile.ZipFile(root / "out" / "blatt.odt").read("content.xml").decode()
+            self.assertRegex(content, r'style:name="ABTabelle.Sp\d+.0"[^>]*>\s*<style:table-column-properties style:column-width="4.000cm"')
+            self.assertRegex(content, r'style:name="ABTabelle.Sp\d+.2"[^>]*>\s*<style:table-column-properties style:column-width="3.000cm"')
+            self.assertIn('style:min-row-height="2.00cm"', content)
+            # alle Spalten fest: Tabelle so breit wie die Summe, linksbündig
+            self.assertRegex(content, r'style:name="ABTabelle.B\d+"[^>]*>\s*<style:table-properties style:width="8.000cm"')
+        widths, total = mw.fixed_widths([5.0, 5.0], {"widths": ["", "2cm"]})
+        self.assertEqual(widths[1], 2.0)
+        self.assertAlmostEqual(sum(widths), mw.TABLE_WIDTH_CM)
+        self.assertIsNone(total)
+        self.assertEqual(mw.fixed_widths([5.0], {})[0], [5.0])
+
 
 if __name__ == "__main__":
     unittest.main()

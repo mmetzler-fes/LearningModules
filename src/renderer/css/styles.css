@@ -3708,6 +3708,20 @@ body {
 .ds-vtoolbar select { font-size: 0.85em; padding: 2px 4px; width: auto; flex: 0 0 auto; margin: 0 4px 0 0; }
 .ds-vtoolbar .rt-btn { padding: 2px 6px; min-width: 0; }
 .ds-vtoolbar .ds-vplus { font-weight: 700; }
+/* Tabellenleiste (table-tools.js): eigene Zeile in der haftenden Leiste, nur in einer Tabelle sichtbar */
+.ds-tablebar { flex-basis: 100%; display: flex; flex-wrap: wrap; gap: 2px 4px; align-items: center; padding: 3px 0 0; border-top: 1px solid var(--border); margin-top: 2px; font-size: 0.85em; }
+.ds-tablebar[hidden] { display: none; }
+.ds-tablebar-label { font-weight: 600; color: var(--text-secondary); margin-right: 4px; }
+.ds-tablebar-sep { width: 1px; align-self: stretch; background: var(--border); margin: 0 4px; }
+.ds-tablebar label { display: inline-flex; align-items: center; gap: 3px; margin: 0 4px 0 0; font-weight: normal; white-space: nowrap; }
+.ds-tablebar input[type="text"] { width: 3.6em; padding: 1px 4px; font-size: 1em; margin: 0; }
+.ds-tablebar input[type="checkbox"] { margin: 0; width: auto; }
+.ds-tablebar input.ds-tb-bad { border-color: var(--danger); }
+.ds-tablebar .ds-tb-danger { margin-left: auto; }
+/* In der Schreibfläche: echte Tabelle, damit Spaltenbreiten (<col>) und Zeilenhöhen wirken */
+.ds-surface table { display: table; width: 100%; }
+.ds-surface table:has(> colgroup) { width: auto; }
+
 .ds-mode .admin-tab { padding: 4px 12px; font-size: 0.9em; }
 .ds-editor-bar .btn-sm { padding: 4px 10px; }
 .ds-surface { height: 60vh; min-height: 440px; overflow-y: auto; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 10px 14px; background: var(--bg-secondary); }

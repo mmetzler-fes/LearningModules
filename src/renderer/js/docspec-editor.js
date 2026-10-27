@@ -19,6 +19,7 @@ import { newlineIndent, shiftLines, reindentPaste, insertAfterItem } from './yam
 import { pickQuiz as pickQuizFrom } from './quiz-picker.js';
 import { pickPdfBlocks } from './views/attachment-convert.js';
 import { showContextMenu } from '../lm-editor/src/util/dom.js';
+import { attachTableTools } from './table-tools.js';
 
 /** Startinhalt eines neuen Dokuments – zeigt das Format an einem Beispiel. */
 const STARTER = `content:
@@ -107,6 +108,7 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
               ['superscript', 'x²', 'Hochgestellt'], ['subscript', 'x₂', 'Tiefgestellt'], ['insertUnorderedList', '•', 'Aufzählung'], ['insertOrderedList', '1.', 'Nummerierung'],
               ['justifyLeft', '⇤', 'Linksbündig'], ['justifyCenter', '↔', 'Zentriert'], ['justifyRight', '⇥', 'Rechtsbündig'], ['createLink', '🔗', 'Link']]
               .map(([cmd, label, title]) => `<button type="button" class="rt-btn" data-cmd="${cmd}" title="${title}">${label}</button>`).join('')}
+            <div class="ds-tablebar-slot"></div>
           </div>
           <div class="ds-surface worksheet-content" contenteditable="true" spellcheck="true" aria-label="Inhalt bearbeiten"></div>
           <p class="hint">➕ oder Rechtsklick fügt ein (Umschalt+Rechtsklick: Menü des Browsers). Bausteine (grau) per Doppelklick bearbeiten. Lösungen folgen auf ein Karo und erscheinen im Lösungsblatt darüber.</p>
@@ -474,6 +476,7 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
     vTimer = setTimeout(fromVisual, 300);
   });
   surfaceObserver.observe(surface, { childList: true, subtree: true, characterData: true, attributes: true });
+  attachTableTools(surface, root.querySelector('.ds-tablebar-slot'));
   if (typeof window.WorksheetImageTools !== 'undefined') {
     new window.WorksheetImageTools(surface, document.createElement('input'), root.querySelector('.ds-vtoolbar'));
     // Selten gebraucht: Bild und Zusammenstellen stehen im Menü (➕, Rechtsklick), nicht in der Leiste.

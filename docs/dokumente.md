@@ -36,6 +36,15 @@ Der Editor startet im Modus **✏️ Bearbeiten** – wie ein Textprogramm:
   auch Doppelklick oder Enter) und löscht (**✕**, auch Entf). **Strg+C / X**
   kopiert den gewählten Baustein als YAML; **Strg+V** setzt kopierte Bausteine
   (auch aus dem YAML-Reiter) hinter den gewählten.
+- **Tabellen:** Steht die Schreibmarke in einer Tabelle, erscheint unter der
+  Leiste die **Tabellenleiste**: Zeile darüber/darunter (⬆＋ ⬇＋), Spalte
+  links/rechts (⬅＋ ➡＋), Zeile bzw. Spalte löschen, **↔ Breite** der Spalte
+  und **↕ Höhe** der Zeile in cm (leer = automatisch), **Kopfzeile** und
+  **Linien** an/aus, **⇔ auto** (alle festen Breiten weg) und 🗑 Tabelle
+  löschen. Breite und Höhe gehen auch mit der Maus: rechten Rand einer Zelle
+  bzw. unteren Rand einer Zeile ziehen. Verbundene Zellen bleiben verbunden.
+  Im Druck gelten die Breiten genau; Spalten ohne Breite teilen sich den Rest
+  der Seite. Sind alle Spalten fest, ist die Tabelle so breit wie ihre Summe.
 - Eine **Lösung** gehört hinter ein Karo: Im Arbeitsblatt ist sie
   ausgeblendet, im Lösungsblatt steht sie rot über dem Karo.
 

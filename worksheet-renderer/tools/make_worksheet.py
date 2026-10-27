@@ -1328,18 +1328,10 @@ def content_table(block: dict[str, Any], styles: dict[str, str],
         cell_style = ensure_table_size_style(ctx["doc"], ctx["present"], cell_style, size)
 
     cell_name, head_style, cell_style = plain_table_styles(block, ctx, head_style, cell_style)
-    table = Table(name=f"Tab{index}", stylename="ABTabelle")
-    for col, width in enumerate(widths):
-        name = f"ABTabelle.Sp{index}.{col}"
-        if name not in ctx["present"]:
-            style = Style(name=name, family="table-column")
-            style.addElement(TableColumnProperties(columnwidth=f"{width:.3f}cm"))
-            ctx["doc"].automaticstyles.addElement(style)
-            ctx["present"].add(name)
-        table.addElement(TableColumn(stylename=name))
+    table, widths = table_with_columns(block, ctx, index, widths)
 
     def add_row(cells: list[str], style: str) -> None:
-        tr = TableRow()
+        tr = TableRow(**row_style(block, ctx, len(table.getElementsByType(TableRow))))
         for col in range(columns):
             tc = TableCell(valuetype="string", stylename=cell_name)
             tc.addElement(rich_p(style, cells[col] if col < len(cells) else ""))
@@ -1396,17 +1388,9 @@ def spanned_table(block: dict[str, Any], styles: dict[str, str], ctx: dict[str, 
         head_style = ensure_table_size_style(ctx["doc"], ctx["present"], head_style, size)
         cell_style = ensure_table_size_style(ctx["doc"], ctx["present"], cell_style, size)
     cell_name, head_style, cell_style = plain_table_styles(block, ctx, head_style, cell_style)
-    table = Table(name=f"Tab{index}", stylename="ABTabelle")
-    for col, width in enumerate(widths):
-        name = f"ABTabelle.Sp{index}.{col}"
-        if name not in ctx["present"]:
-            style = Style(name=name, family="table-column")
-            style.addElement(TableColumnProperties(columnwidth=f"{width:.3f}cm"))
-            ctx["doc"].automaticstyles.addElement(style)
-            ctx["present"].add(name)
-        table.addElement(TableColumn(stylename=name))
+    table, widths = table_with_columns(block, ctx, index, widths)
     for r in range(nrows):
-        tr = TableRow()
+        tr = TableRow(**row_style(block, ctx, r))
         for c in range(columns):
             if (r, c) in start:
                 text, cs, rs = start[(r, c)]
@@ -1435,6 +1419,80 @@ def spanned_table(block: dict[str, Any], styles: dict[str, str], ctx: dict[str, 
                 tr.addElement(tc)
         table.addElement(tr)
     return table
+
+
+def length_cm(value: Any) -> float | None:
+    """„3.5cm“ (auch „35mm“) als Zahl in cm – sonst None (= automatisch)."""
+    m = re.fullmatch(r"\s*(\d+(?:\.\d+)?)\s*(cm|mm)\s*", str(value or ""))
+    if not m:
+        return None
+    return float(m.group(1)) / (10 if m.group(2) == "mm" else 1)
+
+
+def fixed_widths(widths: list[float], block: dict[str, Any]) -> tuple[list[float], float | None]:
+    """Spaltenbreiten aus `widths:` übernehmen (cm; leer = automatisch).
+
+    Automatische Spalten teilen sich den Rest der Satzbreite im Verhältnis der
+    berechneten Breiten (je mindestens 1 cm). Sind alle Spalten fest, wird die
+    Tabelle so breit wie ihre Summe (höchstens die Satzbreite) – die zweite
+    Rückgabe ist dann diese Breite, sonst None.
+    """
+    wanted = list(block.get("widths") or [])
+    fixed = [length_cm(wanted[i]) if i < len(wanted) else None for i in range(len(widths))]
+    if not any(fixed):
+        return widths, None
+    auto = [i for i, f in enumerate(fixed) if f is None]
+    fixed_sum = sum(f for f in fixed if f)
+    room = TABLE_WIDTH_CM - 1.0 * len(auto)
+    scale = min(1.0, room / fixed_sum) if fixed_sum else 1.0
+    out = [(f * scale if f else 0.0) for f in fixed]
+    if not auto:
+        return out, sum(out)
+    rest = TABLE_WIDTH_CM - sum(out)
+    auto_sum = sum(widths[i] for i in auto) or 1.0
+    for i in auto:
+        out[i] = rest * widths[i] / auto_sum
+    return out, None
+
+
+def table_with_columns(block: dict[str, Any], ctx: dict[str, Any], index: int,
+                       widths: list[float]) -> tuple[Element, list[float]]:
+    """Tabelle samt Spalten; feste Breiten aus `widths:` (siehe fixed_widths)."""
+    widths, total = fixed_widths(widths, block)
+    style_name = "ABTabelle"
+    if total is not None and total < TABLE_WIDTH_CM - 0.05:
+        style_name = f"ABTabelle.B{index}"
+        if style_name not in ctx["present"]:
+            style = Style(name=style_name, family="table")
+            style.addElement(TableProperties(width=f"{total:.3f}cm", margintop="0.2cm", marginbottom="0.2cm",
+                                             align="left", maybreakbetweenrows="false"))
+            ctx["doc"].automaticstyles.addElement(style)
+            ctx["present"].add(style_name)
+    table = Table(name=f"Tab{index}", stylename=style_name)
+    for col, width in enumerate(widths):
+        name = f"ABTabelle.Sp{index}.{col}"
+        if name not in ctx["present"]:
+            style = Style(name=name, family="table-column")
+            style.addElement(TableColumnProperties(columnwidth=f"{width:.3f}cm"))
+            ctx["doc"].automaticstyles.addElement(style)
+            ctx["present"].add(name)
+        table.addElement(TableColumn(stylename=name))
+    return table, widths
+
+
+def row_style(block: dict[str, Any], ctx: dict[str, Any], r: int) -> dict[str, Any]:
+    """Mindesthöhe der Zeile r aus `heights:` (Kopfzeile zählt mit) – als Argumente für TableRow."""
+    heights = list(block.get("heights") or [])
+    h = length_cm(heights[r]) if r < len(heights) else None
+    if not h:
+        return {}
+    name = f"ABTabelle.H{h:.2f}".replace(".", "_", 1)
+    if name not in ctx["present"]:
+        style = Style(name=name, family="table-row")
+        style.addElement(TableRowProperties(minrowheight=f"{h:.2f}cm"))
+        ctx["doc"].automaticstyles.addElement(style)
+        ctx["present"].add(name)
+    return {"stylename": name}
 
 
 def plain_table_styles(block: dict[str, Any], ctx: dict[str, Any], head_style: str, cell_style: str) -> tuple[str, str, str]:

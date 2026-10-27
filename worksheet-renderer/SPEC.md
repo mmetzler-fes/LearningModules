@@ -95,6 +95,12 @@ content:
     rows:                       # unter dem Text der Zelle; die Spalte wird so breit
       - [{text: "Netzwerk 1:", images: [{file: ton.png, width: 6cm}]},   # wie das Bild
          {images: [{file: diagramm.png, width: 9cm}]}]
+  - type: table                 # feste Spaltenbreiten (leer = automatisch, teilt
+    header: [Begriff, Erklärung, Seite]   # sich den Rest) und Mindesthöhen je Zeile
+    rows:                       # (Kopfzeile zuerst); in cm oder mm
+      - [OPV, Operationsverstärker, "3"]
+    widths: [3cm, "", 1.5cm]
+    heights: ["", 2cm]
   - type: table                 # Abbildungen nebeneinander: ohne Linien, zentriert
     border: false
     rows:

@@ -1586,7 +1586,29 @@ def plain_table_styles(block: dict[str, Any], ctx: dict[str, Any], head_style: s
     if align and align != "left":
         head_style = ensure_align_style(doc, present, head_style, align)
         cell_style = ensure_align_style(doc, present, cell_style, align)
-    return ("ABTabelle.ZR" if plain else "ABTabelle.Z"), head_style, cell_style
+    if plain:
+        return "ABTabelle.ZR", head_style, cell_style
+    return table_line_cell_style(block, ctx), head_style, cell_style
+
+
+def table_line_cell_style(block: dict[str, Any], ctx: dict[str, Any]) -> str:
+    """Zellvorlage mit den Linien der Tabelle (`lineWidth` in pt, `lineStyle`
+    solid/dashed/dotted) – ohne Angaben die gewohnte (ABTabelle.Z)."""
+    width = block.get("lineWidth")
+    style = block.get("lineStyle") if block.get("lineStyle") in ("solid", "dashed", "dotted") else None
+    if not isinstance(width, (int, float)) or not 0.25 <= width <= 6:
+        width = None
+    if width is None and style is None:
+        return "ABTabelle.Z"
+    width = width if width is not None else 0.75
+    style = style or "solid"
+    name = f"ABTabelle.Z{str(width).replace('.', '_')}{style}"
+    if name not in ctx["present"]:
+        cell = Style(name=name, family="table-cell")
+        cell.addElement(TableCellProperties(padding="0.1cm", border=f"{width}pt {style} #000000"))
+        ctx["doc"].automaticstyles.addElement(cell)
+        ctx["present"].add(name)
+    return name
 
 
 def widths_for_pictures(widths: list[float], pictures: dict[tuple[int, int], list[dict[str, Any]]],

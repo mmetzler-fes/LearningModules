@@ -1,3 +1,5 @@
+import { showContextMenu } from '../lm-editor/src/util/dom.js';
+
 // ==================== TABELLEN IM DOKUMENT-EDITOR ====================
 //
 // Steht die Schreibmarke in einer Tabelle der Schreibfläche, erscheint eine
@@ -11,6 +13,29 @@
 // bleiben dabei richtig: Gerechnet wird auf dem Raster der Tabelle.
 
 const PX_PER_CM = 96 / 2.54;
+// Linien der Tabelle (lineWidth in pt, lineStyle) – „0“ heißt ohne Linien (border: false).
+const LINE_WIDTHS = [['0', 'ohne'], ['0.5', '0,5 pt'], ['', 'normal'], ['1', '1 pt'], ['1.5', '1,5 pt'], ['2.25', '2,25 pt']];
+const LINE_STYLES = [['', '━ durchgezogen'], ['dashed', '┅ gestrichelt'], ['dotted', '┈ gepunktet']];
+
+/** Linien einer Tabelle im Editor setzen (wie docspec-html.js sie liest). */
+function setLines(table, { width, style }) {
+  if (width !== undefined) {
+    table.classList.toggle('ws-table-plain', width === '0');
+    if (width && width !== '0') table.dataset.lineWidth = width; else delete table.dataset.lineWidth;
+  }
+  if (style !== undefined) {
+    if (style) table.dataset.lineStyle = style; else delete table.dataset.lineStyle;
+  }
+  const w = table.dataset.lineWidth;
+  const st = table.dataset.lineStyle;
+  if (w || st) {
+    table.style.setProperty('--ds-line-w', `${w || 0.75}pt`);
+    table.style.setProperty('--ds-line-s', st || 'solid');
+    table.style.setProperty('--ds-line-c', '#1f2937');
+  } else ['--ds-line-w', '--ds-line-s', '--ds-line-c'].forEach((v) => table.style.removeProperty(v));
+  if (!table.getAttribute('style')) table.removeAttribute('style');
+  if (!table.getAttribute('class')) table.removeAttribute('class');
+}
 const EDGE_PX = 5;
 let surfaces = 0;
 
@@ -244,7 +269,9 @@ export function attachTableTools(surface, bar) {
     <span class="ds-tablebar-sep"></span>
     <label class="ds-tb-notcols" title="Erste Zeile als Kopfzeile (fett)"><input type="checkbox" class="ds-tb-head"> Kopfzeile</label>
     <label class="ds-tb-notcols ds-tb-beside-label" title="Bilder dieser Zelle neben dem Text statt darunter"><input type="checkbox" class="ds-tb-beside"> Bild neben Text</label>
-    <label class="ds-tb-notcols" title="Linien zeigen – ohne z. B. für Abbildungen nebeneinander"><input type="checkbox" class="ds-tb-border"> Linien</label>
+    <label class="ds-tb-notcols" title="Linien der ganzen Tabelle – „ohne“ z. B. für Abbildungen nebeneinander">Linien
+      <select class="ds-tb-lw">${LINE_WIDTHS.map(([v, l]) => `<option value="${v}">${l}</option>`).join('')}</select>
+      <select class="ds-tb-ls">${LINE_STYLES.map(([v, l]) => `<option value="${v}">${l}</option>`).join('')}</select></label>
     <span class="ds-tablebar-sep"></span>
     <button type="button" class="rt-btn" data-t="selectTable" title="Ganze Tabelle wählen – dann gelten ↔ Breite und ↕ Höhe für alle Spalten bzw. Zeilen; Strg+C / Strg+X">⬚ Ganze Tabelle</button>
     <button type="button" class="rt-btn" data-t="cutTable" title="Tabelle ausschneiden – danach in eine Zelle einer anderen Tabelle oder zwischen Absätze einfügen">✂ Ausschneiden</button>
@@ -254,7 +281,8 @@ export function attachTableTools(surface, bar) {
   const widthIn = bar.querySelector('.ds-tb-width');
   const heightIn = bar.querySelector('.ds-tb-height');
   const headBox = bar.querySelector('.ds-tb-head');
-  const borderBox = bar.querySelector('.ds-tb-border');
+  const lwSel = bar.querySelector('.ds-tb-lw');
+  const lsSel = bar.querySelector('.ds-tb-ls');
   const besideBox = bar.querySelector('.ds-tb-beside');
 
   // Zuletzt gewählte Zelle – die Leiste wirkt auf sie, auch wenn der Fokus im Eingabefeld steht.
@@ -327,7 +355,7 @@ export function attachTableTools(surface, bar) {
   const show = () => {
     const p = pos();
     bar.hidden = !p;
-    if (!p) return;
+    if (!p) { placeCellUi(); return; }
     // Spalten (table.ws-columns): nur Spalten einfügen/löschen und Breite.
     const columns = p.table.classList.contains('ws-columns');
     bar.classList.toggle('ds-tb-columns', columns);
@@ -340,7 +368,10 @@ export function attachTableTools(surface, bar) {
     const heights = whole ? [...new Set(p.g.rows.map((r) => r.style.height || ''))] : [tr.style.height || ''];
     if (document.activeElement !== heightIn) heightIn.value = heights.length === 1 && heights[0] ? String(parseFloat(heights[0])).replace('.', ',') : '';
     headBox.checked = [...p.table.children].some((c) => c.tagName === 'THEAD');
-    borderBox.checked = !p.table.classList.contains('ws-table-plain');
+    lwSel.value = p.table.classList.contains('ws-table-plain') ? '0' : p.table.dataset.lineWidth || '';
+    lsSel.value = p.table.dataset.lineStyle || '';
+    lsSel.disabled = lwSel.value === '0';
+    placeCellUi();
     // Nur bei Zellen mit Bild.
     bar.querySelector('.ds-tb-beside-label').hidden = !cell.querySelector('img');
     besideBox.checked = cell.classList.contains('ws-cell-beside');
@@ -442,7 +473,8 @@ export function attachTableTools(surface, bar) {
     cell.classList.toggle('ws-cell-beside', besideBox.checked);
     if (!cell.getAttribute('class')) cell.removeAttribute('class');
   });
-  borderBox.addEventListener('change', () => { const p = pos(); if (p) p.table.classList.toggle('ws-table-plain', !borderBox.checked); });
+  lwSel.addEventListener('change', () => { const p = pos(); if (p) { setLines(p.table, { width: lwSel.value }); show(); } });
+  lsSel.addEventListener('change', () => { const p = pos(); if (p) { setLines(p.table, { style: lsSel.value }); show(); } });
 
   const applySize = (input, apply) => {
     const p = pos();
@@ -648,7 +680,100 @@ export function attachTableTools(surface, bar) {
     }
   });
 
+  // ---------- Wie in Google Docs: ▼ in der Zelle, ＋ an Zeile und Spalte ----------
+  //
+  // Über der Fläche (nicht im Dokument): ▼ oben rechts in der Zelle der
+  // Schreibmarke öffnet das Menü für Zeile, Spalte und Tabelle; ＋ links unter
+  // ihrer Zeile fügt eine Zeile darunter ein, ＋ über dem rechten Rand ihrer
+  // Spalte eine Spalte rechts davon. Rechtsklick in eine Zelle: dasselbe Menü.
+  const mk = (cls, text, title) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = `ds-cell-ui ${cls}`;
+    b.textContent = text;
+    b.title = title;
+    b.hidden = true;
+    b.addEventListener('mousedown', (e) => e.preventDefault());
+    host.appendChild(b);
+    return b;
+  };
+  const cellMenuBtn = mk('ds-cell-menu', '▾', 'Zeile, Spalte, Tabelle …');
+  const rowPlus = mk('ds-row-plus', '+', 'Zeile darunter einfügen');
+  const colPlus = mk('ds-col-plus', '+', 'Spalte rechts einfügen');
+
+  function placeCellUi() {
+    const p = pos();
+    const on = !!p && !drag;
+    [cellMenuBtn, rowPlus, colPlus].forEach((b) => { b.hidden = !on; });
+    if (!on) return;
+    const h = host.getBoundingClientRect();
+    const c = cell.getBoundingClientRect();
+    const t = p.table.getBoundingClientRect();
+    const tr = p.g.rows[p.r + p.rs - 1].getBoundingClientRect();
+    cellMenuBtn.style.left = `${c.right - h.left - 18}px`;
+    cellMenuBtn.style.top = `${c.top - h.top + 2}px`;
+    rowPlus.style.left = `${t.left - h.left - 20}px`;
+    rowPlus.style.top = `${tr.bottom - h.top - 8}px`;
+    colPlus.style.left = `${c.right - h.left - 8}px`;
+    colPlus.style.top = `${t.top - h.top - 18}px`;
+    // Spalten (Layout) haben keine Zeilen zum Einfügen.
+    rowPlus.hidden = p.table.classList.contains('ws-columns');
+  }
+  rowPlus.addEventListener('click', () => run('rowBelow'));
+  colPlus.addEventListener('click', () => run('colRight'));
+  cellMenuBtn.addEventListener('click', () => {
+    const r = cellMenuBtn.getBoundingClientRect();
+    openCellMenu(r.left, r.bottom + 2, cell);
+  });
+  surface.addEventListener('scroll', () => placeCellUi());
+  window.addEventListener('resize', () => placeCellUi());
+
+  /** Menü einer Zelle – die Einträge wirken auf diese Zelle (auch wenn der Fokus inzwischen woanders ist). */
+  function openCellMenu(x, y, td, extra = []) {
+    if (!td || !editable(td.closest('table'))) return false;
+    const at = (t) => () => { cell = td; run(t); };
+    const table = td.closest('table');
+    const columns = table.classList.contains('ws-columns');
+    const lines = (w, label) => ({ label, onClick: () => { setLines(table, { width: w }); cell = td; show(); } });
+    const entries = columns ? [
+      { label: '⬅ Spalte links einfügen', onClick: at('colLeft') },
+      { label: '➡ Spalte rechts einfügen', onClick: at('colRight') },
+      { label: '✕ Spalte löschen', onClick: at('colDel') },
+    ] : [
+      { label: '⬆ Zeile darüber einfügen', onClick: at('rowAbove') },
+      { label: '⬇ Zeile darunter einfügen', onClick: at('rowBelow') },
+      { label: '✕ Zeile löschen', onClick: at('rowDel') },
+      '-',
+      { label: '⬅ Spalte links einfügen', onClick: at('colLeft') },
+      { label: '➡ Spalte rechts einfügen', onClick: at('colRight') },
+      { label: '✕ Spalte löschen', onClick: at('colDel') },
+      '-',
+      { label: '⇤ Zelle linksbündig', onClick: at('alignLeft') },
+      { label: '↔ Zelle zentriert', onClick: at('alignCenter') },
+      { label: '⇥ Zelle rechtsbündig', onClick: at('alignRight') },
+      ...(td.querySelector('img') ? [{ label: `${td.classList.contains('ws-cell-beside') ? '✓ ' : ''}Bild neben Text`, onClick: () => { td.classList.toggle('ws-cell-beside'); cell = td; show(); } }] : []),
+      '-',
+      { label: `${[...table.children].some((c) => c.tagName === 'THEAD') ? '✓ ' : ''}Kopfzeile`, onClick: () => { cell = td; toggleHeader(table); focusCell(td.isConnected ? td : null); } },
+      lines('0', `${table.classList.contains('ws-table-plain') ? '✓ ' : ''}Linien: ohne`),
+      lines('', `${!table.classList.contains('ws-table-plain') && !table.dataset.lineWidth ? '✓ ' : ''}Linien: normal`),
+      lines('1.5', `${table.dataset.lineWidth === '1.5' ? '✓ ' : ''}Linien: dick (1,5 pt)`),
+      { label: `${table.dataset.lineStyle === 'dashed' ? '✓ ' : ''}Linien: gestrichelt`, onClick: () => { setLines(table, { style: table.dataset.lineStyle === 'dashed' ? '' : 'dashed' }); cell = td; show(); } },
+    ];
+    entries.push('-',
+      { label: '⬚ Ganze Tabelle auswählen', onClick: () => { cell = td; selectTable(table); } },
+      { label: '✂ Tabelle ausschneiden', onClick: () => cutTable(table) },
+      { label: '🗑 Tabelle löschen', danger: true, onClick: () => { selectTable(null); table.remove(); focusCell(null); placeGrip(null); } },
+      ...extra);
+    showContextMenu(x, y, entries);
+    return true;
+  }
+
   return {
+    /** Menü der Zelle unter `target` (Rechtsklick) – false, wenn es keine Tabellenzelle ist. */
+    contextMenu: (x, y, target, extra = []) => {
+      const td = target?.closest?.('td, th');
+      return td && surface.contains(td) ? openCellMenu(x, y, td, extra) : false;
+    },
     /** Ausrichtung (left, center, right), wenn die Schreibmarke in einer Zelle steht – sonst false. */
     align: (dir) => {
       const node = document.getSelection()?.anchorNode;

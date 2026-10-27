@@ -224,6 +224,19 @@ class RenderTest(unittest.TestCase):
             self.assertRegex(content, r'<text:p text:style-name="AB_Right_[^"]*">rechts</text:p>')
             self.assertRegex(content, r'<text:p text:style-name="AB_Center_[^"]*">mittig</text:p>')
 
+    def test_tabelle_linien(self):
+        """`lineWidth` und `lineStyle`: eigene Zellvorlage mit dieser Linie."""
+        spec = "titel: Linien\ncontent:\n  - {type: table, lineWidth: 1.5, lineStyle: dashed, rows: [[a, b]]}\n"
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "blatt").mkdir()
+            (root / "blatt" / "sp.yaml").write_text(spec, encoding="utf-8")
+            env = dict(os.environ, ARBEITSBLATT_ROOT=str(root))
+            subprocess.run([sys.executable, str(GEN / "tools" / "make_worksheet.py"), "blatt/sp.yaml",
+                            "-o", "out"], cwd=root, env=env, check=True, capture_output=True)
+            content = zipfile.ZipFile(root / "out" / "blatt.odt").read("content.xml").decode()
+            self.assertIn('fo:border="1.5pt dashed #000000"', content)
+
 
 if __name__ == "__main__":
     unittest.main()

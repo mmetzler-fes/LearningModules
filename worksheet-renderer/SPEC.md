@@ -113,6 +113,10 @@ content:
       - - Schaltung links
         - text: "Wertetabelle:"
           blocks: [{type: table, header: [C, B, A, X], rows: [["", "", "", ""]]}]
+  - type: table                 # Linien: Stärke in pt (0.25–6), Art solid,
+    lineWidth: 1.5              # dashed oder dotted
+    lineStyle: dashed
+    rows: [[a, b]]
   - type: table                 # Ausrichtung aller Zellen (left, center, right);
     align: left                 # eine Zelle kann eigene haben. Ohne Linien
     border: false               # (border: false) ist sonst zentriert.

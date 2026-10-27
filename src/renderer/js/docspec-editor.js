@@ -627,7 +627,10 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
     e.preventDefault();
     // Die angeklickte Stelle zählt – nicht, wo die Schreibmarke vorher stand.
     const widget = e.target.closest?.('.ds-widget');
-    insertMenu(e.clientX, e.clientY, (widget && surface.contains(widget) ? widget : null) || blockOfNode(e.target));
+    const after = (widget && surface.contains(widget) ? widget : null) || blockOfNode(e.target);
+    // In einer Tabellenzelle: Menü für Zeile, Spalte und Tabelle; Einfügen bleibt erreichbar.
+    if (!widget && tableTools.contextMenu(e.clientX, e.clientY, e.target, ['-', { label: '➕ Einfügen …', onClick: () => insertMenu(e.clientX, e.clientY, after) }])) return;
+    insertMenu(e.clientX, e.clientY, after);
   });
 
   const pickQuiz = () => pickQuizFrom(topicModules(), moduleSource());

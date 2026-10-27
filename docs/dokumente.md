@@ -57,6 +57,14 @@ Der Editor startet im Modus **✏️ Bearbeiten** – wie ein Textprogramm:
   **📥 Tabelle hier einfügen** – oder im Hinweis darunter „hinter den Absatz
   der Schreibmarke“ (bzw. „zurück an die alte Stelle“). Eine Tabelle in einer Zelle
   steht im YAML unter `blocks` der Zelle.
+  **Wie in Google Docs:** In der Zelle der Schreibmarke oben rechts **▾** –
+  das Menü für Zeile, Spalte, Ausrichtung, Kopfzeile, Linien und die ganze
+  Tabelle (auch per **Rechtsklick** in eine Zelle). **＋** links unter der
+  Zeile fügt eine Zeile darunter ein, **＋** über dem rechten Rand der Spalte
+  eine Spalte rechts davon.
+  **Linien:** in der Leiste Stärke (ohne, 0,5 / normal / 1 / 1,5 / 2,25 pt)
+  und Art (durchgezogen, gestrichelt, gepunktet) – für die ganze Tabelle,
+  auch im Druck.
   **Ausrichtung:** ⇤ ↔ ⇥ in der Tabellenleiste (oder oben in der Leiste,
   wenn die Schreibmarke in einer Zelle steht) richten die Zelle aus, bei
   gewählter „Ganzer Tabelle“ alle Zellen. Tabellen ohne Linien sind ohne

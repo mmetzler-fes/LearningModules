@@ -43,7 +43,14 @@ Der Editor startet im Modus **✏️ Bearbeiten** – wie ein Textprogramm:
   **Linien** an/aus, **⇔ auto** (alle festen Breiten weg) und 🗑 Tabelle
   löschen. Breite und Höhe gehen auch mit der Maus: rechten Rand einer Zelle
   bzw. unteren Rand einer Zeile ziehen. Verbundene Zellen bleiben verbunden.
-  **Tabelle verschieben oder schachteln:** In der Leiste **✂ Ausschneiden**,
+  **Tabelle als Ganzes:** Links oben an der Tabelle unter Maus oder
+  Schreibmarke erscheint der Griff **⠿**. Ein Klick darauf wählt die ganze
+  Tabelle (blauer Rahmen) mit ↑ ↓ (auch Alt+↑/↓), ⧉ verdoppeln, ✂ ausschneiden
+  (Strg+X), ✕ löschen (Entf) und – bei einer Tabelle in einer Zelle – **⬆
+  äußere**. Nach dem Ausschneiden setzt **Strg+V** sie in die Zelle der
+  Schreibmarke bzw. hinter ihren Absatz. Esc oder ein Klick ins Blatt hebt
+  die Auswahl auf.
+  **Tabelle verschieben oder schachteln** geht auch über die Leiste: **✂ Ausschneiden**,
   dann die Schreibmarke in eine Zelle einer anderen Tabelle setzen und
   **📥 Tabelle hier einfügen** – oder im Hinweis darunter „hinter den Absatz
   der Schreibmarke“ (bzw. „zurück an die alte Stelle“). **⬚ Markieren**

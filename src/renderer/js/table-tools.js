@@ -271,10 +271,14 @@ export function attachTableTools(surface, bar) {
   // Wo die Schreibmarke zuletzt in der Fläche stand (auch außerhalb von Tabellen).
   let lastNode = null;
   holdNote.addEventListener('mousedown', (e) => e.preventDefault());
-  holdNote.addEventListener('click', (e) => {
-    const what = e.target.closest('[data-hold]')?.dataset.hold;
-    if (!what || !held) return;
-    if (what === 'undo') {
+  /** Ausgeschnittene Tabelle einsetzen: 'cell' (in die Zelle der Schreibmarke), 'after' (hinter ihren Absatz), 'undo'. */
+  const placeHeld = (what) => {
+    if (!held) return;
+    if (what === 'cell' && cell?.isConnected) {
+      // Leere Zelle (nur <br>): die Tabelle ersetzt den Platzhalter.
+      if (!cell.textContent.trim() && !cell.querySelector('img, table')) cell.innerHTML = '';
+      cell.appendChild(held);
+    } else if (what === 'undo') {
       const { parent, next } = heldFrom || {};
       if (parent?.isConnected) parent.insertBefore(held, next?.parentNode === parent ? next : null);
       else surface.appendChild(held);
@@ -284,10 +288,24 @@ export function attachTableTools(surface, bar) {
       while (n && n !== surface && !(n.parentNode === surface || n.parentNode?.matches?.('div.ws-box, td, th'))) n = n.parentNode;
       if (n && n !== surface) n.after(held); else surface.appendChild(held);
     }
-    const first = cellsOf(rowsOf(held)[0] || document.createElement('tr'))[0];
+    const placed = held;
+    const first = cellsOf(rowsOf(placed)[0] || document.createElement('tr'))[0];
     held = null;
     showPaste();
     if (first) focusCell(first);
+    selectTable(placed);
+  };
+  const cutTable = (table) => {
+    selectTable(null);
+    heldFrom = { parent: table.parentNode, next: table.nextSibling };
+    held = table;
+    table.remove();
+    focusCell(null);
+    showPaste();
+  };
+  holdNote.addEventListener('click', (e) => {
+    const what = e.target.closest('[data-hold]')?.dataset.hold;
+    if (what) placeHeld(what === 'here' ? 'after' : what);
   });
   const tableOf = (td) => td?.closest('table');
   const editable = (table) => table && surface.contains(table) && !table.closest('.ds-widget');
@@ -376,20 +394,10 @@ export function attachTableTools(surface, bar) {
         return;
       }
       case 'cutTable':
-        heldFrom = { parent: table.parentNode, next: table.nextSibling };
-        held = table;
-        table.remove();
-        focusCell(null);
-        showPaste();
+        cutTable(table);
         return;
       case 'pasteTable':
-        if (!held || !cell) return;
-        // Leere Zelle (nur <br>): die Tabelle ersetzt den Platzhalter.
-        if (!cell.textContent.trim() && !cell.querySelector('img, table')) cell.innerHTML = '';
-        cell.appendChild(held);
-        held = null;
-        showPaste();
-        focusCell(cellsOf(rowsOf(cell.lastElementChild)[0] || document.createElement('tr'))[0] || cell);
+        placeHeld('cell');
         return;
       case 'evenWidths':
         [...table.children].filter((c) => c.tagName === 'COLGROUP').forEach((c) => c.remove());
@@ -493,6 +501,111 @@ export function attachTableTools(surface, bar) {
   // Ohne feste Breite zeigt das Feld die jetzige als Anhalt.
   widthIn.addEventListener('focus', () => { const p = pos(); if (p && !widthIn.value) widthIn.placeholder = `≈${cmText(columnPx(p.g, p.c + p.cs - 1))}`; });
   widthIn.addEventListener('blur', () => { widthIn.placeholder = 'auto'; });
+
+  // ---------- Tabelle als Objekt: Griff, Auswahl, Leiste ----------
+  //
+  // Der Griff ⠿ liegt über der Fläche (nicht in ihr – sonst landete er im
+  // Dokument), an der Ecke der Tabelle unter Maus oder Schreibmarke. Ein Klick
+  // wählt die ganze Tabelle: ↑ ↓ ⧉ ✂ ✕, bei inneren Tabellen „⬆ äußere“.
+  const host = surface.parentElement;
+  if (getComputedStyle(host).position === 'static') host.style.position = 'relative';
+  const grip = document.createElement('div');
+  grip.className = 'ds-table-grip';
+  grip.hidden = true;
+  grip.innerHTML = `<button type="button" class="ds-grip-handle" title="Ganze Tabelle auswählen – verschieben, verdoppeln, ausschneiden, löschen">⠿</button>
+    <span class="ds-grip-bar" hidden>
+      <button type="button" data-g="up" title="Nach oben (Alt+↑)">↑</button>
+      <button type="button" data-g="down" title="Nach unten (Alt+↓)">↓</button>
+      <button type="button" data-g="dup" title="Verdoppeln">⧉</button>
+      <button type="button" data-g="cut" title="Ausschneiden (Strg+X) – dann in eine Zelle oder hinter einen Absatz einfügen (Strg+V)">✂</button>
+      <button type="button" data-g="outer" title="Die Tabelle außen herum auswählen">⬆ äußere</button>
+      <button type="button" data-g="del" title="Löschen (Entf)">✕</button>
+    </span>`;
+  host.appendChild(grip);
+  let gripTable = null;
+  let selectedTable = null;
+
+  const placeGrip = (table) => {
+    gripTable = table && editable(table) ? table : null;
+    grip.hidden = !gripTable;
+    if (!gripTable) return;
+    const t = gripTable.getBoundingClientRect();
+    const h = host.getBoundingClientRect();
+    grip.style.left = `${Math.max(0, t.left - h.left - 22)}px`;
+    grip.style.top = `${t.top - h.top}px`;
+    grip.querySelector('[data-g="outer"]').hidden = !gripTable.parentElement?.closest('table');
+  };
+  function selectTable(table) {
+    if (selectedTable && selectedTable !== table) {
+      selectedTable.classList.remove('ds-table-selected');
+      if (!selectedTable.getAttribute('class')) selectedTable.removeAttribute('class');
+    }
+    selectedTable = table && editable(table) ? table : null;
+    if (selectedTable) selectedTable.classList.add('ds-table-selected');
+    grip.querySelector('.ds-grip-bar').hidden = !selectedTable;
+    grip.classList.toggle('ds-grip-active', !!selectedTable);
+    placeGrip(selectedTable || gripTable);
+  }
+
+  const gripAction = (act) => {
+    const t = selectedTable;
+    if (!t) return;
+    if (act === 'up' && t.previousElementSibling) t.previousElementSibling.before(t);
+    else if (act === 'down' && t.nextElementSibling) t.nextElementSibling.after(t);
+    else if (act === 'dup') {
+      const copy = t.cloneNode(true);
+      copy.classList.remove('ds-table-selected');
+      copy.removeAttribute('data-id');
+      copy.querySelectorAll('[data-id]').forEach((n) => n.removeAttribute('data-id'));
+      t.after(copy);
+      selectTable(copy);
+    } else if (act === 'cut') cutTable(t);
+    else if (act === 'outer') selectTable(t.parentElement.closest('table'));
+    else if (act === 'del') { selectTable(null); t.remove(); placeGrip(null); return; }
+    if (selectedTable) { placeGrip(selectedTable); selectedTable.scrollIntoView?.({ block: 'nearest' }); }
+  };
+  grip.addEventListener('mousedown', (e) => e.preventDefault()); // Schreibmarke bleibt, wo sie ist
+  grip.addEventListener('click', (e) => {
+    if (e.target.closest('.ds-grip-handle')) { selectTable(selectedTable === gripTable ? null : gripTable); return; }
+    const act = e.target.closest('[data-g]')?.dataset.g;
+    if (act) gripAction(act);
+  });
+
+  // Griff zeigen: an der Tabelle unter der Maus, sonst an der der Schreibmarke.
+  surface.addEventListener('mousemove', (e) => {
+    if (selectedTable || drag) return;
+    const t = e.target.closest?.('table');
+    if (t && t !== gripTable && editable(t)) placeGrip(t);
+  });
+  document.addEventListener('selectionchange', () => {
+    if (selectedTable) return;
+    const node = document.getSelection()?.anchorNode;
+    if (!node || !surface.contains(node)) return;
+    const t = (node.nodeType === 3 ? node.parentNode : node).closest?.('table');
+    placeGrip(t || null);
+  });
+  surface.addEventListener('scroll', () => placeGrip(selectedTable || gripTable));
+  window.addEventListener('resize', () => placeGrip(selectedTable || gripTable));
+  // Klick in die Fläche (nicht auf den Griff) hebt die Auswahl auf.
+  surface.addEventListener('mousedown', () => { if (selectedTable) selectTable(null); });
+
+  const keysFor = () => selectedTable && selectedTable.isConnected && !document.querySelector('.confirm-overlay:not(.hidden)');
+  document.addEventListener('keydown', (e) => {
+    if (keysFor()) {
+      if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); gripAction('del'); }
+      else if (e.key === 'Escape') selectTable(null);
+      else if (e.altKey && e.key === 'ArrowUp') { e.preventDefault(); gripAction('up'); }
+      else if (e.altKey && e.key === 'ArrowDown') { e.preventDefault(); gripAction('down'); }
+      else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'x') { e.preventDefault(); gripAction('cut'); }
+      return;
+    }
+    // Strg+V mit ausgeschnittener Tabelle: in die Zelle der Schreibmarke, sonst hinter ihren Absatz.
+    if (held && (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'v' && lastNode && surface.contains(lastNode)
+      && surface.contains(document.getSelection()?.anchorNode)) {
+      e.preventDefault();
+      placeHeld(cell && surface.contains(cell) ? 'cell' : 'after');
+    }
+  });
 }
 
 // Für Tests.

@@ -3695,8 +3695,16 @@ body {
 .ds-editor-errors .ds-error { color: var(--danger); margin: 4px 0 0; font-size: 0.85em; }
 .ds-editor-left { display: flex; flex-direction: column; min-width: 0; }
 .ds-mode { margin-bottom: 6px; }
-.ds-vtoolbar { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; margin-bottom: 6px; }
-.ds-vtoolbar select { font-size: 0.85em; padding: 2px 4px; }
+.ds-vtoolbar {
+  display: flex; flex-wrap: wrap; gap: 2px; align-items: center; margin-bottom: 6px; padding: 4px 0;
+  /* haftet unter der Kopfzeile des Modul-Editors (Höhe setzt docspec-editor.js) */
+  position: sticky; top: var(--ds-sticky-top, 0px); z-index: 6; background: var(--bg-primary);
+}
+.ds-vtoolbar select { font-size: 0.85em; padding: 2px 4px; width: auto; flex: 0 0 auto; margin: 0 4px 0 0; }
+.ds-vtoolbar .rt-btn { padding: 2px 6px; min-width: 0; }
+.ds-vtoolbar .ds-vplus { font-weight: 700; }
+.ds-mode .admin-tab { padding: 4px 12px; font-size: 0.9em; }
+.ds-editor-bar .btn-sm { padding: 4px 10px; }
 .ds-surface { height: 60vh; min-height: 440px; overflow-y: auto; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 10px 14px; background: var(--bg-secondary); }
 .ds-surface h2[data-ds="section"]::before { content: '§ '; color: var(--text-secondary); }
 .ds-surface h3[data-ds="task"]::before { content: 'Aufgabe: '; color: var(--text-secondary); font-weight: normal; font-size: 0.85em; }
@@ -5531,3 +5539,9 @@ details.cb-topic > summary .hint { font-weight: normal; margin-left: 6px; }
 .cb-node > summary::-webkit-details-marker, .cb-snode > summary::-webkit-details-marker { display: none; }
 .cb-node > summary::before, .cb-snode > summary::before { content: '▸'; color: var(--text-secondary); width: 1em; flex-shrink: 0; }
 .cb-node[open] > summary::before, .cb-snode[open] > summary::before { content: '▾'; }
+
+/* Modul-Editor: Tags eingeklappt, die gewählten stehen in der Zeile. */
+.module-tags-fold > summary { cursor: pointer; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.module-tags-fold[open] > summary { margin-bottom: 8px; }
+.module-tags-summary { display: inline-flex; flex-wrap: wrap; gap: 4px; font-weight: normal; }
+.module-desc-fold > summary { cursor: pointer; }

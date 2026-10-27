@@ -50,6 +50,10 @@ export class ModulesView {
     this._descEditor.init();
 
     this._tagPicker = new TagPicker(app, document.getElementById('moduleTags'));
+    // Die Zeile der eingeklappten Tags folgt jeder Auswahl.
+    const renderTags = this._tagPicker.render.bind(this._tagPicker);
+    this._tagPicker.render = (selected) => { renderTags(selected); this._paintTagSummary(); };
+    document.getElementById('moduleTags')?.addEventListener('change', () => this._paintTagSummary());
 
     this._bindEvents();
 
@@ -141,6 +145,7 @@ export class ModulesView {
             ? (this.app.state.currentTopicModules.find((m) => m.id === this.app.state.editingModuleId) || {}).content || {}
             : {};
           this.app.state.contentEditor.render(typeId, existing);
+          this._foldDescription();
         } else {
           this.app.state.contentEditor.clear();
         }
@@ -460,6 +465,20 @@ export class ModulesView {
   }
 
   /** Im Modul-Editor: welche Tags schon vom Thema kommen. */
+  /** Beschreibung bei Dokumenten einklappen, solange sie leer ist – das Blatt braucht den Platz. */
+  _foldDescription() {
+    const fold = document.getElementById('moduleDescFold');
+    if (fold) fold.open = this._moduleTypeSelect.value !== 'document' || !!this._descEditor.getHtml().replace(/<[^>]+>|&nbsp;|\s/g, '');
+  }
+
+  /** Eingeklappte Tags: geerbte und eigene als Chips in der Zeile. */
+  _paintTagSummary() {
+    const box = document.getElementById('moduleTagsSummary');
+    if (!box) return;
+    const html = this._renderTagChips(this._tagPicker.selectedIds, this._topicTagIds());
+    box.innerHTML = html || '<span class="hint">keine – zum Wählen aufklappen</span>';
+  }
+
   _renderInheritedHint() {
     const box = document.getElementById('moduleInheritedTags');
     if (!box) return;
@@ -506,6 +525,7 @@ export class ModulesView {
     this._renderInheritedHint();
     this.app.navigateToView('create-module');
     this.app.state.contentEditor.render(mod.type, mod.content || {});
+    this._foldDescription();
     await this._beginDraft(mod.id, mod.id, mod.title);
   }
 
@@ -700,6 +720,7 @@ export class ModulesView {
     this._renderInheritedHint();
     this.app.state.contentEditor.clear();
     this._createViewTitle.textContent = t('module.create.title');
+    this._foldDescription();
   }
 
   async _onModuleFormSubmit(e) {

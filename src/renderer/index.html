@@ -525,13 +525,15 @@
               <option value="" data-i18n="module.type.placeholder">— Modultyp wählen —</option>
             </select>
           </div>
-          <div class="form-group">
-            <label>Tags</label>
+          <!-- Eingeklappt: in der Zeile stehen die Tags des Moduls, aufgeklappt die Auswahl -->
+          <details class="form-group module-tags-fold" id="moduleTagsFold">
+            <summary><strong>Tags</strong> <span id="moduleTagsSummary" class="module-tags-summary"></span></summary>
             <div id="moduleInheritedTags" class="module-inherited-tags"></div>
             <div id="moduleTags" class="tag-picker-wrap"></div>
-          </div>
-          <div class="form-group">
-            <label for="moduleDescription" data-i18n="module.desc.label">Beschreibung</label>
+          </details>
+          <!-- Bei Dokumenten eingeklappt, solange leer (modules.js: _foldDescription) -->
+          <details class="form-group module-desc-fold" id="moduleDescFold" open>
+            <summary><strong data-i18n="module.desc.label">Beschreibung</strong></summary>
             <div class="rich-text-editor" id="moduleDescEditorWrap">
               <div class="rich-text-toolbar" id="moduleDescToolbar">
                 <select id="moduleDescBlockFormat" class="rt-select rt-block-format" title="Textformat">
@@ -573,7 +575,7 @@
               <div id="moduleDescriptionEditor" class="rich-text-surface" contenteditable="true" role="textbox" aria-multiline="true"></div>
               <textarea id="moduleDescription" class="hidden" rows="3" data-i18n-placeholder="module.desc.placeholder" placeholder="Optionale Beschreibung..."></textarea>
             </div>
-          </div>
+          </details>
           <div id="contentEditor" class="content-editor"></div>
           <div class="form-actions">
             <button type="submit" class="btn btn-primary" id="btnSaveModule" data-i18n="module.save">Modul speichern</button>

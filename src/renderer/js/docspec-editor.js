@@ -18,6 +18,7 @@ import { ensureBlockIds, stampBlockIds } from '../lm-editor/src/doc/ids.js';
 import { newlineIndent, shiftLines, reindentPaste, insertAfterItem } from './yaml-edit.js';
 import { pickQuiz as pickQuizFrom } from './quiz-picker.js';
 import { pickPdfBlocks } from './views/attachment-convert.js';
+import { showContextMenu } from '../lm-editor/src/util/dom.js';
 
 /** Startinhalt eines neuen Dokuments – zeigt das Format an einem Beispiel. */
 const STARTER = `content:
@@ -77,9 +78,9 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
   root.innerHTML = `
     <label>${escapeHtml(label || 'Inhalt')} <span class="hint">– Format: Blöcke wie im Arbeitsblatt-Generator</span></label>
     <div class="ds-editor-bar">
-      ${OUTPUTS.map((o) => `<button type="button" class="btn btn-secondary btn-sm" data-output="${o.output}" title="${o.title}">${o.label}</button>`).join('')}
+      <button type="button" class="btn btn-secondary btn-sm ds-print-menu" title="Arbeitsblatt oder Lösungsblatt als PDF oder .odt">🖨 Drucken ▾</button>
       <label class="ds-editor-toggle"><input type="checkbox" class="ds-show-solutions"> Lösungen zeigen</label>
-      <button type="button" class="btn btn-secondary btn-sm ds-import-odt" title="Writer- oder Word-Dokument (.odt, .docx) übernehmen: Überschriften, Absätze, Listen, Tabellen, Bilder">📄 Übernehmen (.odt, .docx)</button>
+      <button type="button" class="btn btn-secondary btn-sm ds-import-odt" title="Writer- oder Word-Dokument (.odt, .docx) übernehmen: Überschriften, Absätze, Listen, Tabellen, Bilder">📄 Übernehmen…</button>
       <span class="ds-editor-status hint"></span>
     </div>
     <div class="ds-editor-header hint" hidden></div>
@@ -91,6 +92,7 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
         </div>
         <div class="ds-visual" hidden>
           <div class="ds-vtoolbar rich-text-toolbar">
+            <button type="button" class="rt-btn ds-vplus" title="Einfügen: Schreibfeld, Quiz, Lösung, Formel … (auch Rechtsklick in den Text)">➕</button>
             <select class="ds-vblock" title="Absatzart">
               <option value="p">Text</option><option value="section">Abschnitt (1.)</option><option value="task">Aufgabe (1.1)</option>
               <option value="subtask">Teilaufgabe (1.1.1)</option><option value="heading">Überschrift ohne Nummer</option><option value="note">Hinweis</option>
@@ -99,14 +101,9 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
               ['superscript', 'x²', 'Hochgestellt'], ['subscript', 'x₂', 'Tiefgestellt'], ['insertUnorderedList', '•', 'Aufzählung'], ['insertOrderedList', '1.', 'Nummerierung'],
               ['justifyLeft', '⇤', 'Linksbündig'], ['justifyCenter', '↔', 'Zentriert'], ['justifyRight', '⇥', 'Rechtsbündig'], ['createLink', '🔗', 'Link']]
               .map(([cmd, label, title]) => `<button type="button" class="rt-btn" data-cmd="${cmd}" title="${title}">${label}</button>`).join('')}
-            <select class="ds-vinsert" title="Baustein einfügen">
-              <option value="">➕ Einfügen …</option><option value="karo">Schreibfeld (Karo, Linien)</option><option value="quiz">🧩 Quiz aus dem Lernthema</option><option value="solution">Lösung</option>
-              <option value="formula">Formel</option><option value="code">Code</option><option value="table">Tabelle</option>
-              <option value="box">Kasten</option><option value="spacer">Platz (unsichtbar)</option><option value="pagebreak">Seitenumbruch</option>
-            </select>
           </div>
           <div class="ds-surface worksheet-content" contenteditable="true" spellcheck="true" aria-label="Inhalt bearbeiten"></div>
-          <p class="hint">Bausteine (grau) per Doppelklick bearbeiten. Lösungen folgen auf ein Karo und erscheinen im Lösungsblatt darüber.</p>
+          <p class="hint">➕ oder Rechtsklick fügt ein (Umschalt+Rechtsklick: Menü des Browsers). Bausteine (grau) per Doppelklick bearbeiten. Lösungen folgen auf ein Karo und erscheinen im Lösungsblatt darüber.</p>
         </div>
         <div class="ds-ybar" hidden>
           <select class="ds-yinsert" title="Baustein hinter dem Block einfügen, in dem die Schreibmarke steht">
@@ -253,7 +250,7 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
       // „PDF einfügen“ nur mit Freischaltung (hidden an <option> kennt Safari nicht).
       root.querySelectorAll('.ds-vinsert option[value="quiz"], .ds-yinsert option[value="quiz"]')
         .forEach((o) => o.after(new Option('📄 PDF an dieser Stelle', 'pdf')));
-      importButton.textContent = '📄 Übernehmen (.odt, .docx, .pdf)';
+      importButton.textContent = '📄 Übernehmen…';
       importButton.title = 'Writer- oder Word-Dokument (.odt, .docx) oder PDF übernehmen: Überschriften, Absätze, Listen, Tabellen, Bilder';
     }
   });
@@ -334,9 +331,11 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
     input.click();
   });
 
-  for (const btn of root.querySelectorAll('[data-output]')) {
-    btn.addEventListener('click', () => print(btn.dataset.output, btn));
-  }
+  root.querySelector('.ds-print-menu').addEventListener('click', (e) => {
+    const btn = e.currentTarget;
+    const r = btn.getBoundingClientRect();
+    showContextMenu(r.left, r.bottom + 4, OUTPUTS.map((o) => ({ label: `${o.label} – ${o.title}`, onClick: () => print(o.output, btn) })));
+  });
 
   async function print(output, btn) {
     update();
@@ -383,6 +382,13 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
 
   // ---------- Visueller Editor ----------
   const visual = root.querySelector('.ds-visual');
+  // Die Leiste haftet beim Scrollen unter der Kopfzeile des Modul-Editors (die selbst stehen bleibt).
+  const header = root.closest('.view')?.querySelector('.editor-header') || document.querySelector('#view-create-module .editor-header');
+  if (header) {
+    const place = () => root.style.setProperty('--ds-sticky-top', `${Math.max(0, header.offsetHeight + (parseFloat(getComputedStyle(header).top) || 0))}px`);
+    place();
+    new ResizeObserver(place).observe(header);
+  }
   const surface = root.querySelector('.ds-surface');
   const blockSelect = root.querySelector('.ds-vblock');
   let mode = 'yaml';
@@ -412,6 +418,9 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
   surfaceObserver.observe(surface, { childList: true, subtree: true, characterData: true, attributes: true });
   if (typeof window.WorksheetImageTools !== 'undefined') {
     new window.WorksheetImageTools(surface, document.createElement('input'), root.querySelector('.ds-vtoolbar'));
+    // Kompakt: nur das Zeichen, der Text steht im Tooltip.
+    const imgBtn = root.querySelector('.ds-vtoolbar .rt-btn-image');
+    if (imgBtn) imgBtn.textContent = '🖼';
   }
 
   const setMode = (next) => {
@@ -484,13 +493,10 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
     table: { type: 'table', header: ['Spalte 1', 'Spalte 2'], rows: [['…', '…']] },
     box: { type: 'box', title: 'Merke', blocks: [{ type: 'text', text: '…' }] },
   };
-  root.querySelector('.ds-vinsert').addEventListener('change', async (e) => {
-    const what = e.target.value;
-    e.target.value = '';
-    if (!what) return;
-    if (what === 'quiz') { insertQuiz(); return; }
+  /** Baustein `what` hinter `after` (Block der Schreibmarke, als das Menü aufging) einfügen. */
+  const insertWhat = async (what, after) => {
+    if (what === 'quiz') { insertQuiz(after); return; }
     if (what === 'pdf') {
-      const after = currentBlock();
       const blocks = await insertPdfBlocks();
       if (blocks) placeHtml(specToEditorHtml({ content: blocks }), after);
       return;
@@ -498,9 +504,53 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
     const html = what === 'table' ? '<table><thead><tr><th>Spalte 1</th><th>Spalte 2</th></tr></thead><tbody><tr><td>…</td><td>…</td></tr></tbody></table>'
       : what === 'box' ? '<div class="ws-box" data-title="Merke"><p>…</p></div>'
         : widgetHtml(STARTERS[what]);
-    const nodes = placeHtml(html, currentBlock());
+    const nodes = placeHtml(html, after);
     if (nodes[0].classList?.contains('ds-widget')) selectWidget(nodes[0]);
     if (!['table', 'box', 'pagebreak'].includes(what)) editWidget(nodes[0]);
+  };
+
+  /** Menü zum Einfügen – am ➕ oder per Rechtsklick in den Text. Quizze des Lernthemas stehen direkt darin. */
+  const QUIZ_MENU_MAX = 12;
+  const insertMenu = (x, y) => {
+    const after = currentBlock();
+    const quizzes = (topicModules() || []).filter((m) => m && m.id && m.id !== moduleSource() && !m.parentId && m.type !== 'document');
+    const quizEntries = quizzes.slice(0, QUIZ_MENU_MAX).map((m) => ({
+      label: `${window.H5P_TYPES?.[m.type]?.icon || '🧩'} ${m.title || m.type}`,
+      onClick: () => {
+        const nodes = placeHtml(widgetHtml({ type: 'quiz', module: m.id, title: m.title || 'Quiz' }), after);
+        selectWidget(nodes[0]);
+      },
+    }));
+    const entries = [
+      ['karo', '▦ Schreibfeld (Karo, Linien)'],
+      // Mehr als ins Menü passen – oder keins: die Auswahl (sie erklärt, wie ein Quiz entsteht).
+      ...(quizzes.length > QUIZ_MENU_MAX ? [['quiz', `🧩 Weitere Quizze (${quizzes.length})…`]] : !quizzes.length ? [['quiz', '🧩 Quiz aus dem Lernthema…']] : []),
+      ...(pdfAllowed ? [['pdf', '📄 PDF an dieser Stelle']] : []),
+      ['solution', '💡 Lösung'], ['formula', '∑ Formel'], ['code', '⌨ Code'], ['table', '▤ Tabelle'],
+      ['box', '▢ Kasten'], ['spacer', '◌ Platz (unsichtbar)'], ['pagebreak', '⤓ Seitenumbruch'],
+      ['image', '🖼 Bild…'], ['compose', '🧩 Bilder zusammenstellen…'],
+    ];
+    showContextMenu(x, y, [...quizEntries, ...entries.map(([what, label]) => ({
+      label,
+      onClick: () => {
+        if (what === 'image' || what === 'compose') {
+          // Die Bildwerkzeuge setzen an die Schreibmarke.
+          root.querySelector(what === 'image' ? '.ds-vtoolbar .rt-btn-image' : '.ds-vtoolbar .rt-btn-compose')?.click();
+          return;
+        }
+        void insertWhat(what, after);
+      },
+    }))]);
+  };
+  root.querySelector('.ds-vplus').addEventListener('mousedown', (e) => e.preventDefault()); // Schreibmarke behalten
+  root.querySelector('.ds-vplus').addEventListener('click', (e) => {
+    const r = e.currentTarget.getBoundingClientRect();
+    insertMenu(r.left, r.bottom + 4);
+  });
+  surface.addEventListener('contextmenu', (e) => {
+    if (e.shiftKey) return; // Menü des Browsers (z. B. Rechtschreibung)
+    e.preventDefault();
+    insertMenu(e.clientX, e.clientY);
   });
 
   const pickQuiz = () => pickQuizFrom(topicModules(), moduleSource());
@@ -533,8 +583,7 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
   };
 
   /** Quiz an der Schreibmarke einfügen. */
-  const insertQuiz = async () => {
-    const after = currentBlock();
+  const insertQuiz = async (after = currentBlock()) => {
     const block = await pickQuiz();
     if (!block) return;
     selectWidget(placeHtml(widgetHtml(block), after)[0]);

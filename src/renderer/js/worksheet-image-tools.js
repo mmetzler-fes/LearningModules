@@ -105,7 +105,7 @@
       // Mehrere Bilder als eines einfügen (image-composer.js)
       const compose = document.createElement('button');
       compose.type = 'button';
-      compose.className = 'rt-btn';
+      compose.className = 'rt-btn rt-btn-compose';
       compose.title = 'Mehrere Bilder zu einem zusammenstellen und einfügen';
       compose.textContent = '🧩';
       compose.addEventListener('mousedown', (e) => e.preventDefault());

@@ -148,6 +148,7 @@ export class BrowserApi {
   refreshSession() { return this._fetch('/api/auth/refresh', { method: 'POST' }); }
   logoutSession() { return this._fetch('/api/auth/logout', { method: 'POST' }); }
   listSessions() { return this._fetch('/api/auth/sessions'); }
+  saveUserSettings(patch) { return this._fetch('/api/auth/settings', { method: 'PATCH', body: JSON.stringify(patch) }); }
   endSession(id) { return this._fetch(`/api/auth/sessions/${encodeURIComponent(id)}`, { method: 'DELETE' }); }
   endAllSessions(others) { return this._fetch('/api/auth/sessions/end-all', { method: 'POST', body: JSON.stringify({ others: !!others }) }); }
 

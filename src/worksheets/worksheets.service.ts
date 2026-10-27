@@ -18,6 +18,18 @@ import { RenderJob, WorksheetOutput, WorksheetRendererClient } from './renderer.
 import { PdfAiClient } from './pdf-ai.client';
 
 /** Lage im PDF (`_pos` des Renderers) aus allen Bausteinen entfernen. */
+/**
+ * Beschriftung aus dem Stift-Editor: nur ein SVG aus Pfaden, Gruppen, Rechtecken,
+ * Linien und Text (ink-view.js). Keine Verweise, Bilder, Skripte – LibreOffice
+ * soll beim Drucken nichts nachladen.
+ */
+export function safeInkSvg(svg: unknown): boolean {
+  if (typeof svg !== 'string' || svg.length > 2_000_000 || !/^\s*<svg[\s>]/.test(svg)) return false;
+  if (/href|url\s*\(|<!|<\?|\bon[a-z]+\s*=|javascript:/i.test(svg)) return false;
+  const tags = svg.match(/<\/?([a-zA-Z][\w:-]*)/g) || [];
+  return tags.every((t) => /^<\/?(svg|g|path|rect|line|polyline|polygon|circle|ellipse|text|tspan)$/i.test(t));
+}
+
 export function stripPositions(v: any): void {
   if (Array.isArray(v)) v.forEach(stripPositions);
   else if (v && typeof v === 'object') {
@@ -393,10 +405,29 @@ export class WorksheetsService {
       };
     };
 
+    // Beschriftung aus dem Stift-Editor (lm-editor/src/ink/ink-print.js): SVG je
+    // Baustein, Lage in Punkt → Datei und cm für den Renderer.
+    let inkCount = 0;
+    const pt = (v: any) => Math.round((Number(v) / 72) * 2.54 * 1000) / 1000;
+    const inkFile = (ink: any): Record<string, any> | null => {
+      if (!ink || typeof ink !== 'object' || ![ink.x, ink.y, ink.w, ink.h].every((v) => Number.isFinite(Number(v)))) return null;
+      if (!safeInkSvg(ink.svg)) {
+        warnings.push('Eine Beschriftung ließ sich nicht drucken (unerwarteter Inhalt).');
+        return null;
+      }
+      const name = `stift/stift-${++inkCount}.svg`;
+      files[name] = Buffer.from(ink.svg, 'utf-8').toString('base64');
+      return { file: name, x: pt(ink.x), y: pt(ink.y), width: pt(ink.w), height: pt(ink.h) };
+    };
+
     const walk = async (blocks: any[]): Promise<any[]> => {
       const out: any[] = [];
-      for (const block of blocks) {
-        if (!block || typeof block !== 'object') out.push(block);
+      for (const item of blocks) {
+        // Die Beschriftung hängt am Baustein, auch wenn er unten neu gebaut wird (Bild, Quiz, Tabelle).
+        const { ink, ...block } = item && typeof item === 'object' && !Array.isArray(item) ? item : { ink: null };
+        const printedInk = ink ? inkFile(ink) : null;
+        const at = out.length;
+        if (!item || typeof item !== 'object') out.push(item);
         else if (block.type === 'quiz') out.push(await quizBlock(block));
         else if (block.type === 'table') out.push(await tableCells(block));
         else if (block.type === 'image' && block.src !== undefined) out.push(await imageBlock(block));
@@ -407,6 +438,7 @@ export class WorksheetsService {
           warnings.push(`Bild „${block.file}“ gibt es nur im Kurs-Projekt – im Druck steht ein Hinweis.`);
           out.push({ type: 'note', text: `[Bild ${block.file}]` });
         } else out.push(Array.isArray(block.blocks) ? { ...block, blocks: await walk(block.blocks) } : block);
+        if (printedInk && out[at] && typeof out[at] === 'object') out[at] = { ...out[at], ink: printedInk };
       }
       return out;
     };

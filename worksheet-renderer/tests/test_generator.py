@@ -140,6 +140,31 @@ class RenderTest(unittest.TestCase):
             self.assertRegex(content, r'style:name="ABNeben.Sp1.0"[^>]*>\s*<style:table-column-properties style:column-width="9.400cm"')
             self.assertRegex(content, r'table:name="Neben1".*Links steht die Schaltung.*<table:table table:name="Tab\d+"')
 
+    def test_beschriftung_aus_dem_stift_editor(self):
+        """`ink` an einem Baustein: Rahmen mit dem SVG an einem winzigen Absatz davor,
+        y um den oberen Abstand des Karos (0,2 cm) verschoben."""
+        spec = (
+            "titel: Stift\ncontent:\n"
+            "  - {type: karo, lines: 4, ink: {file: stift/a.svg, x: 1, y: 0.5, width: 3, height: 1}}\n"
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "blatt" / "stift").mkdir(parents=True)
+            (root / "blatt" / "sp.yaml").write_text(spec, encoding="utf-8")
+            (root / "blatt" / "stift" / "a.svg").write_text(
+                '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 85 28" width="85pt" height="28pt"><path d="M0,0L85,28" stroke="#000"/></svg>',
+                encoding="utf-8")
+            env = dict(os.environ, ARBEITSBLATT_ROOT=str(root))
+            subprocess.run([sys.executable, str(GEN / "tools" / "make_worksheet.py"), "blatt/sp.yaml",
+                            "-o", "out"], cwd=root, env=env, check=True, capture_output=True)
+            z = zipfile.ZipFile(root / "out" / "blatt.odt")
+            content = z.read("content.xml").decode()
+            self.assertRegex(content, r'<text:p text:style-name="AB_Stift[^"]*"><draw:frame draw:style-name="AB_StiftRahmen" draw:name="Stift1" '
+                                      r'text:anchor-type="paragraph" svg:x="1.000cm" svg:y="0.700cm" svg:width="3.000cm" svg:height="1.000cm"')
+            self.assertIn('style:horizontal-rel="paragraph"', content)
+            self.assertIn('style:name="AB_Stift"', z.read("styles.xml").decode())
+            self.assertTrue(any(n.endswith(".svg") for n in z.namelist()))
+
 
 if __name__ == "__main__":
     unittest.main()

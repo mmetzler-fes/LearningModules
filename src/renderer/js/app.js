@@ -14,6 +14,7 @@ import { ShopView } from './views/shop.js';
 import { SchoolsAdminView, MySchoolView } from './views/schools.js';
 import { TwoFactorDialog } from './views/two-factor.js';
 import { SessionsDialog } from './views/sessions.js';
+import { UserSettingsDialog } from './views/user-settings.js';
 import { ContestView } from './views/contest.js';
 import { CompanionSettingsView } from './views/companion-settings.js';
 import { ClassesView } from './views/classes.js';
@@ -82,6 +83,7 @@ class App {
     this.mySchoolView = new MySchoolView(this);
     this.twoFactorDialog = new TwoFactorDialog(this);
     this.sessionsDialog = new SessionsDialog(this);
+    this.userSettings = new UserSettingsDialog(this);
     // Offen gelassene App (Desktop-Symbol, iPad) erneuert ihre Anmeldung auch unterwegs.
     setInterval(() => { void this.keepSessionFresh(); }, 6 * 3600 * 1000);
     this._offerInstall();
@@ -652,6 +654,8 @@ class App {
 
 const app = new App();
 window.appNavigate = (v) => app.navigateToView(v);
+// Persönliche Einstellungen (views/user-settings.js) – z. B. für den Stift-Editor.
+window.appSettings = { get: () => app.userSettings.get(), set: (patch) => app.userSettings.set(patch) };
 // Für die klassischen Skripte (content-editors.js), die keine Module importieren.
 window.appConfirm = (m) => app.appConfirm(m);
 // Drag and Drop als Paare (dnd-pairs.js) für den Editor in content-editors.js

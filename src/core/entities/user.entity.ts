@@ -128,6 +128,14 @@ export class User extends BaseEntity {
   formerIds: string[] | null;
 
   /**
+   * Persönliche Einstellungen der Oberfläche, auf allen Geräten gleich
+   * (AuthService.updateSettings legt fest, welche es gibt) – z. B.
+   * `inkTemplateHead`: Kopfzeile der Vorlage im Stift-Editor zeigen.
+   */
+  @Column('simple-json', { nullable: true })
+  settings: Record<string, unknown> | null;
+
+  /**
    * E-Mail-Wechsel auf eine neue Adresse: Dieses Konto wurde dafür angelegt
    * und übernimmt das genannte, sobald hier das Initialpasswort geändert ist.
    * Erst damit ist bewiesen, dass die neue Adresse dem Benutzer gehört.

@@ -1,5 +1,5 @@
 import { BadRequestException } from '@nestjs/common';
-import { DocContext, WorksheetsService, widthInCm } from './worksheets.service';
+import { DocContext, WorksheetsService, safeInkSvg, widthInCm } from './worksheets.service';
 import { WorksheetRendererClient } from './renderer.client';
 
 const PNG = 'data:image/png;base64,iVBORw0KGgo=';
@@ -42,6 +42,30 @@ describe('WorksheetsService.prepare', () => {
     expect(warnings).toEqual([]);
     expect(job.files).toEqual({ 'bilder/bild-1.png': 'iVBORw0KGgo=' });
     expect(job.spec.content[0].blocks[0]).toEqual({ type: 'image', file: 'bilder/bild-1.png', width: '8.25cm', caption: 'Schaltung' });
+  });
+
+  it('Beschriftung aus dem Stift-Editor: SVG als Datei, Lage in cm – auch an neu gebauten Bausteinen', async () => {
+    const svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 72 36" width="72pt" height="36pt"><g><path d="M0,0L72,36"/></g></svg>';
+    const ink = { svg, x: 72, y: -36, w: 72, h: 36 };
+    const { job, warnings } = await service.prepare({ content: [
+      { type: 'karo', lines: 4, ink },
+      { type: 'image', src: PNG, width: '6cm', ink },
+      { type: 'text', text: 'x', ink: { ...ink, svg: '<svg><image href="file:///etc/passwd"/></svg>' } },
+    ] }, 'T', ['pdf']);
+    expect(job.files?.['stift/stift-1.svg']).toBe(Buffer.from(svg).toString('base64'));
+    expect(job.spec.content[0]).toEqual({ type: 'karo', lines: 4, ink: { file: 'stift/stift-1.svg', x: 2.54, y: -1.27, width: 2.54, height: 1.27 } });
+    expect(job.spec.content[1].ink.file).toBe('stift/stift-2.svg');
+    expect(job.spec.content[1].file).toBe('bilder/bild-1.png');
+    expect(job.spec.content[2]).toEqual({ type: 'text', text: 'x' });
+    expect(warnings).toEqual(['Eine Beschriftung ließ sich nicht drucken (unerwarteter Inhalt).']);
+  });
+
+  it('safeInkSvg: nur Zeichnung, keine Verweise', () => {
+    expect(safeInkSvg('<svg xmlns="http://www.w3.org/2000/svg"><g><path d="M0 0"/><text><tspan>Hi</tspan></text></g></svg>')).toBe(true);
+    expect(safeInkSvg('<svg><use href="#a"/></svg>')).toBe(false);
+    expect(safeInkSvg('<svg><script>x</script></svg>')).toBe(false);
+    expect(safeInkSvg('<svg><path style="fill:url(http://x)"/></svg>')).toBe(false);
+    expect(safeInkSvg('<?xml version="1.0"?><svg/>')).toBe(false);
   });
 
   it('Bilder aus der Nextcloud holt der Server über ihren App-Link', async () => {

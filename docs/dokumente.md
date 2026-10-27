@@ -342,7 +342,18 @@ wenn die Lehrkraft des Lernthemas freigeschaltet ist.
   Schreiben. Eine Farbe gilt sofort, auch für das Textfeld, in dem du gerade
   schreibst.
 - **💡 Lösungen** einblenden – nur für Lehrkräfte (Vorschau, Notebooks).
-- **🖨 Drucken oder als PDF speichern** (Hintergrund „Dokument“): Arbeitsblatt
+- **🖨 Drucken – 📄 PDF mit Vorlage** (Lehrkräfte): Arbeitsblatt oder
+  Lösungsblatt, mit oder ohne Beschriftung, vom Renderer – mit Logo,
+  Kopfzeile und Rändern der Vorlage wie „Drucken“ im Modul-Editor. Die
+  Beschriftung hängt je Baustein an ihm (in Karos und Schreibfeldern
+  deckungsgleich; im Fließtext kann sie bei anderem Zeilenumbruch etwas
+  wandern). Im Stift-Editor geänderte oder eingefügte Schreibfelder kommen mit;
+  Striche ganz außerhalb eines Bausteins fehlen (Hinweis unten in der Leiste).
+- **Kopfzeile der Vorlage** (Knopf neben 🖨, Lehrkräfte): zeigt oben auf dem
+  Blatt die Kopfzeile wie im Druck – nur zur Orientierung. Ein oder aus ist
+  eine Einstellung des Kontos (auch unter 🏠 → **⚙️ Einstellungen**) und gilt
+  auf allen Geräten.
+- **🖨 Ansicht drucken** (Hintergrund „Dokument“): Arbeitsblatt
   oder Lösungsblatt, jeweils mit oder ohne Beschriftung – über den Druckdialog
   des Browsers („Als PDF speichern“; iPad: Teilen → Drucken). Ränder wie die
   Schulvorlage, Seitenumbrüche aus dem Dokument; Schreibfelder, Bilder und

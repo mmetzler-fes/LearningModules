@@ -1669,7 +1669,85 @@ def keep_karo_with_question(elements: list[Element], doc, present: set[str]) -> 
             vor.setAttribute("stylename", kwn(name))
 
 
+def ensure_ink_styles(doc, present: set[str]) -> Style:
+    """Anker für Beschriftungen: ein winziger Absatz (bleibt beim folgenden
+    Baustein) und ein Rahmen ohne Rand, den der Text nicht umfließt. Gibt die
+    Rahmenvorlage zurück (odfpy will für draw:frame das Style-Element)."""
+    if "AB_Stift" in present:
+        return doc.stiftrahmen
+    para = Style(name="AB_Stift", family="paragraph")
+    para.addElement(ParagraphProperties(margintop="0cm", marginbottom="0cm", lineheight="0.02cm",
+                                        keepwithnext="always"))
+    para.addElement(TextProperties(fontsize="1pt"))
+    frame = Style(name="AB_StiftRahmen", family="graphic")
+    frame.addElement(GraphicProperties(wrap="run-through", runthrough="foreground",
+                                       verticalpos="from-top", verticalrel="paragraph",
+                                       horizontalpos="from-left", horizontalrel="paragraph",
+                                       flowwithtext="false", padding="0cm", border="none",
+                                       marginleft="0cm", marginright="0cm", margintop="0cm", marginbottom="0cm",
+                                       stroke="none", fill="none"))
+    # Bei den festen Vorlagen: Automatische, die nur als Eltern einer anderen
+    # (…_MitFolgendem) vorkommen, ließe odfpy beim Speichern weg.
+    doc.styles.addElement(para)
+    doc.automaticstyles.addElement(frame)
+    present.update({"AB_Stift", "AB_StiftRahmen"})
+    doc.stiftrahmen = frame
+    return frame
+
+
+def top_margin_cm(element: Element, doc) -> float:
+    """Oberer Abstand (fo:margin-top) eines Absatzes bzw. einer Tabelle aus seiner
+    Vorlage samt Eltern – in der Ansicht zählt er nicht zum Baustein."""
+    name = element.getAttribute("stylename") if element.qname[1] in ("p", "h", "table") else None
+    styles = {}
+    for root in (doc.styles, doc.automaticstyles):
+        for st in root.getElementsByType(Style):
+            styles.setdefault(st.getAttribute("name"), st)
+    for _ in range(8):
+        st = styles.get(name) if name else None
+        if st is None:
+            return 0.0
+        for props in st.childNodes:
+            value = props.getAttribute("margintop") if props.qname[1] in ("paragraph-properties", "table-properties") else None
+            if value:
+                m = re.fullmatch(r"([\d.]+)(cm|mm|in|pt)", value)
+                return float(m.group(1)) * {"cm": 1, "mm": 0.1, "in": 2.54, "pt": 2.54 / 72}[m.group(2)] if m else 0.0
+        name = st.getAttribute("parentstylename")
+    return 0.0
+
+
+def ink_anchor(ink: dict[str, Any], ctx: dict[str, Any], shift: float = 0.0) -> Element | None:
+    """Beschriftung aus dem Stift-Editor (`ink`: file, x, y, width, height in cm;
+    x ab dem Satzspiegel, y ab der Oberkante des Bausteins) als Rahmen an einem
+    Absatz direkt vor dem Baustein."""
+    try:
+        path = resolve_path(ink["file"], ctx["search"])
+        x, y, w, h = (float(ink[k]) for k in ("x", "y", "width", "height"))
+    except (KeyError, TypeError, ValueError, FileNotFoundError, SystemExit):
+        return None
+    doc, present = ctx["doc"], ctx["present"]
+    frame_style = ensure_ink_styles(doc, present)
+    ctx["ink_index"] = ctx.get("ink_index", 0) + 1
+    frame = Frame(name=f"Stift{ctx['ink_index']}", stylename=frame_style, anchortype="paragraph",
+                  x=f"{x:.3f}cm", y=f"{y + shift:.3f}cm", width=f"{max(w, 0.05):.3f}cm", height=f"{max(h, 0.05):.3f}cm",
+                  zindex=str(100 + ctx["ink_index"]))
+    frame.addElement(Image(href=doc.addPicture(str(path))))
+    para = P(stylename="AB_Stift")
+    para.addElement(frame)
+    return para
+
+
 def render_block(block: Any, styles: dict[str, str], ctx: dict[str, Any]) -> list[Element]:
+    """Ein Baustein – mit Beschriftung aus dem Stift-Editor (`ink`) darüber gelegt."""
+    out = render_block_content(block, styles, ctx)
+    if isinstance(block, dict) and isinstance(block.get("ink"), dict) and out and not ctx.get("in_overlay"):
+        anchor = ink_anchor(block["ink"], ctx, top_margin_cm(out[0], ctx["doc"]))
+        if anchor is not None:
+            out = [anchor, *out]
+    return out
+
+
+def render_block_content(block: Any, styles: dict[str, str], ctx: dict[str, Any]) -> list[Element]:
     """Ein Spec-Block -> Liste von ODF-Elementen.
 
     `ctx["solution"]` steuert, ob mit den ausgeblendeten Lösungs-Formatvorlagen

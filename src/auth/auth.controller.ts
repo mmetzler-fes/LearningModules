@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Delete, Body, UseGuards, Request, HttpCode, Headers, Param } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Body, UseGuards, Request, HttpCode, Headers, Param } from '@nestjs/common';
 import { cleanLabel, deviceLabel } from './device-label';
 import { AuthService } from './auth.service';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
@@ -85,6 +85,13 @@ export class AuthController {
   @AllowPendingPassword()
   async me(@Request() req: any) {
     return this.authService.me(req.user.userId, req.user.role, req.user.mustChangePassword);
+  }
+
+  /** Persönliche Einstellungen der Oberfläche (z. B. Kopfzeile im Stift-Editor). */
+  @Patch('settings')
+  @UseGuards(JwtAuthGuard)
+  async settings(@Request() req: any, @Body() body: Record<string, unknown>) {
+    return this.authService.updateSettings(req.user.userId, body || {});
   }
 
   /** Zweiter Schritt der Anmeldung bei aktiver 2FA. */

@@ -148,12 +148,55 @@ export async function openDocumentInk({ mode, mod, up = null, embedModule = null
   };
   // Lehrkraft am eigenen Dokument: Einfügen und Schreibfelder gehen ins Dokument.
   if (mode === 'teacher' && editable && mod.topicId) Object.assign(paper, documentEditing());
+  // Lehrkraft: Drucken über den Renderer – mit Vorlage und, wenn gewünscht, Beschriftung.
+  if (mode === 'teacher') {
+    paper.printPdf = (data, { solutions, win }) => printPdf(data, solutions, win);
+    // Kopfzeile der Vorlage als Vorschau – ob sie erscheint, ist eine Einstellung des Kontos.
+    paper.head = {
+      get: () => !!window.appSettings?.get().inkTemplateHead,
+      set: (on) => window.appSettings?.set({ inkTemplateHead: !!on }),
+    };
+    // Dazu ein Blatt ohne Inhalt, mit der Kopfzeile dieses Dokuments.
+    paper.headerPdf = async () => {
+      const res = await fetch('/api/worksheets/render', {
+        method: 'POST',
+        headers: authHeaders(),
+        body: JSON.stringify({ spec: { ...(content.spec || {}), content: [] }, title: mod.title || '', output: 'pdf', moduleId: mod.id, kind: content.kind }),
+      });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).message || `HTTP ${res.status}`);
+      return res.arrayBuffer();
+    };
+  }
   const onClose = () => {
     if (sourceEl && lastForms) restoreForms(sourceEl, lastForms);
     // Die neue Beschriftung gleich in der Ansicht zeigen.
     if (sourceEl) void showSavedInk(sourceEl, { mode, up, moduleId: mod.id, landscape: paper.landscape });
   };
   return openInkEditor({ title: title || mod.title || 'Arbeitsblatt', key: `${mode}:${mod.id}`, loadPdf, solutions: mode === 'teacher', paper, store, onClose, actions: runActions() });
+
+  /**
+   * PDF über den Renderer (wie „Drucken“ im Modul-Editor): das Dokument mit
+   * Feldern, Einfügungen und Beschriftung aus dem Stift-Editor (ink-print.js).
+   * Liefert die Hinweise des Renderers.
+   */
+  async function printPdf(data, solutions, win) {
+    const { applyInkToSpec } = await import('../../lm-editor/src/ink/ink-print.js');
+    const spec = applyInkToSpec(content.spec || { content: [] }, data);
+    const res = await fetch('/api/worksheets/render', {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify({ spec, title: mod.title || '', output: solutions ? 'loesung_pdf' : 'pdf', moduleId: mod.id, kind: content.kind }),
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error((body.message || `HTTP ${res.status}`) + (Array.isArray(body.errors) ? ` ${body.errors.join(' · ')}` : ''));
+    }
+    let warnings = [];
+    try { warnings = JSON.parse(decodeURIComponent(res.headers.get('X-Worksheet-Warnings') || '[]')); } catch (_) { /* ohne Hinweise */ }
+    const url = URL.createObjectURL(await res.blob());
+    if (win) win.location.href = url; else window.open(url, '_blank');
+    return warnings;
+  }
 
   /**
    * Im Durchlauf (Schüler): Zurück und Weiter gleich im Stift-Editor – speichern,

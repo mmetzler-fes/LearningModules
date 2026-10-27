@@ -33,6 +33,11 @@ import * as crypto from 'crypto';
 import { SessionsService } from './sessions.service';
 import { emailMatchesPattern } from '../core/share/email-pattern';
 
+/** Persönliche Einstellungen (User.settings): Schlüssel → erwarteter Typ. */
+const USER_SETTINGS: Record<string, 'boolean' | 'string' | 'number'> = {
+  inkTemplateHead: 'boolean',
+};
+
 @Injectable()
 export class AuthService {
   constructor(
@@ -242,7 +247,24 @@ export class AuthService {
       mustChangePassword,
       ...(await this.schoolInfo(user)),
       features: await this.features.enabledFor(user),
+      settings: user.settings || {},
     };
+  }
+
+  /**
+   * Persönliche Einstellungen ändern – nur bekannte Schlüssel mit passendem Typ.
+   * Liefert alle Einstellungen.
+   */
+  async updateSettings(userId: string, patch: Record<string, unknown>) {
+    const user = await this.userRepo.findOne({ where: { id: userId } });
+    if (!user) throw new UnauthorizedException('Dieses Konto gibt es nicht mehr.');
+    const next: Record<string, unknown> = { ...(user.settings || {}) };
+    for (const [key, type] of Object.entries(USER_SETTINGS)) {
+      if (patch && key in patch && typeof patch[key] === type) next[key] = patch[key];
+    }
+    user.settings = next;
+    await this.userRepo.save(user);
+    return { success: true, settings: next };
   }
 
   /** Token + Benutzerdaten für die Antwort an das Frontend. */
@@ -273,6 +295,7 @@ export class AuthService {
       mustChangePassword: !!user.mustChangePassword,
       ...(await this.schoolInfo(user)),
       features: await this.features.enabledFor(user),
+      settings: user.settings || {},
     };
   }
 

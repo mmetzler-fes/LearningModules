@@ -153,7 +153,29 @@ export async function openDocumentInk({ mode, mod, up = null, embedModule = null
     // Die neue Beschriftung gleich in der Ansicht zeigen.
     if (sourceEl) void showSavedInk(sourceEl, { mode, up, moduleId: mod.id, landscape: paper.landscape });
   };
-  return openInkEditor({ title: title || mod.title || 'Arbeitsblatt', key: `${mode}:${mod.id}`, loadPdf, solutions: mode === 'teacher', paper, store, onClose });
+  return openInkEditor({ title: title || mod.title || 'Arbeitsblatt', key: `${mode}:${mod.id}`, loadPdf, solutions: mode === 'teacher', paper, store, onClose, actions: runActions() });
+
+  /**
+   * Im Durchlauf (Schüler): Zurück und Weiter gleich im Stift-Editor – speichern,
+   * schließen, dann der Knopf des Durchlaufs (quiz.js). Weiter heißt wie dort
+   * (Weiter, Abschließen, Prüfen …); Zurück nur, wo der Durchlauf es zulässt.
+   */
+  function runActions() {
+    const next = document.getElementById('btnQuizNext');
+    if (mode !== 'student' || !sourceEl || !next || next.style.display === 'none') return [];
+    const prev = document.getElementById('btnQuizPrev');
+    const go = (id) => async ({ close }) => {
+      await close();
+      document.getElementById(id)?.click();
+    };
+    const out = [];
+    if (prev && prev.style.display !== 'none' && !prev.disabled) {
+      out.push({ label: '◀ Zurück', title: 'Speichern und zur vorigen Aufgabe', onClick: go('btnQuizPrev') });
+    }
+    const label = (next.textContent || 'Weiter').replace(/\s*[→▶]\s*$/, '').trim() || 'Weiter';
+    out.push({ label: `${label} ▶`, title: 'Speichern und weiter zur nächsten Aufgabe', onClick: go('btnQuizNext') });
+    return out;
+  }
 
   /** Baustein zu einer ID der Stift-Ebene (feste ID, „p:2.0“ oder pos2x0) – mit seiner Liste. */
   function blockRef(spec, bid) {

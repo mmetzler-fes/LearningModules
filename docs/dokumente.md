@@ -314,6 +314,9 @@ wenn die Lehrkraft des Lernthemas freigeschaltet ist.
   füllt es aus; daneben – oder auf einem Strich oder Textfeld über dem Quiz –
   wird ausgewählt. Der Finger bedient Quizze immer (auch mit ☝️). Mit Stift,
   Textmarker und Textfeld schreiben Stift und Maus auch über einem Quiz.
+- **Im Durchlauf der Schüler** stehen oben in der Leiste **◀ Zurück** und
+  **Weiter ▶** (bzw. Abschließen, Prüfen – wie unter der Aufgabe): Sie speichern,
+  schließen den Stift-Editor und gehen zur vorigen bzw. nächsten Aufgabe.
 - **Rechtsklick** (am Mac auch Ctrl+Klick) zeichnet nie, sondern öffnet ein
   Menü – in jedem Werkzeug: auf einem Strich oder Textfeld das Menü der
   Auswahl, sonst Werkzeug wechseln, Rückgängig/Wiederholen, Einfügen und im

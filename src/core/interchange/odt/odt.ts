@@ -271,6 +271,53 @@ const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
 const MAX_TOTAL_IMAGE_BYTES = 20 * 1024 * 1024;
 
 /** Länge wie "8.5cm", "3in" oder "120pt" in CSS-Pixel. */
+const BESIDE_OPEN = '<!--lm-beside-->';
+const BESIDE_CLOSE = '<!--/lm-beside-->';
+
+/** Ende (Index hinter dem schließenden Tag) des Elements, das bei `start` beginnt – oder -1. */
+function elementEnd(s: string, start: number): number {
+  const tag = /^<([a-z0-9]+)/i.exec(s.slice(start))?.[1];
+  if (!tag) return -1;
+  const re = new RegExp(`<(/?)${tag}\\b[^>]*>`, 'gi');
+  re.lastIndex = start;
+  let depth = 0;
+  for (let m = re.exec(s); m; m = re.exec(s)) {
+    if (m[1]) {
+      if (--depth === 0) return re.lastIndex;
+    } else if (!m[0].endsWith('/>')) depth++;
+  }
+  return -1;
+}
+
+/**
+ * Textrahmen, die schmal neben dem Text standen (z. B. eine Wertetabelle neben
+ * der Schaltung), hängen am Absatz davor – meist der Überschrift. Im Blatt
+ * folgen sie dem Block, neben dem sie standen; über eine Überschrift hinweg
+ * wandern sie nicht.
+ */
+function placeBeside(html: string): string {
+  let out = html;
+  let from = 0;
+  for (;;) {
+    const a = out.indexOf(BESIDE_OPEN, from);
+    if (a < 0) break;
+    const b = out.indexOf(BESIDE_CLOSE, a);
+    if (b < 0) break;
+    const chunk = out.slice(a + BESIDE_OPEN.length, b);
+    const rest = out.slice(b + BESIDE_CLOSE.length);
+    const next = /^\s*(?:<p data-empty="1"><br><\/p>\s*)*(?=<(p|div|table|ul|ol|figure)\b)/i.exec(rest);
+    const end = next ? elementEnd(rest, next[0].length) : -1;
+    if (end > 0) {
+      out = out.slice(0, a) + rest.slice(0, end) + chunk + rest.slice(end);
+      from = a + end + chunk.length;
+    } else {
+      out = out.slice(0, a) + chunk + rest;
+      from = a + chunk.length;
+    }
+  }
+  return out;
+}
+
 /** Länge in cm, auf 0,1 gerundet – null ohne brauchbare Angabe. */
 function lengthCm(value: string | undefined): number | null {
   const m = /^([\d.]+)\s*(cm|mm|in|pt|pc|px)$/.exec(String(value || '').trim());
@@ -779,7 +826,10 @@ export function odtToHtml(buffer: Buffer, fileName = '', opts: OdtOptions = {}):
   const textBox = (frame: XNode, box: XNode): string => {
     const inner = blocks(box);
     if (!inner.trim()) return '';
-    return styles.graphic(frame.attrs['draw:style-name'], 'border') === 'none' ? inner : `<div class="ws-box">${inner}</div>`;
+    const html = styles.graphic(frame.attrs['draw:style-name'], 'border') === 'none' ? inner : `<div class="ws-box">${inner}</div>`;
+    const width = toPx(frame.attrs['svg:width']) ?? 0;
+    const beside = anchored(frame) && frame.attrs['svg:x'] !== undefined && width > 0 && width < 380;
+    return beside ? `${BESIDE_OPEN}${html}${BESIDE_CLOSE}` : html;
   };
 
   /** Frei verankert (am Absatz, Zeichen, Seite) statt wie ein Buchstabe im Text. */
@@ -1198,7 +1248,7 @@ export function odtToHtml(buffer: Buffer, fileName = '', opts: OdtOptions = {}):
       .replace(/^(<p><br><\/p>)+|(<p><br><\/p>)+$/g, '');
   }
 
-  const html = blocks(body);
+  const html = placeBeside(blocks(body));
 
   const meta = read('meta.xml');
   const metaTitle = meta ? textOf(find(parseXml(meta), 'dc:title') || '').trim() : '';

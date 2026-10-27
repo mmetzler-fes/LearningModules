@@ -3594,6 +3594,8 @@ body {
 .docspec .ds-table { border-collapse: collapse; }
 .docspec .ds-table th,
 .docspec .ds-table td { border: 1px solid var(--border); padding: 4px 8px; vertical-align: top; }
+/* Leere Zellen eine Zeile hoch – wie im Druck (Wertetabellen zum Ausfüllen) */
+.docspec .ds-table td:empty, .docspec .ds-table th:empty { height: 1.6em; }
 .docspec .ds-table th { background: var(--bg-primary); }
 .docspec .ds-table-plain th,
 .docspec .ds-table-plain td { border: none; text-align: center; vertical-align: bottom; }
@@ -3723,6 +3725,7 @@ body {
 .ds-surface table:has(> colgroup) { width: auto; }
 /* Bilder in Zellen wie in Vorschau und Druck: untereinander unter dem Text (.ds-cell-image) */
 .ds-surface td img, .ds-surface th img { display: block; margin: 4px 0; }
+.ds-surface td:empty, .ds-surface th:empty { height: 1.6em; }
 
 .ds-mode .admin-tab { padding: 4px 12px; font-size: 0.9em; }
 .ds-editor-bar .btn-sm { padding: 4px 10px; }

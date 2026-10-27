@@ -159,6 +159,15 @@ describe('.odt-Import: Gliederung als Liste und Rahmen ohne Rand', () => {
     expect(html).not.toContain('ws-box');
   });
 
+  it('ein schmaler Rahmen neben dem Text folgt dem Block daneben – nicht über eine Überschrift hinweg', () => {
+    const body = `<text:h text:outline-level="2">Reklamebeleuchtung${frame('fr1', table)}</text:h><text:p>Die Leuchte soll …</text:p>`
+      + `<text:h text:outline-level="2">Funktionsgleichung${frame('fr1', table.replace('>C<', '>D<'))}</text:h><text:h text:outline-level="2">Funktionsplan</text:h>`;
+    const { html } = odtToHtml(doc(styles, body), 'x.odt');
+    expect(html).toMatch(/Reklamebeleuchtung<\/h3><p>Die Leuchte soll …<\/p><table>/);
+    expect(html).toMatch(/Funktionsgleichung<\/h3><table><tbody><tr><td><p>D/);
+    expect(html).not.toContain('lm-beside');
+  });
+
   it('Rahmen mit Rand bleibt ein Kasten, Listen ohne Überschriften bleiben Listen', () => {
     const body = `<text:p>Text${frame('fr2', '<text:p>Merke</text:p>')}</text:p>`
       + '<text:list text:style-name="L1"><text:list-item><text:p>eins</text:p></text:list-item><text:list-item><text:p>zwei</text:p></text:list-item></text:list>';

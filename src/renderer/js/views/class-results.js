@@ -770,6 +770,16 @@ export class ClassResultsView {
 
   _nodeMenu(cb, node) {
     const items = [];
+    // Ein Link für alles darin – aus dem Notizbuch übernommene Bereiche haben ihren Quick-Link dort.
+    if (node.sourceNodeId) {
+      items.push({ label: '🔗 Quick-Link für diesen Bereich…', title: 'Ein Link und QR-Code für alle Lernthemen darin – wie im Notizbuch, mit Klassenauswahl',
+        run: () => this.app.linksView.openQuickLink({ kind: 'node', id: node.sourceNodeId, title: node.title }) });
+    } else {
+      items.push({ label: '🔗 Quick-Link (nur für Notizbuch-Bereiche)', title: 'Selbst angelegte Bereiche haben keinen eigenen Link – die Lernthemen darin schon (⋯ am Lernthema)', run: () => {
+        this.app.showToast('Selbst angelegte Bereiche haben keinen eigenen Link – die Lernthemen darin schon (⋯ am Lernthema → 🔗 Quick-Link).', 'info');
+      } });
+    }
+    items.push('-');
     if (node.kind === 'area') {
       items.push({ label: '➕ Neuer Bereich', run: () => this._add('area', node.id) });
       items.push({ label: '➕ Neuer Abschnitt', run: () => this._add('section', node.id) });
@@ -827,6 +837,15 @@ export class ClassResultsView {
   _entryMenu(cb, link) {
     const own = !!link.classTopicId;
     const items = [];
+    // Link und QR-Code dieser Zuweisung – für genau diese Klasse (ohne Klassenauswahl).
+    items.push({ label: '🔗 Quick-Link (Link & QR)', title: 'Link und QR-Code für diese Klasse – die Schüler starten gleich mit ihrem Namen',
+      run: () => this.app.linksView._openShareDialog({ id: link.id, name: link.name }, 'practice') });
+    const topicId = link.topics?.[0]?.id || link.available?.[0]?.topicId;
+    if (!own && topicId && (link.available || []).length === 1) {
+      items.push({ label: '🔗 Quick-Link für alle Klassen…', title: 'Der Quick-Link des Lernthemas aus dem Notizbuch – Schüler wählen ihre Klasse',
+        run: () => this.app.topicsView._createQuickClassLink({ id: topicId, title: link.name, selected: true }) });
+    }
+    items.push('-');
     if (own) items.push({ label: '➕ Neues Modul', title: 'Neue Module sind zunächst aus – mit ● einschalten', run: () => this.app.modulesView.openFrom('teacher-class-results', link.classTopicId, null) });
     items.push({ label: '↑ Nach oben', run: () => this._step('entry', link, -1, cb) });
     items.push({ label: '↓ Nach unten', run: () => this._step('entry', link, +1, cb) });

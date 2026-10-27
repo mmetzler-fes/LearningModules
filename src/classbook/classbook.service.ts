@@ -97,7 +97,8 @@ export class ClassbookService {
       return p ? { nodeId: p.nodeId && known.has(p.nodeId) ? p.nodeId : null, order: p.orderIndex, inTree: !p.hidden } : { nodeId: null, order: 100000 + i, inTree: true };
     };
     return {
-      nodes: nodes.map(({ id, kind, title, parentId, orderIndex }) => ({ id, kind, title, parentId: parentId && known.has(parentId) ? parentId : null, orderIndex })),
+      nodes: nodes.map(({ id, kind, title, parentId, orderIndex, sourceNodeId }) => ({
+        id, kind, title, parentId: parentId && known.has(parentId) ? parentId : null, orderIndex, sourceNodeId: sourceNodeId || null })),
       placeOf: new Map(links.map((l, i) => [l.id, placeOf(l, i)])),
     };
   }

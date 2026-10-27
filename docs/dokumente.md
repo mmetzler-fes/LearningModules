@@ -46,52 +46,37 @@ Der Editor startet im Modus **✏️ Bearbeiten** – wie ein Textprogramm:
   auch Doppelklick oder Enter) und löscht (**✕**, auch Entf). **Strg+C / X**
   kopiert den gewählten Baustein als YAML; **Strg+V** setzt kopierte Bausteine
   (auch aus dem YAML-Reiter) hinter den gewählten.
-- **Tabellen:** Steht die Schreibmarke in einer Tabelle, erscheint unter der
-  Leiste die **Tabellenleiste**: Zeile darüber/darunter (⬆＋ ⬇＋), Spalte
-  links/rechts (⬅＋ ➡＋), Zeile bzw. Spalte löschen, **↔ Breite** der Spalte
-  und **↕ Höhe** der Zeile in cm (leer = automatisch), **Kopfzeile** und
-  **Linien** an/aus, **⇔ auto** (alle festen Breiten weg) und 🗑 Tabelle
-  löschen. Breite und Höhe gehen auch mit der Maus: rechten Rand einer Zelle
-  bzw. unteren Rand einer Zeile ziehen. Verbundene Zellen bleiben verbunden.
-  **Tabelle als Ganzes:** Links oben an der Tabelle unter Maus oder
-  Schreibmarke erscheint der Griff **⠿**. Ein Klick darauf wählt die ganze
-  Tabelle (blauer Rahmen) mit ↑ ↓ (auch Alt+↑/↓), ⧉ verdoppeln, ✂ ausschneiden
-  (Strg+X), ✕ löschen (Entf) und – bei einer Tabelle in einer Zelle – **⬆
-  äußere**. Nach dem Ausschneiden setzt **Strg+V** sie in die Zelle der
-  Schreibmarke bzw. hinter ihren Absatz. Esc oder ein Klick ins Blatt hebt
-  die Auswahl auf. Ist die ganze Tabelle gewählt (Griff oder **⬚ Ganze
-  Tabelle** in der Leiste), gelten **↔ Breite** und **↕ Höhe** für alle
-  Spalten bzw. Zeilen.
-  **Tabelle verschieben oder schachteln** geht auch über die Leiste: **✂ Ausschneiden**,
-  dann die Schreibmarke in eine Zelle einer anderen Tabelle setzen und
-  **📥 Tabelle hier einfügen** – oder im Hinweis darunter „hinter den Absatz
-  der Schreibmarke“ (bzw. „zurück an die alte Stelle“). Eine Tabelle in einer Zelle
-  steht im YAML unter `blocks` der Zelle.
-  **Wie in Google Docs:** In der Zelle der Schreibmarke oben rechts **▾** –
-  das Menü für Zeile, Spalte, Ausrichtung, Kopfzeile, Linien und die ganze
-  Tabelle (auch per **Rechtsklick** in eine Zelle). **＋** links unter der
-  Zeile fügt eine Zeile darunter ein, **＋** über dem rechten Rand der Spalte
-  eine Spalte rechts davon.
-  **Linien:** in der Leiste Stärke (ohne, 0,5 / normal / 1 / 1,5 / 2,25 pt)
-  und Art (durchgezogen, gestrichelt, gepunktet) – für die ganze Tabelle,
-  auch im Druck.
-  **Farben:** Rahmenfarbe neben den Linien; **Zellfarbe** für die Zelle, bei
-  „Ganzer Tabelle“ für alle.
-  **Senkrecht:** ⤒ ⇕ ⤓ (oben, Mitte, unten) – Zelle oder, bei „Ganzer
-  Tabelle“, alle; auch im Zellenmenü ▾. Ohne Angabe stehen Zellen oben, in
-  Tabellen ohne Linien die oberen Zeilen unten (Abbildungen bündig).
-  **Ausrichtung:** ⇤ ↔ ⇥ in der Tabellenleiste (oder oben in der Leiste,
-  wenn die Schreibmarke in einer Zelle steht) richten die Zelle aus, bei
-  gewählter „Ganzer Tabelle“ alle Zellen. Tabellen ohne Linien sind ohne
-  Angabe zentriert (für Abbildungen nebeneinander).
-  Hat eine Zelle ein Bild, schaltet **Bild neben Text** es neben den Text
-  (z. B. „Schließer“ und sein Schaltzeichen) statt darunter.
-  Im Druck gelten die Breiten genau; Spalten ohne Breite teilen sich den Rest
-  der Seite. Sind alle Spalten fest, ist die Tabelle so breit wie ihre Summe.
+- **Tabellen** – drei Wege, vom Häufigen zum Genauen:
+  - **Rechtsklick in eine Zelle** (oder **▤ Tabelle ▾** in der Leiste, sobald
+    die Schreibmarke in einer Tabelle steht): **Zeile ▸** (darüber/darunter
+    einfügen, löschen, Höhe …), **Spalte ▸** (links/rechts einfügen, löschen,
+    Breite …), **Zelle ▸** (Ausrichtung, Senkrecht, Farbe, Bild neben Text),
+    **Tabelle ▸** (Kopfzeile, Linien mit Stärke/Art/Farbe, Zeilen bzw. Spalten
+    gleichmäßig verteilen, ganze Tabelle auswählen, ausschneiden, löschen),
+    **⚙ Tabelleneigenschaften …** und **➕ Einfügen ▸**.
+  - **⚙ Tabelleneigenschaften …** (Dialog, wirkt mit OK): Reiter **Tabelle**
+    (Breite, Lage links/Mitte/rechts, Abstand oben/unten, Kopfzeile),
+    **Umrandung** (Stärke, Art, Farbe), **Zellen** (für diese oder alle
+    Zellen: Hintergrund, waagerecht, senkrecht; Innenabstand).
+  - **Mit der Maus:** rechten Rand einer Zelle ziehen = Spaltenbreite, unteren
+    Rand = Zeilenhöhe. Der Griff **⠿** links oben wählt die **ganze Tabelle**
+    (blauer Rahmen) mit ↑ ↓ (Alt+↑/↓), ⧉, ✂ (Strg+X), ✕ (Entf) und bei
+    inneren Tabellen **⬆ äußere**. Ist die ganze Tabelle gewählt, wirken
+    Ausrichtung, Farbe usw. auf alle Zellen.
+  - **Verschieben und schachteln:** ausschneiden (Griff ✂ oder Tabelle ▸
+    Ausschneiden), Schreibmarke setzen, **Strg+V** – in eine Zelle (Tabelle in
+    der Tabelle, im YAML unter `blocks` der Zelle) oder hinter einen Absatz.
+  - ⇤ ↔ ⇥ und ≡▾ der oberen Leiste richten in einer Zelle die Zelle aus.
+    Tabellen ohne Linien sind ohne Angabe zentriert, ihre oberen Zeilen unten
+    bündig (Abbildungen nebeneinander). Verbundene Zellen bleiben verbunden.
+  - Im Druck gelten die Breiten genau; Spalten ohne Breite teilen sich den
+    Rest. Sind alle Spalten fest, ist die Tabelle so breit wie ihre Summe.
+- **¶ Absatz …** (Leiste oder Rechtsklick in einen Absatz bzw. eine Liste):
+  Ausrichtung, Zeilenabstand, **Abstand vor/nach**, Einzug links und erste
+  Zeile (negativ = hängend) – wirkt mit OK, auch im Druck.
 - **▥ Spalten (nebeneinander)** im ➕-Menü: zwei Spalten mit gestrichelten
   Hilfslinien, in jede kommt beliebiger Inhalt – Text, Bild, Tabelle, Karo.
-  Mit der Schreibmarke darin zeigt die Leiste **▥ Spalten**: Spalte
-  einfügen/löschen und ↔ Breite (oder Rand ziehen). Im Druck randlos
+  Rechtsklick darin: **Spalte ▸** einfügen/löschen, Breite (oder Rand ziehen). Im Druck randlos
   nebeneinander, am Handy untereinander. Beim .odt-Import wird eine Tabelle,
   in deren Zellen weitere Tabellen stecken (Layout-Tabelle), zu Spalten.
 - Eine **Lösung** gehört hinter ein Karo: Im Arbeitsblatt ist sie

@@ -113,7 +113,18 @@ content:
       - - Schaltung links
         - text: "Wertetabelle:"
           blocks: [{type: table, header: [C, B, A, X], rows: [["", "", "", ""]]}]
-  - type: text                  # Einzug in cm (1–6), Zeilenabstand 1/1.15/1.5/2;
+  - type: text                  # Abstand vor/nach (cm 0–3), erste Zeile (cm −3…3)
+    spaceBefore: 0.6
+    spaceAfter: 1
+    firstLine: -0.5
+    text: Hängender Einzug …
+  - type: table                 # Tabelle als Ganzes: Breite (cm 2–17), Lage
+    width: 9                    # (left, center, right), Abstand oben/unten
+    position: center            # (cm 0–3), Innenabstand der Zellen (cm 0–1)
+    spaceBefore: 0.5
+    padding: 0.3
+    rows: [[a, b]]
+  - type: text                  # Einzug in cm (bis 6), Zeilenabstand 1/1.15/1.5/2;
     indent: 2                   # im Text Farben: [Text]{blau}, [Text]{hl-gelb},
     lineHeight: 1.5             # [Text]{blau,hl-gelb} – blau, gruen, orange,
     text: "[Wichtig]{blau}"     # lila, grau; Hervorhebung gelb, gruen, blau, rosa

@@ -309,7 +309,7 @@ export function attachTableTools(surface, bar) {
   const holdNote = document.createElement('div');
   holdNote.className = 'ds-tb-hold hint';
   holdNote.hidden = true;
-  holdNote.innerHTML = '✂ Tabelle ausgeschnitten – Schreibmarke in eine Zelle setzen und <b>📥 Tabelle hier einfügen</b>, oder <button type="button" class="rt-btn" data-hold="here">hinter den Absatz der Schreibmarke</button> <button type="button" class="rt-btn" data-hold="undo">zurück an die alte Stelle</button>';
+  holdNote.innerHTML = '✂ Tabelle ausgeschnitten – Schreibmarke setzen, dann <b>Strg+V</b> oder: <button type="button" class="rt-btn" data-hold="cell">in die Zelle der Schreibmarke</button> <button type="button" class="rt-btn" data-hold="here">hinter den Absatz der Schreibmarke</button> <button type="button" class="rt-btn" data-hold="undo">zurück an die alte Stelle</button>';
   bar.after(holdNote);
   let heldFrom = null;
   const showPaste = () => {
@@ -786,6 +786,104 @@ export function attachTableTools(surface, bar) {
     }
   };
 
+  /** Tabelle als Ganzes setzen (Breite, Lage, Abstand oben/unten, Innenabstand) – wie docspec.js es zeigt. */
+  const setTableProps = (table, { width, position, sb, sa, pad }) => {
+    const st = table.style;
+    const put = (key, value, css) => {
+      if (value === '' || value === null || value === undefined) { delete table.dataset[key]; css.forEach(([p]) => st.removeProperty(p)); } else {
+        table.dataset[key] = String(value);
+        css.forEach(([p, v]) => st.setProperty(p, v));
+      }
+    };
+    put('width', width, [['width', `${width}cm`]]);
+    st.removeProperty('margin-left');
+    st.removeProperty('margin-right');
+    if (position === 'center' || position === 'right') {
+      table.dataset.position = position;
+      st.setProperty('margin-left', 'auto');
+      if (position === 'center') st.setProperty('margin-right', 'auto');
+    } else delete table.dataset.position;
+    put('sb', sb, [['margin-top', `${sb}cm`]]);
+    put('sa', sa, [['margin-bottom', `${sa}cm`]]);
+    put('pad', pad, [['--ds-cell-pad', `${pad}cm`]]);
+    if (!table.getAttribute('style')) table.removeAttribute('style');
+  };
+
+  /** Dialog „Tabelleneigenschaften“: Reiter Tabelle, Umrandung, Zellen – wirkt mit OK. */
+  function openTableProps(td) {
+    const table = td?.closest('table');
+    if (!table || !editable(table)) return;
+    const d = table.dataset;
+    const num = (v) => (v === undefined || v === '' ? '' : String(v).replace('.', ','));
+    const opt = (list, cur) => list.map(([v, l]) => `<option value="${v}" ${String(cur) === String(v) ? 'selected' : ''}>${l}</option>`).join('');
+    const plain = table.classList.contains('ws-table-plain');
+    const overlay = document.createElement('div');
+    overlay.className = 'confirm-overlay';
+    overlay.innerHTML = `<form class="import-modules-card ds-tprops" role="dialog" aria-modal="true">
+        <h3>▤ Tabelleneigenschaften</h3>
+        <div class="admin-tabs ds-tprops-tabs">
+          <button type="button" class="admin-tab active" data-tab="t">Tabelle</button>
+          <button type="button" class="admin-tab" data-tab="u">Umrandung</button>
+          <button type="button" class="admin-tab" data-tab="z">Zellen</button>
+        </div>
+        <div class="ds-para-grid" data-pane="t">
+          <label>Breite<span class="ds-para-in"><input name="width" inputmode="decimal" value="${num(d.width)}" placeholder="volle"> cm</span></label>
+          <label>Lage auf der Seite<select name="position">${opt([['', 'Links'], ['center', 'Mitte'], ['right', 'Rechts']], d.position || '')}</select></label>
+          <label>Abstand oben<span class="ds-para-in"><input name="sb" inputmode="decimal" value="${num(d.sb)}" placeholder="0,2"> cm</span></label>
+          <label>Abstand unten<span class="ds-para-in"><input name="sa" inputmode="decimal" value="${num(d.sa)}" placeholder="0,2"> cm</span></label>
+          <label class="ds-tprops-check"><input type="checkbox" name="head" ${[...table.children].some((c) => c.tagName === 'THEAD') ? 'checked' : ''}> Erste Zeile ist Kopfzeile</label>
+        </div>
+        <div class="ds-para-grid" data-pane="u" hidden>
+          <label>Stärke<select name="lw">${opt(LINE_WIDTHS, plain ? '0' : d.lineWidth || '')}</select></label>
+          <label>Art<select name="ls">${opt(LINE_STYLES, d.lineStyle || '')}</select></label>
+          <label>Farbe<select name="lc">${opt(LINE_COLOR_NAMES, d.lineColor || '')}</select></label>
+        </div>
+        <div class="ds-para-grid" data-pane="z" hidden>
+          <label>Gilt für<select name="scope"><option value="cell">diese Zelle</option><option value="all">alle Zellen</option></select></label>
+          <label>Hintergrund<select name="bg">${opt([['-', '– unverändert –'], ...BG_NAMES], '-')}</select></label>
+          <label>Waagerecht<select name="ha">${opt([['-', '– unverändert –'], ['left', 'Links'], ['center', 'Zentriert'], ['right', 'Rechts']], '-')}</select></label>
+          <label>Senkrecht<select name="va">${opt([['-', '– unverändert –'], ['top', 'Oben'], ['middle', 'Mitte'], ['bottom', 'Unten']], '-')}</select></label>
+          <label>Innenabstand (alle)<span class="ds-para-in"><input name="pad" inputmode="decimal" value="${num(d.pad)}" placeholder="0,1"> cm</span></label>
+        </div>
+        <p class="hint ds-para-error" hidden>Bitte Zahlen in cm: Breite 2–17, Abstände 0–3, Innenabstand 0–1.</p>
+        <div class="confirm-actions"><button type="button" class="btn btn-secondary" data-x>Abbrechen</button><button type="submit" class="btn btn-primary">OK</button></div>
+      </form>`;
+    document.body.appendChild(overlay);
+    const form = overlay.querySelector('form');
+    const close = () => overlay.remove();
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+    overlay.querySelector('[data-x]').addEventListener('click', close);
+    overlay.querySelectorAll('[data-tab]').forEach((b) => b.addEventListener('click', () => {
+      overlay.querySelectorAll('[data-tab]').forEach((x) => x.classList.toggle('active', x === b));
+      overlay.querySelectorAll('[data-pane]').forEach((p) => { p.hidden = p.dataset.pane !== b.dataset.tab; });
+    }));
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const f = form.elements;
+      const cm = (t, lo, hi) => {
+        const v = String(t).trim().replace(',', '.');
+        if (!v) return '';
+        const n = Number(v);
+        return Number.isFinite(n) && n >= lo && n <= hi ? Math.round(n * 10) / 10 : null;
+      };
+      const v = { width: cm(f.width.value, 2, 17), sb: cm(f.sb.value, 0, 3), sa: cm(f.sa.value, 0, 3), pad: cm(f.pad.value, 0, 1) };
+      if (Object.values(v).some((x) => x === null)) { overlay.querySelector('.ds-para-error').hidden = false; return; }
+      setTableProps(table, { ...v, position: f.position.value });
+      setLines(table, { width: f.lw.value, style: f.ls.value, color: f.lc.value });
+      if (f.head.checked !== [...table.children].some((c) => c.tagName === 'THEAD')) toggleHeader(table);
+      const cells = f.scope.value === 'all' ? grid(table).rows.flatMap(cellsOf) : [td];
+      for (const c of cells) {
+        if (!c.isConnected) continue;
+        if (f.bg.value !== '-') { const was = table.classList.contains('ds-table-selected'); table.classList.remove('ds-table-selected'); setBackground(c, f.bg.value); if (was) table.classList.add('ds-table-selected'); }
+        if (f.ha.value !== '-') c.style.textAlign = f.ha.value;
+        if (f.va.value !== '-') c.style.verticalAlign = f.va.value;
+      }
+      close();
+      cell = td.isConnected ? td : cell;
+      show();
+    });
+  }
+
   /** Einträge des Menüs für die Zelle `td` – oder null, wenn sie nicht bearbeitbar ist. */
   function menuFor(td) {
     const table = td?.closest('table');
@@ -858,6 +956,7 @@ export function attachTableTools(surface, bar) {
         { label: '✂ Ausschneiden', onClick: () => cutTable(table) },
         { label: '🗑 Löschen', danger: true, onClick: () => { selectTable(null); table.remove(); focusCell(null); placeGrip(null); } },
       ] },
+      { label: '⚙ Tabelleneigenschaften …', onClick: () => openTableProps(td) },
     ];
   }
 

@@ -277,6 +277,25 @@ class RenderTest(unittest.TestCase):
             self.assertIn('style:vertical-align="middle"', content)
             self.assertIn('style:vertical-align="bottom"', content)
 
+    def test_absatz_und_tabelle_als_ganzes(self):
+        """Absatz: Abstand vor/nach, erste Zeile; Tabelle: Breite, Lage, Abstand, Innenabstand."""
+        spec = (
+            "titel: A\ncontent:\n"
+            "  - {type: text, text: x, spaceBefore: 0.6, spaceAfter: 1, firstLine: -0.5}\n"
+            "  - {type: table, width: 8, position: center, spaceBefore: 1, padding: 0.3, rows: [[a, b]]}\n"
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "blatt").mkdir()
+            (root / "blatt" / "sp.yaml").write_text(spec, encoding="utf-8")
+            env = dict(os.environ, ARBEITSBLATT_ROOT=str(root))
+            subprocess.run([sys.executable, str(GEN / "tools" / "make_worksheet.py"), "blatt/sp.yaml",
+                            "-o", "out"], cwd=root, env=env, check=True, capture_output=True)
+            content = zipfile.ZipFile(root / "out" / "blatt.odt").read("content.xml").decode()
+            self.assertIn('fo:text-indent="-0.5cm" fo:margin-top="0.6cm" fo:margin-bottom="1cm"', content)
+            self.assertRegex(content, r'style:width="8.000cm" fo:margin-top="1cm" fo:margin-bottom="0.2cm" table:align="center"')
+            self.assertIn('fo:padding="0.3cm"', content)
+
 
 if __name__ == "__main__":
     unittest.main()

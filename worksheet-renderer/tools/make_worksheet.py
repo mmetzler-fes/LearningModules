@@ -1489,7 +1489,7 @@ def content_table(block: dict[str, Any], styles: dict[str, str],
         r = len(table.getElementsByType(TableRow))
         tr = TableRow(**row_style(block, ctx, r))
         name = "ABTabelle.ZRT" if cell_name == "ABTabelle.ZR" and r == total_rows - 1 else cell_name
-        name = cell_with_background(ctx, name, None, table_valign(block))
+        name = cell_with_background(ctx, name, None, table_valign(block), table_padding(block))
         for col in range(columns):
             tc = TableCell(valuetype="string", stylename=name)
             tc.addElement(rich_p(style, cells[col] if col < len(cells) else ""))
@@ -1576,7 +1576,7 @@ def spanned_table(block: dict[str, Any], styles: dict[str, str], ctx: dict[str, 
                 own_name = "ABTabelle.ZRT" if cell_name == "ABTabelle.ZR" and r + start[(r, c)][2] - 1 == nrows - 1 else cell_name
                 valign = cell_valign.get((r, c)) or table_valign(block)
                 tc = TableCell(valuetype="string",
-                               stylename=cell_with_background(ctx, own_name, cell_bg.get((r, c)), valign),
+                               stylename=cell_with_background(ctx, own_name, cell_bg.get((r, c)), valign, table_padding(block)),
                                **attrs)
                 style = head_style if header and r == 0 else cell_style
                 own = cell_align.get((r, c))
@@ -1627,7 +1627,7 @@ def length_cm(value: Any) -> float | None:
     return float(m.group(1)) / (10 if m.group(2) == "mm" else 1)
 
 
-def fixed_widths(widths: list[float], block: dict[str, Any]) -> tuple[list[float], float | None]:
+def fixed_widths(widths: list[float], block: dict[str, Any], room_cm: float = TABLE_WIDTH_CM) -> tuple[list[float], float | None]:
     """Spaltenbreiten aus `widths:` übernehmen (cm; leer = automatisch).
 
     Automatische Spalten teilen sich den Rest der Satzbreite im Verhältnis der
@@ -1641,12 +1641,12 @@ def fixed_widths(widths: list[float], block: dict[str, Any]) -> tuple[list[float
         return widths, None
     auto = [i for i, f in enumerate(fixed) if f is None]
     fixed_sum = sum(f for f in fixed if f)
-    room = TABLE_WIDTH_CM - 1.0 * len(auto)
+    room = room_cm - 1.0 * len(auto)
     scale = min(1.0, room / fixed_sum) if fixed_sum else 1.0
     out = [(f * scale if f else 0.0) for f in fixed]
     if not auto:
         return out, sum(out)
-    rest = TABLE_WIDTH_CM - sum(out)
+    rest = room_cm - sum(out)
     auto_sum = sum(widths[i] for i in auto) or 1.0
     for i in auto:
         out[i] = rest * widths[i] / auto_sum
@@ -1655,15 +1655,30 @@ def fixed_widths(widths: list[float], block: dict[str, Any]) -> tuple[list[float
 
 def table_with_columns(block: dict[str, Any], ctx: dict[str, Any], index: int,
                        widths: list[float]) -> tuple[Element, list[float]]:
-    """Tabelle samt Spalten; feste Breiten aus `widths:` (siehe fixed_widths)."""
-    widths, total = fixed_widths(widths, block)
+    """Tabelle samt Spalten; feste Breiten aus `widths:` (siehe fixed_widths).
+    Dazu die Tabelle als Ganzes: `width` (cm), `position` (left, center, right),
+    `spaceBefore`/`spaceAfter` (cm) – sonst Satzbreite und 0,2 cm Abstand."""
+    def num(key: str, lo: float, hi: float) -> float | None:
+        v = block.get(key)
+        return float(v) if isinstance(v, (int, float)) and not isinstance(v, bool) and lo <= v <= hi else None
+    room = min(num("width", 2, 17) or TABLE_WIDTH_CM, TABLE_WIDTH_CM)
+    if room < TABLE_WIDTH_CM:
+        widths = [w * room / (sum(widths) or 1) for w in widths]
+    widths, total = fixed_widths(widths, block, room)
+    total = total if total is not None else room
+    position = block.get("position") if block.get("position") in ("left", "center", "right") else None
+    before, after = num("spaceBefore", 0, 3), num("spaceAfter", 0, 3)
     style_name = "ABTabelle"
-    if total is not None and total < TABLE_WIDTH_CM - 0.05:
+    if total < TABLE_WIDTH_CM - 0.05 or position or before is not None or after is not None:
         style_name = f"ABTabelle.B{index}"
         if style_name not in ctx["present"]:
+            narrow = total < TABLE_WIDTH_CM - 0.05
             style = Style(name=style_name, family="table")
-            style.addElement(TableProperties(width=f"{total:.3f}cm", margintop="0.2cm", marginbottom="0.2cm",
-                                             align="left", maybreakbetweenrows="false"))
+            style.addElement(TableProperties(width=f"{total:.3f}cm",
+                                             margintop=f"{before if before is not None else 0.2:g}cm",
+                                             marginbottom=f"{after if after is not None else 0.2:g}cm",
+                                             align=(position or "left") if narrow else "margins",
+                                             maybreakbetweenrows="false"))
             ctx["doc"].automaticstyles.addElement(style)
             ctx["present"].add(style_name)
     table = Table(name=f"Tab{index}", stylename=style_name)
@@ -1710,12 +1725,13 @@ def plain_table_styles(block: dict[str, Any], ctx: dict[str, Any], head_style: s
     return table_line_cell_style(block, ctx), head_style, cell_style
 
 
-def cell_with_background(ctx: dict[str, Any], base: str, color: str | None, valign: str | None = None) -> str:
-    """Zellvorlage wie `base` (Linien, Innenabstand), dazu Hintergrund `color`
-    und/oder senkrechte Ausrichtung `valign` (top, middle, bottom)."""
-    if not color and not valign:
+def cell_with_background(ctx: dict[str, Any], base: str, color: str | None, valign: str | None = None,
+                         padding: float | None = None) -> str:
+    """Zellvorlage wie `base` (Linien, Innenabstand), dazu Hintergrund `color`,
+    senkrechte Ausrichtung `valign` (top, middle, bottom) und Innenabstand `padding` (cm)."""
+    if not color and not valign and padding is None:
         return base
-    name = f"{base}.bg{(color or 'x').lstrip('#')}.v{valign or 'x'}"
+    name = f"{base}.bg{(color or 'x').lstrip('#')}.v{valign or 'x'}.p{padding if padding is not None else 'x'}"
     if name not in ctx["present"]:
         props: dict[str, str] = {}
         for root in (ctx["doc"].automaticstyles, ctx["doc"].styles):
@@ -1729,11 +1745,19 @@ def cell_with_background(ctx: dict[str, Any], base: str, color: str | None, vali
             props["backgroundcolor"] = color
         if valign:
             props["verticalalign"] = valign
+        if padding is not None:
+            props["padding"] = f"{padding:g}cm"
         cell = Style(name=name, family="table-cell")
         cell.addElement(TableCellProperties(**props))
         ctx["doc"].automaticstyles.addElement(cell)
         ctx["present"].add(name)
     return name
+
+
+def table_padding(block: dict[str, Any]) -> float | None:
+    """Innenabstand aller Zellen in cm (`padding`) – oder None."""
+    v = block.get("padding")
+    return float(v) if isinstance(v, (int, float)) and not isinstance(v, bool) and 0 <= v <= 1 else None
 
 
 def table_valign(block: dict[str, Any]) -> str | None:

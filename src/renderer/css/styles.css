@@ -3538,9 +3538,9 @@ body {
 .worksheet-content p { margin: 0 0 0.6em; }
 .worksheet-content img { max-width: 100%; height: auto; vertical-align: middle; }
 .worksheet-content table { border-collapse: collapse; width: 100%; margin: 0.8em 0; display: block; overflow-x: auto; }
-.worksheet-content table { --ds-line-w: 1px; --ds-line-s: solid; --ds-line-c: var(--border); }
+.worksheet-content table { --ds-line-w: 1px; --ds-line-s: solid; --ds-line-c: var(--border); --ds-cell-pad: 6px 8px; }
 .worksheet-content th,
-.worksheet-content td { border: var(--ds-line-w) var(--ds-line-s) var(--ds-line-c); padding: 6px 8px; vertical-align: top; }
+.worksheet-content td { border: var(--ds-line-w) var(--ds-line-s) var(--ds-line-c); padding: var(--ds-cell-pad); vertical-align: top; }
 .worksheet-content th { background: var(--bg-primary); }
 /* Nur die eigenen Zellen – eine Tabelle in einer Zelle behält ihre Linien */
 .worksheet-content .ws-table-plain > * > tr > th,
@@ -3598,9 +3598,9 @@ body {
 .docspec .ds-table-wrap { overflow-x: auto; margin: 0 0 0.8em; }
 .docspec .ds-table { border-collapse: collapse; }
 /* Linien je Tabelle (lineWidth, lineStyle über CSS-Variablen) – jede Tabelle setzt sie selbst zurück */
-.docspec .ds-table { --ds-line-w: 1px; --ds-line-s: solid; --ds-line-c: var(--border); }
+.docspec .ds-table { --ds-line-w: 1px; --ds-line-s: solid; --ds-line-c: var(--border); --ds-cell-pad: 4px 8px; }
 .docspec .ds-table th,
-.docspec .ds-table td { border: var(--ds-line-w) var(--ds-line-s) var(--ds-line-c); padding: 4px 8px; vertical-align: top; }
+.docspec .ds-table td { border: var(--ds-line-w) var(--ds-line-s) var(--ds-line-c); padding: var(--ds-cell-pad); vertical-align: top; }
 /* Leere Zellen eine Zeile hoch – wie im Druck (Wertetabellen zum Ausfüllen) */
 .docspec .ds-table td:empty, .docspec .ds-table th:empty { height: 1.6em; }
 /* Feste Zeilenhöhe (heights) gilt auch, wenn sie kleiner ist als eine Textzeile */
@@ -3770,6 +3770,10 @@ body {
 .ds-para-in { display: inline-flex; align-items: center; gap: 4px; }
 .ds-para-in input { width: 5em; }
 .ds-cm-dialog { max-width: 320px; }
+.ds-tprops { max-width: 520px; }
+.ds-tprops-tabs { margin: 4px 0 8px; }
+.ds-tprops .ds-para-grid[hidden] { display: none; }
+.ds-tprops-check { flex-direction: row !important; align-items: center; grid-column: 1 / -1; }
 .ds-cell-ui { position: absolute; z-index: 5; width: 18px; height: 18px; padding: 0; border: 1px solid var(--border); border-radius: 50%; background: var(--bg-primary); color: var(--text-secondary); font-size: 12px; line-height: 1; cursor: pointer; opacity: 0.75; }
 .ds-cell-ui:hover { opacity: 1; background: var(--accent); color: #fff; border-color: var(--accent); }
 .ds-cell-ui[hidden] { display: none; }

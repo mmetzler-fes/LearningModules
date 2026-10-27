@@ -239,6 +239,7 @@ export function attachTableTools(surface, bar) {
     <label class="ds-tb-notcols" title="Mindesthöhe dieser Zeile in cm – leer = automatisch (auch: unteren Zeilenrand ziehen)">↕ <input type="text" class="ds-tb-height" inputmode="decimal" placeholder="auto" size="4"> cm</label>
     <span class="ds-tablebar-sep"></span>
     <label class="ds-tb-notcols" title="Erste Zeile als Kopfzeile (fett)"><input type="checkbox" class="ds-tb-head"> Kopfzeile</label>
+    <label class="ds-tb-notcols ds-tb-beside-label" title="Bilder dieser Zelle neben dem Text statt darunter"><input type="checkbox" class="ds-tb-beside"> Bild neben Text</label>
     <label class="ds-tb-notcols" title="Linien zeigen – ohne z. B. für Abbildungen nebeneinander"><input type="checkbox" class="ds-tb-border"> Linien</label>
     <button type="button" class="rt-btn" data-t="evenWidths" title="Alle festen Breiten entfernen – die Spalten richten sich wieder nach dem Inhalt">⇔ auto</button>
     <button type="button" class="rt-btn ds-tb-danger" data-t="tableDel" title="Ganze Tabelle löschen">🗑</button>`;
@@ -246,6 +247,7 @@ export function attachTableTools(surface, bar) {
   const heightIn = bar.querySelector('.ds-tb-height');
   const headBox = bar.querySelector('.ds-tb-head');
   const borderBox = bar.querySelector('.ds-tb-border');
+  const besideBox = bar.querySelector('.ds-tb-beside');
 
   // Zuletzt gewählte Zelle – die Leiste wirkt auf sie, auch wenn der Fokus im Eingabefeld steht.
   let cell = null;
@@ -274,6 +276,9 @@ export function attachTableTools(surface, bar) {
     if (document.activeElement !== heightIn) heightIn.value = tr.style.height ? String(parseFloat(tr.style.height)).replace('.', ',') : '';
     headBox.checked = [...p.table.children].some((c) => c.tagName === 'THEAD');
     borderBox.checked = !p.table.classList.contains('ws-table-plain');
+    // Nur bei Zellen mit Bild.
+    bar.querySelector('.ds-tb-beside-label').hidden = !cell.querySelector('img');
+    besideBox.checked = cell.classList.contains('ws-cell-beside');
   };
 
   document.addEventListener('selectionchange', () => {
@@ -338,6 +343,11 @@ export function attachTableTools(surface, bar) {
     b.addEventListener('click', () => run(b.dataset.t));
   });
   headBox.addEventListener('change', () => { const p = pos(); if (p) { toggleHeader(p.table); focusCell(cell.isConnected ? cell : null); } });
+  besideBox.addEventListener('change', () => {
+    if (!pos()) return;
+    cell.classList.toggle('ws-cell-beside', besideBox.checked);
+    if (!cell.getAttribute('class')) cell.removeAttribute('class');
+  });
   borderBox.addEventListener('change', () => { const p = pos(); if (p) p.table.classList.toggle('ws-table-plain', !borderBox.checked); });
 
   const applySize = (input, apply) => {

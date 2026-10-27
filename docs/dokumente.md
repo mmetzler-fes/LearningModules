@@ -43,6 +43,8 @@ Der Editor startet im Modus **✏️ Bearbeiten** – wie ein Textprogramm:
   **Linien** an/aus, **⇔ auto** (alle festen Breiten weg) und 🗑 Tabelle
   löschen. Breite und Höhe gehen auch mit der Maus: rechten Rand einer Zelle
   bzw. unteren Rand einer Zeile ziehen. Verbundene Zellen bleiben verbunden.
+  Hat eine Zelle ein Bild, schaltet **Bild neben Text** es neben den Text
+  (z. B. „Schließer“ und sein Schaltzeichen) statt darunter.
   Im Druck gelten die Breiten genau; Spalten ohne Breite teilen sich den Rest
   der Seite. Sind alle Spalten fest, ist die Tabelle so breit wie ihre Summe.
 - **▥ Spalten (nebeneinander)** im ➕-Menü: zwei Spalten mit gestrichelten

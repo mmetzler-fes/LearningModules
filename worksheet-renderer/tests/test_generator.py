@@ -165,6 +165,28 @@ class RenderTest(unittest.TestCase):
             self.assertIn('style:name="AB_Stift"', z.read("styles.xml").decode())
             self.assertTrue(any(n.endswith(".svg") for n in z.namelist()))
 
+    def test_bild_neben_text_in_der_zelle(self):
+        """`beside: true`: Text und Bild in einem Absatz, Bild mittig zur Zeile."""
+        spec = (
+            "titel: Neben\ncontent:\n"
+            "  - type: table\n"
+            "    rows:\n"
+            "      - [{text: Schließer, beside: true, images: [{file: k.svg, width: 0.6cm}]}, betätigt]\n"
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "blatt").mkdir()
+            (root / "blatt" / "sp.yaml").write_text(spec, encoding="utf-8")
+            (root / "blatt" / "k.svg").write_text(
+                '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 30" width="10pt" height="30pt"><path d="M5,0L5,30" stroke="#000"/></svg>',
+                encoding="utf-8")
+            env = dict(os.environ, ARBEITSBLATT_ROOT=str(root))
+            subprocess.run([sys.executable, str(GEN / "tools" / "make_worksheet.py"), "blatt/sp.yaml",
+                            "-o", "out"], cwd=root, env=env, check=True, capture_output=True)
+            content = zipfile.ZipFile(root / "out" / "blatt.odt").read("content.xml").decode()
+            self.assertRegex(content, r'Schließer<text:s/><draw:frame draw:style-name="AB_BildMitte"')
+            self.assertIn('style:vertical-pos="middle" style:vertical-rel="line"', content)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -801,8 +801,20 @@ def image_size(path: Path, width_cm: float) -> tuple[float, float]:
     return width_cm, width_cm * ratio
 
 
-def image_frame(doc, block: dict[str, Any], search: list[Path], index: int) -> Element:
-    """Bild als Rahmen im Textfluss (draw:frame mit eingebettetem Bild)."""
+def ensure_line_middle_style(doc) -> Style:
+    """Rahmenvorlage: Bild wie ein Zeichen, mittig zur Zeile."""
+    style = getattr(doc, "bildmitte", None)
+    if style is None:
+        style = Style(name="AB_BildMitte", family="graphic")
+        style.addElement(GraphicProperties(verticalpos="middle", verticalrel="line", border="none", padding="0cm"))
+        doc.automaticstyles.addElement(style)
+        doc.bildmitte = style
+    return style
+
+
+def image_frame(doc, block: dict[str, Any], search: list[Path], index: int, middle: bool = False) -> Element:
+    """Bild als Rahmen im Textfluss (draw:frame mit eingebettetem Bild);
+    `middle`: mittig zur Textzeile statt auf der Grundlinie (Bild neben Text)."""
     path = resolve_path(block["file"], search)
     width = float(str(block.get("width", "12")).removesuffix("cm"))
     if "height" in block:
@@ -814,6 +826,8 @@ def image_frame(doc, block: dict[str, Any], search: list[Path], index: int) -> E
     extra: dict[str, Any] = {}
     if block.get("border"):
         extra["stylename"] = ensure_image_border_style(doc)
+    elif middle:
+        extra["stylename"] = ensure_line_middle_style(doc)
     frame = Frame(
         name=f"Bild{index}",
         anchortype="as-char",
@@ -1398,6 +1412,7 @@ def spanned_table(block: dict[str, Any], styles: dict[str, str], ctx: dict[str, 
     # Raster: start[(r, c)] = (text, colspan, rowspan); covered = verdeckte Stellen
     start: dict[tuple[int, int], tuple[str, int, int]] = {}
     pictures: dict[tuple[int, int], list[dict[str, Any]]] = {}
+    beside: set[tuple[int, int]] = set()   # Bilder neben dem Text (`beside: true`)
     covered: set[tuple[int, int]] = set()
     columns = 1
     for r, row in enumerate(source):
@@ -1408,6 +1423,8 @@ def spanned_table(block: dict[str, Any], styles: dict[str, str], ctx: dict[str, 
             start[(r, c)] = (text, cs, rs)
             if images_of(raw[r][k]):
                 pictures[(r, c)] = images_of(raw[r][k])
+                if isinstance(raw[r][k], dict) and raw[r][k].get("beside"):
+                    beside.add((r, c))
             for dr in range(rs):
                 for dc in range(cs):
                     if dr or dc:
@@ -1418,7 +1435,7 @@ def spanned_table(block: dict[str, Any], styles: dict[str, str], ctx: dict[str, 
     gemessen = [[(start[(r, c)][0] if (r, c) in start and start[(r, c)][1] == 1 else "", bool(header) and r == 0)
                  for c in range(columns)] for r in range(nrows)]
     size, widths = table_layout(gemessen)
-    widths = widths_for_pictures(widths, pictures, start)
+    widths = widths_for_pictures(widths, pictures, start, beside)
     head_style, cell_style = styles["table_head"], styles["table_cell"]
     if size != TABLE_SIZES_PT[0]:
         head_style = ensure_table_size_style(ctx["doc"], ctx["present"], head_style, size)
@@ -1437,9 +1454,21 @@ def spanned_table(block: dict[str, Any], styles: dict[str, str], ctx: dict[str, 
                     attrs["numberrowsspanned"] = rs
                 tc = TableCell(valuetype="string", stylename=cell_name, **attrs)
                 style = head_style if header and r == 0 else cell_style
+                room = sum(widths[c:c + cs]) - TABLE_PADDING_CM
+                if (r, c) in beside:
+                    # Text und Bilder in einer Zeile, Bilder mittig zur Zeile.
+                    para = rich_p(style, text)
+                    for picture in pictures[(r, c)]:
+                        ctx["image_index"] += 1
+                        width = min(float(str(picture.get("width", "12")).removesuffix("cm")), max(room, 1.0))
+                        para.addElement(S())
+                        para.addElement(image_frame(ctx["doc"], {**picture, "width": f"{width:.2f}cm"}, ctx["search"],
+                                                    ctx["image_index"], middle=True))
+                    tc.addElement(para)
+                    tr.addElement(tc)
+                    continue
                 if text or (r, c) not in pictures:
                     tc.addElement(rich_p(style, text))
-                room = sum(widths[c:c + cs]) - TABLE_PADDING_CM
                 for picture in pictures.get((r, c), []):
                     ctx["image_index"] += 1
                     width = min(float(str(picture.get("width", "12")).removesuffix("cm")), max(room, 1.0))
@@ -1542,18 +1571,29 @@ def plain_table_styles(block: dict[str, Any], ctx: dict[str, Any], head_style: s
 
 
 def widths_for_pictures(widths: list[float], pictures: dict[tuple[int, int], list[dict[str, Any]]],
-                        start: dict[tuple[int, int], tuple[str, int, int]]) -> list[float]:
+                        start: dict[tuple[int, int], tuple[str, int, int]],
+                        beside: set[tuple[int, int]] = frozenset()) -> list[float]:
     """Spalten mit Bildern so breit wie ihr breitestes Bild (Zellen ohne Verbund),
-    höchstens die Satzbreite; die übrigen Spalten teilen sich den Rest."""
+    mindestens aber wie das längste Wort darin; bei Bildern neben dem Text
+    (`beside`) Text und Bilder zusammen. Höchstens die Satzbreite; die übrigen
+    Spalten teilen sich den Rest."""
+    def cm(picture: dict[str, Any]) -> float:
+        try:
+            return float(str(picture.get("width", "0")).removesuffix("cm"))
+        except ValueError:
+            return 0.0
+    size = TABLE_SIZES_PT[0]
     need = [0.0] * len(widths)
     for (r, c), items in pictures.items():
-        if start[(r, c)][1] != 1:
+        text, cs, _rs = start[(r, c)]
+        if cs != 1:
             continue
-        for picture in items:
-            try:
-                need[c] = max(need[c], float(str(picture.get("width", "0")).removesuffix("cm")) + TABLE_PADDING_CM)
-            except ValueError:
-                pass
+        words = max((text_width_cm(w, size, False) for w in text.split()), default=0.0)
+        if (r, c) in beside:
+            wanted = text_width_cm(text, size, False) + sum(cm(p) + 0.2 for p in items)
+        else:
+            wanted = max([words] + [cm(p) for p in items])
+        need[c] = max(need[c], wanted + TABLE_PADDING_CM)
     if not any(need):
         return widths
     wanted = sum(need)

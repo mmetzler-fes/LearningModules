@@ -172,6 +172,8 @@ export class ImportService {
         this.syncDragAndDropMapping(mod.content);
       }
       mod.content = normalizeImportedContent(mod.type, mod.content);
+      // Eingebettete Quizze eines Dokuments zeigen auf die neuen IDs ihrer Module.
+      if (mod.type === 'document') mod.content = remapQuizBlocks(mod.content, idMap);
       return mod;
     });
 
@@ -230,4 +232,17 @@ export class ImportService {
       }
     });
   }
+}
+
+/** Quiz-Bausteine (`type: quiz`, `module`) eines Dokuments auf neue Modul-IDs umstellen. */
+export function remapQuizBlocks(content: any, idMap: Map<string, string>): any {
+  const parsed = typeof content === 'string' ? (() => { try { return JSON.parse(content); } catch { return null; } })() : content;
+  if (!parsed || typeof parsed !== 'object') return content;
+  const walk = (blocks: any) => (Array.isArray(blocks) ? blocks : []).forEach((b: any) => {
+    if (!b || typeof b !== 'object') return;
+    if (b.type === 'quiz' && typeof b.module === 'string' && idMap.has(b.module)) b.module = idMap.get(b.module);
+    walk(b.blocks);
+  });
+  walk(parsed.spec?.content);
+  return typeof content === 'string' ? JSON.stringify(parsed) : parsed;
 }

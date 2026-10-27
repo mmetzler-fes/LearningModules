@@ -33,7 +33,7 @@ export const FEATURES: Record<string, { label: string; short: string; available:
   // Wirkt nur zusammen mit 'worksheets' – „✍️ Bearbeiten“ über Dokumenten.
   // Schüler sehen den Knopf, wenn die Lehrkraft, der das Lernthema gehört, ihn hat.
   inkEditor: {
-    label: 'Stift-Editor für Dokumente (Beschriften mit Stift, Geodreieck – vorerst nur auf dem Gerät gespeichert)',
+    label: 'Stift-Editor für Dokumente (Beschriften mit Stift, Geodreieck – gespeichert auf dem Server, bei Schülern über den Klassenlink)',
     short: 'Stift-Editor',
     available: () => !!process.env.WORKSHEET_RENDERER_URL,
     needs: 'WORKSHEET_RENDERER_URL (Renderer-Container, worksheet-renderer/README.md)',

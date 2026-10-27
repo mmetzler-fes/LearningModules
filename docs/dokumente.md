@@ -182,8 +182,8 @@ Kurs-Projekt mit `make` bauen.
 
 ## Quiz im Dokument
 
-Im Editor (Reiter **✏️ Bearbeiten**) wählt **➕ Einfügen … → 🧩 Quiz aus dem Lernthema** ein Modul aus
-demselben Lernthema (z. B. Multiple Choice oder Lückentext). Es steht als
+Im Editor (Reiter **✏️ Bearbeiten**) stehen unter **➕** bzw. per Rechtsklick in den Text die Module
+desselben Lernthemas (z. B. Multiple Choice oder Lückentext) – ein Klick setzt das Quiz ein. Es steht als
 Baustein an der Schreibmarke im Blatt (`type: quiz`, `module: <Modul-ID>`).
 
 - **Im Durchlauf** bearbeiten Schüler das Quiz direkt im Blatt; die Antworten
@@ -195,6 +195,10 @@ Baustein an der Schreibmarke im Blatt (`type: quiz`, `module: <Modul-ID>`).
   (`?l=<token>&mod=<modul>`): Wer scannt, bearbeitet genau dieses Quiz. Ohne
   Quick-Link steht dort ein Hinweis. Wird der Quick-Link zurückgezogen oder neu
   erstellt, druckt das Nextcloud-Abbild die Blätter neu.
+- **Größe:** Quizze sind für die App gestaltet und wirken auf dem Blatt (vor allem
+  im Stift-Editor) oft zu groß. **A− / A+** oben rechts am Quiz stellt es kleiner
+  oder größer (50–150 %); das Gerät merkt es sich je Quiz. Die Vorgabe für alle
+  setzt die Lehrkraft im Dokument-Editor: Doppelklick auf das Quiz → **Größe im Blatt**.
 - Ist das Modul nicht freigegeben, sehen Schüler im Blatt einen Hinweis.
 - Im Kurs-Export und im Generator wird daraus ein Hinweis
   („[Quiz: … – online in LearningModules]“) – Module gibt es dort nicht.

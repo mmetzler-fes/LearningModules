@@ -694,15 +694,20 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
     const overlay = document.createElement('div');
     overlay.className = 'confirm-overlay';
     // Schreibfeld: Höhe, Breite und Muster als Felder – sie schreiben ins YAML darunter.
+    // Quiz: Größe im Blatt (A− / A+ beim Ansehen stellt jeder für sich nach).
+    const quizSize = block.type === 'quiz' ? `<div class="ds-field-form">
+        <label>Größe im Blatt <select class="ds-q-scale">${[0.5, 0.6, 0.7, 0.8, 0.9, 1, 1.1, 1.25, 1.5].map((v) => `<option value="${v}">${Math.round(v * 100)} %</option>`).join('')}</select></label>
+        <span class="hint">Vorgabe für alle; mit A− / A+ am Quiz stellt jeder selbst nach.</span>
+      </div>` : '';
     const field = block.type === 'karo' ? `<div class="ds-field-form">
         <label>Höhe <input type="number" class="ds-f-h" min="0.5" max="30" step="0.5"> cm</label>
         <label>Breite <input type="number" class="ds-f-w" min="1" max="16.5" step="0.5" placeholder="ganz"> cm</label>
         <label>Muster <select class="ds-f-p"><option value="karo">▦ Karo</option><option value="linien">☰ Linien</option><option value="leer">▢ Leer (Rahmen)</option><option value="frei">◌ Unsichtbar (nur Platz)</option></select></label>
       </div>` : '';
     overlay.innerHTML = `<form class="import-modules-card ds-widget-dialog">
-        <h3>${block.type === 'karo' ? 'Schreibfeld' : 'Baustein'} bearbeiten</h3>
-        ${field}
-        ${field ? '<details class="ds-field-yaml"><summary>Als YAML</summary><textarea class="ds-yaml" rows="6" spellcheck="false"></textarea></details>'
+        <h3>${block.type === 'karo' ? 'Schreibfeld' : block.type === 'quiz' ? 'Quiz' : 'Baustein'} bearbeiten</h3>
+        ${field}${quizSize}
+        ${field || quizSize ? '<details class="ds-field-yaml"><summary>Als YAML</summary><textarea class="ds-yaml" rows="6" spellcheck="false"></textarea></details>'
           : '<textarea class="ds-yaml" rows="12" spellcheck="false"></textarea>'}
         <p class="ds-error"></p>
         <div class="confirm-actions">
@@ -729,6 +734,16 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
       };
       [h, wd, pat].forEach((el) => el.addEventListener('input', sync));
       h.focus();
+    } else if (block.type === 'quiz') {
+      const sel = overlay.querySelector('.ds-q-scale');
+      sel.value = String(typeof block.scale === 'number' ? block.scale : 1);
+      sel.addEventListener('change', () => {
+        let cur;
+        try { cur = yamlLoad(ta.value) || {}; } catch (_) { cur = { ...block }; }
+        if (Number(sel.value) === 1) delete cur.scale; else cur.scale = Number(sel.value);
+        ta.value = yamlDump(cur, { lineWidth: -1, noRefs: true });
+      });
+      sel.focus();
     } else ta.focus();
     const close = () => overlay.remove();
     overlay.querySelector('.ds-w-cancel').addEventListener('click', close);

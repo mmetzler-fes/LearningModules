@@ -990,10 +990,94 @@ export function odtToHtml(buffer: Buffer, fileName = '', opts: OdtOptions = {}):
     return `<table>${head}<tbody>${rowsHtml(n, 'td')}</tbody></table>`;
   };
 
+  // ---- Abbildungen nebeneinander ----
+  //
+  // In Arbeitsblättern stehen Abbildungen oft nebeneinander: jedes Bild am
+  // eigenen (sonst leeren) Absatz verankert, per Position nebeneinander
+  // gerückt, leere Absätze halten den Platz frei, darunter eine Zeile
+  // „Abbildung 1 ⇥ Abbildung 2 ⇥ …“. Daraus wird eine Tabelle ohne Linien:
+  // oben die Bilder, darunter die Unterschriften.
+
+  /** Verankerte Bildrahmen eines Absatzes, der sonst nichts enthält – oder null. */
+  const framesOnly = (p: XNode): XNode[] | null => {
+    if (p.name !== 'text:p') return null;
+    const frames: XNode[] = [];
+    for (const c of p.children) {
+      if (typeof c === 'string') { if (c.trim()) return null; continue; }
+      if (SKIP.has(c.name) || c.name === 'text:soft-page-break' || c.name === 'text:bookmark') continue;
+      if (c.name === 'draw:frame' && anchored(c) && isImageFrame(c) && !isTextFrame(c)) frames.push(c);
+      else return null;
+    }
+    return frames;
+  };
+
+  /** Text eines Absatzes mit Tabs als \t (für die Zeile der Bildunterschriften). */
+  const tabText = (n: XNode | string): string => {
+    if (typeof n === 'string') return n;
+    if (n.name === 'text:tab') return '\t';
+    if (n.name === 'text:s') return ' ';
+    return n.children.map(tabText).join('');
+  };
+
+  /**
+   * Ab `start` eine Reihe nebeneinanderstehender Abbildungen: Liefert das
+   * HTML und wie viele Elemente sie verbraucht – oder null.
+   */
+  const figureRow = (list: XNode[], start: number): { html: string; used: number } | null => {
+    // Absätze ungefähr eine Zeile hoch – genug, um zu sehen, ob die Bilder nebeneinander stehen.
+    const LINE = 19;
+    const placed: Array<{ f: XNode; x: number; top: number; bottom: number }> = [];
+    let i = start;
+    for (; i < list.length; i++) {
+      const frames = framesOnly(list[i]);
+      if (!frames) break;
+      // Unterhalb aller bisherigen Bilder beginnt etwas Neues.
+      if (placed.length && (i - start) * LINE >= Math.max(...placed.map((p) => p.bottom))) break;
+      for (const f of frames) {
+        const top = (i - start) * LINE + (toPx(f.attrs['svg:y']) ?? 0);
+        placed.push({ f, x: toPx(f.attrs['svg:x']) ?? 0, top, bottom: top + (toPx(f.attrs['svg:height']) ?? 0) });
+      }
+    }
+    // Leere Absätze am Ende gehören noch zum Platz der Bilder.
+    while (i > start && !framesOnly(list[i - 1])?.length) i--;
+    if (placed.length < 2) return null;
+    // Nebeneinander: alle Bilder teilen sich ein Stück Höhe.
+    if (Math.max(...placed.map((p) => p.top)) >= Math.min(...placed.map((p) => p.bottom))) return null;
+    placed.sort((a, b) => a.x - b.x);
+    const cells = placed.map((p) => exported(p.f) ?? image(p.f)).filter((img): img is string => !!img);
+    if (cells.length < 2) return null;
+    // Leere Absätze danach (der freigehaltene Platz) und die Zeile der Unterschriften.
+    let j = i;
+    while (j < list.length && list[j].name === 'text:p' && !textOf(list[j]).trim() && framesOnly(list[j])?.length === 0) j++;
+    let captions: string[] | null = null;
+    if (j < list.length && list[j].name === 'text:p') {
+      const texts = tabText(list[j]).split('\t').map((s) => s.replace(/\s+/g, ' ').trim()).filter(Boolean);
+      if (texts.length === cells.length) {
+        const style = list[j].attrs['text:style-name'];
+        captions = texts.map((t) => wrap(esc(t), style));
+        j++;
+      }
+    }
+    stats.tables++;
+    const row = (items: string[]) => `<tr>${items.map((x) => `<td>${x}</td>`).join('')}</tr>`;
+    return {
+      html: `<table class="ws-table-plain"><tbody>${row(cells)}${captions ? row(captions) : ''}</tbody></table>`,
+      used: (captions ? j : i) - start,
+    };
+  };
+
   function blocks(n: XNode): string {
     const parts: string[] = [];
-    for (const c of elements(n)) {
+    const kids = elements(n);
+    for (let k = 0; k < kids.length; k++) {
+      const c = kids[k];
       if (SKIP.has(c.name)) continue;
+      const figures = c.name === 'text:p' ? figureRow(kids, k) : null;
+      if (figures) {
+        parts.push(figures.html);
+        k += figures.used - 1;
+        continue;
+      }
       if (c.name === 'text:p' || c.name === 'text:h') {
         const tag = c.name === 'text:h' && textOf(c).trim().length <= MAX_HEADING_CHARS ? headingTag(c)
           : styles.inherits(c.attrs['text:style-name'], /^Title$/i) ? 'h2'

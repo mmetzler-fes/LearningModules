@@ -94,6 +94,11 @@ content:
     rows:                       # unter dem Text der Zelle; die Spalte wird so breit
       - [{text: "Netzwerk 1:", images: [{file: ton.png, width: 6cm}]},   # wie das Bild
          {images: [{file: diagramm.png, width: 9cm}]}]
+  - type: table                 # Abbildungen nebeneinander: ohne Linien, zentriert
+    border: false
+    rows:
+      - [{images: [{file: a.png, width: 5cm}]}, {images: [{file: b.png, width: 5cm}]}]
+      - ["**Abbildung 1**", "**Abbildung 2**"]
   - type: image
     file: schaltung.png         # in der App: src (data: oder Nextcloud-Link)
     width: 6cm

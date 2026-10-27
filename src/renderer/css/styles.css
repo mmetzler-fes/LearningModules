@@ -3538,6 +3538,8 @@ body {
 .worksheet-content th,
 .worksheet-content td { border: 1px solid var(--border); padding: 6px 8px; vertical-align: top; }
 .worksheet-content th { background: var(--bg-primary); }
+.worksheet-content .ws-table-plain th,
+.worksheet-content .ws-table-plain td { border: 1px dashed var(--border); text-align: center; }
 .worksheet-content td p:last-child,
 .worksheet-content th p:last-child { margin-bottom: 0; }
 .worksheet-content .ws-box {
@@ -3593,6 +3595,9 @@ body {
 .docspec .ds-table th,
 .docspec .ds-table td { border: 1px solid var(--border); padding: 4px 8px; vertical-align: top; }
 .docspec .ds-table th { background: var(--bg-primary); }
+.docspec .ds-table-plain th,
+.docspec .ds-table-plain td { border: none; text-align: center; vertical-align: bottom; }
+.docspec .ds-table-plain tr:last-child td { vertical-align: top; }
 .docspec .ds-formula { margin: 0.6em 0; text-align: center; overflow-x: auto; }
 .docspec .ds-formula math { font-size: 1.15em; }
 .docspec .ds-formula-left { text-align: left; }

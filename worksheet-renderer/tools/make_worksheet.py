@@ -1127,6 +1127,11 @@ def ensure_table_styles(doc, present: set[str]) -> None:
     if "ABTabelle" in present:
         return
     border = "0.05pt solid #000000"
+    # Ohne Linien (`border: false`), z. B. Abbildungen nebeneinander mit Unterschrift.
+    plain = Style(name="ABTabelle.ZR", family="table-cell")
+    plain.addElement(TableCellProperties(padding="0.1cm", border="none", verticalalign="bottom"))
+    doc.automaticstyles.addElement(plain)
+    present.add("ABTabelle.ZR")
 
     table = Style(name="ABTabelle", family="table")
     table.addElement(TableProperties(width=f"{TABLE_WIDTH_CM}cm", margintop="0.2cm",
@@ -1322,6 +1327,7 @@ def content_table(block: dict[str, Any], styles: dict[str, str],
         head_style = ensure_table_size_style(ctx["doc"], ctx["present"], head_style, size)
         cell_style = ensure_table_size_style(ctx["doc"], ctx["present"], cell_style, size)
 
+    cell_name, head_style, cell_style = plain_table_styles(block, ctx, head_style, cell_style)
     table = Table(name=f"Tab{index}", stylename="ABTabelle")
     for col, width in enumerate(widths):
         name = f"ABTabelle.Sp{index}.{col}"
@@ -1335,7 +1341,7 @@ def content_table(block: dict[str, Any], styles: dict[str, str],
     def add_row(cells: list[str], style: str) -> None:
         tr = TableRow()
         for col in range(columns):
-            tc = TableCell(valuetype="string", stylename="ABTabelle.Z")
+            tc = TableCell(valuetype="string", stylename=cell_name)
             tc.addElement(rich_p(style, cells[col] if col < len(cells) else ""))
             tr.addElement(tc)
         table.addElement(tr)
@@ -1389,6 +1395,7 @@ def spanned_table(block: dict[str, Any], styles: dict[str, str], ctx: dict[str, 
     if size != TABLE_SIZES_PT[0]:
         head_style = ensure_table_size_style(ctx["doc"], ctx["present"], head_style, size)
         cell_style = ensure_table_size_style(ctx["doc"], ctx["present"], cell_style, size)
+    cell_name, head_style, cell_style = plain_table_styles(block, ctx, head_style, cell_style)
     table = Table(name=f"Tab{index}", stylename="ABTabelle")
     for col, width in enumerate(widths):
         name = f"ABTabelle.Sp{index}.{col}"
@@ -1408,7 +1415,7 @@ def spanned_table(block: dict[str, Any], styles: dict[str, str], ctx: dict[str, 
                     attrs["numbercolumnsspanned"] = cs
                 if rs > 1:
                     attrs["numberrowsspanned"] = rs
-                tc = TableCell(valuetype="string", stylename="ABTabelle.Z", **attrs)
+                tc = TableCell(valuetype="string", stylename=cell_name, **attrs)
                 style = head_style if header and r == 0 else cell_style
                 if text or (r, c) not in pictures:
                     tc.addElement(rich_p(style, text))
@@ -1423,11 +1430,21 @@ def spanned_table(block: dict[str, Any], styles: dict[str, str], ctx: dict[str, 
             elif (r, c) in covered:
                 tr.addElement(CoveredTableCell())
             else:
-                tc = TableCell(valuetype="string", stylename="ABTabelle.Z")
+                tc = TableCell(valuetype="string", stylename=cell_name)
                 tc.addElement(P(stylename=cell_style))
                 tr.addElement(tc)
         table.addElement(tr)
     return table
+
+
+def plain_table_styles(block: dict[str, Any], ctx: dict[str, Any], head_style: str, cell_style: str) -> tuple[str, str, str]:
+    """Zellvorlage und Absatzvorlagen einer Tabelle: mit `border: false` ohne
+    Linien und zentriert (Abbildungen nebeneinander), sonst wie gewohnt."""
+    if block.get("border") is not False:
+        return "ABTabelle.Z", head_style, cell_style
+    doc, present = ctx["doc"], ctx["present"]
+    return ("ABTabelle.ZR", ensure_align_style(doc, present, head_style, "center"),
+            ensure_align_style(doc, present, cell_style, "center"))
 
 
 def widths_for_pictures(widths: list[float], pictures: dict[tuple[int, int], list[dict[str, Any]]],

@@ -8,7 +8,7 @@ function odt(body: string): Buffer {
   zip.addFile('content.xml', Buffer.from(
     '<?xml version="1.0" encoding="UTF-8"?><office:document-content xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" '
     + 'xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0" xmlns:draw="urn:oasis:names:tc:opendocument:xmlns:drawing:1.0" '
-    + 'xmlns:svg="urn:oasis:names:tc:opendocument:xmlns:svg-compatible:1.0"><office:body><office:text>'
+    + 'xmlns:svg="urn:oasis:names:tc:opendocument:xmlns:svg-compatible:1.0" xmlns:xlink="http://www.w3.org/1999/xlink"><office:body><office:text>'
     + body + '</office:text></office:body></office:document-content>'));
   return zip.toBuffer();
 }
@@ -50,5 +50,32 @@ describe('.odt-Import: Titel', () => {
     expect(usableTitle('AB')).toBe(false);
     expect(usableTitle('Projekt Torsteuerung')).toBe(true);
     expect(usableTitle('Ohm')).toBe(true);
+  });
+});
+
+describe('.odt-Import: Abbildungen nebeneinander', () => {
+  const png = Buffer.from('89504e470d0a1a0a0000000d49484452', 'hex');
+  const withPictures = (body: string) => {
+    const zip = new AdmZip(odt(body));
+    for (const n of ['a', 'b', 'c']) zip.addFile(`Pictures/${n}.png`, png);
+    return zip.toBuffer();
+  };
+  const frame = (pic: string, x: string, y = '0.3cm', h = '5cm') =>
+    `<draw:frame text:anchor-type="paragraph" draw:name="${pic}" svg:x="${x}" svg:y="${y}" svg:width="5cm" svg:height="${h}"><draw:image xlink:href="Pictures/${pic}.png"/></draw:frame>`;
+
+  it('je Absatz ein Bild, nebeneinander gerückt, Unterschriften mit Tabs → Tabelle ohne Linien', () => {
+    const body = `<text:p>Vorher</text:p><text:p>${frame('a', '0cm')}</text:p><text:p>${frame('b', '6cm')}</text:p><text:p/><text:p/>`
+      + `<text:p>${frame('c', '12cm')}</text:p><text:p/><text:p/>`
+      + '<text:p><text:tab/>Abbildung 1<text:tab/><text:tab/>Abbildung 2<text:tab/>Abbildung 3</text:p><text:p>Nachher</text:p>';
+    const r = odtToHtml(withPictures(body), 'x.odt');
+    expect(r.html).toMatch(/<p>Vorher<\/p><table class="ws-table-plain"><tbody><tr>(<td><img [^>]*alt="[abc]"[^>]*><\/td>){3}<\/tr>/);
+    expect(r.html).toContain('<tr><td>Abbildung 1</td><td>Abbildung 2</td><td>Abbildung 3</td></tr></tbody></table><p>Nachher</p>');
+  });
+
+  it('untereinander stehende Bilder bleiben einzeln', () => {
+    const body = `<text:p>${frame('a', '0cm', '0cm', '1cm')}</text:p>${'<text:p/>'.repeat(4)}<text:p>${frame('b', '0cm', '0cm', '1cm')}</text:p>`;
+    const r = odtToHtml(withPictures(body), 'x.odt');
+    expect(r.html).not.toContain('ws-table-plain');
+    expect((r.html.match(/<img /g) || []).length).toBe(2);
   });
 });

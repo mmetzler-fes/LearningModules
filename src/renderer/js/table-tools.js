@@ -370,7 +370,8 @@ export function attachTableTools(surface, bar) {
 
   const show = () => {
     const p = pos();
-    bar.hidden = !p;
+    // Die eigene Leistenzeile bleibt verborgen – Rechtsklick und „Tabelle ▾“ ersetzen sie.
+    bar.hidden = true;
     if (!p) { placeCellUi(); return; }
     // Spalten (table.ws-columns): nur Spalten einfügen/löschen und Breite.
     const columns = p.table.classList.contains('ws-columns');
@@ -725,103 +726,158 @@ export function attachTableTools(surface, bar) {
     }
   });
 
-  // ---------- Wie in Google Docs: ▼ in der Zelle, ＋ an Zeile und Spalte ----------
+  // ---------- Menü für Zeile, Spalte, Zelle, Tabelle (Rechtsklick, „Tabelle ▾“) ----------
   //
-  // Über der Fläche (nicht im Dokument): ▼ oben rechts in der Zelle der
-  // Schreibmarke öffnet das Menü für Zeile, Spalte und Tabelle; ＋ links unter
-  // ihrer Zeile fügt eine Zeile darunter ein, ＋ über dem rechten Rand ihrer
-  // Spalte eine Spalte rechts davon. Rechtsklick in eine Zelle: dasselbe Menü.
-  const mk = (cls, text, title) => {
-    const b = document.createElement('button');
-    b.type = 'button';
-    b.className = `ds-cell-ui ${cls}`;
-    b.textContent = text;
-    b.title = title;
-    b.hidden = true;
-    b.addEventListener('mousedown', (e) => e.preventDefault());
-    host.appendChild(b);
-    return b;
-  };
-  const cellMenuBtn = mk('ds-cell-menu', '▾', 'Zeile, Spalte, Tabelle …');
-  const rowPlus = mk('ds-row-plus', '+', 'Zeile darunter einfügen');
-  const colPlus = mk('ds-col-plus', '+', 'Spalte rechts einfügen');
+  // Verschachtelt wie in Google Docs, damit es kurz bleibt. Die Einträge
+  // wirken auf die Zelle, für die das Menü geöffnet wurde (auch wenn der
+  // Fokus inzwischen woanders ist); bei „Ganze Tabelle“ auf alle Zellen.
+  function placeCellUi() { /* keine schwebenden Knöpfe mehr – Menü und Leiste genügen */ }
 
-  function placeCellUi() {
-    const p = pos();
-    const on = !!p && !drag;
-    [cellMenuBtn, rowPlus, colPlus].forEach((b) => { b.hidden = !on; });
-    if (!on) return;
-    const h = host.getBoundingClientRect();
-    const c = cell.getBoundingClientRect();
-    const t = p.table.getBoundingClientRect();
-    const tr = p.g.rows[p.r + p.rs - 1].getBoundingClientRect();
-    cellMenuBtn.style.left = `${c.right - h.left - 18}px`;
-    cellMenuBtn.style.top = `${c.top - h.top + 2}px`;
-    rowPlus.style.left = `${t.left - h.left - 20}px`;
-    rowPlus.style.top = `${tr.bottom - h.top - 8}px`;
-    colPlus.style.left = `${c.right - h.left - 8}px`;
-    colPlus.style.top = `${t.top - h.top - 18}px`;
-    // Spalten (Layout) haben keine Zeilen zum Einfügen.
-    rowPlus.hidden = p.table.classList.contains('ws-columns');
-  }
-  rowPlus.addEventListener('click', () => run('rowBelow'));
-  colPlus.addEventListener('click', () => run('colRight'));
-  cellMenuBtn.addEventListener('click', () => {
-    const r = cellMenuBtn.getBoundingClientRect();
-    openCellMenu(r.left, r.bottom + 2, cell);
+  /** Kleines Fenster für einen Wert in cm; liefert die Zahl, '' (automatisch) oder null (abgebrochen). */
+  const askCm = (title, value) => new Promise((resolve) => {
+    const overlay = document.createElement('div');
+    overlay.className = 'confirm-overlay';
+    overlay.innerHTML = `<form class="import-modules-card ds-cm-dialog" role="dialog" aria-modal="true">
+        <h3>${title}</h3>
+        <label>in cm <input type="text" inputmode="decimal" value="${value || ''}" placeholder="automatisch" style="width:7em"></label>
+        <p class="hint">Leer lassen für automatisch.</p>
+        <div class="confirm-actions"><button type="button" class="btn btn-secondary" data-x>Abbrechen</button><button type="submit" class="btn btn-primary">OK</button></div>
+      </form>`;
+    document.body.appendChild(overlay);
+    const input = overlay.querySelector('input');
+    input.focus();
+    input.select();
+    const done = (v) => { overlay.remove(); resolve(v); };
+    overlay.querySelector('[data-x]').addEventListener('click', () => done(null));
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) done(null); });
+    overlay.querySelector('form').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const t = input.value.trim();
+      if (!t) { done(''); return; }
+      const cm = parseCm(t);
+      if (cm === null) { input.classList.add('ds-tb-bad'); return; }
+      done(cm);
+    });
   });
-  surface.addEventListener('scroll', () => placeCellUi());
-  window.addEventListener('resize', () => placeCellUi());
 
-  /** Menü einer Zelle – die Einträge wirken auf diese Zelle (auch wenn der Fokus inzwischen woanders ist). */
-  function openCellMenu(x, y, td, extra = []) {
-    if (!td || !editable(td.closest('table'))) return false;
-    const at = (t) => () => { cell = td; run(t); };
+  const setBackground = (td, name) => {
     const table = td.closest('table');
+    const g = grid(table);
+    for (const c of wholeTable(table) ? g.rows.flatMap(cellsOf) : [td]) {
+      if (CELL_BACKGROUNDS[name]) { c.dataset.bg = name; c.style.backgroundColor = CELL_BACKGROUNDS[name]; } else {
+        delete c.dataset.bg;
+        c.style.removeProperty('background-color');
+      }
+      if (!c.getAttribute('style')) c.removeAttribute('style');
+    }
+  };
+
+  /** Zeilen bzw. Spalten gleich hoch / breit wie im Mittel. */
+  const distribute = (table, what) => {
+    const g = grid(table);
+    if (what === 'rows') {
+      const h = g.rows.reduce((n, tr) => n + tr.getBoundingClientRect().height, 0) / g.rows.length;
+      const cm = Math.max(0.4, Math.round((h / PX_PER_CM) * 10) / 10);
+      g.rows.forEach((tr) => setRowHeight(tr, cm));
+    } else {
+      const w = [...Array(g.cols).keys()].reduce((n, c) => n + columnPx(g, c), 0) / g.cols;
+      const cm = Math.max(0.5, Math.round((w / PX_PER_CM) * 10) / 10);
+      for (let c = 0; c < g.cols; c++) setColumnWidth(table, c, cm);
+    }
+  };
+
+  /** Einträge des Menüs für die Zelle `td` – oder null, wenn sie nicht bearbeitbar ist. */
+  function menuFor(td) {
+    const table = td?.closest('table');
+    if (!td || !editable(table)) return null;
+    const at = (t) => () => { cell = td; run(t); };
+    const check = (on, label) => `${on ? '✓ ' : ''}${label}`;
     const columns = table.classList.contains('ws-columns');
-    const lines = (w, label) => ({ label, onClick: () => { setLines(table, { width: w }); cell = td; show(); } });
-    const entries = columns ? [
-      { label: '⬅ Spalte links einfügen', onClick: at('colLeft') },
-      { label: '➡ Spalte rechts einfügen', onClick: at('colRight') },
-      { label: '✕ Spalte löschen', onClick: at('colDel') },
-    ] : [
-      { label: '⬆ Zeile darüber einfügen', onClick: at('rowAbove') },
-      { label: '⬇ Zeile darunter einfügen', onClick: at('rowBelow') },
-      { label: '✕ Zeile löschen', onClick: at('rowDel') },
+    const rowOf = () => { cell = td; const p = pos(); return p ? p.g.rows[p.r] : null; };
+    const colOf = () => { cell = td; const p = pos(); return p ? p.c + p.cs - 1 : null; };
+    const plain = table.classList.contains('ws-table-plain');
+    const lw = plain ? '0' : table.dataset.lineWidth || '';
+    const ls = table.dataset.lineStyle || '';
+    const lc = table.dataset.lineColor || '';
+    const setL = (opts) => () => { setLines(table, opts); cell = td; show(); };
+
+    const spalte = { label: columns ? '▥ Spalte' : '⇳ Spalte', submenu: [
+      { label: '⬅ Links einfügen', onClick: at('colLeft') },
+      { label: '➡ Rechts einfügen', onClick: at('colRight') },
+      { label: '✕ Löschen', onClick: at('colDel') },
       '-',
-      { label: '⬅ Spalte links einfügen', onClick: at('colLeft') },
-      { label: '➡ Spalte rechts einfügen', onClick: at('colRight') },
-      { label: '✕ Spalte löschen', onClick: at('colDel') },
-      '-',
-      { label: '⇤ Zelle linksbündig', onClick: at('alignLeft') },
-      { label: '↔ Zelle zentriert', onClick: at('alignCenter') },
-      { label: '⇥ Zelle rechtsbündig', onClick: at('alignRight') },
-      { label: '⤒ Zelle oben', onClick: at('valignTop') },
-      { label: '⇕ Zelle Mitte (senkrecht)', onClick: at('valignMiddle') },
-      { label: '⤓ Zelle unten', onClick: at('valignBottom') },
-      ...(td.querySelector('img') ? [{ label: `${td.classList.contains('ws-cell-beside') ? '✓ ' : ''}Bild neben Text`, onClick: () => { td.classList.toggle('ws-cell-beside'); cell = td; show(); } }] : []),
-      '-',
-      { label: `${[...table.children].some((c) => c.tagName === 'THEAD') ? '✓ ' : ''}Kopfzeile`, onClick: () => { cell = td; toggleHeader(table); focusCell(td.isConnected ? td : null); } },
-      lines('0', `${table.classList.contains('ws-table-plain') ? '✓ ' : ''}Linien: ohne`),
-      lines('', `${!table.classList.contains('ws-table-plain') && !table.dataset.lineWidth ? '✓ ' : ''}Linien: normal`),
-      lines('1.5', `${table.dataset.lineWidth === '1.5' ? '✓ ' : ''}Linien: dick (1,5 pt)`),
-      { label: `${table.dataset.lineStyle === 'dashed' ? '✓ ' : ''}Linien: gestrichelt`, onClick: () => { setLines(table, { style: table.dataset.lineStyle === 'dashed' ? '' : 'dashed' }); cell = td; show(); } },
+      { label: '↔ Breite …', onClick: async () => {
+        const c = colOf();
+        if (c === null) return;
+        const col = [...table.children].find((x) => x.tagName === 'COLGROUP')?.children[c];
+        const cm = await askCm('Spaltenbreite', col?.style.width ? String(parseFloat(col.style.width)).replace('.', ',') : '');
+        if (cm !== null) setColumnWidth(table, c, cm || null);
+      } },
+    ] };
+    if (columns) {
+      return [spalte, { label: '▥ Spalten', submenu: [
+        { label: '⬚ Auswählen', onClick: () => { cell = td; selectTable(table); } },
+        { label: '✂ Ausschneiden', onClick: () => cutTable(table) },
+        { label: '🗑 Löschen (mit Inhalt)', danger: true, onClick: () => { selectTable(null); table.remove(); focusCell(null); } },
+      ] }];
+    }
+    return [
+      { label: '⇔ Zeile', submenu: [
+        { label: '⬆ Darüber einfügen', onClick: at('rowAbove') },
+        { label: '⬇ Darunter einfügen', onClick: at('rowBelow') },
+        { label: '✕ Löschen', onClick: at('rowDel') },
+        '-',
+        { label: '↕ Höhe …', onClick: async () => {
+          const tr = rowOf();
+          if (!tr) return;
+          const cm = await askCm('Zeilenhöhe (mindestens)', tr.style.height ? String(parseFloat(tr.style.height)).replace('.', ',') : '');
+          if (cm !== null) setRowHeight(tr, cm || null);
+        } },
+      ] },
+      spalte,
+      { label: '▢ Zelle', submenu: [
+        { label: 'Ausrichtung', submenu: [['Left', '⇤ Links'], ['Center', '↔ Zentriert'], ['Right', '⇥ Rechts']].map(([d, l]) => ({ label: check(td.style.textAlign === d.toLowerCase(), l), onClick: at(`align${d}`) })) },
+        { label: 'Senkrecht', submenu: [['Top', '⤒ Oben'], ['Middle', '⇕ Mitte'], ['Bottom', '⤓ Unten']].map(([d, l]) => ({ label: check(td.style.verticalAlign === d.toLowerCase(), l), onClick: at(`valign${d}`) })) },
+        { label: 'Farbe', submenu: BG_NAMES.map(([v, l]) => ({ label: check((td.dataset.bg || '') === v, l), onClick: () => setBackground(td, v) })) },
+        ...(td.querySelector('img') ? [{ label: check(td.classList.contains('ws-cell-beside'), 'Bild neben Text'), onClick: () => { td.classList.toggle('ws-cell-beside'); cell = td; show(); } }] : []),
+      ] },
+      { label: '▤ Tabelle', submenu: [
+        { label: check([...table.children].some((c) => c.tagName === 'THEAD'), 'Kopfzeile'), onClick: () => { cell = td; toggleHeader(table); focusCell(td.isConnected ? td : null); } },
+        { label: 'Linien', submenu: [
+          ...LINE_WIDTHS.map(([v, l]) => ({ label: check(lw === v, l), onClick: setL({ width: v }) })),
+          '-',
+          ...LINE_STYLES.map(([v, l]) => ({ label: check(ls === v, l), onClick: setL({ style: v }) })),
+          '-',
+          { label: 'Farbe', submenu: LINE_COLOR_NAMES.map(([v, l]) => ({ label: check(lc === v, l), onClick: setL({ color: v }) })) },
+        ] },
+        { label: 'Zeilen gleichmäßig verteilen', onClick: () => distribute(table, 'rows') },
+        { label: 'Spalten gleichmäßig verteilen', onClick: () => distribute(table, 'cols') },
+        { label: '⇔ Spaltenbreiten automatisch', onClick: () => { [...table.children].filter((c) => c.tagName === 'COLGROUP').forEach((c) => c.remove()); } },
+        '-',
+        { label: '⬚ Ganze Tabelle auswählen', onClick: () => { cell = td; selectTable(table); } },
+        { label: '✂ Ausschneiden', onClick: () => cutTable(table) },
+        { label: '🗑 Löschen', danger: true, onClick: () => { selectTable(null); table.remove(); focusCell(null); placeGrip(null); } },
+      ] },
     ];
-    entries.push('-',
-      { label: '⬚ Ganze Tabelle auswählen', onClick: () => { cell = td; selectTable(table); } },
-      { label: '✂ Tabelle ausschneiden', onClick: () => cutTable(table) },
-      { label: '🗑 Tabelle löschen', danger: true, onClick: () => { selectTable(null); table.remove(); focusCell(null); placeGrip(null); } },
-      ...extra);
-    showContextMenu(x, y, entries);
-    return true;
   }
+
+  /** Zelle der Schreibmarke bzw. der gewählten Tabelle (für „Tabelle ▾“ in der Leiste). */
+  const currentCell = () => {
+    const node = document.getSelection()?.anchorNode;
+    const el = node && surface.contains(node) ? (node.nodeType === 3 ? node.parentNode : node) : null;
+    return el?.closest?.('td, th') || (selectedTable ? cellsOf(rowsOf(selectedTable)[0] || document.createElement('tr'))[0] : null) || (cell?.isConnected ? cell : null);
+  };
 
   return {
-    /** Menü der Zelle unter `target` (Rechtsklick) – false, wenn es keine Tabellenzelle ist. */
-    contextMenu: (x, y, target, extra = []) => {
+    /** Menüeinträge für die Zelle unter `target` (Rechtsklick) – null außerhalb von Tabellen. */
+    menuFor: (target) => {
       const td = target?.closest?.('td, th');
-      return td && surface.contains(td) ? openCellMenu(x, y, td, extra) : false;
+      return td && surface.contains(td) ? menuFor(td) : null;
     },
+    /** Menüeinträge für die Zelle der Schreibmarke (Knopf „Tabelle ▾“) – null außerhalb. */
+    menuHere: () => menuFor(currentCell()),
+    /** Steht die Schreibmarke in einer Tabelle? */
+    inTable: () => !!currentCell(),
     /** Ausrichtung (left, center, right), wenn die Schreibmarke in einer Zelle steht – sonst false. */
     align: (dir) => {
       const node = document.getSelection()?.anchorNode;

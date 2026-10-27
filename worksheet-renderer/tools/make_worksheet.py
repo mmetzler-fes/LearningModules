@@ -1072,18 +1072,44 @@ def ensure_number_list_style(doc, name: str = "AB_Nummerierung", numbering: str 
     return name
 
 
+def gap_paragraph(ctx: dict[str, Any], cm: float) -> Element:
+    """Leerer Absatz mit genau dieser Höhe (Abstand vor/nach einer Liste)."""
+    name = f"AB_Luecke_{str(cm).replace('.', '-')}"
+    if name not in ctx["present"]:
+        style = Style(name=name, family="paragraph")
+        style.addElement(ParagraphProperties(margintop="0cm", marginbottom="0cm", lineheight=f"{cm}cm"))
+        style.addElement(TextProperties(fontsize="2pt"))
+        ctx["doc"].automaticstyles.addElement(style)
+        ctx["present"].add(name)
+    return P(stylename=name)
+
+
 def para_variant(ctx: dict[str, Any], base: str, block: dict[str, Any]) -> str:
-    """Absatzvorlage wie `base` mit Einzug (`indent` in cm) und Zeilenabstand
+    """Absatzvorlage wie `base` mit Einzug (`indent`, `firstLine` in cm), Abstand
+    davor/danach (`spaceBefore`, `spaceAfter` in cm) und Zeilenabstand
     (`lineHeight` 1, 1.15, 1.5, 2) – ohne Angaben `base`."""
-    indent = block.get("indent") if isinstance(block.get("indent"), int) and 1 <= block.get("indent") <= 6 else None
+    def num(key: str, lo: float, hi: float) -> float | None:
+        v = block.get(key)
+        return float(v) if isinstance(v, (int, float)) and not isinstance(v, bool) and lo <= v <= hi else None
+    indent = num("indent", 0.01, 6)
+    first = num("firstLine", -3, 3)
+    before = num("spaceBefore", 0, 3)
+    after = num("spaceAfter", 0, 3)
     lh = block.get("lineHeight") if block.get("lineHeight") in (1, 1.15, 1.5, 2) else None
-    if not indent and not lh:
+    if indent is None and not first and before is None and after is None and not lh:
         return base
-    name = f"AB_Abs_{indent or 0}_{str(lh or 0).replace('.', '_')}_{base}"
+    key = "_".join(str(v if v is not None else "x") for v in (indent, first, before, after, lh)).replace(".", "-")
+    name = f"AB_Abs_{key}_{base}"
     if name not in ctx["present"]:
         props: dict[str, str] = {}
-        if indent:
+        if indent is not None:
             props["marginleft"] = f"{indent}cm"
+        if first:
+            props["textindent"] = f"{first}cm"
+        if before is not None:
+            props["margintop"] = f"{before}cm"
+        if after is not None:
+            props["marginbottom"] = f"{after}cm"
         if lh:
             props["lineheight"] = f"{round(lh * 100)}%"
         style = Style(name=name, family="paragraph", parentstylename=base)
@@ -2054,7 +2080,13 @@ def render_block_content(block: Any, styles: dict[str, str], ctx: dict[str, Any]
         else:
             style = ensure_bullet_list_style(ctx["doc"], f"AB_Aufzaehlung_{block['marker']}", marker) if marker \
                 else ctx["list_style"]
-        out.append(bullet_list(block["items"], para_variant(ctx, text_style, block), style))
+        # Abstand vor/nach der Liste als eigener, so hoher Absatz – nicht an jedem Punkt.
+        line_only = {"lineHeight": block["lineHeight"]} if "lineHeight" in block else {}
+        if isinstance(block.get("spaceBefore"), (int, float)) and 0 < block["spaceBefore"] <= 3:
+            out.append(gap_paragraph(ctx, block["spaceBefore"]))
+        out.append(bullet_list(block["items"], para_variant(ctx, text_style, line_only), style))
+        if isinstance(block.get("spaceAfter"), (int, float)) and 0 < block["spaceAfter"] <= 3:
+            out.append(gap_paragraph(ctx, block["spaceAfter"]))
 
     elif kind == "note":
         p = P(stylename=text_style)

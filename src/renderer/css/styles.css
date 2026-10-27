@@ -1244,6 +1244,8 @@ body {
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.18);
 }
 .ctx-menu-sep { height: 1px; margin: 4px 6px; background: var(--border); }
+.ctx-menu-item.ctx-has-sub, .ctx-menu-item:has(.ctx-menu-hint) { display: flex; justify-content: space-between; gap: 18px; }
+.ctx-menu-hint { color: var(--text-secondary); font-size: 0.9em; }
 
 .ctx-menu-item {
   display: block;
@@ -3760,6 +3762,14 @@ body {
 .ds-grip-bar button { padding: 1px 6px; border: none; background: none; cursor: pointer; border-radius: 4px; font-size: 0.85em; color: var(--text-primary); }
 .ds-grip-bar button:hover { background: var(--bg-secondary); }
 .ds-grip-bar button[hidden] { display: none; }
+.ds-para-dialog { max-width: 460px; }
+.ds-para-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 16px; margin: 8px 0; }
+.ds-para-grid label { display: flex; flex-direction: column; gap: 3px; font-size: 0.9em; }
+.ds-para-grid fieldset { border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 6px 10px; display: flex; flex-direction: column; gap: 6px; }
+.ds-para-grid legend { font-size: 0.85em; color: var(--text-secondary); padding: 0 4px; }
+.ds-para-in { display: inline-flex; align-items: center; gap: 4px; }
+.ds-para-in input { width: 5em; }
+.ds-cm-dialog { max-width: 320px; }
 .ds-cell-ui { position: absolute; z-index: 5; width: 18px; height: 18px; padding: 0; border: 1px solid var(--border); border-radius: 50%; background: var(--bg-primary); color: var(--text-secondary); font-size: 12px; line-height: 1; cursor: pointer; opacity: 0.75; }
 .ds-cell-ui:hover { opacity: 1; background: var(--accent); color: #fff; border-color: var(--accent); }
 .ds-cell-ui[hidden] { display: none; }

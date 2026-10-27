@@ -21,6 +21,7 @@ import { pickPdfBlocks } from './views/attachment-convert.js';
 import { showContextMenu } from '../lm-editor/src/util/dom.js';
 import { attachTableTools } from './table-tools.js';
 import { attachFormatTools } from './format-tools.js';
+import { openParagraphDialog } from './paragraph-dialog.js';
 
 /** Startinhalt eines neuen Dokuments – zeigt das Format an einem Beispiel. */
 const STARTER = `content:
@@ -117,6 +118,9 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
             <span class="ds-tb-sep"></span>
             <button type="button" class="rt-btn" data-cmd="createLink" title="Link">🔗</button>
             <button type="button" class="rt-btn" data-fmt="clear" title="Formatierung löschen (fett, Farbe … der Auswahl)">T̸</button>
+            <span class="ds-tb-sep"></span>
+            <button type="button" class="rt-btn ds-para-btn" title="Absatz: Abstand vor/nach, Einzug, Zeilenabstand, Ausrichtung">¶ Absatz …</button>
+            <button type="button" class="rt-btn ds-table-btn" title="Zeile, Spalte, Zelle, Tabelle" hidden>▤ Tabelle<span class="ds-dd-caret">▾</span></button>
             <div class="ds-tablebar-slot"></div>
           </div>
           <div class="ds-surface worksheet-content" contenteditable="true" spellcheck="true" aria-label="Inhalt bearbeiten"></div>
@@ -488,6 +492,26 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
   const tableTools = attachTableTools(surface, root.querySelector('.ds-tablebar-slot'));
   // Leiste wie in Google Docs: Farben, Ausrichtung, Zeilenabstand, Listenarten, Einzug.
   attachFormatTools(root.querySelector('.ds-vtoolbar'), surface, { tableTools, currentBlock: () => currentBlock() });
+  const paraBtn = root.querySelector('.ds-para-btn');
+  const tableBtn = root.querySelector('.ds-table-btn');
+  [paraBtn, tableBtn].forEach((b) => b.addEventListener('mousedown', (e) => e.preventDefault()));
+  paraBtn.addEventListener('click', () => {
+    const node = window.getSelection()?.anchorNode;
+    const el = node && surface.contains(node) ? (node.nodeType === 3 ? node.parentNode : node) : null;
+    const target = el?.closest?.('ul, ol') || el?.closest?.('p') || currentBlock();
+    if (!openParagraphDialog(target)) status.textContent = 'Absatz: Schreibmarke in einen Textabsatz oder eine Liste setzen.';
+  });
+  tableBtn.addEventListener('click', () => {
+    const entries = tableTools.menuHere();
+    if (!entries) return;
+    const r = tableBtn.getBoundingClientRect();
+    showContextMenu(r.left, r.bottom + 4, entries);
+  });
+  document.addEventListener('selectionchange', () => {
+    if (mode !== 'visual') return;
+    const node = document.getSelection()?.anchorNode;
+    if (node && surface.contains(node)) tableBtn.hidden = !tableTools.inTable();
+  });
   if (typeof window.WorksheetImageTools !== 'undefined') {
     new window.WorksheetImageTools(surface, document.createElement('input'), root.querySelector('.ds-vtoolbar'));
     // Selten gebraucht: Bild und Zusammenstellen stehen im Menü (➕, Rechtsklick), nicht in der Leiste.
@@ -597,7 +621,9 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
 
   /** Menü zum Einfügen – am ➕ oder per Rechtsklick in den Text. Quizze des Lernthemas stehen direkt darin. */
   const QUIZ_MENU_MAX = 12;
-  const insertMenu = (x, y, at = null) => {
+  const insertMenu = (x, y, at = null) => showContextMenu(x, y, insertEntries(at));
+  /** Einträge zum Einfügen hinter `at` (bzw. dem Block der Schreibmarke). */
+  const insertEntries = (at = null) => {
     const after = at || currentBlock();
     const quizzes = (topicModules() || []).filter((m) => m && m.id && m.id !== moduleSource() && !m.parentId && m.type !== 'document');
     const quizEntries = quizzes.slice(0, QUIZ_MENU_MAX).map((m) => ({
@@ -616,7 +642,7 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
       ['box', '▢ Kasten'], ['columns', '▥ Spalten (nebeneinander)'], ['spacer', '◌ Platz (unsichtbar)'], ['pagebreak', '⤓ Seitenumbruch'],
       ['image', '🖼 Bild…'], ['compose', '🧩 Bilder zusammenstellen…'],
     ];
-    showContextMenu(x, y, [...quizEntries, ...entries.map(([what, label]) => ({
+    return [...quizEntries, ...entries.map(([what, label]) => ({
       label,
       onClick: () => {
         if (what === 'image' || what === 'compose') {
@@ -626,7 +652,7 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
         }
         void insertWhat(what, after);
       },
-    }))]);
+    }))];
   };
   root.querySelector('.ds-vplus').addEventListener('mousedown', (e) => e.preventDefault()); // Schreibmarke behalten
   root.querySelector('.ds-vplus').addEventListener('click', (e) => {
@@ -639,9 +665,20 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
     // Die angeklickte Stelle zählt – nicht, wo die Schreibmarke vorher stand.
     const widget = e.target.closest?.('.ds-widget');
     const after = (widget && surface.contains(widget) ? widget : null) || blockOfNode(e.target);
-    // In einer Tabellenzelle: Menü für Zeile, Spalte und Tabelle; Einfügen bleibt erreichbar.
-    if (!widget && tableTools.contextMenu(e.clientX, e.clientY, e.target, ['-', { label: '➕ Einfügen …', onClick: () => insertMenu(e.clientX, e.clientY, after) }])) return;
-    insertMenu(e.clientX, e.clientY, after);
+    const entries = [];
+    // Markierter Text: Ausschneiden, Kopieren (Einfügen mit Strg+V – der Browser lässt es nur so zu).
+    const sel = window.getSelection();
+    if (sel && !sel.isCollapsed && surface.contains(sel.anchorNode)) {
+      entries.push({ label: '✂ Ausschneiden', hint: 'Strg+X', onClick: () => document.execCommand('cut') },
+        { label: '⧉ Kopieren', hint: 'Strg+C', onClick: () => document.execCommand('copy') }, '-');
+    }
+    // In einer Tabellenzelle: Zeile ▸ Spalte ▸ Zelle ▸ Tabelle ▸ – Einfügen als Untermenü.
+    const table = widget ? null : tableTools.menuFor(e.target);
+    const para = e.target.closest?.('ul, ol') || (e.target.closest?.('p:not([data-ds])'));
+    const paraEntry = para && surface.contains(para) ? [{ label: '¶ Absatz …', onClick: () => openParagraphDialog(para.closest('ul, ol') || para) }] : [];
+    if (table) entries.push(...table, '-', ...paraEntry, { label: '➕ Einfügen', submenu: insertEntries(after) });
+    else entries.push(...insertEntries(after), ...(paraEntry.length ? ['-', ...paraEntry] : []));
+    showContextMenu(e.clientX, e.clientY, entries);
   });
 
   const pickQuiz = () => pickQuizFrom(topicModules(), moduleSource());

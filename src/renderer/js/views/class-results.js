@@ -772,8 +772,13 @@ export class ClassResultsView {
     const items = [];
     // Ein Link für alles darin – aus dem Notizbuch übernommene Bereiche haben ihren Quick-Link dort.
     if (node.sourceNodeId) {
-      items.push({ label: '🔗 Quick-Link für diesen Bereich…', title: 'Ein Link und QR-Code für alle Lernthemen darin – wie im Notizbuch, mit Klassenauswahl',
-        run: () => this.app.linksView.openQuickLink({ kind: 'node', id: node.sourceNodeId, title: node.title }) });
+      items.push({ label: '🔗 Quick-Link (Link & QR)', title: 'Ein Link und QR-Code für alle Lernthemen darin – für diese Klasse, Schüler starten gleich mit ihrem Namen',
+        run: async () => {
+          // Klassenlink des Notizbuch-Bereichs für diese Klasse (wie der Quick-Link mit vorgewählter Klasse).
+          const res = await this.app.api.classLinkFromNotebookNode(node.sourceNodeId, this._classId);
+          if (failed(res) || !res?.id) { this.app.showToast('Fehler: ' + (res?.message || 'Link nicht erzeugt'), 'error'); return; }
+          await this.app.linksView._openShareDialog({ id: res.id, name: node.title }, 'practice');
+        } });
     } else {
       items.push({ label: '🔗 Quick-Link (nur für Notizbuch-Bereiche)', title: 'Selbst angelegte Bereiche haben keinen eigenen Link – die Lernthemen darin schon (⋯ am Lernthema)', run: () => {
         this.app.showToast('Selbst angelegte Bereiche haben keinen eigenen Link – die Lernthemen darin schon (⋯ am Lernthema → 🔗 Quick-Link).', 'info');
@@ -840,11 +845,6 @@ export class ClassResultsView {
     // Link und QR-Code dieser Zuweisung – für genau diese Klasse (ohne Klassenauswahl).
     items.push({ label: '🔗 Quick-Link (Link & QR)', title: 'Link und QR-Code für diese Klasse – die Schüler starten gleich mit ihrem Namen',
       run: () => this.app.linksView._openShareDialog({ id: link.id, name: link.name }, 'practice') });
-    const topicId = link.topics?.[0]?.id || link.available?.[0]?.topicId;
-    if (!own && topicId && (link.available || []).length === 1) {
-      items.push({ label: '🔗 Quick-Link für alle Klassen…', title: 'Der Quick-Link des Lernthemas aus dem Notizbuch – Schüler wählen ihre Klasse',
-        run: () => this.app.topicsView._createQuickClassLink({ id: topicId, title: link.name, selected: true }) });
-    }
     items.push('-');
     if (own) items.push({ label: '➕ Neues Modul', title: 'Neue Module sind zunächst aus – mit ● einschalten', run: () => this.app.modulesView.openFrom('teacher-class-results', link.classTopicId, null) });
     items.push({ label: '↑ Nach oben', run: () => this._step('entry', link, -1, cb) });

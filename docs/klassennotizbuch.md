@@ -38,11 +38,11 @@ Lernthemen), darin die Lernthemen. Die Schüler sehen denselben Baum.
   **➕ Abschnitt**; an jedem Bereich/Abschnitt und Lernthema **⋯** mit
   „Neues … hier“, ↑ / ↓, **↔️ Verschieben nach…**, Umbenennen, Löschen.
   Das ⋯ steht direkt in der Zeile (auch Rechtsklick auf die Zeile).
-- **🔗 Quick-Link** im ⋯-Menü: an einem Lernthema **Link & QR** für genau
-  diese Klasse (Schüler starten gleich mit ihrem Namen), bei Lernthemen aus
-  dem Notizbuch zusätzlich der **Quick-Link für alle Klassen** (mit
-  Klassenauswahl); an einem aus dem Notizbuch übernommenen Bereich oder
-  Abschnitt der **Quick-Link für diesen Bereich** – ein Link für alles darin.
+- **🔗 Quick-Link (Link & QR)** im ⋯-Menü – immer **für diese Klasse**: Die
+  Schüler geben nur ihren Namen ein, eine Klassenauswahl gibt es nicht. An
+  einem Lernthema für dieses Lernthema, an einem aus dem Notizbuch
+  übernommenen Bereich oder Abschnitt ein Link für alles darin. Den Quick-Link
+  mit Klassenauswahl (für mehrere Klassen) gibt es weiter im 📓 Notizbuch.
 - **Ziehen und Ablegen** wie im Notizbuch: eine Zeile fassen und oben oder
   unten an eine andere Zeile legen (davor/dahinter) oder in die Mitte eines
   Bereichs bzw. Abschnitts (hinein).

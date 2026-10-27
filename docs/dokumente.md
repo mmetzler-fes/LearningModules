@@ -57,6 +57,10 @@ Der Editor startet im Modus **✏️ Bearbeiten** – wie ein Textprogramm:
   **📥 Tabelle hier einfügen** – oder im Hinweis darunter „hinter den Absatz
   der Schreibmarke“ (bzw. „zurück an die alte Stelle“). Eine Tabelle in einer Zelle
   steht im YAML unter `blocks` der Zelle.
+  **Ausrichtung:** ⇤ ↔ ⇥ in der Tabellenleiste (oder oben in der Leiste,
+  wenn die Schreibmarke in einer Zelle steht) richten die Zelle aus, bei
+  gewählter „Ganzer Tabelle“ alle Zellen. Tabellen ohne Linien sind ohne
+  Angabe zentriert (für Abbildungen nebeneinander).
   Hat eine Zelle ein Bild, schaltet **Bild neben Text** es neben den Text
   (z. B. „Schließer“ und sein Schaltzeichen) statt darunter.
   Im Druck gelten die Breiten genau; Spalten ohne Breite teilen sich den Rest

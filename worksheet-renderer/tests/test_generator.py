@@ -205,6 +205,25 @@ class RenderTest(unittest.TestCase):
             content = zipfile.ZipFile(root / "out" / "blatt.odt").read("content.xml").decode()
             self.assertRegex(content, r'Rechts</text:p><table:table table:name="Tab\d+"')
 
+    def test_tabelle_ausrichtung(self):
+        """`align` an der Tabelle (auch ohne Linien) und an einer Zelle."""
+        spec = (
+            "titel: Ausrichtung\ncontent:\n"
+            "  - {type: table, border: false, align: left, rows: [[links, {text: rechts, align: right}]]}\n"
+            "  - {type: table, border: false, rows: [[mittig]]}\n"
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "blatt").mkdir()
+            (root / "blatt" / "sp.yaml").write_text(spec, encoding="utf-8")
+            env = dict(os.environ, ARBEITSBLATT_ROOT=str(root))
+            subprocess.run([sys.executable, str(GEN / "tools" / "make_worksheet.py"), "blatt/sp.yaml",
+                            "-o", "out"], cwd=root, env=env, check=True, capture_output=True)
+            content = zipfile.ZipFile(root / "out" / "blatt.odt").read("content.xml").decode()
+            self.assertRegex(content, r'<text:p text:style-name="[^"_]*Tabelleninhalt[^"]*">links</text:p>|<text:p text:style-name="(?!AB_Center)[^"]*">links</text:p>')
+            self.assertRegex(content, r'<text:p text:style-name="AB_Right_[^"]*">rechts</text:p>')
+            self.assertRegex(content, r'<text:p text:style-name="AB_Center_[^"]*">mittig</text:p>')
+
 
 if __name__ == "__main__":
     unittest.main()

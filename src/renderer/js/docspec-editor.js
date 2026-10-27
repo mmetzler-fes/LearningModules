@@ -476,7 +476,7 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
     vTimer = setTimeout(fromVisual, 300);
   });
   surfaceObserver.observe(surface, { childList: true, subtree: true, characterData: true, attributes: true });
-  attachTableTools(surface, root.querySelector('.ds-tablebar-slot'));
+  const tableTools = attachTableTools(surface, root.querySelector('.ds-tablebar-slot'));
   if (typeof window.WorksheetImageTools !== 'undefined') {
     new window.WorksheetImageTools(surface, document.createElement('input'), root.querySelector('.ds-vtoolbar'));
     // Selten gebraucht: Bild und Zusammenstellen stehen im Menü (➕, Rechtsklick), nicht in der Leiste.
@@ -543,6 +543,9 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
   root.querySelectorAll('[data-cmd]').forEach((btn) => btn.addEventListener('mousedown', (e) => {
     e.preventDefault(); // Auswahl in der Fläche behalten
     const cmd = btn.dataset.cmd;
+    // In einer Tabellenzelle richtet ⇤ ↔ ⇥ die Zelle aus (bleibt so erhalten, anders als ein Absatz darin).
+    const dir = { justifyLeft: 'left', justifyCenter: 'center', justifyRight: 'right' }[cmd];
+    if (dir && tableTools.align(dir)) return;
     if (cmd === 'createLink') {
       const url = window.prompt('Adresse des Links (https://…):', 'https://');
       if (url && /^(https?:\/\/|mailto:)/i.test(url)) document.execCommand('createLink', false, url);

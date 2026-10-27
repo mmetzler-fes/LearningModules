@@ -1414,6 +1414,7 @@ def spanned_table(block: dict[str, Any], styles: dict[str, str], ctx: dict[str, 
     pictures: dict[tuple[int, int], list[dict[str, Any]]] = {}
     beside: set[tuple[int, int]] = set()   # Bilder neben dem Text (`beside: true`)
     inner_blocks: dict[tuple[int, int], list[Any]] = {}   # Bausteine in der Zelle (Tabelle in der Tabelle)
+    cell_align: dict[tuple[int, int], str] = {}            # eigene Ausrichtung der Zelle
     covered: set[tuple[int, int]] = set()
     columns = 1
     for r, row in enumerate(source):
@@ -1422,6 +1423,8 @@ def spanned_table(block: dict[str, Any], styles: dict[str, str], ctx: dict[str, 
             while (r, c) in covered:
                 c += 1
             start[(r, c)] = (text, cs, rs)
+            if isinstance(raw[r][k], dict) and raw[r][k].get("align") in ("left", "center", "right"):
+                cell_align[(r, c)] = raw[r][k]["align"]
             if isinstance(raw[r][k], dict) and isinstance(raw[r][k].get("blocks"), list) and raw[r][k]["blocks"]:
                 inner_blocks[(r, c)] = raw[r][k]["blocks"]
             if images_of(raw[r][k]):
@@ -1457,6 +1460,10 @@ def spanned_table(block: dict[str, Any], styles: dict[str, str], ctx: dict[str, 
                     attrs["numberrowsspanned"] = rs
                 tc = TableCell(valuetype="string", stylename=cell_name, **attrs)
                 style = head_style if header and r == 0 else cell_style
+                own = cell_align.get((r, c))
+                if own:
+                    base = styles["table_head"] if header and r == 0 else styles["table_cell"]
+                    style = base if own == "left" else ensure_align_style(ctx["doc"], ctx["present"], base, own)
                 room = sum(widths[c:c + cs]) - TABLE_PADDING_CM
                 if (r, c) in beside:
                     # Text und Bilder in einer Zeile, Bilder mittig zur Zeile.
@@ -1569,12 +1576,17 @@ def row_style(block: dict[str, Any], ctx: dict[str, Any], r: int) -> dict[str, A
 
 def plain_table_styles(block: dict[str, Any], ctx: dict[str, Any], head_style: str, cell_style: str) -> tuple[str, str, str]:
     """Zellvorlage und Absatzvorlagen einer Tabelle: mit `border: false` ohne
-    Linien und zentriert (Abbildungen nebeneinander), sonst wie gewohnt."""
-    if block.get("border") is not False:
-        return "ABTabelle.Z", head_style, cell_style
+    Linien und – ohne eigene Ausrichtung – zentriert (Abbildungen nebeneinander).
+    `align` (left, center, right) richtet alle Zellen aus."""
     doc, present = ctx["doc"], ctx["present"]
-    return ("ABTabelle.ZR", ensure_align_style(doc, present, head_style, "center"),
-            ensure_align_style(doc, present, cell_style, "center"))
+    align = block.get("align") if block.get("align") in ("left", "center", "right") else None
+    plain = block.get("border") is False
+    if plain and not align:
+        align = "center"
+    if align and align != "left":
+        head_style = ensure_align_style(doc, present, head_style, align)
+        cell_style = ensure_align_style(doc, present, cell_style, align)
+    return ("ABTabelle.ZR" if plain else "ABTabelle.Z"), head_style, cell_style
 
 
 def widths_for_pictures(widths: list[float], pictures: dict[tuple[int, int], list[dict[str, Any]]],

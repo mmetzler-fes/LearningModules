@@ -113,6 +113,11 @@ content:
       - - Schaltung links
         - text: "Wertetabelle:"
           blocks: [{type: table, header: [C, B, A, X], rows: [["", "", "", ""]]}]
+  - type: table                 # Ausrichtung aller Zellen (left, center, right);
+    align: left                 # eine Zelle kann eigene haben. Ohne Linien
+    border: false               # (border: false) ist sonst zentriert.
+    rows:
+      - [Name, {text: "3,50 €", align: right}]
   - type: table                 # Bild neben dem Text der Zelle statt darunter
     rows:
       - [{text: Schließer, beside: true, images: [{file: schliesser.svg, width: 0.6cm}]}, betätigt, "1"]

@@ -237,6 +237,10 @@ export function attachTableTools(surface, bar) {
     <span class="ds-tablebar-sep"></span>
     <label title="Breite dieser Spalte in cm – leer = automatisch (auch: Spaltenrand ziehen)">↔ <input type="text" class="ds-tb-width" inputmode="decimal" placeholder="auto" size="4"> cm</label>
     <label class="ds-tb-notcols" title="Mindesthöhe dieser Zeile in cm – leer = automatisch (auch: unteren Zeilenrand ziehen)">↕ <input type="text" class="ds-tb-height" inputmode="decimal" placeholder="auto" size="4"> cm</label>
+    <span class="ds-tablebar-sep ds-tb-notcols"></span>
+    <button type="button" class="rt-btn ds-tb-notcols" data-t="alignLeft" title="Linksbündig – diese Zelle, bei „Ganze Tabelle“ alle">⇤</button>
+    <button type="button" class="rt-btn ds-tb-notcols" data-t="alignCenter" title="Zentriert – diese Zelle, bei „Ganze Tabelle“ alle">↔</button>
+    <button type="button" class="rt-btn ds-tb-notcols" data-t="alignRight" title="Rechtsbündig – diese Zelle, bei „Ganze Tabelle“ alle">⇥</button>
     <span class="ds-tablebar-sep"></span>
     <label class="ds-tb-notcols" title="Erste Zeile als Kopfzeile (fett)"><input type="checkbox" class="ds-tb-head"> Kopfzeile</label>
     <label class="ds-tb-notcols ds-tb-beside-label" title="Bilder dieser Zelle neben dem Text statt darunter"><input type="checkbox" class="ds-tb-beside"> Bild neben Text</label>
@@ -368,6 +372,22 @@ export function attachTableTools(surface, bar) {
     show();
   };
 
+  /**
+   * Ausrichtung: ganze Tabelle gewählt → für alle Zellen (data-align, eigene
+   * Ausrichtungen der Zellen fallen weg), sonst nur die Zelle der Schreibmarke.
+   */
+  const alignCells = (dir) => {
+    const p = pos();
+    if (!p) return false;
+    if (wholeTable(p.table)) {
+      p.table.dataset.align = dir;
+      for (const tr of p.g.rows) for (const td of cellsOf(tr)) { td.style.removeProperty('text-align'); if (!td.getAttribute('style')) td.removeAttribute('style'); }
+    } else {
+      cell.style.textAlign = dir;
+    }
+    return true;
+  };
+
   const run = (t) => {
     const p = pos();
     if (!p) return;
@@ -398,6 +418,9 @@ export function attachTableTools(surface, bar) {
         return;
       case 'pasteTable':
         placeHeld('cell');
+        return;
+      case 'alignLeft': case 'alignCenter': case 'alignRight':
+        alignCells(t.slice(5).toLowerCase());
         return;
       case 'evenWidths':
         [...table.children].filter((c) => c.tagName === 'COLGROUP').forEach((c) => c.remove());
@@ -624,6 +647,15 @@ export function attachTableTools(surface, bar) {
       placeHeld(cell && surface.contains(cell) ? 'cell' : 'after');
     }
   });
+
+  return {
+    /** Ausrichtung (left, center, right), wenn die Schreibmarke in einer Zelle steht – sonst false. */
+    align: (dir) => {
+      const node = document.getSelection()?.anchorNode;
+      const inCell = node && surface.contains(node) && (node.nodeType === 3 ? node.parentNode : node).closest?.('td, th');
+      return (inCell || selectedTable) ? alignCells(dir) : false;
+    },
+  };
 }
 
 // Für Tests.

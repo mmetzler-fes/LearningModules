@@ -3605,6 +3605,14 @@ body {
 .docspec .ds-table tr[style*="height"] > td:empty, .docspec .ds-table tr[style*="height"] > th:empty { height: auto; }
 /* Zelle mit beside: Bilder neben dem Text */
 .docspec .ds-cell-beside { display: flex; align-items: center; gap: 8px; }
+/* Listenarten (marker, numbering) und Farben im Text */
+.docspec .ds-list-dash, .worksheet-content ul[data-marker="dash"] { list-style-type: '– '; }
+.docspec .ds-list-arrow, .worksheet-content ul[data-marker="arrow"] { list-style-type: '➤ '; }
+.docspec .ds-list-square, .worksheet-content ul[data-marker="square"] { list-style-type: square; }
+.docspec .ds-list-check, .worksheet-content ul[data-marker="check"] { list-style-type: '☐ '; }
+.docspec .ds-list-num-a, .worksheet-content ol[data-numbering="a"] { list-style-type: lower-alpha; }
+.docspec .ds-list-num-i, .worksheet-content ol[data-numbering="i"] { list-style-type: lower-roman; }
+.ds-color { border-radius: 2px; padding: 0 1px; }
 /* Ausrichtung der Tabelle (align) – Zellen mit eigener Ausrichtung tragen sie im style */
 .docspec .ds-table.ds-align-left > * > tr > td, .docspec .ds-table.ds-align-left > * > tr > th { text-align: left; }
 .docspec .ds-table.ds-align-center > * > tr > td, .docspec .ds-table.ds-align-center > * > tr > th { text-align: center; }
@@ -3729,6 +3737,10 @@ body {
 .ds-vtoolbar select { font-size: 0.85em; padding: 2px 4px; width: auto; flex: 0 0 auto; margin: 0 4px 0 0; }
 .ds-vtoolbar .rt-btn { padding: 2px 6px; min-width: 0; }
 .ds-vtoolbar .ds-vplus { font-weight: 700; }
+.ds-vtoolbar .ds-tb-sep { width: 1px; align-self: stretch; background: var(--border); margin: 0 4px; }
+.ds-vtoolbar .ds-dd { display: inline-flex; align-items: center; gap: 1px; }
+.ds-vtoolbar .ds-dd-caret { font-size: 0.7em; opacity: 0.7; }
+.ds-vtoolbar .ds-dd-a { font-weight: 700; border-bottom: 3px solid #1d4ed8; line-height: 1; }
 /* Tabellenleiste (table-tools.js): eigene Zeile in der haftenden Leiste, nur in einer Tabelle sichtbar */
 .ds-tablebar { flex-basis: 100%; display: flex; flex-wrap: wrap; gap: 2px 4px; align-items: center; padding: 3px 0 0; border-top: 1px solid var(--border); margin-top: 2px; font-size: 0.85em; }
 .ds-tablebar[hidden] { display: none; }

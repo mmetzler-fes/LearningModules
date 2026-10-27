@@ -115,8 +115,15 @@ INLINE_RE = re.compile(
     r"|\^\{(?P<sup>[^}]{1,40})\}"
     r"|_\{(?P<sub>[^}]{1,24})\}"
     r"|\[(?P<atext>[^\]\n]+)\]\((?P<href>(?:https?://|mailto:)[^)\s]+)\)"
+    r"|\[(?P<ctext>[^\]\n]+)\]\{(?P<color>[a-z-]+(?:,[a-z-]+)?)\}"
 )
-INLINE_HINT_RE = re.compile(r"\\[\\*`\[\]^~+{}]|`|\*|\+\+|~~|\^\{|_\{|\]\(")
+# Farben im Text ([Text]{blau,hl-gelb}) – wie docspec.js; kein Rot (rot = Lösung).
+TEXT_COLORS = {"blau": "#1d4ed8", "gruen": "#15803d", "orange": "#c2410c", "lila": "#7e22ce", "grau": "#6b7280"}
+HIGHLIGHTS = {"gelb": "#fef08a", "gruen": "#bbf7d0", "blau": "#bfdbfe", "rosa": "#fbcfe8"}
+# Rahmenfarbe einer Tabelle (lineColor) und Hintergrund einer Zelle (background) – wie docspec.js.
+LINE_COLORS = {"schwarz": "#000000", "grau": "#9ca3af", "blau": "#1d4ed8", "gruen": "#15803d", "orange": "#c2410c", "lila": "#7e22ce"}
+CELL_BACKGROUNDS = {"grau": "#e5e7eb", "gelb": "#fef08a", "gruen": "#bbf7d0", "blau": "#bfdbfe", "rosa": "#fbcfe8"}
+INLINE_HINT_RE = re.compile(r"\\[\\*`\[\]^~+{}]|`|\*|\+\+|~~|\^\{|_\{|\]\(|\]\{")
 INLINE_STYLES = {
     "b": ("AB_Fett", {"fontweight": "bold", "fontweightasian": "bold", "fontweightcomplex": "bold"}),
     "i": ("AB_Kursiv", {"fontstyle": "italic", "fontstyleasian": "italic", "fontstylecomplex": "italic"}),
@@ -353,14 +360,18 @@ def unresolved_placeholders(doc) -> list[str]:
 # Inhaltsblöcke -> ODF
 # --------------------------------------------------------------------------
 
-def ensure_bullet_list_style(doc, name: str = "AB_Aufzaehlung") -> str:
-    """Aufzählungsliste mit Punkt-Symbol, falls noch nicht vorhanden."""
+# Zeichen der Aufzählung (`marker`): Strich, Pfeil, Quadrat, Checkliste.
+LIST_MARKERS = {"dash": "–", "arrow": "➤", "square": "■", "check": "☐"}
+
+
+def ensure_bullet_list_style(doc, name: str = "AB_Aufzaehlung", char: str = "•") -> str:
+    """Aufzählungsliste mit Punkt-Symbol (oder `char`), falls noch nicht vorhanden."""
     for ls in doc.styles.getElementsByType(ListStyle):
         if ls.getAttribute("name") == name:
             return name
     ls = ListStyle(name=name)
     for level in range(1, 4):
-        bullet = ListLevelStyleBullet(level=str(level), bulletchar="•")
+        bullet = ListLevelStyleBullet(level=str(level), bulletchar=char)
         props = ListLevelProperties()
         props.setAttribute("listlevelpositionandspacemode", "label-alignment")
         align = ListLevelLabelAlignment(labelfollowedby="listtab")
@@ -408,6 +419,34 @@ def inline_style(kind: str) -> str:
     return name
 
 
+def color_spec(spec: str) -> tuple[str | None, str | None]:
+    """„blau,hl-gelb“ → (Schriftfarbe, Hintergrund) als #hex – unbekannte Namen fallen weg."""
+    color = hl = None
+    for part in spec.split(","):
+        if part.startswith("hl-") and part[3:] in HIGHLIGHTS:
+            hl = HIGHLIGHTS[part[3:]]
+        elif part in TEXT_COLORS:
+            color = TEXT_COLORS[part]
+    return (color, hl) if color or hl else None
+
+
+def color_style(spec: tuple[str | None, str | None]) -> str:
+    """Zeichenvorlage für Farbe und Hervorhebung – erst bei Bedarf."""
+    color, hl = spec
+    name = "AB_Farbe_" + (color or "x").lstrip("#") + "_" + (hl or "x").lstrip("#")
+    if name not in _inline["present"]:
+        props = {}
+        if color:
+            props["color"] = color
+        if hl:
+            props["backgroundcolor"] = hl
+        style = Style(name=name, family="text")
+        style.addElement(TextProperties(**props))
+        _inline["doc"].automaticstyles.addElement(style)
+        _inline["present"].add(name)
+    return name
+
+
 def parse_inline(text: str) -> list[tuple[str, Any]]:
     """Text → Knoten: ("text", s), ("b"|"i"|"u"|"s", [...]), ("sup"|"sub"|"code", s), ("a", (href, [...]))."""
     nodes: list[tuple[str, Any]] = []
@@ -427,6 +466,12 @@ def parse_inline(text: str) -> list[tuple[str, Any]]:
             add_text(m.group("esc"))
         elif m.group("href") is not None:
             nodes.append(("a", (m.group("href"), parse_inline(m.group("atext")))))
+        elif m.group("color") is not None:
+            spec = color_spec(m.group("color"))
+            if spec:
+                nodes.append(("color", (spec, parse_inline(m.group("ctext")))))
+            else:
+                add_text(m.group(0))
         elif kind == "bi":
             nodes.append(("b", [("i", parse_inline(m.group("bi")))]))
         elif kind in ("b", "i", "u", "s"):
@@ -455,6 +500,10 @@ def add_inline(el: Element, nodes: list[tuple[str, Any]], line_start: bool) -> N
             link = A(href=value[0], type="simple")
             add_inline(link, value[1], False)
             el.addElement(link)
+        elif kind == "color":
+            span = Span(stylename=color_style(value[0]))
+            add_inline(span, value[1], False)
+            el.addElement(span)
         line_start = False
 
 
@@ -999,15 +1048,17 @@ def bullet_list(items: list[Any], para_style: str, list_style: str) -> Element:
     return lst
 
 
-def ensure_number_list_style(doc, name: str = "AB_Nummerierung") -> str:
-    """Nummerierte Liste 1. 2. 3. (Unterpunkte a) b) c)), erst bei Bedarf."""
+def ensure_number_list_style(doc, name: str = "AB_Nummerierung", numbering: str = "1") -> str:
+    """Nummerierte Liste 1. 2. 3. (Unterpunkte a) b) c)), erst bei Bedarf.
+    `numbering` „a“: a) b) c), „i“: i. ii. iii. auf der ersten Ebene."""
     for ls in doc.styles.getElementsByType(ListStyle):
         if ls.getAttribute("name") == name:
             return name
     ls = ListStyle(name=name)
+    first = {"a": ("a", ")"), "i": ("i", ".")}.get(numbering, ("1", "."))
     for level in range(1, 4):
-        num = ListLevelStyleNumber(level=str(level), numformat="1" if level != 2 else "a",
-                                   numsuffix="." if level != 2 else ")")
+        fmt, suffix = first if level == 1 else ("1", ".") if level != 2 else ("a", ")")
+        num = ListLevelStyleNumber(level=str(level), numformat=fmt, numsuffix=suffix)
         props = ListLevelProperties()
         props.setAttribute("listlevelpositionandspacemode", "label-alignment")
         align = ListLevelLabelAlignment(labelfollowedby="listtab")
@@ -1018,6 +1069,27 @@ def ensure_number_list_style(doc, name: str = "AB_Nummerierung") -> str:
         num.addElement(props)
         ls.addElement(num)
     doc.styles.addElement(ls)
+    return name
+
+
+def para_variant(ctx: dict[str, Any], base: str, block: dict[str, Any]) -> str:
+    """Absatzvorlage wie `base` mit Einzug (`indent` in cm) und Zeilenabstand
+    (`lineHeight` 1, 1.15, 1.5, 2) – ohne Angaben `base`."""
+    indent = block.get("indent") if isinstance(block.get("indent"), int) and 1 <= block.get("indent") <= 6 else None
+    lh = block.get("lineHeight") if block.get("lineHeight") in (1, 1.15, 1.5, 2) else None
+    if not indent and not lh:
+        return base
+    name = f"AB_Abs_{indent or 0}_{str(lh or 0).replace('.', '_')}_{base}"
+    if name not in ctx["present"]:
+        props: dict[str, str] = {}
+        if indent:
+            props["marginleft"] = f"{indent}cm"
+        if lh:
+            props["lineheight"] = f"{round(lh * 100)}%"
+        style = Style(name=name, family="paragraph", parentstylename=base)
+        style.addElement(ParagraphProperties(**props))
+        ctx["doc"].automaticstyles.addElement(style)
+        ctx["present"].add(name)
     return name
 
 
@@ -1415,6 +1487,7 @@ def spanned_table(block: dict[str, Any], styles: dict[str, str], ctx: dict[str, 
     beside: set[tuple[int, int]] = set()   # Bilder neben dem Text (`beside: true`)
     inner_blocks: dict[tuple[int, int], list[Any]] = {}   # Bausteine in der Zelle (Tabelle in der Tabelle)
     cell_align: dict[tuple[int, int], str] = {}            # eigene Ausrichtung der Zelle
+    cell_bg: dict[tuple[int, int], str] = {}               # Hintergrund der Zelle (#hex)
     covered: set[tuple[int, int]] = set()
     columns = 1
     for r, row in enumerate(source):
@@ -1423,6 +1496,8 @@ def spanned_table(block: dict[str, Any], styles: dict[str, str], ctx: dict[str, 
             while (r, c) in covered:
                 c += 1
             start[(r, c)] = (text, cs, rs)
+            if isinstance(raw[r][k], dict) and raw[r][k].get("background") in CELL_BACKGROUNDS:
+                cell_bg[(r, c)] = CELL_BACKGROUNDS[raw[r][k]["background"]]
             if isinstance(raw[r][k], dict) and raw[r][k].get("align") in ("left", "center", "right"):
                 cell_align[(r, c)] = raw[r][k]["align"]
             if isinstance(raw[r][k], dict) and isinstance(raw[r][k].get("blocks"), list) and raw[r][k]["blocks"]:
@@ -1458,7 +1533,9 @@ def spanned_table(block: dict[str, Any], styles: dict[str, str], ctx: dict[str, 
                     attrs["numbercolumnsspanned"] = cs
                 if rs > 1:
                     attrs["numberrowsspanned"] = rs
-                tc = TableCell(valuetype="string", stylename=cell_name, **attrs)
+                tc = TableCell(valuetype="string",
+                               stylename=cell_with_background(ctx, cell_name, cell_bg[(r, c)]) if (r, c) in cell_bg else cell_name,
+                               **attrs)
                 style = head_style if header and r == 0 else cell_style
                 own = cell_align.get((r, c))
                 if own:
@@ -1591,21 +1668,43 @@ def plain_table_styles(block: dict[str, Any], ctx: dict[str, Any], head_style: s
     return table_line_cell_style(block, ctx), head_style, cell_style
 
 
+def cell_with_background(ctx: dict[str, Any], base: str, color: str) -> str:
+    """Zellvorlage wie `base` (Linien, Innenabstand), dazu der Hintergrund `color`."""
+    name = f"{base}.bg{color.lstrip('#')}"
+    if name not in ctx["present"]:
+        props: dict[str, str] = {}
+        for root in (ctx["doc"].automaticstyles, ctx["doc"].styles):
+            for st in root.getElementsByType(Style):
+                if st.getAttribute("name") == base:
+                    for child in st.childNodes:
+                        if child.qname[1] == "table-cell-properties":
+                            for (_ns, attr), value in child.attributes.items():
+                                props[attr.replace("-", "")] = value
+        props["backgroundcolor"] = color
+        cell = Style(name=name, family="table-cell")
+        cell.addElement(TableCellProperties(**props))
+        ctx["doc"].automaticstyles.addElement(cell)
+        ctx["present"].add(name)
+    return name
+
+
 def table_line_cell_style(block: dict[str, Any], ctx: dict[str, Any]) -> str:
     """Zellvorlage mit den Linien der Tabelle (`lineWidth` in pt, `lineStyle`
     solid/dashed/dotted) – ohne Angaben die gewohnte (ABTabelle.Z)."""
     width = block.get("lineWidth")
     style = block.get("lineStyle") if block.get("lineStyle") in ("solid", "dashed", "dotted") else None
+    color = LINE_COLORS.get(block.get("lineColor"))
     if not isinstance(width, (int, float)) or not 0.25 <= width <= 6:
         width = None
-    if width is None and style is None:
+    if width is None and style is None and color is None:
         return "ABTabelle.Z"
     width = width if width is not None else 0.75
     style = style or "solid"
-    name = f"ABTabelle.Z{str(width).replace('.', '_')}{style}"
+    color = color or "#000000"
+    name = f"ABTabelle.Z{str(width).replace('.', '_')}{style}{color.lstrip('#')}"
     if name not in ctx["present"]:
         cell = Style(name=name, family="table-cell")
-        cell.addElement(TableCellProperties(padding="0.1cm", border=f"{width}pt {style} #000000"))
+        cell.addElement(TableCellProperties(padding="0.1cm", border=f"{width}pt {style} {color}"))
         ctx["doc"].automaticstyles.addElement(cell)
         ctx["present"].add(name)
     return name
@@ -1906,6 +2005,7 @@ def render_block_content(block: Any, styles: dict[str, str], ctx: dict[str, Any]
         # sichtbar von den Punkten absetzt.
         if block.get("align") in ("center", "right", "justify"):
             text_style = ensure_align_style(ctx["doc"], ctx["present"], text_style, block["align"])
+        text_style = para_variant(ctx, text_style, block)
         erster_style = (abstand_style(ctx, text_style)
                         if ctx.get("prev_kind") == "list" else text_style)
         for i, para in enumerate(str(block["text"]).split("\n\n")):
@@ -1919,8 +2019,15 @@ def render_block_content(block: Any, styles: dict[str, str], ctx: dict[str, Any]
         out.extend(code_paragraphs(read_code(block, ctx["search"]), code_style))
 
     elif kind == "list":
-        style = ensure_number_list_style(ctx["doc"]) if block.get("ordered") else ctx["list_style"]
-        out.append(bullet_list(block["items"], text_style, style))
+        numbering = block.get("numbering") if block.get("numbering") in ("a", "i") else None
+        marker = LIST_MARKERS.get(block.get("marker"))
+        if block.get("ordered"):
+            style = ensure_number_list_style(ctx["doc"], f"AB_Nummerierung_{numbering}", numbering) if numbering \
+                else ensure_number_list_style(ctx["doc"])
+        else:
+            style = ensure_bullet_list_style(ctx["doc"], f"AB_Aufzaehlung_{block['marker']}", marker) if marker \
+                else ctx["list_style"]
+        out.append(bullet_list(block["items"], para_variant(ctx, text_style, block), style))
 
     elif kind == "note":
         p = P(stylename=text_style)

@@ -21,8 +21,18 @@ Der Editor startet im Modus **✏️ Bearbeiten** – wie ein Textprogramm:
 
 - **Absatzart** links in der Leiste: Text, **Abschnitt** (1.), **Aufgabe** (1.1),
   **Teilaufgabe** (1.1.1), Überschrift ohne Nummer, Hinweis.
-- **Fett, kursiv, unterstrichen, durchgestrichen, hoch/tief**, Listen,
-  Ausrichtung, Links, **🖼 Bild** (Größe, Lage, Rahmen per Klick aufs Bild).
+- **Fett, kursiv, unterstrichen, durchgestrichen, hoch/tief**, Links,
+  **🖼 Bild** (Größe, Lage, Rahmen per Klick aufs Bild).
+- Klappmenüs wie in Google Docs:
+  - **A▾ Textfarbe** (blau, grün, orange, lila, grau – kein Rot, das heißt
+    „Lösung“) und **🖍▾ Hervorheben** (gelb, grün, blau, rosa); im YAML
+    `[Text]{blau}`, `[Text]{hl-gelb}`, beides `[Text]{blau,hl-gelb}`.
+  - **≡▾ Ausrichtung** mit Blocksatz, **↕≡▾ Zeilenabstand** (einfach, 1,15,
+    1,5, doppelt), **⇤| / |⇥ Einzug** (Absätze in 1-cm-Schritten, in Listen
+    Unterpunkte).
+  - **•≡▾ Aufzählung** (Punkt, Strich, Pfeil, Quadrat, ☐ Checkliste) und
+    **1≡▾ Nummerierung** (1. / a) / i.).
+  - **T̸ Formatierung löschen** (Fett, Farbe … der Auswahl).
 - **➕ Einfügen …**: Schreibfeld (Platz zum Schreiben – Karo, Linien, leer mit
   Rahmen oder unsichtbar; Höhe, Breite und Muster in einem kleinen Formular,
   wieder per Doppelklick auf das Feld), Quiz aus dem Lernthema,
@@ -65,6 +75,8 @@ Der Editor startet im Modus **✏️ Bearbeiten** – wie ein Textprogramm:
   **Linien:** in der Leiste Stärke (ohne, 0,5 / normal / 1 / 1,5 / 2,25 pt)
   und Art (durchgezogen, gestrichelt, gepunktet) – für die ganze Tabelle,
   auch im Druck.
+  **Farben:** Rahmenfarbe neben den Linien; **Zellfarbe** für die Zelle, bei
+  „Ganzer Tabelle“ für alle.
   **Ausrichtung:** ⇤ ↔ ⇥ in der Tabellenleiste (oder oben in der Leiste,
   wenn die Schreibmarke in einer Zelle steht) richten die Zelle aus, bei
   gewählter „Ganzer Tabelle“ alle Zellen. Tabellen ohne Linien sind ohne

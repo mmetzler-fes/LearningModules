@@ -237,6 +237,32 @@ class RenderTest(unittest.TestCase):
             content = zipfile.ZipFile(root / "out" / "blatt.odt").read("content.xml").decode()
             self.assertIn('fo:border="1.5pt dashed #000000"', content)
 
+    def test_formatleiste(self):
+        """Farbe im Text, Einzug/Zeilenabstand, Listenarten, Rahmenfarbe, Zellenhintergrund."""
+        spec = (
+            "titel: Format\ncontent:\n"
+            "  - {type: text, text: 'a [b]{blau,hl-gelb} c', indent: 2, lineHeight: 1.5}\n"
+            "  - {type: list, marker: check, items: [x]}\n"
+            "  - {type: list, ordered: true, numbering: a, items: [y]}\n"
+            "  - {type: table, lineColor: blau, rows: [[{text: z, background: gelb}]]}\n"
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "blatt").mkdir()
+            (root / "blatt" / "sp.yaml").write_text(spec, encoding="utf-8")
+            env = dict(os.environ, ARBEITSBLATT_ROOT=str(root))
+            subprocess.run([sys.executable, str(GEN / "tools" / "make_worksheet.py"), "blatt/sp.yaml",
+                            "-o", "out"], cwd=root, env=env, check=True, capture_output=True)
+            z = zipfile.ZipFile(root / "out" / "blatt.odt")
+            content = z.read("content.xml").decode()
+            styles = z.read("styles.xml").decode()
+            self.assertIn('fo:color="#1d4ed8" fo:background-color="#fef08a"', content)
+            self.assertIn('fo:margin-left="2cm" fo:line-height="150%"', content)
+            self.assertIn('text:bullet-char="☐"', content + styles)
+            self.assertRegex(content + styles, r'style:num-format="a" style:num-suffix="\)"|style:num-suffix="\)" style:num-format="a"')
+            self.assertIn('#1d4ed8"', content)
+            self.assertIn('fo:background-color="#fef08a"', content)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -1,4 +1,8 @@
 import { showContextMenu } from '../lm-editor/src/util/dom.js';
+import { LINE_COLORS, CELL_BACKGROUNDS } from '../lm-editor/src/doc/docspec.js';
+
+const LINE_COLOR_NAMES = [['', 'schwarz'], ['grau', 'grau'], ['blau', 'blau'], ['gruen', 'grün'], ['orange', 'orange'], ['lila', 'lila']];
+const BG_NAMES = [['', 'keine'], ['grau', '⬜ grau'], ['gelb', '🟨 gelb'], ['gruen', '🟩 grün'], ['blau', '🟦 blau'], ['rosa', '🩷 rosa']];
 
 // ==================== TABELLEN IM DOKUMENT-EDITOR ====================
 //
@@ -18,7 +22,7 @@ const LINE_WIDTHS = [['0', 'ohne'], ['0.5', '0,5 pt'], ['', 'normal'], ['1', '1 
 const LINE_STYLES = [['', '━ durchgezogen'], ['dashed', '┅ gestrichelt'], ['dotted', '┈ gepunktet']];
 
 /** Linien einer Tabelle im Editor setzen (wie docspec-html.js sie liest). */
-function setLines(table, { width, style }) {
+function setLines(table, { width, style, color }) {
   if (width !== undefined) {
     table.classList.toggle('ws-table-plain', width === '0');
     if (width && width !== '0') table.dataset.lineWidth = width; else delete table.dataset.lineWidth;
@@ -26,12 +30,16 @@ function setLines(table, { width, style }) {
   if (style !== undefined) {
     if (style) table.dataset.lineStyle = style; else delete table.dataset.lineStyle;
   }
+  if (color !== undefined) {
+    if (LINE_COLORS[color]) table.dataset.lineColor = color; else delete table.dataset.lineColor;
+  }
   const w = table.dataset.lineWidth;
   const st = table.dataset.lineStyle;
-  if (w || st) {
+  const c = table.dataset.lineColor;
+  if (w || st || c) {
     table.style.setProperty('--ds-line-w', `${w || 0.75}pt`);
     table.style.setProperty('--ds-line-s', st || 'solid');
-    table.style.setProperty('--ds-line-c', '#1f2937');
+    table.style.setProperty('--ds-line-c', LINE_COLORS[c] || LINE_COLORS.schwarz);
   } else ['--ds-line-w', '--ds-line-s', '--ds-line-c'].forEach((v) => table.style.removeProperty(v));
   if (!table.getAttribute('style')) table.removeAttribute('style');
   if (!table.getAttribute('class')) table.removeAttribute('class');
@@ -271,7 +279,10 @@ export function attachTableTools(surface, bar) {
     <label class="ds-tb-notcols ds-tb-beside-label" title="Bilder dieser Zelle neben dem Text statt darunter"><input type="checkbox" class="ds-tb-beside"> Bild neben Text</label>
     <label class="ds-tb-notcols" title="Linien der ganzen Tabelle – „ohne“ z. B. für Abbildungen nebeneinander">Linien
       <select class="ds-tb-lw">${LINE_WIDTHS.map(([v, l]) => `<option value="${v}">${l}</option>`).join('')}</select>
-      <select class="ds-tb-ls">${LINE_STYLES.map(([v, l]) => `<option value="${v}">${l}</option>`).join('')}</select></label>
+      <select class="ds-tb-ls">${LINE_STYLES.map(([v, l]) => `<option value="${v}">${l}</option>`).join('')}</select>
+      <select class="ds-tb-lc" title="Rahmenfarbe">${LINE_COLOR_NAMES.map(([v, l]) => `<option value="${v}">${l}</option>`).join('')}</select></label>
+    <label class="ds-tb-notcols" title="Hintergrund dieser Zelle – bei „Ganze Tabelle“ aller Zellen">Zellfarbe
+      <select class="ds-tb-bg">${BG_NAMES.map(([v, l]) => `<option value="${v}">${l}</option>`).join('')}</select></label>
     <span class="ds-tablebar-sep"></span>
     <button type="button" class="rt-btn" data-t="selectTable" title="Ganze Tabelle wählen – dann gelten ↔ Breite und ↕ Höhe für alle Spalten bzw. Zeilen; Strg+C / Strg+X">⬚ Ganze Tabelle</button>
     <button type="button" class="rt-btn" data-t="cutTable" title="Tabelle ausschneiden – danach in eine Zelle einer anderen Tabelle oder zwischen Absätze einfügen">✂ Ausschneiden</button>
@@ -283,6 +294,8 @@ export function attachTableTools(surface, bar) {
   const headBox = bar.querySelector('.ds-tb-head');
   const lwSel = bar.querySelector('.ds-tb-lw');
   const lsSel = bar.querySelector('.ds-tb-ls');
+  const lcSel = bar.querySelector('.ds-tb-lc');
+  const bgSel = bar.querySelector('.ds-tb-bg');
   const besideBox = bar.querySelector('.ds-tb-beside');
 
   // Zuletzt gewählte Zelle – die Leiste wirkt auf sie, auch wenn der Fokus im Eingabefeld steht.
@@ -371,6 +384,9 @@ export function attachTableTools(surface, bar) {
     lwSel.value = p.table.classList.contains('ws-table-plain') ? '0' : p.table.dataset.lineWidth || '';
     lsSel.value = p.table.dataset.lineStyle || '';
     lsSel.disabled = lwSel.value === '0';
+    lcSel.value = p.table.dataset.lineColor || '';
+    lcSel.disabled = lwSel.value === '0';
+    bgSel.value = cell.dataset.bg || '';
     placeCellUi();
     // Nur bei Zellen mit Bild.
     bar.querySelector('.ds-tb-beside-label').hidden = !cell.querySelector('img');
@@ -475,6 +491,19 @@ export function attachTableTools(surface, bar) {
   });
   lwSel.addEventListener('change', () => { const p = pos(); if (p) { setLines(p.table, { width: lwSel.value }); show(); } });
   lsSel.addEventListener('change', () => { const p = pos(); if (p) { setLines(p.table, { style: lsSel.value }); show(); } });
+  lcSel.addEventListener('change', () => { const p = pos(); if (p) { setLines(p.table, { color: lcSel.value }); show(); } });
+  bgSel.addEventListener('change', () => {
+    const p = pos();
+    if (!p) return;
+    const cells = wholeTable(p.table) ? p.g.rows.flatMap(cellsOf) : [cell];
+    for (const td of cells) {
+      if (CELL_BACKGROUNDS[bgSel.value]) { td.dataset.bg = bgSel.value; td.style.backgroundColor = CELL_BACKGROUNDS[bgSel.value]; } else {
+        delete td.dataset.bg;
+        td.style.removeProperty('background-color');
+      }
+      if (!td.getAttribute('style')) td.removeAttribute('style');
+    }
+  });
 
   const applySize = (input, apply) => {
     const p = pos();

@@ -20,6 +20,7 @@ import { pickQuiz as pickQuizFrom } from './quiz-picker.js';
 import { pickPdfBlocks } from './views/attachment-convert.js';
 import { showContextMenu } from '../lm-editor/src/util/dom.js';
 import { attachTableTools } from './table-tools.js';
+import { attachFormatTools } from './format-tools.js';
 
 /** Startinhalt eines neuen Dokuments – zeigt das Format an einem Beispiel. */
 const STARTER = `content:
@@ -105,9 +106,17 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
               <option value="subtask">Teilaufgabe (1.1.1)</option><option value="heading">Überschrift ohne Nummer</option><option value="note">Hinweis</option>
             </select>
             ${[['bold', '<b>F</b>', 'Fett'], ['italic', '<i>K</i>', 'Kursiv'], ['underline', '<u>U</u>', 'Unterstrichen'], ['strikeThrough', '<s>D</s>', 'Durchgestrichen'],
-              ['superscript', 'x²', 'Hochgestellt'], ['subscript', 'x₂', 'Tiefgestellt'], ['insertUnorderedList', '•', 'Aufzählung'], ['insertOrderedList', '1.', 'Nummerierung'],
-              ['justifyLeft', '⇤', 'Linksbündig'], ['justifyCenter', '↔', 'Zentriert'], ['justifyRight', '⇥', 'Rechtsbündig'], ['createLink', '🔗', 'Link']]
+              ['superscript', 'x²', 'Hochgestellt'], ['subscript', 'x₂', 'Tiefgestellt']]
               .map(([cmd, label, title]) => `<button type="button" class="rt-btn" data-cmd="${cmd}" title="${title}">${label}</button>`).join('')}
+            <span class="ds-tb-sep"></span>
+            ${[['color', '<span class="ds-dd-a">A</span>', 'Textfarbe'], ['hl', '🖍', 'Hervorheben'], ['align', '≡', 'Ausrichtung (auch Blocksatz)'],
+              ['lh', '↕≡', 'Zeilenabstand'], ['ul', '•≡', 'Aufzählung: Punkt, Strich, Pfeil, Quadrat, Checkliste'], ['ol', '1≡', 'Nummerierung: 1. / a) / i.']]
+              .map(([dd, label, title]) => `<button type="button" class="rt-btn ds-dd" data-dd="${dd}" title="${title}">${label}<span class="ds-dd-caret">▾</span></button>`).join('')}
+            <button type="button" class="rt-btn" data-fmt="outdent" title="Einzug verkleinern">⇤|</button>
+            <button type="button" class="rt-btn" data-fmt="indent" title="Einzug vergrößern">|⇥</button>
+            <span class="ds-tb-sep"></span>
+            <button type="button" class="rt-btn" data-cmd="createLink" title="Link">🔗</button>
+            <button type="button" class="rt-btn" data-fmt="clear" title="Formatierung löschen (fett, Farbe … der Auswahl)">T̸</button>
             <div class="ds-tablebar-slot"></div>
           </div>
           <div class="ds-surface worksheet-content" contenteditable="true" spellcheck="true" aria-label="Inhalt bearbeiten"></div>
@@ -477,6 +486,8 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
   });
   surfaceObserver.observe(surface, { childList: true, subtree: true, characterData: true, attributes: true });
   const tableTools = attachTableTools(surface, root.querySelector('.ds-tablebar-slot'));
+  // Leiste wie in Google Docs: Farben, Ausrichtung, Zeilenabstand, Listenarten, Einzug.
+  attachFormatTools(root.querySelector('.ds-vtoolbar'), surface, { tableTools, currentBlock: () => currentBlock() });
   if (typeof window.WorksheetImageTools !== 'undefined') {
     new window.WorksheetImageTools(surface, document.createElement('input'), root.querySelector('.ds-vtoolbar'));
     // Selten gebraucht: Bild und Zusammenstellen stehen im Menü (➕, Rechtsklick), nicht in der Leiste.

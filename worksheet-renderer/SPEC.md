@@ -113,6 +113,16 @@ content:
       - - Schaltung links
         - text: "Wertetabelle:"
           blocks: [{type: table, header: [C, B, A, X], rows: [["", "", "", ""]]}]
+  - type: text                  # Einzug in cm (1–6), Zeilenabstand 1/1.15/1.5/2;
+    indent: 2                   # im Text Farben: [Text]{blau}, [Text]{hl-gelb},
+    lineHeight: 1.5             # [Text]{blau,hl-gelb} – blau, gruen, orange,
+    text: "[Wichtig]{blau}"     # lila, grau; Hervorhebung gelb, gruen, blau, rosa
+  - type: list                  # marker: dash, arrow, square, check (☐);
+    marker: check               # nummeriert: numbering a (a) b)) oder i (i. ii.)
+    items: [Aufgabe 1, Aufgabe 2]
+  - type: table                 # Rahmenfarbe (lineColor: schwarz, grau, blau,
+    lineColor: blau             # gruen, orange, lila), Zellenhintergrund
+    rows: [[{text: a, background: gelb}]]   # (grau, gelb, gruen, blau, rosa)
   - type: table                 # Linien: Stärke in pt (0.25–6), Art solid,
     lineWidth: 1.5              # dashed oder dotted
     lineStyle: dashed

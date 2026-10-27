@@ -79,3 +79,38 @@ describe('.odt-Import: Abbildungen nebeneinander', () => {
     expect((r.html.match(/<img /g) || []).length).toBe(2);
   });
 });
+
+describe('.odt-Import: Tabellen mit Spaltenbreiten und Zeilenhöhen', () => {
+  const NS = 'xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0" '
+    + 'xmlns:table="urn:oasis:names:tc:opendocument:xmlns:table:1.0" xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0" '
+    + 'xmlns:fo="urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0"';
+  const doc = (styles: string, body: string) => {
+    const zip = new AdmZip();
+    zip.addFile('mimetype', Buffer.from('application/vnd.oasis.opendocument.text'));
+    zip.addFile('content.xml', Buffer.from(`<?xml version="1.0" encoding="UTF-8"?><office:document-content ${NS}>`
+      + `<office:automatic-styles>${styles}</office:automatic-styles><office:body><office:text>${body}</office:text></office:body></office:document-content>`));
+    return zip.toBuffer();
+  };
+  const styles = '<style:style style:name="T.A" style:family="table-column"><style:table-column-properties style:column-width="4.053cm"/></style:style>'
+    + '<style:style style:name="T.B" style:family="table-column"><style:table-column-properties style:column-width="60mm"/></style:style>'
+    + '<style:style style:name="T.2" style:family="table-row"><style:table-row-properties style:min-row-height="1.5cm"/></style:style>';
+  const cell = (inner: string) => `<table:table-cell>${inner}</table:table-cell>`;
+
+  it('übernimmt Breiten, feste Höhen und Platz aus leeren Absätzen', () => {
+    const body = '<table:table><table:table-column table:style-name="T.A" table:number-columns-repeated="2"/><table:table-column table:style-name="T.B"/>'
+      + `<table:table-row>${cell('<text:p>a</text:p>').repeat(3)}</table:table-row>`
+      + `<table:table-row table:style-name="T.2">${cell('<text:p>b</text:p>').repeat(3)}</table:table-row>`
+      + `<table:table-row>${cell('<text:p>Plan</text:p>')}${cell('<text:p/><text:p/><text:p/><text:p/>')}${cell('<text:p/>')}</table:table-row>`
+      + '</table:table>';
+    const { html } = odtToHtml(doc(styles, body), 'x.odt');
+    expect(html).toContain('<colgroup><col style="width:4.1cm"><col style="width:4.1cm"><col style="width:6cm"></colgroup>');
+    expect(html).toContain('<tr style="height:1.5cm">');
+    expect(html).toContain('<tr style="height:2.2cm">');
+    expect(html).toMatch(/<tbody><tr><td>/);
+  });
+
+  it('ohne Breite an jeder Spalte kein <colgroup>', () => {
+    const body = `<table:table><table:table-column table:style-name="T.A"/><table:table-column/><table:table-row>${cell('<text:p>a</text:p>').repeat(2)}</table:table-row></table:table>`;
+    expect(odtToHtml(doc(styles, body), 'x.odt').html).not.toContain('colgroup');
+  });
+});

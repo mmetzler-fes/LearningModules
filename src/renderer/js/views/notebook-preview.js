@@ -171,6 +171,8 @@ export class NotebookPreview {
         if (Array.isArray(shared?.modules)) return shared.modules;
         throw new Error(mods?.message || shared?.message || 'Module lassen sich nicht laden.');
       })());
+      // Einen Fehlschlag (z. B. Server startet gerade neu) nicht merken – der nächste Klick lädt neu.
+      this._modules.get(topic.id).catch(() => this._modules.delete(topic.id));
     }
     return this._modules.get(topic.id);
   }

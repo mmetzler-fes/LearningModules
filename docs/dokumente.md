@@ -77,6 +77,9 @@ Der Editor startet im Modus **✏️ Bearbeiten** – wie ein Textprogramm:
   auch im Druck.
   **Farben:** Rahmenfarbe neben den Linien; **Zellfarbe** für die Zelle, bei
   „Ganzer Tabelle“ für alle.
+  **Senkrecht:** ⤒ ⇕ ⤓ (oben, Mitte, unten) – Zelle oder, bei „Ganzer
+  Tabelle“, alle; auch im Zellenmenü ▾. Ohne Angabe stehen Zellen oben, in
+  Tabellen ohne Linien die oberen Zeilen unten (Abbildungen bündig).
   **Ausrichtung:** ⇤ ↔ ⇥ in der Tabellenleiste (oder oben in der Leiste,
   wenn die Schreibmarke in einer Zelle steht) richten die Zelle aus, bei
   gewählter „Ganzer Tabelle“ alle Zellen. Tabellen ohne Linien sind ohne

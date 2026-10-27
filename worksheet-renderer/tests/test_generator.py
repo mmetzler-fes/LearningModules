@@ -263,6 +263,20 @@ class RenderTest(unittest.TestCase):
             self.assertIn('#1d4ed8"', content)
             self.assertIn('fo:background-color="#fef08a"', content)
 
+    def test_tabelle_senkrecht(self):
+        """`valign` an Tabelle und Zelle: Zellvorlagen mit style:vertical-align."""
+        spec = "titel: V\ncontent:\n  - {type: table, valign: middle, rows: [[a, {text: b, valign: bottom}]]}\n"
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "blatt").mkdir()
+            (root / "blatt" / "sp.yaml").write_text(spec, encoding="utf-8")
+            env = dict(os.environ, ARBEITSBLATT_ROOT=str(root))
+            subprocess.run([sys.executable, str(GEN / "tools" / "make_worksheet.py"), "blatt/sp.yaml",
+                            "-o", "out"], cwd=root, env=env, check=True, capture_output=True)
+            content = zipfile.ZipFile(root / "out" / "blatt.odt").read("content.xml").decode()
+            self.assertIn('style:vertical-align="middle"', content)
+            self.assertIn('style:vertical-align="bottom"', content)
+
 
 if __name__ == "__main__":
     unittest.main()

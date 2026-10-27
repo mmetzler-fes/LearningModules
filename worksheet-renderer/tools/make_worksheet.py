@@ -1463,6 +1463,7 @@ def content_table(block: dict[str, Any], styles: dict[str, str],
         r = len(table.getElementsByType(TableRow))
         tr = TableRow(**row_style(block, ctx, r))
         name = "ABTabelle.ZRT" if cell_name == "ABTabelle.ZR" and r == total_rows - 1 else cell_name
+        name = cell_with_background(ctx, name, None, table_valign(block))
         for col in range(columns):
             tc = TableCell(valuetype="string", stylename=name)
             tc.addElement(rich_p(style, cells[col] if col < len(cells) else ""))
@@ -1497,6 +1498,7 @@ def spanned_table(block: dict[str, Any], styles: dict[str, str], ctx: dict[str, 
     inner_blocks: dict[tuple[int, int], list[Any]] = {}   # Bausteine in der Zelle (Tabelle in der Tabelle)
     cell_align: dict[tuple[int, int], str] = {}            # eigene Ausrichtung der Zelle
     cell_bg: dict[tuple[int, int], str] = {}               # Hintergrund der Zelle (#hex)
+    cell_valign: dict[tuple[int, int], str] = {}           # senkrechte Ausrichtung der Zelle
     covered: set[tuple[int, int]] = set()
     columns = 1
     for r, row in enumerate(source):
@@ -1505,6 +1507,8 @@ def spanned_table(block: dict[str, Any], styles: dict[str, str], ctx: dict[str, 
             while (r, c) in covered:
                 c += 1
             start[(r, c)] = (text, cs, rs)
+            if isinstance(raw[r][k], dict) and raw[r][k].get("valign") in ("top", "middle", "bottom"):
+                cell_valign[(r, c)] = raw[r][k]["valign"]
             if isinstance(raw[r][k], dict) and raw[r][k].get("background") in CELL_BACKGROUNDS:
                 cell_bg[(r, c)] = CELL_BACKGROUNDS[raw[r][k]["background"]]
             if isinstance(raw[r][k], dict) and raw[r][k].get("align") in ("left", "center", "right"):
@@ -1544,8 +1548,9 @@ def spanned_table(block: dict[str, Any], styles: dict[str, str], ctx: dict[str, 
                     attrs["numberrowsspanned"] = rs
                 # Ohne Linien: Bilder unten bündig, die letzte Zeile (Unterschriften, Text) oben – wie die Ansicht.
                 own_name = "ABTabelle.ZRT" if cell_name == "ABTabelle.ZR" and r + start[(r, c)][2] - 1 == nrows - 1 else cell_name
+                valign = cell_valign.get((r, c)) or table_valign(block)
                 tc = TableCell(valuetype="string",
-                               stylename=cell_with_background(ctx, own_name, cell_bg[(r, c)]) if (r, c) in cell_bg else own_name,
+                               stylename=cell_with_background(ctx, own_name, cell_bg.get((r, c)), valign),
                                **attrs)
                 style = head_style if header and r == 0 else cell_style
                 own = cell_align.get((r, c))
@@ -1679,9 +1684,12 @@ def plain_table_styles(block: dict[str, Any], ctx: dict[str, Any], head_style: s
     return table_line_cell_style(block, ctx), head_style, cell_style
 
 
-def cell_with_background(ctx: dict[str, Any], base: str, color: str) -> str:
-    """Zellvorlage wie `base` (Linien, Innenabstand), dazu der Hintergrund `color`."""
-    name = f"{base}.bg{color.lstrip('#')}"
+def cell_with_background(ctx: dict[str, Any], base: str, color: str | None, valign: str | None = None) -> str:
+    """Zellvorlage wie `base` (Linien, Innenabstand), dazu Hintergrund `color`
+    und/oder senkrechte Ausrichtung `valign` (top, middle, bottom)."""
+    if not color and not valign:
+        return base
+    name = f"{base}.bg{(color or 'x').lstrip('#')}.v{valign or 'x'}"
     if name not in ctx["present"]:
         props: dict[str, str] = {}
         for root in (ctx["doc"].automaticstyles, ctx["doc"].styles):
@@ -1691,12 +1699,20 @@ def cell_with_background(ctx: dict[str, Any], base: str, color: str) -> str:
                         if child.qname[1] == "table-cell-properties":
                             for (_ns, attr), value in child.attributes.items():
                                 props[attr.replace("-", "")] = value
-        props["backgroundcolor"] = color
+        if color:
+            props["backgroundcolor"] = color
+        if valign:
+            props["verticalalign"] = valign
         cell = Style(name=name, family="table-cell")
         cell.addElement(TableCellProperties(**props))
         ctx["doc"].automaticstyles.addElement(cell)
         ctx["present"].add(name)
     return name
+
+
+def table_valign(block: dict[str, Any]) -> str | None:
+    """Senkrechte Ausrichtung aller Zellen (`valign`) – oder None."""
+    return block.get("valign") if block.get("valign") in ("top", "middle", "bottom") else None
 
 
 def table_line_cell_style(block: dict[str, Any], ctx: dict[str, Any]) -> str:

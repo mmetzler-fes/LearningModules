@@ -129,6 +129,7 @@ content:
     rows: [[a, b]]
   - type: table                 # Ausrichtung aller Zellen (left, center, right);
     align: left                 # eine Zelle kann eigene haben. Ohne Linien
+    valign: middle              # senkrecht: top, middle, bottom (auch je Zelle)
     border: false               # (border: false) ist sonst zentriert.
     rows:
       - [Name, {text: "3,50 €", align: right}]

@@ -274,6 +274,9 @@ export function attachTableTools(surface, bar) {
     <button type="button" class="rt-btn ds-tb-notcols" data-t="alignLeft" title="Linksbündig – diese Zelle, bei „Ganze Tabelle“ alle">⇤</button>
     <button type="button" class="rt-btn ds-tb-notcols" data-t="alignCenter" title="Zentriert – diese Zelle, bei „Ganze Tabelle“ alle">↔</button>
     <button type="button" class="rt-btn ds-tb-notcols" data-t="alignRight" title="Rechtsbündig – diese Zelle, bei „Ganze Tabelle“ alle">⇥</button>
+    <button type="button" class="rt-btn" data-t="valignTop" title="Oben – diese Zelle, bei „Ganze Tabelle“ alle">⤒</button>
+    <button type="button" class="rt-btn" data-t="valignMiddle" title="Mitte (senkrecht) – diese Zelle, bei „Ganze Tabelle“ alle">⇕</button>
+    <button type="button" class="rt-btn" data-t="valignBottom" title="Unten – diese Zelle, bei „Ganze Tabelle“ alle">⤓</button>
     <span class="ds-tablebar-sep"></span>
     <label class="ds-tb-notcols" title="Erste Zeile als Kopfzeile (fett)"><input type="checkbox" class="ds-tb-head"> Kopfzeile</label>
     <label class="ds-tb-notcols ds-tb-beside-label" title="Bilder dieser Zelle neben dem Text statt darunter"><input type="checkbox" class="ds-tb-beside"> Bild neben Text</label>
@@ -435,6 +438,16 @@ export function attachTableTools(surface, bar) {
     return true;
   };
 
+  /** Senkrecht ausrichten: ganze Tabelle (data-valign) oder die Zelle der Schreibmarke. */
+  const valignCells = (dir) => {
+    const p = pos();
+    if (!p) return;
+    if (wholeTable(p.table)) {
+      p.table.dataset.valign = dir;
+      for (const tr of p.g.rows) for (const td of cellsOf(tr)) { td.style.removeProperty('vertical-align'); if (!td.getAttribute('style')) td.removeAttribute('style'); }
+    } else cell.style.verticalAlign = dir;
+  };
+
   const run = (t) => {
     const p = pos();
     if (!p) return;
@@ -468,6 +481,9 @@ export function attachTableTools(surface, bar) {
         return;
       case 'alignLeft': case 'alignCenter': case 'alignRight':
         alignCells(t.slice(5).toLowerCase());
+        return;
+      case 'valignTop': case 'valignMiddle': case 'valignBottom':
+        valignCells(t.slice(6).toLowerCase());
         return;
       case 'evenWidths':
         [...table.children].filter((c) => c.tagName === 'COLGROUP').forEach((c) => c.remove());
@@ -780,6 +796,9 @@ export function attachTableTools(surface, bar) {
       { label: '⇤ Zelle linksbündig', onClick: at('alignLeft') },
       { label: '↔ Zelle zentriert', onClick: at('alignCenter') },
       { label: '⇥ Zelle rechtsbündig', onClick: at('alignRight') },
+      { label: '⤒ Zelle oben', onClick: at('valignTop') },
+      { label: '⇕ Zelle Mitte (senkrecht)', onClick: at('valignMiddle') },
+      { label: '⤓ Zelle unten', onClick: at('valignBottom') },
       ...(td.querySelector('img') ? [{ label: `${td.classList.contains('ws-cell-beside') ? '✓ ' : ''}Bild neben Text`, onClick: () => { td.classList.toggle('ws-cell-beside'); cell = td; show(); } }] : []),
       '-',
       { label: `${[...table.children].some((c) => c.tagName === 'THEAD') ? '✓ ' : ''}Kopfzeile`, onClick: () => { cell = td; toggleHeader(table); focusCell(td.isConnected ? td : null); } },

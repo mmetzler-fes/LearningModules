@@ -3617,6 +3617,9 @@ body {
 .docspec .ds-table.ds-align-left > * > tr > td, .docspec .ds-table.ds-align-left > * > tr > th { text-align: left; }
 .docspec .ds-table.ds-align-center > * > tr > td, .docspec .ds-table.ds-align-center > * > tr > th { text-align: center; }
 .docspec .ds-table.ds-align-right > * > tr > td, .docspec .ds-table.ds-align-right > * > tr > th { text-align: right; }
+.docspec .ds-table.ds-valign-top > * > tr > td, .docspec .ds-table.ds-valign-top > * > tr > th { vertical-align: top; }
+.docspec .ds-table.ds-valign-middle > * > tr > td, .docspec .ds-table.ds-valign-middle > * > tr > th { vertical-align: middle; }
+.docspec .ds-table.ds-valign-bottom > * > tr > td, .docspec .ds-table.ds-valign-bottom > * > tr > th { vertical-align: bottom; }
 .docspec .ds-cell-beside .ds-cell-image { margin: 0; }
 /* Spalten (type: columns): Inhalte nebeneinander, am Handy untereinander */
 .docspec .ds-columns { display: flex; gap: 0.5cm; align-items: flex-start; margin: 0.4em 0 0.8em; }
@@ -3781,6 +3784,9 @@ body {
 .ds-surface td img, .ds-surface th img { display: block; margin: 4px 0; }
 .ds-surface td.ws-cell-beside img, .ds-surface th.ws-cell-beside img { display: inline-block; vertical-align: middle; margin: 2px 0 2px 8px; }
 .ds-surface td:empty, .ds-surface th:empty { height: 1.6em; }
+.worksheet-content table[data-valign="top"] > * > tr > td, .worksheet-content table[data-valign="top"] > * > tr > th { vertical-align: top; }
+.worksheet-content table[data-valign="middle"] > * > tr > td, .worksheet-content table[data-valign="middle"] > * > tr > th { vertical-align: middle; }
+.worksheet-content table[data-valign="bottom"] > * > tr > td, .worksheet-content table[data-valign="bottom"] > * > tr > th { vertical-align: bottom; }
 .worksheet-content table[data-align="left"] > * > tr > td, .worksheet-content table[data-align="left"] > * > tr > th { text-align: left; }
 .worksheet-content table[data-align="center"] > * > tr > td, .worksheet-content table[data-align="center"] > * > tr > th { text-align: center; }
 .worksheet-content table[data-align="right"] > * > tr > td, .worksheet-content table[data-align="right"] > * > tr > th { text-align: right; }

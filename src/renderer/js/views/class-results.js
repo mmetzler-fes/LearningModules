@@ -267,9 +267,12 @@ export class ClassResultsView {
   }
 
   /**
-   * Alle Schüler der Klasse, je Aufgabe des gewählten Links ✓ erledigt,
-   * ▶ gerade dran; ✍️ wer in den letzten Minuten mit dem Stift schreibt.
-   * Frischt sich alle 5 Sekunden auf, solange der Reiter offen ist.
+   * Live: Wer arbeitet gerade woran? Vorgabe „Alle Zuweisungen“ – je Schüler
+   * sein aktueller Durchlauf: Zuweisung, Lernmodul, Fortschritt. Mit einer
+   * gewählten Zuweisung die Tabelle Schüler × Aufgaben. ✓ bearbeitet,
+   * ⤼ übersprungen (Weiter ohne Eingabe), ▶ gerade dran; ✍️ wer in den letzten
+   * Minuten mit dem Stift schreibt. Frischt sich alle 5 Sekunden auf, solange
+   * der Reiter offen ist.
    */
   async _renderLive() {
     this._stopLive();
@@ -281,10 +284,8 @@ export class ClassResultsView {
     const now = new Date(live.now).getTime();
     const links = new Map();
     for (const r of live.runs) if (!links.has(r.linkId)) links.set(r.linkId, r.linkName || 'Link');
-    if (!links.has(this._liveLink)) this._liveLink = live.runs[0]?.linkId || null;
-    const runs = live.runs.filter((r) => r.linkId === this._liveLink);
-    const steps = runs.reduce((longest, r) => (r.steps.length > longest.length ? r.steps : longest), []);
-    const byStudent = new Map(runs.map((r) => [r.studentId, r]));
+    if (this._liveLink !== '*' && !links.has(this._liveLink)) this._liveLink = '*';
+    const all = this._liveLink === '*';
     const inkBy = new Map();
     for (const w of live.ink) {
       if (now - new Date(w.updatedAt).getTime() > 10 * 60 * 1000) continue;
@@ -294,32 +295,84 @@ export class ClassResultsView {
       const m = Math.round((now - new Date(d).getTime()) / 60000);
       return m < 1 ? 'gerade' : m < 60 ? `vor ${m} min` : `vor ${Math.round(m / 60)} h`;
     };
-    const known = new Set(live.students.map((s) => s.id));
-    const rows = [...live.students, ...runs.filter((r) => !known.has(r.studentId)).map((r) => ({ id: r.studentId, name: r.studentName }))];
-    const finished = runs.filter((r) => r.finishedAt).length;
-    const cell = (r, i) => {
-      if (!r) return '<td></td>';
-      if (i < r.done) return '<td class="cr-live-done" title="erledigt">✓</td>';
-      if (i === r.done && !r.finishedAt) return '<td class="cr-live-now" title="gerade dran">▶</td>';
-      return '<td></td>';
+    // Stand einer Aufgabe: ✓ bearbeitet, ⤼ übersprungen, ▶ gerade dran.
+    const stepState = (r, i) => {
+      if (i === r.done && !r.finishedAt) return 'now';
+      const st = r.states?.[i];
+      if (st === 'd') return 'done';
+      if (st === 's') return 'skip';
+      // Ältere Meldungen ohne Stand je Aufgabe: alles davor zählt als bearbeitet.
+      return !r.states?.length && i < r.done ? 'done' : '';
     };
-    this._out.innerHTML = links.size ? `
-      <div class="cr-works-bar">
-        <label>Link <select class="cr-live-link">${[...links].map(([id, name]) => `<option value="${escapeAttr(id)}" ${id === this._liveLink ? 'selected' : ''}>${escapeHtml(name)}</option>`).join('')}</select></label>
-        <span class="hint">${runs.length} von ${live.students.length} Schülern dabei · ${finished} fertig · frischt sich alle 5 s auf</span>
-      </div>
-      <div class="cr-live-wrap"><table class="cr-live">
-        <thead><tr><th>Schüler</th>${steps.map((t, i) => `<th title="${escapeAttr(t)}">${i + 1}</th>`).join('')}<th>Stand</th></tr></thead>
-        <tbody>${rows.map((s) => {
-          const r = byStudent.get(s.id);
-          const ink = inkBy.get(s.id);
-          const state = !r ? '<span class="hint">noch nicht gestartet</span>'
-            : r.finishedAt ? `✅ fertig <span class="hint">${escapeHtml(ago(r.finishedAt))}</span>`
-              : `${r.done}/${r.steps.length} <span class="hint">${escapeHtml(ago(r.updatedAt))}</span>`;
-          return `<tr class="${r ? '' : 'cr-live-absent'}"><td>${escapeHtml(s.name)}${ink ? ` <span title="schreibt mit dem Stift: ${escapeAttr(ink.moduleTitle)}">✍️</span>` : ''}</td>
-            ${steps.map((_, i) => cell(r, i)).join('')}<td>${state}</td></tr>`;
-        }).join('')}</tbody>
-      </table></div>` : `<div class="empty-state"><span class="empty-icon">📡</span>
+    const CELL = { done: ['cr-live-done', 'bearbeitet', '✓'], skip: ['cr-live-skip', 'übersprungen (Weiter ohne Eingabe)', '⤼'], now: ['cr-live-now', 'gerade dran', '▶'] };
+    const cell = (r, i) => {
+      const c = r && CELL[stepState(r, i)];
+      return c ? `<td class="${c[0]}" title="${c[1]}">${c[2]}</td>` : '<td></td>';
+    };
+    const counts = (r) => {
+      const n = r.steps.map((_, i) => stepState(r, i));
+      return { done: n.filter((x) => x === 'done').length, skip: n.filter((x) => x === 'skip').length };
+    };
+    const progress = (r) => {
+      if (r.finishedAt) {
+        const c = counts(r);
+        return `✅ fertig${c.skip ? ` <span class="cr-live-skip-note">⤼ ${c.skip} übersprungen</span>` : ''} <span class="hint">${escapeHtml(ago(r.finishedAt))}</span>`;
+      }
+      const c = counts(r);
+      return `${c.done}/${r.steps.length}${c.skip ? ` <span class="cr-live-skip-note">⤼ ${c.skip}</span>` : ''} <span class="hint">${escapeHtml(ago(r.updatedAt))}</span>`;
+    };
+    // Kleine Leiste je Aufgabe (Übersicht): Titel beim Darüberfahren.
+    const strip = (r) => `<span class="cr-live-strip">${r.steps.map((t, i) => {
+      const st = stepState(r, i);
+      return `<i class="${st ? `cr-strip-${st}` : ''}" title="${escapeAttr(`${i + 1}. ${t}${st === 'skip' ? ' – übersprungen' : st === 'done' ? ' – bearbeitet' : st === 'now' ? ' – gerade dran' : ''}`)}"></i>`;
+    }).join('')}</span>`;
+    const nameCell = (s) => `<td>${escapeHtml(s.name)}${inkBy.get(s.id) ? ` <span title="schreibt mit dem Stift: ${escapeAttr(inkBy.get(s.id).moduleTitle)}">✍️</span>` : ''}</td>`;
+    const known = new Set(live.students.map((s) => s.id));
+    const select = `<label>Zuweisung <select class="cr-live-link">
+        <option value="*" ${all ? 'selected' : ''}>Alle – wer arbeitet woran?</option>
+        ${[...links].map(([id, name]) => `<option value="${escapeAttr(id)}" ${id === this._liveLink ? 'selected' : ''}>${escapeHtml(name)}</option>`).join('')}</select></label>`;
+
+    let body = '';
+    if (all) {
+      // Je Schüler der zuletzt gemeldete Durchlauf (der Server liefert die neuesten zuerst).
+      const latest = new Map();
+      for (const r of live.runs) if (!latest.has(r.studentId)) latest.set(r.studentId, r);
+      const rows = [...live.students, ...[...latest.values()].filter((r) => !known.has(r.studentId)).map((r) => ({ id: r.studentId, name: r.studentName }))];
+      const active = [...latest.values()].filter((r) => !r.finishedAt).length;
+      body = `
+        <div class="cr-works-bar">${select}
+          <span class="hint">${latest.size} von ${live.students.length} Schülern dabei · ${active} arbeiten gerade · frischt sich alle 5 s auf</span></div>
+        <div class="cr-live-wrap"><table class="cr-live cr-live-all">
+          <thead><tr><th>Schüler</th><th>Zuweisung</th><th>Lernmodul gerade</th><th>Fortschritt</th><th>Stand</th></tr></thead>
+          <tbody>${rows.map((s) => {
+            const r = latest.get(s.id);
+            if (!r) return `<tr class="cr-live-absent">${nameCell(s)}<td colspan="4"><span class="hint">noch nicht gestartet</span></td></tr>`;
+            const current = r.finishedAt ? '<span class="hint">—</span>' : `<strong>${r.done + 1}.</strong> ${escapeHtml(r.steps[r.done] || '')}`;
+            return `<tr>${nameCell(s)}<td>${escapeHtml(r.linkName || 'Zuweisung')}${(live.runs.filter((x) => x.studentId === s.id).length > 1) ? ' <span class="hint" title="hat heute auch andere Zuweisungen bearbeitet">+</span>' : ''}</td>
+              <td>${current}</td><td>${strip(r)}</td><td>${progress(r)}</td></tr>`;
+          }).join('')}</tbody>
+        </table></div>
+        <p class="hint">✓ bearbeitet · ⤼ übersprungen (Weiter ohne Eingabe) · ▶ gerade dran. Eine Zuweisung oben wählen für alle Aufgaben im Einzelnen.</p>`;
+    } else {
+      const runs = live.runs.filter((r) => r.linkId === this._liveLink);
+      const steps = runs.reduce((longest, r) => (r.steps.length > longest.length ? r.steps : longest), []);
+      const byStudent = new Map(runs.map((r) => [r.studentId, r]));
+      const rows = [...live.students, ...runs.filter((r) => !known.has(r.studentId)).map((r) => ({ id: r.studentId, name: r.studentName }))];
+      const finished = runs.filter((r) => r.finishedAt).length;
+      body = `
+        <div class="cr-works-bar">${select}
+          <span class="hint">${runs.length} von ${live.students.length} Schülern dabei · ${finished} fertig · frischt sich alle 5 s auf</span></div>
+        <div class="cr-live-wrap"><table class="cr-live">
+          <thead><tr><th>Schüler</th>${steps.map((t, i) => `<th title="${escapeAttr(t)}">${i + 1}</th>`).join('')}<th>Stand</th></tr></thead>
+          <tbody>${rows.map((s) => {
+            const r = byStudent.get(s.id);
+            return `<tr class="${r ? '' : 'cr-live-absent'}">${nameCell(s)}
+              ${steps.map((_, i) => cell(r, i)).join('')}<td>${r ? progress(r) : '<span class="hint">noch nicht gestartet</span>'}</td></tr>`;
+          }).join('')}</tbody>
+        </table></div>
+        <p class="hint">✓ bearbeitet · ⤼ übersprungen (Weiter ohne Eingabe) · ▶ gerade dran.</p>`;
+    }
+    this._out.innerHTML = links.size ? body : `<div class="empty-state"><span class="empty-icon">📡</span>
         <p>In den letzten 12 Stunden hat niemand aus dieser Klasse einen Klassenlink gestartet. Sobald es losgeht, erscheint es hier.</p></div>`;
     this._out.querySelector('.cr-live-link')?.addEventListener('change', (e) => { this._liveLink = e.target.value; this._renderLive(); });
     this._liveTimer = setTimeout(() => this._renderLive(), 5000);

@@ -5544,6 +5544,14 @@ body {
 .cr-live td:last-child { text-align: left; }
 .cr-live-done { background: var(--score-good-bg); color: var(--score-good-text); }
 .cr-live-now { background: var(--score-medium-bg); color: var(--score-medium-text); }
+.cr-live-skip { color: #c2410c; background: #ffedd5; font-weight: 700; text-align: center; }
+.cr-live-skip-note { color: #c2410c; font-size: 0.85em; white-space: nowrap; }
+.cr-live-strip { display: inline-flex; gap: 2px; flex-wrap: wrap; max-width: 260px; vertical-align: middle; }
+.cr-live-strip i { width: 12px; height: 12px; border-radius: 3px; background: var(--border, #e2e8f0); display: inline-block; }
+.cr-live-strip i.cr-strip-done { background: #22c55e; }
+.cr-live-strip i.cr-strip-skip { background: #f97316; }
+.cr-live-strip i.cr-strip-now { background: var(--primary, #3b82f6); box-shadow: 0 0 0 2px rgba(59,130,246,.35); }
+.cr-live-all td { vertical-align: middle; }
 .cr-live-absent td { color: var(--text-secondary); }
 
 .onenote-convert { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); }

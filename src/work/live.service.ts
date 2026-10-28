@@ -9,6 +9,11 @@ import { ClassesService } from '../classes/classes.service';
 import { readTicket } from '../classes/student-ticket';
 import { isTestStudent } from '../classes/test-student';
 
+/** Stand je Aufgabe säubern: nur 'd' (bearbeitet), 's' (übersprungen) oder ''. */
+export function cleanStates(states: unknown[], length: number): string[] {
+  return Array.from({ length }, (_, i) => (states[i] === 'd' || states[i] === 's' ? (states[i] as string) : ''));
+}
+
 /** So lange gilt ein Durchlauf in der Live-Ansicht als aktuell. */
 export const LIVE_WINDOW_MS = 12 * 60 * 60 * 1000;
 
@@ -26,8 +31,8 @@ export class LiveService {
     private readonly classes: ClassesService,
   ) {}
 
-  /** `{ linkToken, studentTicket, steps?, done, finished?, mode? }` – `steps` beim Start. */
-  async report(body: { linkToken?: string; studentTicket?: string; steps?: string[]; done?: number; finished?: boolean; mode?: string }) {
+  /** `{ linkToken, studentTicket, steps?, done, states?, finished?, mode? }` – `steps` beim Start. */
+  async report(body: { linkToken?: string; studentTicket?: string; steps?: string[]; done?: number; states?: string[]; finished?: boolean; mode?: string }) {
     const found = body?.linkToken ? await this.links.linkOfToken(String(body.linkToken)) : null;
     if (!found?.link.classId) return { success: true, stored: false };
     const { link } = found;
@@ -39,10 +44,11 @@ export class LiveService {
     if (!row) {
       row = this.repo.create({
         id: crypto.randomUUID(), teacherId: link.ownerId, linkId: link.id, classId: link.classId,
-        studentId: ticket.s, steps: null, done: 0, finishedAt: null,
+        studentId: ticket.s, steps: null, states: null, done: 0, finishedAt: null,
       });
     }
-    if (starting) Object.assign(row, { steps: body.steps!.slice(0, 500).map((t) => String(t).slice(0, 200)), done: 0, finishedAt: null });
+    if (starting) Object.assign(row, { steps: body.steps!.slice(0, 500).map((t) => String(t).slice(0, 200)), states: null, done: 0, finishedAt: null });
+    if (Array.isArray(body.states)) row.states = cleanStates(body.states, row.steps?.length ?? 0);
     Object.assign(row, {
       linkName: link.name || '', studentName: ticket.n, mode: String(body.mode || row.mode || '').slice(0, 20),
       done: Math.max(0, Math.min(Number(body.done) || 0, row.steps?.length ?? 0)),
@@ -68,8 +74,8 @@ export class LiveService {
     return {
       now: new Date(now).toISOString(),
       students: (klasse.students || []).map((s: any) => ({ id: s.id, name: `${s.firstName} ${s.lastName}`.trim() })),
-      runs: runs.map(({ linkId, linkName, studentId, studentName, mode, steps, done, finishedAt, updatedAt }) => ({
-        linkId, linkName, studentId, studentName, mode, steps: steps || [], done, finishedAt, updatedAt,
+      runs: runs.map(({ linkId, linkName, studentId, studentName, mode, steps, states, done, finishedAt, updatedAt }) => ({
+        linkId, linkName, studentId, studentName, mode, steps: steps || [], states: states || [], done, finishedAt, updatedAt,
       })),
       ink: ink.map(({ id, studentId, linkId, moduleTitle, updatedAt }) => ({ id, studentId, linkId, moduleTitle, updatedAt })),
     };

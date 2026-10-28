@@ -36,7 +36,11 @@ export class RunProgress extends BaseEntity {
   @Column('simple-json', { nullable: true })
   steps: string[] | null;
 
-  /** So viele Aufgaben sind erledigt (die nächste ist die aktuelle). */
+  /** Je Aufgabe: 'd' bearbeitet, 's' übersprungen (Weiter ohne Eingabe), '' noch nicht dran. */
+  @Column('simple-json', { nullable: true })
+  states: string[] | null;
+
+  /** Index der aktuellen Aufgabe (davor: bearbeitet bzw. übersprungen, siehe `states`). */
   @Column({ type: 'integer', default: 0 })
   done: number;
 

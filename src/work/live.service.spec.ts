@@ -44,4 +44,16 @@ describe('Live-Ansicht', () => {
     expect(runs.rows).toHaveLength(1);
     await expect(svc.ofClass({ userId: 'fremd' }, 'c1')).rejects.toThrow(/nicht gefunden/);
   });
+
+  it('übersprungene Aufgaben (Weiter ohne Eingabe) bleiben erkennbar', async () => {
+    const { svc, runs } = setup();
+    await svc.report({ linkToken: 'tok', studentTicket: ticket, steps: ['A', 'B', 'C'], done: 0 });
+    await svc.report({ linkToken: 'tok', studentTicket: ticket, done: 2, states: ['d', 's', 'x'] as any });
+    expect(runs.rows[0].states).toEqual(['d', 's', '']);
+    // Zurück zu B: aktuell ist wieder B, der Stand je Aufgabe bleibt.
+    await svc.report({ linkToken: 'tok', studentTicket: ticket, done: 1, states: ['d', 's', ''] });
+    expect(runs.rows[0]).toMatchObject({ done: 1, states: ['d', 's', ''] });
+    const live = await svc.ofClass({ userId: 't1' }, 'c1');
+    expect(live.runs[0].states).toEqual(['d', 's', '']);
+  });
 });

@@ -25,7 +25,7 @@ zwischen beiden.
 | 👥 Schülerdaten | je Schüler alle Ergebnisse (📈) und Blätter (✍️) |
 | 📊 Ergebnisübersicht | je Modul, wie weit jeder Schüler ist; dazu je Aufgabe und der Jahresüberblick |
 | 🏆 Quiz-Arena | Zuweisungen mit Quiz-Arena: 🏆 Quiz-Arena starten, Leitungs-Link & QR-Code |
-| 📡 Live | wer gerade bei welcher Aufgabe ist |
+| 📡 Live | wer gerade woran arbeitet – je Schüler Zuweisung, Lernmodul und Fortschritt; übersprungene Aufgaben ⤼ |
 | ⚙ Klassenbuch-Link | Link und QR-Code für die Schüler, Erstanmeldung |
 
 ### Inhaltsübersicht
@@ -133,6 +133,20 @@ Quick-Link), stehen hier. Je Zuweisung:
 - **📊 Ergebnisse** – die Ergebnisübersicht dieser Aufgabe,
 - **⏸ Ausblenden** – die Schüler sehen die ganze Zuweisung nicht mehr,
   Ergebnisse und Blätter bleiben; **▶ Wieder zeigen** holt sie zurück.
+
+### 📡 Live
+
+Vorgabe **„Alle – wer arbeitet woran?“**: je Schüler eine Zeile mit der
+Zuweisung, dem **Lernmodul, an dem er gerade ist**, einer Leiste je Aufgabe
+(grün bearbeitet, orange übersprungen, blau gerade dran) und dem Stand
+(z. B. „2/5 ⤼ 1“). Das passt, auch wenn die Schüler an verschiedenen
+Zuweisungen arbeiten. Eine Zuweisung oben wählen zeigt die Tabelle Schüler ×
+Aufgaben.
+
+**⤼ übersprungen** heißt: mit „Weiter“ verlassen, ohne etwas einzutragen.
+Aufgaben ohne Bewertung (Dokument, Video …) zählen mit dem Ansehen als
+bearbeitet. Geht ein Schüler mit „Zurück“ auf eine frühere Aufgabe, steht ▶
+wieder dort.
 
 ### 📡 An Klasse senden und 👣 Folgen
 

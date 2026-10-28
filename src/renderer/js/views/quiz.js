@@ -1,9 +1,24 @@
 import { escapeHtml } from '../utils.js';
-import { collectAnswer, splitTrueFalse } from '../../lm-editor/src/modules/answer-eval.js';
+import { collectAnswer, splitTrueFalse, GRADABLE_TYPES } from '../../lm-editor/src/modules/answer-eval.js';
 import { CompanionRun, COMPANION_MAX } from './companion-run.js';
 import { TaskTimer } from '../task-timer.js';
 import { planRun } from '../../lm-editor/src/doc/doc-quiz.js';
 import { classbookSession, backToClassbook } from './classbook-student.js';
+
+/**
+ * Stand je Aufgabe für die Live-Ansicht: 'd' bearbeitet, 's' mit „Weiter“
+ * übersprungen (nichts eingetragen), '' noch nicht dran. Aufgaben ohne
+ * Bewertung (Dokument, Video …) gelten mit dem Ansehen als bearbeitet.
+ */
+function stepStates(qs) {
+  return qs.modules.map((mod, i) => {
+    const a = qs.answers?.[i];
+    if (!a) return '';
+    if (!GRADABLE_TYPES.has(mod.type)) return 'd';
+    const given = String(a.userAnswer ?? '').replace(/[—–\-,;:|\s]/g, '');
+    return a.isCorrect || Number(a.points) > 0 || given ? 'd' : 's';
+  });
+}
 
 // ==================== QUIZ VIEW ====================
 
@@ -99,6 +114,7 @@ export class QuizView {
         state.quizState.answers[state.quizState.currentIndex] = collectAnswer(mod, this._quizModuleContainer);
         this._collectEmbedded();
         state.quizState.currentIndex--;
+        this._reportRun({ done: state.quizState.currentIndex, states: stepStates(state.quizState) });
         this._renderModule();
       });
     }
@@ -343,7 +359,7 @@ export class QuizView {
     const qs = this.app.state.quizState;
     if (!qs) return;
     qs.currentIndex++;
-    if (qs.currentIndex < qs.modules.length) this._reportRun({ done: qs.currentIndex });
+    if (qs.currentIndex < qs.modules.length) this._reportRun({ done: qs.currentIndex, states: stepStates(qs) });
     if (qs.currentIndex >= qs.modules.length) this._finishQuiz();
     else this._renderModule();
   }
@@ -578,7 +594,7 @@ export class QuizView {
       }
     };
     const saved = send ? await trySend() : true;
-    this._reportRun({ done: quizState.modules.length, finished: true });
+    this._reportRun({ done: quizState.modules.length, finished: true, states: stepStates(quizState) });
 
     this._quizPlayerArea.classList.add('hidden');
     this._quizResultArea.classList.remove('hidden');

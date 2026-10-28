@@ -258,7 +258,12 @@ export function docSpecToText(spec) {
         case 'code': out.push(`\`\`\`${b.caption ? ` ${b.caption}` : ''}`, String(b.code ?? ''), '```'); break;
         case 'formula': out.push(`Formel (StarMath): ${b.math ?? ''}`); break;
         case 'image': out.push(`[Abbildung${b.caption ? `: ${b.caption}` : ''}]`); break;
-        case 'group': out.push(`[Bildgruppe aus ${(b.items || []).length} Bildern${b.caption ? `: ${b.caption}` : ''}]`); break;
+        case 'group': {
+          // Zeichenrahmen: Texte der Textfenster gehören zum Inhalt.
+          const texts = (b.items || []).filter((it) => typeof it?.text === 'string').map((it) => it.text.replace(/\n/g, ' '));
+          out.push(`[Zeichenrahmen${b.caption ? `: ${b.caption}` : ''}${texts.length ? ` – Beschriftungen: ${texts.join(' | ')}` : ''}]`);
+          break;
+        }
         case 'quiz': out.push(`[Eingebettetes Quiz${b.title ? `: ${b.title}` : ''}]`); break;
         case 'table': {
           const rows = Array.isArray(b.rows) ? b.rows : [];

@@ -58,6 +58,15 @@ describe('WorksheetsService.prepare', () => {
     expect(job.spec.content[1]).toEqual({ type: 'note', text: '[Bildgruppe]' });
   });
 
+  it('Zeichenrahmen: Textfenster gehen unverändert an den Renderer', async () => {
+    const text = { text: 'Wechselrichter', x: 50, y: 0, w: 50, h: 20, size: 12, color: 'weiss' };
+    const { job } = await service.prepare({ content: [
+      { type: 'group', width: '12cm', ratio: 0.5, align: 'center', items: [{ src: PNG, x: 0, y: 0, w: 50, h: 100 }, text] },
+    ] }, 'T', ['pdf']);
+    expect(job.spec.content[0]).toEqual({ type: 'group', width: '12.00cm', ratio: 0.5, align: 'center',
+      items: [{ file: 'bilder/bild-1.png', x: 0, y: 0, w: 50, h: 100 }, text] });
+  });
+
   it('Beschriftung aus dem Stift-Editor: SVG als Datei, Lage in cm – auch an neu gebauten Bausteinen', async () => {
     const svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 72 36" width="72pt" height="36pt"><g><path d="M0,0L72,36"/></g></svg>';
     const ink = { svg, x: 72, y: -36, w: 72, h: 36 };

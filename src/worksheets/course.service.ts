@@ -196,7 +196,7 @@ export class CourseService {
       };
       if (out.type === 'image') await inline(out);
       // Bildgruppe: die Bilder darin ebenso.
-      if (out.type === 'group' && Array.isArray(out.items)) for (const it of out.items) await inline(it);
+      if (out.type === 'group' && Array.isArray(out.items)) for (const it of out.items) if (it?.src) await inline(it);
       return out;
     };
     return walk(spec);

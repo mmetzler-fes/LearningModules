@@ -130,6 +130,36 @@ def _is_red(color: Any) -> bool:
     return False
 
 
+# Schriftfarben eines Textfensters im Zeichenrahmen (wie docspec.js FRAME_TEXT_COLORS).
+FRAME_TEXT_COLORS = {"weiss": (1.0, 1.0, 1.0), "blau": (0.11, 0.31, 0.85), "gruen": (0.08, 0.5, 0.24),
+                     "orange": (0.76, 0.25, 0.05), "lila": (0.49, 0.13, 0.81), "grau": (0.42, 0.45, 0.5)}
+
+
+def _rgb(color: Any) -> tuple[float, float, float] | None:
+    if not isinstance(color, (list, tuple)) or not color:
+        return None
+    c = [float(x) for x in color]
+    if len(c) == 1:
+        return (c[0], c[0], c[0])
+    if len(c) == 3:
+        return (c[0], c[1], c[2])
+    if len(c) == 4:
+        cy, m, y, k = c
+        return ((1 - cy) * (1 - k), (1 - m) * (1 - k), (1 - y) * (1 - k))
+    return None
+
+
+def _frame_color(color: Any) -> str | None:
+    """Schriftfarbe → nächster Name der Palette; schwarz und Unbekanntes → None (Vorgabe schwarz)."""
+    rgb = _rgb(color)
+    if rgb is None or max(rgb) < 0.25:
+        return None
+    if min(rgb) > 0.8:
+        return "weiss"
+    name, dist = min(((n, sum((a - b) ** 2 for a, b in zip(rgb, ref))) for n, ref in FRAME_TEXT_COLORS.items()), key=lambda x: x[1])
+    return name if dist < 0.12 else None
+
+
 def _is_mono(fontname: str) -> bool:
     f = (fontname or "").lower()
     return any(k in f for k in ("mono", "courier", "consol", "menlo", "typewriter"))
@@ -233,13 +263,47 @@ def _merge_boxes(boxes: list[list[float]], gap: float = 6.0) -> list[list[float]
     return merged
 
 
-def _crop_image(page, box, resolution: int = 150, blank: list[dict[str, Any]] | None = None):
-    """Ausschnitt der Seite als Bild; `blank`: Wörter, die dort weiß übermalt werden (sie bleiben Text)."""
+def _textless_crop(page, bbox, resolution: int):
+    """Ausschnitt der Seite ohne Text (alle Textobjekte entfernt) – für Fotos, deren
+    Beschriftungen als Textfenster darüber liegen."""
+    import pypdfium2 as pdfium  # kommt mit pdfplumber
+    import pypdfium2.raw as pdfium_c
+    src = page.pdf.path
+    if not src:
+        page.pdf.stream.seek(0)
+        src = page.pdf.stream
+    doc = pdfium.PdfDocument(src)
+    pg = doc[page.page_number - 1]
+    try:
+        texts = list(pg.get_objects(filter=[pdfium_c.FPDF_PAGEOBJ_TEXT], max_depth=1))
+        for obj in texts:
+            pg.remove_obj(obj)
+            obj.close()
+        pg.gen_content()
+        height = float(page.height)
+        bitmap = pg.render(scale=resolution / 72, crop=(bbox[0], height - bbox[3], float(page.width) - bbox[2], bbox[1]))
+        image = bitmap.to_pil().convert("RGB")
+        bitmap.close()
+        return image
+    finally:
+        pg.close()
+        doc.close()
+
+
+def _crop_image(page, box, resolution: int = 150, blank: list[dict[str, Any]] | None = None, textless: bool = False):
+    """Ausschnitt der Seite als Bild; `blank`: Wörter, die dort weiß übermalt werden (sie bleiben Text);
+    `textless`: ganz ohne Text (die Beschriftungen kommen als Textfenster darüber)."""
     x0, top, x1, bottom = box
     bbox = (max(0, x0), max(0, top), min(page.width, x1), min(page.height, bottom))
     area = max((bbox[2] - bbox[0]) * (bbox[3] - bbox[1]), 1.0)
     resolution = min(resolution, int(72 * (MAX_PAGE_PIXELS / area) ** 0.5))
-    image = page.crop(bbox).to_image(resolution=resolution).original
+    if textless:
+        try:
+            image = _textless_crop(page, bbox, resolution)
+        except Exception:  # noqa: BLE001 – dann wie bisher übermalt
+            textless = False
+    if not textless:
+        image = page.crop(bbox).to_image(resolution=resolution).original
     if blank:
         from PIL import ImageDraw  # pdfplumber bringt Pillow mit
         image = image.convert("RGB")
@@ -351,19 +415,75 @@ def _photo_groups(elements: list[dict[str, Any]], figures: list[tuple[tuple[floa
             if changed:
                 break
     for members in clusters:
-        if len(members) < 2:
+        parts = [p for box, el in members for p in el.get("_parts") or [{"src": el["block"]["src"], "box": box}]]
+        if len(members) < 2 and not any("text" in p for p in parts):
             continue
-        ux0, ut, ux1, ub = union([b for b, _ in members])
-        uw, uh = ux1 - ux0, ub - ut
-        items = []
-        for (bx0, bt, bx1, bb), el in sorted(members, key=lambda m: (m[0][1], m[0][0])):
-            items.append({"src": el["block"]["src"],
-                          "x": round((bx0 - ux0) / uw * 100, 3), "y": round((bt - ut) / uh * 100, 3),
-                          "w": round((bx1 - bx0) / uw * 100, 3), "h": round((bb - bt) / uh * 100, 3)})
+        for _, el in members:
             elements.remove(el)
-        elements.append({"kind": "block", "top": ut + 3, "bottom": ub - 3, "x0": ux0 + 3, "x1": ux1 - 3, "page": members[0][1]["page"],
-                         "block": {"type": "group", "width": _width_cm(ux0 + 3, ux1 - 3, SLIDE_WIDTH_CM),
-                                   "ratio": round(uh / uw, 4), "items": items}})
+        block = _frame_block(parts)
+        ux0, ut, ux1, ub = (min(p["box"][0] for p in parts), min(p["box"][1] for p in parts),
+                            max(p["box"][2] for p in parts), max(p["box"][3] for p in parts))
+        elements.append({"kind": "block", "top": ut + 3, "bottom": ub - 3, "x0": ux0 + 3, "x1": ux1 - 3,
+                         "page": members[0][1]["page"], "block": block})
+
+
+def _label_parts(words: list[dict[str, Any]], phrase_of: dict[int, list[dict[str, Any]]],
+                 rasters: list[tuple[float, float, float, float]]) -> list[dict[str, Any]]:
+    """Beschriftungen als Textfenster: je Wortgruppe eins; untereinander stehende, gleich
+    große und gleich eingerückte Zeilen werden ein Fenster mit mehreren Zeilen."""
+    seen: set[int] = set()
+    phrases = []
+    for wd in sorted(words, key=lambda x: (float(x["top"]), float(x["x0"]))):
+        ph = phrase_of.get(id(wd), [wd])
+        if id(ph) in seen:
+            continue
+        seen.add(id(ph))
+        box = (min(float(x["x0"]) for x in ph), min(float(x["top"]) for x in ph),
+               max(float(x["x1"]) for x in ph), max(float(x["bottom"]) for x in ph))
+        size = sorted(float(x.get("size") or 10) for x in ph)[len(ph) // 2]
+        phrases.append({"text": " ".join(x["text"] for x in ph), "box": box, "size": size,
+                        "color": _frame_color(ph[0].get("non_stroking_color")),
+                        "on_photo": any(_inside({"x0": box[0], "x1": box[2], "top": box[1], "bottom": box[3]}, r, pad=0) for r in rasters)})
+    out: list[dict[str, Any]] = []
+    for ph in phrases:
+        last = out[-1] if out else None
+        if (last and abs(last["box"][0] - ph["box"][0]) < 3 and abs(last["size"] - ph["size"]) < 1
+                and 0 <= ph["box"][1] - last["box"][3] < 0.6 * ph["size"] and last["color"] == ph["color"]):
+            last["text"] += "\n" + ph["text"]
+            b = last["box"]
+            last["box"] = (min(b[0], ph["box"][0]), b[1], max(b[2], ph["box"][2]), ph["box"][3])
+            continue
+        out.append(dict(ph))
+    return out
+
+
+def _frame_block(parts: list[dict[str, Any]]) -> dict[str, Any]:
+    """Teile (Bilder mit `src`, Beschriftungen mit `text`, je mit `box` in pt auf der Seite)
+    → Zeichenrahmen (`group`), Lage in Prozent, Schrift in pt bei der Breite des Rahmens."""
+    ux0, ut = min(p["box"][0] for p in parts), min(p["box"][1] for p in parts)
+    ux1, ub = max(p["box"][2] for p in parts), max(p["box"][3] for p in parts)
+    uw, uh = ux1 - ux0, ub - ut
+    width = _width_cm(ux0 + 3, ux1 - 3, SLIDE_WIDTH_CM)
+    scale = float(width.removesuffix("cm")) / PT_TO_CM / uw   # pt im Druck je pt auf der Folie
+    pad = 0.1 / PT_TO_CM / scale                               # Innenabstand des Textfensters (0,1 cm)
+    items = []
+    images = [p for p in parts if "src" in p]
+    texts = [p for p in parts if "text" in p]
+    for p in sorted(images, key=lambda q: (q["box"][1], q["box"][0])) + texts:
+        bx0, bt, bx1, bb = p["box"]
+        if "text" in p:
+            # Etwas Luft: Die Schrift im Druck läuft nicht genau so breit wie im PDF.
+            bx0, bt = bx0 - pad, bt - pad / 2
+            bx1, bb = bx1 + pad + max(3.0, 0.12 * (bx1 - bx0)), bb + pad / 2
+            bx0, bt, bx1, bb = max(ux0, bx0), max(ut, bt), min(ux1, bx1), min(ub, bb)
+        item = {"x": round((bx0 - ux0) / uw * 100, 3), "y": round((bt - ut) / uh * 100, 3),
+                "w": round((bx1 - bx0) / uw * 100, 3), "h": round((bb - bt) / uh * 100, 3)}
+        if "text" in p:
+            items.append({"text": p["text"], "size": max(4.0, min(72.0, round(p["size"] * scale * 2) / 2)),
+                          **({"color": p["color"]} if p.get("color") else {}), **item})
+        else:
+            items.append({"src": p["src"], **item})
+    return {"type": "group", "width": width, "ratio": round(uh / uw, 4), "items": items}
 
 
 def _page_elements(page, index: int, warnings: list[str], template: set[tuple[int, ...]] | None = None) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
@@ -493,6 +613,8 @@ def _page_elements(page, index: int, warnings: list[str], template: set[tuple[in
 
     def label(wd: dict[str, Any], g: list[float]) -> bool:
         ph = phrase_of.get(id(wd), [wd])
+        if float(wd["top"]) > 0.75 * h and float(wd.get("size") or 10) < 8.5:
+            return False  # Fußzeile der Vorlage (Datum, Titel, Seitenzahl), auch wenn ein Bild bis unten reicht
         box = {"x0": min(float(x["x0"]) for x in ph), "x1": max(float(x["x1"]) for x in ph),
                "top": min(float(x["top"]) for x in ph), "bottom": max(float(x["bottom"]) for x in ph)}
         if not _inside(box, (g[0], g[1], g[2], g[3]), pad=2):
@@ -524,8 +646,11 @@ def _page_elements(page, index: int, warnings: list[str], template: set[tuple[in
                   and not any(_inside(wd, r, pad=0) for r in rasters)]
         # Logo o. Ä. der Vorlage, das in den Ausschnitt ragt, gehört nicht ins Bild.
         others += [im for im in page.images if template and _box_key(im) in template]
+        # Foto mit Beschriftungen auf einer Folie (ohne Pfeile, Kästen …): Die Beschriftungen
+        # werden Textfenster in einem Zeichenrahmen über dem Foto – änderbar statt eingebrannt.
+        frame_labels = w > 1.15 * h and n_img > 0 and not n_shape and bool(mine)
         try:
-            src = _png_data_uri(_crop_image(page, box, blank=others))
+            src = _png_data_uri(_crop_image(page, box, blank=others, textless=frame_labels))
         except Exception:  # noqa: BLE001
             warnings.append(f"Seite {index + 1}: ein Bild ließ sich nicht lesen.")
             continue
@@ -534,7 +659,8 @@ def _page_elements(page, index: int, warnings: list[str], template: set[tuple[in
         block = {"type": "image", "src": src, "width": _width_cm(x0, x1, SLIDE_WIDTH_CM if w > 1.15 * h else TEXT_WIDTH_CM)}
         # Mit Zeichnungsteilen oder Beschriftungen: Lage im PDF (`_fig`), damit die App
         # den Bereich auf Wunsch als bearbeitbare Zeichnung (.odg) holen kann (pdf_figures.py).
-        if n_shape or mine:
+        parts = [{"src": src, "box": box}] + _label_parts(mine, phrase_of, rasters) if frame_labels else None
+        if parts is None and (n_shape or mine):
             # Was im Rechteck nicht dazugehört (Titel, Aufzählung, Logo): bleibt in der Zeichnung weg.
             skip: list[list[float]] = []
             for wd in others:
@@ -545,6 +671,8 @@ def _page_elements(page, index: int, warnings: list[str], template: set[tuple[in
                     skip.append(r)
             block["_fig"] = {"page": index, "box": [round(v, 1) for v in box], "skip": skip}
         element = {"kind": "block", "top": top, "bottom": bottom, "x0": x0, "x1": x1, "page": index, "block": block}
+        if parts:
+            element["_parts"] = parts
         elements.append(element)
         figure_elements.append((box, element))
 
@@ -685,10 +813,12 @@ def text_to_spec(data: bytes) -> tuple[dict[str, Any], list[str], str]:
     title = meta_title
     headers: list[dict[str, Any]] = [el for els, _ in per_page for el in els if el["kind"] == "header"]
 
-    # Fluss: je Seite nach Position, Seiten nacheinander
+    # Fluss: je Seite nach Position, Seiten nacheinander – dazwischen der Seitenumbruch des PDFs.
     flow: list[dict[str, Any]] = []
-    for (els, _), lines in zip(per_page, pages_lines):
+    for n, ((els, _), lines) in enumerate(zip(per_page, pages_lines)):
         items = [e for e in els if e["kind"] == "block"] + lines
+        if n and items:
+            flow.append({"kind": "pagebreak", "page": n})
         flow.extend(sorted(items, key=lambda e: (round(e["top"]), e.get("x0", 0))))
 
     def heading_level(ln: dict[str, Any], prev: dict[str, Any] | None) -> str | None:
@@ -775,6 +905,12 @@ def text_to_spec(data: bytes) -> tuple[dict[str, Any], list[str], str]:
 
     section_no = 0
     for el in flow:
+        if el["kind"] == "pagebreak":
+            flush()
+            prev_line = None
+            if content and content[-1].get("type") != "pagebreak":
+                content.append({"type": "pagebreak"})
+            continue
         if el["kind"] == "block":
             # „kreisflaeche.py“ direkt über dem Code ist seine Beschriftung.
             if el["block"].get("type") == "code" and para and len(para["lines"]) == 1 \
@@ -845,6 +981,8 @@ def text_to_spec(data: bytes) -> tuple[dict[str, Any], list[str], str]:
                 para = {"lines": [ln], "red": ln["red"]}
         prev_line = ln
     flush()
+    while content and content[-1].get("type") == "pagebreak":
+        content.pop()
 
     if not title and headers:
         title = headers[0]["text"]

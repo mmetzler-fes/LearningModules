@@ -324,6 +324,34 @@ class RendererTest(unittest.TestCase):
         self.assertIn('svg:width="8.000cm"', frames[1])
         self.assertIn("Zwei Bilder", content)
 
+    def test_zeichenrahmen_textfenster_und_lage(self):
+        """Textfenster als Form mit Text in der Gruppe (Schrift der Vorlage, Größe, Farbe); Rahmen rechtsbündig."""
+        import re
+        from PIL import Image
+        buf = io.BytesIO()
+        Image.new("RGB", (200, 100), "red").save(buf, "PNG")
+        png = base64.b64encode(buf.getvalue()).decode()
+        spec = {"content": [{"type": "group", "width": "16cm", "ratio": 0.5, "align": "right", "border": True, "items": [
+            {"file": "a.png", "x": 0, "y": 0, "w": 50, "h": 100},
+            {"text": "Wechsel**richter**\nzweite Zeile", "x": 55, "y": 0, "w": 40, "h": 30, "size": 14, "color": "weiss", "fill": "gelb"}]},
+            {"type": "image", "file": "a.png", "width": "4cm", "align": "center", "caption": "Mitte"}]}
+        status, body = self.request("/render", {"spec": spec, "outputs": ["odt"], "files": {"a.png": png}})
+        self.assertEqual(status, 200, body)
+        content = self.content_xml(body["files"]["odt"])
+        self.assertEqual(content.count("<draw:custom-shape"), 1)
+        self.assertEqual(content.count("<draw:rect"), 1)  # Rand des Rahmens
+        self.assertIn("Wechsel", content)
+        self.assertIn("zweite Zeile", content)
+        style = re.search(r'<style:style style:name="AB_Rahmen_[^"]*"[^>]*>.*?</style:style>', content, re.S).group(0)
+        self.assertIn('fo:font-size="14.0pt"', style)
+        self.assertIn('style:font-name="Arial"', style)
+        self.assertIn('fo:color="#ffffff"', style)
+        self.assertIn('fo:text-align="right"', re.search(r'<style:style style:name="AB_Right_Standard".*?</style:style>', content, re.S).group(0))
+        # Bild mittig samt Unterschrift: Die Vorlage „zusammenhalten“ behält die Ausrichtung.
+        keep = re.search(r'<style:style style:name="AB_Zusammenhalten_AB_Center_Standard".*?</style:style>', content, re.S).group(0)
+        self.assertIn('fo:text-align="center"', keep)
+        self.assertIn('fo:keep-with-next="always"', keep)
+
     # ---- Word nach .odt ----
 
     def test_umwandeln_nur_word(self):

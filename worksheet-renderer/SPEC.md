@@ -160,19 +160,36 @@ content:
 ```
 
 ```yaml
-  - type: group                 # Bildgruppe: Bilder an fester Stelle zueinander
+  - type: group                 # Zeichenrahmen: Bilder und Textfenster an fester Stelle
     width: 16.5cm               # wie ein Bild: 16,5 cm füllt im Querformat die Zeile
-    ratio: 0.45                 # Höhe ÷ Breite der Gruppe
+    ratio: 0.45                 # Höhe ÷ Breite des Rahmens
+    align: center               # left | center | right – ohne: wie der Text der Vorlage
+    border: true                # Rand um den Rahmen
     caption: "Balkonkraftwerke" # optional, darunter
-    items:                      # Lage und Größe in Prozent der Gruppe
+    items:                      # Lage und Größe in Prozent des Rahmens
       - {file: a.jpg, x: 0, y: 0, w: 48, h: 100}     # in der App: src statt file
       - {file: b.jpg, x: 52, y: 10, w: 48, h: 80}
+      - text: "**Wechsel**richter"                   # Textfenster (Zeilen mit \n)
+        size: 12                # pt bei der angegebenen Breite (wächst mit)
+        align: center           # left | center | right
+        color: weiss            # weiss, blau, gruen, orange, lila, grau (ohne: schwarz)
+        fill: gelb              # Hintergrund: weiss, grau, gelb, gruen, blau, rosa
+        border: true
+        x: 52
+        y: 0
+        w: 48
+        h: 10
 ```
 
-Im Druck ist die Bildgruppe eine echte Gruppe (`draw:g`, als Zeichen
-verankert): In LibreOffice als Ganzes zu verschieben, „Gruppierung aufheben“
-gibt die einzelnen Bilder frei. Breiter als die Seite und höher als eine
-Seite (mit Überschrift) wird sie nicht.
+Im Druck ist der Zeichenrahmen eine echte Gruppe (`draw:g`, als Zeichen
+verankert): Bilder als Bildrahmen, Textfenster als Rechteck-Formen mit Text in
+der Schrift der Vorlage. In LibreOffice als Ganzes zu verschieben,
+„Gruppierung aufheben“ gibt die Teile frei. Breiter als die Seite und höher
+als eine Seite (mit Überschrift) wird er nicht; die Schrift der Textfenster
+wächst bzw. schrumpft dabei mit.
+
+Bilder (`image`) ohne `float` haben `align: left | center | right` (eigene
+Zeile); ohne Angabe stehen sie wie der Text der Vorlage.
 
 Ein Bild mit `float: left/right` bildet mit den direkt folgenden Text-,
 Listen- und Hinweisblöcken eine randlose zweispaltige Gruppe – im Druck eine

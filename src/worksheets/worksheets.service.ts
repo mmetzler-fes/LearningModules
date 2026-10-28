@@ -357,12 +357,14 @@ export class WorksheetsService {
       return { ...rest, file: name, width: width || '12cm' };
     };
 
-    // Bildgruppe: jedes Bild als Datei wie ein Bild-Baustein, Lage in Prozent der
-    // Gruppe bleibt. Was sich nicht drucken lässt, fällt heraus (mit Warnung).
+    // Zeichenrahmen (Bildgruppe): jedes Bild als Datei wie ein Bild-Baustein, Lage in
+    // Prozent bleibt; Textfenster gehen, wie sie sind. Was sich nicht drucken lässt,
+    // fällt heraus (mit Warnung).
     const groupBlock = async (block: Record<string, any>): Promise<Record<string, any>> => {
       const items: any[] = [];
       for (const it of Array.isArray(block.items) ? block.items : []) {
         if (!it || typeof it !== 'object') continue;
+        if (typeof it.text === 'string') { items.push(it); continue; }
         const done = await imageBlock({ type: 'image', src: it.src, alt: it.alt });
         if (done.type !== 'image') continue;
         items.push({ file: done.file, x: it.x, y: it.y, w: it.w, h: it.h });

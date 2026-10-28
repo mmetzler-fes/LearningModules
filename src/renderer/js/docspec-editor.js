@@ -707,6 +707,8 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
     // nur fürs YAML-Einfügen – im Bearbeiten-Reiter sind Tabelle und Kasten Text
     table: { type: 'table', header: ['Spalte 1', 'Spalte 2'], rows: [['…', '…']] },
     box: { type: 'box', title: 'Merke', blocks: [{ type: 'text', text: '…' }] },
+    // Zeichenrahmen mit einem Textfenster – der Dialog „Anordnen“ öffnet gleich.
+    frame: { type: 'group', width: '12cm', ratio: 0.25, items: [{ text: 'Text', size: 11, x: 0, y: 0, w: 50, h: 30 }] },
   };
   /** Baustein `what` hinter `after` (Block der Schreibmarke, als das Menü aufging) einfügen. */
   const insertWhat = async (what, after) => {
@@ -756,7 +758,7 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
       ...(pdfAllowed ? [['pdf', '📄 PDF an dieser Stelle']] : []),
       ['solution', '💡 Lösung'], ['formula', '∑ Formel'], ['code', '⌨ Code'], ['table', '▤ Tabelle'],
       ['box', '▢ Kasten'], ['columns', '▥ Spalten (nebeneinander)'], ['spacer', '◌ Platz (unsichtbar)'], ['pagebreak', '⤓ Seitenumbruch'],
-      ['image', '🖼 Bild…'], ['compose', '🧩 Bilder zusammenstellen…'],
+      ['image', '🖼 Bild…'], ['compose', '🧩 Bilder zusammenstellen…'], ['frame', '▭ Zeichenrahmen (Bilder und Textfenster, fest)'],
     ];
     return [...quizEntries, ...entries.map(([what, label]) => ({
       label,
@@ -852,7 +854,7 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
       entries.push({ label: '🖼 Bild kopieren', hint: 'PNG', onClick: async () => tell(await copy(img)) },
         { label: '⬇ Bild speichern', onClick: async () => tell(await save(img)) }, '-');
     }
-    // Bildgruppe: anordnen, lösen; ein Bild mit den Bildern direkt danach gruppieren.
+    // Zeichenrahmen: anordnen, lösen; ein Bild mit den Bildern direkt danach gruppieren.
     const groupWidget = widget && blockOf(widget)?.type === 'group' ? widget : null;
     if (groupWidget) {
       entries.push({ label: '✥ Anordnen …', hint: 'Enter', onClick: () => editWidget(groupWidget) },
@@ -998,7 +1000,7 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
     });
   };
 
-  // ---- Bildgruppe (Baustein `group`, image-group.js) ----
+  // ---- Zeichenrahmen (Baustein `group`, image-group.js) ----
   /** Bilder im Absatz – nur, wenn er sonst nichts enthält. */
   const imagesOfParagraph = (p) => {
     if (p?.tagName !== 'P' || p.dataset.ds) return null;
@@ -1044,7 +1046,7 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
     if (before.length) first.after(node); else first.replaceWith(node);
     paragraphs.forEach((p) => { if (p !== first || !before.length) p.remove(); else images.forEach((im) => im.remove()); });
     selectWidget(node);
-    status.textContent = `⊞ ${images.length} Bilder gruppiert – „✥ Anordnen“ (Doppelklick) schiebt sie zurecht.`;
+    status.textContent = `⊞ ${images.length} Bilder im Zeichenrahmen – „✥ Anordnen“ (Doppelklick) schiebt sie zurecht und legt Textfenster an.`;
   };
   const ungroupWidget = (w) => {
     const block = blockOf(w);
@@ -1053,7 +1055,7 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
     const tmp = document.createElement('div');
     tmp.innerHTML = specToEditorHtml({ content: ungroup(block) });
     w.replaceWith(...tmp.childNodes);
-    status.textContent = '⊟ Gruppierung gelöst – jedes Bild steht wieder für sich.';
+    status.textContent = '⊟ Gruppierung gelöst – jedes Bild steht wieder für sich, Textfenster sind Absätze.';
   };
   const arrangeWidget = async (w, block) => {
     const res = await arrangeGroup(block);
@@ -1076,7 +1078,7 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
     selectWidget(fresh);
   };
 
-  /** Baustein als YAML bearbeiten (Lösung: editSolution, Bildgruppe: Anordnen). */
+  /** Baustein als YAML bearbeiten (Lösung: editSolution, Zeichenrahmen: Anordnen). */
   const editWidget = (w) => {
     let block;
     try { block = JSON.parse(decodeURIComponent(w.dataset.block)); } catch (_) { return; }

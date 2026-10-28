@@ -3590,6 +3590,7 @@ body {
 .worksheet-content img.ws-float-right { float: right; margin: 0.2em 0 0.6em 1.2em; max-width: 50%; }
 .worksheet-content img.ws-float-left { float: left; margin: 0.2em 1.2em 0.6em 0; max-width: 50%; }
 .worksheet-content img.ws-img-center { display: block; margin: 0.6em auto; }
+.worksheet-content img.ws-img-right { display: block; margin: 0.6em 0 0.6em auto; }
 .worksheet-content img.ws-img-border { border: 1px solid var(--border); padding: 4px; background: #fff; }
 /* Überschriften, Tabellen und Kästen beginnen unter einem umflossenen Bild. */
 .worksheet-content h2, .worksheet-content h3, .worksheet-content h4,
@@ -3666,14 +3667,23 @@ body {
 .docspec .ds-formula math { font-size: 1.15em; }
 .docspec .ds-formula-left { text-align: left; }
 .docspec .ds-formula-left math { display: inline-block; }
-.docspec .ds-image { margin: 0.6em 0; text-align: center; }
+/* Ohne Angabe wie der Text der Vorlage (links); mittig bzw. rechts in eigener Zeile */
+.docspec .ds-image { margin: 0.6em 0; text-align: left; }
+.docspec .ds-image.ds-image-center, .docspec .ds-image.ds-align-center { text-align: center; }
+.docspec .ds-image.ds-align-right { text-align: right; }
 .docspec .ds-image img { max-width: 100%; height: auto; }
 .docspec .ds-image figcaption { font-size: 0.85em; font-weight: 600; margin-top: 0.3em; }
-/* Bildgruppe: Bilder an fester Stelle in einem Rahmen mit festem Seitenverhältnis */
+/* Zeichenrahmen (Bildgruppe): Bilder und Textfenster an fester Stelle, festes Seitenverhältnis */
 .docspec .ds-group { margin: 0.6em 0; }
-.docspec .ds-group-box { position: relative; max-width: 100%; margin: 0 auto; }
+.docspec .ds-group-box { position: relative; max-width: 100%; margin: 0; container-type: inline-size; }
+.docspec .ds-group.ds-align-center .ds-group-box { margin: 0 auto; }
+.docspec .ds-group.ds-align-right .ds-group-box { margin: 0 0 0 auto; }
+.docspec .ds-group-border .ds-group-box { outline: 1px solid #000; }
 .docspec .ds-group-box img { position: absolute; display: block; max-width: none; object-fit: fill; }
-.docspec .ds-group figcaption { font-size: 0.85em; font-weight: 600; margin-top: 0.3em; text-align: center; }
+.docspec .ds-group-text { position: absolute; box-sizing: border-box; overflow: hidden; line-height: 1.15; overflow-wrap: break-word; }
+.docspec .ds-group figcaption { font-size: 0.85em; font-weight: 600; margin-top: 0.3em; }
+.docspec .ds-group.ds-align-center figcaption { text-align: center; }
+.docspec .ds-group.ds-align-right figcaption { text-align: right; }
 /* Karopapier zum Eintragen, Kästchen 0,5 cm wie im Druck */
 .docspec .ds-karo {
   margin: 0.4em 0 0.8em;
@@ -3885,6 +3895,12 @@ body {
 .ig-item { position: absolute; cursor: move; user-select: none; }
 .ig-item img { width: 100%; height: 100%; display: block; object-fit: fill; pointer-events: none; }
 .ig-item.ig-selected { outline: 2px solid var(--accent); }
+.ig-text-item { box-sizing: border-box; color: #000; line-height: 1.15; overflow: hidden; outline: 1px dashed var(--text-secondary); overflow-wrap: break-word; }
+.ig-text-item.ig-selected { outline: 2px solid var(--accent); }
+.ig-text-item .ig-grip { right: 0; bottom: 0; }
+.ig-text-form { margin: 6px 0; padding: 8px; border: 1px solid var(--border); border-radius: var(--radius-sm); }
+.ig-text-form[hidden] { display: none; }
+.ig-text-form textarea { width: 100%; box-sizing: border-box; }
 .ig-grip { position: absolute; right: -6px; bottom: -6px; width: 12px; height: 12px; border-radius: 2px; background: var(--accent); cursor: nwse-resize; }
 .ig-tools { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
 .ig-caption-label { flex: 1; }

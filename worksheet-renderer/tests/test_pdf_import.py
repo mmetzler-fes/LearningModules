@@ -100,5 +100,37 @@ class SlideFigures(unittest.TestCase):
         self.assertEqual(len(groups[0]["items"]), 2)
 
 
+    def test_beschriftung_auf_foto_wird_textfenster(self):
+        doc = pdfium.PdfDocument.new()
+        page = doc.new_page(842, 595)
+        _image(doc, page, "navy", 100, 100, 600, 350)
+        _text(doc, page, "Beschriftung", 200, 300, 20)
+        page.gen_content()
+        buf = io.BytesIO()
+        doc.save(buf)
+        spec, _warnings, _title = text_to_spec(buf.getvalue())
+        groups = [b for b in spec["content"] if b["type"] == "group"]
+        self.assertEqual(len(groups), 1)
+        texts = [it for it in groups[0]["items"] if "text" in it]
+        self.assertEqual([t["text"] for t in texts], ["Beschriftung"])
+        self.assertFalse([b for b in spec["content"] if b.get("type") == "text" and "Beschriftung" in b.get("text", "")])
+        # Etwa 20 pt auf der Folie, die 600 pt breit ist und als 21,2 cm (≈ 600 pt) gedruckt wird.
+        self.assertAlmostEqual(texts[0]["size"], 20, delta=1.5)
+
+    def test_seitenumbrueche_aus_dem_pdf(self):
+        doc = pdfium.PdfDocument.new()
+        for i in range(3):
+            page = doc.new_page(595, 842)
+            _text(doc, page, f"Seite {i + 1} mit etwas Text", 72, 700, 11)
+            page.gen_content()
+        buf = io.BytesIO()
+        doc.save(buf)
+        spec, _warnings, _title = text_to_spec(buf.getvalue())
+        types = [b["type"] for b in spec["content"]]
+        self.assertEqual(types.count("pagebreak"), 2)
+        self.assertNotEqual(types[0], "pagebreak")
+        self.assertNotEqual(types[-1], "pagebreak")
+
+
 if __name__ == "__main__":
     unittest.main()

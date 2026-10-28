@@ -31,17 +31,26 @@ Der Editor startet im Modus **✏️ Bearbeiten** – wie ein Textprogramm:
   als PNG in die Zwischenablage – eine SVG-Zeichnung zusätzlich als SVG –, zum
   Einfügen in LibreOffice Draw, Word oder OneNote; **⬇** speichert es als
   Datei in der Originalform.
-- **⊞ Bildgruppe:** Rechtsklick auf ein Bild → **Mit den folgenden Bildern
-  gruppieren** fasst es mit den Bildern direkt darunter zusammen (zunächst
-  gleich hoch nebeneinander). Eine Bildgruppe hält ihre Bilder an fester
-  Stelle zueinander – im Druck ist sie eine **echte Gruppe in LibreOffice**
-  (als Ganzes verschieben; „Gruppierung aufheben“ gibt die Bilder frei).
-  Doppelklick bzw. Rechtsklick → **✥ Anordnen** öffnet den Dialog: Bilder
-  ziehen, an der Ecke größer oder kleiner ziehen, mit den Pfeiltasten fein
-  schieben, **Breite** skaliert alles gemeinsam, dazu **Als Reihe**, **Nach
-  vorn/hinten**, **Aus der Gruppe lösen** (das Bild kommt hinter die Gruppe)
-  und eine Unterschrift. Die Gruppe ist immer so groß wie ihre Bilder
-  zusammen. **⊟ Gruppierung lösen** macht wieder einzelne Bilder daraus.
+- **▭ Zeichenrahmen:** eine Fläche, in der **Bilder und Textfenster an
+  fester Stelle** stehen – im Druck eine **echte Gruppe in LibreOffice** (als
+  Ganzes verschieben; „Gruppierung aufheben“ gibt die Teile frei). Anlegen über
+  **➕ Einfügen → ▭ Zeichenrahmen** oder per Rechtsklick auf ein Bild → **Mit
+  den folgenden Bildern gruppieren** (das Bild und die Bilder direkt darunter,
+  zunächst gleich hoch nebeneinander). Doppelklick bzw. Rechtsklick → **✥
+  Anordnen** öffnet den Dialog: Teile ziehen, an der Ecke größer oder kleiner
+  ziehen (Bilder behalten ihr Seitenverhältnis), Pfeiltasten schieben fein;
+  **T Textfenster** legt eines an – mit Text (fett, kursiv, Farben wie im
+  Fließtext), Schriftgröße, Ausrichtung, Schriftfarbe, Rand und Hintergrund.
+  Dazu **Breite** (skaliert alles, auch die Schrift), **Lage** des Rahmens
+  (links, mittig, rechts – ohne Angabe wie der Text der Vorlage), **Rand**,
+  **Bilder als Reihe**, **Nach vorn/hinten**, **Aus dem Rahmen lösen** und eine
+  Unterschrift. Der Rahmen ist immer so groß wie seine Teile zusammen; im
+  Browser wird er als Ganzes skaliert, auch auf dem iPad. **⊟ Gruppierung
+  lösen** macht wieder einzelne Bilder und Absätze daraus.
+- **Lage von Bildern:** Ohne Angabe stehen Bilder (und Zeichenrahmen) wie der
+  Text der Vorlage – meist links –, im Druck wie im Browser. In der Bildleiste
+  dazu: neben dem Text links bzw. rechts, eigene Zeile mittig oder **⇥ eigene
+  Zeile rechts**.
 - Klappmenüs wie in Google Docs:
   - **A▾ Textfarbe** (blau, grün, orange, lila, grau – kein Rot, das heißt
     „Lösung“) und **🖍▾ Hervorheben** (gelb, grün, blau, rosa); im YAML
@@ -193,10 +202,15 @@ eine PowerPoint-Präsentation über „Microsoft Print to PDF“). Titel,
 Aufzählungen und Fließtext daneben bleiben bearbeitbarer Text. Bei Folien
 (Querformat) gilt: rote Titel sind Gestaltung, keine Lösung; Logo und
 Fußzeile der Vorlage fallen weg. **Fotos einer Folie**, zwischen denen kein
-Text steht, werden eine **Bildgruppe** – so wie sie auf der Folie
+Text steht, werden ein **Zeichenrahmen** – so wie sie auf der Folie
 zueinander stehen; im Editor lassen sie sich anordnen oder lösen. Hat jedes
 Foto seine eigene Überschrift oder Unterschrift (Spalten), bleiben sie
-einzeln; Schaubilder (mit Pfeilen, Beschriftungen …) bleiben für sich.
+einzeln. **Beschriftungen auf einem Foto** werden Textfenster im Rahmen – an
+ihrer Stelle, in ihrer Größe und Farbe (z. B. weiß auf dunklem Bild), aus dem
+Foto entfernt und damit änderbar. Schaubilder mit Pfeilen und Kästen bleiben
+ein Bild (oder eine Zeichnung, siehe unten). **Seitenumbrüche** des PDFs
+werden übernommen – jede Seite bzw. Folie beginnt im Dokument auf einer neuen
+Seite; wer das nicht möchte, löscht den Umbruch (⤓) im Editor.
 
 **🖍 Schaubilder als bearbeitbare Zeichnung** (Häkchen im Importdialog, nur
 bei „Text mit Struktur“, braucht eine verbundene Nextcloud und ein eigenes

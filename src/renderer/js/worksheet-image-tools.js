@@ -20,6 +20,7 @@
     { cls: '', icon: '⎵', title: 'Im Text (wie ein Buchstabe)' },
     { cls: 'ws-float-left', icon: '⬅', title: 'Links, Text fließt rechts vorbei' },
     { cls: 'ws-img-center', icon: '⬛', title: 'Eigene Zeile, mittig' },
+    { cls: 'ws-img-right', icon: '⇥', title: 'Eigene Zeile, rechts' },
     { cls: 'ws-float-right', icon: '➡', title: 'Rechts, Text fließt links vorbei' },
   ];
   const LAYOUT_CLASSES = LAYOUTS.map((l) => l.cls).filter(Boolean);

@@ -200,7 +200,7 @@ function inlineFiles(blocks: any, search: string[], files: CourseFiles, folder: 
     // Bildgruppe: die Bilder darin ebenso (ohne Datei fallen sie heraus).
     if (block.type === 'group' && Array.isArray(block.items)) {
       const items = block.items.flatMap((it: any) => {
-        if (typeof it?.file !== 'string') return it?.src ? [it] : [];
+        if (typeof it?.file !== 'string') return it?.src || typeof it?.text === 'string' ? [it] : [];
         const found = resolveFile(it.file, search, files);
         const mime = found ? IMAGE_MIME[posix.extname(found.path).slice(1).toLowerCase()] : undefined;
         if (!found || !mime) { warnings.push(`${folder}: Bild ${it.file} der Bildgruppe fehlt im ZIP.`); return []; }
@@ -295,6 +295,7 @@ export function writeCourse(
       // Bildgruppe: jedes Bild als Datei; was keine Datei wird, fällt heraus.
       if (b.type === 'group' && Array.isArray(b.items)) {
         const items = b.items.flatMap((it: any) => {
+          if (typeof it?.text === 'string') return [it];
           const m = typeof it?.src === 'string' ? /^data:([^;,]+);base64,(.*)$/s.exec(it.src) : null;
           const ext = m ? EXT[m[1].toLowerCase()] : undefined;
           if (!m || !ext) return [];

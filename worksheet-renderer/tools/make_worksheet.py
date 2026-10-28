@@ -40,6 +40,7 @@ from typing import Any
 import yaml
 from odf import teletype
 from odf.element import Element
+from odf.namespaces import FONS
 from odf.dc import Title
 from odf.opendocument import load
 from odf.style import (
@@ -57,7 +58,7 @@ from odf.style import (
     TableRowProperties,
     TextProperties,
 )
-from odf.draw import Frame, G, Image, Object, TextBox
+from odf.draw import CustomShape, EnhancedGeometry, Frame, G, Image, Object, Rect, TextBox
 from odf.table import CoveredTableCell, Table, TableCell, TableColumn, TableRow
 from odf.text import A, H, LineBreak, List, ListItem, ListLevelStyleBullet, ListLevelStyleNumber, ListStyle, P, S, Span
 
@@ -126,6 +127,9 @@ HIGHLIGHTS = {"gelb": "#fef08a", "gruen": "#bbf7d0", "blau": "#bfdbfe", "rosa": 
 # Rahmenfarbe einer Tabelle (lineColor) und Hintergrund einer Zelle (background) – wie docspec.js.
 LINE_COLORS = {"schwarz": "#000000", "grau": "#9ca3af", "blau": "#1d4ed8", "gruen": "#15803d", "orange": "#c2410c", "lila": "#7e22ce"}
 CELL_BACKGROUNDS = {"grau": "#e5e7eb", "gelb": "#fef08a", "gruen": "#bbf7d0", "blau": "#bfdbfe", "rosa": "#fbcfe8"}
+# Hintergrund eines Textfensters im Zeichenrahmen (group) – wie docspec.js FRAME_FILLS.
+FRAME_FILLS = {"weiss": "#ffffff", **CELL_BACKGROUNDS}
+FRAME_TEXT_COLORS = {"weiss": "#ffffff", **TEXT_COLORS}
 INLINE_HINT_RE = re.compile(r"\\[\\*`\[\]^~+{}]|`|\*|\+\+|~~|\^\{|_\{|\]\(|\]\{")
 INLINE_STYLES = {
     "b": ("AB_Fett", {"fontweight": "bold", "fontweightasian": "bold", "fontweightcomplex": "bold"}),
@@ -215,6 +219,34 @@ def ensure_pagebreak_style(doc, present: set[str], name: str = "AB_Seitenumbruch
     return name
 
 
+def keep_with_next_copy(auto: Style | None, base: str, name: str) -> Style:
+    """Absatzvorlage `name` wie `base`, die am folgenden Element klebt. Von einer
+    automatischen Vorlage (`auto`: Ausrichtung, Einzug …) darf nichts erben –
+    LibreOffice verwirft solche Eltern; sie wird dann samt Eigenschaften kopiert."""
+    if auto is None:
+        style = Style(name=name, family="paragraph", parentstylename=base)
+        style.addElement(ParagraphProperties(keepwithnext="always"))
+        return style
+    parent = auto.getAttribute("parentstylename")
+    style = Style(name=name, family="paragraph", **({"parentstylename": parent} if parent else {}))
+    has_para = False
+    for child in auto.childNodes:
+        if not hasattr(child, "qname"):
+            continue
+        copy = Element(qname=child.qname, check_grammar=False)
+        for key, value in child.attributes.items():
+            copy.setAttrNS(key[0], key[1], value)
+        for grand in child.childNodes:
+            copy.appendChild(grand.cloneNode(True) if hasattr(grand, "cloneNode") else grand)
+        if child.qname[1] == "paragraph-properties":
+            copy.setAttrNS(FONS, "keep-with-next", "always")
+            has_para = True
+        style.appendChild(copy)
+    if not has_para:
+        style.addElement(ParagraphProperties(keepwithnext="always"))
+    return style
+
+
 def ensure_keep_style(doc, present: set[str], base: str) -> str:
     """Absatzvorlage wie `base`, die aber am folgenden Element klebt.
 
@@ -223,9 +255,9 @@ def ensure_keep_style(doc, present: set[str], base: str) -> str:
     """
     name = f"AB_Zusammenhalten_{base}"
     if name not in present:
-        style = Style(name=name, family="paragraph", parentstylename=base)
-        style.addElement(ParagraphProperties(keepwithnext="always"))
-        doc.automaticstyles.addElement(style)
+        auto = next((st for st in doc.automaticstyles.getElementsByType(Style)
+                     if st.getAttribute("name") == base and st.getAttribute("family") == "paragraph"), None)
+        doc.automaticstyles.addElement(keep_with_next_copy(auto, base, name))
         present.add(name)
     return name
 
@@ -932,31 +964,100 @@ def image_frame(doc, block: dict[str, Any], search: list[Path], index: int, midd
     return frame
 
 
-def group_frame(doc, block: dict[str, Any], search: list[Path], index: int) -> Element:
-    """Bildgruppe als echte Gruppe (draw:g) im Textfluss: Die Bilder bleiben
-    zueinander, wo sie sind; in LibreOffice wird sie als Ganzes verschoben,
-    „Gruppierung aufheben“ gibt die einzelnen Bilder frei. Größe wie ein Bild
-    (ganze Breite im Querformat, nie breiter als die Seite, nie zu hoch)."""
-    width = float(str(block.get("width", FULL_WIDTH_CM)).removesuffix("cm"))
+def frame_shape_style(doc, border: bool, fill: str | None) -> Style:
+    """Grafikvorlage für ein Textfenster im Zeichenrahmen: ohne bzw. mit Rand und Hintergrund."""
+    cache = getattr(doc, "rahmen_stile", None)
+    if cache is None:
+        cache = doc.rahmen_stile = {}
+    key = (border, fill or "")
+    if key not in cache:
+        style = Style(name=f"AB_Rahmentext_{len(cache) + 1}", family="graphic")
+        color = FRAME_FILLS.get(fill or "")
+        style.addElement(GraphicProperties(
+            fill="solid" if color else "none", **({"fillcolor": color} if color else {}),
+            stroke="solid" if border else "none", **({"strokecolor": "#000000", "strokewidth": "0.02cm"} if border else {}),
+            textareaverticalalign="top", textareahorizontalalign="justify", autogrowheight="false", autogrowwidth="false",
+            paddingtop="0.05cm", paddingbottom="0.05cm", paddingleft="0.1cm", paddingright="0.1cm", wrapoption="wrap"))
+        doc.automaticstyles.addElement(style)
+        cache[key] = style
+    return cache[key]
+
+
+def style_font(doc, name: str) -> dict[str, str]:
+    """Schrift einer Absatzvorlage (auch geerbt) als Angaben für TextProperties."""
+    keys = {"font-name": "fontname", "font-family": "fontfamily", "font-family-generic": "fontfamilygeneric", "font-pitch": "fontpitch"}
+    styles = {st.getAttribute("name"): st for container in (doc.styles, doc.automaticstyles)
+              for st in container.getElementsByType(Style) if st.getAttribute("family") == "paragraph"}
+    found: dict[str, str] = {}
+    seen: set[str] = set()
+    while name and name in styles and name not in seen:
+        seen.add(name)
+        for props in styles[name].getElementsByType(TextProperties):
+            for (_ns, attr), value in props.attributes.items():
+                if attr in keys and keys[attr] not in found:
+                    found[keys[attr]] = value
+        name = styles[name].getAttribute("parentstylename")
+    return found
+
+
+def frame_text_style(ctx: dict[str, Any], base: str, align: str, size: float, color: str | None = None) -> str:
+    """Absatzvorlage für den Text eines Textfensters: Schrift der Vorlage, eigene Größe und Ausrichtung.
+    Die Schrift steht ausdrücklich darin – in Zeichnungsformen gälte sonst die der Grafikvorlage."""
+    hexcolor = FRAME_TEXT_COLORS.get(color or "")
+    name = f"AB_Rahmen_{base}_{align}_{size:.1f}{'_' + color if hexcolor else ''}".replace(".", "_")
+    if name not in ctx["present"]:
+        style = Style(name=name, family="paragraph", parentstylename=base)
+        style.addElement(ParagraphProperties(textalign=align, margintop="0cm", marginbottom="0cm", marginleft="0cm",
+                                             marginright="0cm", textindent="0cm"))
+        style.addElement(TextProperties(fontsize=f"{size:.1f}pt", **style_font(ctx["doc"], base),
+                                        **({"color": hexcolor} if hexcolor else {})))
+        ctx["doc"].automaticstyles.addElement(style)
+        ctx["present"].add(name)
+    return name
+
+
+def group_frame(ctx: dict[str, Any], block: dict[str, Any], text_style: str, index: int) -> Element:
+    """Zeichenrahmen (Bildgruppe) als echte Gruppe (draw:g) im Textfluss: Bilder und
+    Textfenster bleiben zueinander, wo sie sind; in LibreOffice wird sie als Ganzes
+    verschoben, „Gruppierung aufheben“ gibt die Teile frei. Größe wie ein Bild
+    (ganze Breite im Querformat, nie breiter als die Seite, nie zu hoch); die Schrift
+    der Textfenster wächst bzw. schrumpft mit."""
+    doc, search = ctx["doc"], ctx["search"]
+    nominal = float(str(block.get("width", FULL_WIDTH_CM)).removesuffix("cm"))
     ratio = float(block.get("ratio") or 0.6)
     page = KARO_COLUMNS * KARO_CELL
-    width = page if abs(width - FULL_WIDTH_CM) < 0.05 and page > FULL_WIDTH_CM else min(width, page)
+    width = page if abs(nominal - FULL_WIDTH_CM) < 0.05 and page > FULL_WIDTH_CM else min(nominal, page)
     height = width * ratio
     room = TEXT_HEIGHT_CM - 3.0
     if height > room > 0:
         width, height = width * room / height, room
+    scale = width / nominal if nominal > 0 else 1.0
     group = G(name=f"Bildgruppe{index}", anchortype="as-char", zindex="0")
+    if block.get("border"):
+        group.addElement(Rect(stylename=frame_shape_style(doc, True, None), x="0cm", y="0cm",
+                              width=f"{width:.3f}cm", height=f"{height:.3f}cm", zindex="0"))
     for n, item in enumerate(block.get("items") or [], start=1):
-        href = doc.addPicture(str(resolve_path(item["file"], search)))
-        frame = Frame(
-            name=f"Bildgruppe{index}_{n}",
-            x=f"{width * float(item['x']) / 100:.3f}cm",
-            y=f"{height * float(item['y']) / 100:.3f}cm",
-            width=f"{width * float(item['w']) / 100:.3f}cm",
-            height=f"{height * float(item['h']) / 100:.3f}cm",
-            zindex=str(n),
-        )
-        frame.addElement(Image(href=href))
+        geo = {
+            "x": f"{width * float(item['x']) / 100:.3f}cm",
+            "y": f"{height * float(item['y']) / 100:.3f}cm",
+            "width": f"{width * float(item['w']) / 100:.3f}cm",
+            "height": f"{height * float(item['h']) / 100:.3f}cm",
+            "zindex": str(n),
+        }
+        if "text" in item:
+            # Rechteck als Form mit Text (wie LibreOffice ein Textfeld speichert): Der Text bricht in der Breite um.
+            shape = CustomShape(stylename=frame_shape_style(doc, bool(item.get("border")), item.get("fill")), **geo)
+            align = item.get("align") if item.get("align") in ("left", "center", "right") else "left"
+            size = max(4.0, float(item.get("size") or 11) * scale)
+            stil = frame_text_style(ctx, text_style, align, size, item.get("color"))
+            for line in str(item["text"]).split("\n"):
+                shape.addElement(rich_p(stil, line))
+            shape.addElement(EnhancedGeometry(type="rectangle", viewbox="0 0 21600 21600",
+                                              enhancedpath="M 0 0 L 21600 0 21600 21600 0 21600 0 0 Z N"))
+            group.addElement(shape)
+            continue
+        frame = Frame(name=f"Bildgruppe{index}_{n}", **geo)
+        frame.addElement(Image(href=doc.addPicture(str(resolve_path(item["file"], search)))))
         group.addElement(frame)
     return group
 
@@ -1988,29 +2089,7 @@ def keep_karo_with_question(elements: list[Element], doc, present: set[str]) -> 
         erben – sie wird dann kopiert, samt ihrer Eigenschaften."""
         klon = f"{name}_MitFolgendem"
         if klon not in present:
-            base = automatic.get(name)
-            if base is None:
-                style = Style(name=klon, family="paragraph", parentstylename=name)
-                style.addElement(ParagraphProperties(keepwithnext="always"))
-            else:
-                parent = base.getAttribute("parentstylename")
-                style = Style(name=klon, family="paragraph", **({"parentstylename": parent} if parent else {}))
-                has_para = False
-                for child in base.childNodes:
-                    if not hasattr(child, "qname"):
-                        continue
-                    copy = Element(qname=child.qname, check_grammar=False)
-                    for key, value in child.attributes.items():
-                        copy.setAttrNS(key[0], key[1], value)
-                    for grand in child.childNodes:
-                        copy.appendChild(grand.cloneNode(True) if hasattr(grand, "cloneNode") else grand)
-                    if child.qname[1] == "paragraph-properties":
-                        copy.setAttrNS(child.qname[0], "keep-with-next", "always")
-                        has_para = True
-                    style.appendChild(copy)
-                if not has_para:
-                    style.addElement(ParagraphProperties(keepwithnext="always"))
-            doc.automaticstyles.addElement(style)
+            doc.automaticstyles.addElement(keep_with_next_copy(automatic.get(name), name, klon))
             present.add(klon)
         return klon
 
@@ -2260,23 +2339,29 @@ def render_block_content(block: Any, styles: dict[str, str], ctx: dict[str, Any]
         ctx["image_index"] += 1
         # Bild und Unterschrift bleiben zusammen auf einer Seite
         para_style = text_style
-        if block.get("float") == "center":
-            para_style = ensure_align_style(ctx["doc"], ctx["present"], text_style, "center")
+        # Ohne Angabe wie der Text der Vorlage ausgerichtet; float: center ist die ältere Form von align: center.
+        align = "center" if block.get("float") == "center" else block.get("align")
+        if align in ("center", "right"):
+            para_style = ensure_align_style(ctx["doc"], ctx["present"], text_style, align)
         para = P(stylename=keep_style(ctx, para_style) if block.get("caption") else para_style)
         para.addElement(image_frame(ctx["doc"], block, ctx["search"], ctx["image_index"]))
         out.append(para)
         if block.get("caption"):
-            cap = P(stylename=text_style)
+            cap = P(stylename=para_style)
             cap.addElement(rich_span(styles["caption"], block["caption"]))
             out.append(cap)
 
     elif kind == "group":
         ctx["image_index"] += 1
-        para = P(stylename=keep_style(ctx, text_style) if block.get("caption") else text_style)
-        para.addElement(group_frame(ctx["doc"], block, ctx["search"], ctx["image_index"]))
+        # Ohne Angabe wie der Text der Vorlage ausgerichtet.
+        para_style = text_style
+        if block.get("align") in ("center", "right"):
+            para_style = ensure_align_style(ctx["doc"], ctx["present"], text_style, block["align"])
+        para = P(stylename=keep_style(ctx, para_style) if block.get("caption") else para_style)
+        para.addElement(group_frame(ctx, block, text_style, ctx["image_index"]))
         out.append(para)
         if block.get("caption"):
-            cap = P(stylename=text_style)
+            cap = P(stylename=para_style)
             cap.addElement(rich_span(styles["caption"], block["caption"]))
             out.append(cap)
 

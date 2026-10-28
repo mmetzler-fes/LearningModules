@@ -45,6 +45,51 @@ class FixBitmapUses(unittest.TestCase):
         self.assertEqual(export_drawings.fix_bitmap_uses(svg), svg)
 
 
+class FixFontFamilies(unittest.TestCase):
+    def test_ersatzschriften_dahinter(self):
+        svg = '<text font-family="Carlito"/><text font-family="CIDFont+F2"/><text font-family="Liberation Sans, sans-serif"/>'
+        fixed = export_drawings.fix_font_families(svg)
+        self.assertIn('font-family="Carlito, Calibri, sans-serif"', fixed)
+        self.assertIn('font-family="CIDFont+F2"', fixed)
+        self.assertIn("font-family=\"'Liberation Sans', Arial", fixed)
+
+
+class ApplyFonts(unittest.TestCase):
+    """pdf_figures.apply_fonts: Textteile mit „CIDFont+F2“ bekommen die Schrift nach den Breiten."""
+
+    class Enum:
+        def __init__(self, items):
+            self.items = list(items)
+
+        def hasMoreElements(self):
+            return bool(self.items)
+
+        def nextElement(self):
+            return self.items.pop(0)
+
+    class Portion:
+        def __init__(self, name):
+            self.props = {"CharFontName": name}
+
+        def getPropertyValue(self, key):
+            return self.props[key]
+
+        def setPropertyValue(self, key, value):
+            self.props[key] = value
+
+    def test_umstellen_samt_fett(self):
+        import pdf_figures
+        a, b, c = self.Portion("CIDFont+F2"), self.Portion("ABCDEF+Calibri-Bold"), self.Portion("Andere")
+        para = types.SimpleNamespace(createEnumeration=lambda: self.Enum([a, b, c]))
+        text = types.SimpleNamespace(createEnumeration=lambda: self.Enum([para]))
+        shape = types.SimpleNamespace(supportsService=lambda name: True, getText=lambda: text)
+        fonts = {"CIDFont+F2": {"family": "Carlito", "bold": False}, "ABCDEF+Calibri-Bold": {"family": "Carlito", "bold": True}}
+        self.assertEqual(pdf_figures.apply_fonts([shape], fonts), 2)
+        self.assertEqual(a.props, {"CharFontName": "Carlito"})
+        self.assertEqual(b.props, {"CharFontName": "Carlito", "CharWeight": 150.0})
+        self.assertEqual(c.props, {"CharFontName": "Andere"})
+
+
 class LargeImagesInFigures(unittest.TestCase):
     """pdf_figures.shapes_in: Ein großes Bild gehört zum Schaubild, große Flächen sind Hintergrund."""
 

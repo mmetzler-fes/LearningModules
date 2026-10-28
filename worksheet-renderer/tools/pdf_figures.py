@@ -9,7 +9,8 @@ Aufruf (mit dem Python von LibreOffice bzw. python3-uno):
 "patches": [{"box": […], "png": "…"}]}]`` – Seite ab 0, Rechtecke in pt von oben links, wie
 sie der Import (pdf_import.py, ``_fig``) liefert; ``skip``: was im Rechteck liegt, aber nicht
 dazugehört; ``patches``: beschnittene Bilder als PNG (pdf_clips.py) – sie ersetzen das
-rechteckige Bild, das LibreOffice ohne den Beschneidungspfad übernimmt.
+rechteckige Bild, das LibreOffice ohne den Beschneidungspfad übernimmt; ``fonts``: Schrift je
+PDF-Schriftname nach den Zeichenbreiten (pdf_fonts.py) – statt Times für „CIDFont+F2“.
 
 LibreOffice öffnet das PDF in Draw: Text wird zu Textformen, Linien und
 Flächen zu Vektorformen, Bilder bleiben Bilder – alles an seiner Stelle. Je
@@ -89,6 +90,43 @@ def apply_patches(smgr, ctx, shapes: list, patches: list[dict]) -> int:
     return done
 
 
+def _font_key(name: str) -> str:
+    """„ABCDEF+Calibri“ → „Calibri“ (Präfix einer Teilschrift); andere Namen bleiben."""
+    head, _, rest = name.partition("+")
+    return rest if rest and len(head) == 6 and head.isupper() else name
+
+
+def apply_fonts(shapes: list, fonts: dict) -> int:
+    """Texte der Formen auf die passende Schrift umstellen (nach den Zeichenbreiten im PDF)."""
+    if not fonts:
+        return 0
+    lookup = {**{_font_key(k): v for k, v in fonts.items()}, **fonts}
+    changed = 0
+    for s in shapes:
+        try:
+            if not s.supportsService("com.sun.star.drawing.Text"):
+                continue
+            paragraphs = s.getText().createEnumeration()
+        except Exception:  # noqa: BLE001
+            continue
+        while paragraphs.hasMoreElements():
+            portions = paragraphs.nextElement().createEnumeration()
+            while portions.hasMoreElements():
+                portion = portions.nextElement()
+                try:
+                    name = portion.getPropertyValue("CharFontName")
+                    match = lookup.get(name) or lookup.get(_font_key(name))
+                    if not match:
+                        continue
+                    portion.setPropertyValue("CharFontName", match["family"])
+                    if match.get("bold"):
+                        portion.setPropertyValue("CharWeight", 150.0)  # com.sun.star.awt.FontWeight.BOLD
+                    changed += 1
+                except Exception:  # noqa: BLE001 – dieser Teil behält seine Schrift
+                    continue
+    return changed
+
+
 def figure_to_files(smgr, ctx, desktop, doc, shapes: list, odg: Path, svg: Path) -> tuple[float, float]:
     """Formen über die (prozessinterne) Zwischenablage in ein neues Draw-Dokument,
     dort gruppieren, an den Rand schieben, speichern; die Gruppe als SVG."""
@@ -159,6 +197,7 @@ def export(src: Path, out: Path, profile: Path, figures: list[dict]) -> dict:
                     if not shapes:
                         raise RuntimeError("keine Formen im Bereich")
                     apply_patches(smgr, ctx, shapes, fig.get("patches") or [])
+                    apply_fonts(shapes, fig.get("fonts") or {})
                     width, height = figure_to_files(smgr, ctx, desktop, doc, shapes, out / f"{fid}.odg", out / f"{fid}.svg")
                     done.append({"id": fid, "odg": f"{fid}.odg", "svg": f"{fid}.svg", "width_mm": width, "height_mm": height})
                 except Exception as err:  # noqa: BLE001 – ein Bereich, nicht alle

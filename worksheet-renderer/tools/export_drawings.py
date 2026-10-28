@@ -261,9 +261,30 @@ def fix_bitmap_uses(svg: str) -> str:
     return "".join(out)
 
 
+# Gleich breite Schriften: Im Browser gilt, was da ist (Calibri unter Windows, sonst Carlito …).
+FONT_FALLBACKS = {
+    "Carlito": "Carlito, Calibri, sans-serif", "Calibri": "Calibri, Carlito, sans-serif",
+    "Caladea": "Caladea, Cambria, serif", "Cambria": "Cambria, Caladea, serif",
+    "Liberation Sans": "'Liberation Sans', Arial, Helvetica, sans-serif", "Arial": "Arial, 'Liberation Sans', Helvetica, sans-serif",
+    "Liberation Serif": "'Liberation Serif', 'Times New Roman', serif", "Times New Roman": "'Times New Roman', 'Liberation Serif', serif",
+    "Liberation Sans Narrow": "'Liberation Sans Narrow', 'Arial Narrow', sans-serif",
+    "Liberation Mono": "'Liberation Mono', 'Courier New', monospace",
+    "Open Sans": "'Open Sans', sans-serif", "DejaVu Sans": "'DejaVu Sans', Verdana, sans-serif",
+}
+_FONT_FAMILY_RE = re.compile(r'font-family="([^"]*)"')
+
+
+def fix_font_families(svg: str) -> str:
+    """Bekannte Schriften im SVG mit gleich breiten Ersatzschriften dahinter."""
+    def repl(m: re.Match) -> str:
+        name = m.group(1).split(",")[0].strip().strip("'")
+        return f'font-family="{FONT_FALLBACKS[name]}"' if name in FONT_FALLBACKS else m.group(0)
+    return _FONT_FAMILY_RE.sub(repl, svg)
+
+
 def write_fixed(path: Path) -> None:
     text = path.read_text(encoding="utf-8")
-    fixed = fix_bitmap_uses(fix_rotated_text(text))
+    fixed = fix_font_families(fix_bitmap_uses(fix_rotated_text(text)))
     if fixed != text:
         path.write_text(fixed, encoding="utf-8")
 

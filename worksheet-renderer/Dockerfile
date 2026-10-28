@@ -10,11 +10,12 @@ LABEL org.opencontainers.image.title="LearningModules worksheet-renderer" \
 # Writer für die PDF-Umwandlung, Math für die Formelobjekte (StarMath),
 # Draw und python3-uno, um Zeichnungen aus .odt als SVG zu exportieren.
 # Liberation ist metrisch gleich zu Arial/Courier New – darauf rechnet der
-# Generator die Tabellenbreiten.
+# Generator die Tabellenbreiten. Carlito/Caladea sind so breit wie Calibri/Cambria:
+# Schaubilder aus Präsentationen bekommen damit ihre Schrift (tools/pdf_fonts.py).
 RUN apt-get update \
  && apt-get install -y --no-install-recommends \
       libreoffice-writer-nogui libreoffice-math-nogui libreoffice-draw-nogui python3-uno \
-      fonts-liberation fonts-dejavu-core \
+      fonts-liberation fonts-dejavu-core fonts-crosextra-carlito fonts-crosextra-caladea fonts-open-sans \
  && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app

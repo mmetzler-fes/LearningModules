@@ -221,8 +221,10 @@ Dokument) im Ordner des Lernthemas abgelegt, wie bei Zeichnungen aus Writer.
 Im Editor öffnet **🖍 In Draw bearbeiten** an dem Bild die Gruppe; Pfeile,
 Kästen und Texte lassen sich einzeln ändern. Das dauert je Folie mit Schaubild
 ein, zwei Sekunden. Ein Fenster zeigt währenddessen, wie weit der Import ist
-(„Schaubild 7 von 22 …“, mit Laufzeit). Schriften der Präsentation ersetzt
-Draw unter Umständen; was in ein Foto eingebrannt ist (z. B. ein Logo),
+(„Schaubild 7 von 22 …“, mit Laufzeit). Nennt das PDF seine Schriften nicht
+(„CIDFont+F2“, typisch für „Microsoft Print to PDF“), wird die Schrift an den
+Zeichenbreiten erkannt und eine gleich breite gesetzt – z. B. Carlito für
+Calibri; im Browser steht dann unter Windows Calibri selbst. Was in ein Foto eingebrannt ist (z. B. ein Logo),
 bleibt ein Teil des Fotos. Bilder, die im PDF zu einer Form beschnitten sind
 (runde Plaketten, Pfeile mit Farbverlauf), übernimmt LibreOffice nur als
 Rechteck – sie werden deshalb einzeln mit durchsichtigem Rand gezeichnet und

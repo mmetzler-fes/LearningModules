@@ -421,6 +421,14 @@ def export_pdf_figures(job: dict[str, Any], slot: int) -> dict[str, Any]:
                                 and q["box"][2] <= f["box"][2] + 6 and q["box"][3] <= f["box"][3] + 6]
         except Exception as e:  # noqa: BLE001 – dann wie bisher
             sys.stderr.write(f"Beschnittene Bilder nicht gezeichnet: {e}\n")
+        # Schriften ohne echten Namen („CIDFont+F2“): passende nach den Zeichenbreiten statt Times.
+        try:
+            from pdf_fonts import page_fonts
+            fonts = page_fonts(str(root / "seite.pdf"), 0)
+            for f in spec:
+                f["fonts"] = fonts
+        except Exception as e:  # noqa: BLE001
+            sys.stderr.write(f"Schriften nicht bestimmt: {e}\n")
         (root / "bereiche.json").write_text(json.dumps(spec), encoding="utf-8")
         out = root / "out"
         try:

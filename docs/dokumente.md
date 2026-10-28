@@ -413,6 +413,10 @@ wenn die Lehrkraft des Lernthemas freigeschaltet ist.
   verschieben oder 🗑 löschen), **T** Textfeld (auf die Seite tippen und
   schreiben; Schriftgröße 8–36 pt wie im Dokument-Editor). Dazu Farben, drei
   Strichstärken, ↶ ↷ und Zoom.
+- **✺ Leuchtstift** (nur für Lehrkräfte): zum Zeigen am Beamer. Gedrückt ziehen
+  hinterlässt eine rote Leuchtspur, die nach gut einer Sekunde von selbst
+  verblasst; ohne Drücken zeigt ein leuchtender Punkt, wohin man zeigt.
+  Nichts davon wird gespeichert oder gedruckt.
 - **◇ Formen:** ▭ Rechteck, ◯ Ellipse, ⬠ Vieleck, ╱ Linie, ➝ Pfeil. Aufziehen
   (mit Umschalt: Quadrat bzw. Kreis, Linien in 15°-Schritten); beim Vieleck
   Punkte setzen – Doppelklick, Enter oder ein Klick auf den ersten Punkt

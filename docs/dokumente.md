@@ -411,7 +411,8 @@ wenn die Lehrkraft des Lernthemas freigeschaltet ist.
   🧽 Radierer (ganze Striche; auch das Radierer-Ende eines Windows-Stifts),
   ⬚ Auswählen (einen Strich antippen oder ein Rechteck aufziehen, dann
   verschieben oder 🗑 löschen), **T** Textfeld (auf die Seite tippen und
-  schreiben; Schriftgröße 8–36 pt wie im Dokument-Editor). Dazu Farben, drei
+  schreiben; Schriftgröße 8–36 pt wie im Dokument-Editor; gewählt am runden
+  Anfasser darüber drehbar, rastet bei 0°, 15°, 30° … ein). Dazu Farben, drei
   Strichstärken, ↶ ↷ und Zoom.
 - **✺ Leuchtstift** (nur für Lehrkräfte): zum Zeigen am Beamer. Gedrückt ziehen
   hinterlässt eine rote Leuchtspur, die nach gut einer Sekunde von selbst
@@ -430,7 +431,8 @@ wenn die Lehrkraft des Lernthemas freigeschaltet ist.
   ganz nach vorn/hinten. **Text in der Form:** Doppelklick auf Rechteck,
   Ellipse oder Vieleck (oder im Menü „Text in die Form“) – der Text steht
   mittig, mehrzeilig, in der Schriftgröße der Liste, und dreht sich mit der
-  Form; Strg+Enter oder daneben tippen übernimmt, Esc verwirft. Formen
+  Form; im Menü zusätzlich „Text um 90° drehen“ (z. B. senkrecht in einem
+  geraden Rechteck) und „Text wieder gerade“; Strg+Enter oder daneben tippen übernimmt, Esc verwirft. Formen
   erscheinen im Druck und bei den Schülern wie gezeichnet; der Radierer löscht
   sie ganz.
 - **▭ Feld:** Ein Rechteck aufziehen – an der Stelle liegt dann ein weißes Feld

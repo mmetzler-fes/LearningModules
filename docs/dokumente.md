@@ -20,7 +20,8 @@ Admin sie freigeschaltet hat (siehe [Benutzerverwaltung](benutzerverwaltung.md#f
 Der Editor startet im Modus **✏️ Bearbeiten** – wie ein Textprogramm:
 
 - **Absatzart** links in der Leiste: Text, **Abschnitt** (1.), **Aufgabe** (1.1),
-  **Teilaufgabe** (1.1.1), Überschrift ohne Nummer, Hinweis.
+  **Teilaufgabe** (1.1.1), Überschrift ohne Nummer, Hinweis. Sie gilt für alle
+  markierten Absätze, auch in Tabellenzellen.
 - **Fett, kursiv, unterstrichen, durchgestrichen, hoch/tief**, Links,
   **🖼 Bild** (Größe, Lage, Rahmen per Klick aufs Bild).
 - Klappmenüs wie in Google Docs:
@@ -66,6 +67,11 @@ Der Editor startet im Modus **✏️ Bearbeiten** – wie ein Textprogramm:
   - **Verschieben und schachteln:** ausschneiden (Griff ✂ oder Tabelle ▸
     Ausschneiden), Schreibmarke setzen, **Strg+V** – in eine Zelle (Tabelle in
     der Tabelle, im YAML unter `blocks` der Zelle) oder hinter einen Absatz.
+  - **Absätze in einer Zelle:** Absatzart, Aufzählung (•≡▾) und Nummerierung
+    (1≡▾) wirken auch in Zellen – z. B. Teilaufgaben markieren, **Text**
+    wählen, dann **•≡▾ Punkt**. Steht in der Zelle eine Liste, Überschrift
+    oder ein Hinweis, speichert das YAML ihren Inhalt unter `blocks` der
+    Zelle, sonst als Text (jeder Absatz eine Zeile).
   - ⇤ ↔ ⇥ und ≡▾ der oberen Leiste richten in einer Zelle die Zelle aus.
     Tabellen ohne Linien sind ohne Angabe zentriert, ihre oberen Zeilen unten
     bündig (Abbildungen nebeneinander). Verbundene Zellen bleiben verbunden.

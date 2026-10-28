@@ -556,23 +556,65 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
     const here = blockOfNode(sel && sel.rangeCount ? sel.getRangeAt(0).startContainer : null);
     return here || (lastBlock && surface.contains(lastBlock) ? lastBlock : null);
   };
+  /**
+   * Absatz in einer Tabellenzelle (direktes Kind der Zelle) – oder null.
+   * `wrap`: losen Text der Zelle um die Schreibmarke erst in einen Absatz fassen.
+   */
+  const cellParagraph = (node, wrap = false) => {
+    const el = node && node.nodeType === 3 ? node.parentNode : node;
+    const td = el?.closest?.('td, th');
+    if (!td || !surface.contains(td) || td.closest('table')?.classList.contains('ws-columns')) return null;
+    let n = node;
+    while (n !== td && n.parentNode !== td) n = n.parentNode;
+    if (n !== td && n.nodeType === 1 && /^(P|H[1-6])$/.test(n.tagName)) return n;
+    if (!wrap) return null;
+    const isBlock = (c) => c.nodeType === 1 && /^(P|H[1-6]|UL|OL|DIV|TABLE|PRE)$/.test(c.tagName);
+    if (n !== td && isBlock(n)) return null;
+    // Zusammenhängender loser Text (bis zum nächsten Absatz davor und danach).
+    const kids = [...td.childNodes];
+    let a = n === td ? 0 : kids.indexOf(n);
+    let b = n === td ? kids.length - 1 : a;
+    if (n === td && kids.some(isBlock)) return null;
+    while (a > 0 && !isBlock(kids[a - 1])) a--;
+    while (b < kids.length - 1 && !isBlock(kids[b + 1])) b++;
+    const p = document.createElement('p');
+    kids[a] ? td.insertBefore(p, kids[a]) : td.append(p);
+    p.append(...kids.slice(a, b + 1));
+    return p;
+  };
+  // Letzte Auswahl in der Fläche – die Absatzart (Auswahlliste) nimmt sie, auch wenn die Liste den Fokus hat.
+  let lastRange = null;
   document.addEventListener('selectionchange', () => {
-    if (mode !== 'visual' || !surface.contains(document.getSelection()?.anchorNode)) return;
-    lastBlock = blockOfNode(document.getSelection().anchorNode) || lastBlock;
-    const b = currentBlock();
+    const sel = document.getSelection();
+    if (mode !== 'visual' || !surface.contains(sel?.anchorNode)) return;
+    lastBlock = blockOfNode(sel.anchorNode) || lastBlock;
+    if (sel.rangeCount) lastRange = sel.getRangeAt(0).cloneRange();
+    const b = cellParagraph(sel.anchorNode) || currentBlock();
     blockSelect.value = b?.dataset?.ds && b.dataset.ds !== 'note' ? b.dataset.ds : b?.dataset?.ds === 'note' ? 'note' : 'p';
   });
+  /** Absätze, für die die Absatzart gilt: alle markierten – auch in Tabellenzellen – sonst der der Schreibmarke. */
+  const blocksForKind = () => {
+    const range = lastRange && surface.contains(lastRange.commonAncestorContainer) ? lastRange : null;
+    if (range && !range.collapsed) {
+      const marked = [...surface.querySelectorAll('p, h1, h2, h3, h4, h5, h6')]
+        .filter((el) => range.intersectsNode(el) && (blockOfNode(el) === el || cellParagraph(el) === el));
+      if (marked.length) return marked;
+    }
+    const b = (range && cellParagraph(range.startContainer, true)) || currentBlock();
+    return b ? [b] : [];
+  };
   blockSelect.addEventListener('change', () => {
-    const b = currentBlock();
-    if (!b || !/^(P|H[1-6]|DIV)$/.test(b.tagName) || b.classList.contains('ds-widget') || b.classList.contains('ws-box')) return;
     const kind = blockSelect.value;
     const tag = { p: 'p', note: 'p', section: 'h2', task: 'h3', subtask: 'h4', heading: 'h2' }[kind];
-    const el = document.createElement(tag);
-    if (kind !== 'p') el.dataset.ds = kind;
-    if (b.dataset.id) el.dataset.id = b.dataset.id;
-    const inner = b.dataset.ds === 'note' && b.firstElementChild?.tagName === 'EM' ? b.firstElementChild.innerHTML : b.innerHTML;
-    el.innerHTML = kind === 'note' ? `<em>${inner}</em>` : inner;
-    b.replaceWith(el);
+    for (const b of blocksForKind()) {
+      if (!/^(P|H[1-6]|DIV)$/.test(b.tagName) || b.classList.contains('ds-widget') || b.classList.contains('ws-box')) continue;
+      const el = document.createElement(tag);
+      if (kind !== 'p') el.dataset.ds = kind;
+      if (b.dataset.id) el.dataset.id = b.dataset.id;
+      const inner = b.dataset.ds === 'note' && b.firstElementChild?.tagName === 'EM' ? b.firstElementChild.innerHTML : b.innerHTML;
+      el.innerHTML = kind === 'note' ? `<em>${inner}</em>` : inner;
+      b.replaceWith(el);
+    }
     surface.focus();
   });
   root.querySelectorAll('[data-cmd]').forEach((btn) => btn.addEventListener('mousedown', (e) => {

@@ -423,8 +423,12 @@ wenn die Lehrkraft des Lernthemas freigeschaltet ist.
   (rastet bei 0°, 15°, 30° … ein), beim Vieleck und bei Linien jeden Punkt
   einzeln ziehen. Im Menü der Auswahl: **In Vieleck umwandeln** (Rechteck,
   Ellipse), Drehung zurücksetzen, Pfeilspitzen an einem oder beiden Enden,
-  ganz nach vorn/hinten. Formen erscheinen im Druck und bei den Schülern wie
-  gezeichnet; der Radierer löscht sie ganz.
+  ganz nach vorn/hinten. **Text in der Form:** Doppelklick auf Rechteck,
+  Ellipse oder Vieleck (oder im Menü „Text in die Form“) – der Text steht
+  mittig, mehrzeilig, in der Schriftgröße der Liste, und dreht sich mit der
+  Form; Strg+Enter oder daneben tippen übernimmt, Esc verwirft. Formen
+  erscheinen im Druck und bei den Schülern wie gezeichnet; der Radierer löscht
+  sie ganz.
 - **▭ Feld:** Ein Rechteck aufziehen – an der Stelle liegt dann ein weißes Feld
   mit Karo, Linien oder leer und deckt ab, was darunter steht. So lässt sich
   z. B. auf einer PDF-Seite eine ausgefüllte Tabelle durch frisches Karo

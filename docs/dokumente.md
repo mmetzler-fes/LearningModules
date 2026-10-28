@@ -180,6 +180,19 @@ Aufzählungen und Fließtext daneben bleiben bearbeitbarer Text. Bei Folien
 (Querformat) gilt: rote Titel sind Gestaltung, keine Lösung; Logo und
 Fußzeile der Vorlage fallen weg.
 
+**🖍 Schaubilder als bearbeitbare Zeichnung** (Häkchen im Importdialog, nur
+bei „Text mit Struktur“, braucht eine verbundene Nextcloud und ein eigenes
+Lernthema): Jedes Schaubild – ein Bildbereich mit Pfeilen, Kästen oder
+Beschriftungen, nicht reine Fotos – geht zusätzlich durch LibreOffice Draw.
+Dort werden seine Teile **gruppiert** und als `.odg` (mit `.svg` fürs
+Dokument) im Ordner des Lernthemas abgelegt, wie bei Zeichnungen aus Writer.
+Im Editor öffnet **🖍 In Draw bearbeiten** an dem Bild die Gruppe; Pfeile,
+Kästen und Texte lassen sich einzeln ändern. Das dauert je Folie mit Schaubild
+ein, zwei Sekunden. Ein Fenster zeigt währenddessen, wie weit der Import ist
+(„Schaubild 7 von 22 …“, mit Laufzeit). Schriften der Präsentation ersetzt
+Draw unter Umständen; was in ein Foto eingebrannt ist (z. B. ein Logo),
+bleibt ein Teil des Fotos.
+
 ### Aus Xournal++ (.xopp)
 
 **📄 Übernehmen…** nimmt auch **.xopp**-Dateien von Xournal++ an. Eine .xopp

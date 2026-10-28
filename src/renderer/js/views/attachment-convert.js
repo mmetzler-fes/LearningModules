@@ -38,6 +38,8 @@ export async function pdfConvertOptions() {
       { mode: 'ai', label: '🤖 KI-Erkennung', hint: 'Besser bei Tabellen, Spalten und Scans, dafür langsamer.', ok: !!info.pdfAi?.ok },
     ],
     ocr: !!info.pdfAi?.ok,
+    // Schaubilder als .odg: Renderer (LibreOffice) und eine verbundene Nextcloud.
+    figures: !!info.configured && !!window.appNextcloud?.ready,
   };
 }
 
@@ -60,6 +62,8 @@ export async function askConvertOptions({ count = 1, keepDefault = false, keepOp
             <strong>${c.label}</strong><small>${escapeHtml(c.ok ? c.hint : 'Auf diesem Server nicht eingerichtet.')}</small>
           </button>`).join('')}</div>
         ${opts.ocr ? '<label class="ds-pdf-ocr"><input type="checkbox" class="cv-ocr"> Gescannte PDFs – Text erkennen (OCR, nur KI-Erkennung)</label>' : ''}
+        ${opts.figures ? `<label class="ds-pdf-ocr" title="Jedes Schaubild (Pfeile, Kästen, Beschriftungen) zusätzlich als gruppierte Zeichnung in die Nextcloud – mit „🖍 In Draw bearbeiten“ einzeln änderbar. Dauert je Folie mit Schaubild ein, zwei Sekunden.">
+            <input type="checkbox" class="cv-figures"> 🖍 Schaubilder als bearbeitbare Zeichnung (.odg, gruppiert) – langsamer, nur bei „Text mit Struktur“</label>` : ''}
         ${keepOption ? `<label class="ds-pdf-ocr"><input type="checkbox" class="cv-keep" ${keepDefault ? 'checked' : ''}> PDF-Anhang zusätzlich behalten</label>` : ''}
         <p class="hint">Danach die Dokumente prüfen: Formeln, Karos und Lösungsfelder erkennt die Umwandlung nur ungefähr.</p>
         <div class="confirm-actions"><button type="button" class="btn btn-secondary cv-cancel">Abbrechen</button></div>
@@ -71,13 +75,53 @@ export async function askConvertOptions({ count = 1, keepDefault = false, keepOp
       mode: b.dataset.mode,
       ocr: !!overlay.querySelector('.cv-ocr')?.checked,
       keep: !!overlay.querySelector('.cv-keep')?.checked,
+      figures: b.dataset.mode === 'text' && !!overlay.querySelector('.cv-figures')?.checked,
     })));
   });
 }
 
-/** PDF (Bytes oder Link) über den Renderer bzw. pdf-ai in ein Dokument (spec). */
-export async function pdfToSpec(pdf, name, { mode, ocr, positions = false }) {
+/**
+ * Fortschritt eines PDF-Imports als Fenster – damit ein langer Import nicht
+ * wie ein Absturz aussieht: Schritt, Balken (bei Schaubildern je Folie),
+ * laufende Zeit.
+ */
+function progressWindow(name) {
+  const overlay = document.createElement('div');
+  overlay.className = 'confirm-overlay';
+  overlay.innerHTML = `<div class="import-modules-card pdf-progress" role="status" aria-live="polite">
+      <h3>📄 ${escapeHtml(name || 'PDF')}</h3>
+      <div class="pdf-progress-bar indeterminate"><div class="pdf-progress-fill"></div></div>
+      <p class="pdf-progress-msg">Wird hochgeladen …</p>
+      <p class="hint pdf-progress-time"></p>
+    </div>`;
+  document.body.appendChild(overlay);
+  const started = Date.now();
+  const time = overlay.querySelector('.pdf-progress-time');
+  const tick = () => {
+    const s = Math.round((Date.now() - started) / 1000);
+    time.textContent = `läuft seit ${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')} min`;
+  };
+  tick();
+  const timer = setInterval(tick, 1000);
+  return {
+    update(job) {
+      const bar = overlay.querySelector('.pdf-progress-bar');
+      bar.classList.toggle('indeterminate', !(job.total > 0));
+      if (job.total > 0) overlay.querySelector('.pdf-progress-fill').style.width = `${Math.round((job.done / job.total) * 100)}%`;
+      overlay.querySelector('.pdf-progress-msg').textContent = job.message || '';
+    },
+    close() { clearInterval(timer); overlay.remove(); },
+  };
+}
+
+/**
+ * PDF (Bytes oder Link) über den Renderer bzw. pdf-ai in ein Dokument (spec) –
+ * als Auftrag mit Fortschrittsfenster. `figures` + `topicId`: Schaubilder als
+ * gruppierte .odg in die Nextcloud (docs/dokumente.md).
+ */
+export async function pdfToSpec(pdf, name, { mode, ocr, positions = false, figures = false, topicId = null }) {
   const blob = pdf instanceof Blob ? pdf : new Blob([pdf], { type: 'application/pdf' });
+  if (!positions) return pdfJob(blob, name, { mode, ocr, figures, topicId });
   const form = new FormData();
   form.append('file', blob, name || 'blatt.pdf');
   form.append('mode', mode);
@@ -88,6 +132,37 @@ export async function pdfToSpec(pdf, name, { mode, ocr, positions = false }) {
   const data = await res.json().catch(() => ({}));
   if (!res.ok || !data.spec) throw new Error(data.message || `HTTP ${res.status}`);
   return { spec: data.spec, warnings: data.warnings || [], title: data.title || '' };
+}
+
+async function pdfJob(blob, name, { mode, ocr, figures, topicId }) {
+  const win = progressWindow(name);
+  try {
+    const form = new FormData();
+    form.append('file', blob, name || 'blatt.pdf');
+    form.append('mode', mode);
+    if (ocr) form.append('ocr', 'true');
+    if (figures) form.append('figures', 'true');
+    if (topicId) form.append('topicId', topicId);
+    const headers = { Authorization: `Bearer ${token()}` };
+    const res = await fetch('/api/worksheets/import-pdf-job', { method: 'POST', headers, body: form });
+    const started = await res.json().catch(() => ({}));
+    if (!res.ok || !started.id) throw new Error(started.message || `HTTP ${res.status}`);
+    for (;;) {
+      await new Promise((r) => setTimeout(r, 1000));
+      const job = await fetch(`/api/worksheets/import-pdf-job/${encodeURIComponent(started.id)}`, { headers })
+        .then((r) => r.json()).catch(() => null);
+      if (!job || job.statusCode >= 400) throw new Error(job?.message || 'Der Import ist nicht mehr zu finden.');
+      win.update(job);
+      if (job.state === 'failed') throw new Error(job.error || 'Der Import ist gescheitert.');
+      if (job.state === 'done') {
+        const r = job.result || {};
+        if (!r.spec) throw new Error('Der Import lieferte kein Dokument.');
+        return { spec: r.spec, warnings: r.warnings || [], title: r.title || '' };
+      }
+    }
+  } finally {
+    win.close();
+  }
 }
 
 /** Datei wählen; null bei Abbruch. Muss im Klick starten (iPad), daher ohne await davor. */
@@ -107,7 +182,7 @@ function chooseFile(accept) {
  * Umwandlung fragen, umwandeln. Ergebnis: `{ blocks, warnings, name }` oder
  * null bei Abbruch. `onBusy(text)`: Hinweis, solange umgewandelt wird.
  */
-export async function pickPdfBlocks({ onBusy = null } = {}) {
+export async function pickPdfBlocks({ onBusy = null, topicId = null } = {}) {
   const file = await chooseFile('.pdf,application/pdf');
   if (!file) return null;
   if (!isPdfFile(file)) throw new Error('Das ist kein PDF.');
@@ -117,7 +192,7 @@ export async function pickPdfBlocks({ onBusy = null } = {}) {
   });
   if (!choice) return null;
   onBusy?.(choice.mode === 'ai' ? 'KI-Erkennung läuft – das kann je Seite einige Sekunden dauern …' : 'PDF wird umgewandelt …');
-  const { spec, warnings } = await pdfToSpec(file, file.name, choice);
+  const { spec, warnings } = await pdfToSpec(file, file.name, { ...choice, topicId });
   const blocks = Array.isArray(spec?.content) ? spec.content : [];
   if (!blocks.length) throw new Error('Im PDF wurde nichts gefunden.');
   return { blocks, warnings, name: file.name };
@@ -144,7 +219,7 @@ export async function fileToSpec(file, { pdf = null, topicId = null } = {}) {
   const base = file.name.replace(/\.[^.]+$/, '');
   if (/\.pdf$/i.test(file.name)) {
     if (!pdf) throw new Error('Für PDFs fehlt die Art der Umwandlung.');
-    const r = await pdfToSpec(file, file.name, pdf);
+    const r = await pdfToSpec(file, file.name, { ...pdf, topicId });
     return { spec: r.spec, title: base, warnings: r.warnings };
   }
   const form = new FormData();
@@ -162,7 +237,7 @@ export async function fileToSpec(file, { pdf = null, topicId = null } = {}) {
  * Ein Anhang-Modul umwandeln (Inhalt und Reihenfolge holt es frisch vom
  * Server). Ergebnis: `{ created, warnings, failed, removed }`.
  */
-export async function convertAttachment(api, topicId, moduleId, { mode, ocr = false, keep = false }) {
+export async function convertAttachment(api, topicId, moduleId, { mode, ocr = false, keep = false, figures = false }) {
   const modules = await api.getTopicModules(topicId);
   const mod = Array.isArray(modules) ? modules.find((m) => m.id === moduleId) : null;
   if (!mod || mod.type !== 'attachment') throw new Error('Anhang nicht gefunden.');
@@ -177,7 +252,7 @@ export async function convertAttachment(api, topicId, moduleId, { mode, ocr = fa
     try {
       const res = await fetch(f.url);
       if (!res.ok) throw new Error(`PDF nicht abrufbar (HTTP ${res.status})`);
-      const { spec, warnings: w } = await pdfToSpec(await res.blob(), f.name, { mode, ocr });
+      const { spec, warnings: w } = await pdfToSpec(await res.blob(), f.name, { mode, ocr, figures, topicId });
       const title = pdfs.length > 1 ? `${mod.title} – ${f.name.replace(/\.pdf$/i, '')}` : mod.title;
       const now = new Date().toISOString();
       const saved = await api.saveModule(topicId, {

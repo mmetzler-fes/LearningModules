@@ -22,6 +22,8 @@ import { DocNumberingService } from './doc-numbering.service';
 import { CourseService } from './course.service';
 import { QuizScaleService } from './quiz-scale.service';
 import { InterchangeModule } from '../core/interchange/interchange.module';
+import { DrawingsModule } from '../drawings/drawings.module';
+import { PdfImportJobs } from './pdf-import-jobs.service';
 
 @Module({
   imports: [
@@ -29,9 +31,10 @@ import { InterchangeModule } from '../core/interchange/interchange.module';
     FeaturesModule,
     NextcloudModule,
     InterchangeModule,
+    DrawingsModule,
   ],
   controllers: [WorksheetsController, DocMigrationController],
-  providers: [WorksheetsService, WorksheetRendererClient, PdfAiClient, DocNumberingService, CourseService, DocMirrorService, TemplatesService, DocMigrationService, QuizScaleService],
+  providers: [WorksheetsService, PdfImportJobs, WorksheetRendererClient, PdfAiClient, DocNumberingService, CourseService, DocMirrorService, TemplatesService, DocMigrationService, QuizScaleService],
   exports: [WorksheetsService, DocNumberingService, CourseService, DocMirrorService, TemplatesService],
 })
 export class WorksheetsModule {}

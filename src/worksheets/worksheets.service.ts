@@ -30,11 +30,11 @@ export function safeInkSvg(svg: unknown): boolean {
   return tags.every((t) => /^<\/?(svg|g|path|rect|line|polyline|polygon|circle|ellipse|text|tspan)$/i.test(t));
 }
 
-export function stripPositions(v: any): void {
-  if (Array.isArray(v)) v.forEach(stripPositions);
+export function stripPositions(v: any, keys: string[] = ['_pos']): void {
+  if (Array.isArray(v)) v.forEach((x) => stripPositions(x, keys));
   else if (v && typeof v === 'object') {
-    delete v._pos;
-    Object.values(v).forEach(stripPositions);
+    for (const k of keys) delete v[k];
+    Object.values(v).forEach((x) => stripPositions(x, keys));
   }
 }
 
@@ -105,13 +105,15 @@ export class WorksheetsService {
    * pdf-ai. Das Ergebnis wird wie jedes Dokument geprüft; Fehler darin
    * stehen als Hinweis da (der Editor markiert sie).
    */
-  async importPdf(pdf: Buffer, mode: PdfImportMode, ocr = false, positions = false) {
+  /** `figures`: Lage der Bildbereiche (`_fig`) behalten – für „Schaubilder als Zeichnung“ (PdfImportJobs). */
+  async importPdf(pdf: Buffer, mode: PdfImportMode, ocr = false, positions = false, figures = false) {
     if (!pdf?.length || pdf.subarray(0, 4).toString('latin1') !== '%PDF') throw new BadRequestException('Das ist kein PDF.');
     const result = mode === 'ai'
       ? await (this.pdfAi ?? (() => { throw new BadRequestException('Keine KI-Erkennung eingerichtet.'); })()).convert(pdf, ocr)
       : await this.renderer.importPdf(pdf, mode === 'pages' ? 'pages' : 'text');
     // `_pos` (Seite, Höhe im PDF) braucht nur der .xopp-Import – sonst landete es im Dokument.
     if (!positions) stripPositions(result.spec);
+    if (!figures) stripPositions(result.spec, ['_fig']);
     const errors = docSpec().validateDocSpec(result.spec);
     return { ...result, mode, warnings: [...result.warnings, ...errors.map((e) => `Im Ergebnis: ${e}`)] };
   }

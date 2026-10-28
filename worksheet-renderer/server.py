@@ -16,6 +16,9 @@ POST /export-drawings JSON {odt} → {odt: base64, drawings: [{name, svg, odg, w
                (tools/export_drawings.py, braucht python3-uno) – für den .odt-Import der App
 POST /render-drawing JSON {odg} → {svg, width_mm, height_mm}: bearbeitete Zeichnung (LibreOffice Draw)
                wieder als SVG – für Zeichnungen, die Lehrkräfte in der Nextcloud ändern
+POST /export-pdf-figures JSON {pdf, page, figures: [{id, box, skip}]} → {figures: [{id, svg, odg, width_mm, height_mm}], warnings}:
+               Bildbereiche einer PDF-Seite als gruppierte Zeichnungen (tools/pdf_figures.py) –
+               für den PDF-Import mit „Schaubilder als Zeichnung“
 
 Jeder Auftrag läuft als eigener Prozess von tools/make_worksheet.py in einem
 frischen Temp-Verzeichnis (ARBEITSBLATT_ROOT). Der Generator liest nur dort –
@@ -52,6 +55,7 @@ TOOL = GEN / "tools" / "make_worksheet.py"
 SCRIPT_TOOL = GEN / "tools" / "make_script.py"
 PDF_TOOL = GEN / "tools" / "pdf_import.py"
 DRAWINGS_TOOL = GEN / "tools" / "export_drawings.py"
+FIGURES_TOOL = GEN / "tools" / "pdf_figures.py"
 # Das Python mit der UNO-Anbindung von LibreOffice (Paket python3-uno) – nicht das des Servers.
 UNO_PYTHON = os.environ.get("RENDERER_UNO_PYTHON", "/usr/bin/python3")
 MAX_DRAWING_BYTES = 30 * 1024 * 1024
@@ -372,6 +376,67 @@ def render_drawing(job: dict[str, Any], slot: int) -> dict[str, Any]:
         shutil.rmtree(root, ignore_errors=True)
 
 
+def export_pdf_figures(job: dict[str, Any], slot: int) -> dict[str, Any]:
+    """Bildbereiche einer PDF-Seite als gruppierte Zeichnungen (.odg + .svg) – tools/pdf_figures.py.
+
+    `{pdf, page, figures: [{id, box, skip}]}`. LibreOffice bekommt nur die eine
+    Seite (schnell, auch bei langen Präsentationen); die App ruft Seite für
+    Seite auf und zeigt dazwischen den Fortschritt.
+    """
+    data = decode(job.get("pdf"), "pdf")
+    figures = job.get("figures")
+    if not isinstance(figures, list) or not figures:
+        raise BadRequest("figures: Liste der Bereiche erwartet")
+    if not Path(UNO_PYTHON).exists():
+        raise RenderFailed("Zeichnungen aus dem PDF nicht möglich: python3-uno fehlt im Renderer", [])
+    try:
+        page = int(job.get("page") or 0)
+    except (TypeError, ValueError):
+        raise BadRequest("page: Seitenzahl ab 0") from None
+    import pypdfium2 as pdfium  # mit pdfplumber installiert
+    root = Path(tempfile.mkdtemp(prefix="pdf-zeichnungen-"))
+    try:
+        try:
+            src = pdfium.PdfDocument(data)
+            if not 0 <= page < len(src):
+                raise BadRequest(f"page: das PDF hat {len(src)} Seiten")
+            one = pdfium.PdfDocument.new()
+            one.import_pages(src, [page])
+            one.save(str(root / "seite.pdf"))
+        except BadRequest:
+            raise
+        except Exception as e:  # noqa: BLE001
+            raise RenderFailed(f"Kein lesbares PDF ({e})", []) from e
+        spec = [{"id": str(f.get("id") or f"f{i}"), "page": 0, "box": f.get("box"), "skip": f.get("skip") or []}
+                for i, f in enumerate(figures[:50], start=1) if isinstance(f, dict) and isinstance(f.get("box"), list)]
+        (root / "bereiche.json").write_text(json.dumps(spec), encoding="utf-8")
+        out = root / "out"
+        try:
+            proc = subprocess.run([UNO_PYTHON, str(FIGURES_TOOL), str(root / "seite.pdf"), str(out),
+                                   str((PROFILES / f"uno-{slot}").resolve()), str(root / "bereiche.json")],
+                                  capture_output=True, text=True, timeout=TIMEOUT)
+        except subprocess.TimeoutExpired:
+            raise RenderFailed(f"Zeichnungen aus dem PDF brauchen zu lange (über {TIMEOUT} s).", []) from None
+        result_file = out / "result.json"
+        if proc.returncode != 0 or not result_file.exists():
+            sys.stderr.write(f"PDF-Zeichnungen gescheitert, Rückgabe {proc.returncode}:\n{proc.stderr[-2000:]}\n")
+            raise RenderFailed(failure_from(proc.stderr) or "Zeichnungen aus dem PDF ließen sich nicht erzeugen", [])
+        result = json.loads(result_file.read_text(encoding="utf-8"))
+        warnings = list(result.get("warnings") or [])
+        done, total = [], 0
+        for f in result.get("figures") or []:
+            svg, odg = (out / f["svg"]).read_bytes(), (out / f["odg"]).read_bytes()
+            total += len(svg) + len(odg)
+            if total > MAX_DRAWING_BYTES:
+                warnings.append("Zu große Zeichnungen – die übrigen Bereiche bleiben Bilder.")
+                break
+            done.append({"id": f["id"], "width_mm": f["width_mm"], "height_mm": f["height_mm"],
+                         "svg": base64.b64encode(svg).decode("ascii"), "odg": base64.b64encode(odg).decode("ascii")})
+        return {"figures": done, "warnings": warnings}
+    finally:
+        shutil.rmtree(root, ignore_errors=True)
+
+
 def _limit_memory() -> None:
     resource.setrlimit(resource.RLIMIT_AS, (PDF_MEM, PDF_MEM))
 
@@ -424,7 +489,7 @@ class Handler(BaseHTTPRequestHandler):
                              "drawings": Path(UNO_PYTHON).exists()})
 
     def do_POST(self) -> None:
-        if self.path not in ("/render", "/inspect", "/render-script", "/import-pdf", "/convert-odt", "/export-drawings", "/render-drawing"):
+        if self.path not in ("/render", "/inspect", "/render-script", "/import-pdf", "/convert-odt", "/export-drawings", "/render-drawing", "/export-pdf-figures"):
             self.send_json(404, {"error": "Unbekannter Pfad"})
             return
         if TOKEN and not hmac.compare_digest(self.headers.get("Authorization", ""), f"Bearer {TOKEN}"):
@@ -468,6 +533,9 @@ class Handler(BaseHTTPRequestHandler):
                 return
             if self.path == "/render-drawing":
                 self.send_json(200, render_drawing(job, slot))
+                return
+            if self.path == "/export-pdf-figures":
+                self.send_json(200, export_pdf_figures(job, slot))
                 return
             files, warnings = (render_script if self.path == "/render-script" else render)(job, slot)
             self.send_json(200, {"files": files, "warnings": warnings})

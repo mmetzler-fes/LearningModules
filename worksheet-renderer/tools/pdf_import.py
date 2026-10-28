@@ -446,8 +446,20 @@ def _page_elements(page, index: int, warnings: list[str], template: set[tuple[in
             continue
         absorbed.update(id(wd) for wd in mine)
         figures.append(box)
-        elements.append({"kind": "block", "top": top, "bottom": bottom, "x0": x0, "x1": x1, "page": index,
-                         "block": {"type": "image", "src": src, "width": _width_cm(x0, x1)}})
+        block = {"type": "image", "src": src, "width": _width_cm(x0, x1)}
+        # Mit Zeichnungsteilen oder Beschriftungen: Lage im PDF (`_fig`), damit die App
+        # den Bereich auf Wunsch als bearbeitbare Zeichnung (.odg) holen kann (pdf_figures.py).
+        if n_shape or mine:
+            # Was im Rechteck nicht dazugehört (Titel, Aufzählung, Logo): bleibt in der Zeichnung weg.
+            skip: list[list[float]] = []
+            for wd in others:
+                ph = phrase_of.get(id(wd), [wd])
+                r = [round(min(float(x["x0"]) for x in ph), 1), round(min(float(x["top"]) for x in ph), 1),
+                     round(max(float(x["x1"]) for x in ph), 1), round(max(float(x["bottom"]) for x in ph), 1)]
+                if r not in skip:
+                    skip.append(r)
+            block["_fig"] = {"page": index, "box": [round(v, 1) for v in box], "skip": skip}
+        elements.append({"kind": "block", "top": top, "bottom": bottom, "x0": x0, "x1": x1, "page": index, "block": block})
 
     taken.extend(figures)
     # Text: alles außerhalb von Tabellen usw., was nicht als Beschriftung in einem Bild steckt.

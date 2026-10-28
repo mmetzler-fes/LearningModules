@@ -139,6 +139,29 @@ export class WorksheetRendererClient {
   }
 
   /**
+   * Bildbereiche einer PDF-Seite als gruppierte Zeichnungen (POST /export-pdf-figures):
+   * je Bereich .odg + .svg. Wirft, wenn der Renderer es nicht kann.
+   */
+  async exportPdfFigures(pdf: Buffer, page: number, figures: Array<{ id: string; box: number[]; skip?: number[][] }>):
+    Promise<{ figures: Array<{ id: string; svg: Buffer; odg: Buffer; widthMm: number }>; warnings: string[] }> {
+    if (!this.configured()) throw new ServiceUnavailableException('Kein Renderer eingetragen (WORKSHEET_RENDERER_URL).');
+    const res = await fetch(`${this.base()}/export-pdf-figures`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...(process.env.WORKSHEET_RENDERER_TOKEN ? { Authorization: `Bearer ${process.env.WORKSHEET_RENDERER_TOKEN}` } : {}) },
+      body: JSON.stringify({ pdf: pdf.toString('base64'), page, figures }),
+      signal: AbortSignal.timeout(RENDER_TIMEOUT_MS),
+    });
+    const body: any = await res.json().catch(() => ({}));
+    if (!res.ok || !Array.isArray(body.figures)) throw new UnprocessableEntityException(body.error || `Renderer: ${res.status}`);
+    return {
+      figures: body.figures.filter((f: any) => typeof f?.svg === 'string' && typeof f.odg === 'string').map((f: any) => ({
+        id: String(f.id), svg: Buffer.from(f.svg, 'base64'), odg: Buffer.from(f.odg, 'base64'), widthMm: Number(f.width_mm) || 0,
+      })),
+      warnings: Array.isArray(body.warnings) ? body.warnings.map(String) : [],
+    };
+  }
+
+  /**
    * Zeichnungen einer .odt, wie LibreOffice sie zeichnet (POST /export-drawings):
    * das Dokument mit Namen `lmdraw-<n>` an den Zeichnungen und je Name das SVG.
    * null, wenn der Renderer fehlt, es nicht kann oder scheitert – dann baut der

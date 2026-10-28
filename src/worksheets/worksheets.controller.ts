@@ -9,6 +9,7 @@ import { TemplatesService } from './templates.service';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { WORKSHEET_OUTPUTS, WorksheetOutput } from './renderer.client';
 import type { PdfImportMode } from './worksheets.service';
+import { PdfImportJobs } from './pdf-import-jobs.service';
 
 const MAX_PDF_BYTES = 40 * 1024 * 1024;
 
@@ -29,6 +30,7 @@ export class WorksheetsController {
     private readonly mirror: DocMirrorService,
     private readonly templates: TemplatesService,
     private readonly features: FeaturesService,
+    private readonly pdfJobs: PdfImportJobs,
   ) {}
 
   // ---- Vorlagen (eigene und der Schule) ----
@@ -77,6 +79,32 @@ export class WorksheetsController {
     if (!file?.buffer?.length) throw new BadRequestException('Keine Datei empfangen.');
     const mode: PdfImportMode = body?.mode === 'pages' ? 'pages' : body?.mode === 'ai' ? 'ai' : 'text';
     return this.worksheets.importPdf(file.buffer, mode, body?.ocr === 'true', body?.positions === 'true');
+  }
+
+  /**
+   * PDF als Auftrag mit Fortschritt: wie import-pdf, dazu `figures=true`
+   * (Schaubilder als gruppierte .odg in die Nextcloud, `topicId` nötig).
+   * Ergebnis `{ id }`; den Stand liefert GET import-pdf-job/:id.
+   */
+  @Post('import-pdf-job')
+  @HttpCode(200)
+  @RequireFeature('pdfImport')
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: MAX_PDF_BYTES } }))
+  startPdfJob(@Request() req: any, @UploadedFile() file: Express.Multer.File, @Body() body: { mode?: string; ocr?: string; figures?: string; topicId?: string }) {
+    if (!file?.buffer?.length) throw new BadRequestException('Keine Datei empfangen.');
+    if (file.buffer.subarray(0, 4).toString('latin1') !== '%PDF') throw new BadRequestException('Das ist kein PDF.');
+    const mode: PdfImportMode = body?.mode === 'pages' ? 'pages' : body?.mode === 'ai' ? 'ai' : 'text';
+    // Multer liefert den Namen als latin1 – Umlaute sonst verstümmelt.
+    const name = Buffer.from(file.originalname || 'PDF', 'latin1').toString('utf8');
+    return this.pdfJobs.start(req.user, file.buffer, name, {
+      mode, ocr: body?.ocr === 'true', figures: body?.figures === 'true', topicId: String(body?.topicId || '') || undefined,
+    });
+  }
+
+  /** Stand eines PDF-Imports: `{ state, phase, done, total, message, result?, error? }`. */
+  @Get('import-pdf-job/:id')
+  pdfJob(@Request() req: any, @Param('id') id: string) {
+    return this.pdfJobs.get(req.user, id);
   }
 
   /** Renderer/pdf-ai erreichbar? Dazu, ob dieses Konto PDFs übernehmen darf. */

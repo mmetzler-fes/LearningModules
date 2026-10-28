@@ -881,7 +881,7 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
   /** PDF wählen und in Bausteine umwandeln – zum Einfügen an der Schreibmarke. */
   const insertPdfBlocks = async () => {
     try {
-      const res = await pickPdfBlocks({ onBusy: (text) => { status.textContent = text; } });
+      const res = await pickPdfBlocks({ onBusy: (text) => { status.textContent = text; }, topicId: topicSource() });
       if (!res) return null;
       status.innerHTML = `✅ „${escapeHtml(res.name)}“ eingefügt: ${res.blocks.length} Blöcke.` + res.warnings.map((w) => ` ⚠️ ${escapeHtml(w)}`).join('');
       return res.blocks;

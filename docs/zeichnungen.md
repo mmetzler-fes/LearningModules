@@ -20,6 +20,10 @@ Dann liegen im Ordner des Lernthemas (`Bilder/<Lernthema>/`) je Zeichnung
 Nextcloud stehen die Zeichnungen nur im Dokument, bearbeiten lassen sie sich
 dann nicht.
 
+Ebenso beim PDF-Import mit **🖍 Schaubilder als bearbeitbare Zeichnung**
+(docs/dokumente.md): Jedes Schaubild wird eine gruppierte `.odg`,
+`<PDF>-Zeichnung-<n>.odg` neben `<PDF>-Zeichnung-<n>.svg`.
+
 ## Bearbeiten mit dem Nextcloud-Sync-Client
 
 1. Am PC ist der Nextcloud-Ordner der App mit dem Sync-Client

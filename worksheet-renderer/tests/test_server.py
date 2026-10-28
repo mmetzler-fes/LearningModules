@@ -243,6 +243,29 @@ class RendererTest(unittest.TestCase):
         self.assertTrue(any(b["type"] == "karo" for b in blocks))
 
 
+    def test_pdf_zeichnungen_braucht_bereiche(self):
+        status, body = self.request("/export-pdf-figures", {"pdf": base64.b64encode(b"%PDF").decode(), "page": 0, "figures": []})
+        self.assertEqual(status, 400)
+
+    @unittest.skipUnless(server.soffice_available() and Path(server.UNO_PYTHON).exists()
+                         and os.system(f"{server.UNO_PYTHON} -c 'import uno' >/dev/null 2>&1") == 0,
+                         "LibreOffice bzw. python3-uno nicht installiert")
+    def test_pdf_bereich_als_gruppierte_zeichnung(self):
+        """Ein in Kacheln zerlegtes Bild einer Folie wird EINE Gruppe in einer .odg (und ein SVG)."""
+        sys.path.insert(0, str(Path(__file__).resolve().parent))
+        from test_pdf_import import _slides
+        pdf = base64.b64encode(_slides(1)).decode()
+        status, body = self.request("/export-pdf-figures", {"pdf": pdf, "page": 0, "figures": [
+            {"id": "f1", "box": [197, 232, 443, 398]}]})
+        self.assertEqual(status, 200, body)
+        self.assertEqual([f["id"] for f in body["figures"]], ["f1"])
+        fig = body["figures"][0]
+        self.assertAlmostEqual(fig["width_mm"], 240 * 25.4 / 72, delta=3)
+        with zipfile.ZipFile(io.BytesIO(base64.b64decode(fig["odg"]))) as z:
+            content = z.read("content.xml").decode("utf-8")
+        self.assertEqual(content.count("<draw:g"), 1)  # gruppiert – das Logo daneben ist nicht dabei
+        self.assertIn("<svg", base64.b64decode(fig["svg"]).decode("utf-8", "replace"))
+
     # ---- Word nach .odt ----
 
     def test_umwandeln_nur_word(self):

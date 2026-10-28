@@ -85,7 +85,12 @@ class App {
     this.sessionsDialog = new SessionsDialog(this);
     this.userSettings = new UserSettingsDialog(this);
     // Offen gelassene App (Desktop-Symbol, iPad) erneuert ihre Anmeldung auch unterwegs.
-    setInterval(() => { void this.keepSessionFresh(); }, 6 * 3600 * 1000);
+    // Kurze Anmeldungen alle 10 Minuten prüfen – sie verlängern sich so beim Arbeiten.
+    setInterval(() => { void this.keepSessionFresh(); }, 10 * 60 * 1000);
+    this._lastActivity = Date.now();
+    for (const ev of ['keydown', 'pointerdown', 'input']) {
+      window.addEventListener(ev, () => { this._lastActivity = Date.now(); }, { capture: true, passive: true });
+    }
     this._offerInstall();
     this._answerAuthAsk();
     this._acceptFiles();
@@ -113,18 +118,23 @@ class App {
   }
 
   /**
-   * „Angemeldet bleiben“: höchstens einmal am Tag ein frisches Token holen.
-   * So endet die Anmeldung erst nach 90 Tagen ohne Nutzung (SessionsService).
+   * Frisches Token holen: „Angemeldet bleiben“ höchstens einmal am Tag (die
+   * Anmeldung endet erst nach 90 Tagen ohne Nutzung), sonst höchstens jede
+   * Stunde, solange die App offen ist und benutzt wird (endet 12 Stunden nach
+   * der letzten Nutzung – nicht mitten in der Arbeit).
    */
   async keepSessionFresh() {
-    if (!this.authStore.persistent) return;
+    if (!this.authStore.getToken() || this.state.currentUser?.role === 'student') return;
+    const persistent = this.authStore.persistent;
+    const store = persistent ? localStorage : sessionStorage;
     let last = 0;
-    try { last = Number(localStorage.getItem('lm_token_fresh') || 0); } catch (_) { /* ohne Speicher */ }
-    if (Date.now() - last < 24 * 3600 * 1000) return;
+    try { last = Number(store.getItem('lm_token_fresh') || 0); } catch (_) { /* ohne Speicher */ }
+    if (!persistent && Date.now() - (this._lastActivity || 0) > 3600 * 1000) return; // niemand arbeitet
+    if (Date.now() - last < (persistent ? 24 : 1) * 3600 * 1000) return;
     const res = await this.api.refreshSession().catch(() => null);
     if (!res?.token) return;
-    this.authStore.setToken(res.token, true);
-    try { localStorage.setItem('lm_token_fresh', String(Date.now())); } catch (_) { /* ohne Speicher */ }
+    this.authStore.setToken(res.token, persistent);
+    try { store.setItem('lm_token_fresh', String(Date.now())); } catch (_) { /* ohne Speicher */ }
   }
 
   /**

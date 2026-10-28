@@ -1,4 +1,5 @@
 import { escapeHtml, escapeAttr, generateId } from '../utils.js';
+import { localDrafts } from '../local-drafts.js';
 import { ModuleDescriptionEditor } from '../desc-editor.js';
 import { TagPicker } from './tags.js';
 import { openImportDialog } from './import-dialog.js';
@@ -544,18 +545,29 @@ export class ModulesView {
     let drafts = [];
     try { drafts = await this.app.api.listDrafts(topicId); } catch (_) {}
     const open = Array.isArray(drafts) ? drafts.filter((d) => !d.moduleId) : [];
+    // Dazu die Sicherung in diesem Browser (local-drafts.js) – sie ist neuer, wenn der Server sie nicht mehr bekam.
+    const user = this._userKey();
+    for (const l of await localDrafts.list(user)) {
+      if (!l.draftKey.startsWith('new:') || l.topicId !== topicId) continue;
+      const s = open.find((d) => d.draftKey === l.draftKey);
+      if (!s) open.push({ draftKey: l.draftKey, title: l.title, updatedAt: l.updatedAt, local: l });
+      else if (l.updatedAt > new Date(s.updatedAt).getTime() + 5000) s.local = l;
+    }
+    open.sort((a, b) => new Date(b.local?.updatedAt || b.updatedAt) - new Date(a.local?.updatedAt || a.updatedAt));
     let key = `new:${generateId()}`;
     if (open.length) {
       const d = open[0];
+      const when = new Date(d.local?.updatedAt || d.updatedAt).toLocaleString('de-DE');
       const restore = await this.app.appConfirm(
-        `Es gibt einen nicht gespeicherten neuen Modul-Entwurf${d.title ? ` „${d.title}“` : ''} vom ${new Date(d.updatedAt).toLocaleString('de-DE')}.\n\n`
+        `Es gibt einen nicht gespeicherten neuen Modul-Entwurf${d.title ? ` „${d.title}“` : ''} vom ${when}${d.local ? ' (in diesem Browser gesichert)' : ''}.\n\n`
         + 'Fortsetzen? Mit „Abbrechen“ wird er verworfen und du beginnst neu.',
       );
       if (restore) {
-        const full = await this.app.api.getDraft(d.draftKey).catch(() => null);
+        const full = d.local ? { data: d.local.data } : await this.app.api.getDraft(d.draftKey).catch(() => null);
         if (full && full.data) { this._applyDraftData(full.data); key = d.draftKey; }
       } else {
         await this.app.api.deleteDraft(d.draftKey).catch(() => {});
+        await localDrafts.remove(user, d.draftKey);
       }
     }
     // Das neue Modul behält die ID des Entwurfs – so findet „Speichern“ ihn wieder.
@@ -603,14 +615,23 @@ export class ModulesView {
     await new Promise((r) => setTimeout(r, 0));
     const baseline = this._snapshot();
     if (checkExisting) {
-      const existing = await this.app.api.getDraft(key).catch(() => null);
-      if (existing && existing.data && JSON.stringify(existing.data) !== baseline) {
+      let existing = await this.app.api.getDraft(key).catch(() => null);
+      if (!existing?.data) existing = null;
+      // Die Sicherung in diesem Browser gilt, wenn sie neuer ist (der Server bekam sie z. B. nach Ablauf der Anmeldung nicht mehr).
+      const local = await localDrafts.get(this._userKey(), key);
+      const fromBrowser = !!local && (!existing || local.updatedAt > new Date(existing.updatedAt).getTime() + 5000);
+      const found = fromBrowser ? { data: local.data, updatedAt: local.updatedAt, title: local.title } : existing;
+      if (found && JSON.stringify(found.data) !== baseline) {
         const restore = await this.app.appConfirm(
-          `Für „${title || existing.title || 'dieses Modul'}“ gibt es einen nicht gespeicherten Entwurf vom ${new Date(existing.updatedAt).toLocaleString('de-DE')}`
-          + ' – vielleicht von einem anderen Gerät.\n\nWiederherstellen? Mit „Abbrechen“ wird er verworfen.',
+          `Für „${title || found.title || 'dieses Modul'}“ gibt es einen nicht gespeicherten Entwurf vom ${new Date(found.updatedAt).toLocaleString('de-DE')}`
+          + (fromBrowser ? ' – in diesem Browser gesichert.' : ' – vielleicht von einem anderen Gerät.')
+          + '\n\nWiederherstellen? Mit „Abbrechen“ wird er verworfen.',
         );
-        if (restore) this._applyDraftData(existing.data);
-        else await this.app.api.deleteDraft(key).catch(() => {});
+        if (restore) this._applyDraftData(found.data);
+        else {
+          await this.app.api.deleteDraft(key).catch(() => {});
+          await localDrafts.remove(this._userKey(), key);
+        }
       }
     }
     // baseline bleibt der gespeicherte Stand: Ein wiederhergestellter Entwurf
@@ -623,7 +644,9 @@ export class ModulesView {
 
   _setDraftStatus(text) {
     const el = this._draft?.status;
-    if (el) el.textContent = text;
+    if (!el) return;
+    el.textContent = text;
+    el.classList.toggle('draft-status-warn', text.startsWith('⚠️'));
   }
 
   /** Sichern, wenn sich seit der letzten Sicherung etwas geändert hat. */
@@ -633,19 +656,35 @@ export class ModulesView {
     const snap = this._snapshot();
     if (snap === (d.sent ?? d.baseline)) return;
     d.busy = true;
+    const user = this._userKey();
     try {
       if (snap === d.baseline) {
         // Zurück auf den gespeicherten Stand: kein Entwurf mehr nötig.
+        await localDrafts.remove(user, d.key);
         await this.app.api.deleteDraft(d.key);
         this._setDraftStatus('');
       } else {
-        const res = await this.app.api.saveDraft(d.key, { topicId: d.topicId, moduleId: d.moduleId, data: JSON.parse(snap) }, keepalive);
-        if (res && res.success === false) throw new Error(res.message || 'Sichern fehlgeschlagen');
+        const data = JSON.parse(snap);
+        // Zuerst im Browser – das geht immer, auch ohne Anmeldung oder Netz.
+        await localDrafts.put(user, d.key, { data, topicId: d.topicId, moduleId: d.moduleId, title: data.title || '' });
+        const res = await this.app.api.saveDraft(d.key, { topicId: d.topicId, moduleId: d.moduleId, data }, keepalive);
+        // Nur { success: true } heißt gesichert – eine Fehlerantwort (401 …) hat kein success.
+        if (!res || res.success !== true) throw Object.assign(new Error(res?.message || 'Sichern fehlgeschlagen'), { status: res?.statusCode });
         this._setDraftStatus(`💾 Entwurf gesichert ${new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })} – noch nicht veröffentlicht`);
+        d.warned = false;
       }
       d.sent = snap;
-    } catch (_) {
-      this._setDraftStatus('⚠️ Entwurf konnte nicht gesichert werden – bitte speichern');
+    } catch (err) {
+      const loggedOut = err?.status === 401 || !this.app.authStore.getToken();
+      this._setDraftStatus(loggedOut
+        ? '⚠️ Anmeldung abgelaufen – nur in diesem Browser gesichert. Bitte neu anmelden; beim Öffnen wird der Entwurf angeboten.'
+        : '⚠️ Nicht auf dem Server gesichert (nur in diesem Browser) – bitte speichern');
+      if (!d.warned) {
+        d.warned = true;
+        this.app.showToast(loggedOut
+          ? 'Deine Anmeldung ist abgelaufen. Deine Arbeit ist in diesem Browser gesichert – melde dich neu an und öffne das Modul wieder, dann wird sie angeboten.'
+          : 'Der Entwurf ließ sich nicht auf dem Server sichern – er liegt in diesem Browser. Bitte bald speichern.', 'error');
+      }
     } finally {
       d.busy = false;
     }
@@ -665,11 +704,20 @@ export class ModulesView {
     if (dirty) this.app.showToast('Nicht gespeicherte Änderungen sind als Entwurf gesichert – beim nächsten Öffnen kannst du weitermachen.', 'info');
   }
 
-  /** Nach dem Speichern oder bewusstem Verwerfen: Entwurf löschen. */
+  /** Nach dem Speichern oder bewusstem Verwerfen: Entwurf löschen (auf dem Server und im Browser). */
   async _discardDraft() {
     const d = this._draft;
     this._stopDraft();
-    if (d) await this.app.api.deleteDraft(d.key).catch(() => {});
+    if (d) {
+      await localDrafts.remove(this._userKey(), d.key);
+      await this.app.api.deleteDraft(d.key).catch(() => {});
+    }
+  }
+
+  /** Wem die lokalen Entwürfe gehören (getrennt je Konto auf geteilten Rechnern). */
+  _userKey() {
+    const u = this.app.state.currentUser;
+    return String(u?.id || u?.email || '');
   }
 
   /**

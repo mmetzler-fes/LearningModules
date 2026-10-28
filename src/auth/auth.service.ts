@@ -20,9 +20,10 @@ const CHALLENGE_SECRET = `${process.env.JWT_SECRET || 'secretKey'}:2fa-challenge
 /**
  * Gültigkeit des Tokens: ohne "Angemeldet bleiben" ein Schultag, mit Häkchen
  * 90 Tage. Ob die Anmeldung noch gilt, entscheidet ihre Sitzung (`sid`,
- * SessionsService) – sie läuft 90 Tage nach der letzten Nutzung ab, die App
- * holt sich unterwegs ein frisches Token (POST /auth/refresh). Das Häkchen
- * steht im Token (`rem`), damit neu ausgestellte Tokens es behalten.
+ * SessionsService) – sie läuft 12 Stunden bzw. 90 Tage nach der letzten
+ * Nutzung ab, die App holt sich unterwegs ein frisches Token (POST
+ * /auth/refresh). Das Häkchen steht im Token (`rem`), damit neu ausgestellte
+ * Tokens es behalten.
  */
 const SESSION_SHORT = '12h';
 const SESSION_REMEMBER = '90d';

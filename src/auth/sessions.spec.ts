@@ -20,7 +20,7 @@ describe('Anmeldungen je Gerät', () => {
     expect(sessionEnd(now, false).toISOString()).toBe('2026-10-27T20:00:00.000Z');
   });
 
-  it('beendete, fremde und abgelaufene Anmeldungen gelten nicht; Verlängern nur mit Häkchen', async () => {
+  it('beendete, fremde und abgelaufene Anmeldungen gelten nicht; Verlängern auch ohne Häkchen', async () => {
     const rows = new Map<string, any>();
     const repo: any = {
       create: (x: any) => ({ ...x, createdAt: new Date() }),
@@ -41,6 +41,10 @@ describe('Anmeldungen je Gerät', () => {
     const svc = new SessionsService(repo);
     const a = await svc.open('u1', true, 'iPad · Safari');
     const b = await svc.open('u1', false, 'Windows · Edge');
+    // Kurze Anmeldung: Verlängern schiebt das Ende auf 12 Stunden ab jetzt.
+    rows.get(b.id).expiresAt = new Date(Date.now() + 60 * 1000);
+    const extended = await svc.extend(b.id, 'u1');
+    expect(new Date(extended!.expiresAt).getTime()).toBeGreaterThan(Date.now() + 11.9 * 3600 * 1000);
     expect(await svc.valid(a.id, 'u1')).toBeTruthy();
     expect(await svc.valid(a.id, 'u2')).toBeNull();
     rows.get(b.id).expiresAt = new Date(Date.now() - 1000);

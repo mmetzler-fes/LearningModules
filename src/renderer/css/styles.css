@@ -5782,3 +5782,5 @@ details.cb-topic > summary .hint { font-weight: normal; margin-left: 6px; }
 .zlm-viewer-actions { display: flex; flex-wrap: wrap; gap: 6px; }
 .zlm-viewer-body { flex: 1; overflow: auto; padding: 16px; }
 .zlm-viewer-doc { max-width: 900px; margin: 0 auto; }
+/* Entwurf nicht auf dem Server gesichert (views/modules.js) – nicht zu übersehen */
+.draft-status-warn { color: var(--danger, #b91c1c); font-weight: 600; }

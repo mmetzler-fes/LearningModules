@@ -6,7 +6,7 @@ import { AuthSession } from '../core/entities/auth-session.entity';
 
 /** „Angemeldet bleiben“: so lange nach der letzten Nutzung. */
 export const REMEMBER_DAYS = 90;
-/** Ohne Häkchen: ein Schultag. */
+/** Ohne Häkchen: ein Schultag – seit der letzten Nutzung, nicht seit der Anmeldung. */
 export const SHORT_HOURS = 12;
 /** „Zuletzt aktiv“ höchstens so oft schreiben – nicht bei jedem Klick. */
 const SEEN_EVERY_MS = 10 * 60 * 1000;
@@ -42,13 +42,17 @@ export class SessionsService {
     return s;
   }
 
-  /** „Angemeldet bleiben“ ab jetzt wieder 90 Tage; null, wenn sie nicht mehr gilt. */
+  /**
+   * Ab jetzt wieder 90 Tage („Angemeldet bleiben“) bzw. 12 Stunden; null, wenn sie
+   * nicht mehr gilt. Die App holt sich während der Arbeit regelmäßig ein frisches
+   * Token – wer arbeitet, wird nicht mitten im Bearbeiten abgemeldet.
+   */
   async extend(sid: string, userId: string): Promise<AuthSession | null> {
     const s = await this.valid(sid, userId);
-    if (!s || !s.remember) return s;
+    if (!s) return s;
     const now = new Date();
     s.lastSeenAt = now;
-    s.expiresAt = sessionEnd(now, true);
+    s.expiresAt = sessionEnd(now, !!s.remember);
     return this.repo.save(s);
   }
 

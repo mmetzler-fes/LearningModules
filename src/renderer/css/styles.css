@@ -5545,6 +5545,8 @@ body {
 .cr-live-done { background: var(--score-good-bg); color: var(--score-good-text); }
 .cr-live-now { background: var(--score-medium-bg); color: var(--score-medium-text); }
 .cr-live-skip { color: #c2410c; background: #ffedd5; font-weight: 700; text-align: center; }
+.cr-live-part { color: #b45309; background: #fef3c7; font-weight: 700; text-align: center; }
+.cr-live-strip i.cr-strip-part { background: linear-gradient(90deg, #22c55e 50%, #f97316 50%); }
 .cr-live-skip-note { color: #c2410c; font-size: 0.85em; white-space: nowrap; }
 .cr-live-strip { display: inline-flex; gap: 2px; flex-wrap: wrap; max-width: 260px; vertical-align: middle; }
 .cr-live-strip i { width: 12px; height: 12px; border-radius: 3px; background: var(--border, #e2e8f0); display: inline-block; }

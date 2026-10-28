@@ -301,17 +301,19 @@ export class ClassResultsView {
       const st = r.states?.[i];
       if (st === 'd') return 'done';
       if (st === 's') return 'skip';
+      if (st === 'p') return 'part';
       // Ältere Meldungen ohne Stand je Aufgabe: alles davor zählt als bearbeitet.
       return !r.states?.length && i < r.done ? 'done' : '';
     };
-    const CELL = { done: ['cr-live-done', 'bearbeitet', '✓'], skip: ['cr-live-skip', 'übersprungen (Weiter ohne Eingabe)', '⤼'], now: ['cr-live-now', 'gerade dran', '▶'] };
+    const CELL = { done: ['cr-live-done', 'bearbeitet', '✓'], skip: ['cr-live-skip', 'übersprungen (Weiter ohne Eingabe)', '⤼'],
+      part: ['cr-live-part', 'teilweise – von den Quizzen im Dokument nur ein Teil bearbeitet', '◐'], now: ['cr-live-now', 'gerade dran', '▶'] };
     const cell = (r, i) => {
       const c = r && CELL[stepState(r, i)];
       return c ? `<td class="${c[0]}" title="${c[1]}">${c[2]}</td>` : '<td></td>';
     };
     const counts = (r) => {
       const n = r.steps.map((_, i) => stepState(r, i));
-      return { done: n.filter((x) => x === 'done').length, skip: n.filter((x) => x === 'skip').length };
+      return { done: n.filter((x) => x === 'done').length, skip: n.filter((x) => x === 'skip' || x === 'part').length };
     };
     const progress = (r) => {
       if (r.finishedAt) {
@@ -324,7 +326,7 @@ export class ClassResultsView {
     // Kleine Leiste je Aufgabe (Übersicht): Titel beim Darüberfahren.
     const strip = (r) => `<span class="cr-live-strip">${r.steps.map((t, i) => {
       const st = stepState(r, i);
-      return `<i class="${st ? `cr-strip-${st}` : ''}" title="${escapeAttr(`${i + 1}. ${t}${st === 'skip' ? ' – übersprungen' : st === 'done' ? ' – bearbeitet' : st === 'now' ? ' – gerade dran' : ''}`)}"></i>`;
+      return `<i class="${st ? `cr-strip-${st}` : ''}" title="${escapeAttr(`${i + 1}. ${t}${{ skip: ' – übersprungen', part: ' – teilweise (Quizze im Dokument)', done: ' – bearbeitet', now: ' – gerade dran' }[st] || ''}`)}"></i>`;
     }).join('')}</span>`;
     const nameCell = (s) => `<td>${escapeHtml(s.name)}${inkBy.get(s.id) ? ` <span title="schreibt mit dem Stift: ${escapeAttr(inkBy.get(s.id).moduleTitle)}">✍️</span>` : ''}</td>`;
     const known = new Set(live.students.map((s) => s.id));
@@ -352,7 +354,7 @@ export class ClassResultsView {
               <td>${current}</td><td>${strip(r)}</td><td>${progress(r)}</td></tr>`;
           }).join('')}</tbody>
         </table></div>
-        <p class="hint">✓ bearbeitet · ⤼ übersprungen (Weiter ohne Eingabe) · ▶ gerade dran. Eine Zuweisung oben wählen für alle Aufgaben im Einzelnen.</p>`;
+        <p class="hint">✓ bearbeitet · ◐ teilweise (Quizze im Dokument) · ⤼ übersprungen (Weiter ohne Eingabe) · ▶ gerade dran. Eine Zuweisung oben wählen für alle Aufgaben im Einzelnen.</p>`;
     } else {
       const runs = live.runs.filter((r) => r.linkId === this._liveLink);
       const steps = runs.reduce((longest, r) => (r.steps.length > longest.length ? r.steps : longest), []);
@@ -370,7 +372,7 @@ export class ClassResultsView {
               ${steps.map((_, i) => cell(r, i)).join('')}<td>${r ? progress(r) : '<span class="hint">noch nicht gestartet</span>'}</td></tr>`;
           }).join('')}</tbody>
         </table></div>
-        <p class="hint">✓ bearbeitet · ⤼ übersprungen (Weiter ohne Eingabe) · ▶ gerade dran.</p>`;
+        <p class="hint">✓ bearbeitet · ◐ teilweise (Quizze im Dokument) · ⤼ übersprungen (Weiter ohne Eingabe) · ▶ gerade dran.</p>`;
     }
     this._out.innerHTML = links.size ? body : `<div class="empty-state"><span class="empty-icon">📡</span>
         <p>In den letzten 12 Stunden hat niemand aus dieser Klasse einen Klassenlink gestartet. Sobald es losgeht, erscheint es hier.</p></div>`;

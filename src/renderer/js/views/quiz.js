@@ -7,14 +7,16 @@ import { classbookSession, backToClassbook } from './classbook-student.js';
 
 /**
  * Stand je Aufgabe für die Live-Ansicht: 'd' bearbeitet, 's' mit „Weiter“
- * übersprungen (nichts eingetragen), '' noch nicht dran. Aufgaben ohne
- * Bewertung (Dokument, Video …) gelten mit dem Ansehen als bearbeitet.
+ * übersprungen (nichts verändert), 'p' teilweise (Dokument, von dessen Quizzen
+ * nur ein Teil bearbeitet ist), '' noch nicht dran. Aufgaben ohne Bewertung
+ * (Dokument ohne Quiz, Video …) gelten mit dem Ansehen als bearbeitet.
  */
 function stepStates(qs) {
   return qs.modules.map((mod, i) => {
     const a = qs.answers?.[i];
     if (!a) return '';
-    if (!GRADABLE_TYPES.has(mod.type)) return 'd';
+    // Dokument mit Quizzen: was mit ihnen passiert ist ('p' = nur ein Teil bearbeitet).
+    if (!GRADABLE_TYPES.has(mod.type)) return qs.embeddedStates?.[i] || 'd';
     // In dieser Sitzung aufgebaut: bearbeitet = Eingabe anders als am Anfang.
     if (qs.initialAnswers && i in qs.initialAnswers) return answerKey(a) !== qs.initialAnswers[i] ? 'd' : 's';
     // Sonst (fortgesetzter Durchlauf) nach der Antwort selbst.
@@ -476,6 +478,15 @@ export class QuizView {
           if (qs.views?.[index] !== view) return;
           try { (qs.initialAnswers ||= {})[index] = answerKey(collectAnswer(mod, view)); } catch (_) { /* ohne Vergleich */ }
         });
+      } else if (qs.embedded?.size) {
+        // Quizze im Dokument ebenso – daran entscheidet sich, ob das Dokument bearbeitet ist.
+        requestAnimationFrame(() => {
+          view.querySelectorAll('form.ds-quiz-slot').forEach((slot) => {
+            const m = qs.embedded.get(slot.dataset.module);
+            if (!m || !GRADABLE_TYPES.has(m.type) || slot._initialKey !== undefined) return;
+            try { slot._initialKey = answerKey(collectAnswer(m, slot)); } catch (_) { /* ohne Vergleich */ }
+          });
+        });
       }
     }
 
@@ -560,6 +571,12 @@ export class QuizView {
       if (mod) found.push({ answer: slot._firstCheck || collectAnswer(mod, slot), slot });
     });
     if (found.length) (qs.embeddedAnswers || (qs.embeddedAnswers = {}))[qs.currentIndex] = found.map((f) => f.answer);
+    // Für die Live-Ansicht: alle Quizze im Dokument bearbeitet, keins oder ein Teil?
+    const graded = found.filter((f) => f.slot._initialKey !== undefined);
+    if (graded.length) {
+      const changed = graded.filter((f) => answerKey(f.answer) !== f.slot._initialKey).length;
+      (qs.embeddedStates ||= {})[qs.currentIndex] = changed === graded.length ? 'd' : changed ? 'p' : 's';
+    }
     return found;
   }
 

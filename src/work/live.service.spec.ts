@@ -50,6 +50,8 @@ describe('Live-Ansicht', () => {
     await svc.report({ linkToken: 'tok', studentTicket: ticket, steps: ['A', 'B', 'C'], done: 0 });
     await svc.report({ linkToken: 'tok', studentTicket: ticket, done: 2, states: ['d', 's', 'x'] as any });
     expect(runs.rows[0].states).toEqual(['d', 's', '']);
+    await svc.report({ linkToken: 'tok', studentTicket: ticket, done: 2, states: ['p', 's', ''] });
+    expect(runs.rows[0].states).toEqual(['p', 's', '']);
     // Zurück zu B: aktuell ist wieder B, der Stand je Aufgabe bleibt.
     await svc.report({ linkToken: 'tok', studentTicket: ticket, done: 1, states: ['d', 's', ''] });
     expect(runs.rows[0]).toMatchObject({ done: 1, states: ['d', 's', ''] });

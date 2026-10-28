@@ -36,7 +36,7 @@ export class RunProgress extends BaseEntity {
   @Column('simple-json', { nullable: true })
   steps: string[] | null;
 
-  /** Je Aufgabe: 'd' bearbeitet, 's' übersprungen (Weiter ohne Eingabe), '' noch nicht dran. */
+  /** Je Aufgabe: 'd' bearbeitet, 's' übersprungen (Weiter ohne Eingabe), 'p' teilweise (Dokument mit Quizzen), '' noch nicht dran. */
   @Column('simple-json', { nullable: true })
   states: string[] | null;
 

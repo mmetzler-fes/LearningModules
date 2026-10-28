@@ -9,9 +9,9 @@ import { ClassesService } from '../classes/classes.service';
 import { readTicket } from '../classes/student-ticket';
 import { isTestStudent } from '../classes/test-student';
 
-/** Stand je Aufgabe säubern: nur 'd' (bearbeitet), 's' (übersprungen) oder ''. */
+/** Stand je Aufgabe säubern: nur 'd' (bearbeitet), 's' (übersprungen), 'p' (teilweise – Dokument mit Quizzen) oder ''. */
 export function cleanStates(states: unknown[], length: number): string[] {
-  return Array.from({ length }, (_, i) => (states[i] === 'd' || states[i] === 's' ? (states[i] as string) : ''));
+  return Array.from({ length }, (_, i) => (['d', 's', 'p'].includes(states[i] as string) ? (states[i] as string) : ''));
 }
 
 /** So lange gilt ein Durchlauf in der Live-Ansicht als aktuell. */

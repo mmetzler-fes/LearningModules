@@ -153,8 +153,9 @@ Aufgaben.
 
 **⤼ übersprungen** heißt: mit „Weiter“ verlassen, ohne etwas zu verändern –
 auch bei Reihenfolge und Zuordnen, wo schon der unberührte Anfang Teilpunkte
-bringt. Aufgaben ohne Bewertung (Dokument, Video …) zählen mit dem Ansehen als
-bearbeitet. Geht ein Schüler mit „Zurück“ auf eine frühere Aufgabe, steht ▶
+bringt. Ein **Dokument mit Quizzen** zählt nach seinen Quizzen: alle
+bearbeitet ✓, keins angefasst ⤼, nur ein Teil **◐ teilweise**. Aufgaben ohne
+Bewertung (Dokument ohne Quiz, Video …) zählen mit dem Ansehen als bearbeitet. Geht ein Schüler mit „Zurück“ auf eine frühere Aufgabe, steht ▶
 wieder dort.
 
 Live und **📊 Ergebnisse** beantworten verschiedene Fragen: Live zeigt, *ob*

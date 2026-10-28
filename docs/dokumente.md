@@ -411,7 +411,20 @@ wenn die Lehrkraft des Lernthemas freigeschaltet ist.
   🧽 Radierer (ganze Striche; auch das Radierer-Ende eines Windows-Stifts),
   ⬚ Auswählen (einen Strich antippen oder ein Rechteck aufziehen, dann
   verschieben oder 🗑 löschen), **T** Textfeld (auf die Seite tippen und
-  schreiben). Dazu Farben, drei Strichstärken, ↶ ↷ und Zoom.
+  schreiben; Schriftgröße 8–36 pt wie im Dokument-Editor). Dazu Farben, drei
+  Strichstärken, ↶ ↷ und Zoom.
+- **◇ Formen:** ▭ Rechteck, ◯ Ellipse, ⬠ Vieleck, ╱ Linie, ➝ Pfeil. Aufziehen
+  (mit Umschalt: Quadrat bzw. Kreis, Linien in 15°-Schritten); beim Vieleck
+  Punkte setzen – Doppelklick, Enter oder ein Klick auf den ersten Punkt
+  schließt, Esc bricht ab. Jede Form ist ein Objekt: Linienfarbe, Stärke,
+  Strichart (durchgezogen, gestrichelt, gepunktet), Füllung aus einer hellen
+  Palette und **Deckkraft** (Schieberegler oder Prozent). Gewählt: an den
+  Ecken größer oder kleiner ziehen, am runden Anfasser darüber **drehen**
+  (rastet bei 0°, 15°, 30° … ein), beim Vieleck und bei Linien jeden Punkt
+  einzeln ziehen. Im Menü der Auswahl: **In Vieleck umwandeln** (Rechteck,
+  Ellipse), Drehung zurücksetzen, Pfeilspitzen an einem oder beiden Enden,
+  ganz nach vorn/hinten. Formen erscheinen im Druck und bei den Schülern wie
+  gezeichnet; der Radierer löscht sie ganz.
 - **▭ Feld:** Ein Rechteck aufziehen – an der Stelle liegt dann ein weißes Feld
   mit Karo, Linien oder leer und deckt ab, was darunter steht. So lässt sich
   z. B. auf einer PDF-Seite eine ausgefüllte Tabelle durch frisches Karo

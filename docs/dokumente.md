@@ -19,9 +19,10 @@ Admin sie freigeschaltet hat (siehe [Benutzerverwaltung](benutzerverwaltung.md#f
 
 Der Editor startet im Modus **✏️ Bearbeiten** – wie ein Textprogramm:
 
-- **Absatzart** links in der Leiste: Text, **Abschnitt** (1.), **Aufgabe** (1.1),
-  **Teilaufgabe** (1.1.1), Überschrift ohne Nummer, Hinweis. Sie gilt für alle
-  markierten Absätze, auch in Tabellenzellen.
+- **Absatzart** links in der Leiste: Text; mit Nummer **§ Abschnitt** (1.),
+  **Aufgabe** (1.1), **Teilaufgabe** (1.1.1); ohne Nummer **Überschrift 1, 2
+  und 3**; Hinweis. Sie gilt für alle markierten Absätze, auch in
+  Tabellenzellen. Im Editor steht vor einem Abschnitt ein **§**.
 - **Fett, kursiv, unterstrichen, durchgestrichen, hoch/tief**, Links,
   **🖼 Bild** (Größe, Lage, Rahmen per Klick aufs Bild).
 - Klappmenüs wie in Google Docs:

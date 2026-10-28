@@ -103,8 +103,10 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
           <div class="ds-vtoolbar rich-text-toolbar">
             <button type="button" class="rt-btn ds-vplus" title="Einfügen: Quiz, Schreibfeld, Lösung, Formel, Bild … (auch Rechtsklick in den Text)">➕</button>
             <select class="ds-vblock" title="Absatzart">
-              <option value="p">Text</option><option value="section">Abschnitt (1.)</option><option value="task">Aufgabe (1.1)</option>
-              <option value="subtask">Teilaufgabe (1.1.1)</option><option value="heading">Überschrift ohne Nummer</option><option value="note">Hinweis</option>
+              <option value="p">Text</option>
+              <optgroup label="Mit Nummer"><option value="section">§ Abschnitt (1.)</option><option value="task">Aufgabe (1.1)</option><option value="subtask">Teilaufgabe (1.1.1)</option></optgroup>
+              <optgroup label="Ohne Nummer"><option value="heading">Überschrift 1</option><option value="heading2">Überschrift 2</option><option value="heading3">Überschrift 3</option></optgroup>
+              <option value="note">Hinweis</option>
             </select>
             ${[['bold', '<b>F</b>', 'Fett'], ['italic', '<i>K</i>', 'Kursiv'], ['underline', '<u>U</u>', 'Unterstrichen'], ['strikeThrough', '<s>D</s>', 'Durchgestrichen'],
               ['superscript', 'x²', 'Hochgestellt'], ['subscript', 'x₂', 'Tiefgestellt']]
@@ -590,7 +592,10 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
     lastBlock = blockOfNode(sel.anchorNode) || lastBlock;
     if (sel.rangeCount) lastRange = sel.getRangeAt(0).cloneRange();
     const b = cellParagraph(sel.anchorNode) || currentBlock();
-    blockSelect.value = b?.dataset?.ds && b.dataset.ds !== 'note' ? b.dataset.ds : b?.dataset?.ds === 'note' ? 'note' : 'p';
+    const ds = b?.dataset?.ds;
+    // Überschrift ohne data-ds (z. B. eingefügt aus Word) zählt wie „ohne Nummer“.
+    blockSelect.value = ds === 'heading' || (!ds && /^H[1-6]$/.test(b?.tagName)) ? { H3: 'heading2', H4: 'heading3', H5: 'heading3', H6: 'heading3' }[b.tagName] || 'heading'
+      : ['section', 'task', 'subtask', 'note'].includes(ds) ? ds : 'p';
   });
   /** Absätze, für die die Absatzart gilt: alle markierten – auch in Tabellenzellen – sonst der der Schreibmarke. */
   const blocksForKind = () => {
@@ -605,11 +610,12 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
   };
   blockSelect.addEventListener('change', () => {
     const kind = blockSelect.value;
-    const tag = { p: 'p', note: 'p', section: 'h2', task: 'h3', subtask: 'h4', heading: 'h2' }[kind];
+    // Überschrift 1–3 ohne Nummer: h2–h4 (im YAML heading mit level 1–3).
+    const tag = { p: 'p', note: 'p', section: 'h2', task: 'h3', subtask: 'h4', heading: 'h2', heading2: 'h3', heading3: 'h4' }[kind];
     for (const b of blocksForKind()) {
       if (!/^(P|H[1-6]|DIV)$/.test(b.tagName) || b.classList.contains('ds-widget') || b.classList.contains('ws-box')) continue;
       const el = document.createElement(tag);
-      if (kind !== 'p') el.dataset.ds = kind;
+      if (kind !== 'p') el.dataset.ds = kind.replace(/^heading\d$/, 'heading');
       if (b.dataset.id) el.dataset.id = b.dataset.id;
       const inner = b.dataset.ds === 'note' && b.firstElementChild?.tagName === 'EM' ? b.firstElementChild.innerHTML : b.innerHTML;
       el.innerHTML = kind === 'note' ? `<em>${inner}</em>` : inner;

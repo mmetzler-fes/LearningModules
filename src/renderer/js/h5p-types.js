@@ -290,7 +290,7 @@ const H5P_TYPES = {
   fillInTheBlanks: {
     id: 'fillInTheBlanks',
     name: 'Fill in the Blanks',
-    icon: '📄',
+    icon: '🔲',
     description: 'Lückentext-Aufgaben zum Ausfüllen.',
     category: 'Sprache',
     fields: [

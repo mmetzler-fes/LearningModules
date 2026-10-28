@@ -597,7 +597,7 @@ export class ClassResultsView {
           <button type="button" class="btn btn-sm ${live.follow ? 'btn-primary' : 'btn-secondary'}" data-follow="${live.follow ? 'off' : 'on'}"
             title="${live.follow ? 'Folgen ausschalten – die Schüler bewegen sich wieder selbst' : 'Folgen: Wo du 📍 setzt, öffnet sich das Modul auf allen Schüler-Geräten'}">👣 Folgen: ${live.follow ? 'an' : 'aus'}</button>
           <button type="button" class="btn btn-secondary btn-sm" data-live-refresh title="Anzahl neu zählen">🔄</button>
-          <span class="hint">${live.follow ? '📍 setzen = alle springen dorthin.' : '📡 im Menü ⋯ eines Moduls öffnet es bei allen.'}</span>
+          <span class="hint">${live.follow ? (cb.marker ? '📍 umsetzen = alle springen dorthin.' : 'Jetzt 📍 an ein Modul setzen – dorthin springen alle.') : '📡 im Menü ⋯ eines Moduls öffnet es bei allen.'}</span>
         </div>
         ${mk ? `<div class="cb-marker-bar">📍 Die Klasse ist gerade bei <strong>${escapeHtml(mk.mod.title || 'Modul')}</strong>
             <span class="hint">(${escapeHtml(mk.link.name)})${mk.mod.enabled && mk.link.active ? '' : ' – für die Schüler gerade ausgeschaltet'}</span>
@@ -684,7 +684,10 @@ export class ClassResultsView {
         const on = e.currentTarget.dataset.follow === 'on';
         const res = await this.app.api.setClassbookFollow(this._classId, on);
         if (failed(res)) { this.app.showToast('Fehler: ' + (res?.message || '?'), 'error'); return; }
-        this.app.showToast(on ? `👣 Folgen an – ${res.reached} ${res.reached === 1 ? 'Gerät folgt' : 'Geräte folgen'} dem 📍.` : '👣 Folgen aus.', 'success');
+        const noMarker = on && !this._cb?.marker;
+        this.app.showToast(!on ? '👣 Folgen aus.'
+          : noMarker ? `👣 Folgen an (${res.reached} ${res.reached === 1 ? 'Gerät' : 'Geräte'}) – setze jetzt 📍 an das Modul, zu dem alle springen sollen.`
+            : `👣 Folgen an – ${res.reached} ${res.reached === 1 ? 'Gerät springt' : 'Geräte springen'} zum 📍.`, noMarker ? 'info' : 'success');
         await this._classbook(true);
         this._render();
       });

@@ -1,6 +1,7 @@
 import { escapeHtml, escapeAttr } from '../utils.js';
 import { downloadBlob } from '../api.js';
 import { collectAnswer } from '../../lm-editor/src/modules/answer-eval.js';
+import { classbookSession, backToClassbook } from './classbook-student.js';
 
 // ==================== QUIZ-ARENA ====================
 
@@ -218,6 +219,19 @@ export class ContestView {
       </div>`;
     screen.querySelector('#contestAction')?.addEventListener('click', action?.run);
     screen.querySelector('#contestReload')?.addEventListener('click', () => location.reload());
+  }
+
+  /**
+   * Aus dem Klassennotizbuch gekommen: Knopf zurück – nach dem Ende der Arena
+   * (`auto`) auch von selbst nach ein paar Sekunden, sonst bliebe das iPad hier stehen.
+   */
+  _classbookReturn(auto = false) {
+    if (!classbookSession()) return null;
+    if (auto) {
+      clearTimeout(this._backTimer);
+      this._backTimer = setTimeout(() => { if (!this.source) backToClassbook(); }, 6000);
+    }
+    return { label: '📒 Zurück zum Klassenbuch', run: () => { clearTimeout(this._backTimer); backToClassbook(); } };
   }
 
   _closeSource() {
@@ -632,12 +646,12 @@ export class ContestView {
       kicked: (data) => {
         this._closeSource();
         this._saveSession(token, null);
-        this._showMessage('🚫', 'Entfernt', data?.reason || '');
+        this._showMessage('🚫', 'Entfernt', data?.reason || '', { action: this._classbookReturn() });
       },
       closed: (data) => {
         this._closeSource();
         this._saveSession(token, null);
-        this._showMessage('👋', 'Die Quiz-Arena ist beendet', data?.reason || 'Danke fürs Mitmachen!');
+        this._showMessage('👋', 'Die Quiz-Arena ist beendet', data?.reason || 'Danke fürs Mitmachen!', { action: this._classbookReturn(true) });
       },
     }, () => {
       // Endgültig abgebrochen: prüfen, ob es den Platz noch gibt.

@@ -151,9 +151,21 @@ der App oder im Browser.
   aktuellen 📍. Ein Schüler, der zur Übersicht zurückgeht, wird nicht gleich
   wieder hineingeholt – erst beim nächsten 📍.
 
+**👣 Folgen** braucht einen 📍: Ohne Merker wissen die Geräte nicht, wohin –
+schalte Folgen ein und setze dann 📍 an das Modul.
+
+Das iPad trennt die Verbindung still, wenn der Bildschirm kurz aus ist oder
+die App im Hintergrund war; „verbunden“ zählt das Gerät dann noch eine Weile.
+Es verbindet sich neu, sobald es wieder sichtbar ist (spätestens nach einer
+Minute), und bekommt dabei eine Sendung der **letzten 2 Minuten** nachgeliefert
+– jede nur einmal.
+
 Gesendet wird über den Server (wie bei der Quiz-Arena), nicht direkt im WLAN:
 Schul-WLANs trennen die Geräte meist voneinander. „Folgen“ ist nach einem
 Neustart des Servers aus.
+
+Nach dem Ende einer **Quiz-Arena** führt **📒 Zurück zum Klassenbuch** zurück –
+nach ein paar Sekunden auch von selbst.
 
 ### Ergebnisübersicht
 
@@ -336,7 +348,10 @@ Code: `src/classbook/`, `src/renderer/js/views/class-results.js` (Lehrkraft),
   nur im Speicher) hält je Klasse die Server-Sent-Events-Verbindungen. Schüler:
   `GET /api/public/classbook/:token/live?ticket=` – Ereignisse `state`
   `{ follow, marker }` (beim Verbinden, bei Folgen an/aus, neuem 📍 während
-  Folgen) und `send` `{ linkId, moduleId, title }`. Lehrkraft: `POST
+  Folgen) und `send` `{ id, linkId, moduleId, title, at }`; `state.sent` liefert
+  die Sendung der letzten 2 Minuten nach, `ping` alle 25 s (das Gerät verbindet
+  nach 60 s Stille oder beim Sichtbarwerden neu, `lm_cb_sent` merkt die
+  geöffnete Sendung). Lehrkraft: `POST
   /api/classbook/:classId/send` `{ linkId, moduleId }` → `{ reached }`, `PUT
   …/follow` `{ on }`; `GET /api/classbook/:classId` liefert `live: { online,
   follow }`. Aus einer Aufgabe heraus merkt sich die Seite das Ziel

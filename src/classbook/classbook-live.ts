@@ -14,7 +14,19 @@ export interface LiveTarget {
   title: string;
 }
 
+/** Gesendetes Modul mit Kennung – das Gerät öffnet jede Sendung nur einmal. */
+export interface LiveSent extends LiveTarget {
+  id: string;
+  at: number;
+}
+
 const HEARTBEAT_MS = 25_000;
+/**
+ * So lange wird eine Sendung beim (Wieder-)Verbinden nachgeliefert: Das iPad
+ * trennt die Verbindung still, wenn der Bildschirm kurz aus ist oder die App
+ * im Hintergrund war – der Server merkt es erst viel später.
+ */
+const RESEND_MS = 2 * 60_000;
 
 function send(res: Response, event: string, data: unknown) {
   try {
@@ -28,8 +40,10 @@ function send(res: Response, event: string, data: unknown) {
 export class ClassbookLive implements OnModuleDestroy {
   private readonly streams = new Map<string, Set<Response>>();
   private readonly following = new Set<string>();
+  private readonly lastSent = new Map<string, LiveSent>();
+  // Lebenszeichen als Ereignis (nicht als Kommentar): Daran erkennt das Gerät eine tote Verbindung.
   private readonly heartbeat = setInterval(() => {
-    for (const set of this.streams.values()) for (const res of set) { try { res.write(': ping\n\n'); } catch { /* egal */ } }
+    for (const set of this.streams.values()) for (const res of set) send(res, 'ping', {});
   }, HEARTBEAT_MS);
 
   onModuleDestroy() {
@@ -65,9 +79,10 @@ export class ClassbookLive implements OnModuleDestroy {
     return this.following.has(classId);
   }
 
-  private state(classId: string, marker: LiveTarget | null) {
+  private state(classId: string, marker: LiveTarget | null, now = Date.now()) {
     const follow = this.following.has(classId);
-    return { follow, marker: follow ? marker : null };
+    const sent = this.lastSent.get(classId);
+    return { follow, marker: follow ? marker : null, sent: sent && now - sent.at < RESEND_MS ? sent : null };
   }
 
   private broadcast(classId: string, event: string, data: unknown): number {
@@ -77,8 +92,10 @@ export class ClassbookLive implements OnModuleDestroy {
   }
 
   /** Modul bei allen öffnen. Ergebnis: erreichte Geräte. */
-  sendModule(classId: string, target: LiveTarget): number {
-    return this.broadcast(classId, 'send', target);
+  sendModule(classId: string, target: LiveTarget, now = Date.now()): number {
+    const sent: LiveSent = { ...target, id: `${now.toString(36)}${Math.random().toString(36).slice(2, 6)}`, at: now };
+    this.lastSent.set(classId, sent);
+    return this.broadcast(classId, 'send', sent);
   }
 
   /** Folgen an/aus – bzw. neuer Merker, während Folgen an ist. */

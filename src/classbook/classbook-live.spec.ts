@@ -22,21 +22,34 @@ describe('Live-Verbindung des Klassennotizbuchs', () => {
     const a = fakeRes(); const b = fakeRes(); const other = fakeRes();
     live.open('c1', a, null); live.open('c1', b, null); live.open('c2', other, null);
     expect(live.sendModule('c1', mk)).toBe(2);
-    expect(a.events().at(-1)).toEqual(['send', mk]);
+    expect(a.events().at(-1)[0]).toBe('send');
+    expect(a.events().at(-1)[1]).toMatchObject(mk);
+    expect(a.events().at(-1)[1].id).toBeTruthy();
     expect(other.events().some(([e]: [string]) => e === 'send')).toBe(false);
   });
 
   it('Folgen: Stand beim Verbinden und bei neuem Merker', () => {
     const a = fakeRes();
     live.open('c1', a, mk);
-    expect(a.events()[0]).toEqual(['state', { follow: false, marker: null }]);
+    expect(a.events()[0]).toEqual(['state', { follow: false, marker: null, sent: null }]);
     live.setFollow('c1', true, mk);
-    expect(a.events().at(-1)).toEqual(['state', { follow: true, marker: mk }]);
+    expect(a.events().at(-1)).toEqual(['state', { follow: true, marker: mk, sent: null }]);
     const late = fakeRes();
     live.open('c1', late, mk);
-    expect(late.events()[0]).toEqual(['state', { follow: true, marker: mk }]);
+    expect(late.events()[0]).toEqual(['state', { follow: true, marker: mk, sent: null }]);
     live.markerChanged('c1', { ...mk, moduleId: 'M2' });
     expect(a.events().at(-1)[1].marker.moduleId).toBe('M2');
+  });
+
+  it('Wer (wieder) verbindet, bekommt die Sendung der letzten 2 Minuten nachgeliefert', () => {
+    live.sendModule('c1', mk, Date.now() - 30_000);
+    const back = fakeRes();
+    live.open('c1', back, null);
+    expect(back.events()[0][1].sent).toMatchObject(mk);
+    live.sendModule('c2', mk, Date.now() - 5 * 60_000);
+    const old = fakeRes();
+    live.open('c2', old, null);
+    expect(old.events()[0][1].sent).toBeNull();
   });
 
   it('Getrennte Geräte zählen nicht mehr', () => {

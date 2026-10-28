@@ -25,6 +25,10 @@ const BOOKS_KEY = 'lm_classbooks';
 const OPEN_KEY = 'lm_cb_open';
 /** Live: Ziel des 👣 Folgens, das schon einmal geöffnet wurde – nicht bei jedem Neuladen wieder. */
 const FOLLOWED_KEY = 'lm_cb_followed';
+/** Live: Kennung der zuletzt geöffneten Sendung – jede nur einmal (auch nachgeliefert). */
+const SENT_KEY = 'lm_cb_sent';
+/** Live: ohne Lebenszeichen so lange gilt die Verbindung als tot (Server pingt alle 25 s). */
+const LIVE_SILENT_MS = 60_000;
 const sessionGet = (k) => { try { return sessionStorage.getItem(k); } catch (_) { return null; } };
 const sessionSet = (k, v) => { try { if (v === null) sessionStorage.removeItem(k); else sessionStorage.setItem(k, v); } catch (_) { /* egal */ } };
 const parse = (text) => { try { return JSON.parse(text); } catch (_) { return null; } };
@@ -362,18 +366,37 @@ export class ClassbookStudent {
 
   // ---- Live: 📡 An Klasse senden, 👣 Folgen ----
 
-  /** Verbindung zum Server halten – auch während einer Aufgabe (die Seite bleibt dieselbe). */
-  _connectLive() {
+  /**
+   * Verbindung zum Server halten – auch während einer Aufgabe (die Seite
+   * bleibt dieselbe). Das iPad trennt sie still, wenn der Bildschirm aus oder
+   * die App im Hintergrund war; deshalb neu verbinden, sobald die Seite wieder
+   * sichtbar ist oder eine Minute kein Lebenszeichen kam.
+   */
+  _connectLive(force = false) {
     const s = classbookSession();
     if (!s?.ticket || typeof EventSource === 'undefined') return;
-    if (this._live && this._liveToken === this.token && this._live.readyState !== EventSource.CLOSED) return;
+    if (!force && this._live && this._liveToken === this.token && this._live.readyState !== EventSource.CLOSED) return;
     this._live?.close();
     this._liveToken = this.token;
+    this._liveSeen = Date.now();
     const src = new EventSource(`/api/public/classbook/${encodeURIComponent(this.token)}/live?ticket=${encodeURIComponent(s.ticket)}`);
     this._live = src;
-    src.addEventListener('send', (e) => { const t = parse(e.data); if (t?.linkId) this._liveOpen(t, false); });
+    if (!this._liveWatch) {
+      this._liveWatch = setInterval(() => {
+        if (this._live && Date.now() - this._liveSeen > LIVE_SILENT_MS) this._connectLive(true);
+      }, 15000);
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible' && this._live) this._connectLive(true);
+      });
+    }
+    const seen = () => { this._liveSeen = Date.now(); };
+    src.addEventListener('ping', seen);
+    src.addEventListener('send', (e) => { seen(); this._liveSent(parse(e.data)); });
     src.addEventListener('state', (e) => {
+      seen();
       const st = parse(e.data);
+      // Beim (Wieder-)Verbinden: eine Sendung, die das Gerät verpasst hat.
+      if (st?.sent) this._liveSent(st.sent);
       if (!st?.follow || !st.marker) return;
       const key = `${this.token}:${st.marker.linkId}:${st.marker.moduleId}`;
       if (sessionGet(FOLLOWED_KEY) === key) return;
@@ -387,6 +410,16 @@ export class ClassbookStudent {
         setTimeout(() => this._connectLive(), 15000);
       }
     };
+  }
+
+  /** Gesendetes Modul – jede Sendung nur einmal (sie kommt beim Wiederverbinden noch einmal mit). */
+  _liveSent(sent) {
+    if (!sent?.linkId) return;
+    if (sent.id) {
+      if (sessionGet(SENT_KEY) === sent.id) return;
+      sessionSet(SENT_KEY, sent.id);
+    }
+    this._liveOpen(sent, false);
   }
 
   /**

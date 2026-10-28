@@ -107,6 +107,7 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
               <option value="p">Text</option>
               <optgroup label="Mit Nummer"><option value="section">§ Abschnitt (1.)</option><option value="task">Aufgabe (1.1)</option><option value="subtask">Teilaufgabe (1.1.1)</option></optgroup>
               <optgroup label="Ohne Nummer"><option value="heading">Überschrift 1</option><option value="heading2">Überschrift 2</option><option value="heading3">Überschrift 3</option></optgroup>
+              <optgroup label="Liste"><option value="ul">• Aufzählung</option><option value="ol">1. Nummerierung</option></optgroup>
               <option value="note">Hinweis</option>
             </select>
             ${[['bold', '<b>F</b>', 'Fett'], ['italic', '<i>K</i>', 'Kursiv'], ['underline', '<u>U</u>', 'Unterstrichen'], ['strikeThrough', '<s>D</s>', 'Durchgestrichen'],
@@ -494,7 +495,7 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
   surfaceObserver.observe(surface, { childList: true, subtree: true, characterData: true, attributes: true });
   const tableTools = attachTableTools(surface, root.querySelector('.ds-tablebar-slot'), { copyObject: (t) => copyObject(t) });
   // Leiste wie in Google Docs: Farben, Ausrichtung, Zeilenabstand, Listenarten, Einzug.
-  attachFormatTools(root.querySelector('.ds-vtoolbar'), surface, { tableTools, currentBlock: () => currentBlock() });
+  const formatTools = attachFormatTools(root.querySelector('.ds-vtoolbar'), surface, { tableTools, currentBlock: () => currentBlock() });
   const paraBtn = root.querySelector('.ds-para-btn');
   const tableBtn = root.querySelector('.ds-table-btn');
   [paraBtn, tableBtn].forEach((b) => b.addEventListener('mousedown', (e) => e.preventDefault()));
@@ -592,6 +593,9 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
     if (mode !== 'visual' || !surface.contains(sel?.anchorNode)) return;
     lastBlock = blockOfNode(sel.anchorNode) || lastBlock;
     if (sel.rangeCount) lastRange = sel.getRangeAt(0).cloneRange();
+    const anchorEl = sel.anchorNode.nodeType === 3 ? sel.anchorNode.parentNode : sel.anchorNode;
+    const list = anchorEl.closest?.('ul, ol');
+    if (list && surface.contains(list)) { blockSelect.value = list.tagName === 'OL' ? 'ol' : 'ul'; return; }
     const b = cellParagraph(sel.anchorNode) || currentBlock();
     const ds = b?.dataset?.ds;
     // Überschrift ohne data-ds (z. B. eingefügt aus Word) zählt wie „ohne Nummer“.
@@ -609,11 +613,12 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
     const b = (range && cellParagraph(range.startContainer, true)) || currentBlock();
     return b ? [b] : [];
   };
-  blockSelect.addEventListener('change', () => {
-    const kind = blockSelect.value;
+  /** Absätze `blocks` in die Absatzart `kind` umwandeln – gibt die neuen Elemente zurück. */
+  const convertBlocks = (blocks, kind) => {
     // Überschrift 1–3 ohne Nummer: h2–h4 (im YAML heading mit level 1–3).
     const tag = { p: 'p', note: 'p', section: 'h2', task: 'h3', subtask: 'h4', heading: 'h2', heading2: 'h3', heading3: 'h4' }[kind];
-    for (const b of blocksForKind()) {
+    const out = [];
+    for (const b of blocks) {
       if (!/^(P|H[1-6]|DIV)$/.test(b.tagName) || b.classList.contains('ds-widget') || b.classList.contains('ws-box')) continue;
       const el = document.createElement(tag);
       if (kind !== 'p') el.dataset.ds = kind.replace(/^heading\d$/, 'heading');
@@ -621,7 +626,49 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
       const inner = b.dataset.ds === 'note' && b.firstElementChild?.tagName === 'EM' ? b.firstElementChild.innerHTML : b.innerHTML;
       el.innerHTML = kind === 'note' ? `<em>${inner}</em>` : inner;
       b.replaceWith(el);
+      out.push(el);
     }
+    return out;
+  };
+  /** Auswahl wiederherstellen – über die Elemente `els` oder die zuletzt gemerkte. */
+  const reselect = (els) => {
+    const sel = window.getSelection();
+    surface.focus();
+    if (els.length) {
+      const r = document.createRange();
+      r.setStart(els[0], 0);
+      r.setEnd(els[els.length - 1], els[els.length - 1].childNodes.length);
+      sel.removeAllRanges();
+      sel.addRange(r);
+    } else if (lastRange && surface.contains(lastRange.commonAncestorContainer)) {
+      sel.removeAllRanges();
+      sel.addRange(lastRange);
+    }
+    if (sel.rangeCount) lastRange = sel.getRangeAt(0).cloneRange();
+  };
+  blockSelect.addEventListener('change', () => {
+    const kind = blockSelect.value;
+    reselect([]);
+    const list = formatTools.listOfSelection();
+    if (kind === 'ul' || kind === 'ol') {
+      // Überschriften und Hinweise erst zu Text, dann die Liste (in Zellen auch aus losen Zeilen).
+      if (!list) {
+        const range = lastRange;
+        const marked = range ? [...surface.querySelectorAll('p, h1, h2, h3, h4, h5, h6')]
+          .filter((el) => range.intersectsNode(el) && (blockOfNode(el) === el || cellParagraph(el) === el)) : [];
+        const plain = convertBlocks(marked.filter((el) => el.tagName !== 'P' || el.dataset.ds), 'p');
+        if (plain.length) reselect(marked.map((el) => (el.isConnected ? el : plain.shift())));
+      }
+      formatTools.setList(kind === 'ol');
+      return;
+    }
+    // Aus einer Liste: die gewählten Listenpunkte werden Absätze, dann die Absatzart.
+    if (list) {
+      const paras = formatTools.unlist();
+      reselect(kind === 'p' ? paras : convertBlocks(paras, kind));
+      return;
+    }
+    convertBlocks(blocksForKind(), kind);
     surface.focus();
   });
   root.querySelectorAll('[data-cmd]').forEach((btn) => btn.addEventListener('mousedown', (e) => {

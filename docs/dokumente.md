@@ -21,8 +21,10 @@ Der Editor startet im Modus **✏️ Bearbeiten** – wie ein Textprogramm:
 
 - **Absatzart** links in der Leiste: Text; mit Nummer **§ Abschnitt** (1.),
   **Aufgabe** (1.1), **Teilaufgabe** (1.1.1); ohne Nummer **Überschrift 1, 2
-  und 3**; Hinweis. Sie gilt für alle markierten Absätze, auch in
-  Tabellenzellen. Im Editor steht vor einem Abschnitt ein **§**.
+  und 3**; als Liste **• Aufzählung** und **1. Nummerierung**; Hinweis. Sie
+  gilt für alle markierten Absätze, auch in Tabellenzellen (dort wird jede
+  Zeile ein Listenpunkt). Aus einer Liste heraus werden die markierten Punkte
+  wieder Absätze der gewählten Art. Im Editor steht vor einem Abschnitt ein **§**.
 - **Fett, kursiv, unterstrichen, durchgestrichen, hoch/tief**, Links,
   **🖼 Bild** (Größe, Lage, Rahmen per Klick aufs Bild).
 - Klappmenüs wie in Google Docs:
@@ -77,8 +79,9 @@ Der Editor startet im Modus **✏️ Bearbeiten** – wie ein Textprogramm:
     Ausschneiden), Schreibmarke setzen, **Strg+V** – in eine Zelle (Tabelle in
     der Tabelle, im YAML unter `blocks` der Zelle) oder hinter einen Absatz.
   - **Absätze in einer Zelle:** Absatzart, Aufzählung (•≡▾) und Nummerierung
-    (1≡▾) wirken auch in Zellen – z. B. Teilaufgaben markieren, **Text**
-    wählen, dann **•≡▾ Punkt**. Steht in der Zelle eine Liste, Überschrift
+    (1≡▾) wirken auch in Zellen – z. B. Teilaufgaben markieren und als
+    Absatzart **• Aufzählung** wählen. Stehen mehrere Punkte in einer Zeile,
+    vorher mit Enter trennen. Steht in der Zelle eine Liste, Überschrift
     oder ein Hinweis, speichert das YAML ihren Inhalt unter `blocks` der
     Zelle, sonst als Text (jeder Absatz eine Zeile).
   - ⇤ ↔ ⇥ und ≡▾ der oberen Leiste richten in einer Zelle die Zelle aus.

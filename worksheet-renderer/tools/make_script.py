@@ -63,6 +63,7 @@ from make_worksheet import (  # noqa: E402  (Pfad muss vorher stehen)
     replace_in_element,
     resolve_styles,
     unresolved_placeholders,
+    use_template_width,
 )
 
 
@@ -279,6 +280,7 @@ def build(spec_path: Path, out_dir: Path | None, template_override: Path | None,
     print(f"→ {label}  ({mode}, Vorlage: {template.name})")
 
     doc = load(str(template))
+    use_template_width(doc)
     titel = str(spec.get("titel") or spec_path.stem)
     autor = str(spec.get("autor") or course.get("autor", ""))
     meta = {

@@ -3852,6 +3852,13 @@ body {
 .ds-widget-label { position: absolute; top: -0.7em; right: 8px; font-size: 0.7em; background: var(--bg-secondary); padding: 0 4px; color: var(--text-secondary); }
 /* Gewählter Baustein: Rahmen und Leiste (verschieben, verdoppeln, bearbeiten, löschen). */
 .ds-widget.ds-widget-selected { border: 2px solid var(--accent); padding: 3px 7px; }
+/* Schreibfeld am gewählten Baustein: Breite, Höhe bzw. beides ziehen. */
+.ds-widget .ds-karo { position: relative; }
+.ds-karo-grip { position: absolute; z-index: 3; background: var(--accent); border: 2px solid #fff; border-radius: 4px; box-shadow: 0 0 0 1px var(--accent); touch-action: none; }
+.ds-karo-grip-e { right: -6px; top: 50%; width: 10px; height: 28px; margin-top: -14px; cursor: ew-resize; }
+.ds-karo-grip-s { bottom: -6px; left: 50%; width: 28px; height: 10px; margin-left: -14px; cursor: ns-resize; }
+.ds-karo-grip-se { right: -7px; bottom: -7px; width: 14px; height: 14px; cursor: nwse-resize; }
+.ds-karo-size { position: absolute; right: 4px; top: 4px; z-index: 3; font-size: 0.75rem; padding: 1px 6px; border-radius: 4px; background: var(--accent); color: #fff; pointer-events: none; white-space: nowrap; }
 .ds-wbar { position: absolute; top: -0.9em; left: 8px; display: flex; gap: 2px; z-index: 2; }
 .ds-wbar button { font-size: 0.75em; line-height: 1; padding: 2px 6px; border: 1px solid var(--accent); border-radius: var(--radius-sm); background: var(--bg-secondary); color: var(--text-primary); cursor: pointer; }
 .ds-wbar button:hover { background: var(--accent); color: #fff; }

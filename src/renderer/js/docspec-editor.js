@@ -10,7 +10,7 @@
  * deshalb an window.DocSpecEditor.
  */
 import { load as yamlLoad, dump as yamlDump } from './vendor/js-yaml.js';
-import { validateDocSpec, renderDocSpecHtml, docRefSlugs } from '../lm-editor/src/doc/docspec.js';
+import { validateDocSpec, renderDocSpecHtml, docRefSlugs, KARO_MAX_WIDTH_CM } from '../lm-editor/src/doc/docspec.js';
 import { downloadBlob } from './api.js';
 import { escapeHtml } from './utils.js';
 import { htmlToDocSpec, specToEditorHtml, widgetHtml } from '../lm-editor/src/doc/docspec-html.js';
@@ -1000,7 +1000,7 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
       </div>` : '';
     const field = block.type === 'karo' ? `<div class="ds-field-form">
         <label>Höhe <input type="number" class="ds-f-h" min="0.5" max="30" step="0.5"> cm</label>
-        <label>Breite <input type="number" class="ds-f-w" min="1" max="16.5" step="0.5" placeholder="ganz"> cm</label>
+        <label>Breite <input type="number" class="ds-f-w" min="1" max="${KARO_MAX_WIDTH_CM}" step="0.5" placeholder="ganz"> cm</label>
         <label>Muster <select class="ds-f-p"><option value="karo">▦ Karo</option><option value="linien">☰ Linien</option><option value="leer">▢ Leer (Rahmen)</option><option value="frei">◌ Unsichtbar (nur Platz)</option></select></label>
       </div>` : '';
     overlay.innerHTML = `<form class="import-modules-card ds-widget-dialog">
@@ -1027,7 +1027,7 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
         try { cur = yamlLoad(ta.value) || {}; } catch (_) { cur = { ...block }; }
         cur.lines = Math.max(1, Math.min(60, Math.round(Number(h.value) * 2) || 1));
         const cm = Math.round(Number(wd.value) * 2) / 2;
-        if (cm > 0 && cm < 16.5) cur.width = `${cm}cm`; else delete cur.width;
+        if (cm > 0) cur.width = `${Math.min(KARO_MAX_WIDTH_CM, cm)}cm`; else delete cur.width;
         if (pat.value !== 'karo') cur.pattern = pat.value; else delete cur.pattern;
         ta.value = yamlDump(cur, { lineWidth: -1, noRefs: true });
       };
@@ -1073,6 +1073,7 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
     if (selectedWidget && selectedWidget !== w) {
       selectedWidget.classList.remove('ds-widget-selected');
       selectedWidget.querySelector(':scope > .ds-wbar')?.remove();
+      selectedWidget.querySelectorAll('.ds-karo-grip').forEach((g) => g.remove());
     }
     selectedWidget = w || null;
     if (!w || w.classList.contains('ds-widget-selected')) return;
@@ -1081,11 +1082,83 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
     bar.className = 'ds-wbar';
     bar.innerHTML = WBAR.map(([act, label, title]) => `<button type="button" data-act="${act}" title="${title}">${label}</button>`).join('');
     w.appendChild(bar);
+    addKaroGrips(w);
   }
+
+  // Schreibfeld: am gewählten Feld ziehen – rechter Rand = Breite, unterer Rand =
+  // Höhe, Ecke = beides; im 0,5-cm-Raster (wie die Karos). Breiter als 16,5 cm
+  // geht für A4 quer; im Hochformat druckt der Renderer höchstens die Satzbreite.
+  const GRIPS = { e: 'Breite ziehen', s: 'Höhe ziehen', se: 'Breite und Höhe ziehen' };
+  function addKaroGrips(w) {
+    const karo = w.querySelector('.ds-karo');
+    if (blockOf(w)?.type !== 'karo' || !karo) return;
+    for (const [dir, title] of Object.entries(GRIPS)) {
+      const grip = document.createElement('span');
+      grip.className = `ds-karo-grip ds-karo-grip-${dir}`;
+      grip.dataset.grip = dir;
+      grip.title = title;
+      karo.appendChild(grip);
+    }
+  }
+  surface.addEventListener('pointerdown', (e) => {
+    const grip = e.target.closest?.('.ds-karo-grip');
+    if (!grip) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const w = grip.closest('.ds-widget');
+    const karo = grip.closest('.ds-karo');
+    const block = blockOf(w);
+    if (!block || !karo) return;
+    const dir = grip.dataset.grip;
+    const lines = Number.isInteger(block.lines) ? block.lines : 4;
+    const box = karo.getBoundingClientRect();
+    // Bildschirm-Pixel je cm aus der Höhe des Felds – stimmt auch bei Zoom.
+    const pxPerCm = box.height / (lines * 0.5);
+    const step = (px) => Math.round((px / pxPerCm) * 2) / 2;
+    const size = Object.assign(document.createElement('span'), { className: 'ds-karo-size' });
+    karo.appendChild(size);
+    // Ausgangsbreite: die gespeicherte – das Feld kann breiter sein als der sichtbare Editor.
+    const startPx = parseFloat(block.width) > 0 ? parseFloat(block.width) * pxPerCm : box.width;
+    let widthCm = block.width ? step(startPx) : null;
+    let heightCm = lines * 0.5;
+    const show = () => { size.textContent = `${widthCm ? `${String(widthCm).replace('.', ',')} cm` : 'ganze Breite'} × ${String(heightCm).replace('.', ',')} cm`; };
+    show();
+    grip.setPointerCapture(e.pointerId);
+    const move = (ev) => {
+      if (dir.includes('e')) {
+        widthCm = Math.max(1, Math.min(KARO_MAX_WIDTH_CM, step(startPx + ev.clientX - e.clientX)));
+        karo.style.width = `${widthCm}cm`;
+        karo.style.maxWidth = '100%';
+      }
+      if (dir.includes('s')) {
+        heightCm = Math.max(0.5, Math.min(30, step(box.height + ev.clientY - e.clientY)));
+        karo.style.height = `${heightCm}cm`;
+      }
+      show();
+    };
+    const up = () => {
+      grip.removeEventListener('pointermove', move);
+      grip.removeEventListener('pointerup', up);
+      grip.removeEventListener('pointercancel', up);
+      size.remove();
+      const next = { ...block, lines: Math.max(1, Math.min(60, Math.round(heightCm * 2))) };
+      if (widthCm) next.width = `${widthCm}cm`;
+      const tmp = document.createElement('div');
+      tmp.innerHTML = widgetHtml(next);
+      const fresh = tmp.firstElementChild;
+      selectWidget(null);
+      w.replaceWith(fresh);
+      selectWidget(fresh);
+    };
+    grip.addEventListener('pointermove', move);
+    grip.addEventListener('pointerup', up);
+    grip.addEventListener('pointercancel', up);
+  }, true);
   const cleanWidget = (w) => {
     const copy = w.cloneNode(true);
     copy.classList.remove('ds-widget-selected');
     copy.querySelector(':scope > .ds-wbar')?.remove();
+    copy.querySelectorAll('.ds-karo-grip').forEach((g) => g.remove());
     return copy;
   };
   const blockOf = (w) => { try { return JSON.parse(decodeURIComponent(w.dataset.block)); } catch (_) { return null; } };

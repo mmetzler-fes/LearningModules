@@ -45,6 +45,8 @@ from odf.opendocument import load
 from odf.style import (
     GraphicProperties,
     ListLevelLabelAlignment,
+    PageLayout,
+    PageLayoutProperties,
     ListLevelProperties,
     ParagraphProperties,
     Style,
@@ -713,6 +715,25 @@ def ensure_overlay_styles(doc, present: set[str]) -> Style:
     return frame
 
 
+def use_template_width(doc) -> None:
+    """Satzbreite der Vorlage für Schreibfelder: im Querformat (Satzbreite ab 20 cm)
+    so viele Karos, wie hineinpassen – sonst wie bisher 33 (16,5 cm)."""
+    global KARO_COLUMNS
+
+    def length(value: str | None) -> float:
+        m = re.fullmatch(r"\s*(\d+(?:\.\d+)?)\s*(cm|mm|in|pt)\s*", value or "")
+        if not m:
+            return 0.0
+        return float(m.group(1)) * {"cm": 1, "mm": 0.1, "in": 2.54, "pt": 2.54 / 72}[m.group(2)]
+
+    widest = 0.0
+    for layout in doc.getElementsByType(PageLayout):
+        for props in layout.getElementsByType(PageLayoutProperties):
+            widest = max(widest, length(props.getAttribute("pagewidth"))
+                         - length(props.getAttribute("marginleft")) - length(props.getAttribute("marginright")))
+    KARO_COLUMNS = int(widest // KARO_CELL) if widest >= 20 else 33
+
+
 def karo_columns(block: dict[str, Any]) -> int:
     """Spalten zu 0,5 cm aus `width` (z. B. "8cm"); ohne Angabe die volle Satzbreite."""
     width = str(block.get("width") or "").strip()
@@ -767,7 +788,7 @@ def ensure_row_style(doc, present: set[str], cells: int) -> str:
 def karo_table(rows: int, para_style: str, index: int,
                overlay: list[Element] | None = None,
                frame_style: Style | None = None,
-               columns: int = KARO_COLUMNS, pattern: str = "karo",
+               columns: int | None = None, pattern: str = "karo",
                ctx: dict[str, Any] | None = None) -> Element:
     """Schreibfeld mit `rows` Karozeilen zum handschriftlichen Eintragen.
 
@@ -776,6 +797,7 @@ def karo_table(rows: int, para_style: str, index: int,
     """
     if pattern not in KARO_PATTERNS:
         pattern = "karo"
+    columns = columns or KARO_COLUMNS
     if pattern == "karo" and columns == KARO_COLUMNS:
         table_style, row_style, cell_styles, cols = "Karo", "Karo.1", ("Karo.A1", "Karo.Z1"), KARO_COLUMNS
         column_style = "Karo.A"
@@ -2458,6 +2480,7 @@ def build(spec_path: Path, out_dir: Path | None, template_override: Path | None,
     label = spec.get("slug") or spec_path.resolve().parent.name
     print(f"→ {label}  ({mode}, Vorlage: {template.name})")
     doc = load(str(template))
+    use_template_width(doc)
     as_document(doc, spec, mode)
     styles = resolve_styles(doc, spec)
 

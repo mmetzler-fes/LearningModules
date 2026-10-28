@@ -45,7 +45,10 @@ Der Editor startet im Modus **✏️ Bearbeiten** – wie ein Textprogramm:
   Tabelle oder einem Baustein; die Absatzart macht daraus Überschrift, Liste …),
   Schreibfeld (Platz zum Schreiben – Karo, Linien, leer mit
   Rahmen oder unsichtbar; Höhe, Breite und Muster in einem kleinen Formular,
-  wieder per Doppelklick auf das Feld), Quiz aus dem Lernthema,
+  wieder per Doppelklick auf das Feld – oder **ziehen**: Feld anklicken, dann
+  am rechten Rand die Breite, unten die Höhe, an der Ecke beides, im
+  0,5-cm-Raster; bis 25,5 cm breit für **A4 quer**, im Hochformat druckt es
+  höchstens die Satzbreite), Quiz aus dem Lernthema,
   **📄 PDF an dieser Stelle** (mit Freischaltung „PDF-Import“: das PDF wird
   wie bei „Übernehmen“ umgewandelt, aber eingefügt statt ersetzt), Lösung,
   Formel, Code, Tabelle, Kasten, Platz (ein unsichtbares Schreibfeld; ältere

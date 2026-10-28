@@ -5594,6 +5594,8 @@ button.cb-unit:hover { color: var(--accent); text-decoration: underline; }
 .login-card.login-card-wide { max-width: 760px; }
 .cb-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 8px; }
 .cb-head h2 { margin: 0; }
+.cb-head-actions { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+.cb-install-hint { background: var(--bg-secondary, #f1f5f9); border-radius: 8px; padding: 8px 10px; }
 .cb-section { margin: 20px 0 8px; font-size: 1.05rem; }
 .cb-assignment { border: 1px solid var(--border); border-radius: var(--radius-md); padding: 10px 14px; margin-bottom: 10px; }
 .cb-assignment > summary { cursor: pointer; }

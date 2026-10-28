@@ -175,6 +175,8 @@ class App {
     window.addEventListener('beforeinstallprompt', (e) => {
       e.preventDefault();
       prompt = e;
+      // Auch für Schüler (Klassennotizbuch: 📲 Als App).
+      this.installPrompt = e;
       btn.classList.remove('hidden');
     });
     window.addEventListener('appinstalled', () => btn.classList.add('hidden'));

@@ -9,17 +9,25 @@ import { offerTeacherName } from './teacher-as-student.js';
 // (docs/klassennotizbuch.md). Eine Aufgabe startet den gewöhnlichen Durchlauf
 // des Klassenlinks – mit dem Ausweis von hier statt einer Namenseingabe.
 // Die Anmeldung hält der Browser für die Sitzung (sessionStorage), so führt
-// „Zurück zum Klassenbuch“ ohne neue Anmeldung zurück.
+// „Zurück zum Klassenbuch“ ohne neue Anmeldung zurück. Als installierte App
+// (Home-Bildschirm, eigenes Gerät) bleibt sie im localStorage, bis der
+// Schüler sich abmeldet – ein abgelaufener Ausweis wird still erneuert.
 
 const SESSION_KEY = 'lm_classbook';
 
+/** Läuft die Seite als installierte App? */
+export function inApp() {
+  try { return window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true; } catch (_) { return false; }
+}
+const sessionStore = () => (inApp() ? localStorage : sessionStorage);
+
 export function classbookSession() {
-  try { return JSON.parse(sessionStorage.getItem(SESSION_KEY) || 'null'); } catch (_) { return null; }
+  try { return JSON.parse(sessionStore().getItem(SESSION_KEY) || 'null'); } catch (_) { return null; }
 }
 function saveSession(value) {
   try {
-    if (value) sessionStorage.setItem(SESSION_KEY, JSON.stringify(value));
-    else sessionStorage.removeItem(SESSION_KEY);
+    if (value) sessionStore().setItem(SESSION_KEY, JSON.stringify(value));
+    else sessionStore().removeItem(SESSION_KEY);
   } catch (_) { /* ohne Speicher: nach jedem Durchlauf neu anmelden */ }
 }
 /** Zurück zur Startseite des Klassennotizbuchs (neu laden, die Sitzung bleibt). */
@@ -80,6 +88,8 @@ export class ClassbookStudent {
       return;
     }
     this.info = info;
+    // Name auf dem Home-Bildschirm (iPad): die Klasse.
+    document.querySelector('meta[name="apple-mobile-web-app-title"]')?.setAttribute('content', info.className || 'LernModule');
     const s = classbookSession();
     if (s?.token === token && s.ticket && (await this._home())) return;
     this._login();
@@ -148,12 +158,27 @@ export class ClassbookStudent {
     el.querySelector('#cbPinOk').addEventListener('click', () => this._home());
   }
 
+  /** Als App: abgelaufenen Ausweis mit gemerktem Namen und PIN erneuern. */
+  async _relogin() {
+    const s = classbookSession();
+    if (!inApp() || !s?.name || !s.pin) return false;
+    const res = await post(`${encodeURIComponent(this.token)}/login`, { name: s.name, pin: s.pin }).catch(() => null);
+    if (!res || res.failed || res.pin) return false;
+    saveSession({ ...s, ticket: res.ticket, name: res.name });
+    return true;
+  }
+
   /** Startseite; false, wenn die Anmeldung nicht mehr gilt. */
   async _home() {
     const s = classbookSession();
     const data = await post(`${encodeURIComponent(this.token)}/home`, { ticket: s?.ticket }).catch(() => null);
     if (!data || data.failed) {
-      if (data?.expired) { saveSession(null); this._login(data.message || ''); return true; }
+      if (data?.expired) {
+        if (await this._relogin()) return this._home();
+        saveSession(null);
+        this._login(data.message || '');
+        return true;
+      }
       this._show(`<p class="login-error">${escapeHtml(data?.message || 'Der Server ist nicht erreichbar.')}</p>`);
       return !!data;
     }
@@ -230,14 +255,31 @@ export class ClassbookStudent {
     const el = this._show(`
       <div class="cb-head">
         <div><span class="quick-entry-label">📒 ${escapeHtml(data.className)}</span><h2>${escapeHtml(data.name)}</h2></div>
-        <button type="button" class="btn btn-secondary btn-sm" id="cbLogout">Abmelden</button>
+        <span class="cb-head-actions">
+          ${inApp() ? '' : '<button type="button" class="btn btn-secondary btn-sm" id="cbInstall" title="Klassennotizbuch als App auf den Home-Bildschirm – öffnet direkt hier, angemeldet">📲 Als App</button>'}
+          <button type="button" class="btn btn-secondary btn-sm" id="cbLogout">Abmelden</button>
+        </span>
       </div>
+      <p class="hint cb-install-hint hidden" id="cbInstallHint"></p>
       ${exams ? `<h3 class="cb-section">📝 Klassenarbeit</h3>${exams}` : ''}
       <h3 class="cb-section">📋 Aufgaben</h3>
       ${assignments || '<p class="hint">Gerade sind keine Aufgaben freigegeben.</p>'}
       ${data.pending
         ? '<p class="hint cb-pending">Deine Ergebnisse und Blätter erscheinen hier, sobald deine Lehrkraft deinen Namen in der Klassenliste bestätigt hat.</p>'
         : `<h3 class="cb-section">📈 Meine Ergebnisse</h3>${results}<h3 class="cb-section">✍️ Meine Blätter</h3>${works}`}`);
+    el.querySelector('#cbInstall')?.addEventListener('click', async () => {
+      // Chrome, Edge: Dialog des Browsers. iPad/iPhone: Teilen → Zum Home-Bildschirm.
+      const prompt = this.app.installPrompt;
+      if (prompt) {
+        this.app.installPrompt = null;
+        prompt.prompt();
+        await prompt.userChoice.catch(() => null);
+        return;
+      }
+      const hint = el.querySelector('#cbInstallHint');
+      hint.innerHTML = '<strong>So kommt das Klassennotizbuch auf den Home-Bildschirm:</strong> In Safari auf <b>Teilen</b> (□ mit Pfeil nach oben) tippen, dann <b>„Zum Home-Bildschirm“</b>. In der App meldest du dich einmal mit Name und PIN an und bleibst angemeldet, bis du dich abmeldest.';
+      hint.classList.remove('hidden');
+    });
     el.querySelector('#cbLogout').addEventListener('click', () => {
       this._stopWatch();
       saveSession(null);

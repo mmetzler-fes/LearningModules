@@ -31,6 +31,13 @@ TEXT_WIDTH_CM = 16.5
 # Folien (Querformat): Bilder dürfen so breit werden wie die Zeile auf A4 quer –
 # im Hochformat druckt der Renderer ohnehin höchstens die Satzbreite.
 SLIDE_WIDTH_CM = 25.5
+# Zeichenrahmen (Fotos einer Folie zusammen, Beschriftungen als Textfenster) – im Editor
+# vorhanden, beim Import derzeit aus: Text neben Bildern wird stattdessen eine Spaltenzeile.
+IMPORT_FRAMES = False
+# Überschriften, Aufgaben, Teilaufgaben auf Folien (Querformat) erkennen – aus: Die Zuordnung
+# passte dort selten; große Schrift wird ein fetter Absatz, alles andere Text bzw. Aufzählung.
+# Arbeitsblätter im Hochformat behalten ihre Gliederung (1., 1.1 …).
+SLIDE_HEADINGS = False
 
 BULLET_RE = re.compile(r"^([•▪●◦■□▶►‣⁃∙·\-–—*✓✔➢➤])\s+(.*)$")
 # Nur Nummern – „(a)“ / „a)“ sind in Aufgaben Textzeilen und bleiben es.
@@ -648,7 +655,7 @@ def _page_elements(page, index: int, warnings: list[str], template: set[tuple[in
         others += [im for im in page.images if template and _box_key(im) in template]
         # Foto mit Beschriftungen auf einer Folie (ohne Pfeile, Kästen …): Die Beschriftungen
         # werden Textfenster in einem Zeichenrahmen über dem Foto – änderbar statt eingebrannt.
-        frame_labels = w > 1.15 * h and n_img > 0 and not n_shape and bool(mine)
+        frame_labels = IMPORT_FRAMES and w > 1.15 * h and n_img > 0 and not n_shape and bool(mine)
         try:
             src = _png_data_uri(_crop_image(page, box, blank=others, textless=frame_labels))
         except Exception:  # noqa: BLE001
@@ -676,7 +683,7 @@ def _page_elements(page, index: int, warnings: list[str], template: set[tuple[in
         elements.append(element)
         figure_elements.append((box, element))
 
-    if w > 1.15 * h:
+    if IMPORT_FRAMES and w > 1.15 * h:
         _photo_groups(elements, figure_elements, [wd for wd in all_words if id(wd) not in absorbed], taken)
     taken.extend(figures)
     # Text: alles außerhalb von Tabellen usw., was nicht als Beschriftung in einem Bild steckt.
@@ -768,6 +775,109 @@ def _two_columns(lines: list[dict[str, Any]], width: float) -> bool:
     return overlap >= 0.5 * len(right)
 
 
+def _column_rows(items: list[dict[str, Any]], total_cm: float) -> list[dict[str, Any]]:
+    """Text und Bilder nebeneinander → eine Spaltenzeile ({"kind": "columns", "cols": [...]}).
+
+    Ausgangspunkt ist ein Bild, neben dem (links oder rechts, nicht darüber) Text oder
+    weitere Bilder stehen. Die Zeile umfasst alles, was dessen Höhe überlappt; läuft eine
+    Textspalte weiter als das Bild, gehören die folgenden Zeilen derselben Spalte dazu.
+    Zwei oder drei Spalten, sonst bleibt es beim Fluss. Breite je Spalte nach ihrem Anteil.
+    """
+    def x0(e):
+        return float(e.get("x0", 0))
+
+    def x1(e):
+        return float(e.get("x1", e.get("x0", 0)))
+
+    def vover(a, b):
+        top, bottom = max(a["top"], b["top"]), min(a["bottom"], b["bottom"])
+        return bottom - top > 0.3 * min(a["bottom"] - a["top"], b["bottom"] - b["top"], 1e9)
+
+    def is_image(e):
+        return e["kind"] == "block" and e["block"].get("type") == "image"
+
+    out: list[dict[str, Any]] = []
+    used: set[int] = set()
+    for anchor in items:
+        if id(anchor) in used or not is_image(anchor) or "x1" not in anchor:
+            continue
+        beside = [e for e in items if e is not anchor and id(e) not in used and vover(e, anchor)
+                  and (x1(e) < x0(anchor) - 6 or x0(e) > x1(anchor) + 6)]
+        if not beside:
+            continue
+        band = [anchor] + beside
+        top, bottom = min(e["top"] for e in band), max(e["bottom"] for e in band)
+        changed = True
+        while changed:  # alles, was in der Höhe der Zeile steht
+            changed = False
+            for e in items:
+                if id(e) in used or e in band or e.get("kind") == "pagebreak":
+                    continue
+                if e["bottom"] - e["top"] > 0 and min(bottom, e["bottom"]) - max(top, e["top"]) > 0.3 * (e["bottom"] - e["top"]):
+                    band.append(e)
+                    top, bottom = min(top, e["top"]), max(bottom, e["bottom"])
+                    changed = True
+        # Spalten: Lage in x zusammenfassen
+        spans: list[list[float]] = []
+        for e in sorted(band, key=x0):
+            if spans and x0(e) <= spans[-1][1] + 10:
+                spans[-1][1] = max(spans[-1][1], x1(e))
+            else:
+                spans.append([x0(e), x1(e)])
+        if not 2 <= len(spans) <= 3:
+            continue
+        def col_of(e):
+            """Spalte, über der die Mitte des Elements steht – None, wenn es in eine andere hineinragt."""
+            cx = (x0(e) + x1(e)) / 2
+            hit = [k for k, sp in enumerate(spans) if sp[0] - 10 <= cx <= sp[1] + 10]
+            if len(hit) != 1:
+                return None
+            others = [sp for k, sp in enumerate(spans) if k != hit[0]]
+            return None if any(min(x1(e), sp[1]) - max(x0(e), sp[0]) > 10 for sp in others) else hit[0]
+
+        def members(k):
+            return [q for q in band if col_of(q) == k]
+
+        # Läuft eine Spalte weiter (Text unter dem Bild bzw. Unterschrift), gehören ihre Zeilen dazu.
+        for e in sorted(items, key=lambda q: q["top"]):
+            if id(e) in used or e in band or e["top"] < bottom - 1 or e.get("kind") != "line":
+                continue
+            k = col_of(e)
+            if k is None:
+                if any(min(x1(e), sp[1]) - max(x0(e), sp[0]) > 10 for sp in spans):
+                    break  # über mehrere Spalten: die Zeile ist zu Ende
+                continue
+            last = members(k)
+            if not last or e["top"] - max(q["bottom"] for q in last) > 1.5 * float(e.get("size") or 11):
+                continue
+            band.append(e)
+            bottom = max(bottom, e["bottom"])
+        # Überschrift direkt über einem Bild gehört in dessen Spalte (nicht der Folientitel über Text).
+        for e in sorted(items, key=lambda q: -q["bottom"]):
+            if id(e) in used or e in band or e["bottom"] > top + 1 or e.get("kind") != "line":
+                continue
+            k = col_of(e)
+            first = members(k) if k is not None else []
+            if not first or not all(is_image(q) for q in first):
+                continue
+            if min(q["top"] for q in first) - e["bottom"] > 1.5 * float(e.get("size") or 11):
+                continue
+            band.append(e)
+        top = min(e["top"] for e in band)
+        span_total = sum(sp[1] - sp[0] for sp in spans) or 1.0
+        usable = total_cm - 0.5 * (len(spans) - 1)
+        cols = []
+        for k, sp in enumerate(spans):
+            mine = sorted(members(k), key=lambda q: (round(q["top"]), x0(q)))
+            cols.append({"items": mine, "width": max(2.0, round(usable * (sp[1] - sp[0]) / span_total * 2) / 2)})
+        if sum(len(c["items"]) for c in cols) != len(band):
+            continue  # etwas reicht über zwei Spalten – lieber im Fluss lassen
+        used.update(id(e) for e in band)
+        out.append({"kind": "columns", "top": top, "bottom": bottom, "x0": spans[0][0], "page": anchor.get("page"), "cols": cols})
+    rest = [e for e in items if id(e) not in used]
+    return sorted(rest + out, key=lambda e: (round(e["top"]), e.get("x0", 0)))
+
+
 def text_to_spec(data: bytes) -> tuple[dict[str, Any], list[str], str]:
     import pdfplumber
 
@@ -781,6 +891,7 @@ def text_to_spec(data: bytes) -> tuple[dict[str, Any], list[str], str]:
         if len(pdf.pages) > MAX_PAGES:
             warnings.append(f"Nur die ersten {MAX_PAGES} von {len(pdf.pages)} Seiten übernommen.")
         template = _template_images(pages)
+        pages_wide = [float(p.width) > 1.15 * float(p.height) for p in pages]
         per_page = [_page_elements(p, i, warnings, template) for i, p in enumerate(pages)]
         pages_lines = [lines for _, lines in per_page]
         _drop_running(pages_lines)
@@ -814,14 +925,23 @@ def text_to_spec(data: bytes) -> tuple[dict[str, Any], list[str], str]:
     headers: list[dict[str, Any]] = [el for els, _ in per_page for el in els if el["kind"] == "header"]
 
     # Fluss: je Seite nach Position, Seiten nacheinander – dazwischen der Seitenumbruch des PDFs.
+    # Text und Bilder in einer Zeile werden eine Spaltenzeile (_column_rows).
     flow: list[dict[str, Any]] = []
+    images = []
     for n, ((els, _), lines) in enumerate(zip(per_page, pages_lines)):
         items = [e for e in els if e["kind"] == "block"] + lines
+        images += [e for e in items if e["kind"] == "block" and e["block"].get("type") == "image" and e["block"].get("alt") != "Formel"]
         if n and items:
             flow.append({"kind": "pagebreak", "page": n})
-        flow.extend(sorted(items, key=lambda e: (round(e["top"]), e.get("x0", 0))))
+        width = SLIDE_WIDTH_CM if pages_wide[n] else TEXT_WIDTH_CM
+        flow.extend(_column_rows(sorted(items, key=lambda e: (round(e["top"]), e.get("x0", 0))), width))
+
+    def no_headings(ln: dict[str, Any]) -> bool:
+        return not SLIDE_HEADINGS and pages_wide[int(ln.get("page", 0))]
 
     def heading_level(ln: dict[str, Any], prev: dict[str, Any] | None) -> str | None:
+        if no_headings(ln):
+            return None
         text = ln["text"].strip()
         if len(text) > 120 or text.endswith((",", ";")):
             return None
@@ -890,8 +1010,6 @@ def text_to_spec(data: bytes) -> tuple[dict[str, Any], list[str], str]:
             emit({"type": "list", "items": lst["items"], **({"ordered": True} if lst["ordered"] else {})}, lst["red"], lst.get("first"))
             lst = None
 
-    images = [el for el in flow if el["kind"] == "block" and el["block"].get("type") == "image" and el["block"].get("alt") != "Formel"]
-
     def caption_for(ln: dict[str, Any]) -> dict[str, Any] | None:
         """Bild, unter dem die Zeile als Unterschrift steht – auch wenn daneben Text floss."""
         cx = (ln["x0"] + ln["x1"]) / 2
@@ -904,13 +1022,39 @@ def text_to_spec(data: bytes) -> tuple[dict[str, Any], list[str], str]:
         return None
 
     section_no = 0
-    for el in flow:
+
+    def render_column(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """Bausteine einer Spalte – nach denselben Regeln wie der übrige Text, mit eigenem Stand."""
+        nonlocal content, para, lst, prev_line
+        saved = (content, para, lst, prev_line)
+        content, para, lst, prev_line = [], None, None, None
+        for item in items:
+            process(item)
+        flush()
+        out = content
+        content, para, lst, prev_line = saved
+        return out
+
+    def process(el: dict[str, Any]) -> None:
+        nonlocal para, lst, prev_line, section_no, title
+        if el["kind"] == "columns":
+            flush()
+            cols = []
+            for col in el["cols"]:
+                blocks = render_column(col["items"])
+                for b in blocks:  # Bilder nie breiter als ihre Spalte
+                    if b.get("type") == "image" and str(b.get("width", "")).endswith("cm"):
+                        b["width"] = f"{min(float(b['width'][:-2]), max(1.0, col['width'] - 0.4)):.1f}cm"
+                cols.append({"type": "column", "width": f"{col['width']:.1f}cm", "blocks": blocks or [{"type": "text", "text": " "}]})
+            emit({"type": "columns", "blocks": cols}, src=el)
+            prev_line = None
+            return
         if el["kind"] == "pagebreak":
             flush()
             prev_line = None
             if content and content[-1].get("type") != "pagebreak":
                 content.append({"type": "pagebreak"})
-            continue
+            return
         if el["kind"] == "block":
             # „kreisflaeche.py“ direkt über dem Code ist seine Beschriftung.
             if el["block"].get("type") == "code" and para and len(para["lines"]) == 1 \
@@ -921,17 +1065,17 @@ def text_to_spec(data: bytes) -> tuple[dict[str, Any], list[str], str]:
             flush()
             emit(el["block"], src=el)
             prev_line = None
-            continue
+            return
         ln = el
         text = ln["text"].strip()
         if not text:
-            continue
+            return
         # Bildunterschrift: kurze Zeile unter einem Bild
         im = caption_for(ln) if len(text) <= 160 and round(ln["size"] * 2) / 2 not in big else None
         if im:
             im["block"]["caption"] = text
             im["bottom"] = ln["bottom"]
-            continue
+            return
         # Ein Aufzählungspunkt bleibt einer, auch in großer Schrift (Folien).
         level = heading_level(ln, prev_line) if not BULLET_RE.match(text) else None
         if level:
@@ -947,7 +1091,17 @@ def text_to_spec(data: bytes) -> tuple[dict[str, Any], list[str], str]:
             else:
                 emit(block, src=ln)
             prev_line = ln
-            continue
+            return
+        # Folie ohne Überschriften: große Schrift oben auf der Folie (Titel) wird ein eigener, fetter Absatz.
+        if (no_headings(ln) and round(ln["size"] * 2) / 2 in big and ln["top"] < 0.3 * float(ln.get("h") or 1e9)
+                and not BULLET_RE.match(text)):
+            flush()
+            clean = re.sub(r"\*+", "", HEADNUM_RE.sub("", text).strip() or text)
+            if not title and not content:
+                title = clean
+            emit({"type": "text", "text": f"**{clean}**"}, ln["red"], ln)
+            prev_line = ln
+            return
         bullet = BULLET_RE.match(text)
         ordered = ORDERED_RE.match(text) if not bullet else None
         gap = (ln["top"] - prev_line["bottom"]) if prev_line and prev_line.get("page") == ln.get("page") else 99
@@ -980,6 +1134,8 @@ def text_to_spec(data: bytes) -> tuple[dict[str, Any], list[str], str]:
                 flush()
                 para = {"lines": [ln], "red": ln["red"]}
         prev_line = ln
+    for el in flow:
+        process(el)
     flush()
     while content and content[-1].get("type") == "pagebreak":
         content.pop()

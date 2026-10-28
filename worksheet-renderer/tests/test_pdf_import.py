@@ -10,6 +10,9 @@ import pypdfium2 as pdfium  # noqa: E402
 import pypdfium2.raw as pdfium_c  # noqa: E402
 from PIL import Image  # noqa: E402
 
+from unittest import mock  # noqa: E402
+
+import pdf_import  # noqa: E402
 from pdf_import import text_to_spec  # noqa: E402
 
 
@@ -75,6 +78,7 @@ class SlideFigures(unittest.TestCase):
         self.assertEqual(images[0]["width"], "8.5cm")  # 240 pt breit
 
 
+    @mock.patch.object(pdf_import, "IMPORT_FRAMES", True)
     def test_fotos_ohne_text_dazwischen_werden_bildgruppe(self):
         spec, _warnings, _title = text_to_spec(_photo_slide(False))
         groups = [b for b in spec["content"] if b["type"] == "group"]
@@ -90,6 +94,7 @@ class SlideFigures(unittest.TestCase):
         self.assertAlmostEqual(first["w"], 206 / 526 * 100, delta=1)
         self.assertTrue(all(it["src"].startswith("data:image/png;base64,") for it in g["items"]))
 
+    @mock.patch.object(pdf_import, "IMPORT_FRAMES", True)
     def test_text_zwischen_fotos_trennt(self):
         spec, _warnings, _title = text_to_spec(_photo_slide(True))
         groups = [b for b in spec["content"] if b["type"] == "group"]
@@ -100,6 +105,7 @@ class SlideFigures(unittest.TestCase):
         self.assertEqual(len(groups[0]["items"]), 2)
 
 
+    @mock.patch.object(pdf_import, "IMPORT_FRAMES", True)
     def test_beschriftung_auf_foto_wird_textfenster(self):
         doc = pdfium.PdfDocument.new()
         page = doc.new_page(842, 595)
@@ -130,6 +136,43 @@ class SlideFigures(unittest.TestCase):
         self.assertEqual(types.count("pagebreak"), 2)
         self.assertNotEqual(types[0], "pagebreak")
         self.assertNotEqual(types[-1], "pagebreak")
+
+
+    def test_text_neben_bild_wird_spaltenzeile_ohne_ueberschriften(self):
+        """Folie: Titel groß, links Aufzählung, rechts ein Foto – Titel fett, darunter zwei Spalten."""
+        doc = pdfium.PdfDocument.new()
+        page = doc.new_page(842, 595)
+        _text(doc, page, "Was ist ein Balkonkraftwerk", 60, 520, 26)
+        for k, line in enumerate(["- Mini-Photovoltaikanlage", "- Anschluss über Steckdose", "- Montage ohne Elektriker"]):
+            _text(doc, page, line, 60, 420 - 40 * k, 16)
+        _image(doc, page, "navy", 480, 250, 300, 220)
+        page.gen_content()
+        buf = io.BytesIO()
+        doc.save(buf)
+        spec, _warnings, _title = text_to_spec(buf.getvalue())
+        types = [b["type"] for b in spec["content"]]
+        self.assertNotIn("group", types)
+        self.assertFalse({"section", "task", "subtask", "heading"} & set(types))
+        self.assertEqual(spec["content"][0]["text"], "**Was ist ein Balkonkraftwerk**")
+        cols = [b for b in spec["content"] if b["type"] == "columns"]
+        self.assertEqual(len(cols), 1)
+        left, right = cols[0]["blocks"]
+        self.assertEqual(left["blocks"][0]["type"], "list")
+        self.assertEqual(len(left["blocks"][0]["items"]), 3)
+        self.assertEqual(right["blocks"][0]["type"], "image")
+        # Breiten nach Anteil, Bild nicht breiter als seine Spalte
+        self.assertLessEqual(float(right["blocks"][0]["width"][:-2]), float(right["width"][:-2]))
+
+    def test_ohne_bild_daneben_keine_spalten(self):
+        doc = pdfium.PdfDocument.new()
+        page = doc.new_page(595, 842)
+        _text(doc, page, "Ein Absatz über die ganze Breite der Seite, ganz normal.", 72, 700, 11)
+        _image(doc, page, "red", 150, 400, 300, 200)
+        page.gen_content()
+        buf = io.BytesIO()
+        doc.save(buf)
+        spec, _warnings, _title = text_to_spec(buf.getvalue())
+        self.assertEqual([b["type"] for b in spec["content"]], ["text", "image"])
 
 
 if __name__ == "__main__":

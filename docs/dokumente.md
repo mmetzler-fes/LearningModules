@@ -201,14 +201,14 @@ Schaubild zusammen, auch wenn das PDF es in viele Teile zerlegt hat (z. B.
 eine PowerPoint-Präsentation über „Microsoft Print to PDF“). Titel,
 Aufzählungen und Fließtext daneben bleiben bearbeitbarer Text. Bei Folien
 (Querformat) gilt: rote Titel sind Gestaltung, keine Lösung; Logo und
-Fußzeile der Vorlage fallen weg. **Fotos einer Folie**, zwischen denen kein
-Text steht, werden ein **Zeichenrahmen** – so wie sie auf der Folie
-zueinander stehen; im Editor lassen sie sich anordnen oder lösen. Hat jedes
-Foto seine eigene Überschrift oder Unterschrift (Spalten), bleiben sie
-einzeln. **Beschriftungen auf einem Foto** werden Textfenster im Rahmen – an
-ihrer Stelle, in ihrer Größe und Farbe (z. B. weiß auf dunklem Bild), aus dem
-Foto entfernt und damit änderbar. Schaubilder mit Pfeilen und Kästen bleiben
-ein Bild (oder eine Zeichnung, siehe unten). **Seitenumbrüche** des PDFs
+Fußzeile der Vorlage fallen weg. **Text und Bilder nebeneinander** (z. B.
+Aufzählung links, Foto rechts) werden eine zwei- oder dreispaltige Zeile
+(Baustein „Spalten“, ohne Linien) – Text und Bilder je in ihrer Spalte, auch
+Überschrift und Unterschrift eines Bildes. Auf **Folien** gibt es keine
+Überschriften, Aufgaben oder Teilaufgaben: Der Folientitel wird ein fetter
+Absatz, alles andere Text bzw. Aufzählung. Arbeitsblätter im Hochformat
+behalten ihre Gliederung (1., 1.1 …). Zeichenrahmen legt der Import derzeit
+nicht an – im Editor gibt es sie weiter. **Seitenumbrüche** des PDFs
 werden übernommen – jede Seite bzw. Folie beginnt im Dokument auf einer neuen
 Seite; wer das nicht möchte, löscht den Umbruch (⤓) im Editor.
 

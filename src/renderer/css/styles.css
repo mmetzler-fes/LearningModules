@@ -1144,11 +1144,14 @@ body {
   margin-bottom: 16px;
 }
 
+/* Keine Mindesthöhe: Die Zonen liegen in Prozent dieser Fläche, und in der
+   Ansicht ist sie genau so hoch wie das Bild. Bei einem flachen Bild wären sie
+   sonst auf eine höhere Fläche gerechnet und rutschten in der Ansicht nach
+   oben (ohne Bild hält der Platzhalter die Höhe). */
 .dnd-canvas {
   position: relative;
   width: 100%;
   margin: 0 auto;
-  min-height: 200px;
   background: var(--bg-secondary);
   border: 2px solid var(--border);
   border-radius: var(--radius-md);

@@ -696,6 +696,20 @@ class ContentEditorManager {
       }
     });
 
+    const btnPaste = document.createElement('button');
+    btnPaste.type = 'button';
+    btnPaste.className = 'btn btn-secondary btn-sm';
+    btnPaste.textContent = '📋 Aus Zwischenablage';
+    btnPaste.title = 'Kopiertes Bild oder Screenshot einfügen';
+    btnPaste.addEventListener('click', async () => {
+      const result = await appApi.pasteImage();
+      if (result && result.success) {
+        hidden.value = result.dataUrl;
+        preview.innerHTML = `<img src="${result.dataUrl}" />`;
+        btnRemove.style.display = '';
+      } else if (result?.message) (window.appToast || window.alert)(result.message, 'error');
+    });
+
     const btnUrl = document.createElement('button');
     btnUrl.type = 'button';
     btnUrl.className = 'btn btn-secondary btn-sm';
@@ -737,6 +751,7 @@ class ContentEditorManager {
     });
 
     btnRow.appendChild(btnFile);
+    btnRow.appendChild(btnPaste);
     // Bilder, die schon in der Nextcloud liegen (views/nextcloud.js)
     if (window.appNextcloud && window.appNextcloud.ready) {
       const btnCloud = document.createElement('button');
@@ -1467,7 +1482,14 @@ class ContentEditorManager {
     btnComposeImg.textContent = '🧩 Bild zusammenstellen';
     btnComposeImg.title = 'Mehrere Bilder zu einem Hintergrundbild zusammenstellen (Collage)';
 
+    const btnPasteImg = document.createElement('button');
+    btnPasteImg.type = 'button';
+    btnPasteImg.className = 'btn btn-secondary';
+    btnPasteImg.textContent = '📋 Aus Zwischenablage';
+    btnPasteImg.title = 'Kopiertes Bild oder Screenshot als Hintergrundbild (auch Strg+V hier im Editor)';
+
     imgControls.appendChild(btnSelectImg);
+    imgControls.appendChild(btnPasteImg);
     if (window.appNextcloud && window.appNextcloud.ready) {
       const btnCloudImg = document.createElement('button');
       btnCloudImg.type = 'button';
@@ -1573,6 +1595,30 @@ class ContentEditorManager {
         this._dndBackgroundChanged();
       }
     });
+    const setPasted = (result) => {
+      if (result && result.success) {
+        this.dndState.backgroundImage = result.dataUrl;
+        imgStatus.textContent = '✅ Bild aus der Zwischenablage';
+        btnRemoveImg.style.display = '';
+        this._dndBackgroundChanged();
+      } else if (result?.message) {
+        imgStatus.textContent = `⚠️ ${result.message}`;
+      }
+    };
+    btnPasteImg.addEventListener('click', async () => setPasted(await appApi.pasteImage()));
+    // Strg+V im Editor (nicht in einem Textfeld): Bild der Zwischenablage als Hintergrund.
+    if (this._dndPaste) document.removeEventListener('paste', this._dndPaste);
+    this._dndPaste = async (e) => {
+      if (!imgGroup.isConnected) { document.removeEventListener('paste', this._dndPaste); this._dndPaste = null; return; }
+      const t = e.target;
+      if (t && (t.closest?.('input, textarea, [contenteditable="true"]'))) return;
+      if (!imgGroup.offsetParent) return; // Editor gerade nicht zu sehen
+      const file = [...(e.clipboardData?.files || [])].find((f) => f.type.startsWith('image/'));
+      if (!file) return;
+      e.preventDefault();
+      setPasted(await appApi.storeImageFile(file));
+    };
+    document.addEventListener('paste', this._dndPaste);
     btnComposeImg.addEventListener('click', async () => {
       if (typeof openImageComposer !== 'function') return;
       const dataUrl = await openImageComposer();
@@ -1729,6 +1775,10 @@ class ContentEditorManager {
     const items = [{ label: '📁 Datei auswählen', onClick: async () => {
       const res = await appApi.selectImage();
       if (res && res.success) done(res.dataUrl);
+    } }, { label: '📋 Aus Zwischenablage', onClick: async () => {
+      const res = await appApi.pasteImage();
+      if (res && res.success) done(res.dataUrl);
+      else if (res?.message) (window.appToast || window.alert)(res.message, 'error');
     } }];
     if (window.appNextcloud && window.appNextcloud.ready) {
       items.push({ label: '☁️ Aus Nextcloud', onClick: async () => { const url = await window.appNextcloud.pick(); if (url) done(url); } });

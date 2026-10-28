@@ -665,6 +665,7 @@ window.appNavigate = (v) => app.navigateToView(v);
 window.appSettings = { get: () => app.userSettings.get(), set: (patch) => app.userSettings.set(patch) };
 // Für die klassischen Skripte (content-editors.js), die keine Module importieren.
 window.appConfirm = (m) => app.appConfirm(m);
+window.appToast = (m, type) => app.showToast(m, type);
 // Drag and Drop als Paare (dnd-pairs.js) für den Editor in content-editors.js
 window.dndPairs = { contentFromPairs, pairsFromContent };
 // Nextcloud für Bilder (views/nextcloud.js): ready, upload(file) → URL | null | false, pick() → URL | null,

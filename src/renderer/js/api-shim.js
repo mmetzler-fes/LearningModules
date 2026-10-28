@@ -75,6 +75,34 @@ window.appApi = {
       input.click();
     });
   },
+  /**
+   * Bild aus der Zwischenablage (z. B. Screenshot, kopiertes Bild) – abgelegt
+   * wie beim Auswählen einer Datei. Ohne Bild oder ohne Zugriff:
+   * `{ success: false, message }`. Strg+V geht dort, wo es einen Einfüge-Ort
+   * gibt, auch ohne diese Funktion (Ereignis „paste“).
+   */
+  pasteImage: async () => {
+    if (!navigator.clipboard?.read) {
+      return { success: false, message: 'Dieser Browser lässt die Zwischenablage nicht so lesen – bitte das Bild als Datei speichern und auswählen.' };
+    }
+    let items;
+    try { items = await navigator.clipboard.read(); } catch (_) {
+      return { success: false, message: 'Kein Zugriff auf die Zwischenablage – bitte erlauben oder das Bild als Datei auswählen.' };
+    }
+    for (const item of items) {
+      const type = item.types.find((t) => t.startsWith('image/'));
+      if (!type) continue;
+      const blob = await item.getType(type);
+      return window.appApi.storeImageFile(new File([blob], `Zwischenablage.${type.split('/')[1] || 'png'}`, { type }));
+    }
+    return { success: false, message: 'In der Zwischenablage ist kein Bild. Erst ein Bild kopieren (z. B. Screenshot, Rechtsklick → Bild kopieren).' };
+  },
+  /** Bilddatei ablegen (Nextcloud oder verkleinert in der App) → `{ success, dataUrl }`. */
+  storeImageFile: async (file) => {
+    const url = await window.appImages.store(file, file.name).catch(() => false);
+    if (!url) return { success: false }; // abgebrochen oder Grenze erreicht
+    return { success: true, dataUrl: url, nextcloud: !String(url).startsWith('data:') };
+  },
   selectAudio: async () => {
     return new Promise((resolve) => {
       const input = document.createElement('input');

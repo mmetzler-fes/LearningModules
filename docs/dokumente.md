@@ -37,7 +37,9 @@ Der Editor startet im Modus **✏️ Bearbeiten** – wie ein Textprogramm:
   - **•≡▾ Aufzählung** (Punkt, Strich, Pfeil, Quadrat, ☐ Checkliste) und
     **1≡▾ Nummerierung** (1. / a) / i.).
   - **T̸ Formatierung löschen** (Fett, Farbe … der Auswahl).
-- **➕ Einfügen …**: Schreibfeld (Platz zum Schreiben – Karo, Linien, leer mit
+- **➕ Einfügen …**: **¶ Textabsatz** (ein leerer Absatz – z. B. hinter einer
+  Tabelle oder einem Baustein; die Absatzart macht daraus Überschrift, Liste …),
+  Schreibfeld (Platz zum Schreiben – Karo, Linien, leer mit
   Rahmen oder unsichtbar; Höhe, Breite und Muster in einem kleinen Formular,
   wieder per Doppelklick auf das Feld), Quiz aus dem Lernthema,
   **📄 PDF an dieser Stelle** (mit Freischaltung „PDF-Import“: das PDF wird

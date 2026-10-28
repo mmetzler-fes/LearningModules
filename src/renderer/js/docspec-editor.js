@@ -634,7 +634,8 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
   const reselect = (els) => {
     const sel = window.getSelection();
     surface.focus();
-    if (els.length) {
+    if (els.length === 1) sel.collapse(els[0], els[0].childNodes.length); // Schreibmarke ans Ende des Absatzes
+    else if (els.length) {
       const r = document.createRange();
       r.setStart(els[0], 0);
       r.setEnd(els[els.length - 1], els[els.length - 1].childNodes.length);
@@ -645,6 +646,7 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
       sel.addRange(lastRange);
     }
     if (sel.rangeCount) lastRange = sel.getRangeAt(0).cloneRange();
+    if (els.length) lastBlock = blockOfNode(els[0]) || lastBlock;
   };
   blockSelect.addEventListener('change', () => {
     const kind = blockSelect.value;
@@ -660,16 +662,19 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
         if (plain.length) reselect(marked.map((el) => (el.isConnected ? el : plain.shift())));
       }
       formatTools.setList(kind === 'ol');
+      blockSelect.value = kind;
       return;
     }
     // Aus einer Liste: die gewählten Listenpunkte werden Absätze, dann die Absatzart.
     if (list) {
       const paras = formatTools.unlist();
       reselect(kind === 'p' ? paras : convertBlocks(paras, kind));
-      return;
+    } else {
+      // Die Schreibmarke bleibt im umgewandelten Absatz – sonst spränge sie
+      // weg, die Liste zeigte wieder „Text“ und die nächste Wahl träfe einen anderen.
+      reselect(convertBlocks(blocksForKind(), kind));
     }
-    convertBlocks(blocksForKind(), kind);
-    surface.focus();
+    blockSelect.value = kind;
   });
   root.querySelectorAll('[data-cmd]').forEach((btn) => btn.addEventListener('mousedown', (e) => {
     e.preventDefault(); // Auswahl in der Fläche behalten
@@ -701,6 +706,15 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
   /** Baustein `what` hinter `after` (Block der Schreibmarke, als das Menü aufging) einfügen. */
   const insertWhat = async (what, after) => {
     if (what === 'quiz') { insertQuiz(after); return; }
+    if (what === 'text') {
+      // Leerer Absatz – z. B. hinter einer Tabelle oder einem Baustein, wo sonst keine Schreibmarke hinkommt.
+      const [p] = placeHtml('<p><br></p>', after);
+      selectWidget(null);
+      surface.focus();
+      window.getSelection().collapse(p, 0);
+      p.scrollIntoView?.({ block: 'nearest' });
+      return;
+    }
     if (what === 'pdf') {
       const blocks = await insertPdfBlocks();
       if (blocks) placeHtml(specToEditorHtml({ content: blocks }), after);
@@ -730,6 +744,7 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
       },
     }));
     const entries = [
+      ['text', '¶ Textabsatz'],
       ['karo', '▦ Schreibfeld (Karo, Linien)'],
       // Mehr als ins Menü passen – oder keins: die Auswahl (sie erklärt, wie ein Quiz entsteht).
       ...(quizzes.length > QUIZ_MENU_MAX ? [['quiz', `🧩 Weitere Quizze (${quizzes.length})…`]] : !quizzes.length ? [['quiz', '🧩 Quiz aus dem Lernthema…']] : []),

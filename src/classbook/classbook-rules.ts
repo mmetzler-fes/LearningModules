@@ -6,6 +6,24 @@
 /** Kennung, unter der ein Schülerausweis des Klassennotizbuchs gilt (statt einer Link-ID). */
 export const classbookTicketKey = (classId: string) => `classbook:${classId}`;
 
+/**
+ * Klassencode zum Eintippen in der Schüler-App (statt QR-Code), z. B. „K7M4-QX9P“:
+ * 8 Zeichen ohne verwechselbare (0/O, 1/I/L) – zu viele zum Durchprobieren,
+ * eine Sperre je Adresse träfe die ganze Schule (ein Internetanschluss).
+ * `random(n)` liefert eine Zahl < n.
+ */
+const CODE_CHARS = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+export function newClassCode(random: (n: number) => number): string {
+  return Array.from({ length: 8 }, () => CODE_CHARS[random(CODE_CHARS.length)]).join('');
+}
+/** Eingabe → gespeicherte Form (groß, ohne Bindestrich und Leerzeichen) – oder null. */
+export function normalizeClassCode(typed: unknown): string | null {
+  const s = String(typed ?? '').toUpperCase().replace(/[\s-]/g, '');
+  return s.length === 8 && [...s].every((c) => CODE_CHARS.includes(c)) ? s : null;
+}
+/** Anzeige: „K7M4-QX9P“. */
+export const formatClassCode = (code: string) => `${code.slice(0, 4)}-${code.slice(4)}`;
+
 /** Ende des Tages (23:59:59) – so lange bleibt die Erstanmeldung offen. */
 export function endOfDay(now = new Date()): Date {
   const d = new Date(now);

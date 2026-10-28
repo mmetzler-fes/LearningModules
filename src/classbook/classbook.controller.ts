@@ -109,6 +109,12 @@ export class ClassbookController {
 export class PublicClassbookController {
   constructor(private readonly classbook: ClassbookService) {}
 
+  /** Klassencode aus der Schüler-App → `{ token }`. */
+  @Get('code/:code')
+  byCode(@Param('code') code: string) {
+    return this.classbook.byCode(code);
+  }
+
   @Get(':token')
   info(@Param('token') token: string) {
     return this.classbook.info(token);

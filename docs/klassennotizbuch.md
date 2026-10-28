@@ -215,21 +215,31 @@ Erstanmeldung offen ist.
 
 ### Als App auf dem iPad
 
-Schüler können das Klassennotizbuch wie eine App auf den Home-Bildschirm
-legen – ohne Konto, nur mit Name und PIN:
+Schüler legen sich **eine App „Klassenbuch“** auf den Home-Bildschirm – ohne
+Konto, nur mit Name und PIN. Darin stehen **alle ihre Klassennotizbücher**,
+auch von verschiedenen Lehrkräften („TG11-1 – Metzler“, „TG11-1 – Müller“).
 
 1. Klassenbuch-Link in Safari öffnen, anmelden.
 2. Oben **📲 Als App** zeigt, wie es geht: **Teilen** (□ mit Pfeil) →
    **„Zum Home-Bildschirm“**. In Chrome und Edge (Android, Windows) öffnet
    der Knopf direkt den Dialog des Browsers.
-3. Das Symbol heißt wie die Klasse und öffnet **direkt das
-   Klassennotizbuch**, nicht die Anmeldung der Lehrkraft. Beim ersten Start
-   einmal Name und PIN, danach bleibt der Schüler angemeldet – auch über
-   Nacht –, bis er auf **Abmelden** tippt.
+3. Die App startet mit diesem Klassennotizbuch. Einmal Name und PIN, danach
+   bleibt der Schüler angemeldet – auch über Nacht –, bis er auf
+   **Abmelden** tippt. Jedes Klassennotizbuch hat seine eigene Anmeldung.
+4. Weitere Klassennotizbücher: **☰ Alle** → **➕ Klassennotizbuch
+   hinzufügen** → **📷 QR-Code scannen** (den QR-Code aus „⚙ Klassenbuch-Link“,
+   z. B. am Beamer) oder den **Klassencode** eintippen, der daneben steht
+   (z. B. `K7M4-QX9P`). Ein QR-Code, den man mit der Kamera-App scannt, öffnet
+   nämlich Safari, nicht die App.
+
+Mit mehreren Klassennotizbüchern zeigt die App beim Start die Liste. **✕**
+nimmt eines aus der Liste (Ergebnisse und Blätter bleiben). **🔄 Neu** beim
+Klassenbuch-Link erneuert auch den Klassencode – Schüler müssen das
+Klassennotizbuch dann neu hinzufügen.
 
 Gedacht für eigene Geräte (iPad-Klassen). Im Browser ohne App gilt die
-Anmeldung weiter nur, solange er offen ist. Das geht genauso mit einem
-Themen- oder Quick-Link: Die App startet dann an diesem Link.
+Anmeldung weiter nur, solange er offen ist. Ein Themen- oder Quick-Link als
+App startet an diesem Link (eigene App, ohne Liste).
 
 ### Klassenarbeit über das Klassennotizbuch
 
@@ -290,8 +300,14 @@ sonst jeder anmelden. In der Ergebnisübersicht fehlen unbestätigte Einträge.
 Code: `src/classbook/`, `src/renderer/js/views/class-results.js` (Lehrkraft),
 `src/renderer/js/views/classbook-student.js` (Schüler).
 - App für Schüler: `GET /api/public/manifest?start=/?k=<token>` (auch `?l=`,
-  `?q=`) liefert ein Manifest mit diesem `start_url` und eigener `id`, Name =
-  Klasse (`src/classbook/student-manifest.ts`). `index.html` setzt den
-  Manifest-Link beim Laden um. Als installierte App (`display-mode:
-  standalone`) liegt die Anmeldung im localStorage; ein abgelaufener Ausweis
-  (12 h) wird mit gemerktem Namen und PIN erneuert.
+  `?q=`) liefert ein Manifest; Klassenbuch-Links teilen sich die App
+  `id: /?app=classbook` mit `start_url: /?app=classbook&k=<token>`
+  (`src/classbook/student-manifest.ts`). `index.html` setzt den Manifest-Link
+  beim Laden um. In der App (`display-mode: standalone`) steht die Liste
+  `lm_classbooks` im localStorage: `{ current, books: [{ token, className,
+  teacher, ticket, name, pin }] }`; ein abgelaufener Ausweis (12 h) wird mit
+  Name und PIN erneuert. Klassencode: `class_notebooks.code` (8 Zeichen ohne
+  0/O/1/I/L, `newClassCode` in `classbook-rules.ts`), `GET
+  /api/public/classbook/code/:code` → `{ token }`. QR-Leser: jsQR
+  (`js/vendor/jsQR.js`, Apache-2.0), geladen erst beim Scannen
+  (`js/views/qr-scan.js`).

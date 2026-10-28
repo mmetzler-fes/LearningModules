@@ -1,6 +1,7 @@
 import { escapeHtml, escapeAttr } from '../utils.js';
 import { LINK_MODE_LABELS } from './login.js';
 import { offerTeacherName } from './teacher-as-student.js';
+import { scanQr } from './qr-scan.js';
 
 // ==================== KLASSENNOTIZBUCH (SCHÜLER) ====================
 //
@@ -9,25 +10,67 @@ import { offerTeacherName } from './teacher-as-student.js';
 // (docs/klassennotizbuch.md). Eine Aufgabe startet den gewöhnlichen Durchlauf
 // des Klassenlinks – mit dem Ausweis von hier statt einer Namenseingabe.
 // Die Anmeldung hält der Browser für die Sitzung (sessionStorage), so führt
-// „Zurück zum Klassenbuch“ ohne neue Anmeldung zurück. Als installierte App
-// (Home-Bildschirm, eigenes Gerät) bleibt sie im localStorage, bis der
-// Schüler sich abmeldet – ein abgelaufener Ausweis wird still erneuert.
+// „Zurück zum Klassenbuch“ ohne neue Anmeldung zurück.
+//
+// Als installierte App (Home-Bildschirm, eigenes Gerät, `/?app=classbook`)
+// führt die App eine Liste „Meine Klassennotizbücher“ – je Klasse und
+// Lehrkraft ein Eintrag mit eigener Anmeldung (Name, PIN gelten je Klasse).
+// Sie bleibt im localStorage, bis der Schüler sich abmeldet; ein abgelaufener
+// Ausweis wird still erneuert. Weitere Notizbücher kommen in der App dazu
+// (QR-Code scannen oder Klassencode), denn ein gescannter Link öffnet Safari.
 
 const SESSION_KEY = 'lm_classbook';
+const BOOKS_KEY = 'lm_classbooks';
 
 /** Läuft die Seite als installierte App? */
 export function inApp() {
   try { return window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true; } catch (_) { return false; }
 }
-const sessionStore = () => (inApp() ? localStorage : sessionStorage);
+
+/** App: `{ current, books: [{ token, className, teacher, ticket?, name?, pin? }] }`. */
+function loadBooks() {
+  try {
+    const v = JSON.parse(localStorage.getItem(BOOKS_KEY) || 'null');
+    if (v && Array.isArray(v.books)) return v;
+  } catch (_) { /* leer anfangen */ }
+  return { current: null, books: [] };
+}
+function storeBooks(v) {
+  try { localStorage.setItem(BOOKS_KEY, JSON.stringify(v)); } catch (_) { /* ohne Speicher keine Liste */ }
+}
+/** Eintrag anlegen bzw. ergänzen. */
+function upsertBook(token, fields = {}) {
+  const v = loadBooks();
+  const b = v.books.find((x) => x.token === token);
+  if (b) Object.assign(b, fields); else v.books.push({ token, ...fields });
+  storeBooks(v);
+  return v;
+}
 
 export function classbookSession() {
-  try { return JSON.parse(sessionStore().getItem(SESSION_KEY) || 'null'); } catch (_) { return null; }
+  if (inApp()) {
+    const v = loadBooks();
+    const b = v.books.find((x) => x.token === v.current);
+    return b?.ticket ? { token: b.token, ticket: b.ticket, name: b.name, pin: b.pin || null } : null;
+  }
+  try { return JSON.parse(sessionStorage.getItem(SESSION_KEY) || 'null'); } catch (_) { return null; }
 }
 function saveSession(value) {
+  if (inApp()) {
+    const v = loadBooks();
+    if (value) {
+      upsertBook(value.token, { ticket: value.ticket, name: value.name, pin: value.pin || null });
+      storeBooks({ ...loadBooks(), current: value.token });
+    } else {
+      const b = v.books.find((x) => x.token === v.current);
+      if (b) { delete b.ticket; delete b.pin; }
+      storeBooks(v);
+    }
+    return;
+  }
   try {
-    if (value) sessionStore().setItem(SESSION_KEY, JSON.stringify(value));
-    else sessionStore().removeItem(SESSION_KEY);
+    if (value) sessionStorage.setItem(SESSION_KEY, JSON.stringify(value));
+    else sessionStorage.removeItem(SESSION_KEY);
   } catch (_) { /* ohne Speicher: nach jedem Durchlauf neu anmelden */ }
 }
 /** Zurück zur Startseite des Klassennotizbuchs (neu laden, die Sitzung bleibt). */
@@ -88,8 +131,12 @@ export class ClassbookStudent {
       return;
     }
     this.info = info;
-    // Name auf dem Home-Bildschirm (iPad): die Klasse.
-    document.querySelector('meta[name="apple-mobile-web-app-title"]')?.setAttribute('content', info.className || 'LernModule');
+    // Name auf dem Home-Bildschirm (iPad) – eine App für alle Klassennotizbücher.
+    document.querySelector('meta[name="apple-mobile-web-app-title"]')?.setAttribute('content', 'Klassenbuch');
+    if (inApp()) {
+      const v = upsertBook(token, { className: info.className, teacher: info.teacher || '' });
+      storeBooks({ ...v, current: token });
+    }
     const s = classbookSession();
     if (s?.token === token && s.ticket && (await this._home())) return;
     this._login();
@@ -98,6 +145,7 @@ export class ClassbookStudent {
   _login(message = '', { askPin = false, askTest = false, name = '' } = {}) {
     const { info } = this;
     const el = this._show(`
+      ${inApp() ? '<button type="button" class="btn btn-secondary btn-sm cb-to-list" id="cbToList">☰ Meine Klassennotizbücher</button>' : ''}
       <div class="quick-entry-topic">
         <span class="quick-entry-label">📒 Klassennotizbuch</span>
         <h2>${escapeHtml(info.className)}</h2>
@@ -122,6 +170,7 @@ export class ClassbookStudent {
         <p class="login-error ${message ? '' : 'hidden'}" id="cbErr">${escapeHtml(message)}</p>
         <button type="submit" class="btn btn-primary btn-full">📒 Öffnen</button>
       </form>`);
+    el.querySelector('#cbToList')?.addEventListener('click', () => this.showList());
     const form = el.querySelector('#cbLoginForm');
     // Angemeldete Lehrkraft (Fortbildung): mit ihrem Namen – PIN wie jeder Schüler.
     void offerTeacherName(el.querySelector('#cbName'), () => {
@@ -256,7 +305,8 @@ export class ClassbookStudent {
       <div class="cb-head">
         <div><span class="quick-entry-label">📒 ${escapeHtml(data.className)}</span><h2>${escapeHtml(data.name)}</h2></div>
         <span class="cb-head-actions">
-          ${inApp() ? '' : '<button type="button" class="btn btn-secondary btn-sm" id="cbInstall" title="Klassennotizbuch als App auf den Home-Bildschirm – öffnet direkt hier, angemeldet">📲 Als App</button>'}
+          ${inApp() ? '<button type="button" class="btn btn-secondary btn-sm" id="cbToList" title="Alle deine Klassennotizbücher">☰ Alle</button>'
+            : '<button type="button" class="btn btn-secondary btn-sm" id="cbInstall" title="Klassennotizbuch als App auf den Home-Bildschirm – öffnet direkt hier, angemeldet">📲 Als App</button>'}
           <button type="button" class="btn btn-secondary btn-sm" id="cbLogout">Abmelden</button>
         </span>
       </div>
@@ -267,6 +317,7 @@ export class ClassbookStudent {
       ${data.pending
         ? '<p class="hint cb-pending">Deine Ergebnisse und Blätter erscheinen hier, sobald deine Lehrkraft deinen Namen in der Klassenliste bestätigt hat.</p>'
         : `<h3 class="cb-section">📈 Meine Ergebnisse</h3>${results}<h3 class="cb-section">✍️ Meine Blätter</h3>${works}`}`);
+    el.querySelector('#cbToList')?.addEventListener('click', () => { this._stopWatch(); this.showList(); });
     el.querySelector('#cbInstall')?.addEventListener('click', async () => {
       // Chrome, Edge: Dialog des Browsers. iPad/iPhone: Teilen → Zum Home-Bildschirm.
       const prompt = this.app.installPrompt;
@@ -277,7 +328,7 @@ export class ClassbookStudent {
         return;
       }
       const hint = el.querySelector('#cbInstallHint');
-      hint.innerHTML = '<strong>So kommt das Klassennotizbuch auf den Home-Bildschirm:</strong> In Safari auf <b>Teilen</b> (□ mit Pfeil nach oben) tippen, dann <b>„Zum Home-Bildschirm“</b>. In der App meldest du dich einmal mit Name und PIN an und bleibst angemeldet, bis du dich abmeldest.';
+      hint.innerHTML = '<strong>So kommt das Klassennotizbuch auf den Home-Bildschirm:</strong> In Safari auf <b>Teilen</b> (□ mit Pfeil nach oben) tippen, dann <b>„Zum Home-Bildschirm“</b>. In der App meldest du dich einmal mit Name und PIN an und bleibst angemeldet, bis du dich abmeldest. Klassennotizbücher anderer Lehrkräfte fügst du in der App mit ➕ hinzu.';
       hint.classList.remove('hidden');
     });
     el.querySelector('#cbLogout').addEventListener('click', () => {
@@ -340,6 +391,103 @@ export class ClassbookStudent {
       if (!res || res.failed) return;
       if ((res.arena?.linkId || null) !== (this.data?.arena?.linkId || null)) await this._home();
     }, 5000);
+  }
+
+  // ---- Schüler-App: Liste der Klassennotizbücher ----
+
+  /**
+   * Start der installierten App (`/?app=classbook&k=<token>`): Das Notizbuch
+   * des Links kommt in die Liste. Mit einem Eintrag öffnet es direkt, sonst die Liste.
+   */
+  async startApp(token) {
+    if (!inApp()) { if (token) await this.start(token); return; }
+    if (token) upsertBook(token);
+    const { books } = loadBooks();
+    if (books.length === 1) { await this.start(books[0].token); return; }
+    this.showList();
+  }
+
+  showList(message = '') {
+    const { books } = loadBooks();
+    const el = this._show(`
+      <div class="cb-head">
+        <div><span class="quick-entry-label">📒 Klassenbuch</span><h2>Meine Klassennotizbücher</h2></div>
+      </div>
+      ${message ? `<p class="login-error">${escapeHtml(message)}</p>` : ''}
+      ${books.length ? `<ul class="cb-books">${books.map((b) => `
+        <li><button type="button" class="cb-book" data-token="${escapeAttr(b.token)}">
+            <strong>${escapeHtml(b.className || 'Klassennotizbuch')}</strong>${b.teacher ? ` – ${escapeHtml(b.teacher)}` : ''}
+            <span class="hint">${b.ticket ? `angemeldet als ${escapeHtml(b.name || '')}` : 'nicht angemeldet'}</span></button>
+          <button type="button" class="btn btn-secondary btn-sm cb-book-del" data-token="${escapeAttr(b.token)}" title="Aus der Liste nehmen (deine Ergebnisse bleiben)">✕</button></li>`).join('')}</ul>`
+        : '<p class="hint">Noch kein Klassennotizbuch – füge eines hinzu.</p>'}
+      <button type="button" class="btn btn-primary btn-full" id="cbAdd">➕ Klassennotizbuch hinzufügen</button>`);
+    el.querySelectorAll('.cb-book').forEach((btn) => btn.addEventListener('click', () => this.start(btn.dataset.token)));
+    el.querySelectorAll('.cb-book-del').forEach((btn) => btn.addEventListener('click', async () => {
+      const b = books.find((x) => x.token === btn.dataset.token);
+      if (!(await this.app.appConfirm(`„${b?.className || 'Klassennotizbuch'}“ aus der Liste nehmen? Deine Ergebnisse und Blätter bleiben – mit Klassencode oder QR-Code kommt es wieder dazu.`))) return;
+      const v = loadBooks();
+      storeBooks({ current: v.current === btn.dataset.token ? null : v.current, books: v.books.filter((x) => x.token !== btn.dataset.token) });
+      this.showList();
+    }));
+    el.querySelector('#cbAdd').addEventListener('click', () => this._addBook());
+  }
+
+  /** Hinzufügen: QR-Code (Klassenbuch-Link) scannen oder Klassencode eintippen. */
+  _addBook(message = '') {
+    const el = this._show(`
+      <button type="button" class="btn btn-secondary btn-sm cb-to-list" id="cbToList">☰ Meine Klassennotizbücher</button>
+      <div class="quick-entry-topic"><span class="quick-entry-label">➕ Klassennotizbuch hinzufügen</span></div>
+      <button type="button" class="btn btn-primary btn-full" id="cbScan">📷 QR-Code scannen</button>
+      <div class="cb-scan hidden" id="cbScanBox"><div class="cb-scan-view"></div>
+        <button type="button" class="btn btn-secondary btn-full" id="cbScanStop">Abbrechen</button></div>
+      <form class="login-form" id="cbCodeForm">
+        <div class="form-group">
+          <label for="cbCode">… oder Klassencode</label>
+          <input type="text" id="cbCode" class="cb-code-input" placeholder="z. B. K7M4-QX9P" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="12" />
+          <small class="hint">Steht bei deiner Lehrkraft neben dem QR-Code des Klassennotizbuchs.</small>
+        </div>
+        <p class="login-error ${message ? '' : 'hidden'}" id="cbAddErr">${escapeHtml(message)}</p>
+        <button type="submit" class="btn btn-secondary btn-full">Hinzufügen</button>
+      </form>`);
+    let scan = null;
+    const stopScan = () => { scan?.cancel(); scan = null; el.querySelector('#cbScanBox').classList.add('hidden'); el.querySelector('#cbScan').classList.remove('hidden'); };
+    el.querySelector('#cbToList').addEventListener('click', () => { stopScan(); this.showList(); });
+    el.querySelector('#cbScanStop').addEventListener('click', stopScan);
+    el.querySelector('#cbScan').addEventListener('click', async () => {
+      el.querySelector('#cbScan').classList.add('hidden');
+      el.querySelector('#cbScanBox').classList.remove('hidden');
+      scan = scanQr(el.querySelector('.cb-scan-view'));
+      let text;
+      try { text = await scan.done; } catch (err) {
+        stopScan();
+        this._addBook(err?.name === 'NotAllowedError' ? 'Die Kamera ist nicht erlaubt. Erlaube sie in den Einstellungen – oder tipp den Klassencode ein.' : (err?.message || 'Die Kamera lässt sich nicht starten.'));
+        return;
+      }
+      if (text === null) return; // abgebrochen
+      stopScan();
+      let token = null;
+      try {
+        const url = new URL(text, location.origin);
+        if (url.origin === location.origin) token = url.searchParams.get('k');
+      } catch (_) { /* kein Link */ }
+      if (!token) { this._addBook('Das ist kein QR-Code eines Klassennotizbuchs von hier. Bitte den QR-Code aus „Klassenbuch-Link“ scannen.'); return; }
+      await this._added(token);
+    });
+    el.querySelector('#cbCodeForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const code = el.querySelector('#cbCode').value.trim();
+      if (!code) return;
+      const res = await fetch(`/api/public/classbook/code/${encodeURIComponent(code.replace(/[\s-]/g, '').toUpperCase())}`).catch(() => null);
+      const data = res ? await res.json().catch(() => ({})) : null;
+      if (!res?.ok || !data?.token) { this._addBook(data?.message || 'Der Server ist nicht erreichbar.'); return; }
+      await this._added(data.token);
+    });
+  }
+
+  /** Neues Notizbuch: in die Liste und öffnen (Anmeldung mit Name und PIN dieser Klasse). */
+  async _added(token) {
+    upsertBook(token);
+    await this.start(token);
   }
 
   _stopWatch() {

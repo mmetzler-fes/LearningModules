@@ -1,7 +1,9 @@
 /**
  * Web-App-Manifest für Schüler: Die installierte App (iPad: Teilen → Zum
- * Home-Bildschirm) startet am Klassenbuch- bzw. Themen-Link statt an der
- * Anmeldung der Lehrkraft. Je Link eine eigene App (`id`).
+ * Home-Bildschirm) startet am Schüler-Link statt an der Anmeldung der
+ * Lehrkraft. Klassenbuch-Links ergeben alle dieselbe App „Klassenbuch“ mit
+ * der Liste der eigenen Klassennotizbücher (`?app=classbook`); ein Themen-
+ * oder Quick-Link seine eigene.
  */
 
 /** Erlaubte Startadressen: `/?k=…`, `/?l=…`, `/?q=…` mit einem Token – sonst null. */
@@ -10,15 +12,16 @@ export function studentStartUrl(start: unknown): string | null {
   return m ? `/?${m[1]}=${m[2]}` : null;
 }
 
-export function studentManifest(start: string, title = '') {
-  const name = title ? `LernModule – ${title}` : 'LernModule';
+export function studentManifest(start: string) {
+  const classbook = start.startsWith('/?k=');
   return {
-    id: start,
-    name,
-    short_name: title || 'LernModule',
+    id: classbook ? '/?app=classbook' : start,
+    name: classbook ? 'LernModule – Klassenbuch' : 'LernModule',
+    short_name: classbook ? 'Klassenbuch' : 'LernModule',
     description: 'Aufgaben, Blätter und Ergebnisse',
     lang: 'de',
-    start_url: start,
+    // Das Klassennotizbuch des Links kommt beim ersten Start in die Liste.
+    start_url: classbook ? `/?app=classbook&k=${start.slice(4)}` : start,
     scope: '/',
     display: 'standalone',
     background_color: '#f5f7fb',

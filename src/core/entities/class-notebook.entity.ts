@@ -35,6 +35,11 @@ export class ClassNotebook extends BaseEntity {
   @Column()
   token: string;
 
+  /** Klassencode zum Eintippen in der Schüler-App (statt QR), z. B. „K7M4QX9P“. „Neu“ erneuert ihn mit dem Link. */
+  @Index({ unique: true })
+  @Column({ type: 'varchar', nullable: true })
+  code: string | null;
+
   /**
    * Erstanmeldung offen bis: Solange zeigt die App Schülern, die ihre PIN
    * noch nie gesehen haben, die PIN beim Anmelden. Schaltet sich am Ende des

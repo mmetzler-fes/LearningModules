@@ -11,11 +11,17 @@ describe('Manifest für Schüler', () => {
     expect(studentStartUrl(undefined)).toBeNull();
   });
 
-  it('startet am Link, eigene App je Link, Symbole absolut', () => {
-    const m = studentManifest('/?k=abc', 'TG11-1');
-    expect(m.start_url).toBe('/?k=abc');
-    expect(m.id).toBe('/?k=abc');
-    expect(m.short_name).toBe('TG11-1');
+  it('Klassenbuch-Links: eine App mit Liste, startet mit dem Link', () => {
+    const m = studentManifest('/?k=abc');
+    expect(m.start_url).toBe('/?app=classbook&k=abc');
+    expect(m.id).toBe('/?app=classbook');
+    expect(studentManifest('/?k=xyz').id).toBe(m.id);
     expect(m.icons.every((i) => i.src.startsWith('/icons/'))).toBe(true);
+  });
+
+  it('Themen-Link: eigene App, startet am Link', () => {
+    const m = studentManifest('/?l=tok');
+    expect(m.start_url).toBe('/?l=tok');
+    expect(m.id).toBe('/?l=tok');
   });
 });

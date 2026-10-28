@@ -1,4 +1,4 @@
-import { endOfDay, firstLoginOpen, loginDecision, unitCells, examState, toggleSelection, explicitSelection, moduleOn } from './classbook-rules';
+import { endOfDay, firstLoginOpen, loginDecision, unitCells, examState, toggleSelection, explicitSelection, moduleOn, newClassCode, normalizeClassCode, formatClassCode } from './classbook-rules';
 
 const same = (a: string, b: string | null | undefined) => a === b;
 
@@ -105,5 +105,21 @@ describe('toggleSelection', () => {
 
   it('explicitSelection: neue Module bleiben aus', () => {
     expect(explicitSelection([{ topicId: 'A', all: true }], avail)).toEqual([{ topicId: 'A', all: false, moduleIds: ['a1', 'a2'] }]);
+  });
+});
+
+describe('Klassencode', () => {
+  it('8 Zeichen ohne verwechselbare', () => {
+    let i = 0;
+    const code = newClassCode((n) => (i++ * 7) % n);
+    expect(code).toMatch(/^[A-HJKMNP-Z2-9]{8}$/);
+  });
+  it('Eingabe mit Bindestrich, klein, Leerzeichen', () => {
+    expect(normalizeClassCode('k7m4-qx9p')).toBe('K7M4QX9P');
+    expect(normalizeClassCode(' K7M4 QX9P ')).toBe('K7M4QX9P');
+    expect(normalizeClassCode('K7M4QX9')).toBeNull();
+    expect(normalizeClassCode('K0M4QX9P')).toBeNull();
+    expect(normalizeClassCode(undefined)).toBeNull();
+    expect(formatClassCode('K7M4QX9P')).toBe('K7M4-QX9P');
   });
 });

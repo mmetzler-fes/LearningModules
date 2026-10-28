@@ -26,7 +26,7 @@ import { newPin, pinMatches, pinGuard } from '../work/pin';
 import { baseUrl, renderQr } from '../core/share/link-url';
 import { embeddedQuizIds } from '../core/public/student-view';
 import { ContestService } from '../contest/contest.service';
-import { endOfDay, firstLoginOpen, loginDecision, unitCells, Unit, DetailLike, classbookTicketKey, examState, toggleSelection, explicitSelection, moduleOn, AvailTopic, SelEntry } from './classbook-rules';
+import { newClassCode, normalizeClassCode, formatClassCode, endOfDay, firstLoginOpen, loginDecision, unitCells, Unit, DetailLike, classbookTicketKey, examState, toggleSelection, explicitSelection, moduleOn, AvailTopic, SelEntry } from './classbook-rules';
 
 const practiceModes = (link: TopicLink) => PRACTICE_MODES.filter((m) => (link.modes || []).includes(m));
 
@@ -68,14 +68,25 @@ export class ClassbookService {
     @InjectRepository(NotebookPlacement) private readonly nbPlaceRepo: Repository<NotebookPlacement>,
   ) {}
 
-  /** Notizbuch der Klasse – beim ersten Aufruf angelegt. */
+  /** Notizbuch der Klasse – beim ersten Aufruf angelegt; ältere bekommen hier ihren Klassencode. */
   private async ensure(klasse: StudentClass): Promise<ClassNotebook> {
     const found = await this.repo.findOne({ where: { classId: klasse.id } });
-    if (found) return found;
+    if (found) {
+      if (!found.code) { found.code = await this.freeCode(); await this.repo.save(found); }
+      return found;
+    }
     return this.repo.save(this.repo.create({
       id: crypto.randomUUID(), classId: klasse.id, ownerId: klasse.ownerId || '',
-      token: crypto.randomBytes(12).toString('base64url'), firstLoginUntil: null, teacherItems: [],
+      token: crypto.randomBytes(12).toString('base64url'), code: await this.freeCode(), firstLoginUntil: null, teacherItems: [],
     }));
+  }
+
+  /** Klassencode, den noch kein Klassennotizbuch hat. */
+  private async freeCode(): Promise<string> {
+    for (;;) {
+      const code = newClassCode((n) => crypto.randomInt(n));
+      if (!(await this.repo.findOne({ where: { code } }))) return code;
+    }
   }
 
   /** Klassenlinks der Klasse (die Zuweisungen), älteste zuerst. */
@@ -165,6 +176,7 @@ export class ClassbookService {
       schoolYear: klasse.schoolYear,
       strict: klasse.strict,
       url,
+      code: nb.code ? formatClassCode(nb.code) : '',
       qrSvg: await renderQr(url),
       firstLoginUntil: firstLoginOpen(nb.firstLoginUntil) ? nb.firstLoginUntil : null,
       teacherItems: nb.teacherItems || [],
@@ -604,6 +616,7 @@ export class ClassbookService {
   async renewToken(user: any, classId: string, req?: any) {
     const nb = await this.ensure(await this.classes.ownedClass(classId, user));
     nb.token = crypto.randomBytes(12).toString('base64url');
+    nb.code = await this.freeCode();
     await this.repo.save(nb);
     return this.forTeacher(user, classId, req);
   }
@@ -658,6 +671,15 @@ export class ClassbookService {
     const owner = klasse.ownerId ? await this.userRepo.findOne({ where: { id: klasse.ownerId } }) : null;
     if (!owner || owner.active === false) throw new ForbiddenException('Dieses Klassennotizbuch ist derzeit gesperrt.');
     return { nb, klasse, owner };
+  }
+
+  /** Klassencode (aus der Schüler-App) → Token des Klassenbuch-Links. */
+  async byCode(typed: string) {
+    const code = normalizeClassCode(typed);
+    const nb = code ? await this.repo.findOne({ where: { code } }) : null;
+    if (!nb) throw new NotFoundException('Diesen Klassencode gibt es nicht. Bitte genau abschreiben oder bei der Lehrkraft nachfragen.');
+    await this.byToken(nb.token); // gesperrt / Klasse weg → wie beim Link
+    return { token: nb.token };
   }
 
   async info(token: string) {

@@ -633,6 +633,11 @@ class App {
       // &mod=<modul> nur in dieses eine Modul (QR-Code eines Quiz im Dokument).
       // Klassennotizbuch: ?k=<token> – Name und PIN, dann Aufgaben, Ergebnisse, Blätter.
       const classbookToken = params.get('k');
+      // Installierte Schüler-App: Liste der Klassennotizbücher (das des Links kommt dazu).
+      if (params.get('app') === 'classbook') {
+        await this.classbookStudent.startApp(classbookToken);
+        return;
+      }
       if (classbookToken) {
         await this.classbookStudent.start(classbookToken);
         return;

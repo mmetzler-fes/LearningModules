@@ -28,6 +28,9 @@ MAX_PAGES = 40
 MAX_PAGE_PIXELS = 3_000_000
 PT_TO_CM = 2.54 / 72
 TEXT_WIDTH_CM = 16.5
+# Folien (Querformat): Bilder dürfen so breit werden wie die Zeile auf A4 quer –
+# im Hochformat druckt der Renderer ohnehin höchstens die Satzbreite.
+SLIDE_WIDTH_CM = 25.5
 
 BULLET_RE = re.compile(r"^([•▪●◦■□▶►‣⁃∙·\-–—*✓✔➢➤])\s+(.*)$")
 # Nur Nummern – „(a)“ / „a)“ sind in Aufgaben Textzeilen und bleiben es.
@@ -248,8 +251,8 @@ def _crop_image(page, box, resolution: int = 150, blank: list[dict[str, Any]] | 
     return image
 
 
-def _width_cm(x0: float, x1: float) -> str:
-    return f"{min(TEXT_WIDTH_CM, max(1.0, (x1 - x0) * PT_TO_CM)):.1f}cm"
+def _width_cm(x0: float, x1: float, limit: float = TEXT_WIDTH_CM) -> str:
+    return f"{min(limit, max(1.0, (x1 - x0) * PT_TO_CM)):.1f}cm"
 
 
 def _clean_cell(v: Any) -> str:
@@ -446,7 +449,7 @@ def _page_elements(page, index: int, warnings: list[str], template: set[tuple[in
             continue
         absorbed.update(id(wd) for wd in mine)
         figures.append(box)
-        block = {"type": "image", "src": src, "width": _width_cm(x0, x1)}
+        block = {"type": "image", "src": src, "width": _width_cm(x0, x1, SLIDE_WIDTH_CM if w > 1.15 * h else TEXT_WIDTH_CM)}
         # Mit Zeichnungsteilen oder Beschriftungen: Lage im PDF (`_fig`), damit die App
         # den Bereich auf Wunsch als bearbeitbare Zeichnung (.odg) holen kann (pdf_figures.py).
         if n_shape or mine:

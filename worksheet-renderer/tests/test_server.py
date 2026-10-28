@@ -266,6 +266,30 @@ class RendererTest(unittest.TestCase):
         self.assertEqual(content.count("<draw:g"), 1)  # gruppiert – das Logo daneben ist nicht dabei
         self.assertIn("<svg", base64.b64decode(fig["svg"]).decode("utf-8", "replace"))
 
+    def test_querformat_breite(self):
+        """Vorlage A4 quer: „ganze Breite“ (16,5 cm) und Schreibfelder füllen die Zeile, nichts wird breiter als die Seite."""
+        import re
+        from odf.opendocument import load
+        from odf.style import PageLayout, PageLayoutProperties
+        doc = load(str(Path(server.__file__).parent / "templates" / "Grundvorlage.ott"))
+        for pl in doc.getElementsByType(PageLayout):
+            for p in pl.getElementsByType(PageLayoutProperties):
+                p.setAttribute("pagewidth", "29.7cm")
+                p.setAttribute("pageheight", "21.001cm")
+        buf = io.BytesIO()
+        doc.save(buf)
+        png = base64.b64encode((Path(__file__).parent / "bild.png").read_bytes()).decode()
+        spec = {"content": [{"type": "image", "file": "bild.png", "width": "16.5cm"},
+                            {"type": "image", "file": "bild.png", "width": "8cm"},
+                            {"type": "image", "file": "bild.png", "width": "40cm"},
+                            {"type": "karo", "lines": 2}]}
+        status, body = self.request("/render", {"spec": spec, "outputs": ["odt"], "files": {"bild.png": png},
+                                                "template": base64.b64encode(buf.getvalue()).decode()})
+        self.assertEqual(status, 200, body)
+        content = zipfile.ZipFile(io.BytesIO(base64.b64decode(body["files"]["odt"]))).read("content.xml").decode()
+        self.assertEqual(re.findall(r'draw:name="Bild\d+"[^>]*?svg:width="([\d.]+cm)"', content), ["25.00cm", "8.00cm", "25.00cm"])
+        self.assertIn('style:width="25.000cm"', content)  # Karo über die ganze Zeile
+
     # ---- Word nach .odt ----
 
     def test_umwandeln_nur_word(self):

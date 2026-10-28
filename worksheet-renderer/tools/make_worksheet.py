@@ -892,6 +892,12 @@ def image_frame(doc, block: dict[str, Any], search: list[Path], index: int, midd
         height = float(str(block["height"]).removesuffix("cm"))
     else:
         width, height = image_size(path, width)
+    # Satzbreite der Vorlage: „ganze Breite“ (16,5 cm, die Breite von A4 hoch)
+    # füllt im Querformat die ganze Zeile; breiter als die Seite wird nichts.
+    page = KARO_COLUMNS * KARO_CELL
+    target = page if abs(width - TABLE_WIDTH_CM) < 0.05 and page > TABLE_WIDTH_CM else min(width, page)
+    if target != width and width > 0:
+        width, height = target, height * target / width
 
     href = doc.addPicture(str(path))
     extra: dict[str, Any] = {}

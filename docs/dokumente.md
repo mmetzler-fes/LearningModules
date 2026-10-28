@@ -168,6 +168,14 @@ um, PDFs der Renderer bzw. die KI-Erkennung – gefragt wird einmal, wie.
 Im Editor geht es weiter wie bisher: **📄 Übernehmen…** über dem
 Inhalt ersetzt den Inhalt des geöffneten Dokuments.
 
+**PDF als Text:** Bilder und Zeichnungen, die beieinander liegen, werden
+**ein Bild** – samt der Beschriftungen darin, an ihrer Stelle. So bleibt ein
+Schaubild zusammen, auch wenn das PDF es in viele Teile zerlegt hat (z. B.
+eine PowerPoint-Präsentation über „Microsoft Print to PDF“). Titel,
+Aufzählungen und Fließtext daneben bleiben bearbeitbarer Text. Bei Folien
+(Querformat) gilt: rote Titel sind Gestaltung, keine Lösung; Logo und
+Fußzeile der Vorlage fallen weg.
+
 ### Aus Xournal++ (.xopp)
 
 **📄 Übernehmen…** nimmt auch **.xopp**-Dateien von Xournal++ an. Eine .xopp

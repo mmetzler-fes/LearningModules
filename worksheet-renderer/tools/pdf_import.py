@@ -230,12 +230,22 @@ def _merge_boxes(boxes: list[list[float]], gap: float = 6.0) -> list[list[float]
     return merged
 
 
-def _crop_image(page, box, resolution: int = 150):
+def _crop_image(page, box, resolution: int = 150, blank: list[dict[str, Any]] | None = None):
+    """Ausschnitt der Seite als Bild; `blank`: Wörter, die dort weiß übermalt werden (sie bleiben Text)."""
     x0, top, x1, bottom = box
     bbox = (max(0, x0), max(0, top), min(page.width, x1), min(page.height, bottom))
     area = max((bbox[2] - bbox[0]) * (bbox[3] - bbox[1]), 1.0)
     resolution = min(resolution, int(72 * (MAX_PAGE_PIXELS / area) ** 0.5))
-    return page.crop(bbox).to_image(resolution=resolution).original
+    image = page.crop(bbox).to_image(resolution=resolution).original
+    if blank:
+        from PIL import ImageDraw  # pdfplumber bringt Pillow mit
+        image = image.convert("RGB")
+        draw = ImageDraw.Draw(image)
+        sx, sy = image.width / (bbox[2] - bbox[0]), image.height / (bbox[3] - bbox[1])
+        for wd in blank:
+            draw.rectangle([(float(wd["x0"]) - bbox[0] - 1) * sx, (float(wd["top"]) - bbox[1] - 1) * sy,
+                            (float(wd["x1"]) - bbox[0] + 1) * sx, (float(wd["bottom"]) - bbox[1] + 1) * sy], fill="white")
+    return image
 
 
 def _width_cm(x0: float, x1: float) -> str:
@@ -246,7 +256,33 @@ def _clean_cell(v: Any) -> str:
     return re.sub(r"\s+", " ", str(v or "")).strip()
 
 
-def _page_elements(page, index: int, warnings: list[str]) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+def _box_key(obj: dict[str, Any]) -> tuple[int, ...]:
+    """Lage eines Bildes, auf 4 pt gerundet – zum Wiedererkennen auf anderen Seiten."""
+    return tuple(round(float(obj[k]) / 4) for k in ("x0", "top", "x1", "bottom"))
+
+
+def _template_images(pages) -> set[tuple[int, ...]]:
+    """Bilder der Vorlage (Logo …): klein, allein stehend und an derselben Stelle auf vielen Seiten.
+
+    Teil eines größeren Bildes (Kachel) ist kein Logo – auch wenn dasselbe
+    Schaubild auf mehreren Folien wiederkehrt.
+    """
+    if len(pages) < 3:
+        return set()
+
+    def alone(im: dict[str, Any], others: list[dict[str, Any]], gap: float = 12.0) -> bool:
+        return not any(o is not im and float(o["x0"]) <= float(im["x1"]) + gap and float(im["x0"]) <= float(o["x1"]) + gap
+                       and float(o["top"]) <= float(im["bottom"]) + gap and float(im["top"]) <= float(o["bottom"]) + gap for o in others)
+
+    counts: Counter = Counter()
+    for p in pages:
+        area = float(p.width) * float(p.height)
+        counts.update({_box_key(im) for im in p.images
+                       if (float(im["x1"]) - float(im["x0"])) * (float(im["bottom"]) - float(im["top"])) < 0.05 * area and alone(im, p.images)})
+    return {k for k, n in counts.items() if n >= max(3, 0.4 * len(pages))}
+
+
+def _page_elements(page, index: int, warnings: list[str], template: set[tuple[int, ...]] | None = None) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     """Elemente einer Seite (Zeilen, Tabellen, Bilder, Karo) und ihre Zeilen."""
     elements: list[dict[str, Any]] = []
     taken: list[tuple[float, float, float, float]] = []
@@ -265,7 +301,7 @@ def _page_elements(page, index: int, warnings: list[str]) -> tuple[list[dict[str
         inner = [wd for wd in all_words if _inside(wd, t.bbox)]
         # Lösungsblatt: rote Schrift über dem Karo – das Gitter ist sonst leer.
         red_words = [wd for wd in inner if _is_red(wd.get("non_stroking_color"))]
-        if len(rows) >= 3 and red_words and len(red_words) >= 0.8 * len(inner):
+        if len(rows) >= 3 and red_words and len(red_words) >= 0.8 * len(inner) and w <= 1.15 * h:
             lines_cm = (bottom - top) * PT_TO_CM / 0.5
             elements.append({"kind": "block", "top": top, "bottom": bottom, "x0": x0,
                              "block": {"type": "karo", "lines": max(1, min(60, round(lines_cm)))}})
@@ -299,50 +335,135 @@ def _page_elements(page, index: int, warnings: list[str]) -> tuple[list[dict[str
             block = {"type": "table", "header": grid[0], "rows": grid[1:]}
         elements.append({"kind": "block", "top": top, "bottom": bottom, "x0": x0, "block": block})
 
-    # Bilder (Rastergrafiken)
+    # Bildbereiche: Rasterbilder und Zeichnungen (Linien, Kurven, Flächen), die
+    # beieinander liegen, werden EIN Bild – samt der Beschriftungen darin, an
+    # ihrer Stelle. „Microsoft Print to PDF“ & Co. zerlegen ein Bild in viele
+    # Streifen, und die Beschriftung eines Schaubilds ist Text daneben; einzeln
+    # übernommen fiele beides auseinander.
+    def free(box: tuple[float, float, float, float], pad: float = 1.0) -> bool:
+        return not any(_inside({"x0": box[0], "x1": box[2], "top": box[1], "bottom": box[3]}, t, pad=pad) for t in taken)
+
+    parts: list[list[float]] = []   # [x0, top, x1, bottom, Rasterbilder, Zeichnungsteile]
     for im in page.images:
         box = (float(im["x0"]), float(im["top"]), float(im["x1"]), float(im["bottom"]))
-        if box[2] - box[0] < 18 or box[3] - box[1] < 18 or any(_inside({"x0": box[0], "x1": box[2], "top": box[1], "bottom": box[3]}, t) for t in taken):
+        if box[2] - box[0] < 2 or box[3] - box[1] < 2 or not free(box):
             continue
-        if box[1] < 0.1 * h and box[3] < 0.14 * h:
+        if box[1] < 0.1 * h and box[3] < 0.14 * h and box[2] - box[0] < 0.3 * w:
             continue  # Logo in der Kopfzeile
+        if template and _box_key(im) in template:
+            continue  # Logo o. Ä. der Vorlage, auf vielen Seiten an derselben Stelle
+        parts.append([*box, 1, 0])
+    for obj in list(page.lines) + list(page.curves) + list(page.rects):
+        box = (float(obj["x0"]), float(obj["top"]), float(obj["x1"]), float(obj["bottom"]))
+        bw, bh = box[2] - box[0], box[3] - box[1]
+        if bw * bh > 0.3 * w * h:
+            continue  # Seitenrahmen, Hintergrund der Folie (gedruckte Präsentation)
+        if bw > 0.75 * w or bh > 0.6 * h:
+            continue  # Trennlinie, Rand oder Streifen der Vorlage (Kopf-, Fußzeile, Logo-Spalte)
+        if box[1] < 0.1 * h and box[3] < 0.14 * h and bw < 0.3 * w:
+            continue  # Kopfzeile
+        if not free(box, pad=3):
+            continue
+        parts.append([*box, 0, 1])
+
+    def merge(items: list[list[float]], gap: float) -> list[list[float]]:
+        out = [list(b) for b in items]
+        changed = True
+        while changed:
+            changed = False
+            merged: list[list[float]] = []
+            for b in out:
+                for o in merged:
+                    if b[0] <= o[2] + gap and o[0] <= b[2] + gap and b[1] <= o[3] + gap and o[1] <= b[3] + gap:
+                        o[0], o[1], o[2], o[3] = min(o[0], b[0]), min(o[1], b[1]), max(o[2], b[2]), max(o[3], b[3])
+                        o[4] += b[4]
+                        o[5] += b[5]
+                        changed = True
+                        break
+                else:
+                    merged.append(b)
+            out = merged
+        return out
+
+    # Nahe Teile gehören zusammen (Bildstreifen, Pfeile, Rahmen um ein Schaubild).
+    groups = [g for g in merge(parts, 12.0)
+              if (g[4] and g[2] - g[0] >= 18 and g[3] - g[1] >= 18)
+              or (g[5] >= 4 and g[2] - g[0] >= 30 and g[3] - g[1] >= 30 and g[1] >= 0.1 * h)]
+    # Beschriftungen im Bereich gehören dazu; ragen sie hinaus, wächst der Bereich mit.
+    # Große Schrift (Titel, Untertitel, Aufzählung) nur, wenn sie auf einem Bild steht.
+    rasters = [(p[0], p[1], p[2], p[3]) for p in parts if p[4]]
+
+    # Wortgruppen: Wörter einer Zeile, die dicht beieinander stehen. Entschieden
+    # wird je Gruppe – sonst zerfiele eine Zeile Fließtext am Rand eines Bildes.
+    phrase_of: dict[int, list[dict[str, Any]]] = {}
+    for wd in sorted(all_words, key=lambda x: (round(float(x["top"])), float(x["x0"]))):
+        size = float(wd.get("size") or 10)
+        for ph in {id(p): p for p in phrase_of.values()}.values():
+            last = ph[-1]
+            if abs(float(last["top"]) - float(wd["top"])) < 0.5 * size and 0 <= float(wd["x0"]) - float(last["x1"]) < 1.2 * size:
+                ph.append(wd)
+                phrase_of[id(wd)] = ph
+                break
+        else:
+            phrase_of[id(wd)] = [wd]
+
+    def label(wd: dict[str, Any], g: list[float]) -> bool:
+        ph = phrase_of.get(id(wd), [wd])
+        box = {"x0": min(float(x["x0"]) for x in ph), "x1": max(float(x["x1"]) for x in ph),
+               "top": min(float(x["top"]) for x in ph), "bottom": max(float(x["bottom"]) for x in ph)}
+        if not _inside(box, (g[0], g[1], g[2], g[3]), pad=2):
+            return False
+        if ph[0]["text"] in ("l", "Ø", "§", "•", "▪") and float(ph[0].get("size") or 0) >= 12:
+            return False  # Aufzählungspunkt neben dem Bild
+        on_photo = any(_inside(box, r, pad=0) for r in rasters)
+        # Beschriftung: kurz (eine Zeile Fließtext ist länger) und klein – oder auf einem Foto.
+        return on_photo or (len(ph) <= 6 and float(wd.get("size") or 0) < 15)
+
+    for _ in range(2):
+        for g in groups:
+            for wd in all_words:
+                if label(wd, g):
+                    g[0], g[1] = min(g[0], float(wd["x0"])), min(g[1], float(wd["top"]))
+                    g[2], g[3] = max(g[2], float(wd["x1"])), max(g[3], float(wd["bottom"]))
+        groups = merge(groups, 4.0)
+    absorbed: set[int] = set()
+    figures: list[tuple[float, float, float, float]] = []
+    for x0, top, x1, bottom, n_img, n_shape in sorted(groups, key=lambda g: (g[1], g[0])):
+        box = (x0 - 3, top - 3, x1 + 3, bottom + 3)
+        inside = [wd for wd in all_words if id(wd) not in absorbed and _inside(wd, box, pad=0)]
+        mine = [wd for wd in inside if label(wd, [x0, top, x1, bottom])]
+        # Große Schrift im Rechteck, aber neben den Bildern (Untertitel neben einer Collage),
+        # und Text, der nur hineinragt: bleibt Text und wird im Bild übermalt.
+        others = [wd for wd in all_words if id(wd) not in absorbed and wd not in mine
+                  and float(wd["x0"]) < box[2] and float(wd["x1"]) > box[0] and float(wd["top"]) < box[3] and float(wd["bottom"]) > box[1]
+                  and not any(_inside(wd, r, pad=0) for r in rasters)]
+        # Logo o. Ä. der Vorlage, das in den Ausschnitt ragt, gehört nicht ins Bild.
+        others += [im for im in page.images if template and _box_key(im) in template]
         try:
-            src = _png_data_uri(_crop_image(page, box))
+            src = _png_data_uri(_crop_image(page, box, blank=others))
         except Exception:  # noqa: BLE001
             warnings.append(f"Seite {index + 1}: ein Bild ließ sich nicht lesen.")
             continue
-        taken.append(box)
-        elements.append({"kind": "block", "top": box[1], "bottom": box[3], "x0": box[0], "x1": box[2], "page": index,
-                         "block": {"type": "image", "src": src, "width": _width_cm(box[0], box[2])}})
-
-    # Zeichnungen aus Linien und Kurven (Schaltpläne, Skizzen) als Bild
-    shapes = []
-    for obj in list(page.lines) + list(page.curves) + list(page.rects):
-        box = [float(obj["x0"]), float(obj["top"]), float(obj["x1"]), float(obj["bottom"])]
-        if box[2] - box[0] > 0.9 * w and box[3] - box[1] > 0.9 * h:
-            continue  # Seitenrahmen
-        if any(_inside({"x0": box[0], "x1": box[2], "top": box[1], "bottom": box[3]}, t, pad=3) for t in taken):
-            continue
-        shapes.append(box)
-    for x0, top, x1, bottom, n in _merge_boxes(shapes):
-        if n < 4 or x1 - x0 < 30 or bottom - top < 30 or top < 0.1 * h:
-            continue
-        box = (x0 - 4, top - 4, x1 + 4, bottom + 4)
-        try:
-            src = _png_data_uri(_crop_image(page, box))
-        except Exception:  # noqa: BLE001
-            continue
-        taken.append(box)
+        absorbed.update(id(wd) for wd in mine)
+        figures.append(box)
         elements.append({"kind": "block", "top": top, "bottom": bottom, "x0": x0, "x1": x1, "page": index,
                          "block": {"type": "image", "src": src, "width": _width_cm(x0, x1)}})
 
-    words = [wd for wd in all_words if not any(_inside(wd, t) for t in taken)]
+    taken.extend(figures)
+    # Text: alles außerhalb von Tabellen usw., was nicht als Beschriftung in einem Bild steckt.
+    words = [wd for wd in all_words if id(wd) not in absorbed and not any(_inside(wd, t) for t in taken[:len(taken) - len(figures)])]
     lines = _group_lines(words)
+    # Folie (Querformat): rote Schrift ist Gestaltung (Titel), keine Lösung.
+    slide = w > 1.15 * h
     for ln in lines:
         ln["page"] = index
         ln["h"] = h
+        if slide:
+            ln["red"] = False
+            # Aufzählungszeichen aus Wingdings (PowerPoint) kommen als „l“ bzw. „Ø“ an.
+            ln["text"] = re.sub(r"^[lØ§]\s+(?=\S)", "• ", ln["text"])
     lines = _formulas(page, lines, elements, warnings)
-    if not words and page.images:
+    if not all_words and page.images:
         warnings.append(f"Seite {index + 1} enthält keinen Text – gescannt? Dafür „Seiten als Bilder“ oder die KI-Erkennung nehmen.")
     for el in elements:
         el.setdefault("page", index)  # Lage im PDF (_pos) für alle Bausteine
@@ -394,10 +515,16 @@ def _drop_running(pages_lines: list[list[dict[str, Any]]]) -> str:
     edge = lambda ln: ln["top"] < 0.09 * ln["h"] or ln["bottom"] > 0.93 * ln["h"]  # noqa: E731
     counts = Counter(k for lines in pages_lines for k in {key(ln) for ln in lines if edge(ln)})
     repeated = {k for k, n in counts.items() if n >= 2}
+    # Kleine Zeilen, die auf vielen Seiten wiederkehren, auch abseits des Rands:
+    # Fußzeile einer auf A4 gedruckten Folie (Datum, Titel, Foliennummer).
+    sizes = sorted(ln["size"] for lines in pages_lines for ln in lines)
+    small = (sizes[len(sizes) // 2] * 0.8) if sizes else 0
+    anywhere = Counter(k for lines in pages_lines for k in {key(ln) for ln in lines if ln["size"] < small})
+    footer = {k for k, n in anywhere.items() if len(pages_lines) >= 3 and n >= max(3, 0.4 * len(pages_lines))}
     header = ""
     for lines in pages_lines:
         for ln in list(lines):
-            if edge(ln) and (key(ln) in repeated or PAGE_NO_RE.match(ln["text"].strip())):
+            if key(ln) in footer or (edge(ln) and (key(ln) in repeated or PAGE_NO_RE.match(ln["text"].strip()))):
                 header = header or ln["text"]
                 lines.remove(ln)
     return header
@@ -424,7 +551,8 @@ def text_to_spec(data: bytes) -> tuple[dict[str, Any], list[str], str]:
         pages = pdf.pages[:MAX_PAGES]
         if len(pdf.pages) > MAX_PAGES:
             warnings.append(f"Nur die ersten {MAX_PAGES} von {len(pdf.pages)} Seiten übernommen.")
-        per_page = [_page_elements(p, i, warnings) for i, p in enumerate(pages)]
+        template = _template_images(pages)
+        per_page = [_page_elements(p, i, warnings, template) for i, p in enumerate(pages)]
         pages_lines = [lines for _, lines in per_page]
         _drop_running(pages_lines)
         if any(_two_columns(lines, float(p.width)) for lines, p in zip(pages_lines, pages)):
@@ -567,7 +695,8 @@ def text_to_spec(data: bytes) -> tuple[dict[str, Any], list[str], str]:
             im["block"]["caption"] = text
             im["bottom"] = ln["bottom"]
             continue
-        level = heading_level(ln, prev_line)
+        # Ein Aufzählungspunkt bleibt einer, auch in großer Schrift (Folien).
+        level = heading_level(ln, prev_line) if not BULLET_RE.match(text) else None
         if level:
             flush()
             clean = HEADNUM_RE.sub("", text).strip() or text

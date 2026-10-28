@@ -254,6 +254,11 @@ Welche Vorlage gilt: die **am Dokument** gewählte → die am Ordner gewählte �
 dein Standard → der Standard der Schule → die neutrale Grundvorlage.
 Schulvorlagen legt der Schuladmin an.
 
+**Querformat:** Mit einer Vorlage in A4 quer nutzt der Druck die ganze
+Zeile – Tabellen, Kästen, Spalten und Schreibfelder ohne feste Breite und
+Bilder mit „ganzer Breite“ (16,5 cm). Feste Breiten (Tabelle bis 25,5 cm)
+bleiben; im Hochformat wird nichts breiter als die Satzbreite gedruckt.
+
 **Je Dokument:** Im Dokument-Editor unter „Art“ steht **„Vorlage für den
 Druck“** – Vorgabe „Wie im Ordner“, sonst eine deiner Vorlagen oder eine der
 Schule. So stehen in einem Lernthema z. B. eine Präsentation in **A4 quer**

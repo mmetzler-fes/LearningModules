@@ -718,7 +718,7 @@ def ensure_overlay_styles(doc, present: set[str]) -> Style:
 def use_template_width(doc) -> None:
     """Satzbreite der Vorlage für Schreibfelder: im Querformat (Satzbreite ab 20 cm)
     so viele Karos, wie hineinpassen – sonst wie bisher 33 (16,5 cm)."""
-    global KARO_COLUMNS
+    global KARO_COLUMNS, TABLE_WIDTH_CM
 
     def length(value: str | None) -> float:
         m = re.fullmatch(r"\s*(\d+(?:\.\d+)?)\s*(cm|mm|in|pt)\s*", value or "")
@@ -732,6 +732,8 @@ def use_template_width(doc) -> None:
             widest = max(widest, length(props.getAttribute("pagewidth"))
                          - length(props.getAttribute("marginleft")) - length(props.getAttribute("marginright")))
     KARO_COLUMNS = int(widest // KARO_CELL) if widest >= 20 else 33
+    # Tabellen, Kästen, Spalten: ebenso die ganze Zeile.
+    TABLE_WIDTH_CM = KARO_COLUMNS * KARO_CELL if widest >= 20 else FULL_WIDTH_CM
 
 
 def karo_columns(block: dict[str, Any]) -> int:
@@ -895,7 +897,7 @@ def image_frame(doc, block: dict[str, Any], search: list[Path], index: int, midd
     # Satzbreite der Vorlage: „ganze Breite“ (16,5 cm, die Breite von A4 hoch)
     # füllt im Querformat die ganze Zeile; breiter als die Seite wird nichts.
     page = KARO_COLUMNS * KARO_CELL
-    target = page if abs(width - TABLE_WIDTH_CM) < 0.05 and page > TABLE_WIDTH_CM else min(width, page)
+    target = page if abs(width - FULL_WIDTH_CM) < 0.05 and page > FULL_WIDTH_CM else min(width, page)
     if target != width and width > 0:
         width, height = target, height * target / width
 
@@ -1382,7 +1384,9 @@ ARIAL_BOLD_DEFAULT = 611
 
 PT_IN_CM = 0.0352778
 
-TABLE_WIDTH_CM = 16.5            # nutzbare Textbreite der Vorlage
+# „Ganze Breite“ in Dokumenten: die Satzbreite von A4 hoch (Grundvorlage).
+FULL_WIDTH_CM = 16.5
+TABLE_WIDTH_CM = 16.5            # nutzbare Textbreite der Vorlage (Querformat: use_template_width)
 TABLE_PADDING_CM = 0.24          # Zellrand links und rechts plus Linien
 # Reserve auf die Mindestbreite: Ohne sie bekommt eine schmale Spalte exakt die
 # Breite ihres längsten Wortes. Jede Rundung in LibreOffice lässt das Wort dann
@@ -1655,7 +1659,7 @@ def length_cm(value: Any) -> float | None:
     return float(m.group(1)) / (10 if m.group(2) == "mm" else 1)
 
 
-def fixed_widths(widths: list[float], block: dict[str, Any], room_cm: float = TABLE_WIDTH_CM) -> tuple[list[float], float | None]:
+def fixed_widths(widths: list[float], block: dict[str, Any], room_cm: float | None = None) -> tuple[list[float], float | None]:
     """Spaltenbreiten aus `widths:` übernehmen (cm; leer = automatisch).
 
     Automatische Spalten teilen sich den Rest der Satzbreite im Verhältnis der
@@ -1663,6 +1667,7 @@ def fixed_widths(widths: list[float], block: dict[str, Any], room_cm: float = TA
     Tabelle so breit wie ihre Summe (höchstens die Satzbreite) – die zweite
     Rückgabe ist dann diese Breite, sonst None.
     """
+    room_cm = TABLE_WIDTH_CM if room_cm is None else room_cm
     wanted = list(block.get("widths") or [])
     fixed = [length_cm(wanted[i]) if i < len(wanted) else None for i in range(len(widths))]
     if not any(fixed):
@@ -1689,7 +1694,7 @@ def table_with_columns(block: dict[str, Any], ctx: dict[str, Any], index: int,
     def num(key: str, lo: float, hi: float) -> float | None:
         v = block.get(key)
         return float(v) if isinstance(v, (int, float)) and not isinstance(v, bool) and lo <= v <= hi else None
-    room = min(num("width", 2, 17) or TABLE_WIDTH_CM, TABLE_WIDTH_CM)
+    room = min(num("width", 2, 25.5) or TABLE_WIDTH_CM, TABLE_WIDTH_CM)
     if room < TABLE_WIDTH_CM:
         widths = [w * room / (sum(widths) or 1) for w in widths]
     widths, total = fixed_widths(widths, block, room)

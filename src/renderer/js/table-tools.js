@@ -852,7 +852,7 @@ export function attachTableTools(surface, bar, { copyObject = null } = {}) {
           <label>Senkrecht<select name="va">${opt([['-', '– unverändert –'], ['top', 'Oben'], ['middle', 'Mitte'], ['bottom', 'Unten']], '-')}</select></label>
           <label>Innenabstand (alle)<span class="ds-para-in"><input name="pad" inputmode="decimal" value="${num(d.pad)}" placeholder="0,1"> cm</span></label>
         </div>
-        <p class="hint ds-para-error" hidden>Bitte Zahlen in cm: Breite 2–17, Abstände 0–3, Innenabstand 0–1.</p>
+        <p class="hint ds-para-error" hidden>Bitte Zahlen in cm: Breite 2–25,5 (A4 quer), Abstände 0–3, Innenabstand 0–1.</p>
         <div class="confirm-actions"><button type="button" class="btn btn-secondary" data-x>Abbrechen</button><button type="submit" class="btn btn-primary">OK</button></div>
       </form>`;
     document.body.appendChild(overlay);
@@ -873,7 +873,7 @@ export function attachTableTools(surface, bar, { copyObject = null } = {}) {
         const n = Number(v);
         return Number.isFinite(n) && n >= lo && n <= hi ? Math.round(n * 10) / 10 : null;
       };
-      const v = { width: cm(f.width.value, 2, 17), sb: cm(f.sb.value, 0, 3), sa: cm(f.sa.value, 0, 3), pad: cm(f.pad.value, 0, 1) };
+      const v = { width: cm(f.width.value, 2, 25.5), sb: cm(f.sb.value, 0, 3), sa: cm(f.sa.value, 0, 3), pad: cm(f.pad.value, 0, 1) };
       if (Object.values(v).some((x) => x === null)) { overlay.querySelector('.ds-para-error').hidden = false; return; }
       setTableProps(table, { ...v, position: f.position.value });
       setLines(table, { width: f.lw.value, style: f.ls.value, color: f.lc.value });

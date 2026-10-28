@@ -289,6 +289,16 @@ class RendererTest(unittest.TestCase):
         content = zipfile.ZipFile(io.BytesIO(base64.b64decode(body["files"]["odt"]))).read("content.xml").decode()
         self.assertEqual(re.findall(r'draw:name="Bild\d+"[^>]*?svg:width="([\d.]+cm)"', content), ["25.00cm", "8.00cm", "25.00cm"])
         self.assertIn('style:width="25.000cm"', content)  # Karo über die ganze Zeile
+        # Tabellen und Kästen ebenso; eine feste Breite bleibt.
+        status, body = self.request("/render", {"spec": {"content": [
+            {"type": "table", "header": ["A", "B"], "rows": [["1", "2"]]},
+            {"type": "table", "width": 22, "rows": [["x", "y"]]},
+            {"type": "box", "title": "Merke", "blocks": [{"type": "text", "text": "K"}]}]},
+            "outputs": ["odt"], "template": base64.b64encode(buf.getvalue()).decode()})
+        self.assertEqual(status, 200, body)
+        content = zipfile.ZipFile(io.BytesIO(base64.b64decode(body["files"]["odt"]))).read("content.xml").decode()
+        widths = re.findall(r'style:family="table"[^>]*>\s*<style:table-properties[^>]*?style:width="([\d.]+)cm"', content)
+        self.assertEqual(sorted(float(w) for w in widths), [22.0, 25.0, 25.0])
 
     # ---- Word nach .odt ----
 

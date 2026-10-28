@@ -29,6 +29,59 @@ class FixRotatedText(unittest.TestCase):
 
 
 
+class FixBitmapUses(unittest.TestCase):
+    def test_verweis_ohne_ziel_wird_kopie_an_der_richtigen_stelle(self):
+        """Zwei gleiche Plaketten: LibreOffice schreibt die zweite als <use> auf ein nie definiertes Ziel."""
+        img = '<image x="18097" y="1536" width="968" height="981" preserveAspectRatio="none" xlink:href="data:image/png;base64,AAAA"/>'
+        svg = (img + '<use transform="translate(0, 0)" xlink:href="#bitmap(38)"/>'
+               '<g><use transform="translate(9178, -1113)" xlink:href="#bitmap(38)"/></g>')
+        fixed = export_drawings.fix_bitmap_uses(svg)
+        self.assertNotIn("#bitmap(", fixed)
+        self.assertEqual(fixed.count("base64,AAAA"), 3)
+        self.assertIn('<g><image x="8919" y="2649" width="968"', fixed)
+
+    def test_mit_ziel_bleibt(self):
+        svg = '<defs><image id="bitmap(5)" x="1" y="2"/></defs><image x="1" y="2" width="3" height="4"/><use transform="translate(1, 1)" xlink:href="#bitmap(5)"/>'
+        self.assertEqual(export_drawings.fix_bitmap_uses(svg), svg)
+
+
+class LargeImagesInFigures(unittest.TestCase):
+    """pdf_figures.shapes_in: Ein großes Bild gehört zum Schaubild, große Flächen sind Hintergrund."""
+
+    class Shape:
+        def __init__(self, kind, x, y, w, h):
+            self.kind, self.pos, self.size = kind, types.SimpleNamespace(X=x, Y=y), types.SimpleNamespace(Width=w, Height=h)
+
+        def getPosition(self):
+            return self.pos
+
+        def getSize(self):
+            return self.size
+
+        def getShapeType(self):
+            return f"com.sun.star.drawing.{self.kind}"
+
+    class Page:
+        def __init__(self, shapes):
+            self.shapes, self.Width, self.Height = shapes, 29700, 21000
+
+        def getCount(self):
+            return len(self.shapes)
+
+        def getByIndex(self, i):
+            return self.shapes[i]
+
+    def test_grosses_bild_bleibt_hintergrund_nicht(self):
+        import pdf_figures
+        big_image = self.Shape("GraphicObjectShape", 3900, 5900, 21300, 10800)   # 37 % der Folie
+        background = self.Shape("GraphicObjectShape", 0, 0, 29700, 21000)        # ganze Folie
+        panel = self.Shape("PolyPolygonShape", 3900, 5900, 21300, 10800)         # große Fläche
+        badge = self.Shape("GraphicObjectShape", 12800, 8600, 950, 980)
+        page = self.Page([background, big_image, panel, badge])
+        found = pdf_figures.shapes_in(page, [107.5, 165.5, 718.9, 476.2])
+        self.assertEqual(found, [big_image, badge])
+
+
 class Clusters(unittest.TestCase):
     def test_lose_linien_eines_schaltzeichens(self):
         """Die Kontakte aus der Tabelle „Geberkontakte“: Linien an verschiedenen

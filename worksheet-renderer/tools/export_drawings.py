@@ -222,9 +222,48 @@ def fix_rotated_text(svg: str) -> str:
     return ROTATED_TEXT.sub(repl, svg)
 
 
+_IMAGE_RE = re.compile(r'<image x="(-?[\d.]+)" y="(-?[\d.]+)"[^>]*/>')
+_BITMAP_USE_RE = re.compile(r'<use transform="translate\((-?[\d.]+), (-?[\d.]+)\)" xlink:href="#bitmap\((\d+)\)"/>')
+
+
+def fix_bitmap_uses(svg: str) -> str:
+    """LibreOffice legt ein Bild, das inhaltsgleich schon vorkam, nicht noch einmal ab,
+    sondern schreibt `<use href="#bitmap(N)">` – ohne das Ziel `bitmap(N)` je zu
+    definieren; das Bild fehlt dann (z. B. die zweite von zwei gleichen Plaketten).
+    Ziel ist das Bild direkt vor dem ersten Verweis; die Verschiebung steht mit
+    umgekehrtem Vorzeichen da (Lage = Original − translate). Der Verweis wird eine
+    Kopie des Bildes an seiner Stelle."""
+    if "#bitmap(" not in svg:
+        return svg
+    out: list[str] = []
+    last: re.Match | None = None
+    target: dict[str, re.Match] = {}
+    pos = 0
+    events = sorted([*_IMAGE_RE.finditer(svg), *_BITMAP_USE_RE.finditer(svg)], key=lambda m: m.start())
+    for m in events:
+        if m.re is _IMAGE_RE:
+            last = m
+            continue
+        key = m.group(3)
+        if f'id="bitmap({key})"' in svg:
+            continue  # das Ziel gibt es doch – nichts zu tun
+        ref = target.setdefault(key, last) if last is not None else target.get(key)
+        if ref is None:
+            continue
+        x = float(ref.group(1)) - float(m.group(1))
+        y = float(ref.group(2)) - float(m.group(2))
+        tag = ref.group(0)
+        copy = tag[:ref.start(1) - ref.start()] + f"{x:g}" + tag[ref.end(1) - ref.start():ref.start(2) - ref.start()] + f"{y:g}" + tag[ref.end(2) - ref.start():]
+        out.append(svg[pos:m.start()])
+        out.append(copy)
+        pos = m.end()
+    out.append(svg[pos:])
+    return "".join(out)
+
+
 def write_fixed(path: Path) -> None:
     text = path.read_text(encoding="utf-8")
-    fixed = fix_rotated_text(text)
+    fixed = fix_bitmap_uses(fix_rotated_text(text))
     if fixed != text:
         path.write_text(fixed, encoding="utf-8")
 

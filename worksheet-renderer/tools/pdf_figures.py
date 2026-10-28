@@ -41,7 +41,12 @@ def shapes_in(page, box: list[float], skip: list[list[float]] | None = None) -> 
     for i in range(page.getCount()):
         s = page.getByIndex(i)
         p, z = s.getPosition(), s.getSize()
-        if z.Width * z.Height > 0.3 * area or z.Width > 0.75 * w or z.Height > 0.6 * h:
+        if s.getShapeType().endswith("GraphicObjectShape"):
+            # Ein Bild gehört dazu, auch wenn es groß ist (Schaubild als Foto) – nur das
+            # Hintergrundbild der Folie nicht.
+            if z.Width * z.Height > 0.85 * area:
+                continue
+        elif z.Width * z.Height > 0.3 * area or z.Width > 0.75 * w or z.Height > 0.6 * h:
             continue
         if not (p.X >= x0 - PAD and p.Y >= top - PAD and p.X + z.Width <= x1 + PAD and p.Y + z.Height <= bottom + PAD):
             continue

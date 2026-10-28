@@ -1,5 +1,6 @@
 import { showContextMenu } from '../lm-editor/src/util/dom.js';
 import { LINE_COLORS, CELL_BACKGROUNDS } from '../lm-editor/src/doc/docspec.js';
+import { objectEntries } from './object-actions.js';
 
 const LINE_COLOR_NAMES = [['', 'schwarz'], ['grau', 'grau'], ['blau', 'blau'], ['gruen', 'grün'], ['orange', 'orange'], ['lila', 'lila']];
 const BG_NAMES = [['', 'keine'], ['grau', '⬜ grau'], ['gelb', '🟨 gelb'], ['gruen', '🟩 grün'], ['blau', '🟦 blau'], ['rosa', '🩷 rosa']];
@@ -254,8 +255,9 @@ function setRowHeight(tr, cm) {
 /**
  * Tabellenwerkzeuge an eine Schreibfläche hängen. `bar`: Element, in das die
  * Leiste kommt (sichtbar nur, solange die Schreibmarke in einer Tabelle steht).
+ * `copyObject(table)`: Tabelle in die Zwischenablage (📋 Kopieren im Menü).
  */
-export function attachTableTools(surface, bar) {
+export function attachTableTools(surface, bar, { copyObject = null } = {}) {
   bar.classList.add('ds-tablebar', 'rich-text-toolbar');
   bar.hidden = true;
   bar.innerHTML = `
@@ -676,6 +678,11 @@ export function attachTableTools(surface, bar) {
     else if (act === 'del') { selectTable(null); t.remove(); placeGrip(null); return; }
     if (selectedTable) { placeGrip(selectedTable); selectedTable.scrollIntoView?.({ block: 'nearest' }); }
   };
+  /** Aktionen der Tabelle als Objekt (↑ ↓ ⧉ ✂ 📋 ✕) – wie am Griff. */
+  const objectHandlers = (table) => {
+    const act = (a) => () => { selectTable(table); gripAction(a); };
+    return { up: act('up'), down: act('down'), dup: act('dup'), cut: act('cut'), ...(copyObject ? { copy: () => copyObject(table) } : {}), del: act('del') };
+  };
   grip.addEventListener('mousedown', (e) => e.preventDefault()); // Schreibmarke bleibt, wo sie ist
   grip.addEventListener('click', (e) => {
     if (e.target.closest('.ds-grip-handle')) { selectTable(selectedTable === gripTable ? null : gripTable); return; }
@@ -913,11 +920,9 @@ export function attachTableTools(surface, bar) {
       } },
     ] };
     if (columns) {
-      return [spalte, { label: '▥ Spalten', submenu: [
-        { label: '⬚ Auswählen', onClick: () => { cell = td; selectTable(table); } },
-        { label: '✂ Ausschneiden', onClick: () => cutTable(table) },
-        { label: '🗑 Löschen (mit Inhalt)', danger: true, onClick: () => { selectTable(null); table.remove(); focusCell(null); } },
-      ] }];
+      return [spalte, { label: '▥ Spalten', submenu: objectEntries(objectHandlers(table), [
+        { label: '⬚ Auswählen', onClick: () => { cell = td; selectTable(table); } }, '-',
+      ]) }];
     }
     return [
       { label: '⇔ Zeile', submenu: [
@@ -953,8 +958,8 @@ export function attachTableTools(surface, bar) {
         { label: '⇔ Spaltenbreiten automatisch', onClick: () => { [...table.children].filter((c) => c.tagName === 'COLGROUP').forEach((c) => c.remove()); } },
         '-',
         { label: '⬚ Ganze Tabelle auswählen', onClick: () => { cell = td; selectTable(table); } },
-        { label: '✂ Ausschneiden', onClick: () => cutTable(table) },
-        { label: '🗑 Löschen', danger: true, onClick: () => { selectTable(null); table.remove(); focusCell(null); placeGrip(null); } },
+        '-',
+        ...objectEntries(objectHandlers(table)),
       ] },
       { label: '⚙ Tabelleneigenschaften …', onClick: () => openTableProps(td) },
     ];
@@ -975,6 +980,8 @@ export function attachTableTools(surface, bar) {
     },
     /** Menüeinträge für die Zelle der Schreibmarke (Knopf „Tabelle ▾“) – null außerhalb. */
     menuHere: () => menuFor(currentCell()),
+    /** Aktionen einer Tabelle als Objekt – für das gemeinsame Elementmenü. */
+    objectHandlers: (table) => (editable(table) ? objectHandlers(table) : null),
     /** Steht die Schreibmarke in einer Tabelle? */
     inTable: () => !!currentCell(),
     /** Ausrichtung (left, center, right), wenn die Schreibmarke in einer Zelle steht – sonst false. */

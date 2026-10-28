@@ -22,6 +22,7 @@ import { showContextMenu } from '../lm-editor/src/util/dom.js';
 import { attachTableTools } from './table-tools.js';
 import { attachFormatTools } from './format-tools.js';
 import { openParagraphDialog } from './paragraph-dialog.js';
+import { objectEntries, objectName, copyText } from './object-actions.js';
 
 /** Startinhalt eines neuen Dokuments – zeigt das Format an einem Beispiel. */
 const STARTER = `content:
@@ -491,7 +492,7 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
     vTimer = setTimeout(fromVisual, 300);
   });
   surfaceObserver.observe(surface, { childList: true, subtree: true, characterData: true, attributes: true });
-  const tableTools = attachTableTools(surface, root.querySelector('.ds-tablebar-slot'));
+  const tableTools = attachTableTools(surface, root.querySelector('.ds-tablebar-slot'), { copyObject: (t) => copyObject(t) });
   // Leiste wie in Google Docs: Farben, Ausrichtung, Zeilenabstand, Listenarten, Einzug.
   attachFormatTools(root.querySelector('.ds-vtoolbar'), surface, { tableTools, currentBlock: () => currentBlock() });
   const paraBtn = root.querySelector('.ds-para-btn');
@@ -707,6 +708,59 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
     const r = e.currentTarget.getBoundingClientRect();
     insertMenu(r.left, r.bottom + 4);
   });
+  // ---------- Element als Objekt: ↑ ↓ ⧉ ✂ 📋 ✕ für jedes Element (Rechtsklick ▸) ----------
+  /** Element als YAML (`- type: …`) – Strg+V fügt es als Baustein wieder ein. */
+  const yamlOf = (el) => {
+    const blocks = el.classList.contains('ds-widget') ? [blockOf(el)].filter(Boolean) : htmlToDocSpec(el.outerHTML).spec.content;
+    return blocks.length ? yamlDump(blocks, { lineWidth: -1, noRefs: true }) : '';
+  };
+  const copyObject = async (el, cut = false) => {
+    const text = yamlOf(el);
+    if (!text || !(await copyText(text))) { status.textContent = '❌ Zwischenablage nicht erreichbar.'; return; }
+    if (cut) { if (el === selectedWidget) selectWidget(null); el.remove(); }
+    status.textContent = `${cut ? '✂ Ausgeschnitten' : '📋 Kopiert'} – Schreibmarke setzen, Strg+V fügt es dahinter ein.`;
+  };
+  /** Aktionen eines Elements: Tabelle wie am Griff, Baustein wie an seiner Leiste, sonst allgemein. */
+  const objectHandlersOf = (el) => {
+    if (el.tagName === 'TABLE') return tableTools.objectHandlers(el);
+    const widget = el.classList.contains('ds-widget');
+    const move = (act) => () => {
+      if (widget) widgetAction(act, el);
+      else if (act === 'up') el.previousElementSibling.before(el);
+      else el.nextElementSibling.after(el);
+    };
+    return {
+      up: el.previousElementSibling ? move('up') : null,
+      down: el.nextElementSibling ? move('down') : null,
+      dup: () => {
+        if (widget) { widgetAction('dup', el); return; }
+        const copy = el.cloneNode(true);
+        copy.removeAttribute('data-id');
+        copy.querySelectorAll('[data-id]').forEach((n) => n.removeAttribute('data-id'));
+        el.after(copy);
+      },
+      cut: () => copyObject(el, true),
+      copy: () => copyObject(el),
+      del: () => (widget ? widgetAction('del', el) : el.remove()),
+    };
+  };
+
+  // Alt+↑ / Alt+↓ mit der Schreibmarke im Text: den Absatz (bzw. die Liste …) verschieben.
+  surface.addEventListener('keydown', (e) => {
+    if (!e.altKey || e.ctrlKey || e.shiftKey || !['ArrowUp', 'ArrowDown'].includes(e.key) || selectedWidget) return;
+    const b = blockOfNode(window.getSelection()?.anchorNode);
+    if (!b || b.tagName === 'TABLE') return;
+    const sib = e.key === 'ArrowUp' ? b.previousElementSibling : b.nextElementSibling;
+    e.preventDefault();
+    if (!sib) return;
+    // Die Schreibmarke bleibt, wo sie im Absatz stand.
+    const sel = window.getSelection();
+    const { anchorNode, anchorOffset } = sel;
+    if (e.key === 'ArrowUp') sib.before(b); else sib.after(b);
+    if (anchorNode?.isConnected) sel.collapse(anchorNode, anchorOffset);
+    b.scrollIntoView?.({ block: 'nearest' });
+  });
+
   surface.addEventListener('contextmenu', (e) => {
     if (e.shiftKey) return; // Menü des Browsers (z. B. Rechtschreibung)
     e.preventDefault();
@@ -722,6 +776,16 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
     }
     // In einer Tabellenzelle: Zeile ▸ Spalte ▸ Zelle ▸ Tabelle ▸ – Einfügen als Untermenü.
     const table = widget ? null : tableTools.menuFor(e.target);
+    // Das Element unter der Maus als Ganzes – eine Tabelle hat es schon unter „Tabelle ▸“.
+    const handlers = after && !(after.tagName === 'TABLE' && table) ? objectHandlersOf(after) : null;
+    if (handlers) {
+      const edit = widget ? [{ label: '✏️ Bearbeiten', hint: 'Enter', onClick: () => editWidget(widget) }, '-'] : [];
+      entries.push({ label: objectName(after), submenu: objectEntries(handlers, edit, { selectable: !!widget }) });
+      // Im Kasten: auch der Kasten als Ganzes.
+      const box = after.parentElement?.closest('.ws-box');
+      if (box && surface.contains(box)) entries.push({ label: objectName(box), submenu: objectEntries(objectHandlersOf(box), [], { selectable: false }) });
+      entries.push('-');
+    }
     const para = e.target.closest?.('ul, ol') || (e.target.closest?.('p:not([data-ds])'));
     const paraEntry = para && surface.contains(para) ? [{ label: '¶ Absatz …', onClick: () => openParagraphDialog(para.closest('ul, ol') || para) }] : [];
     if (table) entries.push(...table, '-', ...paraEntry, { label: '➕ Einfügen', submenu: insertEntries(after) });

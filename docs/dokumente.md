@@ -48,6 +48,14 @@ Der Editor startet im Modus **✏️ Bearbeiten** – wie ein Textprogramm:
   auch Doppelklick oder Enter) und löscht (**✕**, auch Entf). **Strg+C / X**
   kopiert den gewählten Baustein als YAML; **Strg+V** setzt kopierte Bausteine
   (auch aus dem YAML-Reiter) hinter den gewählten.
+- **Jedes Element als Ganzes** – Absatz, Überschrift, Liste, Kasten, Spalten,
+  Baustein, Tabelle: **Rechtsklick** darauf, oben im Menü die Art (z. B.
+  **¶ Absatz ▸**, **•≡ Liste ▸**, **▦ Baustein ▸**; bei Tabellen unter
+  **▤ Tabelle ▸**) mit **↑ Nach oben**, **↓ Nach unten**, **⧉ Verdoppeln**,
+  **✂ Ausschneiden**, **📋 Kopieren** und **✕ Löschen**. Ausgeschnitten oder
+  kopiert wird als YAML – Schreibmarke setzen, **Strg+V** fügt es dahinter
+  ein. In einem Kasten steht zusätzlich **▭ Kasten ▸**. **Alt+↑ / Alt+↓**
+  verschiebt den Absatz (die Liste …) der Schreibmarke.
 - **Tabellen** – drei Wege, vom Häufigen zum Genauen:
   - **Rechtsklick in eine Zelle** (oder **▤ Tabelle ▾** in der Leiste, sobald
     die Schreibmarke in einer Tabelle steht): **Zeile ▸** (darüber/darunter

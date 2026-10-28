@@ -13,15 +13,16 @@ describe('Manifest für Schüler', () => {
 
   it('Klassenbuch-Links: eine App mit Liste, startet mit dem Link', () => {
     const m = studentManifest('/?k=abc');
-    expect(m.start_url).toBe('/?app=classbook&k=abc');
-    expect(m.id).toBe('/?app=classbook');
+    expect(m.start_url).toBe('/schueler/?app=classbook&k=abc');
+    expect(m.id).toBe('/schueler/?app=classbook');
+    expect(m.scope).toBe('/schueler/');
     expect(studentManifest('/?k=xyz').id).toBe(m.id);
     expect(m.icons.every((i) => i.src.startsWith('/icons/'))).toBe(true);
   });
 
   it('Themen-Link: eigene App, startet am Link', () => {
     const m = studentManifest('/?l=tok');
-    expect(m.start_url).toBe('/?l=tok');
-    expect(m.id).toBe('/?l=tok');
+    expect(m.start_url).toBe('/schueler/?l=tok');
+    expect(m.id).toBe('/schueler/?l=tok');
   });
 });

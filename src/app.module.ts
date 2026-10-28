@@ -82,24 +82,29 @@ import { WorkModule } from './work/work.module';
 import { AccountLink } from './core/entities/account-link.entity';
 import { LinkCode } from './core/entities/link-code.entity';
 
+const RENDERER_DIR = join(__dirname, '..', 'src', 'renderer');
+
+/**
+ * HTML, JS und CSS tragen keine Versionskennung im Namen. Ohne Rückfrage beim
+ * Server kann ein Proxy oder Browser nach einem Update beliebig lange die alte
+ * Oberfläche ausliefern – mit neuem Backend und altem Frontend als Ergebnis.
+ */
+function noStaleUi(res: any, path: string) {
+  if (/\.(html|js|css)$/i.test(path)) {
+    res.setHeader('Cache-Control', 'no-cache, must-revalidate');
+  }
+}
+
 @Module({
   imports: [
-    ServeStaticModule.forRoot({
-      rootPath: join(__dirname, '..', 'src', 'renderer'),
-      serveRoot: '/',
-      exclude: ['/api*'],
-      serveStaticOptions: {
-        // HTML, JS und CSS tragen keine Versionskennung im Namen. Ohne
-        // Rückfrage beim Server kann ein Proxy oder Browser nach einem Update
-        // beliebig lange die alte Oberfläche ausliefern – mit neuem Backend
-        // und altem Frontend als Ergebnis.
-        setHeaders: (res: any, path: string) => {
-          if (/\.(html|js|css)$/i.test(path)) {
-            res.setHeader('Cache-Control', 'no-cache, must-revalidate');
-          }
-        },
-      },
-    }),
+    // Dieselbe Oberfläche zusätzlich unter /schueler/: Dort liegt die
+    // Schüler-App mit eigenem Gültigkeitsbereich – so lassen sich Lehrer- und
+    // Schüler-App am PC nebeneinander installieren (Chrome/Edge unterscheiden
+    // Apps auch am Bereich). Zuerst, sonst nähme „/“ die Anfrage.
+    ServeStaticModule.forRoot(
+      { rootPath: RENDERER_DIR, serveRoot: '/schueler', exclude: ['/api*'], serveStaticOptions: { setHeaders: noStaleUi } },
+      { rootPath: RENDERER_DIR, serveRoot: '/', exclude: ['/api*'], serveStaticOptions: { setHeaders: noStaleUi } },
+    ),
     TypeOrmModule.forRoot({
       type: 'sqlite',
       database: 'data/database.sqlite',

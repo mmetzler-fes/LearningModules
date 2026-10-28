@@ -174,6 +174,13 @@ Frage. Genauso läuft es in Quiz, Lernbegleitung und Klassenarbeit: Jede
 Frage ist ein eigener Schritt mit Weiter bzw. Prüfen; im Editor bleibt es
 ein Modul.
 
+### Größe
+
+**A− / A+** oben in der Leiste stellt die Aufgabe kleiner oder größer (50 bis
+150 %) – bei den Schülern wie in der Leitungsansicht am Beamer; jedes Gerät
+merkt sich seine Größe. **✅ Antwort abgeben** bleibt unten am Bildschirm
+stehen, auch wenn die Aufgabe höher ist als der Bildschirm.
+
 ### Tusch
 
 Standard ist eine eingebaute Fanfare, die der Browser selbst erzeugt – ohne

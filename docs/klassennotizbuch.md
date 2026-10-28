@@ -274,6 +274,12 @@ Gedacht für eigene Geräte (iPad-Klassen). Im Browser ohne App gilt die
 Anmeldung weiter nur, solange er offen ist. Ein Themen- oder Quick-Link als
 App startet an diesem Link (eigene App, ohne Liste).
 
+**Lehrer- und Schüler-App auf einem Gerät** (z. B. für eine Schulung): Die
+Schülerseiten liegen unter `/schueler/` – ein Schüler-Link leitet von selbst
+dorthin. So sind es auch für Chrome und Edge am PC zwei verschiedene Apps:
+die Lehrer-App von der Startseite installieren, die Schüler-App über
+**📲 Als App** im Klassennotizbuch (oder das Symbol in der Adressleiste).
+
 ### Klassenarbeit über das Klassennotizbuch
 
 Eine Klassenarbeit erscheint bei den Schülern, sobald du ihren Link mit
@@ -334,7 +340,10 @@ Code: `src/classbook/`, `src/renderer/js/views/class-results.js` (Lehrkraft),
 `src/renderer/js/views/classbook-student.js` (Schüler).
 - App für Schüler: `GET /api/public/manifest?start=/?k=<token>` (auch `?l=`,
   `?q=`) liefert ein Manifest; Klassenbuch-Links teilen sich die App
-  `id: /?app=classbook` mit `start_url: /?app=classbook&k=<token>`
+  `id: /schueler/?app=classbook` mit `start_url: /schueler/?app=classbook&k=<token>`,
+  `scope: /schueler/` (der Server liefert die Oberfläche auch unter
+  `/schueler/` aus; `index.html` leitet Schüler-Links dorthin, die Lehrer-App
+  hat `id: /`)
   (`src/classbook/student-manifest.ts`). `index.html` setzt den Manifest-Link
   beim Laden um. In der App (`display-mode: standalone`) steht die Liste
   `lm_classbooks` im localStorage: `{ current, books: [{ token, className,

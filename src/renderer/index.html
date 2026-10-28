@@ -9,11 +9,15 @@
   <link rel="manifest" href="manifest.webmanifest" id="appManifest" />
   <script>
     // Schüler-Link (?k=, ?l=, ?q=): Die installierte App startet an diesem Link
-    // statt an der Anmeldung der Lehrkraft – eigenes Manifest vom Server.
+    // statt an der Anmeldung der Lehrkraft – eigenes Manifest vom Server. Die
+    // Schülerseiten liegen unter /schueler/ (eigener App-Bereich, damit Chrome
+    // und Edge Lehrer- und Schüler-App nebeneinander installieren).
     (function () {
       var p = new URLSearchParams(location.search);
       var k = ['k', 'l', 'q'].filter(function (x) { return p.get(x); })[0];
-      if (k) document.getElementById('appManifest').href = '/api/public/manifest?start=' + encodeURIComponent('/?' + k + '=' + p.get(k));
+      if (!k) return;
+      if (location.pathname.indexOf('/schueler/') !== 0) { location.replace('/schueler/' + location.search + location.hash); return; }
+      document.getElementById('appManifest').href = '/api/public/manifest?start=' + encodeURIComponent('/?' + k + '=' + p.get(k));
     })();
   </script>
   <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png" />

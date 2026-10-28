@@ -3,6 +3,7 @@
   "short_name": "LernModule",
   "description": "Lernthemen, Arbeitsblätter und Klassennotizbuch",
   "lang": "de",
+  "id": "/",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

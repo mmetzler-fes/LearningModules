@@ -11,7 +11,8 @@ export function studentLinkFrom(text) {
   try {
     const url = new URL(String(text || '').trim(), location.origin);
     if (url.origin !== location.origin) return { foreign: url.host };
-    return ['k', 'l', 'q'].some((k) => url.searchParams.get(k)) ? { href: url.pathname + url.search } : null;
+    // Schülerseiten unter /schueler/ (eigener App-Bereich), gleich dorthin.
+    return ['k', 'l', 'q'].some((k) => url.searchParams.get(k)) ? { href: `/schueler/${url.search}` } : null;
   } catch (_) {
     return null;
   }
@@ -54,6 +55,6 @@ export function bindStudentEntry() {
     const res = await fetch(`/api/public/classbook/code/${encodeURIComponent(code)}`).catch(() => null);
     const data = res ? await res.json().catch(() => ({})) : null;
     if (!res?.ok || !data?.token) { showErr(data?.message || 'Der Server ist nicht erreichbar.'); return; }
-    location.href = `/?k=${encodeURIComponent(data.token)}`;
+    location.href = `/schueler/?k=${encodeURIComponent(data.token)}`;
   });
 }

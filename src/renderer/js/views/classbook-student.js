@@ -33,6 +33,9 @@ const sessionGet = (k) => { try { return sessionStorage.getItem(k); } catch (_) 
 const sessionSet = (k, v) => { try { if (v === null) sessionStorage.removeItem(k); else sessionStorage.setItem(k, v); } catch (_) { /* egal */ } };
 const parse = (text) => { try { return JSON.parse(text); } catch (_) { return null; } };
 
+/** Pfad der Schülerseiten: /schueler/ (eigener App-Bereich), sonst /. */
+export const studentBase = () => (location.pathname.startsWith('/schueler/') ? '/schueler/' : '/');
+
 /** Läuft die Seite als installierte App? */
 export function inApp() {
   try { return window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true; } catch (_) { return false; }
@@ -87,7 +90,7 @@ function saveSession(value) {
 /** Zurück zur Startseite des Klassennotizbuchs (neu laden, die Sitzung bleibt). */
 export function backToClassbook() {
   const s = classbookSession();
-  if (s?.token) window.location.href = `/?k=${encodeURIComponent(s.token)}`;
+  if (s?.token) window.location.href = `${studentBase()}?k=${encodeURIComponent(s.token)}`;
 }
 
 async function post(path, body) {
@@ -480,7 +483,7 @@ export class ClassbookStudent {
       this._el.classList.add('hidden');
       const err = await this.app.contestView.joinAsPlayer(res.linkToken, { studentName: s?.name || data.name, password: '' });
       // Testschüler oder ein anderer Haken: über die gewohnte Namenseingabe der Arena.
-      if (err) window.location.href = `/?l=${encodeURIComponent(res.linkToken)}&m=contest`;
+      if (err) window.location.href = `${studentBase()}?l=${encodeURIComponent(res.linkToken)}&m=contest`;
     });
   }
 

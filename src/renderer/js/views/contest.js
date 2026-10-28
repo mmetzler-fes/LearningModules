@@ -3,6 +3,10 @@ import { downloadBlob } from '../api.js';
 import { collectAnswer } from '../../lm-editor/src/modules/answer-eval.js';
 import { classbookSession, backToClassbook } from './classbook-student.js';
 
+/** Größen der Aufgabe in der Arena (A− / A+), je Gerät gemerkt. */
+const CONTEST_ZOOMS = [0.5, 0.6, 0.7, 0.8, 0.9, 1, 1.1, 1.25, 1.5];
+const CONTEST_ZOOM_KEY = 'lm_contest_zoom';
+
 // ==================== QUIZ-ARENA ====================
 
 const SESSION_PREFIX = 'lm_contest_';
@@ -202,8 +206,38 @@ export class ContestView {
       this.screen.id = 'contestScreen';
       this.screen.className = 'contest-screen';
       document.body.appendChild(this.screen);
+      // A− / A+ in der Kopfleiste (jede Ansicht baut sie neu, der Klick landet hier).
+      this.screen.addEventListener('click', (e) => {
+        const b = e.target.closest('.contest-zoom [data-zoom]');
+        if (!b) return;
+        const i = CONTEST_ZOOMS.indexOf(this._zoom()) + Number(b.dataset.zoom);
+        this._setZoom(CONTEST_ZOOMS[Math.max(0, Math.min(CONTEST_ZOOMS.length - 1, i))]);
+      });
+      this._setZoom(this._zoom());
     }
     return this.screen;
+  }
+
+  /** Größe der Aufgabe (je Gerät gemerkt): Am PC ist sie oft zu groß, am Beamer zu klein. */
+  _zoom() {
+    let z = 1;
+    try { z = Number(localStorage.getItem(CONTEST_ZOOM_KEY)) || 1; } catch (_) { /* ohne Speicher */ }
+    return CONTEST_ZOOMS.reduce((a, b) => (Math.abs(b - z) < Math.abs(a - z) ? b : a), 1);
+  }
+
+  _setZoom(z) {
+    try { if (z === 1) localStorage.removeItem(CONTEST_ZOOM_KEY); else localStorage.setItem(CONTEST_ZOOM_KEY, String(z)); } catch (_) { /* gilt bis zum Neuladen */ }
+    this.screen.style.setProperty('--contest-zoom', String(z));
+    this.screen.querySelectorAll('.contest-zoom-value').forEach((el) => { el.textContent = `${Math.round(z * 100)} %`; });
+    // Drag and Drop passt sein Bild an die neue Fläche an.
+    window.dispatchEvent(new Event('lm-zoom'));
+  }
+
+  _zoomHtml() {
+    return `<span class="contest-zoom" title="Größe der Aufgabe">
+        <button type="button" class="btn btn-secondary btn-sm" data-zoom="-1" aria-label="Kleiner">A−</button>
+        <span class="contest-zoom-value">${Math.round(this._zoom() * 100)} %</span>
+        <button type="button" class="btn btn-secondary btn-sm" data-zoom="1" aria-label="Größer">A+</button></span>`;
   }
 
   _showMessage(icon, title, text, { reload = false, action = null } = {}) {
@@ -355,6 +389,7 @@ export class ContestView {
         <button class="btn btn-secondary btn-sm contest-top-reset" title="Durchgang abbrechen, zurück in den Wartebereich">🔁 Neu starten</button>` : ''}
         ${st.phase !== 'podium' ? `
         <button class="btn btn-secondary btn-sm contest-top-close" title="Quiz-Arena beenden, alle Teilnehmer entfernen">⏹ Beenden</button>` : ''}
+        ${this._zoomHtml()}
         <button class="btn btn-secondary btn-sm contest-sound" title="Tusch an/aus">${this.soundOn ? '🔊' : '🔇'}</button>
       </header>`;
   }
@@ -687,6 +722,7 @@ export class ContestView {
       <header class="contest-top">
         <div class="contest-top-title">🏆 ${escapeHtml(st.linkName || 'Quiz-Arena')}</div>
         <div class="contest-top-info">${extra}</div>
+        ${this._zoomHtml()}
         <div class="contest-me">👤 ${escapeHtml(this.me.name)} · ${fmtPoints(st.me?.score)} P</div>
       </header>`;
   }

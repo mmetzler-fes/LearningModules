@@ -4407,11 +4407,15 @@ body {
 .contest-empty { width: 100%; text-align: center; padding: 24px 0; }
 @keyframes contest-pop { from { transform: scale(0.6); opacity: 0; } to { transform: scale(1); opacity: 1; } }
 
-.contest-play { flex: 1 1 auto; display: flex; flex-direction: column; gap: 12px; padding: 16px; }
+.contest-play { flex: 1 1 auto; display: flex; flex-direction: column; gap: 12px; padding: 16px; zoom: var(--contest-zoom, 1); }
+.contest-zoom { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+.contest-zoom-value { min-width: 3.2em; text-align: center; font-size: 0.85rem; }
 .contest-play-head { display: flex; align-items: center; gap: 20px; flex-wrap: wrap; justify-content: center; }
 .contest-answered { font-size: 1.2rem; }
 .contest-question { width: 100%; max-width: 1400px; margin: 0 auto; }
-.contest-submit-row { display: flex; justify-content: center; padding-bottom: 24px; }
+/* Abgeben bleibt unten sichtbar, auch wenn die Aufgabe höher ist als der Bildschirm. */
+.contest-submit-row { display: flex; justify-content: center; position: sticky; bottom: 0; z-index: 1;
+  padding: 10px 0 14px; background: linear-gradient(to bottom, transparent, var(--bg-primary) 35%); }
 
 .contest-timer { display: flex; align-items: center; gap: 12px; min-width: 240px; }
 .contest-timer-num {

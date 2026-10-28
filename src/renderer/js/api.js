@@ -1089,6 +1089,14 @@ export class BrowserApi {
   setClassbookMarker(classId, marker) {
     return this._fetch(`/api/classbook/${encodeURIComponent(classId)}/marker`, { method: 'PUT', body: JSON.stringify(marker || {}) });
   }
+  /** 📡 Modul bei allen verbundenen Schüler-Geräten öffnen → `{ reached }`. */
+  sendToClassbook(classId, linkId, moduleId) {
+    return this._fetch(`/api/classbook/${encodeURIComponent(classId)}/send`, { method: 'POST', body: JSON.stringify({ linkId, moduleId }) });
+  }
+  /** 👣 Schüler-Geräte folgen dem 📍-Merker → `{ follow, reached }`. */
+  setClassbookFollow(classId, on) {
+    return this._fetch(`/api/classbook/${encodeURIComponent(classId)}/follow`, { method: 'PUT', body: JSON.stringify({ on }) });
+  }
   getClassbookOverview(classId) { return this._fetch(`/api/classbook/${encodeURIComponent(classId)}/overview`); }
   getClassResults(classId) { return this._fetch(`/api/results/class/${encodeURIComponent(classId)}`); }
   saveQuizResult(resultData) {

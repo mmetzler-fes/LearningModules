@@ -1,4 +1,5 @@
-import { Controller, Get, Post, Put, Patch, Delete, Body, Param, Request, UseGuards, HttpCode } from '@nestjs/common';
+import { Controller, Get, Post, Put, Patch, Delete, Body, Param, Query, Request, Res, UseGuards, HttpCode } from '@nestjs/common';
+import type { Response } from 'express';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { ClassbookService } from './classbook.service';
 
@@ -98,6 +99,19 @@ export class ClassbookController {
     return this.classbook.setMarker(req.user, classId, body);
   }
 
+  /** 📡 `{ linkId, moduleId }` – bei allen verbundenen Schüler-Geräten öffnen. */
+  @Post(':classId/send')
+  @HttpCode(200)
+  send(@Request() req: any, @Param('classId') classId: string, @Body() body: any) {
+    return this.classbook.sendToClass(req.user, classId, body);
+  }
+
+  /** 👣 `{ on }` – Schüler-Geräte folgen dem 📍-Merker. */
+  @Put(':classId/follow')
+  follow(@Request() req: any, @Param('classId') classId: string, @Body() body: { on?: boolean }) {
+    return this.classbook.setFollow(req.user, classId, !!body?.on);
+  }
+
   @Get(':classId/overview')
   overview(@Request() req: any, @Param('classId') classId: string) {
     return this.classbook.overview(req.user, classId);
@@ -108,6 +122,16 @@ export class ClassbookController {
 @Controller('public/classbook')
 export class PublicClassbookController {
   constructor(private readonly classbook: ClassbookService) {}
+
+  /** Live-Verbindung (Server-Sent Events) – `?ticket=`, weil EventSource keine Kopfzeilen sendet. */
+  @Get(':token/live')
+  async live(@Param('token') token: string, @Query('ticket') ticket: string, @Res() res: Response) {
+    try {
+      await this.classbook.liveStream(token, ticket, res);
+    } catch (err: any) {
+      res.status(err?.status || 403).json(err?.response || { message: 'Die Anmeldung ist abgelaufen.' });
+    }
+  }
 
   /** Klassencode aus der Schüler-App → `{ token }`. */
   @Get('code/:code')

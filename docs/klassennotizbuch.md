@@ -134,6 +134,27 @@ Quick-Link), stehen hier. Je Zuweisung:
 - **⏸ Ausblenden** – die Schüler sehen die ganze Zuweisung nicht mehr,
   Ergebnisse und Blätter bleiben; **▶ Wieder zeigen** holt sie zurück.
 
+### 📡 An Klasse senden und 👣 Folgen
+
+Oben in der Inhaltsübersicht steht, wie viele Schüler-Geräte das
+Klassennotizbuch gerade offen haben (**📶 … verbunden**, 🔄 zählt neu) – in
+der App oder im Browser.
+
+- **📡 An Klasse senden** (Menü **⋯** eines eingeschalteten Moduls): Das
+  Modul öffnet sich sofort bei allen, die auf ihrer Übersicht sind. Wer
+  gerade eine andere Aufgabe offen hat, bekommt oben den Hinweis „Deine
+  Lehrkraft schickt …“ mit **Öffnen** – niemand wird mitten aus der Arbeit
+  gerissen.
+- **👣 Folgen: an** – wo du **📍** setzt, springen alle Geräte hin. Auf der
+  Übersicht sofort, aus einer anderen Aufgabe nach drei Sekunden („Weiter zu
+  …“, damit das Blatt gespeichert ist). Wer später dazukommt, landet beim
+  aktuellen 📍. Ein Schüler, der zur Übersicht zurückgeht, wird nicht gleich
+  wieder hineingeholt – erst beim nächsten 📍.
+
+Gesendet wird über den Server (wie bei der Quiz-Arena), nicht direkt im WLAN:
+Schul-WLANs trennen die Geräte meist voneinander. „Folgen“ ist nach einem
+Neustart des Servers aus.
+
 ### Ergebnisübersicht
 
 **🧩 Je Modul**: Je Zuweisung eine Tabelle mit allen Schülern und Modulen,
@@ -311,3 +332,13 @@ Code: `src/classbook/`, `src/renderer/js/views/class-results.js` (Lehrkraft),
   /api/public/classbook/code/:code` → `{ token }`. QR-Leser: jsQR
   (`js/vendor/jsQR.js`, Apache-2.0), geladen erst beim Scannen
   (`js/views/qr-scan.js`).
+- Live (📡 Senden, 👣 Folgen): `ClassbookLive` (`src/classbook/classbook-live.ts`,
+  nur im Speicher) hält je Klasse die Server-Sent-Events-Verbindungen. Schüler:
+  `GET /api/public/classbook/:token/live?ticket=` – Ereignisse `state`
+  `{ follow, marker }` (beim Verbinden, bei Folgen an/aus, neuem 📍 während
+  Folgen) und `send` `{ linkId, moduleId, title }`. Lehrkraft: `POST
+  /api/classbook/:classId/send` `{ linkId, moduleId }` → `{ reached }`, `PUT
+  …/follow` `{ on }`; `GET /api/classbook/:classId` liefert `live: { online,
+  follow }`. Aus einer Aufgabe heraus merkt sich die Seite das Ziel
+  (`sessionStorage lm_cb_open`) und lädt die Übersicht neu.
+

@@ -590,7 +590,15 @@ export class ClassResultsView {
       const links = cb.links.filter((l) => (l.practice.length || l.classTopicId) && l.inTree !== false);
       const mk = this._markerInfo(cb);
       if (mk) (this._openLinks ||= new Set()).add(mk.link.id);
+      const live = cb.live || { online: 0, follow: false };
       out.innerHTML = `
+        <div class="cb-live-bar">
+          <span title="Schüler-Geräte, die das Klassennotizbuch gerade offen haben (App oder Browser)">📶 ${live.online} ${live.online === 1 ? 'Gerät' : 'Geräte'} verbunden</span>
+          <button type="button" class="btn btn-sm ${live.follow ? 'btn-primary' : 'btn-secondary'}" data-follow="${live.follow ? 'off' : 'on'}"
+            title="${live.follow ? 'Folgen ausschalten – die Schüler bewegen sich wieder selbst' : 'Folgen: Wo du 📍 setzt, öffnet sich das Modul auf allen Schüler-Geräten'}">👣 Folgen: ${live.follow ? 'an' : 'aus'}</button>
+          <button type="button" class="btn btn-secondary btn-sm" data-live-refresh title="Anzahl neu zählen">🔄</button>
+          <span class="hint">${live.follow ? '📍 setzen = alle springen dorthin.' : '📡 im Menü ⋯ eines Moduls öffnet es bei allen.'}</span>
+        </div>
         ${mk ? `<div class="cb-marker-bar">📍 Die Klasse ist gerade bei <strong>${escapeHtml(mk.mod.title || 'Modul')}</strong>
             <span class="hint">(${escapeHtml(mk.link.name)})${mk.mod.enabled && mk.link.active ? '' : ' – für die Schüler gerade ausgeschaltet'}</span>
             <button type="button" class="btn btn-secondary btn-sm" data-unmark>Entfernen</button></div>`
@@ -672,6 +680,15 @@ export class ClassResultsView {
       this._bindActive(out);
       this._bindToggles(out);
       this._bindMarker(out);
+      out.querySelector('[data-follow]')?.addEventListener('click', async (e) => {
+        const on = e.currentTarget.dataset.follow === 'on';
+        const res = await this.app.api.setClassbookFollow(this._classId, on);
+        if (failed(res)) { this.app.showToast('Fehler: ' + (res?.message || '?'), 'error'); return; }
+        this.app.showToast(on ? `👣 Folgen an – ${res.reached} ${res.reached === 1 ? 'Gerät folgt' : 'Geräte folgen'} dem 📍.` : '👣 Folgen aus.', 'success');
+        await this._classbook(true);
+        this._render();
+      });
+      out.querySelector('[data-live-refresh]')?.addEventListener('click', async () => { await this._classbook(true); this._render(); });
       out.querySelector('.cb-marked')?.scrollIntoView({ block: 'center' });
     });
   }
@@ -812,6 +829,14 @@ export class ClassResultsView {
     const open = (action) => this.app.modulesView.openFrom('teacher-class-results', topic.topicId, { id: mod.id }, action);
     const own = link.classTopicId === topic.topicId;
     const items = [{ label: '👁 Vorschau', run: () => open('preview') }];
+    // Nur, was die Schüler öffnen dürfen.
+    if (mod.enabled && link.active !== false) {
+      items.push({ label: '📡 An Klasse senden', title: 'Öffnet das Modul sofort bei allen Schülern, die das Klassennotizbuch offen haben', run: async () => {
+        const res = await this.app.api.sendToClassbook(this._classId, link.id, mod.id);
+        if (failed(res)) { this.app.showToast('Fehler: ' + (res?.message || '?'), 'error'); return; }
+        this.app.showToast(res.reached ? `📡 An ${res.reached} ${res.reached === 1 ? 'Gerät' : 'Geräte'} gesendet.` : 'Gerade ist kein Schüler-Gerät verbunden.', res.reached ? 'success' : 'info');
+      } });
+    }
     if (topic.canEdit) {
       items.unshift({ label: '✏️ Bearbeiten', title: own ? '' : 'Das Original im Notizbuch – die Änderung gilt überall, wo es zugewiesen ist', run: () => open('edit') });
       items.push({ label: '🏷 Tags…', title: own ? '' : 'Der Tag kommt an das Modul im Notizbuch', run: async () => {

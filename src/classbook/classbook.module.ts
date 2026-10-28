@@ -20,10 +20,11 @@ import { ContestModule } from '../contest/contest.module';
 import { ClassbookService } from './classbook.service';
 import { ClassbookController, PublicClassbookController } from './classbook.controller';
 import { WebappController } from './webapp.controller';
+import { ClassbookLive } from './classbook-live';
 
 @Module({
   imports: [TypeOrmModule.forFeature([ClassNotebook, ClassStudent, Result, DocumentWork, TopicLink, User, ExamAttempt, ClassNotebookNode, ClassNotebookPlace, LearningTopic, LearningModule, NotebookNode, NotebookPlacement]), LinksModule, ClassesModule, NotebooksModule, ContestModule],
   controllers: [ClassbookController, PublicClassbookController, WebappController],
-  providers: [ClassbookService],
+  providers: [ClassbookService, ClassbookLive],
 })
 export class ClassbookModule {}

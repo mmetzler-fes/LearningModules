@@ -26,6 +26,8 @@ import { newPin, pinMatches, pinGuard } from '../work/pin';
 import { baseUrl, renderQr } from '../core/share/link-url';
 import { embeddedQuizIds } from '../core/public/student-view';
 import { ContestService } from '../contest/contest.service';
+import { ClassbookLive, LiveTarget } from './classbook-live';
+import type { Response } from 'express';
 import { newClassCode, normalizeClassCode, formatClassCode, endOfDay, firstLoginOpen, loginDecision, unitCells, Unit, DetailLike, classbookTicketKey, examState, toggleSelection, explicitSelection, moduleOn, AvailTopic, SelEntry } from './classbook-rules';
 
 const practiceModes = (link: TopicLink) => PRACTICE_MODES.filter((m) => (link.modes || []).includes(m));
@@ -60,6 +62,7 @@ export class ClassbookService {
     private readonly links: LinksService,
     private readonly notebooks: NotebooksService,
     private readonly contest: ContestService,
+    private readonly live: ClassbookLive,
     @InjectRepository(ClassNotebookNode) private readonly nodeRepo: Repository<ClassNotebookNode>,
     @InjectRepository(ClassNotebookPlace) private readonly placeRepo: Repository<ClassNotebookPlace>,
     @InjectRepository(LearningTopic) private readonly topicRepo: Repository<LearningTopic>,
@@ -181,6 +184,7 @@ export class ClassbookService {
       firstLoginUntil: firstLoginOpen(nb.firstLoginUntil) ? nb.firstLoginUntil : null,
       teacherItems: nb.teacherItems || [],
       marker: nb.marker || null,
+      live: { online: this.live.online(classId), follow: this.live.isFollowing(classId) },
       nodes,
       students: {
         total: students.length,
@@ -601,7 +605,34 @@ export class ClassbookService {
     }
     nb.marker = marker;
     await this.repo.save(nb);
+    // 👣 Folgen an: Die Schüler-Geräte springen zum neuen Merker.
+    this.live.markerChanged(klasse.id, marker ? { linkId: marker.linkId, moduleId: marker.moduleId, title: '' } : null);
     return { marker };
+  }
+
+  /** 📡 Modul bei allen verbundenen Schüler-Geräten öffnen (`{ linkId, moduleId }`). */
+  async sendToClass(user: any, classId: string, body: { linkId?: string; moduleId?: string }) {
+    const link = await this.ownClassLink(user, classId, String(body?.linkId || ''));
+    const { topics } = await this.available(link, user);
+    const mod = topics.flatMap((t) => t.modules).find((m) => m.id === body?.moduleId);
+    if (!mod) throw new BadRequestException('Dieses Modul gehört nicht zur Zuweisung.');
+    const reached = this.live.sendModule(classId, { linkId: link.id, moduleId: mod.id, title: mod.title });
+    return { reached };
+  }
+
+  /** 👣 Folgen an/aus: Die Schüler-Geräte folgen dem 📍-Merker. */
+  async setFollow(user: any, classId: string, on: boolean) {
+    const nb = await this.ensure(await this.classes.ownedClass(classId, user));
+    const mk = nb.marker ? { linkId: nb.marker.linkId, moduleId: nb.marker.moduleId, title: '' } : null;
+    const reached = this.live.setFollow(classId, !!on, mk);
+    return { follow: this.live.isFollowing(classId), reached };
+  }
+
+  /** Live-Verbindung eines Schüler-Geräts (nach der Anmeldung mit Ausweis). */
+  async liveStream(token: string, ticket: unknown, res: Response) {
+    const { nb, klasse } = await this.session(token, ticket);
+    const mk: LiveTarget | null = nb.marker ? { linkId: nb.marker.linkId, moduleId: nb.marker.moduleId, title: '' } : null;
+    this.live.open(klasse.id, res, mk);
   }
 
   /** Erstanmeldung an (bis Ende des Tages) oder aus. */

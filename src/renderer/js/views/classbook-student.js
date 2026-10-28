@@ -21,6 +21,13 @@ import { scanQr } from './qr-scan.js';
 
 const SESSION_KEY = 'lm_classbook';
 const BOOKS_KEY = 'lm_classbooks';
+/** Live: nach dem Zurück zur Übersicht dieses Modul öffnen (sessionStorage). */
+const OPEN_KEY = 'lm_cb_open';
+/** Live: Ziel des 👣 Folgens, das schon einmal geöffnet wurde – nicht bei jedem Neuladen wieder. */
+const FOLLOWED_KEY = 'lm_cb_followed';
+const sessionGet = (k) => { try { return sessionStorage.getItem(k); } catch (_) { return null; } };
+const sessionSet = (k, v) => { try { if (v === null) sessionStorage.removeItem(k); else sessionStorage.setItem(k, v); } catch (_) { /* egal */ } };
+const parse = (text) => { try { return JSON.parse(text); } catch (_) { return null; } };
 
 /** Läuft die Seite als installierte App? */
 export function inApp() {
@@ -345,7 +352,69 @@ export class ClassbookStudent {
       here.focus({ preventScroll: true });
     }
     el.querySelectorAll('[data-exam]').forEach((btn) => btn.addEventListener('click', () => this._enter(btn.closest('[data-link]').dataset.link, 'exam', null, btn)));
+    this._connectLive();
+    // Von der Lehrkraft geschickt bzw. 👣 Folgen, während eine Aufgabe offen war.
+    const pending = parse(sessionGet(OPEN_KEY));
+    sessionSet(OPEN_KEY, null);
+    if (pending?.token === this.token) void this._enter(pending.linkId, null, pending.moduleId);
     return true;
+  }
+
+  // ---- Live: 📡 An Klasse senden, 👣 Folgen ----
+
+  /** Verbindung zum Server halten – auch während einer Aufgabe (die Seite bleibt dieselbe). */
+  _connectLive() {
+    const s = classbookSession();
+    if (!s?.ticket || typeof EventSource === 'undefined') return;
+    if (this._live && this._liveToken === this.token && this._live.readyState !== EventSource.CLOSED) return;
+    this._live?.close();
+    this._liveToken = this.token;
+    const src = new EventSource(`/api/public/classbook/${encodeURIComponent(this.token)}/live?ticket=${encodeURIComponent(s.ticket)}`);
+    this._live = src;
+    src.addEventListener('send', (e) => { const t = parse(e.data); if (t?.linkId) this._liveOpen(t, false); });
+    src.addEventListener('state', (e) => {
+      const st = parse(e.data);
+      if (!st?.follow || !st.marker) return;
+      const key = `${this.token}:${st.marker.linkId}:${st.marker.moduleId}`;
+      if (sessionGet(FOLLOWED_KEY) === key) return;
+      sessionSet(FOLLOWED_KEY, key);
+      this._liveOpen(st.marker, true);
+    });
+    src.onerror = () => {
+      // Abgelaufener Ausweis o. Ä.: EventSource gibt auf – später mit frischem Ausweis.
+      if (src.readyState === EventSource.CLOSED && this._live === src) {
+        this._live = null;
+        setTimeout(() => this._connectLive(), 15000);
+      }
+    };
+  }
+
+  /**
+   * Modul öffnen, das die Lehrkraft schickt (`follow`: dem 📍 folgen). Auf der
+   * Übersicht sofort; in einer anderen Aufgabe beim Senden als Hinweis zum
+   * Antippen, beim Folgen nach 3 s – Zeit, das Blatt zu speichern.
+   */
+  _liveOpen(target, follow) {
+    if (!this._el.classList.contains('hidden') && this.data) { void this._enter(target.linkId, null, target.moduleId); return; }
+    if (this.current?.linkId === target.linkId && this.current?.moduleId === target.moduleId) return;
+    const title = target.title || this.data?.assignments?.flatMap((a) => a.topics).flatMap((t) => t.units).find((u) => u.id === target.moduleId)?.title || 'ein Modul';
+    const go = () => {
+      sessionSet(OPEN_KEY, JSON.stringify({ token: this.token, linkId: target.linkId, moduleId: target.moduleId }));
+      backToClassbook();
+    };
+    document.querySelector('.cb-live-banner')?.remove();
+    const banner = document.createElement('div');
+    banner.className = 'cb-live-banner';
+    banner.setAttribute('role', 'status');
+    banner.innerHTML = follow
+      ? `<span>👣 Weiter zu <strong>${escapeHtml(title)}</strong> …</span><button type="button" class="btn btn-secondary btn-sm" data-go>Jetzt</button>`
+      : `<span>📡 Deine Lehrkraft schickt <strong>${escapeHtml(title)}</strong></span>
+         <button type="button" class="btn btn-secondary btn-sm" data-go>Öffnen</button>
+         <button type="button" class="btn btn-secondary btn-sm" data-close aria-label="Später">✕</button>`;
+    document.body.appendChild(banner);
+    banner.querySelector('[data-go]').addEventListener('click', go);
+    banner.querySelector('[data-close]')?.addEventListener('click', () => banner.remove());
+    if (follow) setTimeout(() => { if (banner.isConnected) go(); }, 3000);
   }
 
   /**
@@ -501,6 +570,7 @@ export class ClassbookStudent {
     const assignment = this.data?.assignments.find((a) => a.linkId === linkId);
     const chosen = mode || (assignment?.modes.includes('quiz') ? 'quiz' : assignment?.modes[0]) || 'quiz';
     if (btn) btn.disabled = true;
+    this.current = { linkId, moduleId: onlyModule || null };
     try {
       const res = await post(`${encodeURIComponent(this.token)}/enter`, { ticket: s?.ticket, linkId, exam: chosen === 'exam' });
       if (!res?.linkToken) throw new Error(res?.message || 'Diese Aufgabe ist gerade nicht freigegeben.');

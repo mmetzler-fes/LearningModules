@@ -52,6 +52,10 @@ export class ClassNotebook extends BaseEntity {
   @Column('simple-json', { nullable: true })
   teacherItems: ClassNotebookItem[] | null;
 
+  /** 🙈 Das ganze Klassennotizbuch für Schüler ausgeblendet (Klassenarbeit und Quiz-Arena bleiben). Module unverändert. */
+  @Column({ default: false })
+  studentHidden: boolean;
+
   /** 📍 Wo die Klasse gerade ist: Bei den Schülern ist dieses Modul aufgeklappt und hat den Fokus. */
   @Column('simple-json', { nullable: true })
   marker: ClassNotebookMarker | null;

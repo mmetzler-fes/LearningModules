@@ -99,6 +99,12 @@ export class ClassbookController {
     return this.classbook.setMarker(req.user, classId, body);
   }
 
+  /** 🙈 `{ type: 'node', id, hidden }` oder `{ type: 'book', hidden }` – für Schüler aus-/einblenden, Module unverändert. */
+  @Put(':classId/visibility')
+  visibility(@Request() req: any, @Param('classId') classId: string, @Body() body: any) {
+    return this.classbook.setVisibility(req.user, classId, body);
+  }
+
   /** 📡 `{ linkId, moduleId }` – bei allen verbundenen Schüler-Geräten öffnen. */
   @Post(':classId/send')
   @HttpCode(200)

@@ -1089,6 +1089,10 @@ export class BrowserApi {
   setClassbookMarker(classId, marker) {
     return this._fetch(`/api/classbook/${encodeURIComponent(classId)}/marker`, { method: 'PUT', body: JSON.stringify(marker || {}) });
   }
+  /** 🙈 Für Schüler aus-/einblenden: `{ type: 'node', id, hidden }` oder `{ type: 'book', hidden }` – Module unverändert. */
+  setClassbookVisibility(classId, body) {
+    return this._fetch(`/api/classbook/${encodeURIComponent(classId)}/visibility`, { method: 'PUT', body: JSON.stringify(body) });
+  }
   /** 📡 Modul bei allen verbundenen Schüler-Geräten öffnen → `{ reached }`. */
   sendToClassbook(classId, linkId, moduleId) {
     return this._fetch(`/api/classbook/${encodeURIComponent(classId)}/send`, { method: 'POST', body: JSON.stringify({ linkId, moduleId }) });

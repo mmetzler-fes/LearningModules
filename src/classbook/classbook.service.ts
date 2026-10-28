@@ -16,7 +16,7 @@ import { LearningTopic } from '../core/entities/learning-topic.entity';
 import { LearningModule } from '../core/entities/learning-module.entity';
 import { NotebookNode } from '../core/entities/notebook-node.entity';
 import { NotebookPlacement } from '../core/entities/notebook-placement.entity';
-import { canHoldNode, depthOf, nodeMoveError, reorder, dissolve, MAX_CLASS_DEPTH } from './classbook-tree';
+import { canHoldNode, depthOf, nodeMoveError, reorder, dissolve, MAX_CLASS_DEPTH, veiledNodeIds } from './classbook-tree';
 import { ClassesService } from '../classes/classes.service';
 import { LinksService, PRACTICE_MODES } from '../links/links.service';
 import { NotebooksService } from '../notebooks/notebooks.service';
@@ -111,8 +111,8 @@ export class ClassbookService {
       return p ? { nodeId: p.nodeId && known.has(p.nodeId) ? p.nodeId : null, order: p.orderIndex, inTree: !p.hidden } : { nodeId: null, order: 100000 + i, inTree: true };
     };
     return {
-      nodes: nodes.map(({ id, kind, title, parentId, orderIndex, sourceNodeId }) => ({
-        id, kind, title, parentId: parentId && known.has(parentId) ? parentId : null, orderIndex, sourceNodeId: sourceNodeId || null })),
+      nodes: nodes.map(({ id, kind, title, parentId, orderIndex, sourceNodeId, studentHidden }) => ({
+        id, kind, title, parentId: parentId && known.has(parentId) ? parentId : null, orderIndex, sourceNodeId: sourceNodeId || null, studentHidden: !!studentHidden })),
       placeOf: new Map(links.map((l, i) => [l.id, placeOf(l, i)])),
     };
   }
@@ -184,6 +184,7 @@ export class ClassbookService {
       firstLoginUntil: firstLoginOpen(nb.firstLoginUntil) ? nb.firstLoginUntil : null,
       teacherItems: nb.teacherItems || [],
       marker: nb.marker || null,
+      studentHidden: !!nb.studentHidden,
       live: { online: this.live.online(classId), follow: this.live.isFollowing(classId) },
       nodes,
       students: {
@@ -610,6 +611,35 @@ export class ClassbookService {
     return { marker };
   }
 
+  /**
+   * 🙈 Für Schüler aus- bzw. einblenden: `{ type: 'node', id, hidden }` (Bereich,
+   * Abschnitt – mit allem darunter) oder `{ type: 'book', hidden }` (das ganze
+   * Klassennotizbuch). Die Module bleiben, wie sie sind.
+   */
+  async setVisibility(user: any, classId: string, body: { type?: string; id?: string; hidden?: boolean }) {
+    const klasse = await this.classes.ownedClass(classId, user);
+    const hidden = !!body?.hidden;
+    if (body?.type === 'book') {
+      const nb = await this.ensure(klasse);
+      nb.studentHidden = hidden;
+      await this.repo.save(nb);
+      return { studentHidden: hidden };
+    }
+    const node = await this.nodeRepo.findOne({ where: { id: String(body?.id || ''), classId: klasse.id } });
+    if (!node) throw new NotFoundException('Bereich bzw. Abschnitt nicht gefunden.');
+    node.studentHidden = hidden;
+    await this.nodeRepo.save(node);
+    return { studentHidden: hidden };
+  }
+
+  /** Zuweisungen, die Schüler nicht sehen: ganzes Klassennotizbuch oder ihr Bereich/Abschnitt ausgeblendet. */
+  private veiledLinks(nb: ClassNotebook, nodes: Array<{ id: string; kind: 'area' | 'section'; parentId: string | null; orderIndex: number; studentHidden?: boolean }>,
+    placeOf: Map<string, { nodeId: string | null }>, links: TopicLink[]) {
+    if (nb.studentHidden) return { veiledNodes: new Set(nodes.map((n) => n.id)), veiled: new Set(links.map((l) => l.id)) };
+    const veiledNodes = veiledNodeIds(nodes);
+    return { veiledNodes, veiled: new Set(links.filter((l) => { const p = placeOf.get(l.id); return !!p?.nodeId && veiledNodes.has(p.nodeId); }).map((l) => l.id)) };
+  }
+
   /** 📡 Modul bei allen verbundenen Schüler-Geräten öffnen (`{ linkId, moduleId }`). */
   async sendToClass(user: any, classId: string, body: { linkId?: string; moduleId?: string }) {
     const link = await this.ownClassLink(user, classId, String(body?.linkId || ''));
@@ -787,8 +817,10 @@ export class ClassbookService {
     // Ohne eingeschaltetes Modul gibt es für Schüler nichts zu sehen. Die Quiz-Arena
     // erscheint nur, solange die Lehrkraft ihren Wartebereich geöffnet hat (arena).
     const { nodes, placeOf } = await this.tree(klasse, all);
+    // 🙈 Ausgeblendete Bereiche/Abschnitte (bzw. das ganze Klassennotizbuch) mit ihren Lernthemen weglassen.
+    const { veiledNodes, veiled } = this.veiledLinks(nb, nodes, placeOf, all);
     // Durch den Baum ersetzte Bereichs-Links stehen nicht mehr da – ihre Lernthemen einzeln im Baum.
-    const links = (await Promise.all(active.filter((l) => placeOf.get(l.id)?.inTree !== false).map((l) => this.linkInfo(l))))
+    const links = (await Promise.all(active.filter((l) => placeOf.get(l.id)?.inTree !== false && !veiled.has(l.id)).map((l) => this.linkInfo(l))))
       .filter((l) => l.practice.length && l.topics.length);
     // Laufende Klassenarbeiten: aktiv und ihr Link ist erzeugt (die Lehrkraft hat ihn ausgegeben).
     const exams = await Promise.all(active.filter((l) => (l.modes || []).includes('exam') && l.examToken).map(async (l) => {
@@ -809,7 +841,7 @@ export class ClassbookService {
       marker: nb.marker && links.some((l) => l.id === nb.marker!.linkId
         && l.topics.some((tp) => tp.id === nb.marker!.topicId && tp.units.some((u) => u.id === nb.marker!.moduleId))) ? nb.marker : null,
       // Bereiche und Abschnitte wie bei der Lehrkraft; leere blendet die Seite aus.
-      nodes: nodes.map(({ id, kind, title, parentId, orderIndex }) => ({ id, kind, title, parentId, orderIndex })),
+      nodes: nodes.filter((n) => !veiledNodes.has(n.id)).map(({ id, kind, title, parentId, orderIndex }) => ({ id, kind, title, parentId, orderIndex })),
       assignments: links.map((l) => {
         const runs = results.filter((r) => r.linkId === l.id).map((r) => ({ details: (r.payload?.details || []) as DetailLike[] }));
         const mine = new Set(works.filter((w) => w.linkId === l.id).map((w) => w.moduleId));
@@ -828,7 +860,7 @@ export class ClassbookService {
         id: r.id, linkName: r.linkName || '', mode: r.mode, score: r.score, maxScore: r.maxScore,
         percentage: r.payload?.percentage ?? null, at: r.createdAt,
       })),
-      works: works.filter((w) => w.access !== 'exam').map((w) => ({ linkId: w.linkId, moduleId: w.moduleId, title: w.moduleTitle || 'Dokument', at: w.updatedAt })),
+      works: works.filter((w) => w.access !== 'exam' && !veiled.has(w.linkId)).map((w) => ({ linkId: w.linkId, moduleId: w.moduleId, title: w.moduleTitle || 'Dokument', at: w.updatedAt })),
     };
   }
 
@@ -852,9 +884,14 @@ export class ClassbookService {
    * dann der gewöhnliche Link-Start mit dem Ausweis des Klassennotizbuchs.
    */
   async enter(token: string, body: { ticket?: string; linkId?: string; exam?: boolean }) {
-    const { klasse } = await this.session(token, body?.ticket);
+    const { nb, klasse } = await this.session(token, body?.ticket);
     const link = await this.linkRepo.findOne({ where: { id: String(body?.linkId || ''), classId: klasse.id } });
     if (!link || !link.active) throw new NotFoundException('Diese Aufgabe ist gerade nicht freigegeben.');
+    // 🙈 In einem ausgeblendeten Bereich: nicht zu öffnen (die Klassenarbeit hat ihren eigenen Weg).
+    if (!body?.exam) {
+      const { nodes, placeOf } = await this.tree(klasse, [link]);
+      if (this.veiledLinks(nb, nodes, placeOf, [link]).veiled.has(link.id)) throw new NotFoundException('Diese Aufgabe ist gerade nicht freigegeben.');
+    }
     // Klassenarbeit: nur über ihren eigenen Link – den gibt es erst, wenn die Lehrkraft ihn ausgegeben hat.
     if (body?.exam) {
       if (!(link.modes || []).includes('exam') || !link.examToken) throw new NotFoundException('Diese Klassenarbeit ist gerade nicht freigegeben.');

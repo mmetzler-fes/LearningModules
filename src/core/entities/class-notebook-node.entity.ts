@@ -26,6 +26,13 @@ export class ClassNotebookNode extends BaseEntity {
   orderIndex: number;
 
   /**
+   * 🙈 Für Schüler ausgeblendet – mit allem darunter. Die Module bleiben
+   * ein- bzw. ausgeschaltet, wie sie sind; eingeblendet ist alles wie vorher.
+   */
+  @Column({ default: false })
+  studentHidden: boolean;
+
+  /**
    * Aus dem Notizbuch übernommen: der Knoten dort (NotebookNode-ID oder
    * `offer:<id>` für einen erworbenen Bereich). Leer = in der Klasse angelegt.
    */

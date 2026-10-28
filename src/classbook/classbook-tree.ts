@@ -89,3 +89,21 @@ export function dissolve(nodes: TreeNode[], entries: TreeEntry[], id: string) {
       .map((e, i) => ({ id: e.id, nodeId: up, orderIndex: entryBase + i })),
   };
 }
+
+/**
+ * Für Schüler ausgeblendete Knoten: selbst ausgeblendet (`studentHidden`)
+ * oder unter einem ausgeblendeten Bereich.
+ */
+export function veiledNodeIds(nodes: Array<TreeNode & { studentHidden?: boolean }>): Set<string> {
+  const byId = new Map(nodes.map((n) => [n.id, n]));
+  const veiled = new Set<string>();
+  for (const n of nodes) {
+    // Den Weg nach oben gehen (höchstens so tief wie erlaubt – schützt vor Kreisen).
+    let cur: (TreeNode & { studentHidden?: boolean }) | undefined = n;
+    for (let depth = 0; cur && depth <= MAX_CLASS_DEPTH + 1; depth++) {
+      if (cur.studentHidden) { veiled.add(n.id); break; }
+      cur = cur.parentId ? byId.get(cur.parentId) : undefined;
+    }
+  }
+  return veiled;
+}

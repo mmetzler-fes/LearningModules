@@ -108,6 +108,14 @@ Freigabe im Notizbuch, nur für diese Klasse.
   oben **Alles** (das ganze Klassennotizbuch) hat einen Schalter: **●** alles
   an, **◐** teilweise, **○** alles aus. Ein Klick auf ○ oder ◐ schaltet alles
   darunter ein, ein Klick auf ● alles aus.
+- **🙈 Für Schüler ausblenden – ohne umzuschalten:** **👁** an einem Bereich
+  oder Abschnitt (auch im Menü ⋯) blendet ihn mit allem darin für die Schüler
+  aus; oben **🙈 Für Schüler ausblenden** das ganze Klassennotizbuch (eine
+  laufende Klassenarbeit und die Quiz-Arena bleiben zu sehen). Die Module
+  behalten ihr ● / ○ – blendest du wieder ein, ist alles wie vorher.
+  Ausgeblendetes steht bei dir blass und durchgestrichen; Schüler können es
+  auch über „Meine Blätter“ nicht öffnen. Ein einzelnes Lernthema blendest du
+  mit **⏸ Ausblenden** an seiner Karte aus.
 - **Quizze in einem Dokument** kommen mit dem Dokument: Ist das Dokument an,
   sind seine eingebetteten Quizze für die Schüler da (blasses ●), auch wenn
   sie selbst nicht eingeschaltet sind.
@@ -391,4 +399,9 @@ Code: `src/classbook/`, `src/renderer/js/views/class-results.js` (Lehrkraft),
   …/follow` `{ on }`; `GET /api/classbook/:classId` liefert `live: { online,
   follow }`. Aus einer Aufgabe heraus merkt sich die Seite das Ziel
   (`sessionStorage lm_cb_open`) und lädt die Übersicht neu.
-
+- 🙈 Ausblenden: `class_notebook_nodes.studentHidden` (mit allem darunter,
+  `veiledNodeIds` in `classbook-tree.ts`) und `class_notebooks.studentHidden`
+  (ganzes Klassennotizbuch); `PUT /api/classbook/:classId/visibility`
+  `{ type: 'node', id, hidden }` bzw. `{ type: 'book', hidden }`. `home` lässt
+  ausgeblendete Knoten und ihre Zuweisungen weg, `enter` lehnt sie ab; die
+  Auswahl der Module bleibt unberührt.

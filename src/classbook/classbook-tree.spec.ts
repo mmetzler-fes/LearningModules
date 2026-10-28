@@ -1,4 +1,4 @@
-import { canHoldNode, depthOf, isInside, nodeMoveError, reorder, dissolve, MAX_CLASS_DEPTH, TreeNode } from './classbook-tree';
+import { canHoldNode, depthOf, isInside, nodeMoveError, reorder, dissolve, MAX_CLASS_DEPTH, TreeNode, veiledNodeIds } from './classbook-tree';
 
 const N = (id: string, kind: 'area' | 'section', parentId: string | null, orderIndex = 0): TreeNode => ({ id, kind, parentId, orderIndex });
 
@@ -40,5 +40,19 @@ describe('Baum des Klassennotizbuchs', () => {
     const res = dissolve(nodes, entries, 'b');
     expect(res.nodes).toEqual([{ id: 's', parentId: 'a', orderIndex: 0 }]);
     expect(res.entries).toEqual([{ id: 'e1', nodeId: 'a', orderIndex: 1 }]);
+  });
+});
+
+describe('Für Schüler ausblenden', () => {
+  it('ausgeblendeter Bereich nimmt alles darunter mit, Geschwister bleiben', () => {
+    const nodes = [
+      { id: 'a', kind: 'area' as const, parentId: null, orderIndex: 0, studentHidden: true },
+      { id: 'a1', kind: 'section' as const, parentId: 'a', orderIndex: 0 },
+      { id: 'b', kind: 'area' as const, parentId: null, orderIndex: 1 },
+      { id: 'b1', kind: 'area' as const, parentId: 'b', orderIndex: 0, studentHidden: true },
+      { id: 'b2', kind: 'section' as const, parentId: 'b1', orderIndex: 0 },
+      { id: 'b3', kind: 'section' as const, parentId: 'b', orderIndex: 1 },
+    ];
+    expect([...veiledNodeIds(nodes)].sort()).toEqual(['a', 'a1', 'b1', 'b2']);
   });
 });

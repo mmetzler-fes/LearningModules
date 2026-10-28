@@ -166,6 +166,27 @@ describe('Klassennotizbuch: Baum und klasseneigene Lernthemen', () => {
     return ctx;
   };
 
+  it('🙈 Bereich ausblenden: Lernthemen darin fehlen bei Schülern und lassen sich nicht öffnen, Module unverändert', async () => {
+    const { svc, places, links } = ready();
+    const area = await svc.createNode(user, 'c1', { kind: 'area', title: 'Halbjahr 2' });
+    const sec = await svc.createNode(user, 'c1', { kind: 'section', title: 'Später', parentId: area.id });
+    places.rows.push({ id: 'l1', classId: 'c1', nodeId: sec.id, orderIndex: 0, hidden: false });
+    const selection = JSON.stringify(links.rows[0].selection ?? null);
+    const { ticket } = await svc.login('kb', { name: 'Anna', pin: '1234' });
+    expect((await svc.home('kb', ticket)).assignments).toHaveLength(1);
+    await svc.setVisibility(user, 'c1', { type: 'node', id: area.id, hidden: true });
+    const home = await svc.home('kb', ticket);
+    expect(home.assignments).toEqual([]);
+    expect(home.nodes).toEqual([]);
+    await expect(svc.enter('kb', { ticket, linkId: 'l1' })).rejects.toThrow(/nicht freigegeben/);
+    expect(JSON.stringify(links.rows[0].selection ?? null)).toBe(selection);
+    await svc.setVisibility(user, 'c1', { type: 'node', id: area.id, hidden: false });
+    expect((await svc.home('kb', ticket)).assignments).toHaveLength(1);
+    // Das ganze Klassennotizbuch
+    await svc.setVisibility(user, 'c1', { type: 'book', hidden: true });
+    expect((await svc.home('kb', ticket)).assignments).toEqual([]);
+  });
+
   it('Bereiche und Abschnitte; Abschnitt nimmt keinen Bereich auf', async () => {
     const { svc } = ready();
     const area = await svc.createNode(user, 'c1', { kind: 'area', title: 'Halbjahr 1' });

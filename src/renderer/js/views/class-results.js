@@ -656,16 +656,21 @@ export class ClassResultsView {
             <span class="hint">(${escapeHtml(mk.link.name)})${mk.mod.enabled && mk.link.active ? '' : ' – für die Schüler gerade ausgeschaltet'}</span>
             <button type="button" class="btn btn-secondary btn-sm" data-unmark>Entfernen</button></div>`
           : '<p class="hint">📍 an einem Modul merkt, wo die Klasse gerade ist – bei den Schülern ist es dann aufgeklappt und hat den Fokus.</p>'}
+        ${cb.studentHidden ? `<div class="cb-veiled-bar">🙈 <strong>Das ganze Klassennotizbuch ist für Schüler ausgeblendet</strong>
+            <span class="hint">– sie sehen nur eine laufende Klassenarbeit bzw. die Quiz-Arena. Die Module bleiben, wie sie sind.</span>
+            <button type="button" class="btn btn-primary btn-sm" data-veil-book="">👁 Wieder einblenden</button></div>` : ''}
         <div class="cr-works-bar">
           ${links.length ? `<span class="cb-all-switch">${this._groupSwitch(this._stateOf(links), `data-switch-links="${escapeAttr(links.map((l) => l.id).join(','))}"`, 'diesem Klassennotizbuch')} Alles</span>` : ''}
           <button type="button" class="btn btn-primary btn-sm" data-add="assign" title="Lernthema, Abschnitt, Bereich oder Book aus deinem Notizbuch – als Verweis">➕ Aus dem Notizbuch</button>
           <button type="button" class="btn btn-secondary btn-sm" data-add="topic" title="Lernthema nur für diese Klasse, z. B. Aufgaben oder Dokumente">➕ Lernthema</button>
           <button type="button" class="btn btn-secondary btn-sm" data-add="area">➕ Bereich</button>
           <button type="button" class="btn btn-secondary btn-sm" data-add="section">➕ Abschnitt</button>
+          ${cb.studentHidden ? '' : '<button type="button" class="btn btn-secondary btn-sm" data-veil-book="1" title="Schüler sehen das Klassennotizbuch vorübergehend nicht (außer Klassenarbeit und Quiz-Arena) – die Module bleiben ein- bzw. ausgeschaltet">🙈 Für Schüler ausblenden</button>'}
         </div>
         <p class="hint">Die Schüler sehen diesen Baum über den <a href="#" id="cbToSettings">Klassenbuch-Link</a>. 🔗 verweist aufs Notizbuch
           (Änderungen dort gelten sofort), 📘 gehört nur dieser Klasse. ● / ○ schaltet Lernthemen und Module ein und aus –
-          was später dazukommt, ist zunächst aus. Aktionen über ⋯.</p>
+          was später dazukommt, ist zunächst aus. 👁 / 🙈 blendet einen Bereich oder Abschnitt für Schüler aus, ohne die Module
+          zu schalten. Aktionen über ⋯.</p>
         <div class="cb-tree">${links.length || cb.nodes.length ? this._level(cb, links, null)
           : `<div class="empty-state"><span class="empty-icon">📋</span>
               <p>Noch leer. Weise aus deinem Notizbuch Lernthemen oder ganze Bereiche zu, lege eigene Lernthemen für diese Klasse an
@@ -733,6 +738,14 @@ export class ClassResultsView {
       this._bindActive(out);
       this._bindToggles(out);
       this._bindMarker(out);
+      out.querySelectorAll('[data-veil-node]').forEach((btn) => btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation(); // nicht auf- und zuklappen
+        void this._setVeil({ type: 'node', id: btn.dataset.veilNode, hidden: !btn.dataset.hidden });
+      }));
+      out.querySelectorAll('[data-veil-book]').forEach((btn) => btn.addEventListener('click', () => {
+        void this._setVeil({ type: 'book', hidden: !!btn.dataset.veilBook });
+      }));
       out.querySelector('[data-follow]')?.addEventListener('click', async (e) => {
         const on = e.currentTarget.dataset.follow === 'on';
         const res = await this.app.api.setClassbookFollow(this._classId, on);
@@ -822,14 +835,31 @@ export class ClassResultsView {
   }
 
   /** Eine Ebene des Baums: erst Bereiche/Abschnitte, dann die Lernthemen darin. */
+  /** 👁 / 🙈 an einem Bereich oder Abschnitt: für Schüler ein- bzw. ausblenden, ohne die Module zu schalten. */
+  _veilButton(n) {
+    const what = n.kind === 'section' ? 'Abschnitt' : 'Bereich';
+    return `<button type="button" class="cb-eye ${n.studentHidden ? 'off' : ''}" data-veil-node="${escapeAttr(n.id)}" data-hidden="${n.studentHidden ? '1' : ''}"
+      title="${n.studentHidden ? `Für Schüler ausgeblendet – klicken zum Einblenden (alles wie vorher)` : `Für Schüler sichtbar – klicken blendet den ${what} mit allem darin aus; die Module bleiben, wie sie sind`}"
+      aria-label="${n.studentHidden ? 'Einblenden' : 'Ausblenden'}">${n.studentHidden ? '🙈' : '👁'}</button>`;
+  }
+
+  async _setVeil(body) {
+    const res = await this.app.api.setClassbookVisibility(this._classId, body);
+    if (failed(res)) { this.app.showToast('Fehler: ' + (res?.message || '?'), 'error'); return; }
+    this._openLinks = new Set([...this._out.querySelectorAll('details[data-link][open]')].map((d) => d.dataset.link));
+    await this._classbook(true);
+    this._render();
+  }
+
   _level(cb, links, parentId) {
     const nodes = cb.nodes.filter((n) => n.parentId === parentId).sort((a, b) => a.orderIndex - b.orderIndex);
     const entries = links.filter((l) => l.nodeId === parentId).sort((a, b) => a.order - b.order);
     const count = (id) => links.filter((l) => l.nodeId === id).length + cb.nodes.filter((n) => n.parentId === id).reduce((s, n) => s + count(n.id), 0);
     const under = (id) => [...links.filter((l) => l.nodeId === id), ...cb.nodes.filter((n) => n.parentId === id).flatMap((n) => under(n.id))];
-    const html = nodes.map((n) => `<details class="cb-node" data-node="${escapeAttr(n.id)}" ${this._closedNodes?.has(n.id) ? '' : 'open'}>
-        <summary>${under(n.id).length ? this._groupSwitch(this._stateOf(under(n.id)), `data-switch-links="${escapeAttr(under(n.id).map((l) => l.id).join(','))}"`, n.kind === 'section' ? 'diesem Abschnitt' : 'diesem Bereich') : ''}<span class="cb-node-title">${NODE_ICON[n.kind]} ${escapeHtml(n.title)}</span>
+    const html = nodes.map((n) => `<details class="cb-node ${n.studentHidden ? 'cb-veiled' : ''}" data-node="${escapeAttr(n.id)}" ${this._closedNodes?.has(n.id) ? '' : 'open'}>
+        <summary>${under(n.id).length ? this._groupSwitch(this._stateOf(under(n.id)), `data-switch-links="${escapeAttr(under(n.id).map((l) => l.id).join(','))}"`, n.kind === 'section' ? 'diesem Abschnitt' : 'diesem Bereich') : ''}${this._veilButton(n)}<span class="cb-node-title">${NODE_ICON[n.kind]} ${escapeHtml(n.title)}</span>
           <span class="hint">${count(n.id)} Lernthem${count(n.id) === 1 ? 'a' : 'en'}</span>
+          ${n.studentHidden ? '<span class="cb-veiled-badge" title="Schüler sehen diesen Bereich mit allem darin nicht – die Module bleiben ein- bzw. ausgeschaltet">🙈 für Schüler ausgeblendet</span>' : ''}
           <button type="button" class="nb-menu-btn" data-node-menu title="Aktionen" aria-label="Aktionen">⋯</button></summary>
         <div class="cb-node-body">${this._level(cb, links, n.id)}</div>
       </details>`).join('')
@@ -865,6 +895,9 @@ export class ClassResultsView {
     items.push({ label: '➕ Neues Lernthema hier', run: () => this._add('topic', node.id) });
     items.push({ label: '➕ Aus dem Notizbuch hierher', run: () => this._add('assign', node.id) });
     items.push('-');
+    items.push(node.studentHidden
+      ? { label: '👁 Für Schüler einblenden', title: 'Alles darin ist wieder wie vorher zu sehen', run: () => this._setVeil({ type: 'node', id: node.id, hidden: false }) }
+      : { label: '🙈 Für Schüler ausblenden', title: 'Schüler sehen den Bereich mit allem darin nicht – die Module bleiben ein- bzw. ausgeschaltet', run: () => this._setVeil({ type: 'node', id: node.id, hidden: true }) });
     items.push({ label: '↑ Nach oben', run: () => this._step('node', node, -1, cb) });
     items.push({ label: '↓ Nach unten', run: () => this._step('node', node, +1, cb) });
     items.push({ label: '↔️ Verschieben nach…', run: () => this._moveDialog(cb, 'node', node) });

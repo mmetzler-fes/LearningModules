@@ -205,6 +205,13 @@ darin das beste Ergebnis in Prozent, **✓** für erledigt ohne Wertung
 Stift bearbeitet hat. Rechts steht, wie viele Module erledigt sind. Die
 Nummern über den Spalten stehen unter der Tabelle mit Titel.
 
+**Der erste Versuch zählt:** Klickt ein Schüler in einer Aufgabe auf
+**Überprüfen**, wird ihr Stand in diesem Moment gewertet. Was er danach
+nachbessert – etwa die Wörter, die Mark the Words gelb als fehlend zeigt –,
+ändert die Punkte nicht mehr. Ohne Überprüfen zählt der Stand beim Weiter.
+Bei Mark the Words hebt jedes falsch markierte Wort ein richtiges auf; alles
+zu markieren bringt also nichts.
+
 **📝 Je Aufgabe** und **📅 Jahresüberblick** sind die Reiter der früheren
 Klassenergebnisse.
 

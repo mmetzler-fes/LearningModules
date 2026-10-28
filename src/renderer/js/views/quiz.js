@@ -23,6 +23,11 @@ function stepStates(qs) {
   });
 }
 
+/** „Überprüfen“-Knopf einer Aufgabe (#mcCheck, #wordsCheck … bzw. .sort-check, .cw-check …). */
+function isCheckButton(btn) {
+  return /Check$/.test(btn.id || '') || /(^|\s)[a-z]+-check(\s|$)/.test(btn.className || '');
+}
+
 /** Vergleichbare Form einer Antwort (nur was der Schüler eingibt). */
 function answerKey(a) {
   return JSON.stringify(a?.userAnswer ?? '');
@@ -96,7 +101,7 @@ export class QuizView {
 
         // Im Lernmodus erst die Lösung zeigen; weiter geht es beim zweiten Klick.
         if (this._isLearnRun() && !qs.revealed) {
-          qs.answers[qs.currentIndex] = collectAnswer(mod, this._quizModuleContainer);
+          qs.answers[qs.currentIndex] = this._currentAnswer(mod);
           this._revealSolution(qs.answers[qs.currentIndex]);
           for (const { answer, slot } of this._collectEmbedded()) this._revealSolution(answer, slot);
           qs.revealed = true;
@@ -107,7 +112,7 @@ export class QuizView {
         }
 
         this._taskTimer?.answered(qs.currentIndex);
-        qs.answers[qs.currentIndex] = collectAnswer(mod, this._quizModuleContainer);
+        qs.answers[qs.currentIndex] = this._currentAnswer(mod);
         this._collectEmbedded();
         this._saveExamProgress(qs.currentIndex + 1);
         this._goNext();
@@ -119,7 +124,7 @@ export class QuizView {
         const { state } = this.app;
         if (!state.quizState || state.quizState.currentIndex <= 0) return;
         const mod = state.quizState.modules[state.quizState.currentIndex];
-        state.quizState.answers[state.quizState.currentIndex] = collectAnswer(mod, this._quizModuleContainer);
+        state.quizState.answers[state.quizState.currentIndex] = this._currentAnswer(mod);
         this._collectEmbedded();
         state.quizState.currentIndex--;
         this._reportRun({ done: state.quizState.currentIndex, states: stepStates(state.quizState) });
@@ -461,6 +466,7 @@ export class QuizView {
         },
       });
       qs.views[currentIndex] = view;
+      this._watchFirstCheck(view, mod);
       // Anfangszustand der Eingabe merken: Verlässt der Schüler die Aufgabe
       // unverändert, gilt sie in der Live-Ansicht als übersprungen – auch wo
       // schon der Anfang Teilpunkte bringt (Reihenfolge, Zuordnen).
@@ -519,6 +525,31 @@ export class QuizView {
    * Antworten der Quizze im Dokument des aktuellen Schritts – je Schritt
    * gemerkt, beim Zurückblättern überschrieben. Liefert `{ answer, slot }`.
    */
+  /**
+   * Der erste Versuch zählt: Beim ersten Klick auf „Überprüfen“ einer Aufgabe
+   * (auch eines Quiz im Dokument) wird ihr Stand festgehalten – vor der
+   * Rückmeldung, die oft die Lösung zeigt (Mark the Words: fehlende Wörter
+   * gelb). Nachbessern bleibt möglich, zählt aber nicht.
+   */
+  _watchFirstCheck(view, mod) {
+    const qs = this.app.state.quizState;
+    view.addEventListener('click', (e) => {
+      const btn = e.target.closest?.('button');
+      if (!btn || !view.contains(btn) || !isCheckButton(btn)) return;
+      const slot = btn.closest('form.ds-quiz-slot');
+      const root = slot && view.contains(slot) ? slot : view;
+      const m = root === view ? mod : qs?.embedded?.get(slot.dataset.module);
+      if (!m || root._firstCheck || !GRADABLE_TYPES.has(m.type)) return;
+      try { root._firstCheck = { ...collectAnswer(m, root), firstTry: true }; } catch (_) { /* dann zählt der Stand beim Verlassen */ }
+    }, true); // vor der Prüfung der Aufgabe selbst
+  }
+
+  /** Antwort der aktuellen Aufgabe: beim ersten „Überprüfen“ festgehalten, sonst der Stand jetzt. */
+  _currentAnswer(mod) {
+    const qs = this.app.state.quizState;
+    return qs?.views?.[qs.currentIndex]?._firstCheck || collectAnswer(mod, this._quizModuleContainer);
+  }
+
   _collectEmbedded() {
     const qs = this.app.state.quizState;
     const view = qs?.views?.[qs.currentIndex];
@@ -526,7 +557,7 @@ export class QuizView {
     const found = [];
     view.querySelectorAll('form.ds-quiz-slot').forEach((slot) => {
       const mod = qs.embedded.get(slot.dataset.module);
-      if (mod) found.push({ answer: collectAnswer(mod, slot), slot });
+      if (mod) found.push({ answer: slot._firstCheck || collectAnswer(mod, slot), slot });
     });
     if (found.length) (qs.embeddedAnswers || (qs.embeddedAnswers = {}))[qs.currentIndex] = found.map((f) => f.answer);
     return found;

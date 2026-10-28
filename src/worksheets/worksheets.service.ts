@@ -357,6 +357,21 @@ export class WorksheetsService {
       return { ...rest, file: name, width: width || '12cm' };
     };
 
+    // Bildgruppe: jedes Bild als Datei wie ein Bild-Baustein, Lage in Prozent der
+    // Gruppe bleibt. Was sich nicht drucken lässt, fällt heraus (mit Warnung).
+    const groupBlock = async (block: Record<string, any>): Promise<Record<string, any>> => {
+      const items: any[] = [];
+      for (const it of Array.isArray(block.items) ? block.items : []) {
+        if (!it || typeof it !== 'object') continue;
+        const done = await imageBlock({ type: 'image', src: it.src, alt: it.alt });
+        if (done.type !== 'image') continue;
+        items.push({ file: done.file, x: it.x, y: it.y, w: it.w, h: it.h });
+      }
+      if (!items.length) return { type: 'note', text: '[Bildgruppe]' };
+      const { items: _i, ...rest } = block;
+      return { ...rest, items, width: widthInCm(block.width) || '16.5cm' };
+    };
+
     // Quiz aus dem Lernthema: Kasten mit QR-Code und Adresse über den
     // Quick-Link – wer scannt, bearbeitet genau dieses Modul (&mod=).
     const quizBlock = async (block: Record<string, any>): Promise<Record<string, any>> => {
@@ -437,6 +452,7 @@ export class WorksheetsService {
         else if (block.type === 'quiz') out.push(await quizBlock(block));
         else if (block.type === 'table') out.push(await tableCells(block));
         else if (block.type === 'image' && block.src !== undefined) out.push(await imageBlock(block));
+        else if (block.type === 'group') out.push(await groupBlock(block));
         else if (block.type === 'code' && block.file !== undefined && block.code === undefined) {
           warnings.push(`Code aus „${block.file}“ gibt es nur im Kurs-Projekt – im Druck steht ein Hinweis.`);
           out.push({ type: 'note', text: `[Code aus ${block.file}]` });

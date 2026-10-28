@@ -44,6 +44,20 @@ describe('WorksheetsService.prepare', () => {
     expect(job.spec.content[0].blocks[0]).toEqual({ type: 'image', file: 'bilder/bild-1.png', width: '8.25cm', caption: 'Schaltung' });
   });
 
+  it('Bildgruppe: jedes Bild als Datei, Lage in Prozent bleibt; was nicht druckbar ist, fällt heraus', async () => {
+    const { job, warnings } = await service.prepare({ content: [
+      { type: 'group', width: '12cm', ratio: 0.5, caption: 'K', items: [
+        { src: PNG, x: 0, y: 0, w: 50, h: 100, alt: 'a' },
+        { src: 'https://example.org/b.png', x: 50, y: 0, w: 50, h: 100 }] },
+      { type: 'group', ratio: 1, items: [{ src: 'https://example.org/c.png', x: 0, y: 0, w: 100, h: 100 }] },
+    ] }, 'T', ['pdf']);
+    expect(warnings).toHaveLength(2);
+    expect(job.files).toEqual({ 'bilder/bild-1.png': 'iVBORw0KGgo=' });
+    expect(job.spec.content[0]).toEqual({ type: 'group', width: '12.00cm', ratio: 0.5, caption: 'K',
+      items: [{ file: 'bilder/bild-1.png', x: 0, y: 0, w: 50, h: 100 }] });
+    expect(job.spec.content[1]).toEqual({ type: 'note', text: '[Bildgruppe]' });
+  });
+
   it('Beschriftung aus dem Stift-Editor: SVG als Datei, Lage in cm – auch an neu gebauten Bausteinen', async () => {
     const svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 72 36" width="72pt" height="36pt"><g><path d="M0,0L72,36"/></g></svg>';
     const ink = { svg, x: 72, y: -36, w: 72, h: 36 };
@@ -127,7 +141,7 @@ describe('WorksheetsService.render', () => {
 
 describe('widthInCm', () => {
   it.each([
-    ['9cm', '9.00cm'], ['90mm', '9.00cm'], ['100%', '16.50cm'], ['378px', '10.00cm'], ['40cm', '16.50cm'],
+    ['9cm', '9.00cm'], ['90mm', '9.00cm'], ['100%', '16.50cm'], ['378px', '10.00cm'], ['22cm', '22.00cm'], ['40cm', '25.50cm'],
   ])('%s → %s', (w, cm) => expect(widthInCm(w)).toBe(cm));
   it('unbekannt → null', () => expect(widthInCm('breit')).toBeNull());
 });

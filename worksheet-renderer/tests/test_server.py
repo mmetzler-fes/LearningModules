@@ -303,6 +303,27 @@ class RendererTest(unittest.TestCase):
         widths = re.findall(r'style:family="table"[^>]*>\s*<style:table-properties[^>]*?style:width="([\d.]+)cm"', content)
         self.assertEqual(sorted(float(w) for w in widths), [22.0, 25.0, 25.0])
 
+    def test_bildgruppe(self):
+        """Bildgruppe: eine echte Gruppe (draw:g) im Textfluss, Bilder an ihrer Stelle in Prozent der Gruppe."""
+        import re
+        from PIL import Image
+        buf = io.BytesIO()
+        Image.new("RGB", (200, 100), "red").save(buf, "PNG")
+        png = base64.b64encode(buf.getvalue()).decode()
+        spec = {"content": [{"type": "group", "width": "16cm", "ratio": 0.5, "caption": "Zwei Bilder", "items": [
+            {"file": "a.png", "x": 0, "y": 0, "w": 50, "h": 50},
+            {"file": "b.png", "x": 50, "y": 50, "w": 50, "h": 50}]}]}
+        status, body = self.request("/render", {"spec": spec, "outputs": ["odt"], "files": {"a.png": png, "b.png": png}})
+        self.assertEqual(status, 200, body)
+        content = self.content_xml(body["files"]["odt"])
+        self.assertEqual(len(re.findall(r'<draw:g [^>]*text:anchor-type="as-char"', content)), 1)
+        frames = re.findall(r'draw:name="Bildgruppe1_\d"[^>]*', content)
+        self.assertEqual(len(frames), 2)
+        self.assertIn('svg:x="8.000cm"', frames[1])
+        self.assertIn('svg:y="4.000cm"', frames[1])
+        self.assertIn('svg:width="8.000cm"', frames[1])
+        self.assertIn("Zwei Bilder", content)
+
     # ---- Word nach .odt ----
 
     def test_umwandeln_nur_word(self):

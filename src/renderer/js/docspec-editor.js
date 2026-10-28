@@ -23,6 +23,8 @@ import { attachTableTools } from './table-tools.js';
 import { attachFormatTools } from './format-tools.js';
 import { openParagraphDialog } from './paragraph-dialog.js';
 import { objectEntries, objectName, copyText } from './object-actions.js';
+import { groupRow, ungroup, cmOf, GROUP_DEFAULT_WIDTH_CM } from '../lm-editor/src/doc/image-group.js';
+import { arrangeGroup } from './image-arrange.js';
 
 /** Startinhalt eines neuen Dokuments – zeigt das Format an einem Beispiel. */
 const STARTER = `content:
@@ -850,6 +852,16 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
       entries.push({ label: '🖼 Bild kopieren', hint: 'PNG', onClick: async () => tell(await copy(img)) },
         { label: '⬇ Bild speichern', onClick: async () => tell(await save(img)) }, '-');
     }
+    // Bildgruppe: anordnen, lösen; ein Bild mit den Bildern direkt danach gruppieren.
+    const groupWidget = widget && blockOf(widget)?.type === 'group' ? widget : null;
+    if (groupWidget) {
+      entries.push({ label: '✥ Anordnen …', hint: 'Enter', onClick: () => editWidget(groupWidget) },
+        { label: '⊟ Gruppierung lösen', onClick: () => ungroupWidget(groupWidget) }, '-');
+    }
+    const run = img ? imageRun(img) : null;
+    if (run && run.images.length > 1) {
+      entries.push({ label: `⊞ Mit den folgenden Bildern gruppieren (${run.images.length})`, onClick: () => groupImages(run) }, '-');
+    }
     if (handlers) {
       const edit = widget ? [{ label: '✏️ Bearbeiten', hint: 'Enter', onClick: () => editWidget(widget) }, '-'] : [];
       entries.push({ label: objectName(after), submenu: objectEntries(handlers, edit, { selectable: !!widget }) });
@@ -986,11 +998,90 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
     });
   };
 
-  /** Baustein als YAML bearbeiten (Lösung: editSolution). */
+  // ---- Bildgruppe (Baustein `group`, image-group.js) ----
+  /** Bilder im Absatz – nur, wenn er sonst nichts enthält. */
+  const imagesOfParagraph = (p) => {
+    if (p?.tagName !== 'P' || p.dataset.ds) return null;
+    const nodes = [...p.childNodes].filter((n) => !(n.nodeType === 3 && !n.textContent.trim()) && n.nodeName !== 'BR');
+    return nodes.length && nodes.every((n) => n.nodeName === 'IMG') ? nodes : null;
+  };
+  const isEmptyParagraph = (p) => p?.tagName === 'P' && !p.dataset.ds && !p.textContent.trim() && !p.querySelector('img');
+  /** Das Bild und die Bilder direkt danach (leere Zeilen dazwischen zählen nicht). */
+  const imageRun = (img) => {
+    const first = img.parentElement;
+    // Im Blatt, im Kasten oder in einer Spalte – nicht in Tabellenzellen.
+    const host = first.parentElement;
+    if (!imagesOfParagraph(first) || !(host === surface || host?.classList.contains('ws-box') || host?.matches('table.ws-columns > tbody > tr > td'))) return null;
+    const paragraphs = [first];
+    const images = imagesOfParagraph(first).slice(imagesOfParagraph(first).indexOf(img));
+    const skipped = [];
+    for (let n = first.nextElementSibling; n; n = n.nextElementSibling) {
+      if (isEmptyParagraph(n)) { skipped.push(n); continue; }
+      const imgs = imagesOfParagraph(n);
+      if (!imgs) break;
+      paragraphs.push(n, ...skipped.splice(0));
+      images.push(...imgs);
+    }
+    return { first, paragraphs, images };
+  };
+  const widgetNode = (block) => {
+    const tmp = document.createElement('div');
+    tmp.innerHTML = widgetHtml(block);
+    return tmp.firstElementChild;
+  };
+  const groupImages = ({ first, paragraphs, images }) => {
+    // Breite: die Bilder zusammen, wie sie jetzt im Blatt stehen – höchstens die Satzbreite.
+    const widthCm = images.reduce((sum, im) => sum + (cmOf(im.dataset.width, 0) || (im.width || im.naturalWidth || 200) / 37.8), 0);
+    const block = groupRow(images.map((im) => ({
+      src: im.getAttribute('src'),
+      alt: im.getAttribute('alt') || '',
+      source: im.dataset.source || '',
+      aspect: im.naturalWidth && im.naturalHeight ? im.naturalWidth / im.naturalHeight : (im.width && im.height ? im.width / im.height : 4 / 3),
+    })), Math.min(GROUP_DEFAULT_WIDTH_CM, widthCm || GROUP_DEFAULT_WIDTH_CM));
+    // Bilder vor dem gewählten im selben Absatz bleiben stehen.
+    const before = imagesOfParagraph(first).filter((im) => !images.includes(im));
+    const node = widgetNode(block);
+    if (before.length) first.after(node); else first.replaceWith(node);
+    paragraphs.forEach((p) => { if (p !== first || !before.length) p.remove(); else images.forEach((im) => im.remove()); });
+    selectWidget(node);
+    status.textContent = `⊞ ${images.length} Bilder gruppiert – „✥ Anordnen“ (Doppelklick) schiebt sie zurecht.`;
+  };
+  const ungroupWidget = (w) => {
+    const block = blockOf(w);
+    if (!block) return;
+    if (w === selectedWidget) selectWidget(null);
+    const tmp = document.createElement('div');
+    tmp.innerHTML = specToEditorHtml({ content: ungroup(block) });
+    w.replaceWith(...tmp.childNodes);
+    status.textContent = '⊟ Gruppierung gelöst – jedes Bild steht wieder für sich.';
+  };
+  const arrangeWidget = async (w, block) => {
+    const res = await arrangeGroup(block);
+    if (!res || !w.isConnected) return;
+    if (res.ungroup) {
+      if (w === selectedWidget) selectWidget(null);
+      const tmp = document.createElement('div');
+      tmp.innerHTML = specToEditorHtml({ content: res.ungroup });
+      w.replaceWith(...tmp.childNodes);
+      return;
+    }
+    const fresh = widgetNode(res.block);
+    if (w === selectedWidget) selectWidget(null);
+    w.replaceWith(fresh);
+    if (res.extracted.length) {
+      const tmp = document.createElement('div');
+      tmp.innerHTML = specToEditorHtml({ content: res.extracted });
+      fresh.after(...tmp.childNodes);
+    }
+    selectWidget(fresh);
+  };
+
+  /** Baustein als YAML bearbeiten (Lösung: editSolution, Bildgruppe: Anordnen). */
   const editWidget = (w) => {
     let block;
     try { block = JSON.parse(decodeURIComponent(w.dataset.block)); } catch (_) { return; }
     if (block.type === 'solution') { editSolution(w, block); return; }
+    if (block.type === 'group') { void arrangeWidget(w, block); return; }
     // Alter „Platz“: wird zum unsichtbaren Schreibfeld (gleiche Höhe ungefähr: eine Zeile ≈ 0,5 cm).
     if (block.type === 'spacer') block = { ...(block.id ? { id: block.id } : {}), type: 'karo', lines: Number.isInteger(block.lines) ? block.lines : 3, pattern: 'frei' };
     const overlay = document.createElement('div');

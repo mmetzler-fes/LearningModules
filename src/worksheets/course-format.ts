@@ -47,6 +47,7 @@ export class CourseFormatError extends Error {}
 
 /** Druckbreite der Grundvorlage in cm (Textbreite, 33 Karos à 0,5 cm). */
 const TEXT_WIDTH_CM = 16.5;
+const MAX_WIDTH_CM = 25.5;
 
 /** Breitenangabe der Web-Ansicht (9cm, 90mm, 50%, 300px) → cm für den Generator. */
 export function widthInCm(width: unknown): string | null {
@@ -54,7 +55,8 @@ export function widthInCm(width: unknown): string | null {
   if (!m) return null;
   const v = parseFloat(m[1]);
   const cm = m[2] === 'cm' ? v : m[2] === 'mm' ? v / 10 : m[2] === '%' ? (v / 100) * TEXT_WIDTH_CM : v / 37.8;
-  return `${Math.min(cm, TEXT_WIDTH_CM).toFixed(2)}cm`;
+  // Bis zur Satzbreite von A4 quer – der Renderer begrenzt auf die Seite der Vorlage.
+  return `${Math.min(cm, MAX_WIDTH_CM).toFixed(2)}cm`;
 }
 
 
@@ -195,6 +197,19 @@ function inlineFiles(blocks: any, search: string[], files: CourseFiles, folder: 
         }
       }
     }
+    // Bildgruppe: die Bilder darin ebenso (ohne Datei fallen sie heraus).
+    if (block.type === 'group' && Array.isArray(block.items)) {
+      const items = block.items.flatMap((it: any) => {
+        if (typeof it?.file !== 'string') return it?.src ? [it] : [];
+        const found = resolveFile(it.file, search, files);
+        const mime = found ? IMAGE_MIME[posix.extname(found.path).slice(1).toLowerCase()] : undefined;
+        if (!found || !mime) { warnings.push(`${folder}: Bild ${it.file} der Bildgruppe fehlt im ZIP.`); return []; }
+        const { file: _f, ...rest } = it;
+        return [{ ...rest, src: `data:${mime};base64,${found.data.toString('base64')}` }];
+      });
+      const width = String(block.width ?? '16.5').trim();
+      out = items.length ? { ...block, items, width: /^\d+(\.\d+)?$/.test(width) ? `${width}cm` : width } : { type: 'note', text: `[${block.caption || 'Bildgruppe'}]` };
+    }
     return Array.isArray(out.blocks) ? { ...out, blocks: inlineFiles(out.blocks, search, files, folder, warnings) } : out;
   });
 }
@@ -276,6 +291,19 @@ export function writeCourse(
           warnings.push(`${e.folder}: Bild ohne Datei (${String(b.src).slice(0, 60)}) – als Hinweis exportiert.`);
           out = { type: 'note', text: `[${b.caption || 'Bild'}]` };
         }
+      }
+      // Bildgruppe: jedes Bild als Datei; was keine Datei wird, fällt heraus.
+      if (b.type === 'group' && Array.isArray(b.items)) {
+        const items = b.items.flatMap((it: any) => {
+          const m = typeof it?.src === 'string' ? /^data:([^;,]+);base64,(.*)$/s.exec(it.src) : null;
+          const ext = m ? EXT[m[1].toLowerCase()] : undefined;
+          if (!m || !ext) return [];
+          const name = `bilder/bild-${++n}.${ext}`;
+          put(`${e.folder}/${name}`, Buffer.from(m[2], 'base64'));
+          return [{ file: name, x: it.x, y: it.y, w: it.w, h: it.h }];
+        });
+        if (items.length < b.items.length) warnings.push(`${e.folder}: Bildgruppe – ${b.items.length - items.length} Bild(er) ohne Datei weggelassen.`);
+        out = items.length ? { ...b, items, ...(b.width !== undefined ? { width: widthInCm(b.width) || '16.5cm' } : {}) } : { type: 'note', text: `[${b.caption || 'Bildgruppe'}]` };
       }
       return Array.isArray(out.blocks) ? { ...out, blocks: walk(out.blocks) } : out;
     }) : blocks);

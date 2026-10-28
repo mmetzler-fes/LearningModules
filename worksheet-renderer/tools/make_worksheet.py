@@ -57,7 +57,7 @@ from odf.style import (
     TableRowProperties,
     TextProperties,
 )
-from odf.draw import Frame, Image, Object, TextBox
+from odf.draw import Frame, G, Image, Object, TextBox
 from odf.table import CoveredTableCell, Table, TableCell, TableColumn, TableRow
 from odf.text import A, H, LineBreak, List, ListItem, ListLevelStyleBullet, ListLevelStyleNumber, ListStyle, P, S, Span
 
@@ -930,6 +930,35 @@ def image_frame(doc, block: dict[str, Any], search: list[Path], index: int, midd
     )
     frame.addElement(Image(href=href))
     return frame
+
+
+def group_frame(doc, block: dict[str, Any], search: list[Path], index: int) -> Element:
+    """Bildgruppe als echte Gruppe (draw:g) im Textfluss: Die Bilder bleiben
+    zueinander, wo sie sind; in LibreOffice wird sie als Ganzes verschoben,
+    „Gruppierung aufheben“ gibt die einzelnen Bilder frei. Größe wie ein Bild
+    (ganze Breite im Querformat, nie breiter als die Seite, nie zu hoch)."""
+    width = float(str(block.get("width", FULL_WIDTH_CM)).removesuffix("cm"))
+    ratio = float(block.get("ratio") or 0.6)
+    page = KARO_COLUMNS * KARO_CELL
+    width = page if abs(width - FULL_WIDTH_CM) < 0.05 and page > FULL_WIDTH_CM else min(width, page)
+    height = width * ratio
+    room = TEXT_HEIGHT_CM - 3.0
+    if height > room > 0:
+        width, height = width * room / height, room
+    group = G(name=f"Bildgruppe{index}", anchortype="as-char", zindex="0")
+    for n, item in enumerate(block.get("items") or [], start=1):
+        href = doc.addPicture(str(resolve_path(item["file"], search)))
+        frame = Frame(
+            name=f"Bildgruppe{index}_{n}",
+            x=f"{width * float(item['x']) / 100:.3f}cm",
+            y=f"{height * float(item['y']) / 100:.3f}cm",
+            width=f"{width * float(item['w']) / 100:.3f}cm",
+            height=f"{height * float(item['h']) / 100:.3f}cm",
+            zindex=str(n),
+        )
+        frame.addElement(Image(href=href))
+        group.addElement(frame)
+    return group
 
 
 # --------------------------------------------------------------------------
@@ -1987,7 +2016,7 @@ def keep_karo_with_question(elements: list[Element], doc, present: set[str]) -> 
 
     def is_picture(el: Element) -> bool:
         """Absatz mit einem Bild (draw:frame „Bild…“)."""
-        return el.qname[1] == "p" and any(getattr(c, "qname", ("", ""))[1] == "frame"
+        return el.qname[1] == "p" and any(getattr(c, "qname", ("", ""))[1] in ("frame", "g")
                                           and str(c.getAttribute("name") or "").startswith("Bild") for c in el.childNodes)
 
     def big(el: Element) -> bool:
@@ -2235,6 +2264,16 @@ def render_block_content(block: Any, styles: dict[str, str], ctx: dict[str, Any]
             para_style = ensure_align_style(ctx["doc"], ctx["present"], text_style, "center")
         para = P(stylename=keep_style(ctx, para_style) if block.get("caption") else para_style)
         para.addElement(image_frame(ctx["doc"], block, ctx["search"], ctx["image_index"]))
+        out.append(para)
+        if block.get("caption"):
+            cap = P(stylename=text_style)
+            cap.addElement(rich_span(styles["caption"], block["caption"]))
+            out.append(cap)
+
+    elif kind == "group":
+        ctx["image_index"] += 1
+        para = P(stylename=keep_style(ctx, text_style) if block.get("caption") else text_style)
+        para.addElement(group_frame(ctx["doc"], block, ctx["search"], ctx["image_index"]))
         out.append(para)
         if block.get("caption"):
             cap = P(stylename=text_style)

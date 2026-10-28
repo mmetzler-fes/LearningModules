@@ -258,6 +258,7 @@ export function docSpecToText(spec) {
         case 'code': out.push(`\`\`\`${b.caption ? ` ${b.caption}` : ''}`, String(b.code ?? ''), '```'); break;
         case 'formula': out.push(`Formel (StarMath): ${b.math ?? ''}`); break;
         case 'image': out.push(`[Abbildung${b.caption ? `: ${b.caption}` : ''}]`); break;
+        case 'group': out.push(`[Bildgruppe aus ${(b.items || []).length} Bildern${b.caption ? `: ${b.caption}` : ''}]`); break;
         case 'quiz': out.push(`[Eingebettetes Quiz${b.title ? `: ${b.title}` : ''}]`); break;
         case 'table': {
           const rows = Array.isArray(b.rows) ? b.rows : [];

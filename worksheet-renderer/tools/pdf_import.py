@@ -285,6 +285,87 @@ def _template_images(pages) -> set[tuple[int, ...]]:
     return {k for k, n in counts.items() if n >= max(3, 0.4 * len(pages))}
 
 
+def _photo_groups(elements: list[dict[str, Any]], figures: list[tuple[tuple[float, float, float, float], dict[str, Any]]],
+                  words: list[dict[str, Any]], taken: list[tuple[float, float, float, float]]) -> None:
+    """Fotos einer Folie, zwischen denen kein Text steht, werden eine Bildgruppe (`group`):
+    Sie bleiben zueinander, wo sie auf der Folie stehen, und lassen sich in der App
+    anordnen oder lösen. Schaubilder (mit `_fig`, als Zeichnung zu holen) bleiben für sich."""
+    photos = [(box, el) for box, el in figures if "_fig" not in el["block"]]
+    others = [box for box, el in figures if "_fig" in el["block"]] + list(taken)
+
+    def union(boxes):
+        return (min(b[0] for b in boxes), min(b[1] for b in boxes), max(b[2] for b in boxes), max(b[3] for b in boxes))
+
+    def overlaps(a, b) -> bool:
+        return a[0] < b[2] and b[0] < a[2] and a[1] < b[3] and b[1] < a[3]
+
+    def between(a, b) -> tuple[float, float, float, float] | None:
+        """Streifen zwischen zwei Bildern (Lücke in x bzw. y, so hoch bzw. breit wie ihre Überlappung)."""
+        gx0, gx1 = min(a[2], b[2]), max(a[0], b[0])
+        gy0, gy1 = min(a[3], b[3]), max(a[1], b[1])
+        apart_x, apart_y = gx0 < gx1, gy0 < gy1
+        if apart_x and apart_y:
+            return (gx0, gy0, gx1, gy1)
+        if apart_x:
+            return (gx0, max(a[1], b[1]), gx1, min(a[3], b[3]))
+        if apart_y:
+            return (max(a[0], b[0]), gy0, min(a[2], b[2]), gy1)
+        return None
+
+    def own_text(box, other) -> bool:
+        """Steht direkt über oder unter dem Bild Text, der nicht auch über bzw. unter dem anderen
+        steht (Überschrift, Unterschrift einer Spalte)? Die Fußzeile zählt nicht – sie ist klein."""
+        return any(float(wd.get("size") or 10) >= 9 and float(wd["x0"]) < box[2] and float(wd["x1"]) > box[0]
+                   and not (float(wd["x0"]) < other[2] and float(wd["x1"]) > other[0])
+                   and (0 <= float(wd["top"]) - box[3] <= 50 or 0 <= box[1] - float(wd["bottom"]) <= 50) for wd in words)
+
+    def text_between(a, b) -> bool:
+        r = between(a, b)
+        return r is not None and any(float(wd["x0"]) < r[2] and float(wd["x1"]) > r[0] and float(wd["top"]) < r[3] and float(wd["bottom"]) > r[1]
+                                     for wd in words)
+
+    def joinable(ca, cb) -> bool:
+        # Zwischen keinen zwei Bildern der beiden Gruppen steht Text, und nicht jedes hat seine eigene
+        # Überschrift (Spalten). Die ganze Gruppe deckt kein Schaubild, keine Tabelle und höchstens eine
+        # kurze Zeile Text (Untertitel neben einem Bild) – Fließtext neben den Bildern bleibt neben ihnen.
+        pairs = [(a, b) for a, _ in ca for b, _ in cb]
+        if any(text_between(a, b) for a, b in pairs) or all(own_text(a, b) and own_text(b, a) for a, b in pairs):
+            return False
+        boxes = [b for b, _ in ca + cb]
+        u = union(boxes)
+        loose = sum(1 for wd in words
+                    if overlaps(u, (float(wd["x0"]), float(wd["top"]), float(wd["x1"]), float(wd["bottom"])))
+                    and not any(_inside(wd, b, pad=0) for b in boxes))
+        return loose <= 4 and not any(overlaps(u, o) for o in others)
+
+    clusters = [[p] for p in photos]
+    changed = True
+    while changed:
+        changed = False
+        for i in range(len(clusters)):
+            for j in range(i + 1, len(clusters)):
+                if joinable(clusters[i], clusters[j]):
+                    clusters[i] += clusters.pop(j)
+                    changed = True
+                    break
+            if changed:
+                break
+    for members in clusters:
+        if len(members) < 2:
+            continue
+        ux0, ut, ux1, ub = union([b for b, _ in members])
+        uw, uh = ux1 - ux0, ub - ut
+        items = []
+        for (bx0, bt, bx1, bb), el in sorted(members, key=lambda m: (m[0][1], m[0][0])):
+            items.append({"src": el["block"]["src"],
+                          "x": round((bx0 - ux0) / uw * 100, 3), "y": round((bt - ut) / uh * 100, 3),
+                          "w": round((bx1 - bx0) / uw * 100, 3), "h": round((bb - bt) / uh * 100, 3)})
+            elements.remove(el)
+        elements.append({"kind": "block", "top": ut + 3, "bottom": ub - 3, "x0": ux0 + 3, "x1": ux1 - 3, "page": members[0][1]["page"],
+                         "block": {"type": "group", "width": _width_cm(ux0 + 3, ux1 - 3, SLIDE_WIDTH_CM),
+                                   "ratio": round(uh / uw, 4), "items": items}})
+
+
 def _page_elements(page, index: int, warnings: list[str], template: set[tuple[int, ...]] | None = None) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     """Elemente einer Seite (Zeilen, Tabellen, Bilder, Karo) und ihre Zeilen."""
     elements: list[dict[str, Any]] = []
@@ -431,6 +512,7 @@ def _page_elements(page, index: int, warnings: list[str], template: set[tuple[in
         groups = merge(groups, 4.0)
     absorbed: set[int] = set()
     figures: list[tuple[float, float, float, float]] = []
+    figure_elements: list[tuple[tuple[float, float, float, float], dict[str, Any]]] = []
     for x0, top, x1, bottom, n_img, n_shape in sorted(groups, key=lambda g: (g[1], g[0])):
         box = (x0 - 3, top - 3, x1 + 3, bottom + 3)
         inside = [wd for wd in all_words if id(wd) not in absorbed and _inside(wd, box, pad=0)]
@@ -462,8 +544,12 @@ def _page_elements(page, index: int, warnings: list[str], template: set[tuple[in
                 if r not in skip:
                     skip.append(r)
             block["_fig"] = {"page": index, "box": [round(v, 1) for v in box], "skip": skip}
-        elements.append({"kind": "block", "top": top, "bottom": bottom, "x0": x0, "x1": x1, "page": index, "block": block})
+        element = {"kind": "block", "top": top, "bottom": bottom, "x0": x0, "x1": x1, "page": index, "block": block}
+        elements.append(element)
+        figure_elements.append((box, element))
 
+    if w > 1.15 * h:
+        _photo_groups(elements, figure_elements, [wd for wd in all_words if id(wd) not in absorbed], taken)
     taken.extend(figures)
     # Text: alles außerhalb von Tabellen usw., was nicht als Beschriftung in einem Bild steckt.
     words = [wd for wd in all_words if id(wd) not in absorbed and not any(_inside(wd, t) for t in taken[:len(taken) - len(figures)])]

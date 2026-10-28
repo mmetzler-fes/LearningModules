@@ -159,6 +159,21 @@ content:
     border: true                # center: eigene Zeile, mittig
 ```
 
+```yaml
+  - type: group                 # Bildgruppe: Bilder an fester Stelle zueinander
+    width: 16.5cm               # wie ein Bild: 16,5 cm füllt im Querformat die Zeile
+    ratio: 0.45                 # Höhe ÷ Breite der Gruppe
+    caption: "Balkonkraftwerke" # optional, darunter
+    items:                      # Lage und Größe in Prozent der Gruppe
+      - {file: a.jpg, x: 0, y: 0, w: 48, h: 100}     # in der App: src statt file
+      - {file: b.jpg, x: 52, y: 10, w: 48, h: 80}
+```
+
+Im Druck ist die Bildgruppe eine echte Gruppe (`draw:g`, als Zeichen
+verankert): In LibreOffice als Ganzes zu verschieben, „Gruppierung aufheben“
+gibt die einzelnen Bilder frei. Breiter als die Seite und höher als eine
+Seite (mit Überschrift) wird sie nicht.
+
 Ein Bild mit `float: left/right` bildet mit den direkt folgenden Text-,
 Listen- und Hinweisblöcken eine randlose zweispaltige Gruppe – im Druck eine
 Tabelle, online nebeneinander. So kann nichts Nachfolgendes das Bild verdecken.

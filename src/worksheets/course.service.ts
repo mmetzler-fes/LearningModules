@@ -189,10 +189,14 @@ export class CourseService {
       if (!v || typeof v !== 'object') return v;
       const out: any = {};
       for (const [k, x] of Object.entries(v)) out[k] = await walk(x);
-      if (out.type === 'image' && typeof out.src === 'string' && /\/api\/nextcloud\//.test(out.src) && this.nextcloud) {
-        const file = await this.nextcloud.readImageByUrl(out.src).catch(() => null);
-        if (file) out.src = `data:${file.type};base64,${file.data.toString('base64')}`;
-      }
+      const inline = async (img: any) => {
+        if (typeof img?.src !== 'string' || !/\/api\/nextcloud\//.test(img.src) || !this.nextcloud) return;
+        const file = await this.nextcloud.readImageByUrl(img.src).catch(() => null);
+        if (file) img.src = `data:${file.type};base64,${file.data.toString('base64')}`;
+      };
+      if (out.type === 'image') await inline(out);
+      // Bildgruppe: die Bilder darin ebenso.
+      if (out.type === 'group' && Array.isArray(out.items)) for (const it of out.items) await inline(it);
       return out;
     };
     return walk(spec);

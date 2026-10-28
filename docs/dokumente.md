@@ -31,6 +31,17 @@ Der Editor startet im Modus **✏️ Bearbeiten** – wie ein Textprogramm:
   als PNG in die Zwischenablage – eine SVG-Zeichnung zusätzlich als SVG –, zum
   Einfügen in LibreOffice Draw, Word oder OneNote; **⬇** speichert es als
   Datei in der Originalform.
+- **⊞ Bildgruppe:** Rechtsklick auf ein Bild → **Mit den folgenden Bildern
+  gruppieren** fasst es mit den Bildern direkt darunter zusammen (zunächst
+  gleich hoch nebeneinander). Eine Bildgruppe hält ihre Bilder an fester
+  Stelle zueinander – im Druck ist sie eine **echte Gruppe in LibreOffice**
+  (als Ganzes verschieben; „Gruppierung aufheben“ gibt die Bilder frei).
+  Doppelklick bzw. Rechtsklick → **✥ Anordnen** öffnet den Dialog: Bilder
+  ziehen, an der Ecke größer oder kleiner ziehen, mit den Pfeiltasten fein
+  schieben, **Breite** skaliert alles gemeinsam, dazu **Als Reihe**, **Nach
+  vorn/hinten**, **Aus der Gruppe lösen** (das Bild kommt hinter die Gruppe)
+  und eine Unterschrift. Die Gruppe ist immer so groß wie ihre Bilder
+  zusammen. **⊟ Gruppierung lösen** macht wieder einzelne Bilder daraus.
 - Klappmenüs wie in Google Docs:
   - **A▾ Textfarbe** (blau, grün, orange, lila, grau – kein Rot, das heißt
     „Lösung“) und **🖍▾ Hervorheben** (gelb, grün, blau, rosa); im YAML
@@ -181,7 +192,11 @@ Schaubild zusammen, auch wenn das PDF es in viele Teile zerlegt hat (z. B.
 eine PowerPoint-Präsentation über „Microsoft Print to PDF“). Titel,
 Aufzählungen und Fließtext daneben bleiben bearbeitbarer Text. Bei Folien
 (Querformat) gilt: rote Titel sind Gestaltung, keine Lösung; Logo und
-Fußzeile der Vorlage fallen weg.
+Fußzeile der Vorlage fallen weg. **Fotos einer Folie**, zwischen denen kein
+Text steht, werden eine **Bildgruppe** – so wie sie auf der Folie
+zueinander stehen; im Editor lassen sie sich anordnen oder lösen. Hat jedes
+Foto seine eigene Überschrift oder Unterschrift (Spalten), bleiben sie
+einzeln; Schaubilder (mit Pfeilen, Beschriftungen …) bleiben für sich.
 
 **🖍 Schaubilder als bearbeitbare Zeichnung** (Häkchen im Importdialog, nur
 bei „Text mit Struktur“, braucht eine verbundene Nextcloud und ein eigenes

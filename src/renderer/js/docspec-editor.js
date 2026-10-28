@@ -840,6 +840,13 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
     const table = widget ? null : tableTools.menuFor(e.target);
     // Das Element unter der Maus als Ganzes – eine Tabelle hat es schon unter „Tabelle ▸“.
     const handlers = after && !(after.tagName === 'TABLE' && table) ? objectHandlersOf(after) : null;
+    // Rechtsklick auf ein Bild: es weitergeben (LibreOffice Draw, Word …) – als Bild, nicht als YAML.
+    const img = e.target.tagName === 'IMG' && surface.contains(e.target) ? e.target : null;
+    if (img && window.appImageClipboard) {
+      const { copy, save, tell } = window.appImageClipboard;
+      entries.push({ label: '🖼 Bild kopieren', hint: 'PNG', onClick: async () => tell(await copy(img)) },
+        { label: '⬇ Bild speichern', onClick: async () => tell(await save(img)) }, '-');
+    }
     if (handlers) {
       const edit = widget ? [{ label: '✏️ Bearbeiten', hint: 'Enter', onClick: () => editWidget(widget) }, '-'] : [];
       entries.push({ label: objectName(after), submenu: objectEntries(handlers, edit, { selectable: !!widget }) });

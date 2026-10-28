@@ -26,7 +26,11 @@ Der Editor startet im Modus **✏️ Bearbeiten** – wie ein Textprogramm:
   Zeile ein Listenpunkt). Aus einer Liste heraus werden die markierten Punkte
   wieder Absätze der gewählten Art. Im Editor steht vor einem Abschnitt ein **§**.
 - **Fett, kursiv, unterstrichen, durchgestrichen, hoch/tief**, Links,
-  **🖼 Bild** (Größe, Lage, Rahmen per Klick aufs Bild).
+  **🖼 Bild** (Größe, Lage, Rahmen per Klick aufs Bild). **📋 Kopieren** in der
+  Bildleiste (oder Rechtsklick aufs Bild → **🖼 Bild kopieren**) legt das Bild
+  als PNG in die Zwischenablage – eine SVG-Zeichnung zusätzlich als SVG –, zum
+  Einfügen in LibreOffice Draw, Word oder OneNote; **⬇** speichert es als
+  Datei in der Originalform.
 - Klappmenüs wie in Google Docs:
   - **A▾ Textfarbe** (blau, grün, orange, lila, grau – kein Rot, das heißt
     „Lösung“) und **🖍▾ Hervorheben** (gelb, grün, blau, rosa); im YAML

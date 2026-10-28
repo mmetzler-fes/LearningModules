@@ -24,6 +24,89 @@
   ];
   const LAYOUT_CLASSES = LAYOUTS.map((l) => l.cls).filter(Boolean);
 
+  // ---- Bild weitergeben (LibreOffice Draw, Office …) ----
+
+  /** Bilddaten der Quelle als Blob (data:, eigene /api-Adresse oder erlaubte fremde). */
+  async function imageBlob(img) {
+    const res = await fetch(img.currentSrc || img.src);
+    if (!res.ok) throw new Error('Das Bild ließ sich nicht laden.');
+    return res.blob();
+  }
+
+  /** Bild als PNG (Zeichnung in Originalgröße, Foto in seiner Auflösung). */
+  async function pngBlob(img) {
+    const blob = await imageBlob(img);
+    if (blob.type === 'image/png') return blob;
+    const url = URL.createObjectURL(blob);
+    try {
+      const pic = await new Promise((resolve, reject) => {
+        const i = new Image();
+        i.onload = () => resolve(i);
+        i.onerror = () => reject(new Error('Das Bild ließ sich nicht umwandeln.'));
+        i.src = url;
+      });
+      // SVG ohne feste Größe: in brauchbarer Auflösung zeichnen.
+      const scale = blob.type === 'image/svg+xml' ? Math.max(1, 1600 / Math.max(pic.naturalWidth || 1, 1)) : 1;
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.round((pic.naturalWidth || 800) * scale);
+      canvas.height = Math.round((pic.naturalHeight || 600) * scale);
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#fff'; // JPEG/SVG ohne Hintergrund wären sonst durchsichtig bzw. schwarz
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(pic, 0, 0, canvas.width, canvas.height);
+      return await new Promise((resolve, reject) => canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('Umwandeln fehlgeschlagen.'))), 'image/png'));
+    } finally {
+      URL.revokeObjectURL(url);
+    }
+  }
+
+  /**
+   * Bild in die Zwischenablage: PNG (das nehmen alle Programme), bei einer
+   * SVG-Zeichnung zusätzlich das SVG, wo der Browser es erlaubt. Ergebnis:
+   * Meldung für die Statuszeile.
+   */
+  async function copyImage(img) {
+    if (!navigator.clipboard?.write || typeof ClipboardItem === 'undefined') {
+      return { ok: false, message: 'Dieser Browser kann keine Bilder kopieren – bitte „⬇ Speichern“ nehmen.' };
+    }
+    // Den Blob als Zusage übergeben: Safari verlangt den Aufruf direkt im Klick.
+    const png = pngBlob(img);
+    try {
+      let svg = null;
+      if (/^data:image\/svg\+xml|\.svg(\?|$)/i.test(img.getAttribute('src') || '') && ClipboardItem.supports?.('image/svg+xml')) svg = imageBlob(img);
+      await navigator.clipboard.write([new ClipboardItem(svg ? { 'image/png': png, 'image/svg+xml': svg } : { 'image/png': png })]);
+      return { ok: true, message: '📋 Bild kopiert – in LibreOffice Draw, Word, OneNote … mit Strg+V einfügen.' };
+    } catch (err) {
+      return { ok: false, message: `Kopieren ging nicht (${err.message || 'kein Zugriff'}) – bitte „⬇ Speichern“ nehmen.` };
+    }
+  }
+
+  /** Bild als Datei speichern – in der Originalform (SVG bleibt SVG, Foto bleibt JPEG). */
+  async function saveImage(img) {
+    try {
+      const blob = await imageBlob(img);
+      const ext = { 'image/svg+xml': 'svg', 'image/jpeg': 'jpg', 'image/gif': 'gif', 'image/webp': 'webp' }[blob.type] || 'png';
+      const base = (img.getAttribute('alt') || 'Bild').replace(/[\\/:*?"<>|]+/g, ' ').trim().slice(0, 60) || 'Bild';
+      const url = URL.createObjectURL(blob);
+      const a = Object.assign(document.createElement('a'), { href: url, download: `${base}.${ext}` });
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 5000);
+      return { ok: true, message: `⬇ Gespeichert als ${base}.${ext}` };
+    } catch (err) {
+      return { ok: false, message: err.message || 'Speichern ging nicht.' };
+    }
+  }
+
+  /** Meldung zeigen – in der App als Hinweis, sonst im Titel des Knopfs. */
+  function tell(result) {
+    if (window.appToast) window.appToast(result.message, result.ok ? 'success' : 'error');
+  }
+
+  // Auch für den Dokument-Editor (Rechtsklick auf ein Bild).
+  window.appImageClipboard = { copy: copyImage, save: saveImage, tell };
+
   /** Datei → data:-URL; Fotos über MAX_EDGE werden verkleinert. */
   function readImage(file) {
     return new Promise((resolve, reject) => {
@@ -229,6 +312,8 @@
           <button type="button" class="rt-btn ws-up" title="Einen Absatz nach oben">▲</button>
           <button type="button" class="rt-btn ws-down" title="Einen Absatz nach unten">▼</button>
           <button type="button" class="rt-btn ws-draw hidden" title="Die Zeichnung als .odg in LibreOffice Draw bearbeiten (Nextcloud)">🖍 In Draw bearbeiten</button>
+          <button type="button" class="rt-btn ws-copy" title="Bild in die Zwischenablage – z. B. für LibreOffice Draw, Word, OneNote">📋 Kopieren</button>
+          <button type="button" class="rt-btn ws-save" title="Bild als Datei speichern (SVG bleibt SVG)">⬇</button>
           <button type="button" class="rt-btn ws-replace" title="Anderes Bild an derselben Stelle">⟳ Ersetzen</button>
           <button type="button" class="rt-btn ws-delete" title="Bild löschen (Entf)">🗑</button>
           <button type="button" class="rt-btn ws-close" title="Auswahl aufheben (Esc)">✕</button>
@@ -257,6 +342,8 @@
       panel.querySelector('.ws-up').addEventListener('click', () => this.move(-1));
       panel.querySelector('.ws-down').addEventListener('click', () => this.move(1));
       panel.querySelector('.ws-replace').addEventListener('click', () => this.replace());
+      panel.querySelector('.ws-copy').addEventListener('click', async () => { if (this.selected) tell(await copyImage(this.selected)); });
+      panel.querySelector('.ws-save').addEventListener('click', async () => { if (this.selected) tell(await saveImage(this.selected)); });
       // Zeichnung mit Quelle (.odg in der Nextcloud): Übersicht der App (views/drawings-dialog.js).
       panel.querySelector('.ws-draw').addEventListener('click', () => {
         const img = this.selected;

@@ -119,7 +119,7 @@ INLINE_RE = re.compile(
     r"|\^\{(?P<sup>[^}]{1,40})\}"
     r"|_\{(?P<sub>[^}]{1,24})\}"
     r"|\[(?P<atext>[^\]\n]+)\]\((?P<href>(?:https?://|mailto:)[^)\s]+)\)"
-    r"|\[(?P<ctext>[^\]\n]+)\]\{(?P<color>[a-z-]+(?:,[a-z-]+)?)\}"
+    r"|\[(?P<ctext>[^\]\n]+)\]\{(?P<color>[a-z0-9-]+(?:,[a-z0-9-]+){0,2})\}"
 )
 # Farben im Text ([Text]{blau,hl-gelb}) – wie docspec.js; kein Rot (rot = Lösung).
 TEXT_COLORS = {"blau": "#1d4ed8", "gruen": "#15803d", "orange": "#c2410c", "lila": "#7e22ce", "grau": "#6b7280"}
@@ -454,27 +454,35 @@ def inline_style(kind: str) -> str:
     return name
 
 
-def color_spec(spec: str) -> tuple[str | None, str | None]:
-    """„blau,hl-gelb“ → (Schriftfarbe, Hintergrund) als #hex – unbekannte Namen fallen weg."""
-    color = hl = None
+# Schriftgrößen im Text ([Text]{14pt}) – wie docspec.js FONT_SIZES.
+FONT_SIZES = (8, 9, 10, 11, 12, 14, 16, 18, 20, 24, 28, 32, 36)
+
+
+def color_spec(spec: str) -> tuple[str | None, str | None, int | None] | None:
+    """„blau,hl-gelb,14pt“ → (Schriftfarbe, Hintergrund als #hex, Größe in pt) – Unbekanntes fällt weg."""
+    color = hl = size = None
     for part in spec.split(","):
         if part.startswith("hl-") and part[3:] in HIGHLIGHTS:
             hl = HIGHLIGHTS[part[3:]]
         elif part in TEXT_COLORS:
             color = TEXT_COLORS[part]
-    return (color, hl) if color or hl else None
+        elif re.fullmatch(r"\d{1,2}pt", part) and int(part[:-2]) in FONT_SIZES:
+            size = int(part[:-2])
+    return (color, hl, size) if color or hl or size else None
 
 
-def color_style(spec: tuple[str | None, str | None]) -> str:
-    """Zeichenvorlage für Farbe und Hervorhebung – erst bei Bedarf."""
-    color, hl = spec
-    name = "AB_Farbe_" + (color or "x").lstrip("#") + "_" + (hl or "x").lstrip("#")
+def color_style(spec: tuple[str | None, str | None, int | None]) -> str:
+    """Zeichenvorlage für Farbe, Hervorhebung und Größe – erst bei Bedarf."""
+    color, hl, size = spec
+    name = "AB_Farbe_" + (color or "x").lstrip("#") + "_" + (hl or "x").lstrip("#") + (f"_{size}pt" if size else "")
     if name not in _inline["present"]:
         props = {}
         if color:
             props["color"] = color
         if hl:
             props["backgroundcolor"] = hl
+        if size:
+            props["fontsize"] = f"{size}pt"
         style = Style(name=name, family="text")
         style.addElement(TextProperties(**props))
         _inline["doc"].automaticstyles.addElement(style)

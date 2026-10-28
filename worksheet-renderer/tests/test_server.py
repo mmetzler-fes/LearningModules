@@ -324,6 +324,17 @@ class RendererTest(unittest.TestCase):
         self.assertIn('svg:width="8.000cm"', frames[1])
         self.assertIn("Zwei Bilder", content)
 
+    def test_schriftgroessen_im_text(self):
+        """[Text]{14pt} und mit Farbe – eigene Zeichenvorlage mit fo:font-size; unbekannte Größe bleibt wörtlich."""
+        spec = {"content": [{"type": "text", "text": "Klein [gross]{14pt} und [bunt]{blau,hl-gelb,24pt} und [nein]{22pt}"}]}
+        status, body = self.request("/render", {"spec": spec, "outputs": ["odt"]})
+        self.assertEqual(status, 200, body)
+        content = self.content_xml(body["files"]["odt"])
+        self.assertIn('fo:font-size="14pt"', content)
+        self.assertIn('fo:font-size="24pt"', content)
+        self.assertIn("[nein]{22pt}", content)
+        self.assertNotIn("[gross]", content)
+
     def test_zeichenrahmen_textfenster_und_lage(self):
         """Textfenster als Form mit Text in der Gruppe (Schrift der Vorlage, Größe, Farbe); Rahmen rechtsbündig."""
         import re

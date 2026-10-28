@@ -116,7 +116,7 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
               ['superscript', 'x²', 'Hochgestellt'], ['subscript', 'x₂', 'Tiefgestellt']]
               .map(([cmd, label, title]) => `<button type="button" class="rt-btn" data-cmd="${cmd}" title="${title}">${label}</button>`).join('')}
             <span class="ds-tb-sep"></span>
-            ${[['color', '<span class="ds-dd-a">A</span>', 'Textfarbe'], ['hl', '🖍', 'Hervorheben'], ['align', '≡', 'Ausrichtung (auch Blocksatz)'],
+            ${[['size', '<span class="ds-dd-size">pt</span>', 'Schriftgröße'], ['color', '<span class="ds-dd-a">A</span>', 'Textfarbe'], ['hl', '🖍', 'Hervorheben'], ['align', '≡', 'Ausrichtung (auch Blocksatz)'],
               ['lh', '↕≡', 'Zeilenabstand'], ['ul', '•≡', 'Aufzählung: Punkt, Strich, Pfeil, Quadrat, Checkliste'], ['ol', '1≡', 'Nummerierung: 1. / a) / i.']]
               .map(([dd, label, title]) => `<button type="button" class="rt-btn ds-dd" data-dd="${dd}" title="${title}">${label}<span class="ds-dd-caret">▾</span></button>`).join('')}
             <button type="button" class="rt-btn" data-fmt="outdent" title="Einzug verkleinern">⇤|</button>

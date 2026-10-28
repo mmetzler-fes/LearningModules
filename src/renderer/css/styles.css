@@ -3791,6 +3791,7 @@ body {
 .ds-vtoolbar .ds-dd { display: inline-flex; align-items: center; gap: 1px; }
 .ds-vtoolbar .ds-dd-caret { font-size: 0.7em; opacity: 0.7; }
 .ds-vtoolbar .ds-dd-a { font-weight: 700; border-bottom: 3px solid #1d4ed8; line-height: 1; }
+.ds-vtoolbar .ds-dd-size { font-size: 0.8em; font-weight: 700; }
 /* Tabellenleiste (table-tools.js): eigene Zeile in der haftenden Leiste, nur in einer Tabelle sichtbar */
 .ds-tablebar { flex-basis: 100%; display: flex; flex-wrap: wrap; gap: 2px 4px; align-items: center; padding: 3px 0 0; border-top: 1px solid var(--border); margin-top: 2px; font-size: 0.85em; }
 .ds-tablebar[hidden] { display: none; }

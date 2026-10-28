@@ -1,12 +1,12 @@
 import { showContextMenu } from '../lm-editor/src/util/dom.js';
-import { TEXT_COLORS, HIGHLIGHTS } from '../lm-editor/src/doc/docspec.js';
+import { TEXT_COLORS, HIGHLIGHTS, FONT_SIZES, BASE_FONT_PT } from '../lm-editor/src/doc/docspec.js';
 
 // ==================== FORMATLEISTE (WIE IN GOOGLE DOCS) ====================
 //
-// Klappmenüs der Editorleiste: Textfarbe, Hervorhebung, Ausrichtung (mit
+// Klappmenüs der Editorleiste: Schriftgröße, Textfarbe, Hervorhebung, Ausrichtung (mit
 // Blocksatz), Zeilenabstand, Aufzählungs- und Nummerierungsart, dazu Einzug
 // und „Formatierung löschen“. Alles ändert nur das HTML der Schreibfläche –
-// docspec-html.js liest es zurück: Farben als [Text]{blau,hl-gelb}, Absätze
+// docspec-html.js liest es zurück: Farben und Größen als [Text]{blau,hl-gelb,14pt}, Absätze
 // mit data-indent / data-lh, Listen mit data-marker / data-numbering.
 
 const COLOR_NAMES = { blau: '🟦 Blau', gruen: '🟩 Grün', orange: '🟧 Orange', lila: '🟪 Lila', grau: '⬜ Grau' };
@@ -169,12 +169,79 @@ export function attachFormatTools(toolbar, surface, { tableTools, currentBlock }
     if (kind) list.dataset[key] = kind; else delete list.dataset[key];
   };
 
+  /**
+   * Schriftgröße der Auswahl (pt aus FONT_SIZES, 0 = wie die Vorlage). Der Browser
+   * kennt nur die alten Größen 1–7: Er setzt <font size="7">, das hier zur Spanne
+   * mit data-size wird; innere Größen fallen dabei weg.
+   */
+  const setSize = (pt) => {
+    const sel = document.getSelection();
+    if (!sel?.rangeCount || sel.isCollapsed || !surface.contains(sel.anchorNode)) return;
+    try { document.execCommand('styleWithCSS', false, false); } catch (_) { /* älterer Browser */ }
+    document.execCommand('fontSize', false, '7');
+    const marks = [...surface.querySelectorAll('font[size="7"]')];
+    let first = null;
+    let last = null;
+    for (const f of marks) {
+      // Deckt die Auswahl eine schon gesetzte Größe ganz ab, wird diese geändert (bzw. entfernt).
+      const host = f.parentElement?.closest('[data-size]');
+      if (host && surface.contains(host) && host.textContent.trim() === f.textContent.trim()) {
+        const nodes = [...f.childNodes];
+        f.replaceWith(...nodes);
+        if (pt) {
+          host.dataset.size = String(pt);
+          host.style.fontSize = `${Math.round((pt / BASE_FONT_PT) * 1000) / 1000}em`;
+        } else {
+          delete host.dataset.size;
+          host.style.removeProperty('font-size');
+          if (!host.dataset.color && !host.dataset.hl && !host.getAttribute('style')?.trim()) host.replaceWith(...host.childNodes);
+        }
+        first ||= nodes[0];
+        last = nodes[nodes.length - 1] || last;
+        continue;
+      }
+      f.querySelectorAll('[data-size], [style*="font-size"]').forEach((x) => {
+        delete x.dataset.size;
+        x.style.removeProperty('font-size');
+        if (!x.getAttribute('style')) x.removeAttribute('style');
+        if (x.tagName === 'SPAN' && !x.attributes.length) x.replaceWith(...x.childNodes);
+      });
+      const nodes = [...f.childNodes];
+      if (pt) {
+        const span = document.createElement('span');
+        span.className = 'ds-color';
+        span.dataset.size = String(pt);
+        span.style.fontSize = `${Math.round((pt / BASE_FONT_PT) * 1000) / 1000}em`;
+        span.append(...nodes);
+        f.replaceWith(span);
+        first ||= span;
+        last = span;
+      } else {
+        f.replaceWith(...nodes);
+        first ||= nodes[0];
+        last = nodes[nodes.length - 1] || last;
+      }
+    }
+    // Die Auswahl bleibt auf dem Text – so lässt sich gleich weiter ändern.
+    if (first && last && first.isConnected && last.isConnected) {
+      const r = document.createRange();
+      r.setStartBefore(first);
+      r.setEndAfter(last);
+      sel.removeAllRanges();
+      sel.addRange(r);
+    }
+  };
+
   const align = (dir) => {
     if (dir !== 'justify' && tableTools.align(dir)) return;
     exec({ left: 'justifyLeft', center: 'justifyCenter', right: 'justifyRight', justify: 'justifyFull' }[dir]);
   };
 
   const menus = {
+    size: () => [
+      { label: 'Standard (wie die Vorlage)', onClick: () => setSize(0) }, '-',
+      ...FONT_SIZES.map((pt) => ({ label: `${pt} pt`, onClick: () => setSize(pt) })),
+    ],
     color: () => [
       ...Object.entries(COLOR_NAMES).map(([k, label]) => ({ label, onClick: () => exec('foreColor', TEXT_COLORS[k]) })),
       '-', { label: '✕ Automatisch (schwarz)', onClick: () => exec('foreColor', '#000000') },

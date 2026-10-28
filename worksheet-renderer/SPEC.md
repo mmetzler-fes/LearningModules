@@ -188,6 +188,9 @@ der Schrift der Vorlage. In LibreOffice als Ganzes zu verschieben,
 als eine Seite (mit Überschrift) wird er nicht; die Schrift der Textfenster
 wächst bzw. schrumpft dabei mit.
 
+Im Text: `[Text]{14pt}` setzt die Schriftgröße (8, 9, 10, 11, 12, 14, 16, 18, 20,
+24, 28, 32, 36 pt), auch zusammen mit Farbe und Hervorhebung: `[Text]{blau,hl-gelb,14pt}`.
+
 Bilder (`image`) ohne `float` haben `align: left | center | right` (eigene
 Zeile); ohne Angabe stehen sie wie der Text der Vorlage.
 

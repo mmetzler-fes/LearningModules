@@ -52,6 +52,11 @@ Der Editor startet im Modus **✏️ Bearbeiten** – wie ein Textprogramm:
   dazu: neben dem Text links bzw. rechts, eigene Zeile mittig oder **⇥ eigene
   Zeile rechts**.
 - Klappmenüs wie in Google Docs:
+  - **pt▾ Schriftgröße** für den markierten Text: 8, 9, 10, 11, 12, 14, 16, 18,
+    20, 24, 28, 32, 36 pt oder „Standard (wie die Vorlage)“; im YAML
+    `[Text]{14pt}`, mit Farbe `[Text]{blau,14pt}`. Im Druck genau diese Größe,
+    in der Ansicht relativ zur Grundschrift (wächst mit A−/A+). Dieselben Größen
+    gibt es für Textfenster im Zeichenrahmen und Texte im Stift-Editor.
   - **A▾ Textfarbe** (blau, grün, orange, lila, grau – kein Rot, das heißt
     „Lösung“) und **🖍▾ Hervorheben** (gelb, grün, blau, rosa); im YAML
     `[Text]{blau}`, `[Text]{hl-gelb}`, beides `[Text]{blau,hl-gelb}`.

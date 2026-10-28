@@ -8,7 +8,7 @@
 // „Breite“ skaliert alles gemeinsam – auch die Schrift.
 
 import { toCm, fromCm, groupRow, ungroup, GROUP_MAX_WIDTH_CM } from '../lm-editor/src/doc/image-group.js';
-import { FRAME_FILLS, FRAME_TEXT_COLORS, isTextItem, richText } from '../lm-editor/src/doc/docspec.js';
+import { FRAME_FILLS, FRAME_TEXT_COLORS, FONT_SIZES, isTextItem, richText } from '../lm-editor/src/doc/docspec.js';
 import { escapeHtml } from './utils.js';
 
 const STEP = 0.1; // cm – Raster beim Ziehen und für die Pfeiltasten
@@ -52,7 +52,8 @@ export function arrangeGroup(block) {
         <div class="ig-text-form" hidden>
           <textarea class="ig-text" rows="2" placeholder="Text – **fett**, *kursiv*, [farbig]{blau}"></textarea>
           <div class="ds-field-form">
-            <label>Schrift <input type="number" class="ig-tsize" min="4" max="72" step="0.5"> pt</label>
+            <label>Schrift <input type="number" class="ig-tsize" min="4" max="72" step="0.5" list="ig-sizes"> pt</label>
+            <datalist id="ig-sizes">${FONT_SIZES.map((pt) => `<option value="${pt}"></option>`).join('')}</datalist>
             <label>Ausrichtung <select class="ig-talign"><option value="left">links</option><option value="center">mittig</option><option value="right">rechts</option></select></label>
             <label>Farbe <select class="ig-tcolor"><option value="">schwarz</option>${Object.keys(FRAME_TEXT_COLORS).map((k) => `<option value="${k}">${FILL_NAMES[k] || k}</option>`).join('')}</select></label>
             <label><input type="checkbox" class="ig-tborder"> Rand</label>

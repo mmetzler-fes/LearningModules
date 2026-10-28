@@ -409,6 +409,18 @@ def export_pdf_figures(job: dict[str, Any], slot: int) -> dict[str, Any]:
             raise RenderFailed(f"Kein lesbares PDF ({e})", []) from e
         spec = [{"id": str(f.get("id") or f"f{i}"), "page": 0, "box": f.get("box"), "skip": f.get("skip") or []}
                 for i, f in enumerate(figures[:50], start=1) if isinstance(f, dict) and isinstance(f.get("box"), list)]
+        # Zu Kreis, Pfeil … beschnittene Bilder: pdfium zeichnet sie einzeln (LibreOffice ließe das Rechteck stehen).
+        try:
+            if str(GEN / "tools") not in sys.path:
+                sys.path.insert(0, str(GEN / "tools"))
+            from pdf_clips import clipped_images
+            boxes = [[float(v) for v in f["box"]] for f in spec]
+            patches = clipped_images(root / "seite.pdf", 0, boxes, root / "clips")
+            for f in spec:
+                f["patches"] = [q for q in patches if q["box"][0] >= f["box"][0] - 6 and q["box"][1] >= f["box"][1] - 6
+                                and q["box"][2] <= f["box"][2] + 6 and q["box"][3] <= f["box"][3] + 6]
+        except Exception as e:  # noqa: BLE001 – dann wie bisher
+            sys.stderr.write(f"Beschnittene Bilder nicht gezeichnet: {e}\n")
         (root / "bereiche.json").write_text(json.dumps(spec), encoding="utf-8")
         out = root / "out"
         try:

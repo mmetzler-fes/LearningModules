@@ -5,9 +5,11 @@ Aufruf (mit dem Python von LibreOffice bzw. python3-uno):
 
     python3 pdf_figures.py eingabe.pdf ausgabe-ordner profil-ordner bereiche.json
 
-``bereiche.json``: ``[{"id": "f1", "page": 0, "box": [x0, top, x1, bottom], "skip": [[…], …]}]`` –
-Seite ab 0, Rechtecke in pt von oben links, wie sie der Import (pdf_import.py,
-``_fig``) liefert; ``skip``: was im Rechteck liegt, aber nicht dazugehört.
+``bereiche.json``: ``[{"id": "f1", "page": 0, "box": [x0, top, x1, bottom], "skip": [[…], …],
+"patches": [{"box": […], "png": "…"}]}]`` – Seite ab 0, Rechtecke in pt von oben links, wie
+sie der Import (pdf_import.py, ``_fig``) liefert; ``skip``: was im Rechteck liegt, aber nicht
+dazugehört; ``patches``: beschnittene Bilder als PNG (pdf_clips.py) – sie ersetzen das
+rechteckige Bild, das LibreOffice ohne den Beschneidungspfad übernimmt.
 
 LibreOffice öffnet das PDF in Draw: Text wird zu Textformen, Linien und
 Flächen zu Vektorformen, Bilder bleiben Bilder – alles an seiner Stelle. Je
@@ -59,6 +61,32 @@ def shapes_in(page, box: list[float], skip: list[list[float]] | None = None) -> 
             continue
         found.append(s)
     return found
+
+
+def apply_patches(smgr, ctx, shapes: list, patches: list[dict]) -> int:
+    """Bilder, die im PDF zu Kreis, Pfeil … beschnitten sind, durch das PNG von pdfium
+    ersetzen (gleiche Lage ± 1,5 pt; gleiche Lage zweimal: der Reihe nach)."""
+    if not patches:
+        return 0
+    provider = smgr.createInstanceWithContext("com.sun.star.graphic.GraphicProvider", ctx)
+    free = list(patches)
+    done = 0
+    for s in shapes:
+        if not s.getShapeType().endswith("GraphicObjectShape"):
+            continue
+        p, z = s.getPosition(), s.getSize()
+        box = (p.X / PT, p.Y / PT, (p.X + z.Width) / PT, (p.Y + z.Height) / PT)
+        match = next((q for q in free if all(abs(a - b) <= 1.5 for a, b in zip(box, q["box"]))), None)
+        if match is None:
+            continue
+        try:
+            graphic = provider.queryGraphic((prop("URL", Path(match["png"]).resolve().as_uri()),))
+            s.setPropertyValue("Graphic", graphic)
+            free.remove(match)
+            done += 1
+        except Exception:  # noqa: BLE001 – dieses Bild bleibt, wie es ist
+            continue
+    return done
 
 
 def figure_to_files(smgr, ctx, desktop, doc, shapes: list, odg: Path, svg: Path) -> tuple[float, float]:
@@ -130,6 +158,7 @@ def export(src: Path, out: Path, profile: Path, figures: list[dict]) -> dict:
                     shapes = shapes_in(page, fig["box"], fig.get("skip"))
                     if not shapes:
                         raise RuntimeError("keine Formen im Bereich")
+                    apply_patches(smgr, ctx, shapes, fig.get("patches") or [])
                     width, height = figure_to_files(smgr, ctx, desktop, doc, shapes, out / f"{fid}.odg", out / f"{fid}.svg")
                     done.append({"id": fid, "odg": f"{fid}.odg", "svg": f"{fid}.svg", "width_mm": width, "height_mm": height})
                 except Exception as err:  # noqa: BLE001 – ein Bereich, nicht alle

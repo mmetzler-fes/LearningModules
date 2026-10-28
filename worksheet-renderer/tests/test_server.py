@@ -278,7 +278,10 @@ class RendererTest(unittest.TestCase):
                 p.setAttribute("pageheight", "21.001cm")
         buf = io.BytesIO()
         doc.save(buf)
-        png = base64.b64encode((Path(__file__).parent / "bild.png").read_bytes()).decode()
+        from PIL import Image
+        wide = io.BytesIO()
+        Image.new("RGB", (400, 100), "white").save(wide, "PNG")  # flach: passt in der Höhe
+        png = base64.b64encode(wide.getvalue()).decode()
         spec = {"content": [{"type": "image", "file": "bild.png", "width": "16.5cm"},
                             {"type": "image", "file": "bild.png", "width": "8cm"},
                             {"type": "image", "file": "bild.png", "width": "40cm"},

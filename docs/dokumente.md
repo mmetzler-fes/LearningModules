@@ -259,6 +259,15 @@ Zeile – Tabellen, Kästen, Spalten und Schreibfelder ohne feste Breite und
 Bilder mit „ganzer Breite“ (16,5 cm). Feste Breiten (Tabelle bis 25,5 cm)
 bleiben; im Hochformat wird nichts breiter als die Satzbreite gedruckt.
 
+**Seitenumbrüche im Druck:** Wo eine Seite endet, entscheidet LibreOffice
+beim Drucken. Bilder, Tabellen und Schreibfelder werden nie zerrissen – passt
+eines nicht mehr, rückt es auf die nächste Seite, und Überschrift und kurze
+Einleitung davor (bis drei Absätze oder eine Aufzählung mit bis zu vier
+Punkten) gehen mit. Ein Bild ist höchstens so hoch, dass es mit einer
+Überschrift auf eine Seite passt. **⤓ Seitenumbruch** (➕-Menü) erzwingt eine
+neue Seite – aber nur im Text selbst, nicht in einem Kasten, einer Tabelle
+oder einer Spalte.
+
 **Je Dokument:** Im Dokument-Editor unter „Art“ steht **„Vorlage für den
 Druck“** – Vorgabe „Wie im Ordner“, sonst eine deiner Vorlagen oder eine der
 Schule. So stehen in einem Lernthema z. B. eine Präsentation in **A4 quer**

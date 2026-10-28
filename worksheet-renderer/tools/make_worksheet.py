@@ -45,6 +45,7 @@ from odf.opendocument import load
 from odf.style import (
     GraphicProperties,
     ListLevelLabelAlignment,
+    HeaderFooterProperties,
     PageLayout,
     PageLayoutProperties,
     ListLevelProperties,
@@ -718,7 +719,7 @@ def ensure_overlay_styles(doc, present: set[str]) -> Style:
 def use_template_width(doc) -> None:
     """Satzbreite der Vorlage für Schreibfelder: im Querformat (Satzbreite ab 20 cm)
     so viele Karos, wie hineinpassen – sonst wie bisher 33 (16,5 cm)."""
-    global KARO_COLUMNS, TABLE_WIDTH_CM
+    global KARO_COLUMNS, TABLE_WIDTH_CM, TEXT_HEIGHT_CM
 
     def length(value: str | None) -> float:
         m = re.fullmatch(r"\s*(\d+(?:\.\d+)?)\s*(cm|mm|in|pt)\s*", value or "")
@@ -727,10 +728,17 @@ def use_template_width(doc) -> None:
         return float(m.group(1)) * {"cm": 1, "mm": 0.1, "in": 2.54, "pt": 2.54 / 72}[m.group(2)]
 
     widest = 0.0
+    lowest = 0.0
     for layout in doc.getElementsByType(PageLayout):
         for props in layout.getElementsByType(PageLayoutProperties):
             widest = max(widest, length(props.getAttribute("pagewidth"))
                          - length(props.getAttribute("marginleft")) - length(props.getAttribute("marginright")))
+            # Höhe für Inhalt: ohne Ränder und Kopf-/Fußzeile (deren Mindesthöhe und Abstand).
+            height = length(props.getAttribute("pageheight")) - length(props.getAttribute("margintop")) - length(props.getAttribute("marginbottom"))
+            for hf in layout.getElementsByType(HeaderFooterProperties):
+                height -= length(hf.getAttribute("minheight")) + length(hf.getAttribute("marginbottom")) + length(hf.getAttribute("margintop"))
+            lowest = height if not lowest else min(lowest, height)
+    TEXT_HEIGHT_CM = lowest if lowest > 5 else 24.0
     KARO_COLUMNS = int(widest // KARO_CELL) if widest >= 20 else 33
     # Tabellen, Kästen, Spalten: ebenso die ganze Zeile.
     TABLE_WIDTH_CM = KARO_COLUMNS * KARO_CELL if widest >= 20 else FULL_WIDTH_CM
@@ -900,6 +908,11 @@ def image_frame(doc, block: dict[str, Any], search: list[Path], index: int, midd
     target = page if abs(width - FULL_WIDTH_CM) < 0.05 and page > FULL_WIDTH_CM else min(width, page)
     if target != width and width > 0:
         width, height = target, height * target / width
+    # Und nie so hoch, dass es mit einer Überschrift und einer Zeile darüber nicht
+    # mehr auf eine Seite passt – sonst bliebe vorn eine halb leere Seite stehen.
+    room = TEXT_HEIGHT_CM - 3.0
+    if height > room > 0:
+        width, height = width * room / height, room
 
     href = doc.addPicture(str(path))
     extra: dict[str, Any] = {}
@@ -1386,6 +1399,7 @@ PT_IN_CM = 0.0352778
 
 # „Ganze Breite“ in Dokumenten: die Satzbreite von A4 hoch (Grundvorlage).
 FULL_WIDTH_CM = 16.5
+TEXT_HEIGHT_CM = 24.0            # nutzbare Höhe der Seite (use_template_width)
 TABLE_WIDTH_CM = 16.5            # nutzbare Textbreite der Vorlage (Querformat: use_template_width)
 TABLE_PADDING_CM = 0.24          # Zellrand links und rechts plus Linien
 # Reserve auf die Mindestbreite: Ohne sie bekommt eine schmale Spalte exakt die
@@ -1928,35 +1942,85 @@ def render_blocks(blocks: Any, styles: dict[str, str], ctx: dict[str, Any]) -> l
 
 
 def keep_karo_with_question(elements: list[Element], doc, present: set[str]) -> None:
-    """Aufgabentext und sein Karoraster nicht über zwei Seiten trennen.
+    """Aufgabentext und sein Karoraster – ebenso Einleitung und Bild bzw.
+    Tabelle – nicht über zwei Seiten trennen.
 
     Das Raster selbst wird nie zerrissen (`may-break-between-rows`). Damit es
     aber nicht allein auf die nächste Seite rutscht, während die Frage auf der
     vorigen stehen bleibt, bekommen die Absätze davor `keep-with-next`.
     """
+    automatic = {str(st.getAttribute("name")): st for st in doc.automaticstyles.childNodes
+                 if getattr(st, "qname", ("", ""))[1] == "style"}
+
     def kwn(name: str) -> str:
-        """Klon der Absatzvorlage `name`, der den Umbruch nach sich verbietet."""
+        """Klon der Absatzvorlage `name`, der den Umbruch nach sich verbietet.
+
+        Von einer automatischen Vorlage (Einzug einer Aufzählung …) darf nichts
+        erben – sie wird dann kopiert, samt ihrer Eigenschaften."""
         klon = f"{name}_MitFolgendem"
         if klon not in present:
-            style = Style(name=klon, family="paragraph", parentstylename=name)
-            style.addElement(ParagraphProperties(keepwithnext="always"))
+            base = automatic.get(name)
+            if base is None:
+                style = Style(name=klon, family="paragraph", parentstylename=name)
+                style.addElement(ParagraphProperties(keepwithnext="always"))
+            else:
+                parent = base.getAttribute("parentstylename")
+                style = Style(name=klon, family="paragraph", **({"parentstylename": parent} if parent else {}))
+                has_para = False
+                for child in base.childNodes:
+                    if not hasattr(child, "qname"):
+                        continue
+                    copy = Element(qname=child.qname, check_grammar=False)
+                    for key, value in child.attributes.items():
+                        copy.setAttrNS(key[0], key[1], value)
+                    for grand in child.childNodes:
+                        copy.appendChild(grand.cloneNode(True) if hasattr(grand, "cloneNode") else grand)
+                    if child.qname[1] == "paragraph-properties":
+                        copy.setAttrNS(child.qname[0], "keep-with-next", "always")
+                        has_para = True
+                    style.appendChild(copy)
+                if not has_para:
+                    style.addElement(ParagraphProperties(keepwithnext="always"))
             doc.automaticstyles.addElement(style)
             present.add(klon)
         return klon
 
+    def is_picture(el: Element) -> bool:
+        """Absatz mit einem Bild (draw:frame „Bild…“)."""
+        return el.qname[1] == "p" and any(getattr(c, "qname", ("", ""))[1] == "frame"
+                                          and str(c.getAttribute("name") or "").startswith("Bild") for c in el.childNodes)
+
+    def big(el: Element) -> bool:
+        """Was nicht zerrissen wird und daher geschlossen auf die nächste Seite rückt: Raster, Tabelle, Bild."""
+        return el.qname[1] == "table" or is_picture(el)
+
+    def mark(el: Element) -> bool:
+        name = str(el.getAttribute("stylename") or "")
+        if not name or name.endswith("_MitFolgendem"):
+            return False
+        el.setAttribute("stylename", kwn(name))
+        return True
+
     for i, el in enumerate(elements):
-        if el.qname[1] != "table" or not str(el.getAttribute("name") or "").startswith("Karo"):
+        if not big(el):
             continue
-        # Rückwärts über Überschrift und Fragetext, aber nicht über Bilder,
-        # Tabellen oder ein vorangehendes Raster hinweg.
+        # Rückwärts über Überschrift und Einleitung (auch eine kurze Aufzählung),
+        # aber nicht über Bilder, Tabellen oder ein vorangehendes Raster hinweg –
+        # sonst bliebe der Text allein am Seitenende stehen.
         for j in range(i - 1, max(i - 4, -1), -1):
             vor = elements[j]
-            if vor.qname[1] not in ("p", "h") or vor.hasChildNodes() is False:
+            if big(vor):
                 break
-            name = str(vor.getAttribute("stylename") or "")
-            if not name or name.endswith("_MitFolgendem"):
+            if vor.qname[1] == "list":
+                items = [li for li in vor.childNodes if getattr(li, "qname", ("", ""))[1] == "list-item"]
+                if not items or len(items) > 4:
+                    break
+                paras = [p for li in items for p in li.childNodes if getattr(p, "qname", ("", ""))[1] in ("p", "h")]
+                if not all(mark(p) for p in paras):
+                    break
+                continue
+            if vor.qname[1] not in ("p", "h") or vor.hasChildNodes() is False or not mark(vor):
                 break
-            vor.setAttribute("stylename", kwn(name))
 
 
 def ensure_ink_styles(doc, present: set[str]) -> Style:

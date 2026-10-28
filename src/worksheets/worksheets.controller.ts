@@ -170,13 +170,15 @@ export class WorksheetsController {
    */
   @Post('render')
   @HttpCode(200)
-  async render(@Request() req: any, @Body() body: { spec?: unknown; title?: string; output?: string; moduleId?: string; kind?: string }, @Res() res: Response) {
+  async render(@Request() req: any, @Body() body: { spec?: unknown; title?: string; output?: string; moduleId?: string; kind?: string; templateId?: string | null }, @Res() res: Response) {
     const output = String(body?.output || '') as WorksheetOutput;
     if (!WORKSHEET_OUTPUTS.includes(output)) throw new BadRequestException(`output: ${WORKSHEET_OUTPUTS.join(', ')}`);
     const title = String(body?.title || '').trim().slice(0, 200);
     const moduleId = body?.moduleId ? String(body.moduleId) : undefined;
     const kind = typeof body?.kind === 'string' ? body.kind : undefined;
-    const { file, warnings } = await this.worksheets.render(req.user, { spec: body?.spec, title, output, moduleId, kind }, req);
+    // Vorlage aus dem Editor: '' = wie im Ordner, fehlt das Feld, gilt die gespeicherte des Dokuments.
+    const templateId = typeof body?.templateId === 'string' ? body.templateId || null : undefined;
+    const { file, warnings } = await this.worksheets.render(req.user, { spec: body?.spec, title, output, moduleId, kind, templateId }, req);
     const type = FILE_TYPES[output];
     const name = `${fileName(title || 'Dokument')}${type.suffix}.${type.ext}`;
     res.setHeader('Content-Type', type.mime);

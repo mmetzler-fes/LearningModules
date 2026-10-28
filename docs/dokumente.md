@@ -250,8 +250,17 @@ Arbeitsblatt, Klassenarbeit und Skript hochladen. Die Vorlage braucht
 prüft die App beides. **★** macht eine Vorlage zum Standard ihrer Art,
 **🖨 Probeblatt** zeigt, wie ein Blatt darin aussieht.
 
-Welche Vorlage gilt: die am Ordner gewählte → dein Standard → der Standard
-der Schule → die neutrale Grundvorlage. Schulvorlagen legt der Schuladmin an.
+Welche Vorlage gilt: die **am Dokument** gewählte → die am Ordner gewählte →
+dein Standard → der Standard der Schule → die neutrale Grundvorlage.
+Schulvorlagen legt der Schuladmin an.
+
+**Je Dokument:** Im Dokument-Editor unter „Art“ steht **„Vorlage für den
+Druck“** – Vorgabe „Wie im Ordner“, sonst eine deiner Vorlagen oder eine der
+Schule. So stehen in einem Lernthema z. B. eine Präsentation in **A4 quer**
+und ein Arbeitsblatt in **A4** nebeneinander. Der Druck aus dem Editor nimmt
+die Wahl gleich (auch vor dem Speichern), das Nextcloud-Abbild nach dem
+Speichern. **Am Ordner:** ⋯ → 📄 Dokument-Einstellungen → „Vorlage für den
+Druck“ gilt für alle Dokumente darunter, die keine eigene haben.
 
 ## Mit einer KI erstellen
 

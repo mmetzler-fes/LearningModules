@@ -371,6 +371,9 @@ class ContentEditorManager {
       case 'docspec':
         this.renderDocspecField(parent, field, value);
         break;
+      case 'doctemplate':
+        this.renderDocTemplateField(parent, field, value);
+        break;
       case 'textarea':
         this.renderTextareaField(parent, field, value);
         break;
@@ -1125,6 +1128,46 @@ class ContentEditorManager {
     parent.appendChild(group);
   }
 
+  /**
+   * Druckvorlage dieses Dokuments: „wie im Ordner“ (Dokument-Einstellungen bzw.
+   * Standard) oder eine der eigenen bzw. Schulvorlagen – so können in einem
+   * Lernthema Präsentation (A4 quer) und Arbeitsblatt (A4) nebeneinander stehen.
+   */
+  renderDocTemplateField(parent, field, value) {
+    const group = this.createFormGroup(field.label, false);
+    const select = document.createElement('select');
+    select.name = `content_${field.key}`;
+    select.innerHTML = '<option value="">Wie im Ordner (Dokument-Einstellungen bzw. Standard)</option>';
+    if (value) select.innerHTML += `<option value="${String(value).replace(/"/g, '&quot;')}" selected>…</option>`;
+    group.appendChild(select);
+    const hint = document.createElement('small');
+    hint.className = 'hint';
+    hint.textContent = 'Vorlagen hochladen und verwalten: 🖨 Vorlagen über dem Notizbuch-Baum.';
+    group.appendChild(hint);
+    parent.appendChild(group);
+    const token = sessionStorage.getItem('lm_token') || localStorage.getItem('lm_token');
+    const KINDS = { arbeitsblatt: 'Arbeitsblatt', klassenarbeit: 'Klassenarbeit', skript: 'Skript' };
+    fetch('/api/worksheets/templates', { headers: token ? { Authorization: `Bearer ${token}` } : {} })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        const list = Array.isArray(data?.templates) ? data.templates : [];
+        const keep = select.value;
+        select.innerHTML = '<option value="">Wie im Ordner (Dokument-Einstellungen bzw. Standard)</option>';
+        for (const t of list) {
+          const opt = document.createElement('option');
+          opt.value = t.id;
+          opt.textContent = `${t.name} – ${KINDS[t.kind] || t.kind}${t.scope === 'school' ? ', Schule' : ''}${t.isDefault ? ' ★' : ''}`;
+          select.appendChild(opt);
+        }
+        // Gelöschte Vorlage: bleibt sichtbar, bis jemand etwas anderes wählt (der Druck nimmt dann den Ordner).
+        if (keep && !list.some((t) => t.id === keep)) {
+          select.insertAdjacentHTML('beforeend', `<option value="${keep.replace(/"/g, '&quot;')}">(gelöschte Vorlage)</option>`);
+        }
+        select.value = keep;
+      })
+      .catch(() => { /* ohne Liste bleibt „wie im Ordner“ */ });
+  }
+
   renderCheckboxField(parent, field, value) {
     const group = document.createElement('div');
     group.className = 'form-group checkbox-row';
@@ -1273,6 +1316,7 @@ class ContentEditorManager {
       case 'worksheet':
       case 'number':
       case 'select':
+      case 'doctemplate':
       case 'image':
       case 'audio': {
         const el = this.container.querySelector(`[name="content_${field.key}"]`);

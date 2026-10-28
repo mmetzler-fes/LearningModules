@@ -117,8 +117,16 @@ export class TemplatesService {
    * Welche Vorlage gilt für ein Dokument dieser Art in diesem Ordner?
    * null = Grundvorlage des Renderers.
    */
-  async resolve(userId: string, nodeId: string | null, kind: TemplateKind, nodes?: NotebookNode[]): Promise<WorksheetTemplate | null> {
+  /**
+   * Vorlage für ein Dokument: die am Dokument gewählte (`preferred`, eigene oder
+   * der Schule, gleich welcher Art) → die am Ordner → dein Standard → der der Schule.
+   */
+  async resolve(userId: string, nodeId: string | null, kind: TemplateKind, nodes?: NotebookNode[], preferred?: string | null): Promise<WorksheetTemplate | null> {
     const u = await this.userOf(userId);
+    if (preferred) {
+      const own = await this.repo.findOne({ where: [{ id: preferred, ownerId: userId }, ...(u.schoolId ? [{ id: preferred, schoolId: u.schoolId }] : [])] });
+      if (own) return own;
+    }
     const all = nodes || await this.nodeRepo.find({ where: { ownerId: userId } });
     const chosen = settingsAt(all, nodeId).templates?.[kind];
     const candidates = await this.repo.find({ where: [{ ownerId: userId, kind }, ...(u.schoolId ? [{ schoolId: u.schoolId, kind }] : [])] });
@@ -134,9 +142,9 @@ export class TemplatesService {
   /** Mehrere auf einmal (Nextcloud-Abbild): je Ordner und Art zwischengespeichert. */
   resolver(userId: string, nodes: NotebookNode[]) {
     const cache = new Map<string, Promise<WorksheetTemplate | null>>();
-    return (nodeId: string | null, kind: TemplateKind) => {
-      const key = `${nodeId}|${kind}`;
-      if (!cache.has(key)) cache.set(key, this.resolve(userId, nodeId, kind, nodes));
+    return (nodeId: string | null, kind: TemplateKind, preferred?: string | null) => {
+      const key = `${nodeId}|${kind}|${preferred || ''}`;
+      if (!cache.has(key)) cache.set(key, this.resolve(userId, nodeId, kind, nodes, preferred));
       return cache.get(key)!;
     };
   }

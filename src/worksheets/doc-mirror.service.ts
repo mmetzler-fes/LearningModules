@@ -139,7 +139,8 @@ export class DocMirrorService implements OnApplicationBootstrap {
       const mod = modById.get(info.moduleId);
       const spec = mod?.content?.spec;
       if (!mod || !spec || typeof spec !== 'object') continue;
-      const tpl = await templateOf(info.nodeId, templateKindOf(info.kind));
+      // Am Dokument gewählte Vorlage (z. B. A4 quer für eine Präsentation) vor der des Ordners.
+      const tpl = await templateOf(info.nodeId, templateKindOf(info.kind), mod.content?.templateId || null);
       const ctx: DocContext = { pfad: info.pfad, slug: info.slug, course: info.course, folder: info.folder, refs: n.refs.get(info.scope) || {},
         template: tpl ? { id: tpl.id, updatedAt: tpl.updatedAt, data: tpl.data } : null, topicId: mod.topicId, ownerId: userId };
       // Quiz-Blöcke tragen den Quick-Link im QR-Code – ein neuer Link heißt neu drucken.

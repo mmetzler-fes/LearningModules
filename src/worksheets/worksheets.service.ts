@@ -125,8 +125,8 @@ export class WorksheetsService {
     return rule?.token ?? null;
   }
 
-  private async templateFor(userId: string, nodeId: string | null, docKind: string | undefined) {
-    const t = this.templates ? await this.templates.resolve(userId, nodeId, templateKindOf(docKind)) : null;
+  private async templateFor(userId: string, nodeId: string | null, docKind: string | undefined, preferred?: string | null) {
+    const t = this.templates ? await this.templates.resolve(userId, nodeId, templateKindOf(docKind), undefined, preferred) : null;
     return t ? { id: t.id, updatedAt: t.updatedAt, data: t.data } : null;
   }
 
@@ -202,20 +202,22 @@ export class WorksheetsService {
    * Nummer, Kursangaben und Verweisziele eines eigenen Dokuments. Für den
    * Editor (Kopfzeile, aufgelöste Verweise) und den Druck.
    */
-  async context(user: any, moduleId: string, kind?: string): Promise<DocContext> {
-    const mod = await this.moduleRepo!.findOne({ where: { id: moduleId }, select: ['id', 'topicId', 'type', 'title'] });
+  /** `templateId`: Vorlage aus dem Editor (noch ungespeichert) – sonst die am Dokument gespeicherte. */
+  async context(user: any, moduleId: string, kind?: string, templateId?: string | null): Promise<DocContext> {
+    const mod = await this.moduleRepo!.findOne({ where: { id: moduleId }, select: ['id', 'topicId', 'type', 'title', 'content'] });
     if (!mod) throw new NotFoundException('Modul nicht gefunden.');
     const topic = await this.topicRepo!.findOne({ where: { id: mod.topicId }, select: ['id', 'ownerId'] });
     if (!topic || topic.ownerId !== user.userId) throw new ForbiddenException('Nur eigene Dokumente.');
+    const preferred = templateId !== undefined ? templateId : (mod.content as any)?.templateId || null;
     const n = await this.numbering!.numberingFor(user.userId);
     const info = n.docs.get(moduleId);
     if (!info) {
       // Noch nicht gespeichert oder nicht vom Typ „Dokument“: ohne Nummer.
       return { pfad: '', slug: '', course: { kurs: '', titelmuster: '{titel}', autor: '', meta: {} }, folder: '', refs: null,
-        template: await this.templateFor(user.userId, null, kind), topicId: topic.id, ownerId: topic.ownerId };
+        template: await this.templateFor(user.userId, null, kind, preferred), topicId: topic.id, ownerId: topic.ownerId };
     }
     return { pfad: info.pfad, slug: info.slug, course: info.course, folder: info.folder, refs: n.refs.get(info.scope) || {},
-      template: await this.templateFor(user.userId, info.nodeId, kind || info.kind), topicId: topic.id, ownerId: topic.ownerId };
+      template: await this.templateFor(user.userId, info.nodeId, kind || info.kind, preferred), topicId: topic.id, ownerId: topic.ownerId };
   }
 
   /** Kontext samt fertiger Kopfzeile (mit dem Titel aus dem Editor) – für den Editor. */
@@ -297,11 +299,11 @@ export class WorksheetsService {
     return { files: result.files, warnings: [...warnings, ...result.warnings] };
   }
 
-  async render(user: any, body: { spec: unknown; title: string; output: WorksheetOutput; moduleId?: string; kind?: string }, req?: any) {
+  async render(user: any, body: { spec: unknown; title: string; output: WorksheetOutput; moduleId?: string; kind?: string; templateId?: string | null }, req?: any) {
     const errors = docSpec().validateDocSpec(body.spec);
     if (errors.length) throw new BadRequestException({ message: 'Das Dokument enthält Fehler.', errors });
-    const ctx = body.moduleId ? await this.context(user, body.moduleId, body.kind)
-      : this.templates ? { pfad: '', slug: '', course: { kurs: '', titelmuster: '{titel}', autor: '', meta: {} }, folder: '', refs: null, template: await this.templateFor(user.userId, null, body.kind) }
+    const ctx = body.moduleId ? await this.context(user, body.moduleId, body.kind, body.templateId)
+      : this.templates ? { pfad: '', slug: '', course: { kurs: '', titelmuster: '{titel}', autor: '', meta: {} }, folder: '', refs: null, template: await this.templateFor(user.userId, null, body.kind, body.templateId) }
         : null;
     if (ctx && req) ctx.base = baseUrl(req);
     const { job, warnings } = await this.prepare(body.spec as Record<string, any>, body.title, [body.output], ctx);

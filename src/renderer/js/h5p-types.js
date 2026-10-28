@@ -164,6 +164,8 @@ const H5P_TYPES = {
         { value: 'klassenarbeit', label: 'Klassenarbeit' },
         { value: 'text', label: 'Text' },
       ]},
+      // Vorlage nur für dieses Dokument (z. B. A4 quer für eine Präsentation) – sonst die am Ordner.
+      { key: 'templateId', type: 'doctemplate', label: 'Vorlage für den Druck' },
       { key: 'spec', type: 'docspec', label: 'Inhalt', required: true },
       { key: 'handMaintained', type: 'checkbox', advanced: true, label: 'In der Nextcloud von Hand gepflegt – die App schreibt die Dateien nicht mehr neu, verschiebt sie aber mit' },
     ],

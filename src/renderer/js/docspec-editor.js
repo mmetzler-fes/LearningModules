@@ -429,7 +429,10 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
       const res = await fetch('/api/worksheets/render', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...(token() ? { Authorization: `Bearer ${token()}` } : {}) },
-        body: JSON.stringify({ spec, title, output, kind: document.querySelector('select[name="content_kind"]')?.value, ...(moduleId ? { moduleId } : {}) }),
+        body: JSON.stringify({ spec, title, output, kind: document.querySelector('select[name="content_kind"]')?.value,
+          // Vorlage aus dem Formular – auch vor dem Speichern ('' = wie im Ordner).
+          templateId: document.querySelector('select[name="content_templateId"]')?.value ?? undefined,
+          ...(moduleId ? { moduleId } : {}) }),
       });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));

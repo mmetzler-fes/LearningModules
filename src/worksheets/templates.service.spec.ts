@@ -7,7 +7,7 @@ function repo<T extends { id: string }>(rows: T[]) {
   return {
     rows,
     find: async ({ where }: any = {}) => rows.filter((r) => !where || (Array.isArray(where) ? where.some((w) => match(r, w)) : match(r, where))),
-    findOne: async ({ where }: any) => rows.find((r) => match(r, where)) || null,
+    findOne: async ({ where }: any) => rows.find((r) => (Array.isArray(where) ? where.some((w) => match(r, w)) : match(r, where))) || null,
     save: async (x: any) => { for (const r of Array.isArray(x) ? x : [x]) { const i = rows.findIndex((y) => y.id === r.id); if (i >= 0) rows[i] = r; else rows.push(r); } return x; },
     remove: async (x: any) => { rows.splice(rows.findIndex((y) => y.id === x.id), 1); return x; },
     create: (x: any) => x,
@@ -50,6 +50,12 @@ describe('TemplatesService.resolve', () => {
     templates.rows.splice(templates.rows.findIndex((t) => t.id === 'eigenStd'), 1);
     expect((await service.resolve('u1', null, 'arbeitsblatt'))!.id).toBe('schuleStd');
     expect(await service.resolve('u2', null, 'klassenarbeit')).toBeNull();
+  });
+  it('am Dokument gewählt geht vor dem Ordner – eigene oder der Schule, gleich welcher Art; fremde nicht', async () => {
+    const { service } = setup();
+    expect((await service.resolve('u1', 'sec', 'arbeitsblatt', undefined, 'schuleKA'))!.id).toBe('schuleKA');
+    expect((await service.resolve('u1', 'sec', 'arbeitsblatt', undefined, 'fremd'))!.id).toBe('eigen');
+    expect((await service.resolve('u1', 'sec', 'arbeitsblatt', undefined, null))!.id).toBe('eigen');
   });
   it('fremde Vorlagen am Ordner zählen nicht', async () => {
     const { service } = setup();

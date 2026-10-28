@@ -164,6 +164,38 @@ class App {
   }
 
   /**
+   * Seitenleiste einklappen (« / ») – bei wenig Platz bleiben nur die
+   * Symbole, die Namen stehen als Tooltip daran. Je Gerät gemerkt.
+   */
+  initSidebarToggle() {
+    const sidebar = document.getElementById('sidebar');
+    const btn = document.getElementById('btnSidebarToggle');
+    if (!sidebar || !btn) return;
+    const KEY = 'lm_sidebar_collapsed';
+    // Tooltip mit dem Namen an jedem Menüpunkt (eingeklappt sieht man nur das Symbol).
+    sidebar.querySelectorAll('.nav-btn').forEach((b) => {
+      if (!b.title) b.title = b.textContent.replace(/\s+/g, ' ').replace(b.querySelector('.nav-icon')?.textContent || '', '').trim();
+    });
+    const apply = (collapsed) => {
+      sidebar.classList.toggle('collapsed', collapsed);
+      btn.textContent = collapsed ? '»' : '«';
+      btn.title = collapsed ? 'Seitenleiste ausklappen' : 'Seitenleiste einklappen – mehr Platz für den Inhalt';
+      btn.setAttribute('aria-label', btn.title);
+      btn.setAttribute('aria-expanded', String(!collapsed));
+    };
+    let collapsed = false;
+    try { collapsed = localStorage.getItem(KEY) === '1'; } catch (_) { /* ohne Speicher */ }
+    apply(collapsed);
+    btn.addEventListener('click', () => {
+      collapsed = !sidebar.classList.contains('collapsed');
+      apply(collapsed);
+      try { if (collapsed) localStorage.setItem(KEY, '1'); else localStorage.removeItem(KEY); } catch (_) { /* gilt bis zum Neuladen */ }
+      // Ansichten, die ihre Breite messen (Drag and Drop, Editor), neu einpassen.
+      window.dispatchEvent(new Event('resize'));
+    });
+  }
+
+  /**
    * „Als App installieren“ (Chrome, Edge): Der Knopf erscheint nur, wenn der
    * Browser es anbietet und die App nicht schon installiert läuft. Auf dem
    * iPad geht es über Teilen → Zum Home-Bildschirm (manifest.webmanifest).
@@ -607,6 +639,7 @@ class App {
       if (tab && !tab.classList.contains('active')) this.navigateToView(tab.dataset.nbSwitch);
     });
     this.initTheme();
+    this.initSidebarToggle();
     this.initGlobalEvents();
     applyTranslations();
 

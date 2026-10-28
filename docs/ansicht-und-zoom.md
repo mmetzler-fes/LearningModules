@@ -1,5 +1,13 @@
 # Ansicht und Zoom
 
+
+## Seitenleiste einklappen
+
+Bei wenig Platz klappt **«** oben rechts in der Seitenleiste sie auf eine
+schmale Leiste mit den Symbolen ein; der Name jedes Menüpunkts steht als
+Tooltip daran. **»** klappt sie wieder aus. Das Gerät merkt sich die Wahl.
+Unter 800 px Fensterbreite ist die Leiste ohnehin schmal.
+
 ## Zoom für Menü und Inhalt
 
 Unten in der Seitenleiste stehen zwei Regler:

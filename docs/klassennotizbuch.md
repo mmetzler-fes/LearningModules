@@ -151,10 +151,18 @@ Zuweisung, dem **Lernmodul, an dem er gerade ist**, einer Leiste je Aufgabe
 Zuweisungen arbeiten. Eine Zuweisung oben wählen zeigt die Tabelle Schüler ×
 Aufgaben.
 
-**⤼ übersprungen** heißt: mit „Weiter“ verlassen, ohne etwas einzutragen.
-Aufgaben ohne Bewertung (Dokument, Video …) zählen mit dem Ansehen als
+**⤼ übersprungen** heißt: mit „Weiter“ verlassen, ohne etwas zu verändern –
+auch bei Reihenfolge und Zuordnen, wo schon der unberührte Anfang Teilpunkte
+bringt. Aufgaben ohne Bewertung (Dokument, Video …) zählen mit dem Ansehen als
 bearbeitet. Geht ein Schüler mit „Zurück“ auf eine frühere Aufgabe, steht ▶
 wieder dort.
+
+Live und **📊 Ergebnisse** beantworten verschiedene Fragen: Live zeigt, *ob*
+jemand eine Aufgabe bearbeitet oder übersprungen hat (grün heißt nicht
+richtig), die Ergebnisse zeigen, *wie gut* (Prozent). Live zählt außerdem die
+Seiten des Durchlaufs, wie der Schüler sie sieht – in der Lernbegleitung
+kommen Quizze aus einem Dokument als eigene Seite dazu, deshalb können es
+mehr Kästchen sein als Spalten in den Ergebnissen.
 
 ### 📡 An Klasse senden und 👣 Folgen
 

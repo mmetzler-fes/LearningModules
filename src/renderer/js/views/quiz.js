@@ -15,9 +15,17 @@ function stepStates(qs) {
     const a = qs.answers?.[i];
     if (!a) return '';
     if (!GRADABLE_TYPES.has(mod.type)) return 'd';
+    // In dieser Sitzung aufgebaut: bearbeitet = Eingabe anders als am Anfang.
+    if (qs.initialAnswers && i in qs.initialAnswers) return answerKey(a) !== qs.initialAnswers[i] ? 'd' : 's';
+    // Sonst (fortgesetzter Durchlauf) nach der Antwort selbst.
     const given = String(a.userAnswer ?? '').replace(/[—–\-,;:|\s]/g, '');
-    return a.isCorrect || Number(a.points) > 0 || given ? 'd' : 's';
+    return a.isCorrect || given ? 'd' : 's';
   });
+}
+
+/** Vergleichbare Form einer Antwort (nur was der Schüler eingibt). */
+function answerKey(a) {
+  return JSON.stringify(a?.userAnswer ?? '');
 }
 
 // ==================== QUIZ VIEW ====================
@@ -453,6 +461,16 @@ export class QuizView {
         },
       });
       qs.views[currentIndex] = view;
+      // Anfangszustand der Eingabe merken: Verlässt der Schüler die Aufgabe
+      // unverändert, gilt sie in der Live-Ansicht als übersprungen – auch wo
+      // schon der Anfang Teilpunkte bringt (Reihenfolge, Zuordnen).
+      if (GRADABLE_TYPES.has(mod.type)) {
+        const index = currentIndex;
+        requestAnimationFrame(() => {
+          if (qs.views?.[index] !== view) return;
+          try { (qs.initialAnswers ||= {})[index] = answerKey(collectAnswer(mod, view)); } catch (_) { /* ohne Vergleich */ }
+        });
+      }
     }
 
     // Knöpfe eines Dokuments (✍️ Mit Stift bearbeiten, ⬇ Als PDF) in die feste

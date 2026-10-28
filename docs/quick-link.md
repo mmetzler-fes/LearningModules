@@ -56,7 +56,11 @@ Der Quick-Link folgt trotzdem:
 
 ## Für die Schüler
 
-Link öffnen oder QR scannen → Klasse wählen → Name eingeben. Der Name wird wie
+Link öffnen oder QR scannen → Klasse wählen → Name eingeben. Den QR-Code
+kann man auch direkt auf der Startseite von LernModule scannen (**📷 QR-Code
+scannen**) – praktisch, wenn die Kamera-App nicht zur Hand ist oder in der
+installierten App. Dort lässt sich auch der **Klassencode** eines
+Klassennotizbuchs eintippen. Der Name wird wie
 beim [Klassenlink](klassen-und-schuljahr.md) der Schülerliste zugeordnet
 („unbestätigt“, „🔒 strikt“ gelten wie dort), das Ergebnis steht unter der
 Klasse. Ohne gewählte Klassen genügt der Name; Ergebnisse stehen dann unter

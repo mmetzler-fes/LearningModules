@@ -3,6 +3,7 @@ import { renderMarkdown } from '../markdown.js';
 import { refreshNextcloud } from './nextcloud.js';
 import { classbookSession, backToClassbook } from './classbook-student.js';
 import { offerTeacherName } from './teacher-as-student.js';
+import { bindStudentEntry } from './student-entry.js';
 
 /**
  * Schule, Schuladmin-Recht und freigeschaltete Funktionen (src/features) aus
@@ -66,6 +67,7 @@ export class LoginView {
   }
 
   _bindEvents() {
+    bindStudentEntry();
     // Show admin / show student toggles
     if (this._btnShowAdmin) {
       this._btnShowAdmin.addEventListener('click', () => {

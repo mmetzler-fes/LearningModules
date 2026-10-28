@@ -125,6 +125,16 @@
           <p class="hint">Öffne den Link oder scanne den QR-Code, den du von deiner
             Lehrkraft bekommen hast. Eine Anmeldung brauchst du nicht.</p>
         </div>
+        <div id="studentEntry" class="student-entry">
+          <button type="button" class="btn btn-primary btn-full" id="btnStudentScan">📷 QR-Code scannen</button>
+          <div class="cb-scan hidden" id="studentScanBox"><div class="cb-scan-view"></div>
+            <button type="button" class="btn btn-secondary btn-full" id="btnStudentScanStop">Abbrechen</button></div>
+          <form id="studentCodeForm" class="student-code-form">
+            <input type="text" id="studentCode" class="cb-code-input search-input" placeholder="Klassencode, z. B. K7M4-QX9P" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="12" aria-label="Klassencode" />
+            <button type="submit" class="btn btn-secondary">Öffnen</button>
+          </form>
+          <p class="login-error hidden" id="studentEntryErr"></p>
+        </div>
         <div class="login-divider"><span>oder</span></div>
         <button class="btn btn-secondary btn-full" id="btnShowAdminLogin">🔐 Zum Lehrer-/Admin-Bereich</button>
       </div>

@@ -18,9 +18,64 @@ export function studentLinkFrom(text) {
   }
 }
 
+/** Windows-, Mac- oder Linux-PC (kein iPad/iPhone, das sich als Mac meldet, kein Handy). */
+export function isDesktop(ua = navigator.userAgent, touchPoints = navigator.maxTouchPoints || 0) {
+  if (/iPad|iPhone|iPod|Android|Mobi/.test(ua)) return false;
+  if (/Macintosh/.test(ua) && touchPoints > 1) return false; // iPad mit Desktop-Ansicht
+  return /Windows|Macintosh|Linux|X11|CrOS/.test(ua);
+}
+
+/**
+ * „💻 Schüler-App für den PC“: eine eigene App (LearningModules_Schüler) neben
+ * der Lehrer-App. Installieren lässt sie sich nur auf den Schülerseiten
+ * (/schueler/, eigener App-Bereich) – von der Startseite führt der Knopf
+ * dorthin, dort öffnet er den Dialog des Browsers.
+ */
+function bindInstall(box) {
+  const btn = box.querySelector('#btnStudentInstall');
+  const hint = box.querySelector('#studentInstallHint');
+  if (!btn) return;
+  let standalone = false;
+  try { standalone = window.matchMedia('(display-mode: standalone)').matches; } catch (_) { /* egal */ }
+  if (!isDesktop() || standalone) return;
+  const onStudentPages = location.pathname.startsWith('/schueler/');
+  let prompt = window.appInstallPrompt || null;
+  window.addEventListener('beforeinstallprompt', (e) => { prompt = e; });
+  window.addEventListener('appinstalled', () => {
+    btn.classList.add('hidden');
+    hint.textContent = '✅ Installiert – die App „LearningModules_Schüler“ findest du im Startmenü bzw. bei den Programmen.';
+    hint.classList.remove('hidden');
+  });
+  btn.classList.remove('hidden');
+  if (onStudentPages) {
+    btn.textContent = '📲 Schüler-App jetzt installieren';
+    btn.classList.replace('btn-secondary', 'btn-primary');
+  }
+  btn.addEventListener('click', async () => {
+    if (!onStudentPages) { location.href = '/schueler/?install=1'; return; }
+    prompt = prompt || window.appInstallPrompt || null;
+    if (prompt) {
+      const p = prompt;
+      prompt = null;
+      window.appInstallPrompt = null;
+      p.prompt();
+      await p.userChoice.catch(() => null);
+      return;
+    }
+    const ua = navigator.userAgent;
+    hint.textContent = /Firefox\//.test(ua)
+      ? 'Firefox kann keine Apps installieren – bitte diese Seite in Chrome oder Edge öffnen.'
+      : /Safari\//.test(ua) && !/Chrome\/|Edg\//.test(ua)
+        ? 'Safari am Mac: im Menü „Ablage“ → „Zum Dock hinzufügen“.'
+        : 'Kein Dialog? Dann ist die App vielleicht schon installiert – oder in der Adressleiste rechts auf das Symbol „App installieren“ klicken.';
+    hint.classList.remove('hidden');
+  });
+}
+
 export function bindStudentEntry() {
   const box = document.getElementById('studentEntry');
   if (!box) return;
+  bindInstall(box);
   const err = box.querySelector('#studentEntryErr');
   const scanBox = box.querySelector('#studentScanBox');
   const scanBtn = box.querySelector('#btnStudentScan');

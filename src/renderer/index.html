@@ -15,8 +15,10 @@
     (function () {
       var p = new URLSearchParams(location.search);
       var k = ['k', 'l', 'q'].filter(function (x) { return p.get(x); })[0];
-      if (!k) return;
-      if (location.pathname.indexOf('/schueler/') !== 0) { location.replace('/schueler/' + location.search + location.hash); return; }
+      var student = location.pathname.indexOf('/schueler/') === 0;
+      // Schüler-Startseite ohne Link: die Schüler-App zum Installieren (PC).
+      if (!k) { if (student) document.getElementById('appManifest').href = '/api/public/manifest'; return; }
+      if (!student) { location.replace('/schueler/' + location.search + location.hash); return; }
       document.getElementById('appManifest').href = '/api/public/manifest?start=' + encodeURIComponent('/?' + k + '=' + p.get(k));
     })();
   </script>
@@ -138,6 +140,9 @@
             <button type="submit" class="btn btn-secondary">Öffnen</button>
           </form>
           <p class="login-error hidden" id="studentEntryErr"></p>
+          <button type="button" class="btn btn-secondary btn-full hidden" id="btnStudentInstall"
+            title="Eigene App für Schüler (LearningModules_Schüler) – neben der Lehrer-App">💻 Schüler-App für den PC installieren</button>
+          <p class="hint hidden" id="studentInstallHint"></p>
         </div>
         <div class="login-divider"><span>oder</span></div>
         <button class="btn btn-secondary btn-full" id="btnShowAdminLogin">🔐 Zum Lehrer-/Admin-Bereich</button>

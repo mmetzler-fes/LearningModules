@@ -505,10 +505,11 @@ export class ClassbookStudent {
    * des Links kommt in die Liste. Mit einem Eintrag öffnet es direkt, sonst die Liste.
    */
   async startApp(token) {
-    if (!inApp()) { if (token) await this.start(token); return; }
+    if (!inApp() && token) { await this.start(token); return; }
     if (token) upsertBook(token);
     const { books } = loadBooks();
-    if (books.length === 1) { await this.start(books[0].token); return; }
+    if (inApp() && books.length === 1) { await this.start(books[0].token); return; }
+    // Ohne Eintrag (am PC installiert): die Liste mit ➕ Klassennotizbuch hinzufügen.
     this.showList();
   }
 

@@ -274,11 +274,21 @@ Gedacht für eigene Geräte (iPad-Klassen). Im Browser ohne App gilt die
 Anmeldung weiter nur, solange er offen ist. Ein Themen- oder Quick-Link als
 App startet an diesem Link (eigene App, ohne Liste).
 
+**Schüler-App am PC** (Windows, Mac, Linux): Auf der Startseite steht unter
+„Du bist Schülerin oder Schüler?“ **💻 Schüler-App für den PC installieren**.
+Der Knopf führt auf die Schülerseiten, dort öffnet **📲 Schüler-App jetzt
+installieren** den Dialog von Chrome bzw. Edge (Safari am Mac: Ablage → Zum
+Dock hinzufügen; Firefox kann keine Apps installieren). Die App heißt
+**LearningModules_Schüler** und startet mit „Meine Klassennotizbücher“ –
+hinzufügen per Klassencode oder QR-Code. Auf iPad und Handy erscheint der
+Knopf nicht (dort: Teilen → Zum Home-Bildschirm, wie oben).
+
 **Lehrer- und Schüler-App auf einem Gerät** (z. B. für eine Schulung): Die
 Schülerseiten liegen unter `/schueler/` – ein Schüler-Link leitet von selbst
 dorthin. So sind es auch für Chrome und Edge am PC zwei verschiedene Apps:
-die Lehrer-App von der Startseite installieren, die Schüler-App über
-**📲 Als App** im Klassennotizbuch (oder das Symbol in der Adressleiste).
+die Lehrer-App („LernModule“) von der Startseite installieren, die
+Schüler-App („LearningModules_Schüler“) mit dem Knopf oben oder über
+**📲 Als App** im Klassennotizbuch.
 
 ### Klassenarbeit über das Klassennotizbuch
 
@@ -341,7 +351,9 @@ Code: `src/classbook/`, `src/renderer/js/views/class-results.js` (Lehrkraft),
 - App für Schüler: `GET /api/public/manifest?start=/?k=<token>` (auch `?l=`,
   `?q=`) liefert ein Manifest; Klassenbuch-Links teilen sich die App
   `id: /schueler/?app=classbook` mit `start_url: /schueler/?app=classbook&k=<token>`,
-  `scope: /schueler/` (der Server liefert die Oberfläche auch unter
+  `scope: /schueler/`, Name `LearningModules_Schüler`; ohne `start` (Schüler-
+  Startseite `/schueler/`) dieselbe App mit `start_url: /schueler/?app=classbook`
+  (der Server liefert die Oberfläche auch unter
   `/schueler/` aus; `index.html` leitet Schüler-Links dorthin, die Lehrer-App
   hat `id: /`)
   (`src/classbook/student-manifest.ts`). `index.html` setzt den Manifest-Link

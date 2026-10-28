@@ -466,9 +466,10 @@ wenn die Lehrkraft des Lernthemas freigeschaltet ist.
 - **Schreibfelder anpassen:** Unten am Feld sitzt ein blauer Anfasser – nach
   unten ziehen macht es länger (in 0,5-cm-Schritten), nach oben wieder kürzer,
   aber nie kürzer als im Dokument. Mit **⬚ Auswählen** kommen ein Anfasser
-  rechts (Breite), einer an der Ecke (beides) und oben im Feld ▦ Karo, ☰ Linien,
-  ▢ Leer, ◌ Unsichtbar dazu (unsichtbare Felder sind hier gestrichelt
-  angedeutet, im Druck nicht). Schüler ändern damit nur ihre eigene Beschriftung. Die
+  rechts (Breite) und einer an der Ecke (beides) dazu. Das **Muster** (▦ Karo,
+  ☰ Linien, ▢ Leer, ◌ Unsichtbar) steht im Kontextmenü des Felds: Rechtsklick
+  aufs Feld, auf dem iPad lange darauf drücken (unsichtbare Felder sind hier
+  gestrichelt angedeutet, im Druck nicht); dort auch „Eingefügtes Feld entfernen“. Schüler ändern damit nur ihre eigene Beschriftung. Die
   Lehrkraft ändert in einem eigenen Lernthema das **Dokument selbst** (oben
   „💾 Im Dokument gespeichert“) – dann darf das Feld auch bis auf eine Zeile
   schrumpfen.

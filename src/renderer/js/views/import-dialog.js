@@ -19,7 +19,9 @@ import { DOCUMENT_EXTS, isDocumentFile, fileToSpec, askConvertOptions, pdfConver
  *
  * Mit freigeschalteten Dokumenten nimmt der Dialog auch Writer- und
  * Word-Dateien (.odt, .docx, .doc, .rtf) und – mit PDF-Import – PDFs an,
- * auch mehrere auf einmal: Jede wird ein Modul „Dokument“.
+ * auch mehrere auf einmal: Jede wird ein Modul „Dokument“. Ebenso Xournal++
+ * (.xopp, am besten zusammen mit ihrem PDF gewählt; xopp-import.js): Die
+ * Handschrift wird die Beschriftung der Lehrkraft.
  */
 export function openImportDialog(app, { topicId = null, h5p = false, extraFile = null, onDone } = {}) {
   const typeNames = Object.fromEntries(Object.values(typeof H5P_TYPES !== 'undefined' ? H5P_TYPES : {})
@@ -27,7 +29,7 @@ export function openImportDialog(app, { topicId = null, h5p = false, extraFile =
   // Writer, Word (und PDF) als Dokument – nur mit freigeschalteten Dokumenten.
   const docsOn = (app.state.currentUser?.features || []).includes('worksheets');
   let pdfOn = false;
-  const exts = ['json', 'xml', 'lmenc', ...(h5p && !topicId ? ['h5p'] : []), ...(extraFile ? [extraFile.ext] : []), ...(docsOn ? DOCUMENT_EXTS : [])];
+  const exts = ['json', 'xml', 'lmenc', ...(h5p && !topicId ? ['h5p'] : []), ...(extraFile ? [extraFile.ext] : []), ...(docsOn ? [...DOCUMENT_EXTS, 'xopp'] : [])];
   const overlay = document.createElement('div');
   overlay.className = 'confirm-overlay';
   overlay.innerHTML = `
@@ -63,9 +65,9 @@ export function openImportDialog(app, { topicId = null, h5p = false, extraFile =
   const list = (items) => `<ul>${items.map((i) => `<li>${escapeHtml(i)}</li>`).join('')}</ul>`;
   let valid = false;
   let file = null; // gewählte Datei; dann zählt sie statt des Textfelds
-  let docFiles = []; // Writer-, Word- und PDF-Dateien – je eine wird ein Dokument
+  let docFiles = []; // Writer-, Word-, PDF- und .xopp-Dateien – je eine wird ein Dokument (die .xopp mit ihrem PDF)
   const extsHint = overlay.querySelector('.import-dialog-file .hint');
-  const showExts = () => { extsHint.textContent = `oder hierher ziehen – ${exts.map((e) => `.${e}`).join(', ')}${docsOn ? ' (Writer, Word' + (pdfOn ? ', PDF' : '') + ' auch mehrere: je eine wird ein Dokument)' : ''}`; };
+  const showExts = () => { extsHint.textContent = `oder hierher ziehen – ${exts.map((e) => `.${e}`).join(', ')}${docsOn ? ' (Writer, Word' + (pdfOn ? ', PDF' : '') + ', .xopp auch mehrere: je eine wird ein Dokument, die .xopp mit ihrem PDF)' : ''}`; };
   if (docsOn) {
     pdfConvertOptions().then((o) => {
       pdfOn = o.allowed && o.choices.some((c) => c.ok);
@@ -111,12 +113,18 @@ export function openImportDialog(app, { topicId = null, h5p = false, extraFile =
 
   const extOf = (f) => (/\.([a-z0-9]+)$/i.exec(f.name)?.[1] || '').toLowerCase();
 
+  const isXopp = (f) => /\.xopp$/i.test(f.name);
+
   const check = () => {
     if (docFiles.length) {
       const pdfs = docFiles.filter((f) => /\.pdf$/i.test(f.name)).length;
-      show('ok', `📄 ${docFiles.length === 1 ? escapeHtml(docFiles[0].name) : `${docFiles.length} Dateien`} – ${docFiles.length === 1 ? 'wird ein Modul' : 'werden je ein Modul'} „Dokument“`
+      const xopps = docFiles.filter(isXopp).length;
+      // Ein PDF zu einer .xopp wird kein eigenes Dokument (pairXopp).
+      const n = docFiles.length - Math.min(pdfs, xopps);
+      show('ok', `📄 ${docFiles.length === 1 ? escapeHtml(docFiles[0].name) : `${docFiles.length} Dateien`} – ${n === 1 ? 'wird ein Modul' : 'werden je ein Modul'} „Dokument“`
         + `${topicId ? ' in diesem Thema' : ' in einem neuen Lernthema'}.`
-        + (pdfs ? ' Für PDFs wird gleich nach der Art der Umwandlung gefragt.' : '')
+        + (xopps ? ' Die .xopp braucht ihr PDF – am besten gleich mit auswählen; die Handschrift wird deine Beschriftung.' : '')
+        + (pdfs || xopps ? ' Für PDFs wird gleich nach der Art der Umwandlung gefragt.' : '')
         + (docFiles.some((f) => /\.(docx|doc|rtf)$/i.test(f.name)) ? ' Word-Dateien wandelt LibreOffice um – das dauert je Datei einige Sekunden.' : ''));
       valid = true;
     } else if (file) {
@@ -135,7 +143,7 @@ export function openImportDialog(app, { topicId = null, h5p = false, extraFile =
   /** Mehrere Dateien: nur Writer, Word und PDF – je eine wird ein Dokument. */
   const setFiles = async (list) => {
     const all = [...(list || [])];
-    if (docsOn && all.length && all.every((f) => isDocumentFile(f, pdfOn))) {
+    if (docsOn && all.length && all.every((f) => isDocumentFile(f, pdfOn) || isXopp(f))) {
       docFiles = all;
       file = null;
       fileText = null;
@@ -147,7 +155,7 @@ export function openImportDialog(app, { topicId = null, h5p = false, extraFile =
     }
     if (all.length > 1) {
       docFiles = [];
-      show('error', `❌ Mehrere Dateien auf einmal gehen nur bei Writer-, Word-${pdfOn ? ' und PDF-' : ''}Dateien (je eine wird ein Dokument).`);
+      show('error', `❌ Mehrere Dateien auf einmal gehen nur bei Writer-, Word-${pdfOn ? ', PDF-' : ''} und .xopp-Dateien (je eine wird ein Dokument).`);
       btnImport.disabled = true;
       return;
     }
@@ -278,10 +286,11 @@ export function openImportDialog(app, { topicId = null, h5p = false, extraFile =
    * importedCount }, dazu failed und warnings.
    */
   async function importDocuments() {
+    const jobs = await pairXopp();
     let pdf = null;
-    if (docFiles.some((f) => /\.pdf$/i.test(f.name))) {
+    if (jobs.some((j) => (j.xopp ? j.xopp.needsPdf : /\.pdf$/i.test(j.file.name)))) {
       pdf = await askConvertOptions({
-        count: docFiles.length, keepOption: false, heading: '📄 PDFs übernehmen',
+        count: jobs.length, keepOption: false, heading: '📄 PDFs übernehmen',
         intro: 'Wie sollen die PDFs zu Dokumenten werden?',
       });
       if (!pdf) throw new Error('abgebrochen');
@@ -289,7 +298,7 @@ export function openImportDialog(app, { topicId = null, h5p = false, extraFile =
     let target = topicId;
     let topicTitle = null;
     if (!target) {
-      topicTitle = docFiles.length === 1 ? docFiles[0].name.replace(/\.[^.]+$/, '') : 'Dokumente';
+      topicTitle = jobs.length === 1 ? jobs[0].file.name.replace(/\.[^.]+$/, '') : 'Dokumente';
       const topic = await app.api.saveTopic({ title: topicTitle, description: '' });
       if (!topic?.id) throw new Error(topic?.message || 'Lernthema konnte nicht angelegt werden.');
       target = topic.id;
@@ -297,24 +306,80 @@ export function openImportDialog(app, { topicId = null, h5p = false, extraFile =
     const failed = [];
     const warnings = [];
     let importedCount = 0;
-    for (const [n, f] of docFiles.entries()) {
-      show('', `⏳ ${n + 1} von ${docFiles.length}: ${escapeHtml(f.name)} …`);
+    const { xoppToDocument, saveTeacherInk } = jobs.some((j) => j.xopp) ? await import('../xopp-import.js') : {};
+    for (const [n, { file: f, xopp, pdfFile }] of jobs.entries()) {
+      show('', `⏳ ${n + 1} von ${jobs.length}: ${escapeHtml(f.name)} …`);
       try {
-        const { spec, title, warnings: w } = await fileToSpec(f, { pdf, topicId: target });
+        const { spec, title, warnings: w, stand } = xopp
+          ? await xoppToDocument(xopp, { name: f.name, pdfFile, pdf })
+          : await fileToSpec(f, { pdf, topicId: target });
+        const id = generateId();
         const now = new Date().toISOString();
         const res = await app.api.saveModule(target, {
-          id: generateId(), type: 'document', title, description: '',
+          id, type: 'document', title, description: '',
           content: { kind: 'arbeitsblatt', spec }, moduleSelected: true, createdAt: now, updatedAt: now,
         });
         if (!res?.success) throw new Error(res?.message || 'Speichern fehlgeschlagen');
         importedCount++;
         warnings.push(...w.map((x) => `${f.name}: ${x}`));
+        // Die Handschrift der .xopp: Beschriftung der Lehrkraft zum neuen Dokument.
+        if (stand && !(await saveTeacherInk(id, stand))) warnings.push(`${f.name}: Die Handschrift ließ sich nicht speichern.`);
       } catch (err) {
         failed.push(`${f.name}: ${err.message}`);
       }
     }
     if (!importedCount) throw new Error(failed.join(' · ') || 'Keine Datei übernommen.');
     return { topicId: target, topicTitle, importedCount, failed, warnings };
+  }
+
+  /**
+   * Die Dateien als Aufträge `{ file, xopp?, pdfFile? }`: jede .xopp mit ihrem
+   * PDF (Name aus der .xopp, sonst gleicher Name – wie views/file-open.js);
+   * das PDF wird dann kein eigenes Dokument. Fehlt es, wählt die Lehrkraft es aus.
+   */
+  async function pairXopp() {
+    const xoppFiles = docFiles.filter(isXopp);
+    if (!xoppFiles.length) return docFiles.map((file) => ({ file }));
+    const { readXoppFile } = await import('../xopp-import.js');
+    const base = (name) => String(name || '').replace(/\.[^.]+$/, '').toLowerCase();
+    const pdfs = docFiles.filter((f) => /\.pdf$/i.test(f.name));
+    const used = new Set();
+    const jobs = [];
+    for (const f of xoppFiles) {
+      let xopp;
+      try { xopp = await readXoppFile(f); } catch (err) { throw new Error(`${f.name}: ${err.message}`); }
+      let pdfFile = null;
+      if (xopp.needsPdf) {
+        if (!pdfOn) throw new Error(`${f.name} beschriftet ein PDF – PDF-Import ist für dein Konto nicht freigeschaltet.`);
+        const want = String(xopp.pdfName || '').toLowerCase();
+        const free = pdfs.filter((p) => !used.has(p));
+        // Eine .xopp und ein PDF gewählt: das gehört zusammen, auch unter anderem Namen.
+        pdfFile = free.find((p) => p.name.toLowerCase() === want)
+          || free.find((p) => base(p.name) === base(want))
+          || free.find((p) => base(f.name).startsWith(base(p.name)))
+          || (free.length === 1 && xoppFiles.length === 1 ? free[0] : null);
+        if (!pdfFile) {
+          if (!(await app.appConfirm(`„${f.name}“ beschriftet das PDF „${xopp.pdfName || '…'}“ – es steckt nicht in der .xopp-Datei.\n\nJetzt das PDF auswählen?`))) throw new Error('abgebrochen');
+          pdfFile = await choosePdf();
+          if (!pdfFile) throw new Error('abgebrochen');
+        }
+        used.add(pdfFile);
+      }
+      jobs.push({ file: f, xopp, pdfFile });
+    }
+    return [...jobs, ...docFiles.filter((f) => !isXopp(f) && !used.has(f)).map((file) => ({ file }))];
+  }
+
+  /** PDF wählen – direkt nach einem Klick (appConfirm), sonst blockt der Browser. */
+  function choosePdf() {
+    return new Promise((resolve) => {
+      const picker = document.createElement('input');
+      picker.type = 'file';
+      picker.accept = '.pdf,application/pdf';
+      picker.addEventListener('change', () => resolve(picker.files[0] || null));
+      picker.addEventListener('cancel', () => resolve(null));
+      picker.click();
+    });
   }
 
   input.focus();

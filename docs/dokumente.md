@@ -414,7 +414,9 @@ wenn die Lehrkraft des Lernthemas freigeschaltet ist.
   Strichstärken und Farben, beim Text die Schriftgröße, bei der Auswahl
   „Löschen“.
 - **Werkzeuge:** ✏️ Stift (mit Druck), 🖍️ Textmarker (unter der Schrift),
-  🧽 Radierer (ganze Striche; auch das Radierer-Ende eines Windows-Stifts),
+  🧽 Radierer (ganze Striche; auch das Radierer-Ende bzw. die Löschtaste eines
+  Windows-Stifts – sie radiert immer, öffnet kein Menü und wechselt nicht zu
+  „Auswählen“),
   ⬚ Auswählen (einen Strich antippen oder ein Rechteck aufziehen, dann
   verschieben oder 🗑 löschen), **T** Textfeld (auf die Seite tippen und
   schreiben; Schriftgröße 8–36 pt wie im Dokument-Editor; gewählt am runden
@@ -496,7 +498,12 @@ wenn die Lehrkraft des Lernthemas freigeschaltet ist.
   Bedienen wechseln von selbst:** Wer mit einem der beiden auf ein Quiz tippt,
   füllt es aus; daneben – oder auf einem Strich oder Textfeld über dem Quiz –
   wird ausgewählt. Der Finger bedient Quizze immer (auch mit ☝️). Mit Stift,
-  Textmarker und Textfeld schreiben Stift und Maus auch über einem Quiz.
+  Textmarker und Textfeld schreiben Stift und Maus auch über einem Quiz. Im
+  Dokument ist beim Öffnen **Bedienen** gewählt – geschrieben wird erst, wenn
+  du den Stift wählst (nichts gerät aus Versehen aufs Blatt).
+- **Gespeichert** wird kurz nach jeder Änderung; rechts in der Leiste steht
+  dann nur 💾 (bzw. ⚠️ bei einem Fehler, … solange es läuft) – der genaue
+  Text im Tooltip. Das gewählte Werkzeug bleibt beim Speichern erhalten.
 - **Im Durchlauf der Schüler** stehen oben in der Leiste **◀ Zurück** und
   **Weiter ▶** (bzw. Abschließen, Prüfen – wie unter der Aufgabe): Sie speichern,
   schließen den Stift-Editor und gehen zur vorigen bzw. nächsten Aufgabe.

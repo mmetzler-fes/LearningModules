@@ -100,8 +100,11 @@ export async function pickPdfNear(file, xopp, { confirm, fallback }) {
   let dir = await folderOf(handle);
   if (dir && (await dir.requestPermission({ mode: 'read' }).catch(() => 'denied')) !== 'granted') dir = null;
   if (!dir) {
+    // Chrome sperrt manche Ordner, z. B. ein Laufwerk direkt (N:\ – auch eine verbundene Nextcloud):
+    // „enthält Systemdateien“. Dann bleibt die Dateiauswahl – sie darf dort öffnen.
     try { dir = await window.showDirectoryPicker({ startIn: handle, mode: 'read' }); } catch (_) { dir = null; }
     if (dir) await rememberFolder(dir);
+    else if (!(await confirm(`Der Ordner wurde nicht freigegeben – direkt auf einem Laufwerk (z. B. N:\\) lässt der Browser das nicht zu.\n\nDas PDF „${xopp.pdfName || '…'}“ selbst auswählen? (Die Auswahl öffnet im Ordner der .xopp.)`))) return null;
   }
   if (dir) {
     const pdf = await findIn(dir, xopp.pdfName, file.name).catch(() => null);

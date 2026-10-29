@@ -26,9 +26,13 @@ darf.
   verlässt den PC nicht.
 - **.odt, .docx, .pdf**: werden wie beim Import umgewandelt (bei PDFs fragt die
   App nach der Art) und angezeigt.
-- **.xopp** (Xournal++): mit ihrem PDF – beide markieren und zusammen öffnen;
-  fehlt das PDF, fragt die App danach. Angezeigt wird das Dokument mit deiner
-  Handschrift darüber.
+- **.xopp** (Xournal++): mit ihrem PDF – beide markieren und zusammen öffnen.
+  Öffnest du nur die .xopp, sucht die App das PDF im selben Ordner: Beim
+  ersten Mal öffnet sich die Ordnerauswahl schon in diesem Ordner – nur
+  „Auswählen“ und die Leseerlaubnis bestätigen; danach findet die App PDFs in
+  diesem Ordner ohne Nachfrage (höchstens fragt der Browser kurz nach der
+  Erlaubnis). Liegt das PDF dort nicht, öffnet sich die Dateiauswahl im selben
+  Ordner. Angezeigt wird das Dokument mit deiner Handschrift darüber.
 
 Für diese Umwandlung braucht es die Anmeldung; bist du nicht angemeldet,
 öffnet sich die Datei gleich nach der Anmeldung. Gespeichert ist zunächst

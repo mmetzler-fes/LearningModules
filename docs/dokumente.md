@@ -415,8 +415,8 @@ wenn die Lehrkraft des Lernthemas freigeschaltet ist.
   Anfasser darüber drehbar, rastet bei 0°, 15°, 30° … ein). Dazu Farben, drei
   Strichstärken, ↶ ↷ und Zoom.
 - **✺ Leuchtstift** (nur für Lehrkräfte): zum Zeigen am Beamer. Gedrückt ziehen
-  hinterlässt eine rote Leuchtspur, die nach gut einer Sekunde von selbst
-  verblasst; ohne Drücken zeigt ein leuchtender Punkt, wohin man zeigt.
+  hinterlässt eine rote Leuchtspur; sie bleibt stehen, solange der Stift die
+  Fläche berührt, und verblasst nach dem Absetzen in gut einer Sekunde; ohne Drücken zeigt ein leuchtender Punkt, wohin man zeigt.
   Nichts davon wird gespeichert oder gedruckt.
 - **◇ Formen:** ▭ Rechteck, ◯ Ellipse, ⬠ Vieleck, ╱ Linie, ➝ Pfeil. Aufziehen
   (mit Umschalt: Quadrat bzw. Kreis, Linien in 15°-Schritten); beim Vieleck

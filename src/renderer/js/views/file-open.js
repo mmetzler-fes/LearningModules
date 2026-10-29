@@ -7,7 +7,8 @@ import { openDocViewer, openZlmFile } from './zlm-viewer.js';
 // Am PC (installierte App, Chrome/Edge) gibt der Explorer Dateien an
 // LernModule: rechte Maustaste → „Öffnen mit“ (manifest.webmanifest,
 // file_handlers; app.js: launchQueue). .zlm zeigt der Betrachter sofort.
-// Writer, Word, PDF und Xournal++ (.xopp mit ihrem PDF) wandelt der Server um
+// Writer, Word, PDF und Xournal++ (.xopp mit ihrem PDF – fehlt es, sucht
+// xopp-folder.js im Ordner der .xopp) wandelt der Server um
 // – dafür braucht es die Anmeldung; bis dahin warten die Dateien. Angezeigt
 // wird das Dokument (bei .xopp mit der Handschrift), „📓 Im Notizbuch
 // ablegen“ macht daraus ein Modul „Dokument“ in einem Lernthema.
@@ -56,6 +57,7 @@ async function openConverted(app, files) {
     return;
   }
   const { readXoppFile, xoppToDocument } = await import('../xopp-import.js');
+  const { pdfFromKnownFolder, pickPdfNear, canReadFolder } = await import('../xopp-folder.js');
   // .xopp mit ihrem PDF paaren: über den Namen in der .xopp, sonst gleicher Name.
   const pdfs = files.filter((f) => ext(f) === 'pdf');
   const used = new Set();
@@ -70,9 +72,13 @@ async function openConverted(app, files) {
         || pdfs.find((p) => !used.has(p) && base(p.name) === base(want))
         || pdfs.find((p) => !used.has(p) && base(f.name).startsWith(base(p.name)))
         || null;
+      // Sonst im Ordner der .xopp (xopp-folder.js) – ohne Dialog, wenn er schon freigegeben ist.
+      if (!pdf) pdf = await pdfFromKnownFolder(f, xopp);
       if (!pdf) {
-        const ok = await app.appConfirm(`„${f.name}“ beschriftet das PDF „${xopp.pdfName || '…'}“ – es steckt nicht in der .xopp-Datei.\n\nJetzt das PDF auswählen?`);
-        pdf = ok ? await chooseFile('.pdf,application/pdf') : null;
+        const ok = await app.appConfirm(canReadFolder(f)
+          ? `„${f.name}“ beschriftet das PDF „${xopp.pdfName || '…'}“ – es steckt nicht in der .xopp-Datei.\n\nIm Ordner der .xopp danach suchen? (Der Browser fragt einmal, ob die App den Ordner lesen darf.)`
+          : `„${f.name}“ beschriftet das PDF „${xopp.pdfName || '…'}“ – es steckt nicht in der .xopp-Datei.\n\nJetzt das PDF auswählen?`);
+        pdf = ok ? await pickPdfNear(f, xopp, { confirm: (m) => app.appConfirm(m), fallback: chooseFile }) : null;
         if (!pdf) continue;
       }
       used.add(pdf);

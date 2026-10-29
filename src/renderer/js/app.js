@@ -145,7 +145,12 @@ class App {
   _acceptFiles() {
     if (!('launchQueue' in window)) return;
     window.launchQueue.setConsumer(async (params) => {
-      const files = (await Promise.all((params.files || []).map((h) => h.getFile().catch(() => null)))).filter(Boolean);
+      const { noteHandle } = await import('./xopp-folder.js');
+      const files = (await Promise.all((params.files || []).map(async (h) => {
+        const f = await h.getFile().catch(() => null);
+        noteHandle(f, h); // für das PDF zur .xopp im selben Ordner
+        return f;
+      }))).filter(Boolean);
       if (!files.length) return;
       const { handleOpenedFiles } = await import('./views/file-open.js');
       await handleOpenedFiles(this, files);

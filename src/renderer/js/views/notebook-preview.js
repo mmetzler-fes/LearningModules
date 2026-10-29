@@ -302,6 +302,10 @@ export class NotebookPreview {
         <li><strong>${topics.length}</strong> Lernthem${topics.length === 1 ? 'a' : 'en'}, davon ${shared} für Schüler freigegeben</li>
         <li><strong>${modules}</strong> Modul${modules === 1 ? '' : 'e'}</li>
       </ul>
-      <p class="hint">Aufklappen und ein Modul anklicken, um es hier zu sehen.</p>`;
+      <p class="hint">Aufklappen und ein Modul anklicken, um es hier zu sehen.</p>
+      ${this.view._docsEnabled() ? '<p><button type="button" class="btn btn-secondary btn-sm nb-preview-docsettings" title="Kurs, Kopfzeile, Nummerierung (z. B. „Zählung beginnt hier“) und KI-Vorgaben für die Dokumente darunter">📄 Dokument-Einstellungen…</button></p>' : ''}`;
+    this._body.querySelector('.nb-preview-docsettings')?.addEventListener('click', () => {
+      this.view._editDocSettings(node).catch((err) => this.view.app.showToast('Fehler: ' + err.message, 'error'));
+    });
   }
 }

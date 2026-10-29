@@ -237,10 +237,14 @@ bleiben in Draw eigene, verschiebbare Bilder.
 
 ### Aus Xournal++ (.xopp)
 
-**📄 Übernehmen…** nimmt auch **.xopp**-Dateien von Xournal++ an. Eine .xopp
+**📄 Übernehmen…** im Editor und **📥 Importieren** bzw. **📥 Module
+importieren** nehmen auch **.xopp**-Dateien von Xournal++ an. Eine .xopp
 enthält nur die Beschriftung; das PDF darunter ist bloß verknüpft – also die
 .xopp **zusammen mit ihrem PDF** auswählen (sonst fragt der Dialog danach und
-nennt den Dateinamen).
+nennt den Dateinamen). Beim Import wird jede .xopp mit ihrem PDF ein Modul
+**📄 Dokument**; das PDF wird dabei kein eigenes Dokument. Liegt das PDF auf
+einem Laufwerk, von dem das „Öffnen mit“ es nicht lesen kann (unter Windows
+z. B. eine verbundene Nextcloud auf N:\), hier beide Dateien im Dialog wählen.
 
 - Das **PDF** läuft durch den gewohnten PDF-Import (Text mit Struktur, Seiten
   als Bilder oder KI-Erkennung) und ist danach bearbeitbar wie jedes Dokument.
@@ -264,7 +268,9 @@ Ordner davor mit – **„Arduino 2.1 – Der AD-Wandler“** ist das erste Blat
 zweiten Abschnitt. Wer ein Lernthema verschiebt, bekommt die neue Nummer
 sofort; der Baum zeigt die Nummern grau vor dem Namen.
 
-Im Ordnermenü (⋯) unter **📄 Dokument-Einstellungen…**:
+Im Ordnermenü (⋯) unter **📄 Dokument-Einstellungen…** – bei jedem Book,
+Bereich und Abschnitt; der Knopf steht auch in der Vorschau rechts, wenn der
+Ordner angeklickt ist:
 
 - **Kursname**, **Kopfzeile** (Titelmuster mit `{kurs}`, `{pfad}` = 2.1,
   `{nummer}` = nur die letzte Stelle, `{titel}`, `{abschnitt}`, `{autor}`),

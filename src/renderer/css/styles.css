@@ -5079,6 +5079,9 @@ body {
   padding: 4px;
   display: flex;
   flex-direction: column;
+  /* Lange Menüs (Ordner mit Dokumenten: ~30 Einträge) rollen statt unten abgeschnitten zu werden. */
+  max-height: calc(100vh - 16px);
+  overflow-y: auto;
 }
 .nb-menu-item {
   text-align: left;

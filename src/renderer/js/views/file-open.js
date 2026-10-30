@@ -7,7 +7,7 @@ import { openDocViewer, openZlmFile } from './zlm-viewer.js';
 // Am PC (installierte App, Chrome/Edge) gibt der Explorer Dateien an
 // LernModule: rechte Maustaste → „Öffnen mit“ (manifest.webmanifest,
 // file_handlers; app.js: launchQueue). .zlm zeigt der Betrachter sofort.
-// Writer, Word, PDF und Xournal++ (.xopp mit ihrem PDF – fehlt es, sucht
+// Writer, Word, Folien (.odp, .odg, .pptx), PDF und Xournal++ (.xopp mit ihrem PDF – fehlt es, sucht
 // xopp-folder.js im Ordner der .xopp) wandelt der Server um
 // – dafür braucht es die Anmeldung; bis dahin warten die Dateien. Angezeigt
 // wird das Dokument (bei .xopp mit der Handschrift), „📓 Im Notizbuch
@@ -88,7 +88,7 @@ async function openConverted(app, files) {
   for (const f of files) {
     if (ext(f) === 'xopp' || used.has(f)) continue;
     if (isDocumentFile(f, true)) jobs.push({ kind: 'doc', file: f });
-    else app.showToast(`${f.name}: Geöffnet werden .odt, .docx, .pdf, .xopp und .zlm.`, 'error');
+    else app.showToast(`${f.name}: Geöffnet werden .odt, .docx, .odp, .odg, .pptx, .pdf, .xopp und .zlm.`, 'error');
   }
   if (!jobs.length) return;
   let pdfChoice = null;

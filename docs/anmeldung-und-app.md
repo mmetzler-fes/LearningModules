@@ -24,7 +24,7 @@ darf.
 
 - **.zlm** (lm-editor): wird gleich angezeigt – ohne Anmeldung, die Datei
   verlässt den PC nicht.
-- **.odt, .docx, .pdf**: werden wie beim Import umgewandelt (bei PDFs fragt die
+- **.odt, .docx, .pdf** und Folien (**.odp, .odg, .pptx, .ppt**): werden wie beim Import umgewandelt (bei PDFs fragt die
   App nach der Art) und angezeigt.
 - **.xopp** (Xournal++): mit ihrem PDF – beide markieren und zusammen öffnen.
   Öffnest du nur die .xopp, sucht die App das PDF im selben Ordner: Beim

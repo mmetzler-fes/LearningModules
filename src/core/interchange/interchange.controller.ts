@@ -86,8 +86,9 @@ export class InterchangeController {
   /**
    * Writer-Dokument (.odt) in HTML für das Modul "Text / Arbeitsblatt".
    * Word-Dateien (.docx, .doc, .rtf) wandelt vorher der Renderer mit
-   * LibreOffice nach .odt um. Gespeichert wird hier nichts – das Ergebnis
-   * landet im Editor und wird erst mit dem Modul gesichert.
+   * LibreOffice nach .odt um. Ebenso Folien: Impress (.odp) und Draw (.odg)
+   * direkt, PowerPoint über den Renderer als .odg. Gespeichert wird hier
+   * nichts – das Ergebnis landet im Editor und wird erst mit dem Modul gesichert.
    */
   @Post('odt-to-html')
   @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 40 * 1024 * 1024 } }))
@@ -100,9 +101,14 @@ export class InterchangeController {
     if (/\.(docx|doc|rtf)$/i.test(name)) {
       odt = await this.renderer.convertToOdt(file.buffer, name);
       fileName = name.replace(/\.(docx|doc|rtf)$/i, '.odt');
+    } else if (/\.(pptx|ppt|ppsx|pps)$/i.test(name)) {
+      odt = await this.renderer.convertToOdg(file.buffer, name);
+      fileName = name.replace(/\.[^.]+$/, '.odg');
     }
-    // Zeichnungen, wie LibreOffice sie zeichnet – sonst baut der Import sie nach.
-    const exported = await this.renderer.exportDrawings(odt);
+    // Zeichnungen, wie LibreOffice sie zeichnet – sonst baut der Import sie nach
+    // (nur in Writer-Dokumenten; Folien liest der Import selbst).
+    const slides = /\.(odp|odg)$/i.test(fileName);
+    const exported = slides ? null : await this.renderer.exportDrawings(odt);
     // Mit Lernthema und Nextcloud: jede Zeichnung als .odg + .svg ablegen –
     // bearbeitbar in LibreOffice Draw (docs/zeichnungen.md).
     const topicId = String(req.body?.topicId || '') || undefined;

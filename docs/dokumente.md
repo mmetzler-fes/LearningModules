@@ -155,6 +155,19 @@ kommen nicht mit; der Editor nennt, was fehlt. Ausgeblendeter Text – so stehen
 das dauert einige Sekunden länger, und was LibreOffice anders darstellt als
 Word, kommt so auch hier an.
 
+**Folien** – Impress (.odp), Draw (.odg) und PowerPoint (.pptx, .ppt) – nimmt
+der Knopf genauso. PowerPoint wandelt der Renderer mit LibreOffice zuerst in
+eine **.odg** um (je Folie eine Seite), dann wird sie gelesen wie eine Datei
+aus Draw. Je Folie: der **Titel** wird eine Überschrift (derselbe Titel auf
+mehreren Folien nur einmal), eine kurze Zeile direkt darunter eine
+Unterüberschrift, Textfelder werden Text und Listen (mit ihren Ebenen, fett,
+kursiv), Bilder bleiben Bilder – auch gedreht. Was auf der Folie
+**nebeneinander** stand (Text links, Bilder rechts), wird ein
+**Spalten-Baustein** mit den Breiten der Folie. Weg bleiben die Folienvorlage
+(Logo, Fußzeile, Foliennummer, Datum), ein Bild, das fast die ganze Folie
+füllt (Hintergrund der Titelfolie), Notizen sowie Schriftgrößen und Farben.
+Pfeile und Formen werden zusammen mit ihren Beschriftungen ein Bild.
+
 Ein **PDF** kennt keine Struktur, nur Zeichen an Positionen – der Import
 erschließt sie. PDFs nimmt der Knopf nur an, wenn der Admin zusätzlich die
 Funktion **🧪 PDF-Import** freigeschaltet hat (wie die Dokumente: aus, nur
@@ -187,15 +200,15 @@ Im YAML-Modus (und wenn eine KI schreibt) gilt diese Schreibweise:
 Die Zeichen wirken nur am Wortrand: Rechnungen wie `8*7` oder `10^9` bleiben,
 wie sie sind.
 
-### Aus Writer, Word oder PDF
+### Aus Writer, Word, Folien oder PDF
 
 Schneller als anlegen und hineinladen: **📥 Importieren** (Notebook-Ansicht,
 Lernthemen, oder im Lernthema **📥 Module importieren**) nimmt auch
-**.odt, .docx, .doc, .rtf** und – mit Freischaltung „PDF-Import“ – **.pdf**
-an, auch **mehrere Dateien auf einmal** (wählen oder hineinziehen). Jede Datei
+**.odt, .docx, .doc, .rtf**, Folien (**.odp, .odg, .pptx, .ppt**) und – mit
+Freischaltung „PDF-Import“ – **.pdf** an, auch **mehrere Dateien auf einmal** (wählen oder hineinziehen). Jede Datei
 wird ein Modul **📄 Dokument**: im geöffneten Lernthema, sonst in einem neuen
-(benannt nach der Datei bzw. „Dokumente“). Word-Dateien wandelt LibreOffice
-um, PDFs der Renderer bzw. die KI-Erkennung – gefragt wird einmal, wie.
+(benannt nach der Datei bzw. „Dokumente“). Word- und PowerPoint-Dateien
+wandelt LibreOffice um, PDFs der Renderer bzw. die KI-Erkennung – gefragt wird einmal, wie.
 
 Im Editor geht es weiter wie bisher: **📄 Übernehmen…** über dem
 Inhalt ersetzt den Inhalt des geöffneten Dokuments.

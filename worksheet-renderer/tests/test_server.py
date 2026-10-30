@@ -369,6 +369,7 @@ class RendererTest(unittest.TestCase):
         status, body = self.request("/convert-odt", {"file": base64.b64encode(b"x").decode(), "name": "a.exe"})
         self.assertEqual(status, 400)
         self.assertIn(".docx", body["error"])
+        self.assertIn(".pptx", body["error"])
 
     @unittest.skipUnless(server.soffice_available(), "LibreOffice nicht installiert")
     def test_umwandeln_docx(self):

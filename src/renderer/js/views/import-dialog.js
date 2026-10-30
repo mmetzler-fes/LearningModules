@@ -1,6 +1,6 @@
 import { escapeHtml, showImportReport, generateId } from '../utils.js';
 import { extractJson, looksLikeXml, summarizeImport } from '../json-text.js';
-import { DOCUMENT_EXTS, isDocumentFile, fileToSpec, askConvertOptions, pdfConvertOptions } from './attachment-convert.js';
+import { DOCUMENT_EXTS, isDocumentFile, isConvertedFile, fileToSpec, askConvertOptions, pdfConvertOptions } from './attachment-convert.js';
 
 /**
  * Ein Dialog für jeden Import: Datei wählen bzw. hineinziehen oder Text mit
@@ -18,7 +18,8 @@ import { DOCUMENT_EXTS, isDocumentFile, fileToSpec, askConvertOptions, pdfConver
  *                   (topicId, topicTitle, importedCount …)
  *
  * Mit freigeschalteten Dokumenten nimmt der Dialog auch Writer- und
- * Word-Dateien (.odt, .docx, .doc, .rtf) und – mit PDF-Import – PDFs an,
+ * Word-Dateien (.odt, .docx, .doc, .rtf), Folien (.odp, .odg, .pptx, .ppt)
+ * und – mit PDF-Import – PDFs an,
  * auch mehrere auf einmal: Jede wird ein Modul „Dokument“. Ebenso Xournal++
  * (.xopp, am besten zusammen mit ihrem PDF gewählt; xopp-import.js): Die
  * Handschrift wird die Beschriftung der Lehrkraft.
@@ -67,7 +68,7 @@ export function openImportDialog(app, { topicId = null, h5p = false, extraFile =
   let file = null; // gewählte Datei; dann zählt sie statt des Textfelds
   let docFiles = []; // Writer-, Word-, PDF- und .xopp-Dateien – je eine wird ein Dokument (die .xopp mit ihrem PDF)
   const extsHint = overlay.querySelector('.import-dialog-file .hint');
-  const showExts = () => { extsHint.textContent = `oder hierher ziehen – ${exts.map((e) => `.${e}`).join(', ')}${docsOn ? ' (Writer, Word' + (pdfOn ? ', PDF' : '') + ', .xopp auch mehrere: je eine wird ein Dokument, die .xopp mit ihrem PDF)' : ''}`; };
+  const showExts = () => { extsHint.textContent = `oder hierher ziehen – ${exts.map((e) => `.${e}`).join(', ')}${docsOn ? ' (Writer, Word, Folien' + (pdfOn ? ', PDF' : '') + ', .xopp auch mehrere: je eine wird ein Dokument, die .xopp mit ihrem PDF)' : ''}`; };
   if (docsOn) {
     pdfConvertOptions().then((o) => {
       pdfOn = o.allowed && o.choices.some((c) => c.ok);
@@ -125,7 +126,7 @@ export function openImportDialog(app, { topicId = null, h5p = false, extraFile =
         + `${topicId ? ' in diesem Thema' : ' in einem neuen Lernthema'}.`
         + (xopps ? ' Die .xopp braucht ihr PDF – am besten gleich mit auswählen; die Handschrift wird deine Beschriftung.' : '')
         + (pdfs || xopps ? ' Für PDFs wird gleich nach der Art der Umwandlung gefragt.' : '')
-        + (docFiles.some((f) => /\.(docx|doc|rtf)$/i.test(f.name)) ? ' Word-Dateien wandelt LibreOffice um – das dauert je Datei einige Sekunden.' : ''));
+        + (docFiles.some(isConvertedFile) ? ' Word- und PowerPoint-Dateien wandelt LibreOffice um – das dauert je Datei einige Sekunden.' : ''));
       valid = true;
     } else if (file) {
       const ext = extOf(file);
@@ -155,7 +156,7 @@ export function openImportDialog(app, { topicId = null, h5p = false, extraFile =
     }
     if (all.length > 1) {
       docFiles = [];
-      show('error', `❌ Mehrere Dateien auf einmal gehen nur bei Writer-, Word-${pdfOn ? ', PDF-' : ''} und .xopp-Dateien (je eine wird ein Dokument).`);
+      show('error', `❌ Mehrere Dateien auf einmal gehen nur bei Writer-, Word-, Folien-${pdfOn ? ', PDF-' : ''} und .xopp-Dateien (je eine wird ein Dokument).`);
       btnImport.disabled = true;
       return;
     }

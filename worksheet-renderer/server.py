@@ -10,7 +10,8 @@ POST /inspect  JSON {template} → Platzhalter und Formatvorlagen einer .ott
 POST /render-script  JSON {sheets: [{titel, spec}], course?, skript?, template?, files?, outputs?}
                → Skript (Kompendium) aus mehreren Blättern, wie make_script.py
 POST /convert-odt    JSON {file, name} → {odt: base64}: Word-Datei (.docx, .doc, .rtf)
-               mit LibreOffice nach .odt – für den .odt-Import der App
+               mit LibreOffice nach .odt – für den .odt-Import der App; PowerPoint
+               (.pptx, .ppt, .ppsx, .pps) → {odg: base64}, die Folien als Seiten
 POST /export-drawings JSON {odt} → {odt: base64, drawings: [{name, svg, odg, width_mm, height_mm}], warnings}:
                Zeichnungen, wie LibreOffice sie zeichnet; im Dokument heißen sie lmdraw-<n>
                (tools/export_drawings.py, braucht python3-uno) – für den .odt-Import der App
@@ -277,16 +278,19 @@ def render_script(job: dict[str, Any], slot: int) -> tuple[dict[str, str], list[
         shutil.rmtree(root, ignore_errors=True)
 
 
-# Was /convert-odt annimmt – LibreOffice erkennt das Format am Inhalt, die
-# Endung entscheidet nur, welche Dateien wir überhaupt hineinlassen.
-CONVERT_EXT = (".docx", ".doc", ".rtf")
+# Was /convert-odt annimmt, und wohin – LibreOffice erkennt das Format am
+# Inhalt, die Endung entscheidet nur, welche Dateien wir hineinlassen.
+# PowerPoint wird eine Zeichnung (.odg, Filter impress8_draw): Folien als Seiten.
+CONVERT_EXT = {".docx": "odt", ".doc": "odt", ".rtf": "odt",
+               ".pptx": "odg", ".ppt": "odg", ".ppsx": "odg", ".pps": "odg"}
 
 
 def convert_odt(job: dict[str, Any], slot: int) -> dict[str, str]:
-    """Word-Datei → .odt (soffice --convert-to odt) mit eigenem Profil je Arbeitsplatz."""
+    """Word-Datei → .odt, PowerPoint → .odg (soffice --convert-to) mit eigenem Profil je Arbeitsplatz."""
     data = decode(job.get("file"), "file")
     ext = Path(str(job.get("name") or "")).suffix.lower()
-    if ext not in CONVERT_EXT:
+    target = CONVERT_EXT.get(ext)
+    if not target:
         raise BadRequest(f"Umwandeln nur für {', '.join(CONVERT_EXT)}")
     soffice = shutil.which("soffice") or shutil.which("libreoffice")
     if not soffice:
@@ -298,15 +302,16 @@ def convert_odt(job: dict[str, Any], slot: int) -> dict[str, str]:
         profile = (PROFILES / f"lo-{slot}").resolve().as_uri()
         try:
             proc = subprocess.run([soffice, f"-env:UserInstallation={profile}", "--headless",
-                                   "--convert-to", "odt", "--outdir", str(root / "out"), str(src)],
+                                   "--convert-to", target, "--outdir", str(root / "out"), str(src)],
                                   capture_output=True, text=True, timeout=TIMEOUT)
         except subprocess.TimeoutExpired:
             raise RenderFailed(f"Umwandeln braucht zu lange (über {TIMEOUT} s).", []) from None
-        out = root / "out" / "dokument.odt"
+        out = root / "out" / f"dokument.{target}"
         if not out.exists():
             sys.stderr.write(f"Umwandeln gescheitert, Rückgabe {proc.returncode}:\n{proc.stderr[-2000:]}\n")
-            raise RenderFailed("Die Datei ließ sich nicht umwandeln – ist es ein Word-Dokument?", [])
-        return {"odt": base64.b64encode(out.read_bytes()).decode("ascii")}
+            kind = "ein Word-Dokument" if target == "odt" else "eine PowerPoint-Präsentation"
+            raise RenderFailed(f"Die Datei ließ sich nicht umwandeln – ist es {kind}?", [])
+        return {target: base64.b64encode(out.read_bytes()).decode("ascii")}
     finally:
         shutil.rmtree(root, ignore_errors=True)
 

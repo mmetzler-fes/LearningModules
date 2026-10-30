@@ -203,16 +203,19 @@ const rootOrder =(modules, skip = new Set()) => (Array.isArray(modules) ? module
   .sort((a, b) => (a.orderIndex || 0) - (b.orderIndex || 0))
   .map((m) => m.id);
 
-/** Writer, Word und PDF – was der Import als Dokument annimmt. */
-export const DOCUMENT_EXTS = ['odt', 'docx', 'doc', 'rtf'];
+/** Writer, Word, Folien (Impress, Draw, PowerPoint) und PDF – was der Import als Dokument annimmt. */
+export const DOCUMENT_EXTS = ['odt', 'docx', 'doc', 'rtf', 'odp', 'odg', 'pptx', 'ppt'];
+/** Wandelt erst LibreOffice im Renderer um (dauert einige Sekunden). */
+export const isConvertedFile = (f) => /\.(docx|doc|rtf|pptx|ppt|ppsx|pps)$/i.test(f?.name || '');
 export const isDocumentFile = (f, pdf = true) => {
   const ext = (/\.([a-z0-9]+)$/i.exec(f?.name || '')?.[1] || '').toLowerCase();
   return DOCUMENT_EXTS.includes(ext) || (pdf && ext === 'pdf');
 };
 
 /**
- * Datei → Dokument (spec): .odt direkt, .docx/.doc/.rtf über LibreOffice
- * (POST /api/interchange/odt-to-html), .pdf über den Renderer bzw. pdf-ai
+ * Datei → Dokument (spec): .odt, .odp und .odg direkt, .docx/.doc/.rtf und
+ * PowerPoint über LibreOffice (POST /api/interchange/odt-to-html; Folien
+ * werden Überschrift, Text und Bilder, nebeneinander als Spalten), .pdf über den Renderer bzw. pdf-ai
  * (`pdf`: { mode, ocr }). Ergebnis: `{ spec, title, warnings }`.
  */
 export async function fileToSpec(file, { pdf = null, topicId = null } = {}) {

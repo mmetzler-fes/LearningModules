@@ -102,15 +102,16 @@ jede Seite als Bild. Antwort `{ "spec", "title", "warnings" }`, bei Fehlern
 
 ### `POST /convert-odt`
 
-Word-Datei → .odt mit LibreOffice, für den .odt-Import der App:
+Word-Datei → .odt bzw. PowerPoint → .odg mit LibreOffice, für den Import der App:
 
 ```json
 { "file": "<base64>", "name": "Blatt.docx" }
 ```
 
-Erlaubt sind `.docx`, `.doc` und `.rtf` (an der Endung von `name`). Antwort
-`{ "odt": "<base64>" }`; 400 bei anderer Endung, 422, wenn LibreOffice fehlt
-oder nichts erzeugt.
+Erlaubt sind `.docx`, `.doc` und `.rtf` (Antwort `{ "odt": "<base64>" }`) sowie
+`.pptx`, `.ppt`, `.ppsx` und `.pps` (Antwort `{ "odg": "<base64>" }`, Filter
+`impress8_draw`: je Folie eine Seite) – an der Endung von `name`. 400 bei
+anderer Endung, 422, wenn LibreOffice fehlt oder nichts erzeugt.
 
 ### `POST /export-drawings`
 

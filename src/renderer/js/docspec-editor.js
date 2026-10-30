@@ -92,7 +92,7 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
     <div class="ds-editor-bar">
       <button type="button" class="btn btn-secondary btn-sm ds-print-menu" title="Arbeitsblatt oder Lösungsblatt als PDF oder .odt">🖨 Drucken ▾</button>
       <label class="ds-editor-toggle"><input type="checkbox" class="ds-show-solutions"> Lösungen zeigen</label>
-      <button type="button" class="btn btn-secondary btn-sm ds-import-odt" title="Writer- oder Word-Dokument (.odt, .docx) übernehmen: Überschriften, Absätze, Listen, Tabellen, Bilder">📄 Übernehmen…</button>
+      <button type="button" class="btn btn-secondary btn-sm ds-import-odt" title="Writer- oder Word-Dokument (.odt, .docx) oder Folien (.odp, .odg, .pptx) übernehmen: Überschriften, Absätze, Listen, Tabellen, Bilder">📄 Übernehmen…</button>
       <span class="ds-editor-status hint"></span>
     </div>
     <div class="ds-editor-header hint" hidden></div>
@@ -278,7 +278,7 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
       root.querySelectorAll('.ds-vinsert option[value="quiz"], .ds-yinsert option[value="quiz"]')
         .forEach((o) => o.after(new Option('📄 PDF an dieser Stelle', 'pdf')));
       importButton.textContent = '📄 Übernehmen…';
-      importButton.title = 'Writer- oder Word-Dokument (.odt, .docx) oder PDF übernehmen: Überschriften, Absätze, Listen, Tabellen, Bilder';
+      importButton.title = 'Writer- oder Word-Dokument (.odt, .docx), Folien (.odp, .odg, .pptx) oder PDF übernehmen: Überschriften, Absätze, Listen, Tabellen, Bilder';
     }
   });
 
@@ -368,6 +368,8 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
     input.multiple = true; // .xopp zusammen mit ihrem PDF
     input.accept = '.odt,.ott,.fodt,.docx,.doc,.rtf,application/vnd.oasis.opendocument.text,'
       + 'application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/msword,.xopp'
+      + ',.odp,.odg,.pptx,.ppt,application/vnd.oasis.opendocument.presentation,application/vnd.oasis.opendocument.graphics,'
+      + 'application/vnd.openxmlformats-officedocument.presentationml.presentation,application/vnd.ms-powerpoint'
       + (pdfAllowed ? ',.pdf,application/pdf' : '');
     input.onchange = async () => {
       const files = [...input.files];
@@ -383,7 +385,7 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
       if (isPdf && !choice) return;
       if (!empty && !(await ask('Den bisherigen Inhalt durch das Dokument ersetzen?'))) return;
       status.textContent = isPdf && choice.mode === 'ai' ? 'KI-Erkennung läuft – das kann je Seite einige Sekunden dauern …'
-        : /\.(docx|doc|rtf)$/i.test(file.name) ? 'Word-Datei wird mit LibreOffice umgewandelt und übernommen – das dauert einige Sekunden …'
+        : /\.(docx|doc|rtf|pptx|ppt)$/i.test(file.name) ? 'Datei wird mit LibreOffice umgewandelt und übernommen – das dauert einige Sekunden …'
           : 'Wird übernommen …';
       try {
         const form = new FormData();

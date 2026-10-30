@@ -102,8 +102,8 @@ und Ereignisattribute werden entfernt.
 
 | Datei | Zweck |
 |---|---|
-| `src/core/interchange/odt/odt.ts` | .odt → HTML, ohne Fremdbibliothek; Zeichnungen → SVG |
-| `POST /api/interchange/odt-to-html` | Datei hochladen, HTML + Warnungen zurück (nichts wird gespeichert); .docx/.doc/.rtf erst über den Renderer (`POST /convert-odt`) nach .odt |
+| `src/core/interchange/odt/odt.ts` | .odt → HTML, ohne Fremdbibliothek; Zeichnungen → SVG; Folien (.odp, .odg) je Folie Überschrift, Text, Bilder, nebeneinander als `table.ws-columns` |
+| `POST /api/interchange/odt-to-html` | Datei hochladen, HTML + Warnungen zurück (nichts wird gespeichert); .docx/.doc/.rtf erst über den Renderer (`POST /convert-odt`) nach .odt, .pptx/.ppt/.ppsx/.pps nach .odg |
 | `src/renderer/js/content-editors.js` | Feldtyp `worksheet`: Editor + Übernahme |
 | `src/renderer/js/worksheet-image-tools.js` | Bildwerkzeuge im Editor |
 | `src/renderer/js/utils.js` | `sanitizeWorksheetHtml()` |

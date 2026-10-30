@@ -139,7 +139,7 @@ class App {
 
   /**
    * Rechte Maustaste → „Öffnen mit“ bzw. Doppelklick (installierte App,
-   * Chrome/Edge am PC): .zlm zum Ansehen, Writer/Word/PDF/.xopp umgewandelt
+   * Chrome/Edge am PC): .zlm zum Ansehen, Writer/Word/Folien/PDF/.xopp umgewandelt
    * mit „Im Notizbuch ablegen“ (views/file-open.js) – diese nach der Anmeldung.
    */
   _acceptFiles() {

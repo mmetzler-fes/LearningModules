@@ -117,6 +117,19 @@ export class WorksheetRendererClient {
    */
   async convertToOdt(file: Buffer, name: string): Promise<Buffer> {
     if (!this.configured()) throw new ServiceUnavailableException('Word-Dateien lassen sich nur mit dem Renderer umwandeln – bitte als .odt speichern.');
+    return this.convert(file, name, 'odt');
+  }
+
+  /**
+   * PowerPoint (.pptx, .ppt, .ppsx, .pps) mit LibreOffice nach .odg – je Folie
+   * eine Seite (POST /convert-odt). Für den Folien-Import.
+   */
+  async convertToOdg(file: Buffer, name: string): Promise<Buffer> {
+    if (!this.configured()) throw new ServiceUnavailableException('PowerPoint-Dateien lassen sich nur mit dem Renderer umwandeln – bitte in Impress als .odp oder .odg speichern.');
+    return this.convert(file, name, 'odg');
+  }
+
+  private async convert(file: Buffer, name: string, key: 'odt' | 'odg'): Promise<Buffer> {
     let res: Response;
     try {
       res = await fetch(`${this.base()}/convert-odt`, {
@@ -134,8 +147,8 @@ export class WorksheetRendererClient {
       this.logger.error('Renderer lehnt das Token ab.');
       throw new ServiceUnavailableException('Der Renderer ist falsch eingerichtet (Token).');
     }
-    if (!res.ok || typeof body.odt !== 'string') throw new UnprocessableEntityException(body.error || `Die Datei ließ sich nicht umwandeln (${res.status}).`);
-    return Buffer.from(body.odt, 'base64');
+    if (!res.ok || typeof body[key] !== 'string') throw new UnprocessableEntityException(body.error || `Die Datei ließ sich nicht umwandeln (${res.status}).`);
+    return Buffer.from(body[key], 'base64');
   }
 
   /**

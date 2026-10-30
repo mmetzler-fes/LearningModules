@@ -185,3 +185,84 @@ describe('.odt-Import: Gliederung als Liste und Rahmen ohne Rand', () => {
     expect(html).toContain('<ol><li><p>eins</p></li><li><p>zwei</p></li></ol>');
   });
 });
+
+describe('Folien-Import (.odp, .odg – PowerPoint kommt über LibreOffice als .odg)', () => {
+  const png = Buffer.from('89504e470d0a1a0a0000000d49484452', 'hex');
+  /** Präsentation mit Folien 25,4 × 14,3 cm; `pages` ist der Inhalt von office:presentation. */
+  const slides = (pages: string, mimetype = 'application/vnd.oasis.opendocument.presentation') => {
+    const ns = 'xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0" '
+      + 'xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0" xmlns:draw="urn:oasis:names:tc:opendocument:xmlns:drawing:1.0" '
+      + 'xmlns:fo="urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0" xmlns:presentation="urn:oasis:names:tc:opendocument:xmlns:presentation:1.0" '
+      + 'xmlns:svg="urn:oasis:names:tc:opendocument:xmlns:svg-compatible:1.0" xmlns:xlink="http://www.w3.org/1999/xlink"';
+    const zip = new AdmZip();
+    zip.addFile('mimetype', Buffer.from(mimetype));
+    zip.addFile('styles.xml', Buffer.from(`<?xml version="1.0" encoding="UTF-8"?><office:document-styles ${ns}><office:automatic-styles>`
+      + '<style:page-layout style:name="PM1"><style:page-layout-properties fo:page-width="25.4cm" fo:page-height="14.288cm"/></style:page-layout>'
+      + '</office:automatic-styles><office:master-styles><style:master-page style:name="Inhalt" style:page-layout-name="PM1"/></office:master-styles></office:document-styles>'));
+    zip.addFile('content.xml', Buffer.from(`<?xml version="1.0" encoding="UTF-8"?><office:document-content ${ns}><office:automatic-styles>`
+      + '<style:style style:name="gr1" style:family="graphic"><style:graphic-properties draw:stroke="none" draw:fill="none"/></style:style>'
+      + '<text:list-style style:name="L1"><text:list-level-style-number text:level="1" style:num-format="1"/></text:list-style>'
+      + `</office:automatic-styles><office:body><office:presentation>${pages}</office:presentation></office:body></office:document-content>`));
+    zip.addFile('Pictures/a.png', png);
+    return zip.toBuffer();
+  };
+  const page = (inner: string) => `<draw:page draw:name="Folie" draw:master-page-name="Inhalt">${inner}</draw:page>`;
+  const title = (t: string) => `<draw:frame presentation:class="title" svg:x="1cm" svg:y="1cm" svg:width="18cm" svg:height="1cm"><draw:text-box><text:p>${t}</text:p></draw:text-box></draw:frame>`;
+  const frame = (x: number, y: number, w: number, h: number, inner: string, attrs = '') =>
+    `<draw:frame svg:x="${x}cm" svg:y="${y}cm" svg:width="${w}cm" svg:height="${h}cm"${attrs}>${inner}</draw:frame>`;
+  const picture = '<draw:image xlink:href="Pictures/a.png"/>';
+
+  it('Titel, Unterzeile, Text links und Bilder rechts → Überschriften und Spalten; Vorlagen-Elemente fallen weg', () => {
+    const r = odtToHtml(slides(page(title('Solarchallenge')
+      + frame(1, 2, 18, 0.8, '<draw:text-box><text:p>Hintergrund</text:p></draw:text-box>')
+      + frame(1, 3.5, 15, 9, '<draw:text-box><text:p>Energiewende bedeutet:</text:p><text:list><text:list-item><text:p>Erzeugung</text:p></text:list-item></text:list></draw:text-box>')
+      + frame(19, 3, 4.5, 3, picture) + frame(19, 7, 4.5, 3, picture)
+      + '<draw:frame presentation:class="page-number" svg:x="23cm" svg:y="13.8cm" svg:width="1.6cm" svg:height="0.4cm"><draw:text-box><text:p>3</text:p></draw:text-box></draw:frame>')),
+    'Workshop.odg');
+    expect(r.title).toBe('Workshop');
+    expect(r.html).toMatch(/^<h2>Solarchallenge<\/h2><h3>Hintergrund<\/h3><table class="ws-columns"><colgroup><col style="width:[\d.]+cm"><col style="width:[\d.]+cm"><\/colgroup>/);
+    expect(r.html).toContain('<td><p>Energiewende bedeutet:</p><ul><li><p>Erzeugung</p></li></ul></td>');
+    expect(r.html.match(/<img /g)).toHaveLength(2);
+    // Auf die Satzbreite verkleinert: 4,5 cm auf der 25,4 cm breiten Folie.
+    expect(r.html).toMatch(/<img [^>]*width="11\d"/);
+    expect(r.html).not.toContain('>3<');
+  });
+
+  it('derselbe Titel wird nicht wiederholt; geteilte Listen werden eine, leere Zwischenebenen hängen am Punkt davor', () => {
+    const list = (items: string) => `<text:list text:style-name="L1">${items}</text:list>`;
+    const item = (t: string) => `<text:list-item><text:p>${t}</text:p></text:list-item>`;
+    const nested = (t: string) => `<text:list-item><text:list><text:list-item><text:p>${t}</text:p></text:list-item></text:list></text:list-item>`;
+    const r = odtToHtml(slides(page(title('Ablauf') + frame(1, 3, 20, 9, `<draw:text-box>${list(item('Begrüßung'))}${list(item('Bau') + nested('Messen'))}</draw:text-box>`))
+      + page(title('Ablauf') + frame(1, 3, 20, 9, `<draw:text-box><text:p>Weiter</text:p></draw:text-box>`))), 'x.odp');
+    expect(r.html.match(/<h2>/g)).toHaveLength(1);
+    expect(r.html).toContain('<ol><li><p>Begrüßung</p></li><li><p>Bau</p><ul><li><p>Messen</p></li></ul></li></ol>');
+    // Jede Folie auf einer neuen Seite.
+    expect(r.html).toContain(`<div data-block="${encodeURIComponent('{"type":"pagebreak"}')}"></div><p>Weiter</p>`);
+  });
+
+  it('Notizen stehen unter der Folie als ausgeblendete Lösung', () => {
+    const notes = '<presentation:notes><draw:page-thumbnail presentation:class="page"/>'
+      + '<draw:frame presentation:class="notes"><draw:text-box><text:p>Hier nach Vorwissen fragen.</text:p></draw:text-box></draw:frame></presentation:notes>';
+    const r = odtToHtml(slides(page(title('Start') + notes)), 'x.odp');
+    expect(r.html).toBe('<h2>Start</h2><div data-solution="1"><p>Hier nach Vorwissen fragen.</p></div>');
+    expect(r.warnings.join(' ')).toContain('Notizen zu 1 Folie');
+  });
+
+  it('Hintergrundbild der Titelfolie fällt weg; ein gedrehtes Foto bleibt gedreht (als Zeichnung, Rahmen mit Drehung)', () => {
+    const r = odtToHtml(slides(page(frame(0, 0, 25.4, 14.3, picture)
+      + '<draw:frame svg:width="6cm" svg:height="4cm" draw:transform="rotate (-1.5707963267949) translate (23cm 3cm)">' + picture + '</draw:frame>')), 'x.odg');
+    expect(r.warnings.join(' ')).toContain('Hintergrund');
+    expect(r.stats.drawings).toBe(1);
+    const svg = Buffer.from(/base64,([^"]+)"/.exec(r.html)![1], 'base64').toString();
+    // Hochkant: 4 cm breit, 6 cm hoch (151 × 227 px, dazu der Rand).
+    const [, , w, h] = /viewBox="([-\d.]+) ([-\d.]+) ([\d.]+) ([\d.]+)"/.exec(svg)!.slice(1).map(Number);
+    expect(Math.abs(w - (151 + 24))).toBeLessThanOrEqual(2);
+    expect(Math.abs(h - (227 + 24))).toBeLessThanOrEqual(2);
+  });
+
+  it('nimmt auch Draw-Dokumente; Writer-fremdes wird abgelehnt', () => {
+    const r = odtToHtml(slides(page(frame(1, 1, 10, 2, '<draw:text-box><text:p>Skizze</text:p></draw:text-box>')), 'application/vnd.oasis.opendocument.graphics'), 'x.odg');
+    expect(r.html).toBe('<p>Skizze</p>');
+    expect(() => odtToHtml(slides('', 'application/vnd.oasis.opendocument.spreadsheet'), 'x.ods')).toThrow(/Impress/);
+  });
+});

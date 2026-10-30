@@ -325,6 +325,33 @@ function lengthCm(value: string | undefined): number | null {
   return cm > 0 ? Math.round(cm * 10) / 10 : null;
 }
 
+/** Wie toPx, auch negativ (Lage links oder über der Seite); ohne Angabe 0. */
+const signedPx = (v: string | undefined) => {
+  const t = String(v ?? '').trim();
+  return t.startsWith('-') ? -(toPx(t.slice(1)) ?? 0) : toPx(t) ?? 0;
+};
+
+/**
+ * Punkt (px) durch eine ODF-Transformation ("rotate (0.5) translate (2cm 1cm)")
+ * – Schritte in Leserichtung, Drehwinkel gegen den Uhrzeigersinn.
+ */
+function odfPoint(t: string | undefined, x: number, y: number): [number, number] {
+  for (const m of (t || '').matchAll(/(rotate|translate|scale)\s*\(([^)]*)\)/g)) {
+    const args = m[2].trim().split(/[\s,]+/);
+    if (m[1] === 'rotate') {
+      const a = -parseFloat(args[0]) || 0;
+      [x, y] = [x * Math.cos(a) - y * Math.sin(a), x * Math.sin(a) + y * Math.cos(a)];
+    } else if (m[1] === 'translate') {
+      x += signedPx(args[0]);
+      y += signedPx(args[1]);
+    } else {
+      x *= parseFloat(args[0]) || 1;
+      y *= parseFloat(args[1] ?? args[0]) || 1;
+    }
+  }
+  return [x, y];
+}
+
 function toPx(value: string | undefined): number | null {
   const m = /^([\d.]+)\s*(cm|mm|in|pt|pc|px)?$/.exec(String(value || '').trim());
   if (!m) return null;
@@ -658,8 +685,15 @@ class DrawingSvg {
         return false;
     }
     if (n.name !== 'draw:line' && n.name !== 'draw:connector') {
-      this.grow(ox, oy);
-      this.grow(ox + b.w, oy + b.h);
+      if (/rotate/.test(n.attrs['draw:transform'] || '')) {
+        // Gedreht (z. B. ein hochkant gestelltes Foto): alle vier Ecken zählen.
+        for (const [px, py] of [[b.x, b.y], [b.x + b.w, b.y], [b.x, b.y + b.h], [b.x + b.w, b.y + b.h]]) {
+          this.grow(...odfPoint(n.attrs['draw:transform'], px, py));
+        }
+      } else {
+        this.grow(ox, oy);
+        this.grow(ox + b.w, oy + b.h);
+      }
     }
     this.shapes++;
     return true;
@@ -729,8 +763,10 @@ export function odtToHtml(buffer: Buffer, fileName = '', opts: OdtOptions = {}):
   }
   const read = (entry: string) => zip.getEntry(entry)?.getData().toString('utf8');
   const mimetype = (read('mimetype') || '').trim();
-  if (mimetype && !mimetype.startsWith('application/vnd.oasis.opendocument.text')) {
-    throw new Error('Das ist kein Writer-Dokument (.odt).');
+  // Folien aus Impress (.odp) und Seiten aus Draw (.odg) – PowerPoint kommt
+  // über LibreOffice als .odg (Renderer, POST /convert-odt).
+  if (mimetype && !/^application\/vnd\.oasis\.opendocument\.(text|presentation|graphics)/.test(mimetype)) {
+    throw new Error('Das ist kein Writer-, Impress- oder Draw-Dokument.');
   }
   const contentXml = read('content.xml');
   if (!contentXml) throw new Error('content.xml fehlt – die Datei ist beschädigt.');
@@ -738,10 +774,12 @@ export function odtToHtml(buffer: Buffer, fileName = '', opts: OdtOptions = {}):
   const content = parseXml(contentXml);
   const styles = new Styles();
   const stylesXml = read('styles.xml');
-  if (stylesXml) styles.read(parseXml(stylesXml));
+  const stylesRoot = stylesXml ? parseXml(stylesXml) : undefined;
+  styles.read(stylesRoot);
   styles.read(find(content, 'office:automatic-styles'));
 
-  const body = find(content, 'office:text');
+  const slideBody = find(content, 'office:presentation') ?? find(content, 'office:drawing');
+  const body = find(content, 'office:text') ?? slideBody;
   if (!body) throw new Error('Das Dokument enthält keinen Text.');
 
   const stats = { headings: 0, paragraphs: 0, tables: 0, images: 0, drawings: 0, exported: 0 };
@@ -1273,15 +1311,293 @@ export function odtToHtml(buffer: Buffer, fileName = '', opts: OdtOptions = {}):
       .replace(/^(<p><br><\/p>)+|(<p><br><\/p>)+$/g, '');
   }
 
-  const html = placeBeside(blocks(body));
+  // ---- Folien (.odp) und Zeichenseiten (.odg) ----
+  //
+  // Jede Folie: Titel als Überschrift, darunter Textrahmen, Bilder und
+  // Zeichnungen in Leserichtung. Was auf der Folie nebeneinander stand (Text
+  // links, Bilder rechts), wird ein Spalten-Baustein mit den Breiten der
+  // Folie. Fußzeile, Foliennummer, Datum und die Masterseite (Logo, Hintergrund)
+  // bleiben weg, ebenso ein Bild, das fast die ganze Folie füllt. Jede Folie
+  // beginnt eine neue Seite; ihre Notizen stehen darunter als ausgeblendete Lösung.
+
+  const slideStats = { slides: 0, backgrounds: 0, notes: 0 };
+  /** Seitenumbruch als fester Baustein (docspec-html.js liest div[data-block]). */
+  const PAGEBREAK = `<div data-block="${encodeURIComponent(JSON.stringify({ type: 'pagebreak' }))}"></div>`;
+  /** Platzhalter der Vorlage, die kein Inhalt sind. */
+  const TEMPLATE_CLASSES = new Set(['footer', 'header', 'page-number', 'date-time', 'handout']);
+  // Satzbreite des Blatts in px (A4 mit üblichen Rändern, rund 17 cm) – darauf wird die Folie verkleinert.
+  const SHEET_PX = 643;
+
+  const findBy = (n: XNode, pred: (x: XNode) => boolean): XNode | undefined => {
+    for (const c of elements(n)) {
+      if (pred(c)) return c;
+      const deep = findBy(c, pred);
+      if (deep) return deep;
+    }
+    return undefined;
+  };
+  const allBy = (n: XNode, pred: (x: XNode) => boolean): XNode[] =>
+    elements(n).flatMap((c) => (pred(c) ? [c] : allBy(c, pred)));
+
+  /** Größe der Seite (px) laut Masterseite – Folien sind meist 25,4 × 14,3 cm, Zeichenseiten A4. */
+  const pageSize = (master: string | undefined): { w: number; h: number } => {
+    const roots = [stylesRoot, content].filter((r): r is XNode => !!r);
+    const mp = roots.map((r) => findBy(r, (x) => x.name === 'style:master-page' && x.attrs['style:name'] === master)).find(Boolean);
+    const layoutName = mp?.attrs['style:page-layout-name'];
+    const layout = layoutName ? roots.map((r) => findBy(r, (x) => x.name === 'style:page-layout' && x.attrs['style:name'] === layoutName)).find(Boolean) : undefined;
+    const props = layout ? elements(layout).find((c) => c.name === 'style:page-layout-properties') : undefined;
+    return { w: toPx(props?.attrs['fo:page-width']) || 960, h: toPx(props?.attrs['fo:page-height']) || 540 };
+  };
+
+  type Rect = { x: number; y: number; w: number; h: number };
+  /** Lage eines Elements auf der Seite (px), mit Drehung und Verschiebung. */
+  const bounds = (n: XNode): Rect | null => {
+    let pts: Array<[number, number]>;
+    if (n.name === 'draw:g') {
+      const parts = elements(n).map(bounds).filter((b): b is Rect => !!b);
+      pts = parts.flatMap((b) => [[b.x, b.y], [b.x + b.w, b.y + b.h]] as Array<[number, number]>);
+    } else if (n.name === 'draw:line' || n.name === 'draw:connector') {
+      pts = [[signedPx(n.attrs['svg:x1']), signedPx(n.attrs['svg:y1'])], [signedPx(n.attrs['svg:x2']), signedPx(n.attrs['svg:y2'])]];
+    } else {
+      const x = signedPx(n.attrs['svg:x']);
+      const y = signedPx(n.attrs['svg:y']);
+      const w = toPx(n.attrs['svg:width']) ?? 0;
+      const h = toPx(n.attrs['svg:height']) ?? 0;
+      const t = n.attrs['draw:transform'];
+      pts = ([[x, y], [x + w, y], [x, y + h], [x + w, y + h]] as Array<[number, number]>).map(([px, py]) => (t ? odfPoint(t, px, py) : [px, py]));
+    }
+    if (!pts.length) return null;
+    const xs = pts.map((p) => p[0]);
+    const ys = pts.map((p) => p[1]);
+    const x = Math.min(...xs);
+    const y = Math.min(...ys);
+    return { x, y, w: Math.max(...xs) - x, h: Math.max(...ys) - y };
+  };
+
+  /** Form mit sichtbarem Rand oder Füllung (sonst nur ein Textfeld). */
+  const visibleShape = (n: XNode) => {
+    const st = n.attrs['draw:style-name'];
+    return (styles.graphic(st, 'stroke') ?? 'none') !== 'none' || (styles.graphic(st, 'fill') ?? 'none') !== 'none';
+  };
+  /** Rechteckige Form mit Text – wird Text (mit Rand ein Kasten) statt Zeichnung. */
+  const textShape = (n: XNode) => {
+    if (n.name === 'draw:rect') return true;
+    if (n.name !== 'draw:custom-shape') return false;
+    const type = elements(n).find((c) => c.name === 'draw:enhanced-geometry')?.attrs['draw:type'] || 'rectangle';
+    return /rect/i.test(type);
+  };
+  const paragraphsOf = (n: XNode) => allBy(n, (x) => x.name === 'text:p' || x.name === 'text:h');
+  const plain = (s: string) => s.replace(/\s+/g, ' ').trim();
+  /** Text eines Rahmens als eine Zeile (für Titel). */
+  const lineHtml = (holder: XNode) => paragraphsOf(holder)
+    .map((p) => paragraph(p, 'p').replace(/^<p[^>]*>|<\/p>$/g, '').replace(/<br>/g, ' ').trim())
+    .filter(Boolean).join(' ');
+  /** Bilder auf die Satzbreite verkleinern – so groß wie auf der Folie im Verhältnis zur Seite. */
+  const scaleImg = (img: string, scale: number) => img.replace(/ width="(\d+)"/, (_m, w) => ` width="${Math.max(16, Math.round(Number(w) * scale))}"`);
+
+  /**
+   * Listen einer Folie aufräumen: PowerPoint teilt eine Liste je Absatzformat
+   * in mehrere und setzt einen eingerückten Punkt in leere Listenpunkte der
+   * Ebenen darüber. Aufeinanderfolgende Listen werden eine, ein leerer Punkt
+   * mit Unterliste hängt am Punkt davor (bzw. fällt am Anfang weg) – sonst
+   * stünden leere Aufzählungszeichen im Blatt und die Nummern begännen neu.
+   */
+  const tidyLists = (html: string): string => {
+    const join = (h: string) => h.replace(/<\/(ul|ol)><\1>/g, '').replace(/<\/li><li>(?=<(ul|ol)>)/g, '');
+    for (let before = ''; before !== html;) {
+      before = html;
+      // Erst zusammenfügen, bis nichts mehr geht – dann am Listenanfang eine Hülle auspacken.
+      for (let joined = join(html); joined !== html; joined = join(html)) html = joined;
+      for (const m of html.matchAll(/<(ul|ol)><li>(?=<(?:ul|ol)>)/g)) {
+        const outerEnd = elementEnd(html, m.index!);
+        const inner = m.index! + m[0].length;
+        const innerEnd = elementEnd(html, inner);
+        if (outerEnd > 0 && innerEnd > 0 && html.slice(innerEnd, outerEnd) === `</li></${m[1]}>`) {
+          html = html.slice(0, m.index!) + html.slice(inner, innerEnd) + html.slice(outerEnd);
+          break;
+        }
+      }
+    }
+    return html;
+  };
+  // Ein Zeilenumbruch, einzeln fett oder kursiv gesetzt (PowerPoint), ist nur ein Zeilenumbruch.
+  const bareBreaks = (html: string) => {
+    for (let before = ''; before !== html;) {
+      before = html;
+      html = html.replace(/<(strong|em|u|s)>(\s*<br>\s*)<\/\1>/g, '$2');
+    }
+    return html;
+  };
+  const slideText = (holder: XNode) => bareBreaks(tidyLists(blocks(holder)));
+
+  type SlideItem = Rect & { html: string; kind: 'text' | 'image' | 'drawing'; node: XNode; holder?: XNode };
+
+  /** Elemente in Gruppen, die sich entlang einer Achse nicht überlappen (Zeilen bzw. Spalten). */
+  const cut = (items: SlideItem[], axis: 'x' | 'y'): SlideItem[][] => {
+    const TOL = 6;
+    const pos = (i: SlideItem) => (axis === 'y' ? i.y : i.x);
+    const len = (i: SlideItem) => (axis === 'y' ? i.h : i.w);
+    const groups: SlideItem[][] = [];
+    let end = -Infinity;
+    for (const i of [...items].sort((a, b) => pos(a) - pos(b))) {
+      if (!groups.length || pos(i) >= end - TOL) groups.push([i]);
+      else groups[groups.length - 1].push(i);
+      end = Math.max(end, pos(i) + len(i));
+    }
+    return groups;
+  };
+
+  /**
+   * Anordnung wie auf der Folie: erst Zeilen (übereinander), darin Spalten
+   * (nebeneinander) als Spalten-Baustein. In einer Spalte keine weiteren
+   * Spalten – Bilder nebeneinander werden dort eine randlose Tabelle.
+   */
+  const arrange = (items: SlideItem[], inColumn: boolean): string => {
+    if (items.length === 1) return items[0].html;
+    const rows = cut(items, 'y');
+    if (rows.length > 1) return rows.map((r) => arrange(r, inColumn)).join('');
+    const cols = cut(items, 'x');
+    if (cols.length < 2) return [...items].sort((a, b) => a.y - b.y || a.x - b.x).map((i) => i.html).join('');
+    if (inColumn) {
+      if (cols.some((c) => c.some((i) => i.kind === 'text'))) return cols.map((c) => arrange(c, true)).join('');
+      stats.tables++;
+      return `<table class="ws-table-plain"><tbody><tr>${cols.map((c) => `<td>${arrange(c, true)}</td>`).join('')}</tr></tbody></table>`;
+    }
+    const groups = cols.length > 4 ? [...cols.slice(0, 3), cols.slice(3).flat()] : cols;
+    const left = groups.map((g) => Math.min(...g.map((i) => i.x)));
+    const right = Math.max(...items.map((i) => i.x + i.w));
+    const spans = left.map((l, k) => (k + 1 < left.length ? left[k + 1] : right) - l);
+    const total = spans.reduce((a, b) => a + b, 0) || 1;
+    const widths = spans.map((s) => `<col style="width:${((17 * s) / total).toFixed(1)}cm">`).join('');
+    return `<table class="ws-columns"><colgroup>${widths}</colgroup><tbody><tr>${groups.map((g) => `<td>${arrange(g, true) || '<p><br></p>'}</td>`).join('')}</tr></tbody></table>`;
+  };
+
+  /** Eine Folie als HTML; `prevTitle`: Titel der Folie davor – derselbe wird nicht wiederholt. */
+  const slide = (page: XNode, prevTitle: string): { html: string; title: string } => {
+    const size = pageSize(page.attrs['draw:master-page-name']);
+    const scale = Math.min(1, SHEET_PX / size.w);
+    let title = '';
+    let titleHtml = '';
+    let notes = '';
+    const items: SlideItem[] = [];
+    const shapes: XNode[] = [];
+    for (const c of elements(page)) {
+      if (c.name === 'presentation:notes') {
+        // Notizen: unter der Folie als ausgeblendete Lösung (Hinweis für die Lehrkraft).
+        for (const f of allBy(c, (x) => x.attrs['presentation:class'] === 'notes')) {
+          const box = elements(f).find((x) => x.name === 'draw:text-box');
+          if (box && textOf(box).trim()) notes += slideText(box);
+        }
+        if (notes) slideStats.notes++;
+        continue;
+      }
+      const cls = c.attrs['presentation:class'] || '';
+      if (TEMPLATE_CLASSES.has(cls) || c.attrs['presentation:placeholder'] === 'true') continue;
+      const b = bounds(c);
+      if (!b) continue;
+      const box = elements(c).find((x) => x.name === 'draw:text-box');
+      const holder = box ?? (c.name !== 'draw:frame' && c.name !== 'draw:g' ? c : undefined);
+      const hasText = !!holder && !!textOf(holder).trim();
+      if (cls === 'title' && hasText && !title) {
+        title = plain(textOf(holder));
+        titleHtml = lineHtml(holder);
+        continue;
+      }
+      if (c.name === 'draw:frame' && isImageFrame(c)) {
+        // Füllt fast die ganze Folie: Hintergrund (Titelfolie), kein Inhalt.
+        if (b.w * b.h >= 0.6 * size.w * size.h) {
+          slideStats.backgrounds++;
+          continue;
+        }
+        // Gedreht (hochkant gestelltes Foto): als Zeichnung, damit die Drehung bleibt.
+        const img = /rotate/.test(c.attrs['draw:transform'] || '') ? drawing([c]) : image(c);
+        if (img === null) skippedImages++;
+        else if (img) items.push({ ...b, html: `<p>${scaleImg(img, scale)}</p>`, kind: 'image', node: c });
+        continue;
+      }
+      if (c.name === 'draw:frame') {
+        if (box && hasText) {
+          const inner = slideText(box);
+          items.push({ ...b, html: cls === 'subtitle' ? `<h3>${lineHtml(box)}</h3>` : inner, kind: 'text', node: c, holder: box });
+        } else if (!box && elements(c).some((x) => x.name === 'draw:object' || x.name === 'draw:object-ole')) skippedImages++;
+        continue;
+      }
+      if (!DRAWINGS.has(c.name)) continue;
+      if (hasText && textShape(c)) {
+        const inner = slideText(c);
+        items.push({ ...b, html: visibleShape(c) ? `<div class="ws-box">${inner}</div>` : inner, kind: 'text', node: c, holder: c });
+      } else shapes.push(c);
+    }
+
+    // Formen (Pfeile, Kästen, Gruppen) werden ein Bild – samt der Textrahmen
+    // und Bilder, die auf ihnen liegen (Beschriftungen).
+    if (shapes.length) {
+      const parts = shapes.map(bounds).filter((r): r is Rect => !!r);
+      const ux = Math.min(...parts.map((r) => r.x));
+      const uy = Math.min(...parts.map((r) => r.y));
+      const u = { x: ux, y: uy, w: Math.max(...parts.map((r) => r.x + r.w)) - ux, h: Math.max(...parts.map((r) => r.y + r.h)) - uy };
+      const overlap = (i: Rect) => Math.max(0, Math.min(i.x + i.w, u.x + u.w) - Math.max(i.x, u.x)) * Math.max(0, Math.min(i.y + i.h, u.y + u.h) - Math.max(i.y, u.y));
+      const on = items.filter((i) => i.w * i.h > 0 && overlap(i) >= 0.7 * i.w * i.h);
+      const img = drawing([...shapes, ...on.map((i) => i.node)]);
+      if (img) {
+        for (const i of on) items.splice(items.indexOf(i), 1);
+        const all = [u, ...on];
+        const x = Math.min(...all.map((r) => r.x));
+        const y = Math.min(...all.map((r) => r.y));
+        items.push({ x, y, w: Math.max(...all.map((r) => r.x + r.w)) - x, h: Math.max(...all.map((r) => r.y + r.h)) - y,
+          html: `<p>${scaleImg(img, scale)}</p>`, kind: 'drawing', node: shapes[0] });
+      }
+    }
+
+    // Eine kurze Zeile ganz oben unter dem Titel (z. B. „Hintergrund“) ist die Unterüberschrift.
+    const top = [...items].sort((a, b) => a.y - b.y)[0];
+    if (title && top?.kind === 'text' && top.holder && !/^<h3>/.test(top.html) && top.h <= 60
+      && paragraphsOf(top.holder).filter((p) => textOf(p).trim()).length === 1 && plain(textOf(top.holder)).length <= 80
+      && items.every((i) => i === top || i.y >= top.y + top.h - 6)) {
+      top.html = `<h3>${lineHtml(top.holder)}</h3>`;
+    }
+
+    const head = title && title !== prevTitle && titleHtml ? `<h2>${titleHtml}</h2>` : '';
+    const body = arrange(items.filter((i) => i.html.trim()), false);
+    return { html: head + body + (notes ? `<div data-solution="1">${notes}</div>` : ''), title };
+  };
+
+  const slides = (root: XNode): string => {
+    const out: string[] = [];
+    let prev = '';
+    for (const page of elements(root).filter((c) => c.name === 'draw:page')) {
+      slideStats.slides++;
+      const s = slide(page, prev);
+      if (s.title) prev = s.title;
+      if (!s.html.trim()) continue;
+      // Jede Folie beginnt eine neue Seite.
+      if (out.length) out.push(PAGEBREAK);
+      out.push(s.html);
+    }
+    return out.join('');
+  };
+
+  const html = slideBody ? slides(slideBody) : placeBeside(blocks(body));
 
   const meta = read('meta.xml');
   const metaTitle = meta ? textOf(find(parseXml(meta), 'dc:title') || '').trim() : '';
   const firstHeading = /<h[2-4][^>]*>([\s\S]*?)<\/h[2-4]>/.exec(html)?.[1].replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').trim();
   const fromFile = path.basename(fileName || '', path.extname(fileName || '')).replace(/[_-]+/g, ' ').trim();
-  const title = (usableTitle(metaTitle) ? metaTitle : '') || (firstHeading ? decodeHtml(firstHeading) : '') || fromFile || 'Arbeitsblatt';
+  // Präsentationen tragen in den Metadaten oft den Titel ihrer Vorlage – dort zählt der Dateiname.
+  const title = slideBody
+    ? fromFile || (firstHeading ? decodeHtml(firstHeading) : '') || 'Präsentation'
+    : (usableTitle(metaTitle) ? metaTitle : '') || (firstHeading ? decodeHtml(firstHeading) : '') || fromFile || 'Arbeitsblatt';
 
   const warnings: string[] = [];
+  if (slideBody && slideStats.slides) {
+    warnings.push(`${slideStats.slides} ${slideStats.slides === 1 ? 'Folie' : 'Folien'} übernommen: je Folie eine Seite mit Titel, Text, Listen und Bildern – ohne Folienvorlage (Logo, Fußzeile, Foliennummer), Schriftgrößen und Farben.`);
+  }
+  if (slideStats.backgrounds) {
+    warnings.push(`${slideStats.backgrounds} ${slideStats.backgrounds === 1 ? 'Bild füllte' : 'Bilder füllten'} fast die ganze Folie (Hintergrund) und ${slideStats.backgrounds === 1 ? 'ist' : 'sind'} weggelassen.`);
+  }
+  if (slideStats.notes) {
+    warnings.push(`Notizen zu ${slideStats.notes} ${slideStats.notes === 1 ? 'Folie' : 'Folien'} als ausgeblendete Lösung unter der Folie übernommen.`);
+  }
   if (stats.drawings) {
     warnings.push(`${stats.drawings} Zeichnung${stats.drawings === 1 ? '' : 'en'} als Bild übernommen – bitte kurz prüfen: Komplexe Formen werden vereinfacht, Schriften durch Arial ersetzt.`);
   }

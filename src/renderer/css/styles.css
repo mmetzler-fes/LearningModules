@@ -3795,6 +3795,22 @@ body {
   padding: 10px 14px;
   background: var(--bg-secondary);
 }
+.ds-editor-right { display: flex; flex-direction: column; min-width: 0; }
+/* Leiste über der Vorschau: ✍️ Stift, Sichtbarkeit der Beschriftung, Seitenzahl – haftet wie die Editor-Leiste. */
+.ds-preview-bar {
+  display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 6px; padding: 4px 0; min-height: 30px;
+  position: sticky; top: var(--ds-sticky-top, 0px); z-index: 6; background: var(--bg-primary);
+}
+.ds-preview-pages { margin-left: auto; font-size: 0.8em; }
+/* Blatt in der Vorschau (paper.css), verkleinert auf die Spaltenbreite; Umbrüche aus page-breaks.js. */
+.ds-sheet-wrap { margin: 0 auto; max-width: max-content; }
+.ds-sheet-wrap .lm-paper { position: relative; box-shadow: 0 1px 4px rgba(15, 23, 42, 0.18); }
+.ds-autobreak {
+  position: absolute; left: 0; right: 0; height: 0; border-top: 2px dashed #94a3b8; pointer-events: none;
+}
+.ds-autobreak span {
+  position: absolute; right: 6px; top: -0.75em; background: #fff; color: #64748b; font-size: 9pt; padding: 0 6px; line-height: 1.5;
+}
 .ds-editor-errors .ds-error { color: var(--danger); margin: 4px 0 0; font-size: 0.85em; }
 .ds-editor-left { display: flex; flex-direction: column; min-width: 0; }
 .ds-mode { margin-bottom: 6px; }

@@ -25,6 +25,8 @@ import { openParagraphDialog } from './paragraph-dialog.js';
 import { objectEntries, objectName, copyText } from './object-actions.js';
 import { groupRow, ungroup, cmOf, GROUP_DEFAULT_WIDTH_CM } from '../lm-editor/src/doc/image-group.js';
 import { arrangeGroup } from './image-arrange.js';
+import { markPageBreaks } from '../lm-editor/src/doc/page-breaks.js';
+import { lmHost } from './lm-host.js';
 
 /** Startinhalt eines neuen Dokuments – zeigt das Format an einem Beispiel. */
 const STARTER = `content:
@@ -73,6 +75,12 @@ export function useDocumentId(fn) {
 let topicModules = () => [];
 export function useTopicModules(fn) {
   topicModules = fn;
+}
+
+/** Hat das Konto den Stift-Editor (Freischaltung 'inkEditor')? Dann ✍️ über der Vorschau (app.js). */
+let inkAllowed = () => false;
+export function useInkAllowed(fn) {
+  inkAllowed = fn;
 }
 
 function token() {
@@ -142,7 +150,10 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
         </div>
         <textarea class="ds-yaml" spellcheck="false" aria-label="Inhalt als YAML"></textarea>
       </div>
-      <div class="ds-preview module-description-content"></div>
+      <div class="ds-editor-right">
+        <div class="ds-preview-bar"><span class="ds-preview-pages hint"></span></div>
+        <div class="ds-preview module-description-content"></div>
+      </div>
     </div>
     <div class="ds-editor-errors" role="status"></div>
     <input type="hidden" name="${escapeHtml(name)}">`;
@@ -199,8 +210,47 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
     const missing = ctx?.refs ? docRefSlugs(spec).filter((s) => !ctx.refs[s]) : [];
     errorsEl.innerHTML = errors.map((e) => `<p class="ds-error">⚠️ ${escapeHtml(e)}</p>`).join('')
       + (missing.length ? `<p class="ds-error">⚠️ Verweis auf fehlende Blätter: ${escapeHtml(missing.join(', '))}</p>` : '');
-    preview.innerHTML = renderDocSpecHtml(spec, { showSolutions: showSolutions.checked, showPageBreaks: true, refs: ctx?.refs || undefined });
+    renderPreview();
   };
+
+  // Vorschau auf einem A4-Blatt wie im Stift-Editor, mit den Seitenumbrüchen
+  // (page-breaks.js) – verkleinert auf die Breite der Spalte.
+  const pagesEl = root.querySelector('.ds-preview-pages');
+  let sheetWrap = null;
+  const fitSheet = () => {
+    if (!sheetWrap) return;
+    const sheet = sheetWrap.firstElementChild;
+    const room = preview.clientWidth - parseFloat(getComputedStyle(preview).paddingLeft) - parseFloat(getComputedStyle(preview).paddingRight);
+    const width = (sheet.classList.contains('lm-landscape') ? 29.7 : 21) * 96 / 2.54;
+    if (room > 0) sheetWrap.style.zoom = String(Math.min(1, room / width));
+  };
+  let unmeasured = false;
+  const measurePages = (top = preview.scrollTop) => {
+    if (!sheetWrap?.isConnected) return;
+    sheetWrap.style.zoom = '1';
+    const sheet = sheetWrap.firstElementChild;
+    // Noch verborgen (Reiter, Einklappen): messen, sobald die Spalte sichtbar wird.
+    unmeasured = !sheet.offsetHeight;
+    const pages = markPageBreaks(sheet, { landscape: sheet.classList.contains('lm-landscape') });
+    pagesEl.textContent = `A4 · ${pages} ${pages === 1 ? 'Seite' : 'Seiten'} (Umbrüche ungefähr wie im Druck)`;
+    fitSheet();
+    preview.scrollTop = top;
+  };
+  let measureTimer = null;
+  const remeasure = () => { clearTimeout(measureTimer); measureTimer = setTimeout(() => measurePages(), 150); };
+  const renderPreview = () => {
+    if (!spec) return;
+    const top = preview.scrollTop;
+    sheetWrap = document.createElement('div');
+    sheetWrap.className = 'ds-sheet-wrap';
+    sheetWrap.innerHTML = `<div class="lm-paper${spec.orientation === 'landscape' ? ' lm-landscape' : ''}">${renderDocSpecHtml(spec, { showSolutions: showSolutions.checked, showPageBreaks: true, refs: ctx?.refs || undefined })}</div>`;
+    preview.replaceChildren(sheetWrap);
+    measurePages(top);
+  };
+  // Bilder laden nach – dann verschieben sich die Umbrüche.
+  preview.addEventListener('load', remeasure, true);
+  new ResizeObserver(() => (unmeasured ? remeasure() : fitSheet())).observe(preview);
+  document.fonts?.ready.then(remeasure).catch(() => {});
 
   let timer = null;
   textarea.addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(update, 250); });
@@ -1326,6 +1376,61 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
   try { initial = localStorage.getItem('lm_ds_mode') || 'visual'; } catch (_) { /* egal */ }
   setMode(initial === 'yaml' ? 'yaml' : 'visual');
   loadContext();
+  mountInkActions();
+
+  /**
+   * ✍️ Mit Stift bearbeiten und 🙈 Beschriftung: nur für mich – wie in der
+   * Vorschau des Moduls (lm-host.js), in der Leiste über der Vorschau. Der
+   * Stift-Editor bekommt den Stand aus dem Editor; fügt er etwas ein, speichert
+   * er das Modul, und der neue Stand kommt hierher zurück.
+   */
+  function mountInkActions() {
+    if (!moduleId || !inkAllowed()) return;
+    const bar = root.querySelector('.ds-preview-bar');
+    const topicId = topicSource();
+    const current = () => {
+      const saved = topicModules().find((m) => m.id === moduleId) || { id: moduleId, type: 'document' };
+      let content = saved.content || {};
+      if (typeof content === 'string') { try { content = JSON.parse(content); } catch (_) { content = {}; } }
+      return { ...saved, title: titleInput?.value.trim() || saved.title || '', content: { ...content, spec: spec || { content: [] } } };
+    };
+    const actions = lmHost.documentActions({
+      moduleId,
+      title: titleInput?.value.trim() || '',
+      content: { spec },
+      el: bar,
+      options: {
+        inkEdit: 'teacher',
+        embedModule: (id) => topicModules().find((m) => m.id === id) || null,
+        inkDocument: topicId ? {
+          // Erst beim Klick gelesen – also mit allem, was bis dahin bearbeitet ist.
+          get module() { return current(); },
+          topicId,
+          get modules() { return topicModules(); },
+          onSaved: (saved) => {
+            const next = saved?.content?.spec;
+            if (!next || !Array.isArray(next.content)) return;
+            textarea.value = toYaml(next);
+            update();
+            if (mode === 'visual') setSurface(specToEditorHtml(spec || { content: [] }));
+          },
+        } : null,
+      },
+    });
+    for (const a of actions) {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = `btn ${a.primary ? 'btn-primary' : 'btn-secondary'} btn-sm ${a.className || ''}`.trim();
+      btn.textContent = a.label;
+      if (a.title) btn.title = a.title;
+      btn.addEventListener('click', async () => {
+        btn.disabled = true;
+        try { await a.onClick(); } catch (err) { btn.textContent = `⚠️ ${err.message}`; }
+        btn.disabled = false;
+      });
+      if (a.primary) bar.prepend(btn); else pagesEl.before(btn);
+    }
+  }
 }
 
 window.DocSpecEditor = { mount: mountDocSpecEditor };

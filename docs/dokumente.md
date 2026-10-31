@@ -135,6 +135,14 @@ Der Editor startet im Modus **✏️ Bearbeiten** – wie ein Textprogramm:
   ausgeblendet, im Lösungsblatt steht sie rot über dem Karo.
 
 Rechts steht die **Vorschau**, darüber die Kopfzeile, wie sie gedruckt wird.
+Das Dokument steht dort auf einem A4-Blatt (wie im Stift-Editor); gestrichelte
+Linien mit **Seite 2, 3 …** zeigen, wo eine Seite voll ist – ungefähr wie im
+Druck (die Kopfzeile der Vorlage ist nicht eingerechnet). Die feste Leiste über
+der Vorschau nennt die Zahl der Seiten und hat bei gespeicherten Dokumenten –
+wie die gewöhnliche Vorschau – **✍️ Mit Stift bearbeiten** und **🙈
+Beschriftung: nur für mich** (Freischaltung „Stift-Editor“). Der Stift-Editor
+öffnet dabei den Stand im Editor; fügt er etwas ein (⊕), wird das Modul
+gespeichert und der Editor übernimmt den neuen Stand.
 **🖨 PDF**, **⬇ .odt**, **🖨 Lösung** und **⬇ Lösung .odt** erzeugen die
 Dateien vom aktuellen Stand, auch ungespeichert.
 

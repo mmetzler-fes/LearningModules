@@ -21,7 +21,7 @@ import { pickPdfBlocks } from '../views/attachment-convert.js';
  * von dort mit ins Stift-Fenster und beim Schließen wieder zurück, damit
  * „Weiter“ sie auswertet.
  * `editable` (Lehrkraft, eigenes Lernthema): ⊕ und Schreibfelder ändern das
- * Dokument selbst, `onSaved()` danach; `topicModules`: Module des Lernthemas
+ * Dokument selbst, `onSaved(modul)` danach (mit dem neuen Inhalt); `topicModules`: Module des Lernthemas
  * für „Quiz einfügen“.
  */
 /**
@@ -245,7 +245,7 @@ export async function openDocumentInk({ mode, mod, up = null, embedModule = null
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok || data.success === false) throw new Error(data.message || `Speichern fehlgeschlagen (${res.status})`);
-    onSaved?.();
+    onSaved?.({ ...mod, content });
   }
 
   // Neue Bausteine bekommen feste IDs; alle anderen vorher ihre jetzige

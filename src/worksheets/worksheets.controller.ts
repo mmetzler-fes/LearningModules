@@ -152,14 +152,16 @@ export class WorksheetsController {
   }
 
   /**
-   * { moduleId, title } → Nummer, Kopfzeile, Kursangaben und Verweisziele
-   * des Dokuments im Notebook.
+   * { moduleId, title, templateId? } → Nummer, Kopfzeile, Kursangaben und
+   * Verweisziele des Dokuments im Notebook, dazu die Seite der Vorlage.
    */
   @Post('context')
   @HttpCode(200)
-  context(@Request() req: any, @Body() body: { moduleId?: string; title?: string }) {
+  context(@Request() req: any, @Body() body: { moduleId?: string; title?: string; templateId?: string | null }) {
     if (!body?.moduleId) throw new BadRequestException('moduleId fehlt.');
-    return this.worksheets.editorContext(req.user, String(body.moduleId), String(body.title || '').slice(0, 200));
+    // templateId: im Editor gewählt (noch ungespeichert); '' = wie im Ordner.
+    const templateId = body.templateId === undefined ? undefined : body.templateId ? String(body.templateId) : null;
+    return this.worksheets.editorContext(req.user, String(body.moduleId), String(body.title || '').slice(0, 200), templateId);
   }
 
   /**

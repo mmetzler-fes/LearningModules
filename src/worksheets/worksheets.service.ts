@@ -16,6 +16,7 @@ import { widthInCm } from './course-format';
 export { widthInCm };
 import { RenderJob, WorksheetOutput, WorksheetRendererClient } from './renderer.client';
 import { PdfAiClient } from './pdf-ai.client';
+import { DEFAULT_PAGE, templatePage } from './template-page';
 
 /** Lage im PDF (`_pos` des Renderers) aus allen Bausteinen entfernen. */
 /**
@@ -221,9 +222,11 @@ export class WorksheetsService {
   }
 
   /** Kontext samt fertiger Kopfzeile (mit dem Titel aus dem Editor) – für den Editor. */
-  async editorContext(user: any, moduleId: string, title: string) {
-    const { template, ...ctx } = await this.context(user, moduleId);
-    return { ...ctx, template: template ? { id: template.id } : null, header: WorksheetsService.header(ctx.refs ? ctx : null, title) };
+  async editorContext(user: any, moduleId: string, title: string, templateId?: string | null) {
+    const { template, ...ctx } = await this.context(user, moduleId, undefined, templateId);
+    // Seite der Vorlage (Größe, Ränder, Kopfzeile) – für Blatt und Seitenumbrüche der Vorschau.
+    const page = (template ? templatePage(template.data) : null) || DEFAULT_PAGE;
+    return { ...ctx, template: template ? { id: template.id } : null, page, header: WorksheetsService.header(ctx.refs ? ctx : null, title) };
   }
 
   static header(ctx: DocContext | null, title: string): string {

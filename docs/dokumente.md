@@ -135,9 +135,11 @@ Der Editor startet im Modus **✏️ Bearbeiten** – wie ein Textprogramm:
   ausgeblendet, im Lösungsblatt steht sie rot über dem Karo.
 
 Rechts steht die **Vorschau**, darüber die Kopfzeile, wie sie gedruckt wird.
-Das Dokument steht dort auf einem A4-Blatt (wie im Stift-Editor); gestrichelte
+Das Dokument steht dort auf einem Blatt in der Größe der **Druckvorlage**
+(Seitenformat, Ränder und Kopfzeile aus der .ott – etwa A4 quer); gestrichelte
 Linien mit **Seite 2, 3 …** zeigen, wo eine Seite voll ist – ungefähr wie im
-Druck (die Kopfzeile der Vorlage ist nicht eingerechnet). Die feste Leiste über
+Druck. Nach einem eingefügten Seitenumbruch wird weitergezählt. Eine andere
+Vorlage im Feld „Vorlage für den Druck“ gilt in der Vorschau sofort. Die feste Leiste über
 der Vorschau nennt die Zahl der Seiten und hat bei gespeicherten Dokumenten –
 wie die gewöhnliche Vorschau – **✍️ Mit Stift bearbeiten** und **🙈
 Beschriftung: nur für mich** (Freischaltung „Stift-Editor“). Der Stift-Editor

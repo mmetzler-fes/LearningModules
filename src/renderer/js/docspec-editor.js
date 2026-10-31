@@ -177,7 +177,8 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
       const res = await fetch('/api/worksheets/context', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...(token() ? { Authorization: `Bearer ${token()}` } : {}) },
-        body: JSON.stringify({ moduleId, title: titleInput?.value.trim() || '' }),
+        // Vorlage aus dem Feld darüber, auch ungespeichert ('' = wie im Ordner).
+        body: JSON.stringify({ moduleId, title: titleInput?.value.trim() || '', templateId: templateSelect ? templateSelect.value : undefined }),
       });
       if (!res.ok) return;
       ctx = await res.json();
@@ -186,6 +187,9 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
       update();
     } catch (_) { /* ohne Kontext bleibt die Vorschau ohne Nummern */ }
   };
+  // Andere Vorlage: andere Seite (A4 quer …) – Blatt und Umbrüche der Vorschau passen sich an.
+  const templateSelect = root.closest('form')?.querySelector('select[name="content_templateId"]') || document.querySelector('select[name="content_templateId"]');
+  templateSelect?.addEventListener('change', loadContext);
   let titleTimer = null;
   titleInput?.addEventListener('input', () => { clearTimeout(titleTimer); titleTimer = setTimeout(loadContext, 600); });
 
@@ -221,8 +225,9 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
     if (!sheetWrap) return;
     const sheet = sheetWrap.firstElementChild;
     const room = preview.clientWidth - parseFloat(getComputedStyle(preview).paddingLeft) - parseFloat(getComputedStyle(preview).paddingRight);
-    const width = (sheet.classList.contains('lm-landscape') ? 29.7 : 21) * 96 / 2.54;
-    if (room > 0) sheetWrap.style.zoom = String(Math.min(1, room / width));
+    // offsetWidth: Breite des Blatts ohne Zoom.
+    const width = sheet.offsetWidth;
+    if (room > 0 && width > 0) sheetWrap.style.zoom = String(Math.min(1, room / width));
   };
   let unmeasured = false;
   const measurePages = (top = preview.scrollTop) => {
@@ -231,7 +236,10 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
     const sheet = sheetWrap.firstElementChild;
     // Noch verborgen (Reiter, Einklappen): messen, sobald die Spalte sichtbar wird.
     unmeasured = !sheet.offsetHeight;
-    const pages = markPageBreaks(sheet, { landscape: sheet.classList.contains('lm-landscape') });
+    const page = ctx?.page;
+    const pages = markPageBreaks(sheet, page
+      ? { bodyCm: page.height - page.margin.top - page.margin.bottom - (page.header || 0) - (page.footer || 0) }
+      : { landscape: sheet.classList.contains('lm-landscape') });
     measuredShape = sheet.offsetHeight / (sheet.offsetWidth || 1);
     pagesEl.textContent = `A4 · ${pages} ${pages === 1 ? 'Seite' : 'Seiten'} (Umbrüche ungefähr wie im Druck)`;
     fitSheet();
@@ -247,7 +255,12 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
     const top = preview.scrollTop;
     sheetWrap = document.createElement('div');
     sheetWrap.className = 'ds-sheet-wrap';
-    sheetWrap.innerHTML = `<div class="lm-paper${spec.orientation === 'landscape' ? ' lm-landscape' : ''}">${renderDocSpecHtml(spec, { showSolutions: showSolutions.checked, showPageBreaks: true, refs: ctx?.refs || undefined })}</div>`;
+    // Seite der Druckvorlage (Server, /api/worksheets/context): Größe, Ränder, Kopfzeile –
+    // ohne sie (neues Dokument) A4 nach paper.css.
+    const page = ctx?.page;
+    const pageStyle = page
+      ? ` style="width:${page.width}cm;min-height:${page.height}cm;padding:${page.margin.top + (page.header || 0)}cm ${page.margin.right}cm ${page.margin.bottom + (page.footer || 0)}cm ${page.margin.left}cm"` : '';
+    sheetWrap.innerHTML = `<div class="lm-paper${!page && spec.orientation === 'landscape' ? ' lm-landscape' : ''}"${pageStyle}>${renderDocSpecHtml(spec, { showSolutions: showSolutions.checked, showPageBreaks: true, refs: ctx?.refs || undefined })}</div>`;
     preview.replaceChildren(sheetWrap);
     measurePages(top);
     // Bilder (auch nachgeladene oder ersetzte), Schriften, Formeln: Ändert sich

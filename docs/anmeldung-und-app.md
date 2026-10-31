@@ -5,14 +5,40 @@
 LernModule lässt sich wie eine App mit eigenem Symbol starten – ohne
 Adressleiste und Browserleisten, mit mehr Platz (z. B. für den Stift-Editor).
 
-- **PC (Chrome, Edge):** In der Seitenleiste **📲 Als App installieren** (erscheint,
-  wenn der Browser es anbietet) – oder im Browsermenü „App installieren“ bzw.
-  „Apps → Diese Seite als App installieren“. Danach liegt das Symbol auf dem
-  Desktop bzw. im Startmenü.
+- **PC (Chrome, Chromium, Edge):** In der Seitenleiste unten **📲 LernModule
+  als App installieren**. Bietet der Browser die Installation gerade nicht an (schon
+  installiert, Dialog einmal abgebrochen), erklärt der Knopf den Weg über das
+  Browsermenü: Chrome ⋮ → „Streamen, speichern und teilen → LernModule
+  installieren“, Edge … → „Apps → LernModule installieren“. Danach liegt das
+  Symbol auf dem Desktop bzw. im Startmenü. **Firefox** (unter Ubuntu der
+  Standardbrowser) kann keine Web-Apps installieren. In der installierten App
+  ist der Knopf ausgeblendet.
 - **iPad, iPhone (Safari):** Teilen-Knopf → **Zum Home-Bildschirm**.
 
 Die App hat auf dem iPad ihren eigenen Speicher, getrennt von Safari – dort
 einmal neu anmelden (mit „Angemeldet bleiben“).
+
+### LernModule oder lm-editor?
+
+Es gibt zwei Apps zum Installieren – nebeneinander, mit eigenem Symbol:
+
+| | 📲 LernModule | ✍️ lm-editor |
+|---|---|---|
+| Wofür | alles: Lernthemen, Notizbuch, Klassen, Abgaben | Arbeitsblätter mit dem Stift bearbeiten, `.zlm` öffnen und speichern |
+| Netz | braucht den Server (Anmeldung) | läuft auch **offline**, ohne Anmeldung |
+| Dateien | liegen auf dem Server | bleiben als `.zlm` auf dem eigenen Rechner |
+| Symbol | Bücherstapel | Bücherstapel mit Stift |
+| Installieren | Seitenleiste → **📲 LernModule als App installieren** | Seitenleiste → **✍️ lm-editor installieren (offline)** → im Browser **⬇️ Auf diesem Gerät installieren** |
+
+Der lm-editor öffnet sich dafür in einem Browser-Tab, nicht im Fenster der
+LernModule-App – dort ließe er sich nicht installieren. Läuft LernModule
+schon als App, zeigt der Knopf die Adresse (`/lm-editor/` auf diesem
+Server) zum Öffnen im Browser. Die `.zlm`-Dateien aus dem
+[GitHub-Backup](github-backup.md) öffnet der lm-editor direkt.
+
+Sind beide installiert, bieten sich unter „Öffnen mit“ beide an: zum
+Ansehen und Ablegen im Notizbuch LernModule, zum Bearbeiten auf dem eigenen
+Rechner der lm-editor.
 
 ### Dateien mit LernModule öffnen (PC)
 

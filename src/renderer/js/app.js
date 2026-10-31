@@ -35,6 +35,17 @@ import { useModuleSource, useTopicModules, useTopicSource, useDocumentId } from 
 
 // ==================== APP COORDINATOR ====================
 
+/** Wie man die App von Hand installiert – je nach Browser. */
+function installHowTo() {
+  const ua = navigator.userAgent;
+  if (/iPad|iPhone/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1)) return 'In Safari auf <strong>Teilen</strong> (□↑) tippen und <strong>Zum Home-Bildschirm</strong> wählen.';
+  if (/Firefox/.test(ua)) return 'Firefox kann keine Web-Apps installieren – bitte diese Seite in <strong>Chrome</strong>, <strong>Chromium</strong> oder <strong>Edge</strong> öffnen.';
+  if (/Safari/.test(ua) && !/Chrome|Chromium|Edg/.test(ua)) return 'In Safari im Menü <strong>Ablage → Zum Dock hinzufügen</strong> wählen.';
+  const already = 'Steht dort „LernModule öffnen“ oder fehlt der Eintrag, ist die App schon installiert – sie steht dann im App-Menü bzw. Startmenü.';
+  if (/Edg\//.test(ua)) return `Im Menü <strong>…</strong> (oben rechts) <strong>Apps → LernModule installieren</strong> wählen. ${already}`;
+  return `Im Menü <strong>⋮</strong> (oben rechts) <strong>Streamen, speichern und teilen → LernModule installieren</strong> wählen. ${already}`;
+}
+
 class App {
   constructor() {
     this.authStore = new AuthStore();
@@ -211,13 +222,18 @@ class App {
   }
 
   /**
-   * „Als App installieren“ (Chrome, Edge): Der Knopf erscheint nur, wenn der
-   * Browser es anbietet und die App nicht schon installiert läuft. Auf dem
-   * iPad geht es über Teilen → Zum Home-Bildschirm (manifest.webmanifest).
+   * „Als App installieren“: sichtbar, solange die App nicht schon installiert
+   * läuft (und die Seite über https bzw. localhost kommt). Bieten Chrome/Edge
+   * die Installation an (beforeinstallprompt), öffnet der Knopf ihren Dialog;
+   * sonst – Firefox, Safari, schon installiert, Dialog einmal abgebrochen –
+   * erklärt er, wie es von Hand geht (manifest.webmanifest).
    */
   _offerInstall() {
     const btn = document.getElementById('btnInstallApp');
+    const hint = document.getElementById('installAppHint');
     if (!btn) return;
+    const standalone = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+    btn.classList.toggle('hidden', standalone || !window.isSecureContext);
     let prompt = null;
     window.addEventListener('beforeinstallprompt', (e) => {
       e.preventDefault();
@@ -227,13 +243,40 @@ class App {
       window.appInstallPrompt = e;
       btn.classList.remove('hidden');
     });
-    window.addEventListener('appinstalled', () => btn.classList.add('hidden'));
-    btn.addEventListener('click', async () => {
-      if (!prompt) return;
-      prompt.prompt();
-      await prompt.userChoice.catch(() => null);
-      prompt = null;
+    window.addEventListener('appinstalled', () => {
       btn.classList.add('hidden');
+      hint?.classList.add('hidden');
+    });
+    btn.addEventListener('click', async () => {
+      if (prompt) {
+        prompt.prompt();
+        const choice = await prompt.userChoice.catch(() => null);
+        prompt = null;
+        if (choice?.outcome === 'accepted') { btn.classList.add('hidden'); return; }
+      }
+      if (!hint) return;
+      hint.innerHTML = installHowTo();
+      hint.classList.remove('hidden');
+    });
+    this._offerLmEditor(standalone);
+  }
+
+  /**
+   * „lm-editor installieren (offline)“: eine eigene App unter /lm-editor/ mit
+   * eigenem Installieren-Knopf. Sie muss in einem Browser-Tab aufgehen – im
+   * Fenster der installierten LernModule-App (deren Bereich / umfasst auch
+   * /lm-editor/) ließe sie sich nicht installieren. Darum dort nur die Adresse.
+   */
+  _offerLmEditor(standalone) {
+    const btn = document.getElementById('btnLmEditor');
+    const hint = document.getElementById('lmEditorHint');
+    if (!btn) return;
+    const url = new URL('/lm-editor/', location.origin).href;
+    btn.addEventListener('click', () => {
+      if (!standalone) { window.open(url, '_blank', 'noopener'); return; }
+      if (!hint) return;
+      hint.innerHTML = `Bitte im Browser (Chrome, Edge) öffnen – nicht in dieser App – und dort auf <strong>⬇️ Auf diesem Gerät installieren</strong> klicken:<br><code style="user-select:all">${url}</code>`;
+      hint.classList.remove('hidden');
     });
   }
 

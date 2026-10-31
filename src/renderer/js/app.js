@@ -265,7 +265,8 @@ class App {
    * „lm-editor installieren (offline)“: eine eigene App unter /lm-editor/ mit
    * eigenem Installieren-Knopf. Sie muss in einem Browser-Tab aufgehen – im
    * Fenster der installierten LernModule-App (deren Bereich / umfasst auch
-   * /lm-editor/) ließe sie sich nicht installieren. Darum dort nur die Adresse.
+   * /lm-editor/) ließe sie sich nicht installieren, und einen Browser-Tab kann
+   * die App nicht erzwingen. Darum dort die Adresse zum Kopieren.
    */
   _offerLmEditor(standalone) {
     const btn = document.getElementById('btnLmEditor');
@@ -275,8 +276,18 @@ class App {
     btn.addEventListener('click', () => {
       if (!standalone) { window.open(url, '_blank', 'noopener'); return; }
       if (!hint) return;
-      hint.innerHTML = `Bitte im Browser (Chrome, Edge) öffnen – nicht in dieser App – und dort auf <strong>⬇️ Auf diesem Gerät installieren</strong> klicken:<br><code style="user-select:all">${url}</code>`;
+      hint.innerHTML = `Der lm-editor ist eine eigene App und lässt sich nur im <strong>Browser</strong> (Chrome, Edge) installieren, nicht aus diesem Fenster:
+        Adresse kopieren, im Browser öffnen, dort <strong>⬇️ Auf diesem Gerät installieren</strong>.<code>${url}</code>
+        <button type="button" class="btn btn-secondary btn-full btn-sm" id="btnLmEditorCopy">📋 Adresse kopieren</button>`;
       hint.classList.remove('hidden');
+      hint.querySelector('#btnLmEditorCopy').addEventListener('click', async () => {
+        try {
+          await navigator.clipboard.writeText(url);
+          this.showToast('Adresse kopiert – jetzt im Browser einfügen.', 'success');
+        } catch (_) {
+          this.showToast('Kopieren ging nicht – bitte die Adresse markieren und kopieren.', 'error');
+        }
+      });
     });
   }
 

@@ -382,6 +382,25 @@ body {
   gap: 8px;
 }
 
+/* Hinweise der Knöpfe unten (Installieren): hell auf der dunklen Leiste */
+.sidebar-footer .hint {
+  color: var(--text-sidebar);
+  font-size: 0.8rem;
+  line-height: 1.45;
+  margin: 0 0 4px;
+}
+.sidebar-footer .hint strong { color: #fff; }
+.sidebar-footer .hint code {
+  display: block;
+  margin: 4px 0;
+  padding: 4px 6px;
+  border-radius: 4px;
+  background: rgba(255,255,255,0.08);
+  color: #fff;
+  word-break: break-all;
+  user-select: all;
+}
+
 .sidebar-settings {
   display: flex;
   flex-direction: column;

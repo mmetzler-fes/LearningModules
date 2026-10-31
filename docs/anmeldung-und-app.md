@@ -33,7 +33,7 @@ Es gibt zwei Apps zum Installieren – nebeneinander, mit eigenem Symbol:
 Der lm-editor öffnet sich dafür in einem Browser-Tab, nicht im Fenster der
 LernModule-App – dort ließe er sich nicht installieren. Läuft LernModule
 schon als App, zeigt der Knopf die Adresse (`/lm-editor/` auf diesem
-Server) zum Öffnen im Browser. Die `.zlm`-Dateien aus dem
+Server) mit **📋 Adresse kopieren** – im Browser einfügen und dort installieren. Die `.zlm`-Dateien aus dem
 [GitHub-Backup](github-backup.md) öffnet der lm-editor direkt.
 
 Sind beide installiert, bieten sich unter „Öffnen mit“ beide an: zum

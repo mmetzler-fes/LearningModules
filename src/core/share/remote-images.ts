@@ -20,7 +20,7 @@ type Fetch = typeof fetch;
 /** Bilder, die dieser Server selbst ausliefert (Nextcloud über den Server), ohne HTTP-Umweg holen. */
 export type LocalImage = (url: string) => Promise<{ type: string; data: Buffer } | null>;
 
-async function fetchImage(url: string, fetchImpl: Fetch): Promise<string | null> {
+async function fetchImage(url: string, fetchImpl: Fetch): Promise<{ type: string; data: Buffer } | null> {
   try {
     await assertPublicHost(new URL(url).origin);
   } catch {
@@ -34,14 +34,21 @@ async function fetchImage(url: string, fetchImpl: Fetch): Promise<string | null>
     const type = String(res.headers.get('content-type') || '').split(';')[0].trim().toLowerCase();
     if (!TYPES.has(type)) return null;
     if (Number(res.headers.get('content-length') || 0) > MAX_BYTES) return null;
-    const buf = Buffer.from(await res.arrayBuffer());
-    if (buf.length > MAX_BYTES) return null;
-    return `data:${type};base64,${buf.toString('base64')}`;
+    const data = Buffer.from(await res.arrayBuffer());
+    if (data.length > MAX_BYTES) return null;
+    return { type, data };
   } catch {
     return null;
   } finally {
     clearTimeout(timer);
   }
+}
+
+/** Ein verlinktes Bild holen – erst über `local`, sonst aus dem Netz (Regeln oben). Null, wenn es nicht klappt. */
+export async function loadRemoteImage(url: string, fetchImpl: Fetch = fetch, local?: LocalImage): Promise<{ type: string; data: Buffer } | null> {
+  const own = local ? await local(url).catch(() => null) : null;
+  if (own && TYPES.has(own.type) && own.data.length <= MAX_BYTES) return own;
+  return fetchImage(url, fetchImpl);
 }
 
 /**
@@ -50,9 +57,8 @@ async function fetchImage(url: string, fetchImpl: Fetch): Promise<string | null>
  */
 export async function inlineRemoteImages<T extends { content?: any }>(modules: T[], fetchImpl: Fetch = fetch, local?: LocalImage): Promise<{ modules: T[]; failed: string[] }> {
   const load = async (url: string) => {
-    const own = local ? await local(url).catch(() => null) : null;
-    if (own && TYPES.has(own.type) && own.data.length <= MAX_BYTES) return `data:${own.type};base64,${own.data.toString('base64')}`;
-    return fetchImage(url, fetchImpl);
+    const img = await loadRemoteImage(url, fetchImpl, local);
+    return img ? `data:${img.type};base64,${img.data.toString('base64')}` : null;
   };
   const cache = new Map<string, Promise<string | null>>();
   const failed = new Set<string>();

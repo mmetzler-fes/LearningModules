@@ -1,12 +1,12 @@
 import { gitBlobSha, GithubRepo } from './github-api';
-import { INDEX_PATH, parseIndex, planBackup, BackupTopic } from './backup-plan';
+import { INDEX_PATH, parseDocIndex, parseIndex, planBackup, BackupTopic } from './backup-plan';
 
 /**
  * Ein GitHub im Kleinen: genug von der REST-API, um einen Backup-Lauf samt
  * Einrichten, Commit und Lesen alter Stände durchzuspielen.
  */
 class FakeGithub {
-  blobs = new Map<string, string>();
+  blobs = new Map<string, Buffer>();
   trees = new Map<string, Map<string, string>>();
   commits = new Map<string, { tree: string; parents: string[]; message: string }>();
   ref: string | null = null;
@@ -39,7 +39,7 @@ class FakeGithub {
       return this.ref ? json(200, { object: { sha: this.ref } }) : json(409, { message: 'Git Repository is empty.' });
     }
     if (method === 'PUT' && path.startsWith('/contents/')) {
-      const content = Buffer.from(body.content, 'base64').toString('utf-8');
+      const content = Buffer.from(body.content, 'base64');
       this.blobs.set(gitBlobSha(content), content);
       this.ref = this.addCommit(new Map([[path.slice('/contents/'.length), gitBlobSha(content)]]), body.message, []);
       return json(201, {});
@@ -50,14 +50,17 @@ class FakeGithub {
       return json(200, { tree: [...files].map(([p, sha]) => ({ path: p, sha, type: 'blob' })) });
     }
     if (method === 'POST' && path === '/git/blobs') {
-      const content = Buffer.from(body.content, 'base64').toString('utf-8');
+      const content = Buffer.from(body.content, 'base64');
       const sha = gitBlobSha(content);
       this.blobs.set(sha, content);
       return json(201, { sha });
     }
     if (method === 'POST' && path === '/git/trees') {
       const files = new Map(this.trees.get(body.base_tree));
-      for (const e of body.tree) files.set(e.path, e.sha);
+      for (const e of body.tree) {
+        if (e.sha === null) files.delete(e.path);
+        else files.set(e.path, e.sha);
+      }
       const sha = this.id();
       this.trees.set(sha, files);
       return json(201, { sha });
@@ -78,7 +81,7 @@ class FakeGithub {
       const ref = u.searchParams.get('ref')!;
       const commit = this.commits.get(ref === 'main' ? this.ref! : ref);
       const sha = commit && this.trees.get(commit.tree)!.get(file);
-      return sha ? new Response(this.blobs.get(sha)!, { status: 200 }) : json(404, { message: 'Not Found' });
+      return sha ? new Response(new Uint8Array(this.blobs.get(sha)!), { status: 200 }) : json(404, { message: 'Not Found' });
     }
     if (method === 'GET' && path === '/commits') {
       const file = u.searchParams.get('path')!;
@@ -99,9 +102,9 @@ class FakeGithub {
 async function backup(gh: GithubRepo, topics: BackupTopic[]) {
   const head = (await gh.head()) || (await gh.initialize('README.md', '# Backup\n', 'eingerichtet'));
   const tree = await gh.tree(head.treeSha);
-  const oldIndex = tree.some((e) => e.path === INDEX_PATH) ? parseIndex(await gh.read(INDEX_PATH, head.commitSha)) : [];
-  const plan = planBackup(tree, topics, oldIndex);
-  return plan.files.length ? gh.commit(head, plan.files, 'Backup') : null;
+  const indexText = tree.some((e) => e.path === INDEX_PATH) ? await gh.read(INDEX_PATH, head.commitSha) : null;
+  const plan = planBackup(tree, topics, parseIndex(indexText), parseDocIndex(indexText));
+  return plan.files.length || plan.remove.length ? gh.commit(head, plan.files, 'Backup', plan.remove) : null;
 }
 
 describe('GithubRepo gegen ein nachgebautes GitHub', () => {
@@ -137,6 +140,23 @@ describe('GithubRepo gegen ein nachgebautes GitHub', () => {
     expect(history).toHaveLength(2);
     expect(await gh.read('themen/Mathe--t1.json', history[1].sha)).toBe('{"v":1}\n');
     expect(await gh.read('themen/gibt-es-nicht--x.json')).toBeNull();
+  });
+
+  it('legt Dokumente als .zlm im Notizbuch ab und zieht sie beim Verschieben um', async () => {
+    const gh = new GithubRepo('lehrer/backup', 'github_pat_test');
+    const zlm = Buffer.from([0x50, 0x4b, 0x03, 0x04, 0xff, 0x00, 0x80]);
+    const t = (folder: string[]) => [{ id: 't1', title: 'Brüche', content: '{}\n', modules: 1, folder, documents: [{ id: 'd1', title: 'AB 1', bytes: zlm }] }];
+
+    await backup(gh, t(['Mathe', 'Brüche']));
+    const files = async () => [...fake.trees.get(fake.commits.get(fake.ref!)!.tree)!.keys()].sort();
+    expect(await files()).toContain('Notizbuch/Mathe/Brüche/AB 1.zlm');
+    expect(fake.blobs.get(gitBlobSha(zlm))).toEqual(zlm);
+
+    expect(await backup(gh, t(['Mathe', 'Brüche']))).toBeNull();
+
+    await backup(gh, t(['Mathe', 'Klasse 6', 'Brüche']));
+    expect(await files()).toContain('Notizbuch/Mathe/Klasse 6/Brüche/AB 1.zlm');
+    expect(await files()).not.toContain('Notizbuch/Mathe/Brüche/AB 1.zlm');
   });
 
   it('überschreibt keine Commits, die zwischendurch dazukamen', async () => {

@@ -1,8 +1,10 @@
 # GitHub-Backup
 
 Eigene Lerninhalte regelmäßig in ein **privates** GitHub-Repository sichern –
-je Lernthema eine JSON-Datei – und einzelne Module daraus zurückholen, auch
-aus älteren Ständen.
+je Lernthema eine JSON-Datei, dazu jedes Dokument als **.zlm**, geordnet wie
+im Notizbuch – und einzelne Module daraus zurückholen, auch aus älteren
+Ständen. Die .zlm-Dateien öffnet der [lm-editor](https://mmetzler-fes.github.io/lm-editor/)
+auch ohne Server und offline.
 
 Gesichert wird genau das, was auch der JSON-Export herausgibt: in jedem Thema
 nur die **selbst verfassten Module** (samt Untermodulen). Gekaufte oder aus dem
@@ -49,6 +51,14 @@ verschlüsselt und zeigt ihn nie wieder an.
   Versionsgeschichte zusammenhängend bleibt; der neue Titel steht im Inhalt und
   im Index. Wer mag, benennt die Datei auf GitHub um – entscheidend ist nur
   die Kennung nach dem letzten `--`.
+- **Dokumente** (Arbeitsblätter, Klassenarbeiten …) liegen zusätzlich als
+  .zlm im Ordner `Notizbuch/`, so wie sie im Notizbuch eingeordnet sind:
+  `Notizbuch/<Book>/<Bereich>/<Abschnitt>/<Thema>/<Dokument>.zlm`. Themen
+  ohne Platz im Notizbuch stehen unter `Notizbuch/Unsortiert/<Thema>/`.
+  Gleichnamige Dokumente im selben Thema heißen „… (2).zlm“.
+- **Verschieben und Umbenennen im Notizbuch:** Die .zlm zieht beim nächsten
+  Backup mit um, der alte Ort wird gelöscht. Ältere Stände stehen in der
+  Versionsgeschichte unter dem alten Pfad.
 - **Gelöschte Themen** bleiben im Repository liegen. Aufräumen geht direkt auf
   GitHub (Datei öffnen → ⋯ → *Delete file*); die App legt die Datei nicht neu
   an, solange es das Thema nicht mehr gibt.
@@ -57,6 +67,22 @@ Schlägt ein Backup fehl, kommt beim ersten Fehler eine Mail; die App versucht
 es stündlich erneut. Zwei Wochen bevor der Token abläuft, gibt es ebenfalls
 eine Mail – dann auf GitHub den Token neu erzeugen (*Regenerate token*) und
 in der App eintragen.
+
+## Offline im lm-editor öffnen
+
+Eine .zlm enthält alles, was das Dokument braucht: Text, Bilder (auch die
+aus der Nextcloud), die eingebetteten Quizze und die eigene Beschriftung mit
+dem Stift. So geht es:
+
+1. Auf GitHub die Datei öffnen → **Download raw file** (⬇). Oder das ganze
+   Repository: **Code → Download ZIP**.
+2. Im [lm-editor](https://mmetzler-fes.github.io/lm-editor/) auf
+   **📂 Öffnen** klicken oder die Datei auf die Seite ziehen. Ist der
+   lm-editor installiert, geht auch **rechte Maustaste → Öffnen mit**.
+
+Was dort geändert wird, bleibt in der Datei auf dem eigenen Rechner. Zurück
+in die App kommt eine .zlm über **Öffnen mit LernModule → Im Notizbuch
+ablegen**.
 
 ## Wiederherstellen
 
@@ -103,9 +129,18 @@ der Knopf **💾 GitHub-Backup** ist bei den Lehrkräften ausgeblendet.
   fremde Commits zu überschreiben.
 - Ein leeres Repository wird mit einer `README.md` über die Contents-API
   eingerichtet.
+- .zlm (`zlm-export.ts`, Format: `src/renderer/lm-editor/docs/FORMAT.md`):
+  Bilder aus data:-Adressen und Links (Nextcloud über den Server, sonst nur
+  öffentliche Adressen) nach `media/`, eingebettete Quizze samt Untermodulen
+  nach `modules/`, die Beschriftung der Lehrkraft (`document_inks`) als
+  `layers/teacher.json`. Ungepackt, mit festen Zeitstempeln und fester
+  Reihenfolge: Gleicher Inhalt ergibt dieselben Bytes, und Git speichert
+  neue Stände als Differenz. Welche .zlm zu welchem Dokument gehört, führt
+  `themen/index.json` unter `dokumente`; verschobene werden im selben Commit
+  am alten Ort gelöscht (Tree-Eintrag mit `sha: null`).
 - Zeitplan wie beim Cloud-Backup (`src/core/schedule/slot.ts`): Prüfung alle
   10 Minuten, verpasste Läufe werden nachgeholt, nach Fehlern stündlich.
 - Ablauf des Tokens aus dem Antwortkopf
   `github-authentication-token-expiration`.
 - Code: `src/github-backup/` – `backup-plan.ts` (Abgleich, ohne Netz),
-  `github-api.ts` (REST), `github-backup.service.ts`.
+  `zlm-export.ts` (.zlm), `github-api.ts` (REST), `github-backup.service.ts`.

@@ -67,7 +67,8 @@ export async function openGithubBackupDialog(app) {
     card.innerHTML = `
       ${head}
       <p class="hint">Sichert deine selbst verfassten Module regelmäßig in ein <strong>privates</strong> GitHub-Repository –
-        je Lernthema eine JSON-Datei. Gesichert wird nur, was sich geändert hat; ältere Stände bleiben in der
+        je Lernthema eine JSON-Datei, dazu jedes Dokument als .zlm im Ordner <code>Notizbuch/</code>, geordnet wie
+        im Notizbuch – die öffnet der <a href="/lm-editor/" target="_blank" rel="noopener">lm-editor</a> auch offline. Gesichert wird nur, was sich geändert hat; ältere Stände bleiben in der
         Versionsgeschichte erhalten. Gekaufte oder übernommene Module werden nicht gesichert.</p>
       ${data.configured ? `<p class="hint gh-status">${statusHtml(data)}</p>` : ''}
 

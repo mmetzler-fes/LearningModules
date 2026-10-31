@@ -154,16 +154,17 @@ export class GithubRepo {
     return (t.tree || []).filter((e: any) => e.type === 'blob').map((e: any) => ({ path: e.path, sha: e.sha, type: e.type }));
   }
 
-  /** Dateien schreiben (Inhalt) in einem Commit auf den Branch. */
-  async commit(head: Head, files: Array<{ path: string; content: string }>, message: string) {
+  /** Dateien schreiben (Text oder Bytes) und `remove` löschen – in einem Commit auf den Branch. */
+  async commit(head: Head, files: Array<{ path: string; content: string | Buffer }>, message: string, remove: string[] = []) {
     const entries: any[] = [];
     for (const f of files) {
       const blob = await this.json('POST', '/git/blobs', 'Datei konnte nicht hochgeladen werden', {
-        content: Buffer.from(f.content, 'utf-8').toString('base64'),
+        content: (Buffer.isBuffer(f.content) ? f.content : Buffer.from(f.content, 'utf-8')).toString('base64'),
         encoding: 'base64',
       });
       entries.push({ path: f.path, mode: '100644', type: 'blob', sha: blob.sha });
     }
+    for (const path of remove) entries.push({ path, mode: '100644', type: 'blob', sha: null });
     const tree = await this.json('POST', '/git/trees', 'Dateibaum konnte nicht angelegt werden', { base_tree: head.treeSha, tree: entries });
     const commit = await this.json('POST', '/git/commits', 'Commit konnte nicht angelegt werden', {
       message,

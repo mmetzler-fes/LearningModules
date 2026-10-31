@@ -1,10 +1,13 @@
-import { Injectable, Logger, BadRequestException, ForbiddenException, NotFoundException, OnApplicationBootstrap, OnModuleDestroy } from '@nestjs/common';
+import { Injectable, Logger, Optional, BadRequestException, ForbiddenException, NotFoundException, OnApplicationBootstrap, OnModuleDestroy } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
 import * as crypto from 'crypto';
+import { DocumentInk } from '../core/entities/document-ink.entity';
 import { GithubBackup } from '../core/entities/github-backup.entity';
 import { LearningModule } from '../core/entities/learning-module.entity';
 import { LearningTopic } from '../core/entities/learning-topic.entity';
+import { NotebookNode } from '../core/entities/notebook-node.entity';
+import { NotebookPlacement } from '../core/entities/notebook-placement.entity';
 import { SystemConfig } from '../core/entities/system-config.entity';
 import { User } from '../core/entities/user.entity';
 import { MasterKeyService } from '../core/crypto/master-key.service';
@@ -12,8 +15,10 @@ import { MailService } from '../core/mail/mail.service';
 import { ImportService } from '../core/interchange/import/import.service';
 import { ownModules, topicJson } from '../core/interchange/export/export.service';
 import { isDue, nextSlot, DAY } from '../core/schedule/slot';
+import { NextcloudService } from '../nextcloud/nextcloud.service';
 import { GithubRepo, parseRepo } from './github-api';
-import { BackupTopic, INDEX_PATH, parseIndex, pickModules, planBackup, topicIdOf } from './backup-plan';
+import { BackupTopic, INDEX_PATH, parseDocIndex, parseIndex, pickModules, planBackup, topicIdOf } from './backup-plan';
+import { buildZlm } from './zlm-export';
 
 /**
  * GitHub-Backup je Lehrkraft (docs/github-backup.md).
@@ -24,7 +29,9 @@ import { BackupTopic, INDEX_PATH, parseIndex, pickModules, planBackup, topicIdOf
  *
  * Je Lauf: Dateibaum holen, je Thema den Git-SHA des JSON lokal berechnen
  * und vergleichen; nur Geändertes und Neues geht hoch, alles in einem
- * Commit. Gelöscht wird nichts.
+ * Commit. Dazu jedes Dokument als .zlm im Aufbau des Notizbuchs (mit
+ * Bildern und der Beschriftung der Lehrkraft) – zum Öffnen im lm-editor.
+ * Gelöscht werden nur die alten Orte verschobener .zlm.
  *
  * Der Admin kann die Funktion serverweit abschalten (Standard: erlaubt).
  */
@@ -33,9 +40,13 @@ const ALLOWED_KEY = 'github_backup_allowed';
 const README = `# LearningModules – Backup
 
 Dieses Repository füllt LearningModules automatisch mit den selbst verfassten
-Lerninhalten: je Lernthema eine JSON-Datei im Ordner \`themen/\`.
+Lerninhalten: je Lernthema eine JSON-Datei im Ordner \`themen/\` und jedes
+Dokument (Arbeitsblatt, Klassenarbeit …) als .zlm im Ordner \`Notizbuch/\` –
+geordnet wie im Notizbuch der App.
 
-- Jede Datei lässt sich in LearningModules wieder importieren – oder direkt
+- Eine .zlm öffnet der lm-editor (https://mmetzler-fes.github.io/lm-editor/),
+  auch ohne Server und offline – mit Bildern, Quizzen und deiner Beschriftung.
+- Jede JSON-Datei lässt sich in LearningModules wieder importieren – oder direkt
   aus der App heraus wiederherstellen (🏠 → 💾 GitHub-Backup).
 - Ältere Stände stehen in der Versionsgeschichte (History) jeder Datei.
 - Gelöschte Themen bleiben hier liegen, bis du die Datei selbst löschst.
@@ -56,9 +67,13 @@ export class GithubBackupService implements OnApplicationBootstrap, OnModuleDest
     @InjectRepository(LearningTopic) private readonly topicRepo: Repository<LearningTopic>,
     @InjectRepository(SystemConfig) private readonly configRepo: Repository<SystemConfig>,
     @InjectRepository(User) private readonly userRepo: Repository<User>,
+    @InjectRepository(DocumentInk) private readonly inkRepo: Repository<DocumentInk>,
+    @InjectRepository(NotebookNode) private readonly nodeRepo: Repository<NotebookNode>,
+    @InjectRepository(NotebookPlacement) private readonly placementRepo: Repository<NotebookPlacement>,
     private readonly masterKey: MasterKeyService,
     private readonly mail: MailService,
     private readonly importService: ImportService,
+    @Optional() private readonly nextcloud?: NextcloudService,
   ) {}
 
   // ---- Freigabe durch den Admin ----
@@ -228,25 +243,59 @@ export class GithubBackupService implements OnApplicationBootstrap, OnModuleDest
 
   // ---- Lauf ----
 
-  /** Alle Themen mit eigenen Modulen, im Format des JSON-Exports. */
+  /** Alle Themen mit eigenen Modulen, im Format des JSON-Exports – und ihre Dokumente als .zlm. */
   private async collect(userId: string): Promise<BackupTopic[]> {
     const own = await this.moduleRepo.find({ where: { creatorId: userId }, select: ['id', 'topicId'] });
     const topicIds = [...new Set(own.map((m) => m.topicId).filter(Boolean))];
+    const folderOf = await this.notebookFolders(userId, topicIds);
+    const local = this.nextcloud ? (url: string) => this.nextcloud!.readImageByUrl(url) : undefined;
     const out: BackupTopic[] = [];
     for (let i = 0; i < topicIds.length; i += 200) {
       const topics = await this.topicRepo.find({ where: { id: In(topicIds.slice(i, i + 200)) }, relations: ['modules'] });
       for (const t of topics) {
         const modules = ownModules(t.modules || [], userId).sort((a, b) => a.orderIndex - b.orderIndex);
         if (!modules.length) continue;
+        const title = t.title || 'Ohne Titel';
+        const docs = modules.filter((m) => m.type === 'document');
+        const inks = docs.length ? await this.inkRepo.find({ where: { id: In(docs.map((d) => d.id)), ownerId: userId } }) : [];
+        const documents = [];
+        for (const d of docs) {
+          const ink = inks.find((x) => x.id === d.id) || null;
+          documents.push({ id: d.id, title: d.title || 'Dokument', bytes: await buildZlm({ doc: d, modules, ink }, { local }) });
+        }
         out.push({
           id: t.id,
-          title: t.title || 'Ohne Titel',
+          title,
           content: JSON.stringify(topicJson(t, modules), null, 2) + '\n',
           modules: modules.filter((m) => !m.parentId).length,
+          folder: [...(folderOf.get(t.id) || ['Unsortiert']), title],
+          documents,
         });
       }
     }
     return out.sort((a, b) => a.id.localeCompare(b.id));
+  }
+
+  /** Ordner im Notizbuch der Lehrkraft je Thema: Book, Bereich, Abschnitt (ohne das Thema). */
+  private async notebookFolders(userId: string, topicIds: string[]) {
+    const nodes = new Map((await this.nodeRepo.find({ where: { ownerId: userId } })).map((n) => [n.id, n]));
+    const pathOf = (nodeId: string | null) => {
+      const titles: string[] = [];
+      const seen = new Set<string>();
+      for (let n = nodeId ? nodes.get(nodeId) : undefined; n && !seen.has(n.id); n = n.parentId ? nodes.get(n.parentId) : undefined) {
+        seen.add(n.id);
+        titles.unshift(n.title || 'Ohne Titel');
+      }
+      return titles.length ? titles : null;
+    };
+    const out = new Map<string, string[]>();
+    for (let i = 0; i < topicIds.length; i += 200) {
+      for (const p of await this.placementRepo.find({ where: { ownerId: userId, topicId: In(topicIds.slice(i, i + 200)) } })) {
+        const path = pathOf(p.nodeId);
+        if (path) out.set(p.topicId, path);
+      }
+    }
+    return out;
   }
 
   async run(user: any) {
@@ -270,11 +319,11 @@ export class GithubBackupService implements OnApplicationBootstrap, OnModuleDest
       }
       const head = (await gh.head()) || (await gh.initialize('README.md', README, 'LearningModules-Backup eingerichtet'));
       const tree = await gh.tree(head.treeSha);
-      const oldIndex = tree.some((e) => e.path === INDEX_PATH) ? parseIndex(await gh.read(INDEX_PATH, head.commitSha)) : [];
-      const plan = planBackup(tree, await this.collect(userId), oldIndex);
+      const indexText = tree.some((e) => e.path === INDEX_PATH) ? await gh.read(INDEX_PATH, head.commitSha) : null;
+      const plan = planBackup(tree, await this.collect(userId), parseIndex(indexText), parseDocIndex(indexText));
 
       let commit: string | null = null;
-      if (plan.files.length) {
+      if (plan.files.length || plan.remove.length) {
         const parts = [
           plan.updated.length ? `${plan.updated.length} geändert` : '',
           plan.created.length ? `${plan.created.length} neu` : '',
@@ -282,7 +331,7 @@ export class GithubBackupService implements OnApplicationBootstrap, OnModuleDest
         const summary = parts.join(', ') || 'Index aktualisiert';
         const names = [...plan.created, ...plan.updated];
         const body = names.length ? `\n\n${names.map((n) => `- ${n}`).join('\n')}` : '';
-        commit = await gh.commit(head, plan.files, `Backup ${now.toLocaleDateString('de-DE')}: ${summary}${body}`);
+        commit = await gh.commit(head, plan.files, `Backup ${now.toLocaleDateString('de-DE')}: ${summary}${body}`, plan.remove);
       }
 
       const result = { created: plan.created.length, updated: plan.updated.length, unchanged: plan.unchanged, commit };

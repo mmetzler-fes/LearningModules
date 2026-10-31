@@ -1,8 +1,8 @@
 import { gitBlobSha, parseRepo, parseTokenExpiry } from './github-api';
-import { INDEX_PATH, parseIndex, pickModules, planBackup, renderIndex, slug, topicIdOf, topicPath, BackupTopic } from './backup-plan';
+import { INDEX_PATH, fileName, parseDocIndex, parseIndex, pickModules, planBackup, renderIndex, slug, topicIdOf, topicPath, BackupTopic } from './backup-plan';
 
 const topic = (id: string, title: string, content = `{"id":"${id}"}\n`): BackupTopic => ({ id, title, content, modules: 1 });
-const blob = (path: string, content: string) => ({ path, sha: gitBlobSha(content), type: 'blob' });
+const blob = (path: string, content: string | Buffer) => ({ path, sha: gitBlobSha(content), type: 'blob' });
 
 describe('gitBlobSha', () => {
   it('stimmt mit git hash-object überein', () => {
@@ -67,7 +67,7 @@ describe('planBackup', () => {
     const topics = [topic('t1', 'Mathe')];
     const first = planBackup([], topics, []);
     const tree = first.files.map((f) => blob(f.path, f.content));
-    const second = planBackup(tree, topics, parseIndex(first.files.find((f) => f.path === INDEX_PATH)!.content));
+    const second = planBackup(tree, topics, parseIndex(String(first.files.find((f) => f.path === INDEX_PATH)!.content)));
     expect(second.files).toEqual([]);
     expect(second.unchanged).toBe(1);
   });
@@ -84,7 +84,7 @@ describe('planBackup', () => {
     const tree = [blob('themen/Mathe--t1.json', 'alt')];
     const plan = planBackup(tree, [topic('t1', 'Mathematik 7', 'neu')], [{ datei: 'themen/Mathe--t1.json', id: 't1', titel: 'Mathe', module: 1 }]);
     expect(plan.files.map((f) => f.path)).toEqual(['themen/Mathe--t1.json', INDEX_PATH]);
-    const index = parseIndex(plan.files[1].content);
+    const index = parseIndex(String(plan.files[1].content));
     expect(index).toEqual([{ datei: 'themen/Mathe--t1.json', id: 't1', titel: 'Mathematik 7', module: 1 }]);
   });
 
@@ -106,12 +106,76 @@ describe('planBackup', () => {
     const oldIndex = [{ datei: 'themen/Weg--t9.json', id: 't9', titel: 'Weg', module: 1 }];
     const tree = [blob(INDEX_PATH, renderIndex(oldIndex))];
     const plan = planBackup(tree, [], oldIndex);
-    expect(parseIndex(plan.files[0].content)).toEqual([]);
+    expect(parseIndex(String(plan.files[0].content))).toEqual([]);
   });
 
   it('übersteht einen kaputten Index', () => {
     expect(parseIndex('kein json')).toEqual([]);
     expect(parseIndex('{"themen": 5}')).toEqual([]);
+  });
+});
+
+describe('planBackup: Dokumente als .zlm im Notizbuch', () => {
+  const doc = (id: string, title: string, bytes = `zlm-${id}`) => ({ id, title, bytes: Buffer.from(bytes) });
+  const withDocs = (folder: string[] | undefined, docs: ReturnType<typeof doc>[]): BackupTopic => ({ ...topic('t1', 'Brüche'), folder, documents: docs });
+  /** Baum und Index nach einem Lauf, als wäre er auf GitHub angekommen. */
+  const after = (tree: ReturnType<typeof blob>[], plan: ReturnType<typeof planBackup>) => {
+    const map = new Map(tree.map((e) => [e.path, e]));
+    for (const f of plan.files) map.set(f.path, blob(f.path, f.content));
+    for (const p of plan.remove) map.delete(p);
+    const index = String(map.has(INDEX_PATH) ? plan.files.find((f) => f.path === INDEX_PATH)?.content ?? '' : '');
+    return { tree: [...map.values()], index };
+  };
+
+  it('legt die .zlm im Ordner des Themas ab, mit lesbarem Namen, und führt sie im Index', () => {
+    const plan = planBackup([], [withDocs(['Mathe', 'Klasse 7', 'Brüche'], [doc('d1', 'Arbeitsblatt: Kürzen')])], []);
+    const zlm = plan.files.find((f) => f.path.endsWith('.zlm'))!;
+    expect(zlm.path).toBe('Notizbuch/Mathe/Klasse 7/Brüche/Arbeitsblatt- Kürzen.zlm');
+    expect(Buffer.isBuffer(zlm.content)).toBe(true);
+    expect(plan.created).toContain('Brüche: Arbeitsblatt: Kürzen.zlm');
+    const index = String(plan.files.find((f) => f.path === INDEX_PATH)!.content);
+    expect(parseDocIndex(index)).toEqual([{ datei: zlm.path, id: 'd1', titel: 'Arbeitsblatt: Kürzen', thema: 'Brüche' }]);
+    expect(parseIndex(index)).toHaveLength(1);
+  });
+
+  it('nimmt „Unsortiert“ ohne Platz im Notizbuch und zählt gleiche Namen hoch', () => {
+    const plan = planBackup([], [withDocs(undefined, [doc('d1', 'AB'), doc('d2', 'AB')])], []);
+    expect(plan.files.filter((f) => f.path.endsWith('.zlm')).map((f) => f.path)).toEqual([
+      'Notizbuch/Unsortiert/Brüche/AB.zlm',
+      'Notizbuch/Unsortiert/Brüche/AB (2).zlm',
+    ]);
+  });
+
+  it('schreibt nichts, wenn sich nichts geändert hat', () => {
+    const topics = [withDocs(['Mathe', 'Brüche'], [doc('d1', 'AB')])];
+    const first = after([], planBackup([], topics, []));
+    const second = planBackup(first.tree, topics, parseIndex(first.index), parseDocIndex(first.index));
+    expect(second.files).toEqual([]);
+    expect(second.remove).toEqual([]);
+    expect(second.unchanged).toBe(2);
+  });
+
+  it('zieht beim Verschieben und Umbenennen mit und löscht den alten Ort', () => {
+    const first = after([], planBackup([], [withDocs(['Mathe', 'Brüche'], [doc('d1', 'AB')])], []));
+    const plan = planBackup(first.tree, [withDocs(['Mathe', 'Klasse 6', 'Brüche'], [doc('d1', 'AB neu')])], parseIndex(first.index), parseDocIndex(first.index));
+    expect(plan.files.map((f) => f.path)).toContain('Notizbuch/Mathe/Klasse 6/Brüche/AB neu.zlm');
+    expect(plan.remove).toEqual(['Notizbuch/Mathe/Brüche/AB.zlm']);
+    expect(plan.updated).toEqual(['Brüche: AB neu.zlm']);
+  });
+
+  it('lässt die .zlm gelöschter Dokumente liegen', () => {
+    const first = after([], planBackup([], [withDocs(['Mathe', 'Brüche'], [doc('d1', 'AB'), doc('d2', 'Test')])], []));
+    const plan = planBackup(first.tree, [withDocs(['Mathe', 'Brüche'], [doc('d1', 'AB')])], parseIndex(first.index), parseDocIndex(first.index));
+    expect(plan.remove).toEqual([]);
+    expect(plan.files).toEqual([]);
+  });
+});
+
+describe('fileName', () => {
+  it('behält Umlaute und Leerzeichen, ersetzt, was Windows nicht mag', () => {
+    expect(fileName('Brüche: Kürzen / Erweitern?')).toBe('Brüche- Kürzen - Erweitern-');
+    expect(fileName('  ..versteckt.  ')).toBe('versteckt');
+    expect(fileName('')).toBe('_');
   });
 });
 

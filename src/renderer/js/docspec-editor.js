@@ -232,10 +232,14 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
     // Noch verborgen (Reiter, Einklappen): messen, sobald die Spalte sichtbar wird.
     unmeasured = !sheet.offsetHeight;
     const pages = markPageBreaks(sheet, { landscape: sheet.classList.contains('lm-landscape') });
+    measuredShape = sheet.offsetHeight / (sheet.offsetWidth || 1);
     pagesEl.textContent = `A4 · ${pages} ${pages === 1 ? 'Seite' : 'Seiten'} (Umbrüche ungefähr wie im Druck)`;
     fitSheet();
     preview.scrollTop = top;
   };
+  // Höhe zu Breite des Blatts beim letzten Messen – bleibt beim Verkleinern gleich.
+  let measuredShape = 0;
+  let sheetObserver = null;
   let measureTimer = null;
   const remeasure = () => { clearTimeout(measureTimer); measureTimer = setTimeout(() => measurePages(), 150); };
   const renderPreview = () => {
@@ -246,6 +250,14 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
     sheetWrap.innerHTML = `<div class="lm-paper${spec.orientation === 'landscape' ? ' lm-landscape' : ''}">${renderDocSpecHtml(spec, { showSolutions: showSolutions.checked, showPageBreaks: true, refs: ctx?.refs || undefined })}</div>`;
     preview.replaceChildren(sheetWrap);
     measurePages(top);
+    // Bilder (auch nachgeladene oder ersetzte), Schriften, Formeln: Ändert sich
+    // die Höhe des Blatts, verschieben sich die Umbrüche – neu messen.
+    sheetObserver?.disconnect();
+    const sheet = sheetWrap.firstElementChild;
+    sheetObserver = new ResizeObserver(() => {
+      if (Math.abs(sheet.offsetHeight / (sheet.offsetWidth || 1) - measuredShape) > 0.002) remeasure();
+    });
+    sheetObserver.observe(sheet);
   };
   // Bilder laden nach – dann verschieben sich die Umbrüche.
   preview.addEventListener('load', remeasure, true);

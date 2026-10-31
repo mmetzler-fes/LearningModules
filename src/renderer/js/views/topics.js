@@ -103,12 +103,21 @@ export class TopicsView {
   async refresh() {
     this.refreshSharedTopics();
     renderIncomingHandovers(this.app, document.getElementById('handoverIncoming'));
+    this._syncGithubBackupButton();
     // Themen und Tags gleichzeitig laden statt nacheinander.
     await Promise.all([this.app.loadTopics(), this.app.loadTags()]);
     this._filter.render();
     this._hideForm();
     this._render();
     this._renderStats();
+  }
+
+  /** 💾 GitHub-Backup nur zeigen, wenn der Admin es nicht abgeschaltet hat. */
+  async _syncGithubBackupButton() {
+    const btn = document.getElementById('btnGithubBackup');
+    if (!btn) return;
+    const data = await this.app.api.getGithubBackup().catch(() => null);
+    btn.classList.toggle('hidden', data?.allowed === false);
   }
 
   /** Kleine Zahlenleiste über den Themen (früher das Dashboard). */

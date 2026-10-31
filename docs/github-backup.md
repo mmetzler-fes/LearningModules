@@ -86,7 +86,8 @@ GitHub bleibt unverändert; den Token dort am besten auch löschen.
 Unter *Shop & Sicherheit* → **💾 GitHub-Backup der Lehrkräfte** lässt sich die
 Funktion serverweit abschalten (Standard: erlaubt) – etwa wenn der
 Schulträger keine Übertragung an GitHub (USA) wünscht. Gespeicherte
-Einstellungen bleiben dabei erhalten; es wird nur nichts mehr übertragen.
+Einstellungen bleiben dabei erhalten; es wird nur nichts mehr übertragen, und
+der Knopf **💾 GitHub-Backup** ist bei den Lehrkräften ausgeblendet.
 
 ## Technik
 

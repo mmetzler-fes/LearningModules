@@ -1,5 +1,5 @@
 import AdmZip from 'adm-zip';
-import { odtToHtml, usableTitle } from './odt';
+import { odtToHtml, usableTitle, wrapLine } from './odt';
 
 /** Kleinstes Writer-Dokument mit dem gegebenen Inhalt von office:text. */
 function odt(body: string): Buffer {
@@ -293,5 +293,17 @@ describe('.odt-Import: Quelltext', () => {
     expect(r.html).toContain('<code>digitalWrite()</code>');
     expect(r.html).not.toContain('<code>Arial</code>');
     expect(r.html).toContain('<code>void loop() {}</code>');
+  });
+});
+
+describe('.odt-Import: Text in Zeichnungen umbrechen', () => {
+  it('bricht wie LibreOffice nach Bindestrich, an Leerzeichen und an weichen Trennstellen um', () => {
+    // Rahmen 2,9 cm ≈ 110 px, Schrift 11 pt ≈ 14,7 px
+    expect(wrapLine('Anweisungs-block1', 14.7, false, 105)).toEqual(['Anweisungs-', 'block1']);
+    expect(wrapLine('Anweisungs­block1', 14.7, false, 105)).toEqual(['Anweisungs-', 'block1']);
+    expect(wrapLine('Ja', 14.7, true, 105)).toEqual(['Ja']);
+    expect(wrapLine('kurz­wort', 14.7, false, 300)).toEqual(['kurzwort']);
+    expect(wrapLine('Bedingung erfüllt dann weiter', 14.7, false, 120)).toEqual(['Bedingung erfüllt', 'dann weiter']); // ≈ 108 px passen in 120 px
+    expect(wrapLine('Donaudampfschifffahrt', 14.7, false, 60)).toEqual(['Donaudampfschifffahrt']);
   });
 });

@@ -68,9 +68,25 @@ export async function openZlmFile(app, file) {
   }
   // Stiftbeschriftung der Datei (die der Lehrkraft, sonst die erste).
   const layer = doc.layers.teacher || Object.values(doc.layers)[0] || null;
+  const spec = specForView(doc);
+  const stand = editorStateOf(layer);
+  // Angemeldete Lehrkraft mit Dokumenten: ins Notizbuch übernehmen (mit Quizzen und Beschriftung).
+  const user = app.state?.currentUser;
+  const canFile = user && (user.role === 'teacher' || user.role === 'admin') && (user.features || []).includes('worksheets');
+  const KIND = { exam: 'klassenarbeit', text: 'text', worksheet: 'arbeitsblatt' };
   await openDocViewer(app, {
-    title: doc.manifest.title, subtitle: `${file.name || ''} · nur ansehen`,
-    spec: specForView(doc), kind: doc.manifest.kind, modules: doc.modules,
-    stand: editorStateOf(layer), landscape: doc.spec.orientation === 'landscape',
+    title: doc.manifest.title, subtitle: `${file.name || ''} · ${canFile ? 'noch nicht im Notizbuch' : 'nur ansehen'}`,
+    spec, kind: doc.manifest.kind, modules: doc.modules,
+    stand, landscape: doc.spec.orientation === 'landscape',
+    actions: canFile ? [{
+      label: '📓 Im Notizbuch ablegen…', primary: true,
+      title: 'Als Modul „Dokument“ in ein Lernthema – samt eingebetteten Quizzen; die Beschriftung wird deine (nur für dich)',
+      onClick: async (close) => {
+        const { fileIntoNotebook } = await import('./file-open.js');
+        try {
+          if (await fileIntoNotebook(app, { title: doc.manifest.title, spec, stand, kind: KIND[doc.manifest.kind] || 'arbeitsblatt', modules: Object.entries(doc.modules || {}).map(([key, m]) => ({ ...m, id: m?.id ?? key })) })) close();
+        } catch (err) { app.showToast(`Ablegen fehlgeschlagen: ${err.message}`, 'error'); }
+      },
+    }] : [],
   });
 }

@@ -34,6 +34,12 @@ export class GithubBackupController {
     return this.backup.run(req.user);
   }
 
+  /** Ein eigenes Dokument als .zlm (`{ fileName, data }`, data base64) – unabhängig vom Backup. */
+  @Get('zlm')
+  async zlm(@Request() req: any, @Query('id') id: string) {
+    return this.backup.documentZlm(req.user, id);
+  }
+
   @Get('files')
   async files(@Request() req: any) {
     return this.backup.files(req.user);

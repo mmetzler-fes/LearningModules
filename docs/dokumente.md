@@ -161,7 +161,10 @@ Beschriftung: nur für mich** (Freischaltung „Stift-Editor“). Der Stift-Edit
 öffnet dabei den Stand im Editor; fügt er etwas ein (⊕), wird das Modul
 gespeichert und der Editor übernimmt den neuen Stand.
 **🖨 PDF**, **⬇ .odt**, **🖨 Lösung** und **⬇ Lösung .odt** erzeugen die
-Dateien vom aktuellen Stand, auch ungespeichert.
+Dateien vom aktuellen Stand, auch ungespeichert. **⬇ .zlm** im selben Menü
+holt das gespeicherte Dokument als Datei für den lm-editor (mit eingebetteten
+Quizzen, Bildern und deiner Beschriftung) – nur eigene Dokumente; zurück geht
+es per Doppelklick auf die .zlm → **📓 Im Notizbuch ablegen…**.
 
 **⌨ YAML** zeigt dasselbe Dokument als Text – praktisch zum schnellen Ändern
 vieler Stellen oder für Antworten einer KI. Das Format beschreibt die Datei

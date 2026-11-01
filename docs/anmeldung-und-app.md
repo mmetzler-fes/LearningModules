@@ -49,7 +49,11 @@ Doppelklick). Beim ersten Mal fragt der Browser, ob die App die Datei öffnen
 darf.
 
 - **.zlm** (lm-editor): wird gleich angezeigt – ohne Anmeldung, die Datei
-  verlässt den PC nicht.
+  verlässt den PC nicht. Angemeldet (Lehrkraft, Dokumente freigeschaltet) legt
+  **📓 Im Notizbuch ablegen…** sie als Dokument in ein Lernthema – samt
+  eingebetteten Quizzen; die Beschriftung wird deine. Umgekehrt holt
+  **⬇ .zlm** im Druckmenü des Dokument-Editors ein gespeichertes Dokument als
+  Datei für den lm-editor.
 - **.odt, .docx, .pdf** und Folien (**.odp, .odg, .pptx, .ppt**): werden wie beim Import umgewandelt (bei PDFs fragt die
   App nach der Art) und angezeigt.
 - **.xopp** (Xournal++): mit ihrem PDF – beide markieren und zusammen öffnen.

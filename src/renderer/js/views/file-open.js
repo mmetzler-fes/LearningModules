@@ -124,8 +124,12 @@ async function openConverted(app, files) {
   }
 }
 
-/** Ziel wählen und das Dokument dort anlegen; true, wenn es geklappt hat. */
-async function fileIntoNotebook(app, doc) {
+/**
+ * Ziel wählen und das Dokument dort anlegen; true, wenn es geklappt hat.
+ * `doc`: `{ title, spec, stand, kind?, modules? }` – `modules` sind die eingebetteten
+ * Quizze einer .zlm; sie bekommen neue IDs (die alten können schon woanders liegen).
+ */
+export async function fileIntoNotebook(app, doc) {
   const place = await pickPlace(app, doc.title);
   if (!place) return false;
   let topicId = place.topicId;
@@ -137,11 +141,32 @@ async function fileIntoNotebook(app, doc) {
   }
   const id = generateId();
   const now = new Date().toISOString();
+  const modules = Array.isArray(doc.modules) ? doc.modules : [];
+  const newId = new Map(modules.map((m) => [String(m.id), generateId()]));
+  const relink = (v) => {
+    if (Array.isArray(v)) return v.map(relink);
+    if (!v || typeof v !== 'object') return v;
+    const out = Object.fromEntries(Object.entries(v).map(([k, x]) => [k, relink(x)]));
+    if (out.type === 'quiz' && newId.has(String(out.module))) out.module = newId.get(String(out.module));
+    return out;
+  };
   const res = await app.api.saveModule(topicId, {
     id, type: 'document', title: doc.title || 'Dokument', description: '',
-    content: { kind: 'arbeitsblatt', spec: doc.spec }, moduleSelected: true, createdAt: now, updatedAt: now,
+    content: { kind: doc.kind || 'arbeitsblatt', spec: relink(doc.spec) }, moduleSelected: true, createdAt: now, updatedAt: now,
   });
   if (!res?.success) throw new Error(res?.message || 'Speichern fehlgeschlagen');
+  // Eingebettete Quizze: erst die obersten, dann ihre Untermodule.
+  const ordered = [...modules.filter((m) => !m.parentId), ...modules.filter((m) => m.parentId)];
+  let missing = 0;
+  for (const m of ordered) {
+    const saved = await app.api.saveModule(topicId, {
+      id: newId.get(String(m.id)), type: m.type, title: m.title || '', description: m.description || '', content: m.content,
+      ...(m.parentId && newId.has(String(m.parentId)) ? { parentId: newId.get(String(m.parentId)) } : {}),
+      moduleSelected: true, createdAt: now, updatedAt: now,
+    }).catch(() => null);
+    if (!saved?.success) missing++;
+  }
+  if (missing) app.showToast(`${missing} eingebettete${missing === 1 ? 's Quiz' : ' Quizze'} ließ${missing === 1 ? '' : 'en'} sich nicht anlegen.`, 'error');
   if (doc.stand) {
     const { saveTeacherInk } = await import('../xopp-import.js');
     if (!(await saveTeacherInk(id, doc.stand))) app.showToast('Die Handschrift ließ sich nicht speichern.', 'error');

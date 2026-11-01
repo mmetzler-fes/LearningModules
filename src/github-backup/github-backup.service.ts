@@ -298,6 +298,23 @@ export class GithubBackupService implements OnApplicationBootstrap, OnModuleDest
     return out;
   }
 
+  /**
+   * Ein Dokument als .zlm zum Herunterladen (für den lm-editor) – wie im Backup:
+   * nur eigene Dokumente, mit den eingebetteten Quizzen und der eigenen Beschriftung.
+   */
+  async documentZlm(user: any, moduleId: string): Promise<{ fileName: string; data: string }> {
+    const mod = moduleId ? await this.moduleRepo.findOne({ where: { id: String(moduleId) } }) : null;
+    if (!mod || mod.type !== 'document') throw new NotFoundException('Dokument nicht gefunden.');
+    const topic = await this.topicRepo.findOne({ where: { id: mod.topicId }, relations: ['modules'] });
+    const modules = ownModules(topic?.modules || [], user.userId);
+    if (!modules.some((m) => m.id === mod.id)) throw new ForbiddenException('Nur eigene Dokumente lassen sich als .zlm herunterladen.');
+    const ink = await this.inkRepo.findOne({ where: { id: mod.id, ownerId: user.userId } });
+    const local = this.nextcloud ? (url: string) => this.nextcloud!.readImageByUrl(url) : undefined;
+    const bytes = await buildZlm({ doc: mod, modules, ink }, { local });
+    const name = (mod.title || 'Dokument').replace(/[\\/:*?"<>|]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 80) || 'Dokument';
+    return { fileName: `${name}.zlm`, data: Buffer.from(bytes).toString('base64') };
+  }
+
   async run(user: any) {
     await this.requireAllowed();
     return this.runFor(user.userId);

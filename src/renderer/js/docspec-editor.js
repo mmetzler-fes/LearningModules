@@ -490,8 +490,29 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
   root.querySelector('.ds-print-menu').addEventListener('click', (e) => {
     const btn = e.currentTarget;
     const r = btn.getBoundingClientRect();
-    showContextMenu(r.left, r.bottom + 4, OUTPUTS.map((o) => ({ label: `${o.label} – ${o.title}`, onClick: () => print(o.output, btn) })));
+    showContextMenu(r.left, r.bottom + 4, [
+      ...OUTPUTS.map((o) => ({ label: `${o.label} – ${o.title}`, onClick: () => print(o.output, btn) })),
+      '-',
+      { label: '⬇ .zlm – für den lm-editor (gespeicherter Stand, mit Quizzen und Beschriftung)', onClick: downloadZlm },
+    ]);
   });
+
+  /** Gespeichertes Dokument als .zlm – der Server packt Quizze, Bilder und die eigene Beschriftung dazu. */
+  async function downloadZlm() {
+    const docId = documentId();
+    if (!docId) { status.textContent = '⬇ .zlm gibt es für gespeicherte Dokumente – bitte erst speichern.'; return; }
+    status.textContent = '.zlm wird erstellt …';
+    try {
+      const res = await fetch(`/api/github-backup/zlm?id=${encodeURIComponent(docId)}`, { headers: token() ? { Authorization: `Bearer ${token()}` } : {} });
+      const data = await res.json();
+      if (!res.ok || !data.data) throw new Error(data.message || `HTTP ${res.status}`);
+      const bytes = Uint8Array.from(atob(data.data), (c) => c.charCodeAt(0));
+      downloadBlob(new Blob([bytes], { type: 'application/vnd.lm-editor.zlm+zip' }), data.fileName || 'Dokument.zlm');
+      status.textContent = `⬇ ${data.fileName} – öffnet sich im lm-editor; Änderungen, die noch nicht gespeichert sind, fehlen darin.`;
+    } catch (err) {
+      status.textContent = `❌ .zlm: ${err.message}`;
+    }
+  }
 
   async function print(output, btn) {
     update();

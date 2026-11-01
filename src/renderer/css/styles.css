@@ -3642,7 +3642,7 @@ body {
   border-radius: var(--radius-sm);
   padding: 8px 10px;
   overflow-x: auto;
-  font-size: 0.9em;
+  font-size: 0.818em; /* 9 pt wie die Vorlage „Quelltext“ im Druck (Grundschrift 11 pt) */
   margin: 0 0 0.8em;
 }
 .docspec .ds-table-wrap { overflow-x: auto; margin: 0 0 0.8em; }

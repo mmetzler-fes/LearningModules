@@ -450,7 +450,7 @@ wenn die Lehrkraft des Lernthemas freigeschaltet ist.
   gespeichert“. Ist die Leiste zu schmal (iPad hochkant), lässt sie sich zur
   Seite wischen.
 - **Werkzeugleiste:** oben die Werkzeuge (Auswahl, Stift, Textmarker,
-  Radierer, Text, Geodreieck), Rückgängig, Finger, Hintergrund, Lösung und
+  Radierer, Text, Geodreieck), Rückgängig, Finger, Hintergrund (nur bei freien Blättern), Lösung und
   Zoom; darunter schwebend die Einstellungen des gewählten Werkzeugs –
   Strichstärken und Farben, beim Text die Schriftgröße, bei der Auswahl
   „Löschen“.
@@ -502,11 +502,13 @@ wenn die Lehrkraft des Lernthemas freigeschaltet ist.
   Geodreieck wird zur Linie. Eine angetippte Linie zeigt im Auswahl-Modus
   **zwei Anfasser** an den Enden zum Verschieben; am Geodreieck rastet ein
   Ende auf der Kante ein.
-- **Hintergrund:** 🧾 **Dokument** (Vorgabe) – das Dokument selbst auf einem
-  A4-Blatt, ohne Umweg über ein PDF. Dazu 📄 das PDF, ▦ Karo, ☰ Linien, ▢ Leer
-  oder ein eigenes Bild oder PDF. Bei Karo, Linien und Leer fügt **＋📄** Seiten
-  an. Die Beschriftung des Dokuments und die der übrigen Hintergründe werden
-  getrennt gespeichert; beim Wechsel bleibt beides erhalten.
+- **Hintergrund:** Bei einem Dokument ist es immer das Dokument selbst auf
+  einem A4-Blatt, ohne Umweg über ein PDF – eine Auswahl gibt es dort nicht;
+  Karo- und Linienfelder kommen über **⊕** ins Dokument. Nur wer in einer
+  älteren Beschriftung schon auf 📄 PDF, ▦ Karo, ☰ Linien, ▢ Leer oder ein
+  eigenes Bild umgeschaltet hatte, sieht die Auswahl weiter (zum Zurückwechseln;
+  beide Beschriftungen bleiben erhalten). Freie Blätter ohne Dokument haben die
+  Auswahl; bei Karo, Linien und Leer fügt **＋📄** Seiten an.
 - **Im Dokument** gehört jeder Strich zu dem Baustein, in dem er beginnt
   (Absatz, Karo, Aufgabe …). Ändert sich etwas darüber – ein Karo wird länger,
   ein Bild lädt nach, ein Quiz klappt auf –, rutschen die Striche mit. Das Blatt

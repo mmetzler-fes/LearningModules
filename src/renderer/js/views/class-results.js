@@ -1269,12 +1269,19 @@ export class ClassResultsView {
   _renderContest() {
     this._section('contest', (cb, out) => {
       const links = cb.links.filter((l) => l.contest);
+      // Wie die Inhaltsübersicht nach Bereichen und Abschnitten; Zuweisungen ohne (vorhandenen) Bereich stehen dahinter.
+      const known = new Set(cb.nodes.map((n) => n.id));
+      const placed = links.map((l) => (l.nodeId && known.has(l.nodeId) ? l : { ...l, nodeId: null }));
+      const card = (l) => this._linkCard(l, '<button type="button" class="btn btn-secondary btn-sm" data-contest-links>🔗 Leitungs-Link & QR-Code</button>');
       out.innerHTML = `
         <p class="hint">🏆 Quiz-Arena starten öffnet den Wartebereich (z. B. am Beamer). Solange er offen ist, sehen die Schüler im
           Klassennotizbuch nur die Quiz-Arena und kommen mit einem Klick hinein; sonst ist sie bei ihnen ausgeblendet. Ohne Anmeldung
           geht es über den QR-Code im Wartebereich.</p>
-        ${links.length ? links.map((l) => this._linkCard(l, '<button type="button" class="btn btn-secondary btn-sm" data-contest-links>🔗 Leitungs-Link & QR-Code</button>')).join('')
+        ${links.length ? `<div class="cb-tree">${this._contestLevel(cb, placed, null, card)}</div>`
           : '<div class="empty-state"><span class="empty-icon">🏆</span><p>Keine Zuweisung dieser Klasse hat die Quiz-Arena eingeschaltet.</p></div>'}`;
+      out.querySelectorAll('details[data-node]').forEach((d) => d.addEventListener('toggle', () => {
+        (this._closedNodes ||= new Set())[d.open ? 'delete' : 'add'](d.dataset.node);
+      }));
       // Starten: gleich den Wartebereich in einem neuen Tab (Fenster vorab öffnen, sonst blockt der Browser).
       out.querySelectorAll('[data-contest]').forEach((btn) => btn.addEventListener('click', async (e) => {
         e.preventDefault();
@@ -1291,6 +1298,19 @@ export class ClassResultsView {
         this.app.linksView._openContestDialog({ id: btn.closest('[data-link]').dataset.link });
       }));
     });
+  }
+
+  /** Baum der Quiz-Arena: Bereiche und Abschnitte wie in der Inhaltsübersicht, nur Zweige mit Quiz-Arena, ohne Schalter. */
+  _contestLevel(cb, links, parentId, card) {
+    const under = (id) => links.filter((l) => l.nodeId === id).length
+      + cb.nodes.filter((n) => n.parentId === id).reduce((s, n) => s + under(n.id), 0);
+    const nodes = cb.nodes.filter((n) => n.parentId === parentId && under(n.id)).sort((a, b) => a.orderIndex - b.orderIndex);
+    const entries = links.filter((l) => l.nodeId === parentId).sort((a, b) => a.order - b.order);
+    return nodes.map((n) => `<details class="cb-node" data-node="${escapeAttr(n.id)}" ${this._closedNodes?.has(n.id) ? '' : 'open'}>
+        <summary><span class="cb-node-title">${NODE_ICON[n.kind]} ${escapeHtml(n.title)}</span>
+          <span class="hint">${under(n.id)} Lernthem${under(n.id) === 1 ? 'a' : 'en'}</span></summary>
+        <div class="cb-node-body">${this._contestLevel(cb, links, n.id, card)}</div>
+      </details>`).join('') + entries.map(card).join('');
   }
 
   // ---- ⚙ Klassenbuch-Link ----

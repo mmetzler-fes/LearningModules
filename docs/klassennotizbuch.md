@@ -24,7 +24,7 @@ zwischen beiden.
 | 📝 Klassenarbeiten | Klassenarbeiten der Klasse mit Link & QR, wer schreibt und wer abgegeben hat, Wiedereinstieg – aktive stehen auch bei den Schülern |
 | 👥 Schülerdaten | je Schüler alle Ergebnisse (📈) und Blätter (✍️) |
 | 📊 Ergebnisübersicht | je Modul, wie weit jeder Schüler ist; dazu je Aufgabe und der Jahresüberblick |
-| 🏆 Quiz-Arena | Zuweisungen mit Quiz-Arena: 🏆 Quiz-Arena starten, Leitungs-Link & QR-Code |
+| 🏆 Quiz-Arena | Zuweisungen mit Quiz-Arena, nach Bereichen und Abschnitten geordnet wie die Inhaltsübersicht: 🏆 Quiz-Arena starten, Leitungs-Link & QR-Code |
 | 📡 Live | wer gerade woran arbeitet – je Schüler Zuweisung, Lernmodul und Fortschritt; übersprungene Aufgaben ⤼ |
 | ⚙ Klassenbuch-Link | Link und QR-Code für die Schüler, Erstanmeldung |
 

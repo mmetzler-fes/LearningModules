@@ -30,6 +30,17 @@ describe('WorksheetsService.prepare', () => {
     expect(warnings).toEqual(['Verweis auf fehlende Blätter: weg']);
   });
 
+  it('LaTeX-Formeln gehen mit MathML an den Renderer', async () => {
+    const { job } = await service.prepare({ content: [{ type: 'box', blocks: [{ type: 'formula', latex: 'x^2' }] }, { type: 'formula', math: 'a over b' }] }, 'F', ['odt']);
+    expect(job.spec.content[0].blocks[0].mathml).toContain('<msup>');
+    expect(job.spec.content[1].mathml).toBeUndefined();
+  });
+
+  it('Formeln im Text ($…$) gehen als inlineMathml mit', async () => {
+    const { job } = await service.prepare({ content: ['Es gilt $I = \\frac{U}{R}$.'] }, 'F', ['odt']);
+    expect(job.spec.inlineMathml['I = \\frac{U}{R}']).toContain('<mfrac>');
+  });
+
   it('eigene Kopfzeile in meta.TITEL (Klassenarbeit) hat Vorrang', async () => {
     const { job } = await service.prepare({ meta: { TITEL: 'Arduino – KA' }, content: ['x'] }, 'KA', ['odt'], ctx());
     expect(job.spec.meta.TITEL).toBe('Arduino – KA');

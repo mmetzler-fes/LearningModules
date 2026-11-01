@@ -256,7 +256,7 @@ export function docSpecToText(spec) {
         case 'note': out.push(`Hinweis: ${b.text ?? ''}`); break;
         case 'list': list(b.items, 0, !!b.ordered); break;
         case 'code': out.push(`\`\`\`${b.caption ? ` ${b.caption}` : ''}`, String(b.code ?? ''), '```'); break;
-        case 'formula': out.push(`Formel (StarMath): ${b.math ?? ''}`); break;
+        case 'formula': out.push(b.latex ? `Formel: $${b.latex}$` : `Formel (StarMath): ${b.math ?? ''}`); break;
         case 'image': out.push(`[Abbildung${b.caption ? `: ${b.caption}` : ''}]`); break;
         case 'group': {
           // Zeichenrahmen: Texte der Textfenster gehören zum Inhalt.
@@ -297,7 +297,7 @@ export function promptSize(text) {
 function materialLines(material) {
   const L = [];
   L.push('## Material der Lehrkraft');
-  L.push(`Es folgen ${material.length === 1 ? 'ein Dokument' : `${material.length} Dokumente`} der Lehrkraft als Text (Lösungen stehen zwischen [Lösung] und [Ende Lösung], Formeln in StarMath, Abbildungen nur als [Abbildung: …]).`);
+  L.push(`Es folgen ${material.length === 1 ? 'ein Dokument' : `${material.length} Dokumente`} der Lehrkraft als Text (Lösungen stehen zwischen [Lösung] und [Ende Lösung], Formeln in LaTeX als $…$ – ältere noch in StarMath –, Abbildungen nur als [Abbildung: …]).`);
   for (const m of material) {
     L.push('');
     L.push(`### ${m.path ? `${m.path} › ` : ''}${m.title || 'Dokument'}`);
@@ -417,7 +417,7 @@ export const DOC_PROMPT_EXAMPLE = {
     { type: 'list', items: ['Du kannst das ohmsche Gesetz anwenden.', 'Du kannst Ströme in einfachen Schaltungen berechnen.'] },
     { type: 'section', text: 'Schritt 1 – Spannung, Strom, Widerstand' },
     { type: 'text', text: 'Der **Widerstand** R begrenzt den Strom. Es gilt:' },
-    { type: 'formula', math: 'I = U over R' },
+    { type: 'formula', latex: 'I = \\frac{U}{R}' },
     { type: 'task', title: 'Strom berechnen', text: 'Berechne den Strom für U = 12 V und R = 240 Ω.', blocks: [
       { type: 'karo', lines: 4 },
       { type: 'solution', blocks: [{ type: 'text', text: 'I = U / R = 12 V / 240 Ω = 0,05 A = 50 mA' }] },
@@ -513,13 +513,13 @@ export function buildDocPrompt(o) {
   L.push('- {"type": "list", "items": ["…", {"text": "…", "items": ["…"]}]} – Aufzählung; "ordered": true für 1. 2. 3.');
   L.push('- {"type": "note", "text": "…"} – kursiver Hinweis');
   L.push('- {"type": "code", "caption": "datei.ino", "code": "…"} – Quelltext, Zeilen mit \\n');
-  L.push('- {"type": "formula", "math": "I = U over R"} – freistehende Formel in StarMath (LibreOffice): over, sqrt{…}, x^2, U_A, cdot, %pi, left( … right), Text in "…"');
+  L.push('- {"type": "formula", "latex": "I = \\\\frac{U}{R}"} – freistehende Formel in LaTeX (Mathe-Modus, ohne $): \\frac{…}{…}, \\sqrt{…}, x^2, U_{ges}, \\cdot, \\pi, \\Omega, \\left( … \\right), Einheiten mit \\,\\text{V}; im JSON jeden Backslash doppelt schreiben');
   L.push('- {"type": "table", "header": ["…", "…"], "rows": [["…", "…"]]} – Tabelle; eine Zelle darf {"text": "…", "colspan": 2} oder "rowspan" sein');
   L.push('- {"type": "box", "title": "Merke", "blocks": [ … ]} – Kasten mit Rahmen');
   L.push('- {"type": "karo", "lines": 6} – Karopapier zum Schreiben (Zeilen à 0,5 cm)');
   L.push('- {"type": "solution", "blocks": [ … ]} – Musterlösung: im Arbeitsblatt ausgeblendet, im Lösungsblatt rot über dem Karo davor');
   L.push('- {"type": "spacer", "lines": 3} und {"type": "pagebreak"} – nur sparsam');
-  L.push('Auszeichnung im Text: **fett**, *kursiv*, `code`, x^{2}, CO_{2}, n_S (Index), [Link](https://…). Ein \\ am Zeilenende erzwingt den Umbruch.');
+  L.push('Auszeichnung im Text: **fett**, *kursiv*, `code`, x^{2}, CO_{2}, n_S (Index), [Link](https://…), Formel im Satz in LaTeX zwischen $…$ (z. B. $I = \\\\frac{U}{R}$). Ein \\ am Zeilenende erzwingt den Umbruch.');
   L.push('');
   L.push('Beispiel für "content.spec":');
   L.push('```json');

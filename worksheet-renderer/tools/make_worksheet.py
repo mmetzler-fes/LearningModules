@@ -25,6 +25,7 @@ eine schlichte Ersatzvorlage angelegt, damit der Lauf nicht scheitert.
 from __future__ import annotations
 
 import argparse
+import copy
 import os
 import re
 import shutil
@@ -33,12 +34,14 @@ import struct
 import subprocess
 import sys
 import zipfile
+import xml.etree.ElementTree as ET
 from xml.sax.saxutils import escape
 from pathlib import Path
 from typing import Any
 
 import yaml
 from odf import teletype
+from mathml_starmath import NoStarMath, mathml_to_starmath
 from odf.element import Element
 from odf.namespaces import FONS
 from odf.dc import Title
@@ -109,8 +112,10 @@ ASSIGN_START_RE = re.compile(r"\s*[^\s=:]+(?: \([^)]*\))? ?:?= ")
 # Rechnung). Ein Backslash davor schreibt das Zeichen selbst. Zeilen
 # ohne diese Zeichen laufen unverändert über den bisherigen Weg.
 INLINE_RE = re.compile(
-    r"\\(?P<esc>[\\*`\[\]^~+{}])"
+    r"\\(?P<esc>[\\*`\[\]^~+{}$])"
     r"|`(?P<code>[^`\n]+)`"
+    # Formel im Text wie bei Pandoc (und docspec.js): $x^2$, nicht „5 $“ oder „$5 bis $10“.
+    r"|\$(?P<math>[^\s$](?:[^$\n]*?[^\s$\\])?)\$(?!\d)"
     r"|(?<![\w*])\*\*\*(?P<bi>\S(?:.*?\S)?)\*\*\*(?![\w*])"
     r"|(?<![\w*])\*\*(?P<b>\S(?:.*?\S)?)\*\*(?![\w*])"
     r"|(?<![\w*])\*(?P<i>[^\s*](?:.*?[^\s*])?)\*(?![\w*])"
@@ -130,7 +135,7 @@ CELL_BACKGROUNDS = {"grau": "#e5e7eb", "gelb": "#fef08a", "gruen": "#bbf7d0", "b
 # Hintergrund eines Textfensters im Zeichenrahmen (group) – wie docspec.js FRAME_FILLS.
 FRAME_FILLS = {"weiss": "#ffffff", **CELL_BACKGROUNDS}
 FRAME_TEXT_COLORS = {"weiss": "#ffffff", **TEXT_COLORS}
-INLINE_HINT_RE = re.compile(r"\\[\\*`\[\]^~+{}]|`|\*|\+\+|~~|\^\{|_\{|\]\(|\]\{")
+INLINE_HINT_RE = re.compile(r"\\[\\*`\[\]^~+{}$]|`|\*|\+\+|~~|\^\{|_\{|\]\(|\]\{|\$")
 INLINE_STYLES = {
     "b": ("AB_Fett", {"fontweight": "bold", "fontweightasian": "bold", "fontweightcomplex": "bold"}),
     "i": ("AB_Kursiv", {"fontstyle": "italic", "fontstyleasian": "italic", "fontstylecomplex": "italic"}),
@@ -440,7 +445,14 @@ def ensure_subscript_style(doc, present: set[str]) -> str:
 
 def set_inline_context(doc, present: set[str], styles: dict[str, str]) -> None:
     """Vor dem Rendern: wohin Zeichenvorlagen der Auszeichnung gehören."""
-    _inline.update(doc=doc, present=present, code=styles.get("code_inline", "Codewort"))
+    _inline.update(doc=doc, present=present, code=styles.get("code_inline", "Codewort"), mathml={},
+                   red=False, overlay=False)
+
+
+def set_inline_mathml(spec: dict[str, Any]) -> None:
+    """Formeln im Text ($…$) eines Blatts: LaTeX → MathML, von der App (inlineMathml)."""
+    mapping = spec.get("inlineMathml")
+    _inline["mathml"] = mapping if isinstance(mapping, dict) else {}
 
 
 def inline_style(kind: str) -> str:
@@ -539,6 +551,8 @@ def add_inline(el: Element, nodes: list[tuple[str, Any]], line_start: bool) -> N
             el.addElement(Span(stylename=SUBSCRIPT_STYLE, text=value))
         elif kind == "code":
             el.addElement(Span(stylename=_inline.get("code", "Codewort"), text=value))
+        elif kind == "math":
+            add_inline_math(el, value)
         elif kind == "a":
             link = A(href=value[0], type="simple")
             add_inline(link, value[1], False)
@@ -548,6 +562,22 @@ def add_inline(el: Element, nodes: list[tuple[str, Any]], line_start: bool) -> N
             add_inline(span, value[1], False)
             el.addElement(span)
         line_start = False
+
+
+def add_inline_math(el: Element, tex: str) -> None:
+    """Formel im Text als Formelobjekt in der Zeile.
+
+    Ohne MathML (Spec direkt aus dem Kurs-Projekt) steht die LaTeX-Quelle da,
+    im Lösungsrahmen über dem Karo (keine Objekte) lesbarer Text.
+    """
+    root = parse_mathml(str(_inline.get("mathml", {}).get(tex) or ""))
+    if root is None:
+        add_spaced_text(el, f"${tex}$")
+    elif _inline.get("overlay"):
+        add_spaced_text(el, mathml_as_text(root))
+    else:
+        el.addElement(formula_frame({"doc": _inline["doc"], "present": _inline["present"]},
+                                    formula_object(root, red=bool(_inline.get("red")), display=False)))
 
 
 def text_lines(text: str) -> list[str]:
@@ -1118,18 +1148,19 @@ def ensure_center_style(doc, present: set[str], base: str) -> str:
     return name
 
 
-def formula_frame(ctx: dict[str, Any], math_text: str) -> Element:
+def formula_frame(ctx: dict[str, Any], content_xml: str) -> Element:
     """Formel als eingebettetes Formeleditor-Objekt im Textfluss.
 
-    Die Formel selbst wandert erst beim Schreiben des Archivs als eigener
-    Ordner "Object n" hinein (siehe fix_mimetype); hier entsteht nur der
-    Verweis darauf. Der Rahmen bekommt absichtlich keine Größe.
+    `content_xml` ist das Formeldokument (starmath_object bzw. mathml_object).
+    Es wandert erst beim Schreiben des Archivs als eigener Ordner "Object n"
+    hinein (siehe fix_mimetype); hier entsteht nur der Verweis darauf. Der
+    Rahmen bekommt absichtlich keine Größe.
     """
     doc = ctx["doc"]
     formeln = getattr(doc, "formeln", None)
     if formeln is None:
         formeln = doc.formeln = []
-    formeln.append(math_text)
+    formeln.append(content_xml)
     frame = Frame(
         stylename=ensure_formula_frame_style(doc, ctx["present"]),
         name=f"Formel{len(formeln)}",
@@ -1139,6 +1170,110 @@ def formula_frame(ctx: dict[str, Any], math_text: str) -> Element:
     frame.addElement(Object(href=f"./Object {len(formeln)}", type="simple",
                             show="embed", actuate="onLoad"))
     return frame
+
+
+def starmath_object(math_text: str) -> str:
+    """Formeldokument aus StarMath (LibreOffice setzt es aus der Anmerkung)."""
+    return MATH_CONTENT.format(formel=escape(math_text))
+
+
+MATHML_NS = "http://www.w3.org/1998/Math/MathML"
+
+
+def parse_mathml(mathml: str) -> ET.Element | None:
+    """MathML (von Temml, über den Druckauftrag) prüfen; None, wenn es keins ist."""
+    try:
+        # Zeichen außerhalb der Basisebene (𝐴 aus \mathit) können als halbe Paare ankommen,
+        # wenn die Spec als YAML mit \uD835-Escapes gelesen wurde – wieder zusammensetzen.
+        mathml = mathml.encode("utf-16", "surrogatepass").decode("utf-16")
+        root = ET.fromstring(mathml)
+    except (ET.ParseError, UnicodeError):
+        return None
+    return root if root.tag == f"{{{MATHML_NS}}}math" else None
+
+
+def mathml_object(root: ET.Element, red: bool = False, display: bool = True) -> str:
+    """Formeldokument aus MathML; `red` färbt die Formel (Lösungsblatt).
+
+    Das MathML wird neu geschrieben, nicht durchgereicht – so steht im Archiv
+    nur wohlgeformtes XML. Klassen und Stile für den Browser entfallen.
+    """
+    root = copy.deepcopy(root)
+    for el in root.iter():
+        el.attrib.pop("class", None)
+        el.attrib.pop("style", None)
+    root.set("display", "block" if display else "inline")
+    if red:
+        holder = root.find(f"{{{MATHML_NS}}}semantics")
+        holder = root if holder is None else holder
+        rows = [c for c in holder if not c.tag.endswith("}annotation")]
+        style = ET.Element(f"{{{MATHML_NS}}}mstyle", {"mathcolor": "red"})
+        for c in rows:
+            holder.remove(c)
+            style.append(c)
+        holder.insert(0, style)
+    ET.register_namespace("", MATHML_NS)
+    return '<?xml version="1.0" encoding="UTF-8"?>\n' + ET.tostring(root, encoding="unicode") + "\n"
+
+
+def formula_object(root: ET.Element, red: bool = False, display: bool = True) -> str:
+    """Formeldokument aus dem MathML einer LaTeX-Formel.
+
+    Bevorzugt StarMath (mathml_starmath.py): LibreOffice setzt seine eigene
+    Sprache vollständig und lässt sie bearbeiten; sein MathML-Import kennt
+    Akzente, Unterklammern und Durchstreichen nur schlecht. Was sich nicht
+    übersetzen lässt, geht als MathML hinein.
+    """
+    try:
+        star = mathml_to_starmath(root)
+    except NoStarMath:
+        return mathml_object(root, red, display)
+    return starmath_object(f"color red {{{star}}}" if red else star)
+
+
+SUPERSCRIPTS = str.maketrans("0123456789+-−n", "⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻⁻ⁿ")
+# Zeichen, um die im Fließtext Leerzeichen stehen (wie in starmath_as_text).
+SPACED_OPS = set("=≈≠<>≤≥+−±∓·⋅×÷→⇒⇔∝≡")
+# Ein Formelzeichen oder eine Zahl – braucht als Nenner keine Klammer.
+MATH_ATOM_RE = re.compile(r"([^\W\d_]|\d+(?:[.,]\d+)?)(_\w|_\([^()]*\))?[⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻ⁿ]*")
+
+
+def mathml_as_text(root: ET.Element) -> str:
+    """MathML -> lesbarer Fließtext wie starmath_as_text, z. B. `√(R²)`."""
+    def text(el: ET.Element) -> str:
+        tag = el.tag.rsplit("}", 1)[-1]
+        kids = [k for k in el if not k.tag.endswith("}annotation")]
+        if tag == "annotation":
+            return ""
+        if tag in ("mi", "mn", "mo", "mtext", "ms"):
+            t = (el.text or "").replace("\u2061", "").replace("\u2062", "")
+            t = t.replace("⋅", "·")
+            return f" {t} " if tag == "mo" and t in SPACED_OPS else t
+        if tag == "mspace":
+            return " "
+        if tag == "mfrac" and len(kids) == 2:
+            a, b = (re.sub(r"\s+", " ", text(k)).strip() for k in kids)
+            a = f"({a})" if re.search(r"[+−-]", a) else a
+            return f"{a} / " + (b if MATH_ATOM_RE.fullmatch(b) else f"({b})")
+        if tag == "msqrt":
+            return f"√({re.sub(r'\s+', ' ', ''.join(text(k) for k in kids)).strip()})"
+        if tag == "mroot" and len(kids) == 2:
+            return f"{text(kids[1])}√({text(kids[0])})"
+        if tag in ("munder", "mover", "munderover") and kids:
+            under = text(kids[1]).replace(" ", "") if tag != "mover" and len(kids) > 1 else ""
+            over = text(kids[-1]).replace(" ", "") if tag != "munder" and len(kids) > 1 else ""
+            return text(kids[0]) + (f"_({under})" if under else "") + (f"^({over})" if over else "") + " "
+        if tag in ("msup", "msub", "msubsup") and kids:
+            base = text(kids[0])
+            sub = text(kids[1]) if tag != "msup" and len(kids) > 1 else ""
+            sup = text(kids[-1]) if tag != "msub" and len(kids) > 1 else ""
+            if sub:
+                base += f"_{sub}" if len(sub) == 1 else f"_({sub})"
+            if sup:
+                base += sup.translate(SUPERSCRIPTS) if all(ch in "0123456789+-−n" for ch in sup) else f"^({sup})"
+            return base
+        return "".join(text(k) for k in kids)
+    return re.sub(r"\s{2,}", " ", text(root)).strip()
 
 
 def brace_group(text: str, start: int) -> tuple[str, int]:
@@ -2209,7 +2344,14 @@ def ink_anchor(ink: dict[str, Any], ctx: dict[str, Any], shift: float = 0.0) -> 
 
 def render_block(block: Any, styles: dict[str, str], ctx: dict[str, Any]) -> list[Element]:
     """Ein Baustein – mit Beschriftung aus dem Stift-Editor (`ink`) darüber gelegt."""
-    out = render_block_content(block, styles, ctx)
+    # Formeln im Text: rot im Lösungsblatt, im Lösungsrahmen als Text (add_inline_math).
+    saved = (_inline.get("red"), _inline.get("overlay"))
+    _inline["red"] = bool(ctx.get("solution")) and ctx.get("mode") == "loesung"
+    _inline["overlay"] = bool(ctx.get("in_overlay"))
+    try:
+        out = render_block_content(block, styles, ctx)
+    finally:
+        _inline["red"], _inline["overlay"] = saved
     if isinstance(block, dict) and isinstance(block.get("ink"), dict) and out and not ctx.get("in_overlay"):
         anchor = ink_anchor(block["ink"], ctx, top_margin_cm(out[0], ctx["doc"]))
         if anchor is not None:
@@ -2377,18 +2519,28 @@ def render_block_content(block: Any, styles: dict[str, str], ctx: dict[str, Any]
         # Freistehende Formel als Formeleditor-Objekt. Im Lösungsrahmen über
         # dem Karoraster stellt LibreOffice keine Objekte dar – dort tritt der
         # Fließtext an seine Stelle.
+        # LaTeX-Formeln kommen mit ihrem MathML (aus Temml, siehe docspec.js);
+        # fehlt es, steht die LaTeX-Quelle als Text da.
+        red = in_solution and ctx.get("mode") == "loesung"
+        latex = str(block.get("latex") or "").strip()
         math_text = str(block.get("math") or "")
-        fallback = str(block.get("text") or starmath_as_text(math_text))
-        if ctx.get("in_overlay"):
+        mathml = parse_mathml(str(block.get("mathml") or "")) if latex else None
+        if latex:
+            fallback = str(block.get("text") or (mathml_as_text(mathml) if mathml is not None else latex))
+        else:
+            fallback = str(block.get("text") or starmath_as_text(math_text))
+        if ctx.get("in_overlay") or (latex and mathml is None):
             out.append(rich_p(text_style, fallback))
         else:
-            if in_solution and ctx.get("mode") == "loesung":
-                math_text = f"color red {{{math_text}}}"
+            if mathml is not None:
+                content_xml = formula_object(mathml, red)
+            else:
+                content_xml = starmath_object(f"color red {{{math_text}}}" if red else math_text)
             stil = text_style
             if block.get("align", "center") == "center":
                 stil = ensure_center_style(ctx["doc"], ctx["present"], text_style)
             para = P(stylename=stil)
-            para.addElement(formula_frame(ctx, math_text))
+            para.addElement(formula_frame(ctx, content_xml))
             out.append(para)
 
     elif kind == "table":
@@ -2471,6 +2623,7 @@ def insert_content(doc, spec: dict[str, Any], styles: dict[str, str], mode: str,
     ensure_table_styles(doc, present)
     frame_style = ensure_overlay_styles(doc, present)
     set_inline_context(doc, present, styles)
+    set_inline_mathml(spec)
     ctx: dict[str, Any] = {
         "doc": doc,
         "mode": mode,
@@ -2562,8 +2715,7 @@ def fix_mimetype(path: Path, formeln: list[str] | None = None) -> None:
             compress = zipfile.ZIP_STORED if name == "mimetype" else zipfile.ZIP_DEFLATED
             zout.writestr(name, data, compress_type=compress)
         for i, formel in enumerate(formeln, start=1):
-            zout.writestr(f"Object {i}/content.xml",
-                          MATH_CONTENT.format(formel=escape(formel)))
+            zout.writestr(f"Object {i}/content.xml", formel)
     shutil.move(tmp, path)
 
 

@@ -54,6 +54,7 @@ from make_worksheet import (  # noqa: E402  (Pfad muss vorher stehen)
     existing_styles,
     find_template,
     fix_mimetype,
+    set_inline_mathml,
     set_inline_context,
     iter_text_elements,
     load_course,
@@ -224,6 +225,7 @@ def render_sheets(doc, spec: dict[str, Any], course: dict[str, Any], course_dir:
     elements: list[Element] = []
     for nummer, path in enumerate(sheet_specs(spec, course_dir), start=1):
         sheet = merge_spec(yaml.safe_load(path.read_text(encoding="utf-8")) or {}, course)
+        set_inline_mathml(sheet)
         titel = str(sheet.get("titel") or path.parent.name)
         print(f"  · {path.parent.name}: {titel}")
         thema_style = names["start"] if nummer == 1 else names["thema"]

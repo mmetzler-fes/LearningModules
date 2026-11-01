@@ -73,7 +73,7 @@ export const SAMPLE_SPEC = {
     { type: 'text', text: 'Ein Probeblatt mit **fettem** und *kursivem* Text, Index U_{R} und einer Liste:' },
     { type: 'list', items: ['Erster Punkt', 'Zweiter Punkt'] },
     { type: 'task', title: 'Rechnen', text: 'Berechne den Strom für U = 12 V und R = 240 Ω.', blocks: [
-      { type: 'formula', math: 'I = U over R' },
+      { type: 'formula', latex: 'I = \\frac{U}{R}' },
       { type: 'karo', lines: 4 },
       { type: 'solution', blocks: [{ type: 'text', text: 'I = 12 V / 240 Ω = 50 mA' }] },
     ] },
@@ -470,7 +470,8 @@ export class WorksheetsService {
       return out;
     };
 
-    const resolved = docSpec().resolveDocRefs(spec, ctx?.refs ?? null);
+    // LaTeX-Formeln tragen ihr MathML mit – der Renderer setzt es ins Formelobjekt.
+    const resolved = docSpec().withFormulaMathml(docSpec().resolveDocRefs(spec, ctx?.refs ?? null));
     if (ctx?.refs) {
       const missing = docSpec().docRefSlugs(spec).filter((s) => !ctx.refs![s]);
       if (missing.length) warnings.push(`Verweis auf fehlende Blätter: ${missing.join(', ')}`);

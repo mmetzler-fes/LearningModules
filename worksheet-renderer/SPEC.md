@@ -41,8 +41,10 @@ content:
     header: [Operator, Bedeutung]   # über einen Seitenumbruch getrennt
     rows:
       - ["==", "prüft auf Gleichheit"]
-  - type: formula               # freistehende Formel im Formeleditor (StarMath)
-    math: '{U_a} over {U_e} = {X_C} over sqrt{R^2 + X_C^2}'
+  - type: formula               # freistehende Formel als Formeleditor-Objekt
+    latex: '\frac{U_a}{U_e} = \frac{X_C}{\sqrt{R^2 + X_C^2}}'   # LaTeX (Mathe-Modus, ohne $)
+    mathml: '<math …>…</math>'  # setzt die App beim Druck (Temml); ohne steht die Quelle als Text da
+    math: '{U_a} over {U_e} = …'   # ältere Schreibweise: StarMath statt latex
     align: center               # optional; center (Vorgabe) oder left
     text: "…"                   # optionaler Ersatztext, siehe Fallstricke
   - type: note                  # kursiver Hinweis
@@ -77,7 +79,7 @@ content:
     align: center               # left | center | right | justify
     text: |-
       **fett**, *kursiv*, ***beides***, ++unterstrichen++, ~~durchgestrichen~~,
-      `code`, x^{2}, CO_{2}, [Link](https://example.org)
+      `code`, x^{2}, CO_{2}, [Link](https://example.org), Formel $I = \frac{U}{R}$
       Zeile mit Backslash am Ende\
       erzwingt den Umbruch.
   - type: list
@@ -265,15 +267,31 @@ Verzeichniseinträge und ihre Seitenzahlen erzeugt der Renderer (Ebene 1 und 2).
   10 oder 9 pt. Wer eine Tabelle schmaler haben will, kürzt also den Text in
   der breitesten Spalte – Breiten von Hand gibt es nicht.
 * Formeln (`type: formula`) sind echte Formeleditor-Objekte: eine Formel je
-  Absatz, StarMath-Schreibweise (`over`, `sqrt{…}`, `^2`, `_C`, `cdot`, `%pi`,
-  `left( … right)`, Text in Anführungszeichen). Der Rahmen bekommt bewusst
+  Absatz. Neue Formeln stehen in LaTeX (`latex`: `\frac{…}{…}`, `\sqrt{…}`,
+  `x^2`, `U_{ges}`, `\cdot`, `\pi`, `\text{V}`). Der Renderer liest kein
+  LaTeX: Die App (LearningModules bzw. lm-editor) wandelt es mit Temml in
+  MathML und schickt es als `mathml` mit. Der Renderer übersetzt das MathML in
+  StarMath (`tools/mathml_starmath.py`) – den MathML-Import von LibreOffice
+  stören Akzente, Unterklammern, Durchstreichen, `|x|` und leere Elemente,
+  StarMath setzt all das, und die Formel bleibt in LibreOffice bearbeitbar.
+  Nur was sich nicht übersetzen lässt, geht als MathML hinein. Im
+  Lösungsblatt rot (`color red`).
+  Fehlt `mathml` (etwa bei einer Spec direkt aus dem Kurs-Projekt), steht die
+  LaTeX-Quelle als Text da. Ältere Formeln in StarMath (`math`: `over`,
+  `sqrt{…}`, `^2`, `_C`, `cdot`, `%pi`, `left( … right)`, Text in
+  Anführungszeichen) bleiben gültig; der Editor schreibt sie beim Bearbeiten
+  in LaTeX um. Formeln im Fließtext stehen in `$…$` (wie bei Pandoc: kein
+  Leerzeichen innen am Rand, dahinter keine Ziffer – „5 $“ bleibt Text, `\$`
+  ist ein Dollarzeichen); ihr MathML schickt die App oben in der Spec mit
+  (`inlineMathml`: LaTeX → MathML), sie werden zu Formelobjekten in der Zeile.
+  Der Rahmen bekommt bewusst
   keine Größe – LibreOffice rechnet sie beim Laden aus der Formel aus. Im
   Fließtext (mitten im Satz) gibt es keine Formeln; dort bleibt die
   Schreibweise mit `√( … )` und `_C`.
 * Im Lösungsrahmen über dem Karoraster stellt LibreOffice weder Bilder noch
   Objekte dar. Eine Formel in einem `solution`-Block wird dort deshalb durch
   ihren Ersatztext ersetzt (aus `text:` oder automatisch aus der Formel
-  abgeleitet); im Arbeitsblatt, im Skript und außerhalb von Lösungen steht das
+  abgeleitet, bei LaTeX aus dem MathML); im Arbeitsblatt, im Skript und außerhalb von Lösungen steht das
   Objekt selbst. Rechenwege in Lösungen schreibt man daher weiter als Text.
 * Tiefgestellte Indizes für Formelzeichen: `n_S` wird zu n mit tiefgestelltem
   S, mehrbuchstabige Indizes in geschweifte Klammern (`P_{Schlupf}`). Ohne

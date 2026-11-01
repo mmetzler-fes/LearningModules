@@ -3674,8 +3674,15 @@ body {
 .docspec .ds-table.ds-valign-bottom > * > tr > td, .docspec .ds-table.ds-valign-bottom > * > tr > th { vertical-align: bottom; }
 .docspec .ds-cell-beside .ds-cell-image { margin: 0; }
 /* Spalten (type: columns): Inhalte nebeneinander, am Handy untereinander */
-.docspec .ds-columns { display: flex; gap: 0.5cm; align-items: flex-start; margin: 0.4em 0 0.8em; }
+.docspec .ds-columns { display: flex; gap: 0.5cm; align-items: flex-start; margin: 0.1cm 0; }
 .docspec .ds-column { flex: 1 1 0; min-width: 0; }
+/* Abstände wie im Druck: Spalten 0,1 cm, Tabelle darin 0,2 cm; sonst kein Abstand unter dem letzten Teil
+   (im Flex-Layout fiele er nicht mit dem des Blocks zusammen und die Lücke wäre doppelt). */
+.docspec .ds-column > :last-child { margin-bottom: 0; }
+.docspec .ds-column > .ds-table-wrap:last-child { margin-bottom: 0.2cm; }
+/* Den Abstand einer Tabelle trägt ihre Hülle (.ds-table-wrap) – nicht noch die Tabelle selbst
+   (.module-description-content table gäbe 12 px dazu). Eigener Abstand (spaceBefore/After) steht inline. */
+.docspec .ds-table { margin-top: 0; margin-bottom: 0; }
 @media (max-width: 600px) { .docspec .ds-columns { flex-direction: column; } .docspec .ds-column { flex-basis: auto !important; } }
 .docspec .ds-table th { background: var(--bg-primary); }
 /* Nur die eigenen Zellen – eine Tabelle in einer Zelle behält ihre Linien */

@@ -1738,6 +1738,20 @@ def estimated_lines(rows: list[list[tuple[str, bool]]], widths: list[float],
     return total
 
 
+def measured_cell_text(text: str, blocks: Any) -> str:
+    """Text einer Zelle für die Spaltenbreite – samt Code in ihren Bausteinen.
+
+    Code soll möglichst nicht umbrechen: Jede Code-Zeile zählt als eine
+    Textzeile. Festbreitenschrift ist breiter als Arial im Mittel, deshalb
+    steht jedes Zeichen als „0“ (etwa so breit wie ein Zeichen in Courier).
+    """
+    lines = [str(text or "")]
+    for b in blocks or []:
+        if isinstance(b, dict) and b.get("type") == "code" and isinstance(b.get("code"), str):
+            lines += [re.sub(r"\S", "0", ln.expandtabs(4)) for ln in b["code"].split("\n")]
+    return max(lines, key=len) if len(lines) > 1 else lines[0]
+
+
 def table_layout(rows: list[list[tuple[str, bool]]]) -> tuple[float, list[float]]:
     """Schriftgröße und Spaltenbreiten für eine Tabelle wählen.
 
@@ -1871,7 +1885,8 @@ def spanned_table(block: dict[str, Any], styles: dict[str, str], ctx: dict[str, 
             c += cs
             columns = max(columns, c)
     nrows = max([r for r, _ in list(start) + list(covered)] + [len(source) - 1]) + 1
-    gemessen = [[(start[(r, c)][0] if (r, c) in start and start[(r, c)][1] == 1 else "", bool(header) and r == 0)
+    gemessen = [[(measured_cell_text(start[(r, c)][0], inner_blocks.get((r, c))) if (r, c) in start and start[(r, c)][1] == 1 else "",
+                  bool(header) and r == 0)
                  for c in range(columns)] for r in range(nrows)]
     size, widths = table_layout(gemessen)
     widths = widths_for_pictures(widths, pictures, start, beside)

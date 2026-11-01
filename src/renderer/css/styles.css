@@ -3646,6 +3646,9 @@ body {
   margin: 0 0 0.8em;
 }
 .docspec .ds-table-wrap { overflow-x: auto; margin: 0 0 0.8em; }
+/* Code in Tabellenzellen bricht um wie im Druck – sonst verbreitert er die Tabelle über die Seite (Bildlaufleiste). */
+.docspec .ds-table .ds-code { white-space: pre-wrap; overflow-wrap: anywhere; overflow-x: visible; margin: 0.2em 0; }
+.docspec .ds-table .ds-code code { padding: 0; background: none; font-size: inherit; } /* nicht wie `code` im Zelltext */
 .docspec .ds-table { border-collapse: collapse; }
 /* Linien je Tabelle (lineWidth, lineStyle über CSS-Variablen) – jede Tabelle setzt sie selbst zurück */
 .docspec .ds-table { --ds-line-w: 1px; --ds-line-s: solid; --ds-line-c: var(--border); --ds-cell-pad: 4px 8px; }

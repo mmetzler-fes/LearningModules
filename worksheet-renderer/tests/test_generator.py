@@ -396,5 +396,16 @@ class FormelTest(unittest.TestCase):
             self.assertIn("Also I = U / (R + 1).", lo)  # im Lösungsrahmen über dem Karo als Text
 
 
+class SpaltenbreiteTest(unittest.TestCase):
+    def test_code_in_zellen_zaehlt_mit(self):
+        """Code-Bausteine in Zellen bestimmen die Spaltenbreite mit – sonst zerfällt der Code in Bruchstücke."""
+        self.assertEqual(mw.measured_cell_text("", [{"type": "code", "code": "int x = 1;\nfoo"}]), "000 0 0 00")
+        self.assertEqual(mw.measured_cell_text("Text", None), "Text")
+        rows = [[("Array Größe", False), ("Anzahl der Elemente ermitteln", False),
+                 (mw.measured_cell_text("", [{"type": "code", "code": "for(int i=0; i<5; i++) { Serial.println(zahlen[i]); }"}]), False)]]
+        _size, widths = mw.table_layout(rows)
+        self.assertGreater(widths[2], widths[0] + widths[1])
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -45,3 +45,27 @@ export function loadBrowserModule<T>(file: string): T {
   cache.set(file, sandbox.__out);
   return sandbox.__out as T;
 }
+
+/**
+ * Eine mitgelieferte Bibliothek mit Default-Export (z. B.
+ * '../lm-editor/src/vendor/temml/temml.mjs') – wie loadBrowserModule, aber
+ * die Datei endet mit `export { name as default };`.
+ */
+export function loadVendorDefault<T>(file: string): T {
+  if (cache.has(file)) return cache.get(file) as T;
+  const candidates = [
+    path.resolve(__dirname, '../../src/renderer/js', file),
+    path.resolve(process.cwd(), 'src/renderer/js', file),
+    path.resolve(__dirname, '../renderer/js', file),
+  ];
+  const found = candidates.find((f) => fs.existsSync(f));
+  if (!found) throw new Error(`src/renderer/js/${file} fehlt.`);
+  const text = fs.readFileSync(found, 'utf-8');
+  const m = /^export \{ ([\w$]+) as default \};?\s*$/m.exec(text);
+  if (!m) throw new Error(`${file} hat keinen Default-Export.`);
+  const source = `${text.slice(0, m.index)}\n;__out = ${m[1]};\n${text.slice(m.index + m[0].length)}`;
+  const sandbox: { __out?: T; console: Console } = { console };
+  vm.runInNewContext(source, sandbox, { filename: found });
+  cache.set(file, sandbox.__out);
+  return sandbox.__out as T;
+}

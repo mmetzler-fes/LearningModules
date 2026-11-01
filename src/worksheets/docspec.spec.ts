@@ -23,6 +23,16 @@ describe('starmathToMathml', () => {
     expect(ds.starmathToMathml(f)).toMatch(/^<math display="block">.*<\/math>$/);
   });
 
+  it.each(KURS_FORMELN)('schreibt %s in LaTeX um, das Temml auf dem Server setzt', (f) => {
+    expect(ds.latexToMathml(ds.starmathToLatex(f))).toMatch(/^<math xmlns="http:\/\/www.w3.org\/1998\/Math\/MathML" display="block".*<\/math>$/);
+  });
+
+  it('prüft LaTeX-Formeln auch auf dem Server', () => {
+    expect(ds.validateDocSpec({ content: [{ type: 'formula', latex: '\\frac{U}{R}' }] })).toEqual([]);
+    expect(ds.validateDocSpec({ content: [{ type: 'formula', latex: '\\frac{U' }] }))
+      .toEqual([expect.stringContaining('(formula): Formel –')]);
+  });
+
   it('Bruch, Wurzel, Index und Exponent', () => {
     expect(ds.starmathToMathml('1 over 2')).toContain('<mfrac><mrow><mn>1</mn></mrow><mrow><mn>2</mn></mrow></mfrac>');
     expect(ds.starmathToMathml('sqrt 2')).toContain('<msqrt><mn>2</mn></msqrt>');

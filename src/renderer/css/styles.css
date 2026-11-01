@@ -3682,10 +3682,10 @@ body {
 .docspec .ds-table-plain > * > tr > th,
 .docspec .ds-table-plain > * > tr > td { border: none; text-align: center; vertical-align: bottom; }
 .docspec .ds-table-plain > * > tr:last-child > td { vertical-align: top; }
-.docspec .ds-formula { margin: 0.6em 0; text-align: center; overflow-x: auto; }
+.docspec .ds-formula { margin: 0.6em 0; padding-bottom: 0.3em; text-align: center; overflow-x: auto; overflow-y: hidden; } /* Brüche ragen in Chrome etwas unter die Formel – kein Scrollen in der Höhe */
 .docspec .ds-formula math { font-size: 1.15em; }
 .docspec .ds-formula-left { text-align: left; }
-.docspec .ds-formula-left math { display: inline-block; }
+.docspec .ds-formula-left math { display: block math !important; width: fit-content; } /* links statt mittig; Temml setzt display:block math, width:100% */
 /* Ohne Angabe wie der Text der Vorlage (links); mittig bzw. rechts in eigener Zeile */
 .docspec .ds-image { margin: 0.6em 0; text-align: left; }
 .docspec .ds-image.ds-image-center, .docspec .ds-image.ds-align-center { text-align: center; }
@@ -5823,3 +5823,13 @@ details.cb-topic > summary .hint { font-weight: normal; margin-left: 6px; }
 .zlm-viewer-doc { max-width: 900px; margin: 0 auto; }
 /* Entwurf nicht auf dem Server gesichert (views/modules.js) – nicht zu übersehen */
 .draft-status-warn { color: var(--danger, #b91c1c); font-weight: 600; }
+/* Formel bearbeiten: LaTeX, Vorschau, Lage */
+.ds-formula-form .ds-fx-label { flex-direction: column; align-items: stretch; width: 100%; }
+.ds-formula-form .ds-fx-tex { width: 100%; font-family: var(--font-mono, monospace); }
+.ds-formula-form .ds-fx-preview { width: 100%; min-height: 2.5em; padding: 4px 8px; border: 1px dashed #cbd5e1; border-radius: 6px; background: #fff; }
+.ds-formula-form .ds-fx-preview .ds-formula { margin: 0.3em 0; }
+/* Formel im Text ($…$) */
+.ds-math { display: inline-block; white-space: nowrap; }
+.ds-math.ds-missing { font-family: var(--font-mono, monospace); color: #b91c1c; }
+.ds-surface .ds-math { cursor: pointer; border-radius: 3px; }
+.ds-surface .ds-math:hover { background: #e0f2fe; }

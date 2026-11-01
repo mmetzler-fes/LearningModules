@@ -1,0 +1,58 @@
+[
+ {
+  "latex": "I = \\frac{U}{R}",
+  "mathml": "<math xmlns=\"http://www.w3.org/1998/Math/MathML\" display=\"block\" class=\"tml-display\" style=\"display:block math;\"><semantics><mrow><mi>I</mi><mo>=</mo><mfrac><mi>U</mi><mi>R</mi></mfrac></mrow><annotation encoding=\"application/x-tex\">I = \\frac{U}{R}</annotation></semantics></math>"
+ },
+ {
+  "latex": "\\frac{U_a}{U_e} = \\frac{X_C}{\\sqrt{R^2 + X_C^2}}",
+  "mathml": "<math xmlns=\"http://www.w3.org/1998/Math/MathML\" display=\"block\" class=\"tml-display\" style=\"display:block math;\"><semantics><mrow><mfrac><msub><mi>U</mi><mi>a</mi></msub><msub><mi>U</mi><mi>e</mi></msub></mfrac><mo>=</mo><mfrac><msub><mi>X</mi><mi>C</mi></msub><msqrt><mrow><msup><mi>R</mi><mn class=\"tml-med-pad\">2</mn></msup><mo>+</mo><msubsup><mi>X</mi><mi>C</mi><mn class=\"tml-med-pad\">2</mn></msubsup></mrow></msqrt></mfrac></mrow><annotation encoding=\"application/x-tex\">\\frac{U_a}{U_e} = \\frac{X_C}{\\sqrt{R^2 + X_C^2}}</annotation></semantics></math>"
+ },
+ {
+  "latex": "f_g = \\frac{1}{2 \\pi R C} \\approx 1{,}6\\,\\text{kHz}",
+  "mathml": "<math xmlns=\"http://www.w3.org/1998/Math/MathML\" display=\"block\" class=\"tml-display\" style=\"display:block math;\"><semantics><mrow><msub><mi>f</mi><mi>g</mi></msub><mo>=</mo><mfrac><mn>1</mn><mrow><mn>2</mn><mi>π</mi><mi>R</mi><mi>C</mi></mrow></mfrac><mo>≈</mo><mn>1,6</mn><mspace width=\"0.1667em\"></mspace><mtext>kHz</mtext></mrow><annotation encoding=\"application/x-tex\">f_g = \\frac{1}{2 \\pi R C} \\approx 1{,}6\\,\\text{kHz}</annotation></semantics></math>"
+ },
+ {
+  "latex": "\\vec{F} = m \\cdot \\vec{a}",
+  "mathml": "<math xmlns=\"http://www.w3.org/1998/Math/MathML\" display=\"block\" class=\"tml-display\" style=\"display:block math;\"><semantics><mrow><mover><mi>F</mi><mo stretchy=\"false\" class=\"tml-vec chr-lrg wbk-lrg-vec\">→</mo></mover><mo>=</mo><mi>m</mi><mo>⋅</mo><mover><mi>a</mi><mo stretchy=\"false\" class=\"tml-vec wbk-vec\">→</mo></mover></mrow><annotation encoding=\"application/x-tex\">\\vec{F} = m \\cdot \\vec{a}</annotation></semantics></math>"
+ },
+ {
+  "latex": "A = \\begin{pmatrix} 1 & 2 \\\\ 3 & 4 \\end{pmatrix}",
+  "mathml": "<math xmlns=\"http://www.w3.org/1998/Math/MathML\" display=\"block\" class=\"tml-display\" style=\"display:block math;\"><semantics><mrow><mi>A</mi><mo>=</mo><mrow><mo fence=\"true\" form=\"prefix\" stretchy=\"true\">(</mo><mtable><mtr><mtd style=\"padding-left:0em;padding-right:5.9776pt;\"><mn>1</mn></mtd><mtd style=\"padding-left:5.9776pt;padding-right:0em;\"><mn>2</mn></mtd></mtr><mtr><mtd style=\"padding-left:0em;padding-right:5.9776pt;\"><mn>3</mn></mtd><mtd style=\"padding-left:5.9776pt;padding-right:0em;\"><mn>4</mn></mtd></mtr></mtable><mo fence=\"true\" form=\"postfix\" stretchy=\"true\">)</mo></mrow></mrow><annotation encoding=\"application/x-tex\">A = \\begin{pmatrix} 1 &amp; 2 \\\\ 3 &amp; 4 \\end{pmatrix}</annotation></semantics></math>"
+ },
+ {
+  "latex": "|x| = \\begin{cases} x & x \\geq 0 \\\\ -x & x < 0 \\end{cases}",
+  "mathml": "<math xmlns=\"http://www.w3.org/1998/Math/MathML\" display=\"block\" class=\"tml-display\" style=\"display:block math;\"><semantics><mrow><mi>|</mi><mi>x</mi><mi>|</mi><mo>=</mo><mrow><mo fence=\"true\" form=\"prefix\" stretchy=\"true\">{</mo><mtable><mtr><mtd class=\"tml-left\" style=\"padding-left:0em;padding-right:0em;\"><mi>x</mi></mtd><mtd class=\"tml-left\" style=\"padding-left:1em;padding-right:0em;\"><mrow><mi>x</mi><mo>≥</mo><mn>0</mn></mrow></mtd></mtr><mtr><mtd class=\"tml-left\" style=\"padding-left:0em;padding-right:0em;\"><mrow><mo form=\"prefix\" stretchy=\"false\">−</mo><mi>x</mi></mrow></mtd><mtd class=\"tml-left\" style=\"padding-left:1em;padding-right:0em;\"><mrow><mi>x</mi><mo>&lt;</mo><mn>0</mn></mrow></mtd></mtr></mtable><mo fence=\"true\" form=\"postfix\" stretchy=\"true\"></mo></mrow></mrow><annotation encoding=\"application/x-tex\">|x| = \\begin{cases} x &amp; x \\geq 0 \\\\ -x &amp; x &lt; 0 \\end{cases}</annotation></semantics></math>"
+ },
+ {
+  "latex": "\\begin{aligned} U &= R \\cdot I \\\\ &= 12\\,\\text{V} \\end{aligned}",
+  "mathml": "<math xmlns=\"http://www.w3.org/1998/Math/MathML\" display=\"block\" class=\"tml-display\" style=\"display:block math;\"><semantics><mtable displaystyle=\"true\" class=\"tml-jot\"><mtr><mtd class=\"tml-right\" style=\"padding-left:0em;padding-right:0em;\"><mi>U</mi></mtd><mtd class=\"tml-left\" style=\"padding-left:0em;padding-right:0em;\"><mrow><mo>=</mo><mi>R</mi><mo>⋅</mo><mi>I</mi></mrow></mtd></mtr><mtr><mtd class=\"tml-right\" style=\"padding-left:0em;padding-right:0em;\"><mrow></mrow></mtd><mtd class=\"tml-left\" style=\"padding-left:0em;padding-right:0em;\"><mrow><mo>=</mo><mn>12</mn><mspace width=\"0.1667em\"></mspace><mtext>V</mtext></mrow></mtd></mtr></mtable><annotation encoding=\"application/x-tex\">\\begin{aligned} U &amp;= R \\cdot I \\\\ &amp;= 12\\,\\text{V} \\end{aligned}</annotation></semantics></math>"
+ },
+ {
+  "latex": "\\int_0^T u(t)\\,dt = \\lim_{n \\to \\infty} \\sum_{k=1}^{n} u_k \\Delta t",
+  "mathml": "<math xmlns=\"http://www.w3.org/1998/Math/MathML\" display=\"block\" class=\"tml-display\" style=\"display:block math;\"><semantics><mrow><msubsup><mo movablelimits=\"false\">∫</mo><mn>0</mn><mi>T</mi></msubsup><mi>u</mi><mrow><mo fence=\"true\" form=\"prefix\" stretchy=\"false\">(</mo><mi>t</mi><mo fence=\"true\" form=\"postfix\" stretchy=\"false\">)</mo></mrow><mspace width=\"0.1667em\"></mspace><mi>d</mi><mi>t</mi><mo>=</mo><munder><mi>lim</mi><mrow><mi>n</mi><mo>→</mo><mi>∞</mi></mrow></munder><mo>⁡</mo><mspace width=\"0.1667em\"></mspace><mrow><munderover><mo movablelimits=\"false\">∑</mo><mrow><mi>k</mi><mo>=</mo><mn>1</mn></mrow><mi>n</mi></munderover></mrow><msub><mi>u</mi><mi>k</mi></msub><mrow><mi mathvariant=\"normal\">Δ</mi><mspace></mspace></mrow><mi>t</mi></mrow><annotation encoding=\"application/x-tex\">\\int_0^T u(t)\\,dt = \\lim_{n \\to \\infty} \\sum_{k=1}^{n} u_k \\Delta t</annotation></semantics></math>"
+ },
+ {
+  "latex": "a \\overset{!}{=} \\underbrace{b + c}_{\\text{Summe}}",
+  "mathml": "<math xmlns=\"http://www.w3.org/1998/Math/MathML\" display=\"block\" class=\"tml-display\" style=\"display:block math;\"><semantics><mrow><mi>a</mi><mrow><mover><mo>=</mo><mo form=\"postfix\" stretchy=\"false\" lspace=\"0em\" rspace=\"0em\">!</mo></mover></mrow><mrow><munder><munder><mrow><mi>b</mi><mo>+</mo><mi>c</mi></mrow><mo stretchy=\"true\" style=\"math-depth:0;\">⏟</mo></munder><mtext>Summe</mtext></munder></mrow></mrow><annotation encoding=\"application/x-tex\">a \\overset{!}{=} \\underbrace{b + c}_{\\text{Summe}}</annotation></semantics></math>"
+ },
+ {
+  "latex": "\\cancel{x} + \\textcolor{blue}{y}",
+  "mathml": "<math xmlns=\"http://www.w3.org/1998/Math/MathML\" display=\"block\" class=\"tml-display\" style=\"display:block math;\"><semantics><mrow><menclose notation=\"updiagonalstrike\"><mi>x</mi><mrow class=\"tml-cancel upstrike\"></mrow></menclose><mo>+</mo><mi style=\"color:#0000FF;\">y</mi></mrow><annotation encoding=\"application/x-tex\">\\cancel{x} + \\textcolor{blue}{y}</annotation></semantics></math>"
+ },
+ {
+  "latex": "\\bar{x} = \\overline{AB} + \\dot{x} + \\hat{y}",
+  "mathml": "<math xmlns=\"http://www.w3.org/1998/Math/MathML\" display=\"block\" class=\"tml-display\" style=\"display:block math;\"><semantics><mrow><mover><mi>x</mi><mo stretchy=\"false\" class=\"chr-sml wbk-sml-acc\" style=\"math-depth:0;\">‾</mo></mover><mo>=</mo><menclose notation=\"top\" class=\"tml-overline\"><mrow><mi>A</mi><mi>B</mi></mrow></menclose><mo>+</mo><mover><mi>x</mi><mo stretchy=\"false\" class=\"chr-sml wbk-sml-acc\" style=\"math-depth:0;\">˙</mo></mover><mo>+</mo><mover><mi>y</mi><mo stretchy=\"false\" class=\"chr-sml wbk-sml-acc\" style=\"math-depth:0;\">ˆ</mo></mover></mrow><annotation encoding=\"application/x-tex\">\\bar{x} = \\overline{AB} + \\dot{x} + \\hat{y}</annotation></semantics></math>"
+ },
+ {
+  "latex": "t = \\frac{\\mathit{Alarm}}{f_{Tick}}",
+  "mathml": "<math xmlns=\"http://www.w3.org/1998/Math/MathML\" display=\"block\" class=\"tml-display\" style=\"display:block math;\"><semantics><mrow><mi>t</mi><mo>=</mo><mfrac><mi>𝐴𝑙𝑎𝑟𝑚</mi><msub><mi>f</mi><mrow><mi>T</mi><mi>i</mi><mi>c</mi><mi>k</mi></mrow></msub></mfrac></mrow><annotation encoding=\"application/x-tex\">t = \\frac{\\mathit{Alarm}}{f_{Tick}}</annotation></semantics></math>"
+ },
+ {
+  "latex": "\\sqrt[3]{x} \\cdot \\binom{n}{k} - \\left[ a, b \\right)",
+  "mathml": "<math xmlns=\"http://www.w3.org/1998/Math/MathML\" display=\"block\" class=\"tml-display\" style=\"display:block math;\"><semantics><mrow><mroot><mrow><mi>x</mi><mspace width=\"0pt\" height=\"0.5em\"></mspace></mrow><mn>3</mn></mroot><mo>⋅</mo><mrow><mo fence=\"true\">(</mo><mfrac linethickness=\"0px\"><mi>n</mi><mi>k</mi></mfrac><mo fence=\"true\">)</mo></mrow><mo>−</mo><mrow><mo fence=\"true\" form=\"prefix\" stretchy=\"true\">[</mo><mi>a</mi><mo separator=\"true\">,</mo><mi>b</mi><mo fence=\"true\" form=\"postfix\" stretchy=\"true\">)</mo></mrow></mrow><annotation encoding=\"application/x-tex\">\\sqrt[3]{x} \\cdot \\binom{n}{k} - \\left[ a, b \\right)</annotation></semantics></math>"
+ },
+ {
+  "latex": "-x = \\pm 5 \\%",
+  "mathml": "<math xmlns=\"http://www.w3.org/1998/Math/MathML\" display=\"block\" class=\"tml-display\" style=\"display:block math;\"><semantics><mrow><mo form=\"prefix\" stretchy=\"false\">−</mo><mi>x</mi><mo>=</mo><mo form=\"prefix\" stretchy=\"false\">±</mo><mn>5</mn><mi>%</mi></mrow><annotation encoding=\"application/x-tex\">-x = \\pm 5 \\%</annotation></semantics></math>"
+ }
+]

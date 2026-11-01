@@ -10,7 +10,7 @@
  * deshalb an window.DocSpecEditor.
  */
 import { load as yamlLoad, dump as yamlDump } from './vendor/js-yaml.js';
-import { validateDocSpec, renderDocSpecHtml, docRefSlugs, KARO_MAX_WIDTH_CM } from '../lm-editor/src/doc/docspec.js';
+import { validateDocSpec, renderDocSpecHtml, docRefSlugs, KARO_MAX_WIDTH_CM, latexToMathml, starmathToLatex, inlineHtml, INLINE_MATH_SOURCE } from '../lm-editor/src/doc/docspec.js';
 import { downloadBlob } from './api.js';
 import { escapeHtml } from './utils.js';
 import { htmlToDocSpec, specToEditorHtml, widgetHtml } from '../lm-editor/src/doc/docspec-html.js';
@@ -776,7 +776,7 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
   const STARTERS = {
     karo: { type: 'karo', lines: 4 },
     solution: { type: 'solution', blocks: [{ type: 'text', text: 'Musterlösung' }] },
-    formula: { type: 'formula', math: 'U = R cdot I' },
+    formula: { type: 'formula', latex: 'U = R \\cdot I' },
     code: { type: 'code', code: '// Quelltext' },
     // „Platz“ ist ein unsichtbares Schreibfeld – Höhe, Breite und Muster lassen sich später ändern.
     spacer: { type: 'karo', lines: 2, pattern: 'frei' },
@@ -1163,6 +1163,16 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
     if (block.type === 'group') { void arrangeWidget(w, block); return; }
     // Alter „Platz“: wird zum unsichtbaren Schreibfeld (gleiche Höhe ungefähr: eine Zeile ≈ 0,5 cm).
     if (block.type === 'spacer') block = { ...(block.id ? { id: block.id } : {}), type: 'karo', lines: Number.isInteger(block.lines) ? block.lines : 3, pattern: 'frei' };
+    // Formel in StarMath: beim Bearbeiten in LaTeX umschreiben – gelingt das nicht, bleibt sie StarMath (YAML).
+    let fromStarMath = false;
+    if (block.type === 'formula' && !block.latex && typeof block.math === 'string') {
+      try {
+        const { math, ...rest } = block;
+        block = { ...rest, latex: starmathToLatex(math) };
+        fromStarMath = true;
+      } catch (_) { /* bleibt StarMath */ }
+    }
+    const isFormula = block.type === 'formula' && typeof block.latex === 'string';
     const overlay = document.createElement('div');
     overlay.className = 'confirm-overlay';
     // Schreibfeld: Höhe, Breite und Muster als Felder – sie schreiben ins YAML darunter.
@@ -1176,10 +1186,17 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
         <label>Breite <input type="number" class="ds-f-w" min="1" max="${KARO_MAX_WIDTH_CM}" step="0.5" placeholder="ganz"> cm</label>
         <label>Muster <select class="ds-f-p"><option value="karo">▦ Karo</option><option value="linien">☰ Linien</option><option value="leer">▢ Leer (Rahmen)</option><option value="frei">◌ Unsichtbar (nur Platz)</option></select></label>
       </div>` : '';
+    // Formel: LaTeX mit Vorschau, Lage; das YAML darunter folgt.
+    const formula = isFormula ? `<div class="ds-field-form ds-formula-form">
+        <label class="ds-fx-label">Formel (LaTeX) <textarea class="ds-fx-tex" rows="3" spellcheck="false" placeholder="z. B. I = \\frac{U}{R}"></textarea></label>
+        <div class="ds-fx-preview docspec" aria-live="polite"></div>
+        <label>Lage <select class="ds-fx-align"><option value="">mittig</option><option value="left">links</option></select></label>
+        <span class="hint">${fromStarMath ? 'Aus StarMath umgeschrieben – gespeichert wird LaTeX. ' : ''}Schreibweise wie in LaTeX: \\frac{a}{b}, \\sqrt{x}, x^2, U_{ges}, \\cdot, \\pi, \\Omega, \\text{V}</span>
+      </div>` : '';
     overlay.innerHTML = `<form class="import-modules-card ds-widget-dialog">
-        <h3>${block.type === 'karo' ? 'Schreibfeld' : block.type === 'quiz' ? 'Quiz' : 'Baustein'} bearbeiten</h3>
-        ${field}${quizSize}
-        ${field || quizSize ? '<details class="ds-field-yaml"><summary>Als YAML</summary><textarea class="ds-yaml" rows="6" spellcheck="false"></textarea></details>'
+        <h3>${block.type === 'karo' ? 'Schreibfeld' : block.type === 'quiz' ? 'Quiz' : isFormula ? 'Formel' : 'Baustein'} bearbeiten</h3>
+        ${field}${quizSize}${formula}
+        ${field || quizSize || formula ? '<details class="ds-field-yaml"><summary>Als YAML</summary><textarea class="ds-yaml" rows="6" spellcheck="false"></textarea></details>'
           : '<textarea class="ds-yaml" rows="12" spellcheck="false"></textarea>'}
         <p class="ds-error"></p>
         <div class="confirm-actions">
@@ -1216,6 +1233,27 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
         ta.value = yamlDump(cur, { lineWidth: -1, noRefs: true });
       });
       sel.focus();
+    } else if (isFormula) {
+      const [tex, align, preview] = ['.ds-fx-tex', '.ds-fx-align', '.ds-fx-preview'].map((sel) => overlay.querySelector(sel));
+      tex.value = block.latex;
+      align.value = block.align === 'left' ? 'left' : '';
+      const show = () => {
+        try { preview.innerHTML = `<div class="ds-formula">${latexToMathml(tex.value)}</div>`; }
+        catch (err) { preview.innerHTML = `<p class="ds-error">${escapeHtml(err.message)}</p>`; }
+      };
+      const sync = () => {
+        let cur;
+        try { cur = yamlLoad(ta.value) || {}; } catch (_) { cur = { ...block }; }
+        cur.latex = tex.value;
+        delete cur.math;
+        if (align.value) cur.align = align.value; else delete cur.align;
+        ta.value = yamlDump(cur, { lineWidth: -1, noRefs: true });
+        show();
+      };
+      tex.addEventListener('input', sync);
+      align.addEventListener('change', sync);
+      show();
+      tex.focus();
     } else ta.focus();
     const close = () => overlay.remove();
     overlay.querySelector('.ds-w-cancel').addEventListener('click', close);
@@ -1385,8 +1423,45 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
   });
 
   surface.addEventListener('dblclick', (e) => {
+    // Formel im Text: wieder zu $…$, zum Ändern; das schließende $ setzt sie erneut.
+    const m = e.target.closest('.ds-math');
+    if (m && surface.contains(m) && !m.closest('.ds-widget')) {
+      const text = document.createTextNode(`$${m.dataset.tex ?? ''}$`);
+      m.replaceWith(text);
+      const range = document.createRange();
+      range.setStart(text, 1);
+      range.setEnd(text, text.length - 1);
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+      return;
+    }
     const w = e.target.closest('.ds-widget');
     if (w && surface.contains(w)) editWidget(w);
+  });
+
+  // Formel im Text: `$x^2$` tippen – beim schließenden $ wird sie gesetzt.
+  const MATH_AT_CARET = new RegExp(`${INLINE_MATH_SOURCE}$`);
+  surface.addEventListener('input', (e) => {
+    if (e.inputType !== 'insertText' || e.data !== '$') return;
+    const sel = window.getSelection();
+    const node = sel.anchorNode;
+    if (!sel.isCollapsed || !node || node.nodeType !== 3) return;
+    const m = MATH_AT_CARET.exec(node.nodeValue.slice(0, sel.anchorOffset));
+    if (!m) return;
+    const tmp = document.createElement('span');
+    tmp.innerHTML = inlineHtml(m[0]);
+    const span = tmp.firstElementChild;
+    if (!span) return;
+    const range = document.createRange();
+    range.setStart(node, m.index);
+    range.setEnd(node, sel.anchorOffset);
+    range.deleteContents();
+    range.insertNode(span);
+    range.setStartAfter(span);
+    range.collapse(true);
+    sel.removeAllRanges();
+    sel.addRange(range);
   });
 
   // Fehlende Block-IDs nach der Position – wie die Striche der Schüler sie

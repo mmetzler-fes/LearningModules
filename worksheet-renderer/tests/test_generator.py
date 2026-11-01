@@ -16,6 +16,7 @@ from pathlib import Path
 GEN = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(GEN / "tools"))
 import make_worksheet as mw  # noqa: E402
+from mathml_starmath import NoStarMath, mathml_to_starmath  # noqa: E402
 
 
 class InlineTest(unittest.TestCase):
@@ -295,6 +296,104 @@ class RenderTest(unittest.TestCase):
             self.assertIn('fo:text-indent="-0.5cm" fo:margin-top="0.6cm" fo:margin-bottom="1cm"', content)
             self.assertRegex(content, r'style:width="8.000cm" fo:margin-top="1cm" fo:margin-bottom="0.2cm" table:align="center"')
             self.assertIn('fo:padding="0.3cm"', content)
+
+
+class FormelTest(unittest.TestCase):
+    MATHML = ('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block" class="tml-display" '
+              'style="display:block math;"><semantics><mrow><mi>I</mi><mo>=</mo><mfrac><mi>U</mi>'
+              '<mrow><mi>R</mi><mo>+</mo><mn>1</mn></mrow></mfrac></mrow>'
+              '<annotation encoding="application/x-tex">I = \\frac{U}{R+1}</annotation></semantics></math>')
+
+    def test_mathml_als_text(self):
+        root = mw.parse_mathml(self.MATHML)
+        self.assertEqual(mw.mathml_as_text(root), "I = U / (R + 1)")
+        self.assertIsNone(mw.parse_mathml("<math"))
+        self.assertIsNone(mw.parse_mathml("<svg/>"))
+
+    def test_latex_formeln_im_dokument(self):
+        """LaTeX mit MathML wird Formelobjekt, ohne MathML Text; StarMath wie bisher."""
+        import json
+        spec = {"titel": "F", "content": [
+            {"type": "formula", "latex": "I = \\frac{U}{R+1}", "mathml": self.MATHML},
+            {"type": "formula", "latex": "\\frac{"},
+            {"type": "formula", "math": "a over b"},
+            {"type": "solution", "blocks": [{"type": "formula", "latex": "x", "mathml": self.MATHML}]},
+        ]}
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "blatt").mkdir()
+            (root / "blatt" / "f.json").write_text(json.dumps(spec), encoding="utf-8")
+            env = dict(os.environ, ARBEITSBLATT_ROOT=str(root))
+            subprocess.run([sys.executable, str(GEN / "tools" / "make_worksheet.py"), "blatt/f.json",
+                            "--loesung", "-o", "out"], cwd=root, env=env, check=True, capture_output=True)
+            ab = zipfile.ZipFile(root / "out" / "blatt.odt")
+            self.assertIn("\\frac{", ab.read("content.xml").decode())
+            # LaTeX-Formel: als StarMath übersetzt (LibreOffice setzt seine Sprache vollständig)
+            erste = ab.read("Object 1/content.xml").decode()
+            self.assertIn('encoding="StarMath 5.0">{I = {U} over {{R + 1}}}<', erste)
+            self.assertIn('encoding="StarMath 5.0">a over b<', ab.read("Object 2/content.xml").decode())
+            lo = zipfile.ZipFile(root / "out" / "blatt_Lösung.odt")
+            rot = lo.read("Object 3/content.xml").decode()
+            self.assertIn(">color red {{I = {U} over {{R + 1}}}}<", rot)
+
+    def test_temml_als_starmath(self):
+        """Echtes MathML von Temml (tests/temml_formeln.json) → StarMath, wie LibreOffice es setzt."""
+        import json
+        erwartet = [
+            "{I = {U} over {R}}",
+            "{{{U}_{a}} over {{U}_{e}} = {{X}_{C}} over {sqrt {{{R}^{2} + {X}_{C}^{2}}}}}",
+            '{{f}_{g} = {1} over {{2 %ipi RC}} approx "1,6" ` "kHz"}',
+            "{vec {F} = m cdot vec {a}}",
+            "{A = {left ( matrix{{1} # {2} ## {3} # {4}} right )}}",
+            "{left lline x right rline = {left lbrace matrix{alignl {x} # alignl {{x >= 0}} ## alignl {{- x}} # alignl {{x < 0}}} right none}}",
+            'matrix{alignr {U} # alignl {{"" = R cdot I}} ## alignr {""} # alignl {{"" = 12 ` "V"}}}',
+            "{int from {0} to {T} u {left ( t right )} ` dt = lim from {{n toward infinity}} ` sum from {{k = 1}} to {n} {u}_{k} {%DELTA } t}",
+            '{a {{"="} csup {!}} {{{b + c}} underbrace {"Summe"}}}',
+            "{overstrike {x} + color hex 0000FF {y}}",
+            "{bar {x} = overline {{AB}} + dot {x} + hat {y}}",
+            "{t = {Alarm} over {{f}_{{Tick}}}}",
+            "{nroot {3} {{x }} cdot {( binom {n} {k} )} - {left [ a , b right )}}",
+            '{- x = +- 5 "%"}',
+        ]
+        formeln = json.loads((GEN / "tests" / "temml_formeln.json").read_text(encoding="utf-8"))
+        self.assertEqual(len(formeln), len(erwartet))
+        for f, star in zip(formeln, erwartet):
+            self.assertEqual(mathml_to_starmath(mw.parse_mathml(f["mathml"])), star, f["latex"])
+
+    def test_unbekanntes_bleibt_mathml(self):
+        root = mw.parse_mathml('<math xmlns="http://www.w3.org/1998/Math/MathML"><mmultiscripts><mi>C</mi>'
+                               '<mn>6</mn><none/><mprescripts/><mn>12</mn><none/></mmultiscripts></math>')
+        with self.assertRaises(NoStarMath):
+            mathml_to_starmath(root)
+        self.assertIn("<mmultiscripts>", mw.formula_object(root))
+        self.assertIn("StarMath 5.0", mw.formula_object(mw.parse_mathml(self.MATHML)))
+
+    def test_formeln_im_text(self):
+        """$…$ im Text: Formelobjekt in der Zeile; ohne MathML die Quelle; Dollarbeträge bleiben Text."""
+        import json
+        self.assertEqual(mw.parse_inline("a $x$ b"), [("text", "a "), ("math", "x"), ("text", " b")])
+        self.assertEqual(mw.parse_inline("5 $ bis 7 $"), [("text", "5 $ bis 7 $")])
+        self.assertEqual(mw.parse_inline("$5 bis $10"), [("text", "$5 bis $10")])
+        self.assertEqual(mw.parse_inline(r"\$x\$"), [("text", "$x$")])
+        spec = {"titel": "F", "inlineMathml": {"I = U": self.MATHML}, "content": [
+            {"type": "text", "text": "Es gilt $I = U$ und $y$."},
+            {"type": "karo", "lines": 2},
+            {"type": "solution", "blocks": [{"type": "text", "text": "Also $I = U$."}]},
+        ]}
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "blatt").mkdir()
+            (root / "blatt" / "f.json").write_text(json.dumps(spec), encoding="utf-8")
+            env = dict(os.environ, ARBEITSBLATT_ROOT=str(root))
+            subprocess.run([sys.executable, str(GEN / "tools" / "make_worksheet.py"), "blatt/f.json",
+                            "--loesung", "-o", "out"], cwd=root, env=env, check=True, capture_output=True)
+            ab = zipfile.ZipFile(root / "out" / "blatt.odt")
+            content = ab.read("content.xml").decode()
+            self.assertIn('draw:name="Formel1"', content)
+            self.assertIn("$y$", content)  # ohne MathML: die Quelle
+            self.assertIn('encoding="StarMath 5.0">{I = {U} over {{R + 1}}}<', ab.read("Object 1/content.xml").decode())
+            lo = zipfile.ZipFile(root / "out" / "blatt_Lösung.odt").read("content.xml").decode()
+            self.assertIn("Also I = U / (R + 1).", lo)  # im Lösungsrahmen über dem Karo als Text
 
 
 if __name__ == "__main__":

@@ -133,6 +133,21 @@ Der Editor startet im Modus **✏️ Bearbeiten** – wie ein Textprogramm:
   in deren Zellen weitere Tabellen stecken (Layout-Tabelle), zu Spalten.
 - Eine **Lösung** gehört hinter ein Karo: Im Arbeitsblatt ist sie
   ausgeblendet, im Lösungsblatt steht sie rot über dem Karo.
+- **∑ Formel** (➕ Einfügen, bearbeiten per Doppelklick): Formeln schreibt man
+  in **LaTeX**, der Schreibweise, die auch KIs und Mathe-Programme verwenden –
+  z. B. `I = \frac{U}{R}`, `\sqrt{R^2 + X_C^2}`, `U_{ges}`, `2 \pi f`,
+  `12\,\text{V}`. Darunter zeigt eine Vorschau die gesetzte Formel (oder den
+  Fehler), daneben die Lage (mittig oder links). In der .odt wird daraus ein
+  echtes Formelobjekt, das sich in LibreOffice weiter bearbeiten lässt; im
+  Lösungsblatt ist es rot. Ältere Formeln in der Schreibweise des
+  LibreOffice-Formeleditors (StarMath, `U over R`) gelten weiter; beim
+  Bearbeiten werden sie in LaTeX umgeschrieben.
+- **Formel im Text:** `$` + LaTeX + `$` tippen, z. B. `$I = \frac{U}{R}$` –
+  beim schließenden `$` wird die Formel gesetzt und steht dann mitten im Satz,
+  im Druck als Formelobjekt in der Zeile. Doppelklick auf die Formel macht
+  wieder Text daraus, zum Ändern. Beträge wie „5 $“ bleiben Text (direkt
+  hinter dem ersten `$` steht dann ein Leerzeichen); `\$` schreibt ein
+  Dollarzeichen.
 
 Rechts steht die **Vorschau**, darüber die Kopfzeile, wie sie gedruckt wird.
 Das Dokument steht dort auf einem Blatt in der Größe der **Druckvorlage**

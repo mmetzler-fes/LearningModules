@@ -1,4 +1,4 @@
-import { loadBrowserModule } from '../core/browser-module';
+import { loadBrowserModule, loadVendorDefault } from '../core/browser-module';
 
 /**
  * Prüfen und Anzeigen des Modultyps „Dokument“ gibt es nur einmal: als
@@ -9,6 +9,12 @@ export interface DocSpecEngine {
   validateDocSpec(spec: unknown): string[];
   renderDocSpecHtml(spec: unknown, options?: { showSolutions?: boolean; showPageBreaks?: boolean; refs?: Record<string, { pfad: string; titel: string }> }): string;
   starmathToMathml(src: string): string;
+  starmathToLatex(src: string): string;
+  latexToMathml(src: string, display?: boolean): string;
+  formulaMathml(block: unknown): string;
+  withFormulaMathml<T>(value: T): T;
+  useTemml(temml: unknown): void;
+  hasLatexEngine(): boolean;
   textLines(text: string): string[];
   richText(text: string): string;
   resolveRefText(text: string, refs: Record<string, { pfad: string; titel: string }> | null): string;
@@ -18,7 +24,10 @@ export interface DocSpecEngine {
 }
 
 export function docSpec(): DocSpecEngine {
-  return loadBrowserModule<DocSpecEngine>('../lm-editor/src/doc/docspec.js');
+  const engine = loadBrowserModule<DocSpecEngine>('../lm-editor/src/doc/docspec.js');
+  // LaTeX-Formeln setzt Temml – im Browser meldet src/doc/latex.js es an, hier der Server.
+  if (!engine.hasLatexEngine()) engine.useTemml(loadVendorDefault('../lm-editor/src/vendor/temml/temml.mjs'));
+  return engine;
 }
 
 interface BlockIds {

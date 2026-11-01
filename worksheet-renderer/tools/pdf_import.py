@@ -49,28 +49,30 @@ OUTLINE_RE = re.compile(r"^(\d+)((?:\.\d+){1,2})\.?\s+\S")
 PAGE_NO_RE = re.compile(r"^(Seite\s+)?\d+(\s*(/|von)\s*\d+)?$", re.I)
 
 
-# Formeln: Zeichen → StarMath (wie im Formeleditor); was hier fehlt, bleibt Text.
-GREEK = {"α": "alpha", "β": "beta", "γ": "gamma", "δ": "delta", "ε": "epsilon", "η": "eta", "θ": "theta",
-         "λ": "lambda", "μ": "mu", "ν": "nu", "π": "pi", "ρ": "rho", "σ": "sigma", "τ": "tau", "φ": "phi",
-         "ω": "omega", "Δ": "DELTA", "Ω": "OMEGA", "Φ": "PHI"}
-MATH_OPS = {"·": " cdot ", "×": " times ", "÷": " div ", "−": " - ", "±": " +- ", "≈": " approx ", "≠": " <> ",
-            "≤": " <= ", "≥": " >= ", "→": " -> ", "∞": " infinity ", "°": " degree ", "²": "^2", "³": "^3"}
+# Formeln: Zeichen → LaTeX (Mathe-Modus); was hier fehlt, bleibt Text.
+GREEK = {"α": "alpha", "β": "beta", "γ": "gamma", "δ": "delta", "ε": "varepsilon", "η": "eta", "θ": "theta",
+         "λ": "lambda", "μ": "mu", "ν": "nu", "π": "pi", "ρ": "rho", "σ": "sigma", "τ": "tau", "φ": "varphi",
+         "ω": "omega", "Δ": "Delta", "Ω": "Omega", "Φ": "Phi"}
+MATH_OPS = {"·": r" \cdot ", "×": r" \times ", "÷": r" \div ", "−": " - ", "±": r" \pm ", "≈": r" \approx ",
+            "≠": r" \neq ", "≤": r" \leq ", "≥": r" \geq ", "→": r" \to ", "∞": r" \infty ", "°": r"^{\circ}",
+            "²": "^2", "³": "^3"}
 MATH_HINT_RE = re.compile(r"[=·×÷√∑∫±≈≤≥≠^²³αβγδεηθλμνπρστφωΔΩΦ]")
-STARMATH_OK_RE = re.compile(r"^[A-Za-z0-9 .,=+\-*/()%^_{}<>\"]*$")
+LATEX_OK_RE = re.compile(r"^[A-Za-z0-9 .,=+\-*/()^_{}<>\\]*$")
 
 
-def to_starmath(text: str) -> str | None:
-    """Einzeilige Formel als StarMath – oder None, wenn ein Zeichen unbekannt ist."""
+def to_latex(text: str) -> str | None:
+    """Einzeilige Formel als LaTeX – oder None, wenn ein Zeichen unbekannt ist."""
     out = ""
     for ch in text:
         if ch in GREEK:
-            out += f" %{GREEK[ch]} "
+            out += f" \\{GREEK[ch]} "
         elif ch in MATH_OPS:
             out += MATH_OPS[ch]
         else:
             out += ch
+    out = re.sub(r"(\d),(\d)", r"\1{,}\2", out)  # Dezimalkomma ohne Abstand dahinter
     out = re.sub(r"\s+", " ", out).strip()
-    return out if out and STARMATH_OK_RE.match(out) and "=" in out else None
+    return out if out and LATEX_OK_RE.match(out) and "=" in out else None
 
 
 class PdfImportError(Exception):
@@ -727,10 +729,10 @@ def _formulas(page, lines: list[dict[str, Any]], elements: list[dict[str, Any]],
         top, bottom = min(l["top"] for l in g), max(l["bottom"] for l in g)
         x0, x1 = min(l["x0"] for l in g), max(l["x1"] for l in g)
         if len(g) == 1:
-            math = to_starmath(g[0]["text"])
-            if not math:
+            latex = to_latex(g[0]["text"])
+            if not latex:
                 continue
-            block: dict[str, Any] = {"type": "formula", "math": math}
+            block: dict[str, Any] = {"type": "formula", "latex": latex}
         else:
             try:
                 src = _png_data_uri(_crop_image(page, (x0 - 4, top - 4, x1 + 4, bottom + 4), resolution=200))

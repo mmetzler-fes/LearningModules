@@ -64,6 +64,7 @@ describe('Material aus eigenen Dokumenten', () => {
       { type: 'section', text: 'Grundlagen' },
       { type: 'text', text: 'Ein OPV verstärkt die **Differenz** der Eingänge.' },
       { type: 'formula', math: 'V_u = -R_2 over R_1' },
+      { type: 'formula', latex: 'V_u = -\\frac{R_2}{R_1}' },
       { type: 'table', header: ['R1', 'R2'], rows: [['1 kΩ', { text: '10 kΩ' }]] },
       { type: 'image', src: '[eingebettetes Bild]', caption: 'Invertierer' },
       { type: 'task', title: 'Verstärkung', text: 'Berechne V_u.', blocks: [
@@ -78,6 +79,7 @@ describe('Material aus eigenen Dokumenten', () => {
     const t = ai.docSpecToText(spec);
     expect(t).toContain('## Grundlagen');
     expect(t).toContain('Formel (StarMath): V_u = -R_2 over R_1');
+    expect(t).toContain('Formel: $V_u = -\\frac{R_2}{R_1}$');
     expect(t).toContain('| R1 | R2 |');
     expect(t).toContain('| 1 kΩ | 10 kΩ |');
     expect(t).toContain('[Abbildung: Invertierer]');

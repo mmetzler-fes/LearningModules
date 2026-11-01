@@ -175,5 +175,15 @@ class SlideFigures(unittest.TestCase):
         self.assertEqual([b["type"] for b in spec["content"]], ["text", "image"])
 
 
+class FormelTest(unittest.TestCase):
+    def test_formel_als_latex(self):
+        self.assertEqual(pdf_import.to_latex("U = R · I"), r"U = R \cdot I")
+        self.assertEqual(pdf_import.to_latex("ω = 2π·f"), r"\omega = 2 \pi \cdot f")
+        self.assertEqual(pdf_import.to_latex("ΔU = 1,5 V"), r"\Delta U = 1{,}5 V")
+        self.assertEqual(pdf_import.to_latex("P = U² / R"), "P = U^2 / R")
+        self.assertIsNone(pdf_import.to_latex("U ≈ 1,5 V"))  # ohne „=“ keine Formel
+        self.assertIsNone(pdf_import.to_latex("x = 5 %"))  # % wäre in LaTeX ein Kommentar
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -899,7 +899,11 @@ export function odtToHtml(buffer: Buffer, fileName = '', opts: OdtOptions = {}):
     const pos = styles.prop(styleName, 'position');
     if (pos === 'sub') html = `<sub>${html}</sub>`;
     if (pos === 'super') html = `<sup>${html}</sup>`;
-    if (styles.prop(styleName, 'mono')) html = `<code>${html}</code>`;
+    if (styles.prop(styleName, 'mono')) {
+      // Schriftgröße in pt mitgeben – der Dokument-Leser übernimmt sie als size des Code-Bausteins.
+      const m = /^([\d.]+)pt$/.exec(String(styles.prop(styleName, 'fontSize') || ''));
+      html = `<code${m ? ` data-pt="${Math.round(Number(m[1]) * 10) / 10}"` : ''}>${html}</code>`;
+    }
     return html;
   };
 
@@ -1077,7 +1081,7 @@ export function odtToHtml(buffer: Buffer, fileName = '', opts: OdtOptions = {}):
     let buffer = '';
     const flush = () => {
       // Aneinanderstoßender Code (je Zeile bzw. Teilstück ein <code>) wird ein Stück.
-      const html = buffer.replace(/<\/code><code>/g, '').replace(/^(\s|&nbsp;)+|(\s|&nbsp;)+$/g, '');
+      const html = buffer.replace(/<\/code><code(?: data-pt="[\d.]+")?>/g, '').replace(/^(\s|&nbsp;)+|(\s|&nbsp;)+$/g, '');
       const visible = html.replace(/<br>|&nbsp;|&emsp;|\s/g, '');
       if (visible) {
         parts.push(`<${tag}${alignAttr}>${wrap(html, styleName, isHeading)}</${tag}>`);

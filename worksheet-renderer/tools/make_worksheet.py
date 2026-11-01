@@ -1136,6 +1136,21 @@ def ensure_formula_frame_style(doc, present: set[str]) -> Style:
     return style
 
 
+# Schriftgrößen für Code-Bausteine (size) – wie CODE_SIZES in docspec.js; ohne Angabe gilt die Vorlage.
+CODE_SIZES_PT = (7, 8, 9, 10, 11, 12)
+
+
+def ensure_sized_style(doc, present: set[str], base: str, size_pt: int) -> str:
+    """Absatzvorlage wie `base`, nur in einer anderen Schriftgröße (Code-Baustein mit size)."""
+    name = f"{base}_{size_pt}pt"
+    if name not in present:
+        style = Style(name=name, family="paragraph", parentstylename=base)
+        style.addElement(TextProperties(fontsize=f"{size_pt}pt"))
+        doc.automaticstyles.addElement(style)
+        present.add(name)
+    return name
+
+
 def ensure_center_style(doc, present: set[str], base: str) -> str:
     """Absatzvorlage wie `base`, aber zentriert – für freistehende Formeln."""
     name = f"AB_Mittig_{base}"
@@ -2463,6 +2478,8 @@ def render_block_content(block: Any, styles: dict[str, str], ctx: dict[str, Any]
             p = P(stylename=keep_style(ctx, text_style))
             p.addElement(rich_span(styles["emphasis"], block["caption"]))
             out.append(p)
+        if block.get("size") in CODE_SIZES_PT:
+            code_style = ensure_sized_style(ctx["doc"], ctx["present"], code_style, block["size"])
         out.extend(code_paragraphs(read_code(block, ctx["search"]), code_style))
 
     elif kind == "list":

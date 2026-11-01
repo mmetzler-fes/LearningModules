@@ -294,6 +294,13 @@ describe('.odt-Import: Quelltext', () => {
     expect(r.html).not.toContain('<code>Arial</code>');
     expect(r.html).toContain('<code>void loop() {}</code>');
   });
+
+  it('gibt die Schriftgröße des Codes mit (data-pt) – der Dokument-Leser macht daraus size', () => {
+    const r = odtToHtml(withStyles(
+      '<style:style style:name="P1" style:family="paragraph"><style:text-properties style:font-name="Consolas" fo:font-size="8pt"/></style:style>',
+      '<text:p text:style-name="P1">if (a) {}</text:p>'), 'x.odt');
+    expect(r.html).toContain('<code data-pt="8">if (a) {}</code>');
+  });
 });
 
 describe('.odt-Import: Text in Zeichnungen umbrechen', () => {

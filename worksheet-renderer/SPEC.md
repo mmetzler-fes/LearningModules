@@ -32,6 +32,7 @@ content:
     file: quellcodes/x.html     # … oder aus einer Datei
     from_line: 5                # optionaler Zeilenausschnitt
     to_line: 20
+    size: 8                     # optional: Schriftgröße in pt (7–12), sonst die der Vorlage „Quelltext“ (9)
   - type: image                 # Bild (PNG/JPEG/SVG), Höhe aus dem Seitenverhältnis
     file: quellen/schaltung.svg
     width: 9cm

@@ -182,7 +182,10 @@ kommen nicht mit; der Editor nennt, was fehlt. Ausgeblendeter Text – so stehen
 Festbreitenschrift (Courier, Consolas, Liberation Mono …) oder in der Vorlage
 „Quelltext“ bzw. „Vorformatierter Text“ – wird ein Code-Baustein (auch in
 Tabellenzellen, Zeilen untereinander bleiben einer); einzelne Wörter darin
-werden `code` im Text. **Word-Dateien** (.docx, auch
+werden `code` im Text; eine andere Schriftgröße als 9 pt kommt mit. Die
+**Schriftgröße eines Code-Bausteins** stellt der Doppelklick darauf ein
+(7–12 pt) – kleiner, wenn lange Zeilen in einer schmalen Spalte umbrechen; sie
+gilt in der Ansicht und im Druck. **Word-Dateien** (.docx, auch
 .doc und .rtf) wandelt der Renderer vorher mit LibreOffice in eine .odt um –
 das dauert einige Sekunden länger, und was LibreOffice anders darstellt als
 Word, kommt so auch hier an.

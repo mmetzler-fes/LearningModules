@@ -10,7 +10,7 @@
  * deshalb an window.DocSpecEditor.
  */
 import { load as yamlLoad, dump as yamlDump } from './vendor/js-yaml.js';
-import { validateDocSpec, renderDocSpecHtml, docRefSlugs, KARO_MAX_WIDTH_CM, latexToMathml, starmathToLatex, inlineHtml, INLINE_MATH_SOURCE } from '../lm-editor/src/doc/docspec.js';
+import { validateDocSpec, renderDocSpecHtml, docRefSlugs, KARO_MAX_WIDTH_CM, latexToMathml, starmathToLatex, inlineHtml, INLINE_MATH_SOURCE, CODE_SIZES, CODE_SIZE_PT } from '../lm-editor/src/doc/docspec.js';
 import { downloadBlob } from './api.js';
 import { escapeHtml } from './utils.js';
 import { htmlToDocSpec, specToEditorHtml, widgetHtml } from '../lm-editor/src/doc/docspec-html.js';
@@ -1214,9 +1214,14 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
         <label>Lage <select class="ds-fx-align"><option value="">mittig</option><option value="left">links</option></select></label>
         <span class="hint">${fromStarMath ? 'Aus StarMath umgeschrieben – gespeichert wird LaTeX. ' : ''}Schreibweise wie in LaTeX: \\frac{a}{b}, \\sqrt{x}, x^2, U_{ges}, \\cdot, \\pi, \\Omega, \\text{V}</span>
       </div>` : '';
+    // Code: Schriftgröße (size) – das YAML darunter bleibt offen, dort steht der Code.
+    const codeSize = block.type === 'code' ? `<div class="ds-field-form">
+        <label>Schriftgröße <select class="ds-c-size"><option value="">Standard (${CODE_SIZE_PT} pt)</option>${CODE_SIZES.filter((v) => v !== CODE_SIZE_PT).map((v) => `<option value="${v}">${v} pt</option>`).join('')}</select></label>
+        <span class="hint">Kleiner, wenn lange Zeilen in einer schmalen Spalte umbrechen – gilt in der Ansicht und im Druck.</span>
+      </div>` : '';
     overlay.innerHTML = `<form class="import-modules-card ds-widget-dialog">
-        <h3>${block.type === 'karo' ? 'Schreibfeld' : block.type === 'quiz' ? 'Quiz' : isFormula ? 'Formel' : 'Baustein'} bearbeiten</h3>
-        ${field}${quizSize}${formula}
+        <h3>${block.type === 'karo' ? 'Schreibfeld' : block.type === 'quiz' ? 'Quiz' : isFormula ? 'Formel' : block.type === 'code' ? 'Code' : 'Baustein'} bearbeiten</h3>
+        ${field}${quizSize}${formula}${codeSize}
         ${field || quizSize || formula ? '<details class="ds-field-yaml"><summary>Als YAML</summary><textarea class="ds-yaml" rows="6" spellcheck="false"></textarea></details>'
           : '<textarea class="ds-yaml" rows="12" spellcheck="false"></textarea>'}
         <p class="ds-error"></p>
@@ -1254,6 +1259,16 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
         ta.value = yamlDump(cur, { lineWidth: -1, noRefs: true });
       });
       sel.focus();
+    } else if (block.type === 'code') {
+      const sel = overlay.querySelector('.ds-c-size');
+      sel.value = CODE_SIZES.includes(block.size) && block.size !== CODE_SIZE_PT ? String(block.size) : '';
+      sel.addEventListener('change', () => {
+        let cur;
+        try { cur = yamlLoad(ta.value) || {}; } catch (_) { cur = { ...block }; }
+        if (sel.value) cur.size = Number(sel.value); else delete cur.size;
+        ta.value = yamlDump(cur, { lineWidth: -1, noRefs: true });
+      });
+      ta.focus();
     } else if (isFormula) {
       const [tex, align, preview] = ['.ds-fx-tex', '.ds-fx-align', '.ds-fx-preview'].map((sel) => overlay.querySelector(sel));
       tex.value = block.latex;

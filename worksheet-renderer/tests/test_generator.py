@@ -407,5 +407,23 @@ class SpaltenbreiteTest(unittest.TestCase):
         self.assertGreater(widths[2], widths[0] + widths[1])
 
 
+class CodeGroesseTest(unittest.TestCase):
+    def test_code_mit_size(self):
+        """size am Code-Baustein: eigene Absatzvorlage mit dieser Schriftgröße; ohne Angabe die der Vorlage."""
+        spec = "titel: C\ncontent:\n  - {type: code, code: a}\n  - {type: code, size: 8, code: b}\n  - {type: code, size: 99, code: c}\n"
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "blatt").mkdir()
+            (root / "blatt" / "c.yaml").write_text(spec, encoding="utf-8")
+            env = dict(os.environ, ARBEITSBLATT_ROOT=str(root))
+            subprocess.run([sys.executable, str(GEN / "tools" / "make_worksheet.py"), "blatt/c.yaml", "-o", "out"],
+                           cwd=root, env=env, check=True, capture_output=True)
+            content = zipfile.ZipFile(root / "out" / "blatt.odt").read("content.xml").decode()
+            self.assertRegex(content, r'style:name="Quelltext_8pt"[^>]*><style:text-properties fo:font-size="8pt"/>')
+            self.assertIn('text:style-name="Quelltext_8pt">b<', content)
+            self.assertIn('text:style-name="Quelltext">a<', content)
+            self.assertIn('text:style-name="Quelltext">c<', content)  # unbekannte Größe: wie ohne Angabe
+
+
 if __name__ == "__main__":
     unittest.main()

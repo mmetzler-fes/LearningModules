@@ -231,6 +231,13 @@ einen gleichnamigen Tag gibt.
 oder einzelne Abschnitte (`.one`) als neues Book – je Seite mit Anlagen ein
 Modul 📎 Anhang, siehe [OneNote übernehmen](onenote-import.md).
 
+**📂 Datei öffnen** (oder Dateien auf die Seite ziehen) zeigt eine Datei an und
+legt sie mit **📓 Im Notizbuch ablegen…** als Dokument in ein Lernthema:
+`.zlm` aus dem lm-editor (mit eingebetteten Quizzen und Beschriftung),
+Writer/Word (`.odt`, `.docx`), Folien (`.odp`, `.odg`, `.pptx`), PDF und
+Xournal++ (`.xopp`, gern zusammen mit seinem PDF). Dasselbe wie „Öffnen mit“
+der installierten App, aber in jedem Browser.
+
 ## Technik
 
 Struktur in `notebook_nodes` (Book, Bereich, Abschnitt; mit `tagIds`;

@@ -68,6 +68,37 @@ export class NotebooksView {
     document.getElementById('btnNotebookOneNote')?.addEventListener('click', () => openOneNoteImport(this.app, {
       onDone: async () => { this._saveOpen(); await this.refresh(); },
     }));
+    // 📂 Datei öffnen und Dateien auf die Seite ziehen: wie „Öffnen mit“ der installierten App (file-open.js) –
+    // ansehen, dann 📓 Im Notizbuch ablegen…; danach den Baum neu laden.
+    const openFiles = async (files) => {
+      if (!files.length) return;
+      const { handleOpenedFiles } = await import('./file-open.js');
+      await handleOpenedFiles(this.app, files);
+      this._saveOpen();
+      await this.refresh();
+    };
+    document.getElementById('btnNotebookOpenFile')?.addEventListener('click', () => {
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.multiple = true; // .xopp zusammen mit ihrem PDF
+      input.accept = '.zlm,.odt,.ott,.docx,.odp,.odg,.pptx,.ppt,.pdf,.xopp';
+      input.addEventListener('change', () => void openFiles([...input.files]));
+      input.click();
+    });
+    const view = document.getElementById('view-teacher-notebooks');
+    const withFiles = (e) => [...(e.dataTransfer?.types || [])].includes('Files');
+    view?.addEventListener('dragover', (e) => {
+      if (e.defaultPrevented || !withFiles(e)) return; // Verschieben im Baum trägt keine Dateien
+      e.preventDefault();
+      view.classList.add('nb-file-drop');
+    });
+    view?.addEventListener('dragleave', (e) => { if (!view.contains(e.relatedTarget)) view.classList.remove('nb-file-drop'); });
+    view?.addEventListener('drop', (e) => {
+      view.classList.remove('nb-file-drop');
+      if (e.defaultPrevented || !withFiles(e) || !e.dataTransfer.files.length) return;
+      e.preventDefault();
+      void openFiles([...e.dataTransfer.files]);
+    });
     document.getElementById('btnNotebookExpand')?.addEventListener('click', () => this._expandAll(true));
     document.getElementById('btnNotebookCollapse')?.addEventListener('click', () => this._expandAll(false));
     this._search?.addEventListener('input', () => this._render());

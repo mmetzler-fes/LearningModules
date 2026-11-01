@@ -5840,3 +5840,5 @@ details.cb-topic > summary .hint { font-weight: normal; margin-left: 6px; }
 .ds-math.ds-missing { font-family: var(--font-mono, monospace); color: #b91c1c; }
 .ds-surface .ds-math { cursor: pointer; border-radius: 3px; }
 .ds-surface .ds-math:hover { background: #e0f2fe; }
+/* Dateien aufs Notizbuch ziehen (📂 Datei öffnen) */
+#view-teacher-notebooks.nb-file-drop { outline: 3px dashed var(--accent, #2563eb); outline-offset: -6px; border-radius: 8px; }

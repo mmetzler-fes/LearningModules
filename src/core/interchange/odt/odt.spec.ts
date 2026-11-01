@@ -266,3 +266,32 @@ describe('Folien-Import (.odp, .odg – PowerPoint kommt über LibreOffice als .
     expect(() => odtToHtml(slides('', 'application/vnd.oasis.opendocument.spreadsheet'), 'x.ods')).toThrow(/Impress/);
   });
 });
+
+describe('.odt-Import: Quelltext', () => {
+  /** Writer-Dokument mit eigenen Formatvorlagen (automatic-styles) und Inhalt. */
+  const withStyles = (styles: string, body: string) => {
+    const zip = new AdmZip();
+    zip.addFile('mimetype', Buffer.from('application/vnd.oasis.opendocument.text'));
+    zip.addFile('content.xml', Buffer.from(
+      '<?xml version="1.0" encoding="UTF-8"?><office:document-content xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" '
+      + 'xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0" xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0" '
+      + 'xmlns:fo="urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0"><office:automatic-styles>' + styles
+      + '</office:automatic-styles><office:body><office:text>' + body + '</office:text></office:body></office:document-content>'));
+    return zip.toBuffer();
+  };
+
+  it('Zeichenvorlage „Quelltext“, Festbreitenschrift und Absatzvorlage werden <code>, andere Schriften nicht', () => {
+    const r = odtToHtml(withStyles(
+      '<style:style style:name="Source_20_Text" style:display-name="Source Text" style:family="text"/>'
+      + '<style:style style:name="T1" style:family="text"><style:text-properties fo:font-family="Menlo, Consolas, \'Liberation Mono\'"/></style:style>'
+      + '<style:style style:name="T2" style:family="text"><style:text-properties style:font-name="Arial"/></style:style>'
+      + '<style:style style:name="P1" style:family="paragraph"><style:text-properties style:font-pitch="fixed"/></style:style>',
+      '<text:p><text:span text:style-name="Source_20_Text">pinMode(2, OUTPUT);<text:line-break/>delay(100);</text:span></text:p>'
+      + '<text:p>Text mit <text:span text:style-name="T1">digitalWrite()</text:span> und <text:span text:style-name="T2">Arial</text:span></text:p>'
+      + '<text:p text:style-name="P1">void loop() {}</text:p>'), 'x.odt');
+    expect(r.html).toContain('<code>pinMode(2, OUTPUT);<br>delay(100);</code>');
+    expect(r.html).toContain('<code>digitalWrite()</code>');
+    expect(r.html).not.toContain('<code>Arial</code>');
+    expect(r.html).toContain('<code>void loop() {}</code>');
+  });
+});

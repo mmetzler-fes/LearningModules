@@ -178,7 +178,11 @@ Baustein hinter den Block, in dem die Schreibmarke steht.
 Überschriften, Absätze, Listen, Tabellen (auch verbundene Zellen), Bilder mit
 ihrer Lage und Textrahmen. Formeln aus dem Formeleditor und Bilder in Tabellen
 kommen nicht mit; der Editor nennt, was fehlt. Ausgeblendeter Text – so stehen die Lösungen im Arbeitsblatt – wird eine
-**Lösung**, bleibt also im Blatt verborgen. **Word-Dateien** (.docx, auch
+**Lösung**, bleibt also im Blatt verborgen. **Quelltext** – Absätze in einer
+Festbreitenschrift (Courier, Consolas, Liberation Mono …) oder in der Vorlage
+„Quelltext“ bzw. „Vorformatierter Text“ – wird ein Code-Baustein (auch in
+Tabellenzellen, Zeilen untereinander bleiben einer); einzelne Wörter darin
+werden `code` im Text. **Word-Dateien** (.docx, auch
 .doc und .rtf) wandelt der Renderer vorher mit LibreOffice in eine .odt um –
 das dauert einige Sekunden länger, und was LibreOffice anders darstellt als
 Word, kommt so auch hier an.

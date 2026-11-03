@@ -93,6 +93,34 @@ export class TopicsService {
       byTopic.get(m.topicId)!.push(m);
     }
     for (const t of topics) t.modules = byTopic.get(t.id) || [];
+    await this.attachQuizIds(ids, modules);
+  }
+
+  /**
+   * Welche Quizze ein Dokument einbettet – für den Baum, damit sie unter ihrem Dokument stehen.
+   * Die Datenbank liest sie selbst aus dem JSON: Der Inhalt samt Bildern bleibt dort. Fehlt die
+   * Angabe, steht das Quiz eben auf der Ebene der anderen Module.
+   */
+  private async attachQuizIds(topicIds: string[], modules: LearningModule[]) {
+    if (!topicIds.length) return;
+    try {
+      const rows: { id: string; module: string }[] = await this.moduleRepo.query(
+        `SELECT m.id AS id, j.value AS module
+           FROM modules m, json_tree(CASE WHEN json_valid(m.content) THEN m.content ELSE '{}' END) j
+          WHERE m.topicId IN (${topicIds.map(() => '?').join(',')})
+            AND m.type = 'document'
+            AND m.content LIKE '%"quiz"%'
+            AND j.key = 'module'
+            AND json_extract(m.content, j.path || '.type') = 'quiz'
+          ORDER BY m.id, j.id`,
+        topicIds,
+      );
+      const byDoc = new Map<string, string[]>();
+      for (const r of rows) byDoc.set(r.id, [...(byDoc.get(r.id) || []), String(r.module)]);
+      for (const m of modules) if (byDoc.has(m.id)) (m as any).quizIds = byDoc.get(m.id);
+    } catch {
+      // ohne Angabe bleibt der Baum flach
+    }
   }
 
   // ---- Herkunft und Rechte für die Themenkarten ----

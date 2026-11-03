@@ -443,6 +443,11 @@ Im Editor (Reiter **✏️ Bearbeiten**) stehen unter **➕** bzw. per Rechtskli
 desselben Lernthemas (z. B. Multiple Choice oder Lückentext) – ein Klick setzt das Quiz ein. Es steht als
 Baustein an der Schreibmarke im Blatt (`type: quiz`, `module: <Modul-ID>`).
 
+- **In den Notebooks** steht das Quiz eingerückt unter seinem Dokument, in der Reihenfolge im Blatt;
+  das Dokument zeigt „· 2 Quizze“ und lässt sich mit ▾ zuklappen. Was nicht eingerückt ist, ist ein
+  eigenständiges Modul. Steht ein Quiz in mehreren Dokumenten, erscheint es unter jedem. Seine Stelle
+  bestimmt das Dokument, deshalb lässt es sich dort nicht ziehen; das ⋯-Menü führt zum Dokument, und
+  Löschen oder Verschieben warnt vorher.
 - **Im Durchlauf** bearbeiten Schüler das Quiz direkt im Blatt; die Antworten
   zählen beim Weiterblättern mit ins Ergebnis. Als eigener Schritt kommt es
   dann nicht noch einmal – außer in der Lernbegleitung, die jede Aufgabe

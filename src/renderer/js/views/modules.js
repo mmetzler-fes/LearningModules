@@ -1,5 +1,6 @@
 import { escapeHtml, escapeAttr, generateId } from '../utils.js';
 import { localDrafts } from '../local-drafts.js';
+import { nestEmbedded, quizIdsOf } from '../../lm-editor/src/doc/doc-quiz.js';
 import { ModuleDescriptionEditor } from '../desc-editor.js';
 import { TagPicker } from './tags.js';
 import { openImportDialog } from './import-dialog.js';
@@ -749,7 +750,10 @@ export class ModulesView {
       ? `\n\n${topic.useCount} Person${topic.useCount === 1 ? ' verwendet' : 'en verwenden'} dieses Thema über den Shop – ` +
         'das Modul verschwindet auch bei ihnen.'
       : '';
-    if (!(await this.app.appConfirm(t('modules.delete.confirm', { title: mod.title }) + users))) return;
+    // Liegt das Quiz in einem Dokument, fehlt es dort danach.
+    const docs = nestEmbedded((this.app.state.currentTopicModules || []).filter((m) => !m.parentId), quizIdsOf).docsOf.get(mod.id) || [];
+    const embedded = docs.length ? `\n\nDieses Quiz steht in: ${docs.map((d) => `„${d.title}“`).join(', ')} – dort fehlt es dann.` : '';
+    if (!(await this.app.appConfirm(t('modules.delete.confirm', { title: mod.title }) + embedded + users))) return;
     const result = await this.app.api.deleteModule(this.app.state.currentTopicId, mod.id);
     if (result.success) {
       this.app.showToast(t('modules.deleted'), 'info');

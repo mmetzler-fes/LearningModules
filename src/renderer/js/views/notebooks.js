@@ -7,6 +7,7 @@ import { openImportDialog } from './import-dialog.js';
 import { openOneNoteImport } from './onenote-import.js';
 import { askConvertOptions, convertAttachment } from './attachment-convert.js';
 import { NotebookPreview } from './notebook-preview.js';
+import { nestEmbedded } from '../../lm-editor/src/doc/doc-quiz.js';
 
 // ==================== NOTEBOOKS ====================
 //
@@ -252,7 +253,7 @@ export class NotebooksView {
     return !!this._query || this._open.has(key);
   }
 
-  _row({ key, depth, icon, title, num = '', meta = '', extra = '', twisty = true, open = false, cls = '', drag = null }) {
+  _row({ key, depth, icon, title, num = '', meta = '', extra = '', twisty = true, twistyKey = null, open = false, cls = '', drag = null }) {
     const row = document.createElement('div');
     row.className = `nb-row ${cls} ${this._preview?.currentKey === key ? 'nb-current' : ''}`;
     row.style.setProperty('--depth', depth);
@@ -267,8 +268,9 @@ export class NotebooksView {
       ${extra}
       <button type="button" class="nb-menu-btn" title="Aktionen" aria-label="Aktionen">⋯</button>`;
     if (twisty) {
-      row.querySelector('.nb-twisty').addEventListener('click', (e) => { e.stopPropagation(); this._toggle(key); });
-      row.querySelector('.nb-title').addEventListener('click', () => this._toggle(key));
+      row.querySelector('.nb-twisty').addEventListener('click', (e) => { e.stopPropagation(); this._toggle(twistyKey || key); });
+      // Mit eigenem Schlüssel (Dokument mit Quizzen) bleibt der Titel die Vorschau.
+      if (!twistyKey) row.querySelector('.nb-title').addEventListener('click', () => this._toggle(key));
     }
     if (drag) this._bindDrag(row, drag);
     return row;
@@ -390,33 +392,47 @@ export class NotebooksView {
         wrap.appendChild(empty);
       }
       // Bei der Suche nur passende Module – außer das Thema selbst passt.
+      const { top, quizzesOf, docsOf } = nestEmbedded(roots.sort((a, b) => a.orderIndex - b.orderIndex));
       const show = (m) => !this._query || this._matches(topic.title) || this._matches(m.title)
-        || modules.some((k) => k.parentId === m.id && this._matches(k.title));
-      for (const root of roots.sort((a, b) => a.orderIndex - b.orderIndex)) {
+        || modules.some((k) => k.parentId === m.id && this._matches(k.title))
+        || (quizzesOf.get(m.id) || []).some((q) => this._matches(q.title));
+      const withKids = (m, d, opts = {}) => {
+        wrap.appendChild(this._renderModule(topic, m, d, opts));
+        for (const kid of modules.filter((k) => k.parentId === m.id)) {
+          if (show(kid) || this._matches(m.title)) wrap.appendChild(this._renderModule(topic, kid, d + 1));
+        }
+      };
+      for (const root of top) {
         if (!show(root)) continue;
-        wrap.appendChild(this._renderModule(topic, root, depth + 1));
-        for (const kid of modules.filter((m) => m.parentId === root.id)) {
-          if (show(kid) || this._matches(root.title)) wrap.appendChild(this._renderModule(topic, kid, depth + 2));
+        const quizzes = quizzesOf.get(root.id) || [];
+        withKids(root, depth + 1, { quizzes });
+        // Quizze im Dokument stehen darunter; zu steht in `_open` (Vorgabe: auf).
+        if (quizzes.length && (this._query || !this._open.has('dz:' + root.id))) {
+          for (const q of quizzes) if (show(q) || this._matches(root.title)) withKids(q, depth + 2, { inDocs: docsOf.get(q.id) });
         }
       }
     }
     return wrap;
   }
 
-  _renderModule(topic, mod, depth) {
+  /** `quizzes`: Quizze im Dokument (Klappen, Anzahl); `inDocs`: Dokumente, in denen dieses Quiz liegt. */
+  _renderModule(topic, mod, depth, { quizzes = [], inDocs = null } = {}) {
     const type = (typeof H5P_TYPES !== 'undefined' && H5P_TYPES[mod.type]) || {};
     const own = topic.isOwn;
     const on = mod.moduleSelected !== false;
     const row = this._row({
-      key: 'm:' + mod.id, depth, icon: type.icon || '🧩', title: mod.title, twisty: false, num: this._data.docNumbers?.[mod.id] || '',
+      key: 'm:' + mod.id, depth, icon: type.icon || '🧩', title: mod.title, num: this._data.docNumbers?.[mod.id] || '',
+      twisty: quizzes.length > 0, twistyKey: quizzes.length ? 'dz:' + mod.id : null,
+      open: quizzes.length > 0 && (!!this._query || !this._open.has('dz:' + mod.id)),
       cls: `nb-module ${on ? '' : 'nb-off'} ${this._query && this._matches(mod.title) ? 'nb-hit' : ''}`,
-      meta: escapeHtml(type.name || mod.type),
+      meta: escapeHtml(type.name || mod.type) + (quizzes.length ? ` · ${quizzes.length === 1 ? '1 Quiz' : `${quizzes.length} Quizze`}` : ''),
       extra: (this._draftIds?.has(mod.id) ? '<span class="nb-badge" title="Nicht gespeicherte Änderungen – beim Bearbeiten wiederherstellbar">📝 Entwurf</span>' : '')
         + (this._mirrorErrors?.has(mod.id) ? `<span class="nb-badge nb-warn" title="${escapeAttr(`Nextcloud: ${this._mirrorErrors.get(mod.id)}`)}">☁️ ⚠</span>` : '') + (own
         ? `<button type="button" class="nb-status ${on ? 'on' : ''}" title="${on ? 'Aktiv – klicken zum Deaktivieren' : 'Inaktiv – klicken zum Aktivieren'}">${on ? '●' : '○'}</button>
            <button type="button" class="nb-edit" title="Bearbeiten">✏️</button>`
         : ''),
-      drag: own && !mod.parentId ? { type: 'module', id: mod.id, topicId: topic.id } : null,
+      // Die Stelle eines Quiz im Dokument bestimmt das Dokument.
+      drag: own && !mod.parentId && !inDocs ? { type: 'module', id: mod.id, topicId: topic.id } : null,
     });
     // Mit Vorschau: Klick zeigt das Modul rechts, Doppelklick (oder ✏️) öffnet den Editor.
     const open = () => this.app.modulesView.openFrom('teacher-notebooks', topic.id, mod, own ? 'edit' : 'preview');
@@ -434,7 +450,7 @@ export class NotebooksView {
       this._render();
     });
     this._menuOn(row, () => this._moduleMenu(topic, mod));
-    if (own && !mod.parentId) {
+    if (own && !mod.parentId && !inDocs) {
       this._bindDrop(row, { type: 'module', id: mod.id, topicId: topic.id });
       this._selectable(row, { type: 'module', id: mod.id, topicId: topic.id });
     }
@@ -976,8 +992,17 @@ export class NotebooksView {
 
   _moduleMenu(topic, mod) {
     const open = (action) => this.app.modulesView.openFrom('teacher-notebooks', topic.id, mod, action);
-    if (!topic.isOwn) return [{ label: '👁 Vorschau', run: () => open('preview') }];
+    const inDocs = this._docsWith(topic, mod);
+    const toDocs = inDocs.map((doc) => ({
+      label: `📄 Zum Dokument: ${doc.title}`,
+      run: () => {
+        if (this._preview.open) this._preview.showModule(topic, doc);
+        else this.app.modulesView.openFrom('teacher-notebooks', topic.id, doc, 'preview');
+      },
+    }));
+    if (!topic.isOwn) return [...toDocs, { label: '👁 Vorschau', run: () => open('preview') }];
     const items = [
+      ...toDocs,
       { label: '👁 Vorschau', run: () => open('preview') },
       { label: '✏️ Bearbeiten', run: () => open('edit') },
       { label: '📋 Duplizieren', run: () => this._transferModule(topic, mod, topic.id, 'copy') },
@@ -996,7 +1021,13 @@ export class NotebooksView {
       });
     }
     if (!mod.parentId) {
-      items.push({ label: '↔️ Verschieben nach…', run: () => this._moduleTargetDialog(topic, mod, 'move') });
+      items.push({
+        label: '↔️ Verschieben nach…',
+        run: async () => {
+          if (inDocs.length && !(await this.app.appConfirm(`„${mod.title}“ steht ${this._docNames(inDocs)}. In einem anderen Lernthema fehlt es dort. Trotzdem verschieben?`))) return;
+          this._moduleTargetDialog(topic, mod, 'move');
+        },
+      });
       items.push({ label: '📄 Kopieren nach…', run: () => this._moduleTargetDialog(topic, mod, 'copy') });
     }
     items.push('-', { label: '🗑 Löschen', danger: true, run: () => this._deleteModule(topic, mod) });
@@ -1335,11 +1366,22 @@ export class NotebooksView {
     });
   }
 
+  /** Dokumente dieses Lernthemas, die das Modul als Quiz einbetten. */
+  _docsWith(topic, mod) {
+    return nestEmbedded((topic.modules || []).filter((m) => !m.parentId)).docsOf.get(mod.id) || [];
+  }
+
+  _docNames(docs) {
+    return docs.length === 1 ? `im Dokument „${docs[0].title}“` : `in ${docs.length} Dokumenten (${docs.map((d) => `„${d.title}“`).join(', ')})`;
+  }
+
   async _deleteModule(topic, mod) {
     const users = topic.useCount
       ? `\n\n${topic.useCount} Person${topic.useCount === 1 ? ' verwendet' : 'en verwenden'} dieses Thema über den Shop – das Modul verschwindet auch bei ihnen.`
       : '';
-    if (!(await this.app.appConfirm(`Modul „${mod.title}“ löschen?${users}`))) return;
+    const inDocs = this._docsWith(topic, mod);
+    const embedded = inDocs.length ? `\n\nDieses Quiz steht ${this._docNames(inDocs)} – dort fehlt es dann.` : '';
+    if (!(await this.app.appConfirm(`Modul „${mod.title}“ löschen?${embedded}${users}`))) return;
     const res = await this.app.api.deleteModule(topic.id, mod.id);
     if (failed(res)) { this.app.showToast('Fehler: ' + (res?.message || 'Löschen fehlgeschlagen'), 'error'); return; }
     await this.refresh();

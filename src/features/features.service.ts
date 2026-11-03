@@ -37,6 +37,13 @@ export const FEATURES: Record<string, { label: string; short: string; available:
     available: () => !!process.env.WORKSHEET_RENDERER_URL,
     needs: 'WORKSHEET_RENDERER_URL (Renderer-Container, worksheet-renderer/README.md)',
   },
+  // Ohne eigene Adresse keine fremden Skripte: Der Sandkasten braucht sie (docs/html-apps.md).
+  htmlApps: {
+    label: 'HTML-Apps als Lernmodul (in Erprobung; Ergebnisse und Liveview über die Schnittstelle lmApp)',
+    short: 'HTML-Apps',
+    available: () => !!process.env.HTML_APP_ORIGIN,
+    needs: 'HTML_APP_ORIGIN (eigene Adresse für die Apps, docs/html-apps.md)',
+  },
   // Wirkt nur zusammen mit 'worksheets' – „✍️ Bearbeiten“ über Dokumenten.
   // Schüler sehen den Knopf, wenn die Lehrkraft, der das Lernthema gehört, ihn hat.
   inkEditor: {

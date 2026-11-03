@@ -2,6 +2,7 @@ import { escapeHtml, escapeAttr } from '../utils.js';
 
 /** Kurzbeschriftung der Abfragemodi in der Ergebnisliste. */
 const MODE_LABELS = {
+  app: '🧩 von der App gemeldet',
   quiz: '🧠 Quiz', exam: '📝 Klassenarbeit', learn: '💡 Lernen', companion: '🦉 Lernbegleitung', contest: '🏆 Quiz-Arena',
 };
 

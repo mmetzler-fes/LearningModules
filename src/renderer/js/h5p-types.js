@@ -170,6 +170,31 @@ const H5P_TYPES = {
       { key: 'handMaintained', type: 'checkbox', advanced: true, label: 'In der Nextcloud von Hand gepflegt – die App schreibt die Dateien nicht mehr neu, verschiebt sie aber mit' },
     ],
   },
+  htmlApp: {
+    id: 'htmlApp',
+    name: 'HTML-App',
+    icon: '🧩',
+    description: 'Selbst gebaute Lernapp als einzelne HTML-Datei. Über die Schnittstelle lmApp meldet sie Ergebnisse und Liveview.',
+    category: 'Darstellung',
+    informational: true,
+    // Nur mit freigeschalteter Funktion (Administration → Benutzer).
+    feature: 'htmlApps',
+    fields: [
+      { key: 'app', type: 'htmlappfile', label: 'HTML-Datei', required: true },
+      { key: 'allowAnonymous', type: 'checkbox', label: 'Auch ohne Anmeldung nutzbar (Stand nur auf dem Gerät, keine Ergebnisse)', default: true },
+    ],
+  },
+  // Abschnitt einer HTML-App: entsteht aus dem Steckbrief, nicht im Dialog.
+  htmlAppUnit: {
+    id: 'htmlAppUnit',
+    name: 'Abschnitt der HTML-App',
+    icon: '🧩',
+    description: '',
+    category: 'Darstellung',
+    informational: true,
+    hidden: true,
+    fields: [],
+  },
   dialogCards: {
     id: 'dialogCards',
     name: 'Dialog Cards',

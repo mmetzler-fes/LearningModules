@@ -1,3 +1,4 @@
+import { withoutBlockedApps } from '../html-apps/html-app-rules';
 import { Injectable, Logger, NotFoundException, ForbiddenException, BadRequestException, OnApplicationBootstrap } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, In, IsNull, Not, Repository } from 'typeorm';
@@ -198,7 +199,8 @@ export class ShopService implements OnApplicationBootstrap {
     for (const id of topicIds) {
       const topic = byId.get(id);
       if (!topic) continue;
-      const own = modules.filter((m) => m.topicId === id);
+      // HTML-Apps bleiben außen vor, solange ein Admin sie nicht freigibt (docs/html-apps.md).
+      const own = withoutBlockedApps(modules.filter((m) => m.topicId === id));
       const roots = offerRoots(own, offer.sellerId, { includeForeign, onlyForeign: opts.onlyForeign, onlyIds });
       if (!roots.length) continue;
       out.push({ topic, roots, modules: withSubmodules(own, new Set(roots.map((r) => r.id))) });

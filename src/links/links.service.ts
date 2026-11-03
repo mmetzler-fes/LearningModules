@@ -1,3 +1,4 @@
+import { isHtmlAppType, isRemovedUnit } from '../html-apps/html-app-rules';
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, IsNull, Repository } from 'typeorm';
@@ -195,7 +196,9 @@ export class LinksService {
       // Mit Nutzungsrecht nur die Module, die es umfasst.
       const visible = this.topicsService.visibleModules(topic, allModules.filter((m) => m.topicId === topic.id), linkOwner);
       // Klassenarbeiten und „Nur Lehrkraft“ gibt es nur über den Link der Klassenarbeit.
-      const ofTopic = (exam ? visible : withoutLocked(topic, visible, topic.ownerId === link.ownerId))
+      // HTML-Apps melden selbst und haben die Lösung im Quelltext: nie über den Link der Klassenarbeit.
+      const ofTopic = (exam ? visible.filter((m) => !isHtmlAppType(m.type)) : withoutLocked(topic, visible, topic.ownerId === link.ownerId))
+        .filter((m) => !isRemovedUnit(m))
         .sort((a, b) => a.orderIndex - b.orderIndex);
 
       const chosen = new Set(entry.all ? ofTopic.map((m) => m.id) : entry.moduleIds || []);

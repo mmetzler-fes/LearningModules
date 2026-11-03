@@ -227,6 +227,12 @@ export class QuizView {
       this.app.showToast('Dieser Link enthält derzeit keine Aufgaben.', 'error');
       return;
     }
+    // Abschnitt einer HTML-App: Die App öffnet sich und beginnt dort.
+    const appWithUnit = onlyModule && modules.find((m) => (m.subModules || []).some((k) => k.id === onlyModule && k.type === 'htmlAppUnit'));
+    if (appWithUnit) {
+      appWithUnit._startUnit = appWithUnit.subModules.find((k) => k.id === onlyModule).content?.unit;
+      onlyModule = appWithUnit.id;
+    }
     if (onlyModule && !modules.some((m) => m.id === onlyModule)) {
       this.app.showToast('Dieses Quiz ist gerade nicht freigegeben – es geht mit dem ganzen Lernthema weiter.', 'info');
     }
@@ -456,6 +462,7 @@ export class QuizView {
         examMode: this._isExamRun() || !!this._companion,
         // Quizze im Dokument (planRun); in der Lernbegleitung kommen sie als eigene Aufgabe.
         embedModule: (id) => qs.embedded?.get(id) || null,
+        startUnit: mod._startUnit,
         embedMissingText: this._companion ? 'Dieses Quiz kommt gleich als eigene Aufgabe.' : undefined,
         inkEdit: mod._inkEdit ? 'student' : null,
         // Für Aufgaben, die etwas hochladen (Audio Recorder)

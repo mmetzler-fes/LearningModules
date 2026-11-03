@@ -28,6 +28,7 @@ import { cleanPcName } from './pc-name';
 import { isQuickRule, splitQuickToken } from '../../links/quick-token';
 import { ExamService } from '../../work/exam.service';
 import { classbookTicketKey } from '../../classbook/classbook-rules';
+import { HtmlAppsService } from '../../html-apps/html-apps.service';
 
 const MAX_RECORDING_BYTES = 25 * 1024 * 1024;
 
@@ -50,6 +51,7 @@ export class PublicController {
     private readonly worksheets: WorksheetsService,
     private readonly features: FeaturesService,
     private readonly exams: ExamService,
+    private readonly htmlApps: HtmlAppsService,
   ) {}
 
   /**
@@ -88,6 +90,45 @@ export class PublicController {
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `inline; filename*=UTF-8''${encodeURIComponent(`${mod.title || 'Dokument'}.pdf`)}`);
     res.send(file);
+  }
+
+  /**
+   * POST /public/html-app/open – HTML-App im Durchlauf öffnen. Nur, wenn der
+   * Link das Modul enthält. Ein gültiger Ausweis speichert Stand und Ergebnisse;
+   * ohne ihn läuft sie anonym, wenn die Lehrkraft es zulässt. Eine strikte Klasse
+   * und jeder Klassenlink verlangen den Ausweis.
+   */
+  @Post('html-app/open')
+  @HttpCode(200)
+  async openHtmlApp(
+    @Body() body: { linkToken?: string; quickToken?: string; password?: string; studentTicket?: string; moduleId?: string },
+    @Req() req: any,
+  ) {
+    const moduleId = String(body?.moduleId || '');
+    if (body?.linkToken) {
+      const { link, access } = await this.findAccessByToken(String(body.linkToken));
+      const ticket = readTicket(body.studentTicket, link.id);
+      if (link.accessPassword && (body.password || '') !== link.accessPassword && !ticket) throw new ForbiddenException('Falsches Passwort.');
+      if (link.classId && !ticket) throw new ForbiddenException('Die Anmeldung ist abgelaufen. Bitte den Link neu öffnen.');
+      const resolved = await this.linksService.resolveModules(link, { exam: modesFor(link, access).includes('exam') });
+      return this.htmlApps.open(req.headers, {
+        moduleId,
+        listed: resolved.flatMap((r) => r.modules),
+        student: ticket ? { id: ticket.s, name: ticket.n, expires: ticket.e, linkId: link.id } : null,
+      });
+    }
+    if (body?.quickToken) {
+      const { topic } = await this.resolveQuickToken(String(body.quickToken));
+      return this.htmlApps.open(req.headers, { moduleId, listed: (topic.modules || []).filter((m) => m.moduleSelected !== false), student: null });
+    }
+    throw new BadRequestException('Link fehlt.');
+  }
+
+  /** POST /public/html-app/report – Meldung der App, von der Hauptseite weitergereicht. */
+  @Post('html-app/report')
+  @HttpCode(200)
+  reportHtmlApp(@Body() body: { session?: string; type?: string; data?: any }) {
+    return this.htmlApps.report(body);
   }
 
   /**
@@ -159,7 +200,9 @@ export class PublicController {
       topic.modules = this.topicsService.visibleModules(topic, topic.modules || [], asTeacher);
     }
     // Klassenarbeiten und „Nur Lehrkraft“ gibt es über einen Quick-Link nie.
-    topic.modules = withoutLocked(topic, topic.modules || [], isOwnerLink);
+    topic.modules = withoutLocked(topic, topic.modules || [], isOwnerLink)
+      // Abschnitte einer HTML-App sind keine eigenen Aufgaben; der Quick-Link hat keine Auswahl.
+      .filter((m) => m.type !== 'htmlAppUnit');
 
     return { topic, teacher };
   }

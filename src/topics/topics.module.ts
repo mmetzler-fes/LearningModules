@@ -1,3 +1,5 @@
+import { HtmlAppFile } from '../core/entities/html-app-file.entity';
+import { FeaturesModule } from '../features/features.module';
 import { RemotePerson } from '../core/entities/remote-person.entity';
 import { FederationPeer } from '../core/entities/federation-peer.entity';
 import { Module } from '@nestjs/common';
@@ -19,8 +21,9 @@ import { NextcloudModule } from '../nextcloud/nextcloud.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([LearningTopic, LearningModule, User, TopicQuickLink, TopicLink, ShopOffer, UseGrant, School, RemotePerson, FederationPeer]),
+    TypeOrmModule.forFeature([HtmlAppFile, LearningTopic, LearningModule, User, TopicQuickLink, TopicLink, ShopOffer, UseGrant, School, RemotePerson, FederationPeer]),
     TagsModule,
+    FeaturesModule,
     ShopModule,
     CategoriesModule,
     NextcloudModule,

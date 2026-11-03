@@ -17,9 +17,10 @@ import { UsageModule } from '../../impact/usage.module';
 import { WorksheetsModule } from '../../worksheets/worksheets.module';
 import { FeaturesModule } from '../../features/features.module';
 import { WorkModule } from '../../work/work.module';
+import { HtmlAppsModule } from '../../html-apps/html-apps.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([User, LearningTopic, LearningModule, Result, TopicLink, TopicQuickLink]), LinksModule, TopicsModule, GroupsModule, CompanionModule, ClassesModule, TimingsModule, UsageModule, WorksheetsModule, FeaturesModule, WorkModule],
+  imports: [TypeOrmModule.forFeature([User, LearningTopic, LearningModule, Result, TopicLink, TopicQuickLink]), HtmlAppsModule, LinksModule, TopicsModule, GroupsModule, CompanionModule, ClassesModule, TimingsModule, UsageModule, WorksheetsModule, FeaturesModule, WorkModule],
   controllers: [PublicController],
 })
 export class PublicModule {}

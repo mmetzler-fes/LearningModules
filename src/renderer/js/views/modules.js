@@ -204,7 +204,7 @@ export class ModulesView {
     // Typen einer nicht freigeschalteten Funktion (src/features) bietet die
     // App nicht an – wie abgelöste Typen bleiben vorhandene Module aber offen.
     const features = this.app.state.currentUser?.features || [];
-    const offered = (t) => (!t.feature || features.includes(t.feature)) && !(t.replacedByFeature && features.includes(t.replacedByFeature));
+    const offered = (t) => !t.hidden && (!t.feature || features.includes(t.feature)) && !(t.replacedByFeature && features.includes(t.replacedByFeature));
     if (this._moduleTypeSelect) {
       this._moduleTypeSelect.innerHTML = '<option value="">— Modultyp wählen —</option>';
       for (const t of types) {
@@ -334,7 +334,8 @@ export class ModulesView {
     const newDrafts = drafts.filter((d) => !d.moduleId);
     const search = (this._searchModules.value || '').toLowerCase().trim();
     const typeFilter = this._filterType ? this._filterType.value : '';
-    let filtered = state.currentTopicModules;
+    // Abschnitte einer HTML-App stehen im Baum unter ihr; hier nur die Module selbst.
+    let filtered = state.currentTopicModules.filter((m) => m.type !== 'htmlAppUnit');
     if (search) filtered = filtered.filter((m) => m.title.toLowerCase().includes(search) || (m.description && m.description.toLowerCase().includes(search)));
     if (typeFilter) filtered = filtered.filter((m) => m.type === typeFilter);
 

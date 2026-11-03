@@ -374,6 +374,9 @@ class ContentEditorManager {
       case 'doctemplate':
         this.renderDocTemplateField(parent, field, value);
         break;
+      case 'htmlappfile':
+        this.renderHtmlAppField(parent, field, value);
+        break;
       case 'textarea':
         this.renderTextareaField(parent, field, value);
         break;
@@ -1133,6 +1136,69 @@ class ContentEditorManager {
    * Standard) oder eine der eigenen bzw. Schulvorlagen – so können in einem
    * Lernthema Präsentation (A4 quer) und Arbeitsblatt (A4) nebeneinander stehen.
    */
+  /** HTML-Datei einer App: wird gleich geprüft und abgelegt, das Formular hält nur die Kennung. */
+  renderHtmlAppField(parent, field, value) {
+    const group = this.createFormGroup(field.label, field.required);
+    const hidden = document.createElement('input');
+    hidden.type = 'hidden';
+    hidden.name = `content_${field.key}`;
+    hidden.value = value ? JSON.stringify(value) : '';
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.html,.htm,text/html';
+    const status = document.createElement('div');
+    status.className = 'hint';
+    status.style.marginTop = '8px';
+    const show = (app, warnings = []) => {
+      const units = app?.manifest?.units || [];
+      status.textContent = '';
+      if (!app) { status.textContent = 'Noch keine Datei hochgeladen.'; return; }
+      const line = document.createElement('div');
+      line.textContent = app.manifest
+        ? `${app.manifest.title} (Fassung ${app.manifest.version}): ${units.length} Abschnitt${units.length === 1 ? '' : 'e'}`
+        : 'Ohne Steckbrief: nur Anzeige, kein Lernstand.';
+      status.appendChild(line);
+      if (units.length) {
+        const list = document.createElement('ul');
+        for (const u of units) {
+          const li = document.createElement('li');
+          li.textContent = `${u.title} (${{ graded: 'mit Punkten', practice: 'nur Fortschritt', info: 'zum Ansehen' }[u.kind] || u.kind})`;
+          list.appendChild(li);
+        }
+        status.appendChild(list);
+      }
+      for (const w of warnings) {
+        const el = document.createElement('div');
+        el.textContent = `⚠️ ${w}`;
+        status.appendChild(el);
+      }
+    };
+    input.addEventListener('change', async () => {
+      const file = input.files?.[0];
+      if (!file) return;
+      status.textContent = 'Wird geprüft …';
+      try {
+        const token = sessionStorage.getItem('lm_token') || localStorage.getItem('lm_token');
+        const res = await fetch('/api/html-apps', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+          body: JSON.stringify({ html: await file.text() }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.message || 'Das Hochladen ist fehlgeschlagen.');
+        const app = { fileId: data.fileId, manifest: data.manifest, size: data.size };
+        hidden.value = JSON.stringify(app);
+        show(app, data.warnings);
+      } catch (e) {
+        input.value = '';
+        status.textContent = `❌ ${e.message}`;
+      }
+    });
+    group.append(input, hidden, status);
+    parent.appendChild(group);
+    show(value || null);
+  }
+
   renderDocTemplateField(parent, field, value) {
     const group = this.createFormGroup(field.label, false);
     const select = document.createElement('select');
@@ -1331,6 +1397,10 @@ class ContentEditorManager {
       case 'attachments': {
         const el = this.container.querySelector(`[name="content_${field.key}"]`);
         try { return el && el.value ? JSON.parse(el.value) : []; } catch (_) { return []; }
+      }
+      case 'htmlappfile': {
+        const el = this.container.querySelector(`[name="content_${field.key}"]`);
+        try { return el && el.value ? JSON.parse(el.value) : null; } catch (_) { return null; }
       }
       case 'docspec': {
         // Der Editor hält den letzten lesbaren Stand als JSON bereit.

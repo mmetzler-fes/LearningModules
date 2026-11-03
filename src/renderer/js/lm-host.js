@@ -12,6 +12,11 @@ const inRun = (up) => !!(up && (up.linkToken || up.quickToken));
 export const lmHost = {
   nextButton: () => document.getElementById('btnQuizNext'),
 
+  /** HTML-App in ihrem Sandkasten (docs/html-apps.md). */
+  htmlApp(args) {
+    import('./html-app-host.js').then(({ mountHtmlApp }) => mountHtmlApp(args));
+  },
+
   /**
    * Knöpfe über einem Dokument. `options.inkEdit` setzen die Aufrufer nur mit
    * der Freischaltung „Stift-Editor“: 'teacher' in Vorschau und Notebooks,

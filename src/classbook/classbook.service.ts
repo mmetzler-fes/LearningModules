@@ -35,12 +35,12 @@ const practiceModes = (link: TopicLink) => PRACTICE_MODES.filter((m) => (link.mo
 
 /** Module der Übersicht: je Modul eines, mit seinen Submodulen. */
 function unitsOf(modules: LearningModule[]): Array<Unit & { title: string; type: string }> {
-  return modules.map((m) => ({
-    id: m.id,
-    title: m.title || '',
-    type: m.type,
-    ids: [m.id, ...((m as any).subModules || []).map((s: LearningModule) => s.id)],
-  }));
+  return modules.flatMap((m) => {
+    const kids: LearningModule[] = (m as any).subModules || [];
+    // Eine HTML-App zeigt je Abschnitt eine Spalte.
+    if (m.type === 'htmlApp' && kids.length) return kids.map((k) => ({ id: k.id, title: k.title || '', type: k.type, ids: [k.id] }));
+    return [{ id: m.id, title: m.title || '', type: m.type, ids: [m.id, ...kids.map((s) => s.id)] }];
+  });
 }
 
 /**

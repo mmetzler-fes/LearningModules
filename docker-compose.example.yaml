@@ -40,6 +40,8 @@ services:
       # Adresse kommt aus APP_URL. Die Uhr des Hosts muss stimmen (NTP).
       # Nur zum Ausprobieren ohne https, nie im Betrieb:
       # FEDERATION_ALLOW_HTTP: "1"
+      # HTML-Apps als Lernmodul (docs/html-apps.md): eigene Adresse, gleicher Container.
+      # HTML_APP_ORIGIN: https://lm-apps.metzlercloud.de
       # Arbeitsblätter (.odt/.pdf) – nur mit dem Renderer unten:
       # WORKSHEET_RENDERER_URL: http://worksheet-renderer:8090
       # WORKSHEET_RENDERER_TOKEN: ${WORKSHEET_RENDERER_TOKEN}

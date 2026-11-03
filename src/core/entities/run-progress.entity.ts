@@ -40,6 +40,10 @@ export class RunProgress extends BaseEntity {
   @Column('simple-json', { nullable: true })
   states: string[] | null;
 
+  /** Stand in einer HTML-App: `{ active, units: { <Abschnitt>: { title, done, total } } }`. */
+  @Column('simple-json', { nullable: true })
+  appUnits: { active: string | null; units: Record<string, { title: string; done: number | null; total: number | null }> } | null;
+
   /** Index der aktuellen Aufgabe (davor: bearbeitet bzw. übersprungen, siehe `states`). */
   @Column({ type: 'integer', default: 0 })
   done: number;

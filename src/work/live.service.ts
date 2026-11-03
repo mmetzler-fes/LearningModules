@@ -47,7 +47,7 @@ export class LiveService {
         studentId: ticket.s, steps: null, states: null, done: 0, finishedAt: null,
       });
     }
-    if (starting) Object.assign(row, { steps: body.steps!.slice(0, 500).map((t) => String(t).slice(0, 200)), states: null, done: 0, finishedAt: null });
+    if (starting) Object.assign(row, { steps: body.steps!.slice(0, 500).map((t) => String(t).slice(0, 200)), states: null, appUnits: null, done: 0, finishedAt: null });
     if (Array.isArray(body.states)) row.states = cleanStates(body.states, row.steps?.length ?? 0);
     Object.assign(row, {
       linkName: link.name || '', studentName: ticket.n, mode: String(body.mode || row.mode || '').slice(0, 20),
@@ -74,8 +74,8 @@ export class LiveService {
     return {
       now: new Date(now).toISOString(),
       students: (klasse.students || []).map((s: any) => ({ id: s.id, name: `${s.firstName} ${s.lastName}`.trim() })),
-      runs: runs.map(({ linkId, linkName, studentId, studentName, mode, steps, states, done, finishedAt, updatedAt }) => ({
-        linkId, linkName, studentId, studentName, mode, steps: steps || [], states: states || [], done, finishedAt, updatedAt,
+      runs: runs.map(({ linkId, linkName, studentId, studentName, mode, steps, states, done, finishedAt, updatedAt, appUnits }) => ({
+        appUnits: appUnits || null, linkId, linkName, studentId, studentName, mode, steps: steps || [], states: states || [], done, finishedAt, updatedAt,
       })),
       ink: ink.map(({ id, studentId, linkId, moduleTitle, updatedAt }) => ({ id, studentId, linkId, moduleTitle, updatedAt })),
     };

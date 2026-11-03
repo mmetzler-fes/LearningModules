@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="de"><head><meta charset="utf-8"><title>Beispiel: Ohmsches Gesetz</title>
+<script type="application/lm-app+json">
+{ "lmApp": 1, "id": "ohm-beispiel", "version": "1.0", "title": "Ohmsches Gesetz (Beispiel)",
+  "units": [
+    { "id": "theorie", "title": "Theorie", "kind": "info" },
+    { "id": "rechnen", "title": "Rechnen", "kind": "graded", "items": 2 },
+    { "id": "ueben", "title": "Üben", "kind": "practice" } ] }
+</script>
+<script>
+/**
+ * lm-bridge.js – Verbindung einer HTML-App zu LearningModules (Schnittstelle 1,
+ * docs/html-apps.md). In die HTML-Datei kopieren: Im Sandkasten gibt es kein Nachladen.
+ * Ohne Gastgeber (Datei einfach geöffnet) tut sie nichts, die App läuft weiter wie allein.
+ */
+(function () {
+  'use strict';
+  var V = 1;
+  var hosted = window.parent !== window;
+  var initHandlers = [];
+  var openHandlers = [];
+  var errorHandlers = [];
+  var init = null;
+  var timers = {};
+  var pending = {};
+
+  function post(type, data) {
+    if (!hosted) return;
+    window.parent.postMessage({ lm: V, type: type, data: data }, '*');
+  }
+
+  // Häufiges bündeln: Tippen und Klicken sollen nicht je eine Meldung erzeugen.
+  function later(key, ms, type, data) {
+    pending[key] = { type: type, data: data };
+    if (timers[key]) return;
+    timers[key] = setTimeout(function () { flushOne(key); }, ms);
+  }
+  function flushOne(key) {
+    clearTimeout(timers[key]);
+    delete timers[key];
+    var p = pending[key];
+    if (!p) return;
+    delete pending[key];
+    post(p.type, p.data);
+  }
+  function flush() { Object.keys(pending).forEach(flushOne); }
+
+  window.addEventListener('message', function (e) {
+    var m = e.data;
+    if (e.source !== window.parent || !m || m.lm !== V) return;
+    if (m.type === 'lm.init') {
+      init = m.data || {};
+      initHandlers.splice(0).forEach(function (fn) { fn(init); });
+    } else if (m.type === 'lm.open') {
+      openHandlers.forEach(function (fn) { fn(m.data && m.data.unit); });
+    } else if (m.type === 'lm.error') {
+      errorHandlers.forEach(function (fn) { fn(m.data || {}); });
+      if (window.console) console.warn('LearningModules:', m.data && m.data.message);
+    }
+  });
+  // Vor dem Schließen alles Offene noch absenden.
+  window.addEventListener('pagehide', flush);
+  document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'hidden') flush(); });
+
+  window.LM = {
+    version: V,
+    /** Läuft die App in LearningModules? */
+    hosted: hosted,
+    /**
+     * Start: `fn({ mode, unit, enabledUnits, state, displayName })`. Ohne Gastgeber sofort mit
+     * mode 'standalone'. Erst hier den Stand laden und die Oberfläche aufbauen.
+     */
+    start: function (fn) {
+      if (!hosted) { fn({ mode: 'standalone', unit: null, enabledUnits: null, state: null, displayName: null }); return; }
+      if (init) { fn(init); return; }
+      initHandlers.push(fn);
+      post('lm.ready', {});
+    },
+    /** Die Lehrkraft schickt die Klasse in einen Abschnitt oder ein Klick im Baum: `fn(unitId)`. */
+    onOpen: function (fn) { openHandlers.push(fn); },
+    /** Meldungen des Gastgebers zu abgelehnten Nachrichten: `fn({ code, message })`. */
+    onError: function (fn) { errorHandlers.push(fn); },
+    /** Der Schüler ist jetzt in diesem Abschnitt (Liveview: „gerade dran“). */
+    enter: function (unit) { post('lm.progress', { unit: unit, active: true }); },
+    /** Fortschritt für den Liveview: `{ done, total, item? }` – Gesamtstand, kein Zuwachs. */
+    progress: function (unit, p) {
+      later('p:' + unit, 1000, 'lm.progress', { unit: unit, done: p.done, total: p.total, item: p.item == null ? null : String(p.item) });
+    },
+    /** Ergebnis: `{ score, max, items? }` – immer der Gesamtstand des Abschnitts, er ersetzt den vorigen. */
+    result: function (unit, r) {
+      later('r:' + unit, 1500, 'lm.result', { unit: unit, score: r.score, max: r.max, items: r.items || null });
+    },
+    /** Stand speichern (JSON, höchstens 256 KB); kommt beim nächsten Start als `state` zurück. */
+    saveState: function (data) { later('s', 2000, 'lm.state', { data: data }); },
+    /** Sofort absenden, z. B. nach „Abgeben“. */
+    flush: flush,
+  };
+}());
+</script>
+<style>
+  body { font: 16px system-ui, sans-serif; margin: 20px; color: #1e293b; }
+  nav button, .a button { margin: 0 6px 6px 0; padding: 6px 12px; }
+  nav button.an { background: #2563eb; color: #fff; }
+  .a { margin: 12px 0; }
+  #info { color: #64748b; font-size: 14px; }
+</style></head><body>
+<h1>Ohmsches Gesetz</h1>
+<p id="info"></p>
+<nav id="nav"></nav>
+<main id="main"></main>
+<script>
+  // Der Stand kommt beim Start aus LM.start und geht mit LM.saveState zurück: kein localStorage.
+  var stand = { geloest: {}, geuebt: 0, offen: 'theorie' };
+  var AUFGABEN = [
+    { id: 'a1', frage: 'U = 12 V, R = 4 Ω. Wie groß ist I?', antwort: 3 },
+    { id: 'a2', frage: 'I = 2 A, R = 5 Ω. Wie groß ist U?', antwort: 10 }
+  ];
+  var ABSCHNITTE = { theorie: 'Theorie', rechnen: 'Rechnen', ueben: 'Üben' };
+  var erlaubt = null;
+
+  function melden() {
+    var geloest = AUFGABEN.filter(function (a) { return stand.geloest[a.id]; }).length;
+    LM.saveState(stand);
+    LM.progress('rechnen', { done: geloest, total: AUFGABEN.length });
+    // Immer der Gesamtstand, nie der Zuwachs.
+    LM.result('rechnen', { score: geloest, max: AUFGABEN.length, items: AUFGABEN.map(function (a) {
+      return { id: a.id, points: stand.geloest[a.id] ? 1 : 0 };
+    }) });
+    LM.progress('ueben', { done: Math.min(stand.geuebt, 5), total: 5 });
+  }
+
+  function oeffnen(id) {
+    stand.offen = id;
+    LM.enter(id);
+    zeichnen();
+  }
+
+  function zeichnen() {
+    var nav = document.getElementById('nav');
+    nav.textContent = '';
+    Object.keys(ABSCHNITTE).forEach(function (id) {
+      if (erlaubt && erlaubt.indexOf(id) < 0) return;
+      var b = document.createElement('button');
+      b.textContent = ABSCHNITTE[id];
+      b.className = stand.offen === id ? 'an' : '';
+      b.onclick = function () { oeffnen(id); };
+      nav.appendChild(b);
+    });
+    var main = document.getElementById('main');
+    main.textContent = '';
+    if (stand.offen === 'theorie') {
+      main.innerHTML = '<p>Es gilt <b>U = R · I</b>. Die Spannung ist das Produkt aus Widerstand und Strom.</p>';
+    } else if (stand.offen === 'rechnen') {
+      AUFGABEN.forEach(function (a) {
+        var d = document.createElement('div');
+        d.className = 'a';
+        var ok = stand.geloest[a.id];
+        d.innerHTML = '<div></div><input size="6"> <button>Prüfen</button> <span></span>';
+        d.children[0].textContent = a.frage;
+        d.querySelector('span').textContent = ok ? '✓ richtig' : '';
+        d.querySelector('button').onclick = function () {
+          var richtig = Number(d.querySelector('input').value.replace(',', '.')) === a.antwort;
+          if (richtig) stand.geloest[a.id] = true;
+          melden();
+          d.querySelector('span').textContent = richtig || stand.geloest[a.id] ? '✓ richtig' : '✗ noch nicht';
+        };
+        main.appendChild(d);
+      });
+    } else {
+      var p = document.createElement('p');
+      p.textContent = 'Geübt: ' + stand.geuebt + ' von 5';
+      var b = document.createElement('button');
+      b.textContent = 'Noch eine Übung';
+      b.onclick = function () { stand.geuebt++; melden(); zeichnen(); };
+      main.append(p, b);
+    }
+  }
+
+  LM.onError(function (e) { document.getElementById('info').textContent = 'Meldung abgelehnt: ' + e.message; });
+  LM.onOpen(oeffnen);
+  LM.start(function (init) {
+    if (init.state) stand = init.state;
+    erlaubt = init.enabledUnits;
+    if (init.unit) stand.offen = init.unit;
+    if (erlaubt && erlaubt.indexOf(stand.offen) < 0) stand.offen = erlaubt[0];
+    document.getElementById('info').textContent = {
+      practice: 'Dein Stand und deine Ergebnisse werden gespeichert.',
+      anonymous: 'Ohne Anmeldung: Der Stand bleibt auf diesem Gerät.',
+      preview: 'Vorschau: Es wird nichts gespeichert.',
+      standalone: 'Die Datei läuft allein: Es wird nichts gespeichert.'
+    }[init.mode] || '';
+    oeffnen(stand.offen);
+  });
+</script>
+</body></html>

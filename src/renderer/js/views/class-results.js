@@ -11,6 +11,7 @@ import { openTagDialog } from './tags.js';
 
 const failed = (res) => !res || res.statusCode >= 400;
 const MODE_LABELS = {
+  app: '🧩 von der App gemeldet',
   quiz: '🧠 Quiz', exam: '📝 Klassenarbeit', learn: '💡 Lernen', companion: '🦉 Lernbegleitung', contest: '🏆 Quiz-Arena',
 };
 
@@ -305,6 +306,13 @@ export class ClassResultsView {
       // Ältere Meldungen ohne Stand je Aufgabe: alles davor zählt als bearbeitet.
       return !r.states?.length && i < r.done ? 'done' : '';
     };
+    // HTML-App: der Abschnitt, in dem der Schüler gerade ist. Titel stammen aus dem Steckbrief, also escapen.
+    const appLine = (r) => {
+      const unit = r.appUnits?.units?.[r.appUnits.active];
+      if (!unit) return '';
+      const count = unit.total ? ` ${Number(unit.done) || 0}/${Number(unit.total)}` : '';
+      return `<br><span class="hint">🧩 ${escapeHtml(unit.title || '')}${count}</span>`;
+    };
     const CELL = { done: ['cr-live-done', 'bearbeitet', '✓'], skip: ['cr-live-skip', 'übersprungen (Weiter ohne Eingabe)', '⤼'],
       part: ['cr-live-part', 'teilweise – von den Quizzen im Dokument nur ein Teil bearbeitet', '◐'], now: ['cr-live-now', 'gerade dran', '▶'] };
     const cell = (r, i) => {
@@ -349,7 +357,7 @@ export class ClassResultsView {
           <tbody>${rows.map((s) => {
             const r = latest.get(s.id);
             if (!r) return `<tr class="cr-live-absent">${nameCell(s)}<td colspan="4"><span class="hint">noch nicht gestartet</span></td></tr>`;
-            const current = r.finishedAt ? '<span class="hint">—</span>' : `<strong>${r.done + 1}.</strong> ${escapeHtml(r.steps[r.done] || '')}`;
+            const current = r.finishedAt ? '<span class="hint">—</span>' : `<strong>${r.done + 1}.</strong> ${escapeHtml(r.steps[r.done] || '')}${appLine(r)}`;
             return `<tr>${nameCell(s)}<td>${escapeHtml(r.linkName || 'Zuweisung')}${(live.runs.filter((x) => x.studentId === s.id).length > 1) ? ' <span class="hint" title="hat heute auch andere Zuweisungen bearbeitet">+</span>' : ''}</td>
               <td>${current}</td><td>${strip(r)}</td><td>${progress(r)}</td></tr>`;
           }).join('')}</tbody>

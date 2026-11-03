@@ -1,3 +1,6 @@
+import { HtmlAppFile } from '../core/entities/html-app-file.entity';
+import { FeaturesService } from '../features/features.service';
+import { AppUnit, planUnits } from '../html-apps/html-app-rules';
 import { docChanged } from '../core/events/doc-changes';
 import { lockedModuleIds } from './student-lock';
 import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
@@ -42,6 +45,9 @@ export class TopicsService {
     private readonly topicRepo: Repository<LearningTopic>,
     @InjectRepository(LearningModule)
     private readonly moduleRepo: Repository<LearningModule>,
+    @InjectRepository(HtmlAppFile)
+    private readonly htmlFileRepo: Repository<HtmlAppFile>,
+    private readonly features: FeaturesService,
     @InjectRepository(User)
     private readonly userRepo: Repository<User>,
     @InjectRepository(TopicQuickLink)
@@ -724,6 +730,9 @@ export class TopicsService {
     if (data.content !== undefined) {
       await this.nextcloud.assertAppImagesAllowed(user, { id: existing?.id, topicOwnerId: topic.ownerId, creatorId }, existing?.content, data.content);
     }
+    const type = data.type ?? existing?.type;
+    if (type === 'htmlAppUnit') throw new ForbiddenException('Abschnitte entstehen aus dem Steckbrief der HTML-App.');
+    if (type === 'htmlApp') data.content = await this.checkedHtmlApp(user, data.content ?? existing?.content, existing);
     if (data.content !== undefined && (data.type ?? existing?.type) === 'document') data.content = withBlockIds(data.content);
 
     const module = this.moduleRepo.create({
@@ -738,9 +747,63 @@ export class TopicsService {
       topicId: topic.id,
       orderIndex,
     });
-    const saved = await this.moduleRepo.save(module);
+    const saved = (await this.moduleRepo.save(module)) as unknown as LearningModule;
+    if (saved.type === 'htmlApp') await this.syncHtmlAppUnits(saved);
     docChanged(topic.ownerId); // Nextcloud-Abbild der Dokumente (src/worksheets)
     return saved;
+  }
+
+  /**
+   * Inhalt einer HTML-App: Die Datei muss der Person gehören (oder schon am
+   * Modul hängen), der Steckbrief kommt aus der Datei, nicht vom Browser. Die
+   * Shop-Freigabe setzt nur ein Admin.
+   */
+  private async checkedHtmlApp(user: any, content: any, existing: LearningModule | null) {
+    if (!(await this.features.has(user.userId, 'htmlApps'))) throw new ForbiddenException('HTML-Apps sind für dieses Konto nicht freigeschaltet.');
+    const before = (existing?.content || {}) as any;
+    const fileId = content?.app?.fileId;
+    const file = fileId ? await this.htmlFileRepo.findOne({ where: { id: String(fileId) }, select: ['id', 'ownerId', 'manifest', 'size'] }) : null;
+    if (!file || (file.ownerId !== user.userId && file.id !== before.app?.fileId)) throw new BadRequestException('Bitte zuerst die HTML-Datei hochladen.');
+    return {
+      app: { fileId: file.id, manifest: file.manifest ?? null, size: file.size },
+      allowAnonymous: content?.allowAnonymous !== false,
+      // Das Formular kennt das Feld nicht: Fehlt es, bleibt die Freigabe.
+      shopAllowed: user.role === 'admin' && content?.shopAllowed !== undefined ? !!content.shopAllowed : !!before.shopAllowed,
+    };
+  }
+
+  /** Je Abschnitt des Steckbriefs ein Untermodul; was die App nicht mehr hat, wird ausgeblendet. */
+  async syncHtmlAppUnits(root: LearningModule) {
+    const manifest = (root.content as any)?.app?.manifest ?? null;
+    const kids = await this.moduleRepo.find({ where: { parentId: root.id } });
+    const plan = planUnits(manifest, kids);
+    const fields = (u: AppUnit, order: number, removed = false) => ({
+      title: u.title, orderIndex: order,
+      content: { unit: u.id, kind: u.kind, ...(u.items !== undefined ? { items: u.items } : {}), ...(removed ? { removed: true } : {}) },
+    });
+    const changed: LearningModule[] = [];
+    for (const { unit, order } of plan.create) {
+      changed.push(this.moduleRepo.create({
+        id: crypto.randomUUID(), type: 'htmlAppUnit', topicId: root.topicId, parentId: root.id, creatorId: root.creatorId,
+        moduleSelected: true, ...fields(unit, order),
+      } as any) as unknown as LearningModule);
+    }
+    for (const { unit, order, id } of plan.update) {
+      const kid = kids.find((k) => k.id === id)!;
+      const back = !!(kid.content as any)?.removed;
+      Object.assign(kid, fields(unit, order), { topicId: root.topicId, moduleSelected: back ? true : kid.moduleSelected });
+      changed.push(kid);
+    }
+    for (const id of plan.remove) {
+      const kid = kids.find((k) => k.id === id)!;
+      if ((kid.content as any)?.removed && kid.topicId === root.topicId) continue;
+      Object.assign(kid, {
+        topicId: root.topicId, moduleSelected: false, content: { ...(kid.content as any), removed: true },
+        title: /\(entfernt\)$/.test(kid.title) ? kid.title : `${kid.title} (entfernt)`,
+      });
+      changed.push(kid);
+    }
+    if (changed.length) await this.moduleRepo.save(changed);
   }
 
   /**
@@ -809,6 +872,8 @@ export class TopicsService {
     const topic = await this.findOneFor(topicId, user, 'write');
     const module = topic.modules.find(m => m.id === moduleId);
     if (!module) throw new NotFoundException('Modul nicht gefunden');
+    if (module.type === 'htmlAppUnit') throw new ForbiddenException('Abschnitte entstehen aus dem Steckbrief der HTML-App.');
+    if (module.type === 'htmlApp') await this.moduleRepo.delete({ parentId: module.id });
     await this.moduleRepo.remove(module);
     docChanged(topic.ownerId);
     return { success: true };
@@ -894,6 +959,8 @@ export class TopicsService {
         m.orderIndex = next++;
       }
       await this.moduleRepo.save(picked);
+      // Die Abschnitte einer HTML-App ziehen mit um.
+      for (const m of picked) if (m.type === 'htmlApp') await this.syncHtmlAppUnits(m);
       // Im Quellthema bleiben sonst Lücken in der Reihenfolge zurück.
       await this.compactOrder(source.id, ids);
       docChanged(user.userId);
@@ -932,6 +999,7 @@ export class TopicsService {
       for (const copy of copies) copy.orderIndex = next++;
       await this.moduleRepo.save(copies);
     }
+    for (const copy of copies) if (copy.type === 'htmlApp') await this.syncHtmlAppUnits(copy);
 
     docChanged(user.userId);
     return { success: true, count: copies.length, mode, targetTopicId: target.id };

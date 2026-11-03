@@ -2,9 +2,12 @@ import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { AuthService } from './auth/auth.service';
 import { json, urlencoded } from 'express';
+import { htmlAppHostGuard } from './html-apps/html-app-rules';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+  // Zuerst: Die App-Adresse liefert nur die Rahmen der HTML-Apps (docs/html-apps.md).
+  app.use(htmlAppHostGuard());
   // Den rohen Inhalt merken: Signierte Aufrufe verbundener Server werden
   // über genau diese Bytes geprüft (docs/vernetzung.md).
   app.use(json({ limit: '50mb', verify: (req: any, _res, buf) => { req.rawBody = buf; } }));

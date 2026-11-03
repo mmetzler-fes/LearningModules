@@ -457,7 +457,7 @@ wenn die Lehrkraft des Lernthemas freigeschaltet ist.
   gespeichert“. Ist die Leiste zu schmal (iPad hochkant), lässt sie sich zur
   Seite wischen.
 - **Werkzeugleiste:** oben die Werkzeuge (Auswahl, Stift, Textmarker,
-  Radierer, Text, Geodreieck), Rückgängig, Finger, Hintergrund (nur bei freien Blättern), Lösung und
+  Radierer, Text, Geodreieck), Rückgängig, Hintergrund (nur bei freien Blättern), Lösung und
   Zoom; darunter schwebend die Einstellungen des gewählten Werkzeugs –
   Strichstärken und Farben, beim Text die Schriftgröße, bei der Auswahl
   „Löschen“.
@@ -547,7 +547,7 @@ wenn die Lehrkraft des Lernthemas freigeschaltet ist.
 - **👆 Bedienen:** Eingebettete Quizze im Blatt ausfüllen. **Auswählen und
   Bedienen wechseln von selbst:** Wer mit einem der beiden auf ein Quiz tippt,
   füllt es aus; daneben – oder auf einem Strich oder Textfeld über dem Quiz –
-  wird ausgewählt. Der Finger bedient Quizze immer (auch mit ☝️). Mit Stift,
+  wird ausgewählt. Ein Finger bedient Quizze immer. Mit Stift,
   Textmarker und Textfeld schreiben Stift und Maus auch über einem Quiz. Im
   Dokument ist beim Öffnen **Bedienen** gewählt – geschrieben wird erst, wenn
   du den Stift wählst (nichts gerät aus Versehen aufs Blatt).
@@ -584,10 +584,12 @@ wenn die Lehrkraft des Lernthemas freigeschaltet ist.
   Schulvorlage, Seitenumbrüche aus dem Dokument; Schreibfelder, Bilder und
   Formeln werden nicht über zwei Seiten zerrissen. Schüler sehen nur das
   Arbeitsblatt. Quizze erscheinen so, wie sie gerade aussehen.
-- **☝️ Finger:** Normalerweise scrollt der Finger, gezeichnet wird mit Stift
-  oder Maus – der Apple Pencil verschiebt die Seite nie. Ist ☝️ an, zeichnet
-  auch der Finger, und die Seite steht still; scrollen geht dann mit zwei
-  Fingern. Solange der Stift schreibt, zählt die aufliegende Hand nicht.
+- **Finger und Scrollen:** Der Finger arbeitet mit dem gewählten Werkzeug wie
+  Stift und Maus. Gescrollt wird mit **zwei Fingern** (auch auf einem Quiz),
+  mit der Maus über Mausrad oder Scrollleiste. Nur bei **👆 Bedienen** scrollt
+  auch ein Finger. Der Apple Pencil verschiebt die Seite nie. Solange der Stift
+  schreibt und eine halbe Sekunde danach zählt die aufliegende Hand nicht; lag
+  sie schon vor dem Stift auf, verschwindet ihr begonnener Strich.
 - **In der Ansicht:** Was mit dem Stift beschriftet ist, steht auch in der
   gewöhnlichen Ansicht des Dokuments – das Blatt erscheint dann wie im
   Stift-Editor (A4, auf die Breite verkleinert), nur zum Ansehen.
@@ -598,7 +600,7 @@ wenn die Lehrkraft des Lernthemas freigeschaltet ist.
   der Ecke – die Skala bleibt in echten Zentimetern, ein größeres Dreieck hat
   nur mehr Striche. **Setzt der Stift an einer Kante an**, läuft der Strich
   genau an ihr entlang – an der langen Kante wie an den Schenkeln, mit Stift,
-  Maus oder (mit ☝️) Finger. Neben dem Dreieck scrollt der Finger weiter.
+  Maus oder Finger. Neben dem Dreieck scrollen zwei Finger.
 
 Die Leiste bleibt immer oben: Solange der Editor offen ist, zoomt der
 Browser die Seite nicht (iPad: Zwei-Finger-Geste); Strg+Mausrad bzw. das

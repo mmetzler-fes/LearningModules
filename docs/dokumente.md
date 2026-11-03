@@ -584,13 +584,12 @@ wenn die Lehrkraft des Lernthemas freigeschaltet ist.
   Schulvorlage, Seitenumbrüche aus dem Dokument; Schreibfelder, Bilder und
   Formeln werden nicht über zwei Seiten zerrissen. Schüler sehen nur das
   Arbeitsblatt. Quizze erscheinen so, wie sie gerade aussehen.
-- **Finger und Scrollen:** Bei **✏️ Stift, 🖍️ Textmarker, 🧽 Radierer und
-  Formen** arbeitet auch der Finger, und das Blatt steht still: Es bewegt sich nur mit
-  **zwei Fingern** (auch auf einem Quiz) oder mit der Maus über Scrollleiste
-  und Mausrad. Bei allen anderen Werkzeugen scrollt ein Finger; Antippen wirkt
-  trotzdem bei Auswählen und Text. Mit Feld und Leuchtstift arbeiten Stift und
-  Maus. Der Apple Pencil verschiebt die
-  Seite nie. Solange der Stift
+- **Finger und Scrollen:** Bei **Auswählen, ✏️ Stift, 🖍️ Textmarker,
+  🧽 Radierer, Formen und Leuchtstift** arbeitet auch der Finger, und das Blatt
+  steht still: Es bewegt sich nur mit **zwei Fingern** (auch auf einem Quiz)
+  oder mit der Maus über Scrollleiste und Mausrad. Bei Text, Feld und Bedienen
+  scrollt ein Finger; Antippen wirkt trotzdem beim Text. Felder zeichnen Stift
+  und Maus. Der Apple Pencil verschiebt die Seite nie. Solange der Stift
   schreibt und eine halbe Sekunde danach zählt die aufliegende Hand nicht; lag
   sie schon vor dem Stift auf, verschwindet ihr begonnener Strich.
 - **In der Ansicht:** Was mit dem Stift beschriftet ist, steht auch in der

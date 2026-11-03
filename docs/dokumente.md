@@ -166,6 +166,13 @@ holt das gespeicherte Dokument als Datei für den lm-editor (mit eingebetteten
 Quizzen, Bildern und deiner Beschriftung) – nur eigene Dokumente; zurück geht
 es per Doppelklick auf die .zlm → **📓 Im Notizbuch ablegen…**.
 
+**Neuer Editor (in Erprobung, Freischaltung „Editor neu“):** Der Reiter **✏️ Bearbeiten**
+läuft dann auf Tiptap, dazu kommt ein Reiter **Ⓜ Markdown**. Vorschau, Druck und Speichern
+bleiben gleich, ohne Freischaltung ändert sich nichts. Lösung, Kasten und Code bearbeitest du
+direkt im Text, Strg+Z macht auch Baustein-Änderungen rückgängig. Noch nicht dabei sind die
+Tabelleneigenschaften, die Bildleiste und das Gruppieren von Bildern – dafür ist der Reiter
+**⌨ YAML** weiter da, oder das Konto ohne Freischaltung.
+
 **Einfügen aus der Zwischenablage (Strg+V):** Text von Webseiten, aus Word oder
 Google Docs behält Überschriften, Listen, Tabellen, Links, Fett und Kursiv –
 Schriftart, Farben, Abstände und andere fremde Stile fallen weg. **Markdown**

@@ -30,6 +30,13 @@ export const FEATURES: Record<string, { label: string; short: string; available:
     available: () => !!process.env.WORKSHEET_RENDERER_URL,
     needs: 'WORKSHEET_RENDERER_URL (Renderer-Container, worksheet-renderer/README.md)',
   },
+  // Wirkt nur zusammen mit 'worksheets' – neuer Editor im Reiter „✏️ Bearbeiten“, der alte bleibt für alle anderen.
+  docEditorTiptap: {
+    label: 'Neuer Dokument-Editor (Tiptap, in Erprobung; dazu ein Markdown-Reiter)',
+    short: 'Editor neu',
+    available: () => !!process.env.WORKSHEET_RENDERER_URL,
+    needs: 'WORKSHEET_RENDERER_URL (Renderer-Container, worksheet-renderer/README.md)',
+  },
   // Wirkt nur zusammen mit 'worksheets' – „✍️ Bearbeiten“ über Dokumenten.
   // Schüler sehen den Knopf, wenn die Lehrkraft, der das Lernthema gehört, ihn hat.
   inkEditor: {

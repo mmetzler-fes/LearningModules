@@ -28,6 +28,8 @@ import { arrangeGroup } from './image-arrange.js';
 import { markPageBreaks } from '../lm-editor/src/doc/page-breaks.js';
 import { lmHost } from './lm-host.js';
 import { pasteToEditorHtml } from '../lm-editor/src/doc/paste.js';
+import { specToPm, pmToSpec } from '../lm-editor/src/doc/pm-convert.js';
+import { pmToMarkdown, markdownToPm } from '../lm-editor/src/doc/pm-markdown.js';
 
 /** Startinhalt eines neuen Dokuments – zeigt das Format an einem Beispiel. */
 const STARTER = `content:
@@ -84,6 +86,12 @@ export function useInkAllowed(fn) {
   inkAllowed = fn;
 }
 
+/** Neuer Editor auf Tiptap (Freischaltung 'docEditorTiptap', Plan lm-editor 9.4)? */
+let tiptapAllowed = () => false;
+export function useTiptapAllowed(fn) {
+  tiptapAllowed = fn;
+}
+
 function token() {
   return sessionStorage.getItem('lm_token') || localStorage.getItem('lm_token');
 }
@@ -109,6 +117,7 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
       <div class="ds-editor-left">
         <div class="ds-mode admin-tabs">
           <button type="button" class="admin-tab" data-mode="visual">✏️ Bearbeiten</button>
+          <button type="button" class="admin-tab" data-mode="markdown" hidden>Ⓜ Markdown</button>
           <button type="button" class="admin-tab" data-mode="yaml">⌨ YAML</button>
         </div>
         <div class="ds-visual" hidden>
@@ -150,6 +159,7 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
           <span class="hint">Enter rückt passend ein, Tab / Umschalt+Tab rücken markierte Zeilen, eingefügter Text passt sich der Einrückung an.</span>
         </div>
         <textarea class="ds-yaml" spellcheck="false" aria-label="Inhalt als YAML"></textarea>
+        <textarea class="ds-yaml ds-markdown" spellcheck="false" aria-label="Inhalt als Markdown" hidden></textarea>
       </div>
       <div class="ds-editor-right">
         <div class="ds-preview-bar"><span class="ds-preview-pages hint"></span></div>
@@ -220,6 +230,7 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
     else delete parsed.orientation;
     // Auch die Bearbeitungsfläche: Dort folgen Schreibfelder und Bilder in ganzer Breite der Vorlage.
     surface.classList.toggle('ds-landscape', landscape);
+    pm?.el.classList.toggle('ds-landscape', landscape);
     spec = parsed;
     // Feste Block-IDs – an ihnen hängen die Striche der Schüler. Neue Blöcke
     // bekommen ihre ID ins YAML, sobald dort niemand tippt (sonst beim Verlassen).
@@ -353,7 +364,7 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
     textarea.value = toYaml(imported);
     if (titleInput && !titleInput.value.trim()) titleInput.value = title || '';
     update();
-    if (mode === 'visual') setSurface(specToEditorHtml(spec || { content: [] }));
+    if (mode === 'visual') showInSurface();
     status.innerHTML = `✅ Übernommen: ${imported.content.length} Blöcke.` + (warnings.length ? ` ${warnings.map((w) => `⚠️ ${escapeHtml(w)}`).join(' ')}` : '');
   };
 
@@ -587,6 +598,11 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
   const surface = root.querySelector('.ds-surface');
   const blockSelect = root.querySelector('.ds-vblock');
   let mode = 'yaml';
+  let pm = null;
+  let pmWanted = tiptapAllowed();
+  const markdownEl = root.querySelector('.ds-markdown');
+  const pmBox = pmWanted ? document.createElement('div') : null;
+  if (pmBox) { pmBox.className = 'ds-pm-box'; root.querySelector('.ds-visual').after(pmBox); }
   let syncing = false;
   // Inhalt der Ansicht setzen, ohne dass er als Bearbeitung zurück ins YAML
   // fließt. Der MutationObserver meldet erst nach dem Setzen (asynchron) –
@@ -598,10 +614,16 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
     surfaceObserver.takeRecords();
     syncing = false;
   };
+  // Tiptap-Fläche (nur mit Freischaltung), sonst die alte.
+  const showInSurface = () => {
+    if (pm) pm.setSpec(spec || { content: [] });
+    else if (!pmWanted) setSurface(specToEditorHtml(spec || { content: [] }));
+  };
   let vTimer = null;
 
   const fromVisual = () => {
-    const { spec: next } = htmlToDocSpec(surface.innerHTML);
+    if (pmWanted && !pm) return; // lädt noch: Der Stand im YAML gilt.
+    const next = pm ? pm.getSpec() : htmlToDocSpec(surface.innerHTML).spec;
     textarea.value = toYaml(next);
     update();
   };
@@ -645,13 +667,19 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
     if (next === 'visual') {
       update();
       try { yamlLoad(textarea.value); } catch (_) { status.textContent = 'Erst den YAML-Fehler beheben, dann umschalten.'; return; }
-      setSurface(specToEditorHtml(spec || { content: [] }));
+      showInSurface();
     } else if (mode === 'visual') {
       clearTimeout(vTimer);
       fromVisual();
     }
+    if (next === 'markdown') {
+      update();
+      markdownEl.value = pmToMarkdown(specToPm(spec || { content: [] }));
+    }
     mode = next;
-    visual.hidden = mode !== 'visual';
+    visual.hidden = mode !== 'visual' || !!pmWanted;
+    if (pmBox) pmBox.hidden = mode !== 'visual';
+    markdownEl.hidden = mode !== 'markdown';
     textarea.hidden = mode !== 'yaml';
     root.querySelector('.ds-ybar').hidden = mode !== 'yaml';
     selectWidget(null);
@@ -659,6 +687,17 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
     try { localStorage.setItem('lm_ds_mode', mode); } catch (_) { /* egal */ }
   };
   root.querySelectorAll('[data-mode]').forEach((b) => b.addEventListener('click', () => setMode(b.dataset.mode)));
+  // Markdown-Reiter: Tippen wirkt wie im YAML auf Vorschau und Stand.
+  let mdTimer = null;
+  markdownEl.addEventListener('input', () => {
+    clearTimeout(mdTimer);
+    mdTimer = setTimeout(() => {
+      const warnings = [];
+      textarea.value = toYaml(pmToSpec(markdownToPm(markdownEl.value, { warnings })));
+      update();
+      if (warnings.length) errorsEl.innerHTML += warnings.map((w) => `<p class="ds-error">⚠️ ${escapeHtml(w)}</p>`).join('');
+    }, 300);
+  });
 
   /** Block-Element der Schreibmarke (direktes Kind der Fläche bzw. eines Kastens) – oder der gewählte Baustein. */
   /** Block zu einem Knoten in der Fläche (direktes Kind der Fläche bzw. eines Kastens) – oder null. */
@@ -1225,6 +1264,21 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
     try { block = JSON.parse(decodeURIComponent(w.dataset.block)); } catch (_) { return; }
     if (block.type === 'solution') { editSolution(w, block); return; }
     if (block.type === 'group') { void arrangeWidget(w, block); return; }
+    openBlockDialog(block, {
+      remove: () => { if (w === selectedWidget) selectWidget(null); w.remove(); },
+      apply: (next) => {
+        const tmp = document.createElement('div');
+        tmp.innerHTML = widgetHtml(next);
+        const fresh = tmp.firstElementChild;
+        w.replaceWith(fresh);
+        selectWidget(fresh);
+      },
+    });
+  };
+
+  /** Dialog für einen Baustein (auch aus der Tiptap-Fläche): `apply(next)`, `remove()`. */
+  const openBlockDialog = (start, { apply, remove }) => {
+    let block = start;
     // Alter „Platz“: wird zum unsichtbaren Schreibfeld (gleiche Höhe ungefähr: eine Zeile ≈ 0,5 cm).
     if (block.type === 'spacer') block = { ...(block.id ? { id: block.id } : {}), type: 'karo', lines: Number.isInteger(block.lines) ? block.lines : 3, pattern: 'frei' };
     // Formel in StarMath: beim Bearbeiten in LaTeX umschreiben – gelingt das nicht, bleibt sie StarMath (YAML).
@@ -1336,7 +1390,7 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
     } else ta.focus();
     const close = () => overlay.remove();
     overlay.querySelector('.ds-w-cancel').addEventListener('click', close);
-    overlay.querySelector('.ds-w-del').addEventListener('click', () => { if (w === selectedWidget) selectWidget(null); w.remove(); close(); });
+    overlay.querySelector('.ds-w-del').addEventListener('click', () => { remove(); close(); });
     overlay.querySelector('form').addEventListener('submit', (ev) => {
       ev.preventDefault();
       let next;
@@ -1345,11 +1399,7 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
       if (block.id && next && typeof next === 'object' && next.id === undefined) next.id = block.id;
       const errs = validateDocSpec({ content: [next] });
       if (errs.length) { overlay.querySelector('.ds-error').textContent = errs.join(' · '); return; }
-      const tmp = document.createElement('div');
-      tmp.innerHTML = widgetHtml(next);
-      const fresh = tmp.firstElementChild;
-      w.replaceWith(fresh);
-      selectWidget(fresh);
+      apply(next);
       close();
     });
   };
@@ -1550,6 +1600,67 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
   // Fehlende Block-IDs nach der Position – wie die Striche der Schüler sie
   // bisher kennen (ids.js). Vor dem Vergleichsstand des Entwurfs, gilt also
   // nicht als Änderung.
+  // ---- Tiptap-Fläche (Freischaltung): Leiste und Fläche aus docspec-tiptap.js, Dialoge von hier ----
+  const fullWidthCm = () => {
+    const page = ctx?.page;
+    return page && page.width > page.height ? Math.floor((page.width - page.margin.left - page.margin.right) * 2) / 2 : 16.5;
+  };
+  /** Einfügen-Menü der Tiptap-Fläche – dieselben Einträge, gesetzt über Befehle statt HTML. */
+  const pmInsertEntries = (p) => {
+    const quizzes = (topicModules() || []).filter((m) => m && m.id && m.id !== moduleSource() && !m.parentId && m.type !== 'document');
+    const put = (blocks) => p.insertBlocks(blocks);
+    const putAndEdit = (block) => {
+      put([block]);
+      const sel = p.selectedBlock();
+      if (sel) void pmEditBlock(sel.block, sel.apply);
+    };
+    return [
+      ...quizzes.slice(0, QUIZ_MENU_MAX).map((m) => ({
+        label: `${window.H5P_TYPES?.[m.type]?.icon || '🧩'} ${m.title || m.type}`,
+        onClick: () => put([{ type: 'quiz', module: m.id, title: m.title || 'Quiz' }]),
+      })),
+      { label: '¶ Textabsatz', onClick: () => put([{ type: 'text', text: '' }]) },
+      { label: '▦ Schreibfeld (Karo, Linien)', onClick: () => putAndEdit(STARTERS.karo) },
+      ...(quizzes.length > QUIZ_MENU_MAX || !quizzes.length ? [{ label: '🧩 Quiz aus dem Lernthema…', onClick: async () => { const b = await pickQuiz(); if (b) put([b]); } }] : []),
+      ...(pdfAllowed ? [{ label: '📄 PDF an dieser Stelle', onClick: async () => { const b = await insertPdfBlocks(); if (b) put(b); } }] : []),
+      { label: '💡 Lösung', onClick: () => put([STARTERS.solution]) },
+      { label: '∑ Formel', onClick: () => putAndEdit(STARTERS.formula) },
+      { label: '⌨ Code', onClick: () => put([STARTERS.code]) },
+      { label: '▤ Tabelle', onClick: () => put([STARTERS.table]) },
+      { label: '▢ Kasten', onClick: () => put([STARTERS.box]) },
+      { label: '▥ Spalten (nebeneinander)', onClick: () => put([{ type: 'columns', blocks: [{ type: 'column', blocks: [{ type: 'text', text: 'links …' }] }, { type: 'column', blocks: [{ type: 'text', text: 'rechts …' }] }] }]) },
+      { label: '◌ Platz (unsichtbar)', onClick: () => putAndEdit(STARTERS.spacer) },
+      { label: '⤓ Seitenumbruch', onClick: () => put([STARTERS.pagebreak]) },
+      { label: '🖼 Bild…', onClick: () => pickImageFile().then((b) => { if (b) putAndEdit(b); }) },
+      { label: '▭ Zeichenrahmen (Bilder und Textfenster, fest)', onClick: () => putAndEdit(STARTERS.frame) },
+    ];
+  };
+  /** Bilddatei wählen: über dieselbe Ablage wie der alte Editor, sonst als data:-Adresse. */
+  const pickImageFile = () => new Promise((resolve) => {
+    const input = Object.assign(document.createElement('input'), { type: 'file', accept: 'image/png,image/jpeg,image/gif,image/webp' });
+    input.onchange = () => {
+      const file = input.files?.[0];
+      if (!file) { resolve(null); return; }
+      const reader = new FileReader();
+      reader.onload = async () => {
+        const src = window.appImages ? await window.appImages.store(String(reader.result), file.name) : String(reader.result);
+        resolve({ type: 'image', src, width: '12cm' });
+      };
+      reader.onerror = () => resolve(null);
+      reader.readAsDataURL(file);
+    };
+    input.click();
+  });
+  /** Baustein aus der Tiptap-Fläche bearbeiten: Zeichenrahmen über Anordnen, sonst der Dialog. */
+  const pmEditBlock = async (block, apply) => {
+    if (block.type === 'group') {
+      const res = await arrangeGroup(block);
+      if (res) apply(res.ungroup || [res.block, ...res.extracted]);
+      return;
+    }
+    openBlockDialog(block, { apply, remove: () => apply(null) });
+  };
+
   const initialSpec = Array.isArray(value?.content) ? structuredClone(value) : value;
   if (initialSpec !== value) stampBlockIds(initialSpec);
   textarea.value = toYaml(initialSpec);
@@ -1557,7 +1668,28 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
   if (!Array.isArray(initialSpec?.content)) starterYaml = textarea.value;
   let initial = 'visual';
   try { initial = localStorage.getItem('lm_ds_mode') || 'visual'; } catch (_) { /* egal */ }
-  setMode(initial === 'yaml' ? 'yaml' : 'visual');
+  setMode(['yaml', 'markdown'].includes(initial) && (initial === 'yaml' || pmWanted) ? initial : 'visual');
+  if (pmWanted) {
+    root.querySelector('[data-mode="markdown"]').hidden = false;
+    import('./docspec-tiptap.js').then(({ mountTiptapSurface }) => {
+      pm = mountTiptapSurface(pmBox, {
+        spec: spec || { content: [] },
+        onChange: () => { clearTimeout(vTimer); vTimer = setTimeout(fromVisual, 300); },
+        editBlock: pmEditBlock,
+        insertEntries: pmInsertEntries,
+        fullWidthCm,
+        status: (text) => { status.textContent = text; },
+      });
+      update();
+    }).catch((err) => {
+      // Ohne Tiptap geht es mit der alten Fläche weiter.
+      console.error(err);
+      pmWanted = false;
+      pmBox.hidden = true;
+      visual.hidden = mode !== 'visual';
+      showInSurface();
+    });
+  }
   loadContext();
   mountInkActions();
 
@@ -1595,7 +1727,7 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
             if (!next || !Array.isArray(next.content)) return;
             textarea.value = toYaml(next);
             update();
-            if (mode === 'visual') setSurface(specToEditorHtml(spec || { content: [] }));
+            if (mode === 'visual') showInSurface();
           },
         } : null,
       },

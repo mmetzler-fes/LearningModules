@@ -32,7 +32,7 @@ import { storeImage } from './views/image-store.js';
 import { initFolding } from './fold.js';
 import { contentFromPairs, pairsFromContent } from './dnd-pairs.js';
 // Editor des Modultyps „Dokument“ – hängt sich an window.DocSpecEditor.
-import { useModuleSource, useTopicModules, useTopicSource, useDocumentId, useInkAllowed } from './docspec-editor.js';
+import { useModuleSource, useTopicModules, useTopicSource, useDocumentId, useInkAllowed, useTiptapAllowed } from './docspec-editor.js';
 
 // ==================== APP COORDINATOR ====================
 
@@ -60,6 +60,10 @@ class App {
     useInkAllowed(() => {
       const user = this.state.currentUser;
       return !!user && user.role !== 'student' && (user.features || []).includes('inkEditor');
+    });
+    useTiptapAllowed(() => {
+      const user = this.state.currentUser;
+      return !!user && user.role !== 'student' && (user.features || []).includes('docEditorTiptap');
     });
 
     this.state = {

@@ -1,4 +1,4 @@
-import { canHoldNode, depthOf, isInside, nodeMoveError, reorder, dissolve, MAX_CLASS_DEPTH, TreeNode, veiledNodeIds } from './classbook-tree';
+import { ancestorsOf, canHoldNode, depthOf, isInside, nodeMoveError, reorder, dissolve, leavesInOrder, normalizeMarker, MAX_CLASS_DEPTH, TreeLink, TreeNode, veiledNodeIds } from './classbook-tree';
 
 const N = (id: string, kind: 'area' | 'section', parentId: string | null, orderIndex = 0): TreeNode => ({ id, kind, parentId, orderIndex });
 
@@ -35,11 +35,71 @@ describe('Baum des Klassennotizbuchs', () => {
     expect([...reorder(sib, 'neu', 1).entries()]).toEqual([['p', 0], ['neu', 1], ['q', 2], ['r', 3]]);
   });
 
+  it('Vorfahren eines Knotens, von ihm selbst nach oben', () => {
+    expect(ancestorsOf(nodes, 's')).toEqual(['s', 'b', 'a']);
+    expect(ancestorsOf(nodes, null)).toEqual([]);
+  });
+
   it('Löschen: Inhalt rückt eine Ebene höher ans Ende', () => {
     const entries = [{ id: 'e1', nodeId: 'b', orderIndex: 0 }, { id: 'e2', nodeId: 'a', orderIndex: 0 }];
     const res = dissolve(nodes, entries, 'b');
     expect(res.nodes).toEqual([{ id: 's', parentId: 'a', orderIndex: 0 }]);
     expect(res.entries).toEqual([{ id: 'e1', nodeId: 'a', orderIndex: 1 }]);
+  });
+});
+
+describe('Merker: Module unter einem Anker in Dokumentreihenfolge', () => {
+  const nodes: TreeNode[] = [
+    { id: 'a', kind: 'area', parentId: null, orderIndex: 0 },
+    { id: 'b', kind: 'section', parentId: 'a', orderIndex: 0 },
+  ];
+  const links: TreeLink[] = [
+    { id: 'l1', nodeId: null, orderIndex: 0, topics: [{ topicId: 't1', moduleIds: ['m1', 'm2'] }] },
+    { id: 'l2', nodeId: 'a', orderIndex: 0, topics: [{ topicId: 't2', moduleIds: ['m3'] }] },
+    { id: 'l3', nodeId: 'b', orderIndex: 0, topics: [{ topicId: 't3', moduleIds: ['m4', 'm5'] }] },
+  ];
+
+  it('Buch (Wurzel): verschachtelte Zuweisungen zuerst, dann die direkten – wie im Baum angezeigt', () => {
+    expect(leavesInOrder(nodes, links, { level: 'root' }).map((l) => l.moduleId)).toEqual(['m4', 'm5', 'm3', 'm1', 'm2']);
+  });
+
+  it('Bereich/Abschnitt: nur das, was darunter liegt', () => {
+    expect(leavesInOrder(nodes, links, { level: 'node', nodeId: 'a' }).map((l) => l.moduleId)).toEqual(['m4', 'm5', 'm3']);
+    expect(leavesInOrder(nodes, links, { level: 'node', nodeId: 'b' }).map((l) => l.moduleId)).toEqual(['m4', 'm5']);
+  });
+
+  it('Zuweisung und Lernthema', () => {
+    expect(leavesInOrder(nodes, links, { level: 'link', linkId: 'l1' }).map((l) => l.moduleId)).toEqual(['m1', 'm2']);
+    expect(leavesInOrder(nodes, links, { level: 'topic', linkId: 'l1', topicId: 't1' }).map((l) => l.moduleId)).toEqual(['m1', 'm2']);
+  });
+
+  it('Modul: genau das eine', () => {
+    expect(leavesInOrder(nodes, links, { level: 'module', linkId: 'l1', topicId: 't1', moduleId: 'm2' })).toEqual([{ linkId: 'l1', topicId: 't1', moduleId: 'm2' }]);
+  });
+
+  it('Modul, das es im Baum nicht (mehr) gibt: leer statt erfunden', () => {
+    expect(leavesInOrder(nodes, links, { level: 'module', linkId: 'l1', topicId: 't1', moduleId: 'weg' })).toEqual([]);
+    expect(leavesInOrder(nodes, links, { level: 'module', linkId: 'unbekannt', topicId: 't1', moduleId: 'm1' })).toEqual([]);
+  });
+
+  it('unbekannter Anker liefert leer statt Fehler', () => {
+    expect(leavesInOrder(nodes, links, { level: 'link', linkId: 'unbekannt' })).toEqual([]);
+    expect(leavesInOrder(nodes, links, { level: 'topic', linkId: 'l1', topicId: 'unbekannt' })).toEqual([]);
+  });
+});
+
+describe('Alte Marker ohne `level` lesen', () => {
+  it('leer bleibt leer', () => {
+    expect(normalizeMarker(null)).toBeNull();
+    expect(normalizeMarker(undefined)).toBeNull();
+  });
+
+  it('altes Format (linkId, topicId, moduleId) wird als Modul-Marker gelesen', () => {
+    expect(normalizeMarker({ linkId: 'l1', topicId: 't1', moduleId: 'm1' })).toEqual({ level: 'module', linkId: 'l1', topicId: 't1', moduleId: 'm1' });
+  });
+
+  it('neues Format bleibt unverändert', () => {
+    expect(normalizeMarker({ level: 'node', nodeId: 'a' })).toEqual({ level: 'node', nodeId: 'a' });
   });
 });
 

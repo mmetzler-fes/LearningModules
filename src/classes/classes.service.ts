@@ -12,6 +12,7 @@ import { User } from '../core/entities/user.entity';
 import { DocumentWork } from '../core/entities/document-work.entity';
 import { ExamAttempt } from '../core/entities/exam-attempt.entity';
 import { RunProgress } from '../core/entities/run-progress.entity';
+import { ClassbookProgress } from '../core/entities/classbook-progress.entity';
 import { planCopy, switchedOff } from '../classbook/classbook-rollover';
 import { ClassNotebook } from '../core/entities/class-notebook.entity';
 import { ClassNotebookNode } from '../core/entities/class-notebook-node.entity';
@@ -61,6 +62,7 @@ export class ClassesService implements OnApplicationBootstrap, OnModuleDestroy {
     @InjectRepository(DocumentWork) private readonly workRepo: Repository<DocumentWork>,
     @InjectRepository(ExamAttempt) private readonly attemptRepo: Repository<ExamAttempt>,
     @InjectRepository(RunProgress) private readonly progressRepo: Repository<RunProgress>,
+    @InjectRepository(ClassbookProgress) private readonly cbProgressRepo: Repository<ClassbookProgress>,
     @InjectRepository(ClassNotebook) private readonly notebookRepo: Repository<ClassNotebook>,
     @InjectRepository(ClassNotebookNode) private readonly cbNodeRepo: Repository<ClassNotebookNode>,
     @InjectRepository(ClassNotebookPlace) private readonly cbPlaceRepo: Repository<ClassNotebookPlace>,
@@ -72,6 +74,7 @@ export class ClassesService implements OnApplicationBootstrap, OnModuleDestroy {
   private async removeClassbook(classIds: string[]) {
     if (!classIds.length) return;
     await this.notebookRepo.delete({ classId: In(classIds) });
+    await this.cbProgressRepo.delete({ classId: In(classIds) });
     await this.cbNodeRepo.delete({ classId: In(classIds) });
     await this.cbPlaceRepo.delete({ classId: In(classIds) });
     const topics = await this.topicRepo.find({ where: { classId: In(classIds) }, select: ['id'] });
@@ -336,6 +339,7 @@ export class ClassesService implements OnApplicationBootstrap, OnModuleDestroy {
       else await this.workRepo.update({ id: w.id }, { studentId: to.id, studentName: name });
     }
     await this.progressRepo.delete({ studentId: from.id });
+    await this.cbProgressRepo.delete({ studentId: from.id });
     for (const x of await this.attemptRepo.find({ where: { studentId: from.id }, select: ['id', 'linkId'] })) {
       const taken = await this.attemptRepo.count({ where: { studentId: to.id, linkId: x.linkId } });
       if (taken) await this.attemptRepo.delete({ id: x.id });
@@ -744,6 +748,7 @@ export class ClassesService implements OnApplicationBootstrap, OnModuleDestroy {
     await this.workRepo.delete({ studentId: student.id });
     await this.attemptRepo.delete({ studentId: student.id });
     await this.progressRepo.delete({ studentId: student.id });
+    await this.cbProgressRepo.delete({ studentId: student.id });
     // Ergebnisse bleiben mit ihrem Namen stehen, gehören aber niemandem mehr.
     await this.resultRepo.update({ studentId: student.id }, { studentId: null });
     return { success: true };

@@ -13,6 +13,7 @@ import { LearningTopic } from '../core/entities/learning-topic.entity';
 import { LearningModule } from '../core/entities/learning-module.entity';
 import { NotebookNode } from '../core/entities/notebook-node.entity';
 import { NotebookPlacement } from '../core/entities/notebook-placement.entity';
+import { ClassbookProgress } from '../core/entities/classbook-progress.entity';
 import { LinksModule } from '../links/links.module';
 import { ClassesModule } from '../classes/classes.module';
 import { NotebooksModule } from '../notebooks/notebooks.module';
@@ -23,7 +24,7 @@ import { WebappController } from './webapp.controller';
 import { ClassbookLive } from './classbook-live';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([ClassNotebook, ClassStudent, Result, DocumentWork, TopicLink, User, ExamAttempt, ClassNotebookNode, ClassNotebookPlace, LearningTopic, LearningModule, NotebookNode, NotebookPlacement]), LinksModule, ClassesModule, NotebooksModule, ContestModule],
+  imports: [TypeOrmModule.forFeature([ClassNotebook, ClassStudent, Result, DocumentWork, TopicLink, User, ExamAttempt, ClassNotebookNode, ClassNotebookPlace, LearningTopic, LearningModule, NotebookNode, NotebookPlacement, ClassbookProgress]), LinksModule, ClassesModule, NotebooksModule, ContestModule],
   controllers: [ClassbookController, PublicClassbookController, WebappController],
   providers: [ClassbookService, ClassbookLive],
 })

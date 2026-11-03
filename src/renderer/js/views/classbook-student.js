@@ -249,14 +249,16 @@ export class ClassbookStudent {
     document.querySelector('#loginScreen .login-card')?.classList.add('login-card-wide');
     this._watchArena();
     if (data.arena) { this._arenaHome(data); return true; }
+    // 📍 Merker: { anchor, current: { linkId, topicId, moduleId }, openNodeIds, hasNext } – oder null.
     const mk = data.marker;
+    const weiterBtn = mk?.hasNext ? '<button type="button" class="btn btn-secondary btn-sm cb-weiter" data-weiter>➡️ Weiter</button>' : '';
     const cardOf = (a) => {
       const modes = a.modes.map((m) => {
         const meta = LINK_MODE_LABELS[m];
         return meta ? `<button type="button" class="btn btn-primary btn-sm" data-start="${escapeAttr(a.linkId)}" data-mode="${escapeAttr(m)}" title="${escapeAttr(meta.hint)}">${meta.icon} ${escapeHtml(meta.label)}</button>` : '';
       }).join('');
       // Module eingeklappt; beim 📍-Merker der Lehrkraft ist sein Lernthema offen.
-      const marked = (t, u) => mk && mk.linkId === a.linkId && mk.topicId === t.id && (!u || mk.moduleId === u.id);
+      const marked = (t, u) => mk && mk.current.linkId === a.linkId && mk.current.topicId === t.id && (!u || mk.current.moduleId === u.id);
       return `<details class="cb-assignment" open>
         <summary><strong>${escapeHtml(a.name)}</strong></summary>
         <div class="cb-actions">${modes}</div>
@@ -265,7 +267,7 @@ export class ClassbookStudent {
           return `<details class="cb-topic" ${marked(t) ? 'open' : ''}>
           <summary class="cb-topic-title">📘 ${escapeHtml(t.title)}
             <span class="hint">${data.pending ? `${t.units.length} Module` : `${done}/${t.units.length} erledigt`}</span>
-            ${marked(t) ? '<span class="cb-here">📍 Hier sind wir</span>' : ''}</summary>
+            ${marked(t) ? `<span class="cb-here">📍 Hier sind wir</span>${weiterBtn}` : ''}</summary>
           <ul class="cb-units">${t.units.map((u) => `
             <li class="${marked(t, u) ? 'cb-marked' : ''}">${a.modes.length ? `<button type="button" class="cb-unit" data-start="${escapeAttr(a.linkId)}" data-module="${escapeAttr(u.id)}">` : '<span class="cb-unit">'}
               ${marked(t, u) ? '📍 ' : ''}${TYPE_ICON[u.type] || '🧩'} ${escapeHtml(u.title || 'Aufgabe')}${a.modes.length ? '</button>' : '</span>'}
@@ -274,13 +276,13 @@ export class ClassbookStudent {
         }).join('')}
       </details>`;
     };
-    // Baum wie bei der Lehrkraft: Bereiche/Abschnitte eingeklappt – außer auf dem Weg zum 📍 Merker.
+    // Baum wie bei der Lehrkraft: Bereiche/Abschnitte eingeklappt – außer auf dem Weg zum 📍 Merker
+    // (den liefert der Server schon aufgelöst in `mk.openNodeIds`, egal auf welcher Ebene gepinnt ist).
     const nodes = data.nodes || [];
     const inNode = (a, id) => {
       for (let n = nodes.find((x) => x.id === a.nodeId); n; n = nodes.find((x) => x.id === n.parentId)) if (n.id === id) return true;
       return false;
     };
-    const markedLink = mk ? data.assignments.find((a) => a.linkId === mk.linkId) : null;
     const level = (parentId) => {
       const inner = nodes.filter((n) => n.parentId === parentId).sort((x, y) => x.orderIndex - y.orderIndex).map((n) => {
         const body = level(n.id);
@@ -288,10 +290,11 @@ export class ClassbookStudent {
         const mine = data.assignments.filter((a) => a.nodeId === n.id || inNode(a, n.id));
         const units = mine.flatMap((a) => a.topics.flatMap((t) => t.units));
         const done = units.filter((u) => u.done || u.work).length;
-        return `<details class="cb-snode" ${markedLink && inNode(markedLink, n.id) ? 'open' : ''}>
+        const onPath = !!mk?.openNodeIds?.includes(n.id);
+        return `<details class="cb-snode" ${onPath ? 'open' : ''}>
           <summary><span class="cb-node-title">${n.kind === 'section' ? '📑' : '📂'} ${escapeHtml(n.title)}</span>
             <span class="hint">${data.pending ? `${units.length} Module` : `${done}/${units.length} erledigt`}</span>
-            ${markedLink && inNode(markedLink, n.id) ? '<span class="cb-here">📍</span>' : ''}</summary>
+            ${onPath ? '<span class="cb-here">📍</span>' : ''}</summary>
           <div class="cb-node-body">${body}</div></details>`;
       }).join('');
       const cards = data.assignments.filter((a) => (a.nodeId || null) === parentId).sort((x, y) => (x.order ?? 0) - (y.order ?? 0)).map(cardOf).join('');
@@ -352,6 +355,14 @@ export class ClassbookStudent {
       this._login();
     });
     el.querySelectorAll('[data-start]').forEach((btn) => btn.addEventListener('click', () => this._enter(btn.dataset.start, btn.dataset.mode || null, btn.dataset.module || null, btn)));
+    // ➡️ Weiter: einen Schritt im 📍-Pfad vor, dann neu laden – blockiert dabei nichts, alle anderen Module bleiben wählbar.
+    el.querySelector('[data-weiter]')?.addEventListener('click', async (e) => {
+      e.preventDefault();
+      e.stopPropagation(); // sitzt in der <summary> eines Lernthemas – nicht zusätzlich auf-/zuklappen
+      const s = classbookSession();
+      await post(`${encodeURIComponent(this.token)}/weiter/next`, { ticket: s?.ticket }).catch(() => null);
+      await this._home();
+    });
     // 📍 Merker: dorthin scrollen und den Fokus aufs Modul legen.
     const here = el.querySelector('.cb-marked .cb-unit');
     if (here) {

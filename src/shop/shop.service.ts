@@ -21,7 +21,7 @@ import { CategoriesService } from '../categories/categories.service';
 import { TagsService } from '../tags/tags.service';
 import { hasSubject } from '../categories/category-rules';
 import { shouldHintSharing, summarizeRatings, RatingSummary } from '../impact/impact-rules';
-import { offerRoots, visibleFor, withSubmodules } from './offer-rules';
+import { offerRoots, orderedTopicIds, visibleFor, withSubmodules } from './offer-rules';
 
 /** Ein Lernthema mit dem, was ein Angebot davon umfasst. */
 export interface Covered {
@@ -45,6 +45,8 @@ export interface GrantEntry {
   createdAt: Date;
   scopeType: OfferScope;
   onlyForeign: boolean;
+  /** Reihenfolge des Themas innerhalb seines Angebots (Autoren-Reihenfolge, siehe coverage()). */
+  topicOrder: number;
 }
 
 /** Book in den Notebooks des Käufers für Erworbenes (wie NotebooksService). */
@@ -181,7 +183,7 @@ export class ShopService implements OnApplicationBootstrap {
       onlyIds = new Set(offer.moduleIds || []);
       if (!onlyIds.size) return [];
       const picked = await this.moduleRepo.find({ where: { id: In([...onlyIds]) }, select: ['id', 'topicId'] });
-      topicIds = [...new Set(picked.map((m) => m.topicId))];
+      topicIds = orderedTopicIds(offer.moduleIds || [], picked);
     } else if (offer.topicId) {
       topicIds = [offer.topicId];
     }
@@ -272,13 +274,13 @@ export class ShopService implements OnApplicationBootstrap {
       scopeType: (offer?.scopeType || 'topic') as OfferScope, onlyForeign: !!g.onlyForeign,
     };
     // Ältere Rechte ohne Angebot, und Angebote für ein Lernthema: ohne Auflösung.
-    if (!offer) return [{ ...base, topicId: g.topicId, scope: g.scope, creatorId: g.creatorId }];
+    if (!offer) return [{ ...base, topicId: g.topicId, scope: g.scope, creatorId: g.creatorId, topicOrder: 0 }];
     if (offer.scopeType === 'topic' && !g.onlyForeign) {
       const all = offer.kind === 'buyer' || offer.includeForeign;
-      return [{ ...base, topicId: offer.topicId || g.topicId, scope: all ? 'all' : 'creator', creatorId: offer.sellerId }];
+      return [{ ...base, topicId: offer.topicId || g.topicId, scope: all ? 'all' : 'creator', creatorId: offer.sellerId, topicOrder: 0 }];
     }
     const covered = await this.coverage(offer, { onlyForeign: g.onlyForeign });
-    return covered.map((c) => ({ ...base, topicId: c.topic.id, scope: 'list' as const, creatorId: null, moduleIds: c.roots.map((r) => r.id) }));
+    return covered.map((c, i) => ({ ...base, topicId: c.topic.id, scope: 'list' as const, creatorId: null, moduleIds: c.roots.map((r) => r.id), topicOrder: i }));
   }
 
   /**

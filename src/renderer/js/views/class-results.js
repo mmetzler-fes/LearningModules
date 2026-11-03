@@ -579,7 +579,8 @@ export class ClassResultsView {
         <div class="cb-topic-title">${sw(t.enabled, 'data-toggle-topic', 'dieses Lernthema')} 📘 ${escapeHtml(t.title)}
           <button type="button" class="nb-menu-btn" data-topic-menu title="Aktionen" aria-label="Aktionen">⋯</button></div>
         <ul class="cb-units">${t.modules.map((m) => {
-          const marked = this._cb?.marker?.linkId === link.id && this._cb.marker.moduleId === m.id;
+          const mk = this._cb?.marker;
+          const marked = mk?.level === 'module' && mk.linkId === link.id && mk.moduleId === m.id;
           return `<li class="${m.enabled ? '' : 'cb-item-off'} ${marked ? 'cb-marked' : ''}">
           <span>${m.viaDoc ? '<span class="nb-status on cb-via-doc" title="In ein eingeschaltetes Dokument eingebettet – kommt mit ihm. Mit ○ am Dokument ist es aus.">●</span>'
             : sw(m.enabled, `data-toggle-module="${escapeAttr(m.id)}"`, 'dieses Modul')}
@@ -592,24 +593,40 @@ export class ClassResultsView {
       ${link.notReleased?.length ? `<p class="hint">Im Notizbuch noch nicht für Schüler freigegeben, daher nicht wählbar: ${escapeHtml(link.notReleased.join(', '))}.</p>` : ''}`;
   }
 
+  /** 📍 Merker setzen – auf jeder Ebene (siehe setClassbookMarker), aus den ⋯-Menüs und dem Buch-Button. */
+  _setMarker(anchor) {
+    return this._call(this.app.api.setClassbookMarker(this._classId, anchor));
+  }
+
   _bindMarker(out) {
-    out.querySelectorAll('[data-mark], [data-unmark]').forEach((btn) => btn.addEventListener('click', async (e) => {
+    out.querySelectorAll('[data-mark], [data-unmark]').forEach((btn) => btn.addEventListener('click', (e) => {
       e.preventDefault();
       const off = btn.hasAttribute('data-unmark') || btn.classList.contains('on');
-      const res = await this.app.api.setClassbookMarker(this._classId, off ? {} : { linkId: btn.closest('[data-link]').dataset.link, moduleId: btn.dataset.mark });
-      if (failed(res)) { this.app.showToast('Fehler: ' + (res?.message || '?'), 'error'); return; }
-      this._openLinks = new Set([...out.querySelectorAll('details[data-link][open]')].map((d) => d.dataset.link));
-      await this._classbook(true);
-      this._render();
+      if (off) { void this._setMarker({}); return; }
+      const linkId = btn.closest('[data-link]').dataset.link;
+      const topicId = btn.closest('[data-topic]').dataset.topic;
+      void this._setMarker({ level: 'module', linkId, topicId, moduleId: btn.dataset.mark });
     }));
   }
 
-  /** Wo der Merker steht: Titel von Zuweisung und Modul – oder null. */
+  /** Wo der Merker steht – auf jeder Ebene: Text für die Merker-Leiste, ggf. die Zuweisung zum Aufklappen. */
   _markerInfo(cb) {
     const mk = cb.marker;
-    const link = mk && cb.links.find((l) => l.id === mk.linkId);
-    const mod = link?.available.flatMap((t) => t.modules).find((m) => m.id === mk.moduleId);
-    return mod ? { link, mod } : null;
+    if (!mk) return null;
+    if (mk.level === 'root') return { label: 'ganz vorn im Klassennotizbuch' };
+    if (mk.level === 'node') {
+      const node = cb.nodes.find((n) => n.id === mk.nodeId);
+      return { label: node ? `${node.kind === 'section' ? 'Abschnitt' : 'Bereich'} „${node.title}“` : 'einem Bereich, der nicht mehr existiert' };
+    }
+    const link = cb.links.find((l) => l.id === mk.linkId);
+    if (!link) return { label: 'einer Zuweisung, die nicht mehr existiert' };
+    if (mk.level === 'link') return { label: link.name, linkId: link.id };
+    const topic = link.available.find((t) => t.topicId === mk.topicId);
+    if (mk.level === 'topic') return { label: topic ? `${link.name} → „${topic.title}“` : link.name, linkId: link.id };
+    const mod = topic?.modules.find((m) => m.id === mk.moduleId);
+    return mod
+      ? { label: mod.title || 'Modul', hint: `(${link.name})${mod.enabled && link.active ? '' : ' – für die Schüler gerade ausgeschaltet'}`, linkId: link.id }
+      : { label: 'einem Modul, das nicht mehr existiert' };
   }
 
   _bindToggles(out) {
@@ -644,7 +661,7 @@ export class ClassResultsView {
       // Zuweisungen mit Übungsmodus und klasseneigene Lernthemen (auch noch ohne Module).
       const links = cb.links.filter((l) => (l.practice.length || l.classTopicId) && l.inTree !== false);
       const mk = this._markerInfo(cb);
-      if (mk) (this._openLinks ||= new Set()).add(mk.link.id);
+      if (mk?.linkId) (this._openLinks ||= new Set()).add(mk.linkId);
       const live = cb.live || { online: 0, follow: false };
       out.innerHTML = `
         <div class="cb-live-bar">
@@ -652,12 +669,12 @@ export class ClassResultsView {
           <button type="button" class="btn btn-sm ${live.follow ? 'btn-primary' : 'btn-secondary'}" data-follow="${live.follow ? 'off' : 'on'}"
             title="${live.follow ? 'Folgen ausschalten – die Schüler bewegen sich wieder selbst' : 'Folgen: Wo du 📍 setzt, öffnet sich das Modul auf allen Schüler-Geräten'}">👣 Folgen: ${live.follow ? 'an' : 'aus'}</button>
           <button type="button" class="btn btn-secondary btn-sm" data-live-refresh title="Anzahl neu zählen">🔄</button>
-          <span class="hint">${live.follow ? (cb.marker ? '📍 umsetzen = alle springen dorthin.' : 'Jetzt 📍 an ein Modul setzen – dorthin springen alle.') : '📡 im Menü ⋯ eines Moduls öffnet es bei allen.'}</span>
+          <span class="hint">${live.follow ? (cb.marker ? '📍 umsetzen = alle springen dorthin.' : 'Jetzt 📍 setzen (Modul, Lernthema, Zuweisung oder Bereich) – dorthin springen alle.') : '📡 im Menü ⋯ eines Moduls öffnet es bei allen.'}</span>
         </div>
-        ${mk ? `<div class="cb-marker-bar">📍 Die Klasse ist gerade bei <strong>${escapeHtml(mk.mod.title || 'Modul')}</strong>
-            <span class="hint">(${escapeHtml(mk.link.name)})${mk.mod.enabled && mk.link.active ? '' : ' – für die Schüler gerade ausgeschaltet'}</span>
+        ${mk ? `<div class="cb-marker-bar">📍 Die Klasse ist gerade bei <strong>${escapeHtml(mk.label)}</strong>
+            ${mk.hint ? `<span class="hint">${escapeHtml(mk.hint)}</span>` : ''}
             <button type="button" class="btn btn-secondary btn-sm" data-unmark>Entfernen</button></div>`
-          : '<p class="hint">📍 an einem Modul merkt, wo die Klasse gerade ist – bei den Schülern ist es dann aufgeklappt und hat den Fokus.</p>'}
+          : '<p class="hint">📍 markiert, wo die Klasse gerade ist – auf jeder Ebene (Bereich, Zuweisung, Lernthema oder Modul). Bei den Schülern springt „Weiter“ von dort durch alle weiteren Module.</p>'}
         ${cb.studentHidden ? `<div class="cb-veiled-bar">🙈 <strong>Das ganze Klassennotizbuch ist für Schüler ausgeblendet</strong>
             <span class="hint">– sie sehen nur eine laufende Klassenarbeit bzw. die Quiz-Arena. Die Module bleiben, wie sie sind.</span>
             <button type="button" class="btn btn-primary btn-sm" data-veil-book="">👁 Wieder einblenden</button></div>` : ''}
@@ -667,6 +684,7 @@ export class ClassResultsView {
           <button type="button" class="btn btn-secondary btn-sm" data-add="topic" title="Lernthema nur für diese Klasse, z. B. Aufgaben oder Dokumente">➕ Lernthema</button>
           <button type="button" class="btn btn-secondary btn-sm" data-add="area">➕ Bereich</button>
           <button type="button" class="btn btn-secondary btn-sm" data-add="section">➕ Abschnitt</button>
+          <button type="button" class="btn btn-secondary btn-sm" data-mark-root title="Schüler springen zum ersten Modul im ganzen Klassennotizbuch – „Weiter“ führt durch alle weiteren">📍 Ganz vorn</button>
           ${cb.studentHidden ? '' : '<button type="button" class="btn btn-secondary btn-sm" data-veil-book="1" title="Schüler sehen das Klassennotizbuch vorübergehend nicht (außer Klassenarbeit und Quiz-Arena) – die Module bleiben ein- bzw. ausgeschaltet">🙈 Für Schüler ausblenden</button>'}
         </div>
         <p class="hint">Die Schüler sehen diesen Baum über den <a href="#" id="cbToSettings">Klassenbuch-Link</a>. 🔗 verweist aufs Notizbuch
@@ -679,6 +697,7 @@ export class ClassResultsView {
                 und ordne alles in Bereichen und Abschnitten.</p></div>`}</div>`;
       out.querySelector('#cbToSettings')?.addEventListener('click', (e) => { e.preventDefault(); this._switch('settings'); });
       out.querySelectorAll('[data-add]').forEach((btn) => btn.addEventListener('click', () => this._add(btn.dataset.add, null)));
+      out.querySelector('[data-mark-root]')?.addEventListener('click', () => this._setMarker({ level: 'root' }));
       out.querySelectorAll('[data-node-menu]').forEach((btn) => btn.addEventListener('click', (e) => {
         e.preventDefault();
         e.stopPropagation();
@@ -897,6 +916,8 @@ export class ClassResultsView {
     items.push({ label: '➕ Neues Lernthema hier', run: () => this._add('topic', node.id) });
     items.push({ label: '➕ Aus dem Notizbuch hierher', run: () => this._add('assign', node.id) });
     items.push('-');
+    items.push({ label: '📍 Hier ist die Klasse gerade', title: 'Schüler springen zum ersten Modul darin – „Weiter“ führt durch alle weiteren', run: () => this._setMarker({ level: 'node', nodeId: node.id }) });
+    items.push('-');
     items.push(node.studentHidden
       ? { label: '👁 Für Schüler einblenden', title: 'Alles darin ist wieder wie vorher zu sehen', run: () => this._setVeil({ type: 'node', id: node.id, hidden: false }) }
       : { label: '🙈 Für Schüler ausblenden', title: 'Schüler sehen den Bereich mit allem darin nicht – die Module bleiben ein- bzw. ausgeschaltet', run: () => this._setVeil({ type: 'node', id: node.id, hidden: true }) });
@@ -945,6 +966,7 @@ export class ClassResultsView {
     return [
       { label: '➕ Neues Modul', title: 'Neue Module sind hier zunächst aus – mit ● einschalten', run: () => this.app.modulesView.openFrom('teacher-class-results', topic.topicId, null) },
       { label: '📦 Module bearbeiten', title: own ? '' : 'Die Module des Originals im Notizbuch', run: () => this.app.modulesView.openTopicModules(topic.topicId) },
+      { label: '📍 Hier ist die Klasse gerade', title: 'Schüler springen zum ersten Modul dieses Lernthemas – „Weiter“ führt durch alle weiteren', run: () => this._setMarker({ level: 'topic', linkId: link.id, topicId: topic.topicId }) },
       { label: '🏷 Tags…', title: own ? '' : 'Der Tag kommt an das Lernthema im Notizbuch', run: async () => {
         // Geerbte Tags (Book, Bereich, Abschnitt im Notizbuch) bleiben.
         const tree = own ? null : await this.app.api.getNotebooks();
@@ -963,6 +985,8 @@ export class ClassResultsView {
       run: () => this.app.linksView._openShareDialog({ id: link.id, name: link.name }, 'practice') });
     items.push('-');
     if (own) items.push({ label: '➕ Neues Modul', title: 'Neue Module sind zunächst aus – mit ● einschalten', run: () => this.app.modulesView.openFrom('teacher-class-results', link.classTopicId, null) });
+    items.push({ label: '📍 Hier ist die Klasse gerade', title: 'Schüler springen zum ersten Modul dieser Zuweisung – „Weiter“ führt durch alle weiteren', run: () => this._setMarker({ level: 'link', linkId: link.id }) });
+    items.push('-');
     items.push({ label: '↑ Nach oben', run: () => this._step('entry', link, -1, cb) });
     items.push({ label: '↓ Nach unten', run: () => this._step('entry', link, +1, cb) });
     items.push({ label: '↔️ Verschieben nach…', run: () => this._moveDialog(cb, 'entry', link) });

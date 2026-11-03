@@ -32,9 +32,10 @@ function setup({ firstLogin = false } = {}) {
   const places = repo();
   const topics = repo();
   const modules = repo();
+  const progress = repo();
   const svc = new ClassbookService(notebooks as any, students as any, results as any, works as any, links as any, users as any, attempts as any, classes, linksService, {} as any, { isOpen: () => false } as any, { markerChanged() {}, online: () => 0, isFollowing: () => false } as any,
-    nodes as any, places as any, topics as any, modules as any, repo() as any, repo() as any);
-  return { svc, students, links, notebooks, attempts, nodes, places, topics, modules };
+    nodes as any, places as any, topics as any, modules as any, repo() as any, repo() as any, progress as any);
+  return { svc, students, links, notebooks, attempts, nodes, places, topics, modules, progress };
 }
 
 describe('Klassennotizbuch: Anmeldung', () => {
@@ -142,19 +143,77 @@ describe('Klassennotizbuch: Lernthemen und Module schalten', () => {
 });
 
 describe('Klassennotizbuch: 📍 Merker', () => {
-  it('Lehrkraft setzt ihn, Schüler sehen ihn nur bei sichtbarem Modul; entfernen', async () => {
+  it('Lehrkraft setzt ihn auf Modul-Ebene, Schüler sehen ihn nur bei sichtbarem Modul; entfernen', async () => {
     const { svc, notebooks, links } = setup();
     links.rows[0].selection = [{ topicId: 't', all: true }];
     (svc as any).classes.ownedClass = async () => KLASSE;
     const user = { userId: 't1' };
-    await expect(svc.setMarker(user, 'c1', { linkId: 'l1', moduleId: 'nix' })).rejects.toThrow(/gehört nicht/);
-    expect((await svc.setMarker(user, 'c1', { linkId: 'l1', moduleId: 'm1' })).marker).toEqual({ linkId: 'l1', topicId: 't', moduleId: 'm1' });
+    await expect(svc.setMarker(user, 'c1', { level: 'module', linkId: 'l1', topicId: 't', moduleId: 'nix' })).rejects.toThrow(/nichts zum Merken/);
+    expect((await svc.setMarker(user, 'c1', { level: 'module', linkId: 'l1', topicId: 't', moduleId: 'm1' })).marker)
+      .toEqual({ level: 'module', linkId: 'l1', topicId: 't', moduleId: 'm1' });
     const { ticket } = await svc.login('kb', { name: 'Anna', pin: '1234' });
-    expect((await svc.home('kb', ticket)).marker).toEqual({ linkId: 'l1', topicId: 't', moduleId: 'm1' });
+    expect((await svc.home('kb', ticket)).marker).toEqual({
+      anchor: { level: 'module', linkId: 'l1', topicId: 't', moduleId: 'm1' },
+      current: { linkId: 'l1', topicId: 't', moduleId: 'm1' },
+      openNodeIds: [],
+      hasNext: false,
+    });
     // Modul inzwischen nicht mehr bei den Schülern: kein Merker
-    notebooks.rows[0].marker = { linkId: 'l1', topicId: 't', moduleId: 'weg' };
+    notebooks.rows[0].marker = { level: 'module', linkId: 'l1', topicId: 't', moduleId: 'weg' };
     expect((await svc.home('kb', ticket)).marker).toBeNull();
     expect((await svc.setMarker(user, 'c1', {})).marker).toBeNull();
+  });
+
+  it('auch auf Bereich-, Zuweisungs- und Lernthema-Ebene: springt zum ersten Modul darunter', async () => {
+    const { svc, links, places } = setup();
+    links.rows[0].selection = [{ topicId: 't', all: true }];
+    (svc as any).classes.ownedClass = async () => KLASSE;
+    const user = { userId: 't1' };
+    const area = await svc.createNode(user, 'c1', { kind: 'area', title: 'Bereich 1' });
+    places.rows.push({ id: 'l1', classId: 'c1', nodeId: area.id, orderIndex: 0, hidden: false });
+    const { ticket } = await svc.login('kb', { name: 'Anna', pin: '1234' });
+
+    expect((await svc.setMarker(user, 'c1', { level: 'node', nodeId: area.id })).marker).toEqual({ level: 'node', nodeId: area.id });
+    let home = await svc.home('kb', ticket);
+    expect(home.marker.current).toEqual({ linkId: 'l1', topicId: 't', moduleId: 'm1' });
+    expect(home.marker.openNodeIds).toEqual([area.id]);
+
+    expect((await svc.setMarker(user, 'c1', { level: 'link', linkId: 'l1' })).marker).toEqual({ level: 'link', linkId: 'l1' });
+    expect((await svc.home('kb', ticket)).marker.current).toEqual({ linkId: 'l1', topicId: 't', moduleId: 'm1' });
+
+    expect((await svc.setMarker(user, 'c1', { level: 'topic', linkId: 'l1', topicId: 't' })).marker).toEqual({ level: 'topic', linkId: 'l1', topicId: 't' });
+    expect((await svc.home('kb', ticket)).marker.current).toEqual({ linkId: 'l1', topicId: 't', moduleId: 'm1' });
+
+    expect((await svc.setMarker(user, 'c1', { level: 'root' })).marker).toEqual({ level: 'root' });
+    home = await svc.home('kb', ticket);
+    expect(home.marker.current).toEqual({ linkId: 'l1', topicId: 't', moduleId: 'm1' });
+
+    await expect(svc.setMarker(user, 'c1', { level: 'node', nodeId: 'unbekannt' })).rejects.toThrow(/nichts zum Merken/);
+  });
+});
+
+describe('Klassennotizbuch: „Weiter“ im 📍-Pfad', () => {
+  it('schreitet je Schüler gespeichert fort, bleibt nach Neuladen erhalten', async () => {
+    const { svc, links } = setup();
+    const QUIZ2 = { id: 'm2', type: 'multipleChoice', title: 'Zweite', orderIndex: 1 };
+    links.rows[0].selection = [{ topicId: 't', all: true }];
+    (svc as any).links.resolveModules = async () => [{ topic: { id: 't', title: 'Strom' }, modules: [QUIZ, QUIZ2] }];
+    (svc as any).classes.ownedClass = async () => KLASSE;
+    const user = { userId: 't1' };
+    await svc.setMarker(user, 'c1', { level: 'topic', linkId: 'l1', topicId: 't' });
+    const { ticket } = await svc.login('kb', { name: 'Anna', pin: '1234' });
+
+    expect(await svc.weiter('kb', ticket)).toEqual({ current: { linkId: 'l1', topicId: 't', moduleId: 'm1' }, hasNext: true });
+    expect(await svc.advanceWeiter('kb', ticket)).toEqual({ current: { linkId: 'l1', topicId: 't', moduleId: 'm2' }, hasNext: false });
+    // Am Ende bleibt „Weiter“ beim letzten Modul stehen.
+    expect(await svc.advanceWeiter('kb', ticket)).toEqual({ current: { linkId: 'l1', topicId: 't', moduleId: 'm2' }, hasNext: false });
+
+    // Gespeichert: ein neuer Aufruf (z. B. nach Neuladen) zeigt weiter das zweite Modul.
+    expect((await svc.home('kb', ticket)).marker.current).toEqual({ linkId: 'l1', topicId: 't', moduleId: 'm2' });
+
+    // Unbestätigter Schüler: liest den Stand, schreitet aber nicht fort.
+    const { ticket: pendingTicket } = await svc.login('kb', { name: 'Neu' });
+    await expect(svc.advanceWeiter('kb', pendingTicket)).rejects.toThrow(/bestätigt/);
   });
 });
 

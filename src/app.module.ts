@@ -81,6 +81,7 @@ import { DrawingsModule } from './drawings/drawings.module';
 import { WorkModule } from './work/work.module';
 import { AccountLink } from './core/entities/account-link.entity';
 import { LinkCode } from './core/entities/link-code.entity';
+import { ClassbookProgress } from './core/entities/classbook-progress.entity';
 
 const RENDERER_DIR = join(__dirname, '..', 'src', 'renderer');
 
@@ -113,7 +114,7 @@ function noStaleUi(res: any, path: string) {
       // statt „database is locked“.
       enableWAL: true,
       busyTimeout: 5000,
-      entities: [User, StudentClass, ClassStudent, LearningTopic, LearningModule, Result, School, SystemConfig, Tag, TopicLink, TopicQuickLink, TeacherGroup, ShopOffer, UseGrant, PointsEntry, ModuleTiming, ClassShare, NotebookNode, NotebookPlacement, ModuleDraft, UsageCount, ContentFeedback, Category, FederationPeer, RemoteOffer, RemotePerson, FederationCopy, ContentHandover, AccountLink, LinkCode, GithubBackup, NextcloudLink, SchoolNextcloud, DocMirror, WorksheetTemplate, DocumentWork, ExamAttempt, DocumentVersion, RunProgress, DrawingSource, ClassNotebook, ClassNotebookNode, ClassNotebookPlace, AuthSession, DocumentInk],
+      entities: [User, StudentClass, ClassStudent, LearningTopic, LearningModule, Result, School, SystemConfig, Tag, TopicLink, TopicQuickLink, TeacherGroup, ShopOffer, UseGrant, PointsEntry, ModuleTiming, ClassShare, NotebookNode, NotebookPlacement, ModuleDraft, UsageCount, ContentFeedback, Category, FederationPeer, RemoteOffer, RemotePerson, FederationCopy, ContentHandover, AccountLink, LinkCode, GithubBackup, NextcloudLink, SchoolNextcloud, DocMirror, WorksheetTemplate, DocumentWork, ExamAttempt, DocumentVersion, RunProgress, DrawingSource, ClassNotebook, ClassNotebookNode, ClassNotebookPlace, AuthSession, DocumentInk, ClassbookProgress],
       synchronize: true,
     }),
     MailModule,

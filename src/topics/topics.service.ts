@@ -15,7 +15,7 @@ import { ShopService } from '../shop/shop.service';
 import { CategoriesService } from '../categories/categories.service';
 import { RemotePerson } from '../core/entities/remote-person.entity';
 import { FederationPeer } from '../core/entities/federation-peer.entity';
-import { visibleFor } from '../shop/offer-rules';
+import { earliestGrantSortKey, visibleFor } from '../shop/offer-rules';
 import { School } from '../core/entities/school.entity';
 import { baseUrl, renderQr } from '../core/share/link-url';
 import { withBlockIds } from '../worksheets/docspec';
@@ -306,31 +306,37 @@ export class TopicsService {
         const mine = entries.filter((e) => e.topicId === t.id);
         const visible = this.visibleModules(t, t.modules || [], asUser);
         return {
-          id: t.id,
-          title: t.title,
-          description: t.description,
-          ownerId: t.ownerId,
-          ownerName: names.get(t.ownerId) || 'Unbekannt',
-          moduleCount: visible.filter((m) => !m.parentId).length,
-          creators: [...new Set(visible.map((m) => (m.creatorId && names.get(m.creatorId)) || 'Unbekannt'))],
-          origin: this.originOf(t),
-          grants: [...new Map(mine.map((e) => [e.grantId, e])).values()].map((e) => {
-            const offer = offers.find((o) => o.id === e.offerId);
-            return {
-              id: e.grantId,
-              pricePaid: e.pricePaid,
-              viaBuyer: offer?.kind === 'buyer',
-              // Recht an einem Bereich oder einer Auswahl: Zurückgeben gilt für das Ganze.
-              scopeType: e.scopeType,
-              offerId: e.offerId,
-              // Gehört zu einer Kopie – lässt sich nicht einzeln zurückgeben.
-              onlyForeign: e.onlyForeign,
-              since: e.createdAt,
-            };
-          }),
+          // Reihenfolge wie beim Erwerb: frühester Kauf zuerst, darin die Reihenfolge des
+          // Angebots (statt alphabetisch – sonst geht die Verkäufer-Reihenfolge verloren).
+          sortKey: earliestGrantSortKey(mine),
+          item: {
+            id: t.id,
+            title: t.title,
+            description: t.description,
+            ownerId: t.ownerId,
+            ownerName: names.get(t.ownerId) || 'Unbekannt',
+            moduleCount: visible.filter((m) => !m.parentId).length,
+            creators: [...new Set(visible.map((m) => (m.creatorId && names.get(m.creatorId)) || 'Unbekannt'))],
+            origin: this.originOf(t),
+            grants: [...new Map(mine.map((e) => [e.grantId, e])).values()].map((e) => {
+              const offer = offers.find((o) => o.id === e.offerId);
+              return {
+                id: e.grantId,
+                pricePaid: e.pricePaid,
+                viaBuyer: offer?.kind === 'buyer',
+                // Recht an einem Bereich oder einer Auswahl: Zurückgeben gilt für das Ganze.
+                scopeType: e.scopeType,
+                offerId: e.offerId,
+                // Gehört zu einer Kopie – lässt sich nicht einzeln zurückgeben.
+                onlyForeign: e.onlyForeign,
+                since: e.createdAt,
+              };
+            }),
+          },
         };
       })
-      .sort((a, b) => a.title.localeCompare(b.title, 'de'));
+      .sort((a, b) => a.sortKey[0] - b.sortKey[0] || a.sortKey[1] - b.sortKey[1])
+      .map((x) => x.item);
   }
 
   /**

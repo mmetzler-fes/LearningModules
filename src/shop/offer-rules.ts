@@ -62,3 +62,31 @@ export function visibleFor<T extends ModuleLike>(
   const direct = new Set(modules.filter((m) => (m.creatorId && creators.has(m.creatorId)) || listed.has(m.id)).map((m) => m.id));
   return modules.filter((m) => direct.has(m.id) || (!!m.parentId && direct.has(m.parentId)));
 }
+
+/**
+ * Themen-Reihenfolge eines 'modules'-Angebots: wie der Anbieter die Module in
+ * `moduleIds` gewählt hat (erstes Vorkommen je Thema), nicht die Reihenfolge
+ * einer DB-Abfrage. Ohne das geht beim Erwerb die Autoren-Reihenfolge verloren
+ * (siehe ShopService.coverage()).
+ */
+export function orderedTopicIds(moduleIds: string[], picked: Array<{ id: string; topicId: string }>): string[] {
+  const topicOf = new Map(picked.map((m) => [m.id, m.topicId]));
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const moduleId of moduleIds) {
+    const topicId = topicOf.get(moduleId);
+    if (topicId && !seen.has(topicId)) { seen.add(topicId); out.push(topicId); }
+  }
+  return out;
+}
+
+/**
+ * Sortierschlüssel für ein erworbenes Thema: frühester Erwerb zuerst, darin
+ * die Reihenfolge des Angebots (`topicOrder`) – statt alphabetisch, sonst geht
+ * die vom Verkäufer festgelegte Reihenfolge beim Einsortieren verloren (siehe
+ * TopicsService.findGranted()).
+ */
+export function earliestGrantSortKey(entries: Array<{ createdAt: Date | string; topicOrder: number }>): [number, number] {
+  const earliest = entries.reduce((min, e) => (!min || new Date(e.createdAt).getTime() < new Date(min.createdAt).getTime() ? e : min), entries[0]);
+  return [new Date(earliest.createdAt).getTime(), earliest.topicOrder];
+}

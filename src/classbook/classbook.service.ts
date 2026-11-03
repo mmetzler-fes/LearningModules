@@ -2,7 +2,7 @@ import { Injectable, NotFoundException, ForbiddenException, BadRequestException 
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, IsNull, Repository } from 'typeorm';
 import * as crypto from 'crypto';
-import { ClassNotebook, ClassNotebookItem, ClassNotebookMarker } from '../core/entities/class-notebook.entity';
+import { ClassNotebook, ClassNotebookItem } from '../core/entities/class-notebook.entity';
 import { ClassStudent } from '../core/entities/class-student.entity';
 import { StudentClass } from '../core/entities/student-class.entity';
 import { Result } from '../core/entities/result.entity';
@@ -16,7 +16,8 @@ import { LearningTopic } from '../core/entities/learning-topic.entity';
 import { LearningModule } from '../core/entities/learning-module.entity';
 import { NotebookNode } from '../core/entities/notebook-node.entity';
 import { NotebookPlacement } from '../core/entities/notebook-placement.entity';
-import { canHoldNode, depthOf, nodeMoveError, reorder, dissolve, MAX_CLASS_DEPTH, veiledNodeIds } from './classbook-tree';
+import { ClassbookProgress } from '../core/entities/classbook-progress.entity';
+import { ancestorsOf, canHoldNode, depthOf, leavesInOrder, nodeMoveError, normalizeMarker, reorder, dissolve, LeafRef, MAX_CLASS_DEPTH, TreeLink, TreeNode, veiledNodeIds } from './classbook-tree';
 import { ClassesService } from '../classes/classes.service';
 import { LinksService, PRACTICE_MODES } from '../links/links.service';
 import { NotebooksService } from '../notebooks/notebooks.service';
@@ -69,6 +70,7 @@ export class ClassbookService {
     @InjectRepository(LearningModule) private readonly moduleRepo: Repository<LearningModule>,
     @InjectRepository(NotebookNode) private readonly nbNodeRepo: Repository<NotebookNode>,
     @InjectRepository(NotebookPlacement) private readonly nbPlaceRepo: Repository<NotebookPlacement>,
+    @InjectRepository(ClassbookProgress) private readonly progressRepo: Repository<ClassbookProgress>,
   ) {}
 
   /** Notizbuch der Klasse – beim ersten Aufruf angelegt; ältere bekommen hier ihren Klassencode. */
@@ -135,6 +137,32 @@ export class ClassbookService {
       topics: resolved.map((r) => ({ id: r.topic.id, title: r.topic.title, units: unitsOf(r.modules).map(({ id, title, type }) => ({ id, title, type })) })),
       resolved,
     };
+  }
+
+  /** Zuweisungen als `TreeLink[]` für `leavesInOrder` – `nodeId`/`orderIndex` aus `placeOf`. */
+  private treeLinksOf(links: Array<{ id: string; topics: Array<{ id: string; units: Array<{ id: string }> }> }>,
+    placeOf: Map<string, { nodeId: string | null; order: number }>): TreeLink[] {
+    return links.map((l) => ({
+      id: l.id,
+      nodeId: placeOf.get(l.id)?.nodeId ?? null,
+      orderIndex: placeOf.get(l.id)?.order ?? 0,
+      topics: l.topics.map((t) => ({ topicId: t.id, moduleIds: t.units.map((u) => u.id) })),
+    }));
+  }
+
+  /**
+   * Bereiche/Abschnitte und Zuweisungen, wie Schüler sie gerade sehen (aktiv,
+   * eingetragen, nicht ausgeblendet) – Grundlage für 📍 Merker, „Weiter“ und
+   * die Startseite der Schüler (home()).
+   */
+  private async visibleTree(klasse: StudentClass, nb: ClassNotebook) {
+    const all = await this.classLinks(klasse);
+    const active = all.filter((l) => l.active);
+    const { nodes, placeOf } = await this.tree(klasse, all);
+    const { veiledNodes, veiled } = this.veiledLinks(nb, nodes, placeOf, all);
+    const links = (await Promise.all(active.filter((l) => placeOf.get(l.id)?.inTree !== false && !veiled.has(l.id)).map((l) => this.linkInfo(l))))
+      .filter((l) => l.practice.length && l.topics.length);
+    return { nodes, placeOf, veiledNodes, veiled, links };
   }
 
   // ---- Lehrkraft ----
@@ -588,27 +616,77 @@ export class ClassbookService {
     await this.placeRepo.delete({ id: link.id });
     await this.linkRepo.delete({ id: link.id });
     const nb = await this.repo.findOne({ where: { classId } });
-    if (nb?.marker?.linkId === link.id) await this.repo.update({ id: nb.id }, { marker: null });
+    if (nb?.marker && 'linkId' in nb.marker && nb.marker.linkId === link.id) await this.repo.update({ id: nb.id }, { marker: null });
     return { success: true };
   }
 
-  /** 📍 Merker setzen (`{ linkId, topicId, moduleId }`) oder entfernen (`null`/leer). */
-  async setMarker(user: any, classId: string, body: Partial<ClassNotebookMarker> | null) {
+  /**
+   * 📍 Merker aufgelöst: das (zuletzt per „Weiter“ erreichte) Modul im Pfad,
+   * der Pfad zum Aufklappen und ob es ein weiteres Modul gibt. `null` ohne
+   * Merker oder wenn der Pfad gerade kein Modul (mehr) enthält.
+   */
+  private async resolveMarker(nb: ClassNotebook, klasse: StudentClass, studentId: string, confirmed: boolean,
+    tree?: { nodes: TreeNode[]; placeOf: Map<string, { nodeId: string | null; order: number }>; links: Array<{ id: string; topics: Array<{ id: string; units: Array<{ id: string }> }> }> }) {
+    const anchor = normalizeMarker(nb.marker);
+    if (!anchor) return null;
+    const { nodes, placeOf, links } = tree || await this.visibleTree(klasse, nb);
+    const treeLinks = this.treeLinksOf(links, placeOf);
+    const leaves = leavesInOrder(nodes, treeLinks, anchor);
+    if (!leaves.length) return null;
+    const progress = confirmed ? await this.progressRepo.findOne({ where: { classId: klasse.id, studentId } }) : null;
+    const samePath = progress && JSON.stringify(progress.anchor) === JSON.stringify(anchor);
+    const position = samePath ? Math.min(Math.max(progress!.position, 0), leaves.length - 1) : 0;
+    const current = leaves[position];
+    const nodeId = treeLinks.find((l) => l.id === current.linkId)?.nodeId ?? null;
+    const openNodeIds = [...new Set([...(anchor.level === 'node' ? [anchor.nodeId] : []), ...ancestorsOf(nodes, nodeId)])];
+    return { anchor, leaves, position, current, openNodeIds, hasNext: position < leaves.length - 1, total: leaves.length };
+  }
+
+  /** „Weiter“ im 📍-Pfad, ohne eigenes Fortschreiten: aktueller Stand. */
+  async weiter(token: string, ticket: unknown) {
+    const { nb, klasse, ticket: t, student } = await this.session(token, ticket);
+    const confirmed = !!student && student.status !== 'pending';
+    const resolved = await this.resolveMarker(nb, klasse, t.s, confirmed);
+    return { current: resolved?.current || null, hasNext: !!resolved?.hasNext };
+  }
+
+  /** „Weiter“: einen Schritt im 📍-Pfad vor, gespeichert je Schüler. */
+  async advanceWeiter(token: string, ticket: unknown) {
+    const { nb, klasse, ticket: t, student } = await this.session(token, ticket);
+    if (!student || student.status === 'pending') throw new ForbiddenException('Erst bestätigt – dann zählt der Fortschritt.');
+    const resolved = await this.resolveMarker(nb, klasse, t.s, true);
+    if (!resolved) return { current: null, hasNext: false };
+    const nextPosition = Math.min(resolved.position + 1, resolved.total - 1);
+    const row = (await this.progressRepo.findOne({ where: { classId: klasse.id, studentId: t.s } }))
+      || this.progressRepo.create({ id: crypto.randomUUID(), classId: klasse.id, studentId: t.s, anchor: resolved.anchor, position: 0 });
+    row.anchor = resolved.anchor;
+    row.position = nextPosition;
+    await this.progressRepo.save(row);
+    return { current: resolved.leaves[nextPosition], hasNext: nextPosition < resolved.total - 1 };
+  }
+
+  /**
+   * 📍 Merker setzen – auf jeder Ebene (`{ level: 'root'|'node'|'link'|'topic'|'module', ... }`,
+   * siehe `MarkerAnchor`) – oder entfernen (`null`/`{}`). Schüler springen zum
+   * ersten Modul darunter (siehe `leavesInOrder`); „Weiter“ führt von dort
+   * durch alle weiteren.
+   */
+  async setMarker(user: any, classId: string, body: any) {
     const klasse = await this.classes.ownedClass(classId, user);
     const nb = await this.ensure(klasse);
-    let marker: ClassNotebookMarker | null = null;
-    if (body?.linkId && body.moduleId) {
-      const link = await this.ownClassLink(user, classId, String(body.linkId));
-      const { topics } = await this.available(link, user);
-      const topic = topics.find((t) => t.modules.some((m) => m.id === body.moduleId));
-      if (!topic) throw new BadRequestException('Dieses Modul gehört nicht zur Zuweisung.');
-      marker = { linkId: link.id, topicId: topic.topicId, moduleId: String(body.moduleId) };
+    const anchor = normalizeMarker(body);
+    let first: LeafRef | null = null;
+    if (anchor) {
+      const { nodes, placeOf, links } = await this.visibleTree(klasse, nb);
+      const treeLinks = this.treeLinksOf(links, placeOf);
+      first = leavesInOrder(nodes, treeLinks, anchor)[0] || null;
+      if (!first) throw new BadRequestException('Dort liegt gerade kein Modul – nichts zum Merken.');
     }
-    nb.marker = marker;
+    nb.marker = anchor;
     await this.repo.save(nb);
-    // 👣 Folgen an: Die Schüler-Geräte springen zum neuen Merker.
-    this.live.markerChanged(klasse.id, marker ? { linkId: marker.linkId, moduleId: marker.moduleId, title: '' } : null);
-    return { marker };
+    // 👣 Folgen an: Die Schüler-Geräte springen zum ersten Modul des neuen Merkers.
+    this.live.markerChanged(klasse.id, first ? { linkId: first.linkId, moduleId: first.moduleId, title: '' } : null);
+    return { marker: anchor };
   }
 
   /**
@@ -816,12 +894,10 @@ export class ClassbookService {
     const active = all.filter((l) => l.active);
     // Ohne eingeschaltetes Modul gibt es für Schüler nichts zu sehen. Die Quiz-Arena
     // erscheint nur, solange die Lehrkraft ihren Wartebereich geöffnet hat (arena).
-    const { nodes, placeOf } = await this.tree(klasse, all);
-    // 🙈 Ausgeblendete Bereiche/Abschnitte (bzw. das ganze Klassennotizbuch) mit ihren Lernthemen weglassen.
-    const { veiledNodes, veiled } = this.veiledLinks(nb, nodes, placeOf, all);
-    // Durch den Baum ersetzte Bereichs-Links stehen nicht mehr da – ihre Lernthemen einzeln im Baum.
-    const links = (await Promise.all(active.filter((l) => placeOf.get(l.id)?.inTree !== false && !veiled.has(l.id)).map((l) => this.linkInfo(l))))
-      .filter((l) => l.practice.length && l.topics.length);
+    const { nodes, placeOf, veiledNodes, veiled, links } = await this.visibleTree(klasse, nb);
+    // 📍 Merker, auf jeder Ebene: zum (zuletzt per „Weiter“ erreichten) Modul im Pfad, mit dem Pfad zum Aufklappen.
+    const resolved = await this.resolveMarker(nb, klasse, t.s, confirmed, { nodes, placeOf, links });
+    const marker = resolved ? { anchor: resolved.anchor, current: resolved.current, openNodeIds: resolved.openNodeIds, hasNext: resolved.hasNext } : null;
     // Laufende Klassenarbeiten: aktiv und ihr Link ist erzeugt (die Lehrkraft hat ihn ausgegeben).
     const exams = await Promise.all(active.filter((l) => (l.modes || []).includes('exam') && l.examToken).map(async (l) => {
       const attempt = await this.attemptRepo.findOne({ where: { linkId: l.id, studentId: t.s } });
@@ -837,9 +913,7 @@ export class ClassbookService {
       arena: this.openArena(active),
       pending: !confirmed && !isTestStudent(t.s),
       exams,
-      // Nur, wenn die Schüler das Modul gerade sehen (Zuweisung aktiv, Modul eingeschaltet).
-      marker: nb.marker && links.some((l) => l.id === nb.marker!.linkId
-        && l.topics.some((tp) => tp.id === nb.marker!.topicId && tp.units.some((u) => u.id === nb.marker!.moduleId))) ? nb.marker : null,
+      marker,
       // Bereiche und Abschnitte wie bei der Lehrkraft; leere blendet die Seite aus.
       nodes: nodes.filter((n) => !veiledNodes.has(n.id)).map(({ id, kind, title, parentId, orderIndex }) => ({ id, kind, title, parentId, orderIndex })),
       assignments: links.map((l) => {

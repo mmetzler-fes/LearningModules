@@ -19,6 +19,41 @@ export interface TreeEntry {
   orderIndex: number;
 }
 
+/** Eine Zuweisung mit ihren Themen und Modulen, für `leavesInOrder`. */
+export interface TreeLink extends TreeEntry {
+  topics: Array<{ topicId: string; moduleIds: string[] }>;
+}
+
+/** Ein Lernmodul, erreicht über eine bestimmte Zuweisung und ihr Lernthema. */
+export interface LeafRef {
+  linkId: string;
+  topicId: string;
+  moduleId: string;
+}
+
+/**
+ * Wo die Klasse gerade ist – auf jeder Ebene, nicht mehr nur an einem Modul.
+ * Strukturell dasselbe wie `ClassNotebookMarker` (core/entities/class-notebook.entity.ts),
+ * hier lokal definiert, damit dieses Modul ohne Datenbank-Importe bleibt.
+ */
+export type MarkerAnchor =
+  | { level: 'root' }
+  | { level: 'node'; nodeId: string }
+  | { level: 'link'; linkId: string }
+  | { level: 'topic'; linkId: string; topicId: string }
+  | { level: 'module'; linkId: string; topicId: string; moduleId: string };
+
+/**
+ * Alte, vor der Mehrebenen-Erweiterung gespeicherte Marker haben kein `level`
+ * – als Modul-Marker lesen. `null`/leer bleibt `null`.
+ */
+export function normalizeMarker(raw: any): MarkerAnchor | null {
+  if (!raw) return null;
+  if (raw.level) return raw;
+  if (raw.linkId && raw.topicId && raw.moduleId) return { level: 'module', linkId: raw.linkId, topicId: raw.topicId, moduleId: raw.moduleId };
+  return null;
+}
+
 /** Wie im Notizbuch: höchstens so viele Ebenen unter der Klasse. */
 export const MAX_CLASS_DEPTH = 7;
 
@@ -40,6 +75,15 @@ export function isInside(nodes: TreeNode[], id: string | null, ancestorId: strin
     if (cur.id === ancestorId) return true;
   }
   return false;
+}
+
+/** Ein Knoten und alle seine Vorfahren, von ihm selbst nach oben – zum Aufklappen entlang eines Pfads. */
+export function ancestorsOf(nodes: TreeNode[], nodeId: string | null): string[] {
+  const out: string[] = [];
+  for (let cur = nodeId ? nodes.find((n) => n.id === nodeId) : undefined, i = 0; cur && i < MAX_CLASS_DEPTH + 1; cur = cur.parentId ? nodes.find((n) => n.id === cur!.parentId) : undefined, i++) {
+    out.push(cur.id);
+  }
+  return out;
 }
 
 /** Tiefe des Unterbaums unter einem Knoten (er selbst = 1). */
@@ -106,4 +150,37 @@ export function veiledNodeIds(nodes: Array<TreeNode & { studentHidden?: boolean 
     }
   }
   return veiled;
+}
+
+/**
+ * Alle Lernmodule unter einem Anker (Buch = Wurzel, Bereich/Abschnitt,
+ * Zuweisung, Lernthema oder Modul) in Dokumentreihenfolge: Unterknoten vor den
+ * direkten Zuweisungen desselben Knotens, Themen und Module in ihrer
+ * gespeicherten Reihenfolge – wie Schüler und Lehrkraft den Baum sehen
+ * (classbook-student.js: level(), class-results.js: _level()).
+ */
+export function leavesInOrder(nodes: TreeNode[], links: TreeLink[], anchor: MarkerAnchor): LeafRef[] {
+  const leavesOfLink = (l: TreeLink): LeafRef[] => l.topics.flatMap((t) => t.moduleIds.map((moduleId) => ({ linkId: l.id, topicId: t.topicId, moduleId })));
+
+  const under = (parentId: string | null): LeafRef[] => {
+    const childNodes = nodes.filter((n) => n.parentId === parentId).sort((a, b) => a.orderIndex - b.orderIndex);
+    const direct = links.filter((l) => l.nodeId === parentId).sort((a, b) => a.orderIndex - b.orderIndex);
+    return [...childNodes.flatMap((n) => under(n.id)), ...direct.flatMap(leavesOfLink)];
+  };
+
+  if (anchor.level === 'root') return under(null);
+  if (anchor.level === 'node') return under(anchor.nodeId);
+  if (anchor.level === 'link') {
+    const link = links.find((l) => l.id === anchor.linkId);
+    return link ? leavesOfLink(link) : [];
+  }
+  if (anchor.level === 'topic') {
+    const link = links.find((l) => l.id === anchor.linkId);
+    const topic = link?.topics.find((t) => t.topicId === anchor.topicId);
+    return topic ? topic.moduleIds.map((moduleId) => ({ linkId: anchor.linkId, topicId: anchor.topicId, moduleId })) : [];
+  }
+  // 'module': nur, wenn es im Baum auch wirklich (noch) da ist – sonst verschwindet der Merker stillschweigend.
+  const link = links.find((l) => l.id === anchor.linkId);
+  const topic = link?.topics.find((t) => t.topicId === anchor.topicId);
+  return topic?.moduleIds.includes(anchor.moduleId) ? [{ linkId: anchor.linkId, topicId: anchor.topicId, moduleId: anchor.moduleId }] : [];
 }

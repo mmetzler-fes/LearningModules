@@ -469,6 +469,10 @@ export class BrowserApi {
   classLinkFromNotebookNode(id, classId) {
     return this._fetch(`/api/notebooks/nodes/${encodeURIComponent(id)}/quick-link`, { method: 'POST', body: JSON.stringify({ classId }) });
   }
+  /** Reparatur: Plätze im „Erworben“-Book neu nach der Erwerbs-Reihenfolge sortieren. */
+  resyncAcquiredOrder() {
+    return this._fetch('/api/notebooks/resync-acquired-order', { method: 'POST' });
+  }
   exportNotebookNode(id) {
     return this._download(`/api/notebooks/nodes/${encodeURIComponent(id)}/export`, 'notebook.zip');
   }
@@ -1085,7 +1089,11 @@ export class BrowserApi {
       method: 'PUT', body: JSON.stringify({ topicId, moduleId, enabled }),
     });
   }
-  /** 📍 Merker: { linkId, moduleId } setzt, {} entfernt. */
+  /**
+   * 📍 Merker auf jeder Ebene: `{ level: 'root' }`, `{ level: 'node', nodeId }`,
+   * `{ level: 'link', linkId }`, `{ level: 'topic', linkId, topicId }` oder
+   * `{ level: 'module', linkId, topicId, moduleId }`. `{}` entfernt ihn.
+   */
   setClassbookMarker(classId, marker) {
     return this._fetch(`/api/classbook/${encodeURIComponent(classId)}/marker`, { method: 'PUT', body: JSON.stringify(marker || {}) });
   }

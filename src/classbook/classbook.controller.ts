@@ -93,7 +93,11 @@ export class ClassbookController {
     return this.classbook.setLinks(req.user, classId, body);
   }
 
-  /** 📍 `{ linkId, topicId, moduleId }` setzt den Merker, `{}` entfernt ihn. */
+  /**
+   * 📍 Setzt den Merker auf jeder Ebene – `{ level: 'root' }`, `{ level: 'node', nodeId }`,
+   * `{ level: 'link', linkId }`, `{ level: 'topic', linkId, topicId }` oder
+   * `{ level: 'module', linkId, topicId, moduleId }`; `{}` entfernt ihn.
+   */
   @Put(':classId/marker')
   marker(@Request() req: any, @Param('classId') classId: string, @Body() body: any) {
     return this.classbook.setMarker(req.user, classId, body);
@@ -176,5 +180,19 @@ export class PublicClassbookController {
   @HttpCode(200)
   enter(@Param('token') token: string, @Body() body: { ticket?: string; linkId?: string; exam?: boolean }) {
     return this.classbook.enter(token, body);
+  }
+
+  /** `{ ticket }` → `{ current, hasNext }` – Stand im 📍-Pfad, ohne ihn zu verändern. */
+  @Post(':token/weiter')
+  @HttpCode(200)
+  weiter(@Param('token') token: string, @Body() body: { ticket?: string }) {
+    return this.classbook.weiter(token, body?.ticket);
+  }
+
+  /** `{ ticket }` → `{ current, hasNext }` – einen Schritt im 📍-Pfad vor, gespeichert je Schüler. */
+  @Post(':token/weiter/next')
+  @HttpCode(200)
+  weiterNext(@Param('token') token: string, @Body() body: { ticket?: string }) {
+    return this.classbook.advanceWeiter(token, body?.ticket);
   }
 }

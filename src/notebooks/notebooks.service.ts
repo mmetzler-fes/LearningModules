@@ -281,6 +281,30 @@ export class NotebooksService {
     await this.placeRepo.save(fresh);
   }
 
+  /**
+   * Einmalige Reparatur für Konten, die vor dem Reihenfolge-Fix erworben haben:
+   * Die Plätze im „Erworben“-Book neu nach der (jetzt korrekten) Erwerbs-
+   * Reihenfolge setzen. Nur für neue Platzierungen greift der Fix automatisch
+   * (`syncPlacements`); bestehende werden hier bei Bedarf einmal nachgezogen.
+   */
+  async resyncAcquiredOrder(user: any): Promise<{ changed: number }> {
+    const granted = await this.topics.findGranted(user);
+    const grantedTopics = granted.filter((t: any) => t.grants.some((g: any) => g.scopeType !== 'node'));
+    if (!grantedTopics.length) return { changed: 0 };
+
+    const book = await this.acquiredBook(user);
+    const places = await this.placeRepo.find({ where: { ownerId: user.userId, nodeId: book.id } });
+    const byTopic = new Map(places.map((p) => [p.topicId, p]));
+
+    const changed: NotebookPlacement[] = [];
+    grantedTopics.forEach((t: any, i: number) => {
+      const place = byTopic.get(t.id);
+      if (place && place.orderIndex !== i) { place.orderIndex = i; changed.push(place); }
+    });
+    if (changed.length) await this.placeRepo.save(changed);
+    return { changed: changed.length };
+  }
+
   private async acquiredBook(user: any): Promise<NotebookNode> {
     const found = await this.nodeRepo.findOne({ where: { ownerId: user.userId, kind: 'book', title: ACQUIRED_BOOK, parentId: null as any } });
     if (found) return found;

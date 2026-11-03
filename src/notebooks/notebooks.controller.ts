@@ -109,6 +109,17 @@ export class NotebooksController {
     return this.notebooks.setSelected(id, req.user, !!body?.selected);
   }
 
+  /**
+   * Reparatur für vor dem Reihenfolge-Fix erworbene Inhalte: Plätze im
+   * „Erworben“-Book neu nach der Erwerbs-Reihenfolge sortieren.
+   */
+  @Post('resync-acquired-order')
+  async resyncAcquiredOrder(@Request() req: any) {
+    const result = await this.notebooks.resyncAcquiredOrder(req.user);
+    docChanged(req.user.userId);
+    return result;
+  }
+
   /** `{ classId }` – Klassenlink mit allen startbaren Lernthemen darin. */
   @Post('nodes/:id/quick-link')
   async quickLink(@Param('id') id: string, @Request() req: any, @Body() body: { classId?: string }) {

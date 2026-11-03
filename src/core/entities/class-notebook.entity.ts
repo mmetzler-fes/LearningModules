@@ -7,12 +7,19 @@ export interface ClassNotebookItem {
   id: string;
 }
 
-/** Merker: Hier ist die Klasse gerade – ein Modul einer Zuweisung. */
-export interface ClassNotebookMarker {
-  linkId: string;
-  topicId: string;
-  moduleId: string;
-}
+/**
+ * Merker: Hier ist die Klasse gerade – auf jeder Baumebene, nicht mehr nur an
+ * einem Modul. Bei Bereich/Abschnitt/Lernthema springen Schüler zum ersten
+ * Modul darunter (siehe classbook-tree.ts: leavesInOrder). Alte, vor dieser
+ * Erweiterung gespeicherte Marker haben kein `level` – siehe
+ * classbook-tree.ts: normalizeMarker.
+ */
+export type ClassNotebookMarker =
+  | { level: 'root' }
+  | { level: 'node'; nodeId: string }
+  | { level: 'link'; linkId: string }
+  | { level: 'topic'; linkId: string; topicId: string }
+  | { level: 'module'; linkId: string; topicId: string; moduleId: string };
 
 /**
  * Klassennotizbuch: je Klasse genau eines, angelegt beim ersten Aufruf

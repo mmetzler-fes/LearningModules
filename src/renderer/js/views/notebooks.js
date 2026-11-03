@@ -639,6 +639,9 @@ export class NotebooksView {
       items.push({ label: '📂 Bereich darüber einfügen…', title: 'Neuer Bereich an dieser Stelle – dieser Eintrag kommt hinein', run: () => this._wrapNode(node) });
     }
     items.push({ label: '🏷 Tags', title: 'Tags vererben sich auf alle Lernthemen darunter', run: () => this._editNodeTags(node) });
+    if (node.kind === 'book' && node.parentId == null && node.title === 'Erworben') {
+      items.push({ label: '🔧 Reihenfolge reparieren', title: 'Für Erwerbe von vor dem Reihenfolge-Fix: Plätze neu nach der Erwerbs-Reihenfolge sortieren', run: () => this._resyncAcquiredOrder() });
+    }
     if (this._docsEnabled()) {
       items.push('-');
       items.push({ label: '📄 Dokument-Einstellungen…', title: 'Kurs, Kopfzeile, Nummerierung und KI-Vorgaben für die Dokumente darunter', run: () => this._editDocSettings(node) });
@@ -1213,6 +1216,13 @@ export class NotebooksView {
     const res = await this.app.api.setNotebookNodeSelected(node.id, selected);
     if (failed(res)) { this.app.showToast('Fehler: ' + (res?.message || 'Ändern fehlgeschlagen'), 'error'); return; }
     this.app.showToast(`${res.changed} Lernthem${res.changed === 1 ? 'a' : 'en'} ${selected ? 'freigegeben' : 'gesperrt'}.`, 'info');
+    await this.refresh();
+  }
+
+  async _resyncAcquiredOrder() {
+    const res = await this.app.api.resyncAcquiredOrder();
+    if (failed(res)) { this.app.showToast('Fehler: ' + (res?.message || 'Reparatur fehlgeschlagen'), 'error'); return; }
+    this.app.showToast(res.changed ? `${res.changed} Lernthem${res.changed === 1 ? 'a' : 'en'} neu sortiert.` : 'Schon in der richtigen Reihenfolge.', 'info');
     await this.refresh();
   }
 

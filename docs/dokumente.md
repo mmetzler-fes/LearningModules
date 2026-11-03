@@ -586,11 +586,12 @@ wenn die Lehrkraft des Lernthemas freigeschaltet ist.
   Arbeitsblatt. Quizze erscheinen so, wie sie gerade aussehen.
 - **Finger und Scrollen:** Stift und Maus arbeiten überall. **Der Finger** hängt
   vom Blatt ab:
-  - **Im Dokument** arbeitet ein Finger bei Auswählen, ✏️ Stift, 🖍️ Textmarker,
-    🧽 Radierer, Formen und Leuchtstift nur in **Karo- und Linienfeldern**;
-    daneben verschiebt er das Blatt. Auswählen und Radierer greifen außerdem
-    überall vorhandene Beschriftung. Ein Quiz bedient er beim Tippen.
-  - **Feld** zeichnet der Finger auf dem ganzen Blatt, das steht dabei still.
+  - **Im Dokument** arbeitet ein Finger bei ✏️ Stift und 🧽 Radierer nur in
+    **Karo- und Linienfeldern**; daneben verschiebt er das Blatt. Der Radierer
+    löscht außerdem überall, wo er auf vorhandene Beschriftung trifft. Ein Quiz
+    bedient der Finger beim Tippen.
+  - **Auswählen, 🖍️ Textmarker, Formen, Leuchtstift und Feld** wirken mit dem
+    Finger auf dem ganzen Blatt, es steht dabei still.
   - **Auf freien Blättern** (Karo, Linien, leer, PDF) ist die ganze Seite
     Zeichenfläche, das Blatt steht still.
   - **Bei Text und 👆 Bedienen** scrollt ein Finger; Antippen legt beim Text ein

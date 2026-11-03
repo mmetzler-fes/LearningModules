@@ -4,7 +4,7 @@ import { issueTicket } from '../classes/student-ticket';
 import { ExamService } from './exam.service';
 import { repo } from './test-repo';
 
-const LINK = { id: 'l1', ownerId: 't1', name: 'Physik', active: true, classId: 'c1', singleAttempt: true };
+const LINK = { modes: ['quiz', 'exam'], id: 'l1', ownerId: 't1', name: 'Physik', active: true, classId: 'c1', singleAttempt: true };
 const DOC = { id: 'd1', type: 'document', title: 'Blatt', content: { spec: { content: [{ type: 'quiz', module: 'q1' }] } } };
 
 function setup(access: 'practice' | 'exam' = 'practice') {

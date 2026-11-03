@@ -164,6 +164,29 @@ describe('Klassennotizbuch: 📍 Merker', () => {
     expect((await svc.setMarker(user, 'c1', {})).marker).toBeNull();
   });
 
+  it('👣 Folgen führt auf jeder Ebene zum ersten Modul unter dem Merker', async () => {
+    const { svc, notebooks, links } = setup();
+    links.rows[0].selection = [{ topicId: 't', all: true }];
+    (svc as any).classes.ownedClass = async () => KLASSE;
+    const user = { userId: 't1' };
+    const follow = jest.fn(() => 0);
+    const open = jest.fn();
+    (svc as any).live = { setFollow: follow, open, isFollowing: () => true, markerChanged() {}, online: () => 0 };
+    const { ticket } = await svc.login('kb', { name: 'Anna', pin: '1234' });
+    const target = { linkId: 'l1', moduleId: 'm1', title: '' };
+    for (const anchor of [{ level: 'root' }, { level: 'link', linkId: 'l1' }, { level: 'topic', linkId: 'l1', topicId: 't' }]) {
+      await svc.setMarker(user, 'c1', anchor);
+      await svc.setFollow(user, 'c1', true);
+      expect(follow).toHaveBeenLastCalledWith('c1', true, target);
+      await svc.liveStream('kb', ticket, {} as any);
+      expect(open).toHaveBeenLastCalledWith('c1', {}, target);
+    }
+    // Nichts mehr darunter sichtbar: kein Ziel statt eines halben
+    notebooks.rows[0].marker = { level: 'link', linkId: 'weg' };
+    await svc.setFollow(user, 'c1', true);
+    expect(follow).toHaveBeenLastCalledWith('c1', true, null);
+  });
+
   it('auch auf Bereich-, Zuweisungs- und Lernthema-Ebene: springt zum ersten Modul darunter', async () => {
     const { svc, links, places } = setup();
     links.rows[0].selection = [{ topicId: 't', all: true }];

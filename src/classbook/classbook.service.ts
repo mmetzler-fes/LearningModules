@@ -728,19 +728,27 @@ export class ClassbookService {
     return { reached };
   }
 
+  /** Wohin 👣 Folgen führt: das erste Modul unter dem 📍-Merker, auf welcher Ebene er auch sitzt. */
+  private async followTarget(klasse: StudentClass, nb: ClassNotebook): Promise<LiveTarget | null> {
+    const anchor = normalizeMarker(nb.marker);
+    if (!anchor) return null;
+    const { nodes, placeOf, links } = await this.visibleTree(klasse, nb);
+    const first = leavesInOrder(nodes, this.treeLinksOf(links, placeOf), anchor)[0];
+    return first ? { linkId: first.linkId, moduleId: first.moduleId, title: '' } : null;
+  }
+
   /** 👣 Folgen an/aus: Die Schüler-Geräte folgen dem 📍-Merker. */
   async setFollow(user: any, classId: string, on: boolean) {
-    const nb = await this.ensure(await this.classes.ownedClass(classId, user));
-    const mk = nb.marker ? { linkId: nb.marker.linkId, moduleId: nb.marker.moduleId, title: '' } : null;
-    const reached = this.live.setFollow(classId, !!on, mk);
+    const klasse = await this.classes.ownedClass(classId, user);
+    const nb = await this.ensure(klasse);
+    const reached = this.live.setFollow(classId, !!on, on ? await this.followTarget(klasse, nb) : null);
     return { follow: this.live.isFollowing(classId), reached };
   }
 
   /** Live-Verbindung eines Schüler-Geräts (nach der Anmeldung mit Ausweis). */
   async liveStream(token: string, ticket: unknown, res: Response) {
     const { nb, klasse } = await this.session(token, ticket);
-    const mk: LiveTarget | null = nb.marker ? { linkId: nb.marker.linkId, moduleId: nb.marker.moduleId, title: '' } : null;
-    this.live.open(klasse.id, res, mk);
+    this.live.open(klasse.id, res, this.live.isFollowing(klasse.id) ? await this.followTarget(klasse, nb) : null);
   }
 
   /** Erstanmeldung an (bis Ende des Tages) oder aus. */

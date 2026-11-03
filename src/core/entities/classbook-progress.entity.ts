@@ -1,6 +1,6 @@
 import { Entity, Column, Index } from 'typeorm';
 import { BaseEntity } from './base.entity';
-import { ClassNotebookMarker } from './class-notebook.entity';
+import type { ClassNotebookMarker } from './class-notebook.entity';
 
 /**
  * Wie weit ein Schüler mit „Weiter“ durch den 📍-Pfad eines Klassennotizbuchs

@@ -254,3 +254,23 @@ Fach und Bildungsstufe gibt es nur beim Anbieten im Shop – siehe
 
 Code: `src/notebooks/`, `src/renderer/js/views/notebooks.js`, Vorschau in
 `src/renderer/js/views/notebook-preview.js`.
+
+## Klassenarbeiten schützen
+
+Ein Dokument der Art **Klassenarbeit** erreicht Schüler nie, auch wenn es aktiv ist und im
+freigegebenen Lernthema liegt. Die Quizze darin und Untermodule sind mitgesperrt. Im Baum trägt
+es ein 🔒; die Vorschau sagt es ebenfalls. Du siehst und druckst es wie gewohnt.
+
+- **🔒 Nur Lehrkraft** (⋯ am Modul oder am Lernthema) sperrt genauso, etwa für einen Test aus
+  reinen Quizzen. Am Lernthema gilt es für alle seine Module. Es sperrt erst, nachdem du es
+  gesetzt hast: Die Art allein erkennt nur Dokumente.
+- **Gesperrt ist es auf allen Schüler-Wegen:** Quick-Link, Übungslink, Klassennotizbuch, Quiz-Arena
+  und PDF für Schüler. Nur der **Link der Klassenarbeit** (📝, eigener Schlüssel) führt hinein.
+- **🔓 Zur Besprechung freigeben** (⋯) öffnet es für Schüler über deine Links, samt der Quizze
+  darin, bis **🔒 Wieder sperren**. Ein Quiz, das auch in einer noch gesperrten Arbeit steht, bleibt zu.
+- **Andere Lehrkräfte** (Shop, Teilen) sehen es weiter, ihre Schüler nicht; deine Freigabe zur
+  Besprechung gilt für sie nicht. Eine Kopie beginnt gesperrt.
+- Beim Zuweisen eines Book oder Bereichs bietet die App „Nur Lehrkraft“ nicht zur Freigabe an.
+
+Nextcloud-Abbild und GitHub-Backup liegen in deinen eigenen Ablagen und folgen der Sperre nicht:
+Wer dort Ordner für Schüler teilt, teilt auch die Klassenarbeiten darin.

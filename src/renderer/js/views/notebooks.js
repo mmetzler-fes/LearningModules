@@ -363,7 +363,7 @@ export class NotebooksView {
       key, depth, icon: own ? '📘' : '📗', title: topic.title, open,
       cls: `nb-topic ${own ? '' : 'nb-granted'} ${own && !topic.selected ? 'nb-off' : ''}`,
       meta: `${roots.length} Modul${roots.length === 1 ? '' : 'e'}`,
-      extra: status,
+      extra: (topic.teacherOnly ? '<span class="nb-badge nb-lock" title="Nur Lehrkraft: Schüler sehen dieses Lernthema nicht">🔒</span>' : '') + status,
       drag: inMirror ? null : { type: 'topic', id: topic.id },
     });
     row.querySelector('.nb-status')?.addEventListener('click', async (e) => {
@@ -415,6 +415,17 @@ export class NotebooksView {
     return wrap;
   }
 
+  _isLocked(topic, mod) {
+    return !!(topic.isOwn ? mod.lockedForStudents : mod.lockedForOthers);
+  }
+
+  /** 🔒 Schüler sehen es nicht; 🔓 es wäre gesperrt, ist aber zur Besprechung offen. */
+  _lockBadge(topic, mod) {
+    if (this._isLocked(topic, mod)) return '<span class="nb-badge nb-lock" title="Schüler sehen das nicht – nur über den Link der Klassenarbeit">🔒</span>';
+    if (topic.isOwn && mod.studentRelease && mod.lockedForOthers) return '<span class="nb-badge nb-lock" title="Zur Besprechung freigegeben: Schüler sehen es über deine Links">🔓 offen</span>';
+    return '';
+  }
+
   /** `quizzes`: Quizze im Dokument (Klappen, Anzahl); `inDocs`: Dokumente, in denen dieses Quiz liegt. */
   _renderModule(topic, mod, depth, { quizzes = [], inDocs = null } = {}) {
     const type = (typeof H5P_TYPES !== 'undefined' && H5P_TYPES[mod.type]) || {};
@@ -426,7 +437,7 @@ export class NotebooksView {
       open: quizzes.length > 0 && (!!this._query || !this._open.has('dz:' + mod.id)),
       cls: `nb-module ${on ? '' : 'nb-off'} ${this._query && this._matches(mod.title) ? 'nb-hit' : ''}`,
       meta: escapeHtml(type.name || mod.type) + (quizzes.length ? ` · ${quizzes.length === 1 ? '1 Quiz' : `${quizzes.length} Quizze`}` : ''),
-      extra: (this._draftIds?.has(mod.id) ? '<span class="nb-badge" title="Nicht gespeicherte Änderungen – beim Bearbeiten wiederherstellbar">📝 Entwurf</span>' : '')
+      extra: this._lockBadge(topic, mod) + (this._draftIds?.has(mod.id) ? '<span class="nb-badge" title="Nicht gespeicherte Änderungen – beim Bearbeiten wiederherstellbar">📝 Entwurf</span>' : '')
         + (this._mirrorErrors?.has(mod.id) ? `<span class="nb-badge nb-warn" title="${escapeAttr(`Nextcloud: ${this._mirrorErrors.get(mod.id)}`)}">☁️ ⚠</span>` : '') + (own
         ? `<button type="button" class="nb-status ${on ? 'on' : ''}" title="${on ? 'Aktiv – klicken zum Deaktivieren' : 'Inaktiv – klicken zum Aktivieren'}">${on ? '●' : '○'}</button>
            <button type="button" class="nb-edit" title="Bearbeiten">✏️</button>`
@@ -956,6 +967,15 @@ export class NotebooksView {
     return [
       { label: '📒 Klassennotizbuch zuweisen…', title: 'In das Klassennotizbuch einer oder mehrerer Klassen – die Schüler finden es dort mit Name und PIN', run: () => this._assignToClassbook({ kind: 'topic', topic }) },
       { label: '🔗 Quick-Link', run: () => this.app.topicsView._createQuickClassLink(topic) },
+      {
+        label: topic.teacherOnly ? '✓ 🔒 Nur Lehrkraft aufheben' : '🔒 Nur Lehrkraft (ganzes Lernthema)',
+        title: 'Keins der Module erreicht Schüler – nur über den Link der Klassenarbeit',
+        run: async () => {
+          const res = await this.app.api.saveTopic({ id: topic.id, teacherOnly: !topic.teacherOnly }, true);
+          if (failed(res)) { this.app.showToast('Fehler: ' + (res?.message || 'Nicht gespeichert'), 'error'); return; }
+          await this.refresh();
+        },
+      },
       { label: '🛒 Teilen', title: 'Im Shop anbieten oder weitergeben', run: () => this.app.shopView.openForTopic(topic.id) },
       { label: '🧩 Module auswählen und anbieten…', run: () => this._offerSelection({ topicId: topic.id }) },
       { label: '⬇️ Download', title: 'JSON, Moodle-XML, H5P oder verschlüsselt', run: () => this.app.topicsView.openExportDialog(topic) },
@@ -1030,6 +1050,7 @@ export class NotebooksView {
       });
       items.push({ label: '📄 Kopieren nach…', run: () => this._moduleTargetDialog(topic, mod, 'copy') });
     }
+    items.push('-', ...this._lockEntries(topic, mod));
     items.push('-', { label: '🗑 Löschen', danger: true, run: () => this._deleteModule(topic, mod) });
     return items;
   }
@@ -1272,7 +1293,8 @@ export class NotebooksView {
     const mirror = this._topics.get(node.id)?.mirror;
     const below = mirror ? mirror.topics : this._topicsBelow(node.id).flatMap((t) => (t.isMirror ? t.mirror.topics : [t]));
     if (!below.length) { this.app.showToast('Darin ist noch kein Lernthema.', 'error'); return false; }
-    const locked = below.filter((t) => t.isOwn && !t.selected && (t.modules || []).length);
+    // „Nur Lehrkraft“ bleibt draußen: Das wird nicht nebenbei mit freigegeben.
+    const locked = below.filter((t) => t.isOwn && !t.selected && !t.teacherOnly && (t.modules || []).length);
     if (locked.length) {
       const names = locked.slice(0, 5).map((t) => `„${t.title}“`).join(', ') + (locked.length > 5 ? ` und ${locked.length - 5} weitere` : '');
       const release = await this.app.appConfirm(
@@ -1364,6 +1386,30 @@ export class NotebooksView {
         await done();
       },
     });
+  }
+
+  /** 🔒 Nur Lehrkraft, 🔓 Zur Besprechung freigeben und zurück. */
+  _lockEntries(topic, mod) {
+    const set = async (body) => {
+      const res = await this.app.api.setModuleStudentLock(topic.id, mod.id, body);
+      if (failed(res)) { this.app.showToast('Fehler: ' + (res?.message || 'Nicht gespeichert'), 'error'); return; }
+      await this.refresh();
+    };
+    const items = [];
+    if (mod.studentRelease && mod.lockedForOthers) {
+      items.push({ label: '🔒 Wieder sperren', title: 'Schüler sehen es nicht mehr', run: () => set({ released: false }) });
+    } else if (mod.lockedForStudents) {
+      items.push({
+        label: '🔓 Zur Besprechung freigeben',
+        title: 'Schüler sehen es über deine Links, samt der Quizze darin',
+        run: async () => {
+          if (await this.app.appConfirm(`„${mod.title}“ für Schüler freigeben?\n\nSie sehen es über deine Links, samt der Quizze darin. „Wieder sperren“ nimmt das zurück.`)) await set({ released: true });
+        },
+      });
+    }
+    if (mod.teacherOnly) items.push({ label: '✓ 🔒 Nur Lehrkraft aufheben', run: () => set({ teacherOnly: false }) });
+    else if (!mod.lockedForOthers) items.push({ label: '🔒 Nur Lehrkraft', title: 'Schüler sehen dieses Modul nicht – nur über den Link der Klassenarbeit', run: () => set({ teacherOnly: true }) });
+    return items;
   }
 
   /** Dokumente dieses Lernthemas, die das Modul als Quiz einbetten. */

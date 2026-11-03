@@ -7,7 +7,7 @@ import { DocumentWork } from '../core/entities/document-work.entity';
 import { DocumentVersion } from '../core/entities/document-version.entity';
 import { ClassStudent } from '../core/entities/class-student.entity';
 import { User } from '../core/entities/user.entity';
-import { LinksService, LinkAccess } from '../links/links.service';
+import { modesFor, LinksService, LinkAccess } from '../links/links.service';
 import { ClassesService } from '../classes/classes.service';
 import { readTicket } from '../classes/student-ticket';
 import { isTestStudent } from '../classes/test-student';
@@ -63,7 +63,7 @@ export class WorkService {
     const ticket = readTicket(body.studentTicket, link.id);
     if (!ticket) throw new ForbiddenException('Die Anmeldung ist abgelaufen. Bitte den Link neu öffnen und den Namen eingeben.');
     const moduleId = String(body.moduleId || '');
-    const resolved = await this.links.resolveModules(link);
+    const resolved = await this.links.resolveModules(link, { exam: modesFor(link, access).includes('exam') });
     const all = resolved.flatMap((r) => r.modules);
     const mod = all.find((m) => m.id === moduleId);
     if (!mod || mod.type !== 'document') throw new NotFoundException('Dokument nicht gefunden.');

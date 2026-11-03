@@ -32,6 +32,14 @@ export class LearningModule extends BaseEntity {
   @Column({ nullable: true })
   parentId: string;
 
+  // 🔒 Nur Lehrkraft (topics/student-lock.ts); Dokumente der Art „Klassenarbeit“ sind es von selbst.
+  @Column({ default: false })
+  teacherOnly: boolean;
+
+  // 🔓 Zur Besprechung freigegeben: hebt die Sperre für Links der Eigentümerin auf.
+  @Column({ default: false })
+  studentRelease: boolean;
+
   @OneToMany(() => LearningModule, (m) => m.parent)
   subModules: LearningModule[];
 

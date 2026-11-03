@@ -12,6 +12,7 @@ import { GroupsService } from '../groups/groups.service';
 import { CompanionService } from '../companion/companion.service';
 import { baseUrl, renderQr } from '../core/share/link-url';
 import { embeddedQuizIds } from '../core/public/student-view';
+import { withoutLocked } from '../topics/student-lock';
 import * as crypto from 'crypto';
 import { applyRule, differsFromRule, syncedState } from './link-sync';
 import { isQuickRule, quickToken, splitQuickToken } from './quick-token';
@@ -168,7 +169,7 @@ export class LinksService {
    *  - Ein Elternmodul, von dem kein Submodul gewählt ist, bleibt draußen –
    *    es gäbe nichts zu beantworten.
    */
-  async resolveModules(link: TopicLink): Promise<Array<{ topic: LearningTopic; modules: LearningModule[] }>> {
+  async resolveModules(link: TopicLink, { exam = false }: { exam?: boolean } = {}): Promise<Array<{ topic: LearningTopic; modules: LearningModule[] }>> {
     const selection = link.selection || [];
     const topicIds = selection.map((s) => s.topicId);
     if (topicIds.length === 0) return [];
@@ -192,8 +193,9 @@ export class LinksService {
       if (!topic) continue;
 
       // Mit Nutzungsrecht nur die Module, die es umfasst.
-      const ofTopic = this.topicsService
-        .visibleModules(topic, allModules.filter((m) => m.topicId === topic.id), linkOwner)
+      const visible = this.topicsService.visibleModules(topic, allModules.filter((m) => m.topicId === topic.id), linkOwner);
+      // Klassenarbeiten und „Nur Lehrkraft“ gibt es nur über den Link der Klassenarbeit.
+      const ofTopic = (exam ? visible : withoutLocked(topic, visible, topic.ownerId === link.ownerId))
         .sort((a, b) => a.orderIndex - b.orderIndex);
 
       const chosen = new Set(entry.all ? ofTopic.map((m) => m.id) : entry.moduleIds || []);
@@ -265,7 +267,7 @@ export class LinksService {
     const base = baseUrl(req);
     return Promise.all(
       links.map(async (link) => {
-        const resolved = await this.resolveModules(link);
+        const resolved = await this.resolveModules(link, { exam: (link.modes || []).includes('exam') });
         return {
           ...this.publicShape(link, classes.get(link.classId || '')),
           ...this.syncInfo(link, links, byId, classes),
@@ -336,7 +338,7 @@ export class LinksService {
 
   async findOne(id: string, user: any, req?: any) {
     const link = await this.own(id, user);
-    const resolved = await this.resolveModules(link);
+    const resolved = await this.resolveModules(link, { exam: (link.modes || []).includes('exam') });
     // Für den Abgleich: die Regel bzw. die Klassenlinks dieser Regel.
     const related = await this.linkRepo.find({
       where: link.classId ? { id: link.templateId || '-', ownerId: user.userId } : { templateId: link.id, ownerId: user.userId },
@@ -456,7 +458,7 @@ export class LinksService {
     await this.linkRepo.save(link);
     const token = variant || (link[field] as string);
     const url = `${baseUrl(req)}/?l=${token}`;
-    const resolved = await this.resolveModules(link);
+    const resolved = await this.resolveModules(link, { exam: (link.modes || []).includes('exam') });
     return {
       token,
       access,

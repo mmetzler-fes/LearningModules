@@ -1,4 +1,5 @@
 import { docChanged } from '../core/events/doc-changes';
+import { lockedModuleIds } from './student-lock';
 import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, IsNull, Repository } from 'typeorm';
@@ -73,7 +74,7 @@ export class TopicsService {
    * Modul geöffnet wird (GET /topics/:id/modules).
    */
   private static readonly MODULE_SUMMARY_FIELDS: (keyof LearningModule)[] = [
-    'id', 'type', 'title', 'moduleSelected', 'topicId', 'parentId', 'orderIndex', 'tagIds', 'creatorId',
+    'id', 'type', 'title', 'moduleSelected', 'topicId', 'parentId', 'orderIndex', 'tagIds', 'creatorId', 'teacherOnly', 'studentRelease',
     'createdAt', 'updatedAt',
   ];
 
@@ -93,7 +94,7 @@ export class TopicsService {
       byTopic.get(m.topicId)!.push(m);
     }
     for (const t of topics) t.modules = byTopic.get(t.id) || [];
-    await this.attachQuizIds(ids, modules);
+    await this.attachQuizIds(topics, modules);
   }
 
   /**
@@ -101,13 +102,16 @@ export class TopicsService {
    * Die Datenbank liest sie selbst aus dem JSON: Der Inhalt samt Bildern bleibt dort. Fehlt die
    * Angabe, steht das Quiz eben auf der Ebene der anderen Module.
    */
-  private async attachQuizIds(topicIds: string[], modules: LearningModule[]) {
+  private async attachQuizIds(topics: LearningTopic[], modules: LearningModule[]) {
+    const topicIds = topics.map((t) => t.id);
     if (!topicIds.length) return;
+    const marks = topicIds.map(() => '?').join(',');
+    const kinds = new Map<string, string>();
     try {
       const rows: { id: string; module: string }[] = await this.moduleRepo.query(
         `SELECT m.id AS id, j.value AS module
            FROM modules m, json_tree(CASE WHEN json_valid(m.content) THEN m.content ELSE '{}' END) j
-          WHERE m.topicId IN (${topicIds.map(() => '?').join(',')})
+          WHERE m.topicId IN (${marks})
             AND m.type = 'document'
             AND m.content LIKE '%"quiz"%'
             AND j.key = 'module'
@@ -118,8 +122,25 @@ export class TopicsService {
       const byDoc = new Map<string, string[]>();
       for (const r of rows) byDoc.set(r.id, [...(byDoc.get(r.id) || []), String(r.module)]);
       for (const m of modules) if (byDoc.has(m.id)) (m as any).quizIds = byDoc.get(m.id);
+      const kindRows: { id: string; kind: string }[] = await this.moduleRepo.query(
+        `SELECT id, json_extract(content, '$.kind') AS kind FROM modules
+          WHERE topicId IN (${marks}) AND type = 'document' AND json_valid(content)`,
+        topicIds,
+      );
+      for (const r of kindRows) if (r.kind) kinds.set(r.id, r.kind);
     } catch {
       // ohne Angabe bleibt der Baum flach
+    }
+    // Für die Anzeige im Baum (🔒): Durchgesetzt wird die Sperre auf den Schüler-Wegen.
+    const facts = { kindOf: (m: { id: string }) => kinds.get(m.id), embedsOf: (m: any) => m.quizIds || [] };
+    for (const t of topics) {
+      const mods = modules.filter((m) => m.topicId === t.id);
+      const forOwner = lockedModuleIds(t, mods, true, facts);
+      const forOthers = lockedModuleIds(t, mods, false, facts);
+      for (const m of mods) {
+        (m as any).lockedForStudents = forOwner.has(m.id);
+        (m as any).lockedForOthers = forOthers.has(m.id);
+      }
     }
   }
 
@@ -752,7 +773,7 @@ export class TopicsService {
    * Bewusst eine Positivliste: Über ein blindes Object.assign ließen sich
    * sonst ownerId oder die Herkunftsangaben mitsetzen.
    */
-  private static readonly EDITABLE_FIELDS = ['title', 'description', 'selected', 'tagIds'];
+  private static readonly EDITABLE_FIELDS = ['title', 'description', 'selected', 'tagIds', 'teacherOnly'];
 
   /** Zusätzlich nur für den Eigentümer: Zugang und Sichtbarkeit. */
   private static readonly OWNER_FIELDS = ['visibility', 'accessPassword', 'subscribeKey', 'permissions'];
@@ -790,6 +811,20 @@ export class TopicsService {
     if (!module) throw new NotFoundException('Modul nicht gefunden');
     await this.moduleRepo.remove(module);
     docChanged(topic.ownerId);
+    return { success: true };
+  }
+
+  /** 🔒 Nur Lehrkraft und 🔓 Zur Besprechung freigeben. */
+  async setStudentLock(topicId: string, moduleId: string, body: { teacherOnly?: boolean; released?: boolean }, user: any) {
+    const topic = await this.findOneFor(topicId, user, 'write');
+    const module = topic.modules.find((m) => m.id === moduleId);
+    if (!module) throw new NotFoundException('Modul nicht gefunden');
+    if (typeof body?.teacherOnly === 'boolean') {
+      module.teacherOnly = body.teacherOnly;
+      if (body.teacherOnly) module.studentRelease = false;
+    }
+    if (typeof body?.released === 'boolean') module.studentRelease = body.released;
+    await this.moduleRepo.save(module);
     return { success: true };
   }
 
@@ -869,6 +904,7 @@ export class TopicsService {
       const { id: _id, topic: _t, subModules: _s, parent: _p, createdAt: _c, updatedAt: _u, ...rest } = m as any;
       return Object.assign(new LearningModule(), {
         ...rest,
+        studentRelease: false, // Eine Kopie beginnt gesperrt.
         id: crypto.randomUUID(),
         topicId: target.id,
         parentId: null,

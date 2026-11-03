@@ -1,3 +1,4 @@
+import { withoutLocked } from '../../topics/student-lock';
 import { Controller, Get, Post, Body, Param, Req, Res, HttpCode, NotFoundException, ForbiddenException, BadRequestException, UseInterceptors, UploadedFile } from '@nestjs/common';
 import type { Response } from 'express';
 import { FileInterceptor } from '@nestjs/platform-express';
@@ -66,14 +67,14 @@ export class PublicController {
   ) {
     let modules: LearningModule[] = [];
     if (body?.linkToken) {
-      const { link } = await this.findAccessByToken(String(body.linkToken));
+      const { link, access } = await this.findAccessByToken(String(body.linkToken));
       if (link.accessPassword && (body.password || '') !== link.accessPassword && !readTicket(body.studentTicket, link.id)) {
         throw new ForbiddenException('Falsches Passwort.');
       }
-      modules = (await this.linksService.resolveModules(link)).flatMap((r) => r.modules);
+      modules = (await this.linksService.resolveModules(link, { exam: modesFor(link, access).includes('exam') })).flatMap((r) => r.modules);
     } else if (body?.quickToken) {
       const { topic } = await this.resolveQuickToken(String(body.quickToken));
-      modules = (topic.modules || []).filter((m) => m.moduleSelected !== false);
+      modules = (topic.modules || []).filter((m) => m.moduleSelected !== false); // schon ohne Gesperrtes (resolveQuickToken)
     } else {
       throw new BadRequestException('Link fehlt.');
     }
@@ -157,6 +158,8 @@ export class PublicController {
       // Mit Nutzungsrecht nur die Module, die es umfasst.
       topic.modules = this.topicsService.visibleModules(topic, topic.modules || [], asTeacher);
     }
+    // Klassenarbeiten und „Nur Lehrkraft“ gibt es über einen Quick-Link nie.
+    topic.modules = withoutLocked(topic, topic.modules || [], isOwnerLink);
 
     return { topic, teacher };
   }
@@ -179,7 +182,7 @@ export class PublicController {
     }
     const asked = parts && !(await this.linksService.linkOfToken(token)) ? parts.token : token;
     const { link, access } = await this.findAccessByToken(asked);
-    const resolved = await this.linksService.resolveModules(link);
+    const resolved = await this.linksService.resolveModules(link, { exam: modesFor(link, access).includes('exam') });
 
     const klasse = await this.classesService.findById(link.classId);
     const choices = isQuickRule(link) ? await this.linksService.quickClasses(link) : [];
@@ -275,7 +278,7 @@ export class PublicController {
     const teacher = await this.userRepo.findOne({ where: { id: link.ownerId } });
     if (!teacher) throw new NotFoundException('Lehrer nicht gefunden.');
 
-    const resolved = await this.linksService.resolveModules(link);
+    const resolved = await this.linksService.resolveModules(link, { exam: mode === 'exam' });
     if (resolved.length === 0) {
       throw new ForbiddenException('Dieser Link enthält derzeit keine Inhalte.');
     }
@@ -345,7 +348,7 @@ export class PublicController {
     let context: string;
     if (body.linkToken) {
       const link = await this.findLinkByToken(body.linkToken);
-      const resolved = await this.linksService.resolveModules(link);
+      const resolved = await this.linksService.resolveModules(link, { exam: (link.modes || []).includes('exam') });
       if (!resolved.some((r) => r.modules.some((m) => m.id === mod.id))) {
         throw new ForbiddenException('Diese Aufgabe gehört nicht zum Link.');
       }

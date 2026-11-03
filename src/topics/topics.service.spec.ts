@@ -20,7 +20,8 @@ describe('TopicsService.attachQuizIds (echte Datenbank)', () => {
     const svc: any = Object.create(TopicsService.prototype);
     svc.moduleRepo = { query: (sql: string, params: unknown[]) => ds.query(sql, params) };
     const mods: any[] = ['d1', 'd2', 'd3', 'q9'].map((id) => ({ id }));
-    await svc.attachQuizIds(['t1'], mods);
+    mods.forEach((m) => { m.topicId = 't1'; });
+    await svc.attachQuizIds([{ id: 't1' }], mods);
     expect(mods.find((m) => m.id === 'd1').quizIds).toEqual(['q2', 'q1', 'q3']);
     expect(mods.filter((m) => m.quizIds).map((m) => m.id)).toEqual(['d1']);
     await ds.destroy();

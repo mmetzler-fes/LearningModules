@@ -542,6 +542,7 @@ export class NotebooksService {
       const { id, topic: _t, subModules: _s, parent: _pa, createdAt: _ca, updatedAt: _ua, ...data } = m as any;
       return Object.assign(new LearningModule(), {
         ...data,
+        studentRelease: false, // Eine Kopie beginnt gesperrt.
         id: idMap.get(id),
         topicId: topic.id,
         parentId: m.parentId ? idMap.get(m.parentId) || null : null,

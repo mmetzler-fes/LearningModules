@@ -223,6 +223,8 @@ export class NotebookPreview {
     const notes = [];
     if (own && !topic.selected) notes.push('Das Lernthema ist nicht für Schüler freigegeben – sie sehen es erst danach.');
     if (full.moduleSelected === false) notes.push('Dieses Modul ist inaktiv – Schüler sehen es nicht.');
+    if (mod.lockedForStudents && own) notes.push('🔒 Schüler sehen das nicht – nur über den Link der Klassenarbeit. Freigeben: ⋯ → 🔓 Zur Besprechung freigeben.');
+    else if (mod.lockedForOthers && !own) notes.push('🔒 Deine Schüler sehen das nicht – nur über den Link der Klassenarbeit.');
     if (notes.length) {
       const p = document.createElement('p');
       p.className = 'hint nb-preview-note';

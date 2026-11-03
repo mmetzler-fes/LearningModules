@@ -130,6 +130,11 @@ export class TopicsController {
     return this.topicsService.removeModule(id, moduleId, req.user);
   }
 
+  @Patch(':id/modules/:moduleId/student-lock')
+  async setStudentLock(@Param('id') id: string, @Param('moduleId') moduleId: string, @Body() body: any, @Request() req: any) {
+    return this.topicsService.setStudentLock(id, moduleId, body, req.user);
+  }
+
   @Patch(':id/modules/:moduleId/toggle')
   async toggleModuleSelection(@Param('id') id: string, @Param('moduleId') moduleId: string, @Body() body: any, @Request() req: any) {
     return this.topicsService.toggleModule(id, moduleId, body.selected, req.user);

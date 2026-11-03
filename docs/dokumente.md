@@ -14,7 +14,8 @@ Admin sie freigeschaltet hat (siehe [Benutzerverwaltung](benutzerverwaltung.md#f
 **➕ Neues Modul** → Modultyp **📄 Dokument**, dazu die Art:
 
 - **Arbeitsblatt** – nummeriert (1.1, 1.2 …), mit Karopapier und Lösungen,
-- **Klassenarbeit** – ohne Nummer, eigene Vorlage möglich,
+- **Klassenarbeit** – ohne Nummer, eigene Vorlage möglich, **für Schüler gesperrt**
+  ([Klassenarbeiten schützen](notebooks.md#klassenarbeiten-schuetzen)),
 - **Text** – zum Lesen, ohne Nummer.
 
 Der Editor startet im Modus **✏️ Bearbeiten** – wie ein Textprogramm:

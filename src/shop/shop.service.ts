@@ -1048,6 +1048,7 @@ export class ShopService implements OnApplicationBootstrap {
       const { id, topic: _t, subModules: _s, parent: _p, createdAt: _c, updatedAt: _u, ...rest } = m as any;
       return Object.assign(new LearningModule(), {
         ...rest,
+        studentRelease: false, // Eine Kopie beginnt gesperrt, die Besprechung gehört der Quelle.
         id: idMap.get(id),
         topicId: copy.id,
         parentId: m.parentId ? idMap.get(m.parentId) || null : null,

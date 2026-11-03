@@ -968,6 +968,13 @@ export class BrowserApi {
       { method: 'DELETE' }
     );
   }
+  setModuleStudentLock(topicId, moduleId, body) {
+    return this._fetch(
+      `/api/topics/${encodeURIComponent(topicId)}/modules/${encodeURIComponent(moduleId)}/student-lock`,
+      { method: 'PATCH', body: JSON.stringify(body) }
+    );
+  }
+
   toggleModuleSelection(topicId, moduleId, selected) {
     return this._fetch(
       `/api/topics/${encodeURIComponent(topicId)}/modules/${encodeURIComponent(moduleId)}/toggle`,

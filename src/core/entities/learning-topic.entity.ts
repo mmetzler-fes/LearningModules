@@ -13,6 +13,10 @@ export class LearningTopic extends BaseEntity {
   @Column({ default: false })
   selected: boolean;
 
+  // 🔒 Nur Lehrkraft: keins der Module erreicht Schüler (topics/student-lock.ts).
+  @Column({ default: false })
+  teacherOnly: boolean;
+
   @Column()
   ownerId: string;
 

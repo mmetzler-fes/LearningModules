@@ -219,6 +219,7 @@ export class HtmlAppsService {
       const clean = cleanProgress(body.data);
       if ('error' in clean) return refuse('bad-progress', clean.error);
       await this.saveLive(link.id, session.s, kid, clean);
+      if (clean.active) await this.markOpened(root.id, session.s, clean.unit);
       // Nur Fortschritt: Der Abschnitt zählt als bearbeitet, ohne Prozent.
       const seen = kind === 'info' ? clean.active : kind === 'practice' && !clean.active && (clean.done ?? 0) > 0;
       if (seen) {
@@ -252,6 +253,15 @@ export class HtmlAppsService {
     await this.resultRepo.save(row);
   }
 
+  /** Merkt sich dauerhaft, dass der Schüler den Abschnitt geöffnet hat – anders als der Durchlauf übersteht das den nächsten Start. */
+  private async markOpened(moduleId: string, studentId: string, unit: string) {
+    const row = (await this.stateRepo.findOne({ where: { moduleId, studentId } }))
+      || this.stateRepo.create({ id: crypto.randomUUID(), moduleId, studentId, data: 'null' });
+    if (row.opened?.includes(unit)) return;
+    row.opened = [...(row.opened || []), unit];
+    await this.stateRepo.save(row);
+  }
+
   /** Stand für den Liveview, am Durchlauf des Schülers. Ohne Durchlauf gibt es nichts anzuzeigen. */
   private async saveLive(linkId: string, studentId: string, kid: LearningModule, p: { unit: string; active: boolean; done?: number; total?: number }) {
     const row = await this.progressRepo.findOne({ where: { linkId, studentId } });
@@ -260,7 +270,8 @@ export class HtmlAppsService {
     const prev = app.units[p.unit] || {};
     // „Gerade dran“ sagt LM.enter; eine App ohne enter zeigt den ersten gemeldeten Abschnitt.
     if (p.active || !app.active) app.active = p.unit;
-    app.units[p.unit] = { title: kid.title, done: (p.active ? prev.done : p.done) ?? null, total: (p.active ? prev.total : p.total) ?? null };
+    // `seen` nur über LM.enter: Beim Start meldet eine App auch Stände von Abschnitten, in denen der Schüler gerade nicht war.
+    app.units[p.unit] = { title: kid.title, done: (p.active ? prev.done : p.done) ?? null, total: (p.active ? prev.total : p.total) ?? null, seen: !!prev.seen || p.active };
     row.appUnits = { ...app };
     await this.progressRepo.save(row);
   }

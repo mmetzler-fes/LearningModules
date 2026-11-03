@@ -70,6 +70,8 @@ export interface UnitCell {
   done: boolean;
   pct: number | null;
   work: boolean;
+  /** Nur geöffnet, noch nichts bearbeitet (Abschnitt einer HTML-App). Zählt nicht als erledigt. */
+  opened?: boolean;
 }
 
 /** Modul der Übersicht mit allen Modul-IDs, die zu ihm zählen (Submodule). */
@@ -83,7 +85,7 @@ export interface Unit {
  * Antworten (Punkte, sonst richtig/falsch). Informationsseiten zählen als
  * erledigt, ohne Anteil. `works`: Modul-IDs mit Bearbeitung (Stift).
  */
-export function unitCells(units: Unit[], runs: Array<{ details?: DetailLike[] }>, works: Set<string>): Record<string, UnitCell> {
+export function unitCells(units: Unit[], runs: Array<{ details?: DetailLike[] }>, works: Set<string>, opened?: Set<string>): Record<string, UnitCell> {
   const out: Record<string, UnitCell> = {};
   for (const unit of units) {
     const ids = new Set(unit.ids);
@@ -100,7 +102,7 @@ export function unitCells(units: Unit[], runs: Array<{ details?: DetailLike[] }>
       if (pct === null || p > pct) pct = p;
     }
     const work = unit.ids.some((id) => works.has(id));
-    out[unit.id] = { done, pct, work };
+    out[unit.id] = { done, pct, work, ...(!done && opened?.has(unit.id) ? { opened: true } : {}) };
   }
   return out;
 }

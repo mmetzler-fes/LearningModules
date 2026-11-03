@@ -1,3 +1,4 @@
+import { HtmlAppState } from '../core/entities/html-app-state.entity';
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ClassNotebook } from '../core/entities/class-notebook.entity';
@@ -24,7 +25,7 @@ import { WebappController } from './webapp.controller';
 import { ClassbookLive } from './classbook-live';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([ClassNotebook, ClassStudent, Result, DocumentWork, TopicLink, User, ExamAttempt, ClassNotebookNode, ClassNotebookPlace, LearningTopic, LearningModule, NotebookNode, NotebookPlacement, ClassbookProgress]), LinksModule, ClassesModule, NotebooksModule, ContestModule],
+  imports: [TypeOrmModule.forFeature([HtmlAppState, ClassNotebook, ClassStudent, Result, DocumentWork, TopicLink, User, ExamAttempt, ClassNotebookNode, ClassNotebookPlace, LearningTopic, LearningModule, NotebookNode, NotebookPlacement, ClassbookProgress]), LinksModule, ClassesModule, NotebooksModule, ContestModule],
   controllers: [ClassbookController, PublicClassbookController, WebappController],
   providers: [ClassbookService, ClassbookLive],
 })

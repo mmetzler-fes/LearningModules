@@ -40,6 +40,12 @@ describe('loginDecision', () => {
 });
 
 describe('unitCells', () => {
+  it('nur geöffnet zählt nicht als erledigt und entfällt, sobald etwas gemeldet ist', () => {
+    const cells = unitCells([{ id: 'a', ids: ['a'] }, { id: 'b', ids: ['b'] }], [{ details: [{ moduleId: 'b', isCorrect: true }] }], new Set(), new Set(['a', 'b']));
+    expect(cells.a).toEqual({ done: false, pct: null, work: false, opened: true });
+    expect(cells.b).toEqual({ done: true, pct: 100, work: false });
+  });
+
   const units = [{ id: 'a', ids: ['a'] }, { id: 'b', ids: ['b', 'b1', 'b2'] }, { id: 'c', ids: ['c'] }, { id: 'd', ids: ['d'] }];
 
   it('bester Durchlauf je Modul, Submodule zählen zum Modul', () => {

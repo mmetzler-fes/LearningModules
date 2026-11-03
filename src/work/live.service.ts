@@ -47,7 +47,7 @@ export class LiveService {
         studentId: ticket.s, steps: null, states: null, done: 0, finishedAt: null,
       });
     }
-    if (starting) Object.assign(row, { steps: body.steps!.slice(0, 500).map((t) => String(t).slice(0, 200)), states: null, appUnits: null, done: 0, finishedAt: null });
+    if (starting) Object.assign(row, { steps: body.steps!.slice(0, 500).map((t) => String(t).slice(0, 200)), states: null, appUnits: row.appUnits ? { ...row.appUnits, active: null } : null, done: 0, finishedAt: null });
     if (Array.isArray(body.states)) row.states = cleanStates(body.states, row.steps?.length ?? 0);
     Object.assign(row, {
       linkName: link.name || '', studentName: ticket.n, mode: String(body.mode || row.mode || '').slice(0, 20),

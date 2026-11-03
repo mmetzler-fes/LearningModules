@@ -306,12 +306,16 @@ export class ClassResultsView {
       // Ältere Meldungen ohne Stand je Aufgabe: alles davor zählt als bearbeitet.
       return !r.states?.length && i < r.done ? 'done' : '';
     };
-    // HTML-App: der Abschnitt, in dem der Schüler gerade ist. Titel stammen aus dem Steckbrief, also escapen.
+    // HTML-App: aktueller und bisher besuchte Abschnitte. Titel stammen aus dem Steckbrief, also escapen.
     const appLine = (r) => {
-      const unit = r.appUnits?.units?.[r.appUnits.active];
-      if (!unit) return '';
-      const count = unit.total ? ` ${Number(unit.done) || 0}/${Number(unit.total)}` : '';
-      return `<br><span class="hint">🧩 ${escapeHtml(unit.title || '')}${count}</span>`;
+      const units = r.appUnits?.units || {};
+      const active = r.appUnits?.active;
+      const unit = units[active];
+      const parts = [];
+      if (unit) parts.push(`🧩 ${escapeHtml(unit.title || '')}${unit.total ? ` ${Number(unit.done) || 0}/${Number(unit.total)}` : ''}`);
+      const seen = Object.entries(units).filter(([id, u]) => u.seen && id !== active).map(([, u]) => escapeHtml(u.title || ''));
+      if (seen.length) parts.push(`besucht: ${seen.join(', ')}`);
+      return parts.length ? `<br><span class="hint">${parts.join(' · ')}</span>` : '';
     };
     const CELL = { done: ['cr-live-done', 'bearbeitet', '✓'], skip: ['cr-live-skip', 'übersprungen (Weiter ohne Eingabe)', '⤼'],
       part: ['cr-live-part', 'teilweise – von den Quizzen im Dokument nur ein Teil bearbeitet', '◐'], now: ['cr-live-now', 'gerade dran', '▶'] };
@@ -357,7 +361,7 @@ export class ClassResultsView {
           <tbody>${rows.map((s) => {
             const r = latest.get(s.id);
             if (!r) return `<tr class="cr-live-absent">${nameCell(s)}<td colspan="4"><span class="hint">noch nicht gestartet</span></td></tr>`;
-            const current = r.finishedAt ? '<span class="hint">—</span>' : `<strong>${r.done + 1}.</strong> ${escapeHtml(r.steps[r.done] || '')}${appLine(r)}`;
+            const current = `${r.finishedAt ? '<span class="hint">—</span>' : `<strong>${r.done + 1}.</strong> ${escapeHtml(r.steps[r.done] || '')}`}${appLine(r)}`;
             return `<tr>${nameCell(s)}<td>${escapeHtml(r.linkName || 'Zuweisung')}${(live.runs.filter((x) => x.studentId === s.id).length > 1) ? ' <span class="hint" title="hat heute auch andere Zuweisungen bearbeitet">+</span>' : ''}</td>
               <td>${current}</td><td>${strip(r)}</td><td>${progress(r)}</td></tr>`;
           }).join('')}</tbody>
@@ -377,7 +381,7 @@ export class ClassResultsView {
           <tbody>${rows.map((s) => {
             const r = byStudent.get(s.id);
             return `<tr class="${r ? '' : 'cr-live-absent'}">${nameCell(s)}
-              ${steps.map((_, i) => cell(r, i)).join('')}<td>${r ? progress(r) : '<span class="hint">noch nicht gestartet</span>'}</td></tr>`;
+              ${steps.map((_, i) => cell(r, i)).join('')}<td>${r ? `${progress(r)}${appLine(r)}` : '<span class="hint">noch nicht gestartet</span>'}</td></tr>`;
           }).join('')}</tbody>
         </table></div>
         <p class="hint">✓ bearbeitet · ◐ teilweise (Quizze im Dokument) · ⤼ übersprungen (Weiter ohne Eingabe) · ▶ gerade dran.</p>`;
@@ -1441,12 +1445,13 @@ export class ClassResultsView {
       return;
     }
     const cell = (c) => {
-      if (!c || (!c.done && !c.work)) return '<td></td>';
+      if (!c || (!c.done && !c.work && !c.opened)) return '<td></td>';
+      if (c.opened && !c.done && !c.work) return '<td><span title="Abschnitt geöffnet, noch nichts bearbeitet">👁</span></td>';
       const main = c.done ? (c.pct === null ? '<span class="cb-done">✓</span>' : `<span class="result-score ${pctClass(c.pct)}">${c.pct}</span>`) : '';
       return `<td>${main}${c.work ? '<span title="Blatt bearbeitet">✍️</span>' : ''}</td>`;
     };
     const students = data.students.filter((s) => !s.pending);
-    out.innerHTML = `<p class="hint">Je Modul das beste Ergebnis in Prozent, ✓ erledigt (ohne Wertung), ✍️ Blatt mit dem Stift bearbeitet.
+    out.innerHTML = `<p class="hint">Je Modul das beste Ergebnis in Prozent, ✓ erledigt (ohne Wertung), ✍️ Blatt mit dem Stift bearbeitet, 👁 Abschnitt einer HTML-App geöffnet (zählt nicht als erledigt).
         Unbestätigte Einträge der Klassenliste fehlen.</p>
       ${data.links.map((l) => {
         const done = (s) => l.units.filter((u) => l.cells[s.id]?.[u.id]?.done || l.cells[s.id]?.[u.id]?.work).length;

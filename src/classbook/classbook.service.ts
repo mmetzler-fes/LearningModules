@@ -1,3 +1,5 @@
+import { HtmlAppState } from '../core/entities/html-app-state.entity';
+import { contentOf } from '../core/public/student-view';
 import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, IsNull, Repository } from 'typeorm';
@@ -34,11 +36,11 @@ import { newClassCode, normalizeClassCode, formatClassCode, endOfDay, firstLogin
 const practiceModes = (link: TopicLink) => PRACTICE_MODES.filter((m) => (link.modes || []).includes(m));
 
 /** Module der Übersicht: je Modul eines, mit seinen Submodulen. */
-function unitsOf(modules: LearningModule[]): Array<Unit & { title: string; type: string }> {
+function unitsOf(modules: LearningModule[]): Array<Unit & { title: string; type: string; appRoot?: string; appUnit?: string }> {
   return modules.flatMap((m) => {
     const kids: LearningModule[] = (m as any).subModules || [];
     // Eine HTML-App zeigt je Abschnitt eine Spalte.
-    if (m.type === 'htmlApp' && kids.length) return kids.map((k) => ({ id: k.id, title: k.title || '', type: k.type, ids: [k.id] }));
+    if (m.type === 'htmlApp' && kids.length) return kids.map((k) => ({ id: k.id, title: k.title || '', type: k.type, ids: [k.id], appRoot: m.id, appUnit: contentOf(k).unit }));
     return [{ id: m.id, title: m.title || '', type: m.type, ids: [m.id, ...kids.map((s) => s.id)] }];
   });
 }
@@ -71,6 +73,7 @@ export class ClassbookService {
     @InjectRepository(NotebookNode) private readonly nbNodeRepo: Repository<NotebookNode>,
     @InjectRepository(NotebookPlacement) private readonly nbPlaceRepo: Repository<NotebookPlacement>,
     @InjectRepository(ClassbookProgress) private readonly progressRepo: Repository<ClassbookProgress>,
+    @InjectRepository(HtmlAppState) private readonly appStateRepo: Repository<HtmlAppState>,
   ) {}
 
   /** Notizbuch der Klasse – beim ersten Aufruf angelegt; ältere bekommen hier ihren Klassencode. */
@@ -792,6 +795,9 @@ export class ClassbookService {
     const ids = links.map((l) => l.id);
     const results = ids.length ? await this.resultRepo.find({ where: { classId, linkId: In(ids) }, select: ['id', 'linkId', 'studentId', 'payload'] }) : [];
     const works = await this.workRepo.find({ where: { classId }, select: ['studentId', 'moduleId', 'linkId'] });
+    // HTML-Apps: geöffnete Abschnitte (ohne den Stand, der kann groß sein).
+    const appRoots = [...new Set(links.flatMap((l) => l.resolved.flatMap((r) => unitsOf(r.modules))).map((u) => u.appRoot).filter(Boolean))] as string[];
+    const appStates = appRoots.length ? await this.appStateRepo.find({ where: { moduleId: In(appRoots) }, select: ['moduleId', 'studentId', 'opened'] }) : [];
     return {
       students: students
         .sort((a, b) => `${a.lastName} ${a.firstName}`.localeCompare(`${b.lastName} ${b.firstName}`, 'de'))
@@ -802,7 +808,8 @@ export class ClassbookService {
         for (const s of students) {
           const runs = results.filter((r) => r.linkId === l.id && r.studentId === s.id).map((r) => ({ details: (r.payload?.details || []) as DetailLike[] }));
           const mine = new Set(works.filter((w) => w.studentId === s.id && w.linkId === l.id).map((w) => w.moduleId));
-          cells[s.id] = unitCells(units, runs, mine);
+          const opened = new Set(units.filter((u) => appStates.some((x) => x.moduleId === u.appRoot && x.studentId === s.id && x.opened?.includes(u.appUnit as string))).map((u) => u.id));
+          cells[s.id] = unitCells(units, runs, mine, opened);
         }
         return { id: l.id, name: l.name, active: l.active, units: units.map(({ id, title, type }) => ({ id, title, type })), cells };
       }),

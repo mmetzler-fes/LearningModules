@@ -158,7 +158,7 @@ Ergebnisse bleiben.
 | Meldung | Stelle |
 |---|---|
 | Steckbrief | Untermodule im Baum, Spalten in der Übersicht, Auswahl je Klasse |
-| `LM.enter` | 📡 Live: „gerade dran“ |
+| `LM.enter` | 📡 Live: „gerade dran“ und „besucht“; Klassenübersicht: 👁 geöffnet, solange nichts anderes gemeldet ist (zählt nicht als erledigt) |
 | `LM.progress` | 📡 Live: Stand wie „12/40“, fertig bei `done = total` |
 | `LM.result` | 📊 Ergebnisse und Stand des Schülers, je Schüler und Abschnitt ein Eintrag |
 | `kind: info` | zählt beim Ansehen als bearbeitet, ohne Prozent |

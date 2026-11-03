@@ -13,4 +13,8 @@ export class HtmlAppState extends BaseEntity {
 
   @Column({ type: 'text' })
   data: string;
+
+  /** Abschnitte, die der Schüler geöffnet hat (`LM.enter`): „👁 geöffnet“ in der Klassenübersicht. */
+  @Column('simple-json', { nullable: true })
+  opened: string[] | null;
 }

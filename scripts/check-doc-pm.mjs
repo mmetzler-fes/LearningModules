@@ -5,12 +5,14 @@
  *
  * Nur lesend. Je Dokument: Spec → ProseMirror-JSON → Spec. Das Blatt muss gleich
  * aussehen, alle Felder müssen erhalten bleiben, das JSON muss zum Schema passen.
+ * Dazu Phase 9.3: JSON → Markdown → JSON ergibt genau dieselbe Spec.
  * Die Ausgabe nennt Dateinamen und Stellen – keine ganzen Inhalte.
  */
 import fs from 'node:fs';
 import path from 'node:path';
 import yaml from '../src/renderer/js/vendor/js-yaml.js';
 import { specToPm, pmToSpec } from '../src/renderer/lm-editor/src/doc/pm-convert.js';
+import { pmToMarkdown, markdownToPm } from '../src/renderer/lm-editor/src/doc/pm-markdown.js';
 import { renderDocSpecHtml, validateDocSpec } from '../src/renderer/lm-editor/src/doc/docspec.js';
 import { pmSchema } from '../src/renderer/lm-editor/src/doc/pm-tiptap.js';
 import { PmNode } from '../src/renderer/lm-editor/src/vendor/tiptap/tiptap.mjs';
@@ -72,8 +74,10 @@ const sortedJson = (v) => JSON.stringify(v, (_k, x) => (x && typeof x === 'objec
 
 const schema = pmSchema();
 const opt = { showSolutions: true };
-const res = { gleich: 0, anders: [], felder: [], schema: [], stabil: 0, gueltig: 0, fehler: [] };
+const res = { gleich: 0, anders: [], felder: [], schema: [], stabil: 0, gueltig: 0, fehler: [], md: [], mdStabil: 0, mdSchema: [] };
 let blocks = 0;
+let mdSize = 0;
+let jsonSize = 0;
 for (const [src, spec] of specs) {
   const name = path.relative(root, src);
   try {
@@ -108,6 +112,19 @@ for (const [src, spec] of specs) {
         res.schema.push(`${name}: anders nach dem Schema @${i}: …${want.slice(Math.max(0, i - 50), i + 50)}… ≠ …${viaSchema.slice(Math.max(0, i - 50), i + 50)}…`);
       }
     } catch (e) { res.schema.push(`${name}: ${e.message.slice(0, 160)}`); }
+    const text = pmToMarkdown(pm);
+    mdSize += text.length;
+    jsonSize += JSON.stringify(spec).length;
+    const viaMd = markdownToPm(text);
+    const want = sortedJson(back);
+    const got = sortedJson(pmToSpec(viaMd));
+    if (got !== want) {
+      let i = 0;
+      while (i < want.length && want[i] === got[i]) i++;
+      res.md.push(`${name} @${i}: …${want.slice(Math.max(0, i - 50), i + 50)}… ≠ …${got.slice(Math.max(0, i - 50), i + 50)}…`);
+    }
+    if (pmToMarkdown(viaMd) === text) res.mdStabil++;
+    try { PmNode.fromJSON(schema, viaMd).check(); } catch (e) { res.mdSchema.push(`${name}: ${e.message.slice(0, 160)}`); }
   } catch (e) { res.fehler.push(`${name}: ${e.message}`); }
 }
 const n = specs.length;
@@ -117,8 +134,12 @@ console.log(`  alle Felder erhalten:    ${n - res.felder.length}/${n}`);
 console.log(`  passt zum Schema:        ${n - res.schema.length}/${n}`);
 console.log(`  zweiter Durchlauf gleich: ${res.stabil}/${n}`);
 console.log(`  keine neuen Spec-Fehler: ${res.gueltig}/${n}`);
+console.log(`  Markdown ergibt dasselbe: ${n - res.md.length}/${n}`);
+console.log(`  Markdown stabil:          ${res.mdStabil}/${n}`);
+console.log(`  Markdown passt zum Schema: ${n - res.mdSchema.length}/${n}`);
+console.log(`  Markdown ${Math.round(mdSize / 1024)} KB statt JSON ${Math.round(jsonSize / 1024)} KB`);
 console.log(`  Ausnahmen:               ${res.fehler.length}`);
-for (const [title, list] of [['Anders', res.anders], ['Felder', res.felder], ['Schema', res.schema], ['Ausnahme', res.fehler]]) {
+for (const [title, list] of [['Anders', res.anders], ['Felder', res.felder], ['Schema', res.schema], ['Markdown', res.md], ['MD-Schema', res.mdSchema], ['Ausnahme', res.fehler]]) {
   for (const line of list.slice(0, 8)) console.log(`${title}: ${line}`);
 }
-process.exit(res.anders.length + res.felder.length + res.schema.length + res.fehler.length ? 1 : 0);
+process.exit(res.anders.length + res.felder.length + res.schema.length + res.md.length + res.mdSchema.length + res.fehler.length || res.mdStabil !== n ? 1 : 0);

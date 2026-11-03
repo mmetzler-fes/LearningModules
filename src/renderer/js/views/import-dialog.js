@@ -1,10 +1,13 @@
 import { escapeHtml, showImportReport, generateId } from '../utils.js';
-import { extractJson, looksLikeXml, summarizeImport } from '../json-text.js';
+import { extractJson, looksLikeDocMarkdown, looksLikeXml, markdownToTopic, summarizeImport } from '../json-text.js';
+import { markdownToPm } from '../../lm-editor/src/doc/pm-markdown.js';
+import { pmToSpec } from '../../lm-editor/src/doc/pm-convert.js';
 import { DOCUMENT_EXTS, isDocumentFile, isConvertedFile, fileToSpec, askConvertOptions, pdfConvertOptions } from './attachment-convert.js';
 
 /**
  * Ein Dialog für jeden Import: Datei wählen bzw. hineinziehen oder Text mit
- * Strg+V einfügen (z. B. die Antwort einer KI). JSON und Moodle-XML werden
+ * Strg+V einfügen (z. B. die Antwort einer KI). JSON, Moodle-XML und
+ * Dokumente als Markdown (docs/MARKDOWN.md im lm-editor) werden
  * vor dem Import geprüft – mit derselben Logik wie im Server (json-text.js);
  * binäre Dateien (verschlüsselter Export, H5P, Notebook-ZIP) gehen ohne
  * Vorschau durch. Importiert wird über die bestehenden Endpunkte.
@@ -30,7 +33,7 @@ export function openImportDialog(app, { topicId = null, h5p = false, extraFile =
   // Writer, Word (und PDF) als Dokument – nur mit freigeschalteten Dokumenten.
   const docsOn = (app.state.currentUser?.features || []).includes('worksheets');
   let pdfOn = false;
-  const exts = ['json', 'xml', 'lmenc', ...(h5p && !topicId ? ['h5p'] : []), ...(extraFile ? [extraFile.ext] : []), ...(docsOn ? [...DOCUMENT_EXTS, 'xopp'] : [])];
+  const exts = ['json', 'xml', 'lmenc', ...(h5p && !topicId ? ['h5p'] : []), ...(extraFile ? [extraFile.ext] : []), ...(docsOn ? ['md', ...DOCUMENT_EXTS, 'xopp'] : [])];
   const overlay = document.createElement('div');
   overlay.className = 'confirm-overlay';
   overlay.innerHTML = `
@@ -44,7 +47,7 @@ export function openImportDialog(app, { topicId = null, h5p = false, extraFile =
           <button type="button" class="import-dialog-chip-x" title="Datei wieder entfernen" aria-label="Datei entfernen">✕</button></span>
       </div>
       <textarea class="json-text-input" rows="12" spellcheck="false" autocomplete="off"
-        placeholder="… oder Text mit Strg+V einfügen, z. B. die Antwort einer KI (JSON oder Moodle-XML). Ein Rahmen mit \`\`\`json und Text davor oder danach stört nicht."></textarea>
+        placeholder="… oder Text mit Strg+V einfügen, z. B. die Antwort einer KI (Markdown, JSON oder Moodle-XML). Ein Rahmen mit \`\`\` und Text davor oder danach stört nicht."></textarea>
       <div class="json-text-status" aria-live="polite"></div>
       <div class="confirm-actions">
         <button type="button" class="btn btn-secondary btn-paste" title="Text aus der Zwischenablage einfügen">📋 Einfügen</button>
@@ -84,11 +87,20 @@ export function openImportDialog(app, { topicId = null, h5p = false, extraFile =
     status.innerHTML = html;
   };
 
+  /** Markdown → Thema; der Server bekommt dann das übliche JSON. */
+  const fromMarkdown = (text) => markdownToTopic(text, (body) => {
+    const warnings = [];
+    return { spec: pmToSpec(markdownToPm(body, { warnings })), warnings };
+  });
+  const isMarkdown = (text) => docsOn && looksLikeDocMarkdown(text);
+
   /** Text (eingefügt oder aus einer Datei) prüfen und das Ergebnis anzeigen. */
   const checkText = (text) => {
     if (!text.trim()) { show('', ''); return false; }
     if (looksLikeXml(text)) { show('ok', '✅ Moodle-XML erkannt – wird beim Import in Module umgewandelt.'); return true; }
-    const parsed = extractJson(text);
+    const fromMd = isMarkdown(text) ? fromMarkdown(text) : null;
+    if (fromMd && !fromMd.ok) { show('error', `❌ ${escapeHtml(fromMd.message)}`); return false; }
+    const parsed = fromMd || extractJson(text);
     if (!parsed.ok) {
       if (parsed.truncated) {
         show('error', '❌ <strong>Unvollständig</strong> – der Text endet mitten im JSON. Vermutlich wurde die KI-Antwort abgeschnitten:'
@@ -103,6 +115,7 @@ export function openImportDialog(app, { topicId = null, h5p = false, extraFile =
       return false;
     }
     const s = summarizeImport(parsed.data, typeNames);
+    if (fromMd) s.warnings.push(...fromMd.warnings);
     if (s.problems.length) { show('error', `❌ Gültiges JSON, aber so nicht importierbar:${list(s.problems)}`); return false; }
     const kinds = s.types.map((t) => `${t.n}× ${escapeHtml(t.name)}`).join(', ');
     show(s.warnings.length ? 'warn' : 'ok',
@@ -171,7 +184,7 @@ export function openImportDialog(app, { topicId = null, h5p = false, extraFile =
     if (f) {
       chip.querySelector('.import-dialog-chip-name').textContent = `📄 ${f.name}`;
       input.value = '';
-      if (['json', 'xml', 'txt'].includes(extOf(f))) {
+      if (['json', 'xml', 'txt', 'md'].includes(extOf(f))) {
         try { fileText = await f.text(); } catch (_) { fileText = ''; }
       }
     }
@@ -263,8 +276,13 @@ export function openImportDialog(app, { topicId = null, h5p = false, extraFile =
         // Eingefügter Text geht als Datei über denselben Import – der Server
         // erkennt JSON, Moodle-XML und verschlüsselte Exporte selbst.
         const xml = !file && looksLikeXml(input.value);
-        form.append('file', file || new Blob([input.value], { type: xml ? 'application/xml' : 'application/json' }),
-          file ? file.name : xml ? 'eingefuegt.xml' : 'eingefuegt.json');
+        const text = file ? fileText : input.value;
+        if (text !== null && isMarkdown(text)) {
+          form.append('file', new Blob([JSON.stringify(fromMarkdown(text).data)], { type: 'application/json' }), 'markdown.json');
+        } else {
+          form.append('file', file || new Blob([input.value], { type: xml ? 'application/xml' : 'application/json' }),
+            file ? file.name : xml ? 'eingefuegt.xml' : 'eingefuegt.json');
+        }
         if (topicId) form.append('topicId', topicId);
         data = await post('/api/interchange/import-json', form);
       }

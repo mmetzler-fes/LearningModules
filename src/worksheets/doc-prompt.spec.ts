@@ -1,5 +1,17 @@
 import { loadBrowserModule } from '../core/browser-module';
 import { docSpec } from './docspec';
+import { execFileSync } from 'child_process';
+import * as path from 'path';
+
+// Der Parser ist ein ES-Modul mit Importen: läuft in einem eigenen Node-Prozess.
+const LM = path.resolve(__dirname, '../renderer/lm-editor/src/doc');
+const parseMd = (text: string) => JSON.parse(execFileSync('node', ['--no-warnings', '--input-type=module', '-e', `
+  import { markdownToPm } from ${JSON.stringify(`${LM}/pm-markdown.js`)};
+  import { pmToSpec } from ${JSON.stringify(`${LM}/pm-convert.js`)};
+  import fs from 'node:fs';
+  const warnings = [];
+  console.log(JSON.stringify({ spec: pmToSpec(markdownToPm(fs.readFileSync(0, 'utf8'), { warnings })), warnings }));
+`], { input: text, encoding: 'utf8' }));
 
 const ai = loadBrowserModule<any>('ai-prompt.js');
 
@@ -7,18 +19,22 @@ describe('buildDocPrompt', () => {
   const base = { title: 'Der AD-Wandler', description: 'Funktionsweise und Auflösung', kind: 'arbeitsblatt', level: 'TG11', pages: 4, sheets: 1 };
 
   it('das Beispiel im Prompt ist selbst ein gültiges Dokument', () => {
-    expect(docSpec().validateDocSpec(ai.DOC_PROMPT_EXAMPLE)).toEqual([]);
+    const { spec, warnings } = parseMd(ai.DOC_PROMPT_EXAMPLE);
+    expect(warnings).toEqual([]);
+    expect(docSpec().validateDocSpec(spec)).toEqual([]);
+    expect(spec.content.map((b: any) => b.type)).toEqual(['section', 'list', 'section', 'text', 'formula', 'task', 'text', 'karo', 'solution']);
+    expect(spec.content[4].latex).toBe('I = \\frac{U}{R}');
   });
 
   it('enthält Auftrag, Format, Blöcke und Regeln eines Arbeitsblatts', () => {
     const p = ai.buildDocPrompt(base);
     expect(p).toContain('ein Arbeitsblatt');
     expect(p).toContain('- Thema: Der AD-Wandler');
-    expect(p).toContain('"type": "document"');
-    expect(p).toContain('"kind": "arbeitsblatt"');
-    expect(p).toContain('{"type": "karo", "lines": 6}');
+    expect(p).toContain('kind: arbeitsblatt');
+    expect(p).toContain('title: "Der AD-Wandler"');
+    expect(p).toContain('`::: {.karo lines=6}`');
     expect(p).toContain('„Worum es geht“ mit Lernzielen');
-    expect(p).toContain('Gib NUR den JSON-Code');
+    expect(p).toContain('Gib NUR den Text in einem einzigen Codeblock mit vier Backticks');
     expect(p).not.toContain('Quiz-Module (nach dem Dokument');
   });
 
@@ -37,24 +53,25 @@ describe('buildDocPrompt', () => {
     expect(p).toContain('3 aufeinander aufbauende Dokumente (Klassenarbeit)');
     expect(p).toContain('Punktzahl im Titel');
     expect(p).toContain('GENAU EIN Blatt');
-    expect(p).toContain('"content.slug"');
-    expect(p).toContain('## Quiz-Module (nach dem Dokument, orderIndex 1, 2 …)');
+    expect(p).toContain('„slug:“');
+    expect(p).toContain('```lm-quiz');
+    expect(p).toContain('## Quiz-Module (am Ende des Texts)');
     expect(p).toContain('### "multipleChoice"');
     expect(p).not.toContain('### "unbekannt"');
   });
 
   it('vorhandene Blätter als Vorbild im selben Format', () => {
-    const spec = { content: [{ type: 'task', title: 'Messen', text: 'Miss die Spannung.' }] };
-    const p = ai.buildDocPrompt({ ...base, examples: [{ title: 'Spannung messen', kind: 'arbeitsblatt', spec }] });
+    const markdown = '## Messen\n\nMiss die Spannung.\n';
+    const p = ai.buildDocPrompt({ ...base, examples: [{ title: 'Spannung messen', kind: 'arbeitsblatt', markdown }] });
     expect(p).toContain('## Vorhandene Blätter als Vorbild');
     expect(p).toContain('### Spannung messen');
-    expect(p).toContain(JSON.stringify(spec));
+    expect(p).toContain('````markdown\n## Messen\n\nMiss die Spannung.\n````');
     expect(p).toContain('übernimm aber keine Aufgaben wörtlich');
     expect(ai.buildDocPrompt(base)).not.toContain('als Vorbild');
   });
 
   it('Text ohne Karo-Regel', () => {
-    expect(ai.buildDocPrompt({ ...base, kind: 'text' })).not.toContain('karo-Block und direkt danach');
+    expect(ai.buildDocPrompt({ ...base, kind: 'text' })).not.toContain('Karo-Block und direkt danach');
   });
 });
 

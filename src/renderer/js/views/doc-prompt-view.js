@@ -2,6 +2,8 @@ import { escapeHtml, escapeAttr } from '../utils.js';
 import { AI_PROMPT_TYPES, buildDocPrompt, promptSize } from '../ai-prompt.js';
 import { nextcloudState } from './nextcloud.js';
 import { PromptMaterial } from './prompt-material.js';
+import { specToPm } from '../../lm-editor/src/doc/pm-convert.js';
+import { pmToMarkdown } from '../../lm-editor/src/doc/pm-markdown.js';
 
 const STORAGE_KEY = 'lm_doc_prompt';
 const KINDS = [['arbeitsblatt', 'Arbeitsblatt'], ['klassenarbeit', 'Klassenarbeit'], ['text', 'Text zum Lesen']];
@@ -9,8 +11,8 @@ const KINDS = [['arbeitsblatt', 'Arbeitsblatt'], ['klassenarbeit', 'Klassenarbei
 /**
  * KI-Prompt für Dokumente (Modultyp „Dokument“, Freischaltung 'worksheets'):
  * Zielordner wählen (dessen Kurs und KI-Vorgaben fließen ein), Fragestellung
- * und Umfang angeben. Die Antwort der KI ist je Blatt ein Thema im
- * Import-Format – eingelesen über „📥 Hier importieren“ am Zielordner.
+ * und Umfang angeben. Die Antwort der KI ist je Blatt ein Dokument in Markdown –
+ * eingelesen über „📥 Hier importieren“ am Zielordner.
  */
 export class DocPromptView {
   constructor(app, box) {
@@ -139,7 +141,7 @@ export class DocPromptView {
       if (values.exampleIds.length) {
         const res = await this.app.api.getDocPromptExamples(values.exampleIds).catch(() => null);
         if (!res?.examples) { this.app.showToast('Fehler: ' + (res?.message || 'Vorbilder nicht abrufbar'), 'error'); return; }
-        values.examples = res.examples;
+        values.examples = res.examples.map((ex) => ({ ...ex, markdown: pmToMarkdown(specToPm(ex.spec), { ids: false }) }));
       }
       try { values.material = await this.material.collect(); } catch (err) { this.app.showToast(err.message, 'error'); return; }
       output.value = buildDocPrompt(values);

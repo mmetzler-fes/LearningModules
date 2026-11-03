@@ -170,7 +170,9 @@ es per Doppelklick auf die .zlm → **📓 Im Notizbuch ablegen…**.
 Google Docs behält Überschriften, Listen, Tabellen, Links, Fett und Kursiv –
 Schriftart, Farben, Abstände und andere fremde Stile fallen weg. **Markdown**
 wird erkannt und umgewandelt (`#`, `-`, `1.`, `**fett**`, Tabellen, Code,
-`$Formel$`). Bei reinem Text trennt eine Leerzeile die Absätze, jede andere
+`$Formel$`), auch die eigene Schreibweise für Karo-Felder, Lösungen, Kästen und
+Farben (`::: {.karo lines=6}`, `[Text]{.blau}` – beschrieben in `docs/MARKDOWN.md`
+des Editors). Bei reinem Text trennt eine Leerzeile die Absätze, jede andere
 Zeile bleibt eine eigene Zeile. Ein kurzes Stück ohne Absatz fließt in den Text
 an der Schreibmarke.
 
@@ -229,7 +231,8 @@ ungefähr erkennen; mehrzeilige Formeln kommen als Bild.
 
 ### Formatierung im Text
 
-Im YAML-Modus (und wenn eine KI schreibt) gilt diese Schreibweise:
+Im YAML-Modus gilt diese Schreibweise (als Markdown – so schreibt die KI – heißt es
+`x^2^`, `CO~2~`, `U~R~`, `[Text]{.underline}`):
 
 | Schreibweise | Ergebnis |
 |---|---|
@@ -383,7 +386,9 @@ Druck“ gilt für alle Dokumente darunter, die keine eigene haben.
 KI-Vorgaben und vorhandene Blätter (für Verweise) fließen in den Prompt –,
 Fragestellung, Art, Umfang und Anzahl der Blätter angeben, auf Wunsch
 passende Quiz-Module dazu. Den Prompt im KI-Chat einfügen, die Antwort im
-Notebook am Zielordner über **⋯ → 📥 Hier importieren** einlesen.
+Notebook am Zielordner über **⋯ → 📥 Hier importieren** einlesen. Die KI antwortet
+in Markdown; das liest sich im Chat und enthält keine verdoppelten Backslashes in
+Formeln. Ältere Antworten als JSON gehen weiterhin, ebenso eine `.md`-Datei.
 
 **Vorhandene Blätter als Vorbild:** Unter dem Zielordner stehen die Blätter
 seines Books zum Ankreuzen. Ihr Inhalt kommt in den Prompt – im selben

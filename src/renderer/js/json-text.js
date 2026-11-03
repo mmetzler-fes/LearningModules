@@ -86,6 +86,61 @@ export function looksLikeXml(text) {
   return /^\s*(<\?xml|<quiz[\s>])/i.test(String(text || '').replace(/^﻿/, ''));
 }
 
+// ==================== Dokument als Markdown (Antwort einer KI, .md-Datei) ====================
+
+/** Den Rahmen ````markdown … ```` und Text davor oder danach entfernen. */
+export function unwrapMarkdown(text) {
+  const raw = String(text || '').replace(/^\uFEFF/, '').replace(/\r\n?/g, '\n');
+  const open = /^[ \t]*(`{3,}|~{3,})[ \t]*(?:markdown|md)[ \t]*$/im.exec(raw);
+  if (open) {
+    const fence = open[1];
+    const rest = raw.slice(open.index + open[0].length + 1);
+    // Der letzte Rahmen zählt: Auch mit zu kurzem Rahmen stehen Codeblöcke im Blatt davor.
+    const closers = [...rest.matchAll(/^[ \t]*(`{3,}|~{3,})[ \t]*$/gm)].filter((m) => m[1][0] === fence[0] && m[1].length >= fence.length);
+    const last = closers[closers.length - 1];
+    return last ? rest.slice(0, last.index).replace(/\n$/, '') : rest;
+  }
+  const head = /^---[ \t]*\n(?:title|titel):/m.exec(raw);
+  return head ? raw.slice(head.index) : raw;
+}
+
+/** Ist der Text ein Dokument in Markdown (und nicht ein Thema als JSON)? */
+export function looksLikeDocMarkdown(text) {
+  const raw = String(text || '');
+  if (!raw.trim() || looksLikeXml(raw)) return false;
+  const body = unwrapMarkdown(raw);
+  if (body !== raw.replace(/^\uFEFF/, '').replace(/\r\n?/g, '\n') || /^---[ \t]*\n/.test(body)) return true;
+  const json = extractJson(raw);
+  if (json.ok && json.data && typeof json.data === 'object' && (json.data.topic || json.data.modules)) return false;
+  return !/^\s*(?:\{|```json)/i.test(raw) && /^(?:#{1,6} |:::)/m.test(body);
+}
+
+/**
+ * Markdown → Thema im Import-Format: Das Dokument wird ein Modul, ```lm-quiz-Blöcke
+ * (JSON) werden Module dahinter. `toDoc(text)` liefert { spec, warnings } – diese
+ * Datei importiert nichts, den Parser (lm-editor) gibt der Aufrufer mit.
+ * Ergebnis: { ok: true, data, warnings } oder { ok: false, message }.
+ */
+export function markdownToTopic(text, toDoc) {
+  const quiz = [];
+  let failed = '';
+  const body = unwrapMarkdown(text).replace(/^(`{3,})lm-quiz[ \t]*\n([\s\S]*?)\n\1[ \t]*$/gm, (_m, _f, json) => {
+    try { quiz.push(...[].concat(JSON.parse(json))); } catch (e) { failed = failed || String(e.message); }
+    return '';
+  });
+  if (failed) return { ok: false, message: `Ein lm-quiz-Block ist kein gültiges JSON: ${failed}` };
+  const { spec, warnings = [] } = toDoc(body);
+  const { title, titel, description, kind, slug, ...rest } = spec;
+  const first = rest.content.find((b) => b.type === 'section' || b.type === 'heading');
+  const name = String(title || titel || first?.text || 'Dokument');
+  const content = { kind: ['arbeitsblatt', 'klassenarbeit', 'text'].includes(kind) ? kind : 'arbeitsblatt', ...(slug ? { slug: String(slug) } : {}), spec: rest };
+  const modules = [
+    { title: name, type: 'document', description: '', orderIndex: 0, content },
+    ...quiz.map((m, i) => ({ description: '', ...m, orderIndex: i + 1 })),
+  ];
+  return { ok: true, warnings, data: { topic: { title: name, description: String(description || ''), modules } } };
+}
+
 /**
  * Aufbau eines gelesenen Themas prüfen. `typeNames`: { typ: Anzeigename } der
  * bekannten Modultypen. `problems` verhindern den Import, `warnings` nicht.

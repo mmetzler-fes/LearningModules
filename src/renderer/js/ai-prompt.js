@@ -410,29 +410,38 @@ export function buildAiPrompt(o) {
 
 // ==================== Dokumente (Modultyp „Dokument“) ====================
 
-/** Kleines, vollständiges Beispiel einer Dokument-Spec. */
-export const DOC_PROMPT_EXAMPLE = {
-  content: [
-    { type: 'section', text: 'Worum es geht' },
-    { type: 'list', items: ['Du kannst das ohmsche Gesetz anwenden.', 'Du kannst Ströme in einfachen Schaltungen berechnen.'] },
-    { type: 'section', text: 'Schritt 1 – Spannung, Strom, Widerstand' },
-    { type: 'text', text: 'Der **Widerstand** R begrenzt den Strom. Es gilt:' },
-    { type: 'formula', latex: 'I = \\frac{U}{R}' },
-    { type: 'task', title: 'Strom berechnen', text: 'Berechne den Strom für U = 12 V und R = 240 Ω.', blocks: [
-      { type: 'karo', lines: 4 },
-      { type: 'solution', blocks: [{ type: 'text', text: 'I = U / R = 12 V / 240 Ω = 0,05 A = 50 mA' }] },
-    ] },
-  ],
-};
+/** Kleines, vollständiges Beispiel eines Dokuments in Markdown. */
+export const DOC_PROMPT_EXAMPLE = String.raw`# Worum es geht
+
+- Du kannst das ohmsche Gesetz anwenden.
+- Du kannst Ströme in einfachen Schaltungen berechnen.
+
+# Schritt 1 – Spannung, Strom, Widerstand
+
+Der **Widerstand** $R$ begrenzt den Strom. Es gilt:
+
+$$I = \frac{U}{R}$$
+
+## Strom berechnen
+
+Berechne den Strom für $U = 12\,\text{V}$ und $R = 240\,\Omega$.
+
+::: {.karo lines=4}
+:::
+
+::: loesung
+$I = \frac{U}{R} = \frac{12\,\text{V}}{240\,\Omega} = 0{,}05\,\text{A} = 50\,\text{mA}$
+:::
+`;
 
 /**
  * Prompt für Dokumente (Arbeitsblatt, Klassenarbeit, Text). Jedes Blatt ist
- * eine eigene JSON-Datei im Format von „📥 Thema importieren“ mit einem Modul
- * vom Typ "document" – auf Wunsch gefolgt von passenden Quiz-Modulen.
+ * ein Markdown-Text (docs/MARKDOWN.md im lm-editor), den „📥 Importieren“ liest –
+ * auf Wunsch mit passenden Quiz-Modulen als ```lm-quiz-Blöcke dahinter.
  * @param o.title, o.description, o.kind, o.level, o.language, o.pages, o.sheets,
  *          o.quizCount, o.quizTypes, o.files, o.ncImages, o.guidelines, o.kurs,
  *          o.existing ([{slug, pfad, titel}] für Verweise),
- *          o.examples ([{title, kind, spec}] – vorhandene Blätter als Vorbild)
+ *          o.examples ([{title, kind, markdown}] – vorhandene Blätter als Vorbild)
  */
 export function buildDocPrompt(o) {
   const kind = ['arbeitsblatt', 'klassenarbeit', 'text'].includes(o.kind) ? o.kind : 'arbeitsblatt';
@@ -445,7 +454,7 @@ export function buildDocPrompt(o) {
   const L = [];
 
   L.push(`Du erstellst ${sheets === 1 ? `ein ${kindName}` : `${sheets} aufeinander aufbauende Dokumente (${kindName})`} für den Unterricht.`);
-  L.push('Das Ergebnis ist eine JSON-Datei je Blatt, die eine Lernplattform direkt importiert und daraus eine Web-Ansicht sowie ein druckfertiges Blatt mit Lösungsblatt (LibreOffice) erzeugt. Halte das Format exakt ein.');
+  L.push('Das Ergebnis ist ein Markdown-Text je Blatt, den eine Lernplattform direkt importiert und daraus eine Web-Ansicht sowie ein druckfertiges Blatt mit Lösungsblatt (LibreOffice) erzeugt. Halte das Format exakt ein.');
   L.push('');
   L.push('## Auftrag');
   if (o.kurs) L.push(`- Kurs: ${o.kurs}`);
@@ -464,15 +473,15 @@ export function buildDocPrompt(o) {
   }
 
   // Vorhandene Blätter als Vorbild – im selben Format, das die KI liefern soll.
-  const examples = (o.examples || []).filter((e) => e && e.spec);
+  const examples = (o.examples || []).filter((e) => e && e.markdown);
   if (examples.length) {
     L.push('## Vorhandene Blätter als Vorbild');
-    L.push(`${examples.length === 1 ? 'Dieses Blatt der Lehrkraft zeigt' : 'Diese Blätter der Lehrkraft zeigen'} Stil, Niveau, Aufbau und Art der Aufgaben – orientiere dich daran (Sprache, Länge der Aufgabenstellungen, Schreibfelder, Lösungen), übernimm aber keine Aufgaben wörtlich. Sie stehen im selben Format, das du liefern sollst ("content.spec").`);
+    L.push(`${examples.length === 1 ? 'Dieses Blatt der Lehrkraft zeigt' : 'Diese Blätter der Lehrkraft zeigen'} Stil, Niveau, Aufbau und Art der Aufgaben – orientiere dich daran (Sprache, Länge der Aufgabenstellungen, Schreibfelder, Lösungen), übernimm aber keine Aufgaben wörtlich. Sie stehen im selben Format, das du liefern sollst.`);
     for (const e of examples) {
       L.push(`### ${e.title || 'Blatt'}${e.kind && e.kind !== 'arbeitsblatt' ? ` (${e.kind})` : ''}`);
-      L.push('```json');
-      L.push(JSON.stringify(e.spec));
-      L.push('```');
+      L.push('````markdown');
+      L.push(e.markdown.trim());
+      L.push('````');
     }
     L.push('');
   }
@@ -489,42 +498,66 @@ export function buildDocPrompt(o) {
     L.push('Falls Materialien angehängt sind, verwende ausschließlich deren Inhalte. Sonst stütze dich auf gesichertes Fachwissen.');
   }
   if (ncImages.length) {
-    L.push('Bilder: Es gibt NUR die folgenden Bilder. Ein Bild ist ein Block {"type": "image", "src": "<Wert genau wie hier>", "width": "8cm", "caption": "…"}; nur verwenden, wenn der Dateiname wirklich passt.');
+    L.push('Bilder: Es gibt NUR die folgenden Bilder. Ein Bild steht als eigener Absatz: ![Bildunterschrift](<Wert genau wie hier>){width=8cm} – nur verwenden, wenn der Dateiname wirklich passt.');
     for (const r of ncImages) L.push(`- ${r}`);
   } else {
-    L.push('Bilder: keine image-Blöcke verwenden. Wo eine Abbildung hilft, schreibe einen note-Block „[Abbildung: …]“ als Platzhalter.');
+    L.push('Bilder: keine Bilder einbinden. Wo eine Abbildung hilft, schreibe als Platzhalter einen Hinweis-Block mit „[Abbildung: …]“.');
   }
   L.push('');
 
-  L.push('## Dateiformat (je Blatt eine Datei)');
-  L.push('```json');
-  const modules = [{ title: o.title || 'Titel des Blatts', type: 'document', description: '', orderIndex: 0, content: { kind, spec: { content: ['… Blöcke, siehe unten …'] } } }];
-  if (quiz) modules.push({ title: '1. Kurzer Titel der Aufgabe', type: quizTypes[0] || 'multipleChoice', description: '', content: { '…': 'je nach Typ, siehe unten' }, orderIndex: 1 });
-  L.push(JSON.stringify({ topic: { title: o.title || 'Titel des Blatts', description: 'Ein Satz, worum es geht.', modules } }, null, 2));
-  L.push('```');
+  L.push('## Dateiformat (je Blatt ein Text)');
+  L.push('Ganz oben stehen die Angaben zum Blatt, danach folgt der Inhalt:');
+  L.push('````markdown');
+  L.push('---');
+  L.push(`title: ${JSON.stringify(o.title || 'Titel des Blatts')}`);
+  L.push('description: "Ein Satz, worum es geht."');
+  L.push(`kind: ${kind}`);
+  if (sheets > 1) L.push('slug: kurzname_des_blatts');
+  L.push('---');
+  L.push('');
+  L.push('# Erster Abschnitt …');
+  L.push('````');
   L.push('');
 
-  L.push('## Blöcke in "content.spec.content"');
-  L.push('Ein Blatt ist eine Liste von Blöcken. Überschriften nummeriert das System selbst – nie „Aufgabe 3“ oder „1.2“ in einen Titel schreiben.');
-  L.push('- {"type": "section", "text": "…"} – Abschnitt (Ebene 1, nummeriert 1., 2., …)');
-  L.push('- {"type": "task", "title": "…", "text": "Aufgabenstellung", "blocks": [ … ]} – Aufgabe (Ebene 2, 1.1 …); "subtask" ebenso für Ebene 3');
-  L.push('- {"type": "heading", "level": 1, "text": "…"} – Überschrift OHNE Nummer');
-  L.push('- {"type": "text", "text": "…"} – Fließtext; eine Leerzeile (\\n\\n) trennt Absätze; optional "align": "center"');
-  L.push('- {"type": "list", "items": ["…", {"text": "…", "items": ["…"]}]} – Aufzählung; "ordered": true für 1. 2. 3.');
-  L.push('- {"type": "note", "text": "…"} – kursiver Hinweis');
-  L.push('- {"type": "code", "caption": "datei.ino", "code": "…"} – Quelltext, Zeilen mit \\n');
-  L.push('- {"type": "formula", "latex": "I = \\\\frac{U}{R}"} – freistehende Formel in LaTeX (Mathe-Modus, ohne $): \\frac{…}{…}, \\sqrt{…}, x^2, U_{ges}, \\cdot, \\pi, \\Omega, \\left( … \\right), Einheiten mit \\,\\text{V}; im JSON jeden Backslash doppelt schreiben');
-  L.push('- {"type": "table", "header": ["…", "…"], "rows": [["…", "…"]]} – Tabelle; eine Zelle darf {"text": "…", "colspan": 2} oder "rowspan" sein');
-  L.push('- {"type": "box", "title": "Merke", "blocks": [ … ]} – Kasten mit Rahmen');
-  L.push('- {"type": "karo", "lines": 6} – Karopapier zum Schreiben (Zeilen à 0,5 cm)');
-  L.push('- {"type": "solution", "blocks": [ … ]} – Musterlösung: im Arbeitsblatt ausgeblendet, im Lösungsblatt rot über dem Karo davor');
-  L.push('- {"type": "spacer", "lines": 3} und {"type": "pagebreak"} – nur sparsam');
-  L.push('Auszeichnung im Text: **fett**, *kursiv*, `code`, x^{2}, CO_{2}, n_S (Index), [Link](https://…), Formel im Satz in LaTeX zwischen $…$ (z. B. $I = \\\\frac{U}{R}$). Ein \\ am Zeilenende erzwingt den Umbruch.');
+  L.push('## Bausteine');
+  L.push('Überschriften nummeriert das System selbst – nie „Aufgabe 3“ oder „1.2“ in einen Titel schreiben. Zwischen Bausteinen steht eine Leerzeile.');
+  L.push('- `# Titel` – Abschnitt (Ebene 1, nummeriert 1., 2., …)');
+  L.push('- `## Titel` – Aufgabe (Ebene 2, 1.1 …), die Aufgabenstellung folgt als Text; `### Titel` – Teilaufgabe (Ebene 3)');
+  L.push('- `#### Titel` – Überschrift OHNE Nummer');
+  L.push('- Fließtext: eine Leerzeile trennt Absätze');
+  L.push('- `- Punkt` – Aufzählung, Unterpunkte zwei Leerzeichen eingerückt; `1. Punkt` für 1. 2. 3.');
+  L.push('- ```` ```{caption=datei.ino} ```` … ```` ``` ```` – Quelltext');
+  L.push('- `$$I = \\frac{U}{R}$$` – freistehende Formel in LaTeX, als eigener Absatz: \\frac{…}{…}, \\sqrt{…}, x^2, U_{ges}, \\cdot, \\pi, \\Omega, \\left( … \\right), Einheiten mit \\,\\text{V}');
+  L.push('- Tabelle mit `| Kopf | Kopf |`, `| --- | --- |`, `| Zelle | Zelle |`. Verbundene Zellen:');
+  L.push('  ```');
+  L.push('  ::: tabelle');
+  L.push('  ::: {.zeile header=true}');
+  L.push('  ::: {.kopfzelle colspan=2}');
+  L.push('  Kopf über zwei Spalten');
+  L.push('  :::');
+  L.push('  :::');
+  L.push('  ::: zeile');
+  L.push('  ::: zelle');
+  L.push('  a');
+  L.push('  :::');
+  L.push('  ::: zelle');
+  L.push('  b');
+  L.push('  :::');
+  L.push('  :::');
+  L.push('  :::');
+  L.push('  ```');
+  L.push('Blöcke mit eigenem Rahmen stehen zwischen `:::`-Zeilen; das schließende `:::` nie vergessen:');
+  L.push('- `::: {.box title="Merke"}` … `:::` – Kasten mit Rahmen');
+  L.push('- `::: hinweis` … `:::` – kursiver Hinweis');
+  L.push('- `::: {.karo lines=6}` und direkt darunter `:::` – Karopapier zum Schreiben (Zeilen à 0,5 cm)');
+  L.push('- `::: loesung` … `:::` – Musterlösung: im Arbeitsblatt ausgeblendet, im Lösungsblatt rot über dem Karo davor');
+  L.push('- `::: {.abstand lines=3}` + `:::` und `::: seitenumbruch` + `:::` – nur sparsam');
+  L.push('Auszeichnung im Text: **fett**, *kursiv*, `code`, x^2^ (hochgestellt), CO~2~ und U~R~ (tiefgestellt), [Link](https://…), Formel im Satz in LaTeX zwischen $…$ (z. B. $I = \\frac{U}{R}$). Backslashes in Formeln einfach schreiben. Ein \\ am Zeilenende erzwingt den Umbruch. Soll ein Zeichen wie * wörtlich stehen, davor \\ schreiben (8\\*7).');
   L.push('');
-  L.push('Beispiel für "content.spec":');
-  L.push('```json');
-  L.push(JSON.stringify(DOC_PROMPT_EXAMPLE, null, 2));
-  L.push('```');
+  L.push('Beispiel (ohne die Angaben oben):');
+  L.push('````markdown');
+  L.push(DOC_PROMPT_EXAMPLE.trim());
+  L.push('````');
   L.push('');
 
   L.push('## Regeln');
@@ -532,12 +565,12 @@ export function buildDocPrompt(o) {
     L.push('- Aufbau: „Worum es geht“ mit Lernzielen → mehrere Abschnitte „Schritt n – …“ → „Sicherung“ mit Abschlussübung.');
     L.push('- Kleinschrittig: erst erklären, dann ein Beispiel zeigen, dann üben lassen. Neue Begriffe beim ersten Auftreten erklären.');
   } else if (kind === 'klassenarbeit') {
-    L.push('- Keine Erklärteile: nur Aufgaben (task) mit Punktzahl im Titel, z. B. „Strom berechnen (4 P)“. Am Anfang ein note mit Hilfsmitteln und Gesamtpunktzahl.');
+    L.push('- Keine Erklärteile: nur Aufgaben (##) mit Punktzahl im Titel, z. B. „Strom berechnen (4 P)“. Am Anfang ein Hinweis-Block mit Hilfsmitteln und Gesamtpunktzahl.');
   } else {
-    L.push('- Ein gut lesbarer Text mit Überschriften (heading/section), Beispielen und Merkkästen (box); Aufgaben nur, wo sie dem Verständnis dienen.');
+    L.push('- Ein gut lesbarer Text mit Überschriften, Beispielen und Merkkästen; Aufgaben nur, wo sie dem Verständnis dienen.');
   }
   if (kind !== 'text') {
-    L.push('- Zu jeder Aufgabe gehören ein karo-Block und direkt danach ein solution-Block. Karozeilen nach Antwortumfang: kurze Antwort 4–6, Erklärung 6–8, Rechnung zwei je Rechenschritt.');
+    L.push('- Zu jeder Aufgabe gehören ein Karo-Block und direkt danach ein Lösungs-Block. Karozeilen nach Antwortumfang: kurze Antwort 4–6, Erklärung 6–8, Rechnung zwei je Rechenschritt.');
     L.push('- Musterlösungen erklären auch das Warum, nicht nur das Ergebnis. Typische Fehler gezielt als Aufgabe aufgreifen.');
   }
   const existing = (o.existing || []).filter((e) => e && e.slug);
@@ -545,24 +578,28 @@ export function buildDocPrompt(o) {
     L.push('- Verweise auf vorhandene Blätter nur so: {{blatt:<slug>}} ergibt die Nummer, {{titel:<slug>}} den Titel. Vorhandene Blätter:');
     for (const e of existing.slice(0, 80)) L.push(`  - ${e.slug}: ${e.pfad ? `${e.pfad} ` : ''}${e.titel}`);
   }
-  if (sheets > 1) L.push('- Gib jedem Blatt in "content.slug" einen Kurznamen (klein, mit _), damit spätere Blätter mit {{blatt:…}} darauf verweisen können.');
+  if (sheets > 1) L.push('- Gib jedem Blatt unter „slug:“ einen Kurznamen (klein, mit _), damit spätere Blätter mit {{blatt:…}} darauf verweisen können.');
   L.push('');
 
   if (quiz) {
-    L.push('## Quiz-Module (nach dem Dokument, orderIndex 1, 2 …)');
+    L.push('## Quiz-Module (am Ende des Texts)');
     L.push(`Etwa ${quiz} Module zum Stoff des Blatts, sinnvoll verteilt auf: ${quizTypes.map(typeName).join(', ')}.`);
+    L.push('Jedes Modul ist ein eigener Block ganz am Ende, innen gültiges JSON (doppelte Anführungszeichen, Backslashes doppelt, keine Kommentare):');
+    L.push('```lm-quiz');
+    L.push(JSON.stringify({ title: '1. Kurzer Titel der Aufgabe', type: quizTypes[0] || 'multipleChoice', content: { '…': 'je nach Typ, siehe unten' } }));
+    L.push('```');
     L.push(...describeQuizTypes(quizTypes));
     L.push('');
   }
 
   L.push('## Ausgabe');
   if (sheets > 1) {
-    L.push(`- Je Antwort GENAU EIN Blatt als vollständige JSON-Datei in einem einzigen \`\`\`json-Codeblock – insgesamt ${sheets} Antworten.`);
+    L.push(`- Je Antwort GENAU EIN Blatt als vollständiger Text in einem einzigen Codeblock mit vier Backticks (\`\`\`\`markdown) – insgesamt ${sheets} Antworten.`);
     L.push(`- Plane vorher alle Blätter, damit sie aufeinander aufbauen und sich nichts wiederholt. Nach dem Codeblock nur die Zeile „Blatt x von ${sheets} – schreibe »weiter« für das nächste.“ (beim letzten weglassen).`);
   } else {
-    L.push('- Gib NUR den JSON-Code in einem einzigen ```json-Codeblock aus – kein Text davor oder danach.');
+    L.push('- Gib NUR den Text in einem einzigen Codeblock mit vier Backticks (````markdown) aus – kein Text davor oder danach.');
   }
-  L.push('- Gültiges JSON: doppelte Anführungszeichen, Zeilenumbrüche in Texten als \\n, keine Kommentare, kein Komma nach dem letzten Element.');
+  L.push('- Vier Backticks, damit Quelltext-Blöcke im Blatt den Rahmen nicht beenden.');
   L.push('- Prüfe vor der Ausgabe alles auf fachliche Richtigkeit und eindeutige Lösungen.');
   return L.join('\n');
 }

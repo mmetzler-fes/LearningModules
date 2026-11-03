@@ -26,10 +26,13 @@ describe('parseManifest', () => {
   });
 });
 
-describe('Beispiel-App', () => {
-  const file = fs.readFileSync(path.join(__dirname, '../../docs/html-app-beispiel.html'), 'utf8');
+describe.each([
+  ['html-app-beispiel.html', ['theorie', 'rechnen', 'ueben']],
+  ['html-app-excel-beispiel.html', ['t-ober', 't-daten', 't-formel', 't-bezug', 't-funk', 't-kalk', 't-etech', 't-diag', 't-labor', 'lernsit', 't-quiz']],
+])('Beispiel-App %s', (name, units) => {
+  const file = fs.readFileSync(path.join(__dirname, '../../docs', name), 'utf8');
   it('hat einen gültigen Steckbrief', () => {
-    expect(parseManifest(file).manifest?.units.map((u) => u.id)).toEqual(['theorie', 'rechnen', 'ueben']);
+    expect(parseManifest(file).manifest?.units.map((u) => u.id)).toEqual(units);
   });
   it('enthält die aktuelle Bridge', () => {
     expect(file).toContain(fs.readFileSync(path.join(__dirname, '../renderer/lm-bridge.js'), 'utf8'));

@@ -258,7 +258,8 @@ export class HtmlAppsService {
     if (!row) return;
     const app = row.appUnits || { active: null, units: {} };
     const prev = app.units[p.unit] || {};
-    app.active = p.unit;
+    // „Gerade dran“ sagt LM.enter; eine App ohne enter zeigt den ersten gemeldeten Abschnitt.
+    if (p.active || !app.active) app.active = p.unit;
     app.units[p.unit] = { title: kid.title, done: (p.active ? prev.done : p.done) ?? null, total: (p.active ? prev.total : p.total) ?? null };
     row.appUnits = { ...app };
     await this.progressRepo.save(row);

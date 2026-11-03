@@ -19,7 +19,18 @@ Die Apps brauchen eine eigene Adresse auf demselben Server, zum Beispiel
 Auf der App-Adresse antwortet der Server nur mit den beiden Rahmen, alles andere ist 404. Auf der
 Hauptadresse gibt es die Rahmen nicht.
 
-Zum Ausprobieren: [`html-app-beispiel.html`](html-app-beispiel.html) als Modul „HTML-App“ hochladen.
+## App importieren
+
+1. Lernthema öffnen, „Neues Modul“, Typ „🧩 HTML-App“ wählen (erscheint nur mit Freischaltung).
+2. Titel eintragen und die `.html`-Datei auswählen. Die Datei wird sofort geprüft; darunter stehen
+   die erkannten Abschnitte oder der Fehler im Steckbrief.
+3. Speichern. Die Abschnitte erscheinen als Untermodule unter der App im Baum.
+4. Das Lernthema oder einzelne Abschnitte wie gewohnt einer Klasse zuweisen.
+
+Ein Update geht genauso: Modul bearbeiten, neue Datei wählen, speichern.
+
+Zum Ausprobieren: [`html-app-beispiel.html`](html-app-beispiel.html) (klein) und
+[`html-app-excel-beispiel.html`](html-app-excel-beispiel.html) (echte App).
 
 ## Zwei Wege der Nutzung
 
@@ -199,43 +210,36 @@ Musterlösung zählt nicht als gelöst. Schreibe keine Klassenarbeiten oder gehe
 Die App muss auch allein laufen, wenn sie direkt geöffnet wird.
 ```
 
-## Beispiel: Excel-Lernapp umstellen
+## Beispiel: Excel-Lernapp
 
-Die App hat ihren Lernstand schon im Objekt `S`, das `save()` speichert. Der Umbau ist deshalb klein.
-Das ist eine Skizze und noch nicht ausprobiert.
+[`html-app-excel-beispiel.html`](html-app-excel-beispiel.html) ist eine echte App (rund 430 KB) mit
+der Schnittstelle. Allein geöffnet läuft sie weiter wie bisher mit `localStorage`.
 
-```js
-// Steckbrief-Abschnitte heißen wie die Reiter: t-labor, t-quiz …
-const report = () => {
-  const lab = Object.keys(S.labDone).length;
-  LM.progress('t-labor', { done: lab, total: LAB.length });
-  LM.result('t-labor', { score: lab, max: LAB.length });
-  const ls = LS.reduce((n, P) => n + lsDone(P.id), 0);
-  LM.progress('t-ls', { done: ls, total: lsTotal() });
-  LM.result('t-ls', { score: ls, max: lsTotal() });
-  const q = S.quizStats;
-  if (q.r + q.f) LM.result('t-quiz', { score: q.r, max: q.r + q.f });
-  LM.result('t-diag', { score: Object.keys(S.chartDone || {}).length, max: CB.length });
-  if (S.refStats.r + S.refStats.f) LM.result('t-bezug', { score: S.refStats.r, max: S.refStats.r + S.refStats.f });
-};
-const save = () => { LM.saveState(S); report(); };
+| Abschnitt | Art | Wert |
+|---|---|---|
+| Formel-Labor, Lernsituationen, Diagramme | `graded` | gelöste Aufgaben von allen |
+| Quiz, Zellbezüge, Datentypen, Oberfläche | `graded` | richtige von allen Versuchen, erst ab dem ersten Versuch |
+| Formeln, Funktionen, Kalkulation, E-Technik | `info` | zählt mit dem Öffnen |
+| Start, Lernstand, Arbeitsblatt, Probearbeit | kein Abschnitt | immer sichtbar, ohne Meldung |
 
-// Statt des Startblocks am Dateiende:
-LM.start((init) => {
-  if (init.state) Object.assign(S, init.state);
-  if (init.enabledUnits) { /* übrige Reiter aus TABS nehmen */ }
-  applyModes();
-  showTab(init.unit || S.tab);
-});
-LM.onOpen(showTab);
-// In showTab(id): LM.enter(id);
-```
+Was beim Umbau wichtig war:
 
-Drei Dinge gehören dazu angepasst:
+- **Stand an einer Stelle:** `save()` ruft `LM.saveState` und meldet danach nur, was sich geändert hat.
+  Sonst schickt jede kleine Änderung (auch Reiterwechsel) alle Abschnitte und gerät an die Grenze
+  von 120 Meldungen je Minute.
+- **Nichts melden, was nicht geübt wurde:** Eine Meldung mit 0 Punkten zählt in der Übersicht als
+  „bearbeitet“. Die erste Meldung kommt deshalb erst beim ersten Treffer.
+- **Musterlösung:** „Lösung eintragen“ merkt sich die Aufgabe in `S.labHelp`, sie zählt nicht. Erst
+  „Zurücksetzen“ oder neue Werte heben das auf; dann muss sie wieder selbst gelöst werden.
+- **Abschnitt ohne eigenen Reiter:** Die Lernsituationen liegen im Reiter Formel-Labor; `lmUnitOf`
+  und `lmOpen` übersetzen zwischen Reiter und Abschnitt.
+- **Klassenarbeit wird Probearbeit:** Die Lösungen stehen in der Datei. In LearningModules heißt der
+  Reiter deshalb so und meldet keine Ergebnisse.
+- **Zwischenablage:** Sie ist im Sandkasten gesperrt, die App zeigt den Code stattdessen im Dialog.
 
-- **Feste IDs:** `LAB[i].id` und `QUIZ[i].id` sind der Listenplatz. Eine Aufgabe einzufügen verschiebt alles.
-- **Lösung eintragen:** Im Labor gilt eine eingetragene Musterlösung nach „Prüfen“ als gelöst. Das muss die App sich merken und nicht zählen.
-- **Reiter „Klassenarbeit“:** Lösungen und Selbstbewertung stehen in der Datei. Für Schüler also als Übung behandeln, nicht als Klassenarbeit.
+Noch offen: Die Aufgaben im Labor zählen über ihren Listenplatz. Neue Aufgaben gehören deshalb ans
+Ende der Liste, sonst rutscht der gespeicherte Stand. Quiz und Trainer melden Versuche seit dem
+letzten Zurücksetzen, keinen Stand je Aufgabe. „Lösung anzeigen“ in den Lernsituationen wird nicht erfasst.
 
 ## Festlegungen
 

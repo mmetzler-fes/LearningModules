@@ -592,6 +592,11 @@ wenn die Lehrkraft des Lernthemas freigeschaltet ist.
   und Maus. Der Apple Pencil verschiebt die Seite nie. Solange der Stift
   schreibt und eine halbe Sekunde danach zählt die aufliegende Hand nicht; lag
   sie schon vor dem Stift auf, verschwindet ihr begonnener Strich.
+- **Stift im Dokument:** Der Finger zeichnet nur in Karo- und Linienfeldern;
+  auf dem übrigen Blatt verschiebt ein Finger das Blatt, zwei Finger gehen
+  überall. Auf freien Blättern (Karo, Linien, leer, PDF) ist die ganze Seite
+  Zeichenfläche. Rechts liegt auf Touch-Geräten eine **Scrollleiste für den
+  Finger**, die immer greifbar ist. Stift und Maus zeichnen überall.
 - **In der Ansicht:** Was mit dem Stift beschriftet ist, steht auch in der
   gewöhnlichen Ansicht des Dokuments – das Blatt erscheint dann wie im
   Stift-Editor (A4, auf die Breite verkleinert), nur zum Ansehen.

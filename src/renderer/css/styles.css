@@ -3935,6 +3935,10 @@ body {
 .ds-pm-surface .ws-box[data-title]::before { content: attr(data-title); display: block; font-weight: 600; }
 .ds-pm-box .ds-vtoolbar .rt-btn.active { background: var(--accent); color: #fff; }
 .ds-pm-box .ds-vtoolbar [hidden] { display: none; }
+.ds-pm-surface table th, .ds-pm-surface table td { border: var(--ds-line-w, 1px) var(--ds-line-s, solid) var(--ds-line-c, var(--border)); }
+.ds-pm-surface table > tbody { display: table-row-group; }
+.ds-pm-image-preview { text-align: center; margin-bottom: 8px; }
+.ds-pm-image-preview img { max-width: 100%; max-height: 180px; }
 .ds-pm-surface ul, .ds-pm-surface ol { padding-left: 1.5em; margin: 0.3em 0; }
 .ds-pm-surface li > p { margin: 0; }
 .ds-pm-surface pre { background: var(--bg-secondary); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 6px 8px; font-family: ui-monospace, 'DejaVu Sans Mono', monospace; }

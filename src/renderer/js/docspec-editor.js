@@ -1631,26 +1631,38 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
       { label: '▥ Spalten (nebeneinander)', onClick: () => put([{ type: 'columns', blocks: [{ type: 'column', blocks: [{ type: 'text', text: 'links …' }] }, { type: 'column', blocks: [{ type: 'text', text: 'rechts …' }] }] }]) },
       { label: '◌ Platz (unsichtbar)', onClick: () => putAndEdit(STARTERS.spacer) },
       { label: '⤓ Seitenumbruch', onClick: () => put([STARTERS.pagebreak]) },
-      { label: '🖼 Bild…', onClick: () => pickImageFile().then((b) => { if (b) putAndEdit(b); }) },
+      { label: '🖼 Bild…', onClick: () => pickImageFile().then((b) => { if (b) put([b]); }) },
+      ...(typeof window.openImageComposer === 'function' ? [{ label: '🧩 Bilder zusammenstellen…', onClick: async () => {
+        const composed = await window.openImageComposer();
+        if (!composed) return;
+        const src = window.appImages ? await window.appImages.store(composed, 'zusammenstellung.png') : composed;
+        put([{ type: 'image', src, width: '16.5cm' }]);
+      } }] : []),
       { label: '▭ Zeichenrahmen (Bilder und Textfenster, fest)', onClick: () => putAndEdit(STARTERS.frame) },
     ];
   };
   /** Bilddatei wählen: über dieselbe Ablage wie der alte Editor, sonst als data:-Adresse. */
   const pickImageFile = () => new Promise((resolve) => {
     const input = Object.assign(document.createElement('input'), { type: 'file', accept: 'image/png,image/jpeg,image/gif,image/webp' });
-    input.onchange = () => {
-      const file = input.files?.[0];
-      if (!file) { resolve(null); return; }
-      const reader = new FileReader();
-      reader.onload = async () => {
-        const src = window.appImages ? await window.appImages.store(String(reader.result), file.name) : String(reader.result);
-        resolve({ type: 'image', src, width: '12cm' });
-      };
-      reader.onerror = () => resolve(null);
-      reader.readAsDataURL(file);
-    };
+    input.onchange = () => { if (input.files?.[0]) void imageFromFile(input.files[0]).then(resolve); else resolve(null); };
     input.click();
   });
+  /** Datei → Bild-Baustein, abgelegt wie im alten Editor (große Fotos werden verkleinert). */
+  const imageFromFile = async (file) => {
+    try {
+      const stored = window.appImageStore ? await window.appImageStore(file) : null;
+      const src = stored?.src || await new Promise((ok, no) => {
+        const reader = new FileReader();
+        reader.onload = () => ok(String(reader.result));
+        reader.onerror = no;
+        reader.readAsDataURL(file);
+      });
+      return { type: 'image', src, width: '12cm', alt: (file.name || '').replace(/\.[^.]+$/, '') };
+    } catch (err) {
+      status.textContent = `❌ Bild: ${err.message}`;
+      return null;
+    }
+  };
   /** Baustein aus der Tiptap-Fläche bearbeiten: Zeichenrahmen über Anordnen, sonst der Dialog. */
   const pmEditBlock = async (block, apply) => {
     if (block.type === 'group') {
@@ -1658,8 +1670,13 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
       if (res) apply(res.ungroup || [res.block, ...res.extracted]);
       return;
     }
+    if (block.type === 'image') {
+      pmImageDialog?.(block, { apply, remove: () => apply(null) });
+      return;
+    }
     openBlockDialog(block, { apply, remove: () => apply(null) });
   };
+  let pmImageDialog = null;
 
   const initialSpec = Array.isArray(value?.content) ? structuredClone(value) : value;
   if (initialSpec !== value) stampBlockIds(initialSpec);
@@ -1671,7 +1688,8 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
   setMode(['yaml', 'markdown'].includes(initial) && (initial === 'yaml' || pmWanted) ? initial : 'visual');
   if (pmWanted) {
     root.querySelector('[data-mode="markdown"]').hidden = false;
-    import('./docspec-tiptap.js').then(({ mountTiptapSurface }) => {
+    import('./docspec-tiptap.js').then(({ mountTiptapSurface, openImageDialog }) => {
+      pmImageDialog = openImageDialog;
       pm = mountTiptapSurface(pmBox, {
         spec: spec || { content: [] },
         onChange: () => { clearTimeout(vTimer); vTimer = setTimeout(fromVisual, 300); },
@@ -1679,6 +1697,8 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
         insertEntries: pmInsertEntries,
         fullWidthCm,
         status: (text) => { status.textContent = text; },
+        tableProps: (td) => tableTools.openProps(td),
+        imageFromFile,
       });
       update();
     }).catch((err) => {

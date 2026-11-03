@@ -6,9 +6,11 @@
  */
 import { createPmEditor } from '../lm-editor/src/editor/pm-editor.js';
 import { CODE_SIZES, FONT_SIZES } from '../lm-editor/src/doc/docspec.js';
+import { groupRow, ungroup } from '../lm-editor/src/doc/image-group.js';
 import { htmlToDocSpec, specToEditorHtml } from '../lm-editor/src/doc/docspec-html.js';
 import { showContextMenu } from '../lm-editor/src/util/dom.js';
 import { openParagraphDialog } from './paragraph-dialog.js';
+import { escapeAttr } from './utils.js';
 
 const COLOR_NAMES = { blau: '🟦 Blau', gruen: '🟩 Grün', orange: '🟧 Orange', lila: '🟪 Lila', grau: '⬜ Grau' };
 const HL_NAMES = { gelb: '🟨 Gelb', gruen: '🟩 Grün', blau: '🟦 Blau', rosa: '🩷 Rosa' };
@@ -22,9 +24,89 @@ const KINDS = `<option value="p">Text</option>
   <optgroup label="Liste"><option value="ul">• Aufzählung</option><option value="ol">1. Nummerierung</option></optgroup>
   <option value="note">Hinweis</option>`;
 
+const asImg = (block) => Object.assign(new Image(), { src: block.src, alt: block.alt || '' });
+const copyImage = async (block) => {
+  const tools = window.appImageClipboard;
+  if (tools) tools.tell(await tools.copy(asImg(block)));
+};
+const saveImage = async (block) => {
+  const tools = window.appImageClipboard;
+  if (tools) tools.tell(await tools.save(asImg(block)));
+};
+
+const IMAGE_PLACES = [['', 'wie der Text der Vorlage'], ['float:left', 'neben dem Text, links'], ['float:right', 'neben dem Text, rechts'], ['align:center', 'eigene Zeile, mittig'], ['align:right', 'eigene Zeile, rechts']];
+
+/** Dialog für ein Bild: Breite, Lage, Rahmen, Beschriftung; ersetzen, kopieren, speichern. `done(next | null)`. */
+export function openImageDialog(block, { apply, remove }) {
+  const overlay = document.createElement('div');
+  overlay.className = 'confirm-overlay';
+  const place = block.float ? `float:${block.float}` : block.align ? `align:${block.align}` : '';
+  const cm = /^(\d+(?:\.\d+)?)cm$/.exec(String(block.width ?? ''))?.[1] ?? '';
+  overlay.innerHTML = `<form class="import-modules-card ds-para-dialog" role="dialog" aria-modal="true">
+      <h3>🖼 Bild</h3>
+      <div class="ds-pm-image-preview"></div>
+      <div class="ds-para-grid">
+        <label>Breite<span class="ds-para-in"><input name="width" inputmode="decimal" value="${String(cm).replace('.', ',')}" placeholder="${escapeAttr(cm ? '' : String(block.width ?? 'wie das Bild'))}"> cm</span></label>
+        <label>Lage<select name="place">${IMAGE_PLACES.map(([v, l]) => `<option value="${v}" ${v === place ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+        <label class="ws-image-check"><input type="checkbox" name="border" ${block.border ? 'checked' : ''}> Rahmen</label>
+        <label>Unterschrift<input name="caption" value="${escapeAttr(block.caption ?? '')}"></label>
+        <label>Beschreibung (Screenreader)<input name="alt" maxlength="200" value="${escapeAttr(block.alt ?? '')}"></label>
+      </div>
+      <p class="hint">16,5 cm heißt „ganze Breite“: Im Querformat füllt das Bild die Zeile.</p>
+      <p class="hint ds-para-error" hidden>Breite bitte als Zahl in cm, 0,5 bis 25,5.</p>
+      <div class="confirm-actions">
+        <button type="button" class="btn btn-secondary" data-a="copy" title="Für LibreOffice Draw, Word, OneNote">📋 Kopieren</button>
+        <button type="button" class="btn btn-secondary" data-a="save">⬇ Speichern</button>
+        <button type="button" class="btn btn-secondary" data-a="replace">🔁 Ersetzen</button>
+        <button type="button" class="btn btn-danger" data-a="del">Entfernen</button>
+        <button type="button" class="btn btn-secondary" data-a="cancel">Abbrechen</button>
+        <button type="submit" class="btn btn-primary">OK</button>
+      </div></form>`;
+  document.body.appendChild(overlay);
+  let src = block.src;
+  const preview = overlay.querySelector('.ds-pm-image-preview');
+  const show = () => { preview.replaceChildren(Object.assign(new Image(), { src: src || '', alt: '' })); };
+  show();
+  const close = () => overlay.remove();
+  overlay.addEventListener('click', async (e) => {
+    const what = e.target.dataset?.a;
+    if (what === 'cancel') close();
+    else if (what === 'del') { remove(); close(); } else if (what === 'copy') await copyImage({ ...block, src });
+    else if (what === 'save') await saveImage({ ...block, src });
+    else if (what === 'replace') {
+      const input = Object.assign(document.createElement('input'), { type: 'file', accept: 'image/*' });
+      input.onchange = async () => {
+        const file = input.files?.[0];
+        const stored = file && await window.appImageStore?.(file);
+        if (stored?.src) { src = stored.src; show(); }
+      };
+      input.click();
+    }
+  });
+  overlay.querySelector('form').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const f = e.target.elements;
+    const { width, float, align, border, caption, alt, ...rest } = block;
+    const next = { ...rest, src };
+    const typed = f.width.value.trim().replace(',', '.');
+    if (typed) {
+      const n = Number(typed);
+      if (!(n >= 0.5 && n <= 25.5)) { overlay.querySelector('.ds-para-error').hidden = false; return; }
+      next.width = `${n}cm`;
+    } else if (width && !cm) next.width = width; // z. B. 172px bleibt, solange niemand etwas einträgt
+    const [field, value] = f.place.value.split(':');
+    if (field) next[field] = value;
+    if (f.border.checked) next.border = true;
+    if (f.caption.value.trim()) next.caption = f.caption.value.trim();
+    if (f.alt.value.trim()) next.alt = f.alt.value.trim();
+    apply(next);
+    close();
+  });
+}
+
 /**
  * In `box` öffnen. `host`: { spec, onChange(spec), editBlock(block, apply), insertEntries(pm),
- * fullWidthCm(), status(text) }. Liefert die Fläche (createPmEditor) samt `el`.
+ * fullWidthCm(), status(text), tableProps(td), imageFromFile(file) }. Liefert die Fläche (createPmEditor) samt `el`.
  */
 export function mountTiptapSurface(box, host) {
   box.innerHTML = `
@@ -36,8 +118,12 @@ export function mountTiptapSurface(box, host) {
       <button type="button" class="rt-btn" data-dd="size" title="Schriftgröße"><span class="ds-dd-size">pt</span><span class="ds-dd-caret">▾</span></button>
       <button type="button" class="rt-btn" data-dd="color" title="Textfarbe"><span class="ds-dd-a">A</span><span class="ds-dd-caret">▾</span></button>
       <button type="button" class="rt-btn" data-dd="hl" title="Hervorheben">🖍<span class="ds-dd-caret">▾</span></button>
+      <button type="button" class="rt-btn" data-dd="align" title="Ausrichtung">≡<span class="ds-dd-caret">▾</span></button>
+      <button type="button" class="rt-btn" data-dd="lh" title="Zeilenabstand">↕≡<span class="ds-dd-caret">▾</span></button>
       <button type="button" class="rt-btn" data-dd="ul" title="Aufzählung: Punkt, Strich, Pfeil, Quadrat, Checkliste">•≡<span class="ds-dd-caret">▾</span></button>
       <button type="button" class="rt-btn" data-dd="ol" title="Nummerierung: 1. / a) / i.">1≡<span class="ds-dd-caret">▾</span></button>
+      <button type="button" class="rt-btn" data-do="outdent" title="Einzug verkleinern">⇤|</button>
+      <button type="button" class="rt-btn" data-do="indent" title="Einzug vergrößern">|⇥</button>
       <span class="ds-tb-sep"></span>
       <button type="button" class="rt-btn" data-do="link" title="Link">🔗</button>
       <button type="button" class="rt-btn" data-do="clear" title="Formatierung löschen">T̸</button>
@@ -63,20 +149,65 @@ export function mountTiptapSurface(box, host) {
     editBlock: host.editBlock,
     fullWidthCm: host.fullWidthCm,
     onWarnings: (list) => host.status(`⚠️ ${list.join(' · ')}`),
+    imageFromFile: (file) => host.imageFromFile(file),
   });
   pm.el = el;
 
-  const tableMenu = () => [
-    { label: '⬆ Zeile darüber', onClick: () => pm.table.addRowBefore() },
-    { label: '⬇ Zeile darunter', onClick: () => pm.table.addRowAfter() },
-    { label: '⬅ Spalte links', onClick: () => pm.table.addColumnBefore() },
-    { label: '➡ Spalte rechts', onClick: () => pm.table.addColumnAfter() }, '-',
-    { label: '⊞ Zellen verbinden', onClick: () => pm.table.mergeCells() },
-    { label: '⊟ Zelle teilen', onClick: () => pm.table.splitCell() }, '-',
-    { label: '✕ Zeile löschen', onClick: () => pm.table.deleteRow() },
-    { label: '✕ Spalte löschen', onClick: () => pm.table.deleteColumn() },
-    { label: '🗑 Tabelle löschen', onClick: () => pm.table.deleteTable() },
-  ];
+  /**
+   * ⚙-Dialog des alten Editors: arbeitet auf einer Kopie der Tabelle im Dokument (unsichtbar);
+   * was er ändert, kommt über die Spec zurück. So gibt es Eigenschaften und Lesen nur einmal.
+   */
+  const tableDialog = () => {
+    const at = pm.tableAt();
+    if (!at) return;
+    const holder = document.createElement('div');
+    holder.hidden = true;
+    holder.innerHTML = specToEditorHtml({ content: [pm.blockAt(at.pos)] });
+    document.body.appendChild(holder);
+    const table = holder.querySelector('table');
+    const row = table.rows[at.row] || table.rows[0];
+    const cell = row?.cells[at.col] || row?.cells[0];
+    let timer = null;
+    const watch = new MutationObserver(() => {
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        watch.disconnect();
+        const next = htmlToDocSpec(holder.innerHTML).spec.content;
+        holder.remove();
+        if (next.length) pm.replaceAt(at.pos, next);
+      }, 0);
+    });
+    watch.observe(holder, { attributes: true, childList: true, subtree: true });
+    host.tableProps(cell);
+    // Abgebrochen: Es kam keine Änderung, der Dialog ist zu – dann wird die Kopie nicht mehr gebraucht.
+    const overlay = [...document.querySelectorAll('.confirm-overlay')].pop();
+    new MutationObserver((_m, self) => {
+      if (overlay?.isConnected) return;
+      self.disconnect();
+      setTimeout(() => { if (!timer) { watch.disconnect(); holder.remove(); } }, 50);
+    }).observe(document.body, { childList: true });
+  };
+  const tableMenu = () => {
+    const at = pm.tableAt();
+    return [
+      { label: '⚙ Tabelleneigenschaften …', onClick: tableDialog }, '-',
+      { label: '⬆ Zeile darüber', onClick: () => pm.table.addRowBefore() },
+      { label: '⬇ Zeile darunter', onClick: () => pm.table.addRowAfter() },
+      { label: '⬅ Spalte links', onClick: () => pm.table.addColumnBefore() },
+      { label: '➡ Spalte rechts', onClick: () => pm.table.addColumnAfter() }, '-',
+      { label: '⊞ Zellen verbinden', onClick: () => pm.table.mergeCells() },
+      { label: '⊟ Zelle teilen', onClick: () => pm.table.splitCell() }, '-',
+      { label: '⇔ Spalten gleichmäßig verteilen', onClick: () => pm.distribute(at.pos, 'cols') },
+      { label: '⇕ Zeilen ohne feste Höhe', onClick: () => pm.distribute(at.pos, 'rows') }, '-',
+      { label: '⬚ Ganze Tabelle auswählen', onClick: () => pm.selectAt(at.pos) },
+      { label: '↑ Tabelle nach oben', onClick: () => pm.move(-1) },
+      { label: '↓ Tabelle nach unten', onClick: () => pm.move(1) },
+      { label: '⧉ Tabelle verdoppeln', onClick: () => pm.duplicate() }, '-',
+      { label: '✕ Zeile löschen', onClick: () => pm.table.deleteRow() },
+      { label: '✕ Spalte löschen', onClick: () => pm.table.deleteColumn() },
+      { label: '🗑 Tabelle löschen', onClick: () => pm.table.deleteTable() },
+    ];
+  };
   const menus = {
     size: () => [{ label: 'Standard (wie die Vorlage)', onClick: () => pm.setSize(0) }, '-',
       ...FONT_SIZES.map((pt) => ({ label: `${pt} pt`, onClick: () => pm.setSize(pt) }))],
@@ -85,6 +216,8 @@ export function mountTiptapSurface(box, host) {
     hl: () => [...Object.entries(HL_NAMES).map(([k, label]) => ({ label, onClick: () => pm.setHighlight(k) })),
       '-', { label: '✕ Keine', onClick: () => pm.setHighlight(null) }],
     table: tableMenu,
+    align: () => [['left', '⇤ Linksbündig'], ['center', '↔ Zentriert'], ['right', '⇥ Rechtsbündig'], ['justify', '☰ Blocksatz']].map(([d, label]) => ({ label, onClick: () => pm.setAlign(d) })),
+    lh: () => [[1, 'Einfach'], [1.15, '1,15'], [1.5, '1,5'], [2, 'Doppelt']].map(([v, label]) => ({ label, onClick: () => pm.setLineHeight(v) })),
     ul: () => MARKERS.map(([k, label]) => ({ label, onClick: () => listKind('bulletList', 'marker', k) })),
     ol: () => NUMBERINGS.map(([k, label]) => ({ label, onClick: () => listKind('orderedList', 'numbering', k) })),
   };
@@ -139,6 +272,8 @@ export function mountTiptapSurface(box, host) {
     undo: () => pm.undo(),
     redo: () => pm.redo(),
     clear: () => pm.clearMarks(),
+    indent: () => pm.indent(1),
+    outdent: () => pm.indent(-1),
     para: paragraphDialog,
     link: () => {
       const href = window.prompt('Adresse des Links (leer: Link entfernen)', pm.linkHref() || 'https://');
@@ -161,11 +296,51 @@ export function mountTiptapSurface(box, host) {
       showContextMenu(r.left, r.bottom + 4, host.insertEntries(pm));
     }
   });
+  /** Bilder nebeneinander in einen Zeichenrahmen: Seitenverhältnisse erst messen. */
+  const groupImages = async (run) => {
+    const measure = (block) => new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => resolve({ src: block.src, alt: block.alt, source: block.source, aspect: img.naturalWidth / (img.naturalHeight || 1) });
+      img.onerror = () => resolve({ src: block.src, alt: block.alt, source: block.source });
+      img.src = block.src;
+    });
+    const images = await Promise.all(run.images.map(measure));
+    pm.replaceRange(run.from, run.to, [{ type: 'group', ...groupRow(images) }]);
+  };
+  /** Menüeinträge für den gewählten Baustein am Stück. */
+  const atomEntries = () => {
+    const sel = pm.selectedBlock();
+    if (!sel) return [];
+    const run = pm.imageRun();
+    const image = sel.block.type === 'image';
+    return [
+      { label: '✏️ Bearbeiten', onClick: () => host.editBlock(sel.block, sel.apply) },
+      ...(image ? [
+        { label: '📋 Bild kopieren', onClick: () => copyImage(sel.block) },
+        { label: '⬇ Bild speichern', onClick: () => saveImage(sel.block) },
+      ] : []),
+      ...(run ? [{ label: `⊞ Mit den folgenden Bildern gruppieren (${run.images.length})`, onClick: () => { void groupImages(run); } }] : []),
+      ...(sel.block.type === 'group' ? [{ label: '⊟ Gruppierung lösen', onClick: () => sel.apply(ungroup(sel.block)) }] : []),
+      '-',
+    ];
+  };
   el.addEventListener('contextmenu', (e) => {
     if (e.shiftKey) return; // Menü des Browsers
     e.preventDefault();
+    const atom = e.target.closest?.('[data-pm-atom]');
+    if (atom) pm.selectAt(pm.posOfDom(atom));
+    else pm.placeAt(e.clientX, e.clientY);
     const fields = fieldEntries();
-    const entries = [...(pm.inTable() ? [...tableMenu(), '-'] : []), ...fields, ...(fields.length ? ['-'] : []), { label: '¶ Absatz …', onClick: paragraphDialog }, '-', ...host.insertEntries(pm)];
+    const entries = [
+      ...atomEntries(),
+      ...(pm.inTable() ? [...tableMenu(), '-'] : []),
+      ...fields, ...(fields.length ? ['-'] : []),
+      ...(pm.paragraphAttrs() ? [{ label: '¶ Absatz …', onClick: paragraphDialog }] : []),
+      { label: '↑ Nach oben', onClick: () => pm.move(-1) },
+      { label: '↓ Nach unten', onClick: () => pm.move(1) },
+      { label: '⧉ Verdoppeln', onClick: () => pm.duplicate() },
+      '-', ...host.insertEntries(pm),
+    ];
     showContextMenu(e.clientX, e.clientY, entries);
   });
   refresh();

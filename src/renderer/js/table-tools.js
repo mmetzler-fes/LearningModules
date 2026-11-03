@@ -817,9 +817,9 @@ export function attachTableTools(surface, bar, { copyObject = null } = {}) {
   };
 
   /** Dialog „Tabelleneigenschaften“: Reiter Tabelle, Umrandung, Zellen – wirkt mit OK. */
-  function openTableProps(td) {
+  function openTableProps(td, outside = false) {
     const table = td?.closest('table');
-    if (!table || !editable(table)) return;
+    if (!table || (!outside && !editable(table))) return;
     const d = table.dataset;
     const num = (v) => (v === undefined || v === '' ? '' : String(v).replace('.', ','));
     const opt = (list, cur) => list.map(([v, l]) => `<option value="${v}" ${String(cur) === String(v) ? 'selected' : ''}>${l}</option>`).join('');
@@ -984,6 +984,8 @@ export function attachTableTools(surface, bar, { copyObject = null } = {}) {
     objectHandlers: (table) => (editable(table) ? objectHandlers(table) : null),
     /** Steht die Schreibmarke in einer Tabelle? */
     inTable: () => !!currentCell(),
+    /** ⚙ Tabelleneigenschaften für eine Zelle – auch außerhalb der Fläche (neuer Editor). */
+    openProps: (td) => openTableProps(td, true),
     /** Ausrichtung (left, center, right), wenn die Schreibmarke in einer Zelle steht – sonst false. */
     align: (dir) => {
       const node = document.getSelection()?.anchorNode;

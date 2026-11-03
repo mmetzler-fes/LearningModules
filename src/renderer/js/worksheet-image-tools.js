@@ -107,6 +107,8 @@
 
   // Auch für den Dokument-Editor (Rechtsklick auf ein Bild).
   window.appImageClipboard = { copy: copyImage, save: saveImage, tell };
+  // Datei ablegen (verkleinert große Fotos) – auch für den neuen Editor.
+  window.appImageStore = (file) => storeImage(file);
 
   /** Datei → data:-URL; Fotos über MAX_EDGE werden verkleinert. */
   function readImage(file) {

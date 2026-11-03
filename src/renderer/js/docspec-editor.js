@@ -27,6 +27,7 @@ import { groupRow, ungroup, cmOf, GROUP_DEFAULT_WIDTH_CM } from '../lm-editor/sr
 import { arrangeGroup } from './image-arrange.js';
 import { markPageBreaks } from '../lm-editor/src/doc/page-breaks.js';
 import { lmHost } from './lm-host.js';
+import { pasteToEditorHtml } from '../lm-editor/src/doc/paste.js';
 
 /** Startinhalt eines neuen Dokuments – zeigt das Format an einem Beispiel. */
 const STARTER = `content:
@@ -983,6 +984,33 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
    * HTML hinter `after` (bzw. ans Ende) setzen. Eine leere Zeile zum
    * Weiterschreiben nur am Ende – mitten im Blatt würde sie zu „Platz“.
    */
+  /** Text, Markdown, Webseite einfügen: ohne fremde Stile, Markdown wird zu Überschriften, Listen, Tabellen. */
+  const pasteClean = (e) => {
+    const text = e.clipboardData?.getData('text/plain') || '';
+    const html = e.clipboardData?.getData('text/html') || '';
+    if (!text.trim() && !html) return; // z. B. ein Bild: wie bisher
+    e.preventDefault();
+    const sel = window.getSelection();
+    const at = sel.anchorNode?.nodeType === 1 ? sel.anchorNode : sel.anchorNode?.parentElement;
+    // Im Code zählt jedes Zeichen.
+    if (at?.closest('pre, code')) { document.execCommand('insertText', false, text); return; }
+    let res = null;
+    try { res = pasteToEditorHtml({ text, html }); } catch (err) { console.warn('Einfügen:', err); }
+    if (!res) { document.execCommand('insertText', false, text); return; }
+    // Blöcke nicht in eine Überschrift schachteln: leere wird Absatz, sonst dahinter einfügen.
+    const heading = !res.inline && at?.closest('h1, h2, h3, h4, h5, h6');
+    if (heading) {
+      if (!heading.textContent.trim()) document.execCommand('formatBlock', false, 'p');
+      else {
+        sel.selectAllChildren(heading);
+        sel.collapseToEnd();
+        document.execCommand('insertParagraph');
+      }
+    }
+    document.execCommand('insertHTML', false, res.html);
+    if (res.warnings.length) status.textContent = res.warnings.map((w) => `⚠️ ${w}`).join(' ');
+  };
+
   const placeHtml = (html, after) => {
     const tmp = document.createElement('div');
     tmp.innerHTML = html;
@@ -1051,6 +1079,7 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
         </div></form>`;
     document.body.appendChild(overlay);
     const surfaceEl = overlay.querySelector('.ds-sol-surface');
+    surfaceEl.addEventListener('paste', pasteClean);
     const ta = overlay.querySelector('textarea');
     const err = overlay.querySelector('.ds-error');
     surfaceEl.innerHTML = toText(block.blocks) || '<p><br></p>';
@@ -1447,7 +1476,7 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
   // Einfügen von YAML-Bausteinen (aus dem YAML-Feld oder kopiert): als Bausteine statt Text.
   surface.addEventListener('paste', (e) => {
     const text = (e.clipboardData?.getData('text/plain') || '').trim();
-    if (!/^(- )?type: /.test(text)) return;
+    if (!/^(- )?type: /.test(text)) { pasteClean(e); return; }
     let blocks;
     try { blocks = yamlLoad(text); } catch (_) { return; }
     if (blocks && !Array.isArray(blocks)) blocks = [blocks];

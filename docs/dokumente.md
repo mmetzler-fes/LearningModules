@@ -166,6 +166,14 @@ holt das gespeicherte Dokument als Datei für den lm-editor (mit eingebetteten
 Quizzen, Bildern und deiner Beschriftung) – nur eigene Dokumente; zurück geht
 es per Doppelklick auf die .zlm → **📓 Im Notizbuch ablegen…**.
 
+**Einfügen aus der Zwischenablage (Strg+V):** Text von Webseiten, aus Word oder
+Google Docs behält Überschriften, Listen, Tabellen, Links, Fett und Kursiv –
+Schriftart, Farben, Abstände und andere fremde Stile fallen weg. **Markdown**
+wird erkannt und umgewandelt (`#`, `-`, `1.`, `**fett**`, Tabellen, Code,
+`$Formel$`). Bei reinem Text trennt eine Leerzeile die Absätze, jede andere
+Zeile bleibt eine eigene Zeile. Ein kurzes Stück ohne Absatz fließt in den Text
+an der Schreibmarke.
+
 **⌨ YAML** zeigt dasselbe Dokument als Text – praktisch zum schnellen Ändern
 vieler Stellen oder für Antworten einer KI. Das Format beschreibt die Datei
 `worksheet-renderer/SPEC.md`. Hilfen beim Einrücken: **Enter** übernimmt die

@@ -3915,6 +3915,10 @@ body {
 .ds-widget.ds-widget-selected { border: 2px solid var(--accent); padding: 3px 7px; }
 /* Schreibfeld am gewählten Baustein: Breite, Höhe bzw. beides ziehen. */
 .ds-widget .ds-karo { position: relative; }
+/* A4 quer (Vorlage): Felder in ganzer Breite wie auf dem Blatt der Vorschau */
+.ds-surface.ds-landscape .ds-karo { max-width: 100%; }
+.ds-surface.ds-landscape .ds-image-full > img,
+.ds-surface.ds-landscape .ds-group-full > .ds-group-box { width: 100% !important; }
 .ds-karo-grip { position: absolute; z-index: 3; background: var(--accent); border: 2px solid #fff; border-radius: 4px; box-shadow: 0 0 0 1px var(--accent); touch-action: none; }
 .ds-karo-grip-e { right: -6px; top: 50%; width: 10px; height: 28px; margin-top: -14px; cursor: ew-resize; }
 .ds-karo-grip-s { bottom: -6px; left: 50%; width: 28px; height: 10px; margin-left: -14px; cursor: ns-resize; }

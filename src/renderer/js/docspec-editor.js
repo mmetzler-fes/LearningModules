@@ -218,6 +218,8 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
     const landscape = ctx?.page ? ctx.page.width > ctx.page.height : (parsed.orientation ?? spec?.orientation) === 'landscape';
     if (landscape) parsed.orientation = 'landscape';
     else delete parsed.orientation;
+    // Auch die Bearbeitungsfläche: Dort folgen Schreibfelder und Bilder in ganzer Breite der Vorlage.
+    surface.classList.toggle('ds-landscape', landscape);
     spec = parsed;
     // Feste Block-IDs – an ihnen hängen die Striche der Schüler. Neue Blöcke
     // bekommen ihre ID ins YAML, sobald dort niemand tippt (sonst beim Verlassen).

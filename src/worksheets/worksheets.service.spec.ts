@@ -192,3 +192,13 @@ describe('WorksheetsService.importPdf', () => {
     expect(res.warnings.some((w) => /Unbekannter Blocktyp/.test(w))).toBe(true);
   });
 });
+
+describe('WorksheetsService.templatePageContext', () => {
+  it('neues Dokument: Seite der gewählten Vorlage, ohne lesbare Daten A4', async () => {
+    const svc: any = Object.create(WorksheetsService.prototype);
+    svc.templates = { readable: jest.fn().mockResolvedValue({ data: null }) };
+    const r = await svc.templatePageContext({ userId: 'u' }, 't1');
+    expect(svc.templates.readable).toHaveBeenCalledWith('u', 't1');
+    expect(r.page.width).toBe(21);
+  });
+});

@@ -173,7 +173,15 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
   // Platz im Notebook: Nummer, Kopfzeile, Verweisziele (nur für gespeicherte Module).
   let ctx = null;
   const loadContext = async () => {
-    if (!moduleId) return;
+    // Neues Dokument: nur die Seite einer ausdrücklich gewählten Vorlage.
+    if (!moduleId && !templateSelect?.value) {
+      if (ctx) {
+        ctx = null;
+        if (spec) delete spec.orientation;
+        update();
+      }
+      return;
+    }
     try {
       const res = await fetch('/api/worksheets/context', {
         method: 'POST',
@@ -183,8 +191,8 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
       });
       if (!res.ok) return;
       ctx = await res.json();
-      headerEl.hidden = false;
-      headerEl.textContent = `Kopfzeile im Druck: ${ctx.header}`;
+      headerEl.hidden = !ctx.header;
+      headerEl.textContent = ctx.header ? `Kopfzeile im Druck: ${ctx.header}` : '';
       update();
     } catch (_) { /* ohne Kontext bleibt die Vorschau ohne Nummern */ }
   };
@@ -206,6 +214,10 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
       errorsEl.innerHTML = `<p class="ds-error">⚠️ YAML ${escapeHtml(where + (err.reason || err.message))}</p>`;
       return; // Vorschau und gespeicherter Stand bleiben beim letzten lesbaren.
     }
+    // Die Vorlage entscheidet über hoch oder quer; so folgen Ansicht, Stift und .zlm (die Vorschau liest die Seite selbst).
+    const landscape = ctx?.page ? ctx.page.width > ctx.page.height : (parsed.orientation ?? spec?.orientation) === 'landscape';
+    if (landscape) parsed.orientation = 'landscape';
+    else delete parsed.orientation;
     spec = parsed;
     // Feste Block-IDs – an ihnen hängen die Striche der Schüler. Neue Blöcke
     // bekommen ihre ID ins YAML, sobald dort niemand tippt (sonst beim Verlassen).
@@ -242,7 +254,7 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
       ? { bodyCm: page.height - page.margin.top - page.margin.bottom - (page.header || 0) - (page.footer || 0) }
       : { landscape: sheet.classList.contains('lm-landscape') });
     measuredShape = sheet.offsetHeight / (sheet.offsetWidth || 1);
-    pagesEl.textContent = `A4 · ${pages} ${pages === 1 ? 'Seite' : 'Seiten'} (Umbrüche ungefähr wie im Druck)`;
+    pagesEl.textContent = `${sheet.classList.contains('lm-landscape') ? 'A4 quer' : 'A4'} · ${pages} ${pages === 1 ? 'Seite' : 'Seiten'} (Umbrüche ungefähr wie im Druck)`;
     fitSheet();
     preview.scrollTop = top;
   };
@@ -261,7 +273,7 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
     const page = ctx?.page;
     const pageStyle = page
       ? ` style="width:${page.width}cm;min-height:${page.height}cm;padding:${page.margin.top + (page.header || 0)}cm ${page.margin.right}cm ${page.margin.bottom + (page.footer || 0)}cm ${page.margin.left}cm"` : '';
-    sheetWrap.innerHTML = `<div class="lm-paper${!page && spec.orientation === 'landscape' ? ' lm-landscape' : ''}"${pageStyle}>${renderDocSpecHtml(spec, { showSolutions: showSolutions.checked, showPageBreaks: true, refs: ctx?.refs || undefined })}</div>`;
+    sheetWrap.innerHTML = `<div class="lm-paper${(page ? page.width > page.height : spec.orientation === 'landscape') ? ' lm-landscape' : ''}"${pageStyle}>${renderDocSpecHtml(spec, { showSolutions: showSolutions.checked, showPageBreaks: true, refs: ctx?.refs || undefined })}</div>`;
     preview.replaceChildren(sheetWrap);
     measurePages(top);
     // Bilder (auch nachgeladene oder ersetzte), Schriften, Formeln: Ändert sich
@@ -1418,7 +1430,11 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
       grip.removeEventListener('pointercancel', up);
       size.remove();
       const next = { ...block, lines: Math.max(1, Math.min(60, Math.round(heightCm * 2))) };
-      if (widthCm) next.width = `${widthCm}cm`;
+      // Bis zum rechten Rand gezogen heißt „ganze Breite“: Das Feld folgt dann der Vorlage (hoch, quer).
+      const page = ctx?.page;
+      const fullCm = page && page.width > page.height ? Math.floor((page.width - page.margin.left - page.margin.right) * 2) / 2 : 16.5;
+      if (widthCm && widthCm < fullCm) next.width = `${widthCm}cm`;
+      else if (widthCm) delete next.width;
       const tmp = document.createElement('div');
       tmp.innerHTML = widgetHtml(next);
       const fresh = tmp.firstElementChild;

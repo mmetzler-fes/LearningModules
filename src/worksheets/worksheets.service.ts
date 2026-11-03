@@ -229,6 +229,12 @@ export class WorksheetsService {
     return { ...ctx, template: template ? { id: template.id } : null, page, header: WorksheetsService.header(ctx.refs ? ctx : null, title) };
   }
 
+  /** Für ein noch nicht gespeichertes Dokument: Seite der gewählten Vorlage (eigene oder der Schule). */
+  async templatePageContext(user: any, templateId: string) {
+    const template = await this.templates!.readable(user.userId, templateId);
+    return { page: templatePage(template?.data) || DEFAULT_PAGE };
+  }
+
   static header(ctx: DocContext | null, title: string): string {
     if (!ctx) return title || 'Dokument';
     return formatHeader(ctx.course.titelmuster, {

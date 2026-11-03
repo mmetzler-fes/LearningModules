@@ -361,7 +361,9 @@ Schulvorlagen legt der Schuladmin an.
 **Querformat:** Mit einer Vorlage in A4 quer nutzt der Druck die ganze
 Zeile – Tabellen, Kästen, Spalten und Schreibfelder ohne feste Breite und
 Bilder mit „ganzer Breite“ (16,5 cm). Feste Breiten (Tabelle bis 25,5 cm)
-bleiben; im Hochformat wird nichts breiter als die Satzbreite gedruckt.
+bleiben; im Hochformat wird nichts breiter als die Satzbreite gedruckt. Ein
+Schreibfeld, das bis zum rechten Rand gezogen ist, gilt als „ganze Breite“ und passt
+sich der Vorlage an.
 
 **Seitenumbrüche im Druck:** Wo eine Seite endet, entscheidet LibreOffice
 beim Drucken. Bilder, Tabellen und Schreibfelder werden nie zerrissen – passt
@@ -379,6 +381,12 @@ und ein Arbeitsblatt in **A4** nebeneinander. Der Druck aus dem Editor nimmt
 die Wahl gleich (auch vor dem Speichern), das Nextcloud-Abbild nach dem
 Speichern. **Am Ordner:** ⋯ → 📄 Dokument-Einstellungen → „Vorlage für den
 Druck“ gilt für alle Dokumente darunter, die keine eigene haben.
+
+**Hoch und quer umschalten:** Eine andere Vorlage wählen genügt: Blatt und
+Umbrüche der Vorschau passen sich sofort an, der Druck ebenso. Ansicht und Stift-Editor
+übernehmen die Ausrichtung beim **Speichern des Dokuments** – auch nach einer Änderung
+am Ordner. Vorhandene Stift-Striche bleiben an ihren Bausteinen; weil der Text beim
+Wechsel anders umbricht, können sie danach etwas verrutschen.
 
 ## Mit einer KI erstellen
 

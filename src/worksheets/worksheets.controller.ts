@@ -158,9 +158,13 @@ export class WorksheetsController {
   @Post('context')
   @HttpCode(200)
   context(@Request() req: any, @Body() body: { moduleId?: string; title?: string; templateId?: string | null }) {
-    if (!body?.moduleId) throw new BadRequestException('moduleId fehlt.');
     // templateId: im Editor gewählt (noch ungespeichert); '' = wie im Ordner.
-    const templateId = body.templateId === undefined ? undefined : body.templateId ? String(body.templateId) : null;
+    const templateId = body?.templateId === undefined ? undefined : body.templateId ? String(body.templateId) : null;
+    // Neues Dokument ohne Modul: nur die Seite der gewählten Vorlage.
+    if (!body?.moduleId) {
+      if (!templateId) throw new BadRequestException('moduleId fehlt.');
+      return this.worksheets.templatePageContext(req.user, templateId);
+    }
     return this.worksheets.editorContext(req.user, String(body.moduleId), String(body.title || '').slice(0, 200), templateId);
   }
 

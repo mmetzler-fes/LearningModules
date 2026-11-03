@@ -93,6 +93,7 @@ class RenderTest(unittest.TestCase):
         self.assertEqual(mw.karo_columns({"width": "8cm"}), 16)
         self.assertEqual(mw.karo_columns({"width": "0.2cm"}), 2)
         self.assertEqual(mw.karo_columns({}), mw.KARO_COLUMNS)
+        self.assertEqual(mw.karo_columns({"width": "16.5cm"}), mw.KARO_COLUMNS)
 
     def test_tabelle_breiten_und_hoehen(self):
         """`widths` legt Spalten fest (leer = automatisch), `heights` die Mindesthöhe je Zeile."""

@@ -820,6 +820,9 @@ def karo_columns(block: dict[str, Any]) -> int:
     match = re.fullmatch(r"(\d+(?:\.\d+)?)\s*cm", width)
     if not match:
         return KARO_COLUMNS
+    # „Ganze Breite“ von A4 hoch füllt im Querformat die Zeile – wie bei Bildern.
+    if abs(float(match.group(1)) - FULL_WIDTH_CM) < 0.05:
+        return KARO_COLUMNS
     return max(2, min(KARO_COLUMNS, round(float(match.group(1)) / KARO_CELL)))
 
 

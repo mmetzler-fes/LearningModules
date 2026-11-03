@@ -128,7 +128,10 @@ Freigabe im Notizbuch, nur für diese Klasse.
 
 **📍** neben einem eingeschalteten Modul setzt den Merker: „Hier ist die
 Klasse gerade“. Oben in der Inhaltsübersicht steht dann, wo er sitzt, mit
-**Entfernen**; ein Klick auf 📍 an einem anderen Modul versetzt ihn. Bei den
+**Entfernen**; ein Klick auf 📍 an einem anderen Modul versetzt ihn. Über das
+Menü ⋯ sitzt er auch auf einem Bereich, Abschnitt, einer Zuweisung oder einem
+Lernthema, mit **📍 Ganz vorn** auf dem ganzen Buch. Im Baum steht 📍 genau an
+dieser Stelle, die Zeile ist hervorgehoben; ein Klick darauf entfernt ihn. Bei den
 Schülern ist das Lernthema mit diesem Modul aufgeklappt, das Modul markiert
 („📍 Hier sind wir“) und hat den Fokus – alle anderen Lernthemen sind
 eingeklappt. Ist das Modul für die Schüler gerade aus, sehen sie keinen

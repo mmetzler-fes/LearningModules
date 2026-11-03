@@ -211,7 +211,7 @@ export class ClassbookService {
       qrSvg: await renderQr(url),
       firstLoginUntil: firstLoginOpen(nb.firstLoginUntil) ? nb.firstLoginUntil : null,
       teacherItems: nb.teacherItems || [],
-      marker: nb.marker || null,
+      marker: normalizeMarker(nb.marker),
       studentHidden: !!nb.studentHidden,
       live: { online: this.live.online(classId), follow: this.live.isFollowing(classId) },
       nodes,

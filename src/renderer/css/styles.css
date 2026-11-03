@@ -5798,6 +5798,9 @@ details.cb-topic > summary .hint { font-weight: normal; margin-left: 6px; }
 .cb-node-title { font-weight: 600; }
 .cb-node > summary .nb-menu-btn { margin-left: auto; }
 .cb-node-body { margin-left: 14px; padding-left: 10px; border-left: 2px solid var(--border); }
+/* 📍 Merker auf Buch, Bereich, Abschnitt, Zuweisung oder Lernthema */
+.cb-node > summary.cb-marked, .cb-link > summary.cb-marked, .cb-topic-title.cb-marked, .cb-book-mark { background: var(--score-medium-bg); border-radius: var(--radius-sm); }
+.cb-book-mark { padding: 6px 8px; margin-bottom: 6px; }
 .cb-empty { margin: 4px 0 8px; }
 .cb-link-actions .nb-menu-btn { margin-left: auto; }
 .cb-entry-menu { margin-left: auto; font-weight: 700; }

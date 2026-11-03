@@ -532,8 +532,11 @@ export class ClassResultsView {
   _linkCard(link, buttons, body = null) {
     const n = link.topics.reduce((sum, t) => sum + t.units.length, 0);
     const open = this._openLinks?.has(link.id) ? 'open' : '';
+    const mk = this._tab === 'content' ? this._cb?.marker : null;
+    const marked = mk?.level === 'link' && mk.linkId === link.id;
     return `<details class="result-group cb-link ${link.active ? '' : 'cb-off'}" data-link="${escapeAttr(link.id)}" ${open}>
-      <summary>${this._tab === 'content' && link.available ? this._groupSwitch(this._stateOf([link]), `data-switch-links="${escapeAttr(link.id)}"`, 'dieser Zuweisung') : ''}<span class="result-group-title">${link.classTopicId ? '📘' : '🔗'} ${escapeHtml(link.name)}${link.active ? '' : ' <small class="class-pending-note">deaktiviert</small>'}</span>
+      <summary class="${marked ? 'cb-marked' : ''}">${this._tab === 'content' && link.available ? this._groupSwitch(this._stateOf([link]), `data-switch-links="${escapeAttr(link.id)}"`, 'dieser Zuweisung') : ''}<span class="result-group-title">${link.classTopicId ? '📘' : '🔗'} ${escapeHtml(link.name)}${link.active ? '' : ' <small class="class-pending-note">deaktiviert</small>'}</span>
+        ${marked ? this._markBadge() : ''}
         <span class="result-group-meta">${link.topics.length} Lernthema/-themen · ${n} Modul${n === 1 ? '' : 'e'}
           ${this._tab === 'contest'
             ? '<button type="button" class="btn btn-primary btn-sm" data-contest title="Wartebereich öffnen – die Schüler sehen im Klassennotizbuch dann nur noch die Quiz-Arena">🏆 Quiz-Arena starten</button>'
@@ -575,11 +578,13 @@ export class ClassResultsView {
   _availHtml(link) {
     const sw = (on, attrs, what) => `<button type="button" class="nb-status ${on ? 'on' : ''}" ${attrs}
       title="${on ? `Schüler sehen ${what} – klicken zum Ausschalten` : `Ausgeschaltet – klicken, damit die Schüler ${what} sehen`}">${on ? '●' : '○'}</button>`;
+    const mk = this._cb?.marker;
+    const topicMarked = (t) => mk?.level === 'topic' && mk.linkId === link.id && mk.topicId === t.topicId;
     return `${link.available.map((t) => `<div class="cb-topic ${t.enabled ? '' : 'cb-item-off'}" data-topic="${escapeAttr(t.topicId)}">
-        <div class="cb-topic-title">${sw(t.enabled, 'data-toggle-topic', 'dieses Lernthema')} 📘 ${escapeHtml(t.title)}
+        <div class="cb-topic-title ${topicMarked(t) ? 'cb-marked' : ''}">${sw(t.enabled, 'data-toggle-topic', 'dieses Lernthema')} 📘 ${escapeHtml(t.title)}
+          ${topicMarked(t) ? this._markBadge() : ''}
           <button type="button" class="nb-menu-btn" data-topic-menu title="Aktionen" aria-label="Aktionen">⋯</button></div>
         <ul class="cb-units">${t.modules.map((m) => {
-          const mk = this._cb?.marker;
           const marked = mk?.level === 'module' && mk.linkId === link.id && mk.moduleId === m.id;
           return `<li class="${m.enabled ? '' : 'cb-item-off'} ${marked ? 'cb-marked' : ''}">
           <span>${m.viaDoc ? '<span class="nb-status on cb-via-doc" title="In ein eingeschaltetes Dokument eingebettet – kommt mit ihm. Mit ○ am Dokument ist es aus.">●</span>'
@@ -591,6 +596,11 @@ export class ClassResultsView {
         }).join('')}</ul>
       </div>`).join('')}
       ${link.notReleased?.length ? `<p class="hint">Im Notizbuch noch nicht für Schüler freigegeben, daher nicht wählbar: ${escapeHtml(link.notReleased.join(', '))}.</p>` : ''}`;
+  }
+
+  /** 📍 im Baum dort, wo der Merker steht (Bereich, Abschnitt, Zuweisung, Lernthema, ganz vorn). */
+  _markBadge() {
+    return '<button type="button" class="cb-mark on" data-unmark title="Hier ist die Klasse gerade – klicken zum Entfernen" aria-label="Merker entfernen">📍</button>';
   }
 
   /** 📍 Merker setzen – auf jeder Ebene (siehe setClassbookMarker), aus den ⋯-Menüs und dem Buch-Button. */
@@ -691,7 +701,7 @@ export class ClassResultsView {
           (Änderungen dort gelten sofort), 📘 gehört nur dieser Klasse. ● / ○ schaltet Lernthemen und Module ein und aus –
           was später dazukommt, ist zunächst aus. 👁 / 🙈 blendet einen Bereich oder Abschnitt für Schüler aus, ohne die Module
           zu schalten. Aktionen über ⋯.</p>
-        <div class="cb-tree">${links.length || cb.nodes.length ? this._level(cb, links, null)
+        <div class="cb-tree">${cb.marker?.level === 'root' ? `<div class="cb-book-mark cb-marked">${this._markBadge()} 📒 <strong>${escapeHtml(cb.className)}</strong> <span class="hint">ganz vorn im Klassennotizbuch</span></div>` : ''}${links.length || cb.nodes.length ? this._level(cb, links, null)
           : `<div class="empty-state"><span class="empty-icon">📋</span>
               <p>Noch leer. Weise aus deinem Notizbuch Lernthemen oder ganze Bereiche zu, lege eigene Lernthemen für diese Klasse an
                 und ordne alles in Bereichen und Abschnitten.</p></div>`}</div>`;
@@ -877,8 +887,10 @@ export class ClassResultsView {
     const entries = links.filter((l) => l.nodeId === parentId).sort((a, b) => a.order - b.order);
     const count = (id) => links.filter((l) => l.nodeId === id).length + cb.nodes.filter((n) => n.parentId === id).reduce((s, n) => s + count(n.id), 0);
     const under = (id) => [...links.filter((l) => l.nodeId === id), ...cb.nodes.filter((n) => n.parentId === id).flatMap((n) => under(n.id))];
+    const marked = (n) => cb.marker?.level === 'node' && cb.marker.nodeId === n.id;
     const html = nodes.map((n) => `<details class="cb-node ${n.studentHidden ? 'cb-veiled' : ''}" data-node="${escapeAttr(n.id)}" ${this._closedNodes?.has(n.id) ? '' : 'open'}>
-        <summary>${under(n.id).length ? this._groupSwitch(this._stateOf(under(n.id)), `data-switch-links="${escapeAttr(under(n.id).map((l) => l.id).join(','))}"`, n.kind === 'section' ? 'diesem Abschnitt' : 'diesem Bereich') : ''}${this._veilButton(n)}<span class="cb-node-title">${NODE_ICON[n.kind]} ${escapeHtml(n.title)}</span>
+        <summary class="${marked(n) ? 'cb-marked' : ''}">${under(n.id).length ? this._groupSwitch(this._stateOf(under(n.id)), `data-switch-links="${escapeAttr(under(n.id).map((l) => l.id).join(','))}"`, n.kind === 'section' ? 'diesem Abschnitt' : 'diesem Bereich') : ''}${this._veilButton(n)}<span class="cb-node-title">${NODE_ICON[n.kind]} ${escapeHtml(n.title)}</span>
+          ${marked(n) ? this._markBadge() : ''}
           <span class="hint">${count(n.id)} Lernthem${count(n.id) === 1 ? 'a' : 'en'}</span>
           ${n.studentHidden ? '<span class="cb-veiled-badge" title="Schüler sehen diesen Bereich mit allem darin nicht – die Module bleiben ein- bzw. ausgeschaltet">🙈 für Schüler ausgeblendet</span>' : ''}
           <button type="button" class="nb-menu-btn" data-node-menu title="Aktionen" aria-label="Aktionen">⋯</button></summary>

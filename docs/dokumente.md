@@ -584,12 +584,12 @@ wenn die Lehrkraft des Lernthemas freigeschaltet ist.
   Schulvorlage, Seitenumbrüche aus dem Dokument; Schreibfelder, Bilder und
   Formeln werden nicht über zwei Seiten zerrissen. Schüler sehen nur das
   Arbeitsblatt. Quizze erscheinen so, wie sie gerade aussehen.
-- **Finger und Scrollen:** Ist der **✏️ Stift** gewählt, zeichnet auch der
-  Finger, und das Blatt steht still: Es bewegt sich nur mit **zwei Fingern**
-  (auch auf einem Quiz) oder mit der Maus über Scrollleiste und Mausrad. Bei
-  allen anderen Werkzeugen scrollt ein Finger; Antippen wirkt trotzdem bei
-  Radierer (ein Strich), Auswählen, Text und Vieleck. Mit Textmarker, Formen,
-  Feld und Leuchtstift arbeiten Stift und Maus. Der Apple Pencil verschiebt die
+- **Finger und Scrollen:** Bei **✏️ Stift, 🖍️ Textmarker, 🧽 Radierer und
+  Formen** arbeitet auch der Finger, und das Blatt steht still: Es bewegt sich nur mit
+  **zwei Fingern** (auch auf einem Quiz) oder mit der Maus über Scrollleiste
+  und Mausrad. Bei allen anderen Werkzeugen scrollt ein Finger; Antippen wirkt
+  trotzdem bei Auswählen und Text. Mit Feld und Leuchtstift arbeiten Stift und
+  Maus. Der Apple Pencil verschiebt die
   Seite nie. Solange der Stift
   schreibt und eine halbe Sekunde danach zählt die aufliegende Hand nicht; lag
   sie schon vor dem Stift auf, verschwindet ihr begonnener Strich.
@@ -603,7 +603,7 @@ wenn die Lehrkraft des Lernthemas freigeschaltet ist.
   der Ecke – die Skala bleibt in echten Zentimetern, ein größeres Dreieck hat
   nur mehr Striche. **Setzt der Stift an einer Kante an**, läuft der Strich
   genau an ihr entlang – an der langen Kante wie an den Schenkeln, mit Stift,
-  Maus oder (beim Stift) Finger. Neben dem Dreieck scrollen zwei Finger.
+  Maus oder (bei Stift und Textmarker) Finger. Neben dem Dreieck scrollen zwei Finger.
 
 Die Leiste bleibt immer oben: Solange der Editor offen ist, zoomt der
 Browser die Seite nicht (iPad: Zwei-Finger-Geste); Strg+Mausrad bzw. das

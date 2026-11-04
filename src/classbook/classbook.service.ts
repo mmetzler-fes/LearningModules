@@ -170,6 +170,27 @@ export class ClassbookService {
 
   // ---- Lehrkraft ----
 
+  /**
+   * Zugang für die Schüler, für die Klassenverwaltung: Link, Klassencode, QR-Code.
+   * Hat die Klasse noch kein Klassennotizbuch, entsteht hier ein leeres.
+   */
+  async access(user: any, classId: string, req?: any) {
+    const klasse = await this.classes.ownedClass(classId, user);
+    const nb = await this.ensure(klasse);
+    const url = `${baseUrl(req)}/?k=${nb.token}`;
+    const students = await this.studentRepo.find({ where: { classId }, select: ['id', 'status', 'pinShownAt'] });
+    return {
+      classId, className: klasse.name, url,
+      code: nb.code ? formatClassCode(nb.code) : '',
+      qrSvg: await renderQr(url),
+      firstLoginUntil: firstLoginOpen(nb.firstLoginUntil) ? nb.firstLoginUntil : null,
+      students: {
+        confirmed: students.filter((s) => s.status !== 'pending').length,
+        pinSeen: students.filter((s) => s.status !== 'pending' && s.pinShownAt).length,
+      },
+    };
+  }
+
   async forTeacher(user: any, classId: string, req?: any) {
     const klasse = await this.classes.ownedClass(classId, user);
     const nb = await this.ensure(klasse);

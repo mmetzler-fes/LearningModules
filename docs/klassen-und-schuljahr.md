@@ -5,6 +5,10 @@ Klasse alle Schüler (Name, Vorname) mit ihren Ergebnissen, je Test alle
 Schüler der Klasse – auch die, die noch fehlen –, und über das Jahr ein
 Überblick über das Engagement.
 
+**📒 Klassenbuch-Link:** Unter 🏫 Klassen steht an jeder Klasse der Link zum [Klassennotizbuch](klassennotizbuch.md) mit dem
+Klassencode, dazu **📋 Text für Schüler** zum Weitergeben. Gibt es noch kein Klassennotizbuch, entsteht ein leeres. In der
+Schülerliste stehen zusätzlich der QR-Code und die Erstanmeldung, die PINs stehen in der Tabelle.
+
 ## Schuljahr
 
 Der Hauptadmin setzt unter **Shop & Sicherheit → 📅 Schuljahr** das aktuelle

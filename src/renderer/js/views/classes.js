@@ -397,17 +397,63 @@ export class ClassesView {
             ${c.linkCount ? ` · ${c.linkCount === 1 ? '1 Klassenlink' : `${c.linkCount} Klassenlinks`}` : ''}
             ${c.strict ? ' · 🔒 strikt' : ''}
           </p>
+          <div class="class-book-access"><span class="hint">📒 Klassenbuch-Link wird geladen …</span></div>
         </div>
         <div class="link-card-actions">
           <button class="btn btn-primary btn-sm btn-class-open">👥 Schülerliste</button>
           <button class="btn btn-secondary btn-sm btn-class-rename">✏️ Umbenennen</button>
           <button class="btn btn-danger btn-sm btn-class-delete" title="Klasse löschen">🗑</button>
         </div>`;
+      void this._renderAccess(c.id, card.querySelector('.class-book-access'));
       card.querySelector('.btn-class-open').addEventListener('click', () => { this._openId = c.id; this.refresh(); });
       card.querySelector('.btn-class-rename').addEventListener('click', () => this._renameClass(c));
       card.querySelector('.btn-class-delete').addEventListener('click', () => this._deleteClass(c));
       this._list.appendChild(card);
     }
+  }
+
+  /** 📒 Klassenbuch-Link: Was die Schüler brauchen, gleich zum Weitergeben. Legt das Klassennotizbuch bei Bedarf an. */
+  async _renderAccess(classId, box, { full = false } = {}) {
+    if (!box) return;
+    const a = await this.app.api.getClassbookAccess(classId).catch(() => null);
+    if (failed(a) || !a.url) {
+      box.innerHTML = `<span class="hint">📒 Klassenbuch-Link nicht abrufbar${a?.message ? `: ${escapeHtml(a.message)}` : ''}.</span>`;
+      return;
+    }
+    const missing = a.students.confirmed - a.students.pinSeen;
+    const open = !!a.firstLoginUntil;
+    box.innerHTML = `
+      ${full ? `<div class="cb-qr" style="float:right; margin-left:12px;">${a.qrSvg || ''}</div>` : ''}
+      <strong>📒 Klassenbuch-Link</strong>
+      <div class="cb-url" style="margin:4px 0 4px;">
+        <input type="text" readonly value="${escapeAttr(a.url)}" class="search-input" aria-label="Klassenbuch-Link">
+        <button type="button" class="btn btn-secondary btn-sm" data-copy-link>📋 Link</button>
+        <button type="button" class="btn btn-secondary btn-sm" data-copy-text title="Link, Klassencode und Anleitung als Text für die Schüler">📋 Text für Schüler</button>
+      </div>
+      <span class="hint">${a.code ? `Klassencode für die App: <strong class="cb-code" style="font-size:1em;">${escapeHtml(a.code)}</strong> · ` : ''}Anmeldung mit Name und PIN${full ? ' (PINs in der Tabelle unten)' : ''}.
+        ${missing > 0 ? `${missing} von ${a.students.confirmed} kennen ihre PIN noch nicht.` : ''}
+        ${open ? '🔓 Erstanmeldung offen.' : ''}</span>
+      ${full ? `<div style="margin-top:6px;"><button type="button" class="btn btn-secondary btn-sm" data-first-login="${open ? '' : '1'}">${open ? '🔒 Erstanmeldung schließen' : '🔓 Erstanmeldung freischalten'}</button>
+        <span class="hint">Solange sie offen ist, bekommt jeder seine PIN beim ersten Anmelden angezeigt. Sie schließt sich am Ende des Tages.</span></div>` : ''}`;
+    const copy = async (text, done) => {
+      try {
+        await navigator.clipboard.writeText(text);
+        this.app.showToast(done, 'success');
+      } catch (_) {
+        box.querySelector('input').select();
+      }
+    };
+    box.querySelector('input').addEventListener('click', (e) => e.target.select());
+    box.querySelector('[data-copy-link]').addEventListener('click', () => copy(a.url, 'Link kopiert.'));
+    box.querySelector('[data-copy-text]').addEventListener('click', () => copy(
+      `Klassennotizbuch ${a.className}\n\nLink: ${a.url}\n${a.code ? `Klassencode für die App: ${a.code}\n` : ''}\nAnmelden mit deinem Namen und deiner PIN.`,
+      'Text für die Schüler kopiert.',
+    ));
+    box.querySelector('[data-first-login]')?.addEventListener('click', async (e) => {
+      const res = await this.app.api.setClassbookFirstLogin(classId, !!e.currentTarget.dataset.firstLogin);
+      if (failed(res)) { this.app.showToast('Fehler: ' + (res?.message || '?'), 'error'); return; }
+      void this._renderAccess(classId, box, { full });
+    });
   }
 
   async _createClass() {
@@ -481,6 +527,7 @@ export class ClassesView {
           <button class="btn btn-secondary btn-sm btn-class-share" title="Kolleginnen und Kollegen bekommen eine eigene Kopie mit dieser Schülerliste">👥 Teilen</button>
         </div>
       </div>
+      <div class="class-book-access class-book-access-full"><span class="hint">📒 Klassenbuch-Link wird geladen …</span></div>
       <p class="hint class-shares-line"></p>
       <p class="hint">${students.length === 1 ? '1 Schüler' : `${students.length} Schüler`}${pending ? ` · ${pending} unbestätigt – bei der Anmeldung entstanden: bestätigen (✓) oder einem Schüler zuordnen (⇄)` : ''}</p>
       <label class="tag-filter-mode class-strict-toggle">
@@ -521,6 +568,7 @@ export class ClassesView {
       <div class="class-works"></div>`;
 
     const byId = new Map(students.map((s) => [s.id, s]));
+    void this._renderAccess(klasse.id, this._detail.querySelector('.class-book-access'), { full: true });
     this._renderExams(klasse);
     this._renderWorks(klasse);
     this._detail.querySelector('.chk-class-strict').addEventListener('change', async (e) => {

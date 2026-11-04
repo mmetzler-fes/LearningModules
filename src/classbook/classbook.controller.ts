@@ -14,6 +14,12 @@ export class ClassbookController {
     return this.classbook.forTeacher(req.user, classId, req);
   }
 
+  /** Link, Klassencode und QR-Code für die Schüler; legt das Klassennotizbuch bei Bedarf an. */
+  @Get(':classId/access')
+  access(@Request() req: any, @Param('classId') classId: string) {
+    return this.classbook.access(req.user, classId, req);
+  }
+
   /** `{ open }` – Erstanmeldung bis Ende des Tages an bzw. aus. */
   @Post(':classId/first-login')
   @HttpCode(200)

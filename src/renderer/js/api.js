@@ -1056,6 +1056,7 @@ export class BrowserApi {
   importResults(data) { return this._fetch('/api/results/import', { method: 'POST', body: JSON.stringify(data) }); }
   getRetention() { return this._fetch('/api/classes/retention'); }
   // ---------- Klassennotizbuch (docs/klassennotizbuch.md) ----------
+  getClassbookAccess(classId) { return this._fetch(`/api/classbook/${encodeURIComponent(classId)}/access`); }
   getClassbook(classId) { return this._fetch(`/api/classbook/${encodeURIComponent(classId)}`); }
   setClassbookFirstLogin(classId, open) {
     return this._fetch(`/api/classbook/${encodeURIComponent(classId)}/first-login`, { method: 'POST', body: JSON.stringify({ open }) });

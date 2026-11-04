@@ -4907,7 +4907,6 @@ body.html-app-large .quiz-actions { margin-top: 8px; padding-top: 8px; flex-shri
 .cb-tree .cb-units > li .cb-state { margin-left: auto; flex: none; }
 .cb-tree .cb-here { flex: none; }
 .cb-tree summary.cb-topic-title { padding-left: 30px; }
-}
 .cb-twisty { flex: none; width: 22px; text-align: center; color: var(--text-secondary); }
 .cb-twisty::before { content: '▸'; }
 details[open] > summary > .cb-twisty::before { content: '▾'; }
@@ -4928,7 +4927,7 @@ details[open] > summary > .cb-twisty::before { content: '▾'; }
 .cb-tree .cb-unit { flex: 0 1 auto; overflow: hidden; text-overflow: ellipsis; min-width: 4em; white-space: nowrap; }
 @media (max-width: 560px) {
   .cb-tree .cb-assignment > summary { flex-wrap: wrap; }
-  .cb-tree .cb-actions { margin-left: 28px; flex-wrap: wrap; }
+  .cb-tree .cb-actions { flex: 1 1 100%; min-width: 0; margin-left: 0; flex-wrap: wrap; }
   .cb-tree .cb-node-body { margin-left: 10px; }
   .cb-tree .cb-units { padding-left: 26px; }
   .cb-tree .cb-topic-title + .cb-units { padding-left: 34px; }
@@ -4938,6 +4937,7 @@ details[open] > summary > .cb-twisty::before { content: '▾'; }
   .cb-tree .cb-row-title { white-space: normal; }
   .cb-tree details > summary { white-space: normal; }
   .cb-tree .cb-units > li .nb-meta { display: none; }
+}
 .ai-prompt-panel { max-width: 860px; }
 .ai-run-line { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; margin-bottom: 14px; padding: 10px 12px; border-radius: var(--radius-sm); background: var(--bg-secondary, rgba(127,127,127,0.1)); }
 .ai-step[hidden] { display: none; }

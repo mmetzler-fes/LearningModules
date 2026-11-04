@@ -1,9 +1,10 @@
 import { escapeHtml, escapeAttr } from '../utils.js';
-import { AI_PROMPT_TYPES, AI_PROMPT_PART_SIZE, buildAiPrompt, promptSize } from '../ai-prompt.js';
+import { AI_PROMPT_TYPES, AI_PROMPT_PART_SIZE, buildAiPrompt, docSpecToText, promptSize } from '../ai-prompt.js';
 import { nextcloudState } from './nextcloud.js';
 import { DEFAULT_IMAGE_STYLE, parseImageWords, buildImagePrompt, matchImageFiles } from '../image-words.js';
 import { DocPromptView } from './doc-prompt-view.js';
 import { PromptMaterial, presetPromptMaterial, resetPromptMaterial } from './prompt-material.js';
+import { copyWhenReady, mountAnswerBox } from './ai-answer.js';
 
 // ==================== KI-PROMPT-GENERATOR ====================
 
@@ -11,26 +12,33 @@ const STORAGE_KEY = 'lm_ai_prompt';
 
 
 /**
- * Eigene Seite "KI-Prompt": Angaben zum Quiz sammeln, daraus einen Prompt
- * bauen, der der KI das Importformat genau vorgibt. Die Antwort der KI kommt
- * über "📥 Thema importieren" herein (eingefügt oder als .json).
+ * Eigene Seite „KI-Lernmodul“: gemeinsame Angaben einmal oben, darunter je
+ * Auswahl (📄 Dokument, 🧠 Quiz) ein Schritt: Prompt erzeugen und kopieren,
+ * Antwort der KI einfügen, prüfen und übernehmen. Der erste Import legt das
+ * Lernthema an (unter „Unsortiert“ oder am gewählten Ort), alle weiteren
+ * kommen hinein. Ein übernommenes Dokument ist Material für den Quiz-Prompt.
  *
- * Früher ein Popup – ein Klick daneben schloss es samt Eingaben. Jetzt bleibt
- * das Formular beim Wechsel der Ansicht stehen, und jede Eingabe landet sofort
- * im Browser, übersteht also auch ein Neuladen.
+ * Eingaben bleiben im Browser, Anhänge nur für einen Prompt.
  */
 export class AiPromptView {
   constructor(app) {
     this.app = app;
     this.box = document.getElementById('aiPromptPanel');
+    this.target = { nodeId: null, topicId: null, label: '' };
+    this.run = { topicId: null, title: '', count: 0, docs: [] };
+  }
+
+  _docsOn() {
+    return (this.app.state.currentUser?.features || []).includes('worksheets');
   }
 
   refresh() {
     // Nur einmal zeichnen – sonst wären Eingaben und erzeugter Prompt weg.
     if (this.box && !this.form) this._render();
     if (this.form) this._updateNextcloud();
-    this._tabs();
-    // Anhänge bleiben nicht liegen. Nur die Quelle aus „⋯ → 🤖 KI-Prompt“ gilt beim Öffnen.
+    this._syncSteps();
+    this._renderRun();
+    // Anhänge bleiben nicht liegen. Nur die Quelle aus dem ⋯-Menü gilt beim Öffnen.
     this._clearAttachments();
     this._docView?.clearAttachments();
     if (!this._keepMaterial) resetPromptMaterial();
@@ -47,49 +55,90 @@ export class AiPromptView {
   }
 
   /**
-   * Aus dem Notizbuch (⋯ → 🤖 KI-Prompt): Book, Bereich, Abschnitt oder
-   * Lernthema als Material vorwählen und die Seite öffnen – im gewünschten Reiter.
+   * Aus dem Notizbuch: Ziel festlegen (Book, Bereich, Abschnitt oder Lernthema),
+   * auf Wunsch mit den Dokumenten dieser Stelle als Material.
+   * @param o { nodeId, topicId, topicTitle, label, material: 'n:…' | 't:…' }
    */
-  async openWithMaterial(source, tab = 'quiz') {
-    presetPromptMaterial(source);
-    this._keepMaterial = true;
+  async openFor({ nodeId = null, topicId = null, topicTitle = '', label = '', material = null } = {}) {
+    this.target = { nodeId, topicId, label };
+    this.run = { topicId, title: topicTitle, count: 0, docs: [] };
+    if (material) presetPromptMaterial(material);
+    this._keepMaterial = !!material;
     try { await this.app.navigateToView('teacher-ai-prompt'); } finally { this._keepMaterial = false; }
-    await this._material?.render();
-    await this._docView?.material?.render();
-    this._tabBar?.querySelector(`[data-tab="${tab}"]`)?.click();
+    if (material) {
+      await this._material?.render();
+      this.box.querySelector('.ai-material').open = true;
+    }
+    await this._docView?.loadContext();
   }
 
-  /** Reiter „Quiz-Thema | Dokument“ – Dokumente nur mit Freischaltung 'worksheets'. */
-  _tabs() {
-    if (!this.box) return;
-    const docs = (this.app.state.currentUser?.features || []).includes('worksheets');
-    if (!docs) {
-      this._tabBar?.remove();
-      this._docBox?.remove();
-      this._tabBar = this._docBox = this._docView = null;
-      this.box.classList.remove('hidden');
-      return;
-    }
-    if (this._tabBar) return;
-    this._tabBar = document.createElement('div');
-    this._tabBar.className = 'admin-tabs ai-prompt-tabs';
-    this._tabBar.innerHTML = `<button type="button" class="admin-tab active" data-tab="quiz">🧠 Quiz-Thema</button>
-      <button type="button" class="admin-tab" data-tab="doc">📄 Dokument (Arbeitsblatt, Klassenarbeit, Text)</button>`;
-    this._docBox = document.createElement('div');
-    this._docBox.className = 'ai-prompt-panel hidden';
-    this.box.before(this._tabBar);
-    this.box.after(this._docBox);
-    this._tabBar.addEventListener('click', async (e) => {
-      const tab = e.target.closest('[data-tab]')?.dataset.tab;
-      if (!tab) return;
-      this._tabBar.querySelectorAll('[data-tab]').forEach((b) => b.classList.toggle('active', b.dataset.tab === tab));
-      this.box.classList.toggle('hidden', tab !== 'quiz');
-      this._docBox.classList.toggle('hidden', tab !== 'doc');
-      if (tab === 'doc' && !this._docView) {
-        this._docView = new DocPromptView(this.app, this._docBox);
-        await this._docView.render();
+  /** Gemeinsame Angaben für alle Schritte. */
+  shared() {
+    const f = this.sharedForm.elements;
+    return { title: f.title.value.trim(), description: f.description.value.trim(), level: f.level.value.trim(), language: f.language.value.trim() };
+  }
+
+  /** Pflichtangaben da? Sonst zeigt der Browser den Hinweis am Feld. */
+  sharedValid() {
+    return this.sharedForm.reportValidity();
+  }
+
+  /** Eine Antwort ist übernommen: beim ersten Mal Lernthema benennen und einsortieren. */
+  async onImported(data, docs) {
+    if (!this.run.topicId) {
+      this.run.topicId = data.topicId;
+      this.run.title = data.topicTitle || '';
+      const { title } = this.shared();
+      if (title && title !== this.run.title) {
+        await this.app.api.saveTopic({ id: data.topicId, title }, true);
+        this.run.title = title;
       }
-    });
+      if (this.target.nodeId) await this.app.api.moveInNotebook('topic', data.topicId, this.target.nodeId, null);
+    }
+    this.run.count += data.importedCount || 0;
+    this.run.docs.push(...docs.map((d) => ({ title: d.title, path: '', text: docSpecToText(d.spec) })));
+    this._renderRun();
+  }
+
+  /** Das Ziel und was schon übernommen ist. */
+  _renderRun() {
+    const line = this.box?.querySelector('.ai-run');
+    if (!line) return;
+    const place = this.target.label ? `📂 ${escapeHtml(this.target.label)}` : '🗂 Unsortiert';
+    const running = this.run.topicId && (this.run.count || this.target.topicId);
+    line.innerHTML = this.target.topicId
+      ? `<strong>Ziel:</strong> 📘 Lernthema „${escapeHtml(this.run.title)}“${this.run.count ? ` · ${this.run.count} neue${this.run.count === 1 ? 's Modul' : ' Module'}` : ''}`
+      : running
+        ? `<strong>Lernthema:</strong> 📘 „${escapeHtml(this.run.title)}“ in ${place} · ${this.run.count} Modul${this.run.count === 1 ? '' : 'e'}`
+        : `<strong>Ziel:</strong> ${place} – das Lernthema entsteht mit der ersten übernommenen Antwort.`;
+    this.box.querySelector('.btn-new-run').hidden = !running && !this.target.nodeId;
+  }
+
+  /** Neu beginnen: anderes Lernthema, leere Angaben, Ziel wieder „Unsortiert“. */
+  _newRun() {
+    this.target = { nodeId: null, topicId: null, label: '' };
+    this.run = { topicId: null, title: '', count: 0, docs: [] };
+    const f = this.sharedForm.elements;
+    f.title.value = '';
+    f.description.value = '';
+    this._save();
+    resetPromptMaterial();
+    this._renderRun();
+    this._docView?.loadContext();
+  }
+
+  /** Schritte passend zur Auswahl zeigen; Dokumente nur mit Freischaltung. */
+  _syncSteps() {
+    if (!this.sharedForm) return;
+    const docs = this._docsOn();
+    const f = this.sharedForm;
+    f.querySelector('.ai-pick-doc').hidden = !docs;
+    if (docs && !this._docView) {
+      this._docView = new DocPromptView(this.app, this.box.querySelector('.ai-doc-box'), this);
+      this._docView.render();
+    }
+    this.box.querySelector('[data-step="doc"]').hidden = !docs || !f.elements.stepDoc.checked;
+    this.box.querySelector('[data-step="quiz"]').hidden = !f.elements.stepQuiz.checked;
   }
 
   /**
@@ -115,7 +164,7 @@ export class AiPromptView {
   /** Ordner, in den die erzeugten Bilder kommen: eingetragen, sonst das Thema. */
   _imgFolder() {
     const f = this.form.elements;
-    return f.imgFolder.value.trim() || f.title.value.trim() || 'KI-Bilder';
+    return f.imgFolder.value.trim() || this.shared().title || 'KI-Bilder';
   }
 
   /** Zuordnung Wort → Datei neu berechnen und als Tabelle zeigen. */
@@ -193,10 +242,9 @@ export class AiPromptView {
   _values() {
     const f = this.form.elements;
     return {
-      title: f.title.value.trim(),
-      description: f.description.value.trim(),
-      level: f.level.value.trim(),
-      language: f.language.value.trim(),
+      ...this.shared(),
+      stepDoc: this.sharedForm.elements.stepDoc.checked,
+      stepQuiz: this.sharedForm.elements.stepQuiz.checked,
       count: Number(f.count.value) || 10,
       types: [...this.form.querySelectorAll('input[name="types"]:checked')].map((b) => b.value),
       files: f.files.value,
@@ -214,27 +262,78 @@ export class AiPromptView {
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(this._values())); } catch (_) { /* egal */ }
   }
 
+  /** Prompt bauen und gleich kopieren – der Kopierauftrag startet noch im Klick. */
+  async _generate(output) {
+    const form = this.form;
+    const job = this._buildPrompt();
+    const copied = copyWhenReady(job.then((b) => b.prompt));
+    let built;
+    try { built = await job; } catch (err) { this.app.showToast(err.message, 'error'); return; }
+    output.value = built.prompt;
+    const ok = await copied;
+    const copiedHint = form.querySelector('.ai-prompt-copied');
+    copiedHint.textContent = ok ? '✅ Prompt ist kopiert – im KI-Chat einfügen, die Antwort kommt unten ins Feld.' : '⚠️ Kopieren war nicht möglich – bitte unter „Prompt ansehen“ markieren und kopieren.';
+    form.querySelector('.ai-prompt-details').open = !ok;
+    form.querySelector('.ai-prompt-size').textContent = promptSize(built.prompt) + this._material.note(built.values.material);
+    // Viele Module kommen in Teilen – sonst bricht die KI mitten im JSON ab.
+    const parts = Math.ceil(built.values.count / AI_PROMPT_PART_SIZE);
+    const partsHint = form.querySelector('.ai-prompt-parts');
+    partsHint.classList.toggle('hidden', parts < 2);
+    partsHint.innerHTML = `Die KI antwortet in <strong>${parts} Teilen</strong> zu je höchstens ${AI_PROMPT_PART_SIZE} Modulen: Jeden Teil unten einfügen und übernehmen, dann im Chat „weiter“ schreiben.`;
+    form.querySelector('.ai-prompt-result').classList.remove('hidden');
+    this._clearAttachments();
+    resetPromptMaterial();
+    this._save();
+  }
+
+  async _buildPrompt() {
+    const values = this._values();
+    if (values.types.length === 0) throw new Error('Bitte mindestens einen Aufgabentyp wählen.');
+    this._save();
+    // Bilder der gewählten Nextcloud-Ordners als nc:-Verweise (der Import löst sie auf).
+    if (values.ncUse && nextcloudState.ready && values.ncFolder) {
+      const res = await this.app.api.listNextcloudImages({ folder: values.ncFolder });
+      values.ncImages = (res?.images || []).map((img) => `nc:${res.current}/${img.name}`);
+      if (!values.ncImages.length) this.app.showToast(`Im Ordner „${values.ncFolder}“ liegen keine Bilder – Prompt ohne Bilder.`, 'info');
+    }
+    // Was in diesem Durchlauf schon als Dokument übernommen ist, gibt den Stoff vor.
+    values.material = [...await this._material.collect(), ...this.run.docs];
+    return { values, prompt: buildAiPrompt(values) };
+  }
+
   _render() {
     const saved = this._load();
     const chosen = new Set(saved.types || ['multipleChoice', 'trueFalse', 'fillInTheBlanks']);
     const v = (key, fallback = '') => escapeAttr(saved[key] ?? fallback);
+    const stepOn = (key) => saved[key] !== false;
     this.box.innerHTML = `
-      <form class="settings-group ai-prompt-form">
+      <form class="settings-group ai-prompt-form ai-shared">
+        <div class="ai-run-line"><div class="ai-run"></div><button type="button" class="btn btn-secondary btn-sm btn-new-run" hidden>🔄 Neu beginnen</button></div>
         <div class="form-group"><label>Thema
-          <input name="title" maxlength="120" value="${v('title')}" placeholder="z. B. Kondensator im Gleichstromkreis" /></label></div>
-        <div class="form-group"><label>Beschreibung des Quiz *
-          <textarea name="description" rows="5" required placeholder="Was soll abgefragt werden, worauf liegt der Schwerpunkt?">${escapeHtml(saved.description || '')}</textarea></label></div>
+          <input name="title" maxlength="120" value="${v('title')}" placeholder="z. B. Normalisierung von Datenbanken" /></label></div>
+        <div class="form-group"><label>Beschreibung *
+          <textarea name="description" rows="4" required placeholder="Was sollen die Schüler lernen, worauf liegt der Schwerpunkt? Gilt für alle Inhalte unten.">${escapeHtml(saved.description || '')}</textarea></label></div>
         <div class="ai-prompt-row">
           <label>Klassenstufe / Niveau <input name="level" maxlength="60" value="${v('level')}" placeholder="z. B. TG11, B1" /></label>
           <label>Sprache <input name="language" maxlength="30" value="${v('language', 'Deutsch')}" /></label>
-          <label>Anzahl Module <input name="count" type="number" min="1" max="60" value="${v('count', 10)}" /></label>
         </div>
+        <details class="form-group ai-material"><summary>📓 Material aus dem Notizbuch (optional)</summary><div class="pm-box"></div></details>
+        <div class="form-group"><label>Was soll entstehen?</label>
+          <div class="ai-prompt-types">
+            <label class="tag-filter-option ai-pick-doc"><input type="checkbox" name="stepDoc" ${stepOn('stepDoc') ? 'checked' : ''} /> 📄 Dokument</label>
+            <label class="tag-filter-option"><input type="checkbox" name="stepQuiz" ${stepOn('stepQuiz') ? 'checked' : ''} /> 🧠 Quiz</label>
+          </div></div>
+      </form>
+      <section class="ai-step" data-step="doc"><h3>📄 Dokument</h3><div class="ai-doc-box"></div></section>
+      <section class="ai-step" data-step="quiz"><h3>🧠 Quiz</h3>
+      <form class="settings-group ai-prompt-form ai-quiz-form">
+        <div class="ai-prompt-row"><label>Anzahl Module <input name="count" type="number" min="1" max="60" value="${v('count', 10)}" /></label></div>
         <div class="form-group"><label>Aufgabentypen</label>
           <div class="ai-prompt-types">${AI_PROMPT_TYPES.map((type) => `
             <label class="tag-filter-option"><input type="checkbox" name="types" value="${type}" ${chosen.has(type) ? 'checked' : ''} />
               ${(H5P_TYPES[type] || {}).icon || ''} ${escapeHtml((H5P_TYPES[type] || {}).name || type)}</label>`).join('')}
           </div></div>
-        <div class="form-group pm-box"></div>
+        <details class="ai-attach"><summary>📎 Anhänge im KI-Chat, geteilter Ordner, Bilder (optional)</summary>
         <div class="form-group"><label>Materialien, die du im KI-Chat anhängst (Dateinamen, je Zeile einer – optional)
           <textarea name="files" rows="3" placeholder="Arbeitsblatt_Kondensator.pdf&#10;Infoblatt_Kapazität.docx">${escapeHtml(saved.files || '')}</textarea></label>
           <span class="hint">Am zuverlässigsten: die Dateien direkt im KI-Chat hochladen. Einen geteilten Ordner kann die KI meist nicht öffnen.</span></div>
@@ -272,31 +371,47 @@ export class AiPromptView {
             <div class="confirm-actions"><button type="button" class="btn btn-primary btn-img-upload" disabled>⬆ In die Nextcloud laden</button></div>
             <p class="hint ai-img-message"></p>
           </details></div>
+        </details>
         <div class="confirm-actions">
-          <button type="submit" class="btn btn-primary">✨ Prompt erzeugen</button>
+          <button type="submit" class="btn btn-primary">🤖 Prompt erzeugen und kopieren</button>
         </div>
         <div class="ai-prompt-result hidden">
-          <textarea readonly rows="16" class="ai-prompt-output"></textarea>
+          <p class="hint ai-prompt-copied"></p>
           <p class="hint ai-prompt-size"></p>
           <p class="hint ai-prompt-parts hidden"></p>
-          <div class="confirm-actions">
-            <button type="button" class="btn btn-primary btn-copy">📋 Kopieren</button>
-            <button type="button" class="btn btn-secondary btn-save">💾 Als Textdatei</button>
-          </div>
+          <details class="ai-prompt-details"><summary>Prompt ansehen</summary>
+            <textarea readonly rows="16" class="ai-prompt-output"></textarea>
+            <div class="confirm-actions">
+              <button type="button" class="btn btn-secondary btn-copy">📋 Kopieren</button>
+              <button type="button" class="btn btn-secondary btn-save">💾 Als Textdatei</button>
+            </div>
+          </details>
         </div>
-      </form>`;
+      </form>
+      <div class="ai-answer"></div></section>`;
 
-    const form = this.box.querySelector('form');
+    this.sharedForm = this.box.querySelector('.ai-shared');
+    const form = this.box.querySelector('.ai-quiz-form');
     this.form = form;
+    mountAnswerBox(this.app, this.box.querySelector('.ai-answer'), {
+      heading: 'Antwort der KI (Quiz)',
+      docsOn: this._docsOn(),
+      getTopicId: () => this.run.topicId,
+      onImported: (data, docs) => this.onImported(data, docs),
+    });
+    this.sharedForm.addEventListener('submit', (e) => e.preventDefault());
+    this.sharedForm.addEventListener('input', () => this._save());
+    this.sharedForm.addEventListener('change', () => { this._save(); this._syncSteps(); });
+    this.box.querySelector('.btn-new-run').addEventListener('click', () => this._newRun());
     const output = form.querySelector('.ai-prompt-output');
-    this._material = new PromptMaterial(this.app, form.querySelector('.pm-box'));
+    this._material = this.material = new PromptMaterial(this.app, this.sharedForm.querySelector('.pm-box'));
     this._material.render();
     form.addEventListener('input', () => this._save());
     // Bilder zu Wörtern von einer KI erzeugen lassen
     form.querySelector('.btn-img-prompt').addEventListener('click', () => {
       const words = parseImageWords(form.elements.imgWords.value);
       if (!words.length) { this.app.showToast('Bitte zuerst Wörter eintragen, je Zeile eines.', 'error'); return; }
-      form.querySelector('.ai-img-output').value = buildImagePrompt(words, form.elements.imgStyle.value.trim(), form.elements.language.value.trim() || 'Deutsch');
+      form.querySelector('.ai-img-output').value = buildImagePrompt(words, form.elements.imgStyle.value.trim(), this.shared().language || 'Deutsch');
       form.querySelector('.ai-img-prompt').classList.remove('hidden');
     });
     form.querySelector('.btn-img-copy').addEventListener('click', async () => {
@@ -317,55 +432,22 @@ export class AiPromptView {
     drop.addEventListener('drop', (e) => { e.preventDefault(); drop.classList.remove('is-dragover'); this._addImgFiles(e.dataTransfer?.files || []); });
     form.elements.imgWords.addEventListener('input', () => this._renderImgTable());
     form.elements.imgFolder.addEventListener('input', () => this._updateImgButton());
-    form.elements.title.addEventListener('input', () => this._updateImgButton());
+    this.sharedForm.elements.title.addEventListener('input', () => this._updateImgButton());
     form.querySelector('.btn-img-upload').addEventListener('click', () => this._uploadImgFiles());
     form.addEventListener('change', () => this._save());
 
-    form.addEventListener('submit', async (e) => {
+    form.addEventListener('submit', (e) => {
       e.preventDefault();
-      const values = this._values();
-      if (values.types.length === 0) { this.app.showToast('Bitte mindestens einen Aufgabentyp wählen.', 'error'); return; }
-      this._save();
-      // Bilder der gewählten Nextcloud-Ordners als nc:-Verweise (der Import löst sie auf).
-      if (values.ncUse && nextcloudState.ready && values.ncFolder) {
-        const res = await this.app.api.listNextcloudImages({ folder: values.ncFolder });
-        values.ncImages = (res?.images || []).map((img) => `nc:${res.current}/${img.name}`);
-        if (!values.ncImages.length) this.app.showToast(`Im Ordner „${values.ncFolder}“ liegen keine Bilder – Prompt ohne Bilder.`, 'info');
-      }
-      try { values.material = await this._material.collect(); } catch (err) { this.app.showToast(err.message, 'error'); return; }
-      output.value = buildAiPrompt(values);
-      form.querySelector('.ai-prompt-size').textContent = promptSize(output.value) + this._material.note(values.material);
-      // Viele Module kommen in Teilen – sonst bricht die KI mitten im JSON ab.
-      const parts = Math.ceil(values.count / AI_PROMPT_PART_SIZE);
-      const partsHint = form.querySelector('.ai-prompt-parts');
-      const target = values.material.length ? this._material.topic() : null;
-      partsHint.classList.toggle('hidden', parts < 2 && !target);
-      if (target) {
-        partsHint.innerHTML = `Die Antwort${parts > 1 ? ` (${parts} Teile, mit „weiter“)` : ''} gehört in <strong>„${escapeHtml(target.title)}“</strong>:
-          im Notizbuch dort <strong>⋯ → 📥 Module importieren</strong> – jeweils einfügen oder als <code>.json</code>-Datei wählen.`;
-      } else {
-        partsHint.innerHTML = `Die KI antwortet in <strong>${parts} Teilen</strong> zu je höchstens ${AI_PROMPT_PART_SIZE} Modulen
-          – mit „weiter“ kommt der nächste. Jeden Teil kopieren und einfügen: Teil 1 über
-          <strong>🏠 LernModule → 📥 Thema importieren</strong>, die weiteren im neuen Thema über
-          <strong>📥 Module importieren</strong> – jeweils einfügen oder als <code>.json</code>-Datei wählen.`;
-      }
-      form.querySelector('.ai-prompt-result').classList.remove('hidden');
-      this._clearAttachments();
-      resetPromptMaterial();
-      this._save();
-      output.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      if (!this.sharedValid()) return;
+      this._generate(output);
     });
     form.querySelector('.btn-copy').addEventListener('click', async () => {
-      try {
-        await navigator.clipboard.writeText(output.value);
-        this.app.showToast('Prompt kopiert – im KI-Chat einfügen und die Materialien anhängen.', 'success');
-      } catch (_) {
-        output.select();
-        this.app.showToast('Bitte mit Strg+C kopieren', 'info');
-      }
+      if (await copyWhenReady(Promise.resolve(output.value))) { this.app.showToast('Prompt kopiert – im KI-Chat einfügen.', 'success'); return; }
+      output.select();
+      this.app.showToast('Bitte mit Strg+C kopieren', 'info');
     });
     form.querySelector('.btn-save').addEventListener('click', () => {
-      const name = (form.elements.title.value.trim() || 'Lernthema').replace(/[^\wäöüÄÖÜß -]+/g, '').trim() || 'Lernthema';
+      const name = (this.shared().title || 'Lernthema').replace(/[^\wäöüÄÖÜß -]+/g, '').trim() || 'Lernthema';
       const url = URL.createObjectURL(new Blob([output.value], { type: 'text/plain;charset=utf-8' }));
       const a = document.createElement('a');
       a.href = url;

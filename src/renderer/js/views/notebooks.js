@@ -665,6 +665,7 @@ export class NotebooksView {
       items.push({ label: '⤴ Zu Book machen', title: 'Wandert samt Inhalt ganz nach oben', run: () => this._convertNode(node, 'book') });
       items.push({ label: '📂 Bereich darüber einfügen…', title: 'Neuer Bereich an dieser Stelle – dieser Eintrag kommt hinein', run: () => this._wrapNode(node) });
     }
+    items.push({ label: '🤖 KI-Lernmodul hinzufügen…', title: 'Prompt für einen KI-Chat erzeugen, Antwort einfügen: Das Lernthema entsteht hier', run: () => this.app.aiPromptView.openFor({ nodeId: node.id, label: node.title }) });
     items.push({ label: '🏷 Tags', title: 'Tags vererben sich auf alle Lernthemen darunter', run: () => this._editNodeTags(node) });
     if (node.kind === 'book' && node.parentId == null && node.title === 'Erworben') {
       items.push({ label: '🔧 Reihenfolge reparieren', title: 'Für Erwerbe von vor dem Reihenfolge-Fix: Plätze neu nach der Erwerbs-Reihenfolge sortieren', run: () => this._resyncAcquiredOrder() });
@@ -676,8 +677,7 @@ export class NotebooksView {
       items.push({ label: '📚 Als Skript (PDF)', title: 'Alle Arbeitsblätter darunter als Skript mit Inhaltsverzeichnis – zum Nachlesen, ohne Karopapier', run: () => this._script(node, 'pdf') });
       items.push({ label: '📚 Skript als .odt / Lösung', title: 'Skript für LibreOffice, dazu die Fassung mit sichtbaren Lösungen', run: () => this._script(node, 'odt') });
       items.push({ label: '📓 Dokumente als OneNote-Seite', title: 'Gliederung der Dokumente mit Klassenlink und QR-Code in die Zwischenablage', run: () => this._oneNoteDocs(node) });
-      items.push({ label: '🤖 KI-Prompt: Quiz aus den Dokumenten', title: 'Der Text der Dokumente darunter kommt in den Prompt – keine Anhänge im KI-Chat', run: () => this.app.aiPromptView.openWithMaterial(`n:${node.id}`, 'quiz') });
-      items.push({ label: '🤖 KI-Prompt: neue Dokumente daraus', title: 'Die Dokumente darunter als Material für neue, besser gegliederte Blätter', run: () => this.app.aiPromptView.openWithMaterial(`n:${node.id}`, 'doc') });
+      items.push({ label: '🤖 KI-Lernmodul aus den Dokumenten…', title: 'Der Text der Dokumente darunter kommt als Material in den Prompt', run: () => this.app.aiPromptView.openFor({ nodeId: node.id, label: node.title, material: `n:${node.id}` }) });
     }
     items.push('-');
     items.push({ label: '🗑 Löschen', danger: true, run: () => this._deleteNode(node) });
@@ -983,9 +983,9 @@ export class NotebooksView {
       { label: '➕ Neues Modul', run: () => this.app.modulesView.openFrom('teacher-notebooks', topic.id, null) },
       { label: '📥 Module importieren', title: 'Datei oder eingefügter Text (z. B. KI-Antwort) als Module in dieses Thema', run: () => this._import(null, topic) },
       { label: '📦 Modulliste öffnen', title: 'Die gewohnte Modulverwaltung dieses Themas', run: () => this.app.modulesView.openTopicModules(topic.id) },
+      { label: '🤖 KI-Lernmodul hinzufügen…', title: 'Prompt für einen KI-Chat erzeugen, Antwort einfügen: Die Module kommen in dieses Lernthema', run: () => this.app.aiPromptView.openFor({ topicId: topic.id, topicTitle: topic.title }) },
       ...((topic.modules || []).some((m) => m.type === 'document') && this._docsEnabled() ? [
-        { label: '🤖 KI-Prompt: Quiz aus den Dokumenten', title: 'Der Text der Dokumente dieses Lernthemas kommt in den Prompt – die Antwort über „📥 Module importieren“ hierher', run: () => this.app.aiPromptView.openWithMaterial(`t:${topic.id}`, 'quiz') },
-        { label: '🤖 KI-Prompt: neue Dokumente daraus', title: 'Die Dokumente dieses Lernthemas als Material für neue, besser gegliederte Blätter', run: () => this.app.aiPromptView.openWithMaterial(`t:${topic.id}`, 'doc') },
+        { label: '🤖 KI-Lernmodul aus den Dokumenten…', title: 'Der Text der Dokumente dieses Lernthemas kommt als Material in den Prompt', run: () => this.app.aiPromptView.openFor({ topicId: topic.id, topicTitle: topic.title, material: `t:${topic.id}` }) },
       ] : []),
       '-',
       { label: '↔️ Verschieben nach…', run: () => this._moveTopicDialog(topic) },

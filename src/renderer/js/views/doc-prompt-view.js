@@ -1,7 +1,8 @@
 import { escapeHtml, escapeAttr } from '../utils.js';
 import { buildDocPrompt, promptSize } from '../ai-prompt.js';
 import { nextcloudState } from './nextcloud.js';
-import { PromptMaterial, resetPromptMaterial } from './prompt-material.js';
+import { resetPromptMaterial } from './prompt-material.js';
+import { copyWhenReady, mountAnswerBox } from './ai-answer.js';
 import { specToPm } from '../../lm-editor/src/doc/pm-convert.js';
 import { pmToMarkdown } from '../../lm-editor/src/doc/pm-markdown.js';
 
@@ -9,15 +10,15 @@ const STORAGE_KEY = 'lm_doc_prompt';
 const KINDS = [['arbeitsblatt', 'Arbeitsblatt'], ['klassenarbeit', 'Klassenarbeit'], ['text', 'Text zum Lesen']];
 
 /**
- * KI-Prompt für Dokumente (Modultyp „Dokument“, Freischaltung 'worksheets'):
- * Zielordner wählen (dessen Kurs und KI-Vorgaben fließen ein), Fragestellung
- * und Umfang angeben. Die Antwort der KI ist je Blatt ein Dokument in Markdown –
- * eingelesen über „📥 Hier importieren“ am Zielordner.
+ * Schritt „Dokument“ im KI-Ablauf (Modultyp „Dokument“, Freischaltung 'worksheets'):
+ * Art und Umfang angeben; Kurs und KI-Vorgaben des Zielordners fließen ein. Die
+ * Antwort der KI ist je Blatt ein Dokument in Markdown und kommt ins Antwortfeld.
  */
 export class DocPromptView {
-  constructor(app, box) {
+  constructor(app, box, host) {
     this.app = app;
     this.box = box;
+    this.host = host; // AiPromptView: gemeinsame Angaben, Ziel, Material, Durchlauf
   }
 
   _load() {
@@ -43,12 +44,9 @@ export class DocPromptView {
   _values() {
     const f = this.form.elements;
     return {
-      nodeId: f.nodeId.value,
-      title: f.title.value.trim(),
-      description: f.description.value.trim(),
+      ...this.host.shared(),
+      nodeId: this.host.target.nodeId,
       kind: f.kind.value,
-      level: f.level.value.trim(),
-      language: f.language.value.trim(),
       pages: Number(f.pages.value) || 3,
       sheets: Number(f.sheets.value) || 1,
       files: f.files.value,
@@ -58,72 +56,51 @@ export class DocPromptView {
     };
   }
 
-  /** Ordner als Pfad „Book › Bereich › Abschnitt“ für die Auswahl. */
-  async _folders() {
-    const data = await this.app.api.getNotebooks().catch(() => null);
-    const nodes = Array.isArray(data?.nodes) ? data.nodes : [];
-    const byId = new Map(nodes.map((n) => [n.id, n]));
-    const label = (n) => {
-      const parts = [];
-      for (let x = n; x; x = x.parentId ? byId.get(x.parentId) : null) parts.unshift(x.title);
-      return parts.join(' › ');
-    };
-    return nodes.map((n) => ({ id: n.id, label: label(n) })).sort((a, b) => a.label.localeCompare(b.label, 'de'));
-  }
-
   async render() {
     const saved = this._load();
     const v = (key, fallback = '') => escapeAttr(saved[key] ?? fallback);
-    const folders = await this._folders();
     this.box.innerHTML = `
       <form class="settings-group ai-prompt-form doc-prompt-form">
-        <div class="form-group"><label>Zielordner im Notebook
-          <select name="nodeId"><option value="">– ohne (Unsortiert) –</option>
-            ${folders.map((f) => `<option value="${escapeAttr(f.id)}" ${f.id === saved.nodeId ? 'selected' : ''}>${escapeHtml(f.label)}</option>`).join('')}
-          </select></label>
-          <span class="hint doc-prompt-context"></span></div>
+        <p class="hint doc-prompt-context"></p>
+        <div class="ai-prompt-row">
+          <label>Art <select name="kind">${KINDS.map(([k, l]) => `<option value="${k}" ${k === (saved.kind || 'arbeitsblatt') ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+          <label>Seiten je Blatt <input name="pages" type="number" min="1" max="10" value="${v('pages', 3)}" /></label>
+          <label>Anzahl Blätter <input name="sheets" type="number" min="1" max="10" value="${v('sheets', 1)}" /></label>
+        </div>
         <div class="form-group doc-prompt-examples hidden">
           <label>Vorhandene Blätter als Vorbild <span class="hint">– ihr Inhalt kommt in den Prompt (Stil, Niveau, Aufbau); keine Anhänge nötig</span></label>
           <div class="doc-prompt-example-list"></div>
         </div>
-        <div class="form-group"><label>Thema / Titel
-          <input name="title" maxlength="120" value="${v('title')}" placeholder="z. B. Der AD-Wandler" /></label></div>
-        <div class="form-group"><label>Fragestellung und Inhalt *
-          <textarea name="description" rows="5" required placeholder="Was soll das Blatt vermitteln? Welche Aufgaben, welcher Schwerpunkt?">${escapeHtml(saved.description || '')}</textarea></label></div>
-        <div class="ai-prompt-row">
-          <label>Art <select name="kind">${KINDS.map(([k, l]) => `<option value="${k}" ${k === (saved.kind || 'arbeitsblatt') ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
-          <label>Klassenstufe / Niveau <input name="level" maxlength="60" value="${v('level')}" placeholder="z. B. TG11" /></label>
-          <label>Sprache <input name="language" maxlength="30" value="${v('language', 'Deutsch')}" /></label>
-        </div>
-        <div class="ai-prompt-row">
-          <label>Seiten je Blatt <input name="pages" type="number" min="1" max="10" value="${v('pages', 3)}" /></label>
-          <label>Anzahl Blätter <input name="sheets" type="number" min="1" max="10" value="${v('sheets', 1)}" /></label>
-        </div>
-        <div class="form-group pm-box"></div>
+        <details class="ai-attach"><summary>📎 Anhänge im KI-Chat, Bilder (optional)</summary>
         <div class="form-group"><label>Materialien, die du im KI-Chat anhängst (Dateinamen, je Zeile einer – optional)
           <textarea name="files" rows="3" placeholder="Skript_AD-Wandler.pdf">${escapeHtml(saved.files || '')}</textarea></label></div>
         <div class="form-group ai-prompt-nc ${nextcloudState.ready ? '' : 'hidden'}">
           <label class="tag-filter-mode"><input type="checkbox" name="ncUse" ${saved.ncUse ? 'checked' : ''} />
             <span>☁️ Bilder aus meiner Nextcloud anbieten</span></label>
           <label>Ordner unter „Bilder“ <select name="ncFolder"><option value="${v('ncFolder')}">${escapeHtml(saved.ncFolder || '…')}</option></select></label></div>
-        <div class="confirm-actions"><button type="submit" class="btn btn-primary">✨ Prompt erzeugen</button></div>
+        </details>
+        <div class="confirm-actions"><button type="submit" class="btn btn-primary">🤖 Prompt erzeugen und kopieren</button></div>
         <div class="ai-prompt-result hidden">
-          <textarea readonly rows="16" class="ai-prompt-output"></textarea>
+          <p class="hint ai-prompt-copied"></p>
           <p class="hint doc-prompt-size"></p>
-          <p class="hint">Antwort der KI über den Kopier-Knopf am Codeblock kopieren und im Notebook am Zielordner über <strong>⋯ → 📥 Hier importieren</strong> einfügen –
-            bei mehreren Blättern jede Antwort einzeln. Fehler im Dokument markiert danach der Editor.
-            Quizze dazu erzeugt der Reiter 🧠 Quiz-Thema, mit dem fertigen Dokument als Material.</p>
-          <div class="confirm-actions"><button type="button" class="btn btn-primary btn-copy">📋 Kopieren</button></div>
+          <details class="ai-prompt-details"><summary>Prompt ansehen</summary>
+            <textarea readonly rows="16" class="ai-prompt-output"></textarea>
+            <div class="confirm-actions"><button type="button" class="btn btn-secondary btn-copy">📋 Kopieren</button></div>
+          </details>
         </div>
-      </form>`;
+      </form>
+      <div class="ai-answer"></div>`;
     const form = this.form = this.box.querySelector('form');
     const output = form.querySelector('.ai-prompt-output');
-    this.material = new PromptMaterial(this.app, form.querySelector('.pm-box'));
-    await this.material.render();
+    mountAnswerBox(this.app, this.box.querySelector('.ai-answer'), {
+      heading: 'Antwort der KI (Dokument, je Blatt eine)',
+      docsOn: true,
+      getTopicId: () => this.host.run.topicId,
+      onImported: (data, docs) => this.host.onImported(data, docs),
+    });
     form.addEventListener('input', () => this._save());
     form.addEventListener('change', () => this._save());
-    form.elements.nodeId.addEventListener('change', () => this._loadContext());
-    this._loadContext();
+    this.loadContext();
     if (nextcloudState.ready) {
       const res = await this.app.api.listNextcloudImages({}).catch(() => null);
       if (res?.folders) {
@@ -133,44 +110,52 @@ export class DocPromptView {
     }
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
-      const values = this._values();
-      this._save();
-      const ctx = this._ctx || {};
-      values.guidelines = ctx.aiGuidelines || '';
-      values.kurs = ctx.kurs || '';
-      values.existing = ctx.sheets || [];
-      if (values.ncUse && nextcloudState.ready && values.ncFolder) {
-        const res = await this.app.api.listNextcloudImages({ folder: values.ncFolder });
-        values.ncImages = (res?.images || []).map((img) => `nc:${res.current}/${img.name}`);
-      }
-      if (values.exampleIds.length) {
-        const res = await this.app.api.getDocPromptExamples(values.exampleIds).catch(() => null);
-        if (!res?.examples) { this.app.showToast('Fehler: ' + (res?.message || 'Vorbilder nicht abrufbar'), 'error'); return; }
-        values.examples = res.examples.map((ex) => ({ ...ex, markdown: pmToMarkdown(specToPm(ex.spec), { ids: false }) }));
-      }
-      try { values.material = await this.material.collect(); } catch (err) { this.app.showToast(err.message, 'error'); return; }
-      output.value = buildDocPrompt(values);
-      form.querySelector('.doc-prompt-size').textContent = promptSize(output.value) + this.material.note(values.material);
+      if (!this.host.sharedValid()) return;
+      const job = this._buildPrompt();
+      const copied = copyWhenReady(job.then((b) => b.prompt));
+      let built;
+      try { built = await job; } catch (err) { this.app.showToast(err.message, 'error'); return; }
+      output.value = built.prompt;
+      const ok = await copied;
+      form.querySelector('.ai-prompt-copied').textContent = ok ? '✅ Prompt ist kopiert – im KI-Chat einfügen, die Antwort kommt unten ins Feld.' : '⚠️ Kopieren war nicht möglich – bitte unter „Prompt ansehen“ markieren und kopieren.';
+      form.querySelector('.ai-prompt-details').open = !ok;
+      form.querySelector('.doc-prompt-size').textContent = promptSize(built.prompt) + this.host.material.note(built.values.material);
       form.querySelector('.ai-prompt-result').classList.remove('hidden');
       this.clearAttachments();
       resetPromptMaterial();
       this._save();
-      output.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
     });
     form.querySelector('.btn-copy').addEventListener('click', async () => {
-      try {
-        await navigator.clipboard.writeText(output.value);
-        this.app.showToast('Prompt kopiert – im KI-Chat einfügen und die Materialien anhängen.', 'success');
-      } catch (_) {
-        output.select();
-        this.app.showToast('Bitte mit Strg+C kopieren', 'info');
-      }
+      if (await copyWhenReady(Promise.resolve(output.value))) { this.app.showToast('Prompt kopiert – im KI-Chat einfügen.', 'success'); return; }
+      output.select();
+      this.app.showToast('Bitte mit Strg+C kopieren', 'info');
     });
   }
 
+  async _buildPrompt() {
+    const values = this._values();
+    this._save();
+    const ctx = this._ctx || {};
+    values.guidelines = ctx.aiGuidelines || '';
+    values.kurs = ctx.kurs || '';
+    values.existing = ctx.sheets || [];
+    if (values.ncUse && nextcloudState.ready && values.ncFolder) {
+      const res = await this.app.api.listNextcloudImages({ folder: values.ncFolder });
+      values.ncImages = (res?.images || []).map((img) => `nc:${res.current}/${img.name}`);
+    }
+    if (values.exampleIds.length) {
+      const res = await this.app.api.getDocPromptExamples(values.exampleIds).catch(() => null);
+      if (!res?.examples) throw new Error(res?.message || 'Vorbilder nicht abrufbar');
+      values.examples = res.examples.map((ex) => ({ ...ex, markdown: pmToMarkdown(specToPm(ex.spec), { ids: false }) }));
+    }
+    values.material = await this.host.material.collect();
+    return { values, prompt: buildDocPrompt(values) };
+  }
+
   /** Kurs, KI-Vorgaben und vorhandene Blätter des Zielordners. */
-  async _loadContext() {
-    const nodeId = this.form.elements.nodeId.value;
+  async loadContext() {
+    if (!this.form) return;
+    const nodeId = this.host.target.nodeId || '';
     const hint = this.form.querySelector('.doc-prompt-context');
     const res = await this.app.api.getDocPromptContext(nodeId).catch(() => null);
     this._ctx = res && !res.message ? res : null;
@@ -180,7 +165,7 @@ export class DocPromptView {
     if (this._ctx.kurs) bits.push(`Kurs „${this._ctx.kurs}“`);
     if (this._ctx.aiGuidelines) bits.push(`KI-Vorgaben (${this._ctx.aiGuidelines.length} Zeichen) fließen ein`);
     if (this._ctx.sheets?.length) bits.push(`${this._ctx.sheets.length} vorhandene Blätter für Verweise`);
-    hint.textContent = bits.length ? bits.join(' · ') : 'Für diesen Ordner sind keine Kursangaben oder KI-Vorgaben eingestellt (⋯ → 📄 Dokument-Einstellungen).';
+    hint.textContent = bits.join(' · ');
   }
 
   /** Blätter des Books zum Ankreuzen; die Auswahl gilt nur für den nächsten Prompt. */

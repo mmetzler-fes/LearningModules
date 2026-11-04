@@ -1,7 +1,6 @@
 import { escapeHtml, showImportReport, generateId } from '../utils.js';
-import { buildFixPrompt, extractJson, looksLikeDocMarkdown, looksLikeXml, markdownToTopic, summarizeImport } from '../json-text.js';
-import { markdownToPm } from '../../lm-editor/src/doc/pm-markdown.js';
-import { pmToSpec } from '../../lm-editor/src/doc/pm-convert.js';
+import { looksLikeDocMarkdown, looksLikeXml } from '../json-text.js';
+import { checkAnswer, knownTypeNames, topicFromMarkdown } from './import-check.js';
 import { DOCUMENT_EXTS, isDocumentFile, isConvertedFile, fileToSpec, askConvertOptions, pdfConvertOptions } from './attachment-convert.js';
 
 /**
@@ -28,8 +27,7 @@ import { DOCUMENT_EXTS, isDocumentFile, isConvertedFile, fileToSpec, askConvertO
  * Handschrift wird die Beschriftung der Lehrkraft.
  */
 export function openImportDialog(app, { topicId = null, h5p = false, extraFile = null, onDone } = {}) {
-  const typeNames = Object.fromEntries(Object.values(typeof H5P_TYPES !== 'undefined' ? H5P_TYPES : {})
-    .map((t) => [t.id, `${t.icon || ''} ${t.name}`.trim()]));
+  const typeNames = knownTypeNames();
   // Writer, Word (und PDF) als Dokument – nur mit freigeschalteten Dokumenten.
   const docsOn = (app.state.currentUser?.features || []).includes('worksheets');
   let pdfOn = false;
@@ -71,7 +69,6 @@ export function openImportDialog(app, { topicId = null, h5p = false, extraFile =
   // Kein Einfügen-Knopf, wo der Browser die Zwischenablage nicht lesen lässt (z. B. Firefox).
   if (!navigator.clipboard?.readText) btnPaste.hidden = true;
 
-  const list = (items) => `<ul>${items.map((i) => `<li>${escapeHtml(i)}</li>`).join('')}</ul>`;
   let valid = false;
   let file = null; // gewählte Datei; dann zählt sie statt des Textfelds
   let docFiles = []; // Writer-, Word-, PDF- und .xopp-Dateien – je eine wird ein Dokument (die .xopp mit ihrem PDF)
@@ -107,51 +104,15 @@ export function openImportDialog(app, { topicId = null, h5p = false, extraFile =
     status.innerHTML = html;
   };
 
-  /** Markdown → Thema; der Server bekommt dann das übliche JSON. */
-  const fromMarkdown = (text) => markdownToTopic(text, (body) => {
-    const warnings = [];
-    return { spec: pmToSpec(markdownToPm(body, { warnings })), warnings };
-  });
+  const fromMarkdown = topicFromMarkdown;
   const isMarkdown = (text) => docsOn && looksLikeDocMarkdown(text);
 
   /** Text (eingefügt oder aus einer Datei) prüfen und das Ergebnis anzeigen. */
   const checkText = (text) => {
-    offerFix(null);
-    if (!text.trim()) { show('', ''); return false; }
-    if (looksLikeXml(text)) { show('ok', '✅ Moodle-XML erkannt – wird beim Import in Module umgewandelt.'); return true; }
-    const fromMd = isMarkdown(text) ? fromMarkdown(text) : null;
-    if (fromMd && !fromMd.ok) { show('error', `❌ ${escapeHtml(fromMd.message)}`); offerFix(buildFixPrompt({ message: fromMd.message })); return false; }
-    const parsed = fromMd || extractJson(text);
-    if (!parsed.ok) {
-      offerFix(buildFixPrompt(parsed));
-      if (parsed.prose) {
-        show('error', '❌ <strong>Das ist Fließtext</strong> – die KI hat das verlangte Format nicht eingehalten, oder die Antwort wurde aus der fertigen Ansicht kopiert.'
-          + ' Mit dem Korrektur-Prompt liefert der Chat dieselben Inhalte als Codeblock. Dann den Kopier-Knopf am Codeblock nutzen.');
-      } else if (parsed.truncated) {
-        show('error', '❌ <strong>Unvollständig</strong> – der Text endet mitten im JSON. Vermutlich wurde die KI-Antwort abgeschnitten:'
-          + ' den Rest nachfordern („weiter“) oder den Prompt mit weniger Modulen erzeugen.');
-      } else {
-        const where = parsed.line ? ` in <strong>Zeile ${parsed.line}, Spalte ${parsed.column}</strong>` : '';
-        const excerpt = parsed.line
-          ? `<pre class="json-text-excerpt">${escapeHtml(parsed.excerpt)}\n${' '.repeat(Math.max(0, parsed.column - 1))}^</pre>`
-          : '';
-        show('error', `❌ Kein gültiges JSON${where}: ${escapeHtml(parsed.message)}${excerpt}`);
-      }
-      return false;
-    }
-    const s = summarizeImport(parsed.data, typeNames);
-    if (fromMd) s.warnings.push(...fromMd.warnings);
-    if (s.problems.length) { show('error', `❌ Gültiges JSON, aber so nicht importierbar:${list(s.problems)}`); offerFix(buildFixPrompt({ findings: s.problems })); return false; }
-    if (s.warnings.length) offerFix(buildFixPrompt({ findings: s.warnings }));
-    const fixed = parsed.repairs?.length ? `<p>🔧 Automatisch korrigiert: ${escapeHtml(parsed.repairs.join(', '))}.</p>` : '';
-    const parts = parsed.parts > 1 ? ` (aus ${parsed.parts} Codeblöcken)` : '';
-    const kinds = s.types.map((t) => `${t.n}× ${escapeHtml(t.name)}`).join(', ');
-    show(s.warnings.length ? 'warn' : 'ok',
-      `✅ ${s.title && !topicId ? `Thema „${escapeHtml(s.title)}“ – ` : ''}${s.count} Modul${s.count === 1 ? '' : 'e'}${parts}: ${kinds}`
-      + (s.ncRefs ? ` · ☁️ ${s.ncRefs} Bild${s.ncRefs === 1 ? '' : 'er'} aus deiner Nextcloud werden verknüpft` : '')
-      + fixed
-      + (s.warnings.length ? `<p>⚠️ Hinweise:</p>${list(s.warnings)}` : ''));
-    return true;
+    const r = checkAnswer(text, { docsOn, topicId, typeNames });
+    offerFix(r.fix);
+    show(r.kind, r.html);
+    return r.valid;
   };
 
   const extOf = (f) => (/\.([a-z0-9]+)$/i.exec(f.name)?.[1] || '').toLowerCase();

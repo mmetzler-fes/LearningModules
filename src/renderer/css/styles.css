@@ -4885,6 +4885,17 @@ body.html-app-large .quiz-actions { margin-top: 8px; padding-top: 8px; flex-shri
 .stats-row-item strong { color: var(--accent); font-size: 1.1rem; margin-right: 2px; }
 .h5p-types-card { max-width: 960px; max-height: 85vh; overflow: auto; }
 .ai-prompt-panel { max-width: 860px; }
+.ai-run-line { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; margin-bottom: 14px; padding: 10px 12px; border-radius: var(--radius-sm); background: var(--bg-secondary, rgba(127,127,127,0.1)); }
+.ai-step[hidden] { display: none; }
+.ai-step { margin-top: 22px; }
+.ai-step > h3 { margin: 0 0 8px; }
+.ai-pick-doc[hidden] { display: none; }
+.ai-material > summary, .ai-attach > summary, .ai-prompt-details > summary { cursor: pointer; font-weight: 600; }
+.ai-attach { margin-bottom: 14px; }
+.ai-attach[open] > summary, .ai-material[open] > summary { margin-bottom: 10px; }
+.ai-answer-box { margin-top: 12px; }
+.ai-answer-label { display: flex; flex-direction: column; gap: 4px; font-weight: 600; }
+.ai-answer-box .json-text-input { width: 100%; box-sizing: border-box; font-weight: 400; }
 .ai-prompt-form .form-group label { display: flex; flex-direction: column; gap: 4px; }
 .ai-prompt-form .form-group label.tag-filter-mode, .ai-prompt-form .form-group label.tag-filter-option { flex-direction: row; align-items: center; }
 .ai-prompt-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 16px; }

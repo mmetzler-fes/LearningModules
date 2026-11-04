@@ -425,7 +425,7 @@
           <p class="subtitle" data-i18n="topics.subtitle">Erstellen und verwalten Sie Lernthemen. Nur aktivierte Themen sind für Schüler sichtbar.</p>
           <div class="header-actions">
             <button class="btn btn-secondary btn-sm" id="btnH5pTypes" title="Welche H5P-Modultypen es gibt">ℹ️ H5P-Typen</button>
-            <button class="btn btn-secondary btn-sm" id="btnAiPrompt" title="Prompt erzeugen, mit dem eine KI ein Lernthema als Importdatei erstellt">🤖 KI-Prompt</button>
+            <button class="btn btn-secondary btn-sm" id="btnAiPrompt" title="Prompt für einen KI-Chat erzeugen, Antwort einfügen: Das Lernthema entsteht unter „Unsortiert“">🤖 KI-Prompt</button>
             <button class="btn btn-secondary btn-sm" id="btnChangeOwnPassword">🔑 Passwort ändern</button>
             <button class="btn btn-secondary btn-sm" id="btnChangeOwnEmail">✉️ E-Mail ändern</button>
             <button class="btn btn-secondary btn-sm" id="btnTwoFactor" title="Zwei-Faktor-Anmeldung mit einer Authenticator-App">🔐 Zwei-Faktor</button>
@@ -846,11 +846,8 @@
       <!-- Teacher: KI-Prompt-Generator -->
       <section class="view" id="view-teacher-ai-prompt">
         <div class="view-header">
-          <h2>🤖 KI-Prompt für ein neues Lernthema <button type="button" class="help-hint" data-help="ki-prompt" title="Hilfe zu diesem Bereich" aria-label="Hilfe zu diesem Bereich">?</button></h2>
-          <p class="subtitle">Der Prompt beschreibt der KI das Importformat genau. Ihre Antwort kopieren und unter
-            <strong>🏠 LernModule → 📥 Thema importieren</strong> einfügen (oder als <code>.json</code> speichern und dort
-            als Datei wählen). Bis auf Memory sind alle angebotenen Typen automatisch bewertbar – sie laufen in
-            Quiz, Lernbegleitung und Quiz-Arena. Deine Angaben merkt sich der Browser.</p>
+          <h2>🤖 KI-Lernmodul erstellen <button type="button" class="help-hint" data-help="ki-prompt" title="Hilfe zu diesem Bereich" aria-label="Hilfe zu diesem Bereich">?</button></h2>
+          <p class="subtitle">Angaben eintragen, je Inhalt den Prompt erzeugen und in einen KI-Chat einfügen, die Antwort unten einfügen und übernehmen.</p>
         </div>
         <div id="aiPromptPanel" class="ai-prompt-panel"></div>
       </section>

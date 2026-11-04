@@ -400,14 +400,13 @@ Wechsel anders umbricht, können sie danach etwas verrutschen.
 
 ## Mit einer KI erstellen
 
-**🤖 KI-Prompt** → Reiter **📄 Dokument**: Zielordner wählen – dessen Kurs,
-KI-Vorgaben und vorhandene Blätter (für Verweise) fließen in den Prompt –,
-Fragestellung, Art, Umfang und Anzahl der Blätter angeben. Quizze dazu erzeugt
-ein eigener Prompt (🧠 Quiz-Thema) mit dem fertigen Dokument als Material: Zusammen
-in einer Antwort halten KIs das Format oft nicht ein. Den Prompt im KI-Chat einfügen, die Antwort im
-Notebook am Zielordner über **⋯ → 📥 Hier importieren** einlesen. Die KI antwortet
-in Markdown; das liest sich im Chat und enthält keine verdoppelten Backslashes in
-Formeln. Ältere Antworten als JSON gehen weiterhin, ebenso eine `.md`-Datei.
+**🤖 KI-Prompt** oder am Ordner **⋯ → 🤖 KI-Lernmodul hinzufügen**, dort **📄 Dokument** ankreuzen: Kurs,
+KI-Vorgaben und vorhandene Blätter (für Verweise) des Zielordners fließen in den Prompt. Art, Umfang und Anzahl
+der Blätter angeben, den Prompt erzeugen und im KI-Chat einfügen, die Antwort ins Feld darunter einfügen und
+übernehmen. Ein Quiz dazu ist ein eigener Schritt mit dem fertigen Dokument als Material: Zusammen in einer
+Antwort halten KIs das Format oft nicht ein. Die KI antwortet in Markdown; das liest sich im Chat und enthält
+keine verdoppelten Backslashes in Formeln. Ältere Antworten als JSON gehen weiterhin, ebenso eine `.md`-Datei
+über **📥 Importieren**. Siehe [KI-Lernmodul erstellen](ki-prompt.md).
 
 **Vorhandene Blätter als Vorbild:** Unter dem Zielordner stehen die Blätter
 seines Books zum Ankreuzen. Ihr Inhalt kommt in den Prompt – im selben

@@ -147,7 +147,8 @@ Die Datei liegt mit ihrem SHA-256 auf dem Server. Stimmt der Hash nicht mehr, wi
 
 ## Freigabe für den Shop
 
-Ein Angebot lässt jede HTML-App aus, deren Datei kein Admin freigegeben hat. Unter Administration →
+Ein Angebot lässt jede HTML-App aus, deren Datei kein Admin freigegeben hat; der Dialog „Im Shop anbieten“
+nennt der Lehrkraft die betroffenen Apps. Unter Administration →
 🧩 HTML-Apps stehen alle hochgeladenen Apps, mit Hash, Besitzer und den Modulen, die sie nutzen.
 
 - **Code ansehen** zeigt den Quelltext zum Lesen; er läuft dort nicht.

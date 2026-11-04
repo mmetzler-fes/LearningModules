@@ -178,18 +178,7 @@ export class ShopService implements OnApplicationBootstrap {
    * Anbieter gehören; Themen, die er selbst nur nutzt, gibt er nicht weiter.
    */
   async coverage(offer: ShopOffer, opts: { onlyForeign?: boolean; withoutApps?: boolean } = {}): Promise<Covered[]> {
-    let topicIds: string[] = [];
-    let onlyIds: Set<string> | null = null;
-    if (offer.scopeType === 'node') {
-      topicIds = await this.topicsInNode(offer.sellerId, offer.nodeId);
-    } else if (offer.scopeType === 'modules') {
-      onlyIds = new Set(offer.moduleIds || []);
-      if (!onlyIds.size) return [];
-      const picked = await this.moduleRepo.find({ where: { id: In([...onlyIds]) }, select: ['id', 'topicId'] });
-      topicIds = orderedTopicIds(offer.moduleIds || [], picked);
-    } else if (offer.topicId) {
-      topicIds = [offer.topicId];
-    }
+    const { topicIds, onlyIds } = await this.offerScope(offer);
     if (!topicIds.length) return [];
 
     const topics = await this.topicRepo.find({ where: { id: In(topicIds), ownerId: offer.sellerId } });
@@ -209,6 +198,30 @@ export class ShopService implements OnApplicationBootstrap {
       out.push({ topic, roots, modules: withSubmodules(own, new Set(roots.map((r) => r.id))) });
     }
     return out;
+  }
+
+  /** Welche Lernthemen ein Angebot betrifft und, bei einer Auswahl, welche Module darin. */
+  private async offerScope(offer: ShopOffer): Promise<{ topicIds: string[]; onlyIds: Set<string> | null }> {
+    if (offer.scopeType === 'node') return { topicIds: await this.topicsInNode(offer.sellerId, offer.nodeId), onlyIds: null };
+    if (offer.scopeType === 'modules') {
+      const onlyIds = new Set(offer.moduleIds || []);
+      if (!onlyIds.size) return { topicIds: [], onlyIds };
+      const picked = await this.moduleRepo.find({ where: { id: In([...onlyIds]) }, select: ['id', 'topicId'] });
+      return { topicIds: orderedTopicIds(offer.moduleIds || [], picked), onlyIds };
+    }
+    return { topicIds: offer.topicId ? [offer.topicId] : [], onlyIds: null };
+  }
+
+  /** HTML-Apps, die zum Angebot gehörten, aber noch fehlen, weil kein Admin ihre Fassung freigegeben hat. */
+  private async appsWaitingForApproval(offer: ShopOffer): Promise<string[]> {
+    const { topicIds, onlyIds } = await this.offerScope(offer);
+    if (!topicIds.length) return [];
+    const topics = await this.topicRepo.find({ where: { id: In(topicIds), ownerId: offer.sellerId }, select: ['id'] });
+    if (!topics.length) return [];
+    const modules = await this.moduleRepo.find({ where: { topicId: In(topics.map((t) => t.id)) }, order: { orderIndex: 'ASC' } });
+    const approved = await this.approvedAppFiles(modules);
+    const roots = topics.flatMap((t) => offerRoots(modules.filter((m) => m.topicId === t.id), offer.sellerId, { includeForeign: offer.kind === 'buyer' || !!offer.includeForeign, onlyIds }));
+    return roots.filter((m) => m.type === 'htmlApp' && !approved.has(appFileIdOf(m) || '')).map((m) => m.title);
   }
 
   /** Dateien der HTML-Apps unter diesen Modulen, die ein Admin in genau dieser Fassung freigegeben hat. */
@@ -532,6 +545,7 @@ export class ShopService implements OnApplicationBootstrap {
       nodeKind: await this.nodeKind(draft),
       title: await this.offerTitle(offer || draft, covered),
       topicCount: covered.length,
+      appsWaitingForApproval: await this.appsWaitingForApproval(draft),
       ownModules: roots.filter((m) => m.creatorId === user.userId).map((m) => m.title),
       foreignModules: roots.filter((m) => m.creatorId !== user.userId).map((m) => ({
         title: m.title,
@@ -611,6 +625,8 @@ export class ShopService implements OnApplicationBootstrap {
       throw new BadRequestException('Bitte mindestens "Copy" oder "Use" anbieten – oder das Angebot zurückziehen.');
     }
     if (active && !roots.length) {
+      const waiting = await this.appsWaitingForApproval(Object.assign(this.offerRepo.create(draft), { includeForeign }));
+      if (waiting.length) throw new BadRequestException(`Darin ist nur, was ein Admin noch freigeben muss: ${waiting.join(', ')}.`);
       throw new BadRequestException(own.length || !includeForeign
         ? 'Darin ist nichts, was sich anbieten lässt – nur eigene Module oder, wenn gewünscht, erworbene zur Nutzung.'
         : 'Darin ist kein Modul.');

@@ -193,7 +193,7 @@ export async function copyShareSheetAsPng({ title, subtitle, svg, url, qrSize = 
  * Bild). Als HTML – das übernimmt OneNote samt Formatierung – und als
  * einfacher Text für Programme ohne HTML. Gibt zurück, ob es geklappt hat.
  */
-export async function copyOneNotePage({ title, lines = [], svg, url, qrSize = 240 }) {
+export async function copyOneNotePage({ title, lines = [], svg, url, qrSize = 240, after = [] }) {
   if (!url) return false;
   const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   try {
@@ -218,8 +218,9 @@ export async function copyOneNotePage({ title, lines = [], svg, url, qrSize = 24
 ${lines.filter(Boolean).map((l) => `<p>${esc(l)}</p>`).join('\n')}
 ${qr}
 <p><b>Link:</b> <a href="${esc(url)}">${esc(url)}</a></p>
+${after.filter(Boolean).map(([label, value]) => `<p><b>${esc(label)}:</b> ${esc(value)}</p>`).join('\n')}
 </body></html>`;
-    const text = [title, '', ...lines.filter(Boolean), '', `Link: ${url}`].join('\n');
+    const text = [title, '', ...lines.filter(Boolean), '', `Link: ${url}`, ...after.filter(Boolean).map(([label, value]) => `${label}: ${value}`)].join('\n');
     await navigator.clipboard.write([new ClipboardItem({
       'text/html': new Blob([html], { type: 'text/html' }),
       'text/plain': new Blob([text], { type: 'text/plain' }),
@@ -228,6 +229,18 @@ ${qr}
   } catch (_) {
     return false;
   }
+}
+
+/** OneNote-Seite eines Klassennotizbuchs: QR-Code als Bild, Link als Text, Klassencode. `qrSvg`: SVG als Text. */
+export function copyClassbookOneNote({ className, url, code, qrSvg }) {
+  const svg = qrSvg ? new DOMParser().parseFromString(qrSvg, 'image/svg+xml').documentElement : null;
+  return copyOneNotePage({
+    title: `Klassennotizbuch ${className || ''}`.trim(),
+    lines: ['Link öffnen oder QR-Code scannen, dann Namen und PIN eingeben.'],
+    svg,
+    url,
+    after: [code ? ['Klassencode (Klassennotizbuch-ID)', code] : null],
+  });
 }
 
 /**

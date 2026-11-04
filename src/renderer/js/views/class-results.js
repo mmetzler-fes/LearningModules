@@ -1,4 +1,4 @@
-import { escapeHtml, escapeAttr, copyQrSvgAsPng, copyShareSheetAsPng } from '../utils.js';
+import { escapeHtml, escapeAttr, copyClassbookOneNote, copyQrSvgAsPng, copyShareSheetAsPng } from '../utils.js';
 import { openTagDialog } from './tags.js';
 
 // ==================== KLASSENNOTIZBUCH (LEHRKRAFT) ====================
@@ -1424,6 +1424,7 @@ export class ClassResultsView {
               <button type="button" class="btn btn-secondary btn-sm" id="cbCopy">📋 Kopieren</button>
               <button type="button" class="btn btn-secondary btn-sm" id="cbCopyQr" title="QR-Code als Bild in die Zwischenablage">🔳 QR-Code kopieren</button>
               <button type="button" class="btn btn-secondary btn-sm" id="cbCopySheet" title="QR-Code mit Titel und Link als Bild – z. B. für OneNote">🖼 Als Bild kopieren</button>
+              <button type="button" class="btn btn-secondary btn-sm" id="cbCopyOneNote" title="Seite für OneNote: QR-Code als Bild, Link als Text und Klassencode">📓 OneNote-Seite kopieren</button>
               <button type="button" class="btn btn-secondary btn-sm" id="cbRenew" title="Neuer Link und Klassencode – die alten gelten dann nicht mehr">🔄 Neu</button></div>
             ${cb.code ? `<p class="cb-code-line">Klassencode für die App: <strong class="cb-code">${escapeHtml(cb.code)}</strong>
               <span class="hint">– in der Schüler-App unter ➕ eintippen oder den QR-Code scannen</span></p>` : ''}
@@ -1453,6 +1454,10 @@ export class ClassResultsView {
           title: `Klassennotizbuch ${cb.className}`, subtitle: 'Link öffnen, Namen und PIN eingeben', svg: out.querySelector('.cb-qr svg'), url: cb.url,
         });
         this.app.showToast(ok ? 'Als Bild kopiert – in OneNote einfügen mit Strg+V.' : 'Als Bild kopieren klappt hier nicht.', ok ? 'success' : 'error');
+      });
+      out.querySelector('#cbCopyOneNote').addEventListener('click', async () => {
+        const ok = await copyClassbookOneNote({ className: cb.className, url: cb.url, code: cb.code, qrSvg: cb.qrSvg });
+        this.app.showToast(ok ? 'OneNote-Seite kopiert – in OneNote auf einer neuen Seite mit Strg+V einfügen.' : 'Kopieren klappt hier nicht – bitte den Link kopieren.', ok ? 'success' : 'error');
       });
       out.querySelector('#cbRenew').addEventListener('click', async () => {
         if (!(await this.app.appConfirm('Neuen Klassenbuch-Link erzeugen? Der bisherige Link, der Klassencode und ausgeteilte QR-Codes gelten dann nicht mehr. Schüler-Apps mit diesem Klassennotizbuch müssen es neu hinzufügen.'))) return;

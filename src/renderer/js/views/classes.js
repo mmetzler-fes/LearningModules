@@ -1,4 +1,4 @@
-import { escapeHtml, escapeAttr, showContextMenu } from '../utils.js';
+import { escapeHtml, escapeAttr, copyClassbookOneNote, showContextMenu } from '../utils.js';
 import { readStudentList, readClassLists, needsPassword, WrongPassword } from '../odf/student-list.js';
 import { buildOds, buildXlsx, buildCsv } from '../odf/sheet-templates.js';
 import { downloadBlob } from '../api.js';
@@ -428,6 +428,7 @@ export class ClassesView {
       <div class="cb-url" style="margin:4px 0 4px;">
         <input type="text" readonly value="${escapeAttr(a.url)}" class="search-input" aria-label="Klassenbuch-Link">
         <button type="button" class="btn btn-secondary btn-sm" data-copy-link>📋 Link</button>
+        <button type="button" class="btn btn-secondary btn-sm" data-copy-onenote title="Seite für OneNote: QR-Code als Bild, Link als Text und Klassencode">📓 OneNote-Seite</button>
         <button type="button" class="btn btn-secondary btn-sm" data-copy-text title="Link, Klassencode und Anleitung als Text für die Schüler">📋 Text für Schüler</button>
       </div>
       <span class="hint">${a.code ? `Klassencode für die App: <strong class="cb-code" style="font-size:1em;">${escapeHtml(a.code)}</strong> · ` : ''}Anmeldung mit Name und PIN${full ? ' (PINs in der Tabelle unten)' : ''}.
@@ -445,6 +446,10 @@ export class ClassesView {
     };
     box.querySelector('input').addEventListener('click', (e) => e.target.select());
     box.querySelector('[data-copy-link]').addEventListener('click', () => copy(a.url, 'Link kopiert.'));
+    box.querySelector('[data-copy-onenote]').addEventListener('click', async () => {
+      const ok = await copyClassbookOneNote({ className: a.className, url: a.url, code: a.code, qrSvg: a.qrSvg });
+      this.app.showToast(ok ? 'OneNote-Seite kopiert – in OneNote auf einer neuen Seite mit Strg+V einfügen.' : 'Kopieren klappt hier nicht – bitte den Link kopieren.', ok ? 'success' : 'error');
+    });
     box.querySelector('[data-copy-text]').addEventListener('click', () => copy(
       `Klassennotizbuch ${a.className}\n\nLink: ${a.url}\n${a.code ? `Klassencode für die App: ${a.code}\n` : ''}\nAnmelden mit deinem Namen und deiner PIN.`,
       'Text für die Schüler kopiert.',

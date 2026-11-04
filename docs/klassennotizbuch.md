@@ -106,6 +106,8 @@ aber nicht mehr als eigener Eintrag im Baum. Im Lernnotizbuch steht er als „TG
 Lehrkräfte und Schüler sehen dieselben Zeilen wie im Lernnotizbuch. Hat ein Eintrag nur ein Lernthema, stehen die Module direkt
 darunter, seine Aktionen im Menü ⋯, dort auch **📡 Live** und **📊 Ergebnisse**.
 
+**📓 OneNote-Seite kopieren** (unter ⚙ Klassenbuch-Link und an der Klasse unter 🏫 Klassen) legt eine fertige Seite in die Zwischenablage: QR-Code als Bild, Link als Text und den Klassencode. In OneNote mit Strg+V einfügen.
+
 #### Was Schüler erreichen
 
 **Schüler erreichen einen Inhalt nur, wenn auf allen Ebenen „an“ steht.** Etwas fälschlich zu zeigen wäre schlimmer als

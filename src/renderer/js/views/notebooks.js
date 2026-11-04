@@ -359,8 +359,8 @@ export class NotebooksView {
     if (topic.isOwn && !topic.selected) {
       const waiting = [...r.classes, ...(r.anonymous.length ? ['anonymer Link'] : [])];
       if (r.exam && !waiting.length) return span('exam', '📝 Nur über den Link der Klassenarbeit', 'Im Notizbuch aus: Nur die Klassenarbeit erreicht dieses Lernthema');
-      const text = `🚫 Für Schüler gesperrt${waiting.length ? ` (${waiting.join(', ')} ${waiting.length === 1 ? 'wartet' : 'warten'} darauf)` : ''}${r.exam ? ' · 📝 Klassenarbeit erreichbar' : ''}`;
-      return span('no', escapeHtml(text), text);
+      const text = `🚫 Gesperrt${waiting.length ? ` (${waiting.join(', ')} ${waiting.length === 1 ? 'wartet' : 'warten'})` : ''}${r.exam ? ' · 📝 Klassenarbeit offen' : ''}`;
+      return span('no', escapeHtml(text), `Für Schüler gesperrt.${waiting.length ? ` ${waiting.join(', ')} ${waiting.length === 1 ? 'wartet' : 'warten'} darauf.` : ''}${r.exam ? ' Der Link der Klassenarbeit bleibt offen.' : ''}`);
     }
     const parts = [...r.classes.map(escapeHtml)];
     if (!parts.length && !anon && !r.exam) return span('none', 'Noch nirgends erreichbar', 'Keiner Klasse zugewiesen, kein Link');

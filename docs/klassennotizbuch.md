@@ -102,6 +102,9 @@ hast, und ältere Zuweisungen eines ganzen Bereichs erscheinen als Baum: Beim
 Der Link selbst gilt weiter (verteilte QR-Codes, bisherige Ergebnisse), steht
 aber nicht mehr als eigener Eintrag im Baum.
 
+Die Lehreransicht zeigt dieselben Zeilen wie das Lernnotizbuch. Hat ein Eintrag nur ein Lernthema, stehen die Module direkt
+darunter, seine Aktionen im Menü ⋯, dort auch **📡 Live** und **📊 Ergebnisse**.
+
 #### Was Schüler erreichen
 
 **Schüler erreichen einen Inhalt nur, wenn auf allen Ebenen „an“ steht.** Etwas fälschlich zu zeigen wäre schlimmer als

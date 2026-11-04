@@ -545,6 +545,24 @@ export class ClassResultsView {
     const open = this._openLinks?.has(link.id) ? 'open' : '';
     const mk = this._tab === 'content' ? this._cb?.marker : null;
     const marked = mk?.level === 'link' && mk.linkId === link.id;
+    // Inhaltsübersicht: dieselbe Zeile wie im Lernnotizbuch.
+    if (this._tab === 'content' && link.available) {
+      const only = link.available.length === 1;
+      const topicMark = only && mk?.level === 'topic' && mk.linkId === link.id;
+      const modules = link.available.flatMap((t) => t.modules);
+      const on = modules.filter((m) => m.enabled).length;
+      return `<details class="result-group cb-link ${link.active ? '' : 'cb-off'}" data-link="${escapeAttr(link.id)}" ${open}>
+        <summary class="${marked || topicMark ? 'cb-marked' : ''}"><span class="cb-twisty" aria-hidden="true"></span>
+          <span class="nb-icon" aria-hidden="true">📘</span><span class="cb-row-title" title="${escapeAttr(link.name)}">${escapeHtml(link.name)}</span>
+          ${marked || topicMark ? this._markBadge() : ''}
+          <span class="nb-meta">${on === modules.length ? `${on} Modul${on === 1 ? '' : 'e'}` : `${on} von ${modules.length} Modulen`}${link.classTopicId ? ' · nur diese Klasse' : ''}</span>
+          ${this._reachBadge(link)}
+          ${this._groupSwitch(this._stateOf([link]), `data-switch-links="${escapeAttr(link.id)}"`, 'dieser Zuweisung')}${this._linkEye(link)}
+          ${body !== null ? '<button type="button" class="nb-menu-btn cb-entry-menu" data-entry-menu title="Aktionen (auch Rechtsklick)" aria-label="Aktionen">⋯</button>' : ''}</summary>
+        <div class="cb-link-actions">${buttons}</div>
+        ${body ?? this._unitsHtml(link.topics)}
+      </details>`;
+    }
     return `<details class="result-group cb-link ${link.active ? '' : 'cb-off'}" data-link="${escapeAttr(link.id)}" ${open}>
       <summary class="${marked ? 'cb-marked' : ''}">${this._tab === 'content' && link.available ? this._groupSwitch(this._stateOf([link]), `data-switch-links="${escapeAttr(link.id)}"`, 'dieser Zuweisung') : ''}<span class="result-group-title">${link.classTopicId ? '📘' : '🔗'} ${escapeHtml(link.name)}${link.active ? '' : ' <small class="class-pending-note">deaktiviert</small>'}</span>
         ${marked ? this._markBadge() : ''}
@@ -580,7 +598,7 @@ export class ClassResultsView {
 
   /** Was Schüler dieser Klasse tatsächlich erreichen – mit Grund, statt nur den eigenen Schalter. */
   _reachBadge(link) {
-    const badge = (cls, text, title = '') => `<span class="cb-reach ${cls}"${title ? ` title="${escapeAttr(title)}"` : ''}>${escapeHtml(text)}</span>`;
+    const badge = (cls, text, title = text) => `<span class="cb-reach ${cls}" title="${escapeAttr(title)}">${escapeHtml(text)}</span>`;
     const no = (why) => badge('no', `🚫 nicht erreichbar: ${why}`);
     if (!link.active) return no('Lernthema ausgeblendet');
     if (this._cb?.studentHidden) return no('Klassennotizbuch ausgeblendet');
@@ -596,7 +614,7 @@ export class ClassResultsView {
       const names = [...blocked.map((t) => t.title), ...offMods.map((m) => m.title)];
       return badge('part', `⚠️ teilweise: ${names.length} im Lernnotizbuch aus`, names.join(', '));
     }
-    return badge('ok', `✅ für Schüler erreichbar · ${modules.length} Modul${modules.length === 1 ? '' : 'e'}`);
+    return badge('ok', '✅ für Schüler erreichbar');
   }
 
   /** Schaltzustand mehrerer Zuweisungen: 'on' (alle Module an), 'off' (keins) oder 'part'. */
@@ -623,15 +641,17 @@ export class ClassResultsView {
     const mk = this._cb?.marker;
     const topicMarked = (t) => mk?.level === 'topic' && mk.linkId === link.id && mk.topicId === t.topicId;
     return `${link.available.map((t) => `<div class="cb-topic ${t.enabled ? '' : 'cb-item-off'}" data-topic="${escapeAttr(t.topicId)}">
-        <div class="cb-topic-title ${topicMarked(t) ? 'cb-marked' : ''}">${sw(t.enabled, 'data-toggle-topic', 'dieses Lernthema')} 📘 ${escapeHtml(t.title)}${t.notebookOff ? ' <span class="cb-reach no">🚫 im Lernnotizbuch aus</span>' : ''}
+        ${link.available.length === 1 ? '' : `<div class="cb-topic-title ${topicMarked(t) ? 'cb-marked' : ''}"><span class="nb-icon" aria-hidden="true">📘</span> <span class="cb-row-title">${escapeHtml(t.title)}</span>${t.notebookOff ? ' <span class="cb-reach no">🚫 im Lernnotizbuch aus</span>' : ''} ${sw(t.enabled, 'data-toggle-topic', 'dieses Lernthema')}
           ${topicMarked(t) ? this._markBadge() : ''}
-          <button type="button" class="nb-menu-btn" data-topic-menu title="Aktionen" aria-label="Aktionen">⋯</button></div>
+          <button type="button" class="nb-menu-btn" data-topic-menu title="Aktionen" aria-label="Aktionen">⋯</button></div>`}
         <ul class="cb-units">${t.modules.map((m) => {
           const marked = mk?.level === 'module' && mk.linkId === link.id && mk.moduleId === m.id;
           return `<li class="${m.enabled ? '' : 'cb-item-off'} ${marked ? 'cb-marked' : ''}">
-          <span>${m.viaDoc ? '<span class="nb-status on cb-via-doc" title="In ein eingeschaltetes Dokument eingebettet – kommt mit ihm. Mit ○ am Dokument ist es aus.">●</span>'
+          <button type="button" class="cb-unit" data-open-module="${escapeAttr(m.id)}" title="${link.classTopicId === t.topicId ? 'Bearbeiten' : 'Vorschau'}">${TYPE_ICON[m.type] || '🧩'} ${escapeHtml(m.title || 'Modul')}</button>
+          <span class="nb-meta">${escapeHtml((typeof H5P_TYPES !== 'undefined' && H5P_TYPES[m.type]?.name) || '')}</span>
+          ${m.notebookOff ? '<span class="cb-reach no">🚫 im Lernnotizbuch aus</span>' : ''}
+          ${m.viaDoc ? '<span class="nb-status on cb-via-doc" title="In ein eingeschaltetes Dokument eingebettet – kommt mit ihm. Mit ○ am Dokument ist es aus.">●</span>'
             : sw(m.enabled, `data-toggle-module="${escapeAttr(m.id)}"`, 'dieses Modul')}
-            <button type="button" class="cb-unit" data-open-module="${escapeAttr(m.id)}" title="${link.classTopicId === t.topicId ? 'Bearbeiten' : 'Vorschau'}">${TYPE_ICON[m.type] || '🧩'} ${escapeHtml(m.title || 'Modul')}</button>${m.notebookOff ? ' <span class="cb-reach no">🚫 im Lernnotizbuch aus</span>' : ''}</span>
           ${m.hasSolutions ? `<button type="button" class="cb-mark ${m.solutionsOn ? 'on' : ''}" data-solution="${escapeAttr(m.id)}" data-on="${m.solutionsOn ? '1' : ''}"
             title="${m.solutionsOn ? 'Die Schüler dieser Klasse sehen die Lösungen – klicken zum Verbergen' : 'Lösungen für diese Klasse zeigen'}" aria-label="Lösungen">💡</button>` : ''}
           ${m.enabled ? `<button type="button" class="cb-mark ${marked ? 'on' : ''}" data-mark="${escapeAttr(m.id)}"
@@ -960,11 +980,14 @@ export class ClassResultsView {
     const count = (id) => links.filter((l) => l.nodeId === id).length + cb.nodes.filter((n) => n.parentId === id).reduce((s, n) => s + count(n.id), 0);
     const under = (id) => [...links.filter((l) => l.nodeId === id), ...cb.nodes.filter((n) => n.parentId === id).flatMap((n) => under(n.id))];
     const marked = (n) => cb.marker?.level === 'node' && cb.marker.nodeId === n.id;
+    const kids = (id) => cb.nodes.filter((n) => n.parentId === id).length;
     const html = nodes.map((n) => `<details class="cb-node ${n.studentHidden ? 'cb-veiled' : ''}" data-node="${escapeAttr(n.id)}" ${this._closedNodes?.has(n.id) ? '' : 'open'}>
-        <summary class="${marked(n) ? 'cb-marked' : ''}">${under(n.id).length ? this._groupSwitch(this._stateOf(under(n.id)), `data-switch-links="${escapeAttr(under(n.id).map((l) => l.id).join(','))}"`, n.kind === 'section' ? 'diesem Abschnitt' : 'diesem Bereich') : ''}${this._veilButton(n)}<span class="cb-node-title">${NODE_ICON[n.kind]} ${escapeHtml(n.title)}</span>
+        <summary class="${marked(n) ? 'cb-marked' : ''}"><span class="cb-twisty" aria-hidden="true"></span>
+          <span class="nb-icon" aria-hidden="true">${NODE_ICON[n.kind]}</span><span class="cb-node-title cb-row-title" title="${escapeAttr(n.title)}">${escapeHtml(n.title)}</span>
           ${marked(n) ? this._markBadge() : ''}
-          <span class="hint">${count(n.id)} Lernthem${count(n.id) === 1 ? 'a' : 'en'}</span>
-          ${n.studentHidden ? '<span class="cb-veiled-badge" title="Schüler sehen diesen Bereich mit allem darin nicht – die Module bleiben ein- bzw. ausgeschaltet">🙈 für Schüler ausgeblendet</span>' : ''}
+          <span class="nb-meta">${kids(n.id) ? `${kids(n.id)} Unterordner · ` : ''}${count(n.id)} Lernthem${count(n.id) === 1 ? 'a' : 'en'}</span>
+          ${n.studentHidden ? '<span class="cb-veiled-badge" title="Schüler sehen diesen Bereich mit allem darin nicht, auch Link und QR-Code sind gesperrt – die Module bleiben ein- bzw. ausgeschaltet">🙈 für Schüler ausgeblendet</span>' : ''}
+          ${under(n.id).length ? this._groupSwitch(this._stateOf(under(n.id)), `data-switch-links="${escapeAttr(under(n.id).map((l) => l.id).join(','))}"`, n.kind === 'section' ? 'diesem Abschnitt' : 'diesem Bereich') : ''}${this._veilButton(n)}
           <button type="button" class="nb-menu-btn" data-node-menu title="Aktionen" aria-label="Aktionen">⋯</button></summary>
         <div class="cb-node-body">${this._level(cb, links, n.id)}</div>
       </details>`).join('')
@@ -1071,6 +1094,11 @@ export class ClassResultsView {
       run: () => this.app.linksView._openShareDialog({ id: link.id, name: link.name }, 'practice') });
     items.push('-');
     if (own) items.push({ label: '➕ Neues Modul', title: 'Neue Module sind zunächst aus – mit ● einschalten', run: () => this.app.modulesView.openFrom('teacher-class-results', link.classTopicId, null) });
+    const clickIn = (sel) => () => document.querySelector(`[data-link="${link.id}"] ${sel}`)?.click();
+    items.push({ label: '📡 Live', run: clickIn('[data-live]') });
+    items.push({ label: '📊 Ergebnisse', run: clickIn('[data-overview]') });
+    // Ein Lernthema: seine Zeile entfällt, deshalb stehen seine Aktionen hier.
+    if (link.available?.length === 1) items.push('-', ...this._topicMenu(link, link.available[0]).filter((i) => i === '-' || !String(i.label).startsWith('📍')), '-');
     items.push(link.active
       ? { label: '🙈 Für Schüler ausblenden', title: 'Nur für diese Klasse; auch Link und QR-Code sind dann gesperrt. Modulauswahl und Ergebnisse bleiben', run: () => this._call(this.app.api.updateLink(link.id, { active: false })) }
       : { label: '👁 Für Schüler einblenden', title: 'Alles wieder wie vorher', run: () => this._call(this.app.api.updateLink(link.id, { active: true })) });

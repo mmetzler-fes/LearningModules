@@ -59,13 +59,12 @@ export const lmHost = {
     if (inkMode === 'teacher' && options.inkDocument?.topicId && el) {
       const label = (v) => (v === 'all' ? '👁 Für alle' : '🙈 Nur für mich');
       let visibility = 'teacher';
-      // Die Notebook-Vorschau hängt den Knopf in ihre Titelleiste um (notebook-preview.js).
-      const visButton = () => el.querySelector('.ds-ink-vis-btn') || document.querySelector('.nb-preview-actions .ds-ink-vis-btn');
+      // Vorschau und Vollansicht hängen den Knopf in ihre Titelleiste um (document-bar.js).
+      const visButtons = () => [...el.querySelectorAll('.ds-ink-vis-btn'), ...document.querySelectorAll(`.ds-ink-vis-btn[data-module="${CSS.escape(moduleId)}"]`)];
       import('./ink/ink-open.js').then(async ({ teacherInkGet }) => {
         const res = await teacherInkGet(moduleId);
         visibility = res?.visibility || 'teacher';
-        const btn = visButton();
-        if (btn) btn.textContent = label(visibility);
+        visButtons().forEach((btn) => { btn.textContent = label(visibility); });
       }).catch(() => {});
       actions.push({
         label: label(visibility),
@@ -77,9 +76,8 @@ export const lmHost = {
           const res = await teacherInkPut(moduleId, { visibility: next });
           if (!res?.success) throw new Error('Nicht gespeichert');
           visibility = res.visibility;
-          const btn = visButton();
           // Der Renderer setzt danach den Text zurück – erst im nächsten Takt umschreiben.
-          setTimeout(() => { if (btn) btn.textContent = label(visibility); }, 0);
+          setTimeout(() => visButtons().forEach((btn) => { btn.textContent = label(visibility); }), 0);
         },
       });
     }

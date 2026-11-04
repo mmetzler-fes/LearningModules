@@ -1,3 +1,4 @@
+import { moveDocumentControls } from '../document-bar.js';
 import { escapeHtml } from '../utils.js';
 import { syncDrawings, openDrawingsDialog } from './drawings-dialog.js';
 
@@ -146,19 +147,11 @@ export class NotebookPreview {
     this._label.title = title;
   }
 
-  /**
-   * Dokument: Titel und Knöpfe in die feste Titelleiste, das spart im Blatt Platz. „Mit Stift bearbeiten“
-   * entfällt, oben steht schon ✍️ Stift; die übrigen Knöpfe stehen dort gleich dahinter.
-   */
+  /** Dokument: Titel und Knöpfe in die feste Titelleiste (document-bar.js), gleich hinter ✍️ Stift. */
   _compactDocument(host, mod) {
-    host.querySelector('.module-preview-header')?.remove();
     this._setLabel(`📄 ${mod.title || 'Dokument'}`, mod.title || '');
-    const bar = host.querySelector('.ds-actions');
-    if (!bar) return;
-    bar.querySelector('.ds-ink-btn')?.remove();
-    const after = this._head.querySelector('[data-nb-stift]')?.nextSibling || this._head.firstChild;
-    for (const btn of [...bar.children]) this._head.insertBefore(btn, after);
-    bar.remove();
+    const before = this._head.querySelector('[data-nb-stift]')?.nextSibling || this._head.firstChild;
+    moveDocumentControls(host, mod, this._head, { before, stiftKnopf: true });
   }
 
   _empty() {

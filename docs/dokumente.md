@@ -673,7 +673,7 @@ die Striche bleiben bei jedem Zoom an derselben Stelle des Blatts.
 Was du als Lehrkraft auf einem **eigenen** Dokument mit dem Stift schreibst,
 liegt auf dem Server – auf allen deinen Geräten gleich (was bisher nur im
 Browser lag, kommt beim ersten Öffnen mit). Über dem Dokument schaltet
-**🙈 Nur für mich** ↔ **👁 Für alle** (in der Notebook-Vorschau in der Titelleiste):
+**🙈 Nur für mich** ↔ **👁 Für alle** (in Notebook-Vorschau und Vollansicht in der Titelleiste):
 
 - **nur für mich** (Vorgabe) – wie eine Lösung; Schüler sehen sie nicht.
 - **für alle** – Schüler sehen sie in der Ansicht und im Stift-Editor unter

@@ -1992,6 +1992,21 @@ body {
   align-items: center;
   gap: 16px;
 }
+/* Vorschau: Titel und Knöpfe bleiben beim Scrollen oben. */
+.player-sticky {
+  position: sticky;
+  top: -32px; /* Polster von .main-content – die Leiste schließt oben bündig ab */
+  z-index: 20;
+  background: var(--bg-primary);
+  padding: 8px 0;
+  margin-bottom: 12px;
+}
+.player-sticky .player-header { gap: 12px; }
+.player-sticky h2 { flex: 1 1 auto; min-width: 0; margin: 0; font-size: 1.25rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.player-actions { display: flex; gap: 6px; margin-left: auto; flex-shrink: 0; flex-wrap: wrap; justify-content: flex-end; }
+.player-actions:empty { display: none; }
+.player-actions .btn, .nb-preview-actions .btn { margin: 0; }
+.player-actions { align-items: center; }
 /* Modul-Editor: Kopfzeile bleibt beim Scrollen oben (Abbrechen, Speichern). */
 .editor-header {
   position: sticky;

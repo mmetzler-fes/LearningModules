@@ -1,3 +1,4 @@
+import { moveDocumentControls } from '../document-bar.js';
 import { escapeHtml, escapeAttr, generateId } from '../utils.js';
 import { localDrafts } from '../local-drafts.js';
 import { nestEmbedded, quizIdsOf } from '../../lm-editor/src/doc/doc-quiz.js';
@@ -41,6 +42,7 @@ export class ModulesView {
     this._btnCancelModuleTop = document.getElementById('btnCancelModuleTop');
     this._createViewTitle  = document.getElementById('createViewTitle');
     this._playerTitle      = document.getElementById('playerTitle');
+    this._playerActions    = document.getElementById('playerActions');
     this._h5pContainer     = document.getElementById('h5pContainer');
     this._btnBackFromPlayer = document.getElementById('btnBackFromPlayer');
 
@@ -494,8 +496,10 @@ export class ModulesView {
   _openPlayer(mod) {
     const typeDef = H5P_TYPES[mod.type] || {};
     this._playerTitle.textContent = mod.title;
+    this._playerTitle.title = mod.title || '';
     this.app.navigateToView('player');
     this._h5pContainer.innerHTML = '';
+    this._playerActions.innerHTML = '';
     const user = this.app.state.currentUser;
     const ink = user && user.role !== 'student' && (user.features || []).includes('inkEditor');
     // Modulliste = eigenes Lernthema: ⊕ im Stift-Editor fügt Schreibfelder, Quizze und PDFs ins Dokument ein.
@@ -513,6 +517,7 @@ export class ModulesView {
         },
       } : null,
     } : {});
+    if (mod.type === 'document') moveDocumentControls(this._h5pContainer, mod, this._playerActions);
   }
 
   async _openEditor(mod) {

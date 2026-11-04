@@ -512,9 +512,10 @@ export class ClassbookService {
    * für Schüler ausgeblendeten Bereich und in einen solchen hinein wird nichts
    * verschoben: Das änderte, was Schüler sehen.
    */
-  private async arrangeByNotebook(user: any, klasse: StudentClass, nb: ClassNotebook) {
-    if (klasse.ownerId !== user.userId) return;
-    const first = !nb.treeArrangedAt;
+  private async arrangeByNotebook(user: any, klasse: StudentClass, nb: ClassNotebook, { force = false } = {}): Promise<number> {
+    if (klasse.ownerId !== user.userId) return 0;
+    const first = force || !nb.treeArrangedAt;
+    let moved = 0;
     const links = await this.classLinks(klasse);
     const places = new Map((await this.placeRepo.find({ where: { classId: klasse.id } })).map((p) => [p.id, p]));
     const todo = links.filter((l) => {
@@ -537,6 +538,7 @@ export class ClassbookService {
         if ((current && veiled.has(current)) || (target && veiled.has(target))) continue;
         if (places.has(link.id) && current === target) continue;
         await this.placeAtEnd(klasse.id, link.id, target);
+        moved++;
       }
       if (first) await this.sortLikeNotebook(klasse, byId, placeOfTopic, links);
     }
@@ -544,6 +546,14 @@ export class ClassbookService {
       nb.treeArrangedAt = new Date();
       await this.repo.save(nb);
     }
+    return moved;
+  }
+
+  /** 🌳 Wie im Notizbuch ordnen: auf Wunsch jederzeit wieder. Nur Plätze und Reihenfolge, kein Inhalt. */
+  async arrange(user: any, classId: string) {
+    const klasse = await this.classes.ownedClass(classId, user);
+    const nb = await this.ensure(klasse);
+    return { moved: await this.arrangeByNotebook(user, klasse, nb, { force: true }) };
   }
 
   /** Geschwister in der Reihenfolge des Notizbuchs; was es dort nicht gibt, dahinter. */

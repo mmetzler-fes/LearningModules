@@ -81,6 +81,13 @@ export class ClassbookController {
   }
 
   /** `{ type: 'topic'|'node', id, nodeId? }` – aus dem Notizbuch zuweisen. */
+  /** 🌳 Zuweisungen wieder wie im Notizbuch anordnen. */
+  @Post(':classId/arrange')
+  @HttpCode(200)
+  arrange(@Request() req: any, @Param('classId') classId: string) {
+    return this.classbook.arrange(req.user, classId);
+  }
+
   @Post(':classId/assign')
   @HttpCode(200)
   assign(@Request() req: any, @Param('classId') classId: string, @Body() body: { type?: string; id?: string; nodeId?: string | null }) {

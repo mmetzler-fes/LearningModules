@@ -1068,6 +1068,9 @@ export class BrowserApi {
     });
   }
   /** Aus dem Notizbuch zuweisen: type 'topic' | 'node' → { linkId, existed, notReleased }. */
+  arrangeClassbook(classId) {
+    return this._fetch(`/api/classbook/${encodeURIComponent(classId)}/arrange`, { method: 'POST' });
+  }
   assignToClassbook(classId, type, id, nodeId = null) {
     return this._fetch(`/api/classbook/${encodeURIComponent(classId)}/assign`, { method: 'POST', body: JSON.stringify({ type, id, nodeId }) });
   }

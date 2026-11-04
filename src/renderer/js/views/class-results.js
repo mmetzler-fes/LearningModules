@@ -730,6 +730,7 @@ export class ClassResultsView {
         <div class="cr-works-bar">
           ${links.length ? `<span class="cb-all-switch">${this._groupSwitch(this._stateOf(links), `data-switch-links="${escapeAttr(links.map((l) => l.id).join(','))}"`, 'diesem Klassennotizbuch')} Alles</span>` : ''}
           <button type="button" class="btn btn-primary btn-sm" data-add="assign" title="Lernthema, Abschnitt, Bereich oder Book aus deinem Notizbuch – als Verweis">➕ Aus dem Notizbuch</button>
+          <button type="button" class="btn btn-secondary btn-sm" data-arrange title="Einträge an ihren Platz wie im Notizbuch verschieben und sortieren. Inhalte, Links und An/Aus bleiben.">🌳 Wie im Notizbuch ordnen</button>
           <button type="button" class="btn btn-secondary btn-sm" data-add="topic" title="Lernthema nur für diese Klasse, z. B. Aufgaben oder Dokumente">➕ Lernthema</button>
           <button type="button" class="btn btn-secondary btn-sm" data-add="area">➕ Bereich</button>
           <button type="button" class="btn btn-secondary btn-sm" data-add="section">➕ Abschnitt</button>
@@ -746,6 +747,7 @@ export class ClassResultsView {
                 und ordne alles in Bereichen und Abschnitten.</p></div>`}</div>`;
       out.querySelector('#cbToSettings')?.addEventListener('click', (e) => { e.preventDefault(); this._switch('settings'); });
       out.querySelectorAll('[data-add]').forEach((btn) => btn.addEventListener('click', () => this._add(btn.dataset.add, null)));
+      out.querySelector('[data-arrange]')?.addEventListener('click', () => this._arrange());
       out.querySelector('[data-mark-root]')?.addEventListener('click', () => this._setMarker({ level: 'root' }));
       out.querySelectorAll('[data-node-menu]').forEach((btn) => btn.addEventListener('click', (e) => {
         e.preventDefault();
@@ -1183,6 +1185,19 @@ export class ClassResultsView {
   _switch(tab) {
     this._tab = tab;
     savePref('lm_cr_tab', tab);
+    this._render();
+  }
+
+  /** 🌳 Einträge wieder wie im Notizbuch anordnen – eigene Ordnung geht dabei verloren. */
+  async _arrange() {
+    const sure = await this.app.appConfirm('Alle Einträge wieder wie im Notizbuch anordnen?\n\n'
+      + 'Deine eigene Ordnung geht dabei verloren. Links, QR-Codes, Ergebnisse und An/Aus bleiben; es kommen keine neuen Themen dazu. '
+      + 'Für Schüler ausgeblendete Bereiche bleiben, wie sie sind.');
+    if (!sure) return;
+    const res = await this.app.api.arrangeClassbook(this._classId);
+    if (failed(res)) { this.app.showToast('Fehler: ' + (res?.message || 'Ordnen fehlgeschlagen'), 'error'); return; }
+    this.app.showToast(res.moved ? `${res.moved} Eintr${res.moved === 1 ? 'ag' : 'äge'} verschoben, alles sortiert wie im Notizbuch.` : 'Sortiert wie im Notizbuch, nichts musste verschoben werden.', 'success');
+    await this._classbook(true);
     this._render();
   }
 

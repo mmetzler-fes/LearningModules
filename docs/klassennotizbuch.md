@@ -68,8 +68,12 @@ Es legt die Bereiche und Abschnitte darüber an (ohne das Book), andere Lernthem
 Öffnen nach dieser Umstellung ordnet das Klassennotizbuch einmalig alle Zuweisungen so ein und sortiert wie im
 Notizbuch, auch selbst einsortierte. Links, QR-Codes, Ergebnisse und An/Aus bleiben. Danach bleibt deine eigene
 Ordnung bestehen; nur Links ohne Platz, etwa aus einer Schülerfreigabe für die Klasse, werden noch eingeordnet.
+**🌳 Wie im Notizbuch ordnen** stellt die Struktur jederzeit wieder her, auch nach einem Umbau des Notizbuchs.
+Das ändert nur Plätze und Reihenfolge: Es kommen keine neuen Themen dazu, entfernte kehren nicht zurück, selbst
+angelegte Bereiche bleiben stehen.
 - Ein Link über mehrere Lernthemen kommt in den tiefsten Bereich, der alle enthält; sonst bleibt er oben.
-- Oben bleibt, was nicht im Notizbuch liegt: klasseneigene Lernthemen und erworbene Inhalte.
+- Oben bleibt, was keinen Platz in einem Bereich hat: klasseneigene Lernthemen, Lernthemen direkt im Book oder unter
+  „Unsortiert“, auch einzeln Erworbenes im Book „Erworben“ und einzelne Themen aus einem erworbenen Bereich.
 - Aus einem für Schüler ausgeblendeten Bereich und in einen solchen hinein wird nichts verschoben.
 
 Zuweisen geht auf zwei Wegen: im **📓 Notizbuch** über das Kontextmenü

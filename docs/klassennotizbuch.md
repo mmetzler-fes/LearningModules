@@ -63,6 +63,15 @@ Lernthemen), darin die Lernthemen. Die Schüler sehen denselben Baum.
 - Bei den Schülern sind Bereiche und Abschnitte eingeklappt, mit „x/y
   erledigt“ – außer auf dem Weg zum 📍 Merker.
 
+**Die Inhaltsübersicht folgt dem Notizbuch.** Auch ein einzeln zugewiesenes Lernthema kommt an seinen Platz:
+Es legt die Bereiche und Abschnitte darüber an (ohne das Book), andere Lernthemen dort kommen nicht mit. Beim ersten
+Öffnen nach dieser Umstellung ordnet das Klassennotizbuch einmalig alle Zuweisungen so ein und sortiert wie im
+Notizbuch, auch selbst einsortierte. Links, QR-Codes, Ergebnisse und An/Aus bleiben. Danach bleibt deine eigene
+Ordnung bestehen; nur Links ohne Platz, etwa aus einer Schülerfreigabe für die Klasse, werden noch eingeordnet.
+- Ein Link über mehrere Lernthemen kommt in den tiefsten Bereich, der alle enthält; sonst bleibt er oben.
+- Oben bleibt, was nicht im Notizbuch liegt: klasseneigene Lernthemen und erworbene Inhalte.
+- Aus einem für Schüler ausgeblendeten Bereich und in einen solchen hinein wird nichts verschoben.
+
 Zuweisen geht auf zwei Wegen: im **📓 Notizbuch** über das Kontextmenü
 (⋯ oder Rechtsklick) eines Lernthemas, Books, Bereichs oder Abschnitts
 **📒 Klassennotizbuch zuweisen…** – dann eine oder mehrere Klassen wählen –,

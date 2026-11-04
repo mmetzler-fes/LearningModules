@@ -184,3 +184,19 @@ export function leavesInOrder(nodes: TreeNode[], links: TreeLink[], anchor: Mark
   const topic = link?.topics.find((t) => t.topicId === anchor.topicId);
   return topic?.moduleIds.includes(anchor.moduleId) ? [{ linkId: anchor.linkId, topicId: anchor.topicId, moduleId: anchor.moduleId }] : [];
 }
+
+/**
+ * Gemeinsamer Anfang mehrerer Pfade: wohin ein Link über mehrere Lernthemen
+ * gehört. Liegen sie in verschiedenen Zweigen, ist es die letzte gemeinsame Ebene.
+ */
+export function commonPath<T>(paths: T[][]): T[] {
+  if (!paths.length) return [];
+  const [first, ...rest] = paths;
+  let n = first.length;
+  for (const p of rest) {
+    let i = 0;
+    while (i < n && i < p.length && p[i] === first[i]) i++;
+    n = i;
+  }
+  return first.slice(0, n);
+}

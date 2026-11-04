@@ -55,6 +55,10 @@ export class ClassNotebook extends BaseEntity {
   @Column({ type: 'datetime', nullable: true })
   firstLoginUntil: Date | null;
 
+  /** Wann die Inhaltsübersicht einmalig nach dem Notizbuch geordnet wurde. */
+  @Column({ type: 'datetime', nullable: true })
+  treeArrangedAt: Date | null;
+
   /** Bereich „Nur für Lehrer“: Verweise auf Lernthemen und Knoten des Notizbuchs. */
   @Column('simple-json', { nullable: true })
   teacherItems: ClassNotebookItem[] | null;

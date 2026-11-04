@@ -548,7 +548,7 @@ export class ClassResultsView {
     return `<details class="result-group cb-link ${link.active ? '' : 'cb-off'}" data-link="${escapeAttr(link.id)}" ${open}>
       <summary class="${marked ? 'cb-marked' : ''}">${this._tab === 'content' && link.available ? this._groupSwitch(this._stateOf([link]), `data-switch-links="${escapeAttr(link.id)}"`, 'dieser Zuweisung') : ''}<span class="result-group-title">${link.classTopicId ? '📘' : '🔗'} ${escapeHtml(link.name)}${link.active ? '' : ' <small class="class-pending-note">deaktiviert</small>'}</span>
         ${marked ? this._markBadge() : ''}
-        <span class="result-group-meta">${link.topics.length} Lernthema/-themen · ${n} Modul${n === 1 ? '' : 'e'}
+        <span class="result-group-meta">${n ? `${link.topics.length} Lernthema/-themen · ${n} Modul${n === 1 ? '' : 'e'}` : 'ausgeschaltet'}
           ${this._tab === 'contest'
             ? '<button type="button" class="btn btn-primary btn-sm" data-contest title="Wartebereich öffnen – die Schüler sehen im Klassennotizbuch dann nur noch die Quiz-Arena">🏆 Quiz-Arena starten</button>'
             : link.practice.map((m) => `<span class="result-mode-badge">${escapeHtml(MODE_LABELS[m] || m)}</span>`).join('')}</span>

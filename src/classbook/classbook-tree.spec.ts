@@ -1,4 +1,5 @@
 import { ancestorsOf, canHoldNode, depthOf, isInside, nodeMoveError, reorder, dissolve, leavesInOrder, normalizeMarker, MAX_CLASS_DEPTH, TreeLink, TreeNode, veiledNodeIds } from './classbook-tree';
+import { commonPath } from './classbook-tree';
 
 const N = (id: string, kind: 'area' | 'section', parentId: string | null, orderIndex = 0): TreeNode => ({ id, kind, parentId, orderIndex });
 
@@ -114,5 +115,15 @@ describe('Für Schüler ausblenden', () => {
       { id: 'b3', kind: 'section' as const, parentId: 'b', orderIndex: 1 },
     ];
     expect([...veiledNodeIds(nodes)].sort()).toEqual(['a', 'a1', 'b1', 'b2']);
+  });
+});
+
+describe('commonPath', () => {
+  it('nimmt den gemeinsamen Anfang', () => {
+    expect(commonPath([['b', 'a', 's'], ['b', 'a', 't']])).toEqual(['b', 'a']);
+    expect(commonPath([['b', 'a'], ['b', 'a']])).toEqual(['b', 'a']);
+    expect(commonPath([['b'], ['c']])).toEqual([]);
+    expect(commonPath([['b', 'a'], []])).toEqual([]);
+    expect(commonPath([])).toEqual([]);
   });
 });

@@ -21,7 +21,7 @@ import { LearningModule } from '../core/entities/learning-module.entity';
 import { NotebookNode } from '../core/entities/notebook-node.entity';
 import { NotebookPlacement } from '../core/entities/notebook-placement.entity';
 import { ClassbookProgress } from '../core/entities/classbook-progress.entity';
-import { ancestorsOf, canHoldNode, depthOf, leavesInOrder, nodeMoveError, normalizeMarker, reorder, dissolve, LeafRef, MAX_CLASS_DEPTH, TreeLink, TreeNode, veiledNodeIds } from './classbook-tree';
+import { ancestorsOf, canHoldNode, commonPath, depthOf, leavesInOrder, nodeMoveError, normalizeMarker, reorder, dissolve, LeafRef, MAX_CLASS_DEPTH, TreeLink, TreeNode, veiledNodeIds } from './classbook-tree';
 import { ClassesService } from '../classes/classes.service';
 import { LinksService, PRACTICE_MODES, onlyHtmlApps } from '../links/links.service';
 import { NotebooksService } from '../notebooks/notebooks.service';
@@ -208,6 +208,7 @@ export class ClassbookService {
     await this.migrateTeacherItems(user, klasse, nb, req);
     // Aus dem Notizbuch übernommene Bereiche: Neues dort kommt ausgeschaltet nach.
     await this.syncMirrors(user, klasse, req).catch(() => undefined);
+    await this.arrangeByNotebook(user, klasse, nb).catch(() => undefined);
     const url = `${baseUrl(req)}/?k=${nb.token}`;
     const students = await this.studentRepo.find({ where: { classId }, select: ['id', 'status', 'pinShownAt'] });
     const raw = await this.classLinks(klasse);
@@ -461,9 +462,113 @@ export class ClassbookService {
       const { topics } = await this.available(link, user);
       link.selection = explicitSelection((link.selection || []) as SelEntry[], topics as AvailTopic[]);
       await this.linkRepo.save(link);
-      await this.placeAtEnd(klasse.id, link.id, await this.nodeOrNull(klasse.id, body?.nodeId));
+      // Ohne gewählten Platz: dort, wo das Lernthema im Notizbuch liegt.
+      const nodeId = body?.nodeId ? await this.nodeOrNull(klasse.id, body.nodeId) : await this.placeLikeNotebook(user, klasse, [id]);
+      await this.placeAtEnd(klasse.id, link.id, nodeId);
     }
     return { linkId: created.id, existed: false, notReleased: created.notReleased || [] };
+  }
+
+  /** Pfad von der obersten Ebene bis zu diesem Notizbuch-Knoten. */
+  private notebookPath(byId: Map<string, NotebookNode>, nodeId: string | null): NotebookNode[] {
+    const path: NotebookNode[] = [];
+    for (let n = nodeId ? byId.get(nodeId) : undefined; n; n = n.parentId ? byId.get(n.parentId) : undefined) path.unshift(n);
+    return path;
+  }
+
+  /**
+   * Bereiche und Abschnitte zu einem Notizbuch-Pfad anlegen, ohne das Book
+   * (außer die Klasse hat es schon als Bereich). Andere Lernthemen dort kommen
+   * dadurch nicht mit, die Knoten wachsen nicht nach.
+   */
+  private async mirrorPath(klasse: StudentClass, path: NotebookNode[]): Promise<string | null> {
+    const have = new Set((await this.nodeRepo.find({ where: { classId: klasse.id } })).map((n) => n.sourceNodeId));
+    let parentId: string | null = null;
+    for (const n of path) {
+      if (n.kind === 'book' && !have.has(n.id)) continue;
+      parentId = await this.mirrorNode(klasse.id, n.id, n.title, n.kind === 'section' ? 'section' : 'area', parentId);
+    }
+    return parentId;
+  }
+
+  /** Platz im Klassennotizbuch für diese Lernthemen: wie im Notizbuch, sonst oben. */
+  private async placeLikeNotebook(user: any, klasse: StudentClass, topicIds: string[]): Promise<string | null> {
+    const nbNodes = await this.nbNodeRepo.find({ where: { ownerId: user.userId } });
+    const nbPlaces = await this.nbPlaceRepo.find({ where: { ownerId: user.userId } });
+    const path = this.commonNotebookPath(topicIds, new Map(nbNodes.map((n) => [n.id, n])), new Map(nbPlaces.map((p) => [p.topicId, p])));
+    return path ? this.mirrorPath(klasse, path) : null;
+  }
+
+  /** Gemeinsamer Notizbuch-Pfad; null, wenn keins der Lernthemen im Notizbuch liegt. */
+  private commonNotebookPath(topicIds: string[], byId: Map<string, NotebookNode>, nbPlaces: Map<string, NotebookPlacement>): NotebookNode[] | null {
+    const paths = topicIds.filter((t) => nbPlaces.has(t)).map((t) => this.notebookPath(byId, nbPlaces.get(t)!.nodeId));
+    return paths.length ? commonPath(paths) : null;
+  }
+
+  /**
+   * Zuweisungen dorthin, wo ihre Lernthemen im Notizbuch liegen. Einmal je Klasse
+   * alle, auch selbst einsortierte (`treeArrangedAt`); danach nur noch Links, die
+   * noch keinen Platz haben, damit spätere Ordnung der Lehrkraft bleibt. Aus einem
+   * für Schüler ausgeblendeten Bereich und in einen solchen hinein wird nichts
+   * verschoben: Das änderte, was Schüler sehen.
+   */
+  private async arrangeByNotebook(user: any, klasse: StudentClass, nb: ClassNotebook) {
+    if (klasse.ownerId !== user.userId) return;
+    const first = !nb.treeArrangedAt;
+    const links = await this.classLinks(klasse);
+    const places = new Map((await this.placeRepo.find({ where: { classId: klasse.id } })).map((p) => [p.id, p]));
+    const todo = links.filter((l) => {
+      const place = places.get(l.id);
+      return !place?.hidden && (first || !place) && practiceModes(l).length > 0;
+    });
+    if (todo.length) {
+      const nbNodes = await this.nbNodeRepo.find({ where: { ownerId: user.userId } });
+      const nbPlaces = await this.nbPlaceRepo.find({ where: { ownerId: user.userId } });
+      const byId = new Map(nbNodes.map((n) => [n.id, n]));
+      const placeOfTopic = new Map(nbPlaces.map((p) => [p.topicId, p]));
+      const own = await this.classTopicIds(klasse.id);
+      for (const link of todo) {
+        const topicIds = (link.selection || []).map((e) => e.topicId).filter((t) => !own.has(t));
+        const path = this.commonNotebookPath(topicIds, byId, placeOfTopic);
+        if (!path) continue;
+        const target = await this.mirrorPath(klasse, path);
+        const veiled = veiledNodeIds(await this.nodeRepo.find({ where: { classId: klasse.id } }));
+        const current = places.get(link.id)?.nodeId ?? null;
+        if ((current && veiled.has(current)) || (target && veiled.has(target))) continue;
+        if (places.has(link.id) && current === target) continue;
+        await this.placeAtEnd(klasse.id, link.id, target);
+      }
+      if (first) await this.sortLikeNotebook(klasse, byId, placeOfTopic, links);
+    }
+    if (first) {
+      nb.treeArrangedAt = new Date();
+      await this.repo.save(nb);
+    }
+  }
+
+  /** Geschwister in der Reihenfolge des Notizbuchs; was es dort nicht gibt, dahinter. */
+  private async sortLikeNotebook(klasse: StudentClass, byId: Map<string, NotebookNode>, placeOfTopic: Map<string, NotebookPlacement>, links: TopicLink[]) {
+    const nodes = await this.nodeRepo.find({ where: { classId: klasse.id } });
+    const compare = (a: number[] | null, b: number[] | null, tie: number) => {
+      if (!a || !b) return a ? -1 : b ? 1 : tie;
+      for (let i = 0; i < Math.min(a.length, b.length); i++) if (a[i] !== b[i]) return a[i] - b[i];
+      return a.length - b.length || tie;
+    };
+    const nodeKey = (id: string | null) => (id && byId.has(id) ? this.notebookPath(byId, id).map((n) => n.orderIndex) : null);
+    for (const parentId of new Set(nodes.map((n) => n.parentId ?? null))) {
+      const siblings = nodes.filter((n) => (n.parentId ?? null) === parentId)
+        .sort((a, b) => compare(nodeKey(a.sourceNodeId), nodeKey(b.sourceNodeId), a.orderIndex - b.orderIndex));
+      for (const [i, n] of siblings.entries()) if (n.orderIndex !== i) await this.nodeRepo.update({ id: n.id }, { orderIndex: i });
+    }
+    const places = await this.placeRepo.find({ where: { classId: klasse.id } });
+    const linkKey = (id: string) => {
+      const p = placeOfTopic.get((links.find((l) => l.id === id)?.selection || [])[0]?.topicId);
+      return p ? [p.orderIndex] : null;
+    };
+    for (const nodeId of new Set(places.map((p) => p.nodeId ?? null))) {
+      const siblings = places.filter((p) => (p.nodeId ?? null) === nodeId).sort((a, b) => compare(linkKey(a.id), linkKey(b.id), a.orderIndex - b.orderIndex));
+      for (const [i, p] of siblings.entries()) if (p.orderIndex !== i) await this.placeRepo.update({ id: p.id }, { orderIndex: i });
+    }
   }
 
   // ---- Baum: Bereiche, Abschnitte, Plätze der Lernthemen ----

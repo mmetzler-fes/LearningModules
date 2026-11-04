@@ -20,7 +20,6 @@ zwischen beiden.
 | Bereich | Inhalt |
 |---|---|
 | 📋 Inhaltsübersicht | was der Klasse zugewiesen ist – Lernthemen und Bereiche aus deinem Notizbuch |
-| 🔒 Nur für Lehrer | Material nur für dich, z. B. Lösungen oder Kopiervorlagen; ein Klick zeigt die Vorschau |
 | 📝 Klassenarbeiten | Klassenarbeiten der Klasse mit Link & QR, wer schreibt und wer abgegeben hat, Wiedereinstieg – aktive stehen auch bei den Schülern |
 | 👥 Schülerdaten | je Schüler alle Ergebnisse (📈) und Blätter (✍️) |
 | 📊 Ergebnisübersicht | je Modul, wie weit jeder Schüler ist; dazu je Aufgabe und der Jahresüberblick |
@@ -29,6 +28,9 @@ zwischen beiden.
 | ⚙ Klassenbuch-Link | Link und QR-Code für die Schüler, Erstanmeldung |
 
 ### Inhaltsübersicht
+
+Der frühere Bereich „Nur für Lehrer“ ist hierher umgezogen: Seine Einträge stehen im für Schüler ausgeblendeten Bereich **Für mich**.
+Ein eigenes Lernthema, das nirgends bei Schülern im Einsatz war, hat dabei 🔒 bekommen. Alles andere ist ausgeschaltet dazugekommen.
 
 Die Inhaltsübersicht ist ein Baum wie im Notizbuch: Die Klasse ist das
 „Book“, darin **📂 Bereiche** und **📑 Abschnitte** (ein Abschnitt enthält nur
@@ -119,6 +121,11 @@ Freigabe im Notizbuch, nur für diese Klasse.
   mit **⏸ Ausblenden** an seiner Karte aus.
 - **💡 Lösungen je Klasse:** Ein Dokument mit Lösungen hat in der Zeile ein 💡. Ist es an, sehen die Schüler
   dieser Klasse die Lösungen im Blatt und im Stift-Editor. Ohne 💡 schickt der Server die Lösungen gar nicht erst mit.
+- **🔒 Nur für dich:** Was **🔒 Nur Lehrkraft** trägt, etwa Lösungen oder Kopiervorlagen, steht in der Inhaltsübersicht blass mit
+  Schloss. Schüler sehen es nicht, auch der Schalter „Alles“ schaltet es nicht ein. Setzen lässt es sich im ⋯-Menü eines Moduls oder
+  Lernthemas und gilt für das Original im Notizbuch, also in allen Klassen und Links.
+- **🔓 Für diese Klasse freigeben:** Zeigt ein gesperrtes Modul nur dieser Klasse, etwa die Klassenarbeit zur Besprechung.
+  **🔒 Wieder sperren** nimmt es zurück.
 - **Quizze in einem Dokument** kommen mit dem Dokument: Ist das Dokument an,
   sind seine eingebetteten Quizze für die Schüler da (blasses ●), auch wenn
   sie selbst nicht eingeschaltet sind.
@@ -364,7 +371,7 @@ sonst jeder anmelden. In der Ergebnisübersicht fehlen unbestätigte Einträge.
   mitnehmen“) bzw. `copyClassbook` (Kopie, `planCopy` in
   `src/classbook/classbook-rollover.ts`); ausgeschaltet per `switchedOff`.
 - Tabelle `class_notebooks` (je Klasse eine Zeile, beim ersten Aufruf
-  angelegt): `token` (Klassenbuch-Link), `firstLoginUntil`, `teacherItems`
+  angelegt): `token` (Klassenbuch-Link), `firstLoginUntil`, `teacherItems` (nur noch für die Übernahme)
   (Verweise `{ type: 'topic'|'node', id }`). Zuweisungen sind die Klassenlinks
   (`topic_links.classId`), Schülerdaten `results` und `document_works`.
 - Regeln ohne Datenbank: `src/classbook/classbook-rules.ts` (Erstanmeldung bis

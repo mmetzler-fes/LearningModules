@@ -91,6 +91,10 @@ export class TopicLink extends BaseEntity {
   @Column('simple-json')
   selection: LinkTopicSelection[];
 
+  /** Gesperrte Module (🔒, Klassenarbeits-Dokumente), die diese Klasse trotzdem sieht: 🔓 im Klassennotizbuch. */
+  @Column('simple-json', { nullable: true })
+  releasedModuleIds: string[] | null;
+
   /** Dokumente, deren Lösungen die Schüler dieses Links sehen dürfen (je Klasse, 💡 im Klassennotizbuch). */
   @Column('simple-json', { nullable: true })
   solutionModuleIds: string[] | null;

@@ -33,10 +33,10 @@ export class ClassbookController {
     return this.classbook.renewToken(req.user, classId, req);
   }
 
-  /** `{ items: [{ type: 'topic'|'node', id }] }` – Bereich „Nur für Lehrer“. */
-  @Put(':classId/teacher-items')
-  teacherItems(@Request() req: any, @Param('classId') classId: string, @Body() body: { items?: unknown }) {
-    return this.classbook.setTeacherItems(req.user, classId, body?.items);
+  /** `{ moduleId, on }` – 🔓 Gesperrtes Modul nur für diese Klasse freigeben. */
+  @Put(':classId/links/:linkId/release')
+  setRelease(@Request() req: any, @Param('classId') classId: string, @Param('linkId') linkId: string, @Body() body: any) {
+    return this.classbook.setRelease(req.user, classId, linkId, body);
   }
 
   /** `{ kind: 'area'|'section', title, parentId? }` – Bereich oder Abschnitt anlegen. */

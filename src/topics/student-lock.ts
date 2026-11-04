@@ -35,8 +35,10 @@ export function lockedModuleIds(
   modules: LockModule[],
   ownerLink: boolean,
   facts: LockFacts = FROM_CONTENT,
+  /** Für diese Klasse freigegeben (am Klassenlink, nur auf Links der Eigentümerin). */
+  releasedHere: ReadonlySet<string> = new Set(),
 ): Set<string> {
-  const released = (m: LockModule) => ownerLink && !!m.studentRelease;
+  const released = (m: LockModule) => ownerLink && (!!m.studentRelease || releasedHere.has(m.id));
   const locked = new Set(modules.filter((m) => lockedItself(topic, m, facts) && !released(m)).map((m) => m.id));
   // Was ein freigegebenes Dokument einbettet, gehört zur Besprechung …
   for (const doc of modules) {
@@ -51,7 +53,7 @@ export function lockedModuleIds(
 }
 
 /** Module ohne die gesperrten. */
-export function withoutLocked<T extends LockModule>(topic: { teacherOnly?: boolean }, modules: T[], ownerLink: boolean): T[] {
-  const locked = lockedModuleIds(topic, modules, ownerLink);
+export function withoutLocked<T extends LockModule>(topic: { teacherOnly?: boolean }, modules: T[], ownerLink: boolean, releasedHere?: ReadonlySet<string>): T[] {
+  const locked = lockedModuleIds(topic, modules, ownerLink, FROM_CONTENT, releasedHere);
   return locked.size ? modules.filter((m) => !locked.has(m.id)) : modules;
 }

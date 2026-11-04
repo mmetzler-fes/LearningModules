@@ -44,3 +44,18 @@ describe('Sperre für Schüler', () => {
     expect(ids(lockedModuleIds({}, mods, true))).toEqual(['q']);
   });
 });
+
+describe('Sperre: Freigabe je Klasse', () => {
+  const topic = { teacherOnly: false };
+  const mods = [{ id: 'a', teacherOnly: true }, { id: 'a1', parentId: 'a' }, { id: 'b' }];
+  it('zeigt das Modul nur auf dem Link, der es freigibt', () => {
+    expect([...lockedModuleIds(topic, mods, true)].sort()).toEqual(['a', 'a1']);
+    expect([...lockedModuleIds(topic, mods, true, undefined, new Set(['a']))]).toEqual([]);
+  });
+  it('auf dem Link einer anderen Lehrkraft gilt sie nicht', () => {
+    expect([...lockedModuleIds(topic, mods, false, undefined, new Set(['a']))].sort()).toEqual(['a', 'a1']);
+  });
+  it('auch ein ganz gesperrtes Lernthema lässt sich modulweise freigeben', () => {
+    expect([...lockedModuleIds({ teacherOnly: true }, [{ id: 'a' }, { id: 'b' }], true, undefined, new Set(['a']))]).toEqual(['b']);
+  });
+});

@@ -26,6 +26,7 @@ function setup({ firstLogin = false } = {}) {
   const linksService: any = {
     resolveModules: async () => [{ topic: { id: 't', title: 'Strom' }, modules: [QUIZ] }],
     practiceToken: async (l: any) => l.token,
+    lockedOf: async () => [],
   };
   const attempts = repo();
   const nodes = repo();

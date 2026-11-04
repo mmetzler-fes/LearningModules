@@ -522,8 +522,8 @@ export class TopicsService {
    * dem Löschen, denn wer den Knopf drückt, will einen Link. Die beim
    * früheren Quick-Link angelegte Freigabe wird weiterverwendet.
    */
-  async ensureQuickRule(topicId: string, user: any): Promise<TopicLink> {
-    const { topic } = await this.quickLinkableTopic(topicId, user);
+  async ensureQuickRule(topicId: string, user: any, opts: { forClassbook?: boolean } = {}): Promise<TopicLink> {
+    const { topic } = await this.quickLinkableTopic(topicId, user, opts);
     const found = await this.linkRepo.findOne({ where: { ownerId: user.userId, quickTopicId: topic.id, classId: IsNull() } });
     if (found) return found;
 
@@ -556,7 +556,7 @@ export class TopicsService {
   }
 
   /** Darf für dieses Thema ein Quick-Link entstehen? Wirft sonst mit Begründung. */
-  private async quickLinkableTopic(id: string, user: any) {
+  private async quickLinkableTopic(id: string, user: any, { forClassbook = false }: { forClassbook?: boolean } = {}) {
     const topic = await this.findOneFor(id, user, 'read');
     const isOwner = this.accessLevel(topic, user) === 'owner';
 
@@ -567,7 +567,8 @@ export class TopicsService {
     // ausdrückliche Zustimmung des Eigentümers, und der Haken "aktiv" gehört
     // zu seiner eigenen Schülersicht, nicht zu meiner. Genauso hält es der
     // Themen-Link.
-    if (isOwner && !topic.selected) {
+    // Im Klassennotizbuch darf „🔒 Nur Lehrkraft“ stehen: Schüler sehen es dort nicht.
+    if (isOwner && !topic.selected && !(forClassbook && topic.teacherOnly)) {
       throw new ForbiddenException(
         'Das Thema ist nicht für Schüler freigegeben. Bitte zuerst freigeben, dann den Quick-Link erzeugen.',
       );

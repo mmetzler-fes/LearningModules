@@ -198,7 +198,7 @@ export class LinksService {
       // HTML-Apps haben die Lösung im Quelltext: nie über den Link der Klassenarbeit.
       // Probearbeit über einen anonymen Link: Gesperrtes nur, wenn es einzeln gewählt ist.
       const lockedHere = exam && !link.classId && entry.all ? lockedModuleIds(topic, visible, topic.ownerId === link.ownerId) : new Set<string>();
-      const ofTopic = (exam ? visible.filter((m) => !isHtmlAppType(m.type) && !lockedHere.has(m.id)) : withoutLocked(topic, visible, topic.ownerId === link.ownerId))
+      const ofTopic = (exam ? visible.filter((m) => !isHtmlAppType(m.type) && !lockedHere.has(m.id)) : withoutLocked(topic, visible, topic.ownerId === link.ownerId, new Set(link.releasedModuleIds || [])))
         .filter((m) => !isRemovedUnit(m))
         .sort((a, b) => a.orderIndex - b.orderIndex);
 
@@ -717,7 +717,7 @@ export class LinksService {
 
   /** Klassenlink über den Quick-Link-Knopf eines Lernthemas. */
   async classLinkForTopic(topicId: string, classId: string, user: any, req?: any) {
-    const rule = await this.topicsService.ensureQuickRule(topicId, user);
+    const rule = await this.topicsService.ensureQuickRule(topicId, user, { forClassbook: true });
     return this.classLink(rule.id, classId, user, false, req);
   }
 
@@ -762,6 +762,29 @@ export class LinksService {
     rule.name = node.title;
     rule.selection = selection;
     return this.linkRepo.save(rule);
+  }
+
+  /**
+   * Gesperrte Elternmodule der Lernthemen für diesen Link, für die Inhaltsübersicht der Lehrkraft.
+   * Schüler bekommen sie nie darüber.
+   */
+  async lockedOf(link: TopicLink, topicIds: string[]) {
+    if (!topicIds.length) return [];
+    const owner = await this.groupsService.asUser(link.ownerId);
+    const found = await this.topicRepo.find({ where: { id: In(topicIds) } });
+    const topics = found.filter((t) => this.topicsService.accessLevel(t, owner) !== 'none');
+    const all = topics.length ? await this.moduleRepo.find({ where: { topicId: In(topics.map((t) => t.id)) }, order: { orderIndex: 'ASC' } }) : [];
+    return topics.map((topic) => {
+      const visible = this.topicsService.visibleModules(topic, all.filter((m) => m.topicId === topic.id), owner).filter((m) => !isRemovedUnit(m));
+      const ownerLink = topic.ownerId === link.ownerId;
+      const locked = lockedModuleIds(topic, visible, ownerLink);
+      const stillLocked = lockedModuleIds(topic, visible, ownerLink, undefined, new Set(link.releasedModuleIds || []));
+      return {
+        topic,
+        ownerLink,
+        modules: visible.filter((m) => !m.parentId && locked.has(m.id)).map((m) => ({ id: m.id, title: m.title || '', type: m.type, releasedHere: !stillLocked.has(m.id) })),
+      };
+    });
   }
 
   /** Token entwerten, ohne den Link zu löschen. */

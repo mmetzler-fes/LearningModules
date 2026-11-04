@@ -1,3 +1,5 @@
+import { ShopOffer } from '../core/entities/shop-offer.entity';
+import { TopicQuickLink } from '../core/entities/topic-quick-link.entity';
 import { HtmlAppState } from '../core/entities/html-app-state.entity';
 import { contentOf, hasSolutionBlocks } from '../core/public/student-view';
 import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
@@ -74,6 +76,8 @@ export class ClassbookService {
     @InjectRepository(NotebookPlacement) private readonly nbPlaceRepo: Repository<NotebookPlacement>,
     @InjectRepository(ClassbookProgress) private readonly progressRepo: Repository<ClassbookProgress>,
     @InjectRepository(HtmlAppState) private readonly appStateRepo: Repository<HtmlAppState>,
+    @InjectRepository(ShopOffer) private readonly offerRepo: Repository<ShopOffer>,
+    @InjectRepository(TopicQuickLink) private readonly quickRepo: Repository<TopicQuickLink>,
   ) {}
 
   /** Notizbuch der Klasse – beim ersten Aufruf angelegt; ältere bekommen hier ihren Klassencode. */
@@ -194,6 +198,7 @@ export class ClassbookService {
   async forTeacher(user: any, classId: string, req?: any) {
     const klasse = await this.classes.ownedClass(classId, user);
     const nb = await this.ensure(klasse);
+    await this.migrateTeacherItems(user, klasse, nb, req);
     // Aus dem Notizbuch übernommene Bereiche: Neues dort kommt ausgeschaltet nach.
     await this.syncMirrors(user, klasse, req).catch(() => undefined);
     const url = `${baseUrl(req)}/?k=${nb.token}`;
@@ -212,6 +217,7 @@ export class ClassbookService {
         // Klasseneigenes Lernthema (nur in diesem Klassennotizbuch) – sonst Verweis aufs Notizbuch.
         classTopicId: ownTopic,
         notReleased: avail.notReleased,
+        releasedModuleIds: l.releasedModuleIds || [],
         // Was die Zuweisung enthalten kann, mit Schalter je Lernthema und Modul.
         available: avail.topics.map((t) => {
           const entry = selection.find((e) => e.topicId === t.topicId);
@@ -234,7 +240,6 @@ export class ClassbookService {
       code: nb.code ? formatClassCode(nb.code) : '',
       qrSvg: await renderQr(url),
       firstLoginUntil: firstLoginOpen(nb.firstLoginUntil) ? nb.firstLoginUntil : null,
-      teacherItems: nb.teacherItems || [],
       marker: normalizeMarker(nb.marker),
       studentHidden: !!nb.studentHidden,
       live: { online: this.live.online(classId), follow: this.live.isFollowing(classId) },
@@ -281,6 +286,18 @@ export class ClassbookService {
         solutionsOn: (link.solutionModuleIds || []).includes(m.id),
       })),
     }));
+    // 🔒 Gesperrtes zeigt die Inhaltsübersicht der Lehrkraft mit, Schüler bekommen es nicht.
+    for (const l of await this.links.lockedOf(link, ids)) {
+      let t: any = topics.find((x) => x.topicId === l.topic.id);
+      if (!t && !l.modules.length) continue;
+      if (!t) {
+        t = { topicId: l.topic.id, title: l.topic.title, canEdit: l.topic.ownerId === user.userId || user.role === 'admin', tagIds: l.topic.tagIds || [], modules: [] };
+        topics.push(t);
+      }
+      t.teacherOnly = !!l.topic.teacherOnly;
+      t.lockedModules = l.modules;
+      t.mayRelease = l.ownerLink;
+    }
     return { topics, notReleased };
   }
 
@@ -304,6 +321,88 @@ export class ClassbookService {
     link.customized = true;
     await this.linkRepo.save(link);
     return { success: true };
+  }
+
+  /** 🔓 Gesperrtes Modul nur für diese Klasse zeigen, etwa die Klassenarbeit zur Besprechung, oder wieder sperren. */
+  async setRelease(user: any, classId: string, linkId: string, body: { moduleId?: string; on?: boolean }) {
+    const link = await this.ownClassLink(user, classId, linkId);
+    const moduleId = String(body?.moduleId || '');
+    const mod = moduleId ? await this.moduleRepo.findOne({ where: { id: moduleId }, select: ['id', 'topicId'] }) : null;
+    const topic = mod ? await this.topicRepo.findOne({ where: { id: mod.topicId }, select: ['id', 'ownerId'] }) : null;
+    if (!mod || !topic || !(link.selection || []).some((e) => e.topicId === topic.id)) throw new BadRequestException('Dieses Modul gehört nicht zur Zuweisung.');
+    if (topic.ownerId !== user.userId) throw new ForbiddenException('Freigeben lässt sich nur, was dir gehört.');
+    const set = new Set(link.releasedModuleIds || []);
+    if (body?.on) set.add(moduleId); else set.delete(moduleId);
+    link.releasedModuleIds = set.size ? [...set] : null;
+    await this.linkRepo.save(link);
+    // Freigeben heißt auch: einschalten, sonst sähen die Schüler nichts.
+    if (body?.on) await this.setItem(user, classId, linkId, { topicId: topic.id, moduleId, enabled: true });
+    return { success: true, on: set.has(moduleId) };
+  }
+
+  /**
+   * Der frühere Bereich „Nur für Lehrer“ zieht einmalig in die Inhaltsübersicht um, in einen für Schüler ausgeblendeten
+   * Bereich „Für mich“. Ein eigenes Lernthema, das nirgends bei Schülern im Einsatz ist, bekommt 🔒; alles andere kommt
+   * ausgeschaltet dazu, damit keine andere Klasse etwas verliert. Was nicht klappt, bleibt in der Liste und wird beim
+   * nächsten Öffnen wieder versucht.
+   */
+  private async migrateTeacherItems(user: any, klasse: StudentClass, nb: ClassNotebook, req?: any) {
+    const items = nb.teacherItems || [];
+    if (!items.length) return;
+    const left: typeof items = [];
+    let nodeId: string | null = null;
+    const home = async () => {
+      if (nodeId) return nodeId;
+      const known = await this.nodeRepo.findOne({ where: { classId: klasse.id, title: 'Für mich', parentId: IsNull() } });
+      const orderIndex = (await this.nodeRepo.find({ where: { classId: klasse.id, parentId: IsNull() } })).length;
+      const node = known || await this.nodeRepo.save(this.nodeRepo.create({
+        id: crypto.randomUUID(), classId: klasse.id, kind: 'area', title: 'Für mich', parentId: null, orderIndex, studentHidden: true,
+      } as any) as any);
+      nodeId = (node as any).id;
+      return nodeId;
+    };
+    for (const item of items) {
+      try {
+        const ids = item.type === 'node'
+          ? (await this.notebooks.topicsOfNode(item.id, user).then((f: any) => [...(f.included || []), ...(f.notReleased || [])]))
+          : [item.id];
+        for (const topicId of ids) await this.moveTeacherTopic(user, klasse, topicId, home, req);
+      } catch (_) {
+        left.push(item);
+      }
+    }
+    nb.teacherItems = left.length ? left : null;
+    await this.repo.save(nb);
+  }
+
+  private async moveTeacherTopic(user: any, klasse: StudentClass, topicId: string, home: () => Promise<string | null>, req?: any) {
+    const topic = await this.topicRepo.findOne({ where: { id: topicId } });
+    if (!topic) return; // gelöscht: nichts zu übernehmen
+    // Ist es dieser Klasse schon zugewiesen, bleibt es dort, wie es ist.
+    const links = await this.linkRepo.find({ where: { ownerId: user.userId } });
+    const usedBy = links.filter((l) => (l.selection || []).some((e) => e.topicId === topicId));
+    if (usedBy.some((l) => l.classId === klasse.id)) return;
+    if (topic.ownerId === user.userId && !topic.teacherOnly && !(await this.usedWithStudents(user, topic, usedBy))) {
+      topic.teacherOnly = true;
+      await this.topicRepo.save(topic);
+    }
+    const res = await this.assign(user, klasse.id, { type: 'topic', id: topicId, nodeId: await home() }, req);
+    const link = await this.linkRepo.findOne({ where: { id: res.linkId } });
+    if (link) {
+      link.selection = [{ topicId, all: false, moduleIds: [] }];
+      link.customized = true;
+      await this.linkRepo.save(link);
+    }
+  }
+
+  /** Erreicht ein Lernthema heute Schüler? Im Zweifel ja: Dann bekommt es kein 🔒, damit niemandem etwas verschwindet. */
+  private async usedWithStudents(user: any, topic: LearningTopic, links: TopicLink[]) {
+    if (links.some((l) => l.classId || l.token || l.examToken || l.contestHostToken)) return true;
+    if ((topic as any).quickToken) return true;
+    if (await this.quickRepo.count({ where: { topicId: topic.id, ownerId: user.userId } })) return true;
+    // Angebote im Shop: Bei Bereichen und Auswahlen lässt sich das hier nicht billig klären, also vorsichtig.
+    const offers = await this.offerRepo.find({ where: { sellerId: user.userId, active: true }, select: ['id', 'topicId', 'scopeType'] });
+    return offers.some((o) => o.scopeType !== 'topic' || o.topicId === topic.id);
   }
 
   /** 💡 Lösungen eines Dokuments für diese Klasse zeigen oder wieder verbergen. */
@@ -804,19 +903,6 @@ export class ClassbookService {
     nb.code = await this.freeCode();
     await this.repo.save(nb);
     return this.forTeacher(user, classId, req);
-  }
-
-  async setTeacherItems(user: any, classId: string, items: unknown) {
-    const nb = await this.ensure(await this.classes.ownedClass(classId, user));
-    const clean: ClassNotebookItem[] = [];
-    for (const it of Array.isArray(items) ? items.slice(0, 200) : []) {
-      const type = it?.type === 'node' ? 'node' : it?.type === 'topic' ? 'topic' : null;
-      const id = typeof it?.id === 'string' ? it.id.slice(0, 64) : '';
-      if (type && id && !clean.some((c) => c.type === type && c.id === id)) clean.push({ type, id });
-    }
-    nb.teacherItems = clean;
-    await this.repo.save(nb);
-    return { teacherItems: clean };
   }
 
   /**

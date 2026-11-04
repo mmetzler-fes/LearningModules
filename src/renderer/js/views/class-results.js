@@ -4,7 +4,7 @@ import { openTagDialog } from './tags.js';
 // ==================== KLASSENNOTIZBUCH (LEHRKRAFT) ====================
 //
 // Je Klasse die Bereiche des Klassennotizbuchs (docs/klassennotizbuch.md):
-// Inhaltsübersicht (die Klassenlinks als Zuweisungen), Nur für Lehrer,
+// Inhaltsübersicht (die Klassenlinks als Zuweisungen, mit 🔒 für die Lehrkraft),
 // Klassenarbeiten, Schülerdaten, Ergebnisübersicht, Quiz-Arena, Live und der
 // Klassenbuch-Link. Früher hieß die Ansicht „Klassenergebnisse“ – deren
 // Reiter leben in Schülerdaten und Ergebnisübersicht weiter.
@@ -47,7 +47,7 @@ function weekKey(iso) {
   return `${d.getFullYear()}-${week}`;
 }
 
-const TABS = ['content', 'teacher', 'exams', 'students', 'overview', 'contest', 'live', 'settings'];
+const TABS = ['content', 'exams', 'students', 'overview', 'contest', 'live', 'settings'];
 // Reiter der früheren Klassenergebnisse → Bereich und Unterreiter.
 const OLD_TABS = { tests: ['overview', 'tests'], year: ['overview', 'year'], works: ['students', 'works'] };
 const TYPE_ICON = { document: '📄', attachment: '📎' };
@@ -167,7 +167,6 @@ export class ClassResultsView {
     if (this._tab !== 'live') this._stopLive();
     if (this._tab === 'live') { this._renderLive(); return; }
     if (this._tab === 'content') { this._renderContent(); return; }
-    if (this._tab === 'teacher') { this._renderTeacher(); return; }
     if (this._tab === 'exams') { this._renderExamsSection(); return; }
     if (this._tab === 'contest') { this._renderContest(); return; }
     if (this._tab === 'settings') { this._renderSettings(); return; }
@@ -509,7 +508,7 @@ export class ClassResultsView {
 
   // ==================== Bereiche des Klassennotizbuchs ====================
 
-  /** Daten des Klassennotizbuchs (Link, Zuweisungen, Nur für Lehrer) – einmal je Klasse. */
+  /** Daten des Klassennotizbuchs (Link, Zuweisungen) – einmal je Klasse. */
   async _classbook(force = false) {
     const classId = this._classId;
     if (!force && this._cb?.classId === classId) return this._cb;
@@ -606,8 +605,14 @@ export class ClassResultsView {
             title="${m.solutionsOn ? 'Die Schüler dieser Klasse sehen die Lösungen – klicken zum Verbergen' : 'Lösungen für diese Klasse zeigen'}" aria-label="Lösungen">💡</button>` : ''}
           ${m.enabled ? `<button type="button" class="cb-mark ${marked ? 'on' : ''}" data-mark="${escapeAttr(m.id)}"
             title="${marked ? 'Hier ist die Klasse gerade – klicken zum Entfernen' : 'Merker: Hier ist die Klasse gerade. Bei den Schülern ist dieses Modul dann aufgeklappt und hat den Fokus.'}">📍</button>` : ''}
+          ${(link.releasedModuleIds || []).includes(m.id) ? `<button type="button" class="btn btn-secondary btn-sm" data-release="${escapeAttr(m.id)}" data-on="1" title="Nur für diese Klasse freigegeben – klicken sperrt wieder">🔒 Wieder sperren</button>` : ''}
           <button type="button" class="nb-menu-btn" data-module-menu="${escapeAttr(m.id)}" title="Aktionen" aria-label="Aktionen">⋯</button></li>`;
-        }).join('')}</ul>
+        }).join('')}
+        ${(t.lockedModules || []).filter((m) => !m.releasedHere).map((m) => `<li class="cb-item-off cb-locked" title="Schüler sehen das nicht, auch nicht über „Alles“">
+          <span>🔒 <button type="button" class="cb-unit" data-open-module="${escapeAttr(m.id)}">${TYPE_ICON[m.type] || '📄'} ${escapeHtml(m.title)}</button>
+            <span class="hint">nur für dich</span></span>
+          ${t.mayRelease ? `<button type="button" class="btn btn-secondary btn-sm" data-release="${escapeAttr(m.id)}" title="Nur diese Klasse sieht es, etwa die Lösungen oder die Klassenarbeit zur Besprechung">🔓 Für diese Klasse freigeben</button>` : ''}
+        </li>`).join('')}</ul>
       </div>`).join('')}
       ${link.notReleased?.length ? `<p class="hint">Im Notizbuch noch nicht für Schüler freigegeben, daher nicht wählbar: ${escapeHtml(link.notReleased.join(', '))}.</p>` : ''}`;
   }
@@ -660,6 +665,16 @@ export class ClassResultsView {
       const ids = btn.dataset.switchLinks.split(',').filter(Boolean);
       const res = await this.app.api.setClassbookLinks(this._classId, ids, btn.dataset.state !== 'on');
       if (failed(res)) { this.app.showToast('Fehler: ' + (res?.message || '?'), 'error'); return; }
+      this._openLinks = new Set([...out.querySelectorAll('details[data-link][open]')].map((d) => d.dataset.link));
+      await this._classbook(true);
+      this._render();
+    }));
+    out.querySelectorAll('[data-release]').forEach((btn) => btn.addEventListener('click', async (e) => {
+      e.preventDefault();
+      const linkId = btn.closest('[data-link]').dataset.link;
+      const res = await this.app.api.setClassbookRelease(this._classId, linkId, btn.dataset.release, !btn.dataset.on);
+      if (failed(res)) { this.app.showToast('Fehler: ' + (res?.message || '?'), 'error'); return; }
+      this.app.showToast(res.on ? 'Diese Klasse sieht es jetzt.' : 'Wieder gesperrt.', 'success');
       this._openLinks = new Set([...out.querySelectorAll('details[data-link][open]')].map((d) => d.dataset.link));
       await this._classbook(true);
       this._render();
@@ -986,6 +1001,9 @@ export class ClassResultsView {
       } });
     }
     if (topic.canEdit) {
+      items.push({ label: '🔒 Nur Lehrkraft', title: 'Schüler sehen dieses Modul nicht, in keiner Klasse und über keinen Link. Gilt für das Original im Notizbuch.', run: () => this._call(this.app.api.setModuleStudentLock(topic.topicId, mod.id, { teacherOnly: true })) });
+    }
+    if (topic.canEdit) {
       items.unshift({ label: '✏️ Bearbeiten', title: own ? '' : 'Das Original im Notizbuch – die Änderung gilt überall, wo es zugewiesen ist', run: () => open('edit') });
       items.push({ label: '🏷 Tags…', title: own ? '' : 'Der Tag kommt an das Modul im Notizbuch', run: async () => {
         const ids = await openTagDialog(this.app, { title: mod.title || 'Modul', selected: mod.tagIds || [], inherited: topic.tagIds || [] });
@@ -1003,6 +1021,7 @@ export class ClassResultsView {
       { label: '➕ Neues Modul', title: 'Neue Module sind hier zunächst aus – mit ● einschalten', run: () => this.app.modulesView.openFrom('teacher-class-results', topic.topicId, null) },
       { label: '📦 Module bearbeiten', title: own ? '' : 'Die Module des Originals im Notizbuch', run: () => this.app.modulesView.openTopicModules(topic.topicId) },
       { label: '📍 Hier ist die Klasse gerade', title: 'Schüler springen zum ersten Modul dieses Lernthemas – „Weiter“ führt durch alle weiteren', run: () => this._setMarker({ level: 'topic', linkId: link.id, topicId: topic.topicId }) },
+      { label: topic.teacherOnly ? '✓ 🔒 Nur Lehrkraft aufheben' : '🔒 Nur Lehrkraft (ganzes Lernthema)', title: 'Schüler sehen es dann nicht, in keiner Klasse und über keinen Link', run: () => this._call(this.app.api.saveTopic({ id: topic.topicId, teacherOnly: !topic.teacherOnly }, true)) },
       { label: '🏷 Tags…', title: own ? '' : 'Der Tag kommt an das Lernthema im Notizbuch', run: async () => {
         // Geerbte Tags (Book, Bereich, Abschnitt im Notizbuch) bleiben.
         const tree = own ? null : await this.app.api.getNotebooks();
@@ -1236,67 +1255,6 @@ export class ClassResultsView {
         overlay.querySelectorAll('[data-i]').forEach((li) => { li.hidden = !!q && !rows[Number(li.dataset.i)].title.toLowerCase().includes(q); });
       });
       search.focus();
-    });
-  }
-
-  // ---- 🔒 Nur für Lehrer ----
-
-  _renderTeacher() {
-    this._section('teacher', async (cb, out) => {
-      const tree = await this.app.api.getNotebooks();
-      if (failed(tree)) throw new Error(tree?.message || 'Notizbuch nicht abrufbar');
-      const topics = new Map((tree.topics || []).map((t) => [t.id, t]));
-      const nodes = new Map((tree.nodes || []).map((n) => [n.id, n]));
-      // Lernthemen unter einem Knoten, auch in Unterordnern.
-      const below = (id) => {
-        const ids = new Set([id]);
-        let grew = true;
-        while (grew) {
-          grew = false;
-          for (const n of tree.nodes || []) if (n.parentId && ids.has(n.parentId) && !ids.has(n.id)) { ids.add(n.id); grew = true; }
-        }
-        return (tree.placements || []).filter((p) => ids.has(p.nodeId)).map((p) => topics.get(p.topicId)).filter(Boolean);
-      };
-      const items = cb.teacherItems.map((it) => {
-        if (it.type === 'topic') return topics.has(it.id) ? { ...it, title: topics.get(it.id).title, icon: '📘', topics: [topics.get(it.id)] } : null;
-        const n = nodes.get(it.id);
-        return n ? { ...it, title: n.title, icon: NODE_ICON[n.kind] || '📂', topics: below(n.id) } : null;
-      }).filter(Boolean);
-      out.innerHTML = `
-        <div class="cr-works-bar">
-          <button type="button" class="btn btn-primary btn-sm" id="cbTeacherAdd">➕ Aus dem Notizbuch</button>
-          <span class="hint">Nur du siehst diesen Bereich – etwa Lösungen, Unterrichtsplanung oder Kopiervorlagen. Es sind Verweise auf dein Notizbuch; ein Klick zeigt die Vorschau, bearbeitet wird im 📓 Notizbuch.</span>
-        </div>
-        ${items.length ? items.map((it) => `
-          <details class="result-group" open data-item="${escapeAttr(`${it.type}:${it.id}`)}">
-            <summary><span class="result-group-title">${it.icon} ${escapeHtml(it.title)}</span>
-              <span class="result-group-meta"><button type="button" class="btn btn-secondary btn-sm" data-remove title="Aus diesem Bereich nehmen (im Notizbuch bleibt es)">✕</button></span></summary>
-            ${it.topics.map((t) => `<div class="cb-topic"><div class="cb-topic-title">📘 ${escapeHtml(t.title)}</div>
-              <ul class="cb-units">${(t.modules || []).filter((m) => !m.parentId).sort((a, b) => a.orderIndex - b.orderIndex).map((m) => `
-                <li><button type="button" class="cb-unit" data-topic="${escapeAttr(t.id)}" data-module="${escapeAttr(m.id)}">${TYPE_ICON[m.type] || '🧩'} ${escapeHtml(m.title || 'Modul')}</button></li>`).join('')}</ul></div>`).join('')
-              || '<p class="hint">Darin liegt (noch) kein Lernthema.</p>'}
-          </details>`).join('')
-          : `<div class="empty-state"><span class="empty-icon">🔒</span><p>Noch leer. Lege hier ab, was du für diese Klasse brauchst, die Schüler aber nicht sehen sollen.</p></div>`}`;
-      const save = async (list) => {
-        const res = await this.app.api.setClassbookTeacherItems(this._classId, list);
-        if (failed(res)) { this.app.showToast('Fehler: ' + (res?.message || '?'), 'error'); return; }
-        await this._classbook(true);
-        this._render();
-      };
-      out.querySelector('#cbTeacherAdd').addEventListener('click', async () => {
-        const picked = await this._pickFromNotebook('🔒 Nur für Lehrer', 'Lernthema oder Bereich aus deinem Notizbuch – die Schüler sehen ihn nicht.');
-        if (picked) await save([...cb.teacherItems, { type: picked.type, id: picked.id }]);
-      });
-      out.querySelectorAll('[data-remove]').forEach((btn) => btn.addEventListener('click', (e) => {
-        e.preventDefault();
-        const key = btn.closest('[data-item]').dataset.item;
-        save(cb.teacherItems.filter((it) => `${it.type}:${it.id}` !== key));
-      }));
-      out.querySelectorAll('[data-module]').forEach((btn) => btn.addEventListener('click', () => {
-        const t = topics.get(btn.dataset.topic);
-        const mod = (t?.modules || []).find((m) => m.id === btn.dataset.module);
-        if (mod) this.app.modulesView.openFrom('teacher-class-results', t.id, mod, 'preview');
-      }));
     });
   }
 

@@ -289,6 +289,12 @@ export class PublicController {
       );
     }
 
+    // Erst der Inhalt, dann die Anmeldung: Sonst gälte die PIN als gezeigt, obwohl der Schüler hier abgewiesen wird.
+    const resolved = await this.linksService.resolveModules(link, { exam: mode === 'exam' });
+    if (resolved.length === 0) {
+      throw new ForbiddenException('Dieser Link enthält derzeit keine Inhalte.');
+    }
+
     // Klassenlink: Name einem Schüler der Klassenliste zuordnen. Im Ergebnis
     // steht dann sein Name aus der Liste, nicht die Schreibweise der Eingabe.
     const klasse = await this.classesService.findById(link.classId);
@@ -333,11 +339,6 @@ export class PublicController {
 
     const teacher = await this.userRepo.findOne({ where: { id: link.ownerId } });
     if (!teacher) throw new NotFoundException('Lehrer nicht gefunden.');
-
-    const resolved = await this.linksService.resolveModules(link, { exam: mode === 'exam' });
-    if (resolved.length === 0) {
-      throw new ForbiddenException('Dieser Link enthält derzeit keine Inhalte.');
-    }
 
     // Klassenarbeit über einen Klassenlink: Versuch festhalten (zweiter Start nur nach Freigabe).
     const ticket = studentId ? issueTicket(link.id, studentId, studentName, Date.now(), { verified }) : null;

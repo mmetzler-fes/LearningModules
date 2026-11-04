@@ -1062,8 +1062,10 @@ export class BrowserApi {
     return this._fetch(`/api/classbook/${encodeURIComponent(classId)}/first-login`, { method: 'POST', body: JSON.stringify({ open }) });
   }
   renewClassbookToken(classId) { return this._fetch(`/api/classbook/${encodeURIComponent(classId)}/token`, { method: 'POST' }); }
-  setClassbookTeacherItems(classId, items) {
-    return this._fetch(`/api/classbook/${encodeURIComponent(classId)}/teacher-items`, { method: 'PUT', body: JSON.stringify({ items }) });
+  setClassbookRelease(classId, linkId, moduleId, on) {
+    return this._fetch(`/api/classbook/${encodeURIComponent(classId)}/links/${encodeURIComponent(linkId)}/release`, {
+      method: 'PUT', body: JSON.stringify({ moduleId, on }),
+    });
   }
   /** Aus dem Notizbuch zuweisen: type 'topic' | 'node' → { linkId, existed, notReleased }. */
   assignToClassbook(classId, type, id, nodeId = null) {

@@ -1,3 +1,5 @@
+import { ShopOffer } from '../core/entities/shop-offer.entity';
+import { TopicQuickLink } from '../core/entities/topic-quick-link.entity';
 import { HtmlAppState } from '../core/entities/html-app-state.entity';
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
@@ -25,7 +27,7 @@ import { WebappController } from './webapp.controller';
 import { ClassbookLive } from './classbook-live';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([HtmlAppState, ClassNotebook, ClassStudent, Result, DocumentWork, TopicLink, User, ExamAttempt, ClassNotebookNode, ClassNotebookPlace, LearningTopic, LearningModule, NotebookNode, NotebookPlacement, ClassbookProgress]), LinksModule, ClassesModule, NotebooksModule, ContestModule],
+  imports: [TypeOrmModule.forFeature([ShopOffer, TopicQuickLink, HtmlAppState, ClassNotebook, ClassStudent, Result, DocumentWork, TopicLink, User, ExamAttempt, ClassNotebookNode, ClassNotebookPlace, LearningTopic, LearningModule, NotebookNode, NotebookPlacement, ClassbookProgress]), LinksModule, ClassesModule, NotebooksModule, ContestModule],
   controllers: [ClassbookController, PublicClassbookController, WebappController],
   exports: [ClassbookService],
   providers: [ClassbookService, ClassbookLive],

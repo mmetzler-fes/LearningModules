@@ -87,6 +87,55 @@ export function useInkAllowed(fn) {
 }
 
 /** Neuer Editor auf Tiptap (Freischaltung 'docEditorTiptap', Plan lm-editor 9.4)? */
+/** Tabelle als Baustein: `rows` zählt alle Zeilen, eine Kopfzeile mit. */
+export function tableBlock({ cols, rows, header }) {
+  // Leere Zellen: Bei einer großen Tabelle müsste man sonst überall einen Platzhalter löschen.
+  const row = () => Array.from({ length: cols }, () => '');
+  return {
+    type: 'table',
+    ...(header ? { header: row() } : {}),
+    rows: Array.from({ length: Math.max(1, header ? rows - 1 : rows) }, row),
+  };
+}
+
+const TABLE_MAX = { cols: 20, rows: 100 };
+
+/** Dialog vor dem Einfügen einer Tabelle: Spalten, Zeilen, Kopfzeile. Liefert den Baustein oder `null`. */
+export function askTable() {
+  return new Promise((resolve) => {
+    const overlay = document.createElement('div');
+    overlay.className = 'confirm-overlay';
+    overlay.innerHTML = `<form class="import-modules-card ds-para-dialog" role="dialog" aria-modal="true" aria-label="Tabelle einfügen">
+        <h3>▤ Tabelle einfügen</h3>
+        <div class="ds-para-grid">
+          <label>Spalten<input name="cols" type="number" inputmode="numeric" min="1" max="${TABLE_MAX.cols}" value="3" required></label>
+          <label>Zeilen<input name="rows" type="number" inputmode="numeric" min="1" max="${TABLE_MAX.rows}" value="4" required></label>
+          <label style="grid-column:1 / -1; display:flex; align-items:center; gap:8px;"><input type="checkbox" name="header" checked style="width:auto; margin:0;"> Erste Zeile ist Kopfzeile</label>
+        </div>
+        <div class="confirm-actions">
+          <button type="button" class="btn btn-secondary" data-cancel>Abbrechen</button>
+          <button type="submit" class="btn btn-primary">Einfügen</button>
+        </div></form>`;
+    document.body.appendChild(overlay);
+    const form = overlay.querySelector('form');
+    const done = (value) => {
+      document.removeEventListener('keydown', onKey, true);
+      overlay.remove();
+      resolve(value);
+    };
+    const onKey = (e) => { if (e.key === 'Escape') { e.stopPropagation(); done(null); } };
+    document.addEventListener('keydown', onKey, true);
+    overlay.querySelector('[data-cancel]').addEventListener('click', () => done(null));
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const cols = Math.min(TABLE_MAX.cols, Math.max(1, Math.round(Number(form.elements.cols.value)) || 1));
+      const rows = Math.min(TABLE_MAX.rows, Math.max(1, Math.round(Number(form.elements.rows.value)) || 1));
+      done(tableBlock({ cols, rows, header: form.elements.header.checked }));
+    });
+    form.elements.cols.select();
+  });
+}
+
 let tiptapAllowed = () => false;
 export function useTiptapAllowed(fn) {
   tiptapAllowed = fn;
@@ -346,7 +395,7 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
     e.target.value = '';
     if (!what) return;
     const pos = textarea.selectionStart;
-    const blocks = what === 'pdf' ? await insertPdfBlocks() : [what === 'quiz' ? await pickQuiz() : STARTERS[what]];
+    const blocks = what === 'pdf' ? await insertPdfBlocks() : [what === 'quiz' ? await pickQuiz() : what === 'table' ? await askTable() : STARTERS[what]];
     if (!blocks?.[0]) return;
     const item = yamlDump(blocks, { lineWidth: -1, noRefs: true });
     const res = insertAfterItem(textarea.value, pos, item);
@@ -856,8 +905,7 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
     // „Platz“ ist ein unsichtbares Schreibfeld – Höhe, Breite und Muster lassen sich später ändern.
     spacer: { type: 'karo', lines: 2, pattern: 'frei' },
     pagebreak: { type: 'pagebreak' },
-    // nur fürs YAML-Einfügen – im Bearbeiten-Reiter sind Tabelle und Kasten Text
-    table: { type: 'table', header: ['Spalte 1', 'Spalte 2'], rows: [['…', '…']] },
+    // nur fürs YAML-Einfügen – im Bearbeiten-Reiter ist der Kasten Text
     box: { type: 'box', title: 'Merke', blocks: [{ type: 'text', text: '…' }] },
     // Zeichenrahmen mit einem Textfenster – der Dialog „Anordnen“ öffnet gleich.
     frame: { type: 'group', width: '12cm', ratio: 0.25, items: [{ text: 'Text', size: 11, x: 0, y: 0, w: 50, h: 30 }] },
@@ -879,8 +927,12 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
       if (blocks) placeHtml(specToEditorHtml({ content: blocks }), after);
       return;
     }
-    const html = what === 'table' ? '<table><thead><tr><th>Spalte 1</th><th>Spalte 2</th></tr></thead><tbody><tr><td>…</td><td>…</td></tr></tbody></table>'
-      : what === 'box' ? '<div class="ws-box" data-title="Merke"><p>…</p></div>'
+    if (what === 'table') {
+      const block = await askTable();
+      if (block) placeHtml(specToEditorHtml({ content: [block] }), after);
+      return;
+    }
+    const html = what === 'box' ? '<div class="ws-box" data-title="Merke"><p>…</p></div>'
         : what === 'columns' ? '<table class="ws-columns"><tbody><tr><td><p>links …</p></td><td><p>rechts …</p></td></tr></tbody></table>'
           : widgetHtml(STARTERS[what]);
     const nodes = placeHtml(html, after);
@@ -908,7 +960,7 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
       // Mehr als ins Menü passen – oder keins: die Auswahl (sie erklärt, wie ein Quiz entsteht).
       ...(quizzes.length > QUIZ_MENU_MAX ? [['quiz', `🧩 Weitere Quizze (${quizzes.length})…`]] : !quizzes.length ? [['quiz', '🧩 Quiz aus dem Lernthema…']] : []),
       ...(pdfAllowed ? [['pdf', '📄 PDF an dieser Stelle']] : []),
-      ['solution', '💡 Lösung'], ['formula', '∑ Formel'], ['code', '⌨ Code'], ['table', '▤ Tabelle'],
+      ['solution', '💡 Lösung'], ['formula', '∑ Formel'], ['code', '⌨ Code'], ['table', '▤ Tabelle…'],
       ['box', '▢ Kasten'], ['columns', '▥ Spalten (nebeneinander)'], ['spacer', '◌ Platz (unsichtbar)'], ['pagebreak', '⤓ Seitenumbruch'],
       ['image', '🖼 Bild…'], ['compose', '🧩 Bilder zusammenstellen…'], ['frame', '▭ Zeichenrahmen (Bilder und Textfenster, fest)'],
     ];
@@ -1626,7 +1678,7 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
       { label: '💡 Lösung', onClick: () => put([STARTERS.solution]) },
       { label: '∑ Formel', onClick: () => putAndEdit(STARTERS.formula) },
       { label: '⌨ Code', onClick: () => put([STARTERS.code]) },
-      { label: '▤ Tabelle', onClick: () => put([STARTERS.table]) },
+      { label: '▤ Tabelle…', onClick: async () => { const block = await askTable(); if (block) put([block]); } },
       { label: '▢ Kasten', onClick: () => put([STARTERS.box]) },
       { label: '▥ Spalten (nebeneinander)', onClick: () => put([{ type: 'columns', blocks: [{ type: 'column', blocks: [{ type: 'text', text: 'links …' }] }, { type: 'column', blocks: [{ type: 'text', text: 'rechts …' }] }] }]) },
       { label: '◌ Platz (unsichtbar)', onClick: () => putAndEdit(STARTERS.spacer) },

@@ -93,7 +93,7 @@ Der Editor startet im Modus **✏️ Bearbeiten** – wie ein Textprogramm:
   kopiert wird als YAML – Schreibmarke setzen, **Strg+V** fügt es dahinter
   ein. In einem Kasten steht zusätzlich **▭ Kasten ▸**. **Alt+↑ / Alt+↓**
   verschiebt den Absatz (die Liste …) der Schreibmarke.
-- **Tabellen** – drei Wege, vom Häufigen zum Genauen:
+- **Tabellen** – **▤ Tabelle…** beim Einfügen fragt nach Spalten, Zeilen und Kopfzeile. Danach drei Wege, vom Häufigen zum Genauen:
   - **Rechtsklick in eine Zelle** (oder **▤ Tabelle ▾** in der Leiste, sobald
     die Schreibmarke in einer Tabelle steht): **Zeile ▸** (darüber/darunter
     einfügen, löschen, Höhe …), **Spalte ▸** (links/rechts einfügen, löschen,

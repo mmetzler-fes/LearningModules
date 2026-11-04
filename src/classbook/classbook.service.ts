@@ -23,7 +23,7 @@ import { NotebookPlacement } from '../core/entities/notebook-placement.entity';
 import { ClassbookProgress } from '../core/entities/classbook-progress.entity';
 import { ancestorsOf, canHoldNode, depthOf, leavesInOrder, nodeMoveError, normalizeMarker, reorder, dissolve, LeafRef, MAX_CLASS_DEPTH, TreeLink, TreeNode, veiledNodeIds } from './classbook-tree';
 import { ClassesService } from '../classes/classes.service';
-import { LinksService, PRACTICE_MODES } from '../links/links.service';
+import { LinksService, PRACTICE_MODES, onlyHtmlApps } from '../links/links.service';
 import { NotebooksService } from '../notebooks/notebooks.service';
 import { issueDeviceTicket, pinTag, issueTicket, readTicket } from '../classes/student-ticket';
 import { isTestStudent } from '../classes/test-student';
@@ -137,10 +137,17 @@ export class ClassbookService {
       id: link.id,
       name: link.name,
       active: link.active,
-      modes: link.modes || [],
-      practice: practiceModes(link),
-      exam: (link.modes || []).includes('exam'),
-      contest: (link.modes || []).includes('contest'),
+      ...(() => {
+        // Nur HTML-Apps: immer Quiz (links.service.ts, effectiveModes).
+        const exam = (link.modes || []).includes('exam');
+        const appsOnly = !exam && onlyHtmlApps(resolved);
+        return {
+          modes: appsOnly ? ['quiz'] : link.modes || [],
+          practice: appsOnly ? ['quiz'] : practiceModes(link),
+          exam,
+          contest: !appsOnly && (link.modes || []).includes('contest'),
+        };
+      })(),
       topics: resolved.map((r) => ({ id: r.topic.id, title: r.topic.title, units: unitsOf(r.modules).map(({ id, title, type }) => ({ id, title, type })) })),
       resolved,
     };

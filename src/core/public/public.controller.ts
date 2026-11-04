@@ -11,7 +11,7 @@ import { LearningModule } from '../entities/learning-module.entity';
 import { Result } from '../entities/result.entity';
 import { TopicLink } from '../entities/topic-link.entity';
 import { TopicQuickLink } from '../entities/topic-quick-link.entity';
-import { LinksService, LinkAccess, modesFor } from '../../links/links.service';
+import { LinksService, LinkAccess, modesFor, effectiveModes, onlyHtmlApps } from '../../links/links.service';
 import { TopicsService } from '../../topics/topics.service';
 import { GroupsService } from '../../groups/groups.service';
 import { CompanionService } from '../../companion/companion.service';
@@ -241,10 +241,10 @@ export class PublicController {
       className: klasse?.name ?? null,
       // Übungslink: Quiz, Lernen mit Lösungen, Lernbegleitung zur Wahl.
       // Link der Klassenarbeit: nur die Klassenarbeit.
-      modes: modesFor(link, access),
+      modes: effectiveModes(link, access, resolved),
       access,
       // Die Quiz-Arena läuft über den Übungslink mit &m=contest.
-      contestEnabled: access === 'practice' && link.modes.includes('contest'),
+      contestEnabled: access === 'practice' && link.modes.includes('contest') && !onlyHtmlApps(resolved),
       requiresPassword: !!link.accessPassword,
       singleAttempt: link.singleAttempt,
       topicCount: resolved.length,
@@ -263,7 +263,7 @@ export class PublicController {
     @Body() body: { studentName?: string; password?: string; mode?: string; testPassword?: string; classTicket?: string; pin?: string },
   ) {
     const { link, access } = await this.findAccessByToken(token);
-    const allowed = modesFor(link, access);
+    const allowed = effectiveModes(link, access, await this.linksService.resolveModules(link, { exam: modesFor(link, access).includes('exam') }));
     const anonymous = !link.classId;
 
     let studentName = (body?.studentName || '').trim().replace(/\s+/g, ' ');

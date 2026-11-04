@@ -1,8 +1,8 @@
 # HTML-Apps einbinden
 
 Eine HTML-App ist eine einzelne HTML-Datei, die alles mitbringt, zum Beispiel eine selbst gebaute
-Lernapp. Im Lernthema läuft sie wie ein Quiz: **LearningModules führt** mit Weiter, Prüfen, Lösung,
-Punkten und Lernbegleiter, die App zeigt jeweils einen Schritt und meldet die Antwort.
+Lernapp. Im Lernthema läuft sie wie ein Quiz: **LearningModules führt** mit Weiter, Prüfen, Lösung
+und Punkten, die App zeigt jeweils einen Schritt und meldet die Antwort.
 
 > **Stand:** Pilot, hinter der Freischaltung „HTML-Apps“. Ohne `HTML_APP_ORIGIN` ist sie nicht
 > verfügbar (siehe „Einrichten“). In Chrome geprüft; Safari auf dem iPad steht noch aus.
@@ -128,6 +128,12 @@ Lernthema ausgeblendet, seine Ergebnisse bleiben.
 | Vorschau der Lehrkraft | `preview` | nichts | nein |
 
 Der anonyme Weg ist abschaltbar: Häkchen „Auch ohne Anmeldung nutzbar“ am Modul (Vorgabe: an).
+
+**Ein Link nur mit HTML-Apps ist immer ein Quizlink:** Lernbegleitung, Lernen und Quiz-Arena stehen nicht zur
+Wahl, auch nicht bei schon ausgeteilten Links. Die Eule kennt den Inhalt einer App nicht. Anonym startet die App
+damit sofort, ohne Name und ohne Auswahl (außer der Link hat ein Passwort). Nur ein Link mit weiteren Aufgaben
+bietet die Wahl weiter an; wer dort die Lernbegleitung nimmt, bekommt auch die App darin so. Die Klassenarbeit
+bleibt davon unberührt.
 
 ## Was geprüft wird
 

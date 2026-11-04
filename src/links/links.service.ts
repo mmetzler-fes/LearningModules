@@ -45,6 +45,24 @@ export function modesFor(link: TopicLink, access: LinkAccess): LinkMode[] {
   return practice;
 }
 
+/** Besteht der Inhalt nur aus HTML-Apps? */
+export function onlyHtmlApps(resolved: Array<{ modules: Array<{ type?: string }> }>): boolean {
+  const modules = resolved.flatMap((r) => r.modules);
+  return modules.length > 0 && modules.every((m) => m.type === 'htmlApp' || m.type === 'htmlAppUnit');
+}
+
+/**
+ * Modi eines Zugangs für diesen Inhalt. Eine HTML-App führt selbst durch ihre
+ * Aufgaben: Die Eule kennt deren Inhalt nicht, Lernen und Quiz-Arena passen auch
+ * nicht. Links nur mit HTML-Apps sind deshalb immer Quizlinks, das gilt auch für
+ * schon ausgeteilte. Die Klassenarbeit hat ihren eigenen Zugang und bleibt.
+ */
+export function effectiveModes(link: TopicLink, access: LinkAccess, resolved: Array<{ modules: Array<{ type?: string }> }>): LinkMode[] {
+  const modes = modesFor(link, access);
+  if (access !== 'practice' || modes.includes('exam') || !onlyHtmlApps(resolved)) return modes;
+  return ['quiz'];
+}
+
 export const DEFAULT_CONTEST_SETTINGS: LinkContestSettings = {
   maxPoints: 1000,
   defaultSeconds: 30,
@@ -274,6 +292,7 @@ export class LinksService {
         const resolved = await this.resolveModules(link, { exam: (link.modes || []).includes('exam') });
         return {
           ...this.publicShape(link, classes.get(link.classId || '')),
+          ...(onlyHtmlApps(resolved) && !link.modes.includes('exam') ? { modes: ['quiz'] as LinkMode[] } : {}),
           ...this.syncInfo(link, links, byId, classes),
           url: this.urlToken(link, byId) ? `${base}/?l=${this.urlToken(link, byId)}` : null,
           topicCount: resolved.length,
@@ -471,7 +490,7 @@ export class LinksService {
       name: link.name,
       className: (await this.classesService.findById(link.classId))?.name ?? null,
       active: link.active,
-      modes: modesFor(link, access),
+      modes: effectiveModes(link, access, resolved),
       moduleCount: resolved.reduce((n, r) => n + r.modules.length, 0),
       viaQuick: !!variant,
       quick: quick ? await this.quickInfo(link) : null,

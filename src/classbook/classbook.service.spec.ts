@@ -70,6 +70,46 @@ describe('Klassennotizbuch: Anmeldung', () => {
   });
 });
 
+describe('Klassennotizbuch: Blatt zu einem gelöschten Dokument', () => {
+  const spec = { content: [{ type: 'text', text: 'Aufgabe' }, { type: 'solution', blocks: [{ type: 'text', text: 'Geheim' }] }] };
+  const work = (over = {}) => ({ id: 'w1', classId: 'c1', studentId: 's1', moduleId: 'weg', moduleTitle: 'Blatt', access: 'practice', versionId: 'v1', data: { paths: [1] }, updatedAt: new Date(), ...over });
+  const run = async ({ w = work(), kind = 'arbeitsblatt', hidden = false, modules = [] as any[], name = 'Anna', other = false } = {}) => {
+    const { svc, notebooks, modules: mods } = setup({ firstLogin: false });
+    (svc as any).workRepo.rows.push(w);
+    (svc as any).versionRepo = repo([{ id: 'v1', title: 'Blatt', content: { kind, spec }, embedded: [{ id: 'q' }] }]);
+    mods.rows.push(...modules);
+    notebooks.rows[0].studentHidden = hidden;
+    const { ticket } = await svc.login('kb', { name, pin: '1234' });
+    if (other) (svc as any).workRepo.rows[0].studentId = 'andere';
+    return svc.goneWork('kb', { ticket, workId: 'w1' });
+  };
+  it('zeigt die Fassung mit dem Stand des Schülers, ohne Lösungen', async () => {
+    const res: any = await run();
+    expect(res.data).toEqual({ paths: [1] });
+    expect(res.embedded).toEqual([{ id: 'q' }]);
+    expect(JSON.stringify(res.content)).not.toContain('Geheim');
+    expect(JSON.stringify(res.content)).toContain('Aufgabe');
+  });
+  it('kein fremdes Blatt, keine Klassenarbeit, nichts bei ausgeblendetem Klassennotizbuch', async () => {
+    await expect(run({ other: true })).rejects.toThrow('nicht mehr verfügbar');
+    await expect(run({ w: work({ access: 'exam' }) })).rejects.toThrow('nicht mehr verfügbar');
+    await expect(run({ kind: 'klassenarbeit' })).rejects.toThrow('nicht mehr verfügbar');
+    await expect(run({ hidden: true })).rejects.toThrow('nicht mehr verfügbar');
+  });
+  it('solange das Dokument besteht, gilt der gewöhnliche Weg mit allen Schaltern', async () => {
+    await expect(run({ modules: [{ id: 'weg' }] })).rejects.toThrow('nicht mehr verfügbar');
+  });
+  it('Startseite markiert das Blatt', async () => {
+    const { svc, modules: mods } = setup();
+    (svc as any).workRepo.rows.push(work(), work({ id: 'w2', moduleId: 'da', linkId: 'l1', versionId: null }));
+    mods.find = async () => [{ id: 'da' }] as any;
+    const { ticket } = await svc.login('kb', { name: 'Anna', pin: '1234' });
+    const list = (await svc.home('kb', ticket)).works;
+    expect(list.find((x: any) => x.workId === 'w1')).toMatchObject({ gone: true, viewable: true });
+    expect(list.find((x: any) => x.workId === 'w2')).toMatchObject({ gone: false, viewable: false });
+  });
+});
+
 describe('Klassennotizbuch: Startseite', () => {
   it('bestätigter Schüler: Aufgaben mit Stand, Ergebnisse', async () => {
     const { svc } = setup();

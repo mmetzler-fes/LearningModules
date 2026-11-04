@@ -201,6 +201,13 @@ export class PublicClassbookController {
     return this.classbook.enter(token, body);
   }
 
+  /** `{ ticket, workId }` → eigenes Blatt, dessen Dokument gelöscht ist: nur zum Lesen, ohne Lösungen. */
+  @Post(':token/gone-work')
+  @HttpCode(200)
+  goneWork(@Param('token') token: string, @Body() body: { ticket?: string; workId?: string }) {
+    return this.classbook.goneWork(token, body);
+  }
+
   /** `{ ticket }` → `{ current, hasNext }` – Stand im 📍-Pfad, ohne ihn zu verändern. */
   @Post(':token/weiter')
   @HttpCode(200)

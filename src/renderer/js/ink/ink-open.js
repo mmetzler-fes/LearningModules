@@ -302,6 +302,20 @@ export async function openDocumentInk({ mode, mod, up = null, embedModule = null
 }
 
 /**
+ * Eigenes Blatt zu einem gelöschten Dokument (Schüler, Antwort von …/gone-work): die gespeicherte
+ * Fassung ohne Lösungen. Gespeichert wird nichts.
+ */
+export async function openGoneWork(work) {
+  return openDocumentInk({
+    mode: 'student',
+    mod: { id: work.moduleId, title: work.title, type: 'document', content: work.content },
+    embedModule: (id) => (work.embedded || []).find((m) => m.id === id) || null,
+    title: `${work.title} (nur zum Ansehen)`,
+    store: { label: 'nicht (nur Ansicht)', load: async () => work.data, save: async () => true },
+  });
+}
+
+/**
  * Bearbeitung eines Schülers ansehen (Lehrkraft): das Dokument mit seiner
  * Beschriftung. Geändert wird dabei nichts – der Stand gehört dem Schüler.
  * `work`: Eintrag aus GET /api/work/:id; `api`: die Api der App.

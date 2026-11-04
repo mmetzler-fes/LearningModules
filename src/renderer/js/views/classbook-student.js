@@ -328,7 +328,11 @@ export class ClassbookStudent {
           ${r.maxScore ? `<span class="result-score ${pctClass(r.percentage)}">${r.percentage ?? Math.round((r.score / r.maxScore) * 100)} %</span>` : '<span class="hint">ohne Wertung</span>'}</li>`).join('')}</ul>`
       : '<p class="hint">Noch keine Ergebnisse.</p>';
     const works = data.works.length
-      ? `<ul class="cb-list">${data.works.map((w) => `<li><button type="button" class="cb-unit" data-start="${escapeAttr(w.linkId)}" data-module="${escapeAttr(w.moduleId)}">📄 ${escapeHtml(w.title)}</button>
+      ? `<ul class="cb-list">${data.works.map((w) => `<li>${w.gone
+        ? (w.viewable
+          ? `<button type="button" class="cb-unit" data-gone-work="${escapeAttr(w.workId)}" title="Das Dokument gibt es nicht mehr. Dein Blatt lässt sich noch ansehen.">📄 ${escapeHtml(w.title)}</button> <span class="hint">nur zum Ansehen</span>`
+          : `<span class="cb-unit">📄 ${escapeHtml(w.title)}</span> <span class="hint">nicht mehr verfügbar</span>`)
+        : `<button type="button" class="cb-unit" data-start="${escapeAttr(w.linkId)}" data-module="${escapeAttr(w.moduleId)}">📄 ${escapeHtml(w.title)}</button>`}
           <span class="hint">${escapeHtml(when(w.at))}</span></li>`).join('')}</ul>`
       : '<p class="hint">Noch keine Blätter – sie entstehen, wenn du ein Dokument mit „✍️ Mit Stift bearbeiten“ öffnest.</p>';
     const EXAM_STATE = {
@@ -377,6 +381,18 @@ export class ClassbookStudent {
       this._login();
     });
     el.querySelectorAll('[data-start]').forEach((btn) => btn.addEventListener('click', () => this._enter(btn.dataset.start, btn.dataset.mode || null, btn.dataset.module || null, btn)));
+    el.querySelectorAll('[data-gone-work]').forEach((btn) => btn.addEventListener('click', async () => {
+      btn.disabled = true;
+      const work = await post(`${encodeURIComponent(this.token)}/gone-work`, { ticket: classbookSession()?.ticket, workId: btn.dataset.goneWork }).catch(() => null);
+      try {
+        if (!work?.content) throw new Error(work?.message || 'Dieses Blatt ist nicht mehr verfügbar.');
+        const { openGoneWork } = await import('../ink/ink-open.js');
+        await openGoneWork(work);
+      } catch (err) {
+        this.app.showToast(err.message, 'error');
+      }
+      btn.disabled = false;
+    }));
     // ➡️ Weiter: einen Schritt im 📍-Pfad vor, dann neu laden – blockiert dabei nichts, alle anderen Module bleiben wählbar.
     el.querySelector('[data-weiter]')?.addEventListener('click', async (e) => {
       e.preventDefault();

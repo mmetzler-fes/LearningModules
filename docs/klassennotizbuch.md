@@ -78,7 +78,8 @@ angelegte Bereiche bleiben stehen.
 
 **Im Notizbuch gelöscht:** Ein gelöschtes Lernthema verschwindet beim nächsten Öffnen des Klassennotizbuchs auch hier, leere aus dem
 Notizbuch übernommene Bereiche ebenso. Ergebnisse und ausgefüllte Blätter bleiben: Du siehst sie unter 👥 Schülerdaten mit der Fassung,
-die der Schüler vor sich hatte. Bestehen bleiben Klassenarbeiten, selbst angelegte Bereiche und alles, was nur ausgeschaltet ist.
+die der Schüler vor sich hatte. Auch der Schüler kann sein Blatt unter „Meine Blätter“ weiter ansehen, ohne Lösungen und ohne zu speichern;
+Blätter aus Klassenarbeiten sind davon ausgenommen. Bestehen bleiben Klassenarbeiten, selbst angelegte Bereiche und alles, was nur ausgeschaltet ist.
 
 Zuweisen geht auf zwei Wegen: im **📓 Notizbuch** über das Kontextmenü
 (⋯ oder Rechtsklick) eines Lernthemas, Books, Bereichs oder Abschnitts

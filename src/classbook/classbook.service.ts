@@ -1,7 +1,8 @@
 import { ShopOffer } from '../core/entities/shop-offer.entity';
+import { DocumentVersion } from '../core/entities/document-version.entity';
 import { TopicQuickLink } from '../core/entities/topic-quick-link.entity';
 import { HtmlAppState } from '../core/entities/html-app-state.entity';
-import { contentOf, hasSolutionBlocks } from '../core/public/student-view';
+import { contentOf, hasSolutionBlocks, forStudents } from '../core/public/student-view';
 import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, IsNull, Repository } from 'typeorm';
@@ -79,6 +80,7 @@ export class ClassbookService {
     @InjectRepository(HtmlAppState) private readonly appStateRepo: Repository<HtmlAppState>,
     @InjectRepository(ShopOffer) private readonly offerRepo: Repository<ShopOffer>,
     @InjectRepository(TopicQuickLink) private readonly quickRepo: Repository<TopicQuickLink>,
+    @InjectRepository(DocumentVersion) private readonly versionRepo: Repository<DocumentVersion>,
   ) {}
 
   /** Notizbuch der Klasse – beim ersten Aufruf angelegt; ältere bekommen hier ihren Klassencode. */
@@ -1248,8 +1250,10 @@ export class ClassbookService {
     }));
     const results = confirmed ? await this.resultRepo.find({ where: { classId: klasse.id, studentId: t.s }, order: { createdAt: 'DESC' } }) : [];
     const works = confirmed
-      ? await this.workRepo.find({ where: { classId: klasse.id, studentId: t.s }, select: ['id', 'linkId', 'moduleId', 'moduleTitle', 'access', 'updatedAt'], order: { updatedAt: 'DESC' } })
+      ? await this.workRepo.find({ where: { classId: klasse.id, studentId: t.s }, select: ['id', 'linkId', 'moduleId', 'moduleTitle', 'access', 'updatedAt', 'versionId'], order: { updatedAt: 'DESC' } })
       : [];
+    const workModuleIds = [...new Set(works.map((w) => w.moduleId))];
+    const existingDocs = new Set((workModuleIds.length ? await this.moduleRepo.find({ where: { id: In(workModuleIds) }, select: ['id'] }) : []).map((m) => m.id));
     return {
       className: klasse.name,
       name: t.n,
@@ -1277,7 +1281,7 @@ export class ClassbookService {
         id: r.id, linkName: r.linkName || '', mode: r.mode, score: r.score, maxScore: r.maxScore,
         percentage: r.payload?.percentage ?? null, at: r.createdAt,
       })),
-      works: works.filter((w) => w.access !== 'exam' && !veiled.has(w.linkId)).map((w) => ({ linkId: w.linkId, moduleId: w.moduleId, title: w.moduleTitle || 'Dokument', at: w.updatedAt })),
+      works: works.filter((w) => w.access !== 'exam' && !nb.studentHidden && !veiled.has(w.linkId)).map((w) => ({ linkId: w.linkId, moduleId: w.moduleId, workId: w.id, gone: !existingDocs.has(w.moduleId), viewable: !!w.versionId, title: w.moduleTitle || 'Dokument', at: w.updatedAt })),
     };
   }
 
@@ -1288,6 +1292,29 @@ export class ClassbookService {
   private openArena(links: TopicLink[]): { linkId: string; name: string } | null {
     const open = links.find((l) => (l.modes || []).includes('contest') && this.contest.isOpen(l.id));
     return open ? { linkId: open.id, name: open.name } : null;
+  }
+
+  /**
+   * Eigenes Blatt, dessen Dokument gelöscht ist: die Fassung, die der Schüler vor sich hatte, nur zum Lesen.
+   * Lösungen bleiben draußen, denn das 💡 der Klasse hing am gelöschten Modul. Blätter aus Klassenarbeiten gibt es
+   * hier nicht, und solange das Dokument besteht, gilt der gewöhnliche Weg mit allen Schaltern.
+   */
+  async goneWork(token: string, body: { ticket?: string; workId?: string }) {
+    const { nb, klasse, ticket: t, student } = await this.session(token, body?.ticket);
+    const unavailable = () => new NotFoundException('Dieses Blatt ist nicht mehr verfügbar.');
+    if (!student || student.status === 'pending' || nb.studentHidden) throw unavailable();
+    const work = await this.workRepo.findOne({ where: { id: String(body?.workId || ''), classId: klasse.id, studentId: t.s } });
+    if (!work || work.access === 'exam' || !work.versionId) throw unavailable();
+    if (await this.moduleRepo.count({ where: { id: work.moduleId } })) throw unavailable();
+    const version = await this.versionRepo.findOne({ where: { id: work.versionId } });
+    if (!version || contentOf({ content: version.content }).kind === 'klassenarbeit') throw unavailable();
+    return {
+      moduleId: work.moduleId,
+      title: version.title || work.moduleTitle || 'Dokument',
+      content: forStudents({ type: 'document', content: version.content }).content,
+      embedded: version.embedded || [],
+      data: work.data ?? null,
+    };
   }
 
   /** Für das Nachfragen der Schülerseite: `{ arena }` (siehe openArena). */

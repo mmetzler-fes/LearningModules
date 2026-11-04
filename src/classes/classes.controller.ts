@@ -108,6 +108,11 @@ export class ClassesController {
     return this.classesService.shareClass(id, req.user, body);
   }
 
+  @Get(':id/participant')
+  participant(@Param('id') id: string, @Request() req: any) {
+    return this.classesService.participant(id, req.user);
+  }
+
   @Get(':id/shares')
   async sharesOfClass(@Param('id') id: string, @Request() req: any) {
     return this.classesService.sharesOfClass(id, req.user);

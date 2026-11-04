@@ -116,15 +116,21 @@ ein eigenes Testpasswort (mindestens 4 Zeichen) einmal festlegen.
 
 ### Als Lehrkraft teilnehmen
 
-Ist im Browser eine Lehrkraft angemeldet (etwa in einer Fortbildung), zeigt
-die Eingabeseite eines Schülerlinks – Quick-Link, Klassenlink,
-Klassenbuch-Link – **👤 Als ‹Name› teilnehmen**: Der Name des Kontos wird
-eingesetzt und angemeldet. Danach gilt alles wie bei jedem Schüler: In einer
-offenen Klasse entsteht ein unbestätigter Eintrag, in einer strikten muss der
-Name in der Liste stehen; im Klassennotizbuch fragt die App wie üblich nach
-der PIN. Die Anmeldung als Lehrkraft bleibt bestehen. Das klappt auch in einem
-neuen Tab (die Seite fragt die offenen Tabs der App) – aber nur im selben
-Browser auf demselben Gerät, nicht über den QR-Code am Handy.
+Ist im Browser eine Lehrkraft angemeldet (etwa in einer Fortbildung), steht auf der Eingabeseite eines Klassenlinks oder
+Klassenbuch-Links schon ihr Name, wenn sie damit in die Klasse kommt. Abschicken bleibt ihr Schritt, allein durch das Öffnen
+entsteht kein Eintrag. Danach gilt alles wie bei jedem Schüler.
+
+| Lage | Auf der Eingabeseite |
+|---|---|
+| **Offene Klasse** | Name steht drin, die Lehrkraft der Klasse bestätigt den unbestätigten Eintrag |
+| **Name steht in der Liste** | Name steht drin, auch in einer strikten Klasse; dazu die PIN wie bei jedem Schüler |
+| **Strikte Klasse, nicht in der Liste** | kein Name, Hinweis: Die Lehrkraft der Klasse kann dich eintragen |
+| **Eigene Klasse** | kein Name, Hinweis auf den 🧪 Testschüler; sonst stünde man selbst in der Schülerliste |
+
+Das klappt auch in einem neuen Tab (die Seite fragt die offenen Tabs der App), aber nur im selben Browser auf demselben Gerät,
+nicht über den QR-Code am Handy. **Wichtig:** Der Start einer Aufgabe löscht die gespeicherte Lehrer-Anmeldung in diesem Browser.
+Wer danach weiter als Lehrkraft arbeiten will, meldet sich neu an oder nimmt für die Aufgabe ein privates Fenster oder ein anderes
+Gerät; dort steht der Name nicht schon im Feld.
 
 ## Klassen einlesen (SchülerLernTool)
 

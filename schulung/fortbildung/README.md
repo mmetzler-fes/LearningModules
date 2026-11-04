@@ -69,8 +69,11 @@ Teilnehmenden deren **Klassenbuch-Link** (QR am Beamer): Dann siehst du ihren
 Fortschritt live in 📡 Live und 📊 Ergebnisübersicht – genau das, was sie
 danach selbst nutzen. Ihre Namen fügst du dafür vorab in die Liste ein (oder
 lässt die Klasse offen und bestätigst sie). Sind die Teilnehmenden in der App
-angemeldet, genügt auf der Eingabeseite **👤 Als ‹Name› teilnehmen** – kein
-Namen-Tippen, keine Tippfehler.
+angemeldet, steht ihr Name auf der Eingabeseite schon im Feld – kein
+Namen-Tippen, keine Tippfehler. Das gilt nur im selben Browser, und der Start
+einer Aufgabe löscht dort die gespeicherte Lehrer-Anmeldung. Wer danach weiter
+als Lehrkraft arbeiten will, meldet sich neu an oder tippt den Namen in einem
+privaten Fenster.
 
 ## Als Werbung teilen – mit Test-Zugang
 

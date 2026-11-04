@@ -1146,7 +1146,7 @@ export class ClassbookService {
 
   async info(token: string) {
     const { nb, klasse, owner } = await this.byToken(token);
-    return { className: klasse.name, teacher: owner.displayName || '', firstLoginOpen: firstLoginOpen(nb.firstLoginUntil) };
+    return { classId: klasse.id, className: klasse.name, teacher: owner.displayName || '', firstLoginOpen: firstLoginOpen(nb.firstLoginUntil) };
   }
 
   /**

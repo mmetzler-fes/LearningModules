@@ -189,9 +189,7 @@ export class ClassbookStudent {
     el.querySelector('#cbToList')?.addEventListener('click', () => this.showList());
     const form = el.querySelector('#cbLoginForm');
     // Angemeldete Lehrkraft (Fortbildung): mit ihrem Namen – PIN wie jeder Schüler.
-    void offerTeacherName(el.querySelector('#cbName'), () => {
-      if (info.firstLoginOpen) form.requestSubmit(); else el.querySelector('#cbPin').focus();
-    });
+    void offerTeacherName(el.querySelector('#cbName'), info.classId, () => el.querySelector('#cbPin').focus());
     // Kein Pflichtfeld: Ob es ohne PIN geht (Erstanmeldung), entscheidet der Server.
     (askTest ? el.querySelector('#cbTest') : name && askPin ? el.querySelector('#cbPin') : el.querySelector('#cbName')).focus();
     form.addEventListener('submit', async (e) => {

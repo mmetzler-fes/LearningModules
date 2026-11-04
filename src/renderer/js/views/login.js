@@ -398,7 +398,7 @@ export class LoginView {
       nameGroup?.parentNode.insertBefore(known, nameGroup);
     } else if (!anonymous || wantsFreeName) {
       nameInput?.focus();
-      if (!anonymous) void offerTeacherName(nameInput, () => document.getElementById('linkEntryForm')?.requestSubmit());
+      if (!anonymous) void offerTeacherName(nameInput, info.classId, () => document.querySelector('#linkEntryForm button[type="submit"]')?.focus());
     }
     // Testschüler der Lehrkraft: Das Feld erscheint erst, wenn der Server danach fragt.
     const testGroup = document.getElementById('linkEntryTestPwGroup');

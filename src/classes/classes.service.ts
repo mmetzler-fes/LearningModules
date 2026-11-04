@@ -25,6 +25,7 @@ import { planStudentImport, nameKey, ImportRow } from './student-import';
 import { matchStudent, splitTypedName, normalizeName } from './name-match';
 import { isExpired, deleteAfter, oldestKeptYear } from './retention';
 import { shortName } from './short-name';
+import { participantRelation, ParticipantRelation } from './participant';
 import { hashTestPassword, isTestName, testLabel, testStudentId, verifyTestPassword, MIN_TEST_PASSWORD } from './test-student';
 
 const SCHOOL_YEAR_KEY = 'school_year';
@@ -293,6 +294,16 @@ export class ClassesService implements OnApplicationBootstrap, OnModuleDestroy {
       name: `${created.firstName} ${created.lastName}`.trim(),
       shortName: shortName(created, [...students, created]),
     };
+  }
+
+  /** Für die Eingabeseite eines Klassenlinks: Kann diese Lehrkraft mit ihrem Namen hinein? Verrät nichts über andere Namen. */
+  async participant(classId: string, user: any): Promise<{ name: string; relation: ParticipantRelation }> {
+    const klasse = await this.classRepo.findOne({ where: { id: classId } });
+    if (!klasse) throw new NotFoundException('Klasse nicht gefunden.');
+    const me = await this.userRepo.findOne({ where: { id: user.userId } });
+    const name = String(me?.displayName || '').trim();
+    const students = await this.studentRepo.find({ where: { classId } });
+    return { name, relation: participantRelation(user.userId, name, klasse, students) };
   }
 
   // ---- Testschüler ----

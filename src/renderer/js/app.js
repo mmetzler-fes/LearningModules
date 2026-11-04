@@ -181,7 +181,7 @@ class App {
 
   /**
    * Ein Schülerlink in einem anderen Tab fragt, ob hier eine Lehrkraft
-   * angemeldet ist („Als ‹Name› teilnehmen“, views/teacher-as-student.js).
+   * angemeldet ist (ihr Name steht dann schon im Feld, views/teacher-as-student.js).
    */
   _answerAuthAsk() {
     if (typeof BroadcastChannel === 'undefined') return;

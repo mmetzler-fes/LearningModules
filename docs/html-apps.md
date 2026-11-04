@@ -222,17 +222,138 @@ Vertrauen in die Lehrkraft: Bis ein Admin eine solche App bemerkt und sperrt, ka
 
 ## Prompt für eine KI
 
-Wer eine App von einer KI bauen oder umbauen lässt, gibt ihr diese Datei mit:
+Wer eine vorhandene App von einer KI umbauen lässt, gibt ihr diesen Prompt zusammen mit der HTML-Datei.
+Das Ergebnis in LearningModules hochladen; Meldungen aus Prüfung oder Prüflauf gehen an die KI zurück.
+Eine große Datei (mehrere 100 KB) passt oft nicht in ein Chat-Fenster, dafür eignet sich ein Werkzeug, das direkt an Dateien arbeitet.
 
-```text
-Baue die App als eine einzige HTML-Datei ohne Netzzugriff nach html-apps.md, Schnittstelle lmApp 2.
-Steckbrief im <head> mit festen IDs: Abschnitte und Schritte, je Schritt genau eine prüfbare Aufgabe
-(kind: task) oder eine Infoseite (kind: info). In LM.start genau den Schritt init.step aufbauen, ohne
-eigene Navigation. LM.answer bei jeder Änderung und gleich beim Start aufrufen; unberührt darf eine Aufgabe
-nicht als richtig gelten. Stand mit LM.saveState speichern. Halte die Regeln aus „Was geprüft wird“ ein:
-kein onclick="…", keine externen Adressen, kein fetch, keine iframes, kein location.
-Eine von der App eingetragene Musterlösung zählt nicht als gelöst. Dateien nur über LM.download.
-```
+````text
+Baue die angehängte HTML-App für LearningModules um (Schnittstelle lmApp 2). Liefere am Ende die
+vollständige Datei, keine Ausschnitte. Bewahre Inhalte, Aufgaben, Bewertungslogik und Gestaltung,
+soweit die Regeln es zulassen.
+
+## Grundidee
+LearningModules führt: Es zeigt Weiter, Prüfen, Lösung und Punkte und ruft die App je Schritt neu auf.
+Die App zeigt genau einen Schritt und meldet ihre Antwort.
+- Keine eigene Navigation zwischen den Schritten: keine Reiter, Menüs, Weiter-Knöpfe oder Gesamtauswertung.
+- Jeder Schritt lädt die App neu. Was bleiben soll, gehört in LM.saveState.
+
+## 1. Steckbrief
+Genau einmal im <head>, als gültiges JSON:
+
+<script type="application/lm-app+json">
+{ "lmApp": 2, "id": "meine-app", "version": "1.0", "title": "Meine App",
+  "units": [
+    { "id": "grundlagen", "title": "Grundlagen", "steps": [
+      { "id": "einfuehrung", "title": "Einführung", "kind": "info" },
+      { "id": "aufgabe-1", "title": "Aufgabe 1", "kind": "task" } ] } ] }
+</script>
+
+- units sind Abschnitte (höchstens 30). Die Lehrkraft schaltet sie je Klasse ein oder aus.
+- steps stehen in Anzeigereihenfolge (zusammen höchstens 500). Ein task ist genau eine prüfbare Aufgabe,
+  ein info eine Seite zum Lesen, die mit dem Ansehen zählt.
+- Alle id: nur a-z, 0-9 und -, höchstens 40 Zeichen. Schritt-IDs sind in der ganzen App einmalig.
+- IDs ändern sich nie mehr und hängen an der Aufgabe, nicht am Listenplatz. Sonst rutschen Ergebnisse.
+- Der Steckbrief ist fest: Alle Schritte müssen vorab feststehen. Zufallswerte innerhalb einer Aufgabe
+  sind erlaubt, zufällig erzeugte Aufgaben als eigene Schritte nicht.
+
+## 2. Schnittstelle
+Das Objekt LM stellt der Server bereit. Füge die Bridge nicht selbst ein.
+
+LM.start((init) => { ... })   Pflicht. init.step = { unit, id, title, kind }, init.state = letzter Stand
+                              oder null, init.run = "quiz" | "learn" | "companion".
+                              Baue hier genau den Schritt init.step auf.
+LM.answer({ isCorrect, points, userAnswer, correctAnswer })
+                              Pflicht bei kind "task": gleich beim Aufbau und bei jeder Änderung,
+                              immer der Gesamtstand. points 0 bis 1 für Teilpunkte (optional),
+                              Texte höchstens 500 Zeichen.
+LM.saveState(daten)           JSON, höchstens 256 KB, ein gemeinsamer Stand für alle Schritte.
+LM.download(name, blob)       Nur .xlsx .csv .pdf .png .jpg .txt, höchstens 10 MB.
+LM.onReveal(fn)               Lösung zeigen (Lernmodus, Joker).
+LM.onLock(fn)                 fn(true) Eingabe sperren, fn(false) wieder frei.
+LM.onCheck(fn)                Der Schüler hat Prüfen gedrückt: Rückmeldung zeigen.
+LM.onFlush(fn)                Offene Eingabe abschließen und melden, z. B. eine Zelle im Bearbeiten.
+
+Bewertung:
+- Unberührt darf eine Aufgabe nie als richtig gelten (isCorrect: false beim ersten Melden).
+- Eine von der App eingetragene Musterlösung zählt nicht als gelöst.
+- Bei init.run === "companion" jeden Versuch über LearningModules laufen lassen: eigene Prüf- und
+  Lösungsknöpfe ausblenden und die Rückmeldung erst in LM.onCheck zeigen.
+- Eigene Gesamtpunkte oder Noten entfallen, das übernimmt LearningModules.
+
+Gerüst:
+let stand = { eingaben: {} };
+const app = document.getElementById('app');
+function zeigeAufgabe(step) {
+  app.innerHTML = '<p>Wie viel ist 2 + 3?</p><input id="e" inputmode="numeric"><div id="info"></div>';
+  const feld = document.getElementById('e');
+  feld.value = stand.eingaben[step.id] || '';
+  const melde = () => LM.answer({ isCorrect: feld.value.trim() === '5', userAnswer: feld.value, correctAnswer: '5' });
+  feld.addEventListener('input', () => { stand.eingaben[step.id] = feld.value; LM.saveState(stand); melde(); });
+  LM.onReveal(() => { document.getElementById('info').textContent = 'Lösung: 5'; });
+  LM.onLock((gesperrt) => { feld.disabled = gesperrt; });
+  LM.onFlush(melde);
+  melde();
+}
+LM.start((init) => {
+  if (init.state) stand = init.state;
+  if (init.step.kind === 'info') app.textContent = init.step.title;
+  else zeigeAufgabe(init.step);
+});
+
+## 3. Was eine automatische Prüfung ablehnt
+Beim Hochladen wird der Code wirklich geparst, auch eingebettete Bibliotheken. Halte das ein:
+
+HTML:
+- Nicht erlaubt: iframe, frame, object, embed, link, base, meta http-equiv, <script src>,
+  <script type="module">.
+- Kein on...= im HTML, auch nicht in HTML-Texten im Skript. Stattdessen addEventListener oder .onclick = fn.
+- Adressen: href nur "#sprungmarke", src und poster nur data:(image|audio|video|font). Keine Links nach außen.
+- CSS: url() nur mit data: oder #, kein @import.
+
+Skript:
+- Klassisches Skript, kein import/export. Alles steht direkt in der Datei, höchstens 20 Skripte.
+- Diese Namen dürfen nirgends vorkommen, auch nicht als eigene Variable oder Eigenschaft
+  (z. B. obj.location oder let location):
+  eval, Function, importScripts, Reflect, fetch, XMLHttpRequest, WebSocket, WebTransport, EventSource,
+  sendBeacon, Worker, SharedWorker, ServiceWorker, serviceWorker, RTCPeerConnection,
+  webkitRTCPeerConnection, RTCDataChannel, RTCIceCandidate, RTCSessionDescription, XSLTProcessor,
+  location, opener, defaultView, contentWindow, contentDocument, srcdoc.
+- window, self, globalThis, frames nur als window.name, nie als Wert, mit typeof oder mit berechnetem
+  Namen. Erlaubt: window.addEventListener(...). Abgelehnt: const w = window; typeof window; window[k].
+- document[k] mit berechnetem Namen, document.write, document.open, document.domain, window.open, open(),
+  with und import() sind nicht erlaubt.
+- Auch ein Text darf "javascript:" oder <iframe nicht enthalten. Umformulieren.
+- Keine Verschleierung, lesbarer Code: Eine Lehrkraft oder ein Admin muss den Quelltext lesen können.
+
+Zur Laufzeit gesperrt:
+- Netz jeder Art: CDNs, externe Schriften und Bilder, KI-Dienste. Alles als data: einbetten.
+- localStorage und Cookies: Zugriffe in try/catch setzen, sie werfen einen Fehler. LM.saveState nutzen.
+- Zwischenablage: den Text stattdessen im Dialog zeigen.
+- <a download> und neue Fenster: LM.download nutzen.
+- Nachträglich eingefügte Skripte, setTimeout mit Text und setAttribute('onclick', ...).
+Erlaubt: <canvas>, confirm(), window.print().
+
+Bibliotheken: Eingebettete Bibliotheken scheitern oft an fetch, location, typeof window oder einem Wrapper
+mit (window). Ersetze sie durch eigenen Code, wenn das mit wenig Aufwand geht. Nenne sonst, was geändert
+werden müsste. Nimm keinen Umweg, um eine Regel zu umgehen.
+
+## 4. Inhalt
+- Echte Klassenarbeiten und geheime Lösungen gehören nicht in die Datei: Der Quelltext ist für Schüler lesbar.
+- Teile, die nicht in das Schrittmodell passen (Gesamtauswertung, Lernstand, Prüfungsmodus, Einstellungsseiten),
+  lässt du weg oder machst daraus Infoseiten. Lösche keine Aufgaben stillschweigend.
+
+## 5. Vorgehen und Ausgabe
+Falls nötig, frage zuerst kurz nach. Sonst:
+1. Plan: Abschnitte und Schritte als Tabelle und was entfällt.
+2. Die vollständige, lauffähige HTML-Datei.
+3. Bericht: Was entfallen ist, was sich für den Schüler ändert, welche Bibliotheken ersetzt wurden, was du
+   nicht testen konntest.
+4. Selbstprüfung vor der Abgabe: Suche in der fertigen Datei nach jedem verbotenen Namen, nach on...=,
+   http:// und https://. XML-Namensräume in Text sind in Ordnung, echte Adressen nicht.
+
+Melde ich dir danach Fehler aus der Prüfung oder dem Prüflauf, behebe genau diese und liefere die ganze
+Datei erneut.
+````
 
 ## Beispiel: Excel-Lernapp
 

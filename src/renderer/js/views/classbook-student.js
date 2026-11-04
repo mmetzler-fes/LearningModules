@@ -1,5 +1,6 @@
 import { rememberStudent } from '../class-device.js';
 import { escapeHtml, escapeAttr } from '../utils.js';
+import { nestEmbedded } from '../../lm-editor/src/doc/doc-quiz.js';
 import { LINK_MODE_LABELS } from './login.js';
 import { offerTeacherName } from './teacher-as-student.js';
 import { scanQr } from './qr-scan.js';
@@ -261,11 +262,19 @@ export class ClassbookStudent {
       }).join('');
       // Module eingeklappt; beim 📍-Merker der Lehrkraft ist sein Lernthema offen.
       const marked = (t, u) => mk && mk.current.linkId === a.linkId && mk.current.topicId === t.id && (!u || mk.current.moduleId === u.id);
-      const unitRow = (t, u) => `
-            <li class="${marked(t, u) ? 'cb-marked' : ''}">${a.modes.length ? `<button type="button" class="cb-unit" data-start="${escapeAttr(a.linkId)}" data-module="${escapeAttr(u.id)}">` : '<span class="cb-unit">'}
+      const unitRow = (t, u, embedded = false, quizCount = 0) => `
+            <li class="${marked(t, u) ? 'cb-marked' : ''} ${embedded ? 'cb-embedded' : ''}">${a.modes.length ? `<button type="button" class="cb-unit" data-start="${escapeAttr(a.linkId)}" data-module="${escapeAttr(u.id)}">` : '<span class="cb-unit">'}
               ${marked(t, u) ? '📍 ' : ''}${TYPE_ICON[u.type] || '🧩'} ${escapeHtml(u.title || 'Aufgabe')}${a.modes.length ? '</button>' : '</span>'}
-              <span class="nb-meta">${escapeHtml((typeof H5P_TYPES !== 'undefined' && H5P_TYPES[u.type]?.name) || '')}</span>
+              <span class="nb-meta">${escapeHtml((typeof H5P_TYPES !== 'undefined' && H5P_TYPES[u.type]?.name) || '')}${quizCount ? ` · ${quizCount === 1 ? '1 Quiz' : `${quizCount} Quizze`}` : ''}</span>
               <span class="cb-state">${unitState(u)}</span></li>`;
+      // Wie im Lernnotizbuch: Quizze im Dokument stehen eingerückt darunter.
+      const unitRows = (t) => {
+        const { top, quizzesOf } = nestEmbedded(t.units);
+        return top.map((u) => {
+          const quizzes = quizzesOf.get(u.id) || [];
+          return unitRow(t, u, false, quizzes.length) + quizzes.map((q) => unitRow(t, q, true)).join('');
+        }).join('');
+      };
       const count = (units) => {
         const done = units.filter((u) => u.done || u.work).length;
         return data.pending ? `${units.length} Module` : `${done}/${units.length} erledigt`;
@@ -279,12 +288,12 @@ export class ClassbookStudent {
           <span class="nb-meta">${count(a.topics.flatMap((t) => t.units))}</span>
           ${only && marked(only) ? here : ''}
           <span class="cb-actions">${modes}</span></summary>
-        ${only ? `<ul class="cb-units">${only.units.map((u) => unitRow(only, u)).join('')}</ul>` : a.topics.map((t) => `<details class="cb-topic" ${marked(t) ? 'open' : ''}>
+        ${only ? `<ul class="cb-units">${unitRows(only)}</ul>` : a.topics.map((t) => `<details class="cb-topic" ${marked(t) ? 'open' : ''}>
           <summary class="cb-topic-title"><span class="cb-twisty" aria-hidden="true"></span>
             <span class="nb-icon" aria-hidden="true">📘</span><span class="cb-row-title" title="${escapeAttr(t.title)}">${escapeHtml(t.title)}</span>
             <span class="nb-meta">${count(t.units)}</span>
             ${marked(t) ? here : ''}</summary>
-          <ul class="cb-units">${t.units.map((u) => unitRow(t, u)).join('')}</ul>
+          <ul class="cb-units">${unitRows(t)}</ul>
         </details>`).join('')}
       </details>`;
     };

@@ -1,5 +1,6 @@
 import { escapeHtml, escapeAttr, copyClassbookOneNote, copyQrSvgAsPng, copyShareSheetAsPng } from '../utils.js';
 import { openTagDialog } from './tags.js';
+import { nestEmbedded } from '../../lm-editor/src/doc/doc-quiz.js';
 
 // ==================== KLASSENNOTIZBUCH (LEHRKRAFT) ====================
 //
@@ -640,15 +641,23 @@ export class ClassResultsView {
       title="${on ? `Schüler sehen ${what} – klicken zum Ausschalten` : `Ausgeschaltet – klicken, damit die Schüler ${what} sehen`}">${on ? '●' : '○'}</button>`;
     const mk = this._cb?.marker;
     const topicMarked = (t) => mk?.level === 'topic' && mk.linkId === link.id && mk.topicId === t.topicId;
+    // Wie im Lernnotizbuch: Quizze im Dokument stehen eingerückt darunter.
+    const nested = (modules) => {
+      const { top, quizzesOf } = nestEmbedded(modules);
+      return top.flatMap((m) => {
+        const quizzes = quizzesOf.get(m.id) || [];
+        return [{ m, embedded: false, quizCount: quizzes.length }, ...quizzes.map((q) => ({ m: q, embedded: true, quizCount: 0 }))];
+      });
+    };
     return `${link.available.map((t) => `<div class="cb-topic ${t.enabled ? '' : 'cb-item-off'}" data-topic="${escapeAttr(t.topicId)}">
         ${link.available.length === 1 ? '' : `<div class="cb-topic-title ${topicMarked(t) ? 'cb-marked' : ''}"><span class="nb-icon" aria-hidden="true">📘</span> <span class="cb-row-title">${escapeHtml(t.title)}</span>${t.notebookOff ? ' <span class="cb-reach no">🚫 im Lernnotizbuch aus</span>' : ''} ${sw(t.enabled, 'data-toggle-topic', 'dieses Lernthema')}
           ${topicMarked(t) ? this._markBadge() : ''}
           <button type="button" class="nb-menu-btn" data-topic-menu title="Aktionen" aria-label="Aktionen">⋯</button></div>`}
-        <ul class="cb-units">${t.modules.map((m) => {
+        <ul class="cb-units">${nested(t.modules).map(({ m, embedded, quizCount }) => {
           const marked = mk?.level === 'module' && mk.linkId === link.id && mk.moduleId === m.id;
-          return `<li class="${m.enabled ? '' : 'cb-item-off'} ${marked ? 'cb-marked' : ''}">
+          return `<li class="${m.enabled ? '' : 'cb-item-off'} ${marked ? 'cb-marked' : ''} ${embedded ? 'cb-embedded' : ''}">
           <button type="button" class="cb-unit" data-open-module="${escapeAttr(m.id)}" title="${link.classTopicId === t.topicId ? 'Bearbeiten' : 'Vorschau'}">${TYPE_ICON[m.type] || '🧩'} ${escapeHtml(m.title || 'Modul')}</button>
-          <span class="nb-meta">${escapeHtml((typeof H5P_TYPES !== 'undefined' && H5P_TYPES[m.type]?.name) || '')}</span>
+          <span class="nb-meta">${escapeHtml((typeof H5P_TYPES !== 'undefined' && H5P_TYPES[m.type]?.name) || '')}${quizCount ? ` · ${quizCount === 1 ? '1 Quiz' : `${quizCount} Quizze`}` : ''}</span>
           ${m.notebookOff ? '<span class="cb-reach no">🚫 im Lernnotizbuch aus</span>' : ''}
           ${m.viaDoc ? '<span class="nb-status on cb-via-doc" title="In ein eingeschaltetes Dokument eingebettet – kommt mit ihm. Mit ○ am Dokument ist es aus.">●</span>'
             : sw(m.enabled, `data-toggle-module="${escapeAttr(m.id)}"`, 'dieses Modul')}

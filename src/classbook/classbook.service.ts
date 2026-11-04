@@ -38,12 +38,13 @@ import { newClassCode, normalizeClassCode, formatClassCode, endOfDay, firstLogin
 const practiceModes = (link: TopicLink) => PRACTICE_MODES.filter((m) => (link.modes || []).includes(m));
 
 /** Module der Übersicht: je Modul eines, mit seinen Submodulen. */
-function unitsOf(modules: LearningModule[]): Array<Unit & { title: string; type: string; appRoot?: string; appUnit?: string }> {
-  return modules.flatMap((m) => {
+type OverviewUnit = Unit & { title: string; type: string; quizIds?: string[]; appRoot?: string; appUnit?: string };
+function unitsOf(modules: LearningModule[]): OverviewUnit[] {
+  return modules.flatMap((m): OverviewUnit[] => {
     const kids: LearningModule[] = (m as any).subModules || [];
     // Eine HTML-App zeigt je Abschnitt eine Spalte.
     if (m.type === 'htmlApp' && kids.length) return kids.map((k) => ({ id: k.id, title: k.title || '', type: k.type, ids: [k.id], appRoot: m.id, appUnit: contentOf(k).unit }));
-    return [{ id: m.id, title: m.title || '', type: m.type, ids: [m.id, ...kids.map((s) => s.id)] }];
+    return [{ id: m.id, title: m.title || '', type: m.type, ids: [m.id, ...kids.map((s) => s.id)], quizIds: embeddedQuizIds(m) }];
   });
 }
 
@@ -148,7 +149,7 @@ export class ClassbookService {
           contest: !appsOnly && (link.modes || []).includes('contest'),
         };
       })(),
-      topics: resolved.map((r) => ({ id: r.topic.id, title: r.topic.title, units: unitsOf(r.modules).map(({ id, title, type }) => ({ id, title, type })) })),
+      topics: resolved.map((r) => ({ id: r.topic.id, title: r.topic.title, units: unitsOf(r.modules).map(({ id, title, type, quizIds }) => ({ id, title, type, quizIds })) })),
       resolved,
     };
   }
@@ -236,7 +237,7 @@ export class ClassbookService {
           return {
             ...t,
             enabled: !!entry && t.modules.some((m) => moduleOn(entry, m)),
-            modules: t.modules.map(({ embeds: _e, ...m }) => ({ ...m, enabled: moduleOn(entry, m) || viaDoc.has(m.id), viaDoc: !moduleOn(entry, m) && viaDoc.has(m.id) })),
+            modules: t.modules.map(({ embeds, ...m }) => ({ ...m, quizIds: embeds, enabled: moduleOn(entry, m) || viaDoc.has(m.id), viaDoc: !moduleOn(entry, m) && viaDoc.has(m.id) })),
           };
         }),
       };

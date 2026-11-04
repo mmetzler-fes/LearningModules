@@ -80,6 +80,15 @@ describe('Klassennotizbuch: Startseite', () => {
     expect(home.results).toHaveLength(1);
   });
 
+  it('nennt die Quizze im Dokument, damit sie darunter eingerückt stehen', async () => {
+    const { svc } = setup();
+    const doc = { id: 'd1', type: 'document', title: 'Blatt', orderIndex: 1, content: { spec: { content: [{ type: 'quiz', module: 'm1' }] } } };
+    (svc as any).links.resolveModules = async () => [{ topic: { id: 't', title: 'Strom' }, modules: [QUIZ, doc] }];
+    const { ticket } = await svc.login('kb', { name: 'Anna', pin: '1234' });
+    const units = (await svc.home('kb', ticket)).assignments[0].topics[0].units;
+    expect(units.find((u: any) => u.id === 'd1').quizIds).toEqual(['m1']);
+  });
+
   it('unbestätigt: Aufgaben ja, eigene Daten nein', async () => {
     const { svc } = setup();
     const { ticket, pending } = await svc.login('kb', { name: 'Neu' });

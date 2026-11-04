@@ -517,7 +517,7 @@ export class NotebooksView {
     const m = item.mirror;
     const items = [
       { label: '📒 Klassennotizbuch zuweisen…', title: 'In das Klassennotizbuch einer oder mehrerer Klassen – die Schüler finden es dort mit Name und PIN', run: () => this._assignToClassbook({ kind: 'node', node: { id: item.id, title: m.title, kind: m.kind } }) },
-      { label: '🔗 Quick-Link', title: 'Ein Link mit allen Lernthemen darin – Schüler wählen ihre Klasse', run: () => this._quickLinkNode({ id: item.id, title: m.title, kind: m.kind }) },
+      { label: '🔗 Quick-Link', title: 'Anonymer Link + QR-Code für alle Lernthemen darin – ohne Anmeldung, nichts wird gespeichert', run: () => this._quickLinkNode({ id: item.id, title: m.title, kind: m.kind }) },
       { label: '↔️ Verschieben nach…', run: () => this._moveTopicDialog(item) },
     ];
     // Das Nutzungsrecht zu einer Kopie gehört zur Kopie.
@@ -639,7 +639,7 @@ export class NotebooksView {
     items.push({ label: '➕ Neues Lernthema', run: () => this._createTopic(node.id) });
     items.push('-');
     items.push({ label: '📒 Klassennotizbuch zuweisen…', title: 'In das Klassennotizbuch einer oder mehrerer Klassen – die Schüler finden es dort mit Name und PIN', run: () => this._assignToClassbook({ kind: 'node', node }) });
-    items.push({ label: '🔗 Quick-Link', title: 'Ein Link mit allen Lernthemen darin – Schüler wählen ihre Klasse', run: () => this._quickLinkNode(node) });
+    items.push({ label: '🔗 Quick-Link', title: 'Anonymer Link + QR-Code für alle Lernthemen darin – ohne Anmeldung, nichts wird gespeichert', run: () => this._quickLinkNode(node) });
     items.push({ label: '🛒 Teilen', title: 'Im Shop anbieten – Käufer mit „Use“ bekommen auch, was später dazukommt', run: () => this.app.shopView.openForNode(node.id) });
     items.push({ label: '🧩 Module auswählen und anbieten…', run: () => this._offerSelection({ nodeId: node.id }) });
     items.push({ label: '✅ Alle Lernthemen freigeben', run: () => this._setSelected(node, true) });

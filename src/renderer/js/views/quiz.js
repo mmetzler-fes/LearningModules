@@ -405,6 +405,7 @@ export class QuizView {
   }
 
   _endCompanion() {
+    document.body.classList.remove('html-app-large');
     if (this._companion) this._companion.unmount();
     this._companion = null;
     document.body.classList.remove('companion-run');
@@ -428,6 +429,8 @@ export class QuizView {
     const { modules, currentIndex } = qs;
     const mod = modules[currentIndex];
     const typeDef = H5P_TYPES[mod.type] || {};
+    // „Groß“ gilt nur, solange eine HTML-App zu sehen ist; ihr nächster Schritt setzt es wieder.
+    document.body.classList.remove('html-app-large');
     this._taskTimer?.show(currentIndex);
     const progress = (currentIndex / modules.length) * 100;
     // Im Lernmodus bleibt eine schon gezeigte Lösung beim Zurückblättern stehen.

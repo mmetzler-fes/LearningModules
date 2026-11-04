@@ -1918,6 +1918,13 @@ body {
   margin-left: 8px;
 }
 
+/* HTML-App „Groß“ im Durchlauf: kein Kopf im Modul, keine Abstände, die App füllt die Fläche über der Weiter-Zeile.
+   Die Seitenleiste bleibt nur, wenn die Eule darin sitzt. */
+body.html-app-large .module-preview-header,
+body.html-app-large:not(.companion-run) .sidebar { display: none; }
+body.html-app-large .quiz-actions { margin-top: 8px; padding-top: 8px; }
+body.html-app-large #quizModuleContainer { padding: 4px 8px !important; }
+body.html-app-large .quiz-module-view > div { max-width: none !important; }
 .quiz-actions {
   display: flex;
   gap: 12px;

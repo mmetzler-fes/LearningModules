@@ -142,16 +142,52 @@ export async function mountHtmlApp({ el, moduleId, content, options, title }) {
   el.appendChild(wrap);
 
   // Ohne Umhängen: Ein iframe, das den Platz im Baum wechselt, lädt neu.
+  // Im Durchlauf füllt „Groß“ die freie Fläche: Weiter-Zeile und Eule bleiben sichtbar, und es gilt auch für die
+  // nächsten Schritte. Ohne Durchlauf (Vorschau) gibt es nichts freizuhalten: über den ganzen Bildschirm.
+  const actions = options.appRun ? document.getElementById('quizActions') : null;
   let large = false;
-  big.addEventListener('click', () => {
-    large = !large;
-    wrap.style.cssText = large
+  let watcher = null;
+  const fit = () => {
+    if (!large || !frame.isConnected) return;
+    const box = document.getElementById('quizModuleContainer');
+    const below = actions.getBoundingClientRect();
+    const margin = Number.parseFloat(getComputedStyle(actions).marginBottom) || 0;
+    // Frei ist der Rest der Fläche unter der App und, wo die Seite noch nicht voll ist, der Platz bis zum unteren Rand.
+    const inBox = box.getBoundingClientRect().bottom - frame.getBoundingClientRect().bottom - 8;
+    const onPage = window.innerHeight - below.bottom - margin - 8;
+    frame.style.height = `${Math.max(200, frame.getBoundingClientRect().height + inBox + onPage)}px`;
+  };
+  const setLarge = (on) => {
+    large = on;
+    big.textContent = on ? '✕ Verkleinern' : '⛶ Groß';
+    if (actions) {
+      session.large = on;
+      document.body.classList.toggle('html-app-large', on);
+      window.removeEventListener('resize', fit);
+      watcher?.disconnect();
+      if (on) {
+        document.getElementById('mainContent')?.scrollTo(0, 0);
+        fit();
+        window.addEventListener('resize', fit);
+        // Die Eule auf schmalen Bildschirmen und ihre Sprechblase ändern die Höhe darunter.
+        watcher = new ResizeObserver(fit);
+        watcher.observe(actions);
+        const panel = document.getElementById('companionPanel');
+        if (panel) watcher.observe(panel);
+      } else {
+        frame.style.height = '75vh';
+      }
+      return;
+    }
+    wrap.style.cssText = on
       ? 'position:fixed; inset:0; z-index:9999; display:flex; flex-direction:column; gap:6px; padding:8px; background:var(--bg-primary,#fff);'
       : 'display:flex; flex-direction:column; gap:6px;';
-    frame.style.height = large ? 'auto' : '75vh';
-    frame.style.flex = large ? '1' : '';
-    big.textContent = large ? '✕ Verkleinern' : '⛶ Groß';
-  });
+    frame.style.height = on ? 'auto' : '75vh';
+    frame.style.flex = on ? '1' : '';
+  };
+  big.addEventListener('click', () => setLarge(!large));
+  // Der nächste Schritt baut seinen Rahmen neu auf; „Groß“ bleibt.
+  if (actions && session.large) requestAnimationFrame(() => setLarge(true));
 
   const send = (type, data) => frame.contentWindow?.postMessage({ lm: 2, type, data }, open.appOrigin);
   const refuse = (code, message) => send('lm.error', { code, message });

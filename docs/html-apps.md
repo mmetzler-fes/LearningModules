@@ -195,6 +195,8 @@ nicht abfangen. Die Prüfung lehnt `location` und die üblichen Verschleierungen
 kommt aber daran vorbei. Abfließen könnten Eingaben in die App und die IP-Adresse, keine Namen. Im Shop gilt
 Vertrauen in die Lehrkraft: Bis ein Admin eine solche App bemerkt und sperrt, kann sie bei anderen laufen.
 
+**⛶ Groß:** Im Durchlauf füllt die App die freie Fläche über der Weiter-Zeile, auch für die nächsten Schritte. Die Eule bleibt sichtbar.
+
 ## Was im Sandkasten geht
 
 **Geht:** Skripte und Stile in der Datei, Bilder und Schriften als `data:`, `<canvas>`, `confirm()`, `print()`.

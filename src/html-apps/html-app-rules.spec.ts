@@ -1,5 +1,5 @@
 import {
-  appHeaders, frameAllowedHere, isShopApproved, issueToken, parentOriginOf, planUnits, readManifest, readToken,
+  appHeaders, frameAllowedHere, isShopAllowed, issueToken, parentOriginOf, planUnits, readManifest, readToken,
   shellPage, withoutBlockedApps,
 } from './html-app-rules';
 
@@ -109,18 +109,13 @@ describe('Shop', () => {
     { id: 'b', type: 'htmlApp', content: JSON.stringify({ app: { fileId: 'f2' } }) }, { id: 'b1', type: 'htmlAppUnit', parentId: 'b' },
     { id: 'c', type: 'htmlApp', content: {} },
   ];
-  it('lässt HTML-Apps ohne freigegebene Datei samt Abschnitten aus', () => {
+  it('lässt HTML-Apps, deren Datei nicht in den Shop darf, samt Abschnitten aus', () => {
     expect(withoutBlockedApps(mods, new Set(['f2'])).map((m) => m.id)).toEqual(['q', 'b', 'b1']);
     expect(withoutBlockedApps(mods).map((m) => m.id)).toEqual(['q']);
   });
-  it('die alte Freigabe am Modul zählt nicht mehr', () => {
-    expect(withoutBlockedApps([{ id: 'a', type: 'htmlApp', content: { shopAllowed: true, app: { fileId: 'f1' } } }])).toEqual([]);
-  });
-  it('die Freigabe gilt nur für den gesehenen Hash und die aktuelle Schnittstelle', () => {
-    const file = { sha: 'x', shopApprovedSha: 'x', manifest: { lmApp: 2 } };
-    expect(isShopApproved(file)).toBe(true);
-    expect(isShopApproved({ ...file, sha: 'y' })).toBe(false);
-    expect(isShopApproved({ ...file, shopApprovedSha: null })).toBe(false);
-    expect(isShopApproved({ ...file, manifest: { lmApp: 1 } })).toBe(false);
+  it('vertraut einer aktuellen App, bis ein Admin sie sperrt', () => {
+    expect(isShopAllowed({ manifest: { lmApp: 2 } })).toBe(true);
+    expect(isShopAllowed({ manifest: { lmApp: 2 }, shopBlockedAt: new Date() })).toBe(false);
+    expect(isShopAllowed({ manifest: { lmApp: 1 } })).toBe(false);
   });
 });

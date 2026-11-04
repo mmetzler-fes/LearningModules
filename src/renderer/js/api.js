@@ -744,8 +744,8 @@ export class BrowserApi {
   // ---------- Admin: HTML-Apps (docs/html-apps.md) ----------
   getAdminHtmlApps() { return this._fetch('/api/admin/html-apps'); }
   getAdminHtmlAppSource(id) { return this._fetch(`/api/admin/html-apps/${encodeURIComponent(id)}/source`); }
-  setHtmlAppShop(id, allowed) {
-    return this._fetch(`/api/admin/html-apps/${encodeURIComponent(id)}/shop`, { method: 'PUT', body: JSON.stringify({ allowed }) });
+  setHtmlAppBlocked(id, blocked) {
+    return this._fetch(`/api/admin/html-apps/${encodeURIComponent(id)}/shop`, { method: 'PUT', body: JSON.stringify({ blocked }) });
   }
 
   // ---------- Admin: Funktionen in Entwicklung (src/features) ----------

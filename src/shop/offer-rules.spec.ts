@@ -1,4 +1,4 @@
-import { earliestGrantSortKey, offerRoots, orderedTopicIds, withSubmodules } from './offer-rules';
+import { earliestGrantSortKey, offerRoots, orderedTopicIds, visibleFor, withSubmodules } from './offer-rules';
 
 const mods = [
   { id: 'a', creatorId: 'S' },
@@ -55,5 +55,21 @@ describe('Angebote: Reihenfolge beim Erwerb', () => {
     ]);
     expect(time).toBe(new Date('2026-01-01T00:00:00Z').getTime());
     expect(order).toBe(1);
+  });
+});
+
+describe('visibleFor: gesperrte HTML-Apps', () => {
+  const mods = [
+    { id: 'app', creatorId: 'c', parentId: null }, { id: 'kid', creatorId: 'c', parentId: 'app' }, { id: 'text', creatorId: 'c', parentId: null },
+  ];
+  it.each([
+    ['all', { scope: 'all', hiddenIds: ['app'] }],
+    ['creator', { scope: 'creator', creatorId: 'c', hiddenIds: ['app'] }],
+    ['list', { scope: 'list', moduleIds: ['app', 'text'], hiddenIds: ['app'] }],
+  ])('fehlen bei %s samt Abschnitten', (_n, entry) => {
+    expect(visibleFor(mods as any, [entry]).map((m) => m.id)).toEqual(['text']);
+  });
+  it('ohne Sperre bleibt alles', () => {
+    expect(visibleFor(mods as any, [{ scope: 'all' }]).map((m) => m.id)).toEqual(['app', 'kid', 'text']);
   });
 });

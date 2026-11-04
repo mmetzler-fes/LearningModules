@@ -1,4 +1,4 @@
-import { appFileIdOf, isShopApproved, withoutBlockedApps } from '../html-apps/html-app-rules';
+import { appFileIdOf, isShopAllowed, withoutBlockedApps } from '../html-apps/html-app-rules';
 import { HtmlAppFile } from '../core/entities/html-app-file.entity';
 import { Injectable, Logger, NotFoundException, ForbiddenException, BadRequestException, OnApplicationBootstrap } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -40,6 +40,8 @@ export interface GrantEntry {
   scope: 'creator' | 'all' | 'list';
   creatorId: string | null;
   moduleIds?: string[];
+  /** Module, die das Recht nicht zeigt, auch wenn es sonst alle umfasst: HTML-Apps, die nicht in den Shop dürfen. */
+  hiddenIds?: string[];
   grantId: string;
   offerId: string | null;
   /** Punkte aus der Zeit vor Oktober 2026; neue Rechte: 0. */
@@ -185,14 +187,14 @@ export class ShopService implements OnApplicationBootstrap {
     const byId = new Map(topics.map((t) => [t.id, t]));
     const modules = await this.moduleRepo.find({ where: { topicId: In(topics.map((t) => t.id)) }, order: { orderIndex: 'ASC' } });
     const includeForeign = offer.kind === 'buyer' || !!offer.includeForeign;
-    const approvedFiles = opts.withoutApps ? new Set<string>() : await this.approvedAppFiles(modules);
+    const allowedFiles = opts.withoutApps ? new Set<string>() : await this.shopAllowedAppFiles(modules);
 
     const out: Covered[] = [];
     for (const id of topicIds) {
       const topic = byId.get(id);
       if (!topic) continue;
-      // HTML-Apps bleiben außen vor, solange ein Admin ihre Datei nicht freigibt (docs/html-apps.md).
-      const own = withoutBlockedApps(modules.filter((m) => m.topicId === id), approvedFiles);
+      // Eine HTML-App bleibt außen vor, wenn ein Admin ihre Datei gesperrt hat (docs/html-apps.md).
+      const own = withoutBlockedApps(modules.filter((m) => m.topicId === id), allowedFiles);
       const roots = offerRoots(own, offer.sellerId, { includeForeign, onlyForeign: opts.onlyForeign, onlyIds });
       if (!roots.length) continue;
       out.push({ topic, roots, modules: withSubmodules(own, new Set(roots.map((r) => r.id))) });
@@ -212,24 +214,24 @@ export class ShopService implements OnApplicationBootstrap {
     return { topicIds: offer.topicId ? [offer.topicId] : [], onlyIds: null };
   }
 
-  /** HTML-Apps, die zum Angebot gehörten, aber noch fehlen, weil kein Admin ihre Fassung freigegeben hat. */
-  private async appsWaitingForApproval(offer: ShopOffer): Promise<string[]> {
+  /** HTML-Apps, die zum Angebot gehörten, aber fehlen: von einem Admin gesperrt oder mit alter Schnittstelle. */
+  private async appsNotOffered(offer: ShopOffer): Promise<string[]> {
     const { topicIds, onlyIds } = await this.offerScope(offer);
     if (!topicIds.length) return [];
     const topics = await this.topicRepo.find({ where: { id: In(topicIds), ownerId: offer.sellerId }, select: ['id'] });
     if (!topics.length) return [];
     const modules = await this.moduleRepo.find({ where: { topicId: In(topics.map((t) => t.id)) }, order: { orderIndex: 'ASC' } });
-    const approved = await this.approvedAppFiles(modules);
+    const allowed = await this.shopAllowedAppFiles(modules);
     const roots = topics.flatMap((t) => offerRoots(modules.filter((m) => m.topicId === t.id), offer.sellerId, { includeForeign: offer.kind === 'buyer' || !!offer.includeForeign, onlyIds }));
-    return roots.filter((m) => m.type === 'htmlApp' && !approved.has(appFileIdOf(m) || '')).map((m) => m.title);
+    return roots.filter((m) => m.type === 'htmlApp' && !allowed.has(appFileIdOf(m) || '')).map((m) => m.title);
   }
 
-  /** Dateien der HTML-Apps unter diesen Modulen, die ein Admin in genau dieser Fassung freigegeben hat. */
-  private async approvedAppFiles(modules: LearningModule[]): Promise<Set<string>> {
+  /** Dateien der HTML-Apps unter diesen Modulen, die in den Shop dürfen. */
+  private async shopAllowedAppFiles(modules: LearningModule[]): Promise<Set<string>> {
     const ids = [...new Set(modules.filter((m) => m.type === 'htmlApp').map(appFileIdOf).filter((x): x is string => !!x))];
     if (!ids.length) return new Set();
-    const files = await this.htmlFileRepo.find({ where: { id: In(ids) }, select: ['id', 'sha', 'manifest', 'shopApprovedSha'] });
-    return new Set(files.filter(isShopApproved).map((f) => f.id));
+    const files = await this.htmlFileRepo.find({ where: { id: In(ids) }, select: ['id', 'manifest', 'shopBlockedAt'] });
+    return new Set(files.filter(isShopAllowed).map((f) => f.id));
   }
 
   /** Eigene Lernthemen im Teilbaum eines Knotens, in der Reihenfolge der Notebooks. */
@@ -282,7 +284,19 @@ export class ShopService implements OnApplicationBootstrap {
     const byId = new Map(offers.map((o) => [o.id, o]));
     const out: GrantEntry[] = [];
     for (const g of grants) out.push(...(await this.expandGrant(g, g.offerId ? byId.get(g.offerId) : undefined)));
-    return out;
+    return this.withHiddenApps(out);
+  }
+
+  /** Trägt in die Einträge ein, welche HTML-Apps ihr Lernthema nicht zeigen darf. */
+  private async withHiddenApps(entries: GrantEntry[]): Promise<GrantEntry[]> {
+    const topicIds = [...new Set(entries.map((e) => e.topicId))];
+    if (!topicIds.length) return entries;
+    const apps = await this.moduleRepo.find({ where: { topicId: In(topicIds), type: 'htmlApp' }, select: ['id', 'type', 'topicId', 'content'] });
+    if (!apps.length) return entries;
+    const allowed = await this.shopAllowedAppFiles(apps);
+    const hidden = apps.filter((m) => !allowed.has(appFileIdOf(m) || ''));
+    for (const e of entries) e.hiddenIds = hidden.filter((m) => m.topicId === e.topicId).map((m) => m.id);
+    return entries;
   }
 
   /** Die Nutzungsrechte eines Benutzers mit der Art ihres Angebots (für die Notebooks). */
@@ -545,7 +559,7 @@ export class ShopService implements OnApplicationBootstrap {
       nodeKind: await this.nodeKind(draft),
       title: await this.offerTitle(offer || draft, covered),
       topicCount: covered.length,
-      appsWaitingForApproval: await this.appsWaitingForApproval(draft),
+      appsNotOffered: await this.appsNotOffered(draft),
       ownModules: roots.filter((m) => m.creatorId === user.userId).map((m) => m.title),
       foreignModules: roots.filter((m) => m.creatorId !== user.userId).map((m) => ({
         title: m.title,
@@ -625,8 +639,8 @@ export class ShopService implements OnApplicationBootstrap {
       throw new BadRequestException('Bitte mindestens "Copy" oder "Use" anbieten – oder das Angebot zurückziehen.');
     }
     if (active && !roots.length) {
-      const waiting = await this.appsWaitingForApproval(Object.assign(this.offerRepo.create(draft), { includeForeign }));
-      if (waiting.length) throw new BadRequestException(`Darin ist nur, was ein Admin noch freigeben muss: ${waiting.join(', ')}.`);
+      const left = await this.appsNotOffered(Object.assign(this.offerRepo.create(draft), { includeForeign }));
+      if (left.length) throw new BadRequestException(`Darin sind nur HTML-Apps, die nicht in den Shop dürfen: ${left.join(', ')}.`);
       throw new BadRequestException(own.length || !includeForeign
         ? 'Darin ist nichts, was sich anbieten lässt – nur eigene Module oder, wenn gewünscht, erworbene zur Nutzung.'
         : 'Darin ist kein Modul.');
@@ -1023,7 +1037,7 @@ export class ShopService implements OnApplicationBootstrap {
     let made = 0;
     await this.dataSource.transaction(async (manager) => {
       for (const g of paid) {
-        const entries = (await this.expandGrant(g, g.offerId ? byId.get(g.offerId) : undefined)).filter((e) => e.topicId === topicId);
+        const entries = (await this.withHiddenApps(await this.expandGrant(g, g.offerId ? byId.get(g.offerId) : undefined))).filter((e) => e.topicId === topicId);
         if (!entries.length) continue;
         const modules = visibleFor(all, entries);
         if (!modules.length) continue;

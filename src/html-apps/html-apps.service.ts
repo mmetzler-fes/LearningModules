@@ -1,6 +1,6 @@
 import { BadRequestException, ForbiddenException, HttpException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, Repository } from 'typeorm';
+import { In, IsNull, Not, Repository } from 'typeorm';
 import * as crypto from 'crypto';
 import { HtmlAppFile } from '../core/entities/html-app-file.entity';
 import { HtmlAppState } from '../core/entities/html-app-state.entity';
@@ -13,7 +13,7 @@ import { FeaturesService } from '../features/features.service';
 import { TopicsService } from '../topics/topics.service';
 import { CHECK_VERSION, deliverable, inspectApp } from './html-app-check';
 import {
-  appFileIdOf, appHeaders, appOrigin, FRAME_PREFIX, isShopApproved, issueToken, LIFETIME_MS, MAX_FILE_BYTES, MAX_STATE_BYTES,
+  appFileIdOf, appHeaders, appOrigin, FRAME_PREFIX, issueToken, LIFETIME_MS, MAX_FILE_BYTES, MAX_STATE_BYTES,
   parentOriginOf, readToken, SessionToken, shellPage, ViewToken,
 } from './html-app-rules';
 
@@ -53,7 +53,12 @@ export class HtmlAppsService {
     if (errors.length || !manifest) throw new BadRequestException({ message: 'Die Datei hält die Regeln für HTML-Apps nicht ein.', errors });
     const sha = hex(html);
     const known = await this.fileRepo.findOne({ where: { ownerId: user.userId, sha }, select: ['id', 'manifest', 'size'] });
-    const file = known || (await this.fileRepo.save(this.fileRepo.create({ id: crypto.randomUUID(), ownerId: user.userId, sha, size, html, manifest })));
+    // Eine gesperrte Datei bleibt gesperrt, auch wenn sie jemand anderes noch einmal hochlädt.
+    const blocked = known ? null : await this.fileRepo.findOne({ where: { sha, shopBlockedAt: Not(IsNull()) }, select: ['id', 'shopBlockedAt', 'shopBlockedBy'] });
+    const file = known || (await this.fileRepo.save(this.fileRepo.create({
+      id: crypto.randomUUID(), ownerId: user.userId, sha, size, html, manifest,
+      shopBlockedAt: blocked?.shopBlockedAt ?? null, shopBlockedBy: blocked?.shopBlockedBy ?? null,
+    })));
     return { fileId: file.id, manifest: file.manifest, size: file.size, sha };
   }
 
@@ -93,7 +98,9 @@ export class HtmlAppsService {
     }
     if (!fileId && body?.moduleId) {
       const found = await this.rootOf(String(body.moduleId));
-      await this.topics.findOneFor(found.root.topicId, user, 'read');
+      // Bei einem Nutzungsrecht sind nur die sichtbaren Module dabei: Eine gesperrte App fehlt dort.
+      const topic = await this.topics.findOneFor(found.root.topicId, user, 'read');
+      if (!(topic.modules || []).some((m) => m.id === found.root.id)) throw new NotFoundException('Die App wurde nicht gefunden.');
       fileId = contentOf(found.root).app?.fileId;
       startUnit = found.startUnit;
     }
@@ -201,18 +208,18 @@ export class HtmlAppsService {
   /** Für den Admin: alle Dateien ohne Quelltext, mit Besitzer und den Modulen, die sie nutzen. */
   async adminList() {
     const files = await this.fileRepo.find({
-      select: ['id', 'ownerId', 'sha', 'size', 'manifest', 'createdAt', 'shopApprovedSha', 'shopApprovedBy', 'shopApprovedAt'],
+      select: ['id', 'ownerId', 'sha', 'size', 'manifest', 'createdAt', 'shopBlockedAt', 'shopBlockedBy'],
       order: { createdAt: 'DESC' },
     });
     const modules = await this.moduleRepo.find({ where: { type: 'htmlApp' }, select: ['id', 'title', 'content', 'topicId'] });
     const topics = await this.topicRepo.find({ where: { id: In([...new Set(modules.map((m) => m.topicId))]) }, select: ['id', 'title'] });
-    const users = await this.userRepo.find({ where: { id: In([...new Set(files.flatMap((f) => [f.ownerId, f.shopApprovedBy]).filter((x): x is string => !!x))]) }, select: ['id', 'displayName', 'email'] });
+    const users = await this.userRepo.find({ where: { id: In([...new Set(files.flatMap((f) => [f.ownerId, f.shopBlockedBy]).filter((x): x is string => !!x))]) }, select: ['id', 'displayName', 'email'] });
     const nameOf = (id?: string | null) => { const u = users.find((x) => x.id === id); return u ? u.displayName || u.email : ''; };
     return files.map((f) => ({
       id: f.id, sha: f.sha, size: f.size, createdAt: f.createdAt, owner: nameOf(f.ownerId),
       title: f.manifest?.title ?? '', version: f.manifest?.version ?? '', current: f.manifest?.lmApp === 2,
       units: f.manifest?.units?.length ?? 0, steps: (f.manifest?.units || []).reduce((n: number, u: any) => n + (u.steps?.length || 0), 0),
-      shopAllowed: isShopApproved(f), approvedBy: isShopApproved(f) ? nameOf(f.shopApprovedBy) : '', approvedAt: isShopApproved(f) ? f.shopApprovedAt : null,
+      shopBlocked: !!f.shopBlockedAt, blockedBy: nameOf(f.shopBlockedBy), blockedAt: f.shopBlockedAt,
       usedIn: modules.filter((m) => appFileIdOf(m) === f.id).map((m) => ({ title: m.title, topic: topics.find((t) => t.id === m.topicId)?.title ?? '' })),
     }));
   }
@@ -224,20 +231,12 @@ export class HtmlAppsService {
     return { sha: file.sha, html: file.html, intact: hex(file.html) === file.sha };
   }
 
-  /** Gibt genau diese Fassung für den Shop frei oder nimmt die Freigabe zurück. */
-  async setShopApproval(id: string, allowed: boolean, user: any) {
-    const file = await this.fileRepo.findOne({ where: { id: String(id) } });
+  /** Nimmt eine Fassung aus dem Shop oder lässt sie wieder zu; gilt für alle Dateien mit diesem Hash. */
+  async setShopBlock(id: string, blocked: boolean, user: any) {
+    const file = await this.fileRepo.findOne({ where: { id: String(id) }, select: ['id', 'sha'] });
     if (!file) throw new NotFoundException('Die Datei wurde nicht gefunden.');
-    if (allowed) {
-      if (hex(file.html) !== file.sha) throw new BadRequestException('Der Inhalt passt nicht mehr zum Hash der Datei.');
-      const { errors, manifest } = inspectApp(file.html);
-      if (errors.length || !manifest) throw new BadRequestException(`Die Datei besteht die Prüfung nicht: ${errors[0] ?? 'kein Steckbrief'}`);
-    }
-    file.shopApprovedSha = allowed ? file.sha : null;
-    file.shopApprovedBy = allowed ? user.userId : null;
-    file.shopApprovedAt = allowed ? new Date() : null;
-    await this.fileRepo.save(file);
-    return { success: true, shopAllowed: allowed };
+    await this.fileRepo.update({ sha: file.sha }, { shopBlockedAt: blocked ? new Date() : null, shopBlockedBy: blocked ? user.userId : null });
+    return { success: true, shopBlocked: blocked };
   }
 
   /**

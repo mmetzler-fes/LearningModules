@@ -678,9 +678,9 @@ export class ShopView {
         <p class="hint">${what.label}${state.type !== 'topic' ? ` · ${state.topicCount} Lernthem${state.topicCount === 1 ? 'a' : 'en'}` : ''}
           · ${own} eigene${foreign ? ` · ${foreign} erworbene (${foreignCreators.map(escapeHtml).join(', ')})` : ''}
           ${state.type === 'node' ? '<br>Das Angebot wächst mit: Was du später hineinlegst, gehört für Käufer mit „Use“ automatisch dazu.' : ''}</p>
-        ${(state.appsWaitingForApproval || []).length ? `<div class="share-hint" id="coAppsWaiting" style="margin-bottom:10px;"><span class="share-hint-icon">🧩</span>
-          <div><strong>Noch nicht im Angebot:</strong> ${state.appsWaitingForApproval.map(escapeHtml).join(', ')}.<br>
-            HTML-Apps muss zuerst ein Admin freigeben, jede neue Fassung wieder. ${own + foreign ? 'Bis dahin fehlen sie im Angebot, der Rest lässt sich schon anbieten.' : 'Vorher lässt sich dieses Angebot nicht speichern.'}</div></div>` : ''}
+        ${(state.appsNotOffered || []).length ? `<div class="share-hint" id="coAppsLeft" style="margin-bottom:10px;"><span class="share-hint-icon">🧩</span>
+          <div><strong>Nicht im Angebot:</strong> ${state.appsNotOffered.map(escapeHtml).join(', ')}.<br>
+            Ein Admin hat diese HTML-App für den Shop gesperrt, oder sie nutzt noch die alte Schnittstelle. ${own + foreign ? 'Der Rest lässt sich anbieten.' : 'So lässt sich das Angebot nicht speichern.'}</div></div>` : ''}
         ${offer && offer.fromDeactivation ? '<p class="login-error">Dieses Angebot wurde beim Deaktivieren deines Kontos auf „frei für alle" gestellt.</p>' : ''}
 
         ${state.type === 'modules' ? `

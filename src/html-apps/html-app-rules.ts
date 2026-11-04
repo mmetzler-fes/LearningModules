@@ -49,16 +49,15 @@ export function appFileIdOf(m: { content?: any }): string | null {
   return c?.app?.fileId ?? null;
 }
 
-/** Gilt die Freigabe eines Admins noch für genau diese Datei, und nutzt sie die aktuelle Schnittstelle? */
-export const isShopApproved = (f: { sha?: string; shopApprovedSha?: string | null; manifest?: any }) =>
-  !!f.shopApprovedSha && f.shopApprovedSha === f.sha && f.manifest?.lmApp === 2;
+/** Darf diese Datei in den Shop: aktuelle Schnittstelle und von keinem Admin gesperrt. */
+export const isShopAllowed = (f: { manifest?: any; shopBlockedAt?: Date | null }) => !f.shopBlockedAt && f.manifest?.lmApp === 2;
 
-/** Für den Shop: ohne HTML-Apps, deren Datei kein Admin freigegeben hat, samt ihren Abschnitten. */
-export function withoutBlockedApps<T extends { id: string; type?: string; parentId?: string | null; content?: any }>(modules: T[], approvedFiles: Set<string> = new Set()): T[] {
+/** Für den Shop: ohne HTML-Apps, deren Datei nicht in den Shop darf, samt ihren Abschnitten. */
+export function withoutBlockedApps<T extends { id: string; type?: string; parentId?: string | null; content?: any }>(modules: T[], allowedFiles: Set<string> = new Set()): T[] {
   const blocked = new Set(modules.filter((m) => {
     if (m.type !== 'htmlApp') return false;
     const fileId = appFileIdOf(m);
-    return !fileId || !approvedFiles.has(fileId);
+    return !fileId || !allowedFiles.has(fileId);
   }).map((m) => m.id));
   return modules.filter((m) => !blocked.has(m.id) && !(m.parentId && blocked.has(m.parentId)) && !(m.type === 'htmlAppUnit' && !m.parentId));
 }

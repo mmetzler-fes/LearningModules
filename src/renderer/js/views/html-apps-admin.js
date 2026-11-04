@@ -2,7 +2,7 @@ import { escapeHtml, escapeAttr } from '../utils.js';
 
 // ==================== ADMIN: HTML-APPS ====================
 //
-// Liste aller hochgeladenen Apps mit Quelltext und Shop-Freigabe je Fassung (docs/html-apps.md).
+// Liste aller hochgeladenen Apps mit Quelltext und Sperre im Shop je Fassung (docs/html-apps.md).
 // Alles aus den Dateien ist fremder Text: Der Quelltext steht nur in einer Textbox und läuft hier nie.
 
 const kb = (bytes) => `${Math.round((bytes || 0) / 1024)} KB`;
@@ -45,7 +45,7 @@ export class HtmlAppsAdminView {
     const th = (text) => `<th style="${CELL}">${text}</th>`;
     this._root.style.maxWidth = 'none';
     this._root.innerHTML = `<div style="overflow-x:auto"><table style="width:100%; border-collapse:collapse;">
-      <thead><tr style="text-align:left;">${['App', 'Hochgeladen', 'Umfang', 'Verwendet in', 'Prüfen und freigeben'].map(th).join('')}</tr></thead>
+      <thead><tr style="text-align:left;">${['App', 'Hochgeladen', 'Umfang', 'Verwendet in', 'Prüfen und sperren'].map(th).join('')}</tr></thead>
       <tbody>${this._rows.map((r) => this._row(r)).join('')}</tbody>
     </table></div>`;
   }
@@ -59,9 +59,9 @@ export class HtmlAppsAdminView {
 
   _row(r) {
     const shop = r.current
-      ? `<label style="display:block; margin-top:6px;"><input type="checkbox" data-shop="${escapeAttr(r.id)}" ${r.shopAllowed ? 'checked' : ''}> Im Shop erlaubt</label>
-         ${r.shopAllowed ? `<small class="hint">${escapeHtml(r.approvedBy)}, ${escapeHtml(when(r.approvedAt))}</small>` : ''}`
-      : '<div class="hint" style="margin-top:6px;">alte Schnittstelle, nicht freigebbar</div>';
+      ? `<label style="display:block; margin-top:6px;"><input type="checkbox" data-shop="${escapeAttr(r.id)}" ${r.shopBlocked ? 'checked' : ''}> Im Shop gesperrt</label>
+         ${r.shopBlocked ? `<small class="hint">${escapeHtml(r.blockedBy)}, ${escapeHtml(when(r.blockedAt))}</small>` : ''}`
+      : '<div class="hint" style="margin-top:6px;">alte Schnittstelle, nicht im Shop</div>';
     return `<tr style="border-top:1px solid var(--border); vertical-align:top;">
       <td style="${CELL}"><strong>${escapeHtml(r.title || 'Ohne Titel')}</strong>${r.version ? `<br><small class="hint">Fassung ${escapeHtml(r.version)}</small>` : ''}
         <br><small class="hint" title="SHA-256: ${escapeAttr(r.sha)}">Hash ${escapeHtml(r.sha.slice(0, 12))}</small></td>
@@ -74,17 +74,17 @@ export class HtmlAppsAdminView {
 
   async _setShop(box) {
     const id = box.dataset.shop;
-    const allowed = box.checked;
+    const blocked = box.checked;
     box.disabled = true;
     let res = null;
-    try { res = await this.app.api.setHtmlAppShop(id, allowed); } catch (_) { /* unten wie eine Ablehnung */ }
+    try { res = await this.app.api.setHtmlAppBlocked(id, blocked); } catch (_) { /* unten wie eine Ablehnung */ }
     if (!res?.success) {
-      box.checked = !allowed;
+      box.checked = !blocked;
       box.disabled = false;
       this.app.showToast(res?.message || 'Das hat nicht geklappt.', 'error');
       return;
     }
-    this.app.showToast(allowed ? 'Diese Fassung ist für den Shop freigegeben.' : 'Die Freigabe für den Shop ist zurückgenommen.', 'success');
+    this.app.showToast(blocked ? 'Diese Fassung ist aus dem Shop genommen.' : 'Diese Fassung darf wieder in den Shop.', 'success');
     await this.refresh();
   }
 

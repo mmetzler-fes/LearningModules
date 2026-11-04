@@ -25,7 +25,7 @@ export class HtmlAppsController {
   }
 }
 
-/** Für den Admin: alle hochgeladenen Apps, ihr Quelltext und die Shop-Freigabe je Fassung. */
+/** Für den Admin: alle hochgeladenen Apps, ihr Quelltext und die Sperre im Shop je Fassung. */
 @Controller('admin/html-apps')
 @UseGuards(JwtAuthGuard)
 export class HtmlAppsAdminController {
@@ -47,11 +47,11 @@ export class HtmlAppsAdminController {
     return this.apps.adminSource(id);
   }
 
-  /** `{ allowed }` – gilt nur für diese Datei, also genau diese Fassung. */
+  /** `{ blocked }` – gilt für genau diese Fassung. */
   @Put(':id/shop')
-  shop(@Request() req: any, @Param('id') id: string, @Body() body: { allowed?: boolean }) {
+  shop(@Request() req: any, @Param('id') id: string, @Body() body: { blocked?: boolean }) {
     this.requireAdmin(req);
-    return this.apps.setShopApproval(id, body?.allowed === true, req.user);
+    return this.apps.setShopBlock(id, body?.blocked === true, req.user);
   }
 }
 

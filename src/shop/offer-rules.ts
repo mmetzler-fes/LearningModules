@@ -54,8 +54,11 @@ export function offerRoots<T extends ModuleLike>(
  */
 export function visibleFor<T extends ModuleLike>(
   modules: T[],
-  entries: Array<{ scope: string; creatorId?: string | null; moduleIds?: string[] }>,
+  entries: Array<{ scope: string; creatorId?: string | null; moduleIds?: string[]; hiddenIds?: string[] }>,
 ): T[] {
+  // Gesperrte HTML-Apps fehlen in jedem Fall, samt ihren Abschnitten.
+  const hidden = new Set(entries.flatMap((e) => e.hiddenIds || []));
+  if (hidden.size) modules = modules.filter((m) => !hidden.has(m.id) && !(m.parentId && hidden.has(m.parentId)));
   if (entries.some((e) => e.scope === 'all')) return modules;
   const creators = new Set(entries.filter((e) => e.scope === 'creator').map((e) => e.creatorId).filter(Boolean) as string[]);
   const listed = new Set(entries.flatMap((e) => (e.scope === 'list' ? e.moduleIds || [] : [])));

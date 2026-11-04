@@ -261,21 +261,31 @@ export class ClassbookStudent {
       }).join('');
       // Module eingeklappt; beim 📍-Merker der Lehrkraft ist sein Lernthema offen.
       const marked = (t, u) => mk && mk.current.linkId === a.linkId && mk.current.topicId === t.id && (!u || mk.current.moduleId === u.id);
-      return `<details class="cb-assignment" open>
-        <summary><strong>${escapeHtml(a.name)}</strong></summary>
-        <div class="cb-actions">${modes}</div>
-        ${a.topics.map((t) => {
-          const done = t.units.filter((u) => u.done || u.work).length;
-          return `<details class="cb-topic" ${marked(t) ? 'open' : ''}>
-          <summary class="cb-topic-title">📘 ${escapeHtml(t.title)}
-            <span class="hint">${data.pending ? `${t.units.length} Module` : `${done}/${t.units.length} erledigt`}</span>
-            ${marked(t) ? `<span class="cb-here">📍 Hier sind wir</span>${weiterBtn}` : ''}</summary>
-          <ul class="cb-units">${t.units.map((u) => `
+      const unitRow = (t, u) => `
             <li class="${marked(t, u) ? 'cb-marked' : ''}">${a.modes.length ? `<button type="button" class="cb-unit" data-start="${escapeAttr(a.linkId)}" data-module="${escapeAttr(u.id)}">` : '<span class="cb-unit">'}
               ${marked(t, u) ? '📍 ' : ''}${TYPE_ICON[u.type] || '🧩'} ${escapeHtml(u.title || 'Aufgabe')}${a.modes.length ? '</button>' : '</span>'}
-              <span class="cb-state">${unitState(u)}</span></li>`).join('')}</ul>
-        </details>`;
-        }).join('')}
+              <span class="nb-meta">${escapeHtml((typeof H5P_TYPES !== 'undefined' && H5P_TYPES[u.type]?.name) || '')}</span>
+              <span class="cb-state">${unitState(u)}</span></li>`;
+      const count = (units) => {
+        const done = units.filter((u) => u.done || u.work).length;
+        return data.pending ? `${units.length} Module` : `${done}/${units.length} erledigt`;
+      };
+      const here = `<span class="cb-here">📍 Hier sind wir</span>${weiterBtn}`;
+      const only = a.topics.length === 1 ? a.topics[0] : null;
+      // Dieselben Zeilen wie im Lernnotizbuch; ein einzelnes Lernthema braucht keine zweite Zeile.
+      return `<details class="cb-assignment" ${a.topics.some((t) => marked(t)) ? 'open' : ''}>
+        <summary><span class="cb-twisty" aria-hidden="true"></span>
+          <span class="nb-icon" aria-hidden="true">📘</span><span class="cb-row-title" title="${escapeAttr(a.name)}">${escapeHtml(a.name)}</span>
+          <span class="nb-meta">${count(a.topics.flatMap((t) => t.units))}</span>
+          ${only && marked(only) ? here : ''}
+          <span class="cb-actions">${modes}</span></summary>
+        ${only ? `<ul class="cb-units">${only.units.map((u) => unitRow(only, u)).join('')}</ul>` : a.topics.map((t) => `<details class="cb-topic" ${marked(t) ? 'open' : ''}>
+          <summary class="cb-topic-title"><span class="cb-twisty" aria-hidden="true"></span>
+            <span class="nb-icon" aria-hidden="true">📘</span><span class="cb-row-title" title="${escapeAttr(t.title)}">${escapeHtml(t.title)}</span>
+            <span class="nb-meta">${count(t.units)}</span>
+            ${marked(t) ? here : ''}</summary>
+          <ul class="cb-units">${t.units.map((u) => unitRow(t, u)).join('')}</ul>
+        </details>`).join('')}
       </details>`;
     };
     // Baum wie bei der Lehrkraft: Bereiche/Abschnitte eingeklappt – außer auf dem Weg zum 📍 Merker
@@ -294,8 +304,9 @@ export class ClassbookStudent {
         const done = units.filter((u) => u.done || u.work).length;
         const onPath = !!mk?.openNodeIds?.includes(n.id);
         return `<details class="cb-snode" ${onPath ? 'open' : ''}>
-          <summary><span class="cb-node-title">${n.kind === 'section' ? '📑' : '📂'} ${escapeHtml(n.title)}</span>
-            <span class="hint">${data.pending ? `${units.length} Module` : `${done}/${units.length} erledigt`}</span>
+          <summary><span class="cb-twisty" aria-hidden="true"></span>
+            <span class="nb-icon" aria-hidden="true">${n.kind === 'section' ? '📑' : '📂'}</span><span class="cb-node-title cb-row-title" title="${escapeAttr(n.title)}">${escapeHtml(n.title)}</span>
+            <span class="nb-meta">${data.pending ? `${units.length} Module` : `${done}/${units.length} erledigt`}</span>
             ${onPath ? '<span class="cb-here">📍</span>' : ''}</summary>
           <div class="cb-node-body">${body}</div></details>`;
       }).join('');
@@ -332,7 +343,7 @@ export class ClassbookStudent {
       <p class="hint cb-install-hint hidden" id="cbInstallHint"></p>
       ${exams ? `<h3 class="cb-section">📝 Klassenarbeit</h3>${exams}` : ''}
       <h3 class="cb-section">📋 Aufgaben</h3>
-      ${assignments || '<p class="hint">Gerade sind keine Aufgaben freigegeben.</p>'}
+      ${assignments ? `<div class="cb-tree">${assignments}</div>` : '<p class="hint">Gerade sind keine Aufgaben freigegeben.</p>'}
       ${data.pending
         ? '<p class="hint cb-pending">Deine Ergebnisse und Blätter erscheinen hier, sobald deine Lehrkraft deinen Namen in der Klassenliste bestätigt hat.</p>'
         : `<h3 class="cb-section">📈 Meine Ergebnisse</h3>${results}<h3 class="cb-section">✍️ Meine Blätter</h3>${works}`}`);

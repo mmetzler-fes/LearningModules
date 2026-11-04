@@ -6,7 +6,7 @@ Punkten und Lernbegleiter, die App zeigt jeweils einen Schritt und meldet die An
 
 > **Stand:** Pilot, hinter der Freischaltung „HTML-Apps“. Ohne `HTML_APP_ORIGIN` ist sie nicht
 > verfügbar (siehe „Einrichten“). In Chrome geprüft; Safari auf dem iPad steht noch aus.
-> Im Shop sind HTML-Apps noch gesperrt.
+> Im Shop nur mit Freigabe eines Admins und nur auf demselben Server.
 
 ## Einrichten
 
@@ -145,6 +145,21 @@ Beim Hochladen und vor jeder Auslieferung; im Zweifel wird abgelehnt, die Meldun
 
 Die Datei liegt mit ihrem SHA-256 auf dem Server. Stimmt der Hash nicht mehr, wird sie nicht ausgeliefert.
 
+## Freigabe für den Shop
+
+Ein Angebot lässt jede HTML-App aus, deren Datei kein Admin freigegeben hat. Unter Administration →
+🧩 HTML-Apps stehen alle hochgeladenen Apps, mit Hash, Besitzer und den Modulen, die sie nutzen.
+
+- **Code ansehen** zeigt den Quelltext zum Lesen; er läuft dort nicht.
+- **Der Haken „erlaubt“** gibt genau diese Fassung frei und prüft sie dabei noch einmal. Eine neue Fassung ist
+  eine neue Datei und fällt aus den Angeboten, bis sie selbst freigegeben ist.
+- **Haken weg:** Die App verschwindet aus den Angeboten, auch für Nutzungsrechte. Schon übernommene Kopien bleiben
+  und laufen weiter.
+- **Zum Durchsehen:** Passt der Inhalt, stimmt die Bewertung, und will die App wirklich nur das Angezeigte? Die
+  Prüfung deckt das nicht ab, siehe „Bekannte Lücke“. Auffällig sind verschleierter Code und Eingaben, die zur Aufgabe nicht passen.
+
+Wer eine Kopie nutzt, braucht selbst die Freischaltung „HTML-Apps“, sonst läuft sie nicht.
+
 ## Regeln für die Auswertung
 
 - **Immer der Gesamtstand, nie der Zuwachs.** `LM.answer` ersetzt die vorige Meldung.
@@ -171,8 +186,8 @@ Chrome-Update und jeder Änderung an Schutzskript oder Kopfzeilen laufen lassen.
 **Bekannte Lücke:** Ein durch `frame-src` blockierter Seitenwechsel löst in Chrome den Namen trotzdem auf
 und baut eine Verbindung auf. Daten im Hostnamen kommen so nach außen, und `location` lässt sich im Rahmen
 nicht abfangen. Die Prüfung lehnt `location` und die üblichen Verschleierungen ab, ein geschickter Angreifer
-kommt aber daran vorbei. Abfließen könnten Eingaben in die App und die IP-Adresse, keine Namen. Für den Shop
-braucht es deshalb die Freigabe jeder Fassung durch einen Admin.
+kommt aber daran vorbei. Abfließen könnten Eingaben in die App und die IP-Adresse, keine Namen. Deshalb gibt
+für den Shop ein Admin jede Fassung einzeln frei.
 
 ## Was im Sandkasten geht
 
@@ -237,7 +252,7 @@ Was beim Umbau wichtig war:
 |---|---|
 | Hochladen | Lehrkräfte mit Freischaltung |
 | Alte Apps | `lmApp: 1` läuft nicht mehr, Umbau erforderlich |
-| Shop | ein Angebot lässt HTML-Apps aus; nur ein Admin kann die Sperre am Modul aufheben (`shopAllowed`, noch ohne Oberfläche). Geplant: Freigabe je Fassung über den Hash, Weitergabe der Datei an verbundene Server |
+| Shop | siehe „Freigabe für den Shop“; über verbundene Server gehen HTML-Apps noch nicht, die Datei käme nicht mit |
 | Klassenarbeit | nie über den Link der Klassenarbeit |
 | Quiz-Arena | HTML-Apps nehmen nicht teil |
 | Netz | kein Zugriff |

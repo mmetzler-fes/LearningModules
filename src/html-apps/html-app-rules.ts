@@ -42,12 +42,23 @@ export function isRemovedUnit(m: { type?: string; content?: any }): boolean {
   try { return !!JSON.parse(m.content).removed; } catch { return false; }
 }
 
-/** Für den Shop: ohne HTML-Apps ohne Freigabe, samt ihren Abschnitten. */
-export function withoutBlockedApps<T extends { id: string; type?: string; parentId?: string | null; content?: any }>(modules: T[]): T[] {
+/** Die Datei hinter einem Modul `htmlApp`. */
+export function appFileIdOf(m: { content?: any }): string | null {
+  let c = m?.content;
+  if (typeof c === 'string') { try { c = JSON.parse(c); } catch { return null; } }
+  return c?.app?.fileId ?? null;
+}
+
+/** Gilt die Freigabe eines Admins noch für genau diese Datei, und nutzt sie die aktuelle Schnittstelle? */
+export const isShopApproved = (f: { sha?: string; shopApprovedSha?: string | null; manifest?: any }) =>
+  !!f.shopApprovedSha && f.shopApprovedSha === f.sha && f.manifest?.lmApp === 2;
+
+/** Für den Shop: ohne HTML-Apps, deren Datei kein Admin freigegeben hat, samt ihren Abschnitten. */
+export function withoutBlockedApps<T extends { id: string; type?: string; parentId?: string | null; content?: any }>(modules: T[], approvedFiles: Set<string> = new Set()): T[] {
   const blocked = new Set(modules.filter((m) => {
     if (m.type !== 'htmlApp') return false;
-    if (typeof m.content !== 'string') return !m.content?.shopAllowed;
-    try { return !JSON.parse(m.content).shopAllowed; } catch { return true; }
+    const fileId = appFileIdOf(m);
+    return !fileId || !approvedFiles.has(fileId);
   }).map((m) => m.id));
   return modules.filter((m) => !blocked.has(m.id) && !(m.parentId && blocked.has(m.parentId)) && !(m.type === 'htmlAppUnit' && !m.parentId));
 }

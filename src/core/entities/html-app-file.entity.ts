@@ -24,4 +24,17 @@ export class HtmlAppFile extends BaseEntity {
   /** Geprüfter Steckbrief, `null` bei einer App ohne Schnittstelle. */
   @Column('simple-json', { nullable: true })
   manifest: any;
+
+  /**
+   * Shop-Freigabe durch einen Admin: der Hash, den er gesehen hat. Sie gilt nur, solange er zum
+   * Hash der Datei passt; eine neue Fassung ist eine neue Datei und braucht eine neue Freigabe.
+   */
+  @Column({ type: 'varchar', nullable: true })
+  shopApprovedSha: string | null;
+
+  @Column({ type: 'varchar', nullable: true })
+  shopApprovedBy: string | null;
+
+  @Column({ type: 'datetime', nullable: true })
+  shopApprovedAt: Date | null;
 }

@@ -26,6 +26,7 @@ import { HelpView, openHelpPopup } from './views/help-view.js';
 import { NotebooksView } from './views/notebooks.js';
 import { CategoriesAdminView } from './views/categories-admin.js';
 import { FederationAdminView } from './views/federation-admin.js';
+import { HtmlAppsAdminView } from './views/html-apps-admin.js';
 import { openDrawingForImage } from './views/drawings-dialog.js';
 import { nextcloudState, uploadImageToNextcloud, uploadAttachmentToNextcloud, pickNextcloudImage } from './views/nextcloud.js';
 import { storeImage } from './views/image-store.js';
@@ -124,6 +125,7 @@ class App {
     this.notebooksView = new NotebooksView(this);
     this.categoriesAdminView = new CategoriesAdminView(this);
     this.federationAdminView = new FederationAdminView(this);
+    this.htmlAppsAdminView = new HtmlAppsAdminView(this);
     // ❓ neben erklärungsbedürftigen Stellen (data-help="datei#anker"), auch in
     // Dialogen, die erst später entstehen – deshalb ein Lauscher fürs Dokument.
     document.addEventListener('click', (e) => {
@@ -443,6 +445,7 @@ class App {
       case 'admin-whitelist':   this.adminView.refreshWhitelistBlacklist(); break;
       case 'admin-categories':  this.categoriesAdminView.refresh(); break;
       case 'admin-federation':  this.federationAdminView.refresh(); break;
+      case 'admin-html-apps':   this.htmlAppsAdminView.refresh(); break;
     }
   }
 

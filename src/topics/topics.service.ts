@@ -768,8 +768,6 @@ export class TopicsService {
     return {
       app: { fileId: file.id, manifest: file.manifest ?? null, size: file.size },
       allowAnonymous: content?.allowAnonymous !== false,
-      // Das Formular kennt das Feld nicht: Fehlt es, bleibt die Freigabe.
-      shopAllowed: user.role === 'admin' && content?.shopAllowed !== undefined ? !!content.shopAllowed : !!before.shopAllowed,
     };
   }
 

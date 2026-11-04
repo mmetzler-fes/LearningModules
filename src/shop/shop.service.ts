@@ -1,4 +1,5 @@
-import { withoutBlockedApps } from '../html-apps/html-app-rules';
+import { appFileIdOf, isShopApproved, withoutBlockedApps } from '../html-apps/html-app-rules';
+import { HtmlAppFile } from '../core/entities/html-app-file.entity';
 import { Injectable, Logger, NotFoundException, ForbiddenException, BadRequestException, OnApplicationBootstrap } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, In, IsNull, Not, Repository } from 'typeorm';
@@ -88,6 +89,7 @@ export class ShopService implements OnApplicationBootstrap {
     @InjectRepository(ContentFeedback) private readonly feedbackRepo: Repository<ContentFeedback>,
     @InjectRepository(FederationPeer) private readonly peerRepo: Repository<FederationPeer>,
     @InjectRepository(RemotePerson) private readonly personRepo: Repository<RemotePerson>,
+    @InjectRepository(HtmlAppFile) private readonly htmlFileRepo: Repository<HtmlAppFile>,
     @InjectRepository(SystemConfig) private readonly configRepo: Repository<SystemConfig>,
     private readonly usage: UsageService,
     private readonly categories: CategoriesService,
@@ -175,7 +177,7 @@ export class ShopService implements OnApplicationBootstrap {
    * was jetzt darin liegt – das Angebot wächst mit. Nur Themen, die dem
    * Anbieter gehören; Themen, die er selbst nur nutzt, gibt er nicht weiter.
    */
-  async coverage(offer: ShopOffer, opts: { onlyForeign?: boolean } = {}): Promise<Covered[]> {
+  async coverage(offer: ShopOffer, opts: { onlyForeign?: boolean; withoutApps?: boolean } = {}): Promise<Covered[]> {
     let topicIds: string[] = [];
     let onlyIds: Set<string> | null = null;
     if (offer.scopeType === 'node') {
@@ -194,18 +196,27 @@ export class ShopService implements OnApplicationBootstrap {
     const byId = new Map(topics.map((t) => [t.id, t]));
     const modules = await this.moduleRepo.find({ where: { topicId: In(topics.map((t) => t.id)) }, order: { orderIndex: 'ASC' } });
     const includeForeign = offer.kind === 'buyer' || !!offer.includeForeign;
+    const approvedFiles = opts.withoutApps ? new Set<string>() : await this.approvedAppFiles(modules);
 
     const out: Covered[] = [];
     for (const id of topicIds) {
       const topic = byId.get(id);
       if (!topic) continue;
-      // HTML-Apps bleiben außen vor, solange ein Admin sie nicht freigibt (docs/html-apps.md).
-      const own = withoutBlockedApps(modules.filter((m) => m.topicId === id));
+      // HTML-Apps bleiben außen vor, solange ein Admin ihre Datei nicht freigibt (docs/html-apps.md).
+      const own = withoutBlockedApps(modules.filter((m) => m.topicId === id), approvedFiles);
       const roots = offerRoots(own, offer.sellerId, { includeForeign, onlyForeign: opts.onlyForeign, onlyIds });
       if (!roots.length) continue;
       out.push({ topic, roots, modules: withSubmodules(own, new Set(roots.map((r) => r.id))) });
     }
     return out;
+  }
+
+  /** Dateien der HTML-Apps unter diesen Modulen, die ein Admin in genau dieser Fassung freigegeben hat. */
+  private async approvedAppFiles(modules: LearningModule[]): Promise<Set<string>> {
+    const ids = [...new Set(modules.filter((m) => m.type === 'htmlApp').map(appFileIdOf).filter((x): x is string => !!x))];
+    if (!ids.length) return new Set();
+    const files = await this.htmlFileRepo.find({ where: { id: In(ids) }, select: ['id', 'sha', 'manifest', 'shopApprovedSha'] });
+    return new Set(files.filter(isShopApproved).map((f) => f.id));
   }
 
   /** Eigene Lernthemen im Teilbaum eines Knotens, in der Reihenfolge der Notebooks. */
@@ -872,7 +883,8 @@ export class ShopService implements OnApplicationBootstrap {
 
   /** Nur die eigenen Module des Anbieters – fremde verlassen den Server nie. */
   private async ownCoverage(offer: ShopOffer): Promise<Covered[]> {
-    return (await this.coverage(offer))
+    // Für andere Server: ohne HTML-Apps, ihre Datei käme noch nicht mit.
+    return (await this.coverage(offer, { withoutApps: true }))
       .map((c) => {
         const roots = c.roots.filter((m) => m.creatorId === offer.sellerId);
         return { topic: c.topic, roots, modules: withSubmodules(c.modules, new Set(roots.map((r) => r.id))) };

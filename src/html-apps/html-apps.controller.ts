@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpCode, NotFoundException, Param, Post, Query, Req, Request, Res, UseGuards } from '@nestjs/common';
+import { Body, Controller, ForbiddenException, Get, HttpCode, NotFoundException, Param, Post, Put, Query, Req, Request, Res, UseGuards } from '@nestjs/common';
 import type { Response } from 'express';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { FeatureGuard, RequireFeature } from '../features/feature.guard';
@@ -22,6 +22,36 @@ export class HtmlAppsController {
   @HttpCode(200)
   preview(@Request() req: any, @Body() body: { moduleId?: string; fileId?: string }) {
     return this.apps.preview(req.user, req.headers, body);
+  }
+}
+
+/** Für den Admin: alle hochgeladenen Apps, ihr Quelltext und die Shop-Freigabe je Fassung. */
+@Controller('admin/html-apps')
+@UseGuards(JwtAuthGuard)
+export class HtmlAppsAdminController {
+  constructor(private readonly apps: HtmlAppsService) {}
+
+  private requireAdmin(req: any) {
+    if (req.user.role !== 'admin') throw new ForbiddenException('Nur Admins haben Zugriff.');
+  }
+
+  @Get()
+  list(@Request() req: any) {
+    this.requireAdmin(req);
+    return this.apps.adminList();
+  }
+
+  @Get(':id/source')
+  source(@Request() req: any, @Param('id') id: string) {
+    this.requireAdmin(req);
+    return this.apps.adminSource(id);
+  }
+
+  /** `{ allowed }` – gilt nur für diese Datei, also genau diese Fassung. */
+  @Put(':id/shop')
+  shop(@Request() req: any, @Param('id') id: string, @Body() body: { allowed?: boolean }) {
+    this.requireAdmin(req);
+    return this.apps.setShopApproval(id, body?.allowed === true, req.user);
   }
 }
 

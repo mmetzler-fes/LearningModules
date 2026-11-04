@@ -1,18 +1,19 @@
 import { BadRequestException, ForbiddenException, HttpException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import * as crypto from 'crypto';
 import { HtmlAppFile } from '../core/entities/html-app-file.entity';
 import { HtmlAppState } from '../core/entities/html-app-state.entity';
 import { LearningModule } from '../core/entities/learning-module.entity';
 import { LearningTopic } from '../core/entities/learning-topic.entity';
 import { TopicLink } from '../core/entities/topic-link.entity';
+import { User } from '../core/entities/user.entity';
 import { isTestStudent } from '../classes/test-student';
 import { FeaturesService } from '../features/features.service';
 import { TopicsService } from '../topics/topics.service';
 import { CHECK_VERSION, deliverable, inspectApp } from './html-app-check';
 import {
-  appHeaders, appOrigin, FRAME_PREFIX, issueToken, LIFETIME_MS, MAX_FILE_BYTES, MAX_STATE_BYTES,
+  appFileIdOf, appHeaders, appOrigin, FRAME_PREFIX, isShopApproved, issueToken, LIFETIME_MS, MAX_FILE_BYTES, MAX_STATE_BYTES,
   parentOriginOf, readToken, SessionToken, shellPage, ViewToken,
 } from './html-app-rules';
 
@@ -38,6 +39,7 @@ export class HtmlAppsService {
     @InjectRepository(LearningModule) private readonly moduleRepo: Repository<LearningModule>,
     @InjectRepository(LearningTopic) private readonly topicRepo: Repository<LearningTopic>,
     @InjectRepository(TopicLink) private readonly linkRepo: Repository<TopicLink>,
+    @InjectRepository(User) private readonly userRepo: Repository<User>,
     private readonly features: FeaturesService,
     private readonly topics: TopicsService,
   ) {}
@@ -194,6 +196,48 @@ export class HtmlAppsService {
     row.data = data;
     await this.stateRepo.save(row);
     return { success: true, stored: true };
+  }
+
+  /** Für den Admin: alle Dateien ohne Quelltext, mit Besitzer und den Modulen, die sie nutzen. */
+  async adminList() {
+    const files = await this.fileRepo.find({
+      select: ['id', 'ownerId', 'sha', 'size', 'manifest', 'createdAt', 'shopApprovedSha', 'shopApprovedBy', 'shopApprovedAt'],
+      order: { createdAt: 'DESC' },
+    });
+    const modules = await this.moduleRepo.find({ where: { type: 'htmlApp' }, select: ['id', 'title', 'content', 'topicId'] });
+    const topics = await this.topicRepo.find({ where: { id: In([...new Set(modules.map((m) => m.topicId))]) }, select: ['id', 'title'] });
+    const users = await this.userRepo.find({ where: { id: In([...new Set(files.flatMap((f) => [f.ownerId, f.shopApprovedBy]).filter((x): x is string => !!x))]) }, select: ['id', 'displayName', 'email'] });
+    const nameOf = (id?: string | null) => { const u = users.find((x) => x.id === id); return u ? u.displayName || u.email : ''; };
+    return files.map((f) => ({
+      id: f.id, sha: f.sha, size: f.size, createdAt: f.createdAt, owner: nameOf(f.ownerId),
+      title: f.manifest?.title ?? '', version: f.manifest?.version ?? '', current: f.manifest?.lmApp === 2,
+      units: f.manifest?.units?.length ?? 0, steps: (f.manifest?.units || []).reduce((n: number, u: any) => n + (u.steps?.length || 0), 0),
+      shopAllowed: isShopApproved(f), approvedBy: isShopApproved(f) ? nameOf(f.shopApprovedBy) : '', approvedAt: isShopApproved(f) ? f.shopApprovedAt : null,
+      usedIn: modules.filter((m) => appFileIdOf(m) === f.id).map((m) => ({ title: m.title, topic: topics.find((t) => t.id === m.topicId)?.title ?? '' })),
+    }));
+  }
+
+  /** Quelltext zum Lesen. Die Oberfläche zeigt ihn als Text, er läuft dort nie. */
+  async adminSource(id: string) {
+    const file = await this.fileRepo.findOne({ where: { id: String(id) }, select: ['id', 'sha', 'html'] });
+    if (!file) throw new NotFoundException('Die Datei wurde nicht gefunden.');
+    return { sha: file.sha, html: file.html, intact: hex(file.html) === file.sha };
+  }
+
+  /** Gibt genau diese Fassung für den Shop frei oder nimmt die Freigabe zurück. */
+  async setShopApproval(id: string, allowed: boolean, user: any) {
+    const file = await this.fileRepo.findOne({ where: { id: String(id) } });
+    if (!file) throw new NotFoundException('Die Datei wurde nicht gefunden.');
+    if (allowed) {
+      if (hex(file.html) !== file.sha) throw new BadRequestException('Der Inhalt passt nicht mehr zum Hash der Datei.');
+      const { errors, manifest } = inspectApp(file.html);
+      if (errors.length || !manifest) throw new BadRequestException(`Die Datei besteht die Prüfung nicht: ${errors[0] ?? 'kein Steckbrief'}`);
+    }
+    file.shopApprovedSha = allowed ? file.sha : null;
+    file.shopApprovedBy = allowed ? user.userId : null;
+    file.shopApprovedAt = allowed ? new Date() : null;
+    await this.fileRepo.save(file);
+    return { success: true, shopAllowed: allowed };
   }
 
   /**

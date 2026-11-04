@@ -14,6 +14,7 @@ import { NotebookPlacement } from '../core/entities/notebook-placement.entity';
 import { ContentFeedback } from '../core/entities/content-feedback.entity';
 import { FederationPeer } from '../core/entities/federation-peer.entity';
 import { RemotePerson } from '../core/entities/remote-person.entity';
+import { HtmlAppFile } from '../core/entities/html-app-file.entity';
 import { AccountsModule } from '../accounts/accounts.module';
 import { UsageModule } from '../impact/usage.module';
 import { CategoriesModule } from '../categories/categories.module';
@@ -26,7 +27,7 @@ import { RightsMigrationService } from './rights-migration.service';
   imports: [
     TypeOrmModule.forFeature([
       ShopOffer, UseGrant, LearningTopic, LearningModule, User, TeacherGroup, TopicLink, TopicQuickLink, SystemConfig,
-      NotebookNode, NotebookPlacement, ContentFeedback, FederationPeer, RemotePerson,
+      NotebookNode, NotebookPlacement, ContentFeedback, FederationPeer, RemotePerson, HtmlAppFile,
     ]),
     AccountsModule,
     UsageModule,

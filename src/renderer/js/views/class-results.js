@@ -788,8 +788,8 @@ export class ClassResultsView {
           <button type="button" class="btn btn-secondary btn-sm" data-mark-root title="Schüler springen zum ersten Modul im ganzen Klassennotizbuch – „Weiter“ führt durch alle weiteren">📍 Ganz vorn</button>
           ${cb.studentHidden ? '' : '<button type="button" class="btn btn-secondary btn-sm" data-veil-book="1" title="Schüler sehen das Klassennotizbuch vorübergehend nicht (außer Klassenarbeit und Quiz-Arena) – die Module bleiben ein- bzw. ausgeschaltet">🙈 Für Schüler ausblenden</button>'}
         </div>
-        <p class="hint">Die Schüler sehen diesen Baum über den <a href="#" id="cbToSettings">Klassenbuch-Link</a>. 🔗 verweist aufs Notizbuch
-          (Änderungen dort gelten sofort), 📘 gehört nur dieser Klasse. ● / ○ schaltet Lernthemen und Module ein und aus –
+        <p class="hint">Die Schüler sehen diesen Baum über den <a href="#" id="cbToSettings">Klassenbuch-Link</a>. Einträge verweisen aufs Notizbuch
+          (Änderungen dort gelten sofort), außer mit „nur diese Klasse“. ● / ○ schaltet Lernthemen und Module ein und aus –
           was später dazukommt, ist zunächst aus. 👁 / 🙈 blendet ein Lernthema, einen Bereich oder Abschnitt für Schüler aus (auch Link und QR-Code sind dann gesperrt), ohne die Module
           zu schalten. Aktionen über ⋯.</p>
         <div class="cb-tree">${cb.marker?.level === 'root' ? `<div class="cb-book-mark cb-marked">${this._markBadge()} 📒 <strong>${escapeHtml(cb.className)}</strong> <span class="hint">ganz vorn im Klassennotizbuch</span></div>` : ''}${links.length || cb.nodes.length ? this._level(cb, links, null)

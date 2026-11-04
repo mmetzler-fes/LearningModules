@@ -1,3 +1,4 @@
+import { HtmlAppFile } from '../core/entities/html-app-file.entity';
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { User } from '../core/entities/user.entity';
@@ -26,7 +27,7 @@ import { TwoFactorService } from './two-factor.service';
 @Module({
   imports: [
     TypeOrmModule.forFeature([
-      User, SystemConfig, LearningTopic, LearningModule, TopicLink, TopicQuickLink,
+      User, HtmlAppFile, SystemConfig, LearningTopic, LearningModule, TopicLink, TopicQuickLink,
       Tag, Result, TeacherGroup, ShopOffer, UseGrant, PointsEntry, StudentClass, UsageCount, ContentFeedback, GithubBackup, NextcloudLink,
     ]),
   ],

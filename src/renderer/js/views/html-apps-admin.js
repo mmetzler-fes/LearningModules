@@ -65,7 +65,7 @@ export class HtmlAppsAdminView {
     return `<tr style="border-top:1px solid var(--border); vertical-align:top;">
       <td style="${CELL}"><strong>${escapeHtml(r.title || 'Ohne Titel')}</strong>${r.version ? `<br><small class="hint">Fassung ${escapeHtml(r.version)}</small>` : ''}
         <br><small class="hint" title="SHA-256: ${escapeAttr(r.sha)}">Hash ${escapeHtml(r.sha.slice(0, 12))}</small></td>
-      <td style="${CELL}">${escapeHtml(r.owner)}<br><small class="hint">${escapeHtml(when(r.createdAt))}</small></td>
+      <td style="${CELL}">${escapeHtml(r.owner)}${r.ownerActive ? '' : '<br><small class="hint">⏸ Konto gesperrt, App nicht im Shop</small>'}<br><small class="hint">${escapeHtml(when(r.createdAt))}</small></td>
       <td style="${CELL}">${r.units} Abschnitte, ${r.steps} Schritte<br><small class="hint">${kb(r.size)}</small></td>
       <td style="${CELL}">${this._used(r.usedIn)}</td>
       <td style="${CELL} white-space:nowrap;"><button type="button" class="btn btn-secondary btn-sm" data-source="${escapeAttr(r.id)}">Code ansehen</button>${shop}</td>

@@ -584,7 +584,8 @@ export class AdminView {
     const text = user.isCreator
       ? `"${name}" hat Module verfasst und wird deshalb nur deaktiviert.\n\n` +
         'Das Konto kann sich nicht mehr anmelden, seine Links sind gesperrt. Seine Inhalte stehen allen ' +
-        'kostenlos zum Kopieren und Verwenden im Shop. Über „Reaktivieren" lässt sich das rückgängig machen.'
+        'kostenlos zum Kopieren und Verwenden im Shop, außer den HTML-Apps, die aus dem Shop verschwinden. ' +
+        'Über „Reaktivieren" lässt sich das rückgängig machen.'
       : `"${name}" wirklich löschen?\n\n` +
         'Das Konto hat keine eigenen Module. Erworbene Kopien und Nutzungsrechte verfallen; ' +
         'Schülerfreigaben, Ergebnisse und Tags werden dir als Admin überschrieben.';

@@ -680,7 +680,7 @@ export class ShopView {
           ${state.type === 'node' ? '<br>Das Angebot wächst mit: Was du später hineinlegst, gehört für Käufer mit „Use“ automatisch dazu.' : ''}</p>
         ${(state.appsNotOffered || []).length ? `<div class="share-hint" id="coAppsLeft" style="margin-bottom:10px;"><span class="share-hint-icon">🧩</span>
           <div><strong>Nicht im Angebot:</strong> ${state.appsNotOffered.map(escapeHtml).join(', ')}.<br>
-            Ein Admin hat diese HTML-App für den Shop gesperrt, oder sie nutzt noch die alte Schnittstelle. ${own + foreign ? 'Der Rest lässt sich anbieten.' : 'So lässt sich das Angebot nicht speichern.'}</div></div>` : ''}
+            Ein Admin hat diese HTML-App oder das Konto, das sie hochgeladen hat, gesperrt, oder sie nutzt noch die alte Schnittstelle. ${own + foreign ? 'Der Rest lässt sich anbieten.' : 'So lässt sich das Angebot nicht speichern.'}</div></div>` : ''}
         ${offer && offer.fromDeactivation ? '<p class="login-error">Dieses Angebot wurde beim Deaktivieren deines Kontos auf „frei für alle" gestellt.</p>' : ''}
 
         ${state.type === 'modules' ? `

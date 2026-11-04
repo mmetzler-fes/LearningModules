@@ -230,8 +230,11 @@ export class ShopService implements OnApplicationBootstrap {
   private async shopAllowedAppFiles(modules: LearningModule[]): Promise<Set<string>> {
     const ids = [...new Set(modules.filter((m) => m.type === 'htmlApp').map(appFileIdOf).filter((x): x is string => !!x))];
     if (!ids.length) return new Set();
-    const files = await this.htmlFileRepo.find({ where: { id: In(ids) }, select: ['id', 'manifest', 'shopBlockedAt'] });
-    return new Set(files.filter(isShopAllowed).map((f) => f.id));
+    const files = await this.htmlFileRepo.find({ where: { id: In(ids) }, select: ['id', 'ownerId', 'manifest', 'shopBlockedAt'] });
+    // Ein gesperrtes Konto gibt seine Inhalte frei; seine HTML-Apps gehen dabei gerade nicht in den Shop.
+    const owners = await this.userRepo.find({ where: { id: In([...new Set(files.map((f) => f.ownerId))]) }, select: ['id', 'active'] });
+    const activeOwners = new Set(owners.filter((u) => u.active !== false).map((u) => u.id));
+    return new Set(files.filter((f) => isShopAllowed(f) && activeOwners.has(f.ownerId)).map((f) => f.id));
   }
 
   /** Eigene Lernthemen im Teilbaum eines Knotens, in der Reihenfolge der Notebooks. */

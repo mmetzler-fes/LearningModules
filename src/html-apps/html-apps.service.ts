@@ -213,10 +213,11 @@ export class HtmlAppsService {
     });
     const modules = await this.moduleRepo.find({ where: { type: 'htmlApp' }, select: ['id', 'title', 'content', 'topicId'] });
     const topics = await this.topicRepo.find({ where: { id: In([...new Set(modules.map((m) => m.topicId))]) }, select: ['id', 'title'] });
-    const users = await this.userRepo.find({ where: { id: In([...new Set(files.flatMap((f) => [f.ownerId, f.shopBlockedBy]).filter((x): x is string => !!x))]) }, select: ['id', 'displayName', 'email'] });
+    const users = await this.userRepo.find({ where: { id: In([...new Set(files.flatMap((f) => [f.ownerId, f.shopBlockedBy]).filter((x): x is string => !!x))]) }, select: ['id', 'displayName', 'email', 'active'] });
     const nameOf = (id?: string | null) => { const u = users.find((x) => x.id === id); return u ? u.displayName || u.email : ''; };
     return files.map((f) => ({
       id: f.id, sha: f.sha, size: f.size, createdAt: f.createdAt, owner: nameOf(f.ownerId),
+      ownerActive: users.some((u) => u.id === f.ownerId && u.active !== false),
       title: f.manifest?.title ?? '', version: f.manifest?.version ?? '', current: f.manifest?.lmApp === 2,
       units: f.manifest?.units?.length ?? 0, steps: (f.manifest?.units || []).reduce((n: number, u: any) => n + (u.steps?.length || 0), 0),
       shopBlocked: !!f.shopBlockedAt, blockedBy: nameOf(f.shopBlockedBy), blockedAt: f.shopBlockedAt,

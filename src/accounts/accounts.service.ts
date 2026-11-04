@@ -1,3 +1,4 @@
+import { HtmlAppFile } from '../core/entities/html-app-file.entity';
 import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
@@ -31,6 +32,7 @@ export class AccountsService {
 
   constructor(
     @InjectRepository(User) private readonly userRepo: Repository<User>,
+    @InjectRepository(HtmlAppFile) private readonly htmlFileRepo: Repository<HtmlAppFile>,
     @InjectRepository(LearningTopic) private readonly topicRepo: Repository<LearningTopic>,
     @InjectRepository(LearningModule) private readonly moduleRepo: Repository<LearningModule>,
     @InjectRepository(TopicQuickLink) private readonly quickRepo: Repository<TopicQuickLink>,
@@ -203,6 +205,8 @@ export class AccountsService {
     await this.topicRepo.update({ ownerId: from.id }, { ownerId: to.id });
     await this.topicRepo.update({ copiedFromOwnerId: from.id }, { copiedFromOwnerId: to.id });
     await this.moduleRepo.update({ creatorId: from.id }, { creatorId: to.id });
+    // Sonst fielen die HTML-Apps aus dem Shop: Ihre Datei hinge an einem Konto, das es nicht mehr gibt.
+    await this.htmlFileRepo.update({ ownerId: from.id }, { ownerId: to.id });
     await this.offerRepo.update({ sellerId: from.id }, { sellerId: to.id });
     await this.grantRepo.update({ creatorId: from.id }, { creatorId: to.id });
 

@@ -575,6 +575,8 @@ export class ContestService implements OnModuleDestroy {
     const maxScore = s.maxPoints * s.questions.length;
     const topicTitle = [...new Set(s.questions.map((q) => q.topicTitle))].join(', ');
     const link = await this.linkRepo.findOne({ where: { id: s.linkId } });
+    // Anonym: Fantasienamen, nichts wird gespeichert.
+    if (!link?.classId) return;
     const klasse = await this.classesService.findById(link?.classId);
     const schoolYear = klasse?.schoolYear || (await this.classesService.currentSchoolYear());
     const rows = ranking.map((entry) => {

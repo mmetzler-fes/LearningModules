@@ -1,5 +1,5 @@
 import { HtmlAppState } from '../core/entities/html-app-state.entity';
-import { contentOf } from '../core/public/student-view';
+import { contentOf, hasSolutionBlocks } from '../core/public/student-view';
 import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, IsNull, Repository } from 'typeorm';
@@ -23,7 +23,7 @@ import { ancestorsOf, canHoldNode, depthOf, leavesInOrder, nodeMoveError, normal
 import { ClassesService } from '../classes/classes.service';
 import { LinksService, PRACTICE_MODES } from '../links/links.service';
 import { NotebooksService } from '../notebooks/notebooks.service';
-import { issueTicket, readTicket } from '../classes/student-ticket';
+import { issueDeviceTicket, pinTag, issueTicket, readTicket } from '../classes/student-ticket';
 import { isTestStudent } from '../classes/test-student';
 import { newPin, pinMatches, pinGuard } from '../work/pin';
 import { baseUrl, renderQr } from '../core/share/link-url';
@@ -256,6 +256,8 @@ export class ClassbookService {
         id: m.id, title: m.title || '', type: m.type, tagIds: m.tagIds || [],
         subIds: ((m as any).subModules || []).map((x: LearningModule) => x.id),
         embeds: embeddedQuizIds(m),
+        hasSolutions: hasSolutionBlocks(m),
+        solutionsOn: (link.solutionModuleIds || []).includes(m.id),
       })),
     }));
     return { topics, notReleased };
@@ -281,6 +283,18 @@ export class ClassbookService {
     link.customized = true;
     await this.linkRepo.save(link);
     return { success: true };
+  }
+
+  /** 💡 Lösungen eines Dokuments für diese Klasse zeigen oder wieder verbergen. */
+  async setSolutions(user: any, classId: string, linkId: string, body: { moduleId?: string; on?: boolean }) {
+    const link = await this.ownClassLink(user, classId, linkId);
+    const moduleId = String(body?.moduleId || '');
+    if (!moduleId) throw new BadRequestException('Modul fehlt.');
+    const set = new Set(link.solutionModuleIds || []);
+    if (body?.on) set.add(moduleId); else set.delete(moduleId);
+    link.solutionModuleIds = set.size ? [...set] : null;
+    await this.linkRepo.save(link);
+    return { success: true, on: set.has(moduleId) };
   }
 
   /**
@@ -847,6 +861,25 @@ export class ClassbookService {
    */
   async login(token: string, body: { name?: string; pin?: string; testPassword?: string }) {
     const { nb, klasse } = await this.byToken(token);
+    return this.loginToClass(nb, klasse, body);
+  }
+
+  /** Anmeldung über einen Klassenlink: dieselbe Regel wie im Klassennotizbuch. */
+  async loginViaLink(klasse: StudentClass, body: { name?: string; pin?: string; testPassword?: string }) {
+    return this.loginToClass(await this.ensure(klasse), klasse, body);
+  }
+
+  /** Gemerkte Anmeldung eines Geräts: nur, solange die PIN dieselbe ist und der Schüler in der Klasse steht. */
+  async deviceLogin(klasse: StudentClass, raw: unknown) {
+    const t = readTicket(raw, classbookTicketKey(klasse.id));
+    if (!t) return null;
+    if (isTestStudent(t.s)) return t;
+    const student = await this.studentRepo.findOne({ where: { id: t.s, classId: klasse.id } });
+    if (!student) return null;
+    return !t.p || t.p === pinTag(student.pin) ? t : null;
+  }
+
+  private async loginToClass(nb: ClassNotebook, klasse: StudentClass, body: { name?: string; pin?: string; testPassword?: string }) {
     const typed = String(body?.name || '').trim().replace(/\s+/g, ' ');
     if (!typed) throw new BadRequestException('Bitte den Namen eingeben.');
     const who = await this.classes.resolveStudent(klasse, typed, body?.testPassword);
@@ -882,6 +915,9 @@ export class ClassbookService {
     }
     return {
       ticket: issueTicket(classbookTicketKey(klasse.id), who.studentId, who.name),
+      deviceTicket: issueDeviceTicket(classbookTicketKey(klasse.id), who.studentId, who.name, student?.pin),
+      studentId: who.studentId,
+      classId: klasse.id,
       name: who.name,
       pending: student?.status === 'pending',
       ...(shown ? { pin: shown } : {}),

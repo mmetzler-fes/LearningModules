@@ -23,12 +23,25 @@ export interface StudentTicket {
   n: string;
   /** Ablauf (ms seit 1970) */
   e: number;
+  /** Mit PIN bestätigt: Kein zweites Fragen beim Stift-Editor. */
+  v?: number;
+  /** Nur Geräte-Ausweis: Prüfzeichen der PIN. */
+  p?: string;
 }
 
 const sign = (payload: string) => crypto.createHmac('sha256', SECRET).update(payload).digest('base64url');
 
-export function issueTicket(linkId: string, studentId: string, name: string, now = Date.now()): string {
-  const payload = Buffer.from(JSON.stringify({ l: linkId, s: studentId, n: name, e: now + LIFETIME_MS })).toString('base64url');
+export function issueTicket(linkId: string, studentId: string, name: string, now = Date.now(), extra: { verified?: boolean } = {}): string {
+  const payload = Buffer.from(JSON.stringify({ l: linkId, s: studentId, n: name, e: now + LIFETIME_MS, ...(extra.verified ? { v: 1 } : {}) })).toString('base64url');
+  return `${payload}.${sign(payload)}`;
+}
+
+/** Merkt sich die Anmeldung auf einem Gerät. Eine neue PIN macht den Ausweis ungültig (`p`). */
+export const DEVICE_LIFETIME_MS = 300 * 24 * 60 * 60 * 1000;
+export const pinTag = (pin: string | null | undefined) => crypto.createHmac('sha256', SECRET).update(`pin:${pin || ''}`).digest('base64url').slice(0, 12);
+
+export function issueDeviceTicket(key: string, studentId: string, name: string, pin: string | null | undefined, now = Date.now()): string {
+  const payload = Buffer.from(JSON.stringify({ l: key, s: studentId, n: name, e: now + DEVICE_LIFETIME_MS, p: pinTag(pin), v: 1 })).toString('base64url');
   return `${payload}.${sign(payload)}`;
 }
 

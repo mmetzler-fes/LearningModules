@@ -1,75 +1,52 @@
 # Quick-Link: Schüler starten per Link oder QR-Code
 
-Ein Quick-Link ist **ein** Link für ein Lernthema (bzw. ein Book, einen
-Bereich oder Abschnitt im Notebook) – ohne Klasse in der Adresse. Er passt
-deshalb auf gedruckte Blätter und gilt auch im nächsten Schuljahr weiter.
+Es gibt zwei Arten von Links, und die Regel ist einfach: **anonym ohne Daten, Klasse mit Daten.**
 
-## Für die Lehrkraft
+| Link | Woher | Schüler | Gespeichert |
+|---|---|---|---|
+| 🌐 **Anonym** | Quick-Link im 📓 Notizbuch, 🔗 Link & QR in den Schülerfreigaben | starten sofort, ohne Anmeldung | nichts, nur die Nutzung ohne Namen |
+| 🏫 **Klasse** | Quick-Link im 📒 Klassennotizbuch, 🏫 Für eine Klasse in den Schülerfreigaben | Name und PIN, einmal je Gerät | Ergebnisse und Stand unter dem Schüler |
 
-**🔗 Quick-Link** auf der Karte eines Lernthemas (oder im Menü eines
-Notebook-Eintrags):
+## Anonyme Links
 
-1. Beim ersten Mal die **Klassen wählen**, aus denen Schüler später wählen
-   (auch keine) → **Quick-Link erstellen**.
-2. Danach öffnet der Knopf Link & QR-Code mit
-   - **✏️ Anpassen** – Klassen ändern. Link und QR-Code bleiben gleich.
-   - **🚫 Zurückziehen** – der Link und alle seine Varianten (unten) sind
-     sofort ungültig. Danach lässt sich ein neuer erstellen; die Klassenauswahl
-     wird vorgeschlagen.
+**🔗 Quick-Link** auf der Karte eines Lernthemas oder im Menü eines Notebook-Eintrags erzeugt ihn, ohne Rückfrage.
+Er passt auf gedruckte Blätter und gilt auch im nächsten Schuljahr. **🚫 Zurückziehen** macht ihn sofort ungültig,
+auch gedruckte QR-Codes.
 
-Ein „Neu erzeugen“ gibt es nicht: Wer einen neuen Token braucht, zieht zurück
-und erstellt neu – so ist klar, dass verteilte Codes verloren gehen.
+**Wiederfinden:** Unter **🔗 Schülerfreigaben → 📚 Themen** trägt jeder anonyme Link das Abzeichen **🌐 Anonym**.
+„🌐 Nur anonyme Links zeigen“ blendet die übrigen aus, **🚫 Anonymen Link zurückziehen** steht an der Karte.
 
-Unter **Schülerfreigaben → 🏫 Klassen** steht je gewählter Klasse der
-Quick-Link als **Variante mit vorgewählter Klasse** (Abzeichen 🔗 Quick-Link).
-Damit kann man einer Klasse einen Link geben, bei dem die Klassenauswahl
-entfällt. Dort gibt es auch die **🏆 Quiz-Arena** der Klasse: Den
-Leitungs-Link öffnet nur die Lehrkraft (z. B. am Beamer), Schüler kommen über
-den QR-Code im Wartebereich hinein.
+| Modus über einen anonymen Link | Name | Ende |
+|---|---|---|
+| Quiz, Lernen mit Lösungen, Lernbegleitung | keiner | Ergebnis nur auf dem Bildschirm |
+| 📝 Klassenarbeit, hier **Probearbeit** | frei wählbar | Punkte auf dem Bildschirm; Gesperrtes (🔒, Klassenarbeits-Dokumente) nur, wenn es einzeln gewählt ist |
+| 🏆 Quiz-Arena | frei wählbar, auch Fantasienamen | Siegertreppchen, keine Ergebnisse |
 
-Hinter jeder Klasse steht ihr Klassenlink. Eine abgewählte Klasse behält ihn
-als gewöhnlichen Klassenlink – samt Ergebnissen.
+Die echte Klassenarbeit läuft über die Klasse.
 
-| Adresse | Schüler sehen |
-|---|---|
-| `/?l=<token>` | Klassenauswahl und Name |
-| `/?l=<token>.<klasse>` | nur den Namen (Klasse steht fest) |
+## Klassenlinks: Name und PIN, einmal je Gerät
 
-Ist die Klasse einer Variante nicht mehr ausgewählt, zeigt die App die
-Klassenauswahl statt eines Fehlers. Zur Auswahl stehen nur Klassen des
-aktuellen Schuljahrs.
+Beim ersten Mal geben Schüler Namen und PIN ein, danach steht auf der Eingabeseite „Angemeldet als …“: Ein Klick genügt.
+Auf einem gemeinsam genutzten Gerät führt **Das bin ich nicht** zur Eingabe zurück. Das Gerät hält nur einen signierten
+Ausweis, nie die PIN; eine neue PIN (🔑 in der Klassenliste) macht ihn ungültig.
+
+- **PIN noch nie gesehen:** Sie erscheint einmal, solange die [Erstanmeldung](klassennotizbuch.md#erstanmeldung) offen ist.
+  Ist sie zu, hilft die Lehrkraft, die die PIN in der Klassenliste sieht. Vor dem ersten Einsatz also einmal öffnen.
+- **Offene Klasse:** Ein unbekannter Name kommt weiter ohne PIN hinein, als „unbestätigt“.
+- **Stift-Editor:** Wer so angemeldet ist, wird dort nicht noch einmal gefragt.
+- **Ausnahmen, nur Name:** der eigene Link der Klassenarbeit und die Quiz-Arena.
+
+## Ältere Links
+
+- **Quick-Links mit Klassenauswahl** (`/?l=<token>`): Der Link gilt weiter, ist aber anonym. Darüber kommen **keine Ergebnisse
+  mehr in der Klasse an**.
+- **Varianten mit fester Klasse** (`/?l=<token>.<klasse>`) und Klassenlinks bleiben Klassenlinks, verlangen aber Name und PIN.
+- **Quick-Links aus der Zeit vor den Klassen** (`/?q=…`) gelten weiter und sind anonym.
 
 ### Schuljahreswechsel
 
-Die Klassen-ID bleibt beim Wechsel nicht gleich – jede Klasse gehört zu einem
-Schuljahr, mit eigener Schülerliste und Löschfrist
-([Klassen und Schuljahr](klassen-und-schuljahr.md#schuljahreswechsel)).
-Der Quick-Link folgt trotzdem:
-
-- **Übernommene Klasse** (TG11-1 → TG12-1): Sie ersetzt die alte in der
-  Auswahl. Eine gedruckte Variante mit der alten Klasse führt über die Kette
-  der Vorgänger zur Klasse, die jetzt ausgewählt ist – auch nach mehreren
-  Jahren. Ergebnisse landen in der neuen Klasse.
-- **Nicht mehr benötigte Klasse:** Sie fällt aus der Auswahl, ihre Variante
-  ist **erloschen** („Diesen Link gibt es nicht mehr“).
-- Der Quick-Link selbst (ohne Klasse) bleibt gültig.
-
-## Für die Schüler
-
-Link öffnen oder QR scannen → Klasse wählen → Name eingeben. Den QR-Code
-kann man auch direkt auf der Startseite von LernModule scannen (**📷 QR-Code
-scannen**) – praktisch, wenn die Kamera-App nicht zur Hand ist oder in der
-installierten App. Dort lässt sich auch der **Klassencode** eines
-Klassennotizbuchs eintippen. Der Name wird wie
-beim [Klassenlink](klassen-und-schuljahr.md) der Schülerliste zugeordnet
-(„unbestätigt“, „🔒 strikt“ gelten wie dort), das Ergebnis steht unter der
-Klasse. Ohne gewählte Klassen genügt der Name; Ergebnisse stehen dann unter
-„ohne Klasse“.
-
-## Ältere Quick-Links
-
-Quick-Links aus der Zeit vor den Klassen (`/?q=…`) bleiben gültig; Ergebnisse
-darüber stehen unter „ohne Klasse“. Die folgenden Abschnitte beschreiben sie.
+Eine Variante mit alter Klasse führt über die Kette der Vorgänger zur Klasse, die jetzt ausgewählt ist. Eine nicht mehr
+benötigte Klasse ist **erloschen** („Diesen Link gibt es nicht mehr“).
 
 ## Der Quick-Link gehört der Lehrkraft, nicht dem Thema
 

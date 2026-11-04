@@ -602,6 +602,8 @@ export class ClassResultsView {
           <span>${m.viaDoc ? '<span class="nb-status on cb-via-doc" title="In ein eingeschaltetes Dokument eingebettet – kommt mit ihm. Mit ○ am Dokument ist es aus.">●</span>'
             : sw(m.enabled, `data-toggle-module="${escapeAttr(m.id)}"`, 'dieses Modul')}
             <button type="button" class="cb-unit" data-open-module="${escapeAttr(m.id)}" title="${link.classTopicId === t.topicId ? 'Bearbeiten' : 'Vorschau'}">${TYPE_ICON[m.type] || '🧩'} ${escapeHtml(m.title || 'Modul')}</button></span>
+          ${m.hasSolutions ? `<button type="button" class="cb-mark ${m.solutionsOn ? 'on' : ''}" data-solution="${escapeAttr(m.id)}" data-on="${m.solutionsOn ? '1' : ''}"
+            title="${m.solutionsOn ? 'Die Schüler dieser Klasse sehen die Lösungen – klicken zum Verbergen' : 'Lösungen für diese Klasse zeigen'}" aria-label="Lösungen">💡</button>` : ''}
           ${m.enabled ? `<button type="button" class="cb-mark ${marked ? 'on' : ''}" data-mark="${escapeAttr(m.id)}"
             title="${marked ? 'Hier ist die Klasse gerade – klicken zum Entfernen' : 'Merker: Hier ist die Klasse gerade. Bei den Schülern ist dieses Modul dann aufgeklappt und hat den Fokus.'}">📍</button>` : ''}
           <button type="button" class="nb-menu-btn" data-module-menu="${escapeAttr(m.id)}" title="Aktionen" aria-label="Aktionen">⋯</button></li>`;
@@ -658,6 +660,16 @@ export class ClassResultsView {
       const ids = btn.dataset.switchLinks.split(',').filter(Boolean);
       const res = await this.app.api.setClassbookLinks(this._classId, ids, btn.dataset.state !== 'on');
       if (failed(res)) { this.app.showToast('Fehler: ' + (res?.message || '?'), 'error'); return; }
+      this._openLinks = new Set([...out.querySelectorAll('details[data-link][open]')].map((d) => d.dataset.link));
+      await this._classbook(true);
+      this._render();
+    }));
+    out.querySelectorAll('[data-solution]').forEach((btn) => btn.addEventListener('click', async (e) => {
+      e.preventDefault();
+      const linkId = btn.closest('[data-link]').dataset.link;
+      const res = await this.app.api.setClassbookSolutions(this._classId, linkId, btn.dataset.solution, !btn.dataset.on);
+      if (failed(res)) { this.app.showToast('Fehler: ' + (res?.message || '?'), 'error'); return; }
+      this.app.showToast(res.on ? 'Die Schüler dieser Klasse sehen jetzt die Lösungen.' : 'Lösungen wieder verborgen.', 'success');
       this._openLinks = new Set([...out.querySelectorAll('details[data-link][open]')].map((d) => d.dataset.link));
       await this._classbook(true);
       this._render();

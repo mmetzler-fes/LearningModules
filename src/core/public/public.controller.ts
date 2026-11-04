@@ -22,13 +22,14 @@ import { FeaturesService } from '../../features/features.service';
 import { isTestStudent } from '../../classes/test-student';
 import { TimingsService } from '../../timings/timings.service';
 import { UsageService } from '../../impact/usage.service';
-import { contentOf, forStudents } from './student-view';
+import { contentOf, forStudents, studentModule } from './student-view';
 import * as crypto from 'crypto';
 import { cleanPcName } from './pc-name';
 import { isQuickRule, splitQuickToken } from '../../links/quick-token';
 import { ExamService } from '../../work/exam.service';
 import { classbookTicketKey } from '../../classbook/classbook-rules';
 import { HtmlAppsService } from '../../html-apps/html-apps.service';
+import { ClassbookService } from '../../classbook/classbook.service';
 
 const MAX_RECORDING_BYTES = 25 * 1024 * 1024;
 
@@ -52,6 +53,7 @@ export class PublicController {
     private readonly features: FeaturesService,
     private readonly exams: ExamService,
     private readonly htmlApps: HtmlAppsService,
+    private readonly classbook: ClassbookService,
   ) {}
 
   /**
@@ -228,14 +230,15 @@ export class PublicController {
     const resolved = await this.linksService.resolveModules(link, { exam: modesFor(link, access).includes('exam') });
 
     const klasse = await this.classesService.findById(link.classId);
-    const choices = isQuickRule(link) ? await this.linksService.quickClasses(link) : [];
     return {
       linkId: link.id,
+      // Ohne Klasse: keine Anmeldung, nichts wird gespeichert.
+      anonymous: !link.classId,
+      classId: link.classId || null,
       // Adresse, mit der es weitergeht – mit Klassenauswahl hängt die Klasse daran.
       token: asked,
       name: link.name,
       className: klasse?.name ?? null,
-      classChoices: choices.map((c) => ({ id: c.id, name: c.name })),
       // Übungslink: Quiz, Lernen mit Lösungen, Lernbegleitung zur Wahl.
       // Link der Klassenarbeit: nur die Klassenarbeit.
       modes: modesFor(link, access),
@@ -257,15 +260,15 @@ export class PublicController {
   @Post('link/:token/start')
   async startLink(
     @Param('token') token: string,
-    @Body() body: { studentName?: string; password?: string; mode?: string; testPassword?: string; classTicket?: string },
+    @Body() body: { studentName?: string; password?: string; mode?: string; testPassword?: string; classTicket?: string; pin?: string },
   ) {
     const { link, access } = await this.findAccessByToken(token);
     const allowed = modesFor(link, access);
-    if (isQuickRule(link) && (await this.linksService.quickClasses(link)).length) {
-      throw new BadRequestException('Bitte zuerst die Klasse wählen.');
-    }
+    const anonymous = !link.classId;
 
     let studentName = (body?.studentName || '').trim().replace(/\s+/g, ' ');
+    // Anonym braucht es keinen Namen, in der Probearbeit darf es ein frei gewählter sein.
+    if (anonymous && !studentName) studentName = 'Anonym';
     if (!studentName && !body?.classTicket) throw new BadRequestException('Bitte den Namen eingeben.');
 
     if (link.accessPassword && (body?.password || '') !== link.accessPassword) {
@@ -290,17 +293,27 @@ export class PublicController {
     // steht dann sein Name aus der Liste, nicht die Schreibweise der Eingabe.
     const klasse = await this.classesService.findById(link.classId);
     let studentId: string | null = null;
+    let login: Awaited<ReturnType<ClassbookService['loginViaLink']>> | null = null;
+    let verified = false;
     if (klasse && body?.classTicket) {
       // Aus dem Klassennotizbuch: dort schon mit Name und PIN angemeldet.
-      const t = readTicket(body.classTicket, classbookTicketKey(klasse.id));
-      if (!t) throw new ForbiddenException('Die Anmeldung im Klassennotizbuch ist abgelaufen. Bitte dort neu anmelden.');
+      const t = await this.classbook.deviceLogin(klasse, body.classTicket);
+      if (!t) throw new ForbiddenException({ statusCode: 403, deviceExpired: true, message: 'Die Anmeldung ist abgelaufen. Bitte neu anmelden.' });
       studentId = t.s;
       studentName = t.n;
-    } else if (klasse) {
+      verified = true;
+    } else if (klasse && access === 'exam') {
+      // Der Link der Klassenarbeit fragt weiter nur nach dem Namen.
       if (!studentName) throw new BadRequestException('Bitte den Namen eingeben.');
       const who = await this.classesService.resolveStudent(klasse, studentName, body?.testPassword);
       studentId = who.studentId;
       studentName = who.name;
+    } else if (klasse) {
+      // Name und PIN wie im Klassennotizbuch; das Gerät merkt sich die Anmeldung.
+      login = await this.classbook.loginViaLink(klasse, { name: studentName, pin: body?.pin, testPassword: body?.testPassword });
+      studentId = login.studentId;
+      studentName = login.name;
+      verified = true;
     } else if (!studentName) {
       throw new BadRequestException('Bitte den Namen eingeben.');
     }
@@ -327,7 +340,7 @@ export class PublicController {
     }
 
     // Klassenarbeit über einen Klassenlink: Versuch festhalten (zweiter Start nur nach Freigabe).
-    const ticket = studentId ? issueTicket(link.id, studentId, studentName) : null;
+    const ticket = studentId ? issueTicket(link.id, studentId, studentName, Date.now(), { verified }) : null;
     const exam = mode === 'exam' && ticket
       ? await this.exams.begin(link, { id: studentId, name: studentName }, readTicket(ticket, link.id)!.e)
       : null;
@@ -336,6 +349,10 @@ export class PublicController {
       linkId: link.id,
       linkName: link.name,
       className: klasse?.name ?? null,
+      anonymous,
+      // Erste Anmeldung: die PIN einmal zeigen, und das Gerät merkt sich den Ausweis.
+      ...(login?.pin ? { pin: login.pin } : {}),
+      ...(login ? { deviceTicket: login.deviceTicket, classId: klasse?.id } : {}),
       mode,
       studentName,
       studentTicket: ticket,
@@ -351,7 +368,8 @@ export class PublicController {
         id: r.topic.id,
         title: r.topic.title,
         description: r.topic.description,
-        modules: r.modules.map(forStudents),
+        // Lösungen nur im Lernmodus oder wenn die Lehrkraft sie für diesen Link freigegeben hat.
+        modules: r.modules.map(studentModule((m) => mode === 'learn' || (link.solutionModuleIds || []).includes(String(m.id)))),
         inkEdit: await this.inkEditFor(r.topic.ownerId),
       }))),
     };
@@ -382,8 +400,7 @@ export class PublicController {
     @Body() body: { linkToken?: string; quickToken?: string; moduleId?: string; studentName?: string },
   ) {
     if (!file?.buffer?.length) throw new BadRequestException('Keine Aufnahme empfangen.');
-    const studentName = String(body?.studentName || '').trim().slice(0, 60);
-    if (!studentName) throw new BadRequestException('Name fehlt.');
+    const studentName = String(body?.studentName || '').trim().slice(0, 60) || 'Anonym';
     const mod = body?.moduleId ? await this.moduleRepo.findOne({ where: { id: body.moduleId } }) : null;
     if (!mod || mod.type !== 'audioRecorder') throw new NotFoundException('Aufgabe nicht gefunden.');
 
@@ -503,6 +520,12 @@ export class PublicController {
       });
     }
     if (!teacher) throw new NotFoundException('Lehrer nicht gefunden.');
+
+    // Anonym (Link ohne Klasse, Quick-Link): Nichts wird gespeichert, nur die Nutzung ohne Namen gezählt.
+    if ((link && !link.classId) || (!link && body.quickToken)) {
+      await this.usageService.recordRunSafely({ teacherId: teacher.id, classId: null, details: body.payload?.details });
+      return { success: true, stored: false };
+    }
 
     const forwarded = req.headers['x-forwarded-for'];
     const ipAddress = (typeof forwarded === 'string' ? forwarded.split(',')[0] : req.ip || '').trim();

@@ -1,3 +1,4 @@
+import { rememberStudent } from '../class-device.js';
 import { escapeHtml, escapeAttr } from '../utils.js';
 import { LINK_MODE_LABELS } from './login.js';
 import { offerTeacherName } from './teacher-as-student.js';
@@ -204,6 +205,7 @@ export class ClassbookStudent {
         return;
       }
       saveSession({ token: this.token, ticket: res.ticket, name: res.name, pin: res.pin || pin || null });
+      if (res.deviceTicket && res.classId) rememberStudent(res.classId, { ticket: res.deviceTicket, name: res.name });
       if (res.pin) this._showPin(res.pin);
       else await this._home();
     });

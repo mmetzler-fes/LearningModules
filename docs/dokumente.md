@@ -475,8 +475,10 @@ Dokumente erscheinen in Themen-Links und Quick-Links wie andere Module, als
 Lese-Seite. Mit **⬇ Als PDF** holen sich Schüler das Blatt – ohne Lösungen.
 Der Knopf steht (wie **✍️ Mit Stift bearbeiten**) rechts in der festen
 Titelleiste der Aufgabe und scrollt nicht mit dem Blatt weg.
-Bei **Lernen mit Lösungen** und in der Vorschau lassen sich die Lösungen
-aufdecken, im Quiz bleiben sie verborgen.
+Bei **Lernen mit Lösungen**, in der Vorschau und mit **💡** im
+[Klassennotizbuch](klassennotizbuch.md) lassen sich die Lösungen aufdecken. Sonst entfernt
+der Server sie, bevor das Blatt zu den Schülern geht; sie sind dann auch im Quelltext der Seite nicht zu finden.
+Das gilt für Dokumente. Normale Quizze prüfen im Browser und haben ihre Antworten dort.
 
 ## Mit Stift bearbeiten (in Erprobung)
 

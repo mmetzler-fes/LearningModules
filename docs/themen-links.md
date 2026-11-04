@@ -12,6 +12,9 @@ galt damit für alle gleichzeitig – ungünstig, wenn eine Gruppe eine
 Klassenarbeit schreibt, während eine andere noch übt. Jetzt hängt der Modus
 am Link, und beides geht nebeneinander.
 
+**Zwei Arten:** **🔗 Link & QR** ergibt einen [anonymen Link](quick-link.md#anonyme-links) ohne Anmeldung und ohne Ergebnisse,
+erkennbar am Abzeichen **🌐 Anonym**. **🏫 Für eine Klasse** ergibt einen Klassenlink mit Name und PIN und mit Ergebnissen.
+
 ## Anlegen
 
 Menüpunkt **🔗 Themen-Links → ➕ Neuer Themen-Link**.

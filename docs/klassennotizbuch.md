@@ -39,10 +39,11 @@ Lernthemen), darin die Lernthemen. Die Schüler sehen denselben Baum.
   „Neues … hier“, ↑ / ↓, **↔️ Verschieben nach…**, Umbenennen, Löschen.
   Das ⋯ steht direkt in der Zeile (auch Rechtsklick auf die Zeile).
 - **🔗 Quick-Link (Link & QR)** im ⋯-Menü – immer **für diese Klasse**: Die
-  Schüler geben nur ihren Namen ein, eine Klassenauswahl gibt es nicht. An
+  Schüler melden sich einmal je Gerät mit Name und PIN an
+  ([Klassenlinks](quick-link.md#klassenlinks-name-und-pin-einmal-je-gerät)). An
   einem Lernthema für dieses Lernthema, an einem aus dem Notizbuch
-  übernommenen Bereich oder Abschnitt ein Link für alles darin. Den Quick-Link
-  mit Klassenauswahl (für mehrere Klassen) gibt es weiter im 📓 Notizbuch.
+  übernommenen Bereich oder Abschnitt ein Link für alles darin. Der Quick-Link
+  im 📓 Notizbuch ist dagegen [anonym](quick-link.md#anonyme-links).
 - **Ziehen und Ablegen** wie im Notizbuch: eine Zeile fassen und oben oder
   unten an eine andere Zeile legen (davor/dahinter) oder in die Mitte eines
   Bereichs bzw. Abschnitts (hinein).
@@ -116,6 +117,8 @@ Freigabe im Notizbuch, nur für diese Klasse.
   Ausgeblendetes steht bei dir blass und durchgestrichen; Schüler können es
   auch über „Meine Blätter“ nicht öffnen. Ein einzelnes Lernthema blendest du
   mit **⏸ Ausblenden** an seiner Karte aus.
+- **💡 Lösungen je Klasse:** Ein Dokument mit Lösungen hat in der Zeile ein 💡. Ist es an, sehen die Schüler
+  dieser Klasse die Lösungen im Blatt und im Stift-Editor. Ohne 💡 schickt der Server die Lösungen gar nicht erst mit.
 - **Quizze in einem Dokument** kommen mit dem Dokument: Ist das Dokument an,
   sind seine eingebetteten Quizze für die Schüler da (blasses ●), auch wenn
   sie selbst nicht eingeschaltet sind.

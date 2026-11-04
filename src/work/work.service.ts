@@ -122,7 +122,7 @@ export class WorkService {
   /** Stand laden – `{ data: null }`, wenn es noch keinen gibt. */
   async load(body: WorkAccess) {
     const a = await this.access(body);
-    this.checkPin(a.student, a.access, body.pin);
+    if (!a.ticket.v) this.checkPin(a.student, a.access, body.pin);
     await this.assertExamOpen(a);
     const work = await this.find(a.link.id, a.ticket.s, a.mod.id);
     // Beschriftung der Lehrkraft, wenn sie „für alle“ ist – unter der eigenen.
@@ -137,7 +137,7 @@ export class WorkService {
    */
   async save(body: WorkAccess & { data?: any }) {
     const a = await this.access(body);
-    this.checkPin(a.student, a.access, body.pin);
+    if (!a.ticket.v) this.checkPin(a.student, a.access, body.pin);
     const data = body?.data;
     if (!data || typeof data !== 'object' || data.v !== 1) throw new BadRequestException('Kein gültiger Stand.');
     const bytes = Buffer.byteLength(JSON.stringify(data));

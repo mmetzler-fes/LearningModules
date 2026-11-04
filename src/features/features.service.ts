@@ -71,7 +71,7 @@ export class FeaturesService {
   }
 
   /** Was für dieses Konto gilt – für Login, /me und den Guard. */
-  async enabledFor(user: Pick<User, 'features' | 'featuresDenied'> | null | undefined): Promise<string[]> {
+  async enabledFor(user: { features?: string[] | null; featuresDenied?: string[] | null } | null | undefined): Promise<string[]> {
     if (!user) return [];
     const modes = await this.modes();
     const own = Array.isArray(user.features) ? user.features : [];

@@ -1,3 +1,4 @@
+import { ClassbookModule } from '../../classbook/classbook.module';
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { PublicController } from './public.controller';
@@ -20,7 +21,7 @@ import { WorkModule } from '../../work/work.module';
 import { HtmlAppsModule } from '../../html-apps/html-apps.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([User, LearningTopic, LearningModule, Result, TopicLink, TopicQuickLink]), HtmlAppsModule, LinksModule, TopicsModule, GroupsModule, CompanionModule, ClassesModule, TimingsModule, UsageModule, WorksheetsModule, FeaturesModule, WorkModule],
+  imports: [TypeOrmModule.forFeature([User, LearningTopic, LearningModule, Result, TopicLink, TopicQuickLink]), HtmlAppsModule, ClassbookModule, LinksModule, TopicsModule, GroupsModule, CompanionModule, ClassesModule, TimingsModule, UsageModule, WorksheetsModule, FeaturesModule, WorkModule],
   controllers: [PublicController],
 })
 export class PublicModule {}

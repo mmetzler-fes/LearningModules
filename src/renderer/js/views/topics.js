@@ -291,7 +291,7 @@ export class TopicsView {
           </label>
           <button class="btn btn-primary btn-sm btn-open-topic" title="Module verwalten">📦 Module</button>
           <button class="btn btn-secondary btn-sm btn-quick-link"
-            title="${topic.selected ? 'Ein Link + QR-Code für das Thema – Schüler wählen ihre Klasse' : 'Noch nicht freigegeben – beim Klick lässt es sich gleich freigeben'}">🔗 Quick-Link</button>
+            title="${topic.selected ? 'Anonymer Link + QR-Code für das Thema – ohne Anmeldung, nichts wird gespeichert' : 'Noch nicht freigegeben – beim Klick lässt es sich gleich freigeben'}">🔗 Quick-Link</button>
           <button class="btn btn-secondary btn-sm btn-edit-topic" title="Bearbeiten">✏️</button>
           <button class="btn btn-secondary btn-sm btn-share-topic" title="Im Shop anbieten oder weitergeben">👥</button>
           <button class="btn btn-secondary btn-sm btn-export-topic" title="Exportieren (JSON, H5P oder verschlüsselt)">📤</button>

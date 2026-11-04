@@ -205,11 +205,11 @@ export class BrowserApi {
 
   /** Durchlauf starten: prüft Name, Passwort und Modus und liefert die Module. */
   /** classTicket: Ausweis aus dem Klassennotizbuch statt Name (dort mit PIN angemeldet). */
-  startLinkRun(token, { studentName, password, mode, testPassword, classTicket }) {
+  startLinkRun(token, { studentName, password, mode, testPassword, classTicket, pin }) {
     return fetch(`/api/public/link/${encodeURIComponent(token)}/start`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ studentName, password, mode, testPassword, classTicket }),
+      body: JSON.stringify({ studentName, password, mode, testPassword, classTicket, pin }),
     }).then((r) => r.json());
   }
 
@@ -1098,6 +1098,11 @@ export class BrowserApi {
     });
   }
 
+  setClassbookSolutions(classId, linkId, moduleId, on) {
+    return this._fetch(`/api/classbook/${encodeURIComponent(classId)}/links/${encodeURIComponent(linkId)}/solutions`, {
+      method: 'PUT', body: JSON.stringify({ moduleId, on }),
+    });
+  }
   setClassbookItem(classId, linkId, { topicId, moduleId, enabled }) {
     return this._fetch(`/api/classbook/${encodeURIComponent(classId)}/links/${encodeURIComponent(linkId)}/item`, {
       method: 'PUT', body: JSON.stringify({ topicId, moduleId, enabled }),

@@ -32,9 +32,17 @@ const SHARE_TEXTS = {
       + '(Quiz, Lernen mit Lösungen, Lernbegleitung – je nachdem, was du freigegeben hast).',
   },
   quick: {
-    title: '🔗 Quick-Link',
-    hint: 'Ein Link für alle: Schüler öffnen ihn oder scannen den Code, wählen ihre Klasse und geben ihren Namen ein. '
-      + 'Er bleibt gleich, auch wenn du die Klassen anpasst – so passt er auf gedruckte Blätter.',
+    title: '🌐 Quick-Link (anonym)',
+    hint: 'Ein Link für alle, ohne Anmeldung: Wer ihn hat, kommt hinein, und nichts wird gespeichert. '
+      + 'Für eine Klasse mit Ergebnissen: Quick-Link im Klassennotizbuch.',
+  },
+  anonymous: {
+    title: '🌐 Anonymer Link',
+    hint: 'Ohne Anmeldung: Wer den Link hat, kommt hinein, und nichts wird gespeichert. „🚫 Zurückziehen“ macht ihn ungültig.',
+  },
+  anonymousExam: {
+    title: '🌐 Probearbeit – anonymer Link',
+    hint: 'Ohne Klasse: Schüler wählen einen beliebigen Namen, sehen am Ende ihr Ergebnis, gespeichert wird nichts. Die echte Klassenarbeit läuft über das Klassennotizbuch.',
   },
   exam: {
     title: '📝 Klassenarbeit – eigener Link',
@@ -192,17 +200,7 @@ export class LinksView {
     let res = await this.app.api.getQuickLink(kind, id).catch(() => null);
     if (typeof res?.exists !== 'boolean') { this.app.showToast('Fehler: ' + (res?.message || 'Quick-Link nicht abrufbar'), 'error'); return; }
     if (!res.exists) {
-      const picked = await pickClass(this.app, {
-        title: `🔗 Quick-Link – ${title}`,
-        hint: 'Ein Link für alle: Schüler wählen nach dem Öffnen ihre Klasse aus dieser Auswahl, Ergebnisse stehen dann unter ihrer Klasse. '
-          + 'Ohne Klasse geben sie nur ihren Namen ein.',
-        multiple: true,
-        preselected: res.classIds || [],
-        okLabel: '🔗 Quick-Link erstellen',
-        allowNone: true,
-      });
-      if (!picked) return;
-      res = await this.app.api.saveQuickLink(kind, id, picked.map((c) => c.id)).catch(() => null);
+      res = await this.app.api.saveQuickLink(kind, id, []).catch(() => null);
       if (!res?.exists) { this.app.showToast('Fehler: ' + (res?.message || 'Quick-Link konnte nicht erstellt werden.'), 'error'); return; }
     } else if (kind === 'node') {
       // Der Inhalt folgt dem Knoten: neu dazugekommene Lernthemen gleich aufnehmen.
@@ -312,10 +310,21 @@ export class LinksView {
     this._classBar?.classList.toggle('hidden', this._tab !== 'classes');
     if (this._tab === 'classes') return this._renderClassLinks();
 
-    const links = (this._links || []).filter((l) => !l.classId && this._filter.matches(l));
+    const rules = (this._links || []).filter((l) => !l.classId && this._filter.matches(l));
+    const anonCount = rules.filter((l) => l.anonymousLink).length;
+    const links = this._onlyAnon ? rules.filter((l) => l.anonymousLink) : rules;
 
     this._list.innerHTML = '';
-    if (links.length === 0) {
+    // Anonyme Links sollen sich nicht unbemerkt verbreiten: hier sind sie auf einen Blick.
+    if (anonCount) {
+      const bar = document.createElement('label');
+      bar.className = 'hint';
+      bar.style.cssText = 'display:block; margin-bottom:10px;';
+      bar.innerHTML = `<input type="checkbox" id="linksOnlyAnon" ${this._onlyAnon ? 'checked' : ''}> 🌐 Nur anonyme Links zeigen (${anonCount})`;
+      bar.querySelector('input').addEventListener('change', (e) => { this._onlyAnon = e.target.checked; this._renderList(); });
+      this._list.appendChild(bar);
+    }
+    if (links.length === 0 && !this._onlyAnon) {
       this._list.innerHTML = `
         <div class="empty-state">
           <span class="empty-icon">🔗</span>
@@ -391,6 +400,7 @@ export class LinksView {
           ${link.active ? '🔗' : '⏸'} ${escapeHtml(link.name)}
           ${link.hasPassword ? '<span class="link-badge" title="Passwort erforderlich">🔒</span>' : ''}
           ${link.singleAttempt ? '<span class="link-badge" title="Klassenarbeit nur einmal">1×</span>' : ''}
+          ${link.anonymousLink ? '<span class="link-badge link-badge-anon" title="Ohne Anmeldung: Wer den Link hat, kommt hinein. Es wird nichts gespeichert.">🌐 Anonym</span>' : ''}
           ${isClass ? `<span class="link-class-chip">🏫 ${escapeHtml(link.className || '?')}</span>` : ''}
           ${link.isQuick || link.viaQuick ? `<span class="link-badge" title="${link.isQuick ? 'Quick-Link: ein Link, Schüler wählen ihre Klasse' : 'Variante des Quick-Links mit dieser Klasse'}">🔗 Quick-Link</span>` : ''}
         </h3>
@@ -410,9 +420,6 @@ export class LinksView {
         ${isClass && link.differsFromRule ? `
           <p class="link-card-warning link-differs">⚠ weicht von der Freigabe ab${link.customized ? ' – hier einzeln geändert' : ''}.
             <button type="button" class="btn btn-secondary btn-sm btn-link-sync" title="Inhalte, Modi und Passwort der Freigabe übernehmen – Link und QR-Code bleiben">⤵ Stand der Freigabe übernehmen</button></p>` : ''}
-        ${link.hasLegacyLink ? `
-          <p class="link-legacy-note">Alter Link ohne Klasse ist noch gültig – Ergebnisse darüber stehen unter „ohne Klasse“.
-            <button type="button" class="btn btn-secondary btn-sm btn-link-adopt">🏫 Einer Klasse zuordnen</button></p>` : ''}
         ${link.unavailableTopics ? `
           <p class="link-card-warning">⚠️ ${link.unavailableTopics} Thema/Themen nicht mehr verfügbar –
             gelöscht oder das Nutzungsrecht ist entfallen.</p>` : ''}
@@ -422,21 +429,30 @@ export class LinksView {
         ${this._hasPractice(link) ? `<button class="btn btn-secondary btn-sm btn-link-share" ${off} title="Link zum Üben: Quiz, Lernen mit Lösungen, Lernbegleitung">🔗 Link &amp; QR</button>` : ''}
         ${(link.modes || []).includes('exam') ? `<button class="btn btn-secondary btn-sm btn-link-exam" ${off} title="Eigener Link der Klassenarbeit">📝 Klassenarbeit</button>` : ''}
         ${(link.modes || []).includes('contest') ? `<button class="btn btn-primary btn-sm btn-link-contest" ${off}>🏆 Quiz-Arena</button>` : ''}
+        ${!isClass ? `<button class="btn btn-secondary btn-sm btn-link-forclass" ${off} title="Link für eine Klasse: Name und PIN, Ergebnisse stehen unter der Klasse">🏫 Für eine Klasse</button>` : ''}
+        ${link.anonymousLink ? `<button class="btn btn-secondary btn-sm btn-link-revoke" title="Der anonyme Link wird ungültig, auch gedruckte QR-Codes. Die Freigabe und Klassenlinks bleiben.">🚫 Anonymen Link zurückziehen</button>` : ''}
         <button class="btn btn-secondary btn-sm btn-link-toggle">${link.active ? '⏸ Deaktivieren' : '▶️ Aktivieren'}</button>
         <button class="btn btn-secondary btn-sm btn-link-edit">✏️ Bearbeiten</button>
         <button class="btn btn-danger btn-sm btn-link-delete">🗑</button>
       </div>`;
 
-    // Eine Regel verteilt man über einen Klassenlink: erst die Klasse, dann Link & QR.
-    const share = (kind) => (isClass
-      ? (kind === 'contest' ? this._openContestDialog(link) : this._openShareDialog(link, kind))
+    // Quick-Link über seinen eigenen Weg, alles andere direkt; ohne Klasse ist der Link anonym.
+    const share = (kind) => (kind === 'contest'
+      ? this._openContestDialog(link)
       : link.isQuick && kind === 'practice'
         ? this.openQuickLink({ kind: link.quickNodeId ? 'node' : 'topic', id: link.quickNodeId || link.quickTopicId, title: link.name })
-        : this._shareForClass(link, kind));
+        : this._openShareDialog(link, kind));
     card.querySelector('.btn-link-share')?.addEventListener('click', () => share('practice'));
     card.querySelector('.btn-link-exam')?.addEventListener('click', () => share('exam'));
     card.querySelector('.btn-link-contest')?.addEventListener('click', () => share('contest'));
-    card.querySelector('.btn-link-adopt')?.addEventListener('click', () => this._shareForClass(link, 'practice', true));
+    card.querySelector('.btn-link-forclass')?.addEventListener('click', () => this._shareForClass(link, 'practice'));
+    card.querySelector('.btn-link-revoke')?.addEventListener('click', async () => {
+      if (!(await this.app.appConfirm(`Anonymen Link von „${link.name}“ zurückziehen?\n\nVerteilte und gedruckte QR-Codes funktionieren danach nicht mehr. Die Freigabe und ihre Klassenlinks bleiben.`))) return;
+      await this.app.api.revokeLink(link.id, 'practice');
+      if (link.hasExamLink) await this.app.api.revokeLink(link.id, 'exam');
+      this.app.showToast('Anonymer Link zurückgezogen', 'info');
+      this.refresh();
+    });
     card.querySelector('.btn-link-edit').addEventListener('click', () => this._openEditor(link));
     card.querySelector('.btn-link-sync')?.addEventListener('click', async () => {
       const text = `Stand der Freigabe in den Klassenlink für ${link.className || 'diese Klasse'} übernehmen?\n\n`
@@ -1141,14 +1157,20 @@ export class LinksView {
     const box = document.getElementById('linkShareQuick');
     box?.classList.toggle('hidden', !quick);
     if (quick) {
+      // Ältere Quick-Links mit Klassen: Ihre Varianten gelten weiter.
       document.getElementById('linkShareQuickClasses').textContent = quick.classes.length
-        ? `${quick.classes.map((c) => c.name).join(', ')} – Schüler wählen ihre Klasse nach dem Öffnen.`
-        : 'Keine – Schüler geben nur ihren Namen ein, Ergebnisse stehen unter „ohne Klasse“.';
+        ? `Varianten mit fester Klasse (${quick.classes.map((c) => c.name).join(', ')}) gelten weiter, mit Name und PIN.`
+        : 'Keine Klassen: anonym, ohne Anmeldung.';
+      document.getElementById('btnEditQuickClasses')?.classList.add('hidden');
     }
-    const texts = quick ? SHARE_TEXTS.quick : SHARE_TEXTS[this._shareAccess || 'practice'];
+    const anon = !res?.classId && !res?.viaQuick;
+    const texts = quick ? SHARE_TEXTS.quick
+      : anon && this._shareAccess === 'exam' ? SHARE_TEXTS.anonymousExam
+        : anon ? SHARE_TEXTS.anonymous
+          : SHARE_TEXTS[this._shareAccess || 'practice'];
     document.getElementById('linkShareTitle').textContent = quick ? `${texts.title} – ${res.name}` : texts.title;
     document.getElementById('linkShareHint').textContent = res?.viaQuick
-      ? `${texts.hint} Das ist der Quick-Link mit vorgewählter Klasse ${res.className || ''} – Schüler geben nur ihren Namen ein. Ändern und zurückziehen über den Quick-Link.`
+      ? `${texts.hint} Das ist der Quick-Link mit vorgewählter Klasse ${res.className || ''} – Schüler geben Name und PIN ein. Ändern und zurückziehen über den Quick-Link.`
       : texts.hint;
     document.getElementById('btnRegenLinkShare')?.classList.toggle('hidden', !!(quick || res?.viaQuick));
     document.getElementById('btnRevokeLinkShare')?.classList.toggle('hidden', !!res?.viaQuick);

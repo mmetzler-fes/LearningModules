@@ -22,8 +22,12 @@ describe('LinksService.resolveModules: Sperre', () => {
   it('ohne Angabe ohne Gesperrtes – auch wer vergisst, etwas anzugeben, zeigt nichts', async () => {
     expect(ids(await service('me').resolveModules(link))).toEqual(['frei', 'rel']);
   });
-  it('Link der Klassenarbeit: alles', async () => {
-    expect(ids(await service('me').resolveModules(link, { exam: true }))).toEqual(['ka', 'q', 'frei', 'rel']);
+  it('Link der Klassenarbeit einer Klasse: alles', async () => {
+    expect(ids(await service('me').resolveModules({ ...link, classId: 'k' }, { exam: true }))).toEqual(['ka', 'q', 'frei', 'rel']);
+  });
+  it('Probearbeit über einen anonymen Link: Gesperrtes nur, wenn es einzeln gewählt ist', async () => {
+    expect(ids(await service('me').resolveModules(link, { exam: true }))).toEqual(['frei', 'rel']);
+    expect(ids(await service('me').resolveModules({ ...link, selection: [{ topicId: 't', moduleIds: ['ka', 'frei'] }] }, { exam: true }))).toEqual(expect.arrayContaining(['ka', 'frei']));
   });
   it('Link einer anderen Lehrkraft: Die Freigabe zur Besprechung gilt nicht', async () => {
     expect(ids(await service('andere').resolveModules(link))).toEqual(['frei']);

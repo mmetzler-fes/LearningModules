@@ -88,6 +88,12 @@ export class ClassbookController {
   }
 
   /** `{ linkIds, enabled }` – ganze Zuweisungen ein- oder ausschalten (Bereich, Abschnitt, alles). */
+  /** `{ moduleId, on }` – 💡 Lösungen eines Dokuments für diese Klasse. */
+  @Put(':classId/links/:linkId/solutions')
+  setSolutions(@Request() req: any, @Param('classId') classId: string, @Param('linkId') linkId: string, @Body() body: any) {
+    return this.classbook.setSolutions(req.user, classId, linkId, body);
+  }
+
   @Put(':classId/links-enabled')
   setLinks(@Request() req: any, @Param('classId') classId: string, @Body() body: any) {
     return this.classbook.setLinks(req.user, classId, body);

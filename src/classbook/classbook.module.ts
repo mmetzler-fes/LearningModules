@@ -27,6 +27,7 @@ import { ClassbookLive } from './classbook-live';
 @Module({
   imports: [TypeOrmModule.forFeature([HtmlAppState, ClassNotebook, ClassStudent, Result, DocumentWork, TopicLink, User, ExamAttempt, ClassNotebookNode, ClassNotebookPlace, LearningTopic, LearningModule, NotebookNode, NotebookPlacement, ClassbookProgress]), LinksModule, ClassesModule, NotebooksModule, ContestModule],
   controllers: [ClassbookController, PublicClassbookController, WebappController],
+  exports: [ClassbookService],
   providers: [ClassbookService, ClassbookLive],
 })
 export class ClassbookModule {}

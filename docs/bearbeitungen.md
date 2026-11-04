@@ -24,7 +24,7 @@ rutschen die folgenden Bausteine samt Strichen mit. Nur im geänderten
 Baustein selbst passen Striche nicht mehr genau, wenn sich dort der Inhalt
 verschiebt; Striche eines gelöschten Bausteins bleiben, wo sie zuletzt waren.
 
-Ohne Klasse (gewöhnlicher Themenlink, Quick-Link ohne Klasse) bleibt die
+Über einen anonymen Link (ohne Klasse) bleibt die
 Beschriftung wie bisher auf dem Gerät.
 
 ## Die PIN

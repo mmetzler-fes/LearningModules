@@ -1,3 +1,4 @@
+import { forgetStudent, rememberStudent, rememberedStudent } from '../class-device.js';
 import { escapeHtml, escapeAttr } from '../utils.js';
 import { renderMarkdown } from '../markdown.js';
 import { refreshNextcloud } from './nextcloud.js';
@@ -225,17 +226,8 @@ export class LoginView {
     document.getElementById('quickEntryMeta').textContent =
       `${modules.length} Aufgabe${modules.length !== 1 ? 'n' : ''}`;
 
-    const nameInput = document.getElementById('quickEntryName');
-    nameInput?.focus();
-    void offerTeacherName(nameInput, () => document.getElementById('quickEntryForm')?.requestSubmit());
-
-    document.getElementById('quickEntryForm')?.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const name = nameInput.value.trim();
-      if (!name) return;
-      await this._enterQuickQuiz(name, data, token);
-    });
-
+    // Anonym: ohne Namen, nichts wird gespeichert.
+    await this._enterQuickQuiz('Anonym', data, token);
     return true;
   }
 
@@ -248,7 +240,7 @@ export class LoginView {
     // Der Token wandert mit ins Ergebnis: Er sagt dem Server, welche Lehrkraft
     // den Link verteilt hat. Bei fremden Inhalten ist das nicht der
     // Eigentümer des Themas.
-    app.state.quickSession = { token };
+    app.state.quickSession = { token, anonymous: true };
 
     await this.enterApp();
     // Direkt ins Quiz, ohne den Umweg über die Themenauswahl.
@@ -303,21 +295,7 @@ export class LoginView {
     loading.classList.add('hidden');
     ready.classList.remove('hidden');
 
-    // Quick-Link: Klasse aus der Auswahl der Lehrkraft. Weiter geht es dann
-    // mit `<token>.<klasse>` – dahinter steht der Klassenlink.
-    const choices = info.classChoices || [];
-    const classGroup = document.getElementById('linkEntryClassGroup');
-    const classSel = document.getElementById('linkEntryClass');
-    classGroup?.classList.toggle('hidden', !choices.length);
-    if (classSel) {
-      classSel.required = choices.length > 0;
-      classSel.innerHTML = choices.length
-        ? '<option value="">– bitte wählen –</option>'
-          + choices.map((c) => `<option value="${escapeAttr(c.id)}">${escapeHtml(c.name)}</option>`).join('')
-        : '';
-    }
     const baseToken = info.token || token;
-    const runToken = () => (choices.length && classSel?.value ? `${baseToken}.${classSel.value}` : baseToken);
 
     document.getElementById('linkEntryTitle').textContent = info.className ? `${info.name} · ${info.className}` : info.name;
     const parts = [`${info.moduleCount} Aufgabe${info.moduleCount !== 1 ? 'n' : ''}`];
@@ -377,8 +355,51 @@ export class LoginView {
     }
 
     const nameInput = document.getElementById('linkEntryName');
-    (choices.length ? classSel : nameInput)?.focus();
-    void offerTeacherName(nameInput, () => document.getElementById('linkEntryForm')?.requestSubmit());
+    const nameGroup = nameInput?.closest('.form-group');
+    const pinGroup = document.getElementById('linkEntryPinGroup');
+    const pinInput = document.getElementById('linkEntryPin');
+    const isContest = (info.modes || []).length === 1 && info.modes[0] === 'contest';
+    // Anonym: ohne Namen. In Quiz-Arena und Probearbeit ein frei gewählter, gespeichert wird nichts.
+    const anonymous = !!info.anonymous;
+    const wantsFreeName = anonymous && (isContest || info.access === 'exam');
+    const setNameNeeded = (needed) => {
+      nameGroup?.classList.toggle('hidden', !needed);
+      if (nameInput) nameInput.required = needed;
+    };
+    if (anonymous) {
+      setNameNeeded(wantsFreeName);
+      if (wantsFreeName) {
+        document.getElementById('linkEntryNameLabel').textContent = 'Dein Name – auch ein Fantasiename';
+        nameInput.placeholder = 'Name oder Spitzname';
+      }
+    }
+    // Klassenlink: Das Gerät kennt den Schüler schon – ein Klick, aber sichtbar, wer es ist.
+    let device = !anonymous && info.access !== 'exam' && !isContest ? rememberedStudent(info.classId) : null;
+    const dropDevice = () => {
+      forgetStudent(info.classId);
+      device = null;
+      document.getElementById('linkEntryKnown')?.remove();
+      setNameNeeded(true);
+      nameInput?.focus();
+    };
+    if (device) {
+      setNameNeeded(false);
+      const known = document.createElement('div');
+      known.id = 'linkEntryKnown';
+      known.className = 'form-group';
+      const line = document.createElement('p');
+      line.textContent = `Angemeldet als ${device.name}.`;
+      const other = document.createElement('button');
+      other.type = 'button';
+      other.className = 'btn btn-secondary btn-sm';
+      other.textContent = 'Das bin ich nicht';
+      other.addEventListener('click', dropDevice);
+      known.append(line, other);
+      nameGroup?.parentNode.insertBefore(known, nameGroup);
+    } else if (!anonymous || wantsFreeName) {
+      nameInput?.focus();
+      if (!anonymous) void offerTeacherName(nameInput, () => document.getElementById('linkEntryForm')?.requestSubmit());
+    }
     // Testschüler der Lehrkraft: Das Feld erscheint erst, wenn der Server danach fragt.
     const testGroup = document.getElementById('linkEntryTestPwGroup');
     const testInput = document.getElementById('linkEntryTestPassword');
@@ -394,9 +415,8 @@ export class LoginView {
       errText?.classList.add('hidden');
 
       const studentName = nameInput.value.trim();
-      if (!studentName) return;
-      if (choices.length && !classSel.value) { classSel.focus(); return; }
-      const runAs = runToken();
+      if (!studentName && !device && !(anonymous && !wantsFreeName)) return;
+      const runAs = baseToken;
       const password = pwInput ? pwInput.value : '';
       const testPassword = testGroup && !testGroup.classList.contains('hidden') ? testInput.value : undefined;
       const mode = multi
@@ -412,12 +432,20 @@ export class LoginView {
 
       let data;
       try {
-        data = await this.app.api.startLinkRun(runAs, { studentName, password, mode, testPassword });
+        data = await this.app.api.startLinkRun(runAs, {
+          studentName, password, mode, testPassword, classTicket: device?.ticket, pin: pinInput?.value.trim() || undefined,
+        });
       } catch (_) {
         if (errText) { errText.textContent = 'Der Server ist nicht erreichbar.'; errText.classList.remove('hidden'); }
         return;
       }
+      if (data?.deviceExpired) {
+        dropDevice();
+        if (errText) { errText.textContent = data.message; errText.classList.remove('hidden'); }
+        return;
+      }
       if (!data || !data.topics) {
+        if (data?.needPin) { pinGroup?.classList.remove('hidden'); pinInput?.focus(); }
         if (data?.needTestPassword) askTestPassword();
         if (errText) {
           errText.textContent = data?.message || 'Der Start ist fehlgeschlagen.';
@@ -425,8 +453,13 @@ export class LoginView {
         }
         return;
       }
+      if (data.deviceTicket) rememberStudent(data.classId, { ticket: data.deviceTicket, name: data.studentName });
+      if (data.pin) await this.app.appConfirm(`Deine PIN ist ${data.pin}.\n\nSchreib sie dir auf. Auf einem anderen Gerät brauchst du sie wieder.`);
       await this._enterLinkRun(runAs, data, password, onlyModule);
     });
+
+    // Anonym mit nur einem Modus und ohne Passwort: gleich los, es gibt nichts zu fragen.
+    if (anonymous && !wantsFreeName && !multi && !info.requiresPassword) form?.requestSubmit();
 
     return true;
   }
@@ -444,6 +477,7 @@ export class LoginView {
       mode: data.mode,
       // Klassenlink: Schülerausweis vom Start – beim Speichern zählt er, nicht der Name.
       studentTicket: data.studentTicket || null,
+      anonymous: !!data.anonymous,
       // Für das PDF eines Dokuments (passwortgeschützter Link ohne Klasse).
       password: password || '',
     };

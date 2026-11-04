@@ -97,8 +97,12 @@
               <select id="linkEntryClass"></select>
             </div>
             <div class="form-group">
-              <label for="linkEntryName">Dein Name</label>
+              <label for="linkEntryName" id="linkEntryNameLabel">Dein Name</label>
               <input type="text" id="linkEntryName" required placeholder="Vor- und Nachname..." autocomplete="off" />
+            </div>
+            <div class="form-group hidden" id="linkEntryPinGroup">
+              <label for="linkEntryPin">🔑 Deine PIN</label>
+              <input type="password" id="linkEntryPin" inputmode="numeric" maxlength="4" placeholder="4 Ziffern" autocomplete="off" />
             </div>
             <div class="form-group hidden" id="linkEntryTestPwGroup">
               <label for="linkEntryTestPassword">🧪 Testpasswort</label>
@@ -692,9 +696,7 @@
       <section class="view" id="view-teacher-links">
         <div class="view-header">
           <h2>🔗 Schülerfreigaben <button type="button" class="help-hint" data-help="themen-links" title="Hilfe zu diesem Bereich" aria-label="Hilfe zu diesem Bereich">?</button></h2>
-          <p class="subtitle">Unter <strong>Themen</strong> legst du fest, welche Aufgaben drankommen und in welchem Modus
-            gearbeitet wird. <strong>🔗 Link &amp; QR</strong> fragt nach der Klasse und legt den Link unter
-            <strong>Klassen</strong> ab – Ergebnisse darüber stehen dann unter der Klasse.</p>
+          <p class="subtitle">Unter <strong>Themen</strong> legst du fest, welche Aufgaben drankommen und in welchem Modus gearbeitet wird. <strong>🔗 Link &amp; QR</strong> ergibt einen <strong>🌐 anonymen Link</strong>: ohne Anmeldung, es wird nichts gespeichert. <strong>🏫 Für eine Klasse</strong> ergibt einen Klassenlink mit Name und PIN, Ergebnisse stehen dann unter der Klasse.</p>
         </div>
         <div class="links-tabs" role="tablist">
           <button type="button" class="links-tab active" data-links-tab="rules" role="tab">📚 Themen</button>

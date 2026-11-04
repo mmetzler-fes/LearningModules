@@ -137,7 +137,7 @@ export async function openDocumentInk({ mode, mod, up = null, embedModule = null
     landscape: content.spec?.orientation === 'landscape',
     mount(el, { solutions }) {
       el.appendChild(renderer.createTypePreview('document', content, {
-        blockIds: true, quizMode: true, embedModule, upload: up, moduleId: mod.id, title: mod.title,
+        blockIds: true, quizMode: true, noSolutionToggle: true, embedModule, upload: up, moduleId: mod.id, title: mod.title,
       }));
       if (teacherLayer) drawLayer(el, teacherLayer, { className: 'ink-teacher-layer' });
       if (solutions) el.querySelector('.docspec')?.classList.remove('ds-hide-solutions');
@@ -172,7 +172,7 @@ export async function openDocumentInk({ mode, mod, up = null, embedModule = null
     // Die neue Beschriftung gleich in der Ansicht zeigen.
     if (sourceEl) void showSavedInk(sourceEl, { mode, up, moduleId: mod.id, landscape: paper.landscape });
   };
-  return openInkEditor({ title: title || mod.title || 'Arbeitsblatt', key: `${mode}:${mod.id}`, loadPdf, solutions: mode === 'teacher', paper, store, onClose, actions: runActions() });
+  return openInkEditor({ title: title || mod.title || 'Arbeitsblatt', key: `${mode}:${mod.id}`, loadPdf, solutions: mode === 'teacher' || JSON.stringify(content.spec || {}).includes('"type":"solution"'), laser: mode === 'teacher', paper, store, onClose, actions: runActions() });
 
   /**
    * PDF über den Renderer (wie „Drucken“ im Modul-Editor): das Dokument mit

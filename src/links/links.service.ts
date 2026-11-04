@@ -13,14 +13,13 @@ import { GroupsService } from '../groups/groups.service';
 import { CompanionService } from '../companion/companion.service';
 import { baseUrl, renderQr } from '../core/share/link-url';
 import { embeddedQuizIds } from '../core/public/student-view';
-import { withoutLocked } from '../topics/student-lock';
+import { lockedModuleIds, withoutLocked } from '../topics/student-lock';
 import * as crypto from 'crypto';
 import { applyRule, differsFromRule, syncedState } from './link-sync';
 import { isQuickRule, quickToken, splitQuickToken } from './quick-token';
 
 const ALL_MODES: LinkMode[] = ['quiz', 'exam', 'learn', 'companion', 'contest'];
 
-const NEEDS_CLASS = 'Links gibt es nur für eine Klasse – bitte über „Link & QR“ eine Klasse wählen.';
 
 const QUICK_MANAGED = 'Dieser Link gehört zum Quick-Link – Klassen über den Quick-Link anpassen, zurückziehen dort.';
 
@@ -197,7 +196,9 @@ export class LinksService {
       const visible = this.topicsService.visibleModules(topic, allModules.filter((m) => m.topicId === topic.id), linkOwner);
       // Klassenarbeiten und „Nur Lehrkraft“ gibt es nur über den Link der Klassenarbeit.
       // HTML-Apps haben die Lösung im Quelltext: nie über den Link der Klassenarbeit.
-      const ofTopic = (exam ? visible.filter((m) => !isHtmlAppType(m.type)) : withoutLocked(topic, visible, topic.ownerId === link.ownerId))
+      // Probearbeit über einen anonymen Link: Gesperrtes nur, wenn es einzeln gewählt ist.
+      const lockedHere = exam && !link.classId && entry.all ? lockedModuleIds(topic, visible, topic.ownerId === link.ownerId) : new Set<string>();
+      const ofTopic = (exam ? visible.filter((m) => !isHtmlAppType(m.type) && !lockedHere.has(m.id)) : withoutLocked(topic, visible, topic.ownerId === link.ownerId))
         .filter((m) => !isRemovedUnit(m))
         .sort((a, b) => a.orderIndex - b.orderIndex);
 
@@ -330,8 +331,8 @@ export class LinksService {
       ...rest,
       hasPassword: !!accessPassword,
       hasExamLink: !!examToken,
-      // Regel aus der Zeit vor den Klassen, deren alter Link noch gilt.
-      hasLegacyLink: !link.classId && !isQuickRule(link) && !!(link.token || examToken || _host),
+      // Link ohne Klasse: Jeder mit dem Link kommt hinein, ohne Anmeldung.
+      anonymousLink: !link.classId && !!(link.token || examToken || _host),
       isQuick: isQuickRule(link),
       className: klasse?.name ?? null,
       schoolYear: klasse?.schoolYear ?? null,
@@ -454,7 +455,6 @@ export class LinksService {
     if (regenerate && (variant || quick)) throw new BadRequestException(QUICK_MANAGED);
     if (quick && !link.token) throw new BadRequestException('Der Quick-Link ist zurückgezogen – bitte neu erstellen.');
     if (!variant) {
-      if (!link.classId && (!link[field] || regenerate)) throw new BadRequestException(NEEDS_CLASS);
       if (!link[field] || regenerate) link[field] = crypto.randomBytes(12).toString('base64url');
     }
     link.lastSharedAt = new Date();
@@ -486,9 +486,6 @@ export class LinksService {
     const link = await this.own(id, user);
     if (!link.modes.includes('contest')) {
       throw new BadRequestException('Für diese Freigabe ist die Quiz-Arena nicht eingeschaltet.');
-    }
-    if (!link.classId && (!link.contestHostToken || !link.token || regenerate)) {
-      throw new BadRequestException(NEEDS_CLASS);
     }
     if (!link.contestHostToken || regenerate) link.contestHostToken = crypto.randomBytes(18).toString('base64url');
     // Über den Quick-Link: Schüler kommen über seine Variante mit dieser Klasse.
@@ -771,7 +768,11 @@ export class LinksService {
   async revoke(id: string, user: any, access: LinkAccess = 'practice') {
     const link = await this.own(id, user);
     if (access === 'exam') link.examToken = null;
-    else link.token = null;
+    else {
+      link.token = null;
+      // Anonym hängt die Quiz-Arena am selben Link.
+      if (!link.classId) link.contestHostToken = null;
+    }
     await this.linkRepo.save(link);
     return { success: true };
   }

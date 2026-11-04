@@ -701,6 +701,7 @@ export class QuizView {
         </div>`}
         <p>${t('quiz.topic')}: <strong>${escapeHtml(quizState.topicTitle)}</strong></p>
         ${isLearn ? '<p class="hint">Übungsdurchlauf – dieses Ergebnis wird nicht gespeichert.</p>' : ''}
+        ${!isLearn && (this.app.state.linkSession?.anonymous || this.app.state.quickSession?.anonymous) ? `<p class="hint">Ohne Anmeldung: ${isExam ? 'Das ist eine Probearbeit, das' : 'Dieses'} Ergebnis wird nicht gespeichert.</p>` : ''}
         ${saved ? '' : `<div class="quiz-save-failed login-error">
           <p>⚠️ Das Ergebnis konnte nicht gesendet werden – vermutlich gibt es gerade keine Internetverbindung.
             Bitte diese Seite offen lassen, die Verbindung prüfen und dann erneut senden.</p>

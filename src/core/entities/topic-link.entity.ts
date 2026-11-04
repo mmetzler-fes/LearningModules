@@ -91,6 +91,10 @@ export class TopicLink extends BaseEntity {
   @Column('simple-json')
   selection: LinkTopicSelection[];
 
+  /** Dokumente, deren Lösungen die Schüler dieses Links sehen dürfen (je Klasse, 💡 im Klassennotizbuch). */
+  @Column('simple-json', { nullable: true })
+  solutionModuleIds: string[] | null;
+
   /** Optionales Passwort, zusätzlich zur Namenseingabe. */
   @Column({ type: 'varchar', nullable: true })
   accessPassword: string | null;

@@ -625,6 +625,11 @@ export class QuizView {
     const total = companion ? graded.length * COMPANION_MAX : graded.length;
     const percentage = total > 0 ? Math.round((score / total) * 100) : 0;
 
+    // HTML-App mit Abschnitten und Schülerausweis: Sie meldet selbst (Modus „app“).
+    const appReports = !!(quizState.linkToken && this.app.state.linkSession?.studentTicket);
+    const selfReporting = new Set(appReports ? quizState.modules.filter((m) => m.type === 'htmlApp' && m.subModules?.length).map((m) => m.id) : []);
+    const reportedDetails = details.filter((d) => !selfReporting.has(d.moduleId));
+
     // Speichern darf das Ende nicht aufhalten: Ohne Netz (WLAN aus) warf der
     // Aufruf, und das Quiz blieb mit "Abschließen" stehen. Jetzt kommt die
     // Auswertung immer, und ein Fehlschlag lässt sich erneut senden.
@@ -632,6 +637,8 @@ export class QuizView {
     if (isLearn) {
       // Lernen mit Lösungen ist zum Üben da – dabei entsteht kein Eintrag im
       // Ergebnis-Log der Lehrkraft.
+    } else if (currentUser.role === 'student' && reportedDetails.length === 0 && appReports) {
+      // Nur HTML-Apps, die selbst melden: Ein Eintrag „gelesen“ wäre doppelt.
     } else if (currentUser.role === 'student') {
       send = () => api.submitPublicResult({
         teacherEmail: currentUser.teacherEmail,
@@ -647,7 +654,7 @@ export class QuizView {
           topicTitle: quizState.topicTitle,
           linkName: quizState.linkName || null,
           percentage,
-          details,
+          details: reportedDetails,
           ...(companion ? { jokersUsed: companion.jokersUsed } : {}),
         },
       });

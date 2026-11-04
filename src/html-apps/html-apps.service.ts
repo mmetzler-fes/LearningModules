@@ -247,7 +247,7 @@ export class HtmlAppsService {
       studentName: session.n, score: r.score, maxScore: r.maxScore,
       payload: {
         topicTitle: topic?.title, moduleTitle: root.title, percentage: r.maxScore > 0 ? Math.round((r.score / r.maxScore) * 100) : 0,
-        details: [{ moduleId: kid.id, title: kid.title, correctAnswer: '', appReported: true, ...r.detail }],
+        details: [{ moduleId: kid.id, moduleTitle: kid.title, moduleType: kid.type, appReported: true, ...r.detail }],
       },
     });
     await this.resultRepo.save(row);

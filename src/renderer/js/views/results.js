@@ -337,11 +337,15 @@ export class ResultsView {
     // Ein Durchlauf ohne bewertbare Aufgaben (nur Informationen) ist keine
     // Null, sondern keine Note. Sonst stünde da rot "0/0 (0%)".
     const nothingGraded = !r.totalQuestions;
+    // Meldung einer HTML-App: je Abschnitt eine Karte, also gehört sein Name in die Kopfzeile.
+    // `title`: so standen die Einträge der ersten Fassung in der Datenbank.
+    const app = r.mode === 'app' ? r.details?.[0] : null;
+    const appUnit = app ? app.moduleTitle || app.title || '' : '';
     const pctClass = nothingGraded ? '' : r.percentage >= 70 ? 'good' : r.percentage >= 40 ? 'medium' : 'poor';
     card.innerHTML = `
       <div class="result-card-header">
         <div class="result-card-info">
-          <span class="result-topic-name">${escapeHtml(r.topicTitle || '—')}</span>
+          <span class="result-topic-name">${escapeHtml(r.topicTitle || '—')}${appUnit ? ` · ${escapeHtml(appUnit)}` : ''}</span>
           <span>
             ${r.mode ? `<span class="result-mode-badge">${escapeHtml(MODE_LABELS[r.mode] || r.mode)}</span>` : ''}
             ${r.rank ? `<span class="result-mode-badge">${r.rank <= 3 ? ['🥇', '🥈', '🥉'][r.rank - 1] : '🏅'} Platz ${r.rank}${r.playerCount ? ` von ${r.playerCount}` : ''}</span>` : ''}
@@ -354,7 +358,7 @@ export class ResultsView {
               ${r.ipAddress ? `(${escapeHtml(r.ipAddress)})` : ''}
             </span>` : ''}
         </div>
-        <div class="result-score ${pctClass}">${nothingGraded ? 'nur gelesen' : `${r.score}/${r.totalQuestions} (${r.percentage}%)`}</div>
+        <div class="result-score ${pctClass}">${nothingGraded ? (app ? escapeHtml(String(app.userAnswer || 'angesehen')) : 'nur gelesen') : `${r.score}/${r.totalQuestions} (${r.percentage}%)`}</div>
         <button class="btn btn-danger btn-sm btn-delete-result" data-result-id="${r.id}">🗑</button>
       </div>
       ${r.details && r.details.length > 0 ? `
@@ -362,13 +366,13 @@ export class ResultsView {
           <summary>Details anzeigen</summary>
           <div class="result-detail-list">
             ${r.details.map((d) => `
-              <div class="result-detail-item ${d.informational ? '' : d.isCorrect ? 'correct' : 'wrong'}">
-                <span class="result-detail-icon">${d.informational ? 'ℹ️' : d.isCorrect ? '✅' : '❌'}</span>
+              <div class="result-detail-item ${d.informational || d.appReported ? '' : d.isCorrect ? 'correct' : 'wrong'}">
+                <span class="result-detail-icon">${d.appReported ? '🧩' : d.informational ? 'ℹ️' : d.isCorrect ? '✅' : '❌'}</span>
                 <div>
-                  <strong>${escapeHtml(d.moduleName || d.moduleTitle || '')}</strong>
+                  <strong>${escapeHtml(d.moduleName || d.moduleTitle || d.title || '')}</strong>
                   ${d.userAnswer !== undefined ? `<br>Antwort: ${escapeHtml(String(d.userAnswer))}` : ''}
                   ${d.score ? `<br>Auswertung: ${escapeHtml(String(d.score))}` : ''}
-                  ${d.correctAnswer !== undefined ? `<br>Korrekt: ${escapeHtml(String(d.correctAnswer))}` : ''}
+                  ${d.correctAnswer !== undefined && d.correctAnswer !== '' ? `<br>Korrekt: ${escapeHtml(String(d.correctAnswer))}` : ''}
                 </div>
               </div>`).join('')}
           </div>

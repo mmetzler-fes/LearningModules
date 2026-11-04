@@ -19,8 +19,10 @@ es im selben Dialog über **📄 Datei wählen**.
 | Geteilter Ordner | z. B. ein Nextcloud-Link, als Quelle im Prompt; optional dürfen Bilder daraus per Download-Link eingebunden werden |
 
 Jede Eingabe merkt sich der Browser sofort – ein Wechsel der Ansicht oder
-ein Neuladen verliert nichts. Nur das Material aus dem Notizbuch gilt bis zum
-Neuladen der Seite; unter dem fertigen Prompt steht, welches Material darin steckt.
+ein Neuladen verliert nichts. **Anhänge gelten nur für einen Prompt:** Inhalte aus dem
+Notizbuch, Vorbilder, Dateinamen, geteilter Ordner und Nextcloud-Bilder sind nach dem
+Erzeugen und beim erneuten Öffnen der Seite wieder leer. Unter dem fertigen Prompt steht,
+welches Material darin steckt.
 
 **Materialien am besten direkt im KI-Chat hochladen.** Einen geteilten
 Nextcloud-Ordner kann eine KI meist nicht öffnen – die Seite braucht

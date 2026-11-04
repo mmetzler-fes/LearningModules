@@ -3,7 +3,7 @@ import { AI_PROMPT_TYPES, AI_PROMPT_PART_SIZE, buildAiPrompt, promptSize } from 
 import { nextcloudState } from './nextcloud.js';
 import { DEFAULT_IMAGE_STYLE, parseImageWords, buildImagePrompt, matchImageFiles } from '../image-words.js';
 import { DocPromptView } from './doc-prompt-view.js';
-import { PromptMaterial, presetPromptMaterial } from './prompt-material.js';
+import { PromptMaterial, presetPromptMaterial, resetPromptMaterial } from './prompt-material.js';
 
 // ==================== KI-PROMPT-GENERATOR ====================
 
@@ -30,6 +30,20 @@ export class AiPromptView {
     if (this.box && !this.form) this._render();
     if (this.form) this._updateNextcloud();
     this._tabs();
+    // Anhänge bleiben nicht liegen. Nur die Quelle aus „⋯ → 🤖 KI-Prompt“ gilt beim Öffnen.
+    this._clearAttachments();
+    this._docView?.clearAttachments();
+    if (!this._keepMaterial) resetPromptMaterial();
+  }
+
+  /** Dateinamen, geteilter Ordner und Nextcloud-Bilder gelten nur für einen Prompt. */
+  _clearAttachments() {
+    if (!this.form) return;
+    const f = this.form.elements;
+    f.files.value = '';
+    f.link.value = '';
+    f.linkImages.checked = false;
+    f.ncUse.checked = false;
   }
 
   /**
@@ -38,7 +52,8 @@ export class AiPromptView {
    */
   async openWithMaterial(source, tab = 'quiz') {
     presetPromptMaterial(source);
-    await this.app.navigateToView('teacher-ai-prompt');
+    this._keepMaterial = true;
+    try { await this.app.navigateToView('teacher-ai-prompt'); } finally { this._keepMaterial = false; }
     await this._material?.render();
     await this._docView?.material?.render();
     this._tabBar?.querySelector(`[data-tab="${tab}"]`)?.click();
@@ -168,7 +183,11 @@ export class AiPromptView {
   }
 
   _load() {
-    try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}') || {}; } catch (_) { return {}; }
+    try {
+      // Anhänge kommen nicht zurück, auch nicht aus älteren Speicherständen.
+      const { files, link, linkImages, ncUse, ...rest } = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}') || {};
+      return rest;
+    } catch (_) { return {}; }
   }
 
   _values() {
@@ -331,6 +350,9 @@ export class AiPromptView {
           <strong>📥 Module importieren</strong> – jeweils einfügen oder als <code>.json</code>-Datei wählen.`;
       }
       form.querySelector('.ai-prompt-result').classList.remove('hidden');
+      this._clearAttachments();
+      resetPromptMaterial();
+      this._save();
       output.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
     });
     form.querySelector('.btn-copy').addEventListener('click', async () => {

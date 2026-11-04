@@ -12,9 +12,10 @@ const OLD_STORAGE_KEY = 'lm_prompt_material';
 const MAX_DOCS = 80;
 const ICON = { book: '📓', area: '📂', section: '📑', topic: '📘' };
 
-// Die Wahl gilt nur bis zum Neuladen: Dauerhaft gemerkt rutschte altes Material
+// Die Wahl gilt nur für den nächsten Prompt: Gemerkt rutschte altes Material
 // unbemerkt in den Prompt zu einem ganz anderen Thema.
 let remembered = {};
+const instances = new Set();
 try { localStorage.removeItem(OLD_STORAGE_KEY); } catch (_) { /* egal */ }
 
 /** Gewählte Quelle merken – auch für „⋯ → 🤖 KI-Prompt“ im Notizbuch. */
@@ -22,11 +23,25 @@ export function presetPromptMaterial(source) {
   remembered = { source, off: [] };
 }
 
+/** Auswahl in allen Reitern leeren: beim Öffnen der Seite und nach jedem erzeugten Prompt. */
+export function resetPromptMaterial() {
+  remembered = {};
+  for (const m of instances) m.clear();
+}
+
 export class PromptMaterial {
   constructor(app, box) {
     this.app = app;
     this.box = box;
     this.docs = [];
+    instances.add(this);
+  }
+
+  clear() {
+    const select = this.box.querySelector('.pm-source');
+    if (!select) return;
+    select.value = '';
+    this._renderDocs([]);
   }
 
   _load() {
@@ -135,7 +150,7 @@ export class PromptMaterial {
   note(material) {
     if (!material?.length) return '';
     const chars = material.reduce((sum, m) => sum + String(m.text || '').length, 0);
-    return ` 📓 Als Material im Prompt: ${material.length === 1 ? `„${material[0].title || 'Dokument'}“` : `${material.length} Dokumente`} (etwa ${Math.max(1, Math.round(chars / 4000))}k Tokens). Passt das nicht zum Thema, oben „– keine –“ wählen.`;
+    return ` 📓 Als Material im Prompt: ${material.length === 1 ? `„${material[0].title || 'Dokument'}“` : `${material.length} Dokumente`} (etwa ${Math.max(1, Math.round(chars / 4000))}k Tokens). Die Auswahl ist danach zurückgesetzt, für einen neuen Prompt bitte neu wählen.`;
   }
 
   /** Text der gewählten Dokumente für den Prompt: [{ title, path, text }]. */

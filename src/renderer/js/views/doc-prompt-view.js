@@ -1,7 +1,7 @@
 import { escapeHtml, escapeAttr } from '../utils.js';
 import { buildDocPrompt, promptSize } from '../ai-prompt.js';
 import { nextcloudState } from './nextcloud.js';
-import { PromptMaterial } from './prompt-material.js';
+import { PromptMaterial, resetPromptMaterial } from './prompt-material.js';
 import { specToPm } from '../../lm-editor/src/doc/pm-convert.js';
 import { pmToMarkdown } from '../../lm-editor/src/doc/pm-markdown.js';
 
@@ -21,7 +21,19 @@ export class DocPromptView {
   }
 
   _load() {
-    try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}') || {}; } catch (_) { return {}; }
+    try {
+      // Anhänge kommen nicht zurück, auch nicht aus älteren Speicherständen.
+      const { files, ncUse, exampleIds, ...rest } = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}') || {};
+      return rest;
+    } catch (_) { return {}; }
+  }
+
+  /** Dateinamen, Nextcloud-Bilder und Vorbilder gelten nur für einen Prompt. */
+  clearAttachments() {
+    if (!this.form) return;
+    this.form.elements.files.value = '';
+    this.form.elements.ncUse.checked = false;
+    this.form.querySelectorAll('input[name="example"]').forEach((b) => { b.checked = false; });
   }
 
   _save() {
@@ -140,6 +152,9 @@ export class DocPromptView {
       output.value = buildDocPrompt(values);
       form.querySelector('.doc-prompt-size').textContent = promptSize(output.value) + this.material.note(values.material);
       form.querySelector('.ai-prompt-result').classList.remove('hidden');
+      this.clearAttachments();
+      resetPromptMaterial();
+      this._save();
       output.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
     });
     form.querySelector('.btn-copy').addEventListener('click', async () => {
@@ -168,15 +183,14 @@ export class DocPromptView {
     hint.textContent = bits.length ? bits.join(' · ') : 'Für diesen Ordner sind keine Kursangaben oder KI-Vorgaben eingestellt (⋯ → 📄 Dokument-Einstellungen).';
   }
 
-  /** Blätter des Books zum Ankreuzen; die Auswahl bleibt gespeichert. */
+  /** Blätter des Books zum Ankreuzen; die Auswahl gilt nur für den nächsten Prompt. */
   _renderExamples() {
     const box = this.form.querySelector('.doc-prompt-examples');
     const sheets = (this._ctx?.sheets || []).filter((s) => s.id)
       .sort((a, b) => String(a.pfad).localeCompare(String(b.pfad), 'de', { numeric: true }));
     box.classList.toggle('hidden', !sheets.length);
-    const chosen = new Set(this._load().exampleIds || []);
     box.querySelector('.doc-prompt-example-list').innerHTML = sheets.map((s) => `
-      <label class="tag-filter-option"><input type="checkbox" name="example" value="${escapeAttr(s.id)}" ${chosen.has(s.id) ? 'checked' : ''} />
+      <label class="tag-filter-option"><input type="checkbox" name="example" value="${escapeAttr(s.id)}" />
         ${s.pfad ? `<span class="hint">${escapeHtml(s.pfad)}</span> ` : ''}${escapeHtml(s.titel || s.slug || 'Blatt')}</label>`).join('');
   }
 }

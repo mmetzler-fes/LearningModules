@@ -495,8 +495,8 @@ wenn die Lehrkraft des Lernthemas freigeschaltet ist.
   gespeichert“. Ist die Leiste zu schmal (iPad hochkant), lässt sie sich zur
   Seite wischen.
 - **Werkzeugleiste:** oben die Werkzeuge (Auswahl, Stift, Textmarker,
-  Radierer, Text, Geodreieck), Rückgängig, Hintergrund (nur bei freien Blättern), Lösung und
-  Zoom; darunter schwebend die Einstellungen des gewählten Werkzeugs –
+  Radierer, Text, Geodreieck), Rückgängig, Hintergrund (nur bei freien Blättern) und
+  Zoom, fest am rechten Rand die Lampe für die Lösungen; darunter schwebend die Einstellungen des gewählten Werkzeugs –
   Strichstärken und Farben, beim Text die Schriftgröße, bei der Auswahl
   „Löschen“.
 - **Werkzeuge:** ✏️ Stift (mit Druck), 🖍️ Textmarker (unter der Schrift),

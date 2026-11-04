@@ -774,6 +774,10 @@ class App {
       }
       // Lehrkraft/Admin: nach einem Reload ohne erneutes Login weiter.
       await this.loginView.resumeSession();
+      if (params.get('zlm')) {
+        const { receiveZlm } = await import('./views/zlm-receive.js');
+        receiveZlm(this);
+      }
     }
   }
 }

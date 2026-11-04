@@ -31,6 +31,14 @@ export async function handleOpenedFiles(app, files) {
   await openConverted(app, rest);
 }
 
+/** Wie handleOpenedFiles, wartet aber auch mit einer .zlm auf die Anmeldung: Ablegen geht erst dann. */
+export async function openWhenSignedIn(app, file) {
+  const user = app.state.currentUser;
+  if (user?.role === 'teacher' || user?.role === 'admin') { await handleOpenedFiles(app, [file]); return; }
+  pending.push(file);
+  app.showToast(`Bitte anmelden – danach öffnet sich „${file.name}“.`, 'info');
+}
+
 /** Nach der Anmeldung: die wartenden Dateien. */
 export function takePendingFiles() {
   const files = pending;

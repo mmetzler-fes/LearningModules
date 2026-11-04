@@ -8,13 +8,18 @@ import { docSpecToText } from '../ai-prompt.js';
 // darunter ankreuzen – ihr Text kommt in den Prompt (ai-prompt.js,
 // docSpecToText). So braucht der KI-Chat keine Anhänge.
 
-const STORAGE_KEY = 'lm_prompt_material';
+const OLD_STORAGE_KEY = 'lm_prompt_material';
 const MAX_DOCS = 80;
 const ICON = { book: '📓', area: '📂', section: '📑', topic: '📘' };
 
+// Die Wahl gilt nur bis zum Neuladen: Dauerhaft gemerkt rutschte altes Material
+// unbemerkt in den Prompt zu einem ganz anderen Thema.
+let remembered = {};
+try { localStorage.removeItem(OLD_STORAGE_KEY); } catch (_) { /* egal */ }
+
 /** Gewählte Quelle merken – auch für „⋯ → 🤖 KI-Prompt“ im Notizbuch. */
 export function presetPromptMaterial(source) {
-  try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ source, off: [] })); } catch (_) { /* egal */ }
+  remembered = { source, off: [] };
 }
 
 export class PromptMaterial {
@@ -25,12 +30,12 @@ export class PromptMaterial {
   }
 
   _load() {
-    try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}') || {}; } catch (_) { return {}; }
+    return remembered;
   }
 
   _save() {
     const off = [...this.box.querySelectorAll('input[name="pmDoc"]:not(:checked)')].map((b) => b.value);
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ source: this.box.querySelector('.pm-source').value, off })); } catch (_) { /* egal */ }
+    remembered = { source: this.box.querySelector('.pm-source').value, off };
   }
 
   /** Auswahl zeichnen; wird auch nach „⋯ → 🤖 KI-Prompt“ erneut gerufen. */
@@ -124,6 +129,13 @@ export class PromptMaterial {
     hint.textContent = !this.docs.length ? ''
       : n > MAX_DOCS ? `Höchstens ${MAX_DOCS} Dokumente auf einmal – bitte weniger ankreuzen.`
         : `${n} von ${this.docs.length} Dokumenten gewählt.`;
+  }
+
+  /** Hinweis am fertigen Prompt: Was steckt als Material darin? */
+  note(material) {
+    if (!material?.length) return '';
+    const chars = material.reduce((sum, m) => sum + String(m.text || '').length, 0);
+    return ` 📓 Als Material im Prompt: ${material.length === 1 ? `„${material[0].title || 'Dokument'}“` : `${material.length} Dokumente`} (etwa ${Math.max(1, Math.round(chars / 4000))}k Tokens). Passt das nicht zum Thema, oben „– keine –“ wählen.`;
   }
 
   /** Text der gewählten Dokumente für den Prompt: [{ title, path, text }]. */

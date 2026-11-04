@@ -315,7 +315,7 @@ export class AiPromptView {
       }
       try { values.material = await this._material.collect(); } catch (err) { this.app.showToast(err.message, 'error'); return; }
       output.value = buildAiPrompt(values);
-      form.querySelector('.ai-prompt-size').textContent = promptSize(output.value);
+      form.querySelector('.ai-prompt-size').textContent = promptSize(output.value) + this._material.note(values.material);
       // Viele Module kommen in Teilen – sonst bricht die KI mitten im JSON ab.
       const parts = Math.ceil(values.count / AI_PROMPT_PART_SIZE);
       const partsHint = form.querySelector('.ai-prompt-parts');

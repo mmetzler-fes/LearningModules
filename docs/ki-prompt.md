@@ -19,7 +19,8 @@ es im selben Dialog über **📄 Datei wählen**.
 | Geteilter Ordner | z. B. ein Nextcloud-Link, als Quelle im Prompt; optional dürfen Bilder daraus per Download-Link eingebunden werden |
 
 Jede Eingabe merkt sich der Browser sofort – ein Wechsel der Ansicht oder
-ein Neuladen verliert nichts.
+ein Neuladen verliert nichts. Nur das Material aus dem Notizbuch gilt bis zum
+Neuladen der Seite; unter dem fertigen Prompt steht, welches Material darin steckt.
 
 **Materialien am besten direkt im KI-Chat hochladen.** Einen geteilten
 Nextcloud-Ordner kann eine KI meist nicht öffnen – die Seite braucht
@@ -83,6 +84,14 @@ Tokens besser weniger Dokumente auf einmal nehmen.
   Bilder, erzeugt **🎨 Prompt für Bilder** einen Prompt für eine Bild-KI mit
   festen Dateinamen je Wort; die heruntergeladenen Bilder lädt die App danach
   in den Ordner.
+- Der Prompt nennt das Ausgabeformat am Anfang und am Ende: Die ganze Antwort ist genau ein Codeblock.
+  Material steht zuletzt, damit langer Text die Formatvorgabe nicht verdrängt.
+- **Wenn die Antwort nicht passt:** Der Import-Dialog repariert Kleinigkeiten selbst und nennt sie
+  (Komma am Ende, Kommentare, typografische Anführungszeichen als Begrenzer, Zeilenumbrüche und
+  Anführungszeichen in Texten, LaTeX mit einfachem Backslash). Mehrere Codeblöcke einer Antwort werden
+  zusammengeführt. Er prüft auch den Inhalt je Typ, zum Beispiel ob eine richtige Antwort markiert ist.
+  Bei Fließtext, abgeschnittenen Antworten oder Hinweisen kopiert **🔁 Korrektur-Prompt kopieren** einen
+  Text für denselben Chat, der genau das Problem nennt.
 - Kleine Abweichungen gleicht der Import an: Reihenfolge-Elemente als bloße
   Texte, Memory-Paare als `["Hund", "dog"]`, Kreuzworträtsel mit `word`/`hint`
   statt `answer`/`clue`.

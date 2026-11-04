@@ -1,5 +1,5 @@
 import { escapeHtml, escapeAttr } from '../utils.js';
-import { AI_PROMPT_TYPES, buildDocPrompt, promptSize } from '../ai-prompt.js';
+import { buildDocPrompt, promptSize } from '../ai-prompt.js';
 import { nextcloudState } from './nextcloud.js';
 import { PromptMaterial } from './prompt-material.js';
 import { specToPm } from '../../lm-editor/src/doc/pm-convert.js';
@@ -39,8 +39,6 @@ export class DocPromptView {
       language: f.language.value.trim(),
       pages: Number(f.pages.value) || 3,
       sheets: Number(f.sheets.value) || 1,
-      quizCount: Number(f.quizCount.value) || 0,
-      quizTypes: [...this.form.querySelectorAll('input[name="quizTypes"]:checked')].map((b) => b.value),
       files: f.files.value,
       ncUse: f.ncUse.checked,
       ncFolder: f.ncFolder.value,
@@ -64,7 +62,6 @@ export class DocPromptView {
   async render() {
     const saved = this._load();
     const v = (key, fallback = '') => escapeAttr(saved[key] ?? fallback);
-    const chosen = new Set(saved.quizTypes || ['multipleChoice', 'trueFalse', 'fillInTheBlanks']);
     const folders = await this._folders();
     this.box.innerHTML = `
       <form class="settings-group ai-prompt-form doc-prompt-form">
@@ -89,12 +86,7 @@ export class DocPromptView {
         <div class="ai-prompt-row">
           <label>Seiten je Blatt <input name="pages" type="number" min="1" max="10" value="${v('pages', 3)}" /></label>
           <label>Anzahl Blätter <input name="sheets" type="number" min="1" max="10" value="${v('sheets', 1)}" /></label>
-          <label>Quiz-Module dazu <input name="quizCount" type="number" min="0" max="10" value="${v('quizCount', 0)}" /></label>
         </div>
-        <div class="form-group doc-prompt-quiz"><label>Quiz-Typen (falls Quiz-Module dazu)</label>
-          <div class="ai-prompt-types">${AI_PROMPT_TYPES.map((type) => `
-            <label class="tag-filter-option"><input type="checkbox" name="quizTypes" value="${type}" ${chosen.has(type) ? 'checked' : ''} />
-              ${(H5P_TYPES[type] || {}).icon || ''} ${escapeHtml((H5P_TYPES[type] || {}).name || type)}</label>`).join('')}</div></div>
         <div class="form-group pm-box"></div>
         <div class="form-group"><label>Materialien, die du im KI-Chat anhängst (Dateinamen, je Zeile einer – optional)
           <textarea name="files" rows="3" placeholder="Skript_AD-Wandler.pdf">${escapeHtml(saved.files || '')}</textarea></label></div>
@@ -106,8 +98,9 @@ export class DocPromptView {
         <div class="ai-prompt-result hidden">
           <textarea readonly rows="16" class="ai-prompt-output"></textarea>
           <p class="hint doc-prompt-size"></p>
-          <p class="hint">Antwort der KI kopieren und im Notebook am Zielordner über <strong>⋯ → 📥 Hier importieren</strong> einfügen –
-            bei mehreren Blättern jede Antwort einzeln. Fehler im Dokument markiert danach der Editor.</p>
+          <p class="hint">Antwort der KI über den Kopier-Knopf am Codeblock kopieren und im Notebook am Zielordner über <strong>⋯ → 📥 Hier importieren</strong> einfügen –
+            bei mehreren Blättern jede Antwort einzeln. Fehler im Dokument markiert danach der Editor.
+            Quizze dazu erzeugt der Reiter 🧠 Quiz-Thema, mit dem fertigen Dokument als Material.</p>
           <div class="confirm-actions"><button type="button" class="btn btn-primary btn-copy">📋 Kopieren</button></div>
         </div>
       </form>`;
@@ -145,7 +138,7 @@ export class DocPromptView {
       }
       try { values.material = await this.material.collect(); } catch (err) { this.app.showToast(err.message, 'error'); return; }
       output.value = buildDocPrompt(values);
-      form.querySelector('.doc-prompt-size').textContent = promptSize(output.value);
+      form.querySelector('.doc-prompt-size').textContent = promptSize(output.value) + this.material.note(values.material);
       form.querySelector('.ai-prompt-result').classList.remove('hidden');
       output.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
     });

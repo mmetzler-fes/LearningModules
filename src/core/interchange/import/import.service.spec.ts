@@ -31,8 +31,12 @@ describe('Import von KI-Antworten', () => {
     await expect(service().importTopicFromJson('```json\n' + cut, user)).rejects.toThrow(/unvollständig/);
   });
 
+  it('Komma am Ende wird repariert: Dann fehlen hier nur noch die Module', async () => {
+    await expect(service().importTopicFromJson('{"topic": {"title": "x",}}', user)).rejects.toThrow(/Keine Module/);
+  });
+
   it('kaputtes, aber vollständiges JSON bleibt "ungültig"', async () => {
-    await expect(service().importTopicFromJson('{"topic": {"title": "x",}}', user)).rejects.toThrow(/Ungültiges JSON/);
+    await expect(service().importTopicFromJson('{"topic": {"title": "x" "modules": []}}', user)).rejects.toThrow(/Ungültiges JSON/);
   });
 });
 

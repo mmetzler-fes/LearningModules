@@ -1,5 +1,5 @@
 import { escapeHtml, showImportReport, generateId } from '../utils.js';
-import { extractJson, looksLikeDocMarkdown, looksLikeXml, markdownToTopic, summarizeImport } from '../json-text.js';
+import { buildFixPrompt, extractJson, looksLikeDocMarkdown, looksLikeXml, markdownToTopic, summarizeImport } from '../json-text.js';
 import { markdownToPm } from '../../lm-editor/src/doc/pm-markdown.js';
 import { pmToSpec } from '../../lm-editor/src/doc/pm-convert.js';
 import { DOCUMENT_EXTS, isDocumentFile, isConvertedFile, fileToSpec, askConvertOptions, pdfConvertOptions } from './attachment-convert.js';
@@ -49,6 +49,11 @@ export function openImportDialog(app, { topicId = null, h5p = false, extraFile =
       <textarea class="json-text-input" rows="12" spellcheck="false" autocomplete="off"
         placeholder="… oder Text mit Strg+V einfügen, z. B. die Antwort einer KI (Markdown, JSON oder Moodle-XML). Ein Rahmen mit \`\`\` und Text davor oder danach stört nicht."></textarea>
       <div class="json-text-status" aria-live="polite"></div>
+      <div class="import-fix" hidden>
+        <button type="button" class="btn btn-secondary btn-fix">🔁 Korrektur-Prompt kopieren</button>
+        <span class="hint">im selben KI-Chat einfügen, die neue Antwort kommt dann hierher</span>
+        <details class="import-fix-details"><summary>Text ansehen</summary><textarea readonly rows="5" class="import-fix-text"></textarea></details>
+      </div>
       <div class="confirm-actions">
         <button type="button" class="btn btn-secondary btn-paste" title="Text aus der Zwischenablage einfügen">📋 Einfügen</button>
         <button type="button" class="btn btn-primary btn-import" disabled>✅ Importieren</button>
@@ -82,6 +87,21 @@ export function openImportDialog(app, { topicId = null, h5p = false, extraFile =
   }
   let fileText = null; // Inhalt einer JSON-/XML-Datei für die Prüfung
 
+  const fixBox = overlay.querySelector('.import-fix');
+  const fixText = overlay.querySelector('.import-fix-text');
+  /** Korrektur-Prompt anbieten (null = nichts zu korrigieren). */
+  const offerFix = (text) => { fixBox.hidden = !text; fixText.value = text || ''; };
+  overlay.querySelector('.btn-fix').addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText(fixText.value);
+      app.showToast('Korrektur-Prompt kopiert – im selben KI-Chat einfügen.', 'success');
+    } catch (_) {
+      fixText.closest('details').open = true;
+      fixText.select();
+      app.showToast('Bitte mit Strg+C kopieren', 'info');
+    }
+  });
+
   const show = (kind, html) => {
     status.className = `json-text-status${kind ? ` is-${kind}` : ''}`;
     status.innerHTML = html;
@@ -96,13 +116,18 @@ export function openImportDialog(app, { topicId = null, h5p = false, extraFile =
 
   /** Text (eingefügt oder aus einer Datei) prüfen und das Ergebnis anzeigen. */
   const checkText = (text) => {
+    offerFix(null);
     if (!text.trim()) { show('', ''); return false; }
     if (looksLikeXml(text)) { show('ok', '✅ Moodle-XML erkannt – wird beim Import in Module umgewandelt.'); return true; }
     const fromMd = isMarkdown(text) ? fromMarkdown(text) : null;
-    if (fromMd && !fromMd.ok) { show('error', `❌ ${escapeHtml(fromMd.message)}`); return false; }
+    if (fromMd && !fromMd.ok) { show('error', `❌ ${escapeHtml(fromMd.message)}`); offerFix(buildFixPrompt({ message: fromMd.message })); return false; }
     const parsed = fromMd || extractJson(text);
     if (!parsed.ok) {
-      if (parsed.truncated) {
+      offerFix(buildFixPrompt(parsed));
+      if (parsed.prose) {
+        show('error', '❌ <strong>Das ist Fließtext</strong> – die KI hat das verlangte Format nicht eingehalten, oder die Antwort wurde aus der fertigen Ansicht kopiert.'
+          + ' Mit dem Korrektur-Prompt liefert der Chat dieselben Inhalte als Codeblock. Dann den Kopier-Knopf am Codeblock nutzen.');
+      } else if (parsed.truncated) {
         show('error', '❌ <strong>Unvollständig</strong> – der Text endet mitten im JSON. Vermutlich wurde die KI-Antwort abgeschnitten:'
           + ' den Rest nachfordern („weiter“) oder den Prompt mit weniger Modulen erzeugen.');
       } else {
@@ -116,11 +141,15 @@ export function openImportDialog(app, { topicId = null, h5p = false, extraFile =
     }
     const s = summarizeImport(parsed.data, typeNames);
     if (fromMd) s.warnings.push(...fromMd.warnings);
-    if (s.problems.length) { show('error', `❌ Gültiges JSON, aber so nicht importierbar:${list(s.problems)}`); return false; }
+    if (s.problems.length) { show('error', `❌ Gültiges JSON, aber so nicht importierbar:${list(s.problems)}`); offerFix(buildFixPrompt({ findings: s.problems })); return false; }
+    if (s.warnings.length) offerFix(buildFixPrompt({ findings: s.warnings }));
+    const fixed = parsed.repairs?.length ? `<p>🔧 Automatisch korrigiert: ${escapeHtml(parsed.repairs.join(', '))}.</p>` : '';
+    const parts = parsed.parts > 1 ? ` (aus ${parsed.parts} Codeblöcken)` : '';
     const kinds = s.types.map((t) => `${t.n}× ${escapeHtml(t.name)}`).join(', ');
     show(s.warnings.length ? 'warn' : 'ok',
-      `✅ ${s.title && !topicId ? `Thema „${escapeHtml(s.title)}“ – ` : ''}${s.count} Modul${s.count === 1 ? '' : 'e'}: ${kinds}`
+      `✅ ${s.title && !topicId ? `Thema „${escapeHtml(s.title)}“ – ` : ''}${s.count} Modul${s.count === 1 ? '' : 'e'}${parts}: ${kinds}`
       + (s.ncRefs ? ` · ☁️ ${s.ncRefs} Bild${s.ncRefs === 1 ? '' : 'er'} aus deiner Nextcloud werden verknüpft` : '')
+      + fixed
       + (s.warnings.length ? `<p>⚠️ Hinweise:</p>${list(s.warnings)}` : ''));
     return true;
   };

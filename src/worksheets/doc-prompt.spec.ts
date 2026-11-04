@@ -48,16 +48,14 @@ describe('buildDocPrompt', () => {
     expect(p).toContain('- nc:Arduino/adc.png');
   });
 
-  it('Klassenarbeit mit Punkten, Serie in mehreren Antworten, Quiz dazu', () => {
+  it('Klassenarbeit mit Punkten, Serie in mehreren Antworten, kein Quiz im selben Prompt', () => {
     const p = ai.buildDocPrompt({ ...base, kind: 'klassenarbeit', sheets: 3, quizCount: 4, quizTypes: ['multipleChoice', 'unbekannt'] });
     expect(p).toContain('3 aufeinander aufbauende Dokumente (Klassenarbeit)');
     expect(p).toContain('Punktzahl im Titel');
     expect(p).toContain('GENAU EIN Blatt');
     expect(p).toContain('„slug:“');
-    expect(p).toContain('```lm-quiz');
-    expect(p).toContain('## Quiz-Module (am Ende des Texts)');
-    expect(p).toContain('### "multipleChoice"');
-    expect(p).not.toContain('### "unbekannt"');
+    expect(p).not.toContain('lm-quiz');
+    expect(p).not.toContain('Quiz-Module');
   });
 
   it('vorhandene Blätter als Vorbild im selben Format', () => {
@@ -68,6 +66,24 @@ describe('buildDocPrompt', () => {
     expect(p).toContain('````markdown\n## Messen\n\nMiss die Spannung.\n````');
     expect(p).toContain('übernimm aber keine Aufgaben wörtlich');
     expect(ai.buildDocPrompt(base)).not.toContain('als Vorbild');
+  });
+
+  it('Format steht am Anfang und am Ende', () => {
+    const lines = ai.buildDocPrompt(base).split('\n');
+    expect(lines[0]).toContain('genau ein Codeblock');
+    expect(lines[lines.length - 1]).toContain('nur mit dem Codeblock');
+    const quiz = ai.buildAiPrompt({ title: 'T', description: 'D', types: ['multipleChoice'], count: 5 }).split('\n');
+    expect(quiz[0]).toContain('genau ein ```json-Codeblock');
+    expect(quiz[quiz.length - 1]).toContain('nur mit dem ```json-Codeblock');
+  });
+
+  it('langes Material steht hinter dem Format, die Erinnerung ganz am Ende', () => {
+    const material = [{ title: 'Lang', path: '', text: 'x'.repeat(50000) }];
+    for (const p of [ai.buildDocPrompt({ ...base, material }), ai.buildAiPrompt({ title: 'T', description: 'D', types: ['multipleChoice'], count: 5, material })]) {
+      expect(p.indexOf('## Dateiformat')).toBeLessThan(2000);
+      expect(p.indexOf('## Ausgabe')).toBeLessThan(p.indexOf('## Material der Lehrkraft'));
+      expect(p.split('\n').pop()).toContain('Zur Erinnerung');
+    }
   });
 
   it('Text ohne Karo-Regel', () => {
@@ -111,7 +127,7 @@ describe('Material aus eigenen Dokumenten', () => {
     const quiz = ai.buildAiPrompt({ description: 'OPV', types: ['multipleChoice'], count: 4, material });
     expect(quiz).toContain('## Material der Lehrkraft');
     expect(quiz).toContain('### BPE8 › Grundlagen › AB1 Invertierer');
-    expect(quiz).toContain('Verwende ausschließlich das Material oben.');
+    expect(quiz).toContain('Verwende ausschließlich das Material ganz unten.');
     const doc = ai.buildDocPrompt({ description: 'neu gliedern', kind: 'arbeitsblatt', material });
     expect(doc).toContain('## Material der Lehrkraft');
     expect(doc).toContain('neu gegliedert');

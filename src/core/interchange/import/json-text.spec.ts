@@ -9,7 +9,7 @@ interface JsonText {
 const j = loadBrowserModule<JsonText>('json-text.js');
 
 describe('Importtext prüfen (src/renderer/js/json-text.js)', () => {
-  const topic = '{\n  "topic": {\n    "title": "T",\n    "modules": [{ "title": "1", "type": "trueFalse", "content": {} }]\n  }\n}';
+  const topic = '{\n  "topic": {\n    "title": "T",\n    "modules": [{ "title": "1", "type": "trueFalse", "content": { "questions": [{ "question": "q", "correctAnswer": "true" }] } }]\n  }\n}';
 
   it('liest JSON auch mit Markdown-Rahmen und Text drumherum', () => {
     expect(j.extractJson(topic).data.topic.title).toBe('T');
@@ -100,5 +100,100 @@ describe('Dokument als Markdown (src/renderer/js/json-text.js)', () => {
     const named = md.markdownToTopic('# A', () => ({ spec: { content: [{ type: 'section', text: 'A' }] } }));
     expect(named.data.topic.title).toBe('A');
     expect(named.data.topic.modules[0].content.kind).toBe('arbeitsblatt');
+  });
+});
+
+describe('KI-Antworten: Reparatur, Fließtext, Inhalt', () => {
+  const k = loadBrowserModule<any>('json-text.js');
+  const wrap = (q: string) => `{"topic":{"title":"T","modules":[{"title":"a","type":"multipleChoice","content":{"question":"${q}"}}]}}`;
+  const question = (r: any) => r.data.topic.modules[0].content.question;
+
+  it('LaTeX mit einfachem Backslash wird nicht still zu Steuerzeichen', () => {
+    const r = k.extractJson(wrap('$\\frac{U}{R}$ \\text{V} \\neq \\sigma \\rightarrow'));
+    expect(r.ok).toBe(true);
+    expect(question(r)).toBe('$\\frac{U}{R}$ \\text{V} \\neq \\sigma \\rightarrow');
+    expect(r.repairs.length).toBe(1);
+  });
+
+  it('echte Escapes und korrektes JSON bleiben unverändert', () => {
+    const r = k.extractJson(wrap('Zeile1\\nZeile2\\tEnde \\\\frac \\"zitat\\" \\u00e4'));
+    expect(question(r)).toBe('Zeile1\nZeile2\tEnde \\frac "zitat" ä');
+    expect(r.repairs).toEqual([]);
+  });
+
+  it.each([
+    ['Komma am Ende', '{"topic":{"title":"x","modules":[{"title":"a","type":"t","content":{},},]}}'],
+    ['Kommentar', '{"topic":{"title":"x", // Titel\n"modules":[]}}'],
+    ['typografische Begrenzer', '{“topic”:{“title”:“x”,“modules”:[]}}'],
+    ['Zeilenumbruch im Text', '{"topic":{"title":"x\ny","modules":[]}}'],
+    ['Anführungszeichen im Text', '{"topic":{"title":"Der "Kondensator" speichert","modules":[]}}'],
+  ])('repariert: %s', (_n, text) => {
+    const r = k.extractJson(text);
+    expect(r.ok).toBe(true);
+    expect(r.repairs.length).toBeGreaterThan(0);
+    expect(r.data.topic.title).toBeTruthy();
+  });
+
+  it('zwei Codeblöcke werden zusammengeführt, ein abgeschnittener zweiter fällt auf', () => {
+    const m = (t: string) => `{"topic":{"title":"${t}","modules":[{"title":"${t}","type":"memory","content":{}}]}}`;
+    const r = k.extractJson('```json\n' + m('A') + '\n```\nTeil 2:\n```json\n' + m('B') + '\n```');
+    expect(r.data.topic.title).toBe('A');
+    expect(r.data.topic.modules.map((x: any) => x.title)).toEqual(['A', 'B']);
+    expect(r.parts).toBe(2);
+    const cut = k.extractJson('```json\n' + m('A') + '\n```\n```json\n' + m('B').slice(0, 30));
+    expect(cut.ok).toBe(false);
+    expect(cut.truncated).toBe(true);
+  });
+
+  it('Fließtext wird als solcher erkannt, auch mit { aus einer Formel', () => {
+    const r = k.extractJson('Dokument 1: Grundlagen$\\underline{\\text{Projekt}}$ Frage: Was? A) x (Richtig)');
+    expect(r.ok).toBe(false);
+    expect(r.prose).toBe(true);
+    expect(k.buildFixPrompt(r)).toContain('genau ein Codeblock');
+  });
+
+  it('JSON hinter einem Text mit Formel wird gefunden', () => {
+    expect(k.extractJson('Formel $x_{1}$ und hier:\n' + wrap('q')).ok).toBe(true);
+  });
+
+  it('Inhalt je Typ: Hinweise, aber kein Hindernis', () => {
+    const s = k.summarizeImport({ topic: { title: 'T', modules: [
+      { title: 'a', type: 'multipleChoice', content: { question: 'q', answers: [{ text: 'x', correct: false }, { text: 'y', correct: false }] } },
+      { title: 'b', type: 'fillInTheBlanks', content: { questions: [{ text: 'ohne Lücke' }] } },
+    ] } }, { multipleChoice: 'MC', fillInTheBlanks: 'L' });
+    expect(s.problems).toEqual([]);
+    expect(s.warnings.join()).toContain('keine richtige Antwort');
+    expect(s.warnings.join()).toContain('Sternchen');
+  });
+
+  it('die Beispiele im Prompt gelten als vollständig', () => {
+    const ai = loadBrowserModule<any>('ai-prompt.js');
+    for (const [type, c] of Object.entries(ai.AI_PROMPT_EXAMPLES)) expect([type, k.contentIssues(type, c)]).toEqual([type, []]);
+  });
+
+  describe('Dokument mit Quiz-Blöcken', () => {
+    const q = '{"title":"Q","type":"multipleChoice","content":{"question":"\\frac{a}{b}"}}';
+    const doc = '---\ntitle: "B"\n---\n\n# Start\n';
+    const toDoc = () => ({ spec: { title: 'B', content: [] }, warnings: [] });
+    const F = '```'; const F4 = '````';
+    it.each([
+      ['im Rahmen', `${F4}markdown\n${doc}\n${F}lm-quiz\n${q}\n${F}\n${F4}`],
+      ['nach dem Rahmen', `${F4}markdown\n${doc}${F4}\n\n${F}lm-quiz\n${q}\n${F}`],
+      ['als json-Block', `${F4}markdown\n${doc}\n${F}json\n${q}\n${F}\n${F4}`],
+      ['eingerückt', `${F4}markdown\n${doc}\n  ${F}lm-quiz\n  ${q}\n  ${F}\n${F4}`],
+    ])('Quiz geht nicht verloren: %s', (_n, text) => {
+      const r = k.markdownToTopic(text, toDoc);
+      expect(r.data.topic.modules.map((m: any) => m.type)).toEqual(['document', 'multipleChoice']);
+      expect(r.data.topic.modules[1].content.question).toBe('\\frac{a}{b}');
+    });
+    it('Code-Beispiel als json bleibt im Dokument', () => {
+      let seen = '';
+      const r = k.markdownToTopic(`${F4}markdown\n${doc}\n${F}json\n{"a":1}\n${F}\n${F4}`, (b: string) => { seen = b; return toDoc(); });
+      expect(r.data.topic.modules.length).toBe(1);
+      expect(seen).toContain('{"a":1}');
+    });
+    it('nie geschlossener Rahmen wird gemeldet', () => {
+      expect(k.markdownToTopic(`${F4}markdown\n${doc}`, toDoc).warnings.join()).toContain('abgeschnitten');
+    });
   });
 });

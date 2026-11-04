@@ -327,8 +327,10 @@ export function buildAiPrompt(o) {
   const parts = Math.ceil(count / AI_PROMPT_PART_SIZE);
   const L = [];
 
-  L.push('Du erstellst ein digitales Lernthema mit Quiz-Aufgaben für den Unterricht.');
-  L.push('Das Ergebnis ist EINE JSON-Datei, die eine Lernplattform direkt importiert. Halte das Format exakt ein.');
+  L.push('WICHTIG: Deine gesamte Antwort ist genau ein ```json-Codeblock. Eine Lernplattform liest ihn maschinell ein, kein Mensch.');
+  L.push('Kein Fließtext, keine Überschriften oder Erklärungen außerhalb des Blocks, kein Dokument-Fenster (Canvas).');
+  L.push('');
+  L.push('Du erstellst ein digitales Lernthema mit Quiz-Aufgaben für den Unterricht als JSON-Datei. Halte das Format exakt ein.');
   L.push('');
   L.push('## Auftrag');
   if (o.title) L.push(`- Thema: ${o.title}`);
@@ -340,10 +342,9 @@ export function buildAiPrompt(o) {
   L.push('');
 
   const material = (o.material || []).filter((m) => m && m.text);
-  if (material.length) L.push(...materialLines(material));
   L.push('## Inhalte');
   if (material.length || files.length) {
-    L.push(`Verwende ausschließlich ${material.length ? 'das Material oben' : ''}${material.length && files.length ? ' und ' : ''}${files.length ? 'die Inhalte der angehängten Materialien:' : '.'}`);
+    L.push(`Verwende ausschließlich ${material.length ? 'das Material ganz unten' : ''}${material.length && files.length ? ' und ' : ''}${files.length ? 'die Inhalte der angehängten Materialien:' : '.'}`);
     for (const f of files) L.push(`- ${f}`);
     L.push('Erfinde keine Fakten, die dort nicht stehen. Fehlt etwas Wichtiges, lass es weg.');
     if (material.length) L.push('Frage den Stoff ab, nicht die Blätter: keine Fragen nach Aufgabennummern, Überschriften oder dem Aufbau des Materials.');
@@ -378,7 +379,7 @@ export function buildAiPrompt(o) {
     topic: {
       title: o.title || 'Titel des Themas',
       description: 'Ein bis zwei Sätze, worum es geht.',
-      modules: [{ title: '1. Kurzer Titel der Aufgabe', type: types[0] || 'multipleChoice', description: '', content: { '…': 'je nach Typ, siehe unten' }, orderIndex: 0 }],
+      modules: [{ title: '1. Kurzer Titel der Aufgabe', type: types[0] || 'multipleChoice', description: '', content: AI_PROMPT_EXAMPLES[types[0] || 'multipleChoice'], orderIndex: 0 }],
     },
   }, null, 2));
   L.push('```');
@@ -403,8 +404,14 @@ export function buildAiPrompt(o) {
   }
   L.push('- Kompakt bleiben: "description" der Module nur, wenn sie über die Aufgabe hinaus etwas sagt, sonst "".');
   L.push('- Lücken- und Markieraufgaben vor der Ausgabe prüfen: Stehen die Lösungswörter wirklich in *Sternchen*?');
-  L.push('- Gültiges JSON: doppelte Anführungszeichen, keine Kommentare, kein Komma nach dem letzten Element.');
+  L.push('- Gültiges JSON: gerade doppelte Anführungszeichen um Namen und Texte, keine Kommentare, kein Komma nach dem letzten Element.');
+  L.push('- In Texten: Zitate nur mit „…“, nie mit geraden Anführungszeichen. Kein Zeilenumbruch innerhalb eines Texts.');
+  L.push('- Formeln als einfacher Text mit Unicode (U = R · I, x², →), kein LaTeX und keine Backslashes.');
   L.push('- Prüfe vor der Ausgabe jede Aufgabe auf fachliche Richtigkeit und eindeutige Lösung.');
+  L.push('');
+  // Material zuletzt: Langer Text davor begräbt die Formatvorgabe.
+  if (material.length) L.push(...materialLines(material));
+  L.push('Zur Erinnerung: Antworte nur mit dem ```json-Codeblock im obigen Format – keine Fragen in Textform wie „Frage: … A) … B) …“.');
   return L.join('\n');
 }
 
@@ -436,10 +443,11 @@ $I = \frac{U}{R} = \frac{12\,\text{V}}{240\,\Omega} = 0{,}05\,\text{A} = 50\,\te
 
 /**
  * Prompt für Dokumente (Arbeitsblatt, Klassenarbeit, Text). Jedes Blatt ist
- * ein Markdown-Text (docs/MARKDOWN.md im lm-editor), den „📥 Importieren“ liest –
- * auf Wunsch mit passenden Quiz-Modulen als ```lm-quiz-Blöcke dahinter.
+ * ein Markdown-Text (docs/MARKDOWN.md im lm-editor), den „📥 Importieren“ liest.
+ * Quizze haben einen eigenen Prompt: Zusammen in einer Antwort kommen Markdown
+ * und JSON durcheinander, KIs halten dann oft gar kein Format mehr ein.
  * @param o.title, o.description, o.kind, o.level, o.language, o.pages, o.sheets,
- *          o.quizCount, o.quizTypes, o.files, o.ncImages, o.guidelines, o.kurs,
+ *          o.files, o.ncImages, o.guidelines, o.kurs,
  *          o.existing ([{slug, pfad, titel}] für Verweise),
  *          o.examples ([{title, kind, markdown}] – vorhandene Blätter als Vorbild)
  */
@@ -447,12 +455,13 @@ export function buildDocPrompt(o) {
   const kind = ['arbeitsblatt', 'klassenarbeit', 'text'].includes(o.kind) ? o.kind : 'arbeitsblatt';
   const kindName = { arbeitsblatt: 'Arbeitsblatt', klassenarbeit: 'Klassenarbeit', text: 'Text zum Lesen' }[kind];
   const sheets = Math.max(1, Math.min(10, Number(o.sheets) || 1));
-  const quiz = Math.max(0, Math.min(10, Number(o.quizCount) || 0));
-  const quizTypes = (o.quizTypes || []).filter((t) => AI_PROMPT_TYPES.includes(t));
   const files = String(o.files || '').split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
   const ncImages = (o.ncImages || []).filter(Boolean);
   const L = [];
 
+  L.push(`WICHTIG: Deine gesamte Antwort ist genau ein Codeblock mit vier Backticks (\`\`\`\`markdown)${sheets > 1 ? ' – ein Blatt je Antwort' : ''}. Eine Lernplattform liest ihn maschinell ein.`);
+  L.push('Kein fertig dargestelltes Dokument, kein Dokument-Fenster (Canvas), keine Erklärungen außerhalb des Blocks. Die Markdown-Zeichen müssen sichtbar im Block stehen.');
+  L.push('');
   L.push(`Du erstellst ${sheets === 1 ? `ein ${kindName}` : `${sheets} aufeinander aufbauende Dokumente (${kindName})`} für den Unterricht.`);
   L.push('Das Ergebnis ist ein Markdown-Text je Blatt, den eine Lernplattform direkt importiert und daraus eine Web-Ansicht sowie ein druckfertiges Blatt mit Lösungsblatt (LibreOffice) erzeugt. Halte das Format exakt ein.');
   L.push('');
@@ -463,7 +472,6 @@ export function buildDocPrompt(o) {
   if (o.level) L.push(`- Klassenstufe/Niveau: ${o.level}`);
   L.push(`- Sprache: ${o.language || 'Deutsch'}`);
   L.push(`- Umfang: etwa ${Math.max(1, Number(o.pages) || 3)} Seiten A4 je Blatt (gedruckt).`);
-  if (quiz) L.push(`- Zusätzlich ${quiz} Quiz-Module zum selben Stoff, im selben Thema hinter dem Dokument.`);
   L.push('');
 
   if (o.guidelines) {
@@ -487,10 +495,9 @@ export function buildDocPrompt(o) {
   }
 
   const material = (o.material || []).filter((m) => m && m.text);
-  if (material.length) L.push(...materialLines(material));
   L.push('## Inhalte');
   if (material.length || files.length) {
-    L.push(`Verwende ausschließlich ${material.length ? 'das Material oben' : ''}${material.length && files.length ? ' und ' : ''}${files.length ? 'die Inhalte der angehängten Materialien:' : '.'}`);
+    L.push(`Verwende ausschließlich ${material.length ? 'das Material ganz unten' : ''}${material.length && files.length ? ' und ' : ''}${files.length ? 'die Inhalte der angehängten Materialien:' : '.'}`);
     for (const f of files) L.push(`- ${f}`);
     L.push('Erfinde keine Fakten, die dort nicht stehen.');
     if (material.length) L.push('Das Material darf neu gegliedert, gekürzt, ergänzt um Erklärungen und Übungen und sprachlich verbessert werden – fachlich bleibt es dabei.');
@@ -581,17 +588,6 @@ export function buildDocPrompt(o) {
   if (sheets > 1) L.push('- Gib jedem Blatt unter „slug:“ einen Kurznamen (klein, mit _), damit spätere Blätter mit {{blatt:…}} darauf verweisen können.');
   L.push('');
 
-  if (quiz) {
-    L.push('## Quiz-Module (am Ende des Texts)');
-    L.push(`Etwa ${quiz} Module zum Stoff des Blatts, sinnvoll verteilt auf: ${quizTypes.map(typeName).join(', ')}.`);
-    L.push('Jedes Modul ist ein eigener Block ganz am Ende, innen gültiges JSON (doppelte Anführungszeichen, Backslashes doppelt, keine Kommentare):');
-    L.push('```lm-quiz');
-    L.push(JSON.stringify({ title: '1. Kurzer Titel der Aufgabe', type: quizTypes[0] || 'multipleChoice', content: { '…': 'je nach Typ, siehe unten' } }));
-    L.push('```');
-    L.push(...describeQuizTypes(quizTypes));
-    L.push('');
-  }
-
   L.push('## Ausgabe');
   if (sheets > 1) {
     L.push(`- Je Antwort GENAU EIN Blatt als vollständiger Text in einem einzigen Codeblock mit vier Backticks (\`\`\`\`markdown) – insgesamt ${sheets} Antworten.`);
@@ -601,5 +597,8 @@ export function buildDocPrompt(o) {
   }
   L.push('- Vier Backticks, damit Quelltext-Blöcke im Blatt den Rahmen nicht beenden.');
   L.push('- Prüfe vor der Ausgabe alles auf fachliche Richtigkeit und eindeutige Lösungen.');
+  L.push('');
+  if (material.length) L.push(...materialLines(material));
+  L.push(`Zur Erinnerung: Antworte nur mit dem Codeblock mit vier Backticks${sheets > 1 ? ' und nur mit einem Blatt' : ''}, erste Zeile im Block ist „---“.`);
   return L.join('\n');
 }

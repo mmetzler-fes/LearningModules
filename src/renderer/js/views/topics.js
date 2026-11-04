@@ -329,7 +329,10 @@ export class TopicsView {
       paid ? `${paid} Person${paid === 1 ? ' hat' : 'en haben'} früher Punkte für die Nutzung bezahlt und bekomm${paid === 1 ? 't' : 'en'} automatisch eine eigene Kopie.` : '',
       free ? `${free} Person${free === 1 ? ' verwendet' : 'en verwenden'} dieses Thema über den Shop und verlier${free === 1 ? 't' : 'en'} es.` : '',
     ].filter(Boolean).map((x) => `\n\n${x}`).join('');
-    if (!(await this.app.appConfirm(t('topics.delete.confirm', { title: topic.title }) + users))) return false;
+    const reach = await this.app.api.getReach().catch(() => null);
+    const classes = (reach?.[topic.id]?.classes || []).join(', ');
+    const inClasses = classes ? `\n\nEs verschwindet auch aus dem Klassennotizbuch: ${classes}. Ergebnisse und ausgefüllte Blätter der Schüler bleiben für dich sichtbar.` : '';
+    if (!(await this.app.appConfirm(t('topics.delete.confirm', { title: topic.title }) + users + inClasses))) return false;
     const res = await this.app.api.deleteTopic(topic.id);
     this.app.showToast(res?.preservedCopies
       ? `${t('topics.deleted')} ${res.preservedCopies} Person${res.preservedCopies === 1 ? ' hat' : 'en haben'} eine eigene Kopie erhalten.`

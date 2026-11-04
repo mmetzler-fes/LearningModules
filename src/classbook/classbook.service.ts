@@ -21,7 +21,7 @@ import { LearningModule } from '../core/entities/learning-module.entity';
 import { NotebookNode } from '../core/entities/notebook-node.entity';
 import { NotebookPlacement } from '../core/entities/notebook-placement.entity';
 import { ClassbookProgress } from '../core/entities/classbook-progress.entity';
-import { ancestorsOf, canHoldNode, commonPath, depthOf, leavesInOrder, nodeMoveError, normalizeMarker, reorder, dissolve, LeafRef, MAX_CLASS_DEPTH, TreeLink, TreeNode, veiledNodeIds } from './classbook-tree';
+import { ancestorsOf, canHoldNode, commonPath, deadMirrorNodes, depthOf, leavesInOrder, nodeMoveError, normalizeMarker, reorder, dissolve, LeafRef, MAX_CLASS_DEPTH, TreeLink, TreeNode, veiledNodeIds } from './classbook-tree';
 import { ClassesService } from '../classes/classes.service';
 import { LinksService, PRACTICE_MODES, onlyHtmlApps } from '../links/links.service';
 import { NotebooksService } from '../notebooks/notebooks.service';
@@ -207,6 +207,7 @@ export class ClassbookService {
     const klasse = await this.classes.ownedClass(classId, user);
     const nb = await this.ensure(klasse);
     await this.migrateTeacherItems(user, klasse, nb, req);
+    await this.removeDeleted(user, klasse, nb).catch(() => undefined);
     // Aus dem Notizbuch übernommene Bereiche: Neues dort kommt ausgeschaltet nach.
     await this.syncMirrors(user, klasse, req).catch(() => undefined);
     await this.arrangeByNotebook(user, klasse, nb).catch(() => undefined);
@@ -755,6 +756,51 @@ export class ClassbookService {
         continue; // Bereich im Notizbuch gelöscht – der Link bleibt, wie er ist.
       }
       await this.placeRepo.save(this.placeRepo.create({ id: link.id, classId: klasse.id, nodeId: place?.nodeId ?? null, orderIndex: place?.orderIndex ?? 0, hidden: true }));
+    }
+  }
+
+  /**
+   * Im Notizbuch gelöschte Lernthemen verschwinden aus dem Baum: Zuweisungen, deren Lernthemen es alle nicht
+   * mehr gibt, und danach leere übernommene Bereiche. Ergebnisse und Blätter der Schüler hängen nicht daran.
+   * Es bleiben: was nur ausgeschaltet ist, entzogene Nutzungsrechte (das Lernthema gibt es noch), Klassenarbeiten
+   * (Abgaben hängen am Link) und Links auf einen Bereich, der noch besteht (er kann wieder wachsen).
+   */
+  private async removeDeleted(user: any, klasse: StudentClass, nb: ClassNotebook) {
+    if (klasse.ownerId !== user.userId) return;
+    const links = await this.classLinks(klasse);
+    const templateIds = [...new Set(links.map((l) => l.templateId).filter(Boolean))] as string[];
+    const rules = new Map((templateIds.length ? await this.linkRepo.find({ where: { id: In(templateIds) } }) : []).map((r) => [r.id, r]));
+    const nbNodes = new Set((await this.nbNodeRepo.find({ where: { ownerId: user.userId } })).map((n) => n.id));
+    const offerIds = [...new Set([...rules.values()].map((r) => r.quickNodeId))].filter((id) => id?.startsWith('offer:')) as string[];
+    const nodes = await this.nodeRepo.find({ where: { classId: klasse.id } });
+    const allOfferIds = [...new Set([...offerIds, ...nodes.map((n) => n.sourceNodeId).filter((id) => id?.startsWith('offer:')) as string[]])].map((id) => id.slice('offer:'.length));
+    const offers = new Set((allOfferIds.length ? await this.offerRepo.find({ where: { id: In(allOfferIds) }, select: ['id'] }) : []).map((o) => o.id));
+    const sourceAlive = (id: string) => (id.startsWith('offer:') ? offers.has(id.slice('offer:'.length)) : nbNodes.has(id));
+    const topicIdsOf = (link: TopicLink) => {
+      const rule = link.templateId ? rules.get(link.templateId) : null;
+      return [...new Set([rule?.quickTopicId, ...(rule?.selection || []).map((e) => e.topicId), ...(link.selection || []).map((e) => e.topicId)].filter(Boolean))] as string[];
+    };
+    const allIds = [...new Set(links.flatMap(topicIdsOf))];
+    const existing = new Set((allIds.length ? await this.topicRepo.find({ where: { id: In(allIds) }, select: ['id'] }) : []).map((t) => t.id));
+    const gone = links.filter((link) => {
+      if ((link.modes || []).includes('exam')) return false;
+      const rule = link.templateId ? rules.get(link.templateId) : null;
+      if (rule?.quickNodeId && sourceAlive(rule.quickNodeId)) return false;
+      const ids = topicIdsOf(link);
+      return ids.length > 0 && !ids.some((id) => existing.has(id));
+    });
+    for (const link of gone) {
+      await this.placeRepo.delete({ id: link.id });
+      await this.linkRepo.delete({ id: link.id });
+    }
+    const places = await this.placeRepo.find({ where: { classId: klasse.id } });
+    const occupied = new Set(places.map((p) => p.nodeId).filter(Boolean)) as Set<string>;
+    const dead = deadMirrorNodes(nodes, occupied, sourceAlive);
+    if (dead.size) await this.nodeRepo.delete({ id: In([...dead]) });
+    const marker = nb.marker as any;
+    if ((marker?.linkId && gone.some((l) => l.id === marker.linkId)) || (marker?.nodeId && dead.has(marker.nodeId))) {
+      nb.marker = null;
+      await this.repo.update({ id: nb.id }, { marker: null });
     }
   }
 

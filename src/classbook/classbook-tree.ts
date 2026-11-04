@@ -54,6 +54,21 @@ export function normalizeMarker(raw: any): MarkerAnchor | null {
   return null;
 }
 
+/**
+ * Aus dem Notizbuch übernommene Bereiche, deren Quelle dort gelöscht ist und in denen nichts mehr liegt –
+ * auch nicht in Unterbereichen. Selbst angelegte Bereiche bleiben immer stehen.
+ */
+export function deadMirrorNodes(
+  nodes: Array<{ id: string; parentId: string | null; sourceNodeId?: string | null }>,
+  occupied: ReadonlySet<string>,
+  sourceAlive: (sourceNodeId: string) => boolean,
+): Set<string> {
+  const isDead = (node: { id: string; sourceNodeId?: string | null }): boolean =>
+    !!node.sourceNodeId && !sourceAlive(node.sourceNodeId) && !occupied.has(node.id)
+    && nodes.filter((n) => n.parentId === node.id).every(isDead);
+  return new Set(nodes.filter(isDead).map((n) => n.id));
+}
+
 /** Wie im Notizbuch: höchstens so viele Ebenen unter der Klasse. */
 export const MAX_CLASS_DEPTH = 7;
 

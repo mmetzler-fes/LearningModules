@@ -1,5 +1,5 @@
 import { ancestorsOf, canHoldNode, depthOf, isInside, nodeMoveError, reorder, dissolve, leavesInOrder, normalizeMarker, MAX_CLASS_DEPTH, TreeLink, TreeNode, veiledNodeIds } from './classbook-tree';
-import { commonPath } from './classbook-tree';
+import { commonPath, deadMirrorNodes } from './classbook-tree';
 
 const N = (id: string, kind: 'area' | 'section', parentId: string | null, orderIndex = 0): TreeNode => ({ id, kind, parentId, orderIndex });
 
@@ -126,4 +126,21 @@ describe('commonPath', () => {
     expect(commonPath([['b', 'a'], []])).toEqual([]);
     expect(commonPath([])).toEqual([]);
   });
+});
+
+describe('deadMirrorNodes: im Notizbuch gelöschte Bereiche', () => {
+  const nodes = [
+    { id: 'a', parentId: null, sourceNodeId: 'weg' },
+    { id: 'a1', parentId: 'a', sourceNodeId: 'weg2' },
+    { id: 'b', parentId: null, sourceNodeId: 'da' },
+    { id: 'c', parentId: null, sourceNodeId: null },
+    { id: 'd', parentId: null, sourceNodeId: 'weg3' },
+    { id: 'e', parentId: null, sourceNodeId: 'weg4' },
+    { id: 'e1', parentId: 'e', sourceNodeId: null },
+  ];
+  const dead = deadMirrorNodes(nodes, new Set(['d']), (id) => id === 'da');
+  it('leer und ohne Quelle: weg, auch ineinander', () => expect([...dead].sort()).toEqual(['a', 'a1']));
+  it('Quelle besteht noch: bleibt, der Bereich kann wieder wachsen', () => expect(dead.has('b')).toBe(false));
+  it('selbst angelegt: bleibt, auch mit gelöschtem Bereich darüber', () => { expect(dead.has('c')).toBe(false); expect(dead.has('e')).toBe(false); });
+  it('es liegt noch etwas darin: bleibt', () => expect(dead.has('d')).toBe(false));
 });

@@ -76,6 +76,10 @@ angelegte Bereiche bleiben stehen.
   „Unsortiert“, auch einzeln Erworbenes im Book „Erworben“ und einzelne Themen aus einem erworbenen Bereich.
 - Aus einem für Schüler ausgeblendeten Bereich und in einen solchen hinein wird nichts verschoben.
 
+**Im Notizbuch gelöscht:** Ein gelöschtes Lernthema verschwindet beim nächsten Öffnen des Klassennotizbuchs auch hier, leere aus dem
+Notizbuch übernommene Bereiche ebenso. Ergebnisse und ausgefüllte Blätter bleiben: Du siehst sie unter 👥 Schülerdaten mit der Fassung,
+die der Schüler vor sich hatte. Bestehen bleiben Klassenarbeiten, selbst angelegte Bereiche und alles, was nur ausgeschaltet ist.
+
 Zuweisen geht auf zwei Wegen: im **📓 Notizbuch** über das Kontextmenü
 (⋯ oder Rechtsklick) eines Lernthemas, Books, Bereichs oder Abschnitts
 **📒 Klassennotizbuch zuweisen…** – dann eine oder mehrere Klassen wählen –,

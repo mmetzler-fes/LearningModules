@@ -179,4 +179,8 @@ export class User extends BaseEntity {
    */
   @Column('simple-json', { nullable: true })
   features: string[] | null;
+
+  /** Vom Admin für dieses Konto abgeschaltet: gilt auch, wenn die Funktion für alle an ist. */
+  @Column('simple-json', { nullable: true })
+  featuresDenied: string[] | null;
 }

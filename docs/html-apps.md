@@ -156,9 +156,10 @@ Modulen, die sie nutzen.
   Nutzungsrechten. Der Dialog „Im Shop anbieten“ nennt der Lehrkraft die gesperrte App.
 - **Gilt je Hash:** Dieselbe Datei bleibt gesperrt, auch wenn sie jemand anderes hochlädt. Eine geänderte Fassung ist
   eine neue Datei und nicht gesperrt.
-- **Wer die Sperre umgeht:** Das Konto in der Benutzerverwaltung deaktivieren. Alle HTML-Apps, die es hochgeladen hat,
-  verschwinden dann aus dem Shop, auch bei Nutzungsrechten, und das Konto kann nichts Neues mehr hochladen. Beim
-  Reaktivieren kommen sie wieder, außer den einzeln gesperrten.
+- **Wer die Sperre umgeht:** In der Benutzerverwaltung das Häkchen „HTML-Apps“ am Konto abnehmen; das geht auch, wenn
+  die Funktion für alle an ist, und das Konto bleibt sonst unberührt. Es kann dann keine Apps mehr hochladen, seine Klassen
+  sehen sie nicht mehr, und alles, was es hochgeladen hat, verschwindet aus dem Shop. Das Häkchen bringt es zurück,
+  außer den einzeln gesperrten Fassungen. Dasselbe gilt für ein deaktiviertes Konto.
 - **Nur der Shop:** Schon übernommene Kopien und die Nutzung in eigenen Klassen laufen weiter.
 - **Zum Durchsehen:** Passt der Inhalt, stimmt die Bewertung, und will die App wirklich nur das Angezeigte? Die
   Prüfung deckt das nicht ab, siehe „Bekannte Lücke“. Auffällig sind verschleierter Code und Eingaben, die zur Aufgabe nicht passen.

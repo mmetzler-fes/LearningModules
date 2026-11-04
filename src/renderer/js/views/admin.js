@@ -527,12 +527,13 @@ export class AdminView {
     });
   }
 
-  /** Häkchen je Funktion am Konto – nur bei „ausgewählte Konten“, bei „alle“ zur Info. */
+  /** Häkchen je Funktion am Konto; ohne Häkchen ist sie für dieses Konto aus, auch bei „alle“. */
   _userFeatureToggles(u) {
     const own = Array.isArray(u.features) ? u.features : [];
+    const denied = Array.isArray(u.featuresDenied) ? u.featuresDenied : [];
     return (this._features || []).filter((f) => f.available && f.mode !== 'off').map((f) => `
-      <label class="user-feature" title="${escapeHtml(f.label)}${f.mode === 'all' ? ' – gilt für alle' : ''}">
-        <input type="checkbox" data-feature="${escapeHtml(f.id)}" ${f.mode === 'all' || own.includes(f.id) ? 'checked' : ''} ${f.mode === 'all' ? 'disabled' : ''}>
+      <label class="user-feature" title="${escapeHtml(f.label)}${f.mode === 'all' ? ' – für alle an; hier lässt sie sich für dieses Konto abschalten' : ''}">
+        <input type="checkbox" data-feature="${escapeHtml(f.id)}" ${!denied.includes(f.id) && (f.mode === 'all' || own.includes(f.id)) ? 'checked' : ''} />
         🧪 ${escapeHtml(f.short || f.id)}
       </label>`).join('');
   }
@@ -545,7 +546,8 @@ export class AdminView {
       return;
     }
     user.features = res.features;
-    this.app.showToast(box.checked ? 'Freigeschaltet – gilt ab der nächsten Anmeldung bzw. nach Neuladen' : 'Freischaltung entfernt', 'success');
+    user.featuresDenied = res.featuresDenied;
+    this.app.showToast(box.checked ? 'Freigeschaltet – gilt ab der nächsten Anmeldung bzw. nach Neuladen' : 'Für dieses Konto abgeschaltet', 'success');
     if (user.id === this.app.state.currentUser?.id) await this._refreshOwnFeatures();
   }
 

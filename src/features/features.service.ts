@@ -71,16 +71,17 @@ export class FeaturesService {
   }
 
   /** Was für dieses Konto gilt – für Login, /me und den Guard. */
-  async enabledFor(user: Pick<User, 'features'> | null | undefined): Promise<string[]> {
+  async enabledFor(user: Pick<User, 'features' | 'featuresDenied'> | null | undefined): Promise<string[]> {
     if (!user) return [];
     const modes = await this.modes();
     const own = Array.isArray(user.features) ? user.features : [];
-    return Object.keys(FEATURES).filter((f) => FEATURES[f].available()
+    const denied = Array.isArray(user.featuresDenied) ? user.featuresDenied : [];
+    return Object.keys(FEATURES).filter((f) => FEATURES[f].available() && !denied.includes(f)
       && (modes[f] === 'all' || (modes[f] === 'selected' && own.includes(f))));
   }
 
   async has(userId: string, feature: string): Promise<boolean> {
-    const user = await this.userRepo.findOne({ where: { id: userId }, select: ['id', 'features'] });
+    const user = await this.userRepo.findOne({ where: { id: userId }, select: ['id', 'features', 'featuresDenied'] });
     return (await this.enabledFor(user)).includes(feature);
   }
 
@@ -103,15 +104,22 @@ export class FeaturesService {
     return this.overview();
   }
 
-  async setForUser(userId: string, feature: string, enabled: boolean) {
+  /** `byMainAdmin`: Nur der Hauptadmin schaltet eine Funktion für ein Konto ausdrücklich ab. */
+  async setForUser(userId: string, feature: string, enabled: boolean, byMainAdmin = true) {
     this.known(feature);
     const user = await this.userRepo.findOne({ where: { id: userId } });
     if (!user) throw new BadRequestException('Benutzer nicht gefunden.');
     const set = new Set(Array.isArray(user.features) ? user.features : []);
     if (enabled) set.add(feature); else set.delete(feature);
     user.features = set.size ? [...set] : null;
+    // Ein abgewähltes Häkchen gilt auch bei „alle“.
+    const denied = new Set(Array.isArray(user.featuresDenied) ? user.featuresDenied : []);
+    if (byMainAdmin) {
+      if (enabled) denied.delete(feature); else denied.add(feature);
+      user.featuresDenied = denied.size ? [...denied] : null;
+    }
     await this.userRepo.save(user);
-    return { success: true, features: user.features || [] };
+    return { success: true, features: user.features || [], featuresDenied: user.featuresDenied || [] };
   }
 
   /**
@@ -134,7 +142,8 @@ export class FeaturesService {
     if ((await this.modes())[feature] !== 'selected') throw new ForbiddenException('Diese Funktion schaltet derzeit nur der Hauptadmin frei.');
     const target = await this.userRepo.findOne({ where: { id: userId } });
     if (!target || target.schoolId !== admin.schoolId) throw new ForbiddenException('Nur Lehrkräfte der eigenen Schule.');
-    return this.setForUser(userId, feature, enabled);
+    if (enabled && (target.featuresDenied || []).includes(feature)) throw new ForbiddenException('Der Hauptadmin hat diese Funktion für dieses Konto abgeschaltet.');
+    return this.setForUser(userId, feature, enabled, false);
   }
 
   private known(feature: string) {

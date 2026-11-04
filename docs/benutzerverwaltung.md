@@ -159,7 +159,7 @@ Ausdrucken und Verteilen.
 ## Benutzer löschen: Creator werden nur deaktiviert
 
 **HTML-Apps sind ausgenommen:** Was das Konto hochgeladen hat, verschwindet aus dem Shop, statt frei zu werden
-(siehe [HTML-Apps](html-apps.md)). So lässt sich auch ein Konto stoppen, das eine gesperrte App immer wieder leicht geändert hochlädt.
+(siehe [HTML-Apps](html-apps.md)). Um nur HTML-Apps abzustellen, braucht es keine Deaktivierung: Dafür genügt das Häkchen am Konto.
 
 Wer mindestens ein Modul verfasst hat, wird beim Löschen **nur deaktiviert**.
 Das gilt beim Löschen durch den Benutzer selbst wie durch den Admin. Seine

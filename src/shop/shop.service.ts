@@ -1,5 +1,6 @@
 import { appFileIdOf, isShopAllowed, withoutBlockedApps } from '../html-apps/html-app-rules';
 import { HtmlAppFile } from '../core/entities/html-app-file.entity';
+import { FeaturesService } from '../features/features.service';
 import { Injectable, Logger, NotFoundException, ForbiddenException, BadRequestException, OnApplicationBootstrap } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, In, IsNull, Not, Repository } from 'typeorm';
@@ -92,6 +93,7 @@ export class ShopService implements OnApplicationBootstrap {
     @InjectRepository(FederationPeer) private readonly peerRepo: Repository<FederationPeer>,
     @InjectRepository(RemotePerson) private readonly personRepo: Repository<RemotePerson>,
     @InjectRepository(HtmlAppFile) private readonly htmlFileRepo: Repository<HtmlAppFile>,
+    private readonly features: FeaturesService,
     @InjectRepository(SystemConfig) private readonly configRepo: Repository<SystemConfig>,
     private readonly usage: UsageService,
     private readonly categories: CategoriesService,
@@ -231,10 +233,11 @@ export class ShopService implements OnApplicationBootstrap {
     const ids = [...new Set(modules.filter((m) => m.type === 'htmlApp').map(appFileIdOf).filter((x): x is string => !!x))];
     if (!ids.length) return new Set();
     const files = await this.htmlFileRepo.find({ where: { id: In(ids) }, select: ['id', 'ownerId', 'manifest', 'shopBlockedAt'] });
-    // Ein gesperrtes Konto gibt seine Inhalte frei; seine HTML-Apps gehen dabei gerade nicht in den Shop.
-    const owners = await this.userRepo.find({ where: { id: In([...new Set(files.map((f) => f.ownerId))]) }, select: ['id', 'active'] });
-    const activeOwners = new Set(owners.filter((u) => u.active !== false).map((u) => u.id));
-    return new Set(files.filter((f) => isShopAllowed(f) && activeOwners.has(f.ownerId)).map((f) => f.id));
+    // Nur von Konten, die HTML-Apps dürfen. Ein deaktiviertes Konto gibt seine Inhalte frei, seine HTML-Apps aber nicht.
+    const owners = await this.userRepo.find({ where: { id: In([...new Set(files.map((f) => f.ownerId))]) }, select: ['id', 'active', 'features', 'featuresDenied'] });
+    const mayOffer = new Set<string>();
+    for (const u of owners) if (u.active !== false && (await this.features.enabledFor(u)).includes('htmlApps')) mayOffer.add(u.id);
+    return new Set(files.filter((f) => isShopAllowed(f) && mayOffer.has(f.ownerId)).map((f) => f.id));
   }
 
   /** Eigene Lernthemen im Teilbaum eines Knotens, in der Reihenfolge der Notebooks. */

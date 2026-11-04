@@ -1,3 +1,4 @@
+import { FeaturesModule } from '../features/features.module';
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ShopOffer } from '../core/entities/shop-offer.entity';
@@ -30,6 +31,7 @@ import { RightsMigrationService } from './rights-migration.service';
       NotebookNode, NotebookPlacement, ContentFeedback, FederationPeer, RemotePerson, HtmlAppFile,
     ]),
     AccountsModule,
+    FeaturesModule,
     UsageModule,
     CategoriesModule,
     TagsModule,

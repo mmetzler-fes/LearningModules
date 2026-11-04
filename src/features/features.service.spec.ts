@@ -59,6 +59,39 @@ describe('FeaturesService', () => {
   });
 });
 
+describe('FeaturesService: für ein Konto abgeschaltet', () => {
+  const env = process.env.WORKSHEET_RENDERER_URL;
+  beforeEach(() => { process.env.WORKSHEET_RENDERER_URL = 'http://renderer:8090'; });
+  afterAll(() => { process.env.WORKSHEET_RENDERER_URL = env; });
+  function service(mode: string, user: any) {
+    const users: Record<string, any> = { [user.id]: user };
+    const config: Record<string, any> = { features: { worksheets: mode } };
+    return new FeaturesService(
+      { findOne: async ({ where }: any) => users[where.id] || null, save: async (u: any) => { users[u.id] = u; return u; } } as any,
+      { findOne: async ({ where }: any) => (config[where.key] ? { key: where.key, value: config[where.key] } : null), save: async (r: any) => r } as any,
+    );
+  }
+  it('gilt auch bei „alle“, das Häkchen bringt die Funktion zurück', async () => {
+    const user: any = { id: 'a', features: null };
+    const s = service('all', user);
+    expect(await s.has('a', 'worksheets')).toBe(true);
+    await s.setForUser('a', 'worksheets', false);
+    expect(await s.has('a', 'worksheets')).toBe(false);
+    await s.setForUser('a', 'worksheets', true);
+    expect(await s.has('a', 'worksheets')).toBe(true);
+  });
+  it('ein Schuladmin hebt es nicht auf, und seine Abwahl ist keine Sperre', async () => {
+    const admin = { userId: 'x', schoolId: 's1', isSchoolAdmin: true };
+    const denied: any = { id: 'a', schoolId: 's1', features: null, featuresDenied: ['worksheets'] };
+    await expect(service('selected', denied).setForSchoolTeacher(admin, 'a', 'worksheets', true)).rejects.toThrow('Hauptadmin');
+    const plain: any = { id: 'b', schoolId: 's1', features: ['worksheets'] };
+    const s = service('selected', plain);
+    await s.setForSchoolTeacher(admin, 'b', 'worksheets', false);
+    await s.setForSchoolTeacher(admin, 'b', 'worksheets', true);
+    expect(await s.has('b', 'worksheets')).toBe(true);
+  });
+});
+
 describe('FeaturesService: Schuladmin', () => {
   beforeEach(() => { process.env.WORKSHEET_RENDERER_URL = 'http://renderer:8090'; });
   function school(mode: string) {

@@ -213,11 +213,13 @@ export class HtmlAppsService {
     });
     const modules = await this.moduleRepo.find({ where: { type: 'htmlApp' }, select: ['id', 'title', 'content', 'topicId'] });
     const topics = await this.topicRepo.find({ where: { id: In([...new Set(modules.map((m) => m.topicId))]) }, select: ['id', 'title'] });
-    const users = await this.userRepo.find({ where: { id: In([...new Set(files.flatMap((f) => [f.ownerId, f.shopBlockedBy]).filter((x): x is string => !!x))]) }, select: ['id', 'displayName', 'email', 'active'] });
+    const users = await this.userRepo.find({ where: { id: In([...new Set(files.flatMap((f) => [f.ownerId, f.shopBlockedBy]).filter((x): x is string => !!x))]) }, select: ['id', 'displayName', 'email', 'active', 'features', 'featuresDenied'] });
     const nameOf = (id?: string | null) => { const u = users.find((x) => x.id === id); return u ? u.displayName || u.email : ''; };
+    const mayUse = new Set<string>();
+    for (const u of users) if (u.active !== false && (await this.features.enabledFor(u)).includes('htmlApps')) mayUse.add(u.id);
     return files.map((f) => ({
       id: f.id, sha: f.sha, size: f.size, createdAt: f.createdAt, owner: nameOf(f.ownerId),
-      ownerActive: users.some((u) => u.id === f.ownerId && u.active !== false),
+      ownerAllowed: mayUse.has(f.ownerId),
       title: f.manifest?.title ?? '', version: f.manifest?.version ?? '', current: f.manifest?.lmApp === 2,
       units: f.manifest?.units?.length ?? 0, steps: (f.manifest?.units || []).reduce((n: number, u: any) => n + (u.steps?.length || 0), 0),
       shopBlocked: !!f.shopBlockedAt, blockedBy: nameOf(f.shopBlockedBy), blockedAt: f.shopBlockedAt,

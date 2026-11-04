@@ -11,7 +11,8 @@ describe('Schülerausweis', () => {
     const [payload, mac] = issueTicket('link1', 'stud1', 'A').split('.');
     const forged = Buffer.from(JSON.stringify({ l: 'link1', s: 'stud2', n: 'B', e: Date.now() + 1e6 })).toString('base64url');
     expect(readTicket(`${forged}.${mac}`, 'link1')).toBeNull();
-    expect(readTicket(`${payload}.x${mac.slice(1)}`, 'link1')).toBeNull();
+    // Erstes Zeichen sicher ändern: Beginnt die Signatur schon mit „x“, bliebe sie sonst gleich.
+    expect(readTicket(`${payload}.${mac[0] === 'x' ? 'y' : 'x'}${mac.slice(1)}`, 'link1')).toBeNull();
     expect(readTicket('kaputt', 'link1')).toBeNull();
   });
 

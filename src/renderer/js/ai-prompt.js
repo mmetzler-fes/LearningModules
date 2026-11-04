@@ -577,7 +577,7 @@ export function buildDocPrompt(o) {
     L.push('- Ein gut lesbarer Text mit Überschriften, Beispielen und Merkkästen; Aufgaben nur, wo sie dem Verständnis dienen.');
   }
   if (kind !== 'text') {
-    L.push('- Zu jeder Aufgabe gehören ein Karo-Block und direkt danach ein Lösungs-Block. Karozeilen nach Antwortumfang: kurze Antwort 4–6, Erklärung 6–8, Rechnung zwei je Rechenschritt.');
+    L.push('- Zu jeder Aufgabe gehören ein Karo-Block und direkt danach ein Lösungs-Block. Schüler schreiben von Hand und brauchen je geschriebene Zeile zwei Karozeilen. Karozeilen nach Antwortumfang: Stichworte 6–8, Erklärung in Sätzen 10–14, Tabelle oder längere Herleitung 14–20, Rechnung drei je Rechenschritt. Lieber zu viel Platz als zu wenig.');
     L.push('- Musterlösungen erklären auch das Warum, nicht nur das Ergebnis. Typische Fehler gezielt als Aufgabe aufgreifen.');
   }
   const existing = (o.existing || []).filter((e) => e && e.slug);

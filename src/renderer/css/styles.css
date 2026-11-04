@@ -3747,8 +3747,9 @@ body.html-app-large .quiz-actions { margin-top: 8px; padding-top: 8px; flex-shri
     linear-gradient(to right, var(--border) 1px, transparent 1px),
     linear-gradient(to bottom, var(--border) 1px, transparent 1px);
   background-size: 0.5cm 0.5cm;
-  max-width: 16.5cm;
 }
+/* Auf dem Blatt wie im Druck; in der Web-Ansicht so breit wie der Text. */
+:where(.ds-surface, .lm-paper) .ds-karo { max-width: 16.5cm; }
 /* Schreibfeld mit Linien (alle 1 cm, wie im Druck ohne Rahmen), leer (nur Rahmen) bzw. frei (unsichtbar, nur Platz). */
 .docspec .ds-karo-linien {
   border: none;

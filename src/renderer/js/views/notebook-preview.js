@@ -28,6 +28,7 @@ export class NotebookPreview {
     this._split = document.getElementById('nbSplit');
     this._pane = document.getElementById('nbPreviewPane');
     this._head = document.getElementById('nbPreviewActions');
+    this._label = document.getElementById('nbPreviewLabel');
     this._body = document.getElementById('nbPreviewBody');
     this._layout = loadLayout();
     // Module je Lernthema (voller Inhalt) – bis zum nächsten Neuladen der Ansicht.
@@ -135,6 +136,29 @@ export class NotebookPreview {
     if (window.speechSynthesis) window.speechSynthesis.cancel();
     this._body.innerHTML = '';
     this._head.innerHTML = '';
+    this._setLabel('👁 Vorschau');
+  }
+
+  /** Text in der Titelleiste; ein langer Titel wird gekürzt und steht ganz im Tooltip. */
+  _setLabel(text, title = '') {
+    if (!this._label) return;
+    this._label.textContent = text;
+    this._label.title = title;
+  }
+
+  /**
+   * Dokument: Titel und Knöpfe in die feste Titelleiste, das spart im Blatt Platz. „Mit Stift bearbeiten“
+   * entfällt, oben steht schon ✍️ Stift; die übrigen Knöpfe stehen dort gleich dahinter.
+   */
+  _compactDocument(host, mod) {
+    host.querySelector('.module-preview-header')?.remove();
+    this._setLabel(`📄 ${mod.title || 'Dokument'}`, mod.title || '');
+    const bar = host.querySelector('.ds-actions');
+    if (!bar) return;
+    bar.querySelector('.ds-ink-btn')?.remove();
+    const after = this._head.querySelector('[data-nb-stift]')?.nextSibling || this._head.firstChild;
+    for (const btn of [...bar.children]) this._head.insertBefore(btn, after);
+    bar.remove();
   }
 
   _empty() {
@@ -154,9 +178,18 @@ export class NotebookPreview {
     const b = document.createElement('button');
     b.type = 'button';
     b.className = 'btn btn-secondary btn-sm';
-    b.textContent = label;
-    b.title = title;
+    // Symbol und Text getrennt: Bei wenig Platz bleibt nur das Symbol (siehe .nb-btn-text).
+    const [icon, ...words] = label.split(' ');
+    b.append(icon);
+    if (words.length) {
+      const text = document.createElement('span');
+      text.className = 'nb-btn-text';
+      text.textContent = ` ${words.join(' ')}`;
+      b.append(text);
+    }
+    b.title = title || label;
     b.addEventListener('click', run);
+    if (label.includes('Stift')) b.dataset.nbStift = '1';
     this._head.appendChild(b);
   }
 
@@ -249,6 +282,7 @@ export class NotebookPreview {
         onSaved: () => { this._modules.delete(topic.id); if (this.currentKey === key) this.showModule(topic, mod); },
       } : null,
     });
+    if (full.type === 'document') this._compactDocument(host, full);
   }
 
   /** Ein Lernthema: Stand und seine Module – ein Klick zeigt das Modul. */

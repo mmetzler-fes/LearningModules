@@ -5001,7 +5001,13 @@ body {
 .nb-pane-head { display: flex; align-items: center; gap: 8px; min-height: 34px; padding: 0 4px 6px; }
 .nb-pane-preview .nb-pane-head { padding: 6px 8px; border-bottom: 1px solid var(--border); }
 .nb-pane-label { font-weight: 600; font-size: 0.9em; color: var(--text-secondary); white-space: nowrap; }
-.nb-preview-actions { display: flex; gap: 6px; margin-left: auto; flex-wrap: wrap; justify-content: flex-end; }
+#nbPreviewLabel { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.nb-preview-actions { display: flex; gap: 6px; margin-left: auto; justify-content: flex-end; flex-shrink: 0; }
+.nb-preview-actions .btn { white-space: nowrap; }
+/* Wenig Platz: Die Knöpfe zeigen nur ihr Symbol, der Titel behält seine Zeile. */
+.nb-pane-preview .nb-pane-head { container-type: inline-size; }
+.nb-split.nb-preview-folded .nb-pane-preview .nb-pane-head { container-type: normal; }
+@container (max-width: 760px) { .nb-preview-actions .nb-btn-text { display: none; } }
 .nb-pane-tree .nb-fold-btn { margin-left: auto; }
 .nb-fold-btn {
   background: none;

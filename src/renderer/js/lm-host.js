@@ -57,17 +57,19 @@ export const lmHost = {
     }
     // Eigenes Dokument: Wer sieht die Beschriftung der Lehrkraft? (Vorgabe: nur sie selbst)
     if (inkMode === 'teacher' && options.inkDocument?.topicId && el) {
-      const label = (v) => (v === 'all' ? '👁 Beschriftung: für alle' : '🙈 Beschriftung: nur für mich');
+      const label = (v) => (v === 'all' ? '👁 Für alle' : '🙈 Nur für mich');
       let visibility = 'teacher';
+      // Die Notebook-Vorschau hängt den Knopf in ihre Titelleiste um (notebook-preview.js).
+      const visButton = () => el.querySelector('.ds-ink-vis-btn') || document.querySelector('.nb-preview-actions .ds-ink-vis-btn');
       import('./ink/ink-open.js').then(async ({ teacherInkGet }) => {
         const res = await teacherInkGet(moduleId);
         visibility = res?.visibility || 'teacher';
-        const btn = el.querySelector('.ds-ink-vis-btn');
+        const btn = visButton();
         if (btn) btn.textContent = label(visibility);
       }).catch(() => {});
       actions.push({
         label: label(visibility),
-        title: 'Deine Beschriftung mit dem Stift: nur für dich (wie eine Lösung) oder auch für die Schüler – unter ihrer eigenen',
+        title: 'Beschriftung – deine Beschriftung mit dem Stift: nur für dich (wie eine Lösung) oder auch für die Schüler – unter ihrer eigenen',
         className: 'ds-ink-vis-btn',
         async onClick() {
           const { teacherInkPut } = await import('./ink/ink-open.js');
@@ -75,7 +77,7 @@ export const lmHost = {
           const res = await teacherInkPut(moduleId, { visibility: next });
           if (!res?.success) throw new Error('Nicht gespeichert');
           visibility = res.visibility;
-          const btn = el.querySelector('.ds-ink-vis-btn');
+          const btn = visButton();
           // Der Renderer setzt danach den Text zurück – erst im nächsten Takt umschreiben.
           setTimeout(() => { if (btn) btn.textContent = label(visibility); }, 0);
         },

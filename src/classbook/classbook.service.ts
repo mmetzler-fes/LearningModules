@@ -598,7 +598,8 @@ export class ClassbookService {
   private async placeAtEnd(classId: string, linkId: string, nodeId: string | null) {
     const siblings = await this.placeRepo.find({ where: { classId, nodeId: nodeId ?? IsNull() } });
     const orderIndex = Math.max(-1, ...siblings.filter((p) => p.id !== linkId).map((p) => p.orderIndex)) + 1;
-    await this.placeRepo.save(this.placeRepo.create({ id: linkId, classId, nodeId, orderIndex }));
+    // Ein alter, versteckter Eintrag kommt so auch wieder in den Baum.
+    await this.placeRepo.save(this.placeRepo.create({ id: linkId, classId, nodeId, orderIndex, hidden: false }));
   }
 
   // ---- Bereiche aus dem Notizbuch als Baum ----
@@ -633,7 +634,7 @@ export class ClassbookService {
     const existed = (await this.nodeRepo.findOne({ where: { classId: klasse.id, sourceNodeId: sourceId } }))?.seen != null;
     const nodeId = await this.mirrorNode(klasse.id, sourceId, title, kind, parentId);
     const res = await this.fillMirror(user, klasse, nodeId, sourceId, nbNodes, { on: true, req, ...from });
-    return { linkId: null, nodeId, existed: existed && !res.added, added: res.added, notReleased: res.notReleased };
+    return { linkId: null, nodeId, existed: existed && !res.added, added: res.added, notReleased: res.notReleased, present: [...new Set(res.present)] };
   }
 
   /**
@@ -665,12 +666,13 @@ export class ClassbookService {
    * Lernthema, das die Klasse schon hat, kommt nicht doppelt.
    */
   private async fillMirror(user: any, klasse: StudentClass, cbNodeId: string | null, sourceId: string, nbNodes: NotebookNode[],
-    opts: { on: boolean; req?: any; preset?: Map<string, SelEntry>; exclude?: string }): Promise<{ added: number; notReleased: string[] }> {
+    opts: { on: boolean; req?: any; preset?: Map<string, SelEntry>; exclude?: string }): Promise<{ added: number; notReleased: string[]; present: string[] }> {
     const node = cbNodeId ? await this.nodeRepo.findOne({ where: { id: cbNodeId, classId: klasse.id } }) : null;
     const tracked = !!node && node.sourceNodeId === sourceId;
     const seen = new Set<string>(tracked ? node!.seen || [] : []);
     let added = 0;
     const notReleased: string[] = [];
+    const present: string[] = []; // Lernthemen, die schon im Baum stehen: „Name (in Eintrag)“
     // Unterbereiche und Abschnitte, in der Reihenfolge des Notizbuchs.
     const kids = nbNodes.filter((n) => n.parentId === sourceId).sort((a, b) => a.orderIndex - b.orderIndex);
     // Ausdrücklich zugewiesen (`on`) zählt der ganze Bereich; nur beim stillen Nachwachsen bleibt Entferntes weg.
@@ -681,6 +683,7 @@ export class ClassbookService {
       const r = await this.fillMirror(user, klasse, kidId, kid.id, nbNodes, opts);
       added += r.added;
       notReleased.push(...r.notReleased);
+      present.push(...r.present);
     }
     // Lernthemen direkt in diesem Knoten (ein erworbener Bereich darin: seine Lernthemen).
     const startable = await this.notebooks.topicsOfNode(sourceId, user).catch(() => ({ included: [] as string[], notReleased: [] as string[] }));
@@ -698,13 +701,18 @@ export class ClassbookService {
     // `exclude`: der Bereichs-Link, der gerade zum Baum wird – seine Lernthemen kommen einzeln.
     // Nur was wirklich im Baum steht: Ein alter Bereichs-Link im Hintergrund zählt nicht als vorhanden.
     const hiddenLinks = new Set((await this.placeRepo.find({ where: { classId: klasse.id } })).filter((p) => p.hidden).map((p) => p.id));
-    const inClass = new Set((await this.classLinks(klasse)).filter((l) => l.id !== opts.exclude && !hiddenLinks.has(l.id)).flatMap((l) => (l.selection || []).map((e) => e.topicId)));
+    // Auch eine Klassenarbeit oder Quiz-Arena allein steht nicht im Baum.
+    const own = await this.classTopicIds(klasse.id);
+    const shown = (await this.classLinks(klasse)).filter((l) => l.id !== opts.exclude && !hiddenLinks.has(l.id)
+      && (practiceModes(l).length > 0 || (l.selection || []).some((e) => own.has(e.topicId))));
+    const inClass = new Map<string, string>();
+    for (const l of shown) for (const e of l.selection || []) inClass.set(e.topicId, l.name);
     for (const topicId of topicIds) {
       if (seen.has(topicId) && !opts.on) continue;
       // Gesperrte Lernthemen kommen, sobald sie freigegeben sind.
       if (!ok.has(topicId)) continue;
       seen.add(topicId);
-      if (inClass.has(topicId)) continue;
+      if (inClass.has(topicId)) { present.push(`${inClass.get(topicId)}`); continue; }
       const created: any = await this.links.classLinkForTopic(topicId, klasse.id, user, opts.req);
       const link = await this.linkRepo.findOne({ where: { id: created.id } });
       if (!link) continue;
@@ -717,12 +725,12 @@ export class ClassbookService {
         : opts.on ? explicitSelection((link.selection || []) as SelEntry[], topics as AvailTopic[]) : off;
       await this.linkRepo.save(link);
       await this.placeAtEnd(klasse.id, link.id, cbNodeId);
-      inClass.add(topicId);
+      inClass.set(topicId, link.name);
       added++;
     }
     notReleased.push(...startable.notReleased);
     if (tracked) await this.nodeRepo.update({ id: node!.id }, { seen: [...seen] as any });
-    return { added, notReleased: [...new Set(notReleased)] };
+    return { added, notReleased: [...new Set(notReleased)], present };
   }
 
   /**

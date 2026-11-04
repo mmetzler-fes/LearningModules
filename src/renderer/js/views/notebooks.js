@@ -1357,14 +1357,20 @@ export class NotebooksView {
     const done = [];
     const had = [];
     const notReleased = new Set();
+    const present = new Set();
     for (const c of picked) {
       const res = await this.app.api.assignToClassbook(c.id, kind, kind === 'node' ? node.id : topic.id);
       if (!res || res.statusCode >= 400) { this.app.showToast(`Fehler bei ${c.name}: ${res?.message || '?'}`, 'error'); continue; }
       (res.existed ? had : done).push(c.name);
+      if (res.existed) (res.present || []).forEach((n) => present.add(n));
       (res.notReleased || []).forEach((n) => notReleased.add(n));
     }
     if (done.length) this.app.showToast(`„${title}“ steht jetzt im Klassennotizbuch von ${done.join(', ')}.`, 'success');
-    if (had.length) this.app.showToast(`Schon zugewiesen (${had.join(', ')}) – Neues steht dort ausgeschaltet bereit und lässt sich im Klassennotizbuch einschalten.`, 'info');
+    if (had.length) {
+      const names = [...present];
+      const where = names.length ? ` Schon im Klassennotizbuch: ${names.slice(0, 6).join(', ')}${names.length > 6 ? ` und ${names.length - 6} weitere` : ''}.` : ' Hier liegt kein freigegebenes Lernthema.';
+      this.app.showToast(`Nichts hinzugefügt (${had.join(', ')}).${where}`, 'info');
+    }
     if (notReleased.size) this.app.showToast(`Nicht freigegeben, daher nicht dabei: ${[...notReleased].join(', ')}.`, 'info');
   }
 

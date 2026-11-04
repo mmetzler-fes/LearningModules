@@ -1268,7 +1268,7 @@ export class ClassResultsView {
     if (!picked) return;
     const res = await this.app.api.assignToClassbook(this._classId, picked.type, picked.id, nodeId);
     if (failed(res)) { this.app.showToast('Fehler: ' + (res?.message || 'Zuweisen fehlgeschlagen'), 'error'); return; }
-    if (res.existed) this.app.showToast(`„${picked.title}“ ist schon zugewiesen – Neues steht ausgeschaltet bereit.`, 'info');
+    if (res.existed) this.app.showToast(`Nichts hinzugefügt: „${picked.title}“ ist schon zugewiesen${res.present?.length ? ` (${res.present.slice(0, 6).join(', ')})` : ''}.`, 'info');
     else if (res.notReleased?.length) this.app.showToast(`Nicht freigegeben, daher nicht dabei: ${res.notReleased.join(', ')}.`, 'info');
     else this.app.showToast(`„${picked.title}“ ist zugewiesen.`, 'success');
     await this._classbook(true);

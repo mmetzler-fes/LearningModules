@@ -95,12 +95,13 @@ beginnt der Pfad am gewählten Bereich. Danach lässt sich alles wie gewohnt
 verschieben und umbenennen. **Neues wächst mit:** Ein Lernthema, Bereich oder
 Abschnitt, den du später im Notizbuch dort anlegst (oder freigibst), erscheint
 an der entsprechenden Stelle – ausgeschaltet. Was du hier entfernst, kommt
-nicht wieder. Ein Lernthema, das die Klasse schon hat, kommt nicht doppelt.
+nicht von selbst wieder, aber beim erneuten Zuweisen des Bereichs. Ein Lernthema, das die Klasse schon im Baum
+hat, kommt nicht doppelt und bleibt, wie es ist.
 Auch ein **Quick-Link** auf einen Bereich, für den du die Klasse gewählt
 hast, und ältere Zuweisungen eines ganzen Bereichs erscheinen als Baum: Beim
 Öffnen des Klassennotizbuchs werden sie umgewandelt – an und aus wie bisher.
 Der Link selbst gilt weiter (verteilte QR-Codes, bisherige Ergebnisse), steht
-aber nicht mehr als eigener Eintrag im Baum.
+aber nicht mehr als eigener Eintrag im Baum. Im Lernnotizbuch steht er als „TG12 (alter Link)“ unter „Erreichbar über“.
 
 Lehrkräfte und Schüler sehen dieselben Zeilen wie im Lernnotizbuch. Hat ein Eintrag nur ein Lernthema, stehen die Module direkt
 darunter, seine Aktionen im Menü ⋯, dort auch **📡 Live** und **📊 Ergebnisse**.

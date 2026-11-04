@@ -673,8 +673,9 @@ export class ClassbookService {
     const notReleased: string[] = [];
     // Unterbereiche und Abschnitte, in der Reihenfolge des Notizbuchs.
     const kids = nbNodes.filter((n) => n.parentId === sourceId).sort((a, b) => a.orderIndex - b.orderIndex);
+    // Ausdrücklich zugewiesen (`on`) zählt der ganze Bereich; nur beim stillen Nachwachsen bleibt Entferntes weg.
     for (const kid of kids) {
-      if (seen.has(kid.id)) continue;
+      if (seen.has(kid.id) && !opts.on) continue;
       seen.add(kid.id);
       const kidId = await this.mirrorNode(klasse.id, kid.id, kid.title, kid.kind === 'section' ? 'section' : 'area', cbNodeId);
       const r = await this.fillMirror(user, klasse, kidId, kid.id, nbNodes, opts);
@@ -695,9 +696,11 @@ export class ClassbookService {
       }
     }
     // `exclude`: der Bereichs-Link, der gerade zum Baum wird – seine Lernthemen kommen einzeln.
-    const inClass = new Set((await this.classLinks(klasse)).filter((l) => l.id !== opts.exclude).flatMap((l) => (l.selection || []).map((e) => e.topicId)));
+    // Nur was wirklich im Baum steht: Ein alter Bereichs-Link im Hintergrund zählt nicht als vorhanden.
+    const hiddenLinks = new Set((await this.placeRepo.find({ where: { classId: klasse.id } })).filter((p) => p.hidden).map((p) => p.id));
+    const inClass = new Set((await this.classLinks(klasse)).filter((l) => l.id !== opts.exclude && !hiddenLinks.has(l.id)).flatMap((l) => (l.selection || []).map((e) => e.topicId)));
     for (const topicId of topicIds) {
-      if (seen.has(topicId)) continue;
+      if (seen.has(topicId) && !opts.on) continue;
       // Gesperrte Lernthemen kommen, sobald sie freigegeben sind.
       if (!ok.has(topicId)) continue;
       seen.add(topicId);

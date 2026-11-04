@@ -142,9 +142,11 @@ export class LinksService {
       if (!(link.modes || []).some((m) => m !== 'exam')) continue;
       if (!link.classId && !link.token) continue; // zurückgezogen
       if (await this.veiledForClass(link)) continue;
+      const oldLink = !!link.classId && !!(await this.cbPlaceRepo.findOne({ where: { id: link.id } }))?.hidden;
       for (const r of await this.resolveModules(link, { includeOff: true })) {
         const e = at(r.topic.id);
-        const name = link.classId ? classes.get(link.classId)?.name : null;
+        // Ein alter Bereichs-Link steht nicht im Baum, gilt aber weiter – das soll man sehen.
+        const name = link.classId ? `${classes.get(link.classId)?.name || 'Klasse'}${oldLink ? ' (alter Link)' : ''}` : null;
         if (name) { if (!e.classes.includes(name)) e.classes.push(name); }
         else if (!link.classId) e.anonymous.push({ id: link.id, name: link.name });
       }

@@ -1,6 +1,6 @@
 # Lehrerfortbildung LearningModules – Leitfaden für die Schulungsleitung
 
-Die Fortbildung ist selbst ein **Book in LearningModules**: 14 Lernthemen in
+Die Fortbildung ist selbst ein **Book in LearningModules**: 15 Lernthemen in
 fünf Abschnitten, je ein Dokument mit der Anleitung (darin ein eingebettetes
 Quiz) und dahinter weitere Quiz-Module – zusammen alle wichtigen Quiz-Arten.
 Die Teilnehmenden erleben die App so zuerst als Schüler und bauen dann
@@ -11,13 +11,13 @@ dasselbe selbst nach.
 | 1 · Start | Willkommen · Registrieren · App installieren (PC, iPad) |
 | 2 · Klasse und Schüler | Testklasse frei und strikt · Schüler freischalten und PIN |
 | 3 · Inhalte | Notizbuch · Lernmodul „Dokument“ (mit Stift) · Quiz-Module (je ein Beispiel) |
-| 4 · Im Unterricht | Klassennotizbuch · Klassenbuch-Link · Quiz, Lernbegleiter, Quiz-Arena · Ergebnisse |
+| 4 · Im Unterricht | Klassennotizbuch · Klassenbuch-Link · Quiz, Lernbegleiter, Quiz-Arena · Ergebnisse · Live führen |
 | 5 · Weiter geht’s | Import, KI-Prompt, Shop · Checkliste und Feedback |
 
 Gegenüber der ersten Gliederung ergänzt: **Testschüler** (eigene Links
 durchspielen), **Erstanmeldung und PIN**, **Mit Stift bearbeiten**,
-**Ergebnisse** (Übersicht, Live), **Material schneller** (Import, KI, Shop,
-Xournal++) und eine **Checkliste** zum Abschluss.
+**Ergebnisse** (Übersicht, Live), **Live führen** (📍, 📡, 👣), **Material
+schneller** (Import, KI, Shop, Xournal++) und eine **Checkliste** zum Abschluss.
 
 ## Datei bauen und einlesen
 
@@ -29,7 +29,8 @@ Texte und Fragen stehen in `build.mjs` (Liste `KAPITEL`) – ändern, neu bauen,
 neu einlesen. In der App: **📓 Notizbuch → 📥 Importieren** → die ZIP wählen.
 Es entsteht das Book „LearningModules – Fortbildung“. Wie alles Importierte
 sind die Lernthemen zunächst **gesperrt (○)** – mit ● freigeben (Mehrfachauswahl
-☑ → „● Freigeben“ geht für alle auf einmal).
+☑ → „● Freigeben“ geht für alle auf einmal). Neu einlesen legt ein weiteres Book an,
+ein älteres bleibt stehen und lässt sich danach löschen.
 
 ## Vorbereitung
 
@@ -38,6 +39,8 @@ sind die Lernthemen zunächst **gesperrt (○)** – mit ● freigeben (Mehrfach
    Admin die Konten an – auch mit selbst gewähltem Initialpasswort.
 2. **Funktionen freischalten** für die Teilnehmenden: „Arbeitsblätter“
    (Dokumente), „PDF-Import“, ggf. „Stift-Editor“ (Administration → Benutzer).
+   HTML-Apps und der neue Dokument-Editor sind in Erprobung und für den Ablauf
+   nicht nötig.
 3. **Dein Konto:** ZIP einlesen, alles freigeben, einen 🧪 Testschüler anlegen.
 4. **Einheitliche Testklasse** – jede Teilnehmerin, jeder Teilnehmer legt sie
    selbst an (Lernthema 2.1): **„Fortbildung“** mit **Anna Apfel, Ben Birne,
@@ -57,8 +60,9 @@ sind die Lernthemen zunächst **gesperrt (○)** – mit ● freigeben (Mehrfach
 | 1:30 | Pause | |
 | 1:45 | Selbst bauen: Lernthema mit Dokument und zwei Quizzen, freigeben | 3.1–3.3 |
 | 2:15 | Klassennotizbuch zuweisen, Klassenbuch-Link, als Anna anmelden | 4.1, 4.2 |
-| 2:35 | **Gemeinsame Quiz-Arena** (Leitung am Beamer, 3.3 als Aufgaben) | 4.3 |
-| 2:50 | Ergebnisse, Ausblick, Checkliste, Feedback | 4.4, 5.1, 5.2 |
+| 2:30 | **Gemeinsame Quiz-Arena** (Leitung am Beamer, 3.3 als Aufgaben) | 4.3 |
+| 2:45 | Ergebnisse; Merker, Senden und Folgen vorführen | 4.4, 4.5 |
+| 2:55 | Ausblick, Checkliste, Feedback | 5.1, 5.2 |
 
 **Tipp:** Weise das Book deiner eigenen Klasse „Fortbildung“ zu und gib den
 Teilnehmenden deren **Klassenbuch-Link** (QR am Beamer): Dann siehst du ihren
@@ -71,9 +75,10 @@ Namen-Tippen, keine Tippfehler.
 ## Als Werbung teilen – mit Test-Zugang
 
 - **Ohne Konto (Schüler-Sicht):** Im Notizbuch am Book **⋯ → 🔗 Quick-Link**
-  (ein Link für den ganzen Bereich). Wer ihn öffnet, gibt einen Namen ein und
-  arbeitet die Fortbildung wie ein Schüler durch – Quizze, Lernbegleiter,
-  Ergebnis. Ideal für Rundmail oder Homepage (QR-Code).
+  (ein anonymer Link für den ganzen Bereich). Wer ihn öffnet, startet sofort
+  ohne Anmeldung und arbeitet die Fortbildung wie ein Schüler durch – Quizze,
+  Lernbegleiter, Ergebnis auf dem Bildschirm; gespeichert wird nichts unter einem
+  Namen. Ideal für Rundmail oder Homepage (QR-Code).
 - **Mit Testlehrer-Konto (Lehrer-Sicht):** Der Admin legt ein Konto an,
   z. B. `testlehrer@<schule>` mit selbst gewähltem Initialpasswort, und schaltet
   die Funktionen frei. Darin die ZIP einlesen und freigeben. Zugangsdaten

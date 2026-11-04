@@ -144,39 +144,20 @@ export async function mountHtmlApp({ el, moduleId, content, options, title }) {
   // Ohne Umhängen: Ein iframe, das den Platz im Baum wechselt, lädt neu.
   // Im Durchlauf füllt „Groß“ die freie Fläche: Weiter-Zeile und Eule bleiben sichtbar, und es gilt auch für die
   // nächsten Schritte. Ohne Durchlauf (Vorschau) gibt es nichts freizuhalten: über den ganzen Bildschirm.
-  const actions = options.appRun ? document.getElementById('quizActions') : null;
+  // Das Layout füllt die Fläche, nicht gerechnete Pixel: Die vertragen sich nicht mit „Zoom Inhalt“.
+  const inRun = !!options.appRun && !!document.getElementById('quizActions');
+  const box = document.getElementById('quizModuleContainer');
   let large = false;
-  let watcher = null;
-  const fit = () => {
-    if (!large || !frame.isConnected) return;
-    const box = document.getElementById('quizModuleContainer');
-    const below = actions.getBoundingClientRect();
-    const margin = Number.parseFloat(getComputedStyle(actions).marginBottom) || 0;
-    // Frei ist der Rest der Fläche unter der App und, wo die Seite noch nicht voll ist, der Platz bis zum unteren Rand.
-    const inBox = box.getBoundingClientRect().bottom - frame.getBoundingClientRect().bottom - 8;
-    const onPage = window.innerHeight - below.bottom - margin - 8;
-    frame.style.height = `${Math.max(200, frame.getBoundingClientRect().height + inBox + onPage)}px`;
-  };
   const setLarge = (on) => {
     large = on;
     big.textContent = on ? '✕ Verkleinern' : '⛶ Groß';
-    if (actions) {
+    if (inRun) {
       session.large = on;
       document.body.classList.toggle('html-app-large', on);
-      window.removeEventListener('resize', fit);
-      watcher?.disconnect();
-      if (on) {
-        document.getElementById('mainContent')?.scrollTo(0, 0);
-        fit();
-        window.addEventListener('resize', fit);
-        // Die Eule auf schmalen Bildschirmen und ihre Sprechblase ändern die Höhe darunter.
-        watcher = new ResizeObserver(fit);
-        watcher.observe(actions);
-        const panel = document.getElementById('companionPanel');
-        if (panel) watcher.observe(panel);
-      } else {
-        frame.style.height = '75vh';
-      }
+      // Alle Hüllen von der App bis zur Fläche des Moduls müssen mitwachsen.
+      for (let n = wrap; n && n !== box; n = n.parentElement) n.classList.toggle('lm-app-fill', on);
+      frame.classList.toggle('lm-app-frame', on);
+      if (on) document.getElementById('mainContent')?.scrollTo(0, 0);
       return;
     }
     wrap.style.cssText = on
@@ -187,7 +168,7 @@ export async function mountHtmlApp({ el, moduleId, content, options, title }) {
   };
   big.addEventListener('click', () => setLarge(!large));
   // Der nächste Schritt baut seinen Rahmen neu auf; „Groß“ bleibt.
-  if (actions && session.large) requestAnimationFrame(() => setLarge(true));
+  if (inRun && session.large) setLarge(true);
 
   const send = (type, data) => frame.contentWindow?.postMessage({ lm: 2, type, data }, open.appOrigin);
   const refuse = (code, message) => send('lm.error', { code, message });
@@ -199,6 +180,8 @@ export async function mountHtmlApp({ el, moduleId, content, options, title }) {
     lock: (locked) => send('lm.lock', { locked: !!locked }),
     reveal: () => send('lm.reveal', {}),
     check: () => send('lm.check', {}),
+    /** Zurückgeblättert: Die Ansicht ist wieder da, „Groß“ gilt wie zuletzt gewählt. */
+    syncLarge: () => { if (inRun) setLarge(!!session.large); },
     /** Offene Eingabe abschließen lassen; die Antwort ist da, wenn das Versprechen erfüllt ist. */
     flush: () => new Promise((resolve) => {
       const done = () => { flushDone = null; resolve(); };

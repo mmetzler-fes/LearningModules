@@ -458,6 +458,7 @@ export class QuizView {
     let view = qs.views[currentIndex];
     if (view) {
       container.appendChild(view);
+      appOfView(view)?.syncLarge();
       // Bereits aufgebaute Aufgabe: Eine Sperre von Weiter/Prüfen (z. B. noch
       // offene Wahr/Falsch-Fragen) steht am Element, nicht mehr am Knopf.
       const locked = !!view.querySelector('[data-next-locked="true"]');

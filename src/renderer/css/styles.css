@@ -1918,13 +1918,17 @@ body {
   margin-left: 8px;
 }
 
-/* HTML-App „Groß“ im Durchlauf: kein Kopf im Modul, keine Abstände, die App füllt die Fläche über der Weiter-Zeile.
+/* HTML-App „Groß“ im Durchlauf: Die App füllt die Fläche über der Weiter-Zeile, per Layout und damit auch bei „Zoom Inhalt“.
    Die Seitenleiste bleibt nur, wenn die Eule darin sitzt. */
 body.html-app-large .module-preview-header,
+body.html-app-large #view-student-quiz .view-header,
 body.html-app-large:not(.companion-run) .sidebar { display: none; }
-body.html-app-large .quiz-actions { margin-top: 8px; padding-top: 8px; }
-body.html-app-large #quizModuleContainer { padding: 4px 8px !important; }
-body.html-app-large .quiz-module-view > div { max-width: none !important; }
+body.html-app-large #view-student-quiz.active { display: flex; flex-direction: column; height: 100%; }
+body.html-app-large #quizPlayerArea:not(.hidden) { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; }
+body.html-app-large #quizModuleContainer { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; overflow: hidden; padding: 4px 8px !important; }
+body.html-app-large .quiz-actions { margin-top: 8px; padding-top: 8px; flex-shrink: 0; }
+.lm-app-fill { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; width: 100%; max-width: none !important; margin: 0 !important; }
+.lm-app-frame { flex: 1 1 auto; min-height: 0; height: auto !important; }
 .quiz-actions {
   display: flex;
   gap: 12px;

@@ -17,6 +17,11 @@ import { lockedModuleIds, withoutLocked } from '../topics/student-lock';
 import * as crypto from 'crypto';
 import { applyRule, differsFromRule, syncedState } from './link-sync';
 import { isQuickRule, quickToken, splitQuickToken } from './quick-token';
+import { ClassNotebook } from '../core/entities/class-notebook.entity';
+import { ClassNotebookNode } from '../core/entities/class-notebook-node.entity';
+import { ClassNotebookPlace } from '../core/entities/class-notebook-place.entity';
+import { User } from '../core/entities/user.entity';
+import { veiledNodeIds } from '../classbook/classbook-tree';
 
 const ALL_MODES: LinkMode[] = ['quiz', 'exam', 'learn', 'companion', 'contest'];
 
@@ -91,7 +96,116 @@ export class LinksService {
     private readonly groupsService: GroupsService,
     private readonly companionService: CompanionService,
     private readonly classesService: ClassesService,
+    @InjectRepository(ClassNotebook) private readonly notebookRepo: Repository<ClassNotebook>,
+    @InjectRepository(ClassNotebookNode) private readonly cbNodeRepo: Repository<ClassNotebookNode>,
+    @InjectRepository(ClassNotebookPlace) private readonly cbPlaceRepo: Repository<ClassNotebookPlace>,
+    @InjectRepository(User) private readonly userRepo: Repository<User>,
   ) {}
+
+  // ---- Für Schüler erreichbar? ----
+
+  /**
+   * 👁 im Klassennotizbuch: Der Klassenlink liegt in einem ausgeblendeten Bereich oder das
+   * ganze Klassennotizbuch ist ausgeblendet. Dann ist er auch über Link und QR-Code gesperrt.
+   */
+  async veiledForClass(link: TopicLink): Promise<boolean> {
+    if (!link.classId) return false;
+    const nb = await this.notebookRepo.findOne({ where: { classId: link.classId } });
+    if (nb?.studentHidden) return true;
+    const place = await this.cbPlaceRepo.findOne({ where: { id: link.id } });
+    if (!place?.nodeId) return false;
+    return veiledNodeIds(await this.cbNodeRepo.find({ where: { classId: link.classId } })).has(place.nodeId);
+  }
+
+  /** Modi, die Schüler über diesen Zugang gerade wirklich starten können. */
+  async entryModes(link: TopicLink, access: LinkAccess, resolved: Array<{ modules: Array<{ type?: string }> }>): Promise<{ modes: LinkMode[]; blocked: boolean }> {
+    const modes = effectiveModes(link, access, resolved);
+    if (access !== 'practice' || !(await this.veiledForClass(link))) return { modes, blocked: false };
+    return { modes: modes.filter((m) => m === 'exam'), blocked: true };
+  }
+
+  /**
+   * Fürs Lernnotizbuch: Worüber kommen Schüler an jedes Lernthema?
+   * `{ [topicId]: { classes, anonymous: [{ id, name }], exam } }`. Inhalte, die der Hauptschalter
+   * sperrt, stehen trotzdem dabei: Dort warten die Klassen darauf.
+   */
+  async reach(user: any) {
+    const links = await this.linkRepo.find({ where: { ownerId: user.userId } });
+    const classes = await this.classesOf(links);
+    const out: Record<string, { classes: string[]; anonymous: Array<{ id: string; name: string }>; exam: boolean }> = {};
+    const at = (id: string) => (out[id] ||= { classes: [], anonymous: [], exam: false });
+    for (const link of links) {
+      if (!link.active) continue;
+      if ((link.modes || []).includes('exam') && link.examToken) {
+        for (const r of await this.resolveModules(link, { exam: true })) at(r.topic.id).exam = true;
+      }
+      if (!(link.modes || []).some((m) => m !== 'exam')) continue;
+      if (!link.classId && !link.token) continue; // zurückgezogen
+      if (await this.veiledForClass(link)) continue;
+      for (const r of await this.resolveModules(link, { includeOff: true })) {
+        const e = at(r.topic.id);
+        const name = link.classId ? classes.get(link.classId)?.name : null;
+        if (name) { if (!e.classes.includes(name)) e.classes.push(name); }
+        else if (!link.classId) e.anonymous.push({ id: link.id, name: link.name });
+      }
+    }
+    for (const e of Object.values(out)) e.classes.sort((a, b) => a.localeCompare(b, 'de'));
+    return out;
+  }
+
+  /** Eigene Inhalte, die der Hauptschalter sperrt, obwohl ein Link sie anbietet. */
+  private async blockedByMaster(user: any) {
+    const links = await this.linkRepo.find({ where: { ownerId: user.userId, active: true } });
+    const classes = await this.classesOf(links);
+    const items = new Map<string, { type: 'topic' | 'module'; topicId: string; moduleId?: string; title: string; where: string[] }>();
+    const add = (key: string, item: any, where: string) => {
+      const e = items.get(key) || { ...item, where: [] };
+      if (!e.where.includes(where)) e.where.push(where);
+      items.set(key, e);
+    };
+    for (const link of links) {
+      if (!(link.modes || []).some((m) => m !== 'exam') || (!link.classId && !link.token)) continue;
+      const where = link.classId ? classes.get(link.classId)?.name || 'Klasse' : 'anonymer Link';
+      for (const r of await this.resolveModules(link, { includeOff: true })) {
+        if (r.topic.ownerId !== user.userId) continue;
+        if (!r.topic.selected && !r.topic.teacherOnly) {
+          add(`t:${r.topic.id}`, { type: 'topic', topicId: r.topic.id, title: r.topic.title }, where);
+          continue;
+        }
+        const all = r.modules.flatMap((m: any) => [m, ...(m.subModules || [])]);
+        for (const m of all) {
+          if (m.moduleSelected === false) add(`m:${m.id}`, { type: 'module', topicId: r.topic.id, moduleId: m.id, title: `${r.topic.title} › ${m.title || 'Modul'}` }, where);
+        }
+      }
+    }
+    return [...items.values()];
+  }
+
+  /** Hinweis nach der Umstellung auf den Hauptschalter – einmal je Lehrkraft. */
+  async reachNotice(user: any) {
+    const me = await this.userRepo.findOne({ where: { id: user.userId } });
+    if (!me || me.reachNoticeAt) return { pending: false, items: [] };
+    const items = await this.blockedByMaster(user);
+    if (!items.length) {
+      await this.userRepo.update({ id: me.id }, { reachNoticeAt: new Date() });
+      return { pending: false, items: [] };
+    }
+    return { pending: true, items };
+  }
+
+  /** Hinweis erledigt; `enable`: die betroffenen Inhalte wieder einschalten. */
+  async ackReachNotice(user: any, enable: boolean) {
+    let enabled = 0;
+    if (enable) {
+      for (const item of await this.blockedByMaster(user)) {
+        if (item.type === 'topic') await this.topicsService.update(item.topicId, user, { selected: true });
+        else await this.topicsService.toggleModule(item.topicId, item.moduleId!, true, user);
+        enabled++;
+      }
+    }
+    await this.userRepo.update({ id: user.userId }, { reachNoticeAt: new Date() });
+    return { enabled };
+  }
 
   // ---- Eingaben prüfen ----
 
@@ -187,7 +301,7 @@ export class LinksService {
    *  - Ein Elternmodul, von dem kein Submodul gewählt ist, bleibt draußen –
    *    es gäbe nichts zu beantworten.
    */
-  async resolveModules(link: TopicLink, { exam = false }: { exam?: boolean } = {}): Promise<Array<{ topic: LearningTopic; modules: LearningModule[] }>> {
+  async resolveModules(link: TopicLink, { exam = false, includeOff = false }: { exam?: boolean; includeOff?: boolean } = {}): Promise<Array<{ topic: LearningTopic; modules: LearningModule[] }>> {
     const selection = link.selection || [];
     const topicIds = selection.map((s) => s.topicId);
     if (topicIds.length === 0) return [];
@@ -210,6 +324,13 @@ export class LinksService {
       const topic = byId.get(entry.topicId);
       if (!topic) continue;
 
+      // ● im Lernnotizbuch ist der Hauptschalter: Aus heißt für Schüler nirgends erreichbar, an und aus je
+      // Klasse bleiben dabei stehen. Die Klassenarbeit hat ihren eigenen Link und bleibt davon frei;
+      // „Nur Lehrkraft“ regelt 🔒 je Klasse. `includeOff`: für die Ansicht der Lehrkraft.
+      const ownTopic = topic.ownerId === link.ownerId;
+      const masterOn = exam || includeOff || !ownTopic;
+      if (!masterOn && !topic.selected && !topic.teacherOnly) continue;
+
       // Mit Nutzungsrecht nur die Module, die es umfasst.
       const visible = this.topicsService.visibleModules(topic, allModules.filter((m) => m.topicId === topic.id), linkOwner);
       // Klassenarbeiten und „Nur Lehrkraft“ gibt es nur über den Link der Klassenarbeit.
@@ -217,7 +338,7 @@ export class LinksService {
       // Probearbeit über einen anonymen Link: Gesperrtes nur, wenn es einzeln gewählt ist.
       const lockedHere = exam && !link.classId && entry.all ? lockedModuleIds(topic, visible, topic.ownerId === link.ownerId) : new Set<string>();
       const ofTopic = (exam ? visible.filter((m) => !isHtmlAppType(m.type) && !lockedHere.has(m.id)) : withoutLocked(topic, visible, topic.ownerId === link.ownerId, new Set(link.releasedModuleIds || [])))
-        .filter((m) => !isRemovedUnit(m))
+        .filter((m) => !isRemovedUnit(m) && (masterOn || m.moduleSelected !== false))
         .sort((a, b) => a.orderIndex - b.orderIndex);
 
       const chosen = new Set(entry.all ? ofTopic.map((m) => m.id) : entry.moduleIds || []);

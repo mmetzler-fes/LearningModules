@@ -122,6 +122,7 @@ export class NotebooksView {
       return;
     }
     this._data = data;
+    this._reach = await this.app.api.getReach().catch(() => null);
     void this._loadMirror();
     // Module mit offenem Entwurf (nicht gespeicherte Änderungen) markieren.
     try {
@@ -348,6 +349,26 @@ export class NotebooksView {
     return wrap;
   }
 
+  /** Worüber Schüler wirklich an dieses Lernthema kommen – anonyme Links zum Zurückziehen anklickbar. */
+  _reachLine(topic) {
+    if (topic.teacherOnly || !this._reach) return '';
+    const r = this._reach[topic.id] || { classes: [], anonymous: [], exam: false };
+    const anon = r.anonymous.length
+      ? ` <button type="button" class="nb-reach-anon" title="Link ansehen oder zurückziehen">${r.anonymous.length === 1 ? 'anonymer Link' : `${r.anonymous.length} anonyme Links`}</button>` : '';
+    const span = (cls, html, title) => `<span class="nb-reach ${cls}" title="${escapeAttr(title)}">${html}</span>`;
+    if (topic.isOwn && !topic.selected) {
+      const waiting = [...r.classes, ...(r.anonymous.length ? ['anonymer Link'] : [])];
+      if (r.exam && !waiting.length) return span('exam', '📝 Nur über den Link der Klassenarbeit', 'Im Notizbuch aus: Nur die Klassenarbeit erreicht dieses Lernthema');
+      const text = `🚫 Für Schüler gesperrt${waiting.length ? ` (${waiting.join(', ')} ${waiting.length === 1 ? 'wartet' : 'warten'} darauf)` : ''}${r.exam ? ' · 📝 Klassenarbeit erreichbar' : ''}`;
+      return span('no', escapeHtml(text), text);
+    }
+    const parts = [...r.classes.map(escapeHtml)];
+    if (!parts.length && !anon && !r.exam) return span('none', 'Noch nirgends erreichbar', 'Keiner Klasse zugewiesen, kein Link');
+    if (r.exam) parts.push('📝 Klassenarbeit');
+    const text = parts.join(', ');
+    return span('ok', `Erreichbar über: ${text}${text && anon ? ',' : ''}${anon}`, `Erreichbar über: ${[...r.classes, ...(r.anonymous.map((a) => `anonym: ${a.name}`)), ...(r.exam ? ['Klassenarbeit'] : [])].join(', ')}`);
+  }
+
   _renderTopic(topic, depth, inMirror = false) {
     if (topic.isMirror) return this._renderMirror(topic, depth);
     const key = 't:' + topic.id;
@@ -363,8 +384,13 @@ export class NotebooksView {
       key, depth, icon: own ? '📘' : '📗', title: topic.title, open,
       cls: `nb-topic ${own ? '' : 'nb-granted'} ${own && !topic.selected ? 'nb-off' : ''}`,
       meta: `${roots.length} Modul${roots.length === 1 ? '' : 'e'}`,
-      extra: (topic.teacherOnly ? '<span class="nb-badge nb-lock" title="Nur Lehrkraft: Schüler sehen dieses Lernthema nicht">🔒</span>' : '') + status,
+      extra: this._reachLine(topic) + (topic.teacherOnly ? '<span class="nb-badge nb-lock" title="Nur Lehrkraft: Schüler sehen dieses Lernthema nicht">🔒</span>' : '') + status,
       drag: inMirror ? null : { type: 'topic', id: topic.id },
+    });
+    row.querySelector('.nb-reach-anon')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const anon = this._reach?.[topic.id]?.anonymous?.[0];
+      if (anon) this.app.linksView._openShareDialog({ id: anon.id, name: anon.name }, 'practice');
     });
     row.querySelector('.nb-status')?.addEventListener('click', async (e) => {
       e.stopPropagation();

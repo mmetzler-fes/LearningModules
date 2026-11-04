@@ -11,7 +11,7 @@ import { LearningModule } from '../entities/learning-module.entity';
 import { Result } from '../entities/result.entity';
 import { TopicLink } from '../entities/topic-link.entity';
 import { TopicQuickLink } from '../entities/topic-quick-link.entity';
-import { LinksService, LinkAccess, modesFor, effectiveModes, onlyHtmlApps } from '../../links/links.service';
+import { LinksService, LinkAccess, modesFor, onlyHtmlApps } from '../../links/links.service';
 import { TopicsService } from '../../topics/topics.service';
 import { GroupsService } from '../../groups/groups.service';
 import { CompanionService } from '../../companion/companion.service';
@@ -230,6 +230,7 @@ export class PublicController {
     const resolved = await this.linksService.resolveModules(link, { exam: modesFor(link, access).includes('exam') });
 
     const klasse = await this.classesService.findById(link.classId);
+    const { modes: entryModes, blocked } = await this.linksService.entryModes(link, access, resolved);
     return {
       linkId: link.id,
       // Ohne Klasse: keine Anmeldung, nichts wird gespeichert.
@@ -241,7 +242,9 @@ export class PublicController {
       className: klasse?.name ?? null,
       // Übungslink: Quiz, Lernen mit Lösungen, Lernbegleitung zur Wahl.
       // Link der Klassenarbeit: nur die Klassenarbeit.
-      modes: effectiveModes(link, access, resolved),
+      modes: entryModes,
+      // 👁 im Klassennotizbuch: im Moment nicht zu erreichen.
+      blocked,
       access,
       // Die Quiz-Arena läuft über den Übungslink mit &m=contest.
       contestEnabled: access === 'practice' && link.modes.includes('contest') && !onlyHtmlApps(resolved),
@@ -263,7 +266,8 @@ export class PublicController {
     @Body() body: { studentName?: string; password?: string; mode?: string; testPassword?: string; classTicket?: string; pin?: string },
   ) {
     const { link, access } = await this.findAccessByToken(token);
-    const allowed = effectiveModes(link, access, await this.linksService.resolveModules(link, { exam: modesFor(link, access).includes('exam') }));
+    const { modes: allowed, blocked } = await this.linksService.entryModes(link, access, await this.linksService.resolveModules(link, { exam: modesFor(link, access).includes('exam') }));
+    if (blocked && !allowed.length) throw new ForbiddenException('Das ist gerade nicht freigegeben. Bitte bei der Lehrkraft nachfragen.');
     const anonymous = !link.classId;
 
     let studentName = (body?.studentName || '').trim().replace(/\s+/g, ' ');

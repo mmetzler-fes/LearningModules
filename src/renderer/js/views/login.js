@@ -310,7 +310,7 @@ export class LoginView {
 
     // Der QR-Code im Wartebereich führt direkt in die Quiz-Arena (…&m=contest).
     // Hat eine Freigabe nur die Quiz-Arena, führt auch ihr Übungslink dorthin.
-    if (!presetMode && (info.modes || []).length === 0 && info.contestEnabled) presetMode = 'contest';
+    if (!presetMode && (info.modes || []).length === 0 && info.contestEnabled && !info.blocked) presetMode = 'contest';
     if (presetMode === 'contest') {
       if (!info.contestEnabled) {
         showError('Für diese Freigabe ist die Quiz-Arena derzeit nicht eingeschaltet.');

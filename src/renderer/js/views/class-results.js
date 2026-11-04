@@ -548,7 +548,8 @@ export class ClassResultsView {
     return `<details class="result-group cb-link ${link.active ? '' : 'cb-off'}" data-link="${escapeAttr(link.id)}" ${open}>
       <summary class="${marked ? 'cb-marked' : ''}">${this._tab === 'content' && link.available ? this._groupSwitch(this._stateOf([link]), `data-switch-links="${escapeAttr(link.id)}"`, 'dieser Zuweisung') : ''}<span class="result-group-title">${link.classTopicId ? '📘' : '🔗'} ${escapeHtml(link.name)}${link.active ? '' : ' <small class="class-pending-note">deaktiviert</small>'}</span>
         ${marked ? this._markBadge() : ''}
-        <span class="result-group-meta">${n ? `${link.topics.length} Lernthema/-themen · ${n} Modul${n === 1 ? '' : 'e'}` : 'ausgeschaltet'}
+        ${this._tab === 'content' && link.available ? this._linkEye(link) : ''}
+        <span class="result-group-meta">${this._tab === 'content' && link.available ? this._reachBadge(link) : `${link.topics.length} Lernthema/-themen · ${n} Modul${n === 1 ? '' : 'e'}`}
           ${this._tab === 'contest'
             ? '<button type="button" class="btn btn-primary btn-sm" data-contest title="Wartebereich öffnen – die Schüler sehen im Klassennotizbuch dann nur noch die Quiz-Arena">🏆 Quiz-Arena starten</button>'
             : link.practice.map((m) => `<span class="result-mode-badge">${escapeHtml(MODE_LABELS[m] || m)}</span>`).join('')}</span>
@@ -559,13 +560,43 @@ export class ClassResultsView {
   }
 
   _bindActive(out) {
-    out.querySelectorAll('[data-active]').forEach((btn) => btn.addEventListener('click', async () => {
+    out.querySelectorAll('[data-active]').forEach((btn) => btn.addEventListener('click', async (e) => {
+      e.preventDefault();
+      e.stopPropagation();
       const id = btn.closest('[data-link]').dataset.link;
       const res = await this.app.api.updateLink(id, { active: btn.dataset.active === 'on' });
       if (failed(res)) { this.app.showToast('Fehler: ' + (res?.message || '?'), 'error'); return; }
       await this._classbook(true);
       this._render();
     }));
+  }
+
+  /** 👁 / 🙈 am Lernthema: nur für diese Klasse; auch Link und QR-Code sind dann gesperrt. */
+  _linkEye(l) {
+    return `<button type="button" class="cb-eye ${l.active ? '' : 'off'}" data-active="${l.active ? 'off' : 'on'}"
+      title="${l.active ? 'Für diese Klasse sichtbar – klicken blendet das Lernthema aus und sperrt auch Link und QR-Code; Modulauswahl und Ergebnisse bleiben' : 'Für diese Klasse ausgeblendet, auch Link und QR-Code sind gesperrt – klicken zum Einblenden (alles wie vorher)'}"
+      aria-label="${l.active ? 'Ausblenden' : 'Einblenden'}">${l.active ? '👁' : '🙈'}</button>`;
+  }
+
+  /** Was Schüler dieser Klasse tatsächlich erreichen – mit Grund, statt nur den eigenen Schalter. */
+  _reachBadge(link) {
+    const badge = (cls, text, title = '') => `<span class="cb-reach ${cls}"${title ? ` title="${escapeAttr(title)}"` : ''}>${escapeHtml(text)}</span>`;
+    const no = (why) => badge('no', `🚫 nicht erreichbar: ${why}`);
+    if (!link.active) return no('Lernthema ausgeblendet');
+    if (this._cb?.studentHidden) return no('Klassennotizbuch ausgeblendet');
+    if (link.veiled) return no('Bereich ausgeblendet');
+    const on = (link.available || []).filter((t) => t.enabled);
+    if (!on.length) return badge('off', '○ ausgeschaltet', 'Kein Modul ist für diese Klasse eingeschaltet');
+    const blocked = on.filter((t) => t.notebookOff);
+    if (blocked.length === on.length) return no('im Lernnotizbuch aus');
+    const modules = on.filter((t) => !t.notebookOff).flatMap((t) => t.modules.filter((m) => m.enabled));
+    const offMods = modules.filter((m) => m.notebookOff);
+    if (modules.length && offMods.length === modules.length) return no('im Lernnotizbuch aus');
+    if (blocked.length || offMods.length) {
+      const names = [...blocked.map((t) => t.title), ...offMods.map((m) => m.title)];
+      return badge('part', `⚠️ teilweise: ${names.length} im Lernnotizbuch aus`, names.join(', '));
+    }
+    return badge('ok', `✅ für Schüler erreichbar · ${modules.length} Modul${modules.length === 1 ? '' : 'e'}`);
   }
 
   /** Schaltzustand mehrerer Zuweisungen: 'on' (alle Module an), 'off' (keins) oder 'part'. */
@@ -592,7 +623,7 @@ export class ClassResultsView {
     const mk = this._cb?.marker;
     const topicMarked = (t) => mk?.level === 'topic' && mk.linkId === link.id && mk.topicId === t.topicId;
     return `${link.available.map((t) => `<div class="cb-topic ${t.enabled ? '' : 'cb-item-off'}" data-topic="${escapeAttr(t.topicId)}">
-        <div class="cb-topic-title ${topicMarked(t) ? 'cb-marked' : ''}">${sw(t.enabled, 'data-toggle-topic', 'dieses Lernthema')} 📘 ${escapeHtml(t.title)}
+        <div class="cb-topic-title ${topicMarked(t) ? 'cb-marked' : ''}">${sw(t.enabled, 'data-toggle-topic', 'dieses Lernthema')} 📘 ${escapeHtml(t.title)}${t.notebookOff ? ' <span class="cb-reach no">🚫 im Lernnotizbuch aus</span>' : ''}
           ${topicMarked(t) ? this._markBadge() : ''}
           <button type="button" class="nb-menu-btn" data-topic-menu title="Aktionen" aria-label="Aktionen">⋯</button></div>
         <ul class="cb-units">${t.modules.map((m) => {
@@ -600,7 +631,7 @@ export class ClassResultsView {
           return `<li class="${m.enabled ? '' : 'cb-item-off'} ${marked ? 'cb-marked' : ''}">
           <span>${m.viaDoc ? '<span class="nb-status on cb-via-doc" title="In ein eingeschaltetes Dokument eingebettet – kommt mit ihm. Mit ○ am Dokument ist es aus.">●</span>'
             : sw(m.enabled, `data-toggle-module="${escapeAttr(m.id)}"`, 'dieses Modul')}
-            <button type="button" class="cb-unit" data-open-module="${escapeAttr(m.id)}" title="${link.classTopicId === t.topicId ? 'Bearbeiten' : 'Vorschau'}">${TYPE_ICON[m.type] || '🧩'} ${escapeHtml(m.title || 'Modul')}</button></span>
+            <button type="button" class="cb-unit" data-open-module="${escapeAttr(m.id)}" title="${link.classTopicId === t.topicId ? 'Bearbeiten' : 'Vorschau'}">${TYPE_ICON[m.type] || '🧩'} ${escapeHtml(m.title || 'Modul')}</button>${m.notebookOff ? ' <span class="cb-reach no">🚫 im Lernnotizbuch aus</span>' : ''}</span>
           ${m.hasSolutions ? `<button type="button" class="cb-mark ${m.solutionsOn ? 'on' : ''}" data-solution="${escapeAttr(m.id)}" data-on="${m.solutionsOn ? '1' : ''}"
             title="${m.solutionsOn ? 'Die Schüler dieser Klasse sehen die Lösungen – klicken zum Verbergen' : 'Lösungen für diese Klasse zeigen'}" aria-label="Lösungen">💡</button>` : ''}
           ${m.enabled ? `<button type="button" class="cb-mark ${marked ? 'on' : ''}" data-mark="${escapeAttr(m.id)}"
@@ -739,7 +770,7 @@ export class ClassResultsView {
         </div>
         <p class="hint">Die Schüler sehen diesen Baum über den <a href="#" id="cbToSettings">Klassenbuch-Link</a>. 🔗 verweist aufs Notizbuch
           (Änderungen dort gelten sofort), 📘 gehört nur dieser Klasse. ● / ○ schaltet Lernthemen und Module ein und aus –
-          was später dazukommt, ist zunächst aus. 👁 / 🙈 blendet einen Bereich oder Abschnitt für Schüler aus, ohne die Module
+          was später dazukommt, ist zunächst aus. 👁 / 🙈 blendet ein Lernthema, einen Bereich oder Abschnitt für Schüler aus (auch Link und QR-Code sind dann gesperrt), ohne die Module
           zu schalten. Aktionen über ⋯.</p>
         <div class="cb-tree">${cb.marker?.level === 'root' ? `<div class="cb-book-mark cb-marked">${this._markBadge()} 📒 <strong>${escapeHtml(cb.className)}</strong> <span class="hint">ganz vorn im Klassennotizbuch</span></div>` : ''}${links.length || cb.nodes.length ? this._level(cb, links, null)
           : `<div class="empty-state"><span class="empty-icon">📋</span>
@@ -939,9 +970,7 @@ export class ClassResultsView {
       </details>`).join('')
       + entries.map((l) => this._linkCard(l, `
           <button type="button" class="btn btn-secondary btn-sm" data-live>📡 Live</button>
-          <button type="button" class="btn btn-secondary btn-sm" data-overview>📊 Ergebnisse</button>
-          ${l.active ? '<button type="button" class="btn btn-secondary btn-sm" data-active="off" title="Schüler sehen das Lernthema nicht mehr; Ergebnisse bleiben">⏸ Ausblenden</button>'
-            : '<button type="button" class="btn btn-secondary btn-sm" data-active="on">▶ Wieder zeigen</button>'}`, this._availHtml(l))).join('');
+          <button type="button" class="btn btn-secondary btn-sm" data-overview>📊 Ergebnisse</button>`, this._availHtml(l))).join('');
     return html || (parentId ? '<p class="hint cb-empty">Noch leer – über ⋯ füllen.</p>' : '');
   }
 
@@ -1042,6 +1071,9 @@ export class ClassResultsView {
       run: () => this.app.linksView._openShareDialog({ id: link.id, name: link.name }, 'practice') });
     items.push('-');
     if (own) items.push({ label: '➕ Neues Modul', title: 'Neue Module sind zunächst aus – mit ● einschalten', run: () => this.app.modulesView.openFrom('teacher-class-results', link.classTopicId, null) });
+    items.push(link.active
+      ? { label: '🙈 Für Schüler ausblenden', title: 'Nur für diese Klasse; auch Link und QR-Code sind dann gesperrt. Modulauswahl und Ergebnisse bleiben', run: () => this._call(this.app.api.updateLink(link.id, { active: false })) }
+      : { label: '👁 Für Schüler einblenden', title: 'Alles wieder wie vorher', run: () => this._call(this.app.api.updateLink(link.id, { active: true })) });
     items.push({ label: '📍 Hier ist die Klasse gerade', title: 'Schüler springen zum ersten Modul dieser Zuweisung – „Weiter“ führt durch alle weiteren', run: () => this._setMarker({ level: 'link', linkId: link.id }) });
     items.push('-');
     items.push({ label: '↑ Nach oben', run: () => this._step('entry', link, -1, cb) });

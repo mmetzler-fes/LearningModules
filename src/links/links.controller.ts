@@ -26,6 +26,23 @@ export class LinksController {
     return Object.fromEntries(await this.timingsService.arenaSecondsFor(ids));
   }
 
+  /** Worüber Schüler an jedes Lernthema kommen. */
+  @Get('reach')
+  reach(@Request() req: any) {
+    return this.linksService.reach(req.user);
+  }
+
+  /** Einmaliger Hinweis zum Hauptschalter im Lernnotizbuch. */
+  @Get('reach-notice')
+  reachNotice(@Request() req: any) {
+    return this.linksService.reachNotice(req.user);
+  }
+
+  @Post('reach-notice')
+  ackReachNotice(@Request() req: any, @Body() body: { enable?: boolean }) {
+    return this.linksService.ackReachNotice(req.user, !!body?.enable);
+  }
+
   @Get()
   async findAll(@Request() req: any) {
     return this.linksService.findAll(req.user, req);

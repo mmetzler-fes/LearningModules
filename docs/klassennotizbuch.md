@@ -102,6 +102,27 @@ hast, und ältere Zuweisungen eines ganzen Bereichs erscheinen als Baum: Beim
 Der Link selbst gilt weiter (verteilte QR-Codes, bisherige Ergebnisse), steht
 aber nicht mehr als eigener Eintrag im Baum.
 
+#### Was Schüler erreichen
+
+**Schüler erreichen einen Inhalt nur, wenn auf allen Ebenen „an“ steht.** Etwas fälschlich zu zeigen wäre schlimmer als
+etwas fälschlich zu verbergen.
+
+| Schalter | Bedeutung | Gilt für |
+|---|---|---|
+| ● im Lernnotizbuch | Hauptschalter: Darf das überhaupt zu Schülern? | alle Klassen, Quick-Links, Freigaben und die Quiz-Arena |
+| ● im Klassennotizbuch | Welche Module hat diese Klasse? | diese Klasse |
+| 👁 im Klassennotizbuch | Vorübergehend verbergen, die Modulauswahl bleibt | diese Klasse; auch Link und QR-Code sind gesperrt |
+
+Beim Wiedereinschalten ist alles wie vorher. **Die Klassenarbeit ist ausgenommen:** Sie hat einen eigenen Link, den du bewusst
+austeilst. Beim 👁 auf dem ganzen Klassennotizbuch bleiben eine laufende Klassenarbeit und die Quiz-Arena zu sehen.
+
+Jede Zeile zeigt den **tatsächlichen Stand mit Grund**: im Klassennotizbuch „✅ für Schüler erreichbar“ oder
+„🚫 nicht erreichbar: im Lernnotizbuch aus“, im Lernnotizbuch „Erreichbar über: TG12, anonymer Link“. Ein Klick auf den
+anonymen Link öffnet ihn zum Ansehen und Zurückziehen.
+
+Nach der Umstellung auf diese Regel weist die App jede Lehrkraft einmalig auf Inhalte hin, die im Lernnotizbuch aus sind,
+aber bisher trotzdem Schülern gezeigt wurden. Sie sind dann gesperrt: alle wieder einschalten, einzeln prüfen oder so lassen.
+
 #### Ein- und ausschalten, Neues
 
 Jede Zuweisung zeigt alle Lernthemen und Module, die sie enthalten kann, mit
@@ -124,9 +145,9 @@ Freigabe im Notizbuch, nur für diese Klasse.
   oben **Alles** (das ganze Klassennotizbuch) hat einen Schalter: **●** alles
   an, **◐** teilweise, **○** alles aus. Ein Klick auf ○ oder ◐ schaltet alles
   darunter ein, ein Klick auf ● alles aus.
-- **🙈 Für Schüler ausblenden – ohne umzuschalten:** **👁** an einem Bereich
-  oder Abschnitt (auch im Menü ⋯) blendet ihn mit allem darin für die Schüler
-  aus; oben **🙈 Für Schüler ausblenden** das ganze Klassennotizbuch (eine
+- **🙈 Für Schüler ausblenden – ohne umzuschalten:** **👁** an einem Lernthema, Bereich
+  oder Abschnitt (auch im Menü ⋯) blendet es mit allem darin für die Schüler
+  aus, auch Link und QR-Code sind dann gesperrt; oben **🙈 Für Schüler ausblenden** das ganze Klassennotizbuch (eine
   laufende Klassenarbeit und die Quiz-Arena bleiben zu sehen). Die Module
   behalten ihr ● / ○ – blendest du wieder ein, ist alles wie vorher.
   Ausgeblendetes steht bei dir blass und durchgestrichen; Schüler können es

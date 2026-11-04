@@ -214,6 +214,7 @@ export class ClassbookService {
     const raw = await this.classLinks(klasse);
     const { nodes, placeOf } = await this.tree(klasse, raw);
     const own = await this.classTopicIds(klasse.id);
+    const { veiled } = this.veiledLinks(nb, nodes, placeOf, raw);
     const links = await Promise.all(raw.map(async (l) => {
       const info = await this.linkInfo(l);
       const ownTopic = (l.selection || []).map((e) => e.topicId).find((id) => own.has(id)) || null;
@@ -222,6 +223,7 @@ export class ClassbookService {
       return {
         ...info,
         ...placeOf.get(l.id),
+        veiled: veiled.has(l.id),
         // Klasseneigenes Lernthema (nur in diesem Klassennotizbuch) – sonst Verweis aufs Notizbuch.
         classTopicId: ownTopic,
         notReleased: avail.notReleased,
@@ -278,7 +280,7 @@ export class ClassbookService {
     if (rule?.quickTopicId && !ids.includes(rule.quickTopicId)) ids.push(rule.quickTopicId);
     for (const e of [...(rule?.selection || []), ...(link.selection || [])]) if (!ids.includes(e.topicId)) ids.push(e.topicId);
     const resolved = ids.length
-      ? await this.links.resolveModules(Object.assign(new TopicLink(), link, { selection: ids.map((topicId) => ({ topicId, all: true })) }))
+      ? await this.links.resolveModules(Object.assign(new TopicLink(), link, { selection: ids.map((topicId) => ({ topicId, all: true })) }), { includeOff: true })
       : [];
     const topics = resolved.map((r) => ({
       topicId: r.topic.id,
@@ -286,8 +288,11 @@ export class ClassbookService {
       // Eigene Lernthemen lassen sich von hier aus bearbeiten, erworbene nur ansehen.
       canEdit: r.topic.ownerId === user.userId || user.role === 'admin',
       tagIds: r.topic.tagIds || [],
+      // Hauptschalter im Lernnotizbuch: aus heißt für Schüler nirgends erreichbar.
+      notebookOff: r.topic.ownerId === link.ownerId && !r.topic.selected && !r.topic.teacherOnly,
       modules: r.modules.map((m) => ({
         id: m.id, title: m.title || '', type: m.type, tagIds: m.tagIds || [],
+        notebookOff: r.topic.ownerId === link.ownerId && m.moduleSelected === false,
         subIds: ((m as any).subModules || []).map((x: LearningModule) => x.id),
         embeds: embeddedQuizIds(m),
         hasSolutions: hasSolutionBlocks(m),

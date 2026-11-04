@@ -1,3 +1,7 @@
+import { ClassNotebook } from '../core/entities/class-notebook.entity';
+import { ClassNotebookNode } from '../core/entities/class-notebook-node.entity';
+import { ClassNotebookPlace } from '../core/entities/class-notebook-place.entity';
+import { User } from '../core/entities/user.entity';
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { LinksService } from './links.service';
@@ -13,7 +17,7 @@ import { ClassesModule } from '../classes/classes.module';
 import { TimingsModule } from '../timings/timings.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([TopicLink, LearningTopic, LearningModule]), TagsModule, TopicsModule, GroupsModule, CompanionModule, ClassesModule, TimingsModule],
+  imports: [TypeOrmModule.forFeature([TopicLink, LearningTopic, LearningModule, ClassNotebook, ClassNotebookNode, ClassNotebookPlace, User]), TagsModule, TopicsModule, GroupsModule, CompanionModule, ClassesModule, TimingsModule],
   controllers: [LinksController],
   providers: [LinksService],
   exports: [LinksService],

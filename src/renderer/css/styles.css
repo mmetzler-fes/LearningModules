@@ -4885,6 +4885,16 @@ body.html-app-large .quiz-actions { margin-top: 8px; padding-top: 8px; flex-shri
 .stats-row { display: flex; flex-wrap: wrap; gap: 8px 20px; margin: -4px 0 16px; color: var(--text-secondary); font-size: 0.9rem; }
 .stats-row-item strong { color: var(--accent); font-size: 1.1rem; margin-right: 2px; }
 .h5p-types-card { max-width: 960px; max-height: 85vh; overflow: auto; }
+.cb-reach { font-size: 0.82rem; font-weight: 600; white-space: nowrap; }
+.cb-reach.ok { color: var(--score-good-text); }
+.cb-reach.no { color: var(--danger, #c0392b); }
+.cb-reach.part { color: var(--score-medium-text); }
+.cb-reach.off { color: var(--text-secondary); font-weight: 400; }
+.nb-reach { font-size: 0.78rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 42%; flex-shrink: 1; min-width: 0; color: var(--text-secondary); }
+.nb-reach.no { color: var(--danger, #c0392b); font-weight: 600; }
+.nb-reach.exam { font-weight: 600; }
+.nb-reach-anon { all: unset; cursor: pointer; text-decoration: underline; font-weight: 600; color: var(--score-medium-text); }
+.reach-notice-list { max-height: 40vh; overflow: auto; margin: 8px 0; padding-left: 20px; }
 .ai-prompt-panel { max-width: 860px; }
 .ai-run-line { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; margin-bottom: 14px; padding: 10px 12px; border-radius: var(--radius-sm); background: var(--bg-secondary, rgba(127,127,127,0.1)); }
 .ai-step[hidden] { display: none; }

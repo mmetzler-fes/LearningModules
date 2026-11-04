@@ -1068,6 +1068,9 @@ export class BrowserApi {
     });
   }
   /** Aus dem Notizbuch zuweisen: type 'topic' | 'node' → { linkId, existed, notReleased }. */
+  getReach() { return this._fetch('/api/links/reach'); }
+  getReachNotice() { return this._fetch('/api/links/reach-notice'); }
+  ackReachNotice(enable) { return this._fetch('/api/links/reach-notice', { method: 'POST', body: JSON.stringify({ enable }) }); }
   arrangeClassbook(classId) {
     return this._fetch(`/api/classbook/${encodeURIComponent(classId)}/arrange`, { method: 'POST' });
   }

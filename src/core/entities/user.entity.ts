@@ -183,4 +183,8 @@ export class User extends BaseEntity {
   /** Vom Admin für dieses Konto abgeschaltet: gilt auch, wenn die Funktion für alle an ist. */
   @Column('simple-json', { nullable: true })
   featuresDenied: string[] | null;
+
+  /** Hinweis zum Hauptschalter im Lernnotizbuch erledigt. */
+  @Column({ type: 'datetime', nullable: true })
+  reachNoticeAt: Date | null;
 }

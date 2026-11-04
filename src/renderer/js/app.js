@@ -405,6 +405,10 @@ class App {
     this._views.forEach((v) => v.classList.remove('active'));
 
     const isTeacherLike = state.currentUser && (state.currentUser.role === 'teacher' || state.currentUser.role === 'admin');
+    if (isTeacherLike && this._reachChecked !== state.currentUser.id) {
+      this._reachChecked = state.currentUser.id;
+      void import('./views/reach-notice.js').then((m) => m.showReachNotice(this));
+    }
     const navContainer = isTeacherLike ? this._teacherNav : this._studentNav;
     navContainer.querySelectorAll('.nav-btn').forEach((b) => b.classList.remove('active'));
 

@@ -42,8 +42,7 @@ Rechner der lm-editor.
 
 ### Vom lm-editor nach LernModule
 
-Im lm-editor gibt **📓 In LearningModules öffnen** das Blatt samt Quizzen und Beschriftung weiter (in Erprobung, im lm-editor hinter
-`?tiptap=1`). Es öffnet sich LernModule auf deinem Server, beim ersten Mal fragt der Editor nach der Adresse; läuft er auf demselben
+Im lm-editor gibt **📓 In LearningModules öffnen** das Blatt samt Quizzen und Beschriftung weiter. Es öffnet sich LernModule auf deinem Server, beim ersten Mal fragt der Editor nach der Adresse; läuft er auf demselben
 Server, weiß er sie. LernModule nennt, woher das Blatt kommt, und zeigt es an; nach der Anmeldung geht es mit **📓 Im Notizbuch ablegen…**
 weiter wie bei einer Datei. Die Datei geht direkt von Fenster zu Fenster und liegt erst nach dem Ablegen auf dem Server. Die Datei im lm-editor bleibt.
 

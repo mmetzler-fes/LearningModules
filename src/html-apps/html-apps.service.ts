@@ -6,20 +6,20 @@ import { HtmlAppFile } from '../core/entities/html-app-file.entity';
 import { HtmlAppState } from '../core/entities/html-app-state.entity';
 import { LearningModule } from '../core/entities/learning-module.entity';
 import { LearningTopic } from '../core/entities/learning-topic.entity';
-import { Result } from '../core/entities/result.entity';
-import { RunProgress } from '../core/entities/run-progress.entity';
 import { TopicLink } from '../core/entities/topic-link.entity';
-import { ClassesService } from '../classes/classes.service';
 import { isTestStudent } from '../classes/test-student';
 import { FeaturesService } from '../features/features.service';
 import { TopicsService } from '../topics/topics.service';
+import { CHECK_VERSION, deliverable, inspectApp } from './html-app-check';
 import {
-  appHeaders, appOrigin, cleanProgress, cleanResult, FRAME_PREFIX, issueToken, LIFETIME_MS, MAX_FILE_BYTES, MAX_STATE_BYTES,
-  parentOriginOf, parseManifest, readToken, SessionToken, shellPage, ViewToken,
+  appHeaders, appOrigin, FRAME_PREFIX, issueToken, LIFETIME_MS, MAX_FILE_BYTES, MAX_STATE_BYTES,
+  parentOriginOf, readToken, SessionToken, shellPage, ViewToken,
 } from './html-app-rules';
 
 /** Höchstens so viele Meldungen je Sitzung und Minute; die Bridge bündelt, mehr schickt keine ehrliche App. */
 const REPORTS_PER_MINUTE = 120;
+
+const hex = (s: string) => crypto.createHash('sha256').update(s, 'utf8').digest('hex');
 
 const contentOf = (m: { content?: any }): any => {
   if (typeof m?.content !== 'string') return m?.content || {};
@@ -37,10 +37,7 @@ export class HtmlAppsService {
     @InjectRepository(HtmlAppState) private readonly stateRepo: Repository<HtmlAppState>,
     @InjectRepository(LearningModule) private readonly moduleRepo: Repository<LearningModule>,
     @InjectRepository(LearningTopic) private readonly topicRepo: Repository<LearningTopic>,
-    @InjectRepository(Result) private readonly resultRepo: Repository<Result>,
-    @InjectRepository(RunProgress) private readonly progressRepo: Repository<RunProgress>,
     @InjectRepository(TopicLink) private readonly linkRepo: Repository<TopicLink>,
-    private readonly classes: ClassesService,
     private readonly features: FeaturesService,
     private readonly topics: TopicsService,
   ) {}
@@ -50,15 +47,12 @@ export class HtmlAppsService {
     if (typeof html !== 'string' || !html.trim()) throw new BadRequestException('Keine HTML-Datei angekommen.');
     const size = Buffer.byteLength(html);
     if (size > MAX_FILE_BYTES) throw new BadRequestException(`Die Datei ist zu groß (höchstens ${MAX_FILE_BYTES / 1024 / 1024} MB).`);
-    const { manifest, errors } = parseManifest(html);
-    if (errors.length) throw new BadRequestException(`Steckbrief ungültig: ${errors.join(' ')}`);
-    const sha = crypto.createHash('sha256').update(html).digest('hex');
+    const { manifest, errors } = inspectApp(html);
+    if (errors.length || !manifest) throw new BadRequestException({ message: 'Die Datei hält die Regeln für HTML-Apps nicht ein.', errors });
+    const sha = hex(html);
     const known = await this.fileRepo.findOne({ where: { ownerId: user.userId, sha }, select: ['id', 'manifest', 'size'] });
     const file = known || (await this.fileRepo.save(this.fileRepo.create({ id: crypto.randomUUID(), ownerId: user.userId, sha, size, html, manifest })));
-    return {
-      fileId: file.id, manifest: file.manifest ?? null, size: file.size,
-      warnings: file.manifest ? [] : ['Kein Steckbrief gefunden: Die App wird nur angezeigt, ohne Lernstand und Ergebnisse.'],
-    };
+    return { fileId: file.id, manifest: file.manifest, size: file.size, sha };
   }
 
   private frameUrls(fileId: string, parentOrigin: string, expires: number) {
@@ -104,9 +98,10 @@ export class HtmlAppsService {
     if (!fileId) throw new NotFoundException('Die Datei der App wurde nicht gefunden.');
     const file = await this.fileRepo.findOne({ where: { id: fileId }, select: ['id', 'manifest'] });
     if (!file) throw new NotFoundException('Die Datei der App wurde nicht gefunden.');
+    this.requireCurrent(file);
     return {
       ...this.frameUrls(file.id, this.parentOrigin(headers), Date.now() + LIFETIME_MS),
-      mode: 'preview', session: null, state: null, unit: startUnit, enabledUnits: null, manifest: file.manifest ?? null,
+      mode: 'preview', session: null, state: null, unit: startUnit, manifest: file.manifest ?? null,
     };
   }
 
@@ -121,7 +116,7 @@ export class HtmlAppsService {
     student: { id: string; name: string; expires: number; linkId: string } | null;
   }) {
     const parentOrigin = this.parentOrigin(headers);
-    const { root, startUnit } = await this.rootOf(input.moduleId);
+    const { root } = await this.rootOf(input.moduleId);
     const entry = input.listed.find((m) => m.id === root.id);
     if (!entry) throw new NotFoundException('Diese App gehört nicht zum Link.');
     const topic = await this.topicRepo.findOne({ where: { id: root.topicId }, select: ['id', 'ownerId'] });
@@ -130,12 +125,8 @@ export class HtmlAppsService {
     const fileId = content.app?.fileId;
     const file = fileId ? await this.fileRepo.findOne({ where: { id: fileId }, select: ['id', 'manifest'] }) : null;
     if (!file) throw new NotFoundException('Die Datei der App wurde nicht gefunden.');
+    this.requireCurrent(file);
     if (!input.student && content.allowAnonymous === false) throw new ForbiddenException('Diese App ist nur mit Anmeldung nutzbar.');
-
-    const all = (file.manifest?.units || []).map((u: any) => u.id);
-    const kids = ((entry as any).subModules || []) as LearningModule[];
-    const picked = kids.map((k) => contentOf(k).unit).filter((u) => all.includes(u));
-    const enabledUnits = picked.length && picked.length < all.length ? picked : null;
 
     const expires = input.student?.expires ?? Date.now() + LIFETIME_MS;
     let state: unknown = null;
@@ -149,8 +140,13 @@ export class HtmlAppsService {
       session: input.student
         ? issueToken({ k: 'session', m: root.id, l: input.student.linkId, s: input.student.id, n: input.student.name }, expires)
         : null,
-      state, unit: startUnit, enabledUnits, manifest: file.manifest ?? null, rootId: root.id,
+      state, manifest: file.manifest ?? null, rootId: root.id,
     };
+  }
+
+  /** Eine App nach der alten Schnittstelle läuft nicht mehr, bis sie umgebaut ist. */
+  private requireCurrent(file: { manifest?: any }) {
+    if (file.manifest?.lmApp !== 2) throw new ForbiddenException('Diese HTML-App nutzt noch die alte Schnittstelle und muss umgebaut werden.');
   }
 
   private allowReport(token: string, now = Date.now()) {
@@ -189,91 +185,32 @@ export class HtmlAppsService {
     if (!link || !link.active) throw new ForbiddenException('Dieser Link ist derzeit deaktiviert.');
     const root = await this.moduleRepo.findOne({ where: { id: session.m } });
     if (!root || root.type !== 'htmlApp') throw new NotFoundException('Modul nicht gefunden.');
-
-    if (body.type === 'lm.state') {
-      const data = JSON.stringify(body.data?.data ?? null);
-      if (Buffer.byteLength(data) > MAX_STATE_BYTES) return refuse('state-too-large', `Der Stand ist größer als ${MAX_STATE_BYTES / 1024} KB.`);
-      const row = (await this.stateRepo.findOne({ where: { moduleId: root.id, studentId: session.s } }))
-        || this.stateRepo.create({ id: crypto.randomUUID(), moduleId: root.id, studentId: session.s });
-      row.data = data;
-      await this.stateRepo.save(row);
-      return { success: true, stored: true };
-    }
-
-    const kids = await this.moduleRepo.find({ where: { parentId: root.id } });
-    const kid = kids.find((k) => contentOf(k).unit === body.data?.unit && !contentOf(k).removed);
-    if (!kid) return refuse('unknown-unit', `Den Abschnitt „${String(body.data?.unit ?? '').slice(0, 40)}“ gibt es im Steckbrief nicht.`);
-    const kind = contentOf(kid).kind;
-
-    if (body.type === 'lm.result') {
-      if (kind !== 'graded') return refuse('not-graded', 'Ergebnisse gibt es nur bei Abschnitten mit „kind: graded“.');
-      const clean = cleanResult(body.data);
-      if ('error' in clean) return refuse('bad-result', clean.error);
-      await this.saveResult(link, root, kid, session, {
-        score: clean.score, maxScore: clean.max,
-        detail: { points: clean.score / clean.max, isCorrect: clean.score >= clean.max, userAnswer: `${clean.score} von ${clean.max}`, items: clean.items },
-      });
-      return { success: true, stored: true };
-    }
-    if (body.type === 'lm.progress') {
-      const clean = cleanProgress(body.data);
-      if ('error' in clean) return refuse('bad-progress', clean.error);
-      await this.saveLive(link.id, session.s, kid, clean);
-      if (clean.active) await this.markOpened(root.id, session.s, clean.unit);
-      // Nur Fortschritt: Der Abschnitt zählt als bearbeitet, ohne Prozent.
-      const seen = kind === 'info' ? clean.active : kind === 'practice' && !clean.active && (clean.done ?? 0) > 0;
-      if (seen) {
-        await this.saveResult(link, root, kid, session, {
-          score: 0, maxScore: 0,
-          detail: { informational: true, isCorrect: true, points: null, userAnswer: clean.active ? 'Angesehen' : `${clean.done} von ${clean.total}` },
-        });
-      }
-      return { success: true, stored: true };
-    }
-    throw new BadRequestException('Unbekannte Meldung.');
-  }
-
-  /** Je Schüler und Abschnitt ein Eintrag: Die App meldet immer den Gesamtstand. */
-  private async saveResult(link: TopicLink, root: LearningModule, kid: LearningModule, session: SessionToken, r: { score: number; maxScore: number; detail: any }) {
-    const klasse = await this.classes.findById(link.classId);
-    const topic = await this.topicRepo.findOne({ where: { id: root.topicId }, select: ['id', 'title'] });
-    const row = (await this.resultRepo.findOne({ where: { linkId: link.id, studentId: session.s, moduleId: kid.id, mode: 'app' } }))
-      || this.resultRepo.create({
-        id: crypto.randomUUID(), linkId: link.id, studentId: session.s, moduleId: kid.id, mode: 'app', teacherId: link.ownerId,
-        topicId: root.topicId, linkName: link.name, classId: klasse?.id ?? null, className: klasse?.name ?? null,
-        schoolYear: klasse?.schoolYear || (await this.classes.currentSchoolYear()),
-      });
-    Object.assign(row, {
-      studentName: session.n, score: r.score, maxScore: r.maxScore,
-      payload: {
-        topicTitle: topic?.title, moduleTitle: root.title, percentage: r.maxScore > 0 ? Math.round((r.score / r.maxScore) * 100) : 0,
-        details: [{ moduleId: kid.id, moduleTitle: kid.title, moduleType: kid.type, appReported: true, ...r.detail }],
-      },
-    });
-    await this.resultRepo.save(row);
-  }
-
-  /** Merkt sich dauerhaft, dass der Schüler den Abschnitt geöffnet hat – anders als der Durchlauf übersteht das den nächsten Start. */
-  private async markOpened(moduleId: string, studentId: string, unit: string) {
-    const row = (await this.stateRepo.findOne({ where: { moduleId, studentId } }))
-      || this.stateRepo.create({ id: crypto.randomUUID(), moduleId, studentId, data: 'null' });
-    if (row.opened?.includes(unit)) return;
-    row.opened = [...(row.opened || []), unit];
+    // Ergebnisse und Liveview laufen über den normalen Durchlauf, hier bleibt nur der Stand der App.
+    if (body.type !== 'lm.state') throw new BadRequestException('Unbekannte Meldung.');
+    const data = JSON.stringify(body.data?.data ?? null);
+    if (Buffer.byteLength(data) > MAX_STATE_BYTES) return refuse('state-too-large', `Der Stand ist größer als ${MAX_STATE_BYTES / 1024} KB.`);
+    const row = (await this.stateRepo.findOne({ where: { moduleId: root.id, studentId: session.s } }))
+      || this.stateRepo.create({ id: crypto.randomUUID(), moduleId: root.id, studentId: session.s });
+    row.data = data;
     await this.stateRepo.save(row);
+    return { success: true, stored: true };
   }
 
-  /** Stand für den Liveview, am Durchlauf des Schülers. Ohne Durchlauf gibt es nichts anzuzeigen. */
-  private async saveLive(linkId: string, studentId: string, kid: LearningModule, p: { unit: string; active: boolean; done?: number; total?: number }) {
-    const row = await this.progressRepo.findOne({ where: { linkId, studentId } });
-    if (!row) return;
-    const app = row.appUnits || { active: null, units: {} };
-    const prev = app.units[p.unit] || {};
-    // „Gerade dran“ sagt LM.enter; eine App ohne enter zeigt den ersten gemeldeten Abschnitt.
-    if (p.active || !app.active) app.active = p.unit;
-    // `seen` nur über LM.enter: Beim Start meldet eine App auch Stände von Abschnitten, in denen der Schüler gerade nicht war.
-    app.units[p.unit] = { title: kid.title, done: (p.active ? prev.done : p.done) ?? null, total: (p.active ? prev.total : p.total) ?? null, seen: !!prev.seen || p.active };
-    row.appUnits = { ...app };
-    await this.progressRepo.save(row);
+  /**
+   * Liefert nur aus, was jetzt noch die Prüfung besteht und dessen Hash stimmt. Das Ergebnis hängt
+   * am Hash der Datei und an der Fassung der Regeln, nicht am Zeitpunkt des Hochladens.
+   */
+  private readonly inspected = new Map<string, { errors: string[]; scripts: string[] }>();
+
+  private inspectOnce(sha: string, html: string) {
+    const key = `${CHECK_VERSION}:${sha}`;
+    let found = this.inspected.get(key);
+    if (!found) {
+      if (this.inspected.size > 200) this.inspected.clear();
+      found = inspectApp(html);
+      this.inspected.set(key, found);
+    }
+    return found;
   }
 
   async frame(kind: 'shell' | 'app', token: unknown) {
@@ -282,6 +219,10 @@ export class HtmlAppsService {
     if (!view || !origin) return null;
     if (kind === 'shell') return shellPage(String(token), view.o);
     const file = await this.fileRepo.findOne({ where: { id: view.f } });
-    return file ? { html: file.html, headers: appHeaders(origin, view.o) } : null;
+    if (!file || hex(file.html) !== file.sha) return null;
+    const { errors, scripts } = this.inspectOnce(file.sha, file.html);
+    if (errors.length) return null;
+    const { html, scriptHashes } = deliverable(file.html, scripts);
+    return { html, headers: appHeaders(origin, view.o, scriptHashes) };
   }
 }

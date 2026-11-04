@@ -1,88 +1,92 @@
 /**
- * lm-bridge.js – Verbindung einer HTML-App zu LearningModules (Schnittstelle 1,
- * docs/html-apps.md). In die HTML-Datei kopieren: Im Sandkasten gibt es kein Nachladen.
- * Ohne Gastgeber (Datei einfach geöffnet) tut sie nichts, die App läuft weiter wie allein.
+ * lm-bridge.js – Verbindung einer HTML-App zu LearningModules (Schnittstelle 2, docs/html-apps.md).
+ * Der Server fügt sie beim Ausliefern selbst ein. In die Datei kopieren muss sie nur, wer die App
+ * auch allein öffnen will; allein zeigt sie unten eine Leiste zum Blättern durch die Schritte.
  */
 (function () {
   'use strict';
-  var V = 1;
+  if (window.LM) return;
+  var V = 2;
   var hosted = window.parent !== window;
-  var initHandlers = [];
-  var openHandlers = [];
-  var errorHandlers = [];
-  var init = null;
-  var timers = {};
-  var pending = {};
+  var starter = null;
+  var handlers = { lock: [], reveal: [], check: [], flush: [], error: [] };
 
   function post(type, data) {
-    if (!hosted) return;
-    window.parent.postMessage({ lm: V, type: type, data: data }, '*');
+    if (hosted) window.parent.postMessage({ lm: V, type: type, data: data }, '*');
   }
-
-  // Häufiges bündeln: Tippen und Klicken sollen nicht je eine Meldung erzeugen.
-  function later(key, ms, type, data) {
-    pending[key] = { type: type, data: data };
-    if (timers[key]) return;
-    timers[key] = setTimeout(function () { flushOne(key); }, ms);
+  function fire(name, arg) {
+    handlers[name].forEach(function (fn) { fn(arg); });
   }
-  function flushOne(key) {
-    clearTimeout(timers[key]);
-    delete timers[key];
-    var p = pending[key];
-    if (!p) return;
-    delete pending[key];
-    post(p.type, p.data);
+  function run(init) {
+    if (starter) starter(init);
+    post('lm.shown', { text: document.body ? (document.body.innerText || '').trim().length : 0 });
   }
-  function flush() { Object.keys(pending).forEach(flushOne); }
+  function manifest() {
+    var el = document.querySelector('script[type="application/lm-app+json"]');
+    try { return JSON.parse(el.textContent); } catch (e) { return { units: [] }; }
+  }
+  /** Allein geöffnet: Schritt aus der Adresse, Leiste zum Blättern, Stand nur im Speicher. */
+  function standalone() {
+    var steps = [];
+    manifest().units.forEach(function (u) {
+      (u.steps || []).forEach(function (s) { steps.push({ unit: u.id, id: s.id, title: s.title, kind: s.kind }); });
+    });
+    var at = Math.max(0, steps.findIndex(function (s) { return '#' + s.id === location.hash; }));
+    run({ mode: 'standalone', run: 'quiz', step: steps[at] || null, state: null });
+    var bar = document.createElement('div');
+    bar.style.cssText = 'position:fixed;left:0;right:0;bottom:0;padding:6px 10px;background:#222;color:#fff;font:13px sans-serif;z-index:99999';
+    var go = function (d) {
+      var next = steps[at + d];
+      if (!next) return;
+      location.hash = next.id;
+      location.reload();
+    };
+    var btn = function (text, d) {
+      var b = document.createElement('button');
+      b.textContent = text;
+      b.addEventListener('click', function () { go(d); });
+      return b;
+    };
+    bar.append(btn('◀', -1), ' Schritt ' + (at + 1) + ' von ' + steps.length + ' ', btn('▶', 1));
+    document.body.appendChild(bar);
+  }
 
   window.addEventListener('message', function (e) {
     var m = e.data;
     if (e.source !== window.parent || !m || m.lm !== V) return;
-    if (m.type === 'lm.init') {
-      init = m.data || {};
-      initHandlers.splice(0).forEach(function (fn) { fn(init); });
-    } else if (m.type === 'lm.open') {
-      openHandlers.forEach(function (fn) { fn(m.data && m.data.unit); });
-    } else if (m.type === 'lm.error') {
-      errorHandlers.forEach(function (fn) { fn(m.data || {}); });
+    if (m.type === 'lm.init') run(m.data);
+    else if (m.type === 'lm.lock') fire('lock', !!(m.data && m.data.locked));
+    else if (m.type === 'lm.reveal') fire('reveal');
+    else if (m.type === 'lm.check') fire('check');
+    else if (m.type === 'lm.flush') { fire('flush'); post('lm.flushed', {}); }
+    else if (m.type === 'lm.error') {
+      fire('error', m.data);
       if (window.console) console.warn('LearningModules:', m.data && m.data.message);
     }
   });
-  // Vor dem Schließen alles Offene noch absenden.
-  window.addEventListener('pagehide', flush);
-  document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'hidden') flush(); });
+  window.addEventListener('error', function (e) { post('lm.crash', { message: String(e.message || 'Fehler').slice(0, 300) }); });
 
-  window.LM = {
-    version: V,
-    /** Läuft die App in LearningModules? */
+  var LM = {
     hosted: hosted,
-    /**
-     * Start: `fn({ mode, unit, enabledUnits, state, displayName })`. Ohne Gastgeber sofort mit
-     * mode 'standalone'. Erst hier den Stand laden und die Oberfläche aufbauen.
-     */
+    /** Pflicht. "fn(init)" baut genau den Schritt "init.step" auf. */
     start: function (fn) {
-      if (!hosted) { fn({ mode: 'standalone', unit: null, enabledUnits: null, state: null, displayName: null }); return; }
-      if (init) { fn(init); return; }
-      initHandlers.push(fn);
-      post('lm.ready', {});
+      starter = fn;
+      if (hosted) { post('lm.ready', {}); return; }
+      if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', standalone);
+      else standalone();
     },
-    /** Die Lehrkraft schickt die Klasse in einen Abschnitt oder ein Klick im Baum: `fn(unitId)`. */
-    onOpen: function (fn) { openHandlers.push(fn); },
-    /** Meldungen des Gastgebers zu abgelehnten Nachrichten: `fn({ code, message })`. */
-    onError: function (fn) { errorHandlers.push(fn); },
-    /** Der Schüler ist jetzt in diesem Abschnitt (Liveview: „gerade dran“). */
-    enter: function (unit) { post('lm.progress', { unit: unit, active: true }); },
-    /** Fortschritt für den Liveview: `{ done, total, item? }` – Gesamtstand, kein Zuwachs. */
-    progress: function (unit, p) {
-      later('p:' + unit, 1000, 'lm.progress', { unit: unit, done: p.done, total: p.total, item: p.item == null ? null : String(p.item) });
-    },
-    /** Ergebnis: `{ score, max, items? }` – immer der Gesamtstand des Abschnitts, er ersetzt den vorigen. */
-    result: function (unit, r) {
-      later('r:' + unit, 1500, 'lm.result', { unit: unit, score: r.score, max: r.max, items: r.items || null });
-    },
-    /** Stand speichern (JSON, höchstens 256 KB); kommt beim nächsten Start als `state` zurück. */
-    saveState: function (data) { later('s', 2000, 'lm.state', { data: data }); },
-    /** Sofort absenden, z. B. nach „Abgeben“. */
-    flush: flush,
+    /** Stand der Aufgabe, bei jeder Änderung und gleich beim Start: "{ isCorrect, points?, userAnswer?, correctAnswer? }". */
+    answer: function (a) { post('lm.answer', a || {}); },
+    /** Eigener Stand, JSON, höchstens 256 KB. Kommt beim nächsten Schritt wieder in "init.state". */
+    saveState: function (data) { post('lm.state', { data: data === undefined ? null : data }); },
+    /** Datei anbieten: ".xlsx", ".csv", ".pdf", ".png", ".jpg" oder ".txt". */
+    download: function (name, blob) { post('lm.download', { name: String(name), blob: blob }); },
+    onLock: function (fn) { handlers.lock.push(fn); },
+    onReveal: function (fn) { handlers.reveal.push(fn); },
+    onCheck: function (fn) { handlers.check.push(fn); },
+    onFlush: function (fn) { handlers.flush.push(fn); },
+    onError: function (fn) { handlers.error.push(fn); },
   };
-}());
+  Object.freeze(LM);
+  Object.defineProperty(window, 'LM', { value: LM, writable: false, configurable: false });
+})();

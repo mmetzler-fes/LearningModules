@@ -174,20 +174,40 @@ const H5P_TYPES = {
     id: 'htmlApp',
     name: 'HTML-App',
     icon: '🧩',
-    description: 'Selbst gebaute Lernapp als einzelne HTML-Datei. Über die Schnittstelle lmApp meldet sie Ergebnisse und Liveview.',
+    description: 'Selbst gebaute Lernapp als einzelne HTML-Datei. Über die Schnittstelle lmApp läuft sie Schritt für Schritt wie ein Quiz, mit Ergebnissen, Liveview und Lernbegleiter.',
     category: 'Darstellung',
     informational: true,
     // Nur mit freigeschalteter Funktion (Administration → Benutzer).
     feature: 'htmlApps',
     fields: [
       { key: 'app', type: 'htmlappfile', label: 'HTML-Datei', required: true },
-      { key: 'allowAnonymous', type: 'checkbox', label: 'Auch ohne Anmeldung nutzbar (Stand nur auf dem Gerät, keine Ergebnisse)', default: true },
+      { key: 'allowAnonymous', type: 'checkbox', label: 'Auch ohne Anmeldung nutzbar (Stand nur auf dem Gerät)', default: true },
     ],
   },
   // Abschnitt einer HTML-App: entsteht aus dem Steckbrief, nicht im Dialog.
   htmlAppUnit: {
     id: 'htmlAppUnit',
     name: 'Abschnitt der HTML-App',
+    icon: '🧩',
+    description: '',
+    category: 'Darstellung',
+    informational: true,
+    hidden: true,
+    fields: [],
+  },
+  // Schritte einer HTML-App im Durchlauf: entstehen aus dem Steckbrief, nie gespeichert.
+  htmlAppTask: {
+    id: 'htmlAppTask',
+    name: 'HTML-App',
+    icon: '🧩',
+    description: '',
+    category: 'Darstellung',
+    hidden: true,
+    fields: [],
+  },
+  htmlAppInfo: {
+    id: 'htmlAppInfo',
+    name: 'HTML-App',
     icon: '🧩',
     description: '',
     category: 'Darstellung',

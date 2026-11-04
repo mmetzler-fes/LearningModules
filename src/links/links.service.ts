@@ -196,7 +196,7 @@ export class LinksService {
       // Mit Nutzungsrecht nur die Module, die es umfasst.
       const visible = this.topicsService.visibleModules(topic, allModules.filter((m) => m.topicId === topic.id), linkOwner);
       // Klassenarbeiten und „Nur Lehrkraft“ gibt es nur über den Link der Klassenarbeit.
-      // HTML-Apps melden selbst und haben die Lösung im Quelltext: nie über den Link der Klassenarbeit.
+      // HTML-Apps haben die Lösung im Quelltext: nie über den Link der Klassenarbeit.
       const ofTopic = (exam ? visible.filter((m) => !isHtmlAppType(m.type)) : withoutLocked(topic, visible, topic.ownerId === link.ownerId))
         .filter((m) => !isRemovedUnit(m))
         .sort((a, b) => a.orderIndex - b.orderIndex);

@@ -3,6 +3,7 @@ import { collectAnswer, splitTrueFalse, GRADABLE_TYPES } from '../../lm-editor/s
 import { CompanionRun, COMPANION_MAX } from './companion-run.js';
 import { TaskTimer } from '../task-timer.js';
 import { planRun } from '../../lm-editor/src/doc/doc-quiz.js';
+import { appOfView, expandAppSteps } from '../html-app-steps.js';
 import { classbookSession, backToClassbook } from './classbook-student.js';
 
 /**
@@ -94,6 +95,17 @@ export class QuizView {
         if (!state.quizState) return;
         const qs = state.quizState;
         const mod = qs.modules[qs.currentIndex];
+
+        // HTML-App: Erst die offene Eingabe abholen (Zelle noch im Bearbeiten), dann derselbe Klick.
+        const app = mod.type === 'htmlAppTask' && !this._appFlushed ? appOfView(qs.views?.[qs.currentIndex]) : null;
+        if (app) {
+          app.flush().then(() => {
+            this._appFlushed = true;
+            this._btnQuizNext.click();
+            this._appFlushed = false;
+          });
+          return;
+        }
 
         // Lernbegleitung: Prüfen, Kommentar, ggf. Denkpause – die Eule entscheidet.
         if (this._companion) {
@@ -227,18 +239,16 @@ export class QuizView {
       this.app.showToast('Dieser Link enthält derzeit keine Aufgaben.', 'error');
       return;
     }
-    // Abschnitt einer HTML-App: Die App öffnet sich und beginnt dort.
-    const appWithUnit = onlyModule && modules.find((m) => (m.subModules || []).some((k) => k.id === onlyModule && k.type === 'htmlAppUnit'));
-    if (appWithUnit) {
-      appWithUnit._startUnit = appWithUnit.subModules.find((k) => k.id === onlyModule).content?.unit;
-      onlyModule = appWithUnit.id;
-    }
-    if (onlyModule && !modules.some((m) => m.id === onlyModule)) {
+    // Abschnitt einer HTML-App: nur seine Schritte; die App selbst: alle.
+    const onlyApp = onlyModule && modules.find((m) => m.type === 'htmlApp' && (m.id === onlyModule || (m.subModules || []).some((k) => k.id === onlyModule)));
+    if (onlyModule && !onlyApp && !modules.some((m) => m.id === onlyModule)) {
       this.app.showToast('Dieses Quiz ist gerade nicht freigegeben – es geht mit dem ganzen Lernthema weiter.', 'info');
     }
-    const plan = planRun(modules, { companion: data.mode === 'companion', onlyModule });
+    const plan = onlyApp
+      ? { steps: [onlyApp], embedded: new Map() }
+      : planRun(modules, { companion: data.mode === 'companion', onlyModule });
 
-    let steps = splitTrueFalse(plan.steps);
+    let steps = splitTrueFalse(expandAppSteps(plan.steps, onlyApp ? onlyModule : null));
     // Wiedereinstieg in eine Klassenarbeit: bis hierher beantwortet, in derselben Reihenfolge.
     const resume = data.mode === 'exam' && data.examResume ? data.examResume : null;
     const resumed = resume ? stepsInSavedOrder(steps, resume.steps) : null;
@@ -337,7 +347,7 @@ export class QuizView {
     this.app.state.quizState = {
       topicId: freshTopic.id,
       topicTitle: freshTopic.title,
-      modules: splitTrueFalse(plan.steps),
+      modules: splitTrueFalse(expandAppSteps(plan.steps)),
       embedded: plan.embedded,
       embeddedAnswers: {},
       currentIndex: 0,
@@ -462,7 +472,8 @@ export class QuizView {
         examMode: this._isExamRun() || !!this._companion,
         // Quizze im Dokument (planRun); in der Lernbegleitung kommen sie als eigene Aufgabe.
         embedModule: (id) => qs.embedded?.get(id) || null,
-        startUnit: mod._startUnit,
+        moduleId: mod.id,
+        appRun: qs.mode,
         embedMissingText: this._companion ? 'Dieses Quiz kommt gleich als eigene Aufgabe.' : undefined,
         inkEdit: mod._inkEdit ? 'student' : null,
         // Für Aufgaben, die etwas hochladen (Audio Recorder)
@@ -528,6 +539,7 @@ export class QuizView {
   _revealSolution(answer, target = null) {
     const panel = document.createElement('div');
     panel.className = 'quiz-solution-panel';
+    appOfView(this.app.state.quizState?.views?.[this.app.state.quizState.currentIndex])?.reveal();
     panel.innerHTML = `
       <div class="quiz-solution-head">${answer.isCorrect ? '✅ Richtig' : '💡 Musterlösung'}</div>
       ${answer.userAnswer ? `<p><strong>Deine Antwort:</strong> ${escapeHtml(String(answer.userAnswer))}</p>` : ''}
@@ -625,11 +637,6 @@ export class QuizView {
     const total = companion ? graded.length * COMPANION_MAX : graded.length;
     const percentage = total > 0 ? Math.round((score / total) * 100) : 0;
 
-    // HTML-App mit Abschnitten und Schülerausweis: Sie meldet selbst (Modus „app“).
-    const appReports = !!(quizState.linkToken && this.app.state.linkSession?.studentTicket);
-    const selfReporting = new Set(appReports ? quizState.modules.filter((m) => m.type === 'htmlApp' && m.subModules?.length).map((m) => m.id) : []);
-    const reportedDetails = details.filter((d) => !selfReporting.has(d.moduleId));
-
     // Speichern darf das Ende nicht aufhalten: Ohne Netz (WLAN aus) warf der
     // Aufruf, und das Quiz blieb mit "Abschließen" stehen. Jetzt kommt die
     // Auswertung immer, und ein Fehlschlag lässt sich erneut senden.
@@ -637,8 +644,6 @@ export class QuizView {
     if (isLearn) {
       // Lernen mit Lösungen ist zum Üben da – dabei entsteht kein Eintrag im
       // Ergebnis-Log der Lehrkraft.
-    } else if (currentUser.role === 'student' && reportedDetails.length === 0 && appReports) {
-      // Nur HTML-Apps, die selbst melden: Ein Eintrag „gelesen“ wäre doppelt.
     } else if (currentUser.role === 'student') {
       send = () => api.submitPublicResult({
         teacherEmail: currentUser.teacherEmail,
@@ -654,7 +659,7 @@ export class QuizView {
           topicTitle: quizState.topicTitle,
           linkName: quizState.linkName || null,
           percentage,
-          details: reportedDetails,
+          details,
           ...(companion ? { jokersUsed: companion.jokersUsed } : {}),
         },
       });

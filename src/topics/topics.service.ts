@@ -764,6 +764,7 @@ export class TopicsService {
     const fileId = content?.app?.fileId;
     const file = fileId ? await this.htmlFileRepo.findOne({ where: { id: String(fileId) }, select: ['id', 'ownerId', 'manifest', 'size'] }) : null;
     if (!file || (file.ownerId !== user.userId && file.id !== before.app?.fileId)) throw new BadRequestException('Bitte zuerst die HTML-Datei hochladen.');
+    if ((file.manifest as any)?.lmApp !== 2) throw new BadRequestException('Diese HTML-App nutzt noch die alte Schnittstelle: Bitte die umgebaute Datei hochladen.');
     return {
       app: { fileId: file.id, manifest: file.manifest ?? null, size: file.size },
       allowAnonymous: content?.allowAnonymous !== false,
@@ -779,7 +780,7 @@ export class TopicsService {
     const plan = planUnits(manifest, kids);
     const fields = (u: AppUnit, order: number, removed = false) => ({
       title: u.title, orderIndex: order,
-      content: { unit: u.id, kind: u.kind, ...(u.items !== undefined ? { items: u.items } : {}), ...(removed ? { removed: true } : {}) },
+      content: { unit: u.id, steps: u.steps.length, ...(removed ? { removed: true } : {}) },
     });
     const changed: LearningModule[] = [];
     for (const { unit, order } of plan.create) {

@@ -1149,34 +1149,44 @@ class ContentEditorManager {
     const status = document.createElement('div');
     status.className = 'hint';
     status.style.marginTop = '8px';
-    const show = (app, warnings = []) => {
+    const show = (app) => {
       const units = app?.manifest?.units || [];
       status.textContent = '';
       if (!app) { status.textContent = 'Noch keine Datei hochgeladen.'; return; }
       const line = document.createElement('div');
-      line.textContent = app.manifest
-        ? `${app.manifest.title} (Fassung ${app.manifest.version}): ${units.length} Abschnitt${units.length === 1 ? '' : 'e'}`
-        : 'Ohne Steckbrief: nur Anzeige, kein Lernstand.';
+      const steps = units.reduce((n, u) => n + (u.steps?.length || 0), 0);
+      line.textContent = app.manifest?.lmApp === 2
+        ? `✅ ${app.manifest.title} (Fassung ${app.manifest.version}): ${units.length} Abschnitte, ${steps} Schritte`
+        : '❌ Diese App nutzt noch die alte Schnittstelle: Bitte die umgebaute Datei hochladen.';
       status.appendChild(line);
-      if (units.length) {
-        const list = document.createElement('ul');
-        for (const u of units) {
-          const li = document.createElement('li');
-          li.textContent = `${u.title} (${{ graded: 'mit Punkten', practice: 'nur Fortschritt', info: 'zum Ansehen' }[u.kind] || u.kind})`;
-          list.appendChild(li);
-        }
-        status.appendChild(list);
+      if (app.manifest?.lmApp !== 2) return;
+      const list = document.createElement('ul');
+      for (const u of units) {
+        const li = document.createElement('li');
+        const tasks = (u.steps || []).filter((x) => x.kind === 'task').length;
+        li.textContent = `${u.title} (${tasks ? `${tasks} Aufgaben` : 'zum Ansehen'})`;
+        list.appendChild(li);
       }
-      for (const w of warnings) {
-        const el = document.createElement('div');
-        el.textContent = `⚠️ ${w}`;
-        status.appendChild(el);
+      status.appendChild(list);
+    };
+    const showErrors = (head, errors) => {
+      status.textContent = '';
+      const line = document.createElement('div');
+      line.textContent = `❌ ${head}`;
+      status.appendChild(line);
+      const list = document.createElement('ul');
+      for (const e of errors) {
+        const li = document.createElement('li');
+        li.textContent = e;
+        list.appendChild(li);
       }
+      status.appendChild(list);
     };
     input.addEventListener('change', async () => {
       const file = input.files?.[0];
       if (!file) return;
       status.textContent = 'Wird geprüft …';
+      hidden.value = '';
       try {
         const token = sessionStorage.getItem('lm_token') || localStorage.getItem('lm_token');
         const res = await fetch('/api/html-apps', {
@@ -1185,10 +1195,26 @@ class ContentEditorManager {
           body: JSON.stringify({ html: await file.text() }),
         });
         const data = await res.json();
-        if (!res.ok) throw new Error(data.message || 'Das Hochladen ist fehlgeschlagen.');
+        if (!res.ok) {
+          input.value = '';
+          if (Array.isArray(data.errors) && data.errors.length) showErrors(data.message, data.errors);
+          else status.textContent = `❌ ${data.message || 'Das Hochladen ist fehlgeschlagen.'}`;
+          return;
+        }
+        // Prüflauf: Erst wenn jeder Schritt startet, lässt sich die App speichern.
+        const { checkAppRun } = await import('./html-app-host.js');
+        const errors = await checkAppRun({
+          fileId: data.fileId, manifest: data.manifest,
+          onProgress: (n, all) => { status.textContent = `Prüflauf: Schritt ${n} von ${all} …`; },
+        });
+        if (errors.length) {
+          input.value = '';
+          showErrors('Der Prüflauf hat Fehler gefunden:', errors);
+          return;
+        }
         const app = { fileId: data.fileId, manifest: data.manifest, size: data.size };
         hidden.value = JSON.stringify(app);
-        show(app, data.warnings);
+        show(app);
       } catch (e) {
         input.value = '';
         status.textContent = `❌ ${e.message}`;

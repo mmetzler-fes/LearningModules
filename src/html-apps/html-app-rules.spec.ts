@@ -1,47 +1,37 @@
-import * as fs from 'fs';
-import * as path from 'path';
 import {
-  appHeaders, cleanProgress, cleanResult, frameAllowedHere, issueToken, parentOriginOf, parseManifest, planUnits, readToken,
+  appHeaders, frameAllowedHere, issueToken, parentOriginOf, planUnits, readManifest, readToken,
   shellPage, withoutBlockedApps,
 } from './html-app-rules';
 
-const page = (json: string) => `<html><head><script type="application/lm-app+json">${json}</script></head></html>`;
-const good = { lmApp: 1, id: 'ohm', version: '1.0', title: 'Ohm', units: [{ id: 'a', title: 'A', kind: 'graded', items: 2 }, { id: 'b', title: 'B', kind: 'info' }] };
+const good = { lmApp: 2, id: 'ohm', version: '1.0', title: 'Ohm', units: [
+  { id: 'a', title: 'A', steps: [{ id: 's1', title: 'S1', kind: 'task' }] },
+  { id: 'b', title: 'B', steps: [{ id: 's2', title: 'S2', kind: 'info' }] },
+] };
+const read = (m: unknown) => readManifest(JSON.stringify(m));
 
-describe('parseManifest', () => {
+describe('readManifest', () => {
   it('liest den Steckbrief', () => {
-    const { manifest, errors } = parseManifest(page(JSON.stringify(good)));
+    const { manifest, errors } = read(good);
     expect(errors).toEqual([]);
-    expect(manifest?.units.map((u) => u.id)).toEqual(['a', 'b']);
+    expect(manifest?.units.map((u) => u.steps[0].id)).toEqual(['s1', 's2']);
   });
-  it('ohne Steckbrief: nur Anzeige, kein Fehler', () => {
-    expect(parseManifest('<html></html>')).toEqual({ manifest: null, errors: [] });
+  it('lehnt die alte Schnittstelle ab', () => {
+    expect(read({ ...good, lmApp: 1 }).errors.join()).toContain('umgebaut');
   });
   it('lehnt Ungültiges ab und nennt den Grund', () => {
-    expect(parseManifest(page('{kein json')).errors[0]).toContain('JSON');
-    expect(parseManifest(page(JSON.stringify({ ...good, id: 'A B' }))).errors.join()).toContain('„id“');
-    expect(parseManifest(page(JSON.stringify({ ...good, units: [good.units[0], good.units[0]] }))).errors.join()).toContain('doppelt');
-    expect(parseManifest(page(JSON.stringify({ ...good, units: [{ id: 'a', title: 'A', kind: 'x' }] }))).errors.join()).toContain('kind');
-    expect(parseManifest(page(JSON.stringify({ ...good, units: Array.from({ length: 31 }, (_, i) => ({ id: `u${i}`, title: 'x', kind: 'info' })) }))).errors.join()).toContain('30');
-  });
-});
-
-describe.each([
-  ['html-app-beispiel.html', ['theorie', 'rechnen', 'ueben']],
-  ['html-app-excel-beispiel.html', ['t-ober', 't-daten', 't-formel', 't-bezug', 't-funk', 't-kalk', 't-etech', 't-diag', 't-labor', 'lernsit', 't-quiz']],
-])('Beispiel-App %s', (name, units) => {
-  const file = fs.readFileSync(path.join(__dirname, '../../docs', name), 'utf8');
-  it('hat einen gültigen Steckbrief', () => {
-    expect(parseManifest(file).manifest?.units.map((u) => u.id)).toEqual(units);
-  });
-  it('enthält die aktuelle Bridge', () => {
-    expect(file).toContain(fs.readFileSync(path.join(__dirname, '../renderer/lm-bridge.js'), 'utf8'));
+    expect(readManifest('{kein json').errors[0]).toContain('JSON');
+    expect(read({ ...good, id: 'A B' }).errors.join()).toContain('„id“');
+    expect(read({ ...good, units: [good.units[0], good.units[0]] }).errors.join()).toContain('doppelt');
+    expect(read({ ...good, units: [{ id: 'a', title: 'A', steps: [{ id: 's', title: 'S', kind: 'x' }] }] }).errors.join()).toContain('kind');
+    expect(read({ ...good, units: [{ id: 'a', title: 'A', steps: [] }] }).errors.join()).toContain('steps');
+    expect(read({ ...good, units: Array.from({ length: 31 }, (_, i) => ({ id: `u${i}`, title: 'x', steps: [{ id: `s${i}`, title: 'y', kind: 'info' }] })) }).errors.join()).toContain('Höchstens');
+    expect(read({ ...good, units: [{ id: 'a', title: 'A', steps: Array.from({ length: 501 }, (_, i) => ({ id: `s${i}`, title: 'y', kind: 'info' })) }] }).errors.join()).toContain('Höchstens');
   });
 });
 
 describe('planUnits', () => {
   it('ordnet über die id zu, neu und entfernt getrennt', () => {
-    const m = parseManifest(page(JSON.stringify(good))).manifest;
+    const m = read(good).manifest;
     const plan = planUnits(m, [{ id: 'k1', content: { unit: 'a' } }, { id: 'k2', content: { unit: 'alt' } }]);
     expect(plan.create.map((c) => c.unit.id)).toEqual(['b']);
     expect(plan.update.map((u) => u.id)).toEqual(['k1']);
@@ -49,21 +39,6 @@ describe('planUnits', () => {
   });
   it('ohne Steckbrief fallen alle Abschnitte weg', () => {
     expect(planUnits(null, [{ id: 'k1', content: { unit: 'a' } }]).remove).toEqual(['k1']);
-  });
-});
-
-describe('Meldungen', () => {
-  it('prüft Ergebnisse', () => {
-    expect(cleanResult({ unit: 'a', score: 1, max: 2 })).toMatchObject({ score: 1, max: 2, items: [] });
-    expect(cleanResult({ unit: 'a', score: 1, max: 2, items: null })).toMatchObject({ items: [] }); // sendet die Bridge ohne items
-    for (const bad of [{ score: 3, max: 2 }, { score: -1, max: 2 }, { score: 0, max: 0 }, { score: 'x', max: 2 }, { score: 1, max: 2, items: [{ id: 'a', points: 2 }] }]) {
-      expect(cleanResult(bad)).toHaveProperty('error');
-    }
-  });
-  it('prüft Fortschritt', () => {
-    expect(cleanProgress({ unit: 'a', active: true })).toMatchObject({ active: true });
-    expect(cleanProgress({ unit: 'a', done: 1, total: 2 })).toMatchObject({ done: 1, total: 2 });
-    expect(cleanProgress({ unit: 'a', done: 3, total: 2 })).toHaveProperty('error');
   });
 });
 
@@ -106,9 +81,15 @@ describe('Adressen', () => {
 
 describe('Rahmen', () => {
   it('App: Sandkasten ohne Netz, nur in der eigenen Rahmenseite', () => {
-    const csp = appHeaders('https://apps', 'https://lm')['Content-Security-Policy'];
+    const headers = appHeaders('https://apps', 'https://lm', ["'sha256-abc'"]);
+    const csp = headers['Content-Security-Policy'];
     expect(csp).toContain('sandbox allow-scripts');
     expect(csp).not.toContain('allow-same-origin');
+    expect(csp).not.toContain('allow-downloads');
+    expect(csp).toContain("script-src 'sha256-abc'");
+    expect(csp).not.toContain("script-src 'unsafe-inline'");
+    expect(csp).toContain("require-trusted-types-for 'script'");
+    expect(headers['X-DNS-Prefetch-Control']).toBe('off');
     expect(csp).toContain("connect-src 'none'");
     expect(csp).toContain('frame-ancestors https://apps https://lm');
   });

@@ -1,5 +1,6 @@
 import { escapeHtml } from '../utils.js';
 import { collectAnswer, GRADABLE_TYPES, ONE_SHOT_TYPES } from '../../lm-editor/src/modules/answer-eval.js';
+import { appOfView } from '../html-app-steps.js';
 
 // ==================== LERNBEGLEITUNG ====================
 
@@ -174,6 +175,7 @@ export class CompanionRun {
     const btn = this.view._btnQuizNext;
     const view = this._currentView();
     view?.classList.toggle('companion-locked', task.done);
+    appOfView(view)?.lock(task.done);
 
     if (task.done) {
       btn.textContent = this._isLast() ? '🏁 Abschließen' : 'Weiter →';
@@ -238,6 +240,7 @@ export class CompanionRun {
     if (task.attempts === 0) this.view._taskTimer?.answered(qs.currentIndex);
     const answer = collectAnswer(mod, root);
     task.attempts++;
+    appOfView(this._currentView())?.check();
 
     if (answer.isCorrect) {
       task.done = true;
@@ -336,6 +339,7 @@ export class CompanionRun {
     this._stopTimer();
     const btn = this.view._btnQuizNext;
     const view = this._currentView();
+    appOfView(view)?.lock(true);
     const label = this.panel?.querySelector('.companion-penalty');
     const tick = () => {
       const left = Math.ceil((task.lockedUntil - Date.now()) / 1000);
@@ -367,6 +371,7 @@ export class CompanionRun {
     this._currentView()?.classList.remove('companion-paused');
     this.panel?.querySelector('.companion-penalty')?.classList.add('hidden');
     const task = this._task();
+    appOfView(this._currentView())?.lock(!!task?.done);
     const mod = this._module();
     if (task && !task.done && this._isGraded(mod)) btn.textContent = '🦉 Prüfen';
   }

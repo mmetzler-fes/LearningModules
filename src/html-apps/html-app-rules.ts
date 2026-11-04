@@ -4,23 +4,29 @@ import * as crypto from 'crypto';
 
 export const MAX_FILE_BYTES = 10 * 1024 * 1024;
 export const MAX_STATE_BYTES = 256 * 1024;
-export const MAX_ITEMS = 500;
 export const MAX_UNITS = 30;
+export const MAX_STEPS = 500;
 
 export const FRAME_PREFIX = '/api/html-app-frame/';
 
 const ID = /^[a-z0-9-]{1,40}$/;
-const KINDS = ['graded', 'practice', 'info'];
+const KINDS = ['task', 'info'];
+
+export interface AppStep {
+  id: string;
+  title: string;
+  /** `task`: wird bewertet, `info`: zählt mit dem Ansehen. */
+  kind: 'task' | 'info';
+}
 
 export interface AppUnit {
   id: string;
   title: string;
-  kind: 'graded' | 'practice' | 'info';
-  items?: number;
+  steps: AppStep[];
 }
 
 export interface AppManifest {
-  lmApp: 1;
+  lmApp: 2;
   id: string;
   version: string;
   title: string;
@@ -48,43 +54,49 @@ export function withoutBlockedApps<T extends { id: string; type?: string; parent
 
 const text = (v: unknown, max: number) => String(v ?? '').trim().slice(0, max);
 
-/** Steckbrief lesen. Fehlt er: `manifest: null`. Ist er ungültig: `errors`, die Datei wird abgelehnt. */
-export function parseManifest(html: string): { manifest: AppManifest | null; errors: string[] } {
-  const found = /<script\b[^>]*\btype\s*=\s*["']?application\/lm-app\+json["']?[^>]*>([\s\S]*?)<\/script\s*>/i.exec(html);
-  if (!found) return { manifest: null, errors: [] };
+/** Text des Steckbriefs prüfen. Bei `errors` gibt es keinen Steckbrief. */
+export function readManifest(json: string): { manifest: AppManifest | null; errors: string[] } {
   let raw: any;
   try {
-    raw = JSON.parse(found[1]);
+    raw = JSON.parse(json);
   } catch (e: any) {
     return { manifest: null, errors: [`Der Steckbrief ist kein gültiges JSON: ${e.message}`] };
   }
   const errors: string[] = [];
-  if (raw?.lmApp !== 1) errors.push('„lmApp“ muss 1 sein.');
+  if (raw?.lmApp !== 2) errors.push('„lmApp“ muss 2 sein; ältere Apps müssen auf die Schrittschnittstelle umgebaut werden.');
   if (!ID.test(String(raw?.id ?? ''))) errors.push('„id“: nur a-z, 0-9 und -, höchstens 40 Zeichen.');
   if (!text(raw?.version, 40)) errors.push('„version“ fehlt.');
   if (!text(raw?.title, 200)) errors.push('„title“ fehlt.');
   const units = Array.isArray(raw?.units) ? raw.units : null;
   if (!units?.length) errors.push('„units“ braucht mindestens einen Abschnitt.');
   else if (units.length > MAX_UNITS) errors.push(`Höchstens ${MAX_UNITS} Abschnitte.`);
-  const seen = new Set<string>();
+  const seenUnits = new Set<string>();
+  const seenSteps = new Set<string>();
   (units || []).forEach((u: any, i: number) => {
     const where = `Abschnitt ${i + 1}`;
     if (!ID.test(String(u?.id ?? ''))) errors.push(`${where}: „id“ nur a-z, 0-9 und -, höchstens 40 Zeichen.`);
-    else if (seen.has(u.id)) errors.push(`${where}: „id“ „${u.id}“ kommt doppelt vor.`);
-    seen.add(u?.id);
+    else if (seenUnits.has(u.id)) errors.push(`${where}: „id“ „${u.id}“ kommt doppelt vor.`);
+    seenUnits.add(u?.id);
     if (!text(u?.title, 200)) errors.push(`${where}: „title“ fehlt.`);
-    if (!KINDS.includes(u?.kind)) errors.push(`${where}: „kind“ muss graded, practice oder info sein.`);
-    if (u?.items !== undefined && !(Number.isInteger(u.items) && u.items >= 0 && u.items <= MAX_ITEMS)) {
-      errors.push(`${where}: „items“ muss eine ganze Zahl von 0 bis ${MAX_ITEMS} sein.`);
-    }
+    if (!Array.isArray(u?.steps) || !u.steps.length) { errors.push(`${where}: „steps“ braucht mindestens einen Schritt.`); return; }
+    u.steps.forEach((s: any, k: number) => {
+      const at = `${where}, Schritt ${k + 1}`;
+      if (!ID.test(String(s?.id ?? ''))) errors.push(`${at}: „id“ nur a-z, 0-9 und -, höchstens 40 Zeichen.`);
+      else if (seenSteps.has(s.id)) errors.push(`${at}: „id“ „${s.id}“ kommt doppelt vor.`);
+      seenSteps.add(s?.id);
+      if (!text(s?.title, 200)) errors.push(`${at}: „title“ fehlt.`);
+      if (!KINDS.includes(s?.kind)) errors.push(`${at}: „kind“ muss task oder info sein.`);
+    });
   });
+  if (seenSteps.size > MAX_STEPS) errors.push(`Höchstens ${MAX_STEPS} Schritte.`);
   if (errors.length) return { manifest: null, errors };
   return {
     errors: [],
     manifest: {
-      lmApp: 1, id: raw.id, version: text(raw.version, 40), title: text(raw.title, 200),
+      lmApp: 2, id: raw.id, version: text(raw.version, 40), title: text(raw.title, 200),
       units: units.map((u: any) => ({
-        id: u.id, title: text(u.title, 200), kind: u.kind, ...(u.items !== undefined ? { items: u.items } : {}),
+        id: u.id, title: text(u.title, 200),
+        steps: u.steps.map((s: any) => ({ id: s.id, title: text(s.title, 200), kind: s.kind })),
       })),
     },
   };
@@ -99,42 +111,6 @@ export function planUnits(manifest: AppManifest | null, kids: Array<{ id: string
     update: units.map((u, order) => ({ unit: u, order, id: byUnit.get(u.id)?.id })).filter((x) => x.id) as Array<{ unit: AppUnit; order: number; id: string }>,
     remove: kids.filter((k) => !units.some((u) => u.id === k.content?.unit)).map((k) => k.id),
   };
-}
-
-export interface CleanResult {
-  unit: string;
-  score: number;
-  max: number;
-  items: Array<{ id: string; label?: string; points: number }>;
-}
-
-/** Meldung `lm.result` prüfen. Ergebnis: Werte oder der Text für `LM.onError`. */
-export function cleanResult(data: any): CleanResult | { error: string } {
-  const max = Number(data?.max);
-  const score = Number(data?.score);
-  if (!Number.isFinite(max) || max <= 0 || max > 100000) return { error: '„max“ muss größer als 0 sein.' };
-  if (!Number.isFinite(score) || score < 0 || score > max) return { error: '„score“ muss zwischen 0 und „max“ liegen.' };
-  const rawItems = data?.items ?? [];
-  if (!Array.isArray(rawItems) || rawItems.length > MAX_ITEMS) return { error: `„items“: höchstens ${MAX_ITEMS} Einträge.` };
-  const items: CleanResult['items'] = [];
-  for (const it of rawItems) {
-    const points = Number(it?.points);
-    if (!text(it?.id, 80) || !Number.isFinite(points) || points < 0 || points > 1) return { error: '„items“: je Eintrag „id“ und „points“ von 0 bis 1.' };
-    items.push({ id: text(it.id, 80), ...(it.label ? { label: text(it.label, 200) } : {}), points });
-  }
-  return { unit: text(data?.unit, 40), score, max, items };
-}
-
-/** Meldung `lm.progress` prüfen: entweder `active` (LM.enter) oder `done`/`total`. */
-export function cleanProgress(data: any): { unit: string; active: boolean; done?: number; total?: number } | { error: string } {
-  const unit = text(data?.unit, 40);
-  if (data?.active) return { unit, active: true };
-  const done = Number(data?.done);
-  const total = Number(data?.total);
-  if (!Number.isInteger(done) || !Number.isInteger(total) || total < 0 || total > 100000 || done < 0 || done > total) {
-    return { error: '„done“ und „total“: ganze Zahlen, „done“ höchstens „total“.' };
-  }
-  return { unit, active: false, done, total };
 }
 
 // ---- Ausweise ------------------------------------------------------------
@@ -215,20 +191,27 @@ export function htmlAppHostGuard() {
 
 // ---- Kopfzeilen der Rahmen -------------------------------------------------
 
-export const FRAME_SANDBOX = 'allow-scripts allow-modals allow-downloads allow-forms';
+export const FRAME_SANDBOX = 'allow-scripts allow-modals allow-forms';
 
-/** Kopf der App-Datei: Sandkasten ohne Netz. */
-export function appHeaders(origin: string, parentOrigin: string): Record<string, string> {
+/**
+ * Kopf der App-Datei: Sandkasten ohne Netz. Es laufen nur die Skripte mit diesen Hashes, also nur
+ * geprüfter Code; Trusted Types leitet jedes HTML aus Text durch das Schutzskript.
+ */
+export function appHeaders(origin: string, parentOrigin: string, scriptHashes: string[]): Record<string, string> {
   return {
     'Content-Security-Policy': [
-      `sandbox ${FRAME_SANDBOX}`, "default-src 'none'", "script-src 'unsafe-inline'", "style-src 'unsafe-inline'",
+      `sandbox ${FRAME_SANDBOX}`, "default-src 'none'", `script-src ${scriptHashes.join(' ')}`, "style-src 'unsafe-inline'",
       'img-src data: blob:', 'font-src data:', 'media-src data: blob:', "connect-src 'none'", "form-action 'none'",
+      "require-trusted-types-for 'script'", 'trusted-types default',
       // Die Regel gilt für alle Vorfahren: Rahmenseite und Hauptseite.
       "base-uri 'none'", `frame-ancestors ${origin} ${parentOrigin}`,
     ].join('; '),
     'Content-Type': 'text/html; charset=utf-8',
     'X-Content-Type-Options': 'nosniff',
+    'X-DNS-Prefetch-Control': 'off',
     'Referrer-Policy': 'no-referrer',
+    // Jeder Schritt lädt den Rahmen neu; die Adresse ändert sich innerhalb eines Durchlaufs nicht.
+    'Cache-Control': 'private, max-age=3600',
   };
 }
 
@@ -247,15 +230,15 @@ export function shellPage(token: string, parentOrigin: string): { html: string; 
 (function () {
   var parentOrigin = ${json(parentOrigin)};
   var frame = document.getElementById('app');
-  var fromApp = { 'lm.ready': 1, 'lm.progress': 1, 'lm.result': 1, 'lm.state': 1 };
-  var fromHost = { 'lm.init': 1, 'lm.open': 1, 'lm.error': 1 };
+  var fromApp = { 'lm.ready': 1, 'lm.shown': 1, 'lm.answer': 1, 'lm.state': 1, 'lm.download': 1, 'lm.flushed': 1, 'lm.crash': 1 };
+  var fromHost = { 'lm.init': 1, 'lm.lock': 1, 'lm.reveal': 1, 'lm.check': 1, 'lm.flush': 1, 'lm.error': 1 };
   addEventListener('message', function (e) {
     var m = e.data;
-    if (!m || m.lm !== 1) return;
+    if (!m || m.lm !== 2) return;
     if (e.source === frame.contentWindow && fromApp[m.type]) {
-      parent.postMessage({ lm: 1, type: m.type, data: m.data }, parentOrigin);
+      parent.postMessage({ lm: 2, type: m.type, data: m.data }, parentOrigin);
     } else if (e.source === parent && e.origin === parentOrigin && fromHost[m.type]) {
-      frame.contentWindow.postMessage({ lm: 1, type: m.type, data: m.data }, '*');
+      frame.contentWindow.postMessage({ lm: 2, type: m.type, data: m.data }, '*');
     }
   });
   frame.src = ${json(src)};

@@ -4890,6 +4890,7 @@ body.html-app-large .quiz-actions { margin-top: 8px; padding-top: 8px; flex-shri
 .cb-reach.no { color: var(--danger, #c0392b); }
 .cb-reach.part { color: var(--score-medium-text); }
 .cb-reach.off { color: var(--text-secondary); font-weight: 400; }
+.nb-reach-slot { display: contents; }
 .nb-reach { font-size: 0.78rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 42%; flex-shrink: 1; min-width: 0; color: var(--text-secondary); }
 .nb-reach.no { color: var(--danger, #c0392b); font-weight: 600; }
 .nb-reach.exam { font-weight: 600; }

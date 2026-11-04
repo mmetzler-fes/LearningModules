@@ -122,7 +122,7 @@ export class NotebooksView {
       return;
     }
     this._data = data;
-    this._reach = await this.app.api.getReach().catch(() => null);
+    void this._loadReach();
     void this._loadMirror();
     // Module mit offenem Entwurf (nicht gespeicherte Änderungen) markieren.
     try {
@@ -135,6 +135,30 @@ export class NotebooksView {
     this._index();
     this._render();
     this._preview.refresh();
+  }
+
+  /**
+   * „Erreichbar über“ wird nachgereicht: Der Server muss dafür alle Links auflösen, und auf
+   * den Baum soll niemand warten. Bis dahin bleibt der bisherige Stand stehen.
+   */
+  async _loadReach() {
+    const call = (this._reachCall = (this._reachCall || 0) + 1);
+    const reach = await this.app.api.getReach().catch(() => null);
+    if (call !== this._reachCall) return;
+    this._reach = reach;
+    for (const [row, topic] of this._reachRows || []) this._fillReach(row, topic);
+  }
+
+  /** Zeile „Erreichbar über“ eines Lernthemas setzen – beim Zeichnen und wenn die Daten nachkommen. */
+  _fillReach(row, topic) {
+    const slot = row.querySelector('.nb-reach-slot');
+    if (!slot) return;
+    slot.innerHTML = this._reachLine(topic);
+    slot.querySelector('.nb-reach-anon')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const anon = this._reach?.[topic.id]?.anonymous?.[0];
+      if (anon) this.app.linksView._openShareDialog({ id: anon.id, name: anon.name }, 'practice');
+    });
   }
 
   // ---------- Daten ----------
@@ -216,6 +240,7 @@ export class NotebooksView {
     const query = (this._search?.value || '').trim().toLowerCase();
     this._query = query;
     this._tree.innerHTML = '';
+    this._reachRows = [];
 
     const frag = document.createDocumentFragment();
     const unsorted = this._topicsIn(null);
@@ -384,14 +409,11 @@ export class NotebooksView {
       key, depth, icon: own ? '📘' : '📗', title: topic.title, open,
       cls: `nb-topic ${own ? '' : 'nb-granted'} ${own && !topic.selected ? 'nb-off' : ''}`,
       meta: `${roots.length} Modul${roots.length === 1 ? '' : 'e'}`,
-      extra: this._reachLine(topic) + (topic.teacherOnly ? '<span class="nb-badge nb-lock" title="Nur Lehrkraft: Schüler sehen dieses Lernthema nicht">🔒</span>' : '') + status,
+      extra: '<span class="nb-reach-slot"></span>' + (topic.teacherOnly ? '<span class="nb-badge nb-lock" title="Nur Lehrkraft: Schüler sehen dieses Lernthema nicht">🔒</span>' : '') + status,
       drag: inMirror ? null : { type: 'topic', id: topic.id },
     });
-    row.querySelector('.nb-reach-anon')?.addEventListener('click', (e) => {
-      e.stopPropagation();
-      const anon = this._reach?.[topic.id]?.anonymous?.[0];
-      if (anon) this.app.linksView._openShareDialog({ id: anon.id, name: anon.name }, 'practice');
-    });
+    this._reachRows.push([row, topic]);
+    this._fillReach(row, topic);
     row.querySelector('.nb-status')?.addEventListener('click', async (e) => {
       e.stopPropagation();
       await this.app.api.toggleTopicSelection(topic.id, !topic.selected);

@@ -85,6 +85,13 @@ export function contestSettingsOf(link: TopicLink): LinkContestSettings {
   return { ...DEFAULT_CONTEST_SETTINGS, ...(link.contestSettings || {}) };
 }
 
+/** Für viele Links einer Lehrkraft einmal geladen, statt für jeden Link neu. */
+interface ResolveData {
+  topics: Map<string, LearningTopic>;
+  modulesOf: Map<string, LearningModule[]>;
+  owner: any;
+}
+
 @Injectable()
 export class LinksService {
   constructor(
@@ -117,6 +124,45 @@ export class LinksService {
     return veiledNodeIds(await this.cbNodeRepo.find({ where: { classId: link.classId } })).has(place.nodeId);
   }
 
+  /** Klassenlinks auf einmal: welche ausgeblendet sind (wie veiledForClass) und welche als alter Link nicht im Baum stehen. */
+  private async classLinkStates(links: TopicLink[]) {
+    const classLinks = links.filter((l) => l.classId);
+    const classIds = [...new Set(classLinks.map((l) => l.classId!))];
+    const veiled = new Set<string>();
+    const hidden = new Set<string>();
+    if (!classIds.length) return { veiled, hidden };
+    const [notebooks, places, nodes] = await Promise.all([
+      this.notebookRepo.find({ where: { classId: In(classIds) } }),
+      this.cbPlaceRepo.find({ where: { classId: In(classIds) } }),
+      this.cbNodeRepo.find({ where: { classId: In(classIds) } }),
+    ]);
+    const hiddenClasses = new Set(notebooks.filter((n) => n.studentHidden).map((n) => n.classId));
+    const placeOf = new Map(places.map((p) => [p.id, p]));
+    const veiledNodes = new Map(classIds.map((id) => [id, veiledNodeIds(nodes.filter((n) => n.classId === id))]));
+    for (const link of classLinks) {
+      const place = placeOf.get(link.id);
+      if (place?.hidden) hidden.add(link.id);
+      if (hiddenClasses.has(link.classId!) || (place?.nodeId && veiledNodes.get(link.classId!)!.has(place.nodeId))) veiled.add(link.id);
+    }
+    return { veiled, hidden };
+  }
+
+  /** Lädt Lernthemen, Module und Rechte für viele Links einer Lehrkraft nur einmal (siehe resolveModules). */
+  private async loadResolveData(links: TopicLink[], ownerId: string): Promise<ResolveData> {
+    const ids = [...new Set(links.flatMap((l) => (l.selection || []).map((s) => s.topicId)))];
+    const [topics, modules, owner] = await Promise.all([
+      ids.length ? this.topicRepo.find({ where: { id: In(ids) } }) : [],
+      ids.length ? this.moduleRepo.find({ where: { topicId: In(ids) } }) : [],
+      this.groupsService.asUser(ownerId),
+    ]);
+    const modulesOf = new Map<string, LearningModule[]>();
+    for (const m of modules) {
+      if (!modulesOf.has(m.topicId)) modulesOf.set(m.topicId, []);
+      modulesOf.get(m.topicId)!.push(m);
+    }
+    return { topics: new Map(topics.map((t) => [t.id, t])), modulesOf, owner };
+  }
+
   /** Modi, die Schüler über diesen Zugang gerade wirklich starten können. */
   async entryModes(link: TopicLink, access: LinkAccess, resolved: Array<{ modules: Array<{ type?: string }> }>): Promise<{ modes: LinkMode[]; blocked: boolean }> {
     const modes = effectiveModes(link, access, resolved);
@@ -130,20 +176,23 @@ export class LinksService {
    * sperrt, stehen trotzdem dabei: Dort warten die Klassen darauf.
    */
   async reach(user: any) {
-    const links = await this.linkRepo.find({ where: { ownerId: user.userId } });
-    const classes = await this.classesOf(links);
+    const links = (await this.linkRepo.find({ where: { ownerId: user.userId } })).filter((l) => l.active);
+    const [classes, states, data] = await Promise.all([
+      this.classesOf(links),
+      this.classLinkStates(links),
+      this.loadResolveData(links, user.userId),
+    ]);
     const out: Record<string, { classes: string[]; anonymous: Array<{ id: string; name: string }>; exam: boolean }> = {};
     const at = (id: string) => (out[id] ||= { classes: [], anonymous: [], exam: false });
     for (const link of links) {
-      if (!link.active) continue;
       if ((link.modes || []).includes('exam') && link.examToken) {
-        for (const r of await this.resolveModules(link, { exam: true })) at(r.topic.id).exam = true;
+        for (const r of await this.resolveModules(link, { exam: true, data })) at(r.topic.id).exam = true;
       }
       if (!(link.modes || []).some((m) => m !== 'exam')) continue;
       if (!link.classId && !link.token) continue; // zurückgezogen
-      if (await this.veiledForClass(link)) continue;
-      const oldLink = !!link.classId && !!(await this.cbPlaceRepo.findOne({ where: { id: link.id } }))?.hidden;
-      for (const r of await this.resolveModules(link, { includeOff: true })) {
+      if (states.veiled.has(link.id)) continue;
+      const oldLink = states.hidden.has(link.id);
+      for (const r of await this.resolveModules(link, { includeOff: true, data })) {
         const e = at(r.topic.id);
         // Ein alter Bereichs-Link steht nicht im Baum, gilt aber weiter – das soll man sehen.
         const name = link.classId ? `${classes.get(link.classId)?.name || 'Klasse'}${oldLink ? ' (alter Link)' : ''}` : null;
@@ -158,7 +207,7 @@ export class LinksService {
   /** Eigene Inhalte, die der Hauptschalter sperrt, obwohl ein Link sie anbietet. */
   private async blockedByMaster(user: any) {
     const links = await this.linkRepo.find({ where: { ownerId: user.userId, active: true } });
-    const classes = await this.classesOf(links);
+    const [classes, data] = await Promise.all([this.classesOf(links), this.loadResolveData(links, user.userId)]);
     const items = new Map<string, { type: 'topic' | 'module'; topicId: string; moduleId?: string; title: string; where: string[] }>();
     const add = (key: string, item: any, where: string) => {
       const e = items.get(key) || { ...item, where: [] };
@@ -168,7 +217,7 @@ export class LinksService {
     for (const link of links) {
       if (!(link.modes || []).some((m) => m !== 'exam') || (!link.classId && !link.token)) continue;
       const where = link.classId ? classes.get(link.classId)?.name || 'Klasse' : 'anonymer Link';
-      for (const r of await this.resolveModules(link, { includeOff: true })) {
+      for (const r of await this.resolveModules(link, { includeOff: true, data })) {
         if (r.topic.ownerId !== user.userId) continue;
         if (!r.topic.selected && !r.topic.teacherOnly) {
           add(`t:${r.topic.id}`, { type: 'topic', topicId: r.topic.id, title: r.topic.title }, where);
@@ -302,23 +351,29 @@ export class LinksService {
    *    nur die ebenfalls gewählten Submodule nach sich.
    *  - Ein Elternmodul, von dem kein Submodul gewählt ist, bleibt draußen –
    *    es gäbe nichts zu beantworten.
+   *
+   * `data`: schon geladen (loadResolveData), wenn eine Anfrage viele Links derselben Lehrkraft auflöst.
    */
-  async resolveModules(link: TopicLink, { exam = false, includeOff = false }: { exam?: boolean; includeOff?: boolean } = {}): Promise<Array<{ topic: LearningTopic; modules: LearningModule[] }>> {
+  async resolveModules(link: TopicLink, { exam = false, includeOff = false, data }: { exam?: boolean; includeOff?: boolean; data?: ResolveData } = {}): Promise<Array<{ topic: LearningTopic; modules: LearningModule[] }>> {
     const selection = link.selection || [];
     const topicIds = selection.map((s) => s.topicId);
     if (topicIds.length === 0) return [];
 
-    const found = await this.topicRepo.find({ where: { id: In(topicIds) } });
+    const found = data
+      ? [...new Set(topicIds)].map((id) => data.topics.get(id)).filter((t): t is LearningTopic => !!t)
+      : await this.topicRepo.find({ where: { id: In(topicIds) } });
 
     // Das Nutzungsrecht wird bei jedem Start neu geprüft, nicht nur beim
     // Speichern des Links. Wird es entzogen oder zurückgegeben, wirkt das
     // sofort – sonst liefe ein einmal gespeicherter Link unbegrenzt weiter.
-    const linkOwner = await this.groupsService.asUser(link.ownerId);
+    const linkOwner = data ? data.owner : await this.groupsService.asUser(link.ownerId);
     const topics = found.filter((t) => this.topicsService.accessLevel(t, linkOwner) !== 'none');
     const byId = new Map(topics.map((t) => [t.id, t]));
-    const allModules = topics.length
-      ? await this.moduleRepo.find({ where: { topicId: In(topics.map((t) => t.id)) } })
-      : [];
+    const allModules = data
+      ? topics.flatMap((t) => data.modulesOf.get(t.id) || [])
+      : topics.length
+        ? await this.moduleRepo.find({ where: { topicId: In(topics.map((t) => t.id)) } })
+        : [];
 
     const out: Array<{ topic: LearningTopic; modules: LearningModule[] }> = [];
 

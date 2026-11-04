@@ -7,7 +7,6 @@ import { DocumentWork } from '../core/entities/document-work.entity';
 import { LinksService } from '../links/links.service';
 import { ClassesService } from '../classes/classes.service';
 import { readTicket } from '../classes/student-ticket';
-import { isTestStudent } from '../classes/test-student';
 
 /** Stand je Aufgabe säubern: nur 'd' (bearbeitet), 's' (übersprungen), 'p' (teilweise – Dokument mit Quizzen) oder ''. */
 export function cleanStates(states: unknown[], length: number): string[] {
@@ -38,7 +37,6 @@ export class LiveService {
     const { link } = found;
     const ticket = readTicket(body.studentTicket, link.id);
     if (!ticket) throw new ForbiddenException('Die Anmeldung ist abgelaufen.');
-    if (isTestStudent(ticket.s)) return { success: true, stored: false };
     let row = await this.repo.findOne({ where: { linkId: link.id, studentId: ticket.s } });
     const starting = Array.isArray(body.steps);
     if (!row) {

@@ -63,7 +63,13 @@ function upsertBook(token, fields = {}) {
   return v;
 }
 
+/** 👁 Vorschau der Lehrkraft: nur in diesem Tab, nie in der Liste der Schüler-App. */
+const PREVIEW_KEY = 'lm_cb_preview';
+const previewSession = () => parse(sessionGet(PREVIEW_KEY));
+
 export function classbookSession() {
+  const preview = previewSession();
+  if (preview) return preview;
   if (inApp()) {
     const v = loadBooks();
     const b = v.books.find((x) => x.token === v.current);
@@ -72,6 +78,10 @@ export function classbookSession() {
   try { return JSON.parse(sessionStorage.getItem(SESSION_KEY) || 'null'); } catch (_) { return null; }
 }
 function saveSession(value) {
+  if (previewSession()) {
+    sessionSet(PREVIEW_KEY, value ? JSON.stringify({ ...value, preview: true }) : null);
+    return;
+  }
   if (inApp()) {
     const v = loadBooks();
     if (value) {
@@ -136,6 +146,14 @@ export class ClassbookStudent {
 
   async start(token) {
     this.token = token;
+    // Vom Knopf 👁 Als Vorschau öffnen: Der Ausweis steht im Fragment und geht so nicht an den Server.
+    const fromTeacher = /^#preview=(.+)$/.exec(location.hash);
+    if (fromTeacher) {
+      sessionSet(PREVIEW_KEY, JSON.stringify({ token, ticket: decodeURIComponent(fromTeacher[1]), name: '', preview: true }));
+      history.replaceState(null, '', location.pathname + location.search);
+    }
+    const inPreview = previewSession()?.token === token;
+    if (inPreview) this.app.authStore.suspend();
     this._show('<p class="hint">Klassennotizbuch wird geladen…</p>');
     let info;
     try {
@@ -149,7 +167,7 @@ export class ClassbookStudent {
     this.info = info;
     // Name auf dem Home-Bildschirm (iPad) – eine App für alle Klassennotizbücher.
     document.querySelector('meta[name="apple-mobile-web-app-title"]')?.setAttribute('content', 'Klassenbuch');
-    if (inApp()) {
+    if (inApp() && !inPreview) {
       const v = upsertBook(token, { className: info.className, teacher: info.teacher || '' });
       storeBooks({ ...v, current: token });
     }
@@ -342,13 +360,15 @@ export class ClassbookStudent {
     };
     const exams = (data.exams || []).map((x) => `<div class="cb-exam" data-link="${escapeAttr(x.linkId)}">
         <strong>📝 ${escapeHtml(x.name)}</strong>${EXAM_STATE[x.state] || ''}</div>`).join('');
+    const preview = !!s?.preview;
     const el = this._show(`
+      ${preview ? '<p class="cb-preview-note">👁 <strong>Vorschau:</strong> So sieht es deine Klasse. Ergebnisse und Blätter stehen im Klassennotizbuch als 🧪 und zählen nicht mit.</p>' : ''}
       <div class="cb-head">
         <div><span class="quick-entry-label">📒 ${escapeHtml(data.className)}</span><h2>${escapeHtml(data.name)}</h2></div>
         <span class="cb-head-actions">
-          ${inApp() ? '<button type="button" class="btn btn-secondary btn-sm" id="cbToList" title="Alle deine Klassennotizbücher">☰ Alle</button>'
+          ${preview ? '' : inApp() ? '<button type="button" class="btn btn-secondary btn-sm" id="cbToList" title="Alle deine Klassennotizbücher">☰ Alle</button>'
             : '<button type="button" class="btn btn-secondary btn-sm" id="cbInstall" title="Klassennotizbuch als App auf den Home-Bildschirm – öffnet direkt hier, angemeldet">📲 Als App</button>'}
-          <button type="button" class="btn btn-secondary btn-sm" id="cbLogout">Abmelden</button>
+          <button type="button" class="btn btn-secondary btn-sm" id="cbLogout">${preview ? 'Vorschau beenden' : 'Abmelden'}</button>
         </span>
       </div>
       <p class="hint cb-install-hint hidden" id="cbInstallHint"></p>
@@ -373,6 +393,7 @@ export class ClassbookStudent {
       hint.classList.remove('hidden');
     });
     el.querySelector('#cbLogout').addEventListener('click', () => {
+      if (preview) window.close(); // Tab von der Lehrkraft geöffnet; lässt er sich nicht schließen, folgt die Anmeldeseite
       this._stopWatch();
       saveSession(null);
       document.querySelector('#loginScreen .login-card')?.classList.remove('login-card-wide');

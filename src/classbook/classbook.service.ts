@@ -1,5 +1,6 @@
 import { ShopOffer } from '../core/entities/shop-offer.entity';
 import { DocumentVersion } from '../core/entities/document-version.entity';
+import { RunProgress } from '../core/entities/run-progress.entity';
 import { TopicQuickLink } from '../core/entities/topic-quick-link.entity';
 import { HtmlAppState } from '../core/entities/html-app-state.entity';
 import { contentOf, hasSolutionBlocks, forStudents } from '../core/public/student-view';
@@ -27,7 +28,7 @@ import { ClassesService } from '../classes/classes.service';
 import { LinksService, PRACTICE_MODES, onlyHtmlApps } from '../links/links.service';
 import { NotebooksService } from '../notebooks/notebooks.service';
 import { issueDeviceTicket, pinTag, issueTicket, readTicket } from '../classes/student-ticket';
-import { isTestStudent } from '../classes/test-student';
+import { isTestStudent, testLabel, testStudentId } from '../classes/test-student';
 import { newPin, pinMatches, pinGuard } from '../work/pin';
 import { baseUrl, renderQr } from '../core/share/link-url';
 import { embeddedQuizIds } from '../core/public/student-view';
@@ -35,6 +36,9 @@ import { ContestService } from '../contest/contest.service';
 import { ClassbookLive, LiveTarget } from './classbook-live';
 import type { Response } from 'express';
 import { newClassCode, normalizeClassCode, formatClassCode, endOfDay, firstLoginOpen, loginDecision, unitCells, Unit, DetailLike, classbookTicketKey, examState, toggleSelection, explicitSelection, moduleOn, AvailTopic, SelEntry } from './classbook-rules';
+
+/** Name des Testschülers in der Klassenansicht, wenn die Lehrkraft keinen eigenen festgelegt hat. */
+const PREVIEW_NAME = '🧪 Vorschau';
 
 const practiceModes = (link: TopicLink) => PRACTICE_MODES.filter((m) => (link.modes || []).includes(m));
 
@@ -81,6 +85,7 @@ export class ClassbookService {
     @InjectRepository(ShopOffer) private readonly offerRepo: Repository<ShopOffer>,
     @InjectRepository(TopicQuickLink) private readonly quickRepo: Repository<TopicQuickLink>,
     @InjectRepository(DocumentVersion) private readonly versionRepo: Repository<DocumentVersion>,
+    @InjectRepository(RunProgress) private readonly runRepo: Repository<RunProgress>,
   ) {}
 
   /** Notizbuch der Klasse – beim ersten Aufruf angelegt; ältere bekommen hier ihren Klassencode. */
@@ -969,7 +974,7 @@ export class ClassbookService {
   /** „Weiter“ im 📍-Pfad, ohne eigenes Fortschreiten: aktueller Stand. */
   async weiter(token: string, ticket: unknown) {
     const { nb, klasse, ticket: t, student } = await this.session(token, ticket);
-    const confirmed = !!student && student.status !== 'pending';
+    const confirmed = isTestStudent(t.s) || (!!student && student.status !== 'pending');
     const resolved = await this.resolveMarker(nb, klasse, t.s, confirmed);
     return { current: resolved?.current || null, hasNext: !!resolved?.hasNext };
   }
@@ -1106,14 +1111,18 @@ export class ClassbookService {
     // HTML-Apps: geöffnete Abschnitte (ohne den Stand, der kann groß sein).
     const appRoots = [...new Set(links.flatMap((l) => l.resolved.flatMap((r) => unitsOf(r.modules))).map((u) => u.appRoot).filter(Boolean))] as string[];
     const appStates = appRoots.length ? await this.appStateRepo.find({ where: { moduleId: In(appRoots) }, select: ['moduleId', 'studentId', 'opened'] }) : [];
+    const testId = testStudentId(user.userId);
+    const hasPreview = results.some((r) => r.studentId === testId) || works.some((w) => w.studentId === testId);
     return {
+      // 🧪 Vorschau: eigene Zeile, zählt nicht als Schüler der Klasse.
+      preview: hasPreview ? { id: testId, name: PREVIEW_NAME } : null,
       students: students
         .sort((a, b) => `${a.lastName} ${a.firstName}`.localeCompare(`${b.lastName} ${b.firstName}`, 'de'))
         .map((s) => ({ id: s.id, name: s.lastName ? `${s.lastName}, ${s.firstName}` : s.firstName, pending: s.status === 'pending' })),
       links: links.map((l) => {
         const units = l.resolved.flatMap((r) => unitsOf(r.modules));
         const cells: Record<string, Record<string, unknown>> = {};
-        for (const s of students) {
+        for (const s of [...students, ...(hasPreview ? [{ id: testId }] : [])]) {
           const runs = results.filter((r) => r.linkId === l.id && r.studentId === s.id).map((r) => ({ details: (r.payload?.details || []) as DetailLike[] }));
           const mine = new Set(works.filter((w) => w.studentId === s.id && w.linkId === l.id).map((w) => w.moduleId));
           const opened = new Set(units.filter((u) => appStates.some((x) => x.moduleId === u.appRoot && x.studentId === s.id && x.opened?.includes(u.appUnit as string))).map((u) => u.id));
@@ -1234,7 +1243,7 @@ export class ClassbookService {
    */
   async home(token: string, ticket: unknown) {
     const { nb, klasse, ticket: t, student } = await this.session(token, ticket);
-    const confirmed = !!student && student.status !== 'pending';
+    const confirmed = isTestStudent(t.s) || (!!student && student.status !== 'pending');
     const all = await this.classLinks(klasse);
     const active = all.filter((l) => l.active);
     // Ohne eingeschaltetes Modul gibt es für Schüler nichts zu sehen. Die Quiz-Arena
@@ -1302,7 +1311,7 @@ export class ClassbookService {
   async goneWork(token: string, body: { ticket?: string; workId?: string }) {
     const { nb, klasse, ticket: t, student } = await this.session(token, body?.ticket);
     const unavailable = () => new NotFoundException('Dieses Blatt ist nicht mehr verfügbar.');
-    if (!student || student.status === 'pending' || nb.studentHidden) throw unavailable();
+    if ((!isTestStudent(t.s) && (!student || student.status === 'pending')) || nb.studentHidden) throw unavailable();
     const work = await this.workRepo.findOne({ where: { id: String(body?.workId || ''), classId: klasse.id, studentId: t.s } });
     if (!work || work.access === 'exam' || !work.versionId) throw unavailable();
     if (await this.moduleRepo.count({ where: { id: work.moduleId } })) throw unavailable();
@@ -1315,6 +1324,31 @@ export class ClassbookService {
       embedded: version.embedded || [],
       data: work.data ?? null,
     };
+  }
+
+  /**
+   * 👁 Als Vorschau öffnen: Ausweis des Testschülers für die eigene Klasse, ohne Name, PIN und Testpasswort.
+   * Die Anmeldung als Lehrkraft (ownedClass) ist der Nachweis. Er sieht, was die Klasse sieht.
+   */
+  async preview(user: any, classId: string) {
+    const klasse = await this.classes.ownedClass(classId, user);
+    const nb = await this.ensure(klasse);
+    const me = await this.userRepo.findOne({ where: { id: user.userId } });
+    const name = me?.testStudentName ? testLabel(me.testStudentName) : PREVIEW_NAME;
+    return { token: nb.token, ticket: issueTicket(classbookTicketKey(klasse.id), testStudentId(user.userId), name), name };
+  }
+
+  /** 🧹 Vorschau zurücksetzen: Ergebnisse, Blätter und Stand des Testschülers in dieser Klasse; Schüler bleiben unberührt. */
+  async resetPreview(user: any, classId: string) {
+    await this.classes.ownedClass(classId, user);
+    const studentId = testStudentId(user.userId);
+    await this.resultRepo.delete({ classId, studentId });
+    await this.workRepo.delete({ classId, studentId });
+    await this.runRepo.delete({ classId, studentId });
+    await this.progressRepo.delete({ classId, studentId });
+    // Der Stand einer HTML-App hängt am Modul, nicht an der Klasse: alles von diesem Testschüler.
+    await this.appStateRepo.delete({ studentId });
+    return { success: true };
   }
 
   /** Für das Nachfragen der Schülerseite: `{ arena }` (siehe openArena). */

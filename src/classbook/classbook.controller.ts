@@ -135,6 +135,18 @@ export class ClassbookController {
     return this.classbook.sendToClass(req.user, classId, body);
   }
 
+  /** 👁 → `{ token, ticket, name }`: als Testschüler die eigene Klasse ansehen. */
+  @Post(':classId/preview')
+  preview(@Request() req: any, @Param('classId') classId: string) {
+    return this.classbook.preview(req.user, classId);
+  }
+
+  /** 🧹 Ergebnisse, Blätter und Stand des Testschülers in dieser Klasse löschen. */
+  @Delete(':classId/preview')
+  resetPreview(@Request() req: any, @Param('classId') classId: string) {
+    return this.classbook.resetPreview(req.user, classId);
+  }
+
   /** 👣 `{ on }` – Schüler-Geräte folgen dem 📍-Merker. */
   @Put(':classId/follow')
   follow(@Request() req: any, @Param('classId') classId: string, @Body() body: { on?: boolean }) {

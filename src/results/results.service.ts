@@ -55,9 +55,12 @@ export class ResultsService {
       where: { classId, teacherId: user.userId },
       order: { createdAt: 'DESC' },
     });
-    // Testläufe der Lehrkraft (🧪) gehören nicht in die Klassenauswertung –
-    // sie stehen unter „Ergebnisse“.
-    return { class: klasse, results: results.filter((r) => !isTestStudent(r.studentId)).map(resultView) };
+    // Testläufe der Lehrkraft (🧪) zählen nicht in der Klassenauswertung; `preview` zeigt sie als eigene Zeile.
+    return {
+      class: klasse,
+      results: results.filter((r) => !isTestStudent(r.studentId)).map(resultView),
+      preview: results.filter((r) => isTestStudent(r.studentId)).map(resultView),
+    };
   }
 
   async findAll(user: any) {

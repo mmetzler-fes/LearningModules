@@ -348,7 +348,8 @@ const KAPITEL = [
             'Im Klassennotizbuch schaltest du mit **● / ◐ / ○** ein und aus – einzelne Module, Lernthemen, Bereiche oder alles. Was später dazukommt, ist zunächst **aus**.')]),
           L('**📋 Inhaltsübersicht**: der Baum der Klasse, dieselben Zeilen wie im Notizbuch. Quizze stehen eingerückt unter ihrem Dokument und kommen mit ihm.',
             '**🔒 Nur Lehrkraft** (⋯ am Modul oder Lernthema): Lösungen und Kopiervorlagen stehen blass im Baum, Schüler sehen sie nicht. **🔓 Für diese Klasse freigeben** zeigt sie nur dieser Klasse.',
-            '**📊 Ergebnisübersicht**: wie weit jeder Schüler je Modul ist. **📡 Live**: wer gerade woran arbeitet.'),
+            '**📊 Ergebnisübersicht**: wie weit jeder Schüler je Modul ist. **📡 Live**: wer gerade woran arbeitet.',
+            '**👁 Als Vorschau öffnen**: deine Klasse aus Schülersicht in einem neuen Tab, ohne Name und PIN. Ergebnisse stehen als 🧪-Zeile bei dir und zählen nicht mit; **🧹 Vorschau zurücksetzen** löscht sie.'),
           S('Was Schüler wirklich erreichen'),
           P('Schüler bekommen einen Inhalt nur, wenn **auf allen Ebenen „an“** steht. Jede Zeile nennt den Stand mit Grund, etwa „🚫 nicht erreichbar: im Lernnotizbuch aus“.'),
           { type: 'table', header: ['Schalter', 'Bedeutung', 'Gilt für'], rows: [

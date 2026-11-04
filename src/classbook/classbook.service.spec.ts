@@ -70,6 +70,54 @@ describe('Klassennotizbuch: Anmeldung', () => {
   });
 });
 
+describe('Klassennotizbuch: 👁 Vorschau der Lehrkraft', () => {
+  const start = () => {
+    const ctx = setup();
+    (ctx.svc as any).classes.ownedClass = async (id: string, user: any) => {
+      if (user.userId !== 't1') throw new Error('nicht deine Klasse');
+      return KLASSE;
+    };
+    return ctx;
+  };
+  const me = { userId: 't1', role: 'teacher' };
+
+  it('gibt der Lehrkraft einen Ausweis als Testschüler, ohne Name und PIN', async () => {
+    const { svc } = start();
+    const { token, ticket, name } = await svc.preview(me, 'c1');
+    expect(token).toBe('kb');
+    expect(name).toBe('🧪 Vorschau');
+    expect(readTicket(ticket, classbookTicketKey('c1'))).toMatchObject({ s: 'test:t1' });
+  });
+  it('nur für die eigene Klasse', async () => {
+    const { svc } = start();
+    await expect(svc.preview({ userId: 'andere' }, 'c1')).rejects.toThrow('nicht deine Klasse');
+    await expect(svc.resetPreview({ userId: 'andere' }, 'c1')).rejects.toThrow('nicht deine Klasse');
+  });
+  it('sieht wie ein bestätigter Schüler die eigenen Ergebnisse und nicht die anderer', async () => {
+    const { svc } = start();
+    (svc as any).resultRepo.rows.push({ id: 'r9', classId: 'c1', studentId: 'test:t1', linkId: 'l1', mode: 'quiz', score: 1, maxScore: 2, payload: { percentage: 50, details: [] } });
+    const { ticket } = await svc.preview(me, 'c1');
+    const home = await svc.home('kb', ticket);
+    expect(home.pending).toBe(false);
+    expect(home.results.map((r: any) => r.id)).toEqual(['r9']);
+  });
+  it('🧹 löscht nur die Daten des Testschülers in dieser Klasse', async () => {
+    const { svc } = start();
+    const row = (studentId: string, classId = 'c1') => ({ id: `${studentId}-${classId}`, classId, studentId });
+    const test = 'test:t1';
+    (svc as any).resultRepo.rows.push(row(test), row(test, 'c2'));
+    (svc as any).workRepo.rows.push(row(test), row('s1'));
+    (svc as any).runRepo = repo([row(test), row('s1')]);
+    (svc as any).appStateRepo = repo([{ id: 'a', studentId: test }, { id: 'b', studentId: 's1' }]);
+    await svc.resetPreview(me, 'c1');
+    expect((svc as any).resultRepo.rows.filter((r: any) => r.studentId === test).map((r: any) => r.classId)).toEqual(['c2']);
+    expect((svc as any).resultRepo.rows.some((r: any) => r.studentId === 's1')).toBe(true);
+    expect((svc as any).workRepo.rows.map((r: any) => r.studentId)).toEqual(['s1']);
+    expect((svc as any).runRepo.rows.map((r: any) => r.studentId)).toEqual(['s1']);
+    expect((svc as any).appStateRepo.rows.map((r: any) => r.studentId)).toEqual(['s1']);
+  });
+});
+
 describe('Klassennotizbuch: Blatt zu einem gelöschten Dokument', () => {
   const spec = { content: [{ type: 'text', text: 'Aufgabe' }, { type: 'solution', blocks: [{ type: 'text', text: 'Geheim' }] }] };
   const work = (over = {}) => ({ id: 'w1', classId: 'c1', studentId: 's1', moduleId: 'weg', moduleTitle: 'Blatt', access: 'practice', versionId: 'v1', data: { paths: [1] }, updatedAt: new Date(), ...over });

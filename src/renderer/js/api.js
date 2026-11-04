@@ -40,7 +40,16 @@ export class AuthStore {
   }
 
   getToken() {
+    if (this._suspended) return null;
     return this._token || readStorage(sessionStorage) || readStorage(localStorage);
+  }
+
+  /**
+   * Dieser Tab arbeitet ohne die Anmeldung (👁 Vorschau als Testschüler), lässt die gespeicherte
+   * aber unangetastet: Andere Tabs und der nächste Start bleiben angemeldet.
+   */
+  suspend() {
+    this._suspended = true;
   }
 
   /** „Angemeldet bleiben“: Token im localStorage. */
@@ -50,6 +59,7 @@ export class AuthStore {
 
   /** persist: true = localStorage, false = sessionStorage; weggelassen = wie bisher. */
   setToken(t, persist = this._persist) {
+    if (this._suspended) return;
     this._token = t;
     this._persist = !!persist;
     writeStorage(localStorage, t && persist ? t : null);
@@ -1137,6 +1147,8 @@ export class BrowserApi {
   setClassbookFollow(classId, on) {
     return this._fetch(`/api/classbook/${encodeURIComponent(classId)}/follow`, { method: 'PUT', body: JSON.stringify({ on }) });
   }
+  previewClassbook(classId) { return this._fetch(`/api/classbook/${encodeURIComponent(classId)}/preview`, { method: 'POST' }); }
+  resetClassbookPreview(classId) { return this._fetch(`/api/classbook/${encodeURIComponent(classId)}/preview`, { method: 'DELETE' }); }
   getClassbookOverview(classId) { return this._fetch(`/api/classbook/${encodeURIComponent(classId)}/overview`); }
   getClassResults(classId) { return this._fetch(`/api/results/class/${encodeURIComponent(classId)}`); }
   saveQuizResult(resultData) {

@@ -108,11 +108,25 @@ ein eigenes Testpasswort (mindestens 4 Zeichen) einmal festlegen.
   und an jedem Gerät, auch am Schüler-PC.
 - Auf der Startseite den Namen eingeben (Groß/klein egal) → die Seite fragt
   nach dem **🧪 Testpasswort** → los. Ein Passwort des Links gilt zusätzlich.
-- Das Ergebnis heißt „🧪 Test Kai“ und steht unter **📊 Ergebnisse** – nicht
-  in der Klassenauswertung und nicht unter „Geteilt & genutzt“.
+- Das Ergebnis heißt „🧪 Test Kai“ und steht unter **📊 Ergebnisse** und im Klassennotizbuch als eigene Zeile. In Durchschnitten,
+  Schülerzahlen und unter „Geteilt & genutzt“ zählt es nicht mit.
 - Das Testpasswort wird nur als Hash gespeichert; ändern geht jederzeit
   (Feld leer lassen behält das bisherige), **Entfernen** schaltet den
   Testschüler ab.
+
+### 👁 Als Vorschau öffnen
+
+In der Inhaltsübersicht des Klassennotizbuchs öffnet **👁 Als Vorschau öffnen** die eigene Klasse aus Schülersicht in einem neuen Tab,
+ohne Name, PIN und Testpasswort. Die Anmeldung als Lehrkraft bleibt erhalten: In einem Tab arbeitest du als Schüler, im anderen siehst du
+die Auswertung. Die Vorschau ist der Testschüler; ohne eigenen Namen heißt er „🧪 Vorschau“.
+
+- **Sie sieht, was die Klasse sieht,** also auch nur, was eingeschaltet ist. Dazu eigene Ergebnisse und Blätter sowie der Stand von HTML-Apps.
+- **Bei dir erscheint sie** in 📡 Live, 📊 Ergebnisübersicht und 👥 Schülerdaten als eigene 🧪-Zeile.
+- **Sie zählt nicht mit:** nicht in Durchschnitten und Schülerzahlen, nicht unter 📈 Geteilt & genutzt. Schüler sehen sie nie.
+- **🧹 Vorschau zurücksetzen** löscht ihre Daten dieser Klasse, etwa um noch einmal von vorn zu testen; den Stand von HTML-Apps in allen Klassen.
+- **Nicht abgedeckt:** Anmeldung und PIN werden übersprungen. Für die Erstanmeldung braucht es einen echten Eintrag in der Schülerliste.
+  In der Klassenarbeit ist sie immer wiederholbar und steht nicht in der Abgabeliste.
+- **An anderen Geräten** (iPad, QR-Code) ohne Lehrer-Anmeldung meldet sich der Testschüler weiter mit Name und Testpasswort an.
 
 ### Als Lehrkraft teilnehmen
 
@@ -125,10 +139,10 @@ entsteht kein Eintrag. Danach gilt alles wie bei jedem Schüler.
 | **Offene Klasse** | Name steht drin, die Lehrkraft der Klasse bestätigt den unbestätigten Eintrag |
 | **Name steht in der Liste** | Name steht drin, auch in einer strikten Klasse; dazu die PIN wie bei jedem Schüler |
 | **Strikte Klasse, nicht in der Liste** | kein Name, Hinweis: Die Lehrkraft der Klasse kann dich eintragen |
-| **Eigene Klasse** | kein Name, Hinweis auf den 🧪 Testschüler; sonst stünde man selbst in der Schülerliste |
+| **Eigene Klasse** | kein Name, Hinweis auf 👁 Als Vorschau öffnen; sonst stünde man selbst in der Schülerliste |
 
 Das klappt auch in einem neuen Tab (die Seite fragt die offenen Tabs der App), aber nur im selben Browser auf demselben Gerät,
-nicht über den QR-Code am Handy. **Wichtig:** Der Start einer Aufgabe löscht die gespeicherte Lehrer-Anmeldung in diesem Browser.
+nicht über den QR-Code am Handy. **Wichtig:** Außerhalb der Vorschau löscht der Start einer Aufgabe die gespeicherte Lehrer-Anmeldung in diesem Browser.
 Wer danach weiter als Lehrkraft arbeiten will, meldet sich neu an oder nimmt für die Aufgabe ein privates Fenster oder ein anderes
 Gerät; dort steht der Name nicht schon im Feld.
 

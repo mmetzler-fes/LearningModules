@@ -352,10 +352,11 @@ export class ClassResultsView {
       const latest = new Map();
       for (const r of live.runs) if (!latest.has(r.studentId)) latest.set(r.studentId, r);
       const rows = [...live.students, ...[...latest.values()].filter((r) => !known.has(r.studentId)).map((r) => ({ id: r.studentId, name: r.studentName }))];
-      const active = [...latest.values()].filter((r) => !r.finishedAt).length;
+      const isPreview = (r) => String(r.studentId).startsWith('test:'); // 🧪 steht dabei, zählt aber nicht
+      const active = [...latest.values()].filter((r) => !r.finishedAt && !isPreview(r)).length;
       body = `
         <div class="cr-works-bar">${select}
-          <span class="hint">${latest.size} von ${live.students.length} Schülern dabei · ${active} arbeiten gerade · frischt sich alle 5 s auf</span></div>
+          <span class="hint">${[...latest.values()].filter((r) => !isPreview(r)).length} von ${live.students.length} Schülern dabei · ${active} arbeiten gerade · frischt sich alle 5 s auf</span></div>
         <div class="cr-live-wrap"><table class="cr-live cr-live-all">
           <thead><tr><th>Schüler</th><th>Zuweisung</th><th>Lernmodul gerade</th><th>Fortschritt</th><th>Stand</th></tr></thead>
           <tbody>${rows.map((s) => {
@@ -372,10 +373,11 @@ export class ClassResultsView {
       const steps = runs.reduce((longest, r) => (r.steps.length > longest.length ? r.steps : longest), []);
       const byStudent = new Map(runs.map((r) => [r.studentId, r]));
       const rows = [...live.students, ...runs.filter((r) => !known.has(r.studentId)).map((r) => ({ id: r.studentId, name: r.studentName }))];
-      const finished = runs.filter((r) => r.finishedAt).length;
+      const counted = runs.filter((r) => !String(r.studentId).startsWith('test:')); // 🧪 steht dabei, zählt aber nicht
+      const finished = counted.filter((r) => r.finishedAt).length;
       body = `
         <div class="cr-works-bar">${select}
-          <span class="hint">${runs.length} von ${live.students.length} Schülern dabei · ${finished} fertig · frischt sich alle 5 s auf</span></div>
+          <span class="hint">${counted.length} von ${live.students.length} Schülern dabei · ${finished} fertig · frischt sich alle 5 s auf</span></div>
         <div class="cr-live-wrap"><table class="cr-live">
           <thead><tr><th>Schüler</th>${steps.map((t, i) => `<th title="${escapeAttr(t)}">${i + 1}</th>`).join('')}<th>Stand</th></tr></thead>
           <tbody>${rows.map((s) => {
@@ -397,7 +399,7 @@ export class ClassResultsView {
   _renderStudents() {
     const { rows, extra } = this._rows();
     this._out.innerHTML = '';
-    if (rows.length === 0 && extra.length === 0) {
+    if (rows.length === 0 && extra.length === 0 && !this._data.preview?.length) {
       this._out.innerHTML = '<div class="empty-state"><p>Die Klasse hat noch keine Schüler und keine Ergebnisse.</p></div>';
       return;
     }
@@ -417,6 +419,10 @@ export class ClassResultsView {
       return box;
     };
     for (const row of rows) this._out.appendChild(block(row));
+    // 🧪 Vorschau der Lehrkraft: eigene Zeile, zählt nicht als Schüler.
+    if (this._data.preview?.length) {
+      this._out.appendChild(block({ key: 'preview', label: this._data.preview[0].studentName || '🧪 Vorschau', results: this._data.preview }));
+    }
     if (extra.length) {
       const head = document.createElement('h3');
       head.className = 'cr-subhead';
@@ -538,6 +544,26 @@ export class ClassResultsView {
       <div class="cb-topic-title">📘 ${escapeHtml(t.title)}</div>
       <ul class="cb-units">${t.units.map((u) => `<li>${TYPE_ICON[u.type] || '🧩'} ${escapeHtml(u.title || 'Modul')}</li>`).join('')}</ul>
     </div>`).join('');
+  }
+
+  /** 👁 Klassennotizbuch als Testschüler in einem eigenen Tab; die Anmeldung als Lehrkraft bleibt. */
+  async _openPreview() {
+    const win = window.open('', '_blank'); // vor dem await, sonst blockt der Browser das Fenster
+    if (!win) { this.app.showToast('Der Browser hat den neuen Tab blockiert. Bitte Pop-ups für diese Seite erlauben.', 'error'); return; }
+    const res = await this.app.api.previewClassbook(this._classId).catch((err) => ({ message: err.message }));
+    if (failed(res) || !res?.token) {
+      win.close();
+      this.app.showToast('Fehler: ' + (res?.message || 'Vorschau nicht möglich'), 'error');
+      return;
+    }
+    win.location.href = `/schueler/?k=${encodeURIComponent(res.token)}#preview=${encodeURIComponent(res.ticket)}`;
+  }
+
+  async _resetPreview() {
+    if (!(await this.app.appConfirm('Ergebnisse, Blätter und Stand der Vorschau in dieser Klasse löschen? Die Daten der Schüler bleiben.'))) return;
+    await this._call(this.app.api.resetClassbookPreview(this._classId));
+    await this._load();
+    this.app.showToast('Vorschau zurückgesetzt.', 'success');
   }
 
   /** Eine Zuweisung (Klassenlink) mit Inhalt und Knöpfen. */
@@ -794,6 +820,8 @@ export class ClassResultsView {
           <button type="button" class="btn btn-secondary btn-sm" data-add="topic" title="Lernthema nur für diese Klasse, z. B. Aufgaben oder Dokumente">➕ Lernthema</button>
           <button type="button" class="btn btn-secondary btn-sm" data-add="area">➕ Bereich</button>
           <button type="button" class="btn btn-secondary btn-sm" data-add="section">➕ Abschnitt</button>
+          <button type="button" class="btn btn-secondary btn-sm" data-preview title="Das Klassennotizbuch aus Schülersicht in einem neuen Tab: Quizze und Dokumente ausprobieren, Ergebnisse erscheinen hier als 🧪">👁 Als Vorschau öffnen</button>
+          <button type="button" class="btn btn-secondary btn-sm" data-preview-reset title="Ergebnisse, Blätter und Stand der Vorschau in dieser Klasse löschen">🧹 Vorschau zurücksetzen</button>
           <button type="button" class="btn btn-secondary btn-sm" data-mark-root title="Schüler springen zum ersten Modul im ganzen Klassennotizbuch – „Weiter“ führt durch alle weiteren">📍 Ganz vorn</button>
           ${cb.studentHidden ? '' : '<button type="button" class="btn btn-secondary btn-sm" data-veil-book="1" title="Schüler sehen das Klassennotizbuch vorübergehend nicht (außer Klassenarbeit und Quiz-Arena) – die Module bleiben ein- bzw. ausgeschaltet">🙈 Für Schüler ausblenden</button>'}
         </div>
@@ -808,6 +836,8 @@ export class ClassResultsView {
       out.querySelector('#cbToSettings')?.addEventListener('click', (e) => { e.preventDefault(); this._switch('settings'); });
       out.querySelectorAll('[data-add]').forEach((btn) => btn.addEventListener('click', () => this._add(btn.dataset.add, null)));
       out.querySelector('[data-arrange]')?.addEventListener('click', () => this._arrange());
+      out.querySelector('[data-preview]')?.addEventListener('click', () => this._openPreview());
+      out.querySelector('[data-preview-reset]')?.addEventListener('click', () => this._resetPreview());
       out.querySelector('[data-mark-root]')?.addEventListener('click', () => this._setMarker({ level: 'root' }));
       out.querySelectorAll('[data-node-menu]').forEach((btn) => btn.addEventListener('click', (e) => {
         e.preventDefault();
@@ -1520,7 +1550,8 @@ export class ClassResultsView {
           <div class="cr-live-wrap"><table class="cr-live cb-matrix">
             <thead><tr><th>Schüler</th>${l.units.map((u, i) => `<th title="${escapeAttr(u.title)}">${i + 1}</th>`).join('')}<th>Erledigt</th></tr></thead>
             <tbody>${students.map((s) => `<tr class="${done(s) ? '' : 'cr-live-absent'}"><td>${escapeHtml(s.name)}</td>
-              ${l.units.map((u) => cell(l.cells[s.id]?.[u.id])).join('')}<td>${done(s)}/${l.units.length}</td></tr>`).join('')}</tbody>
+              ${l.units.map((u) => cell(l.cells[s.id]?.[u.id])).join('')}<td>${done(s)}/${l.units.length}</td></tr>`).join('')}
+              ${data.preview ? `<tr class="cr-preview-row"><td>${escapeHtml(data.preview.name)}</td>${l.units.map((u) => cell(l.cells[data.preview.id]?.[u.id])).join('')}<td>${done(data.preview)}/${l.units.length}</td></tr>` : ''}</tbody>
           </table></div>
           <ol class="cb-legend">${l.units.map((u) => `<li>${TYPE_ICON[u.type] || '🧩'} ${escapeHtml(u.title || 'Modul')}</li>`).join('')}</ol>
         </details>`;

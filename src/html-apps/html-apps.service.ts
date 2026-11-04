@@ -8,7 +8,6 @@ import { LearningModule } from '../core/entities/learning-module.entity';
 import { LearningTopic } from '../core/entities/learning-topic.entity';
 import { TopicLink } from '../core/entities/topic-link.entity';
 import { User } from '../core/entities/user.entity';
-import { isTestStudent } from '../classes/test-student';
 import { FeaturesService } from '../features/features.service';
 import { TopicsService } from '../topics/topics.service';
 import { CHECK_VERSION, deliverable, inspectApp } from './html-app-check';
@@ -139,7 +138,7 @@ export class HtmlAppsService {
 
     const expires = input.student?.expires ?? Date.now() + LIFETIME_MS;
     let state: unknown = null;
-    if (input.student && !isTestStudent(input.student.id)) {
+    if (input.student) {
       const row = await this.stateRepo.findOne({ where: { moduleId: root.id, studentId: input.student.id } });
       if (row) { try { state = JSON.parse(row.data); } catch { state = null; } }
     }
@@ -189,7 +188,6 @@ export class HtmlAppsService {
 
   private async handleReport(session: SessionToken, body: { type?: string; data?: any }) {
     const refuse = (code: string, message: string) => ({ success: false, stored: false, code, message });
-    if (isTestStudent(session.s)) return { success: true, stored: false };
     const link = await this.linkRepo.findOne({ where: { id: session.l } });
     if (!link || !link.active) throw new ForbiddenException('Dieser Link ist derzeit deaktiviert.');
     const root = await this.moduleRepo.findOne({ where: { id: session.m } });

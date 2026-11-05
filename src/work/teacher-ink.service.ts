@@ -12,7 +12,7 @@ import { LearningTopic } from '../core/entities/learning-topic.entity';
  * Dokument (Modul gibt es noch nicht) darf schon eine Beschriftung haben.
  */
 /** Wie bei den Bearbeitungen der Schüler (work.service.ts). */
-const MAX_INK_BYTES = 5 * 1024 * 1024;
+const MAX_INK_BYTES = 20 * 1024 * 1024; // freie Bilder liegen in der Ebene
 
 @Injectable()
 export class TeacherInkService {

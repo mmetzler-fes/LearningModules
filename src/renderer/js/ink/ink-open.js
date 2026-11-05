@@ -273,6 +273,7 @@ export async function openDocumentInk({ mode, mod, up = null, embedModule = null
   function documentEditing() {
     return {
       insertBlock: (after, block) => insertBlocks(after, [block]),
+      insertBlocks,
       // Weitere Einträge im ⊕-Menü; Abbruch im Dialog gibt false (nichts gespeichert).
       insertItems: () => [
         { label: '🧩 Quiz aus dem Lernthema', run: async (after) => {

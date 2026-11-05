@@ -25,10 +25,12 @@ import { DEFAULT_PAGE, templatePage } from './template-page';
  * soll beim Drucken nichts nachladen.
  */
 export function safeInkSvg(svg: unknown): boolean {
-  if (typeof svg !== 'string' || svg.length > 2_000_000 || !/^\s*<svg[\s>]/.test(svg)) return false;
-  if (/href|url\s*\(|<!|<\?|\bon[a-z]+\s*=|javascript:/i.test(svg)) return false;
-  const tags = svg.match(/<\/?([a-zA-Z][\w:-]*)/g) || [];
-  return tags.every((t) => /^<\/?(svg|g|path|rect|line|polyline|polygon|circle|ellipse|text|tspan)$/i.test(t));
+  if (typeof svg !== 'string' || svg.length > 16_000_000 || !/^\s*<svg[\s>]/.test(svg)) return false;
+  // Einzige Ausnahme von „nichts nachladen“: eingebettete Bilder (freie Bilder aus dem Stift-Editor).
+  const rest = svg.replace(/\s(?:xlink:)?href="data:image\/(?:png|jpeg);base64,[A-Za-z0-9+/=]+"/g, '').replace(/\sxmlns:xlink="[^"]*"/g, '');
+  if (/href|url\s*\(|<!|<\?|\bon[a-z]+\s*=|javascript:/i.test(rest)) return false;
+  const tags = rest.match(/<\/?([a-zA-Z][\w:-]*)/g) || [];
+  return tags.every((t) => /^<\/?(svg|g|path|rect|line|polyline|polygon|circle|ellipse|text|tspan|image)$/i.test(t));
 }
 
 export function stripPositions(v: any, keys: string[] = ['_pos']): void {

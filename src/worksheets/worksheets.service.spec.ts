@@ -201,4 +201,14 @@ describe('WorksheetsService.templatePageContext', () => {
     expect(svc.templates.readable).toHaveBeenCalledWith('u', 't1');
     expect(r.page.width).toBe(21);
   });
+
+  describe('safeInkSvg: eingebettete Bilder', () => {
+    const wrap = (x: string) => `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">${x}</svg>`;
+    it('lässt PNG und JPEG als data: zu, sonst nichts', () => {
+      expect(safeInkSvg(wrap('<image xlink:href="data:image/png;base64,QUJD"/>'))).toBe(true);
+      expect(safeInkSvg(wrap('<image xlink:href="https://x.example/a.png"/>'))).toBe(false);
+      expect(safeInkSvg(wrap('<image xlink:href="data:image/svg+xml;base64,QUJD"/>'))).toBe(false);
+      expect(safeInkSvg(wrap('<foreignObject/>'))).toBe(false);
+    });
+  });
 });

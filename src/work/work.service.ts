@@ -17,7 +17,7 @@ import { LearningModule } from '../core/entities/learning-module.entity';
 import { contentOf, forStudents } from '../core/public/student-view';
 
 /** Größer wird ein Stand mit Strichen kaum; Bilder als Hintergrund speichert der Server nicht. */
-export const MAX_WORK_BYTES = 5 * 1024 * 1024;
+export const MAX_WORK_BYTES = 20 * 1024 * 1024; // freie Bilder liegen in der Ebene
 
 export interface WorkAccess {
   linkToken?: string;
@@ -141,7 +141,7 @@ export class WorkService {
     const data = body?.data;
     if (!data || typeof data !== 'object' || data.v !== 1) throw new BadRequestException('Kein gültiger Stand.');
     const bytes = Buffer.byteLength(JSON.stringify(data));
-    if (bytes > MAX_WORK_BYTES) throw new PayloadTooLargeException('Die Bearbeitung ist zu groß (mehr als 5 MB).');
+    if (bytes > MAX_WORK_BYTES) throw new PayloadTooLargeException('Die Bearbeitung ist zu groß (mehr als 20 MB).');
 
     await this.assertExamOpen(a);
     let work = await this.find(a.link.id, a.ticket.s, a.mod.id);

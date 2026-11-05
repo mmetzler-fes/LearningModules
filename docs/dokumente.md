@@ -583,6 +583,18 @@ wenn die Lehrkraft des Lernthemas freigeschaltet ist.
   in der Notebook-Vorschau, **✍️ Mit Stift bearbeiten** am Dokument (Notebook-
   Vorschau, Vollbild, Vorschau aus der Modulliste). Zur Auswahl stehen alle
   Module des Lernthemas außer Dokumenten.
+- **Textfläche und kurze Beschriftung:** Mit **T** ein Rechteck aufziehen öffnet den Editor wie im Dokument
+  (Formatleiste, ➕ Tabelle/Kasten/Code, Tab Markdown, ✓ Fertig). Auf dem Blatt ist die
+  Fläche ein freies Objekt: tippen wählt sie, **✏️** oder Doppeltippen öffnet den Editor, an den Ecken stellst du
+  die Breite ein. Formeln (`$…$`) stehen am Bildschirm und im Browser-Druck gesetzt, im
+  „PDF mit Vorlage“ als LaTeX-Quelle (mit Hinweis). Gesetzte Formeln im PDF: Textblock über ⊕.
+  **T** nur antippen legt wie bisher eine kurze Beschriftung an.
+- **Einfügen:** Der Ort entscheidet. **Auf der Schreibfläche** (Karo, Linien, Feld, freies Blatt) entsteht ein
+  freies Objekt, verschiebbar: Text als Textfläche, Bild frei, an der Ecke größer oder kleiner. **Außerhalb oder
+  über ⊕** entsteht ein Baustein im Dokument (⊕ bietet dazu ¶ Textblock, ▤ Tabelle, 🖼 Bild). Ist eine Textfläche gewählt,
+  kommt Text dort hinein. Schüler ändern das Dokument nicht: Bei ihnen bleibt alles frei in ihrer eigenen Ebene.
+  Lange drücken oder Strg/⌘+V fügt ein; zuletzt Kopiertes gewinnt. Safari fragt beim Einfügen aus dem Menü
+  selbst noch einmal nach. Große Fotos werden verkleinert.
 - **Quizze im Blatt:** Mit dem ➚ Pfeil werden sie ausgefüllt; ein Strich oder
   Textfeld über dem Quiz wird stattdessen ausgewählt. Ein Finger bedient Quizze
   immer. Mit Stift, Textmarker und Textfeld schreiben Stift und Maus auch über

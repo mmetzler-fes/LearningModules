@@ -1,4 +1,5 @@
 import { Injectable, Logger, Optional, BadRequestException, ForbiddenException, NotFoundException, OnApplicationBootstrap, OnModuleDestroy } from '@nestjs/common';
+import { ownEmbeddedQuizzes } from '../topics/embedded-quizzes';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
 import * as crypto from 'crypto';
@@ -259,9 +260,11 @@ export class GithubBackupService implements OnApplicationBootstrap, OnModuleDest
         const docs = modules.filter((m) => m.type === 'document');
         const inks = docs.length ? await this.inkRepo.find({ where: { id: In(docs.map((d) => d.id)), ownerId: userId } }) : [];
         const documents = [];
+        // Eingebettete Quizze aus anderen eigenen Lernthemen gehören in die .zlm.
+        const extra = docs.length ? ownModules(await ownEmbeddedQuizzes({ modules: this.moduleRepo, topics: this.topicRepo }, docs, userId, new Set(modules.map((x) => x.id))), userId) : [];
         for (const d of docs) {
           const ink = inks.find((x) => x.id === d.id) || null;
-          documents.push({ id: d.id, title: d.title || 'Dokument', bytes: await buildZlm({ doc: d, modules, ink }, { local }) });
+          documents.push({ id: d.id, title: d.title || 'Dokument', bytes: await buildZlm({ doc: d, modules: [...modules, ...extra], ink }, { local }) });
         }
         out.push({
           id: t.id,
@@ -310,7 +313,8 @@ export class GithubBackupService implements OnApplicationBootstrap, OnModuleDest
     if (!modules.some((m) => m.id === mod.id)) throw new ForbiddenException('Nur eigene Dokumente lassen sich als .zlm herunterladen.');
     const ink = await this.inkRepo.findOne({ where: { id: mod.id, ownerId: user.userId } });
     const local = this.nextcloud ? (url: string) => this.nextcloud!.readImageByUrl(url) : undefined;
-    const bytes = await buildZlm({ doc: mod, modules, ink }, { local });
+    const extra = ownModules(await ownEmbeddedQuizzes({ modules: this.moduleRepo, topics: this.topicRepo }, [mod], user.userId, new Set(modules.map((x) => x.id))), user.userId);
+    const bytes = await buildZlm({ doc: mod, modules: [...modules, ...extra], ink }, { local });
     const name = (mod.title || 'Dokument').replace(/[\\/:*?"<>|]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 80) || 'Dokument';
     return { fileName: `${name}.zlm`, data: Buffer.from(bytes).toString('base64') };
   }

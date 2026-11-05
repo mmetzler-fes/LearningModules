@@ -1,4 +1,6 @@
 import { appFileIdOf, isShopAllowed, withoutBlockedApps } from '../html-apps/html-app-rules';
+import { ownEmbeddedQuizzes } from '../topics/embedded-quizzes';
+import { remapQuizBlocks } from '../core/interchange/import/import.service';
 import { HtmlAppFile } from '../core/entities/html-app-file.entity';
 import { FeaturesService } from '../features/features.service';
 import { Injectable, Logger, NotFoundException, ForbiddenException, BadRequestException, OnApplicationBootstrap } from '@nestjs/common';
@@ -1093,11 +1095,17 @@ export class ShopService implements OnApplicationBootstrap {
       }),
     );
 
-    const idMap = new Map(modules.map((m) => [m.id, crypto.randomUUID()]));
-    const copies = modules.map((m) => {
+    // Quizze aus anderen Lernthemen des Anbieters, die ein Dokument einbettet: Sie kommen als Kopien mit,
+    // sonst fehlten sie beim Käufer (die Originale gehören ihm nicht).
+    const extra = await ownEmbeddedQuizzes({ modules: moduleRepo, topics: topicRepo }, modules, source.ownerId, new Set(modules.map((m) => m.id)));
+    const all = [...modules, ...extra];
+    const idMap = new Map(all.map((m) => [m.id, crypto.randomUUID()]));
+    const copies = all.map((m) => {
       const { id, topic: _t, subModules: _s, parent: _p, createdAt: _c, updatedAt: _u, ...rest } = m as any;
       return Object.assign(new LearningModule(), {
         ...rest,
+        // Die Quiz-Bausteine zeigen auf die mitkopierten Quizze.
+        content: m.type === 'document' ? remapQuizBlocks(rest.content, idMap) : rest.content,
         studentRelease: false, // Eine Kopie beginnt gesperrt, die Besprechung gehört der Quelle.
         id: idMap.get(id),
         topicId: copy.id,

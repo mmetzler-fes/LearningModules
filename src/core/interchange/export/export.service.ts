@@ -1,4 +1,6 @@
 import { Injectable, ForbiddenException, BadRequestException, NotFoundException, Optional } from '@nestjs/common';
+import { ownEmbeddedQuizzes } from '../../../topics/embedded-quizzes';
+import { remapQuizBlocks } from '../import/import.service';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
 import * as crypto from 'crypto';
@@ -99,7 +101,14 @@ export class ExportService {
   /** JSON nur mit den eigenen Modulen. */
   async exportJson(topicId: string, user: any) {
     const { topic, modules } = await this.plainSource(topicId, user);
-    return topicJson(topic, modules);
+    // Eingebettete Quizze aus anderen eigenen Lernthemen kommen mit – unverschlüsselt nur selbst verfasste.
+    const extra = ownModules(await this.embeddedExtra(modules, user.userId), user.userId);
+    return topicJson(topic, [...modules, ...extra]);
+  }
+
+  /** Quizze aus anderen eigenen Lernthemen, die Dokumente in `modules` einbetten. */
+  private embeddedExtra(modules: LearningModule[], ownerId: string) {
+    return ownEmbeddedQuizzes({ modules: this.moduleRepo, topics: this.topicRepo }, modules, ownerId, new Set(modules.map((m) => m.id)));
   }
 
   /** Moodle-XML (Fragensammlung) nur mit den eigenen, aktiven Modulen. */
@@ -140,7 +149,7 @@ export class ExportService {
         copiedFromAuthor: topic.copiedFromAuthor,
         copiedFromTitle: topic.copiedFromTitle,
       },
-      modules: (topic.modules || []).map((m) => {
+      modules: [...(topic.modules || []), ...(await this.embeddedExtra(topic.modules || [], user.userId))].map((m) => {
         const { topic: _t, subModules: _s, parent: _p, topicId: _tid, tagIds: _tags, ...rest } = m as any;
         return rest;
       }),
@@ -202,6 +211,8 @@ export class ExportService {
         id: (id && idMap.get(String(id))) || crypto.randomUUID(),
         topicId,
         parentId: m.parentId ? idMap.get(String(m.parentId)) || null : null,
+        // Quiz-Bausteine auf die neuen IDs der mitgebrachten Quizze.
+        content: m.type === 'document' ? remapQuizBlocks(rest.content, idMap) : rest.content,
         creatorId: creatorOf(m),
         tagIds: null,
         originId: m.originId || (id ? String(id) : null),

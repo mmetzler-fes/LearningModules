@@ -45,3 +45,25 @@ export async function foreignEmbeddedQuizzes(
   }
   return out;
 }
+
+/**
+ * Für Kopie, Shop und Export: die Quizze aus anderen Lernthemen, die `docs` einbetten und `ownerId`
+ * gehören – samt Untermodulen, flach, ohne Rücksicht auf Freigabe und Sperre (eine Kopie ist
+ * vollständig). Was schon in `known` steckt, kommt nicht noch einmal.
+ */
+export async function ownEmbeddedQuizzes(
+  repos: { modules: Repository<LearningModule>; topics: Repository<LearningTopic> },
+  docs: LearningModule[],
+  ownerId: string,
+  known: ReadonlySet<string>,
+): Promise<LearningModule[]> {
+  const wanted = [...new Set(docs.filter((d) => d.type === 'document').flatMap((d) => embeddedQuizIds(d)))].filter((id) => !known.has(id));
+  if (!wanted.length) return [];
+  const found = await repos.modules.find({ where: { id: In(wanted) } });
+  const topicIds = [...new Set(found.map((m) => m.topicId).filter(Boolean))];
+  const own = new Set((topicIds.length ? await repos.topics.find({ where: { id: In(topicIds) } }) : []).filter((t) => t.ownerId === ownerId).map((t) => t.id));
+  const roots = found.filter((m) => own.has(m.topicId) && !m.parentId && m.type !== 'document');
+  if (!roots.length) return [];
+  const kids = await repos.modules.find({ where: { parentId: In(roots.map((m) => m.id)) } });
+  return [...roots, ...kids.filter((k) => !known.has(k.id))];
+}

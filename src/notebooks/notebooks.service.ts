@@ -1,4 +1,5 @@
 import { Injectable, BadRequestException, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { remapQuizBlocks } from '../core/interchange/import/import.service';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
 import * as crypto from 'crypto';
@@ -542,6 +543,8 @@ export class NotebooksService {
       const { id, topic: _t, subModules: _s, parent: _pa, createdAt: _ca, updatedAt: _ua, ...data } = m as any;
       return Object.assign(new LearningModule(), {
         ...data,
+        // Quizze desselben Lernthemas: die mitkopierten; aus anderen eigenen Lernthemen bleibt der Verweis.
+        content: m.type === 'document' ? remapQuizBlocks(data.content, idMap) : data.content,
         studentRelease: false, // Eine Kopie beginnt gesperrt.
         id: idMap.get(id),
         topicId: topic.id,

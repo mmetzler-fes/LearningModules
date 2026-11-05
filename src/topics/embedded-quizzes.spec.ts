@@ -1,4 +1,4 @@
-import { foreignEmbeddedQuizzes } from './embedded-quizzes';
+import { foreignEmbeddedQuizzes, ownEmbeddedQuizzes } from './embedded-quizzes';
 
 const doc = (id: string, quizIds: string[]) => ({
   id, type: 'document', topicId: 'tDoc', content: { spec: { content: quizIds.map((q) => ({ type: 'quiz', module: q })) } },
@@ -27,5 +27,10 @@ describe('Quizze aus anderen Lernthemen (Verweis im Dokument)', () => {
     ], topics);
     const out = await foreignEmbeddedQuizzes(r, [doc('d', ['qFremd', 'qAus', 'qDa', 'qZu', 'qDoc'])], 'me', new Set(['qDa']));
     expect(out).toEqual([]);
+  });
+  it('für Kopie und Export: auch ausgeschaltete und gesperrte eigene, flach mit Untermodulen', async () => {
+    const r = repos([mod('qAus', 'tQ', { moduleSelected: false }), mod('qZu', 'tZu'), mod('k', 'tQ', { parentId: 'qAus' }), mod('qFremd', 'tFremd')], topics);
+    const out = await ownEmbeddedQuizzes(r, [doc('d', ['qAus', 'qZu', 'qFremd'])], 'me', new Set());
+    expect(out.map((m: any) => m.id).sort()).toEqual(['k', 'qAus', 'qZu']);
   });
 });

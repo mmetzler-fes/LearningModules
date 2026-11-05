@@ -458,6 +458,13 @@ Lernthema; das ⋯-Menü führt mit „📄 Zum Dokument: …“ hin. Verschiebe
 nichts, das Quiz bleibt in jedem Dokument. Wer ein eingebettetes Quiz löscht – einzeln, mehrere auf
 einmal, in der Modulliste oder samt seinem Lernthema –, bekommt vorher die betroffenen Dokumente genannt.
 
+**Kopieren, Shop und Export:** Eine Kopie im Lernnotizbuch stellt die Quizze desselben Lernthemas auf
+die mitkopierten um; Quizze aus anderen eigenen Lernthemen bleiben Verweise aufs Original. Wer im Shop
+eine Kopie holt, bekommt auch die eingebetteten Quizze aus anderen Lernthemen als Kopien in sein neues
+Lernthema – die Originale gehören ihm ja nicht. Ebenso enthalten JSON-Export (nur selbst verfasste
+Quizze), verschlüsselter Export, die .zlm zum Herunterladen und das GitHub-Backup die eingebetteten
+Quizze; beim Einlesen zeigt das Dokument auf die neu angelegten.
+
 - **In den Notebooks** steht das Quiz eingerückt unter seinem Dokument, in der Reihenfolge im Blatt;
   das Dokument zeigt „· 2 Quizze“ und lässt sich mit ▾ zuklappen. Was nicht eingerückt ist, ist ein
   eigenständiges Modul. Steht ein Quiz in mehreren Dokumenten, erscheint es unter jedem. Seine Stelle

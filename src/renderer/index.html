@@ -402,6 +402,11 @@
           <button class="btn btn-secondary btn-sm" id="btnNotebookCollapse" title="Alles zuklappen">⊟ Zuklappen</button>
           <button class="btn btn-secondary btn-sm" id="btnNotebookSelect" aria-pressed="false" title="Mehrere Module oder Lernthemen auswählen – auch mit Strg+Klick, Umschalt+Klick für einen Bereich">☑ Auswählen</button>
           <button class="btn btn-secondary btn-sm hidden" id="btnDocTemplates" title="LibreOffice-Vorlagen für den Druck von Dokumenten">🖨 Vorlagen</button>
+          <span class="nb-view-tabs" role="group" aria-label="Ansicht">
+            <button type="button" data-nb-view="docs" title="Nur Dokumente und Anhänge – die Quizze eines Dokuments stehen darunter">📄 Dokumente</button>
+            <button type="button" data-nb-view="quizzes" title="Nur Quizze, Übungen und Apps – Lernthemen und Bereiche ohne Quiz sind ausgeblendet">🧩 Quizze</button>
+            <button type="button" data-nb-view="all" title="Alle Module">Alles</button>
+          </span>
           <input type="search" id="notebookSearch" class="search-input nb-search" placeholder="Suchen in Titeln und Tags von Lernthemen und Modulen…" />
         </div>
         <!-- Nextcloud-Abbild der Dokumente (nur mit Freischaltung, notebooks.js) -->

@@ -26,6 +26,21 @@ Suchfeld findet Titel und Tags; eine eigene Themenliste gibt es nicht mehr.
   Abschnitte.
 - **Suchen** filtert nach Titeln von Lernthemen und Modulen und klappt die
   Treffer auf.
+- **📄 Dokumente | 🧩 Quizze | Alles** über dem Baum wählt, was du siehst
+  (gemerkt in diesem Browser). Unter **📄 Dokumente** stehen Dokumente und
+  Anhänge, die Quizze eines Dokuments eingerückt darunter; reine
+  Quiz-Lernthemen fallen weg, ein neues, leeres Lernthema bleibt sichtbar.
+  Unter **🧩 Quizze** stehen alle Quizze, Übungen und Apps für sich, mit
+  „📄 in 2 Dokumenten“; Lernthemen, Bereiche und Abschnitte ohne Quiz sind
+  ausgeblendet. Ordnen, Ziehen und Suchen gehen in allen drei Ansichten.
+- Ein Quiz aus einem anderen Lernthema, das ein Dokument einbettet, steht
+  kursiv unter dem Dokument, mit **aus: …** (dem Lernthema, in dem es liegt).
+  Bearbeiten und ●/○ wirken auf das Quiz dort.
+- Ein nicht freigegebenes Lernthema, dessen Quizze in Dokumenten anderer,
+  freigegebener Lernthemen stecken, zeigt **🧩 Über Dokumente erreichbar:
+  10a, …** statt „🚫 Gesperrt“: Diese Quizze kommen mit ihren Dokumenten zu
+  den Schülern. Enthält es auch Dokumente, steht „🚫 Gesperrt · 🧩 1 Quiz über
+  Dokumente“.
 - Ein aufgeklapptes Lernthema zeigt seine Module. Ein Klick auf ein Modul
   zeigt es rechts in der [Vorschau](#vorschau); **Doppelklick** oder ✏️ öffnet
   den Editor, nach dem Speichern geht es hierher zurück.

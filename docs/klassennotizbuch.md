@@ -22,7 +22,7 @@ zwischen beiden.
 | 📋 Inhaltsübersicht | was der Klasse zugewiesen ist – Lernthemen und Bereiche aus deinem Notizbuch |
 | 📝 Klassenarbeiten | Klassenarbeiten der Klasse mit Link & QR, wer schreibt und wer abgegeben hat, Wiedereinstieg – aktive stehen auch bei den Schülern |
 | 👥 Schülerdaten | je Schüler alle Ergebnisse (📈) und Blätter (✍️) |
-| 📊 Ergebnisübersicht | je Modul, wie weit jeder Schüler ist; dazu je Aufgabe und der Jahresüberblick |
+| 📊 Ergebnisübersicht | je Lernthema und je Quiz, wie weit jeder Schüler ist; dazu je Aufgabe und der Jahresüberblick |
 | 🏆 Quiz-Arena | Zuweisungen mit Quiz-Arena, nach Bereichen und Abschnitten geordnet wie die Inhaltsübersicht: 🏆 Quiz-Arena starten, Leitungs-Link & QR-Code |
 | 📡 Live | wer gerade woran arbeitet – je Schüler Zuweisung, Lernmodul und Fortschritt; übersprungene Aufgaben ⤼ |
 | ⚙ Klassenbuch-Link | Link und QR-Code für die Schüler, Erstanmeldung |
@@ -62,6 +62,14 @@ Lernthemen), darin die Lernthemen. Die Schüler sehen denselben Baum.
   verschwinden auch ihre klasseneigenen Lernthemen.
 - Bei den Schülern sind Bereiche und Abschnitte eingeklappt, mit „x/y
   erledigt“ – außer auf dem Weg zum 📍 Merker.
+- **📄 Dokumente | 🧩 Quizze | Alles** wie im Notizbuch: Unter 🧩 Quizze
+  stehen nur die Quizze, Zuweisungen und Bereiche ohne Quiz sind ausgeblendet.
+- Quizze aus anderen Lernthemen, die ein Dokument einbettet, stehen kursiv
+  darunter mit **aus: …**. Sie haben keinen eigenen Schalter: Sie kommen mit
+  dem Dokument (● an, wenn das Dokument an ist).
+- **📊 3/24 · Ø 72 %** an einem Modul: so viele Schüler haben es über diese
+  Zuweisung bearbeitet, mit dem Durchschnitt ihres besten Ergebnisses. Ein
+  Klick öffnet die [Ergebnisübersicht](#ergebnisübersicht).
 
 **Die Inhaltsübersicht folgt dem Notizbuch.** Auch ein einzeln zugewiesenes Lernthema kommt an seinen Platz:
 Es legt die Bereiche und Abschnitte darüber an (ohne das Book), andere Lernthemen dort kommen nicht mit. Beim ersten
@@ -258,11 +266,20 @@ nach ein paar Sekunden auch von selbst.
 
 ### Ergebnisübersicht
 
-**🧩 Je Modul**: Je Zuweisung eine Tabelle mit allen Schülern und Modulen,
+**📘 Je Lernthema** (früher „Je Modul“): Je Zuweisung eine Tabelle mit allen Schülern und Modulen,
 darin das beste Ergebnis in Prozent, **✓** für erledigt ohne Wertung
 (z. B. eine Informationsseite) und **✍️**, wenn der Schüler das Blatt mit dem
 Stift bearbeitet hat. Rechts steht, wie viele Module erledigt sind. Die
 Nummern über den Spalten stehen unter der Tabelle mit Titel.
+Ein Quiz aus einem anderen Lernthema hat eine eigene Spalte direkt hinter
+seinem Dokument (kursiv, „im Dokument …, aus: …“).
+
+**🧩 Je Quiz**: Jedes Quiz einmal, auch wenn es in mehreren Dokumenten oder
+Zuweisungen steckt, etwa in Arbeitsblättern für zwei Niveaustufen. Je Schüler
+das beste Ergebnis über alle Wege und wo er es bearbeitet hat („im Dokument
+„Arbeitsblatt Niveau A““ oder „als eigene Aufgabe“). Darüber steht, worin das
+Quiz steckt. Das Dokument merkt sich ein Ergebnis erst seit diesem Stand;
+ältere Ergebnisse zählen mit, nur ohne Ort.
 
 **Der erste Versuch zählt:** Klickt ein Schüler in einer Aufgabe auf
 **Überprüfen**, wird ihr Stand in diesem Moment gewertet. Was er danach

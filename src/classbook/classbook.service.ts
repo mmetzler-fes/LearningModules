@@ -35,7 +35,7 @@ import { embeddedQuizIds } from '../core/public/student-view';
 import { ContestService } from '../contest/contest.service';
 import { ClassbookLive, LiveTarget } from './classbook-live';
 import type { Response } from 'express';
-import { newClassCode, normalizeClassCode, formatClassCode, endOfDay, firstLoginOpen, loginDecision, unitCells, Unit, DetailLike, classbookTicketKey, examState, toggleSelection, explicitSelection, moduleOn, AvailTopic, SelEntry } from './classbook-rules';
+import { newClassCode, normalizeClassCode, formatClassCode, endOfDay, firstLoginOpen, loginDecision, unitCells, quizPlaces, Unit, DetailLike, classbookTicketKey, examState, toggleSelection, explicitSelection, moduleOn, AvailTopic, SelEntry } from './classbook-rules';
 
 /** Name des Testschülers in der Klassenansicht, wenn die Lehrkraft keinen eigenen festgelegt hat. */
 const PREVIEW_NAME = '🧪 Vorschau';
@@ -43,14 +43,28 @@ const PREVIEW_NAME = '🧪 Vorschau';
 const practiceModes = (link: TopicLink) => PRACTICE_MODES.filter((m) => (link.modes || []).includes(m));
 
 /** Module der Übersicht: je Modul eines, mit seinen Submodulen. */
-type OverviewUnit = Unit & { title: string; type: string; quizIds?: string[]; appRoot?: string; appUnit?: string };
-function unitsOf(modules: LearningModule[]): OverviewUnit[] {
-  // Quizze aus anderen Lernthemen laufen nur im Dokument; ihre Ergebnisse zählen bei ihm (quizIds).
-  return modules.filter((m) => !(m as any).embeddedOnly).flatMap((m): OverviewUnit[] => {
+type OverviewUnit = Unit & { title: string; type: string; quizIds?: string[]; appRoot?: string; appUnit?: string; inDoc?: string; from?: string };
+/**
+ * `withForeign`: Quizze aus anderen Lernthemen (laufen nur im Dokument) stehen als eigene Spalte direkt
+ * hinter ihrem Dokument, mit `inDoc` und `from` – für die Ergebnisübersicht. Sonst (Weiter, Merker,
+ * Startseite der Schüler) zählen nur die Module des Lernthemas.
+ */
+function unitsOf(modules: LearningModule[], withForeign = false): OverviewUnit[] {
+  const foreign = withForeign ? modules.filter((m) => (m as any).embeddedOnly) : [];
+  const placed = new Set<string>();
+  const one = (m: LearningModule): OverviewUnit[] => {
     const kids: LearningModule[] = (m as any).subModules || [];
     // Eine HTML-App zeigt je Abschnitt eine Spalte.
     if (m.type === 'htmlApp' && kids.length) return kids.map((k) => ({ id: k.id, title: k.title || '', type: k.type, ids: [k.id], appRoot: m.id, appUnit: contentOf(k).unit }));
     return [{ id: m.id, title: m.title || '', type: m.type, ids: [m.id, ...kids.map((s) => s.id)], quizIds: embeddedQuizIds(m) }];
+  };
+  return modules.filter((m) => !(m as any).embeddedOnly).flatMap((m): OverviewUnit[] => {
+    const own = one(m);
+    if (!foreign.length || m.type !== 'document') return own;
+    const ids = embeddedQuizIds(m);
+    const mine = foreign.filter((q) => ids.includes(q.id) && !placed.has(q.id));
+    mine.forEach((q) => placed.add(q.id));
+    return [...own, ...mine.flatMap((q) => one(q).map((u) => ({ ...u, inDoc: m.id, from: (q as any).embeddedFrom || '' })))];
   });
 }
 
@@ -309,6 +323,8 @@ export class ClassbookService {
         hasSolutions: hasSolutionBlocks(m),
         solutionsOn: (link.solutionModuleIds || []).includes(m.id),
       })),
+      // Quizze aus anderen Lernthemen, die ein Dokument hier einbettet: nur zum Anzeigen unter dem Dokument.
+      foreign: r.modules.filter((m) => (m as any).embeddedOnly).map((m) => ({ id: m.id, title: m.title || '', type: m.type, from: (m as any).embeddedFrom || '' })),
     }));
     // 🔒 Gesperrtes zeigt die Inhaltsübersicht der Lehrkraft mit, Schüler bekommen es nicht.
     for (const l of await this.links.lockedOf(link, ids)) {
@@ -1111,7 +1127,8 @@ export class ClassbookService {
     const results = ids.length ? await this.resultRepo.find({ where: { classId, linkId: In(ids) }, select: ['id', 'linkId', 'studentId', 'payload'] }) : [];
     const works = await this.workRepo.find({ where: { classId }, select: ['studentId', 'moduleId', 'linkId'] });
     // HTML-Apps: geöffnete Abschnitte (ohne den Stand, der kann groß sein).
-    const appRoots = [...new Set(links.flatMap((l) => l.resolved.flatMap((r) => unitsOf(r.modules))).map((u) => u.appRoot).filter(Boolean))] as string[];
+    const unitsOfLink = new Map(links.map((l) => [l.id, l.resolved.flatMap((r) => unitsOf(r.modules, true))]));
+    const appRoots = [...new Set([...unitsOfLink.values()].flat().map((u) => u.appRoot).filter(Boolean))] as string[];
     const appStates = appRoots.length ? await this.appStateRepo.find({ where: { moduleId: In(appRoots) }, select: ['moduleId', 'studentId', 'opened'] }) : [];
     const testId = testStudentId(user.userId);
     const hasPreview = results.some((r) => r.studentId === testId) || works.some((w) => w.studentId === testId);
@@ -1122,7 +1139,7 @@ export class ClassbookService {
         .sort((a, b) => `${a.lastName} ${a.firstName}`.localeCompare(`${b.lastName} ${b.firstName}`, 'de'))
         .map((s) => ({ id: s.id, name: s.lastName ? `${s.lastName}, ${s.firstName}` : s.firstName, pending: s.status === 'pending' })),
       links: links.map((l) => {
-        const units = l.resolved.flatMap((r) => unitsOf(r.modules));
+        const units = unitsOfLink.get(l.id) || [];
         const cells: Record<string, Record<string, unknown>> = {};
         for (const s of [...students, ...(hasPreview ? [{ id: testId }] : [])]) {
           const runs = results.filter((r) => r.linkId === l.id && r.studentId === s.id).map((r) => ({ details: (r.payload?.details || []) as DetailLike[] }));
@@ -1130,9 +1147,43 @@ export class ClassbookService {
           const opened = new Set(units.filter((u) => appStates.some((x) => x.moduleId === u.appRoot && x.studentId === s.id && x.opened?.includes(u.appUnit as string))).map((u) => u.id));
           cells[s.id] = unitCells(units, runs, mine, opened);
         }
-        return { id: l.id, name: l.name, active: l.active, units: units.map(({ id, title, type }) => ({ id, title, type })), cells };
+        return { id: l.id, name: l.name, active: l.active, units: units.map(({ id, title, type, inDoc, from }) => ({ id, title, type, inDoc, from })), cells };
       }),
+      quizzes: this.quizOverview(links, unitsOfLink, results, [...students, ...(hasPreview ? [{ id: testId }] : [])]),
     };
+  }
+
+  /**
+   * 🧩 Je Quiz: jedes Quiz einmal, über alle Zuweisungen der Klasse – auch wenn es in mehreren
+   * Dokumenten steckt (etwa Niveaustufen). Je Schüler das beste Ergebnis und wo er es bearbeitet hat.
+   */
+  private quizOverview(links: Array<{ id: string; name: string }>, unitsOfLink: Map<string, OverviewUnit[]>,
+    results: Array<{ linkId: string; studentId: string | null; payload: any }>, students: Array<{ id: string }>) {
+    const docTypes = new Set(['document', 'worksheet', 'attachment']);
+    const titles = new Map<string, string>();
+    const quizzes = new Map<string, { id: string; title: string; type: string; from: string; ids: string[]; places: Array<{ link: string; doc: string | null }> }>();
+    for (const l of links) {
+      const units = unitsOfLink.get(l.id) || [];
+      for (const u of units) titles.set(u.id, u.title);
+      for (const u of units) {
+        if (docTypes.has(u.type) || u.appRoot) continue;
+        const inDoc = u.inDoc || units.find((d) => d.type === 'document' && (d.quizIds || []).includes(u.id))?.id || null;
+        let q = quizzes.get(u.id);
+        if (!q) quizzes.set(u.id, q = { id: u.id, title: u.title, type: u.type, from: u.from || '', ids: u.ids, places: [] });
+        q.places.push({ link: l.name, doc: inDoc });
+      }
+    }
+    return [...quizzes.values()].map(({ ids, places, ...q }) => {
+      const cells: Record<string, unknown> = {};
+      for (const s of students) {
+        const runs = results.filter((r) => r.studentId === s.id).map((r) => ({ details: (r.payload?.details || []) as DetailLike[] }));
+        const unit = { id: q.id, ids };
+        const cell = unitCells([unit], runs, new Set())[q.id];
+        if (!cell.done) continue;
+        cells[s.id] = { done: true, pct: cell.pct, docs: quizPlaces(unit, runs).map((id) => (id ? titles.get(id) || 'Dokument' : '')) };
+      }
+      return { ...q, places: places.map((p) => ({ link: p.link, doc: p.doc ? titles.get(p.doc) || 'Dokument' : null })), cells };
+    });
   }
 
   // ---- Schüler ----

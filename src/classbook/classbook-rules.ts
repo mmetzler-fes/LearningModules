@@ -59,6 +59,8 @@ export function loginDecision(
 /** Antwort eines Durchlaufs (payload.details), so weit die Übersicht sie braucht. */
 export interface DetailLike {
   moduleId?: string;
+  /** Quiz in einem Dokument: in welchem (seit 2026-11; ältere Ergebnisse haben es nicht). */
+  inDoc?: string;
   isCorrect?: boolean;
   points?: number;
   informational?: boolean;
@@ -105,6 +107,14 @@ export function unitCells(units: Unit[], runs: Array<{ details?: DetailLike[] }>
     out[unit.id] = { done, pct, work, ...(!done && opened?.has(unit.id) ? { opened: true } : {}) };
   }
   return out;
+}
+
+/** Wo ein Schüler das Quiz bearbeitet hat: IDs der Dokumente, '' = als eigene Aufgabe (oder ohne Angabe). */
+export function quizPlaces(unit: Unit, runs: Array<{ details?: DetailLike[] }>): string[] {
+  const ids = new Set(unit.ids);
+  const out = new Set<string>();
+  for (const run of runs) for (const d of run.details || []) if (d && d.moduleId && ids.has(d.moduleId)) out.add(typeof d.inDoc === 'string' ? d.inDoc : '');
+  return [...out];
 }
 
 /**

@@ -1,6 +1,7 @@
 import { escapeHtml, escapeAttr, copyClassbookOneNote, copyQrSvgAsPng, copyShareSheetAsPng } from '../utils.js';
 import { openTagDialog } from './tags.js';
 import { nestEmbedded } from '../../lm-editor/src/doc/doc-quiz.js';
+import { isDocLike } from '../quiz-usage.js';
 
 // ==================== KLASSENNOTIZBUCH (LEHRKRAFT) ====================
 //
@@ -70,7 +71,9 @@ export class ClassResultsView {
     const saved = loadPref('lm_cr_tab');
     this._tab = TABS.includes(saved) ? saved : OLD_TABS[saved]?.[0] || 'content';
     this._studentsSub = loadPref('lm_cr_students_sub') === 'works' || saved === 'works' ? 'works' : 'results';
-    this._overviewSub = ['tests', 'year'].includes(loadPref('lm_cr_overview_sub')) ? loadPref('lm_cr_overview_sub') : OLD_TABS[saved]?.[0] === 'overview' ? saved : 'modules';
+    // Wie im Lernnotizbuch: 📄 Dokumente | 🧩 Quizze | Alles in der Inhaltsübersicht.
+    this._cbView = ['docs', 'quizzes', 'all'].includes(loadPref('lm_cb_view')) ? loadPref('lm_cb_view') : 'all';
+    this._overviewSub = ['tests', 'year', 'quizzes'].includes(loadPref('lm_cr_overview_sub')) ? loadPref('lm_cr_overview_sub') : OLD_TABS[saved]?.[0] === 'overview' ? saved : 'modules';
     this._cb = null;
     this._worksBy = loadPref('lm_cr_works_by') === 'link' ? 'link' : 'student';
     this._liveTimer = null;
@@ -120,6 +123,7 @@ export class ClassResultsView {
   async _load() {
     this._data = null;
     this._cb = null;
+    this._ov = null;
     if (this._classId) {
       const res = await this.app.api.getClassResults(this._classId);
       if (failed(res)) this.app.showToast('Fehler: ' + (res?.message || 'Ergebnisse nicht abrufbar'), 'error');
@@ -181,11 +185,12 @@ export class ClassResultsView {
       return;
     }
     // Ergebnisübersicht
-    this._subBar([['modules', '🧩 Je Modul'], ['tests', '📝 Je Aufgabe'], ['year', '📅 Jahresüberblick']], this._overviewSub, (v) => {
+    this._subBar([['modules', '📘 Je Lernthema'], ['quizzes', '🧩 Je Quiz'], ['tests', '📝 Je Aufgabe'], ['year', '📅 Jahresüberblick']], this._overviewSub, (v) => {
       this._overviewSub = v;
       savePref('lm_cr_overview_sub', v);
     });
     if (this._overviewSub === 'modules') { this._renderModules(); return; }
+    if (this._overviewSub === 'quizzes') { this._renderQuizzes(); return; }
     if (!this._data) return;
     if (this._overviewSub === 'tests') this._renderTests();
     else this._renderYear();
@@ -667,24 +672,41 @@ export class ClassResultsView {
       title="${on ? `Schüler sehen ${what} – klicken zum Ausschalten` : `Ausgeschaltet – klicken, damit die Schüler ${what} sehen`}">${on ? '●' : '○'}</button>`;
     const mk = this._cb?.marker;
     const topicMarked = (t) => mk?.level === 'topic' && mk.linkId === link.id && mk.topicId === t.topicId;
-    // Wie im Lernnotizbuch: Quizze im Dokument stehen eingerückt darunter.
-    const nested = (modules) => {
-      const { top, quizzesOf } = nestEmbedded(modules);
-      return top.flatMap((m) => {
+    // Wie im Lernnotizbuch: Quizze im Dokument stehen eingerückt darunter, auch solche aus anderen
+    // Lernthemen („aus: …“, nur zum Ansehen – geschaltet wird am Dokument). Unter 🧩 Quizze steht jedes für sich.
+    const nested = (t) => {
+      const view = this._cbView;
+      if (view === 'quizzes') {
+        return [...t.modules.filter((m) => !isDocLike(m)).map((m) => ({ m, embedded: false, quizCount: 0 })),
+          ...(t.foreign || []).map((q) => ({ m: q, embedded: false, quizCount: 0, foreign: true, doc: t.modules.find((d) => (d.quizIds || []).includes(q.id)) }))];
+      }
+      const { top, quizzesOf } = nestEmbedded(t.modules);
+      return top.filter((m) => view === 'all' || isDocLike(m)).flatMap((m) => {
         const quizzes = quizzesOf.get(m.id) || [];
-        return [{ m, embedded: false, quizCount: quizzes.length }, ...quizzes.map((q) => ({ m: q, embedded: true, quizCount: 0 }))];
+        const foreign = (t.foreign || []).filter((q) => (m.quizIds || []).includes(q.id));
+        return [{ m, embedded: false, quizCount: quizzes.length + foreign.length },
+          ...quizzes.map((q) => ({ m: q, embedded: true, quizCount: 0 })),
+          ...foreign.map((q) => ({ m: q, embedded: true, quizCount: 0, foreign: true, doc: m }))];
       });
     };
-    return `${link.available.map((t) => `<div class="cb-topic ${t.enabled ? '' : 'cb-item-off'}" data-topic="${escapeAttr(t.topicId)}">
+    const foreignRow = ({ m, doc }) => `<li class="${doc?.enabled ? '' : 'cb-item-off'} cb-embedded cb-foreign">
+          <button type="button" class="cb-unit" data-open-module="${escapeAttr(m.id)}" title="Vorschau">${TYPE_ICON[m.type] || '🧩'} ${escapeHtml(m.title || 'Modul')}</button>
+          <span class="nb-meta">${escapeHtml((typeof H5P_TYPES !== 'undefined' && H5P_TYPES[m.type]?.name) || '')} · <span class="nb-from" title="${escapeAttr(`Liegt im Lernthema „${m.from}“ und kommt mit dem Dokument „${doc?.title || ''}“`)}">aus: ${escapeHtml(m.from || '')}</span></span>
+          ${this._resSlot(link, m.id)}
+          <span class="nb-status ${doc?.enabled ? 'on' : ''} cb-via-doc" title="${doc?.enabled ? 'Kommt mit dem eingeschalteten Dokument' : 'Das Dokument ist aus – damit auch dieses Quiz'}">${doc?.enabled ? '●' : '○'}</span></li>`;
+    const inView = (t) => this._cbView === 'all' || nested(t).length;
+    return `${link.available.filter(inView).map((t) => `<div class="cb-topic ${t.enabled ? '' : 'cb-item-off'}" data-topic="${escapeAttr(t.topicId)}">
         ${link.available.length === 1 ? '' : `<div class="cb-topic-title ${topicMarked(t) ? 'cb-marked' : ''}"><span class="nb-icon" aria-hidden="true">📘</span> <span class="cb-row-title">${escapeHtml(t.title)}</span>${t.notebookOff ? ' <span class="cb-reach no">🚫 im Lernnotizbuch aus</span>' : ''} ${sw(t.enabled, 'data-toggle-topic', 'dieses Lernthema')}
           ${topicMarked(t) ? this._markBadge() : ''}
           <button type="button" class="nb-menu-btn" data-topic-menu title="Aktionen" aria-label="Aktionen">⋯</button></div>`}
-        <ul class="cb-units">${nested(t.modules).map(({ m, embedded, quizCount }) => {
+        <ul class="cb-units">${nested(t).map(({ m, embedded, quizCount, foreign, doc }) => {
+          if (foreign) return foreignRow({ m, doc });
           const marked = mk?.level === 'module' && mk.linkId === link.id && mk.moduleId === m.id;
           return `<li class="${m.enabled ? '' : 'cb-item-off'} ${marked ? 'cb-marked' : ''} ${embedded ? 'cb-embedded' : ''}">
           <button type="button" class="cb-unit" data-open-module="${escapeAttr(m.id)}" title="${link.classTopicId === t.topicId ? 'Bearbeiten' : 'Vorschau'}">${TYPE_ICON[m.type] || '🧩'} ${escapeHtml(m.title || 'Modul')}</button>
           <span class="nb-meta">${escapeHtml((typeof H5P_TYPES !== 'undefined' && H5P_TYPES[m.type]?.name) || '')}${quizCount ? ` · ${quizCount === 1 ? '1 Quiz' : `${quizCount} Quizze`}` : ''}</span>
           ${m.notebookOff ? '<span class="cb-reach no">🚫 im Lernnotizbuch aus</span>' : ''}
+          ${this._resSlot(link, m.id)}
           ${m.viaDoc ? '<span class="nb-status on cb-via-doc" title="In ein eingeschaltetes Dokument eingebettet – kommt mit ihm. Mit ○ am Dokument ist es aus.">●</span>'
             : sw(m.enabled, `data-toggle-module="${escapeAttr(m.id)}"`, 'dieses Modul')}
           ${m.hasSolutions ? `<button type="button" class="cb-mark ${m.solutionsOn ? 'on' : ''}" data-solution="${escapeAttr(m.id)}" data-on="${m.solutionsOn ? '1' : ''}"
@@ -701,6 +723,59 @@ export class ClassResultsView {
         </li>`).join('')}</ul>
       </div>`).join('')}
       ${link.notReleased?.length ? `<p class="hint">Im Notizbuch noch nicht für Schüler freigegeben, daher nicht wählbar: ${escapeHtml(link.notReleased.join(', '))}.</p>` : ''}`;
+  }
+
+  /** Unter 📄 bzw. 🧩: Steht in der Zuweisung etwas davon? Ein neues, leeres Lernthema bleibt unter 📄 sichtbar. */
+  _linkInView(link) {
+    if (this._cbView === 'all' || !link.available) return true;
+    const mods = link.available.flatMap((t) => [...t.modules, ...(t.foreign || [])]);
+    if (this._cbView === 'docs') return !mods.length || mods.some(isDocLike);
+    return mods.some((m) => !isDocLike(m));
+  }
+
+  /** Platz für das Ergebnis eines Moduls im Baum – gefüllt von _fillResults. */
+  _resSlot(link, moduleId) {
+    return `<span class="cb-res" data-res-link="${escapeAttr(link.id)}" data-res-module="${escapeAttr(moduleId)}"></span>`;
+  }
+
+  /** Ergebnisübersicht der Klasse, einmal je Klasse geladen (wird mit der Klasse neu geholt). */
+  async _overview(force = false) {
+    const classId = this._classId;
+    if (!force && this._ov?.classId === classId) return this._ov.data;
+    const data = await this.app.api.getClassbookOverview(classId);
+    if (failed(data)) throw new Error(data?.message || 'Ergebnisse nicht abrufbar');
+    if (classId === this._classId) this._ov = { classId, data };
+    return data;
+  }
+
+  /**
+   * Im Baum der Inhaltsübersicht je Modul: wie viele Schüler es bearbeitet haben und Ø ihres besten
+   * Ergebnisses – über diese Zuweisung. Klick öffnet 📊 Je Lernthema an dieser Stelle.
+   */
+  async _fillResults(out) {
+    const slots = [...out.querySelectorAll('.cb-res[data-res-link]')];
+    if (!slots.length) return;
+    let data;
+    try { data = await this._overview(true); } catch (_) { return; }
+    if (!out.isConnected) return;
+    const students = data.students.filter((s) => !s.pending);
+    for (const slot of slots) {
+      const l = data.links.find((x) => x.id === slot.dataset.resLink);
+      const unit = l?.units.find((u) => u.id === slot.dataset.resModule);
+      if (!unit || !students.length) continue;
+      const cells = students.map((s) => l.cells[s.id]?.[unit.id]).filter((c) => c && (c.done || c.work));
+      if (!cells.length) continue;
+      const scored = cells.map((c) => c.pct).filter((p) => typeof p === 'number');
+      const avgPct = scored.length ? Math.round(scored.reduce((a, b) => a + b, 0) / scored.length) : null;
+      slot.innerHTML = `<button type="button" class="cb-res-btn" title="${escapeAttr(`${cells.length} von ${students.length} Schülern haben das bearbeitet${avgPct !== null ? `, Ø bestes Ergebnis ${avgPct} %` : ''} (über diese Zuweisung) – klicken für die Übersicht`)}">📊 ${cells.length}/${students.length}${avgPct !== null ? ` · <span class="result-score ${pctClass(avgPct)}">Ø ${avgPct} %</span>` : ''}</button>`;
+      slot.querySelector('button').addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        this._overviewLink = l.id;
+        this._overviewSub = isDocLike(unit) || this._cbView !== 'quizzes' ? 'modules' : 'quizzes';
+        this._switch('overview');
+      });
+    }
   }
 
   /** 📍 im Baum dort, wo der Merker steht (Bereich, Abschnitt, Zuweisung, Lernthema, ganz vorn). */
@@ -795,6 +870,8 @@ export class ClassResultsView {
     this._section('content', (cb, out) => {
       // Zuweisungen mit Übungsmodus und klasseneigene Lernthemen (auch noch ohne Module).
       const links = cb.links.filter((l) => (l.practice.length || l.classTopicId) && l.inTree !== false);
+      // Unter 🧩 Quizze nur Zuweisungen mit Quizzen (leere Zweige fallen weg).
+      const shown = links.filter((l) => this._linkInView(l));
       const mk = this._markerInfo(cb);
       if (mk?.linkId) (this._openLinks ||= new Set()).add(mk.linkId);
       const live = cb.live || { online: 0, follow: false };
@@ -814,6 +891,9 @@ export class ClassResultsView {
             <span class="hint">– sie sehen nur eine laufende Klassenarbeit bzw. die Quiz-Arena. Die Module bleiben, wie sie sind.</span>
             <button type="button" class="btn btn-primary btn-sm" data-veil-book="">👁 Wieder einblenden</button></div>` : ''}
         <div class="cr-works-bar">
+          <span class="nb-view-tabs" role="group" aria-label="Ansicht">${[['docs', '📄 Dokumente', 'Nur Dokumente und Anhänge – die Quizze eines Dokuments stehen darunter'],
+            ['quizzes', '🧩 Quizze', 'Nur Quizze, Übungen und Apps – Zuweisungen ohne Quiz sind ausgeblendet'], ['all', 'Alles', 'Alle Module']]
+            .map(([v, label, title]) => `<button type="button" data-cb-view="${v}" class="${this._cbView === v ? 'active' : ''}" aria-pressed="${this._cbView === v}" title="${escapeAttr(title)}">${label}</button>`).join('')}</span>
           ${links.length ? `<span class="cb-all-switch">${this._groupSwitch(this._stateOf(links), `data-switch-links="${escapeAttr(links.map((l) => l.id).join(','))}"`, 'diesem Klassennotizbuch')} Alles</span>` : ''}
           <button type="button" class="btn btn-primary btn-sm" data-add="assign" title="Lernthema, Abschnitt, Bereich oder Book aus deinem Notizbuch – als Verweis">➕ Aus dem Notizbuch</button>
           <button type="button" class="btn btn-secondary btn-sm" data-arrange title="Einträge an ihren Platz wie im Notizbuch verschieben und sortieren. Inhalte, Links und An/Aus bleiben.">🌳 Wie im Notizbuch ordnen</button>
@@ -829,11 +909,19 @@ export class ClassResultsView {
           (Änderungen dort gelten sofort), außer mit „nur diese Klasse“. ● / ○ schaltet Lernthemen und Module ein und aus –
           was später dazukommt, ist zunächst aus. 👁 / 🙈 blendet ein Lernthema, einen Bereich oder Abschnitt für Schüler aus (auch Link und QR-Code sind dann gesperrt), ohne die Module
           zu schalten. Aktionen über ⋯.</p>
-        <div class="cb-tree">${cb.marker?.level === 'root' ? `<div class="cb-book-mark cb-marked">${this._markBadge()} 📒 <strong>${escapeHtml(cb.className)}</strong> <span class="hint">ganz vorn im Klassennotizbuch</span></div>` : ''}${links.length || cb.nodes.length ? this._level(cb, links, null)
+        <div class="cb-tree">${cb.marker?.level === 'root' ? `<div class="cb-book-mark cb-marked">${this._markBadge()} 📒 <strong>${escapeHtml(cb.className)}</strong> <span class="hint">ganz vorn im Klassennotizbuch</span></div>` : ''}${shown.length || (cb.nodes.length && this._cbView !== 'quizzes') ? this._level(cb, shown, null)
+          : this._cbView === 'quizzes' && links.length ? '<div class="empty-state"><span class="empty-icon">🧩</span><p>In den Zuweisungen dieser Klasse steckt noch kein Quiz.</p></div>'
           : `<div class="empty-state"><span class="empty-icon">📋</span>
               <p>Noch leer. Weise aus deinem Notizbuch Lernthemen oder ganze Bereiche zu, lege eigene Lernthemen für diese Klasse an
                 und ordne alles in Bereichen und Abschnitten.</p></div>`}</div>`;
       out.querySelector('#cbToSettings')?.addEventListener('click', (e) => { e.preventDefault(); this._switch('settings'); });
+      out.querySelectorAll('[data-cb-view]').forEach((btn) => btn.addEventListener('click', () => {
+        this._cbView = btn.dataset.cbView;
+        savePref('lm_cb_view', this._cbView);
+        this._openLinks = new Set([...out.querySelectorAll('details[data-link][open]')].map((d) => d.dataset.link));
+        this._render();
+      }));
+      void this._fillResults(out);
       out.querySelectorAll('[data-add]').forEach((btn) => btn.addEventListener('click', () => this._add(btn.dataset.add, null)));
       out.querySelector('[data-arrange]')?.addEventListener('click', () => this._arrange());
       out.querySelector('[data-preview]')?.addEventListener('click', () => this._openPreview());
@@ -1014,10 +1102,10 @@ export class ClassResultsView {
   }
 
   _level(cb, links, parentId) {
-    const nodes = cb.nodes.filter((n) => n.parentId === parentId).sort((a, b) => a.orderIndex - b.orderIndex);
-    const entries = links.filter((l) => l.nodeId === parentId).sort((a, b) => a.order - b.order);
     const count = (id) => links.filter((l) => l.nodeId === id).length + cb.nodes.filter((n) => n.parentId === id).reduce((s, n) => s + count(n.id), 0);
     const under = (id) => [...links.filter((l) => l.nodeId === id), ...cb.nodes.filter((n) => n.parentId === id).flatMap((n) => under(n.id))];
+    const nodes = cb.nodes.filter((n) => n.parentId === parentId && (this._cbView !== 'quizzes' || under(n.id).length)).sort((a, b) => a.orderIndex - b.orderIndex);
+    const entries = links.filter((l) => l.nodeId === parentId).sort((a, b) => a.order - b.order);
     const marked = (n) => cb.marker?.level === 'node' && cb.marker.nodeId === n.id;
     const kids = (id) => cb.nodes.filter((n) => n.parentId === id).length;
     const html = nodes.map((n) => `<details class="cb-node ${n.studentHidden ? 'cb-veiled' : ''}" data-node="${escapeAttr(n.id)}" ${this._closedNodes?.has(n.id) ? '' : 'open'}>
@@ -1526,9 +1614,10 @@ export class ClassResultsView {
     const classId = this._classId;
     const out = this._out;
     out.innerHTML = '<p class="hint">Wird geladen …</p>';
-    const data = await this.app.api.getClassbookOverview(classId);
+    let data;
+    try { data = await this._overview(true); } catch (err) { data = { message: err.message }; }
     if (classId !== this._classId || this._tab !== 'overview' || this._overviewSub !== 'modules') return;
-    if (failed(data)) { out.innerHTML = `<p class="hint">Fehler: ${escapeHtml(data?.message || '?')}</p>`; return; }
+    if (failed(data) || !data.links) { out.innerHTML = `<p class="hint">Fehler: ${escapeHtml(data?.message || '?')}</p>`; return; }
     if (!data.links.length) {
       out.innerHTML = '<div class="empty-state"><span class="empty-icon">📊</span><p>Noch nichts zugewiesen – siehe 📋 Inhaltsübersicht.</p></div>';
       return;
@@ -1540,6 +1629,8 @@ export class ClassResultsView {
       return `<td>${main}${c.work ? '<span title="Blatt bearbeitet">✍️</span>' : ''}</td>`;
     };
     const students = data.students.filter((s) => !s.pending);
+    // Quizze aus anderen Lernthemen: eigene Spalte direkt hinter ihrem Dokument.
+    const inDocText = (l, u) => (u.inDoc ? ` – im Dokument „${l.units.find((d) => d.id === u.inDoc)?.title || ''}“${u.from ? `, aus: ${u.from}` : ''}` : '');
     out.innerHTML = `<p class="hint">Je Modul das beste Ergebnis in Prozent, ✓ erledigt (ohne Wertung), ✍️ Blatt mit dem Stift bearbeitet, 👁 Abschnitt einer HTML-App geöffnet (zählt nicht als erledigt).
         Unbestätigte Einträge der Klassenliste fehlen.</p>
       ${data.links.map((l) => {
@@ -1548,14 +1639,55 @@ export class ClassResultsView {
           <summary><span class="result-group-title">🔗 ${escapeHtml(l.name)}${l.active ? '' : ' <small class="class-pending-note">ausgeblendet</small>'}</span>
             <span class="result-group-meta">${l.units.length} Module · ${students.filter((s) => done(s) === l.units.length && l.units.length).length} von ${students.length} fertig</span></summary>
           <div class="cr-live-wrap"><table class="cr-live cb-matrix">
-            <thead><tr><th>Schüler</th>${l.units.map((u, i) => `<th title="${escapeAttr(u.title)}">${i + 1}</th>`).join('')}<th>Erledigt</th></tr></thead>
+            <thead><tr><th>Schüler</th>${l.units.map((u, i) => `<th class="${u.inDoc ? 'cb-col-embedded' : ''}" title="${escapeAttr(u.title + inDocText(l, u))}">${i + 1}</th>`).join('')}<th>Erledigt</th></tr></thead>
             <tbody>${students.map((s) => `<tr class="${done(s) ? '' : 'cr-live-absent'}"><td>${escapeHtml(s.name)}</td>
               ${l.units.map((u) => cell(l.cells[s.id]?.[u.id])).join('')}<td>${done(s)}/${l.units.length}</td></tr>`).join('')}
               ${data.preview ? `<tr class="cr-preview-row"><td>${escapeHtml(data.preview.name)}</td>${l.units.map((u) => cell(l.cells[data.preview.id]?.[u.id])).join('')}<td>${done(data.preview)}/${l.units.length}</td></tr>` : ''}</tbody>
           </table></div>
-          <ol class="cb-legend">${l.units.map((u) => `<li>${TYPE_ICON[u.type] || '🧩'} ${escapeHtml(u.title || 'Modul')}</li>`).join('')}</ol>
+          <ol class="cb-legend">${l.units.map((u) => `<li class="${u.inDoc ? 'cb-col-embedded' : ''}">${TYPE_ICON[u.type] || '🧩'} ${escapeHtml(u.title || 'Modul')}${u.inDoc ? `<span class="hint">${escapeHtml(inDocText(l, u))}</span>` : ''}</li>`).join('')}</ol>
         </details>`;
       }).join('')}`;
     this._overviewLink = null;
+  }
+
+  // ---- 🧩 Je Quiz: jedes Quiz einmal, über alle Zuweisungen und Dokumente ----
+
+  async _renderQuizzes() {
+    const classId = this._classId;
+    const out = this._out;
+    out.innerHTML = '<p class="hint">Wird geladen …</p>';
+    let data;
+    try { data = await this._overview(true); } catch (err) { data = { message: err.message }; }
+    if (classId !== this._classId || this._tab !== 'overview' || this._overviewSub !== 'quizzes') return;
+    if (failed(data) || !data.quizzes) { out.innerHTML = `<p class="hint">Fehler: ${escapeHtml(data?.message || '?')}</p>`; return; }
+    if (!data.quizzes.length) {
+      out.innerHTML = '<div class="empty-state"><span class="empty-icon">🧩</span><p>In den Zuweisungen dieser Klasse steckt noch kein Quiz.</p></div>';
+      return;
+    }
+    const students = data.students.filter((s) => !s.pending);
+    const rows = [...students, ...(data.preview ? [data.preview] : [])];
+    const where = (docs) => docs.map((d) => (d ? `im Dokument „${d}“` : 'als eigene Aufgabe')).join(', ');
+    out.innerHTML = `<p class="hint">Jedes Quiz einmal, auch wenn es in mehreren Dokumenten oder Zuweisungen steckt (etwa Niveaustufen):
+        je Schüler das beste Ergebnis über alle Wege, dazu, wo er es bearbeitet hat. Ältere Ergebnisse wissen das Dokument noch nicht.</p>
+      ${data.quizzes.map((q) => {
+        const cells = students.map((s) => q.cells[s.id]).filter(Boolean);
+        const scored = cells.map((c) => c.pct).filter((p) => typeof p === 'number');
+        const avgPct = scored.length ? Math.round(scored.reduce((a, b) => a + b, 0) / scored.length) : null;
+        const places = [...new Set(q.places.map((p) => (p.doc ? `📄 ${p.doc} (${p.link})` : `🔗 ${p.link}`)))];
+        return `<details class="result-group cb-quiz-group">
+          <summary><span class="result-group-title">${TYPE_ICON[q.type] || '🧩'} ${escapeHtml(q.title || 'Quiz')}${q.from ? ` <span class="hint nb-from">aus: ${escapeHtml(q.from)}</span>` : ''}</span>
+            <span class="result-group-meta">${cells.length} von ${students.length} bearbeitet${avgPct !== null ? ` · Ø <span class="result-score ${pctClass(avgPct)}">${avgPct} %</span>` : ''}</span></summary>
+          <p class="hint">Steckt in: ${escapeHtml(places.join(' · '))}</p>
+          <table class="class-students cr-table">
+            <thead><tr><th>Schüler</th><th>Bestes</th><th>Bearbeitet</th></tr></thead>
+            <tbody>${rows.map((s) => {
+              const c = q.cells[s.id];
+              if (!c) return `<tr class="cr-row-missing"><td>${escapeHtml(s.name)}</td><td colspan="2"><span class="cr-missing">noch nicht</span></td></tr>`;
+              return `<tr><td>${escapeHtml(s.name)}</td><td>${c.pct === null ? '<span class="cb-done">✓</span>' : `<span class="result-score ${pctClass(c.pct)}">${c.pct} %</span>`}</td>
+                <td>${escapeHtml(where(c.docs || []))}</td></tr>`;
+            }).join('')}</tbody>
+          </table>
+        </details>`;
+      }).join('')}`;
   }
 }

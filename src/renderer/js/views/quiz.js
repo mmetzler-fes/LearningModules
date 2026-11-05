@@ -624,7 +624,9 @@ export class QuizView {
     const ordered = [];
     for (let i = 0; i < quizState.modules.length; i++) {
       if (quizState.answers[i]) ordered.push({ a: quizState.answers[i], step: i });
-      for (const e of quizState.embeddedAnswers?.[i] || []) ordered.push({ a: e, step: -1 });
+      // Quizze im Dokument: Das Ergebnis merkt sich, in welchem Dokument es entstand.
+      const docId = quizState.modules[i]?.id;
+      for (const e of quizState.embeddedAnswers?.[i] || []) ordered.push({ a: docId && e && typeof e === 'object' ? { ...e, inDoc: docId } : e, step: -1 });
     }
     const answers = ordered.map((o) => o.a);
     const details = ordered.map(({ a, step }) => (step >= 0 && timer?.msOf(step) !== undefined ? { ...a, ms: timer.msOf(step) } : a));

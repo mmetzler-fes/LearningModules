@@ -12,7 +12,7 @@ import { withoutLocked } from './student-lock';
  * nicht gesperrt. Was schon im Lernthema des Dokuments liegt, regelt dessen Freigabe wie bisher.
  *
  * Ergebnis: die Quizze (mit Untermodulen) mit `embeddedOnly: true` – sie laufen im Dokument,
- * nicht als eigene Aufgabe.
+ * nicht als eigene Aufgabe – und `embeddedFrom`, dem Titel ihres Lernthemas.
  */
 export async function foreignEmbeddedQuizzes(
   repos: { modules: Repository<LearningModule>; topics: Repository<LearningTopic> },
@@ -40,7 +40,7 @@ export async function foreignEmbeddedQuizzes(
     const open = withoutLocked(topic, [...here, ...hereKids], true);
     for (const m of open.filter((x) => !x.parentId)) {
       const subs = open.filter((k) => k.parentId === m.id).sort((a, b) => a.orderIndex - b.orderIndex);
-      out.push(Object.assign(new LearningModule(), m, { embeddedOnly: true }, subs.length ? { subModules: subs } : {}));
+      out.push(Object.assign(new LearningModule(), m, { embeddedOnly: true, embeddedFrom: topic.title || '' }, subs.length ? { subModules: subs } : {}));
     }
   }
   return out;

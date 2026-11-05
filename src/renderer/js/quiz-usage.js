@@ -34,3 +34,23 @@ export function usesOutside(topics, topic) {
   }
   return found;
 }
+
+/** Dokumente und Anhänge auf der einen Seite, Quizze, Übungen und Apps auf der anderen (Reiter im Notizbuch). */
+const DOC_TYPES = new Set(['document', 'worksheet', 'attachment']);
+export function isDocLike(mod) {
+  return DOC_TYPES.has(mod?.type);
+}
+
+/**
+ * Quizze dieses Lernthemas, die über Dokumente anderer, freigegebener Lernthemen zu den Schülern kommen
+ * (die Freigabe ihres eigenen Lernthemas spielt dafür keine Rolle): [{ quiz, uses }].
+ */
+export function reachedViaDocs(topics, topic, usage = quizUsage(topics)) {
+  const out = [];
+  for (const quiz of topic.modules || []) {
+    if (quiz.parentId || isDocLike(quiz) || quiz.moduleSelected === false || quiz.lockedForStudents || quiz.teacherOnly) continue;
+    const uses = (usage.get(quiz.id) || []).filter((u) => u.topic.id !== topic.id && u.topic.selected && u.doc.moduleSelected !== false);
+    if (uses.length) out.push({ quiz, uses });
+  }
+  return out;
+}

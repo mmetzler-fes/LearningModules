@@ -1,4 +1,4 @@
-import { endOfDay, firstLoginOpen, loginDecision, unitCells, examState, toggleSelection, explicitSelection, moduleOn, newClassCode, normalizeClassCode, formatClassCode } from './classbook-rules';
+import { endOfDay, firstLoginOpen, loginDecision, unitCells, quizPlaces, examState, toggleSelection, explicitSelection, moduleOn, newClassCode, normalizeClassCode, formatClassCode } from './classbook-rules';
 
 const same = (a: string, b: string | null | undefined) => a === b;
 
@@ -127,5 +127,17 @@ describe('Klassencode', () => {
     expect(normalizeClassCode('K0M4QX9P')).toBeNull();
     expect(normalizeClassCode(undefined)).toBeNull();
     expect(formatClassCode('K7M4QX9P')).toBe('K7M4-QX9P');
+  });
+});
+
+describe('quizPlaces', () => {
+  it('nennt die Dokumente, in denen ein Quiz bearbeitet wurde, und \'\' für ohne Dokument', () => {
+    const runs = [
+      { details: [{ moduleId: 'q', inDoc: 'docA' }, { moduleId: 'x', inDoc: 'docA' }] },
+      { details: [{ moduleId: 'q', inDoc: 'docB' }] },
+      { details: [{ moduleId: 'q' }] },
+    ];
+    expect(quizPlaces({ id: 'q', ids: ['q'] }, runs).sort()).toEqual(['', 'docA', 'docB']);
+    expect(quizPlaces({ id: 'y', ids: ['y'] }, runs)).toEqual([]);
   });
 });

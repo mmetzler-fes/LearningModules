@@ -8,7 +8,11 @@ import { openOneNoteImport } from './onenote-import.js';
 import { askConvertOptions, convertAttachment } from './attachment-convert.js';
 import { NotebookPreview } from './notebook-preview.js';
 import { nestEmbedded } from '../../lm-editor/src/doc/doc-quiz.js';
-import { quizUsage, usageText } from '../quiz-usage.js';
+import { quizUsage, usageText, isDocLike, reachedViaDocs } from '../quiz-usage.js';
+
+/** Reiter über dem Baum: 📄 Dokumente | 🧩 Quizze | Alles (je Gerät gemerkt). */
+const VIEWS = ['docs', 'quizzes', 'all'];
+const VIEW_KEY = 'lm_nb_view';
 
 // ==================== NOTEBOOKS ====================
 //
@@ -104,6 +108,12 @@ export class NotebooksView {
     document.getElementById('btnNotebookExpand')?.addEventListener('click', () => this._expandAll(true));
     document.getElementById('btnNotebookCollapse')?.addEventListener('click', () => this._expandAll(false));
     this._search?.addEventListener('input', () => this._render());
+    this._view = VIEWS.includes(localStorage.getItem(VIEW_KEY)) ? localStorage.getItem(VIEW_KEY) : 'all';
+    document.querySelectorAll('[data-nb-view]').forEach((btn) => btn.addEventListener('click', () => {
+      this._view = btn.dataset.nbView;
+      try { localStorage.setItem(VIEW_KEY, this._view); } catch (_) { /* privat */ }
+      this._render();
+    }));
 
     // Kontextmenü schließen: Klick daneben, Escape, Scrollen.
     document.addEventListener('click', (e) => { if (!e.target.closest('.nb-menu')) this._closeMenu(); });
@@ -243,6 +253,11 @@ export class NotebooksView {
     this._query = query;
     this._tree.innerHTML = '';
     this._reachRows = [];
+    document.querySelectorAll('[data-nb-view]').forEach((btn) => {
+      const on = btn.dataset.nbView === this._view;
+      btn.classList.toggle('active', on);
+      btn.setAttribute('aria-pressed', String(on));
+    });
 
     const frag = document.createDocumentFragment();
     const unsorted = this._topicsIn(null);
@@ -257,6 +272,8 @@ export class NotebooksView {
     if (!this._tree.children.length) {
       this._tree.innerHTML = query
         ? '<div class="empty-state"><p>Nichts gefunden.</p></div>'
+        : this._view === 'quizzes' && this._data.topics.length
+          ? '<div class="empty-state"><span class="empty-icon">🧩</span><p>Noch keine Quizze. Unter <strong>Alles</strong> stehen die Lernthemen mit Dokumenten.</p></div>'
         : `<div class="empty-state"><span class="empty-icon">📓</span>
             <p>Noch keine Notebooks. Mit <strong>➕ Neues Book</strong> geht es los – oder lege Lernthemen an, sie erscheinen dann unter „Unsortiert“.</p></div>`;
     }
@@ -264,6 +281,28 @@ export class NotebooksView {
 
   _matches(text) {
     return !this._query || String(text || '').toLowerCase().includes(this._query);
+  }
+
+  /** Gehört das Modul in den gewählten Reiter? */
+  _moduleInView(mod) {
+    return this._view === 'all' || (this._view === 'docs' ? isDocLike(mod) : !isDocLike(mod));
+  }
+
+  /**
+   * Steht das Lernthema im gewählten Reiter? Unter 🧩 Quizze nur mit Quizzen (leere Zweige fallen weg),
+   * unter 📄 Dokumente alles außer reinen Quiz-Lernthemen – ein neues, leeres bleibt sichtbar.
+   */
+  _topicInView(topic) {
+    if (this._view === 'all') return true;
+    if (topic.isMirror) return this._view === 'docs' || topic.mirror.topics.some((t) => this._topicInView(t));
+    const roots = (topic.modules || []).filter((m) => !m.parentId);
+    if (this._view === 'docs') return !roots.length || roots.some(isDocLike);
+    return roots.some((m) => !isDocLike(m));
+  }
+
+  /** Unter 🧩 Quizze verschwinden Bereiche und Abschnitte ohne Quiz darin. */
+  _nodeInView(node) {
+    return this._view !== 'quizzes' || this._topicsBelow(node.id).some((t) => this._topicInView(t));
   }
 
   /** Bei aktiver Suche: Passt der Knoten selbst oder etwas darin? */
@@ -338,7 +377,7 @@ export class NotebooksView {
   }
 
   _renderUnsorted(topics) {
-    const shown = this._query ? topics.filter((t) => this._topicHasMatch(t)) : topics;
+    const shown = topics.filter((t) => this._topicInView(t) && (!this._query || this._topicHasMatch(t)));
     if (!shown.length) return document.createDocumentFragment();
     const wrap = document.createElement('div');
     const open = this._isOpen('n:');
@@ -355,9 +394,10 @@ export class NotebooksView {
 
   _renderNode(node, depth) {
     if (this._query && !this._nodeHasMatch(node)) return null;
+    if (!this._nodeInView(node)) return null;
     const key = 'n:' + node.id;
     const open = this._isOpen(key);
-    const topicCount = this._topicsBelow(node.id).length;
+    const topicCount = this._topicsBelow(node.id).filter((t) => this._topicInView(t)).length;
     const kids = this._nodesIn(node.id);
     const parts = [];
     if (kids.length) parts.push(`${kids.length} ${kids.length === 1 ? (kids[0].kind === 'area' ? 'Bereich' : 'Abschnitt') : 'Unterordner'}`);
@@ -382,6 +422,7 @@ export class NotebooksView {
       }
       for (const t of this._topicsIn(node.id)) {
         if (this._query && !this._topicHasMatch(t)) continue;
+        if (!this._topicInView(t)) continue;
         wrap.appendChild(this._renderTopic(t, depth + 1));
       }
     }
@@ -396,10 +437,20 @@ export class NotebooksView {
       ? ` <button type="button" class="nb-reach-anon" title="Link ansehen oder zurückziehen">${r.anonymous.length === 1 ? 'anonymer Link' : `${r.anonymous.length} anonyme Links`}</button>` : '';
     const span = (cls, html, title) => `<span class="nb-reach ${cls}" title="${escapeAttr(title)}">${html}</span>`;
     if (topic.isOwn && !topic.selected) {
+      // Quizze, die in Dokumenten anderer Lernthemen stecken, kommen trotzdem mit diesen Dokumenten zu den Schülern.
+      const via = this._viaDocsOf(topic);
+      const pureQuizzes = via.length && !(topic.modules || []).some((m) => !m.parentId && isDocLike(m));
+      if (pureQuizzes) {
+        const classes = [...new Set(via.flatMap(({ uses }) => uses.flatMap((u) => this._reach[u.topic.id]?.classes || [])))];
+        const docs = [...new Set(via.flatMap(({ uses }) => uses.map((u) => `„${u.doc.title}“ (${u.topic.title})`)))];
+        return span('via', `🧩 Über Dokumente erreichbar${classes.length ? `: ${escapeHtml(classes.join(', '))}` : ''}`,
+          `Dieses Lernthema ist selbst nicht freigegeben. ${via.length === 1 ? 'Ein Quiz kommt' : `${via.length} Quizze kommen`} aber mit ${docs.length === 1 ? 'dem Dokument' : 'den Dokumenten'} ${docs.join(', ')} zu den Schülern${classes.length ? ` (${classes.join(', ')})` : ''}.`);
+      }
       const waiting = [...r.classes, ...(r.anonymous.length ? ['anonymer Link'] : [])];
       if (r.exam && !waiting.length) return span('exam', '📝 Nur über den Link der Klassenarbeit', 'Im Notizbuch aus: Nur die Klassenarbeit erreicht dieses Lernthema');
       const text = `🚫 Gesperrt${waiting.length ? ` (${waiting.join(', ')} ${waiting.length === 1 ? 'wartet' : 'warten'})` : ''}${r.exam ? ' · 📝 Klassenarbeit offen' : ''}`;
-      return span('no', escapeHtml(text), `Für Schüler gesperrt.${waiting.length ? ` ${waiting.join(', ')} ${waiting.length === 1 ? 'wartet' : 'warten'} darauf.` : ''}${r.exam ? ' Der Link der Klassenarbeit bleibt offen.' : ''}`);
+      const viaText = via.length ? ` · 🧩 ${via.length === 1 ? '1 Quiz' : `${via.length} Quizze`} über Dokumente` : '';
+      return span('no', escapeHtml(text + viaText), `Für Schüler gesperrt.${waiting.length ? ` ${waiting.join(', ')} ${waiting.length === 1 ? 'wartet' : 'warten'} darauf.` : ''}${r.exam ? ' Der Link der Klassenarbeit bleibt offen.' : ''}${via.length ? ` Ausnahme: ${via.map(({ quiz }) => `„${quiz.title}“`).join(', ')} – in Dokumenten anderer Lernthemen eingebettet, kommt mit ihnen.` : ''}`);
     }
     const parts = [...r.classes.map(escapeHtml)];
     if (!parts.length && !anon && !r.exam) return span('none', 'Noch nirgends erreichbar', 'Keiner Klasse zugewiesen, kein Link');
@@ -414,6 +465,7 @@ export class NotebooksView {
     // Bei der Suche nur aufklappen, wenn ein Modul passt – sonst wird es unübersichtlich.
     const open = this._query ? (topic.modules || []).some((m) => this._matches(m.title)) : this._open.has(key);
     const roots = (topic.modules || []).filter((m) => !m.parentId);
+    const shownRoots = roots.filter((m) => this._moduleInView(m));
     const own = topic.isOwn;
     const status = own
       ? `<button type="button" class="nb-status ${topic.selected ? 'on' : ''}" title="${topic.selected ? 'Für Schüler freigegeben – klicken zum Sperren' : 'Nicht freigegeben – klicken zum Freigeben'}">${topic.selected ? '●' : '○'}</button>`
@@ -422,7 +474,7 @@ export class NotebooksView {
     const row = this._row({
       key, depth, icon: own ? '📘' : '📗', title: topic.title, open,
       cls: `nb-topic ${own ? '' : 'nb-granted'} ${own && !topic.selected ? 'nb-off' : ''}`,
-      meta: `${roots.length} Modul${roots.length === 1 ? '' : 'e'}`,
+      meta: this._countText(shownRoots.length),
       extra: '<span class="nb-reach-slot"></span>' + (topic.teacherOnly ? '<span class="nb-badge nb-lock" title="Nur Lehrkraft: Schüler sehen dieses Lernthema nicht">🔒</span>' : '') + status,
       drag: inMirror ? null : { type: 'topic', id: topic.id },
     });
@@ -444,33 +496,53 @@ export class NotebooksView {
 
     if (open) {
       const modules = (topic.modules || []).slice().sort((a, b) => a.orderIndex - b.orderIndex);
-      if (!roots.length) {
+      if (!shownRoots.length) {
         const empty = document.createElement('div');
         empty.className = 'nb-row nb-empty';
         empty.style.setProperty('--depth', depth + 1);
-        empty.innerHTML = own
-          ? '<span class="nb-twisty-space"></span><span class="hint">Noch keine Module – über ⋯ › „Neues Modul“.</span>'
-          : '<span class="nb-twisty-space"></span><span class="hint">Keine Module sichtbar.</span>';
+        const none = { docs: 'Keine Dokumente in diesem Lernthema.', quizzes: 'Keine Quizze in diesem Lernthema.' }[this._view];
+        empty.innerHTML = none
+          ? `<span class="nb-twisty-space"></span><span class="hint">${none}</span>`
+          : own
+            ? '<span class="nb-twisty-space"></span><span class="hint">Noch keine Module – über ⋯ › „Neues Modul“.</span>'
+            : '<span class="nb-twisty-space"></span><span class="hint">Keine Module sichtbar.</span>';
         wrap.appendChild(empty);
       }
       // Bei der Suche nur passende Module – außer das Thema selbst passt.
-      const { top, quizzesOf, docsOf } = nestEmbedded(roots.sort((a, b) => a.orderIndex - b.orderIndex));
+      // Unter 🧩 Quizze stehen alle Quizze für sich, sonst die Quizze eines Dokuments eingerückt darunter –
+      // auch solche aus anderen Lernthemen („aus: …“).
+      const sorted = roots.sort((a, b) => a.orderIndex - b.orderIndex);
+      const nest = this._view === 'quizzes' ? { top: sorted, quizzesOf: new Map(), docsOf: new Map() } : nestEmbedded(sorted);
+      const top = nest.top.filter((m) => this._moduleInView(m));
+      const { docsOf } = nest;
+      const quizzesOf = new Map();
+      if (this._view !== 'quizzes') {
+        for (const doc of top.filter((m) => m.type === 'document')) {
+          const here = (nest.quizzesOf.get(doc.id) || []).map((q) => ({ q, home: topic }));
+          const foreign = [...new Set(doc.quizIds || [])].filter((id) => !modules.some((m) => m.id === id))
+            .map((id) => this._quizHome(id)).filter(Boolean);
+          if (here.length || foreign.length) quizzesOf.set(doc.id, [...here, ...foreign]);
+        }
+      }
       const show = (m) => !this._query || this._topicItselfMatches(topic) || this._matches(m.title)
         || modules.some((k) => k.parentId === m.id && this._matches(k.title))
-        || (quizzesOf.get(m.id) || []).some((q) => this._matches(q.title));
-      const withKids = (m, d, opts = {}) => {
-        wrap.appendChild(this._renderModule(topic, m, d, opts));
-        for (const kid of modules.filter((k) => k.parentId === m.id)) {
-          if (show(kid) || this._matches(m.title)) wrap.appendChild(this._renderModule(topic, kid, d + 1));
+        || (quizzesOf.get(m.id) || []).some(({ q }) => this._matches(q.title));
+      const withKids = (t, m, d, opts = {}) => {
+        wrap.appendChild(this._renderModule(t, m, d, opts));
+        for (const kid of (t.modules || []).filter((k) => k.parentId === m.id).sort((a, b) => a.orderIndex - b.orderIndex)) {
+          if (show(kid) || this._matches(m.title)) wrap.appendChild(this._renderModule(t, kid, d + 1));
         }
       };
       for (const root of top) {
         if (!show(root)) continue;
         const quizzes = quizzesOf.get(root.id) || [];
-        withKids(root, depth + 1, { quizzes });
+        withKids(topic, root, depth + 1, { quizzes });
         // Quizze im Dokument stehen darunter; zu steht in `_open` (Vorgabe: auf).
         if (quizzes.length && (this._query || !this._open.has('dz:' + root.id))) {
-          for (const q of quizzes) if (show(q) || this._matches(root.title)) withKids(q, depth + 2, { inDocs: docsOf.get(q.id) });
+          for (const { q, home } of quizzes) {
+            if (!(show(q) || this._matches(root.title))) continue;
+            withKids(home, q, depth + 2, { inDocs: home === topic ? docsOf.get(q.id) : [root], from: home === topic ? null : home });
+          }
         }
       }
     }
@@ -489,7 +561,7 @@ export class NotebooksView {
   }
 
   /** `quizzes`: Quizze im Dokument (Klappen, Anzahl); `inDocs`: Dokumente, in denen dieses Quiz liegt. */
-  _renderModule(topic, mod, depth, { quizzes = [], inDocs = null } = {}) {
+  _renderModule(topic, mod, depth, { quizzes = [], inDocs = null, from = null } = {}) {
     const type = (typeof H5P_TYPES !== 'undefined' && H5P_TYPES[mod.type]) || {};
     const own = topic.isOwn;
     const on = mod.moduleSelected !== false;
@@ -497,9 +569,9 @@ export class NotebooksView {
       key: 'm:' + mod.id, depth, icon: type.icon || '🧩', title: mod.title, num: this._data.docNumbers?.[mod.id] || '',
       twisty: quizzes.length > 0, twistyKey: quizzes.length ? 'dz:' + mod.id : null,
       open: quizzes.length > 0 && (!!this._query || !this._open.has('dz:' + mod.id)),
-      cls: `nb-module ${on ? '' : 'nb-off'} ${this._query && this._matches(mod.title) ? 'nb-hit' : ''}`,
+      cls: `nb-module ${on ? '' : 'nb-off'} ${from ? 'nb-foreign' : ''} ${this._query && this._matches(mod.title) ? 'nb-hit' : ''}`,
       meta: escapeHtml(type.name || mod.type) + (quizzes.length ? ` · ${quizzes.length === 1 ? '1 Quiz' : `${quizzes.length} Quizze`}` : '')
-        + this._usedInMeta(topic, mod),
+        + (from ? ` · <span class="nb-from" title="${escapeAttr(`Liegt im Lernthema „${from.title}“ – dort bearbeiten, ein- und ausschalten`)}">aus: ${escapeHtml(from.title)}</span>` : this._usedInMeta(topic, mod)),
       extra: this._lockBadge(topic, mod) + (this._draftIds?.has(mod.id) ? '<span class="nb-badge" title="Nicht gespeicherte Änderungen – beim Bearbeiten wiederherstellbar">📝 Entwurf</span>' : '')
         + (this._mirrorErrors?.has(mod.id) ? `<span class="nb-badge nb-warn" title="${escapeAttr(`Nextcloud: ${this._mirrorErrors.get(mod.id)}`)}">☁️ ⚠</span>` : '') + (own
         ? `<button type="button" class="nb-status ${on ? 'on' : ''}" title="${on ? 'Aktiv – klicken zum Deaktivieren' : 'Inaktiv – klicken zum Aktivieren'}">${on ? '●' : '○'}</button>
@@ -1481,6 +1553,32 @@ export class NotebooksView {
     if (mod.teacherOnly) items.push({ label: '✓ 🔒 Nur Lehrkraft aufheben', run: () => set({ teacherOnly: false }) });
     else if (!mod.lockedForOthers) items.push({ label: '🔒 Nur Lehrkraft', title: 'Schüler sehen dieses Modul nicht – nur über den Link der Klassenarbeit', run: () => set({ teacherOnly: true }) });
     return items;
+  }
+
+  /** Quizze des Lernthemas, die mit Dokumenten anderer Lernthemen zu den Schülern kommen. */
+  _viaDocsOf(topic) {
+    if (!this._usage || this._usageOf !== this._data) this._usesOf({ id: '' });
+    return reachedViaDocs(this._data?.topics || [], topic, this._usage);
+  }
+
+  /** „3 Module“ – im Reiter 📄 bzw. 🧩 als Dokumente bzw. Quizze gezählt. */
+  _countText(n) {
+    if (this._view === 'docs') return `${n} Dokument${n === 1 ? '' : 'e'}`;
+    if (this._view === 'quizzes') return n === 1 ? '1 Quiz' : `${n} Quizze`;
+    return `${n} Modul${n === 1 ? '' : 'e'}`;
+  }
+
+  /** Ein Quiz aus einem anderen eigenen Lernthema, das ein Dokument einbettet: { q, home } oder null. */
+  _quizHome(id) {
+    if (!this._homes || this._homesOf !== this._data) {
+      this._homes = new Map();
+      for (const t of this._data?.topics || []) {
+        if (t.isOwn === false) continue;
+        for (const m of t.modules || []) if (!m.parentId && !isDocLike(m)) this._homes.set(m.id, { q: m, home: t });
+      }
+      this._homesOf = this._data;
+    }
+    return this._homes.get(id) || null;
   }
 
   /** Wo das Modul als Quiz eingebettet ist – in allen eigenen Lernthemen: [{ doc, topic }]. */

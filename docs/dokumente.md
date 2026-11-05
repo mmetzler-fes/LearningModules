@@ -595,7 +595,9 @@ wenn die Lehrkraft des Lernthemas freigeschaltet ist.
 - **Bausteine des Dokuments (Lehrkraft):** Mit dem ➚ Pfeil einen Absatz, eine Tabelle, ein Bild oder ein Karo-Feld
   antippen; ein Quiz wählt nur der ⬚ Bereich, damit es bedienbar bleibt. Mit dem Bereich zählen Bausteine, die das Rechteck
   von oben bis unten umfasst, zusammen mit den freien Objekten darin. Gewählte Bausteine lassen sich mit Stift oder Finger
-  ziehen (eine Linie zeigt die neue Stelle) oder über das Menü nach oben/unten schieben, kopieren, ausschneiden, löschen;
+  ziehen (eine Linie zeigt die neue Stelle) oder über das Menü nach oben/unten schieben, kopieren, ausschneiden, löschen.
+  Schneller geht es mit dem ➚ Pfeil am **Griff ⠿** links neben jedem Baustein: anfassen und ziehen, ohne vorher anzutippen; am oberen
+  oder unteren Rand läuft das Blatt mit (auch beim Ziehen freier Objekte);
   ✏️ bearbeitet Text und Tabellen an Ort und Stelle, darunter rückt alles mit; mehrere Absätze aus dem Editor bleiben dabei ein Baustein, Überschriften und Listen stehen für sich. Was am Baustein hängt, wandert mit, und beim Löschen geht es mit. Gruppieren gibt
   es nur für freie Objekte. **↶ macht auch das rückgängig**, solange der Stift-Editor offen ist. Schüler ändern
   keine Bausteine. Dasselbe gilt in der eigenständigen App (lm-editor), außer in einer Schülerfassung.

@@ -47,7 +47,7 @@ export class TeacherInkService {
     const ink = existing || this.repo.create({ id, ownerId: user.userId, visibility: 'teacher', data: null });
     if (body?.data !== undefined) {
       if (Buffer.byteLength(JSON.stringify(body.data ?? null)) > MAX_INK_BYTES) {
-        throw new PayloadTooLargeException('Die Beschriftung ist zu groß (mehr als 5 MB).');
+        throw new PayloadTooLargeException('Die Beschriftung ist zu groß (mehr als 20 MB).');
       }
       ink.data = body.data;
     }

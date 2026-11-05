@@ -274,6 +274,49 @@ export async function openDocumentInk({ mode, mod, up = null, embedModule = null
     return {
       insertBlock: (after, block) => insertBlocks(after, [block]),
       insertBlocks,
+      // Bausteine im Stift-Editor auswählen, verschieben, ausschneiden; Rückgängig über snapshot/restore.
+      blockOps: {
+        get: (bid) => blockRef(specNow(), bid)?.block ?? null,
+        snapshot: () => JSON.stringify(specNow()),
+        async restore(json) {
+          content = { ...content, spec: JSON.parse(json) };
+          await saveDocument();
+        },
+        async remove(bids) {
+          const spec = specNow();
+          assignPathIds(spec);
+          for (const bid of bids) {
+            const ref = blockRef(spec, bid);
+            if (ref) ref.list.splice(ref.index, 1);
+          }
+          content = { ...content, spec };
+          await saveDocument();
+        },
+        async move(bids, after) {
+          const spec = specNow();
+          assignPathIds(spec);
+          const refs = bids.map((bid) => blockRef(spec, bid)).filter((r) => r?.list === spec.content);
+          const blocks = spec.content.filter((b) => refs.some((r) => r.block === b));
+          const anchor = after ? blockRef(spec, after)?.block : null;
+          spec.content = spec.content.filter((b) => !blocks.includes(b));
+          spec.content.splice(anchor ? spec.content.indexOf(anchor) + 1 : 0, 0, ...blocks);
+          content = { ...content, spec };
+          await saveDocument();
+        },
+        async replace(bid, blocks) {
+          const spec = specNow();
+          assignPathIds(spec);
+          const ref = blockRef(spec, bid);
+          if (!ref) throw new Error('Baustein nicht gefunden.');
+          // Der erste behält seine ID: Daran hängen Striche, auch die der Schüler.
+          const fresh = JSON.parse(JSON.stringify(blocks, (k, v) => (k === 'id' ? undefined : v)));
+          if (fresh[0] && ref.block.id) fresh[0].id = ref.block.id;
+          ref.list.splice(ref.index, 1, ...fresh);
+          ensureBlockIds(spec);
+          content = { ...content, spec };
+          await saveDocument();
+        },
+      },
       // Weitere Einträge im ⊕-Menü; Abbruch im Dialog gibt false (nichts gespeichert).
       insertItems: () => [
         { label: '🧩 Quiz aus dem Lernthema', run: async (after) => {

@@ -589,6 +589,13 @@ wenn die Lehrkraft des Lernthemas freigeschaltet ist.
   die Breite ein. Formeln (`$…$`) stehen am Bildschirm und im Browser-Druck gesetzt, im
   „PDF mit Vorlage“ als LaTeX-Quelle (mit Hinweis). Gesetzte Formeln im PDF: Textblock über ⊕.
   **T** nur antippen legt wie bisher eine kurze Beschriftung an.
+- **Bausteine des Dokuments (Lehrkraft):** Mit dem ➚ Pfeil einen Absatz, eine Tabelle, ein Bild oder ein Karo-Feld
+  antippen; ein Quiz wählt nur der ⬚ Bereich, damit es bedienbar bleibt. Mit dem Bereich zählen Bausteine, die das Rechteck
+  von oben bis unten umfasst, zusammen mit den freien Objekten darin. Gewählte Bausteine lassen sich mit Stift oder Finger
+  ziehen (eine Linie zeigt die neue Stelle) oder über das Menü nach oben/unten schieben, kopieren, ausschneiden, löschen;
+  ✏️ öffnet Text und Tabellen im Editor. Was am Baustein hängt, wandert mit, und beim Löschen geht es mit. Gruppieren gibt
+  es nur für freie Objekte. **↶ macht auch das rückgängig**, solange der Stift-Editor offen ist. Schüler ändern
+  keine Bausteine.
 - **Einfügen:** Der Ort entscheidet. **Auf der Schreibfläche** (Karo, Linien, Feld, freies Blatt) entsteht ein
   freies Objekt, verschiebbar: Text als Textfläche, Bild frei, an der Ecke größer oder kleiner. **Außerhalb oder
   über ⊕** entsteht ein Baustein im Dokument (⊕ bietet dazu ¶ Textblock, ▤ Tabelle, 🖼 Bild). Ist eine Textfläche gewählt,

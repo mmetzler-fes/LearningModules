@@ -585,8 +585,9 @@ wenn die Lehrkraft des Lernthemas freigeschaltet ist.
   Module des Lernthemas außer Dokumenten.
 - **Textfläche und kurze Beschriftung:** Mit **T** ein Rechteck aufziehen und direkt auf dem Blatt schreiben, mit
   denselben Knöpfen wie im Dokument: Oben steht die Formatleiste mit ➕ Tabelle/Kasten/Code, Ⓜ Markdown und ✓ Fertig.
-  Solange du schreibst, ruhen die Werkzeuge. Der Stift schreibt dabei nicht (auch keine iPad-Handschrifterkennung): Er setzt
-  die Schreibmarke und markiert Text; getippt wird mit der Tastatur. Die Fläche ist ein freies
+  Solange du schreibst, ruhen die Werkzeuge. **Der Apple Pencil tippt im ganzen Stift-Editor nur an**, auch Knöpfe, Menüs und
+  Dialoge, und setzt in Textfeldern die Schreibmarke; die iPad-Handschrifterkennung ist hier aus, getippt wird mit der
+  Tastatur. Ausnahme: Eingabefelder im Quiz mit dem ➚ Pfeil. Auf dem Blatt zeichnet er nur mit einem Zeichenwerkzeug. Die Fläche ist ein freies
   Objekt: tippen wählt sie, **✏️** oder Doppeltippen bearbeitet sie an Ort und Stelle, an den Ecken stellst du
   die Breite ein. Formeln (`$…$`) stehen am Bildschirm und im Browser-Druck gesetzt, im
   „PDF mit Vorlage“ als LaTeX-Quelle (mit Hinweis). Gesetzte Formeln im PDF: Textblock über ⊕.

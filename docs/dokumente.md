@@ -74,7 +74,7 @@ Der Editor startet im Modus **✏️ Bearbeiten** – wie ein Textprogramm:
   wieder per Doppelklick auf das Feld – oder **ziehen**: Feld anklicken, dann
   am rechten Rand die Breite, unten die Höhe, an der Ecke beides, im
   0,5-cm-Raster; bis 25,5 cm breit für **A4 quer**, im Hochformat druckt es
-  höchstens die Satzbreite), Quiz aus dem Lernthema,
+  höchstens die Satzbreite), Quiz aus dem Lernnotizbuch,
   **📄 PDF an dieser Stelle** (mit Freischaltung „PDF-Import“: das PDF wird
   wie bei „Übernehmen“ umgewandelt, aber eingefügt statt ersetzt), Lösung,
   Formel, Code, Tabelle, Kasten, Platz (ein unsichtbares Schreibfeld; ältere
@@ -444,6 +444,15 @@ Im Editor (Reiter **✏️ Bearbeiten**) stehen unter **➕** bzw. per Rechtskli
 desselben Lernthemas (z. B. Multiple Choice oder Lückentext) – ein Klick setzt das Quiz ein. Es steht als
 Baustein an der Schreibmarke im Blatt (`type: quiz`, `module: <Modul-ID>`).
 
+**Quiz aus einem anderen Lernthema:** **🧩 Quiz aus dem Lernnotizbuch…** (auch über ⊕ im Stift-Editor)
+zeigt zuerst die Quizze dieses Lernthemas, dann die des Abschnitts, dann alle eigenen mit Suche. Das
+Dokument verweist nur auf das Quiz: Es gibt es einmal, änderst du es, ändert es sich in jedem Dokument,
+das es einbettet. So passt ein Quiz zu mehreren Arbeitsblättern, etwa zu verschiedenen Niveaustufen.
+Weist du das Dokument zu oder gibst es frei, kommt das Quiz mit, auch wenn sein eigenes Lernthema nicht
+freigegeben ist; ein ausgeschaltetes (○) oder gesperrtes (🔒) Quiz bleibt aus. Einbetten lassen sich
+eigene Quizze, auch per Copy erworbene, nicht aber nur per Use genutzte. Im Druck führt der QR-Code über
+den Quick-Link des Dokuments zum Quiz.
+
 - **In den Notebooks** steht das Quiz eingerückt unter seinem Dokument, in der Reihenfolge im Blatt;
   das Dokument zeigt „· 2 Quizze“ und lässt sich mit ▾ zuklappen. Was nicht eingerückt ist, ist ein
   eigenständiges Modul. Steht ein Quiz in mehreren Dokumenten, erscheint es unter jedem. Seine Stelle
@@ -576,7 +585,7 @@ wenn die Lehrkraft des Lernthemas freigeschaltet ist.
   **☰ Linien**. Die Lehrkraft fügt das Feld ins Dokument ein (eigene
   Lernthemen), Schüler nur in ihre eigene Beschriftung; ein selbst eingefügtes
   Feld entfernt das **✕** in der Feldleiste (mit dem ➚ Pfeil) wieder.
-  Lehrkräfte haben im Menü außerdem **🧩 Quiz aus dem Lernthema** und
+  Lehrkräfte haben im Menü außerdem **🧩 Quiz aus dem Lernnotizbuch** und
   **📄 PDF an dieser Stelle** (Text mit Struktur, Seiten als Bilder oder
   KI-Erkennung) – beides landet als Bausteine im Dokument. Das gilt in eigenen
   Lernthemen überall, wo sich der Stift-Editor öffnen lässt: **✍️ Stift** oben

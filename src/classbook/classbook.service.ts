@@ -45,7 +45,8 @@ const practiceModes = (link: TopicLink) => PRACTICE_MODES.filter((m) => (link.mo
 /** Module der Übersicht: je Modul eines, mit seinen Submodulen. */
 type OverviewUnit = Unit & { title: string; type: string; quizIds?: string[]; appRoot?: string; appUnit?: string };
 function unitsOf(modules: LearningModule[]): OverviewUnit[] {
-  return modules.flatMap((m): OverviewUnit[] => {
+  // Quizze aus anderen Lernthemen laufen nur im Dokument; ihre Ergebnisse zählen bei ihm (quizIds).
+  return modules.filter((m) => !(m as any).embeddedOnly).flatMap((m): OverviewUnit[] => {
     const kids: LearningModule[] = (m as any).subModules || [];
     // Eine HTML-App zeigt je Abschnitt eine Spalte.
     if (m.type === 'htmlApp' && kids.length) return kids.map((k) => ({ id: k.id, title: k.title || '', type: k.type, ids: [k.id], appRoot: m.id, appUnit: contentOf(k).unit }));
@@ -299,7 +300,8 @@ export class ClassbookService {
       tagIds: r.topic.tagIds || [],
       // Hauptschalter im Lernnotizbuch: aus heißt für Schüler nirgends erreichbar.
       notebookOff: r.topic.ownerId === link.ownerId && !r.topic.selected && !r.topic.teacherOnly,
-      modules: r.modules.map((m) => ({
+      // Quizze aus anderen Lernthemen gehören dort hin, nicht in die Schalter dieses Lernthemas.
+      modules: r.modules.filter((m) => !(m as any).embeddedOnly).map((m) => ({
         id: m.id, title: m.title || '', type: m.type, tagIds: m.tagIds || [],
         notebookOff: r.topic.ownerId === link.ownerId && m.moduleSelected === false,
         subIds: ((m as any).subModules || []).map((x: LearningModule) => x.id),

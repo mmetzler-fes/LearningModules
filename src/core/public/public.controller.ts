@@ -1,4 +1,5 @@
 import { withoutLocked } from '../../topics/student-lock';
+import { foreignEmbeddedQuizzes } from '../../topics/embedded-quizzes';
 import { Controller, Get, Post, Body, Param, Req, Res, HttpCode, NotFoundException, ForbiddenException, BadRequestException, UseInterceptors, UploadedFile } from '@nestjs/common';
 import type { Response } from 'express';
 import { FileInterceptor } from '@nestjs/platform-express';
@@ -201,10 +202,18 @@ export class PublicController {
       // Mit Nutzungsrecht nur die Module, die es umfasst.
       topic.modules = this.topicsService.visibleModules(topic, topic.modules || [], asTeacher);
     }
+    const known = new Set((topic.modules || []).map((m) => m.id));
     // Klassenarbeiten und „Nur Lehrkraft“ gibt es über einen Quick-Link nie.
     topic.modules = withoutLocked(topic, topic.modules || [], isOwnerLink)
       // Abschnitte einer HTML-App sind keine eigenen Aufgaben; der Quick-Link hat keine Auswahl.
       .filter((m) => m.type !== 'htmlAppUnit');
+    // Quizze aus anderen Lernthemen, die ein Dokument hier einbettet, kommen mit ihm.
+    const docs = topic.modules.filter((m) => m.type === 'document');
+    if (docs.length) {
+      const extra = await foreignEmbeddedQuizzes({ modules: this.moduleRepo, topics: this.topicRepo }, docs, topic.ownerId, known);
+      // Untermodule stehen hier flach in der Liste, wie die eigenen des Lernthemas.
+      topic.modules = [...topic.modules, ...extra.flatMap((m) => { const { subModules, ...root } = m as any; return [Object.assign(new LearningModule(), root), ...(subModules || [])]; })];
+    }
 
     return { topic, teacher };
   }
@@ -421,7 +430,7 @@ export class PublicController {
       context = link.name;
     } else if (body.quickToken) {
       const { topic, teacher } = await this.resolveQuickToken(body.quickToken);
-      if (mod.topicId !== topic.id) throw new ForbiddenException('Diese Aufgabe gehört nicht zum Link.');
+      if (!(topic.modules || []).some((m) => m.id === mod.id)) throw new ForbiddenException('Diese Aufgabe gehört nicht zum Link.');
       ownerId = teacher.id;
       context = topic.title;
     } else {

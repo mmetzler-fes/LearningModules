@@ -391,8 +391,13 @@ export class WorksheetsService {
       const id = String(block.module ?? '');
       const mod = id && this.moduleRepo ? await this.moduleRepo.findOne({ where: { id }, select: ['id', 'topicId', 'title'] }) : null;
       const title = String(block.title || mod?.title || 'Quiz');
-      if (!mod || !ctx?.topicId || mod.topicId !== ctx.topicId || !ctx.ownerId) {
-        warnings.push(`Quiz „${title}“: Das Modul liegt nicht in diesem Lernthema – im Druck steht ein Hinweis.`);
+      // Auch ein eigenes Quiz aus einem anderen Lernthema (Verweis): Der QR-Code führt über dieses
+      // Lernthema hin, das Dokument nimmt das Quiz mit (topics/embedded-quizzes.ts).
+      const home = mod && mod.topicId !== ctx?.topicId && this.topicRepo
+        ? await this.topicRepo.findOne({ where: { id: mod.topicId }, select: ['id', 'ownerId'] }) : null;
+      const reachable = !!mod && !!ctx?.topicId && !!ctx.ownerId && (mod.topicId === ctx.topicId || home?.ownerId === ctx.ownerId);
+      if (!reachable || !ctx?.topicId || !ctx.ownerId) {
+        warnings.push(`Quiz „${title}“: Das Modul gehört nicht zu deinen Lernthemen – im Druck steht ein Hinweis.`);
         return { type: 'note', text: `[Quiz: ${title}]` };
       }
       const token = await this.quickTokenFor(ctx.ownerId, ctx.topicId);

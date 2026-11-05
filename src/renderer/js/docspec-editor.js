@@ -201,7 +201,7 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
         </div>
         <div class="ds-ybar" hidden>
           <select class="ds-yinsert" title="Baustein hinter dem Block einfügen, in dem die Schreibmarke steht">
-            <option value="">➕ Einfügen …</option><option value="karo">Schreibfeld (Karo, Linien)</option><option value="quiz">🧩 Quiz aus dem Lernthema</option><option value="solution">Lösung</option>
+            <option value="">➕ Einfügen …</option><option value="karo">Schreibfeld (Karo, Linien)</option><option value="quiz">🧩 Quiz aus dem Lernnotizbuch</option><option value="solution">Lösung</option>
             <option value="formula">Formel</option><option value="code">Code</option><option value="table">Tabelle</option>
             <option value="box">Kasten</option><option value="spacer">Platz (unsichtbar)</option><option value="pagebreak">Seitenumbruch</option>
           </select>
@@ -966,7 +966,7 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
       ['text', '¶ Textabsatz'],
       ['karo', '▦ Schreibfeld (Karo, Linien)'],
       // Mehr als ins Menü passen – oder keins: die Auswahl (sie erklärt, wie ein Quiz entsteht).
-      ...(quizzes.length > QUIZ_MENU_MAX ? [['quiz', `🧩 Weitere Quizze (${quizzes.length})…`]] : !quizzes.length ? [['quiz', '🧩 Quiz aus dem Lernthema…']] : []),
+      ['quiz', quizzes.length > QUIZ_MENU_MAX ? `🧩 Weitere Quizze (${quizzes.length} hier, auch aus anderen Lernthemen)…` : '🧩 Quiz aus dem Lernnotizbuch…'],
       ...(pdfAllowed ? [['pdf', '📄 PDF an dieser Stelle']] : []),
       ['solution', '💡 Lösung'], ['formula', '∑ Formel'], ['code', '⌨ Code'], ['table', '▤ Tabelle…'],
       ['box', '▢ Kasten'], ['columns', '▥ Spalten (nebeneinander)'], ['spacer', '◌ Platz (unsichtbar)'], ['pagebreak', '⤓ Seitenumbruch'],
@@ -1091,7 +1091,7 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
     showContextMenu(e.clientX, e.clientY, entries);
   });
 
-  const pickQuiz = () => pickQuizFrom(topicModules(), moduleSource());
+  const pickQuiz = () => pickQuizFrom(topicModules(), moduleSource(), topicSource());
 
   /**
    * HTML hinter `after` (bzw. ans Ende) setzen. Eine leere Zeile zum
@@ -1681,7 +1681,7 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
       })),
       { label: '¶ Textabsatz', onClick: () => put([{ type: 'text', text: '' }]) },
       { label: '▦ Schreibfeld (Karo, Linien)', onClick: () => putAndEdit(STARTERS.karo) },
-      ...(quizzes.length > QUIZ_MENU_MAX || !quizzes.length ? [{ label: '🧩 Quiz aus dem Lernthema…', onClick: async () => { const b = await pickQuiz(); if (b) put([b]); } }] : []),
+      { label: '🧩 Quiz aus dem Lernnotizbuch…', onClick: async () => { const b = await pickQuiz(); if (b) put([b]); } },
       ...(pdfAllowed ? [{ label: '📄 PDF an dieser Stelle', onClick: async () => { const b = await insertPdfBlocks(); if (b) put(b); } }] : []),
       { label: '💡 Lösung', onClick: () => put([STARTERS.solution]) },
       { label: '∑ Formel', onClick: () => putAndEdit(STARTERS.formula) },

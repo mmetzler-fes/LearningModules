@@ -325,8 +325,8 @@ export async function openDocumentInk({ mode, mod, up = null, embedModule = null
       },
       // Weitere Einträge im ⊕-Menü; Abbruch im Dialog gibt false (nichts gespeichert).
       insertItems: () => [
-        { label: '🧩 Quiz aus dem Lernthema', run: async (after) => {
-          const block = await pickQuiz(topicModules || [], mod.id);
+        { label: '🧩 Quiz aus dem Lernnotizbuch', run: async (after) => {
+          const block = await pickQuiz(topicModules || [], mod.id, mod.topicId);
           if (!block) return false;
           return insertBlocks(after, [block]);
         } },

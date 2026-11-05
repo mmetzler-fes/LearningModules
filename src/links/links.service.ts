@@ -14,6 +14,7 @@ import { CompanionService } from '../companion/companion.service';
 import { baseUrl, renderQr } from '../core/share/link-url';
 import { embeddedQuizIds } from '../core/public/student-view';
 import { lockedModuleIds, withoutLocked } from '../topics/student-lock';
+import { foreignEmbeddedQuizzes } from '../topics/embedded-quizzes';
 import * as crypto from 'crypto';
 import { applyRule, differsFromRule, syncedState } from './link-sync';
 import { isQuickRule, quickToken, splitQuickToken } from './quick-token';
@@ -427,7 +428,13 @@ export class LinksService {
         }
       }
 
-      if (picked.length) out.push({ topic, modules: picked });
+      if (picked.length) {
+        // Quizze aus anderen Lernthemen, die ein gewähltes Dokument einbettet, kommen mit ihm.
+        const docs = picked.flatMap((m) => [m, ...((m as any).subModules || [])]).filter((m) => m.type === 'document');
+        const known = new Set([...allModules.filter((m) => m.topicId === topic.id).map((m) => m.id)]);
+        const extra = docs.length ? await foreignEmbeddedQuizzes({ modules: this.moduleRepo, topics: this.topicRepo }, docs, topic.ownerId, known) : [];
+        out.push({ topic, modules: [...picked, ...extra] });
+      }
     }
 
     return out;

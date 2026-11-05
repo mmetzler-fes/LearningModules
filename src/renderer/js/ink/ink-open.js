@@ -222,18 +222,24 @@ export async function openDocumentInk({ mode, mod, up = null, embedModule = null
 
   /** Baustein zu einer ID der Stift-Ebene (feste ID, „p:2.0“ oder pos2x0) – mit seiner Liste. */
   function blockRef(spec, bid) {
-    let found = null;
-    const go = (list, prefix) => {
-      if (!Array.isArray(list) || found) return;
-      list.forEach((b, i) => {
-        if (found || !b || typeof b !== 'object') return;
-        const path = prefix ? `${prefix}.${i}` : String(i);
-        if (b.id === bid || `p:${path}` === bid || pathId(path) === bid) found = { list, index: i, block: b };
-        else go(b.blocks, path);
-      });
+    // Erst die echte Kennung, die Position nur für Bausteine ohne Kennung: Nach dem Verschieben trägt
+    // ein anderer Baustein die alte Position – z. B. „pos2“ – und würde sonst statt des gemeinten gefunden.
+    const search = (match) => {
+      let found = null;
+      const go = (list, prefix) => {
+        if (!Array.isArray(list) || found) return;
+        list.forEach((b, i) => {
+          if (found || !b || typeof b !== 'object') return;
+          const path = prefix ? `${prefix}.${i}` : String(i);
+          if (match(b, path)) found = { list, index: i, block: b };
+          else go(b.blocks, path);
+        });
+      };
+      go(spec?.content, '');
+      return found;
     };
-    go(spec?.content, '');
-    return found;
+    return search((b) => b.id === bid)
+      || search((b, path) => !b.id && (`p:${path}` === bid || pathId(path) === bid));
   }
 
   async function saveDocument() {

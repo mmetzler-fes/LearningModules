@@ -57,6 +57,7 @@ describe('.odt-Import: Titel', () => {
     const doc = withMeta(body, 'Altes Dokument');
     expect(odtToHtml(doc, 'Neues Blatt.odt').title).toBe('Neues Blatt');
     expect(odtToHtml(odt(body), 'Neues Blatt.odt').title).toBe('Neues Blatt');
+    expect(odtToHtml(doc, '03 Solar_Balkon - Ohm-Gesetz.odt').title).toBe('03 Solar Balkon - Ohm-Gesetz');
   });
 
   it('ohne Dateinamen: erst brauchbare Metadaten, dann die erste Überschrift', () => {

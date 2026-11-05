@@ -1633,7 +1633,7 @@ export function odtToHtml(buffer: Buffer, fileName = '', opts: OdtOptions = {}):
   const meta = read('meta.xml');
   const metaTitle = meta ? textOf(find(parseXml(meta), 'dc:title') || '').trim() : '';
   const firstHeading = /<h[2-4][^>]*>([\s\S]*?)<\/h[2-4]>/.exec(html)?.[1].replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').trim();
-  const fromFile = path.basename(fileName || '', path.extname(fileName || '')).replace(/[_-]+/g, ' ').trim();
+  const fromFile = path.basename(fileName || '', path.extname(fileName || '')).replace(/_+/g, ' ').replace(/\s+/g, ' ').trim();
   // Der Dateiname zählt zuerst: Die Metadaten bleiben beim Kopieren und Umbenennen stehen und tragen
   // oft den Titel eines älteren Dokuments oder der Vorlage.
   const heading = firstHeading ? decodeHtml(firstHeading) : '';

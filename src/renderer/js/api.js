@@ -13,14 +13,16 @@ function writeStorage(store, value) {
   } catch (_) { /* Speicher gesperrt: Token bleibt nur im Speicher der Seite */ }
 }
 
-/**
- * Name dieses Geräts für die Liste der Anmeldungen, z. B. „iPad · Safari (App)“.
- * Ein iPad meldet sich als Mac – erkennbar am Touchscreen.
- */
+/** iPad – es meldet sich auch als Mac, erkennbar dann am Touchscreen. */
+export function isIpad() {
+  const ua = navigator.userAgent || '';
+  return /iPad/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1);
+}
+
+/** Name dieses Geräts für die Liste der Anmeldungen, z. B. „iPad · Safari (App)“. */
 export function deviceName() {
   const ua = navigator.userAgent || '';
-  const ipad = /iPad/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1);
-  const os = ipad ? 'iPad' : /iPhone/.test(ua) ? 'iPhone' : /Android/.test(ua) ? 'Android' : /Windows/.test(ua) ? 'Windows'
+  const os = isIpad() ? 'iPad' : /iPhone/.test(ua) ? 'iPhone' : /Android/.test(ua) ? 'Android' : /Windows/.test(ua) ? 'Windows'
     : /CrOS/.test(ua) ? 'Chromebook' : /Mac/.test(ua) ? 'Mac' : /Linux/.test(ua) ? 'Linux' : 'Gerät';
   const browser = /Edg\//.test(ua) ? 'Edge' : /Firefox\/|FxiOS/.test(ua) ? 'Firefox' : /Chrome\/|CriOS/.test(ua) ? 'Chrome' : /Safari\//.test(ua) ? 'Safari' : 'Browser';
   let app = false;

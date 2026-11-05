@@ -1,4 +1,4 @@
-import { AuthStore, BrowserApi } from './api.js';
+import { AuthStore, BrowserApi, isIpad } from './api.js';
 import { H5pRenderer } from '../lm-editor/src/modules/h5p-renderer.js';
 import '../lm-editor/src/doc/latex.js'; // LaTeX-Formeln in Dokumenten
 import { lmHost } from './lm-host.js';
@@ -36,6 +36,9 @@ import { contentFromPairs, pairsFromContent } from './dnd-pairs.js';
 import { useModuleSource, useTopicModules, useTopicSource, useDocumentId, useInkAllowed, useTiptapAllowed } from './docspec-editor.js';
 
 // ==================== APP COORDINATOR ====================
+
+// Eigene Darstellung fürs iPad (styles.css), z. B. die Knöpfe des Quiz in der Titelleiste.
+document.documentElement.classList.toggle('is-ipad', isIpad());
 
 /** Wie man die App von Hand installiert – je nach Browser. */
 function installHowTo() {

@@ -439,7 +439,7 @@ export class QuizView {
     this._quizProgressFill.style.width = `${progress}%`;
     this._quizInfo.innerHTML = `
       <strong>${t('quiz.module.of', { current: currentIndex + 1, total: modules.length })}</strong>
-      ${escapeHtml(mod.title)}
+      <span class="quiz-info-title">${escapeHtml(mod.title)}</span>
       <span class="quiz-type-badge">${typeDef.icon || ''} ${typeDef.name || mod.type}</span>
       ${mod._topicTitle ? `<span class="quiz-topic-badge">${escapeHtml(mod._topicTitle)}</span>` : ''}`;
 

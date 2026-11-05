@@ -132,20 +132,34 @@ export async function mountHtmlApp({ el, moduleId, content, options, title }) {
       step = steps.find((s) => s.id === pick.value);
       frame.src = open.shellUrl;
     });
-    bar.append(hint, pick, big);
+    bar.append(pick);
+  }
+
+  // Im Durchlauf stehen Groß/Verkleinern und der Hinweis in der Titelleiste des Quiz, sonst über der App.
+  // Das Quiz schreibt die Titelleiste je Schritt neu, deshalb auch nach dem Zurückblättern (syncLarge).
+  const inRun = !!options.appRun && !!document.getElementById('quizActions');
+  const titleSlot = document.createElement('span');
+  const showInTitle = () => {
+    if (wrap.isConnected) document.getElementById('quizInfo')?.appendChild(titleSlot);
+  };
+  if (inRun) {
+    titleSlot.className = 'quiz-info-actions lm-app-title-actions';
+    hint.classList.add('lm-app-title-hint');
+    titleSlot.append(hint, big);
   } else {
-    bar.append(hint, big);
+    bar.prepend(hint);
+    bar.append(big);
   }
 
   frame.src = open.shellUrl;
-  wrap.append(bar, frame);
+  wrap.append(...(bar.childElementCount ? [bar] : []), frame);
   el.appendChild(wrap);
+  if (inRun) showInTitle();
 
   // Ohne Umhängen: Ein iframe, das den Platz im Baum wechselt, lädt neu.
   // Im Durchlauf füllt „Groß“ die freie Fläche: Weiter-Zeile und Eule bleiben sichtbar, und es gilt auch für die
   // nächsten Schritte. Ohne Durchlauf (Vorschau) gibt es nichts freizuhalten: über den ganzen Bildschirm.
   // Das Layout füllt die Fläche, nicht gerechnete Pixel: Die vertragen sich nicht mit „Zoom Inhalt“.
-  const inRun = !!options.appRun && !!document.getElementById('quizActions');
   const box = document.getElementById('quizModuleContainer');
   let large = false;
   const setLarge = (on) => {
@@ -181,7 +195,7 @@ export async function mountHtmlApp({ el, moduleId, content, options, title }) {
     reveal: () => send('lm.reveal', {}),
     check: () => send('lm.check', {}),
     /** Zurückgeblättert: Die Ansicht ist wieder da, „Groß“ gilt wie zuletzt gewählt. */
-    syncLarge: () => { if (inRun) setLarge(!!session.large); },
+    syncLarge: () => { if (inRun) { showInTitle(); setLarge(!!session.large); } },
     /** Offene Eingabe abschließen lassen; die Antwort ist da, wenn das Versprechen erfüllt ist. */
     flush: () => new Promise((resolve) => {
       const done = () => { flushDone = null; resolve(); };

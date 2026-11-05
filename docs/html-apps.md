@@ -201,7 +201,7 @@ nicht abfangen. Die Prüfung lehnt `location` und die üblichen Verschleierungen
 kommt aber daran vorbei. Abfließen könnten Eingaben in die App und die IP-Adresse, keine Namen. Im Shop gilt
 Vertrauen in die Lehrkraft: Bis ein Admin eine solche App bemerkt und sperrt, kann sie bei anderen laufen.
 
-**⛶ Groß:** Im Durchlauf füllt die App die freie Fläche über der Weiter-Zeile, auch für die nächsten Schritte. Die Eule bleibt sichtbar.
+**⛶ Groß:** Der Knopf steht im Durchlauf in der Titelleiste. Die App füllt dann die freie Fläche, auch für die nächsten Schritte. Die Eule bleibt sichtbar. Auf dem iPad stehen auch Zurück, Weiter und Quiz abbrechen in der Titelleiste, sonst bleiben sie in der Zeile unter der App.
 
 ## Was im Sandkasten geht
 

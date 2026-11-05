@@ -4753,6 +4753,42 @@ body.html-app-large .quiz-actions { margin-top: 8px; padding-top: 8px; flex-shri
 .student-run .module-preview-header h3 { margin-top: 0 !important; }
 .student-run .companion-panel:not(.companion-in-sidebar) { margin: 10px 0 0; flex-shrink: 0; }
 
+.lm-app-title-actions { display: inline-flex; align-items: center; gap: 8px; }
+.lm-app-title-hint { white-space: nowrap; }
+
+/* iPad: Die Knöpfe stehen in einer schmalen Titelleiste über der Aufgabe, damit
+   sie immer erreichbar sind und die Aufgabe die ganze Höhe darunter bekommt. */
+.is-ipad .student-run .main-content { padding: 6px 12px; }
+.is-ipad .student-run #quizPlayerArea:not(.hidden) {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  grid-template-areas: "bar bar" "info actions" "task task" "owl owl";
+  column-gap: 10px;
+  align-items: center;
+}
+.is-ipad .student-run .quiz-progress-bar { grid-area: bar; height: 4px; margin-bottom: 5px; }
+.is-ipad .student-run .quiz-info { grid-area: info; display: flex; align-items: center; gap: 6px; min-width: 0; margin: 0; font-size: 0.85rem; white-space: nowrap; }
+.is-ipad .student-run .quiz-info-title { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.is-ipad .student-run .quiz-info .quiz-type-badge,
+.is-ipad .student-run .quiz-info .quiz-topic-badge { display: none; }
+.is-ipad .student-run .quiz-info-actions { float: none; flex: none; margin-left: auto; }
+.is-ipad .student-run .quiz-actions { grid-area: actions; gap: 6px; margin: 0; padding: 0; border-top: none; }
+.is-ipad .student-run .quiz-actions .btn { padding: 5px 12px; font-size: 0.85rem; white-space: nowrap; }
+.is-ipad .student-run #quizModuleContainer { grid-area: task; align-self: stretch; margin-top: 5px; padding: 10px 14px; }
+.is-ipad .student-run .companion-panel:not(.companion-in-sidebar) { grid-area: owl; margin: 5px 0 0; }
+.is-ipad .student-run .lm-app-title-hint { display: none; }
+.is-ipad .student-run .quiz-info-actions .btn { padding: 5px 10px; font-size: 0.8rem; white-space: nowrap; }
+/* Geteilter Bildschirm: Für Titel und Knöpfe nebeneinander reicht die Breite nicht. */
+@media (max-width: 640px) {
+  .is-ipad .student-run #quizPlayerArea:not(.hidden) {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto auto auto minmax(0, 1fr) auto;
+    grid-template-areas: "bar" "info" "actions" "task" "owl";
+  }
+  .is-ipad .student-run .quiz-actions { margin-top: 4px; }
+}
+
 /* Seitenleiste der Schüler: "Aufgaben" hat keine Funktion, Einstellungen gestaucht. */
 .student-run #studentNav { display: none !important; }
 .student-run .sidebar-header { padding: 16px 16px 10px; }

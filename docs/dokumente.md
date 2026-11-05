@@ -494,7 +494,7 @@ wenn die Lehrkraft des Lernthemas freigeschaltet ist.
   Ein oranger Punkt daran heißt „noch nicht gespeichert“, grün „eben
   gespeichert“. Ist die Leiste zu schmal (iPad hochkant), lässt sie sich zur
   Seite wischen.
-- **Werkzeugleiste:** oben die Werkzeuge (Auswahl, Stift, Textmarker,
+- **Werkzeugleiste:** oben die Werkzeuge (Pfeil, Bereich, Stift, Textmarker,
   Radierer, Text, Geodreieck), Rückgängig, Hintergrund (nur bei freien Blättern) und
   Zoom, fest am rechten Rand die Lampe für die Lösungen; darunter schwebend die Einstellungen des gewählten Werkzeugs –
   Strichstärken und Farben, beim Text die Schriftgröße, bei der Auswahl
@@ -502,9 +502,10 @@ wenn die Lehrkraft des Lernthemas freigeschaltet ist.
 - **Werkzeuge:** ✏️ Stift (mit Druck), 🖍️ Textmarker (unter der Schrift),
   🧽 Radierer (ganze Striche; auch das Radierer-Ende bzw. die Löschtaste eines
   Windows-Stifts – sie radiert immer, öffnet kein Menü und wechselt nicht zu
-  „Auswählen“),
-  ⬚ Auswählen (einen Strich antippen oder ein Rechteck aufziehen, dann
-  verschieben oder 🗑 löschen), **T** Textfeld (auf die Seite tippen und
+  den Pfeil),
+  ➚ Pfeil (ein Element antippen, dann verschieben oder 🗑 löschen; auf einem Quiz
+  wird es bedient), ⬚ Bereich (ein Rechteck aufziehen, alles darin ist gewählt),
+  **T** Textfeld (auf die Seite tippen und
   schreiben; Schriftgröße 8–36 pt wie im Dokument-Editor; gewählt am runden
   Anfasser darüber drehbar, rastet bei 0°, 15°, 30° … ein). Dazu Farben, drei
   Strichstärken, ↶ ↷ und Zoom.
@@ -561,7 +562,7 @@ wenn die Lehrkraft des Lernthemas freigeschaltet ist.
   wie Arial): Auf iPad, PC und Handy bricht der Text an denselben Stellen um.
 - **Schreibfelder anpassen:** Unten am Feld sitzt ein blauer Anfasser – nach
   unten ziehen macht es länger (in 0,5-cm-Schritten), nach oben wieder kürzer,
-  aber nie kürzer als im Dokument. Mit **⬚ Auswählen** kommen ein Anfasser
+  aber nie kürzer als im Dokument. Mit dem **➚ Pfeil** kommen ein Anfasser
   rechts (Breite) und einer an der Ecke (beides) dazu. Das **Muster** (▦ Karo,
   ☰ Linien, ▢ Leer, ◌ Unsichtbar) steht im Kontextmenü des Felds: Rechtsklick
   aufs Feld, auf dem iPad lange darauf drücken (unsichtbare Felder sind hier
@@ -574,7 +575,7 @@ wenn die Lehrkraft des Lernthemas freigeschaltet ist.
   (unsichtbar, eine Zeile hoch – am Anfasser größer ziehen), **▦ Karo** oder
   **☰ Linien**. Die Lehrkraft fügt das Feld ins Dokument ein (eigene
   Lernthemen), Schüler nur in ihre eigene Beschriftung; ein selbst eingefügtes
-  Feld entfernt das **✕** in der Feldleiste (mit ⬚ Auswählen) wieder.
+  Feld entfernt das **✕** in der Feldleiste (mit dem ➚ Pfeil) wieder.
   Lehrkräfte haben im Menü außerdem **🧩 Quiz aus dem Lernthema** und
   **📄 PDF an dieser Stelle** (Text mit Struktur, Seiten als Bilder oder
   KI-Erkennung) – beides landet als Bausteine im Dokument. Das gilt in eigenen
@@ -582,13 +583,11 @@ wenn die Lehrkraft des Lernthemas freigeschaltet ist.
   in der Notebook-Vorschau, **✍️ Mit Stift bearbeiten** am Dokument (Notebook-
   Vorschau, Vollbild, Vorschau aus der Modulliste). Zur Auswahl stehen alle
   Module des Lernthemas außer Dokumenten.
-- **👆 Bedienen:** Eingebettete Quizze im Blatt ausfüllen. **Auswählen und
-  Bedienen wechseln von selbst:** Wer mit einem der beiden auf ein Quiz tippt,
-  füllt es aus; daneben – oder auf einem Strich oder Textfeld über dem Quiz –
-  wird ausgewählt. Ein Finger bedient Quizze immer. Mit Stift,
-  Textmarker und Textfeld schreiben Stift und Maus auch über einem Quiz. Im
-  Dokument ist beim Öffnen **Bedienen** gewählt – geschrieben wird erst, wenn
-  du den Stift wählst (nichts gerät aus Versehen aufs Blatt).
+- **Quizze im Blatt:** Mit dem ➚ Pfeil werden sie ausgefüllt; ein Strich oder
+  Textfeld über dem Quiz wird stattdessen ausgewählt. Ein Finger bedient Quizze
+  immer. Mit Stift, Textmarker und Textfeld schreiben Stift und Maus auch über
+  einem Quiz. Im Dokument ist beim Öffnen der **Pfeil** gewählt – geschrieben
+  wird erst, wenn du den Stift wählst (nichts gerät aus Versehen aufs Blatt).
 - **Gespeichert** wird kurz nach jeder Änderung; rechts in der Leiste steht
   dann nur 💾 (bzw. ⚠️ bei einem Fehler, … solange es läuft) – der genaue
   Text im Tooltip. Das gewählte Werkzeug bleibt beim Speichern erhalten.
@@ -600,7 +599,7 @@ wenn die Lehrkraft des Lernthemas freigeschaltet ist.
   Auswahl, sonst Werkzeug wechseln, Rückgängig/Wiederholen, Einfügen und im
   Dokument **➕ Hier einfügen** (Schreibfeld, Quiz …) hinter dem Baustein an
   dieser Stelle.
-- **⬚ Auswählen** an einem Textfeld: **✏️ Text bearbeiten** im Menü (⋯,
+- **➚ Pfeil** an einem Textfeld: **✏️ Text bearbeiten** im Menü (⋯,
   Rechtsklick, lange drücken) oder Doppelklick – es geht gleich weiter mit dem
   Schreiben. Eine Farbe gilt sofort, auch für das Textfeld, in dem du gerade
   schreibst.
@@ -622,18 +621,18 @@ wenn die Lehrkraft des Lernthemas freigeschaltet ist.
   Schulvorlage, Seitenumbrüche aus dem Dokument; Schreibfelder, Bilder und
   Formeln werden nicht über zwei Seiten zerrissen. Schüler sehen nur das
   Arbeitsblatt. Quizze erscheinen so, wie sie gerade aussehen.
-- **Finger und Scrollen:** Stift und Maus arbeiten überall. **Der Finger** hängt
-  vom Blatt ab:
-  - **Im Dokument** arbeitet ein Finger bei ✏️ Stift und 🧽 Radierer nur in
-    **Karo- und Linienfeldern**; daneben verschiebt er das Blatt. Der Radierer
-    löscht außerdem überall, wo er auf vorhandene Beschriftung trifft. Ein Quiz
-    bedient der Finger beim Tippen.
-  - **Auswählen, 🖍️ Textmarker, Formen, Leuchtstift und Feld** wirken mit dem
-    Finger auf dem ganzen Blatt, es steht dabei still.
-  - **Auf freien Blättern** (Karo, Linien, leer, PDF) ist die ganze Seite
-    Zeichenfläche, das Blatt steht still.
-  - **Bei Text und 👆 Bedienen** scrollt ein Finger; Antippen legt beim Text ein
-    Feld an.
+- **Finger und Scrollen:** Stift und Maus arbeiten überall. **Der Finger**
+  verschiebt das Blatt und schreibt nicht:
+  - **Ist etwas gewählt,** verschiebt ein Finger auf der Auswahl diese; daneben
+    scrollt er. Antippen wählt ein Element (mit Pfeil und Bereich), daneben hebt
+    es die Auswahl auf. Ein Quiz bedient der Finger beim Tippen.
+  - **Lange drücken** öffnet das Menü der Stelle, mit dem Stift bei Pfeil und Bereich.
+    Ein schreibender Stift öffnet nie ein Menü.
+  - **☝️ Finger schreibt:** Lange auf den Knopf ✏️ drücken (oder Rechtsklick) und
+    einschalten; das gilt je Gerät und ist am Knopf zu sehen. Der Finger arbeitet
+    dann mit allen Werkzeugen wie ein Stift, das Blatt steht still. Ab Werk ist es
+    aus; beim ersten Fingerkontakt mit einem Schreibwerkzeug erscheint ein Hinweis
+    mit Schalter.
 
   **Zwei Finger** verschieben das Blatt immer. Mit der Maus gehen Scrollleiste
   und Mausrad. Auf Touch-Geräten liegt rechts eine **Scrollleiste für den
@@ -650,7 +649,7 @@ wenn die Lehrkraft des Lernthemas freigeschaltet ist.
   der Ecke – die Skala bleibt in echten Zentimetern, ein größeres Dreieck hat
   nur mehr Striche. **Setzt der Stift an einer Kante an**, läuft der Strich
   genau an ihr entlang – an der langen Kante wie an den Schenkeln, mit Stift,
-  Maus oder (bei Stift und Textmarker) Finger. Neben dem Dreieck scrollen zwei Finger.
+  Maus oder (mit „Finger schreibt“) Finger. Neben dem Dreieck scrollt der Finger.
 
 Die Leiste bleibt immer oben: Solange der Editor offen ist, zoomt der
 Browser die Seite nicht (iPad: Zwei-Finger-Geste); Strg+Mausrad bzw. das
@@ -679,7 +678,7 @@ Browser lag, kommt beim ersten Öffnen mit). Über dem Dokument schaltet
 - **für alle** – Schüler sehen sie in der Ansicht und im Stift-Editor unter
   ihrer eigenen Beschriftung (nur ansehen, nicht ändern).
 
-**In das Dokument übernehmen:** Striche wählen (⬚ Auswählen), dann im Menü
+**In das Dokument übernehmen:** Striche wählen (➚ Pfeil oder ⬚ Bereich), dann im Menü
 (⋯, Rechtsklick, lange drücken) **💡 Als Lösung ins Dokument** oder **🖼 Als
 Bild ins Dokument**. Sie werden ein Bild hinter dem Baustein an ihrer Stelle –
 als Lösung erscheinen sie im Lösungsblatt (auch im Druck). Aus der

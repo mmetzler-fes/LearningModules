@@ -20,7 +20,6 @@ const TRANSLATIONS = {
     'login.admin.error': 'Falsche Anmeldedaten.',
 
     // Sidebar
-    'nav.topics': 'LernModule',
     'nav.results': 'Ergebnisse',
     'nav.student.topics': 'Lernthemen',
     'nav.student.quiz': 'Quiz starten',
@@ -67,7 +66,7 @@ const TRANSLATIONS = {
 
     // Modules
     'modules.title': 'Module verwalten',
-    'modules.breadcrumb.topics': '📂 Lernthemen',
+    'modules.breadcrumb.topics': '📓 Notebooks',
     'modules.search.placeholder': 'Module durchsuchen...',
     'modules.filter.all': 'Alle Typen',
     'modules.new': '➕ Neues Modul',
@@ -186,7 +185,6 @@ const TRANSLATIONS = {
     'login.admin.error': 'Invalid credentials.',
 
     // Sidebar
-    'nav.topics': 'Learning Modules',
     'nav.results': 'Results',
     'nav.student.topics': 'Learning Topics',
     'nav.student.quiz': 'Start Quiz',
@@ -233,7 +231,7 @@ const TRANSLATIONS = {
 
     // Modules
     'modules.title': 'Manage Modules',
-    'modules.breadcrumb.topics': '📂 Learning Topics',
+    'modules.breadcrumb.topics': '📓 Notebooks',
     'modules.search.placeholder': 'Search modules...',
     'modules.filter.all': 'All Types',
     'modules.new': '➕ New Module',

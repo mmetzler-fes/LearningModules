@@ -1,54 +1,18 @@
-import { escapeHtml, escapeAttr, showImportReport } from '../utils.js';
-import { TagFilter, TagPicker, renderAreaGroups, orderByArea, chipHtml } from './tags.js';
+import { escapeHtml, showImportReport } from '../utils.js';
 import { helpHint } from './help-view.js';
-import { openFeedbackDialog } from './feedback.js';
 import { openHandoverDialog, renderIncomingHandovers } from './handover.js';
 import { openAccountLinksDialog } from './account-links.js';
 import { openGithubBackupDialog } from './github-backup.js';
-import { openImportDialog } from './import-dialog.js';
 import { openNextcloudDialog } from './nextcloud.js';
 
-// ==================== TOPICS VIEW ====================
-
-/** Lernthemen je Seite – mehr Karten auf einmal machen die Ansicht träge. */
-const TOPICS_PER_PAGE = 10;
-
-/** Letzte Änderung an einem Thema oder einem seiner Module (ms, 0 = unbekannt). */
-function lastChange(topic) {
-  let latest = Date.parse(topic.updatedAt) || 0;
-  for (const m of topic.modules || []) latest = Math.max(latest, Date.parse(m.updatedAt) || 0);
-  return latest;
-}
+// ==================== LERNTHEMEN: DIALOGE UND ☰ MENÜ ====================
+//
+// Die Seite „LernModule“ gibt es nicht mehr, die Themen stehen in den Notebooks. Hier bleiben Dialoge,
+// die mehrere Ansichten brauchen (Export, Quick-Link, Löschen), und die Einträge von ☰ Menü.
 
 export class TopicsView {
   constructor(app) {
     this.app = app;
-
-    this._topicsList      = document.getElementById('topicsList');
-    this._formContainer   = document.getElementById('topicFormContainer');
-    this._form            = document.getElementById('topicForm');
-    this._formTitle       = document.getElementById('topicFormTitle');
-    this._titleInput      = document.getElementById('topicTitle');
-    this._descInput       = document.getElementById('topicDescription');
-    this._btnNew          = document.getElementById('btnNewTopic');
-    this._btnImport       = document.getElementById('btnImportTopic');
-    this._btnExportH5p    = document.getElementById('btnExportH5p');
-    this._btnCancel       = document.getElementById('btnCancelTopic');
-    this._subscribeKeyEl  = document.getElementById('topicSubscribeKey');
-    this._exportOverlay   = document.getElementById('exportH5pTopicOverlay');
-    this._exportList      = document.getElementById('exportH5pTopicList');
-    this._exportBtnCancel = document.getElementById('exportH5pBtnCancel');
-    this._section         = document.getElementById('view-teacher-topics');
-    this._tagPicker       = new TagPicker(app, document.getElementById('topicTags'));
-
-    this._filter = new TagFilter(app, {
-      searchInput: document.getElementById('topicTagSearch'),
-      chipList: document.getElementById('topicTagFilterChips'),
-      modeToggle: document.getElementById('topicTagFilterAll'),
-      // Filtern ändert nur die Anzeige – kein erneutes Laden vom Server.
-      onChange: () => { this._page = 0; this._render(); },
-    });
-    this._page = 0;
 
     this._bindEvents();
   }
@@ -60,56 +24,18 @@ export class TopicsView {
     document.getElementById('btnAccountLinks')?.addEventListener('click', () => openAccountLinksDialog(this.app));
     document.getElementById('btnGithubBackup')?.addEventListener('click', () => openGithubBackupDialog(this.app));
     document.getElementById('btnNextcloud')?.addEventListener('click', () => openNextcloudDialog(this.app));
-
-    if (this._btnNew) {
-      this._btnNew.addEventListener('click', () => {
-        this.app.state.editingTopicId = null;
-        this._formTitle.textContent = t('topics.form.new');
-        this._titleInput.value = '';
-        this._descInput.value = '';
-        if (this._subscribeKeyEl) this._subscribeKeyEl.value = '';
-        this._tagPicker.render([]);
-        this._showForm();
-      });
-    }
-
-    // Ein Dialog für Datei (JSON, Moodle-XML, .lmenc, H5P) und eingefügten Text.
-    this._btnImport?.addEventListener('click', () => {
-      openImportDialog(this.app, { h5p: true, onDone: () => this.refresh() });
-    });
-
-    if (this._btnExportH5p) {
-      this._btnExportH5p.addEventListener('click', () => this._onExportH5p());
-    }
-
-    if (this._exportBtnCancel) {
-      this._exportBtnCancel.addEventListener('click', () => {
-        this._exportOverlay.classList.add('hidden');
-      });
-    }
-
-    if (this._btnCancel) {
-      this._btnCancel.addEventListener('click', () => {
-        this._hideForm();
-        this.app.state.editingTopicId = null;
-      });
-    }
-
-    if (this._form) {
-      this._form.addEventListener('submit', (e) => this._onFormSubmit(e));
-    }
   }
 
-  async refresh() {
-    this.refreshSharedTopics();
+  /** Was zur Titelzeile gehört: Zahlen, 🎁 eingehende Übergaben, 💾 GitHub-Backup. */
+  async refreshTitleTools() {
     renderIncomingHandovers(this.app, document.getElementById('handoverIncoming'));
     this._syncGithubBackupButton();
-    // Themen und Tags gleichzeitig laden statt nacheinander.
-    await Promise.all([this.app.loadTopics(), this.app.loadTags()]);
-    this._filter.render();
-    this._hideForm();
-    this._render();
-    this._renderStats();
+    this.renderCounts();
+    try {
+      const results = await this.app.api.getQuizResults();
+      const el = document.getElementById('statResults');
+      if (el) el.textContent = Array.isArray(results) ? results.length : 0;
+    } catch (_) { /* Zahl bleibt stehen */ }
   }
 
   /** 💾 GitHub-Backup nur zeigen, wenn der Admin es nicht abgeschaltet hat. */
@@ -120,17 +46,13 @@ export class TopicsView {
     btn.classList.toggle('hidden', data?.allowed === false);
   }
 
-  /** Kleine Zahlenleiste über den Themen (früher das Dashboard). */
-  async _renderStats() {
+  /** Zahlen in der Titelzeile, die ohne Server auskommen. */
+  renderCounts() {
     const topics = this.app.state.topics || [];
     const set = (id, value) => { const el = document.getElementById(id); if (el) el.textContent = value; };
     set('statTopics', topics.length);
     set('statModules', topics.reduce((sum, t) => sum + (t.modules || []).length, 0));
     set('statActive', topics.filter((t) => t.selected).length);
-    try {
-      const results = await this.app.api.getQuizResults();
-      set('statResults', Array.isArray(results) ? results.length : 0);
-    } catch (_) { /* Zahl bleibt stehen */ }
   }
 
   /** Übersicht der H5P-Modultypen (früher auf dem Dashboard). */
@@ -153,169 +75,6 @@ export class TopicsView {
     const close = () => overlay.remove();
     overlay.querySelector('.btn-close').addEventListener('click', close);
     overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
-  }
-
-  /**
-   * Zeichnet die Liste aus den geladenen Themen: Filter anwenden, dann eine
-   * Seite mit höchstens TOPICS_PER_PAGE Karten. Geprüft werden dabei nur die
-   * Tags der Themen selbst.
-   */
-  _render() {
-    const all = this.app.state.topics || [];
-    // Der Filter schränkt nur die Anzeige ein – "Alle auswählen" unten bezieht
-    // sich deshalb bewusst auf die gerade sichtbaren Themen.
-    // Geblättert wird Themengebiet für Themengebiet, darin das zuletzt
-    // geänderte Thema zuerst – so ist ein Gebiet nie über Seiten verstreut.
-    const matching = orderByArea(
-      all.filter((topic) => this._filter.matches(topic))
-        .map((topic) => [lastChange(topic), topic])
-        .sort((a, b) => b[0] - a[0])
-        .map(([, topic]) => topic),
-      this.app.state.tags,
-      true,
-    );
-    const pages = Math.max(1, Math.ceil(matching.length / TOPICS_PER_PAGE));
-    this._page = Math.min(Math.max(0, this._page || 0), pages - 1);
-    const topics = matching.slice(this._page * TOPICS_PER_PAGE, (this._page + 1) * TOPICS_PER_PAGE);
-    this._topicsList.innerHTML = '';
-
-    if (topics.length > 0) {
-      const selectAllRow = document.createElement('div');
-      selectAllRow.style.cssText = 'display:flex; justify-content:flex-end; gap:12px; margin-bottom:10px;';
-
-      const selectAllBtn = document.createElement('button');
-      selectAllBtn.className = 'btn btn-secondary btn-sm';
-      selectAllBtn.textContent = 'Alle auswählen';
-      selectAllBtn.title = 'Alle Lernthemen aktivieren';
-
-      const deselectAllBtn = document.createElement('button');
-      deselectAllBtn.className = 'btn btn-secondary btn-sm';
-      deselectAllBtn.textContent = 'Alle abwählen';
-      deselectAllBtn.title = 'Alle Lernthemen deaktivieren';
-
-      selectAllBtn.addEventListener('click', async () => {
-        for (const topic of matching) { if (!topic.selected) await this.app.api.toggleTopicSelection(topic.id, true); }
-        this.app.showToast('Alle Lernthemen aktiviert', 'info');
-        this.refresh();
-      });
-      deselectAllBtn.addEventListener('click', async () => {
-        for (const topic of matching) { if (topic.selected) await this.app.api.toggleTopicSelection(topic.id, false); }
-        this.app.showToast('Alle Lernthemen deaktiviert', 'info');
-        this.refresh();
-      });
-
-      selectAllRow.appendChild(selectAllBtn);
-      selectAllRow.appendChild(deselectAllBtn);
-      this._topicsList.appendChild(selectAllRow);
-    }
-
-    if (topics.length === 0) {
-      this._topicsList.innerHTML = all.length === 0
-        ? '<div class="empty-state"><span class="empty-icon">📂</span><p>Noch keine Lernthemen erstellt.</p></div>'
-        : '<div class="empty-state"><span class="empty-icon">🏷</span><p>Kein Thema passt zum gewählten Filter.</p></div>';
-      if (this._btnExportH5p) this._btnExportH5p.disabled = true;
-      return;
-    }
-
-    // Blättern oben und unten, damit man bei langen Seiten nicht scrollen muss.
-    if (pages > 1) this._topicsList.appendChild(this._pager(matching.length, pages));
-
-    // Mit Themengebieten gegliedert und aufklappbar; bei aktivem Tag-Filter
-    // ist alles offen, damit kein Treffer im zugeklappten Abschnitt steckt.
-    const grouped = renderAreaGroups(this._topicsList, topics, {
-      tags: this.app.state.tags,
-      scope: 'topics',
-      respectHidden: true,
-      expandAll: this._filter.selectedIds.length > 0,
-      buildItem: (topic, areaId) => this._buildCard(topic, areaId),
-      countLabel: (n) => (n === 1 ? '1 Lernthema' : `${n} Lernthemen`),
-    });
-    if (!grouped) for (const topic of topics) this._topicsList.appendChild(this._buildCard(topic));
-    if (pages > 1) this._topicsList.appendChild(this._pager(matching.length, pages));
-
-    if (this._btnExportH5p) {
-      this._btnExportH5p.disabled = !topics.some(
-        (t) => t.h5pImportMode !== 'raw' && (t.modules || []).some((m) => m.moduleSelected !== false)
-      );
-    }
-  }
-
-  /** Blättern: ← Zurück · Seite x von y · Weiter →. */
-  _pager(count, pages) {
-    const from = this._page * TOPICS_PER_PAGE + 1;
-    const to = Math.min(count, (this._page + 1) * TOPICS_PER_PAGE);
-    const bar = document.createElement('div');
-    bar.className = 'topics-pager';
-    bar.innerHTML = `
-      <button class="btn btn-secondary btn-sm" data-dir="-1" ${this._page === 0 ? 'disabled' : ''}>← Zurück</button>
-      <span class="topics-pager-info">Seite ${this._page + 1} von ${pages} · Lernthemen ${from}–${to} von ${count}</span>
-      <button class="btn btn-secondary btn-sm" data-dir="1" ${this._page >= pages - 1 ? 'disabled' : ''}>Weiter →</button>`;
-    bar.querySelectorAll('button').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        this._page += Number(btn.dataset.dir);
-        this._render();
-        this._topicsList.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      });
-    });
-    return bar;
-  }
-
-  /** Karte eines Lernthemas mit allen Aktionen. */
-  /** areaId: Themengebiet des Abschnitts – sein Tag steht schon in der Überschrift. */
-  _buildCard(topic, areaId = null) {
-    const isRawTopic = topic.h5pImportMode === 'raw';
-    const moduleCount = isRawTopic
-      ? (topic.h5pRawSummary && topic.h5pRawSummary.itemCount) || 0
-      : (topic.modules || []).length;
-    const { currentUser } = this.app.state;
-    const card = document.createElement('div');
-    card.className = `topic-card ${topic.selected ? 'topic-active' : 'topic-inactive'}`;
-    card.innerHTML = `
-      <div class="topic-card-header">
-        <div class="topic-card-info">
-          <h3 class="topic-card-title">${escapeHtml(topic.title)}</h3>
-          <p class="topic-card-desc">${escapeHtml(topic.description || '')}</p>
-          ${this._originLine(topic)}
-          <div class="topic-card-meta">
-            <span class="topic-module-count">${moduleCount} Module</span>
-            ${isRawTopic ? '<span class="topic-status" style="background:#eef2ff; color:#3730a3;">RAW H5P</span>' : ''}
-            <span class="topic-status ${topic.selected ? 'active' : 'inactive'}">${topic.selected ? '✅ Aktiv' : '❌ Inaktiv'}</span>
-            ${this._rightsBadges(topic)}
-          </div>
-          <div class="topic-card-tags">${this._renderTagChips(topic.tagIds, areaId)}</div>
-        </div>
-        <div class="topic-card-actions">
-          <label class="toggle-switch" title="Für Schüler freigeben">
-            <input type="checkbox" class="topic-toggle" data-topic-id="${topic.id}" ${topic.selected ? 'checked' : ''} />
-            <span class="toggle-slider"></span>
-          </label>
-          <button class="btn btn-primary btn-sm btn-open-topic" title="Module verwalten">📦 Module</button>
-          <button class="btn btn-secondary btn-sm btn-quick-link"
-            title="${topic.selected ? 'Anonymer Link + QR-Code für das Thema – ohne Anmeldung, nichts wird gespeichert' : 'Noch nicht freigegeben – beim Klick lässt es sich gleich freigeben'}">🔗 Quick-Link</button>
-          <button class="btn btn-secondary btn-sm btn-edit-topic" title="Bearbeiten">✏️</button>
-          <button class="btn btn-secondary btn-sm btn-share-topic" title="Im Shop anbieten oder weitergeben">👥</button>
-          <button class="btn btn-secondary btn-sm btn-export-topic" title="Exportieren (JSON, H5P oder verschlüsselt)">📤</button>
-          <button class="btn btn-danger btn-sm btn-delete-topic" title="Löschen">🗑</button>
-        </div>
-      </div>`;
-
-    // Teilen läuft über den Shop – der Knopf führt direkt zum Angebot für dieses Thema.
-    card.querySelector('.btn-share-topic').addEventListener('click', () => this.app.shopView.openForTopic(topic.id));
-    card.querySelector('.topic-toggle').addEventListener('change', async (e) => {
-      await this.app.api.toggleTopicSelection(topic.id, e.target.checked);
-      this.app.showToast(e.target.checked ? t('topics.activated') : t('topics.deactivated'), 'info');
-      this.refresh();
-    });
-    card.querySelector('.btn-rate-origin')?.addEventListener('click', () => openFeedbackDialog(this.app, topic.id));
-    card.querySelector('.btn-open-topic').addEventListener('click', () => this.app.modulesView.openTopicModules(topic.id));
-    card.querySelector('.btn-quick-link').addEventListener('click', () => this._createQuickClassLink(topic));
-    card.querySelector('.btn-edit-topic').addEventListener('click', () => this._openEditor(topic));
-    card.querySelector('.btn-export-topic').addEventListener('click', () => this.openExportDialog(topic));
-    card.querySelector('.btn-delete-topic').addEventListener('click', async () => {
-      if (await this.deleteTopic(topic)) this.refresh();
-    });
-
-    return card;
   }
 
   /**
@@ -361,63 +120,6 @@ export class TopicsView {
       this.refresh();
     }
     await this.app.linksView.openQuickLink({ kind: 'topic', id: topic.id, title: topic.title });
-  }
-
-  /**
-   * Beim Bearbeiten nur das Formular zeigen. Es steht am Ende der Seite -
-   * bei vielen Themen landete es weit unterhalb des sichtbaren Bereichs und
-   * wirkte, als waere nichts passiert.
-   */
-  _showForm() {
-    this._formContainer.classList.remove('hidden');
-    this._section?.classList.add('topic-editing');
-    this._formContainer.scrollIntoView({ block: 'start', behavior: 'smooth' });
-    this._titleInput?.focus();
-  }
-
-  _hideForm() {
-    this._formContainer.classList.add('hidden');
-    this._section?.classList.remove('topic-editing');
-  }
-
-
-  _renderTagChips(tagIds, skipId = null) {
-    const byId = new Map((this.app.state.tags || []).map((t) => [t.id, t]));
-    return (tagIds || [])
-      .filter((id) => id !== skipId)
-      .map((id) => byId.get(id))
-      .filter(Boolean)
-      .map((tag) => chipHtml(tag))
-      .join('');
-  }
-
-  /**
-   * Abzeichen zu Rechten und Shop: wie viel selbst verfasst ist, von wem der
-   * Rest stammt, was im Shop steht und wer das Thema verwendet.
-   */
-  _rightsBadges(topic) {
-    const out = [];
-    const own = topic.ownModuleCount || 0;
-    const foreign = topic.foreignModuleCount || 0;
-    if (foreign > 0) {
-      out.push(`<span class="topic-shared-badge" title="Creator bleibt verzeichnet – du bist Buyer dieser Module">✍️ ${own} eigene · ${foreign} von ${escapeHtml((topic.foreignCreators || []).join(', '))}</span>`);
-    }
-    const co = topic.creatorOffer;
-    if (co && co.active) {
-      const modes = [co.allowUse ? 'Use' : null, co.allowCopy ? 'Copy' : null].filter(Boolean).join(' · ');
-      out.push(`<span class="topic-shared-badge owner">🛒 im Shop: ${modes}</span>`);
-    }
-    const bs = topic.buyerShare;
-    if (bs && bs.active) {
-      out.push(`<span class="topic-shared-badge use">↪ zur Nutzung weitergegeben</span>`);
-    }
-    if (topic.useCount > 0) {
-      out.push(`<span class="topic-shared-badge use" title="So viele verwenden das Thema über ein Nutzungsrecht">🔗 von ${topic.useCount} verwendet</span>`);
-    }
-    if (topic.copyCount > 0) {
-      out.push(`<span class="topic-shared-badge" title="So oft wurde eine eigene Fassung erworben">📋 ${topic.copyCount}× kopiert</span>`);
-    }
-    return out.join('');
   }
 
   // ==================== EXPORT ====================
@@ -497,156 +199,6 @@ export class TopicsView {
       showImportReport({ skipped: res.skipped || [], notes: res.notes || [] }, '📋 Export-Bericht');
     });
     overlay.querySelector('#btnExpEnc').addEventListener('click', () => run(() => this.app.api.exportTopicEncrypted(topic.id), '🔒 Verschlüsselt exportiert'));
-  }
-
-  /**
-   * Herkunftszeile einer Kopie. Reine Nennung, kein Zugriffsrecht – und vom
-   * neuen Eigentümer nicht abstellbar, weil der Server die Felder gar nicht
-   * erst zum Ändern annimmt.
-   */
-  _originLine(topic) {
-    const origin = topic && topic.origin;
-    if (!origin) return '';
-    const title = origin.title ? `„${escapeHtml(origin.title)}"` : 'einem Thema';
-    // Eine Kopie aus dem Shop lässt sich bewerten – bewertet wird das Original.
-    const me = this.app.state.currentUser?.userId || this.app.state.currentUser?.id;
-    const rate = topic.copiedFromOwnerId && topic.copiedFromOwnerId !== me && topic.ownerId === me
-      ? ' · <button type="button" class="link-btn btn-rate-origin" title="Das Original bewerten: Nützlichkeit, Danke, Rückmeldung">⭐ Bewerten</button>'
-      : '';
-    return `<p class="topic-card-desc" style="opacity:.75; font-size:.85em">
-      📋 Kopie von ${title} · Ursprung: ${escapeHtml(origin.author)}${rate}</p>`;
-  }
-
-  _openEditor(topic) {
-    this.app.state.editingTopicId = topic.id;
-    this._formTitle.textContent = t('topics.form.edit');
-    this._titleInput.value = topic.title;
-    this._descInput.value = topic.description || '';
-    if (this._subscribeKeyEl) this._subscribeKeyEl.value = topic.subscribeKey || '';
-    this._tagPicker.render(topic.tagIds || []);
-    this._showForm();
-  }
-
-  async _onFormSubmit(e) {
-    e.preventDefault();
-    const title = this._titleInput.value.trim();
-    if (!title) return;
-
-    const { state, api } = this.app;
-    const { topics } = state;
-
-    const topicData = {
-      id: state.editingTopicId || ('topic_' + Date.now().toString(36) + '_' + Math.random().toString(36).substring(2, 6)),
-      title,
-      description: this._descInput.value.trim(),
-      subscribeKey: this._subscribeKeyEl ? (this._subscribeKeyEl.value.trim() || null) : undefined,
-      tagIds: this._tagPicker.selectedIds,
-      selected: state.editingTopicId ? (topics.find((t) => t.id === state.editingTopicId) || {}).selected || false : false,
-      createdAt: state.editingTopicId ? (topics.find((t) => t.id === state.editingTopicId) || {}).createdAt || new Date().toISOString() : new Date().toISOString(),
-    };
-
-    await api.saveTopic(topicData, !!state.editingTopicId);
-    this.app.showToast(state.editingTopicId ? t('topics.updated') : t('topics.created'), 'success');
-    this._hideForm();
-    state.editingTopicId = null;
-    this.refresh();
-  }
-
-  _onExportH5p() {
-    const { topics } = this.app.state;
-    const exportable = topics.filter(
-      (t) => t.h5pImportMode !== 'raw' && (t.modules || []).some((m) => m.moduleSelected !== false)
-    );
-    if (exportable.length === 0) return;
-
-    if (exportable.length === 1) {
-      this.openExportDialog(exportable[0]);
-      return;
-    }
-
-    this._exportList.innerHTML = '';
-    for (const topic of exportable) {
-      const activeCount = (topic.modules || []).filter((m) => m.moduleSelected !== false).length;
-      const item = document.createElement('div');
-      item.className = 'import-module-item';
-      item.style.justifyContent = 'space-between';
-      item.innerHTML = `
-        <div>
-          <span class="import-module-title">📚 ${escapeHtml(topic.title)}</span>
-          <span class="import-module-type">${activeCount} aktive Modul${activeCount !== 1 ? 'e' : ''}</span>
-        </div>
-        <button class="btn btn-primary btn-sm">📦 Exportieren</button>`;
-      item.querySelector('button').addEventListener('click', () => {
-        this._exportOverlay.classList.add('hidden');
-        this.openExportDialog(topic);
-      });
-      this._exportList.appendChild(item);
-    }
-    this._exportOverlay.classList.remove('hidden');
-  }
-
-  // ==================== ZUR NUTZUNG ERWORBEN ====================
-
-  async refreshSharedTopics() {
-    const section = document.getElementById('sharedTopicsSection');
-    const list = document.getElementById('sharedTopicsList');
-    if (!section || !list) return;
-
-    let topics = [];
-    try {
-      topics = await this.app.api.getGrantedTopics();
-    } catch (_) { topics = []; }
-    if (!Array.isArray(topics) || topics.length === 0) {
-      section.classList.add('hidden');
-      return;
-    }
-    section.classList.remove('hidden');
-    list.innerHTML = '';
-    for (const t of topics) list.appendChild(this._grantedTopicCard(t));
-  }
-
-  /**
-   * Karte eines Themas mit Nutzungsrecht: ansehen, eigener Quick-Link,
-   * zurückgeben. Bearbeiten gibt es hier nicht – dafür im Shop eine Kopie.
-   */
-  _grantedTopicCard(entry) {
-    const card = document.createElement('div');
-    card.className = 'topic-card topic-shared';
-    card.innerHTML = `
-      <div class="topic-card-header">
-        <div class="topic-card-info">
-          <h3 class="topic-card-title">${escapeHtml(entry.title)}</h3>
-          <p class="topic-card-desc">${escapeHtml(entry.description || '')}</p>
-          ${this._originLine(entry)}
-          <div class="topic-card-meta">
-            <span class="topic-module-count">${entry.moduleCount} Module</span>
-            <span class="topic-shared-badge" style="margin-left:8px">von ${escapeHtml(entry.ownerName)}</span>
-            <span class="topic-shared-badge" title="Creator der Module">✍️ ${entry.creators.map(escapeHtml).join(', ')}</span>
-          </div>
-        </div>
-        <div class="topic-card-actions">
-          <button class="btn btn-secondary btn-sm btn-view-shared" title="Module ansehen (nur Anzeige)">👁 Ansehen</button>
-          <button class="btn btn-secondary btn-sm btn-quick-shared" title="Eigener Quick-Link auf dieses Thema – die Ergebnisse kommen zu mir">🔗 Quick-Link</button>
-          <button class="btn btn-secondary btn-sm btn-rate-shared" title="Nützlichkeit bewerten, Danke sagen, Rückmeldung geben">⭐ Bewerten</button>
-          <button class="btn btn-danger btn-sm btn-return-grant" title="Nutzungsrecht zurückgeben">↩ Zurückgeben</button>
-        </div>
-      </div>`;
-
-    card.querySelector('.btn-view-shared').addEventListener('click', () => this._openSharedTopicViewer(entry));
-    // Der Quick-Link gehört mir, nicht dem Eigentümer des Themas: Der Dialog
-    // ist derselbe wie bei eigenen Themen, der Token ein eigener.
-    card.querySelector('.btn-quick-shared').addEventListener('click', () =>
-      this._createQuickClassLink({ id: entry.id, title: entry.title, selected: true }));
-
-    card.querySelector('.btn-rate-shared').addEventListener('click', () => openFeedbackDialog(this.app, entry.id));
-
-    card.querySelector('.btn-return-grant').addEventListener('click', async (e) => {
-      const btn = e.currentTarget;
-      btn.disabled = true;
-      if (await this.returnGrant(entry)) this.refreshSharedTopics();
-      else btn.disabled = false;
-    });
-    return card;
   }
 
   /** Nutzungsrecht nach Rückfrage zurückgeben; true, wenn zurückgegeben. */

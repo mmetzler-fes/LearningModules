@@ -4,14 +4,14 @@ Drei Fälle, drei Wege:
 
 | Fall | Weg |
 |---|---|
-| Neue E-Mail-Adresse, gleicher Server | 🏠 LernModule → **✉️ E-Mail ändern** – alles zieht mit um (siehe [Shop und Rechte](shop-und-rechte.md#konten)) |
-| Material an eine **andere Lehrkraft** geben, z. B. beim Ausscheiden | 🏠 LernModule → **🎁 Inhalte übergeben** |
-| Das **eigene Konto auf einem anderen Server** mit Inhalten versorgen | 🏠 LernModule → **🔗 Andere Server** |
+| Neue E-Mail-Adresse, gleicher Server | ☰ Menü → **✉️ E-Mail ändern** – alles zieht mit um (siehe [Shop und Rechte](shop-und-rechte.md#konten)) |
+| Material an eine **andere Lehrkraft** geben, z. B. beim Ausscheiden | ☰ Menü → **🎁 Inhalte übergeben** |
+| Das **eigene Konto auf einem anderen Server** mit Inhalten versorgen | ☰ Menü → **🔗 Andere Server** |
 
 ## Inhalte an eine andere Lehrkraft übergeben
 
 **🎁 Inhalte übergeben** → E-Mail-Adresse der Lehrkraft, die übernimmt →
-**Übergabe anfragen**. Die andere Lehrkraft sieht oben unter 🏠 LernModule
+**Übergabe anfragen**. Die andere Lehrkraft sieht oben in den Notebooks
 „… möchte dir … Lernthemen übergeben“ und nimmt an oder lehnt ab. Erst dann
 geht etwas über; bis dahin lässt sich die Anfrage zurückziehen.
 

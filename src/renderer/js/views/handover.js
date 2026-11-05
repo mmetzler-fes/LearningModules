@@ -47,7 +47,7 @@ export async function renderIncomingHandovers(app, container) {
       const res = accept ? await app.api.acceptHandover(h.id) : await app.api.declineHandover(h.id);
       if (!res || !res.success) { app.showToast('Fehler: ' + (res?.message || '?'), 'error'); btn.disabled = false; return; }
       app.showToast(accept ? `Übernommen: ${res.summary.topics} Lernthemen, ${res.summary.modules} Module.` : 'Abgelehnt', 'success');
-      if (accept) await app.topicsView.refresh();
+      if (accept) await app.notebooksView.refresh();
       else box.remove();
     }));
   });
@@ -117,7 +117,7 @@ export async function openHandoverDialog(app) {
     if (!(await app.appConfirm(`Alle ${data.ownTopics} Lernthemen an ${email} übergeben${withCreator ? ' – samt Urheberschaft' : ''}?\n\nSobald die Übergabe angenommen ist, gehören sie der anderen Lehrkraft und verschwinden aus deiner Liste.`))) return;
     const res = await app.api.requestHandover({ email, withCreator, note: overlay.querySelector('#hoNote').value.trim() });
     if (!res || !res.success) { app.showToast('Fehler: ' + (res?.message || '?'), 'error'); return; }
-    app.showToast(`Anfrage an ${res.to} gesendet – sie erscheint dort beim nächsten Öffnen von 🏠 LernModule.`, 'success');
+    app.showToast(`Anfrage an ${res.to} gesendet – sie erscheint dort beim nächsten Öffnen der Notebooks.`, 'success');
     close();
   });
 }

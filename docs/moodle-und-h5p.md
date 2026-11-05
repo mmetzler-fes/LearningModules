@@ -7,9 +7,8 @@ einlesen. Was dabei nicht oder nur vereinfacht übernommen wird, zeigt ein
 
 ## Einlesen
 
-**📥 Thema importieren** (Startseite, neues Thema), **📥 Module importieren**
-(Modulliste, ins geöffnete Thema) und **📥 Importieren** in den Notebooks
-öffnen denselben Dialog. Darin entweder
+**📥 Importieren** in den Notebooks (neues Thema) und **📥 Module importieren**
+(Modulliste, ins geöffnete Thema) öffnen denselben Dialog. Darin entweder
 
 - **📄 Datei wählen** oder eine Datei in den Dialog ziehen: JSON, Moodle-XML
   (`.xml`), verschlüsselter Export (`.lmenc`); für ein neues Thema auch H5P

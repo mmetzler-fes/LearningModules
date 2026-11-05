@@ -399,9 +399,6 @@ class App {
       && document.getElementById('view-create-module')?.classList.contains('active')) {
       this.modulesView.leaveEditor();
     }
-    // Das Dashboard ist in den LernModulen aufgegangen; ein gemerkter alter
-    // Menüpunkt (sessionStorage) führt dorthin.
-    if (viewName === 'teacher-dashboard') viewName = 'teacher-topics';
     if (document.querySelector(`.sidebar-nav .nav-btn[data-view="${viewName}"]`)) {
       try { sessionStorage.setItem('lm_last_view', viewName); } catch (_) {}
     }
@@ -424,14 +421,20 @@ class App {
     if (targetView) targetView.classList.add('active');
 
     // Die Modulliste gehört zu einem Lernthema und hat keinen eigenen Menüpunkt.
-    const navName = viewName === 'teacher-modules' ? 'teacher-topics' : viewName;
+    const navName = viewName === 'teacher-modules' ? 'teacher-notebooks' : viewName;
     const targetBtn = navContainer.querySelector('.nav-btn[data-view="' + navName + '"]')
       || (adminNavEl && adminNavEl.querySelector('.nav-btn[data-view="' + navName + '"]'))
       || schoolNavEl?.querySelector('.nav-btn[data-view="' + navName + '"]');
     if (targetBtn) targetBtn.classList.add('active');
 
+    // Zahlen und ☰ Menü stehen in der Reiterzeile: Notizbuch und Klassennotizbuch.
+    const titleRow = targetView?.querySelector('.nb-switch');
+    if (titleRow) {
+      titleRow.appendChild(document.getElementById('titleTools'));
+      void this.topicsView.refreshTitleTools();
+    }
+
     switch (viewName) {
-      case 'teacher-topics':    this.topicsView.refresh(); break;
       case 'teacher-notebooks': this.notebooksView.refresh(); break;
       case 'teacher-modules':   this.modulesView.refresh(); break;
       case 'teacher-results':   this.resultsView.refresh(); break;
@@ -638,7 +641,7 @@ class App {
             nameEl.append(` ${res.session.displayName}`);
           }
           await this.loadTopics();
-          this.navigateToView('teacher-topics');
+          this.navigateToView('teacher-notebooks');
           this.showToast(
             `Konten zusammengeführt – du bist jetzt als ${res.session.email} angemeldet.` +
               (res.session.role === 'admin' && !document.getElementById('adminNav')?.offsetParent
@@ -720,6 +723,28 @@ class App {
     }
   }
 
+  /** ☰ Menü: Die Einträge sind eigene Knöpfe, die ihre Ansichten selbst verdrahten; hier nur auf und zu. */
+  initTitleMenu() {
+    const btn = document.getElementById('btnTitleMenu');
+    const menu = document.getElementById('titleMenu');
+    const show = (on) => {
+      menu.classList.toggle('hidden', !on);
+      btn.setAttribute('aria-expanded', String(on));
+      if (!on) return;
+      const r = btn.getBoundingClientRect();
+      menu.style.top = `${r.bottom + 4}px`;
+      menu.style.left = `${Math.max(8, r.right - menu.offsetWidth)}px`;
+      menu.querySelector('.nb-menu-item:not(.hidden)')?.focus();
+    };
+    btn.addEventListener('click', (e) => { e.stopPropagation(); show(menu.classList.contains('hidden')); });
+    document.addEventListener('click', () => show(false));
+    document.addEventListener('keydown', (e) => {
+      if (e.key !== 'Escape' || menu.classList.contains('hidden')) return;
+      show(false);
+      btn.focus();
+    });
+  }
+
   async init() {
     // Reiter „📓 Notizbuch | 📒 Klassennotizbuch“ über beiden Ansichten.
     document.addEventListener('click', (e) => {
@@ -728,6 +753,7 @@ class App {
     });
     this.initTheme();
     this.initSidebarToggle();
+    this.initTitleMenu();
     this.initGlobalEvents();
     applyTranslations();
 

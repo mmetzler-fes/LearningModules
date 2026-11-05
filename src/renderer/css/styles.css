@@ -3270,12 +3270,6 @@ body.html-app-large .quiz-actions { margin-top: 8px; padding-top: 8px; flex-shri
  * Filter und Werkzeugleiste zurueck. Das Formular steht im Markup ganz
  * unten - bei vielen Themen war es sonst ausserhalb des Bildschirms.
  */
-#view-teacher-topics.topic-editing .topic-actions-bar,
-#view-teacher-topics.topic-editing .tag-filter-bar,
-#view-teacher-topics.topic-editing #topicsList,
-#view-teacher-topics.topic-editing #sharedTopicsSection {
-  display: none;
-}
 
 /* ---- Tag-Auswahl im Formular, inkl. Zeile zum Anlegen ---- */
 .tag-picker-wrap { display: flex; flex-direction: column; gap: 10px; }
@@ -4089,8 +4083,8 @@ body.html-app-large .quiz-actions { margin-top: 8px; padding-top: 8px; flex-shri
 .nc-section-body > .hint:first-child, .nc-howto > .hint { margin: 0 0 12px; }
 
 /* Knopf ☁️ Nextcloud: Bilder in der App über dem Hinweis (views/image-store.js) */
-#btnNextcloud.nc-attention { position: relative; }
-#btnNextcloud.nc-attention::after {
+#btnNextcloud.nc-attention, #btnTitleMenu.nc-attention { position: relative; }
+#btnNextcloud.nc-attention::after, #btnTitleMenu.nc-attention::after {
   content: ''; position: absolute; top: -3px; right: -3px; width: 10px; height: 10px;
   border-radius: 50%; background: var(--warning, #f59e0b); border: 2px solid var(--bg-primary, #fff);
 }
@@ -4918,8 +4912,6 @@ body.html-app-large .quiz-actions { margin-top: 8px; padding-top: 8px; flex-shri
 .link-legacy-note { color: var(--text-secondary); font-size: 0.88em; margin: 6px 0 0; }
 
 /* ---- LernModule: kleine Zahlenleiste (früher Dashboard) ---- */
-.stats-row { display: flex; flex-wrap: wrap; gap: 8px 20px; margin: -4px 0 16px; color: var(--text-secondary); font-size: 0.9rem; }
-.stats-row-item strong { color: var(--accent); font-size: 1.1rem; margin-right: 2px; }
 .h5p-types-card { max-width: 960px; max-height: 85vh; overflow: auto; }
 .cb-reach { font-size: 0.82rem; font-weight: 600; white-space: nowrap; }
 .cb-reach.ok { color: var(--score-good-text); }
@@ -5939,7 +5931,11 @@ button.cb-unit:hover { color: var(--accent); text-decoration: underline; }
 .cb-pending { margin-top: 16px; }
 .user-info .cb-back { display: block; margin-top: 8px; }
 /* Reiter Notizbuch | Klassennotizbuch über beiden Ansichten */
-.nb-switch { display: flex; gap: 4px; border-bottom: 1px solid var(--border); margin-bottom: 14px; }
+.nb-switch { display: flex; align-items: center; gap: 4px; border-bottom: 1px solid var(--border); margin-bottom: 14px; }
+.title-tools { display: flex; align-items: center; gap: 14px; margin-left: auto; min-width: 0; }
+.title-stats { display: flex; gap: 12px; color: var(--text-secondary); font-size: 0.78rem; white-space: nowrap; }
+.title-stat strong { color: var(--accent); margin-right: 2px; }
+@media (max-width: 1000px) { .title-stats { display: none; } }
 .nb-switch-tab { background: none; border: none; border-bottom: 3px solid transparent; padding: 8px 16px; cursor: pointer; font: inherit; font-size: 1.02rem; color: var(--text-secondary); margin-bottom: -1px; }
 .nb-switch-tab:hover { color: var(--text-primary); }
 .nb-switch-tab.active { color: var(--text-primary); border-bottom-color: var(--accent); font-weight: 600; cursor: default; }

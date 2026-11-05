@@ -27,7 +27,7 @@ GitHub – keine Klassen, Ergebnisse oder Schülernamen.
      (*Metadata: Read* setzt GitHub automatisch dazu)
 
    Den Token (`github_pat_…`) gleich kopieren – GitHub zeigt ihn nur einmal.
-4. **In der App:** 🏠 LernModule → **💾 GitHub-Backup**. Repository als
+4. **In der App:** ☰ Menü → **💾 GitHub-Backup**. Repository als
    `benutzername/lernmodule-backup` eintragen (eine kopierte Adresse
    `https://github.com/…` geht auch), Token einfügen, Zeitplan wählen,
    *Automatisches Backup eingeschaltet* anhaken, **Speichern**.

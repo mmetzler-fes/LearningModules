@@ -131,6 +131,7 @@ export class NotebooksView {
     } catch (_) { this._draftIds = new Set(); }
     // Die Modul-Ansichten lesen Tags und Rechte aus state.topics.
     this.app.state.topics = data.topics;
+    this.app.topicsView.renderCounts();
     if (!(this.app.state.tags || []).length) await this.app.loadTags();
     this._index();
     this._render();
@@ -266,13 +267,25 @@ export class NotebooksView {
 
   /** Bei aktiver Suche: Passt der Knoten selbst oder etwas darin? */
   _nodeHasMatch(node) {
-    if (this._matches(node.title)) return true;
+    if (this._matches(node.title) || this._tagsMatch(node.tagIds)) return true;
     return this._topicsIn(node.id).some((t) => this._topicHasMatch(t)) || this._nodesIn(node.id).some((n) => this._nodeHasMatch(n));
   }
 
   _topicHasMatch(topic) {
     if (topic.isMirror) return this._matches(topic.title) || topic.mirror.topics.some((t) => this._topicHasMatch(t));
-    return this._matches(topic.title) || (topic.modules || []).some((m) => this._matches(m.title));
+    return this._topicItselfMatches(topic) || (topic.modules || []).some((m) => this._matches(m.title));
+  }
+
+  /** Titel oder Tag des Lernthemas passt – dann gehört alles darin zum Treffer. */
+  _topicItselfMatches(topic) {
+    return this._matches(topic.title) || this._tagsMatch(topic.tagIds) || this._tagsMatch(this._placeOf.get(topic.id)?.inheritedTagIds);
+  }
+
+  /** Bei aktiver Suche: Passt der Name eines dieser Tags? */
+  _tagsMatch(tagIds) {
+    if (!this._query || !tagIds?.length) return false;
+    const names = new Map((this.app.state.tags || []).map((t) => [t.id, t.name]));
+    return tagIds.some((id) => this._matches(names.get(id)));
   }
 
   _isOpen(key) {
@@ -441,7 +454,7 @@ export class NotebooksView {
       }
       // Bei der Suche nur passende Module – außer das Thema selbst passt.
       const { top, quizzesOf, docsOf } = nestEmbedded(roots.sort((a, b) => a.orderIndex - b.orderIndex));
-      const show = (m) => !this._query || this._matches(topic.title) || this._matches(m.title)
+      const show = (m) => !this._query || this._topicItselfMatches(topic) || this._matches(m.title)
         || modules.some((k) => k.parentId === m.id && this._matches(k.title))
         || (quizzesOf.get(m.id) || []).some((q) => this._matches(q.title));
       const withKids = (m, d, opts = {}) => {
@@ -1270,6 +1283,7 @@ export class NotebooksView {
         <label class="nb-field">Beschreibung<textarea name="description" rows="3">${escapeHtml(topic.description || '')}</textarea></label>
         ${inherited.length ? `<div class="nb-field">Geerbt von Book, Bereich oder Abschnitt<span>${this._chips(inherited)}</span></div>` : ''}
         <div class="nb-field">Eigene Tags<div class="nb-tags"></div></div>
+        <label class="nb-field" title="Schüler sehen das Thema, müssen aber diesen Key eingeben, um das Quiz zu starten.">Subscribe-Key (optional)<input type="text" name="subscribeKey" autocomplete="off" placeholder="Leer = kein Schlüssel erforderlich" value="${escapeAttr(topic.subscribeKey || '')}" /></label>
         <div class="confirm-actions">
           <button type="submit" class="btn btn-primary">Speichern</button>
           <button type="button" class="btn btn-secondary btn-cancel">Abbrechen</button>
@@ -1287,6 +1301,7 @@ export class NotebooksView {
         id: topic.id,
         title: form.title.value.trim(),
         description: form.description.value.trim(),
+        subscribeKey: form.subscribeKey.value.trim() || null,
         tagIds: [...new Set([...picker.selectedIds, ...inherited])],
       }, true);
       if (failed(res)) { this.app.showToast('Fehler: ' + (res?.message || 'Speichern fehlgeschlagen'), 'error'); return; }

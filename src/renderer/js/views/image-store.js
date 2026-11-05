@@ -106,7 +106,7 @@ export async function storeImage(app, input, name = 'bild.png') {
   if (q.warnBytes > 0 && total >= q.warnBytes && Date.now() - quotaState.hintAt > HINT_EVERY_MS) {
     quotaState.hintAt = Date.now();
     app.showToast(`Deine Bilder in der App: ${mb(total)} MB${q.limitBytes ? ` von ${mb(q.limitBytes)} MB` : ''}. `
-      + 'Mit einer Nextcloud-Freigabe ist Platz für beliebig viele – Home-Menü → ☁️ Nextcloud.', 'info');
+      + 'Mit einer Nextcloud-Freigabe ist Platz für beliebig viele – ☰ Menü → ☁️ Nextcloud.', 'info');
   }
   return dataUrl;
 }
@@ -130,6 +130,7 @@ export async function refreshQuotaBadge(app) {
   const q = await loadQuota(app, true);
   const need = q && !q.nextcloud && (q.state === 'warn' || q.state === 'full');
   btn.classList.toggle('nc-attention', !!need);
+  document.getElementById('btnTitleMenu')?.classList.toggle('nc-attention', !!need);
   btn.title = need
     ? `Deine Bilder in der App: ${mb(q.usedBytes)} MB – bitte eine Nextcloud-Freigabe verbinden`
     : 'Bilder der Module in der eigenen Nextcloud speichern statt auf dem Server – je Lernthema ein Ordner';

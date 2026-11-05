@@ -614,7 +614,7 @@ wenn die Lehrkraft des Lernthemas freigeschaltet ist.
   Striche ganz außerhalb eines Bausteins fehlen (Hinweis unten in der Leiste).
 - **Kopfzeile der Vorlage** (Knopf neben 🖨, Lehrkräfte): zeigt oben auf dem
   Blatt die Kopfzeile wie im Druck – nur zur Orientierung. Ein oder aus ist
-  eine Einstellung des Kontos (auch unter 🏠 → **⚙️ Einstellungen**) und gilt
+  eine Einstellung des Kontos (auch unter ☰ Menü → **⚙️ Einstellungen**) und gilt
   auf allen Geräten.
 - **🖨 Ansicht drucken** (Hintergrund „Dokument“): Arbeitsblatt
   oder Lösungsblatt, jeweils mit oder ohne Beschriftung – über den Druckdialog

@@ -11,7 +11,7 @@ zählt es nicht mit.
 2. **📎 Dateien hinzufügen** – auch mehrere auf einmal, je Datei bis 50 MB.
 3. Mit ↑ ↓ die Reihenfolge ändern, mit ✕ eine Datei aus dem Modul nehmen.
 
-Anhänge brauchen eine verbundene Nextcloud (☁️ Nextcloud im Home-Menü). Die
+Anhänge brauchen eine verbundene Nextcloud (☰ Menü → ☁️ Nextcloud). Die
 Dateien liegen dort neben den Bildern im Ordner des Lernthemas
 (`Bilder/<Lernthema>/`). Aus dem Modul entfernt, bleiben sie in der Nextcloud.
 

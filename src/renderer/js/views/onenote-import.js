@@ -198,7 +198,7 @@ export function openOneNoteImport(app, { onDone } = {}) {
     say(nextcloudState.ready ? 'ok' : 'error', nextcloudState.ready
       ? `✅ ${source.plan.classNotebook ? 'Klassennotizbuch' : 'Notizbuch'} gelesen.${escapeHtml(skipped)}`
         + (resume ? ' <strong>Eine frühere Übernahme dieser Datei wurde unterbrochen – sie wird fortgesetzt.</strong>' : '')
-      : '❌ Anhänge brauchen eine verbundene Nextcloud: im Home-Menü unter ☁️ Nextcloud eine Freigabe eintragen.');
+      : '❌ Anhänge brauchen eine verbundene Nextcloud: unter ☰ Menü → ☁️ Nextcloud eine Freigabe eintragen.');
     drawTree();
   };
 

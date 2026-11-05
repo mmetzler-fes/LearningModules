@@ -96,7 +96,7 @@ Browsers bzw. der iCloud-Schlüsselbund kann es aber anbieten.
 
 ## 📱 Geräte
 
-Unter **LernModule → 📱 Geräte** steht, wo dein Konto angemeldet ist: Gerät
+Unter **☰ Menü → 📱 Geräte** steht, wo dein Konto angemeldet ist: Gerät
 und Browser, seit wann, zuletzt aktiv und bis wann.
 
 - **Abmelden** neben einem Gerät beendet die Anmeldung dort sofort – etwa wenn

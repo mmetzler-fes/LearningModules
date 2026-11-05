@@ -248,10 +248,7 @@
 
       <!-- Teacher Navigation -->
       <nav class="sidebar-nav hidden" id="teacherNav">
-        <button class="nav-btn active" data-view="teacher-topics">
-          <span class="nav-icon">🏠</span> <span data-i18n="nav.topics">LernModule</span>
-        </button>
-        <button class="nav-btn nav-sub" data-view="teacher-notebooks">
+        <button class="nav-btn active" data-view="teacher-notebooks">
           <span class="nav-icon">📓</span> <span>Lernmodul-Notebooks</span>
         </button>
         <button class="nav-btn" data-view="teacher-class-results">
@@ -374,11 +371,22 @@
       <!-- ==================== TEACHER VIEWS ==================== -->
 
       <!-- Notebooks: Lernthemen in Book → Bereich → Abschnitt -->
-      <section class="view" id="view-teacher-notebooks">
+      <section class="view active" id="view-teacher-notebooks">
         <div class="nb-switch" role="tablist" aria-label="Notizbuch oder Klassennotizbuch">
           <button type="button" class="nb-switch-tab active" data-nb-switch="teacher-notebooks" role="tab">📓 Notizbuch</button>
           <button type="button" class="nb-switch-tab" data-nb-switch="teacher-class-results" role="tab">📒 Klassennotizbuch</button>
+          <!-- Zahlen und Menü: wandern mit in die Reiterzeile des Klassennotizbuchs (app.js) -->
+          <div class="title-tools" id="titleTools">
+            <div class="title-stats">
+            <span class="title-stat"><strong id="statTopics">0</strong> <span data-i18n="dashboard.stat.topics">Lernthemen</span></span>
+            <span class="title-stat"><strong id="statModules">0</strong> <span data-i18n="dashboard.stat.modules">Module gesamt</span></span>
+            <span class="title-stat"><strong id="statActive">0</strong> <span data-i18n="dashboard.stat.active">Aktive Themen</span></span>
+            <span class="title-stat"><strong id="statResults">0</strong> <span data-i18n="dashboard.stat.results">Quiz-Ergebnisse</span></span>
+            </div>
+            <button type="button" class="btn btn-secondary btn-sm" id="btnTitleMenu" aria-haspopup="menu" aria-expanded="false" aria-controls="titleMenu">☰ Menü</button>
+          </div>
         </div>
+        <div id="handoverIncoming"></div>
         <div class="view-header">
           <h2>📓 Lernmodul-Notebooks
             <button type="button" class="help-hint" data-help="notebooks" title="Hilfe: Notebooks" aria-label="Hilfe: Notebooks">?</button>
@@ -394,7 +402,7 @@
           <button class="btn btn-secondary btn-sm" id="btnNotebookCollapse" title="Alles zuklappen">⊟ Zuklappen</button>
           <button class="btn btn-secondary btn-sm" id="btnNotebookSelect" aria-pressed="false" title="Mehrere Module oder Lernthemen auswählen – auch mit Strg+Klick, Umschalt+Klick für einen Bereich">☑ Auswählen</button>
           <button class="btn btn-secondary btn-sm hidden" id="btnDocTemplates" title="LibreOffice-Vorlagen für den Druck von Dokumenten">🖨 Vorlagen</button>
-          <input type="search" id="notebookSearch" class="search-input nb-search" placeholder="Suchen in Titeln von Lernthemen und Modulen…" />
+          <input type="search" id="notebookSearch" class="search-input nb-search" placeholder="Suchen in Titeln und Tags von Lernthemen und Modulen…" />
         </div>
         <!-- Nextcloud-Abbild der Dokumente (nur mit Freischaltung, notebooks.js) -->
         <div id="nbMirrorBar" class="nb-mirror-bar hidden"></div>
@@ -418,90 +426,6 @@
             </div>
             <div class="nb-preview-body" id="nbPreviewBody"></div>
           </aside>
-        </div>
-      </section>
-
-      <!-- Teacher Dashboard -->
-      <!-- Teacher: Topic Management -->
-      <section class="view active" id="view-teacher-topics">
-        <div class="view-header">
-          <h2 data-i18n="topics.title">LernModule</h2>
-          <p class="subtitle" data-i18n="topics.subtitle">Erstellen und verwalten Sie Lernthemen. Nur aktivierte Themen sind für Schüler sichtbar.</p>
-          <div class="header-actions">
-            <button class="btn btn-secondary btn-sm" id="btnH5pTypes" title="Welche H5P-Modultypen es gibt">ℹ️ H5P-Typen</button>
-            <button class="btn btn-secondary btn-sm" id="btnAiPrompt" title="Prompt für einen KI-Chat erzeugen, Antwort einfügen: Das Lernthema entsteht unter „Unsortiert“">🤖 KI-Prompt</button>
-            <button class="btn btn-secondary btn-sm" id="btnChangeOwnPassword">🔑 Passwort ändern</button>
-            <button class="btn btn-secondary btn-sm" id="btnChangeOwnEmail">✉️ E-Mail ändern</button>
-            <button class="btn btn-secondary btn-sm" id="btnTwoFactor" title="Zwei-Faktor-Anmeldung mit einer Authenticator-App">🔐 Zwei-Faktor</button>
-            <button class="btn btn-secondary btn-sm" id="btnUserSettings" title="Persönliche Einstellungen, auf allen Geräten gleich">⚙️ Einstellungen</button>
-            <button class="btn btn-secondary btn-sm" id="btnSessions" title="Wo du angemeldet bist – einzelne Geräte oder überall abmelden">📱 Geräte</button>
-            <button class="btn btn-secondary btn-sm" id="btnHandover" title="Alle eigenen Inhalte an eine andere Lehrkraft übergeben">🎁 Inhalte übergeben</button>
-            <button class="btn btn-secondary btn-sm" id="btnAccountLinks" title="Eigenes Konto auf einem verbundenen Server verknüpfen und die Inhalte von dort holen">🔗 Andere Server</button>
-            <button class="btn btn-secondary btn-sm" id="btnGithubBackup" title="Eigene Inhalte regelmäßig in ein privates GitHub-Repository sichern und daraus wiederherstellen">💾 GitHub-Backup</button>
-            <button class="btn btn-secondary btn-sm" id="btnNextcloud" title="Bilder der Module in der eigenen Nextcloud speichern statt auf dem Server – je Lernthema ein Ordner">☁️ Nextcloud</button>
-          </div>
-        </div>
-        <div id="handoverIncoming"></div>
-        <div class="stats-row" id="teacherStatsRow">
-          <span class="stats-row-item"><strong id="statTopics">0</strong> <span data-i18n="dashboard.stat.topics">Lernthemen</span></span>
-          <span class="stats-row-item"><strong id="statModules">0</strong> <span data-i18n="dashboard.stat.modules">Module gesamt</span></span>
-          <span class="stats-row-item"><strong id="statActive">0</strong> <span data-i18n="dashboard.stat.active">Aktive Themen</span></span>
-          <span class="stats-row-item"><strong id="statResults">0</strong> <span data-i18n="dashboard.stat.results">Quiz-Ergebnisse</span></span>
-        </div>
-        <div class="topic-actions-bar">
-          <button class="btn btn-primary" id="btnNewTopic" data-i18n="topics.new">➕ Neues Lernthema</button>
-          <button class="btn btn-secondary" id="btnImportTopic" data-i18n="topics.import"
-            title="Datei (JSON, Moodle-XML, H5P, verschlüsselter Export) oder eingefügter Text, z. B. eine KI-Antwort">📥 Thema importieren</button>
-          <button class="btn btn-secondary" id="btnExportH5p" disabled title="Thema als H5P exportieren">📦 H5P exportieren</button>
-          <button type="button" class="help-hint" data-help="moodle-und-h5p#einlesen" title="Hilfe: Themen einlesen (JSON, Moodle-XML, H5P)" aria-label="Hilfe: Themen einlesen (JSON, Moodle-XML, H5P)">?</button>
-        </div>
-        <div class="tag-filter-bar">
-          <input type="search" id="topicTagSearch" class="search-input" autocomplete="off" spellcheck="false" placeholder="Tags suchen, z. B. Arduino…" />
-          <label class="tag-filter-mode">
-            <input type="checkbox" id="topicTagFilterAll" />
-            <span title="Aus: mindestens ein Tag muss passen. An: alle gewählten Tags müssen passen.">alle Tags müssen passen</span>
-          </label>
-          <div id="topicTagFilterChips" class="tag-filter-chips"></div>
-        </div>
-        <div id="topicsList" class="topics-list"></div>
-
-        <!-- Themen mit Nutzungsrecht aus dem Shop (nur sichtbar, wenn es welche gibt) -->
-        <div id="sharedTopicsSection" class="hidden" style="margin-top:28px">
-          <h3>🔗 Zur Nutzung erworben</h3>
-          <p class="hint">Diese Themen gehören anderen. Du kannst sie in deinen Themen- und Quick-Links
-            verwenden – die Ergebnisse kommen zu dir. Änderungen des Creators wirken sofort.
-            Bearbeiten und weitergeben geht nicht; dafür im <strong>Shop</strong> eine eigene Kopie holen.</p>
-          <div id="sharedTopicsList" class="topics-list"></div>
-        </div>
-
-        <!-- New/Edit Topic Form (hidden) -->
-        <div id="topicFormContainer" class="topic-form-container hidden">
-          <div class="topic-form-card">
-            <h3 id="topicFormTitle" data-i18n="topics.form.new">Neues Lernthema</h3>
-            <form id="topicForm">
-              <div class="form-group">
-                <label for="topicTitle" data-i18n="topics.form.name">Themenname *</label>
-                <input type="text" id="topicTitle" required data-i18n-placeholder="topics.form.name.placeholder" placeholder="z.B. Mathematik Grundlagen" />
-              </div>
-              <div class="form-group">
-                <label for="topicDescription" data-i18n="topics.form.desc">Beschreibung</label>
-                <textarea id="topicDescription" rows="3" data-i18n-placeholder="topics.form.desc.placeholder" placeholder="Optionale Beschreibung..."></textarea>
-              </div>
-              <div class="form-group">
-                <label>Tags</label>
-                <div id="topicTags" class="tag-picker-wrap"></div>
-              </div>
-              <div class="form-group">
-                <label for="topicSubscribeKey">Subscribe-Key <span style="font-weight:normal;color:var(--text-secondary)">(optional)</span></label>
-                <input type="text" id="topicSubscribeKey" placeholder="Leer = kein Schlüssel erforderlich" autocomplete="off" />
-                <span class="hint" style="font-size:0.85em;color:var(--text-secondary)">Schüler sehen das Thema, müssen aber diesen Key eingeben, um das Quiz zu starten.</span>
-              </div>
-              <div class="form-actions">
-                <button type="submit" class="btn btn-primary" data-i18n="topics.form.save">Speichern</button>
-                <button type="button" class="btn btn-secondary" id="btnCancelTopic" data-i18n="topics.form.cancel">Abbrechen</button>
-              </div>
-            </form>
-          </div>
         </div>
       </section>
 
@@ -1384,7 +1308,7 @@
           <div class="settings-group" style="margin-top:24px;">
             <h3>💾 GitHub-Backup der Lehrkräfte <button type="button" class="help-hint" data-help="github-backup" title="Hilfe zu diesem Bereich" aria-label="Hilfe zu diesem Bereich">?</button></h3>
             <p class="hint">Lehrkräfte können ihre selbst verfassten Module regelmäßig in ein eigenes, privates
-              GitHub-Repository sichern (🏠 LernModule → 💾 GitHub-Backup). Dabei gehen Lerninhalte – keine
+              GitHub-Repository sichern (☰ Menü → 💾 GitHub-Backup). Dabei gehen Lerninhalte – keine
               Schülerdaten – an GitHub (USA). Lehnt der Schulträger das ab, hier abschalten; gespeicherte
               Einstellungen bleiben erhalten, es wird nur nichts mehr übertragen.</p>
             <label class="share-flag">
@@ -1542,15 +1466,19 @@
   </div>
 
   <!-- H5P export topic selector -->
-  <div id="exportH5pTopicOverlay" class="confirm-overlay hidden">
-    <div class="import-modules-card">
-      <h3>📦 Thema als H5P exportieren</h3>
-      <p class="import-modules-hint">Wähle ein Thema aus, das als H5P-Datei exportiert werden soll:</p>
-      <div id="exportH5pTopicList" class="import-modules-list"></div>
-      <div class="confirm-actions">
-        <button id="exportH5pBtnCancel" class="btn btn-secondary">Abbrechen</button>
-      </div>
-    </div>
+  <!-- Menü oben rechts (☰ Menü). Außerhalb der Inhaltsfläche: Deren Zoom gilt hier nicht. -->
+  <div id="titleMenu" class="nb-menu hidden" role="menu" aria-labelledby="btnTitleMenu">
+    <button type="button" class="nb-menu-item" role="menuitem" id="btnH5pTypes" title="Welche H5P-Modultypen es gibt">ℹ️ H5P-Typen</button>
+    <button type="button" class="nb-menu-item" role="menuitem" id="btnAiPrompt" title="Prompt für einen KI-Chat erzeugen, Antwort einfügen: Das Lernthema entsteht unter „Unsortiert“">🤖 KI-Prompt</button>
+    <button type="button" class="nb-menu-item" role="menuitem" id="btnChangeOwnPassword">🔑 Passwort ändern</button>
+    <button type="button" class="nb-menu-item" role="menuitem" id="btnChangeOwnEmail">✉️ E-Mail ändern</button>
+    <button type="button" class="nb-menu-item" role="menuitem" id="btnTwoFactor" title="Zwei-Faktor-Anmeldung mit einer Authenticator-App">🔐 Zwei-Faktor</button>
+    <button type="button" class="nb-menu-item" role="menuitem" id="btnUserSettings" title="Persönliche Einstellungen, auf allen Geräten gleich">⚙️ Einstellungen</button>
+    <button type="button" class="nb-menu-item" role="menuitem" id="btnSessions" title="Wo du angemeldet bist – einzelne Geräte oder überall abmelden">📱 Geräte</button>
+    <button type="button" class="nb-menu-item" role="menuitem" id="btnHandover" title="Alle eigenen Inhalte an eine andere Lehrkraft übergeben">🎁 Inhalte übergeben</button>
+    <button type="button" class="nb-menu-item" role="menuitem" id="btnAccountLinks" title="Eigenes Konto auf einem verbundenen Server verknüpfen und die Inhalte von dort holen">🔗 Andere Server</button>
+    <button type="button" class="nb-menu-item" role="menuitem" id="btnGithubBackup" title="Eigene Inhalte regelmäßig in ein privates GitHub-Repository sichern und daraus wiederherstellen">💾 GitHub-Backup</button>
+    <button type="button" class="nb-menu-item" role="menuitem" id="btnNextcloud" title="Bilder der Module in der eigenen Nextcloud speichern statt auf dem Server – je Lernthema ein Ordner">☁️ Nextcloud</button>
   </div>
 
   <!-- Module import selection dialog -->

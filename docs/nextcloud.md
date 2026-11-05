@@ -13,7 +13,7 @@ Anhänge.
 
 ## Einrichten
 
-Im Home-Menü (🏠 LernModule) → **☁️ Nextcloud**. Die App bekommt **nie ein
+Unter ☰ Menü → **☁️ Nextcloud**. Die App bekommt **nie ein
 Nextcloud-Konto oder App-Passwort** – nur einen freigegebenen Ordner und
 sieht damit ausschließlich diesen.
 

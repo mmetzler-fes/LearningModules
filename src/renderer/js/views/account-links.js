@@ -69,7 +69,7 @@ export async function openAccountLinksDialog(app) {
           <button class="btn btn-secondary btn-sm acc-code-btn">Code erzeugen</button>
           ${data.code ? `<div class="acc-code">Dein Code: <code>${escapeHtml(data.code.code)}</code>
             <span class="hint">– gib ihn auf ${escapeHtml(data.peers.find((p) => p.id === data.code.peerId)?.name || 'dem anderen Server')} ein
-            (🏠 LernModule → 🔗 Andere Server), gültig bis ${new Date(data.code.expiresAt).toLocaleTimeString('de-DE', { timeStyle: 'short' })}</span></div>` : ''}
+            (☰ Menü → 🔗 Andere Server), gültig bis ${new Date(data.code.expiresAt).toLocaleTimeString('de-DE', { timeStyle: 'short' })}</span></div>` : ''}
         </div>
         <div class="acc-step">
           <strong>oder Code von dort eingeben</strong> – von:

@@ -357,7 +357,7 @@ function imageCheckHtml(c, school = false) {
   return out.join('');
 }
 
-// ---------- Einstellungen (Home-Menü) ----------
+// ---------- Einstellungen (☰ Menü) ----------
 
 export async function openNextcloudDialog(app) {
   const overlay = document.createElement('div');

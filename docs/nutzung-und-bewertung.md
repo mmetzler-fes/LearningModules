@@ -51,9 +51,7 @@ Bewerten kann, wer ein Lernthema über den Shop **nutzt** oder **kopiert** hat:
 
 - im Shop auf der Karte: **⭐ Bewerten**,
 - in den [Notebooks](notebooks.md) im Menü eines genutzten Lernthemas
-  (**⭐ Bewerten**) oder einer Kopie (**⭐ Original bewerten**),
-- unter 🏠 LernModule auf der Karte eines genutzten Lernthemas bzw. in der
-  Herkunftszeile einer Kopie.
+  (**⭐ Bewerten**) oder einer Kopie (**⭐ Original bewerten**).
 
 Bewertet wird immer das **Original** – auch, wenn du über deine Kopie
 bewertest. Eigene Lernthemen lassen sich nicht bewerten.

@@ -13,8 +13,9 @@ Zwischenebenen dürfen fehlen: Ein Lernthema kann direkt in einem Book oder
 Bereich liegen, ein Abschnitt direkt in einem Book. Die Ordnung gehört dir allein – Kolleginnen und Schüler sehen
 sie nicht, und an Inhalt, Freigaben oder Shop ändert sie nichts.
 
-Die bisherige Liste unter **🏠 LernModule** bleibt und eignet sich zum Suchen
-nach Tags; beide zeigen dieselben Lernthemen.
+Die Notebooks sind die Hauptseite für Lehrkräfte. Oben rechts stehen die Zahlen
+deiner Inhalte und **☰ Menü** mit Konto, Geräten, Nextcloud und Backup. Das
+Suchfeld findet Titel und Tags; eine eigene Themenliste gibt es nicht mehr.
 
 ## Ansicht
 
@@ -84,8 +85,8 @@ Später gilt:
 Books, Bereiche und Abschnitte können Tags tragen (**🏷 Tags** im Menü; die
 beim ersten Aufruf entstandenen tragen ihr Themengebiet bzw. ihren Tag). Jedes
 Lernthema darunter – auch in Unterordnern – erhält diese Tags zusätzlich, und
-seine Module erben sie wie bisher vom Lernthema. So findet die Tag-Suche unter
-**🏠 LernModule** und in den Schülerfreigaben auch Lernthemen, die du nur
+seine Module erben sie wie bisher vom Lernthema. So findet die Suche in den
+Notebooks und in den Schülerfreigaben auch Lernthemen, die du nur
 einsortiert hast.
 
 - Verschiebst du ein Lernthema, fallen die geerbten Tags des alten Platzes

@@ -80,7 +80,7 @@ export class ModulesView {
         this.app.state.currentTopicId = null;
         this.app.state.currentTopicRawSummary = null;
         this._updateToolbarForTopicMode();
-        this.app.navigateToView('teacher-topics');
+        this.app.navigateToView('teacher-notebooks');
       });
     }
 
@@ -958,7 +958,6 @@ export class ModulesView {
     }
     this._transferOverlay.classList.add('hidden');
     state.topics = await api.getTopics();
-    this.app.topicsView.refresh();
     state.currentTopicModules = await api.getTopicModules(state.currentTopicId);
     this.refresh();
   }

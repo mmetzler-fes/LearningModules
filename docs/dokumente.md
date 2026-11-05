@@ -583,9 +583,10 @@ wenn die Lehrkraft des Lernthemas freigeschaltet ist.
   in der Notebook-Vorschau, **✍️ Mit Stift bearbeiten** am Dokument (Notebook-
   Vorschau, Vollbild, Vorschau aus der Modulliste). Zur Auswahl stehen alle
   Module des Lernthemas außer Dokumenten.
-- **Textfläche und kurze Beschriftung:** Mit **T** ein Rechteck aufziehen öffnet den Editor wie im Dokument
-  (Formatleiste, ➕ Tabelle/Kasten/Code, Tab Markdown, ✓ Fertig). Auf dem Blatt ist die
-  Fläche ein freies Objekt: tippen wählt sie, **✏️** oder Doppeltippen öffnet den Editor, an den Ecken stellst du
+- **Textfläche und kurze Beschriftung:** Mit **T** ein Rechteck aufziehen und direkt auf dem Blatt schreiben, mit
+  denselben Knöpfen wie im Dokument: Oben steht die Formatleiste mit ➕ Tabelle/Kasten/Code, Ⓜ Markdown und ✓ Fertig.
+  Solange du schreibst, ruhen die Werkzeuge und der Stift schreibt nicht aufs Blatt. Die Fläche ist ein freies
+  Objekt: tippen wählt sie, **✏️** oder Doppeltippen bearbeitet sie an Ort und Stelle, an den Ecken stellst du
   die Breite ein. Formeln (`$…$`) stehen am Bildschirm und im Browser-Druck gesetzt, im
   „PDF mit Vorlage“ als LaTeX-Quelle (mit Hinweis). Gesetzte Formeln im PDF: Textblock über ⊕.
   **T** nur antippen legt wie bisher eine kurze Beschriftung an.
@@ -593,7 +594,7 @@ wenn die Lehrkraft des Lernthemas freigeschaltet ist.
   antippen; ein Quiz wählt nur der ⬚ Bereich, damit es bedienbar bleibt. Mit dem Bereich zählen Bausteine, die das Rechteck
   von oben bis unten umfasst, zusammen mit den freien Objekten darin. Gewählte Bausteine lassen sich mit Stift oder Finger
   ziehen (eine Linie zeigt die neue Stelle) oder über das Menü nach oben/unten schieben, kopieren, ausschneiden, löschen;
-  ✏️ öffnet Text und Tabellen im Editor; mehrere Absätze aus dem Editor bleiben dabei ein Baustein, Überschriften und Listen stehen für sich. Was am Baustein hängt, wandert mit, und beim Löschen geht es mit. Gruppieren gibt
+  ✏️ bearbeitet Text und Tabellen an Ort und Stelle, darunter rückt alles mit; mehrere Absätze aus dem Editor bleiben dabei ein Baustein, Überschriften und Listen stehen für sich. Was am Baustein hängt, wandert mit, und beim Löschen geht es mit. Gruppieren gibt
   es nur für freie Objekte. **↶ macht auch das rückgängig**, solange der Stift-Editor offen ist. Schüler ändern
   keine Bausteine.
 - **Einfügen:** Der Ort entscheidet. **Auf der Schreibfläche** (Karo, Linien, Feld, freies Blatt) entsteht ein

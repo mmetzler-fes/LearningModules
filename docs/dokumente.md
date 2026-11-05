@@ -453,6 +453,11 @@ freigegeben ist; ein ausgeschaltetes (○) oder gesperrtes (🔒) Quiz bleibt au
 eigene Quizze, auch per Copy erworbene, nicht aber nur per Use genutzte. Im Druck führt der QR-Code über
 den Quick-Link des Dokuments zum Quiz.
 
+**Wo ein Quiz steckt:** Im Lernnotizbuch steht am Quiz „📄 in 2 Dokumenten“, der Tooltip nennt sie samt
+Lernthema; das ⋯-Menü führt mit „📄 Zum Dokument: …“ hin. Verschieben in ein anderes Lernthema ändert
+nichts, das Quiz bleibt in jedem Dokument. Wer ein eingebettetes Quiz löscht – einzeln, mehrere auf
+einmal, in der Modulliste oder samt seinem Lernthema –, bekommt vorher die betroffenen Dokumente genannt.
+
 - **In den Notebooks** steht das Quiz eingerückt unter seinem Dokument, in der Reihenfolge im Blatt;
   das Dokument zeigt „· 2 Quizze“ und lässt sich mit ▾ zuklappen. Was nicht eingerückt ist, ist ein
   eigenständiges Modul. Steht ein Quiz in mehreren Dokumenten, erscheint es unter jedem. Seine Stelle

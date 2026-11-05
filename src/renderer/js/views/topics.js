@@ -1,4 +1,5 @@
 import { escapeHtml, showImportReport } from '../utils.js';
+import { usesOutside, usageText } from '../quiz-usage.js';
 import { helpHint } from './help-view.js';
 import { openHandoverDialog, renderIncomingHandovers } from './handover.js';
 import { openAccountLinksDialog } from './account-links.js';
@@ -91,7 +92,11 @@ export class TopicsView {
     const reach = await this.app.api.getReach().catch(() => null);
     const classes = (reach?.[topic.id]?.classes || []).join(', ');
     const inClasses = classes ? `\n\nEs verschwindet auch aus dem Klassennotizbuch: ${classes}. Ergebnisse und ausgefüllte Blätter der Schüler bleiben für dich sichtbar.` : '';
-    if (!(await this.app.appConfirm(t('topics.delete.confirm', { title: topic.title }) + users + inClasses))) return false;
+    // Quizze dieses Lernthemas, die Dokumente anderer Lernthemen einbetten: Dort fehlen sie danach.
+    const full = (this.app.state.topics || []).find((x) => x.id === topic.id) || topic;
+    const outside = usesOutside(this.app.state.topics || [], full);
+    const embedded = outside.length ? `\n\nQuizze daraus stecken ${usageText(outside)} – dort fehlen sie dann.` : '';
+    if (!(await this.app.appConfirm(t('topics.delete.confirm', { title: topic.title }) + users + inClasses + embedded))) return false;
     const res = await this.app.api.deleteTopic(topic.id);
     this.app.showToast(res?.preservedCopies
       ? `${t('topics.deleted')} ${res.preservedCopies} Person${res.preservedCopies === 1 ? ' hat' : 'en haben'} eine eigene Kopie erhalten.`

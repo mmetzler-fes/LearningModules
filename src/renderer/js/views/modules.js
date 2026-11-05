@@ -2,6 +2,7 @@ import { moveDocumentControls } from '../document-bar.js';
 import { escapeHtml, escapeAttr, generateId } from '../utils.js';
 import { localDrafts } from '../local-drafts.js';
 import { nestEmbedded, quizIdsOf } from '../../lm-editor/src/doc/doc-quiz.js';
+import { quizUsage, usageText } from '../quiz-usage.js';
 import { ModuleDescriptionEditor } from '../desc-editor.js';
 import { TagPicker } from './tags.js';
 import { openImportDialog } from './import-dialog.js';
@@ -756,9 +757,10 @@ export class ModulesView {
       ? `\n\n${topic.useCount} Person${topic.useCount === 1 ? ' verwendet' : 'en verwenden'} dieses Thema über den Shop – ` +
         'das Modul verschwindet auch bei ihnen.'
       : '';
-    // Liegt das Quiz in einem Dokument, fehlt es dort danach.
-    const docs = nestEmbedded((this.app.state.currentTopicModules || []).filter((m) => !m.parentId), quizIdsOf).docsOf.get(mod.id) || [];
-    const embedded = docs.length ? `\n\nDieses Quiz steht in: ${docs.map((d) => `„${d.title}“`).join(', ')} – dort fehlt es dann.` : '';
+    // Liegt das Quiz in einem Dokument – auch eines anderen Lernthemas –, fehlt es dort danach.
+    const here = { id: this.app.state.currentTopicId, title: topic?.title || '', modules: (this.app.state.currentTopicModules || []).map((m) => ({ ...m, quizIds: m.type === 'document' ? quizIdsOf(m) : [] })) };
+    const uses = quizUsage([here, ...(this.app.state.topics || []).filter((x) => x.id !== here.id)]).get(mod.id) || [];
+    const embedded = uses.length ? `\n\nDieses Quiz steht ${usageText(uses, here.id)} – dort fehlt es dann.` : '';
     if (!(await this.app.appConfirm(t('modules.delete.confirm', { title: mod.title }) + embedded + users))) return;
     const result = await this.app.api.deleteModule(this.app.state.currentTopicId, mod.id);
     if (result.success) {

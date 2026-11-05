@@ -8,6 +8,7 @@ import { openOneNoteImport } from './onenote-import.js';
 import { askConvertOptions, convertAttachment } from './attachment-convert.js';
 import { NotebookPreview } from './notebook-preview.js';
 import { nestEmbedded } from '../../lm-editor/src/doc/doc-quiz.js';
+import { quizUsage, usageText } from '../quiz-usage.js';
 
 // ==================== NOTEBOOKS ====================
 //
@@ -497,7 +498,8 @@ export class NotebooksView {
       twisty: quizzes.length > 0, twistyKey: quizzes.length ? 'dz:' + mod.id : null,
       open: quizzes.length > 0 && (!!this._query || !this._open.has('dz:' + mod.id)),
       cls: `nb-module ${on ? '' : 'nb-off'} ${this._query && this._matches(mod.title) ? 'nb-hit' : ''}`,
-      meta: escapeHtml(type.name || mod.type) + (quizzes.length ? ` · ${quizzes.length === 1 ? '1 Quiz' : `${quizzes.length} Quizze`}` : ''),
+      meta: escapeHtml(type.name || mod.type) + (quizzes.length ? ` · ${quizzes.length === 1 ? '1 Quiz' : `${quizzes.length} Quizze`}` : '')
+        + this._usedInMeta(topic, mod),
       extra: this._lockBadge(topic, mod) + (this._draftIds?.has(mod.id) ? '<span class="nb-badge" title="Nicht gespeicherte Änderungen – beim Bearbeiten wiederherstellbar">📝 Entwurf</span>' : '')
         + (this._mirrorErrors?.has(mod.id) ? `<span class="nb-badge nb-warn" title="${escapeAttr(`Nextcloud: ${this._mirrorErrors.get(mod.id)}`)}">☁️ ⚠</span>` : '') + (own
         ? `<button type="button" class="nb-status ${on ? 'on' : ''}" title="${on ? 'Aktiv – klicken zum Deaktivieren' : 'Inaktiv – klicken zum Aktivieren'}">${on ? '●' : '○'}</button>
@@ -1073,12 +1075,12 @@ export class NotebooksView {
 
   _moduleMenu(topic, mod) {
     const open = (action) => this.app.modulesView.openFrom('teacher-notebooks', topic.id, mod, action);
-    const inDocs = this._docsWith(topic, mod);
-    const toDocs = inDocs.map((doc) => ({
-      label: `📄 Zum Dokument: ${doc.title}`,
+    const uses = this._usesOf(mod);
+    const toDocs = uses.map(({ doc, topic: where }) => ({
+      label: `📄 Zum Dokument: ${doc.title}${where.id !== topic.id ? ` (${where.title})` : ''}`,
       run: () => {
-        if (this._preview.open) this._preview.showModule(topic, doc);
-        else this.app.modulesView.openFrom('teacher-notebooks', topic.id, doc, 'preview');
+        if (this._preview.open) this._preview.showModule(where, doc);
+        else this.app.modulesView.openFrom('teacher-notebooks', where.id, doc, 'preview');
       },
     }));
     if (!topic.isOwn) return [...toDocs, { label: '👁 Vorschau', run: () => open('preview') }];
@@ -1105,7 +1107,7 @@ export class NotebooksView {
       items.push({
         label: '↔️ Verschieben nach…',
         run: async () => {
-          if (inDocs.length && !(await this.app.appConfirm(`„${mod.title}“ steht ${this._docNames(inDocs)}. In einem anderen Lernthema fehlt es dort. Trotzdem verschieben?`))) return;
+          // Verschieben ändert nichts an den Verweisen: Das Quiz bleibt in jedem Dokument, das es einbettet.
           this._moduleTargetDialog(topic, mod, 'move');
         },
       });
@@ -1481,21 +1483,29 @@ export class NotebooksView {
     return items;
   }
 
-  /** Dokumente dieses Lernthemas, die das Modul als Quiz einbetten. */
-  _docsWith(topic, mod) {
-    return nestEmbedded((topic.modules || []).filter((m) => !m.parentId)).docsOf.get(mod.id) || [];
+  /** Wo das Modul als Quiz eingebettet ist – in allen eigenen Lernthemen: [{ doc, topic }]. */
+  _usesOf(mod) {
+    if (!this._usage || this._usageOf !== this._data) {
+      this._usage = quizUsage(this._data?.topics || []);
+      this._usageOf = this._data;
+    }
+    return this._usage.get(mod.id) || [];
   }
 
-  _docNames(docs) {
-    return docs.length === 1 ? `im Dokument „${docs[0].title}“` : `in ${docs.length} Dokumenten (${docs.map((d) => `„${d.title}“`).join(', ')})`;
+  /** „· in 2 Dokumenten“ am Quiz, mit den Namen im Tooltip. */
+  _usedInMeta(topic, mod) {
+    const uses = this._usesOf(mod);
+    if (!uses.length) return '';
+    const label = uses.length === 1 ? 'in 1 Dokument' : `in ${uses.length} Dokumenten`;
+    return ` · <span class="nb-used-in" title="${escapeAttr(`Verwendet ${usageText(uses, topic.id)}`)}">📄 ${label}</span>`;
   }
 
   async _deleteModule(topic, mod) {
     const users = topic.useCount
       ? `\n\n${topic.useCount} Person${topic.useCount === 1 ? ' verwendet' : 'en verwenden'} dieses Thema über den Shop – das Modul verschwindet auch bei ihnen.`
       : '';
-    const inDocs = this._docsWith(topic, mod);
-    const embedded = inDocs.length ? `\n\nDieses Quiz steht ${this._docNames(inDocs)} – dort fehlt es dann.` : '';
+    const uses = this._usesOf(mod);
+    const embedded = uses.length ? `\n\nDieses Quiz steht ${usageText(uses, topic.id)} – dort fehlt es dann.` : '';
     if (!(await this.app.appConfirm(`Modul „${mod.title}“ löschen?${embedded}${users}`))) return;
     const res = await this.app.api.deleteModule(topic.id, mod.id);
     if (failed(res)) { this.app.showToast('Fehler: ' + (res?.message || 'Löschen fehlgeschlagen'), 'error'); return; }
@@ -1825,7 +1835,9 @@ export class NotebooksView {
         await this._convertAttachments(items);
         return;
       } else if (modules && act === 'delete') {
-        if (!(await this.app.appConfirm(`${n} Modul${n === 1 ? '' : 'e'} löschen? Das lässt sich nicht rückgängig machen.`))) return;
+        const used = items.filter((i) => this._usesOf({ id: i.id }).length);
+        const usedNote = used.length ? `\n\n${used.length === 1 ? '1 davon ist' : `${used.length} davon sind`} als Quiz in Dokumenten eingebettet – dort fehlen sie dann.` : '';
+        if (!(await this.app.appConfirm(`${n} Modul${n === 1 ? '' : 'e'} löschen? Das lässt sich nicht rückgängig machen.${usedNote}`))) return;
         for (const i of items) {
           const res = await this.app.api.deleteModule(i.topicId, i.id);
           if (failed(res)) { this.app.showToast('Fehler: ' + (res?.message || 'Löschen fehlgeschlagen'), 'error'); break; }

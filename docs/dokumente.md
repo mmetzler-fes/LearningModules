@@ -593,7 +593,7 @@ wenn die Lehrkraft des Lernthemas freigeschaltet ist.
   antippen; ein Quiz wählt nur der ⬚ Bereich, damit es bedienbar bleibt. Mit dem Bereich zählen Bausteine, die das Rechteck
   von oben bis unten umfasst, zusammen mit den freien Objekten darin. Gewählte Bausteine lassen sich mit Stift oder Finger
   ziehen (eine Linie zeigt die neue Stelle) oder über das Menü nach oben/unten schieben, kopieren, ausschneiden, löschen;
-  ✏️ öffnet Text und Tabellen im Editor. Was am Baustein hängt, wandert mit, und beim Löschen geht es mit. Gruppieren gibt
+  ✏️ öffnet Text und Tabellen im Editor; mehrere Absätze aus dem Editor bleiben dabei ein Baustein, Überschriften und Listen stehen für sich. Was am Baustein hängt, wandert mit, und beim Löschen geht es mit. Gruppieren gibt
   es nur für freie Objekte. **↶ macht auch das rückgängig**, solange der Stift-Editor offen ist. Schüler ändern
   keine Bausteine.
 - **Einfügen:** Der Ort entscheidet. **Auf der Schreibfläche** (Karo, Linien, Feld, freies Blatt) entsteht ein

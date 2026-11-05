@@ -27,7 +27,7 @@ import { groupRow, ungroup, cmOf, GROUP_DEFAULT_WIDTH_CM } from '../lm-editor/sr
 import { arrangeGroup } from './image-arrange.js';
 import { markPageBreaks } from '../lm-editor/src/doc/page-breaks.js';
 import { lmHost } from './lm-host.js';
-import { pasteToEditorHtml } from '../lm-editor/src/doc/paste.js';
+import { pasteAsMarkdown, pasteToEditorHtml } from '../lm-editor/src/doc/paste.js';
 import { specToPm, pmToSpec } from '../lm-editor/src/doc/pm-convert.js';
 import { pmToMarkdown, markdownToPm } from '../lm-editor/src/doc/pm-markdown.js';
 
@@ -738,6 +738,14 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
   root.querySelectorAll('[data-mode]').forEach((b) => b.addEventListener('click', () => setMode(b.dataset.mode)));
   // Markdown-Reiter: Tippen wirkt wie im YAML auf Vorschau und Stand.
   let mdTimer = null;
+  // Aus Chats und Webseiten: Die Formatierung steckt im HTML, nicht im reinen Text.
+  markdownEl.addEventListener('paste', (e) => {
+    const md = pasteAsMarkdown({ text: e.clipboardData?.getData('text/plain') || '', html: e.clipboardData?.getData('text/html') || '' });
+    if (md === null) return;
+    e.preventDefault();
+    markdownEl.setRangeText(md, markdownEl.selectionStart, markdownEl.selectionEnd, 'end');
+    markdownEl.dispatchEvent(new Event('input', { bubbles: true }));
+  });
   markdownEl.addEventListener('input', () => {
     clearTimeout(mdTimer);
     mdTimer = setTimeout(() => {

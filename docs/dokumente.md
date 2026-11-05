@@ -598,7 +598,7 @@ wenn die Lehrkraft des Lernthemas freigeschaltet ist.
   ziehen (eine Linie zeigt die neue Stelle) oder über das Menü nach oben/unten schieben, kopieren, ausschneiden, löschen;
   ✏️ bearbeitet Text und Tabellen an Ort und Stelle, darunter rückt alles mit; mehrere Absätze aus dem Editor bleiben dabei ein Baustein, Überschriften und Listen stehen für sich. Was am Baustein hängt, wandert mit, und beim Löschen geht es mit. Gruppieren gibt
   es nur für freie Objekte. **↶ macht auch das rückgängig**, solange der Stift-Editor offen ist. Schüler ändern
-  keine Bausteine.
+  keine Bausteine. Dasselbe gilt in der eigenständigen App (lm-editor), außer in einer Schülerfassung.
 - **Einfügen:** Der Ort entscheidet. **Auf der Schreibfläche** (Karo, Linien, Feld, freies Blatt) entsteht ein
   freies Objekt, verschiebbar: Text als Textfläche, Bild frei, an der Ecke größer oder kleiner. **Außerhalb oder
   über ⊕** entsteht ein Baustein im Dokument (⊕ bietet dazu ¶ Textblock, ▤ Tabelle, 🖼 Bild). Ist eine Textfläche gewählt,

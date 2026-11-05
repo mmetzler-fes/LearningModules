@@ -44,6 +44,26 @@ describe('.odt-Import: Zeichnungen von LibreOffice', () => {
 });
 
 describe('.odt-Import: Titel', () => {
+  const withMeta = (body: string, title: string) => {
+    const zip = new AdmZip(odt(body));
+    zip.addFile('meta.xml', Buffer.from(
+      '<office:document-meta xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" xmlns:dc="http://purl.org/dc/elements/1.1/">'
+      + `<office:meta><dc:title>${title}</dc:title></office:meta></office:document-meta>`));
+    return zip.toBuffer();
+  };
+  const body = '<text:h text:outline-level="1">Erste Überschrift</text:h>';
+
+  it('der Dateiname geht vor: alter Titel in den Metadaten und Überschrift zählen nicht', () => {
+    const doc = withMeta(body, 'Altes Dokument');
+    expect(odtToHtml(doc, 'Neues Blatt.odt').title).toBe('Neues Blatt');
+    expect(odtToHtml(odt(body), 'Neues Blatt.odt').title).toBe('Neues Blatt');
+  });
+
+  it('ohne Dateinamen: erst brauchbare Metadaten, dann die erste Überschrift', () => {
+    expect(odtToHtml(withMeta(body, 'Altes Dokument'), '').title).toBe('Altes Dokument');
+    expect(odtToHtml(withMeta(body, 'Unbenannt 1'), '').title).toBe('Erste Überschrift');
+  });
+
   it('Titel aus den Metadaten nur, wenn er nach einem Titel aussieht', () => {
     expect(usableTitle('1')).toBe(false);
     expect(usableTitle('Unbenannt 1')).toBe(false);

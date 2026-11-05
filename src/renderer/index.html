@@ -140,6 +140,10 @@
           <button type="button" class="btn btn-primary btn-full" id="btnStudentScan">📷 QR-Code scannen</button>
           <div class="cb-scan hidden" id="studentScanBox"><div class="cb-scan-view"></div>
             <button type="button" class="btn btn-secondary btn-full" id="btnStudentScanStop">Abbrechen</button></div>
+          <form id="studentLinkForm" class="student-code-form">
+            <input type="text" inputmode="url" id="studentLink" class="search-input" placeholder="Link zum Quiz, z. B. https://…/?l=…" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" aria-label="Link zum Quiz" />
+            <button type="submit" class="btn btn-secondary">Öffnen</button>
+          </form>
           <form id="studentCodeForm" class="student-code-form">
             <input type="text" id="studentCode" class="cb-code-input search-input" placeholder="Klassencode, z. B. K7M4-QX9P" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="12" aria-label="Klassencode" />
             <button type="submit" class="btn btn-secondary">Öffnen</button>

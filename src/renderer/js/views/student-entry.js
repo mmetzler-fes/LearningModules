@@ -3,14 +3,20 @@ import { scanQr } from './qr-scan.js';
 // ==================== EINSTIEG FÜR SCHÜLER (STARTSEITE) ====================
 //
 // Ohne Link in der Adresse: QR-Code der Lehrkraft hier scannen (nicht jeder
-// findet die Kamera-App, und in der installierten App geht es nur so) oder
-// den Klassencode eines Klassennotizbuchs eintippen.
+// findet die Kamera-App, und in der installierten App geht es nur so), den
+// Link zum Quiz eingeben (wenn der QR-Code gerade nicht da ist) oder den
+// Klassencode eines Klassennotizbuchs eintippen.
 
-/** Schüler-Link dieses Servers (`?k=`, `?l=`, `?q=`) aus einem gescannten Text – oder null. */
+/** Schüler-Link dieses Servers (`?k=`, `?l=`, `?q=`) aus einem gescannten oder eingegebenen Text – oder null. */
 export function studentLinkFrom(text) {
   try {
-    const url = new URL(String(text || '').trim(), location.origin);
-    if (url.origin !== location.origin) return { foreign: url.host };
+    const raw = String(text || '').trim();
+    // Von Hand eingegeben fehlt oft das https:// – dann beginnt der Text mit dem Server
+    // (schule.de/?q=…, localhost:3000/?q=…, server/?q=…); ein einzelnes Wort ist keiner.
+    const bare = /^[^\s/?#:]+(\.|:\d|[/?])/.test(raw);
+    const url = new URL(bare ? `${location.protocol}//${raw}` : raw, location.origin);
+    // Der Rechnername zählt: http und https sind derselbe Server.
+    if (url.host !== location.host) return { foreign: url.host };
     // Schülerseiten unter /schueler/ (eigener App-Bereich), gleich dorthin.
     return ['k', 'l', 'q'].some((k) => url.searchParams.get(k)) ? { href: `/schueler/${url.search}` } : null;
   } catch (_) {
@@ -81,6 +87,12 @@ export function bindStudentEntry() {
   const scanBtn = box.querySelector('#btnStudentScan');
   const showErr = (text) => { err.textContent = text; err.classList.toggle('hidden', !text); };
   let scan = null;
+  // `what`: wie der Text in der Fehlermeldung heißt, „QR-Code“ oder „Link“.
+  const openLink = (text, what) => {
+    const link = studentLinkFrom(text);
+    if (link?.href) { location.href = link.href; return; }
+    showErr(link?.foreign ? `Dieser ${what} gehört zu ${link.foreign}, nicht zu diesem Server.` : `Das ist kein ${what} deiner Lehrkraft für LernModule.`);
+  };
   const stop = () => { scan?.cancel(); scan = null; scanBox.classList.add('hidden'); scanBtn.classList.remove('hidden'); };
 
   scanBtn.addEventListener('click', async () => {
@@ -91,16 +103,21 @@ export function bindStudentEntry() {
     let text;
     try { text = await scan.done; } catch (e) {
       stop();
-      showErr(e?.name === 'NotAllowedError' ? 'Die Kamera ist nicht erlaubt – erlaube sie in den Einstellungen oder tipp den Klassencode ein.' : (e?.message || 'Die Kamera lässt sich nicht starten.'));
+      showErr(e?.name === 'NotAllowedError' ? 'Die Kamera ist nicht erlaubt – erlaube sie in den Einstellungen oder gib den Link oder Klassencode ein.' : (e?.message || 'Die Kamera lässt sich nicht starten.'));
       return;
     }
     if (text === null) return;
     stop();
-    const link = studentLinkFrom(text);
-    if (link?.href) { location.href = link.href; return; }
-    showErr(link?.foreign ? `Dieser QR-Code gehört zu ${link.foreign}, nicht zu diesem Server.` : 'Das ist kein QR-Code deiner Lehrkraft für LernModule.');
+    openLink(text, 'QR-Code');
   });
   box.querySelector('#btnStudentScanStop').addEventListener('click', stop);
+
+  box.querySelector('#studentLinkForm').addEventListener('submit', (e) => {
+    e.preventDefault();
+    showErr('');
+    const text = box.querySelector('#studentLink').value.trim();
+    if (text) openLink(text, 'Link');
+  });
 
   box.querySelector('#studentCodeForm').addEventListener('submit', async (e) => {
     e.preventDefault();

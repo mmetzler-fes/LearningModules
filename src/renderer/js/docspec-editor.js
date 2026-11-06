@@ -19,7 +19,7 @@ import { newlineIndent, shiftLines, reindentPaste, insertAfterItem } from './yam
 import { pickQuiz as pickQuizFrom } from './quiz-picker.js';
 import { pickPdfBlocks } from './views/attachment-convert.js';
 import { showContextMenu } from '../lm-editor/src/util/dom.js';
-import { attachTableTools } from './table-tools.js';
+import { attachTableTools, markFixedTables } from './table-tools.js';
 import { attachFormatTools } from './format-tools.js';
 import { openParagraphDialog } from './paragraph-dialog.js';
 import { objectEntries, objectName, copyText } from './object-actions.js';
@@ -677,6 +677,7 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
     update();
   };
   const surfaceObserver = new MutationObserver(() => {
+    markFixedTables(surface); // Tabellenbreite wie in der Vorschau (alle Spalten fest → Summe)
     if (syncing || mode !== 'visual') return;
     clearTimeout(vTimer);
     vTimer = setTimeout(fromVisual, 300);

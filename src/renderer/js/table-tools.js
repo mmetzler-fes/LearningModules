@@ -1,6 +1,7 @@
 import { showContextMenu } from '../lm-editor/src/util/dom.js';
 import { BG_NAMES, LINE_COLOR_NAMES, LINE_STYLES, LINE_WIDTHS, cellsOf, grid, openTableProps as openPropsDialog, rowsOf, setCellBackground, setLines, spanOf, toggleHeader } from '../lm-editor/src/editor/table-props.js';
 import { objectEntries } from './object-actions.js';
+import { TEXT_WIDTH_CM, equalWidths } from '../lm-editor/src/doc/docspec.js';
 
 
 // ==================== TABELLEN IM DOKUMENT-EDITOR ====================
@@ -157,6 +158,20 @@ function setColumnWidth(table, c, cm) {
   if (cm) col.style.width = `${cm}cm`; else col.style.removeProperty('width');
   if (!col.getAttribute('style')) col.removeAttribute('style');
   dropEmptyColgroup(table);
+}
+
+/**
+ * Klasse ds-table-fixed, wenn jede Spalte eine feste Breite hat: Dann ist die
+ * Tabelle so breit wie deren Summe, sonst füllt sie die Zeile (wie im Druck).
+ * Ändert nur, was nicht stimmt – der Beobachter der Fläche läuft sonst im Kreis.
+ */
+export function markFixedTables(root) {
+  for (const table of root.querySelectorAll('table:not(.ws-columns)')) {
+    const g = grid(table);
+    const cols = [...table.children].filter((c) => c.tagName === 'COLGROUP').flatMap((c) => [...c.children]);
+    const fixed = g.cols > 0 && cols.length >= g.cols && cols.slice(0, g.cols).every((c) => !!c.style.width);
+    if (table.classList.contains('ds-table-fixed') !== fixed) table.classList.toggle('ds-table-fixed', fixed);
+  }
 }
 
 function setRowHeight(tr, cm) {
@@ -693,10 +708,12 @@ export function attachTableTools(surface, bar, { copyObject = null } = {}) {
       const cm = Math.max(0.4, Math.round((h / PX_PER_CM) * 10) / 10);
       g.rows.forEach((tr) => setRowHeight(tr, cm));
     } else {
-      const w = [...Array(g.cols).keys()].reduce((n, c) => n + columnPx(g, c), 0) / g.cols;
-      const cm = Math.max(0.5, Math.round((w / PX_PER_CM) * 10) / 10);
-      for (let c = 0; c < g.cols; c++) setColumnWidth(table, c, cm);
+      // Gleich breite Spalten über die Breite der Tabelle (Tabelleneigenschaften), sonst die Satzbreite –
+      // nicht gemessen: Leere Spalten sind am Bildschirm schmal und gäben schmale Spalten.
+      const total = Number(table.dataset.width) || TEXT_WIDTH_CM;
+      equalWidths(g.cols, total).forEach((w, c) => setColumnWidth(table, c, parseFloat(w)));
     }
+    markFixedTables(table.parentNode || table);
   };
 
 
@@ -770,8 +787,8 @@ export function attachTableTools(surface, bar, { copyObject = null } = {}) {
           { label: 'Farbe', submenu: LINE_COLOR_NAMES.map(([v, l]) => ({ label: check(lc === v, l), onClick: setL({ color: v }) })) },
         ] },
         { label: 'Zeilen gleichmäßig verteilen', onClick: () => distribute(table, 'rows') },
-        { label: 'Spalten gleichmäßig verteilen', onClick: () => distribute(table, 'cols') },
-        { label: '⇔ Spaltenbreiten automatisch', onClick: () => { [...table.children].filter((c) => c.tagName === 'COLGROUP').forEach((c) => c.remove()); } },
+        { label: 'Spalten gleichmäßig verteilen', title: 'Alle Spalten gleich breit über die Breite der Tabelle (sonst die Seitenbreite, 16,5 cm)', onClick: () => distribute(table, 'cols') },
+        { label: '⇔ Spaltenbreiten automatisch', title: 'Keine festen Breiten: Die Tabelle füllt die Zeile, die Spalten richten sich nach dem Inhalt', onClick: () => { [...table.children].filter((c) => c.tagName === 'COLGROUP').forEach((c) => c.remove()); markFixedTables(table.parentNode || table); } },
         '-',
         { label: '⬚ Ganze Tabelle auswählen', onClick: () => { cell = td; selectTable(table); } },
         '-',

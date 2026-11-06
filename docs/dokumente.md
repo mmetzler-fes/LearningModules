@@ -105,6 +105,13 @@ Der Editor startet im Modus **✏️ Bearbeiten** – wie ein Textprogramm:
     (Breite, Lage links/Mitte/rechts, Abstand oben/unten, Kopfzeile),
     **Umrandung** (Stärke, Art, Farbe), **Zellen** (für diese oder alle
     Zellen: Hintergrund, waagerecht, senkrecht; Innenabstand).
+  - **Breite wie im Druck:** Eine Tabelle füllt die Zeile (oder die Breite aus
+    den Tabelleneigenschaften). Spalten mit fester Breite behalten sie, die
+    übrigen teilen sich den Rest; erst wenn jede Spalte fest ist, ist die
+    Tabelle so breit wie ihre Summe. **Spalten gleichmäßig verteilen** gibt
+    allen Spalten dieselbe feste Breite über die Tabellenbreite (sonst 16,5 cm),
+    **Spaltenbreiten automatisch** nimmt die festen Breiten wieder weg.
+    Bearbeitung und Vorschau zeigen das gleich.
   - **Mit der Maus:** rechten Rand einer Zelle ziehen = Spaltenbreite, unteren
     Rand = Zeilenhöhe. Der Griff **⠿** links oben wählt die **ganze Tabelle**
     (blauer Rahmen) mit ↑ ↓ (Alt+↑/↓), ⧉, ✂ (Strg+X), ✕ (Entf) und bei

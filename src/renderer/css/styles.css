@@ -3670,6 +3670,13 @@ body.html-app-large .quiz-actions { margin-top: 8px; padding-top: 8px; flex-shri
 .docspec .ds-table .ds-code { white-space: pre-wrap; overflow-wrap: anywhere; overflow-x: visible; margin: 0.2em 0; }
 .docspec .ds-table .ds-code code { padding: 0; background: none; font-size: inherit; } /* nicht wie `code` im Zelltext */
 .docspec .ds-table { border-collapse: collapse; }
+/* Breite wie im Druck: die Zeile (bzw. die eingestellte Breite); feste Spalten behalten ihre Breite,
+   die übrigen teilen sich den Rest. Sind alle Spalten fest, so breit wie ihre Summe. */
+.docspec .ds-table { width: 100%; }
+.docspec .ds-table.ds-table-fixed, .docspec .ds-table.ds-table-plain { width: auto; }
+/* Bearbeitungsfläche (alt und Tiptap) wie die Vorschau: dieselbe Breite, dieselben Abstände. */
+.ds-surface.worksheet-content table:not(.ws-columns) { display: table; width: 100%; overflow: visible; margin: 0 0 0.8em; --ds-cell-pad: 4px 8px; }
+.ds-surface.worksheet-content table.ds-table-fixed, .ds-surface.worksheet-content table.ws-table-plain { width: auto; }
 /* Linien je Tabelle (lineWidth, lineStyle über CSS-Variablen) – jede Tabelle setzt sie selbst zurück */
 .docspec .ds-table { --ds-line-w: 1px; --ds-line-s: solid; --ds-line-c: var(--border); --ds-cell-pad: 4px 8px; }
 .docspec .ds-table th,

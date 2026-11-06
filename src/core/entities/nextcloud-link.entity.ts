@@ -127,6 +127,10 @@ export class NextcloudLink extends BaseEntity {
   @Column('simple-json', { nullable: true })
   backupFiles: Record<string, { file: string; hash: string }> | null;
 
+  /** Sicherung im Aufbau des Notizbuchs (src/sicherung): je Datei Pfad, ETag, Prüfwert, Zustand. */
+  @Column('simple-json', { nullable: true })
+  sicherungFiles: Record<string, any> | null;
+
   /** Mail zur aktuellen Fehlerserie schon verschickt. */
   @Column({ default: false })
   backupFailureNotified: boolean;

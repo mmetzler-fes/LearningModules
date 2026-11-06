@@ -85,6 +85,7 @@ import { ClassbookProgress } from './core/entities/classbook-progress.entity';
 import { PlanNode } from './core/entities/plan-node.entity';
 import { PlanEntry } from './core/entities/plan-entry.entity';
 import { PlansModule } from './plans/plans.module';
+import { SicherungModule } from './sicherung/sicherung.module';
 import { HtmlAppFile } from './core/entities/html-app-file.entity';
 import { HtmlAppState } from './core/entities/html-app-state.entity';
 import { HtmlAppsModule } from './html-apps/html-apps.module';
@@ -156,6 +157,7 @@ function noStaleUi(res: any, path: string) {
     WorkModule,
     ClassbookModule,
     PlansModule,
+    SicherungModule,
     DrawingsModule,
   ],
   controllers: [AppController],

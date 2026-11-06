@@ -343,15 +343,45 @@ sagt, wie viele. Der JSON-Export enthält die Links, so wie sie im Modul stehen.
 
 ## Backup
 
-Unter **Backup deiner Inhalte** → **Täglich
-sichern um …** und **⬆ Jetzt sichern**. Gesichert wird in den Unterordner
-`Backups` – je Lernthema eine JSON-Datei (`<Titel> (<Kennung>).json`), nur
-selbst verfasste Module wie beim offenen Export, und nur, wenn sich etwas
-geändert hat. Ältere Stände zeigt die Nextcloud bei jeder Datei unter
-**Versionen**. Zurückholen: Datei herunterladen und über **📥 Thema
-importieren** einlesen. Schlägt ein Backup fehl, kommt eine Mail, und die App
-versucht es stündlich erneut.
+Unter **💾 Backup deiner Inhalte** → **Täglich sichern um …** und **⬆ Jetzt sichern** (nur mit eigener
+Freigabe). Seit November 2026 sichert die App in den Ordner **`Sicherung`** – im Aufbau deines Notizbuchs:
 
+```
+Sicherung/
+  LIESMICH.txt
+  Elektrotechnik/                 ← Book
+    Grundlagen/                   ← Bereich (und Abschnitte darunter)
+      Ohmsches Gesetz/            ← Lernthema
+        01 Arbeitsblatt.zlm       ← Dokument mit eingebetteten Quizzen, Bildern, deiner Beschriftung
+        02 Kurzquiz Ohm.zlm       ← Quiz ohne Dokument (auch Übungen und HTML-Apps)
+        03 Material – Tabelle.pdf ← Anhang als Originaldatei
+        _lernthema.json           ← Titel, Reihenfolge, Kennungen
+  Unsortiert/…
+  _Gesichert/2026-11-06/…         ← Ersetztes und Gelöschtes, 180 Tage
+```
+
+- Gesichert werden deine selbst verfassten Inhalte, keine Schülerdaten. Lernthemen nur einer Klasse
+  (klasseneigene) und gekaufte Inhalte bleiben draußen.
+- Geschrieben wird nur, was sich geändert hat. Verschiebst oder benennst du etwas im Notizbuch um, ziehen
+  die Dateien mit um; Leeres verschwindet. Was die App ersetzt oder was in der App gelöscht wurde, liegt
+  180 Tage unter `_Gesichert/<Datum>/`.
+- Eine `.zlm` öffnet der [lm-editor](https://mmetzler-fes.github.io/lm-editor/) – auch offline – und
+  LearningModules über **📂 Datei öffnen**.
+- **Offline bearbeiten:** Bearbeitest du eine `.zlm` (z. B. im lm-editor) und speicherst sie wieder in
+  `Sicherung`, bemerkt das der nächste Lauf. Das Notizbuch zeigt dann **✏️ N Dateien in der Nextcloud
+  geändert → Ansehen …**:
+  - **⬇ Übernehmen** macht die Datei zum Stand in der App – beim Dokument Inhalt, eigene eingebettete
+    Quizze und deine Beschriftung, beim Quiz oder der HTML-App Titel, Inhalt und Untermodule (eine HTML-App
+    wird dabei wieder geprüft). Den bisherigen Stand der App legt sie vorher als „… (App).zlm“ unter
+    `_Gesichert` ab.
+  - **✖ Verwerfen** legt die Datei aus der Nextcloud unter `_Gesichert` ab und schreibt wieder die Fassung
+    der App.
+  - Bis du entscheidest, überschreibt die App die Datei nicht. Andere Dateien (Anhänge,
+    `_lernthema.json`), die draußen geändert wurden, sichert sie nach `_Gesichert` und schreibt sie neu.
+- Der frühere Ordner `Backups` mit je einer JSON-Datei pro Lernthema bleibt, wie er ist, wird aber nicht
+  mehr fortgeschrieben.
+
+Schlägt ein Backup fehl, kommt eine Mail, und die App versucht es stündlich erneut.
 
 ## Dokumente als Dateien
 

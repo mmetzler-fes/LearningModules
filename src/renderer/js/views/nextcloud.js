@@ -115,6 +115,16 @@ const when = (d) => (d ? new Date(d).toLocaleString('de-DE', { dateStyle: 'short
 
 function backupSummary(r) {
   if (!r) return '';
+  // Sicherung im Aufbau des Notizbuchs
+  if (r.written !== undefined) {
+    const parts = [`${r.written || 0} geschrieben`];
+    if (r.moved) parts.push(`${r.moved} verschoben`);
+    if (r.saved) parts.push(`${r.saved} nach _Gesichert`);
+    parts.push(`${r.unchanged || 0} unverändert`);
+    if (r.changed) parts.push(`${r.changed} in der Nextcloud geändert`);
+    if (r.errors) parts.push(`${r.errors} Fehler`);
+    return parts.join(', ');
+  }
   const parts = [];
   if (r.created) parts.push(`${r.created} neu`);
   if (r.updated) parts.push(`${r.updated} geändert`);
@@ -137,9 +147,11 @@ function backupHtml(b, open = false) {
     <details class="nc-section nc-backup" ${b.lastStatus === 'error' || open ? 'open' : ''}>
       <summary>💾 Backup deiner Inhalte <span class="nc-sum-state">${escapeHtml(state)}</span></summary>
       <div class="nc-section-body">
-      <p class="hint">Sichert deine selbst verfassten Module täglich nach <strong>${escapeHtml(b.folder)}</strong> – je Lernthema
-        eine JSON-Datei, nur wenn sich etwas geändert hat. Ältere Stände zeigt die Nextcloud bei jeder Datei unter
-        „Versionen“. Zurückholen: Datei herunterladen und über 📥 Thema importieren einlesen.
+      <p class="hint">Sichert deine selbst verfassten Inhalte täglich nach <strong>${escapeHtml(b.folder)}</strong> – im Aufbau deines
+        Notizbuchs (Book, Bereich, Abschnitt, je Lernthema ein Ordner): jedes Dokument, Quiz und jede HTML-App als <code>.zlm</code>,
+        Anhänge als Originaldateien. Geschrieben wird nur, was sich geändert hat; Gelöschtes liegt 180 Tage unter <code>_Gesichert</code>.
+        Eine <code>.zlm</code> kannst du offline im lm-editor bearbeiten und dort speichern – das Notizbuch meldet sie dann zum Übernehmen.
+        Der frühere Ordner <code>Backups</code> mit JSON-Dateien bleibt, wie er ist.
         ${b.openUrl ? `<a href="${escapeAttr(b.openUrl)}" target="_blank" rel="noopener">Ordner öffnen ↗</a>` : ''}</p>
       <div class="shop-mode-row">
         <label class="share-flag"><input type="checkbox" id="ncBackupOn" ${b.enabled ? 'checked' : ''} /> <span>Täglich sichern um</span></label>

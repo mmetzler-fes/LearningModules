@@ -6081,3 +6081,7 @@ details.cb-topic > summary .hint { font-weight: normal; margin-left: 6px; }
 .pl-classmode [data-pl-new="folder"], .pl-classmode [data-pl-new="plan"], .pl-classmode [data-pl-act="include"],
 .pl-classmode [data-pl-act="classes"], .pl-classmode [data-pl-act="view"] { display: none; }
 .pl-link .pl-note { color: var(--success); }
+.nb-sicherung-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 6px 0; padding: 6px 10px; border: 1px solid var(--warning); border-radius: var(--radius-sm); background: var(--bg-secondary); }
+.nb-sich-list { list-style: none; padding: 0; margin: 8px 0; max-height: 55vh; overflow: auto; }
+.nb-sich-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 6px 0; border-bottom: 1px solid var(--border); }
+.nb-sich-actions { display: flex; gap: 6px; flex: none; }

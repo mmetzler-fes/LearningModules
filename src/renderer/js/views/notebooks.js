@@ -135,6 +135,7 @@ export class NotebooksView {
     this._data = data;
     void this._loadReach();
     void this._loadMirror();
+    void this._loadSicherung();
     // Module mit offenem Entwurf (nicht gespeicherte Änderungen) markieren.
     try {
       const drafts = await this.app.api.listDrafts();
@@ -147,6 +148,61 @@ export class NotebooksView {
     this._index();
     this._render();
     this._preview.refresh();
+  }
+
+  /** Sicherung: in der Nextcloud geänderte .zlm – Leiste über dem Baum, nur wenn es welche gibt. */
+  async _loadSicherung() {
+    let bar = document.getElementById('nbSicherungBar');
+    const res = await this.app.api.getSicherungChanged().catch(() => null);
+    const files = Array.isArray(res?.files) ? res.files : [];
+    if (!files.length) { bar?.remove(); return; }
+    if (!bar) {
+      bar = document.createElement('div');
+      bar.id = 'nbSicherungBar';
+      bar.className = 'nb-sicherung-bar';
+      this._mirrorBar?.parentNode?.insertBefore(bar, this._mirrorBar);
+    }
+    bar.innerHTML = `<span>✏️ <strong>${files.length} Datei${files.length === 1 ? '' : 'en'} in der Nextcloud geändert</strong>
+      <span class="hint">– z. B. im lm-editor bearbeitet. Bis du entscheidest, überschreibt die App sie nicht.</span></span>
+      <button type="button" class="btn btn-primary btn-sm">Ansehen …</button>`;
+    bar.querySelector('button').addEventListener('click', () => this._sicherungDialog(files));
+  }
+
+  async _sicherungDialog(files) {
+    const overlay = document.createElement('div');
+    overlay.className = 'confirm-overlay';
+    const row = (f, i) => `<li class="nb-sich-row" data-i="${i}">
+        <div><strong>${escapeHtml(f.title || f.path.split('/').pop())}</strong>
+          <div class="hint"><code>${escapeHtml(f.path)}</code>${f.changedAt ? ` · bemerkt ${new Date(f.changedAt).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' })}` : ''}</div></div>
+        <span class="nb-sich-actions">
+          <button type="button" class="btn btn-primary btn-sm" data-act="take" title="Die Datei aus der Nextcloud wird zum Stand in der App. Der bisherige Stand der App kommt nach _Gesichert.">⬇ Übernehmen</button>
+          <button type="button" class="btn btn-secondary btn-sm" data-act="discard" title="Die Datei aus der Nextcloud kommt nach _Gesichert, die App schreibt ihre Fassung.">✖ Verwerfen</button>
+        </span></li>`;
+    overlay.innerHTML = `<div class="import-modules-card" style="max-width:760px">
+      <h3>✏️ In der Nextcloud geändert</h3>
+      <p class="hint">Diese Dateien in <code>Sicherung</code> wurden außerhalb der App gespeichert. <strong>Übernehmen</strong> macht sie zum Stand
+        in der App (Dokument, eigene eingebettete Quizze, Beschriftung bzw. Quiz/HTML-App); der bisherige Stand der App liegt danach als
+        „… (App).zlm“ unter <code>_Gesichert</code>. <strong>Verwerfen</strong> legt die Datei dorthin und schreibt wieder die Fassung der App.</p>
+      <ul class="nb-sich-list">${files.map(row).join('')}</ul>
+      <div class="confirm-actions"><button type="button" class="btn btn-secondary nb-sich-close">Schließen</button></div></div>`;
+    document.body.appendChild(overlay);
+    const close = () => { overlay.remove(); void this.refresh(); };
+    overlay.querySelector('.nb-sich-close').addEventListener('click', close);
+    overlay.addEventListener('click', async (e) => {
+      const btn = e.target.closest('[data-act]');
+      if (!btn) { if (e.target === overlay) close(); return; }
+      const li = btn.closest('[data-i]');
+      const f = files[Number(li.dataset.i)];
+      if (btn.dataset.act === 'discard' && !(await this.app.appConfirm(`„${f.title}“ verwerfen?\n\nDie Datei aus der Nextcloud kommt nach _Gesichert, die App schreibt ihre Fassung.`))) return;
+      li.querySelectorAll('button').forEach((b) => { b.disabled = true; });
+      const res = btn.dataset.act === 'take' ? await this.app.api.takeOverSicherung(f.key) : await this.app.api.discardSicherung(f.key);
+      if (failed(res)) {
+        li.querySelectorAll('button').forEach((b) => { b.disabled = false; });
+        this.app.showToast(`„${f.title}“: ${res?.message || 'Das ging nicht.'}`, 'error');
+        return;
+      }
+      li.innerHTML = `<div>${btn.dataset.act === 'take' ? '✅ übernommen' : '✖ verworfen'}: <strong>${escapeHtml(f.title)}</strong>${res.quizzes ? ` <span class="hint">(${res.quizzes} Quiz${res.quizzes === 1 ? '' : 'ze'} aktualisiert)</span>` : ''}</div>`;
+    });
   }
 
   /**

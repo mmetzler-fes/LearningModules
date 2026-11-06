@@ -455,7 +455,7 @@ export class NextcloudService implements OnApplicationBootstrap {
       imagesFolder: IMAGES,
       openUrl: this.shareLink(l),
       backup: {
-        enabled: l.backupEnabled, hour: l.backupHour, folder: 'Backups',
+        enabled: l.backupEnabled, hour: l.backupHour, folder: 'Sicherung',
         lastAttemptAt: l.backupAttemptAt, lastSuccessAt: l.backupSuccessAt, lastStatus: l.backupStatus,
         lastError: l.backupError, lastResult: l.backupResult,
         openUrl: this.shareLink(l),

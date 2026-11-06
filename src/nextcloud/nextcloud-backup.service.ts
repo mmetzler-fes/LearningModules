@@ -63,6 +63,12 @@ export class NextcloudBackupService implements OnApplicationBootstrap, OnModuleD
   private timer: NodeJS.Timeout | null = null;
   private ticking = false;
   private readonly running = new Set<string>();
+  /** Sicherung im Aufbau des Notizbuchs (src/sicherung) – ersetzt die JSON-Dateien, sobald sie sich anmeldet. */
+  private runner: ((userId: string) => Promise<any>) | null = null;
+
+  setRunner(fn: (userId: string) => Promise<any>) {
+    this.runner = fn;
+  }
 
   constructor(
     @InjectRepository(NextcloudLink) private readonly linkRepo: Repository<NextcloudLink>,
@@ -152,6 +158,14 @@ export class NextcloudBackupService implements OnApplicationBootstrap, OnModuleD
       l.backupAttemptAt = now;
       await this.linkRepo.save(l);
 
+      if (this.runner) {
+        const r = await this.runner(userId);
+        const result = { written: r.written, moved: r.moved, saved: r.saved, unchanged: r.unchanged, changed: r.changed, errors: r.errors };
+        Object.assign(l, { backupSuccessAt: now, backupStatus: 'ok', backupError: null, backupResult: result, backupFailureNotified: false });
+        // Nur die Zustandsfelder speichern – sicherungFiles hat der Lauf selbst geschrieben.
+        await this.linkRepo.update({ id: l.id }, { backupSuccessAt: now, backupStatus: 'ok', backupError: null, backupResult: result, backupFailureNotified: false } as any);
+        return { success: true, ...result, errorList: r.errorList || [] };
+      }
       await nc.ensureFolder([BACKUPS]);
       const present = new Set((await nc.list([BACKUPS])).filter((e) => !e.isFolder).map((e) => e.name));
       if (!present.has(README_NAME)) await nc.put([BACKUPS, README_NAME], Buffer.from(README, 'utf-8'), 'text/plain; charset=utf-8');

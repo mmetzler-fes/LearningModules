@@ -17,6 +17,6 @@ import { NextcloudBackupService } from './nextcloud-backup.service';
   imports: [TypeOrmModule.forFeature([NextcloudLink, LearningTopic, LearningModule, SystemConfig, User, ModuleDraft, SchoolNextcloud])],
   controllers: [NextcloudController, NextcloudFilesController, SchoolNextcloudController, ServerNextcloudController],
   providers: [NextcloudService, NextcloudBackupService, SchoolNextcloudService],
-  exports: [NextcloudService],
+  exports: [NextcloudService, NextcloudBackupService],
 })
 export class NextcloudModule {}

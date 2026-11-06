@@ -870,11 +870,13 @@ export class ClassbookService {
 
   /**
    * Plan zuweisen (`planId`) oder lösen (null). Beim Zuweisen kommt der ganze
-   * Plan eingeschaltet ins Klassennotizbuch: Bereiche, Abschnitte, Teilpläne
-   * als Bereiche, je Lernthema ein Eintrag. Was die Klasse schon hat, bleibt,
-   * wie es ist. Lösen lässt den Inhalt stehen; er wächst nur nicht mehr mit.
+   * Plan ins Klassennotizbuch: Bereiche, Abschnitte, Teilpläne als Bereiche,
+   * je Lernthema ein Eintrag – eingeschaltet oder mit `switchOn: false`
+   * ausgeschaltet (die Lehrkraft schaltet dann Stück für Stück ein). Was die
+   * Klasse schon hat, bleibt, wie es ist. Lösen lässt den Inhalt stehen; er
+   * wächst nur nicht mehr mit.
    */
-  async setPlan(user: any, classId: string, planId: unknown, req?: any) {
+  async setPlan(user: any, classId: string, planId: unknown, req?: any, switchOn = true) {
     const klasse = await this.classes.ownedClass(classId, user);
     const nb = await this.ensure(klasse);
     if (!this.plans) throw new BadRequestException('Planung nicht verfügbar.');
@@ -889,17 +891,19 @@ export class ClassbookService {
       nb.planSeen = [];
       await this.repo.update({ id: nb.id }, { planId: id, planSeen: [] } as any);
     }
-    const res = await this.followPlan(user, klasse, nb, { on: true, req });
-    return { planId: id, ...res };
+    const res = await this.followPlan(user, klasse, nb, { on: true, switchOn, req });
+    return { planId: id, switchedOn: switchOn, ...res };
   }
 
   /**
    * Klassennotizbuch an den Plan angleichen. `on`: beim Zuweisen alles
-   * eingeschaltet; beim Nachziehen nur, was noch nie übernommen war, und aus.
+   * (eingeschaltet, außer `switchOn: false`); beim Nachziehen nur, was noch nie
+   * übernommen war, und aus.
    * Bereiche heißen in der Klasse `plan:<Plan>:<Schlüssel>` (sourceNodeId) –
    * verschiebt die Lehrkraft sie, bleiben sie dort.
    */
-  private async followPlan(user: any, klasse: StudentClass, nb: ClassNotebook, opts: { on: boolean; req?: any; place?: boolean }) {
+  private async followPlan(user: any, klasse: StudentClass, nb: ClassNotebook, opts: { on: boolean; switchOn?: boolean; req?: any; place?: boolean }) {
+    const switchOn = opts.on && opts.switchOn !== false;
     const none = { added: 0, moved: 0, present: [] as string[], notReleased: [] as string[] };
     if (!nb.planId || !this.plans || klasse.ownerId !== user.userId) return none;
     let items: PlanItem[];
@@ -957,7 +961,7 @@ export class ClassbookService {
         const link = await this.linkRepo.findOne({ where: { id: created.id } });
         if (!link) continue;
         const { topics } = await this.available(link, user);
-        link.selection = opts.on
+        link.selection = switchOn
           ? explicitSelection((link.selection || []) as SelEntry[], topics as AvailTopic[])
           : (link.selection || []).map((e) => ({ topicId: e.topicId, all: false, moduleIds: [] }));
         await this.linkRepo.save(link);

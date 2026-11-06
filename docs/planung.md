@@ -113,9 +113,14 @@ frei umordnen. Ins Ziel „Abschnitt“ kommen nur die Lernthemen, ohne Bereiche
 Plan folgt. Am Plan stehen danach ihre Namen, z. B. „📒 10a, 10b“. Im **📒 Klassennotizbuch** steht unter dem Titel
 „🗂 Plan: …“; dort lässt er sich auch zuweisen, wechseln oder lösen.
 
-- Beim Zuweisen kommt der ganze Plan **eingeschaltet** ins Klassennotizbuch: seine Bereiche und Abschnitte,
-  Teilpläne als Bereich, je Lernthema ein Eintrag. Was die Klasse schon hat, bleibt, wie es ist, und kommt
-  nicht doppelt.
+- Beim Zuweisen kommt der ganze Plan ins Klassennotizbuch: seine Bereiche und Abschnitte, Teilpläne als
+  Bereich, je Lernthema ein Eintrag. Die App fragt, ob die Lernthemen **○ ausgeschaltet** (vorgewählt – die
+  Schüler sehen noch nichts, du schaltest ein, was dran ist) oder **● eingeschaltet** kommen. Was die Klasse
+  schon hat, bleibt, wie es ist, und kommt nicht doppelt.
+- **Empfehlung:** ein Plan je Bildungsgang und Jahrgang (z. B. „TG Mechatronik › Jahrgang 12“), allen
+  Parallelklassen zugewiesen; wie weit eine Klasse ist, steuerst du im Klassennotizbuch (● / ○, 🙈, 📍). Einen
+  eigenen Plan für eine Klasse nur, wenn sie deutlich abweicht – dann den allgemeinen Plan als Teilplan
+  einbinden.
 - **Neues im Plan** kommt beim nächsten Öffnen des Klassennotizbuchs dazu, **ausgeschaltet** (○). Du
   schaltest es ein, wenn die Klasse so weit ist.
 - **Abweichen geht:** Im Klassennotizbuch kannst du wie gewohnt umordnen, ausschalten, entfernen oder

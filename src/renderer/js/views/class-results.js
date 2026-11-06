@@ -1417,9 +1417,11 @@ export class ClassResultsView {
     if (cb.plan) options.unshift({ id: '', label: '✖ Keinen Plan mehr (Inhalt bleibt)' });
     const id = await this.app.planningView._pick(`🗂 Plan für ${cb.className}`, options);
     if (id === null || id === (cb.plan?.id || '')) return;
-    const res = await this.app.api.setClassPlan(cb.classId, id || null);
+    const on = id ? await this.app.planningView.askPlanSwitch(cb.className) : true;
+    if (on === null) return;
+    const res = await this.app.api.setClassPlan(cb.classId, id || null, on);
     if (!res || res.statusCode >= 400) { this.app.showToast(res?.message || 'Das ging nicht.', 'error'); return; }
-    this.app.showToast(id ? `Plan zugewiesen: ${res.added} neu${res.present?.length ? `, ${res.present.length} schon da` : ''}${res.notReleased?.length ? ` · nicht freigegeben: ${res.notReleased.join(', ')}` : ''}.` : 'Die Klasse folgt keinem Plan mehr. Der Inhalt bleibt.', 'success');
+    this.app.showToast(id ? `Plan zugewiesen: ${res.added} neu${on || !res.added ? '' : ', ausgeschaltet – schalte ein, was dran ist'}${res.present?.length ? `, ${res.present.length} schon da` : ''}${res.notReleased?.length ? ` · nicht freigegeben: ${res.notReleased.join(', ')}` : ''}.` : 'Die Klasse folgt keinem Plan mehr. Der Inhalt bleibt.', 'success');
     await this._classbook(true);
     this._render();
   }

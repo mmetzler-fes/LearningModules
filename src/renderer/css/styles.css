@@ -6113,6 +6113,10 @@ details.cb-topic > summary .hint { font-weight: normal; margin-left: 6px; }
 .pl-menu button:hover { background: var(--accent-light); }
 .pl-pick, .pl-pick-filter { width: 100%; font: inherit; margin: 6px 0; }
 .pl-dialog-card { max-width: 720px; }
+.pl-switch-card { max-width: 560px; }
+.pl-switch-choices { display: flex; gap: 10px; margin: 12px 0; }
+.pl-switch-choices .btn { flex: 1 1 0; flex-direction: column; align-items: flex-start; gap: 4px; padding: 10px 12px; text-align: left; white-space: normal; }
+.pl-switch-choices .btn .hint { font-weight: normal; font-size: 0.82em; color: inherit; opacity: 0.85; }
 .pl-dialog-body { max-height: 60vh; overflow: auto; }
 .pl-preview, .pl-preview ul { list-style: none; padding-left: 18px; margin: 2px 0; }
 .pl-preview { padding-left: 0; }

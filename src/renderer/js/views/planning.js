@@ -750,17 +750,19 @@ export class PlanningView {
     const before = (this.plans.classes?.[plan.id] || []).map((c) => c.id);
     const chosen = await pickClass(this.app, {
       title: `📒 Klassen für „${plan.title}“`,
-      hint: 'Das Klassennotizbuch der Klasse folgt dem Plan: Alles kommt eingeschaltet hinein, später Dazugekommenes ausgeschaltet. Was die Klasse schon hat, bleibt. Eine Klasse hat höchstens einen Plan.',
+      hint: 'Das Klassennotizbuch der Klasse folgt dem Plan: Alles kommt hinein (danach fragt die App: ein- oder ausgeschaltet), später Dazugekommenes ausgeschaltet. Was die Klasse schon hat, bleibt. Eine Klasse hat höchstens einen Plan.',
       multiple: true, preselected: before, okLabel: '📒 Plan zuweisen', allowNone: true,
     });
     if (!chosen) return;
     const ids = new Set(chosen.map((c) => c.id));
+    const added = chosen.filter((c) => !before.includes(c.id));
+    const on = added.length ? await this.askPlanSwitch(added.map((c) => c.name).join(', ')) : true;
+    if (on === null) return;
     const notes = [];
-    for (const c of chosen) {
-      if (before.includes(c.id)) continue;
-      const res = await this.app.api.setClassPlan(c.id, plan.id);
+    for (const c of added) {
+      const res = await this.app.api.setClassPlan(c.id, plan.id, on);
       if (bad(res)) { this.app.showToast(`${c.name}: ${res?.message || 'Das ging nicht.'}`, 'error'); continue; }
-      notes.push(`${c.name}: ${res.added} neu${res.present?.length ? `, ${res.present.length} schon da` : ''}${res.notReleased?.length ? `, nicht freigegeben: ${res.notReleased.join(', ')}` : ''}`);
+      notes.push(`${c.name}: ${res.added} neu${on || !res.added ? '' : ' (aus)'}${res.present?.length ? `, ${res.present.length} schon da` : ''}${res.notReleased?.length ? `, nicht freigegeben: ${res.notReleased.join(', ')}` : ''}`);
     }
     for (const id of before) {
       if (ids.has(id)) continue;
@@ -1129,6 +1131,31 @@ export class PlanningView {
   }
 
   /** Ziel wählen: Liste mit Pfeiltasten und Enter. Liefert die ID ('' = ganz oben) oder null. */
+  /**
+   * Beim Zuweisen eines Plans: Inhalte ausgeschaltet (Standard) oder
+   * eingeschaltet übernehmen? true = ein, false = aus, null = abgebrochen.
+   */
+  askPlanSwitch(who) {
+    return new Promise((resolve) => {
+      const overlay = document.createElement('div');
+      overlay.className = 'confirm-overlay pl-dialog';
+      overlay.innerHTML = `<div class="import-modules-card nb-dialog pl-switch-card" role="dialog" aria-label="Plan zuweisen"><h3>🗂 Plan zuweisen – ${escapeHtml(who)}</h3>
+        <p>Wie sollen die Lernthemen des Plans ins Klassennotizbuch kommen?</p>
+        <div class="pl-switch-choices">
+          <button type="button" class="btn btn-primary" data-on="0">○ Ausgeschaltet<span class="hint">Die Schüler sehen noch nichts; du schaltest ein, was dran ist.</span></button>
+          <button type="button" class="btn btn-secondary" data-on="1">● Eingeschaltet<span class="hint">Die Schüler sehen sofort den ganzen Plan.</span></button>
+        </div>
+        <p class="hint">Bereiche und Abschnitte kommen in beiden Fällen. Was die Klasse schon hat, bleibt, wie es ist; später im Plan Ergänztes kommt immer ausgeschaltet dazu.</p>
+        <div class="confirm-actions"><button type="button" class="btn btn-secondary btn-cancel">Abbrechen</button></div></div>`;
+      document.body.appendChild(overlay);
+      const done = (v) => { overlay.remove(); resolve(v); };
+      overlay.querySelectorAll('[data-on]').forEach((b) => b.addEventListener('click', () => done(b.dataset.on === '1')));
+      overlay.querySelector('.btn-cancel').addEventListener('click', () => done(null));
+      overlay.addEventListener('keydown', (e) => { if (e.key === 'Escape') { e.preventDefault(); done(null); } });
+      overlay.querySelector('[data-on="0"]').focus();
+    });
+  }
+
   _pick(title, options) {
     if (!options.length) { this.app.showToast('Kein passendes Ziel vorhanden.', 'info'); return Promise.resolve(null); }
     return new Promise((resolve) => {

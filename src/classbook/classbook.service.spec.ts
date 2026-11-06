@@ -7,7 +7,7 @@ import { classbookTicketKey } from './classbook-rules';
 const KLASSE = { id: 'c1', name: '10a', ownerId: 't1', strict: false };
 const QUIZ = { id: 'm1', type: 'multipleChoice', title: 'Frage', orderIndex: 0 };
 
-function setup({ firstLogin = false } = {}) {
+function setup({ firstLogin = false, plans = undefined as any } = {}) {
   pinGuard.reset();
   const notebooks = repo([{ id: 'n1', classId: 'c1', ownerId: 't1', token: 'kb', firstLoginUntil: firstLogin ? new Date(Date.now() + 3600_000) : null, teacherItems: [] }]);
   const students = repo([
@@ -20,6 +20,7 @@ function setup({ firstLogin = false } = {}) {
   const users = repo([{ id: 't1', active: true, displayName: 'Frau M' }]);
   const classes: any = {
     findById: async (id: string) => (id === 'c1' ? KLASSE : null),
+    ownedClass: async (id: string) => (id === 'c1' ? KLASSE : null),
     resolveStudent: async (_k: any, name: string) => (name.startsWith('Anna')
       ? { studentId: 's1', name: 'Anna B' } : { studentId: 's2', name: 'Neu' }),
   };
@@ -27,6 +28,12 @@ function setup({ firstLogin = false } = {}) {
     resolveModules: async () => [{ topic: { id: 't', title: 'Strom' }, modules: [QUIZ] }],
     practiceToken: async (l: any) => l.token,
     lockedOf: async () => [],
+    // 🗂 Plan zuweisen: je Lernthema ein Klassenlink mit „alles“
+    classLinkForTopic: async (topicId: string) => {
+      const id = `p-${topicId}`;
+      await links.save({ id, classId: 'c1', ownerId: 't1', name: 'Strom', active: true, modes: ['quiz'], token: null, selection: [{ topicId, all: true }], createdAt: new Date() });
+      return { id };
+    },
   };
   const attempts = repo();
   const nodes = repo();
@@ -35,7 +42,8 @@ function setup({ firstLogin = false } = {}) {
   const modules = repo();
   const progress = repo();
   const svc = new ClassbookService(notebooks as any, students as any, results as any, works as any, links as any, users as any, attempts as any, classes, linksService, {} as any, { isOpen: () => false } as any, { markerChanged() {}, online: () => 0, isFollowing: () => false } as any,
-    nodes as any, places as any, topics as any, modules as any, repo() as any, repo() as any, progress as any);
+    nodes as any, places as any, topics as any, modules as any, repo() as any, repo() as any, progress as any,
+    repo() as any, repo() as any, repo() as any, repo() as any, repo() as any, plans);
   return { svc, students, links, notebooks, attempts, nodes, places, topics, modules, progress };
 }
 
@@ -400,5 +408,27 @@ describe('Klassennotizbuch: Baum und klasseneigene Lernthemen', () => {
     const sec = await svc.createNode(user, 'c1', { kind: 'section', title: 'S' });
     await svc.move(user, 'c1', { type: 'entry', id: linkId, parentId: sec.id, index: 0 });
     expect(places.rows.find((p) => p.id === linkId).nodeId).toBe(sec.id);
+  });
+});
+
+describe('Klassennotizbuch: 🗂 Plan zuweisen', () => {
+  const TEACHER = { userId: 't1', role: 'teacher' };
+  const plans = { expanded: async () => ({ items: [{ type: 'node', key: 'k1', title: 'Lernfeld 1', kind: 'area', children: [{ type: 'topic', topicId: 't' }] }] }) };
+  const entry = (links: any) => links.rows.find((l: any) => l.id === 'p-t').selection[0];
+
+  it('eingeschaltet: Bereich und Lernthema mit allen Modulen', async () => {
+    const { svc, links, nodes } = setup({ plans });
+    const res = await svc.setPlan(TEACHER, 'c1', 'plan1');
+    expect(res).toMatchObject({ planId: 'plan1', switchedOn: true, added: 1 });
+    expect(nodes.rows.map((n: any) => n.title)).toEqual(['Lernfeld 1']);
+    expect(entry(links)).toEqual({ topicId: 't', all: false, moduleIds: ['m1'] });
+  });
+
+  it('ausgeschaltet: dieselbe Struktur, aber kein Modul an – die Lehrkraft schaltet ein', async () => {
+    const { svc, links, nodes } = setup({ plans });
+    const res = await svc.setPlan(TEACHER, 'c1', 'plan1', undefined, false);
+    expect(res).toMatchObject({ switchedOn: false, added: 1 });
+    expect(nodes.rows.map((n: any) => n.title)).toEqual(['Lernfeld 1']);
+    expect(entry(links)).toEqual({ topicId: 't', all: false, moduleIds: [] });
   });
 });

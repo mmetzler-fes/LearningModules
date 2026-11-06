@@ -35,6 +35,10 @@ describe('readCourse', () => {
         width: 9
       - type: image
         file: fehlt.png
+  - type: table
+    header: [Aufgabe, {text: Ausgabe, images: [{file: bilder/led.png, width: 5}]}]
+    rows:
+      - ["1", {text: "", images: [{file: bilder/led.png}, {file: weg.png}]}]
 `,
     'kurse/arduino/02_ausgaenge/bilder/led.png': Buffer.from([0x89, 0x50]),
     'kurse/arduino/quellcodes/blink.ino': 'void setup() {}\r\nvoid loop() {\r\n  blink();\r\n}\r\n',
@@ -76,10 +80,18 @@ describe('readCourse', () => {
     expect(c[2].blocks[1]).toEqual({ type: 'image', file: 'fehlt.png' });
   });
 
+  it('Bilder in Tabellenzellen als data:, fehlende fallen mit Hinweis heraus', () => {
+    const t = plan.sheets.get('02_ausgaenge')!.content.spec.content[3];
+    expect(t.header[1]).toEqual({ text: 'Ausgabe', images: [{ src: 'data:image/png;base64,iVA=', width: '5cm' }] });
+    expect(t.rows[0][1].images).toEqual([{ src: 'data:image/png;base64,iVA=' }]);
+    expect(plan.warnings.some((w) => w.includes('weg.png'))).toBe(true);
+  });
+
   it('Hinweise für Vorlage, fehlende Dateien und unbekannte Skript-Blätter', () => {
     expect(plan.warnings).toEqual([
       expect.stringContaining('Vorlage templates/AB_Vorlage3'),
       '02_ausgaenge: Datei fehlt.png fehlt im ZIP.',
+      '02_ausgaenge: Bild weg.png der Tabelle fehlt im ZIP.',
       'Skript sensoren.yaml: unbekannte Blätter 99_gibts_nicht',
     ]);
   });

@@ -210,6 +210,29 @@ function inlineFiles(blocks: any, search: string[], files: CourseFiles, folder: 
       const width = String(block.width ?? '16.5').trim();
       out = items.length ? { ...block, items, width: /^\d+(\.\d+)?$/.test(width) ? `${width}cm` : width } : { type: 'note', text: `[${block.caption || 'Bildgruppe'}]` };
     }
+    // Tabelle: Bilder in Zellen ({text, images: [{file, width}]}) und Bausteine darin ebenso.
+    if (block.type === 'table') {
+      const cell = (c: any) => {
+        if (!c || typeof c !== 'object' || Array.isArray(c)) return c;
+        let res = c;
+        if (Array.isArray(c.images)) {
+          const images = c.images.flatMap((im: any) => {
+            if (typeof im?.file !== 'string') return im?.src ? [im] : [];
+            const found = resolveFile(im.file, search, files);
+            const mime = found ? IMAGE_MIME[posix.extname(found.path).slice(1).toLowerCase()] : undefined;
+            if (!found || !mime) { warnings.push(`${folder}: Bild ${im.file} der Tabelle fehlt im ZIP.`); return []; }
+            const { file: _f, ...rest } = im;
+            const width = String(im.width ?? '').trim();
+            return [{ ...rest, src: `data:${mime};base64,${found.data.toString('base64')}`, ...(width ? { width: /^\d+(\.\d+)?$/.test(width) ? `${width}cm` : width } : {}) }];
+          });
+          res = { ...res, images };
+        }
+        if (Array.isArray(c.blocks)) res = { ...res, blocks: inlineFiles(c.blocks, search, files, folder, warnings) };
+        return res;
+      };
+      const rowsOf = (rows: any) => (Array.isArray(rows) ? rows.map((r: any) => (Array.isArray(r) ? r.map(cell) : r)) : rows);
+      out = { ...out, ...(Array.isArray(out.header) ? { header: out.header.map(cell) } : {}), ...(Array.isArray(out.rows) ? { rows: rowsOf(out.rows) } : {}) };
+    }
     return Array.isArray(out.blocks) ? { ...out, blocks: inlineFiles(out.blocks, search, files, folder, warnings) } : out;
   });
 }
@@ -305,6 +328,28 @@ export function writeCourse(
         });
         if (items.length < b.items.length) warnings.push(`${e.folder}: Bildgruppe – ${b.items.length - items.length} Bild(er) ohne Datei weggelassen.`);
         out = items.length ? { ...b, items, ...(b.width !== undefined ? { width: widthInCm(b.width) || '16.5cm' } : {}) } : { type: 'note', text: `[${b.caption || 'Bildgruppe'}]` };
+      }
+      // Tabelle: Bilder in Zellen als Dateien.
+      if (b.type === 'table') {
+        const cell = (c: any) => {
+          if (!c || typeof c !== 'object' || Array.isArray(c)) return c;
+          let res = c;
+          if (Array.isArray(c.images)) {
+            res = { ...res, images: c.images.flatMap((im: any) => {
+              const m = typeof im?.src === 'string' ? /^data:([^;,]+);base64,(.*)$/s.exec(im.src) : null;
+              const ext = m ? EXT[m[1].toLowerCase()] : undefined;
+              if (!m || !ext) return typeof im?.file === 'string' ? [im] : [];
+              const name = `bilder/bild-${++n}.${ext}`;
+              put(`${e.folder}/${name}`, Buffer.from(m[2], 'base64'));
+              const { src: _s, alt: _a, ...rest } = im;
+              return [{ ...rest, file: name, ...(rest.width !== undefined ? { width: widthInCm(rest.width) || '6cm' } : {}) }];
+            }) };
+          }
+          if (Array.isArray(c.blocks)) res = { ...res, blocks: walk(c.blocks) };
+          return res;
+        };
+        out = { ...out, ...(Array.isArray(out.header) ? { header: out.header.map(cell) } : {}),
+          ...(Array.isArray(out.rows) ? { rows: out.rows.map((r: any) => (Array.isArray(r) ? r.map(cell) : r)) } : {}) };
       }
       return Array.isArray(out.blocks) ? { ...out, blocks: walk(out.blocks) } : out;
     }) : blocks);

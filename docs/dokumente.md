@@ -423,7 +423,8 @@ PDF-Import oder als Kurs (unten) in die App.
 **📥 Hier importieren** nimmt auch ein ZIP mit einem Kursordner (`kurs.yaml`,
 `NN_thema/arbeitsblatt.yaml`, `skripte/`). Daraus wird ein Book (bzw. ein
 Bereich) mit einem Abschnitt je Skript; jedes Blatt wird ein Lernthema mit
-einem Dokument, Code und Bilder aus den Dateien werden eingesetzt. Die
+einem Dokument, Code und Bilder aus den Dateien werden eingesetzt – auch Bilder in
+Tabellenzellen und Bildgruppen. Die
 `CLAUDE.md` des Kurses wird zu den KI-Vorgaben.
 
 **⬇️ Als Kurs exportieren** schreibt den Ordner zurück – er lässt sich im

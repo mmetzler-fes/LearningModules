@@ -110,7 +110,7 @@ frei umordnen. Ins Ziel „Abschnitt“ kommen nur die Lernthemen, ohne Bereiche
 ## Klassen folgen ihrem Plan
 
 **📒 Klassen zuweisen** (Knopf oder Rechtsklick auf einen Plan) wählt die Klassen, deren Klassennotizbuch dem
-Plan folgt. Am Plan stehen danach ihre Namen, z. B. „📒 10a, 10b“. Im **📒 Klassennotizbuch** steht oben
+Plan folgt. Am Plan stehen danach ihre Namen, z. B. „📒 10a, 10b“. Im **📒 Klassennotizbuch** steht unter dem Titel
 „🗂 Plan: …“; dort lässt er sich auch zuweisen, wechseln oder lösen.
 
 - Beim Zuweisen kommt der ganze Plan **eingeschaltet** ins Klassennotizbuch: seine Bereiche und Abschnitte,

@@ -13,7 +13,10 @@ Notizbuch.
 ## Bereiche
 
 Menüpunkt **📒 Klassennotizbuch** (direkt unter LernModule) – oder oben der Reiter neben
-**📓 Notizbuch**: Schuljahr und Klasse wählen, links die Bereiche. Das
+**📓 Notizbuch**: Klasse und Schuljahr neben dem Titel wählen, links die Bereiche.
+Darunter steht in allen Bereichen eine Zeile mit den verbundenen Geräten, **👣 Folgen**
+und dem **🗂 Plan** der Klasse. Titel, diese Zeile und die Bereiche bleiben stehen; nur
+der Inhalt rechts rollt (auf schmalen Bildschirmen die ganze Seite). Das
 Notizbuch mit deinen Lernthemen bleibt, wie es ist; die Reiter wechseln
 zwischen beiden.
 
@@ -89,8 +92,8 @@ Notizbuch übernommene Bereiche ebenso. Ergebnisse und ausgefüllte Blätter ble
 die der Schüler vor sich hatte. Auch der Schüler kann sein Blatt unter „Meine Blätter“ weiter ansehen, ohne Lösungen und ohne zu speichern;
 Blätter aus Klassenarbeiten sind davon ausgenommen. Bestehen bleiben Klassenarbeiten, selbst angelegte Bereiche und alles, was nur ausgeschaltet ist.
 
-**🗂 Plan:** Oben in der Inhaltsübersicht steht der [Plan](planung.md), dem die Klasse folgt, z. B. „Mechatroniker ›
-1. Ausbildungsjahr“. Neues im Plan kommt ausgeschaltet dazu. Mit „Plan zuweisen …“ bzw. „Ändern“ wählst du ihn.
+**🗂 Plan:** In der Zeile unter dem Titel steht der [Plan](planung.md), dem die Klasse folgt, z. B. „Mechatroniker ›
+1. Ausbildungsjahr“. Neues im Plan kommt ausgeschaltet dazu. Mit „Plan zuweisen …“ bzw. „Ändern“ wählst du ihn, **🗂 Öffnen** springt in die Planung.
 
 Zuweisen geht auf zwei Wegen: im **📓 Notizbuch** über das Kontextmenü
 (⋯ oder Rechtsklick) eines Lernthemas, Books, Bereichs oder Abschnitts
@@ -193,8 +196,7 @@ Freigabe im Notizbuch, nur für diese Klasse.
 #### 📍 Wo die Klasse gerade ist
 
 **📍** neben einem eingeschalteten Modul setzt den Merker: „Hier ist die
-Klasse gerade“. Oben in der Inhaltsübersicht steht dann, wo er sitzt, mit
-**Entfernen**; ein Klick auf 📍 an einem anderen Modul versetzt ihn. Über das
+Klasse gerade“. Ein Klick auf 📍 an einem anderen Modul versetzt ihn. Über das
 Menü ⋯ sitzt er auch auf einem Bereich, Abschnitt, einer Zuweisung oder einem
 Lernthema, mit **📍 Ganz vorn** auf dem ganzen Buch. Im Baum steht 📍 genau an
 dieser Stelle, die Zeile ist hervorgehoben; ein Klick darauf entfernt ihn. Bei den
@@ -236,8 +238,8 @@ mehr Kästchen sein als Spalten in den Ergebnissen.
 
 ### 📡 An Klasse senden und 👣 Folgen
 
-Oben in der Inhaltsübersicht steht, wie viele Schüler-Geräte das
-Klassennotizbuch gerade offen haben (**📶 … verbunden**, 🔄 zählt neu) – in
+In der Zeile unter dem Titel steht, wie viele Schüler-Geräte das
+Klassennotizbuch gerade offen haben (**📶 … Geräte**, 🔄 zählt neu) – in
 der App oder im Browser.
 
 - **📡 An Klasse senden** (Menü **⋯** eines eingeschalteten Moduls): Das

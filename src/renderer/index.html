@@ -597,12 +597,13 @@
           <button type="button" class="nb-switch-tab" data-nb-switch="teacher-planning" role="tab">🗂 Planung</button>
         </div>
         <div class="view-header nb-view-header">
-          <h2>📒 Klassennotizbuch <button type="button" class="help-hint" data-help="klassennotizbuch" title="Hilfe zum Klassennotizbuch – je Klasse Aufgaben, Klassenarbeiten, Schülerdaten, Ergebnisse und der Klassenbuch-Link. Ergebnisse ohne Klasse stehen unter 📊 Ergebnisse." aria-label="Hilfe zu diesem Bereich">?</button></h2>
+          <h2>📒 Klassennotizbuch
+            <select id="crClass" class="cb-title-select" aria-label="Klasse" title="Klasse"></select>
+            <select id="crYear" class="cb-title-select cb-year-select" aria-label="Schuljahr" title="Schuljahr"></select>
+            <button type="button" class="help-hint" data-help="klassennotizbuch" title="Hilfe zum Klassennotizbuch – je Klasse Aufgaben, Klassenarbeiten, Schülerdaten, Ergebnisse und der Klassenbuch-Link. Ergebnisse ohne Klasse stehen unter 📊 Ergebnisse." aria-label="Hilfe zu diesem Bereich">?</button></h2>
         </div>
-        <div class="link-class-bar">
-          <label>Schuljahr <select id="crYear"></select></label>
-          <label>Klasse <select id="crClass"></select></label>
-        </div>
+        <!-- Geräte, Folgen und Plan der gewählten Klasse – für alle Bereiche (class-results.js) -->
+        <div class="cb-class-bar hidden" id="crClassBar"></div>
         <div class="cb-layout">
           <nav class="cb-sections" role="tablist" aria-label="Bereiche des Klassennotizbuchs">
             <button type="button" class="cb-section-btn" data-cr-tab="content" role="tab" title="Was der Klasse zugewiesen ist – Verweise auf dein Notizbuch">📋 Inhaltsübersicht</button>

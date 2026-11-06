@@ -163,6 +163,7 @@ export class ClassResultsView {
   _render() {
     this._tabs.forEach((btn) => btn.classList.toggle('active', btn.dataset.crTab === this._tab));
     this._out = this._content;
+    void this._renderClassBar();
     if (!this._classId) {
       this._out.innerHTML = `<div class="empty-state"><span class="empty-icon">🏫</span>
         <p>Im ${escapeHtml(this._year || '')} gibt es noch keine Klassen. Unter <strong>🏫 Klassen</strong> anlegen oder einlesen –
@@ -520,14 +521,62 @@ export class ClassResultsView {
 
   // ==================== Bereiche des Klassennotizbuchs ====================
 
-  /** Daten des Klassennotizbuchs (Link, Zuweisungen) – einmal je Klasse. */
+  /** Daten des Klassennotizbuchs (Link, Zuweisungen) – einmal je Klasse; gleichzeitige Aufrufe teilen sich die Anfrage. */
   async _classbook(force = false) {
     const classId = this._classId;
     if (!force && this._cb?.classId === classId) return this._cb;
-    const res = await this.app.api.getClassbook(classId);
-    if (failed(res)) throw new Error(res?.message || 'Klassennotizbuch nicht abrufbar');
-    if (classId === this._classId) this._cb = res;
-    return res;
+    if (!force && this._cbLoading?.classId === classId) return this._cbLoading.p;
+    const p = (async () => {
+      const res = await this.app.api.getClassbook(classId);
+      if (failed(res)) throw new Error(res?.message || 'Klassennotizbuch nicht abrufbar');
+      if (classId === this._classId) this._cb = res;
+      return res;
+    })();
+    this._cbLoading = { classId, p };
+    try { return await p; } finally { if (this._cbLoading?.p === p) this._cbLoading = null; }
+  }
+
+  /** Zeile unter dem Titel: verbundene Geräte, 👣 Folgen und 🗂 Plan der Klasse – in allen Bereichen gleich. */
+  async _renderClassBar() {
+    const bar = document.getElementById('crClassBar');
+    if (!bar) return;
+    const classId = this._classId;
+    if (!classId) { bar.classList.add('hidden'); return; }
+    let cb;
+    try { cb = await this._classbook(); } catch (_) { bar.classList.add('hidden'); return; }
+    if (classId !== this._classId) return;
+    const live = cb.live || { online: 0, follow: false };
+    const followHint = live.follow
+      ? (cb.marker ? '📍 umsetzen = alle springen dorthin.' : 'Jetzt 📍 setzen (Modul, Lernthema, Zuweisung oder Bereich) – dorthin springen alle.')
+      : '';
+    bar.classList.remove('hidden');
+    bar.innerHTML = `
+      <span class="cb-class-group">
+        <span title="Schüler-Geräte, die das Klassennotizbuch gerade offen haben (App oder Browser). 📡 im Menü ⋯ eines Moduls öffnet es bei allen.">📶 ${live.online} ${live.online === 1 ? 'Gerät' : 'Geräte'}</span>
+        <button type="button" class="btn btn-sm ${live.follow ? 'btn-primary' : 'btn-secondary'}" data-follow="${live.follow ? 'off' : 'on'}"
+          title="${live.follow ? 'Folgen ausschalten – die Schüler bewegen sich wieder selbst' : 'Folgen: Wo du 📍 setzt, öffnet sich das Modul auf allen Schüler-Geräten'}">👣 Folgen: ${live.follow ? 'an' : 'aus'}</button>
+        <button type="button" class="btn btn-secondary btn-sm" data-live-refresh title="Anzahl der Geräte neu zählen" aria-label="Neu zählen">🔄</button>
+        ${followHint ? `<span class="hint">${followHint}</span>` : ''}
+      </span>
+      <span class="cb-class-group" title="Das Klassennotizbuch folgt dem Plan: Neues dort kommt ausgeschaltet dazu.">${cb.plan
+        ? `🗂 Plan: <strong>${escapeHtml(cb.plan.title || '?')}</strong>
+           <button type="button" class="btn btn-secondary btn-sm" data-plan-pick title="Anderen Plan wählen oder den Plan lösen (der Inhalt bleibt)">Ändern</button>
+           <button type="button" class="btn btn-secondary btn-sm" data-plan-open title="Den Plan in der 🗂 Planung öffnen">🗂 Öffnen</button>`
+        : `🗂 <span class="hint">Kein Plan</span> <button type="button" class="btn btn-secondary btn-sm" data-plan-pick title="Einen Plan aus der Planung zuweisen (z. B. Mechatroniker, 1. Ausbildungsjahr) – das Klassennotizbuch folgt ihm">Plan zuweisen …</button>`}</span>`;
+    bar.querySelector('[data-plan-pick]')?.addEventListener('click', () => this._pickPlan(cb));
+    bar.querySelector('[data-plan-open]')?.addEventListener('click', () => this.app.navigateToView('teacher-planning'));
+    bar.querySelector('[data-follow]')?.addEventListener('click', async (e) => {
+      const on = e.currentTarget.dataset.follow === 'on';
+      const res = await this.app.api.setClassbookFollow(this._classId, on);
+      if (failed(res)) { this.app.showToast('Fehler: ' + (res?.message || '?'), 'error'); return; }
+      const noMarker = on && !this._cb?.marker;
+      this.app.showToast(!on ? '👣 Folgen aus.'
+        : noMarker ? `👣 Folgen an (${res.reached} ${res.reached === 1 ? 'Gerät' : 'Geräte'}) – setze jetzt 📍 an das Modul, zu dem alle springen sollen.`
+          : `👣 Folgen an – ${res.reached} ${res.reached === 1 ? 'Gerät springt' : 'Geräte springen'} zum 📍.`, noMarker ? 'info' : 'success');
+      await this._classbook(true);
+      this._render();
+    });
+    bar.querySelector('[data-live-refresh]')?.addEventListener('click', async () => { await this._classbook(true); this._render(); });
   }
 
   /** Bereich laden und zeichnen; `tab` prüft, ob er inzwischen gewechselt wurde. */
@@ -874,27 +923,10 @@ export class ClassResultsView {
       const shown = links.filter((l) => this._linkInView(l));
       const mk = this._markerInfo(cb);
       if (mk?.linkId) (this._openLinks ||= new Set()).add(mk.linkId);
-      const live = cb.live || { online: 0, follow: false };
       out.innerHTML = `
-        <div class="cb-live-bar">
-          <span title="Schüler-Geräte, die das Klassennotizbuch gerade offen haben (App oder Browser)">📶 ${live.online} ${live.online === 1 ? 'Gerät' : 'Geräte'} verbunden</span>
-          <button type="button" class="btn btn-sm ${live.follow ? 'btn-primary' : 'btn-secondary'}" data-follow="${live.follow ? 'off' : 'on'}"
-            title="${live.follow ? 'Folgen ausschalten – die Schüler bewegen sich wieder selbst' : 'Folgen: Wo du 📍 setzt, öffnet sich das Modul auf allen Schüler-Geräten'}">👣 Folgen: ${live.follow ? 'an' : 'aus'}</button>
-          <button type="button" class="btn btn-secondary btn-sm" data-live-refresh title="Anzahl neu zählen">🔄</button>
-          <span class="hint">${live.follow ? (cb.marker ? '📍 umsetzen = alle springen dorthin.' : 'Jetzt 📍 setzen (Modul, Lernthema, Zuweisung oder Bereich) – dorthin springen alle.') : '📡 im Menü ⋯ eines Moduls öffnet es bei allen.'}</span>
-        </div>
-        ${mk ? `<div class="cb-marker-bar">📍 Die Klasse ist gerade bei <strong>${escapeHtml(mk.label)}</strong>
-            ${mk.hint ? `<span class="hint">${escapeHtml(mk.hint)}</span>` : ''}
-            <button type="button" class="btn btn-secondary btn-sm" data-unmark>Entfernen</button></div>`
-          : '<p class="hint">📍 markiert, wo die Klasse gerade ist – auf jeder Ebene (Bereich, Zuweisung, Lernthema oder Modul). Bei den Schülern springt „Weiter“ von dort durch alle weiteren Module.</p>'}
         ${cb.studentHidden ? `<div class="cb-veiled-bar">🙈 <strong>Das ganze Klassennotizbuch ist für Schüler ausgeblendet</strong>
             <span class="hint">– sie sehen nur eine laufende Klassenarbeit bzw. die Quiz-Arena. Die Module bleiben, wie sie sind.</span>
             <button type="button" class="btn btn-primary btn-sm" data-veil-book="">👁 Wieder einblenden</button></div>` : ''}
-        <div class="cb-plan-bar">${cb.plan
-            ? `🗂 Plan: <strong>${escapeHtml(cb.plan.title || '?')}</strong> <span class="hint">– das Klassennotizbuch folgt ihm, Neues dort kommt ausgeschaltet dazu.</span>
-               <button type="button" class="btn btn-secondary btn-sm" data-plan-pick>Ändern</button>
-               <button type="button" class="btn btn-secondary btn-sm" data-plan-open>🗂 In der Planung öffnen</button>`
-            : `🗂 <span class="hint">Kein Plan.</span> <button type="button" class="btn btn-secondary btn-sm" data-plan-pick title="Einen Plan aus der Planung zuweisen (z. B. Mechatroniker, 1. Ausbildungsjahr) – das Klassennotizbuch folgt ihm">Plan zuweisen …</button>`}</div>
         <div class="cr-works-bar">
           <span class="nb-view-tabs" role="group" aria-label="Ansicht">${[['docs', '📄 Dokumente', 'Nur Dokumente und Anhänge – die Quizze eines Dokuments stehen darunter'],
             ['quizzes', '🧩 Quizze', 'Nur Quizze, Übungen und Apps – Zuweisungen ohne Quiz sind ausgeblendet'], ['all', 'Alles', 'Alle Module']]
@@ -931,8 +963,6 @@ export class ClassResultsView {
       void this._fillResults(out);
       out.querySelectorAll('[data-add]').forEach((btn) => btn.addEventListener('click', () => this._add(btn.dataset.add, null)));
       out.querySelector('[data-arrange]')?.addEventListener('click', () => this._arrange());
-      out.querySelector('[data-plan-pick]')?.addEventListener('click', () => this._pickPlan(cb));
-      out.querySelector('[data-plan-open]')?.addEventListener('click', () => this.app.navigateToView('teacher-planning'));
       out.querySelector('[data-preview]')?.addEventListener('click', () => this._openPreview());
       out.querySelector('[data-preview-reset]')?.addEventListener('click', () => this._resetPreview());
       out.querySelector('[data-mark-root]')?.addEventListener('click', () => this._setMarker({ level: 'root' }));
@@ -1005,18 +1035,6 @@ export class ClassResultsView {
       out.querySelectorAll('[data-veil-book]').forEach((btn) => btn.addEventListener('click', () => {
         void this._setVeil({ type: 'book', hidden: !!btn.dataset.veilBook });
       }));
-      out.querySelector('[data-follow]')?.addEventListener('click', async (e) => {
-        const on = e.currentTarget.dataset.follow === 'on';
-        const res = await this.app.api.setClassbookFollow(this._classId, on);
-        if (failed(res)) { this.app.showToast('Fehler: ' + (res?.message || '?'), 'error'); return; }
-        const noMarker = on && !this._cb?.marker;
-        this.app.showToast(!on ? '👣 Folgen aus.'
-          : noMarker ? `👣 Folgen an (${res.reached} ${res.reached === 1 ? 'Gerät' : 'Geräte'}) – setze jetzt 📍 an das Modul, zu dem alle springen sollen.`
-            : `👣 Folgen an – ${res.reached} ${res.reached === 1 ? 'Gerät springt' : 'Geräte springen'} zum 📍.`, noMarker ? 'info' : 'success');
-        await this._classbook(true);
-        this._render();
-      });
-      out.querySelector('[data-live-refresh]')?.addEventListener('click', async () => { await this._classbook(true); this._render(); });
       out.querySelector('.cb-marked')?.scrollIntoView({ block: 'center' });
     });
   }

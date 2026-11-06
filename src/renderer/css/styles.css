@@ -5909,6 +5909,11 @@ details[open] > summary > .cb-twisty::before { content: '▾'; }
 /* ---- Klassennotizbuch (views/class-results.js, views/classbook-student.js) ---- */
 .cb-layout { display: grid; grid-template-columns: 210px minmax(0, 1fr); gap: 20px; align-items: start; }
 .cb-sections { display: flex; flex-direction: column; gap: 2px; position: sticky; top: 12px; }
+.cb-title-select { font: inherit; font-size: 1.05rem; font-weight: 600; margin-left: 10px; padding: 3px 6px; vertical-align: middle; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg-secondary); color: var(--text-primary); max-width: 16em; }
+.cb-year-select { font-size: 0.85rem; font-weight: normal; color: var(--text-secondary); margin-left: 6px; }
+/* Unter dem Titel: Geräte, Folgen, Plan – eine Zeile für alle Bereiche */
+.cb-class-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 22px; margin: 0 0 12px; }
+.cb-class-group { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 .cb-section-btn { text-align: left; background: none; border: none; border-left: 3px solid transparent; padding: 8px 12px; border-radius: 0 var(--radius-sm) var(--radius-sm) 0; cursor: pointer; font: inherit; color: var(--text-secondary); }
 .cb-section-btn:hover { background: var(--bg-primary); color: var(--text-primary); }
 .cb-section-btn.active { border-left-color: var(--accent); background: var(--accent-light); color: var(--text-primary); font-weight: 600; }
@@ -5957,7 +5962,6 @@ button.cb-unit:hover { color: var(--accent); text-decoration: underline; }
 .cb-veiled > .cb-node-body { opacity: 0.5; }
 .cb-veiled-badge { font-size: 0.8rem; color: #9a3412; background: #ffedd5; border-radius: 6px; padding: 1px 6px; white-space: nowrap; }
 .cb-veiled-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 8px 12px; margin-bottom: 8px; border-radius: 8px; background: #ffedd5; color: #7c2d12; }
-.cb-live-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 8px; }
 .cb-live-banner { position: fixed; top: 10px; left: 50%; transform: translateX(-50%); z-index: 3000; max-width: calc(100% - 32px);
   display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 10px; background: var(--primary, #3b82f6); color: #fff; box-shadow: 0 6px 20px rgba(0,0,0,.25); }
 .cb-live-banner .btn { white-space: nowrap; }
@@ -6017,7 +6021,6 @@ details.cb-topic > summary .hint { font-weight: normal; margin-left: 6px; }
 .cb-mark { background: none; border: 1px solid transparent; border-radius: var(--radius-sm); cursor: pointer; opacity: 0.35; padding: 0 4px; font-size: 1rem; }
 .cb-mark:hover { opacity: 0.8; border-color: var(--border); }
 .cb-mark.on { opacity: 1; }
-.cb-marker-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; background: var(--score-medium-bg); padding: 8px 12px; border-radius: var(--radius-sm); margin-bottom: 10px; }
 /* Klassennotizbuch: Baum aus Bereichen und Abschnitten */
 .cb-node { margin: 6px 0; }
 .cb-node > summary { display: flex; align-items: center; gap: 8px; cursor: pointer; padding: 6px 8px; border-radius: var(--radius-sm); }
@@ -6114,7 +6117,6 @@ details.cb-topic > summary .hint { font-weight: normal; margin-left: 6px; }
 .pl-preview, .pl-preview ul { list-style: none; padding-left: 18px; margin: 2px 0; }
 .pl-preview { padding-left: 0; }
 @media (max-width: 900px) { .pl-panes { grid-template-columns: 1fr; } }
-.cb-plan-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 6px 0; }
 .pl-classes { color: var(--accent); }
 .pl-right-mode { font: inherit; font-weight: 600; max-width: 45%; padding: 2px 4px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg-secondary); color: var(--text-primary); }
 .pl-target { font-weight: normal; color: var(--text-secondary); }

@@ -461,6 +461,19 @@ class CodeGroesseTest(unittest.TestCase):
             self.assertRegex(content, r'<text:p text:style-name="AB_Zusammenhalten_[^"]+"><text:span[^>]*>Beispiel:')
             self.assertNotRegex(content, r'<text:p text:style-name="AB_Zusammenhalten_[^"]+">Ein Satz')
 
+    def test_fetter_absatz_bleibt_beim_folgenden(self):
+        """Ein ganz fetter Absatz ist eine Zwischenüberschrift und klebt am Folgenden."""
+        spec = "titel: C\ncontent:\n  - {type: text, text: \"**Aufgaben**\\n\\nEin Satz.\"}\n  - {type: karo, lines: 2}\n"
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "blatt").mkdir()
+            (root / "blatt" / "c.yaml").write_text(spec, encoding="utf-8")
+            env = dict(os.environ, ARBEITSBLATT_ROOT=str(root))
+            subprocess.run([sys.executable, str(GEN / "tools" / "make_worksheet.py"), "blatt/c.yaml", "-o", "out"],
+                           cwd=root, env=env, check=True, capture_output=True)
+            content = zipfile.ZipFile(root / "out" / "blatt.odt").read("content.xml").decode()
+            self.assertRegex(content, r'<text:p text:style-name="AB_Zusammenhalten_[^"]+"><text:span[^>]*>Aufgaben<')
+
     def test_spalten_bleiben_beim_raster(self):
         """Aufgabe in Spalten mit Raster darunter: die Spalten-Tabelle klebt am Raster, andere nicht."""
         spalten = "{type: columns, blocks: [{type: column, blocks: [{type: text, text: links}]}, {type: column, blocks: [{type: text, text: rechts}]}]}"

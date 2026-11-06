@@ -261,7 +261,8 @@ Verzeichniseinträge und ihre Seitenzahlen erzeugt der Renderer (Ebene 1 und 2).
   Stelle und wird im Lösungsblatt sichtbar.
 * Zusammenhalten beim Seitenumbruch: Ein Codeblock bis 40 Zeilen bricht nicht
   über die Seite; der Absatz direkt davor („Beispiel: …“) bleibt bei ihm, ebenso
-  jeder Absatz, der mit „:“ endet, beim folgenden Baustein. Eine Aufgabe in
+  jeder Absatz, der mit „:“ endet oder ganz fett ist (`**Aufgaben**`), beim
+  folgenden Baustein. Eine Aufgabe in
   `columns` (Text links, Bild rechts) rückt mit ihrem Karoraster gemeinsam um;
   die Zeile der Spalten (auch bei `float`) bricht nie über die Seite.
 * In Codeblöcken bleiben Leerzeichenkolonnen erhalten (`<text:s>`), damit

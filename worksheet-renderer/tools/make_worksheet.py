@@ -2512,8 +2512,10 @@ def render_block_content(block: Any, styles: dict[str, str], ctx: dict[str, Any]
         paras = str(block["text"]).split("\n\n")
         for i, para in enumerate(paras):
             style = erster_style if i == 0 else text_style
-            # „Beispiel:“ kündigt das Folgende an und bleibt bei ihm (Code, Tabelle, Karo …).
-            if i == len(paras) - 1 and re.sub(r"[*_\s]+$", "", para).endswith(":"):
+            # „Beispiel:“ kündigt das Folgende an und bleibt bei ihm (Code, Tabelle, Karo …);
+            # ein ganz fetter Absatz („**Aufgaben**“) ist eine Zwischenüberschrift und ebenso.
+            if (i == len(paras) - 1 and re.sub(r"[*_\s]+$", "", para).endswith(":")) \
+                    or re.fullmatch(r"\*\*[^*\n]+\*\*:?", para.strip()):
                 style = keep_style(ctx, style)
             out.append(rich_p(style, para.strip()))
 

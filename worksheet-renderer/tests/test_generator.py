@@ -477,6 +477,9 @@ class CodeGroesseTest(unittest.TestCase):
             self.assertRegex(content, r'style:name="ABNeben_MitFolgendem"[^>]*><style:table-properties[^>]*fo:keep-with-next="always"')
             self.assertEqual(content.count('table:style-name="ABNeben_MitFolgendem"'), 1)
             self.assertEqual(content.count('table:style-name="ABNeben"'), 1)
+            # Die Zeile der Spalten bricht nicht über die Seite.
+            self.assertRegex(content, r'style:name="ABNeben.R"[^>]*><style:table-row-properties fo:keep-together="always"')
+            self.assertEqual(content.count('<table:table-row table:style-name="ABNeben.R">'), 2)
 
     def test_satz_vor_code_bleibt_beim_code(self):
         """Ein Absatz direkt vor einem Codeblock klebt an ihm, auch ohne Doppelpunkt."""

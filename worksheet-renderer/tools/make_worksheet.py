@@ -1515,7 +1515,10 @@ def ensure_float_styles(doc, present: set[str]) -> None:
                                      marginbottom="0.1cm", align="margins"))
     cell = Style(name="ABNeben.Z", family="table-cell")
     cell.addElement(TableCellProperties(padding="0cm", border="none", verticalalign="top"))
-    for style in (table, cell):
+    # Die Zeile bricht nicht über die Seite: Text und Bild daneben bleiben beisammen.
+    row = Style(name="ABNeben.R", family="table-row")
+    row.addElement(TableRowProperties(keeptogether="always"))
+    for style in (table, cell, row):
         doc.automaticstyles.addElement(style)
         present.add(style.getAttribute("name"))
 
@@ -1547,7 +1550,7 @@ def float_group(image: dict[str, Any], texts: list[Any], styles: dict[str, str],
     text = TableCell(valuetype="string", stylename="ABNeben.Z")
     for el in render_blocks(texts, styles, ctx) or [P(stylename=styles["text"])]:
         text.addElement(el)
-    tr = TableRow()
+    tr = TableRow(stylename="ABNeben.R")
     for cell in ([picture, text] if side != "right" else [text, picture]):
         tr.addElement(cell)
     table.addElement(tr)
@@ -1580,7 +1583,7 @@ def columns_table(block: dict[str, Any], children, ctx: dict[str, Any]) -> Eleme
         doc.automaticstyles.addElement(style)
         present.add(name)
         table.addElement(TableColumn(stylename=name))
-    tr = TableRow()
+    tr = TableRow(stylename="ABNeben.R")
     for c in cols:
         cell = TableCell(valuetype="string", stylename="ABNeben.Z")
         for el in children(c.get("blocks")) or [P(stylename="Standard")]:

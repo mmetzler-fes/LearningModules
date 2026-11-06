@@ -45,8 +45,9 @@ Die Inhaltsübersicht ist ein Baum wie im Notizbuch: Die Klasse ist das
 „Book“, darin **📂 Bereiche** und **📑 Abschnitte** (ein Abschnitt enthält nur
 Lernthemen), darin die Lernthemen. Die Schüler sehen denselben Baum.
 
-- Oben **➕ Aus dem Notizbuch**, **➕ Lernthema**, **➕ Bereich**,
-  **➕ Abschnitt**; an jedem Bereich/Abschnitt und Lernthema **⋯** mit
+- Oben **➕ Aus dem Notizbuch**. Neue Bereiche, Abschnitte und klasseneigene
+  Lernthemen auf oberster Ebene: **Rechtsklick auf eine freie Stelle im Baum**
+  (darunter ist immer etwas Platz); an jedem Bereich/Abschnitt und Lernthema **⋯** mit
   „Neues … hier“, ↑ / ↓, **↔️ Verschieben nach…**, Umbenennen, Löschen.
   Das ⋯ steht direkt in der Zeile (auch Rechtsklick auf die Zeile).
 - **🔗 Quick-Link (Link & QR)** im ⋯-Menü – immer **für diese Klasse**: Die
@@ -62,7 +63,7 @@ Lernthemen), darin die Lernthemen. Die Schüler sehen denselben Baum.
   höher – es geht nichts verloren.
 - **🔗 Zugewiesen** – Verweis auf ein Lernthema oder einen Bereich deines
   Notizbuchs; „Zuweisung entfernen“ lässt es im Notizbuch, wie es ist.
-- **📘 Klasseneigen** – **➕ Lernthema** legt ein Lernthema nur für diese Klasse
+- **📘 Klasseneigen** – **➕ Neues Lernthema** (Rechtsklick in den Baum oder ⋯ eines Bereichs) legt ein Lernthema nur für diese Klasse
   an, z. B. Aufgaben oder Dokumente. Es erscheint nicht im Notizbuch, unter
   LernModule oder in den Schülerfreigaben. **⋯ → ➕ Neues Modul** öffnet den
   gewohnten Editor; ein Klick auf ein Modul bearbeitet es. Neue Module sind

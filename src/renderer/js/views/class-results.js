@@ -958,9 +958,6 @@ export class ClassResultsView {
           ${cb.plan
             ? '<button type="button" class="btn btn-secondary btn-sm" data-arrange title="Lernthemen aus dem Plan an ihre Stelle im Plan, die übrigen wie im Notizbuch. Inhalte, Links und An/Aus bleiben.">🌳 Wie im Plan ordnen</button>'
             : '<button type="button" class="btn btn-secondary btn-sm" data-arrange title="Einträge an ihren Platz wie im Notizbuch verschieben und sortieren. Inhalte, Links und An/Aus bleiben.">🌳 Wie im Notizbuch ordnen</button>'}
-          <button type="button" class="btn btn-secondary btn-sm" data-add="topic" title="Lernthema nur für diese Klasse, z. B. Aufgaben oder Dokumente">➕ Lernthema</button>
-          <button type="button" class="btn btn-secondary btn-sm" data-add="area">➕ Bereich</button>
-          <button type="button" class="btn btn-secondary btn-sm" data-add="section">➕ Abschnitt</button>
           <button type="button" class="btn btn-secondary btn-sm" data-preview title="Das Klassennotizbuch aus Schülersicht in einem neuen Tab: Quizze und Dokumente ausprobieren, Ergebnisse erscheinen hier als 🧪">👁 Als Vorschau öffnen</button>
           <button type="button" class="btn btn-secondary btn-sm" data-preview-reset title="Ergebnisse, Blätter und Stand der Vorschau in dieser Klasse löschen">🧹 Vorschau zurücksetzen</button>
           <button type="button" class="btn btn-secondary btn-sm" data-mark-root title="Schüler springen zum ersten Modul im ganzen Klassennotizbuch – „Weiter“ führt durch alle weiteren">📍 Ganz vorn</button>
@@ -969,12 +966,12 @@ export class ClassResultsView {
         <p class="hint">Die Schüler sehen diesen Baum über den <a href="#" id="cbToSettings">Klassenbuch-Link</a>. Einträge verweisen aufs Notizbuch
           (Änderungen dort gelten sofort), außer mit „nur diese Klasse“. ● / ○ schaltet Lernthemen und Module ein und aus –
           was später dazukommt, ist zunächst aus. 👁 / 🙈 blendet ein Lernthema, einen Bereich oder Abschnitt für Schüler aus (auch Link und QR-Code sind dann gesperrt), ohne die Module
-          zu schalten. Aktionen über ⋯.</p>
+          zu schalten. Aktionen über ⋯ oder Rechtsklick – auf eine freie Stelle im Baum für neue Bereiche, Abschnitte und Lernthemen.</p>
         <div class="cb-tree">${cb.marker?.level === 'root' ? `<div class="cb-book-mark cb-marked">${this._markBadge()} 📒 <strong>${escapeHtml(cb.className)}</strong> <span class="hint">ganz vorn im Klassennotizbuch</span></div>` : ''}${shown.length || (cb.nodes.length && this._cbView !== 'quizzes') ? this._level(cb, shown, null)
           : this._cbView === 'quizzes' && links.length ? '<div class="empty-state"><span class="empty-icon">🧩</span><p>In den Zuweisungen dieser Klasse steckt noch kein Quiz.</p></div>'
           : `<div class="empty-state"><span class="empty-icon">📋</span>
-              <p>Noch leer. Weise aus deinem Notizbuch Lernthemen oder ganze Bereiche zu, lege eigene Lernthemen für diese Klasse an
-                und ordne alles in Bereichen und Abschnitten.</p></div>`}</div>`;
+              <p>Noch leer. Weise aus deinem Notizbuch Lernthemen oder ganze Bereiche zu (<strong>➕ Aus dem Notizbuch</strong>).
+                Eigene Lernthemen, Bereiche und Abschnitte: Rechtsklick hier in den Baum.</p></div>`}</div>`;
       out.querySelector('#cbToSettings')?.addEventListener('click', (e) => { e.preventDefault(); this._switch('settings'); });
       out.querySelectorAll('[data-cb-view]').forEach((btn) => btn.addEventListener('click', () => {
         this._cbView = btn.dataset.cbView;
@@ -1007,6 +1004,19 @@ export class ClassResultsView {
         e.preventDefault();
         btn.click();
       }));
+      // Rechtsklick auf eine freie Stelle im Baum: Neues auf oberster Ebene (in Bereichen über deren ⋯).
+      out.querySelector('.cb-tree')?.addEventListener('contextmenu', (e) => {
+        if (e.target.closest('summary, .cb-units > li, .cb-topic-title, button, a')) return;
+        e.preventDefault();
+        const at = { getBoundingClientRect: () => ({ left: e.clientX, right: e.clientX + 240, top: e.clientY, bottom: e.clientY }) };
+        this._menu([
+          { label: '➕ Neuer Bereich', run: () => this._add('area', null) },
+          { label: '➕ Neuer Abschnitt', run: () => this._add('section', null) },
+          { label: '➕ Neues Lernthema', title: 'Lernthema nur für diese Klasse, z. B. Aufgaben oder Dokumente', run: () => this._add('topic', null) },
+          '-',
+          { label: '➕ Aus dem Notizbuch …', run: () => this._add('assign', null) },
+        ], at);
+      });
       this._bindDrag(out, cb, links);
       out.querySelectorAll('details[data-node]').forEach((d) => d.addEventListener('toggle', () => {
         (this._closedNodes ||= new Set())[d.open ? 'delete' : 'add'](d.dataset.node);

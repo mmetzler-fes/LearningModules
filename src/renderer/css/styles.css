@@ -4945,6 +4945,7 @@ th.cb-col-embedded { font-style: italic; color: var(--text-secondary); }
 .nb-reach-anon { all: unset; cursor: pointer; text-decoration: underline; font-weight: 600; color: var(--score-medium-text); }
 .reach-notice-list { max-height: 40vh; overflow: auto; margin: 8px 0; padding-left: 20px; }
 /* Klassennotizbuch: dieselben Zeilen wie im Lernnotizbuch */
+.cb-tree { padding-bottom: 48px; }
 .cb-tree .result-group { border: 0; border-radius: 0; background: none; margin: 0; }
 .cb-tree .cb-node { margin: 0; }
 .cb-tree details > summary { display: flex; align-items: center; flex-wrap: nowrap; gap: 6px; min-height: 34px; padding: 2px 8px; border-radius: 0; white-space: nowrap; list-style: none; cursor: pointer; }

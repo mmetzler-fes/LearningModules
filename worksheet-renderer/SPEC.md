@@ -259,6 +259,10 @@ Verzeichniseinträge und ihre Seitenzahlen erzeugt der Renderer (Ebene 1 und 2).
   mit `image` gehört deshalb in einen eigenen Block **ohne** unmittelbar
   davorstehendes `karo` – dann steht er im Arbeitsblatt ausgeblendet an seiner
   Stelle und wird im Lösungsblatt sichtbar.
+* Zusammenhalten beim Seitenumbruch: Ein Codeblock bis 40 Zeilen bricht nicht
+  über die Seite; der Absatz direkt davor („Beispiel: …“) bleibt bei ihm, ebenso
+  jeder Absatz, der mit „:“ endet, beim folgenden Baustein. Eine Aufgabe in
+  `columns` (Text links, Bild rechts) rückt mit ihrem Karoraster gemeinsam um.
 * In Codeblöcken bleiben Leerzeichenkolonnen erhalten (`<text:s>`), damit
   ausgerichtete Kommentare nicht verrutschen. Kästchen- und Pfeilzeichen
   (`│ └ ← →`) stammen aus einer Ersatzschrift anderer Breite und zerstören die

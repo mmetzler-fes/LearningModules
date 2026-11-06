@@ -425,6 +425,72 @@ class CodeGroesseTest(unittest.TestCase):
             self.assertIn('text:style-name="Quelltext">a<', content)
             self.assertIn('text:style-name="Quelltext">c<', content)  # unbekannte Größe: wie ohne Angabe
 
+    def test_codeblock_bleibt_zusammen(self):
+        """Ein kurzer Codeblock bricht nicht über die Seite: alle Zeilen bis auf die letzte kleben an der nächsten."""
+        lang = "\\n".join(f"z{i}" for i in range(mw.CODE_KEEP_MAX_LINES + 1))
+        spec = ("titel: C\ncontent:\n  - {type: code, code: \"x1\\nx2\\nx3\"}\n"
+                f"  - {{type: code, code: \"{lang}\"}}\n")
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "blatt").mkdir()
+            (root / "blatt" / "c.yaml").write_text(spec, encoding="utf-8")
+            env = dict(os.environ, ARBEITSBLATT_ROOT=str(root))
+            subprocess.run([sys.executable, str(GEN / "tools" / "make_worksheet.py"), "blatt/c.yaml", "-o", "out"],
+                           cwd=root, env=env, check=True, capture_output=True)
+            content = zipfile.ZipFile(root / "out" / "blatt.odt").read("content.xml").decode()
+            self.assertRegex(content, r'style:name="AB_Zusammenhalten_Quelltext"[^>]*>.*?fo:keep-with-next="always"')
+            self.assertIn('text:style-name="AB_Zusammenhalten_Quelltext">x1<', content)
+            self.assertIn('text:style-name="AB_Zusammenhalten_Quelltext">x2<', content)
+            self.assertIn('text:style-name="Quelltext">x3<', content)
+            # Zu lang für eine Seite: darf umbrechen, keine Zeile klebt.
+            self.assertIn('text:style-name="Quelltext">z0<', content)
+            self.assertNotIn('text:style-name="AB_Zusammenhalten_Quelltext">z', content)
+
+    def test_doppelpunkt_bleibt_beim_folgenden(self):
+        """Ein Absatz, der mit „:“ endet, klebt am folgenden Baustein; andere nicht."""
+        spec = ("titel: C\ncontent:\n  - {type: text, text: \"**Beispiel:**\"}\n  - {type: code, code: a}\n"
+                "  - {type: text, text: \"Ein Satz.\"}\n")
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "blatt").mkdir()
+            (root / "blatt" / "c.yaml").write_text(spec, encoding="utf-8")
+            env = dict(os.environ, ARBEITSBLATT_ROOT=str(root))
+            subprocess.run([sys.executable, str(GEN / "tools" / "make_worksheet.py"), "blatt/c.yaml", "-o", "out"],
+                           cwd=root, env=env, check=True, capture_output=True)
+            content = zipfile.ZipFile(root / "out" / "blatt.odt").read("content.xml").decode()
+            self.assertRegex(content, r'<text:p text:style-name="AB_Zusammenhalten_[^"]+"><text:span[^>]*>Beispiel:')
+            self.assertNotRegex(content, r'<text:p text:style-name="AB_Zusammenhalten_[^"]+">Ein Satz')
+
+    def test_spalten_bleiben_beim_raster(self):
+        """Aufgabe in Spalten mit Raster darunter: die Spalten-Tabelle klebt am Raster, andere nicht."""
+        spalten = "{type: columns, blocks: [{type: column, blocks: [{type: text, text: links}]}, {type: column, blocks: [{type: text, text: rechts}]}]}"
+        spec = (f"titel: C\ncontent:\n  - {spalten}\n  - {{type: karo, lines: 4}}\n"
+                f"  - {spalten}\n  - {{type: text, text: danach}}\n")
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "blatt").mkdir()
+            (root / "blatt" / "c.yaml").write_text(spec, encoding="utf-8")
+            env = dict(os.environ, ARBEITSBLATT_ROOT=str(root))
+            subprocess.run([sys.executable, str(GEN / "tools" / "make_worksheet.py"), "blatt/c.yaml", "-o", "out"],
+                           cwd=root, env=env, check=True, capture_output=True)
+            content = zipfile.ZipFile(root / "out" / "blatt.odt").read("content.xml").decode()
+            self.assertRegex(content, r'style:name="ABNeben_MitFolgendem"[^>]*><style:table-properties[^>]*fo:keep-with-next="always"')
+            self.assertEqual(content.count('table:style-name="ABNeben_MitFolgendem"'), 1)
+            self.assertEqual(content.count('table:style-name="ABNeben"'), 1)
+
+    def test_satz_vor_code_bleibt_beim_code(self):
+        """Ein Absatz direkt vor einem Codeblock klebt an ihm, auch ohne Doppelpunkt."""
+        spec = "titel: C\ncontent:\n  - {type: text, text: \"Ein Beispiel.\"}\n  - {type: code, code: a}\n"
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "blatt").mkdir()
+            (root / "blatt" / "c.yaml").write_text(spec, encoding="utf-8")
+            env = dict(os.environ, ARBEITSBLATT_ROOT=str(root))
+            subprocess.run([sys.executable, str(GEN / "tools" / "make_worksheet.py"), "blatt/c.yaml", "-o", "out"],
+                           cwd=root, env=env, check=True, capture_output=True)
+            content = zipfile.ZipFile(root / "out" / "blatt.odt").read("content.xml").decode()
+            self.assertRegex(content, r'<text:p text:style-name="[^"]+_MitFolgendem">Ein Beispiel\.')
+
 
 if __name__ == "__main__":
     unittest.main()

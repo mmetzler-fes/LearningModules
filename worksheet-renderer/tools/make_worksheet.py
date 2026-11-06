@@ -1343,14 +1343,22 @@ def starmath_as_text(math_text: str) -> str:
     return re.sub(r"\s{2,}", " ", text).strip()
 
 
-def code_paragraphs(code: str, style: str) -> list[Element]:
-    """Codezeilen als eigene Absätze; Leerzeichenkolonnen bleiben erhalten."""
+# Bis zu so vielen Zeilen bleibt ein Codeblock auf einer Seite; längere dürfen umbrechen.
+CODE_KEEP_MAX_LINES = 40
+
+
+def code_paragraphs(code: str, style: str, keep: str | None = None) -> list[Element]:
+    """Codezeilen als eigene Absätze; Leerzeichenkolonnen bleiben erhalten.
+
+    `keep`: Absatzvorlage wie `style` mit keep-with-next – alle Zeilen außer der
+    letzten bekommen sie, damit ein kurzer Codeblock nicht über eine Seite bricht."""
+    lines = code.rstrip("\n").expandtabs(4).split("\n")
     paragraphs = []
-    for line in code.rstrip("\n").expandtabs(4).split("\n"):
+    for index, line in enumerate(lines):
         # Mehrere Leerzeichen hintereinander würden in ODF zusammenfallen und
         # müssen als <text:s> ausgezeichnet werden – sonst verrutschen
         # Einrückung und ausgerichtete Kommentarspalten.
-        p = P(stylename=style)
+        p = P(stylename=keep if keep and index < len(lines) - 1 else style)
         pos = 0
         for run in re.finditer(" {2,}", line):
             p.addText(line[pos:run.start()])
@@ -2285,9 +2293,34 @@ def keep_karo_with_question(elements: list[Element], doc, present: set[str]) -> 
         el.setAttribute("stylename", kwn(name))
         return True
 
+    def neben_mit_folgendem() -> str:
+        """Wie ABNeben (Spalten nebeneinander), bleibt aber beim folgenden Raster."""
+        if "ABNeben_MitFolgendem" not in present:
+            style = Style(name="ABNeben_MitFolgendem", family="table")
+            style.addElement(TableProperties(width=f"{TABLE_WIDTH_CM}cm", margintop="0.1cm", marginbottom="0.1cm",
+                                             align="margins", keepwithnext="always"))
+            doc.automaticstyles.addElement(style)
+            present.add("ABNeben_MitFolgendem")
+        return "ABNeben_MitFolgendem"
+
+    def is_karo(el: Element) -> bool:
+        return el.qname[1] == "table" and str(el.getAttribute("name") or "").startswith("Karo")
+
+    def is_code(el: Element) -> bool:
+        name = str(el.getAttribute("stylename") or "") if el.qname[1] == "p" else ""
+        return name.startswith(("Quelltext", "AB_Zusammenhalten_Quelltext"))
+
     for i, el in enumerate(elements):
+        # Der Satz direkt vor einem Codeblock kündigt ihn an („Beispiel: …“) und bleibt bei ihm.
+        if is_code(el) and i > 0 and elements[i - 1].qname[1] == "p" and not is_code(elements[i - 1]) \
+                and elements[i - 1].hasChildNodes():
+            mark(elements[i - 1])
         if not big(el):
             continue
+        # Aufgabe in Spalten (Text links, Bild rechts) und ihr Raster darunter: zusammen umbrechen.
+        if is_karo(el) and i > 0 and elements[i - 1].qname[1] == "table" \
+                and str(elements[i - 1].getAttribute("stylename") or "") == "ABNeben":
+            elements[i - 1].setAttribute("stylename", neben_mit_folgendem())
         # Rückwärts über Überschrift und Einleitung (auch eine kurze Aufzählung),
         # aber nicht über Bilder, Tabellen oder ein vorangehendes Raster hinweg –
         # sonst bliebe der Text allein am Seitenende stehen.
@@ -2473,8 +2506,13 @@ def render_block_content(block: Any, styles: dict[str, str], ctx: dict[str, Any]
         text_style = para_variant(ctx, text_style, block)
         erster_style = (abstand_style(ctx, text_style)
                         if ctx.get("prev_kind") == "list" else text_style)
-        for i, para in enumerate(str(block["text"]).split("\n\n")):
-            out.append(rich_p(erster_style if i == 0 else text_style, para.strip()))
+        paras = str(block["text"]).split("\n\n")
+        for i, para in enumerate(paras):
+            style = erster_style if i == 0 else text_style
+            # „Beispiel:“ kündigt das Folgende an und bleibt bei ihm (Code, Tabelle, Karo …).
+            if i == len(paras) - 1 and re.sub(r"[*_\s]+$", "", para).endswith(":"):
+                style = keep_style(ctx, style)
+            out.append(rich_p(style, para.strip()))
 
     elif kind == "code":
         if block.get("caption"):
@@ -2483,7 +2521,9 @@ def render_block_content(block: Any, styles: dict[str, str], ctx: dict[str, Any]
             out.append(p)
         if block.get("size") in CODE_SIZES_PT:
             code_style = ensure_sized_style(ctx["doc"], ctx["present"], code_style, block["size"])
-        out.extend(code_paragraphs(read_code(block, ctx["search"]), code_style))
+        code = read_code(block, ctx["search"])
+        keep = keep_style(ctx, code_style) if len(code.rstrip("\n").split("\n")) <= CODE_KEEP_MAX_LINES else None
+        out.extend(code_paragraphs(code, code_style, keep))
 
     elif kind == "list":
         numbering = block.get("numbering") if block.get("numbering") in ("a", "i") else None

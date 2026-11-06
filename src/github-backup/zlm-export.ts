@@ -141,3 +141,69 @@ export async function buildZlm(src: ZlmSource, opts: { fetchImpl?: typeof fetch;
   if (layer) add('layers/teacher.json', json(layer));
   return zip.toBuffer();
 }
+
+export interface ModuleZlmSource {
+  /** Das Lernmodul (Quiz, Übung, HTML-App) und seine Untermodule (`parentId`). */
+  module: { id: string; type: string; title?: string; description?: string; content?: any; createdAt?: Date; updatedAt?: Date };
+  children?: Array<{ id: string; parentId?: string | null; type: string; title?: string; description?: string; content?: any }>;
+  /** HTML der App, wenn das Modul eine HTML-App ist. */
+  appHtml?: string | null;
+}
+
+const NAME_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
+
+/**
+ * Ein Lernmodul ohne Dokument als .zlm der Art `module` (FORMAT.md im lm-editor):
+ * document.json mit nur seinem Quiz-Baustein, das Modul samt Untermodulen in
+ * modules/, bei einer HTML-App ihre Datei in media/ (statt der Kennung auf dem
+ * Server). Gleicher Inhalt ergibt dieselben Bytes.
+ */
+export async function buildModuleZlm(src: ModuleZlmSource, opts: { fetchImpl?: typeof fetch; local?: LocalImage } = {}) {
+  const fetchImpl = opts.fetchImpl || fetch;
+  const m = src.module;
+  if (!NAME_RE.test(String(m.id))) throw new Error(`Modul-Kennung „${m.id}“ passt nicht in eine .zlm.`);
+  const plain = (x: ModuleZlmSource['module'] & { parentId?: string | null }) => ({
+    id: String(x.id), ...(x.parentId ? { parentId: String(x.parentId) } : {}), type: x.type, title: x.title || '', description: x.description || '', content: contentOf(x),
+  });
+  const media = new Map<string, Buffer>();
+  const main: any = plain(m);
+  if (main.type === 'htmlApp' && src.appHtml) {
+    const data = Buffer.from(src.appHtml, 'utf-8');
+    const name = `app-${crypto.createHash('sha1').update(data).digest('hex').slice(0, 16)}.html`;
+    media.set(name, data);
+    const { fileId: _f, ...app } = main.content?.app || {};
+    main.content = { ...main.content, app: { ...app, file: `media/${name}` } };
+  }
+  const kids = (src.children || []).filter((c) => NAME_RE.test(String(c.id))).map((c) => plain(c as any));
+  const { modules } = await inlineRemoteImages([main, ...kids], fetchImpl, opts.local);
+
+  const created = m.createdAt instanceof Date ? m.createdAt : new Date(Date.UTC(2020, 0, 1));
+  const manifest = {
+    format: 'zlm',
+    version: 1,
+    id: zlmId(m.id),
+    title: m.title || 'Lernmodul',
+    kind: 'module',
+    module: String(m.id),
+    lang: 'de',
+    created: created.toISOString(),
+    modified: (m.updatedAt instanceof Date ? m.updatedAt : created).toISOString(),
+    generator: GENERATOR,
+  };
+  const spec = { titel: manifest.title, content: [{ id: `q${zlmId(m.id).slice(0, 15)}`, type: 'quiz', module: String(m.id) }] };
+
+  const zip = new AdmZip(undefined, { noSort: true });
+  const add = (name: string, data: Buffer) => {
+    zip.addFile(name, data);
+    const entry = zip.getEntry(name)!;
+    entry.header.method = 0;
+    entry.header.time = ZIP_TIME;
+  };
+  const json = (v: any) => Buffer.from(JSON.stringify(v, null, 1), 'utf-8');
+  add('mimetype', Buffer.from(ZLM_MIME));
+  add('manifest.json', json(manifest));
+  add('document.json', json({ spec }));
+  for (const x of [...modules].sort((a, b) => a.id.localeCompare(b.id))) add(`modules/${x.id}.json`, json(x));
+  for (const name of [...media.keys()].sort()) add(`media/${name}`, media.get(name)!);
+  return zip.toBuffer();
+}

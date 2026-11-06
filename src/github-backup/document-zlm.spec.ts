@@ -29,9 +29,12 @@ describe('GithubBackupService.documentZlm', () => {
     expect(JSON.parse(zip.readAsText('document.json')).spec.content[1]).toEqual(expect.objectContaining({ type: 'quiz', module: 'q1' }));
   });
 
-  it('fremde Dokumente und andere Module nicht', async () => {
+  it('fremde Dokumente nicht; ein eigenes Quiz kommt als .zlm der Art module', async () => {
     await expect(service(doc).documentZlm({ userId: 'u2' }, 'doc1')).rejects.toBeInstanceOf(ForbiddenException);
-    await expect(service(quiz).documentZlm({ userId: 'u1' }, 'q1')).rejects.toBeInstanceOf(NotFoundException);
+    const q = await service(quiz).documentZlm({ userId: 'u1' }, 'q1');
+    expect(q.fileName).toBe('Kurzquiz.zlm');
+    expect(Buffer.from(q.data, 'base64').toString('latin1')).toContain('"kind": "module"');
+    await expect(service(quiz).documentZlm({ userId: 'u2' }, 'q1')).rejects.toBeInstanceOf(ForbiddenException);
     await expect(service(null).documentZlm({ userId: 'u1' }, 'weg')).rejects.toBeInstanceOf(NotFoundException);
   });
 });

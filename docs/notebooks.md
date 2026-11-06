@@ -254,6 +254,11 @@ Writer/Word (`.odt`, `.docx`), Folien (`.odp`, `.odg`, `.pptx`), PDF und
 Xournal++ (`.xopp`, gern zusammen mit seinem PDF). Dasselbe wie „Öffnen mit“
 der installierten App, aber in jedem Browser.
 
+**💾 Als .zlm speichern** (⋯ an einem eigenen Modul) speichert ein Dokument für den lm-editor – oder ein
+Quiz, eine Übung oder HTML-App **ohne Dokument** als `.zlm` der Art „Lernmodul“ (samt Untermodulen, bei
+einer HTML-App mit ihrer Datei). So eine Datei öffnet **📂 Datei öffnen** wieder; **📓 Im Notizbuch
+ablegen…** legt das Modul mit neuer Kennung in ein Lernthema (eine HTML-App wird dabei neu geprüft).
+
 ## Technik
 
 Struktur in `notebook_nodes` (Book, Bereich, Abschnitt; mit `tagIds`;

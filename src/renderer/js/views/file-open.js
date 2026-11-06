@@ -188,6 +188,50 @@ export async function fileIntoNotebook(app, doc) {
 }
 
 /**
+ * .zlm der Art „module“ (Quiz, Übung oder HTML-App ohne Dokument) in ein
+ * Lernthema: alle Module mit neuen IDs, die Datei einer HTML-App wird
+ * hochgeladen (und dabei geprüft). true, wenn es geklappt hat.
+ */
+export async function fileModuleIntoNotebook(app, doc) {
+  const main = doc.modules?.[doc.manifest.module];
+  if (!main) throw new Error('Die Datei enthält kein Lernmodul.');
+  const place = await pickPlace(app, doc.manifest.title);
+  if (!place) return false;
+  let topicId = place.topicId;
+  if (!topicId) {
+    const topic = await app.api.saveTopic({ title: place.newTitle, description: '' });
+    if (!topic?.id) throw new Error(topic?.message || 'Lernthema konnte nicht angelegt werden.');
+    topicId = topic.id;
+    if (place.nodeId) await app.api.moveInNotebook('topic', topicId, place.nodeId, null);
+  }
+  const all = Object.entries(doc.modules || {}).map(([key, m]) => ({ ...m, id: String(m?.id ?? key) }));
+  const newId = new Map(all.map((m) => [m.id, generateId()]));
+  const now = new Date().toISOString();
+  const contentOf = async (m) => {
+    const file = m.content?.app?.file;
+    if (m.type !== 'htmlApp' || typeof file !== 'string' || !file.startsWith('media/')) return m.content;
+    const bytes = doc.media?.[file.slice(6)];
+    if (!bytes) throw new Error('Die Datei der HTML-App fehlt in der .zlm.');
+    const up = await app.api.uploadHtmlApp(new TextDecoder().decode(bytes));
+    if (!up?.fileId) throw new Error(up?.message || 'Die HTML-App ließ sich nicht hochladen.');
+    const { file: _f, ...rest } = m.content.app;
+    return { ...m.content, app: { ...rest, fileId: up.fileId, manifest: up.manifest ?? null, size: up.size } };
+  };
+  const ordered = [...all.filter((m) => !m.parentId), ...all.filter((m) => m.parentId)];
+  for (const m of ordered) {
+    const res = await app.api.saveModule(topicId, {
+      id: newId.get(m.id), type: m.type, title: m.title || '', description: m.description || '', content: await contentOf(m),
+      ...(m.parentId && newId.has(String(m.parentId)) ? { parentId: newId.get(String(m.parentId)) } : {}),
+      moduleSelected: true, createdAt: now, updatedAt: now,
+    });
+    if (!res?.success) throw new Error(res?.message || `„${m.title || m.id}“ ließ sich nicht speichern.`);
+  }
+  await app.loadTopics?.();
+  app.showToast(`„${doc.manifest.title}“ liegt jetzt in „${place.label}“.`, 'success');
+  return true;
+}
+
+/**
  * Wohin im Notizbuch: ein eigenes Lernthema (das Dokument kommt dazu) oder
  * ein Ordner bzw. „Unsortiert“ (dort entsteht ein neues Lernthema).
  * `{ topicId }` oder `{ nodeId, newTitle }`, dazu `label` – oder null.

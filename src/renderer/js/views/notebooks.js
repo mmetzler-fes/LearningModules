@@ -1145,6 +1145,14 @@ export class NotebooksView {
     ];
   }
 
+  /** Modul als .zlm herunterladen (Dokument oder Lernmodul ohne Dokument, Art „module“). */
+  async _downloadZlm(mod) {
+    const res = await this.app.api._fetch(`/api/github-backup/zlm?id=${encodeURIComponent(mod.id)}`);
+    if (!res?.data) { this.app.showToast(res?.message || '.zlm ließ sich nicht erstellen.', 'error'); return; }
+    const bytes = Uint8Array.from(atob(res.data), (c) => c.charCodeAt(0));
+    downloadBlob(new Blob([bytes], { type: 'application/vnd.lm-editor.zlm+zip' }), res.fileName || 'Lernmodul.zlm');
+  }
+
   _moduleMenu(topic, mod) {
     const open = (action) => this.app.modulesView.openFrom('teacher-notebooks', topic.id, mod, action);
     const uses = this._usesOf(mod);
@@ -1184,6 +1192,10 @@ export class NotebooksView {
         },
       });
       items.push({ label: '📄 Kopieren nach…', run: () => this._moduleTargetDialog(topic, mod, 'copy') });
+      if (mod.type !== 'attachment' && mod.type !== 'worksheet') {
+        items.push({ label: '💾 Als .zlm speichern', title: mod.type === 'document' ? 'Datei für den lm-editor – mit eingebetteten Quizzen, Bildern und deiner Beschriftung'
+          : 'Datei zum Weitergeben oder Sichern – öffnet sich wieder mit „📂 Datei öffnen“', run: () => this._downloadZlm(mod) });
+      }
     }
     items.push('-', ...this._lockEntries(topic, mod));
     items.push('-', { label: '🗑 Löschen', danger: true, run: () => this._deleteModule(topic, mod) });

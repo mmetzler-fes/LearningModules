@@ -19,7 +19,8 @@ import { isDue, nextSlot, DAY } from '../core/schedule/slot';
 import { NextcloudService } from '../nextcloud/nextcloud.service';
 import { GithubRepo, parseRepo } from './github-api';
 import { BackupTopic, INDEX_PATH, parseDocIndex, parseIndex, pickModules, planBackup, topicIdOf } from './backup-plan';
-import { buildZlm } from './zlm-export';
+import { buildZlm, buildModuleZlm } from './zlm-export';
+import { HtmlAppFile } from '../core/entities/html-app-file.entity';
 
 /**
  * GitHub-Backup je Lehrkraft (docs/github-backup.md).
@@ -75,6 +76,7 @@ export class GithubBackupService implements OnApplicationBootstrap, OnModuleDest
     private readonly mail: MailService,
     private readonly importService: ImportService,
     @Optional() private readonly nextcloud?: NextcloudService,
+    @Optional() @InjectRepository(HtmlAppFile) private readonly appFileRepo?: Repository<HtmlAppFile>,
   ) {}
 
   // ---- Freigabe durch den Admin ----
@@ -307,6 +309,7 @@ export class GithubBackupService implements OnApplicationBootstrap, OnModuleDest
    */
   async documentZlm(user: any, moduleId: string): Promise<{ fileName: string; data: string }> {
     const mod = moduleId ? await this.moduleRepo.findOne({ where: { id: String(moduleId) } }) : null;
+    if (mod && !mod.parentId && mod.type !== 'document' && mod.type !== 'worksheet' && mod.type !== 'attachment') return this.moduleZlm(user, mod);
     if (!mod || mod.type !== 'document') throw new NotFoundException('Dokument nicht gefunden.');
     const topic = await this.topicRepo.findOne({ where: { id: mod.topicId }, relations: ['modules'] });
     const modules = ownModules(topic?.modules || [], user.userId);
@@ -317,6 +320,31 @@ export class GithubBackupService implements OnApplicationBootstrap, OnModuleDest
     const bytes = await buildZlm({ doc: mod, modules: [...modules, ...extra], ink }, { local });
     const name = (mod.title || 'Dokument').replace(/[\\/:*?"<>|]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 80) || 'Dokument';
     return { fileName: `${name}.zlm`, data: Buffer.from(bytes).toString('base64') };
+  }
+
+  /** Quiz, Übung oder HTML-App ohne Dokument als .zlm der Art „module“ – nur eigene, samt Untermodulen. */
+  private async moduleZlm(user: any, mod: LearningModule): Promise<{ fileName: string; data: string }> {
+    const topic = await this.topicRepo.findOne({ where: { id: mod.topicId }, relations: ['modules'] });
+    const modules = ownModules(topic?.modules || [], user.userId);
+    if (!modules.some((m) => m.id === mod.id)) throw new ForbiddenException('Nur eigene Lernmodule lassen sich als .zlm herunterladen.');
+    const bytes = await this.moduleZlmBytes(mod, modules);
+    const name = (mod.title || 'Lernmodul').replace(/[\\/:*?"<>|]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 80) || 'Lernmodul';
+    return { fileName: `${name}.zlm`, data: Buffer.from(bytes).toString('base64') };
+  }
+
+  /** Bytes der .zlm eines Moduls ohne Dokument (auch für die Nextcloud-Sicherung). */
+  async moduleZlmBytes(mod: LearningModule, topicModules: LearningModule[]) {
+    const children: LearningModule[] = [];
+    const want = new Set([mod.id]);
+    for (let grew = true; grew;) {
+      grew = false;
+      for (const m of topicModules) if (m.parentId && want.has(String(m.parentId)) && !want.has(m.id)) { want.add(m.id); children.push(m); grew = true; }
+    }
+    const fileId = (mod.content as any)?.app?.fileId;
+    const appHtml = mod.type === 'htmlApp' && fileId && this.appFileRepo
+      ? (await this.appFileRepo.findOne({ where: { id: String(fileId) }, select: ['id', 'html'] }))?.html ?? null : null;
+    const local = this.nextcloud ? (url: string) => this.nextcloud!.readImageByUrl(url) : undefined;
+    return buildModuleZlm({ module: mod as any, children: children as any, appHtml }, { local });
   }
 
   async run(user: any) {

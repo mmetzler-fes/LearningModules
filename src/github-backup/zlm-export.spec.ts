@@ -107,3 +107,39 @@ describe('Hilfen', () => {
     expect(teacherLayer({ layer: { blocks: {} }, pages: [{ items: [] }] })).toBeNull();
   });
 });
+
+describe('.zlm der Art module (Quiz oder HTML-App ohne Dokument)', () => {
+  const { buildModuleZlm } = require('./zlm-export');
+  const read = (buf: Buffer) => {
+    const zip = new AdmZip(buf);
+    const json = (n: string) => JSON.parse(zip.getEntry(n)!.getData().toString('utf-8'));
+    return { zip, json, names: zip.getEntries().map((e) => e.entryName) };
+  };
+
+  it('Quiz mit Untermodul: manifest.module, document.json mit nur dem Quiz-Baustein, gleiche Bytes', async () => {
+    const src = {
+      module: { id: 'q1', type: 'multipleChoice', title: 'Kurzquiz', content: { question: 'U = ?' }, updatedAt: new Date('2026-10-20T08:00:00Z') },
+      children: [{ id: 'q1a', parentId: 'q1', type: 'text', title: 'Teil', content: {} }],
+    };
+    const a = await buildModuleZlm(src);
+    expect(Buffer.compare(a, await buildModuleZlm(src))).toBe(0);
+    const { json, names } = read(a);
+    expect(names.slice(0, 3)).toEqual(['mimetype', 'manifest.json', 'document.json']);
+    expect(json('manifest.json')).toMatchObject({ kind: 'module', module: 'q1', title: 'Kurzquiz' });
+    expect(json('document.json').spec.content).toEqual([expect.objectContaining({ type: 'quiz', module: 'q1' })]);
+    expect(json('modules/q1a.json').parentId).toBe('q1');
+  });
+
+  it('HTML-App: Datei in media/, im Modul der Verweis statt der Server-Kennung', async () => {
+    const buf = await buildModuleZlm({
+      module: { id: 'app1', type: 'htmlApp', title: 'Rechner', content: { app: { fileId: 'srv-123', size: 9, manifest: null } } },
+      appHtml: '<p>App</p>',
+    });
+    const { json, zip, names } = read(buf);
+    const app = json('modules/app1.json').content.app;
+    expect(app.fileId).toBeUndefined();
+    expect(app.file).toMatch(/^media\/app-[0-9a-f]{16}\.html$/);
+    expect(names).toContain(app.file);
+    expect(zip.getEntry(app.file)!.getData().toString('utf-8')).toBe('<p>App</p>');
+  });
+});

@@ -768,6 +768,8 @@ export class BrowserApi {
   }
 
   // ---------- Admin: HTML-Apps (docs/html-apps.md) ----------
+  /** HTML-App hochladen → `{ fileId, manifest, size, sha }` (geprüft wie im Editor). */
+  uploadHtmlApp(html) { return this._fetch('/api/html-apps', { method: 'POST', body: JSON.stringify({ html }) }); }
   getAdminHtmlApps() { return this._fetch('/api/admin/html-apps'); }
   getAdminHtmlAppSource(id) { return this._fetch(`/api/admin/html-apps/${encodeURIComponent(id)}/source`); }
   setHtmlAppBlocked(id, blocked) {

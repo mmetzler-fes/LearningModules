@@ -74,6 +74,23 @@ export async function openZlmFile(app, file) {
   const user = app.state?.currentUser;
   const canFile = user && (user.role === 'teacher' || user.role === 'admin') && (user.features || []).includes('worksheets');
   const KIND = { exam: 'klassenarbeit', text: 'text', worksheet: 'arbeitsblatt' };
+  // Art „module“: ein Quiz oder eine HTML-App ohne Dokument – kommt als Modul ins Lernthema.
+  if (doc.manifest.kind === 'module') {
+    const teacher = user && (user.role === 'teacher' || user.role === 'admin');
+    await openDocViewer(app, {
+      title: doc.manifest.title, subtitle: `${file.name || ''} · Lernmodul · ${teacher ? 'noch nicht im Notizbuch' : 'nur ansehen'}`,
+      spec, kind: 'worksheet', modules: doc.modules,
+      actions: teacher ? [{
+        label: '📓 Im Notizbuch ablegen…', primary: true,
+        title: 'Als Modul in ein Lernthema – mit neuer Kennung, samt Untermodulen',
+        onClick: async (close) => {
+          const { fileModuleIntoNotebook } = await import('./file-open.js');
+          try { if (await fileModuleIntoNotebook(app, doc)) close(); } catch (err) { app.showToast(`Ablegen fehlgeschlagen: ${err.message}`, 'error'); }
+        },
+      }] : [],
+    });
+    return;
+  }
   await openDocViewer(app, {
     title: doc.manifest.title, subtitle: `${file.name || ''} · ${canFile ? 'noch nicht im Notizbuch' : 'nur ansehen'}`,
     spec, kind: doc.manifest.kind, modules: doc.modules,

@@ -459,6 +459,8 @@ export class BrowserApi {
   movePlanItem(body) { return this._fetch('/api/plans/move', { method: 'POST', body: JSON.stringify(body) }); }
   /** `{ parentId, index?, items: [{ type: 'topic'|'nbnode'|'plan', id }] }` → `{ added, present }` */
   addToPlan(body) { return this._fetch('/api/plans/add', { method: 'POST', body: JSON.stringify(body) }); }
+  /** Klasse folgt dem Plan (`planId`) bzw. keinem (null) → `{ planId, added, present, notReleased }`. */
+  setClassPlan(classId, planId) { return this._fetch(`/api/classbook/${encodeURIComponent(classId)}/plan`, { method: 'POST', body: JSON.stringify({ planId }) }); }
   createNotebookNode(kind, title, parentId = null) {
     return this._fetch('/api/notebooks/nodes', { method: 'POST', body: JSON.stringify({ kind, title, parentId }) });
   }

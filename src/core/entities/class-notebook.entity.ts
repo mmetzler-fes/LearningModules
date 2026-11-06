@@ -67,6 +67,14 @@ export class ClassNotebook extends BaseEntity {
   @Column({ default: false })
   studentHidden: boolean;
 
+  /** 🗂 Plan der Klasse (Planungsebene, docs/planung.md): Das Klassennotizbuch folgt ihm, Neues kommt ausgeschaltet dazu. */
+  @Column({ type: 'varchar', nullable: true })
+  planId: string | null;
+
+  /** Schon aus dem Plan übernommen (Schlüssel der Bereiche, `t:<Lernthema>`) – Entferntes kommt nicht wieder. */
+  @Column('simple-json', { nullable: true })
+  planSeen: string[] | null;
+
   /** 📍 Wo die Klasse gerade ist: Bei den Schülern ist dieses Modul aufgeklappt und hat den Fokus. */
   @Column('simple-json', { nullable: true })
   marker: ClassNotebookMarker | null;

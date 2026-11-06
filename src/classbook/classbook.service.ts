@@ -4,7 +4,7 @@ import { RunProgress } from '../core/entities/run-progress.entity';
 import { TopicQuickLink } from '../core/entities/topic-quick-link.entity';
 import { HtmlAppState } from '../core/entities/html-app-state.entity';
 import { contentOf, hasSolutionBlocks, forStudents } from '../core/public/student-view';
-import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException, BadRequestException, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, IsNull, Repository } from 'typeorm';
 import * as crypto from 'crypto';
@@ -35,6 +35,8 @@ import { embeddedQuizIds } from '../core/public/student-view';
 import { ContestService } from '../contest/contest.service';
 import { ClassbookLive, LiveTarget } from './classbook-live';
 import type { Response } from 'express';
+import { PlansService } from '../plans/plans.service';
+import { planTopicIds, type PlanItem } from '../plans/plan-rules';
 import { newClassCode, normalizeClassCode, formatClassCode, endOfDay, firstLoginOpen, loginDecision, unitCells, quizPlaces, Unit, DetailLike, classbookTicketKey, examState, toggleSelection, explicitSelection, moduleOn, AvailTopic, SelEntry } from './classbook-rules';
 
 /** Name des Testschülers in der Klassenansicht, wenn die Lehrkraft keinen eigenen festgelegt hat. */
@@ -101,6 +103,7 @@ export class ClassbookService {
     @InjectRepository(TopicQuickLink) private readonly quickRepo: Repository<TopicQuickLink>,
     @InjectRepository(DocumentVersion) private readonly versionRepo: Repository<DocumentVersion>,
     @InjectRepository(RunProgress) private readonly runRepo: Repository<RunProgress>,
+    @Optional() private readonly plans?: PlansService,
   ) {}
 
   /** Notizbuch der Klasse – beim ersten Aufruf angelegt; ältere bekommen hier ihren Klassencode. */
@@ -232,6 +235,8 @@ export class ClassbookService {
     await this.removeDeleted(user, klasse, nb).catch(() => undefined);
     // Aus dem Notizbuch übernommene Bereiche: Neues dort kommt ausgeschaltet nach.
     await this.syncMirrors(user, klasse, req).catch(() => undefined);
+    // Plan der Klasse: Neues dort kommt ausgeschaltet nach.
+    await this.followPlan(user, klasse, nb, { on: false, req }).catch(() => undefined);
     await this.arrangeByNotebook(user, klasse, nb).catch(() => undefined);
     const url = `${baseUrl(req)}/?k=${nb.token}`;
     const students = await this.studentRepo.find({ where: { classId }, select: ['id', 'status', 'pinShownAt'] });
@@ -275,6 +280,7 @@ export class ClassbookService {
       qrSvg: await renderQr(url),
       firstLoginUntil: firstLoginOpen(nb.firstLoginUntil) ? nb.firstLoginUntil : null,
       marker: normalizeMarker(nb.marker),
+      plan: nb.planId ? { id: nb.planId, title: (await this.plans?.titleOf(user, nb.planId).catch(() => null)) || '' } : null,
       studentHidden: !!nb.studentHidden,
       live: { online: this.live.online(classId), follow: this.live.isFollowing(classId) },
       nodes,
@@ -550,8 +556,11 @@ export class ClassbookService {
     let moved = 0;
     const links = await this.classLinks(klasse);
     const places = new Map((await this.placeRepo.find({ where: { classId: klasse.id } })).map((p) => [p.id, p]));
+    // Lernthemen aus dem Plan der Klasse ordnet der Plan (followPlan), nicht das Notizbuch.
+    const fromPlan = await this.planTopicSet(user, nb);
     const todo = links.filter((l) => {
       const place = places.get(l.id);
+      if (fromPlan.size && (l.selection || []).length && (l.selection || []).every((e) => fromPlan.has(e.topicId))) return false;
       return !place?.hidden && (first || !place) && practiceModes(l).length > 0;
     });
     if (todo.length) {
@@ -572,7 +581,7 @@ export class ClassbookService {
         await this.placeAtEnd(klasse.id, link.id, target);
         moved++;
       }
-      if (first) await this.sortLikeNotebook(klasse, byId, placeOfTopic, links);
+      if (first && !fromPlan.size) await this.sortLikeNotebook(klasse, byId, placeOfTopic, links);
     }
     if (first) {
       nb.treeArrangedAt = new Date();
@@ -585,7 +594,20 @@ export class ClassbookService {
   async arrange(user: any, classId: string) {
     const klasse = await this.classes.ownedClass(classId, user);
     const nb = await this.ensure(klasse);
-    return { moved: await this.arrangeByNotebook(user, klasse, nb, { force: true }) };
+    const moved = await this.arrangeByNotebook(user, klasse, nb, { force: true });
+    // Mit Plan: dessen Lernthemen wieder an ihre Stelle im Plan, in seiner Reihenfolge.
+    const plan = await this.followPlan(user, klasse, nb, { on: false, place: true });
+    return { moved: moved + plan.moved };
+  }
+
+  /** Lernthemen im Plan der Klasse (leer ohne Plan). */
+  private async planTopicSet(user: any, nb: ClassNotebook): Promise<Set<string>> {
+    if (!nb.planId || !this.plans) return new Set();
+    try {
+      return new Set(planTopicIds((await this.plans.expanded(user, nb.planId)).items));
+    } catch {
+      return new Set();
+    }
   }
 
   /** Geschwister in der Reihenfolge des Notizbuchs; was es dort nicht gibt, dahinter. */
@@ -800,7 +822,8 @@ export class ClassbookService {
     const nodes = await this.nodeRepo.find({ where: { classId: klasse.id } });
     const allOfferIds = [...new Set([...offerIds, ...nodes.map((n) => n.sourceNodeId).filter((id) => id?.startsWith('offer:')) as string[]])].map((id) => id.slice('offer:'.length));
     const offers = new Set((allOfferIds.length ? await this.offerRepo.find({ where: { id: In(allOfferIds) }, select: ['id'] }) : []).map((o) => o.id));
-    const sourceAlive = (id: string) => (id.startsWith('offer:') ? offers.has(id.slice('offer:'.length)) : nbNodes.has(id));
+    // Bereiche aus dem Plan der Klasse bleiben stehen, auch leer – wie selbst angelegte.
+    const sourceAlive = (id: string) => (id.startsWith('plan:') ? true : id.startsWith('offer:') ? offers.has(id.slice('offer:'.length)) : nbNodes.has(id));
     const topicIdsOf = (link: TopicLink) => {
       const rule = link.templateId ? rules.get(link.templateId) : null;
       return [...new Set([rule?.quickTopicId, ...(rule?.selection || []).map((e) => e.topicId), ...(link.selection || []).map((e) => e.topicId)].filter(Boolean))] as string[];
@@ -841,6 +864,112 @@ export class ClassbookService {
       if (!n.sourceNodeId!.startsWith('offer:') && !known.has(n.sourceNodeId!)) continue;
       await this.fillMirror(user, klasse, n.id, n.sourceNodeId!, nbNodes, { on: false, req });
     }
+  }
+
+  // ---- Plan der Klasse (Planungsebene, docs/planung.md) ----
+
+  /**
+   * Plan zuweisen (`planId`) oder lösen (null). Beim Zuweisen kommt der ganze
+   * Plan eingeschaltet ins Klassennotizbuch: Bereiche, Abschnitte, Teilpläne
+   * als Bereiche, je Lernthema ein Eintrag. Was die Klasse schon hat, bleibt,
+   * wie es ist. Lösen lässt den Inhalt stehen; er wächst nur nicht mehr mit.
+   */
+  async setPlan(user: any, classId: string, planId: unknown, req?: any) {
+    const klasse = await this.classes.ownedClass(classId, user);
+    const nb = await this.ensure(klasse);
+    if (!this.plans) throw new BadRequestException('Planung nicht verfügbar.');
+    if (!planId) {
+      await this.repo.update({ id: nb.id }, { planId: null, planSeen: null } as any);
+      return { planId: null, added: 0, present: [], notReleased: [] };
+    }
+    const id = String(planId);
+    await this.plans.expanded(user, id); // gehört der Lehrkraft?
+    if (nb.planId !== id) {
+      nb.planId = id;
+      nb.planSeen = [];
+      await this.repo.update({ id: nb.id }, { planId: id, planSeen: [] } as any);
+    }
+    const res = await this.followPlan(user, klasse, nb, { on: true, req });
+    return { planId: id, ...res };
+  }
+
+  /**
+   * Klassennotizbuch an den Plan angleichen. `on`: beim Zuweisen alles
+   * eingeschaltet; beim Nachziehen nur, was noch nie übernommen war, und aus.
+   * Bereiche heißen in der Klasse `plan:<Plan>:<Schlüssel>` (sourceNodeId) –
+   * verschiebt die Lehrkraft sie, bleiben sie dort.
+   */
+  private async followPlan(user: any, klasse: StudentClass, nb: ClassNotebook, opts: { on: boolean; req?: any; place?: boolean }) {
+    const none = { added: 0, moved: 0, present: [] as string[], notReleased: [] as string[] };
+    if (!nb.planId || !this.plans || klasse.ownerId !== user.userId) return none;
+    let items: PlanItem[];
+    try {
+      items = (await this.plans.expanded(user, nb.planId)).items;
+    } catch {
+      // Plan gelöscht: Der Inhalt bleibt, wächst aber nicht mehr.
+      await this.repo.update({ id: nb.id }, { planId: null, planSeen: null } as any);
+      nb.planId = null;
+      return none;
+    }
+    const seen = new Set<string>(nb.planSeen || []);
+    const hiddenLinks = new Set((await this.placeRepo.find({ where: { classId: klasse.id } })).filter((p) => p.hidden).map((p) => p.id));
+    const own = await this.classTopicIds(klasse.id);
+    const inClass = new Map<string, string>();
+    const linkOf = new Map<string, string>();
+    for (const l of await this.classLinks(klasse)) {
+      if (hiddenLinks.has(l.id) || !(practiceModes(l).length > 0 || (l.selection || []).some((e) => own.has(e.topicId)))) continue;
+      for (const e of l.selection || []) { inClass.set(e.topicId, l.name); linkOf.set(e.topicId, l.id); }
+    }
+    const out = { added: 0, moved: 0, present: [] as string[], notReleased: [] as string[] };
+    const prefix = `plan:${nb.planId}:`;
+    const walk = async (list: PlanItem[], parentId: string | null) => {
+      for (const item of list) {
+        if (item.type === 'node') {
+          const sourceId = prefix + item.key;
+          let nodeId = (await this.nodeRepo.findOne({ where: { classId: klasse.id, sourceNodeId: sourceId } }))?.id || null;
+          if (!nodeId) {
+            if (seen.has(item.key) && !opts.on) continue; // in der Klasse gelöscht
+            nodeId = await this.mirrorNode(klasse.id, sourceId, item.title, item.kind, parentId);
+          }
+          seen.add(item.key);
+          await walk(item.children, nodeId);
+          continue;
+        }
+        const key = `t:${item.topicId}`;
+        if (opts.place && linkOf.has(item.topicId)) {
+          // 🌳 ordnen: an die Stelle im Plan, in seiner Reihenfolge (ans Ende des Bereichs).
+          await this.placeAtEnd(klasse.id, linkOf.get(item.topicId)!, parentId);
+          out.moved++;
+          continue;
+        }
+        if (seen.has(key) && !opts.on) continue;
+        seen.add(key);
+        if (inClass.has(item.topicId)) { if (opts.on) out.present.push(inClass.get(item.topicId)!); continue; }
+        let created: any;
+        try {
+          created = await this.links.classLinkForTopic(item.topicId, klasse.id, user, opts.req);
+        } catch (e: any) {
+          out.notReleased.push((await this.topicRepo.findOne({ where: { id: item.topicId } }))?.title || item.topicId);
+          seen.delete(key); // kommt, sobald es freigegeben ist
+          continue;
+        }
+        out.notReleased.push(...(created.notReleased || []));
+        const link = await this.linkRepo.findOne({ where: { id: created.id } });
+        if (!link) continue;
+        const { topics } = await this.available(link, user);
+        link.selection = opts.on
+          ? explicitSelection((link.selection || []) as SelEntry[], topics as AvailTopic[])
+          : (link.selection || []).map((e) => ({ topicId: e.topicId, all: false, moduleIds: [] }));
+        await this.linkRepo.save(link);
+        await this.placeAtEnd(klasse.id, link.id, parentId);
+        inClass.set(item.topicId, link.name);
+        out.added++;
+      }
+    };
+    await walk(items, null);
+    nb.planSeen = [...seen];
+    await this.repo.update({ id: nb.id }, { planSeen: nb.planSeen } as any);
+    return { ...out, notReleased: [...new Set(out.notReleased)] };
   }
 
   /** `{ kind: 'area'|'section', title, parentId? }` */

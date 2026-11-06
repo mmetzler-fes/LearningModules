@@ -27,9 +27,10 @@ import { ClassbookService } from './classbook.service';
 import { ClassbookController, PublicClassbookController } from './classbook.controller';
 import { WebappController } from './webapp.controller';
 import { ClassbookLive } from './classbook-live';
+import { PlansModule } from '../plans/plans.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([RunProgress, DocumentVersion, ShopOffer, TopicQuickLink, HtmlAppState, ClassNotebook, ClassStudent, Result, DocumentWork, TopicLink, User, ExamAttempt, ClassNotebookNode, ClassNotebookPlace, LearningTopic, LearningModule, NotebookNode, NotebookPlacement, ClassbookProgress]), LinksModule, ClassesModule, NotebooksModule, ContestModule],
+  imports: [TypeOrmModule.forFeature([RunProgress, DocumentVersion, ShopOffer, TopicQuickLink, HtmlAppState, ClassNotebook, ClassStudent, Result, DocumentWork, TopicLink, User, ExamAttempt, ClassNotebookNode, ClassNotebookPlace, LearningTopic, LearningModule, NotebookNode, NotebookPlacement, ClassbookProgress]), LinksModule, ClassesModule, NotebooksModule, ContestModule, PlansModule],
   controllers: [ClassbookController, PublicClassbookController, WebappController],
   exports: [ClassbookService],
   providers: [ClassbookService, ClassbookLive],

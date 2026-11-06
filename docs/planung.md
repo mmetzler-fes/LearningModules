@@ -56,11 +56,31 @@ Notizbuch. Er trägt **🌱** und **wächst mit**: Was du später im Notizbuch d
 Öffnen der Planung dazu. Was du im Plan entfernst, kommt nicht von selbst wieder. Im Plan kannst du danach
 frei umordnen. Ins Ziel „Abschnitt“ kommen nur die Lernthemen, ohne Bereiche.
 
+## Klassen folgen ihrem Plan
+
+**📒 Klassen zuweisen** (Knopf oder Rechtsklick auf einen Plan) wählt die Klassen, deren Klassennotizbuch dem
+Plan folgt. Am Plan stehen danach ihre Namen, z. B. „📒 10a, 10b“. Im **📒 Klassennotizbuch** steht oben
+„🗂 Plan: …“; dort lässt er sich auch zuweisen, wechseln oder lösen.
+
+- Beim Zuweisen kommt der ganze Plan **eingeschaltet** ins Klassennotizbuch: seine Bereiche und Abschnitte,
+  Teilpläne als Bereich, je Lernthema ein Eintrag. Was die Klasse schon hat, bleibt, wie es ist, und kommt
+  nicht doppelt.
+- **Neues im Plan** kommt beim nächsten Öffnen des Klassennotizbuchs dazu, **ausgeschaltet** (○). Du
+  schaltest es ein, wenn die Klasse so weit ist.
+- **Abweichen geht:** Im Klassennotizbuch kannst du wie gewohnt umordnen, ausschalten, entfernen oder
+  eigene Lernthemen ergänzen. Was du dort entfernst, kommt nicht von selbst wieder. Was du aus dem Plan
+  entfernst, bleibt in Klassen, die es schon haben.
+- Eine Klasse folgt höchstens einem Plan. Ein anderer Plan ergänzt, was noch fehlt; der Inhalt des alten
+  bleibt. Ohne Plan (oder wenn der Plan gelöscht ist) bleibt der Inhalt stehen und wächst nicht mehr mit.
+- Im neuen Schuljahr weist du der Folgeklasse denselben Plan wieder zu.
+- Gesperrte Lernthemen (🔒 nicht freigegeben) kommen, sobald du sie freigibst; die Meldung nennt sie.
+
 ## Entfernen
 
 Entfernen wirkt nur in der Planung, im Notizbuch bleibt alles. Aus einem gelöschten Ordner, Bereich oder
 Abschnitt rückt der Inhalt eine Ebene höher. Ein gelöschter Plan geht mit seinem Inhalt; steckt er als
-Teilplan in anderen Plänen, warnt die Rückfrage und er fällt dort weg. Ein im Notizbuch gelöschtes
+Teilplan in anderen Plänen, warnt die Rückfrage und er fällt dort weg. Folgen ihm Klassen, nennt die
+Rückfrage sie; ihr Klassennotizbuch bleibt, wie es ist. Ein im Notizbuch gelöschtes
 Lernthema verschwindet auch aus den Plänen.
 
 ## Technik

@@ -6074,3 +6074,5 @@ details.cb-topic > summary .hint { font-weight: normal; margin-left: 6px; }
 .pl-preview, .pl-preview ul { list-style: none; padding-left: 18px; margin: 2px 0; }
 .pl-preview { padding-left: 0; }
 @media (max-width: 900px) { .pl-panes { grid-template-columns: 1fr; } }
+.cb-plan-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 6px 0; }
+.pl-classes { color: var(--accent); }

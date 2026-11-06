@@ -89,6 +89,9 @@ Notizbuch übernommene Bereiche ebenso. Ergebnisse und ausgefüllte Blätter ble
 die der Schüler vor sich hatte. Auch der Schüler kann sein Blatt unter „Meine Blätter“ weiter ansehen, ohne Lösungen und ohne zu speichern;
 Blätter aus Klassenarbeiten sind davon ausgenommen. Bestehen bleiben Klassenarbeiten, selbst angelegte Bereiche und alles, was nur ausgeschaltet ist.
 
+**🗂 Plan:** Oben in der Inhaltsübersicht steht der [Plan](planung.md), dem die Klasse folgt, z. B. „Mechatroniker ›
+1. Ausbildungsjahr“. Neues im Plan kommt ausgeschaltet dazu. Mit „Plan zuweisen …“ bzw. „Ändern“ wählst du ihn.
+
 Zuweisen geht auf zwei Wegen: im **📓 Notizbuch** über das Kontextmenü
 (⋯ oder Rechtsklick) eines Lernthemas, Books, Bereichs oder Abschnitts
 **📒 Klassennotizbuch zuweisen…** – dann eine oder mehrere Klassen wählen –,

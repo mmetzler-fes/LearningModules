@@ -6,6 +6,7 @@
  * bekommt. Server: src/plans.
  */
 import { escapeHtml, escapeAttr, appConfirm } from '../utils.js';
+import { pickClass } from './classes.js';
 
 const EXPAND_KEY = 'lm_plan_open';
 const ICON = { book: '📕', area: '📂', section: '📑', folder: '📁', plan: '📋', include: '🧩', mirror: '🛒', unsorted: '📥' };
@@ -61,6 +62,7 @@ export class PlanningView {
         <button class="btn btn-secondary btn-sm" data-pl-new="area" title="Bereich im Plan, z. B. ein Lernfeld (F7 im Plan)">➕ Bereich</button>
         <button class="btn btn-secondary btn-sm" data-pl-new="section" title="Abschnitt im Plan – enthält nur Lernthemen (⇧F7 im Plan)">➕ Abschnitt</button>
         <button class="btn btn-secondary btn-sm" data-pl-act="include" title="Einen anderen Plan als Teilplan hier einbinden – ändert er sich, ändert er sich überall">🧩 Teilplan einbinden</button>
+        <button class="btn btn-secondary btn-sm" data-pl-act="classes" title="Klassen, deren Klassennotizbuch diesem Plan folgt">📒 Klassen zuweisen</button>
         <button class="btn btn-secondary btn-sm" data-pl-act="view" title="So bekommt ihn eine Klasse: Teilpläne eingesetzt, jedes Lernthema einmal (F3)">👁 Plan ansehen</button>
       </div>
       <div class="pl-panes">
@@ -236,6 +238,8 @@ export class PlanningView {
       if (r.kind === 'plan' && this.plans.usedIn?.[r.id]) {
         extra = `<span class="pl-note" title="Als Teilplan eingebunden in: ${escapeAttr(this.plans.usedIn[r.id].map((x) => x.title).join(', '))}">🧩 in ${this.plans.usedIn[r.id].length} Plan${this.plans.usedIn[r.id].length === 1 ? '' : 'en'}</span>`;
       }
+      const cls = r.kind === 'plan' ? this.plans.classes?.[r.id] : null;
+      if (cls?.length) extra += `<span class="pl-note pl-classes" title="Diese Klassennotizbücher folgen dem Plan">📒 ${escapeHtml(cls.map((c) => c.name).join(', '))}</span>`;
       if (r.grows) extra += '<span class="pl-note" title="Aus dem Notizbuch übernommen: Neues dort kommt hier dazu">🌱</span>';
     }
     const cls = ['pl-row', `pl-${r.kind}`];
@@ -307,7 +311,11 @@ export class PlanningView {
     const btn = e.target.closest('[data-pl-new]');
     if (btn) { void this._create(btn.dataset.plNew); return; }
     const act = e.target.closest('[data-pl-act]');
-    if (act) { if (act.dataset.plAct === 'include') void this._includePicker(); else void this._viewPlan(); return; }
+    if (act) {
+      const a = act.dataset.plAct;
+      void (a === 'include' ? this._includePicker() : a === 'classes' ? this._assignClasses() : this._viewPlan());
+      return;
+    }
     const row = e.target.closest('.pl-row');
     if (row) {
       const pane = row.dataset.pane;
@@ -474,6 +482,8 @@ export class PlanningView {
     const msg = [`${what} aus der Planung entfernen?`,
       plans ? 'Ein Plan geht mit seinem Inhalt.' : 'Was in einem Ordner oder Bereich liegt, rückt eine Ebene höher.',
       ...usedIn.map((u) => `⚠️ ${u} – dort fällt er weg.`),
+      ...sel.filter((r) => r.kind === 'plan' && this.plans.classes?.[r.id]?.length)
+        .map((r) => `📒 Dem Plan „${r.title}“ folgen: ${this.plans.classes[r.id].map((c) => c.name).join(', ')}. Ihr Klassennotizbuch bleibt, wie es ist, wächst aber nicht mehr mit.`),
       'Im Notizbuch bleibt alles, wie es ist.'].join('\n');
     if (!(await appConfirm(msg))) return;
     for (const r of sel) {
@@ -593,17 +603,48 @@ export class PlanningView {
     await this._dialog(`📋 ${cur.title} – so bekommt ihn eine Klasse (${count(res.items)} Lernthemen)`, body);
   }
 
+  /** Plan am Cursor → Klassen, deren Klassennotizbuch ihm folgt. */
+  async _assignClasses() {
+    const nodes = this.plans?.nodes || [];
+    let plan = this._target();
+    while (plan && plan.kind !== 'plan') plan = plan.parentId ? nodes.find((n) => n.id === plan.parentId) : null;
+    if (!plan) { this.app.showToast('Rechts einen Plan wählen.', 'info'); return; }
+    const before = (this.plans.classes?.[plan.id] || []).map((c) => c.id);
+    const chosen = await pickClass(this.app, {
+      title: `📒 Klassen für „${plan.title}“`,
+      hint: 'Das Klassennotizbuch der Klasse folgt dem Plan: Alles kommt eingeschaltet hinein, später Dazugekommenes ausgeschaltet. Was die Klasse schon hat, bleibt. Eine Klasse hat höchstens einen Plan.',
+      multiple: true, preselected: before, okLabel: '📒 Plan zuweisen', allowNone: true,
+    });
+    if (!chosen) return;
+    const ids = new Set(chosen.map((c) => c.id));
+    const notes = [];
+    for (const c of chosen) {
+      if (before.includes(c.id)) continue;
+      const res = await this.app.api.setClassPlan(c.id, plan.id);
+      if (bad(res)) { this.app.showToast(`${c.name}: ${res?.message || 'Das ging nicht.'}`, 'error'); continue; }
+      notes.push(`${c.name}: ${res.added} neu${res.present?.length ? `, ${res.present.length} schon da` : ''}${res.notReleased?.length ? `, nicht freigegeben: ${res.notReleased.join(', ')}` : ''}`);
+    }
+    for (const id of before) {
+      if (ids.has(id)) continue;
+      const res = await this.app.api.setClassPlan(id, null);
+      if (!bad(res)) notes.push(`${(this.plans.classes[plan.id] || []).find((c) => c.id === id)?.name || 'Klasse'}: folgt dem Plan nicht mehr (Inhalt bleibt)`);
+    }
+    if (notes.length) this.app.showToast(notes.join(' · '), 'success');
+    await this.refresh();
+  }
+
   _menu(x, y) {
     const pane = this.active;
     const items = pane === 'left'
       ? [['F5', '➡ Als Verweis in den Plan', () => this._copyRight()]]
       : [['F2', '✏️ Umbenennen', () => this._rename()], ['F3', '👁 Plan ansehen', () => this._viewPlan()],
+        ['', '📒 Klassen zuweisen …', () => this._assignClasses()],
         ['F5', '🧩 Teilplan einbinden / Plan kopieren', () => this._includePicker()], ['F6', '↔️ Verschieben nach …', () => this._movePicker()],
         ['F7', '➕ Neu', () => this._create(this._newKind(false))], ['F8', '🗑 Entfernen', () => this._remove()]];
     document.querySelector('.pl-menu')?.remove();
     const menu = document.createElement('div');
     menu.className = 'pl-menu';
-    menu.innerHTML = items.map(([k, t], i) => `<button type="button" data-i="${i}">${escapeHtml(t)}<kbd>${k}</kbd></button>`).join('');
+    menu.innerHTML = items.map(([k, t], i) => `<button type="button" data-i="${i}">${escapeHtml(t)}${k ? `<kbd>${k}</kbd>` : ''}</button>`).join('');
     menu.style.left = `${x}px`;
     menu.style.top = `${y}px`;
     document.body.appendChild(menu);

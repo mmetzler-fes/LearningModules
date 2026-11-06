@@ -890,13 +890,20 @@ export class ClassResultsView {
         ${cb.studentHidden ? `<div class="cb-veiled-bar">🙈 <strong>Das ganze Klassennotizbuch ist für Schüler ausgeblendet</strong>
             <span class="hint">– sie sehen nur eine laufende Klassenarbeit bzw. die Quiz-Arena. Die Module bleiben, wie sie sind.</span>
             <button type="button" class="btn btn-primary btn-sm" data-veil-book="">👁 Wieder einblenden</button></div>` : ''}
+        <div class="cb-plan-bar">${cb.plan
+            ? `🗂 Plan: <strong>${escapeHtml(cb.plan.title || '?')}</strong> <span class="hint">– das Klassennotizbuch folgt ihm, Neues dort kommt ausgeschaltet dazu.</span>
+               <button type="button" class="btn btn-secondary btn-sm" data-plan-pick>Ändern</button>
+               <button type="button" class="btn btn-secondary btn-sm" data-plan-open>🗂 In der Planung öffnen</button>`
+            : `🗂 <span class="hint">Kein Plan.</span> <button type="button" class="btn btn-secondary btn-sm" data-plan-pick title="Einen Plan aus der Planung zuweisen (z. B. Mechatroniker, 1. Ausbildungsjahr) – das Klassennotizbuch folgt ihm">Plan zuweisen …</button>`}</div>
         <div class="cr-works-bar">
           <span class="nb-view-tabs" role="group" aria-label="Ansicht">${[['docs', '📄 Dokumente', 'Nur Dokumente und Anhänge – die Quizze eines Dokuments stehen darunter'],
             ['quizzes', '🧩 Quizze', 'Nur Quizze, Übungen und Apps – Zuweisungen ohne Quiz sind ausgeblendet'], ['all', 'Alles', 'Alle Module']]
             .map(([v, label, title]) => `<button type="button" data-cb-view="${v}" class="${this._cbView === v ? 'active' : ''}" aria-pressed="${this._cbView === v}" title="${escapeAttr(title)}">${label}</button>`).join('')}</span>
           ${links.length ? `<span class="cb-all-switch">${this._groupSwitch(this._stateOf(links), `data-switch-links="${escapeAttr(links.map((l) => l.id).join(','))}"`, 'diesem Klassennotizbuch')} Alles</span>` : ''}
           <button type="button" class="btn btn-primary btn-sm" data-add="assign" title="Lernthema, Abschnitt, Bereich oder Book aus deinem Notizbuch – als Verweis">➕ Aus dem Notizbuch</button>
-          <button type="button" class="btn btn-secondary btn-sm" data-arrange title="Einträge an ihren Platz wie im Notizbuch verschieben und sortieren. Inhalte, Links und An/Aus bleiben.">🌳 Wie im Notizbuch ordnen</button>
+          ${cb.plan
+            ? '<button type="button" class="btn btn-secondary btn-sm" data-arrange title="Lernthemen aus dem Plan an ihre Stelle im Plan, die übrigen wie im Notizbuch. Inhalte, Links und An/Aus bleiben.">🌳 Wie im Plan ordnen</button>'
+            : '<button type="button" class="btn btn-secondary btn-sm" data-arrange title="Einträge an ihren Platz wie im Notizbuch verschieben und sortieren. Inhalte, Links und An/Aus bleiben.">🌳 Wie im Notizbuch ordnen</button>'}
           <button type="button" class="btn btn-secondary btn-sm" data-add="topic" title="Lernthema nur für diese Klasse, z. B. Aufgaben oder Dokumente">➕ Lernthema</button>
           <button type="button" class="btn btn-secondary btn-sm" data-add="area">➕ Bereich</button>
           <button type="button" class="btn btn-secondary btn-sm" data-add="section">➕ Abschnitt</button>
@@ -924,6 +931,8 @@ export class ClassResultsView {
       void this._fillResults(out);
       out.querySelectorAll('[data-add]').forEach((btn) => btn.addEventListener('click', () => this._add(btn.dataset.add, null)));
       out.querySelector('[data-arrange]')?.addEventListener('click', () => this._arrange());
+      out.querySelector('[data-plan-pick]')?.addEventListener('click', () => this._pickPlan(cb));
+      out.querySelector('[data-plan-open]')?.addEventListener('click', () => this.app.navigateToView('teacher-planning'));
       out.querySelector('[data-preview]')?.addEventListener('click', () => this._openPreview());
       out.querySelector('[data-preview-reset]')?.addEventListener('click', () => this._resetPreview());
       out.querySelector('[data-mark-root]')?.addEventListener('click', () => this._setMarker({ level: 'root' }));
@@ -1127,7 +1136,7 @@ export class ClassResultsView {
   _nodeMenu(cb, node) {
     const items = [];
     // Ein Link für alles darin – aus dem Notizbuch übernommene Bereiche haben ihren Quick-Link dort.
-    if (node.sourceNodeId) {
+    if (node.sourceNodeId && !node.sourceNodeId.startsWith('plan:')) {
       items.push({ label: '🔗 Quick-Link (Link & QR)', title: 'Ein Link und QR-Code für alle Lernthemen darin – für diese Klasse, Schüler starten gleich mit ihrem Namen',
         run: async () => {
           // Klassenlink des Notizbuch-Bereichs für diese Klasse (wie der Quick-Link mit vorgewählter Klasse).
@@ -1136,7 +1145,7 @@ export class ClassResultsView {
           await this.app.linksView._openShareDialog({ id: res.id, name: node.title }, 'practice');
         } });
     } else {
-      items.push({ label: '🔗 Quick-Link (nur für Notizbuch-Bereiche)', title: 'Selbst angelegte Bereiche haben keinen eigenen Link – die Lernthemen darin schon (⋯ am Lernthema)', run: () => {
+      items.push({ label: '🔗 Quick-Link (nur für Notizbuch-Bereiche)', title: 'Selbst angelegte Bereiche und Bereiche aus dem Plan haben keinen eigenen Link – die Lernthemen darin schon (⋯ am Lernthema)', run: () => {
         this.app.showToast('Selbst angelegte Bereiche haben keinen eigenen Link – die Lernthemen darin schon (⋯ am Lernthema → 🔗 Quick-Link).', 'info');
       } });
     }
@@ -1376,8 +1385,29 @@ export class ClassResultsView {
   }
 
   /** 🌳 Einträge wieder wie im Notizbuch anordnen – eigene Ordnung geht dabei verloren. */
+  /** 🗂 Plan der Klasse wählen oder lösen (docs/planung.md). */
+  async _pickPlan(cb) {
+    const plans = await this.app.api.getPlans();
+    if (!plans || plans.statusCode >= 400) { this.app.showToast(plans?.message || 'Pläne nicht abrufbar.', 'error'); return; }
+    const nodes = plans.nodes || [];
+    const pathOf = (n) => { const out = []; for (let c = n; c; c = c.parentId ? nodes.find((x) => x.id === c.parentId) : null) out.unshift(c.title); return out.join(' › '); };
+    const options = nodes.filter((n) => n.kind === 'plan').map((n) => ({ id: n.id, label: `📋 ${pathOf(n)}` })).sort((a, b) => a.label.localeCompare(b.label, 'de'));
+    if (!options.length) {
+      this.app.showToast('Noch keine Pläne – lege unter 🗂 Planung einen an.', 'info');
+      return;
+    }
+    if (cb.plan) options.unshift({ id: '', label: '✖ Keinen Plan mehr (Inhalt bleibt)' });
+    const id = await this.app.planningView._pick(`🗂 Plan für ${cb.className}`, options);
+    if (id === null || id === (cb.plan?.id || '')) return;
+    const res = await this.app.api.setClassPlan(cb.classId, id || null);
+    if (!res || res.statusCode >= 400) { this.app.showToast(res?.message || 'Das ging nicht.', 'error'); return; }
+    this.app.showToast(id ? `Plan zugewiesen: ${res.added} neu${res.present?.length ? `, ${res.present.length} schon da` : ''}${res.notReleased?.length ? ` · nicht freigegeben: ${res.notReleased.join(', ')}` : ''}.` : 'Die Klasse folgt keinem Plan mehr. Der Inhalt bleibt.', 'success');
+    await this._classbook(true);
+    this._render();
+  }
+
   async _arrange() {
-    const sure = await this.app.appConfirm('Alle Einträge wieder wie im Notizbuch anordnen?\n\n'
+    const sure = await this.app.appConfirm((this._cb?.plan ? `Alle Einträge wieder anordnen – Lernthemen aus dem Plan „${this._cb.plan.title}“ wie im Plan, die übrigen wie im Notizbuch?` : 'Alle Einträge wieder wie im Notizbuch anordnen?') + '\n\n'
       + 'Deine eigene Ordnung geht dabei verloren. Links, QR-Codes, Ergebnisse und An/Aus bleiben; es kommen keine neuen Themen dazu. '
       + 'Für Schüler ausgeblendete Bereiche bleiben, wie sie sind.');
     if (!sure) return;

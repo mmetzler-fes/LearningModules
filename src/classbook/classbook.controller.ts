@@ -88,6 +88,13 @@ export class ClassbookController {
     return this.classbook.arrange(req.user, classId);
   }
 
+  /** 🗂 Plan der Klasse: `{ planId }` zuweisen, `{ planId: null }` lösen (docs/planung.md). */
+  @Post(':classId/plan')
+  @HttpCode(200)
+  setPlan(@Request() req: any, @Param('classId') classId: string, @Body() body: { planId?: string | null }) {
+    return this.classbook.setPlan(req.user, classId, body?.planId ?? null, req);
+  }
+
   @Post(':classId/assign')
   @HttpCode(200)
   assign(@Request() req: any, @Param('classId') classId: string, @Body() body: { type?: string; id?: string; nodeId?: string | null }) {

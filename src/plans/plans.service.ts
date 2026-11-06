@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
 import * as crypto from 'crypto';
@@ -8,6 +8,8 @@ import { NotebookNode } from '../core/entities/notebook-node.entity';
 import { NotebookPlacement } from '../core/entities/notebook-placement.entity';
 import { LearningTopic } from '../core/entities/learning-topic.entity';
 import { NotebooksService } from '../notebooks/notebooks.service';
+import { ClassNotebook } from '../core/entities/class-notebook.entity';
+import { StudentClass } from '../core/entities/student-class.entity';
 import { reorder } from '../classbook/classbook-tree';
 import {
   PLAN_KINDS, PlanKind, canHoldTopic, expandPlan, includeError, placeError, planMoveError, planOf, planSubtree, plansIncluding,
@@ -29,7 +31,31 @@ export class PlansService {
     @InjectRepository(NotebookPlacement) private readonly nbPlaceRepo: Repository<NotebookPlacement>,
     @InjectRepository(LearningTopic) private readonly topicRepo: Repository<LearningTopic>,
     private readonly notebooks: NotebooksService,
+    @Optional() @InjectRepository(ClassNotebook) private readonly cbRepo?: Repository<ClassNotebook>,
+    @Optional() @InjectRepository(StudentClass) private readonly classRepo?: Repository<StudentClass>,
   ) {}
+
+  /** Titel eines eigenen Plans (Klassennotizbuch: „🗂 Plan: …“). */
+  async titleOf(user: any, planId: string): Promise<string> {
+    const node = await this.ownNode(planId, user);
+    return node.kind === 'plan' ? node.title : '';
+  }
+
+  /** Klassen je Plan: welche Klassennotizbücher ihm folgen. */
+  private async classesByPlan(user: any): Promise<Record<string, Array<{ id: string; name: string; schoolYear: string | null }>>> {
+    if (!this.cbRepo || !this.classRepo) return {};
+    const books = (await this.cbRepo.find({ where: { ownerId: user.userId } })).filter((b) => b.planId);
+    if (!books.length) return {};
+    const classes = await this.classRepo.find({ where: { id: In(books.map((b) => b.classId)) } });
+    const out: Record<string, Array<{ id: string; name: string; schoolYear: string | null }>> = {};
+    for (const b of books) {
+      const k = classes.find((c) => c.id === b.classId);
+      if (!k) continue;
+      (out[b.planId!] ||= []).push({ id: k.id, name: k.name, schoolYear: k.schoolYear });
+    }
+    for (const list of Object.values(out)) list.sort((a, b) => String(b.schoolYear).localeCompare(String(a.schoolYear)) || a.name.localeCompare(b.name, 'de'));
+    return out;
+  }
 
   private nodesOf(user: any) {
     return this.nodeRepo.find({ where: { ownerId: user.userId } });
@@ -72,6 +98,7 @@ export class PlansService {
       entries: entries.filter((e) => alive.has(e.topicId)).map(({ id, nodeId, topicId, orderIndex }) => ({ id, nodeId, topicId, orderIndex })),
       topics: topics.map((t) => ({ id: t.id, title: t.title, isOwn: t.ownerId === user.userId })),
       usedIn,
+      classes: await this.classesByPlan(user),
     };
   }
 

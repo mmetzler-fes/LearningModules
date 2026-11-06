@@ -530,6 +530,7 @@ export function buildDocPrompt(o) {
   L.push('Überschriften nummeriert das System selbst – nie „Aufgabe 3“ oder „1.2“ in einen Titel schreiben. Zwischen Bausteinen steht eine Leerzeile.');
   L.push('- `# Titel` – Abschnitt (Ebene 1, nummeriert 1., 2., …)');
   L.push('- `## Titel` – Aufgabe (Ebene 2, 1.1 …), die Aufgabenstellung folgt als Text; `### Titel` – Teilaufgabe (Ebene 3)');
+  L.push('- Nie `##` oder `###` ohne Titel: Fehlt ein knapper Titel, steht die kurze Aufgabenstellung selbst im Titel (`## Welche Aufgaben hat ein ER-Diagramm?`).');
   L.push('- `#### Titel` – Überschrift OHNE Nummer');
   L.push('- Fließtext: eine Leerzeile trennt Absätze');
   L.push('- `- Punkt` – Aufzählung, Unterpunkte zwei Leerzeichen eingerückt; `1. Punkt` für 1. 2. 3.');

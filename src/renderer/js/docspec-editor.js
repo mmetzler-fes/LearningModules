@@ -981,6 +981,36 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
     };
   };
 
+  // Wie in Word: Backspace am Anfang eines Absatzes hinter einer leeren Überschrift (bzw. Entf in
+  // ihr) holt den Text in die Überschrift. Der Browser löschte sonst die leere Überschrift – und
+  // mit ihr die Aufgabe („1.1“).
+  const isEmptyHeading = (el) => !!el && /^H[2-4]$/.test(el.tagName) && el.dataset.ds && el.dataset.ds !== 'heading' && !el.textContent.trim() && !el.querySelector('img');
+  surface.addEventListener('keydown', (e) => {
+    if ((e.key !== 'Backspace' && e.key !== 'Delete') || e.altKey || e.ctrlKey || e.metaKey || e.shiftKey || selectedWidget) return;
+    const sel = window.getSelection();
+    if (!sel?.isCollapsed || !surface.contains(sel.anchorNode)) return;
+    const b = blockOfNode(sel.anchorNode);
+    if (!b) return;
+    let heading;
+    let para;
+    if (e.key === 'Backspace') {
+      if (b.tagName !== 'P' || b.dataset.ds || !isEmptyHeading(b.previousElementSibling)) return;
+      const before = document.createRange();
+      before.setStart(b, 0);
+      before.setEnd(sel.anchorNode, sel.anchorOffset);
+      if (before.toString() !== '' || before.cloneContents().querySelector('img')) return; // nicht am Anfang
+      [heading, para] = [b.previousElementSibling, b];
+    } else {
+      if (!isEmptyHeading(b) || b.nextElementSibling?.tagName !== 'P' || b.nextElementSibling.dataset.ds) return;
+      [heading, para] = [b, b.nextElementSibling];
+    }
+    e.preventDefault();
+    heading.replaceChildren(...para.childNodes);
+    para.remove();
+    if (!heading.firstChild) heading.append(document.createElement('br'));
+    sel.collapse(heading, 0);
+  });
+
   // Alt+↑ / Alt+↓ mit der Schreibmarke im Text: den Absatz (bzw. die Liste …) verschieben.
   surface.addEventListener('keydown', (e) => {
     if (!e.altKey || e.ctrlKey || e.shiftKey || !['ArrowUp', 'ArrowDown'].includes(e.key) || selectedWidget) return;

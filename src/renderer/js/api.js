@@ -447,6 +447,18 @@ export class BrowserApi {
 
   // ---------- Notebooks (Book → Bereich → Abschnitt → Lernthema) ----------
   getNotebooks() { return this._fetch('/api/notebooks'); }
+
+  // ---------- Planungsebene (views/planning.js) ----------
+  getPlans() { return this._fetch('/api/plans'); }
+  getPlanExpanded(id) { return this._fetch(`/api/plans/${encodeURIComponent(id)}/expanded`); }
+  createPlanNode(body) { return this._fetch('/api/plans/nodes', { method: 'POST', body: JSON.stringify(body) }); }
+  renamePlanNode(id, title) { return this._fetch(`/api/plans/nodes/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify({ title }) }); }
+  deletePlanNode(id) { return this._fetch(`/api/plans/nodes/${encodeURIComponent(id)}`, { method: 'DELETE' }); }
+  deletePlanEntry(id) { return this._fetch(`/api/plans/entries/${encodeURIComponent(id)}`, { method: 'DELETE' }); }
+  /** `{ type: 'node'|'entry', id, parentId, index? }` */
+  movePlanItem(body) { return this._fetch('/api/plans/move', { method: 'POST', body: JSON.stringify(body) }); }
+  /** `{ parentId, index?, items: [{ type: 'topic'|'nbnode'|'plan', id }] }` → `{ added, present }` */
+  addToPlan(body) { return this._fetch('/api/plans/add', { method: 'POST', body: JSON.stringify(body) }); }
   createNotebookNode(kind, title, parentId = null) {
     return this._fetch('/api/notebooks/nodes', { method: 'POST', body: JSON.stringify({ kind, title, parentId }) });
   }

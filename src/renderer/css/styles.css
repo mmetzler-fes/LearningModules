@@ -6035,3 +6035,42 @@ details.cb-topic > summary .hint { font-weight: normal; margin-left: 6px; }
 .ds-surface .ds-math:hover { background: #e0f2fe; }
 /* Dateien aufs Notizbuch ziehen (📂 Datei öffnen) */
 #view-teacher-notebooks.nb-file-drop { outline: 3px dashed var(--accent, #2563eb); outline-offset: -6px; border-radius: 8px; }
+
+/* ===== 🗂 Planung: zwei Spalten wie im Double Commander (views/planning.js) ===== */
+.pl-toolbar { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+.pl-panes { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; min-height: 420px; }
+.pl-pane { display: flex; flex-direction: column; border: 2px solid var(--border); border-radius: var(--radius-sm); background: var(--bg-secondary); min-width: 0; }
+.pl-pane.active { border-color: var(--accent); }
+.pl-head { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-bottom: 1px solid var(--border); font-weight: 600; }
+.pl-head span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pl-pane.active .pl-head { background: var(--accent-light); }
+.pl-filter { width: 40%; min-width: 120px; padding: 3px 6px; font: inherit; font-weight: normal; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg-primary); color: var(--text-primary); }
+.pl-list { flex: 1; overflow: auto; max-height: calc(100vh - 330px); min-height: 360px; padding: 2px 0; outline: none; }
+.pl-row { display: flex; align-items: center; gap: 4px; padding: 2px 8px; cursor: default; white-space: nowrap; user-select: none; border: 1px solid transparent; }
+.pl-row:hover { background: var(--bg-primary); }
+.pl-twisty { width: 1em; text-align: center; color: var(--text-secondary); cursor: pointer; flex: none; }
+.pl-icon { flex: none; }
+.pl-title { overflow: hidden; text-overflow: ellipsis; }
+.pl-row.cur { border-color: var(--text-secondary); border-style: dotted; }
+.pl-pane.active .pl-row.cur { background: var(--accent); color: #fff; border-color: var(--accent); }
+.pl-pane.active .pl-row.cur .pl-twisty, .pl-pane.active .pl-row.cur .pl-note { color: #fff; }
+.pl-row.mark .pl-title { color: var(--danger); font-weight: 600; }
+.pl-pane.active .pl-row.cur.mark .pl-title { color: #fde68a; }
+.pl-row.drop { outline: 2px dashed var(--accent); }
+.pl-folder .pl-title, .pl-plan .pl-title { font-weight: 600; }
+.pl-include .pl-title { font-style: italic; }
+.pl-note { margin-left: 8px; font-size: 0.85em; color: var(--text-secondary); }
+.pl-in { margin-left: auto; padding-left: 8px; color: var(--success); font-weight: 600; font-size: 0.9em; }
+.pl-in.via { color: var(--text-secondary); font-weight: normal; }
+.pl-empty { padding: 12px; color: var(--text-secondary); }
+.pl-keys { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 8px; font-size: 0.85rem; color: var(--text-secondary); }
+.pl-keys kbd, .pl-menu kbd, .pl-empty kbd, #view-teacher-planning .subtitle kbd { font: inherit; font-size: 0.85em; padding: 0 4px; border: 1px solid var(--border); border-bottom-width: 2px; border-radius: 4px; background: var(--bg-primary); color: var(--text-primary); }
+.pl-menu { position: fixed; z-index: 3000; display: flex; flex-direction: column; min-width: 240px; padding: 4px; background: var(--bg-secondary); border: 1px solid var(--border); border-radius: var(--radius-sm); box-shadow: var(--shadow-lg); }
+.pl-menu button { display: flex; justify-content: space-between; gap: 16px; padding: 6px 10px; border: none; background: none; font: inherit; color: var(--text-primary); text-align: left; cursor: pointer; border-radius: 4px; }
+.pl-menu button:hover { background: var(--accent-light); }
+.pl-pick, .pl-pick-filter { width: 100%; font: inherit; margin: 6px 0; }
+.pl-dialog-card { max-width: 720px; }
+.pl-dialog-body { max-height: 60vh; overflow: auto; }
+.pl-preview, .pl-preview ul { list-style: none; padding-left: 18px; margin: 2px 0; }
+.pl-preview { padding-left: 0; }
+@media (max-width: 900px) { .pl-panes { grid-template-columns: 1fr; } }

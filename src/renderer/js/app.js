@@ -20,6 +20,7 @@ import { ContestView } from './views/contest.js';
 import { CompanionSettingsView } from './views/companion-settings.js';
 import { ClassesView } from './views/classes.js';
 import { ClassResultsView } from './views/class-results.js';
+import { PlanningView } from './views/planning.js';
 import { ClassbookStudent } from './views/classbook-student.js';
 import { AiPromptView } from './views/ai-prompt-view.js';
 import { HelpView, openHelpPopup } from './views/help-view.js';
@@ -122,6 +123,7 @@ class App {
     this.companionView = new CompanionSettingsView(this);
     this.classesView  = new ClassesView(this);
     this.classResultsView = new ClassResultsView(this);
+    this.planningView = new PlanningView(this);
     this.classbookStudent = new ClassbookStudent(this);
     this.aiPromptView = new AiPromptView(this);
     this.helpView = new HelpView(this);
@@ -441,6 +443,7 @@ class App {
       case 'teacher-links':     this.linksView.refresh(); break;
       case 'teacher-classes':   this.classesView.refresh(); break;
       case 'teacher-class-results': this.classResultsView.refresh(); break;
+      case 'teacher-planning':  this.planningView.refresh(); break;
       case 'teacher-companion': this.companionView.refresh(); break;
       case 'teacher-ai-prompt': this.aiPromptView.refresh(); break;
       case 'teacher-help':      this.helpView.refresh(); break;

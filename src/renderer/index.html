@@ -254,6 +254,9 @@
         <button class="nav-btn" data-view="teacher-class-results">
           <span class="nav-icon">📒</span> Klassennotizbuch
         </button>
+        <button class="nav-btn" data-view="teacher-planning">
+          <span class="nav-icon">🗂</span> Planung
+        </button>
         <button class="nav-btn" data-view="teacher-shop">
           <span class="nav-icon">🛒</span> Shop
         </button>
@@ -375,6 +378,7 @@
         <div class="nb-switch" role="tablist" aria-label="Notizbuch oder Klassennotizbuch">
           <button type="button" class="nb-switch-tab active" data-nb-switch="teacher-notebooks" role="tab">📓 Notizbuch</button>
           <button type="button" class="nb-switch-tab" data-nb-switch="teacher-class-results" role="tab">📒 Klassennotizbuch</button>
+          <button type="button" class="nb-switch-tab" data-nb-switch="teacher-planning" role="tab">🗂 Planung</button>
           <!-- Zahlen und Menü: wandern mit in die Reiterzeile des Klassennotizbuchs (app.js) -->
           <div class="title-tools" id="titleTools">
             <div class="title-stats">
@@ -570,11 +574,27 @@
         </form>
       </section>
 
+      <!-- Teacher: Planung – Pläne je Bildungsgang und Beruf, zwei Spalten (views/planning.js) -->
+      <section class="view" id="view-teacher-planning">
+        <div class="nb-switch" role="tablist" aria-label="Notizbuch, Klassennotizbuch oder Planung">
+          <button type="button" class="nb-switch-tab" data-nb-switch="teacher-notebooks" role="tab">📓 Notizbuch</button>
+          <button type="button" class="nb-switch-tab" data-nb-switch="teacher-class-results" role="tab">📒 Klassennotizbuch</button>
+          <button type="button" class="nb-switch-tab active" data-nb-switch="teacher-planning" role="tab">🗂 Planung</button>
+        </div>
+        <div class="view-header">
+          <h2>🗂 Planung <button type="button" class="help-hint" data-help="planung" title="Hilfe zur Planung" aria-label="Hilfe zur Planung">?</button></h2>
+          <p class="subtitle">Pläne je Bildungsgang und Beruf: links dein Notizbuch, rechts die Pläne. Lernthemen oder ganze Bereiche
+            links wählen und mit <kbd>F5</kbd> (oder Ziehen) als Verweis in den Plan legen – im Notizbuch bleibt alles, wie es ist.</p>
+        </div>
+        <div id="planningRoot"></div>
+      </section>
+
       <!-- Teacher: Klassennotizbuch (früher Klassenergebnisse) – views/class-results.js -->
       <section class="view" id="view-teacher-class-results">
         <div class="nb-switch" role="tablist" aria-label="Notizbuch oder Klassennotizbuch">
           <button type="button" class="nb-switch-tab" data-nb-switch="teacher-notebooks" role="tab">📓 Notizbuch</button>
           <button type="button" class="nb-switch-tab active" data-nb-switch="teacher-class-results" role="tab">📒 Klassennotizbuch</button>
+          <button type="button" class="nb-switch-tab" data-nb-switch="teacher-planning" role="tab">🗂 Planung</button>
         </div>
         <div class="view-header">
           <h2>📒 Klassennotizbuch <button type="button" class="help-hint" data-help="klassennotizbuch" title="Hilfe zu diesem Bereich" aria-label="Hilfe zu diesem Bereich">?</button></h2>

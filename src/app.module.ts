@@ -82,6 +82,9 @@ import { WorkModule } from './work/work.module';
 import { AccountLink } from './core/entities/account-link.entity';
 import { LinkCode } from './core/entities/link-code.entity';
 import { ClassbookProgress } from './core/entities/classbook-progress.entity';
+import { PlanNode } from './core/entities/plan-node.entity';
+import { PlanEntry } from './core/entities/plan-entry.entity';
+import { PlansModule } from './plans/plans.module';
 import { HtmlAppFile } from './core/entities/html-app-file.entity';
 import { HtmlAppState } from './core/entities/html-app-state.entity';
 import { HtmlAppsModule } from './html-apps/html-apps.module';
@@ -117,7 +120,7 @@ function noStaleUi(res: any, path: string) {
       // statt „database is locked“.
       enableWAL: true,
       busyTimeout: 5000,
-      entities: [HtmlAppFile, HtmlAppState, User, StudentClass, ClassStudent, LearningTopic, LearningModule, Result, School, SystemConfig, Tag, TopicLink, TopicQuickLink, TeacherGroup, ShopOffer, UseGrant, PointsEntry, ModuleTiming, ClassShare, NotebookNode, NotebookPlacement, ModuleDraft, UsageCount, ContentFeedback, Category, FederationPeer, RemoteOffer, RemotePerson, FederationCopy, ContentHandover, AccountLink, LinkCode, GithubBackup, NextcloudLink, SchoolNextcloud, DocMirror, WorksheetTemplate, DocumentWork, ExamAttempt, DocumentVersion, RunProgress, DrawingSource, ClassNotebook, ClassNotebookNode, ClassNotebookPlace, AuthSession, DocumentInk, ClassbookProgress],
+      entities: [HtmlAppFile, HtmlAppState, User, StudentClass, ClassStudent, LearningTopic, LearningModule, Result, School, SystemConfig, Tag, TopicLink, TopicQuickLink, TeacherGroup, ShopOffer, UseGrant, PointsEntry, ModuleTiming, ClassShare, NotebookNode, NotebookPlacement, ModuleDraft, UsageCount, ContentFeedback, Category, FederationPeer, RemoteOffer, RemotePerson, FederationCopy, ContentHandover, AccountLink, LinkCode, GithubBackup, NextcloudLink, SchoolNextcloud, DocMirror, WorksheetTemplate, DocumentWork, ExamAttempt, DocumentVersion, RunProgress, DrawingSource, ClassNotebook, ClassNotebookNode, ClassNotebookPlace, AuthSession, DocumentInk, ClassbookProgress, PlanNode, PlanEntry],
       synchronize: true,
     }),
     MailModule,
@@ -152,6 +155,7 @@ function noStaleUi(res: any, path: string) {
     WorksheetsModule,
     WorkModule,
     ClassbookModule,
+    PlansModule,
     DrawingsModule,
   ],
   controllers: [AppController],

@@ -49,6 +49,20 @@ Mit der Maus: Klick setzt den Cursor, Strg+Klick markiert einzeln, Umschalt+Klic
 Doppelklick klappt auf. Ziehen von links nach rechts legt Verweise an, Ziehen innerhalb der rechten Spalte
 verschiebt. Rechtsklick öffnet ein Menü mit denselben Befehlen.
 
+## Rechts ein Klassennotizbuch
+
+Oben in der rechten Spalte wählst du statt **🗂 Pläne** eine Klasse (**📒 10a**). Dann arbeitest du direkt in
+ihrem Klassennotizbuch, mit denselben Tasten:
+
+- **F5** weist die links markierten Lernthemen, Books, Bereiche oder Abschnitte zu – eingeschaltet, an die
+  Stelle am Cursor (ohne Cursor ganz oben). Das ist dasselbe wie „➕ Aus dem Notizbuch“ im Klassennotizbuch.
+  Ein Bereich oder Abschnitt kommt mit dem Pfad darüber (ohne Book), z. B. „Grundlagen › Strom“. Links zeigt
+  **✓**, was die Klasse schon hat.
+- **F7** / **⇧F7** legt einen Bereich / Abschnitt an, **F2** benennt um, **F6** und **Alt+↑↓** verschieben,
+  **F8** entfernt (Ergebnisse und Blätter der Schüler bleiben).
+- **F3** öffnet das Klassennotizbuch der Klasse, z. B. zum Ein- und Ausschalten (● / ○).
+- **🗂** an einem Bereich heißt: Er kommt aus dem Plan der Klasse.
+
 ## Ganze Bereiche aus dem Notizbuch
 
 Ein Book, Bereich oder Abschnitt kommt mit **F5** als Baum: Bereiche, Abschnitte und Lernthemen wie im

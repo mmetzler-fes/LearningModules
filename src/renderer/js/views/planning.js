@@ -9,6 +9,7 @@ import { escapeHtml, escapeAttr, appConfirm } from '../utils.js';
 import { pickClass } from './classes.js';
 
 const EXPAND_KEY = 'lm_plan_open';
+const RIGHT_KEY = 'lm_plan_right';
 const ICON = { book: '📕', area: '📂', section: '📑', folder: '📁', plan: '📋', include: '🧩', mirror: '🛒', unsorted: '📥' };
 
 function bad(res) {
@@ -27,6 +28,10 @@ export class PlanningView {
     this.root = document.getElementById('planningRoot');
     this.nb = null;
     this.plans = null;
+    /** Rechte Spalte: 'plans' oder die ID einer Klasse (ihr Klassennotizbuch). */
+    try { this.rightMode = localStorage.getItem(RIGHT_KEY) || 'plans'; } catch (_) { this.rightMode = 'plans'; }
+    this.cb = null;
+    this.classList = [];
     this.active = 'left';
     this.cursor = { left: 0, right: 0 };
     this.marked = { left: new Set(), right: new Set() };
@@ -43,7 +48,16 @@ export class PlanningView {
   async refresh() {
     if (!this.root) return;
     if (!this.root.dataset.ready) this._skeleton();
-    const [nb, plans] = await Promise.all([this.app.api.getNotebooks(), this.app.api.getPlans()]);
+    const [nb, plans, year] = await Promise.all([this.app.api.getNotebooks(), this.app.api.getPlans(), this.app.api.getSchoolYear()]);
+    const classes = year?.current ? await this.app.api.getClasses(year.current) : [];
+    this.classList = Array.isArray(classes) ? classes : [];
+    if (this.rightMode !== 'plans' && !this.classList.some((c) => c.id === this.rightMode)) this.rightMode = 'plans';
+    this.cb = null;
+    if (this.rightMode !== 'plans') {
+      const cb = await this.app.api.getClassbook(this.rightMode);
+      if (bad(cb)) this.rightMode = 'plans'; else this.cb = cb;
+    }
+    this._modeSelect();
     if (bad(nb) || bad(plans)) {
       this.root.querySelector('.pl-panes').innerHTML = `<p class="empty-state">Fehler beim Laden: ${escapeHtml((nb && nb.message) || (plans && plans.message) || '?')}</p>`;
       return;
@@ -71,7 +85,7 @@ export class PlanningView {
           <div class="pl-list" role="tree" tabindex="-1"></div>
         </section>
         <section class="pl-pane" data-pane="right" aria-label="Pläne">
-          <div class="pl-head"><span>🗂 Pläne</span><input type="search" class="pl-filter" data-pane="right" placeholder="Suchen… (Strg+F)" /></div>
+          <div class="pl-head"><select class="pl-right-mode" title="Rechte Spalte: deine Pläne oder das Klassennotizbuch einer Klasse"></select><span class="pl-target"></span><input type="search" class="pl-filter" data-pane="right" placeholder="Suchen… (Strg+F)" /></div>
           <div class="pl-list" role="tree" tabindex="-1"></div>
         </section>
       </div>
@@ -95,6 +109,28 @@ export class PlanningView {
       });
     }
     this._dragSetup();
+    this.root.querySelector('.pl-right-mode').addEventListener('change', (e) => {
+      this.rightMode = e.target.value;
+      try { localStorage.setItem(RIGHT_KEY, this.rightMode); } catch (_) { /* egal */ }
+      this.cursor.right = 0;
+      this.marked.right.clear();
+      this.active = 'right';
+      e.target.blur();
+      void this.refresh();
+    });
+  }
+
+  /** Rechts im Klassennotizbuch statt in den Plänen? */
+  _classMode() {
+    return this.rightMode !== 'plans' && !!this.cb;
+  }
+
+  _modeSelect() {
+    const sel = this.root?.querySelector('.pl-right-mode');
+    if (!sel) return;
+    sel.innerHTML = `<option value="plans">🗂 Pläne</option>${this.classList.length ? `<optgroup label="📒 Klassennotizbuch">${this.classList.map((c) => `<option value="${escapeAttr(c.id)}">📒 ${escapeHtml(c.name)}</option>`).join('')}</optgroup>` : ''}`;
+    sel.value = this.rightMode;
+    this.root.classList.toggle('pl-classmode', this.rightMode !== 'plans');
   }
 
   // ---- Bäume als Zeilen ----
@@ -111,6 +147,10 @@ export class PlanningView {
 
   /** Lernthemen im Plan der rechten Zeile (direkt und über Teilpläne) – links mit ✓. */
   _inCurrentPlan() {
+    if (this._classMode()) {
+      const direct = new Set(this._classLinks().flatMap((l) => (l.available || []).map((a) => a.topicId)));
+      return { plan: { title: this.cb.className }, direct, via: new Set() };
+    }
     const row = this.rows.right[this.cursor.right];
     const nodes = this.plans?.nodes || [];
     const byId = new Map(nodes.map((n) => [n.id, n]));
@@ -181,7 +221,39 @@ export class PlanningView {
     return rows;
   }
 
+  /** Zuweisungen im Baum der Klasse – wie die Inhaltsübersicht (class-results.js). */
+  _classLinks() {
+    return (this.cb?.links || []).filter((l) => (l.practice?.length || l.classTopicId) && l.inTree !== false);
+  }
+
+  _classRows() {
+    const cb = this.cb;
+    const nodes = (cb.nodes || []).slice().sort((a, b) => a.orderIndex - b.orderIndex);
+    const links = this._classLinks().slice().sort((a, b) => a.order - b.order);
+    const f = this.filter.right;
+    const match = (t) => !f || String(t || '').toLowerCase().includes(f);
+    const hasHit = (id) => links.some((l) => l.nodeId === id && match(l.name)) || nodes.some((k) => k.parentId === id && (match(k.title) || hasHit(k.id)));
+    const rows = [];
+    const walk = (parentId, depth) => {
+      for (const node of nodes.filter((x) => (x.parentId ?? null) === parentId)) {
+        if (f && !match(node.title) && !hasHit(node.id)) continue;
+        const key = `c:${node.id}`;
+        const isOpen = f ? true : this.open.has(key);
+        rows.push({ pane: 'right', kind: node.kind, id: node.id, parentId: node.parentId ?? null, title: node.title, depth, key, folder: true, isOpen, fromPlan: (node.sourceNodeId || '').startsWith('plan:') });
+        if (isOpen) walk(node.id, depth + 1);
+      }
+      for (const l of links.filter((x) => (x.nodeId ?? null) === parentId)) {
+        if (!match(l.name)) continue;
+        rows.push({ pane: 'right', kind: 'link', id: l.id, nodeId: l.nodeId ?? null, title: l.name, depth, key: `l:${l.id}`,
+          on: (l.available || []).some((a) => a.enabled), own: !!l.classTopicId });
+      }
+    };
+    walk(null, 0);
+    return rows;
+  }
+
   _rightRows() {
+    if (this._classMode()) return this._classRows();
     const p = this.plans || {};
     const nodes = (p.nodes || []).slice().sort((a, b) => a.orderIndex - b.orderIndex);
     const entries = (p.entries || []).slice().sort((a, b) => a.orderIndex - b.orderIndex);
@@ -223,14 +295,19 @@ export class PlanningView {
   }
 
   _rowHtml(r, i, pane, plan) {
-    const icon = r.kind === 'topic' || r.kind === 'entry' ? '📘' : ICON[r.kind] || '•';
+    const icon = r.kind === 'topic' || r.kind === 'entry' || r.kind === 'link' ? '📘' : ICON[r.kind] || '•';
     const twisty = r.folder ? `<span class="pl-twisty">${r.isOpen ? '▾' : '▸'}</span>` : '<span class="pl-twisty"></span>';
     let extra = '';
     if (pane === 'left' && r.kind === 'topic' && plan.plan) {
       if (plan.direct.has(r.id)) extra = `<span class="pl-in" title="Steht im Plan „${escapeAttr(plan.plan.title)}“">✓</span>`;
       else if (plan.via.has(r.id)) extra = `<span class="pl-in via" title="Kommt über einen Teilplan in „${escapeAttr(plan.plan.title)}“">✓ Teilplan</span>`;
     }
-    if (pane === 'right') {
+    if (pane === 'right' && r.kind === 'link') {
+      extra = `<span class="pl-note" title="${r.on ? 'Eingeschaltet – Schüler sehen es' : 'Ausgeschaltet – im Klassennotizbuch mit ● einschalten'}">${r.on ? '●' : '○'}${r.own ? ' nur diese Klasse' : ''}</span>`;
+    } else if (pane === 'right' && r.fromPlan) {
+      extra = '<span class="pl-note" title="Aus dem Plan der Klasse">🗂</span>';
+    }
+    if (pane === 'right' && !this._classMode()) {
       if (r.kind === 'include') {
         const ref = (this.plans.nodes || []).find((n) => n.id === r.refId);
         if (!ref || ref.title !== r.title) extra = `<span class="pl-note">→ ${escapeHtml(ref ? ref.title : '(gelöscht)')}</span>`;
@@ -256,7 +333,9 @@ export class PlanningView {
       box.classList.toggle('active', this.active === pane);
       const list = box.querySelector('.pl-list');
       const rows = this.rows[pane];
-      const empty = pane === 'right'
+      const empty = pane === 'right' && this._classMode()
+        ? '<p class="pl-empty">Das Klassennotizbuch ist noch leer. Links Lernthemen oder Bereiche wählen und <kbd>F5</kbd> drücken – sie kommen eingeschaltet ganz nach oben.</p>'
+        : pane === 'right'
         ? '<p class="pl-empty">Noch keine Pläne. Lege mit <kbd>F7</kbd> einen Ordner an (z. B. „Berufsschule“), darin mit <kbd>⇧F7</kbd> einen Plan – dann links Lernthemen oder ganze Bereiche wählen und <kbd>F5</kbd> drücken.</p>'
         : '<p class="pl-empty">Nichts gefunden.</p>';
       list.innerHTML = rows.length ? rows.map((r, i) => this._rowHtml(r, i, pane, plan)).join('') : empty;
@@ -264,8 +343,8 @@ export class PlanningView {
       if (cur && this.active === pane) cur.scrollIntoView({ block: 'nearest' });
     }
     const target = this._target();
-    const head = this.root.querySelector('.pl-pane[data-pane="right"] .pl-head span');
-    if (head) head.textContent = target ? `🗂 Pläne – Ziel: ${target.title}` : '🗂 Pläne';
+    const head = this.root.querySelector('.pl-pane[data-pane="right"] .pl-target');
+    if (head) head.textContent = target ? `Ziel: ${target.title}` : '';
   }
 
   // ---- Auswahl ----
@@ -287,6 +366,14 @@ export class PlanningView {
 
   /** Wohin F5 rechts einträgt: die Zeile am Cursor, bei Lernthema/Teilplan ihr Elternteil. */
   _target() {
+    if (this._classMode()) {
+      const root = { id: null, kind: 'root', title: `📒 ${this.cb.className} (oben)` };
+      const row = this.rows.right[this.cursor.right];
+      if (!row) return root;
+      const id = row.kind === 'link' ? row.nodeId : row.id;
+      const n = (this.cb.nodes || []).find((x) => x.id === id);
+      return n ? { id: n.id, kind: n.kind, title: n.title, parentId: n.parentId ?? null } : root;
+    }
     const row = this.rows.right[this.cursor.right];
     if (!row) return null;
     const nodes = this.plans?.nodes || [];
@@ -396,6 +483,7 @@ export class PlanningView {
 
   /** F7/⇧F7: im Plan Bereich/Abschnitt, außerhalb Ordner/Plan. */
   _newKind(shift) {
+    if (this._classMode()) return shift ? 'section' : 'area';
     const target = this.active === 'right' ? this._target() : null;
     const inPlan = target && target.kind !== 'folder';
     if (inPlan) return shift ? 'section' : 'area';
@@ -413,6 +501,7 @@ export class PlanningView {
 
   /** F5 von links: Verweise im Ziel rechts anlegen. */
   async _copyRight() {
+    if (this._classMode()) return this._cbCopy();
     const target = this._target();
     if (!target) { this.app.showToast('Rechts zuerst einen Plan wählen – oder mit ⇧F7 einen anlegen.', 'error'); return; }
     if (target.kind === 'folder') { this.app.showToast('In einen Ordner kommen Pläne. Rechts einen Plan, Bereich oder Abschnitt wählen.', 'error'); return; }
@@ -434,6 +523,7 @@ export class PlanningView {
   }
 
   async _create(kind) {
+    if (this._classMode()) return this._cbCreate(kind === 'section' || kind === 'plan' ? 'section' : 'area');
     const labels = { folder: 'Neuer Ordner', plan: 'Neuer Plan', area: 'Neuer Bereich', section: 'Neuer Abschnitt' };
     const hints = { folder: 'Name, z. B. „Berufsschule“ oder „Mechatroniker“', plan: 'Name, z. B. „1. Ausbildungsjahr“', area: 'Name, z. B. „LF 5 Elektrische Installationen“', section: 'Name' };
     const target = this._target();
@@ -463,6 +553,12 @@ export class PlanningView {
 
   async _rename() {
     const r = this.rows[this.active][this.cursor[this.active]];
+    if (this._classMode() && this.active === 'right' && r) {
+      const title = await this._ask('Umbenennen', 'Name', r.title);
+      if (!title || title === r.title) return;
+      await this._after(r.kind === 'link' ? await this.app.api.renameClassbookEntry(this.cb.classId, r.id, title) : await this.app.api.renameClassbookNode(this.cb.classId, r.id, title));
+      return;
+    }
     if (this.active !== 'right' || !r || r.kind === 'entry') {
       this.app.showToast('Umbenennen geht rechts bei Ordnern, Plänen, Bereichen und Teilplänen. Lernthemen benennst du im Notizbuch um.', 'info');
       return;
@@ -476,6 +572,7 @@ export class PlanningView {
     if (this.active !== 'right') { this.app.showToast('Links ist dein Notizbuch – hier wird nichts gelöscht. Entfernen geht rechts im Plan.', 'info'); return; }
     const sel = this._selection('right');
     if (!sel.length) return;
+    if (this._classMode()) return this._cbRemove(sel);
     const usedIn = sel.filter((r) => r.kind === 'plan' && this.plans.usedIn?.[r.id]).map((r) => `„${r.title}“ steckt als Teilplan in: ${this.plans.usedIn[r.id].map((x) => x.title).join(', ')}`);
     const plans = sel.filter((r) => r.kind === 'plan').length;
     const what = sel.length === 1 ? `„${sel[0].title}“` : `${sel.length} Einträge`;
@@ -499,6 +596,7 @@ export class PlanningView {
     if (this.active !== 'right') return;
     const r = this.rows.right[this.cursor.right];
     if (!r) return;
+    if (this._classMode()) return this._cbNudge(r, dir);
     const isEntry = r.kind === 'entry';
     const parentId = isEntry ? r.nodeId : r.parentId ?? null;
     const siblings = isEntry
@@ -534,6 +632,7 @@ export class PlanningView {
     if (this.active !== 'right') { this.app.showToast('Verschieben geht rechts in der Planung. Links ordnest du im Notizbuch.', 'info'); return; }
     const sel = this._selection('right');
     if (!sel.length) return;
+    if (this._classMode()) return this._cbMovePicker(sel);
     const kinds = new Set(sel.map((r) => r.kind));
     const ids = new Set(sel.map((r) => r.id));
     const nodes = this.plans.nodes || [];
@@ -560,6 +659,7 @@ export class PlanningView {
 
   /** F5 rechts / 🧩: einen Plan als Teilplan einbinden oder in einen Ordner kopieren. */
   async _includePicker() {
+    if (this._classMode()) { this.app.showToast('Im Klassennotizbuch gibt es keine Teilpläne. Einen Plan weist du oben über die Auswahl „🗂 Pläne“ und „📒 Klassen zuweisen“ zu.', 'info'); return; }
     const sel = this.active === 'right' ? this._selection('right').filter((r) => r.kind === 'plan') : [];
     const target = this._target();
     if (sel.length) {
@@ -589,6 +689,15 @@ export class PlanningView {
 
   /** F3: Plan so, wie ihn eine Klasse bekommt. */
   async _viewPlan() {
+    if (this._classMode()) {
+      // F3: dieses Klassennotizbuch öffnen.
+      const crv = this.app.classResultsView;
+      crv._classId = this.cb.classId;
+      crv._tab = 'content';
+      try { localStorage.setItem('lm_cr_class', this.cb.classId); } catch (_) { /* egal */ }
+      this.app.navigateToView('teacher-class-results');
+      return;
+    }
     const nodes = this.plans?.nodes || [];
     let cur = this._target();
     while (cur && cur.kind !== 'plan') cur = cur.parentId ? nodes.find((n) => n.id === cur.parentId) : null;
@@ -605,6 +714,7 @@ export class PlanningView {
 
   /** Plan am Cursor → Klassen, deren Klassennotizbuch ihm folgt. */
   async _assignClasses() {
+    if (this._classMode()) { this.app.showToast('Rechts oben auf „🗂 Pläne“ umschalten, dort einen Plan wählen und 📒 Klassen zuweisen.', 'info'); return; }
     const nodes = this.plans?.nodes || [];
     let plan = this._target();
     while (plan && plan.kind !== 'plan') plan = plan.parentId ? nodes.find((n) => n.id === plan.parentId) : null;
@@ -633,10 +743,119 @@ export class PlanningView {
     await this.refresh();
   }
 
+  // ---- Rechts: Klassennotizbuch einer Klasse ----
+
+  /** F5 ins Klassennotizbuch: wie „➕ Aus dem Notizbuch“ – eingeschaltet, an die Stelle am Cursor. */
+  async _cbCopy() {
+    const target = this._target();
+    const items = [];
+    for (const r of this._selection('left')) {
+      if (r.kind === 'topic') items.push(['topic', r.id, r.title]);
+      else if (r.kind === 'mirror' || r.kind === 'book' || r.kind === 'area' || r.kind === 'section') items.push(['node', r.id, r.title]);
+      else if (r.kind === 'unsorted') for (const p of (this.nb.placements || []).filter((x) => !x.nodeId && !x.topicId.startsWith('offer:'))) items.push(['topic', p.topicId, this._topicTitle(p.topicId)]);
+    }
+    if (!items.length) return;
+    let added = 0;
+    const present = [];
+    const locked = [];
+    for (const [type, id, title] of items) {
+      const res = await this.app.api.assignToClassbook(this.cb.classId, type, id, target.id);
+      if (bad(res)) { this.app.showToast(`${title}: ${res?.message || 'Das ging nicht.'}`, 'error'); continue; }
+      if (res.existed) present.push(title);
+      else added += type === 'node' ? (res.added || 0) : 1;
+      present.push(...(res.present || []));
+      locked.push(...(res.notReleased || []));
+    }
+    this.marked.left.clear();
+    if (target.id) { this.open.add(`c:${target.id}`); this._saveOpen(); }
+    const parts = [`${added} Lernthem${added === 1 ? 'a' : 'en'} in „${target.title}“`];
+    if (present.length) parts.push(`schon da: ${[...new Set(present)].slice(0, 5).join(', ')}`);
+    if (locked.length) parts.push(`nicht freigegeben: ${[...new Set(locked)].join(', ')}`);
+    this.app.showToast(parts.join(' · '), added ? 'success' : 'info');
+    await this.refresh();
+  }
+
+  async _cbCreate(kind) {
+    const target = this._target();
+    const parentId = target.kind === 'section' ? target.parentId : target.id;
+    const title = await this._ask(kind === 'section' ? 'Neuer Abschnitt' : 'Neuer Bereich', 'Name');
+    if (!title) return;
+    const res = await this.app.api.createClassbookNode(this.cb.classId, kind, title, parentId);
+    if (bad(res)) { this.app.showToast(res?.message || 'Das ging nicht.', 'error'); return; }
+    if (parentId) this.open.add(`c:${parentId}`);
+    this._saveOpen();
+    await this.refresh();
+    const i = this.rows.right.findIndex((r) => r.id === res.id);
+    if (i >= 0) this._setCursor('right', i);
+  }
+
+  async _cbRemove(sel) {
+    const what = sel.length === 1 ? `„${sel[0].title}“` : `${sel.length} Einträge`;
+    const msg = [`${what} aus dem Klassennotizbuch von ${this.cb.className} entfernen?`,
+      'Aus einem Bereich oder Abschnitt rückt der Inhalt eine Ebene höher. Eine Zuweisung verschwindet aus dem Baum; Ergebnisse und Blätter der Schüler bleiben, im Notizbuch bleibt alles.',
+      ...(sel.some((r) => r.own) ? ['⚠️ Ein Lernthema „nur diese Klasse“ wird mit seinen Modulen gelöscht.'] : [])].join('\n');
+    if (!(await appConfirm(msg))) return;
+    for (const r of sel) {
+      const res = r.kind === 'link' ? await this.app.api.deleteClassbookEntry(this.cb.classId, r.id) : await this.app.api.deleteClassbookNode(this.cb.classId, r.id);
+      if (bad(res) && !/nicht gefunden/.test(res?.message || '')) { this.app.showToast(res?.message || 'Das ging nicht.', 'error'); break; }
+    }
+    this.marked.right.clear();
+    await this.refresh();
+  }
+
+  async _cbNudge(r, dir) {
+    const isLink = r.kind === 'link';
+    const parentId = isLink ? r.nodeId : r.parentId;
+    const siblings = isLink
+      ? this._classLinks().filter((l) => (l.nodeId ?? null) === parentId).sort((a, b) => a.order - b.order)
+      : (this.cb.nodes || []).filter((n) => (n.parentId ?? null) === parentId).sort((a, b) => a.orderIndex - b.orderIndex);
+    const pos = siblings.findIndex((x) => x.id === r.id);
+    const index = pos + dir;
+    if (pos < 0 || index < 0 || index >= siblings.length) return;
+    if (await this._after(await this.app.api.moveInClassbook(this.cb.classId, { type: isLink ? 'link' : 'node', id: r.id, parentId, index }))) {
+      const i = this.rows.right.findIndex((x) => x.key === r.key);
+      if (i >= 0) this._setCursor('right', i);
+    }
+  }
+
+  async _cbMoveTo(sel, parentId) {
+    for (const r of sel) {
+      if (r.id === parentId) continue;
+      const res = await this.app.api.moveInClassbook(this.cb.classId, { type: r.kind === 'link' ? 'link' : 'node', id: r.id, parentId: parentId || null, index: null });
+      if (bad(res)) this.app.showToast(`„${r.title}“: ${res?.message || 'Das ging nicht.'}`, 'error');
+    }
+    this.marked.right.clear();
+    if (parentId) { this.open.add(`c:${parentId}`); this._saveOpen(); }
+    await this.refresh();
+  }
+
+  async _cbMovePicker(sel) {
+    const ids = new Set(sel.map((r) => r.id));
+    const onlyLinks = sel.every((r) => r.kind === 'link');
+    const nodes = this.cb.nodes || [];
+    const inside = (n) => { for (let c = n; c; c = c.parentId ? nodes.find((x) => x.id === c.parentId) : null) if (ids.has(c.id)) return true; return false; };
+    const options = [{ id: '', label: `⬆ ganz oben (${this.cb.className})` }];
+    const walk = (parentId, depth) => {
+      for (const n of nodes.filter((x) => (x.parentId ?? null) === parentId).sort((a, b) => a.orderIndex - b.orderIndex)) {
+        if (inside(n)) continue;
+        if (onlyLinks || n.kind === 'area') options.push({ id: n.id, label: `${'\u00a0\u00a0\u00a0'.repeat(depth)}${ICON[n.kind]} ${n.title}` });
+        walk(n.id, depth + 1);
+      }
+    };
+    walk(null, 0);
+    const to = await this._pick(`${sel.length === 1 ? `„${sel[0].title}“` : `${sel.length} Einträge`} verschieben nach …`, options);
+    if (to === null) return;
+    await this._cbMoveTo(sel, to || null);
+  }
+
   _menu(x, y) {
     const pane = this.active;
     const items = pane === 'left'
-      ? [['F5', '➡ Als Verweis in den Plan', () => this._copyRight()]]
+      ? [['F5', this._classMode() ? '➡ Ins Klassennotizbuch zuweisen' : '➡ Als Verweis in den Plan', () => this._copyRight()]]
+      : this._classMode()
+      ? [['F2', '✏️ Umbenennen', () => this._rename()], ['F3', '📒 Klassennotizbuch öffnen', () => this._viewPlan()],
+        ['F6', '↔️ Verschieben nach …', () => this._movePicker()], ['F7', '➕ Neuer Bereich', () => this._create('area')],
+        ['⇧F7', '➕ Neuer Abschnitt', () => this._create('section')], ['F8', '🗑 Entfernen', () => this._remove()]]
       : [['F2', '✏️ Umbenennen', () => this._rename()], ['F3', '👁 Plan ansehen', () => this._viewPlan()],
         ['', '📒 Klassen zuweisen …', () => this._assignClasses()],
         ['F5', '🧩 Teilplan einbinden / Plan kopieren', () => this._includePicker()], ['F6', '↔️ Verschieben nach …', () => this._movePicker()],
@@ -696,6 +915,11 @@ export class PlanningView {
       }
       // Rechts → rechts: in den Knoten unter der Maus (bei Lernthema: dessen Elternteil).
       const dest = this.rows.right[i];
+      if (this._classMode()) {
+        const parentId = dest.kind === 'link' ? dest.nodeId : dest.id;
+        await this._cbMoveTo(this._selection('right'), parentId);
+        return;
+      }
       const parentId = dest.kind === 'entry' ? dest.nodeId : dest.kind === 'include' ? dest.parentId : dest.id;
       for (const r of this._selection('right')) {
         if (r.id === parentId) continue;

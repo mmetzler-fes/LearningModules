@@ -6076,3 +6076,8 @@ details.cb-topic > summary .hint { font-weight: normal; margin-left: 6px; }
 @media (max-width: 900px) { .pl-panes { grid-template-columns: 1fr; } }
 .cb-plan-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 6px 0; }
 .pl-classes { color: var(--accent); }
+.pl-right-mode { font: inherit; font-weight: 600; max-width: 45%; padding: 2px 4px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg-secondary); color: var(--text-primary); }
+.pl-target { font-weight: normal; color: var(--text-secondary); }
+.pl-classmode [data-pl-new="folder"], .pl-classmode [data-pl-new="plan"], .pl-classmode [data-pl-act="include"],
+.pl-classmode [data-pl-act="classes"], .pl-classmode [data-pl-act="view"] { display: none; }
+.pl-link .pl-note { color: var(--success); }

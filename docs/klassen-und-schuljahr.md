@@ -114,9 +114,9 @@ ein eigenes Testpasswort (mindestens 4 Zeichen) einmal festlegen.
   (Feld leer lassen behält das bisherige), **Entfernen** schaltet den
   Testschüler ab.
 
-### 👁 Als Vorschau öffnen
+### 👁 Vorschau (Klasse aus Schülersicht)
 
-In der Inhaltsübersicht des Klassennotizbuchs öffnet **👁 Als Vorschau öffnen** die eigene Klasse aus Schülersicht in einem neuen Tab,
+In der Inhaltsübersicht des Klassennotizbuchs öffnet **👁 Vorschau** die eigene Klasse aus Schülersicht in einem neuen Tab,
 ohne Name, PIN und Testpasswort. Die Anmeldung als Lehrkraft bleibt erhalten: In einem Tab arbeitest du als Schüler, im anderen siehst du
 die Auswertung. Die Vorschau ist der Testschüler; ohne eigenen Namen heißt er „🧪 Vorschau“.
 
@@ -139,7 +139,7 @@ entsteht kein Eintrag. Danach gilt alles wie bei jedem Schüler.
 | **Offene Klasse** | Name steht drin, die Lehrkraft der Klasse bestätigt den unbestätigten Eintrag |
 | **Name steht in der Liste** | Name steht drin, auch in einer strikten Klasse; dazu die PIN wie bei jedem Schüler |
 | **Strikte Klasse, nicht in der Liste** | kein Name, Hinweis: Die Lehrkraft der Klasse kann dich eintragen |
-| **Eigene Klasse** | kein Name, Hinweis auf 👁 Als Vorschau öffnen; sonst stünde man selbst in der Schülerliste |
+| **Eigene Klasse** | kein Name, Hinweis auf 👁 Vorschau; sonst stünde man selbst in der Schülerliste |
 
 Das klappt auch in einem neuen Tab (die Seite fragt die offenen Tabs der App), aber nur im selben Browser auf demselben Gerät,
 nicht über den QR-Code am Handy. **Wichtig:** Außerhalb der Vorschau löscht der Start einer Aufgabe die gespeicherte Lehrer-Anmeldung in diesem Browser.

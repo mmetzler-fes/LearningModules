@@ -1513,7 +1513,7 @@ export class ClassbookService {
   }
 
   /**
-   * 👁 Als Vorschau öffnen: Ausweis des Testschülers für die eigene Klasse, ohne Name, PIN und Testpasswort.
+   * 👁 Vorschau: Ausweis des Testschülers für die eigene Klasse, ohne Name, PIN und Testpasswort.
    * Die Anmeldung als Lehrkraft (ownedClass) ist der Nachweis. Er sieht, was die Klasse sieht.
    */
   async preview(user: any, classId: string) {

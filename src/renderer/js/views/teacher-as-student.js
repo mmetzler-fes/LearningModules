@@ -48,7 +48,7 @@ export async function offerTeacherName(input, classId, onFilled) {
     input.parentElement.appendChild(hint);
   };
   if (found.relation === 'owner') {
-    show('Das ist deine eigene Klasse. Zum Ausprobieren nimm im Klassennotizbuch 👁 Als Vorschau öffnen, sonst stehst du selbst in der Schülerliste.');
+    show('Das ist deine eigene Klasse. Zum Ausprobieren nimm im Klassennotizbuch 👁 Vorschau, sonst stehst du selbst in der Schülerliste.');
     return;
   }
   if (found.relation === 'closed') {

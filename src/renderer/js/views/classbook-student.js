@@ -146,7 +146,7 @@ export class ClassbookStudent {
 
   async start(token) {
     this.token = token;
-    // Vom Knopf 👁 Als Vorschau öffnen: Der Ausweis steht im Fragment und geht so nicht an den Server.
+    // Vom Knopf 👁 Vorschau: Der Ausweis steht im Fragment und geht so nicht an den Server.
     const fromTeacher = /^#preview=(.+)$/.exec(location.hash);
     if (fromTeacher) {
       sessionSet(PREVIEW_KEY, JSON.stringify({ token, ticket: decodeURIComponent(fromTeacher[1]), name: '', preview: true }));

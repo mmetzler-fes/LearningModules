@@ -610,7 +610,10 @@ wenn die Lehrkraft des Lernthemas freigeschaltet ist.
   **☰ Linien**. Die Lehrkraft fügt das Feld ins Dokument ein (eigene
   Lernthemen), Schüler nur in ihre eigene Beschriftung; ein selbst eingefügtes
   Feld entfernt das **✕** in der Feldleiste (mit dem ➚ Pfeil) wieder.
-  Lehrkräfte haben im Menü außerdem **🧩 Quiz aus dem Lernnotizbuch** und
+  Lehrkräfte haben im Menü außerdem dieselben Bausteine wie im Dokument-Editor:
+  **💡 Lösung**, **∑ Formel** (Formeldialog), **⌨ Code**, **▢ Kasten**,
+  **▥ Spalten** (öffnen gleich die Textfläche zum Ausfüllen), **⤓ Seitenumbruch**,
+  **🧩 Quiz aus dem Lernnotizbuch** und
   **📄 PDF an dieser Stelle** (Text mit Struktur, Seiten als Bilder oder
   KI-Erkennung) – beides landet als Bausteine im Dokument. Das gilt in eigenen
   Lernthemen überall, wo sich der Stift-Editor öffnen lässt: **✍️ Stift** oben
@@ -637,7 +640,10 @@ wenn die Lehrkraft des Lernthemas freigeschaltet ist.
   keine Bausteine. Dasselbe gilt in der eigenständigen App (lm-editor), außer in einer Schülerfassung.
 - **Einfügen:** Der Ort entscheidet. **Auf der Schreibfläche** (Karo, Linien, Feld, freies Blatt) entsteht ein
   freies Objekt, verschiebbar: Text als Textfläche, Bild frei, an der Ecke größer oder kleiner. **Außerhalb oder
-  über ⊕** entsteht ein Baustein im Dokument (⊕ bietet dazu ¶ Textblock, ▤ Tabelle, 🖼 Bild). Ist eine Textfläche gewählt,
+  über ⊕** entsteht ein Baustein im Dokument (⊕ bietet dazu ¶ Textblock, ▤ Tabelle, 🖼 Bild und für die Lehrkraft
+  Lösung, Formel, Code, Kasten, Spalten, Seitenumbruch). **⧉ Verdoppeln** (Strg/⌘+D) setzt eine Kopie gewählter
+  Bausteine direkt dahinter. **Seiten:** Gestrichelte Linien zeigen, wo im Druck eine Seite endet („Seite 2“ …),
+  ein eingefügter Seitenumbruch steht als Linie „Seitenumbruch“ im Blatt und lässt sich am ⠿ verschieben oder löschen. Ist eine Textfläche gewählt,
   kommt Text dort hinein. Schüler ändern das Dokument nicht: Bei ihnen bleibt alles frei in ihrer eigenen Ebene.
   Lange drücken oder Strg/⌘+V fügt ein; zuletzt Kopiertes gewinnt. Safari fragt beim Einfügen aus dem Menü
   selbst noch einmal nach. Große Fotos werden verkleinert.

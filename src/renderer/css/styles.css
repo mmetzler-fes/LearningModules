@@ -5141,7 +5141,11 @@ details[open] > summary > .cb-twisty::before { content: '▾'; }
 .nb-pane-head { display: flex; align-items: center; gap: 8px; min-height: 34px; padding: 0 4px 6px; }
 .nb-pane-preview .nb-pane-head { padding: 6px 8px; border-bottom: 1px solid var(--border); }
 .nb-pane-label { font-weight: 600; font-size: 0.9em; color: var(--text-secondary); white-space: nowrap; }
-#nbPreviewLabel { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+#nbPreviewLabel, #cbPreviewLabel { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+/* Klassennotizbuch: Inhalt links, Vorschau rechts – nur in der Inhaltsübersicht */
+.cb-split > #crContent { flex: 1 1 auto; min-width: 0; }
+.cb-split.cb-no-preview > .nb-splitter, .cb-split.cb-no-preview > .nb-pane-preview { display: none; }
+.cb-units > li.cb-current { background: color-mix(in srgb, var(--accent) 14%, transparent); box-shadow: inset 3px 0 0 var(--accent); }
 .nb-preview-actions { display: flex; gap: 6px; margin-left: auto; justify-content: flex-end; flex-shrink: 0; }
 .nb-preview-actions .btn { white-space: nowrap; }
 /* Wenig Platz: Die Knöpfe zeigen nur ihr Symbol, der Titel behält seine Zeile. */
@@ -5259,7 +5263,9 @@ details[open] > summary > .cb-twisty::before { content: '▾'; }
   #view-teacher-class-results.active > * { flex: 0 0 auto; }
   #view-teacher-class-results .cb-layout { flex: 1 1 auto; min-height: 0; grid-template-rows: minmax(0, 1fr); align-items: stretch; }
   #view-teacher-class-results .cb-sections { position: static; overflow-y: auto; min-height: 0; }
+  #view-teacher-class-results .cb-split { min-height: 0; align-items: stretch; }
   #view-teacher-class-results #crContent { min-height: 0; overflow: auto; padding-right: 4px; }
+  #view-teacher-class-results .nb-pane-preview { position: static; max-height: none; min-height: 0; }
   #crContent .cr-works-bar { position: sticky; top: 0; z-index: 4; background: var(--bg-primary); padding-block: 6px; box-shadow: 0 6px 6px -6px rgba(0, 0, 0, 0.12); }
 }
 .nb-tree {

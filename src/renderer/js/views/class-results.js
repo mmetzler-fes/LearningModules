@@ -2,6 +2,7 @@ import { escapeHtml, escapeAttr, copyClassbookOneNote, copyQrSvgAsPng, copyShare
 import { openTagDialog } from './tags.js';
 import { nestEmbedded } from '../../lm-editor/src/doc/doc-quiz.js';
 import { isDocLike } from '../quiz-usage.js';
+import { NotebookPreview } from './notebook-preview.js';
 
 // ==================== KLASSENNOTIZBUCH (LEHRKRAFT) ====================
 //
@@ -91,7 +92,17 @@ export class ClassResultsView {
     this._classSel?.addEventListener('change', () => {
       this._classId = this._classSel.value || null;
       savePref('lm_cr_class', this._classId);
+      this._preview._empty();
       this._load();
+    });
+    // Vorschau rechts neben der Inhaltsübersicht – wie im Lernnotizbuch; der Baum bleibt stehen.
+    this._split = document.getElementById('cbSplit');
+    this._previewLink = null;
+    this._preview = new NotebookPreview(this, {
+      layoutKey: 'lm_cb_layout', split: 'cbSplit', pane: 'cbPreviewPane', actions: 'cbPreviewActions', label: 'cbPreviewLabel',
+      body: 'cbPreviewBody', treeFold: null, previewFold: 'btnCbPreviewFold', splitter: 'cbSplitter', treeName: 'Inhalt',
+      from: 'teacher-class-results',
+      emptyText: 'Links ein Modul anklicken – hier erscheint es so, wie die Schüler es sehen. Der Baum bleibt dabei stehen.',
     });
     this._tabs.forEach((btn) => btn.addEventListener('click', () => {
       this._tab = btn.dataset.crTab;
@@ -101,6 +112,7 @@ export class ClassResultsView {
   }
 
   async refresh() {
+    this._preview?.refresh(); // nach dem Bearbeiten: Module neu laden
     const info = await this.app.api.getSchoolYear();
     const years = Array.isArray(info?.years) ? info.years : [];
     if (!this._year || !years.includes(this._year)) this._year = info?.current || years[0] || null;
@@ -163,6 +175,7 @@ export class ClassResultsView {
   _render() {
     this._tabs.forEach((btn) => btn.classList.toggle('active', btn.dataset.crTab === this._tab));
     this._out = this._content;
+    this._split?.classList.toggle('cb-no-preview', this._tab !== 'content' || !this._classId);
     void this._renderClassBar();
     if (!this._classId) {
       this._out.innerHTML = `<div class="empty-state"><span class="empty-icon">🏫</span>
@@ -534,6 +547,15 @@ export class ClassResultsView {
     })();
     this._cbLoading = { classId, p };
     try { return await p; } finally { if (this._cbLoading?.p === p) this._cbLoading = null; }
+  }
+
+  /** Das Modul, das rechts in der Vorschau steht, im Baum hervorheben (NotebookPreview ruft das auf). */
+  _markCurrent() {
+    this._content.querySelectorAll('li.cb-current').forEach((li) => li.classList.remove('cb-current'));
+    const key = this._preview?.currentKey;
+    if (!key?.startsWith('m:') || !this._previewLink) return;
+    const btn = this._content.querySelector(`[data-link="${CSS.escape(this._previewLink)}"] [data-open-module="${CSS.escape(key.slice(2))}"]`);
+    btn?.closest('li')?.classList.add('cb-current');
   }
 
   /** Zeile unter dem Titel: verbundene Geräte, 👣 Folgen und 🗂 Plan der Klasse – in allen Bereichen gleich. */
@@ -993,9 +1015,19 @@ export class ClassResultsView {
         e.preventDefault();
         const link = cb.links.find((l) => l.id === btn.closest('[data-link]').dataset.link);
         const topicId = btn.closest('[data-topic]').dataset.topic;
+        const t = link?.available?.find((x) => x.topicId === topicId);
+        const m = t?.modules.find((x) => x.id === btn.dataset.openModule);
+        // Rechts in der Vorschau – außer bei Quizzen aus anderen Lernthemen („aus: …“) oder zugeklappter Vorschau.
+        if (this._preview.open && t && m && !btn.closest('.cb-foreign')) {
+          this._previewLink = link.id;
+          const notes = m.enabled ? [] : ['○ In dieser Klasse ausgeschaltet – die Schüler sehen es nicht.'];
+          void this._preview.showModule({ id: t.topicId, title: t.title, isOwn: !!t.canEdit, selected: !t.notebookOff, modules: t.modules }, m, { notes });
+          return;
+        }
         const own = link?.classTopicId === topicId;
         this.app.modulesView.openFrom('teacher-class-results', topicId, { id: btn.dataset.openModule }, own ? 'edit' : 'preview');
       }));
+      this._markCurrent();
       // ⋯ oder Rechtsklick an Lernthema und Modul: Bearbeiten (auch das Original im Notizbuch), Vorschau, Tags.
       const itemMenu = (el, anchor) => {
         const link = cb.links.find((l) => l.id === el.closest('[data-link]').dataset.link);

@@ -16,7 +16,13 @@ Menüpunkt **📒 Klassennotizbuch** (direkt unter LernModule) – oder oben der
 **📓 Notizbuch**: Klasse und Schuljahr neben dem Titel wählen, links die Bereiche.
 Darunter steht in allen Bereichen eine Zeile mit den verbundenen Geräten, **👣 Folgen**
 und dem **🗂 Plan** der Klasse. Titel, diese Zeile und die Bereiche bleiben stehen; nur
-der Inhalt rechts rollt (auf schmalen Bildschirmen die ganze Seite). Das
+der Inhalt rechts rollt (auf schmalen Bildschirmen die ganze Seite).
+
+In der **📋 Inhaltsübersicht** steht rechts neben dem Baum eine **👁 Vorschau** wie im Lernnotizbuch:
+Ein Klick auf ein Modul zeigt es dort so, wie die Schüler es sehen – der Baum bleibt, wie er ist, die
+Zeile ist hervorgehoben. Ist das Modul in der Klasse aus (○), steht das darüber. **✏️ Bearbeiten** und
+**⛶ Vollbild** öffnen es über die ganze Seite; ▶ klappt die Vorschau zu (dann öffnet ein Klick das Modul
+wie früher), die Breite lässt sich am Trenner ziehen. Das
 Notizbuch mit deinen Lernthemen bleibt, wie es ist; die Reiter wechseln
 zwischen beiden.
 

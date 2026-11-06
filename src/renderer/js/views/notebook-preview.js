@@ -10,35 +10,51 @@ import { syncDrawings, openDrawingsDialog } from './drawings-dialog.js';
 // Abschnitt. Baum und Vorschau lassen sich zuklappen, die Breite lässt sich
 // ziehen; beides merkt sich der Browser.
 
-const LAYOUT_KEY = 'lm_nb_layout';
 const MIN_PREVIEW = 300;
 const MIN_TREE = 320;
 
-function loadLayout() {
+/** Element-IDs und Einstellungen; das Klassennotizbuch setzt eigene (class-results.js). */
+const DEFAULTS = {
+  layoutKey: 'lm_nb_layout',
+  split: 'nbSplit', pane: 'nbPreviewPane', actions: 'nbPreviewActions', label: 'nbPreviewLabel', body: 'nbPreviewBody',
+  treeFold: 'btnNbTreeFold', previewFold: 'btnNbPreviewFold', splitter: 'nbSplitter',
+  treeName: 'Notebooks',
+  // Ansicht, zu der „✏️ Bearbeiten“ und „⛶ Vollbild“ zurückkehren.
+  from: 'teacher-notebooks',
+  emptyText: 'Links ein Modul anklicken – hier erscheint es so, wie die Schüler es sehen. Ein Lernthema oder Ordner zeigt eine Übersicht.',
+};
+
+function loadLayout(key) {
   const def = { tree: true, preview: true, width: 0 };
-  try { return { ...def, ...JSON.parse(localStorage.getItem(LAYOUT_KEY) || '{}') }; } catch (_) { return def; }
+  try { return { ...def, ...JSON.parse(localStorage.getItem(key) || '{}') }; } catch (_) { return def; }
 }
 
 const types = () => (typeof H5P_TYPES !== 'undefined' ? H5P_TYPES : {});
 
 export class NotebookPreview {
-  /** `view`: die NotebooksView – für Baum, Themen und Knoten. */
-  constructor(view) {
+  /**
+   * `view`: die Ansicht mit dem Baum – braucht `_markCurrent()`; die
+   * NotebooksView liefert dazu Themen und Knoten (`_topics`, `_nodes`, …).
+   * `opts`: siehe DEFAULTS.
+   */
+  constructor(view, opts = {}) {
     this.view = view;
     this.app = view.app;
-    this._split = document.getElementById('nbSplit');
-    this._pane = document.getElementById('nbPreviewPane');
-    this._head = document.getElementById('nbPreviewActions');
-    this._label = document.getElementById('nbPreviewLabel');
-    this._body = document.getElementById('nbPreviewBody');
-    this._layout = loadLayout();
+    this._opts = { ...DEFAULTS, ...opts };
+    const el = (k) => document.getElementById(this._opts[k]);
+    this._split = el('split');
+    this._pane = el('pane');
+    this._head = el('actions');
+    this._label = el('label');
+    this._body = el('body');
+    this._layout = loadLayout(this._opts.layoutKey);
     // Module je Lernthema (voller Inhalt) – bis zum nächsten Neuladen der Ansicht.
     this._modules = new Map();
     // Was gerade gezeigt wird: { kind: 'module' | 'topic' | 'node', key, … }.
     this._current = null;
-    document.getElementById('btnNbTreeFold')?.addEventListener('click', () => this._fold('tree'));
-    document.getElementById('btnNbPreviewFold')?.addEventListener('click', () => this._fold('preview'));
-    this._bindSplitter(document.getElementById('nbSplitter'));
+    el('treeFold')?.addEventListener('click', () => this._fold('tree'));
+    el('previewFold')?.addEventListener('click', () => this._fold('preview'));
+    this._bindSplitter(el('splitter'));
     this._applyLayout();
     this._empty();
   }
@@ -52,7 +68,7 @@ export class NotebookPreview {
   // ---------- Spalten ----------
 
   _save() {
-    try { localStorage.setItem(LAYOUT_KEY, JSON.stringify(this._layout)); } catch (_) { /* nur für diese Sitzung */ }
+    try { localStorage.setItem(this._opts.layoutKey, JSON.stringify(this._layout)); } catch (_) { /* nur für diese Sitzung */ }
   }
 
   /** Eine Spalte auf- oder zuklappen; beide zu geht nicht – dann geht die andere auf. */
@@ -78,8 +94,8 @@ export class NotebookPreview {
       b.title = `${label} ${open ? 'zuklappen' : 'aufklappen'}`;
       b.setAttribute('aria-expanded', String(open));
     };
-    set('btnNbTreeFold', tree, '◀', '▶', 'Notebooks');
-    set('btnNbPreviewFold', preview, '▶', '◀', 'Vorschau');
+    set(this._opts.treeFold, tree, '◀', '▶', this._opts.treeName);
+    set(this._opts.previewFold, preview, '▶', '◀', 'Vorschau');
   }
 
   /** Trenner ziehen: Breite der Vorschau; Doppelklick stellt sie zurück. */
@@ -129,7 +145,7 @@ export class NotebookPreview {
     const topic = this.view._topics?.get(c.topicId) || c.topic;
     if (c.kind === 'topic') { this.showTopic(topic); return; }
     const mod = (topic?.modules || []).find((m) => m.id === c.id) || c.mod;
-    this.showModule(topic, mod);
+    this.showModule(topic, mod, { notes: c.notes });
   }
 
   _clear() {
@@ -158,8 +174,7 @@ export class NotebookPreview {
     this._current = null;
     this._clear();
     this._body.innerHTML = `<div class="empty-state nb-preview-empty"><span class="empty-icon">👁</span>
-      <p>Links ein Modul anklicken – hier erscheint es so, wie die Schüler es sehen.
-      Ein Lernthema oder Ordner zeigt eine Übersicht.</p></div>`;
+      <p>${escapeHtml(this._opts.emptyText)}</p></div>`;
   }
 
   _select(current) {
@@ -203,10 +218,10 @@ export class NotebookPreview {
     return this._modules.get(topic.id);
   }
 
-  /** Ein Modul – so, wie die Schüler es über den Link sehen. */
-  async showModule(topic, mod) {
+  /** Ein Modul – so, wie die Schüler es über den Link sehen. `notes`: zusätzliche Hinweise (z. B. „in dieser Klasse aus“). */
+  async showModule(topic, mod, { notes: extra = [] } = {}) {
     const key = 'm:' + mod.id;
-    this._select({ kind: 'module', key, id: mod.id, topicId: topic.id, topic, mod });
+    this._select({ kind: 'module', key, id: mod.id, topicId: topic.id, topic, mod, notes: extra });
     this._clear();
     const own = topic.isOwn;
     // Dokumente mit der Freischaltung „Stift-Editor“: oben, damit man ihn auch weiter unten im Blatt findet.
@@ -228,14 +243,14 @@ export class NotebookPreview {
         b.disabled = false;
       });
     }
-    if (own) this._button('✏️ Bearbeiten', 'Im Modul-Editor öffnen (auch Doppelklick auf den Titel)', () => this.app.modulesView.openFrom('teacher-notebooks', topic.id, mod, 'edit'));
+    if (own) this._button('✏️ Bearbeiten', 'Im Modul-Editor öffnen (auch Doppelklick auf den Titel)', () => this.app.modulesView.openFrom(this._opts.from, topic.id, mod, 'edit'));
     // Zeichnungen mit Quelle (.odg in der Nextcloud): Übersicht, und geänderte gleich neu zeichnen.
     if (own && mod.type === 'document') {
       const reload = async () => { this._modules.delete(topic.id); if (this.currentKey === key) await this.showModule(topic, mod); };
       this._button('🖍 Zeichnungen', 'Zeichnungen dieses Lernthemas in LibreOffice Draw bearbeiten (.odg in der Nextcloud)', () => openDrawingsDialog(this.app, topic, { onChanged: reload }));
       syncDrawings(this.app, topic.id, { quiet: true }).then((n) => { if (n) reload(); });
     }
-    this._button('⛶ Vollbild', 'Vorschau über die ganze Seite', () => this.app.modulesView.openFrom('teacher-notebooks', topic.id, mod, 'preview'));
+    this._button('⛶ Vollbild', 'Vorschau über die ganze Seite', () => this.app.modulesView.openFrom(this._opts.from, topic.id, mod, 'preview'));
     this._body.innerHTML = '<p class="hint">Wird geladen …</p>';
 
     let modules;
@@ -246,7 +261,7 @@ export class NotebookPreview {
     if (this.currentKey !== key) return; // inzwischen etwas anderes gewählt
     const full = modules.find((m) => m.id === mod.id) || mod;
     this._body.innerHTML = '';
-    const notes = [];
+    const notes = [...extra];
     if (own && !topic.selected) notes.push('Das Lernthema ist nicht für Schüler freigegeben – sie sehen es erst danach.');
     if (full.moduleSelected === false) notes.push('Dieses Modul ist inaktiv – Schüler sehen es nicht.');
     if (mod.lockedForStudents && own) notes.push('🔒 Schüler sehen das nicht – nur über den Link der Klassenarbeit. Freigeben: ⋯ → 🔓 Zur Besprechung freigeben.');

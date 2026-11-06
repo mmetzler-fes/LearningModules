@@ -5220,8 +5220,48 @@ details[open] > summary > .cb-twisty::before { content: '▾'; }
 
 /* ---- Lernmodul-Notebooks: einzeiliger Baum ---- */
 .nav-btn.nav-sub { padding-left: 34px; font-size: 0.9rem; }
-.nb-toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 14px; }
+.nb-toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 12px; }
 .nb-search { flex: 1 1 220px; min-width: 0; }
+.nb-view-header { margin-bottom: 12px; }
+.nb-tool-group { display: inline-flex; gap: 4px; }
+.nb-icon-btn { min-width: 36px; justify-content: center; font-size: 1.05em; }
+.nb-cloud-btn { gap: 2px; }
+.nb-cloud-mark { font-size: 0.75em; font-weight: 600; }
+.nb-cloud-btn[data-state="ok"] .nb-cloud-mark { color: var(--success, #16a34a); }
+.nb-cloud-btn[data-state="warn"] .nb-cloud-mark { color: var(--warning); }
+.nb-cloud-btn[data-state="busy"] .nb-cloud-mark { display: inline-block; animation: nb-spin 1.2s linear infinite; }
+.nb-cloud-btn[data-state="off"] { opacity: 0.6; }
+@keyframes nb-spin { to { transform: rotate(360deg); } }
+.nb-menu-info { padding: 7px 10px; font-size: 0.88rem; line-height: 1.45; max-width: 380px; color: var(--text-primary); }
+.nb-menu-info code { font-size: 0.95em; }
+.nb-menu-errors { margin: 4px 0 0; padding-left: 1.2em; font-size: 0.92em; color: var(--text-secondary); }
+/* Ansicht (Dokumente | Quizze | Alles) im Kopf der Baumspalte */
+.nb-pane-tree .nb-view-tabs { margin-left: 8px; }
+.nb-split.nb-tree-folded .nb-pane-tree .nb-view-tabs { display: none; }
+/* Breit: Die Seite steht, nur Baum und Vorschau rollen – Leiste und Suche bleiben erreichbar. */
+@media (min-width: 901px) {
+  #view-teacher-notebooks.active { display: flex; flex-direction: column; height: 100%; }
+  #view-teacher-notebooks.active > * { flex: 0 0 auto; }
+  #view-teacher-notebooks .nb-split { flex: 1 1 auto; min-height: 0; align-items: stretch; }
+  #view-teacher-notebooks .nb-pane-tree { min-height: 0; }
+  #view-teacher-notebooks .nb-tree { flex: 1 1 auto; min-height: 0; overflow: auto; }
+  #view-teacher-notebooks .nb-pane-preview { position: static; max-height: none; min-height: 0; }
+  /* Planung: Leiste fest, beide Spalten rollen für sich. */
+  #view-teacher-planning.active { display: flex; flex-direction: column; height: 100%; }
+  #view-teacher-planning.active > * { flex: 0 0 auto; }
+  #view-teacher-planning #planningRoot { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+  #planningRoot > * { flex: 0 0 auto; }
+  #planningRoot > .pl-panes { flex: 1 1 auto; min-height: 0; }
+  #planningRoot .pl-pane { min-height: 0; }
+  #planningRoot .pl-list { max-height: none; min-height: 0; }
+  /* Klassennotizbuch: Reiter, Klassenwahl und Bereiche fest, nur der Inhalt rollt. */
+  #view-teacher-class-results.active { display: flex; flex-direction: column; height: 100%; }
+  #view-teacher-class-results.active > * { flex: 0 0 auto; }
+  #view-teacher-class-results .cb-layout { flex: 1 1 auto; min-height: 0; grid-template-rows: minmax(0, 1fr); align-items: stretch; }
+  #view-teacher-class-results .cb-sections { position: static; overflow-y: auto; min-height: 0; }
+  #view-teacher-class-results #crContent { min-height: 0; overflow: auto; padding-right: 4px; }
+  #crContent .cr-works-bar { position: sticky; top: 0; z-index: 4; background: var(--bg-primary); padding-block: 6px; box-shadow: 0 6px 6px -6px rgba(0, 0, 0, 0.12); }
+}
 .nb-tree {
   background: var(--bg-secondary);
   border: 1px solid var(--border);

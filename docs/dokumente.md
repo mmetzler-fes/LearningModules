@@ -258,7 +258,7 @@ wie sie sind.
 
 ### Aus Writer, Word, Folien oder PDF
 
-Schneller als anlegen und hineinladen: **📥 Importieren** (Notebook-Ansicht,
+Schneller als anlegen und hineinladen: **📥 Importieren** (Notebook-Ansicht unter **📥 Hinzufügen ▾**,
 Lernthemen, oder im Lernthema **📥 Module importieren**) nimmt auch
 **.odt, .docx, .doc, .rtf**, Folien (**.odp, .odg, .pptx, .ppt**) und – mit
 Freischaltung „PDF-Import“ – **.pdf** an, auch **mehrere Dateien auf einmal** (wählen oder hineinziehen). Jede Datei
@@ -358,7 +358,7 @@ Der Kurzname steht im Dokument (`slug`); fehlt ein Blatt, meldet der Editor es.
 
 ## Vorlagen
 
-**🖨 Vorlagen** über dem Notebook-Baum: LibreOffice-Vorlagen (.ott) für
+**🖨** (Vorlagen) in der Leiste über dem Notebook-Baum: LibreOffice-Vorlagen (.ott) für
 Arbeitsblatt, Klassenarbeit und Skript hochladen. Die Vorlage braucht
 `{{TITEL}}` in der Kopfzeile und einen Absatz `{{INHALT}}` – beim Hochladen
 prüft die App beides. **★** macht eine Vorlage zum Standard ihrer Art,
@@ -746,7 +746,8 @@ dazu die Quelle unter `_Quellen/`.
 - **„In der Nextcloud von Hand gepflegt“** (erweiterte Felder des Dokuments):
   Die App schreibt die Dateien dieses Dokuments nicht mehr neu, verschiebt sie
   aber weiter mit.
-- Über dem Notebook-Baum steht der Stand; **⟳ Jetzt abgleichen** startet den
+- **☁️** in der Leiste über dem Notebook-Baum zeigt den Stand (✓, ⟳ läuft,
+  ⚠ Fehler); ein Klick darauf nennt Ordner, Größe und Fehler, **⟳ Jetzt abgleichen** startet den
   Abgleich sofort, sonst läuft er stündlich und eine Minute nach Änderungen.
 
 ## Technik

@@ -81,7 +81,7 @@ links die alte, rechts die neue Ordnung:
 
 ## Struktur importieren
 
-**🧱 Struktur importieren** (in der Planung und im Notizbuch) legt Ordner aus einer Vorlage an – nur
+**🧱 Struktur importieren** (in der Planung und im Notizbuch unter **📥 Hinzufügen ▾**) legt Ordner aus einer Vorlage an – nur
 Books bzw. Pläne, Bereiche und Abschnitte, keine Inhalte. Die Lernthemen kopierst oder verschiebst du danach
 in der Planung hinein.
 

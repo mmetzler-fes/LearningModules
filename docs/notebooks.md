@@ -17,16 +17,27 @@ Die Notebooks sind die Hauptseite für Lehrkräfte. Oben rechts stehen die Zahle
 deiner Inhalte und **☰ Menü** mit Konto, Geräten, Nextcloud und Backup. Das
 Suchfeld findet Titel und Tags; eine eigene Themenliste gibt es nicht mehr.
 
+Kopf und Leiste stehen fest; nur der Baum und die Vorschau rollen, jeder für
+sich. Suche, Ansicht und Knöpfe bleiben so auch tief im Baum erreichbar (auf
+schmalen Bildschirmen rollt die ganze Seite). In der Leiste:
+
+- **➕ Neues Book** und **📥 Hinzufügen ▾** mit 📂 Datei öffnen, 📥 Importieren,
+  🧱 Struktur importieren und 🟪 OneNote übernehmen.
+- **⊞** alles aufklappen, **⊟** alles zuklappen, **☑** auswählen.
+- **☁️** Stand des Nextcloud-Abbilds (✓ abgeglichen, ⟳ läuft, ⚠ Fehler) –
+  ein Klick zeigt Einzelheiten und **⟳ Jetzt abgleichen**; **🖨** Vorlagen.
+  Beide nur, wenn Arbeitsblätter freigeschaltet sind.
+
 ## Ansicht
 
 - Jede Zeile ist einzeilig. Alles ist zunächst zugeklappt; ▸ bzw. ein Klick
   auf den Namen klappt auf. Was du offen lässt, bleibt beim nächsten Besuch
   offen (in diesem Browser).
-- **⊞ Aufklappen** / **⊟ Zuklappen** wirkt auf alle Books, Bereiche und
+- **⊞** (aufklappen) / **⊟** (zuklappen) wirkt auf alle Books, Bereiche und
   Abschnitte.
 - **Suchen** filtert nach Titeln von Lernthemen und Modulen und klappt die
   Treffer auf.
-- **📄 Dokumente | 🧩 Quizze | Alles** über dem Baum wählt, was du siehst
+- **📄 Dokumente | 🧩 Quizze | Alles** im Kopf des Baums wählt, was du siehst
   (gemerkt in diesem Browser). Unter **📄 Dokumente** stehen Dokumente und
   Anhänge, die Quizze eines Dokuments eingerückt darunter; reine
   Quiz-Lernthemen fallen weg, ein neues, leeres Lernthema bleibt sichtbar.
@@ -183,7 +194,7 @@ Modul kommt hinein.
 ### Mehrere auf einmal
 
 **Strg+Klick** (Mac: ⌘+Klick) wählt Module oder Lernthemen einzeln dazu,
-**Umschalt+Klick** alle bis zur zuletzt geklickten Zeile. **☑ Auswählen** in
+**Umschalt+Klick** alle bis zur zuletzt geklickten Zeile. **☑** (Auswählen) in
 der Leiste zeigt Kästchen – dann genügt ein einfacher Klick (auch am
 Tablet). Gewählt wird immer nur eine Sorte: Module (eigene), Lernthemen
 oder Bereiche/Abschnitte.
@@ -233,7 +244,7 @@ Es gelten dieselben Grenzen wie beim JSON-Export eines Lernthemas: nur selbst
 verfasste Module. Lernthemen ohne eigene Module und erworbene Lernthemen
 fehlen; die Meldung und `notebook.json` (`skipped`) nennen sie.
 
-**📥 Importieren** (oben oder im Menü: **Hier importieren**) liest eine
+**📥 Importieren** (oben unter **📥 Hinzufügen ▾** oder im Menü: **Hier importieren**) liest eine
 Notebook-Datei (`.zip`) als neues Book, neuen Bereich oder Abschnitt ein –
 oder ein einzelnes Lernthema an dieser Stelle: als Datei (JSON, Moodle-XML,
 H5P, verschlüsselt) oder als eingefügter Text, z. B. die Antwort einer KI.
@@ -243,7 +254,7 @@ dieses Thema. Wie geprüft wird, steht unter
 wird dort zum Book. Tags kommen über ihren Namen an, wenn es im Konto schon
 einen gleichnamigen Tag gibt.
 
-**🟪 OneNote übernehmen** holt ein exportiertes OneNote-Notizbuch (`.onepkg`)
+Ebenfalls unter **📥 Hinzufügen ▾**: **🟪 OneNote übernehmen** holt ein exportiertes OneNote-Notizbuch (`.onepkg`)
 oder einzelne Abschnitte (`.one`) als neues Book – je Seite mit Anlagen ein
 Modul 📎 Anhang, siehe [OneNote übernehmen](onenote-import.md).
 

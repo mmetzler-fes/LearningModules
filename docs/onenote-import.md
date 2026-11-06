@@ -16,7 +16,7 @@ Layout der Seiten bleiben in OneNote.
 
 ## Übernehmen (in LearningModules)
 
-1. Notebook-Ansicht → **🟪 OneNote übernehmen** und die Datei wählen (oder
+1. Notebook-Ansicht → **📥 Hinzufügen ▾** → **🟪 OneNote übernehmen** und die Datei wählen (oder
    hineinziehen). Mehrere `.one`-Dateien gehen auch auf einmal.
 2. Der Browser liest die Datei und zeigt, was übernommen wird: je Abschnitt
    die Zahl der Seiten mit Anlagen, Dateien und Größe. Häkchen weg = nicht

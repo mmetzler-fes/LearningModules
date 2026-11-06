@@ -391,31 +391,27 @@
           </div>
         </div>
         <div id="handoverIncoming"></div>
-        <div class="view-header">
+        <!-- Kopf, Leiste und Hinweise stehen fest; nur Baum und Vorschau rollen (ab 901 px, styles.css) -->
+        <div class="view-header nb-view-header">
           <h2>📓 Lernmodul-Notebooks
-            <button type="button" class="help-hint" data-help="notebooks" title="Hilfe: Notebooks" aria-label="Hilfe: Notebooks">?</button>
+            <button type="button" class="help-hint" data-help="notebooks" title="Hilfe: Notebooks – Aktionen über ⋯ oder Rechtsklick, Verschieben per Ziehen" aria-label="Hilfe: Notebooks">?</button>
           </h2>
-          <p class="subtitle">Lernthemen in Books, Bereichen und Abschnitten ordnen. Aktionen über ⋯ oder Rechtsklick, Verschieben auch per Ziehen.</p>
         </div>
         <div class="nb-toolbar">
           <button class="btn btn-primary btn-sm" id="btnNotebookNewBook">➕ Neues Book</button>
-          <button class="btn btn-secondary btn-sm" id="btnNotebookImport" title="Notebook-Datei (.zip), Lernthema als Datei (JSON, Moodle-XML, H5P, .lmenc) oder eingefügter Text">📥 Importieren</button>
-          <button class="btn btn-secondary btn-sm" id="btnNotebookStructure" title="Books, Bereiche und Abschnitte aus einer Tabelle (.ods, .xlsx, .csv), einer Ordnerstruktur oder einer Gliederung anlegen – nur Ordner, keine Inhalte">🧱 Struktur importieren</button>
-          <button class="btn btn-secondary btn-sm" id="btnNotebookOneNote" title="Exportiertes OneNote-Notizbuch (.onepkg) oder Abschnitt (.one): Seiten mit PDFs und Anlagen als Module „Anhang“">🟪 OneNote übernehmen</button>
-          <button class="btn btn-secondary btn-sm" id="btnNotebookOpenFile" title="Datei ansehen und als Dokument ins Notizbuch legen: lm-editor (.zlm), Writer/Word (.odt, .docx), Folien (.odp, .pptx), PDF, Xournal++ (.xopp) – auch per Ziehen auf diese Seite">📂 Datei öffnen</button>
-          <button class="btn btn-secondary btn-sm" id="btnNotebookExpand" title="Alle Books, Bereiche und Abschnitte aufklappen">⊞ Aufklappen</button>
-          <button class="btn btn-secondary btn-sm" id="btnNotebookCollapse" title="Alles zuklappen">⊟ Zuklappen</button>
-          <button class="btn btn-secondary btn-sm" id="btnNotebookSelect" aria-pressed="false" title="Mehrere Module oder Lernthemen auswählen – auch mit Strg+Klick, Umschalt+Klick für einen Bereich">☑ Auswählen</button>
-          <button class="btn btn-secondary btn-sm hidden" id="btnDocTemplates" title="LibreOffice-Vorlagen für den Druck von Dokumenten">🖨 Vorlagen</button>
-          <span class="nb-view-tabs" role="group" aria-label="Ansicht">
-            <button type="button" data-nb-view="docs" title="Nur Dokumente und Anhänge – die Quizze eines Dokuments stehen darunter">📄 Dokumente</button>
-            <button type="button" data-nb-view="quizzes" title="Nur Quizze, Übungen und Apps – Lernthemen und Bereiche ohne Quiz sind ausgeblendet">🧩 Quizze</button>
-            <button type="button" data-nb-view="all" title="Alle Module">Alles</button>
+          <button class="btn btn-secondary btn-sm" id="btnNotebookAdd" aria-haspopup="menu" aria-expanded="false" title="Datei öffnen, Importieren, Struktur importieren, OneNote übernehmen">📥 Hinzufügen ▾</button>
+          <input type="search" id="notebookSearch" class="search-input nb-search" placeholder="🔍 Suchen in Titeln und Tags…" title="Suchen in Titeln und Tags von Lernthemen und Modulen" />
+          <span class="nb-tool-group">
+            <button class="btn btn-secondary btn-sm nb-icon-btn" id="btnNotebookExpand" title="Alle Books, Bereiche und Abschnitte aufklappen" aria-label="Alles aufklappen">⊞</button>
+            <button class="btn btn-secondary btn-sm nb-icon-btn" id="btnNotebookCollapse" title="Alles zuklappen" aria-label="Alles zuklappen">⊟</button>
+            <button class="btn btn-secondary btn-sm nb-icon-btn" id="btnNotebookSelect" aria-pressed="false" title="Mehrere Module oder Lernthemen auswählen – auch mit Strg+Klick, Umschalt+Klick für einen Bereich" aria-label="Auswählen">☑</button>
           </span>
-          <input type="search" id="notebookSearch" class="search-input nb-search" placeholder="Suchen in Titeln und Tags von Lernthemen und Modulen…" />
+          <span class="nb-tool-group">
+            <!-- Nextcloud-Abbild der Dokumente (nur mit Freischaltung, notebooks.js): Stand und Abgleich per Klick -->
+            <button class="btn btn-secondary btn-sm nb-icon-btn nb-cloud-btn hidden" id="btnNbCloud" aria-haspopup="menu" aria-expanded="false" aria-label="Nextcloud">☁️</button>
+            <button class="btn btn-secondary btn-sm nb-icon-btn hidden" id="btnDocTemplates" title="LibreOffice-Vorlagen für den Druck von Dokumenten" aria-label="Vorlagen">🖨</button>
+          </span>
         </div>
-        <!-- Nextcloud-Abbild der Dokumente (nur mit Freischaltung, notebooks.js) -->
-        <div id="nbMirrorBar" class="nb-mirror-bar hidden"></div>
         <!-- Mehrfachauswahl: Aktionen für alle gewählten Einträge (notebooks.js) -->
         <div id="nbSelBar" class="nb-sel-bar hidden" role="toolbar" aria-label="Auswahl"></div>
         <!-- Baum | Vorschau (notebook-preview.js): beide Spalten zuklappbar, Breite ziehbar -->
@@ -423,6 +419,11 @@
           <div class="nb-pane nb-pane-tree">
             <div class="nb-pane-head">
               <span class="nb-pane-label">📓 Notebooks</span>
+              <span class="nb-view-tabs" role="group" aria-label="Ansicht">
+                <button type="button" data-nb-view="docs" title="Nur Dokumente und Anhänge – die Quizze eines Dokuments stehen darunter">📄 Dokumente</button>
+                <button type="button" data-nb-view="quizzes" title="Nur Quizze, Übungen und Apps – Lernthemen und Bereiche ohne Quiz sind ausgeblendet">🧩 Quizze</button>
+                <button type="button" data-nb-view="all" title="Alle Module">Alles</button>
+              </span>
               <button type="button" class="nb-fold-btn" id="btnNbTreeFold" aria-expanded="true" title="Notebooks zuklappen">◀</button>
             </div>
             <div id="notebookTree" class="nb-tree" role="tree"></div>
@@ -582,10 +583,8 @@
           <button type="button" class="nb-switch-tab" data-nb-switch="teacher-class-results" role="tab">📒 Klassennotizbuch</button>
           <button type="button" class="nb-switch-tab active" data-nb-switch="teacher-planning" role="tab">🗂 Planung</button>
         </div>
-        <div class="view-header">
-          <h2>🗂 Planung <button type="button" class="help-hint" data-help="planung" title="Hilfe zur Planung" aria-label="Hilfe zur Planung">?</button></h2>
-          <p class="subtitle">Pläne je Bildungsgang und Beruf: links dein Notizbuch, rechts die Pläne. Lernthemen oder ganze Bereiche
-            links wählen und mit <kbd>F5</kbd> (oder Ziehen) als Verweis in den Plan legen – im Notizbuch bleibt alles, wie es ist.</p>
+        <div class="view-header nb-view-header">
+          <h2>🗂 Planung <button type="button" class="help-hint" data-help="planung" title="Hilfe zur Planung – Pläne je Bildungsgang und Beruf: links dein Notizbuch, rechts die Pläne. Lernthemen oder Bereiche links wählen und mit F5 (oder Ziehen) als Verweis in den Plan legen." aria-label="Hilfe zur Planung">?</button></h2>
         </div>
         <div id="planningRoot"></div>
       </section>
@@ -597,10 +596,8 @@
           <button type="button" class="nb-switch-tab active" data-nb-switch="teacher-class-results" role="tab">📒 Klassennotizbuch</button>
           <button type="button" class="nb-switch-tab" data-nb-switch="teacher-planning" role="tab">🗂 Planung</button>
         </div>
-        <div class="view-header">
-          <h2>📒 Klassennotizbuch <button type="button" class="help-hint" data-help="klassennotizbuch" title="Hilfe zu diesem Bereich" aria-label="Hilfe zu diesem Bereich">?</button></h2>
-          <p class="subtitle">Je Klasse Aufgaben, Klassenarbeiten, Schülerdaten und Ergebnisse – und der Klassenbuch-Link, über den
-            Schüler mit Name und PIN alles wiederfinden. Ergebnisse ohne Klasse stehen unter <strong>📊 Ergebnisse</strong>.</p>
+        <div class="view-header nb-view-header">
+          <h2>📒 Klassennotizbuch <button type="button" class="help-hint" data-help="klassennotizbuch" title="Hilfe zum Klassennotizbuch – je Klasse Aufgaben, Klassenarbeiten, Schülerdaten, Ergebnisse und der Klassenbuch-Link. Ergebnisse ohne Klasse stehen unter 📊 Ergebnisse." aria-label="Hilfe zu diesem Bereich">?</button></h2>
         </div>
         <div class="link-class-bar">
           <label>Schuljahr <select id="crYear"></select></label>

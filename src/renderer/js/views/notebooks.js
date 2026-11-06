@@ -54,7 +54,12 @@ export class NotebooksView {
   constructor(app) {
     this.app = app;
     this._tree = document.getElementById('notebookTree');
-    this._mirrorBar = document.getElementById('nbMirrorBar');
+    this._cloudBtn = document.getElementById('btnNbCloud');
+    this._cloudBtn?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (this._menuAnchor === this._cloudBtn) { this._closeMenu(); return; }
+      this._openMenu(this._cloudItems(), ...this._below(this._cloudBtn), { anchor: this._cloudBtn });
+    });
     document.getElementById('btnDocTemplates')?.addEventListener('click', () => this._templatesDialog());
     this._search = document.getElementById('notebookSearch');
     this._data = null;
@@ -70,10 +75,19 @@ export class NotebooksView {
     this._btnSelect?.addEventListener('click', () => this._setSelMode(!this._selMode));
 
     document.getElementById('btnNotebookNewBook')?.addEventListener('click', () => this._createNode('book', null));
-    document.getElementById('btnNotebookImport')?.addEventListener('click', () => this._import(null));
-    document.getElementById('btnNotebookOneNote')?.addEventListener('click', () => openOneNoteImport(this.app, {
-      onDone: async () => { this._saveOpen(); await this.refresh(); },
-    }));
+    // 📥 Hinzufügen ▾: die selten gebrauchten Wege, Inhalte ins Notizbuch zu holen.
+    const addBtn = document.getElementById('btnNotebookAdd');
+    addBtn?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (this._menuAnchor === addBtn) { this._closeMenu(); return; }
+      this._openMenu([
+        { label: '📂 Datei öffnen …', title: 'Datei ansehen und als Dokument ins Notizbuch legen: lm-editor (.zlm), Writer/Word (.odt, .docx), Folien (.odp, .pptx), PDF, Xournal++ (.xopp) – auch per Ziehen auf diese Seite', run: () => pickFiles() },
+        { label: '📥 Importieren …', title: 'Notebook-Datei (.zip), Lernthema als Datei (JSON, Moodle-XML, H5P, .lmenc) oder eingefügter Text', run: () => this._import(null) },
+        '-',
+        { label: '🧱 Struktur importieren …', title: 'Books, Bereiche und Abschnitte aus einer Tabelle (.ods, .xlsx, .csv), einer Ordnerstruktur oder einer Gliederung anlegen – nur Ordner, keine Inhalte', run: () => import('./structure-import.js').then((m) => m.openStructureImport(this.app, { where: 'notebook', onDone: () => this.refresh() })) },
+        { label: '🟪 OneNote übernehmen …', title: 'Exportiertes OneNote-Notizbuch (.onepkg) oder Abschnitt (.one): Seiten mit PDFs und Anlagen als Module „Anhang“', run: () => openOneNoteImport(this.app, { onDone: async () => { this._saveOpen(); await this.refresh(); } }) },
+      ], ...this._below(addBtn), { anchor: addBtn });
+    });
     // 📂 Datei öffnen und Dateien auf die Seite ziehen: wie „Öffnen mit“ der installierten App (file-open.js) –
     // ansehen, dann 📓 Im Notizbuch ablegen…; danach den Baum neu laden.
     const openFiles = async (files) => {
@@ -83,17 +97,14 @@ export class NotebooksView {
       this._saveOpen();
       await this.refresh();
     };
-    document.getElementById('btnNotebookStructure')?.addEventListener('click', () => {
-      void import('./structure-import.js').then((m) => m.openStructureImport(this.app, { where: 'notebook', onDone: () => this.refresh() }));
-    });
-    document.getElementById('btnNotebookOpenFile')?.addEventListener('click', () => {
+    const pickFiles = () => {
       const input = document.createElement('input');
       input.type = 'file';
       input.multiple = true; // .xopp zusammen mit ihrem PDF
       input.accept = '.zlm,.odt,.ott,.docx,.odp,.odg,.pptx,.ppt,.pdf,.xopp';
       input.addEventListener('change', () => void openFiles([...input.files]));
       input.click();
-    });
+    };
     const view = document.getElementById('view-teacher-notebooks');
     const withFiles = (e) => [...(e.dataTransfer?.types || [])].includes('Files');
     view?.addEventListener('dragover', (e) => {
@@ -163,7 +174,7 @@ export class NotebooksView {
       bar = document.createElement('div');
       bar.id = 'nbSicherungBar';
       bar.className = 'nb-sicherung-bar';
-      this._mirrorBar?.parentNode?.insertBefore(bar, this._mirrorBar);
+      this._selBar?.parentNode?.insertBefore(bar, this._selBar);
     }
     bar.innerHTML = `<span>✏️ <strong>${files.length} Datei${files.length === 1 ? '' : 'en'} in der Nextcloud geändert</strong>
       <span class="hint">– z. B. im lm-editor bearbeitet. Bis du entscheidest, überschreibt die App sie nicht.</span></span>
@@ -789,13 +800,26 @@ export class NotebooksView {
 
   // ---------- Kontextmenü ----------
 
-  _openMenu(items, x, y) {
+  /**
+   * Menü an (x, y) öffnen – rechte Kante an x. Mit `anchor` (Knopf der Leiste)
+   * hängt es links unter dem Knopf, und der Knopf zeigt, dass es offen ist.
+   * Einträge: { label, run, title?, disabled?, danger? }, '-' als Trennlinie
+   * oder { info: html } für eine Textzeile ohne Aktion.
+   */
+  _openMenu(items, x, y, { anchor = null } = {}) {
     this._closeMenu();
     const menu = document.createElement('div');
     menu.className = 'nb-menu';
     menu.setAttribute('role', 'menu');
     for (const item of items) {
       if (item === '-') { menu.appendChild(Object.assign(document.createElement('hr'), { className: 'nb-menu-sep' })); continue; }
+      if (item.info != null) {
+        const info = document.createElement('div');
+        info.className = 'nb-menu-info';
+        info.innerHTML = item.info;
+        menu.appendChild(info);
+        continue;
+      }
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.setAttribute('role', 'menuitem');
@@ -813,17 +837,30 @@ export class NotebooksView {
     document.body.appendChild(menu);
     // Im Fenster halten.
     const r = menu.getBoundingClientRect();
-    const left = Math.max(8, Math.min(x - r.width, window.innerWidth - r.width - 8));
+    const want = anchor ? anchor.getBoundingClientRect().left : x - r.width;
+    const left = Math.max(8, Math.min(want, window.innerWidth - r.width - 8));
     const top = y + r.height > window.innerHeight - 8 ? Math.max(8, y - r.height) : y;
     menu.style.left = `${left}px`;
     menu.style.top = `${top}px`;
     menu.querySelector('button')?.focus();
     this._menu = menu;
+    if (anchor) {
+      this._menuAnchor = anchor;
+      anchor.setAttribute('aria-expanded', 'true');
+    }
   }
 
   _closeMenu() {
     this._menu?.remove();
     this._menu = null;
+    this._menuAnchor?.setAttribute('aria-expanded', 'false');
+    this._menuAnchor = null;
+  }
+
+  /** Punkt unter einem Knopf der Leiste, für `_openMenu(..., { anchor })`. */
+  _below(btn) {
+    const r = btn.getBoundingClientRect();
+    return [r.right, r.bottom + 4];
   }
 
   _nodeMenu(node) {
@@ -950,46 +987,65 @@ export class NotebooksView {
     load();
   }
 
-  /** Stand des Nextcloud-Abbilds über dem Baum. */
+  /** Stand des Nextcloud-Abbilds: ☁️-Knopf in der Leiste, Einzelheiten und Abgleich in seinem Menü. */
   async _loadMirror() {
     document.getElementById('btnDocTemplates')?.classList.toggle('hidden', !this._docsEnabled());
-    if (!this._mirrorBar) return;
-    if (!this._docsEnabled()) { this._mirrorBar.classList.add('hidden'); return; }
+    if (!this._cloudBtn) return;
+    if (!this._docsEnabled()) { this._cloudBtn.classList.add('hidden'); return; }
     const st = await this.app.api.getDocMirror().catch(() => null);
-    if (!st || failed(st)) { this._mirrorBar.classList.add('hidden'); return; }
-    this._renderMirror(st);
+    if (!st || failed(st)) { this._cloudBtn.classList.add('hidden'); return; }
+    this._showDocMirror(st);
   }
 
-  _renderMirror(st) {
-    const bar = this._mirrorBar;
-    const hadErrors = this._mirrorErrors?.size || 0;
+  _showDocMirror(st) {
+    const btn = this._cloudBtn;
     this._mirrorErrors = new Map((st.errors || []).map((e) => [e.moduleId, e.error]));
-    bar.classList.remove('hidden');
-    if (!st.store) {
-      bar.innerHTML = '<span class="hint">☁️ Dokumente kommen in die Nextcloud, sobald eine verbunden ist (Home-Menü → ☁️ Nextcloud).</span>';
+    this._mirrorState = st;
+    btn.classList.remove('hidden');
+    const errs = st.errors?.length || 0;
+    const state = !st.store ? 'off' : errs ? 'warn' : st.running || this._mirrorSyncing ? 'busy' : 'ok';
+    btn.dataset.state = state;
+    btn.innerHTML = `☁️<span class="nb-cloud-mark">${{ off: '', warn: `⚠${errs}`, busy: '⟳', ok: '✓' }[state]}</span>`;
+    btn.title = {
+      off: 'Nextcloud: noch keine verbunden',
+      warn: `Nextcloud: ${errs} Fehler beim Abgleich – Klick für Einzelheiten`,
+      busy: 'Nextcloud: Abgleich läuft …',
+      ok: `Nextcloud: abgeglichen${st.lastSync ? ` ${new Date(st.lastSync).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' })}` : ''}`,
+    }[state];
+  }
+
+  /** Menü des ☁️-Knopfs: Stand des Abbilds, Fehler, Jetzt abgleichen. */
+  _cloudItems() {
+    const st = this._mirrorState;
+    if (!st?.store) return [{ info: '☁️ Dokumente kommen in die Nextcloud, sobald eine verbunden ist (Home-Menü → ☁️ Nextcloud).' }];
+    const mb = st.size != null ? ` · ${(st.size / 1024 / 1024).toFixed(1)} MB` : '';
+    const when = st.lastSync ? `zuletzt ${new Date(st.lastSync).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' })}` : 'noch nicht abgeglichen';
+    const items = [
+      { info: `<strong>☁️ Nextcloud</strong> <code>${escapeHtml(st.folder)}</code><br>${st.documents} Dokument${st.documents === 1 ? '' : 'e'}, ${st.files} Dateien${mb}<br>${when}${st.running ? ' · läuft …' : ''}` },
+    ];
+    if (st.errors?.length) {
+      items.push({ info: `<span class="nb-warn">⚠ ${st.errors.length} Fehler:</span><ul class="nb-menu-errors">${st.errors.slice(0, 8).map((e) => `<li>${escapeHtml(e.title)}: ${escapeHtml(e.error)}</li>`).join('')}${st.errors.length > 8 ? `<li>… und ${st.errors.length - 8} weitere</li>` : ''}</ul>` });
+    }
+    items.push('-', { label: this._mirrorSyncing ? 'Wird abgeglichen …' : '⟳ Jetzt abgleichen', disabled: !!this._mirrorSyncing, run: () => this._syncDocMirror() });
+    return items;
+  }
+
+  async _syncDocMirror() {
+    const hadErrors = this._mirrorErrors?.size || 0;
+    this._mirrorSyncing = true;
+    this._showDocMirror(this._mirrorState);
+    const res = await this.app.api.syncDocMirror().catch((err) => ({ message: err.message }));
+    this._mirrorSyncing = false;
+    if (failed(res) || !res.status) {
+      this.app.showToast('Fehler: ' + (res?.message || 'Abgleich fehlgeschlagen'), 'error');
+      this._showDocMirror(this._mirrorState);
       return;
     }
-    const mb = st.size != null ? ` · ${(st.size / 1024 / 1024).toFixed(1)} MB` : '';
-    const when = st.lastSync ? ` · zuletzt ${new Date(st.lastSync).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' })}` : '';
-    const errs = st.errors?.length ? ` · <span class="nb-warn" title="${escapeAttr(st.errors.map((e) => `${e.title}: ${e.error}`).join('\n'))}">⚠ ${st.errors.length} Fehler</span>` : '';
-    bar.innerHTML = `<span>☁️ Nextcloud: <code>${escapeHtml(st.folder)}</code> – ${st.documents} Dokument${st.documents === 1 ? '' : 'e'}, ${st.files} Dateien${mb}${when}${errs}${st.running ? ' · läuft …' : ''}</span>
-      <button type="button" class="btn btn-secondary btn-sm">⟳ Jetzt abgleichen</button>`;
-    bar.querySelector('button').addEventListener('click', async (e) => {
-      e.target.disabled = true;
-      e.target.textContent = 'Wird abgeglichen …';
-      const res = await this.app.api.syncDocMirror().catch((err) => ({ message: err.message }));
-      if (failed(res) || !res.status) {
-        this.app.showToast('Fehler: ' + (res?.message || 'Abgleich fehlgeschlagen'), 'error');
-        e.target.disabled = false;
-        e.target.textContent = '⟳ Jetzt abgleichen';
-        return;
-      }
-      const r = res.report;
-      if (res.skipped) this.app.showToast('Abgleich übersprungen: ' + ({ store: 'keine Nextcloud verbunden', renderer: 'kein Renderer eingetragen', feature: 'nicht freigeschaltet' }[res.skipped] || res.skipped), 'info');
-      else this.app.showToast(`Nextcloud abgeglichen: ${r.written} geschrieben, ${r.moved} verschoben, ${r.saved} gesichert${r.errors.length ? `, ${r.errors.length} Fehler` : ''}.`, r.errors.length ? 'info' : 'success');
-      this._renderMirror(res.status);
-      if (hadErrors || res.status.errors?.length) this._render();
-    });
+    const r = res.report;
+    if (res.skipped) this.app.showToast('Abgleich übersprungen: ' + ({ store: 'keine Nextcloud verbunden', renderer: 'kein Renderer eingetragen', feature: 'nicht freigeschaltet' }[res.skipped] || res.skipped), 'info');
+    else this.app.showToast(`Nextcloud abgeglichen: ${r.written} geschrieben, ${r.moved} verschoben, ${r.saved} gesichert${r.errors.length ? `, ${r.errors.length} Fehler` : ''}.`, r.errors.length ? 'info' : 'success');
+    this._showDocMirror(res.status);
+    if (hadErrors || res.status.errors?.length) this._render();
   }
 
   _docsEnabled() {

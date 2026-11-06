@@ -170,3 +170,11 @@ export async function readClassLists(file, password) {
   if (classSheets.length === 0) return [await readStudentList(file, password)];
   return classSheets.map((s) => studentsFromRows(s.rows));
 }
+
+/** Erstes Tabellenblatt als Zeilen (Arrays aus Text) – für den Struktur-Import (structure-import.js). */
+export async function readTableRows(file, password) {
+  if (/\.(csv|txt)$/i.test(file.name)) return readCsv(await file.text());
+  if (!isOds(file) && !isXlsx(file)) throw new Error('Bitte eine .ods-, .xlsx- oder .csv-Datei wählen.');
+  const sheets = await sheetsOf(file, password);
+  return sheets[0]?.rows || [];
+}

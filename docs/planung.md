@@ -63,6 +63,43 @@ ihrem Klassennotizbuch, mit denselben Tasten:
 - **F3** öffnet das Klassennotizbuch der Klasse, z. B. zum Ein- und Ausschalten (● / ○).
 - **🗂** an einem Bereich heißt: Er kommt aus dem Plan der Klasse.
 
+## Rechts das Lernnotizbuch (Fachebene umsortieren)
+
+Wählst du oben rechts **📓 Lernnotizbuch**, zeigen beide Spalten dein Notizbuch – wie im Double Commander
+links die alte, rechts die neue Ordnung:
+
+- **F6** verschiebt die markierten Lernthemen, Books, Bereiche oder Abschnitte aus der aktiven Spalte an das
+  Ziel der anderen Spalte (die Zeile mit dem Cursor dort; bei einem Lernthema sein Ordner). Ziehen mit der
+  Maus verschiebt ebenso, auch innerhalb einer Spalte.
+- **F5** legt eine **Kopie** an – nur nach Rückfrage, denn eine Kopie ist eigenständig (z. B. um ein zweites
+  Blatt abzuwandeln); Änderungen am Original gelten dort nicht. Bei Bereichen kommen die eigenen Lernthemen
+  darin mit, erworbene nicht.
+- **F7** / **⇧F7** legt einen Bereich / Abschnitt an (ganz oben ein Book), **F2** benennt um, **Alt+↑↓**
+  ändert die Reihenfolge, **F8** löscht Books, Bereiche oder Abschnitte – Lernthemen darin rücken eine Ebene
+  höher, gelöscht wird hier nie ein Lernthema.
+- Es gelten die Regeln des Notizbuchs: Books stehen ganz oben, ein Abschnitt enthält nur Lernthemen.
+
+## Struktur importieren
+
+**🧱 Struktur importieren** (in der Planung und im Notizbuch) legt Ordner aus einer Vorlage an – nur
+Books bzw. Pläne, Bereiche und Abschnitte, keine Inhalte. Die Lernthemen kopierst oder verschiebst du danach
+in der Planung hinein.
+
+- **Quelle**
+  - **Tabelle** (.ods, .xlsx, .csv): Spalte **A** = Book bzw. Plan, **B–H** = Bereiche, **I** = Abschnitt.
+    Leere Zellen vorne übernehmen den Wert der Zeile darüber, eine Kopfzeile (Book, Bereich, Abschnitt …)
+    wird übersprungen.
+  - **Ordner auf dem Rechner**: nur die Ordnernamen, keine Dateien; versteckte Ordner fallen weg, leere sieht
+    der Browser nicht. Wahlweise mit dem gewählten Ordner selbst als oberster Ebene.
+  - **Gliederung einfügen**: Einrückung, `#`-Überschriften oder Aufzählungen bestimmen die Ebene; Nummern wie
+    „1.2“ fallen weg.
+  - Bei Ordnern und Gliederung werden die untersten Einträge Abschnitte, die anderen Bereiche.
+- **Ziel**: 📓 Notizbuch oder 🗂 Planung, dazu wohin. Ganz oben wird Ebene 1 ein Book (bzw. in der Planung
+  ein Plan, ebenso in einem Ordner der Planung); in einem Book, Bereich oder Plan wird Ebene 1 ein Bereich.
+- **Vorschau**: zeigt, was neu entsteht und was schon da ist. Gleichnamiges unter demselben Ordner wird
+  mitbenutzt, ein zweiter Import ergänzt also nur. Was tiefer reicht, als das Notizbuch (8 Ebenen) bzw. ein
+  Plan (7 Ebenen) erlaubt, wird nicht angelegt; die Vorschau sagt, wie viel.
+
 ## Ganze Bereiche aus dem Notizbuch
 
 Ein Book, Bereich oder Abschnitt kommt mit **F5** als Baum: Bereiche, Abschnitte und Lernthemen wie im

@@ -51,9 +51,9 @@ export class PlanningView {
     const [nb, plans, year] = await Promise.all([this.app.api.getNotebooks(), this.app.api.getPlans(), this.app.api.getSchoolYear()]);
     const classes = year?.current ? await this.app.api.getClasses(year.current) : [];
     this.classList = Array.isArray(classes) ? classes : [];
-    if (this.rightMode !== 'plans' && !this.classList.some((c) => c.id === this.rightMode)) this.rightMode = 'plans';
+    if (this.rightMode !== 'plans' && this.rightMode !== 'notebook' && !this.classList.some((c) => c.id === this.rightMode)) this.rightMode = 'plans';
     this.cb = null;
-    if (this.rightMode !== 'plans') {
+    if (this.rightMode !== 'plans' && this.rightMode !== 'notebook') {
       const cb = await this.app.api.getClassbook(this.rightMode);
       if (bad(cb)) this.rightMode = 'plans'; else this.cb = cb;
     }
@@ -76,6 +76,7 @@ export class PlanningView {
         <button class="btn btn-secondary btn-sm" data-pl-new="area" title="Bereich im Plan, z. B. ein Lernfeld (F7 im Plan)">➕ Bereich</button>
         <button class="btn btn-secondary btn-sm" data-pl-new="section" title="Abschnitt im Plan – enthält nur Lernthemen (⇧F7 im Plan)">➕ Abschnitt</button>
         <button class="btn btn-secondary btn-sm" data-pl-act="include" title="Einen anderen Plan als Teilplan hier einbinden – ändert er sich, ändert er sich überall">🧩 Teilplan einbinden</button>
+        <button class="btn btn-secondary btn-sm pl-always" data-pl-act="structure" title="Books bzw. Pläne, Bereiche und Abschnitte aus einer Tabelle (.ods, .xlsx, .csv), einer Ordnerstruktur oder einer Gliederung anlegen – ins Notizbuch oder in die Planung">🧱 Struktur importieren</button>
         <button class="btn btn-secondary btn-sm" data-pl-act="classes" title="Klassen, deren Klassennotizbuch diesem Plan folgt">📒 Klassen zuweisen</button>
         <button class="btn btn-secondary btn-sm" data-pl-act="view" title="So bekommt ihn eine Klasse: Teilpläne eingesetzt, jedes Lernthema einmal (F3)">👁 Plan ansehen</button>
       </div>
@@ -122,13 +123,18 @@ export class PlanningView {
 
   /** Rechts im Klassennotizbuch statt in den Plänen? */
   _classMode() {
-    return this.rightMode !== 'plans' && !!this.cb;
+    return this.rightMode !== 'plans' && this.rightMode !== 'notebook' && !!this.cb;
+  }
+
+  /** Rechts ebenfalls das Lernnotizbuch (zum Umsortieren der Fachebene)? */
+  _nbMode() {
+    return this.rightMode === 'notebook';
   }
 
   _modeSelect() {
     const sel = this.root?.querySelector('.pl-right-mode');
     if (!sel) return;
-    sel.innerHTML = `<option value="plans">🗂 Pläne</option>${this.classList.length ? `<optgroup label="📒 Klassennotizbuch">${this.classList.map((c) => `<option value="${escapeAttr(c.id)}">📒 ${escapeHtml(c.name)}</option>`).join('')}</optgroup>` : ''}`;
+    sel.innerHTML = `<option value="plans">🗂 Pläne</option><option value="notebook">📓 Lernnotizbuch</option>${this.classList.length ? `<optgroup label="📒 Klassennotizbuch">${this.classList.map((c) => `<option value="${escapeAttr(c.id)}">📒 ${escapeHtml(c.name)}</option>`).join('')}</optgroup>` : ''}`;
     sel.value = this.rightMode;
     this.root.classList.toggle('pl-classmode', this.rightMode !== 'plans');
   }
@@ -147,6 +153,7 @@ export class PlanningView {
 
   /** Lernthemen im Plan der rechten Zeile (direkt und über Teilpläne) – links mit ✓. */
   _inCurrentPlan() {
+    if (this._nbMode()) return { plan: null, direct: new Set(), via: new Set() };
     if (this._classMode()) {
       const direct = new Set(this._classLinks().flatMap((l) => (l.available || []).map((a) => a.topicId)));
       return { plan: { title: this.cb.className }, direct, via: new Set() };
@@ -180,11 +187,17 @@ export class PlanningView {
   }
 
   _leftRows() {
+    return this._nbRows('left');
+  }
+
+  /** Baum des Lernnotizbuchs als Zeilen – links immer, rechts im Modus „📓 Lernnotizbuch“. */
+  _nbRows(pane) {
     const n = this.nb || {};
+    const pre = pane === 'right' ? 'r' : '';
     const nodes = (n.nodes || []).slice().sort((a, b) => a.orderIndex - b.orderIndex);
     const places = (n.placements || []).slice().sort((a, b) => a.orderIndex - b.orderIndex);
     const mirrors = new Map((n.mirrors || []).map((m) => [`offer:${m.offerId}`, m]));
-    const f = this.filter.left;
+    const f = this.filter[pane];
     const rows = [];
     const match = (t) => !f || String(t || '').toLowerCase().includes(f);
     // Bei einer Suche: alles aufgeklappt, was einen Treffer enthält.
@@ -194,27 +207,28 @@ export class PlanningView {
       for (const p of places.filter((x) => (x.nodeId ?? null) === nodeId)) {
         if (p.topicId.startsWith('offer:')) {
           const m = mirrors.get(p.topicId);
-          if (m && match(m.title)) rows.push({ pane: 'left', kind: 'mirror', id: p.topicId, title: m.title, depth, key: `m:${p.topicId}` });
+          if (m && match(m.title)) rows.push({ pane, kind: 'mirror', id: p.topicId, nodeId, title: m.title, depth, key: `${pre}m:${p.topicId}` });
         } else if (match(this._topicTitle(p.topicId))) {
-          rows.push({ pane: 'left', kind: 'topic', id: p.topicId, title: this._topicTitle(p.topicId), depth, key: `t:${p.topicId}` });
+          rows.push({ pane, kind: 'topic', id: p.topicId, nodeId, title: this._topicTitle(p.topicId), depth, key: `${pre}t:${p.topicId}` });
         }
       }
     };
     const walk = (parentId, depth) => {
       for (const node of nodes.filter((x) => (x.parentId ?? null) === parentId)) {
         if (f && !match(node.title) && !hasHit(node.id)) continue;
-        const key = `n:${node.id}`;
+        const key = `${pre}n:${node.id}`;
         const isOpen = f ? true : this.open.has(key);
-        rows.push({ pane: 'left', kind: node.kind, id: node.id, title: node.title, depth, key, folder: true, isOpen });
+        rows.push({ pane, kind: node.kind, id: node.id, parentId: node.parentId ?? null, title: node.title, depth, key, folder: true, isOpen });
         if (isOpen) { walk(node.id, depth + 1); topicRows(node.id, depth + 1); }
       }
     };
     walk(null, 0);
     const unsorted = places.filter((p) => !p.nodeId);
-    if (unsorted.length) {
-      const isOpen = f ? true : this.open.has('u');
+    if (unsorted.length || this._nbMode()) {
+      const key = `${pre}u`;
+      const isOpen = f ? true : this.open.has(key);
       if (!f || unsorted.some((p) => match(this._topicTitle(p.topicId)))) {
-        rows.push({ pane: 'left', kind: 'unsorted', id: null, title: 'Unsortiert', depth: 0, key: 'u', folder: true, isOpen });
+        rows.push({ pane, kind: 'unsorted', id: null, title: 'Unsortiert', depth: 0, key, folder: true, isOpen });
         if (isOpen) topicRows(null, 1);
       }
     }
@@ -253,6 +267,7 @@ export class PlanningView {
   }
 
   _rightRows() {
+    if (this._nbMode()) return this._nbRows('right');
     if (this._classMode()) return this._classRows();
     const p = this.plans || {};
     const nodes = (p.nodes || []).slice().sort((a, b) => a.orderIndex - b.orderIndex);
@@ -366,6 +381,7 @@ export class PlanningView {
 
   /** Wohin F5 rechts einträgt: die Zeile am Cursor, bei Lernthema/Teilplan ihr Elternteil. */
   _target() {
+    if (this._nbMode()) return this._nbTarget('right');
     if (this._classMode()) {
       const root = { id: null, kind: 'root', title: `📒 ${this.cb.className} (oben)` };
       const row = this.rows.right[this.cursor.right];
@@ -400,6 +416,10 @@ export class PlanningView {
     const act = e.target.closest('[data-pl-act]');
     if (act) {
       const a = act.dataset.plAct;
+      if (a === 'structure') {
+        void import('./structure-import.js').then((m) => m.openStructureImport(this.app, { where: this.rightMode === 'plans' ? 'plans' : 'notebook', onDone: () => this.refresh() }));
+        return;
+      }
       void (a === 'include' ? this._includePicker() : a === 'classes' ? this._assignClasses() : this._viewPlan());
       return;
     }
@@ -438,6 +458,13 @@ export class PlanningView {
     const handled = () => { e.preventDefault(); e.stopPropagation(); };
     if (key === 'Tab') { handled(); this.active = pane === 'left' ? 'right' : 'left'; this._paint(); return; }
     if ((e.ctrlKey || e.metaKey) && key.toLowerCase() === 'f') { handled(); this.root.querySelector(`.pl-filter[data-pane="${pane}"]`)?.focus(); return; }
+    if (this._nbMode()) {
+      // Beide Spalten zeigen das Lernnotizbuch: F5 kopiert, F6 verschiebt in die andere Spalte.
+      if (e.altKey && (key === 'ArrowUp' || key === 'ArrowDown')) { handled(); void this._nbNudge(key === 'ArrowUp' ? -1 : 1); return; }
+      const nb = { F2: () => this._nbRename(), F3: () => this._nbOpen(), F5: () => this._nbTransfer(true), F6: () => this._nbTransfer(false),
+        F7: () => this._nbCreate(e.shiftKey ? 'section' : 'area'), F8: () => this._nbRemove(), Delete: () => this._nbRemove() }[key];
+      if (nb) { handled(); void nb(); return; }
+    }
     if (e.altKey && (key === 'ArrowUp' || key === 'ArrowDown')) { handled(); void this._nudge(key === 'ArrowUp' ? -1 : 1); return; }
     switch (key) {
       case 'ArrowDown': handled(); this._setCursor(pane, i + 1); return;
@@ -523,6 +550,7 @@ export class PlanningView {
   }
 
   async _create(kind) {
+    if (this._nbMode()) return this._nbCreate(kind === 'section' || kind === 'plan' ? 'section' : 'area');
     if (this._classMode()) return this._cbCreate(kind === 'section' || kind === 'plan' ? 'section' : 'area');
     const labels = { folder: 'Neuer Ordner', plan: 'Neuer Plan', area: 'Neuer Bereich', section: 'Neuer Abschnitt' };
     const hints = { folder: 'Name, z. B. „Berufsschule“ oder „Mechatroniker“', plan: 'Name, z. B. „1. Ausbildungsjahr“', area: 'Name, z. B. „LF 5 Elektrische Installationen“', section: 'Name' };
@@ -848,9 +876,138 @@ export class PlanningView {
     await this._cbMoveTo(sel, to || null);
   }
 
+  // ---- Beide Spalten: Lernnotizbuch (Fachebene umsortieren) ----
+
+  /** Wohin in dieser Zeile: ihr Book/Bereich/Abschnitt; Lernthema → sein Ordner; Unsortiert → oberste Ebene. */
+  _nbTargetOf(row) {
+    if (!row || row.kind === 'unsorted') return { id: null, kind: 'unsorted', title: 'Unsortiert' };
+    if (row.kind === 'topic' || row.kind === 'mirror') {
+      const n = (this.nb?.nodes || []).find((x) => x.id === row.nodeId);
+      return n ? { id: n.id, kind: n.kind, title: n.title, parentId: n.parentId ?? null } : { id: null, kind: 'unsorted', title: 'Unsortiert' };
+    }
+    return { id: row.id, kind: row.kind, title: row.title, parentId: row.parentId ?? null };
+  }
+
+  _nbTarget(pane) {
+    return this._nbTargetOf(this.rows[pane][this.cursor[pane]]);
+  }
+
+  /** Markiertes der aktiven Spalte als `{ type: 'topic'|'node', id, title, kind }`. */
+  _nbItems(pane) {
+    const out = [];
+    for (const r of this._selection(pane)) {
+      if (r.kind === 'topic' || r.kind === 'mirror') out.push({ type: 'topic', id: r.id, title: r.title, kind: r.kind });
+      else if (r.kind === 'book' || r.kind === 'area' || r.kind === 'section') out.push({ type: 'node', id: r.id, title: r.title, kind: r.kind });
+    }
+    return out;
+  }
+
+  /**
+   * F6 verschiebt, F5 kopiert – aus der aktiven Spalte an das Ziel der anderen
+   * (oder `target`, beim Ziehen). Kopieren nur nach Rückfrage: Eine Kopie ist
+   * eigenständig, Änderungen am Original gelten dort nicht.
+   */
+  async _nbTransfer(copy, fromPane = this.active, target = null) {
+    const to = target || this._nbTarget(fromPane === 'left' ? 'right' : 'left');
+    let items = this._nbItems(fromPane);
+    if (!items.length) { this.app.showToast('Zuerst Lernthemen, Bereiche oder Abschnitte wählen (Leertaste markiert mehrere).', 'info'); return; }
+    if (copy) {
+      const bought = items.filter((x) => x.kind === 'mirror');
+      items = items.filter((x) => x.kind !== 'mirror');
+      if (bought.length) this.app.showToast(`Erworbene Bereiche lassen sich nicht kopieren: ${bought.map((x) => x.title).join(', ')}.`, 'info');
+      if (!items.length) return;
+      const what = items.length === 1 ? `„${items[0].title}“` : `${items.length} Einträge`;
+      if (!(await appConfirm(`${what} als Kopie nach „${to.title}“?\n\nDie Kopie ist eigenständig – z. B. um ein zweites Blatt abzuwandeln. Änderungen am Original gelten dort nicht. Bei Bereichen werden die eigenen Lernthemen darin mitkopiert.`))) return;
+    }
+    let done = 0;
+    for (const it of items) {
+      let id = it.id;
+      if (copy) {
+        const c = it.type === 'topic' ? await this.app.api.copyTopicInNotebook(it.id) : await this.app.api.copyNotebookNode(it.id);
+        if (bad(c)) { this.app.showToast(`„${it.title}“: ${c?.message || 'Kopieren fehlgeschlagen.'}`, 'error'); continue; }
+        id = it.type === 'topic' ? c.topicId : c.id;
+      }
+      const res = await this.app.api.moveInNotebook(it.type, id, to.id, null);
+      if (bad(res)) { this.app.showToast(`„${it.title}“: ${res?.message || 'Verschieben fehlgeschlagen.'}`, 'error'); continue; }
+      done++;
+    }
+    this.marked[fromPane].clear();
+    if (to.id) { this.open.add(`n:${to.id}`); this.open.add(`rn:${to.id}`); this._saveOpen(); }
+    if (done) this.app.showToast(`${done} ${copy ? 'kopiert' : 'verschoben'} nach „${to.title}“.`, 'success');
+    await this.refresh();
+  }
+
+  async _nbCreate(kind) {
+    const target = this._nbTarget(this.active);
+    let parentId = target.kind === 'section' ? target.parentId : target.id;
+    if (!parentId) kind = 'book';
+    const label = { book: 'Neues Book', area: 'Neuer Bereich', section: 'Neuer Abschnitt' }[kind];
+    const title = await this._ask(label, 'Name');
+    if (!title) return;
+    const res = await this.app.api.createNotebookNode(kind, title, parentId || null);
+    if (bad(res)) { this.app.showToast(res?.message || 'Das ging nicht.', 'error'); return; }
+    const pre = this.active === 'right' ? 'r' : '';
+    if (parentId) { this.open.add(`${pre}n:${parentId}`); this._saveOpen(); }
+    await this.refresh();
+    const i = this.rows[this.active].findIndex((r) => r.id === res.id);
+    if (i >= 0) this._setCursor(this.active, i);
+  }
+
+  async _nbRename() {
+    const r = this.rows[this.active][this.cursor[this.active]];
+    if (!r || r.kind === 'unsorted' || r.kind === 'mirror') return;
+    const own = r.kind !== 'topic' || (this.nb?.topics || []).some((t) => t.id === r.id);
+    if (!own) { this.app.showToast('Erworbene Lernthemen lassen sich nicht umbenennen.', 'info'); return; }
+    const title = await this._ask('Umbenennen', 'Name', r.title);
+    if (!title || title === r.title) return;
+    await this._after(r.kind === 'topic' ? await this.app.api.saveTopic({ id: r.id, title }, true) : await this.app.api.updateNotebookNode(r.id, { title }));
+  }
+
+  async _nbRemove() {
+    const sel = this._selection(this.active).filter((r) => r.kind === 'book' || r.kind === 'area' || r.kind === 'section');
+    if (!sel.length) { this.app.showToast('Lernthemen löschst du im Notizbuch (⋯ → Löschen). Hier lassen sich nur Books, Bereiche und Abschnitte entfernen.', 'info'); return; }
+    const what = sel.length === 1 ? `„${sel[0].title}“` : `${sel.length} Ordner`;
+    if (!(await appConfirm(`${what} löschen?\n\nEs wird kein Lernthema gelöscht: Was darin liegt, rückt eine Ebene höher (aus einem Book nach „Unsortiert“).`))) return;
+    for (const r of sel) {
+      const res = await this.app.api.deleteNotebookNode(r.id);
+      if (bad(res) && !/nicht gefunden/.test(res?.message || '')) { this.app.showToast(res?.message || 'Das ging nicht.', 'error'); break; }
+    }
+    this.marked[this.active].clear();
+    await this.refresh();
+  }
+
+  async _nbNudge(dir) {
+    const pane = this.active;
+    const r = this.rows[pane][this.cursor[pane]];
+    if (!r || r.kind === 'unsorted') return;
+    const isNode = r.kind === 'book' || r.kind === 'area' || r.kind === 'section';
+    const parentId = isNode ? r.parentId ?? null : r.nodeId ?? null;
+    const siblings = isNode
+      ? (this.nb.nodes || []).filter((n) => (n.parentId ?? null) === parentId).sort((a, b) => a.orderIndex - b.orderIndex).map((n) => n.id)
+      : (this.nb.placements || []).filter((p) => (p.nodeId ?? null) === parentId).sort((a, b) => a.orderIndex - b.orderIndex).map((p) => p.topicId);
+    const pos = siblings.indexOf(r.id);
+    const index = pos + dir;
+    if (pos < 0 || index < 0 || index >= siblings.length) return;
+    if (await this._after(await this.app.api.moveInNotebook(isNode ? 'node' : 'topic', r.id, parentId, index))) {
+      const i = this.rows[pane].findIndex((x) => x.key === r.key);
+      if (i >= 0) this._setCursor(pane, i);
+    }
+  }
+
+  /** F3: Lernthema in der Vorschau des Notizbuchs öffnen. */
+  async _nbOpen() {
+    const r = this.rows[this.active][this.cursor[this.active]];
+    if (r?.kind !== 'topic') return;
+    this.app.navigateToView('teacher-notebooks');
+  }
+
   _menu(x, y) {
     const pane = this.active;
-    const items = pane === 'left'
+    const items = this._nbMode()
+      ? [['F5', '📋 Kopie in die andere Spalte …', () => this._nbTransfer(true)], ['F6', '➡ In die andere Spalte verschieben', () => this._nbTransfer(false)],
+        ['F2', '✏️ Umbenennen', () => this._nbRename()], ['F3', '📓 Im Notizbuch zeigen', () => this._nbOpen()],
+        ['F7', '➕ Neuer Bereich', () => this._nbCreate('area')], ['⇧F7', '➕ Neuer Abschnitt', () => this._nbCreate('section')], ['F8', '🗑 Bereich löschen', () => this._nbRemove()]]
+      : pane === 'left'
       ? [['F5', this._classMode() ? '➡ Ins Klassennotizbuch zuweisen' : '➡ Als Verweis in den Plan', () => this._copyRight()]]
       : this._classMode()
       ? [['F2', '✏️ Umbenennen', () => this._rename()], ['F3', '📒 Klassennotizbuch öffnen', () => this._viewPlan()],
@@ -894,7 +1051,7 @@ export class PlanningView {
       e.dataTransfer.setData('text/plain', 'plan');
     });
     this.root.addEventListener('dragover', (e) => {
-      const row = e.target.closest('.pl-pane[data-pane="right"] .pl-row');
+      const row = e.target.closest(this._nbMode() ? '.pl-row' : '.pl-pane[data-pane="right"] .pl-row');
       if (!from || !row) return;
       e.preventDefault();
       this.root.querySelectorAll('.pl-row.drop').forEach((r) => r.classList.remove('drop'));
@@ -902,12 +1059,17 @@ export class PlanningView {
     });
     this.root.addEventListener('dragend', () => { from = null; this.root.querySelectorAll('.pl-row.drop').forEach((r) => r.classList.remove('drop')); });
     this.root.addEventListener('drop', async (e) => {
-      const row = e.target.closest('.pl-pane[data-pane="right"] .pl-row');
+      const row = e.target.closest(this._nbMode() ? '.pl-row' : '.pl-pane[data-pane="right"] .pl-row');
       if (!from || !row) return;
       e.preventDefault();
       const src = from;
       from = null;
       const i = Number(row.dataset.i);
+      if (this._nbMode()) {
+        // Ziehen verschiebt (wie F6), auch innerhalb einer Spalte.
+        await this._nbTransfer(false, src, this._nbTargetOf(this.rows[row.dataset.pane][i]));
+        return;
+      }
       if (src === 'left') {
         this.cursor.right = i;
         await this._copyRight();

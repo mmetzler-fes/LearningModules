@@ -83,6 +83,9 @@ export class NotebooksView {
       this._saveOpen();
       await this.refresh();
     };
+    document.getElementById('btnNotebookStructure')?.addEventListener('click', () => {
+      void import('./structure-import.js').then((m) => m.openStructureImport(this.app, { where: 'notebook', onDone: () => this.refresh() }));
+    });
     document.getElementById('btnNotebookOpenFile')?.addEventListener('click', () => {
       const input = document.createElement('input');
       input.type = 'file';

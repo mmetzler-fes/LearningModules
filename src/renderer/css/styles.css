@@ -6089,3 +6089,11 @@ details.cb-topic > summary .hint { font-weight: normal; margin-left: 6px; }
 .nc-restore-row { display: block; width: 100%; text-align: left; border: none; background: none; padding: 4px 8px; font: inherit; color: var(--text-primary); cursor: pointer; }
 .nc-restore-row:hover { background: var(--bg-primary); }
 .nc-restore-row.is-selected { background: var(--accent-light); font-weight: 600; }
+.si-card { max-width: 720px; width: min(720px, 94vw); max-height: 90vh; overflow: auto; }
+.si-group { border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 6px 10px; margin: 8px 0; display: flex; flex-wrap: wrap; gap: 6px 16px; align-items: center; }
+.si-group legend { font-weight: 600; padding: 0 4px; }
+.si-target { flex: 1 1 100%; font: inherit; }
+.si-text { width: 100%; font-family: monospace; }
+.si-out { max-height: 40vh; overflow: auto; border-top: 1px solid var(--border); margin-top: 6px; padding-top: 6px; }
+.si-preview, .si-preview ul { list-style: none; padding-left: 18px; margin: 2px 0; }
+.si-preview { padding-left: 0; }

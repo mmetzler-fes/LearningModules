@@ -247,6 +247,10 @@ einen gleichnamigen Tag gibt.
 oder einzelne Abschnitte (`.one`) als neues Book – je Seite mit Anlagen ein
 Modul 📎 Anhang, siehe [OneNote übernehmen](onenote-import.md).
 
+**🧱 Struktur importieren** legt Books, Bereiche und Abschnitte aus einer Tabelle (.ods, .xlsx, .csv),
+einer Ordnerstruktur oder einer eingefügten Gliederung an – nur Ordner, keine Inhalte, siehe
+[Planung](planung.md#struktur-importieren).
+
 **📂 Datei öffnen** (oder Dateien auf die Seite ziehen) zeigt eine Datei an und
 legt sie mit **📓 Im Notizbuch ablegen…** als Dokument in ein Lernthema:
 `.zlm` aus dem lm-editor (mit eingebetteten Quizzen und Beschriftung),

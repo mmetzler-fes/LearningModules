@@ -8,6 +8,7 @@ import { NotebookPlacement } from '../core/entities/notebook-placement.entity';
 import { LearningTopic } from '../core/entities/learning-topic.entity';
 import { LearningModule } from '../core/entities/learning-module.entity';
 import { DocumentInk } from '../core/entities/document-ink.entity';
+import { ZlmContent } from './zlm-read';
 import { HtmlAppFile } from '../core/entities/html-app-file.entity';
 import { NextcloudService } from '../nextcloud/nextcloud.service';
 import { NextcloudBackupService } from '../nextcloud/nextcloud-backup.service';
@@ -325,5 +326,160 @@ export class SicherungService implements OnModuleInit {
       n++;
     }
     return n;
+  }
+
+  // ---- Wiederherstellen ----
+
+  /** Ordner der Sicherung (ohne _Gesichert): `{ name, path, topic, children }` – Lernthemen erkennt man an _lernthema.json. */
+  async tree(user: any) {
+    const { nc } = await this.nextcloud.connection(user.userId);
+    let budget = 3000;
+    const walk = async (path: string[], depth: number): Promise<any[]> => {
+      if (depth > 12 || budget <= 0) return [];
+      const entries = await nc.list([SICHERUNG, ...path]).catch(() => []);
+      budget -= entries.length;
+      const out: any[] = [];
+      for (const e of entries.filter((x: any) => x.isFolder && x.name !== SAVED).sort((a: any, b: any) => a.name.localeCompare(b.name, 'de'))) {
+        const sub = [...path, e.name];
+        const inner = await nc.list([SICHERUNG, ...sub]).catch(() => []);
+        const topic = inner.some((x: any) => !x.isFolder && x.name === TOPIC_META);
+        out.push({ name: e.name, path: sub, topic, files: topic ? inner.filter((x: any) => !x.isFolder && x.name !== TOPIC_META).length : 0, children: topic ? [] : await walk(sub, depth + 1) });
+      }
+      return out;
+    };
+    return { folders: await walk([], 0) };
+  }
+
+  /**
+   * Einen Ordner der Sicherung als neues Book „Aus der Nextcloud (Datum)“
+   * wiederherstellen: Unterordner werden Bereiche, Ordner mit _lernthema.json
+   * Lernthemen, .zlm-Dateien Module (neue Kennungen, Quiz-Verweise in
+   * Dokumenten angepasst), Anhänge werden neu hochgeladen. Vorhandenes bleibt unberührt.
+   */
+  async restore(user: any, rawPath: unknown) {
+    const userId = user.userId;
+    const path = Array.isArray(rawPath) ? rawPath.map(String) : [];
+    if (path.some((p) => !p || p === '..' || p === '.' || p.includes('/') || p.includes('\\')) || path[0] === SAVED) throw new BadRequestException('Ungültiger Ordner.');
+    const { nc } = await this.nextcloud.connection(userId);
+    const st = await nc.stat([SICHERUNG, ...path]);
+    if (!st?.isFolder) throw new NotFoundException('Ordner nicht gefunden.');
+    const today = new Date().toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    const books = await this.nodeRepo.find({ where: { ownerId: userId, parentId: IsNull() } });
+    const book = await this.nodeRepo.save(this.nodeRepo.create({
+      id: crypto.randomUUID(), ownerId: userId, kind: 'book', title: `Aus der Nextcloud (${today})`, parentId: null, orderIndex: books.length, tagIds: [],
+    } as any)) as unknown as NotebookNode;
+    const ctx = { userId, nc, idMap: new Map<string, string>(), docs: [] as Array<{ z: ZlmContent; topicId: string; order: number; selected: boolean; newId: string }>, topics: 0, modules: 0, errors: [] as string[] };
+    const isTopic = async (p: string[]) => !!(await nc.stat([SICHERUNG, ...p, TOPIC_META]));
+    if (await isTopic(path)) await this.restoreTopic(ctx, path, book.id, 0);
+    else await this.restoreFolder(ctx, path, book.id, 1, isTopic);
+    // Dokumente zuletzt: Ihre Quiz-Verweise zeigen dann auf die neuen Module.
+    for (const d of ctx.docs) await this.restoreDocument(ctx, d).catch((e) => ctx.errors.push(`${d.z.manifest.title}: ${e?.message || e}`));
+    docChanged(userId);
+    return { bookId: book.id, title: book.title, topics: ctx.topics, modules: ctx.modules, errors: ctx.errors.slice(0, 30) };
+  }
+
+  private async restoreFolder(ctx: any, path: string[], nodeId: string, depth: number, isTopic: (p: string[]) => Promise<boolean>) {
+    const entries = (await ctx.nc.list([SICHERUNG, ...path]).catch(() => [])).filter((e: any) => e.isFolder && e.name !== SAVED).sort((a: any, b: any) => a.name.localeCompare(b.name, 'de'));
+    let order = 0;
+    for (const e of entries) {
+      const sub = [...path, e.name];
+      if (await isTopic(sub)) { await this.restoreTopic(ctx, sub, nodeId, order++); continue; }
+      // Tiefer als das Notizbuch erlaubt: Inhalt kommt in den letzten möglichen Bereich.
+      let target = nodeId;
+      if (depth < 7) {
+        const area = await this.nodeRepo.save(this.nodeRepo.create({ id: crypto.randomUUID(), ownerId: ctx.userId, kind: 'area', title: e.name, parentId: nodeId, orderIndex: order++, tagIds: [] } as any)) as unknown as NotebookNode;
+        target = area.id;
+      }
+      await this.restoreFolder(ctx, sub, target, depth + 1, isTopic);
+    }
+  }
+
+  private async restoreTopic(ctx: any, path: string[], nodeId: string, order: number) {
+    const metaFile = await ctx.nc.get([SICHERUNG, ...path, TOPIC_META]);
+    let meta: any = {};
+    try { meta = JSON.parse(metaFile?.data.toString('utf-8') || '{}'); } catch { ctx.errors.push(`${path.join('/')}: _lernthema.json ist kein gültiges JSON.`); }
+    const topic = await this.topicRepo.save(this.topicRepo.create({
+      id: crypto.randomUUID(), ownerId: ctx.userId, title: String(meta.title || path[path.length - 1]).slice(0, 300), description: String(meta.description || ''), selected: false,
+    } as any)) as unknown as LearningTopic;
+    await this.placeRepo.save(this.placeRepo.create({ id: crypto.randomUUID(), ownerId: ctx.userId, topicId: topic.id, nodeId, orderIndex: order, inheritedTagIds: [] } as any));
+    ctx.topics++;
+    const names = new Set((await ctx.nc.list([SICHERUNG, ...path]).catch(() => [])).filter((e: any) => !e.isFolder).map((e: any) => e.name));
+    const listed: any[] = Array.isArray(meta.modules) ? meta.modules : [];
+    const known = new Set(listed.flatMap((m) => [m.file, ...(m.files || [])]).filter(Boolean));
+    // Dateien, die _lernthema.json nicht kennt (z. B. draußen dazugelegt), kommen hinten dazu.
+    for (const n of [...names].sort()) if (/\.zlm$/i.test(n as string) && !known.has(n)) listed.push({ file: n, selected: true });
+    for (const [i, m] of listed.entries()) {
+      try {
+        if (m.type === 'attachment' || Array.isArray(m.files)) await this.restoreAttachment(ctx, path, topic, m, i);
+        else if (m.file && names.has(m.file)) await this.restoreZlm(ctx, path, topic, m, i);
+      } catch (e: any) {
+        ctx.errors.push(`${topic.title} / ${m.title || m.file}: ${e?.message || e}`);
+      }
+    }
+  }
+
+  private async restoreAttachment(ctx: any, path: string[], topic: LearningTopic, m: any, order: number) {
+    const files: any[] = [];
+    for (const name of m.files || []) {
+      const got = await ctx.nc.get([SICHERUNG, ...path, name]);
+      if (!got) continue;
+      // „03 Material – Tabelle.pdf“ → „Tabelle.pdf“
+      const original = String(name).replace(/^\d+ .*? – /, '');
+      const res: any = await this.nextcloud.uploadAttachment({ userId: ctx.userId }, topic.id, { originalname: Buffer.from(original, 'utf-8').toString('latin1'), mimetype: got.type, buffer: got.data, size: got.data.length });
+      files.push({ name: original, url: res.url, size: res.size, type: res.type });
+    }
+    await this.saveModule(ctx, topic.id, { type: 'attachment', title: m.title || 'Anhang', content: { files } }, order, m.selected !== false);
+  }
+
+  private async restoreZlm(ctx: any, path: string[], topic: LearningTopic, m: any, order: number) {
+    const got = await ctx.nc.get([SICHERUNG, ...path, m.file]);
+    if (!got) return;
+    const z = readZlmBuffer(got.data);
+    if (z.manifest.kind !== 'module') {
+      ctx.docs.push({ z, topicId: topic.id, order, selected: m.selected !== false, newId: crypto.randomUUID() });
+      return;
+    }
+    const main = z.modules[z.manifest.module!];
+    const mainId = crypto.randomUUID();
+    ctx.idMap.set(String(main.id), mainId);
+    await this.saveModule(ctx, topic.id, { ...main, id: mainId, content: await this.appContent(ctx.userId, main.content, z) }, order, m.selected !== false);
+    for (const k of Object.values(z.modules) as any[]) {
+      if (!k?.id || k.id === main.id) continue;
+      const id = crypto.randomUUID();
+      ctx.idMap.set(String(k.id), id);
+      await this.saveModule(ctx, topic.id, { ...k, id, parentId: ctx.idMap.get(String(k.parentId)) || mainId }, 0, true);
+    }
+  }
+
+  private async restoreDocument(ctx: any, d: { z: ZlmContent; topicId: string; order: number; selected: boolean; newId: string }) {
+    const { z } = d;
+    // Eingebettete Quizze, die nicht schon als eigene .zlm kamen: als Module in dieses Lernthema.
+    for (const q of Object.values(z.modules) as any[]) {
+      if (!q?.id || ctx.idMap.has(String(q.id))) continue;
+      ctx.idMap.set(String(q.id), crypto.randomUUID());
+    }
+    for (const q of Object.values(z.modules) as any[]) {
+      if (!q?.id || (await this.moduleRepo.findOne({ where: { id: ctx.idMap.get(String(q.id)) } }))) continue;
+      await this.saveModule(ctx, d.topicId, { ...q, id: ctx.idMap.get(String(q.id)), parentId: q.parentId ? ctx.idMap.get(String(q.parentId)) || null : null, content: await this.appContent(ctx.userId, q.content, z) }, 999, true);
+    }
+    const relink = (v: any): any => {
+      if (Array.isArray(v)) return v.map(relink);
+      if (!v || typeof v !== 'object') return v;
+      const o: any = Object.fromEntries(Object.entries(v).map(([k, x]) => [k, relink(x)]));
+      if (o.type === 'quiz' && ctx.idMap.has(String(o.module))) o.module = ctx.idMap.get(String(o.module));
+      return o;
+    };
+    const kind = z.manifest.kind === 'exam' ? 'klassenarbeit' : z.manifest.kind === 'text' ? 'text' : 'arbeitsblatt';
+    await this.saveModule(ctx, d.topicId, { id: d.newId, type: 'document', title: z.manifest.title || 'Dokument', content: { kind, spec: relink(inlineMedia(z.spec, z.media)) } }, d.order, d.selected);
+    const stand = inkStandOf(z.layers.teacher || null);
+    if (stand) await this.inkRepo.save(this.inkRepo.create({ id: d.newId, ownerId: ctx.userId, visibility: 'teacher', data: stand } as any));
+  }
+
+  private async saveModule(ctx: any, topicId: string, m: any, order: number, selected: boolean) {
+    await this.moduleRepo.save(this.moduleRepo.create({
+      id: m.id || crypto.randomUUID(), topicId, parentId: m.parentId || null, type: String(m.type), title: String(m.title || '').slice(0, 300), description: m.description || '',
+      content: m.content || {}, creatorId: ctx.userId, orderIndex: order, moduleSelected: selected,
+    } as any));
+    ctx.modules++;
   }
 }

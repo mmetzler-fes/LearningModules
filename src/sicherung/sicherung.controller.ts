@@ -27,4 +27,17 @@ export class SicherungController {
   discard(@Request() req: any, @Body() body: { key?: string }) {
     return this.sicherung.discard(req.user, String(body?.key || ''));
   }
+
+  /** Ordner der Sicherung zum Wiederherstellen. */
+  @Get('tree')
+  tree(@Request() req: any) {
+    return this.sicherung.tree(req.user);
+  }
+
+  /** `{ path: string[] }` – Ordner als neues Book „Aus der Nextcloud (Datum)“. */
+  @Post('restore')
+  @HttpCode(200)
+  restore(@Request() req: any, @Body() body: { path?: string[] }) {
+    return this.sicherung.restore(req.user, body?.path);
+  }
 }

@@ -54,9 +54,11 @@ function setup() {
   const nextcloud: any = {
     connection: async () => ({ l: links.rows[0], nc }),
     readImageByUrl: async () => ({ type: 'application/pdf', data: Buffer.from('PDF') }),
+    uploadAttachment: async (_u: any, topicId: string, f: any) => ({ url: `https://x/api/nextcloud/files/neu/${topicId}/${f.originalname}`, size: f.size, type: f.mimetype }),
   };
-  const svc = new SicherungService(links as any, nodes as any, places as any, topics as any, modules as any, repo() as any, repo() as any, nextcloud, { setRunner() {} } as any);
-  return { svc, nc, modules, links };
+  const inks = repo();
+  const svc = new SicherungService(links as any, nodes as any, places as any, topics as any, modules as any, inks as any, repo() as any, nextcloud, { setRunner() {} } as any);
+  return { svc, nc, modules, links, nodes, places, topics, inks };
 }
 
 describe('Sicherung: Dienst', () => {
@@ -118,5 +120,29 @@ describe('Sicherung: Dienst', () => {
     await svc.discard({ userId: 'u1' }, 'mod:doc1');
     expect(nc.files.get(path)!.data.toString()).not.toBe('kaputt');
     expect([...nc.files.entries()].some(([p, f]) => p.startsWith('Sicherung/_Gesichert/') && f.data.toString() === 'kaputt')).toBe(true);
+  });
+
+  it('Wiederherstellen: neues Book mit Lernthema, neue Kennungen, Quiz-Verweis angepasst, Anhang neu hochgeladen', async () => {
+    const { svc, nc, modules, nodes, places, topics } = setup();
+    await svc.run('u1');
+    const tree = await svc.tree({ userId: 'u1' });
+    expect(tree.folders.map((f: any) => [f.name, f.topic])).toEqual([['Elektrotechnik', false], ['Unsortiert', false]]);
+    expect(tree.folders[0].children[0]).toMatchObject({ name: 'Ohmsches Gesetz', topic: true });
+    const res = await svc.restore({ userId: 'u1' }, ['Elektrotechnik']);
+    expect(res).toMatchObject({ topics: 1, errors: [] });
+    const book = nodes.rows.find((n) => n.id === res.bookId);
+    expect(book).toMatchObject({ kind: 'book', parentId: null });
+    expect(book.title).toMatch(/^Aus der Nextcloud \(/);
+    const topic = topics.rows.find((t) => t.title === 'Ohmsches Gesetz' && t.id !== 't1');
+    expect(places.rows.find((p) => p.topicId === topic.id)?.nodeId).toBe(book.id);
+    const mine = modules.rows.filter((m) => m.topicId === topic.id).sort((a, b) => a.orderIndex - b.orderIndex);
+    expect(mine.map((m) => m.type)).toEqual(['document', 'multipleChoice', 'attachment']);
+    const quiz = mine.find((m) => m.type === 'multipleChoice');
+    expect(quiz.id).not.toBe('q1');
+    expect(mine[0].content.spec.content[0]).toMatchObject({ type: 'quiz', module: quiz.id });
+    expect(mine[2].content.files[0]).toMatchObject({ name: 'Tabelle.pdf' });
+    // Das Original bleibt unberührt.
+    expect(modules.rows.find((m) => m.id === 'q1').topicId).toBe('t1');
+    expect(() => svc.restore({ userId: 'u1' }, ['..'])).rejects.toThrow(/Ungültig/);
   });
 });

@@ -157,6 +157,7 @@ function backupHtml(b, open = false) {
         <label class="share-flag"><input type="checkbox" id="ncBackupOn" ${b.enabled ? 'checked' : ''} /> <span>Täglich sichern um</span></label>
         <select id="ncBackupHour">${hours}</select>
         <button class="btn btn-secondary nc-backup-run">⬆ Jetzt sichern</button>
+        <button class="btn btn-secondary nc-restore" title="Einen Ordner aus Sicherung als neues Book ins Notizbuch holen – Vorhandenes bleibt, wie es ist">♻️ Wiederherstellen …</button>
       </div>
       ${last ? `<p class="hint">${last}</p>` : ''}
       <p class="nc-backup-message hint"></p>
@@ -371,6 +372,50 @@ function imageCheckHtml(c, school = false) {
 
 // ---------- Einstellungen (☰ Menü) ----------
 
+/** ♻️ Ordner der Sicherung wählen und als neues Book „Aus der Nextcloud (Datum)“ wiederherstellen. */
+async function restoreDialog(app) {
+  const overlay = document.createElement('div');
+  overlay.className = 'confirm-overlay';
+  overlay.innerHTML = '<div class="import-modules-card" style="max-width:640px"><h3>♻️ Aus der Sicherung wiederherstellen</h3><p class="hint">Ordner werden gelesen …</p></div>';
+  document.body.appendChild(overlay);
+  const card = overlay.firstElementChild;
+  const close = () => overlay.remove();
+  const res = await app.api.getSicherungTree();
+  if (!res || res.statusCode >= 400) { card.innerHTML += `<p class="login-error">❌ ${escapeHtml(res?.message || 'Sicherung nicht lesbar')}</p><div class="confirm-actions"><button class="btn btn-secondary">Schließen</button></div>`; card.querySelector('.btn').addEventListener('click', close); return; }
+  const rows = [];
+  const walk = (list, depth) => { for (const f of list) { rows.push({ ...f, depth }); walk(f.children || [], depth + 1); } };
+  walk(res.folders || [], 0);
+  let chosen = null;
+  card.innerHTML = `<h3>♻️ Aus der Sicherung wiederherstellen</h3>
+    <p class="hint">Wähle einen Ordner aus <code>Sicherung</code> – ein Book, einen Bereich oder ein Lernthema. Er kommt als <strong>neues Book
+      „Aus der Nextcloud (Datum)“</strong> ins Notizbuch, mit neuen Kennungen. Vorhandenes bleibt, wie es ist; Doppeltes räumst du danach selbst auf.</p>
+    ${rows.length ? `<ul class="nc-restore-list">${rows.map((r, i) => `<li><button type="button" class="nc-restore-row" data-i="${i}" style="padding-left:${0.4 + r.depth * 1.2}rem">${r.topic ? '📘' : '📂'} ${escapeHtml(r.name)}${r.topic ? ` <span class="hint">(${r.files} Datei${r.files === 1 ? '' : 'en'})</span>` : ''}</button></li>`).join('')}</ul>`
+      : '<p class="hint">In der Sicherung liegt noch nichts – zuerst „⬆ Jetzt sichern“.</p>'}
+    <p class="nc-restore-msg hint"></p>
+    <div class="confirm-actions"><button class="btn btn-primary nc-restore-go" disabled>♻️ Wiederherstellen</button><button class="btn btn-secondary nc-restore-close">Schließen</button></div>`;
+  card.querySelector('.nc-restore-close').addEventListener('click', close);
+  const go = card.querySelector('.nc-restore-go');
+  card.querySelectorAll('.nc-restore-row').forEach((b) => b.addEventListener('click', () => {
+    card.querySelectorAll('.nc-restore-row').forEach((x) => x.classList.toggle('is-selected', x === b));
+    chosen = rows[Number(b.dataset.i)];
+    go.disabled = false;
+    go.textContent = `♻️ „${chosen.name}“ wiederherstellen`;
+  }));
+  go.addEventListener('click', async () => {
+    if (!chosen) return;
+    go.disabled = true;
+    go.textContent = '⏳ Wird wiederhergestellt …';
+    const out = await app.api.restoreSicherung(chosen.path);
+    const msg = card.querySelector('.nc-restore-msg');
+    if (!out || out.statusCode >= 400) { msg.className = 'login-error nc-restore-msg'; msg.textContent = `❌ ${out?.message || 'Wiederherstellen fehlgeschlagen'}`; go.disabled = false; go.textContent = '♻️ Wiederherstellen'; return; }
+    msg.className = 'hint nc-restore-msg';
+    msg.innerHTML = `✅ Book <strong>${escapeHtml(out.title)}</strong>: ${out.topics} Lernthem${out.topics === 1 ? 'a' : 'en'}, ${out.modules} Module.`
+      + (out.errors?.length ? `<br>⚠️ Nicht wiederhergestellt: ${out.errors.map(escapeHtml).join('; ')}` : '');
+    go.textContent = '✅ Fertig';
+    void app.notebooksView?.refresh?.();
+  });
+}
+
 export async function openNextcloudDialog(app) {
   const overlay = document.createElement('div');
   overlay.className = 'confirm-overlay';
@@ -535,6 +580,7 @@ export async function openNextcloudDialog(app) {
       if (res?.success) await render(null, { text: `✅ Gesichert: ${backupSummary(res)}.` });
       else { btn.disabled = false; btn.textContent = '⬆ Jetzt sichern'; sayBackup({ error: true, text: `❌ ${res?.message || 'Backup fehlgeschlagen'}` }); }
     });
+    $('.nc-restore')?.addEventListener('click', () => restoreDialog(app));
     const openMove = () => { const d = $('.nc-move'); if (d) { d.open = true; d.scrollIntoView({ behavior: 'smooth', block: 'center' }); $('#ncMoveShare')?.focus(); } };
     $('.nc-disconnect')?.addEventListener('click', () => {
       if (!own) {

@@ -771,6 +771,8 @@ export class BrowserApi {
   // Sicherung in die Nextcloud (src/sicherung): draußen geänderte .zlm
   getSicherungChanged() { return this._fetch('/api/nextcloud/sicherung/changed'); }
   takeOverSicherung(key) { return this._fetch('/api/nextcloud/sicherung/take-over', { method: 'POST', body: JSON.stringify({ key }) }); }
+  getSicherungTree() { return this._fetch('/api/nextcloud/sicherung/tree'); }
+  restoreSicherung(path) { return this._fetch('/api/nextcloud/sicherung/restore', { method: 'POST', body: JSON.stringify({ path }) }); }
   discardSicherung(key) { return this._fetch('/api/nextcloud/sicherung/discard', { method: 'POST', body: JSON.stringify({ key }) }); }
   /** HTML-App hochladen → `{ fileId, manifest, size, sha }` (geprüft wie im Editor). */
   uploadHtmlApp(html) { return this._fetch('/api/html-apps', { method: 'POST', body: JSON.stringify({ html }) }); }

@@ -6085,3 +6085,7 @@ details.cb-topic > summary .hint { font-weight: normal; margin-left: 6px; }
 .nb-sich-list { list-style: none; padding: 0; margin: 8px 0; max-height: 55vh; overflow: auto; }
 .nb-sich-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 6px 0; border-bottom: 1px solid var(--border); }
 .nb-sich-actions { display: flex; gap: 6px; flex: none; }
+.nc-restore-list { list-style: none; padding: 0; margin: 8px 0; max-height: 50vh; overflow: auto; border: 1px solid var(--border); border-radius: var(--radius-sm); }
+.nc-restore-row { display: block; width: 100%; text-align: left; border: none; background: none; padding: 4px 8px; font: inherit; color: var(--text-primary); cursor: pointer; }
+.nc-restore-row:hover { background: var(--bg-primary); }
+.nc-restore-row.is-selected { background: var(--accent-light); font-weight: 600; }

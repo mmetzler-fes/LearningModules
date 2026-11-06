@@ -150,6 +150,10 @@ content:
   - type: table                 # Bild neben dem Text der Zelle statt darunter
     rows:
       - [{text: Schließer, beside: true, images: [{file: schliesser.svg, width: 0.6cm}]}, betätigt, "1"]
+  - type: table                 # Kopfspalte: erste Spalte wie die Kopfzeile
+    headerColumn: true
+    rows:
+      - [Spannung, U, V]
   - type: table                 # Abbildungen nebeneinander: ohne Linien, zentriert
     border: false
     rows:

@@ -171,7 +171,40 @@ export function markFixedTables(root) {
     const cols = [...table.children].filter((c) => c.tagName === 'COLGROUP').flatMap((c) => [...c.children]);
     const fixed = g.cols > 0 && cols.length >= g.cols && cols.slice(0, g.cols).every((c) => !!c.style.width);
     if (table.classList.contains('ds-table-fixed') !== fixed) table.classList.toggle('ds-table-fixed', fixed);
+    // Kopfspalte: die Zelle in Spalte 0 jeder Zeile im Tabellenkörper (auch nach Einfügen/Löschen von Spalten).
+    const head = !!table.dataset.headerCol;
+    g.rows.forEach((tr, r) => {
+      const first = head && tr.parentNode?.tagName !== 'THEAD' ? g.map[r]?.[0] : null;
+      for (const td of cellsOf(tr)) {
+        const on = td === first && g.start.get(td)?.r === r;
+        if (td.classList.contains('ds-hcol') !== on) td.classList.toggle('ds-hcol', on);
+        if (!td.getAttribute('class')) td.removeAttribute('class');
+      }
+    });
   }
+}
+
+/** Erste Spalte als Kopf ein- oder ausschalten (data-header-col; docspec-html.js liest es als headerColumn). */
+function toggleHeaderColumn(table) {
+  if (table.dataset.headerCol) delete table.dataset.headerCol; else table.dataset.headerCol = '1';
+  markFixedTables(table.parentNode || table);
+}
+
+/** Spalten, über die die Textmarkierung in `table` reicht ({ left, right }, rechts ausschließlich) – null bei weniger als zwei. */
+function selectedColumns(table) {
+  const sel = document.getSelection();
+  if (!sel || sel.isCollapsed) return null;
+  const cellOf = (n) => (n?.nodeType === 3 ? n.parentNode : n)?.closest?.('td, th');
+  const a = cellOf(sel.anchorNode);
+  const b = cellOf(sel.focusNode);
+  if (!a || !b || a.closest('table') !== table || b.closest('table') !== table) return null;
+  const g = grid(table);
+  const pa = g.start.get(a);
+  const pb = g.start.get(b);
+  if (!pa || !pb) return null;
+  const left = Math.min(pa.c, pb.c);
+  const right = Math.max(pa.c + spanOf(a, 'colspan'), pb.c + spanOf(b, 'colspan'));
+  return right - left >= 2 ? { left, right } : null;
 }
 
 function setRowHeight(tr, cm) {
@@ -701,12 +734,24 @@ export function attachTableTools(surface, bar, { copyObject = null } = {}) {
   };
 
   /** Zeilen bzw. Spalten gleich hoch / breit wie im Mittel. */
-  const distribute = (table, what) => {
+  const distribute = (table, what, span = null) => {
     const g = grid(table);
     if (what === 'rows') {
       const h = g.rows.reduce((n, tr) => n + tr.getBoundingClientRect().height, 0) / g.rows.length;
       const cm = Math.max(0.4, Math.round((h / PX_PER_CM) * 10) / 10);
       g.rows.forEach((tr) => setRowHeight(tr, cm));
+    } else if (span) {
+      // Markierte Spalten teilen sich ihre gemeinsame Breite (fest oder wie gezeichnet) gleichmäßig.
+      const cols = [...table.children].filter((c) => c.tagName === 'COLGROUP').flatMap((c) => [...c.children]);
+      const cmOf = (c) => {
+        const w = cols[c]?.style.width || '';
+        if (/cm$/.test(w)) return parseFloat(w);
+        if (/mm$/.test(w)) return parseFloat(w) / 10;
+        return columnPx(g, c) / PX_PER_CM || 2;
+      };
+      let total = 0;
+      for (let c = span.left; c < span.right; c++) total += cmOf(c);
+      equalWidths(span.right - span.left, total).forEach((w, i) => setColumnWidth(table, span.left + i, parseFloat(w)));
     } else {
       // Gleich breite Spalten über die Breite der Tabelle (Tabelleneigenschaften), sonst die Satzbreite –
       // nicht gemessen: Leere Spalten sind am Bildschirm schmal und gäben schmale Spalten.
@@ -778,7 +823,8 @@ export function attachTableTools(surface, bar, { copyObject = null } = {}) {
         ...(td.querySelector('img') ? [{ label: check(td.classList.contains('ws-cell-beside'), 'Bild neben Text'), onClick: () => { td.classList.toggle('ws-cell-beside'); cell = td; show(); } }] : []),
       ] },
       { label: '▤ Tabelle', submenu: [
-        { label: check([...table.children].some((c) => c.tagName === 'THEAD'), 'Kopfzeile'), onClick: () => { cell = td; toggleHeader(table); focusCell(td.isConnected ? td : null); } },
+        { label: check([...table.children].some((c) => c.tagName === 'THEAD'), 'Kopfzeile'), onClick: () => { cell = td; toggleHeader(table); markFixedTables(table.parentNode || table); focusCell(td.isConnected ? td : null); } },
+        { label: check(!!table.dataset.headerCol, 'Kopfspalte'), title: 'Erste Spalte als Kopf – fett und hinterlegt, wie die Kopfzeile', onClick: () => { cell = td; toggleHeaderColumn(table); focusCell(td.isConnected ? td : null); } },
         { label: 'Linien', submenu: [
           ...LINE_WIDTHS.map(([v, l]) => ({ label: check(lw === v, l), onClick: setL({ width: v }) })),
           '-',
@@ -787,7 +833,13 @@ export function attachTableTools(surface, bar, { copyObject = null } = {}) {
           { label: 'Farbe', submenu: LINE_COLOR_NAMES.map(([v, l]) => ({ label: check(lc === v, l), onClick: setL({ color: v }) })) },
         ] },
         { label: 'Zeilen gleichmäßig verteilen', onClick: () => distribute(table, 'rows') },
-        { label: 'Spalten gleichmäßig verteilen', title: 'Alle Spalten gleich breit über die Breite der Tabelle (sonst die Seitenbreite, 16,5 cm)', onClick: () => distribute(table, 'cols') },
+        ...(() => {
+          // Beim Öffnen des Menüs merken: Der Klick ins Menü hebt die Markierung auf.
+          const span = selectedColumns(table);
+          return span
+            ? [{ label: 'Markierte Spalten gleich breit', title: 'Die markierten Spalten teilen sich ihre gemeinsame Breite gleichmäßig', onClick: () => distribute(table, 'cols', span) }]
+            : [{ label: 'Spalten gleichmäßig verteilen', title: 'Alle Spalten gleich breit über die Breite der Tabelle (sonst die Seitenbreite, 16,5 cm). Zellen über mehrere Spalten markiert: nur diese', onClick: () => distribute(table, 'cols') }];
+        })(),
         { label: '⇔ Spaltenbreiten automatisch', title: 'Keine festen Breiten: Die Tabelle füllt die Zeile, die Spalten richten sich nach dem Inhalt', onClick: () => { [...table.children].filter((c) => c.tagName === 'COLGROUP').forEach((c) => c.remove()); markFixedTables(table.parentNode || table); } },
         '-',
         { label: '⬚ Ganze Tabelle auswählen', onClick: () => { cell = td; selectTable(table); } },

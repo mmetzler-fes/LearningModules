@@ -28,6 +28,7 @@ import { arrangeGroup } from './image-arrange.js';
 import { markPageBreaks } from '../lm-editor/src/doc/page-breaks.js';
 import { lmHost } from './lm-host.js';
 import { pasteAsMarkdown, pasteToEditorHtml } from '../lm-editor/src/doc/paste.js';
+import { askTable } from '../lm-editor/src/editor/block-dialog.js';
 import { specToPm, pmToSpec } from '../lm-editor/src/doc/pm-convert.js';
 import { pmToMarkdown, markdownToPm } from '../lm-editor/src/doc/pm-markdown.js';
 
@@ -87,54 +88,7 @@ export function useInkAllowed(fn) {
 }
 
 /** Neuer Editor auf Tiptap (Freischaltung 'docEditorTiptap', Plan lm-editor 9.4)? */
-/** Tabelle als Baustein: `rows` zählt alle Zeilen, eine Kopfzeile mit. */
-export function tableBlock({ cols, rows, header }) {
-  // Leere Zellen: Bei einer großen Tabelle müsste man sonst überall einen Platzhalter löschen.
-  const row = () => Array.from({ length: cols }, () => '');
-  return {
-    type: 'table',
-    ...(header ? { header: row() } : {}),
-    rows: Array.from({ length: Math.max(1, header ? rows - 1 : rows) }, row),
-  };
-}
-
-const TABLE_MAX = { cols: 20, rows: 100 };
-
-/** Dialog vor dem Einfügen einer Tabelle: Spalten, Zeilen, Kopfzeile. Liefert den Baustein oder `null`. */
-export function askTable() {
-  return new Promise((resolve) => {
-    const overlay = document.createElement('div');
-    overlay.className = 'confirm-overlay';
-    overlay.innerHTML = `<form class="import-modules-card ds-para-dialog" role="dialog" aria-modal="true" aria-label="Tabelle einfügen">
-        <h3>▤ Tabelle einfügen</h3>
-        <div class="ds-para-grid">
-          <label>Spalten<input name="cols" type="number" inputmode="numeric" min="1" max="${TABLE_MAX.cols}" value="3" required></label>
-          <label>Zeilen<input name="rows" type="number" inputmode="numeric" min="1" max="${TABLE_MAX.rows}" value="4" required></label>
-          <label style="grid-column:1 / -1; display:flex; align-items:center; gap:8px;"><input type="checkbox" name="header" checked style="width:auto; margin:0;"> Erste Zeile ist Kopfzeile</label>
-        </div>
-        <div class="confirm-actions">
-          <button type="button" class="btn btn-secondary" data-cancel>Abbrechen</button>
-          <button type="submit" class="btn btn-primary">Einfügen</button>
-        </div></form>`;
-    document.body.appendChild(overlay);
-    const form = overlay.querySelector('form');
-    const done = (value) => {
-      document.removeEventListener('keydown', onKey, true);
-      overlay.remove();
-      resolve(value);
-    };
-    const onKey = (e) => { if (e.key === 'Escape') { e.stopPropagation(); done(null); } };
-    document.addEventListener('keydown', onKey, true);
-    overlay.querySelector('[data-cancel]').addEventListener('click', () => done(null));
-    form.addEventListener('submit', (e) => {
-      e.preventDefault();
-      const cols = Math.min(TABLE_MAX.cols, Math.max(1, Math.round(Number(form.elements.cols.value)) || 1));
-      const rows = Math.min(TABLE_MAX.rows, Math.max(1, Math.round(Number(form.elements.rows.value)) || 1));
-      done(tableBlock({ cols, rows, header: form.elements.header.checked }));
-    });
-    form.elements.cols.select();
-  });
-}
+// Tabelle einfügen: Raster-Dialog aus dem lm-editor (block-dialog.js), dort auch für den eigenständigen Editor.
 
 let tiptapAllowed = () => false;
 export function useTiptapAllowed(fn) {

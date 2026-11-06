@@ -93,7 +93,8 @@ Der Editor startet im Modus **✏️ Bearbeiten** – wie ein Textprogramm:
   kopiert wird als YAML – Schreibmarke setzen, **Strg+V** fügt es dahinter
   ein. In einem Kasten steht zusätzlich **▭ Kasten ▸**. **Alt+↑ / Alt+↓**
   verschiebt den Absatz (die Liste …) der Schreibmarke.
-- **Tabellen** – **▤ Tabelle…** beim Einfügen fragt nach Spalten, Zeilen und Kopfzeile. Danach drei Wege, vom Häufigen zum Genauen:
+- **Tabellen** – **▤ Tabelle…** beim Einfügen: Größe im **Raster** wählen (Zeiger bzw. Finger, ein Klick fügt ein,
+  bis 10 × 8) oder als Zahl eingeben (bis 20 × 100), dazu **Kopfzeile** und **Kopfspalte**. Danach drei Wege, vom Häufigen zum Genauen:
   - **Rechtsklick in eine Zelle** (oder **▤ Tabelle ▾** in der Leiste, sobald
     die Schreibmarke in einer Tabelle steht): **Zeile ▸** (darüber/darunter
     einfügen, löschen, Höhe …), **Spalte ▸** (links/rechts einfügen, löschen,
@@ -109,7 +110,11 @@ Der Editor startet im Modus **✏️ Bearbeiten** – wie ein Textprogramm:
     den Tabelleneigenschaften). Spalten mit fester Breite behalten sie, die
     übrigen teilen sich den Rest; erst wenn jede Spalte fest ist, ist die
     Tabelle so breit wie ihre Summe. **Spalten gleichmäßig verteilen** gibt
-    allen Spalten dieselbe feste Breite über die Tabellenbreite (sonst 16,5 cm),
+    allen Spalten dieselbe feste Breite über die Tabellenbreite (sonst 16,5 cm);
+    sind Zellen über mehrere Spalten **markiert**, heißt der Eintrag **Markierte
+    Spalten gleich breit**: Nur diese teilen sich ihre gemeinsame Breite.
+    **Tabelle ▸ Kopfspalte** setzt die erste Spalte wie die Kopfzeile (fett,
+    hinterlegt, auch im Druck);
     **Spaltenbreiten automatisch** nimmt die festen Breiten wieder weg.
     Bearbeitung und Vorschau zeigen das gleich.
   - **Mit der Maus:** rechten Rand einer Zelle ziehen = Spaltenbreite, unteren

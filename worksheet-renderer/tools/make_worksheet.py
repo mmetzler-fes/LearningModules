@@ -1830,9 +1830,10 @@ def content_table(block: dict[str, Any], styles: dict[str, str],
     rows = [list(map(str, row)) for row in block.get("rows") or []]
     header = [str(c) for c in block.get("header") or []]
     columns = max([len(header)] + [len(r) for r in rows] or [1])
+    head_col = block.get("headerColumn") is True   # erste Spalte als Kopf (wie die Kopfzeile)
 
     def fill(cells: list[str], bold: bool) -> list[tuple[str, bool]]:
-        return [(cells[c] if c < len(cells) else "", bold) for c in range(columns)]
+        return [(cells[c] if c < len(cells) else "", bold or (head_col and c == 0)) for c in range(columns)]
 
     gemessen = ([fill(header, True)] if header else []) + [fill(r, False) for r in rows]
     size, widths = table_layout(gemessen or [[("", False)]])
@@ -1854,7 +1855,8 @@ def content_table(block: dict[str, Any], styles: dict[str, str],
         name = cell_with_background(ctx, name, None, table_valign(block), table_padding(block))
         for col in range(columns):
             tc = TableCell(valuetype="string", stylename=name)
-            tc.addElement(rich_p(style, cells[col] if col < len(cells) else ""))
+            own = head_style if head_col and col == 0 else style
+            tc.addElement(rich_p(own, cells[col] if col < len(cells) else ""))
             tr.addElement(tc)
         table.addElement(tr)
 
@@ -1914,8 +1916,9 @@ def spanned_table(block: dict[str, Any], styles: dict[str, str], ctx: dict[str, 
             c += cs
             columns = max(columns, c)
     nrows = max([r for r, _ in list(start) + list(covered)] + [len(source) - 1]) + 1
+    head_col = block.get("headerColumn") is True   # erste Spalte als Kopf (wie die Kopfzeile)
     gemessen = [[(measured_cell_text(start[(r, c)][0], inner_blocks.get((r, c))) if (r, c) in start and start[(r, c)][1] == 1 else "",
-                  bool(header) and r == 0)
+                  (bool(header) and r == 0) or (head_col and c == 0))
                  for c in range(columns)] for r in range(nrows)]
     size, widths = table_layout(gemessen)
     widths = widths_for_pictures(widths, pictures, start, beside)
@@ -1941,10 +1944,11 @@ def spanned_table(block: dict[str, Any], styles: dict[str, str], ctx: dict[str, 
                 tc = TableCell(valuetype="string",
                                stylename=cell_with_background(ctx, own_name, cell_bg.get((r, c)), valign, table_padding(block)),
                                **attrs)
-                style = head_style if header and r == 0 else cell_style
+                is_head = (header and r == 0) or (head_col and c == 0)
+                style = head_style if is_head else cell_style
                 own = cell_align.get((r, c))
                 if own:
-                    base = styles["table_head"] if header and r == 0 else styles["table_cell"]
+                    base = styles["table_head"] if is_head else styles["table_cell"]
                     style = base if own == "left" else ensure_align_style(ctx["doc"], ctx["present"], base, own)
                 room = sum(widths[c:c + cs]) - TABLE_PADDING_CM
                 if (r, c) in beside:

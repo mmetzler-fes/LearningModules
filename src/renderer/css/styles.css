@@ -3611,6 +3611,8 @@ body.html-app-large .quiz-actions { margin-top: 8px; padding-top: 8px; flex-shri
 .worksheet-content th,
 .worksheet-content td { border: var(--ds-line-w) var(--ds-line-s) var(--ds-line-c); padding: var(--ds-cell-pad); vertical-align: top; }
 .worksheet-content th { background: var(--bg-primary); }
+/* Kopfspalte (headerColumn): wie Kopfzellen – alte Fläche markiert die Zellen (ds-hcol), Tiptap die Tabelle */
+.worksheet-content td.ds-hcol, .ds-pm-surface table.ds-header-col > tbody > tr > td:first-child { background: var(--bg-primary); font-weight: 700; }
 /* Nur die eigenen Zellen – eine Tabelle in einer Zelle behält ihre Linien */
 .worksheet-content .ws-table-plain > * > tr > th,
 .worksheet-content .ws-table-plain > * > tr > td { border: 1px dashed var(--border); text-align: center; }
@@ -3993,6 +3995,13 @@ body.html-app-large .quiz-actions { margin-top: 8px; padding-top: 8px; flex-shri
 .ds-field-form { display: flex; flex-wrap: wrap; gap: 8px 16px; margin: 0 0 10px; }
 .ds-field-form label { display: flex; align-items: center; gap: 6px; }
 .ds-field-form input { width: 5.5em; }
+/* Tabelle einfügen: Größe im Raster wählen */
+.ds-table-ask { max-width: 380px; }
+.ds-tgrid { display: grid; gap: 3px; margin: 4px 0; touch-action: manipulation; }
+.ds-tgrid-cell { aspect-ratio: 1; min-width: 0; padding: 0; border: 1px solid var(--border); border-radius: 2px; background: var(--bg-primary); cursor: pointer; }
+.ds-tgrid-cell.on { background: color-mix(in srgb, var(--accent) 35%, transparent); border-color: var(--accent); }
+.ds-tgrid-size { margin: 4px 0 10px; color: var(--text-secondary); font-size: 0.9em; }
+.ds-field-form input[type="checkbox"] { width: auto; }
 /* Bildgruppe anordnen (image-arrange.js) */
 .ig-dialog { max-width: 960px; }
 .ig-stage-wrap { max-height: 60vh; overflow: auto; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg-primary); }

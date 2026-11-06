@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -120,6 +121,26 @@ class RenderTest(unittest.TestCase):
         self.assertAlmostEqual(sum(widths), mw.TABLE_WIDTH_CM)
         self.assertIsNone(total)
         self.assertEqual(mw.fixed_widths([5.0], {})[0], [5.0])
+
+    def test_tabelle_kopfspalte(self):
+        """`headerColumn: true`: Die erste Spalte steht wie die Kopfzeile (auch mit verbundenen Zellen)."""
+        spec = (
+            "titel: Kopfspalte\ncontent:\n"
+            "  - {type: table, headerColumn: true, rows: [[Spannung, U], [Strom, I]]}\n"
+            "  - {type: table, headerColumn: true, rows: [[{text: Oben, rowspan: 2}, a], [b], [Unten, c]]}\n"
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "blatt").mkdir()
+            (root / "blatt" / "kopf.yaml").write_text(spec, encoding="utf-8")
+            env = dict(os.environ, ARBEITSBLATT_ROOT=str(root))
+            subprocess.run([sys.executable, str(GEN / "tools" / "make_worksheet.py"), "blatt/kopf.yaml",
+                            "-o", "out"], cwd=root, env=env, check=True, capture_output=True)
+            content = zipfile.ZipFile(root / "out" / "blatt.odt").read("content.xml").decode()
+            heads = re.findall(r'<text:p text:style-name="(Table_20_Heading[^"]*)">([^<]*)</text:p>', content)
+            cells = re.findall(r'<text:p text:style-name="(Table_20_Contents[^"]*)">([^<]*)</text:p>', content)
+            self.assertEqual({t for _, t in heads}, {"Spannung", "Strom", "Oben", "Unten"})
+            self.assertTrue({"U", "I", "a", "b", "c"} <= {t for _, t in cells})
 
     def test_spalten(self):
         """`type: columns`: randlose Tabelle, je Spalte eine Zelle; feste Breite und Rest."""

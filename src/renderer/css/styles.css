@@ -6272,7 +6272,8 @@ details.cb-topic > summary .hint { font-weight: normal; margin-left: 6px; }
 #view-teacher-notebooks.nb-file-drop { outline: 3px dashed var(--accent, #2563eb); outline-offset: -6px; border-radius: 8px; }
 
 /* ===== 🗂 Planung: zwei Spalten wie im Double Commander (views/planning.js) ===== */
-.pl-toolbar { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+.pl-toolbar { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; align-items: center; }
+.pl-toolbar .nb-view-tabs { background: var(--bg-primary); }
 .pl-panes { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; min-height: 420px; }
 .pl-pane { display: flex; flex-direction: column; border: 2px solid var(--border); border-radius: var(--radius-sm); background: var(--bg-secondary); min-width: 0; }
 .pl-pane.active { border-color: var(--accent); }

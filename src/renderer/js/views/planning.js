@@ -7,9 +7,12 @@
  */
 import { escapeHtml, escapeAttr, appConfirm } from '../utils.js';
 import { pickClass } from './classes.js';
+import { isDocLike } from '../quiz-usage.js';
 
 const EXPAND_KEY = 'lm_plan_open';
 const RIGHT_KEY = 'lm_plan_right';
+const VIEW_KEY = 'lm_pl_view';
+const VIEWS = ['docs', 'quizzes', 'all'];
 const ICON = { book: '📕', area: '📂', section: '📑', folder: '📁', plan: '📋', include: '🧩', mirror: '🛒', unsorted: '📥' };
 
 function bad(res) {
@@ -30,6 +33,12 @@ export class PlanningView {
     this.plans = null;
     /** Rechte Spalte: 'plans' oder die ID einer Klasse (ihr Klassennotizbuch). */
     try { this.rightMode = localStorage.getItem(RIGHT_KEY) || 'plans'; } catch (_) { this.rightMode = 'plans'; }
+    try {
+      const v = localStorage.getItem(VIEW_KEY) || localStorage.getItem('lm_nb_view');
+      this.view = VIEWS.includes(v) ? v : 'all';
+    } catch (_) {
+      this.view = 'all';
+    }
     this.cb = null;
     this.classList = [];
     this.active = 'left';
@@ -77,6 +86,11 @@ export class PlanningView {
         <button class="btn btn-secondary btn-sm" data-pl-new="section" title="Abschnitt im Plan – enthält nur Lernthemen (⇧F7 im Plan)">➕ Abschnitt</button>
         <button class="btn btn-secondary btn-sm" data-pl-act="include" title="Einen anderen Plan als Teilplan hier einbinden – ändert er sich, ändert er sich überall">🧩 Teilplan einbinden</button>
         <button class="btn btn-secondary btn-sm pl-always" data-pl-act="structure" title="Books bzw. Pläne, Bereiche und Abschnitte aus einer Tabelle (.ods, .xlsx, .csv), einer Ordnerstruktur oder einer Gliederung anlegen – ins Notizbuch oder in die Planung">🧱 Struktur importieren</button>
+        <span class="nb-view-tabs" role="group" aria-label="Ansicht">
+          <button type="button" data-pl-view="docs" class="${this.view === 'docs' ? 'active' : ''}" aria-pressed="${this.view === 'docs'}" title="Nur Dokumente und Anhänge – die Quizze eines Dokuments stehen darunter">📄 Dokumente</button>
+          <button type="button" data-pl-view="quizzes" class="${this.view === 'quizzes' ? 'active' : ''}" aria-pressed="${this.view === 'quizzes'}" title="Nur Quizze, Übungen und Apps – Lernthemen und Bereiche ohne Quiz sind ausgeblendet">🧩 Quizze</button>
+          <button type="button" data-pl-view="all" class="${this.view === 'all' ? 'active' : ''}" aria-pressed="${this.view === 'all'}" title="Alle Module">Alles</button>
+        </span>
         <button class="btn btn-secondary btn-sm" data-pl-act="classes" title="Klassen, deren Klassennotizbuch diesem Plan folgt">📒 Klassen zuweisen</button>
         <button class="btn btn-secondary btn-sm" data-pl-act="view" title="So bekommt ihn eine Klasse: Teilpläne eingesetzt, jedes Lernthema einmal (F3)">👁 Plan ansehen</button>
       </div>
@@ -151,6 +165,35 @@ export class PlanningView {
     return this._titles.get(id) || '(Lernthema)';
   }
 
+  _topicMap() {
+    if (!this._topicsById) {
+      const map = new Map();
+      const n = this.nb || {};
+      for (const t of (n.topics || [])) map.set(t.id, t);
+      for (const t of (n.granted || [])) if (!map.has(t.id)) map.set(t.id, t);
+      for (const m of (n.mirrors || [])) {
+        for (const t of (m.topics || [])) if (!map.has(t.id)) map.set(t.id, t);
+      }
+      this._topicsById = map;
+    }
+    return this._topicsById;
+  }
+
+  _topicInView(topicId) {
+    if (this.view === 'all') return true;
+    if (typeof topicId === 'string' && topicId.startsWith('offer:')) {
+      const mirror = (this.nb?.mirrors || []).find((m) => `offer:${m.offerId}` === topicId);
+      if (!mirror) return true;
+      if (this.view === 'docs') return true;
+      return (mirror.topics || []).some((t) => this._topicInView(t.id));
+    }
+    const topic = this._topicMap().get(topicId);
+    if (!topic) return this.view === 'docs';
+    const roots = (topic.modules || []).filter((m) => !m.parentId);
+    if (this.view === 'docs') return !roots.length || roots.some(isDocLike);
+    return roots.some((m) => !isDocLike(m));
+  }
+
   /** Lernthemen im Plan der rechten Zeile (direkt und über Teilpläne) – links mit ✓. */
   _inCurrentPlan() {
     if (this._nbMode()) return { plan: null, direct: new Set(), via: new Set() };
@@ -200,11 +243,25 @@ export class PlanningView {
     const f = this.filter[pane];
     const rows = [];
     const match = (t) => !f || String(t || '').toLowerCase().includes(f);
+    const topicInView = (topicId) => this._topicInView(topicId);
+    const topicsBelow = (nodeId, seen = new Set()) => {
+      if (seen.has(nodeId)) return [];
+      seen.add(nodeId);
+      const out = places.filter((x) => (x.nodeId ?? null) === nodeId).map((x) => x.topicId);
+      for (const k of nodes.filter((x) => (x.parentId ?? null) === nodeId)) out.push(...topicsBelow(k.id, seen));
+      return out;
+    };
+    const nodeInView = (node) => this.view !== 'quizzes' || topicsBelow(node.id).some(topicInView);
     // Bei einer Suche: alles aufgeklappt, was einen Treffer enthält.
-    const hasHit = (nodeId) => places.some((p) => p.nodeId === nodeId && match(p.topicId.startsWith('offer:') ? mirrors.get(p.topicId)?.title : this._topicTitle(p.topicId)))
-      || nodes.some((k) => k.parentId === nodeId && (match(k.title) || hasHit(k.id)));
+    const hasHit = (nodeId, seen = new Set()) => {
+      if (seen.has(nodeId)) return false;
+      seen.add(nodeId);
+      return places.some((p) => (p.nodeId ?? null) === nodeId && topicInView(p.topicId) && match(p.topicId.startsWith('offer:') ? mirrors.get(p.topicId)?.title : this._topicTitle(p.topicId)))
+        || nodes.filter(nodeInView).some((k) => (k.parentId ?? null) === nodeId && (match(k.title) || hasHit(k.id, seen)));
+    };
     const topicRows = (nodeId, depth) => {
       for (const p of places.filter((x) => (x.nodeId ?? null) === nodeId)) {
+        if (!topicInView(p.topicId)) continue;
         if (p.topicId.startsWith('offer:')) {
           const m = mirrors.get(p.topicId);
           if (m && match(m.title)) rows.push({ pane, kind: 'mirror', id: p.topicId, nodeId, title: m.title, depth, key: `${pre}m:${p.topicId}` });
@@ -215,6 +272,7 @@ export class PlanningView {
     };
     const walk = (parentId, depth) => {
       for (const node of nodes.filter((x) => (x.parentId ?? null) === parentId)) {
+        if (!nodeInView(node)) continue;
         if (f && !match(node.title) && !hasHit(node.id)) continue;
         const key = `${pre}n:${node.id}`;
         const isOpen = f ? true : this.open.has(key);
@@ -223,8 +281,8 @@ export class PlanningView {
       }
     };
     walk(null, 0);
-    const unsorted = places.filter((p) => !p.nodeId);
-    if (unsorted.length || this._nbMode()) {
+    const unsorted = places.filter((p) => !p.nodeId && topicInView(p.topicId));
+    if (unsorted.length || (this._nbMode() && this.view !== 'quizzes')) {
       const key = `${pre}u`;
       const isOpen = f ? true : this.open.has(key);
       if (!f || unsorted.some((p) => match(this._topicTitle(p.topicId)))) {
@@ -246,10 +304,30 @@ export class PlanningView {
     const links = this._classLinks().slice().sort((a, b) => a.order - b.order);
     const f = this.filter.right;
     const match = (t) => !f || String(t || '').toLowerCase().includes(f);
-    const hasHit = (id) => links.some((l) => l.nodeId === id && match(l.name)) || nodes.some((k) => k.parentId === id && (match(k.title) || hasHit(k.id)));
+    const linkInView = (l) => {
+      if (this.view === 'all' || !l.available) return true;
+      const mods = l.available.flatMap((t) => [...(t.modules || []), ...(t.foreign || [])]);
+      if (this.view === 'docs') return !mods.length || mods.some(isDocLike);
+      return mods.some((m) => !isDocLike(m));
+    };
+    const linksBelow = (nodeId, seen = new Set()) => {
+      if (seen.has(nodeId)) return [];
+      seen.add(nodeId);
+      const out = links.filter((x) => (x.nodeId ?? null) === nodeId);
+      for (const k of nodes.filter((x) => (x.parentId ?? null) === nodeId)) out.push(...linksBelow(k.id, seen));
+      return out;
+    };
+    const nodeInView = (node) => this.view !== 'quizzes' || linksBelow(node.id).some(linkInView);
+    const hasHit = (id, seen = new Set()) => {
+      if (seen.has(id)) return false;
+      seen.add(id);
+      return links.some((l) => (l.nodeId ?? null) === id && linkInView(l) && match(l.name))
+        || nodes.filter(nodeInView).some((k) => (k.parentId ?? null) === id && (match(k.title) || hasHit(k.id, seen)));
+    };
     const rows = [];
     const walk = (parentId, depth) => {
       for (const node of nodes.filter((x) => (x.parentId ?? null) === parentId)) {
+        if (!nodeInView(node)) continue;
         if (f && !match(node.title) && !hasHit(node.id)) continue;
         const key = `c:${node.id}`;
         const isOpen = f ? true : this.open.has(key);
@@ -257,6 +335,7 @@ export class PlanningView {
         if (isOpen) walk(node.id, depth + 1);
       }
       for (const l of links.filter((x) => (x.nodeId ?? null) === parentId)) {
+        if (!linkInView(l)) continue;
         if (!match(l.name)) continue;
         rows.push({ pane: 'right', kind: 'link', id: l.id, nodeId: l.nodeId ?? null, title: l.name, depth, key: `l:${l.id}`,
           on: (l.available || []).some((a) => a.enabled), own: !!l.classTopicId });
@@ -274,10 +353,27 @@ export class PlanningView {
     const entries = (p.entries || []).slice().sort((a, b) => a.orderIndex - b.orderIndex);
     const f = this.filter.right;
     const match = (t) => !f || String(t || '').toLowerCase().includes(f);
-    const hasHit = (id) => entries.some((e) => e.nodeId === id && match(this._topicTitle(e.topicId))) || nodes.some((k) => k.parentId === id && (match(k.title) || hasHit(k.id)));
+    const topicInView = (topicId) => this._topicInView(topicId);
+    const topicsBelow = (nodeId, seen = new Set()) => {
+      if (seen.has(nodeId)) return [];
+      seen.add(nodeId);
+      const node = nodes.find((n) => n.id === nodeId);
+      const out = entries.filter((x) => x.nodeId === nodeId).map((x) => x.topicId);
+      if (node?.kind === 'include' && node.refId) out.push(...topicsBelow(node.refId, seen));
+      for (const k of nodes.filter((x) => (x.parentId ?? null) === nodeId)) out.push(...topicsBelow(k.id, seen));
+      return out;
+    };
+    const nodeInView = (node) => this.view !== 'quizzes' || topicsBelow(node.id).some(topicInView);
+    const hasHit = (id, seen = new Set()) => {
+      if (seen.has(id)) return false;
+      seen.add(id);
+      return entries.some((e) => e.nodeId === id && topicInView(e.topicId) && match(this._topicTitle(e.topicId)))
+        || nodes.filter(nodeInView).some((k) => (k.parentId ?? null) === id && (match(k.title) || hasHit(k.id, seen)));
+    };
     const rows = [];
     const walk = (parentId, depth) => {
       for (const node of nodes.filter((x) => (x.parentId ?? null) === parentId)) {
+        if (!nodeInView(node)) continue;
         if (f && !match(node.title) && !hasHit(node.id)) continue;
         const key = `p:${node.id}`;
         const folder = node.kind !== 'include';
@@ -287,6 +383,7 @@ export class PlanningView {
       }
       if (parentId) {
         for (const e of entries.filter((x) => x.nodeId === parentId)) {
+          if (!topicInView(e.topicId)) continue;
           if (!match(this._topicTitle(e.topicId))) continue;
           rows.push({ pane: 'right', kind: 'entry', id: e.id, nodeId: e.nodeId, topicId: e.topicId, title: this._topicTitle(e.topicId), depth, key: `e:${e.id}` });
         }
@@ -298,6 +395,7 @@ export class PlanningView {
 
   _render() {
     this._titles = null;
+    this._topicsById = null;
     this.rows.left = this._leftRows();
     this.rows.right = this._rightRows();
     for (const pane of ['left', 'right']) {
@@ -342,16 +440,30 @@ export class PlanningView {
 
   _paint() {
     if (!this.root?.dataset.ready) return;
+    this.root.querySelectorAll('[data-pl-view]').forEach((btn) => {
+      const on = btn.dataset.plView === this.view;
+      btn.classList.toggle('active', on);
+      btn.setAttribute('aria-pressed', String(on));
+    });
     const plan = this._inCurrentPlan();
     for (const pane of ['left', 'right']) {
       const box = this.root.querySelector(`.pl-pane[data-pane="${pane}"]`);
       box.classList.toggle('active', this.active === pane);
       const list = box.querySelector('.pl-list');
       const rows = this.rows[pane];
-      const empty = pane === 'right' && this._classMode()
-        ? '<p class="pl-empty">Das Klassennotizbuch ist noch leer. Links Lernthemen oder Bereiche wählen und <kbd>F5</kbd> drücken – sie kommen eingeschaltet ganz nach oben.</p>'
+      const hasFilter = !!this.filter[pane];
+      const empty = hasFilter
+        ? '<p class="pl-empty">Nichts gefunden.</p>'
+        : pane === 'right' && this._classMode()
+        ? (this.view === 'quizzes'
+          ? '<p class="pl-empty">In den Zuweisungen dieser Klasse steckt noch kein Quiz.</p>'
+          : '<p class="pl-empty">Das Klassennotizbuch ist noch leer. Links Lernthemen oder Bereiche wählen und <kbd>F5</kbd> drücken – sie kommen eingeschaltet ganz nach oben.</p>')
         : pane === 'right'
-        ? '<p class="pl-empty">Noch keine Pläne. Lege mit <kbd>F7</kbd> einen Ordner an (z. B. „Berufsschule“), darin mit <kbd>⇧F7</kbd> einen Plan – dann links Lernthemen oder ganze Bereiche wählen und <kbd>F5</kbd> drücken.</p>'
+        ? (this.view === 'quizzes'
+          ? '<p class="pl-empty">In deinen Plänen steckt noch kein Quiz.</p>'
+          : '<p class="pl-empty">Noch keine Pläne. Lege mit <kbd>F7</kbd> einen Ordner an (z. B. „Berufsschule“), darin mit <kbd>⇧F7</kbd> einen Plan – dann links Lernthemen oder ganze Bereiche wählen und <kbd>F5</kbd> drücken.</p>')
+        : this.view === 'quizzes'
+        ? '<p class="pl-empty">Noch keine Quizze. Unter <strong>Alles</strong> stehen die Lernthemen mit Dokumenten.</p>'
         : '<p class="pl-empty">Nichts gefunden.</p>';
       list.innerHTML = rows.length ? rows.map((r, i) => this._rowHtml(r, i, pane, plan)).join('') : empty;
       const cur = list.querySelector('.pl-row.cur');
@@ -411,6 +523,20 @@ export class PlanningView {
   }
 
   _onClick(e) {
+    const vbtn = e.target.closest('[data-pl-view]');
+    if (vbtn) {
+      const v = vbtn.dataset.plView;
+      if (VIEWS.includes(v)) {
+        if (v !== this.view) {
+          this.view = v;
+          try { localStorage.setItem(VIEW_KEY, this.view); } catch (_) { /* privat */ }
+          this.cursor.left = 0;
+          this.cursor.right = 0;
+          this._render();
+        }
+      }
+      return;
+    }
     const btn = e.target.closest('[data-pl-new]');
     if (btn) { void this._create(btn.dataset.plNew); return; }
     const act = e.target.closest('[data-pl-act]');

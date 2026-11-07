@@ -433,6 +433,22 @@ class App {
     const titleRow = targetView?.querySelector('.nb-switch');
     if (titleRow) {
       titleRow.appendChild(document.getElementById('titleTools'));
+      const helpBtn = document.getElementById('btnTitleHelp');
+      if (helpBtn) {
+        if (viewName === 'teacher-class-results') {
+          helpBtn.dataset.help = 'klassennotizbuch';
+          helpBtn.title = 'Hilfe zum Klassennotizbuch';
+          helpBtn.setAttribute('aria-label', 'Hilfe zum Klassennotizbuch');
+        } else if (viewName === 'teacher-planning') {
+          helpBtn.dataset.help = 'planung';
+          helpBtn.title = 'Hilfe zur Planung';
+          helpBtn.setAttribute('aria-label', 'Hilfe zur Planung');
+        } else {
+          helpBtn.dataset.help = 'notebooks';
+          helpBtn.title = 'Hilfe: Notebooks – Aktionen über ⋯ oder Rechtsklick, Verschieben per Ziehen';
+          helpBtn.setAttribute('aria-label', 'Hilfe: Notebooks');
+        }
+      }
       void this.topicsView.refreshTitleTools();
     }
 

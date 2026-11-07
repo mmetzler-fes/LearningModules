@@ -2030,6 +2030,8 @@ body.html-app-large .quiz-actions { margin-top: 8px; padding-top: 8px; flex-shri
 }
 .editor-header .player-header { flex-wrap: wrap; }
 .editor-header h2 { margin-bottom: 0; flex: 1 1 auto; min-width: 0; }
+.editor-header .draft-status { flex: 0 1 auto; min-width: 0; }
+.editor-header .draft-status:empty { display: none; }
 @media (max-width: 800px) {
   .editor-header { top: -20px; margin: -20px -20px 16px; padding: 20px 20px 10px; }
 }

@@ -500,6 +500,8 @@
         <div class="view-header editor-header">
           <div class="player-header">
             <button type="button" class="btn btn-secondary btn-back" id="btnCancelModuleTop" data-i18n="module.cancel.top">← Abbrechen</button>
+            <!-- Stand des Entwurfs (modules.js) – neben Abbrechen, bleibt beim Scrollen sichtbar -->
+            <span id="moduleDraftStatus" class="draft-status" aria-live="polite"></span>
             <h2 id="createViewTitle" data-i18n="module.create.title">Neues Modul erstellen</h2>
             <button type="submit" form="moduleForm" class="btn btn-primary editor-header-save" data-i18n="module.save">Modul speichern</button>
           </div>
@@ -568,11 +570,6 @@
             </div>
           </details>
           <div id="contentEditor" class="content-editor"></div>
-          <div class="form-actions">
-            <button type="submit" class="btn btn-primary" id="btnSaveModule" data-i18n="module.save">Modul speichern</button>
-            <button type="button" class="btn btn-secondary" id="btnCancelModule" data-i18n="module.cancel">Abbrechen</button>
-            <span id="moduleDraftStatus" class="draft-status" aria-live="polite"></span>
-          </div>
         </form>
       </section>
 

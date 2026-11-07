@@ -145,6 +145,14 @@ export class ModulesView {
     if (this._moduleTypeSelect) {
       this._moduleTypeSelect.addEventListener('change', () => {
         const typeId = this._moduleTypeSelect.value;
+        const isDoc = typeId === 'document';
+        document.getElementById('moduleSolutionsToggle')?.classList.toggle('hidden', !isDoc);
+        document.getElementById('moduleFormatWrap')?.classList.toggle('hidden', !isDoc);
+        document.getElementById('moduleFormatToast')?.classList.add('hidden');
+        document.getElementById('btnModuleFormat')?.setAttribute('aria-expanded', 'false');
+        if (isDoc) {
+          this._loadDocTemplates('');
+        }
         if (typeId && H5P_TYPES[typeId]) {
           const existing = this.app.state.editingModuleId
             ? (this.app.state.currentTopicModules.find((m) => m.id === this.app.state.editingModuleId) || {}).content || {}
@@ -156,6 +164,48 @@ export class ModulesView {
         }
       });
     }
+
+    const btnFormat = document.getElementById('btnModuleFormat');
+    const toastFormat = document.getElementById('moduleFormatToast');
+    if (btnFormat && toastFormat) {
+      btnFormat.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const willOpen = toastFormat.classList.contains('hidden');
+        toastFormat.classList.toggle('hidden', !willOpen);
+        btnFormat.setAttribute('aria-expanded', String(willOpen));
+        if (willOpen) {
+          const currentTpl = document.getElementById('formatDocTemplate')?.value || '';
+          this._loadDocTemplates(currentTpl);
+        }
+      });
+    }
+    document.getElementById('btnCloseFormatToast')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      toastFormat?.classList.add('hidden');
+      btnFormat?.setAttribute('aria-expanded', 'false');
+    });
+    document.getElementById('btnOpenTemplatesDialog')?.addEventListener('click', () => {
+      if (this.app.notebooksView?._templatesDialog) {
+        this.app.notebooksView._templatesDialog();
+      } else {
+        document.getElementById('btnDocTemplates')?.click();
+      }
+    });
+    document.addEventListener('pointerdown', (e) => {
+      const wrap = document.getElementById('moduleFormatWrap');
+      if (toastFormat && !toastFormat.classList.contains('hidden') && wrap && !wrap.contains(e.target)) {
+        if (!e.target.closest('.confirm-overlay')) {
+          toastFormat.classList.add('hidden');
+          btnFormat?.setAttribute('aria-expanded', 'false');
+        }
+      }
+    });
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && toastFormat && !toastFormat.classList.contains('hidden')) {
+        toastFormat.classList.add('hidden');
+        btnFormat?.setAttribute('aria-expanded', 'false');
+      }
+    });
 
     if (this._moduleForm) {
       this._moduleForm.addEventListener('submit', (e) => this._onModuleFormSubmit(e));
@@ -471,10 +521,15 @@ export class ModulesView {
   }
 
   /** Im Modul-Editor: welche Tags schon vom Thema kommen. */
-  /** Beschreibung bei Dokumenten einklappen, solange sie leer ist – das Blatt braucht den Platz. */
+  /** Beschreibung und Tags standardmäßig einklappen – der Editor braucht den Platz. */
   _foldDescription() {
     const fold = document.getElementById('moduleDescFold');
-    if (fold) fold.open = this._moduleTypeSelect.value !== 'document' || !!this._descEditor.getHtml().replace(/<[^>]+>|&nbsp;|\s/g, '');
+    if (fold) fold.open = false;
+    const summary = document.getElementById('moduleDescSummary');
+    if (summary) {
+      const text = this._descEditor.getHtml().replace(/<[^>]+>|&nbsp;|\s+/g, ' ').trim();
+      summary.textContent = text ? (text.length > 50 ? text.slice(0, 50) + '…' : text) : '';
+    }
   }
 
   /** Eingeklappte Tags: geerbte und eigene als Chips in der Zeile. */
@@ -532,10 +587,52 @@ export class ModulesView {
     const inherited = new Set(this._topicTagIds());
     this._tagPicker.render((mod.tagIds || []).filter((id) => !inherited.has(id)));
     this._renderInheritedHint();
+
+    const isDoc = mod.type === 'document';
+    document.getElementById('moduleSolutionsToggle')?.classList.toggle('hidden', !isDoc);
+    document.getElementById('moduleFormatWrap')?.classList.toggle('hidden', !isDoc);
+    document.getElementById('moduleFormatToast')?.classList.add('hidden');
+    document.getElementById('btnModuleFormat')?.setAttribute('aria-expanded', 'false');
+    const solCheck = document.getElementById('moduleShowSolutions');
+    if (solCheck) solCheck.checked = false;
+    if (isDoc) {
+      const kindEl = document.getElementById('formatDocKind');
+      if (kindEl) kindEl.value = mod.content?.kind || 'arbeitsblatt';
+      const hmEl = document.getElementById('formatDocHandMaintained');
+      if (hmEl) hmEl.checked = !!mod.content?.handMaintained;
+      this._loadDocTemplates(mod.content?.templateId || '');
+    }
+    const tagsFold = document.getElementById('moduleTagsFold');
+    if (tagsFold) tagsFold.open = false;
+
     this.app.navigateToView('create-module');
     this.app.state.contentEditor.render(mod.type, mod.content || {});
     this._foldDescription();
     await this._beginDraft(mod.id, mod.id, mod.title);
+  }
+
+  async _loadDocTemplates(selectedId = '') {
+    const select = document.getElementById('formatDocTemplate');
+    if (!select) return;
+    const token = sessionStorage.getItem('lm_token') || localStorage.getItem('lm_token');
+    const KINDS = { arbeitsblatt: 'Arbeitsblatt', klassenarbeit: 'Klassenarbeit', skript: 'Skript' };
+    try {
+      const res = await fetch('/api/worksheets/templates', { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+      if (!res.ok) return;
+      const data = await res.json();
+      const list = Array.isArray(data?.templates) ? data.templates : [];
+      select.innerHTML = '<option value="">Wie im Ordner (Dokument-Einstellungen bzw. Standard)</option>';
+      for (const t of list) {
+        const opt = document.createElement('option');
+        opt.value = t.id;
+        opt.textContent = `${t.name} – ${KINDS[t.kind] || t.kind}${t.scope === 'school' ? ', Schule' : ''}${t.isDefault ? ' ★' : ''}`;
+        select.appendChild(opt);
+      }
+      if (selectedId && !list.some((t) => t.id === selectedId)) {
+        select.insertAdjacentHTML('beforeend', `<option value="${selectedId.replace(/"/g, '&quot;')}">(gelöschte Vorlage)</option>`);
+      }
+      select.value = selectedId || '';
+    } catch (_) { /* ohne Liste bleibt „wie im Ordner“ */ }
   }
 
   // ---- Entwürfe: laufend auf dem Server gesichert, auf jedem Gerät abrufbar ----
@@ -590,8 +687,21 @@ export class ModulesView {
     this._descEditor.setHtml(data.description || '');
     const inherited = new Set(this._topicTagIds());
     this._tagPicker.render((data.tagIds || []).filter((id) => !inherited.has(id)));
+    const isDoc = data.type === 'document';
+    document.getElementById('moduleSolutionsToggle')?.classList.toggle('hidden', !isDoc);
+    document.getElementById('moduleFormatWrap')?.classList.toggle('hidden', !isDoc);
+    if (isDoc) {
+      const kindEl = document.getElementById('formatDocKind');
+      if (kindEl) kindEl.value = data.content?.kind || 'arbeitsblatt';
+      const hmEl = document.getElementById('formatDocHandMaintained');
+      if (hmEl) hmEl.checked = !!data.content?.handMaintained;
+      this._loadDocTemplates(data.content?.templateId || '');
+    }
+    const tagsFold = document.getElementById('moduleTagsFold');
+    if (tagsFold) tagsFold.open = false;
     if (data.type) this.app.state.contentEditor.render(data.type, data.content || {});
     else this.app.state.contentEditor.clear();
+    this._foldDescription();
   }
 
   /** Aktueller Stand des Editors als Text – zum Vergleichen und Sichern. */
@@ -782,6 +892,19 @@ export class ModulesView {
     this.app.state.contentEditor.clear();
     this._createViewTitle.textContent = t('module.create.title');
     this._foldDescription();
+    const tagsFold = document.getElementById('moduleTagsFold');
+    if (tagsFold) tagsFold.open = false;
+    document.getElementById('moduleSolutionsToggle')?.classList.add('hidden');
+    document.getElementById('moduleFormatWrap')?.classList.add('hidden');
+    document.getElementById('moduleFormatToast')?.classList.add('hidden');
+    document.getElementById('btnModuleFormat')?.setAttribute('aria-expanded', 'false');
+    const solCheck = document.getElementById('moduleShowSolutions');
+    if (solCheck) solCheck.checked = false;
+    const kindEl = document.getElementById('formatDocKind');
+    if (kindEl) kindEl.value = 'arbeitsblatt';
+    const hmEl = document.getElementById('formatDocHandMaintained');
+    if (hmEl) hmEl.checked = false;
+    this._loadDocTemplates('');
   }
 
   async _onModuleFormSubmit(e) {

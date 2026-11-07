@@ -324,19 +324,25 @@ class ContentEditorManager {
       return;
     }
 
-    const heading = document.createElement('h4');
-    heading.textContent = `${typeDef.icon} ${typeDef.name} — Inhalt konfigurieren`;
-    this.container.appendChild(heading);
+    if (typeId !== 'document') {
+      const heading = document.createElement('h4');
+      heading.textContent = `${typeDef.icon} ${typeDef.name} — Inhalt konfigurieren`;
+      this.container.appendChild(heading);
+    }
 
     const normalFields = (typeDef.fields || []).filter((field) => !field.advanced);
     const advancedFields = (typeDef.fields || []).filter((field) => field.advanced);
 
     for (const field of normalFields) {
+      if (typeId === 'document' && (field.key === 'kind' || field.key === 'templateId')) {
+        continue;
+      }
       const value = data[field.key];
       this.renderField(this.container, field, value);
     }
 
-    if (advancedFields.length > 0) {
+    const effAdvanced = typeId === 'document' ? advancedFields.filter((f) => f.key !== 'handMaintained') : advancedFields;
+    if (effAdvanced.length > 0) {
       const details = document.createElement('details');
       details.style.cssText = 'margin-top:12px; border:1px solid var(--border); border-radius:var(--radius-sm); overflow:hidden;';
       const summary = document.createElement('summary');
@@ -1411,13 +1417,17 @@ class ContentEditorManager {
       case 'doctemplate':
       case 'image':
       case 'audio': {
-        const el = this.container.querySelector(`[name="content_${field.key}"]`);
+        const el = this.container.querySelector(`[name="content_${field.key}"]`)
+               || this.container.closest('form')?.querySelector(`[name="content_${field.key}"]`)
+               || document.querySelector(`[name="content_${field.key}"]`);
         if (!el) return field.default || '';
         if (field.type === 'number') return parseFloat(el.value) || 0;
         return el.value;
       }
       case 'checkbox': {
-        const el = this.container.querySelector(`[name="content_${field.key}"]`);
+        const el = this.container.querySelector(`[name="content_${field.key}"]`)
+               || this.container.closest('form')?.querySelector(`[name="content_${field.key}"]`)
+               || document.querySelector(`[name="content_${field.key}"]`);
         return el ? el.checked : !!field.default;
       }
       case 'attachments': {

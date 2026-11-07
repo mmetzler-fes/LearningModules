@@ -510,15 +510,56 @@
         </div>
         <form id="moduleForm" class="module-form">
           <input type="hidden" id="moduleId" />
-          <div class="form-group">
-            <label for="moduleTitle" data-i18n="module.title.label">Titel *</label>
-            <input type="text" id="moduleTitle" required data-i18n-placeholder="module.title.placeholder" placeholder="Titel des Lernmoduls eingeben..." />
-          </div>
-          <div class="form-group">
-            <label for="moduleType" data-i18n="module.type.label">H5P-Modultyp *</label>
-            <select id="moduleType" required>
-              <option value="" data-i18n="module.type.placeholder">— Modultyp wählen —</option>
-            </select>
+          <div class="module-header-row">
+            <div class="module-header-field module-header-title">
+              <label for="moduleTitle" data-i18n="module.title.label">Titel *</label>
+              <input type="text" id="moduleTitle" required data-i18n-placeholder="module.title.placeholder" placeholder="Titel des Lernmoduls eingeben..." />
+            </div>
+            <div class="module-header-field module-header-type">
+              <label for="moduleType" data-i18n="module.type.label">H5P-Modultyp *</label>
+              <select id="moduleType" required>
+                <option value="" data-i18n="module.type.placeholder">— Modultyp wählen —</option>
+              </select>
+            </div>
+            <label class="module-solutions-toggle hidden" id="moduleSolutionsToggle" title="Lösungen in der Dokument-Vorschau anzeigen">
+              <input type="checkbox" id="moduleShowSolutions" />
+              <span>Lösungen</span>
+            </label>
+            <div class="module-format-wrap hidden" id="moduleFormatWrap">
+              <button type="button" class="btn btn-secondary btn-sm" id="btnModuleFormat" title="Einstellungen zur Formatvorlage" aria-haspopup="true" aria-expanded="false">
+                🎨 Formatvorlage ▾
+              </button>
+              <div class="module-format-toast hidden" id="moduleFormatToast" role="dialog" aria-label="Formatvorlagen-Einstellungen">
+                <div class="module-format-toast-header">
+                  <strong>Formatvorlagen</strong>
+                  <button type="button" class="toast-close-btn" id="btnCloseFormatToast" title="Schließen" aria-label="Schließen">✕</button>
+                </div>
+                <div class="form-group">
+                  <label for="formatDocKind">Dokument-Art</label>
+                  <select id="formatDocKind" name="content_kind">
+                    <option value="arbeitsblatt">Arbeitsblatt</option>
+                    <option value="klassenarbeit">Klassenarbeit</option>
+                    <option value="text">Text</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label for="formatDocTemplate">Vorlage für den Druck</label>
+                  <select id="formatDocTemplate" name="content_templateId">
+                    <option value="">Wie im Ordner (Dokument-Einstellungen bzw. Standard)</option>
+                  </select>
+                  <small class="hint">Vorlagen hochladen und verwalten: 🖨 Vorlagen über dem Notizbuch-Baum.</small>
+                </div>
+                <div class="form-group">
+                  <label class="checkbox-label" style="font-weight: normal; font-size: 0.85rem; display: flex; align-items: center; gap: 6px;">
+                    <input type="checkbox" name="content_handMaintained" id="formatDocHandMaintained" />
+                    <span>In Nextcloud von Hand gepflegt</span>
+                  </label>
+                </div>
+                <div class="format-toast-actions">
+                  <button type="button" class="btn btn-secondary btn-sm" id="btnOpenTemplatesDialog">🖨 Vorlagen verwalten…</button>
+                </div>
+              </div>
+            </div>
           </div>
           <!-- Eingeklappt: in der Zeile stehen die Tags des Moduls, aufgeklappt die Auswahl -->
           <details class="form-group module-tags-fold" id="moduleTagsFold">
@@ -526,9 +567,9 @@
             <div id="moduleInheritedTags" class="module-inherited-tags"></div>
             <div id="moduleTags" class="tag-picker-wrap"></div>
           </details>
-          <!-- Bei Dokumenten eingeklappt, solange leer (modules.js: _foldDescription) -->
-          <details class="form-group module-desc-fold" id="moduleDescFold" open>
-            <summary><strong data-i18n="module.desc.label">Beschreibung</strong></summary>
+          <!-- Eingeklappt: Beschreibung -->
+          <details class="form-group module-desc-fold" id="moduleDescFold">
+            <summary><strong data-i18n="module.desc.label">Beschreibung</strong> <span id="moduleDescSummary" class="module-desc-summary hint"></span></summary>
             <div class="rich-text-editor" id="moduleDescEditorWrap">
               <div class="rich-text-toolbar" id="moduleDescToolbar">
                 <select id="moduleDescBlockFormat" class="rt-select rt-block-format" title="Textformat">

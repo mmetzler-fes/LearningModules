@@ -108,13 +108,6 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
   const root = document.createElement('div');
   root.className = 'form-group ds-editor';
   root.innerHTML = `
-    <label>${escapeHtml(label || 'Inhalt')} <span class="hint">– Format: Blöcke wie im Arbeitsblatt-Generator</span></label>
-    <div class="ds-editor-bar">
-      <button type="button" class="btn btn-secondary btn-sm ds-print-menu" title="Arbeitsblatt oder Lösungsblatt als PDF oder .odt">🖨 Drucken ▾</button>
-      <label class="ds-editor-toggle"><input type="checkbox" class="ds-show-solutions"> Lösungen zeigen</label>
-      <button type="button" class="btn btn-secondary btn-sm ds-import-odt" title="Writer- oder Word-Dokument (.odt, .docx) oder Folien (.odp, .odg, .pptx) übernehmen: Überschriften, Absätze, Listen, Tabellen, Bilder">📄 Übernehmen…</button>
-      <span class="ds-editor-status hint"></span>
-    </div>
     <div class="ds-editor-header hint" hidden></div>
     <div class="ds-editor-panes">
       <div class="ds-editor-left">
@@ -122,7 +115,9 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
           <button type="button" class="admin-tab" data-mode="visual">✏️ Bearbeiten</button>
           <button type="button" class="admin-tab" data-mode="markdown" hidden>Ⓜ Markdown</button>
           <button type="button" class="admin-tab" data-mode="yaml">⌨ YAML</button>
+          <button type="button" class="btn btn-secondary btn-sm ds-import-odt" title="Writer- oder Word-Dokument (.odt, .docx), Folien (.odp, .pptx) oder PDF übernehmen: Überschriften, Absätze, Listen, Tabellen, Bilder" style="margin-left: auto;">📄 Übernehmen…</button>
         </div>
+        <div class="ds-editor-status hint"></div>
         <div class="ds-visual" hidden>
           <div class="ds-vtoolbar rich-text-toolbar">
             <button type="button" class="rt-btn ds-vplus" title="Einfügen: Quiz, Schreibfeld, Lösung, Formel, Bild … (auch Rechtsklick in den Text)">➕</button>
@@ -165,7 +160,10 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
         <textarea class="ds-yaml ds-markdown" spellcheck="false" aria-label="Inhalt als Markdown" hidden></textarea>
       </div>
       <div class="ds-editor-right">
-        <div class="ds-preview-bar"><span class="ds-preview-pages hint"></span></div>
+        <div class="ds-preview-bar">
+          <button type="button" class="btn btn-secondary btn-sm ds-print-menu" title="Arbeitsblatt oder Lösungsblatt als PDF oder .odt">🖨 Drucken ▾</button>
+          <span class="ds-preview-pages hint"></span>
+        </div>
         <div class="ds-preview module-description-content"></div>
       </div>
     </div>
@@ -178,7 +176,7 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
   const errorsEl = root.querySelector('.ds-editor-errors');
   const hidden = root.querySelector('input[type="hidden"]');
   const status = root.querySelector('.ds-editor-status');
-  const showSolutions = root.querySelector('.ds-show-solutions');
+  const showSolutions = document.getElementById('moduleShowSolutions') || root.querySelector('.ds-show-solutions');
   const headerEl = root.querySelector('.ds-editor-header');
   const titleInput = document.getElementById('moduleTitle');
   const moduleId = moduleSource();
@@ -289,7 +287,7 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
     const page = ctx?.page;
     const pageStyle = page
       ? ` style="width:${page.width}cm;min-height:${page.height}cm;padding:${page.margin.top + (page.header || 0)}cm ${page.margin.right}cm ${page.margin.bottom + (page.footer || 0)}cm ${page.margin.left}cm"` : '';
-    sheetWrap.innerHTML = `<div class="lm-paper${(page ? page.width > page.height : spec.orientation === 'landscape') ? ' lm-landscape' : ''}"${pageStyle}>${renderDocSpecHtml(spec, { showSolutions: showSolutions.checked, showPageBreaks: true, refs: ctx?.refs || undefined })}</div>`;
+    sheetWrap.innerHTML = `<div class="lm-paper${(page ? page.width > page.height : spec.orientation === 'landscape') ? ' lm-landscape' : ''}"${pageStyle}>${renderDocSpecHtml(spec, { showSolutions: !!showSolutions?.checked, showPageBreaks: true, refs: ctx?.refs || undefined })}</div>`;
     preview.replaceChildren(sheetWrap);
     measurePages(top);
     // Bilder (auch nachgeladene oder ersetzte), Schriften, Formeln: Ändert sich
@@ -360,7 +358,7 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
     current.content.push(...blocks);
     replaceYaml(toYaml(current), 0);
   });
-  showSolutions.addEventListener('change', update);
+  showSolutions?.addEventListener('change', update);
 
   /** Übernommenes Dokument einsetzen – in beiden Reitern sichtbar. */
   const applyImported = (imported, title, warnings) => {
@@ -1808,7 +1806,12 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
         try { await a.onClick(); } catch (err) { btn.textContent = `⚠️ ${err.message}`; }
         btn.disabled = false;
       });
-      if (a.primary) bar.prepend(btn); else pagesEl.before(btn);
+      if (a.primary) {
+        bar.prepend(btn);
+      } else {
+        const printBtn = bar.querySelector('.ds-print-menu');
+        if (printBtn) printBtn.before(btn); else pagesEl.before(btn);
+      }
     }
   }
 }

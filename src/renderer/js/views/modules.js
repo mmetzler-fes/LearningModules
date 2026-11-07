@@ -654,6 +654,7 @@ export class ModulesView {
     const el = this._draft?.status;
     if (!el) return;
     el.textContent = text;
+    el.title = text; // in der Titelzeile ggf. gekürzt
     el.classList.toggle('draft-status-warn', text.startsWith('⚠️'));
   }
 

@@ -2030,8 +2030,9 @@ body.html-app-large .quiz-actions { margin-top: 8px; padding-top: 8px; flex-shri
 }
 .editor-header .player-header { flex-wrap: wrap; }
 .editor-header h2 { margin-bottom: 0; flex: 1 1 auto; min-width: 0; }
-.editor-header .draft-status { flex: 0 1 auto; min-width: 0; }
-.editor-header .draft-status:empty { display: none; }
+.editor-header .editor-title { flex: 1 1 auto; min-width: 0; display: flex; align-items: baseline; gap: 12px; }
+.editor-header .editor-title h2 { flex: 0 1 auto; }
+.editor-header .editor-title .draft-status { align-self: baseline; flex: 1 1 0; width: 0; min-width: 0; font-size: 0.75rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 @media (max-width: 800px) {
   .editor-header { top: -20px; margin: -20px -20px 16px; padding: 20px 20px 10px; }
 }

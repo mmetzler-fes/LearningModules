@@ -2,7 +2,7 @@
 
 Was du im Modul-Editor änderst, sichert die App laufend als **Entwurf** auf
 dem Server – alle paar Sekunden, solange sich etwas vom gespeicherten Modul
-unterscheidet. Oben in der Titelleiste neben **← Abbrechen** steht dann
+unterscheidet. Oben in der Titelleiste steht dann klein hinter dem Titel
 „💾 Entwurf gesichert 14:32 – noch nicht veröffentlicht“.
 
 - Der Entwurf gehört nur dir. Schüler und Kolleginnen mit Nutzungsrecht sehen

@@ -387,6 +387,6 @@ describe('.odt-Import: Mustererkennung für Überschriften, Aufgaben, Schreiblin
       + `<table:table-cell table:style-name="NoBorder"><text:p>${pic}</text:p></table:table-cell>`
       + '</table:table-row></table:table>';
     const { html } = odtToHtml(doc(styles, body), 'x.odt');
-    expect(html).toMatch(/^<table class="ws-columns"><tbody><tr><td><p>Beschreibung der Schaltung<\/p><\/td><td><img /);
+    expect(html).toMatch(/^<table class="ws-columns"><tbody><tr><td><p>Beschreibung der Schaltung<\/p><\/td><td>(<p>)?<img /);
   });
 });

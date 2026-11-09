@@ -1,4 +1,5 @@
 import { AiBridgeService } from './ai-bridge.service';
+import { repo } from '../work/test-repo';
 
 describe('AiBridgeService (15-Minuten-KI-Token, Scope & Undo)', () => {
   const userId = 'teacher-1';
@@ -189,6 +190,7 @@ describe('AiBridgeService (15-Minuten-KI-Token, Scope & Undo)', () => {
       notebooksService,
       plansService,
       topicsService,
+      repo() as any,
     );
   });
 
@@ -205,7 +207,7 @@ describe('AiBridgeService (15-Minuten-KI-Token, Scope & Undo)', () => {
     expect(created.prompt).toContain('Elektrotechnik');
     expect(created.prompt).not.toContain('Geheimthema');
 
-    const session = service.authenticateToken(`Bearer ${created.token}`);
+    const session = await service.authenticateToken(`Bearer ${created.token}`);
     const tree = await service.scopedTree(session);
     expect(tree.notebook.nodes.map((n: any) => n.id)).toEqual(['book-et', 'sec-et-1']);
     expect(tree.notebook.topics.map((t: any) => t.topicId)).toEqual(['top-ohm']);
@@ -220,7 +222,7 @@ describe('AiBridgeService (15-Minuten-KI-Token, Scope & Undo)', () => {
       notebookNodeIds: ['book-et'],
       planNodeIds: ['plan-bfe'],
     });
-    const session = service.authenticateToken(token);
+    const session = await service.authenticateToken(token);
 
     const res = await service.executeBatch(session, {
       operations: [
@@ -258,7 +260,7 @@ describe('AiBridgeService (15-Minuten-KI-Token, Scope & Undo)', () => {
 
   it('lehnt ungültige DocSpec sofort mit konkreter Fehlermeldung ab', async () => {
     const { token } = await service.createSession(user, { notebookNodeIds: ['book-et'], planNodeIds: ['plan-bfe'] });
-    const session = service.authenticateToken(token);
+    const session = await service.authenticateToken(token);
 
     await expect(
       service.executeBatch(session, {
@@ -272,5 +274,70 @@ describe('AiBridgeService (15-Minuten-KI-Token, Scope & Undo)', () => {
       }),
     ).rejects.toThrow(/Ungültige DocSpec/);
   });
-});
 
+  const PNG = 'data:image/png;base64,' + 'iVBORw0KGgo'.repeat(40);
+  /** Derselbe Dienst mit denselben Tabellen – wie nach einem Neustart des Servers. */
+  const restarted = () => new AiBridgeService(...(['nbNodeRepo', 'nbPlaceRepo', 'topicRepo', 'moduleRepo', 'planNodeRepo', 'planEntryRepo', 'versionRepo', 'notebooks', 'plans', 'topics', 'sessionRepo'] as const).map((k) => (service as any)[k]) as [any, any, any, any, any, any, any, any, any, any, any]);
+
+  it('Sitzung und Rückgängig überstehen einen Neustart; Verlängern geht nur, solange sie läuft', async () => {
+    const { token, session: info } = await service.createSession(user, { notebookNodeIds: ['book-et'], planNodeIds: ['plan-bfe'] });
+    expect(info.remainingSeconds).toBeGreaterThan(59 * 60); // Standard: 60 Minuten
+    await service.executeBatch(await service.authenticateToken(token), {
+      operations: [{ op: 'rename_notebook_node', id: 'sec-et-1', title: 'Umbenannt' }],
+    });
+    const other = restarted();
+    expect((await other.listSessions(user))[0].opsCount).toBe(1);
+    const ext = await other.extendSession(user, info.id, 30);
+    expect(ext.session.remainingSeconds).toBeGreaterThan(89 * 60);
+    expect((await other.rollbackSession(user, info.id)).reverted).toBe(1);
+    expect(nbNodes.find((n) => n.id === 'sec-et-1').title).toBe('Grundlagen');
+    await other.revokeSession(user, info.id);
+    await expect(other.authenticateToken(token)).rejects.toThrow(/abgelaufen oder wurde beendet/);
+    await expect(other.extendSession(user, info.id, 30)).rejects.toThrow(/schon beendet/);
+  });
+
+  it('scheitert ein Schritt mittendrin, bleiben die vorigen rückgängig machbar', async () => {
+    const { token, session: info } = await service.createSession(user, { notebookNodeIds: ['book-et'], planNodeIds: ['plan-bfe'] });
+    await expect(service.executeBatch(await service.authenticateToken(token), {
+      operations: [
+        { op: 'rename_notebook_node', id: 'sec-et-1', title: 'Neu' },
+        { op: 'update_document', moduleId: 'mod-doc-1', spec: { content: [{ type: 'unbekannter_block' }] } },
+      ],
+    })).rejects.toThrow(/Ungültige DocSpec/);
+    expect((await restarted().rollbackSession(user, info.id)).reverted).toBe(1);
+    expect(nbNodes.find((n) => n.id === 'sec-et-1').title).toBe('Grundlagen');
+  });
+
+  it('Blatt neu aufbereiten: nur dieses Dokument, Bilder als Verweise, beim Schreiben wieder eingesetzt', async () => {
+    modules[0].content = { kind: 'arbeitsblatt', spec: { content: [{ type: 'text', text: 'Alt' }, { type: 'image', src: PNG, width: '6cm' }] } };
+    const { token, prompt } = await service.createSession(user, { regenerateModuleIds: ['mod-doc-1'] });
+    expect(prompt).toContain('mod-doc-1');
+    expect(prompt).toMatch(/lm-img:[a-f0-9]{12}/);
+    expect(prompt).not.toContain('base64,iVBOR');
+    expect(prompt).toContain('Inhalte und Reihenfolge wie im Original');
+
+    const session = await service.authenticateToken(token);
+    const doc = await service.getScopedDocument(session, 'mod-doc-1');
+    const ref = doc.images[0].ref;
+    expect(doc.spec.content[1].src).toBe(ref);
+    // Nur Dokumente – Strukturieren ist aus, andere Lernthemen bleiben zu
+    await expect(service.executeBatch(session, { operations: [{ op: 'rename_notebook_node', id: 'sec-et-1', title: 'x' }] })).rejects.toThrow(/nur update_document/);
+    await expect(service.getScopedTopic(session, 'top-secret')).rejects.toThrow(/außerhalb/);
+    await expect(service.executeBatch(session, { operations: [{ op: 'create_document', topicId: 'top-ohm', title: 'Neu', spec: { content: [] } }] })).rejects.toThrow(/nur update_document/);
+
+    await service.executeBatch(session, {
+      operations: [{ op: 'update_document', moduleId: 'mod-doc-1', spec: { content: [{ type: 'task', title: 'Aufgabe', blocks: [{ type: 'image', src: ref }] }] } }],
+    });
+    expect(modules[0].content.spec.content[0].blocks[0].src).toBe(PNG);
+
+    await expect(service.executeBatch(session, {
+      operations: [{ op: 'update_document', moduleId: 'mod-doc-1', spec: { content: [{ type: 'image', src: 'lm-img:000000000000' }] } }],
+    })).rejects.toThrow(/Unbekannte Bild-Verweise lm-img:000000000000/);
+  });
+
+  it('fremde Dokumente lassen sich nicht neu aufbereiten', async () => {
+    topics.push({ id: 'top-fremd', ownerId: 'other', title: 'Fremd', modules: [] });
+    modules.push({ id: 'mod-fremd', topicId: 'top-fremd', type: 'document', title: 'Fremd', content: { spec: { content: [] } } });
+    await expect(service.createSession(user, { regenerateModuleIds: ['mod-fremd'] })).rejects.toThrow(/Nur eigene/);
+  });
+});

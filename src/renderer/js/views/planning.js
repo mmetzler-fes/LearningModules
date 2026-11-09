@@ -93,7 +93,7 @@ export class PlanningView {
         <button class="btn btn-secondary btn-sm" data-pl-new="section" title="Abschnitt im Plan – enthält nur Lernthemen (⇧F7 im Plan)">➕ Abschnitt</button>
         <button class="btn btn-secondary btn-sm" data-pl-act="include" title="Einen anderen Plan als Teilplan hier einbinden – ändert er sich, ändert er sich überall">🧩 Teilplan einbinden</button>
         <button class="btn btn-secondary btn-sm pl-always" data-pl-act="structure" title="Books bzw. Pläne, Bereiche und Abschnitte aus einer Tabelle (.ods, .xlsx, .csv), einer Ordnerstruktur oder einer Gliederung anlegen – ins Notizbuch oder in die Planung">🧱 Struktur importieren</button>
-        <button class="btn btn-secondary btn-sm pl-always" data-pl-act="ai-bridge" title="Zeitbeschränkten 15-Minuten-Zugriff und Anleitung für deine eigene KI erzeugen (Sortieren, Planen & Material-Import)">🤖 KI-Assistent</button>
+        <button class="btn btn-secondary btn-sm pl-always" data-pl-act="ai-bridge" title="Zeitbeschränkten Zugriff und Anleitung für deine eigene KI erzeugen (Sortieren, Planen & Material-Import)">🤖 KI-Assistent</button>
         <span class="nb-view-tabs" role="group" aria-label="Ansicht">
           <button type="button" data-pl-view="docs" class="${this.view === 'docs' ? 'active' : ''}" aria-pressed="${this.view === 'docs'}" title="Nur Dokumente und Anhänge – die Quizze eines Dokuments stehen darunter">📄 Dokumente</button>
           <button type="button" data-pl-view="quizzes" class="${this.view === 'quizzes' ? 'active' : ''}" aria-pressed="${this.view === 'quizzes'}" title="Nur Quizze, Übungen und Apps – Lernthemen und Bereiche ohne Quiz sind ausgeblendet">🧩 Quizze</button>

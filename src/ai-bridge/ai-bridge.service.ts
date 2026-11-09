@@ -16,6 +16,8 @@ import { docSpec, withBlockIds } from '../worksheets/docspec';
 import { subtreeIds } from '../notebooks/notebook-rules';
 import { planSubtree } from '../plans/plan-rules';
 import { docChanged } from '../core/events/doc-changes';
+import { AiBridgeSessionRow } from '../core/entities/ai-bridge-session.entity';
+import { collectImages, maskImages, unmaskImages } from './ai-images';
 
 export interface AiBridgePermissions {
   organize: boolean;
@@ -29,6 +31,10 @@ export interface AiBridgeScope {
   planNodeIds: string[];
   /** Darf die KI auch auf Themen unter „Unsortiert“ zugreifen? */
   includeUnsorted: boolean;
+  /** Einzelne Lernthemen zusätzlich (z. B. das Lernthema eines Blatts, das neu aufbereitet wird). */
+  topicIds?: string[];
+  /** Neu aufbereiten: die Dokumente, um die es geht (für Anleitung und Baum). */
+  moduleIds?: string[];
   permissions: AiBridgePermissions;
 }
 
@@ -60,8 +66,8 @@ export interface AiBridgeSession {
   scope: AiBridgeScope;
   undoStack: UndoAction[];
   log: AiBridgeLogItem[];
-  requestWindowStart: number;
-  requestsInWindow: number;
+  /** `regenerate`: Blatt neu aufbereiten – nur Dokumente überarbeiten. */
+  purpose: 'regenerate' | null;
 }
 
 export type AiBridgeOp =
@@ -76,12 +82,16 @@ export type AiBridgeOp =
   | { op: 'create_document'; topicId: string; title: string; kind?: 'arbeitsblatt' | 'klassenarbeit' | 'text'; spec: any; ref?: string }
   | { op: 'update_document'; moduleId: string; title?: string; spec: any };
 
-const DEFAULT_TTL_MINUTES = 15;
+const DEFAULT_TTL_MINUTES = 60;
 const MIN_TTL_MINUTES = 5;
-const MAX_TTL_MINUTES = 60;
-const SESSION_RETENTION_MS = 24 * 60 * 60 * 1000; // 24h für nachträgliches Undo
+const MAX_TTL_MINUTES = 240;
+/** So lange nach dem Ablauf lässt sich eine Sitzung noch rückgängig machen. */
+const SESSION_RETENTION_MS = 14 * 24 * 60 * 60 * 1000;
 const MAX_REQ_PER_MIN = 60;
 const MAX_OPS_PER_SESSION = 200;
+
+/** Wie die KI mit Bildern umgeht (Verweise statt Base64 – siehe ai-images.ts). */
+const IMAGE_RULE = '`{"type": "image", "src": "lm-img:…", "width": "8cm", "float": "right"}` – vorhandene Bilder erscheinen beim Lesen als kurze Verweise `lm-img:…`; diese unverändert übernehmen, dann bleibt das Bild erhalten. Neue Bilder als `data:image/png;base64,…`.';
 
 function sha256(input: string): string {
   return crypto.createHash('sha256').update(input).digest('hex');
@@ -89,7 +99,8 @@ function sha256(input: string): string {
 
 @Injectable()
 export class AiBridgeService {
-  private readonly sessions = new Map<string, AiBridgeSession>();
+  /** Anfragen je Sitzung in der laufenden Minute – nur im Speicher. */
+  private readonly rate = new Map<string, { start: number; count: number }>();
 
   constructor(
     @InjectRepository(NotebookNode) private readonly nbNodeRepo: Repository<NotebookNode>,
@@ -102,13 +113,31 @@ export class AiBridgeService {
     private readonly notebooks: NotebooksService,
     private readonly plans: PlansService,
     private readonly topics: TopicsService,
+    @InjectRepository(AiBridgeSessionRow) private readonly sessionRepo: Repository<AiBridgeSessionRow>,
   ) {}
 
-  private cleanup() {
+  // ---- Speichern ----
+
+  private fromRow(r: AiBridgeSessionRow): AiBridgeSession {
+    return {
+      id: r.id, tokenHash: r.tokenHash, tokenPreview: r.tokenPreview, userId: r.userId,
+      createdAt: new Date(r.createdAt).getTime(), expiresAt: new Date(r.expiresAt).getTime(),
+      scope: r.scope, undoStack: r.undoStack || [], log: r.log || [], purpose: r.purpose === 'regenerate' ? 'regenerate' : null,
+    };
+  }
+
+  private async store(s: AiBridgeSession) {
+    await this.sessionRepo.save(this.sessionRepo.create({
+      id: s.id, tokenHash: s.tokenHash, tokenPreview: s.tokenPreview, userId: s.userId, createdAt: new Date(s.createdAt),
+      expiresAt: new Date(s.expiresAt), scope: s.scope, undoStack: s.undoStack, log: s.log, purpose: s.purpose,
+    }));
+  }
+
+  /** Alte Sitzungen dieser Lehrkraft entfernen (abgelaufen und älter als die Aufbewahrung). */
+  private async cleanup(userId: string) {
     const now = Date.now();
-    for (const [id, s] of this.sessions) {
-      if (now - s.expiresAt > SESSION_RETENTION_MS) this.sessions.delete(id);
-    }
+    const rows = await this.sessionRepo.find({ where: { userId } });
+    for (const r of rows) if (now - new Date(r.expiresAt).getTime() > SESSION_RETENTION_MS) await this.sessionRepo.delete({ id: r.id });
   }
 
   // ---- Sitzungen verwalten (Lehrkraft) ----
@@ -122,9 +151,11 @@ export class AiBridgeService {
       includeUnsorted?: boolean;
       permissions?: Partial<AiBridgePermissions>;
       baseUrl?: string;
+      /** Blatt neu aufbereiten: nur diese Dokumente, nur `writeDocs`. */
+      regenerateModuleIds?: string[];
     },
   ) {
-    this.cleanup();
+    await this.cleanup(user.userId);
     const ttl = Math.max(MIN_TTL_MINUTES, Math.min(MAX_TTL_MINUTES, Number(body?.ttlMinutes) || DEFAULT_TTL_MINUTES));
     const rawToken = `lma_${crypto.randomBytes(24).toString('hex')}`;
     const tokenHash = sha256(rawToken);
@@ -133,7 +164,7 @@ export class AiBridgeService {
     const nbIds = Array.isArray(body?.notebookNodeIds) ? body.notebookNodeIds.map(String).filter(Boolean) : ['*'];
     const plIds = Array.isArray(body?.planNodeIds) ? body.planNodeIds.map(String).filter(Boolean) : ['*'];
 
-    const scope: AiBridgeScope = {
+    let scope: AiBridgeScope = {
       notebookNodeIds: nbIds,
       planNodeIds: plIds,
       includeUnsorted: body?.includeUnsorted !== false,
@@ -142,6 +173,19 @@ export class AiBridgeService {
         writeDocs: body?.permissions?.writeDocs !== false,
       },
     };
+    const regenerate = Array.isArray(body?.regenerateModuleIds) && body.regenerateModuleIds.length > 0;
+    if (regenerate) {
+      const ids = [...new Set(body.regenerateModuleIds!.map(String))].slice(0, 30);
+      const mods = await Promise.all(ids.map((id) => this.moduleRepo.findOne({ where: { id } })));
+      const topicIds: string[] = [];
+      for (const m of mods) {
+        if (!m || m.type !== 'document') throw new BadRequestException('Neu aufbereiten geht nur mit Dokumenten.');
+        const topic = await this.topicRepo.findOne({ where: { id: m.topicId, ownerId: user.userId } });
+        if (!topic) throw new ForbiddenException('Nur eigene Dokumente lassen sich mit der KI neu aufbereiten.');
+        if (!topicIds.includes(m.topicId)) topicIds.push(m.topicId);
+      }
+      scope = { notebookNodeIds: [], planNodeIds: [], includeUnsorted: false, topicIds, moduleIds: ids, permissions: { organize: false, writeDocs: true } };
+    }
 
     const session: AiBridgeSession = {
       id: crypto.randomUUID(),
@@ -153,14 +197,14 @@ export class AiBridgeService {
       scope,
       undoStack: [],
       log: [],
-      requestWindowStart: now,
-      requestsInWindow: 0,
+      purpose: regenerate ? 'regenerate' : null,
     };
 
-    this.sessions.set(session.id, session);
-    const tree = await this.scopedTree(session);
+    await this.store(session);
     const base = String(body?.baseUrl || '').replace(/\/+$/, '') || 'http://localhost:3000';
-    const prompt = this.buildTeacherPrompt(session, rawToken, base, tree);
+    const prompt = regenerate
+      ? await this.buildRegeneratePrompt(session, rawToken, base)
+      : this.buildTeacherPrompt(session, rawToken, base, await this.scopedTree(session));
 
     return {
       session: this.publicSession(session),
@@ -169,22 +213,33 @@ export class AiBridgeService {
     };
   }
 
-  listSessions(user: { userId: string }) {
-    this.cleanup();
-    return [...this.sessions.values()]
-      .filter((s) => s.userId === user.userId)
+  async listSessions(user: { userId: string }) {
+    await this.cleanup(user.userId);
+    return (await this.sessionRepo.find({ where: { userId: user.userId } }))
+      .map((r) => this.fromRow(r))
       .sort((a, b) => b.createdAt - a.createdAt)
       .map((s) => this.publicSession(s));
   }
 
-  revokeSession(user: { userId: string }, sessionId: string) {
-    const s = this.ownSession(user.userId, sessionId);
+  async revokeSession(user: { userId: string }, sessionId: string) {
+    const s = await this.ownSession(user.userId, sessionId);
     s.expiresAt = Math.min(s.expiresAt, Date.now() - 1);
+    await this.store(s);
+    return { success: true, session: this.publicSession(s) };
+  }
+
+  /** Laufende Sitzung verlängern: ab jetzt `minutes` weiter (höchstens MAX_TTL_MINUTES). */
+  async extendSession(user: { userId: string }, sessionId: string, minutes?: number) {
+    const s = await this.ownSession(user.userId, sessionId);
+    if (s.expiresAt <= Date.now()) throw new BadRequestException('Diese KI-Sitzung ist schon beendet – bitte eine neue erzeugen.');
+    const add = Math.max(MIN_TTL_MINUTES, Math.min(MAX_TTL_MINUTES, Number(minutes) || 30));
+    s.expiresAt = Math.min(Date.now() + MAX_TTL_MINUTES * 60_000, Math.max(s.expiresAt, Date.now()) + add * 60_000);
+    await this.store(s);
     return { success: true, session: this.publicSession(s) };
   }
 
   async rollbackSession(user: { userId: string }, sessionId: string) {
-    const s = this.ownSession(user.userId, sessionId);
+    const s = await this.ownSession(user.userId, sessionId);
     if (!s.undoStack.length) return { success: true, reverted: 0, session: this.publicSession(s) };
 
     let reverted = 0;
@@ -203,14 +258,15 @@ export class AiBridgeService {
       op: 'rollback',
       summary: `⏪ ${reverted} Änderung${reverted === 1 ? '' : 'en'} rückgängig gemacht.`,
     });
+    await this.store(s);
     docChanged(s.userId);
     return { success: errors.length === 0, reverted, errors, session: this.publicSession(s) };
   }
 
-  private ownSession(userId: string, sessionId: string): AiBridgeSession {
-    const s = this.sessions.get(sessionId);
-    if (!s || s.userId !== userId) throw new NotFoundException('KI-Sitzung nicht gefunden.');
-    return s;
+  private async ownSession(userId: string, sessionId: string): Promise<AiBridgeSession> {
+    const r = await this.sessionRepo.findOne({ where: { id: sessionId } });
+    if (!r || r.userId !== userId) throw new NotFoundException('KI-Sitzung nicht gefunden.');
+    return this.fromRow(r);
   }
 
   private publicSession(s: AiBridgeSession) {
@@ -223,6 +279,7 @@ export class AiBridgeService {
       active: s.expiresAt > now,
       remainingSeconds: Math.max(0, Math.round((s.expiresAt - now) / 1000)),
       scope: s.scope,
+      purpose: s.purpose,
       opsCount: s.undoStack.length,
       canRollback: s.undoStack.length > 0,
       log: s.log,
@@ -231,25 +288,23 @@ export class AiBridgeService {
 
   // ---- Token-Prüfung (KI-Zugriff) ----
 
-  authenticateToken(rawToken: string | undefined): AiBridgeSession {
-    this.cleanup();
+  async authenticateToken(rawToken: string | undefined): Promise<AiBridgeSession> {
     const cleaned = String(rawToken || '').replace(/^Bearer\s+/i, '').trim();
     if (!cleaned || !cleaned.startsWith('lma_')) {
       throw new UnauthorizedException('Ungültiges oder fehlendes KI-Token (erwartet: lma_…).');
     }
-    const hash = sha256(cleaned);
-    const session = [...this.sessions.values()].find((s) => s.tokenHash === hash);
-    if (!session) throw new UnauthorizedException('KI-Token nicht gefunden oder bereits gelöscht.');
+    const row = await this.sessionRepo.findOne({ where: { tokenHash: sha256(cleaned) } });
+    if (!row) throw new UnauthorizedException('KI-Token nicht gefunden oder bereits gelöscht.');
+    const session = this.fromRow(row);
     const now = Date.now();
     if (session.expiresAt <= now) {
-      throw new UnauthorizedException('Das 15-Minuten-KI-Token ist abgelaufen. Bitte in LearningModules ein neues Token erzeugen.');
+      throw new UnauthorizedException('Das KI-Token ist abgelaufen oder wurde beendet. Bitte in LearningModules verlängern oder ein neues erzeugen.');
     }
-    if (now - session.requestWindowStart > 60_000) {
-      session.requestWindowStart = now;
-      session.requestsInWindow = 0;
-    }
-    session.requestsInWindow++;
-    if (session.requestsInWindow > MAX_REQ_PER_MIN) {
+    const r = this.rate.get(session.id);
+    const window = r && now - r.start <= 60_000 ? r : { start: now, count: 0 };
+    window.count++;
+    this.rate.set(session.id, window);
+    if (window.count > MAX_REQ_PER_MIN) {
       throw new ForbiddenException('Zu viele Anfragen pro Minute für dieses KI-Token.');
     }
     return session;
@@ -285,6 +340,8 @@ export class AiBridgeService {
         allowedTopics.add(p.topicId);
       }
     }
+    // Einzeln freigegebene Lernthemen (nur eigene; geprüft beim Erzeugen und beim Lesen über ownerId).
+    for (const id of session.scope.topicIds || []) allowedTopics.add(id);
 
     const planAll = session.scope.planNodeIds.includes('*');
     const allowedPlanNodes = new Set<string>();
@@ -311,7 +368,10 @@ export class AiBridgeService {
     const topicsById = new Map<string, any>();
     for (const t of nbTree.topics || []) topicsById.set(t.id, t);
 
-    const placements = nbTree.placements
+    // Einzeln freigegebene Lernthemen ohne Platz im Notizbuch stehen wie „Unsortiert“ da.
+    const placed = new Set(nbTree.placements.map((p: any) => p.topicId));
+    const loose = (session.scope.topicIds || []).filter((id) => !placed.has(id)).map((topicId) => ({ topicId, nodeId: null, orderIndex: 0 }));
+    const placements = [...nbTree.placements, ...loose]
       .filter((p: any) => allowedTopics.has(p.topicId))
       .map((p: any) => {
         const t = topicsById.get(p.topicId);
@@ -374,29 +434,70 @@ export class AiBridgeService {
       id: topic.id,
       title: topic.title,
       description: topic.description || '',
-      modules: modules.map((m) => ({
-        id: m.id,
-        type: m.type,
-        title: m.title,
-        description: m.description || '',
-        orderIndex: m.orderIndex,
-        content: m.content,
-      })),
+      // Eingebettete Bilder als `lm-img:`-Verweise (ai-images.ts) – unverändert zurückschreiben, dann bleiben sie.
+      modules: modules.map((m) => {
+        const { value, images } = maskImages(this.parsed(m.content));
+        return { id: m.id, type: m.type, title: m.title, description: m.description || '', orderIndex: m.orderIndex, content: value, images };
+      }),
     };
+  }
+
+  private parsed(content: any) {
+    if (typeof content !== 'string') return content;
+    try { return JSON.parse(content); } catch { return content; }
+  }
+
+  /** Ein Dokument zum Neuaufbereiten: DocSpec mit Bild-Verweisen, Art, Titel. */
+  async getScopedDocument(session: AiBridgeSession, moduleId: string) {
+    const mod = await this.moduleRepo.findOne({ where: { id: moduleId } });
+    if (!mod || mod.type !== 'document') throw new NotFoundException('Dokument nicht gefunden.');
+    const { allowedTopics } = await this.resolveScopeSets(session);
+    if (!allowedTopics.has(mod.topicId)) throw new ForbiddenException('Dieses Dokument liegt außerhalb des für das KI-Token freigegebenen Bereichs.');
+    const content = this.parsed(mod.content) || {};
+    const { value, images } = maskImages(content.spec ?? content);
+    return { id: mod.id, topicId: mod.topicId, title: mod.title, kind: content.kind || 'arbeitsblatt', spec: value, images };
+  }
+
+  /**
+   * `lm-img:`-Verweise einer DocSpec wieder durch die Bilder ersetzen – aus den
+   * Dokumenten des Lernthemas (dort lagen sie, als die KI sie gelesen hat).
+   */
+  private async restoreImages(spec: any, topicId: string, index: number, label: string) {
+    if (!JSON.stringify(spec ?? null).includes('lm-img:')) return spec;
+    const mods = await this.moduleRepo.find({ where: { topicId } });
+    const known = collectImages(mods.map((m) => this.parsed(m.content)));
+    const { value, unknown } = unmaskImages(spec, known);
+    if (unknown.length) {
+      throw new BadRequestException(`operations[${index}] (${label}): Unbekannte Bild-Verweise ${unknown.join(', ')} – nur Verweise aus diesem Lernthema übernehmen oder neue Bilder als data:image/png;base64,… einfügen.`);
+    }
+    return value;
   }
 
   // ---- Batch-Operationen (Sortieren, Projektieren in Pläne, Dokumente anlegen/ändern) ----
 
   async executeBatchByTeacher(user: { userId: string }, sessionId: string, body: { dryRun?: boolean; operations?: AiBridgeOp[] }) {
-    const session = this.ownSession(user.userId, sessionId);
+    const session = await this.ownSession(user.userId, sessionId);
     return this.executeBatch(session, body);
   }
 
+  /** Auch wenn mittendrin etwas scheitert: Was schon geändert ist, bleibt rückgängig machbar. */
   async executeBatch(session: AiBridgeSession, body: { dryRun?: boolean; operations?: AiBridgeOp[] }) {
+    const before = session.undoStack.length;
+    try {
+      return await this.runBatch(session, body);
+    } finally {
+      if (session.undoStack.length !== before) {
+        await this.store(session);
+        docChanged(session.userId);
+      }
+    }
+  }
+
+  private async runBatch(session: AiBridgeSession, body: { dryRun?: boolean; operations?: AiBridgeOp[] }) {
     const ops = Array.isArray(body?.operations) ? body.operations : [];
     if (!ops.length) throw new BadRequestException('operations: Mindestens eine Operation erforderlich.');
     if (session.undoStack.length + ops.length > MAX_OPS_PER_SESSION) {
-      throw new BadRequestException(`Maximal ${MAX_OPS_PER_SESSION} Operationen pro 15-Minuten-Sitzung erlaubt.`);
+      throw new BadRequestException(`Maximal ${MAX_OPS_PER_SESSION} Operationen pro KI-Sitzung erlaubt.`);
     }
 
     const dryRun = !!body?.dryRun;
@@ -420,6 +521,10 @@ export class AiBridgeService {
       const item = ops[i];
       if (!item || typeof item !== 'object' || !item.op) {
         throw new BadRequestException(`operations[${i}]: Feld "op" fehlt.`);
+      }
+      // Neu aufbereiten: nur die freigegebenen Dokumente überschreiben – nichts anlegen, nichts umräumen.
+      if (session.purpose === 'regenerate' && (item.op !== 'update_document' || !(session.scope.moduleIds || []).includes(String((item as any).moduleId)))) {
+        throw new ForbiddenException(`operations[${i}] (${item.op}): In dieser Sitzung geht nur update_document für die freigegebenen Dokumente.`);
       }
 
       switch (item.op) {
@@ -612,7 +717,7 @@ export class AiBridgeService {
             results.push({ index: i, op: item.op, ok: true, id: fakeId, summary: `[Vorschau] Lernthema „${title}“ anlegen` });
             break;
           }
-          const created = await this.topics.create(user, { title, description: String(item.description || '').trim() });
+          const created = (await this.topics.create(user, { title, description: String(item.description || '').trim() })) as unknown as LearningTopic;
           scopeSets.allowedTopics.add(created.id);
           if (targetNodeId) {
             await this.notebooks.move(user, { type: 'topic', id: created.id, parentId: targetNodeId, index: null });
@@ -633,6 +738,8 @@ export class AiBridgeService {
           }
           const title = String(item.title || '').trim().slice(0, 200);
           if (!title) throw new BadRequestException(`operations[${i}]: title fehlt.`);
+          // Neues Lernthema im Probelauf: dort gibt es noch keine Bilder.
+          if (!topicId.startsWith('dry_')) item.spec = await this.restoreImages(item.spec, topicId, i, `create_document „${title}“`);
           const errors = docSpec().validateDocSpec(item.spec);
           if (errors.length) {
             throw new BadRequestException(`operations[${i}] (create_document „${title}“): Ungültige DocSpec – ${errors.join(' · ')}`);
@@ -666,6 +773,7 @@ export class AiBridgeService {
           if (!scopeSets.allowedTopics.has(mod.topicId)) {
             throw new ForbiddenException(`operations[${i}]: Dokument „${mod.title}“ liegt außerhalb des freigegebenen Bereichs.`);
           }
+          item.spec = await this.restoreImages(item.spec, mod.topicId, i, `update_document „${mod.title}“`);
           const errors = docSpec().validateDocSpec(item.spec);
           if (errors.length) {
             throw new BadRequestException(`operations[${i}] (update_document „${mod.title}“): Ungültige DocSpec – ${errors.join(' · ')}`);
@@ -702,7 +810,6 @@ export class AiBridgeService {
       }
     }
 
-    if (!dryRun) docChanged(session.userId);
     return {
       ok: true,
       dryRun,
@@ -778,12 +885,15 @@ export class AiBridgeService {
     return {
       description: 'LearningModules AI-Bridge – Zeitbeschränkte Schnittstelle zur Sortierung, Unterrichtsplanung und Dokument-Aufbereitung.',
       session: this.publicSession(session),
+      authentication: 'Header "Authorization: Bearer <token>" (Schreiben nur so; Lesen notfalls auch mit ?token=).',
       endpoints: {
         instructions: `GET ${baseUrl}/api/ai-bridge/instructions`,
         tree: `GET ${baseUrl}/api/ai-bridge/tree`,
         topicDetail: `GET ${baseUrl}/api/ai-bridge/topics/:topicId`,
+        document: `GET ${baseUrl}/api/ai-bridge/documents/:moduleId`,
         batch: `POST ${baseUrl}/api/ai-bridge/batch`,
       },
+      images: IMAGE_RULE,
       operationSchema: this.operationReference(),
       docSpecReference: this.docSpecReference(),
       currentTree: tree,
@@ -874,6 +984,74 @@ export class AiBridgeService {
     };
   }
 
+  /** Zugang per HTTP – Token im Header, damit er nicht in Server- und Proxy-Protokollen steht. */
+  private httpLines(baseUrl: string, rawToken: string, extra: string[] = []): string[] {
+    return [
+      '### Falls du direkten Web-/HTTP-Zugriff hast (z. B. Claude Code, Agent, Python):',
+      `- Bei jeder Anfrage den Header \`Authorization: Bearer ${rawToken}\` mitschicken.`,
+      `- Regeln & aktuellen Baum: \`GET ${baseUrl}/api/ai-bridge/instructions\``,
+      `- Lernthema mit Inhalten: \`GET ${baseUrl}/api/ai-bridge/topics/<topicId>\``,
+      ...extra,
+      `- Änderungen prüfen (Probelauf): \`POST ${baseUrl}/api/ai-bridge/batch\` mit \`{ "dryRun": true, "operations": [...] }\``,
+      `- Änderungen ausführen: \`POST ${baseUrl}/api/ai-bridge/batch\` mit \`{ "operations": [...] }\``,
+      '- Meldet der Server einen Fehler (z. B. ungültige DocSpec), korrigiere und sende erneut.',
+      `- Nur wenn dein Werkzeug keine Header setzen kann: Lesen geht auch mit \`?token=${rawToken}\` an der Adresse.`,
+    ];
+  }
+
+  /**
+   * Anleitung „Blatt neu aufbereiten“: das Original (liegt der KI als PDF/Bild
+   * vor) in ein sauberes Arbeitsblatt überführen, Inhalte und Reihenfolge wie im
+   * Original, Grafiken mitnehmen. Der jetzige Stand steht mit Bild-Verweisen darin,
+   * damit es auch ohne HTTP-Zugriff geht.
+   */
+  async buildRegeneratePrompt(session: AiBridgeSession, rawToken: string, baseUrl: string): Promise<string> {
+    const expiresTime = new Date(session.expiresAt).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+    const docs = await Promise.all((session.scope.moduleIds || []).map((id) => this.getScopedDocument(session, id)));
+    return [
+      `# Arbeitsblatt${docs.length === 1 ? '' : 'er'} neu aufbereiten (LearningModules)`,
+      '',
+      `Ich gebe dir ${docs.length === 1 ? 'das Original' : 'die Originale'} (PDF/Word/Bild) als Anhang. Der Import in LearningModules hat ${docs.length === 1 ? 'es' : 'sie'} nur unvollständig übernommen.`,
+      `Bitte bereite ${docs.length === 1 ? 'das Blatt' : 'jedes Blatt'} als sauberes, editierbares Arbeitsblatt (DocSpec) neu auf und überschreibe damit das vorhandene Dokument (\`update_document\`).`,
+      '',
+      '## Regeln',
+      '- **Inhalte und Reihenfolge wie im Original.** Nicht umschreiben, nicht kürzen, keine eigenen Zusatzaufgaben. Formulierungen und Anrede (du/Sie) bleiben.',
+      '- Information, Aufgaben und Lösungen gehören auf ein Blatt: Aufgaben als `task`/`subtask` (Punkte nur, wenn das Original welche nennt), Lösungen in `solution`-Blöcken direkt bei der Aufgabe.',
+      '- Schreibfelder (`karo`) dort, wo im Original Platz zum Schreiben ist – Länge passend zur Lösung.',
+      '- **Grafiken mitnehmen:** Bilder und gezeichnete Grafiken (Pfeile, Klammern, Skizzen, Schaltpläne) gehören zum Blatt. Vorhandene Bilder stehen als `lm-img:…` im jetzigen Stand – diese Verweise an die passende Stelle übernehmen. Fehlt eine Grafik und kannst du sie aus dem Original ausschneiden, als `data:image/png;base64,…` einfügen. Sonst an der Stelle einen Kasten `{"type":"box","title":"📌 Grafik aus dem Original","blocks":[{"type":"text","text":"<was dort zu sehen ist>"}]}` setzen, damit ich sie nachtrage.',
+      '- Formeln als LaTeX (`$…$` im Text, `formula`-Block für abgesetzte Formeln), Tabellen als `table`, Programmcode als `code`.',
+      '- Keine Seitenbegrenzung – lieber vollständig als kurz.',
+      '',
+      '## Zugang',
+      `- **Gültig bis:** ${expiresTime} Uhr · Rechte: nur diese Dokumente überarbeiten. Vorher wird jeweils eine Fassung gesichert; ich kann alles rückgängig machen.`,
+      `- **Basis-URL:** \`${baseUrl}/api/ai-bridge\` · **Token:** \`${rawToken}\``,
+      '',
+      ...this.httpLines(baseUrl, rawToken, [`- Ein Dokument mit DocSpec und Bild-Verweisen: \`GET ${baseUrl}/api/ai-bridge/documents/<moduleId>\``]),
+      '- Erst mit `"dryRun": true` prüfen, dann ausführen.',
+      '',
+      '### Falls du KEINEN HTTP-Zugriff hast (normaler KI-Chat):',
+      '- Antworte mit genau einem ```json-Codeblock `{ "operations": [ { "op": "update_document", "moduleId": "…", "spec": { "content": [ … ] } } ] }`. Ich füge ihn in LearningModules ein; Fehler melde ich dir zurück.',
+      '',
+      '## Format (DocSpec, Kurzreferenz)',
+      ...Object.entries(this.docSpecReference().blocks).map(([, v]) => `- \`${v}\``),
+      `- Inline: ${this.docSpecReference().inlineMarkup}`,
+      `- Bilder: ${IMAGE_RULE}`,
+      '',
+      `## ${docs.length === 1 ? 'Das Dokument' : 'Die Dokumente'} (jetziger Stand)`,
+      ...docs.flatMap((d) => [
+        '',
+        `### „${d.title}“ – moduleId \`${d.id}\`, Art: ${d.kind}`,
+        d.images.length ? `Bilder darin: ${d.images.map((im) => `\`${im.ref}\` (${im.mime}, ${im.kb} KB)`).join(', ')}` : 'Bisher keine Bilder darin.',
+        '```json',
+        JSON.stringify(d.spec),
+        '```',
+      ]),
+      '',
+      '## Mein Zusatzwunsch (optional):',
+      '',
+    ].join('\n');
+  }
+
   buildTeacherPrompt(session: AiBridgeSession, rawToken: string, baseUrl: string, tree: any): string {
     const expiresTime = new Date(session.expiresAt).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
     const compactTree = JSON.stringify(
@@ -886,22 +1064,18 @@ export class AiBridgeService {
     );
 
     return [
-      '# Auftrag für meinen LearningModules-Assistenten (15-Minuten-Token)',
+      '# Auftrag für meinen LearningModules-Assistenten',
       '',
       'Du unterstützt mich beim Strukturieren, Zuordnen und Aufbereiten meines Unterrichtsmaterials in **LearningModules**.',
       '- **Konzept der App:** Materialien werden einmalig im **Lernnotizbuch** (`notebook`: `book → area → section → Lernthema (topic) → Modul`) gesammelt. Von dort werden sie als Verweise (`link_to_plan`) in **Planungsvorlagen** (`plans`: `folder → plan → area → section`) projiziert.',
       '',
       '## 1. Dein zeitbeschränkter API-Zugang',
-      `- **Gültig bis:** ${expiresTime} Uhr (15 Minuten, alle Änderungen sind über ein Server-Snapshot-Log rückgängig machbar)`,
+      `- **Gültig bis:** ${expiresTime} Uhr (alle Änderungen lassen sich in LearningModules rückgängig machen)`,
       `- **Freigegebene Rechte:** Lesen${session.scope.permissions.organize ? ', Strukturieren & Planen (`organize`)' : ''}${session.scope.permissions.writeDocs ? ', Dokumente anlegen & überarbeiten (`writeDocs`)' : ''}`,
       `- **Basis-URL:** \`${baseUrl}/api/ai-bridge\``,
       `- **Token:** \`${rawToken}\``,
       '',
-      '### Falls du direkten Web-/HTTP-Zugriff hast (z. B. Claude Code, Agent, Python):',
-      `- Regeln & aktuellen Baum abrufen: \`GET ${baseUrl}/api/ai-bridge/instructions?token=${rawToken}\``,
-      `- Einzelnes Lernthema inkl. Arbeitsblatt-Inhalt lesen: \`GET ${baseUrl}/api/ai-bridge/topics/<topicId>?token=${rawToken}\``,
-      `- Änderungen prüfen (Vorschau): \`POST ${baseUrl}/api/ai-bridge/batch?token=${rawToken}\` mit \`{ "dryRun": true, "operations": [...] }\``,
-      `- Änderungen ausführen: \`POST ${baseUrl}/api/ai-bridge/batch?token=${rawToken}\` mit \`{ "operations": [...] }\``,
+      ...this.httpLines(baseUrl, rawToken),
       '',
       '### Falls du KEINEN direkten HTTP-Zugriff hast (normaler KI-Chat im Browser):',
       '- Antworte mir mit einem einzigen ````json Codeblock, der das JSON-Objekt `{ "operations": [ ... ] }` enthält. Ich kann diesen Codeblock direkt im KI-Dialog von LearningModules einfügen und mit einem Klick ausführen.',
@@ -928,6 +1102,7 @@ export class AiBridgeService {
       '- Tabelle: `{"type": "table", "header": ["Spalte A", "Spalte B"], "rows": [["1", "2"]]}`',
       '- Merke-Kasten: `{"type": "box", "title": "Merke", "shaded": true, "blocks": [{"type": "text", "text": "..."}]}`',
       '- Spalten nebeneinander: `{"type": "columns", "blocks": [{"type": "column", "blocks": [...]}, {"type": "column", "blocks": [...]}]}`',
+      `- Bilder: ${IMAGE_RULE}`,
       '',
       '## 3. Aktueller Stand im freigegebenen Bereich',
       '```json',

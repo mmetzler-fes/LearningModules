@@ -1,6 +1,6 @@
 /**
- * 🤖 Zeitbeschränkte KI-Schnittstelle (15-Minuten-Token, „Bring Your Own AI“):
- * Erzeugt ein auf 15 Minuten und ausgewählte Books/Pläne beschränktes Token
+ * 🤖 Zeitbeschränkte KI-Schnittstelle („Bring Your Own AI“):
+ * Erzeugt ein zeitlich (Standard 60 Minuten) und auf ausgewählte Books/Pläne beschränktes Token
  * samt fertiger KI-Anleitung. Die Lehrkraft gibt diese Anleitung ihrer eigenen
  * KI (Claude, ChatGPT, lokaler Agent …) – es entstehen keine Server-API-Kosten.
  * Alle Änderungen über das Token werden protokolliert und lassen sich mit einem
@@ -23,7 +23,11 @@ function parseBatchJson(raw) {
   throw new Error('Erwartet wird ein JSON-Objekt mit "operations": [ ... ].');
 }
 
-export async function openAiBridgeDialog(app, { onDone = null } = {}) {
+/**
+ * `regenerate`: `[{ id, title }]` – Dokumente mit der KI neu aufbereiten. Dann gibt es keine
+ * Bereichsauswahl: Die KI darf nur diese Dokumente überarbeiten.
+ */
+export async function openAiBridgeDialog(app, { onDone = null, regenerate = null } = {}) {
   const [nb, plans, sessionsRes] = await Promise.all([
     app.api.getNotebooks(),
     app.api.getPlans(),
@@ -40,16 +44,21 @@ export async function openAiBridgeDialog(app, { onDone = null } = {}) {
   const overlay = document.createElement('div');
   overlay.className = 'confirm-overlay pl-dialog';
   overlay.innerHTML = `<div class="import-modules-card si-card aib-card" role="dialog" aria-modal="true" aria-labelledby="aibTitle">
-    <h3 id="aibTitle">🤖 KI-Assistent (15-Minuten-Zugriff)</h3>
-    <p class="hint">Erzeuge ein zeitlich beschränktes Token und eine fertige Anleitung für <strong>deine eigene KI</strong>
+    <h3 id="aibTitle">🤖 ${regenerate ? `Mit KI neu aufbereiten: ${escapeHtml(regenerate.length === 1 ? `„${regenerate[0].title}“` : `${regenerate.length} Dokumente`)}` : 'KI-Assistent (zeitlich begrenzter Zugriff)'}</h3>
+    ${regenerate
+      ? `<p class="hint">So geht es: <strong>1.</strong> Anleitung erzeugen (wird kopiert). <strong>2.</strong> In deiner KI einfügen und
+          <strong>das Original als PDF/Word/Bild anhängen</strong>. <strong>3.</strong> Hat deine KI Webzugriff (z.&nbsp;B. Claude Code), schreibt sie
+          das Dokument selbst; sonst gibt sie einen JSON-Block aus, den du unten einfügst. Die KI darf nur
+          ${regenerate.length === 1 ? 'dieses Dokument' : 'diese Dokumente'} überarbeiten; vorher wird jede Fassung gesichert – ⏪ macht alles rückgängig.</p>`
+      : `<p class="hint">Erzeuge ein zeitlich beschränktes Token und eine fertige Anleitung für <strong>deine eigene KI</strong>
       (z.&nbsp;B. Claude, ChatGPT, Gemini). Die KI erhält nur Zugriff auf die unten freigegebenen Ordner – niemals auf
-      Schülerdaten oder Noten. Alle KI-Änderungen lassen sich hier mit einem Klick rückgängig machen.</p>
+      Schülerdaten oder Noten. Alle KI-Änderungen lassen sich hier mit einem Klick rückgängig machen.</p>`}
 
     <div class="aib-sessions"></div>
 
     <details class="aib-create-box" open>
       <summary><strong>🔑 Neues KI-Token &amp; Anleitung erzeugen</strong></summary>
-      <div class="aib-grid">
+      <div class="aib-grid ${regenerate ? 'hidden' : ''}">
         <fieldset class="si-group">
           <legend>📓 Lernnotizbuch-Freigabe</legend>
           <label class="share-flag"><input type="checkbox" class="aib-nb-all" checked /> <span>Alle eigenen Books freigeben</span></label>
@@ -69,22 +78,23 @@ export async function openAiBridgeDialog(app, { onDone = null } = {}) {
       </div>
 
       <fieldset class="si-group">
-        <legend>⚙️ Erlaubte Aktionen &amp; Gültigkeitsdauer</legend>
+        <legend>⚙️ ${regenerate ? 'Gültigkeitsdauer' : 'Erlaubte Aktionen &amp; Gültigkeitsdauer'}</legend>
         <div class="aib-perms">
-          <label class="share-flag"><input type="checkbox" class="aib-perm-org" checked /> <span>Strukturieren &amp; Verplanen (Ordner anlegen, Lernthemen verschieben, in Pläne projizieren)</span></label>
-          <label class="share-flag"><input type="checkbox" class="aib-perm-docs" checked /> <span>Inhalte &amp; Dokumente (Lernthemen und editierbare Arbeitsblätter anlegen/überarbeiten)</span></label>
+          <label class="share-flag ${regenerate ? 'hidden' : ''}"><input type="checkbox" class="aib-perm-org" checked /> <span>Strukturieren &amp; Verplanen (Ordner anlegen, Lernthemen verschieben, in Pläne projizieren)</span></label>
+          <label class="share-flag ${regenerate ? 'hidden' : ''}"><input type="checkbox" class="aib-perm-docs" checked /> <span>Inhalte &amp; Dokumente (Lernthemen und editierbare Arbeitsblätter anlegen/überarbeiten)</span></label>
           <label class="aib-ttl-label">Gültigkeit:
             <select class="aib-ttl">
-              <option value="15" selected>15 Minuten (Empfohlen)</option>
               <option value="30">30 Minuten</option>
-              <option value="60">60 Minuten</option>
+              <option value="60" selected>60 Minuten (Empfohlen)</option>
+              <option value="120">2 Stunden</option>
+              <option value="240">4 Stunden</option>
             </select>
           </label>
         </div>
       </fieldset>
 
       <div class="confirm-actions">
-        <button type="button" class="btn btn-primary aib-btn-generate">🤖 Token erzeugen &amp; KI-Anleitung kopieren</button>
+        <button type="button" class="btn btn-primary aib-btn-generate">🤖 ${regenerate ? 'Anleitung erzeugen &amp; kopieren' : 'Token erzeugen &amp; KI-Anleitung kopieren'}</button>
       </div>
     </details>
 
@@ -159,6 +169,7 @@ export async function openAiBridgeDialog(app, { onDone = null } = {}) {
             <strong>Token <code>${escapeHtml(s.tokenPreview)}</code></strong> · ${statusBadge}
             · <strong>${s.opsCount || 0}</strong> rückgängig machbare Änderung${s.opsCount === 1 ? '' : 'en'}
             <span class="aib-session-actions">
+              ${s.active ? `<button type="button" class="btn btn-secondary btn-sm" data-extend="${escapeAttr(s.id)}" title="Zugriff 30 Minuten länger">⏱ +30 Min.</button>` : ''}
               ${s.canRollback ? `<button type="button" class="btn btn-secondary btn-sm" data-rollback="${escapeAttr(s.id)}">⏪ Rückgängig (${s.opsCount})</button>` : ''}
               ${s.active ? `<button type="button" class="btn btn-secondary btn-sm" data-revoke="${escapeAttr(s.id)}">⏹ Zugriff beenden</button>` : ''}
             </span>
@@ -188,6 +199,16 @@ export async function openAiBridgeDialog(app, { onDone = null } = {}) {
       renderSessions(fresh.sessions);
       return;
     }
+    const ext = e.target.closest('[data-extend]');
+    if (ext) {
+      ext.disabled = true;
+      const res = await app.api.extendAiBridgeSession(ext.dataset.extend, 30);
+      if (bad(res)) app.showToast(res?.message || 'Verlängern ging nicht.', 'error');
+      else app.showToast('KI-Zugriff um 30 Minuten verlängert.', 'success');
+      const fresh = await app.api.getAiBridgeSessions().catch(() => ({ sessions: [] }));
+      renderSessions(fresh.sessions);
+      return;
+    }
     const rev = e.target.closest('[data-revoke]');
     if (rev) {
       const id = rev.dataset.revoke;
@@ -209,8 +230,11 @@ export async function openAiBridgeDialog(app, { onDone = null } = {}) {
       ? ['*']
       : [...overlay.querySelectorAll('input[name="aibPl"]:checked')].map((x) => x.value);
 
-    const job = app.api.createAiBridgeSession({
-      ttlMinutes: Number($('.aib-ttl').value) || 15,
+    const job = app.api.createAiBridgeSession(regenerate ? {
+      ttlMinutes: Number($('.aib-ttl').value) || 60,
+      regenerateModuleIds: regenerate.map((d) => d.id),
+    } : {
+      ttlMinutes: Number($('.aib-ttl').value) || 60,
       notebookNodeIds,
       planNodeIds,
       includeUnsorted: $('.aib-unsorted').checked,
@@ -237,7 +261,9 @@ export async function openAiBridgeDialog(app, { onDone = null } = {}) {
     $('.aib-create-box').open = false;
     const ok = await copied;
     $('.aib-copied-msg').textContent = ok
-      ? '✅ KI-Anleitung samt 15-Minuten-Token ist in die Zwischenablage kopiert! Jetzt in deiner KI einfügen und deinen Wunsch ergänzen.'
+      ? (regenerate
+        ? '✅ Anleitung kopiert! Jetzt in deiner KI einfügen und das Original als Anhang dazugeben.'
+        : '✅ KI-Anleitung samt Token ist in die Zwischenablage kopiert! Jetzt in deiner KI einfügen und deinen Wunsch ergänzen.')
       : '⚠️ Bitte auf „📋 Ganze KI-Anleitung kopieren“ klicken und in deiner KI einfügen.';
     const fresh = await app.api.getAiBridgeSessions().catch(() => ({ sessions: [res.session] }));
     renderSessions(fresh.sessions);

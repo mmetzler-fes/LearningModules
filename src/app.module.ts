@@ -90,6 +90,7 @@ import { HtmlAppFile } from './core/entities/html-app-file.entity';
 import { HtmlAppState } from './core/entities/html-app-state.entity';
 import { HtmlAppsModule } from './html-apps/html-apps.module';
 import { AiBridgeModule } from './ai-bridge/ai-bridge.module';
+import { AiBridgeSessionRow } from './core/entities/ai-bridge-session.entity';
 
 const RENDERER_DIR = join(__dirname, '..', 'src', 'renderer');
 
@@ -122,7 +123,7 @@ function noStaleUi(res: any, path: string) {
       // statt „database is locked“.
       enableWAL: true,
       busyTimeout: 5000,
-      entities: [HtmlAppFile, HtmlAppState, User, StudentClass, ClassStudent, LearningTopic, LearningModule, Result, School, SystemConfig, Tag, TopicLink, TopicQuickLink, TeacherGroup, ShopOffer, UseGrant, PointsEntry, ModuleTiming, ClassShare, NotebookNode, NotebookPlacement, ModuleDraft, UsageCount, ContentFeedback, Category, FederationPeer, RemoteOffer, RemotePerson, FederationCopy, ContentHandover, AccountLink, LinkCode, GithubBackup, NextcloudLink, SchoolNextcloud, DocMirror, WorksheetTemplate, DocumentWork, ExamAttempt, DocumentVersion, RunProgress, DrawingSource, ClassNotebook, ClassNotebookNode, ClassNotebookPlace, AuthSession, DocumentInk, ClassbookProgress, PlanNode, PlanEntry],
+      entities: [HtmlAppFile, HtmlAppState, User, StudentClass, ClassStudent, LearningTopic, LearningModule, Result, School, SystemConfig, Tag, TopicLink, TopicQuickLink, TeacherGroup, ShopOffer, UseGrant, PointsEntry, ModuleTiming, ClassShare, NotebookNode, NotebookPlacement, ModuleDraft, UsageCount, ContentFeedback, Category, FederationPeer, RemoteOffer, RemotePerson, FederationCopy, ContentHandover, AccountLink, LinkCode, GithubBackup, NextcloudLink, SchoolNextcloud, DocMirror, WorksheetTemplate, DocumentWork, ExamAttempt, DocumentVersion, RunProgress, DrawingSource, ClassNotebook, ClassNotebookNode, ClassNotebookPlace, AuthSession, DocumentInk, ClassbookProgress, PlanNode, PlanEntry, AiBridgeSessionRow],
       synchronize: true,
     }),
     MailModule,

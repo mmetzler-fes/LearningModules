@@ -711,11 +711,14 @@ export class BrowserApi {
   testGithubBackup() { return this._fetch('/api/github-backup/test', { method: 'POST' }); }
   runGithubBackup() { return this._fetch('/api/github-backup/run', { method: 'POST' }); }
 
-  // ---------- Zeitbeschränkte KI-Schnittstelle (15-Minuten-Token, src/ai-bridge) ----------
+  // ---------- Zeitbeschränkte KI-Schnittstelle (src/ai-bridge) ----------
   createAiBridgeSession(body) {
     return this._fetch('/api/ai-bridge/sessions', { method: 'POST', body: JSON.stringify({ ...body, baseUrl: window.location.origin }) });
   }
   getAiBridgeSessions() { return this._fetch('/api/ai-bridge/sessions'); }
+  extendAiBridgeSession(id, minutes) {
+    return this._fetch(`/api/ai-bridge/sessions/${encodeURIComponent(id)}/extend`, { method: 'POST', body: JSON.stringify({ minutes }) });
+  }
   revokeAiBridgeSession(id) { return this._fetch(`/api/ai-bridge/sessions/${encodeURIComponent(id)}`, { method: 'DELETE' }); }
   rollbackAiBridgeSession(id) { return this._fetch(`/api/ai-bridge/sessions/${encodeURIComponent(id)}/rollback`, { method: 'POST' }); }
   runAiBridgeBatch(id, body) {

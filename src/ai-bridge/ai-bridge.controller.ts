@@ -34,8 +34,16 @@ export class AiBridgeController {
 
   @Get('sessions')
   @UseGuards(JwtAuthGuard)
-  listSessions(@Request() req: any) {
-    return { sessions: this.bridge.listSessions(req.user) };
+  async listSessions(@Request() req: any) {
+    return { sessions: await this.bridge.listSessions(req.user) };
+  }
+
+  /** `{ minutes }` – laufende Sitzung verlängern. */
+  @Post('sessions/:id/extend')
+  @HttpCode(200)
+  @UseGuards(JwtAuthGuard)
+  extendSession(@Request() req: any, @Param('id') id: string, @Body() body: { minutes?: number }) {
+    return this.bridge.extendSession(req.user, id, body?.minutes);
   }
 
   @Delete('sessions/:id')
@@ -59,30 +67,37 @@ export class AiBridgeController {
     return this.bridge.executeBatchByTeacher(req.user, id, body);
   }
 
-  // ---- KI-Endpunkte (Authentifizierung über das 15-Minuten-Token lma_…) ----
+  // ---- KI-Endpunkte (Authentifizierung über das zeitlich begrenzte Token lma_…) ----
 
   @Get('instructions')
   async instructions(@Req() req: ExpressRequest, @Query('token') token?: string) {
-    const session = this.bridge.authenticateToken(extractAiToken(req, token));
+    const session = await this.bridge.authenticateToken(extractAiToken(req, token));
     return this.bridge.getInstructionsForAi(session, extractBaseUrl(req));
   }
 
   @Get('tree')
   async tree(@Req() req: ExpressRequest, @Query('token') token?: string) {
-    const session = this.bridge.authenticateToken(extractAiToken(req, token));
+    const session = await this.bridge.authenticateToken(extractAiToken(req, token));
     return this.bridge.scopedTree(session);
   }
 
   @Get('topics/:topicId')
   async topic(@Req() req: ExpressRequest, @Param('topicId') topicId: string, @Query('token') token?: string) {
-    const session = this.bridge.authenticateToken(extractAiToken(req, token));
+    const session = await this.bridge.authenticateToken(extractAiToken(req, token));
     return this.bridge.getScopedTopic(session, topicId);
   }
 
+  @Get('documents/:moduleId')
+  async document(@Req() req: ExpressRequest, @Param('moduleId') moduleId: string, @Query('token') token?: string) {
+    const session = await this.bridge.authenticateToken(extractAiToken(req, token));
+    return this.bridge.getScopedDocument(session, moduleId);
+  }
+
+  /** Schreiben nur mit dem Token im Header – in der Adresse landete es in Protokollen. */
   @Post('batch')
   @HttpCode(200)
-  async batch(@Req() req: ExpressRequest, @Query('token') token?: string, @Query('dryRun') dryRunQuery?: string, @Body() body?: any) {
-    const session = this.bridge.authenticateToken(extractAiToken(req, token));
+  async batch(@Req() req: ExpressRequest, @Query('dryRun') dryRunQuery?: string, @Body() body?: any) {
+    const session = await this.bridge.authenticateToken(extractAiToken(req));
     const dryRun = body?.dryRun !== undefined ? !!body.dryRun : dryRunQuery === 'true';
     return this.bridge.executeBatch(session, { ...body, dryRun });
   }

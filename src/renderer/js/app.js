@@ -765,6 +765,10 @@ class App {
   }
 
   async init() {
+    // Anmeldung abgelaufen (api.js, authFetch): einmal fragen und zur Anmeldung neu laden.
+    window.addEventListener('lm-session-expired', async () => {
+      if (await this.appConfirm('Deine Anmeldung ist abgelaufen – deshalb lassen sich Inhalte gerade nicht laden. Jetzt neu laden und anmelden?')) window.location.reload();
+    });
     // Reiter „📓 Notizbuch | 📒 Klassennotizbuch“ über beiden Ansichten.
     document.addEventListener('click', (e) => {
       const tab = e.target.closest('[data-nb-switch]');

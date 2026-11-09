@@ -76,6 +76,7 @@ export class AuthStore {
   }
 
   authFetch(url, opts = {}) {
+    const hadToken = !!this.getToken();
     return fetch(url, {
       ...opts,
       // Ohne no-store beantwortet der Browser ein erneutes GET aus dem Cache –
@@ -86,6 +87,12 @@ export class AuthStore {
       if (r.status !== 401) return r.json();
       this.setToken(null);
       const body = await r.json().catch(() => ({}));
+      // Angemeldet gewesen, Anmeldung abgelaufen (z. B. App auf dem iPad tagelang offen):
+      // sagen statt stiller Fehler – die Seite fragt, ob sie zur Anmeldung neu laden soll.
+      if (hadToken && !this._expiredShown && typeof window !== 'undefined') {
+        this._expiredShown = true;
+        window.dispatchEvent(new CustomEvent('lm-session-expired'));
+      }
       // Während der Arbeit: Neue Nutzungsbedingungen beenden die Sitzung –
       // neu laden führt zur Anmeldung, die sie dann abfragt.
       if (/Nutzungsbedingungen/.test(body?.message || '') && !this._reloading) {
@@ -990,8 +997,11 @@ export class BrowserApi {
   }
 
   // ---------- Modules ----------
-  getTopicModules(topicId) {
-    return this._fetch(`/api/topics/${encodeURIComponent(topicId)}/modules`);
+  /** Module eines Lernthemas – immer eine Liste; sonst Fehler mit der Meldung des Servers. */
+  async getTopicModules(topicId) {
+    const res = await this._fetch(`/api/topics/${encodeURIComponent(topicId)}/modules`);
+    if (Array.isArray(res)) return res;
+    throw new Error(res?.statusCode === 401 ? 'Die Anmeldung ist abgelaufen – bitte neu anmelden.' : res?.message || 'Die Module lassen sich gerade nicht laden.');
   }
   saveModule(topicId, moduleData) {
     return this._fetch(`/api/topics/${encodeURIComponent(topicId)}/modules`, {

@@ -6336,3 +6336,66 @@ details.cb-topic > summary .hint { font-weight: normal; margin-left: 6px; }
 .si-out { max-height: 40vh; overflow: auto; border-top: 1px solid var(--border); margin-top: 6px; padding-top: 6px; }
 .si-preview, .si-preview ul { list-style: none; padding-left: 18px; margin: 2px 0; }
 .si-preview { padding-left: 0; }
+
+/* ===== 🗂 Planung: Vorschau-Spalte rechts (Step 2) ===== */
+.pl-toolbar [data-pl-act="preview"].active { background: var(--accent); color: #fff; border-color: var(--accent); }
+.pl-panes.pl-with-preview { grid-template-columns: minmax(260px, 1fr) minmax(260px, 1fr) minmax(340px, 1.25fr); }
+@media (max-width: 1200px) {
+  .pl-panes.pl-with-preview { grid-template-columns: 1fr 1fr; }
+  .pl-panes.pl-with-preview .pl-preview-pane { grid-column: 1 / -1; }
+}
+@media (max-width: 900px) {
+  .pl-panes.pl-with-preview { grid-template-columns: 1fr; }
+}
+.pl-preview-pane { background: var(--bg-primary); }
+.pl-preview-pane[hidden] { display: none !important; }
+.pl-preview-actions { display: flex; gap: 4px; flex: none; }
+.pl-preview-fold { padding: 2px 8px; flex: none; }
+.pl-preview-body { flex: 1; overflow: auto; max-height: calc(100vh - 330px); min-height: 360px; padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; }
+.pl-pv-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 0.85rem; }
+.pl-pv-badge { display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 999px; font-size: 0.78rem; font-weight: 600; background: var(--bg-secondary); border: 1px solid var(--border); }
+.pl-pv-badge.on { background: var(--score-good-bg); color: var(--score-good-text); border-color: var(--success); }
+.pl-pv-badge.off { color: var(--text-secondary); }
+.pl-pv-plans { font-size: 0.82rem; line-height: 1.4; }
+.pl-pv-plan-chip { display: inline-block; padding: 1px 7px; margin: 1px 2px; border-radius: 4px; background: var(--accent-light); color: var(--accent); font-weight: 600; font-size: 0.78rem; }
+.pl-pv-tabs { display: flex; flex-wrap: wrap; gap: 4px; border-bottom: 1px solid var(--border); padding-bottom: 6px; }
+.pl-pv-tabs:empty { display: none; }
+.pl-pv-tab { padding: 4px 10px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg-secondary); color: var(--text-primary); font: inherit; font-size: 0.82rem; cursor: pointer; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pl-pv-tab:hover { border-color: var(--accent); }
+.pl-pv-tab.active { background: var(--accent); color: #fff; border-color: var(--accent); font-weight: 600; }
+.pl-pv-stage { flex: 1; min-width: 0; overflow: auto; }
+.pl-pv-topic-list { list-style: none; padding: 0; margin: 4px 0 0; display: flex; flex-direction: column; gap: 3px; }
+.pl-pv-topic-btn { width: 100%; text-align: left; padding: 5px 8px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg-secondary); color: var(--text-primary); font: inherit; font-size: 0.86rem; cursor: pointer; }
+.pl-pv-topic-btn:hover { border-color: var(--accent); background: var(--accent-light); }
+
+/* ===== 🤖 KI-Assistent (15-Minuten-Token & Rollback, views/ai-bridge-dialog.js) ===== */
+.aib-card { max-width: min(820px, 95vw); width: 95vw; max-height: 92vh; overflow-y: auto; }
+.aib-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 6px; }
+.aib-head h3 { margin: 0; }
+.aib-config { border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 10px 14px; margin: 10px 0; display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; background: var(--bg-primary); }
+.aib-config legend { font-weight: 600; padding: 0 6px; }
+.aib-row { display: flex; align-items: center; gap: 8px; font-size: 0.9rem; }
+.aib-scopes { flex-wrap: wrap; gap: 12px; flex: 1 1 100%; }
+.aib-scopes label { display: inline-flex; align-items: center; gap: 5px; cursor: pointer; }
+.aib-active-box { border: 2px solid var(--accent); border-radius: var(--radius-md); padding: 12px 14px; margin: 10px 0; background: var(--bg-primary); }
+.aib-status-bar { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
+.aib-timer { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: var(--accent-light); color: var(--accent); font-size: 0.88rem; }
+.aib-token-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; font-size: 0.88rem; }
+.aib-token-code { padding: 3px 8px; border-radius: 4px; background: var(--bg-secondary); border: 1px solid var(--border); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; user-select: all; }
+.aib-prompt-wrap { margin-top: 8px; }
+.aib-prompt-bar { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 6px; }
+.aib-prompt-text, .aib-batch-input { width: 100%; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.82rem; padding: 8px 10px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg-secondary); color: var(--text-primary); resize: vertical; }
+.aib-manual-box { border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 8px 12px; margin: 10px 0; background: var(--bg-primary); }
+.aib-manual-box > summary { cursor: pointer; font-weight: 600; }
+.aib-manual-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 8px; }
+.aib-batch-status { font-size: 0.86rem; font-weight: 600; }
+.aib-batch-status.ok { color: var(--score-good-text); }
+.aib-batch-status.err { color: var(--score-poor-text); }
+.aib-sessions-wrap h4 { margin: 12px 0 6px; font-size: 0.95rem; }
+.aib-sessions-list { display: flex; flex-direction: column; gap: 6px; }
+.aib-session-item { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; padding: 8px 10px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg-primary); font-size: 0.86rem; }
+.aib-session-item.active { border-color: var(--accent); }
+.aib-session-info { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.aib-session-actions { display: flex; gap: 6px; }
+.aib-badge { padding: 1px 7px; border-radius: 999px; font-size: 0.76rem; font-weight: 600; background: var(--bg-secondary); color: var(--text-secondary); }
+.aib-badge.ok { background: var(--score-good-bg); color: var(--score-good-text); }

@@ -151,6 +151,8 @@ interface StyleInfo {
   columnWidth?: string;
   /** Tabellenzeile: feste bzw. Mindesthöhe, z. B. "1.5cm". */
   rowHeight?: string;
+  /** Tabellenzelle: Rahmen, z. B. "none" oder "0.05pt solid #000000". */
+  cellBorder?: string;
 }
 
 /** Name, unter dem die Standardvorlage für Zeichnungen geführt wird. */
@@ -240,6 +242,11 @@ class Styles {
     const rp = elements(n).find((c) => c.name === 'style:table-row-properties');
     const height = rp?.attrs['style:row-height'] || rp?.attrs['style:min-row-height'];
     if (height) info.rowHeight = height;
+    const tcp = elements(n).find((c) => c.name === 'style:table-cell-properties');
+    if (tcp) {
+      const b = tcp.attrs['fo:border'] || tcp.attrs['fo:border-top'] || tcp.attrs['fo:border-bottom'] || tcp.attrs['fo:border-left'] || tcp.attrs['fo:border-right'];
+      if (b) info.cellBorder = b;
+    }
     this.styles.set(name, { ...this.styles.get(name), ...info });
   }
 
@@ -1188,15 +1195,26 @@ export function odtToHtml(buffer: Buffer, fileName = '', opts: OdtOptions = {}):
   const tableRowsOf = (n: XNode): XNode[] => elements(n).flatMap((c) => (c.name === 'table:table-row' ? [c]
     : ['table:table-header-rows', 'table:table-rows', 'table:table-row-group'].includes(c.name) ? tableRowsOf(c) : []));
   /**
-   * Layout-Tabelle: Steckt in einer Zelle eine weitere Tabelle, ordnet die
-   * äußere nur nebeneinander an (z. B. Schaltung links, Wertetabelle rechts).
+   * Layout-Tabelle: Steckt in einer Zelle eine weitere Tabelle, oder ist es eine
+   * einzeilige randlose Tabelle mit Text neben einem Bild/Schaubild, ordnet die
+   * äußere nur nebeneinander an (z. B. Schaltung links, Wertetabelle/Text rechts).
    * Jede Zeile wird ein Spalten-Baustein (table.ws-columns → type: columns).
    */
+  const hasVisualInCell = (cell: XNode): boolean =>
+    elements(cell).some((x) => (x.name === 'draw:frame' && isImageFrame(x) && !isTextFrame(x)) || DRAWINGS.has(x.name) || hasVisualInCell(x));
   const layoutTable = (n: XNode): string | null => {
     const rows = tableRowsOf(n);
     const cellsOf = (r: XNode) => elements(r).filter((c) => c.name === 'table:table-cell');
+    const nestedTable = rows.some((r) => cellsOf(r).length >= 2 && cellsOf(r).some((c) => elements(c).some((x) => x.name === 'table:table')));
+    const firstCells = rows.length === 1 ? cellsOf(rows[0]) : [];
+    const borderlessBeside = rows.length === 1
+      && !elements(n).some((c) => c.name === 'table:table-header-rows')
+      && firstCells.length >= 2 && firstCells.length <= 4
+      && firstCells.every((c) => styles.prop(c.attrs['table:style-name'], 'cellBorder') === 'none')
+      && firstCells.some((c) => !!textOf(c).trim())
+      && firstCells.some((c) => hasVisualInCell(c));
     // Nur mit mindestens zwei Zellen nebeneinander – eine einzelne Zelle mit Tabelle ist ein Kasten.
-    if (!rows.some((r) => cellsOf(r).length >= 2 && cellsOf(r).some((c) => elements(c).some((x) => x.name === 'table:table')))) return null;
+    if (!nestedTable && !borderlessBeside) return null;
     const widths = columnWidths(n);
     const cols = widths.length && widths.every(Boolean) ? `<colgroup>${widths.map((w) => `<col style="width:${w}">`).join('')}</colgroup>` : '';
     return rows.map((r) => {
@@ -1319,12 +1337,77 @@ export function odtToHtml(buffer: Buffer, fileName = '', opts: OdtOptions = {}):
     };
   };
 
+  /**
+   * Absatz nur aus Unterstrichen oder Punkten (z. B. „_______________“ oder
+   * „...............“ als Schreiblinie in Word/Writer) → Schreibfeld (Linien).
+   */
+  const isWriteLineParagraph = (p: XNode): boolean => {
+    if (p.name !== 'text:p') return false;
+    if (elements(p).some((c) => c.name === 'draw:frame' || DRAWINGS.has(c.name))) return false;
+    const raw = textOf(p).trim();
+    if (raw.length < 12 || !/^[_.\u2026\s]+$/.test(raw)) return false;
+    return (raw.match(/[_.\u2026]/g) || []).length >= 12;
+  };
+
+  /**
+   * Mustererkennung für Überschriften und Aufgaben in normalen <text:p>-Absätzen,
+   * die im Originaldokument ohne Gliederungsvorlage nur fett (bzw. größer) gesetzt wurden.
+   */
+  const recognizeParagraphPattern = (c: XNode, html: string): string => {
+    const m = /^<p(?:\s+style="[^"]*")?><strong>([^<]+)<\/strong><\/p>$/.exec(html);
+    if (!m) return html;
+    const inner = m[1].trim();
+    if (!inner || inner.length > MAX_HEADING_CHARS) return html;
+
+    // 1. Explizite Aufgaben-/Übungs-Überschrift: „Aufgabe 1: …“, „Aufgabe 2 (4 P.): …“, „Übung 1: …“
+    const taskMatch = /^(?:Aufgabe|Übung)\s+\d+[a-z]?\s*(\([^)]+\))?\s*(?:[:.–-]\s*(.*))?$/i.exec(inner);
+    if (taskMatch) {
+      const pts = (taskMatch[1] || '').trim();
+      const rest = (taskMatch[2] || '').trim();
+      const title = rest && pts ? `${rest} ${pts}` : rest || pts || inner;
+      return `<h3 data-ds="task">${title}</h3>`;
+    }
+    const subtaskMatch = /^Teilaufgabe\s+[a-z0-9)+.]+\s*(?:[:.–-]\s*(.+))?$/i.exec(inner);
+    if (subtaskMatch) {
+      const rest = (subtaskMatch[1] || '').trim();
+      return `<h4 data-ds="subtask">${rest || inner}</h4>`;
+    }
+
+    // 2. Nummerierte Gliederungs-Überschrift in Fettschrift: „1. Grundlagen“, „1.1 Spannung“, „1.1.1 Messung“
+    const numSub = /^(\d+\.\d+\.\d+)\.?\s+([A-ZÄÖÜa-zäöü].*)$/.exec(inner);
+    if (numSub && !/\.\s*$/.test(numSub[2])) return `<h4 data-ds="subtask">${numSub[2].trim()}</h4>`;
+    const numTask = /^(\d+\.\d+)\.?\s+([A-ZÄÖÜa-zäöü].*)$/.exec(inner);
+    if (numTask && !/\.\s*$/.test(numTask[2])) return `<h3 data-ds="task">${numTask[2].trim()}</h3>`;
+    const numSec = /^(\d+)\.\s+([A-ZÄÖÜa-zäöü].*)$/.exec(inner);
+    if (numSec && !/\.\s*$/.test(numSec[2]) && numSec[2].length <= 90) return `<h2 data-ds="section">${numSec[2].trim()}</h2>`;
+
+    // 3. Nicht-nummerierte Überschrift durch größere Fettschrift (ab 13 pt)
+    const spanStyle = elements(c).length === 1 && elements(c)[0].name === 'text:span' ? elements(c)[0].attrs['text:style-name'] : undefined;
+    const fontSize = styles.prop(spanStyle, 'fontSize') || styles.prop(c.attrs['text:style-name'], 'fontSize');
+    const ptMatch = /^([\d.]+)\s*pt$/i.exec(String(fontSize || '').trim());
+    if (ptMatch) {
+      const pt = parseFloat(ptMatch[1]);
+      if (pt >= 15) return `<h2>${inner}</h2>`;
+      if (pt >= 13) return `<h3>${inner}</h3>`;
+    }
+    return html;
+  };
+
   function blocks(n: XNode): string {
     const parts: string[] = [];
     const kids = elements(n);
     for (let k = 0; k < kids.length; k++) {
       const c = kids[k];
       if (SKIP.has(c.name)) continue;
+      if (isWriteLineParagraph(c) && !styles.prop(c.attrs['text:style-name'], 'hidden')) {
+        let lines = 1;
+        while (k + 1 < kids.length && isWriteLineParagraph(kids[k + 1]) && !styles.prop(kids[k + 1].attrs['text:style-name'], 'hidden')) {
+          lines++;
+          k++;
+        }
+        parts.push(`<div data-block="${encodeURIComponent(JSON.stringify({ type: 'karo', pattern: 'linien', lines: Math.min(60, lines) }))}"></div>`);
+        continue;
+      }
       const figures = c.name === 'text:p' ? figureRow(kids, k) : null;
       if (figures) {
         parts.push(figures.html);
@@ -1335,7 +1418,8 @@ export function odtToHtml(buffer: Buffer, fileName = '', opts: OdtOptions = {}):
         const tag = c.name === 'text:h' && textOf(c).trim().length <= MAX_HEADING_CHARS ? headingTag(c)
           : styles.inherits(c.attrs['text:style-name'], /^Title$/i) ? 'h2'
             : styles.inherits(c.attrs['text:style-name'], /^Subtitle$/i) ? 'h3' : 'p';
-        const html = paragraph(c, tag);
+        const rawHtml = paragraph(c, tag);
+        const html = c.name === 'text:p' && tag === 'p' ? recognizeParagraphPattern(c, rawHtml) : rawHtml;
         // Ausgeblendet (Lösung im Arbeitsblatt): bleibt verborgen – als Lösung, nicht als Text.
         if (styles.prop(c.attrs['text:style-name'], 'hidden')) {
           if (!/^<p data-empty="1">/.test(html)) parts.push(`<div data-solution="1">${html}</div>`);

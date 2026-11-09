@@ -710,6 +710,17 @@ export class BrowserApi {
   disconnectGithubBackup() { return this._fetch('/api/github-backup', { method: 'DELETE' }); }
   testGithubBackup() { return this._fetch('/api/github-backup/test', { method: 'POST' }); }
   runGithubBackup() { return this._fetch('/api/github-backup/run', { method: 'POST' }); }
+
+  // ---------- Zeitbeschränkte KI-Schnittstelle (15-Minuten-Token, src/ai-bridge) ----------
+  createAiBridgeSession(body) {
+    return this._fetch('/api/ai-bridge/sessions', { method: 'POST', body: JSON.stringify({ ...body, baseUrl: window.location.origin }) });
+  }
+  getAiBridgeSessions() { return this._fetch('/api/ai-bridge/sessions'); }
+  revokeAiBridgeSession(id) { return this._fetch(`/api/ai-bridge/sessions/${encodeURIComponent(id)}`, { method: 'DELETE' }); }
+  rollbackAiBridgeSession(id) { return this._fetch(`/api/ai-bridge/sessions/${encodeURIComponent(id)}/rollback`, { method: 'POST' }); }
+  runAiBridgeBatch(id, body) {
+    return this._fetch(`/api/ai-bridge/sessions/${encodeURIComponent(id)}/batch`, { method: 'POST', body: JSON.stringify(body) });
+  }
   listGithubBackupFiles() { return this._fetch('/api/github-backup/files'); }
   getGithubBackupVersions(path) { return this._fetch(`/api/github-backup/versions?path=${encodeURIComponent(path)}`); }
   previewGithubBackup(path, ref) {

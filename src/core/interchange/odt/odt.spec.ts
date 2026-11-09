@@ -335,3 +335,58 @@ describe('.odt-Import: Text in Zeichnungen umbrechen', () => {
     expect(wrapLine('Donaudampfschifffahrt', 14.7, false, 60)).toEqual(['Donaudampfschifffahrt']);
   });
 });
+
+describe('.odt-Import: Mustererkennung für Überschriften, Aufgaben, Schreiblinien und Layout-Tabellen', () => {
+  const png = Buffer.from('89504e470d0a1a0a0000000d49484452', 'hex');
+  const NS = 'xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0" '
+    + 'xmlns:table="urn:oasis:names:tc:opendocument:xmlns:table:1.0" xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0" '
+    + 'xmlns:fo="urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0" xmlns:draw="urn:oasis:names:tc:opendocument:xmlns:drawing:1.0" '
+    + 'xmlns:svg="urn:oasis:names:tc:opendocument:xmlns:svg-compatible:1.0" xmlns:xlink="http://www.w3.org/1999/xlink"';
+  const doc = (styles: string, body: string) => {
+    const zip = new AdmZip();
+    zip.addFile('mimetype', Buffer.from('application/vnd.oasis.opendocument.text'));
+    zip.addFile('content.xml', Buffer.from(`<?xml version="1.0" encoding="UTF-8"?><office:document-content ${NS}>`
+      + `<office:automatic-styles>${styles}</office:automatic-styles><office:body><office:text>${body}</office:text></office:body></office:document-content>`));
+    zip.addFile('Pictures/a.png', png);
+    return zip.toBuffer();
+  };
+  const styles = '<style:style style:name="B" style:family="text"><style:text-properties fo:font-weight="bold"/></style:style>'
+    + '<style:style style:name="B16" style:family="text"><style:text-properties fo:font-weight="bold" fo:font-size="16pt"/></style:style>'
+    + '<style:style style:name="B13" style:family="text"><style:text-properties fo:font-weight="bold" fo:font-size="13.5pt"/></style:style>'
+    + '<style:style style:name="NoBorder" style:family="table-cell"><style:table-cell-properties fo:border="none"/></style:style>';
+
+  it('erkennt fette nummerierte und unnummerierte Überschriften sowie Aufgaben-Zeilen in normalen Absätzen', () => {
+    const body = '<text:p><text:span text:style-name="B16">Grundlagenblatt</text:span></text:p>'
+      + '<text:p><text:span text:style-name="B13">Einführung</text:span></text:p>'
+      + '<text:p><text:span text:style-name="B">1. Elektrische Grundgrößen</text:span></text:p>'
+      + '<text:p><text:span text:style-name="B">1.1 Spannung und Strom</text:span></text:p>'
+      + '<text:p><text:span text:style-name="B">Aufgabe 2 (4 P.): Widerstand berechnen</text:span></text:p>'
+      + '<text:p><text:span text:style-name="B">Teilaufgabe a): Formel umstellen</text:span></text:p>';
+    const { html } = odtToHtml(doc(styles, body), 'x.odt');
+    expect(html).toContain('<h2>Grundlagenblatt</h2>');
+    expect(html).toContain('<h3>Einführung</h3>');
+    expect(html).toContain('<h2 data-ds="section">Elektrische Grundgrößen</h2>');
+    expect(html).toContain('<h3 data-ds="task">Spannung und Strom</h3>');
+    expect(html).toContain('<h3 data-ds="task">Widerstand berechnen (4 P.)</h3>');
+    expect(html).toContain('<h4 data-ds="subtask">Formel umstellen</h4>');
+  });
+
+  it('fasst aufeinanderfolgende Unterstrich-/Punkt-Zeilen zu einem Linien-Schreibfeld (karo pattern=linien) zusammen', () => {
+    const body = '<text:p>Antwort:</text:p>'
+      + '<text:p>___________________________</text:p>'
+      + '<text:p>___________________________</text:p>'
+      + '<text:p>...........................</text:p>';
+    const { html } = odtToHtml(doc(styles, body), 'x.odt');
+    expect(html).toContain(`<div data-block="${encodeURIComponent(JSON.stringify({ type: 'karo', pattern: 'linien', lines: 3 }))}"></div>`);
+  });
+
+  it('wandelt einzeilige randlose Layout-Tabellen mit Text und Bild in Spalten (table.ws-columns) um', () => {
+    const pic = '<draw:frame text:anchor-type="paragraph" svg:width="4cm" svg:height="3cm"><draw:image xlink:href="Pictures/a.png"/></draw:frame>';
+    const body = '<table:table><table:table-row>'
+      + '<table:table-cell table:style-name="NoBorder"><text:p>Beschreibung der Schaltung</text:p></table:table-cell>'
+      + `<table:table-cell table:style-name="NoBorder"><text:p>${pic}</text:p></table:table-cell>`
+      + '</table:table-row></table:table>';
+    const { html } = odtToHtml(doc(styles, body), 'x.odt');
+    expect(html).toMatch(/^<table class="ws-columns"><tbody><tr><td><p>Beschreibung der Schaltung<\/p><\/td><td><img /);
+  });
+});

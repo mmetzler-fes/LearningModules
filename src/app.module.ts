@@ -89,6 +89,7 @@ import { SicherungModule } from './sicherung/sicherung.module';
 import { HtmlAppFile } from './core/entities/html-app-file.entity';
 import { HtmlAppState } from './core/entities/html-app-state.entity';
 import { HtmlAppsModule } from './html-apps/html-apps.module';
+import { AiBridgeModule } from './ai-bridge/ai-bridge.module';
 
 const RENDERER_DIR = join(__dirname, '..', 'src', 'renderer');
 
@@ -159,6 +160,7 @@ function noStaleUi(res: any, path: string) {
     PlansModule,
     SicherungModule,
     DrawingsModule,
+    AiBridgeModule,
   ],
   controllers: [AppController],
   providers: [AppService],

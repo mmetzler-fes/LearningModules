@@ -86,6 +86,8 @@ export class NotebooksView {
         '-',
         { label: '🧱 Struktur importieren …', title: 'Books, Bereiche und Abschnitte aus einer Tabelle (.ods, .xlsx, .csv), einer Ordnerstruktur oder einer Gliederung anlegen – nur Ordner, keine Inhalte', run: () => import('./structure-import.js').then((m) => m.openStructureImport(this.app, { where: 'notebook', onDone: () => this.refresh() })) },
         { label: '🟪 OneNote übernehmen …', title: 'Exportiertes OneNote-Notizbuch (.onepkg) oder Abschnitt (.one): Seiten mit PDFs und Anlagen als Module „Anhang“', run: () => openOneNoteImport(this.app, { onDone: async () => { this._saveOpen(); await this.refresh(); } }) },
+        '-',
+        { label: '🤖 KI-Assistent (15-Min.-Token) …', title: 'Zeitbeschränkten Lese-/Schreibzugriff und KI-Anleitung für deine eigene KI erzeugen (Sortieren, Planen, Arbeitsblätter importieren) – inkl. Rückgängig-Funktion', run: () => import('./ai-bridge-dialog.js').then((m) => m.openAiBridgeDialog(this.app, { onDone: () => this.refresh() })) },
       ], ...this._below(addBtn), { anchor: addBtn });
     });
     // 📂 Datei öffnen und Dateien auf die Seite ziehen: wie „Öffnen mit“ der installierten App (file-open.js) –

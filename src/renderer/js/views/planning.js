@@ -12,6 +12,7 @@ import { isDocLike } from '../quiz-usage.js';
 const EXPAND_KEY = 'lm_plan_open';
 const RIGHT_KEY = 'lm_plan_right';
 const VIEW_KEY = 'lm_pl_view';
+const PREVIEW_KEY = 'lm_pl_preview';
 const VIEWS = ['docs', 'quizzes', 'all'];
 const ICON = { book: '📕', area: '📂', section: '📑', folder: '📁', plan: '📋', include: '🧩', mirror: '🛒', unsorted: '📥' };
 
@@ -46,6 +47,10 @@ export class PlanningView {
     this.marked = { left: new Set(), right: new Set() };
     this.filter = { left: '', right: '' };
     try { this.open = new Set(JSON.parse(localStorage.getItem(EXPAND_KEY) || '[]')); } catch (_) { this.open = new Set(); }
+    try { this.previewOpen = localStorage.getItem(PREVIEW_KEY) !== '0'; } catch (_) { this.previewOpen = true; }
+    this._topicModCache = new Map();
+    this._previewKey = null;
+    this._previewModId = null;
     this.rows = { left: [], right: [] };
     document.addEventListener('keydown', (e) => this._onKey(e));
   }
@@ -57,6 +62,8 @@ export class PlanningView {
   async refresh() {
     if (!this.root) return;
     if (!this.root.dataset.ready) this._skeleton();
+    this._topicModCache.clear();
+    this._previewKey = null;
     const [nb, plans, year] = await Promise.all([this.app.api.getNotebooks(), this.app.api.getPlans(), this.app.api.getSchoolYear()]);
     const classes = year?.current ? await this.app.api.getClasses(year.current) : [];
     this.classList = Array.isArray(classes) ? classes : [];
@@ -86,15 +93,17 @@ export class PlanningView {
         <button class="btn btn-secondary btn-sm" data-pl-new="section" title="Abschnitt im Plan – enthält nur Lernthemen (⇧F7 im Plan)">➕ Abschnitt</button>
         <button class="btn btn-secondary btn-sm" data-pl-act="include" title="Einen anderen Plan als Teilplan hier einbinden – ändert er sich, ändert er sich überall">🧩 Teilplan einbinden</button>
         <button class="btn btn-secondary btn-sm pl-always" data-pl-act="structure" title="Books bzw. Pläne, Bereiche und Abschnitte aus einer Tabelle (.ods, .xlsx, .csv), einer Ordnerstruktur oder einer Gliederung anlegen – ins Notizbuch oder in die Planung">🧱 Struktur importieren</button>
+        <button class="btn btn-secondary btn-sm pl-always" data-pl-act="ai-bridge" title="Zeitbeschränkten 15-Minuten-Zugriff und Anleitung für deine eigene KI erzeugen (Sortieren, Planen & Material-Import)">🤖 KI-Assistent</button>
         <span class="nb-view-tabs" role="group" aria-label="Ansicht">
           <button type="button" data-pl-view="docs" class="${this.view === 'docs' ? 'active' : ''}" aria-pressed="${this.view === 'docs'}" title="Nur Dokumente und Anhänge – die Quizze eines Dokuments stehen darunter">📄 Dokumente</button>
           <button type="button" data-pl-view="quizzes" class="${this.view === 'quizzes' ? 'active' : ''}" aria-pressed="${this.view === 'quizzes'}" title="Nur Quizze, Übungen und Apps – Lernthemen und Bereiche ohne Quiz sind ausgeblendet">🧩 Quizze</button>
           <button type="button" data-pl-view="all" class="${this.view === 'all' ? 'active' : ''}" aria-pressed="${this.view === 'all'}" title="Alle Module">Alles</button>
         </span>
         <button class="btn btn-secondary btn-sm" data-pl-act="classes" title="Klassen, deren Klassennotizbuch diesem Plan folgt">📒 Klassen zuweisen</button>
-        <button class="btn btn-secondary btn-sm" data-pl-act="view" title="So bekommt ihn eine Klasse: Teilpläne eingesetzt, jedes Lernthema einmal (F3)">👁 Plan ansehen</button>
+        <button class="btn btn-secondary btn-sm" data-pl-act="view" title="So bekommt ihn eine Klasse: Teilpläne eingesetzt, jedes Lernthema einmal (F3)">📋 Plan-Baum</button>
+        <button type="button" class="btn btn-secondary btn-sm pl-always ${this.previewOpen ? 'active' : ''}" data-pl-act="preview" aria-pressed="${this.previewOpen}" title="Vorschau-Spalte rechts ein-/ausblenden: zeigt Module und Arbeitsblätter des gewählten Lernthemas sofort an">👁 Vorschau</button>
       </div>
-      <div class="pl-panes">
+      <div class="pl-panes ${this.previewOpen ? 'pl-with-preview' : ''}">
         <section class="pl-pane" data-pane="left" aria-label="Lernnotizbuch">
           <div class="pl-head"><span>📓 Lernnotizbuch</span><input type="search" class="pl-filter" data-pane="left" placeholder="Suchen… (Strg+F)" /></div>
           <div class="pl-list" role="tree" tabindex="-1"></div>
@@ -103,6 +112,14 @@ export class PlanningView {
           <div class="pl-head"><select class="pl-right-mode" title="Rechte Spalte: deine Pläne oder das Klassennotizbuch einer Klasse"></select><span class="pl-target"></span><input type="search" class="pl-filter" data-pane="right" placeholder="Suchen… (Strg+F)" /></div>
           <div class="pl-list" role="tree" tabindex="-1"></div>
         </section>
+        <aside class="pl-pane pl-preview-pane" data-pane="preview" aria-label="Vorschau"${this.previewOpen ? '' : ' hidden'}>
+          <div class="pl-head">
+            <span class="pl-preview-label">👁 Vorschau</span>
+            <div class="pl-preview-actions"></div>
+            <button type="button" class="btn btn-secondary btn-sm pl-preview-fold" data-pl-act="preview" title="Vorschau zuklappen">✕</button>
+          </div>
+          <div class="pl-preview-body"></div>
+        </aside>
       </div>
       <div class="pl-keys">${KEYS.map(([k, t]) => `<span><kbd>${escapeHtml(k)}</kbd> ${escapeHtml(t)}</span>`).join('')}</div>`;
     this.root.addEventListener('click', (e) => this._onClick(e));
@@ -472,6 +489,229 @@ export class PlanningView {
     const target = this._target();
     const head = this.root.querySelector('.pl-pane[data-pane="right"] .pl-target');
     if (head) head.textContent = target ? `Ziel: ${target.title}` : '';
+    this._updatePreview();
+  }
+
+  _togglePreview() {
+    this.previewOpen = !this.previewOpen;
+    try { localStorage.setItem(PREVIEW_KEY, this.previewOpen ? '1' : '0'); } catch (_) { /* privat */ }
+    const panes = this.root?.querySelector('.pl-panes');
+    const previewPane = this.root?.querySelector('.pl-preview-pane');
+    const btn = this.root?.querySelector('.pl-toolbar [data-pl-act="preview"]');
+    if (panes) panes.classList.toggle('pl-with-preview', this.previewOpen);
+    if (previewPane) previewPane.hidden = !this.previewOpen;
+    if (btn) {
+      btn.classList.toggle('active', this.previewOpen);
+      btn.setAttribute('aria-pressed', String(this.previewOpen));
+    }
+    if (this.previewOpen) {
+      this._previewKey = null;
+      this._updatePreview();
+    }
+  }
+
+  _topicModules(topicId) {
+    if (!this._topicModCache.has(topicId)) {
+      const p = (async () => {
+        const mods = await this.app.api.getTopicModules(topicId).catch(() => null);
+        if (Array.isArray(mods)) return mods;
+        const shared = await this.app.api.getSharedTopicView(topicId).catch(() => null);
+        if (Array.isArray(shared?.modules)) return shared.modules;
+        return [];
+      })();
+      this._topicModCache.set(topicId, p);
+    }
+    return this._topicModCache.get(topicId);
+  }
+
+  /** Welche Pläne enthalten dieses Lernthema bereits? */
+  _plansUsingTopic(topicId) {
+    const nodes = this.plans?.nodes || [];
+    const byId = new Map(nodes.map((n) => [n.id, n]));
+    const entries = (this.plans?.entries || []).filter((e) => e.topicId === topicId);
+    const out = [];
+    const seen = new Set();
+    for (const e of entries) {
+      const path = [];
+      for (let cur = byId.get(e.nodeId); cur; cur = cur.parentId ? byId.get(cur.parentId) : null) {
+        if (cur.kind !== 'folder') path.unshift(cur.title);
+      }
+      const label = path.join(' › ');
+      if (label && !seen.has(label)) {
+        seen.add(label);
+        out.push(label);
+      }
+    }
+    return out;
+  }
+
+  _updatePreview() {
+    if (!this.previewOpen) return;
+    const paneEl = this.root?.querySelector('.pl-preview-pane');
+    if (!paneEl) return;
+    const labelEl = paneEl.querySelector('.pl-preview-label');
+    const actionsEl = paneEl.querySelector('.pl-preview-actions');
+    const bodyEl = paneEl.querySelector('.pl-preview-body');
+    const row = this.rows[this.active]?.[this.cursor[this.active]];
+    if (!row) {
+      this._previewKey = null;
+      if (labelEl) labelEl.textContent = '👁 Vorschau';
+      if (actionsEl) actionsEl.innerHTML = '';
+      if (bodyEl) bodyEl.innerHTML = '<p class="pl-empty">Links oder rechts ein Lernthema oder einen Bereich auswählen, um den Inhalt hier sofort in der Vorschau zu sehen.</p>';
+      return;
+    }
+    const rowKey = `${this.active}:${row.key}`;
+    if (this._previewKey === rowKey) return;
+    this._previewKey = rowKey;
+    this._previewModId = null;
+    if (actionsEl) actionsEl.innerHTML = '';
+
+    // 1. Lernthema (links im Lernnotizbuch, rechts als Plan-Verweis oder im Klassennotizbuch)
+    let topicId = null;
+    if (row.kind === 'topic') topicId = row.id;
+    else if (row.kind === 'entry') topicId = row.topicId;
+    else if (row.kind === 'link') {
+      const linkObj = (this.cb?.links || []).find((l) => l.id === row.id);
+      topicId = linkObj?.available?.[0]?.topicId || linkObj?.classTopicId || null;
+    }
+
+    if (topicId) {
+      const topic = this._topicMap().get(topicId) || { id: topicId, title: row.title, isOwn: true, modules: [] };
+      if (labelEl) {
+        labelEl.textContent = `📘 ${topic.title}`;
+        labelEl.title = topic.title;
+      }
+      const usedInPlans = this._plansUsingTopic(topicId);
+      const roots = (topic.modules || []).filter((m) => !m.parentId).sort((a, b) => a.orderIndex - b.orderIndex);
+      const statusBadge = topic.isOwn !== false
+        ? `<span class="pl-pv-badge ${topic.selected ? 'on' : 'off'}">${topic.selected ? '● Freigegeben' : '○ Gesperrt'}</span>`
+        : `<span class="pl-pv-badge">🔗 ${escapeHtml(topic.ownerName || 'Geteilt')}</span>`;
+      const plansHtml = usedInPlans.length
+        ? `<div class="pl-pv-plans">🗂 <strong>In Planungsvorlagen:</strong> ${usedInPlans.map((p) => `<span class="pl-pv-plan-chip">${escapeHtml(p)}</span>`).join(' ')}</div>`
+        : '<div class="pl-pv-plans hint">Noch in keiner Planungsvorlage verknüpft (mit <kbd>F5</kbd> in den Plan übernehmen).</div>';
+
+      bodyEl.innerHTML = `
+        <div class="pl-pv-meta">
+          ${statusBadge}
+          <span class="hint">${roots.length} Modul${roots.length === 1 ? '' : 'e'}</span>
+        </div>
+        ${plansHtml}
+        <div class="pl-pv-tabs" role="tablist"></div>
+        <div class="pl-pv-stage"><p class="hint">Vorschau wird geladen …</p></div>
+      `;
+      void this._loadAndRenderTopicPreview(rowKey, topic);
+      return;
+    }
+
+    // 2. Ordner / Book / Bereich / Abschnitt / Plan
+    const icon = ICON[row.kind] || '📂';
+    if (labelEl) {
+      labelEl.textContent = `${icon} ${row.title}`;
+      labelEl.title = row.title;
+    }
+    const subRows = [];
+    const list = this.rows[this.active] || [];
+    for (let idx = this.cursor[this.active] + 1; idx < list.length; idx++) {
+      if (list[idx].depth <= row.depth) break;
+      if (list[idx].kind === 'topic' || list[idx].kind === 'entry' || list[idx].kind === 'link') {
+        subRows.push(list[idx]);
+      }
+    }
+    const planInfo = this._inCurrentPlan();
+    const inPlanCount = subRows.filter((r) => planInfo.direct.has(r.topicId || r.id) || planInfo.via.has(r.topicId || r.id)).length;
+    bodyEl.innerHTML = `
+      <div class="pl-pv-meta">
+        <span class="hint">${row.isOpen ? `${subRows.length} sichtbare Lernthemen darunter` : 'Zugeklappt (mit Pfeil rechts oder Doppelklick öffnen)'}</span>
+        ${this.active === 'left' && planInfo.plan && subRows.length ? `<span class="pl-pv-badge on">✓ ${inPlanCount}/${subRows.length} in „${escapeHtml(planInfo.plan.title)}“</span>` : ''}
+      </div>
+      ${subRows.length ? `<ul class="pl-pv-topic-list">${subRows.slice(0, 25).map((r) => `
+        <li>
+          <button type="button" class="pl-pv-topic-btn" data-jump-key="${escapeAttr(r.key)}">
+            📘 ${escapeHtml(r.title)}
+          </button>
+        </li>`).join('')}</ul>` : '<p class="hint" style="margin-top:8px">Wähle ein Lernthema aus, um Arbeitsblätter und Quizze direkt hier anzusehen.</p>'}
+    `;
+    bodyEl.querySelectorAll('[data-jump-key]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const idx = this.rows[this.active].findIndex((r) => r.key === btn.dataset.jumpKey);
+        if (idx >= 0) this._setCursor(this.active, idx);
+      });
+    });
+  }
+
+  async _loadAndRenderTopicPreview(rowKey, topic) {
+    const modules = await this._topicModules(topic.id);
+    if (this._previewKey !== rowKey) return;
+    const paneEl = this.root?.querySelector('.pl-preview-pane');
+    if (!paneEl) return;
+    const tabsEl = paneEl.querySelector('.pl-pv-tabs');
+    const stageEl = paneEl.querySelector('.pl-pv-stage');
+    const actionsEl = paneEl.querySelector('.pl-preview-actions');
+    if (!tabsEl || !stageEl) return;
+
+    const roots = (modules.length ? modules : (topic.modules || []))
+      .filter((m) => !m.parentId)
+      .sort((a, b) => (a.orderIndex ?? 0) - (b.orderIndex ?? 0));
+
+    if (!roots.length) {
+      tabsEl.innerHTML = '';
+      stageEl.innerHTML = '<p class="hint">Dieses Lernthema enthält noch keine Module.</p>';
+      return;
+    }
+
+    const types = typeof H5P_TYPES !== 'undefined' ? H5P_TYPES : {};
+    const renderSelectedMod = (mod) => {
+      this._previewModId = mod.id;
+      tabsEl.querySelectorAll('.pl-pv-tab').forEach((b) => {
+        b.classList.toggle('active', b.dataset.modId === mod.id);
+      });
+      if (actionsEl) {
+        actionsEl.innerHTML = '';
+        if (topic.isOwn !== false) {
+          const editBtn = document.createElement('button');
+          editBtn.type = 'button';
+          editBtn.className = 'btn btn-secondary btn-sm';
+          editBtn.title = 'Im Modul-Editor bearbeiten';
+          editBtn.textContent = '✏️ Bearbeiten';
+          editBtn.addEventListener('click', () => this.app.modulesView.openFrom('teacher-planning', topic.id, mod, 'edit'));
+          actionsEl.appendChild(editBtn);
+        }
+        const fullBtn = document.createElement('button');
+        fullBtn.type = 'button';
+        fullBtn.className = 'btn btn-secondary btn-sm';
+        fullBtn.title = 'Vollbild-Vorschau öffnen';
+        fullBtn.textContent = '⛶';
+        fullBtn.addEventListener('click', () => this.app.modulesView.openFrom('teacher-planning', topic.id, mod, 'preview'));
+        actionsEl.appendChild(fullBtn);
+      }
+      stageEl.innerHTML = '';
+      const host = document.createElement('div');
+      host.className = 'nb-preview-module pl-pv-module-host';
+      stageEl.appendChild(host);
+      try {
+        this.app.renderer.renderPreview(mod, types[mod.type] || {}, host, {
+          quizMode: true,
+          embedModule: (id) => modules.find((m) => m.id === id) || null,
+        });
+      } catch (err) {
+        host.innerHTML = `<p class="hint">Vorschau konnte nicht geladen werden: ${escapeHtml(err.message || String(err))}</p>`;
+      }
+    };
+
+    tabsEl.innerHTML = roots.map((m) => {
+      const t = types[m.type] || {};
+      return `<button type="button" class="pl-pv-tab" data-mod-id="${escapeAttr(m.id)}" title="${escapeAttr(`${m.title} (${t.name || m.type})`)}">${t.icon || '📄'} ${escapeHtml(m.title)}</button>`;
+    }).join('');
+    tabsEl.querySelectorAll('.pl-pv-tab').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const mod = roots.find((m) => m.id === btn.dataset.modId);
+        if (mod) renderSelectedMod(mod);
+      });
+    });
+
+    // Bevorzugt das erste Dokument/Arbeitsblatt anzeigen, sonst das erste Modul
+    const preferred = roots.find((m) => m.type === 'document') || roots[0];
+    renderSelectedMod(preferred);
   }
 
   // ---- Auswahl ----
@@ -546,6 +786,14 @@ export class PlanningView {
         void import('./structure-import.js').then((m) => m.openStructureImport(this.app, { where: this.rightMode === 'plans' ? 'plans' : 'notebook', onDone: () => this.refresh() }));
         return;
       }
+      if (a === 'ai-bridge') {
+        void import('./ai-bridge-dialog.js').then((m) => m.openAiBridgeDialog(this.app, { onDone: () => this.refresh() }));
+        return;
+      }
+      if (a === 'preview') {
+        this._togglePreview();
+        return;
+      }
       void (a === 'include' ? this._includePicker() : a === 'classes' ? this._assignClasses() : this._viewPlan());
       return;
     }
@@ -567,7 +815,10 @@ export class PlanningView {
       return;
     }
     const pane = e.target.closest('.pl-pane');
-    if (pane) { this.active = pane.dataset.pane; this._paint(); }
+    if (pane && (pane.dataset.pane === 'left' || pane.dataset.pane === 'right')) {
+      this.active = pane.dataset.pane;
+      this._paint();
+    }
   }
 
   // ---- Tastatur ----

@@ -477,14 +477,15 @@ export class AiBridgeService {
 
   async executeBatchByTeacher(user: { userId: string }, sessionId: string, body: { dryRun?: boolean; operations?: AiBridgeOp[] }) {
     const session = await this.ownSession(user.userId, sessionId);
-    return this.executeBatch(session, body);
+    // Von der Lehrkraft selbst eingefügt: ihre Handlung – die Rechte der KI gelten nicht, die Reichweite schon.
+    return this.executeBatch(session, body, { byTeacher: true });
   }
 
   /** Auch wenn mittendrin etwas scheitert: Was schon geändert ist, bleibt rückgängig machbar. */
-  async executeBatch(session: AiBridgeSession, body: { dryRun?: boolean; operations?: AiBridgeOp[] }) {
+  async executeBatch(session: AiBridgeSession, body: { dryRun?: boolean; operations?: AiBridgeOp[] }, opts: { byTeacher?: boolean } = {}) {
     const before = session.undoStack.length;
     try {
-      return await this.runBatch(session, body);
+      return await this.runBatch(session, body, !!opts.byTeacher);
     } finally {
       if (session.undoStack.length !== before) {
         await this.store(session);
@@ -493,7 +494,7 @@ export class AiBridgeService {
     }
   }
 
-  private async runBatch(session: AiBridgeSession, body: { dryRun?: boolean; operations?: AiBridgeOp[] }) {
+  private async runBatch(session: AiBridgeSession, body: { dryRun?: boolean; operations?: AiBridgeOp[] }, byTeacher: boolean) {
     const ops = Array.isArray(body?.operations) ? body.operations : [];
     if (!ops.length) throw new BadRequestException('operations: Mindestens eine Operation erforderlich.');
     if (session.undoStack.length + ops.length > MAX_OPS_PER_SESSION) {
@@ -529,7 +530,7 @@ export class AiBridgeService {
 
       switch (item.op) {
         case 'create_notebook_node': {
-          this.requirePerm(session, 'organize', i, item.op);
+          this.requirePerm(session, byTeacher, 'organize', i, item.op);
           const parentId = resolveRef(item.parentId);
           if (parentId) {
             if (!scopeSets.allowedNbNodes.has(parentId)) throw new ForbiddenException(`operations[${i}]: Zielknoten „${parentId}“ ist nicht im freigegebenen Lernnotizbuch-Bereich.`);
@@ -553,7 +554,7 @@ export class AiBridgeService {
         }
 
         case 'rename_notebook_node': {
-          this.requirePerm(session, 'organize', i, item.op);
+          this.requirePerm(session, byTeacher, 'organize', i, item.op);
           const id = resolveRef(item.id)!;
           if (!scopeSets.allowedNbNodes.has(id)) throw new ForbiddenException(`operations[${i}]: Knoten „${id}“ ist nicht freigegeben.`);
           const node = await this.nbNodeRepo.findOne({ where: { id, ownerId: session.userId } });
@@ -570,7 +571,7 @@ export class AiBridgeService {
         }
 
         case 'move_topic': {
-          this.requirePerm(session, 'organize', i, item.op);
+          this.requirePerm(session, byTeacher, 'organize', i, item.op);
           const topicId = resolveRef(item.topicId)!;
           const targetNodeId = resolveRef(item.targetNodeId);
           if (!scopeSets.allowedTopics.has(topicId)) {
@@ -602,7 +603,7 @@ export class AiBridgeService {
         }
 
         case 'create_plan_node': {
-          this.requirePerm(session, 'organize', i, item.op);
+          this.requirePerm(session, byTeacher, 'organize', i, item.op);
           const parentId = resolveRef(item.parentId);
           if (parentId) {
             if (!scopeSets.allowedPlanNodes.has(parentId)) throw new ForbiddenException(`operations[${i}]: Planknoten „${parentId}“ ist nicht im freigegebenen Planungsbereich.`);
@@ -626,7 +627,7 @@ export class AiBridgeService {
         }
 
         case 'rename_plan_node': {
-          this.requirePerm(session, 'organize', i, item.op);
+          this.requirePerm(session, byTeacher, 'organize', i, item.op);
           const id = resolveRef(item.id)!;
           if (!scopeSets.allowedPlanNodes.has(id)) throw new ForbiddenException(`operations[${i}]: Planknoten „${id}“ ist nicht freigegeben.`);
           const node = await this.planNodeRepo.findOne({ where: { id, ownerId: session.userId } });
@@ -643,7 +644,7 @@ export class AiBridgeService {
         }
 
         case 'link_to_plan': {
-          this.requirePerm(session, 'organize', i, item.op);
+          this.requirePerm(session, byTeacher, 'organize', i, item.op);
           const parentId = resolveRef(item.parentId)!;
           if (!parentId || !scopeSets.allowedPlanNodes.has(parentId)) {
             throw new ForbiddenException(`operations[${i}]: Planungsziel „${parentId}“ ist nicht freigegeben.`);
@@ -683,7 +684,7 @@ export class AiBridgeService {
         }
 
         case 'remove_plan_entry': {
-          this.requirePerm(session, 'organize', i, item.op);
+          this.requirePerm(session, byTeacher, 'organize', i, item.op);
           const entry = await this.planEntryRepo.findOne({ where: { id: String(item.entryId || ''), ownerId: session.userId } });
           if (!entry || !scopeSets.allowedPlanNodes.has(entry.nodeId)) {
             throw new ForbiddenException(`operations[${i}]: Plan-Verweis „${item.entryId}“ nicht gefunden oder nicht freigegeben.`);
@@ -700,7 +701,7 @@ export class AiBridgeService {
         }
 
         case 'create_topic': {
-          this.requirePerm(session, 'writeDocs', i, item.op);
+          this.requirePerm(session, byTeacher, 'writeDocs', i, item.op);
           const targetNodeId = resolveRef(item.targetNodeId);
           if (targetNodeId && !scopeSets.allowedNbNodes.has(targetNodeId)) {
             throw new ForbiddenException(`operations[${i}]: Zielknoten „${targetNodeId}“ ist nicht freigegeben.`);
@@ -731,7 +732,7 @@ export class AiBridgeService {
         }
 
         case 'create_document': {
-          this.requirePerm(session, 'writeDocs', i, item.op);
+          this.requirePerm(session, byTeacher, 'writeDocs', i, item.op);
           const topicId = resolveRef(item.topicId)!;
           if (!topicId || !scopeSets.allowedTopics.has(topicId)) {
             throw new ForbiddenException(`operations[${i}]: Lernthema „${topicId}“ ist nicht im freigegebenen Bereich.`);
@@ -766,7 +767,7 @@ export class AiBridgeService {
         }
 
         case 'update_document': {
-          this.requirePerm(session, 'writeDocs', i, item.op);
+          this.requirePerm(session, byTeacher, 'writeDocs', i, item.op);
           const moduleId = resolveRef(item.moduleId)!;
           const mod = moduleId ? await this.moduleRepo.findOne({ where: { id: moduleId } }) : null;
           if (!mod || mod.type !== 'document') throw new NotFoundException(`operations[${i}]: Dokument-Modul „${moduleId}“ nicht gefunden.`);
@@ -819,8 +820,8 @@ export class AiBridgeService {
     };
   }
 
-  private requirePerm(session: AiBridgeSession, perm: keyof AiBridgePermissions, index: number, op: string) {
-    if (!session.scope.permissions[perm]) {
+  private requirePerm(session: AiBridgeSession, byTeacher: boolean, perm: keyof AiBridgePermissions, index: number, op: string) {
+    if (!byTeacher && !session.scope.permissions[perm]) {
       throw new ForbiddenException(`operations[${index}] (${op}): Das Recht „${perm}“ ist für dieses KI-Token nicht freigeschaltet.`);
     }
   }
@@ -1072,6 +1073,9 @@ export class AiBridgeService {
       '## 1. Dein zeitbeschränkter API-Zugang',
       `- **Gültig bis:** ${expiresTime} Uhr (alle Änderungen lassen sich in LearningModules rückgängig machen)`,
       `- **Freigegebene Rechte:** Lesen${session.scope.permissions.organize ? ', Strukturieren & Planen (`organize`)' : ''}${session.scope.permissions.writeDocs ? ', Dokumente anlegen & überarbeiten (`writeDocs`)' : ''}`,
+      ...(!session.scope.permissions.organize && !session.scope.permissions.writeDocs
+        ? ['- **Nur lesen:** Du kannst nichts ändern. Beschreibe Vorschläge, oder gib sie als `{"operations": [...]}`-JSON aus – ich prüfe und führe sie selbst aus.']
+        : []),
       `- **Basis-URL:** \`${baseUrl}/api/ai-bridge\``,
       `- **Token:** \`${rawToken}\``,
       '',

@@ -80,8 +80,13 @@ export async function openAiBridgeDialog(app, { onDone = null, regenerate = null
       <fieldset class="si-group">
         <legend>⚙️ ${regenerate ? 'Gültigkeitsdauer' : 'Erlaubte Aktionen &amp; Gültigkeitsdauer'}</legend>
         <div class="aib-perms">
-          <label class="share-flag ${regenerate ? 'hidden' : ''}"><input type="checkbox" class="aib-perm-org" checked /> <span>Strukturieren &amp; Verplanen (Ordner anlegen, Lernthemen verschieben, in Pläne projizieren)</span></label>
-          <label class="share-flag ${regenerate ? 'hidden' : ''}"><input type="checkbox" class="aib-perm-docs" checked /> <span>Inhalte &amp; Dokumente (Lernthemen und editierbare Arbeitsblätter anlegen/überarbeiten)</span></label>
+          <label class="aib-ttl-label ${regenerate ? 'hidden' : ''}">Die KI darf:
+            <select class="aib-perm">
+              <option value="read" selected>👁 Nur lesen (Struktur und Inhalte ansehen, Vorschläge machen)</option>
+              <option value="organize">🗂 Lesen und ordnen (Bereiche anlegen, Lernthemen verschieben, in Pläne eintragen)</option>
+              <option value="all">✍️ Lesen, ordnen und Inhalte anlegen (auch Lernthemen und Arbeitsblätter anlegen und überarbeiten)</option>
+            </select>
+          </label>
           <label class="aib-ttl-label">Gültigkeit:
             <select class="aib-ttl">
               <option value="30">30 Minuten</option>
@@ -239,8 +244,8 @@ export async function openAiBridgeDialog(app, { onDone = null, regenerate = null
       planNodeIds,
       includeUnsorted: $('.aib-unsorted').checked,
       permissions: {
-        organize: $('.aib-perm-org').checked,
-        writeDocs: $('.aib-perm-docs').checked,
+        organize: $('.aib-perm').value !== 'read',
+        writeDocs: $('.aib-perm').value === 'all',
       },
     });
     const copied = copyWhenReady(job.then((r) => {

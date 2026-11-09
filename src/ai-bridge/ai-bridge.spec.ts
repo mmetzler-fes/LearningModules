@@ -340,4 +340,14 @@ describe('AiBridgeService (15-Minuten-KI-Token, Scope & Undo)', () => {
     modules.push({ id: 'mod-fremd', topicId: 'top-fremd', type: 'document', title: 'Fremd', content: { spec: { content: [] } } });
     await expect(service.createSession(user, { regenerateModuleIds: ['mod-fremd'] })).rejects.toThrow(/Nur eigene/);
   });
+
+  it('nur lesen: die KI ändert nichts, die Lehrkraft kann Vorschläge selbst ausführen – nur im freigegebenen Bereich', async () => {
+    const { token, session: info, prompt } = await service.createSession(user, { notebookNodeIds: ['book-et'], planNodeIds: [], permissions: { organize: false, writeDocs: false } });
+    expect(prompt).toContain('Nur lesen');
+    const op = { op: 'rename_notebook_node', id: 'sec-et-1', title: 'Vorschlag' } as const;
+    await expect(service.executeBatch(await service.authenticateToken(token), { operations: [op] })).rejects.toThrow(/organize/);
+    await service.executeBatchByTeacher(user, info.id, { operations: [op] });
+    expect(nbNodes.find((n) => n.id === 'sec-et-1').title).toBe('Vorschlag');
+    await expect(service.executeBatchByTeacher(user, info.id, { operations: [{ op: 'rename_notebook_node', id: 'book-other', title: 'x' }] })).rejects.toThrow(/nicht freigegeben/);
+  });
 });

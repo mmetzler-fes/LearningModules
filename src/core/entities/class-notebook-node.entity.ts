@@ -46,4 +46,14 @@ export class ClassNotebookNode extends BaseEntity {
    */
   @Column('simple-json', { nullable: true })
   seen: string[] | null;
+
+  /**
+   * 🔗 Eigener Link auf diesen Bereich (`/?k=<shareToken>`): Anmeldung wie im
+   * Klassennotizbuch, Schüler sehen nur, was darunter für sie sichtbar ist.
+   * Gilt bis zum Zurückziehen bzw. bis die Klasse gelöscht wird; zieht beim
+   * Schuljahreswechsel mit dem Bereich in die neue Klasse.
+   */
+  @Index({ unique: true })
+  @Column({ type: 'varchar', nullable: true })
+  shareToken: string | null;
 }

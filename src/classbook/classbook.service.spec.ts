@@ -432,3 +432,66 @@ describe('Klassennotizbuch: 🗂 Plan zuweisen', () => {
     expect(entry(links)).toEqual({ topicId: 't', all: false, moduleIds: [] });
   });
 });
+
+describe('Klassennotizbuch: eigener 🔗 Link auf einen Bereich bzw. eine Zuweisung', () => {
+  async function twoAreas() {
+    const ctx = setup();
+    const { svc, links, places } = ctx;
+    links.rows[0].selection = [{ topicId: 't', all: true }];
+    links.rows.push({ id: 'l2', classId: 'c1', ownerId: 't1', name: 'Chemie', active: true, modes: ['quiz'], token: null, selection: [{ topicId: 't', all: true }], createdAt: new Date() });
+    const user = { userId: 't1' };
+    const a = await svc.createNode(user, 'c1', { kind: 'area', title: 'Physik-Bereich' });
+    const b = await svc.createNode(user, 'c1', { kind: 'area', title: 'Chemie-Bereich' });
+    places.rows.push({ id: 'l1', classId: 'c1', nodeId: a.id, orderIndex: 0, hidden: false });
+    places.rows.push({ id: 'l2', classId: 'c1', nodeId: b.id, orderIndex: 0, hidden: false });
+    return { ...ctx, user, a, b };
+  }
+  const tokenOf = (url: string) => url.split('?k=')[1];
+
+  it('zeigt nur den Bereich – gleiche Anmeldung, Fremdes lässt sich nicht öffnen', async () => {
+    const { svc, user, a } = await twoAreas();
+    const share = await svc.shareLink(user, 'c1', { type: 'node', id: a.id });
+    const token = tokenOf(share.url!);
+    expect(share.title).toBe('Physik-Bereich');
+    // Derselbe Link beim zweiten Aufruf
+    expect((await svc.shareLink(user, 'c1', { type: 'node', id: a.id })).url).toBe(share.url);
+
+    expect((await svc.info(token)).scopeTitle).toBe('Physik-Bereich');
+    const { ticket } = await svc.login(token, { name: 'Anna', pin: '1234' });
+    const home = await svc.home(token, ticket);
+    expect(home.assignments.map((x: any) => x.linkId)).toEqual(['l1']);
+    expect(home.nodes.map((n: any) => [n.title, n.parentId])).toEqual([['Physik-Bereich', null]]);
+    await expect(svc.enter(token, { ticket, linkId: 'l2' })).rejects.toThrow(/nicht zu diesem Link/);
+    // Der Ausweis gilt auch im ganzen Klassennotizbuch (gleiche Klasse).
+    expect((await svc.home('kb', ticket)).assignments).toHaveLength(2);
+  });
+
+  it('ausgeschaltete Zuweisungen bleiben auch über den Link verborgen', async () => {
+    const { svc, user, a, links } = await twoAreas();
+    links.rows[0].active = false;
+    const token = tokenOf((await svc.shareLink(user, 'c1', { type: 'node', id: a.id })).url!);
+    const { ticket } = await svc.login(token, { name: 'Anna', pin: '1234' });
+    expect((await svc.home(token, ticket)).assignments).toEqual([]);
+  });
+
+  it('Zuweisung allein; Zurückziehen macht den Link ungültig', async () => {
+    const { svc, user } = await twoAreas();
+    const token = tokenOf((await svc.shareLink(user, 'c1', { type: 'entry', id: 'l2' })).url!);
+    const { ticket } = await svc.login(token, { name: 'Anna', pin: '1234' });
+    const home = await svc.home(token, ticket);
+    expect(home.assignments.map((x: any) => [x.linkId, x.nodeId])).toEqual([['l2', null]]);
+    expect(home.nodes).toEqual([]);
+    expect(await svc.shareLink(user, 'c1', { type: 'entry', id: 'l2', revoke: true })).toEqual({ revoked: true });
+    await expect(svc.info(token)).rejects.toThrow(/gibt es nicht/);
+  });
+
+  it('gemerkte Anmeldung des Geräts: ohne Name und PIN', async () => {
+    const { svc, user, a } = await twoAreas();
+    const token = tokenOf((await svc.shareLink(user, 'c1', { type: 'node', id: a.id })).url!);
+    const first = await svc.login('kb', { name: 'Anna', pin: '1234' });
+    const again = await svc.login(token, { deviceTicket: first.deviceTicket });
+    expect(again.name).toBe('Anna B');
+    expect((await svc.home(token, again.ticket)).assignments).toHaveLength(1);
+    await expect(svc.login(token, { deviceTicket: 'falsch' })).rejects.toThrow(/neu anmelden/);
+  });
+});

@@ -23,7 +23,7 @@ import { LearningModule } from '../core/entities/learning-module.entity';
 import { NotebookNode } from '../core/entities/notebook-node.entity';
 import { NotebookPlacement } from '../core/entities/notebook-placement.entity';
 import { ClassbookProgress } from '../core/entities/classbook-progress.entity';
-import { ancestorsOf, canHoldNode, commonPath, deadMirrorNodes, depthOf, leavesInOrder, nodeMoveError, normalizeMarker, reorder, dissolve, LeafRef, MAX_CLASS_DEPTH, TreeLink, TreeNode, veiledNodeIds } from './classbook-tree';
+import { ancestorsOf, canHoldNode, commonPath, deadMirrorNodes, depthOf, leavesInOrder, nodeMoveError, normalizeMarker, reorder, dissolve, LeafRef, MAX_CLASS_DEPTH, TreeLink, TreeNode, veiledNodeIds, scopeTree, ClassbookScope } from './classbook-tree';
 import { ClassesService } from '../classes/classes.service';
 import { LinksService, PRACTICE_MODES, onlyHtmlApps } from '../links/links.service';
 import { NotebooksService } from '../notebooks/notebooks.service';
@@ -143,11 +143,15 @@ export class ClassbookService {
     const known = new Set(nodes.map((n) => n.id));
     const placeOf = (l: TopicLink, i: number) => {
       const p = places.get(l.id);
-      return p ? { nodeId: p.nodeId && known.has(p.nodeId) ? p.nodeId : null, order: p.orderIndex, inTree: !p.hidden } : { nodeId: null, order: 100000 + i, inTree: true };
+      return p
+        ? { nodeId: p.nodeId && known.has(p.nodeId) ? p.nodeId : null, order: p.orderIndex, inTree: !p.hidden, shared: !!p.shareToken }
+        : { nodeId: null, order: 100000 + i, inTree: true, shared: false };
     };
     return {
-      nodes: nodes.map(({ id, kind, title, parentId, orderIndex, sourceNodeId, studentHidden }) => ({
-        id, kind, title, parentId: parentId && known.has(parentId) ? parentId : null, orderIndex, sourceNodeId: sourceNodeId || null, studentHidden: !!studentHidden })),
+      // `shared`: Es gibt einen eigenen 🔗 Link darauf (nur für die Lehrkraft; die Schülerseite wählt ihre Felder selbst).
+      nodes: nodes.map(({ id, kind, title, parentId, orderIndex, sourceNodeId, studentHidden, shareToken }) => ({
+        id, kind, title, parentId: parentId && known.has(parentId) ? parentId : null, orderIndex, sourceNodeId: sourceNodeId || null, studentHidden: !!studentHidden,
+        shared: !!shareToken })),
       placeOf: new Map(links.map((l, i) => [l.id, placeOf(l, i)])),
     };
   }
@@ -1124,17 +1128,17 @@ export class ClassbookService {
 
   /** „Weiter“ im 📍-Pfad, ohne eigenes Fortschreiten: aktueller Stand. */
   async weiter(token: string, ticket: unknown) {
-    const { nb, klasse, ticket: t, student } = await this.session(token, ticket);
+    const { nb, klasse, ticket: t, student, scope } = await this.session(token, ticket);
     const confirmed = isTestStudent(t.s) || (!!student && student.status !== 'pending');
-    const resolved = await this.resolveMarker(nb, klasse, t.s, confirmed);
+    const resolved = await this.resolveMarker(nb, klasse, t.s, confirmed, await this.scopedVisibleTree(klasse, nb, scope));
     return { current: resolved?.current || null, hasNext: !!resolved?.hasNext };
   }
 
   /** „Weiter“: einen Schritt im 📍-Pfad vor, gespeichert je Schüler. */
   async advanceWeiter(token: string, ticket: unknown) {
-    const { nb, klasse, ticket: t, student } = await this.session(token, ticket);
+    const { nb, klasse, ticket: t, student, scope } = await this.session(token, ticket);
     if (!student || student.status === 'pending') throw new ForbiddenException('Erst bestätigt – dann zählt der Fortschritt.');
-    const resolved = await this.resolveMarker(nb, klasse, t.s, true);
+    const resolved = await this.resolveMarker(nb, klasse, t.s, true, await this.scopedVisibleTree(klasse, nb, scope));
     if (!resolved) return { current: null, hasNext: false };
     const nextPosition = Math.min(resolved.position + 1, resolved.total - 1);
     const row = (await this.progressRepo.findOne({ where: { classId: klasse.id, studentId: t.s } }))
@@ -1188,6 +1192,46 @@ export class ClassbookService {
     node.studentHidden = hidden;
     await this.nodeRepo.save(node);
     return { studentHidden: hidden };
+  }
+
+  /**
+   * 🔗 Eigener Link auf einen Bereich/Abschnitt (`{ type: 'node', id }`) bzw. eine
+   * Zuweisung (`{ type: 'entry', id }`): Er bleibt am Eintrag gespeichert, bis er
+   * zurückgezogen (`revoke`) oder die Klasse gelöscht wird. Inhalt: was darin
+   * für Schüler sichtbar ist – mit denselben Schaltern wie im Klassennotizbuch.
+   */
+  async shareLink(user: any, classId: string, body: { type?: string; id?: string; revoke?: boolean }, req?: any) {
+    const klasse = await this.classes.ownedClass(classId, user);
+    await this.ensure(klasse);
+    const id = String(body?.id || '');
+    const fresh = () => crypto.randomBytes(12).toString('base64url');
+    let token: string | null;
+    let title: string;
+    if (body?.type === 'node') {
+      const node = await this.nodeRepo.findOne({ where: { id, classId: klasse.id } });
+      if (!node) throw new NotFoundException('Bereich bzw. Abschnitt nicht gefunden.');
+      node.shareToken = body.revoke ? null : node.shareToken || fresh();
+      await this.nodeRepo.save(node);
+      token = node.shareToken;
+      title = node.title;
+    } else if (body?.type === 'entry') {
+      const link = await this.ownClassLink(user, klasse.id, id);
+      let place = await this.placeRepo.findOne({ where: { id: link.id, classId: klasse.id } });
+      if (!place) {
+        // Ohne Platz stand die Zuweisung oben am Ende – dort bleibt sie.
+        const { placeOf } = await this.tree(klasse, await this.classLinks(klasse));
+        place = this.placeRepo.create({ id: link.id, classId: klasse.id, nodeId: null, orderIndex: placeOf.get(link.id)?.order ?? 100000, hidden: false });
+      }
+      place.shareToken = body.revoke ? null : place.shareToken || fresh();
+      await this.placeRepo.save(place);
+      token = place.shareToken;
+      title = link.name;
+    } else {
+      throw new BadRequestException('Unbekannter Eintrag.');
+    }
+    if (!token) return { revoked: true };
+    const url = `${baseUrl(req)}/?k=${token}`;
+    return { url, title, className: klasse.name, qrSvg: await renderQr(url) };
   }
 
   /** Zuweisungen, die Schüler nicht sehen: ganzes Klassennotizbuch oder ihr Bereich/Abschnitt ausgeblendet. */
@@ -1321,13 +1365,35 @@ export class ClassbookService {
 
   // ---- Schüler ----
 
+  /**
+   * Schlüssel aus `/?k=` → Klassennotizbuch. Neben dem Klassenbuch-Link gibt es
+   * eigene Links auf einen Bereich bzw. eine Zuweisung (`shareToken`): gleiche
+   * Anmeldung, aber nur dieser Teil (`scope`).
+   */
   private async byToken(token: string) {
-    const nb = token ? await this.repo.findOne({ where: { token } }) : null;
+    let nb = token ? await this.repo.findOne({ where: { token } }) : null;
+    let scope: ClassbookScope | null = null;
+    if (!nb && token) {
+      const node = await this.nodeRepo.findOne({ where: { shareToken: token } });
+      const place = node ? null : await this.placeRepo.findOne({ where: { shareToken: token } });
+      const classId = node?.classId || place?.classId;
+      const link = place ? await this.linkRepo.findOne({ where: { id: place.id, classId: place.classId } }) : null;
+      if (node) scope = { nodeId: node.id, title: node.title };
+      else if (link) scope = { linkId: link.id, title: link.name };
+      nb = scope && classId ? await this.repo.findOne({ where: { classId } }) : null;
+    }
     const klasse = nb ? await this.classes.findById(nb.classId) : null;
     if (!nb || !klasse) throw new NotFoundException('Diesen Klassenbuch-Link gibt es nicht (mehr). Bitte bei der Lehrkraft nachfragen.');
     const owner = klasse.ownerId ? await this.userRepo.findOne({ where: { id: klasse.ownerId } }) : null;
     if (!owner || owner.active === false) throw new ForbiddenException('Dieses Klassennotizbuch ist derzeit gesperrt.');
-    return { nb, klasse, owner };
+    return { nb, klasse, owner, scope };
+  }
+
+  /** Wie `visibleTree`, bei einem eigenen Link nur sein Teil. */
+  private async scopedVisibleTree(klasse: StudentClass, nb: ClassNotebook, scope: ClassbookScope | null) {
+    const t = await this.visibleTree(klasse, nb);
+    const s = scopeTree(scope, t.nodes, t.placeOf, t.links);
+    return { ...t, nodes: s.nodes, placeOf: s.placeOf, links: s.links, inScope: s.inScope };
   }
 
   /** Klassencode (aus der Schüler-App) → Token des Klassenbuch-Links. */
@@ -1340,16 +1406,29 @@ export class ClassbookService {
   }
 
   async info(token: string) {
-    const { nb, klasse, owner } = await this.byToken(token);
-    return { classId: klasse.id, className: klasse.name, teacher: owner.displayName || '', firstLoginOpen: firstLoginOpen(nb.firstLoginUntil) };
+    const { nb, klasse, owner, scope } = await this.byToken(token);
+    return {
+      classId: klasse.id, className: klasse.name, teacher: owner.displayName || '', firstLoginOpen: firstLoginOpen(nb.firstLoginUntil),
+      scopeTitle: scope?.title || null,
+    };
   }
 
   /**
    * Anmeldung mit Name (wie beim Klassenlink) und PIN. Ergebnis: Ausweis für
    * das Klassennotizbuch; `pin`, wenn sie jetzt das erste Mal gezeigt wird.
    */
-  async login(token: string, body: { name?: string; pin?: string; testPassword?: string }) {
+  async login(token: string, body: { name?: string; pin?: string; testPassword?: string; deviceTicket?: string }) {
     const { nb, klasse } = await this.byToken(token);
+    // Auf diesem Gerät schon angemeldet (z. B. über das Klassennotizbuch): gleicher Ausweis, ohne Name und PIN.
+    if (body?.deviceTicket && !body?.name) {
+      const t = await this.deviceLogin(klasse, body.deviceTicket);
+      if (!t) throw new ForbiddenException({ statusCode: 403, expired: true, message: 'Bitte neu anmelden.' });
+      const student = isTestStudent(t.s) ? null : await this.studentRepo.findOne({ where: { id: t.s, classId: klasse.id } });
+      return {
+        ticket: issueTicket(classbookTicketKey(klasse.id), t.s, t.n), deviceTicket: String(body.deviceTicket),
+        studentId: t.s, classId: klasse.id, name: t.n, pending: student?.status === 'pending', pin: undefined as string | undefined,
+      };
+    }
     return this.loginToClass(nb, klasse, body);
   }
 
@@ -1414,12 +1493,12 @@ export class ClassbookService {
   }
 
   private async session(token: string, ticket: unknown) {
-    const { nb, klasse } = await this.byToken(token);
+    const { nb, klasse, scope } = await this.byToken(token);
     const t = readTicket(ticket, classbookTicketKey(klasse.id));
     if (!t) throw new ForbiddenException({ statusCode: 403, expired: true, message: 'Die Anmeldung ist abgelaufen. Bitte neu anmelden.' });
     const student = isTestStudent(t.s) ? null : await this.studentRepo.findOne({ where: { id: t.s, classId: klasse.id } });
     if (!student && !isTestStudent(t.s)) throw new ForbiddenException({ statusCode: 403, expired: true, message: 'Dieser Name steht nicht mehr in der Klassenliste.' });
-    return { nb, klasse, ticket: t, student };
+    return { nb, klasse, ticket: t, student, scope };
   }
 
   /**
@@ -1428,29 +1507,32 @@ export class ClassbookService {
    * Zuweisungen – unter ihrem Namen könnte sich jeder anmelden.
    */
   async home(token: string, ticket: unknown) {
-    const { nb, klasse, ticket: t, student } = await this.session(token, ticket);
+    const { nb, klasse, ticket: t, student, scope } = await this.session(token, ticket);
     const confirmed = isTestStudent(t.s) || (!!student && student.status !== 'pending');
     const all = await this.classLinks(klasse);
     const active = all.filter((l) => l.active);
     // Ohne eingeschaltetes Modul gibt es für Schüler nichts zu sehen. Die Quiz-Arena
     // erscheint nur, solange die Lehrkraft ihren Wartebereich geöffnet hat (arena).
-    const { nodes, placeOf, veiledNodes, veiled, links } = await this.visibleTree(klasse, nb);
+    // Eigener Link auf einen Bereich bzw. eine Zuweisung: nur dieser Teil.
+    const { nodes, placeOf, veiledNodes, veiled, links, inScope } = await this.scopedVisibleTree(klasse, nb, scope);
     // 📍 Merker, auf jeder Ebene: zum (zuletzt per „Weiter“ erreichten) Modul im Pfad, mit dem Pfad zum Aufklappen.
     const resolved = await this.resolveMarker(nb, klasse, t.s, confirmed, { nodes, placeOf, links });
     const marker = resolved ? { anchor: resolved.anchor, current: resolved.current, openNodeIds: resolved.openNodeIds, hasNext: resolved.hasNext } : null;
     // Laufende Klassenarbeiten: aktiv und ihr Link ist erzeugt (die Lehrkraft hat ihn ausgegeben).
-    const exams = await Promise.all(active.filter((l) => (l.modes || []).includes('exam') && l.examToken).map(async (l) => {
+    const exams = scope ? [] : await Promise.all(active.filter((l) => (l.modes || []).includes('exam') && l.examToken).map(async (l) => {
       const attempt = await this.attemptRepo.findOne({ where: { linkId: l.id, studentId: t.s } });
       return { linkId: l.id, name: l.name, state: isTestStudent(t.s) ? 'open' : examState(attempt, l.singleAttempt) };
     }));
-    const results = confirmed ? await this.resultRepo.find({ where: { classId: klasse.id, studentId: t.s }, order: { createdAt: 'DESC' } }) : [];
-    const works = confirmed
+    const results = (confirmed ? await this.resultRepo.find({ where: { classId: klasse.id, studentId: t.s }, order: { createdAt: 'DESC' } }) : [])
+      .filter((r) => !scope || (!!r.linkId && inScope(r.linkId)));
+    const works = (confirmed
       ? await this.workRepo.find({ where: { classId: klasse.id, studentId: t.s }, select: ['id', 'linkId', 'moduleId', 'moduleTitle', 'access', 'updatedAt', 'versionId'], order: { updatedAt: 'DESC' } })
-      : [];
+      : []).filter((w) => !scope || (!!w.linkId && inScope(w.linkId)));
     const workModuleIds = [...new Set(works.map((w) => w.moduleId))];
     const existingDocs = new Set((workModuleIds.length ? await this.moduleRepo.find({ where: { id: In(workModuleIds) }, select: ['id'] }) : []).map((m) => m.id));
     return {
       className: klasse.name,
+      scopeTitle: scope?.title || null,
       name: t.n,
       arena: this.openArena(active),
       pending: !confirmed && !isTestStudent(t.s),
@@ -1548,9 +1630,15 @@ export class ClassbookService {
    * dann der gewöhnliche Link-Start mit dem Ausweis des Klassennotizbuchs.
    */
   async enter(token: string, body: { ticket?: string; linkId?: string; exam?: boolean }) {
-    const { nb, klasse } = await this.session(token, body?.ticket);
+    const { nb, klasse, scope } = await this.session(token, body?.ticket);
     const link = await this.linkRepo.findOne({ where: { id: String(body?.linkId || ''), classId: klasse.id } });
     if (!link || !link.active) throw new NotFoundException('Diese Aufgabe ist gerade nicht freigegeben.');
+    // Eigener Link auf einen Teil: nur, was darin liegt – und die gerade offene Quiz-Arena.
+    if (scope && !body?.exam && this.openArena([link])?.linkId !== link.id) {
+      const { inScope } = await this.scopedVisibleTree(klasse, nb, scope);
+      if (!inScope(link.id)) throw new NotFoundException('Diese Aufgabe gehört nicht zu diesem Link.');
+    }
+    if (scope && body?.exam) throw new NotFoundException('Die Klassenarbeit gibt es über ihren eigenen Link.');
     // 🙈 In einem ausgeblendeten Bereich: nicht zu öffnen (die Klassenarbeit hat ihren eigenen Weg).
     if (!body?.exam) {
       const { nodes, placeOf } = await this.tree(klasse, [link]);

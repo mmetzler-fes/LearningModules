@@ -1,4 +1,4 @@
-import { rememberStudent } from '../class-device.js';
+import { rememberStudent, rememberedStudent } from '../class-device.js';
 import { escapeHtml, escapeAttr } from '../utils.js';
 import { nestEmbedded } from '../../lm-editor/src/doc/doc-quiz.js';
 import { LINK_MODE_LABELS } from './login.js';
@@ -168,11 +168,21 @@ export class ClassbookStudent {
     // Name auf dem Home-Bildschirm (iPad) – eine App für alle Klassennotizbücher.
     document.querySelector('meta[name="apple-mobile-web-app-title"]')?.setAttribute('content', 'Klassenbuch');
     if (inApp() && !inPreview) {
-      const v = upsertBook(token, { className: info.className, teacher: info.teacher || '' });
+      // Eigener Link auf einen Bereich: eigener Eintrag mit seinem Titel.
+      const v = upsertBook(token, { className: info.scopeTitle ? `${info.className} · ${info.scopeTitle}` : info.className, teacher: info.teacher || '' });
       storeBooks({ ...v, current: token });
     }
     const s = classbookSession();
     if (s?.token === token && s.ticket && (await this._home())) return;
+    // Auf diesem Gerät schon in der Klasse angemeldet (Klassennotizbuch, Klassenlink): ohne Name und PIN weiter.
+    const known = !inPreview && rememberedStudent(info.classId);
+    if (known) {
+      const res = await post(`${encodeURIComponent(token)}/login`, { deviceTicket: known.ticket }).catch(() => null);
+      if (res && !res.failed && res.ticket) {
+        saveSession({ token, ticket: res.ticket, name: res.name, pin: null });
+        if (await this._home()) return;
+      }
+    }
     this._login();
   }
 
@@ -182,7 +192,7 @@ export class ClassbookStudent {
       ${inApp() ? '<button type="button" class="btn btn-secondary btn-sm cb-to-list" id="cbToList">☰ Meine Klassennotizbücher</button>' : ''}
       <div class="quick-entry-topic">
         <span class="quick-entry-label">📒 Klassennotizbuch</span>
-        <h2>${escapeHtml(info.className)}</h2>
+        <h2>${escapeHtml(info.className)}${info.scopeTitle ? ` · ${escapeHtml(info.scopeTitle)}` : ''}</h2>
         ${info.teacher ? `<p class="hint">${escapeHtml(info.teacher)}</p>` : ''}
       </div>
       <form class="login-form" id="cbLoginForm">
@@ -243,6 +253,12 @@ export class ClassbookStudent {
   /** Als App: abgelaufenen Ausweis mit gemerktem Namen und PIN erneuern. */
   async _relogin() {
     const s = classbookSession();
+    // Gemerkte Anmeldung des Geräts (gilt, solange die PIN dieselbe ist).
+    const known = !s?.preview && rememberedStudent(this.info?.classId);
+    if (known && (!s?.pin || !inApp())) {
+      const res = await post(`${encodeURIComponent(this.token)}/login`, { deviceTicket: known.ticket }).catch(() => null);
+      if (res && !res.failed && res.ticket) { saveSession({ token: this.token, ticket: res.ticket, name: res.name, pin: s?.pin || null }); return true; }
+    }
     if (!inApp() || !s?.name || !s.pin) return false;
     const res = await post(`${encodeURIComponent(this.token)}/login`, { name: s.name, pin: s.pin }).catch(() => null);
     if (!res || res.failed || res.pin) return false;
@@ -364,7 +380,7 @@ export class ClassbookStudent {
     const el = this._show(`
       ${preview ? '<p class="cb-preview-note">👁 <strong>Vorschau:</strong> So sieht es deine Klasse. Ergebnisse und Blätter stehen im Klassennotizbuch als 🧪 und zählen nicht mit.</p>' : ''}
       <div class="cb-head">
-        <div><span class="quick-entry-label">📒 ${escapeHtml(data.className)}</span><h2>${escapeHtml(data.name)}</h2></div>
+        <div><span class="quick-entry-label">📒 ${escapeHtml(data.className)}${data.scopeTitle ? ` · ${escapeHtml(data.scopeTitle)}` : ''}</span><h2>${escapeHtml(data.name)}</h2></div>
         <span class="cb-head-actions">
           ${preview ? '' : inApp() ? '<button type="button" class="btn btn-secondary btn-sm" id="cbToList" title="Alle deine Klassennotizbücher">☰ Alle</button>'
             : '<button type="button" class="btn btn-secondary btn-sm" id="cbInstall" title="Klassennotizbuch als App auf den Home-Bildschirm – öffnet direkt hier, angemeldet">📲 Als App</button>'}

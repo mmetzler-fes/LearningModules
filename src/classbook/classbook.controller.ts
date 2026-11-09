@@ -56,6 +56,13 @@ export class ClassbookController {
     return this.classbook.deleteNode(req.user, classId, id);
   }
 
+  /** 🔗 `{ type: 'node'|'entry', id, revoke? }` – eigener Link auf diesen Teil des Klassennotizbuchs (Link und QR-Code). */
+  @Post(':classId/share')
+  @HttpCode(200)
+  share(@Request() req: any, @Param('classId') classId: string, @Body() body: any) {
+    return this.classbook.shareLink(req.user, classId, body, req);
+  }
+
   /** `{ type: 'node'|'entry', id, parentId, index? }` */
   @Post(':classId/move')
   @HttpCode(200)

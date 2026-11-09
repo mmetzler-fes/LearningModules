@@ -1164,6 +1164,10 @@ export class BrowserApi {
   setClassbookVisibility(classId, body) {
     return this._fetch(`/api/classbook/${encodeURIComponent(classId)}/visibility`, { method: 'PUT', body: JSON.stringify(body) });
   }
+  /** 🔗 Eigener Link auf einen Teil des Klassennotizbuchs: `{ type: 'node'|'entry', id, revoke? }` → `{ url, qrSvg, title, className }`. */
+  classbookShare(classId, body) {
+    return this._fetch(`/api/classbook/${encodeURIComponent(classId)}/share`, { method: 'POST', body: JSON.stringify(body) });
+  }
   /** 📡 Modul bei allen verbundenen Schüler-Geräten öffnen → `{ reached }`. */
   sendToClassbook(classId, linkId, moduleId) {
     return this._fetch(`/api/classbook/${encodeURIComponent(classId)}/send`, { method: 'POST', body: JSON.stringify({ linkId, moduleId }) });

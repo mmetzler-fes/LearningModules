@@ -658,6 +658,7 @@ export class ClassResultsView {
         <summary class="${marked || topicMark ? 'cb-marked' : ''}"><span class="cb-twisty" aria-hidden="true"></span>
           <span class="nb-icon" aria-hidden="true">📘</span><span class="cb-row-title" title="${escapeAttr(link.name)}">${escapeHtml(link.name)}</span>
           ${marked || topicMark ? this._markBadge() : ''}
+          ${link.shared ? '<span class="nb-meta" title="Hat einen eigenen Quick-Link (⋯ → 🔗)">🔗</span>' : ''}
           <span class="nb-meta">${on === modules.length ? `${on} Modul${on === 1 ? '' : 'e'}` : `${on} von ${modules.length} Modulen`}${link.classTopicId ? ' · nur diese Klasse' : ''}</span>
           ${this._reachBadge(link)}
           ${this._groupSwitch(this._stateOf([link]), `data-switch-links="${escapeAttr(link.id)}"`, 'dieser Zuweisung')}${this._linkEye(link)}
@@ -1182,6 +1183,7 @@ export class ClassResultsView {
           <span class="nb-icon" aria-hidden="true">${NODE_ICON[n.kind]}</span><span class="cb-node-title cb-row-title" title="${escapeAttr(n.title)}">${escapeHtml(n.title)}</span>
           ${marked(n) ? this._markBadge() : ''}
           <span class="nb-meta">${kids(n.id) ? `${kids(n.id)} Unterordner · ` : ''}${count(n.id)} Lernthem${count(n.id) === 1 ? 'a' : 'en'}</span>
+          ${n.shared ? '<span class="nb-meta" title="Hat einen eigenen Quick-Link (⋯ → 🔗)">🔗</span>' : ''}
           ${n.studentHidden ? '<span class="cb-veiled-badge" title="Schüler sehen diesen Bereich mit allem darin nicht, auch Link und QR-Code sind gesperrt – die Module bleiben ein- bzw. ausgeschaltet">🙈 für Schüler ausgeblendet</span>' : ''}
           ${under(n.id).length ? this._groupSwitch(this._stateOf(under(n.id)), `data-switch-links="${escapeAttr(under(n.id).map((l) => l.id).join(','))}"`, n.kind === 'section' ? 'diesem Abschnitt' : 'diesem Bereich') : ''}${this._veilButton(n)}
           <button type="button" class="nb-menu-btn" data-node-menu title="Aktionen" aria-label="Aktionen">⋯</button></summary>
@@ -1195,20 +1197,10 @@ export class ClassResultsView {
 
   _nodeMenu(cb, node) {
     const items = [];
-    // Ein Link für alles darin – aus dem Notizbuch übernommene Bereiche haben ihren Quick-Link dort.
-    if (node.sourceNodeId && !node.sourceNodeId.startsWith('plan:')) {
-      items.push({ label: '🔗 Quick-Link (Link & QR)', title: 'Ein Link und QR-Code für alle Lernthemen darin – für diese Klasse, Schüler starten gleich mit ihrem Namen',
-        run: async () => {
-          // Klassenlink des Notizbuch-Bereichs für diese Klasse (wie der Quick-Link mit vorgewählter Klasse).
-          const res = await this.app.api.classLinkFromNotebookNode(node.sourceNodeId, this._classId);
-          if (failed(res) || !res?.id) { this.app.showToast('Fehler: ' + (res?.message || 'Link nicht erzeugt'), 'error'); return; }
-          await this.app.linksView._openShareDialog({ id: res.id, name: node.title }, 'practice');
-        } });
-    } else {
-      items.push({ label: '🔗 Quick-Link (nur für Notizbuch-Bereiche)', title: 'Selbst angelegte Bereiche und Bereiche aus dem Plan haben keinen eigenen Link – die Lernthemen darin schon (⋯ am Lernthema)', run: () => {
-        this.app.showToast('Selbst angelegte Bereiche haben keinen eigenen Link – die Lernthemen darin schon (⋯ am Lernthema → 🔗 Quick-Link).', 'info');
-      } });
-    }
+    // Eigener Link auf genau diesen Teil des Klassennotizbuchs – mit allen Schaltern von hier.
+    items.push({ label: node.shared ? '🔗 Quick-Link (Link & QR) ✓' : '🔗 Quick-Link (Link & QR)',
+      title: 'Eigener Link und QR-Code für diesen Bereich: Schüler melden sich an wie im Klassennotizbuch und sehen nur, was hier für sie eingeschaltet ist',
+      run: () => this._shareDialog('node', node.id) });
     items.push('-');
     if (node.kind === 'area') {
       items.push({ label: '➕ Neuer Bereich', run: () => this._add('area', node.id) });
@@ -1285,9 +1277,10 @@ export class ClassResultsView {
   _entryMenu(cb, link) {
     const own = !!link.classTopicId;
     const items = [];
-    // Link und QR-Code dieser Zuweisung – für genau diese Klasse (ohne Klassenauswahl).
-    items.push({ label: '🔗 Quick-Link (Link & QR)', title: 'Link und QR-Code für diese Klasse – die Schüler starten gleich mit ihrem Namen',
-      run: () => this.app.linksView._openShareDialog({ id: link.id, name: link.name }, 'practice') });
+    // Eigener Link auf genau diese Zuweisung im Klassennotizbuch – mit ihren Schaltern von hier.
+    items.push({ label: link.shared ? '🔗 Quick-Link (Link & QR) ✓' : '🔗 Quick-Link (Link & QR)',
+      title: 'Eigener Link und QR-Code für diese Zuweisung: Schüler melden sich an wie im Klassennotizbuch und sehen nur, was hier für sie eingeschaltet ist',
+      run: () => this._shareDialog('entry', link.id) });
     items.push('-');
     if (own) items.push({ label: '➕ Neues Modul', title: 'Neue Module sind zunächst aus – mit ● einschalten', run: () => this.app.modulesView.openFrom('teacher-class-results', link.classTopicId, null) });
     const clickIn = (sel) => () => document.querySelector(`[data-link="${link.id}"] ${sel}`)?.click();
@@ -1416,6 +1409,58 @@ export class ClassResultsView {
     const close = (e) => { if (!menu.contains(e.target)) { menu.remove(); document.removeEventListener('mousedown', close, true); } };
     setTimeout(() => document.addEventListener('mousedown', close, true), 0);
     menu.addEventListener('keydown', (e) => { if (e.key === 'Escape') menu.remove(); });
+  }
+
+  /**
+   * 🔗 Eigener Link auf einen Bereich (`node`) bzw. eine Zuweisung (`entry`) des
+   * Klassennotizbuchs: am Eintrag gespeichert, gültig bis zum Zurückziehen.
+   */
+  async _shareDialog(type, id) {
+    const res = await this.app.api.classbookShare(this._classId, { type, id });
+    if (failed(res) || !res?.url) { this.app.showToast('Fehler: ' + (res?.message || 'Link nicht erzeugt'), 'error'); return; }
+    const overlay = document.createElement('div');
+    overlay.className = 'confirm-overlay cb-ask';
+    overlay.innerHTML = `<div class="import-modules-card" role="dialog" aria-modal="true" style="max-width:560px">
+        <h3>🔗 ${escapeHtml(res.title)} <small class="hint">· ${escapeHtml(res.className)}</small></h3>
+        <div class="cb-qr" style="max-width:220px">${res.qrSvg || ''}</div>
+        <p class="hint">Schüler melden sich wie im Klassennotizbuch an (auf ihrem Gerät meist schon geschehen) und sehen nur diesen Teil –
+          genau so, wie er hier ein- und ausgeschaltet ist. Der Link gilt, bis du ihn zurückziehst, auch nach der Versetzung der Klasse.</p>
+        <div class="cb-url"><input type="text" readonly value="${escapeAttr(res.url)}" class="search-input" style="width:100%"></div>
+        <div class="confirm-actions">
+          <button type="button" class="btn btn-secondary btn-sm" data-copy>📋 Kopieren</button>
+          <button type="button" class="btn btn-secondary btn-sm" data-copy-qr>🔳 QR-Code kopieren</button>
+          <button type="button" class="btn btn-secondary btn-sm" data-copy-sheet title="QR-Code mit Titel und Link als Bild – z. B. für OneNote">🖼 Als Bild kopieren</button>
+          <button type="button" class="btn btn-danger btn-sm" data-revoke title="Der Link und ausgeteilte QR-Codes gelten dann nicht mehr">Zurückziehen</button>
+          <button type="button" class="btn btn-primary btn-sm" data-close>Schließen</button></div></div>`;
+    document.body.appendChild(overlay);
+    const close = () => overlay.remove();
+    overlay.querySelector('[data-close]').addEventListener('click', close);
+    overlay.addEventListener('keydown', (e) => { if (e.key === 'Escape') close(); });
+    overlay.querySelector('[data-copy]').addEventListener('click', async () => {
+      try { await navigator.clipboard.writeText(res.url); this.app.showToast('Link kopiert.', 'success'); } catch (_) { overlay.querySelector('input').select(); }
+    });
+    overlay.querySelector('[data-copy-qr]').addEventListener('click', async () => {
+      const ok = await copyQrSvgAsPng(overlay.querySelector('.cb-qr svg'));
+      this.app.showToast(ok ? 'QR-Code kopiert' : 'QR-Code kopieren klappt hier nicht – bitte den Link nutzen.', ok ? 'success' : 'error');
+    });
+    overlay.querySelector('[data-copy-sheet]').addEventListener('click', async () => {
+      const ok = await copyShareSheetAsPng({ title: `${res.title} – ${res.className}`, subtitle: 'Link öffnen, Namen und PIN eingeben', svg: overlay.querySelector('.cb-qr svg'), url: res.url });
+      this.app.showToast(ok ? 'Als Bild kopiert.' : 'Als Bild kopieren klappt hier nicht.', ok ? 'success' : 'error');
+    });
+    overlay.querySelector('[data-revoke]').addEventListener('click', async () => {
+      if (!(await this.app.appConfirm(`Link für „${res.title}“ zurückziehen? Ausgeteilte Links und QR-Codes gelten dann nicht mehr. Ein neuer Link bekommt eine neue Adresse.`))) return;
+      const r = await this.app.api.classbookShare(this._classId, { type, id, revoke: true });
+      if (failed(r)) { this.app.showToast('Fehler: ' + (r?.message || '?'), 'error'); return; }
+      close();
+      this.app.showToast('Link zurückgezogen.', 'success');
+      await this._classbook(true);
+      this._render();
+    });
+    // ✓ im Menü und 🔗 im Baum nachziehen.
+    if (!(type === 'node' ? this._cb?.nodes?.find((n) => n.id === id)?.shared : this._cb?.links?.find((l) => l.id === id)?.shared)) {
+      await this._classbook(true);
+      this._render();
+    }
   }
 
   /** Kleiner Eingabedialog – Text oder null. */

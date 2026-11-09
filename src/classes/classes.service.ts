@@ -589,6 +589,9 @@ export class ClassesService implements OnApplicationBootstrap, OnModuleDestroy {
       newId: () => crypto.randomUUID(),
       switchOff: await this.inClassbookTree(own),
     });
+    // Eigene 🔗 Links auf Bereiche/Zuweisungen gehören ab jetzt der neuen Klasse (planCopy nimmt sie mit).
+    await this.cbNodeRepo.update({ classId: fromId }, { shareToken: null });
+    await this.cbPlaceRepo.update({ classId: fromId }, { shareToken: null });
     if (plan.nodes.length) await this.cbNodeRepo.save(plan.nodes.map((n) => this.cbNodeRepo.create({ ...n, classId: toId })));
     if (plan.topics.length) await this.topicRepo.save(plan.topics.map((t) => this.topicRepo.create({ ...t, classId: toId })));
     // Submodule erst nach ihren Elternmodulen.

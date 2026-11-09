@@ -215,3 +215,39 @@ export function commonPath<T>(paths: T[][]): T[] {
   }
   return first.slice(0, n);
 }
+
+/** 🔗 Eigener Link auf einen Teil des Klassennotizbuchs: ein Bereich/Abschnitt mit allem darunter oder eine Zuweisung. */
+export type ClassbookScope = { nodeId: string; title: string } | { linkId: string; title: string };
+
+/**
+ * Teilbaum für einen eigenen Link (`ClassbookScope`): nur die Knoten darunter –
+ * der Bereich selbst rückt an die oberste Ebene – und nur die Zuweisungen darin.
+ * Ohne Bereich (`null`) bleibt alles, wie es ist.
+ */
+export function scopeTree<N extends TreeNode, L extends { id: string }, P extends { nodeId: string | null }>(
+  scope: ClassbookScope | null,
+  nodes: N[],
+  placeOf: Map<string, P>,
+  links: L[],
+): { nodes: N[]; placeOf: Map<string, P>; links: L[]; inScope: (linkId: string) => boolean } {
+  if (!scope) return { nodes, placeOf, links, inScope: () => true };
+  if ('linkId' in scope) {
+    const inScope = (id: string) => id === scope.linkId;
+    const own = placeOf.get(scope.linkId);
+    // Die Zuweisung allein steht oben.
+    const places = new Map(own ? [[scope.linkId, { ...own, nodeId: null }]] : []);
+    return { nodes: [], placeOf: places, links: links.filter((l) => inScope(l.id)), inScope };
+  }
+  const ids = new Set<string>(nodes.some((n) => n.id === scope.nodeId) ? [scope.nodeId] : []);
+  for (let grew = true; grew;) {
+    grew = false;
+    for (const n of nodes) if (n.parentId && ids.has(n.parentId) && !ids.has(n.id)) { ids.add(n.id); grew = true; }
+  }
+  const inScope = (id: string) => { const nodeId = placeOf.get(id)?.nodeId; return !!nodeId && ids.has(nodeId); };
+  return {
+    nodes: nodes.filter((n) => ids.has(n.id)).map((n) => (n.id === scope.nodeId ? { ...n, parentId: null } : n)),
+    placeOf,
+    links: links.filter((l) => inScope(l.id)),
+    inScope,
+  };
+}

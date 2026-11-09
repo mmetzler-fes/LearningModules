@@ -1,5 +1,5 @@
 import { ancestorsOf, canHoldNode, depthOf, isInside, nodeMoveError, reorder, dissolve, leavesInOrder, normalizeMarker, MAX_CLASS_DEPTH, TreeLink, TreeNode, veiledNodeIds } from './classbook-tree';
-import { commonPath, deadMirrorNodes } from './classbook-tree';
+import { commonPath, deadMirrorNodes, scopeTree } from './classbook-tree';
 
 const N = (id: string, kind: 'area' | 'section', parentId: string | null, orderIndex = 0): TreeNode => ({ id, kind, parentId, orderIndex });
 
@@ -143,4 +143,42 @@ describe('deadMirrorNodes: im Notizbuch gelöschte Bereiche', () => {
   it('Quelle besteht noch: bleibt, der Bereich kann wieder wachsen', () => expect(dead.has('b')).toBe(false));
   it('selbst angelegt: bleibt, auch mit gelöschtem Bereich darüber', () => { expect(dead.has('c')).toBe(false); expect(dead.has('e')).toBe(false); });
   it('es liegt noch etwas darin: bleibt', () => expect(dead.has('d')).toBe(false));
+});
+
+describe('scopeTree: eigener Link auf einen Teil des Klassennotizbuchs', () => {
+  const nodes: TreeNode[] = [
+    { id: 'a', kind: 'area', parentId: null, orderIndex: 0 },
+    { id: 'a1', kind: 'section', parentId: 'a', orderIndex: 0 },
+    { id: 'b', kind: 'area', parentId: null, orderIndex: 1 },
+  ];
+  const placeOf = new Map([['l1', { nodeId: 'a1', order: 0 }], ['l2', { nodeId: 'b', order: 0 }], ['l3', { nodeId: null, order: 0 }]]);
+  const links = [{ id: 'l1' }, { id: 'l2' }, { id: 'l3' }];
+
+  it('ohne Bereich bleibt alles', () => {
+    const r = scopeTree(null, nodes, placeOf, links);
+    expect(r.links.map((l) => l.id)).toEqual(['l1', 'l2', 'l3']);
+    expect(r.inScope('l2')).toBe(true);
+  });
+
+  it('Bereich: nur sein Teilbaum, er selbst oben', () => {
+    const r = scopeTree({ nodeId: 'a', title: 'A' }, nodes, placeOf, links);
+    expect(r.nodes.map((n) => [n.id, n.parentId])).toEqual([['a', null], ['a1', 'a']]);
+    expect(r.links.map((l) => l.id)).toEqual(['l1']);
+    expect(r.inScope('l2')).toBe(false);
+    expect(r.inScope('l3')).toBe(false);
+  });
+
+  it('Bereich, den es nicht mehr gibt: leer', () => {
+    const r = scopeTree({ nodeId: 'weg', title: '' }, nodes, placeOf, links);
+    expect(r.nodes).toEqual([]);
+    expect(r.links).toEqual([]);
+  });
+
+  it('Zuweisung: nur sie, oben', () => {
+    const r = scopeTree({ linkId: 'l2', title: 'L2' }, nodes, placeOf, links);
+    expect(r.nodes).toEqual([]);
+    expect(r.links.map((l) => l.id)).toEqual(['l2']);
+    expect(r.placeOf.get('l2')?.nodeId).toBeNull();
+    expect(r.inScope('l1')).toBe(false);
+  });
 });

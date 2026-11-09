@@ -17,7 +17,7 @@ export function switchedOff(selection: SelectionEntry[] | null | undefined, topi
 }
 
 interface NodeRow { id: string; kind: 'area' | 'section'; title: string; parentId: string | null; orderIndex: number }
-interface PlaceRow { id: string; nodeId: string | null; orderIndex: number }
+interface PlaceRow { id: string; nodeId: string | null; orderIndex: number; shareToken?: string | null }
 interface ModuleRow { id: string; topicId: string; parentId?: string | null; [k: string]: any }
 
 /**
@@ -56,7 +56,8 @@ export function planCopy(input: {
     })),
     places: input.links.filter((l) => placeOf.has(l.id)).map((l) => {
       const p = placeOf.get(l.id)!;
-      return { id: linkIds.get(l.id)!, nodeId: p.nodeId ? nodeIds.get(p.nodeId) ?? null : null, orderIndex: p.orderIndex };
+      // Eigene 🔗 Links ziehen mit (bei Bereichen über `...n`): Bei Versetzung bleiben sie gültig.
+      return { id: linkIds.get(l.id)!, nodeId: p.nodeId ? nodeIds.get(p.nodeId) ?? null : null, orderIndex: p.orderIndex, shareToken: p.shareToken ?? null };
     }),
   };
 }

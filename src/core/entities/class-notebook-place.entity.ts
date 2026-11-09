@@ -24,4 +24,9 @@ export class ClassNotebookPlace extends BaseEntity {
    */
   @Column({ default: false })
   hidden: boolean;
+
+  /** 🔗 Eigener Link auf diese Zuweisung (`/?k=<shareToken>`), wie beim Bereich (ClassNotebookNode.shareToken). */
+  @Index({ unique: true })
+  @Column({ type: 'varchar', nullable: true })
+  shareToken: string | null;
 }

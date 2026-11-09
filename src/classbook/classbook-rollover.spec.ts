@@ -25,6 +25,20 @@ describe('Klassennotizbuch beim Schuljahreswechsel', () => {
     expect(res.modules[1]).toMatchObject({ topicId: res.topics[0].id, parentId: res.modules[0].id });
     expect(res.links[0]).toMatchObject({ token: null, examToken: null, customized: true, selection: [{ topicId: res.topics[0].id, all: false, moduleIds: [] }] });
     expect(res.links[1].selection).toEqual([{ topicId: 'fremd', all: false, moduleIds: [] }]);
-    expect(res.places).toEqual([{ id: res.links[0].id, nodeId: sec.id, orderIndex: 3 }]);
+    expect(res.places).toEqual([{ id: res.links[0].id, nodeId: sec.id, orderIndex: 3, shareToken: null }]);
+  });
+
+  it('Kopie: eigene 🔗 Links auf Bereiche und Zuweisungen ziehen mit', () => {
+    let n = 0;
+    const res = planCopy({
+      nodes: [{ id: 'n1', kind: 'area', title: 'HJ1', parentId: null, orderIndex: 0, shareToken: 'B' } as any],
+      places: [{ id: 'l1', nodeId: 'n1', orderIndex: 0, shareToken: 'Z' }],
+      topics: [],
+      modules: [],
+      links: [{ id: 'l1', name: 'Verweis', selection: [] }],
+      newId: () => `id${++n}`,
+    });
+    expect((res.nodes[0] as any).shareToken).toBe('B');
+    expect(res.places[0]).toMatchObject({ nodeId: res.nodes[0].id, shareToken: 'Z' });
   });
 });

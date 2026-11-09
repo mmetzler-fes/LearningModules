@@ -765,9 +765,11 @@ class App {
   }
 
   async init() {
-    // Anmeldung abgelaufen (api.js, authFetch): einmal fragen und zur Anmeldung neu laden.
-    window.addEventListener('lm-session-expired', async () => {
-      if (await this.appConfirm('Deine Anmeldung ist abgelaufen – deshalb lassen sich Inhalte gerade nicht laden. Jetzt neu laden und anmelden?')) window.location.reload();
+    // Anmeldung abgelaufen (api.js, authFetch): direkt zur Anmeldung. Entwürfe des
+    // Modul-Editors liegen zusätzlich im Browser (local-drafts.js) und werden danach angeboten.
+    window.addEventListener('lm-session-expired', () => {
+      this.showToast('Deine Anmeldung ist abgelaufen – bitte neu anmelden.', 'info');
+      setTimeout(() => window.location.reload(), 1200);
     });
     // Reiter „📓 Notizbuch | 📒 Klassennotizbuch“ über beiden Ansichten.
     document.addEventListener('click', (e) => {

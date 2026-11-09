@@ -724,6 +724,12 @@ export class LoginView {
   async initLoginScreen() {
     const adminToggle = document.getElementById('btnShowAdminLogin');
     if (adminToggle) adminToggle.style.display = '';
+    // Als App auf dem Home-Bildschirm installiert: ein eigenes Gerät (z. B. das Dienst-iPad).
+    // „Angemeldet bleiben“ ist dann vorgewählt – sonst endet die Anmeldung mit dem Schließen der App.
+    let installed = false;
+    try { installed = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true; } catch (_) { /* Browser */ }
+    const remember = document.getElementById('loginRemember');
+    if (installed && remember) remember.checked = true;
   }
 
   showLoginScreen() {

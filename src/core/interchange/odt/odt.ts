@@ -78,14 +78,49 @@ const textOf = (n: XNode | string): string =>
 
 // ---- Formatvorlagen ----
 
-/** Ungefähre Breite in px (Arial: Zeichenbreiten in em) – genug, um wie LibreOffice umzubrechen. */
+// Zeichenbreiten von Arial/Helvetica in 1/1000 em (Schriftmetrik; Liberation Sans und Arimo sind
+// gleich breit). Die frühere Schätzung (Kleinbuchstaben 0,52 em) war 6–8 % zu schmal: Der Import
+// packte zu viel in eine Zeile, im Browser lief der Text dann in Tabellen und Bilder daneben.
+const ARIAL_W: Record<string, number> = {};
+for (const [chars, w] of [
+  [' !,./:;[\\]ft', 278],
+  ['ijl', 222],
+  ['I', 278],
+  ['J', 500],
+  ['()-`r', 333],
+  ['"', 355],
+  ["'", 191],
+  ['*', 389],
+  ['°', 400],
+  ['^', 469],
+  ['|', 260],
+  ['{}', 334],
+  ['cksvxyz', 500],
+  ['abdeghnopqu0123456789äöü$#?_~€µ–', 556],
+  ['ß', 611],
+  ['+<=>×±', 584],
+  ['L', 556],
+  ['FTZ', 611],
+  ['ABEKPSVXYÄ', 667],
+  ['CDHNRUÜ', 722],
+  ['GOQÖ', 778],
+  ['mM', 833],
+  ['%', 889],
+  ['w', 722],
+  ['W', 944],
+  ['&', 667],
+  ['@', 1015],
+  ['—…', 1000],
+  ['„“”‚‘’', 333],
+  ['·•', 278],
+] as [string, number][]) for (const ch of chars) ARIAL_W[ch] = w;
+const SVG_FONT = "Arial, Helvetica, 'Liberation Sans', Arimo, sans-serif";
+
+/** Breite in px – genug, um wie LibreOffice umzubrechen. Unbekannte Zeichen (Griechisch …) ≈ 0,6 em. */
 function textWidth(s: string, size: number, bold: boolean): number {
   let em = 0;
-  for (const ch of s) {
-    em += ch === ' ' ? 0.278 : /[il.,:;!|'j]/.test(ch) ? 0.24 : /[tfrI\-()[\]\/]/.test(ch) ? 0.333
-      : /[mwMW]/.test(ch) ? 0.833 : /[A-ZÄÖÜ]/.test(ch) ? 0.667 : /[0-9]/.test(ch) ? 0.556 : 0.52;
-  }
-  return em * size * (bold ? 1.06 : 1);
+  for (const ch of s) em += (ARIAL_W[ch] ?? (/[A-Z]/.test(ch) ? 667 : 600)) / 1000;
+  return em * size * (bold ? 1.07 : 1);
 }
 
 /**
@@ -94,14 +129,14 @@ function textWidth(s: string, size: number, bold: boolean): number {
  */
 export function wrapLine(text: string, size: number, bold: boolean, maxWidth: number): string[] {
   const clean = (t: string) => t.replace(/\u00ad/g, '');
-  if (!(maxWidth > 0) || textWidth(clean(text), size, bold) <= maxWidth * 1.02) return [clean(text)];
+  if (!(maxWidth > 0) || textWidth(clean(text), size, bold) <= maxWidth) return [clean(text)];
   const pieces = text.split(/(?<=[ \-\u00ad])/);
   const out: string[] = [];
   let line = '';
   for (const piece of pieces) {
     const next = line + piece;
     const shown = clean(next).replace(/ +$/, '');
-    if (line && textWidth(shown, size, bold) > maxWidth * 1.02) {
+    if (line && textWidth(shown, size, bold) > maxWidth) {
       out.push(clean(line).replace(/ +$/, '') + (line.endsWith('\u00ad') ? '-' : ''));
       line = piece;
     } else line = next;
@@ -592,7 +627,7 @@ class DrawingSvg {
       if (!l.text.trim()) continue;
       const x = l.align === 'center' ? b.x + b.w / 2 : l.align === 'right' ? b.x + b.w - opts.pad : b.x + opts.pad;
       const anchor = l.align === 'center' ? 'middle' : l.align === 'right' ? 'end' : 'start';
-      out += `<text x="${x.toFixed(1)}" y="${(y - l.size * 0.28).toFixed(1)}" font-family="Arial, Helvetica, sans-serif"` +
+      out += `<text x="${x.toFixed(1)}" y="${(y - l.size * 0.28).toFixed(1)}" font-family="${SVG_FONT}"` +
         ` font-size="${l.size.toFixed(1)}"${l.bold ? ' font-weight="bold"' : ''} fill="${esc(l.color)}"` +
         ` text-anchor="${anchor}" xml:space="preserve"${tr}>${esc(l.text)}</text>`;
     }

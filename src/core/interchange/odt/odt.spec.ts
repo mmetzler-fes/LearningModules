@@ -333,6 +333,10 @@ describe('.odt-Import: Text in Zeichnungen umbrechen', () => {
     expect(wrapLine('kurz­wort', 14.7, false, 300)).toEqual(['kurzwort']);
     expect(wrapLine('Bedingung erfüllt dann weiter', 14.7, false, 120)).toEqual(['Bedingung erfüllt', 'dann weiter']); // ≈ 108 px passen in 120 px
     expect(wrapLine('Donaudampfschifffahrt', 14.7, false, 60)).toEqual(['Donaudampfschifffahrt']);
+    // Arial-Breiten statt grober Schätzung: Diese Zeile (≈ 669 px) lief im Textrahmen neben der
+    // Tabelle („Anlaufvarianten“, Rahmen ≈ 655 px) über den Rand.
+    expect(wrapLine('Netz variieren. Im öffentlichen Netz gilt die Begrenzung im', 26, false, 655))
+      .toEqual(['Netz variieren. Im öffentlichen Netz gilt die Begrenzung', 'im']);
   });
 });
 

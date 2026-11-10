@@ -10,9 +10,9 @@
  * deshalb an window.DocSpecEditor.
  */
 import { load as yamlLoad, dump as yamlDump } from './vendor/js-yaml.js';
-import { validateDocSpec, renderDocSpecHtml, docRefSlugs, KARO_MAX_WIDTH_CM, latexToMathml, starmathToLatex, inlineHtml, INLINE_MATH_SOURCE, CODE_SIZES, CODE_SIZE_PT } from '../lm-editor/src/doc/docspec.js';
+import { validateDocSpec, renderDocSpecHtml, docRefSlugs, KARO_MAX_WIDTH_CM, parseSlashCommand, latexToMathml, starmathToLatex, inlineHtml, INLINE_MATH_SOURCE, CODE_SIZES, CODE_SIZE_PT } from '../lm-editor/src/doc/docspec.js';
 import { downloadBlob } from './api.js';
-import { escapeHtml } from './utils.js';
+import { escapeHtml, escapeAttr } from './utils.js';
 import { htmlToDocSpec, specToEditorHtml, widgetHtml } from '../lm-editor/src/doc/docspec-html.js';
 import { ensureBlockIds, stampBlockIds } from '../lm-editor/src/doc/ids.js';
 import { newlineIndent, shiftLines, reindentPaste, insertAfterItem } from './yaml-edit.js';
@@ -117,6 +117,10 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
           <button type="button" class="admin-tab" data-mode="yaml">⌨ YAML</button>
           <button type="button" class="btn btn-secondary btn-sm ds-import-odt" title="Writer- oder Word-Dokument (.odt, .docx), Folien (.odp, .pptx) oder PDF übernehmen: Überschriften, Absätze, Listen, Tabellen, Bilder" style="margin-left: auto;">📄 Übernehmen…</button>
         </div>
+        <div class="ds-preview-bar">
+          <button type="button" class="btn btn-secondary btn-sm ds-print-menu" title="Arbeitsblatt oder Lösungsblatt als PDF oder .odt">🖨 Drucken ▾</button>
+          <span class="ds-preview-pages hint"></span>
+        </div>
         <div class="ds-editor-status hint"></div>
         <div class="ds-visual" hidden>
           <div class="ds-vtoolbar rich-text-toolbar">
@@ -145,7 +149,7 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
             <button type="button" class="rt-btn ds-table-btn" title="Zeile, Spalte, Zelle, Tabelle" hidden>▤ Tabelle<span class="ds-dd-caret">▾</span></button>
             <div class="ds-tablebar-slot"></div>
           </div>
-          <div class="ds-surface worksheet-content" contenteditable="true" spellcheck="true" aria-label="Inhalt bearbeiten"></div>
+          <div class="ds-surface worksheet-content lm-paper" contenteditable="true" spellcheck="true" aria-label="Inhalt bearbeiten"></div>
           <p class="hint">➕ oder Rechtsklick fügt ein (Umschalt+Rechtsklick: Menü des Browsers). Bausteine (grau) per Doppelklick bearbeiten. Lösungen folgen auf ein Karo und erscheinen im Lösungsblatt darüber.</p>
         </div>
         <div class="ds-ybar" hidden>
@@ -160,10 +164,6 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
         <textarea class="ds-yaml ds-markdown" spellcheck="false" aria-label="Inhalt als Markdown" hidden></textarea>
       </div>
       <div class="ds-editor-right">
-        <div class="ds-preview-bar">
-          <button type="button" class="btn btn-secondary btn-sm ds-print-menu" title="Arbeitsblatt oder Lösungsblatt als PDF oder .odt">🖨 Drucken ▾</button>
-          <span class="ds-preview-pages hint"></span>
-        </div>
         <div class="ds-preview module-description-content"></div>
       </div>
     </div>
@@ -231,7 +231,9 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
     else delete parsed.orientation;
     // Auch die Bearbeitungsfläche: Dort folgen Schreibfelder und Bilder in ganzer Breite der Vorlage.
     surface.classList.toggle('ds-landscape', landscape);
+    surface.classList.toggle('lm-landscape', landscape);
     pm?.el.classList.toggle('ds-landscape', landscape);
+    pm?.el.classList.toggle('lm-landscape', landscape);
     spec = parsed;
     // Feste Block-IDs – an ihnen hängen die Striche der Schüler. Neue Blöcke
     // bekommen ihre ID ins YAML, sobald dort niemand tippt (sonst beim Verlassen).
@@ -684,6 +686,10 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
     markdownEl.hidden = mode !== 'markdown';
     textarea.hidden = mode !== 'yaml';
     root.querySelector('.ds-ybar').hidden = mode !== 'yaml';
+    // ✏️ Bearbeiten sieht schon wie das Blatt aus (ds-surface bzw. ds-pm-surface als lm-paper,
+    // Nummern als Objekt) – die zweite Spalte mit der reinen Vorschau braucht es dort nicht mehr,
+    // nur noch bei YAML/Markdown. Gilt für die klassische Fläche genauso wie für Tiptap.
+    root.classList.toggle('ds-editor-onepane', mode === 'visual');
     selectWidget(null);
     root.querySelectorAll('[data-mode]').forEach((b) => b.classList.toggle('active', b.dataset.mode === mode));
     try { localStorage.setItem('lm_ds_mode', mode); } catch (_) { /* egal */ }
@@ -768,6 +774,23 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
     // Überschrift ohne data-ds (z. B. eingefügt aus Word) zählt wie „ohne Nummer“.
     blockSelect.value = ds === 'heading' || (!ds && /^H[1-6]$/.test(b?.tagName)) ? { H3: 'heading2', H4: 'heading3', H5: 'heading3', H6: 'heading3' }[b.tagName] || 'heading'
       : ['section', 'task', 'subtask', 'note'].includes(ds) ? ds : 'p';
+  });
+  // Nummer vor Abschnitt/Aufgabe/Teilaufgabe (ds-num, nicht editierbar): Klick öffnet die Absatzart –
+  // sie allein entscheidet über die Nummer, eine eigene Zahl lässt sich nicht eintragen.
+  surface.addEventListener('mousedown', (e) => {
+    const num = e.target.closest?.('.ds-num');
+    if (!num || !surface.contains(num)) return;
+    e.preventDefault();
+    const h = num.closest('h2, h3, h4');
+    if (!h || !['section', 'task', 'subtask'].includes(h.dataset.ds)) return;
+    surface.focus();
+    const sel = window.getSelection();
+    sel.collapse(h, h.childNodes.length);
+    lastBlock = h;
+    if (sel.rangeCount) lastRange = sel.getRangeAt(0).cloneRange();
+    blockSelect.value = h.dataset.ds;
+    blockSelect.focus();
+    blockSelect.showPicker?.();
   });
   /** Absätze, für die die Absatzart gilt: alle markierten – auch in Tabellenzellen – sonst der der Schreibmarke. */
   const blocksForKind = () => {
@@ -871,8 +894,12 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
     // Zeichenrahmen mit einem Textfenster – der Dialog „Anordnen“ öffnet gleich.
     frame: { type: 'group', width: '12cm', ratio: 0.25, items: [{ text: 'Text', size: 11, x: 0, y: 0, w: 50, h: 30 }] },
   };
-  /** Baustein `what` hinter `after` (Block der Schreibmarke, als das Menü aufging) einfügen. */
-  const insertWhat = async (what, after) => {
+  /**
+   * Baustein `what` hinter `after` (Block der Schreibmarke, als das Menü aufging) einfügen.
+   * `overrides`: Startwerte statt der Vorgabe aus STARTERS – von den Slash-Commands (s. u.), die
+   * Getipptes direkt ins Objekt übernehmen, statt nur die Vorgabe einzufügen.
+   */
+  const insertWhat = async (what, after, overrides = null) => {
     if (what === 'quiz') { insertQuiz(after); return; }
     if (what === 'text') {
       // Leerer Absatz – z. B. hinter einer Tabelle oder einem Baustein, wo sonst keine Schreibmarke hinkommt.
@@ -889,13 +916,13 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
       return;
     }
     if (what === 'table') {
-      const block = await askTable();
+      const block = overrides || await askTable();
       if (block) placeHtml(specToEditorHtml({ content: [block] }), after);
       return;
     }
-    const html = what === 'box' ? '<div class="ws-box" data-title="Merke"><p>…</p></div>'
+    const html = what === 'box' ? `<div class="ws-box" data-title="${escapeAttr(overrides?.title || 'Merke')}"><p>…</p></div>`
         : what === 'columns' ? '<table class="ws-columns"><tbody><tr><td><p>links …</p></td><td><p>rechts …</p></td></tr></tbody></table>'
-          : widgetHtml(STARTERS[what]);
+          : widgetHtml(overrides || STARTERS[what]);
     const nodes = placeHtml(html, after);
     if (nodes[0].classList?.contains('ds-widget')) selectWidget(nodes[0]);
     if (!['table', 'box', 'columns', 'pagebreak'].includes(what)) editWidget(nodes[0]);
@@ -1023,6 +1050,30 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
     if (e.key === 'ArrowUp') sib.before(b); else sib.after(b);
     if (anchorNode?.isConnected) sel.collapse(anchorNode, anchorOffset);
     b.scrollIntoView?.({ block: 'nearest' });
+  });
+
+  // Slash-Commands: „/befehl …“ allein in einem Absatz, Enter setzt den Baustein wie im ➕-Menü ein –
+  // Befehlstabelle und Werte-Auswertung stehen in docspec.js (parseSlashCommand), gemeinsam mit dem
+  // Tiptap-Editor in lm-editor; hier nur das Auslösen und Einfügen in dieser Fläche.
+  surface.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter' || e.shiftKey || e.ctrlKey || e.altKey || e.metaKey || selectedWidget) return;
+    const sel = window.getSelection();
+    if (!sel?.isCollapsed || !surface.contains(sel.anchorNode)) return;
+    const b = blockOfNode(sel.anchorNode);
+    if (!b || b.tagName !== 'P' || b.dataset.ds) return;
+    const cmd = parseSlashCommand(b.textContent);
+    if (!cmd) return;
+    e.preventDefault();
+    if (cmd.escaped !== undefined) {
+      // „//write“ → wörtlich „/write“, kein Kommando; Enter noch einmal drücken geht normal weiter.
+      b.textContent = cmd.escaped;
+      sel.collapse(b, b.childNodes.length);
+      return;
+    }
+    (async () => {
+      if (cmd.what === 'quiz') await insertQuiz(b); else await insertWhat(cmd.what, b, cmd.built);
+      if (b.isConnected) b.remove();
+    })();
   });
 
   surface.addEventListener('contextmenu', (e) => {

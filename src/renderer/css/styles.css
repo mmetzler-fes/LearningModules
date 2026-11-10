@@ -3769,6 +3769,11 @@ body.html-app-large .quiz-actions { margin-top: 8px; padding-top: 8px; flex-shri
 .worksheet-content h2 { margin: 1.2em 0 0.5em; font-size: 1.35em; }
 .worksheet-content h3 { margin: 1.1em 0 0.4em; font-size: 1.15em; }
 .worksheet-content h4 { margin: 1em 0 0.3em; font-size: 1em; }
+.worksheet-content .ds-num { color: var(--text-secondary); margin-right: 0.3em; cursor: pointer; user-select: none; }
+.worksheet-content .ds-num:hover { text-decoration: underline; }
+/* Tiptap-Fläche: die Nummer wechselt die Absatzart noch nicht per Klick (eigene Datei, pm-editor.js). */
+.ds-pm-surface .ds-num { cursor: default; }
+.ds-pm-surface .ds-num:hover { text-decoration: none; }
 .worksheet-content p { margin: 0 0 0.6em; }
 .worksheet-content img { max-width: 100%; height: auto; vertical-align: middle; }
 .worksheet-content table { border-collapse: collapse; width: 100%; margin: 0.8em 0; display: block; overflow-x: auto; }
@@ -4102,10 +4107,11 @@ body.html-app-large .quiz-actions { margin-top: 8px; padding-top: 8px; flex-shri
 
 .ds-mode .admin-tab { padding: 4px 12px; font-size: 0.9em; }
 .ds-editor-bar .btn-sm { padding: 4px 10px; }
-.ds-surface { height: 60vh; min-height: 440px; overflow-y: auto; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 10px 14px; background: var(--bg-secondary); }
-.ds-surface h2[data-ds="section"]::before { content: '§ '; color: var(--text-secondary); }
-.ds-surface h3[data-ds="task"]::before { content: 'Aufgabe: '; color: var(--text-secondary); font-weight: normal; font-size: 0.85em; }
-.ds-surface h4[data-ds="subtask"]::before { content: 'Teilaufgabe: '; color: var(--text-secondary); font-weight: normal; font-size: 0.85em; }
+/* Wie das Blatt in der Vorschau (lm-paper, paper.css): feste Breite, eigene helle Farben, auch im
+   dunklen Design der App – die Nummer vor Abschnitt/Aufgabe/Teilaufgabe (ds-num) kommt aus der
+   Spec, nicht mehr aus dem CSS. */
+.ds-surface.lm-paper { margin: 0 auto; overflow-y: visible; box-shadow: 0 1px 4px rgba(15, 23, 42, 0.18); width: min(21cm, 100%); }
+.ds-surface.lm-paper.ds-landscape { width: min(29.7cm, 100%); }
 .ds-surface p[data-ds="note"] { color: var(--text-secondary); }
 /* Wie im Druck: Bausteine beginnen unter einem schwebenden Bild, statt es zu überdecken. */
 .ds-widget { position: relative; clear: both; margin: 6px 0; padding: 4px 8px 4px 8px; border: 1px dashed var(--text-secondary); border-radius: var(--radius-sm); background: var(--bg-primary); cursor: pointer; user-select: none; }
@@ -4187,11 +4193,14 @@ body.html-app-large .quiz-actions { margin-top: 8px; padding-top: 8px; flex-shri
 .ig-tools { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
 .ig-caption-label { flex: 1; }
 .ds-field-form .ig-caption { width: 100%; }
-@media (max-width: 900px) { .ds-surface { height: 45vh; min-height: 300px; } }
 @media (max-width: 900px) {
   .ds-editor-panes { grid-template-columns: 1fr; }
   .ds-yaml, .ds-preview { height: 45vh; min-height: 300px; }
 }
+/* ✏️ Bearbeiten: eine Spalte – die Fläche sieht schon wie das Blatt aus, die zweite mit der reinen
+   Vorschau (rechts) braucht es dort nicht mehr; bei YAML/Markdown bleiben es zwei. */
+.ds-editor-onepane .ds-editor-panes { grid-template-columns: 1fr; }
+.ds-editor-onepane .ds-editor-right { display: none; }
 
 /* ---- Themengebiete: aufklappbare Abschnitte und gegliederte Tag-Auswahl ---- */
 .tag-chip.area-chip {

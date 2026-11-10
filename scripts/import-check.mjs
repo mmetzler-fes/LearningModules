@@ -121,6 +121,8 @@ function rate(spec) {
     const info = svgInfo(src);
     if (info) { r.drawings++; r.svgChars += info.chars; r.overflow += info.overflow; }
   };
+  // Text direkt unter einer Aufgabe („a) … b) …“) ist deren Aufgabentext, keine verlorene Aufgabe.
+  let afterTask = false;
   const walk = (node, parentType) => {
     if (Array.isArray(node)) { node.forEach((n) => walk(n, parentType)); return; }
     if (!node || typeof node !== 'object') { if (typeof node === 'string') text(node); return; }
@@ -131,7 +133,8 @@ function rate(spec) {
     if (t === 'karo') r.karos++;
     if (t === 'columns') r.columns++;
     if (t === 'table') r.tables++;
-    if (t === 'text' && TASK_LIKE.test(String(node.text || '').trim()) && parentType !== 'solution') r.taskLike++;
+    if (t === 'text' && TASK_LIKE.test(String(node.text || '').trim()) && parentType !== 'solution' && !afterTask) r.taskLike++;
+    if (t) afterTask = t === 'task' || t === 'subtask' || (afterTask && ['karo', 'solution', 'image', 'formula', 'text', 'list'].includes(t));
     if (typeof node.src === 'string') image(node.src);
     for (const [k, v] of Object.entries(node)) {
       if (k === 'src' || k === 'type' || k === 'id') continue;

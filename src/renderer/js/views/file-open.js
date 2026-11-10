@@ -102,7 +102,7 @@ async function openConverted(app, files) {
   let pdfChoice = null;
   if (jobs.some((j) => (j.kind === 'doc' && ext(j.file) === 'pdf') || (j.kind === 'xopp' && j.xopp.needsPdf))) {
     try {
-      pdfChoice = await askConvertOptions({ count: jobs.length, keepOption: false, heading: '📄 PDF öffnen', intro: 'Wie soll das PDF zum Dokument werden?' });
+      pdfChoice = await askConvertOptions({ count: jobs.length, heading: '📄 PDF öffnen', intro: 'Wie soll das PDF zum Dokument werden?' });
     } catch (err) { app.showToast(err.message, 'error'); return; }
     if (!pdfChoice) return;
   }

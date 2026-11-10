@@ -299,7 +299,7 @@ export function openImportDialog(app, { topicId = null, h5p = false, extraFile =
     let pdf = null;
     if (jobs.some((j) => (j.xopp ? j.xopp.needsPdf : /\.pdf$/i.test(j.file.name)))) {
       pdf = await askConvertOptions({
-        count: jobs.length, keepOption: false, heading: '📄 PDFs übernehmen',
+        count: jobs.length, heading: '📄 PDFs übernehmen',
         intro: 'Wie sollen die PDFs zu Dokumenten werden?',
       });
       if (!pdf) throw new Error('abgebrochen');

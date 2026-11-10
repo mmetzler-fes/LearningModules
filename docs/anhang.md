@@ -31,8 +31,10 @@ geschriebene Blätter:
 Gefragt wird die Art: **Text mit Struktur** (zum Weiterbearbeiten),
 **Seiten als Bilder** (sieht aus wie das PDF) oder **KI-Erkennung** (falls
 eingerichtet). Je PDF entsteht ein Dokument an der Stelle des Anhangs. Der
-Anhang verschwindet, außer „PDF-Anhang zusätzlich behalten“ ist an; Dateien,
-die keine PDFs sind, bleiben in ihm. Die PDFs bleiben in der Nextcloud.
+PDF verschwindet aus dem Anhang – es gibt bewusst keinen zweiten Stand
+desselben Blatts, der mit der Zeit vom Dokument abweicht. Das Original liegt
+ja weiter in der eigenen Dateiablage. Dateien, die keine PDFs sind, bleiben im
+Anhang. Die PDFs bleiben in der Nextcloud.
 Braucht die Freischaltungen „Dokumente“ und „PDF-Import“.
 
 ## Für Schüler

@@ -44,10 +44,11 @@ export async function pdfConvertOptions() {
 }
 
 /**
- * Dialog: Art der Umwandlung und ob der Anhang bleibt. Ergebnis
- * `{ mode, ocr, keep }` oder null. `count`: wie viele PDFs es sind.
+ * Dialog: Art der Umwandlung. Ergebnis `{ mode, ocr, figures }` oder null.
+ * `count`: wie viele PDFs es sind. Das umgewandelte PDF bleibt nicht als
+ * Anhang daneben – keine zwei Stände desselben Blatts (siehe docs/anhang.md).
  */
-export async function askConvertOptions({ count = 1, keepDefault = false, keepOption = true, heading = '📄 In Dokument umwandeln', intro = null } = {}) {
+export async function askConvertOptions({ count = 1, heading = '📄 In Dokument umwandeln', intro = null } = {}) {
   const opts = await pdfConvertOptions();
   if (!opts.allowed) throw new Error('PDFs übernehmen ist für dein Konto nicht freigeschaltet (Administration → Benutzer: „PDF-Import“).');
   if (!opts.choices.some((c) => c.ok)) throw new Error('Für PDFs ist auf diesem Server kein Dienst eingerichtet (Renderer bzw. pdf-ai).');
@@ -64,7 +65,6 @@ export async function askConvertOptions({ count = 1, keepDefault = false, keepOp
         ${opts.ocr ? '<label class="ds-pdf-ocr"><input type="checkbox" class="cv-ocr"> Gescannte PDFs – Text erkennen (OCR, nur KI-Erkennung)</label>' : ''}
         ${opts.figures ? `<label class="ds-pdf-ocr" title="Jedes Schaubild (Pfeile, Kästen, Beschriftungen) zusätzlich als gruppierte Zeichnung in die Nextcloud – mit „🖍 In Draw bearbeiten“ einzeln änderbar. Dauert je Folie mit Schaubild ein, zwei Sekunden.">
             <input type="checkbox" class="cv-figures"> 🖍 Schaubilder als bearbeitbare Zeichnung (.odg, gruppiert) – langsamer, nur bei „Text mit Struktur“</label>` : ''}
-        ${keepOption ? `<label class="ds-pdf-ocr"><input type="checkbox" class="cv-keep" ${keepDefault ? 'checked' : ''}> PDF-Anhang zusätzlich behalten</label>` : ''}
         <p class="hint">Danach die Dokumente prüfen: Formeln, Karos und Lösungsfelder erkennt die Umwandlung nur ungefähr.</p>
         <div class="confirm-actions"><button type="button" class="btn btn-secondary cv-cancel">Abbrechen</button></div>
       </div>`;
@@ -74,7 +74,6 @@ export async function askConvertOptions({ count = 1, keepDefault = false, keepOp
     overlay.querySelectorAll('.ds-pdf-choice').forEach((b) => b.addEventListener('click', () => done({
       mode: b.dataset.mode,
       ocr: !!overlay.querySelector('.cv-ocr')?.checked,
-      keep: !!overlay.querySelector('.cv-keep')?.checked,
       figures: b.dataset.mode === 'text' && !!overlay.querySelector('.cv-figures')?.checked,
     })));
   });
@@ -187,7 +186,7 @@ export async function pickPdfBlocks({ onBusy = null, topicId = null } = {}) {
   if (!file) return null;
   if (!isPdfFile(file)) throw new Error('Das ist kein PDF.');
   const choice = await askConvertOptions({
-    keepOption: false, heading: '📄 PDF einfügen',
+    heading: '📄 PDF einfügen',
     intro: `„${file.name}“ wird umgewandelt und an dieser Stelle ins Dokument eingefügt.`,
   });
   if (!choice) return null;
@@ -240,7 +239,7 @@ export async function fileToSpec(file, { pdf = null, topicId = null } = {}) {
  * Ein Anhang-Modul umwandeln (Inhalt und Reihenfolge holt es frisch vom
  * Server). Ergebnis: `{ created, warnings, failed, removed }`.
  */
-export async function convertAttachment(api, topicId, moduleId, { mode, ocr = false, keep = false, figures = false }) {
+export async function convertAttachment(api, topicId, moduleId, { mode, ocr = false, figures = false }) {
   const modules = await api.getTopicModules(topicId);
   const mod = Array.isArray(modules) ? modules.find((m) => m.id === moduleId) : null;
   if (!mod || mod.type !== 'attachment') throw new Error('Anhang nicht gefunden.');
@@ -271,10 +270,10 @@ export async function convertAttachment(api, topicId, moduleId, { mode, ocr = fa
       failures.push(`${f.name}: ${err.message}`);
     }
   }
-  // Anhang: ganz weg, nur noch die übrigen Dateien – oder unverändert.
+  // Anhang: ganz weg oder nur noch die übrigen Dateien – das Original bleibt nicht als zweiter Stand.
   let removed = false;
   const rest = files.filter((f) => !converted.has(f.url));
-  if (!keep && converted.size) {
+  if (converted.size) {
     if (rest.length) {
       await api.saveModule(topicId, { ...mod, content: { ...content, files: rest }, updatedAt: new Date().toISOString() });
     } else {

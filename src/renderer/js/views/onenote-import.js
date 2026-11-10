@@ -103,7 +103,6 @@ export function openOneNoteImport(app, { onDone } = {}) {
       <div class="onenote-convert" hidden>
         <label><input type="checkbox" class="on-convert" checked> 📄 PDFs gleich in <strong>Dokumente</strong> umwandeln</label>
         <label class="onenote-convert-mode">Art <select class="on-convert-mode"></select></label>
-        <label><input type="checkbox" class="on-keep"> PDF zusätzlich als Anhang behalten</label>
         <span class="hint">Dauert je PDF einige Sekunden (KI-Erkennung länger). Andere Dateien bleiben Anhänge.</span>
       </div>
       <div class="onenote-progress" hidden><progress max="1" value="0"></progress><span class="hint"></span></div>
@@ -216,7 +215,7 @@ export function openOneNoteImport(app, { onDone } = {}) {
     progress.hidden = false;
     try {
       const convert = !convertBox.hidden && overlay.querySelector('.on-convert').checked
-        ? { mode: convertMode.value, keep: overlay.querySelector('.on-keep').checked } : null;
+        ? { mode: convertMode.value } : null;
       const report = await run(app, source, wanted, key, convert, (done, total, text) => {
         bar.max = total || 1;
         bar.value = done;
@@ -328,7 +327,7 @@ async function run(app, source, wanted, key, convert, onProgress) {
       if (convert && moduleId && files.some((f) => f.type === 'application/pdf')) {
         onProgress(done, total, `${section.title}: ${mod.title} – wird in ein Dokument umgewandelt …`);
         try {
-          const r = await convertAttachment(api, topicId, moduleId, { mode: convert.mode, keep: convert.keep });
+          const r = await convertAttachment(api, topicId, moduleId, { mode: convert.mode });
           report.documents += r.created.length;
           report.warnings.push(...r.failed.map((f) => `nicht umgewandelt: ${f}`));
         } catch (e) {

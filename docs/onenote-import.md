@@ -23,8 +23,8 @@ Layout der Seiten bleiben in OneNote.
    übernehmen.
 3. Wahlweise **📄 PDFs gleich in Dokumente umwandeln** (Vorgabe, wenn
    „Dokumente“ und „PDF-Import“ freigeschaltet sind) – mit der Art (Text mit
-   Struktur, Seiten als Bilder, KI-Erkennung) und ob das PDF zusätzlich als
-   Anhang bleibt. Das dauert je PDF einige Sekunden. Später geht es auch
+   Struktur, Seiten als Bilder, KI-Erkennung). Das umgewandelte PDF bleibt
+   nicht als Anhang daneben. Das dauert je PDF einige Sekunden. Später geht es auch
    noch: siehe [Anhang → In ein Dokument umwandeln](anhang.md#in-ein-dokument-umwandeln).
 4. **✅ Übernehmen**. Der Fortschritt läuft unten im Dialog; den Dialog darf
    man schließen, nur den Tab nicht.

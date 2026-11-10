@@ -62,6 +62,7 @@
     "eslint-plugin-prettier": "^5.2.2",
     "globals": "^17.0.0",
     "jest": "^30.0.0",
+    "linkedom": "0.18.5",
     "prettier": "^3.4.2",
     "puppeteer-core": "^23.11.1",
     "source-map-support": "^0.5.21",

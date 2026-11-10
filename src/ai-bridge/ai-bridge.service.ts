@@ -1056,69 +1056,96 @@ export class AiBridgeService {
     ].join('\n');
   }
 
+  /**
+   * Kurzanleitung für die KI der Lehrkraft: Zugang, Rechte, Ablauf, nur die erlaubten
+   * Operationen und eine knappe Gliederung des freigegebenen Bereichs (ohne Module).
+   * Alles Weitere – vollständiger Baum, DocSpec-Referenz – holt eine KI mit Webzugriff
+   * über GET /instructions bzw. /tree. Bewusst kurz: Die Anleitung muss in einen Chat passen.
+   */
   buildTeacherPrompt(session: AiBridgeSession, rawToken: string, baseUrl: string, tree: any): string {
     const expiresTime = new Date(session.expiresAt).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
-    const compactTree = JSON.stringify(
-      {
-        notebook: tree.notebook,
-        plans: tree.plans,
-      },
-      null,
-      2,
-    );
+    const { organize, writeDocs } = session.scope.permissions;
+    const rights = !organize && !writeDocs
+      ? '**Nur lesen** – du änderst nichts selbst, sondern schlägst `{"operations": [...]}` vor; ich prüfe und führe aus.'
+      : `Lesen${organize ? ', ordnen (Ordner anlegen/umbenennen, Lernthemen verschieben, in Pläne eintragen)' : ''}${writeDocs ? ', Inhalte anlegen (Lernthemen, Arbeitsblätter anlegen und überarbeiten)' : ''}.`;
+    const ops = [
+      ...(organize ? [
+        '`{"op":"create_notebook_node","kind":"area"|"section","title":"…","parentId":"<id|$ref>","ref":"$a1"}` – section ist die unterste Ordnerebene für Lernthemen',
+        '`{"op":"rename_notebook_node","id":"<id>","title":"…"}`',
+        '`{"op":"move_topic","topicId":"<id>","targetNodeId":"<id|$ref>"}`',
+        '`{"op":"create_plan_node","kind":"folder"|"plan"|"area"|"section","title":"…","parentId":"<id|$ref|null>","ref":"$p1"}`',
+        '`{"op":"rename_plan_node","id":"<id>","title":"…"}`',
+        '`{"op":"link_to_plan","parentId":"<planNodeId|$ref>","items":[{"type":"topic"|"nbnode","id":"<id>"}]}`',
+        '`{"op":"remove_plan_entry","entryId":"<id>"}`',
+      ] : []),
+      ...(writeDocs ? [
+        '`{"op":"create_topic","title":"…","targetNodeId":"<sectionId|$ref>","ref":"$t1"}`',
+        '`{"op":"create_document","topicId":"<id|$ref>","title":"…","kind":"arbeitsblatt","spec":{"content":[…]}}`',
+        '`{"op":"update_document","moduleId":"<id>","title":"…","spec":{"content":[…]}}` – vorher mit GET /documents/<id> lesen',
+      ] : []),
+    ];
+    const docSpec = writeDocs ? [
+      '',
+      '## Arbeitsblätter (`spec.content`), kurz',
+      '- `section` (1.), `task` mit `title`/`points`/`text`/`blocks` (1.1), `subtask` (a); ohne Nummer: `heading` mit `level` 1–3',
+      '- `text` (Markdown: **fett**, *kursiv*, $Formel$), `formula` (`latex`), `table` (`header`, `rows`), `box` (`title`, `blocks`), `columns`',
+      '- `karo` (`lines`, `pattern` karo|linien|leer|frei) als Schreibfeld, `solution` (`blocks`) als ausgeblendete Musterlösung',
+      `- Bilder: ${IMAGE_RULE}`,
+      '- Vollständige Referenz: GET /instructions → `docSpecReference`. Der Server prüft jede DocSpec und meldet Fehler genau.',
+    ] : [];
 
     return [
       '# Auftrag für meinen LearningModules-Assistenten',
       '',
-      'Du unterstützt mich beim Strukturieren, Zuordnen und Aufbereiten meines Unterrichtsmaterials in **LearningModules**.',
-      '- **Konzept der App:** Materialien werden einmalig im **Lernnotizbuch** (`notebook`: `book → area → section → Lernthema (topic) → Modul`) gesammelt. Von dort werden sie als Verweise (`link_to_plan`) in **Planungsvorlagen** (`plans`: `folder → plan → area → section`) projiziert.',
+      'LearningModules sammelt Material im **Lernnotizbuch** (Book → Bereich (area) → Abschnitt (section) → Lernthema → Module wie Arbeitsblätter) und verweist von dort in **Pläne** (Ordner → Plan → Bereich → Abschnitt).',
       '',
-      '## 1. Dein zeitbeschränkter API-Zugang',
-      `- **Gültig bis:** ${expiresTime} Uhr (alle Änderungen lassen sich in LearningModules rückgängig machen)`,
-      `- **Freigegebene Rechte:** Lesen${session.scope.permissions.organize ? ', Strukturieren & Planen (`organize`)' : ''}${session.scope.permissions.writeDocs ? ', Dokumente anlegen & überarbeiten (`writeDocs`)' : ''}`,
-      ...(!session.scope.permissions.organize && !session.scope.permissions.writeDocs
-        ? ['- **Nur lesen:** Du kannst nichts ändern. Beschreibe Vorschläge, oder gib sie als `{"operations": [...]}`-JSON aus – ich prüfe und führe sie selbst aus.']
-        : []),
-      `- **Basis-URL:** \`${baseUrl}/api/ai-bridge\``,
-      `- **Token:** \`${rawToken}\``,
+      '## Zugang',
+      `- Basis-URL: \`${baseUrl}/api/ai-bridge\` · Token: \`${rawToken}\` · gültig bis ${expiresTime} Uhr`,
+      `- Rechte: ${rights} Nur im freigegebenen Bereich, nie Schülerdaten.`,
+      `- Höchstens ${MAX_OPS_PER_SESSION} Operationen je Sitzung. Ich kann alles mit einem Klick rückgängig machen.`,
       '',
-      ...this.httpLines(baseUrl, rawToken),
+      '## Ablauf',
+      `1. Mit HTTP-Zugriff (z. B. Claude Code): Header \`Authorization: Bearer ${rawToken}\` bei jeder Anfrage. Baum: \`GET ${baseUrl}/api/ai-bridge/tree\`, Lernthema: \`GET …/topics/<id>\`, Dokument: \`GET …/documents/<id>\`.`,
+      `2. Erst prüfen: \`POST ${baseUrl}/api/ai-bridge/batch\` mit \`{"dryRun": true, "operations": [...]}\`, dann ohne \`dryRun\` ausführen. Mit \`"ref": "$name"\` verweisen spätere Operationen desselben Aufrufs auf Neues.`,
+      '3. Große Inhalte (Arbeitsblätter mit Bildern) einzeln je Aufruf schicken. Bei einer Fehlermeldung korrigieren und erneut senden.',
+      '4. Ohne HTTP-Zugriff: antworte mit genau einem ```json-Block `{"operations": [...]}` – ich füge ihn im KI-Dialog ein.',
+      ...(ops.length ? ['', '## Erlaubte Operationen', ...ops.map((o) => `- ${o}`)] : []),
+      ...docSpec,
       '',
-      '### Falls du KEINEN direkten HTTP-Zugriff hast (normaler KI-Chat im Browser):',
-      '- Antworte mir mit einem einzigen ````json Codeblock, der das JSON-Objekt `{ "operations": [ ... ] }` enthält. Ich kann diesen Codeblock direkt im KI-Dialog von LearningModules einfügen und mit einem Klick ausführen.',
+      '## Freigegebener Bereich (Gliederung mit IDs, ohne Module)',
+      this.outline(tree),
       '',
-      '## 2. Erlaubte Operationen in `"operations"`',
-      '- `{"op": "create_notebook_node", "kind": "book"|"area"|"section", "title": "...", "parentId": "<id|null>", "ref": "$k1"}`',
-      '- `{"op": "rename_notebook_node", "id": "<id>", "title": "..."}`',
-      '- `{"op": "move_topic", "topicId": "<id>", "targetNodeId": "<nodeId|$ref>"}`',
-      '- `{"op": "create_plan_node", "kind": "folder"|"plan"|"area"|"section", "title": "...", "parentId": "<id|null>", "ref": "$p1"}`',
-      '- `{"op": "rename_plan_node", "id": "<id>", "title": "..."}`',
-      '- `{"op": "link_to_plan", "parentId": "<planNodeId|$ref>", "items": [{"type": "topic"|"nbnode"|"plan", "id": "<id>"}]}`',
-      '- `{"op": "remove_plan_entry", "entryId": "<entryId>"}`',
-      '- `{"op": "create_topic", "title": "...", "description": "...", "targetNodeId": "<nodeId|$ref>", "ref": "$t1"}`',
-      '- `{"op": "create_document", "topicId": "<topicId|$ref>", "title": "...", "kind": "arbeitsblatt"|"klassenarbeit"|"text", "spec": { "content": [...] }}`',
-      '- `{"op": "update_document", "moduleId": "<moduleId>", "title": "...", "spec": { "content": [...] }}`',
-      '',
-      '### Kurzreferenz für Arbeitsblätter (`spec.content`):',
-      '- Überschrift mit Nummer: `{"type": "section", "text": "..."}` (1.), `{"type": "task", "title": "...", "points": 4, "text": "...", "blocks": [...]}` (1.1), `{"type": "subtask", "title": "...", "blocks": [...]}` (1.1.1)',
-      '- Überschrift ohne Nummer: `{"type": "heading", "level": 1, "text": "..."}`',
-      '- Fließtext: `{"type": "text", "text": "Text mit **fett**, *kursiv* und Inline-Formel $U = R \\\\cdot I$"}`',
-      '- Block-Formel: `{"type": "formula", "latex": "I = \\\\frac{U}{R}"}`',
-      '- Schreibfeld für Schüler: `{"type": "karo", "lines": 4, "pattern": "karo"|"linien"|"leer"}`',
-      '- Musterlösung (auf Schülerblatt ausgeblendet): `{"type": "solution", "blocks": [{"type": "text", "text": "..."}]}`',
-      '- Tabelle: `{"type": "table", "header": ["Spalte A", "Spalte B"], "rows": [["1", "2"]]}`',
-      '- Merke-Kasten: `{"type": "box", "title": "Merke", "shaded": true, "blocks": [{"type": "text", "text": "..."}]}`',
-      '- Spalten nebeneinander: `{"type": "columns", "blocks": [{"type": "column", "blocks": [...]}, {"type": "column", "blocks": [...]}]}`',
-      `- Bilder: ${IMAGE_RULE}`,
-      '',
-      '## 3. Aktueller Stand im freigegebenen Bereich',
-      '```json',
-      compactTree,
-      '```',
-      '',
-      '## 4. Mein konkreter Auftrag an dich:',
-      'Bitte führe folgenden Auftrag aus (oder gib das passende `{"operations": [...]}`-JSON aus):',
+      '## Mein Auftrag',
       '',
     ].join('\n');
+  }
+
+  /** Knappe Gliederung des Baums für die Anleitung – höchstens etwa `max` Zeichen, Rest per GET /tree. */
+  private outline(tree: any, max = 6000): string {
+    const lines: string[] = [];
+    const walk = (nodes: any[], topics: any[], parentId: string | null, depth: number) => {
+      for (const n of nodes.filter((x) => (x.parentId ?? null) === parentId).sort((a, b) => a.orderIndex - b.orderIndex)) {
+        lines.push(`${'  '.repeat(depth)}- ${n.kind} „${n.title}“ \`${n.id}\``);
+        for (const t of topics.filter((x) => x.nodeId === n.id).sort((a, b) => a.orderIndex - b.orderIndex)) {
+          lines.push(`${'  '.repeat(depth + 1)}- Lernthema „${t.title}“ \`${t.topicId}\` (${(t.modules || []).length} Module)`);
+        }
+        walk(nodes, topics, n.id, depth + 1);
+      }
+    };
+    const nb = tree?.notebook || {};
+    lines.push('Lernnotizbuch:');
+    walk(nb.nodes || [], nb.topics || [], null, 0);
+    const unsorted = (nb.topics || []).filter((t: any) => !t.nodeId);
+    if (unsorted.length) lines.push(`- Unsortiert: ${unsorted.length} Lernthemen`);
+    if ((tree?.plans?.nodes || []).length) {
+      lines.push('Planung:');
+      walk(tree.plans.nodes, [], null, 0);
+    }
+    let text = '';
+    for (const l of lines) {
+      if (text.length + l.length > max) return `${text}… (gekürzt – vollständig per GET /tree)`;
+      text += (text ? '\n' : '') + l;
+    }
+    return text;
   }
 }

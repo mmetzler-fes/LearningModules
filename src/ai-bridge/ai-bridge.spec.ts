@@ -206,6 +206,9 @@ describe('AiBridgeService (15-Minuten-KI-Token, Scope & Undo)', () => {
     expect(created.prompt).toContain(created.token);
     expect(created.prompt).toContain('Elektrotechnik');
     expect(created.prompt).not.toContain('Geheimthema');
+    // Kurzanleitung: Gliederung statt JSON-Baum, keine Module – passt in einen Chat.
+    expect(created.prompt.length).toBeLessThan(8000);
+    expect(created.prompt).not.toContain('"modules"');
 
     const session = await service.authenticateToken(`Bearer ${created.token}`);
     const tree = await service.scopedTree(session);

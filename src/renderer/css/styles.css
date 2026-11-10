@@ -6269,6 +6269,7 @@ details.cb-topic > summary .hint { font-weight: normal; margin-left: 6px; }
 .draft-status-warn { color: var(--danger, #b91c1c); font-weight: 600; }
 /* Formel bearbeiten: LaTeX, Vorschau, Lage */
 .ds-formula-form .ds-fx-label { flex-direction: column; align-items: stretch; width: 100%; }
+.ds-formula-form .ds-fx-mode { align-self: flex-start; margin-bottom: 4px; font-size: 0.9em; }
 .ds-formula-form .ds-fx-tex { width: 100%; font-family: var(--font-mono, monospace); }
 .ds-formula-form .ds-fx-preview { width: 100%; min-height: 2.5em; padding: 4px 8px; border: 1px dashed #cbd5e1; border-radius: 6px; background: #fff; }
 .ds-formula-form .ds-fx-preview .ds-formula { margin: 0.3em 0; }

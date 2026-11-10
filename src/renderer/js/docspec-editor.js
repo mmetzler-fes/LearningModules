@@ -14,6 +14,7 @@ import { validateDocSpec, renderDocSpecHtml, docRefSlugs, KARO_MAX_WIDTH_CM, par
 import { downloadBlob } from './api.js';
 import { escapeHtml, escapeAttr } from './utils.js';
 import { htmlToDocSpec, specToEditorHtml, widgetHtml } from '../lm-editor/src/doc/docspec-html.js';
+import { mathmlToLatex, mathmlForEditing, looksLikeMathml } from '../lm-editor/src/doc/mathml-latex.js';
 import { ensureBlockIds, stampBlockIds } from '../lm-editor/src/doc/ids.js';
 import { newlineIndent, shiftLines, reindentPaste, insertAfterItem } from './yaml-edit.js';
 import { pickQuiz as pickQuizFrom } from './quiz-picker.js';
@@ -1385,6 +1386,7 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
       } catch (_) { /* bleibt StarMath */ }
     }
     const isFormula = block.type === 'formula' && typeof block.latex === 'string';
+    let fxError = ''; // MathML, das sich nicht lesen lässt – dann wird nicht übernommen
     const overlay = document.createElement('div');
     overlay.className = 'confirm-overlay';
     // Schreibfeld: Höhe, Breite und Muster als Felder – sie schreiben ins YAML darunter.
@@ -1400,10 +1402,11 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
       </div>` : '';
     // Formel: LaTeX mit Vorschau, Lage; das YAML darunter folgt.
     const formula = isFormula ? `<div class="ds-field-form ds-formula-form">
-        <label class="ds-fx-label">Formel (LaTeX) <textarea class="ds-fx-tex" rows="3" spellcheck="false" placeholder="z. B. I = \\frac{U}{R}"></textarea></label>
+        <label class="ds-fx-label">Formel <select class="ds-fx-mode" title="Gespeichert wird immer LaTeX"><option value="latex">LaTeX</option><option value="mathml">MathML</option></select>
+          <textarea class="ds-fx-tex" rows="3" spellcheck="false"></textarea></label>
         <div class="ds-fx-preview docspec" aria-live="polite"></div>
         <label>Lage <select class="ds-fx-align"><option value="">mittig</option><option value="left">links</option></select></label>
-        <span class="hint">${fromStarMath ? 'Aus StarMath umgeschrieben – gespeichert wird LaTeX. ' : ''}Schreibweise wie in LaTeX: \\frac{a}{b}, \\sqrt{x}, x^2, U_{ges}, \\cdot, \\pi, \\Omega, \\text{V}</span>
+        <span class="hint ds-fx-hint"></span>
       </div>` : '';
     // Code: Schriftgröße (size) – das YAML darunter bleibt offen, dort steht der Code.
     const codeSize = block.type === 'code' ? `<div class="ds-field-form">
@@ -1422,7 +1425,8 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
           <button type="button" class="btn btn-secondary ds-w-cancel">Abbrechen</button>
         </div></form>`;
     document.body.appendChild(overlay);
-    const ta = overlay.querySelector('textarea');
+    // Das YAML-Feld – nicht einfach das erste Textfeld: Bei Formeln steht das Formelfeld davor.
+    const ta = overlay.querySelector('textarea.ds-yaml');
     ta.value = yamlDump(block, { lineWidth: -1, noRefs: true });
     if (block.type === 'karo') {
       const [h, wd, pat] = ['.ds-f-h', '.ds-f-w', '.ds-f-p'].map((sel) => overlay.querySelector(sel));
@@ -1461,24 +1465,61 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
       });
       ta.focus();
     } else if (isFormula) {
-      const [tex, align, preview] = ['.ds-fx-tex', '.ds-fx-align', '.ds-fx-preview'].map((sel) => overlay.querySelector(sel));
-      tex.value = block.latex;
+      // Eingabe in LaTeX oder MathML (Wahl je Gerät); gespeichert wird immer LaTeX.
+      const [tex, align, preview, mode, hint] = ['.ds-fx-tex', '.ds-fx-align', '.ds-fx-preview', '.ds-fx-mode', '.ds-fx-hint'].map((sel) => overlay.querySelector(sel));
+      let latex = block.latex;
+      try { mode.value = localStorage.getItem('lm_fx_input') === 'mathml' ? 'mathml' : 'latex'; } catch (_) { mode.value = 'latex'; }
       align.value = block.align === 'left' ? 'left' : '';
+      const HINTS = {
+        latex: `${fromStarMath ? 'Aus StarMath umgeschrieben – gespeichert wird LaTeX. ' : ''}Schreibweise wie in LaTeX: \\frac{a}{b}, \\sqrt{x}, x^2, U_{ges}, \\cdot, \\pi, \\Omega, \\text{V}. Eingefügtes MathML wird umgewandelt.`,
+        mathml: 'MathML, z. B. aus Word, LibreOffice oder einer Webseite kopiert. Gespeichert wird LaTeX – die Vorschau zeigt, was ankommt.',
+      };
       const show = () => {
-        try { preview.innerHTML = `<div class="ds-formula">${latexToMathml(tex.value)}</div>`; }
+        if (fxError) { preview.innerHTML = `<p class="ds-error">${escapeHtml(fxError)}</p>`; return; }
+        try { preview.innerHTML = `<div class="ds-formula">${latexToMathml(latex)}</div>`; }
         catch (err) { preview.innerHTML = `<p class="ds-error">${escapeHtml(err.message)}</p>`; }
+      };
+      const fill = () => {
+        hint.textContent = HINTS[mode.value];
+        tex.placeholder = mode.value === 'mathml' ? '<math><mi>I</mi><mo>=</mo><mfrac><mi>U</mi><mi>R</mi></mfrac></math>' : 'z. B. I = \\frac{U}{R}';
+        tex.rows = mode.value === 'mathml' ? 5 : 3;
+        if (mode.value === 'latex') { tex.value = latex; return; }
+        try { tex.value = latex.trim() ? mathmlForEditing(latexToMathml(latex)) : ''; } catch (_) { tex.value = ''; }
       };
       const sync = () => {
         let cur;
         try { cur = yamlLoad(ta.value) || {}; } catch (_) { cur = { ...block }; }
-        cur.latex = tex.value;
+        if (typeof cur !== 'object' || Array.isArray(cur)) cur = { ...block };
+        cur.latex = latex;
         delete cur.math;
         if (align.value) cur.align = align.value; else delete cur.align;
         ta.value = yamlDump(cur, { lineWidth: -1, noRefs: true });
         show();
       };
-      tex.addEventListener('input', sync);
+      tex.addEventListener('input', () => {
+        fxError = '';
+        const value = tex.value;
+        if (mode.value === 'mathml' || looksLikeMathml(value)) {
+          if (!value.trim()) latex = '';
+          else {
+            try {
+              latex = mathmlToLatex(value);
+              // Im LaTeX-Modus eingefügtes MathML steht danach als LaTeX im Feld.
+              if (mode.value === 'latex') tex.value = latex;
+            } catch (err) { fxError = err.message; }
+          }
+        } else latex = value;
+        sync();
+      });
+      mode.addEventListener('change', () => {
+        try { localStorage.setItem('lm_fx_input', mode.value); } catch (_) { /* egal */ }
+        fxError = '';
+        fill();
+        show();
+        tex.focus();
+      });
       align.addEventListener('change', sync);
+      fill();
       show();
       tex.focus();
     } else ta.focus();
@@ -1487,6 +1528,7 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
     overlay.querySelector('.ds-w-del').addEventListener('click', () => { remove(); close(); });
     overlay.querySelector('form').addEventListener('submit', (ev) => {
       ev.preventDefault();
+      if (fxError) { overlay.querySelector('.ds-error').textContent = `MathML: ${fxError}`; return; }
       let next;
       try { next = yamlLoad(ta.value); } catch (err) { overlay.querySelector('.ds-error').textContent = `YAML: ${err.reason || err.message}`; return; }
       // Die feste ID bleibt, auch wenn sie im YAML gelöscht wurde.

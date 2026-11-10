@@ -89,7 +89,8 @@ function svgInfo(src) {
   if (!m) return null;
   const svg = Buffer.from(m[1], 'base64').toString('utf8');
   const texts = [...svg.matchAll(/<text x="([\d.-]+)" y="([\d.-]+)"[^>]*font-size="([\d.]+)"([^>]*)>([^<]*)<\/text>/g)]
-    .map((t) => ({ x: +t[1], y: +t[2], size: +t[3], bold: /font-weight="bold"/.test(t[4]), anchor: /text-anchor="(middle|end)"/.exec(t[4])?.[1], text: t[5].replace(/&[a-z]+;/g, 'x') }));
+    .map((t) => ({ x: +t[1], y: +t[2], size: +t[3], bold: /font-weight="bold"/.test(t[4]), anchor: /text-anchor="(middle|end)"/.exec(t[4])?.[1], text: t[5].replace(/&[a-z]+;/g, 'x'),
+      length: /textLength="([\d.]+)"/.test(t[4]) ? Number(/textLength="([\d.]+)"/.exec(t[4])[1]) : undefined }));
   // Senkrechte Kanten: Linien mit x1 = x2 und linke Kanten von Rechtecken/Polygonen
   const edges = [];
   for (const l of svg.matchAll(/<line x1="([\d.-]+)" y1="([\d.-]+)" x2="([\d.-]+)" y2="([\d.-]+)"/g)) {
@@ -101,7 +102,7 @@ function svgInfo(src) {
   let overflow = 0;
   for (const t of texts) {
     if (t.anchor || !inParagraph(t)) continue;
-    const w = textWidth(t.text, t.size, t.bold);
+    const w = t.length ?? textWidth(t.text, t.size, t.bold);
     const left = t.anchor === 'middle' ? t.x - w / 2 : t.anchor === 'end' ? t.x - w : t.x;
     const right = left + w;
     if (edges.some((e) => e.x > left + 4 && e.x < right - 4 && t.y > e.y1 && t.y - t.size < e.y2)) overflow++;

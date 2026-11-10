@@ -258,6 +258,24 @@ describe('AiBridgeService (15-Minuten-KI-Token, Scope & Undo)', () => {
     expect(modules[0].content.spec.content[0].text).toBe('Alter Inhalt');
   });
 
+  it('Probelauf: neue Ordner und Pläne nehmen Folgeschritte auf, ohne etwas anzulegen', async () => {
+    const { token } = await service.createSession(user, { notebookNodeIds: ['book-et'], planNodeIds: ['plan-bfe'] });
+    const session = await service.authenticateToken(token);
+    const res = await service.executeBatch(session, {
+      dryRun: true,
+      operations: [
+        { op: 'create_notebook_node', kind: 'area', title: 'Antriebe', parentId: 'book-et', ref: '$area' },
+        { op: 'create_notebook_node', kind: 'section', title: 'Gleichstrommotor', parentId: '$area', ref: '$sec' },
+        { op: 'create_topic', title: 'PWM', targetNodeId: '$sec', ref: '$top' },
+        { op: 'create_plan_node', kind: 'area', title: 'LF 1', parentId: 'plan-bfe', ref: '$lf1' },
+        { op: 'create_plan_node', kind: 'section', title: 'Motoren', parentId: '$lf1' },
+      ],
+    });
+    expect(res.ok).toBe(true);
+    expect(res.count).toBe(5);
+    expect(nbPlacements.find((p) => p.nodeId?.startsWith('dry_'))).toBeUndefined();
+  });
+
   it('lehnt ungültige DocSpec sofort mit konkreter Fehlermeldung ab', async () => {
     const { token } = await service.createSession(user, { notebookNodeIds: ['book-et'], planNodeIds: ['plan-bfe'] });
     const session = await service.authenticateToken(token);

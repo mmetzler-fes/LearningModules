@@ -540,6 +540,8 @@ export class AiBridgeService {
           if (dryRun) {
             const fakeId = `dry_nb_${i}`;
             if (item.ref) refs.set(item.ref, fakeId);
+            // Wie beim echten Lauf: Folgeschritte dürfen in den neuen Ordner (sonst scheitert der Probelauf daran).
+            scopeSets.allowedNbNodes.add(fakeId);
             results.push({ index: i, op: item.op, ok: true, id: fakeId, summary: `[Vorschau] Notizbuch-${item.kind} „${item.title}“ anlegen` });
             break;
           }
@@ -613,6 +615,7 @@ export class AiBridgeService {
           if (dryRun) {
             const fakeId = `dry_pl_${i}`;
             if (item.ref) refs.set(item.ref, fakeId);
+            scopeSets.allowedPlanNodes.add(fakeId);
             results.push({ index: i, op: item.op, ok: true, id: fakeId, summary: `[Vorschau] Planungsknoten „${item.title}“ (${item.kind}) anlegen` });
             break;
           }

@@ -43,7 +43,7 @@ interface OdtCore {
 
 const core = () => loadBrowserModule<OdtCore>('../lm-editor/src/import/odt-core.js');
 // Zeichen aus Words Symbolschrift (U+F057 …) → echte Zeichen (Ω …), wie im Browser (odt.js).
-const symbolFont = () => loadBrowserModule<{ fixSymbolChars(text: string): string }>('../lm-editor/src/doc/symbol-font.js');
+const symbolFont = () => loadBrowserModule<{ fixSymbolChars(text: string): string; fixSymbolSvg(svg: string): string }>('../lm-editor/src/doc/symbol-font.js');
 
 // Gegen ZIP-Bomben: höchstens so viel auspacken (wie im Browser).
 const MAX_ENTRIES = 5000;
@@ -72,7 +72,7 @@ export function odtToHtml(buffer: Buffer, fileName = '', opts: OdtOptions = {}):
     },
   };
   const drawings = opts.drawings
-    ? new Map([...opts.drawings].map(([k, d]) => [k, { widthMm: d.widthMm, svgBase64: Buffer.from(symbolFont().fixSymbolChars(d.svg.toString('utf8')), 'utf8').toString('base64') }]))
+    ? new Map([...opts.drawings].map(([k, d]) => [k, { widthMm: d.widthMm, svgBase64: Buffer.from(symbolFont().fixSymbolSvg(d.svg.toString('utf8')), 'utf8').toString('base64') }]))
     : undefined;
   return core().odtPackageToHtml(pkg, fileName, { drawings, stored: opts.stored });
 }

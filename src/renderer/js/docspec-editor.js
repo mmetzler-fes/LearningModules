@@ -119,6 +119,7 @@ export function releaseModuleHeader() {
   adopted = [];
   const rows = document.getElementById('editorDocRows');
   if (rows) rows.hidden = true;
+  document.getElementById('view-create-module')?.classList.remove('editor-doc-mode');
 }
 
 function adoptModuleHeader(root) {
@@ -146,7 +147,11 @@ function adoptModuleHeader(root) {
   const pages = bar?.querySelector('.ds-preview-pages');
   move(document.getElementById('moduleSolutionsToggle'), (n) => (pages ? pages.before(n) : bar.append(n)));
   move(document.getElementById('moduleFormatWrap'), (n) => (pages ? pages.before(n) : bar.append(n)));
+  // „Kopfzeile im Druck: …“ klein in die Werkzeugzeile, vor die Seitenzahl.
+  move(root.querySelector('.ds-editor-header'), (n) => (pages ? pages.before(n) : bar.append(n)));
   rows.hidden = false;
+  // Ohne Rahmen und Abstand: Formatleiste bzw. Textfeld schließen direkt an die Kopfzeile an.
+  document.getElementById('view-create-module')?.classList.add('editor-doc-mode');
 }
 
 export function mountDocSpecEditor(parent, { name, label, value }) {
@@ -251,6 +256,7 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
       ctx = await res.json();
       headerEl.hidden = !ctx.header;
       headerEl.textContent = ctx.header ? `Kopfzeile im Druck: ${ctx.header}` : '';
+      headerEl.title = headerEl.textContent; // in der Kopfzeile gekürzt – voller Text beim Darüberfahren
       update();
     } catch (_) { /* ohne Kontext bleibt die Vorschau ohne Nummern */ }
   };
@@ -759,7 +765,8 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
     if (pmBox) pmBox.hidden = mode !== 'visual';
     markdownEl.hidden = mode !== 'markdown';
     textarea.hidden = mode !== 'yaml';
-    root.querySelector('.ds-ybar').hidden = mode !== 'yaml';
+    // YAML ist für die KI und zum Kopieren gedacht: schlichtes Textfeld, kein ➕-Menü.
+    root.querySelector('.ds-ybar').hidden = true;
     // ✏️ Bearbeiten sieht schon wie das Blatt aus (ds-surface bzw. ds-pm-surface als lm-paper,
     // Nummern als Objekt) – die zweite Spalte mit der reinen Vorschau braucht es dort nicht mehr,
     // nur noch bei YAML/Markdown. Gilt für die klassische Fläche genauso wie für Tiptap.

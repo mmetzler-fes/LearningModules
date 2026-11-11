@@ -2211,6 +2211,15 @@ body.html-app-large .quiz-actions { margin-top: 8px; padding-top: 8px; flex-shri
 .editor-doc-row .ds-preview-bar { position: static; margin-bottom: 0; padding: 0; background: none; }
 .editor-doc-row .ds-preview-bar .module-format-wrap { margin-left: 0; }
 .editor-doc-row .ds-preview-bar .module-solutions-toggle { padding: 4px 10px; }
+.editor-doc-row .ds-preview-bar .ds-editor-header { margin-left: auto; font-size: 0.8em; max-width: 40ch; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.editor-doc-row .ds-preview-bar .ds-editor-header:not([hidden]) + .ds-preview-pages { margin-left: 12px; }
+/* Dokument: kein Rahmen, kein Abstand – der Editor beginnt direkt unter der Kopfzeile. */
+.editor-doc-mode .editor-header { margin-bottom: 0; padding-bottom: 8px; }
+.editor-doc-mode .module-header-row { display: none; } /* leer – alles steht in der Kopfzeile */
+.editor-doc-mode #contentEditor { border: 0; border-radius: 0; padding: 0; margin-top: 0; background: none; }
+.editor-doc-mode #contentEditor .ds-editor { margin-bottom: 0; }
+.editor-doc-mode .ds-vtoolbar { margin-top: 0; }
+.editor-doc-mode .ds-yaml, .editor-doc-mode .ds-preview { height: calc(100vh - var(--ds-sticky-top, 0px) - 24px); min-height: 320px; }
 
 .h5p-container {
   background: var(--bg-secondary);
@@ -4000,7 +4009,8 @@ body.html-app-large .quiz-actions { margin-top: 8px; padding-top: 8px; flex-shri
 /* Editor: YAML links, Vorschau rechts; schmal untereinander */
 .ds-editor-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; margin-bottom: 8px; }
 .ds-editor-toggle { display: inline-flex; align-items: center; gap: 4px; font-weight: normal; margin: 0 0 0 6px; }
-.ds-editor-status { flex-basis: 100%; font-size: 0.85em; }
+.ds-editor-status { flex: 0 0 auto; font-size: 0.85em; }
+.ds-editor-status:empty { display: none; }
 .ds-editor-panes { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; }
 .ds-yaml {
   width: 100%;

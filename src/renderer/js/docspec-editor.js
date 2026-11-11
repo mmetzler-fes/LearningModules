@@ -19,7 +19,7 @@ import { ensureBlockIds, stampBlockIds } from '../lm-editor/src/doc/ids.js';
 import { newlineIndent, shiftLines, reindentPaste, insertAfterItem } from './yaml-edit.js';
 import { pickQuiz as pickQuizFrom } from './quiz-picker.js';
 import { pickPdfBlocks } from './views/attachment-convert.js';
-import { showContextMenu } from '../lm-editor/src/util/dom.js';
+import { showContextMenu, penSelects } from '../lm-editor/src/util/dom.js';
 import { attachTableTools, markFixedTables } from './table-tools.js';
 import { attachFormatTools } from './format-tools.js';
 import { openParagraphDialog } from './paragraph-dialog.js';
@@ -652,6 +652,7 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
     new ResizeObserver(place).observe(header);
   }
   const surface = root.querySelector('.ds-surface');
+  penSelects(surface); // iPad: der Stift markiert, statt Handschrift in Text zu verwandeln
   const blockSelect = root.querySelector('.ds-vblock');
   let mode = 'yaml';
   let pm = null;
@@ -1327,6 +1328,7 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
         </div></form>`;
     document.body.appendChild(overlay);
     const surfaceEl = overlay.querySelector('.ds-sol-surface');
+    penSelects(surfaceEl);
     surfaceEl.addEventListener('paste', pasteClean);
     const ta = overlay.querySelector('textarea');
     const err = overlay.querySelector('.ds-error');

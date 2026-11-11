@@ -12,7 +12,7 @@ import { TopicsService } from '../topics/topics.service';
 import { GroupsService } from '../groups/groups.service';
 import { CompanionService } from '../companion/companion.service';
 import { baseUrl, renderQr } from '../core/share/link-url';
-import { embeddedQuizIds } from '../core/public/student-view';
+import { contentOf, embeddedQuizIds } from '../core/public/student-view';
 import { lockedModuleIds, withoutLocked } from '../topics/student-lock';
 import { foreignEmbeddedQuizzes } from '../topics/embedded-quizzes';
 import * as crypto from 'crypto';
@@ -587,6 +587,46 @@ export class LinksService {
     return this.findOne(link.id, user, req);
   }
 
+  /**
+   * 📝 im Klassennotizbuch: der Link der Klassenarbeit dieser Klasse für ein Dokument (bzw. ein
+   * gesperrtes Modul). Gibt es schon einen, der genau dieses Modul enthält, ist es der; sonst
+   * entsteht einer – für Schüler noch aus (hiddenFromStudents) und mit nur einem Durchlauf.
+   */
+  async examLinkForClass(user: any, classId: string, topicId: string, moduleId: string): Promise<TopicLink> {
+    await this.classesService.ownedClass(classId, user);
+    const mod = moduleId ? await this.moduleRepo.findOne({ where: { id: moduleId, topicId } }) : null;
+    if (!mod) throw new NotFoundException('Modul nicht gefunden.');
+    const existing = (await this.linkRepo.find({ where: { ownerId: user.userId, classId } }))
+      .find((l) => (l.modes || []).includes('exam') && (l.selection || []).some((e) => e.topicId === topicId && !e.all && (e.moduleIds || []).includes(moduleId)));
+    if (existing) return existing;
+    const selection = await this.cleanSelection(user, [{ topicId, all: false, moduleIds: [moduleId] }]);
+    if (!selection.some((e) => (e.moduleIds || []).includes(moduleId))) throw new BadRequestException('Auf dieses Modul hast du keinen Zugriff.');
+    const link = this.linkRepo.create({
+      id: crypto.randomUUID(),
+      name: mod.title || 'Klassenarbeit',
+      ownerId: user.userId,
+      classId,
+      token: null,
+      examToken: null,
+      active: true,
+      modes: ['exam'],
+      selection,
+      accessPassword: null,
+      singleAttempt: true,
+      hiddenFromStudents: true,
+    });
+    return this.linkRepo.save(link);
+  }
+
+  /** ●/○ einer Klassenarbeit im Klassennotizbuch: für Schüler sichtbar (mit aktivem Link) oder nicht. */
+  async setExamVisible(user: any, id: string, visible: boolean) {
+    const link = await this.own(id, user);
+    if (!(link.modes || []).includes('exam') || !link.classId) throw new BadRequestException('Das ist kein Link einer Klassenarbeit für eine Klasse.');
+    link.hiddenFromStudents = !visible;
+    await this.linkRepo.save(link);
+    return { success: true, visible };
+  }
+
   async update(id: string, user: any, body: any, req?: any) {
     const link = await this.own(id, user);
     const before = syncedState(link);
@@ -986,7 +1026,11 @@ export class LinksService {
       return {
         topic,
         ownerLink,
-        modules: visible.filter((m) => !m.parentId && locked.has(m.id)).map((m) => ({ id: m.id, title: m.title || '', type: m.type, releasedHere: !stillLocked.has(m.id) })),
+        modules: visible.filter((m) => !m.parentId && locked.has(m.id)).map((m) => ({
+          id: m.id, title: m.title || '', type: m.type, releasedHere: !stillLocked.has(m.id),
+          // Klassenarbeit (Dokument dieser Art): im Klassennotizbuch mit eigenem Link, ●/○ und 🧪.
+          isExam: m.type === 'document' && contentOf(m).kind === 'klassenarbeit',
+        })),
       };
     });
   }

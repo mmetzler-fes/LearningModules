@@ -790,11 +790,83 @@ export class ClassResultsView {
         }).join('')}
         ${(t.lockedModules || []).filter((m) => !m.releasedHere).map((m) => `<li class="cb-item-off cb-locked" title="Schüler sehen das nicht, auch nicht über „Alles“">
           <span>🔒 <button type="button" class="cb-unit" data-open-module="${escapeAttr(m.id)}">${TYPE_ICON[m.type] || '📄'} ${escapeHtml(m.title)}</button>
-            <span class="hint">nur für dich</span></span>
+            <span class="hint">${this._examHint(m)}</span></span>
+          ${this._examControls(t, m)}
           ${t.mayRelease ? `<button type="button" class="btn btn-secondary btn-sm" data-release="${escapeAttr(m.id)}" title="Nur diese Klasse sieht es, etwa die Lösungen oder die Klassenarbeit zur Besprechung">🔓 Für diese Klasse freigeben</button>` : ''}
         </li>`).join('')}</ul>
       </div>`).join('')}
       ${link.notReleased?.length ? `<p class="hint">Im Notizbuch noch nicht für Schüler freigegeben, daher nicht wählbar: ${escapeHtml(link.notReleased.join(', '))}.</p>` : ''}`;
+  }
+
+  /** Link der Klassenarbeit dieser Klasse, der genau dieses Modul enthält – oder undefined. */
+  _examLinkOf(moduleId) {
+    return (this._cb?.links || []).find((l) => l.exam && (l.examModuleIds || []).includes(moduleId));
+  }
+
+  /** Hinweis an einer gesperrten Zeile: bei einer Klassenarbeit ihr Stand für die Schüler. */
+  _examHint(m) {
+    const ex = this._examLinkOf(m.id);
+    if (!m.isExam && !ex) return 'nur für dich';
+    if (!ex || ex.hiddenFromStudents) return 'Klassenarbeit – Schüler sehen sie nicht';
+    if (!ex.active) return 'Klassenarbeit – Link deaktiviert';
+    return ex.hasExamLink ? 'Klassenarbeit – läuft, Schüler sehen sie' : 'Klassenarbeit – an, sobald ihr Link erzeugt ist';
+  }
+
+  /** ●/○, 📝 Link & QR und 🧪 Ausprobieren an einer Klassenarbeit im Baum. */
+  _examControls(t, m) {
+    const ex = this._examLinkOf(m.id);
+    if (!m.isExam && !ex) return '';
+    const on = !!ex && !ex.hiddenFromStudents;
+    const title = on
+      ? 'Schüler sehen die Klassenarbeit, solange ihr Link aktiv ist – klicken zum Ausschalten'
+      : 'Aus: Schüler sehen sie nicht und kommen nicht hinein, auch nicht mit dem Link – klicken zum Einschalten';
+    const ids = `data-exam-topic="${escapeAttr(t.topicId)}" data-exam-module="${escapeAttr(m.id)}"`;
+    return `<button type="button" class="nb-status ${on ? 'on' : ''}" data-exam-visible="${on ? '1' : ''}" ${ids} title="${escapeAttr(title)}" aria-label="${escapeAttr(title)}">${on ? '●' : '○'}</button>
+          <button type="button" class="btn btn-secondary btn-sm" data-exam-share ${ids} title="Eigener Link der Klassenarbeit mit QR-Code – Schüler kommen erst mit ● hinein">📝 Link &amp; QR</button>
+          <button type="button" class="btn btn-secondary btn-sm" data-exam-try ${ids} title="Die Klassenarbeit selbst schreiben, als 🧪 Vorschau in einem neuen Tab – zählt nicht, beliebig oft">🧪 Ausprobieren</button>`;
+  }
+
+  /** Link der Klassenarbeit zu einem Knopf (data-exam-topic/-module) – angelegt, wenn es noch keinen gibt. */
+  async _examLinkFor(btn) {
+    const known = this._examLinkOf(btn.dataset.examModule);
+    if (known) return known;
+    const res = await this.app.api.classbookExamLink(this._classId, btn.dataset.examTopic, btn.dataset.examModule);
+    if (failed(res) || !res?.linkId) { this.app.showToast('Fehler: ' + (res?.message || 'Link nicht angelegt'), 'error'); return null; }
+    return { id: res.linkId, name: res.name, active: res.active, hiddenFromStudents: res.hiddenFromStudents, hasExamLink: res.hasExamLink };
+  }
+
+  _bindExamControls(out) {
+    out.querySelectorAll('[data-exam-visible]').forEach((btn) => btn.addEventListener('click', async (e) => {
+      e.preventDefault();
+      const ex = await this._examLinkFor(btn);
+      if (!ex) return;
+      const visible = !btn.dataset.examVisible;
+      const res = await this._call(this.app.api.setClassbookExamVisible(this._classId, ex.id, visible));
+      if (res) this.app.showToast(visible
+        ? (ex.hasExamLink ? 'Die Schüler sehen die Klassenarbeit jetzt.' : 'An – die Schüler sehen sie, sobald du ihren Link mit 📝 Link & QR erzeugt hast.')
+        : 'Aus – die Schüler sehen die Klassenarbeit nicht mehr.', 'success');
+    }));
+    out.querySelectorAll('[data-exam-share]').forEach((btn) => btn.addEventListener('click', async (e) => {
+      e.preventDefault();
+      const ex = await this._examLinkFor(btn);
+      if (!ex) return;
+      await this.app.linksView._openShareDialog({ id: ex.id, name: ex.name }, 'exam');
+      await this._call(Promise.resolve({ success: true }));
+    }));
+    out.querySelectorAll('[data-exam-try]').forEach((btn) => btn.addEventListener('click', async (e) => {
+      e.preventDefault();
+      const win = window.open('', '_blank'); // vor dem await, sonst blockt der Browser das Fenster
+      if (!win) { this.app.showToast('Der Browser hat den neuen Tab blockiert. Bitte Pop-ups für diese Seite erlauben.', 'error'); return; }
+      const ex = await this._examLinkFor(btn);
+      const res = ex ? await this.app.api.tryClassbookExam(this._classId, ex.id).catch((err) => ({ message: err.message })) : null;
+      if (!res || failed(res) || !res.token) {
+        win.close();
+        if (res) this.app.showToast('Fehler: ' + (res?.message || 'Ausprobieren nicht möglich'), 'error');
+        return;
+      }
+      win.location.href = `/schueler/?k=${encodeURIComponent(res.token)}#preview=${encodeURIComponent(res.ticket)}`;
+      await this._call(Promise.resolve({ success: true }));
+    }));
   }
 
   /** Unter 📄 bzw. 🧩: Steht in der Zuweisung etwas davon? Ein neues, leeres Lernthema bleibt unter 📄 sichtbar. */
@@ -892,6 +964,7 @@ export class ClassResultsView {
   }
 
   _bindToggles(out) {
+    this._bindExamControls(out);
     out.querySelectorAll('[data-switch-links]').forEach((btn) => btn.addEventListener('click', async (e) => {
       e.preventDefault();
       e.stopPropagation();
@@ -1603,10 +1676,13 @@ export class ClassResultsView {
     this._section('exams', async (cb, out) => {
       const links = cb.links.filter((l) => l.exam);
       out.innerHTML = `
-        <p class="hint">Klassenarbeiten haben einen eigenen Link. Sobald du ihn mit <strong>📝 Link & QR</strong> erzeugt hast, steht die
-          Klassenarbeit auch im Klassennotizbuch der Schüler (mit PIN) – bis du sie deaktivierst. Angelegt werden sie unter
-          <strong>🔗 Schülerfreigaben</strong> (Modus „Klassenarbeit“, dann für diese Klasse).</p>
+        <p class="hint">Klassenarbeiten haben einen eigenen Link. Die Schüler sehen eine Klassenarbeit, wenn sie <strong>●</strong> an ist und
+          ihr Link mit <strong>📝 Link & QR</strong> erzeugt und aktiv ist – mit ○ auch über den Link nicht. Am einfachsten legst du sie in der
+          Inhaltsübersicht an der Klassenarbeit an (🔒-Zeile: ○, 📝 Link & QR, 🧪 Ausprobieren); der Weg über
+          <strong>🔗 Schülerfreigaben</strong> (Modus „Klassenarbeit“, dann für diese Klasse) geht weiter.</p>
         ${links.length ? links.map((l) => this._linkCard(l, `
+          <button type="button" class="nb-status ${l.hiddenFromStudents ? '' : 'on'}" data-exam-link-visible="${l.hiddenFromStudents ? '' : '1'}"
+            title="${l.hiddenFromStudents ? 'Aus: Schüler sehen sie nicht – klicken zum Einschalten' : 'An: Schüler sehen sie, solange der Link aktiv ist – klicken zum Ausschalten'}">${l.hiddenFromStudents ? '○' : '●'}</button>
           <button type="button" class="btn btn-primary btn-sm" data-exam-share>📝 Link & QR</button>
           ${l.active ? '<button type="button" class="btn btn-secondary btn-sm" data-active="off">⏸ Deaktivieren</button>'
             : '<button type="button" class="btn btn-secondary btn-sm" data-active="on">▶ Aktivieren</button>'}`)).join('')
@@ -1615,6 +1691,10 @@ export class ClassResultsView {
       out.querySelectorAll('[data-exam-share]').forEach((btn) => btn.addEventListener('click', () => {
         const link = links.find((l) => l.id === btn.closest('[data-link]').dataset.link);
         this.app.linksView._openShareDialog(link, 'exam');
+      }));
+      out.querySelectorAll('[data-exam-link-visible]').forEach((btn) => btn.addEventListener('click', async () => {
+        const linkId = btn.closest('[data-link]').dataset.link;
+        await this._call(this.app.api.setClassbookExamVisible(this._classId, linkId, !btn.dataset.examLinkVisible));
       }));
       this._bindActive(out);
       await this.app.classesView._renderExams({ id: this._classId }, out.querySelector('.class-exams'));

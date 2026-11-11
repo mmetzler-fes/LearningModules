@@ -20,7 +20,7 @@ import { ClassesService } from '../../classes/classes.service';
 import { issueTicket, readTicket } from '../../classes/student-ticket';
 import { WorksheetsService } from '../../worksheets/worksheets.service';
 import { FeaturesService } from '../../features/features.service';
-import { isTestStudent } from '../../classes/test-student';
+import { isTestStudent, isTestName } from '../../classes/test-student';
 import { TimingsService } from '../../timings/timings.service';
 import { UsageService } from '../../impact/usage.service';
 import { contentOf, forStudents, studentModule } from './student-view';
@@ -311,6 +311,14 @@ export class PublicController {
     // Klassenlink: Name einem Schüler der Klassenliste zuordnen. Im Ergebnis
     // steht dann sein Name aus der Liste, nicht die Schreibweise der Eingabe.
     const klasse = await this.classesService.findById(link.classId);
+    // Klassenarbeit im Klassennotizbuch noch aus (○): nur die Lehrkraft als 🧪 Testschüler –
+    // ohne Ausweis oder Testpasswort gar nicht erst einen Namen zuordnen (legte sonst Einträge an).
+    const examHidden = mode === 'exam' && !!klasse && !!link.hiddenFromStudents;
+    const hiddenMessage = 'Diese Klassenarbeit ist noch nicht freigegeben. Bitte bei der Lehrkraft nachfragen.';
+    if (examHidden && !body?.classTicket) {
+      const owner = await this.userRepo.findOne({ where: { id: klasse!.ownerId || '' } });
+      if (!body?.testPassword || !isTestName(studentName, owner?.testStudentName)) throw new ForbiddenException(hiddenMessage);
+    }
     let studentId: string | null = null;
     let login: Awaited<ReturnType<ClassbookService['loginViaLink']>> | null = null;
     let verified = false;
@@ -336,6 +344,8 @@ export class PublicController {
     } else if (!studentName) {
       throw new BadRequestException('Bitte den Namen eingeben.');
     }
+
+    if (examHidden && !isTestStudent(studentId)) throw new ForbiddenException(hiddenMessage);
 
     // Wiedereinstieg, den die Lehrkraft freigegeben hat: trotz früherer Abgabe.
     const released = mode === 'exam' && (await this.exams.mayStartAgain(link, studentId));

@@ -261,6 +261,12 @@ export class ClassbookService {
         classTopicId: ownTopic,
         notReleased: avail.notReleased,
         releasedModuleIds: l.releasedModuleIds || [],
+        // Link der Klassenarbeit: welche Module, ob sein Link erzeugt ist und ob Schüler sie sehen (●/○).
+        ...((l.modes || []).includes('exam') ? {
+          examModuleIds: (l.selection || []).flatMap((e) => (e.all ? [] : e.moduleIds || [])),
+          hasExamLink: !!l.examToken,
+          hiddenFromStudents: !!l.hiddenFromStudents,
+        } : {}),
         // Was die Zuweisung enthalten kann, mit Schalter je Lernthema und Modul.
         available: avail.topics.map((t) => {
           const entry = selection.find((e) => e.topicId === t.topicId);
@@ -1519,9 +1525,10 @@ export class ClassbookService {
     const resolved = await this.resolveMarker(nb, klasse, t.s, confirmed, { nodes, placeOf, links });
     const marker = resolved ? { anchor: resolved.anchor, current: resolved.current, openNodeIds: resolved.openNodeIds, hasNext: resolved.hasNext } : null;
     // Laufende Klassenarbeiten: aktiv und ihr Link ist erzeugt (die Lehrkraft hat ihn ausgegeben).
-    const exams = scope ? [] : await Promise.all(active.filter((l) => (l.modes || []).includes('exam') && l.examToken).map(async (l) => {
+    // Im Klassennotizbuch noch aus (○): nur die Vorschau der Lehrkraft (🧪 Testschüler) sieht sie, markiert.
+    const exams = scope ? [] : await Promise.all(active.filter((l) => (l.modes || []).includes('exam') && l.examToken && (!l.hiddenFromStudents || isTestStudent(t.s))).map(async (l) => {
       const attempt = await this.attemptRepo.findOne({ where: { linkId: l.id, studentId: t.s } });
-      return { linkId: l.id, name: l.name, state: isTestStudent(t.s) ? 'open' : examState(attempt, l.singleAttempt) };
+      return { linkId: l.id, name: l.name, state: isTestStudent(t.s) ? 'open' : examState(attempt, l.singleAttempt), ...(l.hiddenFromStudents ? { hiddenFromStudents: true } : {}) };
     }));
     const results = (confirmed ? await this.resultRepo.find({ where: { classId: klasse.id, studentId: t.s }, order: { createdAt: 'DESC' } }) : [])
       .filter((r) => !scope || (!!r.linkId && inScope(r.linkId)));
@@ -1598,6 +1605,33 @@ export class ClassbookService {
    * 👁 Vorschau: Ausweis des Testschülers für die eigene Klasse, ohne Name, PIN und Testpasswort.
    * Die Anmeldung als Lehrkraft (ownedClass) ist der Nachweis. Er sieht, was die Klasse sieht.
    */
+  /** 📝 im Klassennotizbuch: Link der Klassenarbeit dieser Klasse für ein Modul holen bzw. anlegen (für Schüler aus). */
+  async examLink(user: any, classId: string, body: { topicId?: string; moduleId?: string }) {
+    const link = await this.links.examLinkForClass(user, classId, String(body?.topicId || ''), String(body?.moduleId || ''));
+    return { linkId: link.id, name: link.name, hasExamLink: !!link.examToken, hiddenFromStudents: !!link.hiddenFromStudents, active: link.active };
+  }
+
+  /** ●/○ der Klassenarbeit: Schüler sehen und starten sie nur mit ● (und aktivem, ausgegebenem Link). */
+  async setExamVisible(user: any, classId: string, linkId: string, visible: boolean) {
+    const link = await this.ownClassLink(user, classId, linkId);
+    return this.links.setExamVisible(user, link.id, visible);
+  }
+
+  /**
+   * 🧪 Selbst ausprobieren: Der Link der Klassenarbeit braucht seinen Schlüssel (sonst steht sie
+   * nirgends); dann die Vorschau der Klasse als Testschüler, in der sie auch bei ○ zu sehen ist.
+   */
+  async tryExam(user: any, classId: string, linkId: string) {
+    const link = await this.ownClassLink(user, classId, linkId);
+    if (!(link.modes || []).includes('exam')) throw new BadRequestException('Das ist kein Link einer Klassenarbeit.');
+    if (!link.examToken) {
+      link.examToken = crypto.randomBytes(12).toString('base64url');
+      await this.linkRepo.save(link);
+    }
+    if (!link.active) throw new BadRequestException('Der Link der Klassenarbeit ist deaktiviert – erst unter 📝 Klassenarbeiten aktivieren.');
+    return { ...(await this.preview(user, classId)), linkId: link.id };
+  }
+
   async preview(user: any, classId: string) {
     const klasse = await this.classes.ownedClass(classId, user);
     const nb = await this.ensure(klasse);
@@ -1630,7 +1664,7 @@ export class ClassbookService {
    * dann der gewöhnliche Link-Start mit dem Ausweis des Klassennotizbuchs.
    */
   async enter(token: string, body: { ticket?: string; linkId?: string; exam?: boolean }) {
-    const { nb, klasse, scope } = await this.session(token, body?.ticket);
+    const { nb, klasse, scope, ticket: t } = await this.session(token, body?.ticket);
     const link = await this.linkRepo.findOne({ where: { id: String(body?.linkId || ''), classId: klasse.id } });
     if (!link || !link.active) throw new NotFoundException('Diese Aufgabe ist gerade nicht freigegeben.');
     // Eigener Link auf einen Teil: nur, was darin liegt – und die gerade offene Quiz-Arena.
@@ -1647,6 +1681,7 @@ export class ClassbookService {
     // Klassenarbeit: nur über ihren eigenen Link – den gibt es erst, wenn die Lehrkraft ihn ausgegeben hat.
     if (body?.exam) {
       if (!(link.modes || []).includes('exam') || !link.examToken) throw new NotFoundException('Diese Klassenarbeit ist gerade nicht freigegeben.');
+      if (link.hiddenFromStudents && !isTestStudent(t.s)) throw new NotFoundException('Diese Klassenarbeit ist gerade nicht freigegeben.');
       return { linkToken: link.examToken };
     }
     let linkToken = await this.links.practiceToken(link);

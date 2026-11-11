@@ -375,7 +375,7 @@ export class ClassbookStudent {
       submitted: '<span class="hint">✅ abgegeben</span>',
     };
     const exams = (data.exams || []).map((x) => `<div class="cb-exam" data-link="${escapeAttr(x.linkId)}">
-        <strong>📝 ${escapeHtml(x.name)}</strong>${EXAM_STATE[x.state] || ''}</div>`).join('');
+        <strong>📝 ${escapeHtml(x.name)}</strong>${EXAM_STATE[x.state] || ''}${x.hiddenFromStudents ? ' <span class="hint" title="Im Klassennotizbuch aus (○) – nur deine Vorschau sieht sie">· für Schüler noch aus</span>' : ''}</div>`).join('');
     const preview = !!s?.preview;
     const el = this._show(`
       ${preview ? '<p class="cb-preview-note">👁 <strong>Vorschau:</strong> So sieht es deine Klasse. Ergebnisse und Blätter stehen im Klassennotizbuch als 🧪 und zählen nicht mit.</p>' : ''}

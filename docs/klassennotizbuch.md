@@ -29,7 +29,7 @@ zwischen beiden.
 | Bereich | Inhalt |
 |---|---|
 | 📋 Inhaltsübersicht | was der Klasse zugewiesen ist – Lernthemen und Bereiche aus deinem Notizbuch |
-| 📝 Klassenarbeiten | Klassenarbeiten der Klasse mit Link & QR, wer schreibt und wer abgegeben hat, Wiedereinstieg – aktive stehen auch bei den Schülern |
+| 📝 Klassenarbeiten | Klassenarbeiten der Klasse mit ●/○, Link & QR, wer schreibt und wer abgegeben hat, Wiedereinstieg – mit ● und aktivem Link stehen sie auch bei den Schülern |
 | 👥 Schülerdaten | je Schüler alle Ergebnisse (📈) und Blätter (✍️) |
 | 📊 Ergebnisübersicht | je Lernthema und je Quiz, wie weit jeder Schüler ist; dazu je Aufgabe und der Jahresüberblick |
 | 🏆 Quiz-Arena | Zuweisungen mit Quiz-Arena, nach Bereichen und Abschnitten geordnet wie die Inhaltsübersicht: 🏆 Quiz-Arena starten, Leitungs-Link & QR-Code |
@@ -417,11 +417,24 @@ Schüler-App („LearningModules_Schüler“) mit dem Knopf oben oder über
 
 ### Klassenarbeit über das Klassennotizbuch
 
-Eine Klassenarbeit erscheint bei den Schülern, sobald du ihren Link mit
-**📝 Link & QR** erzeugt hast, und bleibt dort, bis du sie **⏸ deaktivierst**.
-Über das Klassennotizbuch kommen sie mit Name und PIN hinein – sicherer als
-der Link der Klassenarbeit allein, den es weiterhin gibt (ohne PIN).
-„Nur ein Durchlauf“ und der Wiedereinstieg gelten auf beiden Wegen gleich.
+Liegt ein Dokument der Art **Klassenarbeit** in einer Zuweisung, steht es in der Inhaltsübersicht als 🔒-Zeile mit
+drei Bedienelementen:
+
+- **●/○** – ob die Schüler dieser Klasse die Klassenarbeit sehen. Sie beginnt mit **○**: Die Schüler sehen sie nicht und
+  kommen auch mit ihrem Link nicht hinein. Mit **●** erscheint sie bei ihnen, sobald ihr Link erzeugt und aktiv ist.
+- **📝 Link & QR** – der eigene Link der Klassenarbeit. Beim ersten Mal legt die App ihn an (nur diese Klassenarbeit,
+  „nur ein Durchlauf“); ändern lässt er sich unter 🔗 Schülerfreigaben.
+- **🧪 Ausprobieren** – öffnet das Klassennotizbuch als 🧪 Vorschau in einem neuen Tab. Dort steht die Klassenarbeit
+  auch bei ○ (mit „für Schüler noch aus“); du schreibst sie wie ein Schüler. Das zählt nicht mit, steht nicht in der
+  Abgabeliste und lässt sich beliebig wiederholen; **🧹 Vorschau zurücksetzen** löscht es.
+
+Die Schüler sehen eine Klassenarbeit also nur mit **●**, erzeugtem Link und aktivem Link; **⏸ Deaktivieren** unter
+📝 Klassenarbeiten nimmt sie wieder weg. Über das Klassennotizbuch kommen sie mit Name und PIN hinein – sicherer als
+der Link der Klassenarbeit allein, den es weiterhin gibt (ohne PIN). „Nur ein Durchlauf“ und der Wiedereinstieg
+gelten auf beiden Wegen gleich.
+
+Klassenarbeiten, die über 🔗 Schülerfreigaben für eine Klasse angelegt wurden, stehen auf ● – für sie bleibt alles wie
+bisher; ihr ●/○ steht unter 📝 Klassenarbeiten.
 
 ### Klassen ohne strikte Anmeldung
 

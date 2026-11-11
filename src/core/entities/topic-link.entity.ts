@@ -111,6 +111,15 @@ export class TopicLink extends BaseEntity {
   @Column({ default: false })
   singleAttempt: boolean;
 
+  /**
+   * Link der Klassenarbeit einer Klasse, im Klassennotizbuch noch aus (○): Schüler sehen sie
+   * nicht und können sie nicht starten, auch nicht mit dem Link. Die Lehrkraft probiert sie
+   * als 🧪 Testschüler aus (Vorschau). Im Klassennotizbuch angelegt beginnt ein Link so;
+   * ältere Links (über die Schülerfreigaben) stehen auf false und bleiben, wie sie waren.
+   */
+  @Column({ default: false })
+  hiddenFromStudents: boolean;
+
   @Column('simple-json', { nullable: true })
   tagIds: string[] | null;
 

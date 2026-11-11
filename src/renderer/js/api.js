@@ -1201,6 +1201,16 @@ export class BrowserApi {
     return this._fetch(`/api/classbook/${encodeURIComponent(classId)}/follow`, { method: 'PUT', body: JSON.stringify({ on }) });
   }
   previewClassbook(classId) { return this._fetch(`/api/classbook/${encodeURIComponent(classId)}/preview`, { method: 'POST' }); }
+  /** 📝 Link der Klassenarbeit dieser Klasse für ein Modul (vorhanden oder neu, für Schüler aus). */
+  classbookExamLink(classId, topicId, moduleId) {
+    return this._fetch(`/api/classbook/${encodeURIComponent(classId)}/exam`, { method: 'POST', body: JSON.stringify({ topicId, moduleId }) });
+  }
+  setClassbookExamVisible(classId, linkId, visible) {
+    return this._fetch(`/api/classbook/${encodeURIComponent(classId)}/exam/${encodeURIComponent(linkId)}/visible`, { method: 'PUT', body: JSON.stringify({ visible }) });
+  }
+  tryClassbookExam(classId, linkId) {
+    return this._fetch(`/api/classbook/${encodeURIComponent(classId)}/exam/${encodeURIComponent(linkId)}/try`, { method: 'POST' });
+  }
   resetClassbookPreview(classId) { return this._fetch(`/api/classbook/${encodeURIComponent(classId)}/preview`, { method: 'DELETE' }); }
   getClassbookOverview(classId) { return this._fetch(`/api/classbook/${encodeURIComponent(classId)}/overview`); }
   getClassResults(classId) { return this._fetch(`/api/results/class/${encodeURIComponent(classId)}`); }

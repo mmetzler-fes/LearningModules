@@ -301,7 +301,9 @@ es ein 🔒; die Vorschau sagt es ebenfalls. Du siehst und druckst es wie gewohn
   reinen Quizzen. Am Lernthema gilt es für alle seine Module. Es sperrt erst, nachdem du es
   gesetzt hast: Die Art allein erkennt nur Dokumente.
 - **Gesperrt ist es auf allen Schüler-Wegen:** Quick-Link, Übungslink, Klassennotizbuch, Quiz-Arena
-  und PDF für Schüler. Nur der **Link der Klassenarbeit** (📝, eigener Schlüssel) führt hinein.
+  und PDF für Schüler. Nur der **Link der Klassenarbeit** (📝, eigener Schlüssel) führt hinein – im Klassennotizbuch
+  erst mit ● ([Klassenarbeit über das Klassennotizbuch](klassennotizbuch.md#klassenarbeit-über-das-klassennotizbuch));
+  dort probierst du sie auch mit **🧪 Ausprobieren** selbst aus.
 - **🔓 Zur Besprechung freigeben** (⋯) öffnet es für Schüler über deine Links, samt der Quizze
   darin, bis **🔒 Wieder sperren**. Ein Quiz, das auch in einer noch gesperrten Arbeit steht, bleibt zu.
 - **Andere Lehrkräfte** (Shop, Teilen) sehen es weiter, ihre Schüler nicht; deine Freigabe zur

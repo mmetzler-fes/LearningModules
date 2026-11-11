@@ -226,6 +226,48 @@ describe('Klassennotizbuch: Klassenarbeit', () => {
   });
 });
 
+describe('Klassennotizbuch: Klassenarbeit noch aus (○)', () => {
+  const me = { userId: 't1', role: 'teacher' };
+  const hidden = (links: any) => links.rows.push({ id: 'x1', classId: 'c1', ownerId: 't1', name: 'KA 1', active: true, modes: ['exam'], examToken: 'ex', hiddenFromStudents: true, singleAttempt: true, createdAt: new Date() });
+
+  it('Schüler sehen sie nicht und kommen nicht hinein – auch nicht mit Link; die Vorschau der Lehrkraft schon', async () => {
+    const { svc, links } = setup();
+    hidden(links);
+    const { ticket } = await svc.login('kb', { name: 'Anna', pin: '1234' });
+    expect((await svc.home('kb', ticket)).exams).toEqual([]);
+    await expect(svc.enter('kb', { ticket, linkId: 'x1', exam: true })).rejects.toThrow(/nicht freigegeben/);
+
+    const preview = await svc.preview(me, 'c1');
+    expect((await svc.home('kb', preview.ticket)).exams).toEqual([{ linkId: 'x1', name: 'KA 1', state: 'open', hiddenFromStudents: true }]);
+    expect(await svc.enter('kb', { ticket: preview.ticket, linkId: 'x1', exam: true })).toEqual({ linkToken: 'ex' });
+  });
+
+  it('mit ● wie bisher: sichtbar, sobald ihr Link aktiv und erzeugt ist', async () => {
+    const { svc, links } = setup();
+    hidden(links);
+    (svc as any).links.setExamVisible = async (_u: any, id: string, visible: boolean) => {
+      links.rows.find((l: any) => l.id === id).hiddenFromStudents = !visible;
+      return { success: true, visible };
+    };
+    await svc.setExamVisible(me, 'c1', 'x1', true);
+    const { ticket } = await svc.login('kb', { name: 'Anna', pin: '1234' });
+    expect((await svc.home('kb', ticket)).exams).toEqual([{ linkId: 'x1', name: 'KA 1', state: 'open' }]);
+  });
+
+  it('🧪 Ausprobieren: erzeugt bei Bedarf den Schlüssel und gibt den Ausweis der Vorschau', async () => {
+    const { svc, links } = setup();
+    hidden(links);
+    links.rows[1].examToken = null;
+    const res = await svc.tryExam(me, 'c1', 'x1');
+    expect(links.rows[1].examToken).toEqual(expect.any(String));
+    expect(readTicket(res.ticket, classbookTicketKey('c1'))).toMatchObject({ s: 'test:t1' });
+    expect(res.linkId).toBe('x1');
+    // Für Schüler bleibt sie dabei aus.
+    const { ticket } = await svc.login('kb', { name: 'Anna', pin: '1234' });
+    expect((await svc.home('kb', ticket)).exams).toEqual([]);
+  });
+});
+
 describe('Klassennotizbuch: Lernthemen und Module schalten', () => {
   it('Modul aus: Auswahl wird ausdrücklich, Schüler sehen es nicht mehr; Thema aus und wieder an', async () => {
     const { svc, links } = setup();

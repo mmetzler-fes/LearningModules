@@ -39,6 +39,26 @@ export class ClassbookController {
     return this.classbook.setRelease(req.user, classId, linkId, body);
   }
 
+  /** `{ topicId, moduleId }` – Link der Klassenarbeit dieser Klasse für ein Modul (vorhanden oder neu, für Schüler aus). */
+  @Post(':classId/exam')
+  @HttpCode(200)
+  examLink(@Request() req: any, @Param('classId') classId: string, @Body() body: any) {
+    return this.classbook.examLink(req.user, classId, body);
+  }
+
+  /** `{ visible }` – ●/○ der Klassenarbeit für die Schüler dieser Klasse. */
+  @Put(':classId/exam/:linkId/visible')
+  setExamVisible(@Request() req: any, @Param('classId') classId: string, @Param('linkId') linkId: string, @Body() body: { visible?: boolean }) {
+    return this.classbook.setExamVisible(req.user, classId, linkId, !!body?.visible);
+  }
+
+  /** 🧪 Klassenarbeit selbst ausprobieren: Ausweis der Vorschau (Testschüler) dieser Klasse. */
+  @Post(':classId/exam/:linkId/try')
+  @HttpCode(200)
+  tryExam(@Request() req: any, @Param('classId') classId: string, @Param('linkId') linkId: string) {
+    return this.classbook.tryExam(req.user, classId, linkId);
+  }
+
   /** `{ kind: 'area'|'section', title, parentId? }` – Bereich oder Abschnitt anlegen. */
   @Post(':classId/nodes')
   createNode(@Request() req: any, @Param('classId') classId: string, @Body() body: any) {

@@ -20,5 +20,7 @@ describe('Browser-Module im Server laden', () => {
       expect(Object.keys(loadBrowserModule<object>(file)).length).toBeGreaterThan(2);
     }
     expect(Object.keys(loadBrowserModule<object>('dnd-pairs.js'))).toEqual(['contentFromPairs', 'pairsFromContent']);
+    const { fixSymbolChars } = loadBrowserModule<{ fixSymbolChars(t: string): string }>('../lm-editor/src/doc/symbol-font.js');
+    expect(fixSymbolChars('0,5 \uF057, \uF068 = 0,8')).toBe('0,5 Ω, η = 0,8');
   });
 });

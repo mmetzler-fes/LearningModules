@@ -42,6 +42,8 @@ interface OdtCore {
 }
 
 const core = () => loadBrowserModule<OdtCore>('../lm-editor/src/import/odt-core.js');
+// Zeichen aus Words Symbolschrift (U+F057 …) → echte Zeichen (Ω …), wie im Browser (odt.js).
+const symbolFont = () => loadBrowserModule<{ fixSymbolChars(text: string): string }>('../lm-editor/src/doc/symbol-font.js');
 
 // Gegen ZIP-Bomben: höchstens so viel auspacken (wie im Browser).
 const MAX_ENTRIES = 5000;
@@ -58,7 +60,10 @@ export function odtToHtml(buffer: Buffer, fileName = '', opts: OdtOptions = {}):
   const unpacked = entries.reduce((n, e) => n + (e.header?.size || 0), 0);
   if (entries.length > MAX_ENTRIES || unpacked > MAX_UNPACKED) throw new Error('Die Datei ist kein gültiges OpenDocument (.odt).');
   const pkg: OdtPackage = {
-    text: (name) => zip.getEntry(name)?.getData().toString('utf8'),
+    text: (name) => {
+      const text = zip.getEntry(name)?.getData().toString('utf8');
+      return text === undefined ? undefined : symbolFont().fixSymbolChars(text);
+    },
     file: (name) => {
       const entry = zip.getEntry(name);
       if (!entry || entry.isDirectory) return undefined;
@@ -67,7 +72,7 @@ export function odtToHtml(buffer: Buffer, fileName = '', opts: OdtOptions = {}):
     },
   };
   const drawings = opts.drawings
-    ? new Map([...opts.drawings].map(([k, d]) => [k, { widthMm: d.widthMm, svgBase64: d.svg.toString('base64') }]))
+    ? new Map([...opts.drawings].map(([k, d]) => [k, { widthMm: d.widthMm, svgBase64: Buffer.from(symbolFont().fixSymbolChars(d.svg.toString('utf8')), 'utf8').toString('base64') }]))
     : undefined;
   return core().odtPackageToHtml(pkg, fileName, { drawings, stored: opts.stored });
 }

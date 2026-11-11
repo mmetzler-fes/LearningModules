@@ -10,7 +10,7 @@
  * deshalb an window.DocSpecEditor.
  */
 import { load as yamlLoad, dump as yamlDump } from './vendor/js-yaml.js';
-import { validateDocSpec, renderDocSpecHtml, docRefSlugs, KARO_MAX_WIDTH_CM, parseSlashCommand, latexToMathml, starmathToLatex, inlineHtml, INLINE_MATH_SOURCE, CODE_SIZES, CODE_SIZE_PT } from '../lm-editor/src/doc/docspec.js';
+import { validateDocSpec, renderDocSpecHtml, docRefSlugs, KARO_MAX_WIDTH_CM, parseSlashCommand, parseUnicodeEscape, headingNumber, latexToMathml, starmathToLatex, inlineHtml, INLINE_MATH_SOURCE, CODE_SIZES, CODE_SIZE_PT } from '../lm-editor/src/doc/docspec.js';
 import { downloadBlob } from './api.js';
 import { escapeHtml, escapeAttr } from './utils.js';
 import { htmlToDocSpec, specToEditorHtml, widgetHtml } from '../lm-editor/src/doc/docspec-html.js';
@@ -631,7 +631,34 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
     textarea.value = toYaml(next);
     update();
   };
+  // Nummern vor Abschnitt/Aufgabe/Teilaufgabe nach jeder Änderung neu zählen (headingNumber wie in
+  // Vorschau und Tiptap): Eine neu gewählte Absatzart bekommt so ihre Nummer, die folgenden zählen
+  // weiter, eine Überschrift ohne Nummer verliert sie. Geschrieben wird nur, was sich ändert.
+  const renumberSurface = () => {
+    const counters = [0, 0, 0];
+    for (const h of surface.querySelectorAll('h1, h2, h3, h4, h5, h6')) {
+      if (h.closest('.ds-widget')) continue;
+      const own = h.querySelector(':scope > .ds-num');
+      if (!['section', 'task', 'subtask'].includes(h.dataset.ds)) { own?.remove(); continue; }
+      const label = headingNumber(h.dataset.ds, counters);
+      let num = own;
+      if (!num) {
+        num = document.createElement('span');
+        num.className = 'ds-num';
+        num.contentEditable = 'false';
+        h.prepend(num, ' ');
+      }
+      if (num.textContent !== label) num.textContent = label;
+    }
+    // Aus einer Aufgabe wurde ein Absatz: die mitgenommene Nummer fällt weg.
+    for (const n of surface.querySelectorAll('.ds-num')) {
+      const h = n.parentElement;
+      if (!n.closest('.ds-widget') && !(/^H[1-6]$/.test(h?.tagName) && ['section', 'task', 'subtask'].includes(h.dataset.ds))) n.remove();
+    }
+  };
+  renumberSurface();
   const surfaceObserver = new MutationObserver(() => {
+    renumberSurface();
     markFixedTables(surface); // Tabellenbreite wie in der Vorschau (alle Spalten fest → Summe)
     if (syncing || mode !== 'visual') return;
     clearTimeout(vTimer);
@@ -1051,6 +1078,26 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
     if (e.key === 'ArrowUp') sib.before(b); else sib.after(b);
     if (anchorNode?.isConnected) sel.collapse(anchorNode, anchorOffset);
     b.scrollIntoView?.({ block: 'nearest' });
+  });
+
+  // Sonderzeichen: „U+03A6“ direkt vor der Schreibmarke, Enter → „Φ“ (parseUnicodeEscape in
+  // docspec.js, gemeinsam mit dem Tiptap-Editor). Über insertText, damit Strg+Z es zurücknimmt.
+  surface.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter' || e.shiftKey || e.ctrlKey || e.altKey || e.metaKey || selectedWidget) return;
+    const sel = window.getSelection();
+    const node = sel?.anchorNode;
+    if (!sel.isCollapsed || node?.nodeType !== Node.TEXT_NODE || !surface.contains(node)) return;
+    if (node.parentElement?.closest('pre, code')) return;
+    const hit = parseUnicodeEscape(node.data.slice(0, sel.anchorOffset));
+    if (!hit) return;
+    e.preventDefault();
+    e.stopImmediatePropagation(); // kein Slash-Command und kein neuer Absatz
+    const range = document.createRange();
+    range.setStart(node, sel.anchorOffset - hit.length);
+    range.setEnd(node, sel.anchorOffset);
+    sel.removeAllRanges();
+    sel.addRange(range);
+    document.execCommand('insertText', false, hit.char);
   });
 
   // Slash-Commands: „/befehl …“ allein in einem Absatz, Enter setzt den Baustein wie im ➕-Menü ein –

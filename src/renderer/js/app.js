@@ -515,15 +515,18 @@ class App {
    * hängen am body und bleiben davon unberührt.
    */
   initZoom() {
-    const STEPS = [0.7, 0.8, 0.9, 1, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6];
+    // Inhalt bis 30 %: So passt ein ganzes A4-Blatt (Dokument-Editor) auch auf einen schmalen
+    // Bildschirm. Das Menü bleibt lesbar ab 70 %.
+    const STEPS_ALL = { sidebar: [0.7, 0.8, 0.9, 1, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6], content: [0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6] };
     const targets = { sidebar: document.getElementById('sidebar'), content: document.getElementById('mainContent') };
     const key = (which) => `lm_zoom_${which}`;
     const read = (which) => {
       let v = 1;
       try { v = parseFloat(localStorage.getItem(key(which))) || 1; } catch (_) {}
-      return STEPS.includes(v) ? v : 1;
+      return STEPS_ALL[which].includes(v) ? v : 1;
     };
     const apply = (which, v) => {
+      const STEPS = STEPS_ALL[which];
       const el = targets[which];
       if (el) el.style.zoom = v === 1 ? '' : String(v);
       const row = document.querySelector(`.zoom-row[data-zoom="${which}"]`);
@@ -540,6 +543,7 @@ class App {
       apply(which, read(which));
       const row = document.querySelector(`.zoom-row[data-zoom="${which}"]`);
       if (!row) continue;
+      const STEPS = STEPS_ALL[which];
       const step = (dir) => {
         const i = STEPS.indexOf(read(which));
         apply(which, STEPS[Math.min(STEPS.length - 1, Math.max(0, i + dir))]);
@@ -564,6 +568,7 @@ class App {
         if (Math.abs(acc) < 50) return;
         const dir = acc < 0 ? 1 : -1;
         acc = 0;
+        const STEPS = STEPS_ALL[which];
         const i = STEPS.indexOf(read(which));
         apply(which, STEPS[Math.min(STEPS.length - 1, Math.max(0, i + dir))]);
       }, { passive: false });

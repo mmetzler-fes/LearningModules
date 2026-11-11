@@ -15,8 +15,9 @@ Unten in der Seitenleiste stehen zwei Regler:
 - **Zoom Menü** – nur die Seitenleiste links,
 - **Zoom Inhalt** – alles rechts davon.
 
-Beide gehen in Stufen von 70 % bis 160 %. Ein Klick auf die Prozentzahl setzt
-auf 100 % zurück.
+Das Menü geht in Stufen von 70 % bis 160 %, der Inhalt von 30 % bis 160 % –
+so passt im Dokument-Editor auch auf einem schmalen Bildschirm die ganze
+Seitenbreite hinein. Ein Klick auf die Prozentzahl setzt auf 100 % zurück.
 
 **Strg + Mausrad** zoomt den Bereich, über dem der Mauszeiger steht: über der
 Seitenleiste das Menü, über dem Inhalt den Inhalt – in denselben Stufen, die

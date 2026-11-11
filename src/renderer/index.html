@@ -502,17 +502,23 @@
             </div>
             <button type="submit" form="moduleForm" class="btn btn-primary editor-header-save" data-i18n="module.save">Modul speichern</button>
           </div>
+          <!-- Dokument: Reiter mit Titel und Modultyp, darunter die Werkzeuge – füllt docspec-editor.js
+               (adoptModuleHeader), damit alles beim Scrollen oben bleibt. Sonst leer und verborgen. -->
+          <div class="editor-doc-rows" id="editorDocRows" hidden>
+            <div class="editor-doc-row editor-doc-tabs" id="editorDocTabsRow"></div>
+            <div class="editor-doc-row editor-doc-tools" id="editorDocToolsRow"></div>
+          </div>
         </div>
         <form id="moduleForm" class="module-form">
           <input type="hidden" id="moduleId" />
           <div class="module-header-row">
             <div class="module-header-field module-header-title">
               <label for="moduleTitle" data-i18n="module.title.label">Titel *</label>
-              <input type="text" id="moduleTitle" required data-i18n-placeholder="module.title.placeholder" placeholder="Titel des Lernmoduls eingeben..." />
+              <input type="text" id="moduleTitle" form="moduleForm" required data-i18n-placeholder="module.title.placeholder" placeholder="Titel des Lernmoduls eingeben..." />
             </div>
             <div class="module-header-field module-header-type">
               <label for="moduleType" data-i18n="module.type.label">H5P-Modultyp *</label>
-              <select id="moduleType" required>
+              <select id="moduleType" form="moduleForm" required>
                 <option value="" data-i18n="module.type.placeholder">— Modultyp wählen —</option>
               </select>
             </div>
@@ -562,8 +568,9 @@
             <div id="moduleInheritedTags" class="module-inherited-tags"></div>
             <div id="moduleTags" class="tag-picker-wrap"></div>
           </details>
-          <!-- Eingeklappt: Beschreibung -->
-          <details class="form-group module-desc-fold" id="moduleDescFold">
+          <!-- Beschreibung: in der Maske nicht mehr angeboten (wurde nicht genutzt); ein vorhandener
+               Text bleibt beim Speichern erhalten. -->
+          <details class="form-group module-desc-fold hidden" id="moduleDescFold">
             <summary><strong data-i18n="module.desc.label">Beschreibung</strong> <span id="moduleDescSummary" class="module-desc-summary hint"></span></summary>
             <div class="rich-text-editor" id="moduleDescEditorWrap">
               <div class="rich-text-toolbar" id="moduleDescToolbar">

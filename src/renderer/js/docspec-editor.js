@@ -105,6 +105,50 @@ function toYaml(value) {
   return yamlDump(value, { lineWidth: -1, noRefs: true });
 }
 
+// ---- Feste Kopfzeile des Modul-Editors (index.html, #editorDocRows) ----
+// Reiter, Titel, Modultyp, Tags und die Werkzeuge (✍️, Drucken, Lösungen, Formatvorlage) stehen
+// beim Dokument oben in der Kopfzeile und bleiben beim Scrollen stehen. Umgesetzt werden die
+// Elemente selbst (ihre Ereignisse bleiben); an ihrer alten Stelle bleibt ein Platzhalter, über
+// den releaseModuleHeader() sie zurückbringt – bei anderem Modultyp oder neuem Editor.
+let adopted = [];
+
+export function releaseModuleHeader() {
+  for (const { node, mark } of adopted.reverse()) {
+    if (mark.parentNode) mark.replaceWith(node); else node.remove();
+  }
+  adopted = [];
+  const rows = document.getElementById('editorDocRows');
+  if (rows) rows.hidden = true;
+}
+
+function adoptModuleHeader(root) {
+  releaseModuleHeader();
+  const rows = document.getElementById('editorDocRows');
+  const form = root.closest('#moduleForm');
+  if (!rows || !form) return;
+  const move = (node, place) => {
+    if (!node) return;
+    const mark = document.createComment('kopfzeile');
+    node.replaceWith(mark);
+    adopted.push({ node, mark });
+    place(node);
+  };
+  const tabsRow = document.getElementById('editorDocTabsRow');
+  const toolsRow = document.getElementById('editorDocToolsRow');
+  const tabs = root.querySelector('.ds-mode');
+  const bar = root.querySelector('.ds-preview-bar');
+  move(document.getElementById('moduleTagsFold'), (n) => rows.before(n));
+  move(tabs, (n) => tabsRow.append(n));
+  const importBtn = tabs?.querySelector('.ds-import-odt');
+  move(form.querySelector('.module-header-title'), (n) => (importBtn ? importBtn.before(n) : tabs.append(n)));
+  move(form.querySelector('.module-header-type'), (n) => (importBtn ? importBtn.before(n) : tabs.append(n)));
+  move(bar, (n) => toolsRow.append(n));
+  const pages = bar?.querySelector('.ds-preview-pages');
+  move(document.getElementById('moduleSolutionsToggle'), (n) => (pages ? pages.before(n) : bar.append(n)));
+  move(document.getElementById('moduleFormatWrap'), (n) => (pages ? pages.before(n) : bar.append(n)));
+  rows.hidden = false;
+}
+
 export function mountDocSpecEditor(parent, { name, label, value }) {
   const root = document.createElement('div');
   root.className = 'form-group ds-editor';
@@ -172,6 +216,8 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
     <input type="hidden" name="${escapeHtml(name)}">`;
   parent.appendChild(root);
 
+  // Die Reiter wandern in die Kopfzeile (adoptModuleHeader) – deshalb hier einmal festhalten.
+  const modeButtons = [...root.querySelectorAll('.ds-mode [data-mode]')];
   const textarea = root.querySelector('.ds-yaml');
   const preview = root.querySelector('.ds-preview');
   const errorsEl = root.querySelector('.ds-editor-errors');
@@ -719,10 +765,10 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
     // nur noch bei YAML/Markdown. Gilt für die klassische Fläche genauso wie für Tiptap.
     root.classList.toggle('ds-editor-onepane', mode === 'visual');
     selectWidget(null);
-    root.querySelectorAll('[data-mode]').forEach((b) => b.classList.toggle('active', b.dataset.mode === mode));
+    modeButtons.forEach((b) => b.classList.toggle('active', b.dataset.mode === mode));
     try { localStorage.setItem('lm_ds_mode', mode); } catch (_) { /* egal */ }
   };
-  root.querySelectorAll('[data-mode]').forEach((b) => b.addEventListener('click', () => setMode(b.dataset.mode)));
+  modeButtons.forEach((b) => b.addEventListener('click', () => setMode(b.dataset.mode)));
   // Markdown-Reiter: Tippen wirkt wie im YAML auf Vorschau und Stand.
   let mdTimer = null;
   // Aus Chats und Webseiten: Die Formatierung steckt im HTML, nicht im reinen Text.
@@ -1895,6 +1941,7 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
   }
   loadContext();
   mountInkActions();
+  adoptModuleHeader(root);
 
   /**
    * ✍️ Mit Stift bearbeiten und 🙈 Beschriftung: nur für mich – wie in der
@@ -1956,4 +2003,4 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
   }
 }
 
-window.DocSpecEditor = { mount: mountDocSpecEditor };
+window.DocSpecEditor = { mount: mountDocSpecEditor, release: releaseModuleHeader };

@@ -2198,6 +2198,19 @@ body.html-app-large .quiz-actions { margin-top: 8px; padding-top: 8px; flex-shri
 @media (max-width: 800px) {
   .editor-header { top: -20px; margin: -20px -20px 16px; padding: 20px 20px 10px; }
 }
+/* Dokument: Reiter, Titel, Modultyp und Werkzeuge in der festen Kopfzeile (docspec-editor.js, adoptModuleHeader). */
+.editor-header .module-tags-fold { margin: 8px 0 0; }
+.editor-header .module-tags-fold:not([open]) { margin-bottom: 0; }
+.editor-header .module-tags-fold[open] { max-height: 40vh; overflow: auto; }
+.editor-doc-rows { margin-top: 8px; }
+.editor-doc-row .ds-mode { flex-wrap: wrap; gap: 6px 10px; margin-bottom: 4px; }
+.editor-doc-row .ds-mode .module-header-title { flex: 2 1 240px; }
+.editor-doc-row .ds-mode .module-header-type { flex: 1 1 180px; }
+.editor-doc-row .ds-mode .module-header-field input, .editor-doc-row .ds-mode .module-header-field select { padding: 5px 9px; }
+.editor-doc-row .ds-mode .ds-import-odt { margin-left: 0; }
+.editor-doc-row .ds-preview-bar { position: static; margin-bottom: 0; padding: 0; background: none; }
+.editor-doc-row .ds-preview-bar .module-format-wrap { margin-left: 0; }
+.editor-doc-row .ds-preview-bar .module-solutions-toggle { padding: 4px 10px; }
 
 .h5p-container {
   background: var(--bg-secondary);

@@ -266,6 +266,8 @@ class ContentEditorManager {
    * Render the editor for a given H5P type with optional existing data.
    */
   render(typeId, existingData = {}) {
+    // Was der Dokument-Editor in die feste Kopfzeile geholt hat, kommt zurück in die Maske.
+    window.DocSpecEditor?.release?.();
     const typeDef = H5P_TYPES[typeId];
     if (!typeDef) {
       this.container.innerHTML = '';
@@ -2758,6 +2760,7 @@ class ContentEditorManager {
    * Clear the editor.
    */
   clear() {
+    window.DocSpecEditor?.release?.();
     if (this._dndKeyHandler) {
       document.removeEventListener('keydown', this._dndKeyHandler);
       this._dndKeyHandler = null;

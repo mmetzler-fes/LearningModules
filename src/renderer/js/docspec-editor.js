@@ -652,7 +652,6 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
     new ResizeObserver(place).observe(header);
   }
   const surface = root.querySelector('.ds-surface');
-  penSelects(surface); // iPad: der Stift markiert, statt Handschrift in Text zu verwandeln
   const blockSelect = root.querySelector('.ds-vblock');
   let mode = 'yaml';
   let pm = null;

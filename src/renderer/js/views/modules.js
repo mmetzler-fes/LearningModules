@@ -6,6 +6,7 @@ import { quizUsage, usageText } from '../quiz-usage.js';
 import { ModuleDescriptionEditor } from '../desc-editor.js';
 import { TagPicker } from './tags.js';
 import { openImportDialog } from './import-dialog.js';
+import { penSelects } from '../../lm-editor/src/util/dom.js';
 import { checkFormulaTask } from '../../lm-editor/src/modules/formula.js';
 import { sortingItems, memoryPairs, crosswordLetters, crosswordWords } from '../../lm-editor/src/modules/puzzles.js';
 
@@ -14,6 +15,10 @@ import { sortingItems, memoryPairs, crosswordLetters, crosswordWords } from '../
 export class ModulesView {
   constructor(app) {
     this.app = app;
+    // iPad: Beim Bearbeiten eines Moduls schreibt der Stift nie (Scribble) – er tippt an und
+    // markiert, in Titel, Feldern und im Dokument. Schreiben mit dem Stift gehört in die Stift-Ansicht.
+    const editView = document.getElementById('view-create-module');
+    if (editView) penSelects(editView);
 
     this._modulesList      = document.getElementById('modulesList');
     this._searchModules    = document.getElementById('searchModules');

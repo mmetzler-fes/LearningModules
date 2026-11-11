@@ -418,7 +418,8 @@ Schüler-App („LearningModules_Schüler“) mit dem Knopf oben oder über
 ### Klassenarbeit über das Klassennotizbuch
 
 Liegt ein Dokument der Art **Klassenarbeit** in einer Zuweisung, steht es in der Inhaltsübersicht als 🔒-Zeile mit
-drei Bedienelementen:
+**●/○** und einem **⋯**-Menü (auch Rechtsklick). **📝 Link & QR** und **🧪 Ausprobieren** stehen außerdem im ⋯-Menü des
+Lernthemas bzw. der Zuweisung und unter **📝 Klassenarbeiten**:
 
 - **●/○** – ob die Schüler dieser Klasse die Klassenarbeit sehen. Sie beginnt mit **○**: Die Schüler sehen sie nicht und
   kommen auch mit ihrem Link nicht hinein. Mit **●** erscheint sie bei ihnen, sobald ihr Link erzeugt und aktiv ist.

@@ -40,15 +40,15 @@ Seite kommen ebenfalls nicht mit.
 | OneNote | LearningModules |
 |---|---|
 | Notizbuch | Book |
-| Abschnittsgruppe (z. B. Inhaltsbibliothek) | Abschnitt, mit Untergruppen ein Bereich |
-| Abschnitt | Lernthema |
-| Seite mit Anlagen | Modul 📎 Anhang mit allen Dateien der Seite – mit „umwandeln“ je PDF ein 📄 Dokument |
-| Unterseite | Modul „Seite › Unterseite“ |
+| Abschnittsgruppe (z. B. Inhaltsbibliothek) | Bereich |
+| Abschnitt | Abschnitt |
+| Seite mit Anlagen | eigenes Lernthema mit einem Modul 📎 Anhang für alle Dateien der Seite – mit „umwandeln“ je PDF ein 📄 Dokument |
+| Unterseite | eigenes Lernthema „Seite › Unterseite“ |
 | Ausdruck mit Originaldatei | das Original-PDF |
 | Ausdruck ohne Original | PDF aus den Seitenbildern |
 | Seite ohne Anlage | wird übersprungen (gezählt) |
 
-Die Dateien landen in der Nextcloud im Ordner des Lernthemas – deshalb muss
+Die Reihenfolge der Seiten bleibt erhalten. Die Dateien landen in der Nextcloud im Ordner des Lernthemas – deshalb muss
 eine Nextcloud verbunden sein. „Nur für Lehrer“ ist einfach ein eigener
 Ordner im Book: Schüler sehen nur, was du über Links teilst.
 

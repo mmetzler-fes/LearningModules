@@ -9,8 +9,8 @@ import { pdfConvertOptions, convertAttachment } from './attachment-convert.js';
 // Ein exportiertes Notizbuch (.onepkg) oder einzelne Abschnitte (.one)
 // werden im Browser gelesen – auf den Server gehen nur die Anhänge und die
 // neuen Ordner, Lernthemen und Module. Aufbau: Notizbuch → Book,
-// Abschnittsgruppe → Bereich bzw. Abschnitt, OneNote-Abschnitt → Lernthema,
-// Seite mit Anlagen → Modul „Anhang“. Siehe docs/onenote-import.md.
+// Abschnittsgruppe → Bereich, OneNote-Abschnitt → Abschnitt, Seite mit
+// Anlagen → eigenes Lernthema mit einem Modul „Anhang“. Siehe docs/onenote-import.md.
 
 const MAX_BYTES = 50 * 1024 * 1024;
 const PROGRESS_KEY = 'lm_onenote_import:';
@@ -90,8 +90,8 @@ export function openOneNoteImport(app, { onDone } = {}) {
     <div class="import-modules-card onenote-card" role="dialog" aria-modal="true" aria-labelledby="oneNoteTitle">
       <h3 id="oneNoteTitle">🟪 OneNote übernehmen</h3>
       <p class="import-modules-hint">In <strong>OneNote für Windows</strong>: Datei → Exportieren → <em>Notizbuch</em> als
-        OneNote-Paket (.onepkg) oder <em>Abschnitt</em> (.one). Übernommen werden Seiten mit Anlagen – je Seite ein
-        Modul 📎 Anhang mit ihren PDFs und Dateien. Text und Freihand bleiben in OneNote.
+        OneNote-Paket (.onepkg) oder <em>Abschnitt</em> (.one). Wie in OneNote wird jeder Abschnitt ein Abschnitt und
+        jede Seite mit Anlagen ein eigenes Lernthema mit einem Modul 📎 Anhang für ihre PDFs und Dateien. Text und Freihand bleiben in OneNote.
         Bei einem Klassennotizbuch nur Inhaltsbibliothek und „Nur für Lehrer“.</p>
       <div class="import-dialog-file">
         <input type="file" accept=".onepkg,.one" multiple hidden>
@@ -243,7 +243,10 @@ export function openOneNoteImport(app, { onDone } = {}) {
  */
 async function run(app, source, wanted, key, convert, onProgress) {
   const api = app.api;
-  const state = loadProgress(key) || { bookId: null, nodes: {}, topics: {}, modules: {} };
+  // v2: je Seite ein Lernthema. Ein unterbrochener Lauf im alten Aufbau beginnt von vorn.
+  const saved = loadProgress(key);
+  const fresh = () => ({ v: 2, bookId: null, nodes: {}, sections: {}, topics: {}, modules: {} });
+  const state = saved?.v === 2 ? saved : fresh();
   const report = { topics: 0, modules: 0, files: 0, documents: 0, warnings: [] };
   const save = () => saveProgress(key, state);
   const check = (res, what) => {
@@ -258,43 +261,50 @@ async function run(app, source, wanted, key, convert, onProgress) {
   if (state.bookId) {
     const tree = await api.getNotebooks().catch(() => null);
     const nodes = tree?.nodes || [];
-    if (!nodes.some((n) => n.id === state.bookId)) Object.assign(state, { bookId: null, nodes: {}, topics: {}, modules: {} });
+    if (!nodes.some((n) => n.id === state.bookId)) Object.assign(state, fresh());
   }
   if (!state.bookId) {
     state.bookId = check(await api.createNotebookNode('book', source.title, null), 'Book anlegen').id;
     save();
   }
 
-  /** Ordner für eine Abschnittsgruppe: mit Untergruppen ein Bereich, sonst ein Abschnitt. */
+  /** Ordner für eine Abschnittsgruppe – immer ein Bereich, denn darin liegen die Abschnitte. */
   const nodeFor = async (path) => {
     if (!path) return state.bookId;
     if (state.nodes[path]) return state.nodes[path];
     const parentPath = path.split('/').slice(0, -1).join('/');
     const parentId = await nodeFor(parentPath);
     const group = findGroup(source.plan.root, path);
-    const kind = group && group.groups.length ? 'area' : 'section';
-    state.nodes[path] = check(await api.createNotebookNode(kind, group ? group.title : path, parentId), 'Ordner anlegen').id;
+    state.nodes[path] = check(await api.createNotebookNode('area', group ? group.title : path, parentId), 'Ordner anlegen').id;
     save();
     return state.nodes[path];
   };
 
+  // Wie in OneNote: Abschnitt → Abschnitt, jede Seite → ein eigenes Lernthema.
   for (const section of sections) {
     const groupPath = section.path.split('/').slice(0, -1).join('/');
-    const nodeId = await nodeFor(groupPath);
-    let topicId = state.topics[section.path];
-    if (!topicId) {
-      onProgress(done, total, `Lernthema „${section.title}“ …`);
-      topicId = check(await api.saveTopic({ title: section.title, description: 'Aus OneNote übernommen.' }), 'Lernthema anlegen').id;
-      check(await api.moveInNotebook('topic', topicId, nodeId, null), 'Lernthema einordnen');
-      state.topics[section.path] = topicId;
+    const parentId = await nodeFor(groupPath);
+    let sectionId = state.sections[section.path];
+    if (!sectionId) {
+      onProgress(done, total, `Abschnitt „${section.title}“ …`);
+      sectionId = check(await api.createNotebookNode('section', section.title, parentId), 'Abschnitt anlegen').id;
+      state.sections[section.path] = sectionId;
       save();
-      report.topics++;
     }
-    // Die Seiten dieses Abschnitts, die schon Module sind, kommen nicht doppelt.
+    // Die Seiten dieses Abschnitts, die schon übernommen sind, kommen nicht doppelt.
     const already = state.modules[section.path] || 0;
     for (const [i, mod] of section.modules.entries()) {
       if (i < already) { done++; continue; }
       onProgress(done, total, `${section.title}: ${mod.title}`);
+      const pageKey = `${section.path}#${i}`;
+      let topicId = state.topics[pageKey];
+      if (!topicId) {
+        topicId = check(await api.saveTopic({ title: mod.title, description: 'Aus OneNote übernommen.' }), 'Lernthema anlegen').id;
+        check(await api.moveInNotebook('topic', topicId, sectionId, null), 'Lernthema einordnen');
+        state.topics[pageKey] = topicId;
+        save();
+        report.topics++;
+      }
       const files = [];
       const upload = async (name, data, type) => {
         if (data.length > MAX_BYTES) { report.warnings.push(`${name} ist größer als 50 MB`); return; }

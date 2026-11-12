@@ -33,6 +33,8 @@ Teilplan hineinkommen.
 | Taste | Wirkung |
 |---|---|
 | Tab | Spalte wechseln |
+| Strg+↓ (oder ⤵ an der Zeile) | in den Ordner hineinwechseln – die Spalte zeigt nur noch seinen Inhalt, die Pfadzeile darüber zeigt, wo man steht |
+| Strg+↑ / ⌫ | eine Ebene heraus (oder ein Glied der Pfadzeile anklicken) |
 | ↑ ↓, Bild↑ Bild↓, Pos1 Ende | Cursor bewegen |
 | → ← oder Enter | auf- und zuklappen; ← springt zur Ebene darüber |
 | Leertaste / Einfg | markieren (Einfg geht danach eine Zeile weiter), Esc hebt alle Markierungen auf |

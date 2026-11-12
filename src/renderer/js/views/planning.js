@@ -13,6 +13,8 @@ const EXPAND_KEY = 'lm_plan_open';
 const RIGHT_KEY = 'lm_plan_right';
 const VIEW_KEY = 'lm_pl_view';
 const PREVIEW_KEY = 'lm_pl_preview';
+/** Hineingewechselt je Spalte (und rechts je Ansicht): { left: id, 'right:plans': id, … }. */
+const FOCUS_KEY = 'lm_pl_focus';
 const VIEWS = ['docs', 'quizzes', 'all'];
 const ICON = { book: '📕', area: '📂', section: '📑', folder: '📁', plan: '📋', include: '🧩', mirror: '🛒', unsorted: '📥' };
 
@@ -22,7 +24,7 @@ function bad(res) {
 
 /** Tasten der Fußleiste – zugleich die Kurzhilfe. */
 const KEYS = [
-  ['Tab', 'Spalte'], ['F2', 'Umbenennen'], ['F3', 'Plan ansehen'], ['F5', 'Verweis →'], ['F6', 'Verschieben'],
+  ['Tab', 'Spalte'], ['Strg+↓', 'Hinein'], ['Strg+↑ / ⌫', 'Heraus'], ['F2', 'Umbenennen'], ['F3', 'Plan ansehen'], ['F5', 'Verweis →'], ['F6', 'Verschieben'],
   ['F7', 'Neu'], ['⇧F7', 'Neuer Plan / Abschnitt'], ['F8', 'Entfernen'], ['Leertaste', 'Markieren'], ['Alt+↑↓', 'Reihenfolge'], ['Strg+F', 'Suchen'],
 ];
 
@@ -46,6 +48,7 @@ export class PlanningView {
     this.cursor = { left: 0, right: 0 };
     this.marked = { left: new Set(), right: new Set() };
     this.filter = { left: '', right: '' };
+    try { this.focusMap = JSON.parse(localStorage.getItem(FOCUS_KEY) || '{}') || {}; } catch (_) { this.focusMap = {}; }
     try { this.open = new Set(JSON.parse(localStorage.getItem(EXPAND_KEY) || '[]')); } catch (_) { this.open = new Set(); }
     try { this.previewOpen = localStorage.getItem(PREVIEW_KEY) !== '0'; } catch (_) { this.previewOpen = true; }
     this._topicModCache = new Map();
@@ -106,10 +109,12 @@ export class PlanningView {
       <div class="pl-panes ${this.previewOpen ? 'pl-with-preview' : ''}">
         <section class="pl-pane" data-pane="left" aria-label="Lernnotizbuch">
           <div class="pl-head"><span>📓 Lernnotizbuch</span><input type="search" class="pl-filter" data-pane="left" placeholder="Suchen… (Strg+F)" /></div>
+          <nav class="pl-crumbs" data-pane="left" aria-label="Pfad"></nav>
           <div class="pl-list" role="tree" tabindex="-1"></div>
         </section>
         <section class="pl-pane" data-pane="right" aria-label="Pläne">
           <div class="pl-head"><select class="pl-right-mode" title="Rechte Spalte: deine Pläne oder das Klassennotizbuch einer Klasse"></select><span class="pl-target"></span><input type="search" class="pl-filter" data-pane="right" placeholder="Suchen… (Strg+F)" /></div>
+          <nav class="pl-crumbs" data-pane="right" aria-label="Pfad"></nav>
           <div class="pl-list" role="tree" tabindex="-1"></div>
         </section>
         <aside class="pl-pane pl-preview-pane" data-pane="preview" aria-label="Vorschau"${this.previewOpen ? '' : ' hidden'}>
@@ -170,6 +175,78 @@ export class PlanningView {
     this.root.classList.toggle('pl-classmode', this.rightMode !== 'plans');
   }
 
+  // ---- Hineinwechseln ----
+
+  _scope(pane) {
+    return pane === 'left' ? 'left' : `right:${this.rightMode}`;
+  }
+
+  /** Knoten des Baums in dieser Spalte. */
+  _paneNodes(pane) {
+    if (pane === 'left' || this._nbMode()) return this.nb?.nodes || [];
+    if (this._classMode()) return this.cb?.nodes || [];
+    return this.plans?.nodes || [];
+  }
+
+  /** Der Knoten, in den die Spalte hineingewechselt ist – null, wenn sie alles zeigt (oder es ihn nicht mehr gibt). */
+  _focusOf(pane) {
+    const id = this.focusMap[this._scope(pane)];
+    if (!id) return null;
+    const n = this._paneNodes(pane).find((x) => x.id === id);
+    return n && n.kind !== 'include' ? id : null;
+  }
+
+  /** Pfad bis zum Knoten, von oben nach unten. */
+  _chain(pane, id) {
+    const byId = new Map(this._paneNodes(pane).map((n) => [n.id, n]));
+    const out = [];
+    const seen = new Set();
+    for (let n = byId.get(id); n && !seen.has(n.id); n = n.parentId ? byId.get(n.parentId) : null) { seen.add(n.id); out.unshift(n); }
+    return out;
+  }
+
+  /** Hinein-/herauswechseln; `cursorOn` = Knoten, auf dem der Cursor danach steht. */
+  _setFocus(pane, id, cursorOn = null) {
+    const scope = this._scope(pane);
+    if (id) this.focusMap[scope] = id; else delete this.focusMap[scope];
+    try { localStorage.setItem(FOCUS_KEY, JSON.stringify(this.focusMap)); } catch (_) { /* privat */ }
+    this.active = pane;
+    this.marked[pane].clear();
+    this.cursor[pane] = 0;
+    this._render();
+    if (cursorOn) {
+      const i = this.rows[pane].findIndex((r) => r.folder && r.id === cursorOn);
+      if (i >= 0) this._setCursor(pane, i);
+    }
+  }
+
+  _dive(pane, i) {
+    const r = this.rows[pane][i];
+    if (!r?.folder || !r.id || r.kind === 'unsorted') return;
+    this._setFocus(pane, r.id);
+  }
+
+  _focusUp(pane) {
+    const id = this._focusOf(pane);
+    if (!id) return;
+    const node = this._paneNodes(pane).find((n) => n.id === id);
+    this._setFocus(pane, node?.parentId || null, id);
+  }
+
+  _crumbsHtml(pane) {
+    const focus = this._focusOf(pane);
+    const chain = focus ? this._chain(pane, focus) : [];
+    const rootLabel = pane === 'left' || this._nbMode() ? '📓 Alle' : this._classMode() ? `📒 ${this.cb.className}` : '🗂 Alle Pläne';
+    const crumb = (id, label, last) => `<button type="button" class="nb-crumb" data-pl-crumb="${escapeAttr(id || '')}" data-pane="${pane}"${last ? ' aria-current="location"' : ''} title="${escapeAttr(last ? label : `Zu „${label}“`)}">${escapeHtml(label)}</button>`;
+    const parts = [
+      `<button type="button" class="nb-crumb nb-crumb-up" data-pl-up data-pane="${pane}" ${chain.length ? '' : 'disabled'} title="Eine Ebene heraus (Strg+↑ oder ⌫)" aria-label="Eine Ebene heraus">⤴</button>`,
+      crumb(null, rootLabel, !chain.length),
+      ...chain.map((n, i) => `<span class="nb-crumb-sep">›</span>${crumb(n.id, `${ICON[n.kind] || '📁'} ${n.title}`, i === chain.length - 1)}`),
+    ];
+    if (chain.length && this.filter[pane]) parts.push('<span class="nb-crumb-hint">Suche nur hier</span>');
+    return parts.join('');
+  }
+
   // ---- Bäume als Zeilen ----
 
   _topicTitle(id) {
@@ -221,7 +298,7 @@ export class PlanningView {
     const row = this.rows.right[this.cursor.right];
     const nodes = this.plans?.nodes || [];
     const byId = new Map(nodes.map((n) => [n.id, n]));
-    let cur = row ? byId.get(row.kind === 'entry' ? row.nodeId : row.id) : null;
+    let cur = byId.get(row ? (row.kind === 'entry' ? row.nodeId : row.id) : this._focusOf('right'));
     while (cur && cur.kind !== 'plan') cur = cur.parentId ? byId.get(cur.parentId) : null;
     if (!cur) return { plan: null, direct: new Set(), via: new Set() };
     const below = (rootId) => {
@@ -297,6 +374,13 @@ export class PlanningView {
         if (isOpen) { walk(node.id, depth + 1); topicRows(node.id, depth + 1); }
       }
     };
+    const focus = this._focusOf(pane);
+    if (focus) {
+      // Hineingewechselt: nur der Inhalt dieses Knotens, ohne „Unsortiert“.
+      walk(focus, 0);
+      topicRows(focus, 0);
+      return rows;
+    }
     walk(null, 0);
     const unsorted = places.filter((p) => !p.nodeId && topicInView(p.topicId));
     if (unsorted.length || (this._nbMode() && this.view !== 'quizzes')) {
@@ -358,7 +442,7 @@ export class PlanningView {
           on: (l.available || []).some((a) => a.enabled), own: !!l.classTopicId });
       }
     };
-    walk(null, 0);
+    walk(this._focusOf('right'), 0);
     return rows;
   }
 
@@ -406,7 +490,7 @@ export class PlanningView {
         }
       }
     };
-    walk(null, 0);
+    walk(this._focusOf('right'), 0);
     return rows;
   }
 
@@ -449,6 +533,7 @@ export class PlanningView {
       if (cls?.length) extra += `<span class="pl-note pl-classes" title="Diese Klassennotizbücher folgen dem Plan">📒 ${escapeHtml(cls.map((c) => c.name).join(', '))}</span>`;
       if (r.grows) extra += '<span class="pl-note" title="Aus dem Notizbuch übernommen: Neues dort kommt hier dazu">🌱</span>';
     }
+    if (r.folder && r.id && r.kind !== 'unsorted') extra += '<span class="pl-dive" title="Hineinwechseln (Strg+↓)">⤵</span>';
     const cls = ['pl-row', `pl-${r.kind}`];
     if (i === this.cursor[pane]) cls.push('cur');
     if (this.marked[pane].has(r.key)) cls.push('mark');
@@ -483,6 +568,8 @@ export class PlanningView {
         ? '<p class="pl-empty">Noch keine Quizze. Unter <strong>Alles</strong> stehen die Lernthemen mit Dokumenten.</p>'
         : '<p class="pl-empty">Nichts gefunden.</p>';
       list.innerHTML = rows.length ? rows.map((r, i) => this._rowHtml(r, i, pane, plan)).join('') : empty;
+      const crumbs = box.querySelector('.pl-crumbs');
+      if (crumbs) crumbs.innerHTML = this._crumbsHtml(pane);
       const cur = list.querySelector('.pl-row.cur');
       if (cur && this.active === pane) cur.scrollIntoView({ block: 'nearest' });
     }
@@ -737,14 +824,17 @@ export class PlanningView {
     if (this._classMode()) {
       const root = { id: null, kind: 'root', title: `📒 ${this.cb.className} (oben)` };
       const row = this.rows.right[this.cursor.right];
-      if (!row) return root;
+      if (!row) {
+        const n = (this.cb.nodes || []).find((x) => x.id === this._focusOf('right'));
+        return n ? { id: n.id, kind: n.kind, title: n.title, parentId: n.parentId ?? null } : root;
+      }
       const id = row.kind === 'link' ? row.nodeId : row.id;
       const n = (this.cb.nodes || []).find((x) => x.id === id);
       return n ? { id: n.id, kind: n.kind, title: n.title, parentId: n.parentId ?? null } : root;
     }
     const row = this.rows.right[this.cursor.right];
-    if (!row) return null;
     const nodes = this.plans?.nodes || [];
+    if (!row) return nodes.find((n) => n.id === this._focusOf('right')) || null;
     const id = row.kind === 'entry' ? row.nodeId : row.kind === 'include' ? row.parentId : row.id;
     return nodes.find((n) => n.id === id) || null;
   }
@@ -797,7 +887,21 @@ export class PlanningView {
       void (a === 'include' ? this._includePicker() : a === 'classes' ? this._assignClasses() : this._viewPlan());
       return;
     }
+    const up = e.target.closest('[data-pl-up]');
+    if (up) { this._focusUp(up.dataset.pane); return; }
+    const crumb = e.target.closest('[data-pl-crumb]');
+    if (crumb) {
+      const pane = crumb.dataset.pane;
+      const from = this._focusOf(pane);
+      const to = crumb.dataset.plCrumb || null;
+      if (to === from) { this.active = pane; this._paint(); return; }
+      // Der Cursor landet auf dem Ordner, aus dem man kommt.
+      const below = from ? this._chain(pane, from).find((n, k, arr) => (arr[k - 1]?.id ?? null) === to) : null;
+      this._setFocus(pane, to, below?.id || null);
+      return;
+    }
     const row = e.target.closest('.pl-row');
+    if (row && e.target.closest('.pl-dive')) { this._dive(row.dataset.pane, Number(row.dataset.i)); return; }
     if (row) {
       const pane = row.dataset.pane;
       const i = Number(row.dataset.i);
@@ -835,6 +939,8 @@ export class PlanningView {
     const handled = () => { e.preventDefault(); e.stopPropagation(); };
     if (key === 'Tab') { handled(); this.active = pane === 'left' ? 'right' : 'left'; this._paint(); return; }
     if ((e.ctrlKey || e.metaKey) && key.toLowerCase() === 'f') { handled(); this.root.querySelector(`.pl-filter[data-pane="${pane}"]`)?.focus(); return; }
+    if ((e.ctrlKey || e.metaKey) && !e.altKey && key === 'ArrowDown') { handled(); this._dive(pane, i); return; }
+    if (((e.ctrlKey || e.metaKey) && !e.altKey && key === 'ArrowUp') || (key === 'Backspace' && !e.ctrlKey && !e.altKey)) { handled(); this._focusUp(pane); return; }
     if (this._nbMode()) {
       // Beide Spalten zeigen das Lernnotizbuch: F5 kopiert, F6 verschiebt in die andere Spalte.
       if (e.altKey && (key === 'ArrowUp' || key === 'ArrowDown')) { handled(); void this._nbNudge(key === 'ArrowUp' ? -1 : 1); return; }
@@ -1268,7 +1374,12 @@ export class PlanningView {
   }
 
   _nbTarget(pane) {
-    return this._nbTargetOf(this.rows[pane][this.cursor[pane]]);
+    const row = this.rows[pane][this.cursor[pane]];
+    if (!row) {
+      const n = (this.nb?.nodes || []).find((x) => x.id === this._focusOf(pane));
+      if (n) return { id: n.id, kind: n.kind, title: n.title, parentId: n.parentId ?? null };
+    }
+    return this._nbTargetOf(row);
   }
 
   /** Markiertes der aktiven Spalte als `{ type: 'topic'|'node', id, title, kind }`. */
@@ -1396,6 +1507,9 @@ export class PlanningView {
         ['', '📒 Klassen zuweisen …', () => this._assignClasses()],
         ['F5', '🧩 Teilplan einbinden / Plan kopieren', () => this._includePicker()], ['F6', '↔️ Verschieben nach …', () => this._movePicker()],
         ['F7', '➕ Neu', () => this._create(this._newKind(false))], ['F8', '🗑 Entfernen', () => this._remove()]];
+    const cur = this.rows[pane][this.cursor[pane]];
+    if (cur?.folder && cur.id && cur.kind !== 'unsorted') items.unshift(['Strg+↓', '⤵ Hineinwechseln', () => this._dive(pane, this.cursor[pane])]);
+    if (this._focusOf(pane)) items.unshift(['Strg+↑', '⤴ Eine Ebene heraus', () => this._focusUp(pane)]);
     document.querySelector('.pl-menu')?.remove();
     const menu = document.createElement('div');
     menu.className = 'pl-menu';

@@ -5502,6 +5502,25 @@ details[open] > summary > .cb-twisty::before { content: '▾'; }
   white-space: nowrap;
 }
 .nb-row:hover { background: var(--accent-light); }
+/* Hineinwechseln: Pfadzeile über dem Baum, ⤵ an jedem Ordner (notebooks.js, planning.js) */
+.nb-crumbs, .pl-crumbs { display: flex; align-items: center; flex-wrap: wrap; gap: 2px 4px; font-size: 0.9rem; }
+.nb-crumbs { position: sticky; top: 0; z-index: 4; margin: 0 0 6px; padding: 4px 8px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--bg-secondary); }
+.pl-crumbs { padding: 3px 8px; border-bottom: 1px solid var(--border); background: var(--bg-primary); }
+.nb-crumb { background: none; border: 1px solid transparent; border-radius: var(--radius-sm); padding: 2px 6px; font: inherit; color: var(--accent); cursor: pointer; max-width: 22em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nb-crumb:hover { background: var(--accent-light); }
+.nb-crumb[aria-current="location"] { color: var(--text-primary); font-weight: 600; cursor: default; }
+.nb-crumb.nb-drop-into { border-color: var(--accent); background: var(--accent-light); }
+.nb-crumb-sep { color: var(--text-secondary); }
+.nb-crumb-up { font-weight: 700; color: var(--text-secondary); border-color: var(--border); margin-right: 4px; }
+.nb-crumb-up:disabled { opacity: 0.4; cursor: default; }
+.nb-crumb-hint { margin-left: auto; color: var(--text-secondary); font-size: 0.82rem; }
+.nb-dive { background: none; border: none; cursor: pointer; color: var(--text-secondary); font: inherit; padding: 4px 6px; border-radius: var(--radius-sm); opacity: 0.35; }
+.nb-row:hover .nb-dive, .nb-dive:focus-visible { opacity: 1; }
+.nb-dive:hover { background: var(--border); color: var(--text-primary); }
+.pl-dive { flex: none; margin-left: auto; padding: 0 6px; color: var(--text-secondary); cursor: pointer; opacity: 0.35; }
+.pl-row:hover .pl-dive, .pl-row.cur .pl-dive { opacity: 1; }
+.pl-pane.active .pl-row.cur .pl-dive { color: #fff; }
+@media (hover: none) { .nb-dive, .pl-dive { opacity: 1; } }
 .nb-twisty, .nb-menu-btn, .nb-status, .nb-edit {
   background: none;
   border: none;

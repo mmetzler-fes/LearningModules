@@ -39,6 +39,8 @@ function canHoldNode(parentKind, kind) {
 
 const OPEN_KEY = 'lm_nb_open';
 
+/** Hineingewechselt: Nur dieser Book/Bereich/Abschnitt steht im Baum (je Gerät gemerkt). */
+const FOCUS_KEY = 'lm_nb_focus';
 function loadOpen() {
   try { return new Set(JSON.parse(localStorage.getItem(OPEN_KEY) || '[]')); } catch (_) { return new Set(); }
 }
@@ -65,6 +67,8 @@ export class NotebooksView {
     this._data = null;
     this._open = loadOpen();
     this._drag = null;
+    try { this._focus = localStorage.getItem(FOCUS_KEY) || null; } catch (_) { this._focus = null; }
+    this._crumbs = document.getElementById('nbCrumbs');
     // Mehrfachauswahl: Schlüssel ('m:<id>' bzw. 't:<id>') → { type, id, topicId }.
     // Immer nur eine Sorte; `_selMode` zeigt Kästchen (auch ohne Strg).
     this._sel = new Map();
@@ -134,6 +138,16 @@ export class NotebooksView {
     // Kontextmenü schließen: Klick daneben, Escape, Scrollen.
     document.addEventListener('click', (e) => { if (!e.target.closest('.nb-menu')) this._closeMenu(); });
     document.addEventListener('keydown', (e) => {
+    // Strg+↑ oder ⌫: eine Ebene heraus (nicht beim Tippen).
+    document.addEventListener('keydown', (e) => {
+      if (!this._focus || !document.getElementById('view-teacher-notebooks')?.classList.contains('active')) return;
+      if (!((e.key === 'ArrowUp' && (e.ctrlKey || e.metaKey)) || (e.key === 'Backspace' && !e.ctrlKey && !e.altKey))) return;
+      const t = e.target;
+      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return;
+      if (document.querySelector('.confirm-overlay:not(.hidden)')) return;
+      e.preventDefault();
+      this._focusUp();
+    });
       if (e.key !== 'Escape') return;
       if (!this._menu && this._sel.size && !document.querySelector('.confirm-overlay:not(.hidden)')) this._clearSel();
       this._closeMenu();
@@ -318,6 +332,78 @@ export class NotebooksView {
   }
 
   // ---------- Zeichnen ----------
+  // ---------- Hineinwechseln ----------
+
+  /** Nur noch diesen Knoten (null = alles) zeigen; er ist aufgeklappt. */
+  _setFocusQuiet(id) {
+    this._focus = id;
+    try { localStorage.removeItem(FOCUS_KEY); } catch (_) { /* privat */ }
+  }
+
+  _setFocus(id) {
+    this._focus = id || null;
+    try {
+      if (this._focus) localStorage.setItem(FOCUS_KEY, this._focus); else localStorage.removeItem(FOCUS_KEY);
+    } catch (_) { /* privat */ }
+    this._render();
+    this._tree.scrollTop = 0;
+  }
+
+  _focusUp() {
+    if (this._focus) this._setFocus(this._nodes.get(this._focus)?.parentId || null);
+  }
+
+  /** Feste Pfadzeile über dem Baum: ⤴ · 📓 Alle › Book › Bereich – jedes Glied springt dorthin und nimmt Gezogenes auf. */
+  _renderCrumbs() {
+    const box = this._crumbs;
+    if (!box) return;
+    box.innerHTML = '';
+    const chain = [];
+    for (let n = this._nodes.get(this._focus); n; n = this._nodes.get(n.parentId)) chain.unshift(n);
+    const btn = (cls, html, title) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = `nb-crumb ${cls}`;
+      b.innerHTML = html;
+      b.title = title;
+      box.appendChild(b);
+      return b;
+    };
+    const up = btn('nb-crumb-up', '⤴', chain.length ? 'Eine Ebene heraus (Strg+↑ oder ⌫)' : 'Ganz oben');
+    up.setAttribute('aria-label', 'Eine Ebene heraus');
+    up.disabled = !chain.length;
+    up.addEventListener('click', () => this._focusUp());
+    const root = btn('', '📓 Alle', 'Alle Books zeigen – hierher ziehen legt Lernthemen unter „Unsortiert“');
+    if (!chain.length) root.setAttribute('aria-current', 'location');
+    root.addEventListener('click', () => { if (this._focus) this._setFocus(null); });
+    this._bindDrop(root, { type: 'node', id: null, kind: null }, { into: true });
+    chain.forEach((n, i) => {
+      const sep = document.createElement('span');
+      sep.className = 'nb-crumb-sep';
+      sep.textContent = '›';
+      box.appendChild(sep);
+      const last = i === chain.length - 1;
+      const c = btn('', `${KIND[n.kind].icon} ${escapeHtml(n.title)}`, last ? n.title : `Zu „${n.title}“ – hierher ziehen legt es hinein`);
+      if (last) c.setAttribute('aria-current', 'location');
+      else c.addEventListener('click', () => this._setFocus(n.id));
+      this._bindDrop(c, { type: 'node', id: n.id, kind: n.kind }, { into: true });
+      if (last) {
+        // Das Menü des Ordners, in dem man steht (Neuer Bereich, Lernthema, …).
+        const menu = btn('nb-menu-btn', '⋯', `Aktionen für „${n.title}“`);
+        menu.setAttribute('aria-label', 'Aktionen');
+        const open = (x, y) => this._openMenu(this._nodeMenu(n), x, y);
+        menu.addEventListener('click', (e) => { e.stopPropagation(); const r = menu.getBoundingClientRect(); open(r.left, r.bottom); });
+        c.addEventListener('contextmenu', (e) => { e.preventDefault(); e.stopPropagation(); open(e.clientX, e.clientY); });
+      }
+    });
+    if (chain.length && this._query) {
+      const hint = document.createElement('span');
+      hint.className = 'nb-crumb-hint';
+      hint.textContent = 'Suche nur hier – 📓 Alle sucht überall';
+      box.appendChild(hint);
+    }
+  }
+
 
   _render() {
     if (!this._data) return;
@@ -332,16 +418,36 @@ export class NotebooksView {
     });
 
     const frag = document.createDocumentFragment();
-    const unsorted = this._topicsIn(null);
-    if (unsorted.length) frag.appendChild(this._renderUnsorted(unsorted));
-    for (const book of this._nodesIn(null)) {
-      const el = this._renderNode(book, 0);
-      if (el) frag.appendChild(el);
+    if (this._focus && !this._nodes.has(this._focus)) this._setFocusQuiet(null);
+    this._renderCrumbs();
+
+    if (this._focus) {
+      // Hineingewechselt: der Inhalt dieses Knotens auf oberster Ebene.
+      for (const kid of this._nodesIn(this._focus)) {
+        const el = this._renderNode(kid, 0);
+        if (el) frag.appendChild(el);
+      }
+      for (const t of this._topicsIn(this._focus)) {
+        if (query && !this._topicHasMatch(t)) continue;
+        if (!this._topicInView(t)) continue;
+        frag.appendChild(this._renderTopic(t, 0));
+      }
+    } else {
+      const unsorted = this._topicsIn(null);
+      if (unsorted.length) frag.appendChild(this._renderUnsorted(unsorted));
+      for (const book of this._nodesIn(null)) {
+        const el = this._renderNode(book, 0);
+        if (el) frag.appendChild(el);
+      }
     }
     this._tree.appendChild(frag);
     this._syncSel();
 
-    if (!this._tree.children.length) {
+    if (!this._tree.children.length && this._focus) {
+      this._tree.innerHTML = query
+        ? '<div class="empty-state"><p>Hier nichts gefunden. Unter <strong>📓 Alle</strong> sucht es überall.</p></div>'
+        : '<div class="empty-state"><p>Noch leer. Mit <strong>⋯</strong> in der Pfadzeile etwas anlegen, mit <strong>⤴</strong> zurück.</p></div>';
+    } else if (!this._tree.children.length) {
       this._tree.innerHTML = query
         ? '<div class="empty-state"><p>Nichts gefunden.</p></div>'
         : this._view === 'quizzes' && this._data.topics.length
@@ -478,10 +584,13 @@ export class NotebooksView {
     const wrap = document.createElement('div');
     const row = this._row({
       key, depth, icon: KIND[node.kind].icon, title: node.title, open, num: this._data.nodeNumbers?.[node.id] || '',
-      cls: `nb-node nb-kind-${node.kind}`, meta: parts.join(' · '), extra: this._chips(node.tagIds) + this._docBadge(node),
+      cls: `nb-node nb-kind-${node.kind}`, meta: parts.join(' · '),
+      extra: this._chips(node.tagIds) + this._docBadge(node)
+        + `<button type="button" class="nb-dive" title="Hineinwechseln – nur „${escapeAttr(node.title)}“ zeigen" aria-label="Hineinwechseln">⤵</button>`,
       drag: { type: 'node', id: node.id, kind: node.kind },
     });
     row.querySelector('.nb-title').addEventListener('click', () => { if (this._preview.open) this._preview.showNode(node); });
+    row.querySelector('.nb-dive').addEventListener('click', (e) => { e.stopPropagation(); this._setFocus(node.id); });
     this._menuOn(row, () => this._nodeMenu(node));
     this._bindDrop(row, { type: 'node', id: node.id, kind: node.kind });
     // Bereiche und Abschnitte lassen sich mit auswählen (mehrere auf einmal verschieben); ein Book steht immer oben.
@@ -868,6 +977,7 @@ export class NotebooksView {
   _nodeMenu(node) {
     const items = [];
     if (node.kind !== 'section') items.push({ label: '➕ Neuer Bereich', run: () => this._createNode('area', node.id) });
+    if (this._focus !== node.id) items.push({ label: '⤵ Hineinwechseln', title: 'Nur diesen Teil zeigen – die Pfadzeile oben führt zurück', run: () => this._setFocus(node.id) }, '-');
     if (node.kind !== 'section') items.push({ label: '➕ Neuer Abschnitt', run: () => this._createNode('section', node.id) });
     items.push({ label: '➕ Neues Lernthema', run: () => this._createTopic(node.id) });
     items.push('-');
@@ -1956,7 +2066,7 @@ export class NotebooksView {
     }
     row.addEventListener('click', (e) => {
       if (!(e.ctrlKey || e.metaKey || e.shiftKey || this._selMode)) return;
-      if (e.target.closest('.nb-menu-btn, .nb-status, .nb-edit, .nb-twisty')) return;
+      if (e.target.closest('.nb-menu-btn, .nb-status, .nb-edit, .nb-twisty, .nb-dive')) return;
       // Auf der Checkbox selbst nicht verhindern: Sonst setzt der Browser den
       // Haken nach dem Klick zurück, und er stünde an der falschen Zeile.
       if (!e.target.classList.contains('nb-select')) e.preventDefault();
@@ -2275,7 +2385,7 @@ export class NotebooksView {
     return null;
   }
 
-  _bindDrop(row, target) {
+  _bindDrop(row, target, { into = false } = {}) {
     const zoneOf = (e) => {
       const r = row.getBoundingClientRect();
       return e.clientY - r.top < r.height / 3 ? 'top' : 'middle';
@@ -2287,6 +2397,7 @@ export class NotebooksView {
       e.dataTransfer.dropEffect = 'move';
       row.classList.toggle('nb-drop-into', plan.mode === 'into');
       row.classList.toggle('nb-drop-before', plan.mode === 'before');
+      if (into) return 'middle';
     });
     row.addEventListener('dragleave', () => row.classList.remove('nb-drop-into', 'nb-drop-before'));
     row.addEventListener('drop', async (e) => {

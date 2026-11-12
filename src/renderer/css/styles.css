@@ -2754,6 +2754,13 @@ body.html-app-large .quiz-actions { margin-top: 8px; padding-top: 8px; flex-shri
   padding-top: 12px;
   border-top: 1px solid var(--border);
 }
+/* Wahr/Falsch: Nummern statt eigenem Weiter */
+.tf-dots { display: flex; flex-wrap: wrap; gap: 6px; }
+.tf-dot { min-width: 30px; height: 30px; padding: 0 6px; border: 1px solid var(--border); border-radius: 999px; background: var(--bg-secondary); color: var(--text-secondary); font: inherit; font-size: 0.85rem; cursor: pointer; }
+.tf-dot.tf-dot-done { color: var(--text-primary); border-color: var(--text-secondary); }
+.tf-dot.tf-dot-right { border-color: #22c55e; color: #15803d; }
+.tf-dot.tf-dot-wrong { border-color: #ef4444; color: #b91c1c; }
+.tf-dot.tf-dot-current { background: var(--accent); border-color: var(--accent); color: #fff; }
 /* Klassenarbeit: alle Wahr/Falsch-Fragen untereinander */
 .tf-list { list-style: decimal; margin: 0; padding-left: 1.6em; }
 .tf-row { padding: 12px 0; border-bottom: 1px solid var(--border); }

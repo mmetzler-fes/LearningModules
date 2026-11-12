@@ -3,7 +3,8 @@
 Ein OneNote-Notizbuch lässt sich in einem Schritt nach LearningModules holen –
 gedacht für die **Aufgabenblätter**: PDFs, die als Anlage oder Ausdruck auf
 den Seiten liegen, und andere angehängte Dateien. Text, Freihand und das
-Layout der Seiten bleiben in OneNote.
+Layout der Seiten bleiben in OneNote. Den umgekehrten Weg – Lernthemen als
+OneNote-Abschnitte für Kollegen – beschreibt [Für OneNote ausgeben](onenote-export.md).
 
 ## Exportieren (in OneNote für Windows)
 

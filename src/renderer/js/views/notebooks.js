@@ -1022,6 +1022,7 @@ export class NotebooksView {
       items.push({ label: '📓 Dokumente als OneNote-Seite', title: 'Gliederung der Dokumente mit Klassenlink und QR-Code in die Zwischenablage', run: () => this._oneNoteDocs(node) });
       items.push({ label: '🤖 KI-Lernmodul aus den Dokumenten…', title: 'Der Text der Dokumente darunter kommt als Material in den Prompt', run: () => this.app.aiPromptView.openFor({ nodeId: node.id, label: node.title, material: `n:${node.id}` }) });
     }
+    items.push({ label: '🟪 Für OneNote ausgeben…', title: 'Als OneNote-Abschnitte (.one) für Kollegen mit OneNote: je Dokument eine Seite mit Link, QR-Code und Ausdruck (anonyme Quick-Links)', run: () => this._oneNoteExport({ nodeId: node.id }) });
     items.push('-');
     items.push({ label: '🗑 Löschen', danger: true, run: () => this._deleteNode(node) });
     return items;
@@ -1316,6 +1317,11 @@ export class NotebooksView {
     return out;
   }
 
+  async _oneNoteExport(target) {
+    const { openOneNoteExport } = await import('./onenote-export.js');
+    await openOneNoteExport(this.app, target);
+  }
+
   async _exportCourse(node) {
     const res = await this.app.api.exportCourse(node.id);
     if (!res.success) { this.app.showToast('Fehler: ' + (res.error || 'Export fehlgeschlagen'), 'error'); return; }
@@ -1341,6 +1347,7 @@ export class NotebooksView {
       { label: '🛒 Teilen', title: 'Im Shop anbieten oder weitergeben', run: () => this.app.shopView.openForTopic(topic.id) },
       { label: '🧩 Module auswählen und anbieten…', run: () => this._offerSelection({ topicId: topic.id }) },
       { label: '⬇️ Download', title: 'JSON, Moodle-XML, H5P oder verschlüsselt', run: () => this.app.topicsView.openExportDialog(topic) },
+      { label: '🟪 Für OneNote ausgeben…', title: 'Als OneNote-Abschnitt (.one): je Dokument eine Seite mit Link, QR-Code und Ausdruck (anonymer Quick-Link)', run: () => this._oneNoteExport({ topicId: topic.id }) },
       '-',
       { label: '➕ Neues Modul', run: () => this.app.modulesView.openFrom('teacher-notebooks', topic.id, null) },
       { label: '📥 Module importieren', title: 'Datei oder eingefügter Text (z. B. KI-Antwort) als Module in dieses Thema', run: () => this._import(null, topic) },

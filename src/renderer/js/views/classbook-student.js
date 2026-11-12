@@ -156,6 +156,13 @@ export class ClassbookStudent {
       }));
       history.replaceState(null, '', location.pathname + location.search);
     }
+    // Direkt zu einem Modul (z. B. aus einer OneNote-Seite): `&cl=<Zuweisung>&mod=<Modul>` –
+    // geöffnet wird es nach der Anmeldung, wie ein von der Lehrkraft geschicktes Modul.
+    const params = new URLSearchParams(location.search);
+    if (params.get('cl') && params.get('mod')) {
+      sessionSet(OPEN_KEY, JSON.stringify({ token, linkId: params.get('cl'), moduleId: params.get('mod') }));
+      history.replaceState(null, '', `${location.pathname}?k=${encodeURIComponent(token)}${location.hash}`);
+    }
     const inPreview = previewSession()?.token === token;
     if (inPreview) this.app.authStore.suspend();
     this._show('<p class="hint">Klassennotizbuch wird geladen…</p>');

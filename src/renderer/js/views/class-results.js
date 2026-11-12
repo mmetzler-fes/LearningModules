@@ -1056,6 +1056,7 @@ export class ClassResultsView {
             : '<button type="button" class="btn btn-secondary btn-sm" data-arrange title="Einträge an ihren Platz wie im Notizbuch verschieben und sortieren. Inhalte, Links und An/Aus bleiben.">🌳 Wie im Notizbuch ordnen</button>'}
           <button type="button" class="btn btn-secondary btn-sm" data-preview title="Das Klassennotizbuch aus Schülersicht in einem neuen Tab: Quizze und Dokumente ausprobieren, Ergebnisse erscheinen hier als 🧪">👁 Vorschau</button>
           <button type="button" class="btn btn-secondary btn-sm" data-preview-reset title="Ergebnisse, Blätter und Stand der Vorschau in dieser Klasse löschen">🧹 Vorschau zurücksetzen</button>
+          <button type="button" class="btn btn-secondary btn-sm" data-onenote-export title="Als OneNote-Abschnitte (.one): je Dokument eine Seite mit Link ins Klassennotizbuch, QR-Code und Ausdruck – ohne Klassenarbeiten">🟪 Für OneNote</button>
           <button type="button" class="btn btn-secondary btn-sm" data-mark-root title="Schüler springen zum ersten Modul im ganzen Klassennotizbuch – „Weiter“ führt durch alle weiteren">📍 Ganz vorn</button>
           ${cb.studentHidden ? '' : '<button type="button" class="btn btn-secondary btn-sm" data-veil-book="1" title="Schüler sehen das Klassennotizbuch vorübergehend nicht (außer Klassenarbeit und Quiz-Arena) – die Module bleiben ein- bzw. ausgeschaltet">🙈 Für Schüler ausblenden</button>'}
         </div>
@@ -1080,6 +1081,10 @@ export class ClassResultsView {
       out.querySelector('[data-arrange]')?.addEventListener('click', () => this._arrange());
       out.querySelector('[data-preview]')?.addEventListener('click', () => this._openPreview());
       out.querySelector('[data-preview-reset]')?.addEventListener('click', () => this._resetPreview());
+      out.querySelector('[data-onenote-export]')?.addEventListener('click', async () => {
+        const { openClassbookOneNoteExport } = await import('./onenote-export.js');
+        await openClassbookOneNoteExport(this.app, this._classId);
+      });
       out.querySelector('[data-mark-root]')?.addEventListener('click', () => this._setMarker({ level: 'root' }));
       out.querySelectorAll('[data-node-menu]').forEach((btn) => btn.addEventListener('click', (e) => {
         e.preventDefault();

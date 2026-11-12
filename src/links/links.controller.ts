@@ -3,6 +3,7 @@ import { LinksService } from './links.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { TimingsService } from '../timings/timings.service';
 import { docChanged } from '../core/events/doc-changes';
+import { baseUrl, renderQr } from '../core/share/link-url';
 
 /**
  * Themen-Links: benannte Zugänge für Schüler, die Themen/Module bündeln und
@@ -58,6 +59,19 @@ export class LinksController {
    * Quick-Link eines Lernthemas bzw. Notebook-Knotens: `{ exists:false }`,
    * solange keiner erstellt (oder er zurückgezogen) ist.
    */
+  /**
+   * QR-Codes (SVG) für Schüler-Adressen dieses Servers, z. B. für die
+   * OneNote-Ausgabe: `{ urls }` → `{ svgs }` in derselben Reihenfolge.
+   */
+  @Post('qr')
+  async qrCodes(@Body() body: { urls?: unknown }, @Request() req: any) {
+    const base = baseUrl(req);
+    const urls = (Array.isArray(body?.urls) ? body.urls : []).slice(0, 300).map((u) => String(u || '').slice(0, 600));
+    const svgs = [];
+    for (const url of urls) svgs.push(url.startsWith(`${base}/`) ? await renderQr(url) : null);
+    return { svgs };
+  }
+
   @Get('quick/topic/:topicId')
   async quickOfTopic(@Param('topicId') topicId: string, @Request() req: any) {
     return this.linksService.getQuick(req.user, { topicId }, req);

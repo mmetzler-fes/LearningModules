@@ -568,9 +568,9 @@
             <div id="moduleInheritedTags" class="module-inherited-tags"></div>
             <div id="moduleTags" class="tag-picker-wrap"></div>
           </details>
-          <!-- Beschreibung: in der Maske nicht mehr angeboten (wurde nicht genutzt); ein vorhandener
-               Text bleibt beim Speichern erhalten. -->
-          <details class="form-group module-desc-fold hidden" id="moduleDescFold">
+          <!-- Beschreibung: nur beim Dokument ausgeblendet (dort ungenutzt), siehe
+               content-editors.js render(); bei anderen Modultypen (z. B. Quiz) sichtbar. -->
+          <details class="form-group module-desc-fold" id="moduleDescFold">
             <summary><strong data-i18n="module.desc.label">Beschreibung</strong> <span id="moduleDescSummary" class="module-desc-summary hint"></span></summary>
             <div class="rich-text-editor" id="moduleDescEditorWrap">
               <div class="rich-text-toolbar" id="moduleDescToolbar">

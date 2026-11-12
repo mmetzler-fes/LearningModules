@@ -288,6 +288,9 @@ class ContentEditorManager {
     this.currentType = typeId;
     this.listCounters = {};
     this._h5pNativeData = null;
+    // Beschreibung nur beim Dokument ausblenden (dort ungenutzt) – bei anderen
+    // Modultypen (z. B. Quiz) wird sie weiterhin verwendet.
+    document.getElementById('moduleDescFold')?.classList.toggle('hidden', typeId === 'document');
     // Zustand eines vorher gewählten Spezial-Editors darf nicht nachwirken.
     this.dndState = null;
     this.hsEditor = null;

@@ -226,11 +226,11 @@ export class PublicClassbookController {
     return this.classbook.login(token, body);
   }
 
-  /** `{ ticket }` → Zuweisungen, Ergebnisse, Blätter. */
+  /** `{ ticket, examOnly? }` → Zuweisungen, Ergebnisse, Blätter (`examOnly`: 🧪 Ausprobieren einer Klassenarbeit – nur sie). */
   @Post(':token/home')
   @HttpCode(200)
-  home(@Param('token') token: string, @Body() body: { ticket?: string }) {
-    return this.classbook.home(token, body?.ticket);
+  home(@Param('token') token: string, @Body() body: { ticket?: string; examOnly?: string }) {
+    return this.classbook.home(token, body?.ticket, body?.examOnly);
   }
 
   /** `{ ticket }` → `{ arena: { linkId, name } | null }` – die Schülerseite fragt regelmäßig nach. */

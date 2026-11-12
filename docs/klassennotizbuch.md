@@ -425,9 +425,9 @@ Lernthemas bzw. der Zuweisung und unter **📝 Klassenarbeiten**:
   kommen auch mit ihrem Link nicht hinein. Mit **●** erscheint sie bei ihnen, sobald ihr Link erzeugt und aktiv ist.
 - **📝 Link & QR** – der eigene Link der Klassenarbeit. Beim ersten Mal legt die App ihn an (nur diese Klassenarbeit,
   „nur ein Durchlauf“); ändern lässt er sich unter 🔗 Schülerfreigaben.
-- **🧪 Ausprobieren** – öffnet das Klassennotizbuch als 🧪 Vorschau in einem neuen Tab. Dort steht die Klassenarbeit
-  auch bei ○ (mit „für Schüler noch aus“); du schreibst sie wie ein Schüler. Das zählt nicht mit, steht nicht in der
-  Abgabeliste und lässt sich beliebig wiederholen; **🧹 Vorschau zurücksetzen** löscht es.
+- **🧪 Ausprobieren** – öffnet die Klassenarbeit als 🧪 Vorschau in einem neuen Tab, ohne das übrige Klassennotizbuch;
+  sie steht dort auch bei ○ (mit „für Schüler noch aus“); du schreibst sie wie ein Schüler. Das zählt nicht mit,
+  steht nicht in der Abgabeliste und lässt sich beliebig wiederholen; **🧹 Vorschau zurücksetzen** löscht es.
 
 Die Schüler sehen eine Klassenarbeit also nur mit **●**, erzeugtem Link und aktivem Link; **⏸ Deaktivieren** unter
 📝 Klassenarbeiten nimmt sie wieder weg. Über das Klassennotizbuch kommen sie mit Name und PIN hinein – sicherer als

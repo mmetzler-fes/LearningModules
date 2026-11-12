@@ -861,7 +861,7 @@ export class ClassResultsView {
       if (res) this.app.showToast('Fehler: ' + (res?.message || 'Ausprobieren nicht möglich'), 'error');
       return;
     }
-    win.location.href = `/schueler/?k=${encodeURIComponent(res.token)}#preview=${encodeURIComponent(res.ticket)}`;
+    win.location.href = `/schueler/?k=${encodeURIComponent(res.token)}#preview=${encodeURIComponent(res.ticket)}&exam=${encodeURIComponent(res.linkId)}`;
     await this._call(Promise.resolve({ success: true }));
   }
 
@@ -1723,7 +1723,7 @@ export class ClassResultsView {
         if (!win) { this.app.showToast('Der Browser hat den neuen Tab blockiert. Bitte Pop-ups für diese Seite erlauben.', 'error'); return; }
         const res = await this.app.api.tryClassbookExam(this._classId, btn.closest('[data-link]').dataset.link).catch((err) => ({ message: err.message }));
         if (failed(res) || !res?.token) { win.close(); this.app.showToast('Fehler: ' + (res?.message || 'Ausprobieren nicht möglich'), 'error'); return; }
-        win.location.href = `/schueler/?k=${encodeURIComponent(res.token)}#preview=${encodeURIComponent(res.ticket)}`;
+        win.location.href = `/schueler/?k=${encodeURIComponent(res.token)}#preview=${encodeURIComponent(res.ticket)}&exam=${encodeURIComponent(res.linkId)}`;
       }));
       out.querySelectorAll('[data-exam-link-visible]').forEach((btn) => btn.addEventListener('click', async () => {
         const linkId = btn.closest('[data-link]').dataset.link;

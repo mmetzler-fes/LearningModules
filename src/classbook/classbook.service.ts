@@ -1512,11 +1512,30 @@ export class ClassbookService {
    * seine Ergebnisse und Blätter. Unbestätigte Einträge sehen nur die
    * Zuweisungen – unter ihrem Namen könnte sich jeder anmelden.
    */
-  async home(token: string, ticket: unknown) {
+  async home(token: string, ticket: unknown, examOnlyLinkId?: string) {
     const { nb, klasse, ticket: t, student, scope } = await this.session(token, ticket);
     const confirmed = isTestStudent(t.s) || (!!student && student.status !== 'pending');
     const all = await this.classLinks(klasse);
     const active = all.filter((l) => l.active);
+    // 🧪 Ausprobieren einer einzelnen Klassenarbeit: nur sie zeigen, kein übriges Klassennotizbuch –
+    // nur für den Testschüler, sonst bliebe `examOnlyLinkId` wirkungslos.
+    const examOnly = examOnlyLinkId && isTestStudent(t.s)
+      ? active.find((l) => l.id === examOnlyLinkId && (l.modes || []).includes('exam') && l.examToken)
+      : undefined;
+    // Laufende Klassenarbeiten: aktiv und ihr Link ist erzeugt (die Lehrkraft hat ihn ausgegeben).
+    // Im Klassennotizbuch noch aus (○): nur die Vorschau der Lehrkraft (🧪 Testschüler) sieht sie, markiert.
+    const exams = scope ? [] : await Promise.all(active
+      .filter((l) => (l.modes || []).includes('exam') && l.examToken && (!l.hiddenFromStudents || isTestStudent(t.s)) && (!examOnly || l.id === examOnly.id))
+      .map(async (l) => {
+        const attempt = await this.attemptRepo.findOne({ where: { linkId: l.id, studentId: t.s } });
+        return { linkId: l.id, name: l.name, state: isTestStudent(t.s) ? 'open' : examState(attempt, l.singleAttempt), ...(l.hiddenFromStudents ? { hiddenFromStudents: true } : {}) };
+      }));
+    if (examOnly) {
+      return {
+        className: klasse.name, scopeTitle: scope?.title || null, name: t.n, arena: null, pending: false,
+        exams, marker: null, examOnly: true, nodes: [], assignments: [], results: [], works: [],
+      };
+    }
     // Ohne eingeschaltetes Modul gibt es für Schüler nichts zu sehen. Die Quiz-Arena
     // erscheint nur, solange die Lehrkraft ihren Wartebereich geöffnet hat (arena).
     // Eigener Link auf einen Bereich bzw. eine Zuweisung: nur dieser Teil.
@@ -1524,12 +1543,6 @@ export class ClassbookService {
     // 📍 Merker, auf jeder Ebene: zum (zuletzt per „Weiter“ erreichten) Modul im Pfad, mit dem Pfad zum Aufklappen.
     const resolved = await this.resolveMarker(nb, klasse, t.s, confirmed, { nodes, placeOf, links });
     const marker = resolved ? { anchor: resolved.anchor, current: resolved.current, openNodeIds: resolved.openNodeIds, hasNext: resolved.hasNext } : null;
-    // Laufende Klassenarbeiten: aktiv und ihr Link ist erzeugt (die Lehrkraft hat ihn ausgegeben).
-    // Im Klassennotizbuch noch aus (○): nur die Vorschau der Lehrkraft (🧪 Testschüler) sieht sie, markiert.
-    const exams = scope ? [] : await Promise.all(active.filter((l) => (l.modes || []).includes('exam') && l.examToken && (!l.hiddenFromStudents || isTestStudent(t.s))).map(async (l) => {
-      const attempt = await this.attemptRepo.findOne({ where: { linkId: l.id, studentId: t.s } });
-      return { linkId: l.id, name: l.name, state: isTestStudent(t.s) ? 'open' : examState(attempt, l.singleAttempt), ...(l.hiddenFromStudents ? { hiddenFromStudents: true } : {}) };
-    }));
     const results = (confirmed ? await this.resultRepo.find({ where: { classId: klasse.id, studentId: t.s }, order: { createdAt: 'DESC' } }) : [])
       .filter((r) => !scope || (!!r.linkId && inScope(r.linkId)));
     const works = (confirmed

@@ -147,9 +147,13 @@ export class ClassbookStudent {
   async start(token) {
     this.token = token;
     // Vom Knopf 👁 Vorschau: Der Ausweis steht im Fragment und geht so nicht an den Server.
-    const fromTeacher = /^#preview=(.+)$/.exec(location.hash);
+    // 🧪 Ausprobieren einer Klassenarbeit hängt ihre Link-ID mit `&exam=` an – dann nur sie zeigen.
+    const fromTeacher = /^#preview=([^&]+)(?:&exam=([^&]+))?$/.exec(location.hash);
     if (fromTeacher) {
-      sessionSet(PREVIEW_KEY, JSON.stringify({ token, ticket: decodeURIComponent(fromTeacher[1]), name: '', preview: true }));
+      sessionSet(PREVIEW_KEY, JSON.stringify({
+        token, ticket: decodeURIComponent(fromTeacher[1]), name: '', preview: true,
+        ...(fromTeacher[2] ? { examOnly: decodeURIComponent(fromTeacher[2]) } : {}),
+      }));
       history.replaceState(null, '', location.pathname + location.search);
     }
     const inPreview = previewSession()?.token === token;
@@ -269,7 +273,7 @@ export class ClassbookStudent {
   /** Startseite; false, wenn die Anmeldung nicht mehr gilt. */
   async _home() {
     const s = classbookSession();
-    const data = await post(`${encodeURIComponent(this.token)}/home`, { ticket: s?.ticket }).catch(() => null);
+    const data = await post(`${encodeURIComponent(this.token)}/home`, { ticket: s?.ticket, examOnly: s?.examOnly }).catch(() => null);
     if (!data || data.failed) {
       if (data?.expired) {
         if (await this._relogin()) return this._home();
@@ -377,8 +381,9 @@ export class ClassbookStudent {
     const exams = (data.exams || []).map((x) => `<div class="cb-exam" data-link="${escapeAttr(x.linkId)}">
         <strong>📝 ${escapeHtml(x.name)}</strong>${EXAM_STATE[x.state] || ''}${x.hiddenFromStudents ? ' <span class="hint" title="Im Klassennotizbuch aus (○) – nur deine Vorschau sieht sie">· für Schüler noch aus</span>' : ''}</div>`).join('');
     const preview = !!s?.preview;
+    const examOnly = !!data.examOnly;
     const el = this._show(`
-      ${preview ? '<p class="cb-preview-note">👁 <strong>Vorschau:</strong> So sieht es deine Klasse. Ergebnisse und Blätter stehen im Klassennotizbuch als 🧪 und zählen nicht mit.</p>' : ''}
+      ${preview ? `<p class="cb-preview-note">👁 <strong>Vorschau:</strong> ${examOnly ? 'So schreibt ein Schüler diese Klassenarbeit. Zählt nicht mit und lässt sich beliebig wiederholen.' : 'So sieht es deine Klasse. Ergebnisse und Blätter stehen im Klassennotizbuch als 🧪 und zählen nicht mit.'}</p>` : ''}
       <div class="cb-head">
         <div><span class="quick-entry-label">📒 ${escapeHtml(data.className)}${data.scopeTitle ? ` · ${escapeHtml(data.scopeTitle)}` : ''}</span><h2>${escapeHtml(data.name)}</h2></div>
         <span class="cb-head-actions">
@@ -389,11 +394,11 @@ export class ClassbookStudent {
       </div>
       <p class="hint cb-install-hint hidden" id="cbInstallHint"></p>
       ${exams ? `<h3 class="cb-section">📝 Klassenarbeit</h3>${exams}` : ''}
-      <h3 class="cb-section">📋 Aufgaben</h3>
+      ${examOnly ? '' : `<h3 class="cb-section">📋 Aufgaben</h3>
       ${assignments ? `<div class="cb-tree">${assignments}</div>` : '<p class="hint">Gerade sind keine Aufgaben freigegeben.</p>'}
       ${data.pending
         ? '<p class="hint cb-pending">Deine Ergebnisse und Blätter erscheinen hier, sobald deine Lehrkraft deinen Namen in der Klassenliste bestätigt hat.</p>'
-        : `<h3 class="cb-section">📈 Meine Ergebnisse</h3>${results}<h3 class="cb-section">✍️ Meine Blätter</h3>${works}`}`);
+        : `<h3 class="cb-section">📈 Meine Ergebnisse</h3>${results}<h3 class="cb-section">✍️ Meine Blätter</h3>${works}`}`}`);
     el.querySelector('#cbToList')?.addEventListener('click', () => { this._stopWatch(); this.showList(); });
     el.querySelector('#cbInstall')?.addEventListener('click', async () => {
       // Chrome, Edge: Dialog des Browsers. iPad/iPhone: Teilen → Zum Home-Bildschirm.

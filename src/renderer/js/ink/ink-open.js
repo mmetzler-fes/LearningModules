@@ -94,7 +94,7 @@ async function teacherStore(moduleId) {
   };
 }
 
-export async function openDocumentInk({ mode, mod, up = null, embedModule = null, store = null, title = null, sourceEl = null, editable = false, onSaved = null, topicModules = null, examMode = false }) {
+export async function openDocumentInk({ mode, mod, up = null, embedModule = null, store = null, title = null, sourceEl = null, editable = false, onSaved = null, topicModules = null, examMode = false, examRun = false }) {
   // Beschriftung der Lehrkraft, die die Schüler unter ihrer eigenen sehen (nur zum Ansehen).
   let teacherLayer = null;
   if (!store && mode === 'student' && up?.linkToken && up?.studentTicket) {
@@ -137,7 +137,7 @@ export async function openDocumentInk({ mode, mod, up = null, embedModule = null
     landscape: content.spec?.orientation === 'landscape',
     mount(el, { solutions }) {
       el.appendChild(renderer.createTypePreview('document', content, {
-        blockIds: true, quizMode: true, examMode, noSolutionToggle: true, embedModule, upload: up, moduleId: mod.id, title: mod.title,
+        blockIds: true, quizMode: true, examMode, examRun, noSolutionToggle: true, embedModule, upload: up, moduleId: mod.id, title: mod.title,
       }));
       if (teacherLayer) drawLayer(el, teacherLayer, { className: 'ink-teacher-layer' });
       if (solutions) el.querySelector('.docspec')?.classList.remove('ds-hide-solutions');

@@ -248,7 +248,9 @@ export class QuizView {
       ? { steps: [onlyApp], embedded: new Map() }
       : planRun(modules, { companion: data.mode === 'companion', onlyModule });
 
-    let steps = splitTrueFalse(expandAppSteps(plan.steps, onlyApp ? onlyModule : null));
+    // In der Klassenarbeit bleibt Wahr/Falsch eine Seite mit allen Fragen (h5p-renderer.js, examRun).
+    const expanded = expandAppSteps(plan.steps, onlyApp ? onlyModule : null);
+    let steps = data.mode === 'exam' ? expanded : splitTrueFalse(expanded);
     // Wiedereinstieg in eine Klassenarbeit: bis hierher beantwortet, in derselben Reihenfolge.
     const resume = data.mode === 'exam' && data.examResume ? data.examResume : null;
     const resumed = resume ? stepsInSavedOrder(steps, resume.steps) : null;
@@ -474,6 +476,7 @@ export class QuizView {
         // Die Lernbegleitung gibt die Rückmeldung selbst – die eingebauten
         // Prüfknöpfe der Aufgaben würden sie umgehen.
         examMode: this._isExamRun() || !!this._companion,
+        examRun: this._isExamRun(),
         // Quizze im Dokument (planRun); in der Lernbegleitung kommen sie als eigene Aufgabe.
         embedModule: (id) => qs.embedded?.get(id) || null,
         moduleId: mod.id,
@@ -623,10 +626,18 @@ export class QuizView {
     // Je Schritt seine Antwort, dahinter die der Quizze in seinem Dokument.
     const ordered = [];
     for (let i = 0; i < quizState.modules.length; i++) {
-      if (quizState.answers[i]) ordered.push({ a: quizState.answers[i], step: i });
+      const a = quizState.answers[i];
+      // Wahr/Falsch auf einer Seite (Klassenarbeit): jede Frage zählt einzeln, wie als eigener Schritt.
+      if (a && Array.isArray(a.parts) && a.parts.length) a.parts.forEach((p) => ordered.push({ a: p, step: -1 }));
+      else if (a) ordered.push({ a, step: i });
       // Quizze im Dokument: Das Ergebnis merkt sich, in welchem Dokument es entstand.
       const docId = quizState.modules[i]?.id;
-      for (const e of quizState.embeddedAnswers?.[i] || []) ordered.push({ a: docId && e && typeof e === 'object' ? { ...e, inDoc: docId } : e, step: -1 });
+      // Wahr/Falsch mit mehreren Fragen zählt auch im Dokument je Frage.
+      for (const e of quizState.embeddedAnswers?.[i] || []) {
+        for (const x of (e && Array.isArray(e.parts) && e.parts.length ? e.parts : [e])) {
+          ordered.push({ a: docId && x && typeof x === 'object' ? { ...x, inDoc: docId } : x, step: -1 });
+        }
+      }
     }
     const answers = ordered.map((o) => o.a);
     const details = ordered.map(({ a, step }) => (step >= 0 && timer?.msOf(step) !== undefined ? { ...a, ms: timer.msOf(step) } : a));

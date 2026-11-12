@@ -47,7 +47,7 @@ export const lmHost = {
           const { openDocumentInk } = await import('./ink/ink-open.js');
           const own = inkMode === 'teacher' && options.inkDocument?.topicId ? options.inkDocument : null;
           await openDocumentInk({
-            mode: inkMode, up, embedModule: options.embedModule || null, sourceEl: el, examMode: !!options.examMode,
+            mode: inkMode, up, embedModule: options.embedModule || null, sourceEl: el, examMode: !!options.examMode, examRun: !!options.examRun,
             // Gespeichert wird das ganze Modul – daher das vollständige aus dem Lernthema.
             mod: own ? { ...own.module, topicId: own.topicId } : { id: moduleId, title, content },
             editable: !!own, topicModules: own?.modules || null, onSaved: own?.onSaved || null,

@@ -2754,6 +2754,12 @@ body.html-app-large .quiz-actions { margin-top: 8px; padding-top: 8px; flex-shri
   padding-top: 12px;
   border-top: 1px solid var(--border);
 }
+/* Klassenarbeit: alle Wahr/Falsch-Fragen untereinander */
+.tf-list { list-style: decimal; margin: 0; padding-left: 1.6em; }
+.tf-row { padding: 12px 0; border-bottom: 1px solid var(--border); }
+.tf-row:last-child { border-bottom: none; }
+.tf-row .tf-question { margin-bottom: 10px; }
+.tf-row .tf-buttons { margin-bottom: 0; }
 .tf-score {
   font-size: 0.85rem;
   font-weight: 600;

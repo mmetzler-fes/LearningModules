@@ -87,7 +87,10 @@ async function documentPages(mod) {
     headers: authHeaders(),
     body: JSON.stringify({ spec: content.spec || { content: [] }, title: mod.title || '', output: 'pdf', moduleId: mod.id, kind: content.kind }),
   });
-  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).message || `HTTP ${res.status}`);
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error((body.message || `HTTP ${res.status}`) + (Array.isArray(body.errors) ? ` ${body.errors.join(' · ')}` : ''));
+  }
   const lib = await loadPdfJs();
   const doc = await lib.getDocument({ data: new Uint8Array(await res.arrayBuffer()) }).promise;
   const pages = [];
@@ -137,7 +140,7 @@ async function topicPages(topicTitle, modules, linkFor, { images, onStep, warnin
         shots.forEach((p, i) => blocks.push({ type: 'image', free: true, ext: '.jpeg', ...p, name: `${fileSafe(doc.title)} – Seite ${i + 1}.jpeg`, alt: `${doc.title}, Seite ${i + 1}` }));
       } catch (e) {
         warnings.push(`${doc.title}: kein Ausdruck (${e.message})`);
-        blocks.push({ type: 'text', runs: [{ text: 'Der Ausdruck ließ sich nicht erzeugen – bitte den Link nutzen.' }] });
+        blocks.push({ type: 'text', runs: [{ text: `Der Ausdruck ließ sich nicht erzeugen (${e.message}) – bitte den Link nutzen.` }] });
       }
     }
     pages.push({ title: pageTitle(topicTitle, doc.title), blocks });

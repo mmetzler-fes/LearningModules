@@ -1,4 +1,4 @@
-import { escapeHtml, generateId } from '../utils.js';
+import { escapeHtml, escapeAttr, generateId } from '../utils.js';
 import { isDocumentFile, fileToSpec, askConvertOptions } from './attachment-convert.js';
 import { openDocViewer, openZlmFile } from './zlm-viewer.js';
 
@@ -236,54 +236,142 @@ export async function fileModuleIntoNotebook(app, doc) {
  * ein Ordner bzw. „Unsortiert“ (dort entsteht ein neues Lernthema).
  * `{ topicId }` oder `{ nodeId, newTitle }`, dazu `label` – oder null.
  */
+/**
+ * Wohin im Notizbuch: ein eigenes Lernthema (das Dokument kommt dazu) oder
+ * ein Ordner bzw. „Unsortiert“ (dort entsteht ein neues Lernthema).
+ * `{ topicId }` oder `{ nodeId, newTitle }`, dazu `label` – oder null.
+ *
+ * Der Baum sieht aus wie im Lernnotizbuch: gleiche Reihenfolge, Namen und
+ * Nummern, aufgeklappt ist, was dort offen ist (bzw. der Ordner, in den man
+ * hineingewechselt ist). Die Suche zeigt nur Treffer und ihre Ordner.
+ */
 async function pickPlace(app, title) {
   const tree = await app.api.getNotebooks();
   if (!tree || tree.statusCode >= 400) throw new Error(tree?.message || 'Notizbuch nicht abrufbar');
+  const nodes = new Map((tree.nodes || []).map((n) => [n.id, n]));
   const topics = new Map((tree.topics || []).filter((t) => t.isOwn !== false).map((t) => [t.id, t]));
+  const byOrder = (a, b) => (a.orderIndex ?? 0) - (b.orderIndex ?? 0);
   const kids = new Map();
-  for (const n of tree.nodes || []) {
+  for (const n of [...nodes.values()].sort(byOrder)) {
     const k = n.parentId || '';
     if (!kids.has(k)) kids.set(k, []);
     kids.get(k).push(n);
   }
   const placed = new Map();
-  for (const p of tree.placements || []) {
+  for (const p of [...(tree.placements || [])].sort(byOrder)) {
+    const t = topics.get(p.topicId);
+    if (!t) continue;
     const k = p.nodeId || '';
     if (!placed.has(k)) placed.set(k, []);
-    placed.get(k).push(p);
+    placed.get(k).push(t);
   }
-  const byOrder = (a, b) => (a.orderIndex ?? 0) - (b.orderIndex ?? 0);
+  const nums = tree.nodeNumbers || {};
   const icon = { book: '📓', area: '📂', section: '📑' };
-  const rows = [{ kind: 'node', id: null, label: 'Unsortiert', icon: '📥', depth: 0 }];
-  const walk = (parent, depth) => {
-    for (const n of (kids.get(parent) || []).sort(byOrder)) {
-      rows.push({ kind: 'node', id: n.id, label: n.title, icon: icon[n.kind] || '📂', depth });
-      walk(n.id, depth + 1);
-    }
-    for (const p of (placed.get(parent) || []).sort(byOrder)) {
-      const t = topics.get(p.topicId);
-      if (t) rows.push({ kind: 'topic', id: t.id, label: t.title, icon: '📘', depth });
-    }
+  const pathOf = (id) => {
+    const out = [];
+    for (let n = nodes.get(id); n && out.length < 20; n = nodes.get(n.parentId)) out.unshift(n.title);
+    return out.join(' › ');
   };
-  walk('', 0);
+
+  // Aufgeklappt wie im Lernnotizbuch (notebooks.js: lm_nb_open, lm_nb_focus).
+  const open = new Set();
+  let focus = null;
+  try {
+    for (const k of JSON.parse(localStorage.getItem('lm_nb_open') || '[]')) if (String(k).startsWith('n:')) open.add(String(k).slice(2));
+    focus = localStorage.getItem('lm_nb_focus') || null;
+  } catch (_) { /* ohne Speicher: alles zu */ }
+  if (!nodes.has(focus)) focus = null;
+  for (let n = nodes.get(focus); n; n = nodes.get(n.parentId)) open.add(n.id);
+
   return new Promise((resolve) => {
     const overlay = document.createElement('div');
     overlay.className = 'confirm-overlay';
-    overlay.innerHTML = `<div class="import-modules-card cb-picker" role="dialog" aria-modal="true">
+    overlay.innerHTML = `<div class="import-modules-card cb-picker fo-picker" role="dialog" aria-modal="true">
         <h3>📓 Im Notizbuch ablegen</h3>
-        <p class="hint">Ein Lernthema wählen – das Dokument kommt dazu. Oder einen Ordner: Dort entsteht ein neues Lernthema mit diesem Namen:</p>
+        <p class="hint">Ein Lernthema 📘 wählen – das Dokument kommt dazu. Oder bei einem Ordner <strong>＋ Neues Lernthema</strong>: Dort entsteht ein Lernthema mit diesem Namen:</p>
         <input type="text" class="search-input fo-title" maxlength="200" value="${escapeHtml(title || 'Dokument')}" aria-label="Name des neuen Lernthemas">
-        <ul class="cb-picker-list">${rows.map((r, i) => `<li data-i="${i}" style="padding-left:${0.4 + r.depth * 1.2}rem">
-          <button type="button" class="cb-picker-row">${r.icon} ${escapeHtml(r.label)}${r.kind === 'node' ? ' <span class="hint">– neues Lernthema hier</span>' : ''}</button></li>`).join('')}</ul>
+        <input type="search" class="search-input fo-search" placeholder="🔍 Ordner oder Lernthema suchen …" aria-label="Im Notizbuch suchen">
+        <div class="fo-tree" role="tree"></div>
         <div class="confirm-actions"><button type="button" class="btn btn-secondary fo-cancel">Abbrechen</button></div>
       </div>`;
     document.body.appendChild(overlay);
-    const done = (v) => { overlay.remove(); resolve(v); };
+    const list = overlay.querySelector('.fo-tree');
+    const search = overlay.querySelector('.fo-search');
+    const done = (v) => { overlay.remove(); document.removeEventListener('keydown', onKey, true); resolve(v); };
+    const onKey = (e) => { if (e.key === 'Escape') { e.stopPropagation(); done(null); } };
+    document.addEventListener('keydown', onKey, true);
     overlay.querySelector('.fo-cancel').addEventListener('click', () => done(null));
-    overlay.querySelectorAll('[data-i]').forEach((li) => li.querySelector('button').addEventListener('click', () => {
-      const r = rows[Number(li.dataset.i)];
-      const newTitle = overlay.querySelector('.fo-title').value.trim() || title || 'Dokument';
-      done(r.kind === 'topic' ? { topicId: r.id, label: r.label } : { nodeId: r.id, newTitle, label: r.id ? `${r.label} › ${newTitle}` : newTitle });
-    }));
+    const newTitle = () => overlay.querySelector('.fo-title').value.trim() || title || 'Dokument';
+
+    // Suche: Treffer im Titel; ein Ordner bleibt, wenn er selbst oder etwas darin passt.
+    const hits = (text, q) => text.toLowerCase().includes(q);
+    const nodeMatch = new Map();
+    const matches = (id, q) => {
+      if (nodeMatch.has(id)) return nodeMatch.get(id);
+      const n = nodes.get(id);
+      const yes = hits(n.title, q) || (placed.get(id) || []).some((t) => hits(t.title, q))
+        || (kids.get(id) || []).some((k) => matches(k.id, q));
+      nodeMatch.set(id, yes);
+      return yes;
+    };
+
+    const render = () => {
+      const q = search.value.trim().toLowerCase();
+      nodeMatch.clear();
+      const rows = [];
+      const topicRow = (t, depth) => rows.push(`<div class="fo-row" style="--depth:${depth}">
+          <span class="nb-twisty-space"></span>
+          <button type="button" class="fo-pick fo-topic" data-topic="${escapeAttr(t.id)}" title="Das Dokument kommt in dieses Lernthema">📘 ${escapeHtml(t.title)}</button></div>`);
+      const walk = (parent, depth) => {
+        for (const n of kids.get(parent) || []) {
+          if (q && !matches(n.id, q)) continue;
+          const isOpen = q ? true : open.has(n.id);
+          const empty = !(kids.get(n.id) || []).length && !(placed.get(n.id) || []).length;
+          rows.push(`<div class="fo-row fo-node${n.id === focus ? ' fo-focus' : ''}" style="--depth:${depth}">
+              ${empty ? '<span class="nb-twisty-space"></span>' : `<button type="button" class="nb-twisty" data-toggle="${escapeAttr(n.id)}" aria-expanded="${isOpen}" title="${isOpen ? 'Zuklappen' : 'Aufklappen'}">${isOpen ? '▾' : '▸'}</button>`}
+              <span class="fo-label" data-toggle="${escapeAttr(n.id)}">${icon[n.kind] || '📂'} ${nums[n.id] ? `<span class="nb-num">${escapeHtml(nums[n.id])}</span>` : ''}${escapeHtml(n.title)}</span>
+              <button type="button" class="btn btn-secondary btn-sm fo-pick" data-node="${escapeAttr(n.id)}" title="Hier ein neues Lernthema anlegen – das Dokument kommt hinein">＋ Neues Lernthema</button></div>`);
+          if (!isOpen) continue;
+          walk(n.id, depth + 1);
+          for (const t of placed.get(n.id) || []) if (!q || hits(t.title, q) || hits(n.title, q)) topicRow(t, depth + 1);
+        }
+      };
+      const unsorted = (placed.get('') || []).filter((t) => !q || hits(t.title, q));
+      if (!q || unsorted.length || hits('unsortiert', q)) {
+        const isOpen = q ? true : open.has('');
+        rows.push(`<div class="fo-row fo-node" style="--depth:0">
+            ${unsorted.length ? `<button type="button" class="nb-twisty" data-toggle="" aria-expanded="${isOpen}">${isOpen ? '▾' : '▸'}</button>` : '<span class="nb-twisty-space"></span>'}
+            <span class="fo-label" data-toggle="">📥 Unsortiert</span>
+            <button type="button" class="btn btn-secondary btn-sm fo-pick" data-node="" title="Neues Lernthema unter „Unsortiert“">＋ Neues Lernthema</button></div>`);
+        if (isOpen) for (const t of unsorted) topicRow(t, 1);
+      }
+      walk('', 0);
+      list.innerHTML = rows.join('') || '<p class="hint fo-empty">Nichts gefunden.</p>';
+      list.querySelector('.fo-focus')?.scrollIntoView({ block: 'center' });
+    };
+
+    list.addEventListener('click', (e) => {
+      const toggle = e.target.closest('[data-toggle]');
+      if (toggle && !search.value.trim()) {
+        const id = toggle.dataset.toggle;
+        if (open.has(id)) open.delete(id); else open.add(id);
+        render();
+        return;
+      }
+      const pick = e.target.closest('.fo-pick');
+      if (!pick) return;
+      if (pick.dataset.topic) {
+        const t = topics.get(pick.dataset.topic);
+        done({ topicId: t.id, label: t.title });
+      } else {
+        const id = pick.dataset.node || null;
+        const name = newTitle();
+        done({ nodeId: id, newTitle: name, label: id ? `${pathOf(id)} › ${name}` : name });
+      }
+    });
+    let timer = null;
+    search.addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(render, 150); });
+    render();
+    search.focus();
   });
 }

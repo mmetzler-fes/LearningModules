@@ -6209,6 +6209,18 @@ button.cb-unit:hover { color: var(--accent); text-decoration: underline; }
 .cb-picker-list { list-style: none; margin: 8px 0; padding: 0; max-height: 55vh; overflow: auto; border: 1px solid var(--border); border-radius: var(--radius-sm); }
 .cb-picker-row { width: 100%; text-align: left; background: none; border: none; padding: 6px 8px; font: inherit; color: var(--text-primary); cursor: pointer; }
 .cb-picker-row:hover { background: var(--accent-light); }
+.fo-tree { margin: 8px 0; max-height: 55vh; overflow: auto; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 4px 0; }
+.fo-picker .fo-title, .fo-search { width: 100%; box-sizing: border-box; }
+.fo-search { margin-top: 6px; }
+.fo-row { display: flex; align-items: center; gap: 4px; padding: 1px 8px 1px calc(8px + var(--depth, 0) * 1.2rem); }
+.fo-row:hover { background: var(--accent-light); }
+.fo-row.fo-focus { background: var(--accent-light); }
+.fo-label { flex: 1; min-width: 0; padding: 5px 0; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fo-node .fo-pick { flex: none; opacity: 0.35; }
+.fo-row:hover .fo-pick, .fo-row.fo-focus .fo-pick, .fo-node .fo-pick:focus-visible { opacity: 1; }
+.fo-topic { flex: 1; min-width: 0; text-align: left; background: none; border: none; padding: 5px 0; font: inherit; color: var(--text-primary); cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fo-topic:hover { text-decoration: underline; }
+.fo-empty { padding: 8px 12px; }
 /* Schüler */
 .login-card.login-card-wide { max-width: 760px; }
 .cb-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 8px; }

@@ -132,12 +132,15 @@ async function topicPages(topicTitle, modules, linkFor, { images, onStep, warnin
   const qrOf = new Map(docs.map((m, i) => [m.id, qrs[i]]));
   const qrAll = allQuizzes ? qrs[docs.length] : null;
   const stand = `Stand ${today()} – die aktuelle Fassung gibt es über den Link.`;
+  // Unter dem QR-Code die Adresse als Text – das Bild lässt sich nicht kopieren.
+  const urlLine = (url) => ({ type: 'text', runs: [{ text: url, href: url }] });
   const pages = [];
   for (const doc of docs) {
     onStep(`${topicTitle}: ${doc.title}`);
     const blocks = [{ type: 'text', runs: [{ text: 'Live-Fassung: ' }, { text: doc.title || 'öffnen', href: linkFor(doc.id) }] }];
     const qr = qrOf.get(doc.id);
     if (qr) blocks.push({ type: 'image', ...qr, widthIn: 1.3, name: 'QR-Code.png', alt: `QR-Code: ${doc.title}` });
+    blocks.push(urlLine(linkFor(doc.id)));
     blocks.push({ type: 'text', runs: [{ text: stand }] });
     if (images) {
       try {
@@ -155,6 +158,7 @@ async function topicPages(topicTitle, modules, linkFor, { images, onStep, warnin
   if (others.length) {
     const blocks = [{ type: 'text', runs: [{ text: others.length === 1 ? 'Quiz: ' : `Alle ${others.length} Quizze nacheinander: ` }, { text: 'öffnen', href: allQuizzes }] }];
     if (qrAll) blocks.push({ type: 'image', ...qrAll, widthIn: 1.3, name: 'QR-Code.png', alt: `QR-Code: ${topicTitle} – Quiz` });
+    blocks.push(urlLine(allQuizzes));
     others.forEach((m, i) => blocks.push({ type: 'text', runs: [{ text: `${i + 1}. ${m.title || 'Quiz'}` }] }));
     pages.push({ title: `${topicTitle} – Quiz`, blocks });
   }

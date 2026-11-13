@@ -93,6 +93,14 @@ const MAX_TTL_MINUTES = 240;
 /** So lange nach dem Ablauf lässt sich eine Sitzung noch rückgängig machen. */
 const SESSION_RETENTION_MS = 14 * 24 * 60 * 60 * 1000;
 const DOC_KINDS = ['arbeitsblatt', 'klassenarbeit', 'text'];
+function docKindOf(content: any): string {
+  try {
+    const c = typeof content === 'string' ? JSON.parse(content) : content;
+    return String(c?.kind || 'arbeitsblatt');
+  } catch {
+    return 'arbeitsblatt';
+  }
+}
 const MAX_REQ_PER_MIN = 60;
 const MAX_OPS_PER_SESSION = 200;
 
@@ -397,7 +405,11 @@ export class AiBridgeService {
           orderIndex: p.orderIndex,
           title: t?.title || 'Lernthema',
           description: t?.description || '',
-          modules: (t?.modules || []).map((m: any) => ({ id: m.id, type: m.type, title: m.title, orderIndex: m.orderIndex })),
+          modules: (t?.modules || []).map((m: any) => ({
+            id: m.id, type: m.type, title: m.title, orderIndex: m.orderIndex,
+            // Dokument-Art ohne den Inhalt zu laden (nummeriert werden nur Arbeitsblätter).
+            ...(m.type === 'document' ? { docKind: docKindOf(m.content) } : {}),
+          })),
         };
       });
 

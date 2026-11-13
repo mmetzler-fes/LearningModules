@@ -221,6 +221,7 @@ describe('AiBridgeService (15-Minuten-KI-Token, Scope & Undo)', () => {
     const tree = await service.scopedTree(session);
     expect(tree.notebook.nodes.map((n: any) => n.id)).toEqual(['book-et', 'sec-et-1']);
     expect(tree.notebook.topics.map((t: any) => t.topicId)).toEqual(['top-ohm']);
+    expect(tree.notebook.topics[0].modules.find((m: any) => m.type === 'document')?.docKind).toBe('arbeitsblatt');
     expect(tree.plans.nodes.map((n: any) => n.id)).toEqual(['plan-bfe']);
 
     // Zugriff auf nicht freigegebenes Thema wird verweigert:

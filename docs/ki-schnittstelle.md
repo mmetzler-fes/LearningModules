@@ -41,4 +41,4 @@ Kopfzeile und 🔢 Nummerierung eines Ordners; die übrigen Dokument-Einstellung
 den alten Stand wieder her.
 
 `update_document` mit `kind` (arbeitsblatt | klassenarbeit | text) und ohne `spec` stellt nur die
-Dokument-Art um – nummeriert werden nur Arbeitsblätter.
+Dokument-Art um – nummeriert werden nur Arbeitsblätter. Im Baum (`GET tree`) steht die Art je Dokument als `docKind`.

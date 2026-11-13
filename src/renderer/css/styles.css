@@ -6468,3 +6468,8 @@ details.cb-topic > summary .hint { font-weight: normal; margin-left: 6px; }
 .aib-session-actions { display: flex; gap: 6px; }
 .aib-badge { padding: 1px 7px; border-radius: 999px; font-size: 0.76rem; font-weight: 600; background: var(--bg-secondary); color: var(--text-secondary); }
 .aib-badge.ok { background: var(--score-good-bg); color: var(--score-good-text); }
+
+/* 🔢 Nummerierung: Vorschau im Dialog */
+.nb-numbering .nb-check { display: block; margin: 6px 0; }
+.nb-numbering-list { margin: 6px 0 0 18px; padding: 0; max-height: 220px; overflow: auto; }
+.nb-numbering-list strong { display: inline-block; min-width: 2.5em; }

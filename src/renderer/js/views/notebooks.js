@@ -10,6 +10,9 @@ import { NotebookPreview } from './notebook-preview.js';
 import { nestEmbedded } from '../../lm-editor/src/doc/doc-quiz.js';
 import { quizUsage, usageText, isDocLike, reachedViaDocs } from '../quiz-usage.js';
 
+/** 🔢 Nummerierung eines Ordners (src/worksheets/numbering.ts). */
+const NUMBERING_LABEL = { flat: 'durchgezählt', tree: 'gegliedert', off: 'aus' };
+
 /** Quiz-Typen, die die KI-Schnittstelle überarbeiten kann (src/ai-bridge/quiz-format.ts). */
 const AI_REVISABLE_QUIZZES = ['multipleChoice', 'trueFalse', 'fillInTheBlanks', 'dragTheWords', 'dragAndDrop'];
 
@@ -1018,7 +1021,8 @@ export class NotebooksView {
     }
     if (this._docsEnabled()) {
       items.push('-');
-      items.push({ label: '📄 Dokument-Einstellungen…', title: 'Kurs, Kopfzeile, Nummerierung und KI-Vorgaben für die Dokumente darunter', run: () => this._editDocSettings(node) });
+      items.push({ label: '🔢 Nummerierung…', title: 'Ob und wie die Arbeitsblätter darunter nummeriert werden – mit Vorschau', run: () => this._editNumbering(node) });
+      items.push({ label: '📄 Dokument-Einstellungen…', title: 'Kurs, Kopfzeile, Vorlagen und KI-Vorgaben für die Dokumente darunter', run: () => this._editDocSettings(node) });
       items.push({ label: '⬇️ Als Kurs exportieren', title: 'Dokumente darunter als Kurs für den Arbeitsblatt-Generator (ZIP)', run: () => this._exportCourse(node) });
       items.push({ label: '📚 Als Skript (PDF)', title: 'Alle Arbeitsblätter darunter als Skript mit Inhaltsverzeichnis – zum Nachlesen, ohne Karopapier', run: () => this._script(node, 'pdf') });
       items.push({ label: '📚 Skript als .odt / Lösung', title: 'Skript für LibreOffice, dazu die Fassung mit sichtbaren Lösungen', run: () => this._script(node, 'odt') });
@@ -1224,12 +1228,65 @@ export class NotebooksView {
     this.app.showToast(ok ? 'OneNote-Seite kopiert – in OneNote einfügen mit Strg+V.' : 'Kopieren klappt hier nicht – bitte den Link aus der Link-Ansicht nehmen.', ok ? 'success' : 'error');
   }
 
-  /** Kleines Zeichen an Ordnern mit eigenen Dokument-Einstellungen. */
+  /** Kleine Zeichen an Ordnern: 🔢 eigene Nummerierung ab hier, 📄 eigener Kurs. */
   _docBadge(node) {
     const s = node.docSettings;
     if (!s) return '';
-    const bits = [s.kurs && `Kurs „${s.kurs}“`, s.numberRoot && 'Zählung beginnt hier', s.numberFlat && 'durchgezählt'].filter(Boolean);
-    return bits.length ? `<span class="nb-badge" title="${escapeAttr(bits.join(' · '))}">📄</span>` : '';
+    const num = NUMBERING_LABEL[s.numbering];
+    return (num ? `<span class="nb-badge" title="${escapeAttr(`Nummerierung ab hier: ${num}`)}">🔢</span>` : '')
+      + (s.kurs ? `<span class="nb-badge" title="${escapeAttr(`Kurs „${s.kurs}“`)}">📄</span>` : '');
+  }
+
+  /** 🔢 Nummerierung: aus, durchgezählt oder gegliedert – mit Vorschau, wie die Blätter darunter heißen würden. */
+  async _editNumbering(node) {
+    const current = node.docSettings?.numbering || 'inherit';
+    const choices = [
+      ['inherit', 'Wie darüber', 'Übernimmt, was ein Ordner darüber einstellt – ganz oben heißt das: keine Nummern.'],
+      ['off', 'Aus', 'Keine Nummern darunter, auch wenn darüber nummeriert wird.'],
+      ['flat', 'Durchgezählt', 'Alle Arbeitsblätter darunter 1, 2, 3 … – Unterordner gliedern nur. Passt für eine Lehrplaneinheit.'],
+      ['tree', 'Gegliedert', 'Unterordner 1, 2 …, die Blätter darin 1.1, 1.2 … – für ein ganzes Fach mit Kapiteln.'],
+    ];
+    const overlay = document.createElement('div');
+    overlay.className = 'confirm-overlay';
+    overlay.innerHTML = `
+      <form class="import-modules-card nb-dialog nb-numbering">
+        <h3>🔢 Nummerierung – ${escapeHtml(node.title)}</h3>
+        <p class="hint">Nummeriert werden nur Arbeitsblätter; Klassenarbeiten, Texte und Quizze stehen ohne Nummer.
+          Die Nummer erscheint im Baum und in der Kopfzeile ({pfad}, siehe 📄 Dokument-Einstellungen).</p>
+        ${choices.map(([v, label, hint]) => `<label class="nb-check"><input type="radio" name="numbering" value="${v}" ${v === current ? 'checked' : ''}>
+          <strong>${label}</strong> <span class="hint">– ${hint}</span></label>`).join('')}
+        <div class="form-group"><label>Vorschau</label><div class="nb-numbering-preview hint">Wird berechnet …</div></div>
+        <div class="confirm-actions">
+          <button type="submit" class="btn btn-primary">Speichern</button>
+          <button type="button" class="btn btn-secondary btn-cancel">Abbrechen</button>
+        </div>
+      </form>`;
+    document.body.appendChild(overlay);
+    const form = overlay.querySelector('form');
+    const box = overlay.querySelector('.nb-numbering-preview');
+    const close = () => overlay.remove();
+    overlay.querySelector('.btn-cancel').addEventListener('click', close);
+    let ask = 0;
+    const preview = async () => {
+      const mode = form.elements.numbering.value;
+      const mine = ++ask;
+      const res = await this.app.api.numberingPreview(node.id, mode).catch(() => null);
+      if (mine !== ask) return;
+      if (!res || failed(res)) { box.textContent = 'Vorschau nicht verfügbar.'; return; }
+      if (!res.docs.length) { box.textContent = 'Darunter liegen keine Dokumente.'; return; }
+      box.innerHTML = `${res.numbered ? `${res.numbered} Arbeitsbl${res.numbered === 1 ? 'att' : 'ätter'} mit Nummer` : 'Keine Nummern'}`
+        + `<ul class="nb-numbering-list">${res.docs.map((d) => `<li><strong>${escapeHtml(d.pfad || '–')}</strong> ${escapeHtml(d.title)}${d.folder ? ` <span class="hint">(${escapeHtml(d.folder)})</span>` : ''}</li>`).join('')}`
+        + `${res.more ? `<li class="hint">… und ${res.more} weitere</li>` : ''}</ul>`;
+    };
+    form.addEventListener('change', preview);
+    void preview();
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const res = await this.app.api.updateDocSettings(node.id, { numbering: form.elements.numbering.value });
+      if (failed(res)) { this.app.showToast('Fehler: ' + (res?.message || 'Speichern fehlgeschlagen'), 'error'); return; }
+      close();
+      await this.refresh();
+    });
   }
 
   async _editDocSettings(node) {
@@ -1261,12 +1318,7 @@ export class NotebooksView {
           <span class="hint">Platzhalter: {kurs} {pfad} (z. B. 2.1) {nummer} (nur die letzte Stelle) {titel} {abschnitt} {autor}</span></div>
         <div class="form-group"><label>Autor</label>
           <input name="autor" maxlength="120" value="${escapeAttr(s.autor || '')}" placeholder="${escapeAttr(inherited.autor || '')}"></div>
-        <div class="form-group">
-          <label class="nb-check"><input type="checkbox" name="numberRoot" ${s.numberRoot || (s.numberRoot !== false && s.kurs) || node.kind === 'book' ? 'checked' : ''} ${node.kind === 'book' ? 'disabled' : ''}> Zählung beginnt hier
-            <span class="hint">– Ordner darüber erscheinen nicht in der Nummer${node.kind === 'book' ? ' (bei einem Book immer)' : '; mit eigenem Kursnamen von selbst'}</span></label>
-          <label class="nb-check"><input type="checkbox" name="numberFlat" ${s.numberFlat ? 'checked' : ''}> Darunter durchzählen
-            <span class="hint">– keine weiteren Ebenen, Unterordner gliedern nur noch</span></label>
-        </div>
+        <p class="hint">Nummern stellst du über ⋯ → <strong>🔢 Nummerierung…</strong> ein.</p>
         <div class="form-group"><label>Vorlage für den Druck</label>
           <div class="ai-prompt-row">${tplSelect('arbeitsblatt', 'Arbeitsblatt / Text')}${tplSelect('klassenarbeit', 'Klassenarbeit')}${tplSelect('skript', 'Skript')}</div>
           <span class="hint">Vorlagen verwalten: 🖨 Vorlagen über dem Baum.</span></div>
@@ -1294,9 +1346,6 @@ export class NotebooksView {
       const f = form.elements;
       const res = await this.app.api.updateDocSettings(node.id, {
         kurs: f.kurs.value, titelmuster: f.titelmuster.value, autor: f.autor.value, aiGuidelines: f.aiGuidelines.value,
-        // Ein Ordner mit eigenem Kurs zählt von selbst neu – abgewählt heißt dann ausdrücklich nein.
-        numberRoot: node.kind === 'book' ? null : f.numberRoot.checked ? true : (f.kurs.value.trim() ? false : null),
-        numberFlat: f.numberFlat.checked ? true : null,
         formats: [...form.querySelectorAll('input[name="format"]:checked')].map((x) => x.value),
         templates: { arbeitsblatt: f.tpl_arbeitsblatt.value || undefined, klassenarbeit: f.tpl_klassenarbeit.value || undefined, skript: f.tpl_skript.value || undefined },
         quizScale: Object.fromEntries(QUIZ_SIZE_TYPES

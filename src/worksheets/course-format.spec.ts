@@ -53,7 +53,7 @@ describe('readCourse', () => {
   it('Kursangaben, Titelmuster mit Pfadnummer, KI-Vorgaben aus CLAUDE.md', () => {
     expect(plan.title).toBe('Arduino');
     expect(plan.settings).toEqual({
-      kurs: 'Arduino', autor: 'Martin Metzler', titelmuster: '{kurs} {pfad} – {titel}', aiGuidelines: '# Kurs Arduino\nESP32, Arduino-IDE.',
+      kurs: 'Arduino', autor: 'Martin Metzler', titelmuster: '{kurs} {pfad} – {titel}', aiGuidelines: '# Kurs Arduino\nESP32, Arduino-IDE.', numbering: 'tree',
     });
   });
 

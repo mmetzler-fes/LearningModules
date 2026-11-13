@@ -560,6 +560,10 @@ export class BrowserApi {
   updateDocSettings(id, settings) {
     return this._fetch(`/api/notebooks/nodes/${encodeURIComponent(id)}/doc-settings`, { method: 'PATCH', body: JSON.stringify(settings) });
   }
+  /** 🔢 Nummern unter einem Ordner zur Probe (`mode`: tree | flat | off | inherit) – ohne zu speichern. */
+  numberingPreview(id, mode) {
+    return this._fetch(`/api/notebooks/nodes/${encodeURIComponent(id)}/numbering-preview?mode=${encodeURIComponent(mode)}`);
+  }
   /** Notebook-Datei (ZIP) einlesen, in parentId (leer = oben). */
   async importNotebook(file, parentId = null) {
     const formData = new FormData();

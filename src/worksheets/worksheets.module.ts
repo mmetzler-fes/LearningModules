@@ -24,10 +24,11 @@ import { QuizScaleService } from './quiz-scale.service';
 import { InterchangeModule } from '../core/interchange/interchange.module';
 import { DrawingsModule } from '../drawings/drawings.module';
 import { PdfImportJobs } from './pdf-import-jobs.service';
+import { SystemConfig } from '../core/entities/system-config.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([NotebookNode, NotebookPlacement, LearningTopic, LearningModule, DocMirror, WorksheetTemplate, User, TopicLink]),
+    TypeOrmModule.forFeature([NotebookNode, NotebookPlacement, LearningTopic, LearningModule, DocMirror, WorksheetTemplate, User, TopicLink, SystemConfig]),
     FeaturesModule,
     NextcloudModule,
     InterchangeModule,

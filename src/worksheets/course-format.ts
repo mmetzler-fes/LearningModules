@@ -92,7 +92,8 @@ export function readCourse(files: CourseFiles): CoursePlan {
   const warnings: string[] = [];
 
   const kurs = parseYaml(text(kursPath) || '', 'kurs.yaml');
-  const settings: DocSettings = { titelmuster: importTitelmuster(kurs.titelmuster) };
+  // Ein eingelesener Kurs zählt wie im Generator – gegliedert ab seinem Ordner.
+  const settings: DocSettings = { titelmuster: importTitelmuster(kurs.titelmuster), numbering: 'tree' };
   if (kurs.kurs) settings.kurs = String(kurs.kurs).slice(0, 120);
   if (kurs.autor) settings.autor = String(kurs.autor).slice(0, 120);
   if (kurs.meta && typeof kurs.meta === 'object' && Object.keys(kurs.meta).length) {

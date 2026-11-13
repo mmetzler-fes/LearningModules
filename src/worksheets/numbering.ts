@@ -3,17 +3,17 @@
  * Notebook-Struktur einer Lehrkraft. Ohne Datenbank, damit sie sich einzeln
  * prüfen lässt (numbering.spec.ts).
  *
- * Gezählt wird je Ordner in der Reihenfolge des Baums: erst die Unterordner,
- * dann die Lernthemen, darin die Dokumente in Modulreihenfolge. Die Nummer
- * trägt die Positionen der Ordner davor mit („2.1“ = Ordner 2, Blatt 1),
- * gezählt ab dem Zählbeginn:
- *   - jedes Book,
- *   - ein Ordner mit „Zählung beginnt hier“ (numberRoot) oder mit eigenem
- *     Kursnamen – sofern numberRoot dort nicht ausdrücklich false ist.
- * „Darunter durchzählen“ (numberFlat) zählt alle Dokumente darunter auf einer
- * Ebene, Unterordner gliedern dann nur noch. Nummeriert werden nur
- * Arbeitsblätter; Klassenarbeiten und Texte stehen ohne Nummer.
- * Ordner ohne nummerierte Dokumente bekommen keine Nummer (keine Lücken).
+ * Nummern gibt es nur, wo ein Ordner sie einschaltet (`docSettings.numbering`, Menü „🔢 Nummerierung…“):
+ *   - 'flat'  durchgezählt: alle Arbeitsblätter darunter 1, 2, 3 …, Unterordner gliedern nur,
+ *   - 'tree'  gegliedert: Unterordner 1, 2 …, Blätter darin 1.1, 1.2 … – erst die Unterordner,
+ *             dann die Lernthemen des Ordners, darin die Dokumente in Modulreihenfolge,
+ *   - 'off'   keine Nummern darunter (bis ein Ordner tiefer neu einschaltet),
+ *   - fehlt   wie darüber; ganz oben heißt das: keine Nummern.
+ * Ein Ordner mit eigener Einstellung beginnt die Zählung neu. Nummeriert werden nur
+ * Arbeitsblätter; Klassenarbeiten, Texte und Quizze stehen ohne Nummer. Ordner ohne
+ * nummerierte Dokumente bekommen keine Nummer (keine Lücken).
+ * Ältere Einstellungen (numberRoot, numberFlat, Kurs als Zählbeginn) rechnet
+ * legacyNumbering einmal um (doc-numbering.service.ts beim Start).
  */
 
 export interface DocSettings {
@@ -21,6 +21,9 @@ export interface DocSettings {
   titelmuster?: string;
   autor?: string;
   meta?: Record<string, string>;
+  /** Nummerierung ab hier (siehe oben); fehlt = wie darüber. */
+  numbering?: NumberingMode;
+  /** Ältere Felder – nur noch für legacyNumbering. */
   numberRoot?: boolean;
   numberFlat?: boolean;
   aiGuidelines?: string;
@@ -35,6 +38,22 @@ export interface DocSettings {
    * sie in die Dokumente (spec.quizScale), die Anzeige liest sie dort.
    */
   quizScale?: Record<string, number>;
+}
+
+export type NumberingMode = 'tree' | 'flat' | 'off';
+export const NUMBERING_MODES: NumberingMode[] = ['tree', 'flat', 'off'];
+
+/**
+ * Ältere Einstellungen → `numbering`: Jedes Book zählte von selbst, ein Ordner mit „Zählung beginnt hier“
+ * oder eigenem Kurs begann neu, „Darunter durchzählen“ zählte flach. Übernommen wird nur, was
+ * ausdrücklich eingestellt war (Zählbeginn bzw. Kurs) – Books ohne Einstellung zählen nicht mehr.
+ * Ergebnis undefined: nichts eingestellt (wie darüber).
+ */
+export function legacyNumbering(s: DocSettings | null | undefined): NumberingMode | undefined {
+  if (!s) return undefined;
+  if (s.numberRoot === true || (s.numberRoot !== false && !!s.kurs)) return s.numberFlat ? 'flat' : 'tree';
+  if (s.numberFlat) return 'flat';
+  return undefined;
 }
 
 /** Erlaubte Größen eines Quiz im Blatt (wie A− / A+ in h5p-renderer.js). */
@@ -169,9 +188,11 @@ export function sanitizeDocSettings(input: any, existing: DocSettings | null | u
     const v = typeof src[key] === 'string' ? src[key].trim().slice(0, LIMITS[key]) : '';
     if (v) out[key] = v; else delete out[key];
   }
-  for (const key of ['numberRoot', 'numberFlat'] as const) {
-    if (!(key in src)) continue;
-    if (src[key] === true || src[key] === false) out[key] = src[key]; else delete out[key];
+  if ('numbering' in src) {
+    if (NUMBERING_MODES.includes(src.numbering)) out.numbering = src.numbering; else delete out.numbering;
+    // Die alten Felder gelten dann nicht mehr.
+    delete out.numberRoot;
+    delete out.numberFlat;
   }
   if ('formats' in src) {
     if (Array.isArray(src.formats)) out.formats = PRINT_FORMATS.filter((f) => src.formats.includes(f));
@@ -238,8 +259,12 @@ export function numberDocuments(nodes: NumNode[], placements: NumPlacement[], mo
     docsOf.set(topicId, ordered.filter(isDocument));
   }
 
-  const isRoot = (n: NumNode) => !n.parentId || !nodeById.has(n.parentId) || n.docSettings?.numberRoot === true
-    || (n.docSettings?.numberRoot !== false && !!n.docSettings?.kurs);
+  /** Eigene Einstellung des Ordners – dann beginnt hier eine neue Zählung (bzw. keine). */
+  const startOf = (n: NumNode): NumberingMode | null => {
+    const m = n.docSettings?.numbering;
+    return m && NUMBERING_MODES.includes(m) ? m : null;
+  };
+  const isRoot = (n: NumNode) => startOf(n) !== null;
 
   const docs = new Map<string, DocInfo>();
   const nodeNumbers = new Map<string, string>();
@@ -277,20 +302,37 @@ export function numberDocuments(nodes: NumNode[], placements: NumPlacement[], mo
     });
   };
 
-  /** Alle Dokumente darunter auf einer Ebene (numberFlat). */
-  const flat = (n: NumNode, scope: string, prefix: number[], counter: { i: number }) => {
-    for (const k of kidsOf.get(n.id) || []) flat(k, scope, prefix, counter);
-    for (const d of docsIn(n.id)) assign(d, n.id, scope, isNumbered(d) ? [...prefix, ++counter.i] : null);
+  /** Hier beginnt eine eigene Einstellung: zählen (durchgezählt/gegliedert) oder nicht. */
+  const begin = (n: NumNode) => {
+    const mode = startOf(n);
+    if (mode === 'flat') flat(n, n.id, { i: 0 });
+    else if (mode === 'tree') walk(n, n.id, []);
+    else none(n, n.id);
   };
 
-  const walk = (n: NumNode, scope: string, prefix: number[]) => {
-    if (n.docSettings?.numberFlat) {
-      flat(n, scope, prefix, { i: 0 });
-      return;
+  /** Ohne Nummern – bis ein Ordner tiefer selbst einschaltet. */
+  const none = (n: NumNode, scope: string) => {
+    for (const k of kidsOf.get(n.id) || []) {
+      if (isRoot(k)) begin(k);
+      else none(k, scope);
     }
+    for (const d of docsIn(n.id)) assign(d, n.id, scope, null);
+  };
+
+  /** Durchgezählt: alle Arbeitsblätter darunter auf einer Ebene, Unterordner gliedern nur. */
+  const flat = (n: NumNode, scope: string, counter: { i: number }) => {
+    for (const k of kidsOf.get(n.id) || []) {
+      if (isRoot(k)) begin(k);
+      else flat(k, scope, counter);
+    }
+    for (const d of docsIn(n.id)) assign(d, n.id, scope, isNumbered(d) ? [++counter.i] : null);
+  };
+
+  /** Gegliedert: Unterordner mit Nummer, Blätter darin mit Pfad. */
+  const walk = (n: NumNode, scope: string, prefix: number[]) => {
     let i = 0;
     for (const k of kidsOf.get(n.id) || []) {
-      if (isRoot(k)) { walk(k, k.id, []); continue; }
+      if (isRoot(k)) { begin(k); continue; }
       if (!hasNumbered(k)) { walk(k, scope, []); continue; } // nur ungezählte Dokumente darin
       i++;
       nodeNumbers.set(k.id, [...prefix, i].join('.'));
@@ -299,8 +341,10 @@ export function numberDocuments(nodes: NumNode[], placements: NumPlacement[], mo
     for (const d of docsIn(n.id)) assign(d, n.id, scope, isNumbered(d) ? [...prefix, ++i] : null);
   };
 
-  for (const book of kidsOf.get(null) || []) walk(book, book.id, []);
-  let u = 0;
-  for (const d of docsIn(null)) assign(d, null, '', isNumbered(d) ? [++u] : null);
+  for (const book of kidsOf.get(null) || []) {
+    if (isRoot(book)) begin(book);
+    else none(book, book.id);
+  }
+  for (const d of docsIn(null)) assign(d, null, '', null); // Unsortiert: ohne Nummer
   return { docs, nodeNumbers, refs };
 }

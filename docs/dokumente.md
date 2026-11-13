@@ -343,11 +343,27 @@ sich nachträglich umwandeln, siehe [Anhang](anhang.md#in-ein-dokument-umwandeln
 
 ## Nummern und Kopfzeile
 
-Die Nummer eines Arbeitsblatts ergibt sich aus seinem Platz im
-[Notebook](notebooks.md): Jeder Abschnitt zählt neu, die Nummer trägt die
-Ordner davor mit – **„Arduino 2.1 – Der AD-Wandler“** ist das erste Blatt im
-zweiten Abschnitt. Wer ein Lernthema verschiebt, bekommt die neue Nummer
-sofort; der Baum zeigt die Nummern grau vor dem Namen.
+Nummern gibt es nur, wo du sie einschaltest: ⋯ am Book, Bereich oder Abschnitt →
+**🔢 Nummerierung…** (mit Vorschau). Ein Ordner mit eigener Einstellung trägt im
+Baum ein 🔢, und die Zählung beginnt dort neu:
+
+- **Wie darüber** – übernimmt die Einstellung eines Ordners darüber; ganz oben heißt das: keine Nummern.
+- **Aus** – keine Nummern darunter, auch wenn darüber nummeriert wird.
+- **Durchgezählt** – alle Arbeitsblätter darunter 1, 2, 3 …, Unterordner gliedern nur.
+  Passt für eine Lehrplaneinheit: Abschnitt „BPE 8“ mit Kurs „BPE 8“ ergibt „BPE 8 3 – Komparator“.
+- **Gegliedert** – Unterordner 1, 2 …, die Blätter darin 1.1, 1.2 … (erst die Unterordner,
+  dann die Lernthemen des Ordners). **„Arduino 2.1 – Der AD-Wandler“** ist das erste Blatt
+  im zweiten Abschnitt.
+
+Nummeriert werden nur Arbeitsblätter; Klassenarbeiten, Texte und Quizze stehen ohne
+Nummer, Ordner ohne Arbeitsblätter auch. Wer ein Lernthema verschiebt, bekommt die neue
+Nummer sofort; der Baum zeigt sie grau vor dem Namen. Ein eingelesener Kurs aus dem
+Arbeitsblatt-Generator ist von selbst „gegliedert“.
+
+Bis November 2026 zählte jedes Book von selbst, ein Ordner mit eigenem Kurs begann neu
+(„Zählung beginnt hier“ / „Darunter durchzählen“). Beim ersten Start danach wurde das
+einmal umgerechnet: Was ausdrücklich eingestellt war, gilt weiter, Books ohne Einstellung
+zählen nicht mehr.
 
 Im Ordnermenü (⋯) unter **📄 Dokument-Einstellungen…** – bei jedem Book,
 Bereich und Abschnitt; der Knopf steht auch in der Vorschau rechts, wenn der
@@ -356,9 +372,6 @@ Ordner angeklickt ist:
 - **Kursname**, **Kopfzeile** (Titelmuster mit `{kurs}`, `{pfad}` = 2.1,
   `{nummer}` = nur die letzte Stelle, `{titel}`, `{abschnitt}`, `{autor}`),
   **Autor** – sie gelten für alles darunter.
-- **Zählung beginnt hier** – Ordner darüber erscheinen nicht in der Nummer.
-- **Darunter durchzählen** – keine weiteren Ebenen; am Book eingestellt zählt
-  alles von 1 bis n durch.
 - **Vorlage** je Art, **Dateien in der Nextcloud** und **KI-Vorgaben**.
 
 ### Verweise auf andere Blätter

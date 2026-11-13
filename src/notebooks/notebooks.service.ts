@@ -373,6 +373,12 @@ export class NotebooksService {
     return { success: true };
   }
 
+  /** 🔢 Vorschau der Nummern unter einem Ordner mit der Einstellung `mode` – ohne zu speichern. */
+  async numberingPreview(id: string, user: any, mode: string) {
+    const node = await this.ownNode(id, user);
+    return this.docNumbering.preview(user.userId, node.id, String(mode || 'inherit'));
+  }
+
   /** Einstellungen für Dokumente darunter (Kurs, Titelmuster, Nummerierung, KI-Vorgaben). */
   async updateDocSettings(id: string, user: any, body: any) {
     const node = await this.ownNode(id, user);

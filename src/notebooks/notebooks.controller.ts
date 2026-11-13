@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Patch, Delete, Body, Param, Request, Res, UseGuards, UseInterceptors, UploadedFile, BadRequestException, ForbiddenException } from '@nestjs/common';
+import { Controller, Get, Post, Put, Patch, Delete, Body, Param, Query, Request, Res, UseGuards, UseInterceptors, UploadedFile, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import type { Response } from 'express';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -46,7 +46,7 @@ export class NotebooksController {
 
   /**
    * Dokument-Einstellungen eines Ordners: `{ kurs?, titelmuster?, autor?,
-   * meta?, numberRoot?, numberFlat?, aiGuidelines? }` – nur mit Freischaltung.
+   * meta?, numbering? ('tree'|'flat'|'off'|'inherit'), aiGuidelines? }` – nur mit Freischaltung.
    */
   @Patch('nodes/:id/doc-settings')
   @UseGuards(FeatureGuard)
@@ -55,6 +55,14 @@ export class NotebooksController {
     const result = await this.notebooks.updateDocSettings(id, req.user, body);
     docChanged(req.user.userId); // Nextcloud-Abbild der Dokumente
     return result;
+  }
+
+  /** 🔢 `?mode=tree|flat|off|inherit` – Nummern unter diesem Ordner zur Probe. */
+  @Get('nodes/:id/numbering-preview')
+  @UseGuards(FeatureGuard)
+  @RequireFeature('worksheets')
+  numberingPreview(@Param('id') id: string, @Request() req: any, @Query('mode') mode?: string) {
+    return this.notebooks.numberingPreview(id, req.user, mode || 'inherit');
   }
 
   /** Hoch- oder runterstufen: `{ kind: 'area' | 'section' | 'book' }`. */

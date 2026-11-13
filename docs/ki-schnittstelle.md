@@ -33,3 +33,9 @@ KI-Prompt im Browser (`ai-prompt.js`, `json-text.js`, `h5p-types.js`).
 
 **🤖 Mit KI überarbeiten…** am Quiz im Lernnotizbuch: eine Anleitung mit dem jetzigen Stand und
 dem Format nur dieses Typs; die KI darf nur dieses Quiz ändern.
+
+## Ordner einstellen
+
+`set_doc_settings` (`id`, `kurs`, `titelmuster`, `numbering`: flat | tree | off | inherit) setzt Kurs,
+Kopfzeile und 🔢 Nummerierung eines Ordners; die übrigen Dokument-Einstellungen bleiben, ⏪ stellt
+den alten Stand wieder her.

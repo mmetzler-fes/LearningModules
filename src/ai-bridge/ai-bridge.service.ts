@@ -42,6 +42,7 @@ export interface AiBridgeScope {
 export type UndoAction =
   | { kind: 'delete_nb_node'; id: string; label: string }
   | { kind: 'rename_nb_node'; id: string; oldTitle: string; label: string }
+  | { kind: 'restore_doc_settings'; id: string; old: any; label: string }
   | { kind: 'move_topic'; topicId: string; oldNodeId: string | null; oldOrderIndex: number; existed: boolean; label: string }
   | { kind: 'delete_plan_node'; id: string; label: string }
   | { kind: 'rename_plan_node'; id: string; oldTitle: string; label: string }
@@ -74,6 +75,7 @@ export interface AiBridgeSession {
 export type AiBridgeOp =
   | { op: 'create_notebook_node'; kind: 'book' | 'area' | 'section'; title: string; parentId?: string | null; ref?: string }
   | { op: 'rename_notebook_node'; id: string; title: string }
+  | { op: 'set_doc_settings'; id: string; kurs?: string; titelmuster?: string; numbering?: 'tree' | 'flat' | 'off' | 'inherit' }
   | { op: 'move_topic'; topicId: string; targetNodeId: string | null; index?: number | null }
   | { op: 'create_plan_node'; kind: 'folder' | 'plan' | 'area' | 'section'; title: string; parentId?: string | null; ref?: string }
   | { op: 'rename_plan_node'; id: string; title: string }
@@ -598,6 +600,31 @@ export class AiBridgeService {
           break;
         }
 
+        case 'set_doc_settings': {
+          // Kurs, Kopfzeile und 🔢 Nummerierung eines Ordners (numbering.ts) – die übrigen Einstellungen bleiben.
+          this.requirePerm(session, byTeacher, 'organize', i, item.op);
+          const id = resolveRef(item.id)!;
+          if (!scopeSets.allowedNbNodes.has(id)) throw new ForbiddenException(`operations[${i}]: Knoten „${id}“ ist nicht freigegeben.`);
+          const node = await this.nbNodeRepo.findOne({ where: { id, ownerId: session.userId } });
+          if (!node) throw new NotFoundException(`operations[${i}]: Knoten „${id}“ nicht gefunden.`);
+          if (item.numbering !== undefined && !['tree', 'flat', 'off', 'inherit'].includes(String(item.numbering))) {
+            throw new BadRequestException(`operations[${i}]: numbering: tree (gegliedert), flat (durchgezählt), off oder inherit (wie darüber).`);
+          }
+          const body: Record<string, unknown> = {};
+          for (const k of ['kurs', 'titelmuster', 'numbering'] as const) if (item[k] !== undefined) body[k] = item[k];
+          if (!Object.keys(body).length) throw new BadRequestException(`operations[${i}]: kurs, titelmuster oder numbering angeben.`);
+          const what = [body.kurs !== undefined && `Kurs „${body.kurs}“`, body.numbering && `Nummerierung ${body.numbering}`, body.titelmuster !== undefined && 'Kopfzeile'].filter(Boolean).join(', ');
+          const summary = `Notizbuch-Ordner „${node.title}“: ${what}`;
+          if (!dryRun) {
+            const old = node.docSettings ? structuredClone(node.docSettings) : null;
+            await this.notebooks.updateDocSettings(id, user, body);
+            session.undoStack.push({ kind: 'restore_doc_settings', id, old, label: summary });
+            session.log.push({ at: new Date().toISOString(), op: item.op, summary });
+          }
+          results.push({ index: i, op: item.op, ok: true, id, summary: dryRun ? `[Vorschau] ${summary}` : summary });
+          break;
+        }
+
         case 'move_topic': {
           this.requirePerm(session, byTeacher, 'organize', i, item.op);
           const topicId = resolveRef(item.topicId)!;
@@ -934,6 +961,9 @@ export class AiBridgeService {
       case 'rename_nb_node':
         await this.notebooks.updateNode(action.id, user, { title: action.oldTitle });
         break;
+      case 'restore_doc_settings':
+        await this.nbNodeRepo.update({ id: action.id, ownerId: userId }, { docSettings: action.old });
+        break;
       case 'move_topic':
         if (action.existed) {
           await this.notebooks.move(user, { type: 'topic', id: action.topicId, parentId: action.oldNodeId, index: action.oldOrderIndex });
@@ -998,6 +1028,11 @@ export class AiBridgeService {
         op: 'create_notebook_node',
         description: 'Legt im Lernnotizbuch ein Book (nur oben), einen Bereich (area) oder einen Abschnitt (section, unterste Ordnerebene für Lernthemen) an. Optional "ref": "$mein_knoten" vergeben, um in nachfolgenden Operationen desselben Aufrufs darauf zu verweisen.',
         example: { op: 'create_notebook_node', kind: 'section', title: 'Grundschaltungen', parentId: '<book-oder-area-id>', ref: '$sec_grund' },
+      },
+      {
+        op: 'set_doc_settings',
+        description: 'Kurs, Kopfzeile (titelmuster) und Nummerierung eines Ordners: numbering flat (durchgezählt 1, 2, 3 …), tree (gegliedert 1.1 …), off, inherit (wie darüber). Übrige Einstellungen bleiben; rückgängig machbar.',
+        example: { op: 'set_doc_settings', id: '<section-id>', kurs: 'BPE 8', numbering: 'flat' },
       },
       {
         op: 'move_topic',
@@ -1217,6 +1252,7 @@ export class AiBridgeService {
       ...(organize ? [
         '`{"op":"create_notebook_node","kind":"area"|"section","title":"…","parentId":"<id|$ref>","ref":"$a1"}` – section ist die unterste Ordnerebene für Lernthemen',
         '`{"op":"rename_notebook_node","id":"<id>","title":"…"}`',
+        '`{"op":"set_doc_settings","id":"<nodeId>","kurs":"BPE 8","numbering":"flat"}` – Kurs/Kopfzeile und Nummerierung (flat durchgezählt, tree gegliedert, off, inherit)',
         '`{"op":"move_topic","topicId":"<id>","targetNodeId":"<id|$ref>"}`',
         '`{"op":"create_plan_node","kind":"folder"|"plan"|"area"|"section","title":"…","parentId":"<id|$ref|null>","ref":"$p1"}`',
         '`{"op":"rename_plan_node","id":"<id>","title":"…"}`',

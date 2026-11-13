@@ -47,6 +47,7 @@ describe('AiBridgeService (15-Minuten-KI-Token, Scope & Undo)', () => {
 
     const nbNodeRepo: any = {
       findOne: jest.fn(async ({ where }: any) => nbNodes.find((n) => n.id === where.id && n.ownerId === where.ownerId) || null),
+      update: jest.fn(async ({ id }: any, patch: any) => { Object.assign(nbNodes.find((n) => n.id === id) || {}, patch); }),
     };
     const nbPlaceRepo: any = {
       findOne: jest.fn(async ({ where }: any) => nbPlacements.find((p) => p.ownerId === where.ownerId && p.topicId === where.topicId) || null),
@@ -112,6 +113,11 @@ describe('AiBridgeService (15-Minuten-KI-Token, Scope & Undo)', () => {
       }),
       deleteNode: jest.fn(async (id: string) => {
         nbNodes = nbNodes.filter((n) => n.id !== id);
+        return { success: true };
+      }),
+      updateDocSettings: jest.fn(async (id: string, _u: any, body: any) => {
+        const n = nbNodes.find((x) => x.id === id);
+        n.docSettings = { ...(n.docSettings || {}), ...body };
         return { success: true };
       }),
       move: jest.fn(async (_u: any, body: any) => {
@@ -437,5 +443,18 @@ describe('AiBridgeService (15-Minuten-KI-Token, Scope & Undo)', () => {
     const inst = await service.getInstructionsForAi(await service.authenticateToken(token), 'http://x');
     expect(inst.references.quiz).toContain('/api/ai-bridge/reference/quiz');
     expect((inst as any).docSpecReference).toBeUndefined();
+  });
+
+  it('Kurs und Nummerierung eines Ordners setzen, rückgängig machbar; nur freigegebene Ordner', async () => {
+    nbNodes[1].docSettings = { autor: 'M. M.' };
+    const { token, session: info } = await service.createSession(user, { notebookNodeIds: ['book-et'], planNodeIds: [] });
+    const session = await service.authenticateToken(token);
+    const r = await service.executeBatch(session, { operations: [{ op: 'set_doc_settings', id: 'sec-et-1', kurs: 'BPE 8', numbering: 'flat' }] });
+    expect(r.results[0].summary).toContain('Kurs „BPE 8“, Nummerierung flat');
+    expect(nbNodes[1].docSettings).toMatchObject({ autor: 'M. M.', kurs: 'BPE 8', numbering: 'flat' });
+    await expect(service.executeBatch(session, { operations: [{ op: 'set_doc_settings', id: 'sec-et-1', numbering: 'quer' as any }] })).rejects.toThrow(/numbering: tree/);
+    await expect(service.executeBatch(session, { operations: [{ op: 'set_doc_settings', id: 'book-other', numbering: 'flat' }] })).rejects.toThrow(/nicht freigegeben/);
+    await service.rollbackSession(user, info.id);
+    expect(nbNodes.find((n) => n.id === 'sec-et-1').docSettings).toEqual({ autor: 'M. M.' });
   });
 });

@@ -44,4 +44,10 @@ describe('Quiz im Dokument', () => {
     expect(steps.map((m) => m.id)).toEqual(['d']);
     expect([...embedded.keys()]).toEqual(['q1']);
   });
+
+  it('Mehrere IDs mit Komma (Quiz-Seite aus OneNote): nur diese, in dieser Reihenfolge', () => {
+    const mods = [doc('d', [{ type: 'quiz', module: 'q1' }]), quiz('q1'), quiz('q2'), quiz('q3')];
+    expect(planRun(mods, { onlyModule: 'q3,q2' }).steps.map((m) => m.id)).toEqual(['q3', 'q2']);
+    expect(planRun(mods, { onlyModule: 'q2,weg' }).steps.map((m) => m.id)).toEqual(['q2']);
+  });
 });

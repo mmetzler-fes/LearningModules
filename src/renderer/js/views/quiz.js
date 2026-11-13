@@ -241,7 +241,7 @@ export class QuizView {
     }
     // Abschnitt einer HTML-App: nur seine Schritte; die App selbst: alle.
     const onlyApp = onlyModule && modules.find((m) => m.type === 'htmlApp' && (m.id === onlyModule || (m.subModules || []).some((k) => k.id === onlyModule)));
-    if (onlyModule && !onlyApp && !modules.some((m) => m.id === onlyModule)) {
+    if (onlyModule && !onlyApp && !String(onlyModule).split(',').some((id) => modules.some((m) => m.id === id))) {
       this.app.showToast('Dieses Quiz ist gerade nicht freigegeben – es geht mit dem ganzen Lernthema weiter.', 'info');
     }
     const plan = onlyApp

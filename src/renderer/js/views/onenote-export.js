@@ -119,9 +119,10 @@ async function topicPages(topicTitle, modules, linkFor, { images, onStep, warnin
   const { steps } = planRun(modules);
   const docs = modules.filter((m) => m.type === 'document');
   const others = steps.filter((m) => m.type !== 'document');
-  const urls = [...docs, ...others].map((m) => linkFor(m.id));
-  const qrs = await qrPngs(urls);
-  const qrOf = new Map([...docs, ...others].map((m, i) => [m.id, qrs[i]]));
+  const allQuizzes = others.length ? linkFor(others.map((m) => m.id).join(',')) : null;
+  const qrs = await qrPngs([...docs.map((m) => linkFor(m.id)), ...(allQuizzes ? [allQuizzes] : [])]);
+  const qrOf = new Map(docs.map((m, i) => [m.id, qrs[i]]));
+  const qrAll = allQuizzes ? qrs[docs.length] : null;
   const stand = `Stand ${today()} – die aktuelle Fassung gibt es über den Link.`;
   const pages = [];
   for (const doc of docs) {
@@ -141,13 +142,12 @@ async function topicPages(topicTitle, modules, linkFor, { images, onStep, warnin
     }
     pages.push({ title: pageTitle(topicTitle, doc.title), blocks });
   }
+  // Quizze außerhalb von Dokumenten: ein Link für alle, mit „Weiter“ von Quiz zu Quiz;
+  // die Titel stehen nur als Text darunter.
   if (others.length) {
-    const blocks = [];
-    for (const m of others) {
-      blocks.push({ type: 'text', runs: [{ text: `${m.title || 'Quiz'}: ` }, { text: 'öffnen', href: linkFor(m.id) }] });
-      const qr = qrOf.get(m.id);
-      if (qr) blocks.push({ type: 'image', ...qr, widthIn: 1.0, name: 'QR-Code.png', alt: `QR-Code: ${m.title}` });
-    }
+    const blocks = [{ type: 'text', runs: [{ text: others.length === 1 ? 'Quiz: ' : `Alle ${others.length} Quizze nacheinander: ` }, { text: 'öffnen', href: allQuizzes }] }];
+    if (qrAll) blocks.push({ type: 'image', ...qrAll, widthIn: 1.3, name: 'QR-Code.png', alt: `QR-Code: ${topicTitle} – Quiz` });
+    others.forEach((m, i) => blocks.push({ type: 'text', runs: [{ text: `${i + 1}. ${m.title || 'Quiz'}` }] }));
     pages.push({ title: `${topicTitle} – Quiz`, blocks });
   }
   return pages;
@@ -199,7 +199,7 @@ function openDialog(app, { title, hint, plan }) {
       <h3 id="oneNoteExportTitle">🟪 ${escapeHtml(title)}</h3>
       <p class="import-modules-hint">${hint}</p>
       <p class="hint">${plan.sections.length} Abschnitt${plan.sections.length === 1 ? '' : 'e'} · ${topics} Lernthem${topics === 1 ? 'a' : 'en'}.
-        Je Dokument eine Seite mit Link, QR-Code und Ausdruck; Quizze außerhalb von Dokumenten gemeinsam auf einer Seite „… – Quiz“.</p>
+        Je Dokument eine Seite mit Link, QR-Code und Ausdruck; Quizze außerhalb von Dokumenten gemeinsam auf einer Seite „… – Quiz“ mit einem Link für alle.</p>
       <label><input type="checkbox" class="one-images" checked> 🖼 Ausdruck als Seitenbilder mitnehmen (darauf lässt sich in OneNote schreiben – dauert je Dokument einige Sekunden)</label>
       <details class="hint" style="margin-top:8px;"><summary>So kommt es nach OneNote</summary>
         <ol style="margin:6px 0 0 18px;">

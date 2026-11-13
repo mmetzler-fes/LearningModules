@@ -25,7 +25,7 @@ Fassung in LearningModules.
 | Abschnitt | Abschnitt (`.one`-Datei) |
 | Lernthemen direkt in einem Book/Bereich | ein Abschnitt mit dessen Namen |
 | Dokument | eigene Seite **„Lernthema – Dokument“** (heißen beide gleich: nur einmal) |
-| Quizze, die in keinem Dokument stecken | eine gemeinsame Seite **„Lernthema – Quiz“** |
+| Quizze, die in keinem Dokument stecken | eine gemeinsame Seite **„Lernthema – Quiz“**: ein Link mit QR-Code für alle (mit „Weiter“ von Quiz zu Quiz, `&mod=id1,id2,…`), die Titel als Text darunter |
 
 Eine Dokument-Seite enthält oben den Link zur Live-Fassung, den QR-Code und
 „Stand …“, darunter – wenn angehakt – den **Ausdruck als Seitenbilder**

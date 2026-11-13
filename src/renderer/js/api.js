@@ -264,6 +264,10 @@ export class BrowserApi {
     return this._fetch(`/api/classes/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(data) });
   }
   deleteClass(id) { return this._fetch(`/api/classes/${encodeURIComponent(id)}`, { method: 'DELETE' }); }
+  /** 👩‍🏫 Registrierte Lehrkraft per E-Mail als Teilnehmer eintragen (Fortbildung). */
+  addClassTeacher(classId, email) {
+    return this._fetch(`/api/classes/${encodeURIComponent(classId)}/teachers`, { method: 'POST', body: JSON.stringify({ email }) });
+  }
   addClassStudent(classId, data) {
     return this._fetch(`/api/classes/${encodeURIComponent(classId)}/students`, { method: 'POST', body: JSON.stringify(data) });
   }

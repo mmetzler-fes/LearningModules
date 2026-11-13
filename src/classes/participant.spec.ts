@@ -12,4 +12,7 @@ describe('participantRelation: Lehrkraft auf der Eingabeseite eines Klassenlinks
     expect(participantRelation('me', 'Berta Birne', { ownerId: 'x', strict: false }, list)).toBe('open');
     expect(participantRelation('me', 'Berta Birne', { ownerId: 'x', strict: true }, list)).toBe('closed');
   });
+  it('mit ihrem Konto verknüpft: ohne PIN hinein, auch unter anderem Namen', () => {
+    expect(participantRelation('me', 'Berta Birne', { ownerId: 'x', strict: true }, [{ firstName: 'B.', lastName: 'Birne', userId: 'me' }] as any[])).toBe('linked');
+  });
 });

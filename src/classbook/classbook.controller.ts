@@ -10,6 +10,13 @@ import { ClassBoardService } from './class-board.service';
 export class ClassbookController {
   constructor(private readonly classbook: ClassbookService, private readonly boards: ClassBoardService) {}
 
+  /** 👩‍🏫 Angemeldete Lehrkraft als Teilnehmer: Ausweis für das Klassennotizbuch `token` ohne PIN. */
+  @Post('join/:token')
+  @HttpCode(200)
+  teacherJoin(@Request() req: any, @Param('token') token: string) {
+    return this.classbook.teacherJoin(token, req.user);
+  }
+
   /** ✍️ Tafelbilder dieser Klasse (ohne Inhalt). */
   @Get(':classId/boards')
   listBoards(@Request() req: any, @Param('classId') classId: string) {

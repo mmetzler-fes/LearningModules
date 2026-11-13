@@ -11,7 +11,8 @@ export function repo(rows: any[] = []) {
     }
     return x === v;
   };
-  const match = (r: any, where: any) => Object.entries(where || {}).every(([k, v]) => ok(v, r[k]));
+  // Liste von Bedingungen: eine davon (wie bei TypeORM).
+  const match = (r: any, where: any): boolean => (Array.isArray(where) ? where.some((w) => match(r, w)) : Object.entries(where || {}).every(([k, v]) => ok(v, r[k])));
   return {
     rows,
     count: async ({ where }: any) => rows.filter((r) => match(r, where)).length,

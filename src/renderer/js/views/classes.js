@@ -547,6 +547,7 @@ export class ClassesView {
         <input name="firstName" placeholder="Vorname(n)" maxlength="80" autocomplete="off" required />
         <input name="lastName" placeholder="Name" maxlength="80" autocomplete="off" />
         <button type="submit" class="btn btn-primary btn-sm">➕ Schüler</button>
+        <button type="button" class="btn btn-secondary btn-sm btn-class-add-teacher" title="Registrierte Lehrkraft als Teilnehmer (z. B. Fortbildung) – angemeldet kommt sie ohne PIN hinein">👩‍🏫 Lehrkraft eintragen</button>
       </form>
 
       ${students.length === 0
@@ -556,7 +557,7 @@ export class ClassesView {
             <tbody>${students.map((s) => `
               <tr data-id="${escapeAttr(s.id)}" class="${s.status === 'pending' ? 'is-pending' : ''}">
                 <td>${escapeHtml(s.lastName) || '<span class="hint">–</span>'}</td>
-                <td>${escapeHtml(s.firstName)}</td>
+                <td>${escapeHtml(s.firstName)}${s.userId ? ' <span title="Lehrkraft mit Konto – angemeldet ohne PIN hinein">👩‍🏫</span>' : ''}</td>
                 <td class="class-student-pin" title="${s.pinShownAt ? 'Dem Schüler schon angezeigt' : 'Wird beim ersten Speichern angezeigt'}">${escapeHtml(s.pin || '')}${s.pinShownAt ? '' : ' <span class="hint">neu</span>'}</td>
                 <td>${s.status === 'pending' ? '<span class="class-pending-note">unbestätigt</span>' : ''}</td>
                 <td class="class-student-actions">
@@ -605,6 +606,20 @@ export class ClassesView {
       if (failed(res)) { this.app.showToast('Fehler: ' + (res?.message || '?'), 'error'); return; }
       await this._renderDetail();
       this._detail.querySelector('.class-add-student input')?.focus();
+    });
+
+    this._detail.querySelector('.btn-class-add-teacher').addEventListener('click', async () => {
+      const values = await formDialog({
+        title: '👩‍🏫 Lehrkraft eintragen',
+        hint: 'Für Fortbildungen: Die Lehrkraft muss hier registriert sein. Ihr Name kommt aus ihrem Konto; angemeldet kommt sie ohne PIN ins Klassennotizbuch.',
+        fields: [{ name: 'email', type: 'email', label: 'E-Mail-Adresse, mit der sie sich anmeldet', value: '' }],
+        submitLabel: 'Eintragen',
+      });
+      if (!values?.email?.trim()) return;
+      const res = await this.app.api.addClassTeacher(klasse.id, values.email.trim());
+      if (failed(res)) { this.app.showToast('Fehler: ' + (res?.message || '?'), 'error'); return; }
+      this.app.showToast(`${`${res.firstName} ${res.lastName}`.trim()} eingetragen – angemeldet kommt sie über den Klassenbuch-Link ohne PIN hinein.`, 'success');
+      await this._renderDetail();
     });
 
     this._detail.querySelectorAll('tr[data-id]').forEach((row) => {

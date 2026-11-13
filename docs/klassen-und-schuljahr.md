@@ -146,6 +146,22 @@ nicht über den QR-Code am Handy. **Wichtig:** Außerhalb der Vorschau löscht d
 Wer danach weiter als Lehrkraft arbeiten will, meldet sich neu an oder nimmt für die Aufgabe ein privates Fenster oder ein anderes
 Gerät; dort steht der Name nicht schon im Feld.
 
+## Lehrkräfte als Teilnehmer (Fortbildung)
+
+Eine Klasse kann auch registrierte Lehrkräfte als Teilnehmer haben – sonst
+bleibt alles wie bei Schülern (Ergebnisse, Blätter, Klassenarbeiten).
+
+- **👩‍🏫 Lehrkraft eintragen** in der Klasse: per E-Mail-Adresse, mit der sie
+  sich anmeldet. Name und Vorname kommen aus ihrem Konto; der Eintrag ist mit
+  dem Konto verknüpft (`class_students.userId`) und trägt 👩‍🏫.
+- Öffnet die angemeldete Lehrkraft den Klassenbuch-Link, steht dort
+  **„👩‍🏫 Als ‹Name› hinein – ohne PIN“** (`POST /api/classbook/join/:token`,
+  das Konto ist der Nachweis).
+- **Selbsteintrag** in einer offenen Klasse: derselbe Knopf legt einen
+  unbestätigten, verknüpften Eintrag an; die Lehrkraft der Klasse bestätigt (✓)
+  oder ordnet ihn einem vorhandenen Namen zu (⇄) – das Konto geht dabei mit.
+- Ohne Anmeldung (fremdes Gerät) geht es weiter mit Name und PIN.
+
 ## Klassen einlesen (SchülerLernTool)
 
 Im SchülerLernTool unter **Eigenschaften → 🎓 Klassen für LearningModules

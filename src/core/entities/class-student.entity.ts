@@ -45,4 +45,12 @@ export class ClassStudent extends BaseEntity {
 
   @Column({ type: 'datetime', nullable: true })
   pinShownAt: Date | null;
+
+  /**
+   * 👩‍🏫 Lehrkraft als Teilnehmer (Fortbildung): ihr Konto. Angemeldet kommt sie ohne PIN
+   * ins Klassennotizbuch (ClassbookService.teacherJoin); ohne Konto wie jeder Schüler mit Name und PIN.
+   */
+  @Index()
+  @Column({ type: 'varchar', nullable: true })
+  userId: string | null;
 }

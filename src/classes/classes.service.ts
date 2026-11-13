@@ -309,7 +309,45 @@ export class ClassesService implements OnApplicationBootstrap, OnModuleDestroy {
     const me = await this.userRepo.findOne({ where: { id: user.userId } });
     const name = String(me?.displayName || '').trim();
     const students = await this.studentRepo.find({ where: { classId } });
-    return { name, relation: participantRelation(user.userId, name, klasse, students) };
+    const linked = students.find((s) => s.userId === user.userId);
+    return { name: linked ? `${linked.firstName} ${linked.lastName}`.trim() : name, relation: participantRelation(user.userId, name, klasse, students) };
+  }
+
+  /**
+   * 👩‍🏫 Angemeldete Lehrkraft als Teilnehmer einer Klasse (Fortbildung): ihr verknüpfter Eintrag –
+   * oder, in einer offenen Klasse, ein neuer unbestätigter, den die Lehrkraft der Klasse bestätigt.
+   */
+  async teacherParticipant(klasse: StudentClass, user: any): Promise<ClassStudent> {
+    if (klasse.ownerId === user.userId) throw new ForbiddenException('Das ist deine eigene Klasse – zum Ausprobieren nimm im Klassennotizbuch 👁 Vorschau.');
+    const linked = await this.studentRepo.findOne({ where: { classId: klasse.id, userId: user.userId } });
+    if (linked) return linked;
+    if (klasse.strict) throw new ForbiddenException('Du stehst nicht in der Liste dieser Klasse. Die Lehrkraft der Klasse kann dich eintragen.');
+    const me = await this.userRepo.findOne({ where: { id: user.userId } });
+    const display = String(me?.displayName || '').trim();
+    if (!display || display.includes('@')) throw new BadRequestException('Bitte zuerst im Konto deinen Namen eintragen – unter ihm stehst du dann in der Liste.');
+    const typed = splitTypedName(display);
+    return this.studentRepo.save(this.studentRepo.create({
+      id: crypto.randomUUID(), classId: klasse.id, firstName: typed.firstName.slice(0, 80), lastName: typed.lastName.slice(0, 80),
+      status: 'pending', importId: null, userId: user.userId,
+    }));
+  }
+
+  /** 👩‍🏫 Registrierte Lehrkraft per E-Mail-Adresse eintragen – ihr Name kommt aus ihrem Konto. */
+  async addTeacher(classId: string, user: any, body: { email?: string }) {
+    const klasse = await this.own(classId, user);
+    const email = String(body?.email || '').trim().toLowerCase();
+    if (!email.includes('@')) throw new BadRequestException('Bitte die E-Mail-Adresse angeben, mit der sich die Lehrkraft anmeldet.');
+    const all = await this.userRepo.find({ where: [{ role: 'teacher' }, { role: 'admin' }], select: ['id', 'email', 'displayName', 'active', 'role'] });
+    const teacher = all.find((u) => String(u.email || '').trim().toLowerCase() === email && u.active !== false);
+    if (!teacher) throw new NotFoundException('Unter dieser E-Mail-Adresse gibt es keine Lehrkraft.');
+    if (teacher.id === klasse.ownerId) throw new BadRequestException('Das bist du selbst – zum Ausprobieren nimm 👁 Vorschau.');
+    if (await this.studentRepo.findOne({ where: { classId, userId: teacher.id } })) throw new BadRequestException('Diese Lehrkraft steht schon in der Liste.');
+    const display = String(teacher.displayName || '').trim();
+    const typed = splitTypedName(display && !display.includes('@') ? display : email.split('@')[0]);
+    return this.studentRepo.save(this.studentRepo.create({
+      id: crypto.randomUUID(), classId, firstName: typed.firstName.slice(0, 80), lastName: typed.lastName.slice(0, 80),
+      status: 'confirmed', importId: null, userId: teacher.id,
+    }));
   }
 
   // ---- Testschüler ----
@@ -362,6 +400,8 @@ export class ClassesService implements OnApplicationBootstrap, OnModuleDestroy {
       if (taken) await this.attemptRepo.delete({ id: x.id });
       else await this.attemptRepo.update({ id: x.id }, { studentId: to.id, studentName: name });
     }
+    // 👩‍🏫 Verknüpftes Konto (Selbsteintrag einer Lehrkraft) geht mit.
+    if (from.userId && !to.userId) await this.studentRepo.update({ id: to.id }, { userId: from.userId });
     await this.studentRepo.remove(from);
     return { success: true, moved: moved.affected ?? 0 };
   }

@@ -1498,6 +1498,24 @@ export class ClassbookService {
     };
   }
 
+  /**
+   * 👩‍🏫 Angemeldete Lehrkraft als Teilnehmer (Fortbildung): Ausweis ohne Name und PIN – ihr Konto
+   * ist der Nachweis. Verknüpfter Eintrag oder, in einer offenen Klasse, ein neuer unbestätigter.
+   */
+  async teacherJoin(token: string, user: any) {
+    const { klasse } = await this.byToken(token);
+    const student = await this.classes.teacherParticipant(klasse, user);
+    const name = `${student.firstName} ${student.lastName}`.trim();
+    return {
+      ticket: issueTicket(classbookTicketKey(klasse.id), student.id, name),
+      deviceTicket: issueDeviceTicket(classbookTicketKey(klasse.id), student.id, name, student.pin),
+      studentId: student.id,
+      classId: klasse.id,
+      name,
+      pending: student.status === 'pending',
+    };
+  }
+
   /** Angemeldeter Schüler des Klassennotizbuchs (für ClassBoardService). */
   async studentSession(token: string, ticket: unknown) {
     return this.session(token, ticket);

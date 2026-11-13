@@ -247,8 +247,17 @@ export class ClassbookStudent {
       </form>`);
     el.querySelector('#cbToList')?.addEventListener('click', () => this.showList());
     const form = el.querySelector('#cbLoginForm');
-    // Angemeldete Lehrkraft (Fortbildung): mit ihrem Namen – PIN wie jeder Schüler.
-    void offerTeacherName(el.querySelector('#cbName'), info.classId, () => el.querySelector('#cbPin').focus());
+    // Angemeldete Lehrkraft (Fortbildung): mit ihrem Namen – eingetragen (👩‍🏫) oder in offener Klasse auch ohne PIN.
+    void offerTeacherName(el.querySelector('#cbName'), info.classId, () => el.querySelector('#cbPin').focus(), {
+      onJoin: async (authToken) => {
+        const res = await fetch(`/api/classbook/join/${encodeURIComponent(this.token)}`, { method: 'POST', headers: { Authorization: `Bearer ${authToken}` } })
+          .then(async (r) => ({ ok: r.ok, body: await r.json().catch(() => ({})) })).catch(() => null);
+        if (!res?.ok || !res.body?.ticket) { this._login(res?.body?.message || 'Der Server ist nicht erreichbar.'); return; }
+        saveSession({ token: this.token, ticket: res.body.ticket, name: res.body.name, pin: null });
+        if (res.body.deviceTicket && res.body.classId) rememberStudent(res.body.classId, { ticket: res.body.deviceTicket, name: res.body.name });
+        await this._home();
+      },
+    });
     // Kein Pflichtfeld: Ob es ohne PIN geht (Erstanmeldung), entscheidet der Server.
     (askTest ? el.querySelector('#cbTest') : name && askPin ? el.querySelector('#cbPin') : el.querySelector('#cbName')).focus();
     form.addEventListener('submit', async (e) => {

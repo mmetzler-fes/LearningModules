@@ -24,8 +24,9 @@ function tokenFromOtherTab(wait = 500) {
 /**
  * Namen in `input` eintragen, wenn eine Lehrkraft angemeldet ist und damit in die Klasse kommt; sonst ein Hinweis.
  * `onFilled(relation)`: was danach geschieht (z. B. den Fokus setzen).
+ * `onJoin(authToken)`: Klassennotizbuch – dann gibt es dazu den Knopf „👩‍🏫 Ohne PIN hinein“ (Konto als Nachweis).
  */
-export async function offerTeacherName(input, classId, onFilled) {
+export async function offerTeacherName(input, classId, onFilled, { onJoin = null } = {}) {
   if (!input || !classId || input.parentElement?.querySelector('.as-teacher-hint')) return;
   const token = (() => { try { return sessionStorage.getItem('lm_token') || localStorage.getItem('lm_token'); } catch (_) { return null; } })()
     || await tokenFromOtherTab();
@@ -61,5 +62,17 @@ export async function offerTeacherName(input, classId, onFilled) {
   show(found.relation === 'open'
     ? 'Dein Name als angemeldete Lehrkraft. Die Lehrkraft der Klasse bestätigt dich danach.'
     : 'Dein Name als angemeldete Lehrkraft.');
+  // 👩‍🏫 Verknüpft (oder offene Klasse): ohne PIN – das Konto ist der Nachweis.
+  if (onJoin && (found.relation === 'linked' || found.relation === 'open')) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'btn btn-primary btn-full as-teacher-join';
+    btn.textContent = `👩‍🏫 Als ${name} hinein – ohne PIN`;
+    btn.addEventListener('click', async () => {
+      btn.disabled = true;
+      try { await onJoin(token); } finally { btn.disabled = false; }
+    });
+    input.form?.insertBefore(btn, input.form.firstChild);
+  }
   onFilled?.(found.relation);
 }

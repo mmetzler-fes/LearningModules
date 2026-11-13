@@ -118,6 +118,12 @@ export class ClassesController {
     return this.classesService.sharesOfClass(id, req.user);
   }
 
+  /** `{ email }` – 👩‍🏫 registrierte Lehrkraft als Teilnehmer eintragen (Fortbildung). */
+  @Post(':id/teachers')
+  async addTeacher(@Param('id') id: string, @Request() req: any, @Body() body: { email?: string }) {
+    return this.classesService.addTeacher(id, req.user, body);
+  }
+
   @Post(':id/students')
   async addStudent(@Param('id') id: string, @Request() req: any, @Body() body: { firstName?: string; lastName?: string }) {
     return this.classesService.addStudent(id, req.user, body);

@@ -2,7 +2,7 @@ import { escapeHtml } from '../utils.js';
 import { downloadBlob } from '../api.js';
 import { writeOneSection } from '../onenote-write.js';
 import { zipStore } from '../odf/sheet-templates.js';
-import { planRun } from '../../lm-editor/src/doc/doc-quiz.js';
+import { planRun, quizIdsOf } from '../../lm-editor/src/doc/doc-quiz.js';
 
 // ==================== FÜR ONENOTE AUSGEBEN ====================
 //
@@ -142,6 +142,15 @@ async function topicPages(topicTitle, modules, linkFor, { images, onStep, warnin
     if (qr) blocks.push({ type: 'image', ...qr, widthIn: 1.3, name: 'QR-Code.png', alt: `QR-Code: ${doc.title}` });
     blocks.push(urlLine(linkFor(doc.id)));
     blocks.push({ type: 'text', runs: [{ text: stand }] });
+    // Quizze im Dokument: Im Ausdruck stehen sie nur als QR-Code im Bild – hier die Adressen als Text.
+    const quizIds = [...new Set(quizIdsOf(doc))];
+    if (quizIds.length) {
+      blocks.push({ type: 'text', runs: [{ text: quizIds.length === 1 ? 'Quiz im Dokument:' : 'Quizze im Dokument:' }] });
+      quizIds.forEach((id, i) => {
+        const title = modules.find((m) => m.id === id)?.title || 'Quiz';
+        blocks.push({ type: 'text', runs: [{ text: `${i + 1}. ${title}: ` }, { text: linkFor(id), href: linkFor(id) }] });
+      });
+    }
     if (images) {
       try {
         const shots = await documentPages(doc, inkFor ? await inkFor(doc.id) : null);

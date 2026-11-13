@@ -28,7 +28,8 @@ Fassung in LearningModules.
 | Quizze, die in keinem Dokument stecken | eine gemeinsame Seite **„Lernthema – Quiz“**: ein Link mit QR-Code für alle (mit „Weiter“ von Quiz zu Quiz, `&mod=id1,id2,…`), die Titel als Text darunter |
 
 Eine Dokument-Seite enthält oben den Link zur Live-Fassung, den QR-Code, darunter
-die Adresse als Text (zum Kopieren) und „Stand …“, darunter – wenn angehakt – den **Ausdruck als Seitenbilder**
+die Adresse als Text (zum Kopieren) und „Stand …“, dazu die Adressen der Quizze im
+Dokument als Text (im Ausdruck stehen sie nur als QR-Code), darunter – wenn angehakt – den **Ausdruck als Seitenbilder**
 untereinander. Darauf lässt sich in OneNote mit dem Stift schreiben. Der
 Ausdruck veraltet, wenn das Dokument geändert wird; aktuell bleibt der Link.
 

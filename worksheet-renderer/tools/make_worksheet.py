@@ -2470,6 +2470,10 @@ def render_block_content(block: Any, styles: dict[str, str], ctx: dict[str, Any]
         heading = H(outlinelevel=OUTLINE_LEVEL[kind] + ctx.get("level_shift", 0),
                     stylename=styles[kind])
         add_rich_text(heading, str(block["title"] if "title" in block else block["text"]))
+        # Punkte der Aufgabe (Klassenarbeit): „(6 P)“ hinter dem Titel.
+        points = block.get("points")
+        if kind != "section" and isinstance(points, (int, float)) and not isinstance(points, bool) and points > 0:
+            heading.addText(f" ({points:g} P)".replace(".", ","))
         out.append(heading)
         if block.get("text") and "title" in block:
             out.extend(render_block({"type": "text", "text": block["text"]}, styles, ctx))

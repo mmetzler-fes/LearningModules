@@ -163,6 +163,26 @@ class RenderTest(unittest.TestCase):
             self.assertRegex(content, r'style:name="ABNeben.Sp1.0"[^>]*>\s*<style:table-column-properties style:column-width="9.400cm"')
             self.assertRegex(content, r'table:name="Neben1".*Links steht die Schaltung.*<table:table table:name="Tab\d+"')
 
+    def test_punkte_der_aufgabe(self):
+        """`points` an task/subtask: „(6 P)“ hinter dem Titel, Kommazahl deutsch."""
+        spec = (
+            "titel: Klassenarbeit\ncontent:\n"
+            "  - {type: section, title: Zahlen, points: 9}\n"
+            "  - {type: task, title: Umwandeln, points: 6}\n"
+            "  - {type: subtask, title: Teil, points: 1.5}\n"
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "blatt").mkdir()
+            (root / "blatt" / "ka.yaml").write_text(spec, encoding="utf-8")
+            env = dict(os.environ, ARBEITSBLATT_ROOT=str(root))
+            subprocess.run([sys.executable, str(GEN / "tools" / "make_worksheet.py"), "blatt/ka.yaml",
+                            "-o", "out"], cwd=root, env=env, check=True, capture_output=True)
+            content = zipfile.ZipFile(root / "out" / "blatt.odt").read("content.xml").decode()
+            self.assertIn("Umwandeln (6 P)", content)
+            self.assertIn("Teil (1,5 P)", content)
+            self.assertNotIn("9 P", content)
+
     def test_beschriftung_aus_dem_stift_editor(self):
         """`ink` an einem Baustein: Rahmen mit dem SVG an einem winzigen Absatz davor,
         y um den oberen Abstand des Karos (0,2 cm) verschoben."""

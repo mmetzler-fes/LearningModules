@@ -21,7 +21,8 @@ content:
     title: …
     text: …                     # optionaler Einleitungstext
     blocks: [ … ]               # verschachtelte Blöcke
-  - type: subtask               # Ebene 3 -> "1.1.1"
+    points: 6                   # optional: Punkte, gedruckt „(6 P)“; die Quizze darin teilen sie sich
+  - type: subtask               # Ebene 3 -> "1.1.1" (points wie bei task)
   - type: text                  # Fließtext; Leerzeile trennt Absätze
   - type: list
     items: [ … ]

@@ -2,7 +2,7 @@ import { escapeHtml } from '../utils.js';
 import { collectAnswer, splitTrueFalse, GRADABLE_TYPES } from '../../lm-editor/src/modules/answer-eval.js';
 import { CompanionRun, COMPANION_MAX } from './companion-run.js';
 import { TaskTimer } from '../task-timer.js';
-import { planRun } from '../../lm-editor/src/doc/doc-quiz.js';
+import { planRun, scoreRun } from '../../lm-editor/src/doc/doc-quiz.js';
 import { appOfView, expandAppSteps } from '../html-app-steps.js';
 import { classbookSession, backToClassbook } from './classbook-student.js';
 
@@ -647,11 +647,10 @@ export class QuizView {
     // Aufgaben, die kein Automat bewerten kann.
     const graded = answers.filter((a) => !a.informational && !a.ungraded);
     // Lernbegleitung: Lernpunkte statt Anteilen, 10 je Aufgabe.
-    const rawScore = companion
-      ? graded.reduce((sum, a) => sum + (a.lernpunkte || 0), 0)
-      : graded.reduce((sum, a) => sum + (a.points ?? (a.isCorrect ? 1 : 0)), 0);
-    const score = Math.round(rawScore * 100) / 100;
-    const total = companion ? graded.length * COMPANION_MAX : graded.length;
+    // Sonst Punkte: je Frage 1 – in einer Aufgabe mit Punkten (Klassenarbeit) deren Anteil (scoreRun).
+    const run = companion ? null : scoreRun(graded, quizState.modules.filter((m) => m?.type === 'document'));
+    const score = companion ? Math.round(graded.reduce((sum, a) => sum + (a.lernpunkte || 0), 0) * 100) / 100 : run.score;
+    const total = companion ? graded.length * COMPANION_MAX : run.total;
     const percentage = total > 0 ? Math.round((score / total) * 100) : 0;
 
     // Speichern darf das Ende nicht aufhalten: Ohne Netz (WLAN aus) warf der
@@ -677,7 +676,8 @@ export class QuizView {
           linkName: quizState.linkName || null,
           percentage,
           details,
-          ...(companion ? { jokersUsed: companion.jokersUsed } : {}),
+          // Schon nach Aufgabenpunkten gerechnet (src/results/exam-points.ts rechnet nicht nach).
+          ...(companion ? { jokersUsed: companion.jokersUsed } : { taskPoints: true }),
         },
       });
     } else {

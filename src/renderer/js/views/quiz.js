@@ -682,8 +682,8 @@ export class QuizView {
           linkName: quizState.linkName || null,
           percentage,
           details,
-          // Schon nach Aufgabenpunkten gerechnet (src/results/exam-points.ts rechnet nicht nach).
-          ...(companion ? { jokersUsed: companion.jokersUsed } : { taskPoints: true, detailPoints: true }),
+          // Stand der Punkte-Rechnung (src/results/exam-points.ts POINTS_VERSION) – dann wird nicht nachgerechnet.
+          ...(companion ? { jokersUsed: companion.jokersUsed } : { pointsVersion: 2 }),
         },
       });
     } else {

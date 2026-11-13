@@ -23,9 +23,14 @@ export function rescoreExam(r: Pick<Result, 'score' | 'maxScore' | 'payload'>, d
 }
 
 /**
- * Klassenarbeiten, die vor den Aufgabenpunkten abgegeben wurden, zählten je Frage 1:
- * einmal beim Start nachrechnen (doc-quiz.js scoreRun, wie quiz.js bei der Abgabe).
- * Danach trägt das Ergebnis `payload.taskPoints` und bleibt, wie es ist; `detailPoints`: die Punkte je Antwort sind ergänzt.
+ * Stand der Punkte-Rechnung (doc-quiz.js scoreRun), den quiz.js bei der Abgabe als `payload.pointsVersion` mitgibt.
+ * 2: Aufgabenpunkte, Punkte je Antwort, „Wörter ziehen“ anteilig, je Aufgabe auf halbe Punkte abgerundet.
+ */
+export const POINTS_VERSION = 2;
+
+/**
+ * Klassenarbeiten mit älterem Stand der Rechnung einmal beim Start nachrechnen (wie quiz.js bei der Abgabe);
+ * danach tragen sie `payload.pointsVersion` und bleiben, wie sie sind.
  */
 @Injectable()
 export class ExamPointsMigration implements OnApplicationBootstrap {
@@ -41,20 +46,18 @@ export class ExamPointsMigration implements OnApplicationBootstrap {
   }
 
   async run() {
-    const results = (await this.resultRepo.find({ where: { mode: 'exam' } })).filter((r) => !r.payload?.detailPoints);
+    const results = (await this.resultRepo.find({ where: { mode: 'exam' } })).filter((r) => (Number(r.payload?.pointsVersion) || 0) < POINTS_VERSION);
     let changed = 0;
     for (const r of results) {
       const docIds = [...new Set(((r.payload?.details || []) as any[]).map((a) => a?.inDoc).filter(Boolean))];
       const docs = docIds.length ? await this.moduleRepo.find({ where: { id: In(docIds) } }) : [];
       const next = rescoreExam(r, docs);
-      // Schon nach Aufgabenpunkten gerechnet (taskPoints): die Summe bleibt, es kommen nur die Punkte je Antwort dazu.
-      const rescore = next.changed && !r.payload?.taskPoints;
-      if (rescore) {
+      if (next.changed) {
         r.score = next.score;
         r.maxScore = next.maxScore;
         changed++;
       }
-      r.payload = { ...(r.payload || {}), ...(rescore ? { percentage: next.percentage } : {}), details: next.details, taskPoints: true, detailPoints: true };
+      r.payload = { ...(r.payload || {}), ...(next.changed ? { percentage: next.percentage } : {}), details: next.details, pointsVersion: POINTS_VERSION };
       await this.resultRepo.save(r);
     }
     if (changed) this.logger.log(`${changed} Klassenarbeit(en) nach Aufgabenpunkten nachgerechnet.`);

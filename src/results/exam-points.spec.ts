@@ -22,3 +22,11 @@ describe('Klassenarbeit nach Aufgabenpunkten nachrechnen', () => {
     expect(rescoreExam({ score: 1, maxScore: 2, payload: { details } }, [])).toMatchObject({ changed: false });
   });
 });
+
+describe('Klassenarbeit: Wörter ziehen anteilig, halbe Punkte abgerundet (rückwirkend)', () => {
+  it('älteres „Wörter ziehen“ (nur percent) zählt anteilig', () => {
+    const doc = { id: 'ka', type: 'document', content: { spec: { content: [{ type: 'task', title: 'IPv4', points: 5, blocks: [{ type: 'quiz', module: 'dtw' }] }] } } };
+    const details = [{ moduleId: 'dtw', moduleType: 'dragTheWords', inDoc: 'ka', isCorrect: false, points: 0, percent: 40 }];
+    expect(rescoreExam({ score: 0, maxScore: 5, payload: { details } }, [doc])).toMatchObject({ score: 2, maxScore: 5, changed: true });
+  });
+});

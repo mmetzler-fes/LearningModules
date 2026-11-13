@@ -6,6 +6,7 @@ interface Writer {
   md5(bytes: Uint8Array): Uint8Array;
   crc32(bytes: Uint8Array): number;
   unreferenced(objects: any[], rootIds: any[]): string[];
+  textLines(runs: Array<{ text: string }>): number;
 }
 interface Reader {
   readOneSection(bytes: Uint8Array): { pages: Array<{ title: string; level: number; files: any[]; images: any[] }> };
@@ -71,5 +72,10 @@ describe('OneNote schreiben', () => {
       { id: id(3), jcid: 3, props: [] },
     ];
     expect(w.unreferenced(objects, [id(1)])).toEqual(['3']);
+  });
+
+  it('lange Zeilen (Adressen) zählen mehrfach – die Ausdruck-Seiten rutschen darunter statt darüber', () => {
+    expect(w.textLines([{ text: 'Stand 13.11.2026' }])).toBe(1);
+    expect(w.textLines([{ text: 'https://lm.example.de/?q=' + 'x'.repeat(120) }])).toBe(3);
   });
 });

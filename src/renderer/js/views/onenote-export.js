@@ -148,7 +148,8 @@ async function topicPages(topicTitle, modules, linkFor, { images, onStep, warnin
       blocks.push({ type: 'text', runs: [{ text: quizIds.length === 1 ? 'Quiz im Dokument:' : 'Quizze im Dokument:' }] });
       quizIds.forEach((id, i) => {
         const title = modules.find((m) => m.id === id)?.title || 'Quiz';
-        blocks.push({ type: 'text', runs: [{ text: `${i + 1}. ${title}: ` }, { text: linkFor(id), href: linkFor(id) }] });
+        blocks.push({ type: 'text', runs: [{ text: `${i + 1}. ${title}` }] });
+        blocks.push(urlLine(linkFor(id)));
       });
     }
     if (images) {

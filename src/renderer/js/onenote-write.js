@@ -268,6 +268,12 @@ function styleProps({ name, font = 'Calibri', size = 22, color = 0xff000000, lin
   return p;
 }
 
+/** Zeilen eines Absatzes im Textblock (etwa 70 Zeichen je Zeile bei der Breite der Seite). */
+export function textLines(runs) {
+  const len = (runs || []).reduce((n, r) => n + String(r.text || '').length, 0);
+  return Math.max(1, Math.ceil(len / 70));
+}
+
 /**
  * Seite bauen. `page`: { title, blocks: [{ type:'text', runs:[{text, href?}] } | { type:'file', name, data, icon }] }
  */
@@ -330,7 +336,11 @@ function buildPage(w, ids, page, now, author, fileStore) {
   const free = []; // Ausdruck-Seiten: frei auf der Seite, untereinander
   let flowHeight = 0; // grobe Höhe des Textblocks in halben Zoll
   for (const block of page.blocks) {
-    if (block.type === 'text') { elements.push(oe(richText(block.runs))); flowHeight += 0.45; }
+    if (block.type === 'text') {
+      elements.push(oe(richText(block.runs)));
+      // Lange Zeilen (Adressen) brechen um – sonst lägen die Ausdruck-Seiten darüber und verdeckten sie.
+      flowHeight += 0.45 * textLines(block.runs);
+    }
     if (block.type === 'file') {
       const fileGuid = randomGuid(), iconGuid = randomGuid();
       fileStore.push({ guid: fileGuid, data: block.data }, { guid: iconGuid, data: block.icon });

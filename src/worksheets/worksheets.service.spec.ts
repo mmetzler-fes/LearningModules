@@ -117,6 +117,21 @@ describe('WorksheetsService.prepare', () => {
     expect(job.files).toEqual({ 'bilder/bild-1.jpg': Buffer.from('jpg').toString('base64') });
   });
 
+  it('Quiz: QR-Kasten, mit quizzes: print darunter die Druckfassung – sonst (Stift-PDF, Abbild) nur der Kasten', async () => {
+    const quiz = { id: 'q1', topicId: 't1', title: 'Einheiten', type: 'markTheWords', orderIndex: 0, content: { textField: 'Die *Einheit* ist Ohm.' } };
+    const moduleRepo: any = { findOne: async () => quiz, find: async () => [] };
+    const linkRepo: any = { findOne: async () => ({ token: 'tok' }) };
+    const s = new WorksheetsService({} as WorksheetRendererClient, undefined, moduleRepo, undefined, undefined, undefined, undefined, linkRepo);
+    const c = ctx({ topicId: 't1', ownerId: 'u1', base: 'https://lm.example' });
+    const spec = { content: [{ type: 'quiz', module: 'q1' }] };
+    const { job } = await s.prepare(spec, 'T', ['pdf'], c, { quizzes: 'print' });
+    expect(job.spec.content[0]).toMatchObject({ type: 'box', title: 'Quiz: Einheiten' });
+    expect(JSON.stringify(job.spec.content.slice(1))).toContain('Die Einheit ist Ohm.');
+    expect(job.spec.content.some((b: any) => b.type === 'solution')).toBe(true);
+    const qr = await s.prepare(spec, 'T', ['pdf'], c);
+    expect(qr.job.spec.content).toHaveLength(1);
+  });
+
   it('nicht druckbare Bilder und Dateiverweise werden zum Hinweis', async () => {
     const { job, warnings } = await service.prepare({ content: [
       { type: 'image', src: 'https://cloud.example/a.png', caption: 'Foto' },

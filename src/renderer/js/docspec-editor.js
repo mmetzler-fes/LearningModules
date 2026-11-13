@@ -51,13 +51,6 @@ const STARTER = `content:
             text: Musterlösung
 `;
 
-const OUTPUTS = [
-  { output: 'pdf', label: '🖨 PDF', title: 'Arbeitsblatt als PDF öffnen' },
-  { output: 'odt', label: '⬇ .odt', title: 'Arbeitsblatt für LibreOffice Writer' },
-  { output: 'loesung_pdf', label: '🖨 Lösung', title: 'Lösungsblatt als PDF öffnen' },
-  { output: 'loesung', label: '⬇ Lösung .odt', title: 'Lösungsblatt für LibreOffice Writer' },
-];
-
 /** Welches Modul gerade bearbeitet wird – setzt app.js (useModuleSource). */
 let moduleSource = () => null;
 export function useModuleSource(fn) {
@@ -168,7 +161,7 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
           <button type="button" class="btn btn-secondary btn-sm ds-import-odt" title="Writer- oder Word-Dokument (.odt, .docx), Folien (.odp, .pptx) oder PDF übernehmen: Überschriften, Absätze, Listen, Tabellen, Bilder" style="margin-left: auto;">📄 Übernehmen…</button>
         </div>
         <div class="ds-preview-bar">
-          <button type="button" class="btn btn-secondary btn-sm ds-print-menu" title="Arbeitsblatt oder Lösungsblatt als PDF oder .odt">🖨 Drucken ▾</button>
+          <button type="button" class="btn btn-secondary btn-sm ds-print-menu" title="Arbeitsblatt oder Lösung als PDF oder .odt – Quizze mit Druckfassung oder nur als QR-Code">🖨 Drucken…</button>
           <span class="ds-preview-pages hint"></span>
         </div>
         <div class="ds-editor-status hint"></div>
@@ -569,14 +562,14 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
     input.click();
   });
 
-  root.querySelector('.ds-print-menu').addEventListener('click', (e) => {
+  root.querySelector('.ds-print-menu').addEventListener('click', async (e) => {
     const btn = e.currentTarget;
-    const r = btn.getBoundingClientRect();
-    showContextMenu(r.left, r.bottom + 4, [
-      ...OUTPUTS.map((o) => ({ label: `${o.label} – ${o.title}`, onClick: () => print(o.output, btn) })),
-      '-',
-      { label: '⬇ .zlm – für den lm-editor (gespeicherter Stand, mit Quizzen und Beschriftung)', onClick: downloadZlm },
-    ]);
+    const { openPrintDialog } = await import('./views/print-dialog.js');
+    const choice = await openPrintDialog({
+      heading: '🖨 Drucken',
+      extras: [{ label: '⬇ .zlm', title: 'Für den lm-editor: gespeicherter Stand mit Quizzen und Beschriftung', run: downloadZlm }],
+    });
+    if (choice) print(choice.output, btn, choice.quizzes);
   });
 
   /** Gespeichertes Dokument als .zlm – der Server packt Quizze, Bilder und die eigene Beschriftung dazu. */
@@ -596,7 +589,7 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
     }
   }
 
-  async function print(output, btn) {
+  async function print(output, btn, quizzes = 'print') {
     update();
     if (!spec) return;
     const errors = validateDocSpec(spec);
@@ -611,7 +604,7 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
       const res = await fetch('/api/worksheets/render', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...(token() ? { Authorization: `Bearer ${token()}` } : {}) },
-        body: JSON.stringify({ spec, title, output, kind: document.querySelector('select[name="content_kind"]')?.value,
+        body: JSON.stringify({ spec, title, output, quizzes, kind: document.querySelector('select[name="content_kind"]')?.value,
           // Vorlage aus dem Formular – auch vor dem Speichern ('' = wie im Ordner).
           templateId: document.querySelector('select[name="content_templateId"]')?.value ?? undefined,
           ...(moduleId ? { moduleId } : {}) }),

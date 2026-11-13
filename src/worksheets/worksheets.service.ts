@@ -12,6 +12,8 @@ import { formatHeader, settingsAt } from './numbering';
 import { NotebookNode } from '../core/entities/notebook-node.entity';
 import { TemplatesService, templateKindOf } from './templates.service';
 import { widthInCm } from './course-format';
+import { QuizPrintMode, quizPrintBlocks } from './quiz-print';
+import { imageSize } from '../core/interchange/moodle/image-size';
 
 export { widthInCm };
 import { RenderJob, WorksheetOutput, WorksheetRendererClient } from './renderer.client';
@@ -248,7 +250,7 @@ export class WorksheetsService {
    * Skript (Kompendium) aus allen Arbeitsblättern unter einem Ordner, in der
    * Reihenfolge des Baums – Verweise, Bilder und Kursangaben wie beim Blatt.
    */
-  async renderScript(user: any, nodeId: string, output: WorksheetOutput) {
+  async renderScript(user: any, nodeId: string, output: WorksheetOutput, quizzes: QuizPrintMode = 'print') {
     const nodes = await this.nodeRepo!.find({ where: { ownerId: user.userId } });
     const node = nodes.find((n) => n.id === nodeId);
     if (!node) throw new NotFoundException('Ordner nicht gefunden.');
@@ -280,7 +282,7 @@ export class WorksheetsService {
       if (!mod?.content?.spec || docSpec().validateDocSpec(mod.content.spec).length) { warnings.push(`„${mod?.title || id}“ enthält Fehler und fehlt im Skript.`); continue; }
       const ctx: DocContext = { pfad: info.pfad, slug: info.slug, course: info.course, folder: info.folder, refs: n.refs.get(info.scope) || {},
         topicId: mod.topicId, ownerId: user.userId };
-      const { job, warnings: w } = await this.prepare(mod.content.spec, mod.title, [], ctx);
+      const { job, warnings: w } = await this.prepare(mod.content.spec, mod.title, [], ctx, { quizzes });
       const folder = String(i + 1).padStart(2, '0');
       for (const [name, data] of Object.entries(job.files || {})) files[`${folder}/${name}`] = data;
       const { meta: _m, ...spec } = job.spec;
@@ -310,14 +312,14 @@ export class WorksheetsService {
     return { files: result.files, warnings: [...warnings, ...result.warnings] };
   }
 
-  async render(user: any, body: { spec: unknown; title: string; output: WorksheetOutput; moduleId?: string; kind?: string; templateId?: string | null }, req?: any) {
+  async render(user: any, body: { spec: unknown; title: string; output: WorksheetOutput; moduleId?: string; kind?: string; templateId?: string | null; quizzes?: QuizPrintMode }, req?: any) {
     const errors = docSpec().validateDocSpec(body.spec);
     if (errors.length) throw new BadRequestException({ message: 'Das Dokument enthält Fehler.', errors });
     const ctx = body.moduleId ? await this.context(user, body.moduleId, body.kind, body.templateId)
       : this.templates ? { pfad: '', slug: '', course: { kurs: '', titelmuster: '{titel}', autor: '', meta: {} }, folder: '', refs: null, template: await this.templateFor(user.userId, null, body.kind, body.templateId) }
         : null;
     if (ctx && req) ctx.base = baseUrl(req);
-    const { job, warnings } = await this.prepare(body.spec as Record<string, any>, body.title, [body.output], ctx);
+    const { job, warnings } = await this.prepare(body.spec as Record<string, any>, body.title, [body.output], ctx, { quizzes: body.quizzes });
     const result = await this.renderer.render(job);
     const file = result.files[body.output];
     if (!file) throw new BadRequestException('Der Renderer hat die Datei nicht geliefert.');
@@ -330,28 +332,36 @@ export class WorksheetsService {
    * aus der Nextcloud gehen als Dateien mit; was sich nicht drucken lässt,
    * steht als Hinweis im Blatt.
    */
-  async prepare(spec: Record<string, any>, title: string, outputs: WorksheetOutput[], ctx: DocContext | null = null):
-    Promise<{ job: RenderJob; warnings: string[] }> {
+  async prepare(spec: Record<string, any>, title: string, outputs: WorksheetOutput[], ctx: DocContext | null = null,
+    opts: { quizzes?: QuizPrintMode } = {}): Promise<{ job: RenderJob; warnings: string[] }> {
+    // Druckfassung nur auf ausdrücklichen Wunsch (Druckdialog, Skript, OneNote): Das PDF im
+    // Stift-Editor und das Nextcloud-Abbild bleiben, wie sie sind – sonst verrutschen Beschriftungen.
+    const quizzes: QuizPrintMode = opts.quizzes === 'print' ? 'print' : 'qr';
     const files: Record<string, string> = {};
     const warnings: string[] = [];
     let n = 0;
 
+    // Bild aus der App (data:) oder der Nextcloud – je Adresse einmal gelesen.
+    const images = new Map<string, Promise<{ mime: string; data: string }>>();
+    const readImage = (src: string) => {
+      if (!images.has(src)) {
+        images.set(src, (async () => {
+          const inline = /^data:([^;,]+);base64,(.*)$/s.exec(src);
+          if (inline) return { mime: inline[1].toLowerCase(), data: inline[2] };
+          if (/\/api\/nextcloud\//.test(src) && this.nextcloud) {
+            const file = await this.nextcloud.readImageByUrl(src).catch(() => null);
+            if (file) return { mime: file.type.toLowerCase(), data: file.data.toString('base64') };
+          }
+          return { mime: '', data: '' };
+        })());
+      }
+      return images.get(src)!;
+    };
+
     const imageBlock = async (block: Record<string, any>): Promise<Record<string, any>> => {
       const src = String(block.src ?? '');
       const label = block.caption || block.alt || 'Bild';
-      let mime = '';
-      let data = '';
-      const inline = /^data:([^;,]+);base64,(.*)$/s.exec(src);
-      if (inline) {
-        mime = inline[1].toLowerCase();
-        data = inline[2];
-      } else if (/\/api\/nextcloud\//.test(src) && this.nextcloud) {
-        const file = await this.nextcloud.readImageByUrl(src).catch(() => null);
-        if (file) {
-          mime = file.type.toLowerCase();
-          data = file.data.toString('base64');
-        }
-      }
+      const { mime, data } = await readImage(src);
       const ext = PRINTABLE_IMAGES[mime];
       if (!data || !ext) {
         warnings.push(data
@@ -387,7 +397,33 @@ export class WorksheetsService {
 
     // Quiz aus dem Lernthema: Kasten mit QR-Code und Adresse über den
     // Quick-Link – wer scannt, bearbeitet genau dieses Modul (&mod=).
-    const quizBlock = async (block: Record<string, any>): Promise<Record<string, any>> => {
+    const quizBlock = async (block: Record<string, any>): Promise<Record<string, any>[]> => [await quizBox(block), ...await quizPrint(block)];
+
+    // Darunter das Quiz zum Ausfüllen (quiz-print.ts) – außer „nur QR-Code und Adresse“.
+    const quizPrint = async (block: Record<string, any>): Promise<Record<string, any>[]> => {
+      const id = String(block.module ?? '');
+      if (quizzes !== 'print' || !id || !this.moduleRepo || !ctx?.ownerId) return [];
+      const mod = await this.moduleRepo.findOne({ where: { id } });
+      if (!mod) return [];
+      const home = mod.topicId === ctx.topicId ? null
+        : this.topicRepo ? await this.topicRepo.findOne({ where: { id: mod.topicId }, select: ['id', 'ownerId'] }) : null;
+      if (mod.topicId !== ctx.topicId && home?.ownerId !== ctx.ownerId) return [];
+      const kids = await this.moduleRepo.find({ where: { parentId: mod.id } }).catch(() => []);
+      const asQuiz = (m: any) => ({ id: m.id, type: m.type, title: m.title, content: typeof m.content === 'string' ? JSON.parse(m.content) : m.content });
+      // Größe des Hintergrundbilds (Drag and Drop) – die Felder liegen in Prozent darauf.
+      const sizes = new Map<string, { width: number; height: number } | null>();
+      for (const m of [mod, ...kids]) {
+        const bg = asQuiz(m).content?.backgroundImage;
+        if (m.type === 'dragAndDrop' && typeof bg === 'string' && bg.trim() && !sizes.has(bg.trim())) {
+          const { data } = await readImage(bg.trim());
+          sizes.set(bg.trim(), data ? imageSize(Buffer.from(data, 'base64')) : null);
+        }
+      }
+      const blocks = quizPrintBlocks({ ...asQuiz(mod), children: [...kids].sort((a, b) => a.orderIndex - b.orderIndex).map(asQuiz) }, (src) => sizes.get(src) ?? null);
+      return blocks ? walk(blocks) : [];
+    };
+
+    const quizBox = async (block: Record<string, any>): Promise<Record<string, any>> => {
       const id = String(block.module ?? '');
       const mod = id && this.moduleRepo ? await this.moduleRepo.findOne({ where: { id }, select: ['id', 'topicId', 'title'] }) : null;
       const title = String(block.title || mod?.title || 'Quiz');
@@ -467,7 +503,7 @@ export class WorksheetsService {
         const printedInk = ink ? inkFile(ink) : null;
         const at = out.length;
         if (!item || typeof item !== 'object') out.push(item);
-        else if (block.type === 'quiz') out.push(await quizBlock(block));
+        else if (block.type === 'quiz') out.push(...await quizBlock(block));
         else if (block.type === 'table') out.push(await tableCells(block));
         else if (block.type === 'image' && block.src !== undefined) out.push(await imageBlock(block));
         else if (block.type === 'group') out.push(await groupBlock(block));

@@ -115,9 +115,9 @@ export class WorksheetsController {
 
   /** Skript (Kompendium) aller Arbeitsblätter unter einem Ordner: output = odt | loesung | pdf | loesung_pdf. */
   @Get('script/:nodeId/:output')
-  async script(@Request() req: any, @Param('nodeId') nodeId: string, @Param('output') output: string, @Res() res: Response) {
+  async script(@Request() req: any, @Param('nodeId') nodeId: string, @Param('output') output: string, @Res() res: Response, @Query('quizzes') quizzes?: string) {
     if (!WORKSHEET_OUTPUTS.includes(output as WorksheetOutput)) throw new BadRequestException(`output: ${WORKSHEET_OUTPUTS.join(', ')}`);
-    const { file, title, warnings } = await this.worksheets.renderScript(req.user, nodeId, output as WorksheetOutput);
+    const { file, title, warnings } = await this.worksheets.renderScript(req.user, nodeId, output as WorksheetOutput, quizzes === 'qr' ? 'qr' : 'print');
     const type = FILE_TYPES[output as WorksheetOutput];
     res.setHeader('Content-Type', type.mime);
     res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(`Skript ${fileName(title)}${type.suffix}.${type.ext}`)}`);
@@ -176,7 +176,7 @@ export class WorksheetsController {
    */
   @Post('render')
   @HttpCode(200)
-  async render(@Request() req: any, @Body() body: { spec?: unknown; title?: string; output?: string; moduleId?: string; kind?: string; templateId?: string | null }, @Res() res: Response) {
+  async render(@Request() req: any, @Body() body: { spec?: unknown; title?: string; output?: string; moduleId?: string; kind?: string; templateId?: string | null; quizzes?: string }, @Res() res: Response) {
     const output = String(body?.output || '') as WorksheetOutput;
     if (!WORKSHEET_OUTPUTS.includes(output)) throw new BadRequestException(`output: ${WORKSHEET_OUTPUTS.join(', ')}`);
     const title = String(body?.title || '').trim().slice(0, 200);
@@ -184,7 +184,9 @@ export class WorksheetsController {
     const kind = typeof body?.kind === 'string' ? body.kind : undefined;
     // Vorlage aus dem Editor: '' = wie im Ordner, fehlt das Feld, gilt die gespeicherte des Dokuments.
     const templateId = typeof body?.templateId === 'string' ? body.templateId || null : undefined;
-    const { file, warnings } = await this.worksheets.render(req.user, { spec: body?.spec, title, output, moduleId, kind, templateId }, req);
+    // Quizze: Druckfassung unter dem QR-Code (quizzes: print, aus dem Druckdialog) oder nur QR-Code und Adresse.
+    const quizzes = body?.quizzes === 'print' ? 'print' : 'qr';
+    const { file, warnings } = await this.worksheets.render(req.user, { spec: body?.spec, title, output, moduleId, kind, templateId, quizzes }, req);
     const type = FILE_TYPES[output];
     const name = `${fileName(title || 'Dokument')}${type.suffix}.${type.ext}`;
     res.setHeader('Content-Type', type.mime);

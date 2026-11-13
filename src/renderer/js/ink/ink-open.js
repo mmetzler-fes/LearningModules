@@ -185,7 +185,7 @@ export async function openDocumentInk({ mode, mod, up = null, embedModule = null
     const res = await fetch('/api/worksheets/render', {
       method: 'POST',
       headers: authHeaders(),
-      body: JSON.stringify({ spec, title: mod.title || '', output: solutions ? 'loesung_pdf' : 'pdf', moduleId: mod.id, kind: content.kind }),
+      body: JSON.stringify({ spec, title: mod.title || '', output: solutions ? 'loesung_pdf' : 'pdf', moduleId: mod.id, kind: content.kind, quizzes: await quizPrintPref() }),
     });
     if (!res.ok) {
       const body = await res.json().catch(() => ({}));
@@ -377,7 +377,7 @@ export async function printWithInk(mod, data, win = null) {
   const res = await fetch('/api/worksheets/render', {
     method: 'POST',
     headers: authHeaders(),
-    body: JSON.stringify({ spec, title: mod.title || '', output: 'pdf', moduleId: mod.id, kind: content.kind }),
+    body: JSON.stringify({ spec, title: mod.title || '', output: 'pdf', moduleId: mod.id, kind: content.kind, quizzes: await quizPrintPref() }),
   });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
@@ -385,6 +385,12 @@ export async function printWithInk(mod, data, win = null) {
   }
   const url = URL.createObjectURL(await res.blob());
   if (win) win.location.href = url; else window.open(url, '_blank');
+}
+
+/** Quizze im Ausdruck wie zuletzt im Druckdialog gewählt (Vorgabe: mit Druckfassung). */
+async function quizPrintPref() {
+  const { printPrefs } = await import('../views/print-dialog.js');
+  return printPrefs().quizzes;
 }
 
 /**

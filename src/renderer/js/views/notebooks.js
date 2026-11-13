@@ -1027,8 +1027,7 @@ export class NotebooksView {
       items.push({ label: '🔢 Nummerierung…', title: 'Ob und wie die Arbeitsblätter darunter nummeriert werden – mit Vorschau', run: () => this._editNumbering(node) });
       items.push({ label: '📄 Dokument-Einstellungen…', title: 'Kurs, Kopfzeile, Vorlagen und KI-Vorgaben für die Dokumente darunter', run: () => this._editDocSettings(node) });
       items.push({ label: '⬇️ Als Kurs exportieren', title: 'Dokumente darunter als Kurs für den Arbeitsblatt-Generator (ZIP)', run: () => this._exportCourse(node) });
-      items.push({ label: '📚 Als Skript (PDF)', title: 'Alle Arbeitsblätter darunter als Skript mit Inhaltsverzeichnis – zum Nachlesen, ohne Karopapier', run: () => this._script(node, 'pdf') });
-      items.push({ label: '📚 Skript als .odt / Lösung', title: 'Skript für LibreOffice, dazu die Fassung mit sichtbaren Lösungen', run: () => this._script(node, 'odt') });
+      items.push({ label: '📚 Skript…', title: 'Alle Arbeitsblätter darunter als Skript mit Inhaltsverzeichnis – PDF oder .odt, mit oder ohne Lösungen, Quizze zum Ausfüllen', run: () => this._script(node) });
       items.push({ label: '📓 Dokumente als OneNote-Seite', title: 'Gliederung der Dokumente mit Klassenlink und QR-Code in die Zwischenablage', run: () => this._oneNoteDocs(node) });
       items.push({ label: '🤖 KI-Lernmodul aus den Dokumenten…', title: 'Der Text der Dokumente darunter kommt als Material in den Prompt', run: () => this.app.aiPromptView.openFor({ nodeId: node.id, label: node.title, material: `n:${node.id}` }) });
     }
@@ -1191,18 +1190,16 @@ export class NotebooksView {
   }
 
   /** Skript eines Ordners: PDF im neuen Fenster bzw. .odt und Lösung als Download. */
-  async _script(node, kind) {
-    const win = kind === 'pdf' ? window.open('', '_blank') : null;
+  async _script(node) {
+    const { openPrintDialog } = await import('./print-dialog.js');
+    const choice = await openPrintDialog({ heading: `📚 Skript – ${node.title}`, intro: 'Alle Arbeitsblätter darunter mit Inhaltsverzeichnis – zum Nachlesen, ohne Karopapier.' });
+    if (!choice) return;
+    const win = choice.format === 'pdf' ? window.open('', '_blank') : null;
     this.app.showToast('Skript wird erzeugt – das kann bei vielen Blättern eine Weile dauern …', 'info');
     try {
-      const outputs = kind === 'pdf' ? ['pdf'] : ['odt', 'loesung'];
-      let notes = [];
-      for (const output of outputs) {
-        const { blob, name, warnings } = await this.app.api.docScript(node.id, output);
-        notes = warnings;
-        if (win) win.location.href = URL.createObjectURL(blob);
-        else downloadBlob(blob, name);
-      }
+      const { blob, name, warnings: notes } = await this.app.api.docScript(node.id, choice.output, choice.quizzes);
+      if (win) win.location.href = URL.createObjectURL(blob);
+      else downloadBlob(blob, name);
       this.app.showToast(notes.length ? `Skript erzeugt – Hinweise: ${notes.join(' · ')}` : 'Skript erzeugt.', notes.length ? 'info' : 'success');
     } catch (err) {
       win?.close();

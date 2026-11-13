@@ -3,6 +3,7 @@ import { downloadBlob } from '../api.js';
 import { writeOneSection } from '../onenote-write.js';
 import { zipStore } from '../odf/sheet-templates.js';
 import { planRun, quizIdsOf } from '../../lm-editor/src/doc/doc-quiz.js';
+import { printPrefs } from './print-dialog.js';
 
 // ==================== FÜR ONENOTE AUSGEBEN ====================
 //
@@ -79,8 +80,27 @@ async function loadPdfJs() {
   return pdfjs;
 }
 
-/** Dokument über den Renderer als PDF, dann jede Seite als JPEG. `ink`: Beschriftung darauf (✍️ Tafelbild). */
-async function documentPages(mod, ink = null) {
+/** Symbol der angefügten PDF-Datei (OneNote zeigt es an der Stelle der Datei). */
+let pdfIconBytes = null;
+async function pdfIcon() {
+  if (pdfIconBytes) return pdfIconBytes;
+  const c = document.createElement('canvas');
+  c.width = 48; c.height = 48;
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, 48, 48);
+  ctx.fillStyle = '#d93025'; ctx.fillRect(6, 4, 36, 40);
+  ctx.fillStyle = '#ffffff'; ctx.font = 'bold 13px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText('PDF', 24, 25);
+  pdfIconBytes = await canvasBytes(c, 'image/png');
+  return pdfIconBytes;
+}
+
+/**
+ * Dokument über den Renderer als PDF; mit `images` jede Seite als JPEG. `ink`: Beschriftung
+ * darauf (✍️ Tafelbild). `quizzes`: Quizze mit Druckfassung oder nur als QR-Code.
+ * Ergebnis `{ pdf, pages }`.
+ */
+async function documentPdf(mod, { ink = null, images = true, quizzes = 'print' } = {}) {
   const content = contentOf(mod);
   let spec = content.spec || { content: [] };
   if (ink) {
@@ -90,14 +110,17 @@ async function documentPages(mod, ink = null) {
   const res = await fetch('/api/worksheets/render', {
     method: 'POST',
     headers: authHeaders(),
-    body: JSON.stringify({ spec, title: mod.title || '', output: 'pdf', moduleId: mod.id, kind: content.kind }),
+    body: JSON.stringify({ spec, title: mod.title || '', output: 'pdf', moduleId: mod.id, kind: content.kind, quizzes }),
   });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     throw new Error((body.message || `HTTP ${res.status}`) + (Array.isArray(body.errors) ? ` ${body.errors.join(' · ')}` : ''));
   }
+  const pdf = new Uint8Array(await res.arrayBuffer());
+  if (!images) return { pdf, pages: [] };
   const lib = await loadPdfJs();
-  const doc = await lib.getDocument({ data: new Uint8Array(await res.arrayBuffer()) }).promise;
+  // pdf.js übernimmt den Puffer – eine Kopie, damit die Datei zum Anfügen bleibt.
+  const doc = await lib.getDocument({ data: pdf.slice() }).promise;
   const pages = [];
   try {
     for (let n = 1; n <= doc.numPages; n++) {
@@ -114,7 +137,7 @@ async function documentPages(mod, ink = null) {
   } finally {
     doc.destroy();
   }
-  return pages;
+  return { pdf, pages };
 }
 
 // ---------- Seiten eines Lernthemas ----------
@@ -123,7 +146,7 @@ async function documentPages(mod, ink = null) {
  * `modules`: sichtbare Module des Lernthemas (oberste Ebene, sortiert).
  * `linkFor(moduleId)` → Adresse. Ergebnis: Seiten für writeOneSection.
  */
-async function topicPages(topicTitle, modules, linkFor, { images, onStep, warnings, inkFor = null }) {
+async function topicPages(topicTitle, modules, linkFor, { images, attachPdf = false, quizzes = 'print', onStep, warnings, inkFor = null }) {
   const { steps } = planRun(modules);
   const docs = modules.filter((m) => m.type === 'document');
   const others = steps.filter((m) => m.type !== 'document');
@@ -152,9 +175,11 @@ async function topicPages(topicTitle, modules, linkFor, { images, onStep, warnin
         blocks.push(urlLine(linkFor(id)));
       });
     }
-    if (images) {
+    if (images || attachPdf) {
       try {
-        const shots = await documentPages(doc, inkFor ? await inkFor(doc.id) : null);
+        const { pdf, pages: shots } = await documentPdf(doc, { ink: inkFor ? await inkFor(doc.id) : null, images, quizzes });
+        // 📎 Das PDF selbst – in OneNote antippen und teilen, z. B. an GoodNotes.
+        if (attachPdf) blocks.push({ type: 'file', name: `${fileSafe(doc.title)}.pdf`, data: pdf, icon: await pdfIcon() });
         shots.forEach((p, i) => blocks.push({ type: 'image', free: true, ext: '.jpeg', ...p, name: `${fileSafe(doc.title)} – Seite ${i + 1}.jpeg`, alt: `${doc.title}, Seite ${i + 1}` }));
       } catch (e) {
         warnings.push(`${doc.title}: kein Ausdruck (${e.message})`);
@@ -181,7 +206,7 @@ async function topicPages(topicTitle, modules, linkFor, { images, onStep, warnin
  * Plan: `{ name, sections: [{ path: ['Ordner', …], name, topics: [{ title, load() → { modules, linkFor } }] }] }`.
  * Eine Datei ohne Ordner wird direkt als .one geladen, sonst ein ZIP.
  */
-async function build(plan, { images, boards = false, onProgress }) {
+async function build(plan, { images, attachPdf = false, quizzes = 'print', boards = false, onProgress }) {
   // ✍️ Klassennotizbuch: Ausdruck mit dem Tafelbild der Klasse, wo es eins gibt.
   const inkFor = boards && plan.boards ? (id) => plan.boards.load(id) : null;
   const warnings = [];
@@ -195,7 +220,7 @@ async function build(plan, { images, boards = false, onProgress }) {
       onProgress(done, total, topic.title);
       try {
         const { modules, linkFor } = await topic.load();
-        pages.push(...await topicPages(topic.title, modules, linkFor, { images, warnings, inkFor, onStep: (t) => onProgress(done, total, t) }));
+        pages.push(...await topicPages(topic.title, modules, linkFor, { images, attachPdf, quizzes, warnings, inkFor, onStep: (t) => onProgress(done, total, t) }));
       } catch (e) {
         warnings.push(`${topic.title}: ${e.message}`);
       }
@@ -225,6 +250,8 @@ function openDialog(app, { title, hint, plan }) {
       <p class="hint">${plan.sections.length} Abschnitt${plan.sections.length === 1 ? '' : 'e'} · ${topics} Lernthem${topics === 1 ? 'a' : 'en'}.
         Je Dokument eine Seite mit Link, QR-Code und Ausdruck; Quizze außerhalb von Dokumenten gemeinsam auf einer Seite „… – Quiz“ mit einem Link für alle.</p>
       <label><input type="checkbox" class="one-images" checked> 🖼 Ausdruck als Seitenbilder mitnehmen (darauf lässt sich in OneNote schreiben – dauert je Dokument einige Sekunden)</label>
+      <label><input type="checkbox" class="one-pdf"> 📎 PDF anfügen – in OneNote antippen und teilen, z. B. an GoodNotes</label>
+      <label><input type="checkbox" class="one-quizprint" ${printPrefs().quizzes === 'qr' ? '' : 'checked'}> 🧩 Quizze im Ausdruck zum Ausfüllen (sonst nur QR-Code und Adresse)</label>
       ${plan.boards ? `<label><input type="checkbox" class="one-boards"> ✍️ Mit den Tafelbildern dieser Klasse (${plan.boards.count}) – sonst leere Blätter</label>` : ''}
       <details class="hint" style="margin-top:8px;"><summary>So kommt es nach OneNote</summary>
         <ol style="margin:6px 0 0 18px;">
@@ -258,12 +285,14 @@ function openDialog(app, { title, hint, plan }) {
   btnRun.addEventListener('click', async () => {
     running = true;
     btnRun.disabled = true;
-    overlay.querySelector('.one-images').disabled = true;
+    overlay.querySelectorAll('.one-images, .one-pdf, .one-quizprint').forEach((x) => { x.disabled = true; });
     if (overlay.querySelector('.one-boards')) overlay.querySelector('.one-boards').disabled = true;
     progress.hidden = false;
     try {
       const { files, warnings } = await build(plan, {
         images: overlay.querySelector('.one-images').checked,
+        attachPdf: overlay.querySelector('.one-pdf').checked,
+        quizzes: overlay.querySelector('.one-quizprint').checked ? 'print' : 'qr',
         boards: !!overlay.querySelector('.one-boards')?.checked,
         onProgress: (d, t, text) => { bar.max = t || 1; bar.value = d; barText.textContent = text; },
       });

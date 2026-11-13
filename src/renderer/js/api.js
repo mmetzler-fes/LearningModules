@@ -519,9 +519,9 @@ export class BrowserApi {
     return this._download(`/api/notebooks/nodes/${encodeURIComponent(id)}/course-export`, 'kurs.zip');
   }
   /** Skript (Kompendium) aller Arbeitsblätter unter einem Ordner. */
-  async docScript(nodeId, output) {
+  async docScript(nodeId, output, quizzes = 'print') {
     const token = this._auth.getToken();
-    const res = await fetch(`/api/worksheets/script/${encodeURIComponent(nodeId)}/${output}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+    const res = await fetch(`/api/worksheets/script/${encodeURIComponent(nodeId)}/${output}?quizzes=${quizzes === 'qr' ? 'qr' : 'print'}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
     if (!res.ok) throw new Error((await res.json().catch(() => ({}))).message || `HTTP ${res.status}`);
     const disposition = res.headers.get('Content-Disposition') || '';
     const star = /filename\*=UTF-8''([^;]+)/i.exec(disposition);

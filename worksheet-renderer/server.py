@@ -41,6 +41,7 @@ import os
 import queue
 import resource
 import shutil
+import signal
 import subprocess
 import sys
 import tempfile
@@ -84,6 +85,38 @@ RESERVED = ("template", "slug", "kuerzel")
 slots: queue.Queue[int] = queue.Queue()
 for _i in range(WORKERS):
     slots.put(_i)
+
+
+def _kill_group(pgid: int) -> None:
+    try:
+        os.killpg(pgid, signal.SIGKILL)
+    except (ProcessLookupError, PermissionError):
+        pass
+
+
+def run_isolated(args: list[str], *, timeout: float, tmp: Path | None = None, input: Any = None,
+                 capture_output: bool = False, **kw: Any) -> subprocess.CompletedProcess:
+    """Wie subprocess.run, aber in eigener Prozessgruppe, die danach ganz beendet
+    wird – auch nach einer Zeitüberschreitung. Sonst bleiben soffice.bin-Prozesse
+    (Enkel des Aufrufs) zurück, bis der Container keine Threads mehr starten kann.
+    `tmp`: eigenes TMPDIR, damit die lu*.tmp von LibreOffice mit dem Auftrag verschwinden."""
+    if tmp is not None:
+        tmp.mkdir(parents=True, exist_ok=True)
+        kw["env"] = dict(kw.get("env") or os.environ, TMPDIR=str(tmp))
+    if capture_output:
+        kw["stdout"] = kw["stderr"] = subprocess.PIPE
+    if input is not None:
+        kw["stdin"] = subprocess.PIPE
+    with subprocess.Popen(args, start_new_session=True, **kw) as proc:
+        try:
+            out, err = proc.communicate(input, timeout=timeout)
+        except subprocess.TimeoutExpired:
+            _kill_group(proc.pid)
+            proc.communicate()
+            raise
+        finally:
+            _kill_group(proc.pid)
+    return subprocess.CompletedProcess(args, proc.returncode, out, err)
 
 
 class BadRequest(Exception):
@@ -176,7 +209,7 @@ def render(job: dict[str, Any], slot: int) -> tuple[dict[str, str], list[str]]:
 
         env = dict(os.environ, ARBEITSBLATT_ROOT=str(root), SOFFICE_PROFILE=str(PROFILES / f"lo-{slot}"))
         try:
-            proc = subprocess.run(args, cwd=root, env=env, capture_output=True, text=True, timeout=TIMEOUT)
+            proc = run_isolated(args, cwd=root, env=env, capture_output=True, text=True, timeout=TIMEOUT, tmp=root / ".tmp")
         except subprocess.TimeoutExpired:
             raise RenderFailed(f"Zeitüberschreitung nach {TIMEOUT} s", []) from None
         warnings = warnings_from(proc.stderr)
@@ -260,7 +293,7 @@ def render_script(job: dict[str, Any], slot: int) -> tuple[dict[str, str], list[
             args.append("--pdf")
         env = dict(os.environ, ARBEITSBLATT_ROOT=str(root), SOFFICE_PROFILE=str(PROFILES / f"lo-{slot}"))
         try:
-            proc = subprocess.run(args, cwd=root, env=env, capture_output=True, text=True, timeout=TIMEOUT * 2)
+            proc = run_isolated(args, cwd=root, env=env, capture_output=True, text=True, timeout=TIMEOUT * 2, tmp=root / ".tmp")
         except subprocess.TimeoutExpired:
             raise RenderFailed(f"Zeitüberschreitung nach {TIMEOUT * 2} s", []) from None
         warnings = warnings_from(proc.stderr)
@@ -301,9 +334,9 @@ def convert_odt(job: dict[str, Any], slot: int) -> dict[str, str]:
         src.write_bytes(data)
         profile = (PROFILES / f"lo-{slot}").resolve().as_uri()
         try:
-            proc = subprocess.run([soffice, f"-env:UserInstallation={profile}", "--headless",
-                                   "--convert-to", target, "--outdir", str(root / "out"), str(src)],
-                                  capture_output=True, text=True, timeout=TIMEOUT)
+            proc = run_isolated([soffice, f"-env:UserInstallation={profile}", "--headless",
+                                 "--convert-to", target, "--outdir", str(root / "out"), str(src)],
+                                capture_output=True, text=True, timeout=TIMEOUT, tmp=root / ".tmp")
         except subprocess.TimeoutExpired:
             raise RenderFailed(f"Umwandeln braucht zu lange (über {TIMEOUT} s).", []) from None
         out = root / "out" / f"dokument.{target}"
@@ -327,8 +360,8 @@ def export_drawings(job: dict[str, Any], slot: int) -> dict[str, Any]:
         src.write_bytes(data)
         out = root / "out"
         try:
-            proc = subprocess.run([UNO_PYTHON, str(DRAWINGS_TOOL), str(src), str(out), str((PROFILES / f"uno-{slot}").resolve())],
-                                  capture_output=True, text=True, timeout=TIMEOUT)
+            proc = run_isolated([UNO_PYTHON, str(DRAWINGS_TOOL), str(src), str(out), str((PROFILES / f"uno-{slot}").resolve())],
+                                capture_output=True, text=True, timeout=TIMEOUT, tmp=root / ".tmp")
         except subprocess.TimeoutExpired:
             raise RenderFailed(f"Zeichnungen exportieren braucht zu lange (über {TIMEOUT} s).", []) from None
         result_file = out / "result.json"
@@ -367,8 +400,8 @@ def render_drawing(job: dict[str, Any], slot: int) -> dict[str, Any]:
         src.write_bytes(data)
         out = root / "out"
         try:
-            proc = subprocess.run([UNO_PYTHON, str(DRAWINGS_TOOL), "--render", str(src), str(out), str((PROFILES / f"uno-{slot}").resolve())],
-                                  capture_output=True, text=True, timeout=TIMEOUT)
+            proc = run_isolated([UNO_PYTHON, str(DRAWINGS_TOOL), "--render", str(src), str(out), str((PROFILES / f"uno-{slot}").resolve())],
+                                capture_output=True, text=True, timeout=TIMEOUT, tmp=root / ".tmp")
         except subprocess.TimeoutExpired:
             raise RenderFailed(f"Zeichnung umwandeln braucht zu lange (über {TIMEOUT} s).", []) from None
         svg, result = out / "drawing.svg", out / "result.json"
@@ -437,9 +470,9 @@ def export_pdf_figures(job: dict[str, Any], slot: int) -> dict[str, Any]:
         (root / "bereiche.json").write_text(json.dumps(spec), encoding="utf-8")
         out = root / "out"
         try:
-            proc = subprocess.run([UNO_PYTHON, str(FIGURES_TOOL), str(root / "seite.pdf"), str(out),
-                                   str((PROFILES / f"uno-{slot}").resolve()), str(root / "bereiche.json")],
-                                  capture_output=True, text=True, timeout=TIMEOUT)
+            proc = run_isolated([UNO_PYTHON, str(FIGURES_TOOL), str(root / "seite.pdf"), str(out),
+                                 str((PROFILES / f"uno-{slot}").resolve()), str(root / "bereiche.json")],
+                                capture_output=True, text=True, timeout=TIMEOUT, tmp=root / ".tmp")
         except subprocess.TimeoutExpired:
             raise RenderFailed(f"Zeichnungen aus dem PDF brauchen zu lange (über {TIMEOUT} s).", []) from None
         result_file = out / "result.json"
@@ -473,8 +506,8 @@ def import_pdf(job: dict[str, Any]) -> dict[str, Any]:
     if mode not in ("text", "pages"):
         raise BadRequest("mode: text oder pages")
     try:
-        proc = subprocess.run([sys.executable, str(PDF_TOOL), "-", mode], input=data,
-                              capture_output=True, timeout=TIMEOUT, preexec_fn=_limit_memory)
+        proc = run_isolated([sys.executable, str(PDF_TOOL), "-", mode], input=data,
+                            capture_output=True, timeout=TIMEOUT, preexec_fn=_limit_memory)
     except subprocess.TimeoutExpired as e:
         raise RenderFailed(f"Das PDF braucht zu lange (über {TIMEOUT} s).", []) from e
     try:

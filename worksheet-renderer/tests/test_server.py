@@ -12,8 +12,11 @@ import base64
 import io
 import json
 import os
+import subprocess
 import sys
+import tempfile
 import threading
+import time
 import unittest
 import urllib.error
 import urllib.request
@@ -390,6 +393,36 @@ class RendererTest(unittest.TestCase):
         status, body = self.request("/convert-odt", {"file": base64.b64encode(docx).decode(), "name": "Blatt.DOCX"})
         self.assertEqual(status, 200, body)
         self.assertIn("Ohmsches Gesetz", self.content_xml(body["odt"]))
+
+
+
+class RunIsolatedTest(unittest.TestCase):
+    """Enkel (wie soffice.bin hinter dem soffice-Skript) bleiben nicht zurück."""
+
+    def test_enkel_werden_beendet(self):
+        proc = server.run_isolated(["sh", "-c", "sleep 30 >/dev/null 2>&1 & echo $!"], capture_output=True, text=True, timeout=10)
+        pid = int(proc.stdout.strip())
+        for _ in range(50):
+            try:
+                os.kill(pid, 0)
+            except ProcessLookupError:
+                break
+            if Path(f"/proc/{pid}/stat").read_text().split()[2] == "Z":
+                break  # beendet, nur noch nicht abgeholt (das macht im Container tini)
+            time.sleep(0.05)
+        else:
+            self.fail("sleep läuft noch")
+
+    def test_zeitueberschreitung_beendet_die_gruppe(self):
+        with self.assertRaises(subprocess.TimeoutExpired):
+            server.run_isolated(["sh", "-c", "sleep 30"], timeout=0.2)
+
+    def test_eigenes_tmpdir(self):
+        with tempfile.TemporaryDirectory() as d:
+            tmp = Path(d) / ".tmp"
+            proc = server.run_isolated(["sh", "-c", "echo $TMPDIR"], capture_output=True, text=True, timeout=10, tmp=tmp)
+            self.assertEqual(proc.stdout.strip(), str(tmp))
+            self.assertTrue(tmp.is_dir())
 
 
 if __name__ == "__main__":

@@ -15,7 +15,7 @@ LABEL org.opencontainers.image.title="LearningModules worksheet-renderer" \
 # Schaubilder aus Präsentationen bekommen damit ihre Schrift (tools/pdf_fonts.py).
 RUN apt-get update \
  && apt-get install -y --no-install-recommends \
-      libreoffice-writer-nogui libreoffice-math-nogui libreoffice-draw-nogui libreoffice-impress-nogui python3-uno \
+      libreoffice-writer-nogui libreoffice-math-nogui libreoffice-draw-nogui libreoffice-impress-nogui python3-uno tini \
       fonts-liberation fonts-dejavu-core fonts-crosextra-carlito fonts-crosextra-caladea fonts-open-sans \
  && rm -rf /var/lib/apt/lists/*
 
@@ -40,4 +40,6 @@ USER renderer
 EXPOSE 8090
 HEALTHCHECK --interval=60s --timeout=5s \
   CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8090/health', timeout=4)"
+# tini als PID 1 räumt verwaiste LibreOffice-Prozesse ab (sonst Zombies, bis keine Threads mehr gehen).
+ENTRYPOINT ["/usr/bin/tini", "--"]
 CMD ["python", "server.py"]

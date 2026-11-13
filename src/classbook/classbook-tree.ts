@@ -204,6 +204,18 @@ export function leavesInOrder(nodes: TreeNode[], links: TreeLink[], anchor: Mark
  * Gemeinsamer Anfang mehrerer Pfade: wohin ein Link über mehrere Lernthemen
  * gehört. Liegen sie in verschiedenen Zweigen, ist es die letzte gemeinsame Ebene.
  */
+/**
+ * Reihenfolge nach `key` (z. B. Platz im Notizbuch), aber nur unter den Einträgen
+ * mit Schlüssel: Sie tauschen ihre Plätze untereinander, Einträge ohne Schlüssel
+ * (klasseneigene, selbst angelegte) bleiben, wo sie sind.
+ */
+export function slotSort<T extends { orderIndex: number }>(items: T[], key: (x: T) => number | null): T[] {
+  const cur = [...items].sort((a, b) => a.orderIndex - b.orderIndex);
+  const keyed = cur.filter((x) => key(x) !== null).sort((a, b) => key(a)! - key(b)!);
+  let k = 0;
+  return cur.map((x) => (key(x) !== null ? keyed[k++] : x));
+}
+
 export function commonPath<T>(paths: T[][]): T[] {
   if (!paths.length) return [];
   const [first, ...rest] = paths;

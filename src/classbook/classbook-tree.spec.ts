@@ -1,5 +1,5 @@
 import { ancestorsOf, canHoldNode, depthOf, isInside, nodeMoveError, reorder, dissolve, leavesInOrder, normalizeMarker, MAX_CLASS_DEPTH, TreeLink, TreeNode, veiledNodeIds } from './classbook-tree';
-import { commonPath, deadMirrorNodes, scopeTree } from './classbook-tree';
+import { commonPath, deadMirrorNodes, scopeTree, slotSort } from './classbook-tree';
 
 const N = (id: string, kind: 'area' | 'section', parentId: string | null, orderIndex = 0): TreeNode => ({ id, kind, parentId, orderIndex });
 
@@ -115,6 +115,15 @@ describe('Für Schüler ausblenden', () => {
       { id: 'b3', kind: 'section' as const, parentId: 'b', orderIndex: 1 },
     ];
     expect([...veiledNodeIds(nodes)].sort()).toEqual(['a', 'a1', 'b1', 'b2']);
+  });
+});
+
+describe('slotSort: zweites Zuweisen ordnet wie im Notizbuch', () => {
+  it('Neues vom Ende rückt nach vorn; Klasseneigenes behält seinen Platz', () => {
+    // Klasse: eigenes (ohne Schlüssel), FUP (nb 1), Biegewerkzeug (nb 2), Einführung (nb 0, eben ans Ende gekommen)
+    const items = [{ id: 'eigen', orderIndex: 0 }, { id: 'fup', orderIndex: 1 }, { id: 'biege', orderIndex: 2 }, { id: 'einf', orderIndex: 3 }];
+    const nb: Record<string, number> = { einf: 0, fup: 1, biege: 2 };
+    expect(slotSort(items, (x) => nb[x.id] ?? null).map((x) => x.id)).toEqual(['eigen', 'einf', 'fup', 'biege']);
   });
 });
 

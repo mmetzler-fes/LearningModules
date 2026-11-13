@@ -23,7 +23,7 @@ import { LearningModule } from '../core/entities/learning-module.entity';
 import { NotebookNode } from '../core/entities/notebook-node.entity';
 import { NotebookPlacement } from '../core/entities/notebook-placement.entity';
 import { ClassbookProgress } from '../core/entities/classbook-progress.entity';
-import { ancestorsOf, canHoldNode, commonPath, deadMirrorNodes, depthOf, leavesInOrder, nodeMoveError, normalizeMarker, reorder, dissolve, LeafRef, MAX_CLASS_DEPTH, TreeLink, TreeNode, veiledNodeIds, scopeTree, ClassbookScope } from './classbook-tree';
+import { ancestorsOf, canHoldNode, commonPath, deadMirrorNodes, slotSort, depthOf, leavesInOrder, nodeMoveError, normalizeMarker, reorder, dissolve, LeafRef, MAX_CLASS_DEPTH, TreeLink, TreeNode, veiledNodeIds, scopeTree, ClassbookScope } from './classbook-tree';
 import { ClassesService } from '../classes/classes.service';
 import { LinksService, PRACTICE_MODES, onlyHtmlApps } from '../links/links.service';
 import { NotebooksService } from '../notebooks/notebooks.service';
@@ -645,6 +645,39 @@ export class ClassbookService {
     }
   }
 
+  /**
+   * Unterbereiche und Lernthemen unter einem übernommenen Knoten in die Reihenfolge
+   * des Notizbuchs bringen. Was nicht aus dem Notizbuch-Knoten stammt (klasseneigene
+   * Lernthemen, selbst angelegte Abschnitte), behält seinen Platz; die übrigen
+   * rücken in ihren Plätzen in Notizbuch-Reihenfolge.
+   */
+  private async sortSubtreeLikeNotebook(user: any, klasse: StudentClass, rootId: string, byId: Map<string, NotebookNode>) {
+    const nodes = await this.nodeRepo.find({ where: { classId: klasse.id } });
+    const inside = new Set<string>([rootId]);
+    for (let grew = true; grew;) {
+      grew = false;
+      for (const n of nodes) if (n.parentId && inside.has(n.parentId) && !inside.has(n.id)) { inside.add(n.id); grew = true; }
+    }
+    const cbById = new Map(nodes.map((n) => [n.id, n]));
+    for (const parentId of inside) {
+      const src = cbById.get(parentId)?.sourceNodeId || null;
+      const kids = nodes.filter((n) => n.parentId === parentId);
+      const sorted = slotSort(kids, (n) => (n.sourceNodeId && byId.get(n.sourceNodeId)?.parentId === src ? byId.get(n.sourceNodeId)!.orderIndex : null));
+      for (const [i, n] of sorted.entries()) if (n.orderIndex !== i) await this.nodeRepo.update({ id: n.id }, { orderIndex: i });
+    }
+    const nbPlaces = new Map((await this.nbPlaceRepo.find({ where: { ownerId: user.userId } })).map((p) => [p.topicId, p]));
+    const links = new Map((await this.classLinks(klasse)).map((l) => [l.id, l]));
+    const places = (await this.placeRepo.find({ where: { classId: klasse.id } })).filter((p) => p.nodeId && inside.has(p.nodeId));
+    for (const nodeId of new Set(places.map((p) => p.nodeId!))) {
+      const src = cbById.get(nodeId)?.sourceNodeId || null;
+      const sorted = slotSort(places.filter((p) => p.nodeId === nodeId), (p) => {
+        const nb = nbPlaces.get((links.get(p.id)?.selection || [])[0]?.topicId);
+        return nb && src && nb.nodeId === src ? nb.orderIndex : null;
+      });
+      for (const [i, p] of sorted.entries()) if (p.orderIndex !== i) await this.placeRepo.update({ id: p.id }, { orderIndex: i });
+    }
+  }
+
   // ---- Baum: Bereiche, Abschnitte, Plätze der Lernthemen ----
 
   private async nodeOrNull(classId: string, nodeId: unknown) {
@@ -693,6 +726,8 @@ export class ClassbookService {
     const existed = (await this.nodeRepo.findOne({ where: { classId: klasse.id, sourceNodeId: sourceId } }))?.seen != null;
     const nodeId = await this.mirrorNode(klasse.id, sourceId, title, kind, parentId);
     const res = await this.fillMirror(user, klasse, nodeId, sourceId, nbNodes, { on: true, req, ...from });
+    // Auch beim zweiten Zuweisen: Reihenfolge darin wie im Notizbuch (Neues kam ans Ende).
+    if (nodeId && !sourceId.startsWith('offer:')) await this.sortSubtreeLikeNotebook(user, klasse, nodeId, byId);
     return { linkId: null, nodeId, existed: existed && !res.added, added: res.added, notReleased: res.notReleased, present: [...new Set(res.present)] };
   }
 

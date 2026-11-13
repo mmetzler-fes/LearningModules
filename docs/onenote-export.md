@@ -33,7 +33,9 @@ untereinander. Darauf lässt sich in OneNote mit dem Stift schreiben. Der
 Ausdruck veraltet, wenn das Dokument geändert wird; aktuell bleibt der Link.
 
 Gesperrte (🔒) und ausgeschaltete Module kommen nicht mit. Eine einzelne
-Datei wird direkt als `.one` geladen, mehrere als ZIP.
+Datei wird direkt als `.one` geladen, mehrere als ZIP. Beides ist ein
+normaler Browser-Download (Download-Ordner, meist „Downloads“); auf dem
+Server wird nichts abgelegt. Der Dialog nennt am Ende den Dateinamen.
 
 ## In OneNote übernehmen
 

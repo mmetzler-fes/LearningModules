@@ -196,6 +196,7 @@ function openDialog(app, { title, hint, plan }) {
       <label><input type="checkbox" class="one-images" checked> 🖼 Ausdruck als Seitenbilder mitnehmen (darauf lässt sich in OneNote schreiben – dauert je Dokument einige Sekunden)</label>
       <details class="hint" style="margin-top:8px;"><summary>So kommt es nach OneNote</summary>
         <ol style="margin:6px 0 0 18px;">
+          <li>Die Datei landet als normaler Browser-Download im Download-Ordner (meist „Downloads“) – auf dem Server wird nichts abgelegt.</li>
           <li>Bei einem ZIP: entpacken. Jede .one-Datei ist ein Abschnitt, Ordner entsprechen Abschnittsgruppen.</li>
           <li>In <strong>OneNote für Windows</strong> (2016 bzw. Microsoft 365, nicht „OneNote für Windows 10“) die .one-Datei per Doppelklick öffnen – sie erscheint unter „Geöffnete Abschnitte“.</li>
           <li>Den Abschnitt mit der Maus ins eigene Notizbuch ziehen (Verschieben/Kopieren im Menü geht nur mit Zugang zum Schulnetz).</li>
@@ -239,10 +240,12 @@ function openDialog(app, { title, hint, plan }) {
         return;
       }
       const single = files.length === 1 && !files[0].name.includes('/');
-      if (single) downloadBlob(new Blob([files[0].data], { type: 'application/onenote' }), files[0].name);
-      else downloadBlob(new Blob([zipStore(files.map((f) => ({ name: `${fileSafe(plan.name)}/${f.name}`, data: f.data })))], { type: 'application/zip' }), `${fileSafe(plan.name)} (OneNote).zip`);
+      const fileName = single ? files[0].name : `${fileSafe(plan.name)} (OneNote).zip`;
+      if (single) downloadBlob(new Blob([files[0].data], { type: 'application/onenote' }), fileName);
+      else downloadBlob(new Blob([zipStore(files.map((f) => ({ name: `${fileSafe(plan.name)}/${f.name}`, data: f.data })))], { type: 'application/zip' }), fileName);
       status.className = `onenote-status ${warnings.length ? '' : 'is-ok'}`;
-      status.innerHTML = `✅ ${files.length} Abschnitt${files.length === 1 ? '' : 'e'} erstellt.`
+      status.innerHTML = `✅ ${files.length} Abschnitt${files.length === 1 ? '' : 'e'} erstellt und als <strong>${escapeHtml(fileName)}</strong> heruntergeladen`
+        + ' – zu finden im Download-Ordner des Browsers (meist „Downloads“), sofern der Browser nicht nach dem Speicherort gefragt hat.'
         + (warnings.length ? `<br>Hinweise: ${warnings.map(escapeHtml).join(' · ')}` : '');
       btnCancel.textContent = 'Schließen';
     } catch (e) {

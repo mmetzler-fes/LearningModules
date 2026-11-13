@@ -383,6 +383,8 @@ export class PublicController {
       studentTicket: ticket,
       // Wiedereinstieg: bis hierher beantwortet.
       examResume: exam?.progress || undefined,
+      // Klassenarbeit: Multiple Choice je Schüler anders gemischt – fest an ihm, auch beim Wiedereinstieg.
+      shuffleKey: mode === 'exam' && studentId ? `${link.id}:${studentId}` : undefined,
       teacherEmail: teacher.email,
       // Lernbegleitung: Kommentare, Joker und Zeitstrafe nach Schule,
       // Lehrkraft und Link.

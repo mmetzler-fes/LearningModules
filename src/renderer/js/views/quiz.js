@@ -258,6 +258,8 @@ export class QuizView {
     if (resumed) steps = resumed;
 
     this.app.state.quizState = {
+      // Klassenarbeit: eigene Reihenfolge der Antworten je Schüler (vom Server, fest an ihm).
+      shuffleKey: data.shuffleKey || null,
       // Das Ergebnis hängt am ersten Thema des Links; welche Aufgaben
       // tatsächlich drankamen, steht ohnehin in den Details.
       topicId: (data.topics[0] || {}).id || null,
@@ -477,6 +479,7 @@ export class QuizView {
         // Prüfknöpfe der Aufgaben würden sie umgehen.
         examMode: this._isExamRun() || !!this._companion,
         examRun: this._isExamRun(),
+        shuffleKey: qs.shuffleKey || null,
         // Quizze im Dokument (planRun); in der Lernbegleitung kommen sie als eigene Aufgabe.
         embedModule: (id) => qs.embedded?.get(id) || null,
         moduleId: mod.id,

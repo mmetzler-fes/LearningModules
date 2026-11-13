@@ -303,6 +303,21 @@ zu markieren bringt also nichts.
 **📝 Je Aufgabe** und **📅 Jahresüberblick** sind die Reiter der früheren
 Klassenergebnisse.
 
+## ✍️ Tafelbild je Klasse
+
+Ein Dokument lässt sich im Klassennotizbuch beschriften wie eine Tafel, ohne
+dass das Dokument selbst etwas abbekommt: ⋯ am Dokument → **✍️ Tafelbild
+beginnen**. Der Stift-Editor speichert dann nur für diese Klasse
+(`class_boards`, ID `Klasse:Modul`, `src/classbook/class-board.service.ts`).
+Im Lernnotizbuch und in jeder anderen Klasse bleibt das Blatt sauber.
+
+- Unter dem Dokument steht dann **✍️ Tafelbild** – anklicken schreibt weiter,
+  ⋯ → **Neues Tafelbild beginnen** löscht das alte (je Klasse und Dokument gibt es eines).
+- ●/○ am Tafelbild: Schüler der Klasse sehen es, zunächst aus. Sie öffnen es
+  unter dem Dokument nur zum Ansehen; ihr eigenes Blatt beschriften sie wie bisher.
+- Das Tafelbild bleibt, bis die Klasse gelöscht wird; mit „Links mitnehmen“
+  zieht es beim Schuljahreswechsel mit (wieder aus).
+
 ## Schuljahreswechsel
 
 Beim **Übernehmen** einer Klasse ins neue Schuljahr (🏫 Klassen) geht das

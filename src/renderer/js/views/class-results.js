@@ -540,8 +540,10 @@ export class ClassResultsView {
     if (!force && this._cb?.classId === classId) return this._cb;
     if (!force && this._cbLoading?.classId === classId) return this._cbLoading.p;
     const p = (async () => {
-      const res = await this.app.api.getClassbook(classId);
+      const [res, boards] = await Promise.all([this.app.api.getClassbook(classId), this.app.api.listClassBoards(classId).catch(() => [])]);
       if (failed(res)) throw new Error(res?.message || 'Klassennotizbuch nicht abrufbar');
+      // ✍️ Tafelbilder dieser Klasse: Modul-ID → { studentVisible, updatedAt }.
+      res.boards = new Map((Array.isArray(boards) ? boards : []).map((b) => [b.moduleId, b]));
       if (classId === this._classId) this._cb = res;
       return res;
     })();
@@ -786,7 +788,7 @@ export class ClassResultsView {
           ${m.enabled ? `<button type="button" class="cb-mark ${marked ? 'on' : ''}" data-mark="${escapeAttr(m.id)}"
             title="${marked ? 'Hier ist die Klasse gerade – klicken zum Entfernen' : 'Merker: Hier ist die Klasse gerade. Bei den Schülern ist dieses Modul dann aufgeklappt und hat den Fokus.'}">📍</button>` : ''}
           ${(link.releasedModuleIds || []).includes(m.id) ? `<button type="button" class="btn btn-secondary btn-sm" data-release="${escapeAttr(m.id)}" data-on="1" title="Nur für diese Klasse freigegeben – klicken sperrt wieder">🔒 Wieder sperren</button>` : ''}
-          <button type="button" class="nb-menu-btn" data-module-menu="${escapeAttr(m.id)}" title="Aktionen" aria-label="Aktionen">⋯</button></li>`;
+          <button type="button" class="nb-menu-btn" data-module-menu="${escapeAttr(m.id)}" title="Aktionen" aria-label="Aktionen">⋯</button></li>${m.type === 'document' ? this._boardRow(m) : ''}`;
         }).join('')}
         ${(t.lockedModules || []).filter((m) => !m.releasedHere).map((m) => `<li class="cb-item-off cb-locked" title="Schüler sehen das nicht, auch nicht über „Alles“">
           <span>🔒 <button type="button" class="cb-unit" data-open-module="${escapeAttr(m.id)}">${TYPE_ICON[m.type] || '📄'} ${escapeHtml(m.title)}</button>
@@ -796,6 +798,61 @@ export class ClassResultsView {
         </li>`).join('')}</ul>
       </div>`).join('')}
       ${link.notReleased?.length ? `<p class="hint">Im Notizbuch noch nicht für Schüler freigegeben, daher nicht wählbar: ${escapeHtml(link.notReleased.join(', '))}.</p>` : ''}`;
+  }
+
+  /** ✍️ Tafelbild dieser Klasse unter einem Dokument – nur, wenn es eins gibt. */
+  _boardRow(m) {
+    const b = this._cb?.boards?.get(m.id);
+    if (!b) return '';
+    const when = b.updatedAt ? new Date(b.updatedAt).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' }) : '';
+    const on = !!b.studentVisible;
+    return `<li class="cb-embedded cb-board ${on ? '' : 'cb-item-off'}">
+          <button type="button" class="cb-unit" data-board="${escapeAttr(m.id)}" title="Tafelbild dieser Klasse öffnen und weiterschreiben – das Dokument selbst bleibt unbeschriftet">✍️ Tafelbild</button>
+          <span class="nb-meta">${when ? `zuletzt ${escapeHtml(when)}` : ''}</span>
+          <button type="button" class="nb-status ${on ? 'on' : ''}" data-board-toggle="${escapeAttr(m.id)}"
+            title="${on ? 'Die Schüler dieser Klasse sehen das Tafelbild (nur ansehen) – klicken zum Ausschalten' : 'Ausgeschaltet – klicken, damit die Schüler dieser Klasse das Tafelbild ansehen können'}">${on ? '●' : '○'}</button>
+          <button type="button" class="nb-menu-btn" data-board-menu="${escapeAttr(m.id)}" title="Aktionen" aria-label="Aktionen">⋯</button></li>`;
+  }
+
+  /** Tafelbild im Stift-Editor: gespeichert nur für diese Klasse, nicht im Dokument. */
+  async _openBoard(topicId, moduleId) {
+    const classId = this._classId;
+    const api = this.app.api;
+    try {
+      const [all, board] = await Promise.all([this.app.api.getTopicModules(topicId), this.app.api.getClassBoard(classId, moduleId)]);
+      if (failed(board)) throw new Error(board?.message || 'Tafelbild nicht abrufbar');
+      const modules = Array.isArray(all) ? all : [];
+      const mod = modules.find((x) => x.id === moduleId);
+      if (!mod) throw new Error('Das Dokument gibt es nicht mehr.');
+      // Das erste Speichern legt das Tafelbild an – dann erscheint sein Eintrag im Baum.
+      let listed = this._cb?.boards?.has(moduleId);
+      const refresh = () => this._call(Promise.resolve({ success: true }));
+      const { openDocumentInk } = await import('../ink/ink-open.js');
+      await openDocumentInk({
+        mode: 'teacher', mod, embedModule: (id) => modules.find((x) => x.id === id) || null,
+        title: `✍️ Tafelbild ${this._cb?.className || ''} – ${mod.title || 'Dokument'}`,
+        store: {
+          label: `im Tafelbild der Klasse ${this._cb?.className || ''}`,
+          load: async () => board.data || null,
+          async save(data) {
+            const res = await api.saveClassBoard(classId, moduleId, { data });
+            const ok = !failed(res) && res?.success === true;
+            if (ok && !listed) { listed = true; void refresh(); }
+            return ok;
+          },
+        },
+      });
+    } catch (err) { this.app.showToast(`Tafelbild: ${err.message}`, 'error'); }
+  }
+
+  _boardMenu(topicId, moduleId) {
+    return [
+      { label: '✍️ Öffnen und weiterschreiben', run: () => this._openBoard(topicId, moduleId) },
+      { label: '🧽 Neues Tafelbild beginnen', title: 'Das bisherige Tafelbild dieser Klasse löschen und mit einer sauberen Tafel anfangen', run: async () => {
+        if (!(await this.app.appConfirm('Das bisherige Tafelbild dieser Klasse löschen und mit einer sauberen Tafel anfangen? Das lässt sich nicht rückgängig machen.'))) return;
+        if (await this._call(this.app.api.deleteClassBoard(this._classId, moduleId))) await this._openBoard(topicId, moduleId);
+      } },
+    ];
   }
 
   /** Link der Klassenarbeit dieser Klasse, der genau dieses Modul enthält – oder undefined. */
@@ -1148,6 +1205,22 @@ export class ClassResultsView {
         const mod = modId && topic.modules.find((m) => m.id === modId);
         this._menu(mod ? this._moduleMenu(link, topic, mod) : this._topicMenu(link, topic), anchor);
       };
+      const boardTopic = (el) => el.closest('[data-topic]')?.dataset.topic;
+      out.querySelectorAll('[data-board]').forEach((btn) => btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        void this._openBoard(boardTopic(btn), btn.dataset.board);
+      }));
+      out.querySelectorAll('[data-board-menu]').forEach((btn) => btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        this._menu(this._boardMenu(boardTopic(btn), btn.dataset.boardMenu), btn);
+      }));
+      out.querySelectorAll('[data-board-toggle]').forEach((btn) => btn.addEventListener('click', async (e) => {
+        e.preventDefault();
+        const on = !btn.classList.contains('on');
+        const res = await this._call(this.app.api.saveClassBoard(this._classId, btn.dataset.boardToggle, { studentVisible: on }));
+        if (res) this.app.showToast(on ? 'Die Schüler dieser Klasse sehen das Tafelbild jetzt.' : 'Tafelbild für die Schüler ausgeschaltet.', 'success');
+      }));
       out.querySelectorAll('[data-module-menu], [data-topic-menu]').forEach((btn) => btn.addEventListener('click', (e) => {
         e.preventDefault();
         e.stopPropagation();
@@ -1334,6 +1407,11 @@ export class ClassResultsView {
     const open = (action) => this.app.modulesView.openFrom('teacher-class-results', topic.topicId, { id: mod.id }, action);
     const own = link.classTopicId === topic.topicId;
     const items = [{ label: '👁 Vorschau', run: () => open('preview') }];
+    if (mod.type === 'document') {
+      items.push({ label: this._cb?.boards?.has(mod.id) ? '✍️ Tafelbild öffnen' : '✍️ Tafelbild beginnen',
+        title: 'Auf das Dokument schreiben wie an die Tafel – gespeichert nur für diese Klasse, das Dokument bleibt unbeschriftet',
+        run: () => this._openBoard(topic.topicId, mod.id) });
+    }
     // Nur, was die Schüler öffnen dürfen.
     if (mod.enabled && link.active !== false) {
       items.push({ label: '📡 An Klasse senden', title: 'Öffnet das Modul sofort bei allen Schülern, die das Klassennotizbuch offen haben', run: async () => {

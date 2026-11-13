@@ -2,12 +2,36 @@ import { Controller, Get, Post, Put, Patch, Delete, Body, Param, Query, Request,
 import type { Response } from 'express';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { ClassbookService } from './classbook.service';
+import { ClassBoardService } from './class-board.service';
 
 /** Klassennotizbuch der Lehrkraft (docs/klassennotizbuch.md). */
 @Controller('classbook')
 @UseGuards(JwtAuthGuard)
 export class ClassbookController {
-  constructor(private readonly classbook: ClassbookService) {}
+  constructor(private readonly classbook: ClassbookService, private readonly boards: ClassBoardService) {}
+
+  /** ✍️ Tafelbilder dieser Klasse (ohne Inhalt). */
+  @Get(':classId/boards')
+  listBoards(@Request() req: any, @Param('classId') classId: string) {
+    return this.boards.list(req.user, classId);
+  }
+
+  @Get(':classId/boards/:moduleId')
+  getBoard(@Request() req: any, @Param('classId') classId: string, @Param('moduleId') moduleId: string) {
+    return this.boards.get(req.user, classId, moduleId);
+  }
+
+  /** `{ data?, studentVisible? }` – Tafelbild speichern bzw. für die Schüler ●/○. */
+  @Put(':classId/boards/:moduleId')
+  putBoard(@Request() req: any, @Param('classId') classId: string, @Param('moduleId') moduleId: string, @Body() body: any) {
+    return this.boards.put(req.user, classId, moduleId, body);
+  }
+
+  /** Neues Tafelbild beginnen: das bisherige löschen. */
+  @Delete(':classId/boards/:moduleId')
+  deleteBoard(@Request() req: any, @Param('classId') classId: string, @Param('moduleId') moduleId: string) {
+    return this.boards.remove(req.user, classId, moduleId);
+  }
 
   @Get(':classId')
   get(@Request() req: any, @Param('classId') classId: string) {
@@ -196,7 +220,21 @@ export class ClassbookController {
 /** Schüler über den Klassenbuch-Link – Name und PIN, dann mit Ausweis. */
 @Controller('public/classbook')
 export class PublicClassbookController {
-  constructor(private readonly classbook: ClassbookService) {}
+  constructor(private readonly classbook: ClassbookService, private readonly boards: ClassBoardService) {}
+
+  /** `{ ticket }` → eingeschaltete ✍️ Tafelbilder der Klasse (ohne Inhalt). */
+  @Post(':token/boards')
+  @HttpCode(200)
+  boardList(@Param('token') token: string, @Body() body: { ticket?: string }) {
+    return this.boards.listForStudent(token, body?.ticket);
+  }
+
+  /** `{ ticket }` → ein Tafelbild mit Dokument, nur zum Ansehen. */
+  @Post(':token/boards/:moduleId')
+  @HttpCode(200)
+  board(@Param('token') token: string, @Param('moduleId') moduleId: string, @Body() body: { ticket?: string }) {
+    return this.boards.getForStudent(token, body?.ticket, moduleId);
+  }
 
   /** Live-Verbindung (Server-Sent Events) – `?ticket=`, weil EventSource keine Kopfzeilen sendet. */
   @Get(':token/live')

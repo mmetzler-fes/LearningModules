@@ -1211,6 +1211,13 @@ export class BrowserApi {
   tryClassbookExam(classId, linkId) {
     return this._fetch(`/api/classbook/${encodeURIComponent(classId)}/exam/${encodeURIComponent(linkId)}/try`, { method: 'POST' });
   }
+  // ✍️ Tafelbild je Klasse und Dokument (src/classbook/class-board.service.ts)
+  listClassBoards(classId) { return this._fetch(`/api/classbook/${encodeURIComponent(classId)}/boards`); }
+  getClassBoard(classId, moduleId) { return this._fetch(`/api/classbook/${encodeURIComponent(classId)}/boards/${encodeURIComponent(moduleId)}`); }
+  saveClassBoard(classId, moduleId, body) {
+    return this._fetch(`/api/classbook/${encodeURIComponent(classId)}/boards/${encodeURIComponent(moduleId)}`, { method: 'PUT', body: JSON.stringify(body) });
+  }
+  deleteClassBoard(classId, moduleId) { return this._fetch(`/api/classbook/${encodeURIComponent(classId)}/boards/${encodeURIComponent(moduleId)}`, { method: 'DELETE' }); }
   resetClassbookPreview(classId) { return this._fetch(`/api/classbook/${encodeURIComponent(classId)}/preview`, { method: 'DELETE' }); }
   getClassbookOverview(classId) { return this._fetch(`/api/classbook/${encodeURIComponent(classId)}/overview`); }
   getClassResults(classId) { return this._fetch(`/api/results/class/${encodeURIComponent(classId)}`); }

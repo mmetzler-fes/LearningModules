@@ -1498,6 +1498,11 @@ export class ClassbookService {
     };
   }
 
+  /** Angemeldeter Schüler des Klassennotizbuchs (für ClassBoardService). */
+  async studentSession(token: string, ticket: unknown) {
+    return this.session(token, ticket);
+  }
+
   private async session(token: string, ticket: unknown) {
     const { nb, klasse, scope } = await this.byToken(token);
     const t = readTicket(ticket, classbookTicketKey(klasse.id));

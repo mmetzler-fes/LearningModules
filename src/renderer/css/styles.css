@@ -5579,6 +5579,9 @@ details[open] > summary > .cb-twisty::before { content: '▾'; }
 .nb-status.on { color: var(--success); }
 .nb-off .nb-title { color: var(--text-secondary); }
 .nb-badge { font-size: 0.78rem; color: var(--text-secondary); border: 1px solid var(--border); border-radius: 999px; padding: 1px 8px; overflow: hidden; text-overflow: ellipsis; max-width: 30%; }
+.nb-badge-btn { background: none; font: inherit; font-size: 0.78rem; cursor: pointer; flex: none; }
+.nb-badge-btn:hover { background: var(--accent-light); border-color: var(--accent); }
+.nb-unnumbered { color: var(--warning-text, #a15c00); }
 .nb-module .nb-title { font-size: 0.93rem; }
 .nb-hit .nb-title { background: var(--highlight-bg); border-radius: 3px; }
 .nb-empty { min-height: 28px; }

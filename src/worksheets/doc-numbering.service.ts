@@ -113,9 +113,13 @@ export class DocNumberingService implements OnApplicationBootstrap {
   /** Für die Baumansicht: Nummer je Dokument und je Ordner. */
   async treeNumbers(userId: string) {
     const n = await this.numberingFor(userId);
+    const docs = [...n.docs.values()];
+    // Wo gezählt wird, aber ein Dokument keine Arbeitsblatt-Art hat: im Baum sagen, warum die Nummer fehlt.
+    const counted = new Set(docs.filter((d) => d.pfad).map((d) => d.scope));
     return {
-      docNumbers: Object.fromEntries([...n.docs.values()].map((d) => [d.moduleId, d.pfad])),
+      docNumbers: Object.fromEntries(docs.map((d) => [d.moduleId, d.pfad])),
       nodeNumbers: Object.fromEntries(n.nodeNumbers),
+      docKinds: Object.fromEntries(docs.filter((d) => !d.pfad && d.kind !== 'arbeitsblatt' && counted.has(d.scope)).map((d) => [d.moduleId, d.kind])),
     };
   }
 }

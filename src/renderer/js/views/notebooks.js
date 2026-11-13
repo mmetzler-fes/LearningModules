@@ -11,6 +11,7 @@ import { nestEmbedded } from '../../lm-editor/src/doc/doc-quiz.js';
 import { quizUsage, usageText, isDocLike, reachedViaDocs } from '../quiz-usage.js';
 
 /** 🔢 Nummerierung eines Ordners (src/worksheets/numbering.ts). */
+const DOC_KIND_LABEL = { text: 'Text', klassenarbeit: 'Klassenarbeit', skript: 'Skript' };
 const NUMBERING_LABEL = { flat: 'durchgezählt', tree: 'gegliedert', off: 'aus' };
 
 /** Quiz-Typen, die die KI-Schnittstelle überarbeiten kann (src/ai-bridge/quiz-format.ts). */
@@ -597,6 +598,8 @@ export class NotebooksView {
     });
     row.querySelector('.nb-title').addEventListener('click', () => { if (this._preview.open) this._preview.showNode(node); });
     row.querySelector('.nb-dive').addEventListener('click', (e) => { e.stopPropagation(); this._setFocus(node.id); });
+    row.querySelector('[data-badge="numbering"]')?.addEventListener('click', (e) => { e.stopPropagation(); this._editNumbering(node); });
+    row.querySelector('[data-badge="docs"]')?.addEventListener('click', (e) => { e.stopPropagation(); this._editDocSettings(node); });
     this._menuOn(row, () => this._nodeMenu(node));
     this._bindDrop(row, { type: 'node', id: node.id, kind: node.kind });
     // Bereiche und Abschnitte lassen sich mit auswählen (mehrere auf einmal verschieben); ein Book steht immer oben.
@@ -757,7 +760,7 @@ export class NotebooksView {
       twisty: quizzes.length > 0, twistyKey: quizzes.length ? 'dz:' + mod.id : null,
       open: quizzes.length > 0 && (!!this._query || !this._open.has('dz:' + mod.id)),
       cls: `nb-module ${on ? '' : 'nb-off'} ${from ? 'nb-foreign' : ''} ${this._query && this._matches(mod.title) ? 'nb-hit' : ''}`,
-      meta: escapeHtml(type.name || mod.type) + (quizzes.length ? ` · ${quizzes.length === 1 ? '1 Quiz' : `${quizzes.length} Quizze`}` : '')
+      meta: escapeHtml(type.name || mod.type) + this._unnumberedMeta(mod) + (quizzes.length ? ` · ${quizzes.length === 1 ? '1 Quiz' : `${quizzes.length} Quizze`}` : '')
         + (from ? ` · <span class="nb-from" title="${escapeAttr(`Liegt im Lernthema „${from.title}“ – dort bearbeiten, ein- und ausschalten`)}">aus: ${escapeHtml(from.title)}</span>` : this._usedInMeta(topic, mod)),
       extra: this._lockBadge(topic, mod) + (this._draftIds?.has(mod.id) ? '<span class="nb-badge" title="Nicht gespeicherte Änderungen – beim Bearbeiten wiederherstellbar">📝 Entwurf</span>' : '')
         + (this._mirrorErrors?.has(mod.id) ? `<span class="nb-badge nb-warn" title="${escapeAttr(`Nextcloud: ${this._mirrorErrors.get(mod.id)}`)}">☁️ ⚠</span>` : '') + (own
@@ -1233,8 +1236,16 @@ export class NotebooksView {
     const s = node.docSettings;
     if (!s) return '';
     const num = NUMBERING_LABEL[s.numbering];
-    return (num ? `<span class="nb-badge" title="${escapeAttr(`Nummerierung ab hier: ${num}`)}">🔢</span>` : '')
-      + (s.kurs ? `<span class="nb-badge" title="${escapeAttr(`Kurs „${s.kurs}“`)}">📄</span>` : '');
+    return (num ? `<button type="button" class="nb-badge nb-badge-btn" data-badge="numbering" title="${escapeAttr(`Nummerierung ab hier: ${num} – klicken zum Ändern`)}">🔢</button>` : '')
+      + (s.kurs ? `<button type="button" class="nb-badge nb-badge-btn" data-badge="docs" title="${escapeAttr(`Kurs „${s.kurs}“ – klicken für die Dokument-Einstellungen`)}">📄</button>` : '');
+  }
+
+  /** Liegt im nummerierten Ordner, ist aber kein Arbeitsblatt: sagen, warum die Nummer fehlt. */
+  _unnumberedMeta(mod) {
+    const kind = this._data.docKinds?.[mod.id];
+    if (!kind) return '';
+    const label = DOC_KIND_LABEL[kind] || kind;
+    return ` · <span class="nb-unnumbered" title="${escapeAttr(`Nummeriert werden nur Arbeitsblätter. Ändern im Editor: Formatvorlagen › Dokument-Art › Arbeitsblatt.`)}">${escapeHtml(label)} – ohne Nummer</span>`;
   }
 
   /** 🔢 Nummerierung: aus, durchgezählt oder gegliedert – mit Vorschau, wie die Blätter darunter heißen würden. */

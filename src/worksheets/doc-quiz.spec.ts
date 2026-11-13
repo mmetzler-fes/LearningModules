@@ -38,4 +38,10 @@ describe('Quiz im Dokument', () => {
     expect(steps.map((m) => m.id)).toEqual(['q1']);
     expect(planRun([quiz('q2')], { onlyModule: 'weg' }).steps.map((m) => m.id)).toEqual(['q2']);
   });
+
+  it('Link auf ein Dokument (OneNote): seine Quizze laufen darin mit', () => {
+    const { steps, embedded } = planRun([doc('d', [{ type: 'quiz', module: 'q1' }]), quiz('q1'), quiz('q2')], { onlyModule: 'd' });
+    expect(steps.map((m) => m.id)).toEqual(['d']);
+    expect([...embedded.keys()]).toEqual(['q1']);
+  });
 });

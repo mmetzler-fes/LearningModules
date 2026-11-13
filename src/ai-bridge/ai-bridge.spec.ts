@@ -62,6 +62,13 @@ describe('AiBridgeService (15-Minuten-KI-Token, Scope & Undo)', () => {
       // where.id als In([...]) (Quiz überarbeiten) oder where.topicId
       find: jest.fn(async ({ where }: any) => modules.filter((m) => (where.id?.value ? where.id.value.includes(m.id) : m.topicId === where.topicId))),
       findOne: jest.fn(async ({ where }: any) => modules.find((m) => m.id === where.id) || null),
+      // Nur für die Dokument-Art im Baum: id + content.kind
+      createQueryBuilder: () => {
+        let ids: string[] = [];
+        const qb: any = { select: () => qb, addSelect: () => qb, where: (_: string, p: any) => { ids = p.ids; return qb; },
+          getRawMany: async () => modules.filter((m) => ids.includes(m.id)).map((m) => ({ id: m.id, kind: m.content?.kind ?? null })) };
+        return qb;
+      },
       delete: jest.fn(async ({ id }: any) => {
         modules = modules.filter((m) => m.id !== id);
       }),
@@ -276,6 +283,7 @@ describe('AiBridgeService (15-Minuten-KI-Token, Scope & Undo)', () => {
     const r = await service.executeBatch(session, { operations: [{ op: 'update_document', moduleId: 'mod-doc-1', kind: 'text' }] });
     expect(r.ok).toBe(true);
     expect(modules[0].content.kind).toBe('text');
+    expect((await service.scopedTree(session)).notebook.topics[0].modules.find((m: any) => m.id === 'mod-doc-1')?.docKind).toBe('text');
     expect(modules[0].content.spec.content[0].text).toBe(before.spec.content[0].text);
     await expect(service.executeBatch(session, { operations: [{ op: 'update_document', moduleId: 'mod-doc-1', kind: 'quatsch' as any }] })).rejects.toThrow(/kind/);
     await service.rollbackSession(user, info.id);

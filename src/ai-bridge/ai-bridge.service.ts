@@ -93,14 +93,6 @@ const MAX_TTL_MINUTES = 240;
 /** So lange nach dem Ablauf lässt sich eine Sitzung noch rückgängig machen. */
 const SESSION_RETENTION_MS = 14 * 24 * 60 * 60 * 1000;
 const DOC_KINDS = ['arbeitsblatt', 'klassenarbeit', 'text'];
-function docKindOf(content: any): string {
-  try {
-    const c = typeof content === 'string' ? JSON.parse(content) : content;
-    return String(c?.kind || 'arbeitsblatt');
-  } catch {
-    return 'arbeitsblatt';
-  }
-}
 const MAX_REQ_PER_MIN = 60;
 const MAX_OPS_PER_SESSION = 200;
 
@@ -382,6 +374,17 @@ export class AiBridgeService {
     return { nbTree, planTree, nbAll, planAll, allowedNbNodes, allowedTopics, allowedPlanNodes };
   }
 
+  /** Dokument-Art je Modul – nur das Feld aus dem JSON, nicht der ganze Inhalt. */
+  private async docKinds(ids: string[]): Promise<Map<string, string>> {
+    if (!ids.length) return new Map();
+    const rows = await this.moduleRepo.createQueryBuilder('m')
+      .select('m.id', 'id')
+      .addSelect("json_extract(m.content, '$.kind')", 'kind')
+      .where('m.id IN (:...ids)', { ids })
+      .getRawMany();
+    return new Map(rows.map((r: any) => [r.id, r.kind || 'arbeitsblatt']));
+  }
+
   async scopedTree(session: AiBridgeSession) {
     const { nbTree, planTree, allowedNbNodes, allowedTopics, allowedPlanNodes } = await this.resolveScopeSets(session);
 
@@ -395,6 +398,7 @@ export class AiBridgeService {
     // Einzeln freigegebene Lernthemen ohne Platz im Notizbuch stehen wie „Unsortiert“ da.
     const placed = new Set(nbTree.placements.map((p: any) => p.topicId));
     const loose = (session.scope.topicIds || []).filter((id) => !placed.has(id)).map((topicId) => ({ topicId, nodeId: null, orderIndex: 0 }));
+    const kinds = await this.docKinds([...topicsById.values()].flatMap((t: any) => (t.modules || []).filter((m: any) => m.type === 'document').map((m: any) => m.id)));
     const placements = [...nbTree.placements, ...loose]
       .filter((p: any) => allowedTopics.has(p.topicId))
       .map((p: any) => {
@@ -408,7 +412,7 @@ export class AiBridgeService {
           modules: (t?.modules || []).map((m: any) => ({
             id: m.id, type: m.type, title: m.title, orderIndex: m.orderIndex,
             // Dokument-Art ohne den Inhalt zu laden (nummeriert werden nur Arbeitsblätter).
-            ...(m.type === 'document' ? { docKind: docKindOf(m.content) } : {}),
+            ...(m.type === 'document' ? { docKind: kinds.get(m.id) || 'arbeitsblatt' } : {}),
           })),
         };
       });

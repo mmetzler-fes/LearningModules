@@ -1479,6 +1479,11 @@ export class ClassResultsView {
     items.push({ label: '➕ Aus dem Notizbuch hierher', run: () => this._add('assign', node.id) });
     items.push('-');
     items.push({ label: '📍 Hier ist die Klasse gerade', title: 'Schüler springen zum ersten Modul darin – „Weiter“ führt durch alle weiteren', run: () => this._setMarker({ level: 'node', nodeId: node.id }) });
+    items.push({ label: '🟪 Für OneNote ausgeben…', title: `Nur „${node.title}“ als OneNote-Abschnitt${node.kind === 'area' ? 'sgruppe' : ''} – mit Links ins Klassennotizbuch, Ausdruck, PDF und Quizzen zum Ausfüllen`,
+      run: async () => {
+        const { openClassbookOneNoteExport } = await import('./onenote-export.js');
+        await openClassbookOneNoteExport(this.app, this._classId, { nodeId: node.id });
+      } });
     items.push('-');
     items.push(node.studentHidden
       ? { label: '👁 Für Schüler einblenden', title: 'Alles darin ist wieder wie vorher zu sehen', run: () => this._setVeil({ type: 'node', id: node.id, hidden: false }) }

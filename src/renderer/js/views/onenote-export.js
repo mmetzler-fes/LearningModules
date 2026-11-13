@@ -392,7 +392,8 @@ async function classBoards(app, classId) {
 }
 
 /** Aus dem Klassennotizbuch einer Klasse – ohne Klassenarbeiten und Ausgeblendetes. */
-export async function openClassbookOneNoteExport(app, classId) {
+/** Ganzes Klassennotizbuch oder (`nodeId`) nur ein Bereich bzw. Abschnitt darin. */
+export async function openClassbookOneNoteExport(app, classId, { nodeId = null } = {}) {
   const cb = await app.api.getClassbook(classId).catch(() => null);
   if (!cb?.url) { app.showToast('Klassennotizbuch nicht abrufbar.', 'error'); return; }
   const hiddenNodes = new Set();
@@ -424,10 +425,16 @@ export async function openClassbookOneNoteExport(app, classId) {
       else walk(c.id, c.title, [...path, fileSafe(c.title)]);
     }
   };
-  walk(null, cb.className, []);
+  const start = nodeId ? nodes.find((n) => n.id === nodeId) : null;
+  if (nodeId && !start) { app.showToast('Bereich nicht gefunden.', 'error'); return; }
+  if (start && hiddenNodes.has(start.id)) { app.showToast(`„${start.title}“ ist für Schüler ausgeblendet – darin wird nichts ausgegeben.`, 'error'); return; }
+  // Ein Abschnitt ist eine .one-Datei; ein Bereich ein Ordner mit seinen Abschnitten.
+  if (start?.kind === 'section') sections.push({ path: [], name: start.title, topics: linksIn(start.id).flatMap(topicEntries) });
+  else walk(start ? start.id : null, start ? start.title : cb.className, []);
+  const name = start ? start.title : `Klasse ${cb.className}`;
   openDialog(app, {
-    title: `Für OneNote ausgeben – Klasse ${cb.className}`,
+    title: start ? `Für OneNote ausgeben – ${start.title} (Klasse ${cb.className})` : `Für OneNote ausgeben – Klasse ${cb.className}`,
     hint: 'Die Links führen ins <strong>Klassennotizbuch</strong>: Schüler melden sich mit Name und PIN an, Ergebnisse landen in der Klasse. Klassenarbeiten und für Schüler Ausgeblendetes bleiben weg.',
-    plan: { name: `Klasse ${cb.className}`, sections: sections.filter((s) => s.topics.length), boards: await classBoards(app, classId) },
+    plan: { name, sections: sections.filter((s) => s.topics.length), boards: await classBoards(app, classId) },
   });
 }

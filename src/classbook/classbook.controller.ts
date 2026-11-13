@@ -27,6 +27,32 @@ export class ClassbookController {
     return this.boards.put(req.user, classId, moduleId, body);
   }
 
+  /** 🔑 Lehrerlösungen (eigene Dokumente mit Beschriftung) und ob diese Klasse sie sieht. */
+  @Get(':classId/solutions')
+  listSolutions(@Request() req: any, @Param('classId') classId: string) {
+    return this.boards.solutions(req.user, classId);
+  }
+
+  /** `{ studentVisible }` – Lehrerlösung für die Schüler dieser Klasse ●/○. */
+  @Put(':classId/solutions/:moduleId')
+  setSolution(@Request() req: any, @Param('classId') classId: string, @Param('moduleId') moduleId: string, @Body() body: { studentVisible?: boolean }) {
+    return this.boards.setSolution(req.user, classId, moduleId, !!body?.studentVisible);
+  }
+
+  /** Lehrerlösung als Start des Tafelbilds dieser Klasse. */
+  @Post(':classId/boards/:moduleId/from-solution')
+  @HttpCode(200)
+  boardFromSolution(@Request() req: any, @Param('classId') classId: string, @Param('moduleId') moduleId: string) {
+    return this.boards.boardFromSolution(req.user, classId, moduleId);
+  }
+
+  /** Tafelbild als Lehrerlösung übernehmen (gilt für alle Klassen). */
+  @Post(':classId/boards/:moduleId/to-solution')
+  @HttpCode(200)
+  solutionFromBoard(@Request() req: any, @Param('classId') classId: string, @Param('moduleId') moduleId: string) {
+    return this.boards.solutionFromBoard(req.user, classId, moduleId);
+  }
+
   /** Neues Tafelbild beginnen: das bisherige löschen. */
   @Delete(':classId/boards/:moduleId')
   deleteBoard(@Request() req: any, @Param('classId') classId: string, @Param('moduleId') moduleId: string) {
@@ -227,6 +253,20 @@ export class PublicClassbookController {
   @HttpCode(200)
   boardList(@Param('token') token: string, @Body() body: { ticket?: string }) {
     return this.boards.listForStudent(token, body?.ticket);
+  }
+
+  /** `{ ticket }` → freigegebene 🔑 Lehrerlösungen der Klasse (ohne Inhalt). */
+  @Post(':token/solutions')
+  @HttpCode(200)
+  solutionList(@Param('token') token: string, @Body() body: { ticket?: string }) {
+    return this.boards.solutionsForStudent(token, body?.ticket);
+  }
+
+  /** `{ ticket }` → eine Lehrerlösung mit Dokument, nur zum Ansehen. */
+  @Post(':token/solutions/:moduleId')
+  @HttpCode(200)
+  solution(@Param('token') token: string, @Param('moduleId') moduleId: string, @Body() body: { ticket?: string }) {
+    return this.boards.solutionForStudent(token, body?.ticket, moduleId);
   }
 
   /** `{ ticket }` → ein Tafelbild mit Dokument, nur zum Ansehen. */

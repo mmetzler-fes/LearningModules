@@ -12,8 +12,10 @@ function setup() {
   modules.rows.push({ id: 'd3', topicId: 'shop', type: 'document', title: 'Aus dem Shop', content: {} });
   const classes: any = { ownedClass: async (id: string) => { if (id !== 'c1') throw new Error('fremde Klasse'); return KLASSE; } };
   const classbook: any = { studentSession: async (token: string) => { if (token !== 'kb') throw new Error('abgelaufen'); return { klasse: KLASSE }; } };
-  const svc = new ClassBoardService(boards as any, modules as any, topics as any, links as any, classes, classbook);
-  return { svc, boards };
+  const solutions = repo();
+  const inks = repo([{ id: 'd1', ownerId: 't1', visibility: 'teacher', data: { strokes: ['lösung'] } }]);
+  const svc = new ClassBoardService(boards as any, solutions as any, inks as any, modules as any, topics as any, links as any, classes, classbook);
+  return { svc, boards, solutions, inks, links };
 }
 
 const T = { userId: 't1' };
@@ -55,5 +57,36 @@ describe('✍️ Tafelbild je Klasse', () => {
     await svc.remove(T, 'c1', 'd1');
     expect(boards.rows).toHaveLength(0);
     expect((await svc.get(T, 'c1', 'd1')).data).toBeNull();
+  });
+
+  it('🔑 Lehrerlösung je Klasse freigeben; Schüler sehen nur Freigegebenes', async () => {
+    const { svc } = setup();
+    expect(await svc.solutionsForStudent('kb', 'x')).toEqual([]);
+    await svc.setSolution(T, 'c1', 'd1', true);
+    expect((await svc.solutionsForStudent('kb', 'x')).map((s) => s.moduleId)).toEqual(['d1']);
+    expect((await svc.solutionForStudent('kb', 'x', 'd1')).data).toEqual({ strokes: ['lösung'] });
+    await svc.setSolution(T, 'c1', 'd1', false);
+    await expect(svc.solutionForStudent('kb', 'x', 'd1')).rejects.toThrow(/nicht freigegeben/);
+    await expect(svc.setSolution(T, 'c1', 'd3', true)).rejects.toThrow(/keine Lehrerlösung/);
+  });
+
+  it('Lehrerlösung → Tafelbild und Tafelbild → Lehrerlösung', async () => {
+    const { svc, inks } = setup();
+    await svc.boardFromSolution(T, 'c1', 'd1');
+    expect((await svc.get(T, 'c1', 'd1')).data).toEqual({ strokes: ['lösung'] });
+    await svc.put(T, 'c1', 'd1', { data: { strokes: ['tafel'] } });
+    await svc.solutionFromBoard(T, 'c1', 'd1');
+    expect(inks.rows.find((i) => i.id === 'd1').data).toEqual({ strokes: ['tafel'] });
+    await svc.put(T, 'c1', 'd3', { data: { strokes: [1] } });
+    await expect(svc.solutionFromBoard(T, 'c1', 'd3')).rejects.toThrow(/eigenen Dokumenten/);
+  });
+
+  it('bisher „👁 Für alle“: in den Klassen mit dem Lernthema freigegeben, danach nur noch Lehrerlösung', async () => {
+    const { svc, inks, links, solutions } = setup();
+    links.rows.push({ id: 'l2', classId: 'c1', ownerId: 't1', selection: [{ topicId: 'tp1', all: true }] }, { id: 'l3', classId: 'c9', ownerId: 't1', selection: [{ topicId: 'andere', all: true }] });
+    inks.rows[0].visibility = 'all';
+    await svc.migrateVisibleInk();
+    expect(solutions.rows.map((r) => r.id)).toEqual(['c1:d1']);
+    expect(inks.rows[0].visibility).toBe('teacher');
   });
 });

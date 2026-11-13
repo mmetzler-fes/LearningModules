@@ -2,7 +2,16 @@
 
 /** Kleine Tabelle im Speicher – genug für find/findOne/create/save/update/remove/delete. */
 export function repo(rows: any[] = []) {
-  const match = (r: any, where: any) => Object.entries(where || {}).every(([k, v]) => r[k] === v);
+  // TypeORM-Bedingungen, soweit die Tests sie brauchen: In, IsNull, Not.
+  const ok = (v: any, x: any): boolean => {
+    if (v && typeof v === 'object' && typeof v.type === 'string' && '_value' in v) {
+      if (v.type === 'in') return (v.value as any[]).includes(x);
+      if (v.type === 'isNull') return x === null || x === undefined;
+      if (v.type === 'not') return !ok(v.value, x);
+    }
+    return x === v;
+  };
+  const match = (r: any, where: any) => Object.entries(where || {}).every(([k, v]) => ok(v, r[k]));
   return {
     rows,
     count: async ({ where }: any) => rows.filter((r) => match(r, where)).length,

@@ -51,7 +51,8 @@ export class TeacherInkService {
       }
       ink.data = body.data;
     }
-    if (body?.visibility === 'all' || body?.visibility === 'teacher') ink.visibility = body.visibility;
+    // „Für alle“ gibt es nicht mehr: Die Lehrerlösung wird je Klasse freigegeben (class-board.service.ts).
+    if (body?.visibility === 'teacher') ink.visibility = 'teacher';
     await this.repo.save(ink);
     return { success: true, visibility: ink.visibility };
   }

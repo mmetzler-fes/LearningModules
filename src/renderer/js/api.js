@@ -1217,6 +1217,13 @@ export class BrowserApi {
   saveClassBoard(classId, moduleId, body) {
     return this._fetch(`/api/classbook/${encodeURIComponent(classId)}/boards/${encodeURIComponent(moduleId)}`, { method: 'PUT', body: JSON.stringify(body) });
   }
+  // 🔑 Lehrerlösung je Klasse freigeben, Übergänge zum Tafelbild
+  listClassSolutions(classId) { return this._fetch(`/api/classbook/${encodeURIComponent(classId)}/solutions`); }
+  setClassSolution(classId, moduleId, studentVisible) {
+    return this._fetch(`/api/classbook/${encodeURIComponent(classId)}/solutions/${encodeURIComponent(moduleId)}`, { method: 'PUT', body: JSON.stringify({ studentVisible }) });
+  }
+  boardFromSolution(classId, moduleId) { return this._fetch(`/api/classbook/${encodeURIComponent(classId)}/boards/${encodeURIComponent(moduleId)}/from-solution`, { method: 'POST' }); }
+  solutionFromBoard(classId, moduleId) { return this._fetch(`/api/classbook/${encodeURIComponent(classId)}/boards/${encodeURIComponent(moduleId)}/to-solution`, { method: 'POST' }); }
   deleteClassBoard(classId, moduleId) { return this._fetch(`/api/classbook/${encodeURIComponent(classId)}/boards/${encodeURIComponent(moduleId)}`, { method: 'DELETE' }); }
   resetClassbookPreview(classId) { return this._fetch(`/api/classbook/${encodeURIComponent(classId)}/preview`, { method: 'DELETE' }); }
   getClassbookOverview(classId) { return this._fetch(`/api/classbook/${encodeURIComponent(classId)}/overview`); }

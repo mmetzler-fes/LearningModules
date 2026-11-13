@@ -540,10 +540,12 @@ export class ClassResultsView {
     if (!force && this._cb?.classId === classId) return this._cb;
     if (!force && this._cbLoading?.classId === classId) return this._cbLoading.p;
     const p = (async () => {
-      const [res, boards] = await Promise.all([this.app.api.getClassbook(classId), this.app.api.listClassBoards(classId).catch(() => [])]);
+      const [res, boards, solutions] = await Promise.all([this.app.api.getClassbook(classId),
+        this.app.api.listClassBoards(classId).catch(() => []), this.app.api.listClassSolutions(classId).catch(() => [])]);
       if (failed(res)) throw new Error(res?.message || 'Klassennotizbuch nicht abrufbar');
-      // ✍️ Tafelbilder dieser Klasse: Modul-ID → { studentVisible, updatedAt }.
+      // ✍️ Tafelbilder und 🔑 Lehrerlösungen dieser Klasse: Modul-ID → { studentVisible, … }.
       res.boards = new Map((Array.isArray(boards) ? boards : []).map((b) => [b.moduleId, b]));
+      res.solutions = new Map((Array.isArray(solutions) ? solutions : []).map((b) => [b.moduleId, b]));
       if (classId === this._classId) this._cb = res;
       return res;
     })();
@@ -800,8 +802,24 @@ export class ClassResultsView {
       ${link.notReleased?.length ? `<p class="hint">Im Notizbuch noch nicht für Schüler freigegeben, daher nicht wählbar: ${escapeHtml(link.notReleased.join(', '))}.</p>` : ''}`;
   }
 
-  /** ✍️ Tafelbild dieser Klasse unter einem Dokument – nur, wenn es eins gibt. */
+  /** 🔑 Lehrerlösung und ✍️ Tafelbild dieser Klasse unter einem Dokument – nur, wenn es sie gibt. */
   _boardRow(m) {
+    return this._solutionRow(m) + this._tafelRow(m);
+  }
+
+  _solutionRow(m) {
+    const s = this._cb?.solutions?.get(m.id);
+    if (!s) return '';
+    const on = !!s.studentVisible;
+    return `<li class="cb-embedded cb-board ${on ? '' : 'cb-item-off'}">
+          <button type="button" class="cb-unit" data-solution-ink="${escapeAttr(m.id)}" title="Deine Beschriftung am Dokument – gilt für alle Klassen; hier ansehen und bearbeiten">🔑 Lehrerlösung</button>
+          <span class="nb-meta">alle Klassen</span>
+          <button type="button" class="nb-status ${on ? 'on' : ''}" data-solution-toggle="${escapeAttr(m.id)}"
+            title="${on ? 'Die Schüler dieser Klasse sehen die Lehrerlösung (nur ansehen) – klicken zum Ausschalten' : 'Ausgeschaltet – klicken, damit die Schüler dieser Klasse die Lehrerlösung ansehen können'}">${on ? '●' : '○'}</button>
+          <button type="button" class="nb-menu-btn" data-solution-menu="${escapeAttr(m.id)}" title="Aktionen" aria-label="Aktionen">⋯</button></li>`;
+  }
+
+  _tafelRow(m) {
     const b = this._cb?.boards?.get(m.id);
     if (!b) return '';
     const when = b.updatedAt ? new Date(b.updatedAt).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' }) : '';
@@ -845,9 +863,36 @@ export class ClassResultsView {
     } catch (err) { this.app.showToast(`Tafelbild: ${err.message}`, 'error'); }
   }
 
-  _boardMenu(topicId, moduleId) {
+  /** 🔑 Lehrerlösung im Stift-Editor – wie überall die Beschriftung am Dokument selbst. */
+  async _openSolution(topicId, moduleId) {
+    try {
+      const all = await this.app.api.getTopicModules(topicId);
+      const modules = Array.isArray(all) ? all : [];
+      const mod = modules.find((x) => x.id === moduleId);
+      if (!mod) throw new Error('Das Dokument gibt es nicht mehr.');
+      const { openDocumentInk } = await import('../ink/ink-open.js');
+      await openDocumentInk({ mode: 'teacher', mod, embedModule: (id) => modules.find((x) => x.id === id) || null, title: `🔑 Lehrerlösung – ${mod.title || 'Dokument'}` });
+    } catch (err) { this.app.showToast(`Lehrerlösung: ${err.message}`, 'error'); }
+  }
+
+  _solutionMenu(topicId, moduleId) {
+    const hasBoard = this._cb?.boards?.has(moduleId);
+    return [
+      { label: '🔑 Öffnen', title: 'Gilt für alle Klassen', run: () => this._openSolution(topicId, moduleId) },
+      { label: '✍️ Als Start für das Tafelbild', title: 'Die Lehrerlösung in das Tafelbild dieser Klasse kopieren und weiterschreiben – die Lehrerlösung bleibt, wie sie ist', run: async () => {
+        if (hasBoard && !(await this.app.appConfirm('Das bisherige Tafelbild dieser Klasse durch die Lehrerlösung ersetzen?'))) return;
+        if (await this._call(this.app.api.boardFromSolution(this._classId, moduleId))) await this._openBoard(topicId, moduleId);
+      } },
+    ];
+  }
+
+  _boardMenu(topicId, moduleId, canEdit) {
     return [
       { label: '✍️ Öffnen und weiterschreiben', run: () => this._openBoard(topicId, moduleId) },
+      ...(canEdit ? [{ label: '🔑 Als Lehrerlösung übernehmen', title: 'Dieses Tafelbild wird die Beschriftung am Dokument – für alle Klassen, zum Freigeben je Klasse', run: async () => {
+        if (this._cb?.solutions?.has(moduleId) && !(await this.app.appConfirm('Die bisherige Lehrerlösung durch dieses Tafelbild ersetzen? Sie gilt für alle Klassen.'))) return;
+        if (await this._call(this.app.api.solutionFromBoard(this._classId, moduleId))) this.app.showToast('Als Lehrerlösung übernommen – in jeder Klasse mit ● freigeben.', 'success');
+      } }] : []),
       { label: '🧽 Neues Tafelbild beginnen', title: 'Das bisherige Tafelbild dieser Klasse löschen und mit einer sauberen Tafel anfangen', run: async () => {
         if (!(await this.app.appConfirm('Das bisherige Tafelbild dieser Klasse löschen und mit einer sauberen Tafel anfangen? Das lässt sich nicht rückgängig machen.'))) return;
         if (await this._call(this.app.api.deleteClassBoard(this._classId, moduleId))) await this._openBoard(topicId, moduleId);
@@ -1210,10 +1255,29 @@ export class ClassResultsView {
         e.preventDefault();
         void this._openBoard(boardTopic(btn), btn.dataset.board);
       }));
+      const topicCanEdit = (el) => {
+        const link = cb.links.find((l) => l.id === el.closest('[data-link]')?.dataset.link);
+        return !!link?.available?.find((t) => t.topicId === boardTopic(el))?.canEdit;
+      };
       out.querySelectorAll('[data-board-menu]').forEach((btn) => btn.addEventListener('click', (e) => {
         e.preventDefault();
         e.stopPropagation();
-        this._menu(this._boardMenu(boardTopic(btn), btn.dataset.boardMenu), btn);
+        this._menu(this._boardMenu(boardTopic(btn), btn.dataset.boardMenu, topicCanEdit(btn)), btn);
+      }));
+      out.querySelectorAll('[data-solution-ink]').forEach((btn) => btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        void this._openSolution(boardTopic(btn), btn.dataset.solutionInk);
+      }));
+      out.querySelectorAll('[data-solution-menu]').forEach((btn) => btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        this._menu(this._solutionMenu(boardTopic(btn), btn.dataset.solutionMenu), btn);
+      }));
+      out.querySelectorAll('[data-solution-toggle]').forEach((btn) => btn.addEventListener('click', async (e) => {
+        e.preventDefault();
+        const on = !btn.classList.contains('on');
+        const res = await this._call(this.app.api.setClassSolution(this._classId, btn.dataset.solutionToggle, on));
+        if (res) this.app.showToast(on ? 'Die Schüler dieser Klasse sehen jetzt die Lehrerlösung.' : 'Lehrerlösung für die Schüler ausgeschaltet.', 'success');
       }));
       out.querySelectorAll('[data-board-toggle]').forEach((btn) => btn.addEventListener('click', async (e) => {
         e.preventDefault();

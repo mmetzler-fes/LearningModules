@@ -280,12 +280,14 @@ export class ClassbookStudent {
   /** Startseite; false, wenn die Anmeldung nicht mehr gilt. */
   async _home() {
     const s = classbookSession();
-    const [data, boardList] = await Promise.all([
+    const [data, boardList, solutionList] = await Promise.all([
       post(`${encodeURIComponent(this.token)}/home`, { ticket: s?.ticket, examOnly: s?.examOnly }).catch(() => null),
       post(`${encodeURIComponent(this.token)}/boards`, { ticket: s?.ticket }).catch(() => null),
+      post(`${encodeURIComponent(this.token)}/solutions`, { ticket: s?.ticket }).catch(() => null),
     ]);
-    // ✍️ Tafelbilder, die die Lehrkraft für die Klasse eingeschaltet hat (Modul-IDs der Dokumente).
+    // ✍️ Tafelbilder und 🔑 Lösungen, die die Lehrkraft für die Klasse eingeschaltet hat (Modul-IDs der Dokumente).
     const boards = new Set(Array.isArray(boardList) ? boardList.map((b) => b.moduleId) : []);
+    const solutions = new Set(Array.isArray(solutionList) ? solutionList.map((b) => b.moduleId) : []);
     if (!data || data.failed) {
       if (data?.expired) {
         if (await this._relogin()) return this._home();
@@ -320,10 +322,13 @@ export class ClassbookStudent {
         const { top, quizzesOf } = nestEmbedded(t.units);
         return top.map((u) => {
           const quizzes = quizzesOf.get(u.id) || [];
+          const solution = solutions.has(u.id) ? `
+            <li class="cb-embedded"><button type="button" class="cb-unit" data-solution-ink="${escapeAttr(u.id)}" title="Die Lösung deiner Lehrkraft – nur zum Ansehen. Dein eigenes Blatt bleibt, wie es ist.">🔑 Lösung</button>
+              <span class="nb-meta">zum Ansehen</span></li>` : '';
           const board = boards.has(u.id) ? `
             <li class="cb-embedded"><button type="button" class="cb-unit" data-board="${escapeAttr(u.id)}" title="Das Tafelbild deiner Lehrkraft – nur zum Ansehen. Dein eigenes Blatt bleibt, wie es ist.">✍️ Tafelbild</button>
               <span class="nb-meta">zum Ansehen</span></li>` : '';
-          return unitRow(t, u, false, quizzes.length) + board + quizzes.map((q) => unitRow(t, q, true)).join('');
+          return unitRow(t, u, false, quizzes.length) + solution + board + quizzes.map((q) => unitRow(t, q, true)).join('');
         }).join('');
       };
       const count = (units) => {
@@ -436,13 +441,15 @@ export class ClassbookStudent {
       this._login();
     });
     el.querySelectorAll('[data-start]').forEach((btn) => btn.addEventListener('click', () => this._enter(btn.dataset.start, btn.dataset.mode || null, btn.dataset.module || null, btn)));
-    el.querySelectorAll('[data-board]').forEach((btn) => btn.addEventListener('click', async () => {
+    el.querySelectorAll('[data-board], [data-solution-ink]').forEach((btn) => btn.addEventListener('click', async () => {
       btn.disabled = true;
-      const board = await post(`${encodeURIComponent(this.token)}/boards/${encodeURIComponent(btn.dataset.board)}`, { ticket: classbookSession()?.ticket }).catch(() => null);
+      const kind = btn.dataset.board ? 'boards' : 'solutions';
+      const id = btn.dataset.board || btn.dataset.solutionInk;
+      const board = await post(`${encodeURIComponent(this.token)}/${kind}/${encodeURIComponent(id)}`, { ticket: classbookSession()?.ticket }).catch(() => null);
       try {
-        if (!board?.content) throw new Error(board?.message || 'Dieses Tafelbild ist gerade nicht freigegeben.');
+        if (!board?.content) throw new Error(board?.message || 'Das ist gerade nicht freigegeben.');
         const { openBoardView } = await import('../ink/ink-open.js');
-        await openBoardView(board);
+        await openBoardView(board, kind === 'boards' ? '✍️ Tafelbild' : '🔑 Lösung');
       } catch (err) {
         this.app.showToast(err.message, 'error');
       }

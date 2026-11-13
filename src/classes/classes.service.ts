@@ -18,6 +18,7 @@ import { ClassNotebook } from '../core/entities/class-notebook.entity';
 import { ClassNotebookNode } from '../core/entities/class-notebook-node.entity';
 import { ClassNotebookPlace } from '../core/entities/class-notebook-place.entity';
 import { ClassBoard } from '../core/entities/class-board.entity';
+import { ClassSolution } from '../core/entities/class-solution.entity';
 import { LearningTopic } from '../core/entities/learning-topic.entity';
 import { LearningModule } from '../core/entities/learning-module.entity';
 import { newPin } from '../work/pin';
@@ -71,6 +72,7 @@ export class ClassesService implements OnApplicationBootstrap, OnModuleDestroy {
     @InjectRepository(LearningTopic) private readonly topicRepo: Repository<LearningTopic>,
     @InjectRepository(LearningModule) private readonly moduleRepo: Repository<LearningModule>,
     @InjectRepository(ClassBoard) private readonly boardRepo: Repository<ClassBoard>,
+    @InjectRepository(ClassSolution) private readonly solutionRepo: Repository<ClassSolution>,
   ) {}
 
   /** Klassennotizbuch mit: Baum, Plätze und klasseneigene Lernthemen samt Modulen. */
@@ -81,6 +83,7 @@ export class ClassesService implements OnApplicationBootstrap, OnModuleDestroy {
     await this.cbNodeRepo.delete({ classId: In(classIds) });
     await this.cbPlaceRepo.delete({ classId: In(classIds) });
     await this.boardRepo.delete({ classId: In(classIds) });
+    await this.solutionRepo.delete({ classId: In(classIds) });
     const topics = await this.topicRepo.find({ where: { classId: In(classIds) }, select: ['id'] });
     if (topics.length) {
       await this.moduleRepo.delete({ topicId: In(topics.map((t) => t.id)) });
@@ -573,6 +576,8 @@ export class ClassesService implements OnApplicationBootstrap, OnModuleDestroy {
       await this.boardRepo.save(this.boardRepo.create({ ...b, id: `${toId}:${b.moduleId}`, classId: toId, studentVisible: false }));
       await this.boardRepo.delete({ id: b.id });
     }
+    // 🔑 Freigaben der Lehrerlösung: im neuen Jahr aus.
+    await this.solutionRepo.delete({ classId: fromId });
     const own = new Set((await this.topicRepo.find({ where: { classId: toId }, select: ['id'] })).map((t) => t.id));
     const inTree = await this.inClassbookTree(own);
     const links = (await this.linkRepo.find({ where: { classId: toId, ownerId: user.userId } })).filter(inTree);

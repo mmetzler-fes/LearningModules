@@ -1,7 +1,9 @@
-import { BadRequestException, ForbiddenException, Injectable, NotFoundException, PayloadTooLargeException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException, OnApplicationBootstrap, PayloadTooLargeException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, Repository } from 'typeorm';
+import { In, IsNull, Not, Repository } from 'typeorm';
 import { ClassBoard } from '../core/entities/class-board.entity';
+import { ClassSolution } from '../core/entities/class-solution.entity';
+import { DocumentInk } from '../core/entities/document-ink.entity';
 import { LearningModule } from '../core/entities/learning-module.entity';
 import { LearningTopic } from '../core/entities/learning-topic.entity';
 import { TopicLink } from '../core/entities/topic-link.entity';
@@ -21,9 +23,13 @@ const boardId = (classId: string, moduleId: string) => `${classId}:${moduleId}`;
  * Tafelbild erst, wenn die Lehrkraft es einschaltet (●), und nur zum Ansehen.
  */
 @Injectable()
-export class ClassBoardService {
+export class ClassBoardService implements OnApplicationBootstrap {
+  private readonly logger = new Logger(ClassBoardService.name);
+
   constructor(
     @InjectRepository(ClassBoard) private readonly repo: Repository<ClassBoard>,
+    @InjectRepository(ClassSolution) private readonly solutionRepo: Repository<ClassSolution>,
+    @InjectRepository(DocumentInk) private readonly inkRepo: Repository<DocumentInk>,
     @InjectRepository(LearningModule) private readonly moduleRepo: Repository<LearningModule>,
     @InjectRepository(LearningTopic) private readonly topicRepo: Repository<LearningTopic>,
     @InjectRepository(TopicLink) private readonly linkRepo: Repository<TopicLink>,
@@ -93,7 +99,76 @@ export class ClassBoardService {
     const { klasse } = await this.classbook.studentSession(token, ticket);
     const b = await this.repo.findOne({ where: { id: boardId(klasse.id, String(moduleId || '')) } });
     if (!b?.studentVisible) throw new NotFoundException('Dieses Tafelbild ist gerade nicht freigegeben.');
-    const mod = await this.moduleRepo.findOne({ where: { id: b.moduleId } });
+    return this.withDocument(b.moduleId, b.data, b.updatedAt);
+  }
+
+  // ---- 🔑 Lehrerlösung: die Beschriftung der Lehrkraft am Dokument, je Klasse freigegeben ----
+
+  /** Eigene Dokumente mit Lehrerlösung und ob diese Klasse sie sieht. */
+  async solutions(user: any, classId: string) {
+    await this.classes.ownedClass(classId, user);
+    const inks = await this.inkRepo.find({ where: { ownerId: user.userId, data: Not(IsNull()) }, select: ['id'] });
+    const on = new Set((await this.solutionRepo.find({ where: { classId }, select: ['id', 'moduleId'] })).map((r) => r.moduleId));
+    return inks.map((i) => ({ moduleId: i.id, studentVisible: on.has(i.id) }));
+  }
+
+  /** ●/○ der Lehrerlösung für diese Klasse. */
+  async setSolution(user: any, classId: string, moduleId: string, studentVisible: boolean) {
+    await this.classes.ownedClass(classId, user);
+    const mod = await this.documentFor(user, classId, moduleId);
+    const id = boardId(classId, mod.id);
+    if (studentVisible) {
+      const ink = await this.inkRepo.findOne({ where: { id: mod.id } });
+      if (!ink?.data || ink.ownerId !== user.userId) throw new BadRequestException('Zu diesem Dokument gibt es keine Lehrerlösung.');
+      if (!(await this.solutionRepo.findOne({ where: { id } }))) await this.solutionRepo.save(this.solutionRepo.create({ id, classId, moduleId: mod.id }));
+    } else {
+      await this.solutionRepo.delete({ id });
+    }
+    return { success: true, studentVisible };
+  }
+
+  /** Lehrerlösung als Ausgangspunkt: in das Tafelbild dieser Klasse kopieren (ersetzt ein vorhandenes). */
+  async boardFromSolution(user: any, classId: string, moduleId: string) {
+    await this.classes.ownedClass(classId, user);
+    const ink = await this.inkRepo.findOne({ where: { id: String(moduleId || '') } });
+    if (!ink?.data || ink.ownerId !== user.userId) throw new NotFoundException('Zu diesem Dokument gibt es keine Lehrerlösung.');
+    return this.put(user, classId, moduleId, { data: ink.data });
+  }
+
+  /** Tafelbild als Lehrerlösung übernehmen: gilt dann für alle Klassen (nur eigene Dokumente). */
+  async solutionFromBoard(user: any, classId: string, moduleId: string) {
+    await this.classes.ownedClass(classId, user);
+    const b = await this.repo.findOne({ where: { id: boardId(classId, String(moduleId || '')) } });
+    if (!b?.data) throw new NotFoundException('Noch kein Tafelbild.');
+    const mod = await this.moduleRepo.findOne({ where: { id: b.moduleId }, select: ['id', 'topicId'] });
+    const topic = mod ? await this.topicRepo.findOne({ where: { id: mod.topicId }, select: ['id', 'ownerId'] }) : null;
+    if (topic?.ownerId !== user.userId) throw new ForbiddenException('Eine Lehrerlösung gibt es nur an eigenen Dokumenten.');
+    const ink = (await this.inkRepo.findOne({ where: { id: b.moduleId } })) || this.inkRepo.create({ id: b.moduleId, ownerId: user.userId, visibility: 'teacher', data: null });
+    ink.data = b.data;
+    await this.inkRepo.save(ink);
+    return { success: true };
+  }
+
+  /** Schüler: freigegebene Lehrerlösungen ihrer Klasse (ohne Inhalt). */
+  async solutionsForStudent(token: string, ticket: unknown) {
+    const { klasse } = await this.classbook.studentSession(token, ticket);
+    const rows = await this.solutionRepo.find({ where: { classId: klasse.id } });
+    if (!rows.length) return [];
+    const inks = await this.inkRepo.find({ where: { id: In(rows.map((r) => r.moduleId)), ownerId: klasse.ownerId || '', data: Not(IsNull()) }, select: ['id', 'updatedAt'] });
+    return inks.map((i) => ({ moduleId: i.id, updatedAt: i.updatedAt }));
+  }
+
+  /** Schüler: eine freigegebene Lehrerlösung mit dem Dokument – nur zum Ansehen. */
+  async solutionForStudent(token: string, ticket: unknown, moduleId: string) {
+    const { klasse } = await this.classbook.studentSession(token, ticket);
+    const released = await this.solutionRepo.findOne({ where: { id: boardId(klasse.id, String(moduleId || '')) } });
+    const ink = released ? await this.inkRepo.findOne({ where: { id: released.moduleId } }) : null;
+    if (!ink?.data || ink.ownerId !== klasse.ownerId) throw new NotFoundException('Diese Lösung ist gerade nicht freigegeben.');
+    return this.withDocument(ink.id, ink.data, ink.updatedAt);
+  }
+
+  private async withDocument(moduleId: string, data: any, updatedAt: Date) {
+    const mod = await this.moduleRepo.findOne({ where: { id: moduleId } });
     if (!mod || mod.type !== 'document') throw new NotFoundException('Das Dokument gibt es nicht mehr.');
     const ids = embeddedQuizIds(mod);
     const embedded = ids.length ? await this.moduleRepo.find({ where: { id: In(ids), topicId: mod.topicId } }) : [];
@@ -102,8 +177,35 @@ export class ClassBoardService {
       title: mod.title || 'Dokument',
       content: forStudents(mod).content,
       embedded: embedded.map((m) => forStudents({ id: m.id, title: m.title, type: m.type, content: m.content })),
-      data: b.data ?? null,
-      updatedAt: b.updatedAt,
+      data: data ?? null,
+      updatedAt,
     };
   }
+
+  /**
+   * Bisher „👁 Für alle“ (DocumentInk.visibility 'all'): einmal in Freigaben umwandeln –
+   * für jede Klasse der Lehrkraft, der das Lernthema des Dokuments zugewiesen ist. Danach 'teacher'.
+   */
+  async onApplicationBootstrap() {
+    await this.migrateVisibleInk().catch((err) => this.logger.warn(`„Für alle“ nicht umgewandelt: ${err?.message || err}`));
+  }
+
+  async migrateVisibleInk() {
+    const inks = await this.inkRepo.find({ where: { visibility: 'all' } });
+    for (const ink of inks) {
+      const mod = await this.moduleRepo.findOne({ where: { id: ink.id }, select: ['id', 'topicId'] });
+      if (mod) {
+        const links = await this.linkRepo.find({ where: { ownerId: ink.ownerId, classId: Not(IsNull()) }, select: ['id', 'classId', 'selection'] });
+        const classIds = new Set(links.filter((l) => (l.selection || []).some((e) => e.topicId === mod.topicId)).map((l) => l.classId as string));
+        for (const classId of classIds) {
+          const id = boardId(classId, mod.id);
+          if (!(await this.solutionRepo.findOne({ where: { id } }))) await this.solutionRepo.save(this.solutionRepo.create({ id, classId, moduleId: mod.id }));
+        }
+      }
+      ink.visibility = 'teacher';
+      await this.inkRepo.save(ink);
+    }
+    if (inks.length) this.logger.log(`${inks.length} Beschriftung(en) „für alle“ als Lehrerlösung je Klasse freigegeben.`);
+  }
 }
+

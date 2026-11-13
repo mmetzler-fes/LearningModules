@@ -55,32 +55,7 @@ export const lmHost = {
         },
       });
     }
-    // Eigenes Dokument: Wer sieht die Beschriftung der Lehrkraft? (Vorgabe: nur sie selbst)
-    if (inkMode === 'teacher' && options.inkDocument?.topicId && el) {
-      const label = (v) => (v === 'all' ? '👁 Für alle' : '🙈 Nur für mich');
-      let visibility = 'teacher';
-      // Vorschau und Vollansicht hängen den Knopf in ihre Titelleiste um (document-bar.js).
-      const visButtons = () => [...el.querySelectorAll('.ds-ink-vis-btn'), ...document.querySelectorAll(`.ds-ink-vis-btn[data-module="${CSS.escape(moduleId)}"]`)];
-      import('./ink/ink-open.js').then(async ({ teacherInkGet }) => {
-        const res = await teacherInkGet(moduleId);
-        visibility = res?.visibility || 'teacher';
-        visButtons().forEach((btn) => { btn.textContent = label(visibility); });
-      }).catch(() => {});
-      actions.push({
-        label: label(visibility),
-        title: 'Beschriftung – deine Beschriftung mit dem Stift: nur für dich (wie eine Lösung) oder auch für die Schüler – unter ihrer eigenen',
-        className: 'ds-ink-vis-btn',
-        async onClick() {
-          const { teacherInkPut } = await import('./ink/ink-open.js');
-          const next = visibility === 'all' ? 'teacher' : 'all';
-          const res = await teacherInkPut(moduleId, { visibility: next });
-          if (!res?.success) throw new Error('Nicht gespeichert');
-          visibility = res.visibility;
-          // Der Renderer setzt danach den Text zurück – erst im nächsten Takt umschreiben.
-          setTimeout(() => visButtons().forEach((btn) => { btn.textContent = label(visibility); }), 0);
-        },
-      });
-    }
+    // Die Beschriftung der Lehrkraft ist ihre 🔑 Lehrerlösung: freigegeben wird sie je Klasse im Klassennotizbuch.
     // Schüler: das Blatt als PDF (POST /api/public/document/:id/pdf).
     if (inRun(up)) {
       actions.push({

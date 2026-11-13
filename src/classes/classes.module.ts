@@ -17,11 +17,12 @@ import { ClassNotebook } from '../core/entities/class-notebook.entity';
 import { ClassNotebookNode } from '../core/entities/class-notebook-node.entity';
 import { ClassNotebookPlace } from '../core/entities/class-notebook-place.entity';
 import { ClassBoard } from '../core/entities/class-board.entity';
+import { ClassSolution } from '../core/entities/class-solution.entity';
 import { LearningTopic } from '../core/entities/learning-topic.entity';
 import { LearningModule } from '../core/entities/learning-module.entity';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([StudentClass, ClassStudent, SystemConfig, Result, TopicLink, ClassShare, User, DocumentWork, ExamAttempt, RunProgress, ClassbookProgress, ClassNotebook, ClassNotebookNode, ClassNotebookPlace, LearningTopic, LearningModule, ClassBoard])],
+  imports: [TypeOrmModule.forFeature([StudentClass, ClassStudent, SystemConfig, Result, TopicLink, ClassShare, User, DocumentWork, ExamAttempt, RunProgress, ClassbookProgress, ClassNotebook, ClassNotebookNode, ClassNotebookPlace, LearningTopic, LearningModule, ClassBoard, ClassSolution])],
   controllers: [ClassesController],
   providers: [ClassesService],
   exports: [ClassesService],

@@ -20,6 +20,8 @@ import { NotebookNode } from '../core/entities/notebook-node.entity';
 import { NotebookPlacement } from '../core/entities/notebook-placement.entity';
 import { ClassbookProgress } from '../core/entities/classbook-progress.entity';
 import { ClassBoard } from '../core/entities/class-board.entity';
+import { ClassSolution } from '../core/entities/class-solution.entity';
+import { DocumentInk } from '../core/entities/document-ink.entity';
 import { ClassBoardService } from './class-board.service';
 import { LinksModule } from '../links/links.module';
 import { ClassesModule } from '../classes/classes.module';
@@ -32,7 +34,7 @@ import { ClassbookLive } from './classbook-live';
 import { PlansModule } from '../plans/plans.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([RunProgress, DocumentVersion, ShopOffer, TopicQuickLink, HtmlAppState, ClassNotebook, ClassStudent, Result, DocumentWork, TopicLink, User, ExamAttempt, ClassNotebookNode, ClassNotebookPlace, LearningTopic, LearningModule, NotebookNode, NotebookPlacement, ClassbookProgress, ClassBoard]), LinksModule, ClassesModule, NotebooksModule, ContestModule, PlansModule],
+  imports: [TypeOrmModule.forFeature([RunProgress, DocumentVersion, ShopOffer, TopicQuickLink, HtmlAppState, ClassNotebook, ClassStudent, Result, DocumentWork, TopicLink, User, ExamAttempt, ClassNotebookNode, ClassNotebookPlace, LearningTopic, LearningModule, NotebookNode, NotebookPlacement, ClassbookProgress, ClassBoard, ClassSolution, DocumentInk]), LinksModule, ClassesModule, NotebooksModule, ContestModule, PlansModule],
   controllers: [ClassbookController, PublicClassbookController, WebappController],
   exports: [ClassbookService],
   providers: [ClassbookService, ClassbookLive, ClassBoardService],

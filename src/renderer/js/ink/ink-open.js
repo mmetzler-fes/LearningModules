@@ -369,12 +369,12 @@ export async function openGoneWork(work) {
  * ✍️ Tafelbild der Lehrkraft für Schüler (Antwort von …/boards/:moduleId): das Dokument mit
  * ihrer Beschriftung, nur zum Ansehen. Gespeichert wird nichts – das eigene Blatt bleibt unberührt.
  */
-export async function openBoardView(board) {
+export async function openBoardView(board, label = '✍️ Tafelbild') {
   return openDocumentInk({
     mode: 'student',
     mod: { id: board.moduleId, title: board.title, type: 'document', content: board.content },
     embedModule: (id) => (board.embedded || []).find((m) => m.id === id) || null,
-    title: `✍️ Tafelbild – ${board.title} (nur zum Ansehen)`,
+    title: `${label} – ${board.title} (nur zum Ansehen)`,
     store: { label: 'nicht (nur Ansicht)', load: async () => board.data, save: async () => true },
   });
 }

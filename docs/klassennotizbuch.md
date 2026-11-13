@@ -318,6 +318,18 @@ Im Lernnotizbuch und in jeder anderen Klasse bleibt das Blatt sauber.
 - Das Tafelbild bleibt, bis die Klasse gelöscht wird; mit „Links mitnehmen“
   zieht es beim Schuljahreswechsel mit (wieder aus).
 
+### 🔑 Lehrerlösung
+
+Die Beschriftung am Dokument selbst (Stift-Editor im Lernnotizbuch) ist die
+**Lehrerlösung** – eine je Dokument, für alle Klassen. Im Klassennotizbuch steht
+sie unter dem Dokument mit eigenem ●/○ je Klasse (`class_solutions`); Schüler
+sehen sie wie das Tafelbild nur zum Ansehen. Den früheren Schalter „👁 Für alle“
+gibt es nicht mehr: Was „für alle“ war, wurde beim Start in den Klassen
+freigegeben, denen das Lernthema zugewiesen ist.
+
+- ⋯ am Tafelbild → **Als Lehrerlösung übernehmen** (nur eigene Dokumente).
+- ⋯ an der Lehrerlösung → **Als Start für das Tafelbild** (kopiert sie hinein).
+
 ## Schuljahreswechsel
 
 Beim **Übernehmen** einer Klasse ins neue Schuljahr (🏫 Klassen) geht das

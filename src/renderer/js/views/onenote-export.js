@@ -164,6 +164,7 @@ async function build(plan, { images, onProgress }) {
   const total = plan.sections.reduce((n, s) => n + s.topics.length, 0);
   let done = 0;
   const files = [];
+  const built = [];
   for (const section of plan.sections) {
     const pages = [];
     for (const topic of section.topics) {
@@ -176,8 +177,14 @@ async function build(plan, { images, onProgress }) {
       }
       done++;
     }
-    if (!pages.length) continue;
-    files.push({ name: [...section.path, `${fileSafe(section.name)}.one`].join('/'), data: writeOneSection({ name: section.name, pages }) });
+    if (pages.length) built.push({ section, pages });
+  }
+  // Bleibt nur ein Abschnitt ohne Ordner übrig, heißt er wie das Ausgegebene
+  // (z. B. Bereich „Javascript“ mit dem einzigen Abschnitt „Einleitung“).
+  const single = built.length === 1 && !built[0].section.path.length;
+  for (const { section, pages } of built) {
+    const name = single ? plan.name : section.name;
+    files.push({ name: [...section.path, `${fileSafe(name)}.one`].join('/'), data: writeOneSection({ name, pages }) });
   }
   onProgress(total, total, 'Fertig.');
   return { files, warnings };

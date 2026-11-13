@@ -50,6 +50,9 @@ export async function renderRetentionNotice(app, container) {
 
 // ==================== RESULTS VIEW ====================
 
+/** Punkte deutsch: 0,5 statt 0.5, ohne überflüssige Nullen. */
+const fmtPts = (n) => String(Math.round(Number(n) * 100) / 100).replace('.', ',');
+
 export class ResultsView {
   constructor(app) {
     this.app = app;
@@ -369,7 +372,7 @@ export class ResultsView {
               <div class="result-detail-item ${d.informational || d.appReported ? '' : d.isCorrect ? 'correct' : 'wrong'}">
                 <span class="result-detail-icon">${d.appReported ? '🧩' : d.informational ? 'ℹ️' : d.isCorrect ? '✅' : '❌'}</span>
                 <div>
-                  <strong>${escapeHtml(d.moduleName || d.moduleTitle || d.title || '')}</strong>
+                  <strong>${escapeHtml(d.moduleName || d.moduleTitle || d.title || '')}</strong>${d.pts && !d.informational ? `<span class="result-detail-pts">${fmtPts(d.pts.earned)} / ${fmtPts(d.pts.max)} P</span>` : ''}
                   ${d.userAnswer !== undefined ? `<br>Antwort: ${escapeHtml(String(d.userAnswer))}` : ''}
                   ${d.score ? `<br>Auswertung: ${escapeHtml(String(d.score))}` : ''}
                   ${d.correctAnswer !== undefined && d.correctAnswer !== '' ? `<br>Korrekt: ${escapeHtml(String(d.correctAnswer))}` : ''}

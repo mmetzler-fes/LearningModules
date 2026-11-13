@@ -12,11 +12,13 @@ describe('Klassenarbeit nach Aufgabenpunkten nachrechnen', () => {
       { moduleId: 'tf', inDoc: 'ka', isCorrect: true }, { moduleId: 'tf', inDoc: 'ka', isCorrect: false },
       { moduleId: 'info', informational: true },
     ];
-    expect(rescoreExam({ score: 1.5, maxScore: 3, payload: { details } }, [ka])).toEqual({ score: 4, maxScore: 8, percentage: 50 });
+    const next = rescoreExam({ score: 1.5, maxScore: 3, payload: { details } }, [ka]);
+    expect(next).toMatchObject({ score: 4, maxScore: 8, percentage: 50, changed: true });
+    expect(next.details.map((d: any) => d.pts)).toEqual([{ earned: 3, max: 6 }, { earned: 1, max: 1 }, { earned: 0, max: 1 }, undefined]);
   });
 
   it('ohne Aufgabenpunkte bleibt es, wie es war', () => {
     const details = [{ moduleId: 'x', isCorrect: true }, { moduleId: 'y', isCorrect: false }];
-    expect(rescoreExam({ score: 1, maxScore: 2, payload: { details } }, [])).toBeNull();
+    expect(rescoreExam({ score: 1, maxScore: 2, payload: { details } }, [])).toMatchObject({ changed: false });
   });
 });

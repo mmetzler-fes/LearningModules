@@ -1986,6 +1986,10 @@ body {
   font-size: 0.88rem;
 }
 
+/* Punkte je Aufgabe (Aufgabenpunkte der Klassenarbeit) rechts in der Zeile. */
+.result-detail-item > div { flex: 1; min-width: 0; }
+.result-detail-pts { float: right; margin-left: 12px; font-weight: 600; white-space: nowrap; }
+
 .result-detail-item.correct {
   background: var(--detail-correct-bg);
   border: 1px solid var(--detail-correct-border);

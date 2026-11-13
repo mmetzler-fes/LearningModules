@@ -654,6 +654,9 @@ export class QuizView {
     const run = companion ? null : scoreRun(graded, quizState.modules.filter((m) => m?.type === 'document'));
     const score = companion ? Math.round(graded.reduce((sum, a) => sum + (a.lernpunkte || 0), 0) * 100) / 100 : run.score;
     const total = companion ? graded.length * COMPANION_MAX : run.total;
+    // Punkte je Antwort für die Ergebnisansicht: { earned, max }.
+    const ptsOf = new Map(run ? graded.map((a, i) => [a, run.each[i]]) : []);
+    details.forEach((d, i) => { const p = ptsOf.get(answers[i]); if (p) details[i] = { ...d, pts: p }; });
     const percentage = total > 0 ? Math.round((score / total) * 100) : 0;
 
     // Speichern darf das Ende nicht aufhalten: Ohne Netz (WLAN aus) warf der
@@ -680,7 +683,7 @@ export class QuizView {
           percentage,
           details,
           // Schon nach Aufgabenpunkten gerechnet (src/results/exam-points.ts rechnet nicht nach).
-          ...(companion ? { jokersUsed: companion.jokersUsed } : { taskPoints: true }),
+          ...(companion ? { jokersUsed: companion.jokersUsed } : { taskPoints: true, detailPoints: true }),
         },
       });
     } else {

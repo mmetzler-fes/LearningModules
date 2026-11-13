@@ -25,9 +25,10 @@ function parseBatchJson(raw) {
 
 /**
  * `regenerate`: `[{ id, title }]` – Dokumente mit der KI neu aufbereiten. Dann gibt es keine
- * Bereichsauswahl: Die KI darf nur diese Dokumente überarbeiten.
+ * Bereichsauswahl: Die KI darf nur diese Dokumente überarbeiten. `quizzes`: Es sind Quizze
+ * (überarbeiten statt neu aufbereiten – ohne Original als Anhang).
  */
-export async function openAiBridgeDialog(app, { onDone = null, regenerate = null } = {}) {
+export async function openAiBridgeDialog(app, { onDone = null, regenerate = null, quizzes = false } = {}) {
   const [nb, plans, sessionsRes] = await Promise.all([
     app.api.getNotebooks(),
     app.api.getPlans(),
@@ -44,8 +45,13 @@ export async function openAiBridgeDialog(app, { onDone = null, regenerate = null
   const overlay = document.createElement('div');
   overlay.className = 'confirm-overlay pl-dialog';
   overlay.innerHTML = `<div class="import-modules-card si-card aib-card" role="dialog" aria-modal="true" aria-labelledby="aibTitle">
-    <h3 id="aibTitle">🤖 ${regenerate ? `Mit KI neu aufbereiten: ${escapeHtml(regenerate.length === 1 ? `„${regenerate[0].title}“` : `${regenerate.length} Dokumente`)}` : 'KI-Assistent (zeitlich begrenzter Zugriff)'}</h3>
-    ${regenerate
+    <h3 id="aibTitle">🤖 ${regenerate ? `${quizzes ? 'Mit KI überarbeiten' : 'Mit KI neu aufbereiten'}: ${escapeHtml(regenerate.length === 1 ? `„${regenerate[0].title}“` : `${regenerate.length} ${quizzes ? 'Quizze' : 'Dokumente'}`)}` : 'KI-Assistent (zeitlich begrenzter Zugriff)'}</h3>
+    ${regenerate && quizzes
+      ? `<p class="hint">So geht es: <strong>1.</strong> Anleitung erzeugen (wird kopiert) – darin stehen der jetzige Stand und das Format.
+          <strong>2.</strong> In deiner KI einfügen und dazuschreiben, was sich ändern soll (z.&nbsp;B. „bessere Ablenker“, „schwieriger“).
+          <strong>3.</strong> Mit Webzugriff schreibt die KI selbst; sonst gibt sie einen JSON-Block aus, den du unten einfügst.
+          Die KI darf nur ${regenerate.length === 1 ? 'dieses Quiz' : 'diese Quizze'} ändern, der Typ bleibt – ⏪ macht alles rückgängig.</p>`
+      : regenerate
       ? `<p class="hint">So geht es: <strong>1.</strong> Anleitung erzeugen (wird kopiert). <strong>2.</strong> In deiner KI einfügen und
           <strong>das Original als PDF/Word/Bild anhängen</strong>. <strong>3.</strong> Hat deine KI Webzugriff (z.&nbsp;B. Claude Code), schreibt sie
           das Dokument selbst; sonst gibt sie einen JSON-Block aus, den du unten einfügst. Die KI darf nur
@@ -84,9 +90,11 @@ export async function openAiBridgeDialog(app, { onDone = null, regenerate = null
             <select class="aib-perm">
               <option value="read" selected>👁 Nur lesen (Struktur und Inhalte ansehen, Vorschläge machen)</option>
               <option value="organize">🗂 Lesen und ordnen (Bereiche anlegen, Lernthemen verschieben, in Pläne eintragen)</option>
-              <option value="all">✍️ Lesen, ordnen und Inhalte anlegen (auch Lernthemen und Arbeitsblätter anlegen und überarbeiten)</option>
+              <option value="all">✍️ Lesen, ordnen und Inhalte anlegen (Lernthemen, Arbeitsblätter und Quizze anlegen und überarbeiten)</option>
             </select>
           </label>
+          <label class="share-flag aib-quiz-formats ${regenerate ? 'hidden' : ''}" title="Nur nötig, wenn deine KI keinen Webzugriff hat (normaler Chat) und Quizze anlegen soll – sonst holt sie sich das Format selbst">
+            <input type="checkbox" class="aib-with-quiz" /> <span>🧠 Quiz-Formate gleich in die Anleitung (für KIs ohne Webzugriff, etwa 7.000 Zeichen mehr)</span></label>
           <label class="aib-ttl-label">Gültigkeit:
             <select class="aib-ttl">
               <option value="30">30 Minuten</option>
@@ -243,6 +251,7 @@ export async function openAiBridgeDialog(app, { onDone = null, regenerate = null
       notebookNodeIds,
       planNodeIds,
       includeUnsorted: $('.aib-unsorted').checked,
+      withQuizFormats: $('.aib-with-quiz').checked && $('.aib-perm').value === 'all',
       permissions: {
         organize: $('.aib-perm').value !== 'read',
         writeDocs: $('.aib-perm').value === 'all',

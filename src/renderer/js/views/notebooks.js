@@ -10,6 +10,9 @@ import { NotebookPreview } from './notebook-preview.js';
 import { nestEmbedded } from '../../lm-editor/src/doc/doc-quiz.js';
 import { quizUsage, usageText, isDocLike, reachedViaDocs } from '../quiz-usage.js';
 
+/** Quiz-Typen, die die KI-Schnittstelle überarbeiten kann (src/ai-bridge/quiz-format.ts). */
+const AI_REVISABLE_QUIZZES = ['multipleChoice', 'trueFalse', 'fillInTheBlanks', 'dragTheWords', 'dragAndDrop'];
+
 /** Reiter über dem Baum: 📄 Dokumente | 🧩 Quizze | Alles (je Gerät gemerkt). */
 const VIEWS = ['docs', 'quizzes', 'all'];
 const VIEW_KEY = 'lm_nb_view';
@@ -1428,6 +1431,18 @@ export class NotebooksView {
         title: 'Anleitung und zeitlich begrenzten Zugang für deine eigene KI: Sie überträgt das Original (als Anhang im Chat) sauber in dieses Dokument – Inhalte wie im Original, Grafiken bleiben. Rückgängig jederzeit.',
         run: () => import('./ai-bridge-dialog.js').then((m) => m.openAiBridgeDialog(this.app, {
           regenerate: docs.map((d) => ({ id: d.id, title: d.title || 'Dokument' })),
+          onDone: () => this.refresh(),
+        })),
+      });
+    }
+    // Bewertete Quizze (wie über die KI-Schnittstelle): mit der eigenen KI überarbeiten – der Typ bleibt.
+    if (AI_REVISABLE_QUIZZES.includes(mod.type)) {
+      items.push({
+        label: '🤖 Mit KI überarbeiten…',
+        title: 'Anleitung und zeitlich begrenzten Zugang für deine eigene KI: Sie überarbeitet dieses Quiz (z. B. bessere Ablenker, klarere Fragen). Rückgängig jederzeit.',
+        run: () => import('./ai-bridge-dialog.js').then((m) => m.openAiBridgeDialog(this.app, {
+          regenerate: [{ id: mod.id, title: mod.title || 'Quiz' }],
+          quizzes: true,
           onDone: () => this.refresh(),
         })),
       });

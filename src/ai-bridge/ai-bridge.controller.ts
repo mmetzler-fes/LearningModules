@@ -1,5 +1,5 @@
-import { Body, Controller, Delete, Get, HttpCode, Param, Post, Query, Req, Request, UseGuards } from '@nestjs/common';
-import type { Request as ExpressRequest } from 'express';
+import { Body, Controller, Delete, Get, HttpCode, Param, Post, Query, Req, Request, Res, UseGuards } from '@nestjs/common';
+import type { Request as ExpressRequest, Response } from 'express';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { AiBridgeService } from './ai-bridge.service';
 
@@ -73,6 +73,21 @@ export class AiBridgeController {
   async instructions(@Req() req: ExpressRequest, @Query('token') token?: string) {
     const session = await this.bridge.authenticateToken(extractAiToken(req, token));
     return this.bridge.getInstructionsForAi(session, extractBaseUrl(req));
+  }
+
+  /** Nachschlagen: Format der Arbeitsblätter (DocSpec) – nur bei Bedarf, die Anleitung bleibt kurz. */
+  @Get('reference/docspec')
+  async docSpecReference(@Req() req: ExpressRequest, @Query('token') token?: string) {
+    await this.bridge.authenticateToken(extractAiToken(req, token));
+    return this.bridge.getDocSpecReference();
+  }
+
+  /** Nachschlagen: Format der Quiz-Typen `?types=multipleChoice,trueFalse` (Markdown) – nur die gewünschten. */
+  @Get('reference/quiz')
+  async quizReference(@Req() req: ExpressRequest, @Res({ passthrough: true }) res: Response, @Query('types') types?: string, @Query('token') token?: string) {
+    await this.bridge.authenticateToken(extractAiToken(req, token));
+    res.setHeader('Content-Type', 'text/markdown; charset=utf-8');
+    return this.bridge.getQuizReference(types || '');
   }
 
   @Get('tree')

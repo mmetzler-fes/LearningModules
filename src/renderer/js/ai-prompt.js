@@ -187,9 +187,12 @@ const RULES = {
   ],
 };
 
+/** Die Typen aus h5p-types.js – im Browser global, auf dem Server übergeben (src/ai-bridge/quiz-format.ts). */
+const typeDefs = () => (typeof H5P_TYPES !== 'undefined' ? H5P_TYPES : {});
+
 /** Felder eines Typs als Stichpunkte, abgeleitet aus H5P_TYPES. */
-function describeFields(type) {
-  const def = (typeof H5P_TYPES !== 'undefined' && H5P_TYPES[type]) || null;
+function describeFields(type, defs = typeDefs()) {
+  const def = defs[type] || null;
   if (!def) return [];
   const line = (f, indent = '') => {
     const parts = [`${indent}- "${f.key}": ${f.label}`];
@@ -206,14 +209,14 @@ function describeFields(type) {
   return out;
 }
 
-/** Beschreibung der Quiz-Typen (Felder, Regeln, Beispiel) – auch für den Dokument-Prompt. */
-export function describeQuizTypes(types) {
+/** Beschreibung der Quiz-Typen (Felder, Regeln, Beispiel) – auch für den Dokument-Prompt und die KI-Schnittstelle. */
+export function describeQuizTypes(types, defs = typeDefs()) {
   const L = [];
   for (const t of types) {
     L.push('');
-    L.push(`### "${t}" – ${typeName(t)}`);
+    L.push(`### "${t}" – ${typeName(t, defs)}`);
     L.push('Felder in "content":');
-    L.push(...describeFields(t));
+    L.push(...describeFields(t, defs));
     L.push('Regeln:');
     for (const r of RULES[t] || []) L.push(`- ${r}`);
     L.push('Beispiel für "content":');
@@ -310,8 +313,8 @@ function materialLines(material) {
   return L;
 }
 
-function typeName(type) {
-  return (typeof H5P_TYPES !== 'undefined' && H5P_TYPES[type]?.name) || type;
+function typeName(type, defs = typeDefs()) {
+  return defs[type]?.name || type;
 }
 
 /**

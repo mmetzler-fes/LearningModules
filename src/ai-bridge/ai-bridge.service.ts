@@ -18,6 +18,7 @@ import { planSubtree } from '../plans/plan-rules';
 import { docChanged } from '../core/events/doc-changes';
 import { AiBridgeSessionRow } from '../core/entities/ai-bridge-session.entity';
 import { collectImages, maskImages, unmaskImages } from './ai-images';
+import { AI_QUIZ_TYPES, isAiQuizType, quizFormat, quizProblems, quizTypeName } from './quiz-format';
 
 export interface AiBridgePermissions {
   organize: boolean;
@@ -80,7 +81,9 @@ export type AiBridgeOp =
   | { op: 'remove_plan_entry'; entryId: string }
   | { op: 'create_topic'; title: string; description?: string; targetNodeId?: string | null; ref?: string }
   | { op: 'create_document'; topicId: string; title: string; kind?: 'arbeitsblatt' | 'klassenarbeit' | 'text'; spec: any; ref?: string }
-  | { op: 'update_document'; moduleId: string; title?: string; spec: any };
+  | { op: 'update_document'; moduleId: string; title?: string; spec: any }
+  | { op: 'create_quiz'; topicId: string; type: string; title: string; content: any; ref?: string }
+  | { op: 'update_quiz'; moduleId: string; title?: string; content: any };
 
 const DEFAULT_TTL_MINUTES = 60;
 const MIN_TTL_MINUTES = 5;
@@ -151,8 +154,10 @@ export class AiBridgeService {
       includeUnsorted?: boolean;
       permissions?: Partial<AiBridgePermissions>;
       baseUrl?: string;
-      /** Blatt neu aufbereiten: nur diese Dokumente, nur `writeDocs`. */
+      /** Blatt neu aufbereiten bzw. Quiz überarbeiten: nur diese Module, nur `writeDocs`. */
       regenerateModuleIds?: string[];
+      /** Quiz-Formate gleich in die Anleitung (für KIs ohne HTTP-Zugriff). */
+      withQuizFormats?: boolean;
     },
   ) {
     await this.cleanup(user.userId);
@@ -174,12 +179,18 @@ export class AiBridgeService {
       },
     };
     const regenerate = Array.isArray(body?.regenerateModuleIds) && body.regenerateModuleIds.length > 0;
+    let quizRegen = false;
     if (regenerate) {
       const ids = [...new Set(body.regenerateModuleIds!.map(String))].slice(0, 30);
       const mods = await Promise.all(ids.map((id) => this.moduleRepo.findOne({ where: { id } })));
       const topicIds: string[] = [];
+      // Entweder Dokumente (neu aufbereiten) oder Quizze (überarbeiten) – je mit eigener Anleitung.
+      const quizzes = mods.length > 0 && mods.every((m) => m && isAiQuizType(m.type));
+      quizRegen = quizzes;
       for (const m of mods) {
-        if (!m || m.type !== 'document') throw new BadRequestException('Neu aufbereiten geht nur mit Dokumenten.');
+        if (!m || (quizzes ? !isAiQuizType(m.type) : m.type !== 'document')) {
+          throw new BadRequestException(`Mit KI überarbeiten geht entweder mit Dokumenten oder mit Quizzen (${AI_QUIZ_TYPES.map(quizTypeName).join(', ')}).`);
+        }
         const topic = await this.topicRepo.findOne({ where: { id: m.topicId, ownerId: user.userId } });
         if (!topic) throw new ForbiddenException('Nur eigene Dokumente lassen sich mit der KI neu aufbereiten.');
         if (!topicIds.includes(m.topicId)) topicIds.push(m.topicId);
@@ -202,9 +213,11 @@ export class AiBridgeService {
 
     await this.store(session);
     const base = String(body?.baseUrl || '').replace(/\/+$/, '') || 'http://localhost:3000';
-    const prompt = regenerate
-      ? await this.buildRegeneratePrompt(session, rawToken, base)
-      : this.buildTeacherPrompt(session, rawToken, base, await this.scopedTree(session));
+    const prompt = quizRegen
+      ? await this.buildQuizRevisePrompt(session, rawToken, base)
+      : regenerate
+        ? await this.buildRegeneratePrompt(session, rawToken, base)
+        : this.buildTeacherPrompt(session, rawToken, base, await this.scopedTree(session), { quizFormats: !!body?.withQuizFormats });
 
     return {
       session: this.publicSession(session),
@@ -516,6 +529,19 @@ export class AiBridgeService {
       return s;
     };
 
+    // Quiz-Blöcke im Dokument dürfen auf ein Quiz desselben Aufrufs zeigen: { "type": "quiz", "module": "$q1" }.
+    const resolveQuizRefs = (spec: any): any => {
+      const walk = (v: any): any => {
+        if (Array.isArray(v)) return v.map(walk);
+        if (!v || typeof v !== 'object') return v;
+        const out: any = {};
+        for (const [k, x] of Object.entries(v)) out[k] = walk(x);
+        if (out.type === 'quiz' && typeof out.module === 'string' && out.module.startsWith('$')) out.module = resolveRef(out.module);
+        return out;
+      };
+      return walk(spec);
+    };
+
     const results: Array<{ index: number; op: string; ok: boolean; id?: string; summary: string }> = [];
 
     for (let i = 0; i < ops.length; i++) {
@@ -523,9 +549,9 @@ export class AiBridgeService {
       if (!item || typeof item !== 'object' || !item.op) {
         throw new BadRequestException(`operations[${i}]: Feld "op" fehlt.`);
       }
-      // Neu aufbereiten: nur die freigegebenen Dokumente überschreiben – nichts anlegen, nichts umräumen.
-      if (session.purpose === 'regenerate' && (item.op !== 'update_document' || !(session.scope.moduleIds || []).includes(String((item as any).moduleId)))) {
-        throw new ForbiddenException(`operations[${i}] (${item.op}): In dieser Sitzung geht nur update_document für die freigegebenen Dokumente.`);
+      // Neu aufbereiten: nur die freigegebenen Dokumente bzw. Quizze überschreiben – nichts anlegen, nichts umräumen.
+      if (session.purpose === 'regenerate' && (!['update_document', 'update_quiz'].includes(item.op) || !(session.scope.moduleIds || []).includes(String((item as any).moduleId)))) {
+        throw new ForbiddenException(`operations[${i}] (${item.op}): In dieser Sitzung geht nur update_document bzw. update_quiz für die freigegebenen Module.`);
       }
 
       switch (item.op) {
@@ -744,6 +770,7 @@ export class AiBridgeService {
           if (!title) throw new BadRequestException(`operations[${i}]: title fehlt.`);
           // Neues Lernthema im Probelauf: dort gibt es noch keine Bilder.
           if (!topicId.startsWith('dry_')) item.spec = await this.restoreImages(item.spec, topicId, i, `create_document „${title}“`);
+          item.spec = resolveQuizRefs(item.spec);
           const errors = docSpec().validateDocSpec(item.spec);
           if (errors.length) {
             throw new BadRequestException(`operations[${i}] (create_document „${title}“): Ungültige DocSpec – ${errors.join(' · ')}`);
@@ -777,7 +804,7 @@ export class AiBridgeService {
           if (!scopeSets.allowedTopics.has(mod.topicId)) {
             throw new ForbiddenException(`operations[${i}]: Dokument „${mod.title}“ liegt außerhalb des freigegebenen Bereichs.`);
           }
-          item.spec = await this.restoreImages(item.spec, mod.topicId, i, `update_document „${mod.title}“`);
+          item.spec = resolveQuizRefs(await this.restoreImages(item.spec, mod.topicId, i, `update_document „${mod.title}“`));
           const errors = docSpec().validateDocSpec(item.spec);
           if (errors.length) {
             throw new BadRequestException(`operations[${i}] (update_document „${mod.title}“): Ungültige DocSpec – ${errors.join(' · ')}`);
@@ -803,6 +830,62 @@ export class AiBridgeService {
               oldContent,
               label: summary,
             });
+            session.log.push({ at: new Date().toISOString(), op: item.op, summary });
+          }
+          results.push({ index: i, op: item.op, ok: true, id: mod.id, summary: dryRun ? `[Vorschau] ${summary}` : summary });
+          break;
+        }
+
+        case 'create_quiz': {
+          this.requirePerm(session, byTeacher, 'writeDocs', i, item.op);
+          const topicId = resolveRef(item.topicId)!;
+          if (!topicId || !scopeSets.allowedTopics.has(topicId)) {
+            throw new ForbiddenException(`operations[${i}]: Lernthema „${topicId}“ ist nicht im freigegebenen Bereich.`);
+          }
+          const title = String(item.title || '').trim().slice(0, 200);
+          if (!title) throw new BadRequestException(`operations[${i}]: title fehlt.`);
+          if (!topicId.startsWith('dry_')) item.content = await this.restoreImages(item.content, topicId, i, `create_quiz „${title}“`);
+          const problems = quizProblems(item.type, item.content);
+          if (problems.length) {
+            throw new BadRequestException(`operations[${i}] (create_quiz „${title}“): ${problems.join(' · ')} – Format: GET /api/ai-bridge/reference/quiz?types=${item.type || ''}`);
+          }
+          const summary = `Quiz „${title}“ (${quizTypeName(item.type)}) angelegt`;
+          if (dryRun) {
+            const fakeId = `dry_quiz_${i}`;
+            if (item.ref) refs.set(item.ref, fakeId);
+            results.push({ index: i, op: item.op, ok: true, id: fakeId, summary: `[Vorschau] ${summary}` });
+            break;
+          }
+          const saved = await this.topics.addModule(topicId, user, { type: item.type, title, moduleSelected: true, content: item.content } as any);
+          if (item.ref) refs.set(item.ref, saved.id);
+          session.undoStack.push({ kind: 'delete_module', topicId, moduleId: saved.id, label: summary });
+          session.log.push({ at: new Date().toISOString(), op: item.op, summary });
+          results.push({ index: i, op: item.op, ok: true, id: saved.id, summary });
+          break;
+        }
+
+        case 'update_quiz': {
+          this.requirePerm(session, byTeacher, 'writeDocs', i, item.op);
+          const moduleId = resolveRef(item.moduleId)!;
+          const mod = moduleId ? await this.moduleRepo.findOne({ where: { id: moduleId } }) : null;
+          if (!mod || !isAiQuizType(mod.type)) {
+            throw new NotFoundException(`operations[${i}]: Quiz „${moduleId}“ nicht gefunden (bearbeitbar: ${AI_QUIZ_TYPES.join(', ')}).`);
+          }
+          if (!scopeSets.allowedTopics.has(mod.topicId)) {
+            throw new ForbiddenException(`operations[${i}]: Quiz „${mod.title}“ liegt außerhalb des freigegebenen Bereichs.`);
+          }
+          item.content = await this.restoreImages(item.content, mod.topicId, i, `update_quiz „${mod.title}“`);
+          const problems = quizProblems(mod.type, item.content);
+          if (problems.length) {
+            throw new BadRequestException(`operations[${i}] (update_quiz „${mod.title}“): ${problems.join(' · ')} – Format: GET /api/ai-bridge/reference/quiz?types=${mod.type}`);
+          }
+          const nextTitle = item.title ? String(item.title).trim().slice(0, 200) : mod.title;
+          const summary = `Quiz „${nextTitle}“ überarbeitet`;
+          if (!dryRun) {
+            const oldTitle = mod.title;
+            const oldContent = typeof mod.content === 'string' ? JSON.parse(mod.content) : structuredClone(mod.content);
+            await this.topics.addModule(mod.topicId, user, { id: mod.id, type: mod.type, title: nextTitle, content: item.content } as any);
+            session.undoStack.push({ kind: 'restore_module', topicId: mod.topicId, moduleId: mod.id, oldTitle, oldContent, label: summary });
             session.log.push({ at: new Date().toISOString(), op: item.op, summary });
           }
           results.push({ index: i, op: item.op, ok: true, id: mod.id, summary: dryRun ? `[Vorschau] ${summary}` : summary });
@@ -897,9 +980,14 @@ export class AiBridgeService {
         document: `GET ${baseUrl}/api/ai-bridge/documents/:moduleId`,
         batch: `POST ${baseUrl}/api/ai-bridge/batch`,
       },
+      // Formate zum Nachschlagen – nur holen, was gerade gebraucht wird.
+      references: {
+        docSpec: `GET ${baseUrl}/api/ai-bridge/reference/docspec`,
+        quiz: `GET ${baseUrl}/api/ai-bridge/reference/quiz?types=${AI_QUIZ_TYPES.join(',')}`,
+      },
+      quizTypes: Object.fromEntries(AI_QUIZ_TYPES.map((t) => [t, quizTypeName(t)])),
       images: IMAGE_RULE,
       operationSchema: this.operationReference(),
-      docSpecReference: this.docSpecReference(),
       currentTree: tree,
     };
   }
@@ -963,7 +1051,28 @@ export class AiBridgeService {
         description: 'Aktualisiert die DocSpec (und optional den Titel) eines bestehenden Dokument-Moduls. Vorab wird automatisch eine Sicherung für 1-Klick-Undo angelegt.',
         example: { op: 'update_document', moduleId: '<module-id>', title: 'Überarbeiteter Titel', spec: { content: [] } },
       },
+      {
+        op: 'create_quiz',
+        description: `Legt ein Quiz im Lernthema an (type: ${AI_QUIZ_TYPES.join(', ')}). Format von "content" je Typ: GET /reference/quiz?types=<typ>. Mit "ref" lässt es sich im selben Aufruf in ein Dokument einbetten: Block { "type": "quiz", "module": "$q1" }.`,
+        example: { op: 'create_quiz', topicId: '<topic-id|$ref>', type: 'multipleChoice', title: 'Ohmsches Gesetz', ref: '$q1', content: { question: 'Wie groß ist I bei U = 12 V und R = 6 Ω?', answers: [{ text: '0,5 A', correct: false }, { text: '2 A', correct: true }, { text: '72 A', correct: false }], singleAnswer: true, randomAnswers: true } },
+      },
+      {
+        op: 'update_quiz',
+        description: 'Überarbeitet Inhalt (und optional Titel) eines vorhandenen Quiz – der Typ bleibt. Vorher mit GET /topics/<id> lesen; rückgängig machbar.',
+        example: { op: 'update_quiz', moduleId: '<module-id>', content: { question: '…', answers: [] } },
+      },
     ];
+  }
+
+  /** Nachschlagen: das Format der Arbeitsblätter (GET /reference/docspec). */
+  getDocSpecReference() {
+    return { ...this.docSpecReference(), quizBlock: '{ type: "quiz", module: "<Quiz-Modul-ID oder $ref aus create_quiz>" } – bettet ein Quiz ins Blatt ein', images: IMAGE_RULE };
+  }
+
+  /** Nachschlagen: das Format der Quiz-Typen (GET /reference/quiz?types=…) – nur die gewünschten. */
+  getQuizReference(types: string) {
+    const wanted = String(types || '').split(',').map((t) => t.trim()).filter(isAiQuizType);
+    return quizFormat(wanted.length ? wanted : [...AI_QUIZ_TYPES]);
   }
 
   private docSpecReference() {
@@ -1057,12 +1166,48 @@ export class AiBridgeService {
   }
 
   /**
+   * Anleitung „Quiz überarbeiten“: der jetzige Stand je Quiz und das Format nur seiner Typen –
+   * so passt alles in einen Chat, auch ohne HTTP-Zugriff.
+   */
+  async buildQuizRevisePrompt(session: AiBridgeSession, rawToken: string, baseUrl: string): Promise<string> {
+    const expiresTime = new Date(session.expiresAt).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+    const mods = (await this.moduleRepo.find({ where: { id: In(session.scope.moduleIds || []) } })).filter((m) => isAiQuizType(m.type));
+    const one = mods.length === 1;
+    return [
+      `# ${one ? 'Quiz' : 'Quizze'} überarbeiten (LearningModules)`,
+      '',
+      `Bitte überarbeite ${one ? 'dieses Quiz' : 'diese Quizze'} (\`update_quiz\`). Der Typ bleibt. Sag mir unten, was dir auffällt, wenn ich keinen Wunsch nenne: unklare Fragen, unplausible Ablenker, Fehler in der Lösung.`,
+      '',
+      '## Zugang',
+      `- **Gültig bis:** ${expiresTime} Uhr · Rechte: nur ${one ? 'dieses Quiz' : 'diese Quizze'} überarbeiten. Ich kann alles rückgängig machen.`,
+      `- **Basis-URL:** \`${baseUrl}/api/ai-bridge\` · **Token:** \`${rawToken}\``,
+      '',
+      ...this.httpLines(baseUrl, rawToken),
+      '- Erst mit `"dryRun": true` prüfen, dann ausführen.',
+      '',
+      '### Falls du KEINEN HTTP-Zugriff hast (normaler KI-Chat):',
+      '- Antworte mit genau einem ```json-Codeblock `{ "operations": [ { "op": "update_quiz", "moduleId": "…", "content": { … } } ] }`. Ich füge ihn in LearningModules ein; Fehler melde ich dir zurück.',
+      '',
+      quizFormat([...new Set(mods.map((m) => m.type))]).replace(/^# /, '## '),
+      '',
+      `## ${one ? 'Das Quiz' : 'Die Quizze'} (jetziger Stand)`,
+      ...mods.flatMap((m) => {
+        const { value } = maskImages(this.parsed(m.content));
+        return ['', `### „${m.title}“ – moduleId \`${m.id}\`, Typ: ${m.type}`, '```json', JSON.stringify(value), '```'];
+      }),
+      '',
+      '## Mein Wunsch (optional):',
+      '',
+    ].join('\n');
+  }
+
+  /**
    * Kurzanleitung für die KI der Lehrkraft: Zugang, Rechte, Ablauf, nur die erlaubten
    * Operationen und eine knappe Gliederung des freigegebenen Bereichs (ohne Module).
    * Alles Weitere – vollständiger Baum, DocSpec-Referenz – holt eine KI mit Webzugriff
    * über GET /instructions bzw. /tree. Bewusst kurz: Die Anleitung muss in einen Chat passen.
    */
-  buildTeacherPrompt(session: AiBridgeSession, rawToken: string, baseUrl: string, tree: any): string {
+  buildTeacherPrompt(session: AiBridgeSession, rawToken: string, baseUrl: string, tree: any, { quizFormats = false } = {}): string {
     const expiresTime = new Date(session.expiresAt).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
     const { organize, writeDocs } = session.scope.permissions;
     const rights = !organize && !writeDocs
@@ -1082,6 +1227,8 @@ export class AiBridgeService {
         '`{"op":"create_topic","title":"…","targetNodeId":"<sectionId|$ref>","ref":"$t1"}`',
         '`{"op":"create_document","topicId":"<id|$ref>","title":"…","kind":"arbeitsblatt","spec":{"content":[…]}}`',
         '`{"op":"update_document","moduleId":"<id>","title":"…","spec":{"content":[…]}}` – vorher mit GET /documents/<id> lesen',
+        `\`{"op":"create_quiz","topicId":"<id|$ref>","type":"<Typ>","title":"…","content":{…},"ref":"$q1"}\` – Typen: ${AI_QUIZ_TYPES.map((t) => `${t} (${quizTypeName(t)})`).join(', ')}`,
+        '`{"op":"update_quiz","moduleId":"<id>","title":"…","content":{…}}` – Typ bleibt; vorher mit GET /topics/<id> lesen',
       ] : []),
     ];
     const docSpec = writeDocs ? [
@@ -1091,7 +1238,9 @@ export class AiBridgeService {
       '- `text` (Markdown: **fett**, *kursiv*, $Formel$), `formula` (`latex`), `table` (`header`, `rows`), `box` (`title`, `blocks`), `columns`',
       '- `karo` (`lines`, `pattern` karo|linien|leer|frei) als Schreibfeld, `solution` (`blocks`) als ausgeblendete Musterlösung',
       `- Bilder: ${IMAGE_RULE}`,
-      '- Vollständige Referenz: GET /instructions → `docSpecReference`. Der Server prüft jede DocSpec und meldet Fehler genau.',
+      '- Quiz ins Blatt einbetten: `{"type":"quiz","module":"<id|$q1>"}`.',
+      `- Nachschlagen: vollständige Referenz \`GET ${baseUrl}/api/ai-bridge/reference/docspec\`; Quiz-Format nur der gebrauchten Typen \`GET ${baseUrl}/api/ai-bridge/reference/quiz?types=multipleChoice,trueFalse\`. Der Server prüft alles und meldet Fehler genau.`,
+      ...(quizFormats ? ['', quizFormat([...AI_QUIZ_TYPES]).replace(/^# /, '## ')] : []),
     ] : [];
 
     return [

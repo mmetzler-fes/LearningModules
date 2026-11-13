@@ -58,7 +58,8 @@ describe('AiBridgeService (15-Minuten-KI-Token, Scope & Undo)', () => {
       findOne: jest.fn(async ({ where }: any) => topics.find((t) => t.id === where.id && (!where.ownerId || t.ownerId === where.ownerId)) || null),
     };
     const moduleRepo: any = {
-      find: jest.fn(async ({ where }: any) => modules.filter((m) => m.topicId === where.topicId)),
+      // where.id als In([...]) (Quiz überarbeiten) oder where.topicId
+      find: jest.fn(async ({ where }: any) => modules.filter((m) => (where.id?.value ? where.id.value.includes(m.id) : m.topicId === where.topicId))),
       findOne: jest.fn(async ({ where }: any) => modules.find((m) => m.id === where.id) || null),
       delete: jest.fn(async ({ id }: any) => {
         modules = modules.filter((m) => m.id !== id);
@@ -370,5 +371,71 @@ describe('AiBridgeService (15-Minuten-KI-Token, Scope & Undo)', () => {
     await service.executeBatchByTeacher(user, info.id, { operations: [op] });
     expect(nbNodes.find((n) => n.id === 'sec-et-1').title).toBe('Vorschlag');
     await expect(service.executeBatchByTeacher(user, info.id, { operations: [{ op: 'rename_notebook_node', id: 'book-other', title: 'x' }] })).rejects.toThrow(/nicht freigegeben/);
+  });
+
+  const MC = { question: 'Wie groß ist I?', answers: [{ text: '0,5 A', correct: false }, { text: '2 A', correct: true }], singleAnswer: true };
+
+  it('Quiz anlegen und im selben Aufruf ins Dokument einbetten; Fehler mit Verweis aufs Format', async () => {
+    const { token } = await service.createSession(user, { notebookNodeIds: ['book-et'], planNodeIds: [] });
+    const session = await service.authenticateToken(token);
+    const dry = await service.executeBatch(session, {
+      dryRun: true,
+      operations: [
+        { op: 'create_quiz', topicId: 'top-ohm', type: 'multipleChoice', title: 'Strom', content: MC, ref: '$q1' },
+        { op: 'update_document', moduleId: 'mod-doc-1', spec: { content: [{ type: 'quiz', module: '$q1' }] } },
+      ],
+    });
+    expect(dry.results.map((r: any) => r.summary)).toEqual([expect.stringContaining('[Vorschau] Quiz „Strom“'), expect.stringContaining('[Vorschau]')]);
+    await service.executeBatch(session, {
+      operations: [
+        { op: 'create_quiz', topicId: 'top-ohm', type: 'multipleChoice', title: 'Strom', content: MC, ref: '$q1' },
+        { op: 'update_document', moduleId: 'mod-doc-1', spec: { content: [{ type: 'quiz', module: '$q1' }] } },
+      ],
+    });
+    const quiz = modules.find((m) => m.title === 'Strom');
+    expect(quiz).toMatchObject({ type: 'multipleChoice', topicId: 'top-ohm' });
+    expect(modules[0].content.spec.content[0].module).toBe(quiz.id);
+
+    await expect(service.executeBatch(session, {
+      operations: [{ op: 'create_quiz', topicId: 'top-ohm', type: 'multipleChoice', title: 'Kaputt', content: { question: 'x', answers: [{ text: 'a' }] } }],
+    })).rejects.toThrow(/weniger als zwei Antworten.*reference\/quiz\?types=multipleChoice/);
+    await expect(service.executeBatch(session, {
+      operations: [{ op: 'create_quiz', topicId: 'top-ohm', type: 'memory', title: 'Spiel', content: { pairs: [] } }],
+    })).rejects.toThrow(/erlaubt sind/);
+    await expect(service.executeBatch(session, {
+      operations: [{ op: 'create_quiz', topicId: 'top-secret', type: 'multipleChoice', title: 'X', content: MC }],
+    })).rejects.toThrow(/nicht im freigegebenen Bereich/);
+  });
+
+  it('Quiz überarbeiten: nur dieses Quiz, Typ bleibt, rückgängig machbar; Anleitung mit Stand und nur seinem Format', async () => {
+    modules.push({ id: 'mod-quiz', topicId: 'top-ohm', type: 'trueFalse', title: 'Aussagen', content: { questions: [{ question: 'A', correctAnswer: 'true' }] } });
+    const { token, session: info, prompt } = await service.createSession(user, { regenerateModuleIds: ['mod-quiz'] });
+    expect(prompt).toContain('mod-quiz');
+    expect(prompt).toContain('"trueFalse"');
+    expect(prompt).not.toContain('"multipleChoice" –');
+    const session = await service.authenticateToken(token);
+    await expect(service.executeBatch(session, { operations: [{ op: 'update_document', moduleId: 'mod-doc-1', spec: { content: [] } }] })).rejects.toThrow(/nur update_document bzw. update_quiz/);
+    await service.executeBatch(session, { operations: [{ op: 'update_quiz', moduleId: 'mod-quiz', content: { questions: [{ question: 'B', correctAnswer: 'false' }] } }] });
+    expect(modules.find((m) => m.id === 'mod-quiz').content.questions[0].question).toBe('B');
+    await service.rollbackSession(user, info.id);
+    expect(modules.find((m) => m.id === 'mod-quiz').content.questions[0].question).toBe('A');
+    await expect(service.createSession(user, { regenerateModuleIds: ['mod-quiz', 'mod-doc-1'] })).rejects.toThrow(/entweder mit Dokumenten oder mit Quizzen/);
+  });
+
+  it('Formate zum Nachschlagen: nur die gewünschten Quiz-Typen; die Anleitung nennt die Adressen', async () => {
+    const one = service.getQuizReference('dragTheWords');
+    expect(one).toContain('"dragTheWords"');
+    expect(one).not.toContain('"multipleChoice" –');
+    expect(service.getQuizReference('').length).toBeGreaterThan(one.length);
+    expect(service.getDocSpecReference().quizBlock).toMatch(/type: "quiz"/);
+    const { token, prompt } = await service.createSession(user, { notebookNodeIds: ['book-et'], planNodeIds: [] });
+    expect(prompt).toContain('reference/quiz?types=');
+    expect(prompt).toContain('create_quiz');
+    expect(prompt).not.toContain('Hier steht je Typ');
+    const withFormats = await service.createSession(user, { notebookNodeIds: ['book-et'], planNodeIds: [], withQuizFormats: true });
+    expect(withFormats.prompt).toContain('Hier steht je Typ');
+    const inst = await service.getInstructionsForAi(await service.authenticateToken(token), 'http://x');
+    expect(inst.references.quiz).toContain('/api/ai-bridge/reference/quiz');
+    expect((inst as any).docSpecReference).toBeUndefined();
   });
 });

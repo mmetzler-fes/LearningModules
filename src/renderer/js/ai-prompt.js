@@ -26,9 +26,9 @@ export const AI_PROMPT_EXAMPLES = {
     question: 'Welches Bauteil speichert elektrische Ladung?',
     imageUrl: '',
     answers: [
-      { text: 'Kondensator', correct: true, tip: 'Er besteht aus zwei Platten mit Isolator dazwischen.' },
       { text: 'Widerstand', correct: false, tip: '' },
       { text: 'Diode', correct: false, tip: '' },
+      { text: 'Kondensator', correct: true, tip: 'Er besteht aus zwei Platten mit Isolator dazwischen.' },
       { text: 'Schalter', correct: false, tip: '' },
     ],
     singleAnswer: true,
@@ -133,6 +133,7 @@ const RULES = {
   multipleChoice: [
     'Genau eine richtige Antwort → "singleAnswer": true; mehrere richtige → "singleAnswer": false.',
     '3–5 Antworten, plausible Ablenker. "tip" erklärt kurz, warum eine Antwort stimmt oder nicht (darf leer sein).',
+    'Die richtige Antwort steht an wechselnder Stelle, nicht immer vorn; "randomAnswers": true (die App mischt beim Anzeigen).',
   ],
   trueFalse: [
     '"correctAnswer" ist der Text "true" oder "false" (in Anführungszeichen, kein Boolean).',

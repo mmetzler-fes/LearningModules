@@ -348,8 +348,9 @@ export class PublicController {
     if (examHidden && !isTestStudent(studentId)) throw new ForbiddenException(hiddenMessage);
 
     // Wiedereinstieg, den die Lehrkraft freigegeben hat: trotz früherer Abgabe.
+    // Der Testschüler (🧪 Ausprobieren) schreibt beliebig oft.
     const released = mode === 'exam' && (await this.exams.mayStartAgain(link, studentId));
-    if (mode === 'exam' && link.singleAttempt && !released) {
+    if (mode === 'exam' && link.singleAttempt && !released && !isTestStudent(studentId)) {
       const previous = await this.resultRepo.count({
         where: studentId ? { linkId: link.id, studentId, mode: 'exam' } : { linkId: link.id, studentName, mode: 'exam' },
       });

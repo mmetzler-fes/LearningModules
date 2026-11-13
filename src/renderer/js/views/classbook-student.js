@@ -144,6 +144,26 @@ export class ClassbookStudent {
     return el;
   }
 
+  /** 🔗 Quick-Link `?tb=<token>`: Tafelbild bzw. Lösung ohne Anmeldung, nur zum Ansehen. */
+  async startBoardLink(token) {
+    const res = await fetch(`/api/public/classbook/view/${encodeURIComponent(token)}`).catch(() => null);
+    const board = res ? await res.json().catch(() => null) : null;
+    if (!res?.ok || !board?.content) {
+      this._show(`<p class="login-error">${escapeHtml(board?.message || 'Der Server ist nicht erreichbar.')}</p>`);
+      return;
+    }
+    const label = board.kind === 'solution' ? '🔑 Lösung' : '✍️ Tafelbild';
+    const el = this._show(`<div class="cb-head"><div><span class="quick-entry-label">${label}</span><h2>${escapeHtml(board.title)}</h2></div></div>
+      <p class="hint">Nur zum Ansehen – gespeichert wird nichts.</p>
+      <button type="button" class="btn btn-primary" data-open>${label} ansehen</button>`);
+    const open = async () => {
+      const { openBoardView } = await import('../ink/ink-open.js');
+      await openBoardView(board, label);
+    };
+    el.querySelector('[data-open]').addEventListener('click', () => open().catch((err) => this.app.showToast(err.message, 'error')));
+    await open().catch(() => { /* Knopf bleibt */ });
+  }
+
   async start(token) {
     this.token = token;
     // Vom Knopf 👁 Vorschau: Der Ausweis steht im Fragment und geht so nicht an den Server.

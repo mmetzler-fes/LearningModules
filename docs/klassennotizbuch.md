@@ -330,6 +330,17 @@ freigegeben, denen das Lernthema zugewiesen ist.
 - ⋯ am Tafelbild → **Als Lehrerlösung übernehmen** (nur eigene Dokumente).
 - ⋯ an der Lehrerlösung → **Als Start für das Tafelbild** (kopiert sie hinein).
 
+### Weitergeben und drucken
+
+- ⋯ → **🔗 Quick-Link (Link & QR)** an Tafelbild bzw. Lehrerlösung: `/?tb=<token>`,
+  ohne Anmeldung, nur zum Ansehen. Gilt, solange der Eintrag hier ● an ist und
+  der Link nicht zurückgezogen wird (`shareToken` an `class_boards` bzw. `class_solutions`).
+- ⋯ → **⬇ Als PDF**: das Dokument mit Tafelbild bzw. Lehrerlösung über die Vorlage.
+- **Für OneNote ausgeben** im Klassennotizbuch: Haken „Mit den Tafelbildern dieser
+  Klasse“ – die Seitenbilder zeigen dann das Tafelbild statt des leeren Blatts.
+- Sicherung (Nextcloud, GitHub): Die Lehrerlösung gehört zum Dokument und ist dabei;
+  Tafelbilder sind wie Schülerblätter Daten der Klasse und bleiben auf dem Server.
+
 ## Schuljahreswechsel
 
 Beim **Übernehmen** einer Klasse ins neue Schuljahr (🏫 Klassen) geht das

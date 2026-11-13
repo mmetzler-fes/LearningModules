@@ -14,4 +14,9 @@ export class ClassSolution extends BaseEntity {
 
   @Column()
   moduleId: string;
+
+  /** 🔗 Quick-Link zum Ansehen ohne Anmeldung (`/?tb=<token>`) – gilt, solange ● an ist; null = zurückgezogen. */
+  @Index()
+  @Column({ type: 'varchar', nullable: true })
+  shareToken: string | null;
 }

@@ -89,4 +89,20 @@ describe('✍️ Tafelbild je Klasse', () => {
     expect(solutions.rows.map((r) => r.id)).toEqual(['c1:d1']);
     expect(inks.rows[0].visibility).toBe('teacher');
   });
+
+  it('🔗 Quick-Link: nur solange ● an, Zurückziehen macht ihn ungültig', async () => {
+    const { svc } = setup();
+    await svc.put(T, 'c1', 'd1', { data: { strokes: [1] } });
+    const shared = await svc.share(T, 'c1', 'board', 'd1', false) as any;
+    const token = shared.url.split('tb=')[1];
+    await expect(svc.viewByToken(token)).rejects.toThrow(/nicht freigegeben/);
+    await svc.put(T, 'c1', 'd1', { studentVisible: true });
+    expect(await svc.viewByToken(token)).toMatchObject({ kind: 'board', moduleId: 'd1', data: { strokes: [1] } });
+    await svc.share(T, 'c1', 'board', 'd1', true);
+    await expect(svc.viewByToken(token)).rejects.toThrow(/gilt nicht mehr/);
+    await expect(svc.share(T, 'c1', 'solution', 'd1', false)).rejects.toThrow(/nicht freigegeben/);
+    await svc.setSolution(T, 'c1', 'd1', true);
+    const sol = await svc.share(T, 'c1', 'solution', 'd1', false) as any;
+    expect(await svc.viewByToken(sol.url.split('tb=')[1])).toMatchObject({ kind: 'solution', data: { strokes: ['lösung'] } });
+  });
 });

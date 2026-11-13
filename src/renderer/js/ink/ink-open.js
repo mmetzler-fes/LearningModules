@@ -366,6 +366,28 @@ export async function openGoneWork(work) {
 }
 
 /**
+ * PDF über den Renderer (Lehrkraft): das Dokument `mod` mit der Beschriftung `data`
+ * (Tafelbild oder Lehrerlösung), wie „Drucken“ im Stift-Editor. `win`: vorher geöffnetes Fenster.
+ */
+export async function printWithInk(mod, data, win = null) {
+  let content = mod.content || {};
+  if (typeof content === 'string') { try { content = JSON.parse(content); } catch (_) { content = {}; } }
+  const { applyInkToSpec } = await import('../../lm-editor/src/ink/ink-print.js');
+  const spec = data ? applyInkToSpec(content.spec || { content: [] }, data) : (content.spec || { content: [] });
+  const res = await fetch('/api/worksheets/render', {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify({ spec, title: mod.title || '', output: 'pdf', moduleId: mod.id, kind: content.kind }),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error((body.message || `HTTP ${res.status}`) + (Array.isArray(body.errors) ? ` ${body.errors.join(' · ')}` : ''));
+  }
+  const url = URL.createObjectURL(await res.blob());
+  if (win) win.location.href = url; else window.open(url, '_blank');
+}
+
+/**
  * ✍️ Tafelbild der Lehrkraft für Schüler (Antwort von …/boards/:moduleId): das Dokument mit
  * ihrer Beschriftung, nur zum Ansehen. Gespeichert wird nichts – das eigene Blatt bleibt unberührt.
  */

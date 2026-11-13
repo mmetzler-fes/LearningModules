@@ -10,6 +10,8 @@ import { TopicLink } from '../core/entities/topic-link.entity';
 import { ClassesService } from '../classes/classes.service';
 import { ClassbookService } from './classbook.service';
 import { embeddedQuizIds, forStudents } from '../core/public/student-view';
+import { baseUrl, renderQr } from '../core/share/link-url';
+import * as crypto from 'crypto';
 
 /** Wie bei der Beschriftung der Lehrkraft (teacher-ink.service.ts). */
 const MAX_BOARD_BYTES = 20 * 1024 * 1024;
@@ -207,5 +209,37 @@ export class ClassBoardService implements OnApplicationBootstrap {
     }
     if (inks.length) this.logger.log(`${inks.length} Beschriftung(en) „für alle“ als Lehrerlösung je Klasse freigegeben.`);
   }
-}
 
+  // ---- 🔗 Quick-Link: Tafelbild bzw. Lehrerlösung ohne Anmeldung ansehen ----
+
+  /** `kind`: 'board' | 'solution'. Erzeugt den Link (oder zieht ihn mit `revoke` zurück) → `{ url, title, className, qrSvg }`. */
+  async share(user: any, classId: string, kind: string, moduleId: string, revoke: boolean, req?: any) {
+    const klasse = await this.classes.ownedClass(classId, user);
+    const id = boardId(classId, String(moduleId || ''));
+    const repo: Repository<ClassBoard | ClassSolution> = kind === 'solution' ? this.solutionRepo : this.repo;
+    const row = await repo.findOne({ where: { id } });
+    if (!row) throw new NotFoundException(kind === 'solution' ? 'Die Lehrerlösung ist für diese Klasse nicht freigegeben.' : 'Noch kein Tafelbild.');
+    row.shareToken = revoke ? null : row.shareToken || crypto.randomBytes(12).toString('base64url');
+    await repo.save(row as any);
+    if (!row.shareToken) return { revoked: true };
+    const mod = await this.moduleRepo.findOne({ where: { id: row.moduleId }, select: ['id', 'title'] });
+    const url = `${baseUrl(req)}/?tb=${row.shareToken}`;
+    return { url, title: `${kind === 'solution' ? '🔑 Lösung' : '✍️ Tafelbild'} – ${mod?.title || 'Dokument'}`, className: klasse.name, qrSvg: await renderQr(url) };
+  }
+
+  /** Öffentlich über den Quick-Link: das Dokument mit Tafelbild bzw. Lösung – nur, solange ● an ist. */
+  async viewByToken(token: string) {
+    const t = String(token || '');
+    const gone = () => new NotFoundException('Dieser Link gilt nicht mehr.');
+    if (t.length < 10) throw gone();
+    const b = await this.repo.findOne({ where: { shareToken: t } });
+    if (b) {
+      if (!b.studentVisible || !b.data) throw new NotFoundException('Dieses Tafelbild ist gerade nicht freigegeben.');
+      return { kind: 'board', ...(await this.withDocument(b.moduleId, b.data, b.updatedAt)) };
+    }
+    const s = await this.solutionRepo.findOne({ where: { shareToken: t } });
+    const ink = s ? await this.inkRepo.findOne({ where: { id: s.moduleId } }) : null;
+    if (!s || !ink?.data) throw gone();
+    return { kind: 'solution', ...(await this.withDocument(ink.id, ink.data, ink.updatedAt)) };
+  }
+}

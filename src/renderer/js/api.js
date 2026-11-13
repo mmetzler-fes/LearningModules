@@ -1224,6 +1224,10 @@ export class BrowserApi {
   }
   boardFromSolution(classId, moduleId) { return this._fetch(`/api/classbook/${encodeURIComponent(classId)}/boards/${encodeURIComponent(moduleId)}/from-solution`, { method: 'POST' }); }
   solutionFromBoard(classId, moduleId) { return this._fetch(`/api/classbook/${encodeURIComponent(classId)}/boards/${encodeURIComponent(moduleId)}/to-solution`, { method: 'POST' }); }
+  /** `{ kind: 'board'|'solution', revoke? }` → 🔗 Quick-Link zum Ansehen ohne Anmeldung. */
+  shareClassBoard(classId, moduleId, body) {
+    return this._fetch(`/api/classbook/${encodeURIComponent(classId)}/boards/${encodeURIComponent(moduleId)}/share`, { method: 'POST', body: JSON.stringify(body) });
+  }
   deleteClassBoard(classId, moduleId) { return this._fetch(`/api/classbook/${encodeURIComponent(classId)}/boards/${encodeURIComponent(moduleId)}`, { method: 'DELETE' }); }
   resetClassbookPreview(classId) { return this._fetch(`/api/classbook/${encodeURIComponent(classId)}/preview`, { method: 'DELETE' }); }
   getClassbookOverview(classId) { return this._fetch(`/api/classbook/${encodeURIComponent(classId)}/overview`); }

@@ -811,6 +811,11 @@ class App {
       // &mod=<modul> nur in dieses eine Modul (QR-Code eines Quiz im Dokument).
       // Klassennotizbuch: ?k=<token> – Name und PIN, dann Aufgaben, Ergebnisse, Blätter.
       const classbookToken = params.get('k');
+      // Quick-Link auf ein ✍️ Tafelbild bzw. eine 🔑 Lösung: ?tb=<token> – ohne Anmeldung, nur ansehen.
+      if (params.get('tb')) {
+        await this.classbookStudent.startBoardLink(params.get('tb'));
+        return;
+      }
       // Installierte Schüler-App: Liste der Klassennotizbücher (das des Links kommt dazu).
       if (params.get('app') === 'classbook') {
         await this.classbookStudent.startApp(classbookToken);

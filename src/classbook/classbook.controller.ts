@@ -53,6 +53,13 @@ export class ClassbookController {
     return this.boards.solutionFromBoard(req.user, classId, moduleId);
   }
 
+  /** `{ kind: 'board'|'solution', revoke? }` – 🔗 Quick-Link zum Ansehen ohne Anmeldung. */
+  @Post(':classId/boards/:moduleId/share')
+  @HttpCode(200)
+  shareBoard(@Request() req: any, @Param('classId') classId: string, @Param('moduleId') moduleId: string, @Body() body: { kind?: string; revoke?: boolean }) {
+    return this.boards.share(req.user, classId, body?.kind === 'solution' ? 'solution' : 'board', moduleId, !!body?.revoke, req);
+  }
+
   /** Neues Tafelbild beginnen: das bisherige löschen. */
   @Delete(':classId/boards/:moduleId')
   deleteBoard(@Request() req: any, @Param('classId') classId: string, @Param('moduleId') moduleId: string) {
@@ -253,6 +260,12 @@ export class PublicClassbookController {
   @HttpCode(200)
   boardList(@Param('token') token: string, @Body() body: { ticket?: string }) {
     return this.boards.listForStudent(token, body?.ticket);
+  }
+
+  /** 🔗 Quick-Link (`/?tb=`): Tafelbild bzw. Lösung ohne Anmeldung, nur zum Ansehen. */
+  @Get('view/:token')
+  view(@Param('token') token: string) {
+    return this.boards.viewByToken(token);
   }
 
   /** `{ ticket }` → freigegebene 🔑 Lehrerlösungen der Klasse (ohne Inhalt). */

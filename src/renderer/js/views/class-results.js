@@ -875,10 +875,40 @@ export class ClassResultsView {
     } catch (err) { this.app.showToast(`Lehrerlösung: ${err.message}`, 'error'); }
   }
 
+  /** 🔗 Quick-Link für Tafelbild bzw. Lösung – ohne Anmeldung, nur zum Ansehen. */
+  _boardShare(kind, moduleId) {
+    const on = kind === 'solution' ? this._cb?.solutions?.get(moduleId)?.studentVisible : this._cb?.boards?.get(moduleId)?.studentVisible;
+    return this._shareDialog('board', moduleId, {
+      request: (revoke) => this.app.api.shareClassBoard(this._classId, moduleId, { kind, ...(revoke ? { revoke: true } : {}) }),
+      subtitle: 'Link öffnen – ohne Anmeldung, nur zum Ansehen',
+      hint: `Ohne Anmeldung, nur zum Ansehen – auch für Schüler anderer Klassen, wenn du ihn weitergibst. Der Link gilt, solange ${kind === 'solution' ? 'die Lösung' : 'das Tafelbild'} hier ● an ist und du ihn nicht zurückziehst.${on ? '' : ' <strong>Gerade ist es ○ aus – der Link zeigt erst nach dem Einschalten etwas.</strong>'}`,
+    });
+  }
+
+  /** ⬇ PDF über die Vorlage: das Dokument mit Tafelbild bzw. Lehrerlösung. */
+  async _inkPdf(topicId, moduleId, kind) {
+    const win = window.open('', '_blank'); // vor dem await, sonst blockt der Browser das Fenster
+    try {
+      const [all, ink] = await Promise.all([
+        this.app.api.getTopicModules(topicId),
+        kind === 'board' ? this.app.api.getClassBoard(this._classId, moduleId) : import('../ink/ink-open.js').then(({ teacherInkGet }) => teacherInkGet(moduleId)),
+      ]);
+      const mod = (Array.isArray(all) ? all : []).find((x) => x.id === moduleId);
+      if (!mod) throw new Error('Das Dokument gibt es nicht mehr.');
+      const { printWithInk } = await import('../ink/ink-open.js');
+      await printWithInk(mod, ink?.data || null, win);
+    } catch (err) {
+      win?.close();
+      this.app.showToast(`PDF: ${err.message}`, 'error');
+    }
+  }
+
   _solutionMenu(topicId, moduleId) {
     const hasBoard = this._cb?.boards?.has(moduleId);
     return [
       { label: '🔑 Öffnen', title: 'Gilt für alle Klassen', run: () => this._openSolution(topicId, moduleId) },
+      ...(this._cb?.solutions?.get(moduleId)?.studentVisible ? [{ label: '🔗 Quick-Link (Link & QR)', title: 'Die Lösung ohne Anmeldung ansehen – gilt, solange sie hier ● an ist', run: () => this._boardShare('solution', moduleId) }] : []),
+      { label: '⬇ Als PDF', title: 'Das Dokument mit der Lehrerlösung über die Vorlage drucken', run: () => this._inkPdf(topicId, moduleId, 'solution') },
       { label: '✍️ Als Start für das Tafelbild', title: 'Die Lehrerlösung in das Tafelbild dieser Klasse kopieren und weiterschreiben – die Lehrerlösung bleibt, wie sie ist', run: async () => {
         if (hasBoard && !(await this.app.appConfirm('Das bisherige Tafelbild dieser Klasse durch die Lehrerlösung ersetzen?'))) return;
         if (await this._call(this.app.api.boardFromSolution(this._classId, moduleId))) await this._openBoard(topicId, moduleId);
@@ -889,6 +919,8 @@ export class ClassResultsView {
   _boardMenu(topicId, moduleId, canEdit) {
     return [
       { label: '✍️ Öffnen und weiterschreiben', run: () => this._openBoard(topicId, moduleId) },
+      { label: '🔗 Quick-Link (Link & QR)', title: 'Das Tafelbild ohne Anmeldung ansehen – gilt, solange es hier ● an ist', run: () => this._boardShare('board', moduleId) },
+      { label: '⬇ Als PDF', title: 'Das Dokument mit dem Tafelbild über die Vorlage drucken', run: () => this._inkPdf(topicId, moduleId, 'board') },
       ...(canEdit ? [{ label: '🔑 Als Lehrerlösung übernehmen', title: 'Dieses Tafelbild wird die Beschriftung am Dokument – für alle Klassen, zum Freigeben je Klasse', run: async () => {
         if (this._cb?.solutions?.has(moduleId) && !(await this.app.appConfirm('Die bisherige Lehrerlösung durch dieses Tafelbild ersetzen? Sie gilt für alle Klassen.'))) return;
         if (await this._call(this.app.api.solutionFromBoard(this._classId, moduleId))) this.app.showToast('Als Lehrerlösung übernommen – in jeder Klasse mit ● freigeben.', 'success');
@@ -1660,16 +1692,21 @@ export class ClassResultsView {
    * 🔗 Eigener Link auf einen Bereich (`node`) bzw. eine Zuweisung (`entry`) des
    * Klassennotizbuchs: am Eintrag gespeichert, gültig bis zum Zurückziehen.
    */
-  async _shareDialog(type, id) {
-    const res = await this.app.api.classbookShare(this._classId, { type, id });
+  /**
+   * `request(revoke)`: anderer Link als der eines Bereichs bzw. einer Zuweisung (z. B. Tafelbild);
+   * `hint`, `subtitle`: Text dazu.
+   */
+  async _shareDialog(type, id, { request = null, hint = null, subtitle = null } = {}) {
+    const ask = request || ((revoke) => this.app.api.classbookShare(this._classId, { type, id, ...(revoke ? { revoke: true } : {}) }));
+    const res = await ask(false);
     if (failed(res) || !res?.url) { this.app.showToast('Fehler: ' + (res?.message || 'Link nicht erzeugt'), 'error'); return; }
     const overlay = document.createElement('div');
     overlay.className = 'confirm-overlay cb-ask';
     overlay.innerHTML = `<div class="import-modules-card" role="dialog" aria-modal="true" style="max-width:560px">
         <h3>🔗 ${escapeHtml(res.title)} <small class="hint">· ${escapeHtml(res.className)}</small></h3>
         <div class="cb-qr" style="max-width:220px">${res.qrSvg || ''}</div>
-        <p class="hint">Schüler melden sich wie im Klassennotizbuch an (auf ihrem Gerät meist schon geschehen) und sehen nur diesen Teil –
-          genau so, wie er hier ein- und ausgeschaltet ist. Der Link gilt, bis du ihn zurückziehst, auch nach der Versetzung der Klasse.</p>
+        <p class="hint">${hint || `Schüler melden sich wie im Klassennotizbuch an (auf ihrem Gerät meist schon geschehen) und sehen nur diesen Teil –
+          genau so, wie er hier ein- und ausgeschaltet ist. Der Link gilt, bis du ihn zurückziehst, auch nach der Versetzung der Klasse.`}</p>
         <div class="cb-url"><input type="text" readonly value="${escapeAttr(res.url)}" class="search-input" style="width:100%"></div>
         <div class="confirm-actions">
           <button type="button" class="btn btn-secondary btn-sm" data-copy>📋 Kopieren</button>
@@ -1689,12 +1726,12 @@ export class ClassResultsView {
       this.app.showToast(ok ? 'QR-Code kopiert' : 'QR-Code kopieren klappt hier nicht – bitte den Link nutzen.', ok ? 'success' : 'error');
     });
     overlay.querySelector('[data-copy-sheet]').addEventListener('click', async () => {
-      const ok = await copyShareSheetAsPng({ title: `${res.title} – ${res.className}`, subtitle: 'Link öffnen, Namen und PIN eingeben', svg: overlay.querySelector('.cb-qr svg'), url: res.url });
+      const ok = await copyShareSheetAsPng({ title: `${res.title} – ${res.className}`, subtitle: subtitle || 'Link öffnen, Namen und PIN eingeben', svg: overlay.querySelector('.cb-qr svg'), url: res.url });
       this.app.showToast(ok ? 'Als Bild kopiert.' : 'Als Bild kopieren klappt hier nicht.', ok ? 'success' : 'error');
     });
     overlay.querySelector('[data-revoke]').addEventListener('click', async () => {
       if (!(await this.app.appConfirm(`Link für „${res.title}“ zurückziehen? Ausgeteilte Links und QR-Codes gelten dann nicht mehr. Ein neuer Link bekommt eine neue Adresse.`))) return;
-      const r = await this.app.api.classbookShare(this._classId, { type, id, revoke: true });
+      const r = await ask(true);
       if (failed(r)) { this.app.showToast('Fehler: ' + (r?.message || '?'), 'error'); return; }
       close();
       this.app.showToast('Link zurückgezogen.', 'success');
@@ -1702,6 +1739,7 @@ export class ClassResultsView {
       this._render();
     });
     // ✓ im Menü und 🔗 im Baum nachziehen.
+    if (request) return;
     if (!(type === 'node' ? this._cb?.nodes?.find((n) => n.id === id)?.shared : this._cb?.links?.find((l) => l.id === id)?.shared)) {
       await this._classbook(true);
       this._render();

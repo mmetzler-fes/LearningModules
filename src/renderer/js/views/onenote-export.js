@@ -79,13 +79,18 @@ async function loadPdfJs() {
   return pdfjs;
 }
 
-/** Dokument über den Renderer als PDF, dann jede Seite als JPEG. */
-async function documentPages(mod) {
+/** Dokument über den Renderer als PDF, dann jede Seite als JPEG. `ink`: Beschriftung darauf (✍️ Tafelbild). */
+async function documentPages(mod, ink = null) {
   const content = contentOf(mod);
+  let spec = content.spec || { content: [] };
+  if (ink) {
+    const { applyInkToSpec } = await import('../../lm-editor/src/ink/ink-print.js');
+    spec = applyInkToSpec(spec, ink);
+  }
   const res = await fetch('/api/worksheets/render', {
     method: 'POST',
     headers: authHeaders(),
-    body: JSON.stringify({ spec: content.spec || { content: [] }, title: mod.title || '', output: 'pdf', moduleId: mod.id, kind: content.kind }),
+    body: JSON.stringify({ spec, title: mod.title || '', output: 'pdf', moduleId: mod.id, kind: content.kind }),
   });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
@@ -118,7 +123,7 @@ async function documentPages(mod) {
  * `modules`: sichtbare Module des Lernthemas (oberste Ebene, sortiert).
  * `linkFor(moduleId)` → Adresse. Ergebnis: Seiten für writeOneSection.
  */
-async function topicPages(topicTitle, modules, linkFor, { images, onStep, warnings }) {
+async function topicPages(topicTitle, modules, linkFor, { images, onStep, warnings, inkFor = null }) {
   const { steps } = planRun(modules);
   const docs = modules.filter((m) => m.type === 'document');
   const others = steps.filter((m) => m.type !== 'document');
@@ -136,7 +141,7 @@ async function topicPages(topicTitle, modules, linkFor, { images, onStep, warnin
     blocks.push({ type: 'text', runs: [{ text: stand }] });
     if (images) {
       try {
-        const shots = await documentPages(doc);
+        const shots = await documentPages(doc, inkFor ? await inkFor(doc.id) : null);
         shots.forEach((p, i) => blocks.push({ type: 'image', free: true, ext: '.jpeg', ...p, name: `${fileSafe(doc.title)} – Seite ${i + 1}.jpeg`, alt: `${doc.title}, Seite ${i + 1}` }));
       } catch (e) {
         warnings.push(`${doc.title}: kein Ausdruck (${e.message})`);
@@ -162,7 +167,9 @@ async function topicPages(topicTitle, modules, linkFor, { images, onStep, warnin
  * Plan: `{ name, sections: [{ path: ['Ordner', …], name, topics: [{ title, load() → { modules, linkFor } }] }] }`.
  * Eine Datei ohne Ordner wird direkt als .one geladen, sonst ein ZIP.
  */
-async function build(plan, { images, onProgress }) {
+async function build(plan, { images, boards = false, onProgress }) {
+  // ✍️ Klassennotizbuch: Ausdruck mit dem Tafelbild der Klasse, wo es eins gibt.
+  const inkFor = boards && plan.boards ? (id) => plan.boards.load(id) : null;
   const warnings = [];
   const total = plan.sections.reduce((n, s) => n + s.topics.length, 0);
   let done = 0;
@@ -174,7 +181,7 @@ async function build(plan, { images, onProgress }) {
       onProgress(done, total, topic.title);
       try {
         const { modules, linkFor } = await topic.load();
-        pages.push(...await topicPages(topic.title, modules, linkFor, { images, warnings, onStep: (t) => onProgress(done, total, t) }));
+        pages.push(...await topicPages(topic.title, modules, linkFor, { images, warnings, inkFor, onStep: (t) => onProgress(done, total, t) }));
       } catch (e) {
         warnings.push(`${topic.title}: ${e.message}`);
       }
@@ -204,6 +211,7 @@ function openDialog(app, { title, hint, plan }) {
       <p class="hint">${plan.sections.length} Abschnitt${plan.sections.length === 1 ? '' : 'e'} · ${topics} Lernthem${topics === 1 ? 'a' : 'en'}.
         Je Dokument eine Seite mit Link, QR-Code und Ausdruck; Quizze außerhalb von Dokumenten gemeinsam auf einer Seite „… – Quiz“ mit einem Link für alle.</p>
       <label><input type="checkbox" class="one-images" checked> 🖼 Ausdruck als Seitenbilder mitnehmen (darauf lässt sich in OneNote schreiben – dauert je Dokument einige Sekunden)</label>
+      ${plan.boards ? `<label><input type="checkbox" class="one-boards"> ✍️ Mit den Tafelbildern dieser Klasse (${plan.boards.count}) – sonst leere Blätter</label>` : ''}
       <details class="hint" style="margin-top:8px;"><summary>So kommt es nach OneNote</summary>
         <ol style="margin:6px 0 0 18px;">
           <li>Die Datei landet als normaler Browser-Download im Download-Ordner (meist „Downloads“) – auf dem Server wird nichts abgelegt.</li>
@@ -237,10 +245,12 @@ function openDialog(app, { title, hint, plan }) {
     running = true;
     btnRun.disabled = true;
     overlay.querySelector('.one-images').disabled = true;
+    if (overlay.querySelector('.one-boards')) overlay.querySelector('.one-boards').disabled = true;
     progress.hidden = false;
     try {
       const { files, warnings } = await build(plan, {
         images: overlay.querySelector('.one-images').checked,
+        boards: !!overlay.querySelector('.one-boards')?.checked,
         onProgress: (d, t, text) => { bar.max = t || 1; bar.value = d; barText.textContent = text; },
       });
       running = false;
@@ -327,6 +337,17 @@ export async function openOneNoteExport(app, { nodeId = null, topicId = null } =
 
 // ---------- Klassennotizbuch: Links mit Name und PIN ----------
 
+/** ✍️ Tafelbilder der Klasse für den Ausdruck – oder null, wenn es keine gibt. */
+async function classBoards(app, classId) {
+  const list = await app.api.listClassBoards(classId).catch(() => []);
+  const ids = new Set((Array.isArray(list) ? list : []).map((b) => b.moduleId));
+  if (!ids.size) return null;
+  return {
+    count: ids.size,
+    load: async (moduleId) => (ids.has(moduleId) ? (await app.api.getClassBoard(classId, moduleId).catch(() => null))?.data || null : null),
+  };
+}
+
 /** Aus dem Klassennotizbuch einer Klasse – ohne Klassenarbeiten und Ausgeblendetes. */
 export async function openClassbookOneNoteExport(app, classId) {
   const cb = await app.api.getClassbook(classId).catch(() => null);
@@ -364,6 +385,6 @@ export async function openClassbookOneNoteExport(app, classId) {
   openDialog(app, {
     title: `Für OneNote ausgeben – Klasse ${cb.className}`,
     hint: 'Die Links führen ins <strong>Klassennotizbuch</strong>: Schüler melden sich mit Name und PIN an, Ergebnisse landen in der Klasse. Klassenarbeiten und für Schüler Ausgeblendetes bleiben weg.',
-    plan: { name: `Klasse ${cb.className}`, sections: sections.filter((s) => s.topics.length) },
+    plan: { name: `Klasse ${cb.className}`, sections: sections.filter((s) => s.topics.length), boards: await classBoards(app, classId) },
   });
 }

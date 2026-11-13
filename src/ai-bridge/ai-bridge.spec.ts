@@ -268,6 +268,19 @@ describe('AiBridgeService (15-Minuten-KI-Token, Scope & Undo)', () => {
     expect(modules[0].content.spec.content[0].text).toBe('Alter Inhalt');
   });
 
+  it('update_document mit kind und ohne spec: nur die Dokument-Art, Inhalt bleibt, ⏪ zurück', async () => {
+    const { token, session: info } = await service.createSession(user, { notebookNodeIds: ['book-et'], permissions: { organize: true, writeDocs: true } } as any);
+    const session = await service.authenticateToken(token);
+    const before = structuredClone(modules[0].content);
+    const r = await service.executeBatch(session, { operations: [{ op: 'update_document', moduleId: 'mod-doc-1', kind: 'text' }] });
+    expect(r.ok).toBe(true);
+    expect(modules[0].content.kind).toBe('text');
+    expect(modules[0].content.spec.content[0].text).toBe(before.spec.content[0].text);
+    await expect(service.executeBatch(session, { operations: [{ op: 'update_document', moduleId: 'mod-doc-1', kind: 'quatsch' as any }] })).rejects.toThrow(/kind/);
+    await service.rollbackSession(user, info.id);
+    expect(modules[0].content.kind).toBe(before.kind);
+  });
+
   it('Probelauf: neue Ordner und Pläne nehmen Folgeschritte auf, ohne etwas anzulegen', async () => {
     const { token } = await service.createSession(user, { notebookNodeIds: ['book-et'], planNodeIds: ['plan-bfe'] });
     const session = await service.authenticateToken(token);

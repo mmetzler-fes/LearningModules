@@ -83,7 +83,7 @@ export type AiBridgeOp =
   | { op: 'remove_plan_entry'; entryId: string }
   | { op: 'create_topic'; title: string; description?: string; targetNodeId?: string | null; ref?: string }
   | { op: 'create_document'; topicId: string; title: string; kind?: 'arbeitsblatt' | 'klassenarbeit' | 'text'; spec: any; ref?: string }
-  | { op: 'update_document'; moduleId: string; title?: string; spec: any }
+  | { op: 'update_document'; moduleId: string; title?: string; spec?: any; kind?: 'arbeitsblatt' | 'klassenarbeit' | 'text' }
   | { op: 'create_quiz'; topicId: string; type: string; title: string; content: any; ref?: string }
   | { op: 'update_quiz'; moduleId: string; title?: string; content: any };
 
@@ -92,6 +92,7 @@ const MIN_TTL_MINUTES = 5;
 const MAX_TTL_MINUTES = 240;
 /** So lange nach dem Ablauf lässt sich eine Sitzung noch rückgängig machen. */
 const SESSION_RETENTION_MS = 14 * 24 * 60 * 60 * 1000;
+const DOC_KINDS = ['arbeitsblatt', 'klassenarbeit', 'text'];
 const MAX_REQ_PER_MIN = 60;
 const MAX_OPS_PER_SESSION = 200;
 
@@ -831,18 +832,33 @@ export class AiBridgeService {
           if (!scopeSets.allowedTopics.has(mod.topicId)) {
             throw new ForbiddenException(`operations[${i}]: Dokument „${mod.title}“ liegt außerhalb des freigegebenen Bereichs.`);
           }
-          item.spec = resolveQuizRefs(await this.restoreImages(item.spec, mod.topicId, i, `update_document „${mod.title}“`));
-          const errors = docSpec().validateDocSpec(item.spec);
-          if (errors.length) {
-            throw new BadRequestException(`operations[${i}] (update_document „${mod.title}“): Ungültige DocSpec – ${errors.join(' · ')}`);
+          if (item.kind !== undefined && !DOC_KINDS.includes(item.kind)) {
+            throw new BadRequestException(`operations[${i}] (update_document „${mod.title}“): kind: ${DOC_KINDS.join(' | ')}.`);
+          }
+          // Ohne spec bleibt der Inhalt, wie er ist (z. B. nur die Dokument-Art umstellen).
+          if (item.spec === undefined && item.kind === undefined && !item.title) {
+            throw new BadRequestException(`operations[${i}] (update_document „${mod.title}“): spec, kind oder title fehlt.`);
+          }
+          if (item.spec !== undefined) {
+            item.spec = resolveQuizRefs(await this.restoreImages(item.spec, mod.topicId, i, `update_document „${mod.title}“`));
+            const errors = docSpec().validateDocSpec(item.spec);
+            if (errors.length) {
+              throw new BadRequestException(`operations[${i}] (update_document „${mod.title}“): Ungültige DocSpec – ${errors.join(' · ')}`);
+            }
           }
           const nextTitle = item.title ? String(item.title).trim().slice(0, 200) : mod.title;
-          const summary = `Dokument „${nextTitle}“ aktualisiert`;
+          const summary = item.spec === undefined && item.kind && !item.title
+            ? `Dokument „${nextTitle}“: Art ${item.kind}`
+            : `Dokument „${nextTitle}“ aktualisiert`;
           if (!dryRun) {
             const oldTitle = mod.title;
             const oldContent = typeof mod.content === 'string' ? JSON.parse(mod.content) : structuredClone(mod.content);
             await this.saveDocumentVersionSnapshot(mod.id, oldTitle, oldContent);
-            const nextContent = withBlockIds({ ...(oldContent || { kind: 'arbeitsblatt' }), spec: item.spec });
+            const nextContent = withBlockIds({
+              ...(oldContent || { kind: 'arbeitsblatt' }),
+              ...(item.spec !== undefined ? { spec: item.spec } : {}),
+              ...(item.kind ? { kind: item.kind } : {}),
+            });
             await this.topics.addModule(mod.topicId, user, {
               id: mod.id,
               type: 'document',
@@ -1083,7 +1099,7 @@ export class AiBridgeService {
       },
       {
         op: 'update_document',
-        description: 'Aktualisiert die DocSpec (und optional den Titel) eines bestehenden Dokument-Moduls. Vorab wird automatisch eine Sicherung für 1-Klick-Undo angelegt.',
+        description: 'Aktualisiert die DocSpec (und optional Titel und Dokument-Art kind: arbeitsblatt | klassenarbeit | text) eines bestehenden Dokument-Moduls. Ohne spec bleibt der Inhalt. Nummeriert werden nur Arbeitsblätter. Vorab wird automatisch eine Sicherung für 1-Klick-Undo angelegt.',
         example: { op: 'update_document', moduleId: '<module-id>', title: 'Überarbeiteter Titel', spec: { content: [] } },
       },
       {

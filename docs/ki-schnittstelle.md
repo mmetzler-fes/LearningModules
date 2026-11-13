@@ -39,3 +39,6 @@ dem Format nur dieses Typs; die KI darf nur dieses Quiz ändern.
 `set_doc_settings` (`id`, `kurs`, `titelmuster`, `numbering`: flat | tree | off | inherit) setzt Kurs,
 Kopfzeile und 🔢 Nummerierung eines Ordners; die übrigen Dokument-Einstellungen bleiben, ⏪ stellt
 den alten Stand wieder her.
+
+`update_document` mit `kind` (arbeitsblatt | klassenarbeit | text) und ohne `spec` stellt nur die
+Dokument-Art um – nummeriert werden nur Arbeitsblätter.

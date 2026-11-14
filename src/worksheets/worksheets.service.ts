@@ -469,10 +469,11 @@ export class WorksheetsService {
       if (svg) {
         const name = `bilder/quiz-${++n}.svg`;
         files[name] = Buffer.from(svg, 'utf-8').toString('base64');
-        blocks.push({ type: 'image', file: name, width: '3.5cm', float: 'left' });
+        blocks.push({ type: 'image', file: name, width: '3.5cm', float: 'left', link: url });
       }
-      // Als Code: Die Adresse bleibt, wie sie ist (kein `_` als Tiefstellung).
-      blocks.push({ type: 'text', text: 'QR-Code scannen oder die Adresse öffnen:' }, { type: 'code', code: url });
+      // Adresse und QR-Code als Verweis: im PDF antippbar (GoodNotes, PDF-Betrachter).
+      // Als Code im Verweis: Die Adresse bleibt, wie sie ist (kein `_` als Tiefstellung).
+      blocks.push({ type: 'text', text: 'QR-Code scannen, antippen oder die Adresse öffnen:' }, { type: 'text', text: `[\`${url}\`](${url})` });
       return { type: 'box', title: `Quiz: ${title}`, blocks };
     };
 

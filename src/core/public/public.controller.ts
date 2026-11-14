@@ -128,14 +128,31 @@ export class PublicController {
     if (!modules.some((m) => m.id === moduleId)) throw new NotFoundException('Dokument nicht gefunden.');
     const mod = await this.moduleRepo.findOne({ where: { id: moduleId }, select: ['id', 'topicId', 'type'] });
     if (!mod || mod.type !== 'document') throw new NotFoundException('Dokument nicht gefunden.');
-    const topicId = mod.topicId;
+    await this.sendHeft(modules, mod.topicId, req, res, 'attachment');
+  }
+
+  /**
+   * GET /public/goodnotes/:linkToken/:topicId – dasselbe Heft als feste Adresse
+   * (mit QR-Code im Dialog „📓 Für GoodNotes“ der Lehrkraft): Auf dem iPad öffnet
+   * Safari das PDF, von dort „In GoodNotes öffnen“. Nur ohne Passwort am Link.
+   */
+  @Get('goodnotes/:linkToken/:topicId')
+  async goodnotesByLink(@Param('linkToken') linkToken: string, @Param('topicId') topicId: string, @Req() req: any, @Res() res: Response) {
+    const { link, access } = await this.findAccessByToken(String(linkToken));
+    if (link.accessPassword) throw new ForbiddenException('Dieser Link hat ein Passwort – das Heft gibt es dann am Dokument („📓 Heft für GoodNotes“).');
+    const modules = (await this.linksService.resolveModules(link, { exam: modesFor(link, access).includes('exam') })).flatMap((r) => r.modules);
+    await this.sendHeft(modules, String(topicId), req, res, 'inline');
+  }
+
+  /** Heft eines Lernthemas mit den Dokumenten, die der Link zeigt. */
+  private async sendHeft(modules: LearningModule[], topicId: string, req: any, res: Response, disposition: 'attachment' | 'inline') {
     const allowed = new Set(modules.filter((m) => m.topicId === topicId && m.type === 'document').map((m) => m.id));
     if (!allowed.size) throw new NotFoundException('In diesem Lernthema gibt es keine Dokumente.');
     const topic = await this.topicRepo.findOne({ where: { id: topicId }, select: ['id', 'ownerId'] });
     if (!topic || !(await this.features.has(topic.ownerId, 'worksheets'))) throw new ForbiddenException('Für dieses Lernthema gibt es kein Heft.');
     const h = await this.goodnotes.heft(topic.ownerId, topicId, { allowed, base: baseUrl(req) });
     res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(h.name)}`);
+    res.setHeader('Content-Disposition', `${disposition}; filename*=UTF-8''${encodeURIComponent(h.name)}`);
     res.send(h.file);
   }
 

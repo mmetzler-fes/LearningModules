@@ -61,7 +61,7 @@ from odf.style import (
     TableRowProperties,
     TextProperties,
 )
-from odf.draw import CustomShape, EnhancedGeometry, Frame, G, Image, Object, Rect, TextBox
+from odf.draw import A as DrawA, CustomShape, EnhancedGeometry, Frame, G, Image, Object, Rect, TextBox
 from odf.table import CoveredTableCell, Table, TableCell, TableColumn, TableRow
 from odf.text import A, H, LineBreak, List, ListItem, ListLevelStyleBullet, ListLevelStyleNumber, ListStyle, P, S, Span
 
@@ -1002,6 +1002,12 @@ def image_frame(doc, block: dict[str, Any], search: list[Path], index: int, midd
         **extra,
     )
     frame.addElement(Image(href=href))
+    # link: Bild als Verweis (QR-Code eines Quiz) – im PDF antippbar, etwa in GoodNotes.
+    link = str(block.get("link") or "")
+    if re.match(r"(https?://|mailto:)\S+$", link):
+        a = DrawA(href=link, type="simple")
+        a.addElement(frame)
+        return a
     return frame
 
 

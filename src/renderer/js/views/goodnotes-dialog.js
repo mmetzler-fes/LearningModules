@@ -23,11 +23,13 @@ export function openGoodnotesDialog(app, topic) {
       <button type="button" class="btn btn-secondary" data-act="teacher">⬇ Lösungsheft</button>
       <button type="button" class="btn btn-primary" data-act="nextcloud" title="Beide Hefte nach GoodNotes/ in deiner Nextcloud – ältere Stände desselben Lernthemas werden ersetzt">☁️ In die Nextcloud (GoodNotes/)</button>
     </div>
+    <div class="gn-link"><p class="hint">Adresse für die Schüler wird geladen …</p></div>
     <p class="gn-status hint" aria-live="polite"></p>
     <div class="confirm-actions"><button type="button" class="btn btn-secondary gn-close">Schließen</button></div>
   </div>`;
   document.body.appendChild(overlay);
   const status = overlay.querySelector('.gn-status');
+  showStudentLink(app, topic, overlay.querySelector('.gn-link'));
   const close = () => overlay.remove();
   overlay.querySelector('.gn-close').addEventListener('click', close);
   overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
@@ -62,5 +64,27 @@ export function openGoodnotesDialog(app, topic) {
     } catch (err) {
       busy(false, `❌ ${err.message}`);
     }
+  });
+}
+
+/**
+ * Feste Adresse des Schülerhefts mit QR-Code: am Beamer zeigen oder weitergeben.
+ * Auf dem iPad öffnet Safari das PDF – von dort „In GoodNotes öffnen“.
+ */
+async function showStudentLink(app, topic, box) {
+  const res = await app.api.goodnotesLink(topic.id).catch(() => null);
+  if (failed(res)) { box.innerHTML = ''; return; }
+  if (!res.url) {
+    box.innerHTML = '<p class="hint">Für eine feste Adresse mit QR-Code braucht das Lernthema einen Quick-Link (🔗 am Lernthema).</p>';
+    return;
+  }
+  // Das SVG kommt vom eigenen Server (qrcode-Bibliothek), nicht aus Nutzereingaben.
+  box.innerHTML = `<div class="gn-qr">${res.qr || ''}</div>
+    <div class="gn-link-text"><strong>Schülerheft direkt</strong> (ohne Lösungen)
+      <div class="gn-url"><a href="${escapeHtml(res.url)}" target="_blank" rel="noopener">${escapeHtml(res.url)}</a></div>
+      <button type="button" class="btn btn-secondary btn-sm gn-copy">📋 Adresse kopieren</button>
+      <p class="hint">QR-Code scannen → PDF öffnet sich → Teilen → <em>In GoodNotes öffnen</em>.</p></div>`;
+  box.querySelector('.gn-copy').addEventListener('click', async (e) => {
+    try { await navigator.clipboard.writeText(res.url); e.target.textContent = '✅ Kopiert'; } catch (_) { e.target.textContent = '❌ Kopieren ging nicht'; }
   });
 }

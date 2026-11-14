@@ -13,11 +13,12 @@ import { DocNumberingService } from './doc-numbering.service';
 import { TemplatesService } from './templates.service';
 import { WorksheetsService } from './worksheets.service';
 import { settingsAt } from './numbering';
+import { renderQr } from '../core/share/link-url';
 
 /** Ordner in der Nextcloud der Lehrkraft. */
 export const GOODNOTES_FOLDER = 'GoodNotes';
 /** Steigt, wenn sich der Aufbau des Hefts ändert – dann wird neu gerendert. */
-const LAYOUT = 'gn1';
+const LAYOUT = 'gn2'; // gn2: Quiz-Adresse und QR-Code als Verweis
 const CACHE_DAYS = 60;
 
 export interface Heft {
@@ -144,6 +145,21 @@ export class GoodnotesService {
       }
     }
     return { student, teacher, nextcloud, nextcloudError };
+  }
+
+  /**
+   * Feste Adresse des Schülerhefts (ohne Lösungen) mit QR-Code: zum Zeigen am
+   * Beamer oder Weitergeben. Läuft über den Quick-Link des Lernthemas – ohne ihn
+   * gibt es keine Adresse (url: null).
+   */
+  async studentLink(ownerId: string, topicId: string, base: string) {
+    const topic = await this.topicRepo.findOne({ where: { id: topicId }, select: ['id', 'ownerId'] });
+    if (!topic) throw new NotFoundException('Lernthema nicht gefunden.');
+    if (topic.ownerId !== ownerId) throw new ForbiddenException('Das Lernthema gehört dir nicht.');
+    const token = await this.worksheets.quickTokenFor(ownerId, topicId);
+    if (!token) return { url: null, qr: null };
+    const url = `${base}/api/public/goodnotes/${encodeURIComponent(token)}/${encodeURIComponent(topicId)}`;
+    return { url, qr: await renderQr(url) };
   }
 
   private async toNextcloud(ownerId: string, topicId: string, hefte: Heft[]) {

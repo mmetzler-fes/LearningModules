@@ -36,6 +36,7 @@ describe('GoodnotesService', () => {
         expect(opts.quizzes).toBe('print');
         return { file: Buffer.from(`%PDF ${output} ${list.map((m: any) => m.id).join(',')}`), warnings: [] };
       }),
+      quickTokenFor: jest.fn(async () => 'qt_1'),
     };
     const numbering: any = { numberingFor: async () => ({ docs: new Map(), refs: new Map() }) };
     const topicRepo: any = { findOne: async () => topic };
@@ -81,5 +82,13 @@ describe('GoodnotesService', () => {
 
   it('fremdes Lernthema wird abgelehnt', async () => {
     await expect(svc.heft('u2', 't1')).rejects.toThrow('gehört dir nicht');
+  });
+
+  it('feste Adresse des Schülerhefts über den Quick-Link, sonst keine', async () => {
+    const l = await svc.studentLink('u1', 't1', 'https://lm.test');
+    expect(l.url).toBe('https://lm.test/api/public/goodnotes/qt_1/t1');
+    await expect(svc.studentLink('u2', 't1', 'https://lm.test')).rejects.toThrow('gehört dir nicht');
+    ((svc as any).worksheets.quickTokenFor as jest.Mock).mockResolvedValueOnce(null);
+    expect(await svc.studentLink('u1', 't1', 'https://lm.test')).toEqual({ url: null, qr: null });
   });
 });

@@ -143,6 +143,12 @@ export class WorksheetsController {
   }
 
   /** Beide Hefte erzeugen (falls nötig) und in die Nextcloud legen: GoodNotes/<Lernthema> (Stand …).pdf */
+  /** Feste Adresse des Schülerhefts samt QR-Code – über den Quick-Link des Lernthemas. */
+  @Get('goodnotes/:topicId/link')
+  goodnotesLink(@Request() req: any, @Param('topicId') topicId: string) {
+    return this.goodnotes.studentLink(req.user.userId, topicId, baseUrl(req));
+  }
+
   @Post('goodnotes/:topicId/nextcloud')
   @HttpCode(200)
   async goodnotesNextcloud(@Request() req: any, @Param('topicId') topicId: string) {

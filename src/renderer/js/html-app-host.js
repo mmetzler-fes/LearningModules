@@ -100,7 +100,8 @@ export async function mountHtmlApp({ el, moduleId, content, options, title }) {
   const wrap = document.createElement('div');
   wrap.style.cssText = 'display:flex; flex-direction:column; gap:6px;';
   const bar = document.createElement('div');
-  bar.style.cssText = 'display:flex; align-items:center; justify-content:space-between; gap:12px;';
+  // Umbrechen statt über das Blatt hinausragen (schmale Spalte, Stift-Editor).
+  bar.style.cssText = 'display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:6px 12px; min-width:0;';
   const hint = document.createElement('small');
   hint.className = 'hint';
   hint.textContent = HINTS[open.mode] || '';
@@ -108,6 +109,42 @@ export async function mountHtmlApp({ el, moduleId, content, options, title }) {
   big.type = 'button';
   big.className = 'btn btn-secondary btn-sm';
   big.textContent = '⛶ Groß';
+
+  // „Überprüfen“ ohne Durchlauf (App im Dokument, Vorschau): Im Durchlauf drückt der Prüfen-Knopf
+  // des Quiz – hier gäbe es sonst nie eine Rückmeldung. Nicht in Klassenarbeiten.
+  const exam = !!(options.quizMode && (options.examMode || options.examRun));
+  const checkBtn = document.createElement('button');
+  checkBtn.type = 'button';
+  checkBtn.className = 'btn btn-primary btn-sm';
+  checkBtn.textContent = '✓ Überprüfen';
+  const verdict = document.createElement('span');
+  verdict.className = 'lm-app-verdict';
+  verdict.setAttribute('aria-live', 'polite');
+  let lastAnswer = null;
+  let checked = false;
+  const showVerdict = () => {
+    if (!checked) { verdict.textContent = ''; return; }
+    const ok = lastAnswer?.isCorrect;
+    // points: 0 bis 1 (Teilpunkte, docs/html-apps.md)
+    const p = Number(lastAnswer?.points);
+    const pts = ok === false && lastAnswer?.points != null && Number.isFinite(p) && p > 0 ? ` (${Math.round(p * 100)} %)` : '';
+    verdict.textContent = ok === true ? `✅ Richtig${pts}` : ok === false ? `❌ Noch nicht richtig${pts}` : '';
+  };
+  const showCheck = () => {
+    checkBtn.hidden = exam || (!!step && step.kind !== 'task');
+    checked = false;
+    lastAnswer = null;
+    showVerdict();
+  };
+  let checkPending = false;
+  checkBtn.addEventListener('click', async () => {
+    checkPending = true;
+    await wrap._lmApp?.flush();
+    wrap._lmApp?.check();
+    checked = true;
+    // Die App meldet ihren Stand beim Prüfen oft noch einmal – kurz abwarten.
+    setTimeout(() => { checkPending = false; showVerdict(); }, 300);
+  });
 
   // Zoom in der App (Strg + Mausrad, zwei Finger – lm-bridge.js): Anzeige und zurück auf 100 %.
   const zoomBtn = document.createElement('button');
@@ -125,6 +162,7 @@ export async function mountHtmlApp({ el, moduleId, content, options, title }) {
     frame.contentWindow?.postMessage({ lm: 2, type: 'lm.zoom', data: { scale: 1 } }, open.appOrigin);
   });
   showZoom();
+  showCheck();
 
   const frame = document.createElement('iframe');
   frame.title = title || 'HTML-App';
@@ -171,12 +209,15 @@ export async function mountHtmlApp({ el, moduleId, content, options, title }) {
     pick.addEventListener('change', () => {
       step = steps.find((s) => s.id === pick.value);
       syncArrows();
+      showCheck();
       frame.src = open.shellUrl;
     });
     syncArrows();
     const nav = document.createElement('span');
     nav.style.cssText = 'display:inline-flex; align-items:center; gap:4px; min-width:0;';
     pick.style.minWidth = '0';
+    pick.style.maxWidth = '100%';
+    nav.style.maxWidth = '100%';
     nav.append(prev, pick, next);
     bar.append(nav);
   }
@@ -197,7 +238,7 @@ export async function mountHtmlApp({ el, moduleId, content, options, title }) {
     titleSlot.append(hint, zoomBtn, big);
   } else {
     bar.prepend(hint);
-    bar.append(zoomBtn, big);
+    bar.append(checkBtn, verdict, zoomBtn, big);
   }
 
   frame.src = open.shellUrl;
@@ -305,6 +346,9 @@ export async function mountHtmlApp({ el, moduleId, content, options, title }) {
         break;
       case 'lm.answer':
         if (content && step?.kind === 'task') content.answer = cleanAnswer(m.data);
+        lastAnswer = m.data || null;
+        // Geändert nach dem Prüfen: Die Rückmeldung gilt nicht mehr – erneut überprüfen.
+        if (checked && !checkPending) { checked = false; showVerdict(); }
         break;
       case 'lm.flushed':
         flushDone?.();

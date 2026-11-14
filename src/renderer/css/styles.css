@@ -6519,6 +6519,7 @@ details.cb-topic > summary .hint { font-weight: normal; margin-left: 6px; }
 .nb-numbering-list { margin: 6px 0 0 18px; padding: 0; max-height: 220px; overflow: auto; }
 .nb-numbering-list strong { display: inline-block; min-width: 2.5em; }
 .gn-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0 4px; }
+.lm-app-verdict { font-weight: 600; white-space: nowrap; }
 .gn-link { display: flex; gap: 12px; align-items: flex-start; margin: 12px 0 4px; padding: 10px; border: 1px solid var(--border); border-radius: var(--radius-md); }
 .gn-link:empty { display: none; }
 .gn-qr svg { width: 120px; height: 120px; display: block; background: #fff; }

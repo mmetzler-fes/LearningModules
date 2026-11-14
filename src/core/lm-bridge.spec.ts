@@ -12,7 +12,8 @@ function load(hosted: boolean) {
   win.window = win;
   const body = { innerText: 'Inhalt', appendChild() {} };
   const document = {
-    readyState: 'complete', body,
+    readyState: 'complete', body, documentElement: { style: {}, clientWidth: 800, scrollWidth: 800 },
+    addEventListener() {},
     querySelector: () => ({ textContent: JSON.stringify({ units: [{ id: 'u', steps: [{ id: 's1', title: 'S', kind: 'task' }] }] }) }),
     createElement: () => ({ style: {}, append() {}, addEventListener() {} }),
   };

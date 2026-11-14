@@ -6538,3 +6538,16 @@ body.lm-app-big .ink-scroll { overflow: hidden; }
 .gn-qr svg { width: 120px; height: 120px; display: block; background: #fff; }
 .gn-link-text { min-width: 0; display: flex; flex-direction: column; gap: 6px; }
 .gn-url { overflow-wrap: anywhere; font-family: monospace; font-size: 0.85rem; }
+
+/* 🔗 Kurzlinks (views/short-link-dialog.js) */
+.sl-label { display: flex; flex-direction: column; gap: 4px; margin: 8px 0; font-weight: 500; }
+.sl-label textarea, .sl-label input { width: 100%; box-sizing: border-box; font: inherit; font-weight: normal; }
+.sl-label textarea { font-family: monospace; font-size: 0.8rem; word-break: break-all; resize: vertical; }
+.sl-buttons { display: flex; flex-wrap: wrap; gap: 6px; }
+.sl-mine { margin-top: 12px; }
+.sl-mine summary { cursor: pointer; font-weight: 500; }
+.sl-list { max-height: 40vh; overflow-y: auto; margin-top: 6px; }
+.sl-row { display: flex; gap: 8px; align-items: flex-start; justify-content: space-between; padding: 6px 0; border-top: 1px solid var(--border); }
+.sl-row-text { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.sl-target { overflow-wrap: anywhere; font-size: 0.8rem; }
+.sl-row-actions { display: flex; gap: 4px; flex: 0 0 auto; }

@@ -969,12 +969,32 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
     frame: { type: 'group', width: '12cm', ratio: 0.25, items: [{ text: 'Text', size: 11, x: 0, y: 0, w: 50, h: 30 }] },
   };
   /**
+   * 🔗 Kurzlink (views/short-link-dialog.js über window.appShortLinks): lange
+   * Adresse → /k/<code>, eingefügt als Link, auf Wunsch mit QR-Code darüber.
+   * `put(blocks)` setzt die Bausteine – in der alten oder der Tiptap-Fläche.
+   */
+  const shortLinkAllowed = () => typeof window.appShortLinks?.open === 'function';
+  const askShortLink = (put) => window.appShortLinks.open({
+    onInsert: async ({ short, title, qrPng }) => {
+      // Eckige Klammern beendeten den Linktext – als runde.
+      const label = (title || short.replace(/^https?:\/\//, '')).replace(/\[/g, '(').replace(/\]/g, ')');
+      const blocks = [];
+      if (qrPng) {
+        const src = window.appImages ? await window.appImages.store(qrPng, 'kurzlink-qr.png') : qrPng;
+        if (src) blocks.push({ type: 'image', src, width: '3cm', alt: `QR-Code: ${short}` });
+      }
+      blocks.push({ type: 'text', text: `[${label}](${short})` });
+      put(blocks);
+    },
+  });
+  /**
    * Baustein `what` hinter `after` (Block der Schreibmarke, als das Menü aufging) einfügen.
    * `overrides`: Startwerte statt der Vorgabe aus STARTERS – von den Slash-Commands (s. u.), die
    * Getipptes direkt ins Objekt übernehmen, statt nur die Vorgabe einzufügen.
    */
   const insertWhat = async (what, after, overrides = null) => {
     if (what === 'quiz') { insertQuiz(after); return; }
+    if (what === 'shortlink') { askShortLink((blocks) => placeHtml(specToEditorHtml({ content: blocks }), after)); return; }
     if (what === 'text') {
       // Leerer Absatz – z. B. hinter einer Tabelle oder einem Baustein, wo sonst keine Schreibmarke hinkommt.
       const [p] = placeHtml('<p><br></p>', after);
@@ -1025,6 +1045,7 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
       ['solution', '💡 Lösung'], ['formula', '∑ Formel'], ['code', '⌨ Code'], ['table', '▤ Tabelle…'],
       ['box', '▢ Kasten'], ['columns', '▥ Spalten (nebeneinander)'], ['spacer', '◌ Platz (unsichtbar)'], ['pagebreak', '⤓ Seitenumbruch'],
       ['image', '🖼 Bild…'], ['compose', '🧩 Bilder zusammenstellen…'], ['frame', '▭ Zeichenrahmen (Bilder und Textfenster, fest)'],
+      ...(shortLinkAllowed() ? [['shortlink', '🔗 Kurzlink (lange Adresse, mit QR-Code)…']] : []),
     ];
     return [...quizEntries, ...entries.map(([what, label]) => ({
       label,
@@ -1869,6 +1890,7 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
         put([{ type: 'image', src, width: '16.5cm' }]);
       } }] : []),
       { label: '▭ Zeichenrahmen (Bilder und Textfenster, fest)', onClick: () => putAndEdit(STARTERS.frame) },
+      ...(shortLinkAllowed() ? [{ label: '🔗 Kurzlink (lange Adresse, mit QR-Code)…', onClick: () => askShortLink(put) }] : []),
     ];
   };
   /** Bilddatei wählen: über dieselbe Ablage wie der alte Editor, sonst als data:-Adresse. */

@@ -66,6 +66,8 @@ import { FeaturesModule } from './features/features.module';
 import { DocMirror } from './core/entities/doc-mirror.entity';
 import { WorksheetTemplate } from './core/entities/worksheet-template.entity';
 import { WorksheetsModule } from './worksheets/worksheets.module';
+import { ShortLinksModule } from './short-links/short-links.module';
+import { ShortLink } from './core/entities/short-link.entity';
 import { DocumentWork } from './core/entities/document-work.entity';
 import { ExamAttempt } from './core/entities/exam-attempt.entity';
 import { DocumentVersion } from './core/entities/document-version.entity';
@@ -125,7 +127,7 @@ function noStaleUi(res: any, path: string) {
       // statt „database is locked“.
       enableWAL: true,
       busyTimeout: 5000,
-      entities: [HtmlAppFile, HtmlAppState, User, StudentClass, ClassStudent, LearningTopic, LearningModule, Result, School, SystemConfig, Tag, TopicLink, TopicQuickLink, TeacherGroup, ShopOffer, UseGrant, PointsEntry, ModuleTiming, ClassShare, NotebookNode, NotebookPlacement, ModuleDraft, UsageCount, ContentFeedback, Category, FederationPeer, RemoteOffer, RemotePerson, FederationCopy, ContentHandover, AccountLink, LinkCode, GithubBackup, NextcloudLink, SchoolNextcloud, DocMirror, WorksheetTemplate, DocumentWork, ExamAttempt, DocumentVersion, RunProgress, DrawingSource, ClassNotebook, ClassNotebookNode, ClassNotebookPlace, AuthSession, DocumentInk, ClassbookProgress, PlanNode, PlanEntry, AiBridgeSessionRow, ClassBoard, ClassSolution],
+      entities: [HtmlAppFile, HtmlAppState, User, StudentClass, ClassStudent, LearningTopic, LearningModule, Result, School, SystemConfig, Tag, TopicLink, TopicQuickLink, TeacherGroup, ShopOffer, UseGrant, PointsEntry, ModuleTiming, ClassShare, NotebookNode, NotebookPlacement, ModuleDraft, UsageCount, ContentFeedback, Category, FederationPeer, RemoteOffer, RemotePerson, FederationCopy, ContentHandover, AccountLink, LinkCode, GithubBackup, NextcloudLink, SchoolNextcloud, DocMirror, WorksheetTemplate, DocumentWork, ExamAttempt, DocumentVersion, RunProgress, DrawingSource, ClassNotebook, ClassNotebookNode, ClassNotebookPlace, AuthSession, DocumentInk, ClassbookProgress, PlanNode, PlanEntry, AiBridgeSessionRow, ClassBoard, ClassSolution, ShortLink],
       synchronize: true,
     }),
     MailModule,
@@ -164,6 +166,7 @@ function noStaleUi(res: any, path: string) {
     SicherungModule,
     DrawingsModule,
     AiBridgeModule,
+    ShortLinksModule,
   ],
   controllers: [AppController],
   providers: [AppService],

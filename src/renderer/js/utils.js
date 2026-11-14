@@ -251,6 +251,25 @@ export function copyClassbookOneNote({ className, url, code, qrSvg }) {
  * Gibt zurück, ob es geklappt hat; ältere Browser können keine Bilder in die
  * Zwischenablage legen.
  */
+/** QR-Code (SVG) als PNG-data:-Adresse – zum Einfügen als Bild ins Arbeitsblatt. */
+export async function qrSvgToPngDataUrl(svg, size = 600) {
+  if (!svg) return null;
+  try {
+    const xml = new XMLSerializer().serializeToString(svg);
+    const img = new Image();
+    img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(xml);
+    await img.decode();
+    const canvas = Object.assign(document.createElement('canvas'), { width: size, height: size });
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, size, size);
+    ctx.drawImage(img, 0, 0, size, size);
+    return canvas.toDataURL('image/png');
+  } catch (_) {
+    return null;
+  }
+}
+
 export async function copyQrSvgAsPng(svg, size = 600) {
   if (!svg) return false;
   try {

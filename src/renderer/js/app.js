@@ -30,6 +30,7 @@ import { FederationAdminView } from './views/federation-admin.js';
 import { HtmlAppsAdminView } from './views/html-apps-admin.js';
 import { openDrawingForImage } from './views/drawings-dialog.js';
 import { nextcloudState, uploadImageToNextcloud, uploadAttachmentToNextcloud, pickNextcloudImage } from './views/nextcloud.js';
+import { openShortLinkDialog } from './views/short-link-dialog.js';
 import { storeImage } from './views/image-store.js';
 import { initFolding } from './fold.js';
 import { contentFromPairs, pairsFromContent } from './dnd-pairs.js';
@@ -876,4 +877,6 @@ window.appDrawings = {
 window.appImages = {
   store: (input, name) => storeImage(app, input, name),
 };
+// Kurzlinks (views/short-link-dialog.js) für das ➕ im Dokument-Editor: open({ onInsert })
+window.appShortLinks = { open: (opts) => openShortLinkDialog(app.api, opts) };
 app.init();

@@ -5,6 +5,7 @@ import { openHandoverDialog, renderIncomingHandovers } from './handover.js';
 import { openAccountLinksDialog } from './account-links.js';
 import { openGithubBackupDialog } from './github-backup.js';
 import { openNextcloudDialog } from './nextcloud.js';
+import { openShortLinkDialog } from './short-link-dialog.js';
 
 // ==================== LERNTHEMEN: DIALOGE UND ☰ MENÜ ====================
 //
@@ -25,6 +26,7 @@ export class TopicsView {
     document.getElementById('btnAccountLinks')?.addEventListener('click', () => openAccountLinksDialog(this.app));
     document.getElementById('btnGithubBackup')?.addEventListener('click', () => openGithubBackupDialog(this.app));
     document.getElementById('btnNextcloud')?.addEventListener('click', () => openNextcloudDialog(this.app));
+    document.getElementById('btnShortLinks')?.addEventListener('click', () => openShortLinkDialog(this.app.api));
   }
 
   /** Was zur Titelzeile gehört: Zahlen, 🎁 eingehende Übergaben, 💾 GitHub-Backup. */

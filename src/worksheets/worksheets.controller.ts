@@ -10,6 +10,8 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { WORKSHEET_OUTPUTS, WorksheetOutput } from './renderer.client';
 import type { PdfImportMode } from './worksheets.service';
 import { PdfImportJobs } from './pdf-import-jobs.service';
+import { GoodnotesService } from './goodnotes.service';
+import { baseUrl } from '../core/share/link-url';
 
 const MAX_PDF_BYTES = 40 * 1024 * 1024;
 
@@ -31,6 +33,7 @@ export class WorksheetsController {
     private readonly templates: TemplatesService,
     private readonly features: FeaturesService,
     private readonly pdfJobs: PdfImportJobs,
+    private readonly goodnotes: GoodnotesService,
   ) {}
 
   // ---- Vorlagen (eigene und der Schule) ----
@@ -123,6 +126,29 @@ export class WorksheetsController {
     res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(`Skript ${fileName(title)}${type.suffix}.${type.ext}`)}`);
     res.setHeader('X-Worksheet-Warnings', encodeURIComponent(JSON.stringify(warnings)));
     res.send(file);
+  }
+
+  /**
+   * GoodNotes-Heft eines Lernthemas als PDF (?solution=1: Lösungsheft).
+   * Unveränderte Inhalte kommen aus dem Zwischenspeicher (X-Goodnotes-Cached).
+   */
+  @Get('goodnotes/:topicId')
+  async goodnotesPdf(@Request() req: any, @Param('topicId') topicId: string, @Res() res: Response, @Query('solution') solution?: string) {
+    const h = await this.goodnotes.heft(req.user.userId, topicId, { solution: solution === '1', base: baseUrl(req) });
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(h.name)}`);
+    res.setHeader('X-Goodnotes-Cached', h.cached ? '1' : '0');
+    res.setHeader('X-Worksheet-Warnings', encodeURIComponent(JSON.stringify(h.warnings)));
+    res.send(h.file);
+  }
+
+  /** Beide Hefte erzeugen (falls nötig) und in die Nextcloud legen: GoodNotes/<Lernthema> (Stand …).pdf */
+  @Post('goodnotes/:topicId/nextcloud')
+  @HttpCode(200)
+  async goodnotesNextcloud(@Request() req: any, @Param('topicId') topicId: string) {
+    const r = await this.goodnotes.forTeacher(req.user.userId, topicId, baseUrl(req));
+    const info = (h: { name: string; stand: string; cached: boolean; warnings: string[] }) => ({ name: h.name, stand: h.stand, cached: h.cached, warnings: h.warnings });
+    return { student: info(r.student), teacher: info(r.teacher), nextcloud: r.nextcloud, nextcloudError: r.nextcloudError };
   }
 
   /** Für den KI-Prompt: Kurs, KI-Vorgaben und vorhandene Blätter eines Zielordners (?nodeId=). */

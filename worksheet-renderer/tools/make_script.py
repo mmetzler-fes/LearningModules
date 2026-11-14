@@ -245,7 +245,8 @@ def render_sheets(doc, spec: dict[str, Any], course: dict[str, Any], course_dir:
             "pagebreak_style": ensure_pagebreak_style(doc, present),
             "present": present,
             "level_shift": 1,
-            "skip": SKIP_BLOCKS,
+            # Heft (GoodNotes): Schreibfelder, Platz und Umbrüche bleiben – zum Ausfüllen.
+            "skip": () if spec.get("heft") else SKIP_BLOCKS,
         }
         elements.extend(render_blocks(sheet.get("content"), styles, ctx))
     return elements

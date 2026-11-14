@@ -77,6 +77,27 @@ export const lmHost = {
           }
         },
       });
+      // Ganzes Lernthema als ein Heft (Inhaltsverzeichnis, Karo-Seiten) – zum Teilen an GoodNotes.
+      actions.push({
+        label: '📓 Heft für GoodNotes',
+        className: 'ds-pdf-btn',
+        title: 'Alle Dokumente dieses Lernthemas als ein PDF mit Inhaltsverzeichnis und Karo-Seiten – öffnen und an GoodNotes teilen',
+        async onClick() {
+          const win = window.open('', '_blank');
+          try {
+            const res = await fetch(`/api/public/document/${encodeURIComponent(moduleId)}/goodnotes`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ linkToken: up.linkToken || undefined, quickToken: up.quickToken || undefined, password: up.password || undefined, studentTicket: up.studentTicket || undefined }),
+            });
+            if (!res.ok) throw new Error((await res.json().catch(() => ({}))).message || `HTTP ${res.status}`);
+            win.location.href = URL.createObjectURL(await res.blob());
+          } catch (err) {
+            win?.close();
+            throw err;
+          }
+        },
+      });
     }
     return actions;
   },

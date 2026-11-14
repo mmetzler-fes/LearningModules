@@ -19,6 +19,8 @@ import { CompanionService } from '../../companion/companion.service';
 import { ClassesService } from '../../classes/classes.service';
 import { issueTicket, readTicket } from '../../classes/student-ticket';
 import { WorksheetsService } from '../../worksheets/worksheets.service';
+import { GoodnotesService } from '../../worksheets/goodnotes.service';
+import { baseUrl } from '../share/link-url';
 import { FeaturesService } from '../../features/features.service';
 import { isTestStudent, isTestName } from '../../classes/test-student';
 import { TimingsService } from '../../timings/timings.service';
@@ -51,6 +53,7 @@ export class PublicController {
     private readonly timingsService: TimingsService,
     private readonly usageService: UsageService,
     private readonly worksheets: WorksheetsService,
+    private readonly goodnotes: GoodnotesService,
     private readonly features: FeaturesService,
     private readonly exams: ExamService,
     private readonly htmlApps: HtmlAppsService,
@@ -93,6 +96,47 @@ export class PublicController {
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `inline; filename*=UTF-8''${encodeURIComponent(`${mod.title || 'Dokument'}.pdf`)}`);
     res.send(file);
+  }
+
+  /**
+   * POST /public/document/:moduleId/goodnotes – GoodNotes-Heft des Lernthemas,
+   * zu dem das Dokument gehört (alle Dokumente daraus, die der Link zeigt,
+   * ohne Lösungen). Zugang wie beim Dokument-PDF. Unverändert = aus dem
+   * Zwischenspeicher, kein neues Rendern.
+   */
+  @Post('document/:moduleId/goodnotes')
+  @HttpCode(200)
+  async topicGoodnotes(
+    @Param('moduleId') moduleId: string,
+    @Body() body: { linkToken?: string; quickToken?: string; password?: string; studentTicket?: string },
+    @Req() req: any,
+    @Res() res: Response,
+  ) {
+    let modules: LearningModule[] = [];
+    if (body?.linkToken) {
+      const { link, access } = await this.findAccessByToken(String(body.linkToken));
+      if (link.accessPassword && (body.password || '') !== link.accessPassword && !readTicket(body.studentTicket, link.id)) {
+        throw new ForbiddenException('Falsches Passwort.');
+      }
+      modules = (await this.linksService.resolveModules(link, { exam: modesFor(link, access).includes('exam') })).flatMap((r) => r.modules);
+    } else if (body?.quickToken) {
+      const { topic } = await this.resolveQuickToken(String(body.quickToken));
+      modules = (topic.modules || []).filter((m) => m.moduleSelected !== false);
+    } else {
+      throw new BadRequestException('Link fehlt.');
+    }
+    if (!modules.some((m) => m.id === moduleId)) throw new NotFoundException('Dokument nicht gefunden.');
+    const mod = await this.moduleRepo.findOne({ where: { id: moduleId }, select: ['id', 'topicId', 'type'] });
+    if (!mod || mod.type !== 'document') throw new NotFoundException('Dokument nicht gefunden.');
+    const topicId = mod.topicId;
+    const allowed = new Set(modules.filter((m) => m.topicId === topicId && m.type === 'document').map((m) => m.id));
+    if (!allowed.size) throw new NotFoundException('In diesem Lernthema gibt es keine Dokumente.');
+    const topic = await this.topicRepo.findOne({ where: { id: topicId }, select: ['id', 'ownerId'] });
+    if (!topic || !(await this.features.has(topic.ownerId, 'worksheets'))) throw new ForbiddenException('Für dieses Lernthema gibt es kein Heft.');
+    const h = await this.goodnotes.heft(topic.ownerId, topicId, { allowed, base: baseUrl(req) });
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(h.name)}`);
+    res.send(h.file);
   }
 
   /**

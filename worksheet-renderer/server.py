@@ -282,6 +282,8 @@ def render_script(job: dict[str, Any], slot: int) -> tuple[dict[str, str], list[
         sk = {"titel": str(skript.get("titel") or "Skript"), "slug": "skript", "blaetter": folders}
         if skript.get("kopfzeile"):
             sk["kopfzeile"] = str(skript["kopfzeile"])
+        if skript.get("heft"):
+            sk["heft"] = True
         (root / "skripte" / "skript.yaml").write_text(yaml.safe_dump(sk, allow_unicode=True), encoding="utf-8")
 
         args = [sys.executable, str(SCRIPT_TOOL), "skripte/skript.yaml", "-o", "out"]

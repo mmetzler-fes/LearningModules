@@ -273,36 +273,58 @@ export class WorksheetsService {
     const sorted = order;
     if (!sorted.length) throw new BadRequestException('Unter diesem Ordner liegen keine Arbeitsblätter.');
     const mods = await this.moduleRepo!.find({ where: { id: In(sorted) } });
-    const sheets: Array<{ titel: string; spec: Record<string, any> }> = [];
-    const files: Record<string, string> = {};
-    const warnings: string[] = [];
-    for (const [i, id] of sorted.entries()) {
-      const mod = mods.find((m) => m.id === id);
-      const info = n.docs.get(id)!;
-      if (!mod?.content?.spec || docSpec().validateDocSpec(mod.content.spec).length) { warnings.push(`„${mod?.title || id}“ enthält Fehler und fehlt im Skript.`); continue; }
-      const ctx: DocContext = { pfad: info.pfad, slug: info.slug, course: info.course, folder: info.folder, refs: n.refs.get(info.scope) || {},
-        topicId: mod.topicId, ownerId: user.userId };
-      const { job, warnings: w } = await this.prepare(mod.content.spec, mod.title, [], ctx, { quizzes });
-      const folder = String(i + 1).padStart(2, '0');
-      for (const [name, data] of Object.entries(job.files || {})) files[`${folder}/${name}`] = data;
-      const { meta: _m, ...spec } = job.spec;
-      sheets.push({ titel: mod.title, spec });
-      warnings.push(...w);
-    }
     const settings = settingsAt(nodes, nodeId);
     const skript = node.docSettings?.skript || {};
     const tpl = this.templates ? await this.templates.resolve(user.userId, nodeId, 'skript', nodes) : null;
-    const result = await this.renderer.renderScript({
-      sheets,
+    const { file, warnings } = await this.renderSheets(user, sorted.map((id) => mods.find((m) => m.id === id) || ({ id } as LearningModule)), output, {
+      quizzes, numbering: n, template: tpl?.data ?? null,
       course: { kurs: settings.kurs || '', autor: settings.autor || '', ...(settings.meta ? { meta: settings.meta } : {}) },
       skript: { titel: skript.titel || node.title, kopfzeile: skript.kopfzeile || [settings.kurs, node.title].filter(Boolean).join(' – ') },
-      ...(tpl ? { template: tpl.data } : {}),
-      files,
-      outputs: [output],
+    });
+    return { file, title: skript.titel || node.title, warnings };
+  }
+
+  /**
+   * Mehrere Dokumente → ein Skript (Titelseite, verlinktes Inhaltsverzeichnis,
+   * PDF-Lesezeichen). `karoPage`: nach jedem Blatt eine Seite Karo (GoodNotes-Heft).
+   * Dokumente ohne Eintrag in der Nummerierung bekommen einen schlichten Kontext.
+   */
+  async renderSheets(user: any, list: LearningModule[], output: WorksheetOutput, opts: {
+    quizzes?: QuizPrintMode; numbering?: Awaited<ReturnType<DocNumberingService['numberingFor']>>; template?: string | null;
+    course: Record<string, any>; skript: { titel: string; kopfzeile?: string }; karoPage?: boolean; base?: string;
+  }) {
+    const n = opts.numbering || await this.numbering!.numberingFor(user.userId);
+    const sheets: Array<{ titel: string; spec: Record<string, any> }> = [];
+    const files: Record<string, string> = {};
+    const warnings: string[] = [];
+    for (const [i, mod] of list.entries()) {
+      const id = mod.id;
+      const info = n.docs.get(id);
+      if (!mod?.content?.spec || docSpec().validateDocSpec(mod.content.spec).length) { warnings.push(`„${mod?.title || id}“ enthält Fehler und fehlt im Skript.`); continue; }
+      const ctx: DocContext = info
+        ? { pfad: info.pfad, slug: info.slug, course: info.course, folder: info.folder, refs: n.refs.get(info.scope) || {}, topicId: mod.topicId, ownerId: user.userId }
+        : { pfad: '', slug: '', course: { kurs: '', titelmuster: '{titel}', autor: '', meta: {} }, folder: '', refs: null, topicId: mod.topicId, ownerId: user.userId };
+      if (opts.base) ctx.base = opts.base;
+      const base = mod.content.spec as Record<string, any>;
+      // Karo-Seite: Umbruch, dann ein Schreibfeld fast über die ganze Seite (44 × 0,5 cm).
+      const spec = opts.karoPage ? { ...base, content: [...(base.content || []), { type: 'pagebreak' }, { type: 'karo', lines: 44 }] } : base;
+      const { job, warnings: w } = await this.prepare(spec, mod.title, [], ctx, { quizzes: opts.quizzes });
+      const folder = String(i + 1).padStart(2, '0');
+      for (const [name, data] of Object.entries(job.files || {})) files[`${folder}/${name}`] = data;
+      const { meta: _m, ...jobSpec } = job.spec;
+      sheets.push({ titel: mod.title, spec: jobSpec });
+      warnings.push(...w);
+    }
+    if (!sheets.length) throw new BadRequestException('Keines der Dokumente ließ sich drucken.');
+    const result = await this.renderer.renderScript({
+      // heft: Der Renderer behält Schreibfelder, Platz und Umbrüche (sonst lässt das Skript sie weg).
+      sheets, course: opts.course, skript: opts.karoPage ? { ...opts.skript, heft: true } : opts.skript,
+      ...(opts.template ? { template: opts.template } : {}),
+      files, outputs: [output],
     });
     const file = result.files[output];
     if (!file) throw new BadRequestException('Der Renderer hat die Datei nicht geliefert.');
-    return { file, title: skript.titel || node.title, warnings: [...warnings, ...result.warnings] };
+    return { file, warnings: [...warnings, ...result.warnings] };
   }
 
   /** Mehrere Formate in einem Auftrag (Nextcloud-Abbild). */

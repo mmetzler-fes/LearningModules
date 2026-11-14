@@ -6518,3 +6518,4 @@ details.cb-topic > summary .hint { font-weight: normal; margin-left: 6px; }
 .nb-numbering .nb-check { display: block; margin: 6px 0; }
 .nb-numbering-list { margin: 6px 0 0 18px; padding: 0; max-height: 220px; overflow: auto; }
 .nb-numbering-list strong { display: inline-block; min-width: 2.5em; }
+.gn-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0 4px; }

@@ -800,6 +800,11 @@ export class BrowserApi {
   // ---------- Admin: HTML-Apps (docs/html-apps.md) ----------
   // Sicherung in die Nextcloud (src/sicherung): draußen geänderte .zlm
   getSicherungChanged() { return this._fetch('/api/nextcloud/sicherung/changed'); }
+  // GoodNotes-Heft je Lernthema (src/worksheets/goodnotes.service.ts)
+  downloadGoodnotes(topicId, solution = false) {
+    return this._download(`/api/worksheets/goodnotes/${encodeURIComponent(topicId)}${solution ? '?solution=1' : ''}`, 'Heft.pdf');
+  }
+  goodnotesToNextcloud(topicId) { return this._fetch(`/api/worksheets/goodnotes/${encodeURIComponent(topicId)}/nextcloud`, { method: 'POST' }); }
   compareSicherung(key) { return this._fetch(`/api/nextcloud/sicherung/compare?key=${encodeURIComponent(key)}`); }
   takeOverSicherung(key) { return this._fetch('/api/nextcloud/sicherung/take-over', { method: 'POST', body: JSON.stringify({ key }) }); }
   getSicherungTree() { return this._fetch('/api/nextcloud/sicherung/tree'); }

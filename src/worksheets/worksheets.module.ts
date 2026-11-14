@@ -25,6 +25,7 @@ import { InterchangeModule } from '../core/interchange/interchange.module';
 import { DrawingsModule } from '../drawings/drawings.module';
 import { PdfImportJobs } from './pdf-import-jobs.service';
 import { SystemConfig } from '../core/entities/system-config.entity';
+import { GoodnotesService } from './goodnotes.service';
 
 @Module({
   imports: [
@@ -35,7 +36,7 @@ import { SystemConfig } from '../core/entities/system-config.entity';
     DrawingsModule,
   ],
   controllers: [WorksheetsController, DocMigrationController],
-  providers: [WorksheetsService, PdfImportJobs, WorksheetRendererClient, PdfAiClient, DocNumberingService, CourseService, DocMirrorService, TemplatesService, DocMigrationService, QuizScaleService],
-  exports: [WorksheetsService, DocNumberingService, CourseService, DocMirrorService, TemplatesService],
+  providers: [WorksheetsService, PdfImportJobs, WorksheetRendererClient, PdfAiClient, DocNumberingService, CourseService, DocMirrorService, TemplatesService, DocMigrationService, QuizScaleService, GoodnotesService],
+  exports: [WorksheetsService, GoodnotesService, DocNumberingService, CourseService, DocMirrorService, TemplatesService],
 })
 export class WorksheetsModule {}

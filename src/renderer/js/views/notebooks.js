@@ -8,6 +8,7 @@ import { openOneNoteImport } from './onenote-import.js';
 import { askConvertOptions, convertAttachment } from './attachment-convert.js';
 import { NotebookPreview } from './notebook-preview.js';
 import { openSicherungCompare } from './sicherung-compare.js';
+import { openGoodnotesDialog } from './goodnotes-dialog.js';
 import { nestEmbedded } from '../../lm-editor/src/doc/doc-quiz.js';
 import { quizUsage, usageText, isDocLike, reachedViaDocs } from '../quiz-usage.js';
 
@@ -1417,6 +1418,9 @@ export class NotebooksView {
       { label: '🧩 Module auswählen und anbieten…', run: () => this._offerSelection({ topicId: topic.id }) },
       { label: '⬇️ Download', title: 'JSON, Moodle-XML, H5P oder verschlüsselt', run: () => this.app.topicsView.openExportDialog(topic) },
       { label: '🟪 Für OneNote ausgeben…', title: 'Als OneNote-Abschnitt (.one): je Dokument eine Seite mit Link, QR-Code und Ausdruck (anonymer Quick-Link)', run: () => this._oneNoteExport({ topicId: topic.id }) },
+      ...((topic.modules || []).some((m) => m.type === 'document') && this._docsEnabled() ? [
+        { label: '📓 Für GoodNotes (PDF)…', title: 'Ein Heft je Lernthema: Titelseite, Inhaltsverzeichnis, Lesezeichen, Karo-Seiten, Quizze zum Ausfüllen – für Schüler ohne, für dich mit Lösungen', run: () => openGoodnotesDialog(this.app, topic) },
+      ] : []),
       '-',
       { label: '➕ Neues Modul', run: () => this.app.modulesView.openFrom('teacher-notebooks', topic.id, null) },
       { label: '📥 Module importieren', title: 'Datei oder eingefügter Text (z. B. KI-Antwort) als Module in dieses Thema', run: () => this._import(null, topic) },

@@ -111,11 +111,31 @@ export async function mountHtmlApp({ el, moduleId, content, options, title }) {
   hint.title = hintText;
   hint.setAttribute('aria-label', hintText);
   hint.hidden = !hintText;
-  const hintShown = document.createElement('small');
-  hintShown.className = 'hint lm-app-info-text';
-  hintShown.hidden = true;
-  hintShown.textContent = hintText;
-  hint.addEventListener('click', () => { hintShown.hidden = !hintShown.hidden; });
+  // Sprechblase über allem (am body – in der wischbaren Leiste würde sie abgeschnitten): Sie verschiebt
+  // nichts und geht nach ein paar Sekunden, beim erneuten Antippen oder beim Tippen daneben wieder weg.
+  let bubble = null;
+  let bubbleTimer = 0;
+  const hideBubble = () => {
+    clearTimeout(bubbleTimer);
+    bubble?.remove();
+    bubble = null;
+    document.removeEventListener('pointerdown', outside, true);
+  };
+  const outside = (e) => { if (e.target !== hint) hideBubble(); };
+  hint.addEventListener('click', () => {
+    if (bubble) { hideBubble(); return; }
+    bubble = document.createElement('div');
+    bubble.className = 'lm-app-bubble';
+    bubble.setAttribute('role', 'tooltip');
+    bubble.textContent = hintText;
+    document.body.appendChild(bubble);
+    const r = hint.getBoundingClientRect();
+    const w = bubble.offsetWidth;
+    bubble.style.left = `${Math.max(8, Math.min(window.innerWidth - w - 8, r.left))}px`;
+    bubble.style.top = `${r.bottom + 6}px`;
+    bubbleTimer = setTimeout(hideBubble, 4000);
+    document.addEventListener('pointerdown', outside, true);
+  });
   const big = document.createElement('button');
   big.type = 'button';
   big.className = 'btn btn-secondary btn-sm';
@@ -252,12 +272,12 @@ export async function mountHtmlApp({ el, moduleId, content, options, title }) {
   if (inRun) {
     titleSlot.className = 'quiz-info-actions lm-app-title-actions';
     hint.classList.add('lm-app-title-hint');
-    titleSlot.append(hint, hintShown, fitBtn, zoomBtn, big);
+    titleSlot.append(hint, fitBtn, zoomBtn, big);
   } else {
     const gap = document.createElement('span');
     gap.className = 'lm-app-gap';
     bar.prepend(hint);
-    bar.append(hintShown, checkBtn, verdict, gap, fitBtn, zoomBtn, big);
+    bar.append(checkBtn, verdict, gap, fitBtn, zoomBtn, big);
   }
 
   frame.src = open.shellUrl;

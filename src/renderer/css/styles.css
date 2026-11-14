@@ -6527,7 +6527,7 @@ details.cb-topic > summary .hint { font-weight: normal; margin-left: 6px; }
 .lm-app-bar > .lm-app-nav { flex: 0 1 auto; min-width: 10em; display: inline-flex; align-items: center; gap: 4px; }
 .lm-app-nav select { min-width: 0; flex: 1 1 auto; max-width: 28em; }
 .lm-app-gap { flex: 1 1 auto !important; }
-.lm-app-info-text { white-space: nowrap; }
+.lm-app-bubble { position: fixed; z-index: 10100; max-width: min(320px, calc(100vw - 16px)); padding: 6px 10px; border-radius: 8px; background: #1e293b; color: #fff; font-size: 0.85rem; line-height: 1.35; box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25); pointer-events: none; }
 /* „⛶ Groß“: eigene Ebene über allem, auch über dem Stift-Editor. */
 .lm-app-layer { position: fixed; inset: 0; z-index: 10050; display: flex; flex-direction: column; padding: 8px; box-sizing: border-box; background: var(--bg-primary, #fff); color: var(--text-primary, #111); }
 .lm-app-big-wrap { flex: 1 1 auto; min-height: 0; }

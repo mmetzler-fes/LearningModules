@@ -337,7 +337,23 @@ export async function mountHtmlApp({ el, moduleId, content, options, title }) {
       if (document.activeElement === frame || document.activeElement?.tagName === 'IFRAME') document.activeElement.blur();
       window.scrollTo(0, 0);
       window.dispatchEvent(new CustomEvent('lm-app-restored'));
+      // Weiter mit dem, was nach der App kommt: Das Blatt so scrollen, dass die Zeile danach oben
+      // im Bild steht (nur die eigene Scrollfläche – scrollIntoView schöbe auf dem iPad die Seite mit).
+      requestAnimationFrame(() => requestAnimationFrame(() => showAfterApp()));
     }
+  }
+  function showAfterApp() {
+    if (!wrap.isConnected) return;
+    const end = wrap.closest('.ds-quiz') || wrap;
+    let sc = end.parentElement;
+    while (sc && sc !== document.body) {
+      const o = getComputedStyle(sc).overflowY;
+      if ((o === 'auto' || o === 'scroll') && sc.scrollHeight > sc.clientHeight) break;
+      sc = sc.parentElement;
+    }
+    if (!sc || sc === document.body) return;
+    const top = sc.getBoundingClientRect().top;
+    sc.scrollTop += end.getBoundingClientRect().bottom - top - Math.min(80, sc.clientHeight * 0.15);
   }
   // Esc schließt die große Ansicht (nicht im Durchlauf: Dort bleibt die Weiter-Zeile sichtbar).
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && large && !inRun && layer) { e.preventDefault(); setLarge(false); } });

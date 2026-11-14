@@ -128,11 +128,40 @@ export async function mountHtmlApp({ el, moduleId, content, options, title }) {
       opt.selected = s.id === step?.id;
       pick.appendChild(opt);
     }
+    // ◀ / ▶ blättern durch die Schritte, ohne die Auswahlbox aufzuklappen.
+    const arrow = (label, delta, tip) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'btn btn-secondary btn-sm';
+      b.textContent = label;
+      b.title = tip;
+      b.setAttribute('aria-label', tip);
+      b.addEventListener('click', () => {
+        const i = pick.selectedIndex + delta;
+        if (i < 0 || i >= steps.length) return;
+        pick.selectedIndex = i;
+        pick.dispatchEvent(new Event('change'));
+      });
+      return b;
+    };
+    const prev = arrow('◀', -1, 'Vorheriger Schritt');
+    const next = arrow('▶', 1, 'Nächster Schritt');
+    const syncArrows = () => {
+      prev.disabled = pick.selectedIndex <= 0;
+      next.disabled = pick.selectedIndex >= steps.length - 1;
+      prev.hidden = next.hidden = steps.length < 2;
+    };
     pick.addEventListener('change', () => {
       step = steps.find((s) => s.id === pick.value);
+      syncArrows();
       frame.src = open.shellUrl;
     });
-    bar.append(pick);
+    syncArrows();
+    const nav = document.createElement('span');
+    nav.style.cssText = 'display:inline-flex; align-items:center; gap:4px; min-width:0;';
+    pick.style.minWidth = '0';
+    nav.append(prev, pick, next);
+    bar.append(nav);
   }
 
   // Im Durchlauf stehen Groß/Verkleinern und der Hinweis in der Titelleiste des Quiz, sonst über der App.

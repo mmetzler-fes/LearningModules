@@ -4159,6 +4159,15 @@ body.html-app-large .quiz-actions { margin-top: 8px; padding-top: 8px; flex-shri
 .ds-widget-label { position: absolute; top: -0.7em; right: 8px; font-size: 0.7em; background: var(--bg-secondary); padding: 0 4px; color: var(--text-secondary); }
 /* Gewählter Baustein: Rahmen und Leiste (verschieben, verdoppeln, bearbeiten, löschen). */
 .ds-widget.ds-widget-selected { border: 2px solid var(--accent); padding: 3px 7px; }
+/* Seitenumbruch im Editor: dezente gestrichelte Linie, Beschriftung klein in der Mitte. */
+.ds-widget.ds-widget-pagebreak { border: 0; border-top: 1px dashed var(--text-secondary); border-radius: 0; background: none; padding: 0; margin: 1.1em 0; height: 0; }
+.ds-widget.ds-widget-pagebreak .ds-widget-label { left: 50%; right: auto; transform: translateX(-50%); top: -0.75em; font-size: 0.7rem; line-height: 1.5; white-space: nowrap; }
+.ds-widget.ds-widget-pagebreak.ds-widget-selected { border: 0; border-top: 2px dashed var(--accent); padding: 0; }
+.ds-widget.ds-widget-pagebreak.ds-widget-selected .ds-widget-label { color: var(--accent); }
+/* Seitennummer: zählt die eingefügten Umbrüche im Editor (automatische Umbrüche zeigt nur die Druckvorschau). */
+.ds-surface, .ds-pm-surface { counter-reset: lm-pagebreak 1; }
+.ds-widget.ds-widget-pagebreak { counter-increment: lm-pagebreak; }
+.ds-widget.ds-widget-pagebreak .ds-widget-label::after { content: " · Seite " counter(lm-pagebreak); }
 /* Schreibfeld am gewählten Baustein: Breite, Höhe bzw. beides ziehen. */
 .ds-widget .ds-karo { position: relative; }
 /* A4 quer (Vorlage): Felder in ganzer Breite wie auf dem Blatt der Vorschau */

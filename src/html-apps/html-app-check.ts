@@ -4,6 +4,9 @@ import { parse } from 'parse5';
 import * as crypto from 'crypto';
 import { AppManifest, readManifest } from './html-app-rules';
 import { BRIDGE_JS } from './html-app-bridge';
+import { LEGACY_BRIDGES } from './html-app-bridge-legacy';
+
+const KNOWN_BRIDGES = new Set([BRIDGE_JS, ...LEGACY_BRIDGES].map((b) => b.trim()));
 import { GUARD_JS } from './html-app-guard';
 
 /**
@@ -133,8 +136,9 @@ export function inspectApp(html: string): AppInspection {
         else if (JS_TYPES.has(type)) {
           const code = textOf(node);
           scripts.push(code);
-          // Die Bridge läuft ungeprüft; eine Kopie in der Datei (zum Alleinöffnen) muss ihr genau gleichen.
-          if (code.trim() !== BRIDGE_JS.trim()) checkScript(code, `Skript ${scripts.length}`, out);
+          // Die Bridge läuft ungeprüft; eine Kopie in der Datei (zum Alleinöffnen) muss ihr oder einer
+          // früheren Fassung genau gleichen (die eingefügte aktuelle läuft zuerst, die Kopie tut dann nichts).
+          if (!KNOWN_BRIDGES.has(code.trim())) checkScript(code, `Skript ${scripts.length}`, out);
         }
       }
     }

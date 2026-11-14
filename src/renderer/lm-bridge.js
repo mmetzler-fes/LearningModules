@@ -17,7 +17,27 @@
   function fire(name, arg) {
     handlers[name].forEach(function (fn) { fn(arg); });
   }
+  // Zoom der App: Strg + Mausrad (auch Zwei-Finger am Trackpad) oder zwei Finger (iPad).
+  // Die Seite drumherum sieht die Gesten im Rahmen nicht – deshalb hier. Der Wert geht an
+  // LearningModules und kommt beim nächsten Schritt in "init.zoom" zurück.
+  var zoom = 1;
+  function setZoom(z, report) {
+    zoom = Math.max(0.3, Math.min(3, Math.round(z * 100) / 100));
+    document.documentElement.style.zoom = zoom === 1 ? '' : String(zoom);
+    if (report) post('lm.zoom', { scale: zoom });
+  }
+  window.addEventListener('wheel', function (e) {
+    if (!e.ctrlKey) return;
+    e.preventDefault();
+    setZoom(zoom * Math.exp(-Math.max(-100, Math.min(100, e.deltaY)) / 600), true);
+  }, { passive: false });
+  var pinchFrom = 1;
+  document.addEventListener('gesturestart', function (e) { e.preventDefault(); pinchFrom = zoom; }, { passive: false });
+  document.addEventListener('gesturechange', function (e) { e.preventDefault(); setZoom(pinchFrom * e.scale, false); }, { passive: false });
+  document.addEventListener('gestureend', function (e) { e.preventDefault(); post('lm.zoom', { scale: zoom }); }, { passive: false });
+
   function run(init) {
+    if (init && init.zoom) setZoom(Number(init.zoom) || 1, false);
     if (starter) starter(init);
     post('lm.shown', { text: document.body ? (document.body.innerText || '').trim().length : 0 });
   }
@@ -59,6 +79,7 @@
     else if (m.type === 'lm.reveal') fire('reveal');
     else if (m.type === 'lm.check') fire('check');
     else if (m.type === 'lm.flush') { fire('flush'); post('lm.flushed', {}); }
+    else if (m.type === 'lm.zoom') setZoom(Number(m.data && m.data.scale) || 1, true);
     else if (m.type === 'lm.error') {
       fire('error', m.data);
       if (window.console) console.warn('LearningModules:', m.data && m.data.message);

@@ -109,6 +109,23 @@ export async function mountHtmlApp({ el, moduleId, content, options, title }) {
   big.className = 'btn btn-secondary btn-sm';
   big.textContent = '⛶ Groß';
 
+  // Zoom in der App (Strg + Mausrad, zwei Finger – lm-bridge.js): Anzeige und zurück auf 100 %.
+  const zoomBtn = document.createElement('button');
+  zoomBtn.type = 'button';
+  zoomBtn.className = 'btn btn-secondary btn-sm';
+  zoomBtn.title = 'Zoom der App zurücksetzen (zoomen: Strg + Mausrad oder zwei Finger)';
+  const showZoom = () => {
+    const z = session.zoom || 1;
+    zoomBtn.hidden = Math.abs(z - 1) < 0.01;
+    zoomBtn.textContent = `🔍 ${Math.round(z * 100)} % → 100 %`;
+  };
+  zoomBtn.addEventListener('click', () => {
+    session.zoom = 1;
+    showZoom();
+    frame.contentWindow?.postMessage({ lm: 2, type: 'lm.zoom', data: { scale: 1 } }, open.appOrigin);
+  });
+  showZoom();
+
   const frame = document.createElement('iframe');
   frame.title = title || 'HTML-App';
   frame.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-modals allow-downloads allow-forms');
@@ -177,10 +194,10 @@ export async function mountHtmlApp({ el, moduleId, content, options, title }) {
   if (inRun) {
     titleSlot.className = 'quiz-info-actions lm-app-title-actions';
     hint.classList.add('lm-app-title-hint');
-    titleSlot.append(hint, big);
+    titleSlot.append(hint, zoomBtn, big);
   } else {
     bar.prepend(hint);
-    bar.append(big);
+    bar.append(zoomBtn, big);
   }
 
   frame.src = open.shellUrl;
@@ -280,7 +297,11 @@ export async function mountHtmlApp({ el, moduleId, content, options, title }) {
     if (e.origin !== open.appOrigin || e.source !== frame.contentWindow || !m || m.lm !== 2) return;
     switch (m.type) {
       case 'lm.ready':
-        send('lm.init', { mode: open.mode, run: options.appRun || 'quiz', step, state: session.state, displayName: null });
+        send('lm.init', { mode: open.mode, run: options.appRun || 'quiz', step, state: session.state, displayName: null, zoom: session.zoom || 1 });
+        break;
+      case 'lm.zoom':
+        session.zoom = Math.max(0.3, Math.min(3, Number(m.data?.scale) || 1));
+        showZoom();
         break;
       case 'lm.answer':
         if (content && step?.kind === 'task') content.answer = cleanAnswer(m.data);

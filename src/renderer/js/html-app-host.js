@@ -174,12 +174,25 @@ export async function mountHtmlApp({ el, moduleId, content, options, title }) {
       if (on) document.getElementById('mainContent')?.scrollTo(0, 0);
       return;
     }
+    // In der obersten Ebene (Popover): Im Dokument-Editor liegt die App in Hüllen mit eigener
+    // Bezugsfläche (Zoom, Transform) – dort fiel „position:fixed“ auf eine Höhe von null zusammen
+    // und lag über dem Text. Die oberste Ebene hängt das iframe nicht um, es lädt also nicht neu.
+    const topLayer = typeof wrap.showPopover === 'function';
+    if (topLayer) {
+      if (on && !wrap.popover) wrap.popover = 'manual';
+      if (!on && wrap.matches?.(':popover-open')) wrap.hidePopover();
+    }
     wrap.style.cssText = on
-      ? 'position:fixed; inset:0; z-index:9999; display:flex; flex-direction:column; gap:6px; padding:8px; background:var(--bg-primary,#fff);'
+      ? 'position:fixed; inset:0; width:auto; height:auto; max-width:none; max-height:none; margin:0; border:0; overflow:hidden; z-index:9999; display:flex; flex-direction:column; gap:6px; padding:8px; box-sizing:border-box; background:var(--bg-primary,#fff); color:var(--text-primary,#111);'
       : 'display:flex; flex-direction:column; gap:6px;';
     frame.style.height = on ? 'auto' : '75vh';
     frame.style.flex = on ? '1' : '';
+    frame.style.minHeight = on ? '0' : '';
+    if (topLayer && on && !wrap.matches?.(':popover-open')) wrap.showPopover();
+    if (!on && wrap.popover) wrap.removeAttribute('popover');
   };
+  // Esc schließt die große Ansicht (nicht im Durchlauf: Dort bleibt die Weiter-Zeile sichtbar).
+  wrap.addEventListener('keydown', (e) => { if (e.key === 'Escape' && large && !inRun) { e.preventDefault(); setLarge(false); } });
   big.addEventListener('click', () => setLarge(!large));
   // Der nächste Schritt baut seinen Rahmen neu auf; „Groß“ bleibt.
   if (inRun && session.large) setLarge(true);

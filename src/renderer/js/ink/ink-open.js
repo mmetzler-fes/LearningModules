@@ -131,8 +131,10 @@ export async function openDocumentInk({ mode, mod, up = null, embedModule = null
     if (!res.ok) throw new Error((await res.json().catch(() => ({}))).message || `HTTP ${res.status}`);
     return res.arrayBuffer();
   };
-  // Ohne Gastgeber: Im Blatt gibt es keine Knöpfe (Stift, PDF) und keinen Weiter-Knopf.
-  const renderer = new H5pRenderer();
+  // Vom Gastgeber nur die HTML-Apps (eingebettete Quizze): Im Blatt gibt es keine Knöpfe (Stift, PDF)
+  // und keinen Weiter-Knopf. Ohne ihn stand dort „HTML-Apps laufen nur in LearningModules“.
+  const { lmHost } = await import('../lm-host.js');
+  const renderer = new H5pRenderer({ host: { htmlApp: (args) => lmHost.htmlApp(args) } });
   const paper = {
     landscape: content.spec?.orientation === 'landscape',
     mount(el, { solutions }) {

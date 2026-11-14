@@ -6423,6 +6423,21 @@ details.cb-topic > summary .hint { font-weight: normal; margin-left: 6px; }
 .nb-sich-list { list-style: none; padding: 0; margin: 8px 0; max-height: 55vh; overflow: auto; }
 .nb-sich-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 6px 0; border-bottom: 1px solid var(--border); }
 .nb-sich-actions { display: flex; gap: 6px; flex: none; }
+/* Sicherung: Vergleich der beiden Fassungen */
+.nb-cmp-card { max-width: min(1400px, 96vw); width: 96vw; max-height: 94vh; display: flex; flex-direction: column; }
+.nb-cmp-card > p { margin: 4px 0; }
+.nb-cmp-notes { margin: 4px 0 8px; padding-left: 1.2em; font-size: 0.9em; }
+.nb-cmp-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; min-height: 0; flex: 1 1 auto; }
+.nb-cmp-col { display: flex; flex-direction: column; min-width: 0; min-height: 0; border: 1px solid var(--border); border-radius: var(--radius-sm); }
+.nb-cmp-head { padding: 6px 10px; font-weight: 600; border-bottom: 1px solid var(--border); background: var(--bg-primary); display: flex; justify-content: space-between; gap: 8px; align-items: center; }
+.nb-cmp-body { overflow: auto; padding: 10px 14px; height: 62vh; background: #fff; color: #111; }
+.nb-cmp-doc .ds-b.nb-cmp-old, .nb-cmp-doc .ds-b.nb-cmp-new { border-radius: 4px; padding: 2px 6px; margin: 0 -6px; }
+.nb-cmp-old { background: #fde2e2; box-shadow: inset 3px 0 0 #dc2626; }
+.nb-cmp-new { background: #dcfce7; box-shadow: inset 3px 0 0 #16a34a; }
+.nb-cmp-swatch { font-weight: 400; font-size: 0.8em; padding: 1px 8px; border-radius: 4px; color: #111; }
+.nb-cmp-json { margin: 0; font-size: 0.8em; white-space: pre-wrap; word-break: break-word; }
+.nb-cmp-json span { display: inline-block; width: 100%; }
+@media (max-width: 800px) { .nb-cmp-grid { grid-template-columns: 1fr; } .nb-cmp-body { height: 40vh; } }
 .nc-restore-list { list-style: none; padding: 0; margin: 8px 0; max-height: 50vh; overflow: auto; border: 1px solid var(--border); border-radius: var(--radius-sm); }
 .nc-restore-row { display: block; width: 100%; text-align: left; border: none; background: none; padding: 4px 8px; font: inherit; color: var(--text-primary); cursor: pointer; }
 .nc-restore-row:hover { background: var(--bg-primary); }

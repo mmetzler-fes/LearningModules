@@ -800,6 +800,7 @@ export class BrowserApi {
   // ---------- Admin: HTML-Apps (docs/html-apps.md) ----------
   // Sicherung in die Nextcloud (src/sicherung): draußen geänderte .zlm
   getSicherungChanged() { return this._fetch('/api/nextcloud/sicherung/changed'); }
+  compareSicherung(key) { return this._fetch(`/api/nextcloud/sicherung/compare?key=${encodeURIComponent(key)}`); }
   takeOverSicherung(key) { return this._fetch('/api/nextcloud/sicherung/take-over', { method: 'POST', body: JSON.stringify({ key }) }); }
   getSicherungTree() { return this._fetch('/api/nextcloud/sicherung/tree'); }
   restoreSicherung(path) { return this._fetch('/api/nextcloud/sicherung/restore', { method: 'POST', body: JSON.stringify({ path }) }); }

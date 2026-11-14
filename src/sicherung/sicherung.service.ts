@@ -213,22 +213,66 @@ export class SicherungService implements OnModuleInit {
     return this.run(user.userId);
   }
 
+  /** Wartende Datei samt Inhalt aus der Nextcloud und dem Modul der App. */
+  private async loadChanged(userId: string, key: string) {
+    const { l, recs, rec } = await this.changedRecord(userId, key);
+    const { nc } = await this.nextcloud.connection(userId);
+    const file = await nc.get([SICHERUNG, ...rec.path]);
+    if (!file) throw new NotFoundException('Die Datei ist in der Nextcloud nicht mehr da.');
+    let z: ReturnType<typeof readZlmBuffer>;
+    try { z = readZlmBuffer(file.data); } catch (e: any) { throw new BadRequestException(e?.message || 'Die Datei ist keine gültige .zlm.'); }
+    const mod = rec.moduleId ? await this.moduleRepo.findOne({ where: { id: rec.moduleId } }) : null;
+    const topic = mod ? await this.topicRepo.findOne({ where: { id: mod.topicId }, relations: ['modules'] }) : null;
+    if (!mod || !topic || topic.ownerId !== userId || !ownModules(topic.modules || [], userId).some((m) => m.id === mod.id)) {
+      throw new NotFoundException('Das Modul gibt es in der App nicht mehr.');
+    }
+    return { l, recs, rec, nc, z, mod, topic };
+  }
+
+  /**
+   * Vergleich vor dem Entscheiden: Stand der App und Fassung aus der Nextcloud.
+   * Dokument: beide Specs (Bilder als data:); dazu die Quizze bzw. Untermodule,
+   * die sich unterscheiden oder neu sind; ob eine Beschriftung der Lehrkraft dabei ist.
+   */
+  async compare(user: any, key: string) {
+    const userId = user.userId;
+    const { rec, z, mod } = await this.loadChanged(userId, key);
+    const isDoc = DOC_TYPES.has(mod.type);
+    const fileModules = Object.values(z.modules).filter((m: any) => m && m.id && (isDoc || m.id !== mod.id));
+    const ids = fileModules.map((m: any) => String(m.id));
+    const found = ids.length ? await this.moduleRepo.find({ where: { id: In(ids) } }) : [];
+    const byId = new Map(found.map((m) => [m.id, m]));
+    const modules: { id: string; title: string; change: 'neu' | 'geändert' }[] = [];
+    for (const f of fileModules as any[]) {
+      const m = byId.get(String(f.id));
+      if (!m) { modules.push({ id: String(f.id), title: String(f.title || ''), change: 'neu' }); continue; }
+      if (JSON.stringify([m.title, m.content]) !== JSON.stringify([String(f.title ?? m.title), f.content ?? m.content])) {
+        modules.push({ id: m.id, title: String(f.title || m.title || ''), change: 'geändert' });
+      }
+    }
+    const main: any = !isDoc ? z.modules[z.manifest.module!] : null;
+    return {
+      key: rec.key,
+      kind: isDoc ? 'document' : 'module',
+      type: mod.type,
+      app: { title: mod.title, spec: isDoc ? (mod.content as any)?.spec || { content: [] } : null, module: isDoc ? null : { title: mod.title, description: mod.description || '', content: mod.content } },
+      cloud: {
+        title: String((isDoc ? z.manifest.title : main?.title) || mod.title),
+        spec: isDoc ? inlineMedia(z.spec, z.media) : null,
+        module: isDoc ? null : { title: String(main?.title || ''), description: main?.description || '', content: main?.content ?? null },
+      },
+      modules,
+      ink: !!inkStandOf(z.layers.teacher || null),
+    };
+  }
+
   /**
    * Übernehmen: Die geänderte .zlm wird zum Stand in der App. Vorher legt die
    * App ihren bisherigen Stand unter _Gesichert/<Datum>/ ab („… (App).zlm“).
    */
   async takeOver(user: any, key: string) {
     const userId = user.userId;
-    const { l, recs, rec } = await this.changedRecord(userId, key);
-    const { nc } = await this.nextcloud.connection(userId);
-    const file = await nc.get([SICHERUNG, ...rec.path]);
-    if (!file) throw new NotFoundException('Die Datei ist in der Nextcloud nicht mehr da.');
-    const z = readZlmBuffer(file.data);
-    const mod = rec.moduleId ? await this.moduleRepo.findOne({ where: { id: rec.moduleId } }) : null;
-    const topic = mod ? await this.topicRepo.findOne({ where: { id: mod.topicId }, relations: ['modules'] }) : null;
-    if (!mod || !topic || topic.ownerId !== userId || !ownModules(topic.modules || [], userId).some((m) => m.id === mod.id)) {
-      throw new NotFoundException('Das Modul gibt es in der App nicht mehr.');
-    }
+    const { l, recs, rec, nc, z, mod, topic } = await this.loadChanged(userId, key);
     // Bisherigen Stand der App sichern.
     const before = (await this.collect(userId)).find((w) => w.key === rec.key);
     if (before) {

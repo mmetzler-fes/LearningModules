@@ -7,6 +7,7 @@ import { openImportDialog } from './import-dialog.js';
 import { openOneNoteImport } from './onenote-import.js';
 import { askConvertOptions, convertAttachment } from './attachment-convert.js';
 import { NotebookPreview } from './notebook-preview.js';
+import { openSicherungCompare } from './sicherung-compare.js';
 import { nestEmbedded } from '../../lm-editor/src/doc/doc-quiz.js';
 import { quizUsage, usageText, isDocLike, reachedViaDocs } from '../quiz-usage.js';
 
@@ -212,12 +213,14 @@ export class NotebooksView {
         <div><strong>${escapeHtml(f.title || f.path.split('/').pop())}</strong>
           <div class="hint"><code>${escapeHtml(f.path)}</code>${f.changedAt ? ` · bemerkt ${new Date(f.changedAt).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' })}` : ''}</div></div>
         <span class="nb-sich-actions">
+          <button type="button" class="btn btn-secondary btn-sm" data-act="compare" title="Bisherigen Stand der App und die Datei aus der Nextcloud nebeneinander ansehen – Unterschiede sind markiert.">🔍 Vergleichen</button>
           <button type="button" class="btn btn-primary btn-sm" data-act="take" title="Die Datei aus der Nextcloud wird zum Stand in der App. Der bisherige Stand der App kommt nach _Gesichert.">⬇ Übernehmen</button>
           <button type="button" class="btn btn-secondary btn-sm" data-act="discard" title="Die Datei aus der Nextcloud kommt nach _Gesichert, die App schreibt ihre Fassung.">✖ Verwerfen</button>
         </span></li>`;
     overlay.innerHTML = `<div class="import-modules-card" style="max-width:760px">
       <h3>✏️ In der Nextcloud geändert</h3>
-      <p class="hint">Diese Dateien in <code>Sicherung</code> wurden außerhalb der App gespeichert. <strong>Übernehmen</strong> macht sie zum Stand
+      <p class="hint">Diese Dateien in <code>Sicherung</code> wurden außerhalb der App gespeichert. <strong>Vergleichen</strong> zeigt
+        den bisherigen Stand der App und die neue Fassung nebeneinander. <strong>Übernehmen</strong> macht sie zum Stand
         in der App (Dokument, eigene eingebettete Quizze, Beschriftung bzw. Quiz/HTML-App); der bisherige Stand der App liegt danach als
         „… (App).zlm“ unter <code>_Gesichert</code>. <strong>Verwerfen</strong> legt die Datei dorthin und schreibt wieder die Fassung der App.</p>
       <ul class="nb-sich-list">${files.map(row).join('')}</ul>
@@ -230,15 +233,21 @@ export class NotebooksView {
       if (!btn) { if (e.target === overlay) close(); return; }
       const li = btn.closest('[data-i]');
       const f = files[Number(li.dataset.i)];
-      if (btn.dataset.act === 'discard' && !(await this.app.appConfirm(`„${f.title}“ verwerfen?\n\nDie Datei aus der Nextcloud kommt nach _Gesichert, die App schreibt ihre Fassung.`))) return;
-      li.querySelectorAll('button').forEach((b) => { b.disabled = true; });
-      const res = btn.dataset.act === 'take' ? await this.app.api.takeOverSicherung(f.key) : await this.app.api.discardSicherung(f.key);
-      if (failed(res)) {
-        li.querySelectorAll('button').forEach((b) => { b.disabled = false; });
-        this.app.showToast(`„${f.title}“: ${res?.message || 'Das ging nicht.'}`, 'error');
-        return;
-      }
-      li.innerHTML = `<div>${btn.dataset.act === 'take' ? '✅ übernommen' : '✖ verworfen'}: <strong>${escapeHtml(f.title)}</strong>${res.quizzes ? ` <span class="hint">(${res.quizzes} Quiz${res.quizzes === 1 ? '' : 'ze'} aktualisiert)</span>` : ''}</div>`;
+      // Übernehmen/Verwerfen – aus der Liste und aus dem Vergleich; true, wenn erledigt.
+      const decide = async (act) => {
+        if (act === 'discard' && !(await this.app.appConfirm(`„${f.title}“ verwerfen?\n\nDie Datei aus der Nextcloud kommt nach _Gesichert, die App schreibt ihre Fassung.`))) return false;
+        li.querySelectorAll('button').forEach((b) => { b.disabled = true; });
+        const res = act === 'take' ? await this.app.api.takeOverSicherung(f.key) : await this.app.api.discardSicherung(f.key);
+        if (failed(res)) {
+          li.querySelectorAll('button').forEach((b) => { b.disabled = false; });
+          this.app.showToast(`„${f.title}“: ${res?.message || 'Das ging nicht.'}`, 'error');
+          return false;
+        }
+        li.innerHTML = `<div>${act === 'take' ? '✅ übernommen' : '✖ verworfen'}: <strong>${escapeHtml(f.title)}</strong>${res.quizzes ? ` <span class="hint">(${res.quizzes} Quiz${res.quizzes === 1 ? '' : 'ze'} aktualisiert)</span>` : ''}</div>`;
+        return true;
+      };
+      if (btn.dataset.act === 'compare') { void openSicherungCompare(this.app, f, { onDecide: decide }); return; }
+      await decide(btn.dataset.act);
     });
   }
 

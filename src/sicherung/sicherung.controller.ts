@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpCode, Post, Request, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Post, Query, Request, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { SicherungService } from './sicherung.service';
 
@@ -12,6 +12,12 @@ export class SicherungController {
   @Get('changed')
   changed(@Request() req: any) {
     return this.sicherung.changed(req.user);
+  }
+
+  /** `?key=` – beide Fassungen zum Vergleichen vor dem Entscheiden. */
+  @Get('compare')
+  compare(@Request() req: any, @Query('key') key?: string) {
+    return this.sicherung.compare(req.user, String(key || ''));
   }
 
   /** `{ key }` – die Datei aus der Nextcloud wird zum Stand in der App. */

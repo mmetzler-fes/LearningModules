@@ -183,8 +183,9 @@ export async function mountHtmlApp({ el, moduleId, content, options, title }) {
       if (!on && wrap.matches?.(':popover-open')) wrap.hidePopover();
     }
     wrap.style.cssText = on
-      ? 'position:fixed; inset:0; width:auto; height:auto; max-width:none; max-height:none; margin:0; border:0; overflow:hidden; z-index:9999; display:flex; flex-direction:column; gap:6px; padding:8px; box-sizing:border-box; background:var(--bg-primary,#fff); color:var(--text-primary,#111);'
+      ? 'position:fixed; left:0; top:0; max-width:none; max-height:none; margin:0; border:0; overflow:hidden; z-index:9999; display:flex; flex-direction:column; gap:6px; padding:8px; box-sizing:border-box; background:var(--bg-primary,#fff); color:var(--text-primary,#111);'
       : 'display:flex; flex-direction:column; gap:6px;';
+    if (on) fitScreen();
     frame.style.height = on ? 'auto' : '75vh';
     frame.style.flex = on ? '1' : '';
     frame.style.minHeight = on ? '0' : '';
@@ -193,6 +194,20 @@ export async function mountHtmlApp({ el, moduleId, content, options, title }) {
   };
   // Esc schließt die große Ansicht (nicht im Durchlauf: Dort bleibt die Weiter-Zeile sichtbar).
   wrap.addEventListener('keydown', (e) => { if (e.key === 'Escape' && large && !inRun) { e.preventDefault(); setLarge(false); } });
+  // Die App erbt den Zoom ihrer Hüllen (Blatt im Editor auf Breite gebracht, A−/A+ des Quiz). Ohne Ausgleich
+  // ragte die große Ansicht über den Bildschirm hinaus – samt Scrollleiste der App – oder wurde winzig.
+  // Groß gilt der gewählte „Zoom Inhalt“, sonst 100 %.
+  function fitScreen() {
+    wrap.style.zoom = '';
+    let z = 1;
+    for (let n = wrap.parentElement; n; n = n.parentElement) z *= Number(getComputedStyle(n).zoom) || 1;
+    const main = document.getElementById('mainContent');
+    const want = main?.contains(wrap) ? Number(getComputedStyle(main).zoom) || 1 : 1;
+    wrap.style.zoom = String(want / z);
+    wrap.style.width = `${window.innerWidth / want}px`;
+    wrap.style.height = `${window.innerHeight / want}px`;
+  }
+  window.addEventListener('resize', () => { if (large && !inRun) fitScreen(); });
   big.addEventListener('click', () => setLarge(!large));
   // Der nächste Schritt baut seinen Rahmen neu auf; „Groß“ bleibt.
   if (inRun && session.large) setLarge(true);

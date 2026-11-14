@@ -194,18 +194,13 @@ export async function mountHtmlApp({ el, moduleId, content, options, title }) {
   };
   // Esc schließt die große Ansicht (nicht im Durchlauf: Dort bleibt die Weiter-Zeile sichtbar).
   wrap.addEventListener('keydown', (e) => { if (e.key === 'Escape' && large && !inRun) { e.preventDefault(); setLarge(false); } });
-  // Die App erbt den Zoom ihrer Hüllen (Blatt im Editor auf Breite gebracht, A−/A+ des Quiz). Ohne Ausgleich
-  // ragte die große Ansicht über den Bildschirm hinaus – samt Scrollleiste der App – oder wurde winzig.
-  // Groß gilt der gewählte „Zoom Inhalt“, sonst 100 %.
+  // Die App erbt den Zoom ihrer Hüllen (Blatt im Editor, „Zoom Inhalt“, A−/A+) – der bleibt. Die Fläche
+  // wird aber auf den Bildschirm umgerechnet: Sonst ragte sie hinaus, samt Scrollleiste der App.
   function fitScreen() {
-    wrap.style.zoom = '';
     let z = 1;
-    for (let n = wrap.parentElement; n; n = n.parentElement) z *= Number(getComputedStyle(n).zoom) || 1;
-    const main = document.getElementById('mainContent');
-    const want = main?.contains(wrap) ? Number(getComputedStyle(main).zoom) || 1 : 1;
-    wrap.style.zoom = String(want / z);
-    wrap.style.width = `${window.innerWidth / want}px`;
-    wrap.style.height = `${window.innerHeight / want}px`;
+    for (let n = wrap; n; n = n.parentElement) z *= Number(getComputedStyle(n).zoom) || 1;
+    wrap.style.width = `${window.innerWidth / z}px`;
+    wrap.style.height = `${window.innerHeight / z}px`;
   }
   window.addEventListener('resize', () => { if (large && !inRun) fitScreen(); });
   big.addEventListener('click', () => setLarge(!large));

@@ -100,11 +100,22 @@ export async function mountHtmlApp({ el, moduleId, content, options, title }) {
   const wrap = document.createElement('div');
   wrap.style.cssText = 'display:flex; flex-direction:column; gap:6px;';
   const bar = document.createElement('div');
-  // Umbrechen statt über das Blatt hinausragen (schmale Spalte, Stift-Editor).
-  bar.style.cssText = 'display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:6px 12px; min-width:0;';
-  const hint = document.createElement('small');
-  hint.className = 'hint';
-  hint.textContent = HINTS[open.mode] || '';
+  // Eine Zeile: Ist sie zu lang (schmale Spalte, Stift-Editor), lässt sie sich seitlich wischen.
+  bar.className = 'lm-app-bar';
+  // Hinweis zur Speicherung nur als Symbol – Antippen zeigt den Text (Tooltip gibt es auf dem iPad nicht).
+  const hintText = HINTS[open.mode] || '';
+  const hint = document.createElement('button');
+  hint.type = 'button';
+  hint.className = 'btn btn-secondary btn-sm lm-app-info';
+  hint.textContent = 'ℹ️';
+  hint.title = hintText;
+  hint.setAttribute('aria-label', hintText);
+  hint.hidden = !hintText;
+  const hintShown = document.createElement('small');
+  hintShown.className = 'hint lm-app-info-text';
+  hintShown.hidden = true;
+  hintShown.textContent = hintText;
+  hint.addEventListener('click', () => { hintShown.hidden = !hintShown.hidden; });
   const big = document.createElement('button');
   big.type = 'button';
   big.className = 'btn btn-secondary btn-sm';
@@ -146,20 +157,29 @@ export async function mountHtmlApp({ el, moduleId, content, options, title }) {
     setTimeout(() => { checkPending = false; showVerdict(); }, 300);
   });
 
-  // Zoom in der App (Strg + Mausrad, zwei Finger – lm-bridge.js): Anzeige und zurück auf 100 %.
+  // Zoom in der App (Strg + Mausrad, zwei Finger – lm-bridge.js): ↔ passt die App an die Breite an
+  // (sie misst ihren Inhalt selbst), die Prozentanzeige setzt auf 100 % zurück.
+  const zoomTo = (data) => frame.contentWindow?.postMessage({ lm: 2, type: 'lm.zoom', data }, open.appOrigin);
+  const fitBtn = document.createElement('button');
+  fitBtn.type = 'button';
+  fitBtn.className = 'btn btn-secondary btn-sm';
+  fitBtn.textContent = '↔';
+  fitBtn.title = 'App an die Breite anpassen (zoomen: Strg + Mausrad oder zwei Finger)';
+  fitBtn.setAttribute('aria-label', fitBtn.title);
+  fitBtn.addEventListener('click', () => zoomTo({ fit: 'width' }));
   const zoomBtn = document.createElement('button');
   zoomBtn.type = 'button';
   zoomBtn.className = 'btn btn-secondary btn-sm';
-  zoomBtn.title = 'Zoom der App zurücksetzen (zoomen: Strg + Mausrad oder zwei Finger)';
+  zoomBtn.title = 'Zurück auf 100 %';
   const showZoom = () => {
     const z = session.zoom || 1;
     zoomBtn.hidden = Math.abs(z - 1) < 0.01;
-    zoomBtn.textContent = `🔍 ${Math.round(z * 100)} % → 100 %`;
+    zoomBtn.textContent = `${Math.round(z * 100)} %`;
   };
   zoomBtn.addEventListener('click', () => {
     session.zoom = 1;
     showZoom();
-    frame.contentWindow?.postMessage({ lm: 2, type: 'lm.zoom', data: { scale: 1 } }, open.appOrigin);
+    zoomTo({ scale: 1 });
   });
   showZoom();
   showCheck();
@@ -214,10 +234,7 @@ export async function mountHtmlApp({ el, moduleId, content, options, title }) {
     });
     syncArrows();
     const nav = document.createElement('span');
-    nav.style.cssText = 'display:inline-flex; align-items:center; gap:4px; min-width:0;';
-    pick.style.minWidth = '0';
-    pick.style.maxWidth = '100%';
-    nav.style.maxWidth = '100%';
+    nav.className = 'lm-app-nav';
     nav.append(prev, pick, next);
     bar.append(nav);
   }
@@ -235,10 +252,12 @@ export async function mountHtmlApp({ el, moduleId, content, options, title }) {
   if (inRun) {
     titleSlot.className = 'quiz-info-actions lm-app-title-actions';
     hint.classList.add('lm-app-title-hint');
-    titleSlot.append(hint, zoomBtn, big);
+    titleSlot.append(hint, hintShown, fitBtn, zoomBtn, big);
   } else {
+    const gap = document.createElement('span');
+    gap.className = 'lm-app-gap';
     bar.prepend(hint);
-    bar.append(checkBtn, verdict, zoomBtn, big);
+    bar.append(hintShown, checkBtn, verdict, gap, fitBtn, zoomBtn, big);
   }
 
   frame.src = open.shellUrl;
@@ -264,35 +283,37 @@ export async function mountHtmlApp({ el, moduleId, content, options, title }) {
       if (on) document.getElementById('mainContent')?.scrollTo(0, 0);
       return;
     }
-    // In der obersten Ebene (Popover): Im Dokument-Editor liegt die App in Hüllen mit eigener
-    // Bezugsfläche (Zoom, Transform) – dort fiel „position:fixed“ auf eine Höhe von null zusammen
-    // und lag über dem Text. Die oberste Ebene hängt das iframe nicht um, es lädt also nicht neu.
-    const topLayer = typeof wrap.showPopover === 'function';
-    if (topLayer) {
-      if (on && !wrap.popover) wrap.popover = 'manual';
-      if (!on && wrap.matches?.(':popover-open')) wrap.hidePopover();
-    }
-    wrap.style.cssText = on
-      ? 'position:fixed; left:0; top:0; max-width:none; max-height:none; margin:0; border:0; overflow:hidden; z-index:9999; display:flex; flex-direction:column; gap:6px; padding:8px; box-sizing:border-box; background:var(--bg-primary,#fff); color:var(--text-primary,#111);'
-      : 'display:flex; flex-direction:column; gap:6px;';
-    if (on) fitScreen();
-    frame.style.height = on ? 'auto' : '75vh';
-    frame.style.flex = on ? '1' : '';
-    frame.style.minHeight = on ? '0' : '';
-    if (topLayer && on && !wrap.matches?.(':popover-open')) wrap.showPopover();
-    if (!on && wrap.popover) wrap.removeAttribute('popover');
+    // Eigene Ebene direkt am body: Im Blatt (Stift-Editor, Dokument) liegt die App in Hüllen mit Zoom
+    // und eigener Bezugsfläche – dort lag „Groß“ verschoben, und das Blatt dahinter scrollte mit.
+    // Das Umhängen lädt die App neu; Stand und Zoom kommen wie beim Blättern zurück (lm.init).
+    void moveLarge(on);
   };
-  // Esc schließt die große Ansicht (nicht im Durchlauf: Dort bleibt die Weiter-Zeile sichtbar).
-  wrap.addEventListener('keydown', (e) => { if (e.key === 'Escape' && large && !inRun) { e.preventDefault(); setLarge(false); } });
-  // Die App erbt den Zoom ihrer Hüllen (Blatt im Editor, „Zoom Inhalt“, A−/A+) – der bleibt. Die Fläche
-  // wird aber auf den Bildschirm umgerechnet: Sonst ragte sie hinaus, samt Scrollleiste der App.
-  function fitScreen() {
-    let z = 1;
-    for (let n = wrap; n; n = n.parentElement) z *= Number(getComputedStyle(n).zoom) || 1;
-    wrap.style.width = `${window.innerWidth / z}px`;
-    wrap.style.height = `${window.innerHeight / z}px`;
+  const placeholder = document.createElement('div');
+  let layer = null;
+  async function moveLarge(on) {
+    big.disabled = true;
+    await wrap._lmApp?.flush();
+    if (on && !layer) {
+      placeholder.style.height = `${wrap.getBoundingClientRect().height}px`;
+      wrap.replaceWith(placeholder);
+      layer = document.createElement('div');
+      layer.className = 'lm-app-layer';
+      layer.appendChild(wrap);
+      document.body.appendChild(layer);
+    } else if (!on && layer) {
+      if (placeholder.isConnected) placeholder.replaceWith(wrap);
+      else wrap.remove(); // Das Blatt wurde inzwischen neu aufgebaut.
+      layer.remove();
+      layer = null;
+    }
+    document.body.classList.toggle('lm-app-big', !!layer);
+    wrap.classList.toggle('lm-app-big-wrap', !!layer);
+    frame.style.height = layer ? 'auto' : '75vh';
+    frame.src = open.shellUrl;
+    big.disabled = false;
   }
-  window.addEventListener('resize', () => { if (large && !inRun) fitScreen(); });
+  // Esc schließt die große Ansicht (nicht im Durchlauf: Dort bleibt die Weiter-Zeile sichtbar).
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && large && !inRun && layer) { e.preventDefault(); setLarge(false); } });
   big.addEventListener('click', () => setLarge(!large));
   // Der nächste Schritt baut seinen Rahmen neu auf; „Groß“ bleibt.
   if (inRun && session.large) setLarge(true);

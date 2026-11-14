@@ -6520,6 +6520,19 @@ details.cb-topic > summary .hint { font-weight: normal; margin-left: 6px; }
 .nb-numbering-list strong { display: inline-block; min-width: 2.5em; }
 .gn-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0 4px; }
 .lm-app-verdict { font-weight: 600; white-space: nowrap; }
+/* Leiste über einer HTML-App: eine Zeile, zu lang → seitlich wischen. */
+.lm-app-bar { display: flex; flex-wrap: nowrap; align-items: center; gap: 6px; min-width: 0; overflow-x: auto; scrollbar-width: thin; }
+.lm-app-bar > * { flex: 0 0 auto; }
+.lm-app-bar .btn { white-space: nowrap; }
+.lm-app-bar > .lm-app-nav { flex: 0 1 auto; min-width: 10em; display: inline-flex; align-items: center; gap: 4px; }
+.lm-app-nav select { min-width: 0; flex: 1 1 auto; max-width: 28em; }
+.lm-app-gap { flex: 1 1 auto !important; }
+.lm-app-info-text { white-space: nowrap; }
+/* „⛶ Groß“: eigene Ebene über allem, auch über dem Stift-Editor. */
+.lm-app-layer { position: fixed; inset: 0; z-index: 10050; display: flex; flex-direction: column; padding: 8px; box-sizing: border-box; background: var(--bg-primary, #fff); color: var(--text-primary, #111); }
+.lm-app-big-wrap { flex: 1 1 auto; min-height: 0; }
+.lm-app-big-wrap > iframe { flex: 1 1 auto; min-height: 0; }
+body.lm-app-big .ink-scroll { overflow: hidden; }
 .gn-link { display: flex; gap: 12px; align-items: flex-start; margin: 12px 0 4px; padding: 10px; border: 1px solid var(--border); border-radius: var(--radius-md); }
 .gn-link:empty { display: none; }
 .gn-qr svg { width: 120px; height: 120px; display: block; background: #fff; }

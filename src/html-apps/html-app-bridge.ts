@@ -32,6 +32,13 @@ export const BRIDGE_JS = String.raw`/**
     e.preventDefault();
     setZoom(zoom * Math.exp(-Math.max(-100, Math.min(100, e.deltaY)) / 600), true);
   }, { passive: false });
+  /** So weit zoomen, dass der Inhalt genau in die Breite des Rahmens passt. */
+  function fitWidth() {
+    setZoom(1, false);
+    var root = document.documentElement;
+    var wide = Math.max(root.scrollWidth, document.body ? document.body.scrollWidth : 0);
+    setZoom(wide > 0 ? root.clientWidth / wide : 1, true);
+  }
   var pinchFrom = 1;
   document.addEventListener('gesturestart', function (e) { e.preventDefault(); pinchFrom = zoom; }, { passive: false });
   document.addEventListener('gesturechange', function (e) { e.preventDefault(); setZoom(pinchFrom * e.scale, false); }, { passive: false });
@@ -80,7 +87,10 @@ export const BRIDGE_JS = String.raw`/**
     else if (m.type === 'lm.reveal') fire('reveal');
     else if (m.type === 'lm.check') fire('check');
     else if (m.type === 'lm.flush') { fire('flush'); post('lm.flushed', {}); }
-    else if (m.type === 'lm.zoom') setZoom(Number(m.data && m.data.scale) || 1, true);
+    else if (m.type === 'lm.zoom') {
+      if (m.data && m.data.fit === 'width') fitWidth();
+      else setZoom(Number(m.data && m.data.scale) || 1, true);
+    }
     else if (m.type === 'lm.error') {
       fire('error', m.data);
       if (window.console) console.warn('LearningModules:', m.data && m.data.message);

@@ -247,6 +247,7 @@ export async function convertAttachment(api, topicId, moduleId, { mode, ocr = fa
   const files = content.files || [];
   const pdfs = files.filter(isPdfFile);
   const created = [];
+  const docs = []; // { id, title, spec, warnings } – für den Import-Bericht mit Ampel
   const warnings = [];
   const failures = [];
   const converted = new Set();
@@ -264,6 +265,7 @@ export async function convertAttachment(api, topicId, moduleId, { mode, ocr = fa
       });
       if (failed(saved)) throw new Error(saved?.message || 'Speichern fehlgeschlagen');
       created.push(saved.id);
+      docs.push({ id: saved.id, title, spec, warnings: w });
       converted.add(f.url);
       warnings.push(...w.map((x) => `${f.name}: ${x}`));
     } catch (err) {
@@ -290,5 +292,5 @@ export async function convertAttachment(api, topicId, moduleId, { mode, ocr = fa
     ids.splice(Math.min(pos, ids.length), 0, ...created);
     await api.reorderModules(topicId, ids);
   }
-  return { created, warnings, failed: failures, removed };
+  return { created, docs, warnings, failed: failures, removed };
 }

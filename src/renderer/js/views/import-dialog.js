@@ -2,6 +2,7 @@ import { escapeHtml, showImportReport, generateId } from '../utils.js';
 import { looksLikeDocMarkdown, looksLikeXml } from '../json-text.js';
 import { checkAnswer, knownTypeNames, topicFromMarkdown } from './import-check.js';
 import { DOCUMENT_EXTS, isDocumentFile, isConvertedFile, fileToSpec, askConvertOptions, pdfConvertOptions } from './attachment-convert.js';
+import { showImportQuality } from './import-quality.js';
 
 /**
  * Ein Dialog für jeden Import: Datei wählen bzw. hineinziehen oder Text mit
@@ -246,7 +247,8 @@ export function openImportDialog(app, { topicId = null, h5p = false, extraFile =
       if (!data) { btnImport.disabled = false; btnImport.textContent = '✅ Importieren'; return; }
       close();
       app.showToast(`${data.importedCount} Dokument${data.importedCount === 1 ? '' : 'e'} angelegt${data.failed.length ? ` – nicht übernommen: ${data.failed.join(' · ')}` : ''}.`, data.failed.length ? 'error' : 'success');
-      if (data.warnings.length) showImportReport({ notes: data.warnings }, '📋 Dokumente übernommen');
+      // Bericht mit Ampel je Dokument (lm-editor/src/import/quality.js) und „Mit KI neu aufbereiten“.
+      showImportQuality(app, data.entries, { heading: '📋 Dokumente übernommen', failed: data.failed, notes: data.warnings, onDone: () => onDone?.(data) });
       if (onDone) await onDone(data);
       return;
     }
@@ -314,6 +316,7 @@ export function openImportDialog(app, { topicId = null, h5p = false, extraFile =
     }
     const failed = [];
     const warnings = [];
+    const entries = [];
     let importedCount = 0;
     const { xoppToDocument, saveTeacherInk } = jobs.some((j) => j.xopp) ? await import('../xopp-import.js') : {};
     for (const [n, { file: f, xopp, pdfFile }] of jobs.entries()) {
@@ -330,6 +333,7 @@ export function openImportDialog(app, { topicId = null, h5p = false, extraFile =
         });
         if (!res?.success) throw new Error(res?.message || 'Speichern fehlgeschlagen');
         importedCount++;
+        entries.push({ id, title, spec, warnings: w });
         warnings.push(...w.map((x) => `${f.name}: ${x}`));
         // Die Handschrift der .xopp: Beschriftung der Lehrkraft zum neuen Dokument.
         if (stand && !(await saveTeacherInk(id, stand))) warnings.push(`${f.name}: Die Handschrift ließ sich nicht speichern.`);
@@ -338,7 +342,7 @@ export function openImportDialog(app, { topicId = null, h5p = false, extraFile =
       }
     }
     if (!importedCount) throw new Error(failed.join(' · ') || 'Keine Datei übernommen.');
-    return { topicId: target, topicTitle, importedCount, failed, warnings };
+    return { topicId: target, topicTitle, importedCount, failed, warnings, entries };
   }
 
   /**

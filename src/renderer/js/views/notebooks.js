@@ -6,6 +6,7 @@ import { openFeedbackDialog } from './feedback.js';
 import { openImportDialog } from './import-dialog.js';
 import { openOneNoteImport } from './onenote-import.js';
 import { askConvertOptions, convertAttachment } from './attachment-convert.js';
+import { showImportQuality, rateLine } from './import-quality.js';
 import { NotebookPreview } from './notebook-preview.js';
 import { openSicherungCompare } from './sicherung-compare.js';
 import { openGoodnotesDialog } from './goodnotes-dialog.js';
@@ -47,9 +48,9 @@ function canHoldNode(parentKind, kind) {
 }
 
 const OPEN_KEY = 'lm_nb_open';
-
 /** Hineingewechselt: Nur dieser Book/Bereich/Abschnitt steht im Baum (je Gerät gemerkt). */
 const FOCUS_KEY = 'lm_nb_focus';
+
 function loadOpen() {
   try { return new Set(JSON.parse(localStorage.getItem(OPEN_KEY) || '[]')); } catch (_) { return new Set(); }
 }
@@ -75,9 +76,9 @@ export class NotebooksView {
     this._search = document.getElementById('notebookSearch');
     this._data = null;
     this._open = loadOpen();
-    this._drag = null;
     try { this._focus = localStorage.getItem(FOCUS_KEY) || null; } catch (_) { this._focus = null; }
     this._crumbs = document.getElementById('nbCrumbs');
+    this._drag = null;
     // Mehrfachauswahl: Schlüssel ('m:<id>' bzw. 't:<id>') → { type, id, topicId }.
     // Immer nur eine Sorte; `_selMode` zeigt Kästchen (auch ohne Strg).
     this._sel = new Map();
@@ -146,7 +147,6 @@ export class NotebooksView {
 
     // Kontextmenü schließen: Klick daneben, Escape, Scrollen.
     document.addEventListener('click', (e) => { if (!e.target.closest('.nb-menu')) this._closeMenu(); });
-    document.addEventListener('keydown', (e) => {
     // Strg+↑ oder ⌫: eine Ebene heraus (nicht beim Tippen).
     document.addEventListener('keydown', (e) => {
       if (!this._focus || !document.getElementById('view-teacher-notebooks')?.classList.contains('active')) return;
@@ -157,6 +157,7 @@ export class NotebooksView {
       e.preventDefault();
       this._focusUp();
     });
+    document.addEventListener('keydown', (e) => {
       if (e.key !== 'Escape') return;
       if (!this._menu && this._sel.size && !document.querySelector('.confirm-overlay:not(.hidden)')) this._clearSel();
       this._closeMenu();
@@ -348,7 +349,6 @@ export class NotebooksView {
     this._render();
   }
 
-  // ---------- Zeichnen ----------
   // ---------- Hineinwechseln ----------
 
   /** Nur noch diesen Knoten (null = alles) zeigen; er ist aufgeklappt. */
@@ -421,6 +421,7 @@ export class NotebooksView {
     }
   }
 
+  // ---------- Zeichnen ----------
 
   _render() {
     if (!this._data) return;
@@ -434,10 +435,10 @@ export class NotebooksView {
       btn.setAttribute('aria-pressed', String(on));
     });
 
-    const frag = document.createDocumentFragment();
     if (this._focus && !this._nodes.has(this._focus)) this._setFocusQuiet(null);
     this._renderCrumbs();
 
+    const frag = document.createDocumentFragment();
     if (this._focus) {
       // Hineingewechselt: der Inhalt dieses Knotens auf oberster Ebene.
       for (const kid of this._nodesIn(this._focus)) {
@@ -606,10 +607,10 @@ export class NotebooksView {
         + `<button type="button" class="nb-dive" title="Hineinwechseln – nur „${escapeAttr(node.title)}“ zeigen" aria-label="Hineinwechseln">⤵</button>`,
       drag: { type: 'node', id: node.id, kind: node.kind },
     });
-    row.querySelector('.nb-title').addEventListener('click', () => { if (this._preview.open) this._preview.showNode(node); });
     row.querySelector('.nb-dive').addEventListener('click', (e) => { e.stopPropagation(); this._setFocus(node.id); });
     row.querySelector('[data-badge="numbering"]')?.addEventListener('click', (e) => { e.stopPropagation(); this._editNumbering(node); });
     row.querySelector('[data-badge="docs"]')?.addEventListener('click', (e) => { e.stopPropagation(); this._editDocSettings(node); });
+    row.querySelector('.nb-title').addEventListener('click', () => { if (this._preview.open) this._preview.showNode(node); });
     this._menuOn(row, () => this._nodeMenu(node));
     this._bindDrop(row, { type: 'node', id: node.id, kind: node.kind });
     // Bereiche und Abschnitte lassen sich mit auswählen (mehrere auf einmal verschieben); ein Book steht immer oben.
@@ -995,8 +996,8 @@ export class NotebooksView {
 
   _nodeMenu(node) {
     const items = [];
-    if (node.kind !== 'section') items.push({ label: '➕ Neuer Bereich', run: () => this._createNode('area', node.id) });
     if (this._focus !== node.id) items.push({ label: '⤵ Hineinwechseln', title: 'Nur diesen Teil zeigen – die Pfadzeile oben führt zurück', run: () => this._setFocus(node.id) }, '-');
+    if (node.kind !== 'section') items.push({ label: '➕ Neuer Bereich', run: () => this._createNode('area', node.id) });
     if (node.kind !== 'section') items.push({ label: '➕ Neuer Abschnitt', run: () => this._createNode('section', node.id) });
     items.push({ label: '➕ Neues Lernthema', run: () => this._createTopic(node.id) });
     items.push('-');
@@ -2327,21 +2328,25 @@ export class NotebooksView {
         <h3>📄 In Dokumente umwandeln</h3>
         <ul class="import-report-list cv-list">${list.map((i) => `<li data-id="${escapeAttr(i.id)}">⏳ ${escapeHtml(this._moduleOf(i)?.title || i.id)}</li>`).join('')}</ul>
         <p class="hint cv-summary">Läuft – je PDF einige Sekunden.</p>
-        <div class="confirm-actions"><button type="button" class="btn btn-primary cv-ok" disabled>OK</button></div>
+        <div class="confirm-actions"><button type="button" class="btn btn-secondary cv-report" hidden>📋 Bericht mit Ampel</button><button type="button" class="btn btn-primary cv-ok" disabled>OK</button></div>
       </div>`;
     document.body.appendChild(overlay);
     const line = (id, html) => { const li = overlay.querySelector(`li[data-id="${CSS.escape(id)}"]`); if (li) li.innerHTML = html; };
     let created = 0;
     let problems = 0;
+    const docs = [];
     for (const i of list) {
       const title = escapeHtml(this._moduleOf(i)?.title || i.id);
       line(i.id, `🔄 ${title} – wird umgewandelt …`);
       try {
         const r = await convertAttachment(this.app.api, i.topicId, i.id, opts);
         created += r.created.length;
+        docs.push(...r.docs);
         if (r.failed.length) { problems++; console.error('Umwandeln', i, r.failed); }
+        // Ampel je entstandenem Dokument (lm-editor/src/import/quality.js)
+        const lights = r.docs.map((d) => { const q = rateLine(d.spec, d.warnings); return `<span title="${escapeAttr(q.text + (q.reasons.length ? ': ' + q.reasons.join(' ') : ''))}">${q.icon}</span>`; }).join('');
         line(i.id, `${r.failed.length ? (r.created.length ? '⚠️' : '❌') : '✅'} ${title} – `
-          + `${r.created.length} Dokument${r.created.length === 1 ? '' : 'e'}`
+          + `${r.created.length} Dokument${r.created.length === 1 ? '' : 'e'} ${lights}`
           + (r.warnings.length ? `, ${r.warnings.length} Hinweis${r.warnings.length === 1 ? '' : 'e'}` : '')
           + (r.failed.length ? `<br><small>${r.failed.map(escapeHtml).join('<br>')}</small>` : ''));
       } catch (err) {
@@ -2356,6 +2361,11 @@ export class NotebooksView {
     const ok = overlay.querySelector('.cv-ok');
     ok.disabled = false;
     ok.addEventListener('click', () => overlay.remove());
+    const rep = overlay.querySelector('.cv-report');
+    if (docs.length) {
+      rep.hidden = false;
+      rep.addEventListener('click', () => { overlay.remove(); showImportQuality(this.app, docs, { heading: '📋 Umgewandelte Dokumente', onDone: () => this.refresh() }); });
+    }
     this._saveOpen();
     this._clearSel();
     await this.refresh();
@@ -2484,6 +2494,7 @@ export class NotebooksView {
 
   _bindDrop(row, target, { into = false } = {}) {
     const zoneOf = (e) => {
+      if (into) return 'middle';
       const r = row.getBoundingClientRect();
       return e.clientY - r.top < r.height / 3 ? 'top' : 'middle';
     };
@@ -2494,7 +2505,6 @@ export class NotebooksView {
       e.dataTransfer.dropEffect = 'move';
       row.classList.toggle('nb-drop-into', plan.mode === 'into');
       row.classList.toggle('nb-drop-before', plan.mode === 'before');
-      if (into) return 'middle';
     });
     row.addEventListener('dragleave', () => row.classList.remove('nb-drop-into', 'nb-drop-before'));
     row.addEventListener('drop', async (e) => {

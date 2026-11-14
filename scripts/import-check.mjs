@@ -37,7 +37,8 @@ globalThis.window ??= window;
 globalThis.document ??= window.document;
 globalThis.getComputedStyle ??= () => ({});
 
-const { odtToHtml, textWidth } = await import(join(LE, 'import/odt.js'));
+const { odtToHtml } = await import(join(LE, 'import/odt.js'));
+const { importMetrics, rateImport } = await import(join(LE, 'import/quality.js'));
 const { htmlToDocSpec } = await import(join(LE, 'doc/docspec-html.js'));
 const { validateDocSpec } = await import(join(LE, 'doc/docspec.js'));
 
@@ -79,76 +80,8 @@ function odtBytes(file) {
   return readFileSync(out);
 }
 
-// ---- Bewertung ----
-const TASK_LIKE = /^(\*\*)?((Aufgabe|Übung)\s*\d+|\d{1,2}[.)]\s+\S|[a-h]\)\s+\S)/;
-const WRITE_LINE = /_{6,}|\.{10,}|…{4,}/;
-
-/** Text, der in Zeichnungen (SVG) steckt, und Zeilen, die über eine senkrechte Linie oder einen Rahmen laufen. */
-function svgInfo(src) {
-  const m = /^data:image\/svg\+xml;base64,(.+)$/.exec(src || '');
-  if (!m) return null;
-  const svg = Buffer.from(m[1], 'base64').toString('utf8');
-  const texts = [...svg.matchAll(/<text x="([\d.-]+)" y="([\d.-]+)"[^>]*font-size="([\d.]+)"([^>]*)>([^<]*)<\/text>/g)]
-    .map((t) => ({ x: +t[1], y: +t[2], size: +t[3], bold: /font-weight="bold"/.test(t[4]), anchor: /text-anchor="(middle|end)"/.exec(t[4])?.[1], text: t[5].replace(/&[a-z]+;/g, 'x'),
-      length: /textLength="([\d.]+)"/.test(t[4]) ? Number(/textLength="([\d.]+)"/.exec(t[4])[1]) : undefined }));
-  // Senkrechte Kanten: Linien mit x1 = x2 und linke Kanten von Rechtecken/Polygonen
-  const edges = [];
-  for (const l of svg.matchAll(/<line x1="([\d.-]+)" y1="([\d.-]+)" x2="([\d.-]+)" y2="([\d.-]+)"/g)) {
-    if (Math.abs(+l[1] - +l[3]) < 1.5 && Math.abs(+l[2] - +l[4]) > 20) edges.push({ x: +l[1], y1: Math.min(+l[2], +l[4]), y2: Math.max(+l[2], +l[4]) });
-  }
-  // Nur umbrochener Fließtext zählt (mindestens zwei Zeilen mit gleichem Anfang, gleicher Größe,
-  // Zeilenabstand ≤ 1,6 × Schrift) – einzelne Beschriftungen an Achsen liegen dort mit Absicht.
-  const inParagraph = (t) => texts.some((o) => o !== t && Math.abs(o.x - t.x) < 1 && o.size === t.size && Math.abs(o.y - t.y) <= 1.6 * t.size);
-  let overflow = 0;
-  for (const t of texts) {
-    if (t.anchor || !inParagraph(t)) continue;
-    const w = t.length ?? textWidth(t.text, t.size, t.bold);
-    const left = t.anchor === 'middle' ? t.x - w / 2 : t.anchor === 'end' ? t.x - w : t.x;
-    const right = left + w;
-    if (edges.some((e) => e.x > left + 4 && e.x < right - 4 && t.y > e.y1 && t.y - t.size < e.y2)) overflow++;
-  }
-  return { chars: texts.reduce((n, t) => n + t.text.trim().length, 0), overflow };
-}
-
-function rate(spec) {
-  const r = { blocks: 0, types: {}, textChars: 0, svgChars: 0, overflow: 0, images: 0, drawings: 0, taskLike: 0, writeLines: 0, tasks: 0, solutions: 0, karos: 0, columns: 0, tables: 0 };
-  const text = (s) => {
-    if (typeof s !== 'string' || !s.trim()) return;
-    r.textChars += s.trim().length;
-    if (WRITE_LINE.test(s)) r.writeLines++;
-  };
-  const image = (src) => {
-    r.images++;
-    const info = svgInfo(src);
-    if (info) { r.drawings++; r.svgChars += info.chars; r.overflow += info.overflow; }
-  };
-  // Text direkt unter einer Aufgabe („a) … b) …“) ist deren Aufgabentext, keine verlorene Aufgabe.
-  let afterTask = false;
-  const walk = (node, parentType) => {
-    if (Array.isArray(node)) { node.forEach((n) => walk(n, parentType)); return; }
-    if (!node || typeof node !== 'object') { if (typeof node === 'string') text(node); return; }
-    const t = node.type;
-    if (t) { r.blocks++; r.types[t] = (r.types[t] || 0) + 1; }
-    if (t === 'task' || t === 'subtask') r.tasks++;
-    if (t === 'solution') r.solutions++;
-    if (t === 'karo') r.karos++;
-    if (t === 'columns') r.columns++;
-    if (t === 'table') r.tables++;
-    if (t === 'text' && TASK_LIKE.test(String(node.text || '').trim()) && parentType !== 'solution' && !afterTask) r.taskLike++;
-    if (t) afterTask = t === 'task' || t === 'subtask' || (afterTask && ['karo', 'solution', 'image', 'formula', 'text', 'list'].includes(t));
-    if (typeof node.src === 'string') image(node.src);
-    for (const [k, v] of Object.entries(node)) {
-      if (k === 'src' || k === 'type' || k === 'id') continue;
-      if (k === 'images' && Array.isArray(v)) { v.forEach((im) => im?.src && image(im.src)); continue; }
-      if (typeof v === 'string' && ['text', 'title', 'caption', 'latex', 'code'].includes(k)) text(v);
-      else if (typeof v === 'object') walk(v, t || parentType);
-    }
-  };
-  walk(spec.content, null);
-  const total = r.textChars + r.svgChars;
-  r.textInImages = total ? Math.round((100 * r.svgChars) / total) : 0;
-  return r;
-}
+// ---- Bewertung: dieselbe wie im Import-Bericht der App (lm-editor/src/import/quality.js) ----
+const rate = (spec) => importMetrics(spec);
 
 // ---- Durchlauf ----
 const results = {};
@@ -162,7 +95,8 @@ for (const g of groups) {
       const { html, warnings } = odtToHtml(new Uint8Array(odtBytes(f)), basename(f));
       const { spec, warnings: w2 } = htmlToDocSpec(html);
       const errors = validateDocSpec(spec);
-      results[key] = { group: g.name, ok: true, ms: Date.now() - start, errors: errors.length, warnings: [...warnings, ...w2], ...rate(spec) };
+      const all = [...warnings, ...w2];
+      results[key] = { group: g.name, ok: true, ms: Date.now() - start, errors: errors.length, warnings: all, level: rateImport(spec, all).level, ...rate(spec) };
     } catch (e) {
       results[key] = { group: g.name, ok: false, ms: Date.now() - start, error: String(e.message || e) };
     }
@@ -186,6 +120,8 @@ for (const g of [...groups.map((x) => x.name), 'gesamt']) {
     sum(ok, 'tasks'), sum(ok, 'taskLike'), sum(ok, 'solutions'), sum(ok, 'karos'), sum(ok, 'writeLines'), sum(ok, 'columns')]));
 }
 console.log(report.join('\n'));
+const levels = Object.values(results).filter((r) => r.ok).reduce((m, r) => ({ ...m, [r.level]: (m[r.level] || 0) + 1 }), {});
+console.log(`\nAmpel im Import-Bericht: 🟢 ${levels.good || 0} · 🟡 ${levels.check || 0} · 🔴 ${levels.weak || 0}`);
 
 const worst = (k, n = 8) => Object.entries(results).filter(([, r]) => r.ok && r[k]).sort((a, b) => b[1][k] - a[1][k]).slice(0, n);
 for (const [k, label] of [['overflow', 'Text über den Rand (Zeilen)'], ['taskLike', 'Wie Aufgaben, aber nur Text'], ['textInImages', 'Text in Bildern (%)']]) {

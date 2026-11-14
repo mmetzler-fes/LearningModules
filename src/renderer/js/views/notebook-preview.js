@@ -1,6 +1,7 @@
 import { moveDocumentControls } from '../document-bar.js';
 import { escapeHtml } from '../utils.js';
 import { syncDrawings, openDrawingsDialog } from './drawings-dialog.js';
+import { openGoodnotesDialog } from './goodnotes-dialog.js';
 
 // ==================== NOTEBOOKS: VORSCHAU-SPALTE ====================
 //
@@ -249,6 +250,8 @@ export class NotebookPreview {
       const reload = async () => { this._modules.delete(topic.id); if (this.currentKey === key) await this.showModule(topic, mod); };
       this._button('🖍 Zeichnungen', 'Zeichnungen dieses Lernthemas in LibreOffice Draw bearbeiten (.odg in der Nextcloud)', () => openDrawingsDialog(this.app, topic, { onChanged: reload }));
       syncDrawings(this.app, topic.id, { quiet: true }).then((n) => { if (n) reload(); });
+      // Heft fürs ganze Lernthema – auch hier, nicht nur im ⋯ des Lernthemas, wo man es am Dokument nicht sucht.
+      this._button('📓 GoodNotes', `Alle Dokumente von „${topic.title}“ als ein Heft (PDF) für GoodNotes – Schülerheft, Lösungsheft, Adresse mit QR-Code`, () => openGoodnotesDialog(this.app, topic));
     }
     this._button('⛶ Vollbild', 'Vorschau über die ganze Seite', () => this.app.modulesView.openFrom(this._opts.from, topic.id, mod, 'preview'));
     this._body.innerHTML = '<p class="hint">Wird geladen …</p>';

@@ -1497,6 +1497,11 @@ export class NotebooksView {
         : [];
       const docs = chosen.length > 1 ? chosen : [mod];
       items.push({
+        label: '📓 Lernthema für GoodNotes (PDF)…',
+        title: `Alle Dokumente von „${topic.title}“ als ein Heft – Schülerheft, Lösungsheft, Adresse mit QR-Code`,
+        run: () => openGoodnotesDialog(this.app, topic),
+      });
+      items.push({
         label: docs.length > 1 ? `🤖 ${docs.length} Dokumente mit KI neu aufbereiten…` : '🤖 Mit KI neu aufbereiten…',
         title: 'Anleitung und zeitlich begrenzten Zugang für deine eigene KI: Sie überträgt das Original (als Anhang im Chat) sauber in dieses Dokument – Inhalte wie im Original, Grafiken bleiben. Rückgängig jederzeit.',
         run: () => import('./ai-bridge-dialog.js').then((m) => m.openAiBridgeDialog(this.app, {

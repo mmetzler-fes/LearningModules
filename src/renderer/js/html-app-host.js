@@ -331,6 +331,13 @@ export async function mountHtmlApp({ el, moduleId, content, options, title }) {
     frame.style.height = layer ? 'auto' : '75vh';
     frame.src = open.shellUrl;
     big.disabled = false;
+    if (!on) {
+      // Zurück im Blatt: Fokus aus der App nehmen (Tastatur zu) und der Seite Bescheid geben –
+      // der Stift-Editor holt seine Leiste zurück, falls Safari die Seite verschoben hat.
+      if (document.activeElement === frame || document.activeElement?.tagName === 'IFRAME') document.activeElement.blur();
+      window.scrollTo(0, 0);
+      window.dispatchEvent(new CustomEvent('lm-app-restored'));
+    }
   }
   // Esc schließt die große Ansicht (nicht im Durchlauf: Dort bleibt die Weiter-Zeile sichtbar).
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && large && !inRun && layer) { e.preventDefault(); setLarge(false); } });

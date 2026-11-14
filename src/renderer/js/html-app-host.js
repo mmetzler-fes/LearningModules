@@ -137,7 +137,10 @@ export async function mountHtmlApp({ el, moduleId, content, options, title }) {
 
   // Im Durchlauf stehen Groß/Verkleinern und der Hinweis in der Titelleiste des Quiz, sonst über der App.
   // Das Quiz schreibt die Titelleiste je Schritt neu, deshalb auch nach dem Zurückblättern (syncLarge).
-  const inRun = !!options.appRun && !!document.getElementById('quizActions');
+  // In einem Dokument eingebettet (Quiz im Blatt) gilt das nicht: Dort stehen Text und weitere Quizze
+  // um die App herum, „Groß“ hätte das Blatt am Scrollen gehindert – die App geht über den Bildschirm.
+  const embedded = !!el.closest('.ds-quiz-slot, .ds-quiz');
+  const inRun = !!options.appRun && !embedded && !!document.getElementById('quizActions');
   const titleSlot = document.createElement('span');
   const showInTitle = () => {
     if (wrap.isConnected) document.getElementById('quizInfo')?.appendChild(titleSlot);

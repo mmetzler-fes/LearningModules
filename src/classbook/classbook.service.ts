@@ -25,7 +25,7 @@ import { NotebookPlacement } from '../core/entities/notebook-placement.entity';
 import { ClassbookProgress } from '../core/entities/classbook-progress.entity';
 import { ancestorsOf, canHoldNode, commonPath, deadMirrorNodes, slotSort, depthOf, leavesInOrder, nodeMoveError, normalizeMarker, reorder, dissolve, LeafRef, MAX_CLASS_DEPTH, TreeLink, TreeNode, veiledNodeIds, scopeTree, ClassbookScope } from './classbook-tree';
 import { ClassesService } from '../classes/classes.service';
-import { LinksService, PRACTICE_MODES, onlyHtmlApps } from '../links/links.service';
+import { LinksService, PRACTICE_MODES, onlyHtmlApps, withoutCompanionForDocuments } from '../links/links.service';
 import { NotebooksService } from '../notebooks/notebooks.service';
 import { issueDeviceTicket, pinTag, issueTicket, readTicket } from '../classes/student-ticket';
 import { isTestStudent, testLabel, testStudentId } from '../classes/test-student';
@@ -171,9 +171,10 @@ export class ClassbookService {
         // Nur HTML-Apps: immer Quiz (links.service.ts, effectiveModes).
         const exam = (link.modes || []).includes('exam');
         const appsOnly = !exam && onlyHtmlApps(resolved);
+        // Mit Dokumenten keine Lernbegleitung (links.service.ts, withoutCompanionForDocuments).
         return {
-          modes: appsOnly ? ['quiz'] : link.modes || [],
-          practice: appsOnly ? ['quiz'] : practiceModes(link),
+          modes: appsOnly ? ['quiz'] : withoutCompanionForDocuments(link.modes || [], resolved),
+          practice: appsOnly ? ['quiz'] : withoutCompanionForDocuments(practiceModes(link), resolved),
           exam,
           contest: !appsOnly && (link.modes || []).includes('contest'),
         };

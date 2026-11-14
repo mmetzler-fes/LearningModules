@@ -25,3 +25,15 @@ describe('Links nur mit HTML-Apps', () => {
     expect(effectiveModes(link(['exam']), 'practice', of('htmlApp'))).toEqual(['exam']);
   });
 });
+
+describe('Links mit Dokumenten', () => {
+  it('ohne Lernbegleitung, die übrigen Modi bleiben', () => {
+    expect(effectiveModes(link(['quiz', 'learn', 'companion']), 'practice', of('document', 'multipleChoice'))).toEqual(['quiz', 'learn']);
+  });
+  it('nur Lernbegleitung freigegeben: dann Quiz', () => {
+    expect(effectiveModes(link(['companion']), 'practice', of('document'))).toEqual(['quiz']);
+  });
+  it('ohne Dokument bleibt die Lernbegleitung', () => {
+    expect(effectiveModes(link(['quiz', 'companion']), 'practice', of('multipleChoice'))).toEqual(['quiz', 'companion']);
+  });
+});

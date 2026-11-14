@@ -65,8 +65,24 @@ export function onlyHtmlApps(resolved: Array<{ modules: Array<{ type?: string }>
  */
 export function effectiveModes(link: TopicLink, access: LinkAccess, resolved: Array<{ modules: Array<{ type?: string }> }>): LinkMode[] {
   const modes = modesFor(link, access);
-  if (access !== 'practice' || modes.includes('exam') || !onlyHtmlApps(resolved)) return modes;
-  return ['quiz'];
+  if (access !== 'practice' || modes.includes('exam')) return modes;
+  if (onlyHtmlApps(resolved)) return ['quiz'];
+  return withoutCompanionForDocuments(modes, resolved);
+}
+
+/** Enthält der Inhalt ein Dokument (Arbeitsblatt mit Quizzen)? */
+export function hasDocuments(resolved: Array<{ modules: Array<{ type?: string }> }>): boolean {
+  return resolved.some((r) => r.modules.some((m) => m.type === 'document'));
+}
+
+/**
+ * Mit Dokumenten keine Lernbegleitung: Die Eule führt Aufgabe für Aufgabe, ein Blatt bearbeitet man
+ * als Ganzes (mit Stift, Quizzen darin) – das passt nicht zusammen. Bleibt nichts, dann Quiz.
+ */
+export function withoutCompanionForDocuments<T extends string>(modes: T[], resolved: Array<{ modules: Array<{ type?: string }> }>): T[] {
+  if (!modes.includes('companion' as T) || !hasDocuments(resolved)) return modes;
+  const rest = modes.filter((m) => m !== 'companion');
+  return rest.length ? rest : (['quiz'] as T[]);
 }
 
 export const DEFAULT_CONTEST_SETTINGS: LinkContestSettings = {

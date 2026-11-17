@@ -1039,10 +1039,10 @@ export class NotebooksView {
       items.push({ label: '📄 Dokument-Einstellungen…', title: 'Kurs, Kopfzeile, Vorlagen und KI-Vorgaben für die Dokumente darunter', run: () => this._editDocSettings(node) });
       items.push({ label: '⬇️ Als Kurs exportieren', title: 'Dokumente darunter als Kurs für den Arbeitsblatt-Generator (ZIP)', run: () => this._exportCourse(node) });
       items.push({ label: '📚 Skript…', title: 'Alle Arbeitsblätter darunter als Skript mit Inhaltsverzeichnis – PDF oder .odt, mit oder ohne Lösungen, Quizze zum Ausfüllen', run: () => this._script(node) });
-      items.push({ label: '📓 Dokumente als OneNote-Seite', title: 'Gliederung der Dokumente mit Klassenlink und QR-Code in die Zwischenablage', run: () => this._oneNoteDocs(node) });
+      items.push({ label: '📓 Dokumente als OneNote-Seite', title: 'Gliederung der Dokumente mit anonymem Quick-Link und QR-Code in die Zwischenablage – ohne Klasse', run: () => this._oneNoteDocs(node) });
       items.push({ label: '🤖 KI-Lernmodul aus den Dokumenten…', title: 'Der Text der Dokumente darunter kommt als Material in den Prompt', run: () => this.app.aiPromptView.openFor({ nodeId: node.id, label: node.title, material: `n:${node.id}` }) });
     }
-    items.push({ label: '🟪 Für OneNote ausgeben…', title: 'Als OneNote-Abschnitte (.one) für Kollegen mit OneNote: je Dokument eine Seite mit Link, QR-Code und Ausdruck (anonyme Quick-Links)', run: () => this._oneNoteExport({ nodeId: node.id }) });
+    items.push({ label: '🟪 Für OneNote ausgeben…', title: 'Als OneNote-Abschnitte (.one) für Kollegen mit OneNote: je Lernthema eine Übersicht mit QR-Code, je Dokument der Ausdruck mit klickbaren Quiz-Links (anonyme Quick-Links)', run: () => this._oneNoteExport({ nodeId: node.id }) });
     items.push('-');
     items.push({ label: '🗑 Löschen', danger: true, run: () => this._deleteNode(node) });
     return items;
@@ -1218,25 +1218,24 @@ export class NotebooksView {
     }
   }
 
-  /** OneNote-Seite: Gliederung der Dokumente, Klassenlink und QR-Code. */
+  /**
+   * OneNote-Seite: Gliederung der Dokumente, Link und QR-Code. Aus dem
+   * Lernnotizbuch immer der anonyme Quick-Link des Ordners – ohne Klasse und
+   * Schülerkonten (z. B. zum Vorführen). Klassenlinks gibt es im Klassennotizbuch.
+   */
   async _oneNoteDocs(node) {
     const lines = this._docLines(node.id);
     if (!lines.length) { this.app.showToast('Darin liegen keine Dokumente.', 'error'); return; }
-    const classes = await pickClass(this.app, {
-      title: `📓 OneNote-Seite – ${node.title}`,
-      hint: 'Für welche Klasse? Die Seite enthält die Gliederung der Dokumente und einen Klassenlink zu allen Lernthemen darin – Schüler sehen die Dokumente dort und können sie als PDF holen.',
-      multiple: false,
-    });
-    const klasse = Array.isArray(classes) ? classes[0] : classes;
-    if (!klasse) return;
-    const link = await this.app.api.classLinkFromNotebookNode(node.id, klasse.id);
-    if (!link?.id) { this.app.showToast('Fehler: ' + (link?.message || 'Link konnte nicht erzeugt werden.'), 'error'); return; }
-    const share = await this.app.api.shareLink(link.id, false, 'practice');
-    if (!share?.url) { this.app.showToast('Fehler: ' + (share?.message || 'Link konnte nicht erzeugt werden.'), 'error'); return; }
+    const had = await this.app.api.getQuickLink('node', node.id).catch(() => null);
+    // Neu anlegen bzw. auffrischen (neue Lernthemen kommen dazu); gewählte Klassen bleiben.
+    const res = await this.app.api.saveQuickLink('node', node.id, had?.exists ? (had.quick?.classes || []).map((c) => c.id) : []).catch(() => null);
+    if (!res?.url) { this.app.showToast('Fehler: ' + (res?.message || 'Quick-Link konnte nicht erzeugt werden.'), 'error'); return; }
+    if (res.notReleased?.length) this.app.showToast(`Nicht freigegeben, daher nicht dabei: ${res.notReleased.join(', ')}.`, 'info');
+    const qr = await this.app.api._fetch('/api/links/qr', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ urls: [res.url] }) }).catch(() => null);
     const box = document.createElement('div');
-    box.innerHTML = share.qrSvg || '';
-    const ok = await copyOneNotePage({ title: `${node.title} – ${klasse.name}`, lines, svg: box.querySelector('svg'), url: share.url });
-    this.app.showToast(ok ? 'OneNote-Seite kopiert – in OneNote einfügen mit Strg+V.' : 'Kopieren klappt hier nicht – bitte den Link aus der Link-Ansicht nehmen.', ok ? 'success' : 'error');
+    box.innerHTML = qr?.svgs?.[0] || '';
+    const ok = await copyOneNotePage({ title: node.title, lines, svg: box.querySelector('svg'), url: res.url });
+    this.app.showToast(ok ? 'OneNote-Seite kopiert (anonymer Quick-Link) – in OneNote einfügen mit Strg+V.' : 'Kopieren klappt hier nicht – bitte den Quick-Link nutzen.', ok ? 'success' : 'error');
   }
 
   /** Kleine Zeichen an Ordnern: 🔢 eigene Nummerierung ab hier, 📄 eigener Kurs. */

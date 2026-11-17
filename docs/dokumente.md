@@ -462,7 +462,8 @@ Kurs-Projekt mit `make` bauen.
   **📚 Skript als .odt / Lösung** liefert die LibreOffice-Fassung und die mit
   sichtbaren Lösungen.
 - **📓 Dokumente als OneNote-Seite** legt die Gliederung der Dokumente mit
-  einem Klassenlink und QR-Code in die Zwischenablage.
+  dem anonymen Quick-Link des Ordners und QR-Code in die Zwischenablage – ohne
+  Klasse, gut zum Vorführen. Links mit Anmeldung gibt es im Klassennotizbuch.
 
 ## Quiz im Dokument
 

@@ -1042,7 +1042,7 @@ export class NotebooksView {
       items.push({ label: '📓 Dokumente als OneNote-Seite', title: 'Gliederung der Dokumente mit anonymem Quick-Link und QR-Code in die Zwischenablage – ohne Klasse', run: () => this._oneNoteDocs(node) });
       items.push({ label: '🤖 KI-Lernmodul aus den Dokumenten…', title: 'Der Text der Dokumente darunter kommt als Material in den Prompt', run: () => this.app.aiPromptView.openFor({ nodeId: node.id, label: node.title, material: `n:${node.id}` }) });
     }
-    items.push({ label: '🟪 Für OneNote ausgeben…', title: 'Als OneNote-Abschnitte (.one) für Kollegen mit OneNote: je Lernthema eine Übersicht mit QR-Code, je Dokument der Ausdruck mit klickbaren Quiz-Links (anonyme Quick-Links)', run: () => this._oneNoteExport({ nodeId: node.id }) });
+    items.push({ label: '🟪 Für OneNote ausgeben…', title: 'Als OneNote-Abschnitte (.one) für Kollegen mit OneNote: je Dokument eine Seite mit QR-Code, Link und Ausdruck samt klickbaren Quiz-Links (anonyme Quick-Links)', run: () => this._oneNoteExport({ nodeId: node.id }) });
     items.push('-');
     items.push({ label: '🗑 Löschen', danger: true, run: () => this._deleteNode(node) });
     return items;

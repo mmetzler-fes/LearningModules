@@ -24,18 +24,12 @@ Fassung in LearningModules.
 | Book, Bereich | Ordner im ZIP (in OneNote: Abschnittsgruppe) |
 | Abschnitt | Abschnitt (`.one`-Datei) |
 | Lernthemen direkt in einem Book/Bereich | ein Abschnitt mit dessen Namen |
-| Lernthema | **Übersichtsseite** mit dem Namen des Lernthemas |
-| Dokument | **Unterseite** der Übersicht mit dem Namen des Dokuments |
-| Quizze, die in keinem Dokument stecken | auf der Übersichtsseite: „alle nacheinander“ (mit „Weiter“ von Quiz zu Quiz, `&mod=id1,id2,…`) oder einzeln verlinkt |
+| Dokument | eine Seite **„Lernthema – Dokument“** (heißen beide gleich: nur einmal) |
+| Quizze, die in keinem Dokument stecken | eine gemeinsame Seite **„Lernthema – Quiz“**: ein Link mit QR-Code für alle (mit „Weiter“ von Quiz zu Quiz, `&mod=id1,id2,…`), bei mehreren dazu jedes einzeln verlinkt |
 
-Die **Übersichtsseite** (wie die Titelseite im GoodNotes-Heft) enthält den Link
-zum Lernthema in LearningModules, den QR-Code, die Adresse als Text (zum
-Kopieren) und „Stand …“, darunter den Inhalt: jedes Dokument und jedes Quiz als
-Link. Im Klassennotizbuch führt der Übersichtslink ins Klassennotizbuch.
-
-Eine **Dokument-Seite** enthält oben eine Zeile mit dem Link zur Live-Fassung
-und dem Stand, darunter – wenn angehakt – den **Ausdruck als Seitenbilder**
-untereinander. Darauf lässt sich in OneNote mit dem Stift schreiben. Der
+Eine **Dokument-Seite** enthält oben den Link zum Dokument in LearningModules,
+den QR-Code, die Adresse als Text (zum Kopieren) und „Stand …“, darunter – wenn
+angehakt – den **Ausdruck als Seitenbilder** untereinander. Darauf lässt sich in OneNote mit dem Stift schreiben. Der
 Ausdruck veraltet, wenn das Dokument geändert wird; aktuell bleibt der Link.
 
 **Quiz-Links im Ausdruck:** Wie im GoodNotes-Heft steht bei jedem Quiz der
@@ -99,7 +93,7 @@ Server wird nichts abgelegt. Der Dialog nennt am Ende den Dateinamen.
     waagerecht); Seitenbilder liegen frei auf der Seite, untereinander.
   - Links über einem Seitenbild sind eigene Textblöcke (Outline) mit fester
     Position, auf der Seite nach den Bildern eingetragen (liegen oben).
-    Unterseiten: Seitenebene 2.
+    Unterseiten gingen mit Seitenebene 2 (`level`), werden derzeit nicht genutzt.
 - Die MD5-Werte der schreibgeschützten Objekte rechnet OneNote nicht nach
   erkennbarem Muster; wir nehmen MD5 der Daten – OneNote nimmt das an.
 - QR-Codes: `POST /api/links/qr` (`{ urls }` → `{ svgs }`, nur Adressen

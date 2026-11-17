@@ -1190,7 +1190,7 @@ export class ClassResultsView {
             : '<button type="button" class="btn btn-secondary btn-sm" data-arrange title="Einträge an ihren Platz wie im Notizbuch verschieben und sortieren. Inhalte, Links und An/Aus bleiben.">🌳 Wie im Notizbuch ordnen</button>'}
           <button type="button" class="btn btn-secondary btn-sm" data-preview title="Das Klassennotizbuch aus Schülersicht in einem neuen Tab: Quizze und Dokumente ausprobieren, Ergebnisse erscheinen hier als 🧪">👁 Vorschau</button>
           <button type="button" class="btn btn-secondary btn-sm" data-preview-reset title="Ergebnisse, Blätter und Stand der Vorschau in dieser Klasse löschen">🧹 Vorschau zurücksetzen</button>
-          <button type="button" class="btn btn-secondary btn-sm" data-onenote-export title="Als OneNote-Abschnitte (.one): je Lernthema eine Übersicht mit QR-Code, je Dokument der Ausdruck mit klickbaren Quiz-Links – ohne Klassenarbeiten">🟪 Für OneNote</button>
+          <button type="button" class="btn btn-secondary btn-sm" data-onenote-export title="Als OneNote-Abschnitte (.one): je Dokument eine Seite mit QR-Code, Link und Ausdruck samt klickbaren Quiz-Links – ohne Klassenarbeiten">🟪 Für OneNote</button>
           <button type="button" class="btn btn-secondary btn-sm" data-mark-root title="Schüler springen zum ersten Modul im ganzen Klassennotizbuch – „Weiter“ führt durch alle weiteren">📍 Ganz vorn</button>
           ${cb.studentHidden ? '' : '<button type="button" class="btn btn-secondary btn-sm" data-veil-book="1" title="Schüler sehen das Klassennotizbuch vorübergehend nicht (außer Klassenarbeit und Quiz-Arena) – die Module bleiben ein- bzw. ausgeschaltet">🙈 Für Schüler ausblenden</button>'}
         </div>

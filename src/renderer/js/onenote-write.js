@@ -390,7 +390,9 @@ function buildPage(w, ids, page, now, author, fileStore) {
   }
 
   const pageGuid = randomGuid();
-  const pageNode = obj(J.page, [P.bool(0x1c92, false), P.bool(0x1cdc, true), P.f32(0x1d0f, 1), P.f32(0x1d10, 0.4), P.u32(0x1d7a, t32), P.bytes(0x1c30, pageGuid),
+  // Die Kennung der Seite (0x1c30) steht nur in den Seiten-Metadaten, nicht am Seitenobjekt – so
+  // schreibt es OneNote. Doppelt vergeben, zeigte SharePoint jede Seite nach dem Anklicken zweimal.
+  const pageNode = obj(J.page, [P.bool(0x1c92, false), P.bool(0x1cdc, true), P.f32(0x1d0f, 1), P.f32(0x1d10, 0.4), P.u32(0x1d7a, t32),
     P.oids(0x1c20, [...freeIds, body, ...linkIds]), P.oids(0x1d5f, [title])]);
   const vhMeta = obj(J.versionHistoryMeta, [P.u32(0x1d82, 0x28), P.u32(0x348b, 0x28)]);
 

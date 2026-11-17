@@ -93,6 +93,9 @@ Server wird nichts abgelegt. Der Dialog nennt am Ende den Dateinamen.
     einer gemeinsamen Reihe für alle Seiten erschien in einem
     SharePoint-Notizbuch jede Seite beim Anklicken doppelt (beide Einträge
     gleichzeitig markiert); lokal fiel das nicht auf.
+  - Die Kennung der Seite (0x1c30) steht nur in den Seiten-Metadaten, nicht
+    zusätzlich am Seitenobjekt – sonst erschien in SharePoint jede Seite nach
+    dem ersten Anklicken einmal doppelt.
   - Der Textblock ist ein gewöhnlicher Inhaltsblock (der Datumsblock läuft
     waagerecht); Seitenbilder liegen frei auf der Seite, untereinander.
   - Links über einem Seitenbild sind eigene Textblöcke (Outline) mit fester

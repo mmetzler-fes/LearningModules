@@ -1,5 +1,5 @@
 import { BadRequestException } from '@nestjs/common';
-import { DocContext, WorksheetsService, safeInkSvg, widthInCm } from './worksheets.service';
+import { DocContext, WorksheetsService, classQuizLink, safeInkSvg, widthInCm } from './worksheets.service';
 import { WorksheetRendererClient } from './renderer.client';
 
 const PNG = 'data:image/png;base64,iVBORw0KGgo=';
@@ -130,6 +130,28 @@ describe('WorksheetsService.prepare', () => {
     expect(job.spec.content.some((b: any) => b.type === 'solution')).toBe(true);
     const qr = await s.prepare(spec, 'T', ['pdf'], c);
     expect(qr.job.spec.content).toHaveLength(1);
+  });
+
+  it('Quiz-Adresse: anonym über den Quick-Link, aus dem Klassennotizbuch mit Anmeldung (quizLink)', async () => {
+    const quiz = { id: 'q1', topicId: 't1', title: 'Einheiten', type: 'markTheWords', orderIndex: 0, content: {} };
+    const moduleRepo: any = { findOne: async () => quiz, find: async () => [] };
+    const linkRepo: any = { findOne: async () => ({ token: 'tok' }) };
+    const s = new WorksheetsService({} as WorksheetRendererClient, undefined, moduleRepo, undefined, undefined, undefined, undefined, linkRepo);
+    const spec = { content: [{ type: 'quiz', module: 'q1' }] };
+    const anon = await s.prepare(spec, 'T', ['pdf'], ctx({ topicId: 't1', ownerId: 'u1', base: 'https://lm.example' }));
+    expect(JSON.stringify(anon.job.spec)).toContain('https://lm.example/?l=tok&mod=q1');
+    const cls = await s.prepare(spec, 'T', ['pdf'], ctx({ topicId: 't1', ownerId: 'u1', base: 'https://lm.example', quizLink: 'https://lm.example/?k=kb1&cl=L-1&mod=' }));
+    expect(JSON.stringify(cls.job.spec)).toContain('https://lm.example/?k=kb1&cl=L-1&mod=q1');
+    expect(JSON.stringify(cls.job.spec)).not.toContain('?l=');
+  });
+
+  it('classQuizLink: nur Klassennotizbuch-Adressen dieses Servers', () => {
+    const base = 'https://lm.example';
+    expect(classQuizLink('https://lm.example/?k=Ab_1-x&cl=0f1e-22&mod=', base)).toBe('https://lm.example/?k=Ab_1-x&cl=0f1e-22&mod=');
+    expect(classQuizLink('https://evil.example/?k=a&cl=b&mod=', base)).toBeNull();
+    expect(classQuizLink('https://lm.example/?k=a&cl=b&mod=x', base)).toBeNull();
+    expect(classQuizLink('https://lm.example/?l=a&mod=', base)).toBeNull();
+    expect(classQuizLink(undefined, base)).toBeNull();
   });
 
   it('nicht druckbare Bilder und Dateiverweise werden zum Hinweis', async () => {

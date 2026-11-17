@@ -1438,6 +1438,16 @@ export class ClassbookService {
     return { ...t, nodes: s.nodes, placeOf: s.placeOf, links: s.links, inScope: s.inScope };
   }
 
+  /**
+   * Quiz-Adressen ins Klassennotizbuch für einen Klassenlink (`<base>/?k=<token>&cl=<link>&mod=`)
+   * – etwa für das GoodNotes-Heft aus dem Klassennotizbuch. Ohne Klassennotizbuch null.
+   */
+  async quizLinkFor(link: { id: string; classId?: string | null }, base: string): Promise<string | null> {
+    if (!link.classId) return null;
+    const nb = await this.repo.findOne({ where: { classId: link.classId } });
+    return nb?.token ? `${base}/?k=${nb.token}&cl=${encodeURIComponent(link.id)}&mod=` : null;
+  }
+
   /** Klassencode (aus der Schüler-App) → Token des Klassenbuch-Links. */
   async byCode(typed: string) {
     const code = normalizeClassCode(typed);

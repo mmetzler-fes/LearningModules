@@ -89,11 +89,12 @@ async function pdfIcon() {
 }
 
 /**
- * Dokument über den Renderer als PDF; mit `images` jede Seite als JPEG. `ink`: Beschriftung
+ * Dokument über den Renderer als PDF; mit `images` jede Seite als JPEG. `quizLink`: Quiz-Adressen
+ * ins Klassennotizbuch (`…&mod=`), sonst anonym über den Quick-Link. `ink`: Beschriftung
  * darauf (✍️ Tafelbild). `quizzes`: Quizze mit Druckfassung oder nur als QR-Code.
  * Ergebnis `{ pdf, pages }`.
  */
-async function documentPdf(mod, { ink = null, images = true, quizzes = 'print' } = {}) {
+async function documentPdf(mod, { ink = null, images = true, quizzes = 'print', quizLink = null } = {}) {
   const content = contentOf(mod);
   let spec = content.spec || { content: [] };
   if (ink) {
@@ -103,7 +104,7 @@ async function documentPdf(mod, { ink = null, images = true, quizzes = 'print' }
   const res = await fetch('/api/worksheets/render', {
     method: 'POST',
     headers: authHeaders(),
-    body: JSON.stringify({ spec, title: mod.title || '', output: 'pdf', moduleId: mod.id, kind: content.kind, quizzes }),
+    body: JSON.stringify({ spec, title: mod.title || '', output: 'pdf', moduleId: mod.id, kind: content.kind, quizzes, ...(quizLink ? { quizLink } : {}) }),
   });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
@@ -144,7 +145,7 @@ async function documentPdf(mod, { ink = null, images = true, quizzes = 'print' }
  * `linkFor(moduleId)` → Adresse eines Moduls, `topicLink` → Adresse des Lernthemas.
  * Ergebnis: Übersichtsseite und je Dokument eine Unterseite für writeOneSection.
  */
-async function topicPages(topicTitle, modules, linkFor, topicLink, { images, attachPdf = false, quizzes = 'print', onStep, warnings, inkFor = null }) {
+async function topicPages(topicTitle, modules, linkFor, topicLink, quizLink, { images, attachPdf = false, quizzes = 'print', onStep, warnings, inkFor = null }) {
   const { steps } = planRun(modules);
   const docs = modules.filter((m) => m.type === 'document');
   const others = steps.filter((m) => m.type !== 'document');
@@ -179,7 +180,7 @@ async function topicPages(topicTitle, modules, linkFor, topicLink, { images, att
     const pageBlocks = [];
     if (images || attachPdf) {
       try {
-        const { pdf, pages: shots } = await documentPdf(doc, { ink: inkFor ? await inkFor(doc.id) : null, images, quizzes });
+        const { pdf, pages: shots } = await documentPdf(doc, { ink: inkFor ? await inkFor(doc.id) : null, images, quizzes, quizLink });
         // 📎 Das PDF selbst – in OneNote antippen und teilen, z. B. an GoodNotes.
         if (attachPdf) pageBlocks.push({ type: 'file', name: `${fileSafe(doc.title)}.pdf`, data: pdf, icon: await pdfIcon() });
         shots.forEach(({ spots = [], ...p }, i) => {
@@ -225,8 +226,8 @@ async function build(plan, { images, attachPdf = false, quizzes = 'print', board
     for (const topic of section.topics) {
       onProgress(done, total, topic.title);
       try {
-        const { modules, linkFor, topicLink } = await topic.load();
-        pages.push(...await topicPages(topic.title, modules, linkFor, topicLink, { images, attachPdf, quizzes, warnings, inkFor, onStep: (t) => onProgress(done, total, t) }));
+        const { modules, linkFor, topicLink, quizLink = null } = await topic.load();
+        pages.push(...await topicPages(topic.title, modules, linkFor, topicLink, quizLink, { images, attachPdf, quizzes, warnings, inkFor, onStep: (t) => onProgress(done, total, t) }));
       } catch (e) {
         warnings.push(`${topic.title}: ${e.message}`);
       }
@@ -417,8 +418,10 @@ export async function openClassbookOneNoteExport(app, classId, { nodeId = null }
       if (!fullModules.has(t.id)) fullModules.set(t.id, await app.api.getTopicModules(t.id).catch(() => []));
       const byId = new Map((fullModules.get(t.id) || []).map((m) => [m.id, m]));
       const modules = (t.units || []).map((u) => byId.get(u.id)).filter(Boolean);
-      // Übersicht: ins Klassennotizbuch (`&cl=` wirkt nur mit `&mod=`), Module direkt.
-      return { modules, topicLink: cb.url, linkFor: (id) => `${cb.url}&cl=${encodeURIComponent(l.id)}&mod=${encodeURIComponent(id)}` };
+      // Übersicht: ins Klassennotizbuch (`&cl=` wirkt nur mit `&mod=`), Module direkt –
+      // auch die QR-Codes der Quizze im Ausdruck (quizLink), damit nichts anonym bleibt.
+      const quizLink = `${cb.url}&cl=${encodeURIComponent(l.id)}&mod=`;
+      return { modules, topicLink: cb.url, quizLink, linkFor: (id) => `${quizLink}${encodeURIComponent(id)}` };
     },
   }));
   const linksIn = (nodeId) => links.filter((l) => (l.nodeId || null) === nodeId).sort((a, b) => (a.order ?? 0) - (b.order ?? 0));

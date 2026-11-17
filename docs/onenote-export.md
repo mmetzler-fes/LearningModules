@@ -64,6 +64,18 @@ Server wird nichts abgelegt. Der Dialog nennt am Ende den Dateinamen.
    schließen“) und die Datei löschen. Einzeln geöffnete Abschnitte lassen sich
    nur schließen, nicht löschen.
 
+## Welche Links?
+
+- **Aus dem Lernnotizbuch** sind alle Links anonym (Quick-Link): Übersicht,
+  Dokumente, Quizze und die QR-Codes im Ausdruck. Gut für Vorführungen und
+  Kolleginnen und Kollegen – ohne Schülerkonten.
+- **Aus dem Klassennotizbuch** führen alle Links ins Klassennotizbuch (Name und
+  PIN), auch die QR-Codes der Quizze im Ausdruck: Der Renderer bekommt dafür
+  `quizLink` (`<base>/?k=<token>&cl=<link>&mod=`, nur Adressen dieses Servers).
+- Dasselbe gilt für das GoodNotes-Heft: Lädt ein Schüler es im Klassennotizbuch
+  (Klassenlink), führen die Quiz-Adressen ins Klassennotizbuch; aus dem
+  Lernnotizbuch bzw. über den Quick-Link bleiben sie anonym.
+
 ## Direktlinks
 
 - Quick-Link bzw. Freigabelink: `?l=<token>&mod=<modul>` öffnet nur dieses Modul.

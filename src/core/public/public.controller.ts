@@ -113,12 +113,14 @@ export class PublicController {
     @Res() res: Response,
   ) {
     let modules: LearningModule[] = [];
+    let classLink: TopicLink | null = null;
     if (body?.linkToken) {
       const { link, access } = await this.findAccessByToken(String(body.linkToken));
       if (link.accessPassword && (body.password || '') !== link.accessPassword && !readTicket(body.studentTicket, link.id)) {
         throw new ForbiddenException('Falsches Passwort.');
       }
       modules = (await this.linksService.resolveModules(link, { exam: modesFor(link, access).includes('exam') })).flatMap((r) => r.modules);
+      classLink = link;
     } else if (body?.quickToken) {
       const { topic } = await this.resolveQuickToken(String(body.quickToken));
       modules = (topic.modules || []).filter((m) => m.moduleSelected !== false);
@@ -128,7 +130,7 @@ export class PublicController {
     if (!modules.some((m) => m.id === moduleId)) throw new NotFoundException('Dokument nicht gefunden.');
     const mod = await this.moduleRepo.findOne({ where: { id: moduleId }, select: ['id', 'topicId', 'type'] });
     if (!mod || mod.type !== 'document') throw new NotFoundException('Dokument nicht gefunden.');
-    await this.sendHeft(modules, mod.topicId, req, res, 'attachment');
+    await this.sendHeft(modules, mod.topicId, req, res, 'attachment', classLink);
   }
 
   /**
@@ -141,16 +143,21 @@ export class PublicController {
     const { link, access } = await this.findAccessByToken(String(linkToken));
     if (link.accessPassword) throw new ForbiddenException('Dieser Link hat ein Passwort – das Heft gibt es dann am Dokument („📓 Heft für GoodNotes“).');
     const modules = (await this.linksService.resolveModules(link, { exam: modesFor(link, access).includes('exam') })).flatMap((r) => r.modules);
-    await this.sendHeft(modules, String(topicId), req, res, 'inline');
+    await this.sendHeft(modules, String(topicId), req, res, 'inline', link);
   }
 
-  /** Heft eines Lernthemas mit den Dokumenten, die der Link zeigt. */
-  private async sendHeft(modules: LearningModule[], topicId: string, req: any, res: Response, disposition: 'attachment' | 'inline') {
+  /**
+   * Heft eines Lernthemas mit den Dokumenten, die der Link zeigt. Über einen
+   * Klassenlink führen die Quiz-Adressen ins Klassennotizbuch (Name und PIN),
+   * sonst anonym über den Quick-Link.
+   */
+  private async sendHeft(modules: LearningModule[], topicId: string, req: any, res: Response, disposition: 'attachment' | 'inline', link: TopicLink | null = null) {
     const allowed = new Set(modules.filter((m) => m.topicId === topicId && m.type === 'document').map((m) => m.id));
     if (!allowed.size) throw new NotFoundException('In diesem Lernthema gibt es keine Dokumente.');
     const topic = await this.topicRepo.findOne({ where: { id: topicId }, select: ['id', 'ownerId'] });
     if (!topic || !(await this.features.has(topic.ownerId, 'worksheets'))) throw new ForbiddenException('Für dieses Lernthema gibt es kein Heft.');
-    const h = await this.goodnotes.heft(topic.ownerId, topicId, { allowed, base: baseUrl(req) });
+    const quizLink = link?.classId ? await this.classbook.quizLinkFor(link, baseUrl(req)) : null;
+    const h = await this.goodnotes.heft(topic.ownerId, topicId, { allowed, base: baseUrl(req), quizLink });
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `${disposition}; filename*=UTF-8''${encodeURIComponent(h.name)}`);
     res.send(h.file);

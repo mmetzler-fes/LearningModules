@@ -68,6 +68,22 @@ export interface DocContext {
   ownerId?: string;
   /** Öffentliche Adresse der App für die Quiz-Links (sonst APP_URL). */
   base?: string;
+  /**
+   * Quiz-Adressen ins Klassennotizbuch statt über den anonymen Quick-Link:
+   * Anfang der Adresse bis `mod=` (`<base>/?k=<token>&cl=<link>&mod=`), die
+   * Kennung des Quiz kommt dahinter. Siehe classQuizLink().
+   */
+  quizLink?: string;
+}
+
+/**
+ * Anfang einer Quiz-Adresse ins Klassennotizbuch – nur Adressen dieses Servers
+ * im Muster `<base>/?k=<token>&cl=<link>&mod=`, sonst null.
+ */
+export function classQuizLink(value: unknown, base: string): string | null {
+  const v = typeof value === 'string' ? value : '';
+  if (!v.startsWith(`${base}/?k=`)) return null;
+  return /^\?k=[\w.-]+&cl=[\w-]+&mod=$/.test(v.slice(base.length + 1)) ? v : null;
 }
 
 /** Probeblatt für Vorlagen: zeigt Überschriften, Text, Karo, Lösung, Tabelle, Formel, Code. */
@@ -291,7 +307,7 @@ export class WorksheetsService {
    */
   async renderSheets(user: any, list: LearningModule[], output: WorksheetOutput, opts: {
     quizzes?: QuizPrintMode; numbering?: Awaited<ReturnType<DocNumberingService['numberingFor']>>; template?: string | null;
-    course: Record<string, any>; skript: { titel: string; kopfzeile?: string }; karoPage?: boolean; base?: string;
+    course: Record<string, any>; skript: { titel: string; kopfzeile?: string }; karoPage?: boolean; base?: string; quizLink?: string | null;
   }) {
     const n = opts.numbering || await this.numbering!.numberingFor(user.userId);
     const sheets: Array<{ titel: string; spec: Record<string, any> }> = [];
@@ -305,6 +321,7 @@ export class WorksheetsService {
         ? { pfad: info.pfad, slug: info.slug, course: info.course, folder: info.folder, refs: n.refs.get(info.scope) || {}, topicId: mod.topicId, ownerId: user.userId }
         : { pfad: '', slug: '', course: { kurs: '', titelmuster: '{titel}', autor: '', meta: {} }, folder: '', refs: null, topicId: mod.topicId, ownerId: user.userId };
       if (opts.base) ctx.base = opts.base;
+      if (opts.quizLink) ctx.quizLink = opts.quizLink;
       const base = mod.content.spec as Record<string, any>;
       // Karo-Seite: Umbruch, dann ein Schreibfeld fast über die ganze Seite (44 × 0,5 cm).
       const spec = opts.karoPage ? { ...base, content: [...(base.content || []), { type: 'pagebreak' }, { type: 'karo', lines: 44 }] } : base;
@@ -334,13 +351,16 @@ export class WorksheetsService {
     return { files: result.files, warnings: [...warnings, ...result.warnings] };
   }
 
-  async render(user: any, body: { spec: unknown; title: string; output: WorksheetOutput; moduleId?: string; kind?: string; templateId?: string | null; quizzes?: QuizPrintMode }, req?: any) {
+  async render(user: any, body: { spec: unknown; title: string; output: WorksheetOutput; moduleId?: string; kind?: string; templateId?: string | null; quizzes?: QuizPrintMode; quizLink?: string }, req?: any) {
     const errors = docSpec().validateDocSpec(body.spec);
     if (errors.length) throw new BadRequestException({ message: 'Das Dokument enthält Fehler.', errors });
     const ctx = body.moduleId ? await this.context(user, body.moduleId, body.kind, body.templateId)
       : this.templates ? { pfad: '', slug: '', course: { kurs: '', titelmuster: '{titel}', autor: '', meta: {} }, folder: '', refs: null, template: await this.templateFor(user.userId, null, body.kind, body.templateId) }
         : null;
     if (ctx && req) ctx.base = baseUrl(req);
+    // Aus dem Klassennotizbuch (OneNote): Quiz-Adressen mit Anmeldung statt anonym.
+    const quizLink = ctx && req ? classQuizLink(body.quizLink, baseUrl(req)) : null;
+    if (ctx && quizLink) ctx.quizLink = quizLink;
     const { job, warnings } = await this.prepare(body.spec as Record<string, any>, body.title, [body.output], ctx, { quizzes: body.quizzes });
     const result = await this.renderer.render(job);
     const file = result.files[body.output];
@@ -458,12 +478,13 @@ export class WorksheetsService {
         warnings.push(`Quiz „${title}“: Das Modul gehört nicht zu deinen Lernthemen – im Druck steht ein Hinweis.`);
         return { type: 'note', text: `[Quiz: ${title}]` };
       }
-      const token = await this.quickTokenFor(ctx.ownerId, ctx.topicId);
-      if (!token) {
+      const token = ctx.quizLink ? null : await this.quickTokenFor(ctx.ownerId, ctx.topicId);
+      if (!token && !ctx.quizLink) {
         warnings.push(`Quiz „${title}“: Für das Lernthema gibt es noch keinen Quick-Link – im Druck fehlt der QR-Code.`);
         return { type: 'box', title: `Quiz: ${title}`, blocks: [{ type: 'note', text: 'Online in LearningModules – der QR-Code erscheint, sobald für das Lernthema ein Quick-Link erstellt ist.' }] };
       }
-      const url = `${ctx.base || baseUrl()}/?l=${token}&mod=${mod.id}`;
+      // Klassennotizbuch: mit Name und PIN, Ergebnisse in der Klasse; sonst anonym über den Quick-Link.
+      const url = ctx.quizLink ? `${ctx.quizLink}${encodeURIComponent(mod.id)}` : `${ctx.base || baseUrl()}/?l=${token}&mod=${mod.id}`;
       const blocks: Record<string, any>[] = [];
       const svg = await renderQr(url);
       if (svg) {

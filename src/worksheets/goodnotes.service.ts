@@ -70,7 +70,7 @@ export class GoodnotesService {
    * Heft eines Lernthemas. `ownerId`: die Lehrkraft, der es gehört (beim
    * Schülerweg vorher geprüft). `allowed`: nur diese Module (Link der Schüler).
    */
-  async heft(ownerId: string, topicId: string, opts: { solution?: boolean; allowed?: Set<string> | null; base?: string } = {}): Promise<Heft> {
+  async heft(ownerId: string, topicId: string, opts: { solution?: boolean; allowed?: Set<string> | null; base?: string; quizLink?: string | null } = {}): Promise<Heft> {
     const topic = await this.topicRepo.findOne({ where: { id: topicId }, relations: ['modules'] });
     if (!topic) throw new NotFoundException('Lernthema nicht gefunden.');
     if (topic.ownerId !== ownerId) throw new ForbiddenException('Das Lernthema gehört dir nicht.');
@@ -93,7 +93,7 @@ export class GoodnotesService {
       docs: docs.map((d) => [d.id, d.title, d.content, n.docs.get(d.id) ? [n.docs.get(d.id)!.pfad, n.docs.get(d.id)!.slug, n.docs.get(d.id)!.course] : null]),
       quizzes: all.filter((m) => m.type !== 'document').map((m) => [m.id, new Date(m.updatedAt as any).getTime() || 0]),
       tpl: tpl ? [tpl.id, new Date(tpl.updatedAt as any).getTime() || 0] : null,
-      kurs: settings.kurs || '', autor: settings.autor || '', base: opts.base || '',
+      kurs: settings.kurs || '', autor: settings.autor || '', base: opts.base || '', quizLink: opts.quizLink || '',
     })).digest('hex');
 
     const base = safeFolderName(topic.title, 'Lernthema');
@@ -110,7 +110,7 @@ export class GoodnotesService {
       job = (async () => {
         const kurs = settings.kurs || '';
         const { file, warnings } = await this.worksheets.renderSheets(user, docs, solution ? 'loesung_pdf' : 'pdf', {
-          quizzes: 'print', numbering: n, template: tpl?.data ?? null, karoPage: true, base: opts.base,
+          quizzes: 'print', numbering: n, template: tpl?.data ?? null, karoPage: true, base: opts.base, quizLink: opts.quizLink,
           course: { kurs, autor: settings.autor || '', ...(settings.meta ? { meta: settings.meta } : {}) },
           skript: { titel: topic.title, kopfzeile: [kurs, topic.title, `Stand ${deDay(stand)}`].filter(Boolean).join(' – ') },
         });

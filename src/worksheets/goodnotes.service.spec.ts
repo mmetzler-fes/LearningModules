@@ -80,6 +80,17 @@ describe('GoodnotesService', () => {
     expect(h.file.toString()).not.toContain('d1');
   });
 
+  it('über einen Klassenlink: Quiz-Adressen ins Klassennotizbuch, eigener Zwischenspeicher', async () => {
+    const anon = await svc.heft('u1', 't1');
+    const quizLink = 'https://lm.test/?k=kb1&cl=L-1&mod=';
+    const cls = await svc.heft('u1', 't1', { quizLink });
+    expect(cls.cached).toBe(false);
+    expect(anon.cached).toBe(false);
+    const calls = ((svc as any).worksheets.renderSheets as jest.Mock).mock.calls;
+    expect(calls[0][3].quizLink).toBeUndefined();
+    expect(calls[1][3].quizLink).toBe(quizLink);
+  });
+
   it('fremdes Lernthema wird abgelehnt', async () => {
     await expect(svc.heft('u2', 't1')).rejects.toThrow('gehört dir nicht');
   });

@@ -24,14 +24,27 @@ Fassung in LearningModules.
 | Book, Bereich | Ordner im ZIP (in OneNote: Abschnittsgruppe) |
 | Abschnitt | Abschnitt (`.one`-Datei) |
 | Lernthemen direkt in einem Book/Bereich | ein Abschnitt mit dessen Namen |
-| Dokument | eigene Seite **„Lernthema – Dokument“** (heißen beide gleich: nur einmal) |
-| Quizze, die in keinem Dokument stecken | eine gemeinsame Seite **„Lernthema – Quiz“**: ein Link mit QR-Code für alle (mit „Weiter“ von Quiz zu Quiz, `&mod=id1,id2,…`), die Titel als Text darunter |
+| Lernthema | **Übersichtsseite** mit dem Namen des Lernthemas |
+| Dokument | **Unterseite** der Übersicht mit dem Namen des Dokuments |
+| Quizze, die in keinem Dokument stecken | auf der Übersichtsseite: „alle nacheinander“ (mit „Weiter“ von Quiz zu Quiz, `&mod=id1,id2,…`) oder einzeln verlinkt |
 
-Eine Dokument-Seite enthält oben den Link zur Live-Fassung, den QR-Code, darunter
-die Adresse als Text (zum Kopieren) und „Stand …“, dazu die Adressen der Quizze im
-Dokument als Text (im Ausdruck stehen sie nur als QR-Code), darunter – wenn angehakt – den **Ausdruck als Seitenbilder**
+Die **Übersichtsseite** (wie die Titelseite im GoodNotes-Heft) enthält den Link
+zum Lernthema in LearningModules, den QR-Code, die Adresse als Text (zum
+Kopieren) und „Stand …“, darunter den Inhalt: jedes Dokument und jedes Quiz als
+Link. Im Klassennotizbuch führt der Übersichtslink ins Klassennotizbuch.
+
+Eine **Dokument-Seite** enthält oben eine Zeile mit dem Link zur Live-Fassung
+und dem Stand, darunter – wenn angehakt – den **Ausdruck als Seitenbilder**
 untereinander. Darauf lässt sich in OneNote mit dem Stift schreiben. Der
 Ausdruck veraltet, wenn das Dokument geändert wird; aktuell bleibt der Link.
+
+**Quiz-Links im Ausdruck:** Wie im GoodNotes-Heft steht bei jedem Quiz der
+QR-Code, und direkt daneben liegt ein klickbarer Link „▶ Quiz online öffnen“.
+Dafür liest die Ausgabe die PDF-Verweise des Ausdrucks
+(`src/renderer/js/onenote-links.js`). Die gedruckte Adresse wird im Seitenbild
+weiß überdeckt, und an ihrer Stelle liegt ein eigener OneNote-Textblock mit dem
+Link (Quick-Link bzw. Klassennotizbuch). Findet sich kein Verweis (kein
+Ausdruck, älterer Renderer), stehen die Quizze oben auf der Seite als Liste.
 
 Gesperrte (🔒) und ausgeschaltete Module kommen nicht mit. Eine einzelne
 Datei wird direkt als `.one` geladen und heißt dann wie das Ausgegebene
@@ -72,6 +85,9 @@ Server wird nichts abgelegt. Der Dialog nennt am Ende den Dateinamen.
   - Ein Link steht nie am Absatzende; danach folgt Text mit „Link aus“.
   - Der Textblock ist ein gewöhnlicher Inhaltsblock (der Datumsblock läuft
     waagerecht); Seitenbilder liegen frei auf der Seite, untereinander.
+  - Links über einem Seitenbild sind eigene Textblöcke (Outline) mit fester
+    Position, auf der Seite nach den Bildern eingetragen (liegen oben).
+    Unterseiten: Seitenebene 2.
 - Die MD5-Werte der schreibgeschützten Objekte rechnet OneNote nicht nach
   erkennbarem Muster; wir nehmen MD5 der Daten – OneNote nimmt das an.
 - QR-Codes: `POST /api/links/qr` (`{ urls }` → `{ svgs }`, nur Adressen

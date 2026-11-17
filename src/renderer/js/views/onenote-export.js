@@ -4,15 +4,16 @@ import { writeOneSection } from '../onenote-write.js';
 import { zipStore } from '../odf/sheet-templates.js';
 import { planRun, quizIdsOf } from '../../lm-editor/src/doc/doc-quiz.js';
 import { printPrefs } from './print-dialog.js';
+import { quizLinkSpots } from '../onenote-links.js';
 
 // ==================== FÜR ONENOTE AUSGEBEN ====================
 //
 // Der umgekehrte Weg zu onenote-import.js: Lernthemen werden OneNote-Seiten,
 // damit Kolleginnen und Kollegen mit OneNote sie in ihr Notizbuch ziehen
-// können. Je Dokument eine Seite „Lernthema – Dokument“ mit Link und QR-Code
-// zur Live-Fassung, dem Stand und dem Ausdruck als Seitenbilder (darauf lässt
-// sich mit dem Stift schreiben). Quizze, die in keinem Dokument stecken,
-// stehen gemeinsam auf „Lernthema – Quiz“.
+// können. Je Lernthema eine Übersichtsseite mit Link und QR-Code zum
+// Lernthema in LearningModules, darunter je Dokument eine Unterseite mit dem
+// Ausdruck als Seitenbilder (darauf lässt sich mit dem Stift schreiben). Die
+// Quiz-Adressen im Ausdruck sind klickbare Links – wie im GoodNotes-Heft.
 //
 // Aufbau wie beim Import: Abschnitt → .one-Datei, Bereich/Book → Ordner im
 // ZIP. Lernnotizbuch: anonyme Quick-Links; Klassennotizbuch: Links ins
@@ -23,15 +24,7 @@ const JPEG_QUALITY = 0.82;
 
 const authHeaders = () => ({ 'Content-Type': 'application/json', Authorization: `Bearer ${sessionStorage.getItem('lm_token') || localStorage.getItem('lm_token') || ''}` });
 const fileSafe = (s) => String(s || 'Ohne Titel').replace(/[\\/:*?"<>|\u0000-\u001f]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 100) || 'Ohne Titel';
-const norm = (s) => String(s || '').toLowerCase().replace(/[\s_\-–—.]+/g, '');
 const today = () => new Date().toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
-
-/** „Lernthema – Dokument“; heißen beide (fast) gleich, nur einmal. */
-export function pageTitle(topicTitle, docTitle) {
-  if (!docTitle) return topicTitle;
-  if (!topicTitle || norm(topicTitle) === norm(docTitle)) return docTitle;
-  return `${topicTitle} – ${docTitle}`;
-}
 
 const contentOf = (mod) => {
   let c = mod.content || {};
@@ -132,7 +125,11 @@ async function documentPdf(mod, { ink = null, images = true, quizzes = 'print' }
       const ctx = c.getContext('2d');
       ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, c.width, c.height);
       await page.render({ canvasContext: ctx, viewport: vp }).promise;
-      pages.push({ data: await canvasBytes(c, 'image/jpeg', JPEG_QUALITY), width: c.width, height: c.height, widthIn: base.width / 72 });
+      // Quiz-Adressen im Ausdruck: im Bild weiß überdecken – OneNote legt an die Stelle einen klickbaren Link.
+      const spots = quizLinkSpots(await page.getAnnotations().catch(() => []), base.height).filter((sp) => sp.text);
+      ctx.fillStyle = '#fff';
+      for (const { text: r } of spots) ctx.fillRect((r.x * 72 - 1) * PAGE_SCALE, (r.y * 72 - 1) * PAGE_SCALE, (r.w * 72 + 2) * PAGE_SCALE, (r.h * 72 + 2) * PAGE_SCALE);
+      pages.push({ data: await canvasBytes(c, 'image/jpeg', JPEG_QUALITY), width: c.width, height: c.height, widthIn: base.width / 72, spots });
     }
   } finally {
     doc.destroy();
@@ -144,58 +141,67 @@ async function documentPdf(mod, { ink = null, images = true, quizzes = 'print' }
 
 /**
  * `modules`: sichtbare Module des Lernthemas (oberste Ebene, sortiert).
- * `linkFor(moduleId)` → Adresse. Ergebnis: Seiten für writeOneSection.
+ * `linkFor(moduleId)` → Adresse eines Moduls, `topicLink` → Adresse des Lernthemas.
+ * Ergebnis: Übersichtsseite und je Dokument eine Unterseite für writeOneSection.
  */
-async function topicPages(topicTitle, modules, linkFor, { images, attachPdf = false, quizzes = 'print', onStep, warnings, inkFor = null }) {
+async function topicPages(topicTitle, modules, linkFor, topicLink, { images, attachPdf = false, quizzes = 'print', onStep, warnings, inkFor = null }) {
   const { steps } = planRun(modules);
   const docs = modules.filter((m) => m.type === 'document');
   const others = steps.filter((m) => m.type !== 'document');
-  const allQuizzes = others.length ? linkFor(others.map((m) => m.id).join(',')) : null;
-  const qrs = await qrPngs([...docs.map((m) => linkFor(m.id)), ...(allQuizzes ? [allQuizzes] : [])]);
-  const qrOf = new Map(docs.map((m, i) => [m.id, qrs[i]]));
-  const qrAll = allQuizzes ? qrs[docs.length] : null;
+  const titleOf = (id) => modules.find((m) => m.id === id)?.title || 'Quiz';
+  const [qr] = await qrPngs([topicLink]);
   const stand = `Stand ${today()} – die aktuelle Fassung gibt es über den Link.`;
-  // Unter dem QR-Code die Adresse als Text – das Bild lässt sich nicht kopieren.
+  // Die Adresse als Text – das Bild lässt sich nicht kopieren.
   const urlLine = (url) => ({ type: 'text', runs: [{ text: url, href: url }] });
-  const pages = [];
+
+  // Übersicht: Link und QR-Code zum Lernthema, darunter der Inhalt – jeder Eintrag ein Link.
+  const overview = [
+    { type: 'text', runs: [{ text: 'Online in LearningModules: ' }, { text: topicTitle || 'öffnen', href: topicLink }] },
+  ];
+  if (qr) overview.push({ type: 'image', ...qr, widthIn: 1.6, name: 'QR-Code.png', alt: `QR-Code: ${topicTitle}` });
+  overview.push(urlLine(topicLink), { type: 'text', runs: [{ text: stand }] });
+  if (docs.length) {
+    overview.push({ type: 'text', runs: [{ text: docs.length === 1 ? 'Dokument (Ausdruck auf der Unterseite):' : 'Dokumente (Ausdruck auf den Unterseiten):' }] });
+    docs.forEach((d, i) => overview.push({ type: 'text', runs: [{ text: `${i + 1}. ` }, { text: d.title || 'Dokument', href: linkFor(d.id) }] }));
+  }
+  if (others.length) {
+    overview.push({ type: 'text', runs: others.length === 1 ? [{ text: 'Quiz:' }]
+      : [{ text: `Quizze – ` }, { text: `alle ${others.length} nacheinander`, href: linkFor(others.map((m) => m.id).join(',')) }, { text: ' oder einzeln:' }] });
+    others.forEach((m, i) => overview.push({ type: 'text', runs: [{ text: `${i + 1}. ` }, { text: m.title || 'Quiz', href: linkFor(m.id) }] }));
+  }
+  const pages = [{ title: topicTitle, blocks: overview }];
+
   for (const doc of docs) {
     onStep(`${topicTitle}: ${doc.title}`);
-    const blocks = [{ type: 'text', runs: [{ text: 'Live-Fassung: ' }, { text: doc.title || 'öffnen', href: linkFor(doc.id) }] }];
-    const qr = qrOf.get(doc.id);
-    if (qr) blocks.push({ type: 'image', ...qr, widthIn: 1.3, name: 'QR-Code.png', alt: `QR-Code: ${doc.title}` });
-    blocks.push(urlLine(linkFor(doc.id)));
-    blocks.push({ type: 'text', runs: [{ text: stand }] });
-    // Quizze im Dokument: Im Ausdruck stehen sie nur als QR-Code im Bild – hier die Adressen als Text.
+    const blocks = [{ type: 'text', runs: [{ text: 'Live-Fassung: ' }, { text: doc.title || 'öffnen', href: linkFor(doc.id) }, { text: ` · Stand ${today()}` }] }];
     const quizIds = [...new Set(quizIdsOf(doc))];
-    if (quizIds.length) {
-      blocks.push({ type: 'text', runs: [{ text: quizIds.length === 1 ? 'Quiz im Dokument:' : 'Quizze im Dokument:' }] });
-      quizIds.forEach((id, i) => {
-        const title = modules.find((m) => m.id === id)?.title || 'Quiz';
-        blocks.push({ type: 'text', runs: [{ text: `${i + 1}. ${title}` }] });
-        blocks.push(urlLine(linkFor(id)));
-      });
-    }
+    const placed = new Set(); // Quizze, deren Link im Ausdruck an der richtigen Stelle steht
+    const pageBlocks = [];
     if (images || attachPdf) {
       try {
         const { pdf, pages: shots } = await documentPdf(doc, { ink: inkFor ? await inkFor(doc.id) : null, images, quizzes });
         // 📎 Das PDF selbst – in OneNote antippen und teilen, z. B. an GoodNotes.
-        if (attachPdf) blocks.push({ type: 'file', name: `${fileSafe(doc.title)}.pdf`, data: pdf, icon: await pdfIcon() });
-        shots.forEach((p, i) => blocks.push({ type: 'image', free: true, ext: '.jpeg', ...p, name: `${fileSafe(doc.title)} – Seite ${i + 1}.jpeg`, alt: `${doc.title}, Seite ${i + 1}` }));
+        if (attachPdf) pageBlocks.push({ type: 'file', name: `${fileSafe(doc.title)}.pdf`, data: pdf, icon: await pdfIcon() });
+        shots.forEach(({ spots = [], ...p }, i) => {
+          // An der Stelle der (überdeckten) Adresse ein klickbarer Link – ins Klassennotizbuch bzw. über den Quick-Link.
+          const links = spots.map((sp) => {
+            placed.add(sp.id);
+            return { x: sp.text.x, y: sp.text.y - 0.03, w: Math.max(sp.text.w, 2), runs: [{ text: '▶ Quiz online öffnen', href: linkFor(sp.id) }] };
+          });
+          pageBlocks.push({ type: 'image', free: true, ext: '.jpeg', ...p, links, name: `${fileSafe(doc.title)} – Seite ${i + 1}.jpeg`, alt: `${doc.title}, Seite ${i + 1}` });
+        });
       } catch (e) {
         warnings.push(`${doc.title}: kein Ausdruck (${e.message})`);
-        blocks.push({ type: 'text', runs: [{ text: `Der Ausdruck ließ sich nicht erzeugen (${e.message}) – bitte den Link nutzen.` }] });
+        pageBlocks.push({ type: 'text', runs: [{ text: `Der Ausdruck ließ sich nicht erzeugen (${e.message}) – bitte den Link nutzen.` }] });
       }
     }
-    pages.push({ title: pageTitle(topicTitle, doc.title), blocks });
-  }
-  // Quizze außerhalb von Dokumenten: ein Link für alle, mit „Weiter“ von Quiz zu Quiz;
-  // die Titel stehen nur als Text darunter.
-  if (others.length) {
-    const blocks = [{ type: 'text', runs: [{ text: others.length === 1 ? 'Quiz: ' : `Alle ${others.length} Quizze nacheinander: ` }, { text: 'öffnen', href: allQuizzes }] }];
-    if (qrAll) blocks.push({ type: 'image', ...qrAll, widthIn: 1.3, name: 'QR-Code.png', alt: `QR-Code: ${topicTitle} – Quiz` });
-    blocks.push(urlLine(allQuizzes));
-    others.forEach((m, i) => blocks.push({ type: 'text', runs: [{ text: `${i + 1}. ${m.title || 'Quiz'}` }] }));
-    pages.push({ title: `${topicTitle} – Quiz`, blocks });
+    // Quizze ohne Link im Ausdruck (kein Ausdruck, älterer Renderer): oben als Liste.
+    const rest = quizIds.filter((id) => !placed.has(id));
+    if (rest.length) {
+      blocks.push({ type: 'text', runs: [{ text: rest.length === 1 ? 'Quiz im Dokument:' : 'Quizze im Dokument:' }] });
+      rest.forEach((id, i) => blocks.push({ type: 'text', runs: [{ text: `${i + 1}. ` }, { text: titleOf(id), href: linkFor(id) }] }));
+    }
+    pages.push({ title: doc.title || 'Dokument', level: 2, blocks: [...blocks, ...pageBlocks] });
   }
   return pages;
 }
@@ -219,8 +225,8 @@ async function build(plan, { images, attachPdf = false, quizzes = 'print', board
     for (const topic of section.topics) {
       onProgress(done, total, topic.title);
       try {
-        const { modules, linkFor } = await topic.load();
-        pages.push(...await topicPages(topic.title, modules, linkFor, { images, attachPdf, quizzes, warnings, inkFor, onStep: (t) => onProgress(done, total, t) }));
+        const { modules, linkFor, topicLink } = await topic.load();
+        pages.push(...await topicPages(topic.title, modules, linkFor, topicLink, { images, attachPdf, quizzes, warnings, inkFor, onStep: (t) => onProgress(done, total, t) }));
       } catch (e) {
         warnings.push(`${topic.title}: ${e.message}`);
       }
@@ -248,7 +254,7 @@ function openDialog(app, { title, hint, plan }) {
       <h3 id="oneNoteExportTitle">🟪 ${escapeHtml(title)}</h3>
       <p class="import-modules-hint">${hint}</p>
       <p class="hint">${plan.sections.length} Abschnitt${plan.sections.length === 1 ? '' : 'e'} · ${topics} Lernthem${topics === 1 ? 'a' : 'en'}.
-        Je Dokument eine Seite mit Link, QR-Code und Ausdruck; Quizze außerhalb von Dokumenten gemeinsam auf einer Seite „… – Quiz“ mit einem Link für alle.</p>
+        Je Lernthema eine Übersichtsseite mit Link und QR-Code, darunter je Dokument eine Unterseite mit dem Ausdruck – die Quizze darin als klickbare Links.</p>
       <label><input type="checkbox" class="one-images" checked> 🖼 Ausdruck als Seitenbilder mitnehmen (darauf lässt sich in OneNote schreiben – dauert je Dokument einige Sekunden)</label>
       <label><input type="checkbox" class="one-pdf"> 📎 PDF anfügen – in OneNote antippen und teilen, z. B. an GoodNotes</label>
       <label><input type="checkbox" class="one-quizprint" ${printPrefs().quizzes === 'qr' ? '' : 'checked'}> 🧩 Quizze im Ausdruck zum Ausfüllen (sonst nur QR-Code und Adresse)</label>
@@ -341,7 +347,7 @@ const notebookTopic = (api, topic) => ({
   title: topic.title,
   load: async () => {
     const url = await quickLinkUrl(api, topic.id);
-    return { modules: await visibleModules(api, topic.id), linkFor: (id) => `${url}&mod=${encodeURIComponent(id)}` };
+    return { modules: await visibleModules(api, topic.id), topicLink: url, linkFor: (id) => `${url}&mod=${encodeURIComponent(id)}` };
   },
 });
 
@@ -411,7 +417,8 @@ export async function openClassbookOneNoteExport(app, classId, { nodeId = null }
       if (!fullModules.has(t.id)) fullModules.set(t.id, await app.api.getTopicModules(t.id).catch(() => []));
       const byId = new Map((fullModules.get(t.id) || []).map((m) => [m.id, m]));
       const modules = (t.units || []).map((u) => byId.get(u.id)).filter(Boolean);
-      return { modules, linkFor: (id) => `${cb.url}&cl=${encodeURIComponent(l.id)}&mod=${encodeURIComponent(id)}` };
+      // Übersicht: ins Klassennotizbuch (`&cl=` wirkt nur mit `&mod=`), Module direkt.
+      return { modules, topicLink: cb.url, linkFor: (id) => `${cb.url}&cl=${encodeURIComponent(l.id)}&mod=${encodeURIComponent(id)}` };
     },
   }));
   const linksIn = (nodeId) => links.filter((l) => (l.nodeId || null) === nodeId).sort((a, b) => (a.order ?? 0) - (b.order ?? 0));

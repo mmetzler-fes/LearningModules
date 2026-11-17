@@ -275,7 +275,8 @@ export function textLines(runs) {
 }
 
 /**
- * Seite bauen. `page`: { title, blocks: [{ type:'text', runs:[{text, href?}] } | { type:'file', name, data, icon }] }
+ * Seite bauen. `page`: { title, level?, blocks: [{ type:'text', runs:[{text, href?}] } | { type:'file', name, data, icon }
+ *   | { type:'image', data, width, height, widthIn?, free?, links?: [{ x, y, w, runs }] }] }
  */
 function buildPage(w, ids, page, now, author, fileStore) {
   const t32 = time32(now), ft = filetime(now);
@@ -363,7 +364,7 @@ function buildPage(w, ids, page, now, author, fileStore) {
       const props = [P.u32(0x1d7a, t32), P.bool(0x1cbd, false), P.bool(0x1dce, true), P.bool(0x3e16, false), P.f32(0x1c1b, w), P.f32(0x1c1c, h),
         P.u32(0x1c3b, 0x407), P.u32(0x34cb, 0), P.f32(0x34cd, w), P.f32(0x34ce, h), P.oid(0x1c3f, container), P.text(0x1e58, block.alt || '')];
       if (block.name) props.push(P.text(0x1dd7, block.name));
-      if (block.free) { free.push({ props, h }); continue; }
+      if (block.free) { free.push({ props, h, links: block.links || [] }); continue; }
       elements.push(oe(obj(J.image, props)));
       flowHeight += h + 0.2;
     }
@@ -375,14 +376,22 @@ function buildPage(w, ids, page, now, author, fileStore) {
   // Freie Bilder unter den Textblock setzen
   let y = 2.0 + flowHeight + 0.8;
   const freeIds = [];
+  const linkIds = []; // Links über den Seitenbildern (Quiz-Adressen im Ausdruck) – zuletzt, damit sie oben liegen
   for (const f of free) {
     freeIds.push(obj(J.image, [...f.props.filter((p) => p.id !== 0x1cbd), P.bool(0x1cbd, true), P.f32(0x1c14, 1.0), P.f32(0x1c15, y)]));
+    // `links`: [{ x, y, w, runs }] in Zoll ab der linken oberen Ecke des Bilds – ein eigener
+    // Textblock an dieser Stelle (das Bild steht in Originalgröße, 1 Zoll = 2 Einheiten).
+    for (const l of f.links) {
+      linkIds.push(obj(J.outline, [P.bool(0x1cbd, true), P.u8(0x1c03, 1), P.u8(0x1c13, 0), P.f32(0x1c14, 1.0 + l.x * 2), P.f32(0x1c15, y + l.y * 2),
+        P.f32(0x1c1b, Math.max(1, l.w * 2)), P.f32(0x1c1c, 0.6), P.u32(0x1c3e, 0), P.u32(0x1c84, 9), P.u32(0x1d7a, t32), P.bytes(0x1c12, bodyLayout),
+        P.oids(0x1c20, [oe(richText(l.runs))])]));
+    }
     y += f.h + 0.4;
   }
 
   const pageGuid = randomGuid();
   const pageNode = obj(J.page, [P.bool(0x1c92, false), P.bool(0x1cdc, true), P.f32(0x1d0f, 1), P.f32(0x1d10, 0.4), P.u32(0x1d7a, t32), P.bytes(0x1c30, pageGuid),
-    P.oids(0x1c20, [...freeIds, body]), P.oids(0x1d5f, [title])]);
+    P.oids(0x1c20, [...freeIds, body, ...linkIds]), P.oids(0x1d5f, [title])]);
   const vhMeta = obj(J.versionHistoryMeta, [P.u32(0x1d82, 0x28), P.u32(0x348b, 0x28)]);
 
   const ctxGuid = { g: randomGuid(), n: 1 };

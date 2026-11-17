@@ -64,6 +64,21 @@ describe('OneNote schreiben', () => {
     expect(plain.includes(utf16('HYPERLINK'))).toBe(false);
   });
 
+  it('Links über einem Seitenbild: eigener Textblock mit Link, Unterseiten mit Ebene 2', () => {
+    const bytes = w.writeOneSection({ name: 'T', pages: [
+      { title: 'Lernthema', blocks: [{ type: 'text', runs: [{ text: 'Übersicht' }] }] },
+      { title: 'Blatt', level: 2, blocks: [
+        { type: 'text', runs: [{ text: 'Live-Fassung' }] },
+        { type: 'image', free: true, data: png, width: 794, height: 1123, widthIn: 8, name: 'Seite 1.png',
+          links: [{ x: 2.5, y: 1.9, w: 4, runs: [{ text: '▶ Quiz online öffnen', href: 'https://lm.example/?l=abc&mod=q1' }] }] },
+      ] },
+    ] });
+    expect(Buffer.from(bytes).includes(utf16('﷟HYPERLINK "https://lm.example/?l=abc&mod=q1"▶ Quiz online öffnen'))).toBe(true);
+    const { pages } = one.readOneSection(bytes);
+    expect(pages.map((p) => [p.title, p.level])).toEqual([['Lernthema', 1], ['Blatt', 2]]);
+    expect(pages[1].images.map((i) => i.name)).toEqual(['Seite 1.png']);
+  });
+
   it('Findet unverwiesene Objekte', () => {
     const id = (n: number) => ({ g: new Uint8Array(16), n });
     const objects = [

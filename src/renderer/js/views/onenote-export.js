@@ -419,7 +419,11 @@ export async function openClassbookOneNoteExport(app, classId, { nodeId = null }
   nodes.forEach((n) => { if (isHidden(n.id)) hiddenNodes.add(n.id); });
   const links = (cb.links || []).filter((l) => l.inTree !== false && !l.veiled && l.examModuleIds === undefined && !(l.nodeId && hiddenNodes.has(l.nodeId)));
   const fullModules = new Map();
-  const topicEntries = (l) => (l.topics || []).map((t) => ({
+  // Jedes Lernthema nur einmal: Steckt es in mehreren Zuweisungen (z. B. als
+  // Lernthema und zusätzlich über einen Klassenlink auf den ganzen Ordner),
+  // zählt die erste im Baum – sonst stünde jede Seite doppelt im Abschnitt.
+  const seenTopics = new Set();
+  const topicEntries = (l) => (l.topics || []).filter((t) => !seenTopics.has(t.id) && seenTopics.add(t.id)).map((t) => ({
     title: t.title,
     load: async () => {
       if (!fullModules.has(t.id)) fullModules.set(t.id, await app.api.getTopicModules(t.id).catch(() => []));

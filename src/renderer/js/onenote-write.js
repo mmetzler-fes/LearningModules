@@ -47,6 +47,7 @@ export function md5(bytes) {
   return out;
 }
 
+const VERSION_HISTORY_CONTEXT = Uint8Array.of(0x7f, 0x49, 0x11, 0x71, 0x6b, 0x1b, 0x09, 0x42, 0x94, 0x91, 0xc9, 0x8b, 0x04, 0xcf, 0x4c, 0x5a);
 const randomGuid = () => {
   const g = new Uint8Array(16);
   if (globalThis.crypto?.getRandomValues) globalThis.crypto.getRandomValues(g);
@@ -396,7 +397,10 @@ function buildPage(w, ids, page, now, author, fileStore) {
     P.oids(0x1c20, [...freeIds, body, ...linkIds]), P.oids(0x1d5f, [title])]);
   const vhMeta = obj(J.versionHistoryMeta, [P.u32(0x1d82, 0x28), P.u32(0x348b, 0x28)]);
 
-  const ctxGuid = { g: randomGuid(), n: 1 };
+  // Kontext des Versionsverlaufs: bei OneNote auf jeder Seite dieselbe feste Kennung
+  // {7111497F-1B6B-4209-9491-C98B04CF4C5A}. Eine zufällige je Seite hielt SharePoint für eine
+  // zweite Fassung – jede Seite erschien nach dem Anklicken doppelt.
+  const ctxGuid = { g: VERSION_HISTORY_CONTEXT, n: 1 };
   const manifest = obj(J.pageManifest, [P.oids(0x1c1f, [pageNode]), P.oids(0x3442, [vhMeta]), P.ctxs(0x347b, [ctxGuid])]);
   const metaProps = () => [P.u32(0x1d82, 0x28), P.u32(0x1dff, page.level || 1), P.u32(0x348b, 0x28), P.u64(0x1c65, ft), P.bytes(0x1c30, pageGuid), P.text(0x1cf3, page.title)];
   const pageMeta = obj(J.pageMeta, metaProps());

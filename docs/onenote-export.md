@@ -96,6 +96,9 @@ Server wird nichts abgelegt. Der Dialog nennt am Ende den Dateinamen.
   - Die Kennung der Seite (0x1c30) steht nur in den Seiten-Metadaten, nicht
     zusätzlich am Seitenobjekt – sonst erschien in SharePoint jede Seite nach
     dem ersten Anklicken einmal doppelt.
+  - Der Versionsverlauf jeder Seite liegt im Kontext mit der festen Kennung
+    `{7111497F-1B6B-4209-9491-C98B04CF4C5A}` – wie bei OneNote. Ein zufälliger
+    Kontext je Seite gilt in SharePoint vermutlich als zweite Fassung.
   - Der Textblock ist ein gewöhnlicher Inhaltsblock (der Datumsblock läuft
     waagerecht); Seitenbilder liegen frei auf der Seite, untereinander.
   - Links über einem Seitenbild sind eigene Textblöcke (Outline) mit fester

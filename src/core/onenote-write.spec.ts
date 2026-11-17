@@ -79,6 +79,18 @@ describe('OneNote schreiben', () => {
     expect(pages[1].images.map((i) => i.name)).toEqual(['Seite 1.png']);
   });
 
+  it('SharePoint-tauglich: Versionsverlauf im festen Kontext wie bei OneNote (sonst doppelte Seiten)', () => {
+    const bytes = Buffer.from(w.writeOneSection({ name: 'T', pages: [
+      { title: 'A', blocks: [{ type: 'text', runs: [{ text: 'a' }] }] },
+      { title: 'B', blocks: [{ type: 'text', runs: [{ text: 'b' }] }] },
+    ] }));
+    const ctx = Buffer.from('7f4911716b1b09429491c98b04cf4c5a', 'hex');
+    let n = 0;
+    for (let i = bytes.indexOf(ctx); i >= 0; i = bytes.indexOf(ctx, i + 1)) n++;
+    expect(n).toBeGreaterThanOrEqual(2);
+    expect(one.readOneSection(bytes).pages.map((p) => p.title)).toEqual(['A', 'B']);
+  });
+
   it('Findet unverwiesene Objekte', () => {
     const id = (n: number) => ({ g: new Uint8Array(16), n });
     const objects = [

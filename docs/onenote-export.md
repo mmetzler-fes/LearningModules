@@ -99,6 +99,9 @@ Server wird nichts abgelegt. Der Dialog nennt am Ende den Dateinamen.
   - Der Versionsverlauf jeder Seite liegt im Kontext mit der festen Kennung
     `{7111497F-1B6B-4209-9491-C98B04CF4C5A}` – wie bei OneNote. Ein zufälliger
     Kontext je Seite gilt in SharePoint vermutlich als zweite Fassung.
+  - Jeder Objektraum (Abschnitt, jede Seite) hat eigene Kennungen, die Seite
+    selbst die Kennung `{GUID, 1}`. Ein gemeinsamer Zähler wechselte bei großen
+    Abschnitten (über 250 Objekte) mitten in einer Seite die Grundkennung.
   - Der Textblock ist ein gewöhnlicher Inhaltsblock (der Datumsblock läuft
     waagerecht); Seitenbilder liegen frei auf der Seite, untereinander.
   - Links über einem Seitenbild sind eigene Textblöcke (Outline) mit fester

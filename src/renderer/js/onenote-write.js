@@ -407,7 +407,7 @@ function buildPage(w, ids, page, now, author, fileStore) {
   const authorFull = obj(J.author, [P.text(0x1d75, author), P.text(0x1e5d, `{${guidText(randomGuid())}}`)], { readOnly: true });
   const revMeta = obj(J.revisionMeta, [P.u64(0x1d77, ft), P.oid(0x1d79, authorFull)]);
 
-  const gosid = ids.next();
+  const gosid = { g: randomGuid(), n: 1 }; // Objektraum der Seite: eigene Kennung (wie SharePoint)
   const rev1 = revisionNodes(w, ids, { rid: ids.next(), objects, roots: [[1, manifest], [2, pageMeta], [4, revMeta]] });
   // Versionsverlauf (eigener Kontext), wie OneNote ihn anlegt
   const vIds = { next: (() => { let n = 1; return () => ({ g: ctxGuid.g, n: ++n }); })() };
@@ -423,10 +423,13 @@ function buildPage(w, ids, page, now, author, fileStore) {
  */
 export function writeOneSection(section, now = new Date()) {
   const w = new Writer();
+  // Jeder Objektraum (Abschnitt, jede Seite) bekommt eigene Kennungen – wie in Dateien aus
+  // SharePoint. Ein gemeinsamer Zähler wechselte bei großen Abschnitten (über 250 Objekte)
+  // mitten in einer Seite die Grundkennung; in SharePoint erschienen die Seiten dann doppelt.
   const ids = new Ids();
   const author = section.author || 'LearningModules';
   const fileStore = [];
-  const pages = section.pages.map((p) => buildPage(w, ids, p, now, author, fileStore));
+  const pages = section.pages.map((p) => buildPage(w, new Ids(), p, now, author, fileStore));
 
   // Abschnitt
   const objects = [];
@@ -438,7 +441,7 @@ export function writeOneSection(section, now = new Date()) {
     P.oids(0x3442, [obj(J.pageMeta, p.metaProps())]), P.osids(0x1d63, [p.gosid])]));
   const sectionNode = obj(J.section, [P.u64(0x1c65, filetime(now)), P.bytes(0x1c30, randomGuid()), P.text(0x1d69, section.name), P.oids(0x1c20, series)]);
   const sectionMeta = obj(J.sectionMeta, [P.u32(0x1cbe, section.color ?? 0xcabc4d), P.u32(0x1d82, 0x28), P.u32(0x348b, 0x28)]);
-  const sgosid = ids.next();
+  const sgosid = { g: randomGuid(), n: 1 };
   const rev = revisionNodes(w, ids, { rid: ids.next(), objects, roots: [[1, sectionNode], [2, sectionMeta]] });
   const sspace = objectSpace(w, sgosid, [rev]);
 

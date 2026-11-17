@@ -425,9 +425,12 @@ export function writeOneSection(section, now = new Date()) {
   // Abschnitt
   const objects = [];
   const obj = (jcid, props, extra = {}) => { const id = ids.next(); objects.push({ id, jcid, props, ...extra }); return id; };
-  const metas = pages.map((p) => obj(J.pageMeta, p.metaProps()));
-  const series = obj(J.pageSeries, [P.u32(0x1d7a, time32(now)), P.u64(0x1c65, filetime(now)), P.bytes(0x1c30, randomGuid()), P.oids(0x3442, metas), P.osids(0x1d63, pages.map((p) => p.gosid))]);
-  const sectionNode = obj(J.section, [P.u64(0x1c65, filetime(now)), P.bytes(0x1c30, randomGuid()), P.text(0x1d69, section.name), P.oids(0x1c20, [series])]);
+  // Je Seite eine eigene Seitenreihe (PageSeries) mit ihren Metadaten – so schreibt OneNote selbst.
+  // Eine gemeinsame Reihe für alle Seiten nimmt OneNote lokal an; in SharePoint/OneDrive
+  // erscheint dann aber jede Seite beim Anklicken doppelt (beide Einträge gleichzeitig markiert).
+  const series = pages.map((p) => obj(J.pageSeries, [P.u32(0x1d7a, time32(now)), P.u64(0x1c65, filetime(now)), P.bytes(0x1c30, randomGuid()),
+    P.oids(0x3442, [obj(J.pageMeta, p.metaProps())]), P.osids(0x1d63, [p.gosid])]));
+  const sectionNode = obj(J.section, [P.u64(0x1c65, filetime(now)), P.bytes(0x1c30, randomGuid()), P.text(0x1d69, section.name), P.oids(0x1c20, series)]);
   const sectionMeta = obj(J.sectionMeta, [P.u32(0x1cbe, section.color ?? 0xcabc4d), P.u32(0x1d82, 0x28), P.u32(0x348b, 0x28)]);
   const sgosid = ids.next();
   const rev = revisionNodes(w, ids, { rid: ids.next(), objects, roots: [[1, sectionNode], [2, sectionMeta]] });

@@ -89,6 +89,10 @@ Server wird nichts abgelegt. Der Dialog nennt am Ende den Dateinamen.
   - Zeichenformate (TextRunFormatting) sind eigene kleine Objekte, nicht die
     benannten Absatzvorlagen.
   - Ein Link steht nie am Absatzende; danach folgt Text mit „Link aus“.
+  - Je Seite eine eigene Seitenreihe (PageSeries) mit ihren Metadaten. Mit
+    einer gemeinsamen Reihe für alle Seiten erschien in einem
+    SharePoint-Notizbuch jede Seite beim Anklicken doppelt (beide Einträge
+    gleichzeitig markiert); lokal fiel das nicht auf.
   - Der Textblock ist ein gewöhnlicher Inhaltsblock (der Datumsblock läuft
     waagerecht); Seitenbilder liegen frei auf der Seite, untereinander.
   - Links über einem Seitenbild sind eigene Textblöcke (Outline) mit fester

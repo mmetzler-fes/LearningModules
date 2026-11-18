@@ -1823,6 +1823,23 @@ def ensure_table_size_style(doc, present: set[str], base: str, size_pt: float) -
     return name
 
 
+def solution_red(ctx: dict[str, Any], base: str) -> str:
+    """Im Lösungsblatt, innerhalb einer Lösung: Absatzvorlage wie `base`, aber rot.
+
+    Text, Listen und Hinweise haben eigene Lösungsvorlagen; Tabellenzellen und
+    Überschriften nicht – sie standen sonst schwarz im Lösungsblatt.
+    """
+    if not (ctx.get("solution") and ctx.get("mode") == "loesung"):
+        return base
+    name = f"AB_Rot_{base}"
+    if name not in ctx["present"]:
+        style = Style(name=name, family="paragraph", parentstylename=base)
+        style.addElement(TextProperties(color="#ff0000"))
+        ctx["doc"].automaticstyles.addElement(style)
+        ctx["present"].add(name)
+    return name
+
+
 def content_table(block: dict[str, Any], styles: dict[str, str],
                   ctx: dict[str, Any]) -> Element:
     """Tabelle aus `header:` (optional) und `rows:`.
@@ -1848,6 +1865,7 @@ def content_table(block: dict[str, Any], styles: dict[str, str],
     if size != TABLE_SIZES_PT[0]:
         head_style = ensure_table_size_style(ctx["doc"], ctx["present"], head_style, size)
         cell_style = ensure_table_size_style(ctx["doc"], ctx["present"], cell_style, size)
+    head_style, cell_style = solution_red(ctx, head_style), solution_red(ctx, cell_style)
 
     cell_name, head_style, cell_style = plain_table_styles(block, ctx, head_style, cell_style)
     table, widths = table_with_columns(block, ctx, index, widths)
@@ -1956,6 +1974,7 @@ def spanned_table(block: dict[str, Any], styles: dict[str, str], ctx: dict[str, 
                 if own:
                     base = styles["table_head"] if is_head else styles["table_cell"]
                     style = base if own == "left" else ensure_align_style(ctx["doc"], ctx["present"], base, own)
+                style = solution_red(ctx, style)
                 room = sum(widths[c:c + cs]) - TABLE_PADDING_CM
                 if (r, c) in beside:
                     # Text und Bilder in einer Zeile, Bilder mittig zur Zeile.
@@ -2198,6 +2217,20 @@ def widths_for_pictures(widths: list[float], pictures: dict[tuple[int, int], lis
     return [n if n else rest * (widths[i] or 1) / share for i, n in enumerate(need)]
 
 
+# Lösungen im Arbeitsblatt: Absätze stehen mit der ausgeblendeten Vorlage
+# „Lösung“ im Dokument. Das geht nur bei Bausteinen aus Absätzen – Tabellen,
+# Kästen, Spalten, Überschriften, Karos haben eigene Vorlagen und wären
+# sichtbar (schwarz!) auf dem Blatt der Schüler. Sie entfallen dort ganz.
+SOLUTION_HIDEABLE = {"text", "list", "note", "code", "formula", "image", "quiz"}
+# Was im roten Rahmen über dem Karo stehen kann (Textrahmen: nur Absätze).
+SOLUTION_OVERLAY_SAFE = {"text", "list", "note", "code", "formula", "quiz"}
+
+
+def overlay_safe(block: dict[str, Any]) -> bool:
+    return all(isinstance(b, str) or (isinstance(b, dict) and b.get("type", "text") in SOLUTION_OVERLAY_SAFE)
+               for b in block.get("blocks") or [])
+
+
 def render_blocks(blocks: Any, styles: dict[str, str], ctx: dict[str, Any]) -> list[Element]:
     """Rendert eine Blockliste.
 
@@ -2217,6 +2250,11 @@ def render_blocks(blocks: Any, styles: dict[str, str], ctx: dict[str, Any]) -> l
             kind = block.get("type")
             if kind == "karo":
                 karo_at = i
+            elif kind == "solution" and karo_at is not None and not overlay_safe(block):
+                # Tabellen, Kästen, Spalten … zeigt LibreOffice im Textrahmen
+                # nicht an – sie fehlten im Lösungsblatt. Dann unter dem Raster.
+                ctx.setdefault("below", []).append(0)
+                karo_at = None
             elif kind == "solution" and karo_at is not None:
                 ctx["in_overlay"] = True
                 ctx["solution"] = True
@@ -2423,6 +2461,9 @@ def ink_anchor(ink: dict[str, Any], ctx: dict[str, Any], shift: float = 0.0) -> 
 
 def render_block(block: Any, styles: dict[str, str], ctx: dict[str, Any]) -> list[Element]:
     """Ein Baustein – mit Beschriftung aus dem Stift-Editor (`ink`) darüber gelegt."""
+    if (ctx.get("solution") and ctx.get("mode") != "loesung" and isinstance(block, dict)
+            and block.get("type", "text") not in SOLUTION_HIDEABLE):
+        return []
     # Formeln im Text: rot im Lösungsblatt, im Lösungsrahmen als Text (add_inline_math).
     saved = (_inline.get("red"), _inline.get("overlay"))
     _inline["red"] = bool(ctx.get("solution")) and ctx.get("mode") == "loesung"
@@ -2474,7 +2515,7 @@ def render_block_content(block: Any, styles: dict[str, str], ctx: dict[str, Any]
         # Im Skript rutschen die Überschriften eine Ebene tiefer, weil
         # Ebene 1 das Thema des Arbeitsblatts ist (ctx["level_shift"]).
         heading = H(outlinelevel=OUTLINE_LEVEL[kind] + ctx.get("level_shift", 0),
-                    stylename=styles[kind])
+                    stylename=solution_red(ctx, styles[kind]))
         add_rich_text(heading, str(block["title"] if "title" in block else block["text"]))
         # Punkte der Aufgabe (Klassenarbeit): „(6 P)“ hinter dem Titel.
         points = block.get("points")
@@ -2490,7 +2531,7 @@ def render_block_content(block: Any, styles: dict[str, str], ctx: dict[str, Any]
         # aber als Listenkopf – die Gliederungsnummer zählt nicht mit.
         level = min(3, max(1, int(block.get("level", 1))))
         heading = H(outlinelevel=level + ctx.get("level_shift", 0),
-                    stylename=styles[("section", "task", "subtask")[level - 1]], islistheader="true")
+                    stylename=solution_red(ctx, styles[("section", "task", "subtask")[level - 1]]), islistheader="true")
         add_rich_text(heading, str(block.get("text", block.get("title", ""))))
         out.append(heading)
 
@@ -2734,6 +2775,13 @@ def insert_content(doc, spec: dict[str, Any], styles: dict[str, str], mode: str,
     }
     elements = render_blocks(spec.get("content"), styles, ctx)
     keep_karo_with_question(elements, doc, present)
+    if mode == "loesung":
+        # Unübersehbar, auch schwarz-weiß gedruckt: Das ist nicht das Blatt für die Klasse.
+        stamp = Style(name="AB_LoesungVermerk", family="paragraph", parentstylename="Standard")
+        stamp.addElement(ParagraphProperties(textalign="end", marginbottom="0.2cm"))
+        stamp.addElement(TextProperties(color="#ff0000", fontsize="14pt", fontweight="bold"))
+        doc.automaticstyles.addElement(stamp)
+        elements.insert(0, P(stylename=stamp, text="LÖSUNG"))
     if below := ctx.get("below"):
         print(f"  · {len(below)} lange Lösung(en) unter statt über dem Raster", file=sys.stderr)
 

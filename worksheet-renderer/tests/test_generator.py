@@ -59,6 +59,43 @@ class RenderTest(unittest.TestCase):
             styles = zipfile.ZipFile(root / "out" / "blatt.odt").read("styles.xml").decode()
             self.assertIn('style:name="AB_Nummerierung"', styles)
 
+    def test_loesung_nie_im_arbeitsblatt(self):
+        """Tabellen, Überschriften, Kästen, Spalten in einer Lösung: im Arbeitsblatt gar nicht
+        (die Vorlage „Lösung“ blendet nur Absätze aus – Tabellen standen schwarz auf dem Blatt),
+        im Lösungsblatt rot und unter dem Karo statt im Textrahmen (dort fehlten sie)."""
+        import json
+        inner = [
+            {"type": "text", "text": "LSGTEXT"},
+            {"type": "table", "header": ["LSGKOPF", "B"], "rows": [["LSGZELLE", "x"]]},
+            {"type": "table", "header": [{"text": "LSGSPAN", "colspan": 2}], "rows": [["LSGSPAN1", "y"]]},
+            {"type": "heading", "level": 2, "text": "LSGHEADING"},
+            {"type": "box", "title": "LSGBOX", "blocks": [{"type": "text", "text": "LSGBOXTEXT"}]},
+            {"type": "columns", "blocks": [{"type": "column", "blocks": [{"type": "text", "text": "LSGSPALTE"}]}]},
+        ]
+        spec = {"titel": "L", "content": [
+            {"type": "task", "title": "A"}, {"type": "karo", "lines": 2},
+            {"type": "solution", "blocks": inner},
+            {"type": "solution", "blocks": [{"type": "table", "rows": [["LSGFREI"]]}]},
+        ]}
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "blatt").mkdir()
+            (root / "blatt" / "l.json").write_text(json.dumps(spec), encoding="utf-8")
+            env = dict(os.environ, ARBEITSBLATT_ROOT=str(root))
+            subprocess.run([sys.executable, str(GEN / "tools" / "make_worksheet.py"), "blatt/l.json",
+                            "--loesung", "-o", "out"], cwd=root, env=env, check=True, capture_output=True)
+            ab = zipfile.ZipFile(root / "out" / "blatt.odt").read("content.xml").decode()
+            lo = zipfile.ZipFile(root / "out" / "blatt_Lösung.odt").read("content.xml").decode()
+        for word in ["LSGKOPF", "LSGZELLE", "LSGSPAN1", "LSGHEADING", "LSGBOX", "LSGSPALTE", "LSGFREI"]:
+            self.assertNotIn(word, ab, word)
+        self.assertIn("LSGTEXT", ab)  # Text bleibt ausgeblendet im Dokument
+        self.assertNotIn("LÖSUNG<", ab)
+        self.assertIn(">LÖSUNG<", lo)
+        for word in ["LSGKOPF", "LSGZELLE", "LSGSPAN1", "LSGHEADING", "LSGFREI"]:
+            before = lo[:lo.index(word)]
+            self.assertTrue(re.findall(r'text:style-name="([^"]+)"', before)[-1].startswith("AB_Rot_"), word)
+        self.assertNotIn('draw:name="Loesung', lo[:lo.index("LSGZELLE")][-3000:])
+
     def test_schreibfelder(self):
         """Block `karo` mit Breite und Muster: schmales Karo, Linien, leeres Feld."""
         spec = (

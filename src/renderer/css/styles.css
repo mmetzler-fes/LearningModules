@@ -952,6 +952,12 @@ body {
 .sol-switch button.active { background: var(--accent); color: #fff; }
 /* Lösung sichtbar: rot – damit man nicht vergisst, dass gerade die Lösung zu sehen ist. */
 .sol-switch button.active[data-sol="1"] { background: var(--danger); color: #fff; }
+/* In Knopfleisten (Vorschau, Notizbuch, Modul): so hoch und so beschriftet wie die Knöpfe daneben. */
+.nb-preview-actions .sol-switch, .player-actions .sol-switch, .ds-preview-bar .sol-switch { align-self: stretch; margin: 0; }
+.nb-preview-actions .sol-switch button, .player-actions .sol-switch button, .ds-preview-bar .sol-switch button {
+  display: inline-flex; align-items: center; gap: 6px; padding: 0 12px; font-size: 0.82rem;
+}
+.nb-preview-actions { align-items: stretch; }
 .module-format-wrap {
   position: relative;
   margin-left: auto;

@@ -999,11 +999,16 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
       // Eckige Klammern beendeten den Linktext – als runde.
       const label = (title || short.replace(/^https?:\/\//, '')).replace(/\[/g, '(').replace(/\]/g, ')');
       const blocks = [];
+      // Kompakt wie beim Quiz im Druck: links der QR-Code (2 cm, sicher lesbar), rechts daneben der
+      // Link und die Adresse zum Abtippen – passt so auch in eine Tabellenzelle.
       if (qrPng) {
         const src = window.appImages ? await window.appImages.store(qrPng, 'kurzlink-qr.png') : qrPng;
-        if (src) blocks.push({ type: 'image', src, width: '3cm', alt: `QR-Code: ${short}` });
+        if (src) blocks.push({ type: 'image', src, width: '2cm', float: 'left', alt: `QR-Code: ${short}` });
       }
+      const bare = short.replace(/^https?:\/\//, '');
       blocks.push({ type: 'text', text: `[${label}](${short})` });
+      // Als Code im Verweis: Die Adresse bleibt, wie sie ist (kein `_` als Tiefstellung).
+      if (title && label !== bare) blocks.push({ type: 'text', text: `[\`${bare}\`](${short})` });
       put(blocks);
     },
   });

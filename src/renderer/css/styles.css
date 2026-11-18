@@ -4235,6 +4235,11 @@ body.html-app-large .quiz-actions { margin-top: 8px; padding-top: 8px; flex-shri
 .ds-pm-surface p[data-ds="note"] { font-style: italic; color: var(--text-secondary); }
 .ds-pm-surface .ds-pm-solution { color: var(--danger); border-left: 3px solid var(--danger); padding: 2px 0 2px 10px; margin: 6px 0; }
 .ds-pm-surface .ds-pm-solution::before { content: 'Lösung:'; display: block; font-weight: 600; }
+/* Bild „neben dem Text“ (QR-Code eines Kurzlinks …): auch beim Bearbeiten neben den Absätzen danach. */
+.ds-pm-surface .ds-widget.ds-widget-float-left { float: left; clear: left; max-width: 50%; margin: 6px 0.4cm 6px 0; }
+.ds-pm-surface .ds-widget.ds-widget-float-right { float: right; clear: right; max-width: 50%; margin: 6px 0 6px 0.4cm; }
+.ds-pm-surface .ds-widget-float-left .ds-float, .ds-pm-surface .ds-widget-float-right .ds-float { margin: 0; }
+.ds-pm-surface :is(h1, h2, h3, h4, table, .tableWrapper, .ds-pm-solution, .ds-pm-box) { clear: both; }
 /* Ansicht „Arbeitsblatt“ beim Bearbeiten: Lösungen nur als Balken (docspec-editor.js). */
 .ds-edit-hide-solutions .ds-pm-surface .ds-pm-solution { cursor: pointer; color: var(--text-secondary); border-left-style: dashed; padding: 4px 10px; }
 .ds-edit-hide-solutions .ds-pm-surface .ds-pm-solution > * { display: none; }

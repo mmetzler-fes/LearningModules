@@ -96,6 +96,29 @@ class RenderTest(unittest.TestCase):
             self.assertTrue(re.findall(r'text:style-name="([^"]+)"', before)[-1].startswith("AB_Rot_"), word)
         self.assertNotIn('draw:name="Loesung', lo[:lo.index("LSGZELLE")][-3000:])
 
+    def test_bild_neben_text_in_zelle(self):
+        """QR-Code eines Kurzlinks (Bild links, Link rechts) in einer Tabellenzelle: Die Spalte zählt
+        Bild und Text, die Gruppe darin nimmt die Breite der Zelle statt der Satzbreite."""
+        import json
+        link = [{"type": "image", "file": "bild.png", "width": "2cm", "float": "left"},
+                {"type": "text", "text": "[Spannungsteiler](https://x.de/k/ab12cd)"}]
+        spec = {"titel": "K", "content": [{"type": "table", "header": ["", ""],
+                                           "rows": [["Spannungsteiler", {"text": "", "blocks": link}]]}]}
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "blatt").mkdir()
+            (root / "blatt" / "k.json").write_text(json.dumps(spec), encoding="utf-8")
+            (root / "blatt" / "bild.png").write_bytes((GEN / "tests" / "bild.png").read_bytes())
+            env = dict(os.environ, ARBEITSBLATT_ROOT=str(root))
+            subprocess.run([sys.executable, str(GEN / "tools" / "make_worksheet.py"), "blatt/k.json",
+                            "-o", "out"], cwd=root, env=env, check=True, capture_output=True)
+            content = zipfile.ZipFile(root / "out" / "blatt.odt").read("content.xml").decode()
+        own = re.search(r'style:name="ABNeben1"[^>]*>\s*<style:table-properties style:width="([\d.]+)cm"', content)
+        self.assertIsNotNone(own, "eigene Breite für die Gruppe in der Zelle")
+        self.assertLess(float(own.group(1)), 10)
+        cols = [float(w) for w in re.findall(r'style:name="ABTabelle\.Sp1\.\d"[^>]*>\s*<style:table-column-properties style:column-width="([\d.]+)cm"', content)]
+        self.assertGreater(cols[1], 4.5, cols)  # 2 cm Bild + „Spannungsteiler“ nebeneinander (vorher gut 1 cm)
+
     def test_schreibfelder(self):
         """Block `karo` mit Breite und Muster: schmales Karo, Linien, leeres Feld."""
         spec = (

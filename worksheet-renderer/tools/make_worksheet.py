@@ -1535,14 +1535,23 @@ def float_group(image: dict[str, Any], texts: list[Any], styles: dict[str, str],
     neben dem Bild, und nichts darunter kann es überdecken."""
     doc, present = ctx["doc"], ctx["present"]
     ensure_float_styles(doc, present)
-    width = min(float(str(image.get("width", "6")).removesuffix("cm")), TABLE_WIDTH_CM - 4)
-    gap = 0.4
+    # In einer Tabellenzelle: deren Breite, sonst die Satzbreite (sonst stauchte LibreOffice das Bild).
+    total = ctx.get("room_cm") or TABLE_WIDTH_CM
+    gap = 0.4 if total >= 8 else 0.2
+    width = min(float(str(image.get("width", "6")).removesuffix("cm")), max(total - 4, total / 2))
     side = image.get("float")
-    widths = [width + gap, TABLE_WIDTH_CM - width - gap]
+    widths = [width + gap, total - width - gap]
     if side == "right":
         widths.reverse()
     index = ctx["float_index"] = ctx.get("float_index", 0) + 1
-    table = Table(name=f"Neben{index}", stylename="ABNeben")
+    table_style = "ABNeben"
+    if total != TABLE_WIDTH_CM:
+        table_style = f"ABNeben{index}"
+        own = Style(name=table_style, family="table")
+        own.addElement(TableProperties(width=f"{total:.3f}cm", margintop="0.1cm", marginbottom="0.1cm", align="margins"))
+        doc.automaticstyles.addElement(own)
+        present.add(table_style)
+    table = Table(name=f"Neben{index}", stylename=table_style)
     for col, w in enumerate(widths):
         name = f"ABNeben.Sp{index}.{col}"
         style = Style(name=name, family="table-column")
@@ -1945,7 +1954,7 @@ def spanned_table(block: dict[str, Any], styles: dict[str, str], ctx: dict[str, 
                   (bool(header) and r == 0) or (head_col and c == 0))
                  for c in range(columns)] for r in range(nrows)]
     size, widths = table_layout(gemessen)
-    widths = widths_for_pictures(widths, pictures, start, beside)
+    widths = widths_for_pictures(*with_inner_pictures(widths, pictures, start, beside, inner_blocks))
     head_style, cell_style = styles["table_head"], styles["table_cell"]
     if size != TABLE_SIZES_PT[0]:
         head_style = ensure_table_size_style(ctx["doc"], ctx["present"], head_style, size)
@@ -1986,7 +1995,7 @@ def spanned_table(block: dict[str, Any], styles: dict[str, str], ctx: dict[str, 
                         para.addElement(image_frame(ctx["doc"], {**picture, "width": f"{width:.2f}cm"}, ctx["search"],
                                                     ctx["image_index"], middle=True))
                     tc.addElement(para)
-                    for el in render_blocks(inner_blocks.get((r, c)), styles, ctx):
+                    for el in cell_blocks(inner_blocks.get((r, c)), styles, ctx, room):
                         tc.addElement(el)
                     tr.addElement(tc)
                     continue
@@ -1998,7 +2007,7 @@ def spanned_table(block: dict[str, Any], styles: dict[str, str], ctx: dict[str, 
                     para = P(stylename=style)
                     para.addElement(image_frame(ctx["doc"], {**picture, "width": f"{width:.2f}cm"}, ctx["search"], ctx["image_index"]))
                     tc.addElement(para)
-                for el in render_blocks(inner_blocks.get((r, c)), styles, ctx):
+                for el in cell_blocks(inner_blocks.get((r, c)), styles, ctx, room):
                     tc.addElement(el)
                 tr.addElement(tc)
             elif (r, c) in covered:
@@ -2178,6 +2187,41 @@ def table_line_cell_style(block: dict[str, Any], ctx: dict[str, Any]) -> str:
         ctx["doc"].automaticstyles.addElement(cell)
         ctx["present"].add(name)
     return name
+
+
+def cell_blocks(blocks: Any, styles: dict[str, str], ctx: dict[str, Any], room: float) -> list[Element]:
+    """Bausteine in einer Tabellenzelle – mit ihrer Breite (`ctx["room_cm"]`) statt der Satzbreite."""
+    saved = ctx.get("room_cm")
+    ctx["room_cm"] = max(room, 1.0)
+    try:
+        return render_blocks(blocks, styles, ctx)
+    finally:
+        ctx["room_cm"] = saved
+
+
+def with_inner_pictures(widths, pictures, start, beside, inner_blocks):
+    """Bilder in den Bausteinen einer Zelle zählen für die Spaltenbreite wie Bilder der Zelle.
+
+    Ein Bild „neben dem Text“ (z. B. QR-Code eines Kurzlinks, daneben Link und Adresse) braucht
+    Bild und längste Textzeile nebeneinander – sonst wurde die Spalte nur nach dem Text der
+    Zelle bemessen und der QR-Code samt Link in eine schmale Spalte gequetscht.
+    """
+    pictures, start, beside = dict(pictures), dict(start), set(beside)
+    plain = lambda t: re.sub(r"\[([^\]]*)\]\([^)]*\)", r"\1", str(t)).replace("`", "").replace("**", "")
+    for key, blocks in inner_blocks.items():
+        if key not in start:
+            continue
+        images = [b for b in blocks or [] if isinstance(b, dict) and b.get("type") == "image"]
+        if not images:
+            continue
+        pictures[key] = [*pictures.get(key, []), *images]
+        if any(b.get("float") in ("left", "right") for b in images):
+            texts = [plain(b if isinstance(b, str) else b.get("text", "")) for b in blocks or []
+                     if isinstance(b, str) or (isinstance(b, dict) and b.get("type", "text") in ("text", "note"))]
+            text, cs, rs = start[key]
+            start[key] = (max([text, *texts], key=len), cs, rs)
+            beside.add(key)
+    return widths, pictures, start, beside
 
 
 def widths_for_pictures(widths: list[float], pictures: dict[tuple[int, int], list[dict[str, Any]]],

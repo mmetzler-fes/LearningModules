@@ -20,6 +20,9 @@ import { RenderJob, WorksheetOutput, WorksheetRendererClient } from './renderer.
 import { PdfAiClient } from './pdf-ai.client';
 import { DEFAULT_PAGE, templatePage } from './template-page';
 
+/** Größe des QR-Codes eines Quiz im Druck. */
+export const QUIZ_QR_WIDTH = '2cm';
+
 /** Lage im PDF (`_pos` des Renderers) aus allen Bausteinen entfernen. */
 /**
  * Beschriftung aus dem Stift-Editor: nur ein SVG aus Pfaden, Gruppen, Rechtecken,
@@ -490,7 +493,9 @@ export class WorksheetsService {
       if (svg) {
         const name = `bilder/quiz-${++n}.svg`;
         files[name] = Buffer.from(svg, 'utf-8').toString('base64');
-        blocks.push({ type: 'image', file: name, width: '3.5cm', float: 'left', link: url });
+        // 2 cm: Bei üblichen Adressen (~100 Zeichen, 41×41 Felder) ist ein Feld knapp 0,5 mm –
+        // für Handy und iPad aus 10–15 cm gut lesbar, auch auf Kopien. Kleiner nicht.
+        blocks.push({ type: 'image', file: name, width: QUIZ_QR_WIDTH, float: 'left', link: url });
       }
       // Adresse und QR-Code als Verweis: im PDF antippbar (GoodNotes, PDF-Betrachter).
       // Als Code im Verweis: Die Adresse bleibt, wie sie ist (kein `_` als Tiefstellung).

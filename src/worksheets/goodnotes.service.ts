@@ -18,7 +18,7 @@ import { renderQr } from '../core/share/link-url';
 /** Ordner in der Nextcloud der Lehrkraft. */
 export const GOODNOTES_FOLDER = 'GoodNotes';
 /** Steigt, wenn sich der Aufbau des Hefts ändert – dann wird neu gerendert. */
-const LAYOUT = 'gn2'; // gn2: Quiz-Adresse und QR-Code als Verweis
+const LAYOUT = 'gn3'; // gn2: Quiz-Adresse und QR-Code als Verweis; gn3: QR-Code 2 cm statt 3,5 cm
 const CACHE_DAYS = 60;
 
 export interface Heft {

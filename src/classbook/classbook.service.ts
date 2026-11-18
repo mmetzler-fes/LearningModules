@@ -746,11 +746,11 @@ export class ClassbookService {
     if (!canHoldNode(parent) || depthOf(nodes, parentId) + 1 > MAX_CLASS_DEPTH) return parentId;
     const same = nodes.find((n) => (n.parentId ?? null) === parentId && !n.sourceNodeId && n.kind === kind && n.title.trim().toLowerCase() === title.trim().toLowerCase());
     if (same) {
-      await this.nodeRepo.update({ id: same.id }, { sourceNodeId: sourceId });
+      await this.nodeRepo.update({ id: same.id }, { sourceNodeId: sourceId, sourceTitle: title });
       return same.id;
     }
     const orderIndex = Math.max(-1, ...nodes.filter((n) => (n.parentId ?? null) === parentId).map((n) => n.orderIndex)) + 1;
-    const made = await this.nodeRepo.save(this.nodeRepo.create({ id: crypto.randomUUID(), classId, kind, title, parentId, orderIndex, sourceNodeId: sourceId, seen: null }));
+    const made = await this.nodeRepo.save(this.nodeRepo.create({ id: crypto.randomUUID(), classId, kind, title, parentId, orderIndex, sourceNodeId: sourceId, sourceTitle: title, seen: null }));
     return made.id;
   }
 
@@ -901,9 +901,20 @@ export class ClassbookService {
   /** Übernommene Bereiche nachziehen: Neues aus dem Notizbuch kommt ausgeschaltet dazu. */
   private async syncMirrors(user: any, klasse: StudentClass, req?: any) {
     await this.treeFromNodeLinks(user, klasse, req);
-    const growing = (await this.nodeRepo.find({ where: { classId: klasse.id } })).filter((n) => n.sourceNodeId && n.seen);
-    if (!growing.length) return;
     const nbNodes = await this.nbNodeRepo.find({ where: { ownerId: user.userId } });
+    const mirrored = (await this.nodeRepo.find({ where: { classId: klasse.id } })).filter((n) => n.sourceNodeId);
+    // Im Notizbuch umbenannt: Der Name folgt, außer er wurde in der Klasse eigens geändert.
+    const nbById = new Map(nbNodes.map((n) => [n.id, n]));
+    for (const n of mirrored) {
+      const src = nbById.get(n.sourceNodeId!);
+      if (!src || src.title === n.sourceTitle) continue;
+      const follow = n.sourceTitle == null || n.title === n.sourceTitle;
+      await this.nodeRepo.update({ id: n.id }, follow ? { title: src.title, sourceTitle: src.title } : { sourceTitle: src.title });
+      if (follow) n.title = src.title;
+      n.sourceTitle = src.title;
+    }
+    const growing = mirrored.filter((n) => n.seen);
+    if (!growing.length) return;
     const known = new Set(nbNodes.map((n) => n.id));
     for (const n of growing) {
       // Im Notizbuch gelöscht: Der Bereich bleibt, wächst aber nicht mehr.

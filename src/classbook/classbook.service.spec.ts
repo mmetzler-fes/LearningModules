@@ -41,10 +41,11 @@ function setup({ firstLogin = false, plans = undefined as any } = {}) {
   const topics = repo();
   const modules = repo();
   const progress = repo();
+  const nbNodes = repo();
   const svc = new ClassbookService(notebooks as any, students as any, results as any, works as any, links as any, users as any, attempts as any, classes, linksService, {} as any, { isOpen: () => false } as any, { markerChanged() {}, online: () => 0, isFollowing: () => false } as any,
-    nodes as any, places as any, topics as any, modules as any, repo() as any, repo() as any, progress as any,
+    nodes as any, places as any, topics as any, modules as any, nbNodes as any, repo() as any, progress as any,
     repo() as any, repo() as any, repo() as any, repo() as any, repo() as any, plans);
-  return { svc, students, links, notebooks, attempts, nodes, places, topics, modules, progress };
+  return { svc, students, links, notebooks, attempts, nodes, places, topics, modules, progress, nbNodes };
 }
 
 describe('Klassennotizbuch: Anmeldung', () => {
@@ -535,5 +536,23 @@ describe('Klassennotizbuch: eigener 🔗 Link auf einen Bereich bzw. eine Zuweis
     expect(again.name).toBe('Anna B');
     expect((await svc.home(token, again.ticket)).assignments).toHaveLength(1);
     await expect(svc.login(token, { deviceTicket: 'falsch' })).rejects.toThrow(/neu anmelden/);
+  });
+});
+
+describe('Klassennotizbuch: übernommene Bereiche folgen Umbenennungen im Notizbuch', () => {
+  it('neuer Name kommt nach – außer der Bereich wurde in der Klasse selbst umbenannt', async () => {
+    const { svc, nodes, nbNodes } = setup();
+    nbNodes.rows.push({ id: 'nb-a', ownerId: 't1', kind: 'section', title: 'Grundlagen neu', parentId: null, orderIndex: 0 },
+      { id: 'nb-b', ownerId: 't1', kind: 'section', title: 'Anwendung neu', parentId: null, orderIndex: 1 },
+      { id: 'nb-c', ownerId: 't1', kind: 'section', title: 'Alt ohne Merker neu', parentId: null, orderIndex: 2 });
+    nodes.rows.push({ id: 'a', classId: 'c1', kind: 'section', title: 'Grundlagen', sourceNodeId: 'nb-a', sourceTitle: 'Grundlagen', parentId: null, orderIndex: 0, seen: null },
+      { id: 'b', classId: 'c1', kind: 'section', title: 'Unsere Anwendungen', sourceNodeId: 'nb-b', sourceTitle: 'Anwendung', parentId: null, orderIndex: 1, seen: null },
+      { id: 'c', classId: 'c1', kind: 'section', title: 'Alt ohne Merker', sourceNodeId: 'nb-c', sourceTitle: null, parentId: null, orderIndex: 2, seen: null });
+    (svc as any).treeFromNodeLinks = async () => undefined;
+    await (svc as any).syncMirrors({ userId: 't1' }, KLASSE);
+    const byId = (id: string) => nodes.rows.find((n: any) => n.id === id);
+    expect(byId('a')).toMatchObject({ title: 'Grundlagen neu', sourceTitle: 'Grundlagen neu' });
+    expect(byId('b')).toMatchObject({ title: 'Unsere Anwendungen', sourceTitle: 'Anwendung neu' });
+    expect(byId('c')).toMatchObject({ title: 'Alt ohne Merker neu', sourceTitle: 'Alt ohne Merker neu' });
   });
 });

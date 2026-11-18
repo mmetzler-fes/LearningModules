@@ -40,6 +40,15 @@ export class ClassNotebookNode extends BaseEntity {
   sourceNodeId: string | null;
 
   /**
+   * Name des Notizbuch-Knotens, wie er zuletzt übernommen wurde. Benennt die
+   * Lehrkraft den Knoten im Notizbuch um, folgt die Klasse – außer sie hat ihn
+   * dort selbst anders benannt (dann weicht `title` hiervon ab). Leer bei alten
+   * Einträgen: Sie folgen beim nächsten Öffnen.
+   */
+  @Column({ type: 'varchar', nullable: true })
+  sourceTitle: string | null;
+
+  /**
    * Wächst mit dem Notizbuch: Lernthemen und Knoten (IDs dort), die schon
    * übernommen sind – Neues kommt ausgeschaltet dazu, Entferntes nicht wieder.
    * Null bei Bereichen, die nur den Pfad bilden (sie wachsen nicht).

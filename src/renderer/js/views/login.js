@@ -16,6 +16,9 @@ function schoolFields(res) {
     schoolName: res.schoolName || null,
     isSchoolAdmin: !!res.isSchoolAdmin,
     features: Array.isArray(res.features) ? res.features : [],
+    // Persönliche Einstellungen am Konto (user-settings.js) – fehlten sie hier,
+    // galt auf jedem anderen Gerät bzw. nach neuer Anmeldung wieder die Vorgabe.
+    settings: res.settings && typeof res.settings === 'object' ? res.settings : {},
   };
 }
 

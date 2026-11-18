@@ -4119,6 +4119,36 @@ body.html-app-large .quiz-actions { margin-top: 8px; padding-top: 8px; flex-shri
 .ds-grip-bar button:hover { background: var(--bg-secondary); }
 .ds-grip-bar button[hidden] { display: none; }
 .ds-para-dialog { max-width: 460px; }
+/* Sonderzeichen (special-chars.js) */
+.ds-chars-dialog { max-width: 560px; width: 94%; }
+.ds-chars-bar { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+.ds-chars-bar select { flex: 0 1 auto; }
+.ds-chars-bar input { flex: 1 1 180px; min-width: 0; padding: 6px 8px; border: 1px solid var(--border); border-radius: var(--radius-sm); font: inherit; }
+.ds-chars-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(42px, 1fr));
+  gap: 4px;
+  max-height: min(46vh, 320px);
+  overflow-y: auto;
+  padding: 2px;
+}
+.ds-chars-cell {
+  height: 42px;
+  font-size: 1.3rem;
+  line-height: 1;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-family: inherit;
+}
+.ds-chars-cell:hover, .ds-chars-cell:focus-visible { border-color: var(--accent); background: var(--accent-light); }
+.ds-chars-cell.ds-chars-invisible { font-size: 0.85rem; color: var(--text-secondary); }
+.ds-chars-cell.ds-chars-done { background: var(--accent); color: #fff; }
+.ds-chars-info { display: flex; align-items: center; gap: 12px; min-height: 56px; margin-top: 10px; }
+.ds-chars-big { font-size: 2.4rem; min-width: 1.4em; text-align: center; }
+.ds-chars-name { font-size: 0.9rem; color: var(--text-secondary); }
 .ds-para-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 16px; margin: 8px 0; }
 .ds-para-grid label { display: flex; flex-direction: column; gap: 3px; font-size: 0.9em; }
 .ds-para-grid fieldset { border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 6px 10px; display: flex; flex-direction: column; gap: 6px; }

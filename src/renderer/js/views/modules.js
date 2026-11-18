@@ -35,9 +35,10 @@ export class ModulesView {
       const box = document.getElementById('moduleShowSolutions');
       if (!b || !box || box.checked === (b.dataset.sol === '1')) return;
       box.checked = b.dataset.sol === '1';
-      syncSolutionSwitch();
       box.dispatchEvent(new Event('change'));
     });
+    // Auch wenn jemand anderes das Häkchen setzt (Antippen einer ausgeblendeten Lösung im Editor).
+    document.getElementById('moduleShowSolutions')?.addEventListener('change', syncSolutionSwitch);
 
     this._modulesList      = document.getElementById('modulesList');
     this._searchModules    = document.getElementById('searchModules');

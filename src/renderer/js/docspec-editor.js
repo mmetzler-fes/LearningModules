@@ -407,6 +407,26 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
     replaceYaml(toYaml(current), 0);
   });
   showSolutions?.addEventListener('change', update);
+  // „Arbeitsblatt | Lösung“ gilt auch beim Bearbeiten: Bei „Arbeitsblatt“ schrumpft jede Lösung auf
+  // einen Balken – Antippen schaltet auf „Lösung“, dann lässt sie sich bearbeiten.
+  const editSolutions = () => root.classList.toggle('ds-edit-hide-solutions', !!showSolutions && !showSolutions.checked);
+  showSolutions?.addEventListener('change', editSolutions);
+  editSolutions();
+  const revealSolutions = () => {
+    showSolutions.checked = true;
+    showSolutions.dispatchEvent(new Event('change'));
+  };
+  root.addEventListener('click', (e) => {
+    if (!root.classList.contains('ds-edit-hide-solutions') || !e.target.closest?.('.ds-pm-surface .ds-pm-solution') || !showSolutions) return;
+    revealSolutions();
+  });
+  // Mit den Pfeiltasten in eine ausgeblendete Lösung: zeigen, statt unsichtbar darin zu tippen.
+  root.addEventListener('keyup', () => {
+    if (!root.classList.contains('ds-edit-hide-solutions') || !showSolutions) return;
+    const at = window.getSelection?.()?.anchorNode;
+    const el = at && (at.nodeType === 1 ? at : at.parentElement);
+    if (el?.closest?.('.ds-pm-surface .ds-pm-solution') && root.contains(el)) revealSolutions();
+  });
 
   /** Übernommenes Dokument einsetzen – in beiden Reitern sichtbar. */
   const applyImported = (imported, title, warnings) => {

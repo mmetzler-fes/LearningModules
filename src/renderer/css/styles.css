@@ -4235,6 +4235,10 @@ body.html-app-large .quiz-actions { margin-top: 8px; padding-top: 8px; flex-shri
 .ds-pm-surface p[data-ds="note"] { font-style: italic; color: var(--text-secondary); }
 .ds-pm-surface .ds-pm-solution { color: var(--danger); border-left: 3px solid var(--danger); padding: 2px 0 2px 10px; margin: 6px 0; }
 .ds-pm-surface .ds-pm-solution::before { content: 'Lösung:'; display: block; font-weight: 600; }
+/* Ansicht „Arbeitsblatt“ beim Bearbeiten: Lösungen nur als Balken (docspec-editor.js). */
+.ds-edit-hide-solutions .ds-pm-surface .ds-pm-solution { cursor: pointer; color: var(--text-secondary); border-left-style: dashed; padding: 4px 10px; }
+.ds-edit-hide-solutions .ds-pm-surface .ds-pm-solution > * { display: none; }
+.ds-edit-hide-solutions .ds-pm-surface .ds-pm-solution::before { content: '💡 Lösung ausgeblendet (Ansicht „Arbeitsblatt“) – antippen zum Bearbeiten'; font-weight: 400; font-size: 0.85em; }
 .ds-pm-surface .ds-pm-columns { display: flex; gap: 0.4cm; margin: 6px 0; }
 .ds-pm-surface .ds-pm-column { flex: 1 1 0; min-width: 0; border: 1px dashed var(--border); padding: 2px 6px; }
 .ds-pm-surface .ws-box[data-title]::before { content: attr(data-title); display: block; font-weight: 600; }

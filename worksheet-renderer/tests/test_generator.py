@@ -119,6 +119,23 @@ class RenderTest(unittest.TestCase):
         cols = [float(w) for w in re.findall(r'style:name="ABTabelle\.Sp1\.\d"[^>]*>\s*<style:table-column-properties style:column-width="([\d.]+)cm"', content)]
         self.assertGreater(cols[1], 4.5, cols)  # 2 cm Bild + „Spannungsteiler“ nebeneinander (vorher gut 1 cm)
 
+    def test_ohne_kopfzeile_der_vorlage(self):
+        """templateHead: false (Druckdialog) – die Kopfzeile der Vorlage entfällt, die Fußzeile bleibt."""
+        import json
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            for name, extra in (("mit", {}), ("ohne", {"templateHead": False})):
+                (root / name).mkdir()
+                (root / name / "k.json").write_text(json.dumps({"titel": "K", **extra, "content": ["x"]}), encoding="utf-8")
+                env = dict(os.environ, ARBEITSBLATT_ROOT=str(root))
+                subprocess.run([sys.executable, str(GEN / "tools" / "make_worksheet.py"), f"{name}/k.json",
+                                "-o", "out"], cwd=root, env=env, check=True, capture_output=True)
+            mit = zipfile.ZipFile(root / "out" / "mit.odt").read("styles.xml").decode()
+            ohne = zipfile.ZipFile(root / "out" / "ohne.odt").read("styles.xml").decode()
+        self.assertIn("<style:header", mit)
+        self.assertNotIn("<style:header>", ohne)
+        self.assertNotIn("<style:header ", ohne)
+
     def test_schreibfelder(self):
         """Block `karo` mit Breite und Muster: schmales Karo, Linien, leeres Feld."""
         spec = (

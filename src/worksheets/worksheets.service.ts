@@ -354,7 +354,7 @@ export class WorksheetsService {
     return { files: result.files, warnings: [...warnings, ...result.warnings] };
   }
 
-  async render(user: any, body: { spec: unknown; title: string; output: WorksheetOutput; moduleId?: string; kind?: string; templateId?: string | null; quizzes?: QuizPrintMode; quizLink?: string }, req?: any) {
+  async render(user: any, body: { spec: unknown; title: string; output: WorksheetOutput; moduleId?: string; kind?: string; templateId?: string | null; quizzes?: QuizPrintMode; quizLink?: string; templateHead?: boolean }, req?: any) {
     const errors = docSpec().validateDocSpec(body.spec);
     if (errors.length) throw new BadRequestException({ message: 'Das Dokument enthält Fehler.', errors });
     const ctx = body.moduleId ? await this.context(user, body.moduleId, body.kind, body.templateId)
@@ -364,7 +364,7 @@ export class WorksheetsService {
     // Aus dem Klassennotizbuch (OneNote): Quiz-Adressen mit Anmeldung statt anonym.
     const quizLink = ctx && req ? classQuizLink(body.quizLink, baseUrl(req)) : null;
     if (ctx && quizLink) ctx.quizLink = quizLink;
-    const { job, warnings } = await this.prepare(body.spec as Record<string, any>, body.title, [body.output], ctx, { quizzes: body.quizzes });
+    const { job, warnings } = await this.prepare(body.spec as Record<string, any>, body.title, [body.output], ctx, { quizzes: body.quizzes, templateHead: body.templateHead });
     const result = await this.renderer.render(job);
     const file = result.files[body.output];
     if (!file) throw new BadRequestException('Der Renderer hat die Datei nicht geliefert.');
@@ -378,7 +378,7 @@ export class WorksheetsService {
    * steht als Hinweis im Blatt.
    */
   async prepare(spec: Record<string, any>, title: string, outputs: WorksheetOutput[], ctx: DocContext | null = null,
-    opts: { quizzes?: QuizPrintMode } = {}): Promise<{ job: RenderJob; warnings: string[] }> {
+    opts: { quizzes?: QuizPrintMode; templateHead?: boolean } = {}): Promise<{ job: RenderJob; warnings: string[] }> {
     // Druckfassung nur auf ausdrücklichen Wunsch (Druckdialog, Skript, OneNote): Das PDF im
     // Stift-Editor und das Nextcloud-Abbild bleiben, wie sie sind – sonst verrutschen Beschriftungen.
     const quizzes: QuizPrintMode = opts.quizzes === 'print' ? 'print' : 'qr';
@@ -574,13 +574,14 @@ export class WorksheetsService {
       const missing = docSpec().docRefSlugs(spec).filter((s) => !ctx.refs![s]);
       if (missing.length) warnings.push(`Verweis auf fehlende Blätter: ${missing.join(', ')}`);
     }
-    const { titel: _t, nummer: _n, kurs: _k, titelmuster: _m, ...rest } = resolved;
+    const { titel: _t, nummer: _n, kurs: _k, titelmuster: _m, templateHead: _h, ...rest } = resolved;
     const meta = { ...(ctx?.course.meta || {}), ...(rest.meta || {}) };
     // Eine eigene Kopfzeile in meta.TITEL (z. B. Klassenarbeit) hat Vorrang.
     if (!meta.TITEL) meta.TITEL = WorksheetsService.header(ctx, title);
     return {
       job: {
-        spec: { ...rest, titel: title || 'Dokument', meta, content: await walk(resolved.content) },
+        // templateHead: false – ohne Kopfzeile der Vorlage (Druckdialog); sonst wie die Vorlage.
+        spec: { ...rest, titel: title || 'Dokument', meta, content: await walk(resolved.content), ...(opts.templateHead === false ? { templateHead: false } : {}) },
         course: { ...(ctx?.course.autor ? { autor: ctx.course.autor } : {}) },
         ...(ctx?.template ? { template: ctx.template.data } : {}),
         files,

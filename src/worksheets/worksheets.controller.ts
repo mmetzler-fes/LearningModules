@@ -208,7 +208,7 @@ export class WorksheetsController {
    */
   @Post('render')
   @HttpCode(200)
-  async render(@Request() req: any, @Body() body: { spec?: unknown; title?: string; output?: string; moduleId?: string; kind?: string; templateId?: string | null; quizzes?: string; quizLink?: string }, @Res() res: Response) {
+  async render(@Request() req: any, @Body() body: { spec?: unknown; title?: string; output?: string; moduleId?: string; kind?: string; templateId?: string | null; quizzes?: string; quizLink?: string; templateHead?: boolean }, @Res() res: Response) {
     const output = String(body?.output || '') as WorksheetOutput;
     if (!WORKSHEET_OUTPUTS.includes(output)) throw new BadRequestException(`output: ${WORKSHEET_OUTPUTS.join(', ')}`);
     const title = String(body?.title || '').trim().slice(0, 200);
@@ -218,7 +218,9 @@ export class WorksheetsController {
     const templateId = typeof body?.templateId === 'string' ? body.templateId || null : undefined;
     // Quizze: Druckfassung unter dem QR-Code (quizzes: print, aus dem Druckdialog) oder nur QR-Code und Adresse.
     const quizzes = body?.quizzes === 'print' ? 'print' : 'qr';
-    const { file, warnings } = await this.worksheets.render(req.user, { spec: body?.spec, title, output, moduleId, kind, templateId, quizzes, quizLink: body?.quizLink }, req);
+    // Kopfzeile der Vorlage: nur ein ausdrückliches false lässt sie weg (Druckdialog, z. B. für Kopien).
+    const templateHead = body?.templateHead !== false;
+    const { file, warnings } = await this.worksheets.render(req.user, { spec: body?.spec, title, output, moduleId, kind, templateId, quizzes, quizLink: body?.quizLink, templateHead }, req);
     const type = FILE_TYPES[output];
     const name = `${fileName(title || 'Dokument')}${type.suffix}.${type.ext}`;
     res.setHeader('Content-Type', type.mime);

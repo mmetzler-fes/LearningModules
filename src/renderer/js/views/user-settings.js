@@ -31,9 +31,9 @@ export class UserSettingsDialog {
     overlay.innerHTML = `<div class="import-modules-card" role="dialog" aria-modal="true">
         <h3>⚙️ Einstellungen</h3>
         <p class="hint">Gelten für dein Konto auf allen Geräten.</p>
-        <label class="tag-filter-mode"><input type="checkbox" name="inkTemplateHead" ${s.inkTemplateHead ? 'checked' : ''} />
-          <span>✏️ Stift-Editor: Kopfzeile der Vorlage zeigen (Logo, Titel – wie im Druck)</span></label>
-        <p class="hint">Auch im Stift-Editor über den Knopf neben 🖨 umschaltbar.</p>
+        <label class="tag-filter-mode"><input type="checkbox" name="inkTemplateHead" ${s.inkTemplateHead !== false ? 'checked' : ''} />
+          <span>🖨 Kopfzeile der Vorlage (Logo, Titel) – beim Drucken und im Stift-Editor</span></label>
+        <p class="hint">Vorgabe: Im Druckdialog lässt sie sich je Druck abwählen, im Stift-Editor über den Knopf neben 🖨.</p>
         <div class="confirm-actions"><button type="button" class="btn btn-primary" data-close>Fertig</button></div>
       </div>`;
     document.body.appendChild(overlay);

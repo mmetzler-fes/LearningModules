@@ -155,7 +155,8 @@ export async function openDocumentInk({ mode, mod, up = null, embedModule = null
     paper.printPdf = (data, { solutions, win }) => printPdf(data, solutions, win);
     // Kopfzeile der Vorlage als Vorschau – ob sie erscheint, ist eine Einstellung des Kontos.
     paper.head = {
-      get: () => !!window.appSettings?.get().inkTemplateHead,
+      // Nie eingestellt: an – wie im Druck (print-dialog.js: templateHeadDefault).
+      get: () => window.appSettings?.get().inkTemplateHead !== false,
       set: (on) => window.appSettings?.set({ inkTemplateHead: !!on }),
     };
     // Dazu ein Blatt ohne Inhalt, mit der Kopfzeile dieses Dokuments.
@@ -187,7 +188,9 @@ export async function openDocumentInk({ mode, mod, up = null, embedModule = null
     const res = await fetch('/api/worksheets/render', {
       method: 'POST',
       headers: authHeaders(),
-      body: JSON.stringify({ spec, title: mod.title || '', output: solutions ? 'loesung_pdf' : 'pdf', moduleId: mod.id, kind: content.kind, quizzes: await quizPrintPref() }),
+      // Kopfzeile wie in der Ansicht des Stift-Editors (Knopf neben 🖨, Vorgabe aus den Einstellungen).
+      body: JSON.stringify({ spec, title: mod.title || '', output: solutions ? 'loesung_pdf' : 'pdf', moduleId: mod.id, kind: content.kind, quizzes: await quizPrintPref(),
+        templateHead: window.appSettings?.get().inkTemplateHead !== false }),
     });
     if (!res.ok) {
       const body = await res.json().catch(() => ({}));

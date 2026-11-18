@@ -43,7 +43,7 @@ import yaml
 from odf import teletype
 from mathml_starmath import NoStarMath, mathml_to_starmath
 from odf.element import Element
-from odf.namespaces import FONS
+from odf.namespaces import FONS, STYLENS
 from odf.dc import Title
 from odf.opendocument import load
 from odf.style import (
@@ -2993,6 +2993,16 @@ def convert_to_pdf(paths: list[Path]) -> None:
     print(f"  ✓ {len(paths) - len(missing)} PDF(s)")
 
 
+def drop_template_head(doc) -> None:
+    """Ohne die Kopfzeile der Vorlage drucken (Druckdialog): z. B. für die Kopie eines Originals,
+    das seinen eigenen Kopf schon mitbringt. Die Fußzeile bleibt."""
+    heads = {(STYLENS, "header"), (STYLENS, "header-left"), (STYLENS, "header-first")}
+    for page in list(doc.masterstyles.childNodes):
+        for part in list(getattr(page, "childNodes", [])):
+            if getattr(part, "qname", None) in heads:
+                page.removeChild(part)
+
+
 def find_template(name: str) -> Path:
     """Vorlage im Projekt suchen, sonst beim Generator (Grundvorlage)."""
     for base in (ROOT, GEN):
@@ -3025,6 +3035,8 @@ def build(spec_path: Path, out_dir: Path | None, template_override: Path | None,
     label = spec.get("slug") or spec_path.resolve().parent.name
     print(f"→ {label}  ({mode}, Vorlage: {template.name})")
     doc = load(str(template))
+    if spec.get("templateHead") is False:
+        drop_template_head(doc)
     use_template_width(doc)
     as_document(doc, spec, mode)
     styles = resolve_styles(doc, spec)

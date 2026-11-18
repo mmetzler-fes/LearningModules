@@ -26,6 +26,14 @@ function savePrefs(p) {
   try { localStorage.setItem(PREFS_KEY, JSON.stringify(p)); } catch (_) { /* ohne Speicher */ }
 }
 
+/**
+ * Vorgabe „Kopfzeile der Vorlage“: die Einstellung des Kontos (⚙️ Einstellungen, auch der Knopf im
+ * Stift-Editor). Nie eingestellt: mit Kopfzeile, wie bisher gedruckt wurde.
+ */
+export function templateHeadDefault() {
+  return window.appSettings?.get?.().inkTemplateHead !== false;
+}
+
 /** Ausgabe für /api/worksheets/render bzw. /script. */
 export function outputOf({ solution, format }) {
   if (format === 'odt') return solution ? 'loesung' : 'odt';
@@ -33,11 +41,13 @@ export function outputOf({ solution, format }) {
 }
 
 /**
- * Druckdialog. `extras`: weitere Knöpfe `{ label, title, run }` (z. B. .zlm).
- * Ergebnis `{ solution, format, quizzes, output }` oder null.
+ * Druckdialog. `extras`: weitere Knöpfe `{ label, title, run }` (z. B. .zlm). `templateHead`: Abschnitt
+ * „Kopfzeile der Vorlage“ zeigen – vorbelegt aus der Einstellung des Kontos, gilt nur für diesen Druck.
+ * Ergebnis `{ solution, format, quizzes, templateHead, output }` oder null.
  */
-export function openPrintDialog({ heading = '🖨 Drucken', intro = '', solution = true, extras = [] } = {}) {
+export function openPrintDialog({ heading = '🖨 Drucken', intro = '', solution = true, templateHead = false, extras = [] } = {}) {
   const p = printPrefs();
+  const head = templateHeadDefault();
   const radio = (name, value, checked, label, hint = '') => `<label class="nb-check"><input type="radio" name="${name}" value="${value}" ${checked ? 'checked' : ''}>
       <strong>${label}</strong>${hint ? ` <span class="hint">– ${hint}</span>` : ''}</label>`;
   return new Promise((resolve) => {
@@ -53,6 +63,10 @@ export function openPrintDialog({ heading = '🖨 Drucken', intro = '', solution
         <fieldset><legend>Format</legend>
           ${radio('format', 'pdf', p.format === 'pdf', 'PDF', 'zum Drucken, für GoodNotes und OneNote')}
           ${radio('format', 'odt', p.format === 'odt', '.odt', 'zum Weiterbearbeiten in LibreOffice Writer')}</fieldset>
+        ${templateHead ? `<fieldset><legend>Kopfzeile der Vorlage</legend>
+          ${radio('head', '1', head, 'Mit Kopfzeile', 'Logo, Titel, Seitenzahl')}
+          ${radio('head', '0', !head, 'Ohne', 'z. B. für die Kopie eines Originals mit eigenem Kopf')}
+          <p class="hint">Vorgabe unter ⚙️ Einstellungen – hier gilt die Wahl nur für diesen Druck.</p></fieldset>` : ''}
         <fieldset><legend>Quizze</legend>
           ${radio('quizzes', 'print', p.quizzes === 'print', 'QR-Code und Quiz zum Ausfüllen', 'Kästchen, Lücken, Wortkasten – zum Ausprobieren oben der QR-Code')}
           ${radio('quizzes', 'qr', p.quizzes === 'qr', 'Nur QR-Code und Adresse', 'kürzer, das Quiz gibt es nur online')}</fieldset>
@@ -75,7 +89,7 @@ export function openPrintDialog({ heading = '🖨 Drucken', intro = '', solution
       const f = new FormData(form);
       const choice = { solution: f.get('solution') === '1', format: f.get('format') === 'odt' ? 'odt' : 'pdf', quizzes: f.get('quizzes') === 'qr' ? 'qr' : 'print' };
       savePrefs({ format: choice.format, quizzes: choice.quizzes });
-      done({ ...choice, output: outputOf(choice) });
+      done({ ...choice, templateHead: templateHead ? f.get('head') !== '0' : head, output: outputOf(choice) });
     });
     form.querySelector('button[type="submit"]').focus();
   });

@@ -587,9 +587,10 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
     const { openPrintDialog } = await import('./views/print-dialog.js');
     const choice = await openPrintDialog({
       heading: '🖨 Drucken',
+      templateHead: true,
       extras: [{ label: '⬇ .zlm', title: 'Für den lm-editor: gespeicherter Stand mit Quizzen und Beschriftung', run: downloadZlm }],
     });
-    if (choice) print(choice.output, btn, choice.quizzes);
+    if (choice) print(choice.output, btn, choice.quizzes, choice.templateHead);
   });
 
   /** Gespeichertes Dokument als .zlm – der Server packt Quizze, Bilder und die eigene Beschriftung dazu. */
@@ -609,7 +610,7 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
     }
   }
 
-  async function print(output, btn, quizzes = 'print') {
+  async function print(output, btn, quizzes = 'print', templateHead = true) {
     update();
     if (!spec) return;
     const errors = validateDocSpec(spec);
@@ -624,7 +625,7 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
       const res = await fetch('/api/worksheets/render', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...(token() ? { Authorization: `Bearer ${token()}` } : {}) },
-        body: JSON.stringify({ spec, title, output, quizzes, kind: document.querySelector('select[name="content_kind"]')?.value,
+        body: JSON.stringify({ spec, title, output, quizzes, templateHead, kind: document.querySelector('select[name="content_kind"]')?.value,
           // Vorlage aus dem Formular – auch vor dem Speichern ('' = wie im Ordner).
           templateId: document.querySelector('select[name="content_templateId"]')?.value ?? undefined,
           ...(moduleId ? { moduleId } : {}) }),

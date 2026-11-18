@@ -21,6 +21,13 @@ describe('WorksheetsService.prepare', () => {
     expect(job.outputs).toEqual(['odt']);
   });
 
+  it('Kopfzeile der Vorlage: nur auf Wunsch (Druckdialog) weg, nie aus der Spec selbst', async () => {
+    const off = await service.prepare({ content: ['x'] }, 'T', ['pdf'], null, { templateHead: false });
+    expect(off.job.spec.templateHead).toBe(false);
+    const on = await service.prepare({ templateHead: false, content: ['x'] } as any, 'T', ['pdf']);
+    expect(on.job.spec).not.toHaveProperty('templateHead');
+  });
+
   it('mit Notebook: Kopfzeile aus dem Kurs, Verweise aufgelöst, Kurs-Meta übernommen', async () => {
     const { job, warnings } = await service.prepare(
       { content: ['Siehe Blatt {{blatt:06_v}} und {{blatt:weg}}'] }, 'Der AD-Wandler', ['pdf'], ctx());

@@ -2858,6 +2858,14 @@ body.html-app-large .quiz-actions { margin-top: 8px; padding-top: 8px; flex-shri
   border-radius: var(--radius-sm);
   border: 1px solid var(--border);
   min-height: 44px;
+  /* Bei langen Texten bleibt die Wortbank unten im Bild – sonst muss jedes
+     Wort über die halbe Seite gezogen werden, während die Seite mitscrollt. */
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
+  max-height: 40vh;
+  overflow-y: auto;
+  box-shadow: 0 -2px 6px rgba(0, 0, 0, 0.06);
 }
 
 .dtw-chip {
@@ -5691,7 +5699,23 @@ details[open] > summary > .cb-twisty::before { content: '▾'; }
 @media (max-width: 800px) { .zoom-row { display: none; } }
 
 /* ---- Drag and Drop mit Bild: Einpassen / Vergrößern ---- */
-.dnd-view-bar { display: flex; justify-content: flex-end; margin-bottom: 8px; }
+.dnd-view-bar { display: flex; justify-content: flex-end; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
+/* Größe der Ablage, unabhängig vom Bild (A−/A+ des Quiz zoomt beides) */
+.dnd-bank-size { display: inline-flex; align-items: center; border: 1px solid var(--border); border-radius: var(--radius-sm); overflow: hidden; font-size: 0.85rem; }
+.dnd-bank-size-label { padding: 4px 6px 4px 10px; color: var(--text-secondary); }
+.dnd-bank-size-value { min-width: 3.2em; text-align: center; font-variant-numeric: tabular-nums; }
+.dnd-bank-size button {
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  border: none;
+  border-left: 1px solid var(--border);
+  padding: 4px 10px;
+  font: inherit;
+  cursor: pointer;
+  min-width: 34px;
+}
+.dnd-bank-size-value + button { border-left: 1px solid var(--border); }
+.dnd-bank-size button:disabled { opacity: 0.4; cursor: default; }
 .dnd-view-toggle { display: inline-flex; border: 1px solid var(--border); border-radius: var(--radius-sm); overflow: hidden; }
 .dnd-view-toggle button {
   background: var(--bg-secondary);

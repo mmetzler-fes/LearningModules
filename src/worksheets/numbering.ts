@@ -57,7 +57,7 @@ export function legacyNumbering(s: DocSettings | null | undefined): NumberingMod
 }
 
 /** Erlaubte Größen eines Quiz im Blatt (wie A− / A+ in h5p-renderer.js). */
-export const QUIZ_SCALES = [0.5, 0.6, 0.7, 0.8, 0.9, 1, 1.1, 1.25, 1.5];
+export const QUIZ_SCALES = [0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1, 1.1, 1.25, 1.5];
 
 export const PRINT_FORMATS = ['odt', 'loesung', 'pdf', 'loesung_pdf'];
 

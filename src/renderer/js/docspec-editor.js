@@ -1507,7 +1507,7 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
     // Schreibfeld: Höhe, Breite und Muster als Felder – sie schreiben ins YAML darunter.
     // Quiz: Größe im Blatt (A− / A+ beim Ansehen stellt jeder für sich nach).
     const quizSize = block.type === 'quiz' ? `<div class="ds-field-form">
-        <label>Größe im Blatt <select class="ds-q-scale">${[0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1, 1.1, 1.25, 1.5].map((v) => `<option value="${v}">${Math.round(v * 100)} %</option>`).join('')}</select></label>
+        <label>Größe im Blatt <select class="ds-q-scale">${[0.2, 0.25, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1, 1.1, 1.25, 1.5].map((v) => `<option value="${v}">${Math.round(v * 100)} %</option>`).join('')}</select></label>
         <span class="hint">Vorgabe für alle; mit A− / A+ am Quiz stellt jeder selbst nach.</span>
       </div>` : '';
     const field = block.type === 'karo' ? `<div class="ds-field-form">

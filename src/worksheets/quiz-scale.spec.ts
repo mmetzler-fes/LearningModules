@@ -5,6 +5,8 @@ describe('Größe eingebetteter Quizze (Dokument-Einstellungen)', () => {
   it('bereinigt: nur bekannte Größen, Typnamen oder *', () => {
     const s = sanitizeDocSettings({ quizScale: { dragAndDrop: 0.5, '*': 0.9, evil: 7, 'a b': 0.5 } }, null);
     expect(s?.quizScale).toEqual({ dragAndDrop: 0.5, '*': 0.9 });
+    expect(sanitizeDocSettings({ quizScale: { dragAndDrop: 0.2, '*': 0.25 } }, null)?.quizScale).toEqual({ dragAndDrop: 0.2, '*': 0.25 });
+    expect(sanitizeDocSettings({ quizScale: { dragAndDrop: 0.1 } }, null)).toBeNull();
     expect(sanitizeDocSettings({ quizScale: {} }, { quizScale: { dragAndDrop: 0.5 } })).toBeNull();
   });
 

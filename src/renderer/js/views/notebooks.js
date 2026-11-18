@@ -1316,7 +1316,7 @@ export class NotebooksView {
       ${tpls.filter((t) => t.kind === kind).map((t) => `<option value="${escapeAttr(t.id)}" ${s.templates?.[kind] === t.id ? 'selected' : ''}>${escapeHtml(t.name)}${t.scope === 'school' ? ' (Schule)' : ''}</option>`).join('')}</select></label>`;
     // Größe eingebetteter Quizze im Blatt, je Art; leer = wie darüber.
     const QUIZ_SIZE_TYPES = [['dragAndDrop', 'Drag and Drop'], ['dragTheWords', 'Drag the Words'], ['*', 'Übrige Quiz-Arten']];
-    const SIZES = [0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1, 1.1, 1.25, 1.5];
+    const SIZES = [0.2, 0.25, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1, 1.1, 1.25, 1.5];
     const quizSelect = (type, label) => {
       const above = inherited.quizScale?.[type];
       return `<label>${label} <select name="qs_${type === '*' ? 'rest' : type}">

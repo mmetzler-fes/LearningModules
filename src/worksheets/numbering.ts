@@ -34,7 +34,7 @@ export interface DocSettings {
   templates?: { arbeitsblatt?: string; klassenarbeit?: string; skript?: string };
   /**
    * Größe eingebetteter Quizze im Blatt je Modultyp, `*` für die übrigen
-   * (0.5–1.5). Erben sich Typ für Typ nach unten; QuizScaleService schreibt
+   * (0.2–1.5). Erben sich Typ für Typ nach unten; QuizScaleService schreibt
    * sie in die Dokumente (spec.quizScale), die Anzeige liest sie dort.
    */
   quizScale?: Record<string, number>;
@@ -57,7 +57,7 @@ export function legacyNumbering(s: DocSettings | null | undefined): NumberingMod
 }
 
 /** Erlaubte Größen eines Quiz im Blatt (wie A− / A+ in h5p-renderer.js). */
-export const QUIZ_SCALES = [0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1, 1.1, 1.25, 1.5];
+export const QUIZ_SCALES = [0.2, 0.25, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1, 1.1, 1.25, 1.5];
 
 export const PRINT_FORMATS = ['odt', 'loesung', 'pdf', 'loesung_pdf'];
 

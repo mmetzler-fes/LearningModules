@@ -508,7 +508,7 @@ Quizze; beim Einlesen zeigt das Dokument auf die neu angelegten.
   erstellt, druckt das Nextcloud-Abbild die Blätter neu.
 - **Größe:** Quizze sind für die App gestaltet und wirken auf dem Blatt (vor allem
   im Stift-Editor) oft zu groß. **A− / A+** oben rechts am Quiz stellt es kleiner
-  oder größer (50–150 %); das Gerät merkt es sich je Quiz. Vorgaben für alle,
+  oder größer (20–150 %); das Gerät merkt es sich je Quiz. Vorgaben für alle,
   auch die Schüler: im Notizbuch an Book, Bereich oder Abschnitt **⋯ → 📄
   Dokument-Einstellungen → Quizze im Blatt – Größe**, je Art (Drag and Drop,
   Drag the Words, übrige). Sie erben sich nach unten wie Kursname und Kopfzeile;

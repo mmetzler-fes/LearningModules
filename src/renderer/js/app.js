@@ -516,9 +516,9 @@ class App {
    * hängen am body und bleiben davon unberührt.
    */
   initZoom() {
-    // Inhalt bis 30 %: So passt ein ganzes A4-Blatt (Dokument-Editor) auch auf einen schmalen
+    // Inhalt bis 20 %: So passt ein ganzes A4-Blatt (Dokument-Editor) auch auf einen schmalen
     // Bildschirm. Das Menü bleibt lesbar ab 70 %.
-    const STEPS_ALL = { sidebar: [0.7, 0.8, 0.9, 1, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6], content: [0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6] };
+    const STEPS_ALL = { sidebar: [0.7, 0.8, 0.9, 1, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6], content: [0.2, 0.25, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6] };
     const targets = { sidebar: document.getElementById('sidebar'), content: document.getElementById('mainContent') };
     const key = (which) => `lm_zoom_${which}`;
     const read = (which) => {

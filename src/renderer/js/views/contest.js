@@ -4,7 +4,7 @@ import { collectAnswer } from '../../lm-editor/src/modules/answer-eval.js';
 import { classbookSession, backToClassbook } from './classbook-student.js';
 
 /** Größen der Aufgabe in der Arena (A− / A+), je Gerät gemerkt. */
-const CONTEST_ZOOMS = [0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1, 1.1, 1.25, 1.5];
+const CONTEST_ZOOMS = [0.2, 0.25, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1, 1.1, 1.25, 1.5];
 const CONTEST_ZOOM_KEY = 'lm_contest_zoom';
 
 // ==================== QUIZ-ARENA ====================

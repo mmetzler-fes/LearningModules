@@ -524,10 +524,10 @@
                 <option value="" data-i18n="module.type.placeholder">— Modultyp wählen —</option>
               </select>
             </div>
-            <label class="module-solutions-toggle hidden" id="moduleSolutionsToggle" title="Lösungen in der Dokument-Vorschau anzeigen">
-              <input type="checkbox" id="moduleShowSolutions" />
-              <span>Lösungen</span>
-            </label>
+            <span class="sol-switch hidden" id="moduleSolutionsToggle" role="group" aria-label="Fassung in der Vorschau">
+              <input type="checkbox" id="moduleShowSolutions" hidden />
+              <button type="button" data-sol="0" class="active" aria-pressed="true" title="So sieht es die Klasse – ohne Lösungen">📄 Arbeitsblatt</button><button type="button" data-sol="1" aria-pressed="false" title="Mit den Lösungen (rot)">💡 Lösung</button>
+            </span>
             <div class="module-format-wrap hidden" id="moduleFormatWrap">
               <button type="button" class="btn btn-secondary btn-sm" id="btnModuleFormat" title="Einstellungen zur Formatvorlage" aria-haspopup="true" aria-expanded="false">
                 🎨 Formatvorlage ▾

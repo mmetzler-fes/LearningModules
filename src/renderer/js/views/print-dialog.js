@@ -3,18 +3,20 @@
 // Ein Dialog statt vieler Menüpunkte: Fassung (Arbeitsblatt/Lösung), Format
 // (PDF/.odt) und wie Quizze erscheinen – mit Druckfassung unter dem QR-Code
 // (Vorgabe) oder nur QR-Code und Adresse (src/worksheets/quiz-print.ts).
-// Die Wahl merkt sich das Gerät.
+// Die Wahl merkt sich das Gerät – außer der Fassung: Sie steht immer erst auf
+// „Arbeitsblatt“. Wer zuletzt die Lösung gedruckt hatte, bekam sie sonst beim
+// nächsten Mal wieder und teilte sie leicht versehentlich aus.
 
 import { escapeHtml } from '../utils.js';
 
 const PREFS_KEY = 'lm_print_opts';
 
-/** Zuletzt gewählte Einstellungen: `{ solution, format, quizzes }`. */
+/** Zuletzt gewählte Einstellungen: `{ solution, format, quizzes }` – `solution` immer false. */
 export function printPrefs() {
   let p = {};
   try { p = JSON.parse(localStorage.getItem(PREFS_KEY) || '{}') || {}; } catch (_) { p = {}; }
   return {
-    solution: !!p.solution,
+    solution: false,
     format: p.format === 'odt' ? 'odt' : 'pdf',
     quizzes: p.quizzes === 'qr' ? 'qr' : 'print',
   };
@@ -47,7 +49,7 @@ export function openPrintDialog({ heading = '🖨 Drucken', intro = '', solution
         ${intro ? `<p class="hint">${escapeHtml(intro)}</p>` : ''}
         ${solution ? `<fieldset><legend>Fassung</legend>
           ${radio('solution', '0', !p.solution, 'Arbeitsblatt')}
-          ${radio('solution', '1', p.solution, 'Lösung', 'mit den Antworten in Rot')}</fieldset>` : ''}
+          ${radio('solution', '1', p.solution, 'Lösung', 'mit den Antworten in Rot, oben „LÖSUNG“')}</fieldset>` : ''}
         <fieldset><legend>Format</legend>
           ${radio('format', 'pdf', p.format === 'pdf', 'PDF', 'zum Drucken, für GoodNotes und OneNote')}
           ${radio('format', 'odt', p.format === 'odt', '.odt', 'zum Weiterbearbeiten in LibreOffice Writer')}</fieldset>
@@ -72,7 +74,7 @@ export function openPrintDialog({ heading = '🖨 Drucken', intro = '', solution
       e.preventDefault();
       const f = new FormData(form);
       const choice = { solution: f.get('solution') === '1', format: f.get('format') === 'odt' ? 'odt' : 'pdf', quizzes: f.get('quizzes') === 'qr' ? 'qr' : 'print' };
-      savePrefs(choice);
+      savePrefs({ format: choice.format, quizzes: choice.quizzes });
       done({ ...choice, output: outputOf(choice) });
     });
     form.querySelector('button[type="submit"]').focus();

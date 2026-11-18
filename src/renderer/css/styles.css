@@ -930,31 +930,28 @@ body {
 .module-header-type select:focus {
   border-color: var(--accent);
 }
-.module-solutions-toggle {
+.sol-switch {
   display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 0.88rem;
+  flex: none;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+.sol-switch button {
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  border: none;
+  padding: 5px 10px;
+  font: inherit;
   font-weight: 600;
   cursor: pointer;
-  white-space: nowrap;
-  user-select: none;
-  padding: 6px 10px;
-  border-radius: var(--radius-sm);
-  background: var(--bg-secondary);
-  border: 1px solid var(--border);
-  color: var(--text-primary);
-  transition: background var(--transition), border-color var(--transition);
 }
-.module-solutions-toggle:hover {
-  background: var(--bg-tertiary, rgba(0, 0, 0, 0.05));
-  border-color: var(--accent);
-}
-.module-solutions-toggle input[type="checkbox"] {
-  cursor: pointer;
-  margin: 0;
-  accent-color: var(--accent);
-}
+.sol-switch button + button { border-left: 1px solid var(--border); }
+.sol-switch button.active { background: var(--accent); color: #fff; }
+/* Lösung sichtbar: rot – damit man nicht vergisst, dass gerade die Lösung zu sehen ist. */
+.sol-switch button.active[data-sol="1"] { background: var(--danger); color: #fff; }
 .module-format-wrap {
   position: relative;
   margin-left: auto;
@@ -2214,7 +2211,6 @@ body.html-app-large .quiz-actions { margin-top: 8px; padding-top: 8px; flex-shri
 .editor-doc-row .ds-mode .ds-import-odt { margin-left: 0; }
 .editor-doc-row .ds-preview-bar { position: static; margin-bottom: 0; padding: 0; background: none; }
 .editor-doc-row .ds-preview-bar .module-format-wrap { margin-left: 0; }
-.editor-doc-row .ds-preview-bar .module-solutions-toggle { padding: 4px 10px; }
 .editor-doc-row .ds-preview-bar .ds-editor-header { margin-left: auto; font-size: 0.8em; max-width: 40ch; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .editor-doc-row .ds-preview-bar .ds-editor-header:not([hidden]) + .ds-preview-pages { margin-left: 12px; }
 /* Dokument: kein Rahmen, kein Abstand – der Editor beginnt direkt unter der Kopfzeile. */
@@ -3986,6 +3982,22 @@ body.html-app-large .quiz-actions { margin-top: 8px; padding-top: 8px; flex-shri
 }
 .docspec .ds-solution-label { font-weight: 600; margin: 0 0 0.3em; font-size: 0.9em; }
 .docspec.ds-hide-solutions .ds-solution { display: none; }
+/* Gedruckt mit sichtbaren Lösungen (Browser-Druck, Stift-Editor): „LÖSUNG“ oben und die
+   Lösungen sicher rot – sonst druckt mancher Browser sie ohne Farbe und man teilt sie aus. */
+@media print {
+  .docspec:not(.ds-hide-solutions):has(.ds-solution)::before {
+    content: 'LÖSUNG';
+    display: block;
+    text-align: right;
+    font-weight: 700;
+    font-size: 14pt;
+    color: #d00;
+    margin-bottom: 0.3cm;
+  }
+  .docspec .ds-solution, .docspec .ds-solution * { color: #d00 !important; border-color: #d00 !important; }
+  .docspec .ds-solution, .docspec:not(.ds-hide-solutions)::before { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .sol-switch { display: none !important; }
+}
 .docspec .ds-pagebreak {
   border-top: 1px dashed var(--border);
   margin: 1.2em 0;

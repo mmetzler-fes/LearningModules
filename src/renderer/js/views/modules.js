@@ -7,6 +7,16 @@ import { ModuleDescriptionEditor } from '../desc-editor.js';
 import { TagPicker } from './tags.js';
 import { openImportDialog } from './import-dialog.js';
 import { penSelects } from '../../lm-editor/src/util/dom.js';
+
+/** Umschalter „Arbeitsblatt | Lösung“ der Vorschau an das (versteckte) Häkchen angleichen. */
+function syncSolutionSwitch() {
+  const box = document.getElementById('moduleShowSolutions');
+  document.querySelectorAll('#moduleSolutionsToggle [data-sol]').forEach((b) => {
+    const active = (b.dataset.sol === '1') === !!box?.checked;
+    b.classList.toggle('active', active);
+    b.setAttribute('aria-pressed', String(active));
+  });
+}
 import { checkFormulaTask } from '../../lm-editor/src/modules/formula.js';
 import { sortingItems, memoryPairs, crosswordLetters, crosswordWords } from '../../lm-editor/src/modules/puzzles.js';
 
@@ -19,6 +29,15 @@ export class ModulesView {
     // markiert, in Titel, Feldern und im Dokument. Schreiben mit dem Stift gehört in die Stift-Ansicht.
     const editView = document.getElementById('view-create-module');
     if (editView) penSelects(editView);
+    // Fassung der Vorschau: die Knöpfe setzen das Häkchen, auf das der Dokument-Editor hört.
+    document.getElementById('moduleSolutionsToggle')?.addEventListener('click', (e) => {
+      const b = e.target.closest('[data-sol]');
+      const box = document.getElementById('moduleShowSolutions');
+      if (!b || !box || box.checked === (b.dataset.sol === '1')) return;
+      box.checked = b.dataset.sol === '1';
+      syncSolutionSwitch();
+      box.dispatchEvent(new Event('change'));
+    });
 
     this._modulesList      = document.getElementById('modulesList');
     this._searchModules    = document.getElementById('searchModules');
@@ -600,6 +619,7 @@ export class ModulesView {
     document.getElementById('btnModuleFormat')?.setAttribute('aria-expanded', 'false');
     const solCheck = document.getElementById('moduleShowSolutions');
     if (solCheck) solCheck.checked = false;
+    syncSolutionSwitch();
     if (isDoc) {
       const kindEl = document.getElementById('formatDocKind');
       if (kindEl) kindEl.value = mod.content?.kind || 'arbeitsblatt';
@@ -905,6 +925,7 @@ export class ModulesView {
     document.getElementById('btnModuleFormat')?.setAttribute('aria-expanded', 'false');
     const solCheck = document.getElementById('moduleShowSolutions');
     if (solCheck) solCheck.checked = false;
+    syncSolutionSwitch();
     const kindEl = document.getElementById('formatDocKind');
     if (kindEl) kindEl.value = 'arbeitsblatt';
     const hmEl = document.getElementById('formatDocHandMaintained');

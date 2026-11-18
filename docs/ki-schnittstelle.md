@@ -22,7 +22,7 @@ Quiz-Formate gleich in die Anleitung (Haken „🧠 Quiz-Formate gleich in die A
 
 ## Quizze
 
-Bewertete Typen: Multiple Choice, Wahr/Falsch, Lückentext, Wörter ziehen, Drag & Drop
+Bewertete Typen: Multiple Choice, Wahr/Falsch, Lückentext, Wörter ziehen, Wörter markieren, Drag & Drop
 (`AI_QUIZ_TYPES` in `quiz-format.ts`). Format und Prüfung kommen aus demselben Code wie der
 KI-Prompt im Browser (`ai-prompt.js`, `json-text.js`, `h5p-types.js`).
 

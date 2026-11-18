@@ -10,7 +10,7 @@ import { loadBrowserModule } from '../core/browser-module';
  */
 
 /** Zunächst nur automatisch bewertete Typen (auch für Klassenarbeiten). */
-export const AI_QUIZ_TYPES = ['multipleChoice', 'trueFalse', 'fillInTheBlanks', 'dragTheWords', 'dragAndDrop'] as const;
+export const AI_QUIZ_TYPES = ['multipleChoice', 'trueFalse', 'fillInTheBlanks', 'dragTheWords', 'markTheWords', 'dragAndDrop'] as const;
 export type AiQuizType = typeof AI_QUIZ_TYPES[number];
 export const isAiQuizType = (t: unknown): t is AiQuizType => (AI_QUIZ_TYPES as readonly string[]).includes(String(t));
 

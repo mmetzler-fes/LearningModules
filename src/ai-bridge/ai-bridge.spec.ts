@@ -427,6 +427,15 @@ describe('AiBridgeService (15-Minuten-KI-Token, Scope & Undo)', () => {
     await expect(service.executeBatch(session, {
       operations: [{ op: 'create_quiz', topicId: 'top-ohm', type: 'multipleChoice', title: 'Kaputt', content: { question: 'x', answers: [{ text: 'a' }] } }],
     })).rejects.toThrow(/weniger als zwei Antworten.*reference\/quiz\?types=multipleChoice/);
+    // Wörter markieren (z. B. „Finde den Fehler im Satz“) – bewertet und druckbar wie die übrigen.
+    await service.executeBatch(session, {
+      operations: [{ op: 'create_quiz', topicId: 'top-ohm', type: 'markTheWords', title: 'Fehler', content: { taskDescription: 'Markiere den Fehler.', textField: 'Der Strom wird über *Schleifringe* zugeführt.' } }],
+    });
+    expect(modules.find((m) => m.title === 'Fehler')).toMatchObject({ type: 'markTheWords' });
+    await expect(service.executeBatch(session, {
+      operations: [{ op: 'create_quiz', topicId: 'top-ohm', type: 'markTheWords', title: 'Leer', content: { textField: 'Nichts markiert.' } }],
+    })).rejects.toThrow(/Sternchen/);
+    expect(service.getQuizReference('markTheWords')).toContain('"markTheWords"');
     await expect(service.executeBatch(session, {
       operations: [{ op: 'create_quiz', topicId: 'top-ohm', type: 'memory', title: 'Spiel', content: { pairs: [] } }],
     })).rejects.toThrow(/erlaubt sind/);

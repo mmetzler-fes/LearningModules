@@ -660,8 +660,170 @@ export class NotebooksView {
     return span('ok', `Erreichbar über: ${text}${text && anon ? ',' : ''}${anon}`, `Erreichbar über: ${[...r.classes, ...(r.anonymous.map((a) => `anonym: ${a.name}`)), ...(r.exam ? ['Klassenarbeit'] : [])].join(', ')}`);
   }
 
+  /**
+   * Das eine Dokument eines eigenen Lernthemas – dann erscheinen Lernthema und Dokument als eine Zeile
+   * (📄). Mit zwei oder mehr Dokumenten bleibt es die Mappe (📘), unter 🧩 Quizze immer.
+   */
+  _singleDocOf(topic) {
+    if (!topic.isOwn || topic.isMirror || this._view === 'quizzes') return null;
+    const docs = (topic.modules || []).filter((m) => !m.parentId && isDocLike(m));
+    return docs.length === 1 ? docs[0] : null;
+  }
+
+  /** Ist das Dokument „an“? Lernthema freigegeben und Dokument aktiv. */
+  _compactOn(topic, doc) {
+    return !!topic.selected && doc.moduleSelected !== false;
+  }
+
+  /**
+   * Lernthema mit genau einem Dokument: eine Zeile. Klick öffnet das Dokument, ● und 🔒 gelten für
+   * beide, darunter die eingebetteten Quizze und – getrennt – „🧩 Weitere Quizze“ (nicht eingebettet).
+   */
+  _renderCompact(topic, doc, depth) {
+    const key = 't:' + topic.id;
+    const roots = (topic.modules || []).filter((m) => !m.parentId).sort((a, b) => a.orderIndex - b.orderIndex);
+    const modules = (topic.modules || []).slice();
+    const nest = nestEmbedded(roots);
+    const here = (nest.quizzesOf.get(doc.id) || []).map((q) => ({ q, home: topic }));
+    const foreign = [...new Set(doc.quizIds || [])].filter((id) => !modules.some((m) => m.id === id))
+      .map((id) => this._quizHome(id)).filter(Boolean);
+    const embedded = [...here, ...foreign];
+    const rest = nest.top.filter((m) => m.id !== doc.id && this._moduleInView(m));
+    const kidsOf = (t, m) => (t.modules || []).filter((k) => k.parentId === m.id).sort((a, b) => a.orderIndex - b.orderIndex);
+    const show = (m) => !this._query || this._topicItselfMatches(topic) || this._matches(doc.title) || this._matches(m.title)
+      || modules.some((k) => k.parentId === m.id && this._matches(k.title));
+    const open = this._query
+      ? [...embedded.map((e) => e.q), ...rest, ...kidsOf(topic, doc)].some((m) => this._matches(m.title))
+      : this._open.has(key);
+    const type = (typeof H5P_TYPES !== 'undefined' && H5P_TYPES[doc.type]) || {};
+    const on = this._compactOn(topic, doc);
+    const mixed = !!topic.selected !== (doc.moduleSelected !== false);
+    const lock = topic.teacherOnly
+      ? '<span class="nb-badge nb-lock" title="Nur Lehrkraft: Schüler sehen dieses Lernthema nicht">🔒</span>'
+      : this._lockBadge(topic, doc);
+    const restMeta = rest.length ? ` · 🧩 ${rest.length === 1 ? '1 weiteres Quiz' : `${rest.length} weitere Quizze`}` : '';
+    const row = this._row({
+      key: 'm:' + doc.id, depth, icon: type.icon || '📄', title: topic.title, num: this._data.docNumbers?.[doc.id] || '',
+      twisty: embedded.length + rest.length + kidsOf(topic, doc).length > 0, twistyKey: key, open,
+      cls: `nb-topic nb-compact ${on ? '' : 'nb-off'} ${this._query && this._matches(doc.title) ? 'nb-hit' : ''}`,
+      meta: escapeHtml(type.name || doc.type) + this._unnumberedMeta(doc)
+        + (embedded.length ? ` · ${embedded.length === 1 ? '1 Quiz' : `${embedded.length} Quizze`}` : '') + restMeta,
+      extra: '<span class="nb-reach-slot"></span>' + lock
+        + (this._draftIds?.has(doc.id) ? '<span class="nb-badge" title="Nicht gespeicherte Änderungen – beim Bearbeiten wiederherstellbar">📝 Entwurf</span>' : '')
+        + (this._mirrorErrors?.has(doc.id) ? `<span class="nb-badge nb-warn" title="${escapeAttr(`Nextcloud: ${this._mirrorErrors.get(doc.id)}`)}">☁️ ⚠</span>` : '')
+        + `<button type="button" class="nb-status ${on ? 'on' : ''}" title="${escapeAttr(mixed
+          ? 'Lernthema und Dokument sind verschieden eingestellt – klicken gibt beide frei'
+          : on ? 'Für Schüler freigegeben – klicken zum Sperren' : 'Nicht freigegeben – klicken zum Freigeben')}">${on ? '●' : '○'}</button>
+           <button type="button" class="nb-edit" title="Bearbeiten">✏️</button>`,
+      drag: { type: 'topic', id: topic.id },
+    });
+    if (doc.title && doc.title !== topic.title) row.querySelector('.nb-title').title = `${topic.title} – Dokument: ${doc.title}`;
+    this._reachRows.push([row, topic]);
+    this._fillReach(row, topic);
+    row.querySelector('.nb-status').addEventListener('click', (e) => { e.stopPropagation(); this._setCompactOn(topic, doc, !on || mixed); });
+    const openDoc = (action) => this.app.modulesView.openFrom('teacher-notebooks', topic.id, doc, action);
+    const title = row.querySelector('.nb-title');
+    title.addEventListener('click', () => { if (this._preview.open) this._preview.showModule(topic, doc); else openDoc('edit'); });
+    title.addEventListener('dblclick', () => { if (this._preview.open) openDoc('edit'); });
+    row.querySelector('.nb-edit').addEventListener('click', (e) => { e.stopPropagation(); openDoc('edit'); });
+    this._menuOn(row, () => this._compactMenu(topic, doc));
+    this._bindDrop(row, { type: 'topic', id: topic.id, own: true });
+    this._selectable(row, { type: 'topic', id: topic.id, own: true });
+
+    const wrap = document.createElement('div');
+    wrap.appendChild(row);
+    if (!open) return wrap;
+    const withKids = (t, m, d, opts = {}) => {
+      wrap.appendChild(this._renderModule(t, m, d, opts));
+      for (const kid of kidsOf(t, m)) if (show(kid) || this._matches(m.title)) wrap.appendChild(this._renderModule(t, kid, d + 1));
+    };
+    for (const kid of kidsOf(topic, doc)) if (show(kid)) wrap.appendChild(this._renderModule(topic, kid, depth + 1));
+    for (const { q, home } of embedded) {
+      if (!show(q)) continue;
+      withKids(home, q, depth + 1, { inDocs: home === topic ? nest.docsOf.get(q.id) : [doc], from: home === topic ? null : home });
+    }
+    const shownRest = rest.filter(show);
+    if (shownRest.length) {
+      const restKey = 'wq:' + topic.id;
+      const restOpen = !!this._query || this._open.has(restKey);
+      const group = this._row({
+        key: restKey, depth: depth + 1, icon: '🧩', title: 'Weitere Quizze', open: restOpen,
+        cls: 'nb-module nb-quiz-set',
+        meta: `${rest.length === 1 ? '1 Quiz' : `${rest.length} Quizze`} · nicht im Dokument eingebettet`,
+      });
+      group.querySelector('.nb-title').title = 'Quizze dieses Lernthemas, die nicht im Dokument stehen – Schüler finden sie nach dem Dokument';
+      this._menuOn(group, () => [
+        { label: '➕ Neues Modul', run: () => this.app.modulesView.openFrom('teacher-notebooks', topic.id, null) },
+        { label: '📥 Module importieren', run: () => this._import(null, topic) },
+      ]);
+      wrap.appendChild(group);
+      if (restOpen) for (const m of shownRest) withKids(topic, m, depth + 2);
+    }
+    return wrap;
+  }
+
+  /** ● der kompakten Zeile: Lernthema und Dokument gemeinsam – waren sie verschieden, einmal ein Hinweis. */
+  async _setCompactOn(topic, doc, target) {
+    const mixed = !!topic.selected !== (doc.moduleSelected !== false);
+    if (!!topic.selected !== target) {
+      const res = await this.app.api.toggleTopicSelection(topic.id, target);
+      if (failed(res)) { this.app.showToast('Fehler: ' + (res?.message || 'Nicht gespeichert'), 'error'); return; }
+      topic.selected = target;
+    }
+    if ((doc.moduleSelected !== false) !== target) {
+      const res = await this.app.api.toggleModuleSelection(topic.id, doc.id, target);
+      if (failed(res)) { this.app.showToast('Fehler: ' + (res?.message || 'Nicht gespeichert'), 'error'); return; }
+      doc.moduleSelected = target;
+    }
+    if (mixed) this.app.showToast(`Lernthema und Dokument waren verschieden eingestellt. Jetzt sind beide ${target ? 'freigegeben' : 'gesperrt'}.`, 'info');
+    this._render();
+  }
+
+  /** 🔒 Nur Lehrkraft der kompakten Zeile: für Lernthema und Dokument zugleich. */
+  async _setCompactTeacherOnly(topic, doc, target) {
+    const mixed = !!topic.teacherOnly !== !!doc.teacherOnly;
+    if (!!topic.teacherOnly !== target) {
+      const res = await this.app.api.saveTopic({ id: topic.id, teacherOnly: target }, true);
+      if (failed(res)) { this.app.showToast('Fehler: ' + (res?.message || 'Nicht gespeichert'), 'error'); return; }
+    }
+    // Ein gesperrtes Dokument (z. B. Klassenarbeit) bleibt, wie es ist – „Nur Lehrkraft“ ist dort schon inbegriffen.
+    if (!!doc.teacherOnly !== target && (doc.teacherOnly || !doc.lockedForOthers)) {
+      const res = await this.app.api.setModuleStudentLock(topic.id, doc.id, { teacherOnly: target });
+      if (failed(res)) { this.app.showToast('Fehler: ' + (res?.message || 'Nicht gespeichert'), 'error'); return; }
+    }
+    if (mixed) this.app.showToast(`Lernthema und Dokument waren verschieden eingestellt. Jetzt gilt für beide: ${target ? '🔒 Nur Lehrkraft' : 'Schüler sehen es'}.`, 'info');
+    await this.refresh();
+  }
+
+  /** Ein Menü für Lernthema und Dokument – ohne doppelte Einträge. */
+  _compactMenu(topic, doc) {
+    const open = (action) => this.app.modulesView.openFrom('teacher-notebooks', topic.id, doc, action);
+    const docItems = this._moduleMenu(topic, doc)
+      .filter((i) => i !== '-' && !/^(👁 Vorschau|✏️ Bearbeiten|📋 Duplizieren|🏷 Tags|📓 Lernthema für GoodNotes|↔️ Verschieben|📄 Kopieren nach|🗑 Löschen|🔒 Nur Lehrkraft|✓ 🔒 Nur Lehrkraft)/.test(i.label));
+    const topicItems = this._topicMenu(topic)
+      .filter((i) => i === '-' || !/^(🔒 Nur Lehrkraft|✓ 🔒 Nur Lehrkraft|✏️ Umbenennen)/.test(i.label))
+      .map((i) => (i !== '-' && i.label.startsWith('🗑') ? { ...i, title: 'Das Lernthema samt Dokument und Quizzen löschen' } : i));
+    const locked = !!(topic.teacherOnly || doc.teacherOnly);
+    const at = topicItems.findIndex((i) => i !== '-' && i.label.startsWith('🗑'));
+    const head = [
+      { label: '✏️ Bearbeiten', run: () => open('edit') },
+      { label: '👁 Vorschau', run: () => open('preview') },
+      { label: '✏️ Umbenennen / Beschreibung', title: 'Lernthema und Dokument heißen gleich', run: () => this._editTopic(topic, doc) },
+      ...docItems,
+      '-',
+    ];
+    const lockItem = {
+      label: locked ? '✓ 🔒 Nur Lehrkraft aufheben' : '🔒 Nur Lehrkraft',
+      title: 'Gilt für Lernthema und Dokument – Schüler sehen es nicht, nur über den Link der Klassenarbeit',
+      run: () => this._setCompactTeacherOnly(topic, doc, !locked),
+    };
+    return [...head, ...topicItems.slice(0, at), lockItem, ...topicItems.slice(at)];
+  }
+
   _renderTopic(topic, depth, inMirror = false) {
     if (topic.isMirror) return this._renderMirror(topic, depth);
+    const single = inMirror ? null : this._singleDocOf(topic);
+    if (single) return this._renderCompact(topic, single, depth);
     const key = 't:' + topic.id;
     // Bei der Suche nur aufklappen, wenn ein Modul passt – sonst wird es unübersichtlich.
     const open = this._query ? (topic.modules || []).some((m) => this._matches(m.title)) : this._open.has(key);
@@ -672,10 +834,12 @@ export class NotebooksView {
       ? `<button type="button" class="nb-status ${topic.selected ? 'on' : ''}" title="${topic.selected ? 'Für Schüler freigegeben – klicken zum Sperren' : 'Nicht freigegeben – klicken zum Freigeben'}">${topic.selected ? '●' : '○'}</button>`
       : `<span class="nb-badge" title="Zur Nutzung erworben – gehört ${escapeAttr(topic.ownerName || '')}">🔗 ${escapeHtml(topic.ownerName || '')}</span>`;
     const wrap = document.createElement('div');
+    // Nur Quizze darin: 🧩 Quiz-Sammlung statt Mappe.
+    const quizSet = own && roots.length > 0 && !roots.some(isDocLike);
     const row = this._row({
-      key, depth, icon: own ? '📘' : '📗', title: topic.title, open,
+      key, depth, icon: quizSet ? '🧩' : own ? '📘' : '📗', title: topic.title, open,
       cls: `nb-topic ${own ? '' : 'nb-granted'} ${own && !topic.selected ? 'nb-off' : ''}`,
-      meta: this._countText(shownRoots.length),
+      meta: quizSet ? (shownRoots.length === 1 ? '1 Quiz' : `${shownRoots.length} Quizze`) : this._countText(shownRoots.length),
       extra: '<span class="nb-reach-slot"></span>' + (topic.teacherOnly ? '<span class="nb-badge nb-lock" title="Nur Lehrkraft: Schüler sehen dieses Lernthema nicht">🔒</span>' : '') + status,
       drag: inMirror ? null : { type: 'topic', id: topic.id },
     });
@@ -1696,15 +1860,17 @@ export class NotebooksView {
   }
 
   /** Titel, Beschreibung und Tags eines eigenen Lernthemas. */
-  async _editTopic(topic) {
+  /** `doc`: das eine Dokument der kompakten Zeile – es heißt danach wie das Lernthema. */
+  async _editTopic(topic, doc = null) {
     // Geerbte Tags kommen vom Platz und lassen sich hier nicht abwählen.
     const inherited = this._placeOf.get(topic.id)?.inheritedTagIds || [];
     const overlay = document.createElement('div');
     overlay.className = 'confirm-overlay';
     overlay.innerHTML = `
       <form class="import-modules-card nb-dialog">
-        <h3>✏️ Lernthema</h3>
+        <h3>✏️ ${doc ? 'Lernthema und Dokument' : 'Lernthema'}</h3>
         <label class="nb-field">Titel<input type="text" name="title" maxlength="200" required value="${escapeAttr(topic.title)}" /></label>
+        ${doc && doc.title && doc.title !== topic.title ? `<p class="hint">Das Dokument heißt bisher „${escapeHtml(doc.title)}“. Nach dem Speichern heißen Lernthema und Dokument gleich.</p>` : ''}
         <label class="nb-field">Beschreibung<textarea name="description" rows="3">${escapeHtml(topic.description || '')}</textarea></label>
         ${inherited.length ? `<div class="nb-field">Geerbt von Book, Bereich oder Abschnitt<span>${this._chips(inherited)}</span></div>` : ''}
         <div class="nb-field">Eigene Tags<div class="nb-tags"></div></div>
@@ -1730,6 +1896,11 @@ export class NotebooksView {
         tagIds: [...new Set([...picker.selectedIds, ...inherited])],
       }, true);
       if (failed(res)) { this.app.showToast('Fehler: ' + (res?.message || 'Speichern fehlgeschlagen'), 'error'); return; }
+      const title = form.title.value.trim();
+      if (doc && doc.title !== title) {
+        const saved = await this.app.api.saveModule(topic.id, { id: doc.id, title });
+        if (failed(saved)) { this.app.showToast('Fehler beim Dokument: ' + (saved?.message || 'Titel nicht gespeichert'), 'error'); return; }
+      }
       close();
       await this.refresh();
     });

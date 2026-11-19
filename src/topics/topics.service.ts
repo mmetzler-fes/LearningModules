@@ -2,6 +2,7 @@ import { HtmlAppFile } from '../core/entities/html-app-file.entity';
 import { FeaturesService } from '../features/features.service';
 import { AppUnit, planUnits } from '../html-apps/html-app-rules';
 import { docChanged } from '../core/events/doc-changes';
+import { docTitleFollowingTopic, topicTitleFollowingDoc } from './sole-document';
 import { lockedModuleIds } from './student-lock';
 import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -750,6 +751,11 @@ export class TopicsService {
     });
     const saved = (await this.moduleRepo.save(module)) as unknown as LearningModule;
     if (saved.type === 'htmlApp') await this.syncHtmlAppUnits(saved);
+    // Das eine Dokument des Lernthemas heißt wie das Lernthema (eine Zeile im Notizbuch).
+    if (existing) {
+      const topicTitle = topicTitleFollowingDoc(topic.title, topic.modules, existing.id, existing.title, data.title);
+      if (topicTitle) await this.topicRepo.update(topic.id, { title: topicTitle });
+    }
     docChanged(topic.ownerId); // Nextcloud-Abbild der Dokumente (src/worksheets)
     return saved;
   }
@@ -850,9 +856,16 @@ export class TopicsService {
       : TopicsService.EDITABLE_FIELDS;
 
     const data = updateData as any;
+    // Das eine Dokument des Lernthemas heißt wie das Lernthema (eine Zeile im Notizbuch).
+    const docTitle = allowed.includes('title') ? docTitleFollowingTopic(topic.modules, topic.title, data.title) : null;
     for (const field of allowed) {
       if (field === 'tagIds' || data[field] === undefined) continue;
       (topic as any)[field] = data[field];
+    }
+    if (docTitle) {
+      const doc = topic.modules.find((m) => m.id === docTitle.id);
+      if (doc) doc.title = docTitle.title; // gespeichert mit dem Lernthema (cascade)
+      docChanged(topic.ownerId);
     }
 
     // Nur eigene Tags akzeptieren – sonst könnte eine manipulierte Anfrage

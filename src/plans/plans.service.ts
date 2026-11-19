@@ -10,6 +10,10 @@ import { LearningTopic } from '../core/entities/learning-topic.entity';
 import { NotebooksService } from '../notebooks/notebooks.service';
 import { ClassNotebook } from '../core/entities/class-notebook.entity';
 import { StudentClass } from '../core/entities/student-class.entity';
+import { TopicLink } from '../core/entities/topic-link.entity';
+import { LearningModule } from '../core/entities/learning-module.entity';
+import { embeddedQuizIds } from '../core/public/student-view';
+import { topicUsage, TopicUsage } from './topic-usage';
 import { reorder } from '../classbook/classbook-tree';
 import {
   PLAN_KINDS, PlanKind, canHoldTopic, expandPlan, includeError, placeError, planMoveError, planOf, planSubtree, plansIncluding,
@@ -33,7 +37,39 @@ export class PlansService {
     private readonly notebooks: NotebooksService,
     @Optional() @InjectRepository(ClassNotebook) private readonly cbRepo?: Repository<ClassNotebook>,
     @Optional() @InjectRepository(StudentClass) private readonly classRepo?: Repository<StudentClass>,
+    @Optional() @InjectRepository(TopicLink) private readonly linkRepo?: Repository<TopicLink>,
+    @Optional() @InjectRepository(LearningModule) private readonly moduleRepo?: Repository<LearningModule>,
   ) {}
+
+  /** Pfad, Klassen und Pläne eines Lernthemas bzw. Moduls – für die Kopfzeile des Editors (topic-usage.ts). */
+  async usage(user: any, topicId: string, moduleId?: string | null): Promise<TopicUsage> {
+    const topic = await this.topicRepo.findOne({ where: { id: topicId } });
+    if (!topic) throw new NotFoundException('Lernthema nicht gefunden.');
+    const uid = user.userId;
+    const [placement, nbNodes, planNodes, planEntries, links, modules] = await Promise.all([
+      this.nbPlaceRepo.findOne({ where: { ownerId: uid, topicId } }),
+      this.nbNodeRepo.find({ where: { ownerId: uid } }),
+      this.nodesOf(user),
+      this.entryRepo.find({ where: { ownerId: uid, topicId } }),
+      this.linkRepo ? this.linkRepo.find({ where: { ownerId: uid } }) : Promise.resolve([] as TopicLink[]),
+      this.moduleRepo ? this.moduleRepo.find({ where: { topicId }, select: ['id', 'type', 'parentId', 'content'] }) : Promise.resolve([] as LearningModule[]),
+    ]);
+    const classLinks = links.filter((l) => l.classId && (l.selection || []).some((e) => e.topicId === topicId));
+    const classIds = [...new Set(classLinks.map((l) => l.classId!))];
+    const classes = classIds.length && this.classRepo ? await this.classRepo.find({ where: { id: In(classIds) } }) : [];
+    return topicUsage({
+      topicId,
+      moduleId: moduleId || null,
+      topicOn: topic.ownerId !== uid || !!topic.selected || !!topic.teacherOnly,
+      modules: modules.map((m) => ({ id: m.id, type: m.type, parentId: m.parentId, embeds: embeddedQuizIds(m) })),
+      notebookNodes: nbNodes,
+      placementNodeId: placement?.nodeId ?? null,
+      planNodes,
+      planEntries,
+      classLinks: classLinks as any,
+      classes,
+    });
+  }
 
   /** Titel eines eigenen Plans (Klassennotizbuch: „🗂 Plan: …“). */
   async titleOf(user: any, planId: string): Promise<string> {

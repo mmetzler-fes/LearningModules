@@ -2200,6 +2200,13 @@ body.html-app-large .quiz-actions { margin-top: 8px; padding-top: 8px; flex-shri
 .editor-header .player-header { flex-wrap: wrap; }
 .editor-header h2 { margin-bottom: 0; flex: 1 1 auto; min-width: 0; }
 .editor-header .editor-title { flex: 1 1 auto; min-width: 0; display: flex; align-items: baseline; gap: 12px; }
+/* Kontextzeile: Pfad, Klassen, Pläne (modules.js _renderContext) – klein, eine Zeile, bricht auf schmalen Bildschirmen um. */
+.editor-context { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 8px; margin-top: 6px; font-size: 0.82rem; color: var(--text-secondary); }
+.editor-context .ctx-link, .editor-context .ctx-chip { background: none; border: none; padding: 0; font: inherit; color: inherit; cursor: pointer; text-align: left; }
+.editor-context .ctx-link:hover, .editor-context .ctx-chip:hover { color: var(--accent); text-decoration: underline; }
+.editor-context .ctx-chip { color: var(--text-primary); }
+.editor-context .ctx-on .ctx-chip { color: var(--success, #2e7d32); font-weight: 600; }
+.editor-context .ctx-sep, .editor-context .ctx-gap { opacity: 0.5; }
 .editor-header .editor-title h2 { flex: 0 1 auto; }
 .editor-header .editor-title .draft-status { align-self: baseline; flex: 1 1 0; width: 0; min-width: 0; font-size: 0.75rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 @media (max-width: 800px) {

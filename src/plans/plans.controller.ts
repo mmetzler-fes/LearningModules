@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Delete, Body, Param, Request, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Body, Param, Query, Request, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { PlansService } from './plans.service';
 
@@ -11,6 +11,12 @@ export class PlansController {
   @Get()
   tree(@Request() req: any) {
     return this.plans.tree(req.user);
+  }
+
+  /** Wo ein Lernthema (bzw. `?module=`) steht: Pfad im Notizbuch, Klassen, Pläne – Kopfzeile des Editors. */
+  @Get('usage/:topicId')
+  usage(@Param('topicId') topicId: string, @Query('module') moduleId: string | undefined, @Request() req: any) {
+    return this.plans.usage(req.user, topicId, moduleId);
   }
 
   /** Plan ausgerollt, wie eine Klasse ihn bekommt. */

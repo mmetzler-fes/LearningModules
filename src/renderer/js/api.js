@@ -461,6 +461,8 @@ export class BrowserApi {
 
   // ---------- Planungsebene (views/planning.js) ----------
   getPlans() { return this._fetch('/api/plans'); }
+  /** Pfad im Notizbuch, Klassen und Pläne eines Lernthemas bzw. Moduls (Kopfzeile des Editors). */
+  getTopicUsage(topicId, moduleId) { return this._fetch(`/api/plans/usage/${encodeURIComponent(topicId)}${moduleId ? `?module=${encodeURIComponent(moduleId)}` : ''}`); }
   getPlanExpanded(id) { return this._fetch(`/api/plans/${encodeURIComponent(id)}/expanded`); }
   createPlanNode(body) { return this._fetch('/api/plans/nodes', { method: 'POST', body: JSON.stringify(body) }); }
   renamePlanNode(id, title) { return this._fetch(`/api/plans/nodes/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify({ title }) }); }

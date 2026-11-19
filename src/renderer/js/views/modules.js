@@ -2,7 +2,7 @@ import { moveDocumentControls } from '../document-bar.js';
 import { escapeHtml, escapeAttr, generateId } from '../utils.js';
 import { localDrafts } from '../local-drafts.js';
 import { nestEmbedded, quizIdsOf } from '../../lm-editor/src/doc/doc-quiz.js';
-import { quizUsage, usageText } from '../quiz-usage.js';
+import { quizUsage, usageText, isDocLike, topicIcon } from '../quiz-usage.js';
 import { ModuleDescriptionEditor } from '../desc-editor.js';
 import { TagPicker } from './tags.js';
 import { openImportDialog } from './import-dialog.js';
@@ -236,15 +236,7 @@ export class ModulesView {
       this._moduleForm.addEventListener('submit', (e) => this._onModuleFormSubmit(e));
     }
     // Abbrechen unten und oben in der Kopfzeile (die beim Scrollen stehen bleibt).
-    const cancel = async () => {
-      if (this._draft && this._isDirty()) {
-        const ok = await this.app.appConfirm('Ungespeicherte Änderungen verwerfen?\n\nDer gesicherte Entwurf wird dabei gelöscht. Mit „Abbrechen“ bleibst du im Editor.');
-        if (!ok) return;
-      }
-      await this._discardDraft();
-      this._resetModuleForm();
-      this.app.navigateToView(this.backView());
-    };
+    const cancel = () => this._leaveEditor(this.backView());
     this._btnCancelModule?.addEventListener('click', cancel);
     this._btnCancelModuleTop?.addEventListener('click', cancel);
 
@@ -601,6 +593,64 @@ export class ModulesView {
     if (mod.type === 'document') moveDocumentControls(this._h5pContainer, mod, this._playerActions);
   }
 
+  /** Editor verlassen (Abbrechen, Klick in der Kontextzeile) – ungespeicherte Änderungen nur nach Rückfrage. */
+  async _leaveEditor(view, before = null) {
+    if (this._draft && this._isDirty()) {
+      const ok = await this.app.appConfirm('Ungespeicherte Änderungen verwerfen?\n\nDer gesicherte Entwurf wird dabei gelöscht. Mit „Abbrechen“ bleibst du im Editor.');
+      if (!ok) return;
+    }
+    await this._discardDraft();
+    this._resetModuleForm();
+    before?.();
+    this.app.navigateToView(view);
+  }
+
+  /**
+   * Kontextzeile in der festen Kopfzeile: wo das Modul im Notizbuch steht, in welchen Klassen es
+   * verwendet wird (🟢 für Schüler an) und in welchen Plänen – so sieht man beim Bearbeiten, wen eine
+   * Änderung trifft. Ein Quiz zeigt dazu die Dokumente, in denen es steht. Klick führt dorthin.
+   */
+  async _renderContext(mod) {
+    const bar = document.getElementById('moduleContextBar');
+    if (!bar) return;
+    bar.hidden = true;
+    bar.innerHTML = '';
+    const topicId = this.app.state.currentTopicId;
+    const ticket = (this._contextTicket = {});
+    if (!topicId || this.app.state.currentUser?.role === 'student') return;
+    const res = await this.app.api.getTopicUsage(topicId, mod?.id).catch(() => null);
+    if (ticket !== this._contextTicket || !res || !Array.isArray(res.path)) return;
+    const topic = (this.app.state.topics || []).find((x) => x.id === topicId);
+    const mods = this.app.state.currentTopicModules || topic?.modules || [];
+    const NODE = { book: '📕', area: '📂', section: '📑' };
+    const parts = [];
+    const path = [...res.path.map((p) => `${NODE[p.kind] || '📁'} ${escapeHtml(p.title)}`),
+      ...(topic ? [`${topicIcon(mods)} ${escapeHtml(topic.title)}`] : [])];
+    if (path.length) parts.push(`<button type="button" class="ctx-link" data-ctx-view="teacher-notebooks" title="Im Notizbuch">${path.join(' <span class="ctx-sep">›</span> ')}</button>`);
+    if (mod && !isDocLike(mod)) {
+      const here = { id: topicId, title: topic?.title || '', modules: mods.map((m) => ({ ...m, quizIds: m.type === 'document' ? (m.quizIds || quizIdsOf(m)) : [] })) };
+      const uses = quizUsage([here, ...(this.app.state.topics || []).filter((x) => x.id !== topicId)]).get(mod.id) || [];
+      if (uses.length) parts.push(`<span class="ctx-item" title="${escapeHtml(`Steht ${usageText(uses, topicId)}`)}">📄 ${escapeHtml(usageText(uses, topicId))}</span>`);
+    }
+    const chip = (c) => `<button type="button" class="ctx-chip" data-ctx-class="${escapeHtml(c.id)}" title="Klassennotizbuch ${escapeHtml(c.name)} öffnen">${escapeHtml(c.name)}</button>`;
+    const on = res.classes.filter((c) => c.on);
+    parts.push(res.classes.length
+      ? `<span class="ctx-item" title="Klassen, deren Klassennotizbuch das Lernthema zugewiesen hat – eine Änderung gilt dort sofort">📒 Verwendet in: ${res.classes.map(chip).join(', ')}</span>`
+        + (on.length ? ` <span class="ctx-item ctx-on" title="Dort sehen die Schüler es gerade">🟢 Freigeschaltet in: ${on.map(chip).join(', ')}</span>` : '')
+      : '<span class="ctx-item hint">📒 In keinem Klassennotizbuch</span>');
+    if (res.plans.length) parts.push(`<button type="button" class="ctx-link" data-ctx-view="teacher-planning" title="In der Planung">📋 ${res.plans.map((p) => escapeHtml(p.title)).join(', ')}</button>`);
+    bar.innerHTML = parts.join('<span class="ctx-gap">|</span>');
+    bar.hidden = false;
+    bar.querySelectorAll('[data-ctx-view]').forEach((b) => b.addEventListener('click', () => this._leaveEditor(b.dataset.ctxView)));
+    bar.querySelectorAll('[data-ctx-class]').forEach((b) => b.addEventListener('click', () => this._leaveEditor('teacher-class-results', () => {
+      const view = this.app.classResultsView;
+      if (!view) return;
+      view._classId = b.dataset.ctxClass;
+      view._year = null; // aktuelles Schuljahr – nur dort zählen Klassen hier
+      try { localStorage.setItem('lm_cr_class', b.dataset.ctxClass); } catch (_) { /* ohne Speicher */ }
+    })));
+  }
+
   async _openEditor(mod) {
     this.app.state.editingModuleId = mod.id;
     this._createViewTitle.textContent = t('module.edit.title');
@@ -632,6 +682,7 @@ export class ModulesView {
     if (tagsFold) tagsFold.open = false;
 
     this.app.navigateToView('create-module');
+    void this._renderContext(mod);
     this.app.state.contentEditor.render(mod.type, mod.content || {});
     this._foldDescription();
     await this._beginDraft(mod.id, mod.id, mod.title);
@@ -918,6 +969,9 @@ export class ModulesView {
     this.app.state.contentEditor.clear();
     this._createViewTitle.textContent = t('module.create.title');
     this._foldDescription();
+    this._contextTicket = null;
+    const ctx = document.getElementById('moduleContextBar');
+    if (ctx) { ctx.hidden = true; ctx.innerHTML = ''; }
     const tagsFold = document.getElementById('moduleTagsFold');
     if (tagsFold) tagsFold.open = false;
     document.getElementById('moduleSolutionsToggle')?.classList.add('hidden');

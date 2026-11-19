@@ -1,3 +1,4 @@
+import { contentCounts } from './content-counts';
 import { isHtmlAppType, isRemovedUnit } from '../html-apps/html-app-rules';
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -498,6 +499,7 @@ export class LinksService {
           url: this.urlToken(link, byId) ? `${base}/?l=${this.urlToken(link, byId)}` : null,
           topicCount: resolved.length,
           moduleCount: resolved.reduce((n, r) => n + r.modules.length, 0),
+          contents: contentCounts(resolved),
           unavailableTopics: await this.countUnavailable(link),
           usesForeignContent: resolved.some((r) => r.topic.ownerId !== link.ownerId),
         };
@@ -575,6 +577,7 @@ export class LinksService {
       url: this.urlToken(link, byId) ? `${baseUrl(req)}/?l=${this.urlToken(link, byId)}` : null,
       topicCount: resolved.length,
       moduleCount: resolved.reduce((n, r) => n + r.modules.length, 0),
+      contents: contentCounts(resolved),
       unavailableTopics: await this.countUnavailable(link),
       usesForeignContent: resolved.some((r) => r.topic.ownerId !== link.ownerId),
     };
@@ -733,6 +736,7 @@ export class LinksService {
       active: link.active,
       modes: effectiveModes(link, access, resolved),
       moduleCount: resolved.reduce((n, r) => n + r.modules.length, 0),
+      contents: contentCounts(resolved),
       viaQuick: !!variant,
       quick: quick ? await this.quickInfo(link) : null,
     };

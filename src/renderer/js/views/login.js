@@ -5,6 +5,7 @@ import { refreshNextcloud } from './nextcloud.js';
 import { classbookSession, backToClassbook } from './classbook-student.js';
 import { offerTeacherName } from './teacher-as-student.js';
 import { bindStudentEntry } from './student-entry.js';
+import { contentCounts, contentText } from '../../lm-editor/src/doc/doc-quiz.js';
 
 /**
  * Schule, Schuladmin-Recht und freigeschaltete Funktionen (src/features) aus
@@ -226,8 +227,7 @@ export class LoginView {
     loading.classList.add('hidden');
     ready.classList.remove('hidden');
     document.getElementById('quickEntryTitle').textContent = data.topic.title;
-    document.getElementById('quickEntryMeta').textContent =
-      `${modules.length} Aufgabe${modules.length !== 1 ? 'n' : ''}`;
+    document.getElementById('quickEntryMeta').textContent = contentText(contentCounts(modules));
 
     // Anonym: ohne Namen, nichts wird gespeichert.
     await this._enterQuickQuiz('Anonym', data, token);
@@ -301,7 +301,8 @@ export class LoginView {
     const baseToken = info.token || token;
 
     document.getElementById('linkEntryTitle').textContent = info.className ? `${info.name} · ${info.className}` : info.name;
-    const parts = [`${info.moduleCount} Aufgabe${info.moduleCount !== 1 ? 'n' : ''}`];
+    // „1 Dokument mit 2 Quizzen · 1 weiteres Quiz“ statt „4 Aufgaben“ (ältere Server: nur die Zahl).
+    const parts = [info.contents ? contentText(info.contents) : `${info.moduleCount} Aufgabe${info.moduleCount !== 1 ? 'n' : ''}`];
     if (info.topicTitles?.length) parts.push(info.topicTitles.join(' · '));
     document.getElementById('linkEntryMeta').textContent = parts.join(' — ');
 

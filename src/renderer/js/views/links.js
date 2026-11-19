@@ -6,6 +6,7 @@ import { saveRedirectFile } from './contest.js';
 import { pickClass } from './classes.js';
 import { downloadBlob } from '../api.js';
 import { helpHint } from './help-view.js';
+import { contentText } from '../../lm-editor/src/doc/doc-quiz.js';
 
 // ==================== THEMEN-LINKS ====================
 
@@ -410,7 +411,7 @@ export class LinksView {
           `).join('')}
         </div>
         <p class="link-card-meta">
-          ${link.topicCount} Thema/Themen · ${link.moduleCount} Aufgabe${link.moduleCount !== 1 ? 'n' : ''}
+          ${link.topicCount} Thema/Themen · ${link.contents ? escapeHtml(contentText(link.contents)) : `${link.moduleCount} Aufgabe${link.moduleCount !== 1 ? 'n' : ''}`}
           ${link.active ? '' : ' · deaktiviert'}
           ${link.usesForeignContent ? ' · nutzt fremde Inhalte' : ''}
           ${isClass && link.lastSharedAt ? ` · zuletzt gezeigt ${new Date(link.lastSharedAt).toLocaleDateString('de-DE')}` : ''}
@@ -1133,7 +1134,7 @@ export class LinksView {
 
       this._shareData = res;
       const modeNames = (res.modes || []).map((m) => LINK_MODE_LABELS[m]?.label || m).join(', ');
-      info.textContent = [res.name, res.className, `${res.moduleCount} Aufgabe(n)`, modeNames].filter(Boolean).join(' · ');
+      info.textContent = [res.name, res.className, (res.contents ? contentText(res.contents) : `${res.moduleCount} Aufgabe(n)`), modeNames].filter(Boolean).join(' · ');
       this._showQuickParts(res);
       urlBox.value = res.url;
       // QR-SVG kommt vom eigenen Server (qrcode-Bibliothek), kein Fremdinhalt.

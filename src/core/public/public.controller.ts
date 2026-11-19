@@ -1,3 +1,4 @@
+import { contentCounts } from '../../links/content-counts';
 import { withoutLocked } from '../../topics/student-lock';
 import { foreignEmbeddedQuizzes } from '../../topics/embedded-quizzes';
 import { Controller, Get, Post, Body, Param, Req, Res, HttpCode, NotFoundException, ForbiddenException, BadRequestException, UseInterceptors, UploadedFile } from '@nestjs/common';
@@ -329,6 +330,7 @@ export class PublicController {
       singleAttempt: link.singleAttempt,
       topicCount: resolved.length,
       moduleCount: resolved.reduce((n, r) => n + r.modules.length, 0),
+      contents: contentCounts(resolved),
       topicTitles: resolved.map((r) => r.topic.title),
     };
   }

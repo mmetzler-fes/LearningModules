@@ -624,10 +624,24 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
     const choice = await openPrintDialog({
       heading: '🖨 Drucken',
       templateHead: true,
-      extras: [{ label: '⬇ .zlm', title: 'Für den lm-editor: gespeicherter Stand mit Quizzen und Beschriftung', run: downloadZlm }],
+      extras: [{ label: '⬇ .zlm', title: 'Für den lm-editor: gespeicherter Stand mit Quizzen und Beschriftung', run: downloadZlm },
+        { label: '⬇ .ipynb', title: 'Als Jupyter-Notebook: Python-Blöcke werden Code-Zellen, alles andere Markdown (Stand im Editor, auch ungespeichert)', run: downloadNotebook }],
     });
     if (choice) print(choice.output, btn, choice.quizzes, choice.templateHead);
   });
+
+  /** Stand im Editor als Jupyter-Notebook (ipynb-export.js). */
+  async function downloadNotebook() {
+    update();
+    if (!spec) return;
+    try {
+      const { downloadIpynb } = await import('./ipynb-export.js');
+      const n = await downloadIpynb(spec, titleInput?.value.trim() || 'Dokument');
+      status.textContent = `⬇ Jupyter-Notebook mit ${n} Code-Zelle${n === 1 ? '' : 'n'} – Quizze und Schreibfelder stehen darin nur als Hinweis.`;
+    } catch (err) {
+      status.textContent = `❌ .ipynb: ${err.message}`;
+    }
+  }
 
   /** Gespeichertes Dokument als .zlm – der Server packt Quizze, Bilder und die eigene Beschriftung dazu. */
   async function downloadZlm() {

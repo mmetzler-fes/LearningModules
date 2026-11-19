@@ -237,6 +237,7 @@ function mountBlock(pre, ns, storeKey) {
       <span class="py-spacer"></span>
       <button type="button" class="py-mini py-restore" ${startCode === original ? 'hidden' : ''} title="Den ursprünglichen Code der Lehrkraft wiederherstellen">↺ Ursprünglich</button>
       <button type="button" class="py-mini py-reset" title="Variablen aller Python-Blöcke dieses Dokuments löschen">⟲ Neu starten</button>
+      <button type="button" class="py-mini py-grow" title="Groß – Code und Ausgabe über die ganze Seite (Esc: zurück)" aria-pressed="false">⤢</button>
     </div>
     <textarea class="py-code" spellcheck="false" autocapitalize="off" autocomplete="off" aria-label="Python-Code"></textarea>
     <pre class="py-out" hidden></pre>`;
@@ -251,9 +252,40 @@ function mountBlock(pre, ns, storeKey) {
   const btnRestore = box.querySelector('.py-restore');
   pre.replaceWith(box);
 
-  const fit = () => { code.style.height = 'auto'; code.style.height = `${code.scrollHeight + 2}px`; };
+  const fit = () => {
+    if (box.classList.contains('py-full')) return; // groß: die Fläche bestimmt die Höhe (CSS)
+    code.style.height = 'auto';
+    code.style.height = `${code.scrollHeight + 2}px`;
+  };
   requestAnimationFrame(fit);
   const block = outputView({ out, status, btnRun, btnStop });
+
+  // ⤢ Groß: an <body> gehängt, damit kein gezoomter oder schmaler Rahmen (Stift-Editor, Vorschau) ihn einengt.
+  const btnGrow = box.querySelector('.py-grow');
+  let home = null;
+  const onKey = (e) => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); setLarge(false); } };
+  const setLarge = (on) => {
+    if (on === !!home) return;
+    if (on) {
+      home = document.createComment('py-block');
+      box.replaceWith(home);
+      document.body.appendChild(box);
+      box.classList.add('py-full');
+      document.addEventListener('keydown', onKey, true);
+    } else {
+      box.classList.remove('py-full');
+      home.replaceWith(box);
+      home = null;
+      document.removeEventListener('keydown', onKey, true);
+    }
+    btnGrow.textContent = on ? '⤡' : '⤢';
+    btnGrow.title = on ? 'Wieder im Blatt (Esc)' : 'Groß – Code und Ausgabe über die ganze Seite (Esc: zurück)';
+    btnGrow.setAttribute('aria-pressed', String(on));
+    code.style.height = '';
+    if (!on) fit();
+    code.focus({ preventScroll: true });
+  };
+  btnGrow.addEventListener('click', () => setLarge(!home));
 
   btnRun.addEventListener('click', () => run(block, ns, code.value));
   btnStop.addEventListener('click', () => stop());

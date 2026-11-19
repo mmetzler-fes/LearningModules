@@ -1662,6 +1662,18 @@ export class NotebooksView {
     downloadBlob(new Blob([bytes], { type: 'application/vnd.lm-editor.zlm+zip' }), res.fileName || 'Lernmodul.zlm');
   }
 
+  async _downloadIpynb(topic, mod) {
+    try {
+      const full = (await this.app.api.getTopicModules(topic.id)).find((m) => m.id === mod.id) || mod;
+      let content = full.content || {};
+      if (typeof content === 'string') { try { content = JSON.parse(content); } catch (_) { content = {}; } }
+      const { downloadIpynb } = await import('../ipynb-export.js');
+      await downloadIpynb(content.spec || { content: [] }, full.title || mod.title);
+    } catch (err) {
+      this.app.showToast(`.ipynb ließ sich nicht erstellen: ${err.message}`, 'error');
+    }
+  }
+
   _moduleMenu(topic, mod) {
     const open = (action) => this.app.modulesView.openFrom('teacher-notebooks', topic.id, mod, action);
     const uses = this._usesOf(mod);
@@ -1736,6 +1748,9 @@ export class NotebooksView {
       if (mod.type !== 'attachment' && mod.type !== 'worksheet') {
         items.push({ label: '💾 Als .zlm speichern', title: mod.type === 'document' ? 'Datei für den lm-editor – mit eingebetteten Quizzen, Bildern und deiner Beschriftung'
           : 'Datei zum Weitergeben oder Sichern – öffnet sich wieder mit „📂 Datei öffnen“', run: () => this._downloadZlm(mod) });
+      }
+      if (mod.type === 'document') {
+        items.push({ label: '📓 Als Jupyter-Notebook (.ipynb)', title: 'Python-Blöcke werden Code-Zellen, alles andere Markdown – zum Weiterarbeiten in JupyterLab', run: () => this._downloadIpynb(topic, mod) });
       }
     }
     items.push('-', ...this._lockEntries(topic, mod));

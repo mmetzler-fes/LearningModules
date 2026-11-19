@@ -6700,3 +6700,9 @@ pre.ds-code-run { position: relative; }
 .py-console[hidden], .py-console [hidden] { display: none !important; }
 .py-console .py-out { max-height: 14em; }
 .py-out .py-run-head { color: #2563eb; }
+/* ⤢ Python-Block groß: Code oben, Ausgabe darunter, über die ganze Seite */
+.py-block.py-full { position: fixed; inset: 16px; z-index: 10050; margin: 0; display: flex; flex-direction: column; box-shadow: 0 0 0 100vmax rgba(15, 23, 42, 0.45), 0 10px 40px rgba(0, 0, 0, 0.35); }
+.py-block.py-full .py-code { flex: 1 1 55%; min-height: 6em; height: auto; resize: none; overflow: auto; font-size: 1rem; }
+.py-block.py-full .py-out { flex: 1 1 45%; max-height: none; min-height: 4em; font-size: 0.95rem; }
+.py-block.py-full .py-out[hidden] { display: none; }
+@media (max-width: 560px) { .py-block.py-full { inset: 0; border-radius: 0; } }

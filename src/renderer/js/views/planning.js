@@ -7,7 +7,8 @@
  */
 import { escapeHtml, escapeAttr, appConfirm } from '../utils.js';
 import { pickClass } from './classes.js';
-import { isDocLike } from '../quiz-usage.js';
+import { isDocLike, topicIcon } from '../quiz-usage.js';
+import { contentCounts, contentText } from '../../lm-editor/src/doc/doc-quiz.js';
 
 const EXPAND_KEY = 'lm_plan_open';
 const RIGHT_KEY = 'lm_plan_right';
@@ -508,8 +509,18 @@ export class PlanningView {
     this._paint();
   }
 
+  /** 📄 ein Dokument, 🧩 nur Quizze, 📘 Mappe – wie im Notizbuch. */
+  _topicRowIcon(r) {
+    if (r.kind === 'link') {
+      const link = (this.cb?.links || []).find((l) => l.id === r.id);
+      return link?.available?.length === 1 ? topicIcon(link.available[0].modules) : '📘';
+    }
+    const topic = this._topicMap().get(r.kind === 'entry' ? r.topicId : r.id);
+    return topic ? topicIcon(topic.modules) : '📘';
+  }
+
   _rowHtml(r, i, pane, plan) {
-    const icon = r.kind === 'topic' || r.kind === 'entry' || r.kind === 'link' ? '📘' : ICON[r.kind] || '•';
+    const icon = r.kind === 'topic' || r.kind === 'entry' || r.kind === 'link' ? this._topicRowIcon(r) : ICON[r.kind] || '•';
     const twisty = r.folder ? `<span class="pl-twisty">${r.isOpen ? '▾' : '▸'}</span>` : '<span class="pl-twisty"></span>';
     let extra = '';
     if (pane === 'left' && r.kind === 'topic' && plan.plan) {
@@ -665,7 +676,7 @@ export class PlanningView {
     if (topicId) {
       const topic = this._topicMap().get(topicId) || { id: topicId, title: row.title, isOwn: true, modules: [] };
       if (labelEl) {
-        labelEl.textContent = `📘 ${topic.title}`;
+        labelEl.textContent = `${topicIcon(topic.modules)} ${topic.title}`;
         labelEl.title = topic.title;
       }
       const usedInPlans = this._plansUsingTopic(topicId);
@@ -680,7 +691,7 @@ export class PlanningView {
       bodyEl.innerHTML = `
         <div class="pl-pv-meta">
           ${statusBadge}
-          <span class="hint">${roots.length} Modul${roots.length === 1 ? '' : 'e'}</span>
+          <span class="hint">${escapeHtml(contentText(contentCounts(topic.modules || [])) || 'noch leer')}</span>
         </div>
         ${plansHtml}
         <div class="pl-pv-tabs" role="tablist"></div>
@@ -714,7 +725,7 @@ export class PlanningView {
       ${subRows.length ? `<ul class="pl-pv-topic-list">${subRows.slice(0, 25).map((r) => `
         <li>
           <button type="button" class="pl-pv-topic-btn" data-jump-key="${escapeAttr(r.key)}">
-            📘 ${escapeHtml(r.title)}
+            ${this._topicRowIcon(r)} ${escapeHtml(r.title)}
           </button>
         </li>`).join('')}</ul>` : '<p class="hint" style="margin-top:8px">Wähle ein Lernthema aus, um Arbeitsblätter und Quizze direkt hier anzusehen.</p>'}
     `;
@@ -1216,7 +1227,7 @@ export class PlanningView {
     const res = await this.app.api.getPlanExpanded(cur.id);
     if (bad(res)) { this.app.showToast(res?.message || 'Das ging nicht.', 'error'); return; }
     const item = (x) => (x.type === 'topic'
-      ? `<li>📘 ${escapeHtml(this._topicTitle(x.topicId))}</li>`
+      ? `<li>${topicIcon(this._topicMap().get(x.topicId)?.modules)} ${escapeHtml(this._topicTitle(x.topicId))}</li>`
       : `<li>${x.include ? '🧩' : ICON[x.kind]} <strong>${escapeHtml(x.title)}</strong>${x.children.length ? `<ul>${x.children.map(item).join('')}</ul>` : ''}</li>`);
     const count = (xs) => xs.reduce((s, x) => s + (x.type === 'topic' ? 1 : count(x.children)), 0);
     const body = res.items.length ? `<ul class="pl-preview">${res.items.map(item).join('')}</ul>` : '<p>Der Plan ist noch leer.</p>';

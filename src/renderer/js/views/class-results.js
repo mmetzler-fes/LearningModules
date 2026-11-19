@@ -1,7 +1,7 @@
 import { escapeHtml, escapeAttr, copyClassbookOneNote, copyQrSvgAsPng, copyShareSheetAsPng } from '../utils.js';
 import { openTagDialog } from './tags.js';
-import { nestEmbedded } from '../../lm-editor/src/doc/doc-quiz.js';
-import { isDocLike } from '../quiz-usage.js';
+import { nestEmbedded, contentCounts, contentText } from '../../lm-editor/src/doc/doc-quiz.js';
+import { isDocLike, topicIcon } from '../quiz-usage.js';
 import { NotebookPreview } from './notebook-preview.js';
 
 // ==================== KLASSENNOTIZBUCH (LEHRKRAFT) ====================
@@ -646,6 +646,18 @@ export class ClassResultsView {
     this.app.showToast('Vorschau zurückgesetzt.', 'success');
   }
 
+  /**
+   * Zuweisung mit einem Lernthema und genau einem Dokument (Vorschlag A, wie im Lernnotizbuch): Zuweisung,
+   * Lernthema und Dokument sind eine Zeile 📄 – der Titel öffnet das Dokument, 💡 und 📍 gelten ihm.
+   * Nicht unter 🧩 Quizze, dort steht jedes Quiz für sich.
+   */
+  _singleDoc(link) {
+    if (this._tab !== 'content' || this._cbView === 'quizzes' || link.available?.length !== 1) return null;
+    const t = link.available[0];
+    const docs = t.modules.filter(isDocLike);
+    return docs.length === 1 ? { t, doc: docs[0] } : null;
+  }
+
   /** Eine Zuweisung (Klassenlink) mit Inhalt und Knöpfen. */
   _linkCard(link, buttons, body = null) {
     const n = link.topics.reduce((sum, t) => sum + t.units.length, 0);
@@ -658,14 +670,27 @@ export class ClassResultsView {
       const topicMark = only && mk?.level === 'topic' && mk.linkId === link.id;
       const modules = link.available.flatMap((t) => t.modules);
       const on = modules.filter((m) => m.enabled).length;
-      return `<details class="result-group cb-link ${link.active ? '' : 'cb-off'}" data-link="${escapeAttr(link.id)}" ${open}>
-        <summary class="${marked || topicMark ? 'cb-marked' : ''}"><span class="cb-twisty" aria-hidden="true"></span>
-          <span class="nb-icon" aria-hidden="true">📘</span><span class="cb-row-title" title="${escapeAttr(link.name)}">${escapeHtml(link.name)}</span>
-          ${marked || topicMark ? this._markBadge() : ''}
+      const single = this._singleDoc(link);
+      const doc = single?.doc;
+      const docMark = !!doc && mk?.level === 'module' && mk.linkId === link.id && mk.moduleId === doc.id;
+      const anyMark = marked || topicMark || docMark;
+      const icon = only ? topicIcon(link.available[0].modules) : '📘';
+      const what = contentText(contentCounts(modules)) || 'noch leer';
+      const title = doc
+        ? `<button type="button" class="cb-unit cb-row-title" data-open-module="${escapeAttr(doc.id)}" title="${escapeAttr(`${link.name} – öffnen (${link.classTopicId ? 'Bearbeiten' : 'Vorschau'})`)}">${escapeHtml(link.name)}</button>`
+        : `<span class="cb-row-title" title="${escapeAttr(link.name)}">${escapeHtml(link.name)}</span>`;
+      return `<details class="result-group cb-link ${link.active ? '' : 'cb-off'} ${doc ? 'cb-single' : ''}" data-link="${escapeAttr(link.id)}" ${open}>
+        <summary class="${anyMark ? 'cb-marked' : ''}" ${single ? `data-topic="${escapeAttr(single.t.topicId)}"` : ''}><span class="cb-twisty" aria-hidden="true"></span>
+          <span class="nb-icon" aria-hidden="true">${icon}</span>${title}
+          ${anyMark ? this._markBadge() : ''}
           ${link.shared ? '<span class="nb-meta" title="Hat einen eigenen Quick-Link (⋯ → 🔗)">🔗</span>' : ''}
-          <span class="nb-meta">${on === modules.length ? `${on} Modul${on === 1 ? '' : 'e'}` : `${on} von ${modules.length} Modulen`}${link.classTopicId ? ' · nur diese Klasse' : ''}</span>
+          <span class="nb-meta">${escapeHtml(what)}${on === modules.length ? '' : ` · ${on} von ${modules.length} an`}${link.classTopicId ? ' · nur diese Klasse' : ''}</span>
           ${this._reachBadge(link)}
           ${this._groupSwitch(this._stateOf([link]), `data-switch-links="${escapeAttr(link.id)}"`, 'dieser Zuweisung')}${this._linkEye(link)}
+          ${doc?.hasSolutions ? `<button type="button" class="cb-mark ${doc.solutionsOn ? 'on' : ''}" data-solution="${escapeAttr(doc.id)}" data-on="${doc.solutionsOn ? '1' : ''}"
+            title="${doc.solutionsOn ? 'Die Schüler dieser Klasse sehen die Lösungen – klicken zum Verbergen' : 'Lösungen für diese Klasse zeigen'}" aria-label="Lösungen">💡</button>` : ''}
+          ${doc?.enabled ? `<button type="button" class="cb-mark ${docMark ? 'on' : ''}" data-mark="${escapeAttr(doc.id)}"
+            title="${docMark ? 'Hier ist die Klasse gerade – klicken zum Entfernen' : 'Merker: Hier ist die Klasse gerade. Bei den Schülern ist das Dokument dann aufgeklappt und hat den Fokus.'}">📍</button>` : ''}
           ${body !== null ? '<button type="button" class="nb-menu-btn cb-entry-menu" data-entry-menu title="Aktionen (auch Rechtsklick)" aria-label="Aktionen">⋯</button>' : ''}</summary>
         <div class="cb-link-actions">${buttons}</div>
         ${body ?? this._unitsHtml(link.topics)}
@@ -757,13 +782,22 @@ export class ClassResultsView {
           ...(t.foreign || []).map((q) => ({ m: q, embedded: false, quizCount: 0, foreign: true, doc: t.modules.find((d) => (d.quizIds || []).includes(q.id)) }))];
       }
       const { top, quizzesOf } = nestEmbedded(t.modules);
-      return top.filter((m) => view === 'all' || isDocLike(m)).flatMap((m) => {
+      const single = this._singleDoc(link);
+      const rows = top.filter((m) => view === 'all' || isDocLike(m)).flatMap((m) => {
         const quizzes = quizzesOf.get(m.id) || [];
         const foreign = (t.foreign || []).filter((q) => (m.quizIds || []).includes(q.id));
         return [{ m, embedded: false, quizCount: quizzes.length + foreign.length },
           ...quizzes.map((q) => ({ m: q, embedded: true, quizCount: 0 })),
           ...foreign.map((q) => ({ m: q, embedded: true, quizCount: 0, foreign: true, doc: m }))];
       });
+      if (!single) return rows;
+      // Eine Zeile 📄: das Dokument steht schon oben (Zuweisung), hier nur Lösung, Tafelbild, seine
+      // Quizze und – getrennt – die übrigen als „🧩 Weitere Quizze“.
+      const inDoc = rows.filter((r) => r.m.id === single.doc.id || r.embedded);
+      const others = rows.filter((r) => !inDoc.includes(r));
+      return [...inDoc.map((r) => (r.m.id === single.doc.id ? { ...r, hidden: true } : r)),
+        ...(others.length ? [{ heading: `🧩 Weitere Quizze (${others.length})` }] : []),
+        ...others.map((r) => ({ ...r, embedded: true }))];
     };
     const foreignRow = ({ m, doc }) => `<li class="${doc?.enabled ? '' : 'cb-item-off'} cb-embedded cb-foreign">
           <button type="button" class="cb-unit" data-open-module="${escapeAttr(m.id)}" title="Vorschau">${TYPE_ICON[m.type] || '🧩'} ${escapeHtml(m.title || 'Modul')}</button>
@@ -775,7 +809,9 @@ export class ClassResultsView {
         ${link.available.length === 1 ? '' : `<div class="cb-topic-title ${topicMarked(t) ? 'cb-marked' : ''}"><span class="nb-icon" aria-hidden="true">📘</span> <span class="cb-row-title">${escapeHtml(t.title)}</span>${t.notebookOff ? ' <span class="cb-reach no">🚫 im Lernnotizbuch aus</span>' : ''} ${sw(t.enabled, 'data-toggle-topic', 'dieses Lernthema')}
           ${topicMarked(t) ? this._markBadge() : ''}
           <button type="button" class="nb-menu-btn" data-topic-menu title="Aktionen" aria-label="Aktionen">⋯</button></div>`}
-        <ul class="cb-units">${nested(t).map(({ m, embedded, quizCount, foreign, doc }) => {
+        <ul class="cb-units">${nested(t).map(({ m, embedded, quizCount, foreign, doc, hidden, heading }) => {
+          if (heading) return `<li class="cb-quiz-set"><span class="nb-icon" aria-hidden="true"></span>${escapeHtml(heading)}</li>`;
+          if (hidden) return m.type === 'document' ? this._boardRow(m) : '';
           if (foreign) return foreignRow({ m, doc });
           const marked = mk?.level === 'module' && mk.linkId === link.id && mk.moduleId === m.id;
           return `<li class="${m.enabled ? '' : 'cb-item-off'} ${marked ? 'cb-marked' : ''} ${embedded ? 'cb-embedded' : ''}">
@@ -1570,6 +1606,15 @@ export class ClassResultsView {
     items.push({ label: '📊 Ergebnisse', run: clickIn('[data-overview]') });
     // Ein Lernthema: seine Zeile entfällt, deshalb stehen seine Aktionen hier.
     if (link.available?.length === 1) items.push('-', ...this._topicMenu(link, link.available[0]).filter((i) => i === '-' || !String(i.label).startsWith('📍')), '-');
+    // Eine Zeile 📄: auch die Aktionen des Dokuments (Bearbeiten, Tafelbild, An Klasse senden …), ohne Doppeltes.
+    const single = this._singleDoc(link);
+    if (single) {
+      const seen = new Set(items.map((i) => i.label));
+      const docItems = this._moduleMenu(link, single.t, single.doc)
+        // 🔒 und Tags gelten wie im Lernnotizbuch für beide – sie stehen schon beim Lernthema.
+        .filter((i) => !seen.has(i.label) && i.label !== '🏷 Tags…' && i.label !== '🔒 Nur Lehrkraft');
+      items.unshift(...docItems, '-');
+    }
     items.push(link.active
       ? { label: '🙈 Für Schüler ausblenden', title: 'Nur für diese Klasse; auch Link und QR-Code sind dann gesperrt. Modulauswahl und Ergebnisse bleiben', run: () => this._call(this.app.api.updateLink(link.id, { active: false })) }
       : { label: '👁 Für Schüler einblenden', title: 'Alles wieder wie vorher', run: () => this._call(this.app.api.updateLink(link.id, { active: true })) });

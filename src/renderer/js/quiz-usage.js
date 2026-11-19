@@ -54,3 +54,15 @@ export function reachedViaDocs(topics, topic, usage = quizUsage(topics)) {
   }
   return out;
 }
+
+/**
+ * Form eines Lernthemas in der Oberfläche (Vorschlag A): genau ein Dokument → 📄 (Lernthema und
+ * Dokument sind eine Zeile), nur Quizze → 🧩, sonst (mehrere Dokumente, leer) → 📘 Mappe.
+ */
+export function topicIcon(modules) {
+  const roots = (modules || []).filter((m) => m && !m.parentId);
+  const docs = roots.filter(isDocLike).length;
+  if (docs === 1) return '📄';
+  if (!docs && roots.length) return '🧩';
+  return '📘';
+}

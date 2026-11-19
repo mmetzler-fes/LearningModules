@@ -378,6 +378,9 @@ Sicherung/
     der App.
   - Bis du entscheidest, überschreibt die App die Datei nicht. Andere Dateien (Anhänge,
     `_lernthema.json`), die draußen geändert wurden, sichert sie nach `_Gesichert` und schreibt sie neu.
+  - Gemeldet wird nur, was wirklich bearbeitet wurde: Hat die Datei denselben Inhalt wie in der App, bleibt
+    es still. Ist sie eine ältere Fassung, die die App selbst geschrieben hat, legt die App sie unter
+    `_Gesichert` ab und schreibt ihren aktuellen Stand.
 - **♻️ Wiederherstellen …** (im selben Abschnitt): einen Ordner aus `Sicherung` wählen – Book, Bereich
   oder Lernthema. Er kommt als **neues Book „Aus der Nextcloud (Datum)“** ins Notizbuch: Unterordner
   werden Bereiche, Lernthemen-Ordner Lernthemen, jede `.zlm` ein Modul mit neuer Kennung (Quiz-Verweise in

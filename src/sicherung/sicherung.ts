@@ -10,7 +10,11 @@
  *   oder die Datei fehlt.
  * - Eine .zlm, die in der Nextcloud geändert wurde (ETag anders als zuletzt
  *   geschrieben), bleibt liegen und wird als „geändert“ gemeldet, bis die
- *   Lehrkraft sie übernimmt oder verwirft. Andere Dateien (Anhänge,
+ *   Lehrkraft sie übernimmt oder verwirft.
+ *   Vorher wird der Inhalt geprüft (`classify`): Ist er derselbe wie in der App,
+ *   gilt nur der neue ETag; hat die App ihn selbst geschrieben, nur älter (ein
+ *   überholter Lauf), wandert er nach _Gesichert und die App schreibt neu.
+ *   Gemeldet wird nur, was draußen wirklich bearbeitet wurde. Andere Dateien (Anhänge,
  *   _lernthema.json) wandern in dem Fall nach _Gesichert/<Datum>/ und werden neu geschrieben.
  * - Gelöschtes und Verschobenes: alte Datei nach _Gesichert bzw. an den neuen Ort.
  */
@@ -21,7 +25,9 @@ export const TOPIC_META = '_lernthema.json';
 export const KEEP_SAVED_DAYS = 180;
 
 export interface SicherungNc {
-  stat(parts: string[]): Promise<{ isFolder: boolean; size: number; etag: string } | null>;
+  stat(
+    parts: string[],
+  ): Promise<{ isFolder: boolean; size: number; etag: string } | null>;
   put(parts: string[], data: Buffer, contentType: string): Promise<string>;
   get(parts: string[]): Promise<{ type: string; data: Buffer } | null>;
   move(from: string[], to: string[]): Promise<void>;
@@ -44,6 +50,11 @@ export interface WantedFile {
   moduleId?: string;
   topicId?: string;
   title?: string;
+  /**
+   * Nur .zlm: Ist die Datei mit fremdem ETag draußen bearbeitet ('edited'), inhaltlich die der
+   * App ('same') oder eine ältere, von der App selbst geschriebene Fassung ('stale')?
+   */
+  classify?(file: Buffer): Promise<'same' | 'stale' | 'edited'>;
 }
 
 export interface FileRecord {
@@ -69,20 +80,26 @@ export interface SicherungReport {
   errors: Array<{ key: string; title?: string; error: string }>;
 }
 
-const same = (a: string[], b: string[]) => a.length === b.length && a.every((x, i) => x === b[i]);
+const same = (a: string[], b: string[]) =>
+  a.length === b.length && a.every((x, i) => x === b[i]);
 const dirOf = (p: string[]) => p.slice(0, -1);
 
 /**
  * Namen unter Geschwistern eindeutig machen: „Titel“, „Titel (2)“ … (ohne
  * Rücksicht auf Groß/klein – manche Dateisysteme unterscheiden das nicht).
  */
-export function uniqueNames<T>(items: T[], nameOf: (x: T) => string, ext = ''): Map<T, string> {
+export function uniqueNames<T>(
+  items: T[],
+  nameOf: (x: T) => string,
+  ext = '',
+): Map<T, string> {
   const used = new Set<string>();
   const out = new Map<T, string>();
   for (const it of items) {
     const base = nameOf(it);
     let name = `${base}${ext}`;
-    for (let i = 2; used.has(name.toLowerCase()); i++) name = `${base} (${i})${ext}`;
+    for (let i = 2; used.has(name.toLowerCase()); i++)
+      name = `${base} (${i})${ext}`;
     used.add(name.toLowerCase());
     out.set(it, name);
   }
@@ -99,7 +116,14 @@ export async function syncSicherung(
 ): Promise<{ records: Record<string, FileRecord>; report: SicherungReport }> {
   const now = opts.now || new Date();
   const today = now.toISOString().slice(0, 10);
-  const report: SicherungReport = { written: 0, moved: 0, saved: 0, unchanged: 0, changed: 0, errors: [] };
+  const report: SicherungReport = {
+    written: 0,
+    moved: 0,
+    saved: 0,
+    unchanged: 0,
+    changed: 0,
+    errors: [],
+  };
   const abs = (p: string[]) => [...root, ...p];
   const vacated = new Set<string>();
   const ensured = new Set<string>();
@@ -117,7 +141,14 @@ export async function syncSicherung(
     for (let i = 2; i < 50 && (await nc.stat(abs(dest))); i++) {
       const name = path[path.length - 1];
       const dot = name.lastIndexOf('.');
-      dest = [SAVED, today, ...dirOf(path), dot > 0 ? `${name.slice(0, dot)} (${i})${name.slice(dot)}` : `${name} (${i})`];
+      dest = [
+        SAVED,
+        today,
+        ...dirOf(path),
+        dot > 0
+          ? `${name.slice(0, dot)} (${i})${name.slice(dot)}`
+          : `${name} (${i})`,
+      ];
     }
     await ensure(dirOf(dest));
     await nc.move(abs(path), abs(dest));
@@ -141,16 +172,38 @@ export async function syncSicherung(
       if (!old) {
         // Neu: Liegt dort schon etwas Fremdes, wird es vorher gesichert.
         await backup(w.path);
-        out[w.key] = { key: w.key, path: w.path, etag: await write(w), hash: w.hash, state: 'ok', ...meta };
+        out[w.key] = {
+          key: w.key,
+          path: w.path,
+          etag: await write(w),
+          hash: w.hash,
+          state: 'ok',
+          ...meta,
+        };
         continue;
       }
       const rec: FileRecord = { ...old, path: [...old.path], ...meta };
       out[w.key] = rec;
       const st = await nc.stat(abs(rec.path));
-      const outside = !!st && !!rec.etag && st.etag !== rec.etag;
-      if (outside && w.editable && rec.state !== 'discard') {
+      let outside = !!st && !!rec.etag && st.etag !== rec.etag;
+      // Anderer ETag heißt nicht „bearbeitet“: erst den Inhalt ansehen.
+      let ownStale = false;
+      if (outside && w.editable && rec.state !== 'discard' && w.classify) {
+        const file = await nc.get(abs(rec.path));
+        const verdict = file
+          ? await w.classify(file.data).catch(() => 'edited' as const)
+          : 'edited';
+        if (verdict === 'same') {
+          rec.etag = st!.etag;
+          outside = false;
+        } else if (verdict === 'stale') ownStale = true;
+      }
+      if (outside && w.editable && rec.state !== 'discard' && !ownStale) {
         // Draußen geändert: liegen lassen, melden. Erst nach Übernehmen oder Verwerfen geht es weiter.
-        if (rec.state !== 'changed') { rec.state = 'changed'; rec.changedAt = now.toISOString(); }
+        if (rec.state !== 'changed') {
+          rec.state = 'changed';
+          rec.changedAt = now.toISOString();
+        }
         report.changed++;
         continue;
       }
@@ -167,7 +220,10 @@ export async function syncSicherung(
       // Fehlt, war draußen geändert (und ist gesichert), veraltet oder soll verworfen werden: neu schreiben.
       const missing = outside || !st;
       if (missing || rec.hash !== w.hash || rec.state === 'discard') {
-        if (!same(rec.path, w.path)) { vacated.add(JSON.stringify(dirOf(rec.path))); rec.path = w.path; }
+        if (!same(rec.path, w.path)) {
+          vacated.add(JSON.stringify(dirOf(rec.path)));
+          rec.path = w.path;
+        }
         rec.etag = await write(w);
         rec.hash = w.hash;
       } else report.unchanged++;
@@ -175,7 +231,14 @@ export async function syncSicherung(
       delete rec.changedAt;
     } catch (err: any) {
       if (old) out[w.key] = { ...old, ...meta };
-      report.errors.push({ key: w.key, title: w.title, error: String(err?.response?.message || err?.message || err).slice(0, 300) });
+      report.errors.push({
+        key: w.key,
+        title: w.title,
+        error: String(err?.response?.message || err?.message || err).slice(
+          0,
+          300,
+        ),
+      });
     }
   }
 
@@ -186,7 +249,9 @@ export async function syncSicherung(
   }
 
   // Leer gewordene Ordner entfernen (nie die Wurzel oder _Gesichert).
-  const dirs = [...vacated].map((d) => JSON.parse(d) as string[]).sort((a, b) => b.length - a.length);
+  const dirs = [...vacated]
+    .map((d) => JSON.parse(d) as string[])
+    .sort((a, b) => b.length - a.length);
   const tried = new Set<string>();
   for (const start of dirs) {
     for (let d = start; d.length && d[0] !== SAVED; d = dirOf(d)) {
@@ -200,9 +265,12 @@ export async function syncSicherung(
   }
 
   // Alte Sicherungen aufräumen.
-  const cutoff = new Date(now.getTime() - KEEP_SAVED_DAYS * 24 * 3600 * 1000).toISOString().slice(0, 10);
+  const cutoff = new Date(now.getTime() - KEEP_SAVED_DAYS * 24 * 3600 * 1000)
+    .toISOString()
+    .slice(0, 10);
   for (const e of await nc.list(abs([SAVED])).catch(() => [])) {
-    if (e.isFolder && /^\d{4}-\d{2}-\d{2}$/.test(e.name) && e.name < cutoff) await nc.remove(abs([SAVED, e.name]));
+    if (e.isFolder && /^\d{4}-\d{2}-\d{2}$/.test(e.name) && e.name < cutoff)
+      await nc.remove(abs([SAVED, e.name]));
   }
 
   return { records: out, report };

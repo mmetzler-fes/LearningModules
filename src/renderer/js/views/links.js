@@ -6,7 +6,7 @@ import { saveRedirectFile } from './contest.js';
 import { pickClass } from './classes.js';
 import { downloadBlob } from '../api.js';
 import { helpHint } from './help-view.js';
-import { contentText } from '../../lm-editor/src/doc/doc-quiz.js';
+import { contentCounts, contentText } from '../../lm-editor/src/doc/doc-quiz.js';
 
 // ==================== THEMEN-LINKS ====================
 
@@ -862,16 +862,20 @@ export class LinksView {
     if (!this._selectionSummary) return;
     const selection = this._buildSelection();
     const topics = this._usableTopics || [];
-    let modules = 0;
+    // Wie der Server (links.service.ts resolveModules): Quizze in gewählten Dokumenten gehören dazu.
+    const counts = { documents: 0, embeddedQuizzes: 0, quizzes: 0 };
     for (const entry of selection) {
-      const topic = topics.find((t) => t.id === entry.topicId);
-      modules += entry.all
-        ? (topic?.modules || []).filter((m) => !m.parentId).length
-        : entry.moduleIds.length;
+      const all = (topics.find((t) => t.id === entry.topicId)?.modules || []);
+      const ids = new Set(entry.all ? all.map((m) => m.id) : entry.moduleIds);
+      // Ein gewähltes Untermodul bringt sein oberstes Modul mit.
+      for (const m of all) if (m.parentId && ids.has(m.id)) ids.add(m.parentId);
+      for (const m of all) if (ids.has(m.id)) (m.quizIds || []).forEach((q) => ids.add(q));
+      const c = contentCounts(all.filter((m) => !m.parentId && ids.has(m.id)));
+      for (const k of Object.keys(counts)) counts[k] += c[k];
     }
     this._selectionSummary.textContent = selection.length === 0
       ? 'Noch nichts ausgewählt.'
-      : `${selection.length} Thema/Themen · ${modules} Aufgabe(n) ausgewählt`;
+      : `${selection.length} Thema/Themen · ${contentText(counts) || 'nichts'} ausgewählt`;
     if (this._selectedModes().includes('contest')) this._renderContestTimes();
     this._applySuggestedTags();
   }

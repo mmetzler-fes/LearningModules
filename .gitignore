@@ -44,3 +44,6 @@ data/
 
 # Sperrdateien von LibreOffice (solange eine Datei geöffnet ist)
 .~lock.*#
+
+# Python-Pakete für den Python-Block (scripts/fetch-pyodide-packages.mjs)
+vendor/pyodide-packages/

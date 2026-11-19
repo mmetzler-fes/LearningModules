@@ -61,11 +61,13 @@ async function ensureWorker() {
 function onWorkerMessage(m) {
   const r = running;
   if (m.type === 'loading') {
-    if (r && !loaded) r.block.status('Python wird geladen … (beim ersten Mal etwa 12 MB, danach schneller)');
+    if (r && !loaded) r.block.status('Python wird geladen … (beim ersten Mal etwa 12 MB, mit numpy/matplotlib mehr – danach schneller)');
     return;
   }
   if (!r || m.id !== r.id) return;
   if (m.type === 'out') { loaded = true; r.block.status(''); r.block.write(m.text, m.err); return; }
+  if (m.type === 'status') { loaded = true; r.block.status(m.text); return; }
+  if (m.type === 'image') { r.block.image(m.png); return; }
   if (m.type === 'input') { loaded = true; r.block.status(''); r.block.ask(m.prompt, (value) => answerInput(m.key, value)); return; }
   if (m.type === 'done') { loaded = true; finish(m.ok, m.error); }
 }
@@ -168,6 +170,15 @@ export function outputView({ out, status, btnRun = null, btnStop = null, keep = 
         out.appendChild(document.createTextNode(text));
       }
       if (keep) out.scrollTop = out.scrollHeight;
+    },
+    /** Diagramm (matplotlib, plt.show() bzw. am Ende des Laufs) als Bild in der Ausgabe. */
+    image(png) {
+      out.hidden = false;
+      const img = document.createElement('img');
+      img.className = 'py-img';
+      img.alt = 'Diagramm';
+      img.src = `data:image/png;base64,${png}`;
+      out.appendChild(img);
     },
     ask(prompt, answer) {
       out.hidden = false;

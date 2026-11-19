@@ -5,11 +5,14 @@ import { json, urlencoded } from 'express';
 import { htmlAppHostGuard } from './html-apps/html-app-rules';
 import { ShortLinksService } from './short-links/short-links.service';
 import { shortLinkRedirect } from './short-links/short-link-redirect';
+import { pyodideStatic } from './pyodide-static';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   // Zuerst: Die App-Adresse liefert nur die Rahmen der HTML-Apps (docs/html-apps.md).
   app.use(htmlAppHostGuard());
+  // Python für den Python-Block (pyodide-static.ts): vor der Oberfläche, damit nichts ins SPA fällt.
+  for (const handler of pyodideStatic()) app.use('/vendor/pyodide', handler);
   // Kurzlinks /k/<code> (src/short-links) vor der Oberfläche – sonst käme die App.
   app.use(shortLinkRedirect(app.get(ShortLinksService)));
   // Den rohen Inhalt merken: Signierte Aufrufe verbundener Server werden

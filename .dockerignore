@@ -10,3 +10,4 @@ assets/*.xlsx
 assets/*.csv
 test/
 worksheet-renderer/
+vendor/pyodide-packages/

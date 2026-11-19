@@ -158,7 +158,7 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
           <button type="button" class="admin-tab" data-mode="visual">✏️ Bearbeiten</button>
           <button type="button" class="admin-tab" data-mode="markdown" hidden>Ⓜ Markdown</button>
           <button type="button" class="admin-tab" data-mode="yaml">⌨ YAML</button>
-          <button type="button" class="btn btn-secondary btn-sm ds-import-odt" title="Writer- oder Word-Dokument (.odt, .docx), Folien (.odp, .pptx) oder PDF übernehmen: Überschriften, Absätze, Listen, Tabellen, Bilder" style="margin-left: auto;">📄 Übernehmen…</button>
+          <button type="button" class="btn btn-secondary btn-sm ds-import-odt" title="Writer- oder Word-Dokument (.odt, .docx), Folien (.odp, .pptx), PDF oder Jupyter-Notebook (.ipynb, mit seinen Bildern) übernehmen" style="margin-left: auto;">📄 Übernehmen…</button>
         </div>
         <div class="ds-preview-bar">
           <button type="button" class="btn btn-secondary btn-sm ds-print-menu" title="Arbeitsblatt oder Lösung als PDF oder .odt – Quizze mit Druckfassung oder nur als QR-Code">🖨 Drucken…</button>
@@ -448,7 +448,7 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
       root.querySelectorAll('.ds-vinsert option[value="quiz"], .ds-yinsert option[value="quiz"]')
         .forEach((o) => o.after(new Option('📄 PDF an dieser Stelle', 'pdf')));
       importButton.textContent = '📄 Übernehmen…';
-      importButton.title = 'Writer- oder Word-Dokument (.odt, .docx), Folien (.odp, .odg, .pptx) oder PDF übernehmen: Überschriften, Absätze, Listen, Tabellen, Bilder';
+      importButton.title = 'Writer- oder Word-Dokument (.odt, .docx), Folien (.odp, .odg, .pptx), PDF oder Jupyter-Notebook (.ipynb, mit seinen Bildern) übernehmen';
     }
   });
 
@@ -532,6 +532,34 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
       : ' (Die .xopp enthält keine Beschriftung.)';
   };
 
+  /**
+   * Jupyter-Notebook (.ipynb): Markdown wird Text, Code ausführbares Python (🐍 ▶ im Blatt). Bilder aus
+   * dem Ordner daneben kommen mit, wenn sie mit ausgewählt sind (lm-editor/src/doc/ipynb.js).
+   */
+  const importNotebook = async (nbFile, others) => {
+    const { ipynbToSpec, imageKey } = await import('../lm-editor/src/doc/ipynb.js');
+    let nb;
+    try { nb = JSON.parse(await nbFile.text()); } catch (_) { status.textContent = `❌ ${nbFile.name} ist kein gültiges Notebook (JSON).`; return; }
+    const readData = (file) => new Promise((resolve) => {
+      const r = new FileReader();
+      r.onload = () => resolve(String(r.result || ''));
+      r.onerror = () => resolve('');
+      r.readAsDataURL(file);
+    });
+    const images = new Map();
+    for (const f of others.filter((x) => /\.(png|jpe?g|gif|webp|svg)$/i.test(x.name))) {
+      let data = await readData(f);
+      if (/\.svg$/i.test(f.name)) data = data.replace(/^data:[^;,]*/, 'data:image/svg+xml');
+      if (data) images.set(imageKey(f.name), data);
+    }
+    let result;
+    try { result = ipynbToSpec(nb, { images }); } catch (err) { status.textContent = `❌ ${err.message}`; return; }
+    const ask = window.appConfirm || ((m) => Promise.resolve(window.confirm(m)));
+    const empty = !spec || !Array.isArray(spec.content) || !spec.content.length || textarea.value === starterYaml;
+    if (!empty && !(await ask('Den bisherigen Inhalt durch das Notebook ersetzen?'))) return;
+    applyImported(result.spec, result.title || nbFile.name.replace(/\.ipynb$/i, ''), result.warnings);
+  };
+
   importButton.addEventListener('click', () => {
     const input = document.createElement('input');
     input.type = 'file';
@@ -540,9 +568,17 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
       + 'application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/msword,.xopp'
       + ',.odp,.odg,.pptx,.ppt,application/vnd.oasis.opendocument.presentation,application/vnd.oasis.opendocument.graphics,'
       + 'application/vnd.openxmlformats-officedocument.presentationml.presentation,application/vnd.ms-powerpoint'
-      + (pdfAllowed ? ',.pdf,application/pdf' : '');
+      + (pdfAllowed ? ',.pdf,application/pdf' : '')
+      // Jupyter-Notebook, dazu die Bilder aus seinem Ordner (mehrere Dateien wählen).
+      + ',.ipynb,.png,.jpg,.jpeg,.gif,.webp,.svg';
     input.onchange = async () => {
       const files = [...input.files];
+      const nbFile = files.find((f) => /\.ipynb$/i.test(f.name));
+      if (nbFile) { await importNotebook(nbFile, files.filter((f) => f !== nbFile)); return; }
+      if (files.length && files.every((f) => /\.(png|jpe?g|gif|webp|svg)$/i.test(f.name))) {
+        status.textContent = 'Bilder allein lassen sich hier nicht übernehmen – zusammen mit einem Jupyter-Notebook (.ipynb) auswählen, sonst über ➕ → 🖼 Bild.';
+        return;
+      }
       const xoppFile = files.find((f) => /\.xopp$/i.test(f.name));
       if (xoppFile) { await importXopp(xoppFile, files.find((f) => /\.pdf$/i.test(f.name)) || null); return; }
       const file = files[0];

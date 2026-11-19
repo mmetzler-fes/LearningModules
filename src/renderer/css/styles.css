@@ -6682,11 +6682,13 @@ body.lm-app-big .ink-scroll { overflow: hidden; }
 .py-code { display: block; width: 100%; box-sizing: border-box; min-height: 3em; padding: 8px 10px; border: none; resize: vertical; background: var(--bg-primary, #fff); color: var(--text-primary);
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.9em; line-height: 1.4; tab-size: 4; white-space: pre; overflow-x: auto; }
 .py-code:focus { outline: 2px solid var(--accent); outline-offset: -2px; }
-.py-out { margin: 0; padding: 8px 10px; border-top: 1px solid var(--border); max-height: 24em; overflow: auto; white-space: pre-wrap; word-break: break-word;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.85em; background: #0f172a; color: #e2e8f0; }
-.py-out .py-err { color: #fca5a5; }
-.py-out.py-quiet { color: #94a3b8; font-style: italic; }
-.py-ask { display: flex; gap: 6px; align-items: center; padding: 6px 10px; background: #0f172a; color: #e2e8f0; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.85em; }
+/* Ausgabe hell wie das Blatt (auch für den späteren Druck), Fehler rot. */
+.py-out { margin: 0; padding: 8px 10px; border-top: 1px solid var(--border); max-height: 40em; overflow: auto; white-space: pre-wrap; word-break: break-word;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.85em; background: #fff; color: #111827; }
+.py-out .py-err { color: #b91c1c; }
+.py-out.py-quiet { color: #6b7280; font-style: italic; }
+.py-out .py-img { display: block; max-width: 100%; height: auto; margin: 6px 0; }
+.py-ask { display: flex; gap: 6px; align-items: center; padding: 6px 10px; border-top: 1px dashed var(--border); background: #fff; color: #111827; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.85em; }
 .py-ask input { flex: 1 1 auto; min-width: 6em; font: inherit; padding: 2px 6px; }
 /* Im Editor: ausführbarer Code bekommt ein 🐍-Zeichen, damit man ihn vom bloßen Code unterscheidet. */
 pre.ds-code-run { position: relative; }
@@ -6697,4 +6699,4 @@ pre.ds-code-run { position: relative; }
 .py-console { position: sticky; bottom: 0; z-index: 5; margin-top: 8px; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; background: var(--bg-secondary, #f8fafc); box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.08); }
 .py-console[hidden], .py-console [hidden] { display: none !important; }
 .py-console .py-out { max-height: 14em; }
-.py-out .py-run-head { color: #93c5fd; }
+.py-out .py-run-head { color: #2563eb; }

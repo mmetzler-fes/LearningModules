@@ -16,6 +16,9 @@ let booting = null;
 const spaces = new Map();
 let current = null;
 let inputCount = 0;
+let lmRun = null;
+let prepareMatplotlib = null;
+let matplotlibReady = false;
 
 function boot() {
   if (pyodide) return Promise.resolve(pyodide);
@@ -24,7 +27,8 @@ function boot() {
     booting = (async () => {
       // Modul-Worker (Pyodide 314 kennt keine klassischen mehr).
       const { loadPyodide } = await import(`${base}pyodide.mjs`);
-      const py = await loadPyodide({ indexURL: base });
+      // Agg: Diagramme ohne Fenster – plt.show() schickt sie als Bild in die Ausgabe (_lm_show).
+      const py = await loadPyodide({ indexURL: base, env: { MPLBACKEND: 'Agg' } });
       const decoder = { out: new TextDecoder(), err: new TextDecoder() };
       const writer = (err) => ({
         write(buf) {
@@ -36,6 +40,8 @@ function boot() {
       py.setStdout(writer(false));
       py.setStderr(writer(true));
       self.lmInput = (prompt) => readInput(String(prompt ?? ''));
+      self.lmImage = (png) => postMessage({ type: 'image', id: current, png });
+      const helpers = py.globals.get('dict')();
       py.runPython(`
 import builtins, js, sys
 def _lm_input(prompt=''):
@@ -46,7 +52,39 @@ def _lm_input(prompt=''):
     print(str(prompt) + answer)
     return answer
 builtins.input = _lm_input
-`);
+
+# Wie in Jupyter: der Wert der letzten Zeile erscheint (außer mit ; am Ende).
+from pyodide.code import eval_code_async
+async def _lm_run(code, ns):
+    result = await eval_code_async(code, ns, filename='<exec>')
+    if result is not None:
+        print(repr(result))
+    _lm_flush_figures()
+
+def _lm_flush_figures():
+    plt = sys.modules.get('matplotlib.pyplot')
+    if plt is None:
+        return
+    import io, base64
+    sys.stdout.flush()
+    for num in plt.get_fignums():
+        fig = plt.figure(num)
+        buf = io.BytesIO()
+        fig.savefig(buf, format='png', dpi=110, bbox_inches='tight', facecolor='white')
+        js.lmImage(base64.b64encode(buf.getvalue()).decode('ascii'))
+    plt.close('all')
+
+def _lm_show(*args, **kwargs):
+    _lm_flush_figures()
+
+def _lm_prepare_matplotlib():
+    import matplotlib
+    matplotlib.use('Agg')
+    import matplotlib.pyplot as plt
+    plt.show = _lm_show
+`, { globals: helpers, filename: '<lm-helfer>' });
+      lmRun = helpers.get('_lm_run');
+      prepareMatplotlib = helpers.get('_lm_prepare_matplotlib');
       pyodide = py;
       return py;
     })();
@@ -99,7 +137,19 @@ onmessage = async (e) => {
       ns.set('__name__', '__main__');
       spaces.set(m.ns, ns);
     }
-    await py.runPythonAsync(m.code, { globals: ns, filename: '<exec>' });
+    // Pakete aus den import-Zeilen (numpy, matplotlib …) vom eigenen Server nachladen.
+    const before = new Set(Object.keys(py.loadedPackages));
+    await py.loadPackagesFromImports(m.code, {
+      messageCallback: (msg) => { if (/^Loading /.test(msg)) postMessage({ type: 'status', id: m.id, text: `Lade ${msg.replace(/^Loading /, '')} …` }); },
+      errorCallback: () => {},
+    });
+    const added = Object.keys(py.loadedPackages).filter((p) => !before.has(p));
+    if (added.length) postMessage({ type: 'status', id: m.id, text: '' });
+    if (!matplotlibReady && py.loadedPackages.matplotlib) {
+      prepareMatplotlib();
+      matplotlibReady = true;
+    }
+    await lmRun(m.code, ns);
     postMessage({ type: 'done', id: m.id, ok: true });
   } catch (err) {
     postMessage({ type: 'done', id: m.id, ok: false, error: shortError(err?.message || String(err)) });

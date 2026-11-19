@@ -39,7 +39,7 @@ import { SchoolsModule } from './core/schools/schools.module';
 import { CompanionModule } from './companion/companion.module';
 import { ContestModule } from './contest/contest.module';
 import { ClassesModule } from './classes/classes.module';
-import { dirname, join } from 'path';
+import { join } from 'path';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { HelpModule } from './help/help.module';
@@ -98,19 +98,6 @@ import { AiBridgeSessionRow } from './core/entities/ai-bridge-session.entity';
 
 const RENDERER_DIR = join(__dirname, '..', 'src', 'renderer');
 
-/**
- * Python im Browser (Pyodide, Paket „pyodide“): vom eigenen Server statt von einem CDN – geht auch in
- * Schulnetzen, die fremde Seiten sperren, und kein Schüler-Browser fragt bei fremden Diensten an.
- * Der Browser fragt mit ETag nach (304, wenn unverändert) – nach einem Update gilt sofort das neue Paket.
- */
-function pyodideDir(): string | null {
-  try {
-    return dirname(require.resolve('pyodide/package.json'));
-  } catch {
-    return null;
-  }
-}
-const PYODIDE_DIR = pyodideDir();
 
 /**
  * HTML, JS und CSS tragen keine Versionskennung im Namen. Ohne Rückfrage beim
@@ -130,9 +117,6 @@ function noStaleUi(res: any, path: string) {
     // Schüler-App am PC nebeneinander installieren (Chrome/Edge unterscheiden
     // Apps auch am Bereich). Zuerst, sonst nähme „/“ die Anfrage.
     ServeStaticModule.forRoot(
-      ...(PYODIDE_DIR
-        ? [{ rootPath: PYODIDE_DIR, serveRoot: '/vendor/pyodide', exclude: ['/api*'], serveStaticOptions: { index: false } }]
-        : []),
       { rootPath: RENDERER_DIR, serveRoot: '/schueler', exclude: ['/api*'], serveStaticOptions: { setHeaders: noStaleUi } },
       { rootPath: RENDERER_DIR, serveRoot: '/', exclude: ['/api*'], serveStaticOptions: { setHeaders: noStaleUi } },
     ),

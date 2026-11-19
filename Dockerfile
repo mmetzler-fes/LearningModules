@@ -31,6 +31,11 @@ RUN apt-get update && apt-get install -y python3 make g++ && rm -rf /var/lib/apt
 COPY package.json ./
 RUN npm install --omit=dev --ignore-scripts=false
 
+# Python-Pakete für den Python-Block (numpy, matplotlib) – einmal beim Bau, geprüft gegen
+# die Prüfsummen von Pyodide; danach liefert der Server sie selbst aus (/vendor/pyodide/).
+COPY scripts/fetch-pyodide-packages.mjs ./scripts/
+RUN node scripts/fetch-pyodide-packages.mjs
+
 # Copy compiled NestJS app
 COPY --from=builder /app/dist ./dist
 

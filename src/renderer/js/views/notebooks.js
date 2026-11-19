@@ -95,7 +95,8 @@ export class NotebooksView {
       e.stopPropagation();
       if (this._menuAnchor === addBtn) { this._closeMenu(); return; }
       this._openMenu([
-        { label: '📂 Datei öffnen …', title: 'Datei ansehen und als Dokument ins Notizbuch legen: lm-editor (.zlm), Writer/Word (.odt, .docx), Folien (.odp, .pptx), PDF, Xournal++ (.xopp) – auch per Ziehen auf diese Seite', run: () => pickFiles() },
+        { label: '📂 Datei öffnen …', title: 'Datei ansehen und als Dokument ins Notizbuch legen: lm-editor (.zlm), Writer/Word (.odt, .docx), Folien (.odp, .pptx), PDF, Xournal++ (.xopp), Jupyter-Notebook (.ipynb, mit seinen Bildern) – auch per Ziehen auf diese Seite', run: () => pickFiles() },
+        { label: '📓 Jupyter-Notebook öffnen …', title: 'Notebook (.ipynb) ansehen und ausführen, dann als Dokument ablegen: Markdown wird Text, Code ausführbares Python. Die Bilder aus seinem Ordner mit auswählen.', run: () => pickFiles('.ipynb,.png,.jpg,.jpeg,.gif,.webp,.svg') },
         { label: '📥 Importieren …', title: 'Notebook-Datei (.zip), Lernthema als Datei (JSON, Moodle-XML, H5P, .lmenc) oder eingefügter Text', run: () => this._import(null) },
         '-',
         { label: '🧱 Struktur importieren …', title: 'Books, Bereiche und Abschnitte aus einer Tabelle (.ods, .xlsx, .csv), einer Ordnerstruktur oder einer Gliederung anlegen – nur Ordner, keine Inhalte', run: () => import('./structure-import.js').then((m) => m.openStructureImport(this.app, { where: 'notebook', onDone: () => this.refresh() })) },
@@ -113,11 +114,13 @@ export class NotebooksView {
       this._saveOpen();
       await this.refresh();
     };
-    const pickFiles = () => {
+    const pickFiles = (accept = null) => {
       const input = document.createElement('input');
       input.type = 'file';
       input.multiple = true; // .xopp zusammen mit ihrem PDF
-      input.accept = '.zlm,.odt,.ott,.docx,.odp,.odg,.pptx,.ppt,.pdf,.xopp';
+      // .ipynb mit den Bildern aus seinem Ordner (mehrere Dateien wählen).
+      input.accept = '.zlm,.odt,.ott,.docx,.odp,.odg,.pptx,.ppt,.pdf,.xopp,.ipynb,.png,.jpg,.jpeg,.gif,.webp,.svg';
+      if (accept) input.accept = accept;
       input.addEventListener('change', () => void openFiles([...input.files]));
       input.click();
     };

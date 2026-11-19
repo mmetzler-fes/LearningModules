@@ -13,7 +13,7 @@ import { escapeHtml } from '../utils.js';
  * Stift-Editors); `actions`: weitere Knöpfe [{ label, title, primary, onClick(close) }].
  * Liefert ein Promise, das beim Schließen erfüllt wird.
  */
-export async function openDocViewer(app, { title, subtitle = '', spec, kind = 'worksheet', modules = {}, stand = null, landscape = false, actions = [] }) {
+export async function openDocViewer(app, { title, subtitle = '', spec, kind = 'worksheet', modules = {}, stand = null, landscape = false, actions = [], viewerId = null }) {
   const [{ H5pRenderer }, { showInkView }] = await Promise.all([
     import('../../lm-editor/src/modules/h5p-renderer.js'),
     import('../../lm-editor/src/ink/ink-view.js'),
@@ -48,9 +48,10 @@ export async function openDocViewer(app, { title, subtitle = '', spec, kind = 'w
 
   // Ohne Gastgeber: keine Knöpfe für Stift und PDF; „Lösungen zeigen“ gibt es (kein Quiz-Durchlauf).
   const view = overlay.querySelector('.zlm-viewer-doc');
-  const renderer = new H5pRenderer();
+  // Ausführbares Python (z. B. aus einem Jupyter-Notebook) läuft schon im Betrachter.
+  const renderer = new H5pRenderer({ host: { pythonBlocks: (args) => import('../python/python-run.js').then((m) => m.mountPythonBlocks(args)) } });
   view.appendChild(renderer.createTypePreview('document', { spec, kind }, {
-    blockIds: true, embedModule: (id) => modules[id] || null, title,
+    blockIds: true, embedModule: (id) => modules[id] || null, title, moduleId: viewerId,
   }));
   if (stand) await showInkView(view, stand, { landscape }).catch(() => false);
   return closed;

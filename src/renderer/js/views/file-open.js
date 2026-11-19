@@ -64,6 +64,14 @@ async function openConverted(app, files) {
     app.showToast('Dokumente sind für dein Konto nicht freigeschaltet (Administration → Benutzer: „Arbeitsblätter“).', 'error');
     return;
   }
+  // Jupyter-Notebooks wandelt der Browser selbst um; Bilder daneben gehören zu ihnen.
+  const notebooks = files.filter((f) => ext(f) === 'ipynb');
+  if (notebooks.length) {
+    const images = files.filter((f) => IMAGE_EXT.has(ext(f)));
+    for (const nb of notebooks) await openNotebook(app, nb, images);
+    files = files.filter((f) => ext(f) !== 'ipynb' && !IMAGE_EXT.has(ext(f)));
+    if (!files.length) return;
+  }
   const { readXoppFile, xoppToDocument } = await import('../xopp-import.js');
   const { pdfFromKnownFolder, pickPdfNear, canReadFolder } = await import('../xopp-folder.js');
   // .xopp mit ihrem PDF paaren: über den Namen in der .xopp, sonst gleicher Name.
@@ -96,7 +104,7 @@ async function openConverted(app, files) {
   for (const f of files) {
     if (ext(f) === 'xopp' || used.has(f)) continue;
     if (isDocumentFile(f, true)) jobs.push({ kind: 'doc', file: f });
-    else app.showToast(`${f.name}: Geöffnet werden .odt, .docx, .odp, .odg, .pptx, .pdf, .xopp und .zlm.`, 'error');
+    else app.showToast(`${f.name}: Geöffnet werden .odt, .docx, .odp, .odg, .pptx, .pdf, .xopp, .ipynb und .zlm.`, 'error');
   }
   if (!jobs.length) return;
   let pdfChoice = null;
@@ -130,6 +138,47 @@ async function openConverted(app, files) {
       }],
     });
   }
+}
+
+const IMAGE_EXT = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg']);
+
+/**
+ * Jupyter-Notebook (.ipynb) ansehen und gleich ausführen (🐍 ▶), dann „📓 Im Notizbuch ablegen…“:
+ * Markdown wird Text, Code ausführbares Python (lm-editor/src/doc/ipynb.js). Bilder aus dem Ordner
+ * daneben kommen mit, wenn sie mit ausgewählt bzw. mit hereingezogen wurden.
+ */
+async function openNotebook(app, file, imageFiles) {
+  const { ipynbToSpec, imageKey } = await import('../../lm-editor/src/doc/ipynb.js');
+  let nb;
+  try { nb = JSON.parse(await file.text()); } catch (_) { app.showToast(`${file.name} ist kein gültiges Notebook (JSON).`, 'error'); return; }
+  const readData = (f) => new Promise((resolve) => {
+    const r = new FileReader();
+    r.onload = () => resolve(String(r.result || ''));
+    r.onerror = () => resolve('');
+    r.readAsDataURL(f);
+  });
+  const images = new Map();
+  for (const f of imageFiles) {
+    let data = await readData(f);
+    if (ext(f) === 'svg') data = data.replace(/^data:[^;,]*/, 'data:image/svg+xml');
+    if (data) images.set(imageKey(f.name), data);
+  }
+  let result;
+  try { result = ipynbToSpec(nb, { images }); } catch (err) { app.showToast(`${file.name}: ${err.message}`, 'error'); return; }
+  const doc = { title: result.title || base(file.name).replace(/^./, (c) => c.toUpperCase()) || 'Notebook', spec: result.spec, stand: null, count: 0 };
+  if (!result.title) doc.title = file.name.replace(/\.ipynb$/i, '');
+  if (result.warnings.length) app.showToast(result.warnings.slice(0, 3).join(' · '), 'info');
+  const runnable = result.spec.content.filter((b) => b.type === 'code' && b.run).length;
+  await openDocViewer(app, {
+    title: doc.title,
+    subtitle: `${file.name}${images.size ? ` + ${images.size} Bild${images.size === 1 ? '' : 'er'}` : ''} · ${runnable} Python-Zelle${runnable === 1 ? '' : 'n'} · noch nicht gespeichert`,
+    spec: doc.spec, viewerId: `ipynb:${file.name}`,
+    actions: [{
+      label: '📓 Im Notizbuch ablegen…', primary: true,
+      title: 'Als Modul „Dokument“ in ein Lernthema – die Code-Zellen bleiben ausführbar (🐍 ▶)',
+      onClick: async (close) => { if (await fileIntoNotebook(app, doc)) close(); },
+    }],
+  });
 }
 
 /**

@@ -68,6 +68,9 @@
         "application/vnd.openxmlformats-officedocument.presentationml.presentation": [
           ".pptx"
         ],
+        "application/x-ipynb+json": [
+          ".ipynb"
+        ],
         "application/vnd.ms-powerpoint": [
           ".ppt"
         ]

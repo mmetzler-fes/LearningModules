@@ -1,6 +1,7 @@
 import { rememberStudent, rememberedStudent } from '../class-device.js';
 import { escapeHtml, escapeAttr } from '../utils.js';
 import { nestEmbedded } from '../../lm-editor/src/doc/doc-quiz.js';
+import { isDocLike } from '../quiz-usage.js';
 import { LINK_MODE_LABELS } from './login.js';
 import { offerTeacherName } from './teacher-as-student.js';
 import { scanQr } from './qr-scan.js';
@@ -341,15 +342,15 @@ export class ClassbookStudent {
       }).join('');
       // Module eingeklappt; beim 📍-Merker der Lehrkraft ist sein Lernthema offen.
       const marked = (t, u) => mk && mk.current.linkId === a.linkId && mk.current.topicId === t.id && (!u || mk.current.moduleId === u.id);
-      const unitRow = (t, u, embedded = false, quizCount = 0) => `
+      const unitRow = (t, u, embedded = false, quizCount = 0, title = u.title) => `
             <li class="${marked(t, u) ? 'cb-marked' : ''} ${embedded ? 'cb-embedded' : ''}">${a.modes.length ? `<button type="button" class="cb-unit" data-start="${escapeAttr(a.linkId)}" data-module="${escapeAttr(u.id)}">` : '<span class="cb-unit">'}
-              ${marked(t, u) ? '📍 ' : ''}${TYPE_ICON[u.type] || '🧩'} ${escapeHtml(u.title || 'Aufgabe')}${a.modes.length ? '</button>' : '</span>'}
+              ${marked(t, u) ? '📍 ' : ''}${TYPE_ICON[u.type] || '🧩'} ${escapeHtml(title || 'Aufgabe')}${a.modes.length ? '</button>' : '</span>'}
               <span class="nb-meta">${escapeHtml((typeof H5P_TYPES !== 'undefined' && H5P_TYPES[u.type]?.name) || '')}${quizCount ? ` · ${quizCount === 1 ? '1 Quiz' : `${quizCount} Quizze`}` : ''}</span>
               <span class="cb-state">${unitState(u)}</span></li>`;
       // Wie im Lernnotizbuch: Quizze im Dokument stehen eingerückt darunter.
-      const unitRows = (t) => {
+      const unitRows = (t, pick = () => true, ownTitle = false, skipRow = false) => {
         const { top, quizzesOf } = nestEmbedded(t.units);
-        return top.map((u) => {
+        return top.filter(pick).map((u) => {
           const quizzes = quizzesOf.get(u.id) || [];
           const solution = solutions.has(u.id) ? `
             <li class="cb-embedded"><button type="button" class="cb-unit" data-solution-ink="${escapeAttr(u.id)}" title="Die Lösung deiner Lehrkraft – nur zum Ansehen. Dein eigenes Blatt bleibt, wie es ist.">🔑 Lösung</button>
@@ -357,8 +358,23 @@ export class ClassbookStudent {
           const board = boards.has(u.id) ? `
             <li class="cb-embedded"><button type="button" class="cb-unit" data-board="${escapeAttr(u.id)}" title="Das Tafelbild deiner Lehrkraft – nur zum Ansehen. Dein eigenes Blatt bleibt, wie es ist.">✍️ Tafelbild</button>
               <span class="nb-meta">zum Ansehen</span></li>` : '';
-          return unitRow(t, u, false, quizzes.length) + solution + board + quizzes.map((q) => unitRow(t, q, true)).join('');
+          return (skipRow ? '' : unitRow(t, u, false, quizzes.length, ownTitle ? t.title : u.title)) + solution + board + quizzes.map((q) => unitRow(t, q, true)).join('');
         }).join('');
+      };
+      // Wie im Lernnotizbuch: Ein Lernthema mit genau einem Dokument ist eine Zeile (das Dokument unter dem
+      // Titel des Lernthemas), Quizze außerhalb des Dokuments stehen gesammelt unter „🧩 Weitere Quizze“.
+      const soleDoc = (t) => {
+        const docs = nestEmbedded(t.units).top.filter(isDocLike);
+        return docs.length === 1 ? docs[0] : null;
+      };
+      const singleRows = (t, doc, skipRow = false) => {
+        const rest = nestEmbedded(t.units).top.filter((u) => u.id !== doc.id);
+        const restOpen = rest.some((u) => marked(t, u));
+        return unitRows(t, (u) => u.id === doc.id, true, skipRow) + (rest.length ? `
+            <li class="cb-quiz-set"><details ${restOpen ? 'open' : ''}><summary><span class="cb-twisty" aria-hidden="true"></span>
+              <span class="nb-icon" aria-hidden="true">🧩</span><span class="cb-row-title">Weitere Quizze</span>
+              <span class="nb-meta">${count(rest)}</span></summary>
+              <ul class="cb-units">${unitRows(t, (u) => u.id !== doc.id)}</ul></details></li>` : '');
       };
       const count = (units) => {
         const done = units.filter((u) => u.done || u.work).length;
@@ -366,14 +382,21 @@ export class ClassbookStudent {
       };
       const here = `<span class="cb-here">📍 Hier sind wir</span>${weiterBtn}`;
       const only = a.topics.length === 1 ? a.topics[0] : null;
+      // Ein Lernthema mit genau einem Dokument: Die Zeile der Zuweisung ist das Dokument (Klick auf den Titel öffnet es).
+      const single = only && soleDoc(only);
+      const titleHtml = single && a.modes.length
+        ? `<button type="button" class="cb-unit cb-row-title" data-start="${escapeAttr(a.linkId)}" data-module="${escapeAttr(single.id)}" title="${escapeAttr(`${a.name} öffnen`)}">${marked(only, single) ? '📍 ' : ''}${escapeHtml(a.name)}</button>`
+        : `<span class="cb-row-title" title="${escapeAttr(a.name)}">${escapeHtml(a.name)}</span>`;
+      const icon = single ? (TYPE_ICON[single.type] || '📄') : nestEmbedded(only?.units || []).top.length && !nestEmbedded(only.units).top.some(isDocLike) ? '🧩' : '📘';
       // Dieselben Zeilen wie im Lernnotizbuch; ein einzelnes Lernthema braucht keine zweite Zeile.
       return `<details class="cb-assignment" ${a.topics.some((t) => marked(t)) ? 'open' : ''}>
         <summary><span class="cb-twisty" aria-hidden="true"></span>
-          <span class="nb-icon" aria-hidden="true">📘</span><span class="cb-row-title" title="${escapeAttr(a.name)}">${escapeHtml(a.name)}</span>
+          <span class="nb-icon" aria-hidden="true">${icon}</span>${titleHtml}
           <span class="nb-meta">${count(a.topics.flatMap((t) => t.units))}</span>
+          ${single ? `<span class="cb-state">${unitState(single)}</span>` : ''}
           ${only && marked(only) ? here : ''}
           <span class="cb-actions">${modes}</span></summary>
-        ${only ? `<ul class="cb-units">${unitRows(only)}</ul>` : a.topics.map((t) => `<details class="cb-topic" ${marked(t) ? 'open' : ''}>
+        ${only ? `<ul class="cb-units">${single ? singleRows(only, single, true) : unitRows(only)}</ul>` : a.topics.map((t) => soleDoc(t) ? `<ul class="cb-units cb-single">${singleRows(t, soleDoc(t))}</ul>` : `<details class="cb-topic" ${marked(t) ? 'open' : ''}>
           <summary class="cb-topic-title"><span class="cb-twisty" aria-hidden="true"></span>
             <span class="nb-icon" aria-hidden="true">📘</span><span class="cb-row-title" title="${escapeAttr(t.title)}">${escapeHtml(t.title)}</span>
             <span class="nb-meta">${count(t.units)}</span>
@@ -469,6 +492,8 @@ export class ClassbookStudent {
       document.querySelector('#loginScreen .login-card')?.classList.remove('login-card-wide');
       this._login();
     });
+    // Im Kopf einer Zuweisung öffnet der Titel das Dokument, ohne die Zeile auf- oder zuzuklappen.
+    el.querySelectorAll('[data-start]').forEach((btn) => btn.addEventListener('click', (e) => { if (btn.closest('summary')) e.preventDefault(); }));
     el.querySelectorAll('[data-start]').forEach((btn) => btn.addEventListener('click', () => this._enter(btn.dataset.start, btn.dataset.mode || null, btn.dataset.module || null, btn)));
     el.querySelectorAll('[data-board], [data-solution-ink]').forEach((btn) => btn.addEventListener('click', async () => {
       btn.disabled = true;

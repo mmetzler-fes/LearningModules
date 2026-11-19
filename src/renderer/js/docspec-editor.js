@@ -981,6 +981,8 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
     solution: { type: 'solution', blocks: [{ type: 'text', text: 'Musterlösung' }] },
     formula: { type: 'formula', latex: 'U = R \\cdot I' },
     code: { type: 'code', code: '// Quelltext' },
+    // Ausführbar im Blatt (▶, Pyodide) – im Druck nur der Code.
+    python: { type: 'code', run: true, code: 'name = input("Wie heißt du? ")\nprint("Hallo", name)' },
     // „Platz“ ist ein unsichtbares Schreibfeld – Höhe, Breite und Muster lassen sich später ändern.
     spacer: { type: 'karo', lines: 2, pattern: 'frei' },
     pagebreak: { type: 'pagebreak' },
@@ -1903,6 +1905,7 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
       { label: '💡 Lösung', onClick: () => put([STARTERS.solution]) },
       { label: '∑ Formel', onClick: () => putAndEdit(STARTERS.formula) },
       { label: '⌨ Code', onClick: () => put([STARTERS.code]) },
+      { label: '🐍 Python (ausführbar)', onClick: () => put([STARTERS.python]) },
       { label: '▤ Tabelle…', onClick: async () => { const block = await askTable(); if (block) put([block]); } },
       { label: '▢ Kasten', onClick: () => put([STARTERS.box]) },
       { label: '▥ Spalten (nebeneinander)', onClick: () => put([{ type: 'columns', blocks: [{ type: 'column', blocks: [{ type: 'text', text: 'links …' }] }, { type: 'column', blocks: [{ type: 'text', text: 'rechts …' }] }] }]) },

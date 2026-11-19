@@ -12,6 +12,11 @@ const inRun = (up) => !!(up && (up.linkToken || up.quickToken));
 export const lmHost = {
   nextButton: () => document.getElementById('btnQuizNext'),
 
+  /** Ausführbares Python im Dokument (Code-Block mit run): ▶, Ausgabe, input() – python/python-run.js. */
+  pythonBlocks(args) {
+    import('./python/python-run.js').then(({ mountPythonBlocks }) => mountPythonBlocks(args));
+  },
+
   /** HTML-App in ihrem Sandkasten (docs/html-apps.md). */
   htmlApp(args) {
     import('./html-app-host.js').then(({ mountHtmlApp }) => mountHtmlApp(args));

@@ -25,6 +25,7 @@ import { ClassbookStudent } from './views/classbook-student.js';
 import { AiPromptView } from './views/ai-prompt-view.js';
 import { HelpView, openHelpPopup } from './views/help-view.js';
 import { NotebooksView } from './views/notebooks.js';
+import { QuickSearch } from './views/quick-search.js';
 import { CategoriesAdminView } from './views/categories-admin.js';
 import { FederationAdminView } from './views/federation-admin.js';
 import { HtmlAppsAdminView } from './views/html-apps-admin.js';
@@ -129,6 +130,7 @@ class App {
     this.aiPromptView = new AiPromptView(this);
     this.helpView = new HelpView(this);
     this.notebooksView = new NotebooksView(this);
+    this.quickSearch = new QuickSearch(this);
     this.categoriesAdminView = new CategoriesAdminView(this);
     this.federationAdminView = new FederationAdminView(this);
     this.htmlAppsAdminView = new HtmlAppsAdminView(this);

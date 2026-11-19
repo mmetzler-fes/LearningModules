@@ -188,6 +188,41 @@ export class NotebooksView {
     this._index();
     this._render();
     this._preview.refresh();
+    this._applyReveal();
+  }
+
+  /**
+   * Schnellsuche (quick-search.js): den Treffer im Baum zeigen – Suchfeld mit seinem Titel, alles
+   * statt eines Ordners, Reiter „Alles“; mit offener Vorschau steht er rechts.
+   */
+  async reveal(item) {
+    this._pendingReveal = item;
+    if (this._search) this._search.value = item.title || '';
+    this._setFocusQuiet(null);
+    if (this._view !== 'all') {
+      this._view = 'all';
+      try { localStorage.setItem(VIEW_KEY, 'all'); } catch (_) { /* privat */ }
+    }
+    if (document.getElementById('view-teacher-notebooks')?.classList.contains('active')) await this.refresh();
+    else this.app.navigateToView('teacher-notebooks');
+  }
+
+  _applyReveal() {
+    const it = this._pendingReveal;
+    if (!it || !this._data) return;
+    this._pendingReveal = null;
+    if (this._preview.open) {
+      if (it.kind === 'node') {
+        const node = this._data.nodes.find((n) => n.id === it.id);
+        if (node) this._preview.showNode(node);
+      } else {
+        const topic = [...(this._data.topics || []), ...(this._data.granted || [])].find((t) => t.id === it.topicId);
+        const mod = topic && (it.kind === 'module' ? (topic.modules || []).find((m) => m.id === it.id) : this._singleDocOf(topic));
+        if (mod) void this._preview.showModule(topic, mod);
+        else if (topic) this._preview.showTopic(topic);
+      }
+    }
+    requestAnimationFrame(() => this._tree.querySelector('.nb-hit')?.scrollIntoView({ block: 'center' }));
   }
 
   /** Sicherung: in der Nextcloud geänderte .zlm – Leiste über dem Baum, nur wenn es welche gibt. */

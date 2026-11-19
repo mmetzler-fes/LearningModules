@@ -6657,3 +6657,17 @@ body.lm-app-big .ink-scroll { overflow: hidden; }
 .ds-image-dialog .ds-para-grid input:not([type=checkbox]), .ds-image-dialog .ds-para-grid select { padding: 4px 8px; border: 1px solid var(--border); border-radius: var(--radius-sm, 6px); background: var(--bg-secondary, #fff); color: inherit; font: inherit; }
 .ds-image-dialog .hint { font-size: 0.85em; color: var(--text-secondary); margin: 4px 0 0; }
 @media (max-width: 480px) { .ds-image-dialog { padding: 20px 16px; } .ds-image-dialog .ds-para-grid { grid-template-columns: 1fr; } }
+
+/* 🔍 Schnellsuche (Strg+K, quick-search.js) */
+.qs-overlay { align-items: flex-start; padding-top: 12vh; }
+.qs-card { width: min(640px, calc(100vw - 32px)); max-height: 70vh; display: flex; flex-direction: column; gap: 8px; padding: 12px; }
+.qs-input { width: 100%; font-size: 1rem; }
+.qs-list { list-style: none; margin: 0; padding: 0; overflow-y: auto; min-height: 2em; }
+.qs-hit { display: flex; align-items: baseline; gap: 8px; padding: 6px 8px; border-radius: 6px; cursor: pointer; }
+.qs-hit.cur { background: var(--accent-light, rgba(59, 130, 246, 0.12)); }
+.qs-title { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-primary); }
+.qs-path { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.82em; color: var(--text-secondary); text-align: right; }
+.qs-empty { padding: 6px 8px; }
+.qs-help { margin: 0; font-size: 0.8em; }
+@media (max-width: 560px) { .qs-hit { flex-wrap: wrap; } .qs-path { flex-basis: 100%; text-align: left; } }
+#btnQuickSearch { white-space: nowrap; }

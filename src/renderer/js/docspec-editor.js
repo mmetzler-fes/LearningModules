@@ -1994,6 +1994,110 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
   loadContext();
   mountInkActions();
   adoptModuleHeader(root);
+  mountPythonConsole();
+
+  /**
+   * 🐍 Python im Editor testen: Steht ein ausführbarer Code-Block im Dokument, erscheint unter der
+   * Fläche eine Konsole. Strg+Enter im Block (oder ▶) führt ihn aus, ▶▶ alle der Reihe nach – mit
+   * gemeinsamen Variablen wie im Blatt (python/python-run.js). Gespeichert wird davon nichts.
+   */
+  function mountPythonConsole() {
+    const ns = `editor:${moduleId || Math.random().toString(36).slice(2)}`;
+    const panel = document.createElement('div');
+    panel.className = 'py-console';
+    panel.hidden = true;
+    panel.innerHTML = `
+      <div class="py-head">
+        <span class="py-label">🐍 Python testen</span>
+        <button type="button" class="btn btn-primary btn-sm py-run" title="Den Block an der Schreibmarke ausführen (Strg+Enter im Block)">▶ Block</button>
+        <button type="button" class="btn btn-secondary btn-sm py-run-all" title="Alle ausführbaren Blöcke der Reihe nach">▶▶ Alle</button>
+        <button type="button" class="btn btn-secondary btn-sm py-stop" hidden title="Anhalten – z. B. bei einer Endlosschleife">⏹ Stopp</button>
+        <span class="py-status hint" aria-live="polite"></span>
+        <span class="py-spacer"></span>
+        <button type="button" class="py-mini py-reset" title="Variablen löschen">⟲ Neu starten</button>
+        <button type="button" class="py-mini py-clear" title="Ausgabe leeren">✕ Leeren</button>
+      </div>
+      <pre class="py-out" hidden></pre>`;
+    root.querySelector('.ds-editor-left')?.append(panel);
+    const out = panel.querySelector('.py-out');
+    const btnRun = panel.querySelector('.py-run');
+    let lastPre = null;
+    let api = null;
+    const loadApi = () => (api ||= import('./python/python-run.js'));
+    let view = null;
+    const getView = async () => {
+      const m = await loadApi();
+      view ||= m.outputView({ out, status: panel.querySelector('.py-status'), btnRun, btnStop: panel.querySelector('.py-stop'), keep: true });
+      return { m, view };
+    };
+    const visiblePres = () => [...root.querySelectorAll('.ds-surface pre.ds-code-run')].filter((el) => el.offsetParent !== null);
+    // In YAML/Markdown ist die Fläche verborgen: dann aus dem Stand des Dokuments.
+    const specCodes = () => {
+      const codes = [];
+      const walk = (blocks) => (Array.isArray(blocks) ? blocks : []).forEach((b) => {
+        if (!b || typeof b !== 'object') return;
+        if (b.type === 'code' && b.run === true && typeof b.code === 'string') codes.push(b.code);
+        walk(b.blocks);
+      });
+      walk(spec?.content);
+      return codes;
+    };
+    const preAtCursor = () => {
+      const node = window.getSelection()?.anchorNode;
+      const el = node && (node.nodeType === 1 ? node : node.parentElement);
+      const pre = el?.closest?.('pre.ds-code-run')
+        // Klassische Fläche: Code ist ein Baustein ohne Schreibmarke – der ausgewählte zählt.
+        || root.querySelector('.ds-widget-selected pre.ds-code-run');
+      return pre && root.contains(pre) ? pre : null;
+    };
+    const runOne = async (code, label) => {
+      const { m, view: v } = await getView();
+      panel.hidden = false;
+      m.runPython(v.forRun(label), ns, code);
+    };
+    const runCurrent = () => {
+      const pre = preAtCursor() || (lastPre && root.contains(lastPre) ? lastPre : null) || visiblePres()[0];
+      const pres = visiblePres();
+      if (pre) { void runOne(pre.textContent, `Block ${pres.indexOf(pre) + 1}`); return; }
+      const codes = specCodes();
+      if (codes.length) void runOne(codes[0], 'Block 1');
+    };
+    btnRun.addEventListener('mousedown', (e) => e.preventDefault()); // Schreibmarke im Block behalten
+    btnRun.addEventListener('click', runCurrent);
+    panel.querySelector('.py-run-all').addEventListener('click', () => {
+      const pres = visiblePres();
+      const codes = pres.length ? pres.map((p) => p.textContent) : specCodes();
+      codes.forEach((code, i) => void runOne(code, `Block ${i + 1}`));
+    });
+    panel.querySelector('.py-stop').addEventListener('click', async () => (await loadApi()).stopPython());
+    panel.querySelector('.py-reset').addEventListener('click', async () => {
+      (await loadApi()).resetPython(ns);
+      panel.querySelector('.py-status').textContent = 'Variablen gelöscht.';
+    });
+    panel.querySelector('.py-clear').addEventListener('click', () => { out.textContent = ''; out.hidden = true; });
+    root.addEventListener('keydown', (e) => {
+      if (e.key !== 'Enter' || !(e.ctrlKey || e.metaKey)) return;
+      const pre = preAtCursor();
+      if (!pre) return;
+      e.preventDefault();
+      e.stopPropagation();
+      lastPre = pre;
+      runCurrent();
+    }, true);
+    document.addEventListener('selectionchange', () => { const pre = preAtCursor(); if (pre) lastPre = pre; });
+    // Sichtbar, sobald das Dokument einen ausführbaren Block hat.
+    let queued = false;
+    const sync = () => {
+      queued = false;
+      if (!root.isConnected) return;
+      const has = visiblePres().length > 0 || specCodes().length > 0;
+      if (!has && !out.childNodes.length) panel.hidden = true;
+      else if (has) panel.hidden = false;
+    };
+    new MutationObserver(() => { if (!queued) { queued = true; requestAnimationFrame(sync); } })
+      .observe(root, { childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'hidden'] });
+    sync();
+  }
 
   /**
    * ✍️ Mit Stift bearbeiten und 🙈 Beschriftung: nur für mich – wie in der

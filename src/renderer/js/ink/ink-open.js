@@ -131,10 +131,11 @@ export async function openDocumentInk({ mode, mod, up = null, embedModule = null
     if (!res.ok) throw new Error((await res.json().catch(() => ({}))).message || `HTTP ${res.status}`);
     return res.arrayBuffer();
   };
-  // Vom Gastgeber nur die HTML-Apps (eingebettete Quizze): Im Blatt gibt es keine Knöpfe (Stift, PDF)
-  // und keinen Weiter-Knopf. Ohne ihn stand dort „HTML-Apps laufen nur in LearningModules“.
+  // Vom Gastgeber nur HTML-Apps (eingebettete Quizze) und ausführbares Python: Im Blatt gibt es keine
+  // Knöpfe (Stift, PDF) und keinen Weiter-Knopf. Ohne sie stand dort „HTML-Apps laufen nur in LearningModules“
+  // bzw. Python war nur Code zum Lesen.
   const { lmHost } = await import('../lm-host.js');
-  const renderer = new H5pRenderer({ host: { htmlApp: (args) => lmHost.htmlApp(args) } });
+  const renderer = new H5pRenderer({ host: { htmlApp: (args) => lmHost.htmlApp(args), pythonBlocks: (args) => lmHost.pythonBlocks(args) } });
   const paper = {
     landscape: content.spec?.orientation === 'landscape',
     mount(el, { solutions }) {

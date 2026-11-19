@@ -130,6 +130,78 @@ function save(key, original, code) {
   } catch (_) { /* privat */ }
 }
 
+/**
+ * Ausgabe unter einem Block bzw. in der Konsole des Editors: was ein Lauf schreibt, fragt (input())
+ * und meldet. `keep`: frühere Ausgaben stehen lassen (Konsole), sonst leert jeder Lauf.
+ */
+export function outputView({ out, status, btnRun = null, btnStop = null, keep = false, label = '' }) {
+  let askBox = null;
+  const view = {
+    // `this`: der Lauf (forRun) – mit eigener Überschrift, auch wenn mehrere warten.
+    begin() {
+      if (keep) {
+        const title = this.label || label;
+        if (title || out.childNodes.length) {
+          const head = document.createElement('span');
+          head.className = 'py-run-head';
+          head.textContent = `${out.childNodes.length ? '\n' : ''}▶ ${title || 'Lauf'}\n`;
+          out.appendChild(head);
+        }
+        out.hidden = false;
+      } else {
+        out.textContent = '';
+        out.hidden = true;
+      }
+      out.classList.remove('py-failed', 'py-quiet');
+      if (btnRun) btnRun.disabled = true;
+      if (btnStop) btnStop.hidden = false;
+    },
+    status(text) { status.textContent = text; },
+    write(text, err) {
+      out.hidden = false;
+      if (err) {
+        const span = document.createElement('span');
+        span.className = 'py-err';
+        span.textContent = text;
+        out.appendChild(span);
+      } else {
+        out.appendChild(document.createTextNode(text));
+      }
+      if (keep) out.scrollTop = out.scrollHeight;
+    },
+    ask(prompt, answer) {
+      out.hidden = false;
+      askBox = document.createElement('form');
+      askBox.className = 'py-ask';
+      askBox.innerHTML = `<span class="py-ask-prompt">${escapeHtml(prompt || 'Eingabe:')}</span><input type="text" autocomplete="off" aria-label="Eingabe für input()"><button type="submit" class="btn btn-primary btn-sm">↵</button>`;
+      out.after(askBox);
+      const input = askBox.querySelector('input');
+      input.focus();
+      askBox.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const value = input.value;
+        askBox.remove();
+        askBox = null;
+        answer(value);
+      });
+      this.closeAsk = view.closeAsk = () => { if (askBox) { askBox.remove(); askBox = null; answer('\u0000'); } };
+    },
+    done(ok) {
+      if (btnRun) btnRun.disabled = false;
+      if (btnStop) btnStop.hidden = true;
+      out.classList.toggle('py-failed', !ok);
+      if (!keep && out.hidden && ok) { out.hidden = false; out.textContent = '✓ ohne Ausgabe'; out.classList.add('py-quiet'); }
+    },
+  };
+  /** Derselbe Ausgabebereich für einen Lauf mit eigener Überschrift. */
+  view.forRun = (runLabel) => Object.assign(Object.create(view), { label: runLabel });
+  return view;
+}
+
+/** Code laufen lassen (wartet, wenn schon etwas läuft). `view`: siehe outputView. */
+export function runPython(view, ns, code) { run(view, ns, code); }
+export { stop as stopPython, resetNamespace as resetPython };
+
 /** Für lm-host.js (host.pythonBlocks): alle ausführbaren Blöcke in `el` beleben. */
 export function mountPythonBlocks({ el, moduleId }) {
   const ns = `doc:${moduleId || 'ohne-id'}:${Math.random().toString(36).slice(2, 8)}`;
@@ -170,52 +242,7 @@ function mountBlock(pre, ns, storeKey) {
 
   const fit = () => { code.style.height = 'auto'; code.style.height = `${code.scrollHeight + 2}px`; };
   requestAnimationFrame(fit);
-  let askBox = null;
-
-  const block = {
-    begin() {
-      out.textContent = '';
-      out.hidden = true;
-      out.classList.remove('py-failed');
-      btnRun.disabled = true;
-      btnStop.hidden = false;
-    },
-    status(text) { status.textContent = text; },
-    write(text, err) {
-      out.hidden = false;
-      if (err) {
-        const span = document.createElement('span');
-        span.className = 'py-err';
-        span.textContent = text;
-        out.appendChild(span);
-      } else {
-        out.appendChild(document.createTextNode(text));
-      }
-    },
-    ask(prompt, answer) {
-      out.hidden = false;
-      askBox = document.createElement('form');
-      askBox.className = 'py-ask';
-      askBox.innerHTML = `<span class="py-ask-prompt">${escapeHtml(prompt || 'Eingabe:')}</span><input type="text" autocomplete="off" aria-label="Eingabe für input()"><button type="submit" class="btn btn-primary btn-sm">↵</button>`;
-      out.after(askBox);
-      const input = askBox.querySelector('input');
-      input.focus();
-      askBox.addEventListener('submit', (e) => {
-        e.preventDefault();
-        const value = input.value;
-        askBox.remove();
-        askBox = null;
-        answer(value);
-      });
-      block.closeAsk = () => { if (askBox) { askBox.remove(); askBox = null; answer('\u0000'); } };
-    },
-    done(ok) {
-      btnRun.disabled = false;
-      btnStop.hidden = true;
-      out.classList.toggle('py-failed', !ok);
-      if (out.hidden && ok) { out.hidden = false; out.textContent = '✓ ohne Ausgabe'; out.classList.add('py-quiet'); } else out.classList.remove('py-quiet');
-    },
-  };
+  const block = outputView({ out, status, btnRun, btnStop });
 
   btnRun.addEventListener('click', () => run(block, ns, code.value));
   btnStop.addEventListener('click', () => stop());

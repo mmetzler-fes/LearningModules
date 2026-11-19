@@ -6693,3 +6693,8 @@ pre.ds-code-run { position: relative; }
 .ds-surface pre.ds-code-run::before, .ProseMirror pre.ds-code-run::before { content: '🐍 ▶'; position: absolute; top: 2px; right: 6px; font-size: 0.75em; opacity: 0.7; }
 @media print { .py-head, .py-out, .py-ask { display: none; } .py-block { border: none; } }
 .py-block [hidden] { display: none !important; }
+/* 🐍 Konsole im Dokument-Editor (docspec-editor.js mountPythonConsole): unten angeheftet, Fläche bleibt frei */
+.py-console { position: sticky; bottom: 0; z-index: 5; margin-top: 8px; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; background: var(--bg-secondary, #f8fafc); box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.08); }
+.py-console[hidden], .py-console [hidden] { display: none !important; }
+.py-console .py-out { max-height: 14em; }
+.py-out .py-run-head { color: #93c5fd; }

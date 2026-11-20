@@ -70,6 +70,9 @@ function stepsInSavedOrder(steps, savedKeys) {
   return out;
 }
 
+// HTML-Apps sind eigene Anwendungen – sie bleiben in der normalen Ansicht.
+const HTML_APP_STEP = new Set(['htmlApp', 'htmlAppUnit', 'htmlAppTask', 'htmlAppInfo']);
+
 export class QuizView {
   constructor(app) {
     this.app = app;
@@ -89,6 +92,16 @@ export class QuizView {
   }
 
   _bindEvents() {
+    // Weiter/Prüfen aus dem Stift-Editor: Bleibt die Aufgabe stehen (Lernbegleitung zeigt ihre Rückmeldung,
+    // Lernen mit Lösungen), geht der Stift-Editor gleich wieder auf.
+    window.addEventListener('lm-ink-step', () => {
+      const qs = this.app.state.quizState;
+      if (!qs?.inkOnly || Date.now() - (this._inkRenderAt || 0) < 400) return;
+      if (document.querySelector('.ink-overlay') || !this._quizResultArea.classList.contains('hidden')) return;
+      const view = qs.views?.[qs.currentIndex];
+      const mod = qs.modules?.[qs.currentIndex];
+      if (view && mod && view.isConnected) this._openInkForStep(mod, view, qs.currentIndex);
+    });
     if (this._btnQuizNext) {
       this._btnQuizNext.addEventListener('click', () => {
         const { state } = this.app;
@@ -247,7 +260,10 @@ export class QuizView {
    */
   async startLinkRun(data, { onlyModule = null } = {}) {
     const modules = [];
-    const startInk = data.startView === 'ink';
+    // Schüler arbeiten nur im Stift-Editor (docs/arbeitsflaeche.md) – auf allen Geräten.
+    const inkOnly = this.app.state.currentUser?.role === 'student';
+    const startInk = data.startView === 'ink' || inkOnly;
+    try { (await import('../ink/ink-open.js')).setStudentLiveInk(inkOnly); } catch (_) { /* ohne */ }
     for (const topic of data.topics || []) {
       for (const mod of topic.modules || []) {
         // _inkEdit: „✍️ Bearbeiten“ über Dokumenten (Freischaltung der Lehrkraft des Themas).
@@ -298,6 +314,8 @@ export class QuizView {
       revealed: false,
       // Startansicht ✍️: das erste Dokument öffnet sich einmal von selbst im Stift-Editor.
       autoInk: startInk,
+      // Schüler: jede Aufgabe (außer HTML-Apps) im Stift-Editor, bei jedem Schritt.
+      inkOnly,
     };
 
     this._endCompanion();
@@ -551,13 +569,12 @@ export class QuizView {
       this._quizInfo.appendChild(slot);
       // Startansicht ✍️ am Link: einmal von selbst öffnen – „Schließen“ führt zur normalen Ansicht,
       // „✍️ Mit Stift bearbeiten“ wieder zurück.
-      const inkBtn = qs.autoInk && mod.type === 'document' ? actions.querySelector('.ds-ink-btn') : null;
+      const inkBtn = (qs.autoInk || qs.inkOnly) && mod.type === 'document' ? actions.querySelector('.ds-ink-btn') : null;
       if (inkBtn) {
         qs.autoInk = false;
-        setTimeout(() => inkBtn.click(), 50);
+        setTimeout(() => { if (qs.views?.[qs.currentIndex] === view && view.isConnected) inkBtn.click(); }, 50);
       }
     }
-
     this._btnQuizNext.textContent = this._isLearnRun() && !qs.revealed
       ? '💡 Lösung anzeigen'
       : currentIndex < modules.length - 1 ? t('quiz.next') : t('quiz.finish');
@@ -568,7 +585,39 @@ export class QuizView {
       this._btnQuizPrev.textContent = t('quiz.prev');
     }
     if (this._companion) this._companion.onTaskShown();
+    // Schüler: Quizze ohne Dokument ebenso im Stift-Editor – mit dem lebenden Blatt dieses Durchlaufs.
+    this._inkRenderAt = Date.now();
+    this._openInkForStep(mod, view, currentIndex);
   }
+
+  /** Schüler (nur Stift-Editor): die Aufgabe `index` dort öffnen – Dokument über ✍️, sonst ihr lebendes Blatt. */
+  _openInkForStep(mod, view, currentIndex) {
+    const qs = this.app.state.quizState;
+    if (!qs?.inkOnly || HTML_APP_STEP.has(mod.type)) return;
+    if (mod.type === 'document') {
+      // Beim ersten Aufbau übernimmt das der Knopf ✍️ oben; hier nur nach „Prüfen“ (Lernbegleitung).
+      if (Date.now() - (this._inkRenderAt || 0) < 300) return;
+      const btn = view._dsActions?.querySelector('.ds-ink-btn');
+      if (btn) setTimeout(() => btn.click(), 50);
+      return;
+    }
+    {
+      const index = currentIndex;
+      setTimeout(async () => {
+        if (qs.views?.[index] !== view || qs.currentIndex !== index || !view.isConnected) return;
+        const { openDocumentInk } = await import('../ink/ink-open.js');
+        await openDocumentInk({
+          mode: 'student', mod, sourceEl: view, live: true,
+          up: {
+            linkToken: qs.linkToken || null, quickToken: qs.quickToken || null,
+            password: this.app.state.linkSession?.password || '', studentTicket: this.app.state.linkSession?.studentTicket || null,
+          },
+          examMode: this._isExamRun() || !!this._companion, examRun: this._isExamRun(), shuffleKey: qs.shuffleKey || null,
+        }).catch((err) => this.app.showToast(`Stift-Editor: ${err.message}`, 'error'));
+      }, 50);
+    }
+  }
+
 
   /**
    * Zeigt die Musterlösung zur aktuellen Aufgabe. Die richtige Antwort
@@ -602,15 +651,19 @@ export class QuizView {
    */
   _watchFirstCheck(view, mod) {
     const qs = this.app.state.quizState;
-    view.addEventListener('click', (e) => {
+    const watch = (target) => target.addEventListener('click', (e) => {
       const btn = e.target.closest?.('button');
-      if (!btn || !view.contains(btn) || !isCheckButton(btn)) return;
+      if (!btn || !target.contains(btn) || !isCheckButton(btn)) return;
       const slot = btn.closest('form.ds-quiz-slot');
-      const root = slot && view.contains(slot) ? slot : view;
+      const root = slot && target.contains(slot) ? slot : view;
       const m = root === view ? mod : qs?.embedded?.get(slot.dataset.module);
       if (!m || root._firstCheck || !GRADABLE_TYPES.has(m.type)) return;
       try { root._firstCheck = { ...collectAnswer(m, root), firstTry: true }; } catch (_) { /* dann zählt der Stand beim Verlassen */ }
     }, true); // vor der Prüfung der Aufgabe selbst
+    watch(view);
+    // Das Blatt eines Dokuments wandert in den Stift-Editor (Schüler) – dort zählt der erste Versuch ebenso.
+    const sheet = view.querySelector('.docspec')?.parentElement;
+    if (sheet && sheet !== view) watch(sheet);
   }
 
   /** Antwort der aktuellen Aufgabe: beim ersten „Überprüfen“ festgehalten, sonst der Stand jetzt. */

@@ -94,10 +94,24 @@ async function teacherStore(moduleId) {
   };
 }
 
-export async function openDocumentInk({ mode, mod, up = null, embedModule = null, store = null, title = null, sourceEl = null, editable = false, onSaved = null, topicModules = null, examMode = false, examRun = false, shuffleKey = null }) {
+/**
+ * Schüler arbeiten nur im Stift-Editor (docs/arbeitsflaeche.md): Der Durchlauf (quiz.js) schaltet das ein.
+ * Dann übernimmt der Stift-Editor das lebende Blatt aus dem Durchlauf, statt es neu zu zeichnen – Eingaben,
+ * gezogene Wörter, „Prüfen“, Lernbegleitung und Auswertung bleiben dieselben.
+ */
+let liveDefault = false;
+export function setStudentLiveInk(on) { liveDefault = !!on; }
+export const studentLiveInk = () => liveDefault;
+
+export async function openDocumentInk({ mode, mod, up = null, embedModule = null, store = null, title = null, sourceEl = null, editable = false, onSaved = null, topicModules = null, examMode = false, examRun = false, shuffleKey = null, live = liveDefault && mode === 'student' && !!sourceEl }) {
+  const isDoc = (mod?.type || 'document') === 'document';
+  if (live) {
+    const { closeInkEditor } = await import('../../lm-editor/src/ink/ink-editor.js');
+    await closeInkEditor(); // höchstens ein Editor – ein offener gibt sein Blatt erst zurück
+  }
   // Beschriftung der Lehrkraft, die die Schüler unter ihrer eigenen sehen (nur zum Ansehen).
   let teacherLayer = null;
-  if (!store && mode === 'student' && up?.linkToken && up?.studentTicket) {
+  if (!store && mode === 'student' && isDoc && up?.linkToken && up?.studentTicket) {
     const { serverWorkStore } = await import('./work-store.js');
     const opened = await serverWorkStore({ up, moduleId: mod.id });
     if (!opened) return null;
@@ -125,7 +139,7 @@ export async function openDocumentInk({ mode, mod, up = null, embedModule = null
   let lastForms = null;
   let content = mod.content || {};
   if (typeof content === 'string') { try { content = JSON.parse(content); } catch (_) { content = {}; } }
-  const loadPdf = async (variant) => {
+  const loadPdf = !isDoc ? null : async (variant) => {
     const res = mode === 'student'
       ? await fetch(`/api/public/document/${encodeURIComponent(mod.id)}/pdf`, {
         method: 'POST',
@@ -145,14 +159,48 @@ export async function openDocumentInk({ mode, mod, up = null, embedModule = null
   // bzw. Python war nur Code zum Lesen.
   const { lmHost } = await import('../lm-host.js');
   const renderer = new H5pRenderer({ host: { htmlApp: (args) => lmHost.htmlApp(args), pythonBlocks: (args) => lmHost.pythonBlocks(args) } });
+  // Lebendes Blatt: Platzhalter im Durchlauf, ob Lösungen dort verborgen waren, Hülle eines Quiz ohne Dokument.
+  let liveMark = null;
+  let liveHide = false;
+  let liveWrap = null;
+  const { removeInkView } = live ? await import('../../lm-editor/src/ink/ink-view.js') : {};
   const paper = {
     landscape: content.spec?.orientation === 'landscape',
     mount(el, { solutions }) {
-      el.appendChild(renderer.createTypePreview('document', content, {
-        blockIds: true, quizMode: true, examMode, examRun, shuffleKey, noSolutionToggle: true, embedModule, upload: up, moduleId: mod.id, title: mod.title,
-      }));
+      if (live) {
+        if (!liveMark) {
+          removeInkView?.(sourceEl); // die Ansicht der gespeicherten Beschriftung – der Editor zeichnet sie selbst
+          liveMark = document.createComment('ink-live');
+          sourceEl.replaceWith(liveMark);
+          liveHide = !!sourceEl.querySelector('.docspec.ds-hide-solutions');
+        }
+        if (isDoc) el.appendChild(sourceEl);
+        else {
+          // Quiz ohne Dokument: als ein Baustein auf dem Blatt – Striche hängen an ihm, der Pfeil bedient es.
+          if (!liveWrap) {
+            liveWrap = document.createElement('div');
+            liveWrap.className = 'docspec ink-quiz-sheet';
+            liveWrap.innerHTML = '<div class="ds-b ds-quiz-live" data-bid="quiz" data-bpath="0"></div>';
+          }
+          liveWrap.firstElementChild.appendChild(sourceEl);
+          el.appendChild(liveWrap);
+        }
+        sourceEl.querySelector('.docspec')?.classList.toggle('ds-hide-solutions', liveHide && !solutions);
+      } else {
+        el.appendChild(renderer.createTypePreview('document', content, {
+          blockIds: true, quizMode: true, examMode, examRun, shuffleKey, noSolutionToggle: true, embedModule, upload: up, moduleId: mod.id, title: mod.title,
+        }));
+        if (solutions) el.querySelector('.docspec')?.classList.remove('ds-hide-solutions');
+      }
       if (teacherLayer) drawLayer(el, teacherLayer, { className: 'ink-teacher-layer' });
-      if (solutions) el.querySelector('.docspec')?.classList.remove('ds-hide-solutions');
+    },
+    // Lebendes Blatt zurück in den Durchlauf (vor jedem neuen Aufbau und beim Schließen).
+    unmount() {
+      if (!live || !liveMark) return;
+      sourceEl.querySelectorAll('.ink-teacher-layer, [data-inserted]').forEach((x) => x.remove());
+      if (liveHide) sourceEl.querySelector('.docspec')?.classList.add('ds-hide-solutions');
+      liveMark.replaceWith(sourceEl);
+      liveMark = null;
     },
     capture: (el) => (lastForms = captureForms(el)),
     // Gespeicherte Eingaben; ohne sie, was im Durchlauf schon eingetragen war.
@@ -162,7 +210,7 @@ export async function openDocumentInk({ mode, mod, up = null, embedModule = null
   if (mode === 'teacher' && editable && mod.topicId) Object.assign(paper, documentEditing());
   // Schüler im Durchlauf: das Blatt mit Beschriftung als PDF mit der Vorlage der Lehrkraft – auf dem
   // iPad gleich ins Teilen-Menü (GoodNotes), sonst im neuen Fenster (📤 neben 🖨).
-  if (mode === 'student' && (up?.linkToken || up?.quickToken)) {
+  if (mode === 'student' && isDoc && (up?.linkToken || up?.quickToken)) {
     const { canShareFiles } = await import('../share-file.js');
     paper.printWindow = !canShareFiles();
     paper.share = { title: 'An GoodNotes – das Blatt mit deiner Beschriftung als PDF teilen' };
@@ -188,14 +236,28 @@ export async function openDocumentInk({ mode, mod, up = null, embedModule = null
       return res.arrayBuffer();
     };
   }
+  // Lernbegleitung: Die Lerneule sitzt im Stift-Editor links; beim Schließen holt sie die Lernbegleitung zurück.
+  const side = live ? document.getElementById('companionPanel') : null;
+  let navigating = false; // Weiter/Zurück im Durchlauf – nicht ✕
   const onClose = () => {
+    if (side) window.dispatchEvent(new Event('resize'));
+    if (live) {
+      // ✕ (nicht Weiter/Zurück): Schüler gehen nach 🏠 Home – die Ansicht ohne Stift gibt es für sie nicht.
+      if (!navigating) {
+        import('../workspace.js').then(({ workspace }) => {
+          if (workspace.on && String(workspace.key).startsWith('s:') && !workspace.busy) workspace.home();
+        }).catch(() => {});
+      }
+      if (sourceEl && isDoc) void showSavedInk(sourceEl, { mode, up, moduleId: mod.id, landscape: paper.landscape });
+      return;
+    }
     // Lehrkraft: Stift-Editor zu = zurück in der App (Home); der Tab bleibt.
     if (wsTeacher && wsTeacher.active === `d|${mod.id}` && !wsTeacher.busy) wsTeacher.markHome();
     if (sourceEl && lastForms) restoreForms(sourceEl, lastForms);
     // Die neue Beschriftung gleich in der Ansicht zeigen.
     if (sourceEl) void showSavedInk(sourceEl, { mode, up, moduleId: mod.id, landscape: paper.landscape });
   };
-  return openInkEditor({ title: title || mod.title || 'Arbeitsblatt', key: `${mode}:${mod.id}`, loadPdf, solutions: mode === 'teacher' || JSON.stringify(content.spec || {}).includes('"type":"solution"'), laser: mode === 'teacher', paper, store, onClose, actions: runActions() });
+  return openInkEditor({ title: title || mod.title || 'Arbeitsblatt', key: `${mode}:${mod.id}`, loadPdf, solutions: isDoc && (mode === 'teacher' || JSON.stringify(content.spec || {}).includes('"type":"solution"')), laser: mode === 'teacher', paper, store, onClose, actions: runActions(), side });
 
   /**
    * PDF über den Renderer (wie „Drucken“ im Modul-Editor): das Dokument mit
@@ -252,8 +314,11 @@ export async function openDocumentInk({ mode, mod, up = null, embedModule = null
     if (mode !== 'student' || !sourceEl || !next || next.style.display === 'none') return [];
     const prev = document.getElementById('btnQuizPrev');
     const go = (id) => async ({ close }) => {
+      navigating = true;
       await close();
       document.getElementById(id)?.click();
+      // Der Durchlauf öffnet den Stift-Editor wieder, wenn die Aufgabe stehen bleibt (quiz.js).
+      if (live) setTimeout(() => window.dispatchEvent(new Event('lm-ink-step')), 450);
     };
     const out = [];
     if (prev && prev.style.display !== 'none' && !prev.disabled) {

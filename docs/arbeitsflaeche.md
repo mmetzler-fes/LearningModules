@@ -11,6 +11,16 @@ Wie in GoodNotes steht oben eine Leiste mit **🏠 Home** und je offenem Dokumen
 - In der Klassenarbeit gibt es keine Tabs.
 - Über einen Link (`?l=`) öffnet das Blatt direkt, ohne Tabs.
 
+## Schüler arbeiten nur im Stift-Editor
+
+- Jede Aufgabe öffnet im **Stift-Editor** – Dokumente und auch Quizze ohne Dokument (Wahr/Falsch, Lückentext,
+  Zuordnen …), auf allen Geräten. Ausnahme: **HTML-Apps** (eigene Anwendungen) laufen in ihrer Ansicht.
+- Der Stift-Editor übernimmt das **echte Blatt des Durchlaufs**: Eingaben, gezogene Wörter, „Prüfen“, erster Versuch
+  und Auswertung sind dieselben. **Weiter / Quiz beenden** steht oben in der Leiste.
+- **✕** speichert und führt zu **🏠 Home**.
+- **Lernbegleitung:** Die Lerneule sitzt links in einer schmalen Seitenleiste; nach „Prüfen“ bleibt der Stift-Editor offen.
+- Lehrkräfte sehen weiterhin auch die Ansicht ohne Stift (Vorschau, Notizbuch).
+
 ## Lehrkräfte
 
 - Jedes Dokument eines Lernthemas, das im Stift-Editor geöffnet wird, bekommt einen Tab. **Home** ist die App (Notizbuch).

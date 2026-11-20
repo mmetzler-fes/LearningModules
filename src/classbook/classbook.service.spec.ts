@@ -79,6 +79,29 @@ describe('Klassennotizbuch: Anmeldung', () => {
   });
 });
 
+describe('Klassennotizbuch: Anmeldung mit dem Schulkonto', () => {
+  it('ordnet beim ersten Mal über den Namen zu, danach über die feste Kennung – ohne PIN', async () => {
+    const { svc, students } = setup();
+    const first = await svc.ssoLogin('kb', { subject: 'iss|o1', firstName: 'Anna', lastName: 'B' });
+    expect(readTicket(first.ticket, classbookTicketKey('c1'))?.s).toBe('s1');
+    expect(students.rows[0].ssoSubject).toBe('iss|o1');
+    // Name in der Liste geändert: die Verknüpfung hält.
+    students.rows[0].firstName = 'Annabell';
+    const again = await svc.ssoLogin('kb', { subject: 'iss|o1', firstName: 'Ganz', lastName: 'Anders' });
+    expect(again.studentId).toBe('s1');
+  });
+  it('ein schon verknüpfter Eintrag nimmt kein zweites Schulkonto', async () => {
+    const { svc, students } = setup();
+    students.rows[0].ssoSubject = 'iss|o1';
+    await expect(svc.ssoLogin('kb', { subject: 'iss|o2', firstName: 'Anna', lastName: 'B' })).rejects.toThrow(/anderen Schulkonto/);
+  });
+  it('Klasse und Schule zum Klassenbuch-Link', async () => {
+    const { svc } = setup();
+    (svc as any).userRepo.rows[0].schoolId = 'sch1';
+    expect(await svc.ssoContext('kb')).toEqual({ classId: 'c1', schoolId: 'sch1' });
+  });
+});
+
 describe('Klassennotizbuch: 👁 Vorschau der Lehrkraft', () => {
   const start = () => {
     const ctx = setup();

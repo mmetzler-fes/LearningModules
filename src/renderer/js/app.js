@@ -809,6 +809,11 @@ class App {
       await this.loginView.initLoginScreen();
 
       const params = new URLSearchParams(window.location.search);
+      // Zurück von „Mit Microsoft anmelden“ (Lehrkraft); mit ?k= kümmert sich das Klassennotizbuch darum.
+      if ((params.get('sso') || params.get('ssoError')) && !params.get('k')) {
+        await this.loginView.handleSsoReturn(params);
+        return;
+      }
       // Quiz-Arena leiten: ?wh=<Leitungs-Token> – ohne Anmeldung, z. B. am Beamer.
       const hostToken = params.get('wh');
       if (hostToken) {

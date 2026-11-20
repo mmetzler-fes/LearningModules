@@ -204,6 +204,19 @@ export class ClassbookStudent {
       const v = upsertBook(token, { className: info.scopeTitle ? `${info.className} · ${info.scopeTitle}` : info.className, teacher: info.teacher || '' });
       storeBooks({ ...v, current: token });
     }
+    // Zurück von „Mit Microsoft anmelden“: Einlöse-Code gegen den Ausweis tauschen.
+    if (params.get('sso') || params.get('ssoError')) {
+      const code = params.get('sso');
+      const error = params.get('ssoError');
+      history.replaceState(null, '', `${location.pathname}?k=${encodeURIComponent(token)}`);
+      if (error) { this._login(error); return; }
+      const res = await fetch('/api/sso/redeem', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code }) })
+        .then(async (r) => ({ ok: r.ok, body: await r.json().catch(() => ({})) })).catch(() => null);
+      if (!res?.ok || !res.body?.ticket) { this._login(res?.body?.message || 'Die Anmeldung hat nicht geklappt. Bitte mit Name und PIN anmelden.'); return; }
+      saveSession({ token, ticket: res.body.ticket, name: res.body.name, pin: null });
+      if (res.body.deviceTicket && res.body.classId) rememberStudent(res.body.classId, { ticket: res.body.deviceTicket, name: res.body.name });
+      if (await this._home()) return;
+    }
     const s = classbookSession();
     if (s?.token === token && s.ticket && (await this._home())) return;
     // Auf diesem Gerät schon in der Klasse angemeldet (Klassennotizbuch, Klassenlink): ohne Name und PIN weiter.
@@ -248,6 +261,15 @@ export class ClassbookStudent {
       </form>`);
     el.querySelector('#cbToList')?.addEventListener('click', () => this.showList());
     const form = el.querySelector('#cbLoginForm');
+    // Schule mit „Mit Microsoft anmelden“ für Schüler: Knopf über dem Formular, Name und PIN bleiben.
+    void fetch(`/api/sso/classbook/${encodeURIComponent(this.token)}`).then((r) => r.json()).then((o) => {
+      if (!o?.enabled || !form.isConnected) return;
+      const box = document.createElement('div');
+      box.className = 'sso-buttons';
+      box.innerHTML = `<a class="btn btn-primary btn-full sso-btn" href="/api/sso/start?purpose=student&amp;k=${encodeURIComponent(this.token)}">
+        <span class="sso-ms" aria-hidden="true"></span> Mit Microsoft anmelden</a><div class="sso-or"><span>oder mit Name und PIN</span></div>`;
+      form.before(box);
+    }).catch(() => { /* ohne Schulkonto */ });
     // Angemeldete Lehrkraft (Fortbildung): mit ihrem Namen – eingetragen (👩‍🏫) oder in offener Klasse auch ohne PIN.
     void offerTeacherName(el.querySelector('#cbName'), info.classId, () => el.querySelector('#cbPin').focus(), {
       onJoin: async (authToken) => {

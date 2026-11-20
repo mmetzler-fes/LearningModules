@@ -1555,6 +1555,45 @@ export class ClassbookService {
     };
   }
 
+  /** Für die Anmeldung mit dem Schulkonto: Klasse und Schule der Lehrkraft zu einem Klassenbuch-Link. */
+  async ssoContext(token: string): Promise<{ classId: string; schoolId: string | null }> {
+    const { klasse } = await this.byToken(token);
+    const owner = klasse.ownerId ? await this.userRepo.findOne({ where: { id: klasse.ownerId } }) : null;
+    return { classId: klasse.id, schoolId: owner?.schoolId || null };
+  }
+
+  /**
+   * Anmeldung mit dem Schulkonto (docs/sso.md): ohne PIN – das Konto ist der Nachweis. Beim ersten Mal
+   * wird es über den Namen dem Eintrag der Klassenliste zugeordnet (Regeln wie bei der Namenseingabe,
+   * offene Klasse: neuer unbestätigter Eintrag) und danach fest verknüpft.
+   */
+  async ssoLogin(token: string, who: { subject: string; firstName: string; lastName: string }) {
+    const { klasse } = await this.byToken(token);
+    const students = await this.studentRepo.find({ where: { classId: klasse.id } });
+    let student = students.find((s) => s.ssoSubject === who.subject) || null;
+    if (!student) {
+      const typed = `${who.firstName} ${who.lastName}`.trim();
+      if (!typed) throw new BadRequestException('Das Schulkonto nennt keinen Namen. Bitte mit Name und PIN anmelden.');
+      const found = await this.classes.resolveStudent(klasse, typed);
+      if (isTestStudent(found.studentId)) throw new BadRequestException('Bitte mit Name und PIN anmelden.');
+      student = await this.studentRepo.findOne({ where: { id: found.studentId, classId: klasse.id } });
+      if (!student) throw new NotFoundException('Eintrag in der Klassenliste nicht gefunden.');
+      if (student.ssoSubject && student.ssoSubject !== who.subject) {
+        throw new ForbiddenException('Dieser Name ist schon mit einem anderen Schulkonto verknüpft. Bitte mit Name und PIN anmelden und die Lehrkraft informieren.');
+      }
+      await this.studentRepo.update({ id: student.id }, { ssoSubject: who.subject });
+    }
+    const name = `${student.firstName} ${student.lastName}`.trim();
+    return {
+      ticket: issueTicket(classbookTicketKey(klasse.id), student.id, name),
+      deviceTicket: issueDeviceTicket(classbookTicketKey(klasse.id), student.id, name, student.pin),
+      studentId: student.id,
+      classId: klasse.id,
+      name,
+      pending: student.status === 'pending',
+    };
+  }
+
   /**
    * 👩‍🏫 Angemeldete Lehrkraft als Teilnehmer (Fortbildung): Ausweis ohne Name und PIN – ihr Konto
    * ist der Nachweis. Verknüpfter Eintrag oder, in einer offenen Klasse, ein neuer unbestätigter.

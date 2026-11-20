@@ -137,6 +137,22 @@ export class AuthService {
   }
 
   /**
+   * Anmeldung mit dem Schulkonto (docs/sso.md): Das Konto wird über die E-Mail-Adresse gefunden und muss
+   * zur Schule gehören, deren Anmeldung genutzt wurde (oder noch zu keiner). Die Zwei-Faktor-Prüfung
+   * übernimmt dabei der Anbieter (z. B. Microsoft); Nutzungsbedingungen gelten wie sonst.
+   */
+  async ssoLogin(email: string, schoolId: string, ctx: SessionContext = {}) {
+    const e = String(email || '').trim().toLowerCase();
+    if (!e) throw new UnauthorizedException('Das Schulkonto nennt keine E-Mail-Adresse.');
+    const user = await this.userRepo.createQueryBuilder('u').where('LOWER(u.email) = :e', { e }).getOne();
+    if (!user) throw new UnauthorizedException(`Zu ${e} gibt es kein Lehrer-Konto in LearningModules. Bitte zuerst registrieren oder den Schuladmin fragen.`);
+    if (user.active === false) throw new UnauthorizedException('Dieses Konto ist deaktiviert. Bitte an den Admin wenden.');
+    if (user.schoolId && user.schoolId !== schoolId) throw new UnauthorizedException('Dieses Konto gehört zu einer anderen Schule.');
+    await this.schools.autoAssign(user);
+    return this.sessionOrTerms(user, true, {}, ctx);
+  }
+
+  /**
    * Letzter Schritt vor der Sitzung: Hat das Konto der aktuellen Fassung der
    * Nutzungsbedingungen zugestimmt? Wenn nicht, gibt es statt der Sitzung ein
    * kurzlebiges Zwischen-Token und den Text zum Bestätigen.

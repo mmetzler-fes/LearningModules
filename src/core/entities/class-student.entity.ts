@@ -53,4 +53,8 @@ export class ClassStudent extends BaseEntity {
   @Index()
   @Column({ type: 'varchar', nullable: true })
   userId: string | null;
+
+  /** Verknüpftes Schulkonto (Anmeldung mit Microsoft): „<Aussteller>|<oid>“. Gesetzt bei der ersten Anmeldung. */
+  @Column({ type: 'varchar', nullable: true })
+  ssoSubject: string | null;
 }

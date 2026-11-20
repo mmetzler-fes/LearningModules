@@ -176,6 +176,8 @@
             <button type="submit" class="btn btn-primary btn-full">🔑 Anmelden</button>
             <p id="adminLoginError" class="login-error hidden">Falsche Anmeldedaten.</p>
           </form>
+          <!-- Anmeldung mit dem Schulkonto (docs/sso.md) – nur, wenn eine Schule sie eingeschaltet hat -->
+          <div id="ssoTeacherButtons" class="sso-buttons hidden"></div>
           <!-- Zweiter Schritt bei aktiver Zwei-Faktor-Anmeldung -->
           <form id="twoFactorLoginForm" class="login-form hidden">
             <p class="hint">🔐 Bitte den 6-stelligen Code aus deiner Authenticator-App eingeben.</p>
@@ -1076,6 +1078,10 @@
               <button class="btn btn-primary btn-sm" id="btnMySchoolNewTeacher">➕ Lehrkraft anlegen</button>
             </div>
             <div id="mySchoolTeachers"></div>
+          </div>
+          <div class="settings-group" style="margin-top:24px;">
+            <h3>🔐 Anmeldung mit Microsoft (Schulkonto) <button type="button" class="help-hint" data-help="sso" title="Hilfe" aria-label="Hilfe">?</button></h3>
+            <div id="mySchoolSso" class="sso-admin"><p class="hint">Wird geladen …</p></div>
           </div>
           <div class="settings-group" style="margin-top:24px;">
             <h3>☁️ Nextcloud der Schule für Bilder <button type="button" class="help-hint" data-help="nextcloud#nextcloud-der-schule" title="Hilfe" aria-label="Hilfe">?</button></h3>

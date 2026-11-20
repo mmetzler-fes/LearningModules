@@ -739,6 +739,36 @@ export class LoginView {
     try { installed = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true; } catch (_) { /* Browser */ }
     const remember = document.getElementById('loginRemember');
     if (installed && remember) remember.checked = true;
+    void this._offerSso();
+  }
+
+  /** „🔐 Mit Microsoft anmelden“ – je Schule, die die Anmeldung mit dem Schulkonto eingeschaltet hat. */
+  async _offerSso() {
+    const box = document.getElementById('ssoTeacherButtons');
+    if (!box) return;
+    const res = await fetch('/api/sso/options').then((r) => r.json()).catch(() => null);
+    const schools = Array.isArray(res?.schools) ? res.schools : [];
+    box.classList.toggle('hidden', !schools.length);
+    box.innerHTML = schools.length ? `<div class="sso-or"><span>oder</span></div>${schools.map((sc) => `
+      <a class="btn btn-secondary btn-full sso-btn" href="/api/sso/start?purpose=teacher&amp;school=${encodeURIComponent(sc.schoolId)}">
+        <span class="sso-ms" aria-hidden="true"></span> Mit Microsoft anmelden${schools.length > 1 ? ` – ${escapeHtml(sc.name)}` : ''}</a>`).join('')}` : '';
+  }
+
+  /** Zurück von der Anmeldung mit dem Schulkonto (?sso=<Code> bzw. ?ssoError=…), ohne Klassenbuch. */
+  async handleSsoReturn(params) {
+    const code = params.get('sso');
+    const error = params.get('ssoError');
+    history.replaceState(null, '', location.pathname);
+    this._studentSec?.classList.add('hidden');
+    this._adminSec?.classList.remove('hidden');
+    if (error) {
+      this._adminLoginErr.textContent = error;
+      this._adminLoginErr.classList.remove('hidden');
+      return;
+    }
+    const res = await fetch('/api/sso/redeem', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code }) })
+      .then((r) => r.json()).catch(() => null);
+    await this._finishLogin(res, this._adminLoginErr);
   }
 
   showLoginScreen() {

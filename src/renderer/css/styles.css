@@ -6731,3 +6731,14 @@ pre.ds-code-run { position: relative; }
 .aib-past { margin-top: 8px; }
 .aib-past > summary { cursor: pointer; font-weight: 600; font-size: 0.95rem; padding: 4px 0; color: var(--text-secondary); }
 .aib-past[open] > summary { margin-bottom: 6px; }
+
+/* Anmeldung mit dem Schulkonto (docs/sso.md) */
+.sso-buttons { margin: 14px 0; display: flex; flex-direction: column; gap: 8px; }
+.sso-btn { display: flex; align-items: center; justify-content: center; gap: 10px; text-decoration: none; }
+.sso-ms { width: 18px; height: 18px; flex: none; background:
+  linear-gradient(#f25022, #f25022) 0 0 / 8px 8px no-repeat, linear-gradient(#7fba00, #7fba00) 10px 0 / 8px 8px no-repeat,
+  linear-gradient(#00a4ef, #00a4ef) 0 10px / 8px 8px no-repeat, linear-gradient(#ffb900, #ffb900) 10px 10px / 8px 8px no-repeat; }
+.sso-or { display: flex; align-items: center; gap: 10px; color: var(--text-secondary); font-size: .85rem; }
+.sso-or::before, .sso-or::after { content: ''; flex: 1; border-top: 1px solid var(--border); }
+.sso-admin .form-group { margin-bottom: 10px; }
+.sso-admin code.sso-uri { user-select: all; word-break: break-all; }

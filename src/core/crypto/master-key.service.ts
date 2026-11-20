@@ -40,7 +40,7 @@ interface StoredKey {
   sealed: string;
 }
 
-export type EncryptedKind = 'topic' | 'backup' | 'totp';
+export type EncryptedKind = 'topic' | 'backup' | 'totp' | 'sso';
 
 @Injectable()
 export class MasterKeyService implements OnModuleInit {

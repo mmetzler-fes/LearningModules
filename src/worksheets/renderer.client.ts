@@ -244,7 +244,7 @@ export class WorksheetRendererClient {
           'Content-Type': 'application/json',
           ...(process.env.WORKSHEET_RENDERER_TOKEN ? { Authorization: `Bearer ${process.env.WORKSHEET_RENDERER_TOKEN}` } : {}),
         },
-        body: JSON.stringify(job),
+        body: JSON.stringify(withoutInteractiveCode(job)),
         signal: AbortSignal.timeout(RENDER_TIMEOUT_MS),
       });
     } catch (err: any) {
@@ -266,4 +266,20 @@ export class WorksheetRendererClient {
     }
     return { files, warnings: Array.isArray(body.warnings) ? body.warnings : [] };
   }
+}
+
+/**
+ * 📊 Interaktive Darstellungen (Code-Block mit view: "result") zeigen am Bildschirm nur ihr Ergebnis –
+ * auf Papier wäre der versteckte Code fehl am Platz. Stattdessen ein kurzer Hinweis.
+ */
+export function withoutInteractiveCode<T>(value: T): T {
+  if (Array.isArray(value)) return value.map((v) => withoutInteractiveCode(v)) as unknown as T;
+  if (!value || typeof value !== 'object') return value;
+  const obj = value as Record<string, any>;
+  if (obj.type === 'code' && obj.view === 'result') {
+    return { type: 'note', text: 'Interaktive Darstellung – am Bildschirm im Notizbuch öffnen.' } as unknown as T;
+  }
+  const out: Record<string, any> = {};
+  for (const [k, v] of Object.entries(obj)) out[k] = v && typeof v === 'object' ? withoutInteractiveCode(v) : v;
+  return out as T;
 }

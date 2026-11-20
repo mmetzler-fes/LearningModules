@@ -5,9 +5,13 @@
  * Variablen, wie in einem Jupyter-Notebook. input() wartet synchron auf die Antwort: über eine
  * Anfrage, die der Service Worker (py-sw.js) erst beantwortet, wenn die Seite die Eingabe schickt.
  *
- * Nachrichten herein: { type: 'init', base, inputUrl } · { type: 'run', id, ns, code } · { type: 'reset', ns }
+ * Nachrichten herein: { type: 'init', base, inputUrl } · { type: 'run', id, ns, code, widgets } · { type: 'reset', ns }
  * hinaus: { type: 'loading' } · { type: 'out', id, text, err } · { type: 'input', id, key, prompt }
- *         · { type: 'done', id, ok, error }
+ *         · { type: 'widget', id, kind, name, spec } · { type: 'done', id, ok, error }
+ *
+ * Interaktive Darstellungen: regler(), auswahl() und schalter() melden der Seite ihr Bedienelement
+ * (widget) und geben den aktuellen Wert zurück – den schickt die Seite bei jedem Lauf mit (widgets).
+ * Dazu das Modul `lm` mit zeiger() für Zeigerdiagramme.
  */
 let base = '/vendor/pyodide/';
 let inputUrl = null;
@@ -19,6 +23,51 @@ let inputCount = 0;
 let lmRun = null;
 let prepareMatplotlib = null;
 let matplotlibReady = false;
+let setWidgetValues = null;
+
+/** Hilfsmodul für Darstellungen: `from lm import zeiger` (liegt im Dateisystem von Pyodide). */
+const LM_MODULE = `
+"""Hilfen für Darstellungen in LearningModules."""
+import cmath as _cmath
+
+
+def zeiger(z, start=0, name='', farbe=None, ax=None, breite=0.012, seite=1, **kw):
+    \"\"\"Zeichnet einen Zeiger (komplexe Zahl z) ab start (komplex), beschriftet mit name.
+
+    seite=1: Beschriftung links der Pfeilrichtung, seite=-1: rechts davon.
+    Gibt das Ende des Zeigers zurück – so lassen sich Zeiger aneinanderhängen:
+        e = zeiger(U_R, name='$U_R$'); zeiger(U_L, start=e, name='$U_L$')
+    \"\"\"
+    import matplotlib.pyplot as plt
+    ax = ax or plt.gca()
+    if ax.get_aspect() == 'auto' and not getattr(ax, '_lm_zeiger', False):
+        ax.set_aspect('equal', adjustable='box')   # Winkel stimmen nur bei gleichem Maßstab
+    ax._lm_zeiger = True
+    z, start = complex(z), complex(start)
+    pfeil = ax.quiver(start.real, start.imag, z.real, z.imag, angles='xy', scale_units='xy', scale=1,
+                      color=farbe, width=breite, **kw)
+    ende = start + z
+    if name and abs(z) > 0:
+        mitte = start + z * 0.5
+        quer = z / abs(z) * 1j * (1 if seite >= 0 else -1)
+        ax.annotate(name, (mitte.real, mitte.imag), xytext=(quer.real * 13, quer.imag * 13),
+                    textcoords='offset points', ha='center', va='center', fontsize=12,
+                    color=farbe if farbe is not None else pfeil.get_facecolor()[0])
+    # Grenzen mitwachsen lassen (quiver tut das nicht von selbst)
+    ax.update_datalim([(start.real, start.imag), (ende.real, ende.imag)])
+    ax.autoscale_view()
+    return ende
+
+
+def polar(betrag, winkel_grad):
+    """Komplexe Zahl aus Betrag und Winkel in Grad."""
+    return _cmath.rect(betrag, _cmath.pi * winkel_grad / 180)
+
+
+def grad(z):
+    """Winkel einer komplexen Zahl in Grad."""
+    return _cmath.phase(complex(z)) * 180 / _cmath.pi
+`;
 
 function boot() {
   if (pyodide) return Promise.resolve(pyodide);
@@ -41,6 +90,11 @@ function boot() {
       py.setStderr(writer(true));
       self.lmInput = (prompt) => readInput(String(prompt ?? ''));
       self.lmImage = (png) => postMessage({ type: 'image', id: current, png });
+      self.lmWidget = (kind, name, spec) => postMessage({ type: 'widget', id: current, kind, name, spec: JSON.parse(spec) });
+      try {
+        py.FS.mkdirTree('/home/pyodide');
+        py.FS.writeFile('/home/pyodide/lm.py', LM_MODULE);
+      } catch (_) { /* ohne Hilfsmodul geht der Rest trotzdem */ }
       const helpers = py.globals.get('dict')();
       py.runPython(`
 import builtins, js, sys
@@ -77,6 +131,67 @@ def _lm_flush_figures():
 def _lm_show(*args, **kwargs):
     _lm_flush_figures()
 
+# Bedienelemente für interaktive Darstellungen – Werte schickt die Seite bei jedem Lauf mit.
+import json as _json, math as _math
+_lm_values = {}
+def _lm_set_values(text):
+    global _lm_values
+    try:
+        _lm_values = _json.loads(text or '{}')
+    except Exception:
+        _lm_values = {}
+
+def regler(name, von, bis, start=None, schritt=None, einheit='', log=False):
+    """Schieberegler: gibt den eingestellten Wert zurück (beim ersten Lauf start)."""
+    name = str(name)
+    von, bis = float(von), float(bis)
+    if bis < von:
+        von, bis = bis, von
+    if log and von <= 0:
+        raise ValueError('regler(..., log=True) braucht einen Anfangswert größer als 0.')
+    start = von if start is None else float(start)
+    ganz = all(float(x).is_integer() for x in (von, bis, start)) and (schritt is None or float(schritt).is_integer()) and not log
+    if schritt is None:
+        schritt = 1 if ganz and bis - von <= 200 else (bis - von) / 100
+    wert = _lm_values.get(name, start)
+    try:
+        wert = min(bis, max(von, float(wert)))
+    except (TypeError, ValueError):
+        wert = start
+    js.lmWidget('regler', name, _json.dumps({'min': von, 'max': bis, 'step': float(schritt), 'value': wert,
+                                              'unit': str(einheit or ''), 'log': bool(log), 'start': start}))
+    return int(round(wert)) if ganz and float(schritt).is_integer() else wert
+
+def auswahl(name, optionen, start=None):
+    """Auswahlliste: optionen als Liste oder {Beschriftung: Wert}; gibt den gewählten Wert zurück."""
+    name = str(name)
+    if isinstance(optionen, dict):
+        texte, werte = [str(k) for k in optionen.keys()], list(optionen.values())
+    else:
+        werte = list(optionen)
+        texte = [str(w) for w in werte]
+    if not werte:
+        raise ValueError('auswahl() braucht mindestens eine Option.')
+    erst = 0
+    if start is not None:
+        erst = werte.index(start) if start in werte else (texte.index(str(start)) if str(start) in texte else 0)
+    nr = _lm_values.get(name, erst)
+    nr = nr if isinstance(nr, int) and 0 <= nr < len(werte) else erst
+    js.lmWidget('auswahl', name, _json.dumps({'options': texte, 'value': nr, 'start': erst}))
+    return werte[nr]
+
+def schalter(name, start=False):
+    """Kästchen zum An-/Ausschalten: gibt True oder False zurück."""
+    name = str(name)
+    wert = bool(_lm_values.get(name, bool(start)))
+    js.lmWidget('schalter', name, _json.dumps({'value': wert, 'start': bool(start)}))
+    return wert
+
+builtins.regler, builtins.auswahl, builtins.schalter = regler, auswahl, schalter
+builtins.slider, builtins.dropdown, builtins.checkbox = regler, auswahl, schalter
+if '/home/pyodide' not in sys.path:
+    sys.path.insert(0, '/home/pyodide')
+
 def _lm_prepare_matplotlib():
     import matplotlib
     matplotlib.use('Agg')
@@ -85,6 +200,7 @@ def _lm_prepare_matplotlib():
 `, { globals: helpers, filename: '<lm-helfer>' });
       lmRun = helpers.get('_lm_run');
       prepareMatplotlib = helpers.get('_lm_prepare_matplotlib');
+      setWidgetValues = helpers.get('_lm_set_values');
       pyodide = py;
       return py;
     })();
@@ -149,6 +265,7 @@ onmessage = async (e) => {
       prepareMatplotlib();
       matplotlibReady = true;
     }
+    setWidgetValues(JSON.stringify(m.widgets || {}));
     await lmRun(m.code, ns);
     postMessage({ type: 'done', id: m.id, ok: true });
   } catch (err) {

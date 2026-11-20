@@ -6,6 +6,11 @@
 // damit eine Endlosschleife die Seite nicht einfriert – ⏹ beendet ihn. Alle Blöcke eines Dokuments
 // teilen sich ihre Variablen. Was ein Schüler am Code ändert, merkt sich das Gerät (localStorage);
 // ändert die Lehrkraft den Code, gilt wieder ihrer.
+//
+// 📊 Interaktive Darstellung (view: 'result', pre[data-view="result"]): Der Code ist versteckt, der Block
+// läuft von selbst, sobald er sichtbar wird (auch erst beim Aufdecken einer Lösung), und zeigt nur das
+// Ergebnis. regler(), auswahl() und schalter() im Code werden zu Bedienelementen über dem Bild – jede
+// Änderung lässt den Block neu laufen.
 
 import { escapeHtml } from '../utils.js';
 
@@ -68,6 +73,7 @@ function onWorkerMessage(m) {
   if (m.type === 'out') { loaded = true; r.block.status(''); r.block.write(m.text, m.err); return; }
   if (m.type === 'status') { loaded = true; r.block.status(m.text); return; }
   if (m.type === 'image') { r.block.image(m.png); return; }
+  if (m.type === 'widget') { r.block.widget?.(m.kind, m.name, m.spec || {}); return; }
   if (m.type === 'input') { loaded = true; r.block.status(''); r.block.ask(m.prompt, (value) => answerInput(m.key, value)); return; }
   if (m.type === 'done') { loaded = true; finish(m.ok, m.error); }
 }
@@ -93,14 +99,14 @@ async function start(job) {
   job.block.begin();
   try {
     const w = await ensureWorker();
-    w.postMessage({ type: 'run', id: job.id, ns: job.ns, code: job.code });
+    w.postMessage({ type: 'run', id: job.id, ns: job.ns, code: job.code, widgets: job.widgets || {} });
   } catch (err) {
     finish(false, `Python ließ sich nicht starten: ${err.message}`);
   }
 }
 
-function run(block, ns, code) {
-  const job = { id: ++runSeq, block, ns, code };
+function run(block, ns, code, widgets = null) {
+  const job = { id: ++runSeq, block, ns, code, widgets };
   if (running) { queue.push(job); block.status('wartet …'); return; }
   void start(job);
 }
@@ -136,8 +142,11 @@ function save(key, original, code) {
  * Ausgabe unter einem Block bzw. in der Konsole des Editors: was ein Lauf schreibt, fragt (input())
  * und meldet. `keep`: frühere Ausgaben stehen lassen (Konsole), sonst leert jeder Lauf.
  */
-export function outputView({ out, status, btnRun = null, btnStop = null, keep = false, label = '' }) {
+export function outputView({ out, status, btnRun = null, btnStop = null, keep = false, swap = false, label = '' }) {
   let askBox = null;
+  // swap: alte Ausgabe bleibt stehen, bis die neue kommt (kein Flackern beim Ziehen am Regler).
+  let stale = false;
+  const fresh = () => { if (stale) { stale = false; out.textContent = ''; out.classList.remove('py-failed', 'py-quiet'); } };
   const view = {
     // `this`: der Lauf (forRun) – mit eigener Überschrift, auch wenn mehrere warten.
     begin() {
@@ -150,16 +159,19 @@ export function outputView({ out, status, btnRun = null, btnStop = null, keep = 
           out.appendChild(head);
         }
         out.hidden = false;
+      } else if (swap) {
+        stale = true;
       } else {
         out.textContent = '';
         out.hidden = true;
       }
-      out.classList.remove('py-failed', 'py-quiet');
+      if (!swap) out.classList.remove('py-failed', 'py-quiet');
       if (btnRun) btnRun.disabled = true;
       if (btnStop) btnStop.hidden = false;
     },
     status(text) { status.textContent = text; },
     write(text, err) {
+      fresh();
       out.hidden = false;
       if (err) {
         const span = document.createElement('span');
@@ -173,6 +185,7 @@ export function outputView({ out, status, btnRun = null, btnStop = null, keep = 
     },
     /** Diagramm (matplotlib, plt.show() bzw. am Ende des Laufs) als Bild in der Ausgabe. */
     image(png) {
+      fresh();
       out.hidden = false;
       const img = document.createElement('img');
       img.className = 'py-img';
@@ -198,6 +211,7 @@ export function outputView({ out, status, btnRun = null, btnStop = null, keep = 
       this.closeAsk = view.closeAsk = () => { if (askBox) { askBox.remove(); askBox = null; answer('\u0000'); } };
     },
     done(ok) {
+      fresh();
       if (btnRun) btnRun.disabled = false;
       if (btnStop) btnStop.hidden = true;
       out.classList.toggle('py-failed', !ok);
@@ -210,13 +224,17 @@ export function outputView({ out, status, btnRun = null, btnStop = null, keep = 
 }
 
 /** Code laufen lassen (wartet, wenn schon etwas läuft). `view`: siehe outputView. */
-export function runPython(view, ns, code) { run(view, ns, code); }
+export function runPython(view, ns, code, widgets = null) { run(view, ns, code, widgets); }
 export { stop as stopPython, resetNamespace as resetPython };
 
 /** Für lm-host.js (host.pythonBlocks): alle ausführbaren Blöcke in `el` beleben. */
 export function mountPythonBlocks({ el, moduleId }) {
   const ns = `doc:${moduleId || 'ohne-id'}:${Math.random().toString(36).slice(2, 8)}`;
-  el.querySelectorAll('pre.ds-code-run').forEach((pre, i) => mountBlock(pre, ns, moduleId ? `${moduleId}:${i}` : null));
+  el.querySelectorAll('pre.ds-code-run').forEach((pre, i) => {
+    const key = moduleId ? `${moduleId}:${i}` : null;
+    if (pre.dataset.view === 'result') mountResultBlock(pre, ns, key);
+    else mountBlock(pre, ns, key);
+  });
 }
 
 function mountBlock(pre, ns, storeKey) {
@@ -315,4 +333,222 @@ function mountBlock(pre, ns, storeKey) {
       code.dispatchEvent(new Event('input'));
     }
   });
+}
+
+/** Zahl zum Anzeigen am Regler: so viele Nachkommastellen wie der Schritt, deutsches Komma. */
+function formatValue(value, step) {
+  const digits = step > 0 && step < 1 ? Math.min(6, Math.ceil(-Math.log10(step) - 1e-9)) : 0;
+  const abs = Math.abs(value);
+  if (abs !== 0 && (abs >= 1e6 || abs < 1e-3)) return value.toExponential(2).replace('.', ',');
+  return value.toLocaleString('de-DE', { minimumFractionDigits: 0, maximumFractionDigits: digits });
+}
+
+/** Logarithmischer Regler: Stellung 0…LOG_STEPS ↔ Wert zwischen min und max. */
+const LOG_STEPS = 1000;
+const toLogPos = (v, s) => Math.round((Math.log(v / s.min) / Math.log(s.max / s.min)) * LOG_STEPS);
+const fromLogPos = (p, s) => {
+  const v = s.min * (s.max / s.min) ** (p / LOG_STEPS);
+  const mag = 10 ** (Math.floor(Math.log10(v)) - 2); // drei gültige Stellen
+  return Math.round(v / mag) * mag;
+};
+
+/**
+ * 📊 Interaktive Darstellung: Code versteckt, läuft beim Sichtbarwerden von selbst; regler()/auswahl()/
+ * schalter() werden Bedienelemente. „‹/› Code“ klappt den Code auf (ändern und ▶ wie im normalen Block).
+ */
+function mountResultBlock(pre, ns, storeKey) {
+  if (pre.dataset.pyMounted) return;
+  pre.dataset.pyMounted = '1';
+  const original = pre.textContent.replace(/\n$/, '');
+  const saved = storeKey ? load(storeKey) : null;
+  const startCode = saved && saved.base === original ? saved.code : original;
+
+  const box = document.createElement('div');
+  box.className = 'py-block py-result';
+  box.innerHTML = `
+    <div class="py-head">
+      <span class="py-label">📊 Interaktiv</span>
+      <span class="py-status hint" aria-live="polite"></span>
+      <span class="py-spacer"></span>
+      <button type="button" class="py-mini py-reset-values" hidden title="Alle Regler auf den Anfangswert">↺ Anfangswerte</button>
+      <button type="button" class="py-mini py-toggle-code" title="Den Python-Code dahinter zeigen" aria-pressed="false">‹/› Code</button>
+      <button type="button" class="py-mini py-grow" title="Groß über die ganze Seite (Esc: zurück)" aria-pressed="false">⤢</button>
+    </div>
+    <div class="py-code-area" hidden>
+      <textarea class="py-code" spellcheck="false" autocapitalize="off" autocomplete="off" aria-label="Python-Code"></textarea>
+      <div class="py-code-bar">
+        <button type="button" class="btn btn-primary btn-sm py-run" title="Ausführen (Strg+Enter)">▶ Ausführen</button>
+        <button type="button" class="btn btn-secondary btn-sm py-stop" hidden title="Anhalten">⏹ Stopp</button>
+        <button type="button" class="py-mini py-restore" ${startCode === original ? 'hidden' : ''} title="Den ursprünglichen Code der Lehrkraft wiederherstellen">↺ Ursprünglich</button>
+      </div>
+    </div>
+    <div class="py-controls" hidden></div>
+    <pre class="py-out py-result-out"><span class="py-placeholder">📊 Die Darstellung erscheint, sobald Python geladen ist …</span></pre>`;
+  const $ = (s) => box.querySelector(s);
+  const code = $('.py-code');
+  code.value = startCode;
+  const out = $('.py-out');
+  const status = $('.py-status');
+  const controls = $('.py-controls');
+  const btnRun = $('.py-run');
+  const btnStop = $('.py-stop');
+  const btnRestore = $('.py-restore');
+  const btnResetValues = $('.py-reset-values');
+  pre.replaceWith(box);
+
+  /** Werte der Bedienelemente (Name → Zahl/Index/bool) und ihre Elemente. */
+  const values = {};
+  const starts = {};
+  const elements = new Map();
+  let seen = new Set();
+  let dirty = false;
+  let busy = false;
+
+  const base = outputView({ out, status, btnRun, btnStop, swap: true });
+  const view = Object.assign(Object.create(base), {
+    begin() { busy = true; seen = new Set(); base.begin(); },
+    widget(kind, name, spec) {
+      seen.add(name);
+      ensureControl(kind, name, spec);
+    },
+    done(ok) {
+      base.done(ok);
+      busy = false;
+      if (ok) {
+        // Bedienelemente, die der Code nicht mehr anlegt, verschwinden.
+        for (const [name, el] of elements) if (!seen.has(name)) { el.remove(); elements.delete(name); delete values[name]; }
+      }
+      controls.hidden = elements.size === 0;
+      btnResetValues.hidden = elements.size === 0;
+      if (dirty) { dirty = false; go(); }
+    },
+  });
+  const go = () => {
+    if (busy) { dirty = true; return; }
+    busy = true;
+    run(view, ns, code.value, { ...values });
+  };
+
+  function ensureControl(kind, name, spec) {
+    starts[name] = spec.start;
+    let el = elements.get(name);
+    if (el && el.dataset.kind === kind && el.dataset.spec === JSON.stringify({ ...spec, value: null })) return;
+    const fresh = document.createElement('label');
+    fresh.className = `py-ctl py-ctl-${kind}`;
+    fresh.dataset.kind = kind;
+    fresh.dataset.spec = JSON.stringify({ ...spec, value: null });
+    values[name] = spec.value;
+    if (kind === 'regler') {
+      const log = !!spec.log;
+      fresh.innerHTML = `<span class="py-ctl-name"></span>
+        <input type="range" min="${log ? 0 : spec.min}" max="${log ? LOG_STEPS : spec.max}" step="${log ? 1 : spec.step}">
+        <output class="py-ctl-value"></output>`;
+      const input = fresh.querySelector('input');
+      const shown = fresh.querySelector('output');
+      input.value = String(log ? toLogPos(spec.value, spec) : spec.value);
+      const show = () => { shown.textContent = `${formatValue(values[name], log ? values[name] / 100 : spec.step)}${spec.unit ? ` ${spec.unit}` : ''}`; };
+      show();
+      input.addEventListener('input', () => {
+        values[name] = log ? fromLogPos(Number(input.value), spec) : Number(input.value);
+        show();
+        go();
+      });
+      fresh.resetTo = (v) => { values[name] = v; input.value = String(log ? toLogPos(v, spec) : v); show(); };
+    } else if (kind === 'auswahl') {
+      fresh.innerHTML = `<span class="py-ctl-name"></span><select></select>`;
+      const select = fresh.querySelector('select');
+      (spec.options || []).forEach((t, i) => { const o = document.createElement('option'); o.value = String(i); o.textContent = t; select.appendChild(o); });
+      select.value = String(spec.value);
+      select.addEventListener('change', () => { values[name] = Number(select.value); go(); });
+      fresh.resetTo = (v) => { values[name] = v; select.value = String(v); };
+    } else {
+      fresh.innerHTML = `<input type="checkbox"><span class="py-ctl-name"></span>`;
+      const input = fresh.querySelector('input');
+      input.checked = !!spec.value;
+      input.addEventListener('change', () => { values[name] = input.checked; go(); });
+      fresh.resetTo = (v) => { values[name] = v; input.checked = !!v; };
+    }
+    fresh.querySelector('.py-ctl-name').textContent = name;
+    if (el) el.replaceWith(fresh);
+    else controls.appendChild(fresh);
+    elements.set(name, fresh);
+    controls.hidden = false;
+  }
+
+  btnResetValues.addEventListener('click', () => {
+    for (const [name, el] of elements) el.resetTo?.(starts[name]);
+    go();
+  });
+
+  // Code auf-/zuklappen
+  const codeArea = $('.py-code-area');
+  const btnCode = $('.py-toggle-code');
+  const fit = () => {
+    if (box.classList.contains('py-full')) return;
+    code.style.height = 'auto';
+    code.style.height = `${code.scrollHeight + 2}px`;
+  };
+  btnCode.addEventListener('click', () => {
+    codeArea.hidden = !codeArea.hidden;
+    btnCode.setAttribute('aria-pressed', String(!codeArea.hidden));
+    btnCode.textContent = codeArea.hidden ? '‹/› Code' : '‹/› Code ausblenden';
+    if (!codeArea.hidden) requestAnimationFrame(fit);
+  });
+  btnRun.addEventListener('click', () => go());
+  btnStop.addEventListener('click', () => { dirty = false; stop(); busy = false; });
+  btnRestore.addEventListener('click', () => {
+    code.value = original;
+    if (storeKey) save(storeKey, original, original);
+    btnRestore.hidden = true;
+    fit();
+    go();
+  });
+  code.addEventListener('input', () => {
+    fit();
+    if (storeKey) save(storeKey, original, code.value);
+    btnRestore.hidden = code.value === original;
+  });
+  code.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); go(); return; }
+    if (e.key === 'Tab' && !e.shiftKey) {
+      e.preventDefault();
+      code.setRangeText('    ', code.selectionStart, code.selectionEnd, 'end');
+      code.dispatchEvent(new Event('input'));
+    }
+  });
+
+  // ⤢ Groß
+  const btnGrow = $('.py-grow');
+  let home = null;
+  const onKey = (e) => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); setLarge(false); } };
+  const setLarge = (on) => {
+    if (on === !!home) return;
+    if (on) {
+      home = document.createComment('py-block');
+      box.replaceWith(home);
+      document.body.appendChild(box);
+      box.classList.add('py-full');
+      document.addEventListener('keydown', onKey, true);
+    } else {
+      box.classList.remove('py-full');
+      home.replaceWith(box);
+      home = null;
+      document.removeEventListener('keydown', onKey, true);
+    }
+    btnGrow.textContent = on ? '⤡' : '⤢';
+    btnGrow.setAttribute('aria-pressed', String(on));
+  };
+  btnGrow.addEventListener('click', () => setLarge(!home));
+
+  // Von selbst starten, sobald der Block zu sehen ist (eine versteckte Lösung erst beim Aufdecken).
+  let started = false;
+  const begin = () => { if (!started) { started = true; go(); } };
+  if ('IntersectionObserver' in window) {
+    const io = new IntersectionObserver((entries) => {
+      if (entries.some((e) => e.isIntersecting)) { io.disconnect(); begin(); }
+    }, { rootMargin: '200px' });
+    io.observe(box);
+  } else {
+    begin();
+  }
 }

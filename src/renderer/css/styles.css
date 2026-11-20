@@ -6706,6 +6706,28 @@ pre.ds-code-run { position: relative; }
 .py-block.py-full .py-out { flex: 1 1 45%; max-height: none; min-height: 4em; font-size: 0.95rem; }
 .py-block.py-full .py-out[hidden] { display: none; }
 @media (max-width: 560px) { .py-block.py-full { inset: 0; border-radius: 0; } }
+/* 📊 Interaktive Darstellung (view: result): Code versteckt, Regler über dem Bild */
+.py-result .py-label { color: var(--accent); }
+.py-result .py-code-area { border-bottom: 1px solid var(--border); }
+.py-code-bar { display: flex; gap: 6px; align-items: center; padding: 4px 8px; border-top: 1px solid var(--border); }
+.py-controls { display: flex; flex-wrap: wrap; gap: 6px 18px; padding: 8px 12px; background: #fff; color: #111827; }
+.py-result .py-head { color: var(--text-primary); }
+.py-ctl { display: flex; align-items: center; gap: 8px; font-size: 0.9rem; flex: 1 1 260px; min-width: 0; }
+.py-ctl-name { font-weight: 600; white-space: nowrap; }
+.py-ctl-regler input[type="range"] { flex: 1 1 auto; min-width: 80px; accent-color: var(--accent); touch-action: pan-y; }
+.py-ctl-value { min-width: 5.5em; text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.py-ctl-auswahl select { font: inherit; padding: 2px 4px; }
+.py-ctl-schalter { flex: 0 1 auto; cursor: pointer; }
+.py-result .py-result-out { border-top: 1px solid var(--border); text-align: center; min-height: 3em; }
+.py-result .py-result-out { max-height: none; }
+.py-result .py-result-out .py-img { margin: 4px auto; width: auto; max-height: 75vh; }
+.py-result .py-placeholder { color: #6b7280; font-style: italic; font-family: system-ui, sans-serif; }
+.py-block.py-result.py-full .py-code-area:not([hidden]) { flex: 0 1 40%; display: flex; flex-direction: column; min-height: 0; }
+.py-block.py-result.py-full .py-code-area .py-code { flex: 1 1 auto; }
+.py-block.py-result.py-full .py-result-out { flex: 1 1 auto; display: flex; flex-direction: column; align-items: center; }
+.py-block.py-result.py-full .py-result-out .py-img { max-height: 100%; max-width: 100%; object-fit: contain; flex: 1 1 auto; min-height: 0; }
+@media print { .py-result .py-controls, .py-result .py-code-area { display: none; } .py-result .py-result-out { display: block !important; border: none; } }
+.ds-surface pre.ds-code-run[data-view="result"]::before, .ProseMirror pre.ds-code-run[data-view="result"]::before { content: '📊 Code versteckt · nur Ergebnis'; }
 .aib-past { margin-top: 8px; }
 .aib-past > summary { cursor: pointer; font-weight: 600; font-size: 0.95rem; padding: 4px 0; color: var(--text-secondary); }
 .aib-past[open] > summary { margin-bottom: 6px; }

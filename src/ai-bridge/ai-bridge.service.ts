@@ -1159,8 +1159,13 @@ export class AiBridgeService {
         solution: '{ type: "solution", blocks: Block[] } (darf keine weiteren solution- oder quiz-Blöcke enthalten)',
         box: '{ type: "box", title?: "Merke", shaded?: boolean, blocks: Block[] }',
         columns: '{ type: "columns", blocks: [{ type: "column", width?: "8cm", blocks: Block[] }, { type: "column", blocks: Block[] }] }',
-        code: '{ type: "code", code: "void setup() {}", size?: 8|9|10 }',
+        code: '{ type: "code", code: "void setup() {}", size?: 8|9|10, run?: true (Python im Browser ausführbar), view?: "result" (nur mit run) }',
       },
+      interactivePython: 'Interaktive Darstellung (Zeigerdiagramm, Kennlinie, Bode-Diagramm …): { type: "code", run: true, view: "result", code } – Code versteckt, nur das Ergebnis mit Bedienelementen; im Druck steht ein Hinweis. '
+        + 'Im Code: numpy, matplotlib (plt.show()); regler(name, von, bis, start, schritt=None, einheit="", log=False) → Zahl; '
+        + 'auswahl(name, ["a", "b"] oder {"Text": Wert}, start=None) → Wert; schalter(name, start=False) → bool; '
+        + 'from lm import zeiger, polar, grad – zeiger(z, start=0, name="$U_R$", farbe=None, ax=None, seite=1) zeichnet den komplexen Zeiger z und gibt sein Ende zurück. '
+        + 'Feste Achsengrenzen setzen, damit das Bild beim Ziehen nicht springt; gut als Lösung (solution) unter der Aufgabe.',
     };
   }
 

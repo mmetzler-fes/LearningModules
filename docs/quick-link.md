@@ -13,6 +13,11 @@ Es gibt zwei Arten von Links, und die Regel ist einfach: **anonym ohne Daten, Kl
 Er passt auf gedruckte Blätter und gilt auch im nächsten Schuljahr. **🚫 Zurückziehen** macht ihn sofort ungültig,
 auch gedruckte QR-Codes.
 
+**Startansicht:** Im Dialog des Links wählt **Startansicht der Dokumente**, wie ein Dokument aufgeht: **📄 Normale Ansicht**
+oder **✍️ Gleich im Stift-Editor**. Mit ✍️ öffnet sich das erste Dokument von selbst im Stift-Editor; **✕ Schließen** führt zur
+normalen Ansicht, **✍️ Mit Stift bearbeiten** wieder zurück. Die Einstellung gilt sofort, Link und QR-Code bleiben gleich.
+Varianten mit fester Klasse folgen ihrem Quick-Link; die Klassenarbeit startet immer normal.
+
 **Wiederfinden:** Unter **🔗 Schülerfreigaben → 📚 Themen** trägt jeder anonyme Link das Abzeichen **🌐 Anonym**.
 „🌐 Nur anonyme Links zeigen“ blendet die übrigen aus, **🚫 Anonymen Link zurückziehen** steht an der Karte.
 

@@ -1177,6 +1177,12 @@ export class LinksView {
     document.getElementById('linkShareHint').textContent = res?.viaQuick
       ? `${texts.hint} Das ist der Quick-Link mit vorgewählter Klasse ${res.className || ''} – Schüler geben Name und PIN ein. Ändern und zurückziehen über den Quick-Link.`
       : texts.hint;
+    // Startansicht (✍️ Stift-Editor): an Übungslinks; Varianten des Quick-Links folgen ihrem Quick-Link.
+    const startGroup = document.getElementById('linkShareStartViewGroup');
+    const showStart = !!res && this._shareAccess !== 'exam' && !res.viaQuick;
+    startGroup?.classList.toggle('hidden', !showStart);
+    const startSel = document.getElementById('linkShareStartView');
+    if (startSel && showStart) startSel.value = res.startView === 'ink' ? 'ink' : '';
     document.getElementById('btnRegenLinkShare')?.classList.toggle('hidden', !!(quick || res?.viaQuick));
     document.getElementById('btnRevokeLinkShare')?.classList.toggle('hidden', !!res?.viaQuick);
   }
@@ -1279,6 +1285,16 @@ export class LinksView {
     });
 
     document.getElementById('btnEditQuickClasses')?.addEventListener('click', () => this._editQuickClasses());
+
+    document.getElementById('linkShareStartView')?.addEventListener('change', async (e) => {
+      const id = this._shareData?.linkId || this._shareLink?.id;
+      if (!id) return;
+      const startView = e.target.value === 'ink' ? 'ink' : null;
+      const res = await this.app.api.updateLink(id, { startView }).catch(() => null);
+      if (!res || res.message) { this.app.showToast('Fehler: ' + (res?.message || 'Speichern fehlgeschlagen'), 'error'); return; }
+      if (this._shareData) this._shareData.startView = startView;
+      this.app.showToast(startView ? 'Dokumente öffnen sich über diesen Link gleich im ✍️ Stift-Editor.' : 'Dokumente öffnen sich über diesen Link in der normalen Ansicht.', 'success');
+    });
 
     document.getElementById('btnRevokeLinkShare')?.addEventListener('click', async () => {
       const ok = await this.app.appConfirm(this._shareData?.quick

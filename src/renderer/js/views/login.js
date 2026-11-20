@@ -482,6 +482,8 @@ export class LoginView {
       // Klassenlink: Schülerausweis vom Start – beim Speichern zählt er, nicht der Name.
       studentTicket: data.studentTicket || null,
       anonymous: !!data.anonymous,
+      // ✍️ Dokumente gleich im Stift-Editor öffnen (Startansicht am Link).
+      startView: data.startView === 'ink' ? 'ink' : null,
       // Für das PDF eines Dokuments (passwortgeschützter Link ohne Klasse).
       password: password || '',
     };

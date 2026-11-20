@@ -445,6 +445,8 @@ export class PublicController {
       linkName: link.name,
       className: klasse?.name ?? null,
       anonymous,
+      // ✍️ Dokumente gleich im Stift-Editor öffnen (Einstellung am Link).
+      startView: await this.linksService.startViewOf(link),
       // Erste Anmeldung: die PIN einmal zeigen, und das Gerät merkt sich den Ausweis.
       ...(login?.pin ? { pin: login.pin } : {}),
       ...(login ? { deviceTicket: login.deviceTicket, classId: klasse?.id } : {}),

@@ -229,10 +229,12 @@ export class QuizView {
    */
   async startLinkRun(data, { onlyModule = null } = {}) {
     const modules = [];
+    const startInk = data.startView === 'ink' && data.mode !== 'exam';
     for (const topic of data.topics || []) {
       for (const mod of topic.modules || []) {
         // _inkEdit: „✍️ Bearbeiten“ über Dokumenten (Freischaltung der Lehrkraft des Themas).
-        modules.push({ ...mod, _topicId: topic.id, _topicTitle: topic.title, _inkEdit: !!topic.inkEdit });
+        // Startansicht ✍️ am Link: Stift-Editor auch ohne Freischaltung am Thema.
+        modules.push({ ...mod, _topicId: topic.id, _topicTitle: topic.title, _inkEdit: !!topic.inkEdit || startInk });
       }
     }
     if (modules.length === 0) {
@@ -276,6 +278,8 @@ export class QuizView {
       linkToken: this.app.state.linkSession?.token || null,
       linkName: data.linkName,
       revealed: false,
+      // Startansicht ✍️: das erste Dokument öffnet sich einmal von selbst im Stift-Editor.
+      autoInk: startInk,
     };
 
     this._endCompanion();
@@ -527,6 +531,13 @@ export class QuizView {
       slot.className = 'quiz-info-actions';
       slot.appendChild(actions);
       this._quizInfo.appendChild(slot);
+      // Startansicht ✍️ am Link: einmal von selbst öffnen – „Schließen“ führt zur normalen Ansicht,
+      // „✍️ Mit Stift bearbeiten“ wieder zurück.
+      const inkBtn = qs.autoInk && mod.type === 'document' ? actions.querySelector('.ds-ink-btn') : null;
+      if (inkBtn) {
+        qs.autoInk = false;
+        setTimeout(() => inkBtn.click(), 50);
+      }
     }
 
     this._btnQuizNext.textContent = this._isLearnRun() && !qs.revealed

@@ -67,7 +67,9 @@ export const lmHost = {
         label: '⬇ Als PDF',
         className: 'ds-pdf-btn',
         async onClick() {
-          const win = window.open('', '_blank');
+          const { canShareFiles, deliverPdf, fileNameOf } = await import('./share-file.js');
+          // iPad: Teilen-Menü mit der Datei statt neuem Fenster (sonst Fenster gleich öffnen – Popup-Blocker).
+          const win = canShareFiles() ? null : window.open('', '_blank');
           try {
             const res = await fetch(`/api/public/document/${encodeURIComponent(moduleId)}/pdf`, {
               method: 'POST',
@@ -75,7 +77,7 @@ export const lmHost = {
               body: JSON.stringify({ linkToken: up.linkToken || undefined, quickToken: up.quickToken || undefined, password: up.password || undefined, studentTicket: up.studentTicket || undefined }),
             });
             if (!res.ok) throw new Error((await res.json().catch(() => ({}))).message || `HTTP ${res.status}`);
-            win.location.href = URL.createObjectURL(await res.blob());
+            deliverPdf(await res.blob(), fileNameOf(res, title || 'Dokument'), win);
           } catch (err) {
             win?.close();
             throw err;
@@ -86,9 +88,11 @@ export const lmHost = {
       actions.push({
         label: '📓 Heft für GoodNotes',
         className: 'ds-pdf-btn',
-        title: 'Alle Dokumente dieses Lernthemas als ein PDF mit Inhaltsverzeichnis und Karo-Seiten – öffnen und an GoodNotes teilen',
+        title: 'Alle Dokumente dieses Lernthemas als ein PDF mit Inhaltsverzeichnis und Karo-Seiten – auf dem iPad direkt an GoodNotes teilen',
         async onClick() {
-          const win = window.open('', '_blank');
+          const { canShareFiles, deliverPdf, fileNameOf } = await import('./share-file.js');
+          // iPad: Teilen-Menü mit der Datei statt neuem Fenster (sonst Fenster gleich öffnen – Popup-Blocker).
+          const win = canShareFiles() ? null : window.open('', '_blank');
           try {
             const res = await fetch(`/api/public/document/${encodeURIComponent(moduleId)}/goodnotes`, {
               method: 'POST',
@@ -96,7 +100,7 @@ export const lmHost = {
               body: JSON.stringify({ linkToken: up.linkToken || undefined, quickToken: up.quickToken || undefined, password: up.password || undefined, studentTicket: up.studentTicket || undefined }),
             });
             if (!res.ok) throw new Error((await res.json().catch(() => ({}))).message || `HTTP ${res.status}`);
-            win.location.href = URL.createObjectURL(await res.blob());
+            deliverPdf(await res.blob(), fileNameOf(res, title || 'Dokument'), win);
           } catch (err) {
             win?.close();
             throw err;

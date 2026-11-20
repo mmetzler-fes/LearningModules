@@ -161,35 +161,48 @@ export async function openAiBridgeDialog(app, { onDone = null, regenerate = null
     $('.aib-pl-list').classList.toggle('hidden', e.target.checked);
   });
 
+  let pastOpen = false;
+  const renderSession = (s) => {
+    const mins = Math.ceil((s.remainingSeconds || 0) / 60);
+    const statusBadge = s.active
+      ? `<span class="pl-in">🟢 aktiv (noch ca. ${mins} Min.)</span>`
+      : `<span class="hint">⏹ abgelaufen ${escapeHtml(new Date(s.expiresAt).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' }))}</span>`;
+    const logs = (s.log || []).slice(-5).map((l) => `<li>${escapeHtml(l.summary)}</li>`).join('');
+    return `<div class="aib-session-item" data-id="${escapeAttr(s.id)}">
+      <div class="aib-session-head">
+        <strong>Token <code>${escapeHtml(s.tokenPreview)}</code></strong> · ${statusBadge}
+        · <strong>${s.opsCount || 0}</strong> rückgängig machbare Änderung${s.opsCount === 1 ? '' : 'en'}
+        <span class="aib-session-actions">
+          ${s.active ? `<button type="button" class="btn btn-secondary btn-sm" data-extend="${escapeAttr(s.id)}" title="Zugriff 30 Minuten länger">⏱ +30 Min.</button>` : ''}
+          ${s.canRollback ? `<button type="button" class="btn btn-secondary btn-sm" data-rollback="${escapeAttr(s.id)}">⏪ Rückgängig (${s.opsCount})</button>` : ''}
+          ${s.active ? `<button type="button" class="btn btn-secondary btn-sm" data-revoke="${escapeAttr(s.id)}">⏹ Zugriff beenden</button>` : ''}
+        </span>
+      </div>
+      ${logs ? `<ul class="aib-log-list">${logs}</ul>` : ''}
+    </div>`;
+  };
+
+  // Laufende Sitzungen stehen offen da; abgelaufene nur zugeklappt
+  // (Rückgängig bleibt dort möglich, bis der Server sie aufräumt).
   const renderSessions = (sessions) => {
     const box = $('.aib-sessions');
-    const list = (sessions || []).filter((s) => s.active || s.canRollback);
-    if (!list.length) {
+    const prev = box.querySelector('.aib-past');
+    if (prev) pastOpen = prev.open;
+    const all = sessions || [];
+    const active = all.filter((s) => s.active);
+    const past = all.filter((s) => !s.active && s.canRollback)
+      .sort((a, b) => new Date(b.expiresAt) - new Date(a.expiresAt));
+    if (!active.length && !past.length) {
       box.innerHTML = '';
       return;
     }
-    if (!activeSessionId && list[0]?.active) activeSessionId = list[0].id;
+    if (!activeSessionId && active[0]) activeSessionId = active[0].id;
     box.innerHTML = `<div class="aib-session-list">
-      <h4>Aktive &amp; kürzliche KI-Sitzungen</h4>
-      ${list.map((s) => {
-        const mins = Math.ceil((s.remainingSeconds || 0) / 60);
-        const statusBadge = s.active
-          ? `<span class="pl-in">🟢 aktiv (noch ca. ${mins} Min.)</span>`
-          : `<span class="hint">⏹ abgelaufen/beendet</span>`;
-        const logs = (s.log || []).slice(-5).map((l) => `<li>${escapeHtml(l.summary)}</li>`).join('');
-        return `<div class="aib-session-item" data-id="${escapeAttr(s.id)}">
-          <div class="aib-session-head">
-            <strong>Token <code>${escapeHtml(s.tokenPreview)}</code></strong> · ${statusBadge}
-            · <strong>${s.opsCount || 0}</strong> rückgängig machbare Änderung${s.opsCount === 1 ? '' : 'en'}
-            <span class="aib-session-actions">
-              ${s.active ? `<button type="button" class="btn btn-secondary btn-sm" data-extend="${escapeAttr(s.id)}" title="Zugriff 30 Minuten länger">⏱ +30 Min.</button>` : ''}
-              ${s.canRollback ? `<button type="button" class="btn btn-secondary btn-sm" data-rollback="${escapeAttr(s.id)}">⏪ Rückgängig (${s.opsCount})</button>` : ''}
-              ${s.active ? `<button type="button" class="btn btn-secondary btn-sm" data-revoke="${escapeAttr(s.id)}">⏹ Zugriff beenden</button>` : ''}
-            </span>
-          </div>
-          ${logs ? `<ul class="aib-log-list">${logs}</ul>` : ''}
-        </div>`;
-      }).join('')}
+      ${active.length ? `<h4>Aktive KI-Sitzungen</h4>${active.map(renderSession).join('')}` : ''}
+      ${past.length ? `<details class="aib-past"${pastOpen ? ' open' : ''}>
+        <summary>🕘 Abgelaufene KI-Sitzungen (${past.length}) – Änderungen rückgängig machen</summary>
+        ${past.map(renderSession).join('')}
+      </details>` : ''}
     </div>`;
   };
 

@@ -6706,3 +6706,6 @@ pre.ds-code-run { position: relative; }
 .py-block.py-full .py-out { flex: 1 1 45%; max-height: none; min-height: 4em; font-size: 0.95rem; }
 .py-block.py-full .py-out[hidden] { display: none; }
 @media (max-width: 560px) { .py-block.py-full { inset: 0; border-radius: 0; } }
+.aib-past { margin-top: 8px; }
+.aib-past > summary { cursor: pointer; font-weight: 600; font-size: 0.95rem; padding: 4px 0; color: var(--text-secondary); }
+.aib-past[open] > summary { margin-bottom: 6px; }

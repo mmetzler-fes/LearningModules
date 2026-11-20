@@ -162,7 +162,8 @@ class Workspace {
           <button type="button" class="ws-tab-close" data-close="${escapeAttr(t.id)}" title="Tab schließen" aria-label="${escapeAttr(`${t.title} schließen`)}">✕</button>
         </div>`).join('')}
       </div>
-      <button type="button" class="ws-more" hidden title="Alle offenen Dokumente" aria-label="Alle offenen Dokumente">⋯</button>`;
+      <button type="button" class="ws-more" hidden title="Alle offenen Dokumente" aria-label="Alle offenen Dokumente">⋯</button>
+      <button type="button" class="ws-feedback" title="Feedback: Fehler oder Wunsch melden" aria-label="Feedback">💬</button>`;
     this.bar.querySelector('.ws-home').addEventListener('click', () => this.home());
     this.bar.querySelectorAll('[data-tab]').forEach((el) => el.addEventListener('click', (e) => {
       if (e.target.closest('[data-close]')) return;
@@ -173,6 +174,7 @@ class Workspace {
       this.close(b.dataset.close);
     }));
     this.bar.querySelector('.ws-more').addEventListener('click', (e) => this._menu(e.currentTarget));
+    this.bar.querySelector('.ws-feedback').addEventListener('click', () => window.lmOpenFeedback?.());
     this._fit();
   }
 

@@ -30,6 +30,8 @@ import { QuickSearch } from './views/quick-search.js';
 import { CategoriesAdminView } from './views/categories-admin.js';
 import { FederationAdminView } from './views/federation-admin.js';
 import { HtmlAppsAdminView } from './views/html-apps-admin.js';
+import { AdminFeedbackView } from './views/admin-feedback.js';
+import { initFeedback, openFeedback } from './feedback.js';
 import { openDrawingForImage } from './views/drawings-dialog.js';
 import { nextcloudState, uploadImageToNextcloud, uploadAttachmentToNextcloud, pickNextcloudImage } from './views/nextcloud.js';
 import { openShortLinkDialog } from './views/short-link-dialog.js';
@@ -135,6 +137,7 @@ class App {
     this.categoriesAdminView = new CategoriesAdminView(this);
     this.federationAdminView = new FederationAdminView(this);
     this.htmlAppsAdminView = new HtmlAppsAdminView(this);
+    this.adminFeedbackView = new AdminFeedbackView(this);
     // ❓ neben erklärungsbedürftigen Stellen (data-help="datei#anker"), auch in
     // Dialogen, die erst später entstehen – deshalb ein Lauscher fürs Dokument.
     document.addEventListener('click', (e) => {
@@ -369,18 +372,18 @@ class App {
     const isTeacherLike = state.currentUser.role === 'teacher' || state.currentUser.role === 'admin';
     const navContainer = isTeacherLike ? this._teacherNav : this._studentNav;
     navContainer.querySelectorAll('.nav-btn').forEach((btn) => {
-      btn.addEventListener('click', () => this.navigateToView(btn.dataset.view));
+      btn.addEventListener('click', () => { if (btn.dataset.view) this.navigateToView(btn.dataset.view); });
     });
     if (state.currentUser.isSchoolAdmin) {
       document.querySelectorAll('#schoolAdminNav .nav-btn').forEach((btn) => {
-        btn.addEventListener('click', () => this.navigateToView(btn.dataset.view));
+        btn.addEventListener('click', () => { if (btn.dataset.view) this.navigateToView(btn.dataset.view); });
       });
     }
     if (state.currentUser.role === 'admin') {
       const adminNavEl = document.getElementById('adminNav');
       if (adminNavEl) {
         adminNavEl.querySelectorAll('.nav-btn').forEach((btn) => {
-          btn.addEventListener('click', () => this.navigateToView(btn.dataset.view));
+          btn.addEventListener('click', () => { if (btn.dataset.view) this.navigateToView(btn.dataset.view); });
         });
       }
     }
@@ -485,6 +488,7 @@ class App {
       case 'admin-categories':  this.categoriesAdminView.refresh(); break;
       case 'admin-federation':  this.federationAdminView.refresh(); break;
       case 'admin-html-apps':   this.htmlAppsAdminView.refresh(); break;
+      case 'admin-feedback':    this.adminFeedbackView.refresh(); break;
     }
   }
 
@@ -782,6 +786,9 @@ class App {
   async init() {
     // Neue Version auf dem Server (iPad-App bleibt im Hintergrund im Speicher): Aktualisieren anbieten.
     startUpdateCheck();
+    // 💬 Feedback: Fenster für alle; Knopf in der Seitenleiste (Lehrkräfte).
+    initFeedback(this);
+    document.getElementById('btnFeedback')?.addEventListener('click', () => openFeedback());
     // Anmeldung abgelaufen (api.js, authFetch): direkt zur Anmeldung. Entwürfe des
     // Modul-Editors liegen zusätzlich im Browser (local-drafts.js) und werden danach angeboten.
     window.addEventListener('lm-session-expired', () => {

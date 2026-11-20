@@ -6806,3 +6806,27 @@ body.ws-on .ink-title { display: none; }
 .lm-update-text span { color: var(--text-secondary, #475569); font-size: 0.88rem; }
 .lm-update-actions { display: flex; gap: 8px; margin-left: auto; }
 .lm-update .btn { min-height: 44px; }
+.ws-feedback { flex: 0 0 auto; width: 44px; height: calc(var(--lm-ws-top) - 8px); margin-bottom: 4px; border: none; border-radius: 10px; background: transparent; color: #fff; font-size: 1.25rem; cursor: pointer; }
+.ws-feedback:hover { background: rgba(255, 255, 255, 0.14); }
+
+/* ===== 💬 Feedback (js/feedback.js, views/admin-feedback.js) ===== */
+.lm-feedback { position: fixed; inset: 0; z-index: 3100; display: flex; align-items: center; justify-content: center; padding: 16px; background: rgba(15, 23, 42, 0.45); }
+.lm-feedback-card { width: min(560px, 100%); max-height: 100%; overflow: auto; background: var(--bg-secondary, #fff); color: var(--text-primary); border-radius: 16px; padding: 18px; box-shadow: 0 12px 32px rgba(15, 23, 42, 0.3); display: flex; flex-direction: column; gap: 10px; }
+.lm-feedback-card h3 { margin: 0; }
+.lm-feedback-card textarea { width: 100%; font: inherit; padding: 10px; border-radius: 10px; border: 1px solid var(--border); background: var(--bg-primary); color: inherit; resize: vertical; }
+.lm-feedback-image img { display: block; max-width: 100%; max-height: 240px; border: 1px solid var(--border); border-radius: 8px; margin-bottom: 6px; background: #fff; }
+.lm-feedback-tools, .lm-feedback-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.lm-feedback-actions { justify-content: flex-end; }
+.fb-bar { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; margin-bottom: 12px; }
+.fb-list { display: flex; flex-direction: column; gap: 12px; }
+.fb-item { border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; background: var(--bg-primary); }
+.fb-item.fb-done { opacity: 0.6; }
+.fb-head { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.fb-head select { font: inherit; padding: 4px 6px; border-radius: 8px; }
+.fb-meta { color: var(--text-secondary); font-size: 0.88rem; flex: 1; min-width: 200px; }
+.fb-actions { display: flex; gap: 6px; }
+.fb-text { margin: 10px 0; white-space: normal; }
+.fb-thumb { border: none; padding: 0; background: none; cursor: zoom-in; }
+.fb-thumb img { max-width: 320px; max-height: 200px; border: 1px solid var(--border); border-radius: 8px; background: #fff; }
+.fb-context pre { font-size: 0.8rem; white-space: pre-wrap; word-break: break-all; }
+.ws-bar[hidden] { display: none; }

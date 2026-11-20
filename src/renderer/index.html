@@ -2,7 +2,7 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8" />
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src * data:; font-src 'self' data:; media-src 'self' data: blob: https:; connect-src * data:; object-src 'none'; frame-src 'self' https:;" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src * data: blob:; font-src 'self' data:; media-src 'self' data: blob: https:; connect-src * data:; object-src 'none'; frame-src 'self' https:;" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>LearningModules</title>
   <!-- Als App installierbar: Symbol auf dem Desktop bzw. Home-Bildschirm, eigenes Fenster ohne Browserleisten -->
@@ -283,6 +283,9 @@
         <button class="nav-btn" data-view="teacher-help">
           <span class="nav-icon">📖</span> Hilfe
         </button>
+        <button class="nav-btn" type="button" id="btnFeedback" title="Fehler oder Wunsch melden – mit Bildschirmfoto">
+          <span class="nav-icon">💬</span> Feedback
+        </button>
       </nav>
 
       <!-- Admin-only Navigation (only visible to admin role) -->
@@ -305,6 +308,9 @@
           <span class="nav-icon">🧩</span> HTML-Apps
         </button>        <button class="nav-btn" data-view="admin-whitelist">
           <span class="nav-icon">🔒</span> Whitelist / Blacklist
+        </button>
+        <button class="nav-btn" data-view="admin-feedback">
+          <span class="nav-icon">💬</span> Feedback
         </button>
         <button class="nav-btn" data-view="admin-settings">
           <span class="nav-icon">🛡</span> Shop &amp; Sicherheit
@@ -1197,6 +1203,13 @@
         <div class="settings-panel" id="adminFederationContent"></div>
       </section>
 
+      <section class="view" id="view-admin-feedback">
+        <div class="view-header">
+          <h2>💬 Feedback</h2>
+          <p class="subtitle">Meldungen von Lehrkräften und Schülern – mit Bild und Gerät. Nach Wichtigkeit ordnen, erledigen, löschen.</p>
+        </div>
+        <div class="settings-panel" id="adminFeedbackContent"></div>
+      </section>
       <section class="view" id="view-admin-html-apps">
         <div class="view-header">
           <h2>HTML-Apps</h2>

@@ -229,7 +229,7 @@ export class QuizView {
    */
   async startLinkRun(data, { onlyModule = null } = {}) {
     const modules = [];
-    const startInk = data.startView === 'ink' && data.mode !== 'exam';
+    const startInk = data.startView === 'ink';
     for (const topic of data.topics || []) {
       for (const mod of topic.modules || []) {
         // _inkEdit: „✍️ Bearbeiten“ über Dokumenten (Freischaltung der Lehrkraft des Themas).

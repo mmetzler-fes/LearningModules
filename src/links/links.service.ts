@@ -665,6 +665,7 @@ export class LinksService {
     }
     if (body?.contestSettings !== undefined) link.contestSettings = this.cleanContestSettings(body.contestSettings);
     if (body?.startView !== undefined) link.startView = body.startView === 'ink' ? 'ink' : null;
+    if (body?.examStartView !== undefined) link.examStartView = body.examStartView === 'ink' ? 'ink' : null;
     // Leerer String löscht das Passwort, `undefined` lässt es unangetastet.
     if (body?.accessPassword !== undefined) {
       link.accessPassword = String(body.accessPassword).trim() || null;
@@ -740,7 +741,7 @@ export class LinksService {
       contents: contentCounts(resolved),
       viaQuick: !!variant,
       quick: quick ? await this.quickInfo(link) : null,
-      startView: (variant ? rule?.startView : link.startView) || null,
+      startView: (access === 'exam' ? link.examStartView : variant ? rule?.startView : link.startView) || null,
     };
   }
 
@@ -786,12 +787,16 @@ export class LinksService {
     return this.quickVariant(link, link.templateId ? byId.get(link.templateId) : null) || link.token;
   }
 
-  /** Startansicht (✍️ Stift-Editor oder normal): eigene, sonst die der Regel (Varianten des Quick-Links). */
-  async startViewOf(link: TopicLink): Promise<'ink' | null> {
-    if (link.startView === 'ink') return 'ink';
+  /**
+   * Startansicht (✍️ Stift-Editor oder normal) für Übung bzw. Klassenarbeit: eigene, sonst die der Regel
+   * (Varianten des Quick-Links, Klassenlinks einer Freigabe).
+   */
+  async startViewOf(link: TopicLink, exam = false): Promise<'ink' | null> {
+    const field = exam ? 'examStartView' : 'startView';
+    if (link[field] === 'ink') return 'ink';
     if (!link.templateId) return null;
     const rule = await this.linkRepo.findOne({ where: { id: link.templateId } });
-    return rule?.startView === 'ink' ? 'ink' : null;
+    return rule?.[field] === 'ink' ? 'ink' : null;
   }
 
   /** Schüler-Token eines Links, wie er in Adressen steht (Variante oder eigener). */

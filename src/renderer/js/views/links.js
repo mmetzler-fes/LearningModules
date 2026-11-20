@@ -1177,9 +1177,9 @@ export class LinksView {
     document.getElementById('linkShareHint').textContent = res?.viaQuick
       ? `${texts.hint} Das ist der Quick-Link mit vorgewählter Klasse ${res.className || ''} – Schüler geben Name und PIN ein. Ändern und zurückziehen über den Quick-Link.`
       : texts.hint;
-    // Startansicht (✍️ Stift-Editor): an Übungslinks; Varianten des Quick-Links folgen ihrem Quick-Link.
+    // Startansicht (✍️ Stift-Editor): für Übung und Klassenarbeit getrennt; Varianten des Quick-Links folgen ihrem Quick-Link.
     const startGroup = document.getElementById('linkShareStartViewGroup');
-    const showStart = !!res && this._shareAccess !== 'exam' && !res.viaQuick;
+    const showStart = !!res && !(res.viaQuick && this._shareAccess !== 'exam');
     startGroup?.classList.toggle('hidden', !showStart);
     const startSel = document.getElementById('linkShareStartView');
     if (startSel && showStart) startSel.value = res.startView === 'ink' ? 'ink' : '';
@@ -1290,7 +1290,7 @@ export class LinksView {
       const id = this._shareData?.linkId || this._shareLink?.id;
       if (!id) return;
       const startView = e.target.value === 'ink' ? 'ink' : null;
-      const res = await this.app.api.updateLink(id, { startView }).catch(() => null);
+      const res = await this.app.api.updateLink(id, this._shareAccess === 'exam' ? { examStartView: startView } : { startView }).catch(() => null);
       if (!res || res.message) { this.app.showToast('Fehler: ' + (res?.message || 'Speichern fehlgeschlagen'), 'error'); return; }
       if (this._shareData) this._shareData.startView = startView;
       this.app.showToast(startView ? 'Dokumente öffnen sich über diesen Link gleich im ✍️ Stift-Editor.' : 'Dokumente öffnen sich über diesen Link in der normalen Ansicht.', 'success');

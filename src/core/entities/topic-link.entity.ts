@@ -185,9 +185,13 @@ export class TopicLink extends BaseEntity {
   lastSharedAt: Date | null;
 
   /**
-   * Startansicht der Dokumente über diesen Link: 'ink' öffnet das erste Dokument gleich im ✍️ Stift-Editor
+   * Startansicht der Dokumente über den Übungslink: 'ink' öffnet das erste Dokument gleich im ✍️ Stift-Editor
    * (umschaltbar zur normalen Ansicht), null = normale Ansicht. Varianten des Quick-Links folgen ihrer Regel.
    */
   @Column({ type: 'varchar', nullable: true })
   startView: string | null;
+
+  /** Dasselbe für den eigenen Link der Klassenarbeit. */
+  @Column({ type: 'varchar', nullable: true })
+  examStartView: string | null;
 }

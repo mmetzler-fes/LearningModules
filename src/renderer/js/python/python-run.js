@@ -253,6 +253,7 @@ function mountBlock(pre, ns, storeKey) {
       <button type="button" class="btn btn-secondary btn-sm py-stop" hidden title="Anhalten – z. B. bei einer Endlosschleife">⏹ Stopp</button>
       <span class="py-status hint" aria-live="polite"></span>
       <span class="py-spacer"></span>
+      <button type="button" class="py-mini py-to-sheet" hidden title="Das Diagramm als Bild auf dein Blatt legen – zum Verschieben und Beschriften">➕ Aufs Blatt</button>
       <button type="button" class="py-mini py-copy" hidden title="Diagramm in die Zwischenablage – zum Einfügen ins eigene Blatt">📋 Bild kopieren</button>
       <button type="button" class="py-mini py-restore" ${startCode === original ? 'hidden' : ''} title="Den ursprünglichen Code der Lehrkraft wiederherstellen">↺ Ursprünglich</button>
       <button type="button" class="py-mini py-reset" title="Variablen aller Python-Blöcke dieses Dokuments löschen">⟲ Neu starten</button>
@@ -279,8 +280,10 @@ function mountBlock(pre, ns, storeKey) {
   requestAnimationFrame(fit);
   const block = outputView({ out, status, btnRun, btnStop });
   const btnCopy = box.querySelector('.py-copy');
-  watchFigure(out, btnCopy);
+  const btnSheet = box.querySelector('.py-to-sheet');
+  watchFigure(out, btnCopy, btnSheet);
   btnCopy.addEventListener('click', () => void copyFigure(out, status));
+  btnSheet.addEventListener('click', () => { setLarge(false); void figureToSheet(box, out, status); });
 
   // ⤢ Groß: an <body> gehängt, damit kein gezoomter oder schmaler Rahmen (Stift-Editor, Vorschau) ihn einengt.
   const btnGrow = box.querySelector('.py-grow');
@@ -369,9 +372,30 @@ async function copyFigure(out, status, name = 'Diagramm') {
   say('⬇ Kopieren geht hier nicht – das Bild wurde gespeichert.');
 }
 
-/** 📋-Knopf nur zeigen, wenn die Ausgabe ein Bild hat. */
-function watchFigure(out, btn) {
-  const update = () => { btn.hidden = !out.querySelector('.py-img'); };
+/**
+ * ➕ Aufs Blatt (nur im Stift-Editor, der sein Blatt mit data-ink-figures kennzeichnet): Das Diagramm
+ * geht als Ereignis an den Editor (ink-editor.js), der es als freies Bild ins eigene Blatt legt.
+ */
+// Gemerkt, damit der Knopf auch bleibt, während der Block groß (⤢, an <body>) gezeigt wird.
+const sheetOf = (box) => (box._lmSheet ||= box.closest('[data-ink-figures]'));
+async function figureToSheet(box, out, status) {
+  const imgs = out.querySelectorAll('.py-img');
+  const img = imgs[imgs.length - 1];
+  if (!img || !sheetOf(box)) return;
+  const blob = await (await fetch(img.src)).blob();
+  const file = new File([blob], 'Diagramm.png', { type: 'image/png' });
+  const taken = !box.dispatchEvent(new CustomEvent('lm-figure-to-sheet', { bubbles: true, cancelable: true, detail: { file } }));
+  if (!taken) status.textContent = 'Aufs Blatt geht hier nicht – „📋 Bild kopieren“ und einfügen.';
+}
+
+/** 📋-/➕-Knöpfe nur zeigen, wenn die Ausgabe ein Bild hat (➕ nur im Stift-Editor). */
+function watchFigure(out, btn, btnSheet = null) {
+  const box = out.closest('.py-block');
+  const update = () => {
+    const has = !!out.querySelector('.py-img');
+    btn.hidden = !has;
+    if (btnSheet) btnSheet.hidden = !has || !sheetOf(box);
+  };
   new MutationObserver(update).observe(out, { childList: true });
   update();
 }
@@ -411,6 +435,7 @@ function mountResultBlock(pre, ns, storeKey) {
       <span class="py-label">📊 Interaktiv</span>
       <span class="py-status hint" aria-live="polite"></span>
       <span class="py-spacer"></span>
+      <button type="button" class="btn btn-primary btn-sm py-to-sheet" hidden title="Das Bild so, wie es gerade eingestellt ist, auf dein Blatt legen – zum Verschieben und Beschriften">➕ Aufs Blatt</button>
       <button type="button" class="btn btn-secondary btn-sm py-copy" hidden title="Das Bild so, wie es gerade eingestellt ist, in die Zwischenablage – zum Einfügen ins eigene Blatt">📋 Bild kopieren</button>
       <button type="button" class="py-mini py-reset-values" hidden title="Alle Regler auf den Anfangswert">↺ Anfangswerte</button>
       <button type="button" class="py-mini py-toggle-code" title="Den Python-Code dahinter zeigen" aria-pressed="false">‹/› Code</button>
@@ -438,8 +463,10 @@ function mountResultBlock(pre, ns, storeKey) {
   const btnResetValues = $('.py-reset-values');
   pre.replaceWith(box);
   const btnCopy = $('.py-copy');
-  watchFigure(out, btnCopy);
+  const btnSheet = $('.py-to-sheet');
+  watchFigure(out, btnCopy, btnSheet);
   btnCopy.addEventListener('click', () => void copyFigure(out, status));
+  btnSheet.addEventListener('click', () => { setLarge(false); void figureToSheet(box, out, status); });
 
   /** Werte der Bedienelemente (Name → Zahl/Index/bool) und ihre Elemente. */
   const values = {};

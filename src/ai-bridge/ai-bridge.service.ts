@@ -44,6 +44,7 @@ export type UndoAction =
   | { kind: 'rename_nb_node'; id: string; oldTitle: string; label: string }
   | { kind: 'restore_doc_settings'; id: string; old: any; label: string }
   | { kind: 'move_topic'; topicId: string; oldNodeId: string | null; oldOrderIndex: number; existed: boolean; label: string }
+  | { kind: 'move_modules'; fromTopicId: string; toTopicId: string; moduleIds: string[]; oldOrder: Array<{ id: string; orderIndex: number; parentId: string | null }>; label: string }
   | { kind: 'delete_plan_node'; id: string; label: string }
   | { kind: 'rename_plan_node'; id: string; oldTitle: string; label: string }
   | { kind: 'delete_plan_entries'; ids: string[]; label: string }
@@ -77,6 +78,7 @@ export type AiBridgeOp =
   | { op: 'rename_notebook_node'; id: string; title: string }
   | { op: 'set_doc_settings'; id: string; kurs?: string; titelmuster?: string; numbering?: 'tree' | 'flat' | 'off' | 'inherit' }
   | { op: 'move_topic'; topicId: string; targetNodeId: string | null; index?: number | null }
+  | { op: 'move_modules'; moduleIds: string[]; topicId: string }
   | { op: 'create_plan_node'; kind: 'folder' | 'plan' | 'area' | 'section'; title: string; parentId?: string | null; ref?: string }
   | { op: 'rename_plan_node'; id: string; title: string }
   | { op: 'link_to_plan'; parentId: string; items: Array<{ type: 'topic' | 'nbnode' | 'plan'; id: string }> }
@@ -674,6 +676,40 @@ export class AiBridgeService {
           break;
         }
 
+        case 'move_modules': {
+          // Dokumente und Quizze in ein anderes Lernthema – wie „↔️ Verschieben“ in der Oberfläche.
+          this.requirePerm(session, byTeacher, 'organize', i, item.op);
+          const toTopicId = resolveRef(item.topicId);
+          if (!toTopicId || !scopeSets.allowedTopics.has(toTopicId)) {
+            throw new ForbiddenException(`operations[${i}]: Ziel-Lernthema „${toTopicId}“ ist nicht im freigegebenen Bereich.`);
+          }
+          const ids = Array.isArray(item.moduleIds) ? [...new Set(item.moduleIds.map((x) => String(resolveRef(x))))] : [];
+          if (!ids.length) throw new BadRequestException(`operations[${i}]: moduleIds fehlt.`);
+          const mods: LearningModule[] = [];
+          for (const id of ids) {
+            const mod = await this.moduleRepo.findOne({ where: { id } });
+            if (!mod) throw new NotFoundException(`operations[${i}]: Modul „${id}“ nicht gefunden.`);
+            if (!scopeSets.allowedTopics.has(mod.topicId)) throw new ForbiddenException(`operations[${i}]: Modul „${mod.title}“ liegt außerhalb des freigegebenen Bereichs.`);
+            mods.push(mod);
+          }
+          const target = toTopicId.startsWith('dry_') ? null : await this.topicRepo.findOne({ where: { id: toTopicId } });
+          const names = mods.map((m) => `„${m.title}“`).join(', ');
+          const summary = `${mods.length === 1 ? 'Modul' : `${mods.length} Module`} ${names} nach „${target?.title || toTopicId}“ verschoben`;
+          if (!dryRun) {
+            const sources = [...new Set(mods.map((m) => m.topicId))].filter((t) => t !== toTopicId);
+            for (const from of sources) {
+              const moved = mods.filter((m) => m.topicId === from).map((m) => m.id);
+              const oldOrder = (await this.moduleRepo.find({ where: { topicId: from } }))
+                .map((m) => ({ id: m.id, orderIndex: m.orderIndex, parentId: (m.parentId as any) ?? null }));
+              await this.topics.transferModules(from, toTopicId, moved, 'move', user);
+              session.undoStack.push({ kind: 'move_modules', fromTopicId: from, toTopicId, moduleIds: moved, oldOrder, label: summary });
+            }
+            session.log.push({ at: new Date().toISOString(), op: item.op, summary });
+          }
+          results.push({ index: i, op: item.op, ok: true, id: toTopicId, summary: dryRun ? `[Vorschau] ${summary}` : summary });
+          break;
+        }
+
         case 'create_plan_node': {
           this.requirePerm(session, byTeacher, 'organize', i, item.op);
           const parentId = resolveRef(item.parentId);
@@ -1003,6 +1039,13 @@ export class AiBridgeService {
           await this.nbPlaceRepo.delete({ ownerId: userId, topicId: action.topicId });
         }
         break;
+      case 'move_modules':
+        await this.topics.transferModules(action.toTopicId, action.fromTopicId, action.moduleIds, 'move', user);
+        // Alte Reihenfolge im Quellthema wiederherstellen (das Zurückschieben hängt sonst hinten an).
+        for (const o of action.oldOrder) {
+          await this.moduleRepo.update({ id: o.id, topicId: action.fromTopicId }, { orderIndex: o.orderIndex, parentId: o.parentId as any });
+        }
+        break;
       case 'delete_plan_node':
         await this.plans.deleteNode(user, action.id);
         break;
@@ -1070,6 +1113,11 @@ export class AiBridgeService {
         op: 'move_topic',
         description: 'Verschiebt ein Lernthema im Lernnotizbuch in einen Abschnitt/Bereich (targetNodeId darf auch ein "$ref" sein).',
         example: { op: 'move_topic', topicId: '<topic-id>', targetNodeId: '$sec_grund' },
+      },
+      {
+        op: 'move_modules',
+        description: 'Verschiebt Dokumente/Quizze (moduleIds, Reihenfolge bleibt) ans Ende eines anderen Lernthemas (topicId darf ein "$ref" aus create_topic sein). Eingebettete Quizze mit verschieben.',
+        example: { op: 'move_modules', moduleIds: ['<module-id>', '<quiz-id>'], topicId: '$top_ohm' },
       },
       {
         op: 'create_plan_node',
@@ -1291,6 +1339,7 @@ export class AiBridgeService {
         '`{"op":"rename_notebook_node","id":"<id>","title":"…"}`',
         '`{"op":"set_doc_settings","id":"<nodeId>","kurs":"BPE 8","numbering":"flat"}` – Kurs/Kopfzeile und Nummerierung (flat durchgezählt, tree gegliedert, off, inherit)',
         '`{"op":"move_topic","topicId":"<id>","targetNodeId":"<id|$ref>"}`',
+        '`{"op":"move_modules","moduleIds":["<id>",…],"topicId":"<id|$ref>"}` – Dokumente/Quizze in ein anderes Lernthema',
         '`{"op":"create_plan_node","kind":"folder"|"plan"|"area"|"section","title":"…","parentId":"<id|$ref|null>","ref":"$p1"}`',
         '`{"op":"rename_plan_node","id":"<id>","title":"…"}`',
         '`{"op":"link_to_plan","parentId":"<planNodeId|$ref>","items":[{"type":"topic"|"nbnode","id":"<id>"}]}`',

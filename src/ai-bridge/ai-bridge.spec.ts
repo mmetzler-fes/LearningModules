@@ -181,6 +181,12 @@ describe('AiBridgeService (15-Minuten-KI-Token, Scope & Undo)', () => {
         topics = topics.filter((t) => t.id !== id);
         return { success: true };
       }),
+      transferModules: jest.fn(async (from: string, to: string, ids: string[]) => {
+        let next = modules.filter((m) => m.topicId === to).length;
+        for (const m of modules.filter((x) => ids.includes(x.id) && x.topicId === from)) Object.assign(m, { topicId: to, orderIndex: next++, parentId: null });
+        modules.filter((m) => m.topicId === from).sort((a, b) => a.orderIndex - b.orderIndex).forEach((m, i) => { m.orderIndex = i; });
+        return { success: true };
+      }),
       addModule: jest.fn(async (topicId: string, _u: any, modData: any) => {
         const existing = modData.id ? modules.find((m) => m.id === modData.id) : null;
         if (existing) {
@@ -274,6 +280,31 @@ describe('AiBridgeService (15-Minuten-KI-Token, Scope & Undo)', () => {
     expect(planEntries).toHaveLength(0);
     expect(modules[0].title).toBe('AB 1: Alt');
     expect(modules[0].content.spec.content[0].text).toBe('Alter Inhalt');
+  });
+
+  it('move_modules: Dokumente in ein neues Lernthema, ⏪ stellt Thema und Reihenfolge wieder her', async () => {
+    modules.push(
+      { id: 'mod-quiz', topicId: 'top-ohm', type: 'multipleChoice', title: 'Quiz', orderIndex: 1, content: {} },
+      { id: 'mod-doc-2', topicId: 'top-ohm', type: 'document', title: 'AB 2', orderIndex: 2, content: { kind: 'arbeitsblatt', spec: { content: [] } } },
+    );
+    const { token, session: info } = await service.createSession(user, { notebookNodeIds: ['book-et'], permissions: { organize: true, writeDocs: true } } as any);
+    const session = await service.authenticateToken(token);
+    const dry = await service.executeBatch(session, { dryRun: true, operations: [
+      { op: 'create_topic', title: 'Neu', targetNodeId: 'sec-et-1', ref: '$t' },
+      { op: 'move_modules', moduleIds: ['mod-doc-1', 'mod-quiz'], topicId: '$t' },
+    ] });
+    expect(dry.ok).toBe(true);
+    expect(modules.every((m) => m.topicId === 'top-ohm')).toBe(true);
+    const r = await service.executeBatch(session, { operations: [
+      { op: 'create_topic', title: 'Neu', targetNodeId: 'sec-et-1', ref: '$t' },
+      { op: 'move_modules', moduleIds: ['mod-doc-1', 'mod-quiz'], topicId: '$t' },
+    ] });
+    const newId = r.results[0].id;
+    expect(modules.filter((m) => m.topicId === newId).map((m) => m.id)).toEqual(['mod-doc-1', 'mod-quiz']);
+    expect(modules.find((m) => m.id === 'mod-doc-2')).toMatchObject({ topicId: 'top-ohm', orderIndex: 0 });
+    await expect(service.executeBatch(session, { operations: [{ op: 'move_modules', moduleIds: ['mod-doc-2'], topicId: 'top-secret' }] })).rejects.toThrow(/freigegeben/);
+    await service.rollbackSession(user, info.id);
+    expect(modules.map((m) => [m.id, m.topicId, m.orderIndex])).toEqual([['mod-doc-1', 'top-ohm', 0], ['mod-quiz', 'top-ohm', 1], ['mod-doc-2', 'top-ohm', 2]]);
   });
 
   it('update_document mit kind und ohne spec: nur die Dokument-Art, Inhalt bleibt, ⏪ zurück', async () => {

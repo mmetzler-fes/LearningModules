@@ -42,3 +42,10 @@ den alten Stand wieder her.
 
 `update_document` mit `kind` (arbeitsblatt | klassenarbeit | text) und ohne `spec` stellt nur die
 Dokument-Art um – nummeriert werden nur Arbeitsblätter. Im Baum (`GET tree`) steht die Art je Dokument als `docKind`.
+
+## Dokumente verschieben
+
+`move_modules` (`moduleIds`, `topicId`) verschiebt Dokumente und Quizze in ein anderes Lernthema –
+wie „↔️ Verschieben“ in der Oberfläche, Reihenfolge der Auswahl bleibt, ans Ende des Ziels.
+Zusammen mit `create_topic` (`"ref": "$t1"`, `"topicId": "$t1"`) wird aus einer Sammlung je Blatt
+ein eigenes Lernthema. ⏪ schiebt zurück und stellt die alte Reihenfolge wieder her.

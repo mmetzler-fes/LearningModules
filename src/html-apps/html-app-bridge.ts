@@ -113,6 +113,12 @@ export const BRIDGE_JS = String.raw`/**
     saveState: function (data) { post('lm.state', { data: data === undefined ? null : data }); },
     /** Datei anbieten: ".xlsx", ".csv", ".pdf", ".png", ".jpg" oder ".txt". */
     download: function (name, blob) { post('lm.download', { name: String(name), blob: blob }); },
+    /** Zu einem anderen Schritt der App springen (z. B. aus einer Übersicht); LearningModules entscheidet, ob es geht. */
+    goto: function (stepId) {
+      if (hosted) { post('lm.goto', { step: String(stepId) }); return; }
+      location.hash = String(stepId);
+      location.reload();
+    },
     onLock: function (fn) { handlers.lock.push(fn); },
     onReveal: function (fn) { handlers.reveal.push(fn); },
     onCheck: function (fn) { handlers.check.push(fn); },

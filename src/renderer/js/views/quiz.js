@@ -146,6 +146,24 @@ export class QuizView {
       });
     }
 
+    // LM.goto einer HTML-App (z. B. Übersicht mit Abschnitten): zu einem Schritt derselben App springen –
+    // wie Zurückblättern, daher nicht in Klassenarbeit und Lernbegleitung.
+    this._quizModuleContainer?.addEventListener('lm-app-goto', (e) => {
+      const qs = this.app.state.quizState;
+      if (!qs || this._isExamRun() || this._companion) return;
+      const { rootId, step } = e.detail || {};
+      const target = qs.modules.findIndex((m) => m?.content?.rootId === rootId && m?.content?.step?.id === step);
+      if (target < 0) return;
+      e.preventDefault();
+      if (target === qs.currentIndex) return;
+      const mod = qs.modules[qs.currentIndex];
+      qs.answers[qs.currentIndex] = this._currentAnswer(mod);
+      this._collectEmbedded();
+      qs.currentIndex = target;
+      this._reportRun({ done: qs.currentIndex, states: stepStates(qs) });
+      this._renderModule();
+    });
+
     if (this._btnQuizCancel) {
       this._btnQuizCancel.addEventListener('click', async () => {
         if (!(await this.app.appConfirm(t('quiz.cancel.confirm')))) return;

@@ -5,7 +5,7 @@
 {
  "lmApp": 2,
  "id": "grundschaltungen-et",
- "version": "1.0",
+ "version": "1.1",
  "title": "Grundschaltungen der Elektrotechnik",
  "units": [
   {
@@ -256,6 +256,12 @@
     saveState: function (data) { post('lm.state', { data: data === undefined ? null : data }); },
     /** Datei anbieten: ".xlsx", ".csv", ".pdf", ".png", ".jpg" oder ".txt". */
     download: function (name, blob) { post('lm.download', { name: String(name), blob: blob }); },
+    /** Zu einem anderen Schritt der App springen (z. B. aus einer Übersicht); LearningModules entscheidet, ob es geht. */
+    goto: function (stepId) {
+      if (hosted) { post('lm.goto', { step: String(stepId) }); return; }
+      location.hash = String(stepId);
+      location.reload();
+    },
     onLock: function (fn) { handlers.lock.push(fn); },
     onReveal: function (fn) { handlers.reveal.push(fn); },
     onCheck: function (fn) { handlers.check.push(fn); },
@@ -307,6 +313,9 @@
   .messung { font-size: 1.25rem; font-weight: 700; font-variant-numeric: tabular-nums; }
   .uebersicht { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
   .uebersicht .karte h3 { margin: 0 0 4px; font-size: 1.05rem; }
+  .sprung { display: flex; flex-direction: column; justify-content: flex-start; align-items: flex-start; width: 100%; text-align: left; font: inherit; color: inherit; cursor: pointer; transition: transform .12s, box-shadow .12s, border-color .12s; }
+  .sprung:hover, .sprung:focus-visible { border-color: var(--blau); box-shadow: 0 6px 18px rgba(37, 99, 235, .15); transform: translateY(-2px); outline: none; }
+  .sprung .los { display: inline-block; margin-top: 6px; color: var(--blau); font-weight: 700; }
   .strom { stroke-dasharray: 3 13; animation: fluss linear infinite; }
   @keyframes fluss { to { stroke-dashoffset: -32; } }
   input:disabled { background: #f1f5f9; }
@@ -471,14 +480,19 @@
   }
 
   function zeigeStart() {
+    const karten = [
+      ['reihe-entdecken', '🔗 Reihenschaltung', 'Ein Weg für den Strom – die Spannung teilt sich auf.'],
+      ['parallel-entdecken', '🔀 Parallelschaltung', 'Gleiche Spannung – der Strom teilt sich auf.'],
+      ['gemischt-entdecken', '🧩 Gemischte Schaltung', 'Schritt für Schritt zusammenfassen.'],
+      ['l-reihe', '🧪 Mess-Labor', 'Stelle einen Widerstand so ein, dass das Messgerät den Zielwert zeigt.'],
+    ];
     app.innerHTML = '<h1>⚡ Grundschaltungen der Elektrotechnik</h1>'
       + '<p class="lead">Widerstände lassen sich <b>in Reihe</b>, <b>parallel</b> oder <b>gemischt</b> schalten. In jedem Abschnitt entdeckst du zuerst die Regeln an einer Schaltung mit Reglern – der Strom fließt sichtbar. Danach rechnest du selbst, und LearningModules prüft deine Ergebnisse.</p>'
-      + '<div class="uebersicht">'
-      + '<div class="karte"><h3>🔗 Reihenschaltung</h3><p>Ein Weg für den Strom – die Spannung teilt sich auf.</p></div>'
-      + '<div class="karte"><h3>🔀 Parallelschaltung</h3><p>Gleiche Spannung – der Strom teilt sich auf.</p></div>'
-      + '<div class="karte"><h3>🧩 Gemischte Schaltung</h3><p>Schritt für Schritt zusammenfassen.</p></div>'
-      + '<div class="karte"><h3>🧪 Mess-Labor</h3><p>Stelle einen Widerstand so ein, dass das Messgerät den Zielwert zeigt.</p></div>'
-      + '</div><div class="merke">Zahlen gibst du mit Komma oder Punkt ein, in der angegebenen Einheit. Erlaubt ist eine Abweichung von 1 %.</div>';
+      + '<p>Tippe auf einen Bereich, um direkt dorthin zu springen:</p>'
+      + '<div class="uebersicht">' + karten.map((k) => '<button type="button" class="karte sprung" data-ziel="' + k[0] + '"><h3>' + k[1] + '</h3><p>' + k[2] + '</p><span class="los">Öffnen →</span></button>').join('') + '</div>'
+      + '<div class="merke">Zahlen gibst du mit Komma oder Punkt ein, in der angegebenen Einheit. Erlaubt ist eine Abweichung von 1 %.</div><p id="sprunghinweis" class="lead"></p>';
+    app.querySelectorAll('.sprung').forEach((b) => b.addEventListener('click', () => LM.goto(b.dataset.ziel)));
+    LM.onError((err) => { if (err && err.code === 'goto') $('#sprunghinweis').textContent = 'ℹ️ ' + err.message; });
   }
 
   // ---------- Rechenaufgaben ----------

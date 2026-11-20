@@ -240,7 +240,7 @@ export function shellPage(token: string, parentOrigin: string): { html: string; 
 (function () {
   var parentOrigin = ${json(parentOrigin)};
   var frame = document.getElementById('app');
-  var fromApp = { 'lm.ready': 1, 'lm.shown': 1, 'lm.answer': 1, 'lm.state': 1, 'lm.download': 1, 'lm.flushed': 1, 'lm.crash': 1, 'lm.zoom': 1 };
+  var fromApp = { 'lm.ready': 1, 'lm.shown': 1, 'lm.answer': 1, 'lm.state': 1, 'lm.download': 1, 'lm.flushed': 1, 'lm.crash': 1, 'lm.zoom': 1, 'lm.goto': 1 };
   var fromHost = { 'lm.init': 1, 'lm.lock': 1, 'lm.reveal': 1, 'lm.check': 1, 'lm.flush': 1, 'lm.error': 1, 'lm.zoom': 1 };
   addEventListener('message', function (e) {
     var m = e.data;

@@ -41,7 +41,8 @@ Entdecken mit Reglern und sichtbarem Strom, Rechenaufgaben, Mess-Labor; 21 Schri
 2. **`LM.start`** aufrufen und darin genau den Schritt `init.step` aufbauen.
 3. **`LM.answer`** bei jeder Änderung einer Aufgabe aufrufen, und gleich beim Start.
 4. **Keine eigene Navigation:** Weiter und Zurück kommen von LearningModules. Jeder Schritt lädt die
-   App neu; was bleiben soll, gehört in `LM.saveState`.
+   App neu; was bleiben soll, gehört in `LM.saveState`. Eine Übersicht darf mit `LM.goto` zu einem Schritt
+   springen – LearningModules führt den Sprung aus oder lehnt ihn ab.
 
 Die Bridge fügt der Server selbst ein. In die Datei kopieren muss sie nur, wer die App auch allein
 öffnen will (Vorlage: [`lm-bridge.js`](../src/renderer/lm-bridge.js), unverändert). Allein geöffnet zeigt
@@ -103,6 +104,7 @@ Lernthema ausgeblendet, seine Ergebnisse bleiben.
 | `LM.start(fn)` | **Pflicht.** Ruft `fn(init)` auf |
 | `LM.answer({ isCorrect, points?, userAnswer?, correctAnswer? })` | **Pflicht bei Aufgaben.** Der Gesamtstand; `points` von 0 bis 1 für Teilpunkte |
 | `LM.saveState(data)` | Stand speichern: JSON, höchstens 256 KB, für alle Schritte derselbe |
+| `LM.goto(schrittId)` | Zu einem anderen Schritt der App springen, z. B. aus einer Übersicht. Im Durchlauf wie Zurückblättern, nicht in Klassenarbeit und Lernbegleitung; dann kommt `LM.onError` mit `code: 'goto'` |
 | `LM.download(name, blob)` | Datei anbieten: `.xlsx`, `.csv`, `.pdf`, `.png`, `.jpg`, `.txt`, höchstens 10 MB |
 | `LM.onLock(fn)` | `fn(true)`: Eingabe sperren (gelöst, Denkpause), `fn(false)`: wieder frei |
 | `LM.onReveal(fn)` | Lösung zeigen (Lernmodus, Joker) |
@@ -280,6 +282,8 @@ LM.onReveal(fn)               Lösung zeigen (Lernmodus, Joker).
 LM.onLock(fn)                 fn(true) Eingabe sperren, fn(false) wieder frei.
 LM.onCheck(fn)                Der Schüler hat Prüfen gedrückt: Rückmeldung zeigen.
 LM.onFlush(fn)                Offene Eingabe abschließen und melden, z. B. eine Zelle im Bearbeiten.
+LM.goto(schrittId)            Optional: aus einer Übersicht zu einem Schritt springen. LearningModules
+                              führt den Sprung aus oder meldet über LM.onError (code "goto") ab.
 
 Bewertung:
 - Unberührt darf eine Aufgabe nie als richtig gelten (isCorrect: false beim ersten Melden).
@@ -406,6 +410,7 @@ Die Bridge ist nur eine Hülle um `postMessage`. Nachrichten sehen so aus: `{ lm
 | App → Rahmen | `lm.answer` | `{ isCorrect, points, userAnswer, correctAnswer }` |
 | App → Rahmen | `lm.state` | `{ data }` |
 | App → Rahmen | `lm.download` | `{ name, blob }` |
+| App → Rahmen | `lm.goto` | `{ step }`: zu diesem Schritt springen; abgelehnt mit `lm.error` (`code: 'goto'`) |
 | App → Rahmen | `lm.crash` | `{ message }`: Skriptfehler |
 | Rahmen → App | `lm.lock` | `{ locked }` |
 | Rahmen → App | `lm.reveal`, `lm.check` | `{}` |

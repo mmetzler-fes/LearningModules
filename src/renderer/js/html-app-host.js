@@ -211,6 +211,8 @@ export async function mountHtmlApp({ el, moduleId, content, options, title }) {
   frame.setAttribute('allow', '');
   frame.style.cssText = 'width:100%; height:75vh; border:1px solid var(--border); border-radius:var(--radius-md); background:#fff;';
 
+  // LM.goto der App: in der Vorschau bzw. im Blatt über die Auswahl, im Durchlauf über den Quiz-Player.
+  let jumpTo = null;
   // Vorschau ohne Durchlauf: Die Lehrkraft wählt den Schritt selbst.
   if (!step) {
     const steps = stepsOf(open.manifest);
@@ -253,6 +255,12 @@ export async function mountHtmlApp({ el, moduleId, content, options, title }) {
       frame.src = open.shellUrl;
     });
     syncArrows();
+    jumpTo = (id) => {
+      if (!steps.some((s) => s.id === id)) return false;
+      pick.value = id;
+      pick.dispatchEvent(new Event('change'));
+      return true;
+    };
     const nav = document.createElement('span');
     nav.className = 'lm-app-nav';
     nav.append(prev, pick, next);
@@ -426,6 +434,17 @@ export async function mountHtmlApp({ el, moduleId, content, options, title }) {
           try { localStorage.setItem(session.stateKey, JSON.stringify(data)); } catch (_) { refuse('state-too-large', 'Der Speicher des Geräts ist voll.'); }
         }
         if (open.session) saveState(data);
+        break;
+      }
+      case 'lm.goto': {
+        const id = String(m.data?.step || '');
+        const known = stepsOf(open.manifest).some((s) => s.id === id);
+        if (!known) { refuse('goto', `Den Schritt „${id.slice(0, 40)}“ gibt es nicht.`); break; }
+        if (jumpTo) { jumpTo(id); break; }
+        // Im Durchlauf entscheidet der Quiz-Player (nicht in Klassenarbeit und Lernbegleitung).
+        const ev = new CustomEvent('lm-app-goto', { bubbles: true, cancelable: true, detail: { rootId: content?.rootId || null, step: id } });
+        wrap.dispatchEvent(ev);
+        if (!ev.defaultPrevented) refuse('goto', 'Springen ist hier nicht möglich – bitte mit Weiter und Zurück blättern.');
         break;
       }
       case 'lm.download': {

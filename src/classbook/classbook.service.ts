@@ -77,6 +77,9 @@ function unitsOf(modules: LearningModule[], withForeign = false): OverviewUnit[]
  * Lehrkraft. Zuweisungen sind die Klassenlinks der Klasse, Schülerdaten ihre
  * Ergebnisse und Bearbeitungen – hier liegt nichts davon doppelt.
  */
+/** Wer sich mit dem Schulkonto anmeldet (docs/sso.md). */
+export interface SsoWho { subject: string; firstName: string; lastName: string; email?: string | null }
+
 @Injectable()
 export class ClassbookService {
   constructor(
@@ -1568,21 +1571,37 @@ export class ClassbookService {
    * wird es über den Namen dem Eintrag der Klassenliste zugeordnet (Regeln wie bei der Namenseingabe,
    * offene Klasse: neuer unbestätigter Eintrag) und danach fest verknüpft.
    */
-  async ssoLogin(token: string, who: { subject: string; firstName: string; lastName: string }) {
+  async ssoLogin(token: string, who: SsoWho) {
     const { klasse } = await this.byToken(token);
     return this.ssoLoginToClass(klasse, who);
   }
 
+  private async teacherByEmail(email: string | null | undefined): Promise<User | null> {
+    const e = String(email || '').trim().toLowerCase();
+    if (!e.includes('@')) return null;
+    const all = await this.userRepo.find({ where: [{ role: 'teacher' }, { role: 'admin' }] });
+    return all.find((u) => String(u.email || '').trim().toLowerCase() === e && u.active !== false) || null;
+  }
+
   /** Dasselbe für einen Klassenlink (Quick-Link mit Klasse, Schülerfreigabe): Klasse direkt. */
-  async ssoLoginClassId(classId: string, who: { subject: string; firstName: string; lastName: string }) {
+  async ssoLoginClassId(classId: string, who: SsoWho) {
     const klasse = await this.classes.findById(classId);
     if (!klasse) throw new NotFoundException('Diese Klasse gibt es nicht mehr.');
     return this.ssoLoginToClass(klasse, who);
   }
 
-  private async ssoLoginToClass(klasse: StudentClass, who: { subject: string; firstName: string; lastName: string }) {
+  private async ssoLoginToClass(klasse: StudentClass, who: SsoWho) {
     const students = await this.studentRepo.find({ where: { classId: klasse.id } });
-    let student = students.find((s) => s.ssoSubject === who.subject) || null;
+    // Lehrkraft mit ihrem Schulkonto: die eigene Klasse als 🧪 Testschüler, sonst ihr 👩‍🏫 Eintrag der Liste.
+    const teacher = await this.teacherByEmail(who.email);
+    if (teacher && teacher.id === klasse.ownerId) {
+      const name = testLabel(String(teacher.testStudentName || '').trim() || 'Testschüler');
+      const id = testStudentId(teacher.id);
+      return { ticket: issueTicket(classbookTicketKey(klasse.id), id, name), deviceTicket: issueDeviceTicket(classbookTicketKey(klasse.id), id, name, null), studentId: id, classId: klasse.id, name, pending: false };
+    }
+    let student = students.find((s) => s.ssoSubject === who.subject)
+      || (teacher ? students.find((s) => s.userId === teacher.id) : undefined)
+      || null;
     if (!student) {
       const typed = `${who.firstName} ${who.lastName}`.trim();
       if (!typed) throw new BadRequestException('Das Schulkonto nennt keinen Namen. Bitte mit Name und PIN anmelden.');

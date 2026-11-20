@@ -45,7 +45,7 @@ function setup({ firstLogin = false, plans = undefined as any } = {}) {
   const svc = new ClassbookService(notebooks as any, students as any, results as any, works as any, links as any, users as any, attempts as any, classes, linksService, {} as any, { isOpen: () => false } as any, { markerChanged() {}, online: () => 0, isFollowing: () => false } as any,
     nodes as any, places as any, topics as any, modules as any, nbNodes as any, repo() as any, progress as any,
     repo() as any, repo() as any, repo() as any, repo() as any, repo() as any, plans);
-  return { svc, students, links, notebooks, attempts, nodes, places, topics, modules, progress, nbNodes };
+  return { svc, users, students, links, notebooks, attempts, nodes, places, topics, modules, progress, nbNodes };
 }
 
 describe('Klassennotizbuch: Anmeldung', () => {
@@ -99,6 +99,24 @@ describe('Klassennotizbuch: Anmeldung mit dem Schulkonto', () => {
     const { svc } = setup();
     (svc as any).userRepo.rows[0].schoolId = 'sch1';
     expect(await svc.ssoContext('kb')).toEqual({ classId: 'c1', schoolId: 'sch1' });
+  });
+});
+
+describe('Klassennotizbuch: Lehrkraft mit dem Schulkonto', () => {
+  it('eigene Klasse → 🧪 Testschüler, ohne Abgleich mit der Klassenliste (auch Groß-/Kleinschreibung der E-Mail)', async () => {
+    const { svc, users } = setup();
+    Object.assign(users.rows[0], { email: 'm.metzler@schule.de', role: 'teacher', testStudentName: 'Max Test' });
+    const r = await svc.ssoLoginClassId('c1', { subject: 'ms|1', firstName: 'Martin', lastName: 'Metzler', email: 'M.Metzler@Schule.de' });
+    expect(r).toMatchObject({ studentId: 'test:t1', classId: 'c1', name: '🧪 Max Test' });
+    expect(readTicket(r.deviceTicket, classbookTicketKey('c1'))?.s).toBe('test:t1');
+  });
+
+  it('andere Lehrkraft mit 👩‍🏫 Eintrag der Liste → dieser Eintrag; Schüler-E-Mail bleibt beim Namensabgleich', async () => {
+    const { svc, users, students } = setup();
+    users.rows.push({ id: 't2', email: 'kollegin@schule.de', role: 'teacher', active: true });
+    students.rows.push({ id: 's9', classId: 'c1', firstName: 'Kol', lastName: 'Legin', status: 'confirmed', pin: null, userId: 't2' });
+    expect((await svc.ssoLoginClassId('c1', { subject: 'ms|2', firstName: 'X', lastName: 'Y', email: 'kollegin@schule.de' })).studentId).toBe('s9');
+    expect((await svc.ssoLoginClassId('c1', { subject: 'ms|3', firstName: 'Anna', lastName: 'B', email: 'anna@schueler.de' })).studentId).toBe('s1');
   });
 });
 

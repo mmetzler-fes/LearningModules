@@ -66,7 +66,7 @@ describe('SsoService – Anmeldung mit dem Schulkonto', () => {
     claims = { iss: ISS, aud: 'client-1', sub: 's2', oid: 'o2', exp: Math.floor(Date.now() / 1000) + 300, nonce: go.get('nonce'), name: 'Apfel, Anna' };
     const back = await svc.callback({ code: 'abc', state: go.get('state')! }, 'https://lm.test', '');
     expect(new URL(back).searchParams.get('k')).toBe('tok');
-    expect(classbook.ssoLogin).toHaveBeenCalledWith('tok', { subject: `${ISS}|o2`, firstName: 'Anna', lastName: 'Apfel' });
+    expect(classbook.ssoLogin).toHaveBeenCalledWith('tok', { subject: `${ISS}|o2`, firstName: 'Anna', lastName: 'Apfel', email: expect.anything() });
   });
 
   it('Schüler über Klassenlink: Knopf nur bei Klassenlinks, Rückkehr mit ?l=, Ausweis für die Klasse', async () => {
@@ -77,7 +77,7 @@ describe('SsoService – Anmeldung mit dem Schulkonto', () => {
     claims = { iss: ISS, aud: 'client-1', sub: 's3', oid: 'o3', exp: Math.floor(Date.now() / 1000) + 300, nonce: go.get('nonce'), given_name: 'Ben', family_name: 'Berg' };
     const back = new URL(await svc.callback({ code: 'abc', state: go.get('state')! }, 'https://lm.test', ''));
     expect(back.searchParams.get('l')).toBe('LINK.k1');
-    expect(classbook.ssoLoginClassId).toHaveBeenCalledWith('k1', { subject: `${ISS}|o3`, firstName: 'Ben', lastName: 'Berg' });
+    expect(classbook.ssoLoginClassId).toHaveBeenCalledWith('k1', { subject: `${ISS}|o3`, firstName: 'Ben', lastName: 'Berg', email: expect.anything() });
     expect(svc.redeem(back.searchParams.get('sso')!)).toMatchObject({ deviceTicket: 'dev', classId: 'k1' });
   });
 

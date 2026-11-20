@@ -238,8 +238,8 @@ export class SsoService {
         const { firstName, lastName } = namesOf(claims);
         const subject = `${claims.iss}|${claims.oid || claims.sub}`;
         body = p.classbook
-          ? await this.classbook.ssoLogin(p.classbook, { subject, firstName, lastName })
-          : await this.classbook.ssoLoginClassId(p.classId!, { subject, firstName, lastName });
+          ? await this.classbook.ssoLogin(p.classbook, { subject, firstName, lastName, email: emailOf(claims) })
+          : await this.classbook.ssoLoginClassId(p.classId!, { subject, firstName, lastName, email: emailOf(claims) });
       }
       await this.ssoRepo.update({ id: c.id }, { lastLoginAt: new Date() });
       const code = randomToken();

@@ -83,7 +83,13 @@ export class SsoService {
     if (body?.tenant !== undefined) c.tenant = String(body.tenant || '').trim();
     if (body?.clientId !== undefined) c.clientId = String(body.clientId || '').trim();
     if (typeof body?.secret === 'string' && body.secret.trim()) {
-      c.secretSealed = this.masterKey.encrypt('sso', body.secret.trim()).toString('base64');
+      try {
+        c.secretSealed = this.masterKey.encrypt('sso', body.secret.trim()).toString('base64');
+      } catch (e: any) {
+        this.logger.error(`SSO-Geheimnis nicht verschlüsselbar: ${e?.message || e}`);
+        if (e?.status) throw e;
+        throw new BadRequestException('Der Clientschlüssel lässt sich nicht verschlüsseln: Der Masterkey passt nicht zum Server-Geheimnis (APP_SECRET bzw. data/app-secret). Der Admin kann unter Administration → Shop & Sicherheit den Masterkey neu setzen.');
+      }
     }
     if (body?.forTeachers !== undefined) c.forTeachers = !!body.forTeachers;
     if (body?.forStudents !== undefined) c.forStudents = !!body.forStudents;
@@ -93,7 +99,12 @@ export class SsoService {
     if (c.tenant) {
       try { microsoftDiscoveryUrl(c.tenant); } catch (e: any) { throw new BadRequestException(e.message); }
     }
-    await this.ssoRepo.save(c);
+    try {
+      await this.ssoRepo.save(c);
+    } catch (e: any) {
+      this.logger.error(`SSO-Einstellungen nicht gespeichert: ${e?.message || e}`);
+      throw new BadRequestException(`Speichern fehlgeschlagen: ${String(e?.message || e).slice(0, 200)}`);
+    }
     return this.view(c, base);
   }
 

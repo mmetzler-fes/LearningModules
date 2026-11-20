@@ -4,7 +4,7 @@ import { escapeHtml, escapeAttr } from '../utils.js';
 // Adressen für Moodle anzeigen, Werte aus Moodle eintragen. Siehe docs/lti.md.
 
 const call = async (app, method, body) => {
-  const res = await fetch('/api/my-school/lti', { method, headers: app.api.getHeaders(), body: body ? JSON.stringify(body) : undefined });
+  const res = await fetch('/api/my-school/lti', { method, headers: app.authStore.getHeaders(), body: body ? JSON.stringify(body) : undefined });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data?.message || `HTTP ${res.status}`);
   return data;

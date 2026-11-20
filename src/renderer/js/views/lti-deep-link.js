@@ -44,7 +44,7 @@ export async function openLtiDeepLink(app, code, contextTitle) {
     const classMode = overlay.querySelector('input[name=ltiClass]:checked')?.value || 'new';
     $('#ltiOk').disabled = true;
     const res = await fetch('/api/lti/deep-link', {
-      method: 'POST', headers: app.api.getHeaders(),
+      method: 'POST', headers: app.authStore.getHeaders(),
       body: JSON.stringify({ code, topicId, classMode, classId: classMode === 'existing' ? $('#ltiClassId').value : undefined }),
     }).then(async (r) => ({ ok: r.ok, body: await r.json().catch(() => ({})) })).catch(() => null);
     if (!res?.ok || !res.body?.jwt || !res.body?.returnUrl) {

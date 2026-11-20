@@ -8,7 +8,7 @@ import { escapeHtml, escapeAttr } from '../utils.js';
 const call = async (app, method, body) => {
   const res = await fetch('/api/my-school/sso' + (method === 'TEST' ? '/test' : ''), {
     method: method === 'TEST' ? 'POST' : method,
-    headers: app.api.getHeaders(),
+    headers: app.authStore.getHeaders(),
     body: body ? JSON.stringify(body) : undefined,
   });
   const data = await res.json().catch(() => ({}));

@@ -103,9 +103,16 @@ function saveSession(value) {
 }
 /** Zurück zur Startseite des Klassennotizbuchs (neu laden, die Sitzung bleibt). */
 export function backToClassbook() {
+  // Angemeldet mit dem Schulkonto in mehreren Klassen: Home zeigt alle.
+  if (sessionGet(ALL_KEY) === '1') { window.location.href = `${studentBase()}?app=classbook&all=1`; return; }
   const s = classbookSession();
   if (s?.token) window.location.href = `${studentBase()}?k=${encodeURIComponent(s.token)}`;
 }
+
+/** Home mit allen Klassennotizbüchern (Anmeldung mit dem Schulkonto) – bleibt für diese Sitzung. */
+const ALL_KEY = 'lm_cb_all';
+/** Klassennotizbücher mit Anmeldung auf diesem Gerät. */
+const signedBooks = () => loadBooks().books.filter((b) => b.ticket);
 
 async function post(path, body) {
   const res = await fetch(`/api/public/classbook/${path}`, {
@@ -148,6 +155,110 @@ function tabInfo(data, linkId, moduleId) {
     }
   }
   return { title: a.name || 'Aufgabe', icon: '📘' };
+}
+
+/** Baum der Aufgaben eines Klassennotizbuchs (Bereiche, Abschnitte, Zuweisungen) – für Home mit einer oder mehreren Klassen. */
+function treeHtml(data, boards, solutions) {
+  // 📍 Merker: { anchor, current: { linkId, topicId, moduleId }, openNodeIds, hasNext } – oder null.
+  const mk = data.marker;
+  const weiterBtn = mk?.hasNext ? '<button type="button" class="btn btn-secondary btn-sm cb-weiter" data-weiter>➡️ Weiter</button>' : '';
+  const cardOf = (a) => {
+    const modes = a.modes.map((m) => {
+      const meta = LINK_MODE_LABELS[m];
+      return meta ? `<button type="button" class="btn btn-primary btn-sm" data-start="${escapeAttr(a.linkId)}" data-mode="${escapeAttr(m)}" title="${escapeAttr(meta.hint)}">${meta.icon} ${escapeHtml(meta.label)}</button>` : '';
+    }).join('');
+    // Module eingeklappt; beim 📍-Merker der Lehrkraft ist sein Lernthema offen.
+    const marked = (t, u) => mk && mk.current.linkId === a.linkId && mk.current.topicId === t.id && (!u || mk.current.moduleId === u.id);
+    const unitRow = (t, u, embedded = false, quizCount = 0, title = u.title) => `
+          <li class="${marked(t, u) ? 'cb-marked' : ''} ${embedded ? 'cb-embedded' : ''}">${a.modes.length ? `<button type="button" class="cb-unit" data-start="${escapeAttr(a.linkId)}" data-module="${escapeAttr(u.id)}">` : '<span class="cb-unit">'}
+            ${marked(t, u) ? '📍 ' : ''}${TYPE_ICON[u.type] || '🧩'} ${escapeHtml(title || 'Aufgabe')}${a.modes.length ? '</button>' : '</span>'}
+            <span class="nb-meta">${escapeHtml((typeof H5P_TYPES !== 'undefined' && H5P_TYPES[u.type]?.name) || '')}${quizCount ? ` · ${quizCount === 1 ? '1 Quiz' : `${quizCount} Quizze`}` : ''}</span>
+            <span class="cb-state">${unitState(u)}</span></li>`;
+    // Wie im Lernnotizbuch: Quizze im Dokument stehen eingerückt darunter.
+    const unitRows = (t, pick = () => true, ownTitle = false, skipRow = false) => {
+      const { top, quizzesOf } = nestEmbedded(t.units);
+      return top.filter(pick).map((u) => {
+        const quizzes = quizzesOf.get(u.id) || [];
+        const solution = solutions.has(u.id) ? `
+          <li class="cb-embedded"><button type="button" class="cb-unit" data-solution-ink="${escapeAttr(u.id)}" title="Die Lösung deiner Lehrkraft – nur zum Ansehen. Dein eigenes Blatt bleibt, wie es ist.">🔑 Lösung</button>
+            <span class="nb-meta">zum Ansehen</span></li>` : '';
+        const board = boards.has(u.id) ? `
+          <li class="cb-embedded"><button type="button" class="cb-unit" data-board="${escapeAttr(u.id)}" title="Das Tafelbild deiner Lehrkraft – nur zum Ansehen. Dein eigenes Blatt bleibt, wie es ist.">✍️ Tafelbild</button>
+            <span class="nb-meta">zum Ansehen</span></li>` : '';
+        return (skipRow ? '' : unitRow(t, u, false, quizzes.length, ownTitle ? t.title : u.title)) + solution + board + quizzes.map((q) => unitRow(t, q, true)).join('');
+      }).join('');
+    };
+    // Wie im Lernnotizbuch: Ein Lernthema mit genau einem Dokument ist eine Zeile (das Dokument unter dem
+    // Titel des Lernthemas), Quizze außerhalb des Dokuments stehen gesammelt unter „🧩 Weitere Quizze“.
+    const soleDoc = (t) => {
+      const docs = nestEmbedded(t.units).top.filter(isDocLike);
+      return docs.length === 1 ? docs[0] : null;
+    };
+    const singleRows = (t, doc, skipRow = false) => {
+      const rest = nestEmbedded(t.units).top.filter((u) => u.id !== doc.id);
+      const restOpen = rest.some((u) => marked(t, u));
+      return unitRows(t, (u) => u.id === doc.id, true, skipRow) + (rest.length ? `
+          <li class="cb-quiz-set"><details ${restOpen ? 'open' : ''}><summary><span class="cb-twisty" aria-hidden="true"></span>
+            <span class="nb-icon" aria-hidden="true">🧩</span><span class="cb-row-title">Weitere Quizze</span>
+            <span class="nb-meta">${count(rest)}</span></summary>
+            <ul class="cb-units">${unitRows(t, (u) => u.id !== doc.id)}</ul></details></li>` : '');
+    };
+    const count = (units) => {
+      const done = units.filter((u) => u.done || u.work).length;
+      return data.pending ? `${units.length} Module` : `${done}/${units.length} erledigt`;
+    };
+    const here = `<span class="cb-here">📍 Hier sind wir</span>${weiterBtn}`;
+    const only = a.topics.length === 1 ? a.topics[0] : null;
+    // Ein Lernthema mit genau einem Dokument: Die Zeile der Zuweisung ist das Dokument (Klick auf den Titel öffnet es).
+    const single = only && soleDoc(only);
+    const titleHtml = single && a.modes.length
+      ? `<button type="button" class="cb-unit cb-row-title" data-start="${escapeAttr(a.linkId)}" data-module="${escapeAttr(single.id)}" title="${escapeAttr(`${a.name} öffnen`)}">${marked(only, single) ? '📍 ' : ''}${escapeHtml(a.name)}</button>`
+      : `<span class="cb-row-title" title="${escapeAttr(a.name)}">${escapeHtml(a.name)}</span>`;
+    const icon = single ? (TYPE_ICON[single.type] || '📄') : nestEmbedded(only?.units || []).top.length && !nestEmbedded(only.units).top.some(isDocLike) ? '🧩' : '📘';
+    // Dieselben Zeilen wie im Lernnotizbuch; ein einzelnes Lernthema braucht keine zweite Zeile.
+    return `<details class="cb-assignment" ${a.topics.some((t) => marked(t)) ? 'open' : ''}>
+      <summary><span class="cb-twisty" aria-hidden="true"></span>
+        <span class="nb-icon" aria-hidden="true">${icon}</span>${titleHtml}
+        <span class="nb-meta">${count(a.topics.flatMap((t) => t.units))}</span>
+        ${single ? `<span class="cb-state">${unitState(single)}</span>` : ''}
+        ${only && marked(only) ? here : ''}
+        <span class="cb-actions">${modes}</span></summary>
+      ${only ? `<ul class="cb-units">${single ? singleRows(only, single, true) : unitRows(only)}</ul>` : a.topics.map((t) => soleDoc(t) ? `<ul class="cb-units cb-single">${singleRows(t, soleDoc(t))}</ul>` : `<details class="cb-topic" ${marked(t) ? 'open' : ''}>
+        <summary class="cb-topic-title"><span class="cb-twisty" aria-hidden="true"></span>
+          <span class="nb-icon" aria-hidden="true">📘</span><span class="cb-row-title" title="${escapeAttr(t.title)}">${escapeHtml(t.title)}</span>
+          <span class="nb-meta">${count(t.units)}</span>
+          ${marked(t) ? here : ''}</summary>
+        <ul class="cb-units">${unitRows(t)}</ul>
+      </details>`).join('')}
+    </details>`;
+  };
+  // Baum wie bei der Lehrkraft: Bereiche/Abschnitte eingeklappt – außer auf dem Weg zum 📍 Merker
+  // (den liefert der Server schon aufgelöst in `mk.openNodeIds`, egal auf welcher Ebene gepinnt ist).
+  const nodes = data.nodes || [];
+  const inNode = (a, id) => {
+    for (let n = nodes.find((x) => x.id === a.nodeId); n; n = nodes.find((x) => x.id === n.parentId)) if (n.id === id) return true;
+    return false;
+  };
+  const level = (parentId) => {
+    const inner = nodes.filter((n) => n.parentId === parentId).sort((x, y) => x.orderIndex - y.orderIndex).map((n) => {
+      const body = level(n.id);
+      if (!body) return '';
+      const mine = data.assignments.filter((a) => a.nodeId === n.id || inNode(a, n.id));
+      const units = mine.flatMap((a) => a.topics.flatMap((t) => t.units));
+      const done = units.filter((u) => u.done || u.work).length;
+      const onPath = !!mk?.openNodeIds?.includes(n.id);
+      return `<details class="cb-snode" ${onPath ? 'open' : ''}>
+        <summary><span class="cb-twisty" aria-hidden="true"></span>
+          <span class="nb-icon" aria-hidden="true">${n.kind === 'section' ? '📑' : '📂'}</span><span class="cb-node-title cb-row-title" title="${escapeAttr(n.title)}">${escapeHtml(n.title)}</span>
+          <span class="nb-meta">${data.pending ? `${units.length} Module` : `${done}/${units.length} erledigt`}</span>
+          ${onPath ? '<span class="cb-here">📍</span>' : ''}</summary>
+        <div class="cb-node-body">${body}</div></details>`;
+    }).join('');
+    const cards = data.assignments.filter((a) => (a.nodeId || null) === parentId).sort((x, y) => (x.order ?? 0) - (y.order ?? 0)).map(cardOf).join('');
+    return inner + cards;
+  };
+  const assignments = level(null);
+  return assignments;
 }
 
 export class ClassbookStudent {
@@ -385,105 +496,8 @@ export class ClassbookStudent {
     }
     this._watchArena();
     if (data.arena) { this._arenaHome(data); return true; }
-    // 📍 Merker: { anchor, current: { linkId, topicId, moduleId }, openNodeIds, hasNext } – oder null.
     const mk = data.marker;
-    const weiterBtn = mk?.hasNext ? '<button type="button" class="btn btn-secondary btn-sm cb-weiter" data-weiter>➡️ Weiter</button>' : '';
-    const cardOf = (a) => {
-      const modes = a.modes.map((m) => {
-        const meta = LINK_MODE_LABELS[m];
-        return meta ? `<button type="button" class="btn btn-primary btn-sm" data-start="${escapeAttr(a.linkId)}" data-mode="${escapeAttr(m)}" title="${escapeAttr(meta.hint)}">${meta.icon} ${escapeHtml(meta.label)}</button>` : '';
-      }).join('');
-      // Module eingeklappt; beim 📍-Merker der Lehrkraft ist sein Lernthema offen.
-      const marked = (t, u) => mk && mk.current.linkId === a.linkId && mk.current.topicId === t.id && (!u || mk.current.moduleId === u.id);
-      const unitRow = (t, u, embedded = false, quizCount = 0, title = u.title) => `
-            <li class="${marked(t, u) ? 'cb-marked' : ''} ${embedded ? 'cb-embedded' : ''}">${a.modes.length ? `<button type="button" class="cb-unit" data-start="${escapeAttr(a.linkId)}" data-module="${escapeAttr(u.id)}">` : '<span class="cb-unit">'}
-              ${marked(t, u) ? '📍 ' : ''}${TYPE_ICON[u.type] || '🧩'} ${escapeHtml(title || 'Aufgabe')}${a.modes.length ? '</button>' : '</span>'}
-              <span class="nb-meta">${escapeHtml((typeof H5P_TYPES !== 'undefined' && H5P_TYPES[u.type]?.name) || '')}${quizCount ? ` · ${quizCount === 1 ? '1 Quiz' : `${quizCount} Quizze`}` : ''}</span>
-              <span class="cb-state">${unitState(u)}</span></li>`;
-      // Wie im Lernnotizbuch: Quizze im Dokument stehen eingerückt darunter.
-      const unitRows = (t, pick = () => true, ownTitle = false, skipRow = false) => {
-        const { top, quizzesOf } = nestEmbedded(t.units);
-        return top.filter(pick).map((u) => {
-          const quizzes = quizzesOf.get(u.id) || [];
-          const solution = solutions.has(u.id) ? `
-            <li class="cb-embedded"><button type="button" class="cb-unit" data-solution-ink="${escapeAttr(u.id)}" title="Die Lösung deiner Lehrkraft – nur zum Ansehen. Dein eigenes Blatt bleibt, wie es ist.">🔑 Lösung</button>
-              <span class="nb-meta">zum Ansehen</span></li>` : '';
-          const board = boards.has(u.id) ? `
-            <li class="cb-embedded"><button type="button" class="cb-unit" data-board="${escapeAttr(u.id)}" title="Das Tafelbild deiner Lehrkraft – nur zum Ansehen. Dein eigenes Blatt bleibt, wie es ist.">✍️ Tafelbild</button>
-              <span class="nb-meta">zum Ansehen</span></li>` : '';
-          return (skipRow ? '' : unitRow(t, u, false, quizzes.length, ownTitle ? t.title : u.title)) + solution + board + quizzes.map((q) => unitRow(t, q, true)).join('');
-        }).join('');
-      };
-      // Wie im Lernnotizbuch: Ein Lernthema mit genau einem Dokument ist eine Zeile (das Dokument unter dem
-      // Titel des Lernthemas), Quizze außerhalb des Dokuments stehen gesammelt unter „🧩 Weitere Quizze“.
-      const soleDoc = (t) => {
-        const docs = nestEmbedded(t.units).top.filter(isDocLike);
-        return docs.length === 1 ? docs[0] : null;
-      };
-      const singleRows = (t, doc, skipRow = false) => {
-        const rest = nestEmbedded(t.units).top.filter((u) => u.id !== doc.id);
-        const restOpen = rest.some((u) => marked(t, u));
-        return unitRows(t, (u) => u.id === doc.id, true, skipRow) + (rest.length ? `
-            <li class="cb-quiz-set"><details ${restOpen ? 'open' : ''}><summary><span class="cb-twisty" aria-hidden="true"></span>
-              <span class="nb-icon" aria-hidden="true">🧩</span><span class="cb-row-title">Weitere Quizze</span>
-              <span class="nb-meta">${count(rest)}</span></summary>
-              <ul class="cb-units">${unitRows(t, (u) => u.id !== doc.id)}</ul></details></li>` : '');
-      };
-      const count = (units) => {
-        const done = units.filter((u) => u.done || u.work).length;
-        return data.pending ? `${units.length} Module` : `${done}/${units.length} erledigt`;
-      };
-      const here = `<span class="cb-here">📍 Hier sind wir</span>${weiterBtn}`;
-      const only = a.topics.length === 1 ? a.topics[0] : null;
-      // Ein Lernthema mit genau einem Dokument: Die Zeile der Zuweisung ist das Dokument (Klick auf den Titel öffnet es).
-      const single = only && soleDoc(only);
-      const titleHtml = single && a.modes.length
-        ? `<button type="button" class="cb-unit cb-row-title" data-start="${escapeAttr(a.linkId)}" data-module="${escapeAttr(single.id)}" title="${escapeAttr(`${a.name} öffnen`)}">${marked(only, single) ? '📍 ' : ''}${escapeHtml(a.name)}</button>`
-        : `<span class="cb-row-title" title="${escapeAttr(a.name)}">${escapeHtml(a.name)}</span>`;
-      const icon = single ? (TYPE_ICON[single.type] || '📄') : nestEmbedded(only?.units || []).top.length && !nestEmbedded(only.units).top.some(isDocLike) ? '🧩' : '📘';
-      // Dieselben Zeilen wie im Lernnotizbuch; ein einzelnes Lernthema braucht keine zweite Zeile.
-      return `<details class="cb-assignment" ${a.topics.some((t) => marked(t)) ? 'open' : ''}>
-        <summary><span class="cb-twisty" aria-hidden="true"></span>
-          <span class="nb-icon" aria-hidden="true">${icon}</span>${titleHtml}
-          <span class="nb-meta">${count(a.topics.flatMap((t) => t.units))}</span>
-          ${single ? `<span class="cb-state">${unitState(single)}</span>` : ''}
-          ${only && marked(only) ? here : ''}
-          <span class="cb-actions">${modes}</span></summary>
-        ${only ? `<ul class="cb-units">${single ? singleRows(only, single, true) : unitRows(only)}</ul>` : a.topics.map((t) => soleDoc(t) ? `<ul class="cb-units cb-single">${singleRows(t, soleDoc(t))}</ul>` : `<details class="cb-topic" ${marked(t) ? 'open' : ''}>
-          <summary class="cb-topic-title"><span class="cb-twisty" aria-hidden="true"></span>
-            <span class="nb-icon" aria-hidden="true">📘</span><span class="cb-row-title" title="${escapeAttr(t.title)}">${escapeHtml(t.title)}</span>
-            <span class="nb-meta">${count(t.units)}</span>
-            ${marked(t) ? here : ''}</summary>
-          <ul class="cb-units">${unitRows(t)}</ul>
-        </details>`).join('')}
-      </details>`;
-    };
-    // Baum wie bei der Lehrkraft: Bereiche/Abschnitte eingeklappt – außer auf dem Weg zum 📍 Merker
-    // (den liefert der Server schon aufgelöst in `mk.openNodeIds`, egal auf welcher Ebene gepinnt ist).
-    const nodes = data.nodes || [];
-    const inNode = (a, id) => {
-      for (let n = nodes.find((x) => x.id === a.nodeId); n; n = nodes.find((x) => x.id === n.parentId)) if (n.id === id) return true;
-      return false;
-    };
-    const level = (parentId) => {
-      const inner = nodes.filter((n) => n.parentId === parentId).sort((x, y) => x.orderIndex - y.orderIndex).map((n) => {
-        const body = level(n.id);
-        if (!body) return '';
-        const mine = data.assignments.filter((a) => a.nodeId === n.id || inNode(a, n.id));
-        const units = mine.flatMap((a) => a.topics.flatMap((t) => t.units));
-        const done = units.filter((u) => u.done || u.work).length;
-        const onPath = !!mk?.openNodeIds?.includes(n.id);
-        return `<details class="cb-snode" ${onPath ? 'open' : ''}>
-          <summary><span class="cb-twisty" aria-hidden="true"></span>
-            <span class="nb-icon" aria-hidden="true">${n.kind === 'section' ? '📑' : '📂'}</span><span class="cb-node-title cb-row-title" title="${escapeAttr(n.title)}">${escapeHtml(n.title)}</span>
-            <span class="nb-meta">${data.pending ? `${units.length} Module` : `${done}/${units.length} erledigt`}</span>
-            ${onPath ? '<span class="cb-here">📍</span>' : ''}</summary>
-          <div class="cb-node-body">${body}</div></details>`;
-      }).join('');
-      const cards = data.assignments.filter((a) => (a.nodeId || null) === parentId).sort((x, y) => (x.order ?? 0) - (y.order ?? 0)).map(cardOf).join('');
-      return inner + cards;
-    };
-    const assignments = level(null);
+    const assignments = treeHtml(data, boards, solutions);
     const results = data.results.length
       ? `<ul class="cb-list">${data.results.map((r) => `<li><span>${escapeHtml(r.linkName || 'Aufgabe')} <span class="hint">${escapeHtml(LINK_MODE_LABELS[r.mode]?.label || r.mode || '')} · ${escapeHtml(when(r.at))}</span></span>
           ${r.maxScore ? `<span class="result-score ${pctClass(r.percentage)}">${r.percentage ?? Math.round((r.score / r.maxScore) * 100)} %</span>` : '<span class="hint">ohne Wertung</span>'}</li>`).join('')}</ul>`
@@ -747,9 +761,154 @@ export class ClassbookStudent {
     if (!inApp() && token) { await this.start(token); return; }
     if (token) upsertBook(token);
     const { books } = loadBooks();
+    // Mit dem Schulkonto in mehreren Klassen angemeldet: Home mit allen.
+    if (!token && (sessionGet(ALL_KEY) === '1' || (inApp() && signedBooks().length > 1))) { await this.homeAll(); return; }
     if (inApp() && books.length === 1) { await this.start(books[0].token); return; }
     // Ohne Eintrag (am PC installiert): die Liste mit ➕ Klassennotizbuch hinzufügen.
     this.showList();
+  }
+
+  /** Knopf „Mit Microsoft anmelden“ für die Schüler-App in `box` – nur, wenn eine Schule es für Schüler anbietet. */
+  async offerAppSso(box, { before = null } = {}) {
+    if (!box) return;
+    const o = await fetch('/api/sso/app').then((r) => r.json()).catch(() => null);
+    const schools = o?.schools || [];
+    if (!schools.length || !box.isConnected) return;
+    const href = (sc) => `/api/sso/start?purpose=app&school=${encodeURIComponent(sc.schoolId)}&ret=${encodeURIComponent(studentBase())}`;
+    const wrap = document.createElement('div');
+    wrap.className = 'sso-buttons';
+    wrap.innerHTML = schools.map((sc) => `<a class="btn btn-primary btn-full sso-btn" href="${escapeAttr(href(sc))}">
+        <span class="sso-ms" aria-hidden="true"></span> Mit Microsoft anmelden${schools.length > 1 ? ` – ${escapeHtml(sc.name)}` : ''}</a>`).join('')
+      + '<div class="sso-or"><span>alle deine Klassen auf einmal – oder mit Klassencode</span></div>';
+    if (before) before.before(wrap); else box.prepend(wrap);
+  }
+
+  /** Zurück von „Mit Microsoft anmelden“ in der Schüler-App: alle Klassennotizbücher auf diesem Gerät eintragen. */
+  async handleAppSso(params) {
+    const code = params.get('sso');
+    const error = params.get('ssoError');
+    history.replaceState(null, '', `${studentBase()}?app=classbook`);
+    if (error) { this.showList(error); return; }
+    const res = await fetch('/api/sso/redeem', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code }) })
+      .then(async (r) => ({ ok: r.ok, body: await r.json().catch(() => ({})) })).catch(() => null);
+    const books = res?.body?.books;
+    if (!res?.ok || !Array.isArray(books) || !books.length) { this.showList(res?.body?.message || 'Die Anmeldung hat nicht geklappt.'); return; }
+    for (const b of books) {
+      upsertBook(b.token, { className: b.className, teacher: b.teacher, ticket: b.ticket, name: b.name, pin: null });
+      if (b.deviceTicket && b.classId) rememberStudent(b.classId, { ticket: b.deviceTicket, name: b.name });
+    }
+    sessionSet(LANDED_KEY, null);
+    if (books.length === 1) { sessionSet(ALL_KEY, null); await this.start(books[0].token); return; }
+    sessionSet(ALL_KEY, '1');
+    await this.homeAll();
+  }
+
+  /** Dieses Klassennotizbuch ist ab jetzt das angemeldete (Ausweis aus der Liste des Geräts). */
+  _useBook(token) {
+    const b = loadBooks().books.find((x) => x.token === token);
+    this.token = token;
+    if (inApp()) storeBooks({ ...loadBooks(), current: token });
+    else if (b?.ticket) saveSession({ token, ticket: b.ticket, name: b.name || '', pin: null });
+  }
+
+  /**
+   * 🏠 Home mit allen Klassennotizbüchern (Schulkonto): je Klasse ihr Baum, darunter Klassenarbeiten.
+   * Ergebnisse und Blätter stehen im einzelnen Klassennotizbuch (📒 öffnen).
+   */
+  async homeAll() {
+    const list = signedBooks();
+    if (list.length < 2) { sessionSet(ALL_KEY, null); if (list[0]) await this.start(list[0].token); else this.showList(); return; }
+    sessionSet(ALL_KEY, '1');
+    this._show('<p class="hint">Deine Klassennotizbücher werden geladen …</p>');
+    const loaded = await Promise.all(list.map(async (b) => {
+      const [data, boards, solutions] = await Promise.all([
+        post(`${encodeURIComponent(b.token)}/home`, { ticket: b.ticket }).catch(() => null),
+        post(`${encodeURIComponent(b.token)}/boards`, { ticket: b.ticket }).catch(() => null),
+        post(`${encodeURIComponent(b.token)}/solutions`, { ticket: b.ticket }).catch(() => null),
+      ]);
+      return { b, data, boards: new Set(Array.isArray(boards) ? boards.map((x) => x.moduleId) : []), solutions: new Set(Array.isArray(solutions) ? solutions.map((x) => x.moduleId) : []) };
+    }));
+    const ok = loaded.filter((x) => x.data && !x.data.failed && !x.data.arena);
+    if (!ok.length) { this.showList('Die Anmeldung ist abgelaufen. Bitte noch einmal mit Microsoft anmelden.'); return; }
+    this.all = new Map(ok.map((x) => [x.b.token, x.data]));
+    document.querySelector('#loginScreen .login-card')?.classList.add('login-card-wide');
+    workspace.start({
+      key: 's:all',
+      onOpen: async (tab) => {
+        if (tab.token) { this._useBook(tab.token); this.data = this.all?.get(tab.token) || null; }
+        await this._enter(tab.linkId, tab.mode || null, tab.moduleId || null, null, { fromTab: true });
+      },
+      onHome: () => backToClassbook(),
+    });
+    workspace.markHome();
+    const name = ok[0].data.name;
+    const EXAM = { open: '📝 Klassenarbeit starten', running: '📝 Weiterschreiben', reentry: '📝 Wieder einsteigen' };
+    const el = this._show(`
+      <div class="cb-head">
+        <div><span class="quick-entry-label">📒 Meine Klassennotizbücher</span><h2>${escapeHtml(name)}</h2></div>
+        <span class="cb-head-actions"><button type="button" class="btn btn-secondary btn-sm" id="cbLogoutAll">Abmelden</button></span>
+      </div>
+      ${ok.map(({ b, data, boards, solutions }) => {
+        const exams = (data.exams || []).filter((x) => EXAM[x.state]).map((x) => `<div class="cb-exam" data-link="${escapeAttr(x.linkId)}"><strong>📝 ${escapeHtml(x.name)}</strong>
+          <button type="button" class="btn btn-primary btn-sm" data-exam>${EXAM[x.state]}</button></div>`).join('');
+        const tree = treeHtml(data, boards, solutions);
+        return `<details class="cb-book-tree" data-cb-token="${escapeAttr(b.token)}" open>
+          <summary><span class="cb-twisty" aria-hidden="true"></span><span class="nb-icon" aria-hidden="true">📒</span>
+            <span class="cb-row-title">${escapeHtml(data.className)}${data.scopeTitle ? ` · ${escapeHtml(data.scopeTitle)}` : ''}</span>
+            <span class="nb-meta">${escapeHtml(b.teacher || '')}</span>
+            <button type="button" class="btn btn-secondary btn-sm" data-cb-only title="Nur dieses Klassennotizbuch – mit Ergebnissen und Blättern">Ergebnisse ›</button></summary>
+          ${exams}
+          ${tree ? `<div class="cb-tree">${tree}</div>` : '<p class="hint">Gerade sind keine Aufgaben freigegeben.</p>'}
+        </details>`;
+      }).join('')}`);
+    const sectionOf = (node) => node.closest('[data-cb-token]')?.dataset.cbToken;
+    const use = (token) => { this._useBook(token); this.data = this.all.get(token); };
+    el.querySelectorAll('[data-start]').forEach((btn) => btn.addEventListener('click', (e) => {
+      if (btn.closest('summary')) e.preventDefault();
+      use(sectionOf(btn));
+      void this._enter(btn.dataset.start, btn.dataset.mode || null, btn.dataset.module || null, btn);
+    }));
+    el.querySelectorAll('[data-exam]').forEach((btn) => btn.addEventListener('click', () => {
+      use(sectionOf(btn));
+      void this._enter(btn.closest('[data-link]').dataset.link, 'exam', null, btn);
+    }));
+    el.querySelectorAll('[data-board], [data-solution-ink]').forEach((btn) => btn.addEventListener('click', async () => {
+      const token = sectionOf(btn);
+      use(token);
+      const kind = btn.dataset.board ? 'boards' : 'solutions';
+      const board = await post(`${encodeURIComponent(token)}/${kind}/${encodeURIComponent(btn.dataset.board || btn.dataset.solutionInk)}`, { ticket: classbookSession()?.ticket }).catch(() => null);
+      try {
+        if (!board?.content) throw new Error(board?.message || 'Das ist gerade nicht freigegeben.');
+        const { openBoardView } = await import('../ink/ink-open.js');
+        await openBoardView(board, kind === 'boards' ? '✍️ Tafelbild' : '🔑 Lösung');
+      } catch (err) { this.app.showToast(err.message, 'error'); }
+    }));
+    el.querySelectorAll('[data-cb-only]').forEach((btn) => btn.addEventListener('click', async (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      sessionSet(ALL_KEY, null);
+      workspace.stop();
+      await this.start(sectionOf(btn));
+    }));
+    el.querySelectorAll('[data-weiter]').forEach((btn) => btn.remove()); // ➡️ Weiter gehört ins einzelne Klassennotizbuch
+    el.querySelector('#cbLogoutAll').addEventListener('click', () => {
+      const v = loadBooks();
+      for (const b of v.books) { delete b.ticket; delete b.pin; }
+      storeBooks(v);
+      saveSession(null);
+      sessionSet(ALL_KEY, null);
+      sessionSet(LANDED_KEY, null);
+      workspace.stop();
+      this.showList();
+    });
+    // Nach dem Aktualisieren: weiter im Tab; gleich nach der Anmeldung: dort, wo ein 📍 Merker steht.
+    if (workspace.reopenAfterUpdate()) return true;
+    if (sessionGet(LANDED_KEY) !== 'all') {
+      sessionSet(LANDED_KEY, 'all');
+      const hit = ok.find((x) => x.data.marker?.current?.linkId && x.data.marker.current.moduleId);
+      if (hit) { use(hit.b.token); void this._enter(hit.data.marker.current.linkId, null, hit.data.marker.current.moduleId); }
+    }
+    return true;
   }
 
   showList(message = '') {
@@ -765,7 +924,10 @@ export class ClassbookStudent {
             <span class="hint">${b.ticket ? `angemeldet als ${escapeHtml(b.name || '')}` : 'nicht angemeldet'}</span></button>
           <button type="button" class="btn btn-secondary btn-sm cb-book-del" data-token="${escapeAttr(b.token)}" title="Aus der Liste nehmen (deine Ergebnisse bleiben)">✕</button></li>`).join('')}</ul>`
         : '<p class="hint">Noch kein Klassennotizbuch – füge eines hinzu.</p>'}
-      <button type="button" class="btn btn-primary btn-full" id="cbAdd">➕ Klassennotizbuch hinzufügen</button>`);
+      <button type="button" class="btn btn-primary btn-full" id="cbAdd">➕ Klassennotizbuch hinzufügen</button>
+      ${signedBooks().length > 1 ? '<button type="button" class="btn btn-secondary btn-full" id="cbAll">🏠 Alle meine Klassen</button>' : ''}`);
+    void this.offerAppSso(el, { before: el.querySelector('#cbAdd') });
+    el.querySelector('#cbAll')?.addEventListener('click', () => this.homeAll());
     el.querySelectorAll('.cb-book').forEach((btn) => btn.addEventListener('click', () => this.start(btn.dataset.token)));
     el.querySelectorAll('.cb-book-del').forEach((btn) => btn.addEventListener('click', async () => {
       const b = books.find((x) => x.token === btn.dataset.token);
@@ -862,7 +1024,7 @@ export class ClassbookStudent {
       if (chosen === 'exam') workspace.stop();
       // Arbeitsfläche: Tab merken; ein Dokument öffnet gleich im Stift-Editor.
       if (workspace.on && chosen !== 'exam') {
-        workspace.mark({ id: `${linkId}|${onlyModule || ''}`, linkId, moduleId: onlyModule || null, mode: mode || null, ...tabInfo(this.data, linkId, onlyModule) });
+        workspace.mark({ id: `${linkId}|${onlyModule || ''}`, linkId, moduleId: onlyModule || null, mode: mode || null, token: this.token, ...tabInfo(this.data, linkId, onlyModule) });
         const mods = (data.topics || []).flatMap((t) => t.modules || []);
         if (onlyModule && mods.find((m) => m.id === onlyModule)?.type === 'document') data.startView = 'ink';
       }

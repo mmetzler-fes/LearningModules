@@ -120,6 +120,28 @@ describe('Klassennotizbuch: Lehrkraft mit dem Schulkonto', () => {
   });
 });
 
+describe('Schüler-App: Anmeldung mit dem Schulkonto über alle Klassen', () => {
+  it('findet die Klasse über den Benutzernamen (ohne Namensabgleich), verknüpft das Konto, nur die eigene Schule', async () => {
+    const { svc, users, students } = setup();
+    Object.assign(users.rows[0], { schoolId: 'sch1', displayName: 'Herr M' });
+    Object.assign(students.rows[0], { loginId: 'anna.b' });
+    const out = await svc.appLogin('sch1', { subject: 'ms|9', firstName: 'Anna', lastName: 'B', email: 'Anna.B@fesesde.onmicrosoft.com' });
+    expect(out.books).toEqual([expect.objectContaining({ token: 'kb', className: '10a', classId: 'c1', name: 'Anna B' })]);
+    expect(students.rows[0].ssoSubject).toBe('ms|9');
+    // Danach auch ohne Benutzernamen über das verknüpfte Konto
+    students.rows[0].loginId = null;
+    expect((await svc.appLogin('sch1', { subject: 'ms|9', firstName: 'X', lastName: 'Y', email: 'x@y' })).books).toHaveLength(1);
+    // andere Schule: nichts
+    await expect(svc.appLogin('sch2', { subject: 'ms|9', firstName: 'A', lastName: 'B', email: 'anna.b@x' })).rejects.toThrow(/noch keine Klasse/);
+  });
+
+  it('gleichnamiger Schüler ohne Benutzernamen wird nicht gefunden', async () => {
+    const { svc, users } = setup();
+    Object.assign(users.rows[0], { schoolId: 'sch1' });
+    await expect(svc.appLogin('sch1', { subject: 'ms|5', firstName: 'Anna', lastName: 'B', email: 'anna.b@x.de' })).rejects.toThrow(/anna.b/);
+  });
+});
+
 describe('Klassennotizbuch: Schüler aus Moodle (LTI)', () => {
   it('verknüpft über den Namen, danach über die Moodle-Kennung; Unbekannte werden angelegt', async () => {
     const { svc, students } = setup();

@@ -11,12 +11,15 @@ import { ClassbookService } from '../classbook/classbook.service';
 import { LinksService } from '../links/links.service';
 import { discover, emailOf, microsoftDiscoveryUrl, namesOf, pkce, randomToken, verifyIdToken } from './oidc';
 
-type Purpose = 'teacher' | 'student';
+/** student: ein Klassennotizbuch bzw. Klassenlink; app: Schüler-App – alle Klassen der Schule über den Benutzernamen. */
+type Purpose = 'teacher' | 'student' | 'app';
 
 interface Pending {
   schoolId: string;
   purpose: Purpose;
   classbook: string | null;
+  /** Rückweg in der App (/ oder /schueler/). */
+  ret?: string;
   /** Klassenlink (?l=) statt Klassenbuch – Schüler. */
   linkToken?: string | null;
   classId?: string | null;
@@ -148,6 +151,13 @@ export class SsoService {
     return { classId: found.link.classId, schoolId: owner?.schoolId || null };
   }
 
+  /** Schüler-App (Start-Bildschirm): Schulen mit „Mit Microsoft anmelden“ für Schüler. */
+  async appOptions() {
+    const all = (await this.ssoRepo.find({ where: { forStudents: true } })).filter(this.ready);
+    const schools = await Promise.all(all.map((c) => this.schoolRepo.findOne({ where: { id: c.schoolId } })));
+    return { schools: all.map((c, i) => ({ schoolId: c.schoolId, name: schools[i]?.name || '', provider: c.provider })) };
+  }
+
   /** Klassenlink: Bietet die Schule der Lehrkraft die Anmeldung für Schüler an? */
   async linkOption(linkToken: string) {
     const ctx = await this.linkContext(linkToken);
@@ -175,8 +185,15 @@ export class SsoService {
   async start(q: { school?: string; purpose?: string; k?: string }, base: string): Promise<string> {
     this.prune();
     if (this.pending.size > MAX_PENDING) throw new BadRequestException('Gerade zu viele Anmeldungen – bitte gleich noch einmal.');
-    const purpose: Purpose = q.purpose === 'student' ? 'student' : 'teacher';
+    const purpose: Purpose = q.purpose === 'student' ? 'student' : q.purpose === 'app' ? 'app' : 'teacher';
     let schoolId = String(q.school || '');
+    const ret = (q as any).ret === '/schueler/' ? '/schueler/' : '/';
+    if (purpose === 'app' && !schoolId) {
+      // Ohne Angabe: die einzige Schule mit Anmeldung für Schüler.
+      const all = (await this.ssoRepo.find({ where: { forStudents: true } })).filter(this.ready);
+      if (all.length !== 1) throw new BadRequestException('Bitte die Schule wählen.');
+      schoolId = all[0].schoolId;
+    }
     const classbook = purpose === 'student' && q.k ? String(q.k) : null;
     const linkToken = purpose === 'student' && !classbook && (q as any).l ? String((q as any).l) : null;
     let classId: string | null = null;
@@ -195,7 +212,7 @@ export class SsoService {
     const nonce = randomToken();
     const { verifier, challenge } = pkce();
     const redirectUri = `${base}/api/sso/callback`;
-    this.pending.set(state, { schoolId, purpose, classbook, linkToken, classId, nonce, verifier, redirectUri, at: Date.now() });
+    this.pending.set(state, { schoolId, purpose, classbook, linkToken, classId, ret, nonce, verifier, redirectUri, at: Date.now() });
     const url = new URL(d.authorization_endpoint);
     url.search = new URLSearchParams({
       client_id: c.clientId, response_type: 'code', response_mode: 'query', redirect_uri: redirectUri,
@@ -213,7 +230,8 @@ export class SsoService {
       const sp = new URLSearchParams(params);
       if (pp?.purpose === 'student' && pp.classbook) sp.set('k', pp.classbook);
       if (pp?.purpose === 'student' && pp.linkToken) sp.set('l', pp.linkToken);
-      return `${base}/?${sp.toString()}`;
+      if (pp?.purpose === 'app') sp.set('app', '1');
+      return `${base}${pp?.ret || '/'}?${sp.toString()}`;
     };
     if (!p) return back(undefined, { ssoError: 'Die Anmeldung ist abgelaufen. Bitte noch einmal versuchen.' });
     if (q.error) return back(p, { ssoError: q.error === 'access_denied' ? 'Anmeldung abgebrochen.' : `Microsoft: ${String(q.error_description || q.error).slice(0, 200)}` });
@@ -234,6 +252,9 @@ export class SsoService {
       let body: any;
       if (p.purpose === 'teacher') {
         body = await this.auth.ssoLogin(emailOf(claims), p.schoolId, { device });
+      } else if (p.purpose === 'app') {
+        const { firstName, lastName } = namesOf(claims);
+        body = await this.classbook.appLogin(p.schoolId, { subject: `${claims.iss}|${claims.oid || claims.sub}`, firstName, lastName, email: emailOf(claims) });
       } else {
         const { firstName, lastName } = namesOf(claims);
         const subject = `${claims.iss}|${claims.oid || claims.sub}`;

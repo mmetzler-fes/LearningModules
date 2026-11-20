@@ -26,6 +26,7 @@ import { ClassbookProgress } from '../core/entities/classbook-progress.entity';
 import { ancestorsOf, canHoldNode, commonPath, deadMirrorNodes, slotSort, depthOf, leavesInOrder, nodeMoveError, normalizeMarker, reorder, dissolve, LeafRef, MAX_CLASS_DEPTH, TreeLink, TreeNode, veiledNodeIds, scopeTree, ClassbookScope } from './classbook-tree';
 import { ClassesService } from '../classes/classes.service';
 import { matchStudent } from '../classes/name-match';
+import { normalizeLoginId } from '../classes/login-id';
 import { LinksService, PRACTICE_MODES, onlyHtmlApps, withoutCompanionForDocuments } from '../links/links.service';
 import { NotebooksService } from '../notebooks/notebooks.service';
 import { issueDeviceTicket, pinTag, issueTicket, readTicket } from '../classes/student-ticket';
@@ -1576,6 +1577,48 @@ export class ClassbookService {
     return this.ssoLoginToClass(klasse, who);
   }
 
+  /**
+   * Anmeldung in der Schüler-App mit dem Schulkonto (docs/sso.md): alle Klassennotizbücher der Schule, in denen
+   * der Schüler steht – über seinen Benutzernamen (Teil vor dem @) oder ein schon verknüpftes Konto; Lehrkräfte
+   * über ihren 👩‍🏫 Eintrag. Nur laufende Klassen mit eingeschaltetem Klassennotizbuch. Kein Namensabgleich:
+   * Gleichnamige in anderen Klassen dürfen nicht verwechselt werden.
+   */
+  async appLogin(schoolId: string, who: SsoWho) {
+    const loginId = normalizeLoginId(who.email);
+    const teacher = await this.teacherByEmail(who.email);
+    const where: any[] = [{ ssoSubject: who.subject }];
+    if (loginId) where.push({ loginId });
+    if (teacher) where.push({ userId: teacher.id });
+    const rows = await this.studentRepo.find({ where });
+    const books: Array<{ token: string; className: string; teacher: string; classId: string; ticket: string; deviceTicket: string; name: string; pending: boolean }> = [];
+    const seen = new Set<string>();
+    for (const student of rows) {
+      if (seen.has(student.classId)) continue;
+      const klasse = await this.classes.findById(student.classId);
+      if (!klasse || klasse.rolledOver) continue; // Vorjahr
+      const owner = klasse.ownerId ? await this.userRepo.findOne({ where: { id: klasse.ownerId } }) : null;
+      if (!owner || owner.schoolId !== schoolId) continue;
+      const nb = await this.repo.findOne({ where: { classId: klasse.id } });
+      if (!nb?.token || nb.studentHidden) continue;
+      seen.add(klasse.id);
+      // Ab jetzt fest verknüpft – auch für die Anmeldung im einzelnen Klassennotizbuch.
+      if (!student.ssoSubject) await this.studentRepo.update({ id: student.id }, { ssoSubject: who.subject });
+      const name = `${student.firstName} ${student.lastName}`.trim();
+      books.push({
+        token: nb.token, className: klasse.name, teacher: owner.displayName || '', classId: klasse.id, name,
+        ticket: issueTicket(classbookTicketKey(klasse.id), student.id, name),
+        deviceTicket: issueDeviceTicket(classbookTicketKey(klasse.id), student.id, name, student.pin),
+        pending: student.status === 'pending',
+      });
+    }
+    if (!books.length) {
+      throw new NotFoundException(loginId
+        ? `Für „${loginId}“ ist noch keine Klasse eingetragen. Bitte die Lehrkraft, deinen Benutzernamen in der Klassenliste zu ergänzen – oder melde dich mit dem Klassencode an.`
+        : 'Das Schulkonto nennt keinen Benutzernamen. Bitte mit dem Klassencode anmelden.');
+    }
+    return { books: books.sort((a, b) => a.className.localeCompare(b.className, 'de')) };
+  }
+
   private async teacherByEmail(email: string | null | undefined): Promise<User | null> {
     const e = String(email || '').trim().toLowerCase();
     if (!e.includes('@')) return null;
@@ -1599,8 +1642,11 @@ export class ClassbookService {
       const id = testStudentId(teacher.id);
       return { ticket: issueTicket(classbookTicketKey(klasse.id), id, name), deviceTicket: issueDeviceTicket(classbookTicketKey(klasse.id), id, name, null), studentId: id, classId: klasse.id, name, pending: false };
     }
+    const loginId = normalizeLoginId(who.email);
     let student = students.find((s) => s.ssoSubject === who.subject)
       || (teacher ? students.find((s) => s.userId === teacher.id) : undefined)
+      // Benutzername aus der Klassenliste: sicherer als der Name.
+      || (loginId ? students.find((s) => s.loginId === loginId && (!s.ssoSubject || s.ssoSubject === who.subject)) : undefined)
       || null;
     if (!student) {
       const typed = `${who.firstName} ${who.lastName}`.trim();

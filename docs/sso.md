@@ -44,3 +44,19 @@ Es werden keine Postfächer, Dateien oder Teams-Daten gelesen; die App fragt nur
 OpenID Connect mit Autorisierungscode und PKCE (`src/sso`). Das ID-Token wird über die öffentlichen Schlüssel des Mandanten
 geprüft (Signatur RS256, Aussteller, Empfänger, Ablauf, nonce). In der Adresse steht danach nur ein Einlöse-Code, der zwei Minuten
 gilt und einmal verwendet werden kann. Dieselbe Prüfung dient später LTI 1.3 (Moodle).
+
+## Schüler-App: alle Klassen mit einer Anmeldung
+
+Auf dem Start-Bildschirm (und in der Schüler-App unter „Meine Klassennotizbücher“) steht **„Mit Microsoft anmelden“**.
+Nach der Anmeldung sieht der Schüler **alle seine Klassennotizbücher** auf einmal – in **🏠 Home** je Klasse ihr Baum,
+die Tabs gelten über alle Klassen.
+
+Gefunden werden die Klassen über den **Benutzernamen** in der Klassenliste (Teil der Microsoft-Adresse vor dem @,
+z. B. `max.muster` für `max.muster@schule.onmicrosoft.com`) oder über ein Konto, das sich schon einmal in diesem
+Klassennotizbuch mit Microsoft angemeldet hat. **Kein Abgleich über den Namen** – Gleichnamige in anderen Klassen
+werden nicht verwechselt. Nur laufende Klassen der eigenen Schule mit eingeschaltetem Klassennotizbuch; Lehrkräfte
+über ihren 👩‍🏫 Eintrag.
+
+**Benutzernamen pflegen:** beim Einlesen der Schülerliste eine Spalte **„ID“** (oder „Benutzername“, „E-Mail“, „Login“) –
+die ganze Adresse oder nur der Teil vor dem @. **Erneut einlesen** ergänzt fehlende Benutzernamen, ohne neue Einträge;
+PINs und Ergebnisse bleiben. Einzeln: ✏️ am Schüler in der Klassenliste.

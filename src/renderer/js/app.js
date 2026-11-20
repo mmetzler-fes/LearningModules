@@ -817,11 +817,18 @@ class App {
       const adminToggle = document.getElementById('btnShowAdminLogin');
       if (adminToggle) adminToggle.style.display = 'none';
       await this.loginView.initLoginScreen();
+      // Start-Bildschirm: Schüler melden sich mit dem Schulkonto an und sehen alle ihre Klassen.
+      void this.classbookStudent.offerAppSso(document.getElementById('studentEntry'), { before: document.getElementById('btnStudentScan') });
 
       const params = new URLSearchParams(window.location.search);
       // Start aus Moodle (LTI 1.3): Schüler mit ?l=, Lehrkraft (auch Deep Linking) ohne.
       if (params.get('lti') || params.get('ltiError')) {
         await this.loginView.handleLtiReturn(params);
+        return;
+      }
+      // Zurück von „Mit Microsoft anmelden“ in der Schüler-App: alle Klassennotizbücher des Schülers.
+      if (params.get('app') === '1' && (params.get('sso') || params.get('ssoError'))) {
+        await this.classbookStudent.handleAppSso(params);
         return;
       }
       // Zurück von „Mit Microsoft anmelden“ (Lehrkraft, Schüler über Klassenlink ?l=); mit ?k= das Klassennotizbuch.

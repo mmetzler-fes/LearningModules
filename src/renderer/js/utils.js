@@ -62,6 +62,9 @@ export function appConfirm(message) {
     const confirmBtnNo = document.getElementById('confirmBtnNo');
 
     confirmMessage.textContent = message;
+    // Ganz nach oben: Aus einem Dialog heraus (gleiche Ebene, später angehängt) lag die Rückfrage
+    // sonst unsichtbar dahinter – der Knopf schien nichts zu tun (z. B. „Verwerfen“ in der Sicherung).
+    document.body.appendChild(confirmOverlay);
     confirmOverlay.classList.remove('hidden');
     confirmBtnYes.focus();
 

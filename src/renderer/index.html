@@ -1493,6 +1493,8 @@
           <input type="text" id="linkShareUrl" readonly />
           <button type="button" class="btn btn-secondary btn-sm quicklink-copy" id="btnCopyLinkShareUrl"
             title="Link in die Zwischenablage">📋 Kopieren</button>
+          <button type="button" class="btn btn-primary btn-sm quicklink-copy" id="btnOpenLinkShareUrl"
+            title="Den Link selbst öffnen – in einem neuen Tab, so wie ihn die Schüler sehen. Hier bleibst du angemeldet.">▶ Öffnen</button>
         </div>
       </div>
 
@@ -1508,10 +1510,10 @@
       <div class="form-group hidden" id="linkShareStartViewGroup">
         <label for="linkShareStartView">Startansicht der Dokumente</label>
         <select id="linkShareStartView">
-          <option value="">📄 Normale Ansicht</option>
           <option value="ink">✍️ Gleich im Stift-Editor (umschaltbar)</option>
+          <option value="normal">📄 Normale Ansicht</option>
         </select>
-        <p class="hint">Gilt sofort – Link und QR-Code bleiben gleich, auch gedruckte.</p>
+        <p class="hint">Gilt sofort – Link und QR-Code bleiben gleich, auch gedruckte. Quick-Links starten standardmäßig im Stift-Editor.</p>
       </div>
 
       <div class="confirm-actions">

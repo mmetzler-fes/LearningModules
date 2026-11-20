@@ -14,7 +14,7 @@ Er passt auf gedruckte Blätter und gilt auch im nächsten Schuljahr. **🚫 Zur
 auch gedruckte QR-Codes.
 
 **Startansicht:** Im Dialog des Links wählt **Startansicht der Dokumente**, wie ein Dokument aufgeht: **📄 Normale Ansicht**
-oder **✍️ Gleich im Stift-Editor**. Mit ✍️ öffnet sich das erste Dokument von selbst im Stift-Editor; **✕ Schließen** führt zur
+oder **✍️ Gleich im Stift-Editor** – bei Quick-Links ist der Stift-Editor der Standard, die Menüleiste links ist dann eingeklappt. Mit ✍️ öffnet sich das erste Dokument von selbst im Stift-Editor; **✕ Schließen** führt zur
 normalen Ansicht, **✍️ Mit Stift bearbeiten** wieder zurück. Die Einstellung gilt sofort, Link und QR-Code bleiben gleich.
 Der Link der Klassenarbeit hat eine eigene Startansicht (in seinem Dialog). Varianten mit fester Klasse folgen ihrem Quick-Link.
 

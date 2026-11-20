@@ -5,7 +5,7 @@
 {
  "lmApp": 2,
  "id": "grundschaltungen-et",
- "version": "1.1",
+ "version": "1.2",
  "title": "Grundschaltungen der Elektrotechnik",
  "units": [
   {
@@ -490,7 +490,7 @@
       + '<p class="lead">Widerstände lassen sich <b>in Reihe</b>, <b>parallel</b> oder <b>gemischt</b> schalten. In jedem Abschnitt entdeckst du zuerst die Regeln an einer Schaltung mit Reglern – der Strom fließt sichtbar. Danach rechnest du selbst, und LearningModules prüft deine Ergebnisse.</p>'
       + '<p>Tippe auf einen Bereich, um direkt dorthin zu springen:</p>'
       + '<div class="uebersicht">' + karten.map((k) => '<button type="button" class="karte sprung" data-ziel="' + k[0] + '"><h3>' + k[1] + '</h3><p>' + k[2] + '</p><span class="los">Öffnen →</span></button>').join('') + '</div>'
-      + '<div class="merke">Zahlen gibst du mit Komma oder Punkt ein, in der angegebenen Einheit. Erlaubt ist eine Abweichung von 1 %.</div><p id="sprunghinweis" class="lead"></p>';
+      + '<div class="merke">Zahlen gibst du mit Komma oder Punkt ein, in der angegebenen Einheit. Erlaubt ist eine Abweichung von 1 %. Mit den Pfeiltasten ← → wechselst du zum vorigen bzw. nächsten Schritt.</div><p id="sprunghinweis" class="lead"></p>';
     app.querySelectorAll('.sprung').forEach((b) => b.addEventListener('click', () => LM.goto(b.dataset.ziel)));
     LM.onError((err) => { if (err && err.code === 'goto') $('#sprunghinweis').textContent = 'ℹ️ ' + err.message; });
   }
@@ -653,10 +653,32 @@
     melde();
   }
 
+  // ---------- Pfeiltasten: ← vorheriger, → nächster Schritt ----------
+  // (auch mit einem Präsentations-Klicker; Schieberegler bedient man mit ↑ ↓)
+  const SCHRITTE = (() => {
+    try {
+      return JSON.parse(document.querySelector('script[type="application/lm-app+json"]').textContent)
+        .units.flatMap((u) => u.steps.map((st) => st.id));
+    } catch (_) { return []; }
+  })();
+  let aktuellerSchritt = null;
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+    if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
+    const t = e.target;
+    // In einem Textfeld bewegen die Pfeile den Cursor.
+    if (t && t.tagName === 'INPUT' && t.type !== 'range' && t.type !== 'radio') return;
+    const i = SCHRITTE.indexOf(aktuellerSchritt);
+    const ziel = SCHRITTE[i + (e.key === 'ArrowRight' ? 1 : -1)];
+    e.preventDefault();
+    if (i >= 0 && ziel) LM.goto(ziel);
+  }, true);
+
   // ---------- Start ----------
   LM.start((init) => {
     if (init.state && typeof init.state === 'object') stand = Object.assign({ eingaben: {}, regler: {} }, init.state);
     const id = init.step.id;
+    aktuellerSchritt = id;
     if (id === 'start') zeigeStart();
     else if (ENTDECKEN[id]) zeigeEntdecken(id);
     else if (AUFGABEN[id]) zeigeAufgabe(id);

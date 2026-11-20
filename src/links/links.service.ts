@@ -25,6 +25,12 @@ import { ClassNotebookPlace } from '../core/entities/class-notebook-place.entity
 import { User } from '../core/entities/user.entity';
 import { veiledNodeIds } from '../classbook/classbook-tree';
 
+/** Wirksame Startansicht: bewusst gewählt ('ink'/'normal') oder der Standard (Quick-Link: Stift-Editor). */
+export function resolveStartView(own: string | null | undefined, quickDefault: boolean): 'ink' | 'normal' {
+  if (own === 'ink' || own === 'normal') return own;
+  return quickDefault ? 'ink' : 'normal';
+}
+
 const ALL_MODES: LinkMode[] = ['quiz', 'exam', 'learn', 'companion', 'contest'];
 
 
@@ -664,8 +670,10 @@ export class LinksService {
       link.companionSettings = this.companionService.cleanLinkSettings(body.companionSettings);
     }
     if (body?.contestSettings !== undefined) link.contestSettings = this.cleanContestSettings(body.contestSettings);
-    if (body?.startView !== undefined) link.startView = body.startView === 'ink' ? 'ink' : null;
-    if (body?.examStartView !== undefined) link.examStartView = body.examStartView === 'ink' ? 'ink' : null;
+    // 'ink' / 'normal' bewusst gewählt, null = Standard (Quick-Link: ✍️ Stift-Editor, sonst normal).
+    const view = (v: any) => (v === 'ink' || v === 'normal' ? v : null);
+    if (body?.startView !== undefined) link.startView = view(body.startView);
+    if (body?.examStartView !== undefined) link.examStartView = view(body.examStartView);
     // Leerer String löscht das Passwort, `undefined` lässt es unangetastet.
     if (body?.accessPassword !== undefined) {
       link.accessPassword = String(body.accessPassword).trim() || null;
@@ -741,7 +749,9 @@ export class LinksService {
       contents: contentCounts(resolved),
       viaQuick: !!variant,
       quick: quick ? await this.quickInfo(link) : null,
-      startView: (access === 'exam' ? link.examStartView : variant ? rule?.startView : link.startView) || null,
+      startView: access === 'exam'
+        ? resolveStartView(link.examStartView, false)
+        : resolveStartView(variant ? rule?.startView : link.startView, quick || !!variant),
     };
   }
 
@@ -793,11 +803,13 @@ export class LinksService {
    */
   async startViewOf(link: TopicLink, exam = false): Promise<'ink' | null> {
     const field = exam ? 'examStartView' : 'startView';
-    if (link[field] === 'ink') return 'ink';
-    if (!link.templateId) return null;
-    const rule = await this.linkRepo.findOne({ where: { id: link.templateId } });
-    return rule?.[field] === 'ink' ? 'ink' : null;
+    const rule = link.templateId ? await this.linkRepo.findOne({ where: { id: link.templateId } }) : null;
+    const own = link[field] || (rule ? rule[field] : null);
+    // Quick-Link (oder seine Variante mit Klasse): Standard ist der Stift-Editor.
+    const quick = !exam && (isQuickRule(link) || (!!rule && isQuickRule(rule)));
+    return resolveStartView(own, quick) === 'ink' ? 'ink' : null;
   }
+
 
   /** Schüler-Token eines Links, wie er in Adressen steht (Variante oder eigener). */
   async practiceToken(link: TopicLink): Promise<string | null> {

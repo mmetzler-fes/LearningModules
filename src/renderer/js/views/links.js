@@ -1182,7 +1182,7 @@ export class LinksView {
     const showStart = !!res && !(res.viaQuick && this._shareAccess !== 'exam');
     startGroup?.classList.toggle('hidden', !showStart);
     const startSel = document.getElementById('linkShareStartView');
-    if (startSel && showStart) startSel.value = res.startView === 'ink' ? 'ink' : '';
+    if (startSel && showStart) startSel.value = res.startView === 'ink' ? 'ink' : 'normal';
     document.getElementById('btnRegenLinkShare')?.classList.toggle('hidden', !!(quick || res?.viaQuick));
     document.getElementById('btnRevokeLinkShare')?.classList.toggle('hidden', !!res?.viaQuick);
   }
@@ -1209,6 +1209,12 @@ export class LinksView {
         urlBox.select();
         this.app.showToast('Bitte mit Strg+C kopieren', 'info');
       }
+    });
+
+    // Den eigenen Link selbst ausprobieren: neuer Tab, dort als Schüler – hier bleibt die Anmeldung.
+    document.getElementById('btnOpenLinkShareUrl')?.addEventListener('click', () => {
+      const url = this._shareData?.url;
+      if (url) window.open(url, '_blank', 'noopener');
     });
 
     document.getElementById('btnCopyLinkShareQr')?.addEventListener('click', async () => {
@@ -1289,11 +1295,11 @@ export class LinksView {
     document.getElementById('linkShareStartView')?.addEventListener('change', async (e) => {
       const id = this._shareData?.linkId || this._shareLink?.id;
       if (!id) return;
-      const startView = e.target.value === 'ink' ? 'ink' : null;
+      const startView = e.target.value === 'ink' ? 'ink' : 'normal';
       const res = await this.app.api.updateLink(id, this._shareAccess === 'exam' ? { examStartView: startView } : { startView }).catch(() => null);
       if (!res || res.message) { this.app.showToast('Fehler: ' + (res?.message || 'Speichern fehlgeschlagen'), 'error'); return; }
       if (this._shareData) this._shareData.startView = startView;
-      this.app.showToast(startView ? 'Dokumente öffnen sich über diesen Link gleich im ✍️ Stift-Editor.' : 'Dokumente öffnen sich über diesen Link in der normalen Ansicht.', 'success');
+      this.app.showToast(startView === 'ink' ? 'Dokumente öffnen sich über diesen Link gleich im ✍️ Stift-Editor.' : 'Dokumente öffnen sich über diesen Link in der normalen Ansicht.', 'success');
     });
 
     document.getElementById('btnRevokeLinkShare')?.addEventListener('click', async () => {

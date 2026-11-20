@@ -236,7 +236,9 @@ export class LoginView {
 
   async _enterQuickQuiz(studentName, data, token) {
     const { app } = this;
-    app.authStore.setToken(null);
+    // Nur dieser Tab arbeitet als Schüler: Eine angemeldete Lehrkraft, die ihren eigenen Link öffnet,
+    // bleibt in den anderen Tabs angemeldet (vorher löschte das ihre gespeicherte Anmeldung).
+    app.authStore.suspend();
     app.state.currentUser = { name: studentName, role: 'student', teacherEmail: data.teacherEmail };
     app.state.topics = [data.topic];
     app.state.linkSession = null;
@@ -471,7 +473,8 @@ export class LoginView {
   /** Übergibt den geprüften Durchlauf an die Quiz-Ansicht. */
   async _enterLinkRun(token, data, password = '', onlyModule = null) {
     const { app } = this;
-    app.authStore.setToken(null);
+    // Nur dieser Tab arbeitet als Schüler – die Anmeldung der Lehrkraft in anderen Tabs bleibt.
+    app.authStore.suspend();
     app.state.currentUser = { name: data.studentName, role: 'student', teacherEmail: data.teacherEmail };
     app.state.topics = data.topics;
     app.state.linkSession = {

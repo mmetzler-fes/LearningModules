@@ -229,12 +229,18 @@ class App {
       btn.setAttribute('aria-expanded', String(!collapsed));
     };
     let collapsed = false;
-    try { collapsed = localStorage.getItem(KEY) === '1'; } catch (_) { /* ohne Speicher */ }
+    // Über einen Schülerlink (?l=, ?q=): eingeklappt – mehr Platz für Blatt und Stift-Editor –,
+    // außer auf diesem Gerät wurde bewusst ausgeklappt ('0').
+    const viaLink = /[?&](l|q)=/.test(window.location.search);
+    try {
+      const saved = localStorage.getItem(KEY);
+      collapsed = saved === '1' || (viaLink && saved !== '0');
+    } catch (_) { collapsed = viaLink; }
     apply(collapsed);
     btn.addEventListener('click', () => {
       collapsed = !sidebar.classList.contains('collapsed');
       apply(collapsed);
-      try { if (collapsed) localStorage.setItem(KEY, '1'); else localStorage.removeItem(KEY); } catch (_) { /* gilt bis zum Neuladen */ }
+      try { localStorage.setItem(KEY, collapsed ? '1' : '0'); } catch (_) { /* gilt bis zum Neuladen */ }
       // Ansichten, die ihre Breite messen (Drag and Drop, Editor), neu einpassen.
       window.dispatchEvent(new Event('resize'));
     });

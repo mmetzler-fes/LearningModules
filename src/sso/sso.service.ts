@@ -1,4 +1,5 @@
 import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import * as crypto from 'crypto';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { SchoolSso } from '../core/entities/school-sso.entity';
@@ -79,7 +80,7 @@ export class SsoService {
 
   async saveConfig(user: any, body: any, base: string) {
     const schoolId = await this.adminSchool(user);
-    const c = (await this.ssoRepo.findOne({ where: { schoolId } })) || this.ssoRepo.create({ schoolId, provider: 'microsoft' });
+    const c = (await this.ssoRepo.findOne({ where: { schoolId } })) || this.ssoRepo.create({ id: crypto.randomUUID(), schoolId, provider: 'microsoft' });
     if (body?.tenant !== undefined) c.tenant = String(body.tenant || '').trim();
     if (body?.clientId !== undefined) c.clientId = String(body.clientId || '').trim();
     if (typeof body?.secret === 'string' && body.secret.trim()) {

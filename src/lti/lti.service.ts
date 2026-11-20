@@ -134,7 +134,7 @@ export class LtiService implements OnModuleInit {
       if (!/^https?:\/\/[^\s]+$/i.test(s)) throw new BadRequestException(`${what}: bitte die vollständige Adresse aus Moodle eintragen.`);
       return s;
     };
-    const p = (await this.platformRepo.findOne({ where: { schoolId } })) || this.platformRepo.create({ schoolId });
+    const p = (await this.platformRepo.findOne({ where: { schoolId } })) || this.platformRepo.create({ id: crypto.randomUUID(), schoolId });
     p.name = String(body?.name || 'Moodle').trim().slice(0, 60) || 'Moodle';
     p.issuer = url(body?.issuer, 'Plattform-ID').replace(/\/+$/, '');
     p.clientId = String(body?.clientId || '').trim();
@@ -224,7 +224,7 @@ export class LtiService implements OnModuleInit {
       const ags = c[AGS];
       if (ags?.lineitem && (ags.scope || []).includes(SCORE_SCOPE)) {
         const row = (await this.gradeRepo.findOne({ where: { linkId: link.id, studentId: who.studentId, lineitem: String(ags.lineitem) } }))
-          || this.gradeRepo.create({ platformId: p.id, lineitem: String(ags.lineitem), linkId: link.id, classId, studentId: who.studentId, sentPercent: null, sentAt: null, lastError: null });
+          || this.gradeRepo.create({ id: crypto.randomUUID(), platformId: p.id, lineitem: String(ags.lineitem), linkId: link.id, classId, studentId: who.studentId, sentPercent: null, sentAt: null, lastError: null });
         row.userSub = String(c.sub);
         await this.gradeRepo.save(row);
       }
@@ -276,7 +276,7 @@ export class LtiService implements OnModuleInit {
     } else {
       classId = (await this.newClass(user, d.contextTitle)).id;
     }
-    if (!course) course = this.courseRepo.create({ platformId: p.id, contextId: d.contextId, contextTitle: d.contextTitle, classId, ownerId: user.userId });
+    if (!course) course = this.courseRepo.create({ id: crypto.randomUUID(), platformId: p.id, contextId: d.contextId, contextTitle: d.contextTitle, classId, ownerId: user.userId });
     course.classId = classId;
     course.contextTitle = d.contextTitle;
     await this.courseRepo.save(course);

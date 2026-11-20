@@ -20,6 +20,7 @@ export function repo(rows: any[] = []) {
     find: async ({ where }: any = {}) => rows.filter((r) => match(r, where)),
     create: (x: any) => ({ ...x }),
     save: async (x: any) => {
+      if (!x.id && !x.key) throw new Error('NOT NULL constraint failed: id (wie SQLite – Kennung beim Anlegen mitgeben)');
       const i = rows.findIndex((r) => r.id === x.id);
       x.updatedAt = new Date();
       if (i >= 0) rows[i] = x; else rows.push(x);

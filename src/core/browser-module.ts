@@ -40,7 +40,8 @@ export function loadBrowserModule<T>(file: string): T {
     names.push(name);
     return `${kind} ${name}`;
   });
-  const sandbox: { __out?: T } = {};
+  // structuredClone fehlt in einem neuen Kontext (ink-print.js braucht es).
+  const sandbox: { __out?: T; structuredClone: typeof structuredClone } = { structuredClone: (v: any) => JSON.parse(JSON.stringify(v)) };
   vm.runInNewContext(`${source}\n;__out = { ${names.join(', ')} };`, sandbox, { filename: picked.file });
   cache.set(file, sandbox.__out);
   return sandbox.__out as T;

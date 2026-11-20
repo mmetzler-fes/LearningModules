@@ -151,6 +151,14 @@ export async function openDocumentInk({ mode, mod, up = null, embedModule = null
   };
   // Lehrkraft am eigenen Dokument: Einfügen und Schreibfelder gehen ins Dokument.
   if (mode === 'teacher' && editable && mod.topicId) Object.assign(paper, documentEditing());
+  // Schüler im Durchlauf: das Blatt mit Beschriftung als PDF mit der Vorlage der Lehrkraft – auf dem
+  // iPad gleich ins Teilen-Menü (GoodNotes), sonst im neuen Fenster (📤 neben 🖨).
+  if (mode === 'student' && (up?.linkToken || up?.quickToken)) {
+    const { canShareFiles } = await import('../share-file.js');
+    paper.printWindow = !canShareFiles();
+    paper.share = { title: 'An GoodNotes – das Blatt mit deiner Beschriftung als PDF teilen' };
+    paper.printPdf = (data, { solutions, win }) => studentPdf(data, solutions, win);
+  }
   // Lehrkraft: Drucken über den Renderer – mit Vorlage und, wenn gewünscht, Beschriftung.
   if (mode === 'teacher') {
     paper.printPdf = (data, { solutions, win }) => printPdf(data, solutions, win);
@@ -202,6 +210,25 @@ export async function openDocumentInk({ mode, mod, up = null, embedModule = null
     const url = URL.createObjectURL(await res.blob());
     if (win) win.location.href = url; else window.open(url, '_blank');
     return warnings;
+  }
+
+  /** Schüler: PDF über den Server (POST /api/public/document/:id/ink-pdf) – teilen oder anzeigen. */
+  async function studentPdf(data, solutions, win) {
+    const res = await fetch(`/api/public/document/${encodeURIComponent(mod.id)}/ink-pdf`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        linkToken: up?.linkToken || undefined, quickToken: up?.quickToken || undefined, password: up?.password || undefined,
+        studentTicket: up?.studentTicket || undefined, spec: content.spec || { content: [] }, ink: data, solutions: !!solutions,
+      }),
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error(body.message || `HTTP ${res.status}`);
+    }
+    const { deliverPdf, fileNameOf } = await import('../share-file.js');
+    deliverPdf(await res.blob(), fileNameOf(res, mod.title || 'Arbeitsblatt'), win);
+    return [];
   }
 
   /**

@@ -27,7 +27,8 @@ import { FeaturesService } from '../../features/features.service';
 import { isTestStudent, isTestName } from '../../classes/test-student';
 import { TimingsService } from '../../timings/timings.service';
 import { UsageService } from '../../impact/usage.service';
-import { contentOf, forStudents, studentModule } from './student-view';
+import { contentOf, forStudents, studentModule, withoutSolutionBlocks } from './student-view';
+import { studentInkSpec } from './student-ink-pdf';
 import * as crypto from 'crypto';
 import { cleanPcName } from './pc-name';
 import { isQuickRule, splitQuickToken } from '../../links/quick-token';
@@ -95,6 +96,52 @@ export class PublicController {
     const topic = await this.topicRepo.findOne({ where: { id: mod.topicId }, select: ['id', 'ownerId'] });
     if (!topic || !(await this.features.has(topic.ownerId, 'worksheets'))) throw new ForbiddenException('Für dieses Dokument gibt es kein PDF.');
     const { file } = await this.worksheets.render({ userId: topic.ownerId }, { spec: mod.content.spec, title: mod.title, output: 'pdf', moduleId: mod.id });
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename*=UTF-8''${encodeURIComponent(`${mod.title || 'Dokument'}.pdf`)}`);
+    res.send(file);
+  }
+
+  /**
+   * POST /public/document/:moduleId/ink-pdf – das Blatt so, wie der Schüler es im Stift-Editor
+   * bearbeitet hat (Felder, eingefügte Schreibfelder, Stiftschrift), mit der Vorlage der Lehrkraft –
+   * zum Teilen an GoodNotes. Zugang wie beim Dokument-PDF. Das mitgeschickte Dokument muss dem
+   * gespeicherten entsprechen (mit oder ohne Lösungen, wie es der Schüler sieht) – nur die
+   * Beschriftung kommt vom Gerät. Quiz-Adressen führen über einen Klassenlink ins Klassennotizbuch.
+   */
+  @Post('document/:moduleId/ink-pdf')
+  @HttpCode(200)
+  async documentInkPdf(
+    @Param('moduleId') moduleId: string,
+    @Body() body: { linkToken?: string; quickToken?: string; password?: string; studentTicket?: string; spec?: unknown; ink?: any; solutions?: boolean },
+    @Req() req: any,
+    @Res() res: Response,
+  ) {
+    let modules: LearningModule[] = [];
+    let classLink: TopicLink | null = null;
+    if (body?.linkToken) {
+      const { link, access } = await this.findAccessByToken(String(body.linkToken));
+      if (link.accessPassword && (body.password || '') !== link.accessPassword && !readTicket(body.studentTicket, link.id)) {
+        throw new ForbiddenException('Falsches Passwort.');
+      }
+      modules = (await this.linksService.resolveModules(link, { exam: modesFor(link, access).includes('exam') })).flatMap((r) => r.modules);
+      classLink = link;
+    } else if (body?.quickToken) {
+      const { topic } = await this.resolveQuickToken(String(body.quickToken));
+      modules = (topic.modules || []).filter((m) => m.moduleSelected !== false);
+    } else {
+      throw new BadRequestException('Link fehlt.');
+    }
+    if (!modules.some((m) => m.id === moduleId)) throw new NotFoundException('Dokument nicht gefunden.');
+    const mod = await this.moduleRepo.findOne({ where: { id: moduleId } });
+    if (!mod || mod.type !== 'document' || !mod.content?.spec) throw new NotFoundException('Dokument nicht gefunden.');
+    const topic = await this.topicRepo.findOne({ where: { id: mod.topicId }, select: ['id', 'ownerId'] });
+    if (!topic || !(await this.features.has(topic.ownerId, 'worksheets'))) throw new ForbiddenException('Für dieses Dokument gibt es kein PDF.');
+    const { spec, full } = studentInkSpec(body?.spec, mod.content.spec, withoutSolutionBlocks(mod.content.spec), body?.ink);
+    const quizLink = classLink?.classId ? await this.classbook.quizLinkFor(classLink, baseUrl(req)) : null;
+    const { file } = await this.worksheets.render({ userId: topic.ownerId }, {
+      spec, title: mod.title, output: body?.solutions && full ? 'loesung_pdf' : 'pdf', moduleId: mod.id, kind: mod.content?.kind,
+      ...(quizLink ? { quizLink } : {}),
+    }, req);
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `inline; filename*=UTF-8''${encodeURIComponent(`${mod.title || 'Dokument'}.pdf`)}`);
     res.send(file);

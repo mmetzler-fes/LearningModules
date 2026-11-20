@@ -96,6 +96,15 @@ class Workspace {
     this.render();
   }
 
+  /** Nach „🔄 Aktualisieren“: den Tab, der offen war, wieder öffnen (true, wenn es einen gab). */
+  reopenAfterUpdate() {
+    let id = null;
+    try { id = sessionStorage.getItem('lm_ws_reopen'); sessionStorage.removeItem('lm_ws_reopen'); } catch (_) { /* ohne */ }
+    if (!id || !this.tabs.some((t) => t.id === id)) return false;
+    void this.open(id);
+    return true;
+  }
+
   async home() {
     if (this.busy) return;
     this.busy = true;

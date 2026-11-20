@@ -596,6 +596,8 @@ export class ClassbookStudent {
     const pending = parse(sessionGet(OPEN_KEY));
     sessionSet(OPEN_KEY, null);
     if (pending?.token === this.token) { void this._enter(pending.linkId, null, pending.moduleId); return true; }
+    // Nach „🔄 Aktualisieren“: weiter im Tab, der offen war.
+    if (useTabs && workspace.reopenAfterUpdate()) return true;
     // Gleich nach der Anmeldung: dort weiter, wo die Lehrkraft den 📍 Merker gesetzt hat – sonst bleibt Home.
     if (useTabs && sessionGet(LANDED_KEY) !== this.token) {
       sessionSet(LANDED_KEY, this.token);

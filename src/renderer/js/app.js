@@ -1,6 +1,7 @@
 import { AuthStore, BrowserApi, isIpad } from './api.js';
 import { H5pRenderer } from '../lm-editor/src/modules/h5p-renderer.js';
 import '../lm-editor/src/doc/latex.js'; // LaTeX-Formeln in Dokumenten
+import { startUpdateCheck } from './update-check.js';
 import { lmHost } from './lm-host.js';
 import { appConfirm, showToast, escapeHtml } from './utils.js';
 import { LoginView } from './views/login.js';
@@ -779,6 +780,8 @@ class App {
   }
 
   async init() {
+    // Neue Version auf dem Server (iPad-App bleibt im Hintergrund im Speicher): Aktualisieren anbieten.
+    startUpdateCheck();
     // Anmeldung abgelaufen (api.js, authFetch): direkt zur Anmeldung. Entwürfe des
     // Modul-Editors liegen zusätzlich im Browser (local-drafts.js) und werden danach angeboten.
     window.addEventListener('lm-session-expired', () => {

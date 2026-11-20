@@ -865,6 +865,7 @@ export class LoginView {
         }
       },
     });
+    workspace.reopenAfterUpdate();
   }
 
   showLoginScreen() {

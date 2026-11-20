@@ -6792,3 +6792,17 @@ body.ws-on .app-container { height: calc(100dvh - var(--lm-ws-top)); margin-top:
 body.ws-on .login-header { display: none; }
 body.ws-on .login-card.login-card-wide { max-width: min(1100px, 100%); margin-top: 16px; }
 body.ws-on .ink-title { display: none; }
+
+/* ===== Neue Version: Aktualisieren (js/update-check.js) ===== */
+.lm-update {
+  position: fixed; z-index: 3000; left: 50%; transform: translateX(-50%);
+  top: calc(var(--lm-ws-top, 0px) + 12px + env(safe-area-inset-top, 0px));
+  width: min(520px, calc(100vw - 24px));
+  display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 14px 16px;
+  background: var(--bg-secondary, #fff); color: var(--text-primary, #0f172a);
+  border: 1px solid var(--border, #cbd5e1); border-radius: 14px; box-shadow: 0 10px 30px rgba(15, 23, 42, 0.25);
+}
+.lm-update-text { flex: 1 1 240px; display: flex; flex-direction: column; gap: 2px; font-size: 0.95rem; }
+.lm-update-text span { color: var(--text-secondary, #475569); font-size: 0.88rem; }
+.lm-update-actions { display: flex; gap: 8px; margin-left: auto; }
+.lm-update .btn { min-height: 44px; }

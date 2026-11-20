@@ -1,0 +1,654 @@
+<!doctype html>
+<html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Grundschaltungen der Elektrotechnik</title>
+<!-- HTML-App für LearningModules (lmApp 2, docs/html-apps.md): Reihen-, Parallel- und gemischte Schaltung -->
+<script type="application/lm-app+json">
+{
+ "lmApp": 2,
+ "id": "grundschaltungen-et",
+ "version": "1.0",
+ "title": "Grundschaltungen der Elektrotechnik",
+ "units": [
+  {
+   "id": "start",
+   "title": "Start",
+   "steps": [
+    {
+     "id": "start",
+     "title": "Grundschaltungen im Überblick",
+     "kind": "info"
+    }
+   ]
+  },
+  {
+   "id": "reihe",
+   "title": "Reihenschaltung",
+   "steps": [
+    {
+     "id": "reihe-entdecken",
+     "title": "Reihenschaltung entdecken",
+     "kind": "info"
+    },
+    {
+     "id": "r-rges",
+     "title": "Gesamtwiderstand",
+     "kind": "task"
+    },
+    {
+     "id": "r-strom",
+     "title": "Strom",
+     "kind": "task"
+    },
+    {
+     "id": "r-u2",
+     "title": "Teilspannung U₂",
+     "kind": "task"
+    },
+    {
+     "id": "r-regel",
+     "title": "Was gilt?",
+     "kind": "task"
+    }
+   ]
+  },
+  {
+   "id": "parallel",
+   "title": "Parallelschaltung",
+   "steps": [
+    {
+     "id": "parallel-entdecken",
+     "title": "Parallelschaltung entdecken",
+     "kind": "info"
+    },
+    {
+     "id": "p-rges",
+     "title": "Gesamtwiderstand",
+     "kind": "task"
+    },
+    {
+     "id": "p-iges",
+     "title": "Gesamtstrom",
+     "kind": "task"
+    },
+    {
+     "id": "p-i2",
+     "title": "Teilstrom I₂",
+     "kind": "task"
+    },
+    {
+     "id": "p-regel",
+     "title": "Was gilt?",
+     "kind": "task"
+    }
+   ]
+  },
+  {
+   "id": "gemischt",
+   "title": "Gemischte Schaltung",
+   "steps": [
+    {
+     "id": "gemischt-entdecken",
+     "title": "Gemischte Schaltung entdecken",
+     "kind": "info"
+    },
+    {
+     "id": "g-r23",
+     "title": "Ersatzwiderstand R₂₃",
+     "kind": "task"
+    },
+    {
+     "id": "g-rges",
+     "title": "Gesamtwiderstand",
+     "kind": "task"
+    },
+    {
+     "id": "g-strom",
+     "title": "Gesamtstrom",
+     "kind": "task"
+    },
+    {
+     "id": "g-u1",
+     "title": "Teilspannung U₁",
+     "kind": "task"
+    },
+    {
+     "id": "g-i2",
+     "title": "Teilstrom I₂",
+     "kind": "task"
+    }
+   ]
+  },
+  {
+   "id": "labor",
+   "title": "Mess-Labor",
+   "steps": [
+    {
+     "id": "l-reihe",
+     "title": "Spannungsteiler einstellen",
+     "kind": "task"
+    },
+    {
+     "id": "l-parallel",
+     "title": "Gesamtstrom einstellen",
+     "kind": "task"
+    },
+    {
+     "id": "l-gemischt",
+     "title": "Vorwiderstand einstellen",
+     "kind": "task"
+    }
+   ]
+  }
+ ]
+}
+</script>
+<!-- Nur nötig, um die Datei auch allein zu öffnen; in LearningModules fügt der Server die Bridge selbst ein. -->
+<script>/**
+ * lm-bridge.js – Verbindung einer HTML-App zu LearningModules (Schnittstelle 2, docs/html-apps.md).
+ * Der Server fügt sie beim Ausliefern selbst ein. In die Datei kopieren muss sie nur, wer die App
+ * auch allein öffnen will; allein zeigt sie unten eine Leiste zum Blättern durch die Schritte.
+ */
+(function () {
+  'use strict';
+  if (window.LM) return;
+  var V = 2;
+  var hosted = window.parent !== window;
+  var starter = null;
+  var handlers = { lock: [], reveal: [], check: [], flush: [], error: [] };
+
+  function post(type, data) {
+    if (hosted) window.parent.postMessage({ lm: V, type: type, data: data }, '*');
+  }
+  function fire(name, arg) {
+    handlers[name].forEach(function (fn) { fn(arg); });
+  }
+  // Zoom der App: Strg + Mausrad (auch Zwei-Finger am Trackpad) oder zwei Finger (iPad).
+  // Die Seite drumherum sieht die Gesten im Rahmen nicht – deshalb hier. Der Wert geht an
+  // LearningModules und kommt beim nächsten Schritt in "init.zoom" zurück.
+  var zoom = 1;
+  function setZoom(z, report) {
+    zoom = Math.max(0.3, Math.min(3, Math.round(z * 100) / 100));
+    document.documentElement.style.zoom = zoom === 1 ? '' : String(zoom);
+    if (report) post('lm.zoom', { scale: zoom });
+  }
+  window.addEventListener('wheel', function (e) {
+    if (!e.ctrlKey) return;
+    e.preventDefault();
+    setZoom(zoom * Math.exp(-Math.max(-100, Math.min(100, e.deltaY)) / 600), true);
+  }, { passive: false });
+  /** So weit zoomen, dass der Inhalt genau in die Breite des Rahmens passt. */
+  function fitWidth() {
+    setZoom(1, false);
+    var root = document.documentElement;
+    var wide = Math.max(root.scrollWidth, document.body ? document.body.scrollWidth : 0);
+    setZoom(wide > 0 ? root.clientWidth / wide : 1, true);
+  }
+  var pinchFrom = 1;
+  document.addEventListener('gesturestart', function (e) { e.preventDefault(); pinchFrom = zoom; }, { passive: false });
+  document.addEventListener('gesturechange', function (e) { e.preventDefault(); setZoom(pinchFrom * e.scale, false); }, { passive: false });
+  document.addEventListener('gestureend', function (e) { e.preventDefault(); post('lm.zoom', { scale: zoom }); }, { passive: false });
+
+  function run(init) {
+    if (init && init.zoom) setZoom(Number(init.zoom) || 1, false);
+    if (starter) starter(init);
+    post('lm.shown', { text: document.body ? (document.body.innerText || '').trim().length : 0 });
+  }
+  function manifest() {
+    var el = document.querySelector('script[type="application/lm-app+json"]');
+    try { return JSON.parse(el.textContent); } catch (e) { return { units: [] }; }
+  }
+  /** Allein geöffnet: Schritt aus der Adresse, Leiste zum Blättern, Stand nur im Speicher. */
+  function standalone() {
+    var steps = [];
+    manifest().units.forEach(function (u) {
+      (u.steps || []).forEach(function (s) { steps.push({ unit: u.id, id: s.id, title: s.title, kind: s.kind }); });
+    });
+    var at = Math.max(0, steps.findIndex(function (s) { return '#' + s.id === location.hash; }));
+    run({ mode: 'standalone', run: 'quiz', step: steps[at] || null, state: null });
+    var bar = document.createElement('div');
+    bar.style.cssText = 'position:fixed;left:0;right:0;bottom:0;padding:6px 10px;background:#222;color:#fff;font:13px sans-serif;z-index:99999';
+    var go = function (d) {
+      var next = steps[at + d];
+      if (!next) return;
+      location.hash = next.id;
+      location.reload();
+    };
+    var btn = function (text, d) {
+      var b = document.createElement('button');
+      b.textContent = text;
+      b.addEventListener('click', function () { go(d); });
+      return b;
+    };
+    bar.append(btn('◀', -1), ' Schritt ' + (at + 1) + ' von ' + steps.length + ' ', btn('▶', 1));
+    document.body.appendChild(bar);
+  }
+
+  window.addEventListener('message', function (e) {
+    var m = e.data;
+    if (e.source !== window.parent || !m || m.lm !== V) return;
+    if (m.type === 'lm.init') run(m.data);
+    else if (m.type === 'lm.lock') fire('lock', !!(m.data && m.data.locked));
+    else if (m.type === 'lm.reveal') fire('reveal');
+    else if (m.type === 'lm.check') fire('check');
+    else if (m.type === 'lm.flush') { fire('flush'); post('lm.flushed', {}); }
+    else if (m.type === 'lm.zoom') {
+      if (m.data && m.data.fit === 'width') fitWidth();
+      else setZoom(Number(m.data && m.data.scale) || 1, true);
+    }
+    else if (m.type === 'lm.error') {
+      fire('error', m.data);
+      if (window.console) console.warn('LearningModules:', m.data && m.data.message);
+    }
+  });
+  window.addEventListener('error', function (e) { post('lm.crash', { message: String(e.message || 'Fehler').slice(0, 300) }); });
+
+  var LM = {
+    hosted: hosted,
+    /** Pflicht. "fn(init)" baut genau den Schritt "init.step" auf. */
+    start: function (fn) {
+      starter = fn;
+      if (hosted) { post('lm.ready', {}); return; }
+      if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', standalone);
+      else standalone();
+    },
+    /** Stand der Aufgabe, bei jeder Änderung und gleich beim Start: "{ isCorrect, points?, userAnswer?, correctAnswer? }". */
+    answer: function (a) { post('lm.answer', a || {}); },
+    /** Eigener Stand, JSON, höchstens 256 KB. Kommt beim nächsten Schritt wieder in "init.state". */
+    saveState: function (data) { post('lm.state', { data: data === undefined ? null : data }); },
+    /** Datei anbieten: ".xlsx", ".csv", ".pdf", ".png", ".jpg" oder ".txt". */
+    download: function (name, blob) { post('lm.download', { name: String(name), blob: blob }); },
+    onLock: function (fn) { handlers.lock.push(fn); },
+    onReveal: function (fn) { handlers.reveal.push(fn); },
+    onCheck: function (fn) { handlers.check.push(fn); },
+    onFlush: function (fn) { handlers.flush.push(fn); },
+    onError: function (fn) { handlers.error.push(fn); },
+  };
+  Object.freeze(LM);
+  Object.defineProperty(window, 'LM', { value: LM, writable: false, configurable: false });
+})();
+</script>
+</head><body>
+<style>
+  :root { --blau: #2563eb; --gruen: #16a34a; --rot: #dc2626; --orange: #ea580c; --tuerkis: #0d9488; --grau: #64748b; --linie: #e2e8f0; --hell: #f8fafc; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif; color: #0f172a; background: #fff; }
+  main { max-width: 980px; margin: 0 auto; padding: 18px 20px 28px; }
+  h1 { font-size: 1.5rem; margin: 0 0 6px; }
+  h2 { font-size: 1.15rem; margin: 18px 0 8px; }
+  p { line-height: 1.5; margin: 6px 0; }
+  .lead { color: #334155; }
+  .karte { background: var(--hell); border: 1px solid var(--linie); border-radius: 14px; padding: 14px 16px; margin: 12px 0; }
+  .raster { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 18px; align-items: start; }
+  @media (max-width: 760px) { .raster { grid-template-columns: 1fr; } }
+  svg.schaltung { width: 100%; height: auto; background: #fff; border: 1px solid var(--linie); border-radius: 12px; }
+  .regler { display: grid; grid-template-columns: 70px 1fr 82px; align-items: center; gap: 8px; margin: 8px 0; font-size: .95rem; }
+  .regler input[type=range] { width: 100%; accent-color: var(--blau); }
+  .regler output { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
+  table.werte { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+  table.werte th, table.werte td { white-space: nowrap; padding: 5px 8px; border-bottom: 1px solid var(--linie); text-align: right; }
+  table.werte th:first-child, table.werte td:first-child { text-align: left; }
+  table.werte tr.summe td { font-weight: 700; border-top: 2px solid #94a3b8; }
+  .balken { height: 10px; border-radius: 5px; background: var(--blau); min-width: 2px; }
+  .merke { border-left: 5px solid var(--tuerkis); background: #f0fdfa; padding: 10px 14px; border-radius: 8px; margin: 12px 0; }
+  .merke b { color: #115e59; }
+  .formel { font-family: "Cambria Math", "STIX Two Math", Georgia, serif; font-size: 1.15rem; }
+  .aufgabe { font-size: 1.05rem; }
+  .eingabe { display: flex; align-items: center; gap: 8px; margin: 14px 0; font-size: 1.1rem; }
+  .eingabe input { width: 150px; font-size: 1.1rem; padding: 7px 10px; border: 2px solid #cbd5e1; border-radius: 8px; }
+  .eingabe input:focus { outline: none; border-color: var(--blau); }
+  .wahl label { display: block; padding: 9px 12px; margin: 7px 0; border: 2px solid var(--linie); border-radius: 10px; cursor: pointer; }
+  .wahl label:hover { border-color: #93c5fd; }
+  .wahl input { margin-right: 8px; }
+  .rueck { margin-top: 12px; padding: 10px 14px; border-radius: 10px; display: none; }
+  .rueck.zeigen { display: block; }
+  .rueck.ok { background: #dcfce7; color: #166534; }
+  .rueck.falsch { background: #fee2e2; color: #991b1b; }
+  .rueck.loesung { background: #eff6ff; color: #1e3a8a; }
+  .ziel { display: inline-block; padding: 4px 10px; border-radius: 999px; background: #fef3c7; color: #92400e; font-weight: 700; }
+  .messung { font-size: 1.25rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .uebersicht { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
+  .uebersicht .karte h3 { margin: 0 0 4px; font-size: 1.05rem; }
+  .strom { stroke-dasharray: 3 13; animation: fluss linear infinite; }
+  @keyframes fluss { to { stroke-dashoffset: -32; } }
+  input:disabled { background: #f1f5f9; }
+</style>
+<main id="app"></main>
+<script>
+  'use strict';
+  // ---------- Hilfen ----------
+  const $ = (sel, el) => (el || document).querySelector(sel);
+  const app = document.getElementById('app');
+  const zahl = (x, stellen) => {
+    const s = Number(x).toLocaleString('de-DE', { maximumFractionDigits: stellen === undefined ? 2 : stellen });
+    return s;
+  };
+  const ohm = (r) => (r >= 1000 ? zahl(r / 1000, 3) + ' kΩ' : zahl(r, 1) + ' Ω');
+  const amp = (i) => (Math.abs(i) < 1 ? zahl(i * 1000, 1) + ' mA' : zahl(i, 3) + ' A');
+  const volt = (u) => zahl(u, 2) + ' V';
+  const parallel = (...rs) => 1 / rs.reduce((s, r) => s + 1 / r, 0);
+  const leseZahl = (text) => {
+    const t = String(text || '').trim().replace(/\s/g, '').replace(',', '.');
+    if (!t || !/^-?\d*\.?\d+$/.test(t)) return null;
+    return Number(t);
+  };
+  const passt = (wert, soll) => wert !== null && Math.abs(wert - soll) <= Math.max(Math.abs(soll) * 0.01, 0.005);
+
+  let stand = { eingaben: {}, regler: {} };
+  const speichern = () => LM.saveState(stand);
+
+  // ---------- Schaltbilder (SVG) ----------
+  const SVGNS = 'http://www.w3.org/2000/svg';
+  function svgText(x, y, text, opt) {
+    const o = opt || {};
+    return '<text x="' + x + '" y="' + y + '" font-size="' + (o.size || 15) + '" text-anchor="' + (o.anchor || 'middle') + '" fill="' + (o.fill || '#0f172a') + '" font-weight="' + (o.weight || 400) + '">' + text + '</text>';
+  }
+  function widerstandH(x, y, name, wert, farbe) {
+    return '<rect x="' + (x - 30) + '" y="' + (y - 11) + '" width="60" height="22" rx="2" fill="#fff" stroke="' + (farbe || '#0f172a') + '" stroke-width="2.4"/>'
+      + svgText(x, y - 18, name, { weight: 700 }) + svgText(x, y + 30, wert, { size: 13, fill: '#475569' });
+  }
+  function widerstandV(x, y, name, wert, farbe) {
+    return '<rect x="' + (x - 11) + '" y="' + (y - 30) + '" width="22" height="60" rx="2" fill="#fff" stroke="' + (farbe || '#0f172a') + '" stroke-width="2.4"/>'
+      + svgText(x + 18, y - 4, name, { anchor: 'start', weight: 700 }) + svgText(x + 18, y + 14, wert, { anchor: 'start', size: 13, fill: '#475569' });
+  }
+  function quelle(x, y, u) {
+    return '<circle cx="' + x + '" cy="' + y + '" r="20" fill="#fff" stroke="#0f172a" stroke-width="2.4"/>'
+      + '<line x1="' + x + '" y1="' + (y - 20) + '" x2="' + x + '" y2="' + (y + 20) + '" stroke="#0f172a" stroke-width="2"/>'
+      + svgText(x - 28, y + 5, 'U = ' + u, { anchor: 'end', weight: 700 });
+  }
+  function draht(punkte, strom, dauer) {
+    const d = 'M' + punkte.map((p) => p.join(',')).join(' L');
+    let s = '<path d="' + d + '" fill="none" stroke="#0f172a" stroke-width="2.4"/>';
+    if (strom) s += '<path class="strom" d="' + d + '" fill="none" stroke="#f59e0b" stroke-width="5" stroke-linecap="round" style="animation-duration:' + dauer + 's"/>';
+    return s;
+  }
+  // Animationsdauer: je größer der Strom, desto schneller (gedeckelt)
+  const dauerFuer = (i) => (i <= 0 ? 0 : Math.max(0.25, Math.min(4, 0.06 / i)));
+  const punkt = (x, y) => '<circle cx="' + x + '" cy="' + y + '" r="4" fill="#0f172a"/>';
+
+  function bildReihe(w, animiert) {
+    const i = w.U / (w.R1 + w.R2 + w.R3);
+    const t = animiert ? dauerFuer(i) : 0;
+    let s = '<svg class="schaltung" viewBox="0 0 560 250" xmlns="' + SVGNS + '">';
+    s += draht([[90, 105], [90, 50], [160, 50]], animiert, t) + draht([[220, 50], [250, 50]], animiert, t) + draht([[310, 50], [340, 50]], animiert, t)
+      + draht([[400, 50], [480, 50], [480, 200], [90, 200], [90, 145]], animiert, t);
+    s += quelle(90, 125, volt(w.U));
+    s += widerstandH(190, 50, 'R₁', ohm(w.R1), '#2563eb') + widerstandH(280, 50, 'R₂', ohm(w.R2), '#16a34a') + widerstandH(370, 50, 'R₃', ohm(w.R3), '#ea580c');
+    s += svgText(480, 225, 'I = ' + amp(i), { weight: 700, fill: '#b45309' });
+    return s + '</svg>';
+  }
+  function bildParallel(w, animiert) {
+    const i1 = w.U / w.R1, i2 = w.U / w.R2, i3 = w.U / w.R3, ig = i1 + i2 + i3;
+    let s = '<svg class="schaltung" viewBox="0 0 560 260" xmlns="' + SVGNS + '">';
+    s += draht([[90, 110], [90, 40], [460, 40]], animiert, dauerFuer(ig)) + draht([[460, 220], [90, 220], [90, 150]], animiert, dauerFuer(ig));
+    [[220, w.R1, 'R₁', '#2563eb', i1], [340, w.R2, 'R₂', '#16a34a', i2], [460, w.R3, 'R₃', '#ea580c', i3]].forEach((z) => {
+      s += draht([[z[0], 40], [z[0], 100]], animiert, dauerFuer(z[4])) + draht([[z[0], 160], [z[0], 220]], animiert, dauerFuer(z[4]));
+      s += widerstandV(z[0], 130, z[2], ohm(z[1]), z[3]);
+      if (z[0] < 460) s += punkt(z[0], 40) + punkt(z[0], 220);
+    });
+    s += quelle(90, 130, volt(w.U));
+    s += svgText(160, 248, 'I = ' + amp(ig), { weight: 700, fill: '#b45309' });
+    return s + '</svg>';
+  }
+  function bildGemischt(w, animiert) {
+    const r23 = parallel(w.R2, w.R3), ig = w.U / (w.R1 + r23), u23 = ig * r23;
+    let s = '<svg class="schaltung" viewBox="0 0 560 260" xmlns="' + SVGNS + '">';
+    s += draht([[90, 110], [90, 40], [170, 40]], animiert, dauerFuer(ig)) + draht([[230, 40], [330, 40]], animiert, dauerFuer(ig));
+    s += draht([[330, 40], [460, 40]], animiert, dauerFuer(u23 / w.R3));
+    s += draht([[330, 40], [330, 100]], animiert, dauerFuer(u23 / w.R2)) + draht([[330, 160], [330, 220]], animiert, dauerFuer(u23 / w.R2));
+    s += draht([[460, 40], [460, 100]], animiert, dauerFuer(u23 / w.R3)) + draht([[460, 160], [460, 220]], animiert, dauerFuer(u23 / w.R3));
+    s += draht([[460, 220], [90, 220], [90, 150]], animiert, dauerFuer(ig));
+    s += punkt(330, 40) + punkt(330, 220);
+    s += quelle(90, 130, volt(w.U));
+    s += widerstandH(200, 40, 'R₁', ohm(w.R1), '#2563eb') + widerstandV(330, 130, 'R₂', ohm(w.R2), '#16a34a') + widerstandV(460, 130, 'R₃', ohm(w.R3), '#ea580c');
+    s += svgText(200, 248, 'I = ' + amp(ig), { weight: 700, fill: '#b45309' });
+    return s + '</svg>';
+  }
+
+  // ---------- Werte-Tabellen ----------
+  function balken(anteil, farbe) { return '<div class="balken" style="width:' + Math.max(1, Math.round(anteil * 100)) + '%;background:' + farbe + '"></div>'; }
+  function tabelleReihe(w) {
+    const rg = w.R1 + w.R2 + w.R3, i = w.U / rg;
+    const zeilen = [['R₁', w.R1, '#2563eb'], ['R₂', w.R2, '#16a34a'], ['R₃', w.R3, '#ea580c']].map((z) =>
+      '<tr><td>' + z[0] + '</td><td>' + ohm(z[1]) + '</td><td>' + amp(i) + '</td><td>' + volt(i * z[1]) + '</td><td style="width:30%">' + balken(i * z[1] / w.U, z[2]) + '</td></tr>').join('');
+    return '<table class="werte"><tr><th></th><th>R</th><th>I</th><th>U</th><th>Anteil an U</th></tr>' + zeilen
+      + '<tr class="summe"><td>gesamt</td><td>' + ohm(rg) + '</td><td>' + amp(i) + '</td><td>' + volt(w.U) + '</td><td></td></tr></table>';
+  }
+  function tabelleParallel(w) {
+    const ig = w.U / w.R1 + w.U / w.R2 + w.U / w.R3;
+    const zeilen = [['R₁', w.R1, '#2563eb'], ['R₂', w.R2, '#16a34a'], ['R₃', w.R3, '#ea580c']].map((z) =>
+      '<tr><td>' + z[0] + '</td><td>' + ohm(z[1]) + '</td><td>' + volt(w.U) + '</td><td>' + amp(w.U / z[1]) + '</td><td style="width:30%">' + balken(w.U / z[1] / ig, z[2]) + '</td></tr>').join('');
+    return '<table class="werte"><tr><th></th><th>R</th><th>U</th><th>I</th><th>Anteil an I</th></tr>' + zeilen
+      + '<tr class="summe"><td>gesamt</td><td>' + ohm(w.U / ig) + '</td><td>' + volt(w.U) + '</td><td>' + amp(ig) + '</td><td></td></tr></table>';
+  }
+  function tabelleGemischt(w) {
+    const r23 = parallel(w.R2, w.R3), rg = w.R1 + r23, ig = w.U / rg, u1 = ig * w.R1, u23 = ig * r23;
+    return '<table class="werte"><tr><th></th><th>R</th><th>U</th><th>I</th></tr>'
+      + '<tr><td>R₁</td><td>' + ohm(w.R1) + '</td><td>' + volt(u1) + '</td><td>' + amp(ig) + '</td></tr>'
+      + '<tr><td>R₂</td><td>' + ohm(w.R2) + '</td><td>' + volt(u23) + '</td><td>' + amp(u23 / w.R2) + '</td></tr>'
+      + '<tr><td>R₃</td><td>' + ohm(w.R3) + '</td><td>' + volt(u23) + '</td><td>' + amp(u23 / w.R3) + '</td></tr>'
+      + '<tr><td>R₂ ∥ R₃</td><td>' + ohm(r23) + '</td><td>' + volt(u23) + '</td><td>' + amp(ig) + '</td></tr>'
+      + '<tr class="summe"><td>gesamt</td><td>' + ohm(rg) + '</td><td>' + volt(w.U) + '</td><td>' + amp(ig) + '</td></tr></table>';
+  }
+
+  // ---------- Entdecken (Infoseiten mit Reglern) ----------
+  const ENTDECKEN = {
+    'reihe-entdecken': { titel: 'Reihenschaltung entdecken', bild: bildReihe, tabelle: tabelleReihe, start: { U: 12, R1: 100, R2: 220, R3: 180 },
+      text: 'Alle Widerstände liegen hintereinander – der Strom hat nur <b>einen Weg</b>. Verändere die Regler und beobachte Strom und Teilspannungen.',
+      merke: '<b>Reihenschaltung:</b> Der Strom ist überall gleich. Die Teilspannungen addieren sich: <span class="formel">U = U₁ + U₂ + U₃</span>. Der Gesamtwiderstand ist die Summe: <span class="formel">R = R₁ + R₂ + R₃</span>. Am größten Widerstand liegt die größte Spannung.' },
+    'parallel-entdecken': { titel: 'Parallelschaltung entdecken', bild: bildParallel, tabelle: tabelleParallel, start: { U: 12, R1: 100, R2: 200, R3: 400 },
+      text: 'Alle Widerstände liegen an <b>derselben Spannung</b> – der Strom teilt sich auf. Verändere die Regler und beobachte die Teilströme.',
+      merke: '<b>Parallelschaltung:</b> Die Spannung ist überall gleich. Die Teilströme addieren sich: <span class="formel">I = I₁ + I₂ + I₃</span>. Für den Gesamtwiderstand gilt <span class="formel">1/R = 1/R₁ + 1/R₂ + 1/R₃</span> – er ist kleiner als der kleinste Einzelwiderstand. Durch den kleinsten Widerstand fließt der größte Strom.' },
+    'gemischt-entdecken': { titel: 'Gemischte Schaltung entdecken', bild: bildGemischt, tabelle: tabelleGemischt, start: { U: 24, R1: 100, R2: 300, R3: 150 },
+      text: 'R₂ und R₃ sind parallel geschaltet, R₁ liegt dazu in Reihe. Fasse die Parallelschaltung gedanklich zu <b>einem Ersatzwiderstand R₂₃</b> zusammen.',
+      merke: '<b>Gemischte Schaltung – Schritt für Schritt:</b> 1. Parallelschaltung zusammenfassen: <span class="formel">R₂₃ = R₂·R₃ / (R₂ + R₃)</span>. 2. Reihenschaltung: <span class="formel">R = R₁ + R₂₃</span>. 3. Gesamtstrom <span class="formel">I = U / R</span>. 4. Teilspannungen und Teilströme.' },
+  };
+  const REGLER = { U: [1, 30, 1, 'V'], R1: [10, 1000, 10, 'Ω'], R2: [10, 1000, 10, 'Ω'], R3: [10, 1000, 10, 'Ω'] };
+
+  function zeigeEntdecken(id) {
+    const e = ENTDECKEN[id];
+    const w = Object.assign({}, e.start, stand.regler[id] || {});
+    app.innerHTML = '<h1>' + e.titel + '</h1><p class="lead">' + e.text + '</p>'
+      + '<div class="raster"><div id="bild"></div><div class="karte"><div id="regler"></div><div id="tab" style="margin-top:10px"></div></div></div>'
+      + '<div class="merke">' + e.merke + '</div>';
+    const reglerBox = $('#regler');
+    Object.keys(REGLER).forEach((k) => {
+      const r = REGLER[k];
+      const zeile = document.createElement('div');
+      zeile.className = 'regler';
+      zeile.innerHTML = '<label for="rg-' + k + '">' + (k === 'U' ? 'U' : 'R' + k.slice(1).replace('1', '₁').replace('2', '₂').replace('3', '₃')) + '</label>'
+        + '<input type="range" id="rg-' + k + '" min="' + r[0] + '" max="' + r[1] + '" step="' + r[2] + '" value="' + w[k] + '"><output></output>';
+      reglerBox.appendChild(zeile);
+      const feld = zeile.querySelector('input');
+      feld.addEventListener('input', () => { w[k] = Number(feld.value); stand.regler[id] = Object.assign({}, w); zeichne(); });
+    });
+    function zeichne() {
+      $('#bild').innerHTML = e.bild(w, true);
+      $('#tab').innerHTML = e.tabelle(w);
+      reglerBox.querySelectorAll('.regler').forEach((z, n) => { const k = Object.keys(REGLER)[n]; z.querySelector('output').textContent = k === 'U' ? volt(w[k]) : ohm(w[k]); });
+    }
+    zeichne();
+    LM.onLock(() => {});
+    reglerBox.addEventListener('change', speichern);
+  }
+
+  function zeigeStart() {
+    app.innerHTML = '<h1>⚡ Grundschaltungen der Elektrotechnik</h1>'
+      + '<p class="lead">Widerstände lassen sich <b>in Reihe</b>, <b>parallel</b> oder <b>gemischt</b> schalten. In jedem Abschnitt entdeckst du zuerst die Regeln an einer Schaltung mit Reglern – der Strom fließt sichtbar. Danach rechnest du selbst, und LearningModules prüft deine Ergebnisse.</p>'
+      + '<div class="uebersicht">'
+      + '<div class="karte"><h3>🔗 Reihenschaltung</h3><p>Ein Weg für den Strom – die Spannung teilt sich auf.</p></div>'
+      + '<div class="karte"><h3>🔀 Parallelschaltung</h3><p>Gleiche Spannung – der Strom teilt sich auf.</p></div>'
+      + '<div class="karte"><h3>🧩 Gemischte Schaltung</h3><p>Schritt für Schritt zusammenfassen.</p></div>'
+      + '<div class="karte"><h3>🧪 Mess-Labor</h3><p>Stelle einen Widerstand so ein, dass das Messgerät den Zielwert zeigt.</p></div>'
+      + '</div><div class="merke">Zahlen gibst du mit Komma oder Punkt ein, in der angegebenen Einheit. Erlaubt ist eine Abweichung von 1 %.</div>';
+  }
+
+  // ---------- Rechenaufgaben ----------
+  const W_REIHE = { U: 12, R1: 100, R2: 220, R3: 180 };
+  const W_PAR = { U: 12, R1: 100, R2: 200, R3: 400 };
+  const W_GEM = { U: 24, R1: 100, R2: 300, R3: 150 };
+  const AUFGABEN = {
+    'r-rges': { bild: () => bildReihe(W_REIHE), frage: 'Berechne den Gesamtwiderstand R der Reihenschaltung.', einheit: 'Ω', soll: 500,
+      loesung: 'R = R₁ + R₂ + R₃ = 100 Ω + 220 Ω + 180 Ω = <b>500 Ω</b>' },
+    'r-strom': { bild: () => bildReihe(W_REIHE), frage: 'Wie groß ist der Strom I? Gib ihn in Milliampere an.', einheit: 'mA', soll: 24,
+      loesung: 'I = U / R = 12 V / 500 Ω = 0,024 A = <b>24 mA</b>' },
+    'r-u2': { bild: () => bildReihe(W_REIHE), frage: 'Welche Spannung U₂ liegt am Widerstand R₂?', einheit: 'V', soll: 5.28,
+      loesung: 'U₂ = I · R₂ = 24 mA · 220 Ω = <b>5,28 V</b>' },
+    'r-regel': { bild: () => bildReihe(W_REIHE), frage: 'Welche Aussage gilt für die Reihenschaltung?', wahl: [
+      ['Der Strom ist an jeder Stelle gleich groß.', true], ['Die Spannung ist an jedem Widerstand gleich groß.', false],
+      ['Durch den größten Widerstand fließt der kleinste Strom.', false], ['Der Gesamtwiderstand ist kleiner als der kleinste Einzelwiderstand.', false]],
+      loesung: 'In der Reihenschaltung gibt es nur einen Weg: <b>Der Strom ist überall gleich.</b> Die Spannung teilt sich im Verhältnis der Widerstände auf.' },
+    'p-rges': { bild: () => bildParallel(W_PAR), frage: 'Berechne den Gesamtwiderstand R der Parallelschaltung.', einheit: 'Ω', soll: 400 / 7,
+      loesung: '1/R = 1/100 Ω + 1/200 Ω + 1/400 Ω = 7/400 Ω → R = <b>57,14 Ω</b>' },
+    'p-iges': { bild: () => bildParallel(W_PAR), frage: 'Wie groß ist der Gesamtstrom I? Gib ihn in Milliampere an.', einheit: 'mA', soll: 210,
+      loesung: 'I = I₁ + I₂ + I₃ = 120 mA + 60 mA + 30 mA = <b>210 mA</b> (oder I = U / R = 12 V / 57,14 Ω)' },
+    'p-i2': { bild: () => bildParallel(W_PAR), frage: 'Welcher Strom I₂ fließt durch R₂? Gib ihn in Milliampere an.', einheit: 'mA', soll: 60,
+      loesung: 'I₂ = U / R₂ = 12 V / 200 Ω = <b>60 mA</b>' },
+    'p-regel': { bild: () => bildParallel(W_PAR), frage: 'Welche Aussage gilt für die Parallelschaltung?', wahl: [
+      ['An allen Widerständen liegt dieselbe Spannung.', true], ['Durch alle Widerstände fließt derselbe Strom.', false],
+      ['Der Gesamtwiderstand ist größer als der größte Einzelwiderstand.', false], ['Ein zusätzlicher Widerstand verkleinert den Gesamtstrom.', false]],
+      loesung: 'Alle Zweige hängen direkt an der Quelle: <b>Die Spannung ist überall gleich.</b> Jeder zusätzliche Zweig vergrößert den Gesamtstrom.' },
+    'g-r23': { bild: () => bildGemischt(W_GEM), frage: 'Fasse R₂ und R₃ zusammen: Wie groß ist R₂₃?', einheit: 'Ω', soll: 100,
+      loesung: 'R₂₃ = R₂ · R₃ / (R₂ + R₃) = 300 Ω · 150 Ω / 450 Ω = <b>100 Ω</b>' },
+    'g-rges': { bild: () => bildGemischt(W_GEM), frage: 'Wie groß ist der Gesamtwiderstand R?', einheit: 'Ω', soll: 200,
+      loesung: 'R = R₁ + R₂₃ = 100 Ω + 100 Ω = <b>200 Ω</b>' },
+    'g-strom': { bild: () => bildGemischt(W_GEM), frage: 'Wie groß ist der Gesamtstrom I? Gib ihn in Milliampere an.', einheit: 'mA', soll: 120,
+      loesung: 'I = U / R = 24 V / 200 Ω = 0,12 A = <b>120 mA</b>' },
+    'g-u1': { bild: () => bildGemischt(W_GEM), frage: 'Welche Spannung U₁ liegt an R₁?', einheit: 'V', soll: 12,
+      loesung: 'U₁ = I · R₁ = 120 mA · 100 Ω = <b>12 V</b> – für R₂₃ bleiben 24 V − 12 V = 12 V.' },
+    'g-i2': { bild: () => bildGemischt(W_GEM), frage: 'Welcher Strom I₂ fließt durch R₂? Gib ihn in Milliampere an.', einheit: 'mA', soll: 40,
+      loesung: 'U₂₃ = 12 V → I₂ = U₂₃ / R₂ = 12 V / 300 Ω = <b>40 mA</b> (und I₃ = 80 mA, zusammen 120 mA)' },
+  };
+
+  function rueckmeldung(klasse, html) {
+    const r = $('#rueck');
+    r.className = 'rueck zeigen ' + klasse;
+    r.innerHTML = html;
+  }
+
+  function zeigeAufgabe(id) {
+    const a = AUFGABEN[id];
+    let html = '<div class="raster"><div>' + a.bild() + '</div><div><p class="aufgabe">' + a.frage + '</p>';
+    if (a.wahl) {
+      html += '<div class="wahl">' + a.wahl.map((w, n) => '<label><input type="radio" name="wahl" value="' + n + '">' + w[0] + '</label>').join('') + '</div>';
+    } else {
+      html += '<div class="eingabe"><input id="feld" inputmode="decimal" autocomplete="off" aria-label="Ergebnis"><span>' + a.einheit + '</span></div>';
+    }
+    html += '<div id="rueck" class="rueck"></div></div></div>';
+    app.innerHTML = html;
+    const alt = stand.eingaben[id];
+    let melde;
+    if (a.wahl) {
+      const knoepfe = app.querySelectorAll('input[name=wahl]');
+      if (alt !== undefined) knoepfe.forEach((k) => { k.checked = k.value === String(alt); });
+      melde = () => {
+        const sel = app.querySelector('input[name=wahl]:checked');
+        const n = sel ? Number(sel.value) : -1;
+        LM.answer({ isCorrect: n >= 0 && a.wahl[n][1], userAnswer: n >= 0 ? a.wahl[n][0] : '', correctAnswer: a.wahl.find((w) => w[1])[0] });
+      };
+      knoepfe.forEach((k) => k.addEventListener('change', () => { stand.eingaben[id] = Number(k.value); speichern(); melde(); $('#rueck').className = 'rueck'; }));
+      LM.onLock((zu) => knoepfe.forEach((k) => { k.disabled = zu; }));
+      LM.onCheck(() => {
+        const sel = app.querySelector('input[name=wahl]:checked');
+        if (sel && a.wahl[Number(sel.value)][1]) rueckmeldung('ok', '✅ Richtig!');
+        else rueckmeldung('falsch', '❌ Noch nicht – lies die Aussagen noch einmal genau.');
+      });
+    } else {
+      const feld = $('#feld');
+      if (alt !== undefined) feld.value = alt;
+      melde = () => {
+        const wert = leseZahl(feld.value);
+        LM.answer({ isCorrect: passt(wert, a.soll), userAnswer: feld.value.trim() ? feld.value.trim() + ' ' + a.einheit : '', correctAnswer: zahl(a.soll, 2) + ' ' + a.einheit });
+      };
+      feld.addEventListener('input', () => { stand.eingaben[id] = feld.value; speichern(); melde(); $('#rueck').className = 'rueck'; });
+      LM.onLock((zu) => { feld.disabled = zu; });
+      LM.onFlush(melde);
+      LM.onCheck(() => {
+        const wert = leseZahl(feld.value);
+        if (passt(wert, a.soll)) rueckmeldung('ok', '✅ Richtig!');
+        else if (wert === null) rueckmeldung('falsch', '❌ Bitte eine Zahl eingeben.');
+        else rueckmeldung('falsch', '❌ Das stimmt noch nicht. Prüfe die Formel und die Einheit (' + a.einheit + ').');
+      });
+    }
+    LM.onReveal(() => rueckmeldung('loesung', '💡 ' + a.loesung));
+    melde();
+  }
+
+  // ---------- Mess-Labor (Regler auf Zielwert) ----------
+  const LABOR = {
+    'l-reihe': { titel: 'Spannungsteiler einstellen', fest: { U: 12, R1: 200, R3: 0 }, regler: 'R2', start: 500,
+      ziel: 'U₂ = 4 V', text: 'An der Reihenschaltung aus R₁ = 200 Ω und R₂ liegen 12 V. Stelle R₂ so ein, dass am Messgerät <b>U₂ = 4 V</b> angezeigt wird.',
+      messung: (w) => w.U * w.R2 / (w.R1 + w.R2), anzeige: (m) => 'U₂ = ' + volt(m), soll: 4, toleranz: 0.02,
+      bild: (w) => bildReiheZwei(w), loesung: 'U₂ / U = R₂ / (R₁ + R₂) → 4 V / 12 V = R₂ / (200 Ω + R₂) → <b>R₂ = 100 Ω</b>' },
+    'l-parallel': { titel: 'Gesamtstrom einstellen', fest: { U: 10, R1: 100 }, regler: 'R2', start: 800,
+      ziel: 'I = 150 mA', text: 'Zu R₁ = 100 Ω wird R₂ parallel geschaltet, die Spannung beträgt 10 V. Stelle R₂ so ein, dass der Gesamtstrom <b>I = 150 mA</b> beträgt.',
+      messung: (w) => w.U / w.R1 + w.U / w.R2, anzeige: (m) => 'I = ' + amp(m), soll: 0.15, toleranz: 0.0005,
+      bild: (w) => bildParallelZwei(w), loesung: 'I₁ = 10 V / 100 Ω = 100 mA → I₂ = 50 mA → <b>R₂ = 10 V / 50 mA = 200 Ω</b>' },
+    'l-gemischt': { titel: 'Vorwiderstand einstellen', fest: { U: 12, R2: 200, R3: 200 }, regler: 'R1', start: 600,
+      ziel: 'I = 40 mA', text: 'R₂ = R₃ = 200 Ω sind parallel geschaltet, R₁ liegt in Reihe, U = 12 V. Stelle R₁ so ein, dass <b>I = 40 mA</b> fließen.',
+      messung: (w) => w.U / (w.R1 + parallel(w.R2, w.R3)), anzeige: (m) => 'I = ' + amp(m), soll: 0.04, toleranz: 0.0002,
+      bild: (w) => bildGemischt(w, true), loesung: 'R = 12 V / 40 mA = 300 Ω, R₂₃ = 100 Ω → <b>R₁ = 300 Ω − 100 Ω = 200 Ω</b>' },
+  };
+  function bildReiheZwei(w) {
+    const i = w.U / (w.R1 + w.R2), t = dauerFuer(i), u2 = i * w.R2;
+    let s = '<svg class="schaltung" viewBox="0 0 610 250" xmlns="' + SVGNS + '">';
+    s += draht([[90, 105], [90, 50], [170, 50]], true, t) + draht([[230, 50], [330, 50], [330, 90]], true, t) + draht([[330, 150], [330, 200], [90, 200], [90, 145]], true, t);
+    s += quelle(90, 125, volt(w.U)) + widerstandH(200, 50, 'R₁', ohm(w.R1), '#2563eb') + widerstandV(330, 120, 'R₂', ohm(w.R2), '#16a34a');
+    s += '<path d="M330,70 L470,70 L470,95 M470,145 L470,180 L330,180" fill="none" stroke="#7c3aed" stroke-width="1.8" stroke-dasharray="5 4"/>' + punkt(330, 70) + punkt(330, 180) + messgeraet(470, 120, 'V', volt(u2), true);
+    return s + '</svg>';
+  }
+  function bildParallelZwei(w) {
+    const i1 = w.U / w.R1, i2 = w.U / w.R2, ig = i1 + i2;
+    let s = '<svg class="schaltung" viewBox="0 0 560 260" xmlns="' + SVGNS + '">';
+    s += draht([[90, 110], [90, 40], [175, 40]], true, dauerFuer(ig)) + draht([[225, 40], [420, 40]], true, dauerFuer(ig));
+    s += messgeraet(200, 40, 'A', amp(ig));
+    [[300, w.R1, 'R₁', '#2563eb', i1], [420, w.R2, 'R₂', '#16a34a', i2]].forEach((z) => {
+      s += draht([[z[0], 40], [z[0], 100]], true, dauerFuer(z[4])) + draht([[z[0], 160], [z[0], 220]], true, dauerFuer(z[4])) + widerstandV(z[0], 130, z[2], ohm(z[1]), z[3]);
+    });
+    s += draht([[420, 220], [90, 220], [90, 150]], true, dauerFuer(ig)) + punkt(300, 40) + punkt(300, 220);
+    s += quelle(90, 130, volt(w.U));
+    return s + '</svg>';
+  }
+  function messgeraet(x, y, art, wert, rechts) {
+    const bx = rechts ? x + 34 : x - 48, by = rechts ? y - 13 : y + 32;
+    return '<circle cx="' + x + '" cy="' + y + '" r="25" fill="#faf5ff" stroke="#7c3aed" stroke-width="2.4"/>' + svgText(x, y + 7, art, { size: 20, weight: 800, fill: '#7c3aed' })
+      + '<rect x="' + bx + '" y="' + by + '" width="96" height="26" rx="6" fill="#1e1b4b"/>' + svgText(bx + 48, by + 19, wert, { size: 15, weight: 700, fill: '#a5f3fc' });
+  }
+
+  function zeigeLabor(id) {
+    const l = LABOR[id];
+    const w = Object.assign({}, l.fest);
+    const alt = stand.eingaben[id];
+    w[l.regler] = alt !== undefined ? Number(alt) : l.start;
+    app.innerHTML = '<h1>🧪 ' + l.titel + '</h1><p class="lead">' + l.text + '</p>'
+      + '<div class="raster"><div id="bild"></div><div class="karte"><p>Ziel: <span class="ziel">' + l.ziel + '</span></p>'
+      + '<div class="regler"><label for="lr">' + l.regler.replace('1', '₁').replace('2', '₂') + '</label><input type="range" id="lr" min="10" max="1000" step="10"><output id="lo"></output></div>'
+      + '<p>Messgerät zeigt: <span class="messung" id="mess"></span></p><div id="rueck" class="rueck"></div></div></div>';
+    const feld = $('#lr');
+    feld.value = w[l.regler];
+    const treffer = () => Math.abs(l.messung(w) - l.soll) <= l.toleranz;
+    const melde = () => LM.answer({
+      isCorrect: alt !== undefined || stand.eingaben[id] !== undefined ? treffer() : false,
+      userAnswer: l.regler + ' = ' + ohm(w[l.regler]) + ' → ' + l.anzeige(l.messung(w)), correctAnswer: l.loesung.replace(/<[^>]+>/g, ''),
+    });
+    const zeichne = () => { $('#bild').innerHTML = l.bild(w); $('#lo').textContent = ohm(w[l.regler]); $('#mess').textContent = l.anzeige(l.messung(w)); };
+    feld.addEventListener('input', () => { w[l.regler] = Number(feld.value); stand.eingaben[id] = w[l.regler]; zeichne(); melde(); $('#rueck').className = 'rueck'; });
+    feld.addEventListener('change', speichern);
+    LM.onLock((zu) => { feld.disabled = zu; });
+    LM.onCheck(() => (treffer() ? rueckmeldung('ok', '✅ Ziel erreicht!') : rueckmeldung('falsch', '❌ Das Messgerät zeigt noch nicht den Zielwert – größer oder kleiner?')));
+    LM.onReveal(() => rueckmeldung('loesung', '💡 ' + l.loesung));
+    zeichne();
+    melde();
+  }
+
+  // ---------- Start ----------
+  LM.start((init) => {
+    if (init.state && typeof init.state === 'object') stand = Object.assign({ eingaben: {}, regler: {} }, init.state);
+    const id = init.step.id;
+    if (id === 'start') zeigeStart();
+    else if (ENTDECKEN[id]) zeigeEntdecken(id);
+    else if (AUFGABEN[id]) zeigeAufgabe(id);
+    else if (LABOR[id]) zeigeLabor(id);
+    else app.textContent = init.step.title;
+  });
+</script>
+
+</body></html>

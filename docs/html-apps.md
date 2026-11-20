@@ -31,7 +31,9 @@ Hauptadresse gibt es die Rahmen nicht.
 Ein Update geht genauso: Modul bearbeiten, neue Datei wählen, speichern.
 
 Zum Ausprobieren: [`html-app-beispiel.html`](html-app-beispiel.html) (klein) und
-[`beispiel_excel.html`](beispiel_excel.html) (echte App, 123 Schritte).
+[`beispiel_excel.html`](beispiel_excel.html) (echte App, 123 Schritte) und
+[`beispiel_grundschaltungen.html`](beispiel_grundschaltungen.html) (Reihen-, Parallel- und gemischte Schaltung:
+Entdecken mit Reglern und sichtbarem Strom, Rechenaufgaben, Mess-Labor; 21 Schritte).
 
 ## Was die App tun muss
 

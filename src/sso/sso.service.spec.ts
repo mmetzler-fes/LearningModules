@@ -36,8 +36,11 @@ describe('SsoService – Anmeldung mit dem Schulkonto', () => {
     const classbook: any = {
       ssoContext: jest.fn(async () => ({ classId: 'k1', schoolId: 'sch1' })),
       ssoLogin: jest.fn(async (_t: string, who: any) => ({ ticket: 'tk', name: `${who.firstName} ${who.lastName}`, subject: who.subject })),
+      ssoLoginClassId: jest.fn(async (classId: string, who: any) => ({ ticket: 'tk', deviceTicket: 'dev', classId, name: `${who.firstName} ${who.lastName}` })),
     };
-    const svc = new SsoService(ssoRepo, { findOne: async () => ({ name: 'FES' }) } as any, { findOne: async () => null } as any, masterKey, auth, classbook);
+    const links: any = { linkOfToken: jest.fn(async (t: string) => (t === 'LINK.k1' ? { link: { classId: 'k1', ownerId: 'lehrer' } } : t === 'anon' ? { link: { classId: null } } : null)) };
+    const users: any = { findOne: async ({ where }: any) => (where?.id === 'lehrer' ? { id: 'lehrer', schoolId: 'sch1' } : null) };
+    const svc = new SsoService(ssoRepo, { findOne: async () => ({ name: 'FES' }) } as any, users, masterKey, auth, classbook, links);
     return { svc, auth, classbook };
   }
   const stateOf = (url: string) => new URL(url).searchParams;
@@ -64,6 +67,18 @@ describe('SsoService – Anmeldung mit dem Schulkonto', () => {
     const back = await svc.callback({ code: 'abc', state: go.get('state')! }, 'https://lm.test', '');
     expect(new URL(back).searchParams.get('k')).toBe('tok');
     expect(classbook.ssoLogin).toHaveBeenCalledWith('tok', { subject: `${ISS}|o2`, firstName: 'Anna', lastName: 'Apfel' });
+  });
+
+  it('Schüler über Klassenlink: Knopf nur bei Klassenlinks, Rückkehr mit ?l=, Ausweis für die Klasse', async () => {
+    const { svc, classbook } = make();
+    expect(await svc.linkOption('LINK.k1')).toMatchObject({ enabled: true });
+    expect(await svc.linkOption('anon')).toMatchObject({ enabled: false });
+    const go = stateOf(await svc.start({ purpose: 'student', l: 'LINK.k1' } as any, 'https://lm.test'));
+    claims = { iss: ISS, aud: 'client-1', sub: 's3', oid: 'o3', exp: Math.floor(Date.now() / 1000) + 300, nonce: go.get('nonce'), given_name: 'Ben', family_name: 'Berg' };
+    const back = new URL(await svc.callback({ code: 'abc', state: go.get('state')! }, 'https://lm.test', ''));
+    expect(back.searchParams.get('l')).toBe('LINK.k1');
+    expect(classbook.ssoLoginClassId).toHaveBeenCalledWith('k1', { subject: `${ISS}|o3`, firstName: 'Ben', lastName: 'Berg' });
+    expect(svc.redeem(back.searchParams.get('sso')!)).toMatchObject({ deviceTicket: 'dev', classId: 'k1' });
   });
 
   it('falsche nonce, unbekannter state und Abbruch landen als Meldung in der App', async () => {

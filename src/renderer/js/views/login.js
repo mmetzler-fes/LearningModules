@@ -406,6 +406,20 @@ export class LoginView {
       nameInput?.focus();
       if (!anonymous) void offerTeacherName(nameInput, info.classId, () => document.querySelector('#linkEntryForm button[type="submit"]')?.focus());
     }
+    // Schule mit „Mit Microsoft anmelden“ für Schüler: Knopf über dem Formular, Name (und PIN) bleiben.
+    document.getElementById('linkEntrySso')?.remove();
+    if (!anonymous && !device && !isContest && info.classId) {
+      void fetch(`/api/sso/link/${encodeURIComponent(token)}`).then((r) => r.json()).then((o) => {
+        const f = document.getElementById('linkEntryForm');
+        if (!o?.enabled || !f || document.getElementById('linkEntrySso')) return;
+        const box = document.createElement('div');
+        box.id = 'linkEntrySso';
+        box.className = 'sso-buttons';
+        box.innerHTML = `<a class="btn btn-primary btn-full sso-btn" href="/api/sso/start?purpose=student&amp;l=${encodeURIComponent(token)}">
+          <span class="sso-ms" aria-hidden="true"></span> Mit Microsoft anmelden</a><div class="sso-or"><span>oder mit deinem Namen</span></div>`;
+        f.before(box);
+      }).catch(() => { /* ohne Schulkonto */ });
+    }
     // Testschüler der Lehrkraft: Das Feld erscheint erst, wenn der Server danach fragt.
     const testGroup = document.getElementById('linkEntryTestPwGroup');
     const testInput = document.getElementById('linkEntryTestPassword');
@@ -792,7 +806,22 @@ export class LoginView {
   async handleSsoReturn(params) {
     const code = params.get('sso');
     const error = params.get('ssoError');
-    history.replaceState(null, '', location.pathname);
+    const linkToken = params.get('l');
+    history.replaceState(null, '', linkToken ? `${location.pathname}?l=${encodeURIComponent(linkToken)}` : location.pathname);
+    if (linkToken) {
+      // Schüler über einen Klassenlink: Gerät merkt sich den Schüler, dann ohne Rückfrage hinein.
+      const res = error ? null : await fetch('/api/sso/redeem', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code }) })
+        .then(async (r) => ({ ok: r.ok, body: await r.json().catch(() => ({})) })).catch(() => null);
+      if (res?.ok && res.body?.deviceTicket && res.body?.classId) {
+        rememberStudent(res.body.classId, { ticket: res.body.deviceTicket, name: res.body.name });
+        await this.startLinkEntry(linkToken, null, null, { auto: true });
+      } else {
+        await this.startLinkEntry(linkToken);
+        const err = document.getElementById('linkEntryFormError');
+        if (err) { err.textContent = `Microsoft: ${error || res?.body?.message || 'Die Anmeldung hat nicht geklappt.'} – bitte mit dem Namen anmelden.`; err.classList.remove('hidden'); }
+      }
+      return;
+    }
     this._studentSec?.classList.add('hidden');
     this._adminSec?.classList.remove('hidden');
     if (error) {

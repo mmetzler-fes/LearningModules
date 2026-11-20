@@ -7,6 +7,7 @@ import { User } from '../core/entities/user.entity';
 import { MasterKeyService } from '../core/crypto/master-key.service';
 import { AuthService } from '../auth/auth.service';
 import { ClassbookService } from '../classbook/classbook.service';
+import { LinksService } from '../links/links.service';
 import { discover, emailOf, microsoftDiscoveryUrl, namesOf, pkce, randomToken, verifyIdToken } from './oidc';
 
 type Purpose = 'teacher' | 'student';
@@ -15,6 +16,9 @@ interface Pending {
   schoolId: string;
   purpose: Purpose;
   classbook: string | null;
+  /** Klassenlink (?l=) statt Klassenbuch – Schüler. */
+  linkToken?: string | null;
+  classId?: string | null;
   nonce: string;
   verifier: string;
   redirectUri: string;
@@ -35,7 +39,7 @@ const MAX_PENDING = 2000;
 export class SsoService {
   private readonly logger = new Logger(SsoService.name);
   private readonly pending = new Map<string, Pending>();
-  private readonly results = new Map<string, { at: number; purpose: Purpose; classbook: string | null; body: any }>();
+  private readonly results = new Map<string, { at: number; purpose: Purpose; classbook: string | null; linkToken?: string | null; body: any }>();
 
   constructor(
     @InjectRepository(SchoolSso) private readonly ssoRepo: Repository<SchoolSso>,
@@ -44,6 +48,7 @@ export class SsoService {
     private readonly masterKey: MasterKeyService,
     private readonly auth: AuthService,
     private readonly classbook: ClassbookService,
+    private readonly links: LinksService,
   ) {}
 
   // ---- Schuladmin ----
@@ -123,6 +128,21 @@ export class SsoService {
     return { enabled: !!(c?.forStudents && this.ready(c)), provider: c?.provider || null };
   }
 
+  /** Klasse und Schule hinter einem Klassenlink (?l=) – null, wenn es keiner mit Klasse ist. */
+  private async linkContext(linkToken: string): Promise<{ classId: string; schoolId: string | null } | null> {
+    const found = await this.links.linkOfToken(String(linkToken || ''));
+    if (!found?.link?.classId) return null;
+    const owner = found.link.ownerId ? await this.userRepo.findOne({ where: { id: found.link.ownerId } }) : null;
+    return { classId: found.link.classId, schoolId: owner?.schoolId || null };
+  }
+
+  /** Klassenlink: Bietet die Schule der Lehrkraft die Anmeldung für Schüler an? */
+  async linkOption(linkToken: string) {
+    const ctx = await this.linkContext(linkToken);
+    const c = ctx?.schoolId ? await this.ssoRepo.findOne({ where: { schoolId: ctx.schoolId } }) : null;
+    return { enabled: !!(c?.forStudents && this.ready(c)), provider: c?.provider || null };
+  }
+
   // ---- Ablauf ----
 
   private async configFor(schoolId: string, purpose: Purpose) {
@@ -145,10 +165,17 @@ export class SsoService {
     if (this.pending.size > MAX_PENDING) throw new BadRequestException('Gerade zu viele Anmeldungen – bitte gleich noch einmal.');
     const purpose: Purpose = q.purpose === 'student' ? 'student' : 'teacher';
     let schoolId = String(q.school || '');
-    const classbook = purpose === 'student' ? String(q.k || '') : null;
+    const classbook = purpose === 'student' && q.k ? String(q.k) : null;
+    const linkToken = purpose === 'student' && !classbook && (q as any).l ? String((q as any).l) : null;
+    let classId: string | null = null;
     if (purpose === 'student') {
-      if (!classbook) throw new BadRequestException('Klassenbuch-Link fehlt.');
-      schoolId = (await this.classbook.ssoContext(classbook)).schoolId || '';
+      if (classbook) schoolId = (await this.classbook.ssoContext(classbook)).schoolId || '';
+      else if (linkToken) {
+        const ctx = await this.linkContext(linkToken);
+        if (!ctx) throw new BadRequestException('Dieser Link gehört zu keiner Klasse.');
+        schoolId = ctx.schoolId || '';
+        classId = ctx.classId;
+      } else throw new BadRequestException('Klassenbuch- oder Klassenlink fehlt.');
     }
     const c = await this.configFor(schoolId, purpose);
     const d = await discover(microsoftDiscoveryUrl(c.tenant));
@@ -156,7 +183,7 @@ export class SsoService {
     const nonce = randomToken();
     const { verifier, challenge } = pkce();
     const redirectUri = `${base}/api/sso/callback`;
-    this.pending.set(state, { schoolId, purpose, classbook, nonce, verifier, redirectUri, at: Date.now() });
+    this.pending.set(state, { schoolId, purpose, classbook, linkToken, classId, nonce, verifier, redirectUri, at: Date.now() });
     const url = new URL(d.authorization_endpoint);
     url.search = new URLSearchParams({
       client_id: c.clientId, response_type: 'code', response_mode: 'query', redirect_uri: redirectUri,
@@ -170,13 +197,14 @@ export class SsoService {
     this.prune();
     const p = q.state ? this.pending.get(String(q.state)) : undefined;
     if (q.state) this.pending.delete(String(q.state));
-    const back = (purpose: Purpose | undefined, classbook: string | null | undefined, params: Record<string, string>) => {
+    const back = (pp: Pending | undefined, params: Record<string, string>) => {
       const sp = new URLSearchParams(params);
-      if (purpose === 'student' && classbook) sp.set('k', classbook);
+      if (pp?.purpose === 'student' && pp.classbook) sp.set('k', pp.classbook);
+      if (pp?.purpose === 'student' && pp.linkToken) sp.set('l', pp.linkToken);
       return `${base}/?${sp.toString()}`;
     };
-    if (!p) return back(undefined, null, { ssoError: 'Die Anmeldung ist abgelaufen. Bitte noch einmal versuchen.' });
-    if (q.error) return back(p.purpose, p.classbook, { ssoError: q.error === 'access_denied' ? 'Anmeldung abgebrochen.' : `Microsoft: ${String(q.error_description || q.error).slice(0, 200)}` });
+    if (!p) return back(undefined, { ssoError: 'Die Anmeldung ist abgelaufen. Bitte noch einmal versuchen.' });
+    if (q.error) return back(p, { ssoError: q.error === 'access_denied' ? 'Anmeldung abgebrochen.' : `Microsoft: ${String(q.error_description || q.error).slice(0, 200)}` });
     try {
       const c = await this.configFor(p.schoolId, p.purpose);
       const d = await discover(microsoftDiscoveryUrl(c.tenant));
@@ -197,16 +225,18 @@ export class SsoService {
       } else {
         const { firstName, lastName } = namesOf(claims);
         const subject = `${claims.iss}|${claims.oid || claims.sub}`;
-        body = await this.classbook.ssoLogin(p.classbook!, { subject, firstName, lastName });
+        body = p.classbook
+          ? await this.classbook.ssoLogin(p.classbook, { subject, firstName, lastName })
+          : await this.classbook.ssoLoginClassId(p.classId!, { subject, firstName, lastName });
       }
       await this.ssoRepo.update({ id: c.id }, { lastLoginAt: new Date() });
       const code = randomToken();
-      this.results.set(code, { at: Date.now(), purpose: p.purpose, classbook: p.classbook, body });
-      return back(p.purpose, p.classbook, { sso: code });
+      this.results.set(code, { at: Date.now(), purpose: p.purpose, classbook: p.classbook, linkToken: p.linkToken, body });
+      return back(p, { sso: code });
     } catch (e: any) {
       this.logger.warn(`SSO-Anmeldung fehlgeschlagen: ${e?.message || e}`);
       const msg = e?.response?.message || e?.message || 'Anmeldung fehlgeschlagen.';
-      return back(p.purpose, p.classbook, { ssoError: String(msg).slice(0, 300) });
+      return back(p, { ssoError: String(msg).slice(0, 300) });
     }
   }
 

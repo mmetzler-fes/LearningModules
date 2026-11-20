@@ -814,7 +814,7 @@ class App {
         await this.loginView.handleLtiReturn(params);
         return;
       }
-      // Zurück von „Mit Microsoft anmelden“ (Lehrkraft); mit ?k= kümmert sich das Klassennotizbuch darum.
+      // Zurück von „Mit Microsoft anmelden“ (Lehrkraft, Schüler über Klassenlink ?l=); mit ?k= das Klassennotizbuch.
       if ((params.get('sso') || params.get('ssoError')) && !params.get('k')) {
         await this.loginView.handleSsoReturn(params);
         return;

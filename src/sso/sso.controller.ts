@@ -20,6 +20,11 @@ export class SsoController {
     return this.sso.classbookOption(token);
   }
 
+  @Get('link/:token')
+  link(@Param('token') token: string) {
+    return this.sso.linkOption(token);
+  }
+
   /** Browser-Sprung zum Anbieter. */
   @Get('start')
   async start(@Query() q: any, @Request() req: any, @Res() res: Response) {
@@ -28,6 +33,7 @@ export class SsoController {
     } catch (e: any) {
       const sp = new URLSearchParams({ ssoError: e?.response?.message || e?.message || 'Anmeldung nicht möglich.' });
       if (q?.purpose === 'student' && q?.k) sp.set('k', String(q.k));
+      else if (q?.purpose === 'student' && q?.l) sp.set('l', String(q.l));
       res.redirect(302, `${baseUrl(req)}/?${sp.toString()}`);
     }
   }

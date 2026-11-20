@@ -42,7 +42,7 @@ export async function renderSchoolSso(app, box, msg = null) {
     <div class="form-group"><label for="ssoSecret">Geheimer Clientschlüssel</label>
       <input type="password" id="ssoSecret" placeholder="${c.hasSecret ? '•••••• gespeichert – leer lassen, um ihn zu behalten' : 'Wert des Schlüssels'}" autocomplete="new-password"></div>
     <label class="login-remember"><input type="checkbox" id="ssoTeachers" ${c.forTeachers ? 'checked' : ''}> Für <strong>Lehrkräfte</strong> (Anmeldeseite; zugeordnet über die E-Mail-Adresse)</label>
-    <label class="login-remember"><input type="checkbox" id="ssoStudents" ${c.forStudents ? 'checked' : ''}> Für <strong>Schüler</strong> im Klassennotizbuch (beim ersten Mal über den Namen der Klassenliste zugeordnet)</label>
+    <label class="login-remember"><input type="checkbox" id="ssoStudents" ${c.forStudents ? 'checked' : ''}> Für <strong>Schüler</strong> im Klassennotizbuch und über Klassenlinks/Quick-Links (beim ersten Mal über den Namen der Klassenliste zugeordnet)</label>
     <div class="form-actions">
       <button type="button" class="btn btn-primary" id="ssoSave">💾 Speichern</button>
       <button type="button" class="btn btn-secondary" id="ssoTest">🔎 Mandant prüfen</button>

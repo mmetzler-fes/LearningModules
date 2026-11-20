@@ -1570,6 +1570,17 @@ export class ClassbookService {
    */
   async ssoLogin(token: string, who: { subject: string; firstName: string; lastName: string }) {
     const { klasse } = await this.byToken(token);
+    return this.ssoLoginToClass(klasse, who);
+  }
+
+  /** Dasselbe für einen Klassenlink (Quick-Link mit Klasse, Schülerfreigabe): Klasse direkt. */
+  async ssoLoginClassId(classId: string, who: { subject: string; firstName: string; lastName: string }) {
+    const klasse = await this.classes.findById(classId);
+    if (!klasse) throw new NotFoundException('Diese Klasse gibt es nicht mehr.');
+    return this.ssoLoginToClass(klasse, who);
+  }
+
+  private async ssoLoginToClass(klasse: StudentClass, who: { subject: string; firstName: string; lastName: string }) {
     const students = await this.studentRepo.find({ where: { classId: klasse.id } });
     let student = students.find((s) => s.ssoSubject === who.subject) || null;
     if (!student) {

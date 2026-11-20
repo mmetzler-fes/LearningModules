@@ -6,11 +6,12 @@ import { User } from '../core/entities/user.entity';
 import { CryptoModule } from '../core/crypto/crypto.module';
 import { AuthModule } from '../auth/auth.module';
 import { ClassbookModule } from '../classbook/classbook.module';
+import { LinksModule } from '../links/links.module';
 import { SsoService } from './sso.service';
 import { SchoolSsoController, SsoController } from './sso.controller';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([SchoolSso, School, User]), CryptoModule, AuthModule, ClassbookModule],
+  imports: [TypeOrmModule.forFeature([SchoolSso, School, User]), CryptoModule, AuthModule, ClassbookModule, LinksModule],
   controllers: [SsoController, SchoolSsoController],
   providers: [SsoService],
 })

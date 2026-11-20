@@ -5,6 +5,7 @@ import { isDocLike } from '../quiz-usage.js';
 import { LINK_MODE_LABELS } from './login.js';
 import { offerTeacherName } from './teacher-as-student.js';
 import { scanQr } from './qr-scan.js';
+import { workspace } from '../workspace.js';
 
 // ==================== KLASSENNOTIZBUCH (SCHÜLER) ====================
 //
@@ -128,6 +129,26 @@ function unitState(u) {
 }
 
 const TYPE_ICON = { document: '📄', attachment: '📎' };
+// Nach der Anmeldung einmal je Sitzung: 📍 Merker öffnen (sonst Home) – nicht bei jedem Zurück nach Home.
+const LANDED_KEY = 'lm_ws_landed';
+
+/** Titel und Symbol eines Moduls bzw. einer Zuweisung für den Tab. */
+function tabInfo(data, linkId, moduleId) {
+  const a = (data?.assignments || []).find((x) => x.linkId === linkId);
+  if (!a) return { title: 'Aufgabe', icon: '📄' };
+  if (moduleId) {
+    for (const t of a.topics || []) {
+      const u = (t.units || []).find((x) => x.id === moduleId);
+      if (u) {
+        // Ein Lernthema mit genau einem Dokument heißt wie die Zuweisung (so steht es auch im Baum).
+        const docs = nestEmbedded(t.units).top.filter(isDocLike);
+        const title = a.topics.length === 1 && docs.length === 1 && docs[0].id === u.id ? a.name : u.title;
+        return { title: title || a.name || 'Aufgabe', icon: TYPE_ICON[u.type] || '🧩' };
+      }
+    }
+  }
+  return { title: a.name || 'Aufgabe', icon: '📘' };
+}
 
 export class ClassbookStudent {
   constructor(app) {
@@ -352,6 +373,16 @@ export class ClassbookStudent {
     }
     this.data = data;
     document.querySelector('#loginScreen .login-card')?.classList.add('login-card-wide');
+    // 🏠 und Tabs (docs/arbeitsflaeche.md) – nicht in der 👁 Vorschau und nicht in der Klassenarbeit allein.
+    const useTabs = !s?.preview && !data.examOnly && !data.arena;
+    if (useTabs) {
+      workspace.start({
+        key: `s:${this.token}`,
+        onOpen: (tab) => this._enter(tab.linkId, tab.mode || null, tab.moduleId || null, null, { fromTab: true }),
+        onHome: () => backToClassbook(),
+      });
+      workspace.markHome();
+    }
     this._watchArena();
     if (data.arena) { this._arenaHome(data); return true; }
     // 📍 Merker: { anchor, current: { linkId, topicId, moduleId }, openNodeIds, hasNext } – oder null.
@@ -493,7 +524,7 @@ export class ClassbookStudent {
       ${data.pending
         ? '<p class="hint cb-pending">Deine Ergebnisse und Blätter erscheinen hier, sobald deine Lehrkraft deinen Namen in der Klassenliste bestätigt hat.</p>'
         : `<h3 class="cb-section">📈 Meine Ergebnisse</h3>${results}<h3 class="cb-section">✍️ Meine Blätter</h3>${works}`}`}`);
-    el.querySelector('#cbToList')?.addEventListener('click', () => { this._stopWatch(); this.showList(); });
+    el.querySelector('#cbToList')?.addEventListener('click', () => { this._stopWatch(); workspace.stop(); this.showList(); });
     el.querySelector('#cbInstall')?.addEventListener('click', async () => {
       // Chrome, Edge: Dialog des Browsers. iPad/iPhone: Teilen → Zum Home-Bildschirm.
       const prompt = this.app.installPrompt;
@@ -511,6 +542,8 @@ export class ClassbookStudent {
       if (preview) window.close(); // Tab von der Lehrkraft geöffnet; lässt er sich nicht schließen, folgt die Anmeldeseite
       this._stopWatch();
       saveSession(null);
+      workspace.stop();
+      sessionSet(LANDED_KEY, null);
       document.querySelector('#loginScreen .login-card')?.classList.remove('login-card-wide');
       this._login();
     });
@@ -562,7 +595,12 @@ export class ClassbookStudent {
     // Von der Lehrkraft geschickt bzw. 👣 Folgen, während eine Aufgabe offen war.
     const pending = parse(sessionGet(OPEN_KEY));
     sessionSet(OPEN_KEY, null);
-    if (pending?.token === this.token) void this._enter(pending.linkId, null, pending.moduleId);
+    if (pending?.token === this.token) { void this._enter(pending.linkId, null, pending.moduleId); return true; }
+    // Gleich nach der Anmeldung: dort weiter, wo die Lehrkraft den 📍 Merker gesetzt hat – sonst bleibt Home.
+    if (useTabs && sessionGet(LANDED_KEY) !== this.token) {
+      sessionSet(LANDED_KEY, this.token);
+      if (mk?.current?.linkId && mk.current.moduleId) void this._enter(mk.current.linkId, null, mk.current.moduleId);
+    }
     return true;
   }
 
@@ -801,8 +839,14 @@ export class ClassbookStudent {
   }
 
   /** Aufgabe starten – ganz oder nur ein Modul; ohne Modus der erste der Zuweisung. */
-  async _enter(linkId, mode, onlyModule, btn) {
+  async _enter(linkId, mode, onlyModule, btn, { fromTab = false } = {}) {
     const s = classbookSession();
+    // Ohne geladenes Klassennotizbuch (Tab nach dem Neuladen): erst Home laden, dann öffnen.
+    if (fromTab && !this.data) {
+      sessionSet(OPEN_KEY, JSON.stringify({ token: this.token, linkId, moduleId: onlyModule }));
+      backToClassbook();
+      return;
+    }
     const assignment = this.data?.assignments.find((a) => a.linkId === linkId);
     const chosen = mode || (assignment?.modes.includes('quiz') ? 'quiz' : assignment?.modes[0]) || 'quiz';
     if (btn) btn.disabled = true;
@@ -812,6 +856,14 @@ export class ClassbookStudent {
       if (!res?.linkToken) throw new Error(res?.message || 'Diese Aufgabe ist gerade nicht freigegeben.');
       const data = await this.app.api.startLinkRun(res.linkToken, { mode: chosen, classTicket: s.ticket });
       if (!data?.topics) throw new Error(data?.message || 'Der Start ist fehlgeschlagen.');
+      // Klassenarbeit: ohne Tabs (nichts anderes offen).
+      if (chosen === 'exam') workspace.stop();
+      // Arbeitsfläche: Tab merken; ein Dokument öffnet gleich im Stift-Editor.
+      if (workspace.on && chosen !== 'exam') {
+        workspace.mark({ id: `${linkId}|${onlyModule || ''}`, linkId, moduleId: onlyModule || null, mode: mode || null, ...tabInfo(this.data, linkId, onlyModule) });
+        const mods = (data.topics || []).flatMap((t) => t.modules || []);
+        if (onlyModule && mods.find((m) => m.id === onlyModule)?.type === 'document') data.startView = 'ink';
+      }
       if (s.pin && data.studentTicket) {
         const { rememberPin } = await import('../ink/work-store.js');
         rememberPin(data.studentTicket, s.pin);

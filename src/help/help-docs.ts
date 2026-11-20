@@ -10,7 +10,7 @@
 export const HELP_GROUPS: Array<{ title: string; icon: string; files: string[] }> = [
   { title: 'Lernthemen und Aufgaben', icon: '📚', files: ['notebooks', 'kategorien', 'entwuerfe', 'html-apps', 'ansicht-und-zoom', 'ki-prompt', 'formelaufgabe', 'reihenfolge-memory-kreuzwortraetsel', 'dokumente', 'zeichnungen', 'arbeitsblaetter', 'diktat', 'audio-recorder', 'anhang', 'onenote-import', 'onenote-export', 'moodle-und-h5p'] },
   { title: 'Unterricht mit Schülern', icon: '🏫', files: ['klassennotizbuch', 'planung', 'themen-links', 'quick-link', 'klassen-und-schuljahr', 'bearbeitungen', 'lernbegleitung-und-quiz-arena'] },
-  { title: 'Konto und Sicherheit', icon: '🔐', files: ['anmeldung-und-app', 'zwei-faktor', 'sso', 'lti', 'nextcloud', 'github-backup', 'uebergabe', 'nutzungsbedingungen'] },
+  { title: 'Konto und Sicherheit', icon: '🔐', files: ['anmeldung-und-app', 'arbeitsflaeche', 'zwei-faktor', 'sso', 'lti', 'nextcloud', 'github-backup', 'uebergabe', 'nutzungsbedingungen'] },
   { title: 'Administration', icon: '⚙️', files: ['benutzerverwaltung', 'benutzer-tabelle', 'schulen', 'shop-und-rechte', 'nutzung-und-bewertung', 'vernetzung'] },
 ];
 

@@ -3,6 +3,7 @@ import { escapeHtml, escapeAttr } from '../utils.js';
 import { renderMarkdown } from '../markdown.js';
 import { refreshNextcloud } from './nextcloud.js';
 import { classbookSession, backToClassbook } from './classbook-student.js';
+import { workspace } from '../workspace.js';
 import { offerTeacherName } from './teacher-as-student.js';
 import { bindStudentEntry } from './student-entry.js';
 import { contentCounts, contentText } from '../../lm-editor/src/doc/doc-quiz.js';
@@ -834,7 +835,40 @@ export class LoginView {
     await this._finishLogin(res, this._adminLoginErr);
   }
 
+  /**
+   * 🏠 und Tabs für Lehrkräfte (js/workspace.js): Home ist die App, jedes im Stift-Editor geöffnete
+   * Dokument eines Lernthemas ein Tab. Die Leiste erscheint erst mit dem ersten Tab.
+   */
+  _startTeacherTabs(user) {
+    const { api } = this.app;
+    workspace.start({
+      key: `t:${user.id || user.email || 'lehrkraft'}`,
+      hideEmpty: true,
+      onHome: () => {},
+      onOpen: async (tab) => {
+        try {
+          let all = await api.getTopicModules(tab.topicId).catch(() => null);
+          if (!Array.isArray(all)) {
+            const shared = await api.getSharedTopicView(tab.topicId).catch(() => null);
+            all = Array.isArray(shared?.modules) ? shared.modules : null;
+          }
+          const full = all?.find((m) => m.id === tab.moduleId);
+          if (!full) throw new Error('Das Dokument gibt es nicht mehr.');
+          const { openDocumentInk } = await import('../ink/ink-open.js');
+          await openDocumentInk({
+            mode: 'teacher', mod: { ...full, topicId: full.topicId || tab.topicId }, embedModule: (id) => all.find((m) => m.id === id) || null,
+            editable: !!tab.own, topicModules: all,
+          });
+        } catch (err) {
+          this.app.showToast(`${tab.title}: ${err.message}`, 'error');
+          workspace.markHome();
+        }
+      },
+    });
+  }
+
   showLoginScreen() {
+    workspace.stop();
     const { state } = this.app;
     state.currentUser   = null;
     state.quizState     = null;
@@ -939,6 +973,7 @@ export class LoginView {
     await this.app.loadTopics();
 
     if (currentUser.role === 'admin' || currentUser.role === 'teacher') {
+      this._startTeacherTabs(currentUser);
       this.app.navigateToView(startView || 'teacher-notebooks');
       this.app.classesView.checkRollover();
       if (currentUser.role === 'admin') this.app.adminView.load();

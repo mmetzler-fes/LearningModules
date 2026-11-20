@@ -105,6 +105,15 @@ export async function openDocumentInk({ mode, mod, up = null, embedModule = null
     teacherLayer = opened.teacher?.layer || null;
   }
   if (!store && mode === 'teacher') store = await teacherStore(mod.id);
+  // Arbeitsfläche der Lehrkraft: ein Dokument aus einem Lernthema bekommt einen Tab (Tafelbild, Lösung u. Ä. nicht).
+  let wsTeacher = null;
+  if (mode === 'teacher' && !title && mod?.id && mod.topicId) {
+    const { workspace } = await import('../workspace.js');
+    if (workspace.on && String(workspace.key).startsWith('t:')) {
+      wsTeacher = workspace;
+      workspace.mark({ id: `d|${mod.id}`, topicId: mod.topicId, moduleId: mod.id, own: !!editable, title: mod.title || 'Dokument', icon: '📄' });
+    }
+  }
   const [{ openInkEditor }, { H5pRenderer }, { captureForms, restoreForms }, { assignPathIds, pathId, ensureBlockIds }, { drawLayer }] = await Promise.all([
     import('../../lm-editor/src/ink/ink-editor.js'),
     import('../../lm-editor/src/modules/h5p-renderer.js'),
@@ -180,6 +189,8 @@ export async function openDocumentInk({ mode, mod, up = null, embedModule = null
     };
   }
   const onClose = () => {
+    // Lehrkraft: Stift-Editor zu = zurück in der App (Home); der Tab bleibt.
+    if (wsTeacher && wsTeacher.active === `d|${mod.id}` && !wsTeacher.busy) wsTeacher.markHome();
     if (sourceEl && lastForms) restoreForms(sourceEl, lastForms);
     // Die neue Beschriftung gleich in der Ansicht zeigen.
     if (sourceEl) void showSavedInk(sourceEl, { mode, up, moduleId: mod.id, landscape: paper.landscape });

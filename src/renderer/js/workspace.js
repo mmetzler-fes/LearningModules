@@ -40,7 +40,8 @@ class Workspace {
    * Leiste zeigen. `key`: Speicherort der Tabs (z. B. „s:<Klassenbuch-Token>“, „t:<Lehrkraft>“);
    * `onOpen(tab)`: Tab öffnen; `onHome()`: Home zeigen.
    */
-  start({ key, onOpen, onHome }) {
+  start({ key, onOpen, onHome, hideEmpty = false }) {
+    this.hideEmpty = hideEmpty;
     if (this.key !== key) {
       const saved = read(key) || {};
       this.tabs = Array.isArray(saved.tabs) ? saved.tabs.filter((t) => t && t.id) : [];
@@ -57,7 +58,6 @@ class Workspace {
       this._observer = new ResizeObserver(() => this._fit());
       this._observer.observe(this.bar);
     }
-    document.body.classList.add('ws-on');
     this.render();
   }
 
@@ -139,6 +139,10 @@ class Workspace {
 
   render() {
     if (!this.bar) return;
+    // Lehrkräfte: Leiste erst, wenn ein Dokument offen ist (Home ist die App selbst).
+    const show = !(this.hideEmpty && !this.tabs.length);
+    this.bar.hidden = !show;
+    document.body.classList.toggle('ws-on', show);
     this.bar.innerHTML = `
       <button type="button" class="ws-home${this.active === 'home' ? ' active' : ''}" title="Home – alle Dokumente" aria-label="Home – alle Dokumente">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 11L12 4l8.5 7M6 9.5V20h4.5v-5.5h3V20H18V9.5"/></svg></button>

@@ -2,6 +2,7 @@ import { escapeHtml, escapeAttr } from '../utils.js';
 import { TagsView } from './tags.js';
 import { renderSchoolNextcloud } from './school-nextcloud.js';
 import { renderSchoolSso } from './school-sso.js';
+import { renderSchoolLti } from './school-lti.js';
 import { setFoldState } from '../fold.js';
 import { bindPasswordChoice } from './admin.js';
 import { printPermissionSheet, downloadPermissionOdt } from '../terms-print.js';
@@ -364,6 +365,7 @@ export class MySchoolView {
     await this._tagsView.refresh();
     void renderSchoolNextcloud(this.app, document.getElementById('mySchoolNextcloud'));
     void renderSchoolSso(this.app, document.getElementById('mySchoolSso'));
+    void renderSchoolLti(this.app, document.getElementById('mySchoolLti'));
 
     const own = (Array.isArray(groups) ? groups : []).filter((g) => g.schoolId === data.id);
     if (this._groups) this.app.adminView.renderGroupList(this._groups, own, data.teachers, { onChanged: () => this.refresh() });

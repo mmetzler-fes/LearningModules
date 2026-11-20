@@ -25,6 +25,7 @@ import { NotebookPlacement } from '../core/entities/notebook-placement.entity';
 import { ClassbookProgress } from '../core/entities/classbook-progress.entity';
 import { ancestorsOf, canHoldNode, commonPath, deadMirrorNodes, slotSort, depthOf, leavesInOrder, nodeMoveError, normalizeMarker, reorder, dissolve, LeafRef, MAX_CLASS_DEPTH, TreeLink, TreeNode, veiledNodeIds, scopeTree, ClassbookScope } from './classbook-tree';
 import { ClassesService } from '../classes/classes.service';
+import { matchStudent } from '../classes/name-match';
 import { LinksService, PRACTICE_MODES, onlyHtmlApps, withoutCompanionForDocuments } from '../links/links.service';
 import { NotebooksService } from '../notebooks/notebooks.service';
 import { issueDeviceTicket, pinTag, issueTicket, readTicket } from '../classes/student-ticket';
@@ -1591,6 +1592,38 @@ export class ClassbookService {
       classId: klasse.id,
       name,
       pending: student.status === 'pending',
+    };
+  }
+
+  /**
+   * LTI 1.3 (docs/lti.md): Schüler aus Moodle in der verbundenen Klasse. Moodle ist maßgeblich: verknüpft
+   * über die Moodle-Kennung, beim ersten Mal über den Namen (eindeutig) – sonst neuer, bestätigter Eintrag.
+   * Liefert den Geräte-Ausweis wie nach Name und PIN.
+   */
+  async ltiStudent(classId: string, who: { subject: string; firstName: string; lastName: string }) {
+    const klasse = await this.classes.findById(classId);
+    if (!klasse) throw new NotFoundException('Die verbundene Klasse gibt es nicht mehr.');
+    const students = await this.studentRepo.find({ where: { classId } });
+    let student = students.find((s) => s.ltiSubject === who.subject) || null;
+    if (!student) {
+      const typed = `${who.firstName} ${who.lastName}`.trim();
+      const found = typed ? matchStudent(typed, students.filter((s) => !s.ltiSubject)) : { kind: 'none' as const };
+      if (found.kind === 'match') {
+        student = found.student;
+        await this.studentRepo.update({ id: student.id }, { ltiSubject: who.subject });
+      } else {
+        student = await this.studentRepo.save(this.studentRepo.create({
+          id: crypto.randomUUID(), classId, firstName: who.firstName || typed || 'Moodle', lastName: who.lastName || '',
+          status: 'confirmed', importId: null, ltiSubject: who.subject,
+        }));
+      }
+    }
+    const name = `${student.firstName} ${student.lastName}`.trim();
+    return {
+      deviceTicket: issueDeviceTicket(classbookTicketKey(classId), student.id, name, student.pin),
+      studentId: student.id,
+      classId,
+      name,
     };
   }
 

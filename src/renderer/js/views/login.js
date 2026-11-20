@@ -260,7 +260,7 @@ export class LoginView {
    * hat – zwischen Quiz, Klassenarbeit und Lernen mit Lösungen. Ist nur ein
    * Modus erlaubt, startet er ohne Rückfrage.
    */
-  async startLinkEntry(token, presetMode = null, onlyModule = null) {
+  async startLinkEntry(token, presetMode = null, onlyModule = null, opts = {}) {
     // Quiz-Arena nach einem Neuladen: mit demselben Platz weiter, ohne neue Namenseingabe.
     if (await this.app.contestView.resumePlayer(token)) return true;
 
@@ -466,6 +466,8 @@ export class LoginView {
 
     // Anonym mit nur einem Modus und ohne Passwort: gleich los, es gibt nichts zu fragen.
     if (anonymous && !wantsFreeName && !multi && !info.requiresPassword) form?.requestSubmit();
+    // Aus Moodle (LTI): Das Gerät kennt den Schüler schon – ohne Rückfrage starten.
+    else if (opts.auto && device && !multi && !info.requiresPassword) form?.requestSubmit();
 
     return true;
   }
@@ -752,6 +754,38 @@ export class LoginView {
     box.innerHTML = schools.length ? `<div class="sso-or"><span>oder</span></div>${schools.map((sc) => `
       <a class="btn btn-secondary btn-full sso-btn" href="/api/sso/start?purpose=teacher&amp;school=${encodeURIComponent(sc.schoolId)}">
         <span class="sso-ms" aria-hidden="true"></span> Mit Microsoft anmelden${schools.length > 1 ? ` – ${escapeHtml(sc.name)}` : ''}</a>`).join('')}` : '';
+  }
+
+  /** Start aus Moodle (LTI 1.3, docs/lti.md): Einlöse-Code gegen Schüler-Ausweis bzw. Sitzung der Lehrkraft. */
+  async handleLtiReturn(params) {
+    const code = params.get('lti');
+    const error = params.get('ltiError');
+    const linkToken = params.get('l');
+    history.replaceState(null, '', linkToken ? `${location.pathname}?l=${encodeURIComponent(linkToken)}` : location.pathname);
+    const showError = (msg) => {
+      this._studentSec?.classList.add('hidden');
+      this._adminSec?.classList.remove('hidden');
+      this._adminLoginErr.textContent = `Moodle: ${msg}`;
+      this._adminLoginErr.classList.remove('hidden');
+    };
+    if (error) { showError(error); return; }
+    const res = await fetch('/api/lti/redeem', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code }) })
+      .then(async (r) => ({ ok: r.ok, body: await r.json().catch(() => ({})) })).catch(() => null);
+    if (!res?.ok) { showError(res?.body?.message || 'Der Server ist nicht erreichbar.'); return; }
+    const r = res.body;
+    if (r.kind === 'student') {
+      // Wie nach Name und PIN: Das Gerät kennt den Schüler, der Link startet ohne Rückfrage.
+      rememberStudent(r.classId, { ticket: r.deviceTicket, name: r.name });
+      if (linkToken) await this.startLinkEntry(linkToken, null, null, { auto: true });
+      return;
+    }
+    this._studentSec?.classList.add('hidden');
+    this._adminSec?.classList.remove('hidden');
+    const ok = await this._finishLogin(r.session, this._adminLoginErr);
+    if (ok && r.kind === 'deep') {
+      const { openLtiDeepLink } = await import('./lti-deep-link.js');
+      await openLtiDeepLink(this.app, code, r.deep?.contextTitle || '');
+    }
   }
 
   /** Zurück von der Anmeldung mit dem Schulkonto (?sso=<Code> bzw. ?ssoError=…), ohne Klassenbuch. */

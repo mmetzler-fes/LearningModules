@@ -1,3 +1,4 @@
+import { resultSaved } from '../result-events';
 import { contentCounts } from '../../links/content-counts';
 import { withoutLocked } from '../../topics/student-lock';
 import { foreignEmbeddedQuizzes } from '../../topics/embedded-quizzes';
@@ -667,6 +668,8 @@ export class PublicController {
       className: klasse?.name ?? null,
     });
     const saved = await this.resultRepo.save(result);
+    // Z. B. LTI: bestes Ergebnis an Moodle (src/lti) – läuft im Hintergrund.
+    resultSaved({ id: saved.id, linkId: saved.linkId, studentId: saved.studentId, classId: saved.classId });
     // Bearbeitungszeiten für die Quiz-Arena – nur aus Durchläufen über einen
     // Link, nicht aus der Lehrervorschau. Ein Fehler hier kostet kein Ergebnis.
     if (link || quickTopicTitle !== null) {

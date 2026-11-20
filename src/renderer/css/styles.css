@@ -6742,3 +6742,6 @@ pre.ds-code-run { position: relative; }
 .sso-or::before, .sso-or::after { content: ''; flex: 1; border-top: 1px solid var(--border); }
 .sso-admin .form-group { margin-bottom: 10px; }
 .sso-admin code.sso-uri { user-select: all; word-break: break-all; }
+.sso-table { width: 100%; border-collapse: collapse; margin: 8px 0; font-size: .9rem; }
+.sso-table td { padding: 4px 6px; border-bottom: 1px solid var(--border); vertical-align: top; }
+.sso-table td:first-child { white-space: nowrap; color: var(--text-secondary); }

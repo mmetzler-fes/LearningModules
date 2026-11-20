@@ -102,6 +102,19 @@ describe('Klassennotizbuch: Anmeldung mit dem Schulkonto', () => {
   });
 });
 
+describe('Klassennotizbuch: Schüler aus Moodle (LTI)', () => {
+  it('verknüpft über den Namen, danach über die Moodle-Kennung; Unbekannte werden angelegt', async () => {
+    const { svc, students } = setup();
+    const a = await svc.ltiStudent('c1', { subject: 'moodle|7', firstName: 'Anna', lastName: 'B' });
+    expect(a.studentId).toBe('s1');
+    expect(students.rows[0].ltiSubject).toBe('moodle|7');
+    expect((await svc.ltiStudent('c1', { subject: 'moodle|7', firstName: 'X', lastName: 'Y' })).studentId).toBe('s1');
+    const neu = await svc.ltiStudent('c1', { subject: 'moodle|8', firstName: 'Carl', lastName: 'Cem' });
+    expect(students.rows.find((r: any) => r.id === neu.studentId)).toMatchObject({ firstName: 'Carl', status: 'confirmed', ltiSubject: 'moodle|8' });
+    expect(readTicket(a.deviceTicket, classbookTicketKey('c1'))?.s).toBe('s1');
+  });
+});
+
 describe('Klassennotizbuch: 👁 Vorschau der Lehrkraft', () => {
   const start = () => {
     const ctx = setup();

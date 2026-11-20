@@ -809,6 +809,11 @@ class App {
       await this.loginView.initLoginScreen();
 
       const params = new URLSearchParams(window.location.search);
+      // Start aus Moodle (LTI 1.3): Schüler mit ?l=, Lehrkraft (auch Deep Linking) ohne.
+      if (params.get('lti') || params.get('ltiError')) {
+        await this.loginView.handleLtiReturn(params);
+        return;
+      }
       // Zurück von „Mit Microsoft anmelden“ (Lehrkraft); mit ?k= kümmert sich das Klassennotizbuch darum.
       if ((params.get('sso') || params.get('ssoError')) && !params.get('k')) {
         await this.loginView.handleSsoReturn(params);

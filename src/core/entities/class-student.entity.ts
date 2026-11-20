@@ -57,4 +57,8 @@ export class ClassStudent extends BaseEntity {
   /** Verknüpftes Schulkonto (Anmeldung mit Microsoft): „<Aussteller>|<oid>“. Gesetzt bei der ersten Anmeldung. */
   @Column({ type: 'varchar', nullable: true })
   ssoSubject: string | null;
+
+  /** Verknüpftes Moodle-Konto (LTI 1.3): „<Plattform>|<sub>“. */
+  @Column({ type: 'varchar', nullable: true })
+  ltiSubject: string | null;
 }

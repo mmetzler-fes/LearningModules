@@ -195,6 +195,12 @@ if '/home/pyodide' not in sys.path:
 def _lm_prepare_matplotlib():
     import matplotlib
     matplotlib.use('Agg')
+    # matplotlib 3.10 im Pyodide-Build meldet bei jeder Formel ($U_L$) intern
+    # „The width parameter as float was deprecated…“, obwohl es int übergibt –
+    # für Lernende nur Lärm unter dem Diagramm.
+    import warnings
+    warnings.filterwarnings('ignore', message=r'The \\w+ parameter as float was deprecated',
+                            category=matplotlib.MatplotlibDeprecationWarning)
     import matplotlib.pyplot as plt
     plt.show = _lm_show
 `, { globals: helpers, filename: '<lm-helfer>' });

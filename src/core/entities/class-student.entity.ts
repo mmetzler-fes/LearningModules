@@ -61,4 +61,9 @@ export class ClassStudent extends BaseEntity {
   /** Verknüpftes Moodle-Konto (LTI 1.3): „<Plattform>|<sub>“. */
   @Column({ type: 'varchar', nullable: true })
   ltiSubject: string | null;
+
+  /** Benutzername des Schulkontos (Teil vor dem @, klein) – Anmeldung in der App über alle Klassen (docs/sso.md). */
+  @Index()
+  @Column({ type: 'varchar', nullable: true })
+  loginId: string | null;
 }

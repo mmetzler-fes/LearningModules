@@ -1,3 +1,4 @@
+import { normalizeLoginId } from './login-id';
 /**
  * Abgleich einer eingelesenen Schülerliste mit der Schülerliste einer Klasse.
  *
@@ -19,6 +20,8 @@ export interface ImportRow {
   firstName: string;
   lastName: string;
   importId?: string | null;
+  /** Benutzername des Schulkontos (Spalte „ID“, „Benutzername“, „E-Mail“ …) – nur der Teil vor dem @. */
+  loginId?: string | null;
 }
 
 export interface ExistingStudent {
@@ -27,11 +30,12 @@ export interface ExistingStudent {
   lastName: string;
   status: string;
   importId: string | null;
+  loginId?: string | null;
 }
 
 export interface ImportPlan {
   add: ImportRow[];
-  update: Array<{ id: string; firstName: string; lastName: string; importId: string | null; status: 'confirmed' }>;
+  update: Array<{ id: string; firstName: string; lastName: string; importId: string | null; loginId?: string | null; status: 'confirmed' }>;
   unchanged: number;
   /** Namen, die in der Datei mehrfach vorkommen – angelegt werden sie trotzdem. */
   duplicates: string[];
@@ -52,7 +56,8 @@ export function planStudentImport(existing: ExistingStudent[], rows: ImportRow[]
   const seen = new Set<string>();
 
   for (const raw of rows) {
-    const row = { firstName: clean(raw.firstName), lastName: clean(raw.lastName), importId: clean(raw.importId) || null };
+    const lid = normalizeLoginId(raw.loginId);
+    const row: ImportRow = { firstName: clean(raw.firstName), lastName: clean(raw.lastName), importId: clean(raw.importId) || null, ...(lid ? { loginId: lid } : {}) };
     if (!row.firstName && !row.lastName) continue;
     const key = nameKey(row.firstName, row.lastName);
     if (seen.has(key)) plan.duplicates.push(`${row.firstName} ${row.lastName}`.trim());
@@ -71,13 +76,16 @@ export function planStudentImport(existing: ExistingStudent[], rows: ImportRow[]
     used.add(match.id);
 
     const importId = row.importId || match.importId;
+    // Benutzername: aus der Datei ergänzt oder geändert – fehlt er dort, bleibt der vorhandene.
+    const loginId = row.loginId || match.loginId || null;
     const same =
       match.firstName === row.firstName &&
       match.lastName === row.lastName &&
       match.importId === importId &&
+      (match.loginId || null) === loginId &&
       match.status === 'confirmed';
     if (same) plan.unchanged++;
-    else plan.update.push({ id: match.id, firstName: row.firstName, lastName: row.lastName, importId, status: 'confirmed' });
+    else plan.update.push({ id: match.id, firstName: row.firstName, lastName: row.lastName, importId: importId ?? null, ...(loginId ? { loginId } : {}), status: 'confirmed' });
   }
   return plan;
 }

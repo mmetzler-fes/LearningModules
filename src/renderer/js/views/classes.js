@@ -525,7 +525,7 @@ export class ClassesView {
         <button class="btn btn-secondary btn-sm btn-class-back">← Alle Klassen</button>
         <h3>🏫 ${escapeHtml(klasse.name)} <span class="class-year">${escapeHtml(klasse.schoolYear || '')}</span></h3>
         <div class="link-card-actions">
-          <button class="btn btn-secondary btn-sm btn-class-import" title="Klassenliste aus dem SchülerLernTool oder Tabelle (LibreOffice, Excel, CSV) mit Name und Vorname">📥 Schülerliste einlesen</button>
+          <button class="btn btn-secondary btn-sm btn-class-import" title="Klassenliste aus dem SchülerLernTool oder Tabelle (LibreOffice, Excel, CSV) mit Name und Vorname, optional ID/Benutzername des Schulkontos. Erneut einlesen ergänzt fehlende Benutzernamen – PINs und Ergebnisse bleiben">📥 Schülerliste einlesen</button>
           <button class="btn btn-secondary btn-sm btn-class-template" title="Leere Tabelle mit den passenden Spalten zum Ausfüllen">📄 Vorlage</button>
           ${helpHint('klassen-und-schuljahr#schuelerliste-einlesen', 'Hilfe: Schülerliste einlesen')}
           <button class="btn btn-secondary btn-sm btn-class-rename">✏️ Umbenennen</button>
@@ -553,11 +553,12 @@ export class ClassesView {
       ${students.length === 0
         ? '<div class="empty-state"><p>Noch keine Schüler. Lege sie hier an oder lies die Klassenliste ein.</p></div>'
         : `<table class="class-students">
-            <thead><tr><th>Name</th><th>Vorname</th><th title="PIN zum Weiterbearbeiten von Blättern – der Schüler sieht sie einmal, beim ersten Speichern">PIN</th><th></th><th></th></tr></thead>
+            <thead><tr><th>Name</th><th>Vorname</th><th title="Benutzername des Schulkontos (Teil vor dem @) – damit meldet sich der Schüler in der App mit Microsoft an und sieht alle seine Klassen">Benutzername</th><th title="PIN zum Weiterbearbeiten von Blättern – der Schüler sieht sie einmal, beim ersten Speichern">PIN</th><th></th><th></th></tr></thead>
             <tbody>${students.map((s) => `
               <tr data-id="${escapeAttr(s.id)}" class="${s.status === 'pending' ? 'is-pending' : ''}">
                 <td>${escapeHtml(s.lastName) || '<span class="hint">–</span>'}</td>
                 <td>${escapeHtml(s.firstName)}${s.userId ? ' <span title="Lehrkraft mit Konto – angemeldet ohne PIN hinein">👩‍🏫</span>' : ''}</td>
+                <td class="class-student-login">${s.loginId ? escapeHtml(s.loginId) : '<span class="hint">–</span>'}</td>
                 <td class="class-student-pin" title="${s.pinShownAt ? 'Dem Schüler schon angezeigt' : 'Wird beim ersten Speichern angezeigt'}">${escapeHtml(s.pin || '')}${s.pinShownAt ? '' : ' <span class="hint">neu</span>'}</td>
                 <td>${s.status === 'pending' ? '<span class="class-pending-note">unbestätigt</span>' : ''}</td>
                 <td class="class-student-actions">
@@ -639,6 +640,7 @@ export class ClassesView {
           fields: [
             { name: 'firstName', label: 'Vorname(n)', value: s.firstName },
             { name: 'lastName', label: 'Name', value: s.lastName },
+            { name: 'loginId', label: 'Benutzername des Schulkontos (Teil vor dem @, z. B. max.muster) – für „Mit Microsoft anmelden“', value: s.loginId || '' },
           ],
         });
         if (values) this._updateStudent(klasse.id, s, { ...values, confirm: true });

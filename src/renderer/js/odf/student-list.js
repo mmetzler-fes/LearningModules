@@ -96,6 +96,9 @@ const norm = (s) => String(s || '').trim().toLocaleLowerCase('de');
  * liest darunter die Schüler. In der Klassenliste des SchülerLernTools steht
  * darüber außerdem "Klasse | <Name>".
  */
+const LOGIN_HEADERS = ['id', 'benutzername', 'benutzer', 'login', 'loginname', 'anmeldename', 'kennung', 'userid', 'user-id', 'user id',
+  'username', 'e-mail', 'email', 'mail', 'e-mail-adresse', 'microsoft', 'upn', 'konto'];
+
 function studentsFromRows(rows) {
   let className = '';
   let classId = '';
@@ -115,13 +118,19 @@ function studentsFromRows(rows) {
   const colLast = header.indexOf('name') >= 0 ? header.indexOf('name') : header.indexOf('nachname');
   const colFirst = header.indexOf('vorname');
   const colId = header.indexOf('schüler-id');
+  // Benutzername des Schulkontos (Microsoft): „ID“, „Benutzername“, „E-Mail“ … – gespeichert wird der Teil vor dem @.
+  const colLogin = header.findIndex((h) => LOGIN_HEADERS.includes(h));
 
   const students = [];
   for (const r of rows.slice(headerIndex + 1)) {
     const firstName = (r[colFirst] || '').trim();
     const lastName = (r[colLast] || '').trim();
     if (!firstName && !lastName) continue;
-    students.push({ firstName, lastName, importId: colId >= 0 ? (r[colId] || '').trim() || null : null });
+    students.push({
+      firstName, lastName,
+      importId: colId >= 0 ? (r[colId] || '').trim() || null : null,
+      loginId: colLogin >= 0 ? (r[colLogin] || '').trim() || null : null,
+    });
   }
   return { className, classId, students };
 }

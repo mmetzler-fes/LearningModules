@@ -69,3 +69,23 @@ describe('planStudentImport', () => {
     expect(plan.add).toEqual([{ firstName: 'Anna Lena', lastName: 'Müller', importId: null }]);
   });
 });
+
+describe('Schülerliste: Benutzername des Schulkontos', () => {
+  const existing = [
+    { id: 's1', firstName: 'Anna', lastName: 'Apfel', status: 'confirmed', importId: null, loginId: null },
+    { id: 's2', firstName: 'Ben', lastName: 'Berg', status: 'confirmed', importId: null, loginId: 'ben.berg' },
+  ];
+  it('erneutes Einlesen ergänzt den Benutzernamen (Teil vor dem @, klein) – ohne neue Einträge', () => {
+    const plan = planStudentImport(existing, [
+      { firstName: 'Anna', lastName: 'Apfel', loginId: 'Anna.Apfel@fesesde.onmicrosoft.com' },
+      { firstName: 'Ben', lastName: 'Berg', loginId: null },
+    ]);
+    expect(plan.add).toHaveLength(0);
+    expect(plan.update).toEqual([expect.objectContaining({ id: 's1', loginId: 'anna.apfel' })]);
+    expect(plan.unchanged).toBe(1); // Ben: in der Datei ohne – der vorhandene bleibt
+  });
+  it('neue Schüler bekommen ihn gleich mit', () => {
+    const plan = planStudentImport([], [{ firstName: 'Cem', lastName: 'Cal', loginId: ' CEM.CAL ' }]);
+    expect(plan.add[0]).toMatchObject({ firstName: 'Cem', loginId: 'cem.cal' });
+  });
+});

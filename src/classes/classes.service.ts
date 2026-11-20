@@ -24,6 +24,7 @@ import { LearningModule } from '../core/entities/learning-module.entity';
 import { newPin } from '../work/pin';
 import { isSchoolYear, schoolYearOfDate, compareSchoolYearsDesc, splitSchoolYearPrefix, shiftSchoolYear, suggestNextClassName } from './school-year';
 import { planStudentImport, nameKey, ImportRow } from './student-import';
+import { normalizeLoginId } from './login-id';
 import { matchStudent, splitTypedName, normalizeName } from './name-match';
 import { isExpired, deleteAfter, oldestKeptYear } from './retention';
 import { shortName } from './short-name';
@@ -576,7 +577,7 @@ export class ClassesService implements OnApplicationBootstrap, OnModuleDestroy {
         students.map((s) =>
           this.studentRepo.create({
             id: crypto.randomUUID(), classId: klasse.id, firstName: s.firstName, lastName: s.lastName,
-            status: 'confirmed', importId: s.importId,
+            status: 'confirmed', importId: s.importId, loginId: s.loginId ?? null,
           }),
         ),
       );
@@ -749,7 +750,7 @@ export class ClassesService implements OnApplicationBootstrap, OnModuleDestroy {
     await this.studentRepo.save(
       students.map((s) =>
         this.studentRepo.create({
-          id: crypto.randomUUID(), classId: klasse.id, firstName: s.firstName, lastName: s.lastName, status: 'confirmed', importId: s.importId,
+          id: crypto.randomUUID(), classId: klasse.id, firstName: s.firstName, lastName: s.lastName, status: 'confirmed', importId: s.importId, loginId: s.loginId ?? null,
         }),
       ),
     );
@@ -792,9 +793,10 @@ export class ClassesService implements OnApplicationBootstrap, OnModuleDestroy {
     classId: string,
     studentId: string,
     user: any,
-    body: { firstName?: string; lastName?: string; confirm?: boolean },
+    body: { firstName?: string; lastName?: string; confirm?: boolean; loginId?: string | null },
   ) {
     const student = await this.ownStudent(classId, studentId, user);
+    if (body?.loginId !== undefined) student.loginId = normalizeLoginId(body.loginId);
     if (body?.firstName !== undefined) {
       const firstName = cleanName(body.firstName);
       if (!firstName) throw new BadRequestException('Der Vorname darf nicht leer sein.');
@@ -863,6 +865,7 @@ export class ClassesService implements OnApplicationBootstrap, OnModuleDestroy {
         firstName: r.firstName,
         lastName: r.lastName,
         importId: r.importId || null,
+        loginId: normalizeLoginId(r.loginId),
         status: 'confirmed',
       }),
     );

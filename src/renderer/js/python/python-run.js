@@ -253,6 +253,7 @@ function mountBlock(pre, ns, storeKey) {
       <button type="button" class="btn btn-secondary btn-sm py-stop" hidden title="Anhalten – z. B. bei einer Endlosschleife">⏹ Stopp</button>
       <span class="py-status hint" aria-live="polite"></span>
       <span class="py-spacer"></span>
+      <button type="button" class="py-mini py-copy" hidden title="Diagramm in die Zwischenablage – zum Einfügen ins eigene Blatt">📋 Bild kopieren</button>
       <button type="button" class="py-mini py-restore" ${startCode === original ? 'hidden' : ''} title="Den ursprünglichen Code der Lehrkraft wiederherstellen">↺ Ursprünglich</button>
       <button type="button" class="py-mini py-reset" title="Variablen aller Python-Blöcke dieses Dokuments löschen">⟲ Neu starten</button>
       <button type="button" class="py-mini py-grow" title="Groß – Code und Ausgabe über die ganze Seite (Esc: zurück)" aria-pressed="false">⤢</button>
@@ -277,6 +278,9 @@ function mountBlock(pre, ns, storeKey) {
   };
   requestAnimationFrame(fit);
   const block = outputView({ out, status, btnRun, btnStop });
+  const btnCopy = box.querySelector('.py-copy');
+  watchFigure(out, btnCopy);
+  btnCopy.addEventListener('click', () => void copyFigure(out, status));
 
   // ⤢ Groß: an <body> gehängt, damit kein gezoomter oder schmaler Rahmen (Stift-Editor, Vorschau) ihn einengt.
   const btnGrow = box.querySelector('.py-grow');
@@ -335,6 +339,43 @@ function mountBlock(pre, ns, storeKey) {
   });
 }
 
+/**
+ * 📋 Das (letzte) Diagramm eines Blocks in die Zwischenablage – zum Einfügen ins eigene Blatt
+ * (Stift-Editor: Einfügen, Word/OneNote: Strg+V). Der Blob geht als Zusage hinein: Safari (iPad)
+ * verlangt den Aufruf direkt im Klick. Ohne Zwischenablage (kein https) wird das Bild gespeichert.
+ */
+async function copyFigure(out, status, name = 'Diagramm') {
+  const imgs = out.querySelectorAll('.py-img');
+  const img = imgs[imgs.length - 1];
+  if (!img) return;
+  const say = (text) => {
+    status.textContent = text;
+    setTimeout(() => { if (status.textContent === text) status.textContent = ''; }, 4000);
+  };
+  const blob = fetch(img.src).then((r) => r.blob());
+  if (navigator.clipboard?.write && typeof ClipboardItem !== 'undefined') {
+    try {
+      await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+      say('📋 Kopiert – im Blatt mit „Einfügen“ (Strg+V) einsetzen und beschriften.');
+      return;
+    } catch (_) { /* weiter: speichern */ }
+  }
+  const url = URL.createObjectURL(await blob);
+  const a = Object.assign(document.createElement('a'), { href: url, download: `${name.replace(/[\\/:*?"<>|]+/g, ' ').trim() || 'Diagramm'}.png` });
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 10000);
+  say('⬇ Kopieren geht hier nicht – das Bild wurde gespeichert.');
+}
+
+/** 📋-Knopf nur zeigen, wenn die Ausgabe ein Bild hat. */
+function watchFigure(out, btn) {
+  const update = () => { btn.hidden = !out.querySelector('.py-img'); };
+  new MutationObserver(update).observe(out, { childList: true });
+  update();
+}
+
 /** Zahl zum Anzeigen am Regler: so viele Nachkommastellen wie der Schritt, deutsches Komma. */
 function formatValue(value, step) {
   const digits = step > 0 && step < 1 ? Math.min(6, Math.ceil(-Math.log10(step) - 1e-9)) : 0;
@@ -370,6 +411,7 @@ function mountResultBlock(pre, ns, storeKey) {
       <span class="py-label">📊 Interaktiv</span>
       <span class="py-status hint" aria-live="polite"></span>
       <span class="py-spacer"></span>
+      <button type="button" class="btn btn-secondary btn-sm py-copy" hidden title="Das Bild so, wie es gerade eingestellt ist, in die Zwischenablage – zum Einfügen ins eigene Blatt">📋 Bild kopieren</button>
       <button type="button" class="py-mini py-reset-values" hidden title="Alle Regler auf den Anfangswert">↺ Anfangswerte</button>
       <button type="button" class="py-mini py-toggle-code" title="Den Python-Code dahinter zeigen" aria-pressed="false">‹/› Code</button>
       <button type="button" class="py-mini py-grow" title="Groß über die ganze Seite (Esc: zurück)" aria-pressed="false">⤢</button>
@@ -395,6 +437,9 @@ function mountResultBlock(pre, ns, storeKey) {
   const btnRestore = $('.py-restore');
   const btnResetValues = $('.py-reset-values');
   pre.replaceWith(box);
+  const btnCopy = $('.py-copy');
+  watchFigure(out, btnCopy);
+  btnCopy.addEventListener('click', () => void copyFigure(out, status));
 
   /** Werte der Bedienelemente (Name → Zahl/Index/bool) und ihre Elemente. */
   const values = {};

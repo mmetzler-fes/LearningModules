@@ -108,7 +108,7 @@ export function openAreaVisibilityDialog(app, onDone) {
 export function chipHtml(tag) {
   const cls = `tag-chip${tag.isArea ? ' area-chip' : ''}${tag.isSchoolTag ? ' school-tag' : ''}`;
   const title = tag.isSchoolTag ? ' title="Vorgabe der Schule"' : '';
-  return `<span class="${cls}"${title} style="--tag-color:${escapeAttr(tag.color || DEFAULT_TAG_COLOR)}">${tag.isArea ? '📁 ' : ''}${escapeHtml(tag.name)}</span>`;
+  return `<span class="${cls}"${title} style="--tag-color:${escapeAttr(tag.color || DEFAULT_TAG_COLOR)}">${escapeHtml(tag.name)}</span>`;
 }
 
 // Welche Abschnitte jemand auf- bzw. zugeklappt hat, merkt sich nur der

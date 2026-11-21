@@ -4447,7 +4447,6 @@ body.html-app-large .quiz-actions { margin-top: 8px; padding-top: 8px; flex-shri
 .school-conflicts { border-color: var(--warning); }
 /* Vorgabe der Schule: gestrichelter Rand plus kleines Schulsymbol */
 .tag-chip.school-tag { border-style: dashed; }
-.tag-chip.school-tag::after { content: ' 🏫'; font-size: 0.85em; }
 .tag-row-actions .hint { font-size: 0.85em; white-space: nowrap; }
 #view-school-admin .settings-panel { max-width: 960px; }
 

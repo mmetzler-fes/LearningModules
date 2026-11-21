@@ -89,7 +89,7 @@ function boot() {
       py.setStdout(writer(false));
       py.setStderr(writer(true));
       self.lmInput = (prompt) => readInput(String(prompt ?? ''));
-      self.lmImage = (png) => postMessage({ type: 'image', id: current, png });
+      self.lmImage = (png, mime) => postMessage({ type: 'image', id: current, png, mime: mime === 'image/svg+xml' ? mime : 'image/png' });
       self.lmWidget = (kind, name, spec) => postMessage({ type: 'widget', id: current, kind, name, spec: JSON.parse(spec) });
       try {
         py.FS.mkdirTree('/home/pyodide');
@@ -217,12 +217,19 @@ def bild(fig, dpi=None, eng=True):
     fig.savefig(buf, format='png', dpi=dpi, bbox_inches='tight' if eng else None, facecolor='white')
     js.lmImage(base64.b64encode(buf.getvalue()).decode('ascii'))
 
+def svg(text):
+    """SVG-Bild ausgeben – auch mit Bewegung (SMIL, z. B. <animateTransform>), die der Browser selbst
+    flüssig abspielt. Es erscheint als Bild: Skripte und Links darin laufen nicht."""
+    import base64
+    sys.stdout.flush()
+    js.lmImage(base64.b64encode(str(text).encode('utf-8')).decode('ascii'), 'image/svg+xml')
+
 def spielt():
     """True, solange ein zeit()-Regler abspielt – z. B. um dann weniger zu zeichnen."""
     return bool(_lm_values.get('__spielt'))
 
 builtins.regler, builtins.auswahl, builtins.schalter = regler, auswahl, schalter
-builtins.zeit, builtins.spielt, builtins.bild = zeit, spielt, bild
+builtins.zeit, builtins.spielt, builtins.bild, builtins.svg = zeit, spielt, bild, svg
 builtins.slider, builtins.dropdown, builtins.checkbox = regler, auswahl, schalter
 if '/home/pyodide' not in sys.path:
     sys.path.insert(0, '/home/pyodide')

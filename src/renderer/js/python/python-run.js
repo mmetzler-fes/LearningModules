@@ -72,7 +72,7 @@ function onWorkerMessage(m) {
   if (!r || m.id !== r.id) return;
   if (m.type === 'out') { loaded = true; r.block.status(''); r.block.write(m.text, m.err); return; }
   if (m.type === 'status') { loaded = true; r.block.status(m.text); return; }
-  if (m.type === 'image') { r.block.image(m.png); return; }
+  if (m.type === 'image') { r.block.image(m.png, m.mime); return; }
   if (m.type === 'widget') { r.block.widget?.(m.kind, m.name, m.spec || {}); return; }
   if (m.type === 'input') { loaded = true; r.block.status(''); r.block.ask(m.prompt, (value) => answerInput(m.key, value)); return; }
   if (m.type === 'done') { loaded = true; finish(m.ok, m.error); }
@@ -184,13 +184,14 @@ export function outputView({ out, status, btnRun = null, btnStop = null, keep = 
       if (keep) out.scrollTop = out.scrollHeight;
     },
     /** Diagramm (matplotlib, plt.show() bzw. am Ende des Laufs) als Bild in der Ausgabe. */
-    image(png) {
+    image(png, mime = 'image/png') {
       fresh();
       out.hidden = false;
       const img = document.createElement('img');
       img.className = 'py-img';
       img.alt = 'Diagramm';
-      img.src = `data:image/png;base64,${png}`;
+      // svg(): als Bild eingebunden – Bewegung (SMIL) läuft, Skripte nicht.
+      img.src = `data:${mime === 'image/svg+xml' ? mime : 'image/png'};base64,${png}`;
       out.appendChild(img);
     },
     ask(prompt, answer) {
@@ -347,6 +348,23 @@ function mountBlock(pre, ns, storeKey) {
  * (Stift-Editor: Einfügen, Word/OneNote: Strg+V). Der Blob geht als Zusage hinein: Safari (iPad)
  * verlangt den Aufruf direkt im Klick. Ohne Zwischenablage (kein https) wird das Bild gespeichert.
  */
+/** Das Bild als PNG – ein SVG (svg()) wird dafür im aktuellen Zustand auf eine Zeichenfläche gemalt. */
+async function figurePng(img) {
+  if (img.src.startsWith('data:image/png')) return (await fetch(img.src)).blob();
+  const pic = new Image();
+  pic.src = img.src;
+  await pic.decode();
+  const scale = 2;
+  const c = document.createElement('canvas');
+  c.width = Math.round((pic.naturalWidth || img.width || 800) * scale);
+  c.height = Math.round((pic.naturalHeight || img.height || 500) * scale);
+  const g = c.getContext('2d');
+  g.fillStyle = '#fff';
+  g.fillRect(0, 0, c.width, c.height);
+  g.drawImage(pic, 0, 0, c.width, c.height);
+  return new Promise((resolve, reject) => c.toBlob((b) => (b ? resolve(b) : reject(new Error('Bild ließ sich nicht umwandeln.'))), 'image/png'));
+}
+
 async function copyFigure(out, status, name = 'Diagramm') {
   const imgs = out.querySelectorAll('.py-img');
   const img = imgs[imgs.length - 1];
@@ -355,7 +373,7 @@ async function copyFigure(out, status, name = 'Diagramm') {
     status.textContent = text;
     setTimeout(() => { if (status.textContent === text) status.textContent = ''; }, 4000);
   };
-  const blob = fetch(img.src).then((r) => r.blob());
+  const blob = figurePng(img);
   if (navigator.clipboard?.write && typeof ClipboardItem !== 'undefined') {
     try {
       await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
@@ -382,7 +400,7 @@ async function figureToSheet(box, out, status) {
   const imgs = out.querySelectorAll('.py-img');
   const img = imgs[imgs.length - 1];
   if (!img || !sheetOf(box)) return;
-  const blob = await (await fetch(img.src)).blob();
+  const blob = await figurePng(img);
   const file = new File([blob], 'Diagramm.png', { type: 'image/png' });
   const taken = !box.dispatchEvent(new CustomEvent('lm-figure-to-sheet', { bubbles: true, cancelable: true, detail: { file } }));
   if (!taken) status.textContent = 'Aufs Blatt geht hier nicht – „📋 Bild kopieren“ und einfügen.';

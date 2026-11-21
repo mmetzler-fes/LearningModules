@@ -6913,3 +6913,20 @@ body.ws-on .login-card.login-card-wide {
 @keyframes ws-spin { to { transform: rotate(360deg); } }
 @keyframes ws-appear { to { opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .ws-cover { transition: none; } .ws-spinner { animation: ws-appear 0.2s ease-out 0.3s forwards; } }
+
+/* Feedback-Fenster: Symbole statt Emojis, Knöpfe für den Finger (Feedback 2026-11-21) */
+.lm-fb-ico { width: 20px; height: 20px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; vertical-align: -4px; }
+.lm-feedback-card h3 { display: flex; align-items: center; gap: 8px; }
+.lm-feedback-card h3 .lm-fb-ico { width: 24px; height: 24px; color: var(--accent); }
+.lm-fb-btn { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 8px 16px; font-size: 1rem; }
+.ws-feedback svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.ws-feedback { display: inline-flex; align-items: center; justify-content: center; }
+
+/* Quiz: „Überprüfen“ und „Weiter“ groß genug für den Finger; Weiter steht daneben (ink-open.js) */
+.ink-inline-next { margin-left: 8px; }
+@media (pointer: coarse) {
+  .ds-quiz-live button[id$="Check"], .ds-quiz-live button[class*="-check"], .ds-quiz-live .ink-inline-next,
+  #quizPlayerArea button[id$="Check"], #quizPlayerArea button[class*="-check"] {
+    min-height: 48px; padding: 10px 22px; font-size: 1.05rem; border-radius: 10px;
+  }
+}

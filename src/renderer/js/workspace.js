@@ -229,7 +229,7 @@ class Workspace {
         </div>`).join('')}
       </div>
       <button type="button" class="ws-more" hidden title="Alle offenen Dokumente" aria-label="Alle offenen Dokumente">⋯</button>
-      <button type="button" class="ws-feedback" title="Feedback: Fehler oder Wunsch melden" aria-label="Feedback">💬</button>`;
+      <button type="button" class="ws-feedback" title="Feedback: Fehler oder Wunsch melden" aria-label="Feedback"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H10l-5 4v-4H4zM8 9.5h8M8 12.5h5"/></svg></button>`;
     this.bar.querySelector('.ws-home').addEventListener('click', () => this.home());
     this.bar.querySelectorAll('[data-tab]').forEach((el) => el.addEventListener('click', (e) => {
       if (e.target.closest('[data-close]')) return;

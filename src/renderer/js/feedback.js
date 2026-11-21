@@ -6,6 +6,12 @@
 
 import { escapeHtml } from './utils.js';
 
+// Gezeichnete Symbole statt Emojis (Feedback: auf dem iPad ruhiger, gleich groß).
+const svg = (d) => `<svg class="lm-fb-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="${d}"/></svg>`;
+export const FEEDBACK_ICON = svg('M4 5h16v11H10l-5 4v-4H4zM8 9.5h8M8 12.5h5');
+const PASTE_ICON = svg('M9 4h6v3H9zM7 5.5H5V21h14V5.5h-2M9 12h6M9 16h4');
+const PICTURE_ICON = svg('M4 5h16v14H4zM4 16l5-5 4 4 2.5-2.5L20 17M15.5 7.5a1.5 1.5 0 100 3 1.5 1.5 0 000-3z');
+
 let lastShot = null;   // { blob, at } – das letzte 📷 Bildschirmfoto
 let appRef = null;
 
@@ -83,18 +89,18 @@ export function openFeedback(blob = null) {
   box.id = 'lmFeedback';
   box.className = 'lm-feedback';
   box.innerHTML = `<form class="lm-feedback-card">
-      <h3>💬 Feedback</h3>
+      <h3>${FEEDBACK_ICON} Feedback</h3>
       <p class="hint">Was ist passiert, oder was wünschst du dir? Ein Bild hilft beim Finden des Fehlers.</p>
       <textarea name="text" rows="5" placeholder="z. B. Beim Wischen springt das Blatt nach oben …" required></textarea>
       <div class="lm-feedback-image"></div>
       <div class="lm-feedback-tools">
-        <button type="button" class="btn btn-secondary btn-sm" data-fb="paste">📋 Bild aus Zwischenablage</button>
-        <label class="btn btn-secondary btn-sm">🖼 Bild wählen<input type="file" accept="image/*" hidden></label>
+        <button type="button" class="btn btn-secondary lm-fb-btn" data-fb="paste">${PASTE_ICON} Bild aus Zwischenablage</button>
+        <label class="btn btn-secondary lm-fb-btn">${PICTURE_ICON} Bild wählen<input type="file" accept="image/*" hidden></label>
       </div>
       <p class="login-error hidden" data-fb="err"></p>
       <div class="lm-feedback-actions">
-        <button type="button" class="btn btn-secondary" data-fb="cancel">Abbrechen</button>
-        <button type="submit" class="btn btn-primary">Senden</button>
+        <button type="button" class="btn btn-secondary lm-fb-btn" data-fb="cancel">Abbrechen</button>
+        <button type="submit" class="btn btn-primary lm-fb-btn">Senden</button>
       </div>
     </form>`;
   document.body.appendChild(box);
@@ -141,7 +147,7 @@ export function openFeedback(blob = null) {
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.message || `HTTP ${res.status}`);
       lastShot = null;
-      box.querySelector('.lm-feedback-card').innerHTML = '<h3>💬 Danke!</h3><p>Deine Meldung ist angekommen.</p><div class="lm-feedback-actions"><button type="button" class="btn btn-primary" data-fb="cancel">Schließen</button></div>';
+      box.querySelector('.lm-feedback-card').innerHTML = `<h3>${FEEDBACK_ICON} Danke!</h3><p>Deine Meldung ist angekommen.</p><div class="lm-feedback-actions"><button type="button" class="btn btn-primary" data-fb="cancel">Schließen</button></div>`;
       box.querySelector('[data-fb="cancel"]').addEventListener('click', () => box.remove());
       setTimeout(() => box.remove(), 2500);
     } catch (e2) {

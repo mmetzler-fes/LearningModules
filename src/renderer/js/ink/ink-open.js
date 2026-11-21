@@ -163,6 +163,41 @@ export async function openDocumentInk({ mode, mod, up = null, embedModule = null
   let liveMark = null;
   let liveHide = false;
   let liveWrap = null;
+  let nextWatch = null;
+
+  /**
+   * „Weiter“ auch neben „Überprüfen“ (Feedback: oben in der Leiste übersieht man ihn) – drückt den
+   * Weiter-Knopf der Leiste (speichern, schließen, nächste Aufgabe). Nicht bei HTML-Apps: deren
+   * Leiste bekommt keine weitere Zeile. Rendert das Quiz neu, kommt der Knopf wieder dazu.
+   */
+  function inlineNext(el) {
+    const actions = runActions();
+    const next = actions[actions.length - 1];
+    if (!next) return;
+    const isCheck = (b) => /Check$/.test(b.id || '') || /(^|\s)[a-z]+-check(\s|$)/.test(b.className || '');
+    const add = () => {
+      el.querySelectorAll('button').forEach((b) => {
+        if (!isCheck(b) || b.closest('.lm-app-bar, .lm-app-title-actions')) return;
+        if (b.nextElementSibling?.classList.contains('ink-inline-next')) return;
+        const go = document.createElement('button');
+        go.type = 'button';
+        go.className = 'btn btn-secondary btn-sm ink-inline-next';
+        go.textContent = next.label;
+        go.title = next.title || '';
+        go.addEventListener('click', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          // Weiter ist immer der letzte Knopf des Gastgebers in der Leiste.
+          [...document.querySelectorAll('.ink-overlay .ink-action')].pop()?.click();
+        });
+        b.after(go);
+      });
+    };
+    add();
+    nextWatch?.disconnect();
+    nextWatch = new MutationObserver(() => { nextWatch.disconnect(); add(); nextWatch.observe(el, { childList: true, subtree: true }); });
+    nextWatch.observe(el, { childList: true, subtree: true });
+  }
   const { removeInkView } = live ? await import('../../lm-editor/src/ink/ink-view.js') : {};
   const paper = {
     landscape: content.spec?.orientation === 'landscape',
@@ -186,6 +221,7 @@ export async function openDocumentInk({ mode, mod, up = null, embedModule = null
           el.appendChild(liveWrap);
         }
         sourceEl.querySelector('.docspec')?.classList.toggle('ds-hide-solutions', liveHide && !solutions);
+        inlineNext(el);
       } else {
         el.appendChild(renderer.createTypePreview('document', content, {
           blockIds: true, quizMode: true, examMode, examRun, shuffleKey, noSolutionToggle: true, embedModule, upload: up, moduleId: mod.id, title: mod.title,
@@ -197,6 +233,9 @@ export async function openDocumentInk({ mode, mod, up = null, embedModule = null
     // Lebendes Blatt zurück in den Durchlauf (vor jedem neuen Aufbau und beim Schließen).
     unmount() {
       if (!live || !liveMark) return;
+      nextWatch?.disconnect();
+      nextWatch = null;
+      sourceEl.querySelectorAll('.ink-inline-next').forEach((x) => x.remove());
       sourceEl.querySelectorAll('.ink-teacher-layer, [data-inserted]').forEach((x) => x.remove());
       if (liveHide) sourceEl.querySelector('.docspec')?.classList.add('ds-hide-solutions');
       liveMark.replaceWith(sourceEl);
@@ -324,7 +363,8 @@ export async function openDocumentInk({ mode, mod, up = null, embedModule = null
     if (prev && prev.style.display !== 'none' && !prev.disabled) {
       out.push({ label: '◀ Zurück', title: 'Speichern und zur vorigen Aufgabe', onClick: go('btnQuizPrev') });
     }
-    const label = (next.textContent || 'Weiter').replace(/\s*[→▶]\s*$/, '').trim() || 'Weiter';
+    // Ohne Pfeile und Emojis (✅ Quiz beenden) – Text in der Leiste und neben „Überprüfen“.
+    const label = (next.textContent || 'Weiter').replace(/\s*[→▶]\s*$/, '').replace(/^\p{Extended_Pictographic}\S*\s*/u, '').trim() || 'Weiter';
     out.push({ label: `${label} ▶`, title: 'Speichern und weiter zur nächsten Aufgabe', onClick: go('btnQuizNext') });
     return out;
   }

@@ -498,6 +498,7 @@ export class LoginView {
       token,
       linkId: data.linkId,
       linkName: data.linkName,
+      className: data.className || null,
       mode: data.mode,
       // Klassenlink: Schülerausweis vom Start – beim Speichern zählt er, nicht der Name.
       studentTicket: data.studentTicket || null,

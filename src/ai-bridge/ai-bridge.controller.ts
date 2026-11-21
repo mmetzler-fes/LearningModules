@@ -1,7 +1,8 @@
-import { Body, Controller, Delete, Get, HttpCode, Param, Post, Query, Req, Request, Res, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, ForbiddenException, Get, HttpCode, Param, Patch, Post, Query, Req, Request, Res, UseGuards } from '@nestjs/common';
 import type { Request as ExpressRequest, Response } from 'express';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { AiBridgeService } from './ai-bridge.service';
+import { FeedbackService } from '../feedback/feedback.service';
 
 function extractBaseUrl(req: ExpressRequest): string {
   const proto = (req.headers['x-forwarded-proto'] as string)?.split(',')[0]?.trim() || req.protocol || 'http';
@@ -19,7 +20,18 @@ function extractAiToken(req: ExpressRequest, queryToken?: string): string | unde
 
 @Controller('ai-bridge')
 export class AiBridgeController {
-  constructor(private readonly bridge: AiBridgeService) {}
+  constructor(
+    private readonly bridge: AiBridgeService,
+    private readonly feedback: FeedbackService,
+  ) {}
+
+  /** Konto hinter dem KI-Token – 💬 Feedback nur, wenn es ein Admin ist. */
+  private async feedbackAccount(req: ExpressRequest, token?: string) {
+    const session = await this.bridge.authenticateToken(extractAiToken(req, token));
+    const account = await this.feedback.accountOf(session.userId);
+    if (account.role !== 'admin') throw new ForbiddenException('💬 Feedback gibt es nur mit dem KI-Token eines Admins.');
+    return account;
+  }
 
   // ---- Lehrer-Endpunkte (normale Anmeldung über JWT) ----
 
@@ -72,7 +84,36 @@ export class AiBridgeController {
   @Get('instructions')
   async instructions(@Req() req: ExpressRequest, @Query('token') token?: string) {
     const session = await this.bridge.authenticateToken(extractAiToken(req, token));
-    return this.bridge.getInstructionsForAi(session, extractBaseUrl(req));
+    const info: any = await this.bridge.getInstructionsForAi(session, extractBaseUrl(req));
+    if ((await this.feedback.accountOf(session.userId)).role === 'admin') {
+      const base = extractBaseUrl(req);
+      info.endpoints.feedbackList = `GET ${base}/api/ai-bridge/feedback`;
+      info.endpoints.feedbackImage = `GET ${base}/api/ai-bridge/feedback/:id/image`;
+      info.endpoints.feedbackUpdate = `PATCH ${base}/api/ai-bridge/feedback/:id`;
+      info.feedback = 'Rückmeldungen zur App (💬 Feedback): lesen; mit PATCH { priority: 0–3, status: "open"|"done", adminNote } ordnen oder als erledigt markieren. Löschen nur in der App. Namen sind gekürzt (Klasse · Vorname N.).';
+    }
+    return info;
+  }
+
+  // ---- 💬 Feedback zur App (nur mit dem KI-Token eines Admins) ----
+
+  @Get('feedback')
+  async feedbackList(@Req() req: ExpressRequest, @Query('token') token?: string) {
+    return this.feedback.list(await this.feedbackAccount(req, token));
+  }
+
+  @Get('feedback/:id/image')
+  async feedbackImage(@Req() req: ExpressRequest, @Param('id') id: string, @Res() res: Response, @Query('token') token?: string) {
+    const img = await this.feedback.image(await this.feedbackAccount(req, token), id);
+    res.setHeader('Content-Type', img.type);
+    res.send(img.data);
+  }
+
+  /** Schreiben nur mit dem Token im Header. */
+  @Patch('feedback/:id')
+  async feedbackUpdate(@Req() req: ExpressRequest, @Param('id') id: string, @Body() body: any) {
+    const { priority, status, adminNote } = body || {};
+    return this.feedback.update(await this.feedbackAccount(req), id, { priority, status, adminNote });
   }
 
   /** Nachschlagen: Format der Arbeitsblätter (DocSpec) – nur bei Bedarf, die Anleitung bleibt kurz. */

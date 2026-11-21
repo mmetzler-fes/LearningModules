@@ -1,4 +1,4 @@
-import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import * as crypto from 'crypto';
@@ -9,15 +9,50 @@ const MAX_TEXT = 5000;
 const MAX_IMAGE = 8 * 1024 * 1024; // data:-Adresse
 const PER_HOUR = 30;
 
+/**
+ * Nur Vorname und erster Buchstabe des Nachnamens: „Max Mustermann“ → „Max M.“,
+ * „Mustermann, Max“ → „Max M.“. Bereits gekürzte Namen bleiben, wie sie sind.
+ */
+export function shortName(name: string): string {
+  let parts = String(name || '').trim().replace(/\s+/g, ' ');
+  if (!parts) return '';
+  if (parts.includes('@') && !parts.includes(' ')) parts = parts.split('@')[0].replace(/[._-]+/g, ' ');
+  const comma = parts.split(',').map((x) => x.trim()).filter(Boolean);
+  const words = comma.length === 2 ? [...comma[1].split(' '), ...comma[0].split(' ')] : parts.split(' ');
+  if (words.length === 1) return words[0];
+  const last = words[words.length - 1];
+  return `${words[0]} ${last.charAt(0).toLocaleUpperCase('de')}.`;
+}
+
+/** „Klasse · Vorname N. (Rolle)“ – mehr über die Person wird nicht gespeichert. */
+export function reporterLabel(name: string, role: string, className = ''): string {
+  const who = [String(className || '').trim().slice(0, 40), shortName(name)].filter(Boolean).join(' · ');
+  return who ? `${who} (${role})` : role === 'Schüler' ? 'Gast' : role;
+}
+
 /** 💬 Feedback: jeder darf melden (auch Schüler ohne Konto), lesen und ordnen nur der Admin. */
 @Injectable()
-export class FeedbackService {
+export class FeedbackService implements OnModuleInit {
   private readonly recent = new Map<string, number[]>();
 
   constructor(
     @InjectRepository(Feedback) private readonly repo: Repository<Feedback>,
     @InjectRepository(User) private readonly users: Repository<User>,
   ) {}
+
+  /** Ältere Meldungen trugen den vollen Namen – einmal beim Start kürzen. */
+  async onModuleInit() {
+    try {
+      const rows = await this.repo.find();
+      for (const r of rows) {
+        const m = /^(.*) \((Admin|Lehrkraft|Schüler)\)$/.exec(r.reporter || '');
+        if (!m) continue;
+        const [klasse, name] = m[1].includes(' · ') ? m[1].split(' · ') : ['', m[1]];
+        const next = reporterLabel(name, m[2], klasse);
+        if (next !== r.reporter) await this.repo.update({ id: r.id }, { reporter: next });
+      }
+    } catch { /* Tabelle noch nicht da */ }
+  }
 
   private limit(key: string) {
     const now = Date.now();
@@ -37,7 +72,9 @@ export class FeedbackService {
     this.limit(user?.userId || ip || 'anon');
     const u = user?.userId ? await this.users.findOne({ where: { id: user.userId } }) : null;
     const who = String(body?.reporter || '').trim().slice(0, 120);
-    const reporter = u ? `${u.displayName || u.email} (${u.role === 'admin' ? 'Admin' : 'Lehrkraft'})` : who ? `${who} (Schüler)` : 'Gast';
+    const reporter = u
+      ? reporterLabel(u.displayName || u.email, u.role === 'admin' ? 'Admin' : 'Lehrkraft')
+      : reporterLabel(who, 'Schüler', String(body?.className || ''));
     const ctx = body?.context && typeof body.context === 'object' ? body.context : {};
     const context = JSON.parse(JSON.stringify(ctx, (_k, v) => (typeof v === 'string' ? v.slice(0, 500) : v)).slice(0, 4000) || '{}');
     const row = await this.repo.save(this.repo.create({
@@ -48,6 +85,12 @@ export class FeedbackService {
 
   private async admin(user: any) {
     if (user?.role !== 'admin') throw new ForbiddenException('Nur Admins haben Zugriff.');
+  }
+
+  /** Für die KI-Schnittstelle: Rolle des Kontos, dem das KI-Token gehört. */
+  async accountOf(userId: string) {
+    const u = await this.users.findOne({ where: { id: userId } });
+    return { userId, role: u?.role || null };
   }
 
   async list(user: any) {

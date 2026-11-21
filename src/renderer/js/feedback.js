@@ -51,6 +51,22 @@ function context() {
   };
 }
 
+/** Klasse der Schülerin/des Schülers – aus dem Klassenlink oder dem Klassennotizbuch. */
+function reporterClass() {
+  const fromLink = appRef?.state?.linkSession?.className;
+  if (fromLink) return fromLink;
+  try {
+    const cb = JSON.parse(sessionStorage.getItem('lm_classbook') || 'null');
+    const books = JSON.parse(localStorage.getItem('lm_classbooks') || 'null')?.books || [];
+    const token = cb?.token || JSON.parse(localStorage.getItem('lm_classbooks') || 'null')?.current;
+    const name = books.find((b) => b.token === token)?.className || '';
+    return name.split(' · ')[0];
+  } catch (_) {
+    return '';
+  }
+}
+
+/** Name fürs Feedback – der Server speichert davon nur Vorname und ersten Buchstaben des Nachnamens. */
 function reporterName() {
   try {
     const cb = JSON.parse(sessionStorage.getItem('lm_classbook') || 'null');
@@ -119,7 +135,7 @@ export function openFeedback(blob = null) {
     btn.disabled = true;
     btn.textContent = 'Wird gesendet …';
     try {
-      const body = { text: form.text.value, context: context(), reporter: reporterName(), image: image ? await toDataUrl(await shrink(image)) : null };
+      const body = { text: form.text.value, context: context(), reporter: reporterName(), className: reporterName() ? reporterClass() : '', image: image ? await toDataUrl(await shrink(image)) : null };
       const headers = { 'Content-Type': 'application/json', ...(appRef?.authStore?.getHeaders?.() || {}) };
       const res = await fetch('/api/feedback', { method: 'POST', headers, body: JSON.stringify(body) });
       const data = await res.json().catch(() => ({}));

@@ -11,6 +11,7 @@ import { AiBridgeSessionRow } from '../core/entities/ai-bridge-session.entity';
 import { NotebooksModule } from '../notebooks/notebooks.module';
 import { PlansModule } from '../plans/plans.module';
 import { TopicsModule } from '../topics/topics.module';
+import { FeedbackModule } from '../feedback/feedback.module';
 import { AiBridgeService } from './ai-bridge.service';
 import { AiBridgeController } from './ai-bridge.controller';
 
@@ -29,6 +30,7 @@ import { AiBridgeController } from './ai-bridge.controller';
     NotebooksModule,
     PlansModule,
     TopicsModule,
+    FeedbackModule,
   ],
   controllers: [AiBridgeController],
   providers: [AiBridgeService],

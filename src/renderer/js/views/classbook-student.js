@@ -249,6 +249,16 @@ function treeHtml(data, boards, solutions) {
       : `<span class="cb-row-title" title="${escapeAttr(a.name)}">${escapeHtml(a.name)}</span>`;
     const icon = single ? UNIT_ICON(single.type) : nestEmbedded(only?.units || []).top.length && !nestEmbedded(only.units).top.some(isDocLike) ? ico('quiz') : ico('topic');
     // Dieselben Zeilen wie im Lernnotizbuch; ein einzelnes Lernthema braucht keine zweite Zeile.
+    // Lernthema = ein Dokument: Aufklappen nur, wenn darunter etwas steht (Weitere Quizze, Lösung, Tafelbild).
+    const leaf = single && !nestEmbedded(only.units).top.some((u) => u.id !== single.id) && !solutions.has(single.id) && !boards.has(single.id);
+    if (leaf) {
+      return `<div class="cb-assignment cb-leaf"><div class="cb-leaf-row"><span class="cb-twisty cb-twisty-none" aria-hidden="true"></span>
+        <span class="nb-icon" aria-hidden="true">${icon}</span>${titleHtml}
+        <span class="nb-meta">${count(a.topics.flatMap((t) => t.units))}</span>
+        <span class="cb-state">${unitState(single)}</span>
+        ${marked(only) ? here : ''}
+        <span class="cb-actions">${modes}</span></div></div>`;
+    }
     return `<details class="cb-assignment" ${a.topics.some((t) => marked(t)) ? 'open' : ''}>
       <summary><span class="cb-twisty" aria-hidden="true"></span>
         <span class="nb-icon" aria-hidden="true">${icon}</span>${titleHtml}

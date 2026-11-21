@@ -5271,6 +5271,9 @@ th.cb-col-embedded { font-style: italic; color: var(--text-secondary); }
 .cb-tree { padding-bottom: 48px; }
 .cb-tree .result-group { border: 0; border-radius: 0; background: none; margin: 0; }
 .cb-tree .cb-node { margin: 0; }
+.cb-tree .cb-leaf-row { display: flex; align-items: center; flex-wrap: nowrap; gap: 6px; min-height: 34px; padding: 2px 8px; white-space: nowrap; }
+.cb-tree .cb-leaf-row:hover { background: var(--accent-light); }
+.cb-twisty.cb-twisty-none::before { content: ''; }
 .cb-tree details > summary { display: flex; align-items: center; flex-wrap: nowrap; gap: 6px; min-height: 34px; padding: 2px 8px; border-radius: 0; white-space: nowrap; list-style: none; cursor: pointer; }
 .cb-tree details > summary::-webkit-details-marker { display: none; }
 .cb-tree details > summary:hover, .cb-tree .cb-units > li:hover, .cb-tree .cb-topic-title:hover { background: var(--accent-light); }
@@ -5299,7 +5302,7 @@ details[open] > summary > .cb-twisty::before { content: '▾'; }
 .cb-tree .cb-units > li { justify-content: flex-start; gap: 6px; min-height: 34px; padding: 2px 8px; border-bottom: 0; white-space: nowrap; font-size: 0.93rem; }
 .cb-tree .cb-unit { flex: 0 1 auto; overflow: hidden; text-overflow: ellipsis; min-width: 4em; white-space: nowrap; }
 @media (max-width: 560px) {
-  .cb-tree .cb-assignment > summary { flex-wrap: wrap; }
+  .cb-tree .cb-assignment > summary, .cb-tree .cb-leaf-row { flex-wrap: wrap; white-space: normal; }
   .cb-tree .cb-actions { flex: 1 1 100%; min-width: 0; margin-left: 0; flex-wrap: wrap; }
   .cb-tree .cb-node-body { margin-left: 10px; }
   .cb-tree .cb-units { padding-left: 26px; }
@@ -6878,7 +6881,7 @@ body.ws-on .login-card.login-card-wide {
 .cb-head-btn .cb-ico { width: 20px; height: 20px; }
 /* Finger (iPad): größere Zeilen, Knöpfe und Aufklapp-Pfeile. */
 @media (pointer: coarse) {
-  .cb-tree details > summary, .cb-tree .cb-topic-title, .cb-tree .cb-units > li { min-height: 52px; font-size: 1.05rem; }
+  .cb-tree details > summary, .cb-tree .cb-leaf-row, .cb-tree .cb-topic-title, .cb-tree .cb-units > li { min-height: 52px; font-size: 1.05rem; }
   .cb-tree .cb-units > li { font-size: 1rem; }
   .cb-twisty { width: 32px; font-size: 1.2rem; }
   .cb-tree .cb-actions .btn { min-height: 40px; padding: 8px 14px; font-size: 0.95rem; }

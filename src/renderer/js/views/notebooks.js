@@ -730,9 +730,9 @@ export class NotebooksView {
     const kidsOf = (t, m) => (t.modules || []).filter((k) => k.parentId === m.id).sort((a, b) => a.orderIndex - b.orderIndex);
     const show = (m) => !this._query || this._topicItselfMatches(topic) || this._matches(doc.title) || this._matches(m.title)
       || modules.some((k) => k.parentId === m.id && this._matches(k.title));
-    const open = this._query
+    const open = rest.length > 0 && (this._query
       ? [...embedded.map((e) => e.q), ...rest, ...kidsOf(topic, doc)].some((m) => this._matches(m.title))
-      : this._open.has(key);
+      : this._open.has(key));
     const type = (typeof H5P_TYPES !== 'undefined' && H5P_TYPES[doc.type]) || {};
     const on = this._compactOn(topic, doc);
     const mixed = !!topic.selected !== (doc.moduleSelected !== false);
@@ -742,7 +742,8 @@ export class NotebooksView {
     const restMeta = rest.length ? ` · 🧩 ${rest.length === 1 ? '1 weiteres Quiz' : `${rest.length} weitere Quizze`}` : '';
     const row = this._row({
       key: 'm:' + doc.id, depth, icon: type.icon || '📄', title: topic.title, num: this._data.docNumbers?.[doc.id] || '',
-      twisty: embedded.length + rest.length + kidsOf(topic, doc).length > 0, twistyKey: key, open,
+      // Dokument und Lernthema sind eine Zeile: Aufklappen nur, wenn Quizze außerhalb des Dokuments da sind.
+      twisty: rest.length > 0, twistyKey: key, open,
       cls: `nb-topic nb-compact ${on ? '' : 'nb-off'} ${this._query && this._matches(doc.title) ? 'nb-hit' : ''}`,
       meta: escapeHtml(type.name || doc.type) + this._unnumberedMeta(doc)
         + (embedded.length ? ` · ${embedded.length === 1 ? '1 Quiz' : `${embedded.length} Quizze`}` : '') + restMeta,

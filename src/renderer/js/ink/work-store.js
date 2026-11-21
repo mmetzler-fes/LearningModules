@@ -6,6 +6,8 @@
 // oder später weiter. Die PIN fragt der Server ab, sobald der Schüler sie
 // einmal gesehen hat (docs/bearbeitungen.md).
 
+import { icon } from '../../lm-editor/src/util/icons.js';
+
 // PIN je Schülerausweis, solange die Seite offen ist – nicht bei jedem Dokument neu fragen.
 const pins = new Map();
 
@@ -88,7 +90,7 @@ export async function serverWorkStore({ up, moduleId }) {
       if (!err.needPin) throw err;
       if (pins.has(key)) message = esc(err.message);
       pins.delete(key);
-      const pin = await dialog(`<h3>🔑 PIN</h3><p>${message}</p>`, { input: true });
+      const pin = await dialog(`<h3>${icon('key')} PIN</h3><p>${message}</p>`, { input: true });
       if (pin === null) return null;
       pins.set(key, pin);
       message = 'Falsche PIN. Vergessen? Die Lehrkraft sieht sie in der Klassenliste.';
@@ -102,7 +104,7 @@ export async function serverWorkStore({ up, moduleId }) {
         const res = await post('save', { ...base, pin: pins.get(key), data });
         if (res.pin) {
           pins.set(key, res.pin);
-          await dialog(`<h3>🔑 Deine PIN: <span class="work-pin-show">${esc(res.pin)}</span></h3>
+          await dialog(`<h3>${icon('key')} Deine PIN: <span class="work-pin-show">${esc(res.pin)}</span></h3>
             <p>Schreib sie dir auf. Mit ihr kannst du später – auch auf einem anderen Gerät – an deinen Blättern weiterarbeiten.
             Sie gilt für alle Links deiner Klasse und wird <strong>nur dieses eine Mal</strong> angezeigt.</p>`);
         }

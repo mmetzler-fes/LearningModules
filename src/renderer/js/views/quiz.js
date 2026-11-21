@@ -5,6 +5,7 @@ import { TaskTimer } from '../task-timer.js';
 import { planRun, scoreRun } from '../../lm-editor/src/doc/doc-quiz.js';
 import { appOfView, expandAppSteps } from '../html-app-steps.js';
 import { classbookSession, backToClassbook } from './classbook-student.js';
+import { icon } from '../../lm-editor/src/util/icons.js';
 
 /**
  * Stand je Aufgabe für die Live-Ansicht: 'd' bearbeitet, 's' mit „Weiter“
@@ -211,7 +212,7 @@ export class QuizView {
     if (state.currentUser && state.currentUser.role === 'student') {
       this._quizTopicSelect.innerHTML = `
         <div class="empty-state">
-          <span class="empty-icon">🔗</span>
+          <span class="empty-icon">${icon('link')}</span>
           <p>Dieser Durchlauf ist beendet. Öffne den Link erneut, um noch einmal zu starten.</p>
         </div>`;
       return;
@@ -223,7 +224,7 @@ export class QuizView {
     if (myTopics.length === 0) {
       this._quizTopicSelect.innerHTML = `
         <div class="empty-state">
-          <span class="empty-icon">🧠</span>
+          <span class="empty-icon">${icon('quiz')}</span>
           <p>Noch keine Lernthemen angelegt.</p>
         </div>`;
       return;
@@ -239,7 +240,7 @@ export class QuizView {
           <h3>${escapeHtml(topic.title)}</h3>
           <p>${moduleCount} Module</p>
         </div>
-        <button class="btn btn-primary">🧠 Quiz starten</button>`;
+        <button class="btn btn-primary">${icon('quiz')} Quiz starten</button>`;
       card.querySelector('.btn').addEventListener('click', () => this._startQuiz(topic));
       this._quizTopicSelect.appendChild(card);
     }
@@ -588,7 +589,7 @@ export class QuizView {
       }
     }
     this._btnQuizNext.textContent = this._isLearnRun() && !qs.revealed
-      ? '💡 Lösung anzeigen'
+      ? 'Lösung anzeigen'
       : currentIndex < modules.length - 1 ? t('quiz.next') : t('quiz.finish');
 
     if (this._btnQuizPrev) {
@@ -641,7 +642,7 @@ export class QuizView {
     panel.className = 'quiz-solution-panel';
     appOfView(this.app.state.quizState?.views?.[this.app.state.quizState.currentIndex])?.reveal();
     panel.innerHTML = `
-      <div class="quiz-solution-head">${answer.isCorrect ? '✅ Richtig' : '💡 Musterlösung'}</div>
+      <div class="quiz-solution-head">${answer.isCorrect ? `${icon('check', 'lm-ico-ok')} Richtig` : `${icon('learn')} Musterlösung`}</div>
       ${answer.userAnswer ? `<p><strong>Deine Antwort:</strong> ${escapeHtml(String(answer.userAnswer))}</p>` : ''}
       ${answer.correctAnswer ? `<p><strong>Richtig wäre:</strong> ${escapeHtml(String(answer.correctAnswer))}</p>` : ''}
       ${answer.score ? `<p><strong>Auswertung:</strong> ${escapeHtml(String(answer.score))}</p>` : ''}`;
@@ -807,9 +808,9 @@ export class QuizView {
     const pctClass = percentage >= 70 ? 'good' : percentage >= 40 ? 'medium' : 'poor';
     this._quizResultArea.innerHTML = `
       <div class="quiz-final-result">
-        <div class="quiz-result-icon">${companion ? '🦉' : nothingGraded ? '📖' : percentage >= 80 ? '🏆' : percentage >= 50 ? '👍' : '📚'}</div>
+        <div class="quiz-result-icon">${icon(companion ? 'companion' : nothingGraded ? 'book' : percentage >= 80 ? 'contest' : percentage >= 50 ? 'thumb' : 'book')}</div>
         <h2>${t('quiz.complete')}</h2>
-        ${companion && !nothingGraded ? `<p class="companion-summary">⭐ Du hast <strong>${score}</strong> von ${total} Lernpunkten gesammelt${companion.jokersUsed ? ` und ${companion.jokersUsed} Joker gespielt` : ''}.</p>` : ''}
+        ${companion && !nothingGraded ? `<p class="companion-summary">${icon('star')} Du hast <strong>${score}</strong> von ${total} Lernpunkten gesammelt${companion.jokersUsed ? ` und ${companion.jokersUsed} Joker gespielt` : ''}.</p>` : ''}
         ${nothingGraded
           ? '<p style="margin:12px 0;">Durchgesehen – dieses Thema enthält nur Informationen, es gibt nichts zu bewerten.</p>'
           : `<div class="quiz-result-score ${pctClass}">
@@ -820,16 +821,16 @@ export class QuizView {
         ${isLearn ? '<p class="hint">Übungsdurchlauf – dieses Ergebnis wird nicht gespeichert.</p>' : ''}
         ${!isLearn && (this.app.state.linkSession?.anonymous || this.app.state.quickSession?.anonymous) ? `<p class="hint">Ohne Anmeldung: ${isExam ? 'Das ist eine Probearbeit, das' : 'Dieses'} Ergebnis wird nicht gespeichert.</p>` : ''}
         ${saved ? '' : `<div class="quiz-save-failed login-error">
-          <p>⚠️ Das Ergebnis konnte nicht gesendet werden – vermutlich gibt es gerade keine Internetverbindung.
+          <p>${icon('warn', 'lm-ico-warn')} Das Ergebnis konnte nicht gesendet werden – vermutlich gibt es gerade keine Internetverbindung.
             Bitte diese Seite offen lassen, die Verbindung prüfen und dann erneut senden.</p>
-          <button class="btn btn-primary btn-sm" id="btnQuizResend">🔄 Erneut senden</button>
+          <button class="btn btn-primary btn-sm" id="btnQuizResend">${icon('retry')} Erneut senden</button>
         </div>`}
         <div class="quiz-result-details">
           ${isExam
             ? '<p style="color:var(--text-secondary);">Klassenarbeit: Die Detail-Rückmeldung ist ausgeblendet.</p>'
             : answers.map((a, i) => `
               <div class="result-detail-item ${a.informational ? '' : a.isCorrect ? 'correct' : 'wrong'}">
-                <span class="result-detail-icon">${a.informational ? 'ℹ️' : a.isCorrect ? '✅' : '❌'}</span>
+                <span class="result-detail-icon">${a.informational ? icon('info', 'lm-ico-muted') : a.isCorrect ? icon('check', 'lm-ico-ok') : icon('cross', 'lm-ico-bad')}</span>
                 <div>
                   <strong>${i + 1}. ${escapeHtml(a.moduleTitle)}</strong>
                   ${a.userAnswer ? `<br>${t('common.your.answer')}: ${escapeHtml(String(a.userAnswer))}` : ''}
@@ -839,7 +840,7 @@ export class QuizView {
               </div>`).join('')}
         </div>
         <div class="form-actions" style="justify-content:center; margin-top:24px;">
-          ${currentUser.role === 'student' && classbookSession() ? '<button class="btn btn-primary" id="btnQuizClassbook">📒 Zurück zum Klassenbuch</button>' : ''}
+          ${currentUser.role === 'student' && classbookSession() ? `<button class="btn btn-primary" id="btnQuizClassbook">${icon('notebook')} Zurück zum Klassenbuch</button>` : ''}
           <button class="btn ${currentUser.role === 'student' && classbookSession() ? 'btn-secondary' : 'btn-primary'}" id="btnQuizRestart">${t('quiz.restart')}</button>
         </div>
       </div>`;
@@ -854,7 +855,7 @@ export class QuizView {
         box.innerHTML = '<p>✓ Ergebnis gesendet.</p>';
       } else {
         btn.disabled = false;
-        btn.textContent = '🔄 Erneut senden';
+        btn.innerHTML = `${icon('retry')} Erneut senden`;
         this.app.showToast('Immer noch keine Verbindung – bitte gleich noch einmal versuchen.', 'error');
       }
     });

@@ -7,6 +7,7 @@ import { workspace } from '../workspace.js';
 import { offerTeacherName } from './teacher-as-student.js';
 import { bindStudentEntry } from './student-entry.js';
 import { contentCounts, contentText } from '../../lm-editor/src/doc/doc-quiz.js';
+import { icon } from '../../lm-editor/src/util/icons.js';
 
 /**
  * Schule, Schuladmin-Recht und freigeschaltete Funktionen (src/features) aus
@@ -26,11 +27,11 @@ function schoolFields(res) {
 
 /** Beschriftung der drei Abfragemodi – auch in der Link-Verwaltung genutzt. */
 export const LINK_MODE_LABELS = {
-  quiz:  { icon: '🧠', label: 'Quiz',                  hint: 'Mit Rückmeldung nach jeder Aufgabe.' },
-  exam:  { icon: '📝', label: 'Klassenarbeit',         hint: 'Ohne Rückmeldung, kein Zurückblättern.' },
-  learn: { icon: '💡', label: 'Lernen mit Lösungen',   hint: 'Antworten und sofort die Musterlösung sehen.' },
-  companion: { icon: '🦉', label: 'Lernbegleitung',      hint: 'Die Lerneule kommentiert jeden Versuch – mit Lernpunkten, Joker und Denkpause.' },
-  contest: { icon: '🏆', label: 'Quiz-Arena',            hint: 'Alle gleichzeitig: schnell und richtig antworten, Bestenliste und Siegertreppchen.' },
+  quiz:  { icon: icon('quiz'), label: 'Quiz',                  hint: 'Mit Rückmeldung nach jeder Aufgabe.' },
+  exam:  { icon: icon('exam'), label: 'Klassenarbeit',         hint: 'Ohne Rückmeldung, kein Zurückblättern.' },
+  learn: { icon: icon('learn'), label: 'Lernen mit Lösungen',   hint: 'Antworten und sofort die Musterlösung sehen.' },
+  companion: { icon: icon('companion'), label: 'Lernbegleitung',      hint: 'Die Lerneule kommentiert jeden Versuch – mit Lernpunkten, Joker und Denkpause.' },
+  contest: { icon: icon('contest'), label: 'Quiz-Arena',            hint: 'Alle gleichzeitig: schnell und richtig antworten, Bestenliste und Siegertreppchen.' },
 };
 
 // ==================== LOGIN VIEW ====================
@@ -329,7 +330,7 @@ export class LoginView {
       return true;
     }
     if (info.modes.length === 1 && info.modes[0] === 'contest') {
-      document.querySelector('#linkEntryReady .quick-entry-label').textContent = '🏆 Quiz-Arena:';
+      document.querySelector('#linkEntryReady .quick-entry-label').innerHTML = `${icon('contest')} Quiz-Arena:`;
       document.getElementById('linkEntryMeta').textContent = 'Gib deinen Namen ein – dann geht es in den Wartebereich.';
     }
 
@@ -959,7 +960,7 @@ export class LoginView {
       // Aus dem Klassennotizbuch gestartet: dorthin zurück, ohne neue Anmeldung
       // (unter dem Namen – die Menüleiste ist im Durchlauf ausgeblendet).
       if (classbookSession()) {
-        this._userInfo.insertAdjacentHTML('beforeend', '<button type="button" class="btn btn-secondary btn-sm cb-back">📒 Zum Klassenbuch</button>');
+        this._userInfo.insertAdjacentHTML('beforeend', `<button type="button" class="btn btn-secondary btn-sm cb-back">${icon('notebook')} Zum Klassenbuch</button>`);
         this._userInfo.querySelector('.cb-back').addEventListener('click', () => backToClassbook());
       }
     }
@@ -968,7 +969,7 @@ export class LoginView {
     document.getElementById('schoolAdminNav')?.classList.toggle('hidden', !currentUser.isSchoolAdmin);
     if (currentUser.schoolName && currentUser.role !== 'student') {
       this._userInfo.insertAdjacentHTML('beforeend',
-        `<div class="user-school" title="Deine Schule">🏫 ${escapeHtml(currentUser.schoolName)}</div>`);
+        `<div class="user-school" title="Deine Schule">${icon('school')} ${escapeHtml(currentUser.schoolName)}</div>`);
     }
 
     this.app.setupNavigation();

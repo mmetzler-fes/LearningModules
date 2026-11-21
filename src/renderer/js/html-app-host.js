@@ -90,7 +90,7 @@ export async function mountHtmlApp({ el, moduleId, content, options, title }) {
   try {
     session = await openSession({ moduleId, content, up: options.upload });
   } catch (e) {
-    el.textContent = `❌ ${e.message}`;
+    el.textContent = e.message;
     return;
   }
   const { open } = session;
@@ -159,7 +159,7 @@ export async function mountHtmlApp({ el, moduleId, content, options, title }) {
     // points: 0 bis 1 (Teilpunkte, docs/html-apps.md)
     const p = Number(lastAnswer?.points);
     const pts = ok === false && lastAnswer?.points != null && Number.isFinite(p) && p > 0 ? ` (${Math.round(p * 100)} %)` : '';
-    verdict.textContent = ok === true ? `✅ Richtig${pts}` : ok === false ? `❌ Noch nicht richtig${pts}` : '';
+    verdict.textContent = ok === true ? `✓ Richtig${pts}` : ok === false ? `✗ Noch nicht richtig${pts}` : '';
   };
   const showCheck = () => {
     checkBtn.hidden = exam || (!!step && step.kind !== 'task');

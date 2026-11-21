@@ -6,6 +6,7 @@ import { LINK_MODE_LABELS } from './login.js';
 import { offerTeacherName } from './teacher-as-student.js';
 import { scanQr } from './qr-scan.js';
 import { workspace, transition } from '../workspace.js';
+import { icon } from '../../lm-editor/src/util/icons.js';
 
 // ==================== KLASSENNOTIZBUCH (SCHÜLER) ====================
 //
@@ -194,7 +195,7 @@ function tabInfo(data, linkId, moduleId) {
 function treeHtml(data, boards, solutions) {
   // 📍 Merker: { anchor, current: { linkId, topicId, moduleId }, openNodeIds, hasNext } – oder null.
   const mk = data.marker;
-  const weiterBtn = mk?.hasNext ? '<button type="button" class="btn btn-secondary btn-sm cb-weiter" data-weiter>➡️ Weiter</button>' : '';
+  const weiterBtn = mk?.hasNext ? `<button type="button" class="btn btn-secondary btn-sm cb-weiter" data-weiter>Weiter ${icon('next')}</button>` : '';
   const cardOf = (a) => {
     const modes = a.modes.map((m) => {
       const meta = LINK_MODE_LABELS[m];
@@ -351,7 +352,7 @@ export class ClassbookStudent {
       this._show(`<p class="login-error">${escapeHtml(board?.message || 'Der Server ist nicht erreichbar.')}</p>`);
       return;
     }
-    const label = board.kind === 'solution' ? '🔑 Lösung' : '✍️ Tafelbild';
+    const label = board.kind === 'solution' ? 'Lösung' : 'Tafelbild';
     const el = this._show(`<div class="cb-head"><div><span class="quick-entry-label">${label}</span><h2>${escapeHtml(board.title)}</h2></div></div>
       <p class="hint">Nur zum Ansehen – gespeichert wird nichts.</p>
       <button type="button" class="btn btn-primary" data-open>${label} ansehen</button>`);
@@ -432,9 +433,9 @@ export class ClassbookStudent {
   _login(message = '', { askPin = false, askTest = false, name = '' } = {}) {
     const { info } = this;
     const el = this._show(`
-      ${inApp() ? '<button type="button" class="btn btn-secondary btn-sm cb-to-list" id="cbToList">☰ Meine Klassennotizbücher</button>' : ''}
+      ${inApp() ? `<button type="button" class="btn btn-secondary btn-sm cb-to-list" id="cbToList">${icon('list')} Meine Klassennotizbücher</button>` : ''}
       <div class="quick-entry-topic">
-        <span class="quick-entry-label">📒 Klassennotizbuch</span>
+        <span class="quick-entry-label">${icon('notebook')} Klassennotizbuch</span>
         <h2>${escapeHtml(info.className)}${info.scopeTitle ? ` · ${escapeHtml(info.scopeTitle)}` : ''}</h2>
         ${info.teacher ? `<p class="hint">${escapeHtml(info.teacher)}</p>` : ''}
       </div>
@@ -444,18 +445,18 @@ export class ClassbookStudent {
           <input type="text" id="cbName" required placeholder="Vor- und Nachname..." autocomplete="off" value="${escapeAttr(name)}" />
         </div>
         <div class="form-group">
-          <label for="cbPin">🔑 PIN</label>
+          <label for="cbPin">${icon('key')} PIN</label>
           <input type="password" id="cbPin" inputmode="numeric" maxlength="4" pattern="[0-9]{4}" autocomplete="off" placeholder="4 Ziffern" />
           <small class="hint">${info.firstLoginOpen
             ? 'Zum allerersten Mal hier? Dann lass das Feld leer – du bekommst deine PIN angezeigt.'
             : 'Deine PIN aus 4 Ziffern. Kennst du sie nicht, frag deine Lehrkraft.'}</small>
         </div>
         <div class="form-group ${askTest ? '' : 'hidden'}" id="cbTestGroup">
-          <label for="cbTest">🧪 Testpasswort</label>
+          <label for="cbTest">${icon('test')} Testpasswort</label>
           <input type="password" id="cbTest" autocomplete="off" placeholder="Passwort deines Testschülers" />
         </div>
         <p class="login-error ${message ? '' : 'hidden'}" id="cbErr">${escapeHtml(message)}</p>
-        <button type="submit" class="btn btn-primary btn-full">📒 Öffnen</button>
+        <button type="submit" class="btn btn-primary btn-full">${icon('notebook')} Öffnen</button>
       </form>`);
     el.querySelector('#cbToList')?.addEventListener('click', () => this.showList());
     const form = el.querySelector('#cbLoginForm');
@@ -502,7 +503,7 @@ export class ClassbookStudent {
   _showPin(pin) {
     const el = this._show(`
       <div class="quick-entry-topic">
-        <span class="quick-entry-label">🔑 Deine PIN</span>
+        <span class="quick-entry-label">${icon('key')} Deine PIN</span>
         <p class="cb-pin">${escapeHtml(pin)}</p>
         <p><strong>Schreib sie dir auf!</strong> Mit deinem Namen und dieser PIN kommst du immer wieder an deine Aufgaben, Ergebnisse und Blätter – auch an einem anderen Gerät.</p>
         <p class="hint">Die PIN wird nur dieses eine Mal angezeigt. Vergessen? Deine Lehrkraft sieht sie in der Klassenliste.</p>
@@ -571,29 +572,29 @@ export class ClassbookStudent {
     const works = data.works.length
       ? `<ul class="cb-list">${data.works.map((w) => `<li>${w.gone
         ? (w.viewable
-          ? `<button type="button" class="cb-unit" data-gone-work="${escapeAttr(w.workId)}" title="Das Dokument gibt es nicht mehr. Dein Blatt lässt sich noch ansehen.">📄 ${escapeHtml(w.title)}</button> <span class="hint">nur zum Ansehen</span>`
-          : `<span class="cb-unit">📄 ${escapeHtml(w.title)}</span> <span class="hint">nicht mehr verfügbar</span>`)
-        : `<button type="button" class="cb-unit" data-start="${escapeAttr(w.linkId)}" data-module="${escapeAttr(w.moduleId)}">📄 ${escapeHtml(w.title)}</button>`}
+          ? `<button type="button" class="cb-unit" data-gone-work="${escapeAttr(w.workId)}" title="Das Dokument gibt es nicht mehr. Dein Blatt lässt sich noch ansehen.">${icon('document')} ${escapeHtml(w.title)}</button> <span class="hint">nur zum Ansehen</span>`
+          : `<span class="cb-unit">${icon('document')} ${escapeHtml(w.title)}</span> <span class="hint">nicht mehr verfügbar</span>`)
+        : `<button type="button" class="cb-unit" data-start="${escapeAttr(w.linkId)}" data-module="${escapeAttr(w.moduleId)}">${icon('document')} ${escapeHtml(w.title)}</button>`}
           <span class="hint">${escapeHtml(when(w.at))}</span></li>`).join('')}</ul>`
-      : '<p class="hint">Noch keine Blätter – sie entstehen, wenn du ein Dokument mit „✍️ Mit Stift bearbeiten“ öffnest.</p>';
+      : '<p class="hint">Noch keine Blätter – sie entstehen, wenn du ein Dokument mit dem Stift bearbeitest.</p>';
     const EXAM_STATE = {
-      open: '<button type="button" class="btn btn-primary btn-sm" data-exam>📝 Klassenarbeit starten</button>',
-      running: '<button type="button" class="btn btn-primary btn-sm" data-exam>📝 Weiterschreiben</button>',
-      reentry: '<button type="button" class="btn btn-primary btn-sm" data-exam>📝 Wieder einsteigen</button>',
+      open: `<button type="button" class="btn btn-primary btn-sm" data-exam>${icon('exam')} Klassenarbeit starten</button>`,
+      running: `<button type="button" class="btn btn-primary btn-sm" data-exam>${icon('exam')} Weiterschreiben</button>`,
+      reentry: `<button type="button" class="btn btn-primary btn-sm" data-exam>${icon('exam')} Wieder einsteigen</button>`,
       locked: '<span class="hint">Schon begonnen – zum Weiterschreiben gibt deine Lehrkraft den Wiedereinstieg frei.</span>',
-      submitted: '<span class="hint">✅ abgegeben</span>',
+      submitted: `<span class="hint">${icon('check', 'lm-ico-ok')} abgegeben</span>`,
     };
     const exams = (data.exams || []).map((x) => `<div class="cb-exam" data-link="${escapeAttr(x.linkId)}">
-        <strong>📝 ${escapeHtml(x.name)}</strong>${EXAM_STATE[x.state] || ''}${x.hiddenFromStudents ? ' <span class="hint" title="Im Klassennotizbuch aus (○) – nur deine Vorschau sieht sie">· für Schüler noch aus</span>' : ''}</div>`).join('');
+        <strong>${icon('exam')} ${escapeHtml(x.name)}</strong>${EXAM_STATE[x.state] || ''}${x.hiddenFromStudents ? ' <span class="hint" title="Im Klassennotizbuch aus (○) – nur deine Vorschau sieht sie">· für Schüler noch aus</span>' : ''}</div>`).join('');
     const preview = !!s?.preview;
     const examOnly = !!data.examOnly;
     const el = this._show(`
-      ${preview ? `<p class="cb-preview-note">👁 <strong>Vorschau:</strong> ${examOnly ? 'So schreibt ein Schüler diese Klassenarbeit. Zählt nicht mit und lässt sich beliebig wiederholen.' : 'So sieht es deine Klasse. Ergebnisse und Blätter stehen im Klassennotizbuch als 🧪 und zählen nicht mit.'}</p>` : ''}
+      ${preview ? `<p class="cb-preview-note">${icon('eye')} <strong>Vorschau:</strong> ${examOnly ? 'So schreibt ein Schüler diese Klassenarbeit. Zählt nicht mit und lässt sich beliebig wiederholen.' : 'So sieht es deine Klasse. Ergebnisse und Blätter stehen im Klassennotizbuch als 🧪 und zählen nicht mit.'}</p>` : ''}
       <div class="cb-head">
         <div><span class="quick-entry-label">${ico('notebook')} ${escapeHtml(data.className)}${data.scopeTitle ? ` · ${escapeHtml(data.scopeTitle)}` : ''}</span><h2>${escapeHtml(data.name)}</h2></div>
         <span class="cb-head-actions">
           ${preview ? '' : inApp() ? `<button type="button" class="btn btn-secondary cb-head-btn" id="cbToList" title="Alle deine Klassennotizbücher">${ico('list')} Alle</button>`
-            : '<button type="button" class="btn btn-secondary cb-head-btn" id="cbInstall" title="Klassennotizbuch als App auf den Home-Bildschirm – öffnet direkt hier, angemeldet">📲 Als App</button>'}
+            : `<button type="button" class="btn btn-secondary cb-head-btn" id="cbInstall" title="Klassennotizbuch als App auf den Home-Bildschirm – öffnet direkt hier, angemeldet">${icon('install')} Als App</button>`}
           <button type="button" class="btn btn-secondary cb-head-btn" id="cbLogout">${preview ? 'Vorschau beenden' : `${ico('logout')} Abmelden`}</button>
         </span>
       </div>
@@ -638,7 +639,7 @@ export class ClassbookStudent {
       try {
         if (!board?.content) throw new Error(board?.message || 'Das ist gerade nicht freigegeben.');
         const { openBoardView } = await import('../ink/ink-open.js');
-        await openBoardView(board, kind === 'boards' ? '✍️ Tafelbild' : '🔑 Lösung');
+        await openBoardView(board, kind === 'boards' ? 'Tafelbild' : 'Lösung');
       } catch (err) {
         this.app.showToast(err.message, 'error');
       }
@@ -762,8 +763,8 @@ export class ClassbookStudent {
     banner.className = 'cb-live-banner';
     banner.setAttribute('role', 'status');
     banner.innerHTML = follow
-      ? `<span>👣 Weiter zu <strong>${escapeHtml(title)}</strong> …</span><button type="button" class="btn btn-secondary btn-sm" data-go>Jetzt</button>`
-      : `<span>📡 Deine Lehrkraft schickt <strong>${escapeHtml(title)}</strong></span>
+      ? `<span>${icon('follow')} Weiter zu <strong>${escapeHtml(title)}</strong> …</span><button type="button" class="btn btn-secondary btn-sm" data-go>Jetzt</button>`
+      : `<span>${icon('broadcast')} Deine Lehrkraft schickt <strong>${escapeHtml(title)}</strong></span>
          <button type="button" class="btn btn-secondary btn-sm" data-go>Öffnen</button>
          <button type="button" class="btn btn-secondary btn-sm" data-close aria-label="Später">✕</button>`;
     document.body.appendChild(banner);
@@ -779,14 +780,14 @@ export class ClassbookStudent {
   _arenaHome(data) {
     const el = this._show(`
       <div class="cb-head">
-        <div><span class="quick-entry-label">📒 ${escapeHtml(data.className)}</span><h2>${escapeHtml(data.name)}</h2></div>
+        <div><span class="quick-entry-label">${icon('notebook')} ${escapeHtml(data.className)}</span><h2>${escapeHtml(data.name)}</h2></div>
       </div>
       <div class="quick-entry-topic cb-arena">
-        <span class="quick-entry-label">🏆 Quiz-Arena</span>
+        <span class="quick-entry-label">${icon('contest')} Quiz-Arena</span>
         <h2>${escapeHtml(data.arena.name)}</h2>
         <p>Deine Lehrkraft hat die Quiz-Arena geöffnet.</p>
       </div>
-      <button type="button" class="btn btn-primary btn-full" id="cbArenaJoin">🏆 In den Wartebereich</button>`);
+      <button type="button" class="btn btn-primary btn-full" id="cbArenaJoin">${icon('contest')} In den Wartebereich</button>`);
     el.querySelector('#cbArenaJoin').addEventListener('click', async (e) => {
       const btn = e.currentTarget;
       btn.disabled = true;
@@ -908,14 +909,14 @@ export class ClassbookStudent {
     });
     workspace.markHome();
     const name = ok[0].data.name;
-    const EXAM = { open: '📝 Klassenarbeit starten', running: '📝 Weiterschreiben', reentry: '📝 Wieder einsteigen' };
+    const EXAM = { open: `${icon('exam')} Klassenarbeit starten`, running: `${icon('exam')} Weiterschreiben`, reentry: `${icon('exam')} Wieder einsteigen` };
     const el = this._show(`
       <div class="cb-head">
         <div><span class="quick-entry-label">${ico('notebook')} Meine Klassennotizbücher</span><h2>${escapeHtml(name)}</h2></div>
         <span class="cb-head-actions"><button type="button" class="btn btn-secondary cb-head-btn" id="cbLogoutAll">${ico('logout')} Abmelden</button></span>
       </div>
       ${ok.map(({ b, data, boards, solutions }) => {
-        const exams = (data.exams || []).filter((x) => EXAM[x.state]).map((x) => `<div class="cb-exam" data-link="${escapeAttr(x.linkId)}"><strong>📝 ${escapeHtml(x.name)}</strong>
+        const exams = (data.exams || []).filter((x) => EXAM[x.state]).map((x) => `<div class="cb-exam" data-link="${escapeAttr(x.linkId)}"><strong>${icon('exam')} ${escapeHtml(x.name)}</strong>
           <button type="button" class="btn btn-primary btn-sm" data-exam>${EXAM[x.state]}</button></div>`).join('');
         const tree = treeHtml(data, boards, solutions);
         return `<details class="cb-book-tree" data-cb-token="${escapeAttr(b.token)}" open>
@@ -946,7 +947,7 @@ export class ClassbookStudent {
       try {
         if (!board?.content) throw new Error(board?.message || 'Das ist gerade nicht freigegeben.');
         const { openBoardView } = await import('../ink/ink-open.js');
-        await openBoardView(board, kind === 'boards' ? '✍️ Tafelbild' : '🔑 Lösung');
+        await openBoardView(board, kind === 'boards' ? 'Tafelbild' : 'Lösung');
       } catch (err) { this.app.showToast(err.message, 'error'); }
     }));
     el.querySelectorAll('[data-cb-only]').forEach((btn) => btn.addEventListener('click', async (e) => {
@@ -981,7 +982,7 @@ export class ClassbookStudent {
     const { books } = loadBooks();
     const el = this._show(`
       <div class="cb-head">
-        <div><span class="quick-entry-label">📒 Klassenbuch</span><h2>Meine Klassennotizbücher</h2></div>
+        <div><span class="quick-entry-label">${icon('notebook')} Klassenbuch</span><h2>Meine Klassennotizbücher</h2></div>
       </div>
       ${message ? `<p class="login-error">${escapeHtml(message)}</p>` : ''}
       ${books.length ? `<ul class="cb-books">${books.map((b) => `
@@ -990,8 +991,8 @@ export class ClassbookStudent {
             <span class="hint">${b.ticket ? `angemeldet als ${escapeHtml(b.name || '')}` : 'nicht angemeldet'}</span></button>
           <button type="button" class="btn btn-secondary btn-sm cb-book-del" data-token="${escapeAttr(b.token)}" title="Aus der Liste nehmen (deine Ergebnisse bleiben)">✕</button></li>`).join('')}</ul>`
         : '<p class="hint">Noch kein Klassennotizbuch – füge eines hinzu.</p>'}
-      <button type="button" class="btn btn-primary btn-full" id="cbAdd">➕ Klassennotizbuch hinzufügen</button>
-      ${signedBooks().length > 1 ? '<button type="button" class="btn btn-secondary btn-full" id="cbAll">🏠 Alle meine Klassen</button>' : ''}`);
+      <button type="button" class="btn btn-primary btn-full" id="cbAdd">${icon('plus')} Klassennotizbuch hinzufügen</button>
+      ${signedBooks().length > 1 ? `<button type="button" class="btn btn-secondary btn-full" id="cbAll">${icon('home')} Alle meine Klassen</button>` : ''}`);
     void this.offerAppSso(el, { before: el.querySelector('#cbAdd') });
     el.querySelector('#cbAll')?.addEventListener('click', () => this.homeAll());
     el.querySelectorAll('.cb-book').forEach((btn) => btn.addEventListener('click', () => this.start(btn.dataset.token)));
@@ -1008,9 +1009,9 @@ export class ClassbookStudent {
   /** Hinzufügen: QR-Code (Klassenbuch-Link) scannen oder Klassencode eintippen. */
   _addBook(message = '') {
     const el = this._show(`
-      <button type="button" class="btn btn-secondary btn-sm cb-to-list" id="cbToList">☰ Meine Klassennotizbücher</button>
-      <div class="quick-entry-topic"><span class="quick-entry-label">➕ Klassennotizbuch hinzufügen</span></div>
-      <button type="button" class="btn btn-primary btn-full" id="cbScan">📷 QR-Code scannen</button>
+      <button type="button" class="btn btn-secondary btn-sm cb-to-list" id="cbToList">${icon('list')} Meine Klassennotizbücher</button>
+      <div class="quick-entry-topic"><span class="quick-entry-label">${icon('plus')} Klassennotizbuch hinzufügen</span></div>
+      <button type="button" class="btn btn-primary btn-full" id="cbScan">${icon('camera')} QR-Code scannen</button>
       <div class="cb-scan hidden" id="cbScanBox"><div class="cb-scan-view"></div>
         <button type="button" class="btn btn-secondary btn-full" id="cbScanStop">Abbrechen</button></div>
       <form class="login-form" id="cbCodeForm">

@@ -2,6 +2,7 @@ import { escapeHtml, escapeAttr } from '../utils.js';
 import { downloadBlob } from '../api.js';
 import { collectAnswer } from '../../lm-editor/src/modules/answer-eval.js';
 import { classbookSession, backToClassbook } from './classbook-student.js';
+import { icon as lmIcon } from '../../lm-editor/src/util/icons.js';
 
 /** Größen der Aufgabe in der Arena (A− / A+), je Gerät gemerkt. */
 const CONTEST_ZOOMS = [0.2, 0.25, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1, 1.1, 1.25, 1.5];
@@ -10,7 +11,10 @@ const CONTEST_ZOOM_KEY = 'lm_contest_zoom';
 // ==================== QUIZ-ARENA ====================
 
 const SESSION_PREFIX = 'lm_contest_';
-const MEDALS = ['🥇', '🥈', '🥉'];
+// Platz 1–3 als Abzeichen (Gold, Silber, Bronze) statt Emoji-Medaillen.
+const MEDALS = [1, 2, 3].map((n) => `<span class="contest-medal contest-medal-${n}">${n}</span>`);
+/** Symbol einer Meldung – die Aufrufe nennen (noch) das alte Emoji. */
+const MESSAGE_ICON = { '⏳': 'timer', '📡': 'broadcast', '🚫': 'cross', '👋': 'check' };
 
 /**
  * Kleine HTML-Datei, die beim Öffnen sofort zur Adresse springt – zum
@@ -245,11 +249,11 @@ export class ContestView {
     const screen = this._ensureScreen();
     screen.innerHTML = `
       <div class="contest-message">
-        <div class="contest-message-icon">${icon}</div>
+        <div class="contest-message-icon">${lmIcon(MESSAGE_ICON[icon] || icon)}</div>
         <h2>${escapeHtml(title)}</h2>
         ${text ? `<p>${escapeHtml(text)}</p>` : ''}
         ${action ? `<button class="btn btn-primary" id="contestAction">${escapeHtml(action.label)}</button>` : ''}
-        ${reload ? '<button class="btn btn-primary" id="contestReload">🔄 Neu laden</button>' : ''}
+        ${reload ? `<button class="btn btn-primary" id="contestReload">${lmIcon('retry')} Neu laden</button>` : ''}
       </div>`;
     screen.querySelector('#contestAction')?.addEventListener('click', action?.run);
     screen.querySelector('#contestReload')?.addEventListener('click', () => location.reload());
@@ -265,7 +269,7 @@ export class ContestView {
       clearTimeout(this._backTimer);
       this._backTimer = setTimeout(() => { if (!this.source) backToClassbook(); }, 6000);
     }
-    return { label: '📒 Zurück zum Klassenbuch', run: () => { clearTimeout(this._backTimer); backToClassbook(); } };
+    return { label: 'Zurück zum Klassenbuch', run: () => { clearTimeout(this._backTimer); backToClassbook(); } };
   }
 
   _closeSource() {
@@ -383,14 +387,14 @@ export class ContestView {
   _hostTop(st, extra = '') {
     return `
       <header class="contest-top">
-        <div class="contest-top-title">🏆 ${escapeHtml(st.linkName || 'Quiz-Arena')}</div>
+        <div class="contest-top-title">${lmIcon('contest')} ${escapeHtml(st.linkName || 'Quiz-Arena')}</div>
         <div class="contest-top-info">${extra}</div>
         ${st.phase === 'question' || st.phase === 'reveal' ? `
-        <button class="btn btn-secondary btn-sm contest-top-reset" title="Durchgang abbrechen, zurück in den Wartebereich">🔁 Neu starten</button>` : ''}
+        <button class="btn btn-secondary btn-sm contest-top-reset" title="Durchgang abbrechen, zurück in den Wartebereich">${lmIcon('retry')} Neu starten</button>` : ''}
         ${st.phase !== 'podium' ? `
-        <button class="btn btn-secondary btn-sm contest-top-close" title="Quiz-Arena beenden, alle Teilnehmer entfernen">⏹ Beenden</button>` : ''}
+        <button class="btn btn-secondary btn-sm contest-top-close" title="Quiz-Arena beenden, alle Teilnehmer entfernen">${lmIcon('stop')} Beenden</button>` : ''}
         ${this._zoomHtml()}
-        <button class="btn btn-secondary btn-sm contest-sound" title="Tusch an/aus">${this.soundOn ? '🔊' : '🔇'}</button>
+        <button class="btn btn-secondary btn-sm contest-sound" title="Tusch an/aus">${lmIcon(this.soundOn ? 'sound' : 'mute')}</button>
       </header>`;
   }
 
@@ -417,7 +421,7 @@ export class ContestView {
       unlockAudio();
       this.soundOn = !this.soundOn;
       try { localStorage.setItem('lm_contest_sound', this.soundOn ? 'on' : 'off'); } catch (_) {}
-      e.currentTarget.textContent = this.soundOn ? '🔊' : '🔇';
+      e.currentTarget.innerHTML = lmIcon(this.soundOn ? 'sound' : 'mute');
     });
   }
 
@@ -431,8 +435,8 @@ export class ContestView {
           <div class="contest-qr">${st.qrSvg || ''}</div>
           <div class="contest-join-url">${escapeHtml(st.joinUrl)}</div>
           <div class="contest-join-actions">
-            <button class="btn btn-secondary btn-sm" id="contestCopyJoin">📋 Link kopieren</button>
-            <button class="btn btn-secondary btn-sm" id="contestSaveJoin" title="HTML-Datei, die den Schüler-Link öffnet">💾 Als Datei</button>
+            <button class="btn btn-secondary btn-sm" id="contestCopyJoin">${lmIcon('copy')} Link kopieren</button>
+            <button class="btn btn-secondary btn-sm" id="contestSaveJoin" title="HTML-Datei, die den Schüler-Link öffnet">${lmIcon('save')} Als Datei</button>
           </div>
         </section>
         <section class="contest-waiting">
@@ -463,7 +467,7 @@ export class ContestView {
     return players.map((p) => `
       <span class="contest-chip ${showAnswered && p.answered ? 'is-done' : ''} ${p.online ? '' : 'is-offline'}"
         title="${p.online ? '' : 'Verbindung unterbrochen'}">
-        ${showAnswered ? (p.answered ? '✅ ' : '⏳ ') : ''}${escapeHtml(p.name)}
+        ${showAnswered ? (p.answered ? `${lmIcon('check', 'lm-ico-ok')} ` : `${lmIcon('timer', 'lm-ico-muted')} `) : ''}${escapeHtml(p.name)}
         <button class="contest-kick" data-id="${escapeAttr(p.id)}" title="Entfernen">✕</button>
       </span>`).join('');
   }
@@ -503,7 +507,7 @@ export class ContestView {
         <div class="contest-play-head">
           ${timerHtml()}
           <div class="contest-answered">Antworten: <strong class="contest-answered-num">0</strong> / <span class="contest-player-count">0</span></div>
-          <button class="btn btn-secondary" id="contestEndTime">⏹ Zeit beenden</button>
+          <button class="btn btn-secondary" id="contestEndTime">${lmIcon('stop')} Zeit beenden</button>
         </div>
         <div class="contest-question h5p-container"></div>
         <div class="contest-players contest-players-small"></div>
@@ -536,7 +540,7 @@ export class ContestView {
           ${solution ? `<div class="contest-solution"><strong>Lösung:</strong> ${escapeHtml(solution)}</div>` : ''}
           <div class="contest-stats"></div>
           <div class="contest-host-actions">
-            <button class="btn btn-primary btn-lg" id="contestNext">${last ? '🏆 Zur Siegerehrung' : 'Weiter →'}</button>
+            <button class="btn btn-primary btn-lg" id="contestNext">${last ? `${lmIcon('contest')} Zur Siegerehrung` : 'Weiter →'}</button>
           </div>
         </section>
         <section class="contest-reveal-right">
@@ -558,16 +562,16 @@ export class ContestView {
       ${this._hostTop(st, 'Siegerehrung')}
       <main class="contest-final">
         <div class="contest-confetti" aria-hidden="true">${Array.from({ length: 24 }, (_, i) =>
-          `<span style="left:${(i * 37) % 100}%;animation-delay:${(i % 8) * 0.25}s">${['🎉', '✨', '🎊', '⭐'][i % 4]}</span>`).join('')}</div>
+          `<span style="left:${(i * 37) % 100}%;animation-delay:${(i % 8) * 0.25}s"><span class="contest-confetti-${i % 4}">${lmIcon('star')}</span></span>`).join('')}</div>
         <div class="contest-podium-box"></div>
         <section class="contest-final-board">
           <h2>Top 10</h2>
           <div class="contest-leaderboard"></div>
         </section>
         <div class="contest-host-actions">
-          <button class="btn btn-secondary" id="contestFanfare">🎺 Tusch</button>
-          <button class="btn btn-primary" id="contestAgain">🔁 Neuer Durchgang</button>
-          <button class="btn btn-danger" id="contestClose">⏹ Quiz-Arena beenden</button>
+          <button class="btn btn-secondary" id="contestFanfare">${lmIcon('sound')} Tusch</button>
+          <button class="btn btn-primary" id="contestAgain">${lmIcon('retry')} Neuer Durchgang</button>
+          <button class="btn btn-danger" id="contestClose">${lmIcon('stop')} Quiz-Arena beenden</button>
         </div>
         <p class="hint">Die Ergebnisse stehen in deiner Ergebnisliste (Modus „Quiz-Arena“).</p>
       </main>`;
@@ -604,10 +608,10 @@ export class ContestView {
     if (stats && st.roundStats) {
       const s = st.roundStats;
       stats.innerHTML = `
-        <span class="contest-stat ok">✅ ${s.correct} richtig</span>
+        <span class="contest-stat ok">${lmIcon('check')} ${s.correct} richtig</span>
         <span class="contest-stat part">◐ ${s.partial} teilweise</span>
-        <span class="contest-stat bad">❌ ${s.wrong} falsch</span>
-        <span class="contest-stat none">⏳ ${s.missing} ohne Antwort</span>`;
+        <span class="contest-stat bad">${lmIcon('cross')} ${s.wrong} falsch</span>
+        <span class="contest-stat none">${lmIcon('timer')} ${s.missing} ohne Antwort</span>`;
     }
     const podium = screen.querySelector('.contest-podium-box');
     if (podium) podium.innerHTML = podiumHtml(st.podium);
@@ -720,10 +724,10 @@ export class ContestView {
   _playerTop(st, extra = '') {
     return `
       <header class="contest-top">
-        <div class="contest-top-title">🏆 ${escapeHtml(st.linkName || 'Quiz-Arena')}</div>
+        <div class="contest-top-title">${lmIcon('contest')} ${escapeHtml(st.linkName || 'Quiz-Arena')}</div>
         <div class="contest-top-info">${extra}</div>
         ${this._zoomHtml()}
-        <div class="contest-me">👤 ${escapeHtml(this.me.name)} · ${fmtPoints(st.me?.score)} P</div>
+        <div class="contest-me">${lmIcon('user')} ${escapeHtml(this.me.name)} · ${fmtPoints(st.me?.score)} P</div>
       </header>`;
   }
 
@@ -732,7 +736,7 @@ export class ContestView {
     screen.innerHTML = `
       ${this._playerTop(st)}
       <div class="contest-message">
-        <div class="contest-message-icon contest-bounce">🦉</div>
+        <div class="contest-message-icon contest-bounce">${lmIcon('companion')}</div>
         <h2>Hallo ${escapeHtml(this.me.name)}!</h2>
         <p>Du bist im Wartebereich. Gleich geht es los …</p>
         <p class="hint"><span class="contest-player-count">${st.playerCount}</span> Teilnehmer · ${st.total} Aufgabe${st.total !== 1 ? 'n' : ''}</p>
@@ -746,7 +750,7 @@ export class ContestView {
       screen.innerHTML = `
         ${this._playerTop(st, `Aufgabe ${st.index + 1} von ${st.total}`)}
         <div class="contest-message">
-          <div class="contest-message-icon">📨</div>
+          <div class="contest-message-icon">${lmIcon('check', 'lm-ico-ok')}</div>
           <h2>Antwort abgegeben!</h2>
           <p>Warte, bis die Zeit um ist oder alle geantwortet haben.</p>
           ${timerHtml()}
@@ -760,7 +764,7 @@ export class ContestView {
         <div class="contest-play-head">${timerHtml()}</div>
         <div class="contest-question h5p-container"></div>
         <div class="contest-submit-row">
-          <button class="btn btn-primary btn-lg" id="contestSubmit">✅ Antwort abgeben</button>
+          <button class="btn btn-primary btn-lg" id="contestSubmit">${lmIcon('check')} Antwort abgeben</button>
         </div>
       </main>`;
     const view = this._renderQuestionInto(screen.querySelector('.contest-question'), true);
@@ -801,7 +805,7 @@ export class ContestView {
     const me = st.me || {};
     const pts = me.lastPoints || 0;
     const r = me.lastCorrectness;
-    const icon = r === null || r === undefined ? '⏳' : r >= 1 ? '🎉' : r > 0 ? '👍' : '😕';
+    const icon = lmIcon(r === null || r === undefined ? 'timer' : r >= 1 ? 'party' : r > 0 ? 'thumb' : 'cross');
     const text = r === null || r === undefined ? 'Keine Antwort abgegeben.'
       : r >= 1 ? 'Richtig!' : r > 0 ? `Teilweise richtig (${Math.round(r * 100)} %)` : 'Leider falsch.';
     screen.innerHTML = `

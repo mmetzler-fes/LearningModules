@@ -8,6 +8,10 @@
 // öffnet, entscheidet der Gastgeber (`onOpen`), ebenso Home (`onHome`). Siehe docs/arbeitsflaeche.md.
 
 import { escapeHtml, escapeAttr } from './utils.js';
+import { icon, EMOJI_ICON } from '../lm-editor/src/util/icons.js';
+
+/** Symbol eines Tabs: gespeichert ist (noch) ein Emoji – gezeichnet wird das passende Symbol. */
+const tabIcon = (t) => icon(EMOJI_ICON[t.icon] || (t.icon && /^[a-z]+$/.test(t.icon) ? t.icon : 'document'));
 
 const STORE = 'lm_ws:';
 const MAX_TABS = 12;
@@ -223,7 +227,7 @@ class Workspace {
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 11L12 4l8.5 7M6 9.5V20h4.5v-5.5h3V20H18V9.5"/></svg></button>
       <div class="ws-tabs" role="tablist">
         ${this.tabs.map((t) => `<div class="ws-tab${t.id === this.active ? ' active' : ''}" role="tab" aria-selected="${t.id === this.active}" data-tab="${escapeAttr(t.id)}" title="${escapeAttr(t.title)}">
-          <span class="ws-tab-icon" aria-hidden="true">${escapeHtml(t.icon || '📄')}</span>
+          <span class="ws-tab-icon" aria-hidden="true">${tabIcon(t)}</span>
           <span class="ws-tab-title">${escapeHtml(t.title)}</span>
           <button type="button" class="ws-tab-close" data-close="${escapeAttr(t.id)}" title="Tab schließen" aria-label="${escapeAttr(`${t.title} schließen`)}">✕</button>
         </div>`).join('')}
@@ -258,7 +262,7 @@ class Workspace {
     document.querySelector('.ws-menu')?.remove();
     const menu = document.createElement('div');
     menu.className = 'ws-menu ctx-menu';
-    menu.innerHTML = this.tabs.map((t) => `<button type="button" class="ctx-menu-item" data-tab="${escapeAttr(t.id)}">${t.id === this.active ? '✓ ' : ''}${escapeHtml(t.icon || '📄')} ${escapeHtml(t.title)}</button>`).join('');
+    menu.innerHTML = this.tabs.map((t) => `<button type="button" class="ctx-menu-item" data-tab="${escapeAttr(t.id)}">${t.id === this.active ? '✓ ' : ''}${tabIcon(t)} ${escapeHtml(t.title)}</button>`).join('');
     document.body.appendChild(menu);
     const r = anchor.getBoundingClientRect();
     menu.style.top = `${r.bottom + 4}px`;

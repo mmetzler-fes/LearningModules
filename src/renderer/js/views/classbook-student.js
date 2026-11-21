@@ -111,13 +111,20 @@ export function backToClassbook() {
   try { if (homeInPlace?.()) return; } catch (err) { console.warn('Home ohne Neuladen ging nicht:', err); }
   workspace.willReload?.();
   // Angemeldet mit dem Schulkonto in mehreren Klassen: Home zeigt alle.
-  if (sessionGet(ALL_KEY) === '1') { window.location.href = `${studentBase()}?app=classbook&all=1`; return; }
+  if (allGet() === '1') { window.location.href = `${studentBase()}?app=classbook&all=1`; return; }
   const s = classbookSession();
   if (s?.token) window.location.href = `${studentBase()}?k=${encodeURIComponent(s.token)}`;
 }
 
 /** Home mit allen Klassennotizbüchern (Anmeldung mit dem Schulkonto) – bleibt für diese Sitzung. */
 const ALL_KEY = 'lm_cb_all';
+// „Alle meine Klassen“ (Schulkonto) bleibt auf dem Gerät gewählt – auch nach dem Schließen von App oder Browser.
+const allGet = () => { try { return localStorage.getItem(ALL_KEY) || sessionStorage.getItem(ALL_KEY); } catch (_) { return null; } };
+const allSet = (v) => {
+  try {
+    if (v === null) { localStorage.removeItem(ALL_KEY); sessionStorage.removeItem(ALL_KEY); } else localStorage.setItem(ALL_KEY, v);
+  } catch (_) { /* ohne Speicher: nur für diese Sitzung */ }
+};
 /** Klassennotizbücher mit Anmeldung auf diesem Gerät. */
 const signedBooks = () => loadBooks().books.filter((b) => b.ticket);
 
@@ -316,7 +323,7 @@ export class ClassbookStudent {
    * im Hintergrund neu laden. Nur mit Tabs; die Quiz-Arena und die Klassenarbeit laden wie bisher neu.
    */
   _homeInPlace() {
-    const all = sessionGet(ALL_KEY) === '1';
+    const all = allGet() === '1';
     if (!workspace.on || !this._el?.innerHTML.trim() || (all ? !this.all : !this.data)) return false;
     this.app.quizView.leaveRun?.();
     const login = this.app.loginView;
@@ -829,7 +836,7 @@ export class ClassbookStudent {
     if (token) upsertBook(token);
     const { books } = loadBooks();
     // Mit dem Schulkonto in mehreren Klassen angemeldet: Home mit allen.
-    if (!token && (sessionGet(ALL_KEY) === '1' || (inApp() && signedBooks().length > 1))) { await this.homeAll(); return; }
+    if (!token && (allGet() === '1' || (inApp() && signedBooks().length > 1))) { await this.homeAll(); return; }
     if (inApp() && books.length === 1) { await this.start(books[0].token); return; }
     // Ohne Eintrag (am PC installiert): die Liste mit ➕ Klassennotizbuch hinzufügen.
     this.showList();
@@ -861,12 +868,12 @@ export class ClassbookStudent {
     const books = res?.body?.books;
     if (!res?.ok || !Array.isArray(books) || !books.length) { this.showList(res?.body?.message || 'Die Anmeldung hat nicht geklappt.'); return; }
     for (const b of books) {
-      upsertBook(b.token, { className: b.className, teacher: b.teacher, ticket: b.ticket, name: b.name, pin: null });
+      upsertBook(b.token, { className: b.className, teacher: b.teacher, ticket: b.ticket, name: b.name, pin: null, classId: b.classId || null, deviceTicket: b.deviceTicket || null });
       if (b.deviceTicket && b.classId) rememberStudent(b.classId, { ticket: b.deviceTicket, name: b.name });
     }
     sessionSet(LANDED_KEY, null);
-    if (books.length === 1) { sessionSet(ALL_KEY, null); await this.start(books[0].token); return; }
-    sessionSet(ALL_KEY, '1');
+    if (books.length === 1) { allSet(null); await this.start(books[0].token); return; }
+    allSet('1');
     await this.homeAll();
   }
 
@@ -884,12 +891,22 @@ export class ClassbookStudent {
    */
   async homeAll({ quiet = false } = {}) {
     const list = signedBooks();
-    if (list.length < 2) { sessionSet(ALL_KEY, null); if (list[0]) await this.start(list[0].token); else this.showList(); return; }
-    sessionSet(ALL_KEY, '1');
+    if (list.length < 2) { allSet(null); if (list[0]) await this.start(list[0].token); else this.showList(); return; }
+    allSet('1');
     if (!quiet) this._show('<p class="hint">Deine Klassennotizbücher werden geladen …</p>');
     const loaded = await Promise.all(list.map(async (b) => {
+      // Der Tagesausweis gilt 12 Stunden – abgelaufen, holt ihn der Geräteausweis (300 Tage) neu.
+      const probe = await post(`${encodeURIComponent(b.token)}/home`, { ticket: b.ticket }).catch(() => null);
+      if (probe?.expired) {
+        const dev = b.deviceTicket || (b.classId && rememberedStudent(b.classId)?.ticket);
+        const res = dev ? await post(`${encodeURIComponent(b.token)}/login`, { deviceTicket: dev }).catch(() => null) : null;
+        if (res && !res.failed && res.ticket) {
+          b.ticket = res.ticket;
+          upsertBook(b.token, { ticket: res.ticket });
+        }
+      }
       const [data, boards, solutions] = await Promise.all([
-        post(`${encodeURIComponent(b.token)}/home`, { ticket: b.ticket }).catch(() => null),
+        probe && !probe.expired ? probe : post(`${encodeURIComponent(b.token)}/home`, { ticket: b.ticket }).catch(() => null),
         post(`${encodeURIComponent(b.token)}/boards`, { ticket: b.ticket }).catch(() => null),
         post(`${encodeURIComponent(b.token)}/solutions`, { ticket: b.ticket }).catch(() => null),
       ]);
@@ -953,7 +970,7 @@ export class ClassbookStudent {
     el.querySelectorAll('[data-cb-only]').forEach((btn) => btn.addEventListener('click', async (e) => {
       e.preventDefault();
       e.stopPropagation();
-      sessionSet(ALL_KEY, null);
+      allSet(null);
       workspace.stop();
       await this.start(sectionOf(btn));
     }));
@@ -963,7 +980,7 @@ export class ClassbookStudent {
       for (const b of v.books) { delete b.ticket; delete b.pin; }
       storeBooks(v);
       saveSession(null);
-      sessionSet(ALL_KEY, null);
+      allSet(null);
       sessionSet(LANDED_KEY, null);
       workspace.stop();
       this.showList();

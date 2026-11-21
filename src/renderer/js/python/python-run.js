@@ -534,6 +534,7 @@ function mountResultBlock(pre, ns, storeKey) {
       const speeds = [1, 2, 5, 10, 20, 50, 100];
       const slow0 = speeds.includes(spec.slow) ? spec.slow : speeds.reduce((a, b) => (Math.abs(b - spec.slow) < Math.abs(a - spec.slow) ? b : a));
       fresh.innerHTML = `<button type="button" class="py-play" aria-label="Abspielen" title="Abspielen in Zeitlupe">▶</button>
+        <button type="button" class="py-stop-time" aria-label="Stopp" title="Stopp – zurück an den Anfang">⏹</button>
         <span class="py-ctl-name"></span>
         <input type="range" min="${spec.min}" max="${spec.max}" step="${spec.step}">
         <output class="py-ctl-value"></output>
@@ -570,6 +571,14 @@ function mountResultBlock(pre, ns, storeKey) {
         setPlaying(true);
         frame();
       });
+      fresh.querySelector('.py-stop-time').addEventListener('click', () => {
+        play = null;
+        setPlaying(false);
+        values[name] = spec.min;
+        input.value = String(spec.min);
+        show();
+        go();
+      });
       speed.addEventListener('change', () => { if (play) play = { t0: performance.now(), v0: Number(values[name]) }; });
       fresh.afterRun = (ok) => { if (play) { if (ok) requestAnimationFrame(frame); else { play = null; setPlaying(false); } } };
       input.addEventListener('pointerdown', () => { if (play) { play = null; setPlaying(false); } });
@@ -597,6 +606,8 @@ function mountResultBlock(pre, ns, storeKey) {
     fresh.querySelector('.py-ctl-name').textContent = name;
     if (el) el.replaceWith(fresh);
     else controls.appendChild(fresh);
+    // Der Zeitregler (▶) steht immer zuletzt – auch wenn je nach Auswahl Regler dazukommen.
+    controls.append(...controls.querySelectorAll('.py-ctl-zeit'));
     elements.set(name, fresh);
     controls.hidden = false;
   }

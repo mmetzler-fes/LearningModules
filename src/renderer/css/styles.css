@@ -6736,6 +6736,7 @@ pre.ds-code-run { position: relative; }
 .py-ctl-zeit input[type="range"] { flex: 1 1 auto; min-width: 120px; accent-color: var(--accent); touch-action: none; height: 32px; }
 .py-play { flex: none; width: 40px; height: 40px; border-radius: 50%; border: none; background: var(--accent); color: #fff; font-size: 1.1rem; line-height: 1; cursor: pointer; touch-action: manipulation; }
 .py-play.active { background: #ea580c; }
+.py-stop-time { flex: none; width: 40px; height: 40px; border-radius: 50%; border: 1px solid var(--border); background: var(--bg-secondary); color: var(--text-primary); font-size: 1rem; line-height: 1; cursor: pointer; touch-action: manipulation; }
 .py-speed { font: inherit; padding: 2px 4px; }
 .py-result .py-result-out { border-top: 1px solid var(--border); text-align: center; min-height: 3em; }
 .py-result .py-result-out { max-height: none; }

@@ -1212,6 +1212,8 @@ export class AiBridgeService {
       interactivePython: 'Interaktive Darstellung (Zeigerdiagramm, Kennlinie, Bode-Diagramm …): { type: "code", run: true, view: "result", code } – Code versteckt, nur das Ergebnis mit Bedienelementen; im Druck steht ein Hinweis. '
         + 'Im Code: numpy, matplotlib (plt.show()); regler(name, von, bis, start, schritt=None, einheit="", log=False) → Zahl; '
         + 'auswahl(name, ["a", "b"] oder {"Text": Wert}, start=None) → Wert; schalter(name, start=False) → bool; '
+        + 'zeit(name, von, bis, start=None, einheit="s", zeitlupe=10) → Zeit mit ▶ Abspielen in Zeitlupe und Ziehen (für Abläufe/Animationen: Rechnung einmal in einer globalen Variable merken, je Lauf nur zeichnen); '
+        + 'bild(fig, eng=True) gibt eine matplotlib.figure.Figure aus, ohne sie zu schließen – Figur je Einstellung einmal bauen, beim Abspielen nur set_data … (schnell); spielt() → True während des Abspielens; '
         + 'from lm import zeiger, polar, grad – zeiger(z, start=0, name="$U_R$", farbe=None, ax=None, seite=1) zeichnet den komplexen Zeiger z und gibt sein Ende zurück. '
         + 'Feste Achsengrenzen setzen, damit das Bild beim Ziehen nicht springt; gut als Lösung (solution) unter der Aufgabe.',
     };

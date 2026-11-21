@@ -124,7 +124,8 @@ def _lm_flush_figures():
     for num in plt.get_fignums():
         fig = plt.figure(num)
         buf = io.BytesIO()
-        fig.savefig(buf, format='png', dpi=110, bbox_inches='tight', facecolor='white')
+        # Beim Abspielen (zeit()) kleiner und schneller – angehalten wieder scharf.
+        fig.savefig(buf, format='png', dpi=75 if _lm_values.get('__spielt') else 110, bbox_inches='tight', facecolor='white')
         js.lmImage(base64.b64encode(buf.getvalue()).decode('ascii'))
     plt.close('all')
 
@@ -187,7 +188,41 @@ def schalter(name, start=False):
     js.lmWidget('schalter', name, _json.dumps({'value': wert, 'start': bool(start)}))
     return wert
 
+def zeit(name='Zeit t', von=0, bis=1, start=None, schritt=None, einheit='s', zeitlupe=10):
+    """Zeitregler mit ▶ Abspielen: läuft in Zeitlupe (zeitlupe=10: zehnmal langsamer als echt)
+    oder wird mit Maus/Stift an jede Stelle gezogen. Gibt die eingestellte Zeit zurück."""
+    name = str(name)
+    von, bis = float(von), float(bis)
+    if bis < von:
+        von, bis = bis, von
+    start = von if start is None else float(start)
+    schritt = (bis - von) / 1000 if schritt is None else float(schritt)
+    wert = _lm_values.get(name, start)
+    try:
+        wert = min(bis, max(von, float(wert)))
+    except (TypeError, ValueError):
+        wert = start
+    js.lmWidget('zeit', name, _json.dumps({'min': von, 'max': bis, 'step': schritt, 'value': wert,
+                                            'unit': str(einheit or ''), 'slow': float(zeitlupe or 1), 'start': start}))
+    return wert
+
+def bild(fig, dpi=None, eng=True):
+    """Ein Bild ausgeben, ohne es zu schließen – für Darstellungen, die beim Abspielen nur
+    Teile ändern (fig einmal bauen, je Lauf set_data … und bild(fig)). Viel schneller als neu zeichnen."""
+    import io, base64
+    sys.stdout.flush()
+    buf = io.BytesIO()
+    if dpi is None:
+        dpi = 75 if _lm_values.get('__spielt') else 110
+    fig.savefig(buf, format='png', dpi=dpi, bbox_inches='tight' if eng else None, facecolor='white')
+    js.lmImage(base64.b64encode(buf.getvalue()).decode('ascii'))
+
+def spielt():
+    """True, solange ein zeit()-Regler abspielt – z. B. um dann weniger zu zeichnen."""
+    return bool(_lm_values.get('__spielt'))
+
 builtins.regler, builtins.auswahl, builtins.schalter = regler, auswahl, schalter
+builtins.zeit, builtins.spielt, builtins.bild = zeit, spielt, bild
 builtins.slider, builtins.dropdown, builtins.checkbox = regler, auswahl, schalter
 if '/home/pyodide' not in sys.path:
     sys.path.insert(0, '/home/pyodide')

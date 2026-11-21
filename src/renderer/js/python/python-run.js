@@ -492,7 +492,9 @@ function mountResultBlock(pre, ns, storeKey) {
       }
       controls.hidden = elements.size === 0;
       btnResetValues.hidden = elements.size === 0;
-      if (dirty) { dirty = false; go(); }
+      if (dirty) { dirty = false; go(); return; }
+      // ▶ Abspielen (zeit()): nächstes Bild, sobald dieses fertig ist – die Zeit folgt der Uhr, nicht den Bildern.
+      for (const el of elements.values()) el.afterRun?.(ok);
     },
   });
   const go = () => {
@@ -505,7 +507,8 @@ function mountResultBlock(pre, ns, storeKey) {
     starts[name] = spec.start;
     let el = elements.get(name);
     if (el && el.dataset.kind === kind && el.dataset.spec === JSON.stringify({ ...spec, value: null })) return;
-    const fresh = document.createElement('label');
+    // Zeitregler als div: In einem label löste jeder Klick daneben den ▶-Knopf aus.
+    const fresh = document.createElement(kind === 'zeit' ? 'div' : 'label');
     fresh.className = `py-ctl py-ctl-${kind}`;
     fresh.dataset.kind = kind;
     fresh.dataset.spec = JSON.stringify({ ...spec, value: null });
@@ -526,6 +529,57 @@ function mountResultBlock(pre, ns, storeKey) {
         go();
       });
       fresh.resetTo = (v) => { values[name] = v; input.value = String(log ? toLogPos(v, spec) : v); show(); };
+    } else if (kind === 'zeit') {
+      // Zeitregler: ▶/⏸ spielt in Zeitlupe ab (Tempo wählbar), Ziehen setzt die Zeit an jede Stelle.
+      const speeds = [1, 2, 5, 10, 20, 50, 100];
+      const slow0 = speeds.includes(spec.slow) ? spec.slow : speeds.reduce((a, b) => (Math.abs(b - spec.slow) < Math.abs(a - spec.slow) ? b : a));
+      fresh.innerHTML = `<button type="button" class="py-play" aria-label="Abspielen" title="Abspielen in Zeitlupe">▶</button>
+        <span class="py-ctl-name"></span>
+        <input type="range" min="${spec.min}" max="${spec.max}" step="${spec.step}">
+        <output class="py-ctl-value"></output>
+        <select class="py-speed" title="Zeitlupe: so viel langsamer als in echt">${speeds.map((k) => `<option value="${k}"${k === slow0 ? ' selected' : ''}>${k === 1 ? 'Echtzeit' : `1 : ${k}`}</option>`).join('')}</select>`;
+      const input = fresh.querySelector('input');
+      const shown = fresh.querySelector('output');
+      const btnPlay = fresh.querySelector('.py-play');
+      const speed = fresh.querySelector('.py-speed');
+      input.value = String(spec.value);
+      const digits = Math.max(0, Math.min(4, Math.ceil(-Math.log10(spec.step || 0.001))));
+      const show = () => { shown.textContent = `${Number(values[name]).toFixed(digits).replace('.', ',')}${spec.unit ? ` ${spec.unit}` : ''}`; };
+      show();
+      let play = null; // { t0, v0 }
+      const setPlaying = (on) => {
+        btnPlay.textContent = on ? '⏸' : '▶';
+        btnPlay.setAttribute('aria-label', on ? 'Anhalten' : 'Abspielen');
+        btnPlay.classList.toggle('active', on);
+        values.__spielt = on;
+      };
+      const stopPlay = () => { if (!play) return; play = null; setPlaying(false); go(); }; // angehalten: einmal scharf
+      const frame = () => {
+        if (!play) return;
+        const v = Math.min(spec.max, play.v0 + (performance.now() - play.t0) / 1000 / Number(speed.value));
+        values[name] = v;
+        input.value = String(v);
+        show();
+        if (v >= spec.max) { play = null; setPlaying(false); }
+        go();
+      };
+      btnPlay.addEventListener('click', () => {
+        if (play) { stopPlay(); return; }
+        if (values[name] >= spec.max - spec.step / 2) values[name] = spec.min; // am Ende: von vorn
+        play = { t0: performance.now(), v0: Number(values[name]) };
+        setPlaying(true);
+        frame();
+      });
+      speed.addEventListener('change', () => { if (play) play = { t0: performance.now(), v0: Number(values[name]) }; });
+      fresh.afterRun = (ok) => { if (play) { if (ok) requestAnimationFrame(frame); else { play = null; setPlaying(false); } } };
+      input.addEventListener('pointerdown', () => { if (play) { play = null; setPlaying(false); } });
+      input.addEventListener('input', () => {
+        if (play) { play = null; setPlaying(false); }
+        values[name] = Number(input.value);
+        show();
+        go();
+      });
+      fresh.resetTo = (v) => { play = null; setPlaying(false); values[name] = v; input.value = String(v); show(); };
     } else if (kind === 'auswahl') {
       fresh.innerHTML = `<span class="py-ctl-name"></span><select></select>`;
       const select = fresh.querySelector('select');

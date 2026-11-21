@@ -6731,6 +6731,12 @@ pre.ds-code-run { position: relative; }
 .py-ctl-value { min-width: 5.5em; text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .py-ctl-auswahl select { font: inherit; padding: 2px 4px; }
 .py-ctl-schalter { flex: 0 1 auto; cursor: pointer; }
+/* ▶ Zeitregler (zeit()): ganze Breite, großer Knopf zum Abspielen, Ziehen mit Maus/Stift. */
+.py-ctl-zeit { flex: 1 1 100%; }
+.py-ctl-zeit input[type="range"] { flex: 1 1 auto; min-width: 120px; accent-color: var(--accent); touch-action: none; height: 32px; }
+.py-play { flex: none; width: 40px; height: 40px; border-radius: 50%; border: none; background: var(--accent); color: #fff; font-size: 1.1rem; line-height: 1; cursor: pointer; touch-action: manipulation; }
+.py-play.active { background: #ea580c; }
+.py-speed { font: inherit; padding: 2px 4px; }
 .py-result .py-result-out { border-top: 1px solid var(--border); text-align: center; min-height: 3em; }
 .py-result .py-result-out { max-height: none; }
 .py-result .py-result-out .py-img { margin: 4px auto; width: auto; max-height: 75vh; }

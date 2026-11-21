@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException, ForbiddenException, NotFoundException, OnModuleInit } from '@nestjs/common';
+import { Injectable, BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In } from 'typeorm';
 import * as crypto from 'crypto';
@@ -9,9 +9,8 @@ import { StudentClass } from '../core/entities/student-class.entity';
 import { ClassStudent } from '../core/entities/class-student.entity';
 import { User } from '../core/entities/user.entity';
 import { ClassesService } from './classes.service';
-import { isSchoolYear } from './school-year';
-import { isExpired } from './retention';
-import { planRosterSync, rosterOverlap, overlapLimit, groupByClass, RosterPlan } from './school-roster';
+import { isSchoolYear, shiftSchoolYear, suggestNextClassName } from './school-year';
+import { planRosterSync, rosterOverlap, sameClassByStudents, groupByClass, RosterPlan } from './school-roster';
 
 const MAX_ROWS = 5000;
 const cleanName = (v: unknown, max = 40) => String(v ?? '').normalize('NFC').replace(/\s+/g, ' ').trim().slice(0, max);
@@ -39,9 +38,13 @@ const summaryOf = (plan: RosterPlan) => ({
  * Lehrkräfte übernehmen Klassen daraus in eine eigene Klasse (Kopie der Schülerliste, wie bisher je
  * Lehrkraft) – mit Autoregistrierung sofort, sonst nach Freigabe. Schülernamen sieht eine Lehrkraft erst
  * nach der Übernahme.
+ *
+ * Die Löschregel der Klassen gilt hier nicht: Zum Schuljahresende versetzt der Schuladmin die Klassen
+ * ins nächste Schuljahr oder löscht sie (⏭ Versetzen). Die Lehrkräfte machen ihren Wechsel selbst und
+ * übernehmen die versetzte Klasse dann wieder über „Klasse aktualisieren → Über den Schuladmin“.
  */
 @Injectable()
-export class SchoolClassesService implements OnModuleInit {
+export class SchoolClassesService {
   constructor(
     @InjectRepository(SchoolClass) private readonly scRepo: Repository<SchoolClass>,
     @InjectRepository(SchoolClassStudent) private readonly scsRepo: Repository<SchoolClassStudent>,
@@ -51,16 +54,6 @@ export class SchoolClassesService implements OnModuleInit {
     @InjectRepository(User) private readonly userRepo: Repository<User>,
     private readonly classes: ClassesService,
   ) {}
-
-  onModuleInit() {
-    // Löschregel: Schullisten abgelaufener Schuljahre gehen mit den Klassen der Lehrkräfte.
-    this.classes.onRetention((current) => this.purgeExpired(current));
-  }
-
-  private async purgeExpired(current: string) {
-    const old = (await this.scRepo.find({ select: ['id', 'schoolYear'] })).filter((c) => isExpired(c.schoolYear, current));
-    if (old.length) await this.removeSchoolClasses(old.map((c) => c.id));
-  }
 
   private async removeSchoolClasses(ids: string[]) {
     await this.scsRepo.delete({ schoolClassId: In(ids) });
@@ -100,6 +93,7 @@ export class SchoolClassesService implements OnModuleInit {
     const requests = ids.length ? await this.reqRepo.find({ where: { schoolClassId: In(ids) } }) : [];
     const teachers = requests.length ? await this.userRepo.find({ where: { id: In([...new Set(requests.map((r) => r.teacherId))]) } }) : [];
     const teacherName = new Map(teachers.map((t) => [t.id, { name: t.displayName || t.email, email: t.email }]));
+    const successors = ids.length ? await this.scRepo.find({ where: { predecessorId: In(ids) } }) : [];
     return {
       schoolYear: year,
       current,
@@ -112,6 +106,8 @@ export class SchoolClassesService implements OnModuleInit {
           name: c.name,
           schoolYear: c.schoolYear,
           autoRegister: c.autoRegister,
+          suggestedNext: suggestNextClassName(c.name),
+          promotedTo: successors.filter((x) => x.predecessorId === c.id).map((x) => ({ name: x.name, schoolYear: x.schoolYear })),
           students: students
             .filter((s) => s.schoolClassId === c.id)
             .sort((a, b) => a.lastName.localeCompare(b.lastName, 'de') || a.firstName.localeCompare(b.firstName, 'de'))
@@ -153,17 +149,17 @@ export class SchoolClassesService implements OnModuleInit {
       const target = sameYear.find((c) => lower(c.name) === lower(g.name));
       const base = { name: g.name, schoolYear: g.schoolYear, rows: g.students.length };
       if (!target) {
-        // Anderer Name, aber dieselben Schüler: wohl dieselbe Klasse unter anderem Namen.
-        const limit = overlapLimit(g.students.length);
+        // Anderer Name, aber mindestens die Hälfte dieselben Schüler (in einer der beiden Richtungen):
+        // wohl dieselbe Klasse unter anderem Namen.
         const clash = sameYear
           .filter((c) => !namesInFile.has(`${c.schoolYear}|${lower(c.name)}`))
-          .map((c) => ({ c, n: rosterOverlap(studentsOf(c.id), g.students) }))
-          .filter((x) => x.n >= limit)
+          .map((c) => ({ c, size: studentsOf(c.id).length, n: rosterOverlap(studentsOf(c.id), g.students) }))
+          .filter((x) => sameClassByStudents(x.n, g.students.length, x.size))
           .sort((a, b) => b.n - a.n)[0];
         if (clash) {
           result.push({
             ...base, action: 'skipped', conflictWith: clash.c.name,
-            reason: `${clash.n} von ${g.students.length} Schülern stehen schon in der Klasse „${clash.c.name}“. `
+            reason: `${clash.n} von ${g.students.length} Schülern stehen schon in der Klasse „${clash.c.name}“ (${clash.size} Schüler). `
               + `Wenn es dieselbe Klasse ist: „${clash.c.name}“ in „${g.name}“ umbenennen und noch einmal einlesen.`,
           });
           continue;
@@ -193,6 +189,52 @@ export class SchoolClassesService implements OnModuleInit {
       id: crypto.randomUUID(), schoolClassId, firstName: r.firstName, lastName: r.lastName, loginId: r.loginId || null,
     }));
     if (changed.length || added.length) await this.scsRepo.save([...changed, ...added]);
+  }
+
+  /**
+   * ⏭ Versetzen ins nächste Schuljahr: `{ schoolYear, items: [{ id, action: 'promote' | 'delete' | 'keep', name? }] }`.
+   * Versetzt wird eine Kopie mit Schülern und Autoregistrierung; gibt es im neuen Jahr schon eine Klasse mit dem
+   * Namen, wird sie ergänzt. Freigaben gehen mit – wer die Klasse hatte, übernimmt die neue ohne neue Anfrage.
+   * Gelöscht wird nur die Klasse der Schule; die Klassen der Lehrkräfte bleiben, wie sie sind.
+   */
+  async promote(user: any, body: { schoolYear?: string; items?: Array<{ id?: string; action?: string; name?: string }> }) {
+    const schoolId = this.requireSchoolAdmin(user);
+    const from = await this.year(body?.schoolYear);
+    const to = shiftSchoolYear(from, 1);
+    const items = Array.isArray(body?.items) ? body.items : [];
+    const list = await this.scRepo.find({ where: { schoolId, schoolYear: from } });
+    const byId = new Map(list.map((c) => [c.id, c]));
+    const next = await this.scRepo.find({ where: { schoolId, schoolYear: to } });
+    const promoted: string[] = [];
+    const deleted: string[] = [];
+    for (const it of items) {
+      const sc = byId.get(String(it?.id || ''));
+      if (!sc) continue;
+      if (it.action === 'delete') { await this.removeSchoolClasses([sc.id]); deleted.push(sc.name); continue; }
+      if (it.action !== 'promote') continue;
+      const name = cleanName(it.name) || suggestNextClassName(sc.name);
+      let target = next.find((c) => lower(c.name) === lower(name));
+      if (!target) {
+        target = await this.scRepo.save(this.scRepo.create({
+          id: crypto.randomUUID(), schoolId, schoolYear: to, name, autoRegister: sc.autoRegister, predecessorId: sc.id,
+        }));
+        next.push(target);
+      } else if (!target.predecessorId) {
+        target.predecessorId = sc.id;
+        await this.scRepo.save(target);
+      }
+      const rows = await this.scsRepo.find({ where: { schoolClassId: sc.id } });
+      const current = await this.scsRepo.find({ where: { schoolClassId: target.id } });
+      await this.applyToSchoolList(target.id, current, planRosterSync(current, rows));
+      const approved = await this.reqRepo.find({ where: { schoolClassId: sc.id, status: 'approved' } });
+      const have = new Set((await this.reqRepo.find({ where: { schoolClassId: target.id } })).map((r) => r.teacherId));
+      const carried = approved.filter((r) => !have.has(r.teacherId)).map((r) => this.reqRepo.create({
+        id: crypto.randomUUID(), schoolClassId: target!.id, teacherId: r.teacherId, classId: null, status: 'approved',
+      }));
+      if (carried.length) await this.reqRepo.save(carried);
+      promoted.push(`${sc.name} → ${target.name}`);
+    }
+    return { success: true, schoolYear: to, promoted, deleted };
   }
 
   /** `{ name?, autoRegister? }` – Umbenennen prüft, dass der Name im Schuljahr frei ist. */
@@ -290,7 +332,7 @@ export class SchoolClassesService implements OnModuleInit {
   }
 
   /** Klassen der eigenen Schule zum Übernehmen – ohne Schülernamen. */
-  async listForTeacher(user: any, schoolYear?: string) {
+  async listForTeacher(user: any, schoolYear?: string, forClassId?: string) {
     if (!user?.schoolId) return { schoolYear: await this.year(schoolYear), classes: [], noSchool: true };
     const year = await this.year(schoolYear);
     const list = await this.scRepo.find({ where: { schoolId: user.schoolId, schoolYear: year } });
@@ -301,6 +343,13 @@ export class SchoolClassesService implements OnModuleInit {
       : [];
     const mine = ids.length ? await this.reqRepo.find({ where: { schoolClassId: In(ids), teacherId: user.userId } }) : [];
     const linked = ids.length ? await this.classRepo.find({ where: { ownerId: user.userId, schoolClassId: In(ids) } }) : [];
+    // Vorschlag für eine eigene Klasse: die Klasse der Schule, in die ihre Vorjahresklasse versetzt wurde.
+    let suggestedId: string | null = null;
+    if (forClassId) {
+      const own = await this.classRepo.findOne({ where: { id: forClassId, ownerId: user.userId } });
+      const before = own?.predecessorId ? await this.classRepo.findOne({ where: { id: own.predecessorId } }) : null;
+      if (before?.schoolClassId) suggestedId = list.find((c) => c.predecessorId === before.schoolClassId)?.id || null;
+    }
     return {
       schoolYear: year,
       classes: list
@@ -309,6 +358,7 @@ export class SchoolClassesService implements OnModuleInit {
           id: c.id,
           name: c.name,
           autoRegister: c.autoRegister,
+          suggested: c.id === suggestedId,
           studentCount: Number(counts.find((x) => x.id === c.id)?.n || 0),
           request: mine.find((r) => r.schoolClassId === c.id)?.status || null,
           linkedClasses: linked.filter((k) => k.schoolClassId === c.id).map((k) => ({ id: k.id, name: k.name })),

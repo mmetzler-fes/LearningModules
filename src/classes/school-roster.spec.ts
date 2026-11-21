@@ -1,14 +1,14 @@
-import { withinOneEdit, planRosterSync, rosterOverlap, overlapLimit, groupByClass } from './school-roster';
+import { nameDistance, planRosterSync, rosterOverlap, sameClassByStudents, groupByClass } from './school-roster';
 
 const s = (id: string, firstName: string, lastName: string, loginId: string | null = null) => ({ id, firstName, lastName, loginId });
 
-describe('withinOneEdit', () => {
-  it('erkennt einen Buchstaben Unterschied', () => {
-    expect(withinOneEdit('meier', 'maier')).toBe(true);
-    expect(withinOneEdit('mayer', 'mayers')).toBe(true);
-    expect(withinOneEdit('adrian', 'adrin')).toBe(true);
-    expect(withinOneEdit('müller', 'mueller')).toBe(false);
-    expect(withinOneEdit('anna', 'hanna s')).toBe(false);
+describe('nameDistance', () => {
+  it('zählt Zeichen, ein Dreher ist eins', () => {
+    expect(nameDistance('meier', 'maier')).toBe(1);
+    expect(nameDistance('adrain', 'adrian')).toBe(1);
+    expect(nameDistance('müller', 'mueller')).toBe(2);
+    expect(nameDistance('schmidt', 'schmitt')).toBe(1);
+    expect(nameDistance('anna', 'hannah s')).toBe(4);
   });
 });
 
@@ -35,8 +35,20 @@ describe('planRosterSync', () => {
     expect(plan.renamed).toEqual(['Adrain Albrecht → Adrian Albrecht']);
   });
 
-  it('zwei Buchstaben sind ein anderer Schüler', () => {
+  it('bis zu 3 Zeichen: derselbe Schüler, mehr: ein anderer', () => {
+    expect(planRosterSync([s('1', 'Jörg', 'Müller')], [{ firstName: 'Joerg', lastName: 'Mueller' }]).add).toHaveLength(1);
     const plan = planRosterSync([s('1', 'Max', 'Meier')], [{ firstName: 'Max', lastName: 'Mayr' }]);
+    expect(plan.update).toHaveLength(1);
+    expect(planRosterSync([s('1', 'Max', 'Meier')], [{ firstName: 'Moritz', lastName: 'Meier' }]).add).toHaveLength(1);
+  });
+
+  it('vertauschter Vor- und Nachname', () => {
+    const plan = planRosterSync([s('1', 'Meier', 'Max')], [{ firstName: 'Max', lastName: 'Meier' }]);
+    expect(plan.update).toEqual([{ id: '1', firstName: 'Max', lastName: 'Meier', loginId: null }]);
+  });
+
+  it('zwei gleich nahe Einträge: lieber neu', () => {
+    const plan = planRosterSync([s('1', 'Max', 'Meier'), s('2', 'Max', 'Mayer')], [{ firstName: 'Max', lastName: 'Maier' }]);
     expect(plan.add).toHaveLength(1);
   });
 
@@ -64,10 +76,12 @@ describe('Klassen der Schulliste', () => {
     expect(rosterOverlap([s('1', 'A', 'B', 'ab'), s('2', 'C', 'D')], [{ firstName: 'x', lastName: 'y', loginId: 'ab' }, { firstName: 'c', lastName: 'd' }, { firstName: 'E', lastName: 'F' }])).toBe(2);
   });
 
-  it('teilweise gleich: Hälfte der Klasse, höchstens 3', () => {
-    expect(overlapLimit(1)).toBe(1);
-    expect(overlapLimit(4)).toBe(2);
-    expect(overlapLimit(25)).toBe(3);
+  it('dieselbe Klasse ab der Hälfte, in beiden Richtungen', () => {
+    expect(sameClassByStudents(2, 25, 25)).toBe(false);
+    expect(sameClassByStudents(13, 25, 30)).toBe(true);
+    expect(sameClassByStudents(12, 12, 30)).toBe(true); // Teil einer geteilten Klasse
+    expect(sameClassByStudents(10, 30, 20)).toBe(true); // vorhandene Klasse ganz in der neuen
+    expect(sameClassByStudents(0, 0, 0)).toBe(false);
   });
 
   it('gruppiert nach Klasse, Schuljahr aus dem Vorsatz', () => {

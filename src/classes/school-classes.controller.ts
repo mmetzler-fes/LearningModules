@@ -25,6 +25,12 @@ export class MySchoolClassesController {
     return this.service.importForAdmin(req.user, body);
   }
 
+  /** ⏭ Versetzen: `{ schoolYear, items: [{ id, action: 'promote' | 'delete' | 'keep', name? }] }` */
+  @Post('promote')
+  promote(@Request() req: any, @Body() body: any) {
+    return this.service.promote(req.user, body);
+  }
+
   /** `{ schoolYear?, autoRegister }` für alle Klassen des Schuljahres. */
   @Post('auto-register')
   autoRegisterAll(@Request() req: any, @Body() body: any) {
@@ -64,8 +70,8 @@ export class SchoolClassesController {
   constructor(private readonly service: SchoolClassesService) {}
 
   @Get()
-  list(@Request() req: any, @Query('year') year?: string) {
-    return this.service.listForTeacher(req.user, year);
+  list(@Request() req: any, @Query('year') year?: string, @Query('classId') classId?: string) {
+    return this.service.listForTeacher(req.user, year, classId);
   }
 
   /** `{ classId? }` – eigene Klasse verbinden, sonst neu anlegen. */

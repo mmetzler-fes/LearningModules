@@ -252,13 +252,25 @@ Beim Einlesen, je Klasse der Datei:
 | Fall | Ergebnis |
 |---|---|
 | Klasse mit gleichem Namen gibt es schon | wird aktualisiert |
-| anderer Name, aber teilweise dieselben Schüler (die Hälfte der Klasse, höchstens 3) | **übersprungen** – am Ende steht, mit welcher Klasse sie sich deckt. Mit ✏️ Umbenennen den Namen an die Tabelle angleichen und noch einmal einlesen |
+| anderer Name, aber mindestens die Hälfte dieselben Schüler – der Klasse in der Datei oder der vorhandenen Klasse | **übersprungen** – am Ende steht, mit welcher Klasse sie sich deckt. Mit ✏️ Umbenennen den Namen an die Tabelle angleichen und noch einmal einlesen |
 | sonst | neue Klasse |
 
-Schüler werden über die UserID zugeordnet, sonst über den gleichen Namen,
-sonst über einen Namen, der sich nur um **einen Buchstaben** unterscheidet
-(auch ein Buchstabendreher wie „Adrain“) – dann wird der Name aus der Datei
-übernommen. Wer in der Datei fehlt, bleibt; einzeln entfernen geht mit 🗑.
+Schüler werden über die UserID zugeordnet, sonst über den gleichen Namen
+(auch mit vertauschtem Vor- und Nachnamen), sonst über einen Namen, der sich
+um **höchstens 3 Zeichen** unterscheidet (ein Buchstabendreher wie „Adrain“
+zählt als eins, „Müller“/„Mueller“ als zwei) – dann wird der Name aus der
+Datei übernommen. Neue Schüler kommen dazu; wer in der Datei fehlt, bleibt –
+einzeln entfernen geht mit 🗑. Das gilt genauso, wenn eine Lehrkraft ihre
+Klasse über den Schuladmin aktualisiert: ergänzen und Namen angleichen ja,
+löschen macht sie selbst.
+
+**⏭ Versetzen** (zum Schuljahresende): Je Klasse *versetzen* (mit neuem
+Namen, Vorschlag TG11 → TG12), *löschen* oder *lassen*. Versetzt wird eine
+Kopie ins nächste Schuljahr mit Schülern, Autoregistrierung und Freigaben.
+Die Klassen der Schule fallen nicht unter die Löschregel – gelöscht wird nur
+hier. Die Lehrkräfte machen ihren eigenen Schuljahreswechsel selbst; danach
+schlägt *Über den Schuladmin aktualisieren* ihnen die versetzte Klasse vor (⭐),
+wer die alte Klasse hatte, bekommt sie ohne neue Freigabe.
 
 **Übernehmen durch Lehrkräfte.** Unter *Klassen → ➕ Neue Klasse → Aus den
 Klassen der Schule übernehmen* wählt eine Lehrkraft eine Klasse (sie sieht

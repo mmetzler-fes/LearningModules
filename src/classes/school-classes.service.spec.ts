@@ -26,7 +26,6 @@ describe('SchoolClassesService', () => {
     const classRepo = ds.getRepository(StudentClass);
     const classes = {
       currentSchoolYear: async () => YEAR,
-      onRetention: () => undefined,
       ownedClass: async (id: string, user: any) => {
         const k = await classRepo.findOne({ where: { id } });
         if (!k || k.ownerId !== user.userId) throw new Error('nicht gefunden');
@@ -95,6 +94,29 @@ describe('SchoolClassesService', () => {
     expect(res).toMatchObject({ status: 'linked', classId: 'k1', added: 0, updated: 1 });
     const st = await ds.getRepository(ClassStudent).findOne({ where: { id: 'st1' } });
     expect(st).toMatchObject({ lastName: 'Meier', loginId: 'mmeier' });
+  });
+
+  it('⏭ Versetzen: Kopie ins nächste Schuljahr mit Freigaben, Löschen nur bei der Schule', async () => {
+    await svc.importForAdmin(admin, { rows: [row('TG11', 'Meier', 'Max', 'mmeier'), row('E3', 'Kurz', 'Tim', 'tkurz')] });
+    const before = await svc.listForAdmin(admin);
+    const tg = before.classes.find((c: any) => c.name === 'TG11');
+    const e3 = before.classes.find((c: any) => c.name === 'E3');
+    expect(tg.suggestedNext).toBe('TG12');
+    await svc.take(tg.id, teacher, {});
+    await svc.answerRequest((await svc.listForAdmin(admin)).classes.find((c: any) => c.name === 'TG11').requests[0].id, admin, true);
+
+    const res = await svc.promote(admin, { schoolYear: YEAR, items: [{ id: tg.id, action: 'promote', name: 'TG12' }, { id: e3.id, action: 'delete' }] });
+    expect(res).toMatchObject({ schoolYear: 'SJ27-28', promoted: ['TG11 → TG12'], deleted: ['E3'] });
+    expect((await svc.listForAdmin(admin)).classes.map((c: any) => [c.name, c.promotedTo])).toEqual([['TG11', [{ name: 'TG12', schoolYear: 'SJ27-28' }]]]);
+    const next = await svc.listForAdmin(admin, 'SJ27-28');
+    expect(next.classes[0]).toMatchObject({ name: 'TG12', students: [expect.objectContaining({ loginId: 'mmeier' })] });
+
+    // Die Lehrkraft wechselt selbst ins neue Jahr; ihre Klasse bekommt die versetzte als Vorschlag und ist schon freigegeben.
+    const old = await ds.getRepository(StudentClass).findOne({ where: { ownerId: 't1', schoolYear: YEAR } });
+    await ds.getRepository(StudentClass).save({ id: 'k2', name: 'TG12', ownerId: 't1', schoolYear: 'SJ27-28', strict: false, predecessorId: old!.id } as any);
+    const offer = await svc.listForTeacher(teacher, 'SJ27-28', 'k2');
+    expect(offer.classes[0]).toMatchObject({ name: 'TG12', suggested: true, request: 'approved' });
+    await expect(svc.take(offer.classes[0].id, teacher, { classId: 'k2' })).resolves.toMatchObject({ status: 'linked', classId: 'k2', added: 1 });
   });
 
   it('nur Schuladmins der eigenen Schule', async () => {

@@ -54,12 +54,6 @@ const byLastFirst = (a: ClassStudent, b: ClassStudent) =>
 export class ClassesService implements OnApplicationBootstrap, OnModuleDestroy {
   private readonly logger = new Logger(ClassesService.name);
   private retentionTimer: NodeJS.Timeout | null = null;
-  /** Weitere Daten mit Schuljahr, die die Löschregel mitnimmt (z. B. die Klassenliste der Schule). */
-  private readonly retentionHooks: Array<(current: string) => Promise<void>> = [];
-
-  onRetention(hook: (current: string) => Promise<void>) {
-    this.retentionHooks.push(hook);
-  }
 
   constructor(
     @InjectRepository(StudentClass) private readonly classRepo: Repository<StudentClass>,
@@ -166,7 +160,6 @@ export class ClassesService implements OnApplicationBootstrap, OnModuleDestroy {
     try {
       const current = await this.currentSchoolYear();
       if (now < (await this.retentionDeadline(current))) return;
-      for (const hook of this.retentionHooks) await hook(current);
       const years = await this.expiredYears(current);
       if (years.length === 0) return;
       const classes = await this.classRepo.find({ where: { schoolYear: In(years) }, select: ['id'] });

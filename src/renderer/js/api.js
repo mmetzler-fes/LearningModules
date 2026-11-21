@@ -1016,6 +1016,10 @@ export class BrowserApi {
   setSchoolClassesAutoRegister(schoolYear, autoRegister) {
     return this._fetch('/api/my-school/classes/auto-register', { method: 'POST', body: JSON.stringify({ schoolYear, autoRegister }) });
   }
+  /** ⏭ Versetzen: `items: [{ id, action: 'promote' | 'delete' | 'keep', name }]` */
+  promoteSchoolClasses(schoolYear, items) {
+    return this._fetch('/api/my-school/classes/promote', { method: 'POST', body: JSON.stringify({ schoolYear, items }) });
+  }
   deleteSchoolClass(id) { return this._fetch(`/api/my-school/classes/${encodeURIComponent(id)}`, { method: 'DELETE' }); }
   deleteSchoolClassStudent(id, studentId) {
     return this._fetch(`/api/my-school/classes/${encodeURIComponent(id)}/students/${encodeURIComponent(studentId)}`, { method: 'DELETE' });
@@ -1024,7 +1028,10 @@ export class BrowserApi {
     return this._fetch(`/api/my-school/classes/requests/${encodeURIComponent(requestId)}/${accept ? 'approve' : 'decline'}`, { method: 'POST' });
   }
   /** Lehrkraft: Klassen der Schule zum Übernehmen (ohne Schülernamen). */
-  getSchoolClasses(year) { return this._fetch(`/api/school-classes${year ? `?year=${encodeURIComponent(year)}` : ''}`); }
+  getSchoolClasses(year, classId = null) {
+    const q = new URLSearchParams(Object.entries({ year, classId }).filter(([, v]) => v));
+    return this._fetch(`/api/school-classes?${q}`);
+  }
   takeSchoolClass(id, classId = null) { return this._fetch(`/api/school-classes/${encodeURIComponent(id)}/take`, { method: 'POST', body: JSON.stringify({ classId }) }); }
   getSchoolClassLink(classId) { return this._fetch(`/api/school-classes/link/${encodeURIComponent(classId)}`); }
   syncClassFromSchool(classId, dryRun) { return this._fetch(`/api/school-classes/sync/${encodeURIComponent(classId)}`, { method: 'POST', body: JSON.stringify({ dryRun }) }); }

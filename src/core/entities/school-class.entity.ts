@@ -21,6 +21,10 @@ export class SchoolClass extends BaseEntity {
   @Column()
   name: string;
 
+  /** Versetzt aus dieser Klasse des Vorjahres (Schuladmin → ⏭ Versetzen). */
+  @Column({ type: 'varchar', nullable: true })
+  predecessorId: string | null;
+
   /** Autoregistrierung: Lehrkräfte übernehmen die Klasse ohne Freigabe. */
   @Column({ default: false })
   autoRegister: boolean;

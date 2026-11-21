@@ -856,7 +856,7 @@ export class ClassesView {
    * verbinden. Mit Autoregistrierung sofort, sonst wartet die Anfrage auf den Schuladmin.
    */
   async _pickSchoolClass(klasse = null) {
-    const data = await this.app.api.getSchoolClasses(klasse?.schoolYear || this._year);
+    const data = await this.app.api.getSchoolClasses(klasse?.schoolYear || this._year, klasse?.id || null);
     if (failed(data)) { this.app.showToast('Fehler: ' + (data?.message || '?'), 'error'); return; }
     if (data.noSchool) { this.app.showToast('Du gehörst keiner Schule an – die Klassen der Schule pflegt der Schuladmin.', 'info'); return; }
     if (!data.classes.length) {
@@ -864,11 +864,12 @@ export class ClassesView {
       return;
     }
     const same = (c) => klasse && c.name.toLocaleLowerCase('de') === klasse.name.toLocaleLowerCase('de');
-    const list = [...data.classes].sort((a, b) => Number(same(b)) - Number(same(a)));
+    const rank = (c) => (c.suggested ? 2 : 0) + (same(c) ? 1 : 0);
+    const list = [...data.classes].sort((a, b) => rank(b) - rank(a));
     const state = (c) => c.linkedClasses.length ? `✓ übernommen (${c.linkedClasses.map((k) => k.name).join(', ')})`
       : c.request === 'pending' ? '⏳ wartet auf Freigabe'
         : c.request === 'declined' ? 'abgelehnt – erneut anfragen'
-          : c.autoRegister ? '⚡ sofort' : 'mit Freigabe';
+          : c.autoRegister || c.request === 'approved' ? '⚡ sofort' : 'mit Freigabe';
     const picked = await new Promise((resolve) => {
       const overlay = document.createElement('div');
       overlay.className = 'confirm-overlay';
@@ -879,7 +880,7 @@ export class ClassesView {
             danach steht die Schülerliste in deiner Klasse${klasse ? '' : ' (eine gleichnamige eigene Klasse wird ergänzt, sonst neu angelegt)'}.</p>
           <div class="school-pick-list">${list.map((c) => `
             <button type="button" class="btn btn-secondary" data-id="${escapeAttr(c.id)}">
-              <span><strong>${escapeHtml(c.name)}</strong> · ${c.studentCount} Schüler</span><span class="hint">${escapeHtml(state(c))}</span>
+              <span>${c.suggested ? '⭐ ' : ''}<strong>${escapeHtml(c.name)}</strong> · ${c.studentCount} Schüler${c.suggested ? ' <span class="hint">– versetzt aus deiner Klasse des Vorjahres</span>' : ''}</span><span class="hint">${escapeHtml(state(c))}</span>
             </button>`).join('')}</div>
           <div class="confirm-actions"><button class="btn btn-secondary btn-cancel">Abbrechen</button></div>
         </div>`;
@@ -1071,7 +1072,7 @@ export class ClassesView {
         <div class="import-modules-card class-import-preview">
           <h3>📥 Schülerliste einlesen</h3>
           ${list.className ? `<p class="hint">${preview.schoolClass ? 'Aus den Klassen der Schule' : 'Aus der Datei'}: Klasse „${escapeHtml(list.className)}“.</p>` : ''}
-          ${preview.renamed?.length ? `<p class="hint">Name korrigiert (ein Buchstabe Unterschied): ${escapeHtml(preview.renamed.join('; '))}</p>` : ''}
+          ${preview.renamed?.length ? `<p class="hint">Name korrigiert (bis zu 3 Zeichen Unterschied): ${escapeHtml(preview.renamed.join('; '))}</p>` : ''}
           ${preview.added ? `<p><strong>${preview.added} neu</strong></p><ul>${names(preview.addNames)}</ul>` : ''}
           ${preview.updated ? `<p><strong>${preview.updated} aktualisiert</strong></p><ul>${names(preview.updateNames)}</ul>` : ''}
           ${preview.unchanged ? `<p>${preview.unchanged} unverändert</p>` : ''}

@@ -23,6 +23,7 @@ export class SchoolClassesView {
     this._file = document.getElementById('schoolClassesFile');
     document.getElementById('btnSchoolClassesImport')?.addEventListener('click', () => this._file.click());
     document.getElementById('btnSchoolClassesTemplate')?.addEventListener('click', (e) => this._templateMenu(e.currentTarget));
+    document.getElementById('btnSchoolClassesPromote')?.addEventListener('click', () => void this._promote());
     document.getElementById('schoolClassesYear')?.addEventListener('change', (e) => { this._year = e.target.value; this.refresh(); });
     this._file?.addEventListener('change', () => {
       const file = this._file.files?.[0];
@@ -52,6 +53,7 @@ export class SchoolClassesView {
     }
     void this.checkPending({ toast: false });
     const classes = data.classes;
+    this._data = data;
     const waiting = classes.flatMap((c) => c.requests.filter((r) => r.status === 'pending').map((r) => ({ ...r, className: c.name })));
     const allAuto = classes.length && classes.every((c) => c.autoRegister);
     this._box.innerHTML = `
@@ -84,7 +86,7 @@ export class SchoolClassesView {
       <details class="area-group school-section school-class" data-id="${escapeAttr(c.id)}" ${this._open.has(c.id) ? 'open' : ''}>
         <summary>
           <strong>🏫 ${escapeHtml(c.name)}</strong>
-          <span class="hint">${plural(c.students.length, 'Schüler', 'Schüler')}${c.autoRegister ? ' · ⚡ Autoregistrierung' : ''}${taken.length ? ` · übernommen von ${escapeHtml(taken.map((r) => r.name).join(', '))}` : ''}</span>
+          <span class="hint">${plural(c.students.length, 'Schüler', 'Schüler')}${c.autoRegister ? ' · ⚡ Autoregistrierung' : ''}${taken.length ? ` · übernommen von ${escapeHtml(taken.map((r) => r.name).join(', '))}` : ''}${c.promotedTo?.length ? ` · ⏭ versetzt nach ${escapeHtml(c.promotedTo.map((p) => `${p.name} (${p.schoolYear})`).join(', '))}` : ''}</span>
           ${pending.length ? `<span class="class-pending-note">⏳ ${escapeHtml(pending.map((r) => r.name).join(', '))} wartet</span>` : ''}
         </summary>
         <div class="school-class-body">
@@ -218,7 +220,7 @@ export class SchoolClassesView {
           </table>
           <label class="tag-filter-mode"><input type="checkbox" class="chk-auto" />
             <span><strong>⚡ Autoregistrierung</strong> für die neuen Klassen – Lehrkräfte übernehmen sie ohne deine Freigabe.</span></label>
-          <p class="hint">Schüler, die in der Datei fehlen, bleiben in der Klassenliste. Namen, die sich nur um einen Buchstaben
+          <p class="hint">Schüler, die in der Datei fehlen, bleiben in der Klassenliste. Namen, die sich um höchstens 3 Zeichen
             unterscheiden, werden aus der Datei übernommen.</p>
           <div class="confirm-actions">
             <button class="btn btn-primary btn-ok" ${rows.every((c) => c.action === 'skipped') ? 'disabled' : ''}>Übernehmen</button>
@@ -231,6 +233,63 @@ export class SchoolClassesView {
       overlay.querySelector('.btn-cancel').addEventListener('click', () => done(null));
       overlay.addEventListener('click', (e) => { if (e.target === overlay) done(null); });
     });
+  }
+
+  /**
+   * ⏭ Versetzen ins nächste Schuljahr: je Klasse versetzen (mit neuem Namen), löschen oder lassen.
+   * Die Lehrkräfte wechseln selbst ins neue Jahr und übernehmen die versetzten Klassen dann.
+   */
+  async _promote() {
+    const data = this._data;
+    if (!data?.classes?.length) { this.app.showToast('In diesem Schuljahr gibt es keine Klassen der Schule.', 'info'); return; }
+    const next = data.schoolYear.replace(/^SJ(\d{2})-(\d{2})$/, (_, a, b) => `SJ${String((+a + 1) % 100).padStart(2, '0')}-${String((+b + 1) % 100).padStart(2, '0')}`);
+    const items = await new Promise((resolve) => {
+      const overlay = document.createElement('div');
+      overlay.className = 'confirm-overlay';
+      overlay.innerHTML = `
+        <div class="import-modules-card class-import-preview">
+          <h3>⏭ Klassen vom ${escapeHtml(data.schoolYear)} ins ${escapeHtml(next)} versetzen</h3>
+          <p class="hint">Versetzt wird eine Kopie mit Schülern, Autoregistrierung und Freigaben – wer die Klasse hatte, übernimmt die
+            neue ohne neue Anfrage. Gibt es den neuen Namen im ${escapeHtml(next)} schon, wird diese Klasse ergänzt. Löschen trifft nur die
+            Klasse der Schule. Ihre eigenen Klassen versetzen die Lehrkräfte selbst (Schuljahreswechsel).</p>
+          <table class="class-students">
+            <thead><tr><th>Klasse</th><th></th><th>Neuer Name</th></tr></thead>
+            <tbody>${data.classes.map((c) => `<tr data-id="${escapeAttr(c.id)}">
+              <td><strong>${escapeHtml(c.name)}</strong> <span class="hint">${c.students.length} Schüler${c.promotedTo?.length ? ' · schon versetzt' : ''}</span></td>
+              <td><select class="sel-action">
+                <option value="promote" ${c.promotedTo?.length ? '' : 'selected'}>⏭ versetzen</option>
+                <option value="delete">🗑 löschen</option>
+                <option value="keep" ${c.promotedTo?.length ? 'selected' : ''}>– lassen</option>
+              </select></td>
+              <td><input class="inp-name" maxlength="40" value="${escapeAttr(c.suggestedNext || c.name)}" /></td>
+            </tr>`).join('')}</tbody>
+          </table>
+          <div class="confirm-actions">
+            <button class="btn btn-primary btn-ok">Ausführen</button>
+            <button class="btn btn-secondary btn-cancel">Abbrechen</button>
+          </div>
+        </div>`;
+      document.body.appendChild(overlay);
+      overlay.querySelectorAll('tr[data-id]').forEach((tr) => {
+        const sel = tr.querySelector('.sel-action');
+        const sync = () => { tr.querySelector('.inp-name').disabled = sel.value !== 'promote'; };
+        sel.addEventListener('change', sync);
+        sync();
+      });
+      const done = (v) => { overlay.remove(); resolve(v); };
+      overlay.querySelector('.btn-ok').addEventListener('click', () => done([...overlay.querySelectorAll('tr[data-id]')].map((tr) => ({
+        id: tr.dataset.id, action: tr.querySelector('.sel-action').value, name: tr.querySelector('.inp-name').value.trim(),
+      }))));
+      overlay.querySelector('.btn-cancel').addEventListener('click', () => done(null));
+    });
+    if (!items) return;
+    const del = items.filter((i) => i.action === 'delete').length;
+    if (del && !(await this.app.appConfirm(`${plural(del, 'Klasse', 'Klassen')} der Schule löschen? Die Klassen der Lehrkräfte bleiben erhalten.`))) return;
+    const res = await this.app.api.promoteSchoolClasses(data.schoolYear, items);
+    if (failed(res)) { this.app.showToast('Fehler: ' + (res?.message || '?'), 'error'); return; }
+    this.app.showToast(`${plural(res.promoted.length, 'Klasse', 'Klassen')} ins ${res.schoolYear} versetzt${res.deleted.length ? `, ${res.deleted.length} gelöscht` : ''}.`, 'success');
+    this._year = res.promoted.length ? res.schoolYear : this._year;
+    this.refresh();
   }
 
   /** Am Ende: Welche Klassen übersprungen wurden und warum. */

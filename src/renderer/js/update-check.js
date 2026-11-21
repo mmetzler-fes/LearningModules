@@ -3,15 +3,18 @@
 // Die App auf dem Home-Bildschirm (iPad) bleibt im Hintergrund im Speicher und lädt beim
 // Antippen nicht neu – sie zeigte nach einem Update weiter die alte Oberfläche. Deshalb fragt
 // sie die Version des Servers ab (/api/ui-version, ändert sich nur mit einer neuen Oberfläche):
-// beim Zurückkommen in den Vordergrund und alle paar Minuten. Ist sie neu, erscheint ein Popup;
-// „Aktualisieren“ speichert das offene Blatt, lädt neu und öffnet den Tab wieder.
+// beim Zurückkommen in den Vordergrund und alle paar Minuten. Ist sie neu, aktualisiert sie sich
+// ohne Rückfrage (es gibt keine Alternative): kurzes Popup „App wird aktualisiert“, offenes Blatt
+// speichern, neu laden, Tab wieder öffnen. Wer gerade tippt, ein Quiz oder eine Klassenarbeit
+// bearbeitet oder im Modul-Editor ist, wird nicht unterbrochen – dann erst danach.
 
 const CHECK_MS = 5 * 60 * 1000;
-const LATER_MS = 60 * 60 * 1000;
+const BUSY_RETRY_MS = 15 * 1000;
+const SHOW_MS = 1500;
 export const REOPEN_KEY = 'lm_ws_reopen';
 
 let known = null;       // Version beim Laden der Seite
-let declined = null;    // { version, until } – „Später“
+let pending = 0;        // Warten, bis niemand mehr arbeitet
 let lastCheck = 0;
 
 async function serverVersion() {
@@ -31,8 +34,22 @@ async function check() {
   if (!v) return;
   if (!known) { known = v; return; }
   if (v === known) return;
-  if (declined?.version === v && Date.now() < declined.until) return;
-  showPopup(v);
+  updateWhenFree();
+}
+
+/** Läuft gerade etwas, das ein Neuladen stören würde? (Das Blatt im Stift-Editor speichert updateNow selbst.) */
+function busy() {
+  const a = document.activeElement;
+  if (a && !a.closest?.('.ink-overlay') && a.closest?.('input, textarea, select, [contenteditable="true"]')
+    && !a.closest('input[type="checkbox"], input[type="radio"], input[type="button"], input[type="submit"]')) return true;
+  return !!document.querySelector('#view-student-quiz.active, #view-player.active, #view-create-module.active');
+}
+
+function updateWhenFree() {
+  clearTimeout(pending);
+  if (document.visibilityState !== 'visible' || busy()) { pending = setTimeout(updateWhenFree, BUSY_RETRY_MS); return; }
+  showPopup();
+  pending = setTimeout(() => { void updateNow(); }, SHOW_MS);
 }
 
 /** Offenes Blatt speichern, aktiven Tab merken, neu laden. */
@@ -48,30 +65,17 @@ export async function updateNow() {
   location.reload();
 }
 
-function showPopup(version) {
+function showPopup() {
   if (document.getElementById('lmUpdatePopup')) return;
   const box = document.createElement('div');
   box.id = 'lmUpdatePopup';
   box.className = 'lm-update';
-  box.setAttribute('role', 'alertdialog');
-  box.setAttribute('aria-label', 'Neue Version verfügbar');
+  box.setAttribute('role', 'status');
+  box.setAttribute('aria-live', 'polite');
   box.innerHTML = `
-    <div class="lm-update-text"><strong>🔄 Neue Version verfügbar</strong>
-      <span>LearningModules wurde aktualisiert. Dein Blatt wird vorher gespeichert.</span></div>
-    <div class="lm-update-actions">
-      <button type="button" class="btn btn-secondary" data-later>Später</button>
-      <button type="button" class="btn btn-primary" data-now>Aktualisieren</button>
-    </div>`;
+    <div class="lm-update-text"><strong>🔄 App wird aktualisiert …</strong>
+      <span>Es gibt eine neue Version von LearningModules. Dein Blatt wird vorher gespeichert.</span></div>`;
   document.body.appendChild(box);
-  box.querySelector('[data-now]').addEventListener('click', (e) => {
-    e.currentTarget.disabled = true;
-    e.currentTarget.textContent = 'Wird aktualisiert …';
-    void updateNow();
-  });
-  box.querySelector('[data-later]').addEventListener('click', () => {
-    declined = { version, until: Date.now() + LATER_MS };
-    box.remove();
-  });
 }
 
 /** Einmal beim Start der App aufrufen. */

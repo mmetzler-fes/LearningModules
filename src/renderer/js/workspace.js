@@ -23,6 +23,46 @@ async function closeInk() {
   } catch (_) { /* nichts offen */ }
 }
 
+/**
+ * Ruhiger Übergang zwischen Tabs und Home: Eine Fläche unter der Leiste deckt den Umbau ab (Editor zu,
+ * Laden, neuer Editor, Einpassen des Zooms) und blendet weich aus, wenn das Neue steht. Der Ladekreis
+ * erscheint erst nach einer kurzen Wartezeit (CSS), damit schnelle Wechsel nicht flackern.
+ */
+const cover = {
+  el: null,
+  show(kind) {
+    if (!this.el) {
+      this.el = document.createElement('div');
+      this.el.className = 'ws-cover';
+      this.el.innerHTML = '<span class="ws-spinner" aria-hidden="true"></span>';
+      this.el.setAttribute('role', 'status');
+      this.el.setAttribute('aria-label', 'Wird geöffnet …');
+      document.body.appendChild(this.el);
+    }
+    this.el.classList.toggle('ws-cover-home', kind === 'home');
+    this.el.classList.remove('ws-cover-out');
+    clearTimeout(this.timer);
+  },
+  hide() {
+    const el = this.el;
+    if (!el) return;
+    el.classList.add('ws-cover-out');
+    clearTimeout(this.timer);
+    this.timer = setTimeout(() => { if (this.el === el) { el.remove(); this.el = null; } }, 220);
+  },
+};
+const frame = () => new Promise((r) => requestAnimationFrame(() => r()));
+const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+/** Bis das Blatt im Stift-Editor steht (Seiten gelegt, Zoom eingepasst) – oder ohne Editor kurz danach. */
+async function settled(maxMs = 8000) {
+  const t0 = Date.now();
+  // Kommt ein Stift-Editor? Er öffnet kurz nach dem Start der Aufgabe.
+  while (!document.querySelector('.ink-overlay .ink-page') && Date.now() - t0 < (document.querySelector('.ink-overlay') ? maxMs : 1200)) await wait(50);
+  await frame();
+  await frame();
+  await wait(120);
+}
+
 class Workspace {
   constructor() {
     this.key = null;
@@ -108,12 +148,16 @@ class Workspace {
   async home() {
     if (this.busy) return;
     this.busy = true;
+    cover.show('home');
     try {
       await closeInk();
       this.markHome();
       await this.onHome?.();
+      await frame();
     } finally {
       this.busy = false;
+      // Lädt der Gastgeber die Seite neu, bleibt die Fläche bis dahin stehen.
+      if (!this.reloading) cover.hide();
     }
   }
 
@@ -122,15 +166,23 @@ class Workspace {
     if (!tab || this.busy) return;
     if (id === this.active && document.querySelector('.ink-overlay, #view-student-quiz.active')) return;
     this.busy = true;
+    cover.show('open');
     try {
       await closeInk();
       this.active = id;
       this._save();
       this.render();
       await this.onOpen?.(tab);
+      if (!this.reloading) await settled();
     } finally {
       this.busy = false;
+      if (!this.reloading) cover.hide();
     }
+  }
+
+  /** Der Gastgeber lädt gleich die Seite neu: die Abdeckung bis dahin stehen lassen. */
+  willReload() {
+    this.reloading = true;
   }
 
   async close(id) {
@@ -206,6 +258,13 @@ class Workspace {
     }));
   }
 }
+
+/** Für den Gastgeber: Übergang abdecken, bis das Neue steht (z. B. Aufgabe aus dem Baum öffnen). */
+export const transition = {
+  show: (kind = 'open') => cover.show(kind),
+  async done() { await settled(); cover.hide(); },
+  hide: () => cover.hide(),
+};
 
 /** Eine Arbeitsfläche je Seite. */
 export const workspace = new Workspace();

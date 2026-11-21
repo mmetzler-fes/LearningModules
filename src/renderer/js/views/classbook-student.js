@@ -5,7 +5,7 @@ import { isDocLike } from '../quiz-usage.js';
 import { LINK_MODE_LABELS } from './login.js';
 import { offerTeacherName } from './teacher-as-student.js';
 import { scanQr } from './qr-scan.js';
-import { workspace } from '../workspace.js';
+import { workspace, transition } from '../workspace.js';
 
 // ==================== KLASSENNOTIZBUCH (SCHÜLER) ====================
 //
@@ -101,8 +101,14 @@ function saveSession(value) {
     else sessionStorage.removeItem(SESSION_KEY);
   } catch (_) { /* ohne Speicher: nach jedem Durchlauf neu anmelden */ }
 }
+/** Startseite ohne Neuladen (ClassbookStudent#_homeInPlace) – true, wenn es so ging. */
+let homeInPlace = null;
+
 /** Zurück zur Startseite des Klassennotizbuchs (neu laden, die Sitzung bleibt). */
 export function backToClassbook() {
+  // Mit Tabs liegt die Startseite noch da: gleich zeigen und still auffrischen – kein Neuladen, kein Flackern.
+  try { if (homeInPlace?.()) return; } catch (err) { console.warn('Home ohne Neuladen ging nicht:', err); }
+  workspace.willReload?.();
   // Angemeldet mit dem Schulkonto in mehreren Klassen: Home zeigt alle.
   if (sessionGet(ALL_KEY) === '1') { window.location.href = `${studentBase()}?app=classbook&all=1`; return; }
   const s = classbookSession();
@@ -131,11 +137,38 @@ const pctClass = (v) => (v === null || v === undefined ? '' : v >= 70 ? 'good' :
 function unitState(u) {
   const parts = [];
   if (u.done) parts.push(u.pct === null || u.pct === undefined ? '<span class="cb-done" title="erledigt">✓</span>' : `<span class="result-score ${pctClass(u.pct)}" title="bestes Ergebnis">${u.pct} %</span>`);
-  if (u.work) parts.push('<span title="Blatt bearbeitet">✍️</span>');
+  if (u.work) parts.push(`<span class="cb-worked" title="Blatt bearbeitet">${ico('pen')}</span>`);
   return parts.join(' ');
 }
 
 const TYPE_ICON = { document: '📄', attachment: '📎' };
+
+// Gezeichnete Symbole (Strich wie im Stift-Editor) statt Emojis – auf dem iPad ruhiger und gleich groß.
+const ICONS = {
+  folder: 'M3 6.5a1.5 1.5 0 011.5-1.5h4l2 2.5h9A1.5 1.5 0 0121 9v9a1.5 1.5 0 01-1.5 1.5h-15A1.5 1.5 0 013 18z',
+  section: 'M5 4h10l4 4v12H5zM8.5 11h7M8.5 14.5h7M8.5 18h4',
+  topic: 'M4 5.5C6.5 4 9.5 4 12 5.5v14c-2.5-1.5-5.5-1.5-8 0zM12 5.5c2.5-1.5 5.5-1.5 8 0v14c-2.5-1.5-5.5-1.5-8 0',
+  document: 'M6 3h8l4 4v14H6zM14 3v4h4M9 12h6M9 15.5h6',
+  attachment: 'M20 11.5l-7.8 7.8a5 5 0 01-7.1-7.1l8.2-8.2a3.3 3.3 0 014.7 4.7l-8.2 8.2a1.7 1.7 0 01-2.4-2.4l7.4-7.4',
+  quiz: 'M12 3a9 9 0 100 18 9 9 0 000-18zM9.5 9.5a2.5 2.5 0 114 2c-.9.6-1.5 1.1-1.5 2.3M12 17h.01',
+  key: 'M8 14a4 4 0 110-.01M11 12h9M17 12v3M20 12v2.5',
+  board: 'M3 4.5h18v12H3zM8 21l4-4.5 4 4.5M7 12.5c1.5-2.5 3-2.5 4-1s2.5 1.5 5-2',
+  pin: 'M12 21s-6.5-6.1-6.5-11a6.5 6.5 0 0113 0c0 4.9-6.5 11-6.5 11zM12 7.5a2.5 2.5 0 100 5 2.5 2.5 0 000-5z',
+  notebook: 'M6 3h12v18H6zM6 7H4M6 12H4M6 17H4M10 7.5h5',
+  tasks: 'M9 4h6v3H9zM7 5.5H5V21h14V5.5h-2M8.5 12l2 2 4-4M8.5 17.5h7',
+  chart: 'M4 20h16M7 16v-4M11 16V8M15 16v-6M19 16V5',
+  pen: 'M4 20l1.2-4.4L15.6 5.2a2.1 2.1 0 013 3L8.2 18.6 4 20zM13.8 7l3.2 3.2',
+  exam: 'M6 3h12v18H6zM9 8h6M9 12h6M9 16h3',
+  list: 'M4 6h16M4 12h16M4 18h16',
+  logout: 'M15 4h4v16h-4M10 8l-4 4 4 4M6 12h10',
+  install: 'M12 4v11M7.5 10.5L12 15l4.5-4.5M5 19h14',
+  learn: 'M9 18h6M10 21h4M12 3a6 6 0 00-3.6 10.8V16h7.2v-2.2A6 6 0 0012 3z',
+  companion: 'M12 3l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.4l-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z',
+  contest: 'M8 4h8v5a4 4 0 01-8 0zM8 6H5v1.5A3 3 0 008 10.5M16 6h3v1.5a3 3 0 01-3 3M12 13v4M8.5 20h7M10 17h4v3h-4z',
+};
+const MODE_ICON = { quiz: 'quiz', exam: 'exam', learn: 'learn', companion: 'companion', contest: 'contest' };
+const ico = (name, cls = '') => `<svg class="cb-ico ${cls}" viewBox="0 0 24 24" aria-hidden="true"><path d="${ICONS[name]}"/></svg>`;
+const UNIT_ICON = (type) => ico(type === 'document' ? 'document' : type === 'attachment' ? 'attachment' : 'quiz');
 // Nach der Anmeldung einmal je Sitzung: 📍 Merker öffnen (sonst Home) – nicht bei jedem Zurück nach Home.
 const LANDED_KEY = 'lm_ws_landed';
 
@@ -165,13 +198,13 @@ function treeHtml(data, boards, solutions) {
   const cardOf = (a) => {
     const modes = a.modes.map((m) => {
       const meta = LINK_MODE_LABELS[m];
-      return meta ? `<button type="button" class="btn btn-primary btn-sm" data-start="${escapeAttr(a.linkId)}" data-mode="${escapeAttr(m)}" title="${escapeAttr(meta.hint)}">${meta.icon} ${escapeHtml(meta.label)}</button>` : '';
+      return meta ? `<button type="button" class="btn btn-primary btn-sm" data-start="${escapeAttr(a.linkId)}" data-mode="${escapeAttr(m)}" title="${escapeAttr(meta.hint)}">${MODE_ICON[m] ? ico(MODE_ICON[m]) : meta.icon} ${escapeHtml(meta.label)}</button>` : '';
     }).join('');
     // Module eingeklappt; beim 📍-Merker der Lehrkraft ist sein Lernthema offen.
     const marked = (t, u) => mk && mk.current.linkId === a.linkId && mk.current.topicId === t.id && (!u || mk.current.moduleId === u.id);
     const unitRow = (t, u, embedded = false, quizCount = 0, title = u.title) => `
           <li class="${marked(t, u) ? 'cb-marked' : ''} ${embedded ? 'cb-embedded' : ''}">${a.modes.length ? `<button type="button" class="cb-unit" data-start="${escapeAttr(a.linkId)}" data-module="${escapeAttr(u.id)}">` : '<span class="cb-unit">'}
-            ${marked(t, u) ? '📍 ' : ''}${TYPE_ICON[u.type] || '🧩'} ${escapeHtml(title || 'Aufgabe')}${a.modes.length ? '</button>' : '</span>'}
+            ${marked(t, u) ? ico('pin', 'cb-pin') : ''}${UNIT_ICON(u.type)} ${escapeHtml(title || 'Aufgabe')}${a.modes.length ? '</button>' : '</span>'}
             <span class="nb-meta">${escapeHtml((typeof H5P_TYPES !== 'undefined' && H5P_TYPES[u.type]?.name) || '')}${quizCount ? ` · ${quizCount === 1 ? '1 Quiz' : `${quizCount} Quizze`}` : ''}</span>
             <span class="cb-state">${unitState(u)}</span></li>`;
     // Wie im Lernnotizbuch: Quizze im Dokument stehen eingerückt darunter.
@@ -180,10 +213,10 @@ function treeHtml(data, boards, solutions) {
       return top.filter(pick).map((u) => {
         const quizzes = quizzesOf.get(u.id) || [];
         const solution = solutions.has(u.id) ? `
-          <li class="cb-embedded"><button type="button" class="cb-unit" data-solution-ink="${escapeAttr(u.id)}" title="Die Lösung deiner Lehrkraft – nur zum Ansehen. Dein eigenes Blatt bleibt, wie es ist.">🔑 Lösung</button>
+          <li class="cb-embedded"><button type="button" class="cb-unit" data-solution-ink="${escapeAttr(u.id)}" title="Die Lösung deiner Lehrkraft – nur zum Ansehen. Dein eigenes Blatt bleibt, wie es ist.">${ico('key')} Lösung</button>
             <span class="nb-meta">zum Ansehen</span></li>` : '';
         const board = boards.has(u.id) ? `
-          <li class="cb-embedded"><button type="button" class="cb-unit" data-board="${escapeAttr(u.id)}" title="Das Tafelbild deiner Lehrkraft – nur zum Ansehen. Dein eigenes Blatt bleibt, wie es ist.">✍️ Tafelbild</button>
+          <li class="cb-embedded"><button type="button" class="cb-unit" data-board="${escapeAttr(u.id)}" title="Das Tafelbild deiner Lehrkraft – nur zum Ansehen. Dein eigenes Blatt bleibt, wie es ist.">${ico('board')} Tafelbild</button>
             <span class="nb-meta">zum Ansehen</span></li>` : '';
         return (skipRow ? '' : unitRow(t, u, false, quizzes.length, ownTitle ? t.title : u.title)) + solution + board + quizzes.map((q) => unitRow(t, q, true)).join('');
       }).join('');
@@ -199,7 +232,7 @@ function treeHtml(data, boards, solutions) {
       const restOpen = rest.some((u) => marked(t, u));
       return unitRows(t, (u) => u.id === doc.id, true, skipRow) + (rest.length ? `
           <li class="cb-quiz-set"><details ${restOpen ? 'open' : ''}><summary><span class="cb-twisty" aria-hidden="true"></span>
-            <span class="nb-icon" aria-hidden="true">🧩</span><span class="cb-row-title">Weitere Quizze</span>
+            <span class="nb-icon" aria-hidden="true">${ico('quiz')}</span><span class="cb-row-title">Weitere Quizze</span>
             <span class="nb-meta">${count(rest)}</span></summary>
             <ul class="cb-units">${unitRows(t, (u) => u.id !== doc.id)}</ul></details></li>` : '');
     };
@@ -207,14 +240,14 @@ function treeHtml(data, boards, solutions) {
       const done = units.filter((u) => u.done || u.work).length;
       return data.pending ? `${units.length} Module` : `${done}/${units.length} erledigt`;
     };
-    const here = `<span class="cb-here">📍 Hier sind wir</span>${weiterBtn}`;
+    const here = `<span class="cb-here">${ico('pin', 'cb-pin')} Hier sind wir</span>${weiterBtn}`;
     const only = a.topics.length === 1 ? a.topics[0] : null;
     // Ein Lernthema mit genau einem Dokument: Die Zeile der Zuweisung ist das Dokument (Klick auf den Titel öffnet es).
     const single = only && soleDoc(only);
     const titleHtml = single && a.modes.length
-      ? `<button type="button" class="cb-unit cb-row-title" data-start="${escapeAttr(a.linkId)}" data-module="${escapeAttr(single.id)}" title="${escapeAttr(`${a.name} öffnen`)}">${marked(only, single) ? '📍 ' : ''}${escapeHtml(a.name)}</button>`
+      ? `<button type="button" class="cb-unit cb-row-title" data-start="${escapeAttr(a.linkId)}" data-module="${escapeAttr(single.id)}" title="${escapeAttr(`${a.name} öffnen`)}">${marked(only, single) ? ico('pin', 'cb-pin') : ''}${escapeHtml(a.name)}</button>`
       : `<span class="cb-row-title" title="${escapeAttr(a.name)}">${escapeHtml(a.name)}</span>`;
-    const icon = single ? (TYPE_ICON[single.type] || '📄') : nestEmbedded(only?.units || []).top.length && !nestEmbedded(only.units).top.some(isDocLike) ? '🧩' : '📘';
+    const icon = single ? UNIT_ICON(single.type) : nestEmbedded(only?.units || []).top.length && !nestEmbedded(only.units).top.some(isDocLike) ? ico('quiz') : ico('topic');
     // Dieselben Zeilen wie im Lernnotizbuch; ein einzelnes Lernthema braucht keine zweite Zeile.
     return `<details class="cb-assignment" ${a.topics.some((t) => marked(t)) ? 'open' : ''}>
       <summary><span class="cb-twisty" aria-hidden="true"></span>
@@ -225,7 +258,7 @@ function treeHtml(data, boards, solutions) {
         <span class="cb-actions">${modes}</span></summary>
       ${only ? `<ul class="cb-units">${single ? singleRows(only, single, true) : unitRows(only)}</ul>` : a.topics.map((t) => soleDoc(t) ? `<ul class="cb-units cb-single">${singleRows(t, soleDoc(t))}</ul>` : `<details class="cb-topic" ${marked(t) ? 'open' : ''}>
         <summary class="cb-topic-title"><span class="cb-twisty" aria-hidden="true"></span>
-          <span class="nb-icon" aria-hidden="true">📘</span><span class="cb-row-title" title="${escapeAttr(t.title)}">${escapeHtml(t.title)}</span>
+          <span class="nb-icon" aria-hidden="true">${ico('topic')}</span><span class="cb-row-title" title="${escapeAttr(t.title)}">${escapeHtml(t.title)}</span>
           <span class="nb-meta">${count(t.units)}</span>
           ${marked(t) ? here : ''}</summary>
         <ul class="cb-units">${unitRows(t)}</ul>
@@ -249,9 +282,9 @@ function treeHtml(data, boards, solutions) {
       const onPath = !!mk?.openNodeIds?.includes(n.id);
       return `<details class="cb-snode" ${onPath ? 'open' : ''}>
         <summary><span class="cb-twisty" aria-hidden="true"></span>
-          <span class="nb-icon" aria-hidden="true">${n.kind === 'section' ? '📑' : '📂'}</span><span class="cb-node-title cb-row-title" title="${escapeAttr(n.title)}">${escapeHtml(n.title)}</span>
+          <span class="nb-icon" aria-hidden="true">${ico(n.kind === 'section' ? 'section' : 'folder')}</span><span class="cb-node-title cb-row-title" title="${escapeAttr(n.title)}">${escapeHtml(n.title)}</span>
           <span class="nb-meta">${data.pending ? `${units.length} Module` : `${done}/${units.length} erledigt`}</span>
-          ${onPath ? '<span class="cb-here">📍</span>' : ''}</summary>
+          ${onPath ? `<span class="cb-here">${ico('pin', 'cb-pin')}</span>` : ''}</summary>
         <div class="cb-node-body">${body}</div></details>`;
     }).join('');
     const cards = data.assignments.filter((a) => (a.nodeId || null) === parentId).sort((x, y) => (x.order ?? 0) - (y.order ?? 0)).map(cardOf).join('');
@@ -264,6 +297,29 @@ function treeHtml(data, boards, solutions) {
 export class ClassbookStudent {
   constructor(app) {
     this.app = app;
+    homeInPlace = () => this._homeInPlace();
+  }
+
+  /**
+   * 🏠 ohne Neuladen: Aufgabe verlassen, die Startseite (noch im DOM) an derselben Stelle zeigen und
+   * im Hintergrund neu laden. Nur mit Tabs; die Quiz-Arena und die Klassenarbeit laden wie bisher neu.
+   */
+  _homeInPlace() {
+    const all = sessionGet(ALL_KEY) === '1';
+    if (!workspace.on || !this._el?.innerHTML.trim() || (all ? !this.all : !this.data)) return false;
+    this.app.quizView.leaveRun?.();
+    const login = this.app.loginView;
+    login._appContainer?.classList.add('hidden');
+    login._loginScreen?.classList.remove('hidden');
+    document.body.classList.remove('student-run', 'companion-run');
+    document.querySelector('#loginScreen .login-card')?.classList.add('login-card-wide');
+    this._el.classList.remove('hidden');
+    workspace.markHome();
+    const top = this._scrollTop || 0;
+    if (login._loginScreen) login._loginScreen.scrollTop = top;
+    const refresh = all ? this.homeAll({ quiet: true }) : this._home({ quiet: true });
+    void refresh.then(() => { if (login._loginScreen) login._loginScreen.scrollTop = top; }).catch(() => {});
+    return true;
   }
 
   get _el() { return document.getElementById('classbookSection'); }
@@ -462,7 +518,7 @@ export class ClassbookStudent {
   }
 
   /** Startseite; false, wenn die Anmeldung nicht mehr gilt. */
-  async _home() {
+  async _home({ quiet = false } = {}) {
     const s = classbookSession();
     const [data, boardList, solutionList] = await Promise.all([
       post(`${encodeURIComponent(this.token)}/home`, { ticket: s?.ticket, examOnly: s?.examOnly }).catch(() => null),
@@ -474,7 +530,7 @@ export class ClassbookStudent {
     const solutions = new Set(Array.isArray(solutionList) ? solutionList.map((b) => b.moduleId) : []);
     if (!data || data.failed) {
       if (data?.expired) {
-        if (await this._relogin()) return this._home();
+        if (await this._relogin()) return this._home({ quiet });
         saveSession(null);
         this._login(data.message || '');
         return true;
@@ -524,20 +580,20 @@ export class ClassbookStudent {
     const el = this._show(`
       ${preview ? `<p class="cb-preview-note">👁 <strong>Vorschau:</strong> ${examOnly ? 'So schreibt ein Schüler diese Klassenarbeit. Zählt nicht mit und lässt sich beliebig wiederholen.' : 'So sieht es deine Klasse. Ergebnisse und Blätter stehen im Klassennotizbuch als 🧪 und zählen nicht mit.'}</p>` : ''}
       <div class="cb-head">
-        <div><span class="quick-entry-label">📒 ${escapeHtml(data.className)}${data.scopeTitle ? ` · ${escapeHtml(data.scopeTitle)}` : ''}</span><h2>${escapeHtml(data.name)}</h2></div>
+        <div><span class="quick-entry-label">${ico('notebook')} ${escapeHtml(data.className)}${data.scopeTitle ? ` · ${escapeHtml(data.scopeTitle)}` : ''}</span><h2>${escapeHtml(data.name)}</h2></div>
         <span class="cb-head-actions">
-          ${preview ? '' : inApp() ? '<button type="button" class="btn btn-secondary btn-sm" id="cbToList" title="Alle deine Klassennotizbücher">☰ Alle</button>'
-            : '<button type="button" class="btn btn-secondary btn-sm" id="cbInstall" title="Klassennotizbuch als App auf den Home-Bildschirm – öffnet direkt hier, angemeldet">📲 Als App</button>'}
-          <button type="button" class="btn btn-secondary btn-sm" id="cbLogout">${preview ? 'Vorschau beenden' : 'Abmelden'}</button>
+          ${preview ? '' : inApp() ? `<button type="button" class="btn btn-secondary cb-head-btn" id="cbToList" title="Alle deine Klassennotizbücher">${ico('list')} Alle</button>`
+            : '<button type="button" class="btn btn-secondary cb-head-btn" id="cbInstall" title="Klassennotizbuch als App auf den Home-Bildschirm – öffnet direkt hier, angemeldet">📲 Als App</button>'}
+          <button type="button" class="btn btn-secondary cb-head-btn" id="cbLogout">${preview ? 'Vorschau beenden' : `${ico('logout')} Abmelden`}</button>
         </span>
       </div>
       <p class="hint cb-install-hint hidden" id="cbInstallHint"></p>
-      ${exams ? `<h3 class="cb-section">📝 Klassenarbeit</h3>${exams}` : ''}
-      ${examOnly ? '' : `<h3 class="cb-section">📋 Aufgaben</h3>
+      ${exams ? `<h3 class="cb-section">${ico('exam')} Klassenarbeit</h3>${exams}` : ''}
+      ${examOnly ? '' : `<h3 class="cb-section">${ico('tasks')} Aufgaben</h3>
       ${assignments ? `<div class="cb-tree">${assignments}</div>` : '<p class="hint">Gerade sind keine Aufgaben freigegeben.</p>'}
       ${data.pending
         ? '<p class="hint cb-pending">Deine Ergebnisse und Blätter erscheinen hier, sobald deine Lehrkraft deinen Namen in der Klassenliste bestätigt hat.</p>'
-        : `<h3 class="cb-section">📈 Meine Ergebnisse</h3>${results}<h3 class="cb-section">✍️ Meine Blätter</h3>${works}`}`}`);
+        : `<h3 class="cb-section">${ico('chart')} Meine Ergebnisse</h3>${results}<h3 class="cb-section">${ico('pen')} Meine Blätter</h3>${works}`}`}`);
     el.querySelector('#cbToList')?.addEventListener('click', () => { this._stopWatch(); workspace.stop(); this.showList(); });
     el.querySelector('#cbInstall')?.addEventListener('click', async () => {
       // Chrome, Edge: Dialog des Browsers. iPad/iPhone: Teilen → Zum Home-Bildschirm.
@@ -599,7 +655,7 @@ export class ClassbookStudent {
       await this._home();
     });
     // 📍 Merker: dorthin scrollen und den Fokus aufs Modul legen.
-    const here = el.querySelector('.cb-marked .cb-unit');
+    const here = quiet ? null : el.querySelector('.cb-marked .cb-unit');
     if (here) {
       here.scrollIntoView({ block: 'center' });
       here.focus({ preventScroll: true });
@@ -815,11 +871,11 @@ export class ClassbookStudent {
    * 🏠 Home mit allen Klassennotizbüchern (Schulkonto): je Klasse ihr Baum, darunter Klassenarbeiten.
    * Ergebnisse und Blätter stehen im einzelnen Klassennotizbuch (📒 öffnen).
    */
-  async homeAll() {
+  async homeAll({ quiet = false } = {}) {
     const list = signedBooks();
     if (list.length < 2) { sessionSet(ALL_KEY, null); if (list[0]) await this.start(list[0].token); else this.showList(); return; }
     sessionSet(ALL_KEY, '1');
-    this._show('<p class="hint">Deine Klassennotizbücher werden geladen …</p>');
+    if (!quiet) this._show('<p class="hint">Deine Klassennotizbücher werden geladen …</p>');
     const loaded = await Promise.all(list.map(async (b) => {
       const [data, boards, solutions] = await Promise.all([
         post(`${encodeURIComponent(b.token)}/home`, { ticket: b.ticket }).catch(() => null),
@@ -845,15 +901,15 @@ export class ClassbookStudent {
     const EXAM = { open: '📝 Klassenarbeit starten', running: '📝 Weiterschreiben', reentry: '📝 Wieder einsteigen' };
     const el = this._show(`
       <div class="cb-head">
-        <div><span class="quick-entry-label">📒 Meine Klassennotizbücher</span><h2>${escapeHtml(name)}</h2></div>
-        <span class="cb-head-actions"><button type="button" class="btn btn-secondary btn-sm" id="cbLogoutAll">Abmelden</button></span>
+        <div><span class="quick-entry-label">${ico('notebook')} Meine Klassennotizbücher</span><h2>${escapeHtml(name)}</h2></div>
+        <span class="cb-head-actions"><button type="button" class="btn btn-secondary cb-head-btn" id="cbLogoutAll">${ico('logout')} Abmelden</button></span>
       </div>
       ${ok.map(({ b, data, boards, solutions }) => {
         const exams = (data.exams || []).filter((x) => EXAM[x.state]).map((x) => `<div class="cb-exam" data-link="${escapeAttr(x.linkId)}"><strong>📝 ${escapeHtml(x.name)}</strong>
           <button type="button" class="btn btn-primary btn-sm" data-exam>${EXAM[x.state]}</button></div>`).join('');
         const tree = treeHtml(data, boards, solutions);
         return `<details class="cb-book-tree" data-cb-token="${escapeAttr(b.token)}" open>
-          <summary><span class="cb-twisty" aria-hidden="true"></span><span class="nb-icon" aria-hidden="true">📒</span>
+          <summary><span class="cb-twisty" aria-hidden="true"></span><span class="nb-icon" aria-hidden="true">${ico('notebook')}</span>
             <span class="cb-row-title">${escapeHtml(data.className)}${data.scopeTitle ? ` · ${escapeHtml(data.scopeTitle)}` : ''}</span>
             <span class="nb-meta">${escapeHtml(b.teacher || '')}</span>
             <button type="button" class="btn btn-secondary btn-sm" data-cb-only title="Nur dieses Klassennotizbuch – mit Ergebnissen und Blättern">Ergebnisse ›</button></summary>
@@ -1015,6 +1071,11 @@ export class ClassbookStudent {
     const chosen = mode || (assignment?.modes.includes('quiz') ? 'quiz' : assignment?.modes[0]) || 'quiz';
     if (btn) btn.disabled = true;
     this.current = { linkId, moduleId: onlyModule || null };
+    // Vom Home aus: Stelle merken (🏠 kommt dorthin zurück) und den Wechsel abdecken.
+    const fromHome = !this._el.classList.contains('hidden');
+    if (fromHome) this._scrollTop = document.getElementById('loginScreen')?.scrollTop || 0;
+    const covered = workspace.on && !fromTab && mode !== 'exam';
+    if (covered) transition.show('open');
     try {
       const res = await post(`${encodeURIComponent(this.token)}/enter`, { ticket: s?.ticket, linkId, exam: chosen === 'exam' });
       if (!res?.linkToken) throw new Error(res?.message || 'Diese Aufgabe ist gerade nicht freigegeben.');
@@ -1035,7 +1096,9 @@ export class ClassbookStudent {
       document.querySelector('#loginScreen .login-card')?.classList.remove('login-card-wide');
       this._el.classList.add('hidden');
       await this.app.loginView._enterLinkRun(res.linkToken, data, '', onlyModule);
+      if (covered) await transition.done();
     } catch (err) {
+      if (covered) transition.hide();
       this.app.showToast(err.message || 'Der Server ist nicht erreichbar.', 'error');
       if (btn) btn.disabled = false;
     }

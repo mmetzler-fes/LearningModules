@@ -412,6 +412,18 @@ export class QuizView {
   }
 
   /** Gemeinsames Umschalten in den Player, egal woher der Start kam. */
+  /** Aufgabe ohne Rückfrage verlassen (🏠 der Arbeitsfläche): Zeitmessung, Lernbegleitung und Anzeige aufräumen. */
+  leaveRun() {
+    this._endCompanion?.();
+    this._taskTimer?.dispose();
+    this._taskTimer = null;
+    this._finishing = false;
+    this.app.state.quizState = null;
+    this._quizPlayerArea?.classList.add('hidden');
+    this._quizResultArea?.classList.add('hidden');
+    if (this._quizModuleContainer) this._quizModuleContainer.innerHTML = '';
+  }
+
   _enterPlayer(title) {
     this._finishing = false;
     // Zeit bis zur ersten Antwort je Aufgabe – Grundlage der Quiz-Arena-Zeiten.

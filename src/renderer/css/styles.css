@@ -1456,6 +1456,16 @@ body {
   color: #dc2626;
 }
 
+/* Knöpfe erben die Schrift sonst nicht (iPad: Systemschrift des Knopfs). */
+.ctx-menu-item { font-family: inherit; line-height: 1.3; }
+.ctx-menu-item.ctx-has-icon { display: flex; align-items: center; gap: 10px; }
+.ctx-menu-icon { display: inline-flex; flex: 0 0 auto; color: var(--text-secondary, #475569); }
+.ctx-menu-icon svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.ctx-menu-label { flex: 1 1 auto; }
+.ctx-menu-heading { padding: 6px 10px 2px; font-size: 0.75rem; font-weight: 600; color: var(--text-secondary, #475569); text-transform: uppercase; letter-spacing: 0.03em; }
+/* Finger: größere Einträge. */
+@media (pointer: coarse) { .ctx-menu-item { padding: 11px 14px; font-size: 0.95rem; } }
+
 .dnd-draw-rect {
   position: absolute;
   border: 2px dashed var(--accent);
@@ -6844,3 +6854,52 @@ body.ws-on .ink-title { display: none; }
 .school-class-body .link-card-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 8px; }
 .school-pick-list { display: flex; flex-direction: column; gap: 6px; max-height: 60vh; overflow: auto; margin: 8px 0; }
 .school-pick-list .btn { justify-content: space-between; text-align: left; }
+
+/* ===== Schüler-Startseite (Klassennotizbuch, views/classbook-student.js): ganze Fläche, für den Finger ===== */
+.login-screen:has(.login-card-wide) { padding: 0; background: var(--bg-secondary); }
+.login-card.login-card-wide,
+body.ws-on .login-card.login-card-wide {
+  max-width: none; width: 100%; min-height: 100%; margin: 0;
+  border-radius: 0; box-shadow: none; padding: 24px clamp(16px, 4vw, 48px) 48px;
+}
+.cb-ico { width: 22px; height: 22px; flex: none; vertical-align: -5px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.quick-entry-label .cb-ico { width: 18px; height: 18px; vertical-align: -3px; color: var(--accent); }
+.cb-section { display: flex; align-items: center; gap: 8px; }
+.cb-section .cb-ico { color: var(--accent); }
+.cb-tree .nb-icon { display: inline-flex; color: var(--accent); }
+.cb-tree .cb-unit .cb-ico { width: 20px; height: 20px; color: var(--text-secondary); margin-right: 2px; vertical-align: middle; }
+.cb-tree .cb-unit .cb-ico.cb-pin { color: #ea580c; }
+.cb-pin { color: #ea580c; }
+.cb-here { display: inline-flex; align-items: center; gap: 4px; }
+.cb-worked .cb-ico { width: 18px; height: 18px; color: var(--accent); }
+.cb-actions .btn .cb-ico { width: 18px; height: 18px; vertical-align: -4px; }
+.cb-head-actions { align-items: center; }
+.cb-head-btn { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 8px 16px; font-size: 1rem; }
+.cb-head-btn .cb-ico { width: 20px; height: 20px; }
+/* Finger (iPad): größere Zeilen, Knöpfe und Aufklapp-Pfeile. */
+@media (pointer: coarse) {
+  .cb-tree details > summary, .cb-tree .cb-topic-title, .cb-tree .cb-units > li { min-height: 52px; font-size: 1.05rem; }
+  .cb-tree .cb-units > li { font-size: 1rem; }
+  .cb-twisty { width: 32px; font-size: 1.2rem; }
+  .cb-tree .cb-actions .btn { min-height: 40px; padding: 8px 14px; font-size: 0.95rem; }
+  .cb-tree .cb-units > li > .cb-unit { padding: 12px 0; }
+  .cb-weiter { min-height: 40px; }
+}
+
+/* ===== Arbeitsfläche: ruhiger Übergang zwischen Tabs und Home (js/workspace.js) ===== */
+.ws-cover {
+  position: fixed; left: 0; right: 0; bottom: 0; top: var(--lm-ws-top, 0px); z-index: 2050;
+  display: flex; align-items: center; justify-content: center;
+  background: #e2e8f0; opacity: 1; transition: opacity 0.18s ease-out;
+}
+.ws-cover.ws-cover-home { background: var(--bg-secondary, #fff); }
+.ws-cover.ws-cover-out { opacity: 0; pointer-events: none; }
+/* Ladekreis erst nach 0,3 s – schnelle Wechsel zeigen nur die ruhige Fläche. */
+.ws-spinner {
+  width: 34px; height: 34px; border-radius: 50%;
+  border: 3px solid color-mix(in srgb, var(--accent, #2563eb) 25%, transparent); border-top-color: var(--accent, #2563eb);
+  opacity: 0; animation: ws-spin 0.8s linear infinite, ws-appear 0.2s ease-out 0.3s forwards;
+}
+@keyframes ws-spin { to { transform: rotate(360deg); } }
+@keyframes ws-appear { to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .ws-cover { transition: none; } .ws-spinner { animation: ws-appear 0.2s ease-out 0.3s forwards; } }

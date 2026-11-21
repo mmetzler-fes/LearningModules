@@ -47,3 +47,4 @@ data/
 
 # Python-Pakete für den Python-Block (scripts/fetch-pyodide-packages.mjs)
 vendor/pyodide-packages/
+__pycache__/

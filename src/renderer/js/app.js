@@ -33,6 +33,7 @@ import { FederationAdminView } from './views/federation-admin.js';
 import { HtmlAppsAdminView } from './views/html-apps-admin.js';
 import { AdminFeedbackView } from './views/admin-feedback.js';
 import { initFeedback, openFeedback } from './feedback.js';
+import { startIconize } from './iconize.js';
 import { openDrawingForImage } from './views/drawings-dialog.js';
 import { nextcloudState, uploadImageToNextcloud, uploadAttachmentToNextcloud, pickNextcloudImage } from './views/nextcloud.js';
 import { openShortLinkDialog } from './views/short-link-dialog.js';
@@ -789,6 +790,8 @@ class App {
   async init() {
     // Neue Version auf dem Server (iPad-App bleibt im Hintergrund im Speicher): Aktualisieren anbieten.
     startUpdateCheck();
+    // Symbole statt Emojis in der Bedienoberfläche (Inhalte bleiben unberührt) – js/iconize.js.
+    startIconize();
     // 💬 Feedback: Fenster für alle; Knopf in der Seitenleiste (Lehrkräfte).
     initFeedback(this);
     document.getElementById('btnFeedback')?.addEventListener('click', () => openFeedback());

@@ -41,6 +41,7 @@ describe('FeedbackService', () => {
     expect(shortName('Anna Lena von Berg')).toBe('Anna B.');
     expect(shortName('Max M.')).toBe('Max M.');
     expect(shortName('Lea')).toBe('Lea');
+    expect(shortName('🧪 Test Martin')).toBe('🧪 Test M.');
     expect(shortName('max.mustermann@schule.de')).toBe('max M.');
     const rows = repo([{ id: 'f1', reporter: 'TG12 · Anna Berger (Schüler)' }, { id: 'f2', reporter: 'Martin Metzler (Admin)' }, { id: 'f3', reporter: 'Gast' }]);
     await new FeedbackService(rows as any, repo([]) as any).onModuleInit();

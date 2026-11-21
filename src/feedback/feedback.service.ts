@@ -13,15 +13,20 @@ const PER_HOUR = 30;
  * Nur Vorname und erster Buchstabe des Nachnamens: „Max Mustermann“ → „Max M.“,
  * „Mustermann, Max“ → „Max M.“. Bereits gekürzte Namen bleiben, wie sie sind.
  */
+const LETTER = new RegExp('\\p{L}', 'u');
+
 export function shortName(name: string): string {
   let parts = String(name || '').trim().replace(/\s+/g, ' ');
   if (!parts) return '';
   if (parts.includes('@') && !parts.includes(' ')) parts = parts.split('@')[0].replace(/[._-]+/g, ' ');
   const comma = parts.split(',').map((x) => x.trim()).filter(Boolean);
-  const words = comma.length === 2 ? [...comma[1].split(' '), ...comma[0].split(' ')] : parts.split(' ');
-  if (words.length === 1) return words[0];
-  const last = words[words.length - 1];
-  return `${words[0]} ${last.charAt(0).toLocaleUpperCase('de')}.`;
+  const all = comma.length === 2 ? [...comma[1].split(' '), ...comma[0].split(' ')] : parts.split(' ');
+  // Zeichen ohne Buchstaben (🧪 beim Testschüler) stehen davor und zählen nicht als Name.
+  const lead = all.filter((w) => !LETTER.test(w)).join(' ');
+  const words = all.filter((w) => LETTER.test(w));
+  if (!words.length) return lead;
+  const short = words.length === 1 ? words[0] : `${words[0]} ${words[words.length - 1].charAt(0).toLocaleUpperCase('de')}.`;
+  return lead ? `${lead} ${short}` : short;
 }
 
 /** „Klasse · Vorname N. (Rolle)“ – mehr über die Person wird nicht gespeichert. */

@@ -19,6 +19,7 @@ import { docChanged } from '../core/events/doc-changes';
 import { AiBridgeSessionRow } from '../core/entities/ai-bridge-session.entity';
 import { collectImages, maskImages, unmaskImages } from './ai-images';
 import { AI_QUIZ_TYPES, isAiQuizType, quizFormat, quizProblems, quizTypeName } from './quiz-format';
+import { soleDocument } from '../topics/sole-document';
 
 export interface AiBridgePermissions {
   organize: boolean;
@@ -50,6 +51,7 @@ export type UndoAction =
   | { kind: 'delete_plan_entries'; ids: string[]; label: string }
   | { kind: 'restore_plan_entry'; entry: { id: string; ownerId: string; nodeId: string; topicId: string; orderIndex: number }; label: string }
   | { kind: 'delete_topic'; id: string; label: string }
+  | { kind: 'rename_topic'; topicId: string; oldTitle: string; oldDescription: string; doc: { id: string; title: string } | null; label: string }
   | { kind: 'delete_module'; topicId: string; moduleId: string; label: string }
   | { kind: 'restore_module'; topicId: string; moduleId: string; oldTitle: string; oldContent: any; label: string };
 
@@ -78,6 +80,7 @@ export type AiBridgeOp =
   | { op: 'rename_notebook_node'; id: string; title: string }
   | { op: 'set_doc_settings'; id: string; kurs?: string; titelmuster?: string; numbering?: 'tree' | 'flat' | 'off' | 'inherit' }
   | { op: 'move_topic'; topicId: string; targetNodeId: string | null; index?: number | null }
+  | { op: 'rename_topic'; topicId: string; title: string; description?: string }
   | { op: 'move_modules'; moduleIds: string[]; topicId: string }
   | { op: 'create_plan_node'; kind: 'folder' | 'plan' | 'area' | 'section'; title: string; parentId?: string | null; ref?: string }
   | { op: 'rename_plan_node'; id: string; title: string }
@@ -676,6 +679,40 @@ export class AiBridgeService {
           break;
         }
 
+        case 'rename_topic': {
+          // Wie „Umbenennen“ im Notizbuch: Hat das Lernthema genau ein Dokument, das bisher gleich hieß,
+          // zieht dessen Titel mit (topics.update, sole-document.ts).
+          this.requirePerm(session, byTeacher, 'organize', i, item.op);
+          const topicId = resolveRef(item.topicId)!;
+          if (!topicId || !scopeSets.allowedTopics.has(topicId)) {
+            throw new ForbiddenException(`operations[${i}]: Lernthema „${topicId}“ ist nicht im freigegebenen Bereich.`);
+          }
+          const topic = await this.topicRepo.findOne({ where: { id: topicId } });
+          if (!topic) throw new NotFoundException(`operations[${i}]: Lernthema „${topicId}“ nicht gefunden.`);
+          const title = String(item.title || '').trim().slice(0, 120);
+          if (!title) throw new BadRequestException(`operations[${i}] (rename_topic): title fehlt.`);
+          const description = item.description === undefined ? undefined : String(item.description).trim().slice(0, 2000);
+          const sole = soleDocument(await this.moduleRepo.find({ where: { topicId } }));
+          const followsDoc = !!sole && (sole.title || '') === topic.title && title !== topic.title;
+          const summary = `Lernthema „${topic.title}“ → „${title}“ umbenannt${followsDoc ? ' (Dokument heißt mit)' : ''}`;
+          if (!dryRun) {
+            // Alte Werte vor dem Umbenennen festhalten.
+            const undo = {
+              kind: 'rename_topic' as const,
+              topicId,
+              oldTitle: topic.title,
+              oldDescription: topic.description || '',
+              doc: sole ? { id: sole.id, title: sole.title || '' } : null,
+              label: summary,
+            };
+            await this.topics.update(topicId, user, { title, ...(description !== undefined ? { description } : {}) } as any);
+            session.undoStack.push(undo);
+            session.log.push({ at: new Date().toISOString(), op: item.op, summary });
+          }
+          results.push({ index: i, op: item.op, ok: true, id: topicId, summary: dryRun ? `[Vorschau] ${summary}` : summary });
+          break;
+        }
+
         case 'move_modules': {
           // Dokumente und Quizze in ein anderes Lernthema – wie „↔️ Verschieben“ in der Oberfläche.
           this.requirePerm(session, byTeacher, 'organize', i, item.op);
@@ -1061,6 +1098,10 @@ export class AiBridgeService {
       case 'delete_topic':
         await this.topics.remove(action.id, user);
         break;
+      case 'rename_topic':
+        await this.topics.update(action.topicId, user, { title: action.oldTitle, description: action.oldDescription } as any);
+        if (action.doc) await this.moduleRepo.update({ id: action.doc.id, topicId: action.topicId }, { title: action.doc.title });
+        break;
       case 'delete_module':
         await this.moduleRepo.delete({ id: action.moduleId, topicId: action.topicId });
         break;
@@ -1113,6 +1154,11 @@ export class AiBridgeService {
         op: 'move_topic',
         description: 'Verschiebt ein Lernthema im Lernnotizbuch in einen Abschnitt/Bereich (targetNodeId darf auch ein "$ref" sein).',
         example: { op: 'move_topic', topicId: '<topic-id>', targetNodeId: '$sec_grund' },
+      },
+      {
+        op: 'rename_topic',
+        description: 'Benennt ein Lernthema um (description optional). Hat es genau ein Dokument, das bisher gleich hieß, heißt das Dokument mit – wie „Umbenennen“ im Notizbuch. Rückgängig machbar.',
+        example: { op: 'rename_topic', topicId: '<topic-id>', title: 'Anlassverfahren – Überblick, Simulation und Rechnen' },
       },
       {
         op: 'move_modules',
@@ -1343,6 +1389,7 @@ export class AiBridgeService {
         '`{"op":"rename_notebook_node","id":"<id>","title":"…"}`',
         '`{"op":"set_doc_settings","id":"<nodeId>","kurs":"BPE 8","numbering":"flat"}` – Kurs/Kopfzeile und Nummerierung (flat durchgezählt, tree gegliedert, off, inherit)',
         '`{"op":"move_topic","topicId":"<id>","targetNodeId":"<id|$ref>"}`',
+        '`{"op":"rename_topic","topicId":"<id>","title":"…","description":"…"}` – Lernthema umbenennen (description optional); ein einzelnes, gleich benanntes Dokument heißt mit',
         '`{"op":"move_modules","moduleIds":["<id>",…],"topicId":"<id|$ref>"}` – Dokumente/Quizze in ein anderes Lernthema',
         '`{"op":"create_plan_node","kind":"folder"|"plan"|"area"|"section","title":"…","parentId":"<id|$ref|null>","ref":"$p1"}`',
         '`{"op":"rename_plan_node","id":"<id>","title":"…"}`',

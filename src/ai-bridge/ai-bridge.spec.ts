@@ -172,6 +172,14 @@ describe('AiBridgeService (15-Minuten-KI-Token, Scope & Undo)', () => {
     };
 
     const topicsService: any = {
+      // wie TopicsService.update: ein einzelnes, gleich benanntes Dokument heißt mit
+      update: jest.fn(async (id: string, _u: any, data: any) => {
+        const t = topics.find((x) => x.id === id);
+        const docs = modules.filter((m) => m.topicId === id && m.type === 'document' && !m.parentId);
+        if (data.title !== undefined && docs.length === 1 && docs[0].title === t.title) docs[0].title = data.title;
+        Object.assign(t, data);
+        return t;
+      }),
       create: jest.fn(async (_u: any, data: any) => {
         const created = { id: `top-${topics.length + 1}`, ownerId: userId, title: data.title, description: data.description || '', modules: [] };
         topics.push(created);
@@ -518,5 +526,22 @@ describe('AiBridgeService (15-Minuten-KI-Token, Scope & Undo)', () => {
     await expect(service.executeBatch(session, { operations: [{ op: 'set_doc_settings', id: 'book-other', numbering: 'flat' }] })).rejects.toThrow(/nicht freigegeben/);
     await service.rollbackSession(user, info.id);
     expect(nbNodes.find((n) => n.id === 'sec-et-1').docSettings).toEqual({ autor: 'M. M.' });
+  });
+
+  it('Lernthema umbenennen: gleich benanntes einziges Dokument heißt mit, ⏪ stellt beides wieder her; nur im Bereich', async () => {
+    modules[0].title = 'Ohmsches Gesetz';
+    const { token, session: info } = await service.createSession(user, { notebookNodeIds: ['book-et'], planNodeIds: [] });
+    const session = await service.authenticateToken(token);
+    const dry = await service.executeBatch(session, { operations: [{ op: 'rename_topic', topicId: 'top-ohm', title: 'Ohm' }], dryRun: true } as any);
+    expect(dry.results[0].summary).toMatch(/\[Vorschau\].*„Ohmsches Gesetz“ → „Ohm“.*Dokument heißt mit/);
+    expect(topics.find((t) => t.id === 'top-ohm').title).toBe('Ohmsches Gesetz');
+    await service.executeBatch(session, { operations: [{ op: 'rename_topic', topicId: 'top-ohm', title: 'Ohm', description: 'neu' }] });
+    expect(topics.find((t) => t.id === 'top-ohm')).toMatchObject({ title: 'Ohm', description: 'neu' });
+    expect(modules[0].title).toBe('Ohm');
+    await expect(service.executeBatch(session, { operations: [{ op: 'rename_topic', topicId: 'top-secret', title: 'x' }] })).rejects.toThrow(/nicht im freigegebenen Bereich/);
+    await expect(service.executeBatch(session, { operations: [{ op: 'rename_topic', topicId: 'top-ohm', title: '  ' }] })).rejects.toThrow(/title fehlt/);
+    await service.rollbackSession(user, info.id);
+    expect(topics.find((t) => t.id === 'top-ohm')).toMatchObject({ title: 'Ohmsches Gesetz', description: 'U, R, I' });
+    expect(modules[0].title).toBe('Ohmsches Gesetz');
   });
 });

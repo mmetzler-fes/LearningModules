@@ -49,3 +49,10 @@ Dokument-Art um – nummeriert werden nur Arbeitsblätter. Im Baum (`GET tree`) 
 wie „↔️ Verschieben“ in der Oberfläche, Reihenfolge der Auswahl bleibt, ans Ende des Ziels.
 Zusammen mit `create_topic` (`"ref": "$t1"`, `"topicId": "$t1"`) wird aus einer Sammlung je Blatt
 ein eigenes Lernthema. ⏪ schiebt zurück und stellt die alte Reihenfolge wieder her.
+
+## Lernthemen umbenennen
+
+`rename_topic` (`topicId`, `title`, optional `description`) benennt ein Lernthema um – wie „Umbenennen“
+im Notizbuch: Hat das Lernthema genau ein Dokument, das bisher gleich hieß, heißt das Dokument mit.
+Wichen die Titel schon ab, bleibt das Dokument, wie es ist (Dokumente benennt `update_document` mit `title` um).
+⏪ stellt Titel, Beschreibung und Dokumenttitel wieder her.

@@ -566,6 +566,8 @@ function mountResultBlock(pre, ns, storeKey) {
       const show = () => { shown.textContent = `${Number(values[name]).toFixed(digits).replace('.', ',')}${spec.unit ? ` ${spec.unit}` : ''}`; };
       show();
       let play = null; // { t0, v0 }
+      // Python fragt das Tempo mit zeitlupe() ab (z. B. für Bewegungen zwischen den Bildern).
+      values.__zeitlupe = Number(speed.value);
       const setPlaying = (on) => {
         btnPlay.textContent = on ? '⏸' : '▶';
         btnPlay.setAttribute('aria-label', on ? 'Anhalten' : 'Abspielen');
@@ -597,7 +599,11 @@ function mountResultBlock(pre, ns, storeKey) {
         show();
         go();
       });
-      speed.addEventListener('change', () => { if (play) play = { t0: performance.now(), v0: Number(values[name]) }; });
+      speed.addEventListener('change', () => {
+        values.__zeitlupe = Number(speed.value);
+        if (play) play = { t0: performance.now(), v0: Number(values[name]) };
+        else go();
+      });
       fresh.afterRun = (ok) => { if (play) { if (ok) requestAnimationFrame(frame); else { play = null; setPlaying(false); } } };
       input.addEventListener('pointerdown', () => { if (play) { play = null; setPlaying(false); } });
       input.addEventListener('input', () => {

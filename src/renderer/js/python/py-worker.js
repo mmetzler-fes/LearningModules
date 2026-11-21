@@ -11,7 +11,7 @@
  *
  * Interaktive Darstellungen: regler(), auswahl() und schalter() melden der Seite ihr Bedienelement
  * (widget) und geben den aktuellen Wert zurück – den schickt die Seite bei jedem Lauf mit (widgets).
- * Dazu das Modul `lm` mit zeiger() für Zeigerdiagramme.
+ * Dazu das Modul `lm` (lm.py) mit zeiger() für Zeigerdiagramme und Zeitsimulation für Abläufe.
  */
 let base = '/vendor/pyodide/';
 let inputUrl = null;
@@ -25,49 +25,16 @@ let prepareMatplotlib = null;
 let matplotlibReady = false;
 let setWidgetValues = null;
 
-/** Hilfsmodul für Darstellungen: `from lm import zeiger` (liegt im Dateisystem von Pyodide). */
-const LM_MODULE = `
-"""Hilfen für Darstellungen in LearningModules."""
-import cmath as _cmath
-
-
-def zeiger(z, start=0, name='', farbe=None, ax=None, breite=0.012, seite=1, **kw):
-    \"\"\"Zeichnet einen Zeiger (komplexe Zahl z) ab start (komplex), beschriftet mit name.
-
-    seite=1: Beschriftung links der Pfeilrichtung, seite=-1: rechts davon.
-    Gibt das Ende des Zeigers zurück – so lassen sich Zeiger aneinanderhängen:
-        e = zeiger(U_R, name='$U_R$'); zeiger(U_L, start=e, name='$U_L$')
-    \"\"\"
-    import matplotlib.pyplot as plt
-    ax = ax or plt.gca()
-    if ax.get_aspect() == 'auto' and not getattr(ax, '_lm_zeiger', False):
-        ax.set_aspect('equal', adjustable='box')   # Winkel stimmen nur bei gleichem Maßstab
-    ax._lm_zeiger = True
-    z, start = complex(z), complex(start)
-    pfeil = ax.quiver(start.real, start.imag, z.real, z.imag, angles='xy', scale_units='xy', scale=1,
-                      color=farbe, width=breite, **kw)
-    ende = start + z
-    if name and abs(z) > 0:
-        mitte = start + z * 0.5
-        quer = z / abs(z) * 1j * (1 if seite >= 0 else -1)
-        ax.annotate(name, (mitte.real, mitte.imag), xytext=(quer.real * 13, quer.imag * 13),
-                    textcoords='offset points', ha='center', va='center', fontsize=12,
-                    color=farbe if farbe is not None else pfeil.get_facecolor()[0])
-    # Grenzen mitwachsen lassen (quiver tut das nicht von selbst)
-    ax.update_datalim([(start.real, start.imag), (ende.real, ende.imag)])
-    ax.autoscale_view()
-    return ende
-
-
-def polar(betrag, winkel_grad):
-    """Komplexe Zahl aus Betrag und Winkel in Grad."""
-    return _cmath.rect(betrag, _cmath.pi * winkel_grad / 180)
-
-
-def grad(z):
-    """Winkel einer komplexen Zahl in Grad."""
-    return _cmath.phase(complex(z)) * 180 / _cmath.pi
-`;
+/** Hilfsmodul für Darstellungen (`from lm import zeiger, Zeitsimulation`): lm.py neben dieser Datei,
+ *  beim Start ins Dateisystem von Pyodide gelegt. */
+async function lmModule() {
+  try {
+    const res = await fetch(new URL('./lm.py', import.meta.url), { cache: 'no-cache' });
+    return res.ok ? await res.text() : null;
+  } catch (_) {
+    return null;
+  }
+}
 
 function boot() {
   if (pyodide) return Promise.resolve(pyodide);
@@ -92,8 +59,9 @@ function boot() {
       self.lmImage = (png, mime) => postMessage({ type: 'image', id: current, png, mime: mime === 'image/svg+xml' ? mime : 'image/png' });
       self.lmWidget = (kind, name, spec) => postMessage({ type: 'widget', id: current, kind, name, spec: JSON.parse(spec) });
       try {
+        const lm = await lmModule();
         py.FS.mkdirTree('/home/pyodide');
-        py.FS.writeFile('/home/pyodide/lm.py', LM_MODULE);
+        if (lm) py.FS.writeFile('/home/pyodide/lm.py', lm);
       } catch (_) { /* ohne Hilfsmodul geht der Rest trotzdem */ }
       const helpers = py.globals.get('dict')();
       py.runPython(`
@@ -110,6 +78,8 @@ builtins.input = _lm_input
 # Wie in Jupyter: der Wert der letzten Zeile erscheint (außer mit ; am Ende).
 from pyodide.code import eval_code_async
 async def _lm_run(code, ns):
+    # Fassung des Codes: Zeitsimulation merkt sich Rechnungen nur, solange der Code gleich bleibt.
+    ns['__lm_fassung__'] = hash(code)
     result = await eval_code_async(code, ns, filename='<exec>')
     if result is not None:
         print(repr(result))
@@ -224,12 +194,19 @@ def svg(text):
     sys.stdout.flush()
     js.lmImage(base64.b64encode(str(text).encode('utf-8')).decode('ascii'), 'image/svg+xml')
 
+def zeitlupe():
+    """Gewähltes Tempo des zeit()-Reglers: 20 heißt 20-mal langsamer als echt (1 ohne Zeitregler)."""
+    try:
+        return max(1.0, float(_lm_values.get('__zeitlupe', 1)))
+    except (TypeError, ValueError):
+        return 1.0
+
 def spielt():
     """True, solange ein zeit()-Regler abspielt – z. B. um dann weniger zu zeichnen."""
     return bool(_lm_values.get('__spielt'))
 
 builtins.regler, builtins.auswahl, builtins.schalter = regler, auswahl, schalter
-builtins.zeit, builtins.spielt, builtins.bild, builtins.svg = zeit, spielt, bild, svg
+builtins.zeit, builtins.spielt, builtins.bild, builtins.svg, builtins.zeitlupe = zeit, spielt, bild, svg, zeitlupe
 builtins.slider, builtins.dropdown, builtins.checkbox = regler, auswahl, schalter
 if '/home/pyodide' not in sys.path:
     sys.path.insert(0, '/home/pyodide')

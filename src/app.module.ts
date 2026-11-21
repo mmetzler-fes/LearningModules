@@ -114,7 +114,7 @@ const RENDERER_DIR = join(__dirname, '..', 'src', 'renderer');
  * Oberfläche ausliefern – mit neuem Backend und altem Frontend als Ergebnis.
  */
 function noStaleUi(res: any, path: string) {
-  if (/\.(html|js|css)$/i.test(path)) {
+  if (/\.(html|js|css|py)$/i.test(path)) {
     res.setHeader('Cache-Control', 'no-cache, must-revalidate');
   }
 }

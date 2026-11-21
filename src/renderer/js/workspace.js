@@ -12,6 +12,11 @@ import { escapeHtml, escapeAttr } from './utils.js';
 const STORE = 'lm_ws:';
 const MAX_TABS = 12;
 
+/** Aktiver Tab dieses Browser-Tabs (sessionStorage): übersteht ein Neuladen, aber keinen Neustart. */
+const SESSION = 'lm_ws_active:';
+const sessionRead = (key) => { try { return sessionStorage.getItem(SESSION + key); } catch (_) { return null; } };
+const sessionWrite = (key, v) => { try { sessionStorage.setItem(SESSION + key, v); } catch (_) { /* ohne */ } };
+
 const read = (key) => { try { return JSON.parse(localStorage.getItem(STORE + key) || 'null'); } catch (_) { return null; } };
 const write = (key, v) => { try { localStorage.setItem(STORE + key, JSON.stringify(v)); } catch (_) { /* privater Modus */ } };
 
@@ -83,6 +88,8 @@ class Workspace {
   start({ key, onOpen, onHome, hideEmpty = false }) {
     this.hideEmpty = hideEmpty;
     if (this.key !== key) {
+      // Neu geladen (gleicher Browser-Tab): dieses Blatt danach wieder öffnen (reopenAfterUpdate).
+      this.reloadTab = sessionRead(key);
       const saved = read(key) || {};
       this.tabs = Array.isArray(saved.tabs) ? saved.tabs.filter((t) => t && t.id) : [];
       this.active = saved.active && this.tabs.some((t) => t.id === saved.active) ? saved.active : 'home';
@@ -110,7 +117,9 @@ class Workspace {
   }
 
   _save() {
-    if (this.key) write(this.key, { tabs: this.tabs, active: this.active });
+    if (!this.key) return;
+    write(this.key, { tabs: this.tabs, active: this.active });
+    sessionWrite(this.key, this.active);
   }
 
   /** Tab merken (oder nach vorn holen) und als aktiv markieren – ohne ihn zu öffnen (das tut der Gastgeber). */
@@ -136,10 +145,15 @@ class Workspace {
     this.render();
   }
 
-  /** Nach „🔄 Aktualisieren“: den Tab, der offen war, wieder öffnen (true, wenn es einen gab). */
+  /**
+   * Nach „🔄 Aktualisieren“ oder einem Neuladen der Seite: den Tab, der offen war, wieder öffnen
+   * (true, wenn es einen gab). Ein neuer Start (neues Fenster, neue Anmeldung) beginnt mit Home.
+   */
   reopenAfterUpdate() {
     let id = null;
     try { id = sessionStorage.getItem('lm_ws_reopen'); sessionStorage.removeItem('lm_ws_reopen'); } catch (_) { /* ohne */ }
+    id = id || this.reloadTab;
+    this.reloadTab = null;
     if (!id || !this.tabs.some((t) => t.id === id)) return false;
     void this.open(id);
     return true;

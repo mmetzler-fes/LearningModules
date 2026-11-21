@@ -1033,6 +1033,10 @@ export class BrowserApi {
     return this._fetch(`/api/school-classes?${q}`);
   }
   takeSchoolClass(id, classId = null) { return this._fetch(`/api/school-classes/${encodeURIComponent(id)}/take`, { method: 'POST', body: JSON.stringify({ classId }) }); }
+  /** Alle eigenen Klassen mit den Klassen der Schule abgleichen; `dryRun` = Vorschau. */
+  matchAllSchoolClasses(schoolYear, dryRun) {
+    return this._fetch('/api/school-classes/match-all', { method: 'POST', body: JSON.stringify({ schoolYear, dryRun }) });
+  }
   getSchoolClassLink(classId) { return this._fetch(`/api/school-classes/link/${encodeURIComponent(classId)}`); }
   syncClassFromSchool(classId, dryRun) { return this._fetch(`/api/school-classes/sync/${encodeURIComponent(classId)}`, { method: 'POST', body: JSON.stringify({ dryRun }) }); }
 

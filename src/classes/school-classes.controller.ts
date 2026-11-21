@@ -80,6 +80,12 @@ export class SchoolClassesController {
     return this.service.take(id, req.user, body || {});
   }
 
+  /** Alle eigenen Klassen abgleichen: `{ schoolYear?, dryRun? }` */
+  @Post('match-all')
+  matchAll(@Request() req: any, @Body() body: any) {
+    return this.service.matchAll(req.user, body || {});
+  }
+
   @Get('link/:classId')
   link(@Request() req: any, @Param('classId') classId: string) {
     return this.service.linkOf(classId, req.user);

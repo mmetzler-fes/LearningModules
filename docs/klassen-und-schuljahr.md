@@ -282,6 +282,13 @@ nur Name und Schülerzahl):
   am Menüpunkt die Zahl und oben auf der Seite, wer welche Klasse will:
   **✓ Freigeben** oder **Ablehnen**.
 
+**Vorhandene Klassen abgleichen** (z. B. damit die UserIDs ankommen): In der
+Klassenübersicht **🎓 Klassen der Schule → Alle meine Klassen mit der Schule
+abgleichen**. Die Vorschau zeigt je Klasse, was passiert: gleichnamige Klasse
+der Schule verbinden und aktualisieren, Freigabe anfragen oder nichts (keine
+gleichnamige – dann einzeln über **🔄 Aktualisieren** auf der Klassenkarte die
+Klasse der Schule wählen).
+
 Eine gleichnamige eigene Klasse wird dabei ergänzt, sonst neu angelegt. In
 der Klasse aktualisiert **🔄 Klasse aktualisieren → Über den Schuladmin** die
 Schülerliste später wieder aus den Klassen der Schule (mit Vorschau); bei

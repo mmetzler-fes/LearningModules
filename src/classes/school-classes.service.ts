@@ -389,6 +389,40 @@ export class SchoolClassesService {
     return { status: 'pending', name: sc.name };
   }
 
+  /**
+   * Alle eigenen Klassen eines Schuljahres mit den Klassen der Schule abgleichen: verbundene aktualisieren,
+   * unverbundene mit einer gleichnamigen Klasse der Schule verbinden (mit Autoregistrierung oder Freigabe
+   * sofort, sonst als Anfrage). `{ schoolYear?, dryRun? }` – die Vorschau sagt je Klasse, was passiert.
+   */
+  async matchAll(user: any, body: { schoolYear?: string; dryRun?: boolean }) {
+    if (!user?.schoolId) return { schoolYear: await this.year(body?.schoolYear), classes: [], noSchool: true };
+    const year = await this.year(body?.schoolYear);
+    const mine = await this.classRepo.find({ where: { ownerId: user.userId, schoolYear: year } });
+    const school = await this.scRepo.find({ where: { schoolId: user.schoolId, schoolYear: year } });
+    const byId = new Map(school.map((c) => [c.id, c]));
+    const out: any[] = [];
+    for (const k of mine.sort((a, b) => a.name.localeCompare(b.name, 'de', { numeric: true }))) {
+      const sc = (k.schoolClassId && byId.get(k.schoolClassId)) || school.find((c) => lower(c.name) === lower(k.name)) || null;
+      const base = { classId: k.id, className: k.name, schoolClass: sc?.name || null };
+      if (!sc) { out.push({ ...base, action: 'none' }); continue; }
+      const usable = await this.mayUse(sc, user.userId);
+      const linked = k.schoolClassId === sc.id;
+      if (!usable) {
+        const req = await this.reqRepo.findOne({ where: { schoolClassId: sc.id, teacherId: user.userId } });
+        const waiting = req?.status === 'pending';
+        out.push({ ...base, action: waiting ? 'pending' : 'request' });
+        if (!body?.dryRun && !waiting) await this.take(sc.id, user, { classId: k.id });
+        continue;
+      }
+      const { summary, apply } = await this.planClassSync(k.id, sc.id);
+      out.push({ ...base, action: linked ? 'sync' : 'link', ...summary });
+      if (body?.dryRun) continue;
+      if (linked) await apply();
+      else await this.take(sc.id, user, { classId: k.id });
+    }
+    return { schoolYear: year, dryRun: !!body?.dryRun, classes: out };
+  }
+
   /** Verbindung einer eigenen Klasse zur Schulliste: Name und Stand. */
   async linkOf(classId: string, user: any) {
     const klasse = await this.classes.ownedClass(classId, user);

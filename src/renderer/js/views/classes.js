@@ -229,6 +229,13 @@ export class ClassesView {
       ]);
     });
     this._btnImportAll?.addEventListener('click', () => this._fileInputAll.click());
+    document.getElementById('btnSchoolClassesTeacher')?.addEventListener('click', (e) => {
+      const r = e.currentTarget.getBoundingClientRect();
+      showContextMenu(r.left, r.bottom + 4, [
+        { label: '🔄 Alle meine Klassen mit der Schule abgleichen …', onClick: () => this._matchAllSchool() },
+        { label: '🎓 Klasse der Schule übernehmen …', onClick: () => this._pickSchoolClass() },
+      ]);
+    });
     document.getElementById('btnClassesTemplate')?.addEventListener('click', (e) => this._templateMenu(e.currentTarget));
     this._fileInputAll?.addEventListener('change', () => {
       const file = this._fileInputAll.files?.[0];
@@ -379,6 +386,7 @@ export class ClassesView {
     this._list.classList.remove('hidden');
     this._btnNew.classList.remove('hidden');
     this._btnImportAll?.classList.remove('hidden');
+    document.getElementById('btnSchoolClassesTeacher')?.classList.remove('hidden');
     document.getElementById('btnClassesTemplate')?.classList.remove('hidden');
 
     const classes = await this.app.api.getClasses(this._year);
@@ -407,11 +415,13 @@ export class ClassesView {
         </div>
         <div class="link-card-actions">
           <button class="btn btn-primary btn-sm btn-class-open">👥 Schülerliste</button>
+          <button class="btn btn-secondary btn-sm btn-class-update" title="Schülerliste aktualisieren: aus einer Datei oder über die Klassen der Schule (Schuladmin)">🔄 Aktualisieren</button>
           <button class="btn btn-secondary btn-sm btn-class-rename">✏️ Umbenennen</button>
           <button class="btn btn-danger btn-sm btn-class-delete" title="Klasse löschen">🗑</button>
         </div>`;
       void this._renderAccess(c.id, card.querySelector('.class-book-access'));
       card.querySelector('.btn-class-open').addEventListener('click', () => { this._openId = c.id; this.refresh(); });
+      card.querySelector('.btn-class-update').addEventListener('click', (e) => this._updateMenu(e.currentTarget, c));
       card.querySelector('.btn-class-rename').addEventListener('click', () => this._renameClass(c));
       card.querySelector('.btn-class-delete').addEventListener('click', () => this._deleteClass(c));
       this._list.appendChild(card);
@@ -521,6 +531,7 @@ export class ClassesView {
     this._notices.innerHTML = '';
     this._btnNew.classList.add('hidden');
     this._btnImportAll?.classList.add('hidden');
+    document.getElementById('btnSchoolClassesTeacher')?.classList.add('hidden');
     document.getElementById('btnClassesTemplate')?.classList.add('hidden');
     this._detail.classList.remove('hidden');
 
@@ -593,13 +604,7 @@ export class ClassesView {
         : `${klasse.name}: offen – neue Namen kommen als unbestätigte Einträge dazu.`, 'info');
     });
     this._detail.querySelector('.btn-class-back').addEventListener('click', () => { this._openId = null; this.refresh(); });
-    this._detail.querySelector('.btn-class-import').addEventListener('click', (e) => {
-      const r = e.currentTarget.getBoundingClientRect();
-      showContextMenu(r.left, r.bottom + 4, [
-        { label: '📥 Aus Datei einlesen (Schülerliste) …', onClick: () => this._fileInput.click() },
-        { label: '🎓 Über den Schuladmin aktualisieren', onClick: () => this._syncFromSchool(klasse) },
-      ]);
-    });
+    this._detail.querySelector('.btn-class-import').addEventListener('click', (e) => this._updateMenu(e.currentTarget, klasse));
     this.app.api.getSchoolClassLink(klasse.id).then((link) => {
       const line = this._detail.querySelector('.class-school-line');
       if (!line || failed(link)) return;
@@ -899,6 +904,63 @@ export class ClassesView {
       this.app.showToast(`„${res.className}“ übernommen: ${res.added} neu, ${res.updated} aktualisiert${res.renamed?.length ? `, Namen korrigiert: ${res.renamed.join('; ')}` : ''}.`, 'success');
       this._openId = res.classId;
     }
+    this.refresh();
+  }
+
+  /** 🔄 Klasse aktualisieren: aus Datei oder über den Schuladmin. */
+  _updateMenu(anchor, klasse) {
+    const r = anchor.getBoundingClientRect();
+    showContextMenu(r.left, r.bottom + 4, [
+      { label: '🎓 Über den Schuladmin aktualisieren', onClick: () => this._syncFromSchool(klasse) },
+      { label: '📥 Aus Datei einlesen (Schülerliste) …', onClick: () => { this._openId = klasse.id; this._fileInput.click(); } },
+    ]);
+  }
+
+  /**
+   * Alle eigenen Klassen des Schuljahres mit den Klassen der Schule abgleichen: Vorschau je Klasse, dann
+   * verbinden/aktualisieren (Autoregistrierung oder freigegeben) bzw. Freigabe anfragen.
+   */
+  async _matchAllSchool() {
+    const preview = await this.app.api.matchAllSchoolClasses(this._year, true);
+    if (failed(preview)) { this.app.showToast('Fehler: ' + (preview?.message || '?'), 'error'); return; }
+    if (preview.noSchool) { this.app.showToast('Du gehörst keiner Schule an – die Klassen der Schule pflegt der Schuladmin.', 'info'); return; }
+    if (!preview.classes.length) { this.app.showToast(`Im ${preview.schoolYear} hast du noch keine Klassen.`, 'info'); return; }
+    const what = (c) => ({
+      none: '<span class="hint">keine gleichnamige Klasse der Schule – einzeln über 🔄 Aktualisieren wählen</span>',
+      pending: '⏳ wartet auf Freigabe',
+      request: 'Freigabe beim Schuladmin anfragen',
+    })[c.action] || [c.action === 'link' ? 'verbinden' : '', c.added ? `${c.added} neu` : '', c.updated ? `${c.updated} aktualisiert` : '',
+      c.unchanged ? `${c.unchanged} unverändert` : ''].filter(Boolean).join(', ')
+      + (c.renamed?.length ? `<br><span class="hint">Name korrigiert: ${escapeHtml(c.renamed.join('; '))}</span>` : '');
+    const todo = preview.classes.filter((c) => c.action === 'request' || c.action === 'link' || (c.action === 'sync' && (c.added || c.updated)));
+    const ok = await new Promise((resolve) => {
+      const overlay = document.createElement('div');
+      overlay.className = 'confirm-overlay';
+      overlay.innerHTML = `
+        <div class="import-modules-card class-import-preview">
+          <h3>🔄 Klassen mit der Schule abgleichen (${escapeHtml(preview.schoolYear)})</h3>
+          <table class="class-students">
+            <thead><tr><th>Deine Klasse</th><th>Klasse der Schule</th><th></th></tr></thead>
+            <tbody>${preview.classes.map((c) => `<tr><td>${escapeHtml(c.className)}</td><td>${escapeHtml(c.schoolClass || '–')}</td><td>${what(c) || 'nichts zu ändern'}</td></tr>`).join('')}</tbody>
+          </table>
+          <p class="hint">Ergänzt werden neue Schüler, UserIDs und Namen mit kleinen Unterschieden. Niemand wird entfernt; PINs, Ergebnisse und Klassenlinks bleiben.</p>
+          <div class="confirm-actions">
+            <button class="btn btn-primary btn-ok" ${todo.length ? '' : 'disabled'}>Übernehmen</button>
+            <button class="btn btn-secondary btn-cancel">Abbrechen</button>
+          </div>
+        </div>`;
+      document.body.appendChild(overlay);
+      const done = (v) => { overlay.remove(); resolve(v); };
+      overlay.querySelector('.btn-ok').addEventListener('click', () => done(true));
+      overlay.querySelector('.btn-cancel').addEventListener('click', () => done(false));
+      overlay.addEventListener('click', (e) => { if (e.target === overlay) done(false); });
+    });
+    if (!ok) return;
+    const res = await this.app.api.matchAllSchoolClasses(this._year, false);
+    if (failed(res)) { this.app.showToast('Fehler: ' + (res?.message || '?'), 'error'); return; }
+    const updated = res.classes.filter((c) => c.action === 'sync' || c.action === 'link').length;
+    const asked = res.classes.filter((c) => c.action === 'request').length;
+    this.app.showToast(`${updated} Klasse(n) aktualisiert${asked ? `, ${asked} beim Schuladmin angefragt` : ''}.`, 'success');
     this.refresh();
   }
 

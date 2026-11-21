@@ -119,6 +119,27 @@ describe('SchoolClassesService', () => {
     await expect(svc.take(offer.classes[0].id, teacher, { classId: 'k2' })).resolves.toMatchObject({ status: 'linked', classId: 'k2', added: 1 });
   });
 
+  it('alle eigenen Klassen abgleichen: UserIDs kommen in vorhandene Klassen', async () => {
+    await svc.importForAdmin(admin, { rows: [row('TG12', 'Meier', 'Max', 'mmeier'), row('E1', 'Kurz', 'Tim', 'tkurz')] });
+    await svc.updateForAdmin((await svc.listForAdmin(admin)).classes.find((c: any) => c.name === 'TG12').id, admin, { autoRegister: true });
+    const repo = ds.getRepository(StudentClass);
+    await repo.save([
+      { id: 'k1', name: 'TG12', ownerId: 't1', schoolYear: YEAR, strict: false },
+      { id: 'k2', name: 'E1', ownerId: 't1', schoolYear: YEAR, strict: false },
+      { id: 'k3', name: 'AG Robotik', ownerId: 't1', schoolYear: YEAR, strict: false },
+    ] as any);
+    await ds.getRepository(ClassStudent).save({ id: 'st1', classId: 'k1', firstName: 'Max', lastName: 'Meier', status: 'confirmed', importId: null } as any);
+
+    const preview = await svc.matchAll(teacher, { dryRun: true });
+    expect(preview.classes.map((c: any) => [c.className, c.action])).toEqual([['AG Robotik', 'none'], ['E1', 'request'], ['TG12', 'link']]);
+    expect(await ds.getRepository(ClassStudent).findOne({ where: { id: 'st1' } })).toMatchObject({ loginId: null });
+
+    await svc.matchAll(teacher, {});
+    expect(await ds.getRepository(ClassStudent).findOne({ where: { id: 'st1' } })).toMatchObject({ loginId: 'mmeier' });
+    expect(await svc.pendingCount(admin)).toBe(1);
+    expect((await svc.matchAll(teacher, { dryRun: true })).classes.map((c: any) => c.action)).toEqual(['none', 'pending', 'sync']);
+  });
+
   it('nur Schuladmins der eigenen Schule', async () => {
     await expect(svc.importForAdmin(teacher, { rows: [row('A', 'B', 'C', 'd')] })).rejects.toThrow('Nur für Schuladmins');
     await svc.importForAdmin(admin, { rows: [row('A', 'B', 'C', 'd')] });

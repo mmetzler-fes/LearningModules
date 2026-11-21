@@ -86,6 +86,12 @@ export class SchoolClassesController {
     return this.service.matchAll(req.user, body || {});
   }
 
+  /** 🔄 Alle aktualisieren aus Datei: `{ rows: [{ className, lastName, firstName, loginId }], schoolYear?, dryRun? }` */
+  @Post('from-file')
+  fromFile(@Request() req: any, @Body() body: any) {
+    return this.service.updateFromFile(req.user, body || {});
+  }
+
   @Get('link/:classId')
   link(@Request() req: any, @Param('classId') classId: string) {
     return this.service.linkOf(classId, req.user);

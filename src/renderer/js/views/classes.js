@@ -1,5 +1,5 @@
 import { escapeHtml, escapeAttr, copyClassbookOneNote, showContextMenu } from '../utils.js';
-import { readStudentList, readClassLists, needsPassword, WrongPassword } from '../odf/student-list.js';
+import { readStudentList, readClassLists, readSchoolRoster, needsPassword, WrongPassword } from '../odf/student-list.js';
 import { buildOds, buildXlsx, buildCsv } from '../odf/sheet-templates.js';
 import { downloadBlob } from '../api.js';
 import { renderRetentionNotice } from './results.js';
@@ -232,9 +232,14 @@ export class ClassesView {
     document.getElementById('btnSchoolClassesTeacher')?.addEventListener('click', (e) => {
       const r = e.currentTarget.getBoundingClientRect();
       showContextMenu(r.left, r.bottom + 4, [
-        { label: '🔄 Alle meine Klassen mit der Schule abgleichen …', onClick: () => this._matchAllSchool() },
-        { label: '🎓 Klasse der Schule übernehmen …', onClick: () => this._pickSchoolClass() },
+        { label: '🎓 Über den Schuladmin (gleicher Klassenname) …', onClick: () => this._matchAllSchool() },
+        { label: '📥 Aus Datei (Nachname, Vorname, Klasse, UserID) …', onClick: () => document.getElementById('classesUpdateFile')?.click() },
       ]);
+    });
+    document.getElementById('classesUpdateFile')?.addEventListener('change', (e) => {
+      const file = e.target.files?.[0];
+      e.target.value = '';
+      if (file) void this._updateAllFromFile(file);
     });
     document.getElementById('btnClassesTemplate')?.addEventListener('click', (e) => this._templateMenu(e.currentTarget));
     this._fileInputAll?.addEventListener('change', () => {
@@ -962,6 +967,58 @@ export class ClassesView {
     const asked = res.classes.filter((c) => c.action === 'request').length;
     this.app.showToast(`${updated} Klasse(n) aktualisiert${asked ? `, ${asked} beim Schuladmin angefragt` : ''}.`, 'success');
     this.refresh();
+  }
+
+  /**
+   * 🔄 Alle aktualisieren → Aus Datei: Tabelle wie beim Schuladmin (Nachname, Vorname, Klasse, UserID).
+   * Jede eigene Klasse mit gleichem Namen wird abgeglichen; Vorschau vor dem Übernehmen.
+   */
+  async _updateAllFromFile(file) {
+    const rows = await this._readFile(file, readSchoolRoster);
+    if (!rows) return;
+    if (!rows.length) { this.app.showToast('Die Datei enthält keine Schüler.', 'info'); return; }
+    const preview = await this.app.api.updateClassesFromFile(rows, this._year, true);
+    if (failed(preview)) { this.app.showToast('Fehler: ' + (preview?.message || '?'), 'error'); return; }
+    const what = (c) => c.action === 'none'
+      ? '<span class="hint">keine eigene Klasse mit diesem Namen – übersprungen</span>'
+      : [c.added ? `${c.added} neu` : '', c.updated ? `${c.updated} aktualisiert` : '', c.unchanged ? `${c.unchanged} unverändert` : '']
+        .filter(Boolean).join(', ') + (c.renamed?.length ? `<br><span class="hint">Name korrigiert: ${escapeHtml(c.renamed.join('; '))}</span>` : '')
+        + (c.duplicates?.length ? `<br><span class="link-card-warning">Doppelt in der Datei: ${escapeHtml(c.duplicates.join(', '))}</span>` : '');
+    const todo = preview.classes.filter((c) => c.action === 'update' && (c.added || c.updated));
+    if (!(await this._confirmTable(`🔄 Klassen aus „${file.name}“ aktualisieren`, ['Klasse', 'Schuljahr', ''],
+      preview.classes.map((c) => [escapeHtml(c.className), escapeHtml(c.schoolYear), what(c) || 'nichts zu ändern']), todo.length))) return;
+    const res = await this.app.api.updateClassesFromFile(rows, this._year, false);
+    if (failed(res)) { this.app.showToast('Fehler: ' + (res?.message || '?'), 'error'); return; }
+    const done = res.classes.filter((c) => c.action === 'update');
+    const skipped = res.classes.filter((c) => c.action === 'none').length;
+    this.app.showToast(`${done.length} Klasse(n) aktualisiert, ${done.reduce((n, c) => n + c.added, 0)} Schüler neu${skipped ? `, ${skipped} Klasse(n) ohne eigene Klasse übersprungen` : ''}.`, 'success');
+    this.refresh();
+  }
+
+  /** Vorschau als Tabelle mit „Übernehmen“ (aus, wenn es nichts zu tun gibt). `rows`: Zellen als HTML. */
+  _confirmTable(title, head, rows, enabled) {
+    return new Promise((resolve) => {
+      const overlay = document.createElement('div');
+      overlay.className = 'confirm-overlay';
+      overlay.innerHTML = `
+        <div class="import-modules-card class-import-preview">
+          <h3>${escapeHtml(title)}</h3>
+          <table class="class-students">
+            <thead><tr>${head.map((h) => `<th>${escapeHtml(h)}</th>`).join('')}</tr></thead>
+            <tbody>${rows.map((r) => `<tr>${r.map((c) => `<td>${c}</td>`).join('')}</tr>`).join('')}</tbody>
+          </table>
+          <p class="hint">Ergänzt werden neue Schüler, UserIDs und Namen mit kleinen Unterschieden. Niemand wird entfernt; PINs, Ergebnisse und Klassenlinks bleiben.</p>
+          <div class="confirm-actions">
+            <button class="btn btn-primary btn-ok" ${enabled ? '' : 'disabled'}>Übernehmen</button>
+            <button class="btn btn-secondary btn-cancel">Abbrechen</button>
+          </div>
+        </div>`;
+      document.body.appendChild(overlay);
+      const done = (v) => { overlay.remove(); resolve(v); };
+      overlay.querySelector('.btn-ok').addEventListener('click', () => done(true));
+      overlay.querySelector('.btn-cancel').addEventListener('click', () => done(false));
+      overlay.addEventListener('click', (e) => { if (e.target === overlay) done(false); });
+    });
   }
 
   /** Klasse aktualisieren → Über den Schuladmin: verbunden = Vorschau und abgleichen, sonst Klasse wählen. */

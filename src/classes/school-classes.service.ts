@@ -449,9 +449,36 @@ export class SchoolClassesService {
 
   /** Schülerliste der Lehrkraft gegen die Schulliste – Lehrkräfte als Teilnehmer bleiben außen vor. */
   private async planClassSync(classId: string, schoolClassId: string) {
-    const current = (await this.studentRepo.find({ where: { classId } })).filter((s) => !s.userId);
     const rows = await this.scsRepo.find({ where: { schoolClassId } });
-    const plan = planRosterSync(current, rows.map((r) => ({ firstName: r.firstName, lastName: r.lastName, loginId: r.loginId })));
+    return this.planClassRows(classId, rows.map((r) => ({ firstName: r.firstName, lastName: r.lastName, loginId: r.loginId })));
+  }
+
+  /**
+   * 🔄 Alle aktualisieren → Aus Datei: Tabelle wie beim Schuladmin (Nachname, Vorname, Klasse, UserID).
+   * Jede eigene Klasse mit gleichem Namen im Schuljahr wird abgeglichen (ergänzen, UserIDs, Namen angleichen,
+   * niemand entfernt); Klassen der Datei ohne eigene Klasse werden nur genannt. `{ rows, schoolYear?, dryRun? }`
+   */
+  async updateFromFile(user: any, body: { rows?: any[]; schoolYear?: string; dryRun?: boolean }) {
+    const raw = Array.isArray(body?.rows) ? body.rows : [];
+    if (raw.length === 0) throw new BadRequestException('Die Datei enthält keine Schüler.');
+    if (raw.length > MAX_ROWS) throw new BadRequestException(`Höchstens ${MAX_ROWS} Zeilen je Import.`);
+    const groups = groupByClass(raw, await this.year(body?.schoolYear));
+    if (groups.length === 0) throw new BadRequestException('In der Datei steht bei keinem Schüler eine Klasse.');
+    const mine = await this.classRepo.find({ where: { ownerId: user.userId, schoolYear: In([...new Set(groups.map((g) => g.schoolYear))]) } });
+    const out: any[] = [];
+    for (const g of groups) {
+      const k = mine.find((c) => c.schoolYear === g.schoolYear && lower(c.name) === lower(g.name));
+      if (!k) { out.push({ className: g.name, schoolYear: g.schoolYear, action: 'none', rows: g.students.length }); continue; }
+      const { summary, apply } = await this.planClassRows(k.id, g.students);
+      out.push({ className: k.name, schoolYear: g.schoolYear, action: 'update', ...summary });
+      if (!body?.dryRun) await apply();
+    }
+    return { dryRun: !!body?.dryRun, classes: out };
+  }
+
+  private async planClassRows(classId: string, rows: Array<{ firstName: string; lastName: string; loginId?: string | null }>) {
+    const current = (await this.studentRepo.find({ where: { classId } })).filter((s) => !s.userId);
+    const plan = planRosterSync(current, rows);
     const apply = async () => {
       const byId = new Map(current.map((s) => [s.id, s]));
       const changed = plan.update.map((u) => Object.assign(byId.get(u.id) as ClassStudent, {

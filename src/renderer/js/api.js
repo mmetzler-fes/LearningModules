@@ -1037,6 +1037,10 @@ export class BrowserApi {
   matchAllSchoolClasses(schoolYear, dryRun) {
     return this._fetch('/api/school-classes/match-all', { method: 'POST', body: JSON.stringify({ schoolYear, dryRun }) });
   }
+  /** Alle eigenen Klassen aus einer Datei im Schuladmin-Format aktualisieren; `dryRun` = Vorschau. */
+  updateClassesFromFile(rows, schoolYear, dryRun) {
+    return this._fetch('/api/school-classes/from-file', { method: 'POST', body: JSON.stringify({ rows, schoolYear, dryRun }) });
+  }
   getSchoolClassLink(classId) { return this._fetch(`/api/school-classes/link/${encodeURIComponent(classId)}`); }
   syncClassFromSchool(classId, dryRun) { return this._fetch(`/api/school-classes/sync/${encodeURIComponent(classId)}`, { method: 'POST', body: JSON.stringify({ dryRun }) }); }
 

@@ -140,6 +140,20 @@ describe('SchoolClassesService', () => {
     expect((await svc.matchAll(teacher, { dryRun: true })).classes.map((c: any) => c.action)).toEqual(['none', 'pending', 'sync']);
   });
 
+  it('alle Klassen aus einer Datei im Schuladmin-Format aktualisieren', async () => {
+    await ds.getRepository(StudentClass).save({ id: 'k1', name: 'TG12', ownerId: 't1', schoolYear: YEAR, strict: false } as any);
+    await ds.getRepository(ClassStudent).save({ id: 'st1', classId: 'k1', firstName: 'Max', lastName: 'Maier', status: 'confirmed', importId: null } as any);
+    const rows = [row('tg12', 'Meier', 'Max', 'mmeier'), row('TG12', 'Neu', 'Nina', 'nneu'), row('E1', 'Kurz', 'Tim', 'tkurz')];
+    const preview = await svc.updateFromFile(teacher, { rows, dryRun: true });
+    expect(preview.classes).toEqual([
+      expect.objectContaining({ className: 'TG12', action: 'update', added: 1, updated: 1 }),
+      expect.objectContaining({ className: 'E1', action: 'none' }),
+    ]);
+    await svc.updateFromFile(teacher, { rows });
+    expect(await ds.getRepository(ClassStudent).findOne({ where: { id: 'st1' } })).toMatchObject({ lastName: 'Meier', loginId: 'mmeier' });
+    expect(await ds.getRepository(ClassStudent).count({ where: { classId: 'k1' } })).toBe(2);
+  });
+
   it('nur Schuladmins der eigenen Schule', async () => {
     await expect(svc.importForAdmin(teacher, { rows: [row('A', 'B', 'C', 'd')] })).rejects.toThrow('Nur für Schuladmins');
     await svc.importForAdmin(admin, { rows: [row('A', 'B', 'C', 'd')] });

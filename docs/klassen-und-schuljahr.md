@@ -282,12 +282,19 @@ nur Name und Schülerzahl):
   am Menüpunkt die Zahl und oben auf der Seite, wer welche Klasse will:
   **✓ Freigeben** oder **Ablehnen**.
 
-**Vorhandene Klassen abgleichen** (z. B. damit die UserIDs ankommen): In der
-Klassenübersicht **🎓 Klassen der Schule → Alle meine Klassen mit der Schule
-abgleichen**. Die Vorschau zeigt je Klasse, was passiert: gleichnamige Klasse
-der Schule verbinden und aktualisieren, Freigabe anfragen oder nichts (keine
-gleichnamige – dann einzeln über **🔄 Aktualisieren** auf der Klassenkarte die
-Klasse der Schule wählen).
+**🔄 Alle aktualisieren** (Leiste der Klassenübersicht) gleicht alle eigenen
+Klassen des Schuljahres auf einmal ab – z. B. damit die UserIDs ankommen:
+
+- **Über den Schuladmin (gleicher Klassenname):** Jede Klasse, zu der es eine
+  Klasse der Schule mit identischem Namen gibt, wird verbunden und aktualisiert
+  (mit Autoregistrierung oder Freigabe sofort, sonst wird die Freigabe angefragt).
+- **Aus Datei:** eine Tabelle wie beim Schuladmin mit `Nachname`, `Vorname`,
+  `Klasse`, `UserID`. Jede eigene Klasse mit gleichem Namen wird aktualisiert;
+  Klassen der Datei, die du nicht hast, werden übersprungen.
+
+Beide zeigen erst eine Vorschau je Klasse. Ergänzt werden neue Schüler, UserIDs
+und Namen mit bis zu 3 Zeichen Unterschied; niemand wird entfernt. Eine
+einzelne Klasse aktualisiert **🔄 Aktualisieren** auf ihrer Karte.
 
 Eine gleichnamige eigene Klasse wird dabei ergänzt, sonst neu angelegt. In
 der Klasse aktualisiert **🔄 Klasse aktualisieren → Über den Schuladmin** die

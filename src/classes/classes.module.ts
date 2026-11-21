@@ -20,11 +20,16 @@ import { ClassBoard } from '../core/entities/class-board.entity';
 import { ClassSolution } from '../core/entities/class-solution.entity';
 import { LearningTopic } from '../core/entities/learning-topic.entity';
 import { LearningModule } from '../core/entities/learning-module.entity';
+import { SchoolClass } from '../core/entities/school-class.entity';
+import { SchoolClassStudent } from '../core/entities/school-class-student.entity';
+import { SchoolClassRequest } from '../core/entities/school-class-request.entity';
+import { SchoolClassesService } from './school-classes.service';
+import { MySchoolClassesController, SchoolClassesController } from './school-classes.controller';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([StudentClass, ClassStudent, SystemConfig, Result, TopicLink, ClassShare, User, DocumentWork, ExamAttempt, RunProgress, ClassbookProgress, ClassNotebook, ClassNotebookNode, ClassNotebookPlace, LearningTopic, LearningModule, ClassBoard, ClassSolution])],
-  controllers: [ClassesController],
-  providers: [ClassesService],
+  imports: [TypeOrmModule.forFeature([StudentClass, ClassStudent, SystemConfig, Result, TopicLink, ClassShare, User, DocumentWork, ExamAttempt, RunProgress, ClassbookProgress, ClassNotebook, ClassNotebookNode, ClassNotebookPlace, LearningTopic, LearningModule, ClassBoard, ClassSolution, SchoolClass, SchoolClassStudent, SchoolClassRequest])],
+  controllers: [ClassesController, MySchoolClassesController, SchoolClassesController],
+  providers: [ClassesService, SchoolClassesService],
   exports: [ClassesService],
 })
 export class ClassesModule {}

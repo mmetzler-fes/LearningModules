@@ -6835,3 +6835,12 @@ body.ws-on .ink-title { display: none; }
 .cb-book-tree > summary { display: flex; align-items: center; gap: 8px; cursor: pointer; font-weight: 700; font-size: 1.08rem; list-style: none; }
 .cb-book-tree > summary::-webkit-details-marker { display: none; }
 .cb-book-tree > summary .btn { margin-left: auto; }
+
+/* 🎓 Klassen der Schule (Schuladmin) */
+.class-request-box { margin-bottom: 14px; border-left: 4px solid var(--warning, #f59e0b); }
+.school-classes-auto-all { margin: 6px 0 14px; }
+.school-class summary { display: flex; flex-wrap: wrap; gap: 8px; align-items: baseline; cursor: pointer; }
+.school-class-body { padding: 8px 0 4px; }
+.school-class-body .link-card-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 8px; }
+.school-pick-list { display: flex; flex-direction: column; gap: 6px; max-height: 60vh; overflow: auto; margin: 8px 0; }
+.school-pick-list .btn { justify-content: space-between; text-align: left; }

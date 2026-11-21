@@ -324,6 +324,10 @@
         <button class="nav-btn" data-view="school-admin">
           <span class="nav-icon">🏫</span> Meine Schule
         </button>
+        <button class="nav-btn" data-view="school-classes">
+          <span class="nav-icon">🎓</span> Klassen der Schule
+          <span class="nav-alert hidden" id="navSchoolClassesAlert" title="Lehrkräfte warten auf die Freigabe einer Klasse"></span>
+        </button>
       </nav>
 
       <!-- Student Navigation -->
@@ -1069,6 +1073,22 @@
           </div>
         </div>
         <div id="adminSchoolsContainer" class="topics-list"></div>
+      </section>
+
+      <!-- Schuladmin: Klassen der Schule -->
+      <section class="view" id="view-school-classes">
+        <div class="view-header">
+          <h2>🎓 Klassen der Schule <button type="button" class="help-hint" data-help="klassen-und-schuljahr#klassen-der-schule" title="Hilfe" aria-label="Hilfe">?</button></h2>
+          <p class="subtitle">Alle Klassen mit einer Tabelle einlesen (Nachname, Vorname, Klasse, UserID). Lehrkräfte übernehmen
+            sie in ihre Klassen – mit ⚡ Autoregistrierung sofort, sonst nach deiner Freigabe.</p>
+        </div>
+        <div class="topic-actions-bar classes-bar">
+          <label class="classes-year">Schuljahr <select id="schoolClassesYear"></select></label>
+          <button class="btn btn-primary" id="btnSchoolClassesImport" title="Tabelle (LibreOffice, Excel, CSV) mit Nachname, Vorname, Klasse und UserID">📥 Klassen einlesen</button>
+          <button class="btn btn-secondary" id="btnSchoolClassesTemplate" title="Leere Tabelle mit den passenden Spalten">📄 Vorlage</button>
+        </div>
+        <div id="schoolClassesList" class="links-list"></div>
+        <input type="file" id="schoolClassesFile" accept=".ods,.xlsx,.csv,.txt" class="hidden" />
       </section>
 
       <!-- Schuladmin: Meine Schule -->

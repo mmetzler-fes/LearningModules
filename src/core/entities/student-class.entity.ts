@@ -48,6 +48,14 @@ export class StudentClass extends BaseEntity {
   @Column({ type: 'varchar', nullable: true })
   rolledOver: string | null;
 
+  /**
+   * Verbunden mit einer Klasse der Schulliste (SchoolClass): „Klasse aktualisieren → Über den
+   * Schuladmin“ gleicht die Schülerliste damit ab.
+   */
+  @Index()
+  @Column({ type: 'varchar', nullable: true })
+  schoolClassId: string | null;
+
   /** Klasse des Vorjahres, aus der diese übernommen wurde. */
   @Column({ type: 'varchar', nullable: true })
   predecessorId: string | null;

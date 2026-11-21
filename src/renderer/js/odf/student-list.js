@@ -187,3 +187,38 @@ export async function readTableRows(file, password) {
   const sheets = await sheetsOf(file, password);
   return sheets[0]?.rows || [];
 }
+
+/**
+ * Klassenliste der Schule (Schuladmin → 🎓 Klassen der Schule): eine Tabelle mit den Spalten
+ * Nachname (oder Name), Vorname, Klasse und UserID (oder Benutzername, E-Mail …) für alle Klassen.
+ * Gelesen wird das erste Blatt mit dieser Kopfzeile. Liefert [{ className, lastName, firstName, loginId }].
+ */
+export async function readSchoolRoster(file, password) {
+  let sheets;
+  if (/\.(csv|txt)$/i.test(file.name)) sheets = [{ name: '', rows: readCsv(await file.text()) }];
+  else if (isOds(file) || isXlsx(file)) sheets = await sheetsOf(file, password);
+  else throw new Error('Bitte eine .ods-, .xlsx- oder .csv-Datei wählen.');
+  const CLASS_HEADERS = ['klasse', 'klassen', 'klassenname', 'klassenbezeichnung', 'class'];
+  for (const sheet of sheets) {
+    const rows = sheet.rows;
+    const headerIndex = rows.slice(0, 15).findIndex((r) => {
+      const cells = r.map(norm);
+      return cells.includes('vorname') && (cells.includes('name') || cells.includes('nachname')) && cells.some((c) => CLASS_HEADERS.includes(c));
+    });
+    if (headerIndex < 0) continue;
+    const header = rows[headerIndex].map(norm);
+    const colLast = header.indexOf('nachname') >= 0 ? header.indexOf('nachname') : header.indexOf('name');
+    const colFirst = header.indexOf('vorname');
+    const colClass = header.findIndex((h) => CLASS_HEADERS.includes(h));
+    const colLogin = header.findIndex((h) => LOGIN_HEADERS.includes(h));
+    return rows.slice(headerIndex + 1)
+      .map((r) => ({
+        className: (r[colClass] || '').trim(),
+        lastName: (r[colLast] || '').trim(),
+        firstName: (r[colFirst] || '').trim(),
+        loginId: colLogin >= 0 ? (r[colLogin] || '').trim() || null : null,
+      }))
+      .filter((r) => r.firstName || r.lastName);
+  }
+  throw new Error('Keine Kopfzeile mit den Spalten „Nachname“, „Vorname“ und „Klasse“ gefunden (dazu „UserID“).');
+}

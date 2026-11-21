@@ -977,6 +977,7 @@ export class LoginView {
       this._startTeacherTabs(currentUser);
       this.app.navigateToView(startView || 'teacher-notebooks');
       this.app.classesView.checkRollover();
+      if (currentUser.isSchoolAdmin) void this.app.schoolClassesView.checkPending();
       if (currentUser.role === 'admin') this.app.adminView.load();
       void this.app.openPendingFiles(); // per „Öffnen mit“ vor der Anmeldung gekommen
     } else {

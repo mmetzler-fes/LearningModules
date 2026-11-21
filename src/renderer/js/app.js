@@ -14,6 +14,7 @@ import { LinksView } from './views/links.js';
 import { TagsView } from './views/tags.js';
 import { ShopView } from './views/shop.js';
 import { SchoolsAdminView, MySchoolView } from './views/schools.js';
+import { SchoolClassesView } from './views/school-classes.js';
 import { TwoFactorDialog } from './views/two-factor.js';
 import { SessionsDialog } from './views/sessions.js';
 import { UserSettingsDialog } from './views/user-settings.js';
@@ -111,6 +112,7 @@ class App {
     this.shopView     = new ShopView(this);
     this.schoolsView  = new SchoolsAdminView(this);
     this.mySchoolView = new MySchoolView(this);
+    this.schoolClassesView = new SchoolClassesView(this);
     this.twoFactorDialog = new TwoFactorDialog(this);
     this.sessionsDialog = new SessionsDialog(this);
     this.userSettings = new UserSettingsDialog(this);
@@ -484,6 +486,7 @@ class App {
       case 'admin-schools':     this.schoolsView.refresh(); break;
       case 'admin-groups':      this.adminView.refreshGroups(); break;
       case 'school-admin':      this.mySchoolView.refresh(); break;
+      case 'school-classes':    this.schoolClassesView.refresh(); break;
       case 'admin-whitelist':   this.adminView.refreshWhitelistBlacklist(); break;
       case 'admin-categories':  this.categoriesAdminView.refresh(); break;
       case 'admin-federation':  this.federationAdminView.refresh(); break;

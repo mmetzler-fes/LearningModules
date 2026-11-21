@@ -1006,6 +1006,29 @@ export class BrowserApi {
     return this._fetch(`/api/admin/schools/users/${encodeURIComponent(userId)}`, { method: 'PATCH', body: JSON.stringify(body) });
   }
 
+  // ---------- Klassen der Schule ----------
+  /** Schuladmin: Klassenliste der Schule eines Schuljahres mit Schülern und Anfragen. */
+  getSchoolClassesAdmin(year) { return this._fetch(`/api/my-school/classes${year ? `?year=${encodeURIComponent(year)}` : ''}`); }
+  getSchoolClassRequestsPending() { return this._fetch('/api/my-school/classes/pending'); }
+  /** `{ rows, schoolYear, autoRegister, dryRun }` */
+  importSchoolClasses(data) { return this._fetch('/api/my-school/classes/import', { method: 'POST', body: JSON.stringify(data) }); }
+  updateSchoolClass(id, body) { return this._fetch(`/api/my-school/classes/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(body) }); }
+  setSchoolClassesAutoRegister(schoolYear, autoRegister) {
+    return this._fetch('/api/my-school/classes/auto-register', { method: 'POST', body: JSON.stringify({ schoolYear, autoRegister }) });
+  }
+  deleteSchoolClass(id) { return this._fetch(`/api/my-school/classes/${encodeURIComponent(id)}`, { method: 'DELETE' }); }
+  deleteSchoolClassStudent(id, studentId) {
+    return this._fetch(`/api/my-school/classes/${encodeURIComponent(id)}/students/${encodeURIComponent(studentId)}`, { method: 'DELETE' });
+  }
+  answerSchoolClassRequest(requestId, accept) {
+    return this._fetch(`/api/my-school/classes/requests/${encodeURIComponent(requestId)}/${accept ? 'approve' : 'decline'}`, { method: 'POST' });
+  }
+  /** Lehrkraft: Klassen der Schule zum Übernehmen (ohne Schülernamen). */
+  getSchoolClasses(year) { return this._fetch(`/api/school-classes${year ? `?year=${encodeURIComponent(year)}` : ''}`); }
+  takeSchoolClass(id, classId = null) { return this._fetch(`/api/school-classes/${encodeURIComponent(id)}/take`, { method: 'POST', body: JSON.stringify({ classId }) }); }
+  getSchoolClassLink(classId) { return this._fetch(`/api/school-classes/link/${encodeURIComponent(classId)}`); }
+  syncClassFromSchool(classId, dryRun) { return this._fetch(`/api/school-classes/sync/${encodeURIComponent(classId)}`, { method: 'POST', body: JSON.stringify({ dryRun }) }); }
+
   // ---------- Meine Schule (Schuladmin) ----------
   getMySchool() { return this._fetch('/api/my-school'); }
   getMySchoolFeatures() { return this._fetch('/api/my-school/features'); }

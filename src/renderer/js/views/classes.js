@@ -221,7 +221,13 @@ export class ClassesView {
       this._openId = null;
       this.refresh();
     });
-    this._btnNew?.addEventListener('click', () => this._createClass());
+    this._btnNew?.addEventListener('click', (e) => {
+      const r = e.currentTarget.getBoundingClientRect();
+      showContextMenu(r.left, r.bottom + 4, [
+        { label: '➕ Neue Klasse anlegen', onClick: () => this._createClass() },
+        { label: '🎓 Aus den Klassen der Schule übernehmen …', onClick: () => this._pickSchoolClass() },
+      ]);
+    });
     this._btnImportAll?.addEventListener('click', () => this._fileInputAll.click());
     document.getElementById('btnClassesTemplate')?.addEventListener('click', (e) => this._templateMenu(e.currentTarget));
     this._fileInputAll?.addEventListener('change', () => {
@@ -525,7 +531,7 @@ export class ClassesView {
         <button class="btn btn-secondary btn-sm btn-class-back">← Alle Klassen</button>
         <h3>🏫 ${escapeHtml(klasse.name)} <span class="class-year">${escapeHtml(klasse.schoolYear || '')}</span></h3>
         <div class="link-card-actions">
-          <button class="btn btn-secondary btn-sm btn-class-import" title="Klassenliste aus dem SchülerLernTool oder Tabelle (LibreOffice, Excel, CSV) mit Name und Vorname, optional ID/Benutzername des Schulkontos. Erneut einlesen ergänzt fehlende Benutzernamen – PINs und Ergebnisse bleiben">📥 Schülerliste einlesen</button>
+          <button class="btn btn-secondary btn-sm btn-class-import" title="Schülerliste aktualisieren: aus einer Datei (SchülerLernTool, LibreOffice, Excel, CSV) oder über die Klassen der Schule vom Schuladmin – PINs und Ergebnisse bleiben">🔄 Klasse aktualisieren</button>
           <button class="btn btn-secondary btn-sm btn-class-template" title="Leere Tabelle mit den passenden Spalten zum Ausfüllen">📄 Vorlage</button>
           ${helpHint('klassen-und-schuljahr#schuelerliste-einlesen', 'Hilfe: Schülerliste einlesen')}
           <button class="btn btn-secondary btn-sm btn-class-rename">✏️ Umbenennen</button>
@@ -534,6 +540,7 @@ export class ClassesView {
       </div>
       <div class="class-book-access class-book-access-full"><span class="hint">📒 Klassenbuch-Link wird geladen …</span></div>
       <p class="hint class-shares-line"></p>
+      <p class="hint class-school-line"></p>
       <p class="hint">${students.length === 1 ? '1 Schüler' : `${students.length} Schüler`}${pending ? ` · ${pending} unbestätigt – bei der Anmeldung entstanden: bestätigen (✓) oder einem Schüler zuordnen (⇄)` : ''}</p>
       <label class="tag-filter-mode class-strict-toggle">
         <input type="checkbox" class="chk-class-strict" ${klasse.strict ? 'checked' : ''} />
@@ -586,7 +593,19 @@ export class ClassesView {
         : `${klasse.name}: offen – neue Namen kommen als unbestätigte Einträge dazu.`, 'info');
     });
     this._detail.querySelector('.btn-class-back').addEventListener('click', () => { this._openId = null; this.refresh(); });
-    this._detail.querySelector('.btn-class-import').addEventListener('click', () => this._fileInput.click());
+    this._detail.querySelector('.btn-class-import').addEventListener('click', (e) => {
+      const r = e.currentTarget.getBoundingClientRect();
+      showContextMenu(r.left, r.bottom + 4, [
+        { label: '📥 Aus Datei einlesen (Schülerliste) …', onClick: () => this._fileInput.click() },
+        { label: '🎓 Über den Schuladmin aktualisieren', onClick: () => this._syncFromSchool(klasse) },
+      ]);
+    });
+    this.app.api.getSchoolClassLink(klasse.id).then((link) => {
+      const line = this._detail.querySelector('.class-school-line');
+      if (!line || failed(link)) return;
+      if (link.linked) line.textContent = `🎓 Verbunden mit „${link.linked.name}“ aus den Klassen der Schule${link.linked.usable ? '' : ' – wartet auf Freigabe'}.`;
+      else if (link.pending) line.textContent = `⏳ „${link.pending.name}“ aus den Klassen der Schule wartet auf die Freigabe durch den Schuladmin.`;
+    });
     this._detail.querySelector('.btn-class-template').addEventListener('click', (e) => this._templateMenu(e.currentTarget, klasse.name));
     this._detail.querySelector('.btn-class-rename').addEventListener('click', () => this._renameClass(klasse));
     this._detail.querySelector('.btn-class-share').addEventListener('click', () => this._shareClass(klasse));
@@ -830,6 +849,80 @@ export class ClassesView {
     this._renderDetail();
   }
 
+  // ---- Klassen der Schule (Schuladmin) ----
+
+  /**
+   * Klasse aus den Klassen der Schule wählen. Ohne `klasse`: neue eigene Klasse; mit: diese damit
+   * verbinden. Mit Autoregistrierung sofort, sonst wartet die Anfrage auf den Schuladmin.
+   */
+  async _pickSchoolClass(klasse = null) {
+    const data = await this.app.api.getSchoolClasses(klasse?.schoolYear || this._year);
+    if (failed(data)) { this.app.showToast('Fehler: ' + (data?.message || '?'), 'error'); return; }
+    if (data.noSchool) { this.app.showToast('Du gehörst keiner Schule an – die Klassen der Schule pflegt der Schuladmin.', 'info'); return; }
+    if (!data.classes.length) {
+      this.app.showToast(`Der Schuladmin hat für ${data.schoolYear} noch keine Klassen der Schule eingelesen.`, 'info');
+      return;
+    }
+    const same = (c) => klasse && c.name.toLocaleLowerCase('de') === klasse.name.toLocaleLowerCase('de');
+    const list = [...data.classes].sort((a, b) => Number(same(b)) - Number(same(a)));
+    const state = (c) => c.linkedClasses.length ? `✓ übernommen (${c.linkedClasses.map((k) => k.name).join(', ')})`
+      : c.request === 'pending' ? '⏳ wartet auf Freigabe'
+        : c.request === 'declined' ? 'abgelehnt – erneut anfragen'
+          : c.autoRegister ? '⚡ sofort' : 'mit Freigabe';
+    const picked = await new Promise((resolve) => {
+      const overlay = document.createElement('div');
+      overlay.className = 'confirm-overlay';
+      overlay.innerHTML = `
+        <div class="import-modules-card class-import-preview">
+          <h3>🎓 ${klasse ? `„${escapeHtml(klasse.name)}“ über den Schuladmin aktualisieren` : 'Klasse der Schule übernehmen'}</h3>
+          <p class="hint">Klassen der Schule im ${escapeHtml(data.schoolYear)}. ⚡ übernimmst du sofort; die übrigen gibt der Schuladmin frei –
+            danach steht die Schülerliste in deiner Klasse${klasse ? '' : ' (eine gleichnamige eigene Klasse wird ergänzt, sonst neu angelegt)'}.</p>
+          <div class="school-pick-list">${list.map((c) => `
+            <button type="button" class="btn btn-secondary" data-id="${escapeAttr(c.id)}">
+              <span><strong>${escapeHtml(c.name)}</strong> · ${c.studentCount} Schüler</span><span class="hint">${escapeHtml(state(c))}</span>
+            </button>`).join('')}</div>
+          <div class="confirm-actions"><button class="btn btn-secondary btn-cancel">Abbrechen</button></div>
+        </div>`;
+      document.body.appendChild(overlay);
+      const done = (v) => { overlay.remove(); resolve(v); };
+      overlay.querySelectorAll('[data-id]').forEach((b) => b.addEventListener('click', () => done(list.find((c) => c.id === b.dataset.id))));
+      overlay.querySelector('.btn-cancel').addEventListener('click', () => done(null));
+      overlay.addEventListener('click', (e) => { if (e.target === overlay) done(null); });
+    });
+    if (!picked) return;
+    const res = await this.app.api.takeSchoolClass(picked.id, klasse?.id || null);
+    if (failed(res)) { this.app.showToast('Fehler: ' + (res?.message || '?'), 'error'); return; }
+    if (res.status === 'pending') {
+      this.app.showToast(`Angefragt: „${res.name}“ – sobald der Schuladmin freigibt, steht die Klasse mit Schülerliste bei dir.`, 'info');
+    } else {
+      this.app.showToast(`„${res.className}“ übernommen: ${res.added} neu, ${res.updated} aktualisiert${res.renamed?.length ? `, Namen korrigiert: ${res.renamed.join('; ')}` : ''}.`, 'success');
+      this._openId = res.classId;
+    }
+    this.refresh();
+  }
+
+  /** Klasse aktualisieren → Über den Schuladmin: verbunden = Vorschau und abgleichen, sonst Klasse wählen. */
+  async _syncFromSchool(klasse) {
+    const link = await this.app.api.getSchoolClassLink(klasse.id);
+    if (failed(link)) { this.app.showToast('Fehler: ' + (link?.message || '?'), 'error'); return; }
+    if (!link.linked || !link.linked.usable) {
+      if (link.pending && !(await this.app.appConfirm(`„${link.pending.name}“ wartet noch auf die Freigabe durch den Schuladmin.\n\nEine andere Klasse der Schule wählen?`))) return;
+      await this._pickSchoolClass(klasse);
+      return;
+    }
+    const preview = await this.app.api.syncClassFromSchool(klasse.id, true);
+    if (failed(preview)) { this.app.showToast('Fehler: ' + (preview?.message || '?'), 'error'); return; }
+    if (preview.added === 0 && preview.updated === 0) {
+      this.app.showToast(`Nichts zu ändern – die Klasse passt zu „${preview.schoolClass}“ der Schule.`, 'info');
+      return;
+    }
+    if (!(await this._confirmImport({ className: preview.schoolClass }, preview))) return;
+    const res = await this.app.api.syncClassFromSchool(klasse.id, false);
+    if (failed(res)) { this.app.showToast('Fehler: ' + (res?.message || '?'), 'error'); return; }
+    this.app.showToast(`Aktualisiert: ${res.added} neu, ${res.updated} aktualisiert.`, 'success');
+    this._renderDetail();
+  }
+
   // ---- Import ----
 
   /**
@@ -977,7 +1070,8 @@ export class ClassesView {
       overlay.innerHTML = `
         <div class="import-modules-card class-import-preview">
           <h3>📥 Schülerliste einlesen</h3>
-          ${list.className ? `<p class="hint">Aus der Datei: Klasse „${escapeHtml(list.className)}“.</p>` : ''}
+          ${list.className ? `<p class="hint">${preview.schoolClass ? 'Aus den Klassen der Schule' : 'Aus der Datei'}: Klasse „${escapeHtml(list.className)}“.</p>` : ''}
+          ${preview.renamed?.length ? `<p class="hint">Name korrigiert (ein Buchstabe Unterschied): ${escapeHtml(preview.renamed.join('; '))}</p>` : ''}
           ${preview.added ? `<p><strong>${preview.added} neu</strong></p><ul>${names(preview.addNames)}</ul>` : ''}
           ${preview.updated ? `<p><strong>${preview.updated} aktualisiert</strong></p><ul>${names(preview.updateNames)}</ul>` : ''}
           ${preview.unchanged ? `<p>${preview.unchanged} unverändert</p>` : ''}

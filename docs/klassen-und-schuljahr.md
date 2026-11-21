@@ -185,7 +185,7 @@ dazukommen; **Danach strikt** ist vorgewählt.
 
 ### Schülerliste einlesen
 
-**📥 Schülerliste einlesen** nimmt
+**🔄 Klasse aktualisieren → Aus Datei einlesen** nimmt
 
 - die **Klassenliste des SchülerLernTools** (`.ods`, mit dem App-Passwort
   verschlüsselt): Klassenseite → `⋯` → Klassenliste exportieren;
@@ -233,6 +233,49 @@ wird. Dabei gilt:
 | sonst gleicher Name (Groß-/Kleinschreibung egal) | derselbe Schüler, er bekommt die Schüler-ID; ein unbestätigter Eintrag gilt damit als bestätigt |
 | sonst | neuer Schüler |
 | Schüler fehlt in der Datei | bleibt in der Klasse |
+
+## Klassen der Schule
+
+Der **Schuladmin** pflegt unter *Schuladmin → 🎓 Klassen der Schule* alle Klassen
+der Schule mit einer einzigen Tabelle (LibreOffice, Excel oder CSV, **📄 Vorlage**):
+
+| Nachname | Vorname | Klasse | UserID |
+|---|---|---|---|
+| Mustermann | Max | TG12 | max.mustermann |
+
+`Name` statt `Nachname` geht auch, ebenso `Benutzername` oder `E-Mail` statt
+`UserID` (gespeichert wird der Teil vor dem @). Das Schuljahr ist das gewählte;
+ein Vorsatz wie `SJ26-27-TG12` in der Spalte Klasse legt es je Zeile fest.
+
+Beim Einlesen, je Klasse der Datei:
+
+| Fall | Ergebnis |
+|---|---|
+| Klasse mit gleichem Namen gibt es schon | wird aktualisiert |
+| anderer Name, aber teilweise dieselben Schüler (die Hälfte der Klasse, höchstens 3) | **übersprungen** – am Ende steht, mit welcher Klasse sie sich deckt. Mit ✏️ Umbenennen den Namen an die Tabelle angleichen und noch einmal einlesen |
+| sonst | neue Klasse |
+
+Schüler werden über die UserID zugeordnet, sonst über den gleichen Namen,
+sonst über einen Namen, der sich nur um **einen Buchstaben** unterscheidet
+(auch ein Buchstabendreher wie „Adrain“) – dann wird der Name aus der Datei
+übernommen. Wer in der Datei fehlt, bleibt; einzeln entfernen geht mit 🗑.
+
+**Übernehmen durch Lehrkräfte.** Unter *Klassen → ➕ Neue Klasse → Aus den
+Klassen der Schule übernehmen* wählt eine Lehrkraft eine Klasse (sie sieht
+nur Name und Schülerzahl):
+
+- **⚡ Autoregistrierung** (je Klasse oder für alle im Schuljahr): Die Klasse
+  steht sofort mit Schülerliste bei ihr.
+- sonst wartet die Anfrage. Der Schuladmin sieht beim Anmelden einen Hinweis,
+  am Menüpunkt die Zahl und oben auf der Seite, wer welche Klasse will:
+  **✓ Freigeben** oder **Ablehnen**.
+
+Eine gleichnamige eigene Klasse wird dabei ergänzt, sonst neu angelegt. In
+der Klasse aktualisiert **🔄 Klasse aktualisieren → Über den Schuladmin** die
+Schülerliste später wieder aus den Klassen der Schule (mit Vorschau); bei
+einer noch nicht verbundenen Klasse wählt man zuerst die Klasse der Schule.
+*Aus Datei einlesen* geht wie bisher. PINs, Ergebnisse und Klassenlinks
+bleiben, die Liste der Lehrkraft bleibt ihre eigene Kopie.
 
 ## Klassenergebnisse
 

@@ -60,6 +60,8 @@ export async function openAiBridgeDialog(app, { onDone = null, regenerate = null
       (z.&nbsp;B. Claude, ChatGPT, Gemini). Die KI erhält nur Zugriff auf die unten freigegebenen Ordner – niemals auf
       Schülerdaten oder Noten. Alle KI-Änderungen lassen sich hier mit einem Klick rückgängig machen.</p>`}
 
+    <div class="aib-persistent ${regenerate ? 'hidden' : ''}"></div>
+    <div class="aib-runs"></div>
     <div class="aib-sessions"></div>
 
     <details class="aib-create-box" open>
@@ -95,6 +97,8 @@ export async function openAiBridgeDialog(app, { onDone = null, regenerate = null
           </label>
           <label class="share-flag aib-quiz-formats ${regenerate ? 'hidden' : ''}" title="Nur nötig, wenn deine KI keinen Webzugriff hat (normaler Chat) und Quizze anlegen soll – sonst holt sie sich das Format selbst">
             <input type="checkbox" class="aib-with-quiz" /> <span>🧠 Quiz-Formate gleich in die Anleitung (für KIs ohne Webzugriff, etwa 7.000 Zeichen mehr)</span></label>
+          <label class="share-flag aib-persistent-label ${regenerate ? 'hidden' : ''}" title="Das Token bleibt gültig – du schaltest den Zugang jeweils für eine Weile ein. Jeder Aufruf der KI wird vorläufig übernommen; du nimmst ihn an oder lehnst ihn ab.">
+            <input type="checkbox" class="aib-persistent-flag" /> <span>🔑 Dauerhafter Zugang: Token einmal in der KI hinterlegen, hier jeweils einschalten; Änderungen annehmen oder ablehnen</span></label>
           <label class="aib-ttl-label">Gültigkeit:
             <select class="aib-ttl">
               <option value="30">30 Minuten</option>
@@ -161,6 +165,103 @@ export async function openAiBridgeDialog(app, { onDone = null, regenerate = null
     $('.aib-pl-list').classList.toggle('hidden', e.target.checked);
   });
 
+  // ---- Dauerhafter Zugang und offene KI-Änderungen ----
+  const fmt = (iso) => new Date(iso).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' });
+  const renderPersistent = (sessions) => {
+    const box = $('.aib-persistent');
+    const p = (sessions || []).find((x) => x.persistent);
+    $('.aib-persistent-label span').textContent = p
+      ? '🔑 Neues Token für den dauerhaften Zugang (das alte gilt dann nicht mehr; offene Änderungen bleiben)'
+      : '🔑 Dauerhafter Zugang: Token einmal in der KI hinterlegen, hier jeweils einschalten; Änderungen annehmen oder ablehnen';
+    if (!p) { box.innerHTML = ''; return; }
+    const mins = Math.ceil((p.remainingSeconds || 0) / 60);
+    box.innerHTML = `<div class="aib-session-item aib-persistent-item">
+      <div class="aib-session-head">
+        <strong>🔑 Dauerhafter KI-Zugang <code>${escapeHtml(p.tokenPreview)}</code></strong> ·
+        ${p.active ? `<span class="pl-in">🟢 eingeschaltet (noch ca. ${mins} Min.)</span>` : '<span class="hint">⚪ ausgeschaltet</span>'}
+        <span class="aib-session-actions">
+          <select class="aib-activate-min" aria-label="Wie lange">
+            <option value="30">30 Min.</option><option value="60" selected>1 Std.</option><option value="120">2 Std.</option><option value="240">4 Std.</option>
+          </select>
+          <button type="button" class="btn btn-primary btn-sm" data-activate="${escapeAttr(p.id)}">▶ ${p.active ? 'Neu stellen' : 'Einschalten'}</button>
+          ${p.active ? `<button type="button" class="btn btn-secondary btn-sm" data-revoke="${escapeAttr(p.id)}">⏹ Ausschalten</button>` : ''}
+        </span>
+      </div>
+      <p class="hint">Das Token steht in deiner KI. Neu nötig nur, wenn es verloren ging – dann unten „Neues Token“ mit Haken bei 🔑.</p>
+    </div>`;
+  };
+
+  const renderRuns = (sessions) => {
+    const box = $('.aib-runs');
+    const runs = (sessions || []).flatMap((x) => (x.openRuns || []).map((r) => ({ ...r, sessionId: x.id })))
+      .sort((a, b) => new Date(b.at) - new Date(a.at));
+    if (!runs.length) { box.innerHTML = ''; return; }
+    // Ablehnen geht je Sitzung nur für den neuesten offenen Lauf (spätere können darauf aufbauen).
+    const newest = new Map();
+    for (const r of runs) if (!newest.has(r.sessionId)) newest.set(r.sessionId, r.id);
+    box.innerHTML = `<div class="aib-session-list"><h4>🤖 Offene KI-Änderungen (${runs.length})</h4>
+      ${runs.map((r) => {
+        const list = r.summaries.slice(0, 8).map((t) => `<li>${escapeHtml(t)}</li>`).join('')
+          + (r.summaries.length > 8 ? `<li class="hint">… und ${r.summaries.length - 8} weitere</li>` : '');
+        const canReject = newest.get(r.sessionId) === r.id;
+        return `<div class="aib-session-item aib-run" data-session="${escapeAttr(r.sessionId)}" data-run="${escapeAttr(r.id)}">
+          <div class="aib-session-head"><strong>${escapeHtml(fmt(r.at))}</strong> · ${r.summaries.length} Änderung${r.summaries.length === 1 ? '' : 'en'}
+            ${r.drafts?.length ? ` · <span title="Schüler sehen bis zum Annehmen den bisherigen Stand">📝 ${r.drafts.length} als Entwurf</span>` : ''}
+            <span class="aib-session-actions">
+              <button type="button" class="btn btn-primary btn-sm" data-accept>✅ Annehmen</button>
+              <button type="button" class="btn btn-secondary btn-sm" data-reject ${canReject ? '' : 'disabled title="Erst die neueren Änderungen dieser Sitzung annehmen oder ablehnen"'}>⏪ Ablehnen</button>
+            </span></div>
+          <ul class="aib-log-list">${list}</ul>
+        </div>`;
+      }).join('')}
+    </div>`;
+  };
+
+  const refresh = async () => {
+    const fresh = await app.api.getAiBridgeSessions().catch(() => ({ sessions: [] }));
+    renderAll(fresh.sessions);
+  };
+
+  $('.aib-runs').addEventListener('click', async (e) => {
+    const btn = e.target.closest('[data-accept],[data-reject]');
+    if (!btn) return;
+    const item = btn.closest('.aib-run');
+    const { session: sid, run } = item.dataset;
+    btn.disabled = true;
+    if (btn.hasAttribute('data-accept')) {
+      const res = await app.api.acceptAiBridgeRun(sid, run);
+      if (bad(res)) app.showToast(res?.message || 'Annehmen ging nicht.', 'error');
+      else app.showToast(`✅ Angenommen.${res.notes?.length ? ` ${res.notes.join(' · ')}` : ''}`, 'success');
+    } else {
+      let res = await app.api.rejectAiBridgeRun(sid, run);
+      if (res?.statusCode === 409 && await app.appConfirm(`${res.message}\n\nTrotzdem ablehnen?`)) res = await app.api.rejectAiBridgeRun(sid, run, true);
+      if (res?.statusCode === 409) { btn.disabled = false; return; }
+      if (bad(res)) app.showToast(res?.message || (res?.errors || []).join(' · ') || 'Ablehnen ging nicht.', 'error');
+      else app.showToast('⏪ Abgelehnt – die Änderungen sind zurückgenommen.', 'success');
+    }
+    changed = true;
+    await refresh();
+  });
+
+  $('.aib-persistent').addEventListener('click', async (e) => {
+    const act = e.target.closest('[data-activate]');
+    if (act) {
+      act.disabled = true;
+      const res = await app.api.activateAiBridgeSession(act.dataset.activate, Number($('.aib-activate-min').value) || 60);
+      if (bad(res)) app.showToast(res?.message || 'Einschalten ging nicht.', 'error');
+      else app.showToast('🟢 KI-Zugang eingeschaltet.', 'success');
+      await refresh();
+      return;
+    }
+    const rev = e.target.closest('[data-revoke]');
+    if (rev) {
+      rev.disabled = true;
+      await app.api.revokeAiBridgeSession(rev.dataset.revoke);
+      app.showToast('⚪ KI-Zugang ausgeschaltet.', 'info');
+      await refresh();
+    }
+  });
+
   let pastOpen = false;
   const renderSession = (s) => {
     const mins = Math.ceil((s.remainingSeconds || 0) / 60);
@@ -188,7 +289,7 @@ export async function openAiBridgeDialog(app, { onDone = null, regenerate = null
     const box = $('.aib-sessions');
     const prev = box.querySelector('.aib-past');
     if (prev) pastOpen = prev.open;
-    const all = sessions || [];
+    const all = (sessions || []).filter((s) => !s.persistent);
     const active = all.filter((s) => s.active);
     const past = all.filter((s) => !s.active && s.canRollback)
       .sort((a, b) => new Date(b.expiresAt) - new Date(a.expiresAt));
@@ -197,6 +298,7 @@ export async function openAiBridgeDialog(app, { onDone = null, regenerate = null
       return;
     }
     if (!activeSessionId && active[0]) activeSessionId = active[0].id;
+    if (!activeSessionId) activeSessionId = (sessions || []).find((s) => s.persistent && s.active)?.id || null;
     box.innerHTML = `<div class="aib-session-list">
       ${active.length ? `<h4>Aktive KI-Sitzungen</h4>${active.map(renderSession).join('')}` : ''}
       ${past.length ? `<details class="aib-past"${pastOpen ? ' open' : ''}>
@@ -206,7 +308,12 @@ export async function openAiBridgeDialog(app, { onDone = null, regenerate = null
     </div>`;
   };
 
-  renderSessions(sessionsRes?.sessions || []);
+  const renderAll = (sessions) => {
+    renderPersistent(sessions);
+    renderRuns(sessions);
+    renderSessions(sessions);
+  };
+  renderAll(sessionsRes?.sessions || []);
 
   $('.aib-sessions').addEventListener('click', async (e) => {
     const rb = e.target.closest('[data-rollback]');
@@ -222,7 +329,7 @@ export async function openAiBridgeDialog(app, { onDone = null, regenerate = null
       changed = true;
       app.showToast(`⏪ ${res.reverted} Änderung${res.reverted === 1 ? '' : 'en'} rückgängig gemacht.`, 'success');
       const fresh = await app.api.getAiBridgeSessions().catch(() => ({ sessions: [] }));
-      renderSessions(fresh.sessions);
+      renderAll(fresh.sessions);
       return;
     }
     const ext = e.target.closest('[data-extend]');
@@ -232,7 +339,7 @@ export async function openAiBridgeDialog(app, { onDone = null, regenerate = null
       if (bad(res)) app.showToast(res?.message || 'Verlängern ging nicht.', 'error');
       else app.showToast('KI-Zugriff um 30 Minuten verlängert.', 'success');
       const fresh = await app.api.getAiBridgeSessions().catch(() => ({ sessions: [] }));
-      renderSessions(fresh.sessions);
+      renderAll(fresh.sessions);
       return;
     }
     const rev = e.target.closest('[data-revoke]');
@@ -242,7 +349,7 @@ export async function openAiBridgeDialog(app, { onDone = null, regenerate = null
       await app.api.revokeAiBridgeSession(id);
       app.showToast('KI-Token wurde sofort gesperrt.', 'info');
       const fresh = await app.api.getAiBridgeSessions().catch(() => ({ sessions: [] }));
-      renderSessions(fresh.sessions);
+      renderAll(fresh.sessions);
     }
   });
 
@@ -265,6 +372,7 @@ export async function openAiBridgeDialog(app, { onDone = null, regenerate = null
       planNodeIds,
       includeUnsorted: $('.aib-unsorted').checked,
       withQuizFormats: $('.aib-with-quiz').checked && $('.aib-perm').value === 'all',
+      persistent: $('.aib-persistent-flag').checked,
       permissions: {
         organize: $('.aib-perm').value !== 'read',
         writeDocs: $('.aib-perm').value === 'all',
@@ -293,7 +401,7 @@ export async function openAiBridgeDialog(app, { onDone = null, regenerate = null
         : '✅ KI-Anleitung samt Token ist in die Zwischenablage kopiert! Jetzt in deiner KI einfügen und deinen Wunsch ergänzen.')
       : '⚠️ Bitte auf „📋 Ganze KI-Anleitung kopieren“ klicken und in deiner KI einfügen.';
     const fresh = await app.api.getAiBridgeSessions().catch(() => ({ sessions: [res.session] }));
-    renderSessions(fresh.sessions);
+    renderAll(fresh.sessions);
   });
 
   $('.aib-btn-copy-token').addEventListener('click', async () => {
@@ -347,7 +455,7 @@ export async function openAiBridgeDialog(app, { onDone = null, regenerate = null
       btnApply.disabled = true;
       app.showToast(`${res.count} KI-Änderung${res.count === 1 ? '' : 'en'} ausgeführt.`, 'success');
       const fresh = await app.api.getAiBridgeSessions().catch(() => ({ sessions: [] }));
-      renderSessions(fresh.sessions);
+      renderAll(fresh.sessions);
     }
   };
 

@@ -58,6 +58,30 @@ export class AiBridgeController {
     return this.bridge.extendSession(req.user, id, body?.minutes);
   }
 
+  /** Dauerhaften Zugang einschalten: `{ minutes }` (höchstens 4 Stunden). */
+  @Post('sessions/:id/activate')
+  @HttpCode(200)
+  @UseGuards(JwtAuthGuard)
+  activateSession(@Request() req: any, @Param('id') id: string, @Body() body: { minutes?: number }) {
+    return this.bridge.activateSession(req.user, id, body?.minutes);
+  }
+
+  /** Offene KI-Änderung annehmen. */
+  @Post('sessions/:id/runs/:runId/accept')
+  @HttpCode(200)
+  @UseGuards(JwtAuthGuard)
+  acceptRun(@Request() req: any, @Param('id') id: string, @Param('runId') runId: string) {
+    return this.bridge.acceptRun(req.user, id, runId);
+  }
+
+  /** Offene KI-Änderung ablehnen (rückgängig machen); `{ force }` trotz eigener Änderungen seitdem. */
+  @Post('sessions/:id/runs/:runId/reject')
+  @HttpCode(200)
+  @UseGuards(JwtAuthGuard)
+  rejectRun(@Request() req: any, @Param('id') id: string, @Param('runId') runId: string, @Body() body: { force?: boolean }) {
+    return this.bridge.rejectRun(req.user, id, runId, !!body?.force);
+  }
+
   @Delete('sessions/:id')
   @UseGuards(JwtAuthGuard)
   revokeSession(@Request() req: any, @Param('id') id: string) {

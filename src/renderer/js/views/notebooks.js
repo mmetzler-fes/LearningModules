@@ -102,7 +102,7 @@ export class NotebooksView {
         { label: '🧱 Struktur importieren …', title: 'Books, Bereiche und Abschnitte aus einer Tabelle (.ods, .xlsx, .csv), einer Ordnerstruktur oder einer Gliederung anlegen – nur Ordner, keine Inhalte', run: () => import('./structure-import.js').then((m) => m.openStructureImport(this.app, { where: 'notebook', onDone: () => this.refresh() })) },
         { label: '🟪 OneNote übernehmen …', title: 'Exportiertes OneNote-Notizbuch (.onepkg) oder Abschnitt (.one): Seiten mit PDFs und Anlagen als Module „Anhang“', run: () => openOneNoteImport(this.app, { onDone: async () => { this._saveOpen(); await this.refresh(); } }) },
         '-',
-        { label: '🤖 KI-Assistent …', title: 'Zeitbeschränkten Lese-/Schreibzugriff und KI-Anleitung für deine eigene KI erzeugen (Sortieren, Planen, Arbeitsblätter importieren) – inkl. Rückgängig-Funktion', run: () => import('./ai-bridge-dialog.js').then((m) => m.openAiBridgeDialog(this.app, { onDone: () => this.refresh() })) },
+        { label: '🤖 KI-Assistent …', title: 'Zugriff und KI-Anleitung für deine eigene KI (Sortieren, Planen, Arbeitsblätter importieren) – zeitlich begrenzt oder dauerhaft zum Einschalten; KI-Änderungen annehmen oder ablehnen', run: () => import('./ai-bridge-dialog.js').then((m) => m.openAiBridgeDialog(this.app, { onDone: () => this.refresh() })) },
       ], ...this._below(addBtn), { anchor: addBtn });
     });
     // 📂 Datei öffnen und Dateien auf die Seite ziehen: wie „Öffnen mit“ der installierten App (file-open.js) –
@@ -169,6 +169,18 @@ export class NotebooksView {
     this._preview = new NotebookPreview(this);
   }
 
+  /**
+   * Offene KI-Änderungen (dauerhafter Zugang): einmal je Anzahl ein Hinweis mit Sprung in den
+   * KI-Assistenten – damit nichts Vorläufiges vergessen wird.
+   */
+  async _noteOpenAiRuns() {
+    const res = await this.app.api.getAiBridgeSessions().catch(() => null);
+    const count = (res?.sessions || []).reduce((n, x) => n + (x.openRuns?.length || 0), 0);
+    if (!count || count === this._aiRunsNoted) return;
+    this._aiRunsNoted = count;
+    this.app.showToast(`🤖 ${count} offene KI-Änderung${count === 1 ? '' : 'en'} – unter 📥 → 🤖 KI-Assistent annehmen oder ablehnen.`, 'info');
+  }
+
   async refresh() {
     const data = await this.app.api.getNotebooks();
     if (failed(data) || !Array.isArray(data.nodes)) {
@@ -179,6 +191,7 @@ export class NotebooksView {
     void this._loadReach();
     void this._loadMirror();
     void this._loadSicherung();
+    void this._noteOpenAiRuns();
     // Module mit offenem Entwurf (nicht gespeicherte Änderungen) markieren.
     try {
       const drafts = await this.app.api.listDrafts();

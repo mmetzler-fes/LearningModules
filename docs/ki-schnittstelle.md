@@ -4,6 +4,28 @@ Die eigene KI der Lehrkraft (Claude, ChatGPT, Claude Code …) bekommt ein zeitl
 Token und eine Anleitung. Sie sieht nur die freigegebenen Books und Pläne, nie Schülerdaten;
 alles lässt sich im Dialog mit ⏪ rückgängig machen (`src/ai-bridge/`).
 
+## Dauerhafter Zugang: einschalten, annehmen, ablehnen
+
+Mit dem Haken **🔑 Dauerhafter Zugang** beim Erzeugen bleibt das Token gültig – es kommt einmal in
+die KI (bzw. ihre Einstellungen). Benutzen kann die KI es nur, solange du den Zugang im
+KI-Assistenten **▶ einschaltest** (30 Minuten bis 4 Stunden); danach schaltet er sich selbst aus,
+**⏹ Ausschalten** geht sofort. Ein neues Token (Haken erneut setzen) ersetzt das alte.
+
+Jeder Aufruf der KI wird **vorläufig übernommen** und steht unter **🤖 Offene KI-Änderungen**:
+
+- **✅ Annehmen** – bleibt, wie es ist.
+- **⏪ Ablehnen** – die Änderungen dieses Aufrufs werden zurückgenommen. Neuere offene Aufrufe
+  derselben Sitzung zuerst (sie können darauf aufbauen). Hast du seitdem etwas davon selbst
+  geändert, fragt die App nach, denn das ginge dabei verloren.
+- Was **Schüler gerade sehen** (Lernthema freigegeben oder einer Klasse zugewiesen, Modul aktiv),
+  ändert die KI nicht direkt: Es wird ein **📝 Entwurf**. Schüler sehen bis zum Annehmen den
+  bisherigen Stand; die KI liest ihren Entwurf (`"pending": true`) und arbeitet daran weiter.
+  Hast du selbst einen offenen Entwurf zu dem Modul, lehnt der Server die Änderung ab.
+- Das Notizbuch erinnert mit einem Hinweis an offene Änderungen.
+
+Der zeitlich begrenzte Zugang (ohne Haken) funktioniert wie bisher; auch seine Aufrufe lassen sich
+einzeln annehmen oder ablehnen.
+
 ## Grundanleitung und Nachschlagen
 
 Die kopierte Anleitung bleibt kurz: Zugang, erlaubte Operationen (je eine Zeile), Kurzform des

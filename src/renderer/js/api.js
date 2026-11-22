@@ -731,6 +731,17 @@ export class BrowserApi {
   }
   revokeAiBridgeSession(id) { return this._fetch(`/api/ai-bridge/sessions/${encodeURIComponent(id)}`, { method: 'DELETE' }); }
   rollbackAiBridgeSession(id) { return this._fetch(`/api/ai-bridge/sessions/${encodeURIComponent(id)}/rollback`, { method: 'POST' }); }
+  /** Dauerhaften KI-Zugang einschalten (Minuten). */
+  activateAiBridgeSession(id, minutes) {
+    return this._fetch(`/api/ai-bridge/sessions/${encodeURIComponent(id)}/activate`, { method: 'POST', body: JSON.stringify({ minutes }) });
+  }
+  /** Offene KI-Änderung annehmen bzw. ablehnen (`force`: trotz eigener Änderungen seitdem). */
+  acceptAiBridgeRun(id, runId) {
+    return this._fetch(`/api/ai-bridge/sessions/${encodeURIComponent(id)}/runs/${encodeURIComponent(runId)}/accept`, { method: 'POST' });
+  }
+  rejectAiBridgeRun(id, runId, force = false) {
+    return this._fetch(`/api/ai-bridge/sessions/${encodeURIComponent(id)}/runs/${encodeURIComponent(runId)}/reject`, { method: 'POST', body: JSON.stringify({ force }) });
+  }
   runAiBridgeBatch(id, body) {
     return this._fetch(`/api/ai-bridge/sessions/${encodeURIComponent(id)}/batch`, { method: 'POST', body: JSON.stringify(body) });
   }

@@ -12,6 +12,8 @@ describe('AiBridgeService (15-Minuten-KI-Token, Scope & Undo)', () => {
   let planNodes: any[];
   let planEntries: any[];
   let versions: any[];
+  let drafts: any[];
+  let links: any[];
   let service: AiBridgeService;
 
   beforeEach(() => {
@@ -219,6 +221,8 @@ describe('AiBridgeService (15-Minuten-KI-Token, Scope & Undo)', () => {
       plansService,
       topicsService,
       repo() as any,
+      repo((drafts = [])) as any,
+      repo((links = [])) as any,
     );
   });
 
@@ -543,5 +547,94 @@ describe('AiBridgeService (15-Minuten-KI-Token, Scope & Undo)', () => {
     await service.rollbackSession(user, info.id);
     expect(topics.find((t) => t.id === 'top-ohm')).toMatchObject({ title: 'Ohmsches Gesetz', description: 'U, R, I' });
     expect(modules[0].title).toBe('Ohmsches Gesetz');
+  });
+
+  describe('dauerhafter Zugang: vorläufig übernehmen, annehmen oder ablehnen', () => {
+    const scope = { notebookNodeIds: ['book-et'], planNodeIds: ['plan-bfe'], persistent: true, ttlMinutes: 15 };
+    const newSpec = { content: [{ type: 'text', text: 'Neuer Inhalt' }] };
+
+    it('jeder Lauf ist offen; Ablehnen nimmt ihn zurück, Annehmen lässt ihn stehen', async () => {
+      const { token, session: info } = await service.createSession(user, scope);
+      expect(info.persistent).toBe(true);
+      const s = await service.authenticateToken(token);
+      await service.executeBatch(s, { operations: [{ op: 'rename_notebook_node', id: 'sec-et-1', title: 'Umbenannt' }] });
+      await service.executeBatch(s, { operations: [{ op: 'create_topic', title: 'Neu', targetNodeId: 'sec-et-1', ref: '$t' }] });
+      let open = (await service.listSessions(user))[0].openRuns;
+      expect(open).toHaveLength(2);
+      // Ältere erst, wenn die neuere entschieden ist
+      await expect(service.rejectRun(user, info.id, open[0].id)).rejects.toThrow(/neueren/);
+      await service.acceptRun(user, info.id, open[1].id);
+      expect(topics.some((t) => t.title === 'Neu')).toBe(true);
+      await service.rejectRun(user, info.id, open[0].id);
+      expect(nbNodes.find((n) => n.id === 'sec-et-1').title).toBe('Grundlagen');
+      const after = (await service.listSessions(user))[0];
+      expect(after.openRuns).toHaveLength(0);
+      expect(after.opsCount).toBe(0);
+      // Probelauf erzeugt nichts Offenes
+      await service.executeBatch(s, { dryRun: true, operations: [{ op: 'rename_notebook_node', id: 'sec-et-1', title: 'x' }] });
+      open = (await service.listSessions(user))[0].openRuns;
+      expect(open).toHaveLength(0);
+    });
+
+    it('Token bleibt, Zugang wird ein- und ausgeschaltet; neues Token ersetzt das alte, offene Läufe bleiben', async () => {
+      const { token, session: info } = await service.createSession(user, scope);
+      await service.executeBatch(await service.authenticateToken(token), { operations: [{ op: 'rename_notebook_node', id: 'sec-et-1', title: 'A' }] });
+      await service.revokeSession(user, info.id);
+      await expect(service.authenticateToken(token)).rejects.toThrow(/ausgeschaltet/);
+      const on = await service.activateSession(user, info.id, 60);
+      expect(on.session.remainingSeconds).toBeGreaterThan(59 * 60);
+      await expect(service.authenticateToken(token)).resolves.toBeTruthy();
+      const again = await service.createSession(user, scope);
+      expect(again.session.id).toBe(info.id);
+      expect(again.prompt).toContain('dauerhaft');
+      await expect(service.authenticateToken(token)).rejects.toThrow(/nicht gefunden/);
+      expect((await service.listSessions(user)).find((x) => x.id === info.id)!.openRuns).toHaveLength(1);
+      // Abgelaufene Kurzzeit-Sitzungen lassen sich nicht wieder einschalten
+      const short = await service.createSession(user, { notebookNodeIds: ['book-et'], planNodeIds: [] });
+      await expect(service.activateSession(user, short.session.id, 30)).rejects.toThrow(/Nur der dauerhafte/);
+    });
+
+    it('was Schüler sehen, wird ein Entwurf: die KI liest ihn, Schüler nicht; Annehmen macht ihn wirksam', async () => {
+      topics.find((t) => t.id === 'top-ohm').selected = true;
+      const { token, session: info } = await service.createSession(user, scope);
+      const s = await service.authenticateToken(token);
+      const res = await service.executeBatch(s, { operations: [{ op: 'update_document', moduleId: 'mod-doc-1', spec: newSpec }] });
+      expect(res.results[0].summary).toBe('Dokument „AB 1: Alt“ aktualisiert');
+      expect(modules[0].content.spec.content[0].text).toBe('Alter Inhalt');
+      expect(drafts).toHaveLength(1);
+      const doc = await service.getScopedDocument(s, 'mod-doc-1');
+      expect(doc.pending).toBe(true);
+      expect(doc.spec.content[0].text).toBe('Neuer Inhalt');
+      const open = (await service.listSessions(user))[0].openRuns;
+      expect(open[0].drafts).toEqual([{ moduleId: 'mod-doc-1', topicId: 'top-ohm', title: 'AB 1: Alt' }]);
+      expect(open[0].summaries[0]).toMatch(/Entwurf/);
+      await service.acceptRun(user, info.id, open[0].id);
+      expect(modules[0].content.spec.content[0].text).toBe('Neuer Inhalt');
+      expect(drafts).toHaveLength(0);
+    });
+
+    it('Ablehnen verwirft den Entwurf; ein eigener Entwurf der Lehrkraft wird nie überschrieben', async () => {
+      links.push({ id: 'l1', ownerId: userId, classId: 'k1', selection: [{ topicId: 'top-ohm', all: true }] });
+      const { token, session: info } = await service.createSession(user, scope);
+      const s = await service.authenticateToken(token);
+      await service.executeBatch(s, { operations: [{ op: 'update_document', moduleId: 'mod-doc-1', spec: newSpec }] });
+      const [run] = (await service.listSessions(user))[0].openRuns;
+      await service.rejectRun(user, info.id, run.id);
+      expect(drafts).toHaveLength(0);
+      expect(modules[0].content.spec.content[0].text).toBe('Alter Inhalt');
+      drafts.push({ id: 'd1', userId, draftKey: 'mod-doc-1', topicId: 'top-ohm', moduleId: 'mod-doc-1', title: 'x', data: { title: 'x' } });
+      await expect(service.executeBatch(s, { operations: [{ op: 'update_document', moduleId: 'mod-doc-1', spec: newSpec }] })).rejects.toThrow(/Entwurf der Lehrkraft/);
+    });
+
+    it('selbst geändert seit dem Lauf: Ablehnen fragt nach (force)', async () => {
+      const { token, session: info } = await service.createSession(user, scope);
+      await service.executeBatch(await service.authenticateToken(token), { operations: [{ op: 'update_document', moduleId: 'mod-doc-1', spec: newSpec }] });
+      expect(modules[0].content.spec.content[0].text).toBe('Neuer Inhalt');
+      const [run] = (await service.listSessions(user))[0].openRuns;
+      modules[0].updatedAt = new Date(Date.now() + 1000);
+      await expect(service.rejectRun(user, info.id, run.id)).rejects.toThrow(/Seitdem selbst geändert: „AB 1: Alt“/);
+      await service.rejectRun(user, info.id, run.id, true);
+      expect(modules[0].content.spec.content[0].text).toBe('Alter Inhalt');
+    });
   });
 });

@@ -38,4 +38,15 @@ export class AiBridgeSessionRow extends BaseEntity {
   /** Zweck, z. B. `regenerate` (Blatt neu aufbereiten) – bestimmt die Anleitung. */
   @Column({ type: 'varchar', nullable: true })
   purpose: string | null;
+
+  /**
+   * Dauerhafter Zugang (je Lehrkraft höchstens einer): Das Token bleibt gültig, die Lehrkraft
+   * schaltet es zeitweise ein (`expiresAt` = aktiv bis). Wird nicht aufgeräumt.
+   */
+  @Column({ default: false })
+  persistent: boolean;
+
+  /** Läufe der KI zum Annehmen oder Ablehnen (`AiBridgeRun[]`). */
+  @Column('simple-json', { nullable: true })
+  runs: any[] | null;
 }

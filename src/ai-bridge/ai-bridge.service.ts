@@ -1,4 +1,4 @@
-import { BadRequestException, ForbiddenException, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException, Optional, UnauthorizedException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
 import * as crypto from 'crypto';
@@ -20,6 +20,8 @@ import { AiBridgeSessionRow } from '../core/entities/ai-bridge-session.entity';
 import { collectImages, maskImages, unmaskImages } from './ai-images';
 import { AI_QUIZ_TYPES, isAiQuizType, quizFormat, quizProblems, quizTypeName } from './quiz-format';
 import { soleDocument } from '../topics/sole-document';
+import { ModuleDraft } from '../core/entities/module-draft.entity';
+import { TopicLink } from '../core/entities/topic-link.entity';
 
 export interface AiBridgePermissions {
   organize: boolean;
@@ -61,6 +63,24 @@ export interface AiBridgeLogItem {
   summary: string;
 }
 
+/**
+ * Ein Lauf der KI (ein Aufruf von /batch): vorläufig übernommen, die Lehrkraft nimmt ihn an oder
+ * lehnt ihn ab. Ablehnen macht seine Änderungen rückgängig (`actions` rückwärts) und verwirft seine
+ * Entwürfe. `drafts`: Änderungen an Inhalten, die Schüler gerade sehen – sie liegen als 📝 Entwurf
+ * bereit und werden erst beim Annehmen wirksam. `touched`: Stand der berührten Module danach, um
+ * beim Ablehnen zu merken, was die Lehrkraft inzwischen selbst geändert hat.
+ */
+export interface AiBridgeRun {
+  id: string;
+  at: string;
+  summaries: string[];
+  actions: UndoAction[];
+  drafts: Array<{ moduleId: string; topicId: string; title: string }>;
+  touched: Array<{ id: string; title: string; updatedAt: number }>;
+  status: 'open' | 'accepted' | 'rejected';
+  decidedAt?: string;
+}
+
 export interface AiBridgeSession {
   id: string;
   tokenHash: string;
@@ -73,6 +93,9 @@ export interface AiBridgeSession {
   log: AiBridgeLogItem[];
   /** `regenerate`: Blatt neu aufbereiten – nur Dokumente überarbeiten. */
   purpose: 'regenerate' | null;
+  /** Dauerhafter Zugang: Token bleibt, die Lehrkraft schaltet ihn zeitweise ein (`expiresAt`). */
+  persistent: boolean;
+  runs: AiBridgeRun[];
 }
 
 export type AiBridgeOp =
@@ -95,6 +118,8 @@ export type AiBridgeOp =
 const DEFAULT_TTL_MINUTES = 60;
 const MIN_TTL_MINUTES = 5;
 const MAX_TTL_MINUTES = 240;
+/** Entschiedene Läufe, die eine Sitzung höchstens aufbewahrt. */
+const KEEP_DECIDED_RUNS = 30;
 /** So lange nach dem Ablauf lässt sich eine Sitzung noch rückgängig machen. */
 const SESSION_RETENTION_MS = 14 * 24 * 60 * 60 * 1000;
 const DOC_KINDS = ['arbeitsblatt', 'klassenarbeit', 'text'];
@@ -125,6 +150,8 @@ export class AiBridgeService {
     private readonly plans: PlansService,
     private readonly topics: TopicsService,
     @InjectRepository(AiBridgeSessionRow) private readonly sessionRepo: Repository<AiBridgeSessionRow>,
+    @Optional() @InjectRepository(ModuleDraft) private readonly draftRepo?: Repository<ModuleDraft>,
+    @Optional() @InjectRepository(TopicLink) private readonly linkRepo?: Repository<TopicLink>,
   ) {}
 
   // ---- Speichern ----
@@ -134,6 +161,7 @@ export class AiBridgeService {
       id: r.id, tokenHash: r.tokenHash, tokenPreview: r.tokenPreview, userId: r.userId,
       createdAt: new Date(r.createdAt).getTime(), expiresAt: new Date(r.expiresAt).getTime(),
       scope: r.scope, undoStack: r.undoStack || [], log: r.log || [], purpose: r.purpose === 'regenerate' ? 'regenerate' : null,
+      persistent: !!r.persistent, runs: Array.isArray(r.runs) ? r.runs : [],
     };
   }
 
@@ -141,6 +169,7 @@ export class AiBridgeService {
     await this.sessionRepo.save(this.sessionRepo.create({
       id: s.id, tokenHash: s.tokenHash, tokenPreview: s.tokenPreview, userId: s.userId, createdAt: new Date(s.createdAt),
       expiresAt: new Date(s.expiresAt), scope: s.scope, undoStack: s.undoStack, log: s.log, purpose: s.purpose,
+      persistent: s.persistent, runs: s.runs,
     }));
   }
 
@@ -148,7 +177,11 @@ export class AiBridgeService {
   private async cleanup(userId: string) {
     const now = Date.now();
     const rows = await this.sessionRepo.find({ where: { userId } });
-    for (const r of rows) if (now - new Date(r.expiresAt).getTime() > SESSION_RETENTION_MS) await this.sessionRepo.delete({ id: r.id });
+    for (const r of rows) {
+      // Der dauerhafte Zugang bleibt – und mit ihm offene Läufe.
+      if (r.persistent || (r.runs || []).some((x: any) => x?.status === 'open')) continue;
+      if (now - new Date(r.expiresAt).getTime() > SESSION_RETENTION_MS) await this.sessionRepo.delete({ id: r.id });
+    }
   }
 
   // ---- Sitzungen verwalten (Lehrkraft) ----
@@ -166,6 +199,8 @@ export class AiBridgeService {
       regenerateModuleIds?: string[];
       /** Quiz-Formate gleich in die Anleitung (für KIs ohne HTTP-Zugriff). */
       withQuizFormats?: boolean;
+      /** Dauerhafter Zugang: gibt es schon einen, bekommt er ein neues Token (Läufe bleiben). */
+      persistent?: boolean;
     },
   ) {
     await this.cleanup(user.userId);
@@ -206,18 +241,25 @@ export class AiBridgeService {
       scope = { notebookNodeIds: [], planNodeIds: [], includeUnsorted: false, topicIds, moduleIds: ids, permissions: { organize: false, writeDocs: true } };
     }
 
-    const session: AiBridgeSession = {
-      id: crypto.randomUUID(),
-      tokenHash,
-      tokenPreview: `${rawToken.slice(0, 10)}…${rawToken.slice(-4)}`,
-      userId: user.userId,
-      createdAt: now,
-      expiresAt: now + ttl * 60 * 1000,
-      scope,
-      undoStack: [],
-      log: [],
-      purpose: regenerate ? 'regenerate' : null,
-    };
+    const persistent = !!body?.persistent && !regenerate;
+    const earlier = persistent ? (await this.sessionRepo.find({ where: { userId: user.userId, persistent: true } }))[0] : null;
+    const session: AiBridgeSession = earlier
+      ? { ...this.fromRow(earlier), tokenHash, tokenPreview: `${rawToken.slice(0, 10)}…${rawToken.slice(-4)}`, expiresAt: now + ttl * 60 * 1000, scope }
+      : {
+        id: crypto.randomUUID(),
+        tokenHash,
+        tokenPreview: `${rawToken.slice(0, 10)}…${rawToken.slice(-4)}`,
+        userId: user.userId,
+        createdAt: now,
+        expiresAt: now + ttl * 60 * 1000,
+        scope,
+        undoStack: [],
+        log: [],
+        purpose: regenerate ? 'regenerate' : null,
+        persistent,
+        runs: [],
+      };
+    if (earlier) session.log.push({ at: new Date().toISOString(), op: 'token', summary: '🔑 Neues Token für den dauerhaften Zugang – das alte gilt nicht mehr.' });
 
     await this.store(session);
     const base = String(body?.baseUrl || '').replace(/\/+$/, '') || 'http://localhost:3000';
@@ -249,6 +291,17 @@ export class AiBridgeService {
     return { success: true, session: this.publicSession(s) };
   }
 
+  /** Dauerhaften Zugang einschalten: ab jetzt `minutes` lang (höchstens MAX_TTL_MINUTES). */
+  async activateSession(user: { userId: string }, sessionId: string, minutes?: number) {
+    const s = await this.ownSession(user.userId, sessionId);
+    if (!s.persistent) throw new BadRequestException('Nur der dauerhafte KI-Zugang lässt sich wieder einschalten.');
+    const span = Math.max(MIN_TTL_MINUTES, Math.min(MAX_TTL_MINUTES, Number(minutes) || DEFAULT_TTL_MINUTES));
+    s.expiresAt = Date.now() + span * 60_000;
+    s.log.push({ at: new Date().toISOString(), op: 'activate', summary: `▶ Eingeschaltet für ${span} Minuten.` });
+    await this.store(s);
+    return { success: true, session: this.publicSession(s) };
+  }
+
   /** Laufende Sitzung verlängern: ab jetzt `minutes` weiter (höchstens MAX_TTL_MINUTES). */
   async extendSession(user: { userId: string }, sessionId: string, minutes?: number) {
     const s = await this.ownSession(user.userId, sessionId);
@@ -261,10 +314,15 @@ export class AiBridgeService {
 
   async rollbackSession(user: { userId: string }, sessionId: string) {
     const s = await this.ownSession(user.userId, sessionId);
-    if (!s.undoStack.length) return { success: true, reverted: 0, session: this.publicSession(s) };
+    if (!s.undoStack.length && !s.runs.some((r) => r.status === 'open')) return { success: true, reverted: 0, session: this.publicSession(s) };
 
     let reverted = 0;
     const errors: string[] = [];
+    for (const run of s.runs.filter((r) => r.status === 'open')) {
+      await this.dropDrafts(s.userId, run);
+      run.status = 'rejected';
+      run.decidedAt = new Date().toISOString();
+    }
     while (s.undoStack.length > 0) {
       const action = s.undoStack.pop()!;
       try {
@@ -302,8 +360,12 @@ export class AiBridgeService {
       scope: s.scope,
       purpose: s.purpose,
       opsCount: s.undoStack.length,
-      canRollback: s.undoStack.length > 0,
+      canRollback: s.undoStack.length > 0 || s.runs.some((r) => r.status === 'open'),
       log: s.log,
+      persistent: s.persistent,
+      openRuns: s.runs.filter((r) => r.status === 'open').map((r) => ({
+        id: r.id, at: r.at, summaries: r.summaries, drafts: r.drafts, changes: r.actions.length + r.drafts.length,
+      })),
     };
   }
 
@@ -319,7 +381,9 @@ export class AiBridgeService {
     const session = this.fromRow(row);
     const now = Date.now();
     if (session.expiresAt <= now) {
-      throw new UnauthorizedException('Das KI-Token ist abgelaufen oder wurde beendet. Bitte in LearningModules verlängern oder ein neues erzeugen.');
+      throw new UnauthorizedException(session.persistent
+        ? 'Der KI-Zugang ist gerade ausgeschaltet. Bitte in LearningModules unter 🤖 KI-Assistent einschalten und dann erneut versuchen.'
+        : 'Das KI-Token ist abgelaufen oder wurde beendet. Bitte in LearningModules verlängern oder ein neues erzeugen.');
     }
     const r = this.rate.get(session.id);
     const window = r && now - r.start <= 60_000 ? r : { start: now, count: 0 };
@@ -467,14 +531,17 @@ export class AiBridgeService {
     const topic = await this.topicRepo.findOne({ where: { id: topicId, ownerId: session.userId } });
     if (!topic) throw new NotFoundException('Lernthema nicht gefunden.');
     const modules = await this.moduleRepo.find({ where: { topicId: topic.id }, order: { orderIndex: 'ASC' } });
+    const drafts = await this.aiDrafts(session.userId, modules.map((m) => m.id));
     return {
       id: topic.id,
       title: topic.title,
       description: topic.description || '',
       // Eingebettete Bilder als `lm-img:`-Verweise (ai-images.ts) – unverändert zurückschreiben, dann bleiben sie.
+      // `pending`: eigener, noch nicht angenommener Stand (Entwurf) – Schüler sehen noch den alten.
       modules: modules.map((m) => {
-        const { value, images } = maskImages(this.parsed(m.content));
-        return { id: m.id, type: m.type, title: m.title, description: m.description || '', orderIndex: m.orderIndex, content: value, images };
+        const d = drafts.get(m.id);
+        const { value, images } = maskImages(this.parsed(d ? d.content : m.content));
+        return { id: m.id, type: m.type, title: d?.title ?? m.title, description: m.description || '', orderIndex: m.orderIndex, content: value, images, ...(d ? { pending: true } : {}) };
       }),
     };
   }
@@ -490,9 +557,10 @@ export class AiBridgeService {
     if (!mod || mod.type !== 'document') throw new NotFoundException('Dokument nicht gefunden.');
     const { allowedTopics } = await this.resolveScopeSets(session);
     if (!allowedTopics.has(mod.topicId)) throw new ForbiddenException('Dieses Dokument liegt außerhalb des für das KI-Token freigegebenen Bereichs.');
-    const content = this.parsed(mod.content) || {};
+    const draft = (await this.aiDrafts(session.userId, [mod.id])).get(mod.id);
+    const content = this.parsed(draft ? draft.content : mod.content) || {};
     const { value, images } = maskImages(content.spec ?? content);
-    return { id: mod.id, topicId: mod.topicId, title: mod.title, kind: content.kind || 'arbeitsblatt', spec: value, images };
+    return { id: mod.id, topicId: mod.topicId, title: draft?.title ?? mod.title, kind: content.kind || 'arbeitsblatt', spec: value, images, ...(draft ? { pending: true } : {}) };
   }
 
   /**
@@ -502,7 +570,9 @@ export class AiBridgeService {
   private async restoreImages(spec: any, topicId: string, index: number, label: string) {
     if (!JSON.stringify(spec ?? null).includes('lm-img:')) return spec;
     const mods = await this.moduleRepo.find({ where: { topicId } });
-    const known = collectImages(mods.map((m) => this.parsed(m.content)));
+    // Auch aus offenen KI-Entwürfen: Die KI hat zuletzt deren Stand gelesen.
+    const drafts = this.draftRepo ? await this.draftRepo.find({ where: { topicId } }) : [];
+    const known = collectImages([...mods.map((m) => this.parsed(m.content)), ...drafts.filter((d) => d.data?.aiRun).map((d) => this.parsed(d.data.content))]);
     const { value, unknown } = unmaskImages(spec, known);
     if (unknown.length) {
       throw new BadRequestException(`operations[${index}] (${label}): Unbekannte Bild-Verweise ${unknown.join(', ')} – nur Verweise aus diesem Lernthema übernehmen oder neue Bilder als data:image/png;base64,… einfügen.`);
@@ -518,20 +588,202 @@ export class AiBridgeService {
     return this.executeBatch(session, body, { byTeacher: true });
   }
 
-  /** Auch wenn mittendrin etwas scheitert: Was schon geändert ist, bleibt rückgängig machbar. */
+  /**
+   * Auch wenn mittendrin etwas scheitert: Was schon geändert ist, bleibt rückgängig machbar. Jeder
+   * Lauf mit Änderungen kommt in „offene KI-Änderungen“ – annehmen oder ablehnen (acceptRun/rejectRun).
+   */
   async executeBatch(session: AiBridgeSession, body: { dryRun?: boolean; operations?: AiBridgeOp[] }, opts: { byTeacher?: boolean } = {}) {
     const before = session.undoStack.length;
+    const logBefore = session.log.length;
+    const run: AiBridgeRun = { id: crypto.randomUUID(), at: new Date().toISOString(), summaries: [], actions: [], drafts: [], touched: [], status: 'open' };
     try {
-      return await this.runBatch(session, body, !!opts.byTeacher);
+      return await this.runBatch(session, body, !!opts.byTeacher, run);
     } finally {
-      if (session.undoStack.length !== before) {
+      const actions = session.undoStack.slice(before);
+      if (!body?.dryRun && (actions.length || run.drafts.length)) {
+        run.actions = actions;
+        run.summaries = session.log.slice(logBefore).map((l) => l.summary);
+        run.touched = await this.touchedOf(session.userId, actions, run.drafts);
+        session.runs.push(run);
+        this.trimRuns(session);
+      }
+      if (session.undoStack.length !== before || run.drafts.length) {
         await this.store(session);
         docChanged(session.userId);
       }
     }
   }
 
-  private async runBatch(session: AiBridgeSession, body: { dryRun?: boolean; operations?: AiBridgeOp[] }, byTeacher: boolean) {
+  // ---- Offene KI-Änderungen: annehmen oder ablehnen ----
+
+  /** Entschiedene Läufe nicht endlos aufheben. */
+  private trimRuns(s: AiBridgeSession) {
+    const decided = s.runs.filter((r) => r.status !== 'open');
+    if (decided.length <= KEEP_DECIDED_RUNS) return;
+    const drop = new Set(decided.slice(0, decided.length - KEEP_DECIDED_RUNS));
+    s.runs = s.runs.filter((r) => !drop.has(r));
+  }
+
+  /** Rückgängig-Liste neu: was vor den Läufen kam (ältere Sitzungen), dann die offenen Läufe. */
+  private rebuildStack(s: AiBridgeSession, legacy: number) {
+    s.undoStack = [...s.undoStack.slice(0, Math.max(0, legacy)), ...s.runs.filter((r) => r.status === 'open').flatMap((r) => r.actions)];
+  }
+
+  private legacyCount(s: AiBridgeSession) {
+    return s.undoStack.length - s.runs.filter((r) => r.status === 'open').reduce((n, r) => n + r.actions.length, 0);
+  }
+
+  /** Stand der Module, die ein Lauf angelegt oder geändert hat (und seiner Entwürfe). */
+  private async touchedOf(userId: string, actions: UndoAction[], drafts: AiBridgeRun['drafts']): Promise<AiBridgeRun['touched']> {
+    const moduleIds = new Set<string>();
+    const topicIds: string[] = [];
+    for (const a of actions) {
+      if (a.kind === 'delete_module' || a.kind === 'restore_module') moduleIds.add(a.moduleId);
+      if (a.kind === 'delete_topic') topicIds.push(a.id);
+    }
+    const mods = [
+      ...(moduleIds.size ? await this.moduleRepo.find({ where: { id: In([...moduleIds]) } }) : []),
+      ...(topicIds.length ? await this.moduleRepo.find({ where: { topicId: In(topicIds) } }) : []),
+    ];
+    const out = new Map<string, AiBridgeRun['touched'][number]>();
+    for (const m of mods) out.set(m.id, { id: m.id, title: m.title, updatedAt: new Date(m.updatedAt as any).getTime() || 0 });
+    for (const d of drafts) {
+      const row = await this.draftRepo?.findOne({ where: { userId, draftKey: d.moduleId } });
+      if (row) out.set(`draft:${d.moduleId}`, { id: `draft:${d.moduleId}`, title: d.title, updatedAt: new Date(row.updatedAt as any).getTime() || 0 });
+    }
+    return [...out.values()];
+  }
+
+  /** Was die Lehrkraft seit dem Lauf selbst geändert hat (Titel). */
+  private async changedSince(userId: string, run: AiBridgeRun): Promise<string[]> {
+    const changed: string[] = [];
+    for (const t of run.touched) {
+      if (t.id.startsWith('draft:')) {
+        const row = await this.draftRepo?.findOne({ where: { userId, draftKey: t.id.slice(6) } });
+        if (row && (new Date(row.updatedAt as any).getTime() || 0) > t.updatedAt) changed.push(t.title);
+        continue;
+      }
+      const m = await this.moduleRepo.findOne({ where: { id: t.id }, select: ['id', 'title', 'updatedAt'] });
+      if (m && (new Date(m.updatedAt as any).getTime() || 0) > t.updatedAt) changed.push(m.title || t.title);
+    }
+    return [...new Set(changed)];
+  }
+
+  private async openRun(userId: string, sessionId: string, runId: string) {
+    const s = await this.ownSession(userId, sessionId);
+    const run = s.runs.find((r) => r.id === runId);
+    if (!run) throw new NotFoundException('Diese KI-Änderung gibt es nicht (mehr).');
+    if (run.status !== 'open') throw new BadRequestException(run.status === 'accepted' ? 'Schon angenommen.' : 'Schon abgelehnt.');
+    return { s, run };
+  }
+
+  /** Annehmen: Entwürfe werden wirksam, die Änderungen lassen sich hier nicht mehr zurücknehmen. */
+  async acceptRun(user: { userId: string }, sessionId: string, runId: string) {
+    const { s, run } = await this.openRun(user.userId, sessionId, runId);
+    const legacy = this.legacyCount(s);
+    const notes: string[] = [];
+    for (const d of run.drafts) {
+      const row = await this.draftRepo?.findOne({ where: { userId: user.userId, draftKey: d.moduleId } });
+      if (!row || row.data?.aiRun !== run.id) { notes.push(`„${d.title}“: Entwurf schon übernommen oder verworfen`); continue; }
+      const mod = await this.moduleRepo.findOne({ where: { id: d.moduleId } });
+      if (!mod) { notes.push(`„${d.title}“: gelöscht`); await this.draftRepo!.delete({ id: row.id }); continue; }
+      if (mod.type === 'document') await this.saveDocumentVersionSnapshot(mod.id, mod.title, this.parsed(mod.content));
+      await this.topics.addModule(mod.topicId, user, { id: mod.id, type: mod.type, title: row.data.title ?? mod.title, content: row.data.content } as any);
+      await this.draftRepo!.delete({ id: row.id });
+    }
+    run.status = 'accepted';
+    run.decidedAt = new Date().toISOString();
+    this.rebuildStack(s, legacy);
+    s.log.push({ at: run.decidedAt, op: 'accept', summary: `✅ Angenommen: ${run.summaries.length} Änderung${run.summaries.length === 1 ? '' : 'en'}.` });
+    this.trimRuns(s);
+    await this.store(s);
+    docChanged(s.userId);
+    return { success: true, notes, session: this.publicSession(s) };
+  }
+
+  /**
+   * Ablehnen: die Änderungen des Laufs rückwärts zurücknehmen, seine Entwürfe verwerfen. Neuere offene
+   * Läufe zuerst (sie können darauf aufbauen). Hat die Lehrkraft seitdem etwas davon selbst geändert,
+   * nur mit `force` – sonst ginge ihre Arbeit verloren.
+   */
+  async rejectRun(user: { userId: string }, sessionId: string, runId: string, force = false) {
+    const { s, run } = await this.openRun(user.userId, sessionId, runId);
+    const later = s.runs.slice(s.runs.indexOf(run) + 1).filter((r) => r.status === 'open');
+    if (later.length) throw new BadRequestException('Erst die neueren offenen KI-Änderungen annehmen oder ablehnen – sie können auf dieser aufbauen.');
+    const changed = await this.changedSince(user.userId, run);
+    if (changed.length && !force) {
+      throw new ConflictException(`Seitdem selbst geändert: ${changed.map((t) => `„${t}“`).join(', ')}. Beim Ablehnen gehen diese Änderungen verloren.`);
+    }
+    const legacy = this.legacyCount(s);
+    const errors: string[] = [];
+    for (const action of [...run.actions].reverse()) {
+      try {
+        await this.applyUndo(s.userId, action);
+      } catch (err: any) {
+        errors.push(`${action.label}: ${err?.message || 'Fehler beim Zurücksetzen'}`);
+      }
+    }
+    await this.dropDrafts(s.userId, run);
+    run.status = 'rejected';
+    run.decidedAt = new Date().toISOString();
+    this.rebuildStack(s, legacy);
+    s.log.push({ at: run.decidedAt, op: 'reject', summary: `⏪ Abgelehnt: ${run.summaries.length} Änderung${run.summaries.length === 1 ? '' : 'en'} zurückgenommen.` });
+    this.trimRuns(s);
+    await this.store(s);
+    docChanged(s.userId);
+    return { success: errors.length === 0, errors, session: this.publicSession(s) };
+  }
+
+  /** Entwürfe eines Laufs verwerfen – nur, solange sie noch von ihm stammen. */
+  private async dropDrafts(userId: string, run: AiBridgeRun) {
+    if (!this.draftRepo) return;
+    for (const d of run.drafts) {
+      const row = await this.draftRepo.findOne({ where: { userId, draftKey: d.moduleId } });
+      if (row && row.data?.aiRun === run.id) await this.draftRepo.delete({ id: row.id });
+    }
+  }
+
+  /**
+   * Sehen Schüler dieses Modul gerade? Lernthema freigegeben (●) oder einer Klasse zugewiesen und das
+   * Modul aktiv. Dann schreibt der dauerhafte Zugang nur einen Entwurf.
+   */
+  private async isLive(mod: LearningModule): Promise<boolean> {
+    if (mod.moduleSelected === false) return false;
+    const topic = await this.topicRepo.findOne({ where: { id: mod.topicId } });
+    if (!topic) return false;
+    if (topic.selected) return true;
+    if (!this.linkRepo) return false;
+    const links = await this.linkRepo.find({ where: { ownerId: topic.ownerId } });
+    return links.some((l) => !!l.classId && (l.selection || []).some((e) => e?.topicId === topic.id));
+  }
+
+  /** KI-Änderung an einem Modul, das Schüler sehen: als 📝 Entwurf der Lehrkraft. */
+  private async writeDraft(userId: string, mod: LearningModule, title: string, content: any, run: AiBridgeRun) {
+    if (!this.draftRepo) throw new BadRequestException('Entwürfe sind hier nicht verfügbar.');
+    const own = await this.draftRepo.findOne({ where: { userId, draftKey: mod.id } });
+    if (own && !own.data?.aiRun) {
+      throw new ConflictException(`„${mod.title}“ hat einen offenen Entwurf der Lehrkraft (im Editor) – erst speichern oder verwerfen, dann erneut versuchen.`);
+    }
+    const data = { title, type: mod.type, description: mod.description || '', content, tagIds: mod.tagIds || [], aiRun: run.id };
+    if (own) {
+      own.title = title;
+      own.data = data;
+      own.topicId = mod.topicId;
+      await this.draftRepo.save(own);
+    } else {
+      await this.draftRepo.save(this.draftRepo.create({ id: crypto.randomUUID(), userId, draftKey: mod.id, topicId: mod.topicId, moduleId: mod.id, title, data }));
+    }
+    if (!run.drafts.some((d) => d.moduleId === mod.id)) run.drafts.push({ moduleId: mod.id, topicId: mod.topicId, title });
+  }
+
+  /** Offene KI-Entwürfe (der dauerhafte Zugang liest seinen eigenen Stand): Modul-ID → Entwurf. */
+  private async aiDrafts(userId: string, moduleIds: string[]): Promise<Map<string, any>> {
+    if (!this.draftRepo || !moduleIds.length) return new Map();
+    const rows = await this.draftRepo.find({ where: { userId, draftKey: In(moduleIds) } });
+    return new Map(rows.filter((r) => r.data?.aiRun).map((r) => [r.draftKey, r.data]));
+  }
+
+  private async runBatch(session: AiBridgeSession, body: { dryRun?: boolean; operations?: AiBridgeOp[] }, byTeacher: boolean, run: AiBridgeRun) {
     const ops = Array.isArray(body?.operations) ? body.operations : [];
     if (!ops.length) throw new BadRequestException('operations: Mindestens eine Operation erforderlich.');
     if (session.undoStack.length + ops.length > MAX_OPS_PER_SESSION) {
@@ -946,7 +1198,24 @@ export class AiBridgeService {
           const summary = item.spec === undefined && item.kind && !item.title
             ? `Dokument „${nextTitle}“: Art ${item.kind}`
             : `Dokument „${nextTitle}“ aktualisiert`;
+          let drafted = false;
           if (!dryRun) {
+            const oldTitle = mod.title;
+            const oldContent = typeof mod.content === 'string' ? JSON.parse(mod.content) : structuredClone(mod.content);
+            const nextContent = withBlockIds({
+              ...(oldContent || { kind: 'arbeitsblatt' }),
+              ...(item.spec !== undefined ? { spec: item.spec } : {}),
+              ...(item.kind ? { kind: item.kind } : {}),
+            });
+            // Dauerhafter Zugang: Was Schüler gerade sehen, ändert sich erst beim Annehmen.
+            if (session.persistent && await this.isLive(mod)) {
+              await this.writeDraft(session.userId, mod, nextTitle, nextContent, run);
+              drafted = true;
+            }
+          }
+          if (!dryRun && drafted) {
+            session.log.push({ at: new Date().toISOString(), op: item.op, summary: `${summary} (📝 Entwurf – Schüler sehen bis zum Annehmen den bisherigen Stand)` });
+          } else if (!dryRun) {
             const oldTitle = mod.title;
             const oldContent = typeof mod.content === 'string' ? JSON.parse(mod.content) : structuredClone(mod.content);
             await this.saveDocumentVersionSnapshot(mod.id, oldTitle, oldContent);
@@ -1020,7 +1289,10 @@ export class AiBridgeService {
           }
           const nextTitle = item.title ? String(item.title).trim().slice(0, 200) : mod.title;
           const summary = `Quiz „${nextTitle}“ überarbeitet`;
-          if (!dryRun) {
+          if (!dryRun && session.persistent && await this.isLive(mod)) {
+            await this.writeDraft(session.userId, mod, nextTitle, item.content, run);
+            session.log.push({ at: new Date().toISOString(), op: item.op, summary: `${summary} (📝 Entwurf – Schüler sehen bis zum Annehmen den bisherigen Stand)` });
+          } else if (!dryRun) {
             const oldTitle = mod.title;
             const oldContent = typeof mod.content === 'string' ? JSON.parse(mod.content) : structuredClone(mod.content);
             await this.topics.addModule(mod.topicId, user, { id: mod.id, type: mod.type, title: nextTitle, content: item.content } as any);
@@ -1429,9 +1701,13 @@ export class AiBridgeService {
       'LearningModules sammelt Material im **Lernnotizbuch** (Book → Bereich (area) → Abschnitt (section) → Lernthema → Module wie Arbeitsblätter) und verweist von dort in **Pläne** (Ordner → Plan → Bereich → Abschnitt).',
       '',
       '## Zugang',
-      `- Basis-URL: \`${baseUrl}/api/ai-bridge\` · Token: \`${rawToken}\` · gültig bis ${expiresTime} Uhr`,
+      session.persistent
+        ? `- Basis-URL: \`${baseUrl}/api/ai-bridge\` · Token: \`${rawToken}\` · **dauerhaft** – ich schalte den Zugang jeweils für eine Weile ein. Meldet der Server „ausgeschaltet“, bitte mich, ihn einzuschalten.`
+        : `- Basis-URL: \`${baseUrl}/api/ai-bridge\` · Token: \`${rawToken}\` · gültig bis ${expiresTime} Uhr`,
       `- Rechte: ${rights} Nur im freigegebenen Bereich, nie Schülerdaten.`,
-      `- Höchstens ${MAX_OPS_PER_SESSION} Operationen je Sitzung. Ich kann alles mit einem Klick rückgängig machen.`,
+      session.persistent
+        ? `- Deine Änderungen sind **vorläufig**: Ich nehme jeden Aufruf an oder lehne ihn ab (dann wird er zurückgenommen). Was Schüler gerade sehen, wird ein Entwurf – beim Lesen mit \`"pending": true\`; ab dort weiterarbeiten. Höchstens ${MAX_OPS_PER_SESSION} offene Operationen.`
+        : `- Höchstens ${MAX_OPS_PER_SESSION} Operationen je Sitzung. Ich kann alles mit einem Klick rückgängig machen.`,
       '',
       '## Ablauf',
       `1. Mit HTTP-Zugriff (z. B. Claude Code): Header \`Authorization: Bearer ${rawToken}\` bei jeder Anfrage. Baum: \`GET ${baseUrl}/api/ai-bridge/tree\`, Lernthema: \`GET …/topics/<id>\`, Dokument: \`GET …/documents/<id>\`.`,

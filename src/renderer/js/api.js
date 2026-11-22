@@ -874,6 +874,12 @@ export class BrowserApi {
     return this._fetch('/api/admin/cloud-backup/restore', { method: 'POST', body: JSON.stringify({ name, ...creds }) });
   }
 
+  /** Mappen auflösen (Admin): Vorschau ändert nichts, Ausführen braucht Passwort (und Code). */
+  previewMappen() { return this._fetch('/api/admin/mappen/preview'); }
+  runMappen(creds) {
+    return this._fetch('/api/admin/mappen/run', { method: 'POST', body: JSON.stringify({ ...creds }) });
+  }
+
   /** Fragt nach einer Backup-Datei und spielt sie ein. Liefert null bei Abbruch. */
   restoreBackup(creds) {
     return this._pickAndUpload('.lmbak', '/api/admin/restore', { password: creds?.password || '', code: creds?.code || '' });

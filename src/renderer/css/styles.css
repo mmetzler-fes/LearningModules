@@ -6945,3 +6945,9 @@ body.ws-on .login-card.login-card-wide {
 .contest-confetti-0 { color: #f59e0b; } .contest-confetti-1 { color: #ef4444; } .contest-confetti-2 { color: #3b82f6; } .contest-confetti-3 { color: #10b981; }
 .contest-confetti .lm-ico { fill: currentColor; }
 .contest-stat .lm-ico, .contest-top-title .lm-ico { vertical-align: -0.18em; }
+
+/* Admin: Mappen auflösen – Vorschau */
+.mappen-result { margin-top: 10px; max-height: 60vh; overflow: auto; }
+.mappen-item { padding: 4px 0; border-bottom: 1px solid var(--border, #ddd); }
+.mappen-item summary { cursor: pointer; }
+.mappen-item ol, .mappen-item ul { margin: 4px 0 4px 22px; }

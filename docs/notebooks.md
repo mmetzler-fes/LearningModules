@@ -41,6 +41,17 @@ Eingebettete Quizze gehen mit ihrem Dokument. Ein Dokument in ein Lernthema
 verschieben, das schon eines hat, geht nicht – dann das ganze Lernthema
 verschieben.
 
+Ältere Mappen (Lernthemen mit mehreren Dokumenten) löst ein Admin einmalig
+auf: **Admin → 📘 Mappen auflösen**, erst **🔍 Vorschau**, dann **▶ Ausführen**
+(mit Passwort; vorher legt der Server eine Kopie der Datenbank an). Die Mappe
+wird ein Abschnitt mit ihrem Namen, darin je Dokument ein Lernthema; liegt sie
+in einem Abschnitt, wird dieser zum Bereich. Das erste Dokument bleibt im
+bisherigen Lernthema, Quizze ohne Dokument kommen in „‹Mappe› – Quizze“.
+Ergebnisse, Stift-Arbeiten, Nutzungsrechte und Plätze (auch in der Planung)
+ziehen mit; im Klassennotizbuch bekommt jedes Lernthema einen eigenen Eintrag
+(eine Klassenarbeit bleibt ein Link), der Quick-Link der Mappe gehört danach
+dem Abschnitt – ausgeteilte QR-Codes zeigen alle Dokumente.
+
 ## Ansicht
 
 - Jede Zeile ist einzeilig. Alles ist zunächst zugeklappt; ▸ bzw. ein Klick

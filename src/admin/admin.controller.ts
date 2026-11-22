@@ -22,6 +22,7 @@ import { LearningModule } from '../core/entities/learning-module.entity';
 import { School } from '../core/entities/school.entity';
 import { MailService } from '../core/mail/mail.service';
 import { SchoolsService } from '../core/schools/schools.service';
+import { MappenMigrationService } from '../topics/mappen-migration.service';
 
 /** Rollenstufen in der Oberfläche: Lehrer < Schuladmin (+ Lehrer) < Admin (alle Rechte). */
 type RoleLevel = 'teacher' | 'schooladmin' | 'admin';
@@ -48,6 +49,7 @@ export class AdminController {
     private readonly backup: BackupService,
     private readonly cloudBackup: CloudBackupService,
     private readonly twoFactor: TwoFactorService,
+    private readonly mappen: MappenMigrationService,
     private readonly mail: MailService,
     private readonly schools: SchoolsService,
   ) {}
@@ -231,6 +233,23 @@ export class AdminController {
       `Der Masterkey wurde neu gesetzt (Fingerabdruck ${status.fingerprint}). Ab jetzt werden Backups und ` +
       'Exporte damit verschlüsselt; ältere bleiben mit dem bisherigen Schlüssel lesbar.');
     return status;
+  }
+
+  // ---- Mappen auflösen (topics/mappen-migration.service.ts) ----
+
+  /** Vorschau: was „Ausführen“ täte. Ändert nichts. */
+  @Get('mappen/preview')
+  async mappenPreview(@Request() req: any) {
+    this.requireAdmin(req);
+    return this.mappen.preview();
+  }
+
+  /** Einmalig: alle Mappen auflösen. Vorher entsteht eine Kopie der Datenbank. */
+  @Post('mappen/run')
+  async mappenRun(@Request() req: any, @Body() body: Reauth) {
+    await this.reauth(req, body);
+    this.logger.warn(`Mappen werden aufgelöst durch ${req.user.email || req.user.userId}`);
+    return this.mappen.run();
   }
 
   // ---- Backup ----

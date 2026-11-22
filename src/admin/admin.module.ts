@@ -19,6 +19,7 @@ import { UserSheetService } from './user-sheet.service';
 import { AuthModule } from '../auth/auth.module';
 import { SchoolsModule } from '../core/schools/schools.module';
 import { UsageModule } from '../impact/usage.module';
+import { MappenMigrationService } from '../topics/mappen-migration.service';
 
 @Module({
   imports: [
@@ -29,6 +30,6 @@ import { UsageModule } from '../impact/usage.module';
     UsageModule,
   ],
   controllers: [AdminController, MySchoolTeachersController],
-  providers: [UserSheetService, BackupService, CloudBackupService],
+  providers: [UserSheetService, BackupService, CloudBackupService, MappenMigrationService],
 })
 export class AdminModule {}

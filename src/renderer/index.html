@@ -1444,6 +1444,18 @@
               <input type="checkbox" id="ghAllowed" /> <span>GitHub-Backup für Lehrkräfte erlaubt</span>
             </label>
           </div>
+          <div class="settings-group" style="margin-top:24px;">
+            <h3>📘 Mappen auflösen</h3>
+            <p class="hint">Einmalig für alle Lehrkräfte: Aus jedem Lernthema mit mehreren Dokumenten werden
+              Lernthemen mit je einem Dokument. Die Mappe wird ein Abschnitt (liegt sie in einem Abschnitt, wird
+              dieser ein Bereich); Ergebnisse, Schülerarbeiten, Links, Klassennotizbücher und der Quick-Link ziehen mit.
+              Erst die Vorschau ansehen – vor dem Ausführen legt der Server eine Kopie der Datenbank an.</p>
+            <div class="form-actions" style="justify-content:flex-start">
+              <button type="button" class="btn btn-secondary" id="btnMappenPreview">🔍 Vorschau</button>
+              <button type="button" class="btn btn-primary" id="btnMappenRun" disabled>▶ Ausführen</button>
+            </div>
+            <div id="mappenResult" class="mappen-result"></div>
+          </div>
         </div>
       </section>
 

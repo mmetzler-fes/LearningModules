@@ -687,6 +687,54 @@ export class AdminView {
     });
   }
 
+  // ---- Mappen auflösen (topics/mappen-migration.service.ts) ----
+
+  _bindMappen() {
+    const box = document.getElementById('mappenResult');
+    const run = document.getElementById('btnMappenRun');
+    if (!box || !run) return;
+    const MODE = {
+      'section-to-area': 'Abschnitt wird Bereich, die Mappe ein Abschnitt darin',
+      'new-section': 'wird ein Abschnitt',
+      flat: 'Lernthemen hintereinander',
+    };
+    const show = (items) => {
+      if (!items.length) { box.innerHTML = '<p class="hint">Keine Mappen mehr – jedes Lernthema hat höchstens ein Dokument.</p>'; return; }
+      box.innerHTML = items.map((i) => `
+        <details class="mappen-item">
+          <summary><strong>${escapeHtml(i.title)}</strong> – ${escapeHtml(i.ownerName)} · <span class="hint">${escapeHtml(i.path)}</span>
+            · ${i.skipped ? `⏭ ${escapeHtml(i.skipped)}` : `${escapeHtml(MODE[i.mode] || i.mode)}, ${i.parts.length} Lernthemen`}</summary>
+          <ol>${i.parts.map((p) => `<li>${p.quizzes ? '🧩' : '📄'} ${escapeHtml(p.title)} <span class="hint">(${p.moduleIds.length} Modul${p.moduleIds.length === 1 ? '' : 'e'})</span></li>`).join('')}</ol>
+          ${i.notes.length ? `<ul class="hint">${i.notes.map((n) => `<li>${escapeHtml(n)}</li>`).join('')}</ul>` : ''}
+        </details>`).join('');
+    };
+    document.getElementById('btnMappenPreview')?.addEventListener('click', async () => {
+      box.innerHTML = '<p class="hint">⏳ Wird berechnet …</p>';
+      const res = await this.app.api.previewMappen();
+      if (!Array.isArray(res?.items)) { box.innerHTML = `<p class="hint">❌ ${escapeHtml(res?.message || 'Vorschau fehlgeschlagen')}</p>`; return; }
+      show(res.items);
+      if (res.count) box.insertAdjacentHTML('afterbegin', `<p><strong>${res.count} Mappe${res.count === 1 ? '' : 'n'}</strong> würden aufgelöst – bisher ist nichts geändert. Aufklappen zeigt die Lernthemen.</p>`);
+      run.disabled = !res.count;
+    });
+    run.addEventListener('click', async () => {
+      if (!(await this.app.appConfirm('Alle Mappen jetzt auflösen?\n\nVorher entsteht eine Kopie der Datenbank auf dem Server (data/vor-mappen-….sqlite). Rückgängig geht nur über diese Kopie.'))) return;
+      const creds = await this.confirmIdentity('Mappen auflösen');
+      if (!creds) return;
+      run.disabled = true;
+      box.innerHTML = '<p class="hint">⏳ Läuft – das kann einen Moment dauern …</p>';
+      const res = await this.app.api.runMappen(creds);
+      if (typeof res?.done !== 'number') {
+        box.innerHTML = `<p class="hint">❌ ${escapeHtml(res?.message || 'Fehlgeschlagen')}</p>`;
+        run.disabled = false;
+        return;
+      }
+      box.innerHTML = `<p><strong>✅ ${res.done} Mappe${res.done === 1 ? '' : 'n'} aufgelöst.</strong> Sicherung: <code>${escapeHtml(res.backup)}</code></p>`
+        + (res.failed.length ? `<p>⚠️ Nicht aufgelöst (unverändert):</p><ul>${res.failed.map((f) => `<li>${escapeHtml(f)}</li>`).join('')}</ul>` : '');
+      this.app.showToast(`${res.done} Mappen aufgelöst.`, res.failed.length ? 'error' : 'success');
+      await this.app.loadTopics?.();
+    });
+  }
+
   // ---- GitHub-Backup der Lehrkräfte ----
 
   async _refreshGithubBackup() {
@@ -856,6 +904,7 @@ export class AdminView {
   _bindSettings() {
     this._bindCloudBackup();
     this._bindGithubBackup();
+    this._bindMappen();
     this._bindSchoolYear();
     document.getElementById('btnSaveImpact')?.addEventListener('click', async () => {
       const res = await this.app.api.saveImpactSettings({ shareHintAfter: Number(document.getElementById('impShareHint')?.value) });

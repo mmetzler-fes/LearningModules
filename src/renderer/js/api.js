@@ -803,17 +803,18 @@ export class BrowserApi {
   // Sicherung in die Nextcloud (src/sicherung): draußen geänderte .zlm
   getSicherungChanged() { return this._fetch('/api/nextcloud/sicherung/changed'); }
   // GoodNotes-Heft je Lernthema (src/worksheets/goodnotes.service.ts)
-  downloadGoodnotes(topicId, solution = false) {
-    return this._download(`/api/worksheets/goodnotes/${encodeURIComponent(topicId)}${solution ? '?solution=1' : ''}`, 'Heft.pdf');
+  // `node`: Heft eines Abschnitts oder Bereichs (alle Dokumente darunter)
+  downloadGoodnotes(topicId, solution = false, node = false) {
+    return this._download(`/api/worksheets/goodnotes/${node ? 'node/' : ''}${encodeURIComponent(topicId)}${solution ? '?solution=1' : ''}`, 'Heft.pdf');
   }
-  goodnotesLink(topicId) { return this._fetch(`/api/worksheets/goodnotes/${encodeURIComponent(topicId)}/link`); }
+  goodnotesLink(topicId, node = false) { return this._fetch(`/api/worksheets/goodnotes/${node ? 'node/' : ''}${encodeURIComponent(topicId)}/link`); }
   // Kurzlinks /k/<code> (src/short-links)
   getShortLinks() { return this._fetch('/api/short-links'); }
   createShortLink(url, title) { return this._fetch('/api/short-links', { method: 'POST', body: JSON.stringify({ url, title }) }); }
   updateShortLink(id, patch) { return this._fetch(`/api/short-links/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(patch) }); }
   shortLinkQr(id) { return this._fetch(`/api/short-links/${encodeURIComponent(id)}/qr`); }
   deleteShortLink(id) { return this._fetch(`/api/short-links/${encodeURIComponent(id)}`, { method: 'DELETE' }); }
-  goodnotesToNextcloud(topicId) { return this._fetch(`/api/worksheets/goodnotes/${encodeURIComponent(topicId)}/nextcloud`, { method: 'POST' }); }
+  goodnotesToNextcloud(topicId, node = false) { return this._fetch(`/api/worksheets/goodnotes/${node ? 'node/' : ''}${encodeURIComponent(topicId)}/nextcloud`, { method: 'POST' }); }
   compareSicherung(key) { return this._fetch(`/api/nextcloud/sicherung/compare?key=${encodeURIComponent(key)}`); }
   takeOverSicherung(key) { return this._fetch('/api/nextcloud/sicherung/take-over', { method: 'POST', body: JSON.stringify({ key }) }); }
   getSicherungTree() { return this._fetch('/api/nextcloud/sicherung/tree'); }

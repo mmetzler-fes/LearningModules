@@ -52,6 +52,11 @@ ziehen mit; im Klassennotizbuch bekommt jedes Lernthema einen eigenen Eintrag
 (eine Klassenarbeit bleibt ein Link), der Quick-Link der Mappe gehört danach
 dem Abschnitt – ausgeteilte QR-Codes zeigen alle Dokumente.
 
+**📓 Für GoodNotes (PDF)…** gibt es auch im Menü eines Abschnitts oder
+Bereichs: ein Heft mit allen Dokumenten darunter (Reihenfolge wie im
+Notizbuch), als Schüler- und Lösungsheft, in die Nextcloud und – hat der
+Ordner einen Quick-Link – als feste Adresse mit QR-Code für die Schüler.
+
 ## Ansicht
 
 - Jede Zeile ist einzeilig. Alles ist zunächst zugeklappt; ▸ bzw. ein Klick

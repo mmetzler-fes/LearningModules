@@ -1,12 +1,13 @@
 import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import * as crypto from 'crypto';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { LearningModule } from '../core/entities/learning-module.entity';
 import { LearningTopic } from '../core/entities/learning-topic.entity';
 import { NotebookNode } from '../core/entities/notebook-node.entity';
+import { NotebookPlacement } from '../core/entities/notebook-placement.entity';
 import { NextcloudService } from '../nextcloud/nextcloud.service';
 import { safeFolderName } from '../nextcloud/nextcloud-api';
 import { DocNumberingService } from './doc-numbering.service';
@@ -14,6 +15,8 @@ import { TemplatesService } from './templates.service';
 import { WorksheetsService } from './worksheets.service';
 import { settingsAt } from './numbering';
 import { renderQr } from '../core/share/link-url';
+
+export type HeftOpts = { solution?: boolean; allowed?: Set<string> | null; base?: string; quizLink?: string | null };
 
 /** Ordner in der Nextcloud der Lehrkraft. */
 export const GOODNOTES_FOLDER = 'GoodNotes';
@@ -64,18 +67,50 @@ export class GoodnotesService {
     @InjectRepository(NotebookNode) private readonly nodeRepo: Repository<NotebookNode>,
     @Optional() private readonly templates?: TemplatesService,
     @Optional() private readonly nextcloud?: NextcloudService,
+    @Optional() @InjectRepository(NotebookPlacement) private readonly placeRepo?: Repository<NotebookPlacement>,
   ) {}
 
   /**
    * Heft eines Lernthemas. `ownerId`: die Lehrkraft, der es gehört (beim
    * Schülerweg vorher geprüft). `allowed`: nur diese Module (Link der Schüler).
    */
-  async heft(ownerId: string, topicId: string, opts: { solution?: boolean; allowed?: Set<string> | null; base?: string; quizLink?: string | null } = {}): Promise<Heft> {
+  async heft(ownerId: string, topicId: string, opts: HeftOpts = {}): Promise<Heft> {
     const topic = await this.topicRepo.findOne({ where: { id: topicId }, relations: ['modules'] });
     if (!topic) throw new NotFoundException('Lernthema nicht gefunden.');
     if (topic.ownerId !== ownerId) throw new ForbiddenException('Das Lernthema gehört dir nicht.');
     const docs = heftDocuments(topic.modules || [], opts.allowed);
     if (!docs.length) throw new BadRequestException('In diesem Lernthema gibt es keine Dokumente für ein Heft.');
+    return this.build(ownerId, topic.title, topic.modules || [], docs, [topic.updatedAt], opts);
+  }
+
+  /**
+   * Heft eines Abschnitts oder Bereichs: die Dokumente aller eigenen Lernthemen darunter, in der
+   * Reihenfolge des Notizbuchs (erst Unterordner, dann die Lernthemen – wie die Nummerierung).
+   * Seit ein Lernthema ein Dokument hat, ist das das Heft einer früheren Mappe.
+   */
+  async heftForNode(ownerId: string, nodeId: string, opts: HeftOpts = {}): Promise<Heft> {
+    const nodes = await this.nodeRepo.find({ where: { ownerId } });
+    const node = nodes.find((n) => n.id === nodeId);
+    if (!node) throw new NotFoundException('Ordner nicht gefunden.');
+    const topicIds = await this.topicIdsBelow(ownerId, nodes, nodeId);
+    const topics = topicIds.length ? await this.topicRepo.find({ where: { id: In(topicIds), ownerId }, relations: ['modules'] }) : [];
+    const ordered = topicIds.map((id) => topics.find((t) => t.id === id)).filter((t): t is LearningTopic => !!t);
+    const all = ordered.flatMap((t) => t.modules || []);
+    const docs = ordered.flatMap((t) => heftDocuments(t.modules || [], opts.allowed));
+    if (!docs.length) throw new BadRequestException('Darin gibt es keine Dokumente für ein Heft.');
+    return this.build(ownerId, node.title, all, docs, ordered.map((t) => t.updatedAt), opts);
+  }
+
+  /** Lernthemen unter einem Knoten, Unterordner zuerst (wie im Notizbuch). */
+  private async topicIdsBelow(ownerId: string, nodes: NotebookNode[], nodeId: string): Promise<string[]> {
+    const out: string[] = [];
+    for (const kid of nodes.filter((n) => n.parentId === nodeId).sort((a, b) => a.orderIndex - b.orderIndex)) out.push(...(await this.topicIdsBelow(ownerId, nodes, kid.id)));
+    const places = this.placeRepo ? await this.placeRepo.find({ where: { ownerId, nodeId } }) : [];
+    out.push(...places.sort((a, b) => a.orderIndex - b.orderIndex).map((p) => p.topicId).filter((id) => !id.startsWith('offer:')));
+    return out;
+  }
+
+  private async build(ownerId: string, title: string, all: LearningModule[], docs: LearningModule[], touched: Array<Date | string | undefined>, opts: HeftOpts): Promise<Heft> {
     const user = { userId: ownerId };
     const n = await this.numbering.numberingFor(ownerId);
     const nodeId = docs.map((d) => n.docs.get(d.id)?.nodeId).find(Boolean) || null;
@@ -83,20 +118,19 @@ export class GoodnotesService {
     const settings = nodeId ? settingsAt(nodes, nodeId) : ({} as any);
     const tpl = this.templates ? await this.templates.resolve(ownerId, nodeId, 'skript', nodes) : null;
 
-    // Stand: jüngste Änderung an den Dokumenten oder Quizzen des Lernthemas.
-    const all = topic.modules || [];
-    const newest = new Date(Math.max(...all.map((m) => new Date(m.updatedAt as any).getTime() || 0), new Date(topic.updatedAt as any).getTime() || 0));
+    // Stand: jüngste Änderung an den Dokumenten oder Quizzen.
+    const newest = new Date(Math.max(...all.map((m) => new Date(m.updatedAt as any).getTime() || 0), ...touched.map((t) => new Date(t as any).getTime() || 0)));
     const stand = isoDay(newest);
     const solution = !!opts.solution;
     const hash = crypto.createHash('sha256').update(JSON.stringify({
-      v: LAYOUT, solution, title: topic.title, stand,
+      v: LAYOUT, solution, title, stand,
       docs: docs.map((d) => [d.id, d.title, d.content, n.docs.get(d.id) ? [n.docs.get(d.id)!.pfad, n.docs.get(d.id)!.slug, n.docs.get(d.id)!.course] : null]),
       quizzes: all.filter((m) => m.type !== 'document').map((m) => [m.id, new Date(m.updatedAt as any).getTime() || 0]),
       tpl: tpl ? [tpl.id, new Date(tpl.updatedAt as any).getTime() || 0] : null,
       kurs: settings.kurs || '', autor: settings.autor || '', base: opts.base || '', quizLink: opts.quizLink || '',
     })).digest('hex');
 
-    const base = safeFolderName(topic.title, 'Lernthema');
+    const base = safeFolderName(title, 'Lernthema');
     const name = `${base}${solution ? ' – Lösung' : ''} (Stand ${stand}).pdf`;
     const cachePath = path.join(this.dir, `${hash}.pdf`);
     const cachedFile = await fs.readFile(cachePath).catch(() => null);
@@ -112,7 +146,7 @@ export class GoodnotesService {
         const { file, warnings } = await this.worksheets.renderSheets(user, docs, solution ? 'loesung_pdf' : 'pdf', {
           quizzes: 'print', numbering: n, template: tpl?.data ?? null, karoPage: true, base: opts.base, quizLink: opts.quizLink,
           course: { kurs, autor: settings.autor || '', ...(settings.meta ? { meta: settings.meta } : {}) },
-          skript: { titel: topic.title, kopfzeile: [kurs, topic.title, `Stand ${deDay(stand)}`].filter(Boolean).join(' – ') },
+          skript: { titel: title, kopfzeile: [kurs, title, `Stand ${deDay(stand)}`].filter(Boolean).join(' – ') },
         });
         const buf = Buffer.isBuffer(file) ? file : Buffer.from(file as any);
         await fs.mkdir(this.dir, { recursive: true });
@@ -131,9 +165,10 @@ export class GoodnotesService {
    * (GoodNotes/<Lernthema> (Stand …).pdf). Ältere Stände desselben Lernthemas
    * dort werden ersetzt.
    */
-  async forTeacher(ownerId: string, topicId: string, base?: string) {
-    const student = await this.heft(ownerId, topicId, { base });
-    const teacher = await this.heft(ownerId, topicId, { solution: true, base });
+  async forTeacher(ownerId: string, topicId: string, base?: string, scope: 'topic' | 'node' = 'topic') {
+    const make = (o: HeftOpts) => (scope === 'node' ? this.heftForNode(ownerId, topicId, o) : this.heft(ownerId, topicId, o));
+    const student = await make({ base });
+    const teacher = await make({ solution: true, base });
     let nextcloud: { folder: string; files: string[] } | null = null;
     let nextcloudError: string | null = null;
     if (this.nextcloud && (await this.nextcloud.isReady(ownerId).catch(() => false))) {
@@ -159,6 +194,16 @@ export class GoodnotesService {
     const token = await this.worksheets.quickTokenFor(ownerId, topicId);
     if (!token) return { url: null, qr: null };
     const url = `${base}/api/public/goodnotes/${encodeURIComponent(token)}/${encodeURIComponent(topicId)}`;
+    return { url, qr: await renderQr(url) };
+  }
+
+  /** Dasselbe für einen Abschnitt oder Bereich – über dessen Quick-Link. */
+  async nodeStudentLink(ownerId: string, nodeId: string, base: string) {
+    const node = await this.nodeRepo.findOne({ where: { id: nodeId, ownerId } });
+    if (!node) throw new NotFoundException('Ordner nicht gefunden.');
+    const token = await this.worksheets.quickTokenFor(ownerId, null, nodeId);
+    if (!token) return { url: null, qr: null };
+    const url = `${base}/api/public/goodnotes/${encodeURIComponent(token)}/node/${encodeURIComponent(nodeId)}`;
     return { url, qr: await renderQr(url) };
   }
 

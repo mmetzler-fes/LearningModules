@@ -143,9 +143,9 @@ export class WorksheetsService {
   }
 
   /** Token des Quick-Links dieser Lehrkraft auf das Lernthema – oder `null`. */
-  async quickTokenFor(ownerId: string, topicId: string): Promise<string | null> {
+  async quickTokenFor(ownerId: string, topicId: string | null, nodeId?: string): Promise<string | null> {
     if (!this.linkRepo) return null;
-    const rule = await this.linkRepo.findOne({ where: { ownerId, quickTopicId: topicId, classId: IsNull(), token: Not(IsNull()) } });
+    const rule = await this.linkRepo.findOne({ where: { ownerId, ...(nodeId ? { quickNodeId: nodeId } : { quickTopicId: topicId! }), classId: IsNull(), token: Not(IsNull()) } });
     return rule?.token ?? null;
   }
 

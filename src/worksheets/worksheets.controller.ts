@@ -128,6 +128,30 @@ export class WorksheetsController {
     res.send(file);
   }
 
+  /** GoodNotes-Heft eines Abschnitts oder Bereichs (alle Dokumente darunter, ?solution=1: Lösungsheft). */
+  @Get('goodnotes/node/:nodeId')
+  async goodnotesNodePdf(@Request() req: any, @Param('nodeId') nodeId: string, @Res() res: Response, @Query('solution') solution?: string) {
+    const h = await this.goodnotes.heftForNode(req.user.userId, nodeId, { solution: solution === '1', base: baseUrl(req) });
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(h.name)}`);
+    res.setHeader('X-Goodnotes-Cached', h.cached ? '1' : '0');
+    res.setHeader('X-Worksheet-Warnings', encodeURIComponent(JSON.stringify(h.warnings)));
+    res.send(h.file);
+  }
+
+  @Get('goodnotes/node/:nodeId/link')
+  goodnotesNodeLink(@Request() req: any, @Param('nodeId') nodeId: string) {
+    return this.goodnotes.nodeStudentLink(req.user.userId, nodeId, baseUrl(req));
+  }
+
+  @Post('goodnotes/node/:nodeId/nextcloud')
+  @HttpCode(200)
+  async goodnotesNodeNextcloud(@Request() req: any, @Param('nodeId') nodeId: string) {
+    const r = await this.goodnotes.forTeacher(req.user.userId, nodeId, baseUrl(req), 'node');
+    const info = (h: { name: string; stand: string; cached: boolean; warnings: string[] }) => ({ name: h.name, stand: h.stand, cached: h.cached, warnings: h.warnings });
+    return { student: info(r.student), teacher: info(r.teacher), nextcloud: r.nextcloud, nextcloudError: r.nextcloudError };
+  }
+
   /**
    * GoodNotes-Heft eines Lernthemas als PDF (?solution=1: Lösungsheft).
    * Unveränderte Inhalte kommen aus dem Zwischenspeicher (X-Goodnotes-Cached).

@@ -183,6 +183,24 @@ export class PublicController {
   }
 
   /**
+   * GET /public/goodnotes/:linkToken/node/:nodeId – Heft eines Abschnitts (frühere Mappe) über
+   * dessen Quick-Link: alle Dokumente darunter, die der Link zeigt. Nur ohne Passwort am Link.
+   */
+  @Get('goodnotes/:linkToken/node/:nodeId')
+  async goodnotesNodeByLink(@Param('linkToken') linkToken: string, @Param('nodeId') nodeId: string, @Req() req: any, @Res() res: Response) {
+    const { link, access } = await this.findAccessByToken(String(linkToken));
+    if (link.accessPassword) throw new ForbiddenException('Dieser Link hat ein Passwort – das Heft gibt es dann am Dokument („📓 Heft für GoodNotes“).');
+    if (link.quickNodeId !== nodeId) throw new NotFoundException('Heft nicht gefunden.');
+    if (!(await this.features.has(link.ownerId, 'worksheets'))) throw new ForbiddenException('Hierfür gibt es kein Heft.');
+    const modules = (await this.linksService.resolveModules(link, { exam: modesFor(link, access).includes('exam') })).flatMap((r) => r.modules);
+    const allowed = new Set(modules.filter((m) => m.type === 'document').map((m) => m.id));
+    const h = await this.goodnotes.heftForNode(link.ownerId, nodeId, { allowed, base: baseUrl(req) });
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename*=UTF-8''${encodeURIComponent(h.name)}`);
+    res.send(h.file);
+  }
+
+  /**
    * GET /public/goodnotes/:linkToken/:topicId – dasselbe Heft als feste Adresse
    * (mit QR-Code im Dialog „📓 Für GoodNotes“ der Lehrkraft): Auf dem iPad öffnet
    * Safari das PDF, von dort „In GoodNotes öffnen“. Nur ohne Passwort am Link.

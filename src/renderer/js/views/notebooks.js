@@ -1242,6 +1242,7 @@ export class NotebooksView {
       items.push({ label: '📄 Dokument-Einstellungen…', title: 'Kurs, Kopfzeile, Vorlagen und KI-Vorgaben für die Dokumente darunter', run: () => this._editDocSettings(node) });
       items.push({ label: '⬇️ Als Kurs exportieren', title: 'Dokumente darunter als Kurs für den Arbeitsblatt-Generator (ZIP)', run: () => this._exportCourse(node) });
       items.push({ label: '📚 Skript…', title: 'Alle Arbeitsblätter darunter als Skript mit Inhaltsverzeichnis – PDF oder .odt, mit oder ohne Lösungen, Quizze zum Ausfüllen', run: () => this._script(node) });
+      if (node.kind !== 'book') items.push({ label: '📓 Für GoodNotes (PDF)…', title: 'Ein Heft mit allen Dokumenten darunter: Titelseite, Inhaltsverzeichnis, Lesezeichen, Karo-Seiten, Quizze zum Ausfüllen – für Schüler ohne, für dich mit Lösungen', run: () => openGoodnotesDialog(this.app, { id: node.id, title: node.title, node: true }) });
       items.push({ label: '📓 Dokumente als OneNote-Seite', title: 'Gliederung der Dokumente mit anonymem Quick-Link und QR-Code in die Zwischenablage – ohne Klasse', run: () => this._oneNoteDocs(node) });
       items.push({ label: '🤖 KI-Lernmodul aus den Dokumenten…', title: 'Der Text der Dokumente darunter kommt als Material in den Prompt', run: () => this.app.aiPromptView.openFor({ nodeId: node.id, label: node.title, material: `n:${node.id}` }) });
     }

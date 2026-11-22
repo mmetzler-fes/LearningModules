@@ -103,3 +103,35 @@ describe('GoodnotesService', () => {
     expect(await svc.studentLink('u1', 't1', 'https://lm.test')).toEqual({ url: null, qr: null });
   });
 });
+
+describe('GoodNotes-Heft eines Abschnitts', () => {
+  it('alle Dokumente darunter in der Reihenfolge des Notizbuchs (Unterordner zuerst), fremde Lernthemen nicht, Link-Auswahl gilt', async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'gn-'));
+    const lists: string[][] = [];
+    const worksheets: any = { renderSheets: async (_u: any, list: any[]) => { lists.push(list.map((m: any) => m.id)); return { file: Buffer.from('%PDF'), warnings: [] }; } };
+    const numbering: any = { numberingFor: async () => ({ docs: new Map(), refs: new Map() }) };
+    const topics: any[] = [
+      { id: 'a', ownerId: 'u1', title: 'A', updatedAt: new Date(0), modules: [doc('d1')] },
+      { id: 'b', ownerId: 'u1', title: 'B', updatedAt: new Date(0), modules: [doc('d2'), { id: 'q', type: 'multipleChoice', orderIndex: 1 }] },
+      { id: 'c', ownerId: 'u1', title: 'C', updatedAt: new Date(0), modules: [doc('d3')] },
+    ];
+    const topicRepo: any = { find: async ({ where }: any) => topics.filter((t) => where.id._value.includes(t.id) && t.ownerId === where.ownerId) };
+    const nodeRepo: any = { find: async () => [
+      { id: 'S', ownerId: 'u1', kind: 'area', title: 'Gleichstrommotor', parentId: null, orderIndex: 0 },
+      { id: 'K', ownerId: 'u1', kind: 'section', title: 'PWM', parentId: 'S', orderIndex: 0 },
+    ] };
+    const placeRepo: any = { find: async ({ where }: any) => ({
+      S: [{ topicId: 'c', orderIndex: 0 }, { topicId: 'fremd', orderIndex: 1 }],
+      K: [{ topicId: 'b', orderIndex: 1 }, { topicId: 'a', orderIndex: 0 }],
+    } as any)[where.nodeId] || [] };
+    const svc = new GoodnotesService(worksheets, numbering, topicRepo, nodeRepo, undefined, undefined, placeRepo);
+    (svc as any).dir = dir;
+    const h = await svc.heftForNode('u1', 'S');
+    expect(h.name).toMatch(/^Gleichstrommotor \(Stand/);
+    expect(lists[0]).toEqual(['d1', 'd2', 'd3']);
+    await svc.heftForNode('u1', 'S', { allowed: new Set(['d2']) });
+    expect(lists[1]).toEqual(['d2']);
+    await expect(svc.heftForNode('u1', 'X')).rejects.toThrow(/nicht gefunden/);
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+});

@@ -9,19 +9,21 @@ import { escapeHtml } from '../utils.js';
 
 const failed = (r) => !r || r.success === false || r.statusCode >= 400;
 
+/** `topic`: { id, title } eines Lernthemas – mit `node: true` ein Abschnitt oder Bereich. */
 export function openGoodnotesDialog(app, topic) {
+  const node = !!topic.node;
   const overlay = document.createElement('div');
   overlay.className = 'confirm-overlay';
   overlay.innerHTML = `<div class="import-modules-card nb-dialog" style="max-width:620px">
     <h3>📓 Für GoodNotes – ${escapeHtml(topic.title)}</h3>
-    <p class="hint">Ein PDF für das ganze Lernthema: Titelseite, antippbares Inhaltsverzeichnis und Lesezeichen,
+    <p class="hint">Ein PDF ${node ? 'mit allen Dokumenten darunter (in der Reihenfolge des Notizbuchs)' : 'für das ganze Lernthema'}: Titelseite, antippbares Inhaltsverzeichnis und Lesezeichen,
       nach jedem Blatt eine Karo-Seite, Quizze zum Ausfüllen. Im Dateinamen steht der Stand (jüngste Änderung).
       Ist nichts geändert, wird nicht neu erzeugt.</p>
-    <p class="hint">Schüler finden am Dokument den Knopf <strong>📓 Heft für GoodNotes</strong> (ohne Lösungen).</p>
+    ${node ? '' : '<p class="hint">Schüler finden am Dokument den Knopf <strong>📓 Heft für GoodNotes</strong> (ohne Lösungen).</p>'}
     <div class="gn-actions">
       <button type="button" class="btn btn-secondary" data-act="student">⬇ Schülerheft</button>
       <button type="button" class="btn btn-secondary" data-act="teacher">⬇ Lösungsheft</button>
-      <button type="button" class="btn btn-primary" data-act="nextcloud" title="Beide Hefte nach GoodNotes/ in deiner Nextcloud – ältere Stände desselben Lernthemas werden ersetzt">☁️ In die Nextcloud (GoodNotes/)</button>
+      <button type="button" class="btn btn-primary" data-act="nextcloud" title="Beide Hefte nach GoodNotes/ in deiner Nextcloud – ältere Stände desselben Hefts werden ersetzt">☁️ In die Nextcloud (GoodNotes/)</button>
     </div>
     <div class="gn-link"><p class="hint">Adresse für die Schüler wird geladen …</p></div>
     <p class="gn-status hint" aria-live="polite"></p>
@@ -46,7 +48,7 @@ export function openGoodnotesDialog(app, topic) {
     busy(true, '⏳ Heft wird erstellt – beim ersten Mal kann das etwas dauern …');
     try {
       if (act === 'nextcloud') {
-        const res = await app.api.goodnotesToNextcloud(topic.id);
+        const res = await app.api.goodnotesToNextcloud(topic.id, node);
         if (failed(res)) throw new Error(res?.message || 'Das ging nicht.');
         if (res.nextcloud) {
           status.innerHTML = `✅ In der Nextcloud unter <code>${escapeHtml(res.nextcloud.folder)}/</code>: ${res.nextcloud.files.map((f) => `<code>${escapeHtml(f)}</code>`).join(', ')}`;
@@ -58,7 +60,7 @@ export function openGoodnotesDialog(app, topic) {
         buttons.forEach((b) => { b.disabled = false; });
         return;
       }
-      const res = await app.api.downloadGoodnotes(topic.id, act === 'teacher');
+      const res = await app.api.downloadGoodnotes(topic.id, act === 'teacher', node);
       if (failed(res)) throw new Error(res?.error || res?.message || 'Das ging nicht.');
       busy(false, '✅ Heruntergeladen.');
     } catch (err) {
@@ -72,10 +74,12 @@ export function openGoodnotesDialog(app, topic) {
  * Auf dem iPad öffnet Safari das PDF – von dort „In GoodNotes öffnen“.
  */
 async function showStudentLink(app, topic, box) {
-  const res = await app.api.goodnotesLink(topic.id).catch(() => null);
+  const res = await app.api.goodnotesLink(topic.id, !!topic.node).catch(() => null);
   if (failed(res)) { box.innerHTML = ''; return; }
   if (!res.url) {
-    box.innerHTML = '<p class="hint">Für eine feste Adresse mit QR-Code braucht das Lernthema einen Quick-Link (🔗 am Lernthema).</p>';
+    box.innerHTML = topic.node
+      ? '<p class="hint">Für eine feste Adresse mit QR-Code braucht der Ordner einen Quick-Link (🔗 Quick-Link im Menü des Ordners).</p>'
+      : '<p class="hint">Für eine feste Adresse mit QR-Code braucht das Lernthema einen Quick-Link (🔗 am Lernthema).</p>';
     return;
   }
   // Das SVG kommt vom eigenen Server (qrcode-Bibliothek), nicht aus Nutzereingaben.

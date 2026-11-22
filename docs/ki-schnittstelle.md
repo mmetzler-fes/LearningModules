@@ -47,6 +47,9 @@ Dokument-Art um – nummeriert werden nur Arbeitsblätter. Im Baum (`GET tree`) 
 
 `move_modules` (`moduleIds`, `topicId`) verschiebt Dokumente und Quizze in ein anderes Lernthema –
 wie „↔️ Verschieben“ in der Oberfläche, Reihenfolge der Auswahl bleibt, ans Ende des Ziels.
+Ein Lernthema enthält höchstens ein Dokument: Ein Ziel, das schon eines hat, lehnt der Server ab;
+`create_document` in ein solches Lernthema legt das Dokument in ein eigenes Lernthema direkt dahinter
+(`topicId` im Ergebnis).
 Zusammen mit `create_topic` (`"ref": "$t1"`, `"topicId": "$t1"`) wird aus einer Sammlung je Blatt
 ein eigenes Lernthema. ⏪ schiebt zurück und stellt die alte Reihenfolge wieder her.
 

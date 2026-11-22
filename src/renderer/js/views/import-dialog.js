@@ -292,9 +292,11 @@ export function openImportDialog(app, { topicId = null, h5p = false, extraFile =
   });
 
   /**
-   * Je Datei ein Dokument – ins Thema oder in ein neues Lernthema (benannt
-   * nach der ersten Datei). Antwort wie beim Import: { topicId, topicTitle,
-   * importedCount }, dazu failed und warnings.
+   * Je Datei ein Dokument in einem eigenen Lernthema (ein Dokument je Lernthema):
+   * das erste ins Thema bzw. in ein neues Lernthema (benannt nach der ersten
+   * Datei), jedes weitere legt der Server als eigenes Lernthema dahinter an.
+   * Antwort wie beim Import: { topicId, topicIds, topicTitle, importedCount },
+   * dazu failed und warnings.
    */
   async function importDocuments() {
     const jobs = await pairXopp();
@@ -309,7 +311,7 @@ export function openImportDialog(app, { topicId = null, h5p = false, extraFile =
     let target = topicId;
     let topicTitle = null;
     if (!target) {
-      topicTitle = jobs.length === 1 ? jobs[0].file.name.replace(/\.[^.]+$/, '') : 'Dokumente';
+      topicTitle = jobs[0].file.name.replace(/\.[^.]+$/, '');
       const topic = await app.api.saveTopic({ title: topicTitle, description: '' });
       if (!topic?.id) throw new Error(topic?.message || 'Lernthema konnte nicht angelegt werden.');
       target = topic.id;
@@ -317,6 +319,7 @@ export function openImportDialog(app, { topicId = null, h5p = false, extraFile =
     const failed = [];
     const warnings = [];
     const entries = [];
+    const topicIds = [target];
     let importedCount = 0;
     const { xoppToDocument, saveTeacherInk } = jobs.some((j) => j.xopp) ? await import('../xopp-import.js') : {};
     for (const [n, { file: f, xopp, pdfFile }] of jobs.entries()) {
@@ -332,6 +335,8 @@ export function openImportDialog(app, { topicId = null, h5p = false, extraFile =
           content: { kind: 'arbeitsblatt', spec }, moduleSelected: true, createdAt: now, updatedAt: now,
         });
         if (!res?.success) throw new Error(res?.message || 'Speichern fehlgeschlagen');
+        // Eigenes Lernthema dahinter: Das nächste Dokument folgt diesem.
+        if (res.topicId && res.topicId !== target) { target = res.topicId; topicIds.push(target); }
         importedCount++;
         entries.push({ id, title, spec, warnings: w });
         warnings.push(...w.map((x) => `${f.name}: ${x}`));
@@ -342,7 +347,7 @@ export function openImportDialog(app, { topicId = null, h5p = false, extraFile =
       }
     }
     if (!importedCount) throw new Error(failed.join(' · ') || 'Keine Datei übernommen.');
-    return { topicId: target, topicTitle, importedCount, failed, warnings, entries };
+    return { topicId: topicIds[0], topicIds, topicTitle, importedCount, failed, warnings, entries };
   }
 
   /**

@@ -566,7 +566,7 @@ export class AiBridgeService {
       return walk(spec);
     };
 
-    const results: Array<{ index: number; op: string; ok: boolean; id?: string; summary: string }> = [];
+    const results: Array<{ index: number; op: string; ok: boolean; id?: string; topicId?: string; summary: string }> = [];
 
     for (let i = 0; i < ops.length; i++) {
       const item = ops[i];
@@ -907,9 +907,16 @@ export class AiBridgeService {
             content: withBlockIds({ kind, spec: item.spec }),
           } as any);
           if (item.ref) refs.set(item.ref, saved.id);
-          session.undoStack.push({ kind: 'delete_module', topicId, moduleId: saved.id, label: summary });
-          session.log.push({ at: new Date().toISOString(), op: item.op, summary });
-          results.push({ index: i, op: item.op, ok: true, id: saved.id, summary });
+          // Ein Dokument je Lernthema: Hatte das Ziel schon eines, liegt das neue in einem eigenen Lernthema dahinter.
+          const ownTopic = saved.topicId !== topicId ? saved.topicId : null;
+          const said = ownTopic ? `${summary} – eigenes Lernthema direkt hinter dem Ziel (ein Dokument je Lernthema)` : summary;
+          if (ownTopic) {
+            scopeSets.allowedTopics.add(ownTopic);
+            session.undoStack.push({ kind: 'delete_topic', id: ownTopic, label: said });
+          }
+          session.undoStack.push({ kind: 'delete_module', topicId: saved.topicId, moduleId: saved.id, label: said });
+          session.log.push({ at: new Date().toISOString(), op: item.op, summary: said });
+          results.push({ index: i, op: item.op, ok: true, id: saved.id, ...(ownTopic ? { topicId: ownTopic } : {}), summary: said });
           break;
         }
 
@@ -1077,7 +1084,7 @@ export class AiBridgeService {
         }
         break;
       case 'move_modules':
-        await this.topics.transferModules(action.toTopicId, action.fromTopicId, action.moduleIds, 'move', user);
+        await this.topics.transferModules(action.toTopicId, action.fromTopicId, action.moduleIds, 'move', user, { allowSeveralDocs: true });
         // Alte Reihenfolge im Quellthema wiederherstellen (das Zurückschieben hängt sonst hinten an).
         for (const o of action.oldOrder) {
           await this.moduleRepo.update({ id: o.id, topicId: action.fromTopicId }, { orderIndex: o.orderIndex, parentId: o.parentId as any });
@@ -1390,7 +1397,7 @@ export class AiBridgeService {
         '`{"op":"set_doc_settings","id":"<nodeId>","kurs":"BPE 8","numbering":"flat"}` – Kurs/Kopfzeile und Nummerierung (flat durchgezählt, tree gegliedert, off, inherit)',
         '`{"op":"move_topic","topicId":"<id>","targetNodeId":"<id|$ref>"}`',
         '`{"op":"rename_topic","topicId":"<id>","title":"…","description":"…"}` – Lernthema umbenennen (description optional); ein einzelnes, gleich benanntes Dokument heißt mit',
-        '`{"op":"move_modules","moduleIds":["<id>",…],"topicId":"<id|$ref>"}` – Dokumente/Quizze in ein anderes Lernthema',
+        '`{"op":"move_modules","moduleIds":["<id>",…],"topicId":"<id|$ref>"}` – Dokumente/Quizze in ein anderes Lernthema (in eines ohne Dokument)',
         '`{"op":"create_plan_node","kind":"folder"|"plan"|"area"|"section","title":"…","parentId":"<id|$ref|null>","ref":"$p1"}`',
         '`{"op":"rename_plan_node","id":"<id>","title":"…"}`',
         '`{"op":"link_to_plan","parentId":"<planNodeId|$ref>","items":[{"type":"topic"|"nbnode","id":"<id>"}]}`',
@@ -1398,7 +1405,7 @@ export class AiBridgeService {
       ] : []),
       ...(writeDocs ? [
         '`{"op":"create_topic","title":"…","targetNodeId":"<sectionId|$ref>","ref":"$t1"}`',
-        '`{"op":"create_document","topicId":"<id|$ref>","title":"…","kind":"arbeitsblatt","spec":{"content":[…]}}`',
+        '`{"op":"create_document","topicId":"<id|$ref>","title":"…","kind":"arbeitsblatt","spec":{"content":[…]}}` – ein Dokument je Lernthema: je Blatt erst create_topic; hat das Ziel schon eines, entsteht ein eigenes Lernthema dahinter',
         '`{"op":"update_document","moduleId":"<id>","title":"…","spec":{"content":[…]}}` – vorher mit GET /documents/<id> lesen',
         `\`{"op":"create_quiz","topicId":"<id|$ref>","type":"<Typ>","title":"…","content":{…},"ref":"$q1"}\` – Typen: ${AI_QUIZ_TYPES.map((t) => `${t} (${quizTypeName(t)})`).join(', ')}`,
         '`{"op":"update_quiz","moduleId":"<id>","title":"…","content":{…}}` – Typ bleibt; vorher mit GET /topics/<id> lesen',

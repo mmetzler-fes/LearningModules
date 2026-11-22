@@ -816,8 +816,11 @@ export class NotebooksService {
         try {
           if (!topicData) throw new Error('fehlt');
           const res = await this.importer.importTopicFromJson(JSON.stringify(topicData), user);
-          await this.placeRepo.save(this.placement(user, res.topicId, node.id, i++));
-          topics++;
+          // Eine Mappe aus einer älteren Datei: je Dokument ein Lernthema, in dieser Reihenfolge.
+          for (const id of res.topicIds || [res.topicId]) {
+            await this.placeRepo.save(this.placement(user, id, node.id, i++));
+            topics++;
+          }
         } catch {
           failed.push(String(topicData?.topic?.title || name));
         }

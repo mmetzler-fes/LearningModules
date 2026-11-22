@@ -212,6 +212,9 @@ export async function fileIntoNotebook(app, doc) {
     content: { kind: doc.kind || 'arbeitsblatt', spec: relink(doc.spec) }, moduleSelected: true, createdAt: now, updatedAt: now,
   });
   if (!res?.success) throw new Error(res?.message || 'Speichern fehlgeschlagen');
+  // Hatte das gewählte Lernthema schon ein Dokument, liegt dieses in einem eigenen dahinter – die Quizze mit.
+  const ownTopic = res.topicId && res.topicId !== topicId;
+  if (res.topicId) topicId = res.topicId;
   // Eingebettete Quizze: erst die obersten, dann ihre Untermodule.
   const ordered = [...modules.filter((m) => !m.parentId), ...modules.filter((m) => m.parentId)];
   let missing = 0;
@@ -229,7 +232,9 @@ export async function fileIntoNotebook(app, doc) {
     if (!(await saveTeacherInk(id, doc.stand))) app.showToast('Die Handschrift ließ sich nicht speichern.', 'error');
   }
   await app.loadTopics?.();
-  app.showToast(`„${doc.title}“ liegt jetzt in „${place.label}“.`, 'success');
+  app.showToast(ownTopic
+    ? `„${doc.title}“ hat ein eigenes Lernthema direkt hinter „${place.label}“ (ein Dokument je Lernthema).`
+    : `„${doc.title}“ liegt jetzt in „${place.label}“.`, 'success');
   if (await app.appConfirm(`„${doc.title}“ ist abgelegt.\n\nGleich bearbeiten?`)) {
     await app.modulesView.openFrom('teacher-notebooks', topicId, { id });
   }

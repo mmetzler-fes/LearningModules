@@ -926,7 +926,10 @@ export class ModulesView {
     try {
       const res = await api.transferModules(state.currentTopicId, state.currentTopicId, [mod.id], 'copy');
       if (res && res.success) {
-        this.app.showToast(`"${mod.title}" dupliziert.`, 'success');
+        this.app.showToast(res.ownTopics?.length
+          ? `"${mod.title}" dupliziert – als eigenes Lernthema direkt dahinter (ein Dokument je Lernthema).`
+          : `"${mod.title}" dupliziert.`, 'success');
+        if (res.ownTopics?.length) await this.app.loadTopics?.();
         await this.refresh();
       } else {
         this.app.showToast('Duplizieren fehlgeschlagen: ' + (res?.message || res?.error || 'Unbekannt'), 'error');
@@ -1064,7 +1067,11 @@ export class ModulesView {
       return;
     }
     if (result.success) {
-      this.app.showToast(state.editingModuleId ? t('module.updated') : t('module.saved'), 'success');
+      // Ein Dokument je Lernthema: Hatte dieses schon eines, liegt das neue in einem eigenen dahinter.
+      if (result.topicId && result.topicId !== state.currentTopicId) {
+        this.app.showToast(`„${title}“ hat ein eigenes Lernthema direkt dahinter bekommen – ein Lernthema enthält ein Dokument.`, 'success');
+        await this.app.loadTopics?.();
+      } else this.app.showToast(state.editingModuleId ? t('module.updated') : t('module.saved'), 'success');
       state.currentTopicModules = await api.getTopicModules(state.currentTopicId);
       await this._discardDraft();
       this._newModuleId = null;

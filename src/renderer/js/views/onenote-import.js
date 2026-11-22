@@ -338,7 +338,7 @@ async function run(app, source, wanted, key, convert, onProgress) {
         onProgress(done, total, `${section.title}: ${mod.title} – wird in ein Dokument umgewandelt …`);
         try {
           const r = await convertAttachment(api, topicId, moduleId, { mode: convert.mode });
-          report.documents += r.created.length;
+          report.documents += r.created.length + (r.ownTopics?.length || 0);
           report.warnings.push(...r.failed.map((f) => `nicht umgewandelt: ${f}`));
         } catch (e) {
           report.warnings.push(`${mod.title}: nicht umgewandelt (${e.message})`);

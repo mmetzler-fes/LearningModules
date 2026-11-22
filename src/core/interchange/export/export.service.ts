@@ -4,6 +4,7 @@ import { remapQuizBlocks } from '../import/import.service';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
 import * as crypto from 'crypto';
+import { createSiblingTopic, oneDocumentEach } from '../../../topics/one-document';
 import { LearningTopic } from '../../entities/learning-topic.entity';
 import { LearningModule } from '../../entities/learning-module.entity';
 import { User } from '../../entities/user.entity';
@@ -196,8 +197,14 @@ export class ExportService {
       m.creatorId && mine.has(m.creatorId) ? user.userId : m.creatorId || null,
     );
     await this.linkOrigins(modules);
+    // Ein Dokument je Lernthema (topics/one-document.ts): weitere Dokumente in eigenen Lernthemen dahinter.
+    const topicIds = await oneDocumentEach(modules, topic, !!targetTopicId, {
+      existing: () => this.moduleRepo.find({ where: { topicId: topic.id } }),
+      sibling: (after, title) => createSiblingTopic(this.topicRepo.manager, after, title, user.userId),
+      rename: (t) => this.topicRepo.save(t),
+    });
     if (modules.length) await this.moduleRepo.save(modules);
-    return { success: true, topicId: topic.id, topicTitle: topic.title, importedCount: modules.filter((m) => !m.parentId).length };
+    return { success: true, topicId: topic.id, topicIds, topicTitle: topic.title, importedCount: modules.filter((m) => !m.parentId).length };
   }
 
   /** Neue IDs vergeben und die Eltern-Verweise mitziehen. */

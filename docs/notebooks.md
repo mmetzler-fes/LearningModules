@@ -28,6 +28,19 @@ schmalen Bildschirmen rollt die ganze Seite). In der Leiste:
   ein Klick zeigt Einzelheiten und **⟳ Jetzt abgleichen**; **🖨** Vorlagen.
   Beide nur, wenn Arbeitsblätter freigeschaltet sind.
 
+## Ein Dokument je Lernthema
+
+Ein Lernthema enthält höchstens ein Dokument (oder einen Anhang), dazu
+beliebig viele Quizze. Kommt ein weiteres Dokument hinzu – neu angelegt,
+importiert (auch mehrere Dateien auf einmal oder eine ältere Datei mit
+mehreren Dokumenten), aus einem Anhang umgewandelt, dupliziert –, bekommt es
+ein **eigenes Lernthema direkt dahinter**. Das neue Lernthema heißt wie sein
+Dokument und übernimmt Platz im Notizbuch und in der Planung, ● und 🔒, Tags
+und die Links bzw. Klassenzuweisungen, die das ganze Lernthema freigeben.
+Eingebettete Quizze gehen mit ihrem Dokument. Ein Dokument in ein Lernthema
+verschieben, das schon eines hat, geht nicht – dann das ganze Lernthema
+verschieben.
+
 ## Ansicht
 
 - Jede Zeile ist einzeilig. Alles ist zunächst zugeklappt; ▸ bzw. ein Klick

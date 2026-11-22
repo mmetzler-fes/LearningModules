@@ -8,6 +8,7 @@ import { LearningModule } from '../../entities/learning-module.entity';
 import { convertMoodleXml, MoodleImportResult } from '../moodle/moodle-import';
 import { loadBrowserModule } from '../../browser-module';
 import { NextcloudService, mapNcRefs } from '../../../nextcloud/nextcloud.service';
+import { createSiblingTopic, oneDocumentEach } from '../../../topics/one-document';
 
 /** Lesen des Importtexts – dieselbe Logik wie die Vorabprüfung im Browser. */
 interface JsonText {
@@ -184,15 +185,27 @@ export class ImportService {
       const errors = docSpec().validateDocSpec(m.content?.spec);
       if (errors.length) notes.push(`„${m.title}“ enthält Fehler (im Editor markiert): ${errors.slice(0, 3).join(' · ')}${errors.length > 3 ? ' …' : ''}`);
     }
+    const topicIds = await oneDocumentEach(newModules, savedTopic, !!targetTopicId, {
+      existing: () => this.moduleRepo.find({ where: { topicId: savedTopic.id } }),
+      sibling: (after, title) => this.siblingTopic(after, title, user.userId),
+      rename: (t) => this.topicRepo.save(t),
+    });
     await this.moduleRepo.save(newModules);
 
     return {
       success: true,
       topicId: savedTopic.id,
+      // Ein Dokument je Lernthema: weitere Dokumente liegen in eigenen Lernthemen dahinter, in dieser Reihenfolge.
+      topicIds,
       topicTitle: savedTopic.title,
       importedCount: newModules.filter((m: any) => !m.parentId).length,
       ...(notes.length ? { notes } : {}),
     };
+  }
+
+  /** Eigenes Lernthema hinter `topic` – in Tests ersetzbar. */
+  protected siblingTopic(topic: LearningTopic, title: string, actorId: string): Promise<LearningTopic> {
+    return createSiblingTopic(this.topicRepo.manager, topic, title, actorId);
   }
 
   /**

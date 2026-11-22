@@ -34,7 +34,7 @@ function confirmReplace(title, fileName, backupTitle) {
         <p>Der Inhalt von <strong>„${escapeHtml(title)}“</strong> wird durch <strong>${escapeHtml(fileName)}</strong> ersetzt.</p>
         <ul class="import-report-list">
           <li>⚠️ Was du seit dem Import im Editor geändert hast, ist danach im Dokument nicht mehr da.</li>
-          <li>💾 Vorher wird eine Sicherung angelegt: <strong>„${escapeHtml(backupTitle)}“</strong>, ausgeblendet, direkt hinter dem Dokument. Schüler sehen sie nicht; löschen, wenn alles passt.</li>
+          <li>💾 Vorher wird eine Sicherung angelegt: <strong>„${escapeHtml(backupTitle)}“</strong>, ausgeblendet, als eigenes Lernthema direkt dahinter. Schüler sehen sie nicht; löschen, wenn alles passt.</li>
           <li>✏️ Beschriftungen von Schülern bleiben zu ihrer Fassung erhalten, passen zum neuen Inhalt aber nicht unbedingt.</li>
         </ul>
         <div class="confirm-actions">
@@ -91,11 +91,15 @@ export async function reimportDocument(app, topic, mod, { onDone = null } = {}) 
     const savedBackup = await app.api.saveModule(topic.id, backup);
     if (failed(savedBackup)) throw new Error(`Sicherung fehlgeschlagen – nichts ersetzt (${savedBackup?.message || 'Fehler'}).`);
     const backupId = savedBackup.id || backup.id;
-    // direkt hinter das Dokument
-    const order = (await app.api.getTopicModules(topic.id) || []).filter((m) => !m.parentId)
-      .sort((a, b) => (a.orderIndex || 0) - (b.orderIndex || 0)).map((m) => m.id).filter((id) => id !== backupId);
-    order.splice(order.indexOf(cur.id) + 1, 0, backupId);
-    await app.api.reorderModules(topic.id, order);
+    // Ein Dokument je Lernthema: Die Sicherung liegt meist in einem eigenen Lernthema direkt dahinter.
+    const ownTopic = savedBackup.topicId && savedBackup.topicId !== topic.id;
+    if (!ownTopic) {
+      // direkt hinter das Dokument
+      const order = (await app.api.getTopicModules(topic.id) || []).filter((m) => !m.parentId)
+        .sort((a, b) => (a.orderIndex || 0) - (b.orderIndex || 0)).map((m) => m.id).filter((id) => id !== backupId);
+      order.splice(order.indexOf(cur.id) + 1, 0, backupId);
+      await app.api.reorderModules(topic.id, order);
+    }
     // 2. Ersetzen – Art (Arbeitsblatt, Klassenarbeit …) und alles andere bleiben
     const saved = await app.api.saveModule(topic.id, { ...cur, content: { ...contentOf(cur), spec }, updatedAt: now });
     if (failed(saved)) throw new Error(`Ersetzen fehlgeschlagen (${saved?.message || 'Fehler'}) – die Sicherung „${backupTitle}“ liegt bereit.`);
@@ -103,7 +107,9 @@ export async function reimportDocument(app, topic, mod, { onDone = null } = {}) 
     await onDone?.();
     showImportQuality(app, [{ id: cur.id, title, spec, warnings }], {
       heading: '📋 Erneut übernommen',
-      notes: [`Sicherung: „${backupTitle}“ (ausgeblendet, direkt hinter dem Dokument).`],
+      notes: [ownTopic
+        ? `Sicherung: „${backupTitle}“ (ausgeblendet, als eigenes Lernthema direkt dahinter).`
+        : `Sicherung: „${backupTitle}“ (ausgeblendet, direkt hinter dem Dokument).`],
       onDone,
     });
   } catch (err) {

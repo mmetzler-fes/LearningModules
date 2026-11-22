@@ -4,6 +4,7 @@ import { AppUnit, planUnits } from '../html-apps/html-app-rules';
 import { docChanged } from '../core/events/doc-changes';
 import { docTitleFollowingTopic, topicTitleFollowingDoc } from './sole-document';
 import { lockedModuleIds } from './student-lock';
+import { createSiblingTopic, hasDocument, isRootDoc } from './one-document';
 import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, IsNull, Repository } from 'typeorm';
@@ -701,7 +702,20 @@ export class TopicsService {
   }
 
   async addModule(topicId: string, user: any, moduleData: Partial<LearningModule>) {
-    const topic = await this.findOneFor(topicId, user, 'write');
+    let topic = await this.findOneFor(topicId, user, 'write');
+    // `replacesId`: Modul, das gleich wegfällt (Anhang wird umgewandelt) – es zählt nicht als Dokument.
+    const { replacesId, ...rest } = moduleData as any;
+    moduleData = rest;
+    // Ein Dokument je Lernthema (one-document.ts): ein weiteres neues bekommt ein eigenes Lernthema dahinter.
+    if (!topic.classId && !(moduleData as any).parentId && isRootDoc(moduleData as any)
+      && hasDocument(topic.modules, new Set([moduleData.id, replacesId].filter(Boolean) as string[]))) {
+      const known = moduleData.id ? await this.moduleRepo.findOne({ where: { id: moduleData.id } }) : null;
+      if (!known) {
+        topic = await createSiblingTopic(this.topicRepo.manager, topic, String(moduleData.title || ''), user.userId);
+        topic.modules = [];
+        moduleData = { ...moduleData, orderIndex: 0 };
+      }
+    }
     let orderIndex = moduleData.orderIndex;
     if (orderIndex === undefined) {
       if (moduleData.id) {
@@ -941,6 +955,8 @@ export class TopicsService {
     moduleIds: string[],
     mode: 'move' | 'copy',
     user: any,
+    /** Rückgängig (KI-Schnittstelle): den alten Stand wiederherstellen, auch wenn es eine Mappe war. */
+    opts: { allowSeveralDocs?: boolean } = {},
   ) {
     const ids = Array.isArray(moduleIds) ? [...new Set(moduleIds.filter(Boolean).map(String))] : [];
     if (ids.length === 0) throw new NotFoundException('Keine Module ausgewählt.');
@@ -961,6 +977,15 @@ export class TopicsService {
       .filter((m) => ids.includes(m.id))
       .sort((a, b) => a.orderIndex - b.orderIndex);
     if (picked.length === 0) throw new NotFoundException('Die gewählten Module gehören nicht zu diesem Thema.');
+
+    // Ein Dokument je Lernthema (one-document.ts): ins Lernthema eines anderen Dokuments geht keines.
+    const pickedDocs = picked.filter((m) => isRootDoc(m));
+    if (!sameTopic && !opts.allowSeveralDocs && !target.classId && pickedDocs.length
+      && pickedDocs.length + (hasDocument(target.modules) ? 1 : 0) > 1) {
+      throw new BadRequestException(hasDocument(target.modules)
+        ? `„${target.title}“ hat schon ein Dokument – ein Lernthema enthält höchstens eines. Bitte das ganze Lernthema verschieben oder ein neues Lernthema anlegen.`
+        : 'Ein Lernthema enthält höchstens ein Dokument – bitte die Dokumente einzeln verschieben.');
+    }
 
     if (mode === 'move') {
       let next = (target.modules || []).length;
@@ -995,6 +1020,20 @@ export class TopicsService {
       });
     });
 
+    // Ein dupliziertes Dokument bekommt ein eigenes Lernthema direkt hinter dem Original.
+    const ownTopics: string[] = [];
+    if (sameTopic && !source.classId) {
+      let after: LearningTopic = source;
+      for (const [i, copy] of copies.entries()) {
+        if (!isRootDoc(picked[i])) continue;
+        after = await createSiblingTopic(this.topicRepo.manager, after, copy.title, user.userId);
+        copy.topicId = after.id;
+        copy.orderIndex = 0;
+        ownTopics.push(after.id);
+      }
+    }
+    const inPlace = copies.filter((c) => c.topicId === target.id);
+
     if (sameTopic) {
       // Das Duplikat gehört direkt hinter sein Original, nicht ans Ende.
       const order = [...(source.modules || [])].sort((a, b) => a.orderIndex - b.orderIndex);
@@ -1002,7 +1041,7 @@ export class TopicsService {
       for (const m of order) {
         result.push({ id: m.id, entity: m });
         const copy = copies[picked.findIndex((p) => p.id === m.id)];
-        if (copy) result.push({ id: copy.id, entity: copy });
+        if (copy && inPlace.includes(copy)) result.push({ id: copy.id, entity: copy });
       }
       result.forEach((entry, i) => { entry.entity.orderIndex = i; });
       await this.moduleRepo.save(copies);
@@ -1015,7 +1054,7 @@ export class TopicsService {
     for (const copy of copies) if (copy.type === 'htmlApp') await this.syncHtmlAppUnits(copy);
 
     docChanged(user.userId);
-    return { success: true, count: copies.length, mode, targetTopicId: target.id };
+    return { success: true, count: copies.length, mode, targetTopicId: target.id, ...(ownTopics.length ? { ownTopics } : {}) };
   }
 
   /** Schließt die Lücken in der Reihenfolge, die entfernte Module hinterlassen. */

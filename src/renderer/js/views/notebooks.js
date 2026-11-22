@@ -2099,7 +2099,8 @@ export class NotebooksView {
       onDone: async (res) => {
         if (topic) this._open.add('t:' + topic.id);
         else {
-          await this.app.api.moveInNotebook('topic', res.topicId, parentId, null);
+          // Mehrere Dokumente: je eines ein Lernthema, alle in diesen Knoten, in ihrer Reihenfolge.
+          for (const id of res.topicIds || [res.topicId]) await this.app.api.moveInNotebook('topic', id, parentId, null);
           this._open.add('n:' + (parentId || ''));
         }
         await done();
@@ -2564,13 +2565,15 @@ export class NotebooksView {
       line(i.id, `🔄 ${title} – wird umgewandelt …`);
       try {
         const r = await convertAttachment(this.app.api, i.topicId, i.id, opts);
-        created += r.created.length;
+        const made = r.created.length + (r.ownTopics?.length || 0);
+        created += made;
         docs.push(...r.docs);
         if (r.failed.length) { problems++; console.error('Umwandeln', i, r.failed); }
         // Ampel je entstandenem Dokument (lm-editor/src/import/quality.js)
         const lights = r.docs.map((d) => { const q = rateLine(d.spec, d.warnings); return `<span title="${escapeAttr(q.text + (q.reasons.length ? ': ' + q.reasons.join(' ') : ''))}">${q.icon}</span>`; }).join('');
-        line(i.id, `${r.failed.length ? (r.created.length ? '⚠️' : '❌') : '✅'} ${title} – `
-          + `${r.created.length} Dokument${r.created.length === 1 ? '' : 'e'} ${lights}`
+        line(i.id, `${r.failed.length ? (made ? '⚠️' : '❌') : '✅'} ${title} – `
+          + `${made} Dokument${made === 1 ? '' : 'e'} ${lights}`
+          + (r.ownTopics?.length ? ` (ein Lernthema je Dokument)` : '')
           + (r.warnings.length ? `, ${r.warnings.length} Hinweis${r.warnings.length === 1 ? '' : 'e'}` : '')
           + (r.failed.length ? `<br><small>${r.failed.map(escapeHtml).join('<br>')}</small>` : ''));
       } catch (err) {

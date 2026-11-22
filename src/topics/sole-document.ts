@@ -13,7 +13,7 @@ export interface SoleDocModule {
 }
 
 /** Dokumente und Anhänge (wie isDocLike im Browser, quiz-usage.js). */
-const DOC_TYPES = new Set(['document', 'worksheet', 'attachment']);
+export const DOC_TYPES = new Set(['document', 'worksheet', 'attachment']);
 
 /** Das eine Dokument des Lernthemas, sonst null. */
 export function soleDocument<M extends SoleDocModule>(

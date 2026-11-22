@@ -30,7 +30,8 @@ geschriebene Blätter:
 
 Gefragt wird die Art: **Text mit Struktur** (zum Weiterbearbeiten),
 **Seiten als Bilder** (sieht aus wie das PDF) oder **KI-Erkennung** (falls
-eingerichtet). Je PDF entsteht ein Dokument an der Stelle des Anhangs. Der
+eingerichtet). Je PDF entsteht ein Dokument: das erste an der Stelle des Anhangs, jedes weitere in
+einem eigenen Lernthema dahinter ([ein Dokument je Lernthema](notebooks.md#ein-dokument-je-lernthema)). Der
 PDF verschwindet aus dem Anhang – es gibt bewusst keinen zweiten Stand
 desselben Blatts, der mit der Zeit vom Dokument abweicht. Das Original liegt
 ja weiter in der eigenen Dateiablage. Dateien, die keine PDFs sind, bleiben im

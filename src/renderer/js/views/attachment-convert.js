@@ -237,7 +237,7 @@ export async function fileToSpec(file, { pdf = null, topicId = null } = {}) {
 
 /**
  * Ein Anhang-Modul umwandeln (Inhalt und Reihenfolge holt es frisch vom
- * Server). Ergebnis: `{ created, warnings, failed, removed }`.
+ * Server). Ergebnis: `{ created, ownTopics, warnings, failed, removed }` – `created` im Lernthema des Anhangs, `ownTopics` die eigenen Lernthemen weiterer Dokumente.
  */
 export async function convertAttachment(api, topicId, moduleId, { mode, ocr = false, figures = false }) {
   const modules = await api.getTopicModules(topicId);
@@ -246,11 +246,16 @@ export async function convertAttachment(api, topicId, moduleId, { mode, ocr = fa
   const content = contentOf(mod);
   const files = content.files || [];
   const pdfs = files.filter(isPdfFile);
-  const created = [];
   const docs = []; // { id, title, spec, warnings } – für den Import-Bericht mit Ampel
   const warnings = [];
   const failures = [];
   const converted = new Set();
+  // Ein Dokument je Lernthema: Das erste tritt an die Stelle des Anhangs (wenn er ganz aufgeht),
+  // jedes weitere legt der Server als eigenes Lernthema dahinter an – das nächste folgt dem vorigen.
+  const replaces = pdfs.length === files.length ? mod.id : undefined;
+  const created = [];
+  const ownTopics = [];
+  let into = topicId;
   for (const f of pdfs) {
     try {
       const res = await fetch(f.url);
@@ -258,13 +263,15 @@ export async function convertAttachment(api, topicId, moduleId, { mode, ocr = fa
       const { spec, warnings: w } = await pdfToSpec(await res.blob(), f.name, { mode, ocr, figures, topicId });
       const title = pdfs.length > 1 ? `${mod.title} – ${f.name.replace(/\.pdf$/i, '')}` : mod.title;
       const now = new Date().toISOString();
-      const saved = await api.saveModule(topicId, {
+      const saved = await api.saveModule(into, {
         id: generateId(), type: 'document', title, description: mod.description || '',
         content: { kind: 'arbeitsblatt', spec },
         tagIds: mod.tagIds || [], moduleSelected: mod.moduleSelected !== false, createdAt: now, updatedAt: now,
+        ...(replaces && into === topicId ? { replacesId: replaces } : {}),
       });
       if (failed(saved)) throw new Error(saved?.message || 'Speichern fehlgeschlagen');
-      created.push(saved.id);
+      if (saved.topicId && saved.topicId !== into) { into = saved.topicId; ownTopics.push(into); }
+      if (saved.topicId === topicId || !saved.topicId) created.push(saved.id);
       docs.push({ id: saved.id, title, spec, warnings: w });
       converted.add(f.url);
       warnings.push(...w.map((x) => `${f.name}: ${x}`));
@@ -292,5 +299,5 @@ export async function convertAttachment(api, topicId, moduleId, { mode, ocr = fa
     ids.splice(Math.min(pos, ids.length), 0, ...created);
     await api.reorderModules(topicId, ids);
   }
-  return { created, docs, warnings, failed: failures, removed };
+  return { created, ownTopics, docs, warnings, failed: failures, removed };
 }

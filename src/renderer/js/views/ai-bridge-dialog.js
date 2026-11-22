@@ -1,10 +1,10 @@
 /**
- * 🤖 Zeitbeschränkte KI-Schnittstelle („Bring Your Own AI“):
- * Erzeugt ein zeitlich (Standard 60 Minuten) und auf ausgewählte Books/Pläne beschränktes Token
- * samt fertiger KI-Anleitung. Die Lehrkraft gibt diese Anleitung ihrer eigenen
- * KI (Claude, ChatGPT, lokaler Agent …) – es entstehen keine Server-API-Kosten.
- * Alle Änderungen über das Token werden protokolliert und lassen sich mit einem
- * Klick komplett rückgängig machen.
+ * 🤖 KI-Assistent („Bring Your Own AI“): Die eigene KI der Lehrkraft arbeitet im Notizbuch.
+ * Hauptweg: einmal als Connector verbinden (MCP-Server /api/mcp, Anmeldung per OAuth –
+ * src/ai-bridge/mcp.ts, oauth.*), dann im KI-Chat arbeiten. Hier: Zugang ein/aus, verbundene
+ * KIs, was sie dürfen, offene KI-Änderungen annehmen oder ablehnen. Rückfall für KIs ohne
+ * Connector und „Mit KI neu aufbereiten“: zeitlich begrenztes Token mit kopierter Anleitung.
+ * Es entstehen keine Server-API-Kosten.
  */
 import { escapeHtml, escapeAttr } from '../utils.js';
 import { copyWhenReady } from './ai-answer.js';
@@ -29,10 +29,11 @@ function parseBatchJson(raw) {
  * (überarbeiten statt neu aufbereiten – ohne Original als Anhang).
  */
 export async function openAiBridgeDialog(app, { onDone = null, regenerate = null, quizzes = false } = {}) {
-  const [nb, plans, sessionsRes] = await Promise.all([
+  const [nb, plans, sessionsRes, connsRes] = await Promise.all([
     app.api.getNotebooks(),
     app.api.getPlans(),
     app.api.getAiBridgeSessions().catch(() => ({ sessions: [] })),
+    app.api.getAiBridgeConnections().catch(() => ({ connections: [] })),
   ]);
   if (bad(nb) || bad(plans)) {
     app.showToast((nb && nb.message) || (plans && plans.message) || 'Daten nicht abrufbar.', 'error');
@@ -42,113 +43,155 @@ export async function openAiBridgeDialog(app, { onDone = null, regenerate = null
   const books = (nb.nodes || []).filter((n) => !n.parentId).sort((a, b) => a.orderIndex - b.orderIndex);
   const topPlans = (plans.nodes || []).filter((n) => !n.parentId && n.kind !== 'include').sort((a, b) => a.orderIndex - b.orderIndex);
 
+  const main = !regenerate;
+  const persistent0 = (sessionsRes?.sessions || []).find((x) => x.persistent) || null;
+  const connected0 = (connsRes?.connections || []).length > 0;
+  const mcpUrl = `${window.location.origin}/api/mcp`;
+  const mcpCli = `claude mcp add --transport http learningmodules ${mcpUrl}`;
+  // Was im Chat zu schreiben ist, wenn die KI schon verbunden ist (Neu aufbereiten / Überarbeiten).
+  const chatAsk = regenerate
+    ? (quizzes
+      ? `Überarbeite in LearningModules ${regenerate.length === 1 ? 'das Quiz' : 'die Quizze'} ${regenerate.map((d) => `„${d.title}“ (ID ${d.id})`).join(', ')}: …`
+      : `Bereite in LearningModules ${regenerate.length === 1 ? 'das Dokument' : 'die Dokumente'} ${regenerate.map((d) => `„${d.title}“ (ID ${d.id})`).join(', ')} neu auf – das Original hängt an. Inhalte und Reihenfolge wie im Original.`)
+    : '';
+
   const overlay = document.createElement('div');
   overlay.className = 'confirm-overlay pl-dialog';
   overlay.innerHTML = `<div class="import-modules-card si-card aib-card" role="dialog" aria-modal="true" aria-labelledby="aibTitle">
-    <h3 id="aibTitle">🤖 ${regenerate ? `${quizzes ? 'Mit KI überarbeiten' : 'Mit KI neu aufbereiten'}: ${escapeHtml(regenerate.length === 1 ? `„${regenerate[0].title}“` : `${regenerate.length} ${quizzes ? 'Quizze' : 'Dokumente'}`)}` : 'KI-Assistent (zeitlich begrenzter Zugriff)'}</h3>
-    ${regenerate && quizzes
-      ? `<p class="hint">So geht es: <strong>1.</strong> Anleitung erzeugen (wird kopiert) – darin stehen der jetzige Stand und das Format.
-          <strong>2.</strong> In deiner KI einfügen und dazuschreiben, was sich ändern soll (z.&nbsp;B. „bessere Ablenker“, „schwieriger“).
-          <strong>3.</strong> Mit Webzugriff schreibt die KI selbst; sonst gibt sie einen JSON-Block aus, den du unten einfügst.
-          Die KI darf nur ${regenerate.length === 1 ? 'dieses Quiz' : 'diese Quizze'} ändern, der Typ bleibt – ⏪ macht alles rückgängig.</p>`
-      : regenerate
-      ? `<p class="hint">So geht es: <strong>1.</strong> Anleitung erzeugen (wird kopiert). <strong>2.</strong> In deiner KI einfügen und
-          <strong>das Original als PDF/Word/Bild anhängen</strong>. <strong>3.</strong> Hat deine KI Webzugriff (z.&nbsp;B. Claude Code), schreibt sie
-          das Dokument selbst; sonst gibt sie einen JSON-Block aus, den du unten einfügst. Die KI darf nur
-          ${regenerate.length === 1 ? 'dieses Dokument' : 'diese Dokumente'} überarbeiten; vorher wird jede Fassung gesichert – ⏪ macht alles rückgängig.</p>`
-      : `<p class="hint">Erzeuge ein zeitlich beschränktes Token und eine fertige Anleitung für <strong>deine eigene KI</strong>
-      (z.&nbsp;B. Claude, ChatGPT, Gemini). Die KI erhält nur Zugriff auf die unten freigegebenen Ordner – niemals auf
-      Schülerdaten oder Noten. Alle KI-Änderungen lassen sich hier mit einem Klick rückgängig machen.</p>`}
+    <h3 id="aibTitle">🤖 ${regenerate ? `${quizzes ? 'Mit KI überarbeiten' : 'Mit KI neu aufbereiten'}: ${escapeHtml(regenerate.length === 1 ? `„${regenerate[0].title}“` : `${regenerate.length} ${quizzes ? 'Quizze' : 'Dokumente'}`)}` : 'KI-Assistent'}</h3>
+    ${main ? `<p class="hint">Deine eigene KI (Claude, ChatGPT …) arbeitet direkt in deinem Notizbuch: Du schreibst ihr im
+      <strong>KI-Chat</strong>, was sie tun soll. Jede Änderung landet hier zum <strong>Annehmen oder Ablehnen</strong>;
+      was Schüler gerade sehen, ändert sich erst beim Annehmen. Schülerdaten sieht die KI nie.</p>` : ''}
+    ${regenerate && (connected0 || persistent0) ? `<div class="aib-chat-ask">
+      <p><strong>🔌 Deine KI ist verbunden – einfach im KI-Chat schreiben</strong>${quizzes ? '' : ' und das Original anhängen'}:</p>
+      <div class="aib-token-bar"><code class="aib-chat-ask-text">${escapeHtml(chatAsk)}</code>
+        <button type="button" class="btn btn-secondary btn-sm" data-copy=".aib-chat-ask-text">📋 Kopieren</button></div>
+      <p class="hint">Vorher den Zugang einschalten (KI-Assistent im Notizbuch). Ohne Verbindung geht es weiter unten mit kopierter Anleitung.</p>
+    </div>` : ''}
 
-    <div class="aib-persistent ${regenerate ? 'hidden' : ''}"></div>
+    <div class="aib-status ${main ? '' : 'hidden'}"></div>
+    <div class="aib-connections ${main ? '' : 'hidden'}"></div>
     <div class="aib-runs"></div>
-    <div class="aib-sessions"></div>
 
-    <details class="aib-create-box" open>
-      <summary><strong>🔑 Neues KI-Token &amp; Anleitung erzeugen</strong></summary>
-      <div class="aib-grid ${regenerate ? 'hidden' : ''}">
+    <details class="aib-setup ${main ? '' : 'hidden'}"${connected0 ? '' : ' open'}>
+      <summary><strong>🔌 ${connected0 ? 'Weitere KI verbinden' : 'KI verbinden (einmalig)'}</strong></summary>
+      <ol class="aib-steps">
+        <li>Adresse des Connectors kopieren:
+          <div class="aib-token-bar"><code class="aib-mcp-addr">${escapeHtml(mcpUrl)}</code>
+            <button type="button" class="btn btn-secondary btn-sm" data-copy=".aib-mcp-addr">📋 Kopieren</button></div></li>
+        <li>In deiner KI eintragen:
+          <ul>
+            <li><strong>Claude.ai:</strong> Einstellungen → Connectors → <em>Benutzerdefinierten Connector hinzufügen</em> → Adresse einfügen → <em>Verbinden</em>.</li>
+            <li><strong>ChatGPT:</strong> Einstellungen → Apps &amp; Connectors → <em>Erstellen</em> (Entwicklermodus) → Adresse einfügen, Authentifizierung <em>OAuth</em>.</li>
+            <li><strong>Claude Code:</strong> im Terminal
+              <div class="aib-token-bar"><code class="aib-mcp-cli">${escapeHtml(mcpCli)}</code>
+                <button type="button" class="btn btn-secondary btn-sm" data-copy=".aib-mcp-cli">📋 Kopieren</button></div>
+              dann in Claude Code <code>/mcp</code> → <em>learningmodules</em> → anmelden.</li>
+          </ul></li>
+        <li>Es öffnet sich LearningModules: anmelden (falls nötig) und <strong>✅ Zulassen</strong>. Die KI erscheint oben unter „Verbundene KIs“.</li>
+      </ol>
+      <p class="hint">Kein Passwort und kein Token gehen an die KI – sie bekommt nur einen kurzlebigen Schlüssel, den du jederzeit mit „Trennen“ ungültig machst.</p>
+    </details>
+
+    <details class="aib-scope-box ${main ? '' : 'hidden'}">
+      <summary><strong>⚙️ Was die KI darf</strong> <span class="hint aib-scope-summary"></span></summary>
+      <div class="aib-grid">
         <fieldset class="si-group">
-          <legend>📓 Lernnotizbuch-Freigabe</legend>
-          <label class="share-flag"><input type="checkbox" class="aib-nb-all" checked /> <span>Alle eigenen Books freigeben</span></label>
+          <legend>📓 Lernnotizbuch</legend>
+          <label class="share-flag"><input type="checkbox" class="aib-nb-all" checked /> <span>Alle eigenen Books</span></label>
           <div class="aib-nb-list hidden">
             ${books.map((b) => `<label class="share-flag"><input type="checkbox" name="aibNb" value="${escapeAttr(b.id)}" checked /> <span>${ICON[b.kind] || '📕'} ${escapeHtml(b.title)}</span></label>`).join('') || '<span class="hint">Noch keine Books vorhanden.</span>'}
           </div>
           <label class="share-flag"><input type="checkbox" class="aib-unsorted" checked /> <span>„Unsortiert“ einschließen</span></label>
         </fieldset>
-
         <fieldset class="si-group">
-          <legend>🗂 Planungs-Freigabe</legend>
-          <label class="share-flag"><input type="checkbox" class="aib-pl-all" checked /> <span>Alle Pläne &amp; Ordner freigeben</span></label>
+          <legend>🗂 Planung</legend>
+          <label class="share-flag"><input type="checkbox" class="aib-pl-all" checked /> <span>Alle Pläne &amp; Ordner</span></label>
           <div class="aib-pl-list hidden">
             ${topPlans.map((p) => `<label class="share-flag"><input type="checkbox" name="aibPl" value="${escapeAttr(p.id)}" checked /> <span>${ICON[p.kind] || '📋'} ${escapeHtml(p.title)}</span></label>`).join('') || '<span class="hint">Noch keine Pläne vorhanden.</span>'}
           </div>
         </fieldset>
       </div>
+      <label class="aib-ttl-label">Die KI darf:
+        <select class="aib-perm">
+          <option value="read">👁 Nur lesen (ansehen, Vorschläge machen)</option>
+          <option value="organize">🗂 Lesen und ordnen (Bereiche anlegen, Lernthemen verschieben, in Pläne eintragen)</option>
+          <option value="all" selected>✍️ Lesen, ordnen und Inhalte anlegen (Arbeitsblätter und Quizze anlegen und überarbeiten)</option>
+        </select>
+      </label>
+      <div class="confirm-actions">
+        <button type="button" class="btn btn-primary btn-sm aib-btn-scope">💾 Für verbundene KIs speichern</button>
+      </div>
+    </details>
 
-      <fieldset class="si-group">
-        <legend>⚙️ ${regenerate ? 'Gültigkeitsdauer' : 'Erlaubte Aktionen &amp; Gültigkeitsdauer'}</legend>
+    <details class="aib-chat-tips ${main ? '' : 'hidden'}">
+      <summary><strong>💬 Im KI-Chat – Beispiele</strong></summary>
+      <ul class="aib-log-list">
+        <li>„Sieh dir in LearningModules mein Book <em>Elektrotechnik</em> an und schlag eine bessere Gliederung vor.“</li>
+        <li>„Lege in LearningModules im Abschnitt <em>Gleichstrommotor</em> ein Arbeitsblatt zur Drehzahlsteuerung mit drei Aufgaben und Musterlösung an.“</li>
+        <li>„Erstelle zu jedem Blatt im Abschnitt <em>PWM und H-Brücke</em> ein Quiz mit fünf Fragen und bette es ins Blatt ein.“</li>
+        <li>„Bereite das Dokument <em>Motorschutz</em> neu auf – das Original hängt an.“ (Datei im Chat anhängen)</li>
+      </ul>
+      <p class="hint">Ist der Zugang ausgeschaltet, sagt dir die KI Bescheid – dann oben einschalten.</p>
+    </details>
+
+    <details class="aib-legacy"${regenerate ? ' open' : ''}>
+      <summary><strong>📋 ${regenerate ? 'Mit kopierter Anleitung' : 'Ohne Connector: Anleitung kopieren (zeitlich begrenzt)'}</strong></summary>
+      ${regenerate && quizzes
+        ? `<p class="hint">So geht es: <strong>1.</strong> Anleitung erzeugen (wird kopiert) – darin stehen der jetzige Stand und das Format.
+            <strong>2.</strong> In deiner KI einfügen und dazuschreiben, was sich ändern soll (z.&nbsp;B. „bessere Ablenker“, „schwieriger“).
+            <strong>3.</strong> Mit Webzugriff schreibt die KI selbst; sonst gibt sie einen JSON-Block aus, den du unten einfügst.
+            Die KI darf nur ${regenerate.length === 1 ? 'dieses Quiz' : 'diese Quizze'} ändern, der Typ bleibt.</p>`
+        : regenerate
+          ? `<p class="hint">So geht es: <strong>1.</strong> Anleitung erzeugen (wird kopiert). <strong>2.</strong> In deiner KI einfügen und
+              <strong>das Original als PDF/Word/Bild anhängen</strong>. <strong>3.</strong> Hat deine KI Webzugriff, schreibt sie
+              das Dokument selbst; sonst gibt sie einen JSON-Block aus, den du unten einfügst. Die KI darf nur
+              ${regenerate.length === 1 ? 'dieses Dokument' : 'diese Dokumente'} überarbeiten.</p>`
+          : `<p class="hint">Für KIs ohne Connector: ein Token mit Anleitung zum Einfügen in den Chat. Es gilt nur eine Weile und
+              nutzt die Einstellungen unter „Was die KI darf“. Die Änderungen erscheinen oben zum Annehmen oder Ablehnen.</p>`}
+      <div class="aib-create-box">
         <div class="aib-perms">
-          <label class="aib-ttl-label ${regenerate ? 'hidden' : ''}">Die KI darf:
-            <select class="aib-perm">
-              <option value="read" selected>👁 Nur lesen (Struktur und Inhalte ansehen, Vorschläge machen)</option>
-              <option value="organize">🗂 Lesen und ordnen (Bereiche anlegen, Lernthemen verschieben, in Pläne eintragen)</option>
-              <option value="all">✍️ Lesen, ordnen und Inhalte anlegen (Lernthemen, Arbeitsblätter und Quizze anlegen und überarbeiten)</option>
-            </select>
-          </label>
           <label class="share-flag aib-quiz-formats ${regenerate ? 'hidden' : ''}" title="Nur nötig, wenn deine KI keinen Webzugriff hat (normaler Chat) und Quizze anlegen soll – sonst holt sie sich das Format selbst">
             <input type="checkbox" class="aib-with-quiz" /> <span>🧠 Quiz-Formate gleich in die Anleitung (für KIs ohne Webzugriff, etwa 7.000 Zeichen mehr)</span></label>
-          <label class="share-flag aib-persistent-label ${regenerate ? 'hidden' : ''}" title="Das Token bleibt gültig – du schaltest den Zugang jeweils für eine Weile ein. Jeder Aufruf der KI wird vorläufig übernommen; du nimmst ihn an oder lehnst ihn ab.">
-            <input type="checkbox" class="aib-persistent-flag" /> <span>🔑 Dauerhafter Zugang: Token einmal in der KI hinterlegen, hier jeweils einschalten; Änderungen annehmen oder ablehnen</span></label>
           <label class="aib-ttl-label">Gültigkeit:
             <select class="aib-ttl">
               <option value="30">30 Minuten</option>
-              <option value="60" selected>60 Minuten (Empfohlen)</option>
+              <option value="60" selected>60 Minuten</option>
               <option value="120">2 Stunden</option>
               <option value="240">4 Stunden</option>
             </select>
           </label>
         </div>
-      </fieldset>
-
-      <div class="confirm-actions">
-        <button type="button" class="btn btn-primary aib-btn-generate">🤖 ${regenerate ? 'Anleitung erzeugen &amp; kopieren' : 'Token erzeugen &amp; KI-Anleitung kopieren'}</button>
-      </div>
-    </details>
-
-    <div class="aib-output hidden">
-      <p class="aib-copied-msg"></p>
-      <div class="aib-token-bar">
-        <span>Aktives Token: <code class="aib-token-code"></code></span>
-        <button type="button" class="btn btn-secondary btn-sm aib-btn-copy-token">📋 Nur Token</button>
-        <button type="button" class="btn btn-secondary btn-sm aib-btn-copy-prompt">📋 Ganze KI-Anleitung kopieren</button>
-      </div>
-      <div class="aib-mcp hidden">
-        <p><strong>🔌 Als MCP-Server einbinden</strong> <span class="hint">(dann entfällt das Kopieren der Anleitung – die KI holt sich alles selbst)</span></p>
-        <label class="hint">Claude.ai / ChatGPT – Connector mit dieser Adresse (sie enthält das Token, also wie ein Passwort behandeln):</label>
-        <div class="aib-token-bar"><code class="aib-mcp-url"></code>
-          <button type="button" class="btn btn-secondary btn-sm" data-copy=".aib-mcp-url">📋 Kopieren</button></div>
-        <label class="hint">Claude Code – im Terminal:</label>
-        <div class="aib-token-bar"><code class="aib-mcp-cli"></code>
-          <button type="button" class="btn btn-secondary btn-sm" data-copy=".aib-mcp-cli">📋 Kopieren</button></div>
-        <p class="hint">Die KI kann den Server nur benutzen, solange der Zugang oben eingeschaltet ist.</p>
-      </div>
-      <details class="aib-prompt-details">
-        <summary>KI-Anleitung ansehen / anpassen</summary>
-        <textarea class="aib-prompt-text" rows="10" readonly></textarea>
-      </details>
-
-      <div class="aib-manual-box">
-        <label><strong>📥 Optional: JSON-Antwort der KI hier einfügen</strong>
-          <span class="hint">(falls deine KI keinen direkten Web-Zugriff hat und dir stattdessen einen <code>{"operations": [...]}</code>-Codeblock ausgibt)</span>
-          <textarea class="aib-batch-input" rows="5" spellcheck="false" placeholder='{"operations": [ ... ]}'></textarea>
-        </label>
-        <div class="aib-batch-preview"></div>
         <div class="confirm-actions">
-          <button type="button" class="btn btn-secondary aib-btn-dryrun" disabled>🔍 Vorschau prüfen</button>
-          <button type="button" class="btn btn-primary aib-btn-apply" disabled>✅ Änderungen ausführen</button>
+          <button type="button" class="btn btn-primary aib-btn-generate">🤖 Anleitung erzeugen &amp; kopieren</button>
         </div>
       </div>
-    </div>
+
+      <div class="aib-output hidden">
+        <p class="aib-copied-msg"></p>
+        <div class="aib-token-bar">
+          <span>Token: <code class="aib-token-code"></code></span>
+          <button type="button" class="btn btn-secondary btn-sm aib-btn-copy-token">📋 Nur Token</button>
+          <button type="button" class="btn btn-secondary btn-sm aib-btn-copy-prompt">📋 Ganze KI-Anleitung kopieren</button>
+        </div>
+        <details class="aib-prompt-details">
+          <summary>KI-Anleitung ansehen</summary>
+          <textarea class="aib-prompt-text" rows="10" readonly></textarea>
+        </details>
+        <div class="aib-manual-box">
+          <label><strong>📥 Optional: JSON-Antwort der KI hier einfügen</strong>
+            <span class="hint">(falls deine KI keinen Web-Zugriff hat und stattdessen einen <code>{"operations": [...]}</code>-Codeblock ausgibt)</span>
+            <textarea class="aib-batch-input" rows="5" spellcheck="false" placeholder='{"operations": [ ... ]}'></textarea>
+          </label>
+          <div class="aib-batch-preview"></div>
+          <div class="confirm-actions">
+            <button type="button" class="btn btn-secondary aib-btn-dryrun" disabled>🔍 Vorschau prüfen</button>
+            <button type="button" class="btn btn-primary aib-btn-apply" disabled>✅ Änderungen ausführen</button>
+          </div>
+        </div>
+      </div>
+      <div class="aib-sessions"></div>
+    </details>
 
     <div class="confirm-actions">
       <button type="button" class="btn btn-secondary aib-close">Schließen</button>
@@ -177,18 +220,20 @@ export async function openAiBridgeDialog(app, { onDone = null, regenerate = null
 
   // ---- Dauerhafter Zugang und offene KI-Änderungen ----
   const fmt = (iso) => new Date(iso).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' });
-  const renderPersistent = (sessions) => {
-    const box = $('.aib-persistent');
+  /** Zugang an/aus – gilt für alle verbundenen KIs (dauerhafter Zugang, src/ai-bridge). */
+  const renderPersistent = (sessions, connections = currentConnections) => {
+    const box = $('.aib-status');
     const p = (sessions || []).find((x) => x.persistent);
-    $('.aib-persistent-label span').textContent = p
-      ? '🔑 Neues Token für den dauerhaften Zugang (das alte gilt dann nicht mehr; offene Änderungen bleiben)'
-      : '🔑 Dauerhafter Zugang: Token einmal in der KI hinterlegen, hier jeweils einschalten; Änderungen annehmen oder ablehnen';
+    if (!p && !(connections || []).length) {
+      box.innerHTML = '<p class="hint">Noch keine KI verbunden – unten unter <strong>🔌 KI verbinden</strong> einmalig einrichten.</p>';
+      return;
+    }
     if (!p) { box.innerHTML = ''; return; }
     const mins = Math.ceil((p.remainingSeconds || 0) / 60);
     box.innerHTML = `<div class="aib-session-item aib-persistent-item">
       <div class="aib-session-head">
-        <strong>🔑 Dauerhafter KI-Zugang <code>${escapeHtml(p.tokenPreview)}</code></strong> ·
-        ${p.active ? `<span class="pl-in">🟢 eingeschaltet (noch ca. ${mins} Min.)</span>` : '<span class="hint">⚪ ausgeschaltet</span>'}
+        <strong>KI-Zugang</strong> ·
+        ${p.active ? `<span class="pl-in">🟢 eingeschaltet (noch ca. ${mins} Min.)</span>` : '<span class="hint">⚪ ausgeschaltet – die KI kann gerade nichts lesen oder ändern</span>'}
         <span class="aib-session-actions">
           <select class="aib-activate-min" aria-label="Wie lange">
             <option value="30">30 Min.</option><option value="60" selected>1 Std.</option><option value="120">2 Std.</option><option value="240">4 Std.</option>
@@ -197,7 +242,6 @@ export async function openAiBridgeDialog(app, { onDone = null, regenerate = null
           ${p.active ? `<button type="button" class="btn btn-secondary btn-sm" data-revoke="${escapeAttr(p.id)}">⏹ Ausschalten</button>` : ''}
         </span>
       </div>
-      <p class="hint">Das Token steht in deiner KI. Neu nötig nur, wenn es verloren ging – dann unten „Neues Token“ mit Haken bei 🔑.</p>
     </div>`;
   };
 
@@ -227,10 +271,51 @@ export async function openAiBridgeDialog(app, { onDone = null, regenerate = null
     </div>`;
   };
 
-  const refresh = async () => {
-    const fresh = await app.api.getAiBridgeSessions().catch(() => ({ sessions: [] }));
-    renderAll(fresh.sessions);
+  let currentConnections = connsRes?.connections || [];
+
+  const renderConnections = (connections) => {
+    const box = $('.aib-connections');
+    if (!box) return;
+    const list = Array.isArray(connections) ? connections : [];
+    if (!list.length) { box.innerHTML = ''; return; }
+    box.innerHTML = `<div class="aib-session-list">
+      <h4>🔌 Verbundene KIs (${list.length})</h4>
+      ${list.map((c) => `<div class="aib-session-item aib-conn-item" data-conn-id="${escapeAttr(c.id)}">
+        <div class="aib-session-head">
+          <strong>${escapeHtml(c.clientName)}</strong> ·
+          <span class="hint">verbunden am ${escapeHtml(fmt(c.createdAt))}, zuletzt aktiv: ${escapeHtml(fmt(c.lastActiveAt))}</span>
+          <span class="aib-session-actions">
+            <button type="button" class="btn btn-secondary btn-sm aib-btn-disconnect" data-disconnect="${escapeAttr(c.id)}" title="Verbindung sofort ungültig machen">Trennen</button>
+          </span>
+        </div>
+      </div>`).join('')}
+    </div>`;
   };
+
+  const refresh = async () => {
+    const [freshSessions, freshConns] = await Promise.all([
+      app.api.getAiBridgeSessions().catch(() => ({ sessions: [] })),
+      app.api.getAiBridgeConnections().catch(() => ({ connections: [] })),
+    ]);
+    currentConnections = freshConns?.connections || [];
+    renderAll(freshSessions.sessions, currentConnections);
+  };
+
+  $('.aib-connections').addEventListener('click', async (e) => {
+    const btn = e.target.closest('[data-disconnect]');
+    if (!btn) return;
+    const id = btn.dataset.disconnect;
+    if (!await app.appConfirm('Verbindung zu dieser KI wirklich trennen? Die KI verliert sofort den Zugriff und muss dich bei der nächsten Benutzung erneut um Erlaubnis bitten.')) return;
+    btn.disabled = true;
+    const res = await app.api.disconnectAiBridgeConnection(id);
+    if (bad(res)) {
+      btn.disabled = false;
+      app.showToast(res?.message || 'Trennen fehlgeschlagen.', 'error');
+    } else {
+      app.showToast('🔌 Verbindung getrennt.', 'info');
+      await refresh();
+    }
+  });
 
   $('.aib-runs').addEventListener('click', async (e) => {
     const btn = e.target.closest('[data-accept],[data-reject]');
@@ -253,7 +338,7 @@ export async function openAiBridgeDialog(app, { onDone = null, regenerate = null
     await refresh();
   });
 
-  $('.aib-persistent').addEventListener('click', async (e) => {
+  $('.aib-status').addEventListener('click', async (e) => {
     const act = e.target.closest('[data-activate]');
     if (act) {
       act.disabled = true;
@@ -318,12 +403,13 @@ export async function openAiBridgeDialog(app, { onDone = null, regenerate = null
     </div>`;
   };
 
-  const renderAll = (sessions) => {
-    renderPersistent(sessions);
+  const renderAll = (sessions, connections = currentConnections) => {
+    renderPersistent(sessions, connections);
+    renderConnections(connections);
     renderRuns(sessions);
     renderSessions(sessions);
   };
-  renderAll(sessionsRes?.sessions || []);
+  renderAll(sessionsRes?.sessions || [], currentConnections);
 
   $('.aib-sessions').addEventListener('click', async (e) => {
     const rb = e.target.closest('[data-rollback]');
@@ -382,7 +468,6 @@ export async function openAiBridgeDialog(app, { onDone = null, regenerate = null
       planNodeIds,
       includeUnsorted: $('.aib-unsorted').checked,
       withQuizFormats: $('.aib-with-quiz').checked && $('.aib-perm').value === 'all',
-      persistent: $('.aib-persistent-flag').checked,
       permissions: {
         organize: $('.aib-perm').value !== 'read',
         writeDocs: $('.aib-perm').value === 'all',
@@ -402,16 +487,7 @@ export async function openAiBridgeDialog(app, { onDone = null, regenerate = null
     lastToken = res.token;
     $('.aib-token-code').textContent = res.token;
     $('.aib-prompt-text').value = res.prompt;
-    // Dauerhafter Zugang: Anschluss als MCP-Server (src/ai-bridge/mcp.ts).
-    const mcp = !!res.session.persistent;
-    $('.aib-mcp').classList.toggle('hidden', !mcp);
-    if (mcp) {
-      const base = `${window.location.origin}/api/mcp`;
-      $('.aib-mcp-url').textContent = `${base}/${res.token}`;
-      $('.aib-mcp-cli').textContent = `claude mcp add --transport http learningmodules ${base} --header "Authorization: Bearer ${res.token}"`;
-    }
     $('.aib-output').classList.remove('hidden');
-    $('.aib-create-box').open = false;
     const ok = await copied;
     $('.aib-copied-msg').textContent = ok
       ? (regenerate
@@ -422,10 +498,50 @@ export async function openAiBridgeDialog(app, { onDone = null, regenerate = null
     renderAll(fresh.sessions);
   });
 
-  $('.aib-mcp').addEventListener('click', async (e) => {
+  // 📋 Adresse, Befehl, Chat-Satz kopieren
+  overlay.addEventListener('click', async (e) => {
     const btn = e.target.closest('[data-copy]');
-    const value = btn ? $(btn.dataset.copy).textContent : '';
+    const value = btn ? $(btn.dataset.copy)?.textContent : '';
     if (value && await copyWhenReady(Promise.resolve(value))) app.showToast('Kopiert.', 'success');
+  });
+
+  // ⚙️ Was die KI darf: vom dauerhaften Zugang übernehmen, dort speichern.
+  const scopeOf = () => ({
+    notebookNodeIds: $('.aib-nb-all').checked ? ['*'] : [...overlay.querySelectorAll('input[name="aibNb"]:checked')].map((x) => x.value),
+    planNodeIds: $('.aib-pl-all').checked ? ['*'] : [...overlay.querySelectorAll('input[name="aibPl"]:checked')].map((x) => x.value),
+    includeUnsorted: $('.aib-unsorted').checked,
+    permissions: { organize: $('.aib-perm').value !== 'read', writeDocs: $('.aib-perm').value === 'all' },
+  });
+  const PERM = { read: 'nur lesen', organize: 'lesen und ordnen', all: 'lesen, ordnen, Inhalte anlegen' };
+  const showScopeSummary = () => {
+    const sc = scopeOf();
+    const nb = sc.notebookNodeIds.includes('*') ? 'alle Books' : `${sc.notebookNodeIds.length} Book${sc.notebookNodeIds.length === 1 ? '' : 's'}`;
+    const pl = sc.planNodeIds.includes('*') ? 'alle Pläne' : `${sc.planNodeIds.length} Plan/Pläne`;
+    $('.aib-scope-summary').textContent = `– ${nb}, ${pl}, ${PERM[$('.aib-perm').value]}`;
+  };
+  if (persistent0?.scope) {
+    const sc = persistent0.scope;
+    const pick = (allSel, name, ids) => {
+      const all = (ids || []).includes('*');
+      $(allSel).checked = all;
+      overlay.querySelectorAll(`input[name="${name}"]`).forEach((x) => { x.checked = all || ids.includes(x.value); });
+    };
+    pick('.aib-nb-all', 'aibNb', sc.notebookNodeIds);
+    pick('.aib-pl-all', 'aibPl', sc.planNodeIds);
+    $('.aib-nb-list').classList.toggle('hidden', $('.aib-nb-all').checked);
+    $('.aib-pl-list').classList.toggle('hidden', $('.aib-pl-all').checked);
+    $('.aib-unsorted').checked = sc.includeUnsorted !== false;
+    $('.aib-perm').value = sc.permissions?.writeDocs ? 'all' : sc.permissions?.organize ? 'organize' : 'read';
+  }
+  showScopeSummary();
+  $('.aib-scope-box').addEventListener('change', showScopeSummary);
+  $('.aib-btn-scope').addEventListener('click', async (e) => {
+    e.target.disabled = true;
+    const res = await app.api.updateAiBridgeScope(scopeOf());
+    e.target.disabled = false;
+    if (bad(res)) { app.showToast(res?.message || 'Speichern ging nicht.', 'error'); return; }
+    app.showToast('⚙️ Gespeichert – gilt für alle verbundenen KIs.', 'success');
+    await refresh();
   });
 
   $('.aib-btn-copy-token').addEventListener('click', async () => {

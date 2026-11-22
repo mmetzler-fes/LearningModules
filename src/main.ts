@@ -19,12 +19,12 @@ async function bootstrap() {
   // über genau diese Bytes geprüft (docs/vernetzung.md).
   app.use(json({ limit: '50mb', verify: (req: any, _res, buf) => { req.rawBody = buf; } }));
   app.use(urlencoded({ limit: '50mb', extended: true }));
-  app.setGlobalPrefix('api');
+  app.setGlobalPrefix('api', { exclude: ['/.well-known/(.*)', '/oauth/(.*)'] });
 
   // API-Antworten dürfen weder vom Browser noch vom Reverse Proxy
   // zwischengespeichert werden – sonst zeigt z.B. die Benutzerliste nach dem
   // Anlegen weiterhin den alten Stand.
-  app.use('/api', (_req: any, res: any, next: any) => {
+  app.use(['/api', '/.well-known', '/oauth'], (_req: any, res: any, next: any) => {
     res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
     res.setHeader('Pragma', 'no-cache');
     next();

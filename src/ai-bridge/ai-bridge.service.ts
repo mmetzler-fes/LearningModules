@@ -156,7 +156,7 @@ export class AiBridgeService {
 
   // ---- Speichern ----
 
-  private fromRow(r: AiBridgeSessionRow): AiBridgeSession {
+  fromRow(r: AiBridgeSessionRow): AiBridgeSession {
     return {
       id: r.id, tokenHash: r.tokenHash, tokenPreview: r.tokenPreview, userId: r.userId,
       createdAt: new Date(r.createdAt).getTime(), expiresAt: new Date(r.expiresAt).getTime(),
@@ -291,6 +291,29 @@ export class AiBridgeService {
     return { success: true, session: this.publicSession(s) };
   }
 
+  /**
+   * Was der dauerhafte Zugang darf (alle verbundenen KIs): freigegebene Books und Pläne, „Unsortiert“,
+   * Rechte. Ohne neues Token – die Verbindungen bleiben.
+   */
+  async updatePersistentScope(user: { userId: string }, body: {
+    notebookNodeIds?: string[]; planNodeIds?: string[]; includeUnsorted?: boolean; permissions?: Partial<AiBridgePermissions>;
+  }) {
+    const s = await this.getOrCreatePersistentSession(user.userId);
+    const ids = (v: unknown) => (Array.isArray(v) ? v.map(String).filter(Boolean) : null);
+    s.scope = {
+      notebookNodeIds: ids(body?.notebookNodeIds) ?? s.scope.notebookNodeIds,
+      planNodeIds: ids(body?.planNodeIds) ?? s.scope.planNodeIds,
+      includeUnsorted: body?.includeUnsorted !== undefined ? !!body.includeUnsorted : s.scope.includeUnsorted,
+      permissions: {
+        organize: body?.permissions?.organize !== undefined ? !!body.permissions.organize : s.scope.permissions.organize,
+        writeDocs: body?.permissions?.writeDocs !== undefined ? !!body.permissions.writeDocs : s.scope.permissions.writeDocs,
+      },
+    };
+    s.log.push({ at: new Date().toISOString(), op: 'scope', summary: '⚙️ Freigabe des KI-Zugangs geändert.' });
+    await this.store(s);
+    return { success: true, session: this.publicSession(s) };
+  }
+
   /** Dauerhaften Zugang einschalten: ab jetzt `minutes` lang (höchstens MAX_TTL_MINUTES). */
   async activateSession(user: { userId: string }, sessionId: string, minutes?: number) {
     const s = await this.ownSession(user.userId, sessionId);
@@ -379,26 +402,63 @@ export class AiBridgeService {
     return row ? this.fromRow(row) : null;
   }
 
-  async authenticateToken(rawToken: string | undefined): Promise<AiBridgeSession> {
-    const cleaned = String(rawToken || '').replace(/^Bearer\s+/i, '').trim();
-    if (!cleaned || !cleaned.startsWith('lma_')) {
-      throw new UnauthorizedException('Ungültiges oder fehlendes KI-Token (erwartet: lma_…).');
+  /** Dauerhaften Zugang für einen Benutzer holen oder neu anlegen */
+  async getOrCreatePersistentSession(userId: string): Promise<AiBridgeSession> {
+    const existing = await this.sessionRepo.findOne({ where: { userId, persistent: true } });
+    if (existing) {
+      return this.fromRow(existing);
     }
-    const row = await this.sessionRepo.findOne({ where: { tokenHash: sha256(cleaned) } });
-    if (!row) throw new UnauthorizedException('KI-Token nicht gefunden oder bereits gelöscht.');
-    const session = this.fromRow(row);
+    const rawToken = "lma_" + crypto.randomBytes(24).toString("hex");
+    const tokenHash = sha256(rawToken);
+    const scope: AiBridgeScope = {
+      notebookNodeIds: ["*"],
+      planNodeIds: ["*"],
+      includeUnsorted: true,
+      permissions: { organize: true, writeDocs: true },
+    };
+    const session: AiBridgeSession = {
+      id: crypto.randomUUID(),
+      tokenHash,
+      tokenPreview: rawToken.slice(0, 10) + "…" + rawToken.slice(-4),
+      userId,
+      createdAt: Date.now(),
+      expiresAt: Date.now() + DEFAULT_TTL_MINUTES * 60 * 1000,
+      scope,
+      undoStack: [],
+      log: [{ at: new Date().toISOString(), op: "create", summary: "Dauerhafter Zugang über OAuth erstellt." }],
+      purpose: null,
+      persistent: true,
+      runs: [],
+    };
+    await this.store(session);
+    return session;
+  }
+
+  async authenticateToken(rawToken: string | undefined, preResolvedSession?: AiBridgeSession | null): Promise<AiBridgeSession> {
+    let session: AiBridgeSession;
+    if (preResolvedSession) {
+      session = preResolvedSession;
+    } else {
+      const cleaned = String(rawToken || "").replace(/^Bearer\s+/i, "").trim();
+      if (!cleaned || !cleaned.startsWith("lma_")) {
+        throw new UnauthorizedException("Ungültiges oder fehlendes KI-Token (erwartet: lma_…).");
+      }
+      const row = await this.sessionRepo.findOne({ where: { tokenHash: sha256(cleaned) } });
+      if (!row) throw new UnauthorizedException("KI-Token nicht gefunden oder bereits gelöscht.");
+      session = this.fromRow(row);
+    }
     const now = Date.now();
     if (session.expiresAt <= now) {
       throw new UnauthorizedException(session.persistent
-        ? 'Der KI-Zugang ist gerade ausgeschaltet. Bitte in LearningModules unter 🤖 KI-Assistent einschalten und dann erneut versuchen.'
-        : 'Das KI-Token ist abgelaufen oder wurde beendet. Bitte in LearningModules verlängern oder ein neues erzeugen.');
+        ? "Der KI-Zugang ist gerade ausgeschaltet. Bitte in LearningModules unter 🤖 KI-Assistent einschalten und dann erneut versuchen."
+        : "Das KI-Token ist abgelaufen oder wurde beendet. Bitte in LearningModules verlängern oder ein neues erzeugen.");
     }
     const r = this.rate.get(session.id);
     const window = r && now - r.start <= 60_000 ? r : { start: now, count: 0 };
     window.count++;
     this.rate.set(session.id, window);
     if (window.count > MAX_REQ_PER_MIN) {
-      throw new ForbiddenException('Zu viele Anfragen pro Minute für dieses KI-Token.');
+      throw new ForbiddenException("Zu viele Anfragen pro Minute für dieses KI-Token.");
     }
     return session;
   }

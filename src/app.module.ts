@@ -104,6 +104,8 @@ import { HtmlAppState } from './core/entities/html-app-state.entity';
 import { HtmlAppsModule } from './html-apps/html-apps.module';
 import { AiBridgeModule } from './ai-bridge/ai-bridge.module';
 import { AiBridgeSessionRow } from './core/entities/ai-bridge-session.entity';
+import { AiBridgeClientRow } from './core/entities/ai-bridge-client.entity';
+import { AiBridgeConnectionRow } from './core/entities/ai-bridge-connection.entity';
 
 const RENDERER_DIR = join(__dirname, '..', 'src', 'renderer');
 
@@ -126,8 +128,8 @@ function noStaleUi(res: any, path: string) {
     // Schüler-App am PC nebeneinander installieren (Chrome/Edge unterscheiden
     // Apps auch am Bereich). Zuerst, sonst nähme „/“ die Anfrage.
     ServeStaticModule.forRoot(
-      { rootPath: RENDERER_DIR, serveRoot: '/schueler', exclude: ['/api*'], serveStaticOptions: { setHeaders: noStaleUi } },
-      { rootPath: RENDERER_DIR, serveRoot: '/', exclude: ['/api*'], serveStaticOptions: { setHeaders: noStaleUi } },
+      { rootPath: RENDERER_DIR, serveRoot: '/schueler', exclude: ['/api*', '/.well-known*', '/oauth*'], serveStaticOptions: { setHeaders: noStaleUi } },
+      { rootPath: RENDERER_DIR, serveRoot: '/', exclude: ['/api*', '/.well-known*', '/oauth*'], serveStaticOptions: { setHeaders: noStaleUi } },
     ),
     TypeOrmModule.forRoot({
       type: 'sqlite',
@@ -137,7 +139,7 @@ function noStaleUi(res: any, path: string) {
       // statt „database is locked“.
       enableWAL: true,
       busyTimeout: 5000,
-      entities: [HtmlAppFile, HtmlAppState, User, StudentClass, ClassStudent, LearningTopic, LearningModule, Result, School, SystemConfig, Tag, TopicLink, TopicQuickLink, TeacherGroup, ShopOffer, UseGrant, PointsEntry, ModuleTiming, ClassShare, NotebookNode, NotebookPlacement, ModuleDraft, UsageCount, ContentFeedback, Category, FederationPeer, RemoteOffer, RemotePerson, FederationCopy, ContentHandover, AccountLink, LinkCode, GithubBackup, NextcloudLink, SchoolNextcloud, DocMirror, WorksheetTemplate, DocumentWork, ExamAttempt, DocumentVersion, RunProgress, DrawingSource, ClassNotebook, ClassNotebookNode, ClassNotebookPlace, AuthSession, DocumentInk, ClassbookProgress, PlanNode, PlanEntry, AiBridgeSessionRow, ClassBoard, ClassSolution, ShortLink, SchoolSso, LtiPlatform, LtiCourse, LtiGrade, Feedback, SchoolClass, SchoolClassStudent, SchoolClassRequest],
+      entities: [HtmlAppFile, HtmlAppState, User, StudentClass, ClassStudent, LearningTopic, LearningModule, Result, School, SystemConfig, Tag, TopicLink, TopicQuickLink, TeacherGroup, ShopOffer, UseGrant, PointsEntry, ModuleTiming, ClassShare, NotebookNode, NotebookPlacement, ModuleDraft, UsageCount, ContentFeedback, Category, FederationPeer, RemoteOffer, RemotePerson, FederationCopy, ContentHandover, AccountLink, LinkCode, GithubBackup, NextcloudLink, SchoolNextcloud, DocMirror, WorksheetTemplate, DocumentWork, ExamAttempt, DocumentVersion, RunProgress, DrawingSource, ClassNotebook, ClassNotebookNode, ClassNotebookPlace, AuthSession, DocumentInk, ClassbookProgress, PlanNode, PlanEntry, AiBridgeSessionRow, AiBridgeClientRow, AiBridgeConnectionRow, ClassBoard, ClassSolution, ShortLink, SchoolSso, LtiPlatform, LtiCourse, LtiGrade, Feedback, SchoolClass, SchoolClassStudent, SchoolClassRequest],
       synchronize: true,
     }),
     MailModule,

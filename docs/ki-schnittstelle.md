@@ -26,21 +26,33 @@ Jeder Aufruf der KI wird **vorläufig übernommen** und steht unter **🤖 Offen
 Der zeitlich begrenzte Zugang (ohne Haken) funktioniert wie bisher; auch seine Aufrufe lassen sich
 einzeln annehmen oder ablehnen.
 
-## Als MCP-Server
+## KI verbinden (MCP mit OAuth) – der Hauptweg
 
-Mit dem dauerhaften Zugang lässt sich LearningModules als **MCP-Server** einbinden – dann holt die
-KI sich Überblick, Inhalte und Formate selbst, nichts muss kopiert werden. Nach dem Erzeugen zeigt
-der KI-Assistent unter **🔌 Als MCP-Server einbinden**:
+Einmal einrichten, dann nur noch im KI-Chat arbeiten (📥 → 🤖 KI-Assistent → **🔌 KI verbinden**):
 
-- **Claude.ai / ChatGPT** (Connector): die Adresse `…/api/mcp/lma_…` – sie enthält das Token, also
-  wie ein Passwort behandeln. Gelangt sie nach außen: ausschalten und ein neues Token erzeugen.
-- **Claude Code**: `claude mcp add --transport http learningmodules …/api/mcp --header "Authorization: Bearer lma_…"`.
+1. Adresse kopieren: `https://<server>/api/mcp`.
+2. In der KI eintragen – **Claude.ai**: Einstellungen → Connectors → Benutzerdefinierten Connector
+   hinzufügen; **ChatGPT**: Einstellungen → Apps & Connectors → Erstellen (Entwicklermodus),
+   Authentifizierung OAuth; **Claude Code**: `claude mcp add --transport http learningmodules https://<server>/api/mcp`,
+   dann `/mcp` → anmelden.
+3. Es öffnet sich LearningModules: anmelden und **✅ Zulassen**. Wer mit Microsoft angemeldet ist,
+   öffnet LearningModules vorher in einem anderen Tab (mit „Angemeldet bleiben“) und lädt die Seite neu.
 
-Werkzeuge: `get_overview` (zuerst), `get_tree`, `get_topic`, `get_document`, `get_docspec_reference`,
-`get_quiz_reference`, `run_operations` (mit `dryRun` zum Prüfen). Jeder `run_operations`-Aufruf ist
-eine Änderung zum Annehmen oder Ablehnen. Verbinden geht auch bei ausgeschaltetem Zugang; die
-Werkzeuge melden dann „ausgeschaltet“. Technik: `src/ai-bridge/mcp.ts` (Streamable HTTP, nur POST,
-Antworten als JSON, ohne Sitzung).
+Danach im KI-Assistenten: **Zugang ein/aus** (gilt für alle verbundenen KIs), **🔌 Verbundene KIs**
+mit *Trennen*, **⚙️ Was die KI darf** (Books, Pläne, Rechte – gespeichert für alle verbundenen KIs),
+**🤖 Offene KI-Änderungen** zum Annehmen oder Ablehnen, **💬 Beispiele** für den Chat. Kein Passwort
+und kein Token gehen an die KI: Sie bekommt einen Schlüssel für eine Stunde und erneuert ihn selbst,
+solange die Verbindung besteht.
+
+Technik: `src/ai-bridge/mcp.ts` (Werkzeuge `get_overview`, `get_tree`, `get_topic`, `get_document`,
+`get_docspec_reference`, `get_quiz_reference`, `run_operations`), `src/ai-bridge/oauth.*`
+(Server-Beschreibung `/.well-known/oauth-protected-resource` und `/.well-known/oauth-authorization-server`,
+Registrierung `/oauth/register`, Freigabe `/oauth/authorize`, Schlüssel `/oauth/token` mit PKCE).
+Die Freigabeseite nimmt nur registrierte KIs mit ihrer hinterlegten Rücksprung-Adresse an und nennt
+das Ziel. Ein dauerhaftes Token in der Adresse (`/api/mcp/lma_…`) geht weiterhin, wird aber nicht mehr angeboten.
+
+Ohne Connector (oder für „Mit KI neu aufbereiten“ ohne verbundene KI) gibt es unten im Dialog weiter
+**📋 Anleitung kopieren** mit einem zeitlich begrenzten Token.
 
 ## Grundanleitung und Nachschlagen
 

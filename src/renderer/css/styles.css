@@ -6955,3 +6955,11 @@ body.ws-on .login-card.login-card-wide {
 /* KI-Assistent: MCP-Anschluss – lange Adressen umbrechen */
 .aib-mcp code { word-break: break-all; font-size: 0.85em; }
 .aib-mcp { margin: 8px 0; padding: 8px 10px; border: 1px solid var(--border, #ddd); border-radius: 6px; }
+
+/* KI-Assistent: Einrichten-Schritte und Chat-Satz */
+.aib-steps { margin: 6px 0 6px 20px; }
+.aib-steps > li { margin-bottom: 8px; }
+.aib-steps ul { margin: 4px 0 0 18px; }
+.aib-setup, .aib-scope-box, .aib-chat-tips, .aib-legacy { margin: 8px 0; }
+.aib-chat-ask { margin: 8px 0; padding: 8px 10px; border: 1px solid var(--border, #ddd); border-radius: 6px; }
+.aib-chat-ask code, .aib-setup code { word-break: break-all; }

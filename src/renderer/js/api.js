@@ -745,6 +745,10 @@ export class BrowserApi {
   runAiBridgeBatch(id, body) {
     return this._fetch(`/api/ai-bridge/sessions/${encodeURIComponent(id)}/batch`, { method: 'POST', body: JSON.stringify(body) });
   }
+  getAiBridgeConnections() { return this._fetch('/api/ai-bridge/connections'); }
+  /** Was die verbundenen KIs dürfen (Books, Pläne, Rechte) – dauerhafter Zugang. */
+  updateAiBridgeScope(body) { return this._fetch('/api/ai-bridge/persistent/scope', { method: 'PATCH', body: JSON.stringify(body) }); }
+  disconnectAiBridgeConnection(id) { return this._fetch(`/api/ai-bridge/connections/${encodeURIComponent(id)}`, { method: 'DELETE' }); }
   listGithubBackupFiles() { return this._fetch('/api/github-backup/files'); }
   getGithubBackupVersions(path) { return this._fetch(`/api/github-backup/versions?path=${encodeURIComponent(path)}`); }
   previewGithubBackup(path, ref) {

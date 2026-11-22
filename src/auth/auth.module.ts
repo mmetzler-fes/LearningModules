@@ -30,6 +30,6 @@ import { FeaturesModule } from '../features/features.module';
   ],
   providers: [AuthService, JwtStrategy, SessionsService],
   controllers: [AuthController],
-  exports: [AuthService],
+  exports: [AuthService, SessionsService],
 })
 export class AuthModule {}

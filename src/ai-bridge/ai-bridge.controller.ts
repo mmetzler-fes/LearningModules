@@ -1,8 +1,10 @@
-import { Body, Controller, Delete, ForbiddenException, Get, HttpCode, Param, Patch, Post, Query, Req, Request, Res, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, ForbiddenException, Get, HttpCode, Optional, Param, Patch, Post, Query, Req, Request, Res, UnauthorizedException, UseGuards } from '@nestjs/common';
 import type { Request as ExpressRequest, Response } from 'express';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { AiBridgeService } from './ai-bridge.service';
 import { FeedbackService } from '../feedback/feedback.service';
+import { OAuthService } from './oauth.service';
+import { AiBridgeSession } from './ai-bridge.service';
 import { handleMcp, McpBridge } from './mcp';
 
 function extractBaseUrl(req: ExpressRequest): string {
@@ -24,11 +26,25 @@ export class AiBridgeController {
   constructor(
     private readonly bridge: AiBridgeService,
     private readonly feedback: FeedbackService,
+    @Optional() private readonly oauth?: OAuthService,
   ) {}
+
+  /** Authentifiziert KI-Anfragen sowohl über herkömmliche Tokens (lma_…) als auch über OAuth Access Tokens (lma_oauth_…) */
+  private async authenticateAi(req: ExpressRequest, token?: string): Promise<AiBridgeSession> {
+    const raw = extractAiToken(req, token);
+    const cleaned = String(raw || '').replace(/^Bearer\s+/i, '').trim();
+    if (cleaned.startsWith('lma_oauth_') && this.oauth) {
+      const res = await this.oauth.sessionOfToken(cleaned);
+      if (res.expired) throw new UnauthorizedException('OAuth Access Token ist abgelaufen. Bitte mit refresh_token erneuern.');
+      if (!res.session) throw new UnauthorizedException('Ungültiges OAuth-Token.');
+      return this.bridge.authenticateToken(cleaned, res.session);
+    }
+    return this.bridge.authenticateToken(raw);
+  }
 
   /** Konto hinter dem KI-Token – 💬 Feedback nur, wenn es ein Admin ist. */
   private async feedbackAccount(req: ExpressRequest, token?: string) {
-    const session = await this.bridge.authenticateToken(extractAiToken(req, token));
+    const session = await this.authenticateAi(req, token);
     const account = await this.feedback.accountOf(session.userId);
     if (account.role !== 'admin') throw new ForbiddenException('💬 Feedback gibt es nur mit dem KI-Token eines Admins.');
     return account;
@@ -65,6 +81,13 @@ export class AiBridgeController {
   @UseGuards(JwtAuthGuard)
   activateSession(@Request() req: any, @Param('id') id: string, @Body() body: { minutes?: number }) {
     return this.bridge.activateSession(req.user, id, body?.minutes);
+  }
+
+  /** Freigabe des dauerhaften Zugangs (Books, Pläne, Rechte) – gilt für alle verbundenen KIs. */
+  @Patch('persistent/scope')
+  @UseGuards(JwtAuthGuard)
+  updatePersistentScope(@Request() req: any, @Body() body: any) {
+    return this.bridge.updatePersistentScope(req.user, body);
   }
 
   /** Offene KI-Änderung annehmen. */
@@ -104,11 +127,25 @@ export class AiBridgeController {
     return this.bridge.executeBatchByTeacher(req.user, id, body);
   }
 
+  // ---- OAuth: Verbundene KIs (Lehrkraft) ----
+
+  @Get('connections')
+  @UseGuards(JwtAuthGuard)
+  async listConnections(@Request() req: any) {
+    return { connections: this.oauth ? await this.oauth.listConnections(req.user.userId) : [] };
+  }
+
+  @Delete('connections/:id')
+  @UseGuards(JwtAuthGuard)
+  async disconnect(@Request() req: any, @Param('id') id: string) {
+    return this.oauth ? this.oauth.disconnect(req.user.userId, id) : { success: false };
+  }
+
   // ---- KI-Endpunkte (Authentifizierung über das zeitlich begrenzte Token lma_…) ----
 
   @Get('instructions')
   async instructions(@Req() req: ExpressRequest, @Query('token') token?: string) {
-    const session = await this.bridge.authenticateToken(extractAiToken(req, token));
+    const session = await this.authenticateAi(req, token);
     const info: any = await this.bridge.getInstructionsForAi(session, extractBaseUrl(req));
     if ((await this.feedback.accountOf(session.userId)).role === 'admin') {
       const base = extractBaseUrl(req);
@@ -144,33 +181,33 @@ export class AiBridgeController {
   /** Nachschlagen: Format der Arbeitsblätter (DocSpec) – nur bei Bedarf, die Anleitung bleibt kurz. */
   @Get('reference/docspec')
   async docSpecReference(@Req() req: ExpressRequest, @Query('token') token?: string) {
-    await this.bridge.authenticateToken(extractAiToken(req, token));
+    await this.authenticateAi(req, token);
     return this.bridge.getDocSpecReference();
   }
 
   /** Nachschlagen: Format der Quiz-Typen `?types=multipleChoice,trueFalse` (Markdown) – nur die gewünschten. */
   @Get('reference/quiz')
   async quizReference(@Req() req: ExpressRequest, @Res({ passthrough: true }) res: Response, @Query('types') types?: string, @Query('token') token?: string) {
-    await this.bridge.authenticateToken(extractAiToken(req, token));
+    await this.authenticateAi(req, token);
     res.setHeader('Content-Type', 'text/markdown; charset=utf-8');
     return this.bridge.getQuizReference(types || '');
   }
 
   @Get('tree')
   async tree(@Req() req: ExpressRequest, @Query('token') token?: string) {
-    const session = await this.bridge.authenticateToken(extractAiToken(req, token));
+    const session = await this.authenticateAi(req, token);
     return this.bridge.scopedTree(session);
   }
 
   @Get('topics/:topicId')
   async topic(@Req() req: ExpressRequest, @Param('topicId') topicId: string, @Query('token') token?: string) {
-    const session = await this.bridge.authenticateToken(extractAiToken(req, token));
+    const session = await this.authenticateAi(req, token);
     return this.bridge.getScopedTopic(session, topicId);
   }
 
   @Get('documents/:moduleId')
   async document(@Req() req: ExpressRequest, @Param('moduleId') moduleId: string, @Query('token') token?: string) {
-    const session = await this.bridge.authenticateToken(extractAiToken(req, token));
+    const session = await this.authenticateAi(req, token);
     return this.bridge.getScopedDocument(session, moduleId);
   }
 
@@ -178,7 +215,7 @@ export class AiBridgeController {
   @Post('batch')
   @HttpCode(200)
   async batch(@Req() req: ExpressRequest, @Query('dryRun') dryRunQuery?: string, @Body() body?: any) {
-    const session = await this.bridge.authenticateToken(extractAiToken(req));
+    const session = await this.authenticateAi(req);
     const dryRun = body?.dryRun !== undefined ? !!body.dryRun : dryRunQuery === 'true';
     return this.bridge.executeBatch(session, { ...body, dryRun });
   }
@@ -192,7 +229,10 @@ export class AiBridgeController {
  */
 @Controller('mcp')
 export class McpController {
-  constructor(private readonly bridge: AiBridgeService) {}
+  constructor(
+    private readonly bridge: AiBridgeService,
+    @Optional() private readonly oauth?: OAuthService,
+  ) {}
 
   @Post()
   post(@Req() req: ExpressRequest, @Res() res: Response, @Body() body: any) {
@@ -216,17 +256,36 @@ export class McpController {
   }
 
   private async serve(req: ExpressRequest, res: Response, body: any, token: string | undefined) {
-    const session = await this.bridge.sessionOfToken(token);
+    const base = extractBaseUrl(req);
+    let session: AiBridgeSession | null = null;
+    let preResolved = false;
+
+    const cleaned = String(token || '').replace(/^Bearer\s+/i, '').trim();
+    if (cleaned.startsWith('lma_oauth_') && this.oauth) {
+      const oauthResult = await this.oauth.sessionOfToken(cleaned);
+      if (oauthResult.expired) {
+        res.status(401).setHeader('WWW-Authenticate', 'Bearer error="invalid_token", error_description="Access token expired"').json({
+          jsonrpc: '2.0', id: null,
+          error: { code: -32001, message: 'OAuth Access Token ist abgelaufen. Bitte mit refresh_token erneuern.' },
+        });
+        return;
+      }
+      session = oauthResult.session;
+      preResolved = true;
+    } else {
+      session = await this.bridge.sessionOfToken(token);
+    }
+
     if (!session) {
-      res.status(401).setHeader('WWW-Authenticate', 'Bearer').json({
+      res.status(401).setHeader('WWW-Authenticate', `Bearer error="invalid_token", resource_metadata="${base}/.well-known/oauth-protected-resource"`).json({
         jsonrpc: '2.0', id: null,
-        error: { code: -32001, message: 'KI-Token fehlt oder ist ungültig – in LearningModules unter 🤖 KI-Assistent einen dauerhaften Zugang einrichten.' },
+        error: { code: -32001, message: 'KI-Token fehlt oder ist ungültig – in LearningModules unter 🤖 KI-Assistent verbinden oder einschalten.' },
       });
       return;
     }
-    const base = extractBaseUrl(req);
+
     const bridge: McpBridge = {
-      authenticate: () => this.bridge.authenticateToken(token),
+      authenticate: () => this.bridge.authenticateToken(token, preResolved ? session : null),
       overview: (s) => this.bridge.getInstructionsForAi(s, base),
       tree: (s) => this.bridge.scopedTree(s),
       topic: (s, id) => this.bridge.getScopedTopic(s, id),

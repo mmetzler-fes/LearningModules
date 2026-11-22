@@ -3,6 +3,7 @@ import type { Request as ExpressRequest, Response } from 'express';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { AiBridgeService } from './ai-bridge.service';
 import { FeedbackService } from '../feedback/feedback.service';
+import { handleMcp, McpBridge } from './mcp';
 
 function extractBaseUrl(req: ExpressRequest): string {
   const proto = (req.headers['x-forwarded-proto'] as string)?.split(',')[0]?.trim() || req.protocol || 'http';
@@ -183,3 +184,64 @@ export class AiBridgeController {
   }
 }
 
+
+/**
+ * MCP-Server (mcp.ts): `POST /api/mcp` mit `Authorization: Bearer lma_…`, oder – für KIs, bei
+ * denen sich nur eine Adresse eintragen lässt (Connector in Claude.ai, ChatGPT) – `POST /api/mcp/lma_…`.
+ * Dann ist die Adresse der Schlüssel: nur mit dem dauerhaften Zugang verwenden (ausschaltbar, neu erzeugbar).
+ */
+@Controller('mcp')
+export class McpController {
+  constructor(private readonly bridge: AiBridgeService) {}
+
+  @Post()
+  post(@Req() req: ExpressRequest, @Res() res: Response, @Body() body: any) {
+    return this.serve(req, res, body, extractAiToken(req));
+  }
+
+  @Post(':token')
+  postWithToken(@Req() req: ExpressRequest, @Res() res: Response, @Param('token') token: string, @Body() body: any) {
+    return this.serve(req, res, body, extractAiToken(req) || token);
+  }
+
+  /** Kein Ereignis-Strom (SSE) – nur POST. */
+  @Get()
+  get(@Res() res: Response) {
+    res.status(405).setHeader('Allow', 'POST').send('Nur POST (MCP Streamable HTTP ohne Ereignis-Strom).');
+  }
+
+  @Get(':token')
+  getWithToken(@Res() res: Response) {
+    res.status(405).setHeader('Allow', 'POST').send('Nur POST (MCP Streamable HTTP ohne Ereignis-Strom).');
+  }
+
+  private async serve(req: ExpressRequest, res: Response, body: any, token: string | undefined) {
+    const session = await this.bridge.sessionOfToken(token);
+    if (!session) {
+      res.status(401).setHeader('WWW-Authenticate', 'Bearer').json({
+        jsonrpc: '2.0', id: null,
+        error: { code: -32001, message: 'KI-Token fehlt oder ist ungültig – in LearningModules unter 🤖 KI-Assistent einen dauerhaften Zugang einrichten.' },
+      });
+      return;
+    }
+    const base = extractBaseUrl(req);
+    const bridge: McpBridge = {
+      authenticate: () => this.bridge.authenticateToken(token),
+      overview: (s) => this.bridge.getInstructionsForAi(s, base),
+      tree: (s) => this.bridge.scopedTree(s),
+      topic: (s, id) => this.bridge.getScopedTopic(s, id),
+      document: (s, id) => this.bridge.getScopedDocument(s, id),
+      docSpecReference: () => this.bridge.getDocSpecReference(),
+      quizReference: (types) => this.bridge.getQuizReference(types),
+      run: (s, operations, dryRun) => this.bridge.executeBatch(s, { operations, dryRun }),
+    };
+    const batch = Array.isArray(body);
+    const out: any[] = [];
+    for (const msg of batch ? body : [body]) {
+      const answer = await handleMcp(msg, bridge);
+      if (answer) out.push(answer);
+    }
+    if (!out.length) { res.status(202).end(); return; }
+    res.status(200).json(batch ? out : out[0]);
+  }
+}

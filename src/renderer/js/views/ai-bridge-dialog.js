@@ -122,6 +122,16 @@ export async function openAiBridgeDialog(app, { onDone = null, regenerate = null
         <button type="button" class="btn btn-secondary btn-sm aib-btn-copy-token">📋 Nur Token</button>
         <button type="button" class="btn btn-secondary btn-sm aib-btn-copy-prompt">📋 Ganze KI-Anleitung kopieren</button>
       </div>
+      <div class="aib-mcp hidden">
+        <p><strong>🔌 Als MCP-Server einbinden</strong> <span class="hint">(dann entfällt das Kopieren der Anleitung – die KI holt sich alles selbst)</span></p>
+        <label class="hint">Claude.ai / ChatGPT – Connector mit dieser Adresse (sie enthält das Token, also wie ein Passwort behandeln):</label>
+        <div class="aib-token-bar"><code class="aib-mcp-url"></code>
+          <button type="button" class="btn btn-secondary btn-sm" data-copy=".aib-mcp-url">📋 Kopieren</button></div>
+        <label class="hint">Claude Code – im Terminal:</label>
+        <div class="aib-token-bar"><code class="aib-mcp-cli"></code>
+          <button type="button" class="btn btn-secondary btn-sm" data-copy=".aib-mcp-cli">📋 Kopieren</button></div>
+        <p class="hint">Die KI kann den Server nur benutzen, solange der Zugang oben eingeschaltet ist.</p>
+      </div>
       <details class="aib-prompt-details">
         <summary>KI-Anleitung ansehen / anpassen</summary>
         <textarea class="aib-prompt-text" rows="10" readonly></textarea>
@@ -392,6 +402,14 @@ export async function openAiBridgeDialog(app, { onDone = null, regenerate = null
     lastToken = res.token;
     $('.aib-token-code').textContent = res.token;
     $('.aib-prompt-text').value = res.prompt;
+    // Dauerhafter Zugang: Anschluss als MCP-Server (src/ai-bridge/mcp.ts).
+    const mcp = !!res.session.persistent;
+    $('.aib-mcp').classList.toggle('hidden', !mcp);
+    if (mcp) {
+      const base = `${window.location.origin}/api/mcp`;
+      $('.aib-mcp-url').textContent = `${base}/${res.token}`;
+      $('.aib-mcp-cli').textContent = `claude mcp add --transport http learningmodules ${base} --header "Authorization: Bearer ${res.token}"`;
+    }
     $('.aib-output').classList.remove('hidden');
     $('.aib-create-box').open = false;
     const ok = await copied;
@@ -402,6 +420,12 @@ export async function openAiBridgeDialog(app, { onDone = null, regenerate = null
       : '⚠️ Bitte auf „📋 Ganze KI-Anleitung kopieren“ klicken und in deiner KI einfügen.';
     const fresh = await app.api.getAiBridgeSessions().catch(() => ({ sessions: [res.session] }));
     renderAll(fresh.sessions);
+  });
+
+  $('.aib-mcp').addEventListener('click', async (e) => {
+    const btn = e.target.closest('[data-copy]');
+    const value = btn ? $(btn.dataset.copy).textContent : '';
+    if (value && await copyWhenReady(Promise.resolve(value))) app.showToast('Kopiert.', 'success');
   });
 
   $('.aib-btn-copy-token').addEventListener('click', async () => {

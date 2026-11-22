@@ -371,6 +371,14 @@ export class AiBridgeService {
 
   // ---- Token-Prüfung (KI-Zugriff) ----
 
+  /** Sitzung zum Token, ohne Ablauf zu prüfen (MCP: verbinden geht auch, solange der Zugang aus ist). */
+  async sessionOfToken(rawToken: string | undefined): Promise<AiBridgeSession | null> {
+    const cleaned = String(rawToken || '').replace(/^Bearer\s+/i, '').trim();
+    if (!cleaned.startsWith('lma_')) return null;
+    const row = await this.sessionRepo.findOne({ where: { tokenHash: sha256(cleaned) } });
+    return row ? this.fromRow(row) : null;
+  }
+
   async authenticateToken(rawToken: string | undefined): Promise<AiBridgeSession> {
     const cleaned = String(rawToken || '').replace(/^Bearer\s+/i, '').trim();
     if (!cleaned || !cleaned.startsWith('lma_')) {

@@ -6951,3 +6951,7 @@ body.ws-on .login-card.login-card-wide {
 .mappen-item { padding: 4px 0; border-bottom: 1px solid var(--border, #ddd); }
 .mappen-item summary { cursor: pointer; }
 .mappen-item ol, .mappen-item ul { margin: 4px 0 4px 22px; }
+
+/* KI-Assistent: MCP-Anschluss – lange Adressen umbrechen */
+.aib-mcp code { word-break: break-all; font-size: 0.85em; }
+.aib-mcp { margin: 8px 0; padding: 8px 10px; border: 1px solid var(--border, #ddd); border-radius: 6px; }

@@ -15,7 +15,7 @@ import { PlansModule } from '../plans/plans.module';
 import { TopicsModule } from '../topics/topics.module';
 import { FeedbackModule } from '../feedback/feedback.module';
 import { AiBridgeService } from './ai-bridge.service';
-import { AiBridgeController } from './ai-bridge.controller';
+import { AiBridgeController, McpController } from './ai-bridge.controller';
 
 @Module({
   imports: [
@@ -36,7 +36,7 @@ import { AiBridgeController } from './ai-bridge.controller';
     TopicsModule,
     FeedbackModule,
   ],
-  controllers: [AiBridgeController],
+  controllers: [AiBridgeController, McpController],
   providers: [AiBridgeService],
   exports: [AiBridgeService],
 })

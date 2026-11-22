@@ -26,6 +26,22 @@ Jeder Aufruf der KI wird **vorläufig übernommen** und steht unter **🤖 Offen
 Der zeitlich begrenzte Zugang (ohne Haken) funktioniert wie bisher; auch seine Aufrufe lassen sich
 einzeln annehmen oder ablehnen.
 
+## Als MCP-Server
+
+Mit dem dauerhaften Zugang lässt sich LearningModules als **MCP-Server** einbinden – dann holt die
+KI sich Überblick, Inhalte und Formate selbst, nichts muss kopiert werden. Nach dem Erzeugen zeigt
+der KI-Assistent unter **🔌 Als MCP-Server einbinden**:
+
+- **Claude.ai / ChatGPT** (Connector): die Adresse `…/api/mcp/lma_…` – sie enthält das Token, also
+  wie ein Passwort behandeln. Gelangt sie nach außen: ausschalten und ein neues Token erzeugen.
+- **Claude Code**: `claude mcp add --transport http learningmodules …/api/mcp --header "Authorization: Bearer lma_…"`.
+
+Werkzeuge: `get_overview` (zuerst), `get_tree`, `get_topic`, `get_document`, `get_docspec_reference`,
+`get_quiz_reference`, `run_operations` (mit `dryRun` zum Prüfen). Jeder `run_operations`-Aufruf ist
+eine Änderung zum Annehmen oder Ablehnen. Verbinden geht auch bei ausgeschaltetem Zugang; die
+Werkzeuge melden dann „ausgeschaltet“. Technik: `src/ai-bridge/mcp.ts` (Streamable HTTP, nur POST,
+Antworten als JSON, ohne Sitzung).
+
 ## Grundanleitung und Nachschlagen
 
 Die kopierte Anleitung bleibt kurz: Zugang, erlaubte Operationen (je eine Zeile), Kurzform des

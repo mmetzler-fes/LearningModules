@@ -109,6 +109,16 @@ class Workspace {
       this._observer = new ResizeObserver(() => this._fit());
       this._observer.observe(this.bar);
     }
+    // Die Seite selbst scrollt nie (body overflow: hidden) – scrollIntoView (z. B. „hier sind wir“
+    // im Klassennotizbuch) schiebt sie aber trotzdem hoch, dann liegt die App unter der Tab-Leiste.
+    if (!this._scrollGuard) {
+      this._scrollGuard = () => {
+        const el = document.scrollingElement || document.documentElement;
+        if (el.scrollTop || el.scrollLeft) el.scrollTo(0, 0);
+        if (document.body.scrollTop) document.body.scrollTop = 0;
+      };
+      window.addEventListener('scroll', this._scrollGuard, { passive: true });
+    }
     this.render();
   }
 
@@ -117,6 +127,8 @@ class Workspace {
     this.bar?.remove();
     this.bar = null;
     this._observer?.disconnect();
+    if (this._scrollGuard) window.removeEventListener('scroll', this._scrollGuard);
+    this._scrollGuard = null;
     document.body.classList.remove('ws-on');
   }
 

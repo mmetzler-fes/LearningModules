@@ -294,3 +294,22 @@ export async function copyQrSvgAsPng(svg, size = 600) {
     return false;
   }
 }
+
+/**
+ * Wie scrollIntoView, aber nur in der eigenen Scrollfläche – die Seite selbst bleibt stehen
+ * (sonst rutscht die App unter die Tab-Leiste bzw. auf dem iPad die Kopfzeile weg).
+ */
+export function scrollIntoOwnView(el, block = 'center') {
+  if (!el) return;
+  let sc = el.parentElement;
+  while (sc && sc !== document.body) {
+    const o = getComputedStyle(sc).overflowY;
+    if ((o === 'auto' || o === 'scroll') && sc.scrollHeight > sc.clientHeight) break;
+    sc = sc.parentElement;
+  }
+  if (!sc || sc === document.body) return;
+  const r = el.getBoundingClientRect();
+  const s = sc.getBoundingClientRect();
+  const delta = block === 'start' ? r.top - s.top : r.top - s.top - (sc.clientHeight - r.height) / 2;
+  sc.scrollTop += delta;
+}

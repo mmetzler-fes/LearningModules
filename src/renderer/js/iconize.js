@@ -75,8 +75,17 @@ export function startIconize() {
   iconize(document.body);
   const pending = new Set();
   let scheduled = false;
+  const collect = (records) => {
+    for (const r of records) {
+      if (r.type === 'characterData') pending.add(r.target);
+      else r.addedNodes.forEach((n) => pending.add(n));
+    }
+  };
   const flush = () => {
     scheduled = false;
+    // Noch nicht zugestellte Änderungen erst abholen – disconnect() verwirft sie sonst
+    // (z. B. „Wird geladen …“ und gleich danach der Baum im Klassennotizbuch: der Baum bliebe bei Emojis).
+    collect(observer.takeRecords());
     const nodes = [...pending];
     pending.clear();
     observer.disconnect();
@@ -84,10 +93,7 @@ export function startIconize() {
     observer.observe(document.body, { childList: true, subtree: true, characterData: true });
   };
   observer = new MutationObserver((records) => {
-    for (const r of records) {
-      if (r.type === 'characterData') pending.add(r.target);
-      else r.addedNodes.forEach((n) => pending.add(n));
-    }
+    collect(records);
     if (pending.size && !scheduled) {
       scheduled = true;
       queueMicrotask(flush);

@@ -1,4 +1,4 @@
-import { escapeHtml, escapeAttr, copyClassbookOneNote, copyQrSvgAsPng, copyShareSheetAsPng } from '../utils.js';
+import { escapeHtml, escapeAttr, copyClassbookOneNote, copyQrSvgAsPng, copyShareSheetAsPng, scrollIntoOwnView } from '../utils.js';
 import { openTagDialog } from './tags.js';
 import { nestEmbedded, contentCounts, contentText } from '../../lm-editor/src/doc/doc-quiz.js';
 import { isDocLike, topicIcon } from '../quiz-usage.js';
@@ -1383,7 +1383,7 @@ export class ClassResultsView {
       out.querySelectorAll('[data-veil-book]').forEach((btn) => btn.addEventListener('click', () => {
         void this._setVeil({ type: 'book', hidden: !!btn.dataset.veilBook });
       }));
-      out.querySelector('.cb-marked')?.scrollIntoView({ block: 'center' });
+      scrollIntoOwnView(out.querySelector('.cb-marked'));
     });
   }
 

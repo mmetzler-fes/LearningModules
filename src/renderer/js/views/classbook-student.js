@@ -1,5 +1,5 @@
 import { rememberStudent, rememberedStudent } from '../class-device.js';
-import { escapeHtml, escapeAttr } from '../utils.js';
+import { escapeHtml, escapeAttr, scrollIntoOwnView } from '../utils.js';
 import { nestEmbedded } from '../../lm-editor/src/doc/doc-quiz.js';
 import { isDocLike } from '../quiz-usage.js';
 import { LINK_MODE_LABELS } from './login.js';
@@ -675,7 +675,7 @@ export class ClassbookStudent {
     // 📍 Merker: dorthin scrollen und den Fokus aufs Modul legen.
     const here = quiet ? null : el.querySelector('.cb-marked .cb-unit');
     if (here) {
-      here.scrollIntoView({ block: 'center' });
+      scrollIntoOwnView(here);
       here.focus({ preventScroll: true });
     }
     el.querySelectorAll('[data-exam]').forEach((btn) => btn.addEventListener('click', () => this._enter(btn.closest('[data-link]').dataset.link, 'exam', null, btn)));

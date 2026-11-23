@@ -1,9 +1,11 @@
 /**
  * 🤖 KI-Assistent („Bring Your Own AI“): Die eigene KI der Lehrkraft arbeitet im Notizbuch.
  * Hauptweg: einmal als Connector verbinden (MCP-Server /api/mcp, Anmeldung per OAuth –
- * src/ai-bridge/mcp.ts, oauth.*), dann im KI-Chat arbeiten. Hier: Zugang ein/aus, verbundene
- * KIs, was sie dürfen, offene KI-Änderungen annehmen oder ablehnen. Rückfall für KIs ohne
- * Connector und „Mit KI neu aufbereiten“: zeitlich begrenztes Token mit kopierter Anleitung.
+ * src/ai-bridge/mcp.ts, oauth.*), dann im KI-Chat arbeiten. Zwei getrennte Bereiche:
+ * 🔑 Dauerhafter Zugang – ein/aus, Token (neu erzeugen macht das alte ungültig), verbundene KIs,
+ * was sie dürfen; ? rechts zeigt die Schritte für Konsole/Claude.ai/ChatGPT.
+ * 📋 Copy & Paste – zeitlich begrenztes Token mit kopierter Anleitung (auch „Mit KI neu aufbereiten“).
+ * Offene KI-Änderungen stehen darüber zum Annehmen oder Ablehnen.
  * Es entstehen keine Server-API-Kosten.
  */
 import { escapeHtml, escapeAttr } from '../utils.js';
@@ -69,29 +71,48 @@ export async function openAiBridgeDialog(app, { onDone = null, regenerate = null
       <p class="hint">Vorher den Zugang einschalten (KI-Assistent im Notizbuch). Ohne Verbindung geht es weiter unten mit kopierter Anleitung.</p>
     </div>` : ''}
 
-    <div class="aib-status ${main ? '' : 'hidden'}"></div>
-    <div class="aib-connections ${main ? '' : 'hidden'}"></div>
     <div class="aib-runs"></div>
 
-    <details class="aib-setup ${main ? '' : 'hidden'}"${connected0 ? '' : ' open'}>
-      <summary><strong>🔌 ${connected0 ? 'Weitere KI verbinden' : 'KI verbinden (einmalig)'}</strong></summary>
-      <ol class="aib-steps">
-        <li>Adresse des Connectors kopieren:
+    <section class="aib-section aib-persist-section ${main ? '' : 'hidden'}" aria-labelledby="aibPersistTitle">
+      <div class="aib-section-head">
+        <h4 id="aibPersistTitle">🔑 Dauerhafter Zugang <span class="hint">– Token einmal in der KI hinterlegen, hier ein- und ausschalten</span></h4>
+        <button type="button" class="btn btn-secondary btn-sm aib-help-btn" aria-expanded="false" aria-controls="aibHelp" title="So trägst du den Zugang in deiner KI ein (Konsole, Claude.ai, ChatGPT)">?</button>
+      </div>
+      <div class="aib-section-body">
+        <div class="aib-section-main">
+          <div class="aib-status"></div>
+          <div class="aib-token-box"></div>
+          <div class="aib-connections"></div>
+        </div>
+        <aside class="aib-help hidden" id="aibHelp">
+          <h5>💻 Claude Code (Konsole) mit Token</h5>
+          <ol class="aib-steps">
+            <li>Falls schon eingetragen, alten Eintrag entfernen:
+              <div class="aib-token-bar"><code class="aib-cli-remove">claude mcp remove learningmodules -s user</code>
+                <button type="button" class="btn btn-secondary btn-sm" data-copy=".aib-cli-remove">📋</button></div></li>
+            <li>Mit Token eintragen (Name nur einmal, Adresse direkt dahinter):
+              <div class="aib-token-bar"><code class="aib-cli-add"></code>
+                <button type="button" class="btn btn-secondary btn-sm" data-copy=".aib-cli-add">📋</button></div>
+              <span class="hint aib-cli-hint"></span></li>
+            <li>Die Ausgabe muss lauten: „Added <strong>HTTP</strong> MCP server learningmodules with URL: <code>${escapeHtml(mcpUrl)}/lma_…</code>“.</li>
+            <li>In Claude Code <code>/mcp</code> → <em>learningmodules</em> → <em>Reconnect</em> (oder Claude Code neu starten).</li>
+            <li>Hier links den Zugang <strong>einschalten</strong> – sonst meldet die KI „ausgeschaltet“.</li>
+          </ol>
+          <h5>🔐 Ohne Token (Anmeldung per OAuth)</h5>
+          <p class="hint">Adresse ohne Token:</p>
           <div class="aib-token-bar"><code class="aib-mcp-addr">${escapeHtml(mcpUrl)}</code>
-            <button type="button" class="btn btn-secondary btn-sm" data-copy=".aib-mcp-addr">📋 Kopieren</button></div></li>
-        <li>In deiner KI eintragen:
-          <ul>
+            <button type="button" class="btn btn-secondary btn-sm" data-copy=".aib-mcp-addr">📋</button></div>
+          <ul class="aib-steps">
+            <li><strong>Claude Code:</strong> <code class="aib-mcp-cli">${escapeHtml(mcpCli)}</code>
+              <button type="button" class="btn btn-secondary btn-sm" data-copy=".aib-mcp-cli">📋</button>
+              , dann <code>/mcp</code> → <em>learningmodules</em> → <em>Authenticate</em>.</li>
             <li><strong>Claude.ai:</strong> Einstellungen → Connectors → <em>Benutzerdefinierten Connector hinzufügen</em> → Adresse einfügen → <em>Verbinden</em>.</li>
             <li><strong>ChatGPT:</strong> Einstellungen → Apps &amp; Connectors → <em>Erstellen</em> (Entwicklermodus) → Adresse einfügen, Authentifizierung <em>OAuth</em>.</li>
-            <li><strong>Claude Code:</strong> im Terminal
-              <div class="aib-token-bar"><code class="aib-mcp-cli">${escapeHtml(mcpCli)}</code>
-                <button type="button" class="btn btn-secondary btn-sm" data-copy=".aib-mcp-cli">📋 Kopieren</button></div>
-              dann in Claude Code <code>/mcp</code> → <em>learningmodules</em> → anmelden.</li>
-          </ul></li>
-        <li>Es öffnet sich LearningModules: anmelden (falls nötig) und <strong>✅ Zulassen</strong>. Die KI erscheint oben unter „Verbundene KIs“.</li>
-      </ol>
-      <p class="hint">Kein Passwort und kein Token gehen an die KI – sie bekommt nur einen kurzlebigen Schlüssel, den du jederzeit mit „Trennen“ ungültig machst.</p>
-    </details>
+            <li>LearningModules öffnet sich: anmelden und <strong>✅ Zulassen</strong>. Die KI erscheint links unter „Verbundene KIs“.</li>
+          </ul>
+          <p class="hint">Ein neues Token ändert nichts an per OAuth verbundenen KIs – die trennst du einzeln mit „Trennen“.</p>
+        </aside>
+      </div>
 
     <details class="aib-scope-box ${main ? '' : 'hidden'}">
       <summary><strong>⚙️ Was die KI darf</strong> <span class="hint aib-scope-summary"></span></summary>
@@ -120,7 +141,7 @@ export async function openAiBridgeDialog(app, { onDone = null, regenerate = null
         </select>
       </label>
       <div class="confirm-actions">
-        <button type="button" class="btn btn-primary btn-sm aib-btn-scope">💾 Für verbundene KIs speichern</button>
+        <button type="button" class="btn btn-primary btn-sm aib-btn-scope">💾 Für den dauerhaften Zugang speichern</button>
       </div>
     </details>
 
@@ -134,9 +155,12 @@ export async function openAiBridgeDialog(app, { onDone = null, regenerate = null
       </ul>
       <p class="hint">Ist der Zugang ausgeschaltet, sagt dir die KI Bescheid – dann oben einschalten.</p>
     </details>
+    </section>
 
+    <section class="aib-section aib-legacy-section">
     <details class="aib-legacy"${regenerate ? ' open' : ''}>
-      <summary><strong>📋 ${regenerate ? 'Mit kopierter Anleitung' : 'Ohne Connector: Anleitung kopieren (zeitlich begrenzt)'}</strong></summary>
+      <summary><strong>📋 ${regenerate ? 'Mit kopierter Anleitung' : 'Copy &amp; Paste: Anleitung in den KI-Chat kopieren'}</strong>
+        ${regenerate ? '' : '<span class="hint">– ohne Einrichtung, eigenes Token nur für eine Weile; unabhängig vom dauerhaften Zugang</span>'}</summary>
       ${regenerate && quizzes
         ? `<p class="hint">So geht es: <strong>1.</strong> Anleitung erzeugen (wird kopiert) – darin stehen der jetzige Stand und das Format.
             <strong>2.</strong> In deiner KI einfügen und dazuschreiben, was sich ändern soll (z.&nbsp;B. „bessere Ablenker“, „schwieriger“).
@@ -192,6 +216,7 @@ export async function openAiBridgeDialog(app, { onDone = null, regenerate = null
       </div>
       <div class="aib-sessions"></div>
     </details>
+    </section>
 
     <div class="confirm-actions">
       <button type="button" class="btn btn-secondary aib-close">Schließen</button>
@@ -221,18 +246,28 @@ export async function openAiBridgeDialog(app, { onDone = null, regenerate = null
   // ---- Dauerhafter Zugang und offene KI-Änderungen ----
   const fmt = (iso) => new Date(iso).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' });
   /** Zugang an/aus – gilt für alle verbundenen KIs (dauerhafter Zugang, src/ai-bridge). */
-  const renderPersistent = (sessions, connections = currentConnections) => {
+  // Volles Token gibt es nur direkt nach dem Erzeugen (der Server speichert nur den Hash).
+  let freshToken = '';
+  const tokenUrl = (t) => `${mcpUrl}/${t}`;
+  /** ? rechts: Befehl für die Konsole – mit frischem Token fertig zum Kopieren, sonst mit Platzhalter. */
+  const renderHelp = () => {
+    $('.aib-cli-add').textContent = `claude mcp add --transport http -s user learningmodules ${tokenUrl(freshToken || 'lma_DEIN_TOKEN')}`;
+    $('.aib-cli-hint').textContent = freshToken
+      ? 'Enthält dein neues Token – fertig zum Einfügen.'
+      : 'lma_DEIN_TOKEN durch dein Token ersetzen (links „🔄 Neues Token“, dann steht es hier schon drin).';
+  };
+
+  const renderPersistent = (sessions) => {
     const box = $('.aib-status');
     const p = (sessions || []).find((x) => x.persistent);
-    if (!p && !(connections || []).length) {
-      box.innerHTML = '<p class="hint">Noch keine KI verbunden – unten unter <strong>🔌 KI verbinden</strong> einmalig einrichten.</p>';
+    if (!p) {
+      box.innerHTML = '<p class="hint">Noch kein dauerhafter Zugang – unten ein Token erzeugen oder deine KI per OAuth verbinden (?).</p>';
       return;
     }
-    if (!p) { box.innerHTML = ''; return; }
     const mins = Math.ceil((p.remainingSeconds || 0) / 60);
     box.innerHTML = `<div class="aib-session-item aib-persistent-item">
       <div class="aib-session-head">
-        <strong>KI-Zugang</strong> ·
+        <strong>Zugang</strong> ·
         ${p.active ? `<span class="pl-in">🟢 eingeschaltet (noch ca. ${mins} Min.)</span>` : '<span class="hint">⚪ ausgeschaltet – die KI kann gerade nichts lesen oder ändern</span>'}
         <span class="aib-session-actions">
           <select class="aib-activate-min" aria-label="Wie lange">
@@ -244,6 +279,57 @@ export async function openAiBridgeDialog(app, { onDone = null, regenerate = null
       </div>
     </div>`;
   };
+
+  /** Token: Vorschau, „Neues Token“ (altes sofort ungültig); frisch erzeugt einmal voll sichtbar. */
+  const renderToken = (sessions) => {
+    const box = $('.aib-token-box');
+    const p = (sessions || []).find((x) => x.persistent);
+    box.innerHTML = `<div class="aib-session-item">
+      <div class="aib-session-head">
+        <strong>Token</strong> · ${p ? `<code>${escapeHtml(p.tokenPreview)}</code>` : '<span class="hint">noch keins</span>'}
+        <span class="aib-session-actions">
+          <button type="button" class="btn btn-${p ? 'secondary' : 'primary'} btn-sm aib-btn-new-token"
+            title="${p ? 'Erzeugt ein neues Token – das alte gilt sofort nicht mehr' : 'Token für den dauerhaften Zugang erzeugen'}">${p ? '🔄 Neues Token' : '🔑 Token erzeugen'}</button>
+        </span>
+      </div>
+      ${freshToken ? `<div class="aib-fresh-token">
+        <p><strong>✅ Neues Token – nur jetzt sichtbar.</strong> Das alte gilt nicht mehr; überall neu eintragen, wo es hinterlegt war.</p>
+        <div class="aib-token-bar"><span>Adresse mit Token:</span> <code class="aib-fresh-url">${escapeHtml(tokenUrl(freshToken))}</code>
+          <button type="button" class="btn btn-secondary btn-sm" data-copy=".aib-fresh-url">📋 Kopieren</button></div>
+        <div class="aib-token-bar"><span>Nur Token:</span> <code class="aib-fresh-raw">${escapeHtml(freshToken)}</code>
+          <button type="button" class="btn btn-secondary btn-sm" data-copy=".aib-fresh-raw">📋 Kopieren</button></div>
+        <p class="hint">Befehl für die Konsole: unter <strong>?</strong> rechts. Wer die Adresse kennt, kommt in dein Notizbuch (ohne Schülerdaten, nur solange eingeschaltet).</p>
+      </div>` : ''}
+    </div>`;
+    renderHelp();
+  };
+
+  $('.aib-help-btn').addEventListener('click', (e) => {
+    const open = $('.aib-help').classList.toggle('hidden') === false;
+    e.currentTarget.setAttribute('aria-expanded', String(open));
+    $('.aib-card').classList.toggle('aib-card-wide', open);
+  });
+
+  $('.aib-token-box').addEventListener('click', async (e) => {
+    const btn = e.target.closest('.aib-btn-new-token');
+    if (!btn) return;
+    const had = !!currentPersistent;
+    if (had && !await app.appConfirm('Neues Token erzeugen?\n\nDas bisherige Token gilt sofort nicht mehr – KIs, in denen es hinterlegt ist (z. B. Claude Code), musst du neu einrichten. Per OAuth verbundene KIs und offene Änderungen bleiben.')) return;
+    btn.disabled = true;
+    const res = await app.api.createAiBridgeSession({
+      ...scopeOf(),
+      persistent: true,
+      ttlMinutes: Number($('.aib-activate-min')?.value) || 60,
+    });
+    btn.disabled = false;
+    if (bad(res) || !res.token) { app.showToast(res?.message || 'Token konnte nicht erzeugt werden.', 'error'); return; }
+    freshToken = res.token;
+    app.showToast(`🔑 ${had ? 'Neues Token erzeugt – das alte gilt nicht mehr.' : 'Token erzeugt.'} Zugang ist eingeschaltet.`, 'success');
+    $('.aib-help').classList.remove('hidden');
+    $('.aib-help-btn').setAttribute('aria-expanded', 'true');
+    $('.aib-card').classList.add('aib-card-wide');
+    await refresh();
+  });
 
   const renderRuns = (sessions) => {
     const box = $('.aib-runs');
@@ -403,8 +489,11 @@ export async function openAiBridgeDialog(app, { onDone = null, regenerate = null
     </div>`;
   };
 
+  let currentPersistent = null;
   const renderAll = (sessions, connections = currentConnections) => {
-    renderPersistent(sessions, connections);
+    currentPersistent = (sessions || []).find((x) => x.persistent) || null;
+    renderPersistent(sessions);
+    renderToken(sessions);
     renderConnections(connections);
     renderRuns(sessions);
     renderSessions(sessions);

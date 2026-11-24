@@ -6989,3 +6989,22 @@ body.ws-on .login-card.login-card-wide {
   .aib-section-body { flex-direction: column; }
   .aib-help { flex: 1 1 auto; max-width: none; width: 100%; box-sizing: border-box; }
 }
+
+/* Modul-Editor kompakt (iPad, schmale Fenster): Pfad, Freigaben, Tags, Modultyp und
+   Druck-Kopfzeile hinter ⓘ (#btnEditorInfo, modules.js); ein grüner Punkt, wenn Schüler es sehen. */
+.editor-info-toggle { display: none; position: relative; min-width: 36px; font-size: 1.05rem; }
+.editor-info-toggle.has-live::after {
+  content: ''; position: absolute; top: 3px; right: 3px; width: 8px; height: 8px;
+  border-radius: 50%; background: var(--success, #16a34a);
+}
+@media (pointer: coarse), (max-width: 1000px) {
+  #view-create-module .editor-info-toggle { display: inline-flex; align-items: center; justify-content: center; }
+  #view-create-module:not(.editor-info-open) #moduleContextBar,
+  #view-create-module:not(.editor-info-open) #moduleTagsFold,
+  #view-create-module.editor-doc-mode:not(.editor-info-open) .module-header-type,
+  #view-create-module.editor-doc-mode:not(.editor-info-open) .ds-editor-header { display: none !important; }
+  #view-create-module.editor-info-open .editor-info-toggle { background: var(--accent-soft, #e0e7ff); }
+}
+@media (pointer: coarse), (max-width: 1000px) {
+  #view-create-module .ds-preview-bar .ds-import-odt { margin-left: 0 !important; }
+}

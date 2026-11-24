@@ -115,6 +115,9 @@ export function releaseModuleHeader() {
   document.getElementById('view-create-module')?.classList.remove('editor-doc-mode');
 }
 
+/** Wann der Modul-Editor kompakt ist – wie in styles.css (Touch-Geräte, schmale Fenster). */
+const COMPACT_EDITOR = '(pointer: coarse), (max-width: 1000px)';
+
 function adoptModuleHeader(root) {
   releaseModuleHeader();
   const rows = document.getElementById('editorDocRows');
@@ -142,6 +145,13 @@ function adoptModuleHeader(root) {
   move(document.getElementById('moduleFormatWrap'), (n) => (pages ? pages.before(n) : bar.append(n)));
   // „Kopfzeile im Druck: …“ klein in die Werkzeugzeile, vor die Seitenzahl.
   move(root.querySelector('.ds-editor-header'), (n) => (pages ? pages.before(n) : bar.append(n)));
+  // Kompakt (iPad, schmal): „Übernehmen…“ in dieselbe Zeile wie „Drucken…“ – eine Zeile weniger.
+  if (importBtn && window.matchMedia?.(COMPACT_EDITOR).matches) {
+    move(importBtn, (n) => {
+      const print = bar.querySelector('.ds-print-menu');
+      if (print) print.after(n); else bar.prepend(n);
+    });
+  }
   rows.hidden = false;
   // Ohne Rahmen und Abstand: Formatleiste bzw. Textfeld schließen direkt an die Kopfzeile an.
   document.getElementById('view-create-module')?.classList.add('editor-doc-mode');

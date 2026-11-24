@@ -641,6 +641,12 @@ export class ModulesView {
     if (res.plans.length) parts.push(`<button type="button" class="ctx-link" data-ctx-view="teacher-planning" title="In der Planung">📋 ${res.plans.map((p) => escapeHtml(p.title)).join(', ')}</button>`);
     bar.innerHTML = parts.join('<span class="ctx-gap">|</span>');
     bar.hidden = false;
+    // Kompakt sind diese Angaben hinter ⓘ: ein grüner Punkt daran, wenn Schüler es gerade sehen.
+    const info = document.getElementById('btnEditorInfo');
+    if (info) {
+      info.classList.toggle('has-live', on.length > 0);
+      info.title = `${on.length ? `Schüler sehen es gerade (${on.map((c) => c.name).join(', ')}). ` : ''}Pfad, Freigaben, Tags, Modultyp und Druck-Kopfzeile ein- oder ausblenden`;
+    }
     bar.querySelectorAll('[data-ctx-view]').forEach((b) => b.addEventListener('click', () => this._leaveEditor(b.dataset.ctxView)));
     bar.querySelectorAll('[data-ctx-class]').forEach((b) => b.addEventListener('click', () => this._leaveEditor('teacher-class-results', () => {
       const view = this.app.classResultsView;
@@ -1176,3 +1182,13 @@ export class ModulesView {
     this.refresh();
   }
 }
+
+// ⓘ im Modul-Editor (kompakt): Infozeilen zusammen ein- und ausblenden.
+document.addEventListener('click', (e) => {
+  const btn = e.target.closest?.('#btnEditorInfo');
+  if (!btn) return;
+  const view = document.getElementById('view-create-module');
+  const open = !view.classList.contains('editor-info-open');
+  view.classList.toggle('editor-info-open', open);
+  btn.setAttribute('aria-expanded', String(open));
+});

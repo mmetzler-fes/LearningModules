@@ -7023,3 +7023,20 @@ body.ws-on .login-card.login-card-wide {
   body.html-app-large #quizModuleContainer { padding: 0 !important; }
   body.html-app-large .lm-app-title-actions .lm-app-big { display: none; } /* auf dem Handy immer groß */
 }
+
+/* Planung: verschiebbare Spaltenbreiten (planning.js _splitSetup) – nur breit; schmal wie bisher gestapelt. */
+.pl-splitter { display: none; }
+@media (min-width: 1201px) {
+  .pl-panes { gap: 0; grid-template-columns: minmax(200px, var(--pl-c0, 1fr)) 12px minmax(200px, var(--pl-c1, 1fr)); }
+  .pl-panes.pl-with-preview {
+    grid-template-columns: minmax(200px, var(--pl-c0, 1fr)) 12px minmax(200px, var(--pl-c1, 1fr)) 12px minmax(260px, var(--pl-c2, 1.25fr));
+  }
+  .pl-splitter {
+    display: flex; align-items: center; justify-content: center; cursor: col-resize;
+    touch-action: none; user-select: none; border-radius: 6px;
+  }
+  .pl-splitter[hidden] { display: none; }
+  .pl-splitter span { width: 4px; height: 44px; border-radius: 2px; background: var(--border); transition: background 0.15s; }
+  .pl-splitter:hover span, .pl-splitter:focus-visible span, .pl-splitter.dragging span { background: var(--accent); }
+  .pl-splitter:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+}

@@ -28,6 +28,13 @@ Cursor auf einem Lernthema, ist das Ziel sein Bereich.
 Links zeigt **✓** die Lernthemen, die schon im Plan am Cursor stehen, **✓ Teilplan** die, die über einen
 Teilplan hineinkommen.
 
+Rechts daneben steht auf Wunsch die **👁 Vorschau** (Knopf in der Leiste, ✕ klappt sie zu). Auf breiten
+Bildschirmen lassen sich die Spalten mit den **Griffen dazwischen** breiter oder schmaler ziehen (auch mit
+←/→ am Griff; Doppelklick stellt die Standardbreiten wieder her) – gemerkt in diesem Browser.
+
+Rechtsklick links bietet **☰ Notizbuch-Menü …**: dasselbe Menü wie im Notizbuch für den Ordner bzw. das
+Lernthema am Cursor (Quick-Link, Teilen, GoodNotes, KI, Umbenennen …).
+
 ## Tasten
 
 | Taste | Wirkung |

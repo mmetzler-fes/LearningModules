@@ -14,6 +14,8 @@ const EXPAND_KEY = 'lm_plan_open';
 const RIGHT_KEY = 'lm_plan_right';
 const VIEW_KEY = 'lm_pl_view';
 const PREVIEW_KEY = 'lm_pl_preview';
+const WIDTHS_KEY = 'lm_pl_widths';
+const DEFAULT_WIDTHS = [1, 1, 1.25];
 /** Hineingewechselt je Spalte (und rechts je Ansicht): { left: id, 'right:plans': id, … }. */
 const FOCUS_KEY = 'lm_pl_focus';
 const VIEWS = ['docs', 'quizzes', 'all'];
@@ -113,11 +115,13 @@ export class PlanningView {
           <nav class="pl-crumbs" data-pane="left" aria-label="Pfad"></nav>
           <div class="pl-list" role="tree" tabindex="-1"></div>
         </section>
+        <div class="pl-splitter" data-split="0" role="separator" aria-orientation="vertical" tabindex="0" title="Breite verschieben (ziehen oder ←/→, Doppelklick: Standard)"><span></span></div>
         <section class="pl-pane" data-pane="right" aria-label="Pläne">
           <div class="pl-head"><select class="pl-right-mode" title="Rechte Spalte: deine Pläne oder das Klassennotizbuch einer Klasse"></select><span class="pl-target"></span><input type="search" class="pl-filter" data-pane="right" placeholder="Suchen… (Strg+F)" /></div>
           <nav class="pl-crumbs" data-pane="right" aria-label="Pfad"></nav>
           <div class="pl-list" role="tree" tabindex="-1"></div>
         </section>
+        <div class="pl-splitter" data-split="1" role="separator" aria-orientation="vertical" tabindex="0" title="Breite verschieben (ziehen oder ←/→, Doppelklick: Standard)"${this.previewOpen ? '' : ' hidden'}><span></span></div>
         <aside class="pl-pane pl-preview-pane" data-pane="preview" aria-label="Vorschau"${this.previewOpen ? '' : ' hidden'}>
           <div class="pl-head">
             <span class="pl-preview-label">👁 Vorschau</span>
@@ -147,6 +151,7 @@ export class PlanningView {
       });
     }
     this._dragSetup();
+    this._splitSetup();
     this.root.querySelector('.pl-right-mode').addEventListener('change', (e) => {
       this.rightMode = e.target.value;
       try { localStorage.setItem(RIGHT_KEY, this.rightMode); } catch (_) { /* egal */ }
@@ -598,6 +603,8 @@ export class PlanningView {
     const btn = this.root?.querySelector('.pl-toolbar [data-pl-act="preview"]');
     if (panes) panes.classList.toggle('pl-with-preview', this.previewOpen);
     if (previewPane) previewPane.hidden = !this.previewOpen;
+    const grip = this.root?.querySelector('.pl-splitter[data-split="1"]');
+    if (grip) grip.hidden = !this.previewOpen;
     if (btn) {
       btn.classList.toggle('active', this.previewOpen);
       btn.setAttribute('aria-pressed', String(this.previewOpen));
@@ -1509,7 +1516,8 @@ export class PlanningView {
         ['F2', '✏️ Umbenennen', () => this._nbRename()], ['F3', '📓 Im Notizbuch zeigen', () => this._nbOpen()],
         ['F7', '➕ Neuer Bereich', () => this._nbCreate('area')], ['⇧F7', '➕ Neuer Abschnitt', () => this._nbCreate('section')], ['F8', '🗑 Bereich löschen', () => this._nbRemove()]]
       : pane === 'left'
-      ? [['F5', this._classMode() ? '➡ Ins Klassennotizbuch zuweisen' : '➡ Als Verweis in den Plan', () => this._copyRight()]]
+      ? [['F5', this._classMode() ? '➡ Ins Klassennotizbuch zuweisen' : '➡ Als Verweis in den Plan', () => this._copyRight()],
+        ['', '☰ Notizbuch-Menü …', () => this._notebookMenu(x, y)]]
       : this._classMode()
       ? [['F2', '✏️ Umbenennen', () => this._rename()], ['F3', '📒 Klassennotizbuch öffnen', () => this._viewPlan()],
         ['F6', '↔️ Verschieben nach …', () => this._movePicker()], ['F7', '➕ Neuer Bereich', () => this._create('area')],
@@ -1539,7 +1547,98 @@ export class PlanningView {
     });
   }
 
+  /**
+   * Links (Lernnotizbuch): dasselbe Menü wie im Notizbuch für den gewählten Ordner bzw. das Lernthema –
+   * alle Funktionen dort (Quick-Link, Teilen, Drucken, GoodNotes, KI …). Danach wird die Planung neu geladen.
+   */
+  async _notebookMenu(x, y) {
+    const cur = this.rows.left[this.cursor.left];
+    if (!cur?.id) return;
+    const nb = this.app.notebooksView;
+    if (!nb) return;
+    if (!nb._data) await nb.refresh();
+    if (!nb._data) return;
+    if (!nb._nodes || !nb._topics) nb._index?.();
+    let items = null;
+    if (cur.kind === 'topic') {
+      const topic = nb._topics?.get(cur.id);
+      if (topic) {
+        const doc = nb._singleDocOf?.(topic);
+        items = doc ? nb._compactMenu(topic, doc) : topic.isOwn ? nb._topicMenu(topic) : nb._grantedMenu(topic);
+      }
+    } else {
+      const node = nb._nodes?.get(cur.id);
+      if (node) items = nb._nodeMenu(node);
+    }
+    if (!items?.length) { this.app.showToast('Dafür gibt es hier kein Notizbuch-Menü.', 'info'); return; }
+    // Nach einer Aktion des Notizbuchs die Planung auffrischen (Titel, Ordner, Freigaben).
+    const reload = () => setTimeout(() => void this.refresh?.(), 300);
+    const wrapped = items.map((it) => (it === '-' || !it?.run ? it : { ...it, run: async (...a) => { await it.run(...a); reload(); } }));
+    nb._openMenu(wrapped, x, y);
+  }
+
   // ---- Ziehen mit der Maus ----
+
+  /**
+   * Spaltenbreiten (breite Bildschirme): Griffe zwischen Notizbuch, Plänen und Vorschau – ziehen,
+   * ←/→ oder Doppelklick (Standard). Gemerkt in diesem Browser; schmal stapeln sich die Spalten wie bisher.
+   */
+  _splitSetup() {
+    const panes = this.root.querySelector('.pl-panes');
+    if (!panes) return;
+    let widths = DEFAULT_WIDTHS.slice();
+    try {
+      const saved = JSON.parse(localStorage.getItem(WIDTHS_KEY) || 'null');
+      if (Array.isArray(saved) && saved.length === 3 && saved.every((x) => Number.isFinite(x) && x > 0)) widths = saved;
+    } catch (_) { /* Standard */ }
+    const apply = () => widths.forEach((w, i) => panes.style.setProperty(`--pl-c${i}`, `${w}fr`));
+    const save = () => { try { localStorage.setItem(WIDTHS_KEY, JSON.stringify(widths)); } catch (_) { /* nur für jetzt */ } };
+    apply();
+    const cols = () => [...panes.querySelectorAll(':scope > .pl-pane')].filter((p) => !p.hidden);
+    // Neue Breiten aus den Pixeln der sichtbaren Spalten; die beiden am Griff tauschen `dx` aus.
+    const shift = (split, dx) => {
+      const list = cols();
+      const px = list.map((p) => p.getBoundingClientRect().width);
+      const a = split, b = split + 1;
+      if (!px[a] || !px[b]) return;
+      const MIN = 200;
+      const d = Math.max(MIN - px[a], Math.min(px[b] - MIN, dx));
+      px[a] += d;
+      px[b] -= d;
+      const total = px.reduce((x, y) => x + y, 0);
+      const fr = px.map((x) => (x / total) * list.length);
+      // Ohne Vorschau gelten nur die ersten beiden; ihre Breite der Vorschau bleibt.
+      fr.forEach((x, i) => { widths[i] = Math.round(x * 1000) / 1000; });
+      apply();
+    };
+    for (const grip of panes.querySelectorAll('.pl-splitter')) {
+      const split = Number(grip.dataset.split);
+      grip.addEventListener('pointerdown', (e) => {
+        e.preventDefault();
+        grip.setPointerCapture(e.pointerId);
+        grip.classList.add('dragging');
+        let last = e.clientX;
+        const move = (ev) => { shift(split, ev.clientX - last); last = ev.clientX; };
+        const up = () => {
+          grip.classList.remove('dragging');
+          grip.removeEventListener('pointermove', move);
+          grip.removeEventListener('pointerup', up);
+          grip.removeEventListener('pointercancel', up);
+          save();
+        };
+        grip.addEventListener('pointermove', move);
+        grip.addEventListener('pointerup', up);
+        grip.addEventListener('pointercancel', up);
+      });
+      grip.addEventListener('keydown', (e) => {
+        if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+        e.preventDefault();
+        shift(split, e.key === 'ArrowLeft' ? -30 : 30);
+        save();
+      });
+      grip.addEventListener('dblclick', () => { widths = DEFAULT_WIDTHS.slice(); apply(); save(); });
+    }
+  }
 
   _dragSetup() {
     let from = null;

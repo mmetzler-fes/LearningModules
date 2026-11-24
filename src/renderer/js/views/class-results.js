@@ -680,7 +680,7 @@ export class ClassResultsView {
         ? `<button type="button" class="cb-unit cb-row-title" data-open-module="${escapeAttr(doc.id)}" title="${escapeAttr(`${link.name} – öffnen (${link.classTopicId ? 'Bearbeiten' : 'Vorschau'})`)}">${escapeHtml(link.name)}</button>`
         : `<span class="cb-row-title" title="${escapeAttr(link.name)}">${escapeHtml(link.name)}</span>`;
       return `<details class="result-group cb-link ${link.active ? '' : 'cb-off'} ${doc ? 'cb-single' : ''}" data-link="${escapeAttr(link.id)}" ${open}>
-        <summary class="${anyMark ? 'cb-marked' : ''}" ${single ? `data-topic="${escapeAttr(single.t.topicId)}"` : ''}><span class="cb-twisty" aria-hidden="true"></span>
+        <summary class="${anyMark ? 'cb-marked' : ''}" ${only ? `data-topic="${escapeAttr(link.available[0].topicId)}"` : ''}><span class="cb-twisty" aria-hidden="true"></span>
           <span class="nb-icon" aria-hidden="true">${icon}</span>${title}
           ${anyMark ? this._markBadge() : ''}
           ${link.shared ? '<span class="nb-meta" title="Hat einen eigenen Quick-Link (⋯ → 🔗)">🔗</span>' : ''}

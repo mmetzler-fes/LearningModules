@@ -4273,6 +4273,8 @@ body.html-app-large .quiz-actions { margin-top: 8px; padding-top: 8px; flex-shri
 .ds-pm-surface .ds-pm-columns { display: flex; gap: 0.4cm; margin: 6px 0; }
 .ds-pm-surface .ds-pm-column { flex: 1 1 0; min-width: 0; outline: 1px dashed var(--border); outline-offset: 2px; padding: 0; box-sizing: content-box; }
 .ds-pm-surface .ds-pm-columns-wrap { position: relative; }
+/* Leerer Pflichtabsatz am Anfang einer Zelle vor einem Bild/einer Tabelle: keine Leerzeile (Vorschau und Druck haben auch keine). */
+.ds-pm-surface :is(td, th, .ds-pm-cell-body) > p:first-child:not(:last-child):has(> br.ProseMirror-trailingBreak:only-child) { height: 0; margin: 0; padding: 0; overflow: hidden; }
 .ds-pm-surface .ds-pm-cell-imgs { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 2px; user-select: none; }
 .ds-pm-surface .ds-pm-cell-imgs img { display: block; height: auto; }
 .ds-pm-surface .ds-pm-col-handles { position: absolute; inset: 0; pointer-events: none; }

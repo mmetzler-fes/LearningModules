@@ -755,7 +755,8 @@ export function attachTableTools(surface, bar, { copyObject = null } = {}) {
     } else {
       // Gleich breite Spalten über die Breite der Tabelle (Tabelleneigenschaften), sonst die Satzbreite –
       // nicht gemessen: Leere Spalten sind am Bildschirm schmal und gäben schmale Spalten.
-      const total = Number(table.dataset.width) || TEXT_WIDTH_CM;
+      // Ohne eigene Breite: die Zeile – im Querformat breiter als 16,5 cm.
+      const total = Number(table.dataset.width) || (table.closest('.ds-landscape, .lm-landscape') ? 25 : TEXT_WIDTH_CM);
       equalWidths(g.cols, total).forEach((w, c) => setColumnWidth(table, c, parseFloat(w)));
     }
     markFixedTables(table.parentNode || table);

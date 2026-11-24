@@ -208,6 +208,87 @@ def kind_of(shape, tables: set[str]) -> str | None:
 
 MARGIN = 200  # 1/100 mm Rand um die Zeichnung in der .odg
 
+# Eine Linie, die kürzer ist als ihre Pfeilspitze, lässt LibreOffice im SVG ganz
+# weg (im PNG und PDF ist sie da). Word setzt so oft Pfeilspitzen mitten auf eine
+# Leitung. Für den Export wird die Linie hinter der Spitze auf dieses Vielfache
+# der Pfeilbreite verlängert – die Spitze bleibt, wo sie ist – und danach
+# zurückgesetzt.
+ARROW_MIN_FACTOR = 2.5
+
+
+def _walk(shape):
+    yield shape
+    try:
+        count = shape.getCount()  # Gruppe oder ShapeCollection
+    except Exception:  # noqa: BLE001 – einzelne Form
+        return
+    for i in range(count):
+        yield from _walk(shape.getByIndex(i))
+
+
+def _longer(a, b, need: float):
+    """Punkt a so weit von b weg schieben, dass |ab| mindestens need ist."""
+    dx, dy = a.X - b.X, a.Y - b.Y
+    length = (dx * dx + dy * dy) ** 0.5
+    if length >= need or length == 0:
+        return None
+    k = need / length
+    return uno.createUnoStruct("com.sun.star.awt.Point", round(b.X + dx * k), round(b.Y + dy * k))
+
+
+def lengthen_short_arrows(source) -> list:
+    """Kurze Linien mit genau einer Pfeilspitze für den SVG-Export verlängern.
+    Gibt Rückgängig-Schritte zurück (für restore_arrows)."""
+    undo: list = []
+    for s in _walk(source):
+        try:
+            end, start = bool(s.LineEndName), bool(s.LineStartName)
+        except Exception:  # noqa: BLE001 – keine Linie
+            continue
+        if end == start:
+            continue  # ohne Pfeil oder mit zweien (dort wanderte eine Spitze)
+        width = s.LineEndWidth if end else s.LineStartWidth
+        need = max(width, 1) * ARROW_MIN_FACTOR
+        try:
+            if s.supportsService("com.sun.star.drawing.ConnectorShape"):
+                if s.EdgeKind.value != "LINE":
+                    continue
+                a, b = s.StartPosition, s.EndPosition
+                if end:
+                    p = _longer(a, b, need)
+                    if p:
+                        undo.append((s, "StartPosition", a)); s.StartPosition = p
+                else:
+                    p = _longer(b, a, need)
+                    if p:
+                        undo.append((s, "EndPosition", b)); s.EndPosition = p
+            elif s.supportsService("com.sun.star.drawing.LineShape") or s.supportsService("com.sun.star.drawing.PolyLineShape"):
+                poly = s.PolyPolygon
+                if len(poly) != 1 or len(poly[0]) < 2:
+                    continue
+                pts = list(poly[0])
+                if end:
+                    p = _longer(pts[-2], pts[-1], need)
+                    if p and len(pts) == 2:
+                        pts[0] = p
+                else:
+                    p = _longer(pts[1], pts[0], need)
+                    if p and len(pts) == 2:
+                        pts[1] = p
+                if p and len(pts) == 2:
+                    undo.append((s, "PolyPolygon", poly)); s.PolyPolygon = (tuple(pts),)
+        except Exception:  # noqa: BLE001 – dann bleibt die Linie, wie sie ist
+            continue
+    return undo
+
+
+def restore_arrows(undo: list) -> None:
+    for s, name, value in reversed(undo):
+        try:
+            s.setPropertyValue(name, value)
+        except Exception:  # noqa: BLE001
+            pass
+
 ROTATED_TEXT = re.compile(r'(<text[^>]*transform=")rotate\(([-\d.]+) [-\d.]+ [-\d.]+\)("[^>]*>(?:\s*<tspan[^>]*>)*)')
 TEXT_POS = re.compile(r'x="([-\d.]+)" y="([-\d.]+)"')
 
@@ -349,6 +430,7 @@ def render_odg(src: Path, out: Path, profile: Path) -> dict:
             flt = smgr.createInstanceWithContext("com.sun.star.drawing.GraphicExportFilter", ctx)
             flt.setSourceDocument(shapes)
             target = out / "drawing.svg"
+            lengthen_short_arrows(shapes)  # nur gelesen geöffnet, kein Zurücksetzen nötig
             flt.filter((prop("URL", target.resolve().as_uri()), prop("MediaType", "image/svg+xml")))
             if not target.exists() or target.stat().st_size == 0:
                 raise RuntimeError("LibreOffice hat kein SVG geschrieben.")
@@ -415,9 +497,13 @@ def export(src: Path, out: Path, profile: Path) -> dict:
                     for m in members:
                         source.add(m)
                 try:
-                    flt = smgr.createInstanceWithContext("com.sun.star.drawing.GraphicExportFilter", ctx)
-                    flt.setSourceDocument(source)
-                    flt.filter((prop("URL", target.resolve().as_uri()), prop("MediaType", "image/svg+xml")))
+                    undo = lengthen_short_arrows(source)
+                    try:
+                        flt = smgr.createInstanceWithContext("com.sun.star.drawing.GraphicExportFilter", ctx)
+                        flt.setSourceDocument(source)
+                        flt.filter((prop("URL", target.resolve().as_uri()), prop("MediaType", "image/svg+xml")))
+                    finally:
+                        restore_arrows(undo)
                     if not target.exists() or target.stat().st_size == 0:
                         raise RuntimeError("leer")
                     write_fixed(target)

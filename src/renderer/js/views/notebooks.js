@@ -1766,6 +1766,9 @@ export class NotebooksView {
       }
       if (mod.type === 'document') {
         items.push({ label: '📓 Als Jupyter-Notebook (.ipynb)', title: 'Python-Blöcke werden Code-Zellen, alles andere Markdown – zum Weiterarbeiten in JupyterLab', run: () => this._downloadIpynb(topic, mod) });
+        // Früher als Knopf oben in der Vorschau – dort sah er aus wie ✏️ Bearbeiten.
+        items.push({ label: '🖍 Zeichnungen…', title: 'Zeichnungen dieses Lernthemas in LibreOffice Draw bearbeiten (.odg in der Nextcloud)',
+          run: () => import('./drawings-dialog.js').then((m) => m.openDrawingsDialog(this.app, topic, { onChanged: () => this.refresh() })) });
       }
     }
     items.push('-', ...this._lockEntries(topic, mod));

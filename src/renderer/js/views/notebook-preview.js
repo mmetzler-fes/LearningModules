@@ -1,6 +1,6 @@
 import { moveDocumentControls } from '../document-bar.js';
 import { escapeHtml } from '../utils.js';
-import { syncDrawings, openDrawingsDialog } from './drawings-dialog.js';
+import { syncDrawings } from './drawings-dialog.js';
 import { openGoodnotesDialog } from './goodnotes-dialog.js';
 
 // ==================== NOTEBOOKS: VORSCHAU-SPALTE ====================
@@ -238,8 +238,9 @@ export class NotebookPreview {
     this._select({ kind: 'module', key, id: mod.id, topicId: topic.id, topic, mod, notes: extra });
     this._clear();
     const own = topic.isOwn;
-    // Dokumente mit der Freischaltung „Stift-Editor“: oben, damit man ihn auch weiter unten im Blatt findet.
-    if (mod.type === 'document' && this.app.state.currentUser?.features?.includes('inkEditor')) {
+    // Stift-Editor oben nur bei erworbenen Dokumenten – eigene beschriftet man im Modul-Editor („Mit Stift
+    // bearbeiten“); drei gleich aussehende Stifte nebeneinander waren verwirrend.
+    if (mod.type === 'document' && !own && this.app.state.currentUser?.features?.includes('inkEditor')) {
       this._button('✍️ Stift', 'Das Blatt mit Stift, Finger oder Maus beschriften – gespeichert auf diesem Gerät', async (e) => {
         const b = e.currentTarget;
         b.disabled = true;
@@ -261,7 +262,6 @@ export class NotebookPreview {
     // Zeichnungen mit Quelle (.odg in der Nextcloud): Übersicht, und geänderte gleich neu zeichnen.
     if (own && mod.type === 'document') {
       const reload = async () => { this._modules.delete(topic.id); if (this.currentKey === key) await this.showModule(topic, mod); };
-      this._button('🖍 Zeichnungen', 'Zeichnungen dieses Lernthemas in LibreOffice Draw bearbeiten (.odg in der Nextcloud)', () => openDrawingsDialog(this.app, topic, { onChanged: reload }));
       syncDrawings(this.app, topic.id, { quiet: true }).then((n) => { if (n) reload(); });
       // Heft fürs ganze Lernthema – auch hier, nicht nur im ⋯ des Lernthemas, wo man es am Dokument nicht sucht.
       this._button('📓 GoodNotes', `Alle Dokumente von „${topic.title}“ als ein Heft (PDF) für GoodNotes – Schülerheft, Lösungsheft, Adresse mit QR-Code`, () => openGoodnotesDialog(this.app, topic));

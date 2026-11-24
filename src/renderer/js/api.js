@@ -1230,8 +1230,13 @@ export class BrowserApi {
   renameClassbookNode(classId, id, title) {
     return this._fetch(`/api/classbook/${encodeURIComponent(classId)}/nodes/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify({ title }) });
   }
-  deleteClassbookNode(classId, id) {
-    return this._fetch(`/api/classbook/${encodeURIComponent(classId)}/nodes/${encodeURIComponent(id)}`, { method: 'DELETE' });
+  /** `all`: samt Inhalt (Zuweisungen darunter werden entfernt); sonst rückt der Inhalt eine Ebene höher. */
+  deleteClassbookNode(classId, id, all = false) {
+    return this._fetch(`/api/classbook/${encodeURIComponent(classId)}/nodes/${encodeURIComponent(id)}${all ? '?mode=all' : ''}`, { method: 'DELETE' });
+  }
+  /** { links, nodes, ownTopics: [Titel] } – was „Löschen samt Inhalt“ träfe. */
+  classbookNodeContents(classId, id) {
+    return this._fetch(`/api/classbook/${encodeURIComponent(classId)}/nodes/${encodeURIComponent(id)}/contents`);
   }
   /** { type: 'node'|'entry', id, parentId, index } */
   moveInClassbook(classId, body) {

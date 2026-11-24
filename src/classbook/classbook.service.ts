@@ -1065,10 +1065,52 @@ export class ClassbookService {
   }
 
   /** Bereich/Abschnitt löschen – sein Inhalt rückt eine Ebene höher. */
-  async deleteNode(user: any, classId: string, id: string) {
+  /** Bereich und alle darunter (Kennungen). */
+  private subtree(nodes: Array<{ id: string; parentId: string | null }>, id: string): Set<string> {
+    const ids = new Set([id]);
+    for (let grew = true; grew;) {
+      grew = false;
+      for (const n of nodes) if (n.parentId && ids.has(n.parentId) && !ids.has(n.id)) { ids.add(n.id); grew = true; }
+    }
+    return ids;
+  }
+
+  /** Was „Löschen samt Inhalt“ träfe: Zuweisungen darunter und Lernthemen nur dieser Klasse (Titel). */
+  async nodeContents(user: any, classId: string, id: string) {
     await this.classes.ownedClass(classId, user);
     const nodes = await this.nodeRepo.find({ where: { classId } });
     if (!nodes.some((n) => n.id === id)) throw new NotFoundException('Bereich nicht gefunden.');
+    const inside = this.subtree(nodes, id);
+    const places = (await this.placeRepo.find({ where: { classId } })).filter((p) => p.nodeId && inside.has(p.nodeId));
+    const links = places.length ? await this.linkRepo.find({ where: { id: In(places.map((p) => p.id)), classId } }) : [];
+    const own = await this.classTopicIds(classId);
+    const ownTopicIds = [...new Set(links.flatMap((l) => (l.selection || []).map((e: any) => e.topicId)).filter((t) => own.has(t)))];
+    const ownTopics = ownTopicIds.length ? await this.topicRepo.find({ where: { id: In(ownTopicIds) }, select: ['id', 'title'] }) : [];
+    return { links: links.length, nodes: inside.size - 1, ownTopics: ownTopics.map((t) => t.title) };
+  }
+
+  /**
+   * Bereich löschen. `mode = 'all'`: samt allem darunter – jede Zuweisung wie „Zuweisung entfernen“
+   * (Notizbuch und Ergebnisse bleiben; Lernthemen nur dieser Klasse werden mit gelöscht).
+   * Sonst wird er aufgelöst: Was darin liegt, rückt eine Ebene höher.
+   */
+  async deleteNode(user: any, classId: string, id: string, mode: 'all' | 'dissolve' = 'dissolve') {
+    await this.classes.ownedClass(classId, user);
+    const nodes = await this.nodeRepo.find({ where: { classId } });
+    if (!nodes.some((n) => n.id === id)) throw new NotFoundException('Bereich nicht gefunden.');
+    if (mode === 'all') {
+      const inside = this.subtree(nodes, id);
+      const places = (await this.placeRepo.find({ where: { classId } })).filter((p) => p.nodeId && inside.has(p.nodeId));
+      let removed = 0;
+      for (const p of places) {
+        const exists = await this.linkRepo.findOne({ where: { id: p.id, classId }, select: ['id'] });
+        if (exists) { await this.deleteEntry(user, classId, p.id); removed++; } else await this.placeRepo.delete({ id: p.id });
+      }
+      await this.nodeRepo.delete({ id: In([...inside]), classId });
+      const nb = await this.repo.findOne({ where: { classId } });
+      if (nb?.marker && (nb.marker as any).level === 'node' && inside.has((nb.marker as any).nodeId)) await this.repo.update({ id: nb.id }, { marker: null });
+      return { success: true, removedLinks: removed };
+    }
     const places = await this.placeRepo.find({ where: { classId } });
     const moved = dissolve(nodes, places, id);
     for (const n of moved.nodes) await this.nodeRepo.update({ id: n.id }, { parentId: n.parentId, orderIndex: n.orderIndex });

@@ -134,10 +134,16 @@ export class ClassbookController {
     return this.classbook.renameNode(req.user, classId, id, body?.title);
   }
 
-  /** Inhalt rückt eine Ebene höher. */
+  /** `?mode=all`: samt Inhalt (Zuweisungen darunter werden entfernt); sonst rückt der Inhalt eine Ebene höher. */
   @Delete(':classId/nodes/:id')
-  deleteNode(@Request() req: any, @Param('classId') classId: string, @Param('id') id: string) {
-    return this.classbook.deleteNode(req.user, classId, id);
+  deleteNode(@Request() req: any, @Param('classId') classId: string, @Param('id') id: string, @Query('mode') mode?: string) {
+    return this.classbook.deleteNode(req.user, classId, id, mode === 'all' ? 'all' : 'dissolve');
+  }
+
+  /** Was „Löschen samt Inhalt“ träfe – für die Rückfrage. */
+  @Get(':classId/nodes/:id/contents')
+  nodeContents(@Request() req: any, @Param('classId') classId: string, @Param('id') id: string) {
+    return this.classbook.nodeContents(req.user, classId, id);
   }
 
   /** 🔗 `{ type: 'node'|'entry', id, revoke? }` – eigener Link auf diesen Teil des Klassennotizbuchs (Link und QR-Code). */

@@ -528,6 +528,23 @@ describe('Klassennotizbuch: Baum und klasseneigene Lernthemen', () => {
     await svc.move(user, 'c1', { type: 'entry', id: linkId, parentId: sec.id, index: 0 });
     expect(places.rows.find((p) => p.id === linkId).nodeId).toBe(sec.id);
   });
+
+  it('Bereich samt Inhalt löschen: Zuweisungen und Unterbereiche weg, Lernthemen nur der Klasse mit', async () => {
+    const { svc, places, links } = ready();
+    const area = await svc.createNode(user, 'c1', { kind: 'area', title: 'A' });
+    const sec = await svc.createNode(user, 'c1', { kind: 'section', title: 'S', parentId: area.id });
+    const { linkId } = await svc.createTopic(user, 'c1', { title: 'Nur Klasse', nodeId: sec.id });
+    const other = await svc.createNode(user, 'c1', { kind: 'area', title: 'B' });
+    const { linkId: keep } = await svc.createTopic(user, 'c1', { title: 'Bleibt', nodeId: other.id });
+    const c = await svc.nodeContents(user, 'c1', area.id);
+    expect(c).toEqual({ links: 1, nodes: 1, ownTopics: ['Nur Klasse'] });
+    const res = await svc.deleteNode(user, 'c1', area.id, 'all');
+    expect(res.removedLinks).toBe(1);
+    expect(links.rows.some((l) => l.id === linkId)).toBe(false);
+    expect(places.rows.some((p) => p.id === linkId)).toBe(false);
+    expect(links.rows.some((l) => l.id === keep)).toBe(true);
+    await expect(svc.nodeContents(user, 'c1', sec.id)).rejects.toThrow(/nicht gefunden/);
+  });
 });
 
 describe('Klassennotizbuch: 🗂 Plan zuweisen', () => {

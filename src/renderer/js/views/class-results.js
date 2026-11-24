@@ -1545,9 +1545,24 @@ export class ClassResultsView {
       if (title) await this._call(this.app.api.renameClassbookNode(this._classId, node.id, title));
     } });
     items.push('-');
-    items.push({ label: '🗑 Löschen', danger: true, title: 'Was darin liegt, rückt eine Ebene höher', run: async () => {
-      if (!(await this.app.appConfirm(`„${node.title}“ löschen? Was darin liegt, rückt eine Ebene höher – es geht nichts verloren.`))) return;
+    items.push({ label: '⤴ Auflösen (Inhalt rückt höher)', title: 'Nur der Bereich verschwindet – was darin liegt, rückt eine Ebene höher', run: async () => {
+      if (!(await this.app.appConfirm(`„${node.title}“ auflösen? Was darin liegt, rückt eine Ebene höher – es geht nichts verloren.`))) return;
       await this._call(this.app.api.deleteClassbookNode(this._classId, node.id));
+    } });
+    items.push({ label: '🗑 Löschen (samt Inhalt)', danger: true, title: 'Der Bereich und alles darunter verschwindet aus dem Klassennotizbuch – im Notizbuch bleibt alles, Ergebnisse der Schüler bleiben', run: async () => {
+      const c = await this.app.api.classbookNodeContents(this._classId, node.id);
+      if (failed(c)) { this.app.showToast('Fehler: ' + (c?.message || '?'), 'error'); return; }
+      const parts = [];
+      if (c.links) parts.push(`${c.links} Zuweisung${c.links === 1 ? '' : 'en'}`);
+      if (c.nodes) parts.push(`${c.nodes} Unterbereich${c.nodes === 1 ? '' : 'e'}`);
+      let text = parts.length
+        ? `„${node.title}“ samt ${parts.join(' und ')} aus dem Klassennotizbuch nehmen?\n\nIm Notizbuch bleibt alles, Ergebnisse der Schüler bleiben.`
+        : `„${node.title}“ löschen? Er ist leer.`;
+      if (c.ownTopics?.length) {
+        text += `\n\n⚠️ Darunter ${c.ownTopics.length === 1 ? 'ein Lernthema' : `${c.ownTopics.length} Lernthemen`} nur dieser Klasse – ${c.ownTopics.length === 1 ? 'es wird' : 'sie werden'} mit allen Modulen endgültig gelöscht: ${c.ownTopics.map((t) => `„${t}“`).join(', ')}.`;
+      }
+      if (!(await this.app.appConfirm(text))) return;
+      await this._call(this.app.api.deleteClassbookNode(this._classId, node.id, true));
     } });
     return items;
   }

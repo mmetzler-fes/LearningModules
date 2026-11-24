@@ -4247,6 +4247,9 @@ body.html-app-large .quiz-actions { margin-top: 8px; padding-top: 8px; flex-shri
 .ds-surface.ds-landscape .ds-karo { max-width: 100%; }
 /* Tiptap-Fläche (docspec-tiptap.js) */
 .ds-pm-surface { padding: 0; }
+/* Maßstäbliches Blatt (docspec-editor.js fitPmPaper): Ränder links/rechts wie die Vorlage, nicht schmaler als die Seite. */
+.ds-surface.ds-pm-surface.ds-pm-paper { max-width: none; box-sizing: border-box; }
+.ds-pm-surface.ds-pm-paper .ProseMirror { padding-left: 0; padding-right: 0; }
 .ds-pm-surface .ProseMirror { min-height: 100%; padding: 10px 14px; outline: none; white-space: pre-wrap; white-space: break-spaces; word-wrap: break-word; font-variant-ligatures: none; }
 .ds-pm-surface .ProseMirror pre { white-space: pre-wrap; }
 .ds-pm-surface .ProseMirror-gapcursor { display: none; pointer-events: none; position: absolute; }

@@ -290,6 +290,7 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
     surface.classList.toggle('lm-landscape', landscape);
     pm?.el.classList.toggle('ds-landscape', landscape);
     pm?.el.classList.toggle('lm-landscape', landscape);
+    fitPmPaper(landscape);
     spec = parsed;
     // Feste Block-IDs – an ihnen hängen die Striche der Schüler. Neue Blöcke
     // bekommen ihre ID ins YAML, sobald dort niemand tippt (sonst beim Verlassen).
@@ -733,6 +734,31 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
   const markdownEl = root.querySelector('.ds-markdown');
   const pmBox = pmWanted ? document.createElement('div') : null;
   if (pmBox) { pmBox.className = 'ds-pm-box'; root.querySelector('.ds-visual').after(pmBox); }
+  /**
+   * Bearbeitungsfläche maßstäblich: ein Blatt in der Größe der Vorlage (Breite, Ränder links
+   * und rechts) – Tabellen in cm, Bilder und Zeilenumbrüche wie im Druck. Ist weniger Platz,
+   * wird das ganze Blatt verkleinert (wie die Vorschau), statt nur die Breite zu stauchen.
+   */
+  let pmFitKey = '';
+  const fitPmPaper = (landscape = pm?.el.classList.contains('lm-landscape')) => {
+    const el = pm?.el;
+    if (!el || !pmBox) return;
+    const page = ctx?.page || (landscape
+      ? { width: 29.7, margin: { left: 2.5, right: 2 } }
+      : { width: 21, margin: { left: 2.5, right: 2 } });
+    const room = pmBox.clientWidth;
+    const key = `${page.width}|${page.margin.left}|${page.margin.right}|${room}`;
+    if (key === pmFitKey || !room) return;
+    pmFitKey = key;
+    el.classList.add('ds-pm-paper');
+    el.style.width = `${page.width}cm`;
+    el.style.paddingLeft = `${page.margin.left}cm`;
+    el.style.paddingRight = `${page.margin.right}cm`;
+    el.style.zoom = '1';
+    const width = el.offsetWidth;
+    if (width > 0) el.style.zoom = String(Math.min(1, room / width));
+  };
+  if (pmBox && typeof ResizeObserver === 'function') new ResizeObserver(() => fitPmPaper()).observe(pmBox);
   let syncing = false;
   // Inhalt der Ansicht setzen, ohne dass er als Bearbeitung zurück ins YAML
   // fließt. Der MutationObserver meldet erst nach dem Setzen (asynchron) –

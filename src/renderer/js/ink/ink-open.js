@@ -199,8 +199,24 @@ export async function openDocumentInk({ mode, mod, up = null, embedModule = null
     nextWatch.observe(el, { childList: true, subtree: true });
   }
   const { removeInkView } = live ? await import('../../lm-editor/src/ink/ink-view.js') : {};
+  // Lehrkraft am eigenen Dokument: hoch oder quer nach der Vorlage (am Dokument oder am Ordner) –
+  // das gespeicherte orientation kann veraltet sein, etwa nach einem Wechsel der Vorlage am Ordner.
+  let landscape = content.spec?.orientation === 'landscape';
+  if (mode === 'teacher' && isDoc && mod?.id && mod.topicId) {
+    try {
+      const res = await fetch('/api/worksheets/context', { method: 'POST', headers: authHeaders(), body: JSON.stringify({ moduleId: mod.id, title: mod.title || '' }) });
+      const page = res.ok ? (await res.json())?.page : null;
+      if (page?.width && page?.height) {
+        landscape = page.width > page.height;
+        if (content.spec) {
+          if (landscape) content.spec.orientation = 'landscape';
+          else delete content.spec.orientation;
+        }
+      }
+    } catch (_) { /* dann wie gespeichert */ }
+  }
   const paper = {
-    landscape: content.spec?.orientation === 'landscape',
+    landscape,
     mount(el, { solutions }) {
       if (live) {
         if (!liveMark) {

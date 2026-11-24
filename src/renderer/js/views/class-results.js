@@ -1308,6 +1308,19 @@ export class ClassResultsView {
         const own = link?.classTopicId === topicId;
         this.app.modulesView.openFrom('teacher-class-results', topicId, { id: btn.dataset.openModule }, own ? 'edit' : 'preview');
       }));
+      // Klick auf den Titel eines Lernthemas: rechts die Übersicht seiner Module (wie im Lernnotizbuch) –
+      // mit ⛶ Vollbild durch alles, was die Klasse sieht. Auf- und Zuklappen bleibt.
+      out.querySelectorAll('summary[data-topic] span.cb-row-title, .cb-topic-title .cb-row-title').forEach((el) => el.addEventListener('click', () => {
+        if (!this._preview.open) return;
+        const link = cb.links.find((l) => l.id === el.closest('[data-link]')?.dataset.link);
+        const t = link?.available?.find((x) => x.topicId === el.closest('[data-topic]')?.dataset.topic);
+        if (!t) return;
+        this._previewLink = link.id;
+        this._preview.showTopic({
+          id: t.topicId, title: t.title, isOwn: !!t.canEdit, selected: !!t.enabled && !t.notebookOff,
+          modules: (t.modules || []).map((m, i) => ({ ...m, orderIndex: i, moduleSelected: m.enabled })),
+        });
+      }));
       this._markCurrent();
       // ⋯ oder Rechtsklick an Lernthema und Modul: Bearbeiten (auch das Original im Notizbuch), Vorschau, Tags.
       const itemMenu = (el, anchor) => {

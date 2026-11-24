@@ -331,7 +331,9 @@ export class NotebookPreview {
     const roots = mods.filter((m) => !m.parentId);
     if (roots.length) {
       // Alle Module nacheinander über die ganze Seite (◀ Zurück / Weiter ▶).
-      const all = () => this.app.modulesView.openTopicPlayer(this._opts.from, topic.id);
+      // Klassennotizbuch: nur, was die Klasse sieht (Module mit `enabled`).
+      const classIds = roots.some((m) => 'enabled' in m) ? roots.filter((m) => m.enabled).map((m) => m.id) : null;
+      const all = () => this.app.modulesView.openTopicPlayer(this._opts.from, topic.id, null, classIds);
       this._button('⛶ Vollbild', roots.length > 1 ? `Alle ${roots.length} Module nacheinander über die ganze Seite – mit Weiter und Zurück` : 'Über die ganze Seite', all);
       this._setLabelAction(all);
       this._setLabel(this._label?.textContent || '👁 Vorschau', topic.title || '');

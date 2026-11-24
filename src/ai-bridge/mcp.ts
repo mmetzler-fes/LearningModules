@@ -20,13 +20,17 @@ export interface McpBridge {
   docSpecReference(): any;
   quizReference(types: string): any;
   run(session: any, operations: any[], dryRun: boolean): Promise<any>;
+  /** 💬 Feedback zur App – nur für Admin-Konten (sonst wirft es mit Begründung). */
+  feedbackList?(session: any): Promise<any>;
+  feedbackImage?(session: any, id: string): Promise<{ type: string; data: Buffer }>;
+  feedbackUpdate?(session: any, id: string, patch: { priority?: number; status?: string; adminNote?: string }): Promise<any>;
 }
 
 type Rpc = { jsonrpc?: string; id?: string | number | null; method?: string; params?: any };
 
 const str = (description: string) => ({ type: 'string', description });
 
-export const MCP_TOOLS = [
+export const MCP_TOOLS: Array<{ name: string; description: string; inputSchema: Record<string, any> }> = [
   {
     name: 'get_overview',
     description: 'Zuerst aufrufen: Rechte, freigegebener Bereich (Books, Bereiche, Abschnitte, Lernthemen mit IDs), alle Operationen mit Beispielen und Hinweise zu Formaten.',
@@ -74,6 +78,34 @@ export const MCP_TOOLS = [
   },
 ];
 
+MCP_TOOLS.push(
+  {
+    name: 'get_feedback',
+    description: 'Nur Admin: Rückmeldungen zur App (💬 Feedback) – offene zuerst, nach Priorität. Namen gekürzt (Klasse · Vorname N.). "hasImage": Bereichsfoto mit get_feedback_image ansehen.',
+    inputSchema: { type: 'object', properties: {}, additionalProperties: false },
+  },
+  {
+    name: 'get_feedback_image',
+    description: 'Nur Admin: das Bereichsfoto einer Rückmeldung als Bild.',
+    inputSchema: { type: 'object', properties: { id: str('ID der Rückmeldung') }, required: ['id'], additionalProperties: false },
+  },
+  {
+    name: 'update_feedback',
+    description: 'Nur Admin: Rückmeldung ordnen oder erledigen – priority 0–3, status "open" | "done", adminNote (was getan wurde). Löschen nur in der App.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        id: str('ID der Rückmeldung'),
+        priority: { type: 'number', description: '0 (keine) bis 3 (hoch)' },
+        status: { type: 'string', enum: ['open', 'done'] },
+        adminNote: str('Notiz, z. B. was geändert wurde (Commit)'),
+      },
+      required: ['id'],
+      additionalProperties: false,
+    },
+  },
+);
+
 export const MCP_INSTRUCTIONS = [
   'LearningModules: Lernnotizbuch einer Lehrkraft (Books › Bereiche › Abschnitte › Lernthemen mit je einem Dokument und Quizzen) und ihre Planung.',
   'Ablauf: 1. get_overview. 2. Lesen (get_topic, get_document, Formate nur bei Bedarf). 3. run_operations, bei Unsicherheit erst mit dryRun. 4. Mit get_tree bzw. get_topic nachprüfen.',
@@ -117,6 +149,17 @@ export async function handleMcp(msg: Rpc, bridge: McpBridge, server = { name: 'L
           case 'get_document': return ok(text(await bridge.document(session, String(args.moduleId || ''))));
           case 'get_docspec_reference': return ok(text(bridge.docSpecReference()));
           case 'get_quiz_reference': return ok(text(bridge.quizReference(String(args.types || ''))));
+          case 'get_feedback':
+            if (!bridge.feedbackList) break;
+            return ok(text(await bridge.feedbackList(session)));
+          case 'get_feedback_image': {
+            if (!bridge.feedbackImage) break;
+            const img = await bridge.feedbackImage(session, String(args.id || ''));
+            return ok({ content: [{ type: 'image', data: img.data.toString('base64'), mimeType: img.type }] });
+          }
+          case 'update_feedback':
+            if (!bridge.feedbackUpdate) break;
+            return ok(text(await bridge.feedbackUpdate(session, String(args.id || ''), { priority: args.priority, status: args.status, adminNote: args.adminNote })));
           case 'run_operations': {
             if (!Array.isArray(args.operations)) return ok({ ...text('operations fehlt (Liste von Schritten).'), isError: true });
             return ok(text(await bridge.run(session, args.operations, !!args.dryRun)));

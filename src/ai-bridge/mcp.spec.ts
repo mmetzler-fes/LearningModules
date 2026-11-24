@@ -1,4 +1,4 @@
-import { UnauthorizedException, BadRequestException } from '@nestjs/common';
+import { UnauthorizedException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { handleMcp, MCP_TOOLS, McpBridge } from './mcp';
 
 function bridge(over: Partial<McpBridge> = {}): McpBridge & { ran: any[] } {
@@ -60,5 +60,21 @@ describe('MCP-Server der KI-Schnittstelle', () => {
     expect((await handleMcp({ jsonrpc: '2.0', id: 1, method: 'tools/list' }, off)).result.tools.length).toBe(MCP_TOOLS.length);
     const bad = bridge({ run: async () => { throw new BadRequestException('operations[0]: Feld "op" fehlt.'); } });
     expect((await handleMcp(call('run_operations', { operations: [{}] }), bad)).result.content[0].text).toMatch(/Feld "op" fehlt/);
+  });
+
+  it('Feedback-Werkzeuge: Liste, Bereichsfoto als Bild, Status setzen; ohne Admin eine Meldung', async () => {
+    const updates: any[] = [];
+    const admin = bridge({
+      feedbackList: async () => [{ id: 'f1', text: 'Knopf fehlt', hasImage: true }],
+      feedbackImage: async () => ({ type: 'image/png', data: Buffer.from('PNG') }),
+      feedbackUpdate: async (_s, id, patch) => { updates.push({ id, ...patch }); return { success: true }; },
+    });
+    expect((await handleMcp(call('get_feedback'), admin)).result.content[0].text).toMatch(/Knopf fehlt/);
+    expect((await handleMcp(call('get_feedback_image', { id: 'f1' }), admin)).result.content[0])
+      .toEqual({ type: 'image', data: Buffer.from('PNG').toString('base64'), mimeType: 'image/png' });
+    await handleMcp(call('update_feedback', { id: 'f1', status: 'done', priority: 2, adminNote: 'behoben' }), admin);
+    expect(updates).toEqual([{ id: 'f1', status: 'done', priority: 2, adminNote: 'behoben' }]);
+    const teacher = bridge({ feedbackList: async () => { throw new ForbiddenException('Nur Admins haben Zugriff.'); } });
+    expect((await handleMcp(call('get_feedback'), teacher)).result).toMatchObject({ isError: true, content: [{ text: 'Nur Admins haben Zugriff.' }] });
   });
 });

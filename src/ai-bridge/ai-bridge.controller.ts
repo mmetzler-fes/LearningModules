@@ -232,6 +232,7 @@ export class McpController {
   constructor(
     private readonly bridge: AiBridgeService,
     @Optional() private readonly oauth?: OAuthService,
+    @Optional() private readonly feedback?: FeedbackService,
   ) {}
 
   @Post()
@@ -293,6 +294,11 @@ export class McpController {
       docSpecReference: () => this.bridge.getDocSpecReference(),
       quizReference: (types) => this.bridge.getQuizReference(types),
       run: (s, operations, dryRun) => this.bridge.executeBatch(s, { operations, dryRun }),
+      ...(this.feedback ? {
+        feedbackList: async (s: AiBridgeSession) => this.feedback!.list(await this.feedback!.accountOf(s.userId)),
+        feedbackImage: async (s: AiBridgeSession, id: string) => this.feedback!.image(await this.feedback!.accountOf(s.userId), id),
+        feedbackUpdate: async (s: AiBridgeSession, id: string, patch: any) => this.feedback!.update(await this.feedback!.accountOf(s.userId), id, patch),
+      } : {}),
     };
     const batch = Array.isArray(body);
     const out: any[] = [];

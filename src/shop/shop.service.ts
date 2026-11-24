@@ -354,6 +354,40 @@ export class ShopService implements OnApplicationBootstrap {
   // ---- Shop-Ansicht ----
 
   /**
+   * 👁 Vorschau eines Moduls aus einem Angebot – ohne Use oder Copy, nichts wird gespeichert. Nur was
+   * das Angebot umfasst und der Benutzer im Shop sieht. Mit Untermodulen; bei einem Dokument die
+   * eingebetteten Quizze aus dem Angebot. Ablage-Link und Passwort eines Audio Recorders bleiben weg.
+   */
+  async previewModule(user: any, offerId: string, moduleId: string) {
+    const offer = await this.offerRepo.findOne({ where: { id: offerId } });
+    if (!offer || !offer.active || !this.visibleTo(offer, user)) throw new NotFoundException('Angebot nicht gefunden.');
+    const covered = await this.coverage(offer);
+    const all = covered.flatMap((c) => c.modules);
+    const root = covered.flatMap((c) => c.roots).find((m) => m.id === moduleId);
+    if (!root) throw new NotFoundException('Dieses Modul gehört nicht zum Angebot.');
+    const clean = (m: LearningModule): Record<string, any> => {
+      let content: any = m.content;
+      if (typeof content === 'string') { try { content = JSON.parse(content); } catch { /* bleibt Text */ } }
+      if (m.type === 'audioRecorder' && content && typeof content === 'object') {
+        const { uploadUrl: _u, uploadPassword: _p, ...rest } = content;
+        content = rest;
+      }
+      const subs = all.filter((x) => x.parentId === m.id).sort((a, b) => a.orderIndex - b.orderIndex);
+      return { id: m.id, type: m.type, title: m.title, content, ...(subs.length ? { subModules: subs.map(clean) } : {}) };
+    };
+    const quizIds = new Set<string>();
+    if (root.type === 'document') {
+      const visit = (v: any) => {
+        if (Array.isArray(v)) v.forEach(visit);
+        else if (v && typeof v === 'object') { if (v.type === 'quiz' && typeof v.module === 'string') quizIds.add(v.module); Object.values(v).forEach(visit); }
+      };
+      visit(clean(root).content);
+    }
+    const embedded = all.filter((m) => quizIds.has(m.id) && !m.parentId).map(clean);
+    return { module: clean(root), embedded };
+  }
+
+  /**
    * Alle Angebote, die dieser Benutzer sieht: von anderen, aktiv, mit
    * mindestens einem Modul. Was ihm schon gehört, ist markiert.
    */
@@ -392,7 +426,7 @@ export class ShopService implements OnApplicationBootstrap {
         creators: [...new Set(roots.map((m) => this.label(users.get(m.creatorId || ''))))],
         creatorList: creatorIds.map((id) => ({ id, name: this.label(users.get(id)) })),
         modules: mine.flatMap((c) => c.roots.map((m) => ({
-          title: m.title, type: m.type, topicTitle: c.topic.title, own: m.creatorId === offer.sellerId,
+          id: m.id, title: m.title, type: m.type, topicTitle: c.topic.title, own: m.creatorId === offer.sellerId,
         }))),
         ownCount: own.length,
         foreignCount: roots.length - own.length,

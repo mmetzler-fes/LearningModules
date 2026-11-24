@@ -618,6 +618,10 @@ export class BrowserApi {
 
   // ---------- Lernmodule-Shop ----------
   getShopOffers() { return this._fetch('/api/shop/offers'); }
+  /** 👁 Modul aus einem Angebot ansehen, ohne es zu übernehmen. */
+  previewShopModule(offerId, moduleId) {
+    return this._fetch(`/api/shop/offers/${encodeURIComponent(offerId)}/modules/${encodeURIComponent(moduleId)}/preview`);
+  }
   getMyOffers() { return this._fetch('/api/shop/my-offers'); }
   /** Buchungen des früheren Punktekontos (bis Oktober 2026). */
   getPointsHistory() { return this._fetch('/api/shop/points'); }

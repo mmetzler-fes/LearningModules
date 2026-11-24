@@ -72,6 +72,9 @@ Ausbauen eines Bereichs sind so kein Problem. Wird der Bereich gelöscht, wird
 das Angebot zu einer festen Auswahl mit dem, was zuletzt darin lag;
 Übernommenes bleibt.
 
+- **👁 Ansehen** (unter „Module anzeigen“, je Modul): eine Vorschau ohne Use
+  oder Copy – Dokumente mit ihren Quizzen, Quizze zum Ausprobieren. Nichts wird
+  übernommen oder gespeichert. Angebote verbundener Server noch ohne Vorschau.
 - **Use**: Man verwendet das Original in eigenen Themen- und
   Quick-Links. Änderungen des Creators wirken sofort. Die Ergebnisse landen
   bei einem selbst, denn dafür zählt, wer den Link verteilt.

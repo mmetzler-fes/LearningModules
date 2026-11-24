@@ -18,6 +18,12 @@ export class ShopController {
     return this.shop.catalog(req.user);
   }
 
+  /** 👁 Vorschau eines Moduls aus einem Angebot – ohne Use oder Copy. */
+  @Get('offers/:offerId/modules/:moduleId/preview')
+  async preview(@Request() req: any, @Param('offerId') offerId: string, @Param('moduleId') moduleId: string) {
+    return this.shop.previewModule(req.user, offerId, moduleId);
+  }
+
   /** Meine eigenen Angebote mit allen, die daraus erworben haben. */
   @Get('my-offers')
   async myOffers(@Request() req: any) {

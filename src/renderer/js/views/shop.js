@@ -339,6 +339,9 @@ export class ShopView {
         </div>
       </div>`;
 
+    card.querySelectorAll('.shop-preview').forEach((btn) => {
+      btn.addEventListener('click', () => this._preview(btn.dataset.offer, btn.dataset.module, btn.dataset.title, o));
+    });
     card.querySelectorAll('.btn-acquire').forEach((btn) => {
       btn.addEventListener('click', () => this._acquire(o, btn.dataset.mode, btn));
     });
@@ -355,7 +358,11 @@ export class ShopView {
 
   /** Module eines Angebots, bei mehreren Lernthemen nach Thema gegliedert. */
   _moduleListHtml(o, typeOf) {
-    const item = (m) => `<li>${typeOf(m.type).icon || '📦'} ${escapeHtml(m.title)}${m.own === false ? ' <span class="hint">(nur Use)</span>' : ''}</li>`;
+    // 👁 Ansehen nur bei Angeboten dieses Servers (o.offerId, ohne peerId) – Vorschau ohne Übernehmen.
+    const look = (m) => (m.id && o.offerId && !o.peerId
+      ? ` <button type="button" class="btn btn-secondary btn-sm shop-preview" data-offer="${escapeAttr(o.offerId)}" data-module="${escapeAttr(m.id)}" data-title="${escapeAttr(m.title)}" title="Ansehen, ohne es zu übernehmen">👁 Ansehen</button>`
+      : '');
+    const item = (m) => `<li>${typeOf(m.type).icon || '📦'} ${escapeHtml(m.title)}${m.own === false ? ' <span class="hint">(nur Use)</span>' : ''}${look(m)}</li>`;
     if (o.topicCount <= 1) return `<ul>${o.modules.map(item).join('')}</ul>`;
     const groups = new Map();
     for (const m of o.modules) {
@@ -363,6 +370,28 @@ export class ShopView {
       groups.get(m.topicTitle).push(m);
     }
     return [...groups].map(([title, list]) => `<p class="shop-topic-head">📘 ${escapeHtml(title)}</p><ul>${list.map(item).join('')}</ul>`).join('');
+  }
+
+  /**
+   * 👁 Ein Modul ansehen, ohne Use oder Copy: Dokumente wie für Schüler (ohne Lösungen, mit ihren
+   * Quizzen), ein Quiz zum Ausprobieren – im Dokument-Betrachter, ein Quiz als einziger Baustein.
+   */
+  async _preview(offerId, moduleId, title, o) {
+    const res = await this.app.api.previewShopModule(offerId, moduleId).catch(() => null);
+    if (!res?.module) { this.app.showToast(res?.message || 'Vorschau nicht möglich.', 'error'); return; }
+    const m = res.module;
+    const modules = Object.fromEntries((res.embedded || []).map((x) => [x.id, x]));
+    const isDoc = m.type === 'document';
+    if (!isDoc) modules[m.id] = m;
+    const { openDocViewer } = await import('./zlm-viewer.js');
+    await openDocViewer(this.app, {
+      title: m.title || title,
+      subtitle: `Vorschau aus dem Shop – ${o.title}${o.sellerName ? `, von ${o.sellerName}` : ''}. Nichts wird übernommen.`,
+      spec: isDoc ? (m.content?.spec || { content: [] }) : { content: [{ type: 'quiz', module: m.id }] },
+      kind: isDoc ? (m.content?.kind || 'arbeitsblatt') : 'arbeitsblatt',
+      modules,
+      landscape: isDoc && m.content?.spec?.orientation === 'landscape',
+    });
   }
 
   /** Bewerten – bei mehreren genutzten Lernthemen im Angebot erst eins wählen. */

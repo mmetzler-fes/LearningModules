@@ -1577,6 +1577,7 @@ export class ClassResultsView {
     const exam = this._examMenuItems([topic]);
     return [
       ...(exam.length ? [...exam, '-'] : []),
+      { label: '⛶ Alle Module ansehen', title: 'Was die Klasse sieht, nacheinander über die ganze Seite – mit Zurück und Weiter', run: () => this.app.modulesView.openTopicPlayer('teacher-class-results', topic.topicId, null, (topic.modules || []).filter((m) => m.enabled).map((m) => m.id)) },
       { label: '➕ Neues Modul', title: 'Neue Module sind hier zunächst aus – mit ● einschalten', run: () => this.app.modulesView.openFrom('teacher-class-results', topic.topicId, null) },
       { label: '📦 Module bearbeiten', title: own ? '' : 'Die Module des Originals im Notizbuch', run: () => this.app.modulesView.openTopicModules(topic.topicId) },
       { label: '📍 Hier ist die Klasse gerade', title: 'Schüler springen zum ersten Modul dieses Lernthemas – „Weiter“ führt durch alle weiteren', run: () => this._setMarker({ level: 'topic', linkId: link.id, topicId: topic.topicId }) },

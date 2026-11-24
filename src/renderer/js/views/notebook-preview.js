@@ -267,7 +267,9 @@ export class NotebookPreview {
       this._button('📓 GoodNotes', `Alle Dokumente von „${topic.title}“ als ein Heft (PDF) für GoodNotes – Schülerheft, Lösungsheft, Adresse mit QR-Code`, () => openGoodnotesDialog(this.app, topic));
     }
     // Über die ganze Seite – mit Weiter/Zurück durch die übrigen Module des Lernthemas.
-    const wholePage = () => this.app.modulesView.openTopicPlayer(this._opts.from, topic.id, mod.id);
+    // Klassennotizbuch: Die Module tragen `enabled` – geblättert wird durch das, was die Klasse sieht.
+    const classIds = (topic.modules || []).some((m) => 'enabled' in m) ? topic.modules.filter((m) => m.enabled).map((m) => m.id) : null;
+    const wholePage = () => this.app.modulesView.openTopicPlayer(this._opts.from, topic.id, mod.id, classIds);
     this._button('⛶ Vollbild', 'Vorschau über die ganze Seite', wholePage);
     this._setLabelAction(wholePage);
     this._setLabel(this._label?.textContent || '👁 Vorschau', mod.title || '');

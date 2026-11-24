@@ -571,12 +571,14 @@ export class ModulesView {
    * Alle Module eines Lernthemas nacheinander über die ganze Seite (◀ Zurück / Weiter ▶, Pfeiltasten) –
    * ab `startId` oder vom ersten. Eingebettete Module (in Dokumenten) laufen dort mit, nicht einzeln.
    */
-  async openTopicPlayer(view, topicId, startId = null) {
+  async openTopicPlayer(view, topicId, startId = null, onlyIds = null) {
     this.app.state.returnView = view;
     this.app.state.currentTopicId = topicId;
     this.app.state.currentTopicModules = await this.app.api.getTopicModules(topicId);
-    const list = (this.app.state.currentTopicModules || []).filter((m) => !m.parentId).sort((a, b) => (a.orderIndex ?? 0) - (b.orderIndex ?? 0));
-    if (!list.length) return;
+    // `onlyIds` (Klassennotizbuch): nur, was die Klasse sieht – das gewählte Modul immer.
+    const only = Array.isArray(onlyIds) ? new Set([...onlyIds, startId].filter(Boolean)) : null;
+    const list = (this.app.state.currentTopicModules || []).filter((m) => !m.parentId && (!only || only.has(m.id))).sort((a, b) => (a.orderIndex ?? 0) - (b.orderIndex ?? 0));
+    if (!list.length) { this.app.showToast(only ? 'In dieser Klasse ist kein Modul eingeschaltet.' : 'Noch keine Module.', 'info'); return; }
     const i = Math.max(0, list.findIndex((m) => m.id === startId));
     this._openPlayer(list[i], list.length > 1 ? list : null);
   }

@@ -7047,3 +7047,12 @@ body.html-app-large #mainContent { padding: 4px 6px; }
 body.html-app-large #quizModuleContainer { padding: 0 !important; border: 0; background: transparent; border-radius: 0; box-shadow: none; }
 body.html-app-large iframe.lm-app-frame { border: 0; border-radius: 6px; }
 .lm-app-title-actions .lm-app-step-pick { min-width: 0; max-width: min(40vw, 420px); }
+
+/* HTML-App auf dem Handy: bis an den Bildschirmrand – kein weißer Streifen um die App
+   (am nachgestellten Android-Handy geprüft). */
+@media (max-width: 700px) {
+  body.html-app-large #mainContent { padding: 0 !important; }
+  body.html-app-large #quizModuleContainer, body.html-app-large #quizModuleContainer .lm-app-fill { padding: 0 !important; margin: 0 !important; }
+  body.html-app-large iframe.lm-app-frame { border: 0; border-radius: 0; }
+  body.html-app-large .quiz-progress-bar { margin: 0 !important; border-radius: 0; }
+}

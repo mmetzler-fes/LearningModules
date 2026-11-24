@@ -124,6 +124,8 @@ INLINE_RE = re.compile(
     r"|(?<![\w~])~~(?P<s>\S(?:.*?\S)?)~~(?![\w~])"
     r"|\^\{(?P<sup>[^}]{1,40})\}"
     r"|_\{(?P<sub>[^}]{1,24})\}"
+    # Bild im Text („wie ein Zeichen“), vom Server als Datei mitgegeben: ![alt](bilder/bild-3.png){width=1.20cm}
+    r"|!\[(?P<ialt>[^\]\n]*)\]\((?P<isrc>[^)\s]+)\)(?:\{width=(?P<iw>\d+(?:\.\d+)?cm)\})?"
     r"|\[(?P<atext>[^\]\n]+)\]\((?P<href>(?:https?://|mailto:)[^)\s]+)\)"
     r"|\[(?P<ctext>[^\]\n]+)\]\{(?P<color>[a-z0-9-]+(?:,[a-z0-9-]+){0,2})\}"
 )
@@ -447,7 +449,7 @@ def ensure_subscript_style(doc, present: set[str]) -> str:
 def set_inline_context(doc, present: set[str], styles: dict[str, str]) -> None:
     """Vor dem Rendern: wohin Zeichenvorlagen der Auszeichnung gehören."""
     _inline.update(doc=doc, present=present, code=styles.get("code_inline", "Codewort"), mathml={},
-                   red=False, overlay=False)
+                   red=False, overlay=False, img=0, search=None)
 
 
 def set_inline_mathml(spec: dict[str, Any]) -> None:
@@ -520,6 +522,8 @@ def parse_inline(text: str) -> list[tuple[str, Any]]:
         kind = m.lastgroup if m.lastgroup != "href" else "a"
         if m.group("esc") is not None:
             add_text(m.group("esc"))
+        elif m.group("isrc") is not None:
+            nodes.append(("img", (m.group("isrc"), m.group("ialt") or "", m.group("iw"))))
         elif m.group("href") is not None:
             nodes.append(("a", (m.group("href"), parse_inline(m.group("atext")))))
         elif m.group("color") is not None:
@@ -554,6 +558,8 @@ def add_inline(el: Element, nodes: list[tuple[str, Any]], line_start: bool) -> N
             el.addElement(Span(stylename=_inline.get("code", "Codewort"), text=value))
         elif kind == "math":
             add_inline_math(el, value)
+        elif kind == "img":
+            add_inline_image(el, *value)
         elif kind == "a":
             link = A(href=value[0], type="simple")
             add_inline(link, value[1], False)
@@ -563,6 +569,23 @@ def add_inline(el: Element, nodes: list[tuple[str, Any]], line_start: bool) -> N
             add_inline(span, value[1], False)
             el.addElement(span)
         line_start = False
+
+
+def add_inline_image(el: Element, src: str, alt: str, width: str | None) -> None:
+    """Bild im Text als Rahmen „wie ein Zeichen“, mittig zur Zeile. Fehlt die Datei
+    (oder im Lösungsrahmen über dem Karo, der keine Objekte trägt): der Bildtext."""
+    search = _inline.get("search")
+    if not search or _inline.get("overlay"):
+        add_spaced_text(el, f"[{alt}]" if alt else "")
+        return
+    try:
+        resolve_path(src, search)
+    except (Exception, SystemExit):
+        add_spaced_text(el, f"[{alt}]" if alt else "")
+        return
+    _inline["img"] = _inline.get("img", 0) + 1
+    block = {"file": src, "width": width or "1cm"}
+    el.addElement(image_frame(_inline["doc"], block, search, 10000 + _inline["img"], middle=True))
 
 
 def add_inline_math(el: Element, tex: str) -> None:
@@ -2804,6 +2827,7 @@ def insert_content(doc, spec: dict[str, Any], styles: dict[str, str], mode: str,
     frame_style = ensure_overlay_styles(doc, present)
     set_inline_context(doc, present, styles)
     set_inline_mathml(spec)
+    _inline["search"] = search
     ctx: dict[str, Any] = {
         "doc": doc,
         "mode": mode,

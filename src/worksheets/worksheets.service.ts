@@ -544,6 +544,42 @@ export class WorksheetsService {
       return { file: name, x: pt(ink.x), y: pt(ink.y), width: pt(ink.w), height: pt(ink.h) };
     };
 
+    // Bilder im Text (![alt](src){width=…}): jedes als Datei mitgeben, im Text steht dann der
+    // Dateiname – der Renderer setzt es als Bild „wie ein Zeichen“. Nicht druckbar: der Bildtext.
+    const INLINE_IMG = /!\[([^\]\n]*)\]\(((?:data:image\/[a-z+.-]+;base64,[A-Za-z0-9+/=]+|https?:\/\/[^)\s]+|\/api\/[^)\s]+))\)(?:\{width=(\d+(?:\.\d+)?(?:cm|mm|px))\})?/g;
+    const inlineImages = async (value: any): Promise<any> => {
+      const found = new Map<string, string | null>();
+      const visit = (v: any, key = ''): void => {
+        if (typeof v === 'string') { if (key !== 'code' && v.includes('![')) for (const m of v.matchAll(INLINE_IMG)) found.set(m[2], null); return; }
+        if (Array.isArray(v)) { v.forEach((x) => visit(x)); return; }
+        if (v && typeof v === 'object') for (const [k, x] of Object.entries(v)) visit(x, k);
+      };
+      visit(value);
+      if (!found.size) return value;
+      for (const src of found.keys()) {
+        const { mime, data } = await readImage(src);
+        const ext = PRINTABLE_IMAGES[mime];
+        if (!data || !ext) { warnings.push('Ein Bild im Text lässt sich nicht drucken – im Druck steht sein Bildtext.'); continue; }
+        const name = `bilder/bild-${++n}.${ext}`;
+        files[name] = data;
+        found.set(src, name);
+      }
+      const replace = (v: any, key = ''): any => {
+        if (typeof v === 'string') {
+          return key === 'code' || !v.includes('![') ? v : v.replace(INLINE_IMG, (_m, alt: string, src: string, width?: string) => {
+            const name = found.get(src);
+            if (!name) return alt ? `[${alt}]` : '';
+            const cm = width ? widthInCm(width) : null;
+            return `![${alt}](${name})${cm ? `{width=${cm}}` : ''}`;
+          });
+        }
+        if (Array.isArray(v)) return v.map((x) => replace(x));
+        if (v && typeof v === 'object') return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, replace(x, k)]));
+        return v;
+      };
+      return replace(value);
+    };
+
     const walk = async (blocks: any[]): Promise<any[]> => {
       const out: any[] = [];
       for (const item of blocks) {
@@ -581,7 +617,7 @@ export class WorksheetsService {
     return {
       job: {
         // templateHead: false – ohne Kopfzeile der Vorlage (Druckdialog); sonst wie die Vorlage.
-        spec: { ...rest, titel: title || 'Dokument', meta, content: await walk(resolved.content), ...(opts.templateHead === false ? { templateHead: false } : {}) },
+        spec: { ...rest, titel: title || 'Dokument', meta, content: await inlineImages(await walk(resolved.content)), ...(opts.templateHead === false ? { templateHead: false } : {}) },
         course: { ...(ctx?.course.autor ? { autor: ctx.course.autor } : {}) },
         ...(ctx?.template ? { template: ctx.template.data } : {}),
         files,

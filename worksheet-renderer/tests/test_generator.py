@@ -119,6 +119,31 @@ class RenderTest(unittest.TestCase):
         cols = [float(w) for w in re.findall(r'style:name="ABTabelle\.Sp1\.\d"[^>]*>\s*<style:table-column-properties style:column-width="([\d.]+)cm"', content)]
         self.assertGreater(cols[1], 4.5, cols)  # 2 cm Bild + „Spannungsteiler“ nebeneinander (vorher gut 1 cm)
 
+    def test_bild_im_text(self):
+        """Bild im Text („wie ein Zeichen“): Rahmen as-char mitten im Absatz und in der Zelle;
+        fehlt die Datei, steht der Bildtext."""
+        import json
+        self.assertEqual(mw.parse_inline("S1 ![Schließer](bilder/b.png){width=1.20cm} := A"),
+                         [("text", "S1 "), ("img", ("bilder/b.png", "Schließer", "1.20cm")), ("text", " := A")])
+        spec = {"titel": "K", "content": [
+            {"type": "text", "text": "Schalter ![S](bild.png){width=0.80cm} schließt, ![fehlt](weg.png) nicht."},
+            {"type": "table", "header": ["Zeichen", "Funktion"], "rows": [["![](bild.png){width=1.00cm} Schließer", "S1 := A"]]}]}
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "blatt").mkdir()
+            (root / "blatt" / "k.json").write_text(json.dumps(spec), encoding="utf-8")
+            (root / "blatt" / "bild.png").write_bytes((GEN / "tests" / "bild.png").read_bytes())
+            env = dict(os.environ, ARBEITSBLATT_ROOT=str(root))
+            subprocess.run([sys.executable, str(GEN / "tools" / "make_worksheet.py"), "blatt/k.json",
+                            "-o", "out"], cwd=root, env=env, check=True, capture_output=True)
+            content = zipfile.ZipFile(root / "out" / "blatt.odt").read("content.xml").decode()
+        frames = re.findall(r'<draw:frame[^>]*draw:name="Bild1000\d"[^>]*>', content)
+        self.assertEqual(len(frames), 2, frames)
+        self.assertTrue(all('text:anchor-type="as-char"' in f for f in frames))
+        self.assertIn('svg:width="0.80cm"', frames[0])
+        self.assertIn("[fehlt]", content)
+        self.assertIn("Schließer", content)
+
     def test_ohne_kopfzeile_der_vorlage(self):
         """templateHead: false (Druckdialog) – die Kopfzeile der Vorlage entfällt, die Fußzeile bleibt."""
         import json

@@ -81,10 +81,49 @@ function reporterName() {
   return appRef?.state?.currentUser?.role === 'student' ? appRef.state.currentUser.name || '' : '';
 }
 
+// ---- Entwurf: Was getippt ist, geht beim Schließen (Klick daneben, anderes Fenster, 📷) nicht verloren ----
+const DRAFT_KEY = 'lm_feedback_draft';
+const DRAFT_IMAGE_MAX = 1_500_000; // größere Bilder nur bis zum Neuladen (im Speicher der Seite)
+let draftImage = null; // Blob – überlebt das Schließen des Dialogs
+
+function readDraft() {
+  try {
+    const d = JSON.parse(localStorage.getItem(DRAFT_KEY) || 'null');
+    return d && (d.text || d.image) ? d : null;
+  } catch (_) {
+    return null;
+  }
+}
+
+async function writeDraft(text, image) {
+  draftImage = image || null;
+  try {
+    if (!text && !image) { localStorage.removeItem(DRAFT_KEY); return; }
+    let dataUrl = null;
+    if (image && image.size <= DRAFT_IMAGE_MAX) dataUrl = await toDataUrl(image);
+    localStorage.setItem(DRAFT_KEY, JSON.stringify({ text, image: dataUrl, at: Date.now() }));
+  } catch (_) {
+    // Speicher voll oder gesperrt: wenigstens den Text
+    try { localStorage.setItem(DRAFT_KEY, JSON.stringify({ text, image: null, at: Date.now() })); } catch (__) { /* egal */ }
+  }
+}
+
+function clearDraft() {
+  draftImage = null;
+  try { localStorage.removeItem(DRAFT_KEY); } catch (_) { /* egal */ }
+}
+
+async function dataUrlToBlob(url) {
+  try { return await (await fetch(url)).blob(); } catch (_) { return null; }
+}
+
 /** Feedback-Fenster öffnen; `blob`: gleich angehängtes Bild (z. B. aus 📷). */
-export function openFeedback(blob = null) {
-  document.getElementById('lmFeedback')?.remove();
-  let image = blob || (lastShot && Date.now() - lastShot.at < 10 * 60_000 ? lastShot.blob : null);
+export async function openFeedback(blob = null) {
+  const open = document.getElementById('lmFeedback');
+  if (open) { await open.lmSaveDraft?.(); open.remove(); } // offener Dialog: erst sichern
+  const draft = readDraft();
+  const draftImg = draftImage || (draft?.image ? await dataUrlToBlob(draft.image) : null);
+  let image = blob || draftImg || (lastShot && Date.now() - lastShot.at < 10 * 60_000 ? lastShot.blob : null);
   const box = document.createElement('div');
   box.id = 'lmFeedback';
   box.className = 'lm-feedback';
@@ -99,7 +138,8 @@ export function openFeedback(blob = null) {
       </div>
       <p class="login-error hidden" data-fb="err"></p>
       <div class="lm-feedback-actions">
-        <button type="button" class="btn btn-secondary lm-fb-btn" data-fb="cancel">Abbrechen</button>
+        <button type="button" class="btn btn-secondary lm-fb-btn" data-fb="discard" title="Text und Bild löschen"${draft || draftImg ? '' : ' hidden'}>Entwurf verwerfen</button>
+        <button type="button" class="btn btn-secondary lm-fb-btn" data-fb="cancel" title="Schließen – das Eingegebene bleibt als Entwurf">Abbrechen</button>
         <button type="submit" class="btn btn-primary lm-fb-btn">Senden</button>
       </div>
     </form>`;
@@ -107,15 +147,41 @@ export function openFeedback(blob = null) {
   const form = box.querySelector('form');
   const err = box.querySelector('[data-fb="err"]');
   const showErr = (m) => { err.textContent = m; err.classList.toggle('hidden', !m); };
+  const discardBtn = box.querySelector('[data-fb="discard"]');
+  if (draft?.text) {
+    form.text.value = draft.text;
+    const when = draft.at ? new Date(draft.at).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '';
+    box.querySelector('.hint').insertAdjacentHTML('afterend', `<p class="hint" data-fb="restored">Entwurf${when ? ` von ${escapeHtml(when)}` : ''} wiederhergestellt – weiterschreiben oder „Entwurf verwerfen“.</p>`);
+  }
+  let saveTimer = null;
+  const save = () => {
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(() => {
+      void writeDraft(form.text.value, image);
+      discardBtn.hidden = !form.text.value && !image;
+    }, 300);
+  };
+  form.text.addEventListener('input', save);
+  discardBtn.addEventListener('click', () => {
+    clearDraft();
+    form.text.value = '';
+    image = null;
+    paint();
+    discardBtn.hidden = true;
+    box.querySelector('[data-fb="restored"]')?.remove();
+    form.text.focus();
+  });
   const paint = () => {
     const slot = box.querySelector('.lm-feedback-image');
     if (!image) { slot.innerHTML = ''; return; }
     const url = URL.createObjectURL(image);
     slot.innerHTML = `<img src="${url}" alt="Angehängtes Bild"><button type="button" class="btn btn-secondary btn-sm" data-fb="drop">✕ Bild entfernen</button>`;
-    slot.querySelector('[data-fb="drop"]').addEventListener('click', () => { image = null; paint(); });
+    slot.querySelector('[data-fb="drop"]').addEventListener('click', () => { image = null; paint(); save(); });
   };
   paint();
-  const take = async (b) => { if (b) { image = await shrink(b); showErr(''); paint(); } };
+  // Neues Bild (📷) zu einem Entwurf: gleich mit sichern.
+  if (blob) save();
+  const take = async (b) => { if (b) { image = await shrink(b); showErr(''); paint(); save(); } };
   box.querySelector('[data-fb="paste"]').addEventListener('click', async () => {
     try {
       const items = await navigator.clipboard.read();
@@ -133,8 +199,16 @@ export function openFeedback(blob = null) {
     const file = [...(e.clipboardData?.items || [])].find((i) => i.type.startsWith('image/'))?.getAsFile();
     if (file) { e.preventDefault(); void take(file); }
   });
-  box.querySelector('[data-fb="cancel"]').addEventListener('click', () => box.remove());
-  box.addEventListener('click', (e) => { if (e.target === box) box.remove(); });
+  // Schließen behält das Eingegebene als Entwurf.
+  let sent = false;
+  const close = () => {
+    clearTimeout(saveTimer);
+    if (!sent) void writeDraft(form.text.value, image);
+    box.remove();
+  };
+  box.lmSaveDraft = () => { clearTimeout(saveTimer); return sent ? Promise.resolve() : writeDraft(form.text.value, image); };
+  box.querySelector('[data-fb="cancel"]').addEventListener('click', close);
+  box.addEventListener('click', (e) => { if (e.target === box) close(); });
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     const btn = form.querySelector('[type=submit]');
@@ -147,6 +221,9 @@ export function openFeedback(blob = null) {
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.message || `HTTP ${res.status}`);
       lastShot = null;
+      clearTimeout(saveTimer);
+      sent = true;
+      clearDraft();
       box.querySelector('.lm-feedback-card').innerHTML = `<h3>${FEEDBACK_ICON} Danke!</h3><p>Deine Meldung ist angekommen.</p><div class="lm-feedback-actions"><button type="button" class="btn btn-primary" data-fb="cancel">Schließen</button></div>`;
       box.querySelector('[data-fb="cancel"]').addEventListener('click', () => box.remove());
       setTimeout(() => box.remove(), 2500);
@@ -162,5 +239,5 @@ export function openFeedback(blob = null) {
 /** Einmal beim Start: Stift-Editor und Tab-Leiste bieten 💬 an. */
 export function initFeedback(app) {
   appRef = app;
-  window.lmOpenFeedback = (blob) => openFeedback(blob || null);
+  window.lmOpenFeedback = (blob) => { void openFeedback(blob || null); };
 }

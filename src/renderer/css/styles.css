@@ -4268,7 +4268,11 @@ body.html-app-large .quiz-actions { margin-top: 8px; padding-top: 8px; flex-shri
 .ds-edit-hide-solutions .ds-pm-surface .ds-pm-solution > * { display: none; }
 .ds-edit-hide-solutions .ds-pm-surface .ds-pm-solution::before { content: '💡 Lösung ausgeblendet (Ansicht „Arbeitsblatt“) – antippen zum Bearbeiten'; font-weight: 400; font-size: 0.85em; }
 .ds-pm-surface .ds-pm-columns { display: flex; gap: 0.4cm; margin: 6px 0; }
-.ds-pm-surface .ds-pm-column { flex: 1 1 0; min-width: 0; border: 1px dashed var(--border); padding: 2px 6px; }
+.ds-pm-surface .ds-pm-column { flex: 1 1 0; min-width: 0; border: 1px dashed var(--border); padding: 2px 6px; box-sizing: content-box; }
+.ds-pm-surface .ds-pm-columns-wrap { position: relative; }
+.ds-pm-surface .ds-pm-col-handles { position: absolute; inset: 0; pointer-events: none; }
+.ds-pm-surface .ds-pm-col-handle { position: absolute; top: 6px; bottom: 6px; width: 8px; margin-left: -4px; cursor: col-resize; pointer-events: auto; border-radius: 3px; }
+.ds-pm-surface .ds-pm-col-handle:hover { background: color-mix(in srgb, var(--accent, #2563eb) 25%, transparent); }
 .ds-pm-surface .ws-box[data-title]::before { content: attr(data-title); display: block; font-weight: 600; }
 .ds-pm-box .ds-vtoolbar .rt-btn.active { background: var(--accent); color: #fff; }
 .ds-pm-box .ds-vtoolbar [hidden] { display: none; }

@@ -697,6 +697,12 @@ export class ModulesView {
   async _loadDocTemplates(selectedId = '') {
     const select = document.getElementById('formatDocTemplate');
     if (!select) return;
+    // Gleich setzen, nicht erst nach dem Laden der Liste: Der Editor fragt die Seite
+    // (A4 hoch/quer) sofort ab – sonst sah er „wie im Ordner“ und nahm A4 hoch.
+    if (selectedId && ![...select.options].some((o) => o.value === selectedId)) {
+      select.insertAdjacentHTML('beforeend', `<option value="${selectedId.replace(/"/g, '&quot;')}">…</option>`);
+    }
+    select.value = selectedId || '';
     const token = sessionStorage.getItem('lm_token') || localStorage.getItem('lm_token');
     const KINDS = { arbeitsblatt: 'Arbeitsblatt', klassenarbeit: 'Klassenarbeit', skript: 'Skript' };
     try {
@@ -715,6 +721,8 @@ export class ModulesView {
         select.insertAdjacentHTML('beforeend', `<option value="${selectedId.replace(/"/g, '&quot;')}">(gelöschte Vorlage)</option>`);
       }
       select.value = selectedId || '';
+      // Wie eine Auswahl von Hand: Der Editor holt Seite und Kopfzeile dieser Vorlage.
+      select.dispatchEvent(new Event('change', { bubbles: true }));
     } catch (_) { /* ohne Liste bleibt „wie im Ordner“ */ }
   }
 

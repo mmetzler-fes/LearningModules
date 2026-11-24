@@ -202,10 +202,11 @@ export async function openDocumentInk({ mode, mod, up = null, embedModule = null
   // Lehrkraft am eigenen Dokument: hoch oder quer nach der Vorlage (am Dokument oder am Ordner) –
   // das gespeicherte orientation kann veraltet sein, etwa nach einem Wechsel der Vorlage am Ordner.
   let landscape = content.spec?.orientation === 'landscape';
+  let page = null; // Seite der Vorlage: Seitenumbrüche und „volle Breite“ wie im Druck
   if (mode === 'teacher' && isDoc && mod?.id && mod.topicId) {
     try {
       const res = await fetch('/api/worksheets/context', { method: 'POST', headers: authHeaders(), body: JSON.stringify({ moduleId: mod.id, title: mod.title || '' }) });
-      const page = res.ok ? (await res.json())?.page : null;
+      page = res.ok ? (await res.json())?.page || null : null;
       if (page?.width && page?.height) {
         landscape = page.width > page.height;
         if (content.spec) {
@@ -217,6 +218,7 @@ export async function openDocumentInk({ mode, mod, up = null, embedModule = null
   }
   const paper = {
     landscape,
+    page,
     mount(el, { solutions }) {
       if (live) {
         if (!liveMark) {
@@ -320,8 +322,8 @@ export async function openDocumentInk({ mode, mod, up = null, embedModule = null
    * Liefert die Hinweise des Renderers.
    */
   async function printPdf(data, solutions, win) {
-    const { applyInkToSpec } = await import('../../lm-editor/src/ink/ink-print.js');
-    const spec = applyInkToSpec(content.spec || { content: [] }, data);
+    const [{ applyInkToSpec }, { fieldMaxCm }] = await Promise.all([import('../../lm-editor/src/ink/ink-print.js'), import('../../lm-editor/src/ink/ink-view.js')]);
+    const spec = applyInkToSpec(content.spec || { content: [] }, data, { fullCm: fieldMaxCm(paper.landscape, paper.page) });
     const res = await fetch('/api/worksheets/render', {
       method: 'POST',
       headers: authHeaders(),

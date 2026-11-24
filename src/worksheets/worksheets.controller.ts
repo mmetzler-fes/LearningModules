@@ -1,4 +1,5 @@
 import { BadRequestException, Body, Controller, Delete, Get, HttpCode, Param, Post, Query, Request, Res, UploadedFile, UseGuards, UseInterceptors } from '@nestjs/common';
+import { docChanged } from '../core/events/doc-changes';
 import type { Response } from 'express';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { FeatureGuard, RequireFeature } from '../features/feature.guard';
@@ -46,19 +47,25 @@ export class WorksheetsController {
   /** Hochladen: Felder file, name, kind (arbeitsblatt|klassenarbeit), scope (own|school). */
   @Post('templates')
   @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 5 * 1024 * 1024 } }))
-  uploadTemplate(@Request() req: any, @UploadedFile() file: Express.Multer.File) {
-    return this.templates.upload(req.user.userId, { ...req.body, buffer: file?.buffer });
+  async uploadTemplate(@Request() req: any, @UploadedFile() file: Express.Multer.File) {
+    const result = await this.templates.upload(req.user.userId, { ...req.body, buffer: file?.buffer });
+    docChanged(req.user.userId); // hoch/quer der Dokumente (OrientationSyncService)
+    return result;
   }
 
   @Post('templates/:id/default')
   @HttpCode(200)
-  defaultTemplate(@Request() req: any, @Param('id') id: string, @Body() body: { on?: boolean }) {
-    return this.templates.setDefault(req.user.userId, id, body?.on !== false);
+  async defaultTemplate(@Request() req: any, @Param('id') id: string, @Body() body: { on?: boolean }) {
+    const result = await this.templates.setDefault(req.user.userId, id, body?.on !== false);
+    docChanged(req.user.userId);
+    return result;
   }
 
   @Delete('templates/:id')
-  removeTemplate(@Request() req: any, @Param('id') id: string) {
-    return this.templates.remove(req.user.userId, id);
+  async removeTemplate(@Request() req: any, @Param('id') id: string) {
+    const result = await this.templates.remove(req.user.userId, id);
+    docChanged(req.user.userId);
+    return result;
   }
 
   /** Probeblatt mit dieser Vorlage als PDF. */

@@ -15,6 +15,7 @@ import { TopicLink } from '../core/entities/topic-link.entity';
 import { FeaturesModule } from '../features/features.module';
 import { NextcloudModule } from '../nextcloud/nextcloud.module';
 import { WorksheetsController } from './worksheets.controller';
+import { OrientationSyncService } from './orientation-sync.service';
 import { WorksheetsService } from './worksheets.service';
 import { WorksheetRendererClient } from './renderer.client';
 import { PdfAiClient } from './pdf-ai.client';
@@ -36,7 +37,7 @@ import { GoodnotesService } from './goodnotes.service';
     DrawingsModule,
   ],
   controllers: [WorksheetsController, DocMigrationController],
-  providers: [WorksheetsService, PdfImportJobs, WorksheetRendererClient, PdfAiClient, DocNumberingService, CourseService, DocMirrorService, TemplatesService, DocMigrationService, QuizScaleService, GoodnotesService],
+  providers: [WorksheetsService, PdfImportJobs, WorksheetRendererClient, PdfAiClient, DocNumberingService, CourseService, DocMirrorService, TemplatesService, DocMigrationService, QuizScaleService, GoodnotesService, OrientationSyncService],
   exports: [WorksheetsService, GoodnotesService, DocNumberingService, CourseService, DocMirrorService, TemplatesService],
 })
 export class WorksheetsModule {}

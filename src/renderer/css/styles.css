@@ -7077,3 +7077,15 @@ body.html-app-large iframe.lm-app-frame { border: 0; border-radius: 6px; }
 
 /* Bild im Text (![…](…){width=…}): wie ein Zeichen, mittig zur Zeile. */
 .ds-inline-img { display: inline-block; vertical-align: middle; max-width: 100%; height: auto; }
+
+/* Bild zuschneiden (editor/image-crop.js) */
+.ds-crop-dialog { max-width: min(92vw, 900px); }
+.ds-crop-stage { position: relative; display: inline-block; max-width: 100%; user-select: none; touch-action: none; background: repeating-conic-gradient(#eee 0 25%, #fff 0 50%) 0 0 / 16px 16px; }
+.ds-crop-stage img { display: block; max-width: 100%; max-height: 60vh; }
+.ds-crop-sel { position: absolute; box-sizing: border-box; border: 2px solid #2563eb; box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.45); cursor: move; }
+.ds-crop-stage { overflow: hidden; }
+.ds-crop-h { position: absolute; width: 14px; height: 14px; background: #fff; border: 2px solid #2563eb; border-radius: 3px; box-sizing: border-box; }
+.ds-crop-nw { left: -7px; top: -7px; cursor: nwse-resize; } .ds-crop-ne { right: -7px; top: -7px; cursor: nesw-resize; }
+.ds-crop-sw { left: -7px; bottom: -7px; cursor: nesw-resize; } .ds-crop-se { right: -7px; bottom: -7px; cursor: nwse-resize; }
+.ds-crop-n { left: calc(50% - 7px); top: -7px; cursor: ns-resize; } .ds-crop-s { left: calc(50% - 7px); bottom: -7px; cursor: ns-resize; }
+.ds-crop-w { top: calc(50% - 7px); left: -7px; cursor: ew-resize; } .ds-crop-e { top: calc(50% - 7px); right: -7px; cursor: ew-resize; }

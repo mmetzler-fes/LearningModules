@@ -117,7 +117,8 @@ INLINE_RE = re.compile(
     # Formel im Text wie bei Pandoc (und docspec.js): $x^2$, nicht „5 $“ oder „$5 bis $10“.
     r"|\$(?P<math>[^\s$](?:[^$\n]*?[^\s$\\])?)\$(?!\d)"
     r"|(?<![\w*])\*\*\*(?P<bi>\S(?:.*?\S)?)\*\*\*(?![\w*])"
-    r"|(?<![\w*])\*\*(?P<b>\S(?:.*?\S)?)\*\*(?![\w*])"
+    # Wie in KI-Chats: **Titel:**Text – nach einem Satzzeichen schließt ** auch vor einem Buchstaben (wie docspec.js).
+    r"|(?<![\w*])\*\*(?P<b>\S(?:.*?\S)?)\*\*(?:(?![\w*])|(?<=[^\w\s*]\*\*)(?=[^\W_]))"
     r"|(?<![\w*])\*(?P<i>[^\s*](?:.*?[^\s*])?)\*(?![\w*])"
     r"|(?<![\w+])\+\+(?P<u>\S(?:.*?\S)?)\+\+(?![\w+])"
     r"|(?<![\w~])~~(?P<s>\S(?:.*?\S)?)~~(?![\w~])"

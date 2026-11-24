@@ -33,38 +33,21 @@ export const BRIDGE_JS = String.raw`/**
     fitMode = null;
     setZoom(zoom * Math.exp(-Math.max(-100, Math.min(100, e.deltaY)) / 600), true);
   }, { passive: false });
-  /**
-   * Breite des Inhalts: läuft er über, die ganze Breite; sonst nur, was die Elemente wirklich belegen –
-   * eine schmale, mittig gesetzte App hätte sonst rechts und links weißen Rand.
-   */
-  function contentWidth() {
-    var root = document.documentElement;
-    if (root.scrollWidth > root.clientWidth + 1) return root.scrollWidth;
-    var body = document.body;
-    if (!body) return root.clientWidth;
-    var left = Infinity, right = -Infinity;
-    for (var i = 0; i < body.children.length; i++) {
-      var el = body.children[i];
-      if (el.tagName === 'SCRIPT' || el.tagName === 'STYLE') continue;
-      var r = el.getBoundingClientRect();
-      if (!r.width && !r.height) continue;
-      if (r.left < left) left = r.left;
-      if (r.right > right) right = r.right;
-    }
-    return right > left ? Math.max(right - left, 1) : root.clientWidth;
-  }
-  /** So weit zoomen, dass der Inhalt genau die Breite des Rahmens füllt – ohne weißen Rand. */
+  /** So weit zoomen, dass der Inhalt genau in die Breite des Rahmens passt (nie größer als 100 %). */
   function fitWidth() {
     setZoom(1, false);
-    setZoom(document.documentElement.clientWidth / contentWidth(), true, true);
+    var root = document.documentElement;
+    var wide = Math.max(root.scrollWidth, document.body ? document.body.scrollWidth : 0);
+    setZoom(wide > 0 ? Math.min(1, root.clientWidth / wide) : 1, true, true);
   }
   /** Ganze Seite: Breite und Höhe passen in den Rahmen, ohne Scrollen. */
   function fitPage() {
     setZoom(1, false);
     var root = document.documentElement;
     var body = document.body;
+    var wide = Math.max(root.scrollWidth, body ? body.scrollWidth : 0);
     var high = Math.max(root.scrollHeight, body ? body.scrollHeight : 0);
-    var z = Math.min(root.clientWidth / contentWidth(), high > 0 ? root.clientHeight / high : 1);
+    var z = Math.min(wide > 0 ? root.clientWidth / wide : 1, high > 0 ? root.clientHeight / high : 1, 1);
     setZoom(z, true, true);
   }
   function fit(how) {

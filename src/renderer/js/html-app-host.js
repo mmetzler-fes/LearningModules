@@ -180,6 +180,13 @@ export async function mountHtmlApp({ el, moduleId, content, options, title }) {
   // Zoom in der App (Strg + Mausrad, zwei Finger – lm-bridge.js): ↔ passt die App an die Breite an
   // (sie misst ihren Inhalt selbst), die Prozentanzeige setzt auf 100 % zurück.
   const zoomTo = (data) => frame.contentWindow?.postMessage({ lm: 2, type: 'lm.zoom', data }, open.appOrigin);
+  // Einpassen wie mit dem Knopf, solange nicht von Hand gezoomt ist: nach dem Aufbau und wenn sich die
+  // Fläche ändert (Groß/Klein, Drehen, Fenster). Zweimal, falls Bilder oder Schriften noch nachladen.
+  let fitTimers = [];
+  const pressFit = () => {
+    fitTimers.forEach(clearTimeout);
+    fitTimers = [250, 900].map((ms) => setTimeout(() => { if (session.zoomAuto) zoomTo({ fit: session.zoomAuto }); }, ms));
+  };
   const fitBtn = document.createElement('button');
   fitBtn.type = 'button';
   fitBtn.className = 'btn btn-secondary btn-sm';
@@ -336,6 +343,14 @@ export async function mountHtmlApp({ el, moduleId, content, options, title }) {
   }
 
   frame.src = open.shellUrl;
+  let lastSize = '';
+  new ResizeObserver(() => {
+    const size = `${frame.clientWidth}x${frame.clientHeight}`;
+    if (size === lastSize) return;
+    const first = !lastSize;
+    lastSize = size;
+    if (!first) pressFit();
+  }).observe(frame);
   wrap.append(...(bar.childElementCount ? [bar] : []), frame);
   el.appendChild(wrap);
   if (inRun) showInTitle();
@@ -464,6 +479,10 @@ export async function mountHtmlApp({ el, moduleId, content, options, title }) {
         // Ohne eigenen Zoom passt die App sich ein: an die Breite (Standard) oder als ganze Seite (⤢).
         if (session.zoomAuto === undefined) session.zoomAuto = 'width';
         send('lm.init', { mode: open.mode, run: options.appRun || 'quiz', step, state: session.state, displayName: null, zoom: session.zoomAuto ? 1 : (session.zoom || 1), fit: session.zoomAuto || null });
+        break;
+      case 'lm.shown':
+        // Steht die App, einmal wie ein Druck auf ↔ (bzw. ⤢) – erst dann stimmen die Maße überall (auch Android).
+        pressFit();
         break;
       case 'lm.zoom':
         session.zoom = Math.max(0.3, Math.min(3, Number(m.data?.scale) || 1));

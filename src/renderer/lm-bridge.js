@@ -21,31 +21,57 @@
   // Die Seite drumherum sieht die Gesten im Rahmen nicht – deshalb hier. Der Wert geht an
   // LearningModules und kommt beim nächsten Schritt in "init.zoom" zurück.
   var zoom = 1;
-  function setZoom(z, report) {
+  function setZoom(z, report, auto) {
     zoom = Math.max(0.3, Math.min(3, Math.round(z * 100) / 100));
     document.documentElement.style.zoom = zoom === 1 ? '' : String(zoom);
-    if (report) post('lm.zoom', { scale: zoom });
+    if (report) post('lm.zoom', auto ? { scale: zoom, auto: true } : { scale: zoom });
   }
   window.addEventListener('wheel', function (e) {
     if (!e.ctrlKey) return;
     e.preventDefault();
+    fitMode = null;
     setZoom(zoom * Math.exp(-Math.max(-100, Math.min(100, e.deltaY)) / 600), true);
   }, { passive: false });
-  /** So weit zoomen, dass der Inhalt genau in die Breite des Rahmens passt. */
+  /** So weit zoomen, dass der Inhalt genau in die Breite des Rahmens passt (nie größer als 100 %). */
   function fitWidth() {
     setZoom(1, false);
     var root = document.documentElement;
     var wide = Math.max(root.scrollWidth, document.body ? document.body.scrollWidth : 0);
-    setZoom(wide > 0 ? root.clientWidth / wide : 1, true);
+    setZoom(wide > 0 ? Math.min(1, root.clientWidth / wide) : 1, true, true);
   }
+  /** Ganze Seite: Breite und Höhe passen in den Rahmen, ohne Scrollen. */
+  function fitPage() {
+    setZoom(1, false);
+    var root = document.documentElement;
+    var body = document.body;
+    var wide = Math.max(root.scrollWidth, body ? body.scrollWidth : 0);
+    var high = Math.max(root.scrollHeight, body ? body.scrollHeight : 0);
+    var z = Math.min(wide > 0 ? root.clientWidth / wide : 1, high > 0 ? root.clientHeight / high : 1, 1);
+    setZoom(z, true, true);
+  }
+  function fit(how) {
+    if (how === 'page') fitPage(); else fitWidth();
+  }
+  /** Nach dem Aufbau einpassen – und noch einmal, wenn Bilder oder Schriften nachgeladen haben. */
+  function fitSoon(how) {
+    var go = function () { if (fitMode === how) fit(how); };
+    var raf = window.requestAnimationFrame || function (f) { return setTimeout(f, 16); };
+    raf(function () { raf(go); });
+    setTimeout(go, 400);
+    window.addEventListener('load', go, { once: true });
+  }
+  var fitMode = null;
+  window.addEventListener('resize', function () { if (fitMode) fit(fitMode); });
   var pinchFrom = 1;
-  document.addEventListener('gesturestart', function (e) { e.preventDefault(); pinchFrom = zoom; }, { passive: false });
+  document.addEventListener('gesturestart', function (e) { e.preventDefault(); pinchFrom = zoom; fitMode = null; }, { passive: false });
   document.addEventListener('gesturechange', function (e) { e.preventDefault(); setZoom(pinchFrom * e.scale, false); }, { passive: false });
   document.addEventListener('gestureend', function (e) { e.preventDefault(); post('lm.zoom', { scale: zoom }); }, { passive: false });
 
   function run(init) {
     if (init && init.zoom) setZoom(Number(init.zoom) || 1, false);
+    fitMode = init && (init.fit === 'width' || init.fit === 'page') ? init.fit : null;
     if (starter) starter(init);
+    if (fitMode) fitSoon(fitMode);
     post('lm.shown', { text: document.body ? (document.body.innerText || '').trim().length : 0 });
   }
   function manifest() {
@@ -87,8 +113,8 @@
     else if (m.type === 'lm.check') fire('check');
     else if (m.type === 'lm.flush') { fire('flush'); post('lm.flushed', {}); }
     else if (m.type === 'lm.zoom') {
-      if (m.data && m.data.fit === 'width') fitWidth();
-      else setZoom(Number(m.data && m.data.scale) || 1, true);
+      if (m.data && (m.data.fit === 'width' || m.data.fit === 'page')) { fitMode = m.data.fit; fit(fitMode); }
+      else { fitMode = null; setZoom(Number(m.data && m.data.scale) || 1, true); }
     }
     else if (m.type === 'lm.error') {
       fire('error', m.data);

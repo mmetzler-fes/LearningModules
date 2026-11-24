@@ -205,7 +205,11 @@ nicht abfangen. Die Prüfung lehnt `location` und die üblichen Verschleierungen
 kommt aber daran vorbei. Abfließen könnten Eingaben in die App und die IP-Adresse, keine Namen. Im Shop gilt
 Vertrauen in die Lehrkraft: Bis ein Admin eine solche App bemerkt und sperrt, kann sie bei anderen laufen.
 
-**⛶ Groß:** Der Knopf steht im Durchlauf in der Titelleiste. Die App füllt dann die freie Fläche, auch für die nächsten Schritte. Die Eule bleibt sichtbar. Auf dem iPad stehen auch Zurück, Weiter und Quiz abbrechen in der Titelleiste, sonst bleiben sie in der Zeile unter der App.
+**⛶ Groß / ⤡ Klein:** Im Durchlauf füllt die App von Anfang an die freie Fläche (Groß), auch für die nächsten Schritte; „⤡ Klein“ zeigt wieder die Kopfzeilen. Die Eule bleibt sichtbar. Auf dem iPad stehen auch Zurück, Weiter und Quiz abbrechen in der Titelleiste, sonst bleiben sie in der Zeile unter der App.
+
+**Einpassen:** Ohne eigenen Zoom passt sich die App beim Start an die Breite an (nie über 100 %), **⤢** passt die ganze Seite ein (Breite und Höhe, ohne Scrollen) – beides gilt auch für die nächsten Schritte, bis jemand von Hand zoomt (Strg + Mausrad, zwei Finger). Hat die App mehrere Seiten, wählt man sie oben in der Titelleiste (nicht in Klassenarbeit und Lernbegleitung).
+
+**Handy (unter 700 px):** Alles in einer Zeile oben – ◀ Zurück, Seitenauswahl, Einpassen, Zoom, ▶ Weiter, ✕ Abbrechen –, keine Zeile unter der App; die App nutzt den ganzen Bildschirm.
 
 ## Was im Sandkasten geht
 

@@ -138,7 +138,7 @@ export async function mountHtmlApp({ el, moduleId, content, options, title }) {
   });
   const big = document.createElement('button');
   big.type = 'button';
-  big.className = 'btn btn-secondary btn-sm';
+  big.className = 'btn btn-secondary btn-sm lm-app-big';
   big.textContent = '⛶ Groß';
 
   // „Überprüfen“ ohne Durchlauf (App im Dokument, Vorschau): Im Durchlauf drückt der Prüfen-Knopf
@@ -186,7 +186,15 @@ export async function mountHtmlApp({ el, moduleId, content, options, title }) {
   fitBtn.textContent = '↔';
   fitBtn.title = 'App an die Breite anpassen (zoomen: Strg + Mausrad oder zwei Finger)';
   fitBtn.setAttribute('aria-label', fitBtn.title);
-  fitBtn.addEventListener('click', () => zoomTo({ fit: 'width' }));
+  fitBtn.addEventListener('click', () => { session.zoomAuto = 'width'; zoomTo({ fit: 'width' }); });
+  // ⤢ Ganze Seite: Breite und Höhe passen hinein (kann klein werden) – gilt auch für die nächsten Schritte.
+  const pageBtn = document.createElement('button');
+  pageBtn.type = 'button';
+  pageBtn.className = 'btn btn-secondary btn-sm';
+  pageBtn.textContent = '⤢';
+  pageBtn.title = 'Ganze Seite der App einpassen (ohne Scrollen)';
+  pageBtn.setAttribute('aria-label', pageBtn.title);
+  pageBtn.addEventListener('click', () => { session.zoomAuto = 'page'; zoomTo({ fit: 'page' }); });
   const zoomBtn = document.createElement('button');
   zoomBtn.type = 'button';
   zoomBtn.className = 'btn btn-secondary btn-sm';
@@ -198,6 +206,7 @@ export async function mountHtmlApp({ el, moduleId, content, options, title }) {
   };
   zoomBtn.addEventListener('click', () => {
     session.zoom = 1;
+    session.zoomAuto = null;
     showZoom();
     zoomTo({ scale: 1 });
   });
@@ -280,12 +289,50 @@ export async function mountHtmlApp({ el, moduleId, content, options, title }) {
   if (inRun) {
     titleSlot.className = 'quiz-info-actions lm-app-title-actions';
     hint.classList.add('lm-app-title-hint');
-    titleSlot.append(hint, fitBtn, zoomBtn, big);
+    // Schritt der App wählen (wie LM.goto) – nicht in Klassenarbeit und Lernbegleitung.
+    const steps = stepsOf(open.manifest);
+    if (!exam && steps.length > 1 && step) {
+      const pick = document.createElement('select');
+      pick.className = 'lm-app-step-pick';
+      pick.title = 'Seite der App wählen';
+      pick.setAttribute('aria-label', pick.title);
+      for (const s of steps) {
+        const opt = document.createElement('option');
+        opt.value = s.id;
+        opt.textContent = s.unitTitle && s.unitTitle !== s.title ? `${s.unitTitle}: ${s.title}` : s.title;
+        opt.selected = s.id === step.id;
+        pick.appendChild(opt);
+      }
+      pick.addEventListener('change', () => {
+        const ev = new CustomEvent('lm-app-goto', { bubbles: true, cancelable: true, detail: { rootId: content?.rootId || null, step: pick.value } });
+        wrap.dispatchEvent(ev);
+        if (!ev.defaultPrevented) pick.value = step.id; // Schritt nicht in diesem Durchlauf
+      });
+      titleSlot.append(pick);
+    }
+    // Handy (schmal, styles.css): Zurück, Weiter und Abbrechen hier oben – die untere Leiste entfällt dort.
+    const proxy = (text, title, id, cls = 'btn-secondary') => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = `btn ${cls} btn-sm lm-app-nav`;
+      b.textContent = text;
+      b.title = title;
+      b.setAttribute('aria-label', title);
+      b.addEventListener('click', () => document.getElementById(id)?.click());
+      return b;
+    };
+    const prevBtn = proxy('◀', 'Zurück', 'btnQuizPrev');
+    const prevOrig = document.getElementById('btnQuizPrev');
+    if (!prevOrig || prevOrig.style.display === 'none') prevBtn.disabled = true;
+    const nextBtn = proxy('▶', document.getElementById('btnQuizNext')?.textContent?.replace(/[→\s]+$/, '') || 'Weiter', 'btnQuizNext', 'btn-primary');
+    const quitBtn = proxy('✕', 'Quiz abbrechen', 'btnQuizCancel');
+    titleSlot.prepend(prevBtn);
+    titleSlot.append(hint, fitBtn, pageBtn, zoomBtn, big, nextBtn, quitBtn);
   } else {
     const gap = document.createElement('span');
     gap.className = 'lm-app-gap';
     bar.prepend(hint);
-    bar.append(checkBtn, verdict, gap, fitBtn, zoomBtn, big);
+    bar.append(checkBtn, verdict, gap, fitBtn, pageBtn, zoomBtn, big);
   }
 
   frame.src = open.shellUrl;
@@ -301,7 +348,8 @@ export async function mountHtmlApp({ el, moduleId, content, options, title }) {
   let large = false;
   const setLarge = (on) => {
     large = on;
-    big.textContent = on ? '✕ Verkleinern' : '⛶ Groß';
+    big.textContent = on ? '⤡ Klein' : '⛶ Groß';
+    big.title = on ? 'Wieder mit Kopfzeilen anzeigen' : 'App über die ganze freie Fläche';
     if (inRun) {
       session.large = on;
       document.body.classList.toggle('html-app-large', on);
@@ -367,7 +415,10 @@ export async function mountHtmlApp({ el, moduleId, content, options, title }) {
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && large && !inRun && layer) { e.preventDefault(); setLarge(false); } });
   big.addEventListener('click', () => setLarge(!large));
   // Der nächste Schritt baut seinen Rahmen neu auf; „Groß“ bleibt.
-  if (inRun && session.large) setLarge(true);
+  // Standard im Durchlauf: Groß (Wunsch der Lehrkraft, überall) – bis jemand „Klein“ wählt.
+  // Auf dem Handy immer groß (dort gibt es keinen Knopf „Klein“, styles.css).
+  const phone = () => !!window.matchMedia?.('(max-width: 700px)').matches;
+  if (inRun && (session.large !== false || phone())) setLarge(true);
 
   const send = (type, data) => frame.contentWindow?.postMessage({ lm: 2, type, data }, open.appOrigin);
   const refuse = (code, message) => send('lm.error', { code, message });
@@ -380,7 +431,7 @@ export async function mountHtmlApp({ el, moduleId, content, options, title }) {
     reveal: () => send('lm.reveal', {}),
     check: () => send('lm.check', {}),
     /** Zurückgeblättert: Die Ansicht ist wieder da, „Groß“ gilt wie zuletzt gewählt. */
-    syncLarge: () => { if (inRun) { showInTitle(); setLarge(!!session.large); } },
+    syncLarge: () => { if (inRun) { showInTitle(); setLarge(session.large !== false || phone()); } },
     /** Offene Eingabe abschließen lassen; die Antwort ist da, wenn das Versprechen erfüllt ist. */
     flush: () => new Promise((resolve) => {
       const done = () => { flushDone = null; resolve(); };
@@ -410,10 +461,13 @@ export async function mountHtmlApp({ el, moduleId, content, options, title }) {
     if (e.origin !== open.appOrigin || e.source !== frame.contentWindow || !m || m.lm !== 2) return;
     switch (m.type) {
       case 'lm.ready':
-        send('lm.init', { mode: open.mode, run: options.appRun || 'quiz', step, state: session.state, displayName: null, zoom: session.zoom || 1 });
+        // Ohne eigenen Zoom passt die App sich ein: an die Breite (Standard) oder als ganze Seite (⤢).
+        if (session.zoomAuto === undefined) session.zoomAuto = 'width';
+        send('lm.init', { mode: open.mode, run: options.appRun || 'quiz', step, state: session.state, displayName: null, zoom: session.zoomAuto ? 1 : (session.zoom || 1), fit: session.zoomAuto || null });
         break;
       case 'lm.zoom':
         session.zoom = Math.max(0.3, Math.min(3, Number(m.data?.scale) || 1));
+        if (!m.data?.auto) session.zoomAuto = null; // von Hand gezoomt: gilt so weiter
         showZoom();
         break;
       case 'lm.answer':

@@ -7008,3 +7008,18 @@ body.ws-on .login-card.login-card-wide {
 @media (pointer: coarse), (max-width: 1000px) {
   #view-create-module .ds-preview-bar .ds-import-odt { margin-left: 0 !important; }
 }
+
+/* HTML-App im Durchlauf auf dem Handy: eine Zeile oben (◀, Seite, Zoom, ▶, ✕), keine untere Leiste,
+   die App über die ganze Fläche (html-app-host.js). Breiter: die Nav-Knöpfe oben gibt es nicht. */
+.lm-app-title-actions .lm-app-nav { display: none; }
+@media (max-width: 700px) {
+  body.html-app-large .quiz-actions { display: none; }
+  body.html-app-large .quiz-progress-bar { margin: 0; }
+  body.html-app-large #quizInfo { display: flex; flex-wrap: nowrap; align-items: center; gap: 4px; padding: 4px 6px; margin: 0; overflow-x: auto; }
+  body.html-app-large #quizInfo > :not(.lm-app-title-actions) { display: none; }
+  body.html-app-large .lm-app-title-actions { display: flex; flex-wrap: nowrap; align-items: center; gap: 4px; width: 100%; margin: 0; }
+  body.html-app-large .lm-app-title-actions .lm-app-nav { display: inline-flex; min-width: 36px; justify-content: center; }
+  body.html-app-large .lm-app-title-actions .lm-app-step-pick { flex: 1 1 auto; min-width: 0; max-width: none; }
+  body.html-app-large #quizModuleContainer { padding: 0 !important; }
+  body.html-app-large .lm-app-title-actions .lm-app-big { display: none; } /* auf dem Handy immer groß */
+}

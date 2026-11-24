@@ -266,7 +266,8 @@ export class NotebookPreview {
       // Heft fürs ganze Lernthema – auch hier, nicht nur im ⋯ des Lernthemas, wo man es am Dokument nicht sucht.
       this._button('📓 GoodNotes', `Alle Dokumente von „${topic.title}“ als ein Heft (PDF) für GoodNotes – Schülerheft, Lösungsheft, Adresse mit QR-Code`, () => openGoodnotesDialog(this.app, topic));
     }
-    const wholePage = () => this.app.modulesView.openFrom(this._opts.from, topic.id, mod, 'preview');
+    // Über die ganze Seite – mit Weiter/Zurück durch die übrigen Module des Lernthemas.
+    const wholePage = () => this.app.modulesView.openTopicPlayer(this._opts.from, topic.id, mod.id);
     this._button('⛶ Vollbild', 'Vorschau über die ganze Seite', wholePage);
     this._setLabelAction(wholePage);
     this._setLabel(this._label?.textContent || '👁 Vorschau', mod.title || '');
@@ -326,6 +327,13 @@ export class NotebookPreview {
     }
     const mods = (topic.modules || []).slice().sort((a, b) => a.orderIndex - b.orderIndex);
     const roots = mods.filter((m) => !m.parentId);
+    if (roots.length) {
+      // Alle Module nacheinander über die ganze Seite (◀ Zurück / Weiter ▶).
+      const all = () => this.app.modulesView.openTopicPlayer(this._opts.from, topic.id);
+      this._button('⛶ Vollbild', roots.length > 1 ? `Alle ${roots.length} Module nacheinander über die ganze Seite – mit Weiter und Zurück` : 'Über die ganze Seite', all);
+      this._setLabelAction(all);
+      this._setLabel(this._label?.textContent || '👁 Vorschau', topic.title || '');
+    }
     const state = topic.isOwn
       ? (topic.selected ? '● für Schüler freigegeben' : '○ nicht freigegeben')
       : `🔗 erworben von ${escapeHtml(topic.ownerName || '')}`;

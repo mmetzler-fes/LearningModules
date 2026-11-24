@@ -7067,3 +7067,6 @@ body.html-app-large iframe.lm-app-frame { border: 0; border-radius: 6px; }
 /* Notizbuch-Vorschau: Titel anklickbar → Vorschau über die ganze Seite (notebook-preview.js). */
 .nb-preview-label-link { cursor: pointer; }
 .nb-preview-label-link:hover, .nb-preview-label-link:focus-visible { color: var(--accent); text-decoration: underline; }
+
+/* Spieler: Weiter/Zurück durch die Module eines Lernthemas (modules.js openTopicPlayer). */
+.player-seq { display: inline-flex; align-items: center; gap: 6px; margin-right: 8px; }

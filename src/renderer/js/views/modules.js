@@ -567,7 +567,35 @@ export class ModulesView {
       : '';
   }
 
-  _openPlayer(mod) {
+  /**
+   * Alle Module eines Lernthemas nacheinander über die ganze Seite (◀ Zurück / Weiter ▶, Pfeiltasten) –
+   * ab `startId` oder vom ersten. Eingebettete Module (in Dokumenten) laufen dort mit, nicht einzeln.
+   */
+  async openTopicPlayer(view, topicId, startId = null) {
+    this.app.state.returnView = view;
+    this.app.state.currentTopicId = topicId;
+    this.app.state.currentTopicModules = await this.app.api.getTopicModules(topicId);
+    const list = (this.app.state.currentTopicModules || []).filter((m) => !m.parentId).sort((a, b) => (a.orderIndex ?? 0) - (b.orderIndex ?? 0));
+    if (!list.length) return;
+    const i = Math.max(0, list.findIndex((m) => m.id === startId));
+    this._openPlayer(list[i], list.length > 1 ? list : null);
+  }
+
+  /** Weiter/Zurück im Spieler: Pfeiltasten, solange er offen ist und nicht in ein Feld getippt wird. */
+  _bindPlayerKeys() {
+    if (this._playerKeys) return;
+    this._playerKeys = true;
+    document.addEventListener('keydown', (e) => {
+      if (!this._playerList || !document.getElementById('view-player')?.classList.contains('active')) return;
+      if (e.altKey || e.ctrlKey || e.metaKey || !['ArrowLeft', 'ArrowRight'].includes(e.key)) return;
+      if (e.target.closest?.('input, textarea, select, [contenteditable="true"], .ink-overlay')) return;
+      const nav = this._playerActions.querySelector(e.key === 'ArrowRight' ? '[data-player="next"]' : '[data-player="prev"]');
+      if (nav && !nav.disabled) { e.preventDefault(); nav.click(); }
+    });
+  }
+
+  _openPlayer(mod, list = null) {
+    this._playerList = list && list.some((m) => m.id === mod.id) ? list : null;
     const typeDef = H5P_TYPES[mod.type] || {};
     this._playerTitle.textContent = mod.title;
     this._playerTitle.title = mod.title || '';
@@ -587,11 +615,27 @@ export class ModulesView {
         onSaved: async () => {
           this.app.state.currentTopicModules = await this.app.api.getTopicModules(topicId);
           const fresh = this.app.state.currentTopicModules.find((m) => m.id === mod.id);
-          if (fresh && document.getElementById('view-player')?.classList.contains('active')) this._openPlayer(fresh);
+          if (fresh && document.getElementById('view-player')?.classList.contains('active')) this._openPlayer(fresh, this._playerList);
         },
       } : null,
     } : {});
     if (mod.type === 'document') moveDocumentControls(this._h5pContainer, mod, this._playerActions);
+    if (this._playerList) {
+      const list = this._playerList;
+      const i = list.findIndex((m) => m.id === mod.id);
+      const nav = document.createElement('span');
+      nav.className = 'player-seq';
+      nav.innerHTML = `<button type="button" class="btn btn-secondary btn-sm" data-player="prev" title="Voriges Modul (←)">◀ Zurück</button>
+        <span class="hint">${i + 1} / ${list.length}</span>
+        <button type="button" class="btn btn-secondary btn-sm" data-player="next" title="Nächstes Modul (→)">Weiter ▶</button>`;
+      const [prev, next] = nav.querySelectorAll('button');
+      prev.disabled = i <= 0;
+      next.disabled = i >= list.length - 1;
+      prev.addEventListener('click', () => this._openPlayer(list[i - 1], list));
+      next.addEventListener('click', () => this._openPlayer(list[i + 1], list));
+      this._playerActions.prepend(nav);
+      this._bindPlayerKeys();
+    }
   }
 
   /** Editor verlassen (Abbrechen, Klick in der Kontextzeile) – ungespeicherte Änderungen nur nach Rückfrage. */

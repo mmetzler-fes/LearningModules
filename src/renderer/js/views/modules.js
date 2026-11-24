@@ -259,14 +259,15 @@ export class ModulesView {
   }
 
   /** Modul aus einer anderen Ansicht heraus bearbeiten, neu anlegen (mod = null) oder ansehen. */
-  async openFrom(view, topicId, mod, action = 'edit') {
+  /** `preset` (nur bei neuem Modul): { type, title } vorbelegen – z. B. „📄 Neues Dokument“ im Notizbuch. */
+  async openFrom(view, topicId, mod, action = 'edit', preset = null) {
     this.app.state.returnView = view;
     this.app.state.currentTopicId = topicId;
     this.app.state.currentTopicModules = await this.app.api.getTopicModules(topicId);
     const full = mod ? this.app.state.currentTopicModules.find((m) => m.id === mod.id) || mod : null;
     if (action === 'preview' && full) this._openPlayer(full);
     else if (full) this._openEditor(full);
-    else await this.openNew();
+    else await this.openNew(preset);
   }
 
   populateTypeSelects() {
@@ -734,7 +735,7 @@ export class ModulesView {
   // wieder (auch an einem anderen Gerät), gibt es ihn zur Wiederherstellung.
 
   /** Neues Modul: einen offenen Entwurf für ein neues Modul in diesem Thema anbieten. */
-  async openNew() {
+  async openNew(preset = null) {
     this._resetModuleForm();
     this.app.navigateToView('create-module');
     const topicId = this.app.state.currentTopicId;
@@ -760,10 +761,18 @@ export class ModulesView {
       );
       if (restore) {
         const full = d.local ? { data: d.local.data } : await this.app.api.getDraft(d.draftKey).catch(() => null);
-        if (full && full.data) { this._applyDraftData(full.data); key = d.draftKey; }
+        if (full && full.data) { this._applyDraftData(full.data); key = d.draftKey; preset = null; }
       } else {
         await this.app.api.deleteDraft(d.draftKey).catch(() => {});
         await localDrafts.remove(user, d.draftKey);
+      }
+    }
+    // Vorbelegt (z. B. „📄 Neues Dokument“): Typ und Titel stehen schon, der Editor ist offen.
+    if (preset) {
+      if (preset.title) this._moduleTitleInput.value = preset.title;
+      if (preset.type && this._moduleTypeSelect) {
+        this._moduleTypeSelect.value = preset.type;
+        this._moduleTypeSelect.dispatchEvent(new Event('change'));
       }
     }
     // Das neue Modul behält die ID des Entwurfs – so findet „Speichern“ ihn wieder.

@@ -1216,6 +1216,9 @@ export class NotebooksView {
     if (node.kind !== 'section') items.push({ label: '➕ Neuer Bereich', run: () => this._createNode('area', node.id) });
     if (node.kind !== 'section') items.push({ label: '➕ Neuer Abschnitt', run: () => this._createNode('section', node.id) });
     items.push({ label: '➕ Neues Lernthema', run: () => this._createTopic(node.id) });
+    if ((this.app.state.currentUser?.features || []).includes('worksheets')) {
+      items.push({ label: '📄 Neues Dokument', title: 'Lernthema und gleichnamiges Dokument in einem Schritt – der Editor öffnet sich gleich', run: () => this._createDocument(node.id) });
+    }
     items.push('-');
     items.push({ label: '📒 Klassennotizbuch zuweisen…', title: 'In das Klassennotizbuch einer oder mehrerer Klassen – die Schüler finden es dort mit Name und PIN', run: () => this._assignToClassbook({ kind: 'node', node }) });
     items.push({ label: '🔗 Quick-Link', title: 'Anonymer Link + QR-Code für alle Lernthemen darin – ohne Anmeldung, nichts wird gespeichert', run: () => this._quickLinkNode(node) });
@@ -1908,6 +1911,22 @@ export class NotebooksView {
     this._open.add('t:' + topic.id);
     this._saveOpen();
     await this.refresh();
+  }
+
+  /**
+   * 📄 Neues Dokument: einmal den Titel – daraus das Lernthema im Ordner und ein Dokument
+   * gleichen Namens (der Modul-Editor öffnet sich mit Typ und Titel; gespeichert wird dort).
+   */
+  async _createDocument(nodeId) {
+    const title = await this._ask('📄 Neues Dokument', 'Titel');
+    if (!title) return;
+    const topic = await this.app.api.saveTopic({ title, description: '' });
+    if (failed(topic) || !topic.id) { this.app.showToast('Fehler: ' + (topic?.message || 'Anlegen fehlgeschlagen'), 'error'); return; }
+    await this.app.api.moveInNotebook('topic', topic.id, nodeId, null);
+    this._open.add('n:' + nodeId);
+    this._open.add('t:' + topic.id);
+    this._saveOpen();
+    await this.app.modulesView.openFrom('teacher-notebooks', topic.id, null, 'edit', { type: 'document', title });
   }
 
   /** Eigene Tags eines Lernthemas; geerbte (vom Platz) bleiben. */

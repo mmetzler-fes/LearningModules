@@ -370,9 +370,81 @@ def write_fixed(path: Path) -> None:
         path.write_text(fixed, encoding="utf-8")
 
 
+# Linieneigenschaften, die ein Verbinder an seine Ersatzlinie weitergibt.
+LINE_PROPS = ("LineStyle", "LineColor", "LineWidth", "LineTransparence", "LineDash", "LineDashName",
+              "LineJoint", "LineCap", "LineStartName", "LineStart", "LineStartWidth", "LineStartCenter",
+              "LineEndName", "LineEnd", "LineEndWidth", "LineEndCenter")
+
+
+def _connectors(source) -> list:
+    return [s for s in _walk(source) if s.supportsService("com.sun.star.drawing.ConnectorShape")]
+
+
+def connector_routes(source) -> list:
+    """Verlauf jedes Verbinders, wie Writer ihn zeichnet (für fix_connectors)."""
+    routes = []
+    for c in _connectors(source):
+        try:
+            routes.append((c.StartPosition, c.PolyPolygonBezier))
+        except Exception:  # noqa: BLE001
+            routes.append(None)
+    return routes
+
+
+def fix_connectors(draw, page, routes: list) -> None:
+    """Verbinder, die an keiner Form hängen, legt Draw beim Einfügen neu (Standard-
+    Verbinder: aus „hoch–quer–runter“ wird „quer–hoch–quer“). Sie werden durch eine
+    Linie mit dem Verlauf aus Writer ersetzt – nur, wenn die Zuordnung sicher ist."""
+    pasted = []
+    for i in range(page.getCount()):
+        pasted += _connectors(page.getByIndex(i))
+    if len(pasted) != len(routes):
+        return
+    offset = None
+    for c, route in zip(pasted, routes):
+        if route is None:
+            continue
+        start, bez = route
+        d = (c.StartPosition.X - start.X, c.StartPosition.Y - start.Y)
+        if offset is None:
+            offset = d
+        elif abs(d[0] - offset[0]) > 2 or abs(d[1] - offset[1]) > 2:
+            return  # Reihenfolge passt nicht – lieber nichts ändern
+    if offset is None:
+        return
+    for c, route in zip(pasted, routes):
+        if route is None or c.EdgeKind.value == "LINE":
+            continue  # gerade Verbinder bleiben, wie sie sind
+        try:
+            if c.StartShape is not None or c.EndShape is not None or c.getString():
+                continue
+        except Exception:  # noqa: BLE001
+            continue
+        _start, bez = route
+        P = lambda p: uno.createUnoStruct("com.sun.star.awt.Point", p.X + offset[0], p.Y + offset[1])  # noqa: E731
+        coords = tuple(tuple(P(p) for p in poly) for poly in bez.Coordinates)
+        if c.PolyPolygonBezier.Coordinates and [[(p.X, p.Y) for p in poly] for poly in c.PolyPolygonBezier.Coordinates] \
+                == [[(p.X, p.Y) for p in poly] for poly in coords]:
+            continue  # unverändert
+        line = draw.createInstance("com.sun.star.drawing.OpenBezierShape")
+        parent = c.getParent()
+        parent.add(line)
+        new = uno.createUnoStruct("com.sun.star.drawing.PolyPolygonBezierCoords")
+        new.Coordinates = coords
+        new.Flags = bez.Flags
+        line.PolyPolygonBezier = new
+        for name in LINE_PROPS:
+            try:
+                line.setPropertyValue(name, c.getPropertyValue(name))
+            except Exception:  # noqa: BLE001
+                pass
+        parent.remove(c)
+
+
 def to_odg(smgr, ctx, desktop, doc, shape, target: Path) -> None:
     """Die Form über die (prozessinterne) Zwischenablage in ein neues Draw-Dokument;
     die Seite wird so groß wie die Zeichnung."""
+    routes = connector_routes(shape)
     ctrl = doc.getCurrentController()
     ctrl.select(shape)
     clip = smgr.createInstanceWithContext("com.sun.star.datatransfer.clipboard.SystemClipboard", ctx)
@@ -384,6 +456,8 @@ def to_odg(smgr, ctx, desktop, doc, shape, target: Path) -> None:
         page = draw.getDrawPages().getByIndex(0)
         if page.getCount() == 0:
             raise RuntimeError("nichts eingefügt")
+        if routes:
+            fix_connectors(draw, page, routes)
         left, top, right, bottom = bounds(page)
         for i in range(page.getCount()):
             s = page.getByIndex(i)

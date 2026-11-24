@@ -7089,3 +7089,6 @@ body.html-app-large iframe.lm-app-frame { border: 0; border-radius: 6px; }
 .ds-crop-sw { left: -7px; bottom: -7px; cursor: nesw-resize; } .ds-crop-se { right: -7px; bottom: -7px; cursor: nwse-resize; }
 .ds-crop-n { left: calc(50% - 7px); top: -7px; cursor: ns-resize; } .ds-crop-s { left: calc(50% - 7px); bottom: -7px; cursor: ns-resize; }
 .ds-crop-w { top: calc(50% - 7px); left: -7px; cursor: ew-resize; } .ds-crop-e { top: calc(50% - 7px); right: -7px; cursor: ew-resize; }
+
+.ds-pm-surface img.ds-inline-img { cursor: pointer; }
+.ds-pm-surface img.ds-inline-img.ProseMirror-selectednode { outline: 2px solid #2563eb; outline-offset: 1px; }

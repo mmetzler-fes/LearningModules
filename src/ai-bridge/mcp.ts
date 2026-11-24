@@ -81,8 +81,8 @@ export const MCP_TOOLS: Array<{ name: string; description: string; inputSchema: 
 MCP_TOOLS.push(
   {
     name: 'get_feedback',
-    description: 'Nur Admin: Rückmeldungen zur App (💬 Feedback) – offene zuerst, nach Priorität. Namen gekürzt (Klasse · Vorname N.). "hasImage": Bereichsfoto mit get_feedback_image ansehen.',
-    inputSchema: { type: 'object', properties: {}, additionalProperties: false },
+    description: 'Nur Admin: Rückmeldungen zur App (💬 Feedback), nach Priorität. Standard: nur offene; status "done" oder "all" für erledigte bzw. alle. Namen gekürzt (Klasse · Vorname N.). "hasImage": Bereichsfoto mit get_feedback_image ansehen.',
+    inputSchema: { type: 'object', properties: { status: { type: 'string', enum: ['open', 'done', 'all'], description: 'Welche (Standard: open)' } }, additionalProperties: false },
   },
   {
     name: 'get_feedback_image',
@@ -149,9 +149,12 @@ export async function handleMcp(msg: Rpc, bridge: McpBridge, server = { name: 'L
           case 'get_document': return ok(text(await bridge.document(session, String(args.moduleId || ''))));
           case 'get_docspec_reference': return ok(text(bridge.docSpecReference()));
           case 'get_quiz_reference': return ok(text(bridge.quizReference(String(args.types || ''))));
-          case 'get_feedback':
+          case 'get_feedback': {
             if (!bridge.feedbackList) break;
-            return ok(text(await bridge.feedbackList(session)));
+            const want = ['open', 'done', 'all'].includes(args.status) ? args.status : 'open';
+            const list = await bridge.feedbackList(session);
+            return ok(text(want === 'all' || !Array.isArray(list) ? list : list.filter((f: any) => (f?.status || 'open') === want)));
+          }
           case 'get_feedback_image': {
             if (!bridge.feedbackImage) break;
             const img = await bridge.feedbackImage(session, String(args.id || ''));

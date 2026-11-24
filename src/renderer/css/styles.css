@@ -7056,3 +7056,7 @@ body.html-app-large iframe.lm-app-frame { border: 0; border-radius: 6px; }
   body.html-app-large iframe.lm-app-frame { border: 0; border-radius: 0; }
   body.html-app-large .quiz-progress-bar { margin: 0 !important; border-radius: 0; }
 }
+
+/* Notizbuch-Vorschau: Titel anklickbar → Vorschau über die ganze Seite (notebook-preview.js). */
+.nb-preview-label-link { cursor: pointer; }
+.nb-preview-label-link:hover, .nb-preview-label-link:focus-visible { color: var(--accent); text-decoration: underline; }

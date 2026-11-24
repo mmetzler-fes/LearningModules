@@ -65,11 +65,14 @@ describe('MCP-Server der KI-Schnittstelle', () => {
   it('Feedback-Werkzeuge: Liste, Bereichsfoto als Bild, Status setzen; ohne Admin eine Meldung', async () => {
     const updates: any[] = [];
     const admin = bridge({
-      feedbackList: async () => [{ id: 'f1', text: 'Knopf fehlt', hasImage: true }],
+      feedbackList: async () => [{ id: 'f1', text: 'Knopf fehlt', hasImage: true, status: 'open' }, { id: 'f0', text: 'Alt', status: 'done' }],
       feedbackImage: async () => ({ type: 'image/png', data: Buffer.from('PNG') }),
       feedbackUpdate: async (_s, id, patch) => { updates.push({ id, ...patch }); return { success: true }; },
     });
-    expect((await handleMcp(call('get_feedback'), admin)).result.content[0].text).toMatch(/Knopf fehlt/);
+    const open = (await handleMcp(call('get_feedback'), admin)).result.content[0].text;
+    expect(open).toMatch(/Knopf fehlt/);
+    expect(open).not.toMatch(/Alt/);
+    expect((await handleMcp(call('get_feedback', { status: 'all' }), admin)).result.content[0].text).toMatch(/Alt/);
     expect((await handleMcp(call('get_feedback_image', { id: 'f1' }), admin)).result.content[0])
       .toEqual({ type: 'image', data: Buffer.from('PNG').toString('base64'), mimeType: 'image/png' });
     await handleMcp(call('update_feedback', { id: 'f1', status: 'done', priority: 2, adminNote: 'behoben' }), admin);

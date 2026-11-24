@@ -47,6 +47,10 @@ export class NotebookPreview {
     this._pane = el('pane');
     this._head = el('actions');
     this._label = el('label');
+    // Klick auf den Titel der Vorschau: Vorschau über die ganze Seite (wie ⛶ Vollbild), wenn ein Modul gezeigt wird.
+    this._labelAction = null;
+    this._label?.addEventListener('click', () => this._labelAction?.());
+    this._label?.addEventListener('keydown', (e) => { if ((e.key === 'Enter' || e.key === ' ') && this._labelAction) { e.preventDefault(); this._labelAction(); } });
     this._body = el('body');
     this._layout = loadLayout(this._opts.layoutKey);
     // Module je Lernthema (voller Inhalt) – bis zum nächsten Neuladen der Ansicht.
@@ -154,14 +158,23 @@ export class NotebookPreview {
     if (window.speechSynthesis) window.speechSynthesis.cancel();
     this._body.innerHTML = '';
     this._head.innerHTML = '';
+    this._setLabelAction(null);
     this._setLabel('👁 Vorschau');
+  }
+
+  /** Titel der Vorschau anklickbar machen (oder nicht). */
+  _setLabelAction(run) {
+    this._labelAction = run;
+    if (!this._label) return;
+    this._label.classList.toggle('nb-preview-label-link', !!run);
+    if (run) { this._label.setAttribute('role', 'button'); this._label.tabIndex = 0; } else { this._label.removeAttribute('role'); this._label.removeAttribute('tabindex'); }
   }
 
   /** Text in der Titelleiste; ein langer Titel wird gekürzt und steht ganz im Tooltip. */
   _setLabel(text, title = '') {
     if (!this._label) return;
     this._label.textContent = text;
-    this._label.title = title;
+    this._label.title = this._labelAction ? `${title ? `${title} – ` : ''}Klick: Vorschau über die ganze Seite` : title;
   }
 
   /** Dokument: Titel und Knöpfe in die feste Titelleiste (document-bar.js), gleich hinter ✍️ Stift. */
@@ -253,7 +266,10 @@ export class NotebookPreview {
       // Heft fürs ganze Lernthema – auch hier, nicht nur im ⋯ des Lernthemas, wo man es am Dokument nicht sucht.
       this._button('📓 GoodNotes', `Alle Dokumente von „${topic.title}“ als ein Heft (PDF) für GoodNotes – Schülerheft, Lösungsheft, Adresse mit QR-Code`, () => openGoodnotesDialog(this.app, topic));
     }
-    this._button('⛶ Vollbild', 'Vorschau über die ganze Seite', () => this.app.modulesView.openFrom(this._opts.from, topic.id, mod, 'preview'));
+    const wholePage = () => this.app.modulesView.openFrom(this._opts.from, topic.id, mod, 'preview');
+    this._button('⛶ Vollbild', 'Vorschau über die ganze Seite', wholePage);
+    this._setLabelAction(wholePage);
+    this._setLabel(this._label?.textContent || '👁 Vorschau', mod.title || '');
     this._body.innerHTML = '<p class="hint">Wird geladen …</p>';
 
     let modules;

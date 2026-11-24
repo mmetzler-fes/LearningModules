@@ -2,13 +2,16 @@ import AdmZip from 'adm-zip';
 import { odtToHtml, usableTitle, wrapLine } from './odt';
 
 /** Kleinstes Writer-Dokument mit dem gegebenen Inhalt von office:text. */
-function odt(body: string): Buffer {
+function odt(body: string, autoStyles = ''): Buffer {
   const zip = new AdmZip();
   zip.addFile('mimetype', Buffer.from('application/vnd.oasis.opendocument.text'));
   zip.addFile('content.xml', Buffer.from(
     '<?xml version="1.0" encoding="UTF-8"?><office:document-content xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" '
     + 'xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0" xmlns:draw="urn:oasis:names:tc:opendocument:xmlns:drawing:1.0" '
-    + 'xmlns:svg="urn:oasis:names:tc:opendocument:xmlns:svg-compatible:1.0" xmlns:xlink="http://www.w3.org/1999/xlink"><office:body><office:text>'
+    + 'xmlns:svg="urn:oasis:names:tc:opendocument:xmlns:svg-compatible:1.0" xmlns:xlink="http://www.w3.org/1999/xlink" '
+    + 'xmlns:table="urn:oasis:names:tc:opendocument:xmlns:table:1.0" xmlns:loext="urn:org:documentfoundation:names:experimental:office:xmlns:loext:1.0" '
+    + 'xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0" xmlns:fo="urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0">'
+    + `<office:automatic-styles>${autoStyles}</office:automatic-styles><office:body><office:text>`
     + body + '</office:text></office:body></office:document-content>'));
   return zip.toBuffer();
 }
@@ -394,3 +397,41 @@ describe('.odt-Import: Mustererkennung für Überschriften, Aufgaben, Schreiblin
     expect(html).toMatch(/^<table class="ws-columns"><tbody><tr><td><p>Beschreibung der Schaltung<\/p><\/td><td>(<p>)?<img /);
   });
 });
+
+describe('.odt-Import: Word-Textfelder und Zeichnungen am Absatz', () => {
+  const svg = Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"/>');
+  const cell = (t: string, style = 'A') => `<loext:table-cell table:style-name="T.${style}"><text:p>${t}</text:p></loext:table-cell>`;
+  const styles = '<style:style style:name="T.A" style:family="table-cell"><style:table-cell-properties fo:border="0.5pt solid #000000"/></style:style>'
+    + '<style:style style:name="T.G" style:family="table-cell"><style:table-cell-properties fo:border-left="0.5pt solid #000000" fo:border-right="0.5pt solid #000000" fo:border-top="none" fo:border-bottom="none"/></style:style>';
+
+  it('Tabelle in einem Word-Textfeld wird Tabelle, keine Zeichnung', () => {
+    const box = `<draw:custom-shape text:anchor-type="char" draw:name="Textfeld 1" svg:width="5cm" svg:height="1cm" svg:x="0cm" svg:y="0cm">`
+      + `<loext:table table:name="T">${'<loext:table-column/>'.repeat(2)}<loext:table-row>${cell('Q1')}${cell('Q2')}</loext:table-row></loext:table><text:p/></draw:custom-shape>`;
+    const r = odtToHtml(odt(`<text:p>${box}</text:p>`, styles), 'x.odt');
+    expect(r.html).toMatch(/<table>.*Q1.*Q2.*<\/table>/);
+    expect(r.stats.drawings).toBe(0);
+  });
+
+  it('leere, oben und unten randlose Spalten trennen mehrere Tabellen nebeneinander', () => {
+    const row = (a: string[]) => `<table:table-row>${a.map((t) => (t === '|' ? cell('', 'G') : cell(t))).join('').replace(/loext:/g, 'table:')}</table:table-row>`;
+    const t = `<table:table table:name="T">${'<table:table-column/>'.repeat(5)}${row(['Q1', 'Q2', '|', 'Q1', 'Q2'])}${row(['', '', '|', '', ''])}</table:table>`;
+    const r = odtToHtml(odt(t, styles), 'x.odt');
+    expect(r.html).toMatch(/^<table class="ws-columns">/);
+    expect(r.html.match(/<table>/g)).toHaveLength(2);
+  });
+
+  it('Überschrift, die nur eine Zeichnung enthält, verliert das Bild nicht', () => {
+    const drawings = new Map([['lmdraw-1', { svg, widthMm: 20 }]]);
+    const g = '<draw:g text:anchor-type="as-char" draw:name="lmdraw-1"><draw:custom-shape svg:x="0cm" svg:y="0cm" svg:width="1cm" svg:height="1cm"><text:p>Daumen</text:p></draw:custom-shape></draw:g>';
+    const r = odtToHtml(odt(`<text:h text:outline-level="2">Drehmoment</text:h><text:h text:outline-level="2">${g}</text:h>`), 'x.odt', { drawings });
+    expect(r.html).toContain('<img');
+  });
+
+  it('frei verankerte Blöcke eines Absatzes in der Reihenfolge auf der Seite', () => {
+    const drawings = new Map([['lmdraw-1', { svg, widthMm: 20 }], ['lmdraw-2', { svg: Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"><g/></svg>'), widthMm: 30 }]]);
+    const at = (name: string, y: string) => `<draw:g text:anchor-type="char" draw:name="${name}" svg:y="${y}"><draw:rect svg:width="1cm" svg:height="1cm" svg:x="0cm" svg:y="${y}"/></draw:g>`;
+    const r = odtToHtml(odt(`<text:p>${at('lmdraw-1', '5cm')}${at('lmdraw-2', '1cm')}</text:p>`), 'x.odt', { drawings });
+    expect(r.html.indexOf('width="113"')).toBeLessThan(r.html.indexOf('width="76"'));
+  });
+});
+

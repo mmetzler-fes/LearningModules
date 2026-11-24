@@ -50,9 +50,14 @@ METAFILE = ("image/x-svm", "image/x-wmf", "image/x-emf", "image/wmf", "image/emf
 MAX_DRAWINGS = 200
 # Formen mit höchstens diesem Abstand (1/100 mm) gehören zu einer Zeichnung.
 CLUSTER_GAP = 150
-# Nur kleine, lose Formen (Linien, Kreise eines Schaltzeichens) – fertige
-# Gruppen und große Zeichnungen bleiben für sich, auch wenn sie aneinanderstoßen.
+# Kleine Formen (Linien, Kreise eines Schaltzeichens, Beschriftungen) schließen
+# sich jeder Form an, der sie so nahe kommen. Große Formen und fertige Gruppen
+# untereinander nur, wenn sie sich wirklich überdecken (mindestens CLUSTER_OVERLAP
+# in beiden Richtungen, z. B. ein Motor in einer Brückenschaltung) oder am selben
+# Absatz verankert aneinanderstoßen (Bilder in einer Reihe) – nebeneinander an
+# verschiedenen Absätzen bleiben sie für sich.
 CLUSTER_MAX = 3000
+CLUSTER_OVERLAP = 200
 
 
 def prop(name: str, value) -> PropertyValue:
@@ -131,11 +136,12 @@ def layout_box(shape, view_cursor) -> tuple[str, tuple[int, int, int, int]] | No
     try:
         if shape.AnchorType.value not in ("AT_PARAGRAPH", "AT_CHARACTER"):
             return None
-        if shape.getShapeType() == "com.sun.star.drawing.GroupShape":
-            return None
-        if max(shape.getSize().Width, shape.getSize().Height) > CLUSTER_MAX:
-            return None
         if shape.VertOrient != 0 or shape.HoriOrient != 0 or shape.VertOrientRelation not in (0, 1, 2, 9):
+            return None
+        # Widersprüchliche Lage (aus Word umgewandelt: Ausrichtung 0, die Form steht aber
+        # woanders) – dann stimmt auch, was LibreOffice zeichnet, nicht; lieber für sich.
+        pos = shape.getPosition()
+        if abs(pos.X - shape.HoriOrientPosition) > 50 or abs(pos.Y - shape.VertOrientPosition) > 50:
             return None
         anchor = shape.getAnchor()
         text = anchor.getText()
@@ -148,9 +154,12 @@ def layout_box(shape, view_cursor) -> tuple[str, tuple[int, int, int, int]] | No
             return None
         view_cursor.gotoRange(anchor.getStart(), False)
         top = view_cursor.getPosition().Y
+        # Nur auf derselben Seite zusammenfassen – über Seiten hinweg stimmt die Lage nicht.
+        group = f"{group}@{view_cursor.getPage()}"
         size = shape.getSize()
         x, y = shape.HoriOrientPosition, top + shape.VertOrientPosition
-        return group, (x, y, x + size.Width, y + size.Height)
+        big = shape.getShapeType() == "com.sun.star.drawing.GroupShape" or max(size.Width, size.Height) > CLUSTER_MAX
+        return group, (x, y, x + size.Width, y + size.Height), (top if big else None), top
     except Exception:  # noqa: BLE001 – dann bleibt die Form für sich
         return None
 
@@ -167,8 +176,17 @@ def anchor_name(shape) -> str:
         return ""
 
 
-def clusters(boxes: dict[int, tuple[str, tuple[int, int, int, int]]]) -> list[list[int]]:
-    """Formen (Index → Gruppe, Rechteck) zu Haufen, die sich bis auf CLUSTER_GAP nahekommen."""
+def _near(a, b, gap: int) -> bool:
+    return a[0] - gap <= b[2] and b[0] - gap <= a[2] and a[1] - gap <= b[3] and b[1] - gap <= a[3]
+
+
+def _overlap(a, b) -> bool:
+    return min(a[2], b[2]) - max(a[0], b[0]) >= CLUSTER_OVERLAP and min(a[3], b[3]) - max(a[1], b[1]) >= CLUSTER_OVERLAP
+
+
+def clusters(boxes: dict) -> list[list[int]]:
+    """Formen (Index → Gruppe, Rechteck[, Absatz bei großen Formen]) zu Haufen,
+    die zusammen ein Bild ergeben (Regeln bei CLUSTER_MAX)."""
     parent = {i: i for i in boxes}
 
     def root(i: int) -> int:
@@ -177,16 +195,36 @@ def clusters(boxes: dict[int, tuple[str, tuple[int, int, int, int]]]) -> list[li
             i = parent[i]
         return i
 
-    items = list(boxes.items())
-    for k, (i, (gi, a)) in enumerate(items):
-        for j, (gj, b) in items[k + 1:]:
-            if gi == gj and a[0] - CLUSTER_GAP <= b[2] and b[0] - CLUSTER_GAP <= a[2] \
-                    and a[1] - CLUSTER_GAP <= b[3] and b[1] - CLUSTER_GAP <= a[3]:
+    items = [(i, v[0], v[1], v[2] if len(v) > 2 else None) for i, v in boxes.items()]
+    for k, (i, gi, a, pa) in enumerate(items):
+        for j, gj, b, pb in items[k + 1:]:
+            if gi != gj:
+                continue
+            if pa is not None and pb is not None:  # zwei große Formen
+                joined = _overlap(a, b) or (pa == pb and _near(a, b, CLUSTER_GAP))
+            else:
+                joined = _near(a, b, CLUSTER_GAP)
+            if joined:
                 parent[root(i)] = root(j)
     out: dict[int, list[int]] = {}
     for i in boxes:
         out.setdefault(root(i), []).append(i)
     return [sorted(c) for c in out.values() if len(c) > 1]
+
+
+def cluster_head(members: list[int], boxes: dict, shapes: list) -> int:
+    """Form, an deren Absatz die zusammengefasste Zeichnung steht: der letzte Absatz,
+    der oberhalb der Zeichnung beginnt (so steht sie im Text, wo sie im Layout
+    anfängt), dort die oberste Form. Ohne Absatzlage: wo die meisten Teile hängen."""
+    tops = {i: boxes[i][3] for i in members if len(boxes[i]) > 3 and boxes[i][3] is not None}
+    if len(tops) == len(members):
+        top = min(boxes[i][1][1] for i in members)
+        above = [t for t in tops.values() if t <= top]
+        para = max(above) if above else min(tops.values())
+        return min((i for i in members if tops[i] == para), key=lambda i: boxes[i][1][1])
+    anchors = [anchor_name(shapes[i]) for i in members]
+    counts = [anchors.count(a) for a in anchors]
+    return members[counts.index(max(counts))]
 
 
 def kind_of(shape, tables: set[str]) -> str | None:
@@ -202,6 +240,11 @@ def kind_of(shape, tables: set[str]) -> str | None:
     if shape.supportsService("com.sun.star.text.TextEmbeddedObject"):
         return None  # Formeln (StarMath) und andere Objekte bleiben beim Importer
     if shape.supportsService("com.sun.star.drawing.Shape"):
+        try:
+            if shape.TextBox and _read_text_box(shape) is None:
+                return None  # Word-Textfeld mit Tabelle o. Ä. – das liest der Importer als Text
+        except Exception:  # noqa: BLE001
+            pass
         return "drawing"
     return None
 
@@ -234,6 +277,99 @@ def _longer(a, b, need: float):
         return None
     k = need / length
     return uno.createUnoStruct("com.sun.star.awt.Point", round(b.X + dx * k), round(b.Y + dy * k))
+
+
+CHAR_PROPS = ("CharFontName", "CharFontFamily", "CharHeight", "CharWeight", "CharPosture", "CharColor",
+              "CharUnderline", "CharStrikeout", "CharEscapement", "CharEscapementHeight", "CharBackColor")
+PARA_PROPS = ("ParaAdjust",)
+PADDING = (("LeftBorderDistance", "TextLeftDistance"), ("RightBorderDistance", "TextRightDistance"),
+           ("TopBorderDistance", "TextUpperDistance"), ("BottomBorderDistance", "TextLowerDistance"))
+
+
+def _props(obj, names) -> dict:
+    out = {}
+    for n in names:
+        try:
+            out[n] = obj.getPropertyValue(n)
+        except Exception:  # noqa: BLE001
+            pass
+    return out
+
+
+def _read_text_box(s):
+    """Absätze (Absatz-Eigenschaften, [(Text, Zeichen-Eigenschaften)]) und Rahmen-Eigenschaften
+    eines Word-Textfelds – oder None, wenn es mehr als Text enthält (Tabelle …)."""
+    frame = s.TextBoxContent
+    if frame is None:
+        return None
+    paras = []
+    e = frame.getText().createEnumeration()
+    while e.hasMoreElements():
+        par = e.nextElement()
+        if not par.supportsService("com.sun.star.text.Paragraph"):
+            return None
+        portions = []
+        pe = par.createEnumeration()
+        while pe.hasMoreElements():
+            por = pe.nextElement()
+            if por.TextPortionType == "Text":
+                portions.append((por.getString(), _props(por, CHAR_PROPS)))
+        paras.append((_props(par, PARA_PROPS), portions))
+    padding = {shape_name: frame.getPropertyValue(frame_name) for frame_name, shape_name in PADDING}
+    return paras, padding, _props(frame, ("TextVerticalAdjust",)).get("TextVerticalAdjust")
+
+
+def _set_all(obj, props: dict) -> None:
+    for name, value in props.items():
+        try:
+            obj.setPropertyValue(name, value)
+        except Exception:  # noqa: BLE001
+            pass
+
+
+def inline_text_boxes(source) -> int:
+    """Word-Textfelder (Form mit angehängtem Textrahmen, TextBox=True): Den Rahmen
+    lässt der SVG-Export weg – Beschriftungen wie „Q1“ oder „S1“ fehlten. Der Text
+    wird mit Schrift und Ausrichtung in die Form selbst übernommen und die Form nach
+    vorn geholt (der Rahmen lag über der Zeichnung). Textfelder mit Tabellen o. Ä.
+    bleiben, wie sie sind.
+
+    Erst alles lesen, dann schreiben: In einer Gruppe nimmt das Abschalten eines
+    Textfelds auch den übrigen ihren Text."""
+    found = []
+    for s in _walk(source):
+        try:
+            if s.TextBox:
+                content = _read_text_box(s)
+                if content:
+                    found.append((s, content, s.getSize(), s.getPosition()))
+        except Exception:  # noqa: BLE001
+            continue
+    done = 0
+    for s, (paras, padding, valign), size, pos in found:
+        try:
+            if s.TextBox:
+                s.TextBox = False
+            text = s.getText()
+            text.setString("")
+            cursor = text.createTextCursor()
+            for k, (pprops, portions) in enumerate(paras):
+                if k:
+                    text.insertControlCharacter(cursor, 0, False)  # PARAGRAPH_BREAK
+                _set_all(cursor, pprops)
+                for string, cprops in portions:
+                    _set_all(cursor, cprops)
+                    text.insertString(cursor, string, False)
+            _set_all(s, padding)
+            _set_all(s, {"TextAutoGrowHeight": False, "TextWordWrap": True})
+            if valign is not None:
+                _set_all(s, {"TextVerticalAdjust": valign})
+            s.setSize(size)
+            s.setPosition(pos)
+            done += 1
+        except Exception:  # noqa: BLE001 – dann bleibt das Textfeld, wie es ist
+            continue
+    return done
 
 
 def lengthen_short_arrows(source) -> list:
@@ -547,12 +683,15 @@ def export(src: Path, out: Path, profile: Path) -> dict:
                      if kinds[i] == "drawing" and (box := layout_box(shape, view_cursor))}
             parts: dict[int, list[int]] = {}
             for members in clusters(boxes):
-                # Die Zeichnung steht dort, wo die meisten Teile verankert sind.
-                anchors = [anchor_name(shapes[i]) for i in members]
-                counts = [anchors.count(a) for a in anchors]
-                head = members[counts.index(max(counts))]
-                parts[head] = [i for i in members if i != head]
+                parts_head = cluster_head(members, boxes, shapes)
+                parts[parts_head] = [i for i in members if i != parts_head]
             absorbed = {i for rest in parts.values() for i in rest}
+            for i, shape in enumerate(shapes):
+                if kinds[i] == "drawing" and inline_text_boxes(shape):
+                    try:
+                        shape.ZOrder = 10000  # der Textrahmen lag über allem – Writer begrenzt auf ganz oben
+                    except Exception:  # noqa: BLE001
+                        pass
             n = 0
             for index, shape in enumerate(shapes):
                 kind = kinds[index]
@@ -567,8 +706,9 @@ def export(src: Path, out: Path, profile: Path) -> dict:
                 members = [shape] + [shapes[i] for i in parts.get(index, [])]
                 source = shape
                 if len(members) > 1:
+                    # Der Export zeichnet in der Reihenfolge der Sammlung – also nach Ebenen.
                     source = smgr.createInstanceWithContext("com.sun.star.drawing.ShapeCollection", ctx)
-                    for m in members:
+                    for m in sorted(members, key=lambda m: m.ZOrder):
                         source.add(m)
                 try:
                     undo = lengthen_short_arrows(source)

@@ -143,6 +143,22 @@ class Clusters(unittest.TestCase):
         }
         self.assertEqual(sorted(export_drawings.clusters(boxes)), [[9, 10, 11, 12], [15, 16, 17]])
 
+    def test_grosse_formen_nur_bei_ueberdeckung_oder_selbem_absatz(self):
+        """EC-Motor: Brückenschaltung (groß) mit Motor darin (Gruppe) und Beschriftung;
+        daneben eine zweite Brücke am selben Absatz, darunter eine an einem anderen."""
+        boxes = {
+            1: ("body@1", (386, 7992, 6741, 18011), 4415, 4415),      # Brücke 1
+            2: ("body@1", (2679, 13702, 5801, 16903), 4415, 4415),    # Motor in Brücke 1
+            3: ("body@1", (589, 8220, 1277, 8696), None, 4415),       # Beschriftung Q1
+            4: ("body@1", (6807, 7992, 13161, 18011), 4415, 4415),    # Brücke 2, stößt an
+            5: ("body@1", (386, 18100, 6741, 28000), 9000, 9000),     # andere Zeichnung darunter
+        }
+        self.assertEqual(export_drawings.clusters(boxes), [[1, 2, 3, 4]])
+
+    def test_kopf_am_letzten_absatz_ueber_der_zeichnung(self):
+        boxes = {1: ("body", (0, 7992, 100, 9000), 4415, 4415), 2: ("body", (0, 9100, 100, 9500), None, 4902)}
+        self.assertEqual(export_drawings.cluster_head([1, 2], boxes, []), 2)
+
     def test_einzelne_formen_bleiben(self):
         self.assertEqual(export_drawings.clusters({1: ("body", (0, 0, 100, 100)), 2: ("body", (5000, 5000, 5100, 5100))}), [])
 

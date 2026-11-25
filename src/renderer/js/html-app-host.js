@@ -328,7 +328,7 @@ export async function mountHtmlApp({ el, moduleId, content, options, title }) {
       b.addEventListener('click', () => document.getElementById(id)?.click());
       return b;
     };
-    const prevBtn = proxy('◀', 'Zurück', 'btnQuizPrev');
+    const prevBtn = proxy('◀', 'Zurück', 'btnQuizPrev', 'btn-primary'); // wie ▶ blau (Rückmeldung)
     const prevOrig = document.getElementById('btnQuizPrev');
     if (!prevOrig || prevOrig.style.display === 'none') prevBtn.disabled = true;
     const nextBtn = proxy('▶', document.getElementById('btnQuizNext')?.textContent?.replace(/[→\s]+$/, '') || 'Weiter', 'btnQuizNext', 'btn-primary');

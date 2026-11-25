@@ -687,9 +687,11 @@ export class ClassbookStudent {
     // Nach „🔄 Aktualisieren“: weiter im Tab, der offen war.
     if (useTabs && workspace.reopenAfterUpdate()) return true;
     // Gleich nach der Anmeldung: dort weiter, wo die Lehrkraft den 📍 Merker gesetzt hat – sonst bleibt Home.
+    // Steht eine Klassenarbeit zum Schreiben bereit, bleibt Home – sie soll nicht hinter einer Übung verschwinden.
+    const examWaiting = (data.exams || []).some((x) => x.state === 'open' || x.state === 'running' || x.state === 'reentry');
     if (useTabs && sessionGet(LANDED_KEY) !== this.token) {
       sessionSet(LANDED_KEY, this.token);
-      if (mk?.current?.linkId && mk.current.moduleId) void this._enter(mk.current.linkId, null, mk.current.moduleId);
+      if (!examWaiting && mk?.current?.linkId && mk.current.moduleId) void this._enter(mk.current.linkId, null, mk.current.moduleId);
     }
     return true;
   }

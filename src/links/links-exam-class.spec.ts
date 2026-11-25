@@ -60,3 +60,18 @@ describe('LinksService.examLinkForTopics', () => {
     await expect(setup().svc.examLinkForTopics(me, 'c1', 'x', [])).rejects.toThrow(/kein Lernthema/);
   });
 });
+
+describe('LinksService.setExamVisible', () => {
+  it('● gibt die Klassenarbeit aus: Ohne Schlüssel entsteht einer, ○ lässt ihn stehen', async () => {
+    const svc: any = Object.create(LinksService.prototype);
+    const link: any = { id: 'x', classId: 'c1', modes: ['exam'], examToken: null, hiddenFromStudents: true };
+    svc.own = async () => link;
+    svc.linkRepo = { save: async (l: any) => l };
+    await svc.setExamVisible({ userId: 'me' }, 'x', true);
+    expect(link.hiddenFromStudents).toBe(false);
+    expect(link.examToken).toEqual(expect.any(String));
+    const token = link.examToken;
+    await svc.setExamVisible({ userId: 'me' }, 'x', false);
+    expect(link).toMatchObject({ hiddenFromStudents: true, examToken: token });
+  });
+});

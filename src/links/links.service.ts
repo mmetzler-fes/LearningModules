@@ -704,6 +704,9 @@ export class LinksService {
     const link = await this.own(id, user);
     if (!(link.modes || []).includes('exam') || !link.classId) throw new BadRequestException('Das ist kein Link einer Klassenarbeit für eine Klasse.');
     link.hiddenFromStudents = !visible;
+    // Mit ● ist sie ausgegeben: Die Schüler kommen übers Klassennotizbuch hinein, auch ohne dass
+    // je „📝 Link & QR“ geöffnet wurde (vorher sahen sie sie dann nicht).
+    if (visible && !link.examToken) link.examToken = crypto.randomBytes(12).toString('base64url');
     await this.linkRepo.save(link);
     return { success: true, visible };
   }

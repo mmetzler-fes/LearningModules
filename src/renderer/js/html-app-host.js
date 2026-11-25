@@ -317,7 +317,7 @@ export async function mountHtmlApp({ el, moduleId, content, options, title }) {
       });
       titleSlot.append(pick);
     }
-    // Handy (schmal, styles.css): Zurück, Weiter und Abbrechen hier oben – die untere Leiste entfällt dort.
+    // ◀ Zurück und ▶ Weiter hier oben (auch am PC); Abbrechen nur auf dem Handy – dort entfällt die untere Leiste.
     const proxy = (text, title, id, cls = 'btn-secondary') => {
       const b = document.createElement('button');
       b.type = 'button';
@@ -333,6 +333,7 @@ export async function mountHtmlApp({ el, moduleId, content, options, title }) {
     if (!prevOrig || prevOrig.style.display === 'none') prevBtn.disabled = true;
     const nextBtn = proxy('▶', document.getElementById('btnQuizNext')?.textContent?.replace(/[→\s]+$/, '') || 'Weiter', 'btnQuizNext', 'btn-primary');
     const quitBtn = proxy('✕', 'Quiz abbrechen', 'btnQuizCancel');
+    quitBtn.classList.add('lm-app-quit'); // nur auf dem Handy oben – breiter steht Abbrechen unten
     titleSlot.prepend(prevBtn);
     titleSlot.append(hint, fitBtn, pageBtn, zoomBtn, big, nextBtn, quitBtn);
   } else {

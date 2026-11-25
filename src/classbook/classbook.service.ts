@@ -27,7 +27,7 @@ import { ancestorsOf, canHoldNode, commonPath, deadMirrorNodes, slotSort, depthO
 import { ClassesService } from '../classes/classes.service';
 import { matchStudent } from '../classes/name-match';
 import { normalizeLoginId } from '../classes/login-id';
-import { LinksService, PRACTICE_MODES, onlyHtmlApps, withoutCompanionForDocuments } from '../links/links.service';
+import { LinksService, PRACTICE_MODES, examBlocked, onlyHtmlApps, withoutCompanionForDocuments } from '../links/links.service';
 import { NotebooksService } from '../notebooks/notebooks.service';
 import { issueDeviceTicket, pinTag, issueTicket, readTicket } from '../classes/student-ticket';
 import { isTestStudent, testLabel, testStudentId } from '../classes/test-student';
@@ -272,6 +272,7 @@ export class ClassbookService {
           examModuleIds: (l.selection || []).flatMap((e) => (e.all ? [] : e.moduleIds || [])),
           hasExamLink: !!l.examToken,
           hiddenFromStudents: !!l.hiddenFromStudents,
+          blockedStudentIds: l.blockedStudentIds || [],
         } : {}),
         // Was die Zuweisung enthalten kann, mit Schalter je Lernthema und Modul.
         available: avail.topics.map((t) => {
@@ -1795,7 +1796,7 @@ export class ClassbookService {
     // Laufende Klassenarbeiten: aktiv und ihr Link ist erzeugt (die Lehrkraft hat ihn ausgegeben).
     // Im Klassennotizbuch noch aus (○): nur die Vorschau der Lehrkraft (🧪 Testschüler) sieht sie, markiert.
     const exams = scope ? [] : await Promise.all(active
-      .filter((l) => (l.modes || []).includes('exam') && l.examToken && (!l.hiddenFromStudents || isTestStudent(t.s)) && (!examOnly || l.id === examOnly.id))
+      .filter((l) => (l.modes || []).includes('exam') && l.examToken && (!l.hiddenFromStudents || isTestStudent(t.s)) && !examBlocked(l, t.s) && (!examOnly || l.id === examOnly.id))
       .map(async (l) => {
         const attempt = await this.attemptRepo.findOne({ where: { linkId: l.id, studentId: t.s } });
         return { linkId: l.id, name: l.name, state: isTestStudent(t.s) ? 'open' : examState(attempt, l.singleAttempt), ...(l.hiddenFromStudents ? { hiddenFromStudents: true } : {}) };
@@ -1891,13 +1892,19 @@ export class ClassbookService {
   /** 📝 im Klassennotizbuch: Link der Klassenarbeit dieser Klasse für ein Modul holen bzw. anlegen (für Schüler aus). */
   async examLink(user: any, classId: string, body: { topicId?: string; moduleId?: string }) {
     const link = await this.links.examLinkForClass(user, classId, String(body?.topicId || ''), String(body?.moduleId || ''));
-    return { linkId: link.id, name: link.name, hasExamLink: !!link.examToken, hiddenFromStudents: !!link.hiddenFromStudents, active: link.active };
+    return { linkId: link.id, name: link.name, hasExamLink: !!link.examToken, hiddenFromStudents: !!link.hiddenFromStudents, active: link.active, blockedStudentIds: link.blockedStudentIds || [] };
   }
 
   /** ●/○ der Klassenarbeit: Schüler sehen und starten sie nur mit ● (und aktivem, ausgegebenem Link). */
   async setExamVisible(user: any, classId: string, linkId: string, visible: boolean) {
     const link = await this.ownClassLink(user, classId, linkId);
     return this.links.setExamVisible(user, link.id, visible);
+  }
+
+  /** 🚫 Schüler, die diese Klassenarbeit nicht sehen und nicht starten (übriges Klassennotizbuch bleibt). */
+  async setExamBlocked(user: any, classId: string, linkId: string, studentIds: unknown) {
+    const link = await this.ownClassLink(user, classId, linkId);
+    return this.links.setExamBlocked(user, link.id, studentIds);
   }
 
   /**
@@ -1965,6 +1972,7 @@ export class ClassbookService {
     if (body?.exam) {
       if (!(link.modes || []).includes('exam') || !link.examToken) throw new NotFoundException('Diese Klassenarbeit ist gerade nicht freigegeben.');
       if (link.hiddenFromStudents && !isTestStudent(t.s)) throw new NotFoundException('Diese Klassenarbeit ist gerade nicht freigegeben.');
+      if (examBlocked(link, t.s)) throw new NotFoundException('Diese Klassenarbeit ist für dich gerade nicht freigegeben.');
       return { linkToken: link.examToken };
     }
     let linkToken = await this.links.practiceToken(link);

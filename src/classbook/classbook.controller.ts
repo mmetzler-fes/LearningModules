@@ -116,6 +116,12 @@ export class ClassbookController {
     return this.classbook.setExamVisible(req.user, classId, linkId, !!body?.visible);
   }
 
+  /** `{ studentIds }` – 🚫 diese Schüler sehen und starten die Klassenarbeit nicht (z. B. krank am Termin). */
+  @Put(':classId/exam/:linkId/blocked')
+  setExamBlocked(@Request() req: any, @Param('classId') classId: string, @Param('linkId') linkId: string, @Body() body: { studentIds?: unknown }) {
+    return this.classbook.setExamBlocked(req.user, classId, linkId, body?.studentIds);
+  }
+
   /** 🧪 Klassenarbeit selbst ausprobieren: Ausweis der Vorschau (Testschüler) dieser Klasse. */
   @Post(':classId/exam/:linkId/try')
   @HttpCode(200)

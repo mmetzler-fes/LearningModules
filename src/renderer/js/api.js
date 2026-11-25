@@ -1300,6 +1300,10 @@ export class BrowserApi {
   setClassbookExamVisible(classId, linkId, visible) {
     return this._fetch(`/api/classbook/${encodeURIComponent(classId)}/exam/${encodeURIComponent(linkId)}/visible`, { method: 'PUT', body: JSON.stringify({ visible }) });
   }
+  /** 🚫 Diese Schüler sehen und starten die Klassenarbeit nicht (übriges Klassennotizbuch bleibt). */
+  setClassbookExamBlocked(classId, linkId, studentIds) {
+    return this._fetch(`/api/classbook/${encodeURIComponent(classId)}/exam/${encodeURIComponent(linkId)}/blocked`, { method: 'PUT', body: JSON.stringify({ studentIds }) });
+  }
   tryClassbookExam(classId, linkId) {
     return this._fetch(`/api/classbook/${encodeURIComponent(classId)}/exam/${encodeURIComponent(linkId)}/try`, { method: 'POST' });
   }

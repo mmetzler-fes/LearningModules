@@ -331,6 +331,21 @@ describe('Klassennotizbuch: Klassenarbeit noch aus (○)', () => {
     expect((await svc.home('kb', ticket)).exams).toEqual([{ linkId: 'x1', name: 'KA 1', state: 'open' }]);
   });
 
+  it('🚫 gesperrte Schüler sehen sie nicht und kommen nicht hinein; Vorschau und Entsperren wie gehabt', async () => {
+    const { svc, links } = setup();
+    hidden(links);
+    links.rows[1].hiddenFromStudents = false;
+    const { ticket } = await svc.login('kb', { name: 'Anna', pin: '1234' });
+    const anna = readTicket(ticket, classbookTicketKey('c1'))!.s;
+    links.rows[1].blockedStudentIds = [anna];
+    expect((await svc.home('kb', ticket)).exams).toEqual([]);
+    await expect(svc.enter('kb', { ticket, linkId: 'x1', exam: true })).rejects.toThrow(/nicht freigegeben/);
+    const preview = await svc.preview(me, 'c1');
+    expect((await svc.home('kb', preview.ticket)).exams).toHaveLength(1);
+    links.rows[1].blockedStudentIds = null;
+    expect((await svc.home('kb', ticket)).exams).toEqual([{ linkId: 'x1', name: 'KA 1', state: 'open' }]);
+  });
+
   it('🧪 Ausprobieren: erzeugt bei Bedarf den Schlüssel und gibt den Ausweis der Vorschau', async () => {
     const { svc, links } = setup();
     hidden(links);

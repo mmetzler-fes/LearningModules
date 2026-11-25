@@ -1,3 +1,4 @@
+import { isTestStudent } from '../classes/test-student';
 import { contentCounts } from './content-counts';
 import { isHtmlAppType, isRemovedUnit } from '../html-apps/html-app-rules';
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
@@ -38,6 +39,11 @@ const QUICK_MANAGED = 'Dieser Link gehört zum Quick-Link – Klassen über den 
 
 /** Modi, zwischen denen Schüler über den Übungslink ("Link & QR") wählen. */
 export const PRACTICE_MODES: LinkMode[] = ['quiz', 'learn', 'companion'];
+
+/** 🚫 Ist dieser Schüler von der Klassenarbeit des Links ausgeschlossen? Der 🧪 Testschüler nie. */
+export function examBlocked(link: Pick<TopicLink, 'blockedStudentIds'>, studentId: string | null | undefined): boolean {
+  return !!studentId && !isTestStudent(studentId) && (link.blockedStudentIds || []).includes(studentId);
+}
 
 /** Welcher Zugang eines Links: Übung (`token`) oder Klassenarbeit (`examToken`). */
 export type LinkAccess = 'practice' | 'exam';
@@ -650,6 +656,16 @@ export class LinksService {
     link.hiddenFromStudents = !visible;
     await this.linkRepo.save(link);
     return { success: true, visible };
+  }
+
+  /** 🚫 Einzelne Schüler von der Klassenarbeit einer Klasse ausschließen (z. B. krank – schreiben später nach). */
+  async setExamBlocked(user: any, id: string, studentIds: unknown) {
+    const link = await this.own(id, user);
+    if (!(link.modes || []).includes('exam') || !link.classId) throw new BadRequestException('Das ist kein Link einer Klassenarbeit für eine Klasse.');
+    const ids = Array.isArray(studentIds) ? [...new Set(studentIds.map(String).filter(Boolean))] : [];
+    link.blockedStudentIds = ids.length ? ids : null;
+    await this.linkRepo.save(link);
+    return { success: true, blockedStudentIds: ids };
   }
 
   async update(id: string, user: any, body: any, req?: any) {

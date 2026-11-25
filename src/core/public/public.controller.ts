@@ -14,7 +14,7 @@ import { LearningModule } from '../entities/learning-module.entity';
 import { Result } from '../entities/result.entity';
 import { TopicLink } from '../entities/topic-link.entity';
 import { TopicQuickLink } from '../entities/topic-quick-link.entity';
-import { LinksService, LinkAccess, modesFor, onlyHtmlApps } from '../../links/links.service';
+import { LinksService, LinkAccess, examBlocked, modesFor, onlyHtmlApps } from '../../links/links.service';
 import { TopicsService } from '../../topics/topics.service';
 import { GroupsService } from '../../groups/groups.service';
 import { CompanionService } from '../../companion/companion.service';
@@ -482,6 +482,9 @@ export class PublicController {
     }
 
     if (examHidden && !isTestStudent(studentId)) throw new ForbiddenException(hiddenMessage);
+    if (mode === 'exam' && examBlocked(link, studentId)) {
+      throw new ForbiddenException('Diese Klassenarbeit ist für dich gerade nicht freigegeben. Bitte bei der Lehrkraft nachfragen.');
+    }
 
     // Wiedereinstieg, den die Lehrkraft freigegeben hat: trotz früherer Abgabe.
     // Der Testschüler (🧪 Ausprobieren) schreibt beliebig oft.

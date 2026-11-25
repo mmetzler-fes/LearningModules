@@ -979,7 +979,8 @@ export class ClassResultsView {
     if (!m.isExam && !ex) return 'nur für dich';
     if (!ex || ex.hiddenFromStudents) return 'Klassenarbeit – Schüler sehen sie nicht';
     if (!ex.active) return 'Klassenarbeit – Link deaktiviert';
-    return ex.hasExamLink ? 'Klassenarbeit – läuft, Schüler sehen sie' : 'Klassenarbeit – an, sobald ihr Link erzeugt ist';
+    const n = (ex.blockedStudentIds || []).length;
+    return (ex.hasExamLink ? 'Klassenarbeit – läuft, Schüler sehen sie' : 'Klassenarbeit – an, sobald ihr Link erzeugt ist') + (n ? ` · ${n} gesperrt` : '');
   }
 
   /** ●/○, 📝 Link & QR und 🧪 Ausprobieren an einer Klassenarbeit im Baum. */
@@ -1002,7 +1003,53 @@ export class ClassResultsView {
     return exams.flatMap(({ t, m }) => [
       { label: label('🧪 Klassenarbeit ausprobieren', m), title: 'Selbst schreiben, als 🧪 Vorschau in einem neuen Tab – zählt nicht, beliebig oft', run: () => this._examTry(t.topicId, m.id) },
       { label: label('📝 Klassenarbeit: Link & QR', m), title: 'Eigener Link der Klassenarbeit – Schüler kommen erst mit ● hinein', run: () => this._examShare(t.topicId, m.id) },
+      { label: label(`🚫 Schüler sperren${this._blockedCount(m.id)}`, m), title: 'Einzelne Schüler (z. B. krank am Termin) sehen die Klassenarbeit nicht – ihr übriges Material schon', run: async () => {
+        const ex = await this._examLinkFor(t.topicId, m.id);
+        if (ex) await this._examBlockDialog(ex);
+      } },
     ]);
+  }
+
+  _blockedCount(moduleId) {
+    const n = (this._examLinkOf(moduleId)?.blockedStudentIds || []).length;
+    return n ? ` (${n})` : '';
+  }
+
+  /** 🚫 Schüler wählen, die diese Klassenarbeit nicht sehen und nicht starten (z. B. krank – Nachschreiben durch Entsperren). */
+  async _examBlockDialog(ex) {
+    const klasse = await this.app.api.getClass(this._classId);
+    if (failed(klasse)) { this.app.showToast('Fehler: ' + (klasse?.message || 'Klasse nicht abrufbar'), 'error'); return; }
+    const students = (klasse.students || []).filter((s) => s.status !== 'pending')
+      .sort((a, b) => `${a.lastName} ${a.firstName}`.localeCompare(`${b.lastName} ${b.firstName}`, 'de'));
+    const blocked = new Set(ex.blockedStudentIds || []);
+    const chosen = await new Promise((resolve) => {
+      const overlay = document.createElement('div');
+      overlay.className = 'confirm-overlay';
+      overlay.innerHTML = `<form class="import-modules-card cb-picker" role="dialog" aria-modal="true">
+        <h3>🚫 Schüler sperren – ${escapeHtml(ex.name || 'Klassenarbeit')}</h3>
+        <p class="hint">Angehakte Schüler sehen diese Klassenarbeit nicht und kommen auch mit dem Link nicht hinein, z. B. wenn sie am Termin
+          krank sind. Ihr übriges Klassennotizbuch bleibt sichtbar. Zum Nachschreiben den Haken wieder entfernen.</p>
+        <ul class="cb-picker-list">${students.map((s) => `<li><label class="cb-picker-row">
+          <input type="checkbox" value="${escapeAttr(s.id)}" ${blocked.has(s.id) ? 'checked' : ''}> ${escapeHtml(`${s.lastName ? s.lastName + ', ' : ''}${s.firstName}`)}</label></li>`).join('')
+          || '<li class="hint">Die Klasse hat noch keine Schüler.</li>'}</ul>
+        <div class="confirm-actions"><button type="submit" class="btn btn-primary">Speichern</button>
+          <button type="button" class="btn btn-secondary cb-picker-cancel">Abbrechen</button></div>
+      </form>`;
+      document.body.appendChild(overlay);
+      const done = (v) => { overlay.remove(); resolve(v); };
+      overlay.querySelector('.cb-picker-cancel').addEventListener('click', () => done(null));
+      overlay.querySelector('form').addEventListener('submit', (e) => {
+        e.preventDefault();
+        done([...overlay.querySelectorAll('input[type=checkbox]:checked')].map((c) => c.value));
+      });
+    });
+    if (!chosen) return;
+    // Gesperrte, die nicht (mehr) in der Liste stehen, bleiben gesperrt.
+    const known = new Set(students.map((s) => s.id));
+    const ids = [...chosen, ...[...blocked].filter((id) => !known.has(id))];
+    if (await this._call(this.app.api.setClassbookExamBlocked(this._classId, ex.id, ids))) {
+      this.app.showToast(ids.length ? `${ids.length} Schüler für diese Klassenarbeit gesperrt.` : 'Niemand mehr gesperrt.', 'success');
+    }
   }
 
   /** Link der Klassenarbeit dieser Klasse für ein Modul – angelegt, wenn es noch keinen gibt. */
@@ -1011,7 +1058,7 @@ export class ClassResultsView {
     if (known) return known;
     const res = await this.app.api.classbookExamLink(this._classId, topicId, moduleId);
     if (failed(res) || !res?.linkId) { this.app.showToast('Fehler: ' + (res?.message || 'Link nicht angelegt'), 'error'); return null; }
-    return { id: res.linkId, name: res.name, active: res.active, hiddenFromStudents: res.hiddenFromStudents, hasExamLink: res.hasExamLink };
+    return { id: res.linkId, name: res.name, active: res.active, hiddenFromStudents: res.hiddenFromStudents, hasExamLink: res.hasExamLink, blockedStudentIds: res.blockedStudentIds || [] };
   }
 
   async _examShare(topicId, moduleId) {
@@ -1973,6 +2020,7 @@ export class ClassResultsView {
           <button type="button" class="nb-status ${l.hiddenFromStudents ? '' : 'on'}" data-exam-link-visible="${l.hiddenFromStudents ? '' : '1'}"
             title="${l.hiddenFromStudents ? 'Aus: Schüler sehen sie nicht – klicken zum Einschalten' : 'An: Schüler sehen sie, solange der Link aktiv ist – klicken zum Ausschalten'}">${l.hiddenFromStudents ? '○' : '●'}</button>
           <button type="button" class="btn btn-primary btn-sm" data-exam-share>📝 Link & QR</button>
+          <button type="button" class="btn btn-secondary btn-sm" data-exam-block title="Einzelne Schüler (z. B. krank am Termin) sehen die Klassenarbeit nicht – ihr übriges Material schon">🚫 Schüler sperren${(l.blockedStudentIds || []).length ? ` (${l.blockedStudentIds.length})` : ''}</button>
           <button type="button" class="btn btn-secondary btn-sm" data-exam-link-try title="Selbst schreiben, als 🧪 Vorschau in einem neuen Tab – zählt nicht, beliebig oft">🧪 Ausprobieren</button>
           ${l.active ? '<button type="button" class="btn btn-secondary btn-sm" data-active="off">⏸ Deaktivieren</button>'
             : '<button type="button" class="btn btn-secondary btn-sm" data-active="on">▶ Aktivieren</button>'}`)).join('')
@@ -1981,6 +2029,9 @@ export class ClassResultsView {
       out.querySelectorAll('[data-exam-share]').forEach((btn) => btn.addEventListener('click', () => {
         const link = links.find((l) => l.id === btn.closest('[data-link]').dataset.link);
         this.app.linksView._openShareDialog(link, 'exam');
+      }));
+      out.querySelectorAll('[data-exam-block]').forEach((btn) => btn.addEventListener('click', () => {
+        this._examBlockDialog(links.find((l) => l.id === btn.closest('[data-link]').dataset.link));
       }));
       out.querySelectorAll('[data-exam-link-try]').forEach((btn) => btn.addEventListener('click', async () => {
         const win = window.open('', '_blank');

@@ -120,6 +120,13 @@ export class TopicLink extends BaseEntity {
   @Column({ default: false })
   hiddenFromStudents: boolean;
 
+  /**
+   * Klassenarbeit einer Klasse: Schüler, die sie (noch) nicht sehen und nicht starten dürfen,
+   * z. B. krank am Termin – Nachschreiben später durch Entsperren. Ihr übriges Klassennotizbuch bleibt.
+   */
+  @Column('simple-json', { nullable: true })
+  blockedStudentIds: string[] | null;
+
   @Column('simple-json', { nullable: true })
   tagIds: string[] | null;
 

@@ -4142,6 +4142,10 @@ body.html-app-large .quiz-actions { margin-top: 8px; padding-top: 8px; flex-shri
 .ds-grip-bar button:hover { background: var(--bg-secondary); }
 .ds-grip-bar button[hidden] { display: none; }
 .ds-para-dialog { max-width: 460px; }
+/* Link (link-dialog.js) */
+.ds-link-dialog { max-width: 460px; width: 94%; }
+.ds-link-dialog label { display: flex; flex-direction: column; gap: 4px; margin-bottom: 10px; }
+.ds-link-dialog input { padding: 6px 8px; border: 1px solid var(--border); border-radius: var(--radius-sm); font: inherit; }
 /* Sonderzeichen (special-chars.js) */
 .ds-chars-dialog { max-width: 560px; width: 94%; }
 .ds-chars-bar { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
@@ -4225,6 +4229,10 @@ body.html-app-large .quiz-actions { margin-top: 8px; padding-top: 8px; flex-shri
    Spec, nicht mehr aus dem CSS. */
 .ds-surface.lm-paper { margin: 0 auto; overflow-y: visible; box-shadow: 0 1px 4px rgba(15, 23, 42, 0.18); width: min(21cm, 100%); }
 .ds-surface.lm-paper.ds-landscape { width: min(29.7cm, 100%); }
+/* Kopfzeile der Vorlage über dem Blatt (docspec-editor.js: showTemplateHead) – der Streifen enthält den oberen Rand. */
+.ds-template-head { margin: 0 auto; background: #fff; line-height: 0; box-shadow: 0 1px 4px rgba(15, 23, 42, 0.18); clip-path: inset(-8px -8px 0 -8px); }
+.ds-template-head img { display: block; width: 100%; pointer-events: none; user-select: none; }
+.ds-surface.ds-pm-surface.ds-with-head { padding-top: 0; clip-path: inset(0 -8px -8px -8px); }
 .ds-surface p[data-ds="note"] { color: var(--text-secondary); }
 /* Wie im Druck: Bausteine beginnen unter einem schwebenden Bild, statt es zu überdecken. */
 .ds-widget { position: relative; clear: both; margin: 6px 0; padding: 4px 8px 4px 8px; border: 1px dashed var(--text-secondary); border-radius: var(--radius-sm); background: var(--bg-primary); cursor: pointer; user-select: none; }

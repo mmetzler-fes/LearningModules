@@ -28,6 +28,7 @@ import { groupRow, ungroup, cmOf, GROUP_DEFAULT_WIDTH_CM } from '../lm-editor/sr
 import { arrangeGroup } from './image-arrange.js';
 import { markPageBreaks } from '../lm-editor/src/doc/page-breaks.js';
 import { lmHost } from './lm-host.js';
+import { templateHeadDefault } from './views/print-dialog.js';
 import { pasteAsMarkdown, pasteToEditorHtml } from '../lm-editor/src/doc/paste.js';
 import { askTable } from '../lm-editor/src/editor/block-dialog.js';
 import { specToPm, pmToSpec } from '../lm-editor/src/doc/pm-convert.js';
@@ -261,6 +262,7 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
       headerEl.textContent = ctx.header ? `Kopfzeile im Druck: ${ctx.header}` : '';
       headerEl.title = headerEl.textContent; // in der Kopfzeile gekürzt – voller Text beim Darüberfahren
       update();
+      void showTemplateHead();
     } catch (_) { /* ohne Kontext bleibt die Vorschau ohne Nummern */ }
   };
   // Andere Vorlage: andere Seite (A4 quer …) – Blatt und Umbrüche der Vorschau passen sich an.
@@ -757,8 +759,67 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
     el.style.zoom = '1';
     const width = el.offsetWidth;
     if (width > 0) el.style.zoom = String(Math.min(1, room / width));
+    fitHead();
   };
   if (pmBox && typeof ResizeObserver === 'function') new ResizeObserver(() => fitPmPaper()).observe(pmBox);
+
+  // Kopfzeile der Vorlage oben auf dem Blatt – wie im Stift-Editor, nur zur Ansicht. Ob sie
+  // erscheint, ist die Einstellung des Kontos (⚙️, inkTemplateHead); den Streifen setzt der
+  // Renderer (Blatt ohne Inhalt), neu nur, wenn sich Kopfzeile, Vorlage oder Seite ändern.
+  let headBox = null;
+  let headKey = '';
+  let headRun = 0;
+  const fitHead = () => {
+    const el = pm?.el;
+    if (!headBox || !el) return;
+    headBox.style.width = el.style.width;
+    headBox.style.zoom = el.style.zoom;
+  };
+  const dropHead = () => {
+    headBox?.remove();
+    headBox = null;
+    pm?.el.classList.remove('ds-with-head');
+  };
+  const showTemplateHead = async () => {
+    const el = pm?.el;
+    if (!el) return;
+    const on = templateHeadDefault() && !!ctx?.header;
+    const key = on ? JSON.stringify([ctx.header, ctx.page || null, templateSelect?.value ?? '', moduleId || '', el.classList.contains('lm-landscape')]) : '';
+    if (key === headKey) return;
+    headKey = key;
+    const run = ++headRun;
+    if (!on) { dropHead(); return; }
+    try {
+      const res = await fetch('/api/worksheets/render', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(token() ? { Authorization: `Bearer ${token()}` } : {}) },
+        body: JSON.stringify({ spec: { ...(spec || {}), content: [] }, title: titleInput?.value.trim() || 'Dokument', output: 'pdf',
+          kind: document.querySelector('select[name="content_kind"]')?.value,
+          templateId: templateSelect ? templateSelect.value : undefined, ...(moduleId ? { moduleId } : {}) }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const { headStripFromPdf } = await import('../lm-editor/src/ink/template-head.js');
+      const strip = await headStripFromPdf(await res.arrayBuffer());
+      if (run !== headRun || !pm?.el) return; // inzwischen anders
+      if (!headBox) {
+        headBox = document.createElement('div');
+        headBox.className = 'ds-template-head';
+        headBox.title = 'Kopfzeile der Vorlage – nur zur Ansicht (ein/aus: ⚙️ Einstellungen)';
+      }
+      headBox.innerHTML = `<img src="${strip.src}" alt="Kopfzeile der Vorlage" style="height:${strip.cm}cm">`;
+      pm.el.before(headBox);
+      pm.el.classList.add('ds-with-head');
+      fitHead();
+    } catch (_) {
+      // Ohne Streifen (Vorlage ohne Kopfzeile, Renderer nicht erreichbar): Blatt wie bisher.
+      if (run === headRun) dropHead();
+    }
+  };
+  const onSettings = () => {
+    if (root.isConnected) void showTemplateHead();
+    else window.removeEventListener('lm-settings', onSettings);
+  };
+  window.addEventListener('lm-settings', onSettings);
   let syncing = false;
   // Inhalt der Ansicht setzen, ohne dass er als Bearbeitung zurück ins YAML
   // fließt. Der MutationObserver meldet erst nach dem Setzen (asynchron) –
@@ -2068,6 +2129,7 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
         imageFromFile,
       });
       update();
+      void showTemplateHead();
     }).catch((err) => {
       // Ohne Tiptap geht es mit der alten Fläche weiter.
       console.error(err);

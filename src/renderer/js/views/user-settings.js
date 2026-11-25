@@ -21,6 +21,8 @@ export class UserSettingsDialog {
     const res = await this.app.api.saveUserSettings(patch).catch(() => null);
     if (!res?.success) return false;
     if (this.app.state.currentUser) this.app.state.currentUser.settings = res.settings;
+    // Offene Ansichten (Modul-Editor: Kopfzeile der Vorlage) passen sich gleich an.
+    window.dispatchEvent(new CustomEvent('lm-settings', { detail: res.settings }));
     return true;
   }
 
@@ -32,8 +34,8 @@ export class UserSettingsDialog {
         <h3>⚙️ Einstellungen</h3>
         <p class="hint">Gelten für dein Konto auf allen Geräten.</p>
         <label class="tag-filter-mode"><input type="checkbox" name="inkTemplateHead" ${s.inkTemplateHead !== false ? 'checked' : ''} />
-          <span>🖨 Kopfzeile der Vorlage (Logo, Titel) – beim Drucken und im Stift-Editor</span></label>
-        <p class="hint">Vorgabe: Im Druckdialog lässt sie sich je Druck abwählen, im Stift-Editor über den Knopf neben 🖨.</p>
+          <span>🖨 Kopfzeile der Vorlage (Logo, Titel) – beim Drucken, im Stift-Editor und im Modul-Editor</span></label>
+        <p class="hint">Vorgabe: Im Druckdialog lässt sie sich je Druck abwählen, im Stift-Editor über den Knopf neben 🖨. Im Modul-Editor steht sie nur zur Ansicht über dem Blatt.</p>
         <div class="confirm-actions"><button type="button" class="btn btn-primary" data-close>Fertig</button></div>
       </div>`;
     document.body.appendChild(overlay);

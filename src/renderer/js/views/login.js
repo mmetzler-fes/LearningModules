@@ -382,7 +382,11 @@ export class LoginView {
       }
     }
     // Klassenlink: Das Gerät kennt den Schüler schon – ein Klick, aber sichtbar, wer es ist.
-    let device = !anonymous && info.access !== 'exam' && !isContest ? rememberedStudent(info.classId) : null;
+    // Klassenarbeit: nie das gemerkte Gerät, nur die eben erfolgte Anmeldung mit Microsoft (sonst Name + PIN).
+    if (opts.ssoDevice && info.access !== 'exam' && !anonymous) rememberStudent(info.classId, opts.ssoDevice);
+    let device = !anonymous && !isContest
+      ? (info.access === 'exam' ? opts.ssoDevice || null : rememberedStudent(info.classId))
+      : null;
     const dropDevice = () => {
       forgetStudent(info.classId);
       device = null;
@@ -816,8 +820,8 @@ export class LoginView {
       const res = error ? null : await fetch('/api/sso/redeem', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code }) })
         .then(async (r) => ({ ok: r.ok, body: await r.json().catch(() => ({})) })).catch(() => null);
       if (res?.ok && res.body?.deviceTicket && res.body?.classId) {
-        rememberStudent(res.body.classId, { ticket: res.body.deviceTicket, name: res.body.name });
-        await this.startLinkEntry(linkToken, null, null, { auto: true });
+        // Gemerkt wird erst in startLinkEntry – beim Link einer Klassenarbeit gar nicht.
+        await this.startLinkEntry(linkToken, null, null, { auto: true, ssoDevice: { ticket: res.body.deviceTicket, name: res.body.name } });
       } else {
         await this.startLinkEntry(linkToken);
         const err = document.getElementById('linkEntryFormError');

@@ -482,14 +482,9 @@ export class PublicController {
       studentId = t.s;
       studentName = t.n;
       verified = true;
-    } else if (klasse && access === 'exam') {
-      // Der Link der Klassenarbeit fragt weiter nur nach dem Namen.
-      if (!studentName) throw new BadRequestException('Bitte den Namen eingeben.');
-      const who = await this.classesService.resolveStudent(klasse, studentName, body?.testPassword);
-      studentId = who.studentId;
-      studentName = who.name;
     } else if (klasse) {
-      // Name und PIN wie im Klassennotizbuch; das Gerät merkt sich die Anmeldung.
+      // Name und PIN wie im Klassennotizbuch (auch die Klassenarbeit – sonst schriebe jemand unter
+      // fremdem Namen); oder vorher „Mit Microsoft anmelden“ (classTicket oben).
       login = await this.classbook.loginViaLink(klasse, { name: studentName, pin: body?.pin, testPassword: body?.testPassword });
       studentId = login.studentId;
       studentName = login.name;
@@ -535,7 +530,8 @@ export class PublicController {
       startView: await this.linksService.startViewOf(link, mode === 'exam'),
       // Erste Anmeldung: die PIN einmal zeigen, und das Gerät merkt sich den Ausweis.
       ...(login?.pin ? { pin: login.pin } : {}),
-      ...(login ? { deviceTicket: login.deviceTicket, classId: klasse?.id } : {}),
+      // Das Gerät merkt sich die Anmeldung – nicht bei der Klassenarbeit (geteilte Geräte im Klassenraum).
+      ...(login && access !== 'exam' ? { deviceTicket: login.deviceTicket, classId: klasse?.id } : {}),
       mode,
       studentName,
       studentTicket: ticket,

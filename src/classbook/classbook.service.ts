@@ -1890,9 +1890,42 @@ export class ClassbookService {
    * Die Anmeldung als Lehrkraft (ownedClass) ist der Nachweis. Er sieht, was die Klasse sieht.
    */
   /** 📝 im Klassennotizbuch: Link der Klassenarbeit dieser Klasse für ein Modul holen bzw. anlegen (für Schüler aus). */
-  async examLink(user: any, classId: string, body: { topicId?: string; moduleId?: string }) {
-    const link = await this.links.examLinkForClass(user, classId, String(body?.topicId || ''), String(body?.moduleId || ''));
+  /**
+   * Was eine Klassenarbeit werden soll: ein Modul (`topicId` + `moduleId`), ein ganzes Lernthema (`topicId`),
+   * eine Zuweisung (`linkId`, alle ihre Lernthemen) oder ein Bereich/Abschnitt (`nodeId`, alles darunter).
+   */
+  async examLink(user: any, classId: string, body: { topicId?: string; moduleId?: string; linkId?: string; nodeId?: string }) {
+    const link = body?.moduleId
+      ? await this.links.examLinkForClass(user, classId, String(body?.topicId || ''), String(body.moduleId))
+      : await this.examLinkForPart(user, classId, body || {});
     return { linkId: link.id, name: link.name, hasExamLink: !!link.examToken, hiddenFromStudents: !!link.hiddenFromStudents, active: link.active, blockedStudentIds: link.blockedStudentIds || [] };
+  }
+
+  private async examLinkForPart(user: any, classId: string, body: { topicId?: string; linkId?: string; nodeId?: string }) {
+    const klasse = await this.classes.ownedClass(classId, user);
+    const all = (await this.classLinks(klasse)).filter((l) => (l.modes || []).some((m) => m !== 'exam'));
+    const topicsOf = (links: TopicLink[]) => links.flatMap((l) => (l.selection || []).map((e) => e.topicId));
+    if (body.nodeId) {
+      const { nodes, placeOf } = await this.tree(klasse, all);
+      const node = nodes.find((n) => n.id === body.nodeId);
+      if (!node) throw new NotFoundException('Bereich nicht gefunden.');
+      const under = new Set([node.id]);
+      for (let grew = true; grew;) {
+        grew = false;
+        for (const n of nodes) if (n.parentId && under.has(n.parentId) && !under.has(n.id)) { under.add(n.id); grew = true; }
+      }
+      const inside = all.filter((l) => under.has(placeOf.get(l.id)?.nodeId || ''));
+      return this.links.examLinkForTopics(user, classId, `Klassenarbeit ${node.title}`, topicsOf(inside));
+    }
+    if (body.linkId) {
+      const entry = all.find((l) => l.id === body.linkId);
+      if (!entry) throw new NotFoundException('Zuweisung nicht gefunden.');
+      return this.links.examLinkForTopics(user, classId, `Klassenarbeit ${entry.name}`, topicsOf([entry]));
+    }
+    const topicId = String(body.topicId || '');
+    const topic = topicId ? await this.topicRepo.findOne({ where: { id: topicId }, select: ['id', 'title'] }) : null;
+    if (!topic) throw new NotFoundException('Lernthema nicht gefunden.');
+    return this.links.examLinkForTopics(user, classId, `Klassenarbeit ${topic.title}`, [topic.id]);
   }
 
   /** ●/○ der Klassenarbeit: Schüler sehen und starten sie nur mit ● (und aktivem, ausgegebenem Link). */

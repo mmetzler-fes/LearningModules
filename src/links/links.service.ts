@@ -405,9 +405,14 @@ export class LinksService {
         ? await this.moduleRepo.find({ where: { topicId: In(topics.map((t) => t.id)) } })
         : [];
 
+    // Läuft in dieser Klasse eine Klassenarbeit (● an, Link aktiv und erzeugt), ist ihr Inhalt
+    // solange nicht zum Üben zu sehen – sonst ließe sich dort nachschauen.
+    const examBusy = link.classId && !exam && !includeOff ? await this.runningExamContent(link) : null;
+
     const out: Array<{ topic: LearningTopic; modules: LearningModule[] }> = [];
 
     for (const entry of selection) {
+      if (examBusy?.topics.has(entry.topicId)) continue;
       const topic = byId.get(entry.topicId);
       if (!topic) continue;
 
@@ -425,7 +430,7 @@ export class LinksService {
       // Probearbeit über einen anonymen Link: Gesperrtes nur, wenn es einzeln gewählt ist.
       const lockedHere = exam && !link.classId && entry.all ? lockedModuleIds(topic, visible, topic.ownerId === link.ownerId) : new Set<string>();
       const ofTopic = (exam ? visible.filter((m) => !isHtmlAppType(m.type) && !lockedHere.has(m.id)) : withoutLocked(topic, visible, topic.ownerId === link.ownerId, new Set(link.releasedModuleIds || [])))
-        .filter((m) => !isRemovedUnit(m) && (masterOn || m.moduleSelected !== false))
+        .filter((m) => !isRemovedUnit(m) && (masterOn || m.moduleSelected !== false) && !examBusy?.modules.has(m.id))
         .sort((a, b) => a.orderIndex - b.orderIndex);
 
       const chosen = new Set(entry.all ? ofTopic.map((m) => m.id) : entry.moduleIds || []);
@@ -635,6 +640,51 @@ export class LinksService {
     const link = this.linkRepo.create({
       id: crypto.randomUUID(),
       name: mod.title || 'Klassenarbeit',
+      ownerId: user.userId,
+      classId,
+      token: null,
+      examToken: null,
+      active: true,
+      modes: ['exam'],
+      selection,
+      accessPassword: null,
+      singleAttempt: true,
+      hiddenFromStudents: true,
+    });
+    return this.linkRepo.save(link);
+  }
+
+  /** Inhalt laufender Klassenarbeiten der Klasse dieses Links: ganze Lernthemen und einzelne Module. */
+  async runningExamContent(link: TopicLink): Promise<{ topics: Set<string>; modules: Set<string> } | null> {
+    const running = (await this.linkRepo.find({ where: { classId: link.classId!, ownerId: link.ownerId } }))
+      .filter((l) => l.id !== link.id && l.active && !!l.examToken && !l.hiddenFromStudents && (l.modes || []).includes('exam'));
+    if (!running.length) return null;
+    const topics = new Set<string>();
+    const modules = new Set<string>();
+    for (const l of running) for (const e of l.selection || []) {
+      if (e.all) topics.add(e.topicId);
+      else for (const id of e.moduleIds || []) modules.add(id);
+    }
+    return { topics, modules };
+  }
+
+  /**
+   * 📝 Ganzes Lernthema (bzw. alle Lernthemen eines Abschnitts/Bereichs) als Klassenarbeit einer Klasse.
+   * Gibt es schon einen Link der Klassenarbeit mit genau diesen Lernthemen, ist es der; sonst entsteht
+   * einer – für Schüler noch aus und mit nur einem Durchlauf, wie bei einem einzelnen Dokument.
+   */
+  async examLinkForTopics(user: any, classId: string, name: string, topicIds: string[]): Promise<TopicLink> {
+    await this.classesService.ownedClass(classId, user);
+    const ids = [...new Set(topicIds.map(String).filter(Boolean))];
+    if (!ids.length) throw new BadRequestException('Hier gibt es kein Lernthema für eine Klassenarbeit.');
+    const key = (sel: LinkTopicSelection[]) => sel.filter((e) => e.all).map((e) => e.topicId).sort().join('|');
+    const existing = (await this.linkRepo.find({ where: { ownerId: user.userId, classId } }))
+      .find((l) => (l.modes || []).includes('exam') && (l.selection || []).every((e) => e.all) && key(l.selection || []) === [...ids].sort().join('|'));
+    if (existing) return existing;
+    const selection = await this.cleanSelection(user, ids.map((topicId) => ({ topicId, all: true })));
+    const link = this.linkRepo.create({
+      id: crypto.randomUUID(),
+      name: name || 'Klassenarbeit',
       ownerId: user.userId,
       classId,
       token: null,

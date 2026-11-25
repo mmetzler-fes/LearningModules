@@ -1061,6 +1061,18 @@ export class ClassResultsView {
     return { id: res.linkId, name: res.name, active: res.active, hiddenFromStudents: res.hiddenFromStudents, hasExamLink: res.hasExamLink, blockedStudentIds: res.blockedStudentIds || [] };
   }
 
+  /**
+   * 📝 Als Klassenarbeit: ein Teil des Klassennotizbuchs (`{ nodeId }`, `{ linkId }`, `{ topicId }` oder
+   * `{ topicId, moduleId }`) bekommt einen eigenen Link der Klassenarbeit – für Schüler noch aus (○).
+   */
+  async _examFrom(part, title) {
+    const res = await this.app.api.classbookExamFor(this._classId, part);
+    if (failed(res) || !res?.linkId) { this.app.showToast('Fehler: ' + (res?.message || 'Klassenarbeit nicht angelegt'), 'error'); return; }
+    this.app.showToast(`📝 „${res.name || title}“ ist als Klassenarbeit eingetragen – noch aus (○). Unter 📝 Klassenarbeiten einschalten, Link & QR, Ausprobieren.`, 'success');
+    await this._classbook(true);
+    this._switch('exams');
+  }
+
   async _examShare(topicId, moduleId) {
     const ex = await this._examLinkFor(topicId, moduleId);
     if (!ex) return;
@@ -1579,6 +1591,7 @@ export class ClassResultsView {
     items.push({ label: '➕ Aus dem Notizbuch hierher', run: () => this._add('assign', node.id) });
     items.push('-');
     items.push({ label: '📍 Hier ist die Klasse gerade', title: 'Schüler springen zum ersten Modul darin – „Weiter“ führt durch alle weiteren', run: () => this._setMarker({ level: 'node', nodeId: node.id }) });
+    items.push({ label: '📝 Als Klassenarbeit', title: 'Alle Lernthemen darin als eine Klassenarbeit mit eigenem Link – solange sie läuft (●), ist ihr Inhalt nicht zum Üben zu sehen', run: () => this._examFrom({ nodeId: node.id }, node.title) });
     items.push({ label: '🟪 Für OneNote ausgeben…', title: `Nur „${node.title}“ als OneNote-Abschnitt${node.kind === 'area' ? 'sgruppe' : ''} – mit Links ins Klassennotizbuch, Ausdruck, PDF und Quizzen zum Ausfüllen`,
       run: async () => {
         const { openClassbookOneNoteExport } = await import('./onenote-export.js');
@@ -1636,6 +1649,7 @@ export class ClassResultsView {
         this.app.showToast(res.reached ? `📡 An ${res.reached} ${res.reached === 1 ? 'Gerät' : 'Geräte'} gesendet.` : 'Gerade ist kein Schüler-Gerät verbunden.', res.reached ? 'success' : 'info');
       } });
     }
+    items.push({ label: '📝 Als Klassenarbeit', title: 'Dieses Modul als Klassenarbeit mit eigenem Link – solange sie läuft (●), ist es nicht zum Üben zu sehen', run: () => this._examFrom({ topicId: topic.topicId, moduleId: mod.id }, mod.title) });
     if (topic.canEdit) {
       items.push({ label: '🔒 Nur Lehrkraft', title: 'Schüler sehen dieses Modul nicht, in keiner Klasse und über keinen Link. Gilt für das Original im Notizbuch.', run: () => this._call(this.app.api.setModuleStudentLock(topic.topicId, mod.id, { teacherOnly: true })) });
     }
@@ -1656,6 +1670,7 @@ export class ClassResultsView {
     const exam = this._examMenuItems([topic]);
     return [
       ...(exam.length ? [...exam, '-'] : []),
+      { label: '📝 Als Klassenarbeit', title: 'Das ganze Lernthema als Klassenarbeit mit eigenem Link – solange sie läuft (●), ist es nicht zum Üben zu sehen', run: () => this._examFrom({ topicId: topic.topicId }, topic.title) },
       { label: '⛶ Alle Module ansehen', title: 'Was die Klasse sieht, nacheinander über die ganze Seite – mit Zurück und Weiter', run: () => this.app.modulesView.openTopicPlayer('teacher-class-results', topic.topicId, null, (topic.modules || []).filter((m) => m.enabled).map((m) => m.id)) },
       { label: '➕ Neues Modul', title: 'Neue Module sind hier zunächst aus – mit ● einschalten', run: () => this.app.modulesView.openFrom('teacher-class-results', topic.topicId, null) },
       { label: '📦 Module bearbeiten', title: own ? '' : 'Die Module des Originals im Notizbuch', run: () => this.app.modulesView.openTopicModules(topic.topicId) },
@@ -1685,6 +1700,7 @@ export class ClassResultsView {
     items.push({ label: '📡 Live', run: clickIn('[data-live]') });
     items.push({ label: '📊 Ergebnisse', run: clickIn('[data-overview]') });
     // Ein Lernthema: seine Zeile entfällt, deshalb stehen seine Aktionen hier.
+    if ((link.available?.length || 0) > 1) items.push({ label: '📝 Als Klassenarbeit', title: 'Alle Lernthemen dieser Zuweisung als eine Klassenarbeit – solange sie läuft (●), ist ihr Inhalt nicht zum Üben zu sehen', run: () => this._examFrom({ linkId: link.id }, link.name) });
     if (link.available?.length === 1) items.push('-', ...this._topicMenu(link, link.available[0]).filter((i) => i === '-' || !String(i.label).startsWith('📍')), '-');
     // Eine Zeile 📄: auch die Aktionen des Dokuments (Bearbeiten, Tafelbild, An Klasse senden …), ohne Doppeltes.
     const single = this._singleDoc(link);
@@ -2017,8 +2033,9 @@ export class ClassResultsView {
       const links = cb.links.filter((l) => l.exam);
       out.innerHTML = `
         <p class="hint">Klassenarbeiten haben einen eigenen Link. Die Schüler sehen eine Klassenarbeit, wenn sie <strong>●</strong> an ist und
-          ihr Link mit <strong>📝 Link & QR</strong> erzeugt und aktiv ist – mit ○ auch über den Link nicht. Am einfachsten legst du sie in der
-          Inhaltsübersicht an der Klassenarbeit an (🔒-Zeile: ○ und ⋯ mit 📝 Link & QR und 🧪 Ausprobieren); der Weg über
+          ihr Link mit <strong>📝 Link & QR</strong> erzeugt und aktiv ist – mit ○ auch über den Link nicht. Anlegen: in der Inhaltsübersicht
+          im ⋯ eines Bereichs, Abschnitts, Lernthemas oder Moduls <strong>📝 Als Klassenarbeit</strong> – oder an einem Dokument der Art
+          „Klassenarbeit“ (🔒-Zeile: ○ und ⋯). Solange eine Klassenarbeit läuft (●), ist ihr Inhalt in dieser Klasse nicht zum Üben zu sehen. Der Weg über
           <strong>🔗 Schülerfreigaben</strong> (Modus „Klassenarbeit“, dann für diese Klasse) geht weiter.</p>
         ${links.length ? links.map((l) => this._linkCard(l, `
           <button type="button" class="nb-status ${l.hiddenFromStudents ? '' : 'on'}" data-exam-link-visible="${l.hiddenFromStudents ? '' : '1'}"

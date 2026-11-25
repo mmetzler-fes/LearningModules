@@ -10,6 +10,7 @@ describe('LinksService.resolveModules: Quiz aus einem anderen Lernthema', () => 
     const svc: any = Object.create(LinksService.prototype);
     const topics = [{ id: 't', ownerId: 'me', selected: true }, { id: 'tq', ownerId: homeOwner, selected: false }];
     svc.topicRepo = { find: async ({ where }: any) => topics.filter((t) => values(where, 'id')?.includes(t.id)) };
+    svc.linkRepo = { find: async () => [] };
     svc.moduleRepo = {
       find: async ({ where }: any) => (values(where, 'topicId') ? [doc, other].filter((m) => values(where, 'topicId')!.includes(m.topicId))
         : values(where, 'id') ? [quiz].filter((m) => values(where, 'id')!.includes(m.id)) : []),

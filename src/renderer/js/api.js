@@ -1297,6 +1297,10 @@ export class BrowserApi {
   classbookExamLink(classId, topicId, moduleId) {
     return this._fetch(`/api/classbook/${encodeURIComponent(classId)}/exam`, { method: 'POST', body: JSON.stringify({ topicId, moduleId }) });
   }
+  /** 📝 Klassenarbeit aus einem Teil des Klassennotizbuchs: `{ nodeId }`, `{ linkId }` oder `{ topicId }`. */
+  classbookExamFor(classId, part) {
+    return this._fetch(`/api/classbook/${encodeURIComponent(classId)}/exam`, { method: 'POST', body: JSON.stringify(part) });
+  }
   setClassbookExamVisible(classId, linkId, visible) {
     return this._fetch(`/api/classbook/${encodeURIComponent(classId)}/exam/${encodeURIComponent(linkId)}/visible`, { method: 'PUT', body: JSON.stringify({ visible }) });
   }

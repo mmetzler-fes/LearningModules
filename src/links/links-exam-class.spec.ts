@@ -36,3 +36,27 @@ describe('LinksService.examLinkForClass', () => {
     await expect(svc.examLinkForClass(me, 'c1', 't', 'nix')).rejects.toThrow(/nicht gefunden/);
   });
 });
+
+describe('LinksService.examLinkForTopics', () => {
+  const setup = () => {
+    const svc: any = Object.create(LinksService.prototype);
+    const links = repo();
+    svc.linkRepo = links;
+    svc.classesService = { ownedClass: async (id: string) => ({ id }) };
+    svc.cleanSelection = async (_u: any, sel: any) => sel;
+    return { svc, links };
+  };
+  const me = { userId: 'me' };
+
+  it('ganze Lernthemen: ein Link, für Schüler aus, ein Durchlauf – derselbe beim zweiten Mal', async () => {
+    const { svc, links } = setup();
+    const link = await svc.examLinkForTopics(me, 'c1', 'Klassenarbeit OOP', ['t1', 't2', 't1']);
+    expect(link).toMatchObject({ classId: 'c1', name: 'Klassenarbeit OOP', modes: ['exam'], singleAttempt: true, hiddenFromStudents: true });
+    expect(link.selection).toEqual([{ topicId: 't1', all: true }, { topicId: 't2', all: true }]);
+    expect((await svc.examLinkForTopics(me, 'c1', 'x', ['t2', 't1'])).id).toBe(link.id);
+    expect(links.rows).toHaveLength(1);
+  });
+  it('ohne Lernthema: nein', async () => {
+    await expect(setup().svc.examLinkForTopics(me, 'c1', 'x', [])).rejects.toThrow(/kein Lernthema/);
+  });
+});

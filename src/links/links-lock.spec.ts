@@ -55,3 +55,41 @@ describe('LinksService.resolveModules: Sperre', () => {
     });
   });
 });
+
+/** 📝 Läuft eine Klassenarbeit der Klasse, ist ihr Inhalt dort nicht zum Üben zu sehen. */
+describe('LinksService.resolveModules: laufende Klassenarbeit', () => {
+  const mods = [
+    { id: 'a', topicId: 't', type: 'multipleChoice', orderIndex: 0, content: {} },
+    { id: 'b', topicId: 't', type: 'multipleChoice', orderIndex: 1, content: {} },
+    { id: 'c', topicId: 'u', type: 'multipleChoice', orderIndex: 0, content: {} },
+  ];
+  const practice = { id: 'p', ownerId: 'me', classId: 'k', selection: [{ topicId: 't', all: true }, { topicId: 'u', all: true }] };
+  const service = (exams: any[]): any => {
+    const svc: any = Object.create(LinksService.prototype);
+    svc.topicRepo = { find: async () => [{ id: 't', ownerId: 'me', selected: true }, { id: 'u', ownerId: 'me', selected: true }] };
+    svc.moduleRepo = { find: async () => mods };
+    svc.linkRepo = { find: async () => [practice, ...exams] };
+    svc.groupsService = { asUser: async () => ({}) };
+    svc.topicsService = { accessLevel: () => 'read', visibleModules: (_t: unknown, m: unknown) => m };
+    return svc;
+  };
+  const exam = (over: object = {}) => ({ id: 'x', ownerId: 'me', classId: 'k', modes: ['exam'], active: true, examToken: 'e', hiddenFromStudents: false, selection: [{ topicId: 't', all: true }], ...over });
+  const ids = (r: any[]) => r.flatMap((x) => x.modules.map((m: any) => m.id));
+
+  it('ganzes Lernthema als Klassenarbeit (●): fällt in der Klasse weg, das andere bleibt', async () => {
+    expect(ids(await service([exam()]).resolveModules(practice))).toEqual(['c']);
+  });
+  it('einzelnes Modul: nur das fällt weg', async () => {
+    expect(ids(await service([exam({ selection: [{ topicId: 't', all: false, moduleIds: ['b'] }] })]).resolveModules(practice))).toEqual(['a', 'c']);
+  });
+  it('noch aus (○), deaktiviert oder ohne Link: alles zum Üben da', async () => {
+    for (const over of [{ hiddenFromStudents: true }, { active: false }, { examToken: null }]) {
+      expect(ids(await service([exam(over)]).resolveModules(practice))).toEqual(['a', 'b', 'c']);
+    }
+  });
+  it('die Klassenarbeit selbst und die Sicht der Lehrkraft bleiben', async () => {
+    const svc = service([exam()]);
+    expect(ids(await svc.resolveModules(exam(), { exam: true }))).toEqual(['a', 'b']);
+    expect(ids(await svc.resolveModules(practice, { includeOff: true }))).toEqual(['a', 'b', 'c']);
+  });
+});

@@ -29,6 +29,13 @@ class InlineTest(unittest.TestCase):
         self.assertEqual(mw.parse_inline("[L](https://a.b) `c`"),
                          [("a", ("https://a.b", [("text", "L")])), ("text", " "), ("code", "c")])
 
+    def test_link_mit_groesse_oder_farbe(self):
+        # Link-Knopf im Editor mit Schriftgröße: [[url]{14pt}](url) – bleibt ein Link (wie docspec.js).
+        self.assertEqual(mw.parse_inline("[[https://w.com/1]{14pt}](https://w.com/1)"),
+                         [("a", ("https://w.com/1", [("color", ((None, None, 14), [("text", "https://w.com/1")]))]))])
+        self.assertEqual(mw.parse_inline("[Siehe [a](https://x.de) hier]{blau}"),
+                         [("color", (("#1d4ed8", None, None), [("text", "Siehe "), ("a", ("https://x.de", [("text", "a")])), ("text", " hier")]))])
+
     def test_nur_am_wortrand(self):
         for text in ['"8*7 = 56" und "8*7"', "a**b**c", "C++ und i++", "10^9", "__init__"]:
             self.assertEqual(mw.parse_inline(text), [("text", text)], text)

@@ -126,8 +126,9 @@ INLINE_RE = re.compile(
     r"|_\{(?P<sub>[^}]{1,24})\}"
     # Bild im Text („wie ein Zeichen“), vom Server als Datei mitgegeben: ![alt](bilder/bild-3.png){width=1.20cm}
     r"|!\[(?P<ialt>[^\]\n]*)\]\((?P<isrc>[^)\s]+)\)(?:\{width=(?P<iw>\d+(?:\.\d+)?cm)\})?"
-    r"|\[(?P<atext>[^\]\n]+)\]\((?P<href>(?:https?://|mailto:)[^)\s]+)\)"
-    r"|\[(?P<ctext>[^\]\n]+)\]\{(?P<color>[a-z0-9-]+(?:,[a-z0-9-]+){0,2})\}"
+    # Link- und Farbtext dürfen eine Ebene [ … ] enthalten: [[Text]{14pt}](https://…) – wie docspec.js.
+    r"|\[(?P<atext>(?:\\.|\[[^\[\]\n]*\]|[^\[\]\n])+)\]\((?P<href>(?:https?://|mailto:)[^)\s]+)\)"
+    r"|\[(?P<ctext>(?:\\.|\[[^\[\]\n]*\]|[^\[\]\n])+)\]\{(?P<color>[a-z0-9-]+(?:,[a-z0-9-]+){0,2})\}"
 )
 # Farben im Text ([Text]{blau,hl-gelb}) – wie docspec.js; kein Rot (rot = Lösung).
 TEXT_COLORS = {"blau": "#1d4ed8", "gruen": "#15803d", "orange": "#c2410c", "lila": "#7e22ce", "grau": "#6b7280"}

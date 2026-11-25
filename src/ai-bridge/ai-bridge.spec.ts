@@ -444,6 +444,19 @@ describe('AiBridgeService (15-Minuten-KI-Token, Scope & Undo)', () => {
     await expect(service.executeBatchByTeacher(user, info.id, { operations: [{ op: 'rename_notebook_node', id: 'book-other', title: 'x' }] })).rejects.toThrow(/nicht freigegeben/);
   });
 
+  it('Anhang mit Nextcloud-Dateien anlegen (🔒 nur Lehrkraft); fremde Links abgelehnt', async () => {
+    const { token } = await service.createSession(user, { notebookNodeIds: ['book-et'], planNodeIds: [] });
+    const session = await service.authenticateToken(token);
+    const url = 'https://lm.example/api/nextcloud/files/abc/Ordner/loesung.zip';
+    await service.executeBatch(session, {
+      operations: [{ op: 'create_attachment', topicId: 'top-ohm', title: '20 Lösung', files: [{ url, name: 'loesung.zip', size: 12 }], teacherOnly: true }],
+    });
+    expect(modules.find((m) => m.title === '20 Lösung')).toMatchObject({ type: 'attachment', teacherOnly: true, content: { files: [{ url, name: 'loesung.zip', size: 12 }] } });
+    await expect(service.executeBatch(session, {
+      operations: [{ op: 'create_attachment', topicId: 'top-ohm', title: 'X', files: [{ url: 'https://evil.example/x.zip', name: 'x.zip' }] }],
+    })).rejects.toThrow(/eigenen Nextcloud/);
+  });
+
   const MC = { question: 'Wie groß ist I?', answers: [{ text: '0,5 A', correct: false }, { text: '2 A', correct: true }], singleAnswer: true };
 
   it('Quiz anlegen und im selben Aufruf ins Dokument einbetten; Fehler mit Verweis aufs Format', async () => {

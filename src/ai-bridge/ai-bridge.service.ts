@@ -112,8 +112,23 @@ export type AiBridgeOp =
   | { op: 'create_topic'; title: string; description?: string; targetNodeId?: string | null; ref?: string }
   | { op: 'create_document'; topicId: string; title: string; kind?: 'arbeitsblatt' | 'klassenarbeit' | 'text'; spec: any; ref?: string }
   | { op: 'update_document'; moduleId: string; title?: string; spec?: any; kind?: 'arbeitsblatt' | 'klassenarbeit' | 'text' }
+  | { op: 'create_attachment'; topicId: string; title: string; files: Array<{ url: string; name: string; size?: number; type?: string }>; teacherOnly?: boolean; ref?: string }
   | { op: 'create_quiz'; topicId: string; type: string; title: string; content: any; ref?: string }
   | { op: 'update_quiz'; moduleId: string; title?: string; content: any };
+
+/** Dateien eines Anhangs: nur Links der eigenen Nextcloud (…/api/nextcloud/…), sonst null. */
+export function attachmentFiles(raw: any): Array<{ url: string; name: string; size: number; type: string }> | null {
+  if (!Array.isArray(raw) || !raw.length || raw.length > 20) return null;
+  const out = [];
+  for (const f of raw) {
+    const url = String(f?.url || '').trim();
+    const name = String(f?.name || '').trim().slice(0, 200);
+    if (!name || !/^(https?:\/\/[^\s"'<>]+)?\/api\/nextcloud\/[^\s"'<>]+$/.test(url)) return null;
+    const size = Number.isFinite(Number(f.size)) && Number(f.size) >= 0 ? Math.round(Number(f.size)) : 0;
+    out.push({ url, name, size, type: String(f.type || 'application/octet-stream').slice(0, 100) });
+  }
+  return out;
+}
 
 const DEFAULT_TTL_MINUTES = 60;
 const MIN_TTL_MINUTES = 5;
@@ -1240,6 +1255,47 @@ export class AiBridgeService {
           break;
         }
 
+        case 'create_attachment': {
+          // Anhang (Dateien schon in der eigenen Nextcloud, z. B. Lösungs-.zip) – wie ein Dokument ein eigenes Lernthema.
+          this.requirePerm(session, byTeacher, 'writeDocs', i, item.op);
+          const topicId = resolveRef(item.topicId)!;
+          if (!topicId || !scopeSets.allowedTopics.has(topicId)) {
+            throw new ForbiddenException(`operations[${i}]: Lernthema „${topicId}“ ist nicht im freigegebenen Bereich.`);
+          }
+          const title = String(item.title || '').trim().slice(0, 200);
+          if (!title) throw new BadRequestException(`operations[${i}]: title fehlt.`);
+          const files = attachmentFiles(item.files);
+          if (!files) {
+            throw new BadRequestException(`operations[${i}] (create_attachment „${title}“): files braucht 1–20 Einträge { url, name } mit Links …/api/nextcloud/… der eigenen Nextcloud.`);
+          }
+          const teacherOnly = !!item.teacherOnly;
+          const summary = `Anhang „${title}“ angelegt${teacherOnly ? ' (🔒 nur Lehrkraft)' : ''}`;
+          if (dryRun) {
+            const fakeId = `dry_att_${i}`;
+            if (item.ref) refs.set(item.ref, fakeId);
+            results.push({ index: i, op: item.op, ok: true, id: fakeId, summary: `[Vorschau] ${summary}` });
+            break;
+          }
+          const saved = await this.topics.addModule(topicId, user, {
+            type: 'attachment',
+            title,
+            moduleSelected: true,
+            teacherOnly,
+            content: { files },
+          } as any);
+          if (item.ref) refs.set(item.ref, saved.id);
+          const ownTopic = saved.topicId !== topicId ? saved.topicId : null;
+          const said = ownTopic ? `${summary} – eigenes Lernthema direkt hinter dem Ziel` : summary;
+          if (ownTopic) {
+            scopeSets.allowedTopics.add(ownTopic);
+            session.undoStack.push({ kind: 'delete_topic', id: ownTopic, label: said });
+          }
+          session.undoStack.push({ kind: 'delete_module', topicId: saved.topicId, moduleId: saved.id, label: said });
+          session.log.push({ at: new Date().toISOString(), op: item.op, summary: said });
+          results.push({ index: i, op: item.op, ok: true, id: saved.id, ...(ownTopic ? { topicId: ownTopic } : {}), summary: said });
+          break;
+        }
+
         case 'update_document': {
           this.requirePerm(session, byTeacher, 'writeDocs', i, item.op);
           const moduleId = resolveRef(item.moduleId)!;
@@ -1560,6 +1616,11 @@ export class AiBridgeService {
         example: { op: 'update_document', moduleId: '<module-id>', title: 'Überarbeiteter Titel', spec: { content: [] } },
       },
       {
+        op: 'create_attachment',
+        description: 'Legt einen Anhang (Modultyp „Anhang“) mit Dateien an, die schon in der Nextcloud der Lehrkraft liegen (Links …/api/nextcloud/…). Wie ein Dokument: hat das Ziel schon eines, entsteht ein eigenes Lernthema direkt dahinter. teacherOnly: true = 🔒 nur Lehrkraft (z. B. Lösungen).',
+        example: { op: 'create_attachment', topicId: '<topic-id>', title: '20 Lösung Reihenschaltung', files: [{ url: 'https://…/api/nextcloud/files/<link>/<Ordner>/loesung.zip', name: 'loesung.zip', size: 2048 }], teacherOnly: true },
+      },
+      {
         op: 'create_quiz',
         description: `Legt ein Quiz im Lernthema an (type: ${AI_QUIZ_TYPES.join(', ')}). Format von "content" je Typ: GET /reference/quiz?types=<typ>. Mit "ref" lässt es sich im selben Aufruf in ein Dokument einbetten: Block { "type": "quiz", "module": "$q1" }.`,
         example: { op: 'create_quiz', topicId: '<topic-id|$ref>', type: 'multipleChoice', title: 'Ohmsches Gesetz', ref: '$q1', content: { question: 'Wie groß ist I bei U = 12 V und R = 6 Ω?', answers: [{ text: '0,5 A', correct: false }, { text: '2 A', correct: true }, { text: '72 A', correct: false }], singleAnswer: true, randomAnswers: true } },
@@ -1747,6 +1808,7 @@ export class AiBridgeService {
         '`{"op":"create_topic","title":"…","targetNodeId":"<sectionId|$ref>","ref":"$t1"}`',
         '`{"op":"create_document","topicId":"<id|$ref>","title":"…","kind":"arbeitsblatt","spec":{"content":[…]}}` – ein Dokument je Lernthema: je Blatt erst create_topic; hat das Ziel schon eines, entsteht ein eigenes Lernthema dahinter',
         '`{"op":"update_document","moduleId":"<id>","title":"…","spec":{"content":[…]}}` – vorher mit GET /documents/<id> lesen',
+        '`{"op":"create_attachment","topicId":"<id|$ref>","title":"…","files":[{"url":"…/api/nextcloud/…","name":"x.zip","size":123}],"teacherOnly":true}` – Anhang mit Dateien, die schon in der Nextcloud der Lehrkraft liegen; eigenes Lernthema dahinter',
         `\`{"op":"create_quiz","topicId":"<id|$ref>","type":"<Typ>","title":"…","content":{…},"ref":"$q1"}\` – Typen: ${AI_QUIZ_TYPES.map((t) => `${t} (${quizTypeName(t)})`).join(', ')}`,
         '`{"op":"update_quiz","moduleId":"<id>","title":"…","content":{…}}` – Typ bleibt; vorher mit GET /topics/<id> lesen',
       ] : []),

@@ -1,3 +1,4 @@
+import { examBlocked } from '../links/links.service';
 import { ClassbookService } from './classbook.service';
 import { pinGuard } from '../work/pin';
 import { repo } from '../work/test-repo';
@@ -283,23 +284,19 @@ describe('Klassennotizbuch: Startseite', () => {
 });
 
 describe('Klassennotizbuch: Klassenarbeit', () => {
-  it('erscheint, solange sie aktiv ist und ihr Link erzeugt wurde; Start über ihren eigenen Link', async () => {
+  it('Schüler sehen sie hier nie – nur über ihren eigenen Link; die Vorschau der Lehrkraft schon, mit Stand', async () => {
     const { svc, links, attempts } = setup();
-    links.rows.push({ id: 'x1', classId: 'c1', ownerId: 't1', name: 'KA 1', active: true, modes: ['exam'], examToken: null, singleAttempt: true, createdAt: new Date() });
+    links.rows.push({ id: 'x1', classId: 'c1', ownerId: 't1', name: 'KA 1', active: true, modes: ['exam'], examToken: 'ex', singleAttempt: true, createdAt: new Date() });
     const { ticket } = await svc.login('kb', { name: 'Anna', pin: '1234' });
     expect((await svc.home('kb', ticket)).exams).toEqual([]);
-    await expect(svc.enter('kb', { ticket, linkId: 'x1', exam: true })).rejects.toThrow(/nicht freigegeben/);
+    await expect(svc.enter('kb', { ticket, linkId: 'x1', exam: true })).rejects.toThrow(/eigenen Link/);
 
-    links.rows[1].examToken = 'ex';
-    expect((await svc.home('kb', ticket)).exams).toEqual([{ linkId: 'x1', name: 'KA 1', state: 'open' }]);
-    expect(await svc.enter('kb', { ticket, linkId: 'x1', exam: true })).toEqual({ linkToken: 'ex' });
-
-    attempts.rows.push({ id: 'a1', linkId: 'x1', studentId: 's1', submittedAt: null, reentryAllowed: false });
-    expect((await svc.home('kb', ticket)).exams[0].state).toBe('locked');
-    attempts.rows[0].submittedAt = new Date();
-    expect((await svc.home('kb', ticket)).exams[0].state).toBe('submitted');
-    attempts.rows[0].reentryAllowed = true;
-    expect((await svc.home('kb', ticket)).exams[0].state).toBe('reentry');
+    const preview = await svc.preview({ userId: 't1', role: 'teacher' }, 'c1');
+    expect((await svc.home('kb', preview.ticket)).exams).toEqual([{ linkId: 'x1', name: 'KA 1', state: 'open' }]);
+    expect(await svc.enter('kb', { ticket: preview.ticket, linkId: 'x1', exam: true })).toEqual({ linkToken: 'ex' });
+    links.rows[1].examToken = null;
+    expect((await svc.home('kb', preview.ticket)).exams).toEqual([]);
+    expect(attempts).toBeDefined();
   });
 });
 
@@ -312,7 +309,7 @@ describe('Klassennotizbuch: Klassenarbeit noch aus (○)', () => {
     hidden(links);
     const { ticket } = await svc.login('kb', { name: 'Anna', pin: '1234' });
     expect((await svc.home('kb', ticket)).exams).toEqual([]);
-    await expect(svc.enter('kb', { ticket, linkId: 'x1', exam: true })).rejects.toThrow(/nicht freigegeben/);
+    await expect(svc.enter('kb', { ticket, linkId: 'x1', exam: true })).rejects.toThrow(/eigenen Link/);
 
     const preview = await svc.preview(me, 'c1');
     expect((await svc.home('kb', preview.ticket)).exams).toEqual([{ linkId: 'x1', name: 'KA 1', state: 'open', hiddenFromStudents: true }]);
@@ -327,23 +324,17 @@ describe('Klassennotizbuch: Klassenarbeit noch aus (○)', () => {
       return { success: true, visible };
     };
     await svc.setExamVisible(me, 'c1', 'x1', true);
+    expect(links.rows[1].hiddenFromStudents).toBe(false);
+    // Auch mit ● nicht auf der Seite der Schüler: nur über den Link der Klassenarbeit.
     const { ticket } = await svc.login('kb', { name: 'Anna', pin: '1234' });
-    expect((await svc.home('kb', ticket)).exams).toEqual([{ linkId: 'x1', name: 'KA 1', state: 'open' }]);
+    expect((await svc.home('kb', ticket)).exams).toEqual([]);
   });
 
-  it('🚫 gesperrte Schüler sehen sie nicht und kommen nicht hinein; Vorschau und Entsperren wie gehabt', async () => {
-    const { svc, links } = setup();
-    hidden(links);
-    links.rows[1].hiddenFromStudents = false;
-    const { ticket } = await svc.login('kb', { name: 'Anna', pin: '1234' });
-    const anna = readTicket(ticket, classbookTicketKey('c1'))!.s;
-    links.rows[1].blockedStudentIds = [anna];
-    expect((await svc.home('kb', ticket)).exams).toEqual([]);
-    await expect(svc.enter('kb', { ticket, linkId: 'x1', exam: true })).rejects.toThrow(/nicht freigegeben/);
-    const preview = await svc.preview(me, 'c1');
-    expect((await svc.home('kb', preview.ticket)).exams).toHaveLength(1);
-    links.rows[1].blockedStudentIds = null;
-    expect((await svc.home('kb', ticket)).exams).toEqual([{ linkId: 'x1', name: 'KA 1', state: 'open' }]);
+  it('🚫 gesperrte Schüler: examBlocked trifft sie, nie den Testschüler', async () => {
+    expect(examBlocked({ blockedStudentIds: ['s1'] }, 's1')).toBe(true);
+    expect(examBlocked({ blockedStudentIds: ['s1'] }, 's2')).toBe(false);
+    expect(examBlocked({ blockedStudentIds: ['test:t1'] }, 'test:t1')).toBe(false);
+    expect(examBlocked({ blockedStudentIds: null }, 's1')).toBe(false);
   });
 
   it('🧪 Ausprobieren: erzeugt bei Bedarf den Schlüssel und gibt den Ausweis der Vorschau', async () => {

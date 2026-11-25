@@ -977,10 +977,10 @@ export class ClassResultsView {
   _examHint(m) {
     const ex = this._examLinkOf(m.id);
     if (!m.isExam && !ex) return 'nur für dich';
-    if (!ex || ex.hiddenFromStudents) return 'Klassenarbeit – Schüler sehen sie nicht';
+    if (!ex || ex.hiddenFromStudents) return 'Klassenarbeit – aus, auch über ihren Link kein Zugang';
     if (!ex.active) return 'Klassenarbeit – Link deaktiviert';
     const n = (ex.blockedStudentIds || []).length;
-    return (ex.hasExamLink ? 'Klassenarbeit – läuft, Schüler sehen sie' : 'Klassenarbeit – an, sobald ihr Link erzeugt ist') + (n ? ` · ${n} gesperrt` : '');
+    return 'Klassenarbeit – an, Schüler kommen über ihren Link bzw. QR-Code hinein' + (n ? ` · ${n} gesperrt` : '');
   }
 
   /** ●/○, 📝 Link & QR und 🧪 Ausprobieren an einer Klassenarbeit im Baum. */
@@ -989,8 +989,8 @@ export class ClassResultsView {
     if (!m.isExam && !ex) return '';
     const on = !!ex && !ex.hiddenFromStudents;
     const title = on
-      ? 'Schüler sehen die Klassenarbeit, solange ihr Link aktiv ist – klicken zum Ausschalten'
-      : 'Aus: Schüler sehen sie nicht und kommen nicht hinein, auch nicht mit dem Link – klicken zum Einschalten';
+      ? 'An: Schüler kommen über den Link bzw. QR-Code der Klassenarbeit hinein – klicken zum Ausschalten'
+      : 'Aus: Niemand kommt hinein, auch nicht mit dem Link – klicken zum Einschalten';
     const ids = `data-exam-topic="${escapeAttr(t.topicId)}" data-exam-module="${escapeAttr(m.id)}"`;
     return `<button type="button" class="nb-status ${on ? 'on' : ''}" data-exam-visible="${on ? '1' : ''}" ${ids} title="${escapeAttr(title)}" aria-label="${escapeAttr(title)}">${on ? '●' : '○'}</button>
           <button type="button" class="nb-menu-btn" data-exam-menu ${ids} title="Klassenarbeit: Link & QR, Ausprobieren, Schüler sperren" aria-label="Aktionen">⋯</button>`;
@@ -2032,14 +2032,14 @@ export class ClassResultsView {
     this._section('exams', async (cb, out) => {
       const links = cb.links.filter((l) => l.exam);
       out.innerHTML = `
-        <p class="hint">Klassenarbeiten haben einen eigenen Link. Die Schüler sehen eine Klassenarbeit, wenn sie <strong>●</strong> an ist und
-          ihr Link mit <strong>📝 Link & QR</strong> erzeugt und aktiv ist – mit ○ auch über den Link nicht. Anlegen: in der Inhaltsübersicht
+        <p class="hint">Klassenarbeiten gibt es nur über ihren eigenen Link bzw. QR-Code (<strong>📝 Link & QR</strong>) – im Klassennotizbuch
+          der Schüler stehen sie nicht. Hinein kommen sie nur mit <strong>●</strong> und aktivem Link, mit ○ auch über den Link nicht. Anlegen: in der Inhaltsübersicht
           im ⋯ eines Bereichs, Abschnitts, Lernthemas oder Moduls <strong>📝 Als Klassenarbeit</strong> – oder an einem Dokument der Art
           „Klassenarbeit“ (🔒-Zeile: ○ und ⋯). Solange eine Klassenarbeit läuft (●), ist ihr Inhalt in dieser Klasse nicht zum Üben zu sehen. Der Weg über
           <strong>🔗 Schülerfreigaben</strong> (Modus „Klassenarbeit“, dann für diese Klasse) geht weiter.</p>
         ${links.length ? links.map((l) => this._linkCard(l, `
           <button type="button" class="nb-status ${l.hiddenFromStudents ? '' : 'on'}" data-exam-link-visible="${l.hiddenFromStudents ? '' : '1'}"
-            title="${l.hiddenFromStudents ? 'Aus: Schüler sehen sie nicht – klicken zum Einschalten' : 'An: Schüler sehen sie, solange der Link aktiv ist – klicken zum Ausschalten'}">${l.hiddenFromStudents ? '○' : '●'}</button>
+            title="${l.hiddenFromStudents ? 'Aus: Niemand kommt hinein, auch nicht mit dem Link – klicken zum Einschalten' : 'An: Schüler kommen über den Link bzw. QR-Code hinein – klicken zum Ausschalten'}">${l.hiddenFromStudents ? '○' : '●'}</button>
           <button type="button" class="btn btn-primary btn-sm" data-exam-share>📝 Link & QR</button>
           <button type="button" class="btn btn-secondary btn-sm" data-exam-block title="Einzelne Schüler (z. B. krank am Termin) sehen die Klassenarbeit nicht – ihr übriges Material schon">🚫 Schüler sperren${(l.blockedStudentIds || []).length ? ` (${l.blockedStudentIds.length})` : ''}</button>
           <button type="button" class="btn btn-secondary btn-sm" data-exam-link-try title="Selbst schreiben, als 🧪 Vorschau in einem neuen Tab – zählt nicht, beliebig oft">🧪 Ausprobieren</button>

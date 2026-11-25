@@ -1793,10 +1793,10 @@ export class ClassbookService {
     const examOnly = examOnlyLinkId && isTestStudent(t.s)
       ? active.find((l) => l.id === examOnlyLinkId && (l.modes || []).includes('exam') && l.examToken)
       : undefined;
-    // Laufende Klassenarbeiten: aktiv und ihr Link ist erzeugt (die Lehrkraft hat ihn ausgegeben).
-    // Im Klassennotizbuch noch aus (○): nur die Vorschau der Lehrkraft (🧪 Testschüler) sieht sie, markiert.
-    const exams = scope ? [] : await Promise.all(active
-      .filter((l) => (l.modes || []).includes('exam') && l.examToken && (!l.hiddenFromStudents || isTestStudent(t.s)) && !examBlocked(l, t.s) && (!examOnly || l.id === examOnly.id))
+    // Klassenarbeiten gibt es für Schüler nur über ihren eigenen Link bzw. QR-Code, nie auf dieser Seite.
+    // Hier stehen sie nur in der Vorschau der Lehrkraft (🧪 Testschüler, z. B. 🧪 Ausprobieren), ○ markiert.
+    const exams = scope || !isTestStudent(t.s) ? [] : await Promise.all(active
+      .filter((l) => (l.modes || []).includes('exam') && l.examToken && (!examOnly || l.id === examOnly.id))
       .map(async (l) => {
         const attempt = await this.attemptRepo.findOne({ where: { linkId: l.id, studentId: t.s } });
         return { linkId: l.id, name: l.name, state: isTestStudent(t.s) ? 'open' : examState(attempt, l.singleAttempt), ...(l.hiddenFromStudents ? { hiddenFromStudents: true } : {}) };
@@ -2005,7 +2005,8 @@ export class ClassbookService {
       const { nodes, placeOf } = await this.tree(klasse, [link]);
       if (this.veiledLinks(nb, nodes, placeOf, [link]).veiled.has(link.id)) throw new NotFoundException('Diese Aufgabe ist gerade nicht freigegeben.');
     }
-    // Klassenarbeit: nur über ihren eigenen Link – den gibt es erst, wenn die Lehrkraft ihn ausgegeben hat.
+    // Klassenarbeit: für Schüler nur über ihren eigenen Link – von hier nur die Vorschau der Lehrkraft (🧪).
+    if (body?.exam && !isTestStudent(t.s)) throw new NotFoundException('Die Klassenarbeit gibt es nur über ihren eigenen Link bzw. QR-Code.');
     if (body?.exam) {
       if (!(link.modes || []).includes('exam') || !link.examToken) throw new NotFoundException('Diese Klassenarbeit ist gerade nicht freigegeben.');
       if (link.hiddenFromStudents && !isTestStudent(t.s)) throw new NotFoundException('Diese Klassenarbeit ist gerade nicht freigegeben.');

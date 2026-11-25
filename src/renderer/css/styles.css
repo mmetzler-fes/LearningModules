@@ -7092,3 +7092,9 @@ body.html-app-large iframe.lm-app-frame { border: 0; border-radius: 6px; }
 
 .ds-pm-surface img.ds-inline-img { cursor: pointer; }
 .ds-pm-surface img.ds-inline-img.ProseMirror-selectednode { outline: 2px solid #2563eb; outline-offset: 1px; }
+
+/* Klassenarbeit: nie drucken oder als PDF speichern – der Druck zeigt nur einen Hinweis (quiz.js setzt .exam-run). */
+@media print {
+  body.exam-run > * { display: none !important; }
+  body.exam-run::before { content: 'Eine Klassenarbeit lässt sich nicht drucken oder als PDF speichern.'; display: block; padding: 2cm; font: 16pt sans-serif; }
+}

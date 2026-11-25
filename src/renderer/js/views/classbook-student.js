@@ -329,7 +329,7 @@ export class ClassbookStudent {
     const login = this.app.loginView;
     login._appContainer?.classList.add('hidden');
     login._loginScreen?.classList.remove('hidden');
-    document.body.classList.remove('student-run', 'companion-run');
+    document.body.classList.remove('student-run', 'companion-run', 'exam-run');
     document.querySelector('#loginScreen .login-card')?.classList.add('login-card-wide');
     this._el.classList.remove('hidden');
     workspace.markHome();

@@ -139,7 +139,10 @@ export async function openDocumentInk({ mode, mod, up = null, embedModule = null
   let lastForms = null;
   let content = mod.content || {};
   if (typeof content === 'string') { try { content = JSON.parse(content); } catch (_) { content = {}; } }
-  const loadPdf = !isDoc ? null : async (variant) => {
+  // Klassenarbeit (Durchlauf oder Dokument der Art „Klassenarbeit“): für Schüler nie als Datei –
+  // kein PDF-Hintergrund, kein Drucken, Teilen oder Bildschirmfoto (der Server lehnt das PDF ohnehin ab).
+  const noExport = mode === 'student' && (examRun || content.kind === 'klassenarbeit');
+  const loadPdf = !isDoc || noExport ? null : async (variant) => {
     const res = mode === 'student'
       ? await fetch(`/api/public/document/${encodeURIComponent(mod.id)}/pdf`, {
         method: 'POST',
@@ -267,7 +270,7 @@ export async function openDocumentInk({ mode, mod, up = null, embedModule = null
   if (mode === 'teacher' && editable && mod.topicId) Object.assign(paper, documentEditing());
   // Schüler im Durchlauf: das Blatt mit Beschriftung als PDF mit der Vorlage der Lehrkraft – auf dem
   // iPad gleich ins Teilen-Menü (GoodNotes), sonst im neuen Fenster (📤 neben 🖨).
-  if (mode === 'student' && isDoc && (up?.linkToken || up?.quickToken)) {
+  if (mode === 'student' && isDoc && !noExport && (up?.linkToken || up?.quickToken)) {
     const { canShareFiles } = await import('../share-file.js');
     paper.printWindow = !canShareFiles();
     paper.share = { title: 'An GoodNotes – das Blatt mit deiner Beschriftung als PDF teilen' };
@@ -314,7 +317,7 @@ export async function openDocumentInk({ mode, mod, up = null, embedModule = null
     // Die neue Beschriftung gleich in der Ansicht zeigen.
     if (sourceEl) void showSavedInk(sourceEl, { mode, up, moduleId: mod.id, landscape: paper.landscape });
   };
-  return openInkEditor({ title: title || mod.title || 'Arbeitsblatt', key: `${mode}:${mod.id}`, loadPdf, solutions: isDoc && (mode === 'teacher' || JSON.stringify(content.spec || {}).includes('"type":"solution"')), laser: mode === 'teacher', paper, store, onClose, actions: runActions(), side });
+  return openInkEditor({ title: title || mod.title || 'Arbeitsblatt', key: `${mode}:${mod.id}`, loadPdf, solutions: isDoc && (mode === 'teacher' || JSON.stringify(content.spec || {}).includes('"type":"solution"')), laser: mode === 'teacher', paper, store, onClose, actions: runActions(), side, noExport });
 
   /**
    * PDF über den Renderer (wie „Drucken“ im Modul-Editor): das Dokument mit

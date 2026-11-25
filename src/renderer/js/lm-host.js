@@ -61,8 +61,9 @@ export const lmHost = {
       });
     }
     // Die Beschriftung der Lehrkraft ist ihre 🔑 Lehrerlösung: freigegeben wird sie je Klasse im Klassennotizbuch.
-    // Schüler: das Blatt als PDF (POST /api/public/document/:id/pdf).
-    if (inRun(up)) {
+    // Schüler: das Blatt als PDF (POST /api/public/document/:id/pdf) – nie bei einer Klassenarbeit.
+    const exam = !!options.examRun || content?.kind === 'klassenarbeit';
+    if (inRun(up) && !exam) {
       actions.push({
         label: '⬇ Als PDF',
         className: 'ds-pdf-btn',

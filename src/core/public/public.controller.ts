@@ -39,6 +39,16 @@ import { ClassbookService } from '../../classbook/classbook.service';
 
 const MAX_RECORDING_BYTES = 25 * 1024 * 1024;
 
+/**
+ * Klassenarbeiten verlassen das Gerät nie als Datei: kein PDF, kein Heft – weder über den Link der
+ * Klassenarbeit noch, wenn ein Klassenarbeits-Dokument zur Besprechung freigegeben ist.
+ */
+const EXAM_NO_DOWNLOAD = 'Eine Klassenarbeit lässt sich nicht herunterladen oder als PDF speichern.';
+export const isExamDocument = (m: { type?: string; content?: any }) => m.type === 'document' && contentOf(m).kind === 'klassenarbeit';
+function noExamAccess(access: LinkAccess) {
+  if (access === 'exam') throw new ForbiddenException(EXAM_NO_DOWNLOAD);
+}
+
 @Controller('public')
 export class PublicController {
   constructor(
@@ -79,6 +89,7 @@ export class PublicController {
     let modules: LearningModule[] = [];
     if (body?.linkToken) {
       const { link, access } = await this.findAccessByToken(String(body.linkToken));
+      noExamAccess(access);
       if (link.accessPassword && (body.password || '') !== link.accessPassword && !readTicket(body.studentTicket, link.id)) {
         throw new ForbiddenException('Falsches Passwort.');
       }
@@ -93,6 +104,7 @@ export class PublicController {
     if (!listed) throw new NotFoundException('Dokument nicht gefunden.');
     const mod = await this.moduleRepo.findOne({ where: { id: moduleId } });
     if (!mod || mod.type !== 'document' || !mod.content?.spec) throw new NotFoundException('Dokument nicht gefunden.');
+    if (isExamDocument(mod)) throw new ForbiddenException(EXAM_NO_DOWNLOAD);
     const topic = await this.topicRepo.findOne({ where: { id: mod.topicId }, select: ['id', 'ownerId'] });
     if (!topic || !(await this.features.has(topic.ownerId, 'worksheets'))) throw new ForbiddenException('Für dieses Dokument gibt es kein PDF.');
     const { file } = await this.worksheets.render({ userId: topic.ownerId }, { spec: mod.content.spec, title: mod.title, output: 'pdf', moduleId: mod.id });
@@ -120,6 +132,7 @@ export class PublicController {
     let classLink: TopicLink | null = null;
     if (body?.linkToken) {
       const { link, access } = await this.findAccessByToken(String(body.linkToken));
+      noExamAccess(access);
       if (link.accessPassword && (body.password || '') !== link.accessPassword && !readTicket(body.studentTicket, link.id)) {
         throw new ForbiddenException('Falsches Passwort.');
       }
@@ -134,6 +147,7 @@ export class PublicController {
     if (!modules.some((m) => m.id === moduleId)) throw new NotFoundException('Dokument nicht gefunden.');
     const mod = await this.moduleRepo.findOne({ where: { id: moduleId } });
     if (!mod || mod.type !== 'document' || !mod.content?.spec) throw new NotFoundException('Dokument nicht gefunden.');
+    if (isExamDocument(mod)) throw new ForbiddenException(EXAM_NO_DOWNLOAD);
     const topic = await this.topicRepo.findOne({ where: { id: mod.topicId }, select: ['id', 'ownerId'] });
     if (!topic || !(await this.features.has(topic.ownerId, 'worksheets'))) throw new ForbiddenException('Für dieses Dokument gibt es kein PDF.');
     const { spec, full } = studentInkSpec(body?.spec, mod.content.spec, withoutSolutionBlocks(mod.content.spec), body?.ink);
@@ -165,6 +179,7 @@ export class PublicController {
     let classLink: TopicLink | null = null;
     if (body?.linkToken) {
       const { link, access } = await this.findAccessByToken(String(body.linkToken));
+      noExamAccess(access);
       if (link.accessPassword && (body.password || '') !== link.accessPassword && !readTicket(body.studentTicket, link.id)) {
         throw new ForbiddenException('Falsches Passwort.');
       }
@@ -189,11 +204,12 @@ export class PublicController {
   @Get('goodnotes/:linkToken/node/:nodeId')
   async goodnotesNodeByLink(@Param('linkToken') linkToken: string, @Param('nodeId') nodeId: string, @Req() req: any, @Res() res: Response) {
     const { link, access } = await this.findAccessByToken(String(linkToken));
+    noExamAccess(access);
     if (link.accessPassword) throw new ForbiddenException('Dieser Link hat ein Passwort – das Heft gibt es dann am Dokument („📓 Heft für GoodNotes“).');
     if (link.quickNodeId !== nodeId) throw new NotFoundException('Heft nicht gefunden.');
     if (!(await this.features.has(link.ownerId, 'worksheets'))) throw new ForbiddenException('Hierfür gibt es kein Heft.');
     const modules = (await this.linksService.resolveModules(link, { exam: modesFor(link, access).includes('exam') })).flatMap((r) => r.modules);
-    const allowed = new Set(modules.filter((m) => m.type === 'document').map((m) => m.id));
+    const allowed = new Set(modules.filter((m) => m.type === 'document' && !isExamDocument(m)).map((m) => m.id));
     const h = await this.goodnotes.heftForNode(link.ownerId, nodeId, { allowed, base: baseUrl(req) });
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `inline; filename*=UTF-8''${encodeURIComponent(h.name)}`);
@@ -208,6 +224,7 @@ export class PublicController {
   @Get('goodnotes/:linkToken/:topicId')
   async goodnotesByLink(@Param('linkToken') linkToken: string, @Param('topicId') topicId: string, @Req() req: any, @Res() res: Response) {
     const { link, access } = await this.findAccessByToken(String(linkToken));
+    noExamAccess(access);
     if (link.accessPassword) throw new ForbiddenException('Dieser Link hat ein Passwort – das Heft gibt es dann am Dokument („📓 Heft für GoodNotes“).');
     const modules = (await this.linksService.resolveModules(link, { exam: modesFor(link, access).includes('exam') })).flatMap((r) => r.modules);
     await this.sendHeft(modules, String(topicId), req, res, 'inline', link);
@@ -219,7 +236,7 @@ export class PublicController {
    * sonst anonym über den Quick-Link.
    */
   private async sendHeft(modules: LearningModule[], topicId: string, req: any, res: Response, disposition: 'attachment' | 'inline', link: TopicLink | null = null) {
-    const allowed = new Set(modules.filter((m) => m.topicId === topicId && m.type === 'document').map((m) => m.id));
+    const allowed = new Set(modules.filter((m) => m.topicId === topicId && m.type === 'document' && !isExamDocument(m)).map((m) => m.id));
     if (!allowed.size) throw new NotFoundException('In diesem Lernthema gibt es keine Dokumente.');
     const topic = await this.topicRepo.findOne({ where: { id: topicId }, select: ['id', 'ownerId'] });
     if (!topic || !(await this.features.has(topic.ownerId, 'worksheets'))) throw new ForbiddenException('Für dieses Lernthema gibt es kein Heft.');

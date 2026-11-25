@@ -420,6 +420,7 @@ export class QuizView {
     this._taskTimer = null;
     this._finishing = false;
     this.app.state.quizState = null;
+    document.body.classList.remove('exam-run');
     this._quizPlayerArea?.classList.add('hidden');
     this._quizResultArea?.classList.add('hidden');
     if (this._quizModuleContainer) this._quizModuleContainer.innerHTML = '';
@@ -433,6 +434,8 @@ export class QuizView {
     // Schüler: kompakte Ansicht, damit die Aufgabe in die Bildschirmhöhe passt.
     document.body.classList.toggle('student-run', this.app.state.currentUser?.role === 'student');
     document.body.classList.toggle('companion-run', !!this._companion);
+    // Klassenarbeit: Browser-Druck (auch „Als PDF speichern“) zeigt nur einen Hinweis (styles.css, .exam-run).
+    document.body.classList.toggle('exam-run', this._isExamRun());
     this.app.navigateToView('student-quiz');
     this._quizTopicSelect.classList.add('hidden');
     this._quizPlayerArea.classList.remove('hidden');

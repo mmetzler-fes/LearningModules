@@ -1425,7 +1425,11 @@ export class ClassbookService {
           const opened = new Set(units.filter((u) => appStates.some((x) => x.moduleId === u.appRoot && x.studentId === s.id && x.opened?.includes(u.appUnit as string))).map((u) => u.id));
           cells[s.id] = unitCells(units, runs, mine, opened);
         }
-        return { id: l.id, name: l.name, active: l.active, units: units.map(({ id, title, type, inDoc, from }) => ({ id, title, type, inDoc, from })), cells };
+        return {
+          id: l.id, name: l.name, active: l.active, units: units.map(({ id, title, type, inDoc, from, ids }) => ({ id, title, type, inDoc, from, ids })), cells,
+          // Ergebnisübersicht je Zuweisung: Lernthema → seine Module (Spalten oben, in dieser Reihenfolge).
+          topics: l.resolved.map((r) => ({ id: r.topic.id, title: r.topic.title, unitIds: unitsOf(r.modules, true).map((u) => u.id) })),
+        };
       }),
       quizzes: this.quizOverview(links, unitsOfLink, results, [...students, ...(hasPreview ? [{ id: testId }] : [])]),
     };

@@ -39,6 +39,23 @@ const pct = (v) => (v === null ? '–' : `${v} %`);
 const pctClass = (v) => (v === null ? '' : v >= 70 ? 'good' : v >= 40 ? 'medium' : 'poor');
 const date = (iso) => (iso ? new Date(iso).toLocaleDateString('de-DE') : '–');
 const runs = (n) => (n === 1 ? '1 Durchlauf' : `${n} Durchläufe`);
+const fmtP = (n) => String(Math.round(Number(n) * 100) / 100).replace('.', ',');
+
+/**
+ * Ergebnis der Antworten zu einem Quiz in einem Durchlauf: Punkte (Klassenarbeit, `pts`) bzw. Anteil richtig.
+ * `ratio` null: nur angesehen bzw. ohne Wertung.
+ */
+function unitScore(answers) {
+  const graded = answers.filter((d) => !d.informational && !d.ungraded && !d.appReported);
+  if (!graded.length) return { ratio: null };
+  if (graded.some((d) => d.pts)) {
+    const earned = graded.reduce((a, d) => a + (Number(d.pts?.earned) || 0), 0);
+    const max = graded.reduce((a, d) => a + (Number(d.pts?.max) || 0), 0);
+    return { pts: true, earned, max, ratio: max ? earned / max : null };
+  }
+  const score = graded.reduce((a, d) => a + (typeof d.points === 'number' ? d.points : d.isCorrect ? 1 : 0), 0);
+  return { ratio: score / graded.length };
+}
 
 /** Kalenderwoche als Schlüssel – für „aktive Wochen“ im Jahresüberblick. */
 function weekKey(iso) {
@@ -52,7 +69,7 @@ function weekKey(iso) {
 
 const TABS = ['content', 'exams', 'students', 'overview', 'contest', 'live', 'settings'];
 // Reiter der früheren Klassenergebnisse → Bereich und Unterreiter.
-const OLD_TABS = { tests: ['overview', 'tests'], year: ['overview', 'year'], works: ['students', 'works'] };
+const OLD_TABS = { tests: ['overview', 'links'], year: ['overview', 'year'], works: ['students', 'works'] };
 const TYPE_ICON = { document: '📄', attachment: '📎' };
 const NODE_ICON = { book: '📓', area: '📂', section: '📑' };
 
@@ -71,10 +88,11 @@ export class ClassResultsView {
     this._tabs     = document.querySelectorAll('[data-cr-tab]');
     const saved = loadPref('lm_cr_tab');
     this._tab = TABS.includes(saved) ? saved : OLD_TABS[saved]?.[0] || 'content';
-    this._studentsSub = loadPref('lm_cr_students_sub') === 'works' || saved === 'works' ? 'works' : 'results';
+
     // Wie im Lernnotizbuch: 📄 Dokumente | 🧩 Quizze | Alles in der Inhaltsübersicht.
     this._cbView = ['docs', 'quizzes', 'all'].includes(loadPref('lm_cb_view')) ? loadPref('lm_cb_view') : 'all';
-    this._overviewSub = ['tests', 'year', 'quizzes'].includes(loadPref('lm_cr_overview_sub')) ? loadPref('lm_cr_overview_sub') : OLD_TABS[saved]?.[0] === 'overview' ? saved : 'modules';
+    this._overviewSub = ['links', 'students', 'year'].includes(loadPref('lm_cr_overview_sub')) ? loadPref('lm_cr_overview_sub') : saved === 'year' ? 'year' : 'links';
+    this._range = ['year', '28', '7'].includes(loadPref('lm_cr_range')) ? loadPref('lm_cr_range') : 'year';
     this._cb = null;
     this._worksBy = loadPref('lm_cr_works_by') === 'link' ? 'link' : 'student';
     this._liveTimer = null;
@@ -189,25 +207,17 @@ export class ClassResultsView {
     if (this._tab === 'exams') { this._renderExamsSection(); return; }
     if (this._tab === 'contest') { this._renderContest(); return; }
     if (this._tab === 'settings') { this._renderSettings(); return; }
-    if (this._tab === 'students') {
-      this._subBar([['results', '📈 Ergebnisse'], ['works', '✍️ Blätter']], this._studentsSub, (v) => {
-        this._studentsSub = v;
-        savePref('lm_cr_students_sub', v);
-      });
-      if (this._studentsSub === 'works') { this._renderWorks(); return; }
-      if (this._data) this._renderStudents();
-      return;
-    }
+    // 👥 Schülerdaten: die Blätter (Dokumente); Ergebnisse der Quizze stehen in der Ergebnisübersicht.
+    if (this._tab === 'students') { this._out = this._content; this._renderWorks(); return; }
     // Ergebnisübersicht
-    this._subBar([['modules', '📘 Je Lernthema'], ['quizzes', '🧩 Je Quiz'], ['tests', '📝 Je Aufgabe'], ['year', '📅 Jahresüberblick']], this._overviewSub, (v) => {
+    this._subBar([['links', '📝 Je Zuweisung'], ['students', '👤 Je Schüler'], ['year', '📅 Jahresüberblick']], this._overviewSub, (v) => {
       this._overviewSub = v;
       savePref('lm_cr_overview_sub', v);
     });
-    if (this._overviewSub === 'modules') { this._renderModules(); return; }
-    if (this._overviewSub === 'quizzes') { this._renderQuizzes(); return; }
+    if (this._overviewSub === 'links') { this._renderByLink(); return; }
+    if (this._overviewSub === 'students') { this._renderByStudent(); return; }
     if (!this._data) return;
-    if (this._overviewSub === 'tests') this._renderTests();
-    else this._renderYear();
+    this._renderYear();
   }
 
   /** Umschalter über einem Bereich; der Inhalt kommt darunter (this._out). */
@@ -230,7 +240,7 @@ export class ClassResultsView {
     const classId = this._classId;
     this._out.innerHTML = '<p class="hint">Wird geladen …</p>';
     const works = await this.app.api.listWorks({ classId });
-    if (classId !== this._classId || this._tab !== 'students' || this._studentsSub !== 'works') return;
+    if (classId !== this._classId || this._tab !== 'students') return;
     if (failed(works)) { this._out.innerHTML = `<p class="hint">Fehler: ${escapeHtml(works?.message || '?')}</p>`; return; }
     const when = (d) => new Date(d).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' });
     const byStudent = this._worksBy === 'student';
@@ -411,100 +421,6 @@ export class ClassResultsView {
         <p>In den letzten 12 Stunden hat niemand aus dieser Klasse einen Klassenlink gestartet. Sobald es losgeht, erscheint es hier.</p></div>`;
     this._out.querySelector('.cr-live-link')?.addEventListener('change', (e) => { this._liveLink = e.target.value; this._renderLive(); });
     this._liveTimer = setTimeout(() => this._renderLive(), 5000);
-  }
-
-  // ---- Schüler: je Schüler alle Durchläufe ----
-
-  _renderStudents() {
-    const { rows, extra } = this._rows();
-    this._out.innerHTML = '';
-    if (rows.length === 0 && extra.length === 0 && !this._data.preview?.length) {
-      this._out.innerHTML = '<div class="empty-state"><p>Die Klasse hat noch keine Schüler und keine Ergebnisse.</p></div>';
-      return;
-    }
-    const block = (row) => {
-      const list = [...row.results].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-      const box = document.createElement('details');
-      box.className = 'result-group result-group-student';
-      box.open = this._openGroups.has(row.key);
-      box.addEventListener('toggle', () => (box.open ? this._openGroups.add(row.key) : this._openGroups.delete(row.key)));
-      const meta = list.length
-        ? `${runs(list.length)} · Ø ${pct(avg(list))} · zuletzt ${date(list[0].timestamp)}`
-        : '<span class="cr-missing">noch keine Ergebnisse</span>';
-      box.innerHTML = `<summary>
-        <span class="result-group-title">${escapeHtml(row.label)}${row.pending ? ' <small class="class-pending-note">unbestätigt</small>' : ''}</span>
-        <span class="result-group-meta">${meta}</span></summary>`;
-      for (const r of list) box.appendChild(this.app.resultsView._renderResultCard(r, () => this._load()));
-      return box;
-    };
-    for (const row of rows) this._out.appendChild(block(row));
-    // 🧪 Vorschau der Lehrkraft: eigene Zeile, zählt nicht als Schüler.
-    if (this._data.preview?.length) {
-      this._out.appendChild(block({ key: 'preview', label: this._data.preview[0].studentName || '🧪 Vorschau', results: this._data.preview }));
-    }
-    if (extra.length) {
-      const head = document.createElement('h3');
-      head.className = 'cr-subhead';
-      head.textContent = 'Nicht zugeordnet';
-      const hint = document.createElement('p');
-      hint.className = 'hint';
-      hint.textContent = 'Durchläufe über einen Klassenlink, die keinem Schüler der Liste gehören – etwa von vor der Schülerliste oder eines entfernten Schülers.';
-      this._out.append(head, hint);
-      for (const row of extra) this._out.appendChild(block(row));
-    }
-  }
-
-  // ---- Tests: je Klassenlink die ganze Klasse ----
-
-  _renderTests() {
-    const { rows } = this._rows();
-    const { results } = this._data;
-    const tests = new Map();
-    for (const r of results) {
-      const key = r.linkId || r.linkName || '—';
-      if (!tests.has(key)) tests.set(key, { name: r.linkName || 'Ohne Link', results: [] });
-      tests.get(key).results.push(r);
-    }
-    if (tests.size === 0) {
-      this._out.innerHTML = '<div class="empty-state"><p>Über die Klassenlinks dieser Klasse gibt es noch keine Ergebnisse.</p></div>';
-      return;
-    }
-    const latest = (t) => Math.max(...t.results.map((r) => new Date(r.timestamp).getTime()));
-    const list = [...tests.entries()].sort(([, a], [, b]) => latest(b) - latest(a));
-    this._out.innerHTML = '';
-    for (const [key, test] of list) {
-      const done = rows.filter((row) => test.results.some((r) => r.studentId === row.key));
-      const missing = rows.filter((row) => !row.pending && !test.results.some((r) => r.studentId === row.key));
-      const modes = [...new Set(test.results.map((r) => r.mode).filter(Boolean))];
-      const box = document.createElement('details');
-      box.className = 'result-group result-group-link';
-      box.open = this._openGroups.has(`test:${key}`);
-      box.addEventListener('toggle', () => (box.open ? this._openGroups.add(`test:${key}`) : this._openGroups.delete(`test:${key}`)));
-      box.innerHTML = `<summary>
-          <span class="result-group-title">🔗 ${escapeHtml(test.name)}
-            ${modes.map((m) => `<span class="result-mode-badge">${escapeHtml(MODE_LABELS[m] || m)}</span>`).join('')}</span>
-          <span class="result-group-meta">${done.length} von ${done.length + missing.length} · Ø ${pct(avg(test.results))} · zuletzt ${date(new Date(latest(test)).toISOString())}
-            ${missing.length ? ` · <span class="cr-missing">${missing.length} fehlen</span>` : ''}</span>
-        </summary>
-${modes.includes('exam') ? this._examMatrix(test, rows) : this._testTable(test, rows)}`;
-      this._out.appendChild(box);
-      this._bindExamMatrix(box, test);
-    }
-  }
-
-  /** Je Schüler: Durchläufe, bestes Ergebnis, zuletzt (Übungen, Lernbegleitung …). */
-  _testTable(test, rows) {
-    return `        <table class="class-students cr-table">
-          <thead><tr><th>Schüler</th><th>Durchläufe</th><th>Bestes</th><th>Zuletzt</th></tr></thead>
-          <tbody>${rows.map((row) => {
-            const mine = test.results.filter((r) => r.studentId === row.key);
-            if (!mine.length) return row.pending ? '' : `<tr class="cr-row-missing"><td>${escapeHtml(row.label)}</td><td colspan="3"><span class="cr-missing">fehlt noch</span></td></tr>`;
-            const b = best(mine);
-            const last = mine.reduce((a, r) => (new Date(r.timestamp) > new Date(a.timestamp) ? r : a));
-            return `<tr><td>${escapeHtml(row.label)}</td><td>${mine.length}</td>
-              <td><span class="result-score ${pctClass(b)}">${pct(b)}</span></td><td>${date(last.timestamp)}</td></tr>`;
-          }).join('')}</tbody>
-        </table>`;
   }
 
   /**
@@ -1217,7 +1133,7 @@ ${modes.includes('exam') ? this._examMatrix(test, rows) : this._testTable(test, 
 
   /**
    * Im Baum der Inhaltsübersicht je Modul: wie viele Schüler es bearbeitet haben und Ø ihres besten
-   * Ergebnisses – über diese Zuweisung. Klick öffnet 📊 Je Lernthema an dieser Stelle.
+   * Ergebnisses – über diese Zuweisung. Klick öffnet 📊 Je Zuweisung an dieser Stelle.
    */
   async _fillResults(out) {
     const slots = [...out.querySelectorAll('.cb-res[data-res-link]')];
@@ -1239,7 +1155,7 @@ ${modes.includes('exam') ? this._examMatrix(test, rows) : this._testTable(test, 
         e.preventDefault();
         e.stopPropagation();
         this._overviewLink = l.id;
-        this._overviewSub = isDocLike(unit) || this._cbView !== 'quizzes' ? 'modules' : 'quizzes';
+        this._overviewSub = 'links';
         this._switch('overview');
       });
     }
@@ -1513,7 +1429,7 @@ ${modes.includes('exam') ? this._examMatrix(test, rows) : this._testTable(test, 
       }));
       out.querySelectorAll('[data-overview]').forEach((btn) => btn.addEventListener('click', () => {
         this._overviewLink = btn.closest('[data-link]').dataset.link;
-        this._overviewSub = 'modules';
+        this._overviewSub = 'links';
         this._switch('overview');
       }));
       this._bindActive(out);
@@ -2102,7 +2018,7 @@ ${modes.includes('exam') ? this._examMatrix(test, rows) : this._testTable(test, 
       out.innerHTML = `
         <p class="hint">Klassenarbeiten gibt es nur über ihren eigenen Link bzw. QR-Code (<strong>📝 Link & QR</strong>) – im Klassennotizbuch
           der Schüler stehen sie nicht. Hinein kommen sie nur mit <strong>●</strong> und aktivem Link, mit ○ auch über den Link nicht. Abgegebenes unter
-          <strong>📊 Ergebnisse</strong>, wer gerade schreibt, ganz unten. Anlegen: in der Inhaltsübersicht
+          <strong>📊 Ergebnisse</strong> an der Klassenarbeit, wer gerade schreibt, ganz unten. Anlegen: in der Inhaltsübersicht
           im ⋯ eines Bereichs, Abschnitts, Lernthemas oder Moduls <strong>📝 Als Klassenarbeit</strong> – oder an einem Dokument der Art
           „Klassenarbeit“ (🔒-Zeile: ○ und ⋯). Solange eine Klassenarbeit läuft (●), ist ihr Inhalt in dieser Klasse nicht zum Üben zu sehen. Der Weg über
           <strong>🔗 Schülerfreigaben</strong> (Modus „Klassenarbeit“, dann für diese Klasse) geht weiter.</p>
@@ -2110,25 +2026,26 @@ ${modes.includes('exam') ? this._examMatrix(test, rows) : this._testTable(test, 
           <button type="button" class="nb-status ${l.hiddenFromStudents ? '' : 'on'}" data-exam-link-visible="${l.hiddenFromStudents ? '' : '1'}"
             title="${l.hiddenFromStudents ? 'Aus: Niemand kommt hinein, auch nicht mit dem Link – klicken zum Einschalten' : 'An: Schüler kommen über den Link bzw. QR-Code hinein – klicken zum Ausschalten'}">${l.hiddenFromStudents ? '○' : '●'}</button>
           <button type="button" class="btn btn-primary btn-sm" data-exam-share>📝 Link & QR</button>
-          <button type="button" class="btn btn-secondary btn-sm" data-exam-results title="Abgegebene Klassenarbeiten: Punkte je Schüler, wer fehlt">📊 Ergebnisse</button>
+          <button type="button" class="btn btn-secondary btn-sm" data-exam-results title="Ergebnisse dieser Klassenarbeit: Punkte je Aufgabe und Schüler, Blätter, wer fehlt">📊 Ergebnisse</button>
           <button type="button" class="btn btn-secondary btn-sm" data-exam-block title="Einzelne Schüler (z. B. krank am Termin) sehen die Klassenarbeit nicht – ihr übriges Material schon">🚫 Schüler sperren${(l.blockedStudentIds || []).length ? ` (${l.blockedStudentIds.length})` : ''}</button>
           <button type="button" class="btn btn-secondary btn-sm" data-exam-link-try title="Selbst schreiben, als 🧪 Vorschau in einem neuen Tab – zählt nicht, beliebig oft">🧪 Ausprobieren</button>
           ${l.active ? '<button type="button" class="btn btn-secondary btn-sm" data-active="off">⏸ Deaktivieren</button>'
-            : '<button type="button" class="btn btn-secondary btn-sm" data-active="on">▶ Aktivieren</button>'}`)).join('')
+            : '<button type="button" class="btn btn-secondary btn-sm" data-active="on">▶ Aktivieren</button>'}`, this._unitsHtml(l.topics) + this._examResultsSlot(l))).join('')
           : '<div class="empty-state"><span class="empty-icon">📝</span><p>Für diese Klasse gibt es noch keine Klassenarbeit.</p></div>'}
         <div class="class-exams"></div>`;
       out.querySelectorAll('[data-exam-share]').forEach((btn) => btn.addEventListener('click', () => {
         const link = links.find((l) => l.id === btn.closest('[data-link]').dataset.link);
         this.app.linksView._openShareDialog(link, 'exam');
       }));
-      // 📊 Ergebnisse: Ergebnisübersicht → 📝 Je Aufgabe, diese Klassenarbeit aufgeklappt.
+      // 📊 Ergebnisse: direkt an der Klassenarbeit aufklappen (Karte mit).
+      this._bindExamResults(out);
       out.querySelectorAll('[data-exam-results]').forEach((btn) => btn.addEventListener('click', () => {
-        this._openGroups.add(`test:${btn.closest('[data-link]').dataset.link}`);
-        this._overviewSub = 'tests';
-        savePref('lm_cr_overview_sub', 'tests');
-        this._tab = 'overview';
-        savePref('lm_cr_tab', 'overview');
-        void this._load(); // frisch: Abgaben seit dem Öffnen der Klasse
+        const card = btn.closest('details[data-link]');
+        if (card) card.open = true;
+        const res = card?.querySelector('details[data-exam-res]');
+        if (!res) return;
+        res.open = true;
+        res.scrollIntoView({ block: 'start', behavior: 'smooth' });
       }));
       out.querySelectorAll('[data-exam-block]').forEach((btn) => btn.addEventListener('click', () => {
         this._examBlockDialog(links.find((l) => l.id === btn.closest('[data-link]').dataset.link));
@@ -2272,87 +2189,260 @@ ${modes.includes('exam') ? this._examMatrix(test, rows) : this._testTable(test, 
     });
   }
 
-  // ---- 📊 Ergebnisübersicht je Modul ----
+  // ==================== 📊 Ergebnisübersicht ====================
+  // Je Zuweisung (Übungen) bzw. je Schüler, von grob nach fein aufklappbar: Zuweisung → Lernthema → Quiz → Schüler/Antwort.
+  // Alles beginnt zugeklappt (Wunsch: sonst schnell unübersichtlich). Klassenarbeiten stehen bei 📝 Klassenarbeiten.
 
-  /** Je Zuweisung eine Tabelle: Schüler × Module, bester Anteil richtig, ✓ erledigt, ✍️ Blatt. */
-  async _renderModules() {
+  /** Ergebnisse im gewählten Zeitraum (Schuljahr, letzte 4 Wochen, letzte Woche). */
+  _inRange(list) {
+    const days = { '28': 28, '7': 7 }[this._range];
+    if (!days) return list;
+    const since = Date.now() - days * 86400000;
+    return list.filter((r) => new Date(r.timestamp).getTime() >= since);
+  }
+
+  _rangeBar() {
+    const opts = [['year', 'Ganzes Schuljahr'], ['28', 'Letzte 4 Wochen'], ['7', 'Letzte 7 Tage']];
+    return `<div class="cr-works-bar cr-range"><span class="hint">Zeitraum</span>
+      ${opts.map(([v, label]) => `<button type="button" class="btn btn-sm ${this._range === v ? 'btn-primary' : 'btn-secondary'}" data-range="${v}">${label}</button>`).join('')}</div>`;
+  }
+
+  _bindRange(out, again) {
+    out.querySelectorAll('[data-range]').forEach((btn) => btn.addEventListener('click', () => {
+      this._range = btn.dataset.range;
+      savePref('lm_cr_range', this._range);
+      again();
+    }));
+  }
+
+  /** Schülerzeile auf-/zuklappen: darunter seine Antworten zu diesem Quiz. */
+  _bindAnswerRows(out) {
+    out.querySelectorAll('tr[data-answers]').forEach((tr) => tr.addEventListener('click', () => {
+      const next = tr.nextElementSibling;
+      if (next?.classList.contains('cr-answer-row')) { next.remove(); tr.classList.remove('open'); return; }
+      const row = document.createElement('tr');
+      row.className = 'cr-answer-row';
+      row.innerHTML = `<td colspan="${tr.children.length}">${this._answersById.get(tr.dataset.answers) || ''}</td>`;
+      tr.after(row);
+      tr.classList.add('open');
+    }));
+  }
+
+  /** Antworten eines Durchlaufs zu einem Quiz – wie „Details anzeigen“ der Ergebniskarte. */
+  _answersHtml(list) {
+    return `<div class="result-detail-list">${list.map((d) => `
+      <div class="result-detail-item ${d.informational ? '' : d.isCorrect ? 'correct' : 'wrong'}">
+        <span class="result-detail-icon">${d.informational ? 'ℹ️' : d.isCorrect ? '✅' : '❌'}</span>
+        <div><strong>${escapeHtml(d.moduleName || d.moduleTitle || d.title || '')}</strong>${d.pts && !d.informational ? `<span class="result-detail-pts">${fmtP(d.pts.earned)} / ${fmtP(d.pts.max)} P</span>` : ''}
+          ${d.userAnswer !== undefined ? `<br>Antwort: ${escapeHtml(String(d.userAnswer))}` : ''}
+          ${d.correctAnswer !== undefined && d.correctAnswer !== '' ? `<br>Korrekt: ${escapeHtml(String(d.correctAnswer))}` : ''}
+        </div></div>`).join('') || '<p class="hint">Keine Antworten gespeichert.</p>'}</div>`;
+  }
+
+  /** Bestes Ergebnis eines Schülers zu einem Quiz über seine Durchläufe – mit den Antworten dieses Durchlaufs. */
+  _bestFor(unit, runs) {
+    const ids = new Set(unit.ids || [unit.id]);
+    let best = null;
+    let count = 0;
+    let last = null;
+    for (const r of runs) {
+      const mine = (r.details || []).filter((d) => d && d.moduleId && ids.has(d.moduleId));
+      if (!mine.length) continue;
+      count++;
+      if (!last || new Date(r.timestamp) > new Date(last)) last = r.timestamp;
+      const s = unitScore(mine);
+      if (!best || (s.ratio ?? -1) > (best.ratio ?? -1)) best = { ...s, answers: mine };
+    }
+    return best ? { ...best, count, last } : null;
+  }
+
+  _scoreHtml(b) {
+    if (!b) return '<span class="cr-missing">noch nicht</span>';
+    if (b.ratio === null) return '<span class="cb-done">✓</span>';
+    const p = Math.round(b.ratio * 100);
+    return `<span class="result-score ${pctClass(p)}">${b.pts ? `${fmtP(b.earned)}/${fmtP(b.max)} P · ` : ''}${p} %</span>`;
+  }
+
+  /** Zusammenfassung einer Ebene: wie viele mit Ergebnis, Ø, wer fehlt. */
+  _metaHtml(bests, total) {
+    const done = bests.filter(Boolean);
+    const scored = done.filter((b) => b.ratio !== null);
+    const avgPct = scored.length ? Math.round((scored.reduce((a, b) => a + b.ratio, 0) / scored.length) * 100) : null;
+    const missing = total - done.length;
+    return `${done.length} von ${total}${avgPct !== null ? ` · Ø <span class="result-score ${pctClass(avgPct)}">${avgPct} %</span>` : ''}${missing > 0 ? ` · <span class="cr-missing">${missing} ohne Ergebnis</span>` : ''}`;
+  }
+
+  /** Module einer Zuweisung, nach Lernthemen; Dokumente stehen unter 👥 Schülerdaten (✍️ Blätter). */
+  _topicsOf(l) {
+    const quiz = (u) => !isDocLike(u) && u.type !== 'attachment';
+    const byId = new Map(l.units.map((u) => [u.id, u]));
+    const groups = (l.topics?.length ? l.topics : [{ id: l.id, title: l.name, unitIds: l.units.map((u) => u.id) }])
+      .map((t) => ({ ...t, units: (t.unitIds || []).map((id) => byId.get(id)).filter((u) => u && quiz(u)) }))
+      .filter((t) => t.units.length);
+    return groups;
+  }
+
+  async _renderByLink() {
     const classId = this._classId;
     const out = this._out;
     out.innerHTML = '<p class="hint">Wird geladen …</p>';
     let data;
     try { data = await this._overview(true); } catch (err) { data = { message: err.message }; }
-    if (classId !== this._classId || this._tab !== 'overview' || this._overviewSub !== 'modules') return;
+    if (classId !== this._classId || this._tab !== 'overview' || this._overviewSub !== 'links') return;
     if (failed(data) || !data.links) { out.innerHTML = `<p class="hint">Fehler: ${escapeHtml(data?.message || '?')}</p>`; return; }
-    if (!data.links.length) {
-      out.innerHTML = '<div class="empty-state"><span class="empty-icon">📊</span><p>Noch nichts zugewiesen – siehe 📋 Inhaltsübersicht.</p></div>';
-      return;
-    }
-    const cell = (c) => {
-      if (!c || (!c.done && !c.work && !c.opened)) return '<td></td>';
-      if (c.opened && !c.done && !c.work) return '<td><span title="Abschnitt geöffnet, noch nichts bearbeitet">👁</span></td>';
-      const main = c.done ? (c.pct === null ? '<span class="cb-done">✓</span>' : `<span class="result-score ${pctClass(c.pct)}">${c.pct}</span>`) : '';
-      return `<td>${main}${c.work ? '<span title="Blatt bearbeitet">✍️</span>' : ''}</td>`;
-    };
     const students = data.students.filter((s) => !s.pending);
-    // Quizze aus anderen Lernthemen: eigene Spalte direkt hinter ihrem Dokument.
-    const inDocText = (l, u) => (u.inDoc ? ` – im Dokument „${l.units.find((d) => d.id === u.inDoc)?.title || ''}“${u.from ? `, aus: ${u.from}` : ''}` : '');
-    out.innerHTML = `<p class="hint">Je Modul das beste Ergebnis in Prozent, ✓ erledigt (ohne Wertung), ✍️ Blatt mit dem Stift bearbeitet, 👁 Abschnitt einer HTML-App geöffnet (zählt nicht als erledigt).
-        Unbestätigte Einträge der Klassenliste fehlen.</p>
-      ${data.links.map((l) => {
-        const done = (s) => l.units.filter((u) => l.cells[s.id]?.[u.id]?.done || l.cells[s.id]?.[u.id]?.work).length;
-        return `<details class="result-group" ${this._overviewLink ? (this._overviewLink === l.id ? 'open' : '') : 'open'}>
-          <summary><span class="result-group-title">🔗 ${escapeHtml(l.name)}${l.active ? '' : ' <small class="class-pending-note">ausgeblendet</small>'}</span>
-            <span class="result-group-meta">${l.units.length} Module · ${students.filter((s) => done(s) === l.units.length && l.units.length).length} von ${students.length} fertig</span></summary>
-          <div class="cr-live-wrap"><table class="cr-live cb-matrix">
-            <thead><tr><th>Schüler</th>${l.units.map((u, i) => `<th class="${u.inDoc ? 'cb-col-embedded' : ''}" title="${escapeAttr(u.title + inDocText(l, u))}">${i + 1}</th>`).join('')}<th>Erledigt</th></tr></thead>
-            <tbody>${students.map((s) => `<tr class="${done(s) ? '' : 'cr-live-absent'}"><td>${escapeHtml(s.name)}</td>
-              ${l.units.map((u) => cell(l.cells[s.id]?.[u.id])).join('')}<td>${done(s)}/${l.units.length}</td></tr>`).join('')}
-              ${data.preview ? `<tr class="cr-preview-row"><td>${escapeHtml(data.preview.name)}</td>${l.units.map((u) => cell(l.cells[data.preview.id]?.[u.id])).join('')}<td>${done(data.preview)}/${l.units.length}</td></tr>` : ''}</tbody>
-          </table></div>
-          <ol class="cb-legend">${l.units.map((u) => `<li class="${u.inDoc ? 'cb-col-embedded' : ''}">${TYPE_ICON[u.type] || '🧩'} ${escapeHtml(u.title || 'Modul')}${u.inDoc ? `<span class="hint">${escapeHtml(inDocText(l, u))}</span>` : ''}</li>`).join('')}</ol>
-        </details>`;
-      }).join('')}`;
+    const results = this._inRange((this._data?.results || []).filter((r) => r.mode !== 'exam'));
+    this._answersById = new Map();
+    let n = 0;
+    const openLink = this._overviewLink;
     this._overviewLink = null;
+    const linkHtml = (l) => {
+      const runsOf = (sid) => results.filter((r) => r.linkId === l.id && r.studentId === sid);
+      const topics = this._topicsOf(l);
+      if (!topics.length) return '';
+      const all = topics.flatMap((t) => t.units);
+      // Je Schüler über die ganze Zuweisung: Ø seiner besten Ergebnisse je Quiz.
+      const overall = (units, sid) => {
+        const bs = units.map((u) => this._bestFor(u, runsOf(sid))).filter(Boolean);
+        if (!bs.length) return null;
+        const sc = bs.filter((b) => b.ratio !== null);
+        return { ratio: sc.length ? sc.reduce((a, b) => a + b.ratio, 0) / sc.length : null };
+      };
+      const unitHtml = (u) => {
+        const bests = students.map((s) => this._bestFor(u, runsOf(s.id)));
+        return `<details class="cr-level cr-l3"><summary><span class="result-group-title">${TYPE_ICON[u.type] || '🧩'} ${escapeHtml(u.title || 'Quiz')}</span>
+            <span class="result-group-meta">${this._metaHtml(bests, students.length)}</span></summary>
+          <table class="class-students cr-table cr-answers"><thead><tr><th>Schüler</th><th>Bestes</th><th>Durchläufe</th><th>Zuletzt</th></tr></thead>
+          <tbody>${students.map((s, i) => {
+            const b = bests[i];
+            if (!b) return `<tr class="cr-row-missing"><td>${escapeHtml(s.name)}</td><td colspan="3"><span class="cr-missing">noch nicht</span></td></tr>`;
+            const key = `a${n++}`;
+            this._answersById.set(key, this._answersHtml(b.answers));
+            return `<tr data-answers="${key}" title="Klicken: Antworten"><td>▸ ${escapeHtml(s.name)}</td><td>${this._scoreHtml(b)}</td><td>${b.count}</td><td>${date(b.last)}</td></tr>`;
+          }).join('')}</tbody></table></details>`;
+      };
+      const topicHtml = (t) => `<details class="cr-level cr-l2"><summary><span class="result-group-title">📘 ${escapeHtml(t.title)}</span>
+          <span class="result-group-meta">${t.units.length} Quiz${t.units.length === 1 ? '' : 'ze'} · ${this._metaHtml(students.map((s) => overall(t.units, s.id)), students.length)}</span></summary>
+        ${t.units.map(unitHtml).join('')}</details>`;
+      return `<details class="result-group cr-level cr-l1" ${openLink === l.id ? 'open' : ''}><summary><span class="result-group-title">🔗 ${escapeHtml(l.name)}${l.active ? '' : ' <small class="class-pending-note">ausgeblendet</small>'}</span>
+          <span class="result-group-meta">${this._metaHtml(students.map((s) => overall(all, s.id)), students.length)}</span></summary>
+        ${topics.length === 1 ? topics[0].units.map(unitHtml).join('') : topics.map(topicHtml).join('')}</details>`;
+    };
+    const body = data.links.map(linkHtml).join('');
+    out.innerHTML = `${this._rangeBar()}
+      <p class="hint">Zum Üben zugewiesene Quizze: aufklappen bis zum einzelnen Schüler, Klick auf ihn zeigt seine Antworten. Es zählt sein bestes Ergebnis.
+        Klassenarbeiten stehen unter 📝 Klassenarbeiten, Dokumente unter 👥 Schülerdaten.</p>
+      ${body || '<div class="empty-state"><span class="empty-icon">📊</span><p>In den Zuweisungen dieser Klasse steckt noch kein Quiz.</p></div>'}`;
+    this._bindRange(out, () => this._renderByLink());
+    this._bindAnswerRows(out);
+    if (openLink) out.querySelector('.cr-l1[open]')?.scrollIntoView({ block: 'start' });
   }
 
-  // ---- 🧩 Je Quiz: jedes Quiz einmal, über alle Zuweisungen und Dokumente ----
-
-  async _renderQuizzes() {
+  async _renderByStudent() {
     const classId = this._classId;
     const out = this._out;
     out.innerHTML = '<p class="hint">Wird geladen …</p>';
     let data;
     try { data = await this._overview(true); } catch (err) { data = { message: err.message }; }
-    if (classId !== this._classId || this._tab !== 'overview' || this._overviewSub !== 'quizzes') return;
-    if (failed(data) || !data.quizzes) { out.innerHTML = `<p class="hint">Fehler: ${escapeHtml(data?.message || '?')}</p>`; return; }
-    if (!data.quizzes.length) {
-      out.innerHTML = '<div class="empty-state"><span class="empty-icon">🧩</span><p>In den Zuweisungen dieser Klasse steckt noch kein Quiz.</p></div>';
-      return;
-    }
-    const students = data.students.filter((s) => !s.pending);
-    const rows = [...students, ...(data.preview ? [data.preview] : [])];
-    const where = (docs) => docs.map((d) => (d ? `im Dokument „${d}“` : 'als eigene Aufgabe')).join(', ');
-    out.innerHTML = `<p class="hint">Jedes Quiz einmal, auch wenn es in mehreren Dokumenten oder Zuweisungen steckt (etwa Niveaustufen):
-        je Schüler das beste Ergebnis über alle Wege, dazu, wo er es bearbeitet hat. Ältere Ergebnisse wissen das Dokument noch nicht.</p>
-      ${data.quizzes.map((q) => {
-        const cells = students.map((s) => q.cells[s.id]).filter(Boolean);
-        const scored = cells.map((c) => c.pct).filter((p) => typeof p === 'number');
-        const avgPct = scored.length ? Math.round(scored.reduce((a, b) => a + b, 0) / scored.length) : null;
-        const places = [...new Set(q.places.map((p) => (p.doc ? `📄 ${p.doc} (${p.link})` : `🔗 ${p.link}`)))];
-        return `<details class="result-group cb-quiz-group">
-          <summary><span class="result-group-title">${TYPE_ICON[q.type] || '🧩'} ${escapeHtml(q.title || 'Quiz')}${q.from ? ` <span class="hint nb-from">aus: ${escapeHtml(q.from)}</span>` : ''}</span>
-            <span class="result-group-meta">${cells.length} von ${students.length} bearbeitet${avgPct !== null ? ` · Ø <span class="result-score ${pctClass(avgPct)}">${avgPct} %</span>` : ''}</span></summary>
-          <p class="hint">Steckt in: ${escapeHtml(places.join(' · '))}</p>
-          <table class="class-students cr-table">
-            <thead><tr><th>Schüler</th><th>Bestes</th><th>Bearbeitet</th></tr></thead>
-            <tbody>${rows.map((s) => {
-              const c = q.cells[s.id];
-              if (!c) return `<tr class="cr-row-missing"><td>${escapeHtml(s.name)}</td><td colspan="2"><span class="cr-missing">noch nicht</span></td></tr>`;
-              return `<tr><td>${escapeHtml(s.name)}</td><td>${c.pct === null ? '<span class="cb-done">✓</span>' : `<span class="result-score ${pctClass(c.pct)}">${c.pct} %</span>`}</td>
-                <td>${escapeHtml(where(c.docs || []))}</td></tr>`;
-            }).join('')}</tbody>
-          </table>
+    if (classId !== this._classId || this._tab !== 'overview' || this._overviewSub !== 'students') return;
+    if (failed(data) || !data.links || !this._data) { out.innerHTML = `<p class="hint">Fehler: ${escapeHtml(data?.message || '?')}</p>`; return; }
+    const { rows } = this._rows();
+    this._answersById = new Map();
+    let n = 0;
+    const linksById = new Map(data.links.map((l) => [l.id, l]));
+    const studentHtml = (row) => {
+      const list = this._inRange(row.results);
+      const byLink = new Map();
+      for (const r of list) {
+        const key = r.linkId || r.linkName || '—';
+        if (!byLink.has(key)) byLink.set(key, []);
+        byLink.get(key).push(r);
+      }
+      const unitRow = (u, runs) => {
+        const b = this._bestFor(u, runs);
+        if (!b) return `<tr class="cr-row-missing"><td>${TYPE_ICON[u.type] || '🧩'} ${escapeHtml(u.title || 'Quiz')}</td><td colspan="3"><span class="cr-missing">noch nicht</span></td></tr>`;
+        const key = `s${n++}`;
+        this._answersById.set(key, this._answersHtml(b.answers));
+        return `<tr data-answers="${key}" title="Klicken: Antworten"><td>▸ ${TYPE_ICON[u.type] || '🧩'} ${escapeHtml(u.title || 'Quiz')}</td><td>${this._scoreHtml(b)}</td><td>${b.count}</td><td>${date(b.last)}</td></tr>`;
+      };
+      const table = (units, runs) => `<table class="class-students cr-table cr-answers"><thead><tr><th>Quiz</th><th>Bestes</th><th>Durchläufe</th><th>Zuletzt</th></tr></thead>
+        <tbody>${units.map((u) => unitRow(u, runs)).join('')}</tbody></table>`;
+      const linkHtml = ([key, runs]) => {
+        const l = linksById.get(key);
+        const exam = runs.some((r) => r.mode === 'exam');
+        const name = l?.name || runs[0].linkName || 'Ohne Link';
+        const metaRuns = `${runs.length === 1 ? '1 Durchlauf' : `${runs.length} Durchläufe`} · Ø ${pct(avg(runs))}`;
+        // Klassenarbeit (oder Zuweisung, die es nicht mehr gibt): die Aufgaben der letzten Abgabe.
+        if (exam || !l) {
+          const r = runs.reduce((a, x) => (new Date(x.timestamp) > new Date(a.timestamp) ? x : a));
+          const key2 = `s${n++}`;
+          this._answersById.set(key2, this._answersHtml(r.details || []));
+          return `<details class="cr-level cr-l2"><summary><span class="result-group-title">${exam ? '📝' : '🔗'} ${escapeHtml(name)}</span>
+              <span class="result-group-meta">${exam ? `<span class="result-score ${pctClass(r.percentage)}">${fmtP(r.score)} / ${fmtP(r.totalQuestions)} P · ${r.percentage} %</span> · ${date(r.timestamp)}` : metaRuns}</span></summary>
+            ${this._answersById.get(key2)}</details>`;
+        }
+        const topics = this._topicsOf(l);
+        return `<details class="cr-level cr-l2"><summary><span class="result-group-title">🔗 ${escapeHtml(name)}</span>
+            <span class="result-group-meta">${metaRuns}</span></summary>
+          ${topics.length === 1 ? table(topics[0].units, runs) : topics.map((t) => `<details class="cr-level cr-l3"><summary><span class="result-group-title">📘 ${escapeHtml(t.title)}</span></summary>${table(t.units, runs)}</details>`).join('')}
         </details>`;
-      }).join('')}`;
+      };
+      const meta = list.length ? `${runs(list.length)} · Ø ${pct(avg(list))} · zuletzt ${date(list.reduce((a, r) => (new Date(r.timestamp) > new Date(a.timestamp) ? r : a)).timestamp)}`
+        : '<span class="cr-missing">keine Ergebnisse</span>';
+      return `<details class="result-group cr-level cr-l1"><summary><span class="result-group-title">👤 ${escapeHtml(row.label)}${row.pending ? ' <small class="class-pending-note">unbestätigt</small>' : ''}</span>
+          <span class="result-group-meta">${meta}</span></summary>
+        ${[...byLink.entries()].map(linkHtml).join('') || '<p class="hint">Im gewählten Zeitraum nichts bearbeitet.</p>'}</details>`;
+    };
+    out.innerHTML = `${this._rangeBar()}
+      <p class="hint">Je Schüler seine Zuweisungen und Klassenarbeiten; Klick auf ein Quiz zeigt die Antworten. Dokumente stehen unter 👥 Schülerdaten.</p>
+      ${rows.map(studentHtml).join('') || '<div class="empty-state"><p>Die Klasse hat noch keine Schüler.</p></div>'}`;
+    this._bindRange(out, () => this._renderByStudent());
+    this._bindAnswerRows(out);
   }
+
+  // ---- 📝 Klassenarbeit: Ergebnisse direkt an der Klassenarbeit ----
+
+  /** Aufklappbarer Bereich unter einer Klassenarbeit; geladen wird beim Aufklappen. */
+  _examResultsSlot(l) {
+    return `<details class="cr-level cr-exam-res" data-exam-res="${escapeAttr(l.id)}"><summary><span class="result-group-title">📊 Ergebnisse und Blätter</span>
+      <span class="result-group-meta">Punkte je Aufgabe und Schüler</span></summary><div class="cr-exam-res-body"><p class="hint">Wird geladen …</p></div></details>`;
+  }
+
+  _bindExamResults(out) {
+    out.querySelectorAll('details[data-exam-res]').forEach((d) => d.addEventListener('toggle', () => {
+      if (d.open) void this._fillExamResults(d);
+    }));
+  }
+
+  async _fillExamResults(d) {
+    const linkId = d.dataset.examRes;
+    const body = d.querySelector('.cr-exam-res-body');
+    const [res, works] = await Promise.all([this.app.api.getClassResults(this._classId), this.app.api.listWorks({ classId: this._classId }).catch(() => [])]);
+    if (failed(res)) { body.innerHTML = `<p class="hint">Fehler: ${escapeHtml(res?.message || '?')}</p>`; return; }
+    this._data = res; // frisch: Abgaben seit dem Öffnen der Klasse
+    const test = { results: res.results.filter((r) => r.linkId === linkId) };
+    const { rows } = this._rows();
+    const sheets = (Array.isArray(works) ? works : []).filter((w) => w.linkId === linkId);
+    const when = (x) => new Date(x).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+    body.innerHTML = `${test.results.length ? this._examMatrix(test, rows) : '<p class="hint">Noch keine Abgabe. Wer gerade schreibt, steht ganz unten.</p>'}
+      ${sheets.length ? `<details class="cr-level cr-l2"><summary><span class="result-group-title">✍️ Blätter</span><span class="result-group-meta">${sheets.length}</span></summary>
+        <ul class="cr-works-list">${sheets.sort((a, b) => a.studentName.localeCompare(b.studentName, 'de')).map((w) => `
+          <li data-id="${escapeAttr(w.id)}"><span class="cr-work-title">${escapeHtml(w.studentName)} – ${escapeHtml(w.moduleTitle || 'Dokument')}</span>
+            <span class="hint">${escapeHtml(when(w.updatedAt))}</span>
+            <button type="button" class="btn btn-secondary btn-sm btn-work-open">👁 Ansehen</button></li>`).join('')}</ul></details>` : ''}`;
+    this._bindExamMatrix(body, test);
+    body.querySelectorAll('.btn-work-open').forEach((btn) => btn.addEventListener('click', async () => {
+      btn.disabled = true;
+      try {
+        const full = await this.app.api.getWork(btn.closest('li').dataset.id);
+        if (failed(full)) throw new Error(full?.message || 'nicht gefunden');
+        const { openStudentWork } = await import('../ink/ink-open.js');
+        await openStudentWork(this.app.api, full);
+      } catch (err) {
+        this.app.showToast(`Blatt: ${err.message}`, 'error');
+      }
+      btn.disabled = false;
+    }));
+  }
+
 }

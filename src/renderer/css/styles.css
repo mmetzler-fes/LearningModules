@@ -7112,3 +7112,13 @@ body.html-app-large iframe.lm-app-frame { border: 0; border-radius: 6px; }
 .cr-x-row { cursor: pointer; }
 .cr-x-row:hover { background: var(--bg-secondary); }
 .cr-x-detail > td { padding: 6px 0 12px; }
+
+/* Ergebnisübersicht: aufklappbare Ebenen (Zuweisung → Lernthema → Quiz → Schüler), class-results.js. */
+.cr-level > summary { cursor: pointer; display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline; justify-content: space-between; }
+.cr-l2, .cr-l3 { margin: 4px 0 4px 1rem; padding-left: 0.6rem; border-left: 2px solid var(--border); }
+.cr-l2 > summary, .cr-l3 > summary { padding: 4px 0; }
+.cr-exam-res { margin-top: 8px; }
+.cr-answers tr[data-answers] { cursor: pointer; }
+.cr-answers tr[data-answers]:hover, .cr-answers tr.open { background: var(--bg-secondary); }
+.cr-answer-row > td { padding: 4px 0 10px 1rem; }
+.cr-range { margin-bottom: 6px; }

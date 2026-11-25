@@ -486,7 +486,15 @@ export class ClassResultsView {
           <span class="result-group-meta">${done.length} von ${done.length + missing.length} · Ø ${pct(avg(test.results))} · zuletzt ${date(new Date(latest(test)).toISOString())}
             ${missing.length ? ` · <span class="cr-missing">${missing.length} fehlen</span>` : ''}</span>
         </summary>
-        <table class="class-students cr-table">
+${modes.includes('exam') ? this._examMatrix(test, rows) : this._testTable(test, rows)}`;
+      this._out.appendChild(box);
+      this._bindExamMatrix(box, test);
+    }
+  }
+
+  /** Je Schüler: Durchläufe, bestes Ergebnis, zuletzt (Übungen, Lernbegleitung …). */
+  _testTable(test, rows) {
+    return `        <table class="class-students cr-table">
           <thead><tr><th>Schüler</th><th>Durchläufe</th><th>Bestes</th><th>Zuletzt</th></tr></thead>
           <tbody>${rows.map((row) => {
             const mine = test.results.filter((r) => r.studentId === row.key);
@@ -497,8 +505,68 @@ export class ClassResultsView {
               <td><span class="result-score ${pctClass(b)}">${pct(b)}</span></td><td>${date(last.timestamp)}</td></tr>`;
           }).join('')}</tbody>
         </table>`;
-      this._out.appendChild(box);
+  }
+
+  /**
+   * Klassenarbeit: je Schüler eine Zeile, je Aufgabe eine Spalte mit Punkten (bzw. ✓/✗), dazu die Summe.
+   * Gezählt wird die letzte Abgabe (ein Wiedereinstieg ersetzt die frühere). Klick auf einen Schüler: alle Antworten.
+   */
+  _examMatrix(test, rows) {
+    const lastOf = (list) => list.reduce((a, r) => (new Date(r.timestamp) > new Date(a.timestamp) ? r : a));
+    const graded = (r) => (r.details || []).filter((d) => !d.informational && !d.appReported);
+    // Spalten: Aufgaben in der Reihenfolge der Abgaben, gleiche Aufgabe (Modul + Titel + Vorkommen) in einer Spalte.
+    const keyed = (r) => {
+      const seen = new Map();
+      return graded(r).map((d) => {
+        const base = `${d.moduleId || ''}|${d.moduleName || d.moduleTitle || d.title || ''}`;
+        const n = (seen.get(base) || 0) + 1;
+        seen.set(base, n);
+        return { key: `${base}|${n}`, d };
+      });
+    };
+    const cols = [];
+    const known = new Set();
+    for (const r of test.results) for (const { key, d } of keyed(r)) {
+      if (!known.has(key)) { known.add(key); cols.push({ key, title: d.moduleName || d.moduleTitle || d.title || 'Aufgabe' }); }
     }
+    const fmt = (n) => String(Math.round(Number(n) * 100) / 100).replace('.', ',');
+    const cell = (d) => {
+      if (!d) return '<td class="cr-x-cell">–</td>';
+      const cls = d.isCorrect ? 'cr-x-ok' : d.pts && Number(d.pts.earned) > 0 ? 'cr-x-part' : 'cr-x-no';
+      return `<td class="cr-x-cell ${cls}">${d.pts ? `${fmt(d.pts.earned)}/${fmt(d.pts.max)}` : d.isCorrect ? '✓' : '✗'}</td>`;
+    };
+    const body = rows.map((row) => {
+      const mine = test.results.filter((r) => r.studentId === row.key);
+      if (!mine.length) return row.pending ? '' : `<tr class="cr-row-missing"><th scope="row">${escapeHtml(row.label)}</th><td colspan="${cols.length + 1}"><span class="cr-missing">fehlt noch</span></td></tr>`;
+      const r = lastOf(mine);
+      const byKey = new Map(keyed(r).map(({ key, d }) => [key, d]));
+      return `<tr class="cr-x-row" data-result="${escapeAttr(r.id)}" title="Klicken: alle Antworten">
+        <th scope="row">${escapeHtml(row.label)}${mine.length > 1 ? ` <span class="hint">(${mine.length} Abgaben)</span>` : ''}</th>
+        <td class="cr-x-sum"><span class="result-score ${pctClass(r.totalQuestions ? r.percentage : null)}">${fmt(r.score)} / ${fmt(r.totalQuestions)} P · ${r.percentage} %</span></td>
+        ${cols.map((c) => cell(byKey.get(c.key))).join('')}</tr>`;
+    }).join('');
+    return `<div class="cr-x-wrap"><table class="class-students cr-table cr-x-table">
+        <thead><tr><th>Schüler</th><th>Summe</th>${cols.map((c, i) => `<th class="cr-x-head" title="${escapeAttr(c.title)}">${i + 1}. ${escapeHtml(c.title)}</th>`).join('')}</tr></thead>
+        <tbody>${body}</tbody></table></div>`;
+  }
+
+  /** Klick auf eine Zeile der Klassenarbeit: darunter die Karte mit allen Antworten (wie unter 👥 Schüler). */
+  _bindExamMatrix(box, test) {
+    box.querySelectorAll('tr.cr-x-row').forEach((tr) => tr.addEventListener('click', () => {
+      const next = tr.nextElementSibling;
+      if (next?.classList.contains('cr-x-detail')) { next.remove(); return; }
+      const r = test.results.find((x) => x.id === tr.dataset.result);
+      if (!r) return;
+      const row = document.createElement('tr');
+      row.className = 'cr-x-detail';
+      const td = document.createElement('td');
+      td.colSpan = tr.children.length;
+      const card = this.app.resultsView._renderResultCard(r, () => this._load());
+      card.querySelector('details.result-details')?.setAttribute('open', '');
+      td.appendChild(card);
+      row.appendChild(td);
+      tr.after(row);
+    }));
   }
 
   // ---- Jahresüberblick: Engagement je Schüler ----

@@ -7098,3 +7098,17 @@ body.html-app-large iframe.lm-app-frame { border: 0; border-radius: 6px; }
   body.exam-run > * { display: none !important; }
   body.exam-run::before { content: 'Eine Klassenarbeit lässt sich nicht drucken oder als PDF speichern.'; display: block; padding: 2cm; font: 16pt sans-serif; }
 }
+
+/* Klassenarbeit in der Ergebnisübersicht: Schüler × Aufgaben (class-results.js _examMatrix). */
+.cr-x-wrap { overflow-x: auto; max-width: 100%; }
+.cr-x-table { border-collapse: collapse; }
+.cr-x-table th[scope="row"], .cr-x-table thead th:first-child { position: sticky; left: 0; background: var(--bg-primary); z-index: 1; text-align: left; white-space: nowrap; }
+.cr-x-head { font-weight: 600; font-size: 0.8em; max-width: 9em; white-space: normal; vertical-align: bottom; }
+.cr-x-cell { text-align: center; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.cr-x-ok { color: #15803d; }
+.cr-x-part { color: #b45309; }
+.cr-x-no { color: #b91c1c; }
+.cr-x-sum { white-space: nowrap; }
+.cr-x-row { cursor: pointer; }
+.cr-x-row:hover { background: var(--bg-secondary); }
+.cr-x-detail > td { padding: 6px 0 12px; }

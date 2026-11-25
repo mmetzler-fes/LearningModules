@@ -78,6 +78,9 @@ export class NotebooksView {
     this._open = loadOpen();
     try { this._focus = localStorage.getItem(FOCUS_KEY) || null; } catch (_) { this._focus = null; }
     this._crumbs = document.getElementById('nbCrumbs');
+    // Ablegen beim Ziehen: Baum (auch in den Lücken) und Pfadzeile – je einmal (_bindDropEvents).
+    if (this._tree) this._bindDropEvents(this._tree);
+    if (this._crumbs) this._bindDropEvents(this._crumbs);
     this._drag = null;
     // Mehrfachauswahl: Schlüssel ('m:<id>' bzw. 't:<id>') → { type, id, topicId }.
     // Immer nur eine Sorte; `_selMode` zeigt Kästchen (auch ohne Strg).
@@ -2731,7 +2734,7 @@ export class NotebooksView {
     row.addEventListener('dragend', () => {
       this._drag = null;
       row.classList.remove('nb-dragging');
-      this._tree.querySelectorAll('.nb-drop-into, .nb-drop-before').forEach((el) => el.classList.remove('nb-drop-into', 'nb-drop-before'));
+      this._hideDrop();
     });
   }
 
@@ -2752,13 +2755,16 @@ export class NotebooksView {
       if (target.type !== 'node' || !target.kind || target.id === drag.id || this._isInside(target.id, drag.id)) return null;
       const node = this._nodes.get(target.id);
       const parentKind = node.parentId ? this._nodes.get(node.parentId)?.kind : null;
-      const before = canHoldNode(parentKind ?? null, drag.kind)
-        ? { mode: 'before', parentId: node.parentId, index: this._nodesIn(node.parentId).filter((n) => n.id !== drag.id).findIndex((n) => n.id === node.id) }
-        : null;
+      const at = this._nodesIn(node.parentId).filter((n) => n.id !== drag.id).findIndex((n) => n.id === node.id);
+      const sibling = canHoldNode(parentKind ?? null, drag.kind);
+      const before = sibling ? { mode: 'before', edge: 'top', parentId: node.parentId, index: at } : null;
+      // „Danach“ nur bei zugeklapptem Ordner – aufgeklappt stünde die Linie über seinem Inhalt.
+      const after = sibling && !this._isOpen('n:' + node.id) ? { mode: 'before', edge: 'bottom', parentId: node.parentId, index: at + 1 } : null;
       const into = canHoldNode(target.kind, drag.kind) ? { mode: 'into', parentId: target.id } : null;
-      // Oberes Drittel der Zeile: davor einsortieren, sonst hinein – so lassen
-      // sich gleichrangige Bereiche umsortieren und trotzdem ineinanderlegen.
+      // Oberes Drittel: davor, unteres Drittel: danach, Mitte: hinein – so lassen sich
+      // gleichrangige Bereiche umsortieren und trotzdem ineinanderlegen.
       if (zone === 'top') return before || into;
+      if (zone === 'bottom') return after || into || before;
       return into || before;
     }
     if (drag.type === 'topic') {
@@ -2766,7 +2772,9 @@ export class NotebooksView {
       if (target.type === 'topic' && target.id !== drag.id) {
         const place = this._placeOf.get(target.id);
         const siblings = this._topicsIn(place?.nodeId || null).filter((t) => t.id !== drag.id);
-        return { mode: 'before', parentId: place?.nodeId || null, index: siblings.findIndex((t) => t.id === target.id) };
+        // Obere Hälfte: davor, untere Hälfte: danach – wie die Linie es zeigt.
+        const after = zone === 'bottom';
+        return { mode: 'before', edge: after ? 'bottom' : 'top', parentId: place?.nodeId || null, index: siblings.findIndex((t) => t.id === target.id) + (after ? 1 : 0) };
       }
       return null;
     }
@@ -2778,59 +2786,133 @@ export class NotebooksView {
     return null;
   }
 
+  /**
+   * Zeile als Ablageziel. Die Handler sitzen am Baum bzw. der Pfadzeile (_bindDropEvents): So zählt auch
+   * die Lücke zwischen zwei Zeilen (nächste Zeile), und nichts flackert beim
+   * Überfahren von Knöpfen in der Zeile.
+   */
   _bindDrop(row, target, { into = false } = {}) {
-    const zoneOf = (e) => {
-      if (into) return 'middle';
+    row._nbDrop = { target, into };
+    row.classList.add('nb-droppable');
+  }
+
+  /** Zone der Zeile unter dem Zeiger: oben (Drittel/Hälfte), Mitte, unten. */
+  _dropZone(row, info, e) {
+    if (info.into) return 'middle';
+    const r = row.getBoundingClientRect();
+    const y = (e.clientY - r.top) / (r.height || 1);
+    if (info.target.type === 'node') return y < 0.3 ? 'top' : y > 0.7 ? 'bottom' : 'middle';
+    return y < 0.5 ? 'top' : 'bottom';
+  }
+
+  /** Ablageziel zum Ereignis: Zeile unter dem Zeiger, sonst die nächste Zeile im Baum. */
+  _dropRowAt(e, box) {
+    const hit = e.target.closest?.('.nb-droppable');
+    if (hit && hit._nbDrop) return hit;
+    if (box !== this._tree) return null;
+    let best = null;
+    let dist = Infinity;
+    for (const row of this._tree.querySelectorAll('.nb-droppable')) {
       const r = row.getBoundingClientRect();
-      return e.clientY - r.top < r.height / 3 ? 'top' : 'middle';
-    };
-    row.addEventListener('dragover', (e) => {
-      const plan = this._dropPlan(this._drag, target, zoneOf(e));
-      if (!plan) return;
+      if (!r.height) continue;
+      const d = e.clientY < r.top ? r.top - e.clientY : e.clientY > r.bottom ? e.clientY - r.bottom : 0;
+      if (d < dist) { dist = d; best = row; }
+    }
+    return dist <= 24 ? best : null;
+  }
+
+  /** Linie bzw. Rahmen mit Beschriftung: wohin das Gezogene beim Loslassen kommt. */
+  _showDrop(row, plan) {
+    if (this._dropRow && this._dropRow !== row) this._dropRow.classList.remove('nb-drop-into');
+    this._dropRow = row;
+    row.classList.toggle('nb-drop-into', plan.mode === 'into');
+    if (!this._dropLine) {
+      this._dropLine = document.createElement('div');
+      this._dropLine.className = 'nb-drop-line';
+      this._dropLine.innerHTML = '<span class="nb-drop-label"></span>';
+      document.body.appendChild(this._dropLine);
+    }
+    const line = this._dropLine;
+    const r = row.getBoundingClientRect();
+    const name = (row.querySelector('.nb-title')?.textContent || row.textContent || '').trim();
+    const short = name.length > 40 ? `${name.slice(0, 39)}…` : name;
+    const title = row.querySelector('.nb-title')?.getBoundingClientRect();
+    const left = plan.mode === 'into' ? r.left : Math.max(r.left, (title?.left ?? r.left) - 28);
+    line.classList.toggle('nb-drop-line-into', plan.mode === 'into');
+    line.style.left = `${left}px`;
+    line.style.width = `${Math.max(40, r.right - left)}px`;
+    line.style.top = `${plan.mode === 'into' ? r.top : plan.edge === 'bottom' ? r.bottom : r.top}px`;
+    line.style.height = plan.mode === 'into' ? `${r.height}px` : '';
+    line.firstChild.textContent = plan.mode === 'into' ? `⤵ hinein in „${short}“` : plan.edge === 'bottom' ? `↓ nach „${short}“` : `↑ vor „${short}“`;
+    line.hidden = false;
+  }
+
+  _hideDrop() {
+    this._dropRow?.classList.remove('nb-drop-into');
+    this._dropRow = null;
+    if (this._dropLine) this._dropLine.hidden = true;
+  }
+
+  /** dragover/dragleave/drop an `box` (Baum oder ein Ziel außerhalb, z. B. die Pfadzeile). */
+  _bindDropEvents(box) {
+    box.addEventListener('dragover', (e) => {
+      if (!this._drag) return;
+      const row = this._dropRowAt(e, box);
+      const info = row?._nbDrop;
+      const plan = info && this._dropPlan(this._drag, info.target, this._dropZone(row, info, e));
+      // Hier ginge es nicht hin: keine Anzeige – sonst versprach sie eine Stelle, die das Loslassen nicht trifft.
+      if (!plan) { this._hideDrop(); return; }
       e.preventDefault();
       e.dataTransfer.dropEffect = 'move';
-      row.classList.toggle('nb-drop-into', plan.mode === 'into');
-      row.classList.toggle('nb-drop-before', plan.mode === 'before');
+      this._showDrop(row, plan);
     });
-    row.addEventListener('dragleave', () => row.classList.remove('nb-drop-into', 'nb-drop-before'));
-    row.addEventListener('drop', async (e) => {
+    box.addEventListener('dragleave', (e) => { if (!box.contains(e.relatedTarget)) this._hideDrop(); });
+    box.addEventListener('drop', async (e) => {
+      const row = this._dropRowAt(e, box);
+      const info = row?._nbDrop;
+      this._hideDrop();
+      if (!info || !this._drag) return;
       e.preventDefault();
-      row.classList.remove('nb-drop-into', 'nb-drop-before');
-      const drag = this._drag;
-      const plan = this._dropPlan(drag, target, zoneOf(e));
-      this._drag = null;
-      if (!plan) return;
-      try {
-        if (drag.multi) {
-          if (drag.type === 'module') await this._moveModules(drag.multi, plan.topicId, plan.beforeId || null);
-          else if (plan.mode === 'into') await this._moveTopics(drag.multi, plan.parentId, null);
-          else {
-            const moving = new Set(drag.multi.map((i) => i.id));
-            const index = this._topicsIn(plan.parentId).filter((t) => !moving.has(t.id)).findIndex((t) => t.id === target.id);
-            await this._moveTopics(drag.multi, plan.parentId, index < 0 ? null : index);
-          }
-          return;
-        }
-        if (drag.type === 'module') {
-          const topic = this._topics.get(drag.topicId);
-          const mod = (topic.modules || []).find((m) => m.id === drag.id);
-          if (plan.topicId === drag.topicId) {
-            const ids = (topic.modules || []).filter((m) => !m.parentId).sort((a, b) => a.orderIndex - b.orderIndex).map((m) => m.id).filter((id) => id !== drag.id);
-            ids.splice(Math.max(0, ids.indexOf(plan.beforeId)), 0, drag.id);
-            await this.app.api.reorderModules(drag.topicId, ids);
-            await this.refresh();
-          } else {
-            await this._transferModule(topic, mod, plan.topicId, 'move', plan.beforeId || null);
-          }
-          return;
-        }
-        const res = await this.app.api.moveInNotebook(drag.type, drag.id, plan.parentId, plan.mode === 'before' ? plan.index : null);
-        if (failed(res)) { this.app.showToast('Fehler: ' + (res?.message || 'Verschieben fehlgeschlagen'), 'error'); return; }
-        if (plan.mode === 'into') { this._open.add('n:' + (plan.parentId || '')); this._saveOpen(); }
-        await this.refresh();
-      } catch (err) {
-        this.app.showToast('Fehler: ' + err.message, 'error');
-      }
+      await this._dropOn(info.target, this._dropZone(row, info, e));
     });
+  }
+
+  async _dropOn(target, zone) {
+    const drag = this._drag;
+    const plan = this._dropPlan(drag, target, zone);
+    this._drag = null;
+    if (!plan) return;
+    try {
+      if (drag.multi) {
+        if (drag.type === 'module') await this._moveModules(drag.multi, plan.topicId, plan.beforeId || null);
+        else if (plan.mode === 'into') await this._moveTopics(drag.multi, plan.parentId, null);
+        else {
+          const moving = new Set(drag.multi.map((i) => i.id));
+          const found = this._topicsIn(plan.parentId).filter((t) => !moving.has(t.id)).findIndex((t) => t.id === target.id);
+          const index = found < 0 ? -1 : found + (plan.edge === 'bottom' ? 1 : 0);
+          await this._moveTopics(drag.multi, plan.parentId, index < 0 ? null : index);
+        }
+        return;
+      }
+      if (drag.type === 'module') {
+        const topic = this._topics.get(drag.topicId);
+        const mod = (topic.modules || []).find((m) => m.id === drag.id);
+        if (plan.topicId === drag.topicId) {
+          const ids = (topic.modules || []).filter((m) => !m.parentId).sort((a, b) => a.orderIndex - b.orderIndex).map((m) => m.id).filter((id) => id !== drag.id);
+          ids.splice(Math.max(0, ids.indexOf(plan.beforeId)), 0, drag.id);
+          await this.app.api.reorderModules(drag.topicId, ids);
+          await this.refresh();
+        } else {
+          await this._transferModule(topic, mod, plan.topicId, 'move', plan.beforeId || null);
+        }
+        return;
+      }
+      const res = await this.app.api.moveInNotebook(drag.type, drag.id, plan.parentId, plan.mode === 'before' ? plan.index : null);
+      if (failed(res)) { this.app.showToast('Fehler: ' + (res?.message || 'Verschieben fehlgeschlagen'), 'error'); return; }
+      if (plan.mode === 'into') { this._open.add('n:' + (plan.parentId || '')); this._saveOpen(); }
+      await this.refresh();
+    } catch (err) {
+      this.app.showToast('Fehler: ' + err.message, 'error');
+    }
   }
 }

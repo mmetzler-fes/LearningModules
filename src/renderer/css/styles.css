@@ -7040,6 +7040,9 @@ body.ws-on .login-card.login-card-wide {
    die App über die ganze Fläche (html-app-host.js). Breiter: ◀ und ▶ auch oben, ✕ nur unten. */
 .lm-app-title-actions .lm-app-nav { min-width: 32px; justify-content: center; }
 .lm-app-title-actions .lm-app-quit { display: none; }
+/* Auch am PC in der großen Ansicht (Rückmeldung): ◀/▶ stehen oben, die untere Weiter-Leiste entfällt, ✕ kommt nach oben. */
+body.html-app-large .quiz-actions { display: none; }
+body.html-app-large .lm-app-title-actions .lm-app-quit { display: inline-flex; }
 @media (max-width: 700px) {
   body.html-app-large .quiz-actions { display: none; }
   body.html-app-large .quiz-progress-bar { margin: 0; }

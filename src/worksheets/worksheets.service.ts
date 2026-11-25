@@ -6,7 +6,7 @@ import { baseUrl, renderQr } from '../core/share/link-url';
 import { LearningModule } from '../core/entities/learning-module.entity';
 import { LearningTopic } from '../core/entities/learning-topic.entity';
 import { NextcloudService } from '../nextcloud/nextcloud.service';
-import { docSpec } from './docspec';
+import { docSpec, labCore } from './docspec';
 import { DocNumberingService } from './doc-numbering.service';
 import { formatHeader, settingsAt } from './numbering';
 import { NotebookNode } from '../core/entities/notebook-node.entity';
@@ -544,6 +544,22 @@ export class WorksheetsService {
       return { file: name, x: pt(ink.x), y: pt(ink.y), width: pt(ink.w), height: pt(ink.h) };
     };
 
+    // Labore (lm-editor/src/labs/lab-core.js): gedruckt wird das Bild der Vorgabe als SVG.
+    let labCount = 0;
+    const labBlock = (block: Record<string, any>): Record<string, any> => {
+      try {
+        const core = labCore();
+        const svg = core.labSvg(block);
+        if (!svg) throw new Error('unbekanntes Labor');
+        const name = `labor/labor-${++labCount}.svg`;
+        files[name] = Buffer.from(svg, 'utf-8').toString('base64');
+        return { type: 'image', file: name, width: `${Math.min(core.labSvgWidthCm(svg), 16.5).toFixed(2)}cm`, ...(block.id ? { id: block.id } : {}) };
+      } catch (e: any) {
+        warnings.push(`Ein Labor ließ sich nicht drucken (${e?.message || e}).`);
+        return { type: 'note', text: '[Labor]' };
+      }
+    };
+
     // Bilder im Text (![alt](src){width=…}): jedes als Datei mitgeben, im Text steht dann der
     // Dateiname – der Renderer setzt es als Bild „wie ein Zeichen“. Nicht druckbar: der Bildtext.
     const INLINE_IMG = /!\[([^\]\n]*)\]\(((?:data:image\/[a-z+.-]+;base64,[A-Za-z0-9+/=]+|https?:\/\/[^)\s]+|\/api\/[^)\s]+))\)(?:\{width=(\d+(?:\.\d+)?(?:cm|mm|px))\})?/g;
@@ -592,6 +608,7 @@ export class WorksheetsService {
         else if (block.type === 'table') out.push(await tableCells(block));
         else if (block.type === 'image' && block.src !== undefined) out.push(await imageBlock(block));
         else if (block.type === 'group') out.push(await groupBlock(block));
+        else if (block.type === 'lab') out.push(labBlock(block));
         else if (block.type === 'code' && block.file !== undefined && block.code === undefined) {
           warnings.push(`Code aus „${block.file}“ gibt es nur im Kurs-Projekt – im Druck steht ein Hinweis.`);
           out.push({ type: 'note', text: `[Code aus ${block.file}]` });

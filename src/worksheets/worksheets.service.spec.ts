@@ -1,3 +1,4 @@
+import { docSpec } from './docspec';
 import { BadRequestException } from '@nestjs/common';
 import { DocContext, WorksheetsService, classQuizLink, safeInkSvg, widthInCm } from './worksheets.service';
 import { WorksheetRendererClient } from './renderer.client';
@@ -35,6 +36,16 @@ describe('WorksheetsService.prepare', () => {
     expect(job.spec.content).toEqual(['Siehe Blatt 1.6 und ⚠ Blatt fehlt: weg']);
     expect(job.course).toEqual({ autor: 'M. M.' });
     expect(warnings).toEqual(['Verweis auf fehlende Blätter: weg']);
+  });
+
+  it('Labor: gedruckt als SVG-Bild der Vorgabe; docspec prüft und zeigt es', async () => {
+    const { job, warnings } = await service.prepare({ content: [{ type: 'lab', id: 'b1', lab: 'zeiger', preset: { items: [{ id: 'u', name: 'U', unit: 'V', value: [4, 2] }] } }] }, 'L', ['pdf']);
+    expect(warnings).toEqual([]);
+    expect(job.spec.content[0]).toMatchObject({ type: 'image', file: 'labor/labor-1.svg', id: 'b1' });
+    expect(Buffer.from(job.files['labor/labor-1.svg'], 'base64').toString('utf-8')).toMatch(/^<svg[\s\S]*1 cm ≙ 2 V/);
+    expect(docSpec().validateDocSpec({ content: [{ type: 'lab', lab: 'logik' }] })).toEqual([]);
+    expect(docSpec().validateDocSpec({ content: [{ type: 'lab', lab: 'nix' }] })[0]).toMatch(/lab:/);
+    expect(docSpec().renderDocSpecHtml({ content: [{ type: 'lab', lab: 'bode' }] })).toMatch(/class="ds-lab"[\s\S]*<svg/);
   });
 
   it('LaTeX-Formeln gehen mit MathML an den Renderer', async () => {

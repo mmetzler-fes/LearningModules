@@ -130,6 +130,16 @@ export function attachmentFiles(raw: any): Array<{ url: string; name: string; si
   return out;
 }
 
+/** Labore im Blatt (lm-editor/src/labs/lab-core.js) – Schüler bauen darin selbst etwas auf; im Druck ein Bild. */
+const LAB_REFERENCE = {
+  block: '{ type: "lab", lab: "zeiger" | "bode" | "ortskurve" | "logik", preset: {…} } – ohne preset gilt die Grundeinstellung. locked: true an einem Eintrag = für Schüler fest.',
+  formeln: 'Komplexe Formeln: 3 + j4, 5∠30° (Grad), 10k, 100n, 4,7µ, R || X (parallel), abs(), arg() (Grad), conj(), sqrt(), polar(r; φ). Bode/Ortskurve: f, w (= ω), s (= jω).',
+  zeiger: '{ xmin: -1, xmax: 13, ymin: -4.5, ymax: 4.5 (cm), grid: 0.5, scales: { "V": 2, "A": 0.5 } (Wert je cm), items: [{ id, name: "U", unit: "V"|"A"|"Ω"|"VA"|"W"|"var"|"S"|"", value: [re, im] ODER expr: "U / Z", x0, y0 (Anfang in cm) ODER anchor: "<id>" (Anfang an dessen Spitze), color: "#d62728", width: "f"|"m"|"d", show: false (nur Wert), locked }] }',
+  bode: '{ params: [{ name: "R", value: "1k" }], curves: [{ id, name: "H", expr: "1/(1 + s*R*C)", color }], fmin: 10, fmax: 100000, dbmin: -60, dbmax: 10, phase: true, mark3db: true }',
+  ortskurve: '{ params: [...], curves: [{ id, name: "Z", expr: "R + j*w*L" }], var: "f", from: 10, to: 10000, log: true, unit: "Ω", marks: true, cursor: null }',
+  logik: '{ w: 30, h: 14 (Raster 0,5 cm), parts: [{ id, type: "in"|"out"|"and"|"or"|"not"|"nand"|"nor"|"xor"|"xnor", x, y, n: 2..4 (Eingänge), label: "a" }], wires: [{ from: "<id>", to: "<id>", pin: 0 }], lockAll: false }',
+};
+
 const DEFAULT_TTL_MINUTES = 60;
 const MIN_TTL_MINUTES = 5;
 const MAX_TTL_MINUTES = 240;
@@ -1635,7 +1645,7 @@ export class AiBridgeService {
 
   /** Nachschlagen: das Format der Arbeitsblätter (GET /reference/docspec). */
   getDocSpecReference() {
-    return { ...this.docSpecReference(), quizBlock: '{ type: "quiz", module: "<Quiz-Modul-ID oder $ref aus create_quiz>" } – bettet ein Quiz ins Blatt ein', images: IMAGE_RULE };
+    return { ...this.docSpecReference(), quizBlock: '{ type: "quiz", module: "<Quiz-Modul-ID oder $ref aus create_quiz>" } – bettet ein Quiz ins Blatt ein', labBlock: LAB_REFERENCE, images: IMAGE_RULE };
   }
 
   /** Nachschlagen: das Format der Quiz-Typen (GET /reference/quiz?types=…) – nur die gewünschten. */

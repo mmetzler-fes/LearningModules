@@ -15,6 +15,8 @@ export interface DocSpecEngine {
   withFormulaMathml<T>(value: T): T;
   useTemml(temml: unknown): void;
   hasLatexEngine(): boolean;
+  useLabEngine(engine: unknown): void;
+  hasLabEngine(): boolean;
   textLines(text: string): string[];
   richText(text: string): string;
   resolveRefText(text: string, refs: Record<string, { pfad: string; titel: string }> | null): string;
@@ -23,10 +25,22 @@ export interface DocSpecEngine {
   DOC_BLOCK_TYPES: string[];
 }
 
+/** Labore (Zeiger, Bode, Ortskurve, Logik): Prüfen und Bild – dieselbe Datei wie im Browser. */
+export interface LabCore {
+  labValidate(block: unknown): string[];
+  labSvg(block: unknown, state?: unknown): string;
+  labSvgWidthCm(svg: string): number;
+}
+export function labCore(): LabCore {
+  return loadBrowserModule<LabCore>('../lm-editor/src/labs/lab-core.js');
+}
+
 export function docSpec(): DocSpecEngine {
   const engine = loadBrowserModule<DocSpecEngine>('../lm-editor/src/doc/docspec.js');
   // LaTeX-Formeln setzt Temml – im Browser meldet src/doc/latex.js es an, hier der Server.
   if (!engine.hasLatexEngine()) engine.useTemml(loadVendorDefault('../lm-editor/src/vendor/temml/temml.mjs'));
+  // Labore ebenso (im Browser src/labs/register.js).
+  if (!engine.hasLabEngine()) engine.useLabEngine(labCore());
   return engine;
 }
 

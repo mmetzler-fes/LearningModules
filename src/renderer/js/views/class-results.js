@@ -993,7 +993,7 @@ export class ClassResultsView {
       : 'Aus: Schüler sehen sie nicht und kommen nicht hinein, auch nicht mit dem Link – klicken zum Einschalten';
     const ids = `data-exam-topic="${escapeAttr(t.topicId)}" data-exam-module="${escapeAttr(m.id)}"`;
     return `<button type="button" class="nb-status ${on ? 'on' : ''}" data-exam-visible="${on ? '1' : ''}" ${ids} title="${escapeAttr(title)}" aria-label="${escapeAttr(title)}">${on ? '●' : '○'}</button>
-          <button type="button" class="nb-menu-btn" data-exam-menu ${ids} title="Klassenarbeit: Link & QR, Ausprobieren" aria-label="Aktionen">⋯</button>`;
+          <button type="button" class="nb-menu-btn" data-exam-menu ${ids} title="Klassenarbeit: Link & QR, Ausprobieren, Schüler sperren" aria-label="Aktionen">⋯</button>`;
   }
 
   /** Menüeinträge zu den Klassenarbeiten eines Lernthemas (bzw. aller Lernthemen einer Zuweisung). */
@@ -1091,6 +1091,10 @@ export class ClassResultsView {
         this._menu([
           { label: '🧪 Ausprobieren', title: 'Selbst schreiben, als 🧪 Vorschau in einem neuen Tab – zählt nicht, beliebig oft', run: () => this._examTry(t, m) },
           { label: '📝 Link & QR', title: 'Eigener Link der Klassenarbeit – Schüler kommen erst mit ● hinein', run: () => this._examShare(t, m) },
+          { label: `🚫 Schüler sperren${this._blockedCount(m)}`, title: 'Einzelne Schüler (z. B. krank am Termin) sehen die Klassenarbeit nicht – ihr übriges Material schon', run: async () => {
+            const ex = await this._examLinkFor(t, m);
+            if (ex) await this._examBlockDialog(ex);
+          } },
         ], btn);
       };
       btn.addEventListener('click', open);

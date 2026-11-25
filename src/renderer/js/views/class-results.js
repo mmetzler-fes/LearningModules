@@ -2033,7 +2033,8 @@ export class ClassResultsView {
       const links = cb.links.filter((l) => l.exam);
       out.innerHTML = `
         <p class="hint">Klassenarbeiten gibt es nur über ihren eigenen Link bzw. QR-Code (<strong>📝 Link & QR</strong>) – im Klassennotizbuch
-          der Schüler stehen sie nicht. Hinein kommen sie nur mit <strong>●</strong> und aktivem Link, mit ○ auch über den Link nicht. Anlegen: in der Inhaltsübersicht
+          der Schüler stehen sie nicht. Hinein kommen sie nur mit <strong>●</strong> und aktivem Link, mit ○ auch über den Link nicht. Abgegebenes unter
+          <strong>📊 Ergebnisse</strong>, wer gerade schreibt, ganz unten. Anlegen: in der Inhaltsübersicht
           im ⋯ eines Bereichs, Abschnitts, Lernthemas oder Moduls <strong>📝 Als Klassenarbeit</strong> – oder an einem Dokument der Art
           „Klassenarbeit“ (🔒-Zeile: ○ und ⋯). Solange eine Klassenarbeit läuft (●), ist ihr Inhalt in dieser Klasse nicht zum Üben zu sehen. Der Weg über
           <strong>🔗 Schülerfreigaben</strong> (Modus „Klassenarbeit“, dann für diese Klasse) geht weiter.</p>
@@ -2041,6 +2042,7 @@ export class ClassResultsView {
           <button type="button" class="nb-status ${l.hiddenFromStudents ? '' : 'on'}" data-exam-link-visible="${l.hiddenFromStudents ? '' : '1'}"
             title="${l.hiddenFromStudents ? 'Aus: Niemand kommt hinein, auch nicht mit dem Link – klicken zum Einschalten' : 'An: Schüler kommen über den Link bzw. QR-Code hinein – klicken zum Ausschalten'}">${l.hiddenFromStudents ? '○' : '●'}</button>
           <button type="button" class="btn btn-primary btn-sm" data-exam-share>📝 Link & QR</button>
+          <button type="button" class="btn btn-secondary btn-sm" data-exam-results title="Abgegebene Klassenarbeiten: Punkte je Schüler, wer fehlt">📊 Ergebnisse</button>
           <button type="button" class="btn btn-secondary btn-sm" data-exam-block title="Einzelne Schüler (z. B. krank am Termin) sehen die Klassenarbeit nicht – ihr übriges Material schon">🚫 Schüler sperren${(l.blockedStudentIds || []).length ? ` (${l.blockedStudentIds.length})` : ''}</button>
           <button type="button" class="btn btn-secondary btn-sm" data-exam-link-try title="Selbst schreiben, als 🧪 Vorschau in einem neuen Tab – zählt nicht, beliebig oft">🧪 Ausprobieren</button>
           ${l.active ? '<button type="button" class="btn btn-secondary btn-sm" data-active="off">⏸ Deaktivieren</button>'
@@ -2050,6 +2052,15 @@ export class ClassResultsView {
       out.querySelectorAll('[data-exam-share]').forEach((btn) => btn.addEventListener('click', () => {
         const link = links.find((l) => l.id === btn.closest('[data-link]').dataset.link);
         this.app.linksView._openShareDialog(link, 'exam');
+      }));
+      // 📊 Ergebnisse: Ergebnisübersicht → 📝 Je Aufgabe, diese Klassenarbeit aufgeklappt.
+      out.querySelectorAll('[data-exam-results]').forEach((btn) => btn.addEventListener('click', () => {
+        this._openGroups.add(`test:${btn.closest('[data-link]').dataset.link}`);
+        this._overviewSub = 'tests';
+        savePref('lm_cr_overview_sub', 'tests');
+        this._tab = 'overview';
+        savePref('lm_cr_tab', 'overview');
+        void this._load(); // frisch: Abgaben seit dem Öffnen der Klasse
       }));
       out.querySelectorAll('[data-exam-block]').forEach((btn) => btn.addEventListener('click', () => {
         this._examBlockDialog(links.find((l) => l.id === btn.closest('[data-link]').dataset.link));

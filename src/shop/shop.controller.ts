@@ -79,6 +79,12 @@ export class ShopController {
     return this.shop.acquire(id, String(body?.mode || ''), req.user);
   }
 
+  /** Nutzung in eine eigene Kopie umwandeln (nur wenn das Angebot Kopieren erlaubt). */
+  @Post('grants/:id/copy')
+  async grantToCopy(@Param('id') id: string, @Request() req: any, @Body() body: { topicId?: string }) {
+    return this.shop.grantToCopy(id, req.user, body?.topicId ? String(body.topicId) : undefined);
+  }
+
   /** Nutzungsrecht zurückgeben (Inhaber) oder kostenloses entziehen (Anbieter). */
   @Delete('grants/:id')
   async revokeGrant(@Param('id') id: string, @Request() req: any) {

@@ -1172,6 +1172,32 @@ export class ShopService implements OnApplicationBootstrap {
     return { success: true };
   }
 
+  /**
+   * Aus der Nutzung eine eigene Kopie machen (✏️ Bearbeiten an einem genutzten Dokument): nur wenn der
+   * Anbieter Kopieren erlaubt. Die Kopie ersetzt das Nutzungsrecht; scheitert sie, bleibt es bestehen.
+   * Bei einem Bereich oder einer Auswahl gilt das für das ganze Angebot.
+   */
+  async grantToCopy(grantId: string, user: any, topicId?: string) {
+    const grant = await this.grantRepo.findOne({ where: { id: grantId } });
+    if (!grant || grant.userId !== user.userId) throw new NotFoundException('Nutzungsrecht nicht gefunden.');
+    if (!grant.offerId || grant.onlyForeign) throw new BadRequestException('Dieses Nutzungsrecht lässt sich nicht in eine Kopie umwandeln.');
+    const offer = await this.offerRepo.findOne({ where: { id: grant.offerId } });
+    if (!offer?.allowCopy) throw new ForbiddenException('Der Anbieter erlaubt nur das Verwenden – Fehler bitte über ⭐ Rückmeldung an den Autor melden.');
+    // Die Kopie des Lernthemas, von dem aus bearbeitet wurde (bei einem Bereich entstehen mehrere).
+    const copiesOf = async () => (topicId ? (await this.topicRepo.find({ where: { ownerId: user.userId, copiedFromId: topicId }, select: ['id'] })).map((t) => t.id) : []);
+    const before = new Set(await copiesOf());
+    const backup = { ...grant };
+    await this.grantRepo.remove(grant);
+    try {
+      const res = await this.acquire(offer.id, 'copy', user);
+      const made = (await copiesOf()).find((id) => !before.has(id));
+      return { ...res, topicId: made || res.topicId, replacedGrant: grantId };
+    } catch (err) {
+      await this.grantRepo.save(this.grantRepo.create(backup));
+      throw err;
+    }
+  }
+
   /** Eine gelöschte Gruppe aus allen Zielgruppen nehmen. */
   async dropGroupFromAudiences(groupId: string) {
     const ref = `group:${groupId}`;

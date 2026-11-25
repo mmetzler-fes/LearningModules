@@ -384,6 +384,8 @@ export class TopicsService {
                 // Recht an einem Bereich oder einer Auswahl: Zurückgeben gilt für das Ganze.
                 scopeType: e.scopeType,
                 offerId: e.offerId,
+                // Lässt sich in eine eigene Kopie umwandeln (✏️ Bearbeiten in der Vorschau).
+                allowCopy: !!(offer?.allowCopy && offer.active),
                 // Gehört zu einer Kopie – lässt sich nicht einzeln zurückgeben.
                 onlyForeign: e.onlyForeign,
                 since: e.createdAt,

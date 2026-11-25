@@ -798,6 +798,10 @@ export class BrowserApi {
     return this._fetch(`/api/shop/offers/${encodeURIComponent(offerId)}`, { method: 'DELETE' });
   }
   /** mode: 'copy' | 'use' */
+  grantToCopy(grantId, topicId) {
+    return this._fetch(`/api/shop/grants/${encodeURIComponent(grantId)}/copy`, { method: 'POST', body: JSON.stringify({ topicId }) });
+  }
+
   acquireOffer(offerId, mode) {
     return this._fetch(`/api/shop/offers/${encodeURIComponent(offerId)}/acquire`, {
       method: 'POST',

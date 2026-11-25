@@ -259,6 +259,10 @@ export class NotebookPreview {
       });
     }
     if (own) this._button('✏️ Bearbeiten', 'Im Modul-Editor öffnen (auch Doppelklick auf den Titel)', () => this.app.modulesView.openFrom(this._opts.from, topic.id, mod, 'edit'));
+    // Zur Nutzung erworben, Kopieren erlaubt: Bearbeiten legt eine eigene Kopie an (sie ersetzt die Nutzung).
+    // Nur zum Verwenden: kein Bearbeiten – es ist ein Link aufs Original.
+    const copyGrant = !own && mod.type === 'document' ? (topic.grants || []).find((g) => g.allowCopy && !g.onlyForeign) : null;
+    if (copyGrant) this._button('✏️ Bearbeiten', 'Eigene Kopie anlegen und bearbeiten – mit Verweis auf den Autor', () => this._editAsCopy(topic, mod, copyGrant));
     // Zeichnungen mit Quelle (.odg in der Nextcloud): Übersicht, und geänderte gleich neu zeichnen.
     if (own && mod.type === 'document') {
       const reload = async () => { this._modules.delete(topic.id); if (this.currentKey === key) await this.showModule(topic, mod); };
@@ -312,6 +316,29 @@ export class NotebookPreview {
       } : null,
     });
     if (full.type === 'document') this._compactDocument(host, full);
+  }
+
+  /** Genutztes Dokument bearbeiten: erst eine eigene Kopie (ersetzt die Nutzung), dann der Modul-Editor. */
+  async _editAsCopy(topic, mod, grant) {
+    const whole = grant.scopeType === 'node' || grant.scopeType === 'modules';
+    const ok = await this.app.appConfirm(
+      `Eigene Kopie von „${topic.title}“ anlegen und bearbeiten?\n\n`
+      + (whole ? 'Das gilt für das ganze Angebot (Bereich bzw. Auswahl), zu dem dieses Lernthema gehört – alles wird deine Kopie.\n\n' : '')
+      + `Die Kopie gehört dir und verweist auf ${topic.ownerName || 'den Autor'}. Sie ersetzt die Nutzung: Verbesserungen des Autors kommen danach nicht mehr von selbst an. `
+      + 'Klassennotizbücher und Links, die auf das Original zeigen, bitte auf die Kopie umstellen.',
+    );
+    if (!ok) return;
+    try {
+      const res = await this.app.api.grantToCopy(grant.id, topic.id);
+      if (!res?.success) throw new Error(res?.message || 'Kopieren fehlgeschlagen');
+      const mods = res.topicId ? await this.app.api.getTopicModules(res.topicId).catch(() => []) : [];
+      const copy = (Array.isArray(mods) ? mods : []).find((m) => m.originId === (mod.originId || mod.id)) || null;
+      this.app.showToast('Eigene Kopie angelegt – sie ersetzt die Nutzung.', 'success');
+      await this.view.refresh?.();
+      if (copy) this.app.modulesView.openFrom(this._opts.from, res.topicId, copy, 'edit');
+    } catch (err) {
+      this.app.showToast(`Kopie: ${err.message}`, 'error');
+    }
   }
 
   /** Ein Lernthema: Stand und seine Module – ein Klick zeigt das Modul. */

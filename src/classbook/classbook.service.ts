@@ -1894,15 +1894,19 @@ export class ClassbookService {
    * Was eine Klassenarbeit werden soll: ein Modul (`topicId` + `moduleId`), ein ganzes Lernthema (`topicId`),
    * eine Zuweisung (`linkId`, alle ihre Lernthemen) oder ein Bereich/Abschnitt (`nodeId`, alles darunter).
    */
-  async examLink(user: any, classId: string, body: { topicId?: string; moduleId?: string; linkId?: string; nodeId?: string }) {
+  async examLink(user: any, classId: string, body: { topicId?: string; moduleId?: string; linkId?: string; nodeId?: string; topicIds?: unknown; name?: string }) {
     const link = body?.moduleId
       ? await this.links.examLinkForClass(user, classId, String(body?.topicId || ''), String(body.moduleId))
       : await this.examLinkForPart(user, classId, body || {});
     return { linkId: link.id, name: link.name, hasExamLink: !!link.examToken, hiddenFromStudents: !!link.hiddenFromStudents, active: link.active, blockedStudentIds: link.blockedStudentIds || [] };
   }
 
-  private async examLinkForPart(user: any, classId: string, body: { topicId?: string; linkId?: string; nodeId?: string }) {
+  private async examLinkForPart(user: any, classId: string, body: { topicId?: string; linkId?: string; nodeId?: string; topicIds?: unknown; name?: string }) {
     const klasse = await this.classes.ownedClass(classId, user);
+    // Aus dem Lernnotizbuch: die Lernthemen eines Bereichs/Abschnitts dort – zugewiesen sein müssen sie nicht.
+    if (Array.isArray(body.topicIds)) {
+      return this.links.examLinkForTopics(user, classId, String(body.name || '').trim().slice(0, 200) || 'Klassenarbeit', body.topicIds.map(String));
+    }
     const all = (await this.classLinks(klasse)).filter((l) => (l.modes || []).some((m) => m !== 'exam'));
     const topicsOf = (links: TopicLink[]) => links.flatMap((l) => (l.selection || []).map((e) => e.topicId));
     if (body.nodeId) {

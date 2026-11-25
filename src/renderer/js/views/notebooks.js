@@ -1222,6 +1222,7 @@ export class NotebooksView {
     items.push('-');
     items.push({ label: '📒 Klassennotizbuch zuweisen…', title: 'In das Klassennotizbuch einer oder mehrerer Klassen – die Schüler finden es dort mit Name und PIN', run: () => this._assignToClassbook({ kind: 'node', node }) });
     items.push({ label: '🔗 Quick-Link', title: 'Anonymer Link + QR-Code für alle Lernthemen darin – ohne Anmeldung, nichts wird gespeichert', run: () => this._quickLinkNode(node) });
+    items.push({ label: '📝 Als Klassenarbeit…', title: 'Alle Lernthemen darin als Klassenarbeit einer Klasse – eigener Link, im Klassennotizbuch unter 📝 Klassenarbeiten einschalten', run: () => this._examFor({ node }) });
     items.push({ label: '🛒 Teilen', title: 'Im Shop anbieten – Käufer mit „Use“ bekommen auch, was später dazukommt', run: () => this.app.shopView.openForNode(node.id) });
     items.push({ label: '🧩 Module auswählen und anbieten…', run: () => this._offerSelection({ nodeId: node.id }) });
     items.push({ label: '✅ Alle Lernthemen freigeben', run: () => this._setSelected(node, true) });
@@ -1625,6 +1626,7 @@ export class NotebooksView {
     return [
       { label: '📒 Klassennotizbuch zuweisen…', title: 'In das Klassennotizbuch einer oder mehrerer Klassen – die Schüler finden es dort mit Name und PIN', run: () => this._assignToClassbook({ kind: 'topic', topic }) },
       { label: '🔗 Quick-Link', run: () => this.app.topicsView._createQuickClassLink(topic) },
+      { label: '📝 Als Klassenarbeit…', title: 'Das ganze Lernthema als Klassenarbeit einer Klasse – eigener Link, im Klassennotizbuch unter 📝 Klassenarbeiten einschalten', run: () => this._examFor({ topic }) },
       {
         label: topic.teacherOnly ? '✓ 🔒 Nur Lehrkraft aufheben' : '🔒 Nur Lehrkraft (ganzes Lernthema)',
         title: 'Keins der Module erreicht Schüler – nur über den Link der Klassenarbeit',
@@ -1775,6 +1777,7 @@ export class NotebooksView {
       }
     }
     items.push('-', ...this._lockEntries(topic, mod));
+    items.push({ label: '📝 Als Klassenarbeit…', title: 'Dieses Modul als Klassenarbeit einer Klasse – eigener Link, im Klassennotizbuch unter 📝 Klassenarbeiten einschalten', run: () => this._examFor({ topic, mod }) });
     items.push('-', { label: '🗑 Löschen', danger: true, run: () => this._deleteModule(topic, mod) });
     return items;
   }
@@ -2062,6 +2065,26 @@ export class NotebooksView {
    * Lernthema oder Knoten ins Klassennotizbuch einer oder mehrerer Klassen:
    * je Klasse ein Klassenlink (Verweis – Änderungen gelten sofort).
    */
+  /**
+   * 📝 Als Klassenarbeit: Bereich/Abschnitt (alle Lernthemen darunter), Lernthema oder Modul für eine Klasse.
+   * Der Link der Klassenarbeit beginnt aus (○) – eingeschaltet wird im Klassennotizbuch.
+   */
+  async _examFor({ node = null, topic = null, mod = null }) {
+    const title = mod?.title || topic?.title || node?.title || 'Klassenarbeit';
+    const part = node
+      ? { topicIds: this._topicsBelow(node.id).flatMap((t) => (t.isMirror ? t.mirror.topics : [t])).map((t) => t.id), name: `Klassenarbeit ${node.title}` }
+      : mod ? { topicId: topic.id, moduleId: mod.id } : { topicId: topic.id };
+    if (part.topicIds && !part.topicIds.length) { this.app.showToast('Hier liegt kein Lernthema.', 'info'); return; }
+    const klasse = await pickClass(this.app, {
+      title: `📝 Als Klassenarbeit – ${title}`,
+      hint: 'Für welche Klasse? Die Klassenarbeit bekommt einen eigenen Link und ist für die Schüler noch aus (○).',
+    });
+    if (!klasse) return;
+    const res = await this.app.api.classbookExamFor(klasse.id, part);
+    if (!res || res.statusCode >= 400 || !res.linkId) { this.app.showToast('Fehler: ' + (res?.message || 'Klassenarbeit nicht angelegt'), 'error'); return; }
+    this.app.showToast(`📝 „${res.name || title}“ ist Klassenarbeit von ${klasse.name} – noch aus (○). Im Klassennotizbuch unter 📝 Klassenarbeiten einschalten, Link & QR, Ausprobieren.`, 'success');
+  }
+
   async _assignToClassbook({ kind, node = null, topic = null }) {
     const title = kind === 'node' ? node.title : topic.title;
     if (kind === 'node' && !(await this._releaseBelow(node, 'zuweisen', 'wird zugewiesen'))) return;

@@ -10,7 +10,8 @@
 export function moveDocumentControls(host, mod, bar, { before = null, stiftKnopf = false } = {}) {
   host.querySelector('.module-preview-header')?.remove();
   const actions = host.querySelector('.ds-actions');
-  const moved = [...(actions?.children || []), host.querySelector('.ds-solutions-toggle')].filter(Boolean);
+  // Arbeitsblatt | Lösung zuerst, dann ✍️ Stift und die übrigen Knöpfe.
+  const moved = [host.querySelector('.ds-solutions-toggle'), ...(actions?.children || [])].filter(Boolean);
   actions?.remove();
   for (const btn of moved) {
     if (btn.classList.contains('ds-ink-btn')) {

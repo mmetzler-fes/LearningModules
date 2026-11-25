@@ -1,7 +1,6 @@
 import { moveDocumentControls } from '../document-bar.js';
 import { escapeHtml } from '../utils.js';
 import { syncDrawings } from './drawings-dialog.js';
-import { openGoodnotesDialog } from './goodnotes-dialog.js';
 
 // ==================== NOTEBOOKS: VORSCHAU-SPALTE ====================
 //
@@ -180,8 +179,9 @@ export class NotebookPreview {
   /** Dokument: Titel und Knöpfe in die feste Titelleiste (document-bar.js), gleich hinter ✍️ Stift. */
   _compactDocument(host, mod) {
     this._setLabel(`📄 ${mod.title || 'Dokument'}`, mod.title || '');
-    const before = this._head.querySelector('[data-nb-stift]')?.nextSibling || this._head.firstChild;
-    moveDocumentControls(host, mod, this._head, { before, stiftKnopf: true });
+    // Eigenes Dokument: Der ✍️ aus dem Blatt kommt mit (er fügt ins Dokument ein); erworbenes hat oben schon einen.
+    const stift = this._head.querySelector('[data-nb-stift]');
+    moveDocumentControls(host, mod, this._head, { before: stift || this._head.firstChild, stiftKnopf: !!stift });
   }
 
   _empty() {
@@ -263,8 +263,7 @@ export class NotebookPreview {
     if (own && mod.type === 'document') {
       const reload = async () => { this._modules.delete(topic.id); if (this.currentKey === key) await this.showModule(topic, mod); };
       syncDrawings(this.app, topic.id, { quiet: true }).then((n) => { if (n) reload(); });
-      // Heft fürs ganze Lernthema – auch hier, nicht nur im ⋯ des Lernthemas, wo man es am Dokument nicht sucht.
-      this._button('📓 GoodNotes', `Alle Dokumente von „${topic.title}“ als ein Heft (PDF) für GoodNotes – Schülerheft, Lösungsheft, Adresse mit QR-Code`, () => openGoodnotesDialog(this.app, topic));
+      // GoodNotes steht im ⋯ des Lernthemas (Rückmeldung: Leiste = Arbeitsblatt, Lösung, Stift, Bearbeiten, Vollbild).
     }
     // Über die ganze Seite – mit Weiter/Zurück durch die übrigen Module des Lernthemas.
     // Klassennotizbuch: Die Module tragen `enabled` – geblättert wird durch das, was die Klasse sieht.

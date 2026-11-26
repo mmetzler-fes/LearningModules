@@ -257,7 +257,8 @@ export async function openDocumentInk({ mode, mod, up = null, embedModule = null
       nextWatch?.disconnect();
       nextWatch = null;
       sourceEl.querySelectorAll('.ink-inline-next').forEach((x) => x.remove());
-      sourceEl.querySelectorAll('.ink-teacher-layer, [data-inserted]').forEach((x) => x.remove());
+      // Auch Anfasser und ⊕ des Editors: Sie hängen an ihm und wirkten nach dem nächsten Öffnen ins Leere.
+      sourceEl.querySelectorAll('.ink-teacher-layer, [data-inserted], .ink-karo-handle, .ink-insert-mark').forEach((x) => x.remove());
       if (liveHide) sourceEl.querySelector('.docspec')?.classList.add('ds-hide-solutions');
       liveMark.replaceWith(sourceEl);
       liveMark = null;

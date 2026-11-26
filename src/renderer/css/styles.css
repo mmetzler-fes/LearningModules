@@ -4263,6 +4263,8 @@ body.html-app-large .quiz-actions { margin-top: 8px; padding-top: 8px; flex-shri
 .ds-surface.ds-landscape .ds-karo { max-width: 100%; }
 /* Tiptap-Fläche (docspec-tiptap.js) */
 .ds-pm-surface { padding: 0; }
+/* Das Blatt umschließt alles, auch ein schwebendes Bild am Ende – sonst endete es vor dem Inhalt (Feedback: Blatt abgeschnitten). */
+.ds-pm-surface, .ds-pm-surface .ProseMirror { display: flow-root; }
 /* Maßstäbliches Blatt (docspec-editor.js fitPmPaper): Ränder links/rechts wie die Vorlage, nicht schmaler als die Seite. */
 .ds-surface.ds-pm-surface.ds-pm-paper { max-width: none; box-sizing: border-box; }
 .ds-pm-surface.ds-pm-paper .ProseMirror { padding-left: 0; padding-right: 0; }

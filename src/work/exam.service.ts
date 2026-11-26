@@ -88,7 +88,9 @@ export class ExamService {
     const p = body?.progress;
     if (!p || !Array.isArray(p.steps) || !Array.isArray(p.answers)) throw new BadRequestException('Kein gültiger Zwischenstand.');
     if (Buffer.byteLength(JSON.stringify(p)) > MAX_PROGRESS_BYTES) throw new PayloadTooLargeException('Zwischenstand zu groß.');
-    attempt.progress = { steps: p.steps.map(String), index: Number(p.index) || 0, answers: p.answers, embeddedAnswers: p.embeddedAnswers || {} };
+    // writtenAt: Uhrzeit des Geräts, receivedAt: Ankunft – ohne WLAN kann dazwischen Zeit liegen (docs/offline-sync.md).
+    const writtenAt = typeof p.writtenAt === 'string' && Number.isFinite(Date.parse(p.writtenAt)) ? p.writtenAt : null;
+    attempt.progress = { steps: p.steps.map(String), index: Number(p.index) || 0, answers: p.answers, embeddedAnswers: p.embeddedAnswers || {}, writtenAt, receivedAt: new Date().toISOString() };
     await this.repo.save(attempt);
     return { success: true, stored: true };
   }

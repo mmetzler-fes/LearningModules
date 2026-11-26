@@ -1,3 +1,4 @@
+import { workBadges, bindWorkCompare } from './work-compare.js';
 import { escapeHtml, escapeAttr, copyClassbookOneNote, copyQrSvgAsPng, copyShareSheetAsPng, scrollIntoOwnView } from '../utils.js';
 import { openTagDialog } from './tags.js';
 import { nestEmbedded, contentCounts, contentText } from '../../lm-editor/src/doc/doc-quiz.js';
@@ -266,10 +267,12 @@ export class ClassResultsView {
             <li data-id="${escapeAttr(w.id)}">
               <span class="cr-work-title">${escapeHtml(w.moduleTitle || 'Dokument')}</span>
               <span class="hint">${escapeHtml(byStudent ? w.linkName || '' : w.studentName)}${w.access === 'exam' ? ' · 📝 Klassenarbeit' : ''} · ${escapeHtml(when(w.updatedAt))}</span>
+              ${workBadges(w)}
               <button type="button" class="btn btn-secondary btn-sm btn-work-open">👁 Ansehen</button>
             </li>`).join('')}</ul>
         </details>`).join('') : `<div class="empty-state"><span class="empty-icon">✍️</span>
           <p>Noch keine Bearbeitungen. Sie entstehen, wenn Schüler über einen Klassenlink ein Dokument mit „✍️ Mit Stift bearbeiten“ öffnen.</p></div>`}`;
+    bindWorkCompare(this._out, this.app, () => this._renderWorks());
     this._out.querySelectorAll('[data-by]').forEach((btn) => btn.addEventListener('click', () => {
       this._worksBy = btn.dataset.by;
       savePref('lm_cr_works_by', this._worksBy);
@@ -2429,8 +2432,10 @@ export class ClassResultsView {
         <ul class="cr-works-list">${sheets.sort((a, b) => a.studentName.localeCompare(b.studentName, 'de')).map((w) => `
           <li data-id="${escapeAttr(w.id)}"><span class="cr-work-title">${escapeHtml(w.studentName)} – ${escapeHtml(w.moduleTitle || 'Dokument')}</span>
             <span class="hint">${escapeHtml(when(w.updatedAt))}</span>
+            ${workBadges(w)}
             <button type="button" class="btn btn-secondary btn-sm btn-work-open">👁 Ansehen</button></li>`).join('')}</ul></details>` : ''}`;
     this._bindExamMatrix(body, test);
+    bindWorkCompare(body, this.app, () => this._fillExamResults(d));
     body.querySelectorAll('.btn-work-open').forEach((btn) => btn.addEventListener('click', async () => {
       btn.disabled = true;
       try {

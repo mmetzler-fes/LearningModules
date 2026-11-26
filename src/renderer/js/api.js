@@ -313,6 +313,8 @@ export class BrowserApi {
     return this._fetch(`/api/work?${q}`);
   }
   getWork(id) { return this._fetch(`/api/work/${encodeURIComponent(id)}`); }
+  /** Zweite Fassung einer Bearbeitung: act 'take' | 'discard' (views/work-compare.js). */
+  decideWorkPrevious(id, act) { return this._fetch(`/api/work/${encodeURIComponent(id)}/previous`, { method: 'POST', body: JSON.stringify({ act }) }); }
   /** Zeichnungen mit Quelle (.odg in der Nextcloud) eines Lernthemas. */
   listDrawings(topicId) { return this._fetch(`/api/drawings?topicId=${encodeURIComponent(topicId)}`); }
   /** Geänderte .odg neu zeichnen lassen – `{ checked, updated: [...], failed: [...] }`. */
@@ -431,11 +433,15 @@ export class BrowserApi {
   }
 
   submitPublicResult(data) {
+    // Wackliges WLAN: nicht ewig warten – ohne Antwort geht das Ergebnis in die Warteschlange (views/quiz.js).
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 15000);
     return fetch('/api/public/results', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
-    }).then((r) => r.json());
+      signal: ctrl.signal,
+    }).then((r) => r.json()).finally(() => clearTimeout(t));
   }
 
   // ---------- Admin ----------

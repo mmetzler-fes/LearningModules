@@ -65,6 +65,13 @@ export class WorkController {
   remove(@Request() req: any, @Param('id') id: string) {
     return this.work.remove(req.user, id);
   }
+
+  /** Zweite Fassung übernehmen oder verwerfen: `{ act: 'take' | 'discard' }`. */
+  @Post(':id/previous')
+  @HttpCode(200)
+  previous(@Request() req: any, @Param('id') id: string, @Body() body: any) {
+    return this.work.decidePrevious(req.user, id, body?.act);
+  }
 }
 
 /** Zwischenstand einer Klassenarbeit (Schüler, mit Schülerausweis). */

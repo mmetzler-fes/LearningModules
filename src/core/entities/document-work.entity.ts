@@ -61,4 +61,29 @@ export class DocumentWork extends BaseEntity {
 
   @Column({ type: 'integer', default: 0 })
   bytes: number;
+
+  // ---- Nachsenden von Geräten ohne Netz (docs/offline-sync.md) ----
+
+  /** Uhrzeit des Geräts beim Schreiben des Stands (updatedAt ist die Ankunft) – ohne WLAN kann dazwischen Zeit liegen. */
+  @Column({ type: 'datetime', nullable: true })
+  clientAt: Date | null;
+
+  /** Gerät, das zuletzt gespeichert hat (Zufallskennung des Browsers). */
+  @Column({ type: 'varchar', nullable: true })
+  syncDevice: string | null;
+
+  /** Laufende Nummer dieses Geräts beim letzten Speichern – ältere kommen nicht mehr durch. */
+  @Column({ type: 'integer', default: 0 })
+  syncSeq: number;
+
+  /** Zähler je Speichern auf dem Server: Wer ihn kennt, hat den neuesten Stand gesehen. */
+  @Column({ type: 'integer', default: 0 })
+  syncRev: number;
+
+  /** Zwei Geräte haben unabhängig gearbeitet: die unterlegene Fassung (nur für die Lehrkraft). */
+  @Column('simple-json', { nullable: true })
+  previousData: any;
+
+  @Column({ type: 'datetime', nullable: true })
+  previousAt: Date | null;
 }

@@ -6565,6 +6565,7 @@ details.cb-topic > summary .hint { font-weight: normal; margin-left: 6px; }
 .nb-cmp-old { background: #fde2e2; box-shadow: inset 3px 0 0 #dc2626; }
 .nb-cmp-new { background: #dcfce7; box-shadow: inset 3px 0 0 #16a34a; }
 .nb-cmp-swatch { font-weight: 400; font-size: 0.8em; padding: 1px 8px; border-radius: 4px; color: #111; }
+.work-late { font-size: 0.8em; padding: 1px 6px; border-radius: 4px; background: #fef3c7; color: #78350f; white-space: nowrap; }
 .nb-cmp-json { margin: 0; font-size: 0.8em; white-space: pre-wrap; word-break: break-word; }
 .nb-cmp-json span { display: inline-block; width: 100%; }
 @media (max-width: 800px) { .nb-cmp-grid { grid-template-columns: 1fr; } .nb-cmp-body { height: 40vh; } }

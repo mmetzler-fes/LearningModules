@@ -6,6 +6,13 @@ import { planRun, scoreRun } from '../../lm-editor/src/doc/doc-quiz.js';
 import { appOfView, expandAppSteps } from '../html-app-steps.js';
 import { classbookSession, backToClassbook } from './classbook-student.js';
 import { icon } from '../../lm-editor/src/util/icons.js';
+import { enqueue, onSent, flush, pending } from '../sync/outbox.js';
+
+// Nachgesendete Ergebnisse und Zwischenstände (docs/offline-sync.md): Meldungen, auch wenn der Schüler schon woanders ist.
+let toastApp = null;
+onSent('result', () => toastApp?.showToast('Dein Ergebnis wurde nachträglich gesendet.', 'success'));
+onSent('result:failed', (_e, res) => toastApp?.showToast(`Das Ergebnis wurde nicht angenommen: ${res?.message || 'unbekannter Fehler'}`, 'error'));
+onSent('exam:failed', (_e, res) => toastApp?.showToast(res?.message || 'Die Klassenarbeit wurde an einem anderen Gerät fortgesetzt.', 'error'));
 
 /**
  * Stand je Aufgabe für die Live-Ansicht: 'd' bearbeitet, 's' mit „Weiter“
@@ -350,17 +357,11 @@ export class QuizView {
     const qs = this.app.state.quizState;
     const ticket = this.app.state.linkSession?.studentTicket;
     if (!qs || qs.mode !== 'exam' || !qs.linkToken || !ticket) return;
-    const progress = { steps: qs.modules.map(stepKey), index, answers: qs.answers, embeddedAnswers: qs.embeddedAnswers || {} };
-    fetch('/api/public/exam/progress', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ linkToken: qs.linkToken, studentTicket: ticket, progress }),
-    }).then(async (res) => {
-      if (res.status === 403) {
-        const data = await res.json().catch(() => ({}));
-        this.app.showToast(data.message || 'Die Klassenarbeit wurde an einem anderen Gerät fortgesetzt.', 'error');
-      }
-    }).catch(() => undefined);
+    // Zeitstempel des Geräts: Kommt der Stand ohne WLAN erst später an, sieht die Lehrkraft, wann er entstand.
+    const progress = { steps: qs.modules.map(stepKey), index, answers: qs.answers, embeddedAnswers: qs.embeddedAnswers || {}, writtenAt: new Date().toISOString() };
+    // Über die Warteschlange: nur der neueste Zwischenstand zählt, ohne Netz wird er nachgesendet.
+    toastApp = this.app;
+    void enqueue({ key: `exam|${qs.linkToken}|${ticket}`, kind: 'exam', url: '/api/public/exam/progress', label: 'Zwischenstand', body: { linkToken: qs.linkToken, studentTicket: ticket, progress } });
   }
 
   async _startQuiz(topic) {
@@ -761,11 +762,12 @@ export class QuizView {
     // Aufruf, und das Quiz blieb mit "Abschließen" stehen. Jetzt kommt die
     // Auswertung immer, und ein Fehlschlag lässt sich erneut senden.
     let send = null;
+    let resultBody = null;
     if (isLearn) {
       // Lernen mit Lösungen ist zum Üben da – dabei entsteht kein Eintrag im
       // Ergebnis-Log der Lehrkraft.
     } else if (currentUser.role === 'student') {
-      send = () => api.submitPublicResult({
+      resultBody = {
         teacherEmail: currentUser.teacherEmail,
         linkToken: quizState.linkToken || undefined,
         quickToken: quizState.quickToken || undefined,
@@ -782,24 +784,46 @@ export class QuizView {
           details,
           // Stand der Punkte-Rechnung (src/results/exam-points.ts POINTS_VERSION) – dann wird nicht nachgerechnet.
           ...(companion ? { jokersUsed: companion.jokersUsed } : { pointsVersion: 2 }),
+          // Wann der Schüler fertig war – kommt das Ergebnis ohne WLAN später an, steht beides fest.
+          writtenAt: new Date().toISOString(),
         },
-      });
+      };
+      send = () => api.submitPublicResult(resultBody);
     } else {
       send = () => api.saveQuizResult({
         username: currentUser.name, topicId: quizState.topicId, topicTitle: quizState.topicTitle,
         score, totalQuestions: total, percentage, details: answers,
       });
     }
+    let noNet = false; // keine Antwort (WLAN weg) – im Unterschied zu einer Ablehnung durch den Server
     const trySend = async () => {
+      noNet = false;
       try {
         const res = await send();
         // Fehlerantworten des Servers kommen als JSON mit statusCode zurück.
         return !(res && (res.statusCode >= 400 || res.success === false));
       } catch (_) {
+        noNet = true;
         return false;
       }
     };
-    const saved = send ? await trySend() : true;
+    // Erst muss hinaus, was noch auf dem Gerät wartet (Blätter, Zwischenstand) – sonst schlösse die
+    // Abgabe der Klassenarbeit den Server für die Blätter. Wartet danach noch etwas, stellt sich das
+    // Ergebnis dahinter an.
+    let behind = false;
+    if (resultBody) {
+      await Promise.race([flush(), new Promise((r) => setTimeout(r, 12000))]);
+      behind = (await pending()).some((e) => e.state === 'wait');
+    }
+    let saved = send && !behind ? await trySend() : !send;
+    if (behind) noNet = true;
+    // Schüler ohne Netz: Das Ergebnis bleibt auf dem Gerät und geht von selbst hinaus, sobald das WLAN wieder da ist.
+    let queued = false;
+    if (!saved && resultBody && noNet) {
+      toastApp = this.app;
+      queued = await enqueue({ key: `result|${Date.now()}|${Math.random().toString(36).slice(2, 8)}`, kind: 'result', url: '/api/public/results', label: 'Ergebnis', body: resultBody });
+      saved = queued;
+    }
     this._reportRun({ done: quizState.modules.length, finished: true, states: stepStates(quizState) });
 
     this._quizPlayerArea.classList.add('hidden');
@@ -823,6 +847,9 @@ export class QuizView {
         <p>${t('quiz.topic')}: <strong>${escapeHtml(quizState.topicTitle)}</strong></p>
         ${isLearn ? '<p class="hint">Übungsdurchlauf – dieses Ergebnis wird nicht gespeichert.</p>' : ''}
         ${!isLearn && (this.app.state.linkSession?.anonymous || this.app.state.quickSession?.anonymous) ? `<p class="hint">Ohne Anmeldung: ${isExam ? 'Das ist eine Probearbeit, das' : 'Dieses'} Ergebnis wird nicht gespeichert.</p>` : ''}
+        ${queued ? `<div class="quiz-save-queued hint">
+          <p>${icon('wait')} Gerade keine Verbindung: Dein Ergebnis ist auf diesem Gerät gespeichert und wird automatisch gesendet, sobald das WLAN wieder da ist. Du kannst weiterarbeiten.</p>
+        </div>` : ''}
         ${saved ? '' : `<div class="quiz-save-failed login-error">
           <p>${icon('warn', 'lm-ico-warn')} Das Ergebnis konnte nicht gesendet werden – vermutlich gibt es gerade keine Internetverbindung.
             Bitte diese Seite offen lassen, die Verbindung prüfen und dann erneut senden.</p>

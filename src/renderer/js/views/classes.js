@@ -1,3 +1,4 @@
+import { workBadges, bindWorkCompare } from './work-compare.js';
 import { escapeHtml, escapeAttr, copyClassbookOneNote, showContextMenu } from '../utils.js';
 import { readStudentList, readClassLists, readSchoolRoster, needsPassword, WrongPassword } from '../odf/student-list.js';
 import { buildOds, buildXlsx, buildCsv } from '../odf/sheet-templates.js';
@@ -751,10 +752,12 @@ export class ClassesView {
           <ul>${g.items.sort((a, b) => a.studentName.localeCompare(b.studentName, 'de')).map((w) => `
             <li data-id="${escapeAttr(w.id)}">
               <span>${escapeHtml(w.studentName)}</span> <span class="hint">${escapeHtml(when(w.updatedAt))}</span>
+              ${workBadges(w)}
               <button class="btn btn-secondary btn-sm btn-work-open">Ansehen</button>
               <button class="btn btn-danger btn-sm btn-work-delete" title="Bearbeitung löschen">🗑</button>
             </li>`).join('')}</ul>
         </details>`).join('')}`;
+    bindWorkCompare(box, this.app, () => this._renderWorks(klasse));
     box.querySelectorAll('li[data-id]').forEach((li) => {
       const w = works.find((x) => x.id === li.dataset.id);
       li.querySelector('.btn-work-open').addEventListener('click', async () => {

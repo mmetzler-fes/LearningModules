@@ -1,5 +1,5 @@
 import { pinGuard } from './pin';
-import { WorkService } from './work.service';
+import { WorkService, syncDecision } from './work.service';
 import { issueTicket } from '../classes/student-ticket';
 import { ExamService } from './exam.service';
 import { repo } from './test-repo';
@@ -30,7 +30,7 @@ const body = (extra: any = {}) => ({ linkToken: 'tok', studentTicket: issueTicke
 describe('Bearbeitungen der Schüler', () => {
   it('erstes Speichern zeigt die PIN – danach geht es nur mit ihr weiter', async () => {
     const { svc, students } = setup();
-    expect(await svc.load(body())).toEqual({ data: null, teacher: null });
+    expect(await svc.load(body())).toEqual({ data: null, rev: 0, teacher: null });
     const first = await svc.save(body({ data }));
     expect(first.pin).toMatch(/^\d{4}$/);
     expect(students.rows[0].pin).toBe(first.pin);
@@ -114,5 +114,68 @@ describe('Bearbeitungen der Schüler', () => {
     expect(await svc.list({ userId: 't1' })).toHaveLength(1);
     expect(await svc.list({ userId: 'fremd' })).toHaveLength(0);
     await expect(svc.get({ userId: 'fremd' }, (await svc.list({ userId: 't1' }))[0].id)).rejects.toThrow(/nicht gefunden/);
+  });
+
+  describe('Nachsenden ohne WLAN (docs/offline-sync.md)', () => {
+    const at = (iso: string) => ({ ...data, updatedAt: iso });
+    // Ohne PIN-Abfrage: Klassenarbeit (keine PIN) wäre umständlicher, also PIN durchreichen.
+    async function saver() {
+      const s = setup();
+      const first = await s.svc.save(body({ data: at('2026-11-26T10:00:00Z'), sync: { device: 'A', seq: 1, base: 0 } }));
+      const pin = first.pin;
+      const save = (d: any, sync: any) => s.svc.save(body({ data: d, pin, sync }));
+      return { ...s, save, pin };
+    }
+
+    it('ein überholter älterer Stand desselben Geräts wird verworfen', async () => {
+      const { save, works } = await saver();
+      await save(at('2026-11-26T10:05:00Z'), { device: 'A', seq: 3, base: 1 });
+      const late = await save(at('2026-11-26T10:02:00Z'), { device: 'A', seq: 2, base: 1 });
+      expect(late.stale).toBe(true);
+      expect(works.rows[0].data.updatedAt).toBe('2026-11-26T10:05:00Z');
+      expect(works.rows[0].previousData ?? null).toBeNull();
+    });
+
+    it('zählt die Revision hoch und merkt die Uhrzeit des Geräts', async () => {
+      const { save, works } = await saver();
+      const res = await save(at('2026-11-26T10:05:00Z'), { device: 'A', seq: 2, base: 1 });
+      expect(res.rev).toBe(2);
+      expect(works.rows[0].clientAt).toEqual(new Date('2026-11-26T10:05:00Z'));
+    });
+
+    it('zweites Gerät mit bekanntem Stand: einfach übernehmen', async () => {
+      const { save, works } = await saver();
+      const res = await save(at('2026-11-26T10:05:00Z'), { device: 'B', seq: 1, base: 1 });
+      expect(res.conflict).toBeUndefined();
+      expect(works.rows[0].previousData ?? null).toBeNull();
+    });
+
+    it('zwei Geräte unabhängig: der neuere gewinnt, der andere bleibt als zweite Fassung', async () => {
+      const { save, works, svc } = await saver();
+      await save(at('2026-11-26T10:10:00Z'), { device: 'A', seq: 2, base: 1 });
+      // B hatte nur Stand 1 gesehen (oder offline gar keinen) und schreibt früher, kommt aber später an.
+      const older = await save(at('2026-11-26T10:07:00Z'), { device: 'B', seq: 1, base: null });
+      expect(older.superseded).toBe(true);
+      expect(works.rows[0].data.updatedAt).toBe('2026-11-26T10:10:00Z');
+      expect(works.rows[0].previousData.updatedAt).toBe('2026-11-26T10:07:00Z');
+      // Später schreibt B etwas Neueres, immer noch ohne den Stand von A zu kennen.
+      const newer = await save(at('2026-11-26T10:20:00Z'), { device: 'B', seq: 2, base: 1 });
+      expect(newer.conflict).toBe(true);
+      expect(works.rows[0].data.updatedAt).toBe('2026-11-26T10:20:00Z');
+      expect(works.rows[0].previousData.updatedAt).toBe('2026-11-26T10:10:00Z');
+      // Die Lehrkraft übernimmt die zweite Fassung – getauscht, nichts geht verloren.
+      const id = works.rows[0].id;
+      await svc.decidePrevious({ userId: 't1' }, id, 'take');
+      expect(works.rows[0].data.updatedAt).toBe('2026-11-26T10:10:00Z');
+      expect(works.rows[0].previousData.updatedAt).toBe('2026-11-26T10:20:00Z');
+      await svc.decidePrevious({ userId: 't1' }, id, 'discard');
+      expect(works.rows[0].previousData).toBeNull();
+      await expect(svc.decidePrevious({ userId: 't1' }, id, 'discard')).rejects.toThrow(/keine zweite Fassung/);
+    });
+
+    it('alte Geräte ohne Angaben schreiben wie bisher', () => {
+      expect(syncDecision({ data, syncDevice: 'A', syncSeq: 5, syncRev: 3 }, undefined, data)).toBe('write');
+      expect(syncDecision(null, { device: 'A', seq: 1 }, data)).toBe('write');
+    });
   });
 });

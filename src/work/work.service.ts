@@ -27,6 +27,52 @@ export interface WorkAccess {
 }
 
 /**
+ * Herkunft eines Stands beim Nachsenden (docs/offline-sync.md): `device` –
+ * Zufallskennung des Browsers, `seq` – laufende Nummer dieses Geräts, `base` –
+ * der Zähler (syncRev), den das Gerät zuletzt vom Server kannte (null: keinen).
+ */
+export interface WorkSync {
+  device?: string;
+  seq?: number;
+  base?: number | null;
+}
+
+/** Antwort auf das Speichern: `rev` nur, wenn der Stand des Geräts jetzt gilt. */
+export interface WorkSaveResult {
+  success: boolean;
+  updatedAt?: Date;
+  rev?: number;
+  stale?: boolean;
+  superseded?: boolean;
+  conflict?: boolean;
+  pin?: string;
+}
+
+/** Zeitpunkt eines Stands laut Gerät (Stift-Editor: data.updatedAt), sonst 0. */
+const standTime = (data: any) => {
+  const t = Date.parse(data?.updatedAt || '');
+  return Number.isFinite(t) ? t : 0;
+};
+
+/**
+ * Was mit einem ankommenden Stand geschieht:
+ * - 'write': übernehmen (kein Stand da, dasselbe Gerät mit neuerer Nummer, oder das Gerät kannte den neuesten Stand),
+ * - 'stale': älterer Stand desselben Geräts, der sich unterwegs überholt hat – verwerfen,
+ * - 'incoming' / 'existing': zwei Geräte haben unabhängig gearbeitet – der neuere Stand
+ *   (Uhrzeit des Geräts) gewinnt, der andere bleibt als Kopie für die Lehrkraft.
+ */
+export function syncDecision(
+  existing: { data?: any; syncDevice?: string | null; syncSeq?: number; syncRev?: number } | null,
+  sync: WorkSync | undefined,
+  incoming: any,
+): 'write' | 'stale' | 'incoming' | 'existing' {
+  if (!sync?.device || !existing?.data) return 'write';
+  if (existing.syncDevice === sync.device) return Number(sync.seq) > Number(existing.syncSeq || 0) ? 'write' : 'stale';
+  if (sync.base != null && Number(sync.base) === Number(existing.syncRev || 0)) return 'write';
+  return standTime(incoming) >= standTime(existing.data) ? 'incoming' : 'existing';
+}
+
+/**
  * Bearbeitungen der Schüler (Stift-Editor auf Dokumenten): speichern, laden,
  * für die Lehrkraft auflisten. Regeln in docs/bearbeitungen.md:
  * - nur über einen Klassenlink mit gültigem Schülerausweis,
@@ -127,15 +173,15 @@ export class WorkService {
     const work = await this.find(a.link.id, a.ticket.s, a.mod.id);
     // Beschriftung der Lehrkraft, wenn sie „für alle“ ist – unter der eigenen.
     const teacher = this.teacherInk ? await this.teacherInk.forStudents(a.mod.id) : null;
-    if (!work) return { data: null, teacher };
-    return { data: work.data, updatedAt: work.updatedAt, teacher };
+    if (!work) return { data: null, rev: 0, teacher };
+    return { data: work.data, updatedAt: work.updatedAt, rev: work.syncRev || 0, teacher };
   }
 
   /**
    * Stand speichern. Beim ersten Speichern überhaupt bekommt der Schüler
    * seine PIN zu sehen (`pin` in der Antwort) – nur dieses eine Mal.
    */
-  async save(body: WorkAccess & { data?: any }) {
+  async save(body: WorkAccess & { data?: any; sync?: WorkSync }): Promise<WorkSaveResult> {
     const a = await this.access(body);
     if (!a.ticket.v) this.checkPin(a.student, a.access, body.pin);
     const data = body?.data;
@@ -151,9 +197,27 @@ export class WorkService {
         studentId: a.ticket.s, classId: a.klasse.id, moduleId: a.mod.id, access: a.access,
       });
     }
-    Object.assign(work, {
-      data, bytes, studentName: a.ticket.n, versionId: await this.versionOf(a.mod, a.all), className: a.klasse.name, moduleTitle: a.mod.title || '', topicId: a.mod.topicId || null,
-    });
+    const sync = body?.sync && typeof body.sync === 'object' ? body.sync : undefined;
+    const decision = syncDecision(work, sync, data);
+    if (decision === 'stale') return { success: true, stale: true, rev: work.syncRev || 0 };
+    if (decision === 'existing') {
+      // Der Stand auf dem Server ist neuer: Er bleibt, der ankommende wird zur Kopie.
+      Object.assign(work, { previousData: data, previousAt: new Date() });
+    } else {
+      if (decision === 'incoming') Object.assign(work, { previousData: work.data, previousAt: new Date() });
+      const written = standTime(data);
+      Object.assign(work, {
+        data, bytes, studentName: a.ticket.n, versionId: await this.versionOf(a.mod, a.all), className: a.klasse.name, moduleTitle: a.mod.title || '', topicId: a.mod.topicId || null,
+        clientAt: written ? new Date(written) : null,
+      });
+    }
+    // Nur wessen Stand jetzt gilt, wird zum letzten Gerät. Der Unterlegene bekommt keine Revision:
+    // Sein nächster Stand läuft wieder über den Vergleich, statt den geltenden wortlos zu ersetzen.
+    if (sync?.device && decision !== 'existing') {
+      work.syncDevice = String(sync.device).slice(0, 64);
+      work.syncSeq = Math.max(Number(work.syncSeq) || 0, Number(sync.seq) || 0);
+    }
+    work.syncRev = (Number(work.syncRev) || 0) + 1;
     await this.workRepo.save(work);
 
     let pin: string | undefined;
@@ -163,7 +227,12 @@ export class WorkService {
       await this.studentRepo.update({ id: a.student.id }, { pin: a.student.pin, pinShownAt: a.student.pinShownAt });
       pin = a.student.pin;
     }
-    return { success: true, updatedAt: work.updatedAt, ...(pin ? { pin } : {}) };
+    return {
+      success: true, updatedAt: work.updatedAt,
+      ...(decision === 'existing' ? { superseded: true } : { rev: work.syncRev }),
+      ...(decision === 'incoming' ? { conflict: true } : {}),
+      ...(pin ? { pin } : {}),
+    };
   }
 
   // ---- Lehrkraft ----
@@ -174,7 +243,7 @@ export class WorkService {
     for (const k of ['linkId', 'moduleId', 'classId'] as const) if (filter[k]) where[k] = String(filter[k]);
     const rows = await this.workRepo.find({
       where, order: { updatedAt: 'DESC' },
-      select: ['id', 'linkId', 'linkName', 'studentId', 'studentName', 'classId', 'className', 'moduleId', 'moduleTitle', 'topicId', 'access', 'bytes', 'createdAt', 'updatedAt'],
+      select: ['id', 'linkId', 'linkName', 'studentId', 'studentName', 'classId', 'className', 'moduleId', 'moduleTitle', 'topicId', 'access', 'bytes', 'clientAt', 'previousAt', 'createdAt', 'updatedAt'],
     });
     return rows;
   }
@@ -190,6 +259,35 @@ export class WorkService {
     const work = await this.get(user, id);
     const version = work.versionId ? await this.versionRepo.findOne({ where: { id: work.versionId } }) : null;
     return { ...work, version: version ? { title: version.title, content: version.content, embedded: version.embedded || [] } : null };
+  }
+
+  /**
+   * Zweite Fassung (zwei Geräte haben unabhängig gearbeitet): `take` macht sie
+   * zum gültigen Stand (der bisherige wird zur zweiten Fassung), `discard`
+   * verwirft sie.
+   */
+  async decidePrevious(user: any, id: string, act: 'take' | 'discard') {
+    const work = await this.get(user, id);
+    if (!work.previousData) throw new BadRequestException('Es gibt keine zweite Fassung.');
+    if (act === 'take') {
+      const current = work.data;
+      work.data = work.previousData;
+      work.bytes = Buffer.byteLength(JSON.stringify(work.data));
+      const written = standTime(work.data);
+      work.clientAt = written ? new Date(written) : null;
+      work.previousData = current;
+      work.previousAt = new Date();
+      // Geräte mit dem alten Stand sollen ihn nicht wortlos überschreiben.
+      work.syncDevice = null;
+    } else if (act === 'discard') {
+      work.previousData = null;
+      work.previousAt = null;
+    } else {
+      throw new BadRequestException('Unbekannte Aktion.');
+    }
+    work.syncRev = (Number(work.syncRev) || 0) + 1;
+    await this.workRepo.save(work);
+    return { success: true };
   }
 
   async remove(user: any, id: string) {

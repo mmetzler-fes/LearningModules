@@ -75,6 +75,22 @@ describe('SPS-Labor (Ablaufkette IEC 61131-3)', () => {
     expect(rt.active).toEqual(['s1']);
   });
 
+  it('Zeitglied wie in der IEC: D T#… auf tonT1, Transition tonT1.Q', () => {
+    const st: any = {
+      io: [{ id: 't', kind: 'tim', name: 'tonT1' }],
+      steps: [
+        { id: 's1', name: 'S_1', initial: true, trans: 'tonT1.Q', actions: [{ id: 'a', q: 'D', time: 'T#300ms', text: 'Biegezeit', var: 'tonT1', cond: '' }] },
+        { id: 's2', name: 'S_2', trans: 'FALSE', actions: [] },
+      ],
+      back: true,
+    };
+    expect(core.spsCheck(st)).toEqual([]);
+    const rt = core.spsInit(st);
+    const act: string[] = [];
+    for (let i = 0; i < 6; i++) { core.spsCycle(st, rt, {}, 100); act.push(rt.active[0]); }
+    expect(act).toEqual(['s1', 's1', 's1', 's1', 's2', 's2']);
+  });
+
   it('Prüfen: unbekannte Namen und fehlende Zeit', () => {
     const st = chain('L');
     st.steps[0].trans = 'E AND X9';

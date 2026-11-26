@@ -118,7 +118,12 @@ export async function openDocumentInk({ mode, mod, up = null, embedModule = null
     store = opened.store;
     teacherLayer = opened.teacher?.layer || null;
   }
-  if (!store && mode === 'teacher') store = await teacherStore(mod.id);
+  // Eigenes Dokument der Lehrkraft: Die Beschriftung ist ihre 🔑 Lehrerlösung (gilt für alle Klassen).
+  let solutionTitle = null;
+  if (!store && mode === 'teacher') {
+    store = await teacherStore(mod.id);
+    if (store && !title) solutionTitle = `🔑 Lehrerlösung – ${mod.title || 'Dokument'}`;
+  }
   // Arbeitsfläche der Lehrkraft: ein Dokument aus einem Lernthema bekommt einen Tab (Tafelbild, Lösung u. Ä. nicht).
   let wsTeacher = null;
   if (mode === 'teacher' && !title && mod?.id && mod.topicId) {
@@ -318,7 +323,7 @@ export async function openDocumentInk({ mode, mod, up = null, embedModule = null
     // Die neue Beschriftung gleich in der Ansicht zeigen.
     if (sourceEl) void showSavedInk(sourceEl, { mode, up, moduleId: mod.id, landscape: paper.landscape });
   };
-  return openInkEditor({ title: title || mod.title || 'Arbeitsblatt', key: `${mode}:${mod.id}`, loadPdf, solutions: isDoc && (mode === 'teacher' || JSON.stringify(content.spec || {}).includes('"type":"solution"')), laser: mode === 'teacher', paper, store, onClose, actions: runActions(), side, noExport,
+  return openInkEditor({ title: title || solutionTitle || mod.title || 'Arbeitsblatt', key: `${mode}:${mod.id}`, loadPdf, solutions: isDoc && (mode === 'teacher' || JSON.stringify(content.spec || {}).includes('"type":"solution"')), laser: mode === 'teacher', paper, store, onClose, actions: runActions(), side, noExport,
     // Quizze auf PC, Tablet und Handy als ganze Seite (⤢) – Dokumente wie bisher (Handy: ganze Breite).
     fit: isDoc ? null : 'page' });
 

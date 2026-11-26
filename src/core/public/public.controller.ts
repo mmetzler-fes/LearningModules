@@ -154,6 +154,9 @@ export class PublicController {
     const quizLink = classLink?.classId ? await this.classbook.quizLinkFor(classLink, baseUrl(req)) : null;
     const { file } = await this.worksheets.render({ userId: topic.ownerId }, {
       spec, title: mod.title, output: body?.solutions && full ? 'loesung_pdf' : 'pdf', moduleId: mod.id, kind: mod.content?.kind,
+      // Quizze an ihrer Stelle zum Ausfüllen (Druckfassung) – in GoodNotes schreibt der Schüler hinein.
+      // Die Beschriftung hängt an ihren Bausteinen und wandert mit.
+      quizzes: 'print',
       ...(quizLink ? { quizLink } : {}),
     }, req);
     res.setHeader('Content-Type', 'application/pdf');

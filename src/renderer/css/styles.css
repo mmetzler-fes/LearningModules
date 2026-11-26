@@ -2797,6 +2797,9 @@ body.html-app-large .quiz-actions { margin-top: 8px; padding-top: 8px; flex-shri
 .tf-row { padding: 12px 0; border-bottom: 1px solid var(--border); }
 .tf-row:last-child { border-bottom: none; }
 .tf-row .tf-question { margin-bottom: 10px; }
+.tf-row-fb { margin: 6px 0 0; font-size: 0.9rem; }
+.tf-row.tf-ok .tf-row-fb { color: var(--success, #16a34a); }
+.tf-row.tf-wrong .tf-row-fb { color: var(--danger, #dc2626); }
 .tf-row .tf-buttons { margin-bottom: 0; }
 .tf-score {
   font-size: 0.85rem;

@@ -489,6 +489,7 @@ const H5P_TYPES = {
         { key: 'feedbackCorrect', type: 'text', label: 'Feedback bei richtiger Antwort', default: 'Richtig!' },
         { key: 'feedbackWrong', type: 'text', label: 'Feedback bei falscher Antwort', default: 'Leider falsch.' },
       ]},
+      { key: 'onePage', type: 'checkbox', label: 'Alle Fragen auf einer Seite (aus: eine nach der anderen)', default: true },
       { key: 'randomOrder', type: 'checkbox', label: 'Fragen zufällig mischen', default: false },
       { key: 'enableRetry', type: 'checkbox', label: 'Wiederholen erlauben', default: true, advanced: true },
       { key: 'enableSolutionsButton', type: 'checkbox', label: 'Lösung anzeigen erlauben', default: true, advanced: true },

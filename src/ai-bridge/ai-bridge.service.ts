@@ -132,11 +132,12 @@ export function attachmentFiles(raw: any): Array<{ url: string; name: string; si
 
 /** Labore im Blatt (lm-editor/src/labs/lab-core.js) – Schüler bauen darin selbst etwas auf; im Druck ein Bild. */
 const LAB_REFERENCE = {
-  block: '{ type: "lab", lab: "zeiger" | "bode" | "ortskurve" | "logik", preset: {…} } – ohne preset gilt die Grundeinstellung. locked: true an einem Eintrag = für Schüler fest.',
+  block: '{ type: "lab", lab: "zeiger" | "bode" | "ortskurve" | "logik" | "sps", preset: {…} } – ohne preset gilt die Grundeinstellung. locked: true an einem Eintrag = für Schüler fest.',
   formeln: 'Komplexe Formeln: 3 + j4, 5∠30° (Grad), 10k, 100n, 4,7µ, R || X (parallel), abs(), arg() (Grad), conj(), sqrt(), polar(r; φ). Bode/Ortskurve: f, w (= ω), s (= jω).',
   zeiger: '{ xmin: -1, xmax: 13, ymin: -4.5, ymax: 4.5 (cm), grid: 0.5, scales: { "V": 2, "A": 0.5 } (Wert je cm), items: [{ id, name: "U", unit: "V"|"A"|"Ω"|"VA"|"W"|"var"|"S"|"", value: [re, im] ODER expr: "U / Z", x0, y0 (Anfang in cm) ODER anchor: "<id>" (Anfang an dessen Spitze), color: "#d62728", width: "f"|"m"|"d", show: false (nur Wert), locked }] }',
   bode: '{ params: [{ name: "R", value: "1k" }], curves: [{ id, name: "H", expr: "1/(1 + s*R*C)", color }], fmin: 10, fmax: 100000, dbmin: -60, dbmax: 10, phase: true, mark3db: true }',
   ortskurve: '{ params: [...], curves: [{ id, name: "Z", expr: "R + j*w*L" }], var: "f", from: 10, to: 10000, log: true, unit: "Ω", marks: true, cursor: null }',
+  sps: '{ io: [{ id, kind: "in"|"out"|"mem", name: "S1", addr: "%I0.0", desc: "Start", contact: "NO"|"NC"|"latch" }], steps: [{ id, name: "S_1", initial: true, trans: "S1 AND NOT B2", actions: [{ id, q: "N"|"S"|"R"|"L"|"D"|"P"|"DS"|"SD"|"SL", time: "T#2s", text: "Zylinder ausfahren", var: "Y1", cond: "" }] }], back: true } – Ablaufkette nach IEC 61131-3, Transition steht am Schritt davor; Schrittzeit S_2.T >= T#3s',
   logik: '{ w: 30, h: 14 (Raster 0,5 cm), parts: [{ id, type: "in"|"out"|"and"|"or"|"not"|"nand"|"nor"|"xor"|"xnor", x, y, n: 2..4 (Eingänge), label: "a" }], wires: [{ from: "<id>", to: "<id>", pin: 0 }], lockAll: false }',
 };
 

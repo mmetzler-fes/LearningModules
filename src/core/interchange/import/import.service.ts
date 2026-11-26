@@ -45,8 +45,14 @@ export function normalizeImportedContent(type: string, content: any): any {
     if (typeof content.seed !== 'number') content.seed = Number(content.seed) || 0;
   }
   if (type === 'dragAndDrop') {
-    // Paare nur mit "pairs"; Bild und "Text verbergen" an Zonen und Elementen.
-    content.layout = content.layout === 'pairs' ? 'pairs' : '';
+    // Paare nur mit "pairs", Tabelle mit "table"; Bild und "Text verbergen" an Zonen und Elementen.
+    content.layout = content.layout === 'pairs' || content.layout === 'table' ? content.layout : '';
+    if (content.layout === 'table') {
+      content.tableHead = str(content.tableHead);
+      if (Array.isArray(content.dropZones)) {
+        content.dropZones = content.dropZones.map((z: any) => (z && typeof z === 'object' ? { ...z, row: str(z.row), col: str(z.col) } : z));
+      }
+    }
     const withImage = (o: any) => {
       if (!o || typeof o !== 'object') return o;
       const imageUrl = str(o.imageUrl);

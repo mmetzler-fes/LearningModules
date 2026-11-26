@@ -154,6 +154,63 @@ function markTheWords(q: PrintQuiz): Block[] | null {
 
 const clamp = (v: unknown, lo: number, hi: number) => Math.min(hi, Math.max(lo, Number(v) || 0));
 
+/**
+ * Drag and Drop als Tabelle: dieselbe Tabelle (Zeilen links, Spalten oben)
+ * mit leeren Zellen. Sind die Elemente Bilder, stehen sie mit Buchstaben
+ * darüber und in die Zellen kommt der Buchstabe – der verborgene Text
+ * verriete sonst die Lösung.
+ */
+function dragAndDropTable(q: PrintQuiz, zones: any[], drags: any[]): Block[] {
+  const c = q.content || {};
+  const name = (v: unknown) => plainText(v).trim();
+  const rows: string[] = [];
+  const cols: string[] = [];
+  for (const z of zones) {
+    const r = name(z.row) || name(z.label);
+    const col = name(z.col);
+    if (!rows.includes(r)) rows.push(r);
+    if (!cols.includes(col)) cols.push(col);
+  }
+  const order = seededOrder(drags.length, `|${q.id}|bank`);
+  const pictures = drags.some((d: any) => d.imageUrl && d.hideText);
+  const letter = (i: number) => (i < 26 ? String.fromCharCode(65 + i) : String(i + 1));
+  const tagOf = new Map<any, string>();
+  order.forEach((di, k) => tagOf.set(drags[di], pictures ? letter(k) : plainText(drags[di].text)));
+  const answerOf = (z: any) => drags.filter((d: any) => d.correctZone === z.label).map((d: any) => tagOf.get(d)).join(', ') || '–';
+
+  let bank: Block;
+  if (pictures) {
+    // Bilder im Raster, je Zeile vier, jedes mit seinem Buchstaben.
+    const per = 4;
+    const lines = Math.ceil(order.length / per);
+    const rowH = 100 / lines;
+    const items: Block[] = [];
+    order.forEach((di, k) => {
+      const d = drags[di];
+      const x = (k % per) * 25;
+      const y = Math.floor(k / per) * rowH;
+      items.push({ text: letter(k), size: 10, align: 'left', x, y, w: 4, h: Math.min(rowH, 12) });
+      if (d.imageUrl) items.push({ src: d.imageUrl, x: x + 4, y: y + rowH * 0.05, w: 20, h: rowH * 0.9 });
+      else items.push({ text: escInline(plainText(d.text)), size: 9, align: 'left', x: x + 4, y, w: 20, h: rowH * 0.9 });
+    });
+    bank = { type: 'group', ratio: 0.2 * lines, width: '16cm', items };
+  } else {
+    const words = order.map((di) => escInline(plainText(drags[di].text)));
+    bank = { type: 'box', blocks: [textBlock(words.join('   ·   '))] };
+  }
+  const zoneAt = (r: string, col: string) => zones.find((z: any) => (name(z.row) || name(z.label)) === r && name(z.col) === col);
+  const grid = (fill: (z: any) => string) => rows.map((r) => [escInline(r), ...cols.map((col) => { const z = zoneAt(r, col); return z ? fill(z) : ''; })]);
+  const header = [escInline(name(c.tableHead)), ...cols.map(escInline)];
+  const widths = ['4.5cm', ...cols.map(() => '')];
+  return [
+    ...descOf(c.taskDescription),
+    textBlock(pictures ? 'Trage die Buchstaben der Bilder in die Tabelle ein:' : 'Trage die Begriffe in die Tabelle ein:'),
+    bank,
+    { type: 'table', header, widths, rows: grid(() => ''), heights: ['', ...rows.map(() => (pictures ? '1.2cm' : '1cm'))] },
+    solution([{ type: 'table', header, widths, rows: grid((z) => escInline(answerOf(z))) }]),
+  ];
+}
+
 function dragAndDrop(q: PrintQuiz, sizeOf: ImageSizeOf): Block[] | null {
   const c = q.content || {};
   const zones = (Array.isArray(c.dropZones) ? c.dropZones : []).filter((z: any) => z && String(z.label ?? '').trim());
@@ -188,6 +245,7 @@ function dragAndDrop(q: PrintQuiz, sizeOf: ImageSizeOf): Block[] | null {
       solution([{ type: 'list', items: zones.map((z: any, i: number) => `${i + 1}: ${escInline(answerOf(z))}`) }]),
     ];
   }
+  if (c.layout === 'table' && !bg) return dragAndDropTable(q, zones, drags);
   // Ohne Bild (Paare, Gruppen): Zonen als Tabelle mit Platz zum Eintragen.
   return [
     ...descOf(c.taskDescription),

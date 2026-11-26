@@ -275,16 +275,20 @@ const H5P_TYPES = {
     // Felder beschreiben das Datenformat (KI-Prompt); bearbeitet wird im eigenen Editor.
     fields: [
       { key: 'taskDescription', type: 'richtext', label: 'Aufgabenbeschreibung' },
-      { key: 'layout', type: 'select', label: 'Darstellung: "pairs" = Paare (je Zeile eine Zone und genau ein Element), "" = Zonen als Liste, z. B. Gruppen (mit Hintergrundbild auf dem Bild)', options: [
+      { key: 'layout', type: 'select', label: 'Darstellung: "pairs" = Paare (je Zeile eine Zone und genau ein Element), "table" = Tabelle (feste Zeilen und Spalten, je Zelle eine Zone), "" = Zonen als Liste, z. B. Gruppen (mit Hintergrundbild auf dem Bild)', options: [
         { value: '', label: 'Frei' },
         { value: 'pairs', label: 'Paare' },
+        { value: 'table', label: 'Tabelle' },
       ]},
+      { key: 'tableHead', type: 'text', label: 'Nur Tabelle: Kopf der ersten Spalte (über den Zeilennamen)' },
       { key: 'backgroundImage', type: 'text', label: 'Hintergrundbild', advanced: true },
       { key: 'dropZones', type: 'list', label: 'Ablagezonen', itemFields: [
         { key: 'label', type: 'text', label: 'Zonenbezeichnung (eindeutig)', required: true },
         { key: 'correctDraggable', type: 'text', label: 'Text des richtigen Elements' },
         { key: 'imageUrl', type: 'text', label: 'Bild der Zone (optional)' },
         { key: 'hideText', type: 'checkbox', label: 'Nur das Bild zeigen, Bezeichnung verbergen', default: false },
+        { key: 'row', type: 'text', label: 'Nur Tabelle: Zeile der Zelle' },
+        { key: 'col', type: 'text', label: 'Nur Tabelle: Spalte der Zelle' },
         { key: 'x', type: 'number', label: 'X (%)', advanced: true },
         { key: 'y', type: 'number', label: 'Y (%)', advanced: true },
         { key: 'width', type: 'number', label: 'Breite (%)', advanced: true },

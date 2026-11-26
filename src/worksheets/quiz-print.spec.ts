@@ -23,6 +23,23 @@ describe('quiz-print (Druckfassung der Quizze)', () => {
     expect(solutionText(b)).toContain('Kondensator');
   });
 
+  it('Drag and Drop als Tabelle: Zeilen und Spalten wie im Quiz, Bilder mit Buchstaben, Lösung als Tabelle', () => {
+    const zone = (row: string, col: string) => ({ label: `${row} – ${col}`, row, col });
+    const drag = (row: string, col: string, img: string) => ({ text: `${row}: ${col}`, correctZone: `${row} – ${col}`, imageUrl: `https://x.de/${img}.jpg`, hideText: true });
+    const b = quizPrintBlocks({ id: 'tab', type: 'dragAndDrop', content: { layout: 'table', tableHead: 'Anlaufmethode',
+      dropZones: [zone('Direktanlauf', 'Strom'), zone('Softstarter', 'Strom')],
+      draggables: [drag('Direktanlauf', 'Strom', 'd'), drag('Softstarter', 'Strom', 's')] } })!;
+    valid(b);
+    const table = b.find((x) => x.type === 'table');
+    expect(table.header).toEqual(['Anlaufmethode', 'Strom']);
+    expect(table.rows).toEqual([['Direktanlauf', ''], ['Softstarter', '']]);
+    // Der verborgene Text („Direktanlauf: Strom“) verriete die Lösung – er steht nirgends bei den Schülern.
+    expect(studentText(b)).not.toContain('Direktanlauf: Strom');
+    expect(b.find((x) => x.type === 'group').items.filter((i: any) => i.src)).toHaveLength(2);
+    const sol = b.find((x) => x.type === 'solution').blocks[0];
+    expect(sol.rows.map((r: string[]) => r[1]).sort()).toEqual(['A', 'B']);
+  });
+
   it('Wahr/Falsch: Tabelle mit Kästchen, Lösung je Nummer', () => {
     const b = quizPrintBlocks({ id: 't', type: 'trueFalse', content: { questions: [
       { question: 'Farad ist die Einheit der Kapazität.', correctAnswer: 'true' }, { question: 'Gleichstrom fließt dauerhaft.', correctAnswer: 'false' }] } })!;

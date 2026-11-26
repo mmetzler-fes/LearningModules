@@ -64,6 +64,10 @@ describe('Reihenfolge, Memory, Kreuzworträtsel im JSON', () => {
   });
 
   it('gleicht typische KI-Abweichungen an', () => {
+    const tab = normalizeImportedContent('dragAndDrop', { layout: 'table', tableHead: 'Kopf', dropZones: [{ label: 'A – X', row: 'A', col: 'X' }], draggables: [] });
+    expect(tab.layout).toBe('table');
+    expect(tab.dropZones[0]).toMatchObject({ row: 'A', col: 'X' });
+    expect(normalizeImportedContent('dragAndDrop', { layout: 'grid' }).layout).toBe('');
     expect(normalizeImportedContent('sorting', { items: ['A', 'B'] }).items).toEqual([{ text: 'A', imageUrl: '' }, { text: 'B', imageUrl: '' }]);
     expect(normalizeImportedContent('memory', { pairs: [['Hund', 'dog'], { a: 'Katze', b: 'cat' }] }).pairs).toEqual([
       { aText: 'Hund', aImage: '', bText: 'dog', bImage: '' }, { aText: 'Katze', aImage: '', bText: 'cat', bImage: '' },

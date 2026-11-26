@@ -164,6 +164,7 @@ const RULES = {
     'Kein Hintergrundbild und keine Positionen: Die Zonen stehen als Liste, die Plattform ordnet sie selbst an.',
     'Paare (Begriff ↔ Erklärung, Wort ↔ Übersetzung, Bild ↔ Wort): "layout": "pairs", je Zone genau ein Element. 4–8 Paare.',
     'Gruppen (Elemente in Kategorien einsortieren): "layout": "", 2–4 Zonen als Gruppennamen, je Gruppe 2–5 Elemente mit dieser Zone als "correctZone".',
+    'Tabelle (feste Zeilen links, Spalten oben, in jede Zelle gehört ein Element): "layout": "table", "tableHead" = Kopf der ersten Spalte, je Zelle eine Zone mit "row", "col" und "label": "<Zeile> – <Spalte>". Zeilen und Spalten erscheinen in der Reihenfolge der Zonen und werden nicht gemischt.',
     'Jede Zone hat eine eindeutige "label"; jedes Element nennt in "correctZone" genau diese Bezeichnung. Bei Paaren steht in "correctDraggable" der Text des passenden Elements.',
     'Ablenker sind Elemente mit "correctZone": "" – höchstens zwei.',
     'Bild statt Text (nur mit einem Bild aus der Liste oben): "imageUrl" setzen und "hideText": true, wenn der Text die Lösung verraten würde. "label" bzw. "text" bleibt trotzdem ausgefüllt und eindeutig.',

@@ -1561,6 +1561,14 @@ body {
   background: var(--bg-secondary); border: 1px solid var(--border); border-radius: var(--radius-sm);
 }
 .dnd-pair-side { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-width: 0; }
+.dnd-table-edit-wrap { overflow-x: auto; }
+.dnd-table-edit { border-collapse: collapse; width: 100%; }
+.dnd-table-edit th, .dnd-table-edit td { border: 1px solid var(--border); padding: 4px; vertical-align: middle; }
+.dnd-table-edit th { background: var(--bg-secondary); font-weight: normal; }
+.dnd-table-edit-line { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+.dnd-table-edit-line > input { flex: 1 1 100px; min-width: 0; width: auto; }
+.dnd-table-edit-line > button { flex: none; }
+.dnd-table-edit-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 8px; }
 .dnd-pair-side > input { flex: 1 1 140px; min-width: 0; }
 .dnd-pair-arrow { color: var(--text-secondary); font-size: 1.1rem; }
 @media (max-width: 760px) {
@@ -5453,6 +5461,19 @@ details[open] > summary > .cb-twisty::before { content: '▾'; }
 .dnd-player-pairs .dnd-player-zone .dnd-player-zone-label,
 .dnd-player-pairs .dnd-player-zone:has(.dnd-player-drag.placed) .dnd-player-zone-label { margin: 0; align-self: stretch; justify-content: center; }
 .dnd-player-pairs .dnd-player-zone-items { align-self: stretch; min-height: 44px; border: 2px dashed currentColor; border-radius: 4px; }
+/* Drag and Drop als Tabelle: Ablage oben, darunter feste Zeilen und Spalten – jede Zelle ein Platz. */
+.dnd-player-table .dnd-player-draggables { align-items: center; }
+.dnd-player-table .dnd-player-canvas { border: none; background: none; overflow-x: auto; }
+.dnd-player-table .dnd-player-no-img { padding: 0; }
+.dnd-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+.dnd-table th, .dnd-table td { border: 1px solid var(--border); padding: 6px; vertical-align: middle; }
+.dnd-table thead th { background: var(--bg-secondary); text-align: center; font-weight: 700; }
+.dnd-table thead th:first-child { width: 28%; }
+.dnd-table tbody th { text-align: left; font-weight: 500; }
+.dnd-table .dnd-player-zone { position: relative; border: 2px dashed var(--border); border-radius: 4px; min-height: 76px; }
+.dnd-table .dnd-player-zone-items { min-height: 72px; }
+.dnd-table .dnd-player-drag.placed { white-space: normal; font-size: 0.85rem; }
+.dnd-table .dnd-player-drag.dnd-has-img.placed .dnd-face-img { max-height: 120px; }
 
 /* ---- Formelaufgabe ---- */
 .formula-task { padding: 20px; background: var(--bg-primary); border-radius: var(--radius-md); }

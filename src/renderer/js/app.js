@@ -41,6 +41,7 @@ import { openShortLinkDialog } from './views/short-link-dialog.js';
 import { storeImage } from './views/image-store.js';
 import { initFolding } from './fold.js';
 import { contentFromPairs, pairsFromContent } from './dnd-pairs.js';
+import { contentFromTable, tableFromContent } from './dnd-table.js';
 // Editor des Modultyps „Dokument“ – hängt sich an window.DocSpecEditor.
 import { useModuleSource, useTopicModules, useTopicSource, useDocumentId, useInkAllowed, useTiptapAllowed } from './docspec-editor.js';
 
@@ -898,6 +899,8 @@ window.appConfirm = (m) => app.appConfirm(m);
 window.appToast = (m, type) => app.showToast(m, type);
 // Drag and Drop als Paare (dnd-pairs.js) für den Editor in content-editors.js
 window.dndPairs = { contentFromPairs, pairsFromContent };
+// … und als Tabelle (dnd-table.js)
+window.dndTable = { contentFromTable, tableFromContent };
 // Nextcloud für Bilder (views/nextcloud.js): ready, upload(file) → URL | null | false, pick() → URL | null,
 // uploadAttachment(file) → { url, name, size, type } | null | false
 window.appNextcloud = {

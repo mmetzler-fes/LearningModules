@@ -187,3 +187,37 @@ class FormelTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def _block_pdf() -> bytes:
+    """A4 hoch: Satz Fließtext, darunter ein Funktionsbaustein – grauer Kasten mit Namen (groß) und Anschlüssen."""
+    doc = pdfium.PdfDocument.new()
+    page = doc.new_page(595, 842)
+    _text(doc, page, "Erstellen Sie den Funktionsbaustein und programmieren Sie die Schritte.", 70, 760, 11)
+    rect = pdfium_c.FPDFPageObj_CreateNewRect(250, 450, 200, 140)
+    pdfium_c.FPDFPageObj_SetFillColor(rect, 210, 210, 210, 255)
+    pdfium_c.FPDFPageObj_SetStrokeColor(rect, 0, 0, 0, 255)
+    pdfium_c.FPDFPath_SetDrawMode(rect, 1, 1)
+    pdfium_c.FPDFPage_InsertObject(page.raw, rect)
+    for y in (520, 505, 490):  # Anschlüsse links
+        line = pdfium_c.FPDFPageObj_CreateNewPath(200, y)
+        pdfium_c.FPDFPath_LineTo(line, 250, y)
+        pdfium_c.FPDFPageObj_SetStrokeColor(line, 0, 0, 0, 255)
+        pdfium_c.FPDFPath_SetDrawMode(line, 0, 1)
+        pdfium_c.FPDFPage_InsertObject(page.raw, line)
+    _text(doc, page, "fbMotorStart", 300, 560, 18)
+    _text(doc, page, "EN", 255, 518, 9)
+    _text(doc, page, "xINIT", 255, 503, 9)
+    page.gen_content()
+    buf = io.BytesIO()
+    doc.save(buf)
+    return buf.getvalue()
+
+
+class TextInDrawnBox(unittest.TestCase):
+    def test_grosser_name_im_kasten_bleibt_im_bild(self):
+        spec, _warnings, _title = text_to_spec(_block_pdf())
+        outside = " ".join(str(b.get("text") or b.get("title") or "") for b in spec["content"] if b["type"] != "image")
+        self.assertIn("Funktionsbaustein", outside)
+        self.assertNotIn("fbMotorStart", outside)
+        self.assertTrue(any(b["type"] == "image" for b in spec["content"]))

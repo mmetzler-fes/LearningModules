@@ -605,6 +605,11 @@ def _page_elements(page, index: int, warnings: list[str], template: set[tuple[in
     # Beschriftungen im Bereich gehören dazu; ragen sie hinaus, wächst der Bereich mit.
     # Große Schrift (Titel, Untertitel, Aufzählung) nur, wenn sie auf einem Bild steht.
     rasters = [(p[0], p[1], p[2], p[3]) for p in parts if p[4]]
+    # Gezeichnete Flächen (Rechtecke, z. B. ein Funktionsbaustein): Kurze Schrift ganz darin gehört zur
+    # Zeichnung, auch wenn sie groß ist („fbMotorStart“ im Kasten) – sonst würde sie im Bild weiß
+    # übermalt und als Überschrift ausgegeben.
+    boxes = [(float(r["x0"]), float(r["top"]), float(r["x1"]), float(r["bottom"])) for r in page.rects
+             if 18 <= float(r["x1"]) - float(r["x0"]) <= 0.75 * w and 18 <= float(r["bottom"]) - float(r["top"]) <= 0.6 * h]
 
     # Wortgruppen: Wörter einer Zeile, die dicht beieinander stehen. Entschieden
     # wird je Gruppe – sonst zerfiele eine Zeile Fließtext am Rand eines Bildes.
@@ -631,8 +636,9 @@ def _page_elements(page, index: int, warnings: list[str], template: set[tuple[in
         if ph[0]["text"] in ("l", "Ø", "§", "•", "▪") and float(ph[0].get("size") or 0) >= 12:
             return False  # Aufzählungspunkt neben dem Bild
         on_photo = any(_inside(box, r, pad=0) for r in rasters)
-        # Beschriftung: kurz (eine Zeile Fließtext ist länger) und klein – oder auf einem Foto.
-        return on_photo or (len(ph) <= 6 and float(wd.get("size") or 0) < 15)
+        in_shape = len(ph) <= 3 and any(_inside(box, r, pad=0) for r in boxes)
+        # Beschriftung: kurz (eine Zeile Fließtext ist länger) und klein – oder auf einem Foto bzw. in einem Kasten.
+        return on_photo or in_shape or (len(ph) <= 6 and float(wd.get("size") or 0) < 15)
 
     for _ in range(2):
         for g in groups:

@@ -374,7 +374,7 @@ export async function openDocumentInk({ mode, mod, up = null, embedModule = null
     // Die neue Beschriftung gleich in der Ansicht zeigen.
     if (sourceEl) void showSavedInk(sourceEl, { mode, up, moduleId: mod.id, landscape: paper.landscape });
   };
-  return openInkEditor({ title: title || solutionTitle || mod.title || 'Arbeitsblatt', key: `${mode}:${mod.id}`, loadPdf, solutions: isDoc && (mode === 'teacher' || JSON.stringify(content.spec || {}).includes('"type":"solution"')), laser: mode === 'teacher', paper, store, onClose, actions: runActions(), side, noExport,
+  return openInkEditor({ title: title || solutionTitle || mod.title || 'Arbeitsblatt', key: `${mode}:${mod.id}`, loadPdf, solutions: isDoc && (mode === 'teacher' || JSON.stringify(content.spec || {}).includes('"type":"solution"')), laser: mode === 'teacher', paper, store, onClose, actions: [...runActions(), ...teacherActions()], side, noExport,
     // Quizze auf PC, Tablet und Handy als ganze Seite (⤢) – Dokumente wie bisher (Handy: ganze Breite).
     fit: isDoc ? null : 'page' });
 
@@ -447,6 +447,40 @@ export async function openDocumentInk({ mode, mod, up = null, embedModule = null
     const label = (next.textContent || 'Weiter').replace(/\s*[→▶]\s*$/, '').replace(/^\p{Extended_Pictographic}\S*\s*/u, '').trim() || 'Weiter';
     out.push({ label: `${label} ▶`, title: 'Speichern und weiter zur nächsten Aufgabe', onClick: go('btnQuizNext') });
     return out;
+  }
+
+  /**
+   * Lehrkraft am eigenen Dokument: „📄 Als Lösungsblatt“ – die Lösung als eigenes Blatt (eigenes Lernthema
+   * direkt dahinter, Titel „… – Lösung“): Lösungsblöcke offen, Labore mit der Lösung (solution-sheet.js).
+   * So lässt sie sich per Quick-Link weitergeben (dort fallen Lösungsblöcke sonst weg).
+   */
+  function teacherActions() {
+    if (mode !== 'teacher' || !editable || !mod.topicId || !isDoc) return [];
+    return [{
+      label: '📄 Als Lösungsblatt',
+      title: 'Die Lösung als eigenes Blatt speichern (eigenes Lernthema direkt dahinter): Lösungsblöcke offen, Labore mit deiner Lösung – zum Weitergeben per Quick-Link',
+      async onClick() {
+        const title = `${mod.title || 'Dokument'} – Lösung`;
+        if (!(await (window.appConfirm ? window.appConfirm(`„${title}“ als eigenes Blatt direkt hinter diesem Lernthema anlegen?`) : Promise.resolve(confirm(`„${title}“ anlegen?`))))) return;
+        const { solutionSpec, labStatesFromForms } = await import('./solution-sheet.js');
+        // Laborstände der Lehrerlösung (nicht im Modus „Vorgabe für Schüler“ – dort ist es die Vorgabe)
+        const root = document.querySelector('.ink-overlay');
+        const states = labPreset || !root ? {} : labStatesFromForms(captureForms(root));
+        const spec = solutionSpec(content.spec || { content: [] }, states);
+        try {
+          const res = await fetch(`/api/topics/${encodeURIComponent(mod.topicId)}/modules`, {
+            method: 'POST',
+            headers: authHeaders(),
+            body: JSON.stringify({ type: 'document', title, content: { ...content, spec } }),
+          });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok || data.success === false) throw new Error(data.message || `HTTP ${res.status}`);
+          window.app?.showToast?.(`📄 „${title}“ liegt als eigenes Lernthema direkt dahinter – dort den Quick-Link erzeugen.`, 'success');
+        } catch (err) {
+          window.app?.showToast?.(`Lösungsblatt: ${err.message}`, 'error');
+        }
+      },
+    }];
   }
 
   /** Baustein zu einer ID der Stift-Ebene (feste ID, „p:2.0“ oder pos2x0) – mit seiner Liste. */

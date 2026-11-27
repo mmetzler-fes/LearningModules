@@ -35,7 +35,7 @@ describe('Lernthema mit genau einem Dokument', () => {
     expect(docTitleFollowingTopic([doc], 'Ohmsches Gesetz', '  ')).toBeNull();
   });
 
-  it('Umbenennen des Dokuments zieht das Lernthema mit, wenn beide gleich hießen', () => {
+  it('Umbenennen des einzigen Dokuments zieht das Lernthema mit – auch wenn die Titel vorher abwichen', () => {
     expect(
       topicTitleFollowingDoc(
         'Ohmsches Gesetz',
@@ -47,6 +47,9 @@ describe('Lernthema mit genau einem Dokument', () => {
     ).toBe('Ohm');
     expect(
       topicTitleFollowingDoc('Thema', [doc], 'd', 'Ohmsches Gesetz', 'Ohm'),
+    ).toBe('Ohm');
+    expect(
+      topicTitleFollowingDoc('Ohm', [doc], 'd', 'Ohmsches Gesetz', 'Ohm'),
     ).toBeNull();
     expect(
       topicTitleFollowingDoc('Quiz', [doc, quiz], 'q', 'Quiz', 'Neu'),

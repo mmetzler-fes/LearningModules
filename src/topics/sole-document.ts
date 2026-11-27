@@ -1,9 +1,9 @@
 /**
  * Lernthema mit genau einem Dokument: Das Notizbuch zeigt Lernthema und Dokument als eine Zeile
- * (📄), deshalb heißen beide gleich. Wird eines umbenannt, zieht das andere mit – solange beide
- * bis dahin gleich hießen. Wichen sie schon ab, gleicht erst „Umbenennen“ im Notizbuch sie an
- * (mit Hinweis), damit nichts still überschrieben wird. Mit zwei oder mehr Dokumenten (📘 Mappe)
- * bleiben die Titel unabhängig.
+ * (📄), deshalb heißen beide gleich. Wird das Dokument umbenannt, zieht das Lernthema immer mit
+ * (auch wenn die Titel vorher abwichen – so werden sie wieder gleich). Wird das Lernthema umbenannt,
+ * zieht das Dokument mit, solange beide bis dahin gleich hießen. Mit zwei oder mehr Dokumenten
+ * (📘 Mappe) bleiben die Titel unabhängig.
  */
 export interface SoleDocModule {
   id: string;
@@ -48,5 +48,5 @@ export function topicTitleFollowingDoc(
 ) {
   if (after === undefined || after === before || !after.trim()) return null;
   const doc = soleDocument(modules);
-  return doc && doc.id === moduleId && topicTitle === before ? after : null;
+  return doc && doc.id === moduleId && topicTitle !== after ? after : null;
 }

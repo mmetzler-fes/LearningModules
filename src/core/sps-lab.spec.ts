@@ -196,6 +196,16 @@ describe('SPS-Labor (Ablaufkette IEC 61131-3)', () => {
     });
   });
 
+  it('Anlage: vorgegeben mit 🔒 gilt auch gegen den Schülerstand; Prüfung', () => {
+    const preset = { ...core.spsDefault(), plant: { w: 10, h: 8, locked: true, items: [{ id: 'a', type: 'lamp', x: 1, y: 1, out: 'H1' }] } };
+    const merged = core.labMerge('sps', preset, { ...preset, plant: { w: 10, h: 8, items: [] } });
+    expect(merged.plant.items).toHaveLength(1);
+    const free = core.labMerge('sps', { ...preset, plant: { ...preset.plant, locked: undefined } }, { plant: { w: 10, h: 8, items: [] } });
+    expect(free.plant.items).toHaveLength(0);
+    expect(core.labValidate({ lab: 'sps', preset })).toEqual([]);
+    expect(core.labValidate({ lab: 'sps', preset: { ...preset, plant: { items: 'x' } } }).join()).toMatch(/plant/);
+  });
+
   it('Prüfen: unbekannte Namen und fehlende Zeit', () => {
     const st = chain('L');
     st.steps[0].trans = 'E AND X9';

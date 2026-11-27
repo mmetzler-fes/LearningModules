@@ -206,6 +206,25 @@ describe('SPS-Labor (Ablaufkette IEC 61131-3)', () => {
     expect(core.labValidate({ lab: 'sps', preset: { ...preset, plant: { items: 'x' } } }).join()).toMatch(/plant/);
   });
 
+  it('Zuordnungstabelle: neue Zeilen an ihren Platz, nächste Adresse, sortieren', () => {
+    const r = (kind: string, name: string, addr = '') => ({ id: name, kind, name, addr });
+    const io: any[] = [r('in', 'S1', '%I0.0'), r('in', 'S2', '%I0.1'), r('out', 'Y1', '%Q0.0'), r('tim', 'tonT1')];
+    expect(core.spsNextAddr(io, 'in')).toBe('%I0.2');
+    expect(core.spsNextAddr(io, 'mem')).toBe('%M0.0');
+    expect(core.spsNextAddr([r('in', 'A', '%I0.7')], 'in')).toBe('%I1.0');
+    expect(core.spsNextAddr(io, 'tim')).toBe('');
+    core.spsInsertIo(io, r('in', 'S3', '%I0.2'));
+    core.spsInsertIo(io, r('mem', 'M1', '%M0.0'));
+    core.spsInsertIo(io, r('out', 'Y0', '%Q0.0'));
+    expect(io.map((x) => x.name)).toEqual(['S1', 'S2', 'S3', 'Y0', 'Y1', 'M1', 'tonT1']); // gleiche Adresse: nach Name
+    // Von Hand umsortiert: Der Rest bleibt, Neues kommt hinter die letzte passende Zeile
+    const hand: any[] = [r('in', 'S2', '%I0.1'), r('in', 'S1', '%I0.0'), r('out', 'Y1', '%Q0.0')];
+    core.spsInsertIo(hand, r('in', 'S3', '%I0.2'));
+    expect(hand.map((x) => x.name)).toEqual(['S2', 'S1', 'S3', 'Y1']);
+    const mixed: any[] = [r('out', 'Y2', '%Q0.1'), r('in', 'B', '%I1.0'), r('tim', 'T'), r('in', 'A', '%I0.10'), r('in', 'C', '%I0.2'), r('out', 'Y1', '%Q0.0')];
+    expect(core.spsSortIo(mixed).map((x: any) => x.name)).toEqual(['C', 'A', 'B', 'Y1', 'Y2', 'T']);
+  });
+
   it('Prüfen: unbekannte Namen und fehlende Zeit', () => {
     const st = chain('L');
     st.steps[0].trans = 'E AND X9';

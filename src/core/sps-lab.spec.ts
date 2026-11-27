@@ -247,6 +247,18 @@ describe('SPS-Labor (Ablaufkette IEC 61131-3)', () => {
     expect(core.labSvg({ lab: 'sps' })).not.toContain('MM1');
   });
 
+  it('INIT setzt die Kette in den Initialschritt', () => {
+    const st: any = { ...chain('N'), init: 'C' };
+    const rt = core.spsInit(st);
+    core.spsCycle(st, rt, { E: 0, F: 0, C: 0 }, 100);
+    core.spsCycle(st, rt, { E: 1, F: 0, C: 0 }, 100);
+    expect(rt.active).toEqual(['s2']);
+    core.spsCycle(st, rt, { E: 0, F: 0, C: 1 }, 100);
+    expect(rt.active).toEqual(['s1']);
+    core.spsCycle(st, rt, { E: 1, F: 0, C: 1 }, 100); // solange INIT: kein Weiterschalten
+    expect(rt.active).toEqual(['s1']);
+  });
+
   it('Prüfen: unbekannte Namen und fehlende Zeit', () => {
     const st = chain('L');
     st.steps[0].trans = 'E AND X9';

@@ -2,6 +2,8 @@ import { SchoolClass } from './core/entities/school-class.entity';
 import { SchoolClassStudent } from './core/entities/school-class-student.entity';
 import { SchoolClassRequest } from './core/entities/school-class-request.entity';
 import { Feedback } from './core/entities/feedback.entity';
+import { PlantTemplate } from './core/entities/plant-template.entity';
+import { PlantLibraryModule } from './plant-library/plant-library.module';
 import { FeedbackModule } from './feedback/feedback.module';
 import { LtiCourse, LtiGrade, LtiPlatform } from './core/entities/lti.entity';
 import { LtiModule } from './lti/lti.module';
@@ -139,7 +141,7 @@ function noStaleUi(res: any, path: string) {
       // statt „database is locked“.
       enableWAL: true,
       busyTimeout: 5000,
-      entities: [HtmlAppFile, HtmlAppState, User, StudentClass, ClassStudent, LearningTopic, LearningModule, Result, School, SystemConfig, Tag, TopicLink, TopicQuickLink, TeacherGroup, ShopOffer, UseGrant, PointsEntry, ModuleTiming, ClassShare, NotebookNode, NotebookPlacement, ModuleDraft, UsageCount, ContentFeedback, Category, FederationPeer, RemoteOffer, RemotePerson, FederationCopy, ContentHandover, AccountLink, LinkCode, GithubBackup, NextcloudLink, SchoolNextcloud, DocMirror, WorksheetTemplate, DocumentWork, ExamAttempt, DocumentVersion, RunProgress, DrawingSource, ClassNotebook, ClassNotebookNode, ClassNotebookPlace, AuthSession, DocumentInk, ClassbookProgress, PlanNode, PlanEntry, AiBridgeSessionRow, AiBridgeClientRow, AiBridgeConnectionRow, ClassBoard, ClassSolution, ShortLink, SchoolSso, LtiPlatform, LtiCourse, LtiGrade, Feedback, SchoolClass, SchoolClassStudent, SchoolClassRequest],
+      entities: [HtmlAppFile, HtmlAppState, User, StudentClass, ClassStudent, LearningTopic, LearningModule, Result, School, SystemConfig, Tag, TopicLink, TopicQuickLink, TeacherGroup, ShopOffer, UseGrant, PointsEntry, ModuleTiming, ClassShare, NotebookNode, NotebookPlacement, ModuleDraft, UsageCount, ContentFeedback, Category, FederationPeer, RemoteOffer, RemotePerson, FederationCopy, ContentHandover, AccountLink, LinkCode, GithubBackup, NextcloudLink, SchoolNextcloud, DocMirror, WorksheetTemplate, DocumentWork, ExamAttempt, DocumentVersion, RunProgress, DrawingSource, ClassNotebook, ClassNotebookNode, ClassNotebookPlace, AuthSession, DocumentInk, ClassbookProgress, PlanNode, PlanEntry, AiBridgeSessionRow, AiBridgeClientRow, AiBridgeConnectionRow, ClassBoard, ClassSolution, ShortLink, SchoolSso, LtiPlatform, LtiCourse, LtiGrade, Feedback, SchoolClass, SchoolClassStudent, SchoolClassRequest, PlantTemplate],
       synchronize: true,
     }),
     MailModule,
@@ -148,6 +150,7 @@ function noStaleUi(res: any, path: string) {
     SsoModule,
     LtiModule,
     FeedbackModule,
+    PlantLibraryModule,
     ResultsModule,
     InterchangeModule,
     TopicsModule,

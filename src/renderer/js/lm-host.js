@@ -150,3 +150,27 @@ export const lmHost = {
     };
   },
 };
+
+/**
+ * Bibliothek der Anlagen für das SPS-Labor (lm-editor/src/labs/plant-ui.js): eigene und geteilte
+ * Anlagen der Lehrkraft (/api/plant-library). Ohne Anmeldung (Schüler) bleibt sie leer.
+ */
+window.lmPlantLibrary = {
+  async call(method, path = '', body) {
+    const token = authToken();
+    if (!token) throw new Error('Die Bibliothek gibt es nur angemeldet (Lehrkräfte).');
+    const res = await fetch(`/api/plant-library${path}`, {
+      method,
+      headers: { Authorization: `Bearer ${token}`, ...(body ? { 'Content-Type': 'application/json' } : {}) },
+      ...(body ? { body: JSON.stringify(body) } : {}),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.message || `HTTP ${res.status}`);
+    return data;
+  },
+  available: () => !!authToken(),
+  list() { return this.call('GET'); },
+  save(entry) { return this.call('POST', '', entry); },
+  share(id, shared) { return this.call('PATCH', `/${encodeURIComponent(id)}`, { shared }); },
+  remove(id) { return this.call('DELETE', `/${encodeURIComponent(id)}`); },
+};

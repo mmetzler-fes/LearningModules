@@ -259,6 +259,20 @@ describe('SPS-Labor (Ablaufkette IEC 61131-3)', () => {
     expect(rt.active).toEqual(['s1']);
   });
 
+  it('Lineare Nummerierung nach Einfügen: Namen, Verweise und Sprünge rücken nach; eigene Namen bleiben', () => {
+    const st: any = { steps: [
+      { id: 'a', name: 'S_1', trans: 'X' }, { id: 'n', name: 'S_6', trans: 'S_2.T >= T#3s' }, { id: 'b', name: 'S_2', trans: 'S_3.X', actions: [{ cond: 'S_3.X' }] },
+      { id: 'v', type: 'alt', branches: [{ id: 'z', trans: 'S_2.X', steps: [], jump: 'S_2' }] }, { id: 'c', name: 'S_3', trans: '' }] };
+    expect(core.spsRenumber(st)).toBe(true);
+    expect(core.spsFlat(st).map((s: any) => s.name)).toEqual(['S_1', 'S_2', 'S_3', 'S_4']);
+    expect(st.steps[1].trans).toBe('S_3.T >= T#3s');
+    expect(st.steps[2].actions[0].cond).toBe('S_4.X');
+    expect(st.steps[3].branches[0]).toMatchObject({ trans: 'S_3.X', jump: 'S_3' });
+    expect(core.spsRenumber(st)).toBe(false);
+    const own: any = { steps: [{ id: 'a', name: 'Grund' }, { id: 'b', name: 'S_5' }] };
+    expect(core.spsRenumber(own)).toBe(false);
+  });
+
   it('Prüfen: unbekannte Namen und fehlende Zeit', () => {
     const st = chain('L');
     st.steps[0].trans = 'E AND X9';

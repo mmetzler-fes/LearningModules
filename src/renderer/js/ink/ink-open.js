@@ -95,6 +95,36 @@ async function teacherStore(moduleId) {
 }
 
 /**
+ * Rückfrage beim Öffnen eines eigenen Dokuments mit Labor: 'preset' (Vorgabe für Schüler, Standard),
+ * 'solution' (Lehrerlösung) oder null (Abbrechen, Esc).
+ */
+function askLabTarget() {
+  return new Promise((resolve) => {
+    const overlay = document.createElement('div');
+    overlay.className = 'confirm-overlay';
+    overlay.innerHTML = `<div class="import-modules-card" role="dialog" aria-modal="true" aria-labelledby="inkLabAskTitle">
+        <h3 id="inkLabAskTitle">🧪 Dokument mit Labor</h3>
+        <p>Was möchtest du im Stift-Editor bearbeiten?</p>
+        <ul class="hint">
+          <li><strong>Vorgabe für Schüler:</strong> So sehen die Schüler die Labore zu Beginn – Änderungen werden im Dokument gespeichert.</li>
+          <li><strong>Lehrerlösung:</strong> Deine Lösung im Labor, für Schüler erst nach Freigabe je Klasse.</li>
+        </ul>
+        <p class="hint">Was du mit dem Stift schreibst, ist in beiden Fällen deine Lehrerlösung.</p>
+        <div class="confirm-actions">
+          <button type="button" class="btn btn-primary" data-pick="preset">Vorgabe für Schüler</button>
+          <button type="button" class="btn btn-secondary" data-pick="solution">🔑 Lehrerlösung</button>
+          <button type="button" class="btn btn-secondary" data-pick="">Abbrechen</button>
+        </div></div>`;
+    const done = (v) => { document.removeEventListener('keydown', onKey, true); overlay.remove(); resolve(v || null); };
+    const onKey = (e) => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); done(null); } };
+    document.addEventListener('keydown', onKey, true);
+    overlay.addEventListener('click', (e) => { const b = e.target.closest('[data-pick]'); if (b) done(b.dataset.pick); });
+    document.body.appendChild(overlay);
+    overlay.querySelector('[data-pick="preset"]').focus();
+  });
+}
+
+/**
  * Schüler arbeiten nur im Stift-Editor (docs/arbeitsflaeche.md): Der Durchlauf (quiz.js) schaltet das ein.
  * Dann übernimmt der Stift-Editor das lebende Blatt aus dem Durchlauf, statt es neu zu zeichnen – Eingaben,
  * gezogene Wörter, „Prüfen“, Lernbegleitung und Auswertung bleiben dieselben.
@@ -124,6 +154,15 @@ export async function openDocumentInk({ mode, mod, up = null, embedModule = null
     store = await teacherStore(mod.id);
     if (store && !title) solutionTitle = `🔑 Lehrerlösung – ${mod.title || 'Dokument'}`;
   }
+  // Eigenes Dokument mit Labor: Stellt die Lehrkraft die Vorgabe für die Schüler ein (Standard) oder
+  // beschriftet sie ihre Lehrerlösung? Bei der Vorgabe wandert der Stand der Labore in die Bausteine.
+  let labPreset = false;
+  if (mode === 'teacher' && editable && mod.topicId && isDoc && JSON.stringify(mod.content || {}).includes('"type":"lab"')) {
+    const pick = await askLabTarget();
+    if (!pick) return null;
+    labPreset = pick === 'preset';
+    if (labPreset && !title) solutionTitle = `🧪 Vorgabe für Schüler – ${mod.title || 'Dokument'}`;
+  }
   // Arbeitsfläche der Lehrkraft: ein Dokument aus einem Lernthema bekommt einen Tab (Tafelbild, Lösung u. Ä. nicht).
   let wsTeacher = null;
   if (mode === 'teacher' && !title && mod?.id && mod.topicId) {
@@ -140,10 +179,14 @@ export async function openDocumentInk({ mode, mod, up = null, embedModule = null
     import('../../lm-editor/src/doc/ids.js'),
     import('../../lm-editor/src/ink/ink-view.js'),
   ]);
-  const fromSource = sourceEl ? captureForms(sourceEl) : null;
   let lastForms = null;
   let content = mod.content || {};
   if (typeof content === 'string') { try { content = JSON.parse(content); } catch (_) { content = {}; } }
+  // Bei der Vorgabe gehören Labore nicht zu den Eingaben (sonst überdeckte ein alter Stand die Vorgabe).
+  // Der Laborstand der Lehrerlösung bleibt dabei gespeichert, wie er war (keptLabs).
+  const withoutLabs = (forms) => (labPreset && forms ? Object.fromEntries(Object.entries(forms).filter(([k]) => !k.startsWith('lab:'))) : forms);
+  let keptLabs = {};
+  const fromSource = sourceEl ? withoutLabs(captureForms(sourceEl)) : null;
   // Klassenarbeit (Durchlauf oder Dokument der Art „Klassenarbeit“): für Schüler nie als Datei –
   // kein PDF-Hintergrund, kein Drucken, Teilen oder Bildschirmfoto (der Server lehnt das PDF ohnehin ab).
   const noExport = mode === 'student' && (examRun || content.kind === 'klassenarbeit');
@@ -251,8 +294,13 @@ export async function openDocumentInk({ mode, mod, up = null, embedModule = null
       } else {
         el.appendChild(renderer.createTypePreview('document', content, {
           blockIds: true, quizMode: true, examMode, examRun, shuffleKey, noSolutionToggle: true, embedModule, upload: up, moduleId: mod.id, title: mod.title,
+          labMode: labPreset ? 'teacher' : undefined,
         }));
         if (solutions) el.querySelector('.docspec')?.classList.remove('ds-hide-solutions');
+        if (labPreset && !el.dataset.labPreset) {
+          el.dataset.labPreset = '1';
+          el.addEventListener('lm-lab-change', () => saveLabPresets(el));
+        }
       }
       if (teacherLayer) drawLayer(el, teacherLayer, { className: 'ink-teacher-layer' });
     },
@@ -268,9 +316,12 @@ export async function openDocumentInk({ mode, mod, up = null, embedModule = null
       liveMark.replaceWith(sourceEl);
       liveMark = null;
     },
-    capture: (el) => (lastForms = captureForms(el)),
+    capture: (el) => (lastForms = labPreset ? { ...withoutLabs(captureForms(el)), ...keptLabs } : captureForms(el)),
     // Gespeicherte Eingaben; ohne sie, was im Durchlauf schon eingetragen war.
-    restore: (el, forms) => restoreForms(el, forms && Object.keys(forms).length ? forms : fromSource),
+    restore: (el, forms) => {
+      if (labPreset && forms) keptLabs = Object.fromEntries(Object.entries(forms).filter(([k]) => k.startsWith('lab:')));
+      restoreForms(el, withoutLabs(forms && Object.keys(forms).length ? forms : fromSource));
+    },
   };
   // Lehrkraft am eigenen Dokument: Einfügen und Schreibfelder gehen ins Dokument.
   if (mode === 'teacher' && editable && mod.topicId) Object.assign(paper, documentEditing());
@@ -319,7 +370,7 @@ export async function openDocumentInk({ mode, mod, up = null, embedModule = null
     }
     // Lehrkraft: Stift-Editor zu = zurück in der App (Home); der Tab bleibt.
     if (wsTeacher && wsTeacher.active === `d|${mod.id}` && !wsTeacher.busy) wsTeacher.markHome();
-    if (sourceEl && lastForms) restoreForms(sourceEl, lastForms);
+    if (sourceEl && lastForms) restoreForms(sourceEl, withoutLabs(lastForms));
     // Die neue Beschriftung gleich in der Ansicht zeigen.
     if (sourceEl) void showSavedInk(sourceEl, { mode, up, moduleId: mod.id, landscape: paper.landscape });
   };
@@ -452,6 +503,32 @@ export async function openDocumentInk({ mode, mod, up = null, embedModule = null
     ensureBlockIds(spec);
     content = { ...content, spec };
     await saveDocument();
+  }
+
+  /**
+   * Vorgabe für Schüler: Stand der Labore im Blatt in ihre Bausteine (preset) und das Dokument speichern –
+   * gesammelt, damit nicht jeder Tastendruck einzeln gespeichert wird. Das Blatt wird nicht neu aufgebaut.
+   */
+  function saveLabPresets(el) {
+    clearTimeout(saveLabPresets.timer);
+    saveLabPresets.timer = setTimeout(async () => {
+      const spec = specNow();
+      assignPathIds(spec);
+      let changed = false;
+      el.querySelectorAll('.ds-lab.lab-live').forEach((labEl) => {
+        const bid = labEl.closest('[data-bid]')?.dataset.bid;
+        const ref = bid ? blockRef(spec, bid) : null;
+        if (!ref || ref.block.type !== 'lab' || !labEl._lab) return;
+        const preset = labEl._lab.getState();
+        if (JSON.stringify(preset) === JSON.stringify(ref.block.preset ?? null)) return;
+        ref.block.preset = preset;
+        changed = true;
+      });
+      if (!changed) return;
+      ensureBlockIds(spec);
+      content = { ...content, spec };
+      try { await saveDocument(); } catch (err) { window.app?.showToast?.(`Vorgabe: ${err.message}`, 'error'); }
+    }, 700);
   }
 
   function documentEditing() {

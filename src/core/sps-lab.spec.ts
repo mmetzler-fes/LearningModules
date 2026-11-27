@@ -91,6 +91,24 @@ describe('SPS-Labor (Ablaufkette IEC 61131-3)', () => {
     expect(act).toEqual(['s1', 's1', 's1', 's1', 's2', 's2']);
   });
 
+  it('Grundbeispiel nach IEC: S_3 wartet mit D T#3s auf tonT1, Transition tonT1.Q', () => {
+    const st = core.spsDefault();
+    expect(core.spsCheck(st)).toEqual([]);
+    const s3 = st.steps.find((s: any) => s.name === 'S_3');
+    expect(s3.trans).toBe('tonT1.Q');
+    expect(s3.actions).toEqual(expect.arrayContaining([expect.objectContaining({ q: 'D', time: 'T#3s', var: 'tonT1' })]));
+    const rt = core.spsInit(st);
+    const step = (inp: Record<string, number>, n = 1) => { for (let i = 0; i < n; i++) core.spsCycle(st, rt, { S1: 0, B1: 0, B0: 0, ...inp }, 100); };
+    step({}, 2);
+    step({ S1: 1 });
+    step({ B1: 1 });
+    expect(rt.active).toEqual(['s3']);
+    step({}, 29);
+    expect(rt.active).toEqual(['s3']);
+    step({}, 3);
+    expect(rt.active).toEqual(['s1']);
+  });
+
   it('Prüfen: unbekannte Namen und fehlende Zeit', () => {
     const st = chain('L');
     st.steps[0].trans = 'E AND X9';

@@ -1662,7 +1662,22 @@ export function mountDocSpecEditor(parent, { name, label, value }) {
   };
 
   /** Dialog für einen Baustein (auch aus der Tiptap-Fläche): `apply(next)`, `remove()`. */
-  const openBlockDialog = (start, { apply, remove }) => {
+  const openBlockDialog = (start, { apply, remove, yaml = false }) => {
+    // Labor: Vorgabe im Labor selbst einstellen; „Als YAML“ für alles Übrige (Festlegen, Werte von Hand).
+    if (start?.type === 'lab' && !yaml) {
+      import('../lm-editor/src/labs/labs.js')
+        .then(({ openLabDialog }) => openLabDialog(start, { extras: [
+          { label: 'Entfernen', action: 'remove', danger: true },
+          { label: 'Als YAML …', action: 'yaml', title: 'Vorgabe als Text bearbeiten (alle Einstellungen)' },
+        ] }))
+        .then((res) => {
+          if (!res) return;
+          if (res.action === 'remove') remove();
+          else if (res.action === 'yaml') openBlockDialog(res.block, { apply, remove, yaml: true });
+          else apply(res);
+        });
+      return;
+    }
     let block = start;
     // Alter „Platz“: wird zum unsichtbaren Schreibfeld (gleiche Höhe ungefähr: eine Zeile ≈ 0,5 cm).
     if (block.type === 'spacer') block = { ...(block.id ? { id: block.id } : {}), type: 'karo', lines: Number.isInteger(block.lines) ? block.lines : 3, pattern: 'frei' };

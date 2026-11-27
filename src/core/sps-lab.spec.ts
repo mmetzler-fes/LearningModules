@@ -109,6 +109,93 @@ describe('SPS-Labor (Ablaufkette IEC 61131-3)', () => {
     expect(rt.active).toEqual(['s1']);
   });
 
+  describe('Verzweigungen', () => {
+    const io = ['A', 'B', 'C', 'D', 'E'].map((n) => ({ id: n, kind: 'in', name: n }));
+    const step = (id: string, trans = '', extra: any = {}) => ({ id, name: id, trans, actions: [], ...extra });
+    const runSt = (st: any, plan: Array<Record<string, number>>) => {
+      const rt = core.spsInit(st);
+      const seen: string[] = [];
+      for (const inp of plan) { core.spsCycle(st, rt, { A: 0, B: 0, C: 0, D: 0, E: 0, ...inp }, 100); seen.push([...rt.active].sort().join('+')); }
+      return seen;
+    };
+
+    it('Alternativ: Zweig nach seiner Transition, linker Zweig hat Vorrang, Zusammenführung', () => {
+      const st: any = {
+        io,
+        steps: [
+          step('S1', '', { initial: true }),
+          { id: 'alt', type: 'alt', branches: [
+            { id: 'b1', trans: 'A', steps: [step('S2', 'C')] },
+            { id: 'b2', trans: 'B', steps: [step('S3', 'D')] },
+          ] },
+          step('S4', 'E'),
+        ],
+        back: true,
+      };
+      expect(core.spsCheck(st)).toEqual([]);
+      expect(runSt(st, [{}, { B: 1 }, { C: 1 }, { D: 1 }, {}, { E: 1 }])).toEqual(['S1', 'S3', 'S3', 'S4', 'S4', 'S1']);
+      // A und B zugleich: der linke Zweig
+      expect(runSt(st, [{}, { A: 1, B: 1 }])).toEqual(['S1', 'S2']);
+      // Die Transition des Schritts vor der Verzweigung gilt nicht
+      expect(core.spsGraph(st).uses.has('S1')).toBe(false);
+    });
+
+    it('Alternativ mit Sprung zurück (Schleife) und leerem Zweig', () => {
+      const st: any = {
+        io,
+        steps: [
+          step('S1', 'A', { initial: true }),
+          step('S2'),
+          { id: 'alt', type: 'alt', branches: [
+            { id: 'b1', trans: 'B', steps: [], jump: 'S2' },
+            { id: 'b2', trans: 'C', steps: [] },
+          ] },
+          step('S3', 'D'),
+        ],
+        back: true,
+      };
+      expect(core.spsCheck(st)).toEqual([]);
+      expect(runSt(st, [{}, { A: 1 }, { B: 1 }, { C: 1 }, { D: 1 }])).toEqual(['S1', 'S2', 'S2', 'S3', 'S1']);
+    });
+
+    it('Parallel: alle Zweige zugleich, weiter erst, wenn alle am Ende sind', () => {
+      const st: any = {
+        io,
+        steps: [
+          step('S1', 'A', { initial: true }),
+          { id: 'par', type: 'par', trans: 'E', branches: [
+            { id: 'p1', steps: [step('S2', 'B'), step('S3')] },
+            { id: 'p2', steps: [step('S4')] },
+          ] },
+          step('S5', 'C'),
+        ],
+        back: true,
+      };
+      expect(core.spsCheck(st)).toEqual([]);
+      expect(runSt(st, [{}, { A: 1 }, { E: 1 }, { B: 1 }, {}, { E: 1 }, { C: 1 }]))
+        .toEqual(['S1', 'S2+S4', 'S2+S4', 'S3+S4', 'S3+S4', 'S5', 'S1']);
+    });
+
+    it('Prüfen: Sprungziel fehlt, Parallelzweig leer', () => {
+      const st: any = { io, steps: [step('S1', 'A', { initial: true }),
+        { id: 'alt', type: 'alt', branches: [{ id: 'b1', trans: 'B', steps: [], jump: 'S9' }] },
+        { id: 'par', type: 'par', trans: '', branches: [{ id: 'p', steps: [] }] }] };
+      const p = core.spsCheck(st).join(' | ');
+      expect(p).toMatch(/S9/);
+      expect(p).toMatch(/leer/);
+    });
+
+    it('Bild: einfache und doppelte Linien, Sprung mit Zielnamen', () => {
+      const st: any = { io, steps: [step('S1', 'A', { initial: true }),
+        { id: 'par', type: 'par', trans: 'E', branches: [{ id: 'p1', steps: [step('S2')] }, { id: 'p2', steps: [step('S3')] }] },
+        step('S4'),
+        { id: 'alt', type: 'alt', branches: [{ id: 'b1', trans: 'B', steps: [], jump: 'S1' }, { id: 'b2', trans: 'C', steps: [step('S5', 'D')] }] }] };
+      const svg = core.spsSvg(st, { edit: true });
+      for (const n of ['S2', 'S3', 'S5', 'data-fork="par"', 'data-fork="alt"', 'data-btrans="alt|b2"', 'data-ptrans="par"']) expect(svg).toContain(n);
+      expect(core.labValidate({ lab: 'sps', preset: st })).toEqual([]);
+    });
+  });
+
   it('Prüfen: unbekannte Namen und fehlende Zeit', () => {
     const st = chain('L');
     st.steps[0].trans = 'E AND X9';

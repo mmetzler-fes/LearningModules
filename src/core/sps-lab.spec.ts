@@ -273,6 +273,24 @@ describe('SPS-Labor (Ablaufkette IEC 61131-3)', () => {
     expect(core.spsRenumber(own)).toBe(false);
   });
 
+  it('Einfügen: festgelegte Einträge im kopierten Stand gehen nicht verloren', () => {
+    const io = [{ id: 'i1', kind: 'in', name: 'SF0', locked: true }, { id: 'o1', kind: 'out', name: 'PF2', locked: true }];
+    const pasted = { io, steps: [{ id: 's1', name: 'S_1', initial: true, trans: 'SF0', actions: [] }], plant: { v: 2, items: [], locked: true }, back: true };
+    // Vorgabe-Dialog (Lehrkraft), Labor ohne Vorgabe: alles wie eingefügt, mit 🔒
+    const t = core.labPasted('sps', undefined, pasted, true);
+    expect(t.io.map((x: any) => x.name)).toEqual(['SF0', 'PF2']);
+    expect(t.io[0].locked).toBe(true);
+    expect(t.steps[0].trans).toBe('SF0');
+    // Lehrerlösung / Schüler: Vorgabe mit fester Tabelle bleibt, die Kette kommt dazu
+    const preset = { io, steps: [{ id: 's1', name: 'S_1', initial: true, trans: '', actions: [] }], back: true };
+    const s = core.labPasted('sps', preset, { ...pasted, io: [] }, false);
+    expect(s.io.map((x: any) => x.name)).toEqual(['SF0', 'PF2']);
+    expect(s.steps[0].trans).toBe('SF0');
+    // ohne Vorgabe-Tabelle: die eingefügte (ohne 🔒) statt gar keiner
+    const u = core.labPasted('sps', { steps: [] }, pasted, false);
+    expect(u.io.map((x: any) => x.name)).toEqual(['SF0', 'PF2']);
+  });
+
   it('Prüfen: unbekannte Namen und fehlende Zeit', () => {
     const st = chain('L');
     st.steps[0].trans = 'E AND X9';

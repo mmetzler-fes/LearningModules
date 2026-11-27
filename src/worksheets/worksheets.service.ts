@@ -549,11 +549,13 @@ export class WorksheetsService {
     const labBlock = (block: Record<string, any>): Record<string, any> => {
       try {
         const core = labCore();
-        const svg = core.labSvg(block);
+        // Blatt quer: SPS-Kette und Anlage nebeneinander, und die Textbreite ist größer.
+        const landscape = spec?.orientation === 'landscape';
+        const svg = core.labSvg(block, null, { landscape });
         if (!svg) throw new Error('unbekanntes Labor');
         const name = `labor/labor-${++labCount}.svg`;
         files[name] = Buffer.from(svg, 'utf-8').toString('base64');
-        return { type: 'image', file: name, width: `${Math.min(core.labSvgWidthCm(svg), 16.5).toFixed(2)}cm`, ...(block.id ? { id: block.id } : {}) };
+        return { type: 'image', file: name, width: `${Math.min(core.labSvgWidthCm(svg), landscape ? 24.5 : 16.5).toFixed(2)}cm`, ...(block.id ? { id: block.id } : {}) };
       } catch (e: any) {
         warnings.push(`Ein Labor ließ sich nicht drucken (${e?.message || e}).`);
         return { type: 'note', text: '[Labor]' };

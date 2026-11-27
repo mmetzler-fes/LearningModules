@@ -6,8 +6,9 @@ import * as vm from 'vm';
  * Ein Browser-Modul aus src/renderer/js im Server bzw. in den Tests laden –
  * für Logik, die es nur einmal geben soll (z. B. puzzles.js, json-text.js).
  * Dateien aus dem Submodul lm-editor über '../lm-editor/src/…'.
- * Die Datei darf nichts importieren; "export" wird entfernt und die Namen
- * werden eingesammelt.
+ * Importieren darf die Datei nur benannte Exporte aus Geschwisterdateien
+ * (`import { a, b as c } from './x.js';` in einer Zeile) – die werden genauso
+ * geladen. "export" wird entfernt und die Namen werden eingesammelt.
  *
  * Gelesen wird immer die Quelldatei unter src/renderer/js. `nest build`
  * übersetzt dieselben Dateien zusätzlich nach dist/renderer/js – als
@@ -36,12 +37,22 @@ export function loadBrowserModule<T>(file: string): T {
   const picked = pickSourceFile(candidates);
   if (!picked) throw new Error(`src/renderer/js/${file} fehlt (oder liegt nur übersetzt vor).`);
   const names: string[] = [];
-  const source = picked.text.replace(/^export (class|function|const) (\w+)/gm, (_m, kind: string, name: string) => {
+  // Importe aus Geschwisterdateien: vorher laden, die Namen als Konstanten bereitstellen.
+  const imports: Record<string, unknown> = {};
+  let n = 0;
+  const withImports = picked.text.replace(/^import\s*\{([^}]*)\}\s*from\s*'(\.{1,2}\/[^']+)';?[ \t]*$/gm, (_m, list: string, spec: string) => {
+    const key = `__imp${n++}`;
+    imports[key] = loadBrowserModule(path.posix.join(path.posix.dirname(file), spec));
+    const binds = list.split(',').map((x) => x.trim()).filter(Boolean).map((x) => x.replace(/^(\w+)\s+as\s+(\w+)$/, '$1: $2'));
+    return `const { ${binds.join(', ')} } = ${key};`;
+  });
+  if (/^import\s/m.test(withImports)) throw new Error(`${file}: nur „import { … } from './…'“ wird unterstützt.`);
+  const source = withImports.replace(/^export (class|function|const) (\w+)/gm, (_m, kind: string, name: string) => {
     names.push(name);
     return `${kind} ${name}`;
   });
   // structuredClone fehlt in einem neuen Kontext (ink-print.js braucht es).
-  const sandbox: { __out?: T; structuredClone: typeof structuredClone } = { structuredClone: (v: any) => JSON.parse(JSON.stringify(v)) };
+  const sandbox: { __out?: T; structuredClone: typeof structuredClone } & Record<string, unknown> = { structuredClone: (v: any) => JSON.parse(JSON.stringify(v)), ...imports };
   vm.runInNewContext(`${source}\n;__out = { ${names.join(', ')} };`, sandbox, { filename: picked.file });
   cache.set(file, sandbox.__out);
   return sandbox.__out as T;

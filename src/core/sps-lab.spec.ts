@@ -225,6 +225,28 @@ describe('SPS-Labor (Ablaufkette IEC 61131-3)', () => {
     expect(core.spsSortIo(mixed).map((x: any) => x.name)).toEqual(['C', 'A', 'B', 'Y1', 'Y2', 'T']);
   });
 
+  it('Druck: Kette und Anlage in einem Bild (hoch untereinander, quer nebeneinander), Texte für LibreOffice', () => {
+    const plant = { v: 2, w: 20, h: 10, items: [
+      { id: 'c', type: 'cylinder', x: 1, y: 2, dir: 'right', stroke: 3, out: 'Y1', ext: 'B1', home: 'B0', label: 'MM1' },
+      { id: 'b', type: 'button', x: 15, y: 1, in: 'S1', label: 'Start' },
+    ] };
+    const hoch = core.labSvg({ lab: 'sps', preset: { ...core.spsDefault(), plant } });
+    const quer = core.labSvg({ lab: 'sps', preset: { ...core.spsDefault(), plant } }, null, { landscape: true });
+    for (const svg of [hoch, quer]) {
+      expect(svg).toContain('>MM1<');
+      expect(svg).toContain('>Start<');
+      expect(svg).toContain('>S_2<');
+      expect(svg).not.toContain('pattern'); // ohne Raster und Schraffur
+      expect(svg).not.toMatch(/<text (?!transform="scale\(0\.01\)")/); // jeder Text hochgerechnet
+    }
+    const size = (svg: string) => /viewBox="0 0 ([\d.]+) ([\d.]+)"/.exec(svg)!.slice(1).map(Number);
+    const [wh, hh] = size(hoch);
+    const [wq, hq] = size(quer);
+    expect(hh).toBeGreaterThan(wh); // untereinander
+    expect(wq).toBeGreaterThan(hq); // nebeneinander
+    expect(core.labSvg({ lab: 'sps' })).not.toContain('MM1');
+  });
+
   it('Prüfen: unbekannte Namen und fehlende Zeit', () => {
     const st = chain('L');
     st.steps[0].trans = 'E AND X9';

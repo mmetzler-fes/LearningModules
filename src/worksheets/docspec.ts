@@ -28,7 +28,7 @@ export interface DocSpecEngine {
 /** Labore (Zeiger, Bode, Ortskurve, Logik): Prüfen und Bild – dieselbe Datei wie im Browser. */
 export interface LabCore {
   labValidate(block: unknown): string[];
-  labSvg(block: unknown, state?: unknown): string;
+  labSvg(block: unknown, state?: unknown, opts?: { landscape?: boolean }): string;
   labSvgWidthCm(svg: string): number;
 }
 export function labCore(): LabCore {

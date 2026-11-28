@@ -7,6 +7,7 @@ import { offerTeacherName } from './teacher-as-student.js';
 import { scanQr } from './qr-scan.js';
 import { workspace, transition } from '../workspace.js';
 import { icon } from '../../lm-editor/src/util/icons.js';
+import { ownSheetsSection, fillOwnSheets } from './own-sheets.js';
 
 // ==================== KLASSENNOTIZBUCH (SCHÜLER) ====================
 //
@@ -611,7 +612,10 @@ export class ClassbookStudent {
       ${assignments ? `<div class="cb-tree">${assignments}</div>` : '<p class="hint">Gerade sind keine Aufgaben freigegeben.</p>'}
       ${data.pending
         ? '<p class="hint cb-pending">Deine Ergebnisse und Blätter erscheinen hier, sobald deine Lehrkraft deinen Namen in der Klassenliste bestätigt hat.</p>'
-        : `<h3 class="cb-section">${ico('chart')} Meine Ergebnisse</h3>${results}<h3 class="cb-section">${ico('pen')} Meine Blätter</h3>${works}`}`}`);
+        : `<h3 class="cb-section">${ico('chart')} Meine Ergebnisse</h3>${results}<h3 class="cb-section">${ico('pen')} Meine Blätter</h3>${works}`}
+      ${preview ? '' : ownSheetsSection(ico)}`}`);
+    // 📓 Eigene Blätter: nur auf diesem Gerät (own-sheets.js).
+    if (!preview && !examOnly) void fillOwnSheets(el, { toast: (text, type) => this.app.showToast(text, type) });
     el.querySelector('#cbToList')?.addEventListener('click', () => { this._stopWatch(); workspace.stop(); this.showList(); });
     el.querySelector('#cbInstall')?.addEventListener('click', async () => {
       // Chrome, Edge: Dialog des Browsers. iPad/iPhone: Teilen → Zum Home-Bildschirm.

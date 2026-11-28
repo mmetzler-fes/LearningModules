@@ -7176,3 +7176,11 @@ body.html-app-large iframe.lm-app-frame { border: 0; border-radius: 6px; }
 .cr-answers tr[data-answers]:hover, .cr-answers tr.open { background: var(--bg-secondary); }
 .cr-answer-row > td { padding: 4px 0 10px 1rem; }
 .cr-range { margin-bottom: 6px; }
+
+/* Eigene Blätter der Schüler (js/views/own-sheets.js) – nur auf dem Gerät */
+.own-sheets-hint { margin-top: -4px; }
+.own-sheet-row-actions { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.own-sheet-row-actions .btn-sm { padding: 2px 8px; }
+.own-sheets-actions { display: flex; gap: 8px; flex-wrap: wrap; margin: 8px 0 4px; }
+.own-sheet-dialog .own-sheet-field { display: flex; flex-direction: column; gap: 4px; margin: 8px 0; }
+.own-sheet-dialog .own-sheet-patterns { display: flex; gap: 16px; margin: 8px 0; }

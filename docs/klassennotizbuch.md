@@ -406,6 +406,12 @@ Erstanmeldung offen ist.
   „abgegeben“.
 - **📈 Meine Ergebnisse** und **✍️ Meine Blätter** – ein Blatt öffnet sich zum
   Weiterschreiben. Ergebnisse und Blätter aus Klassenarbeiten stehen hier nicht.
+- **✍️ Eigene Blätter** (seit 2026-11-28, js/views/own-sheets.js) – Schüler legen selbst Blätter an:
+  Titel, Karo/Linien/Leer. Darauf schreiben sie mit dem Stift und fügen über ⊕ eigene Textblöcke,
+  Tabellen und Bilder ein. Gespeichert **nur auf diesem Gerät** (IndexedDB, der Browser wird gebeten,
+  nichts von selbst zu löschen) – kein Server, keine Sicherung, die Lehrkraft sieht sie nicht. Zum Sichern
+  **⬇** als .zlm-Datei (öffnet auch der lm-editor), **Datei öffnen** holt sie zurück; ✏️ umbenennen, 🗑 löschen.
+  Nicht in der 👁 Vorschau und nicht in der Klassenarbeit allein.
 - Nach einer Aufgabe führt **📒 Zurück zum Klassenbuch** zurück, ohne neue
   Anmeldung (gilt, solange der Browser offen ist).
 

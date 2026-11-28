@@ -225,6 +225,8 @@ export async function openDocumentInk({ mode, mod, up = null, embedModule = null
   const paper = {
     landscape,
     page,
+    // Eigene Bausteine (Text, Tabelle, Bild über ⊕) – nicht in Klassenarbeiten: Dort ändert niemand den Aufbau.
+    ownBlocks: !(examMode || examRun || content.kind === 'klassenarbeit'),
     mount(el, { solutions }) {
       if (live) {
         if (!liveMark) {

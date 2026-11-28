@@ -24,4 +24,19 @@ describe('Schüler-PDF aus dem Stift-Editor', () => {
   it('freigegebene Lösungen: volles Dokument erlaubt', () => {
     expect(studentInkSpec(JSON.parse(JSON.stringify(full)), full, stripped, {}).full).toBe(true);
   });
+
+  it('eigene Bausteine der Schüler (Text, Bild) kommen ins PDF – Quizze und Bilder von außen nicht', () => {
+    const sent = JSON.parse(JSON.stringify(stripped));
+    const png = 'data:image/png;base64,iVBORw0KGgo=';
+    const { spec } = studentInkSpec(sent, full, stripped, { inserts: [
+      { id: 'ins1', after: '0', content: [{ type: 'text', text: 'Meine Notiz' }, { type: 'image', src: png, width: '4cm' }] },
+      { id: 'ins2', after: '0', content: [{ type: 'quiz', module: 'x' }] },
+      { id: 'ins3', after: 'end', content: [{ type: 'image', src: 'file:///etc/passwd' }] },
+    ] });
+    const json = JSON.stringify(spec);
+    expect(spec.content[1]).toMatchObject({ type: 'text', text: 'Meine Notiz' });
+    expect(spec.content[2]).toMatchObject({ type: 'image', src: png });
+    expect(json).not.toContain('quiz');
+    expect(json).not.toContain('passwd');
+  });
 });

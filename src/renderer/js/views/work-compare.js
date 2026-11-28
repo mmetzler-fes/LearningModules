@@ -89,7 +89,7 @@ export async function openWorkCompare(app, id, { onDone } = {}) {
   const insertsDiffer = JSON.stringify(cur?.layer?.inserts ?? []) !== JSON.stringify(prev?.layer?.inserts ?? []);
   const notes = [];
   if (formsDiffer) notes.push('Die Eingaben in den Quizzen unterscheiden sich (hier nicht markiert – zum Ansehen die Fassung übernehmen oder das Blatt öffnen).');
-  if (insertsDiffer) notes.push('Selbst eingefügte Schreibfelder unterscheiden sich.');
+  if (insertsDiffer) notes.push('Selbst Eingefügtes (Schreibfelder, eigene Textblöcke, Tabellen, Bilder) unterscheidet sich.');
   const summary = changed.length
     ? `${changed.length} Baustein${changed.length === 1 ? '' : 'e'} mit unterschiedlicher Beschriftung.`
     : 'Die Beschriftung ist in beiden Fassungen gleich.';

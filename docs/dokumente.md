@@ -648,8 +648,13 @@ wenn die Lehrkraft des Lernthemas freigeschaltet ist.
   keine Bausteine. Dasselbe gilt in der eigenständigen App (lm-editor), außer in einer Schülerfassung.
 - **Einfügen:** Der Ort entscheidet. **Auf der Schreibfläche** (Karo, Linien, Feld, freies Blatt) entsteht ein
   freies Objekt, verschiebbar: Text als Textfläche, Bild frei, an der Ecke größer oder kleiner. **Außerhalb oder
-  über ⊕** entsteht ein Objekt unter dem Baustein in der eigenen Ebene (⊕ bietet dazu ¶ Textblock, ▤ Tabelle,
-  🖼 Bild) – auch bei der Lehrkraft, die Vorlage ändert der Modul-Editor. **⧉ Verdoppeln** (Strg/⌘+D) setzt eine Kopie gewählter
+  über ⊕** entsteht ein **eigener Baustein** in der eigenen Ebene (⊕ bietet dazu ¶ Textblock, ▤ Tabelle,
+  🖼 Bild): Er steht im Fluss hinter dem Baustein und schiebt den Rest nach unten, gepunktet markiert;
+  Rechtsklick bzw. lange drücken (oder Doppelklick mit dem Pfeil) → ✏️ bearbeiten oder ✕ entfernen, ↶ nimmt
+  es zurück. Gespeichert in `layer.inserts` (mit `content`), im Druck an seiner Stelle; erlaubt sind nur
+  Text, Tabellen, Formeln, Kästen und eingebettete Bilder (`safeInsertContent` in ink-print.js). Gilt für
+  Schüler und Lehrkraft (ihre Lehrerlösung) – nicht in Klassenarbeiten, dort bleibt es ein freies Objekt.
+  Die Vorlage ändert der Modul-Editor. **⧉ Verdoppeln** (Strg/⌘+D) setzt eine Kopie gewählter
   Bausteine direkt dahinter. **Seiten:** Gestrichelte Linien zeigen, wo im Druck eine Seite endet („Seite 2“ …),
   ein eingefügter Seitenumbruch steht als Linie „Seitenumbruch“ im Blatt und lässt sich am ⠿ verschieben oder löschen. Ist eine Textfläche gewählt,
   kommt Text dort hinein. Schüler ändern das Dokument nicht: Bei ihnen bleibt alles frei in ihrer eigenen Ebene.

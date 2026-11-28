@@ -1,5 +1,3 @@
-import { pickQuiz } from '../quiz-picker.js';
-import { pickPdfBlocks } from '../views/attachment-convert.js';
 
 // ==================== STIFT-EDITOR ÖFFNEN ====================
 //
@@ -20,9 +18,9 @@ import { pickPdfBlocks } from '../views/attachment-convert.js';
  * `sourceEl`: die Ansicht des Dokuments im Durchlauf – Quiz-Eingaben kommen
  * von dort mit ins Stift-Fenster und beim Schließen wieder zurück, damit
  * „Weiter“ sie auswertet.
- * `editable` (Lehrkraft, eigenes Lernthema): ⊕ und Schreibfelder ändern das
- * Dokument selbst, `onSaved(modul)` danach (mit dem neuen Inhalt); `topicModules`: Module des Lernthemas
- * für „Quiz einfügen“.
+ * `editable` (Lehrkraft, eigenes Lernthema): Der Stift-Editor bleibt ihre Ebene (Lehrerlösung); dazu
+ * „✏️ Vorlage bearbeiten“ (Modul-Editor) und „→ In die Schülervorlage übernehmen“ für eine Auswahl,
+ * `onSaved(modul)` danach (mit dem neuen Inhalt). `topicModules`: Module des Lernthemas.
  */
 /**
  * Gespeicherte Beschriftung über die Ansicht `el` eines Dokuments legen (nur
@@ -95,36 +93,6 @@ async function teacherStore(moduleId) {
 }
 
 /**
- * Rückfrage beim Öffnen eines eigenen Dokuments mit Labor: 'preset' (Vorgabe für Schüler, Standard),
- * 'solution' (Lehrerlösung) oder null (Abbrechen, Esc).
- */
-function askLabTarget() {
-  return new Promise((resolve) => {
-    const overlay = document.createElement('div');
-    overlay.className = 'confirm-overlay';
-    overlay.innerHTML = `<div class="import-modules-card" role="dialog" aria-modal="true" aria-labelledby="inkLabAskTitle">
-        <h3 id="inkLabAskTitle">🧪 Dokument mit Labor</h3>
-        <p>Was möchtest du im Stift-Editor bearbeiten?</p>
-        <ul class="hint">
-          <li><strong>Vorgabe für Schüler:</strong> So sehen die Schüler die Labore zu Beginn – Änderungen werden im Dokument gespeichert.</li>
-          <li><strong>Lehrerlösung:</strong> Deine Lösung im Labor, für Schüler erst nach Freigabe je Klasse.</li>
-        </ul>
-        <p class="hint">Was du mit dem Stift schreibst, ist in beiden Fällen deine Lehrerlösung.</p>
-        <div class="confirm-actions">
-          <button type="button" class="btn btn-primary" data-pick="preset">Vorgabe für Schüler</button>
-          <button type="button" class="btn btn-secondary" data-pick="solution">🔑 Lehrerlösung</button>
-          <button type="button" class="btn btn-secondary" data-pick="">Abbrechen</button>
-        </div></div>`;
-    const done = (v) => { document.removeEventListener('keydown', onKey, true); overlay.remove(); resolve(v || null); };
-    const onKey = (e) => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); done(null); } };
-    document.addEventListener('keydown', onKey, true);
-    overlay.addEventListener('click', (e) => { const b = e.target.closest('[data-pick]'); if (b) done(b.dataset.pick); });
-    document.body.appendChild(overlay);
-    overlay.querySelector('[data-pick="preset"]').focus();
-  });
-}
-
-/**
  * Schüler arbeiten nur im Stift-Editor (docs/arbeitsflaeche.md): Der Durchlauf (quiz.js) schaltet das ein.
  * Dann übernimmt der Stift-Editor das lebende Blatt aus dem Durchlauf, statt es neu zu zeichnen – Eingaben,
  * gezogene Wörter, „Prüfen“, Lernbegleitung und Auswertung bleiben dieselben.
@@ -154,15 +122,6 @@ export async function openDocumentInk({ mode, mod, up = null, embedModule = null
     store = await teacherStore(mod.id);
     if (store && !title) solutionTitle = `🔑 Lehrerlösung – ${mod.title || 'Dokument'}`;
   }
-  // Eigenes Dokument mit Labor: Stellt die Lehrkraft die Vorgabe für die Schüler ein (Standard) oder
-  // beschriftet sie ihre Lehrerlösung? Bei der Vorgabe wandert der Stand der Labore in die Bausteine.
-  let labPreset = false;
-  if (mode === 'teacher' && editable && mod.topicId && isDoc && JSON.stringify(mod.content || {}).includes('"type":"lab"')) {
-    const pick = await askLabTarget();
-    if (!pick) return null;
-    labPreset = pick === 'preset';
-    if (labPreset && !title) solutionTitle = `🧪 Vorgabe für Schüler – ${mod.title || 'Dokument'}`;
-  }
   // Arbeitsfläche der Lehrkraft: ein Dokument aus einem Lernthema bekommt einen Tab (Tafelbild, Lösung u. Ä. nicht).
   let wsTeacher = null;
   if (mode === 'teacher' && !title && mod?.id && mod.topicId) {
@@ -182,11 +141,7 @@ export async function openDocumentInk({ mode, mod, up = null, embedModule = null
   let lastForms = null;
   let content = mod.content || {};
   if (typeof content === 'string') { try { content = JSON.parse(content); } catch (_) { content = {}; } }
-  // Bei der Vorgabe gehören Labore nicht zu den Eingaben (sonst überdeckte ein alter Stand die Vorgabe).
-  // Der Laborstand der Lehrerlösung bleibt dabei gespeichert, wie er war (keptLabs).
-  const withoutLabs = (forms) => (labPreset && forms ? Object.fromEntries(Object.entries(forms).filter(([k]) => !k.startsWith('lab:'))) : forms);
-  let keptLabs = {};
-  const fromSource = sourceEl ? withoutLabs(captureForms(sourceEl)) : null;
+  const fromSource = sourceEl ? captureForms(sourceEl) : null;
   // Klassenarbeit (Durchlauf oder Dokument der Art „Klassenarbeit“): für Schüler nie als Datei –
   // kein PDF-Hintergrund, kein Drucken, Teilen oder Bildschirmfoto (der Server lehnt das PDF ohnehin ab).
   const noExport = mode === 'student' && (examRun || content.kind === 'klassenarbeit');
@@ -294,13 +249,8 @@ export async function openDocumentInk({ mode, mod, up = null, embedModule = null
       } else {
         el.appendChild(renderer.createTypePreview('document', content, {
           blockIds: true, quizMode: true, examMode, examRun, shuffleKey, noSolutionToggle: true, embedModule, upload: up, moduleId: mod.id, title: mod.title,
-          labMode: labPreset ? 'teacher' : undefined,
         }));
         if (solutions) el.querySelector('.docspec')?.classList.remove('ds-hide-solutions');
-        if (labPreset && !el.dataset.labPreset) {
-          el.dataset.labPreset = '1';
-          el.addEventListener('lm-lab-change', () => saveLabPresets(el));
-        }
       }
       if (teacherLayer) drawLayer(el, teacherLayer, { className: 'ink-teacher-layer' });
     },
@@ -316,15 +266,16 @@ export async function openDocumentInk({ mode, mod, up = null, embedModule = null
       liveMark.replaceWith(sourceEl);
       liveMark = null;
     },
-    capture: (el) => (lastForms = labPreset ? { ...withoutLabs(captureForms(el)), ...keptLabs } : captureForms(el)),
+    capture: (el) => (lastForms = captureForms(el)),
     // Gespeicherte Eingaben; ohne sie, was im Durchlauf schon eingetragen war.
     restore: (el, forms) => {
-      if (labPreset && forms) keptLabs = Object.fromEntries(Object.entries(forms).filter(([k]) => k.startsWith('lab:')));
-      restoreForms(el, withoutLabs(forms && Object.keys(forms).length ? forms : fromSource));
+      restoreForms(el, forms && Object.keys(forms).length ? forms : fromSource);
     },
   };
-  // Lehrkraft am eigenen Dokument: Einfügen und Schreibfelder gehen ins Dokument.
-  if (mode === 'teacher' && editable && mod.topicId) Object.assign(paper, documentEditing());
+  // Lehrkraft am eigenen Dokument: Der Stift-Editor ist ihre Ebene (Lehrerlösung) – Einfügen und Schreibfelder
+  // bleiben darin wie bei den Schülern. Die Vorlage ändert der Modul-Editor; einzige Brücke: Auswahl
+  // „→ In die Schülervorlage übernehmen“ (paper.toTemplate).
+  if (mode === 'teacher' && editable && mod.topicId && isDoc) paper.toTemplate = (after, block) => insertBlocks(after, [block]);
   // Schüler im Durchlauf: das Blatt mit Beschriftung als PDF mit der Vorlage der Lehrkraft – auf dem
   // iPad gleich ins Teilen-Menü (GoodNotes), sonst im neuen Fenster (📤 neben 🖨).
   if (mode === 'student' && isDoc && !noExport && (up?.linkToken || up?.quickToken)) {
@@ -370,7 +321,7 @@ export async function openDocumentInk({ mode, mod, up = null, embedModule = null
     }
     // Lehrkraft: Stift-Editor zu = zurück in der App (Home); der Tab bleibt.
     if (wsTeacher && wsTeacher.active === `d|${mod.id}` && !wsTeacher.busy) wsTeacher.markHome();
-    if (sourceEl && lastForms) restoreForms(sourceEl, withoutLabs(lastForms));
+    if (sourceEl && lastForms) restoreForms(sourceEl, lastForms);
     // Die neue Beschriftung gleich in der Ansicht zeigen.
     if (sourceEl) void showSavedInk(sourceEl, { mode, up, moduleId: mod.id, landscape: paper.landscape });
   };
@@ -457,15 +408,23 @@ export async function openDocumentInk({ mode, mod, up = null, embedModule = null
   function teacherActions() {
     if (mode !== 'teacher' || !editable || !mod.topicId || !isDoc) return [];
     return [{
+      label: '✏️ Vorlage bearbeiten',
+      title: 'Die Schülervorlage im Modul-Editor ändern – hier im Stift-Editor schreibst du deine Lehrerlösung',
+      async onClick({ close }) {
+        await close();
+        const from = document.querySelector('.view.active')?.id?.replace(/^view-/, '') || 'teacher-notebooks';
+        await window.app?.modulesView?.openFrom(from, mod.topicId, mod, 'edit');
+      },
+    }, {
       label: '📄 Als Lösungsblatt',
       title: 'Die Lösung als eigenes Blatt speichern (eigenes Lernthema direkt dahinter): Lösungsblöcke offen, Labore mit deiner Lösung – zum Weitergeben per Quick-Link',
       async onClick() {
         const title = `${mod.title || 'Dokument'} – Lösung`;
         if (!(await (window.appConfirm ? window.appConfirm(`„${title}“ als eigenes Blatt direkt hinter diesem Lernthema anlegen?`) : Promise.resolve(confirm(`„${title}“ anlegen?`))))) return;
         const { solutionSpec, labStatesFromForms } = await import('./solution-sheet.js');
-        // Laborstände der Lehrerlösung (nicht im Modus „Vorgabe für Schüler“ – dort ist es die Vorgabe)
+        // Laborstände der Lehrerlösung
         const root = document.querySelector('.ink-overlay');
-        const states = labPreset || !root ? {} : labStatesFromForms(captureForms(root));
+        const states = !root ? {} : labStatesFromForms(captureForms(root));
         const spec = solutionSpec(content.spec || { content: [] }, states);
         try {
           const res = await fetch(`/api/topics/${encodeURIComponent(mod.topicId)}/modules`, {
@@ -539,105 +498,6 @@ export async function openDocumentInk({ mode, mod, up = null, embedModule = null
     await saveDocument();
   }
 
-  /**
-   * Vorgabe für Schüler: Stand der Labore im Blatt in ihre Bausteine (preset) und das Dokument speichern –
-   * gesammelt, damit nicht jeder Tastendruck einzeln gespeichert wird. Das Blatt wird nicht neu aufgebaut.
-   */
-  function saveLabPresets(el) {
-    clearTimeout(saveLabPresets.timer);
-    saveLabPresets.timer = setTimeout(async () => {
-      const spec = specNow();
-      assignPathIds(spec);
-      let changed = false;
-      el.querySelectorAll('.ds-lab.lab-live').forEach((labEl) => {
-        const bid = labEl.closest('[data-bid]')?.dataset.bid;
-        const ref = bid ? blockRef(spec, bid) : null;
-        if (!ref || ref.block.type !== 'lab' || !labEl._lab) return;
-        const preset = labEl._lab.getState();
-        if (JSON.stringify(preset) === JSON.stringify(ref.block.preset ?? null)) return;
-        ref.block.preset = preset;
-        changed = true;
-      });
-      if (!changed) return;
-      ensureBlockIds(spec);
-      content = { ...content, spec };
-      try { await saveDocument(); } catch (err) { window.app?.showToast?.(`Vorgabe: ${err.message}`, 'error'); }
-    }, 700);
-  }
-
-  function documentEditing() {
-    return {
-      insertBlock: (after, block) => insertBlocks(after, [block]),
-      insertBlocks,
-      // Bausteine im Stift-Editor auswählen, verschieben, ausschneiden; Rückgängig über snapshot/restore.
-      blockOps: {
-        get: (bid) => blockRef(specNow(), bid)?.block ?? null,
-        snapshot: () => JSON.stringify(specNow()),
-        async restore(json) {
-          content = { ...content, spec: JSON.parse(json) };
-          await saveDocument();
-        },
-        async remove(bids) {
-          const spec = specNow();
-          assignPathIds(spec);
-          for (const bid of bids) {
-            const ref = blockRef(spec, bid);
-            if (ref) ref.list.splice(ref.index, 1);
-          }
-          content = { ...content, spec };
-          await saveDocument();
-        },
-        async move(bids, after) {
-          const spec = specNow();
-          assignPathIds(spec);
-          const refs = bids.map((bid) => blockRef(spec, bid)).filter((r) => r?.list === spec.content);
-          const blocks = spec.content.filter((b) => refs.some((r) => r.block === b));
-          const anchor = after ? blockRef(spec, after)?.block : null;
-          spec.content = spec.content.filter((b) => !blocks.includes(b));
-          spec.content.splice(anchor ? spec.content.indexOf(anchor) + 1 : 0, 0, ...blocks);
-          content = { ...content, spec };
-          await saveDocument();
-        },
-        async replace(bid, blocks) {
-          const spec = specNow();
-          assignPathIds(spec);
-          const ref = blockRef(spec, bid);
-          if (!ref) throw new Error('Baustein nicht gefunden.');
-          // Der erste behält seine ID: Daran hängen Striche, auch die der Schüler.
-          const fresh = JSON.parse(JSON.stringify(blocks, (k, v) => (k === 'id' ? undefined : v)));
-          if (fresh[0] && ref.block.id) fresh[0].id = ref.block.id;
-          ref.list.splice(ref.index, 1, ...fresh);
-          ensureBlockIds(spec);
-          content = { ...content, spec };
-          await saveDocument();
-        },
-      },
-      // Weitere Einträge im ⊕-Menü; Abbruch im Dialog gibt false (nichts gespeichert).
-      insertItems: () => [
-        { label: '🧩 Quiz aus dem Lernnotizbuch', run: async (after) => {
-          const block = await pickQuiz(topicModules || [], mod.id, mod.topicId);
-          if (!block) return false;
-          return insertBlocks(after, [block]);
-        } },
-        // Die Dateiauswahl muss noch im Antippen aufgehen (iPad) – daher kein await davor.
-        { label: '📄 PDF an dieser Stelle', run: async (after) => {
-          const res = await pickPdfBlocks();
-          if (!res) return false;
-          return insertBlocks(after, res.blocks);
-        } },
-      ],
-      async setField(bid, field) {
-        const spec = specNow();
-        const ref = blockRef(spec, bid);
-        if (!ref || ref.block.type !== 'karo') throw new Error('Schreibfeld nicht gefunden.');
-        ref.block.lines = field.lines;
-        if (field.width) ref.block.width = `${field.width}cm`; else delete ref.block.width;
-        if (field.pattern && field.pattern !== 'karo') ref.block.pattern = field.pattern; else delete ref.block.pattern;
-        content = { ...content, spec };
-        await saveDocument();
-      },
-    };
-  }
 }
 
 /**

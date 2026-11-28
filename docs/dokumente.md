@@ -171,8 +171,9 @@ Vorlage im Feld „Vorlage für den Druck“ gilt in der Vorschau sofort. Die fe
 der Vorschau nennt die Zahl der Seiten und hat bei gespeicherten Dokumenten –
 wie die gewöhnliche Vorschau – **✍️ Mit Stift bearbeiten** und **🙈
 Beschriftung: nur für mich** (Freischaltung „Stift-Editor“). Der Stift-Editor
-öffnet dabei den Stand im Editor; fügt er etwas ein (⊕), wird das Modul
-gespeichert und der Editor übernimmt den neuen Stand.
+öffnet dabei den Stand im Editor. Er ändert das Dokument nicht – außer über
+„→ In die Schülervorlage übernehmen“; dann wird das Modul gespeichert und der
+Editor übernimmt den neuen Stand.
 **🖨 PDF**, **⬇ .odt**, **🖨 Lösung** und **⬇ Lösung .odt** erzeugen die
 Dateien vom aktuellen Stand, auch ungespeichert. **⬇ .zlm** im selben Menü
 holt das gespeicherte Dokument als Datei für den lm-editor (mit eingebetteten
@@ -614,26 +615,19 @@ wenn die Lehrkraft des Lernthemas freigeschaltet ist.
   rechts (Breite) und einer an der Ecke (beides) dazu. Das **Muster** (▦ Karo,
   ☰ Linien, ▢ Leer, ◌ Unsichtbar) steht im Kontextmenü des Felds: Rechtsklick
   aufs Feld, auf dem iPad lange darauf drücken (unsichtbare Felder sind hier
-  gestrichelt angedeutet, im Druck nicht); dort auch „Eingefügtes Feld entfernen“. Schüler ändern damit nur ihre eigene Beschriftung. Die
-  Lehrkraft ändert in einem eigenen Lernthema das **Dokument selbst** (oben
-  „💾 Im Dokument gespeichert“) – dann darf das Feld auch bis auf eine Zeile
-  schrumpfen.
+  gestrichelt angedeutet, im Druck nicht); dort auch „Eingefügtes Feld entfernen“. Damit ändert jeder nur
+  seine eigene Beschriftung – auch die Lehrkraft (ihre Lehrerlösung). Die Felder des Dokuments selbst
+  ändert der Modul-Editor (Feld wählen, an den Anfassern ziehen).
 - **⊕ Einfügen:** Links am Rand sitzen kleine ⊕ zwischen den Bausteinen
   (vor dem ersten und hinter jedem). Antippen öffnet ein Menü: **▢ Schreibfeld**
   (unsichtbar, eine Zeile hoch – am Anfasser größer ziehen), **▦ Karo** oder
-  **☰ Linien**. Die Lehrkraft fügt das Feld ins Dokument ein (eigene
-  Lernthemen), Schüler nur in ihre eigene Beschriftung; ein selbst eingefügtes
-  Feld entfernt das **✕** in der Feldleiste (mit dem ➚ Pfeil) wieder.
-  Lehrkräfte haben im Menü außerdem dieselben Bausteine wie im Dokument-Editor:
-  **💡 Lösung**, **∑ Formel** (Formeldialog), **⌨ Code**, **▢ Kasten**,
-  **▥ Spalten** (öffnen gleich die Textfläche zum Ausfüllen), **⤓ Seitenumbruch**,
-  **🧩 Quiz aus dem Lernnotizbuch** und
-  **📄 PDF an dieser Stelle** (Text mit Struktur, Seiten als Bilder oder
-  KI-Erkennung) – beides landet als Bausteine im Dokument. Das gilt in eigenen
-  Lernthemen überall, wo sich der Stift-Editor öffnen lässt: **✍️ Stift** oben
-  in der Notebook-Vorschau, **✍️ Mit Stift bearbeiten** am Dokument (Notebook-
-  Vorschau, Vollbild, Vorschau aus der Modulliste). Zur Auswahl stehen alle
-  Module des Lernthemas außer Dokumenten.
+  **☰ Linien**. Das Feld kommt in die eigene Beschriftung (Schüler wie Lehrkraft);
+  ein selbst eingefügtes Feld entfernt das **✕** in der Feldleiste (mit dem ➚ Pfeil) wieder.
+  **Grundregel (seit 2026-11-28): Modul-Editor = Schülervorlage, Stift-Editor = immer die eigene Ebene**
+  (Schüler: ihre Bearbeitung; Lehrkraft im Lernnotizbuch: 🔑 Lehrerlösung; im Klassennotizbuch: ✍️ Tafelbild).
+  Lösung, Formel, Code, Kasten, Spalten, Seitenumbruch, Quiz und PDF fügt die Lehrkraft im Modul-Editor ein –
+  dort mit **(+)** links an jedem Baustein (obere Hälfte davor, untere danach) und **⠿** zum Verschieben;
+  **✏️ Vorlage bearbeiten** im Stift-Editor führt dorthin.
 - **Textfläche und kurze Beschriftung:** Mit **T** ein Rechteck aufziehen und direkt auf dem Blatt schreiben, mit
   denselben Knöpfen wie im Dokument: Oben steht die Formatleiste mit ➕ Tabelle/Kasten/Code, Ⓜ Markdown und ✓ Fertig.
   Solange du schreibst, ruhen die Werkzeuge. **Der Apple Pencil tippt im ganzen Stift-Editor nur an**, auch Knöpfe, Menüs und
@@ -654,8 +648,8 @@ wenn die Lehrkraft des Lernthemas freigeschaltet ist.
   keine Bausteine. Dasselbe gilt in der eigenständigen App (lm-editor), außer in einer Schülerfassung.
 - **Einfügen:** Der Ort entscheidet. **Auf der Schreibfläche** (Karo, Linien, Feld, freies Blatt) entsteht ein
   freies Objekt, verschiebbar: Text als Textfläche, Bild frei, an der Ecke größer oder kleiner. **Außerhalb oder
-  über ⊕** entsteht ein Baustein im Dokument (⊕ bietet dazu ¶ Textblock, ▤ Tabelle, 🖼 Bild und für die Lehrkraft
-  Lösung, Formel, Code, Kasten, Spalten, Seitenumbruch). **⧉ Verdoppeln** (Strg/⌘+D) setzt eine Kopie gewählter
+  über ⊕** entsteht ein Objekt unter dem Baustein in der eigenen Ebene (⊕ bietet dazu ¶ Textblock, ▤ Tabelle,
+  🖼 Bild) – auch bei der Lehrkraft, die Vorlage ändert der Modul-Editor. **⧉ Verdoppeln** (Strg/⌘+D) setzt eine Kopie gewählter
   Bausteine direkt dahinter. **Seiten:** Gestrichelte Linien zeigen, wo im Druck eine Seite endet („Seite 2“ …),
   ein eingefügter Seitenumbruch steht als Linie „Seitenumbruch“ im Blatt und lässt sich am ⠿ verschieben oder löschen. Ist eine Textfläche gewählt,
   kommt Text dort hinein. Schüler ändern das Dokument nicht: Bei ihnen bleibt alles frei in ihrer eigenen Ebene.
@@ -756,9 +750,9 @@ Browser lag, kommt beim ersten Öffnen mit). Über dem Dokument schaltet
 - **für alle** – Schüler sehen sie in der Ansicht und im Stift-Editor unter
   ihrer eigenen Beschriftung (nur ansehen, nicht ändern).
 
-**In das Dokument übernehmen:** Striche wählen (➚ Pfeil oder ⬚ Bereich), dann im Menü
-(⋯, Rechtsklick, lange drücken) **💡 Als Lösung ins Dokument** oder **🖼 Als
-Bild ins Dokument**. Sie werden ein Bild hinter dem Baustein an ihrer Stelle –
+**In die Schülervorlage übernehmen** (die einzige Brücke aus dem Stift-Editor ins Dokument): Striche
+wählen (➚ Pfeil oder ⬚ Bereich), dann im Menü (⋯, Rechtsklick, lange drücken) **→ In die Schülervorlage
+übernehmen (als Bild)** oder **(als Lösung)**, mit Rückfrage. Sie werden ein Bild hinter dem Baustein an ihrer Stelle –
 als Lösung erscheinen sie im Lösungsblatt (auch im Druck). Aus der
 Beschriftung verschwinden sie; Strg+Z holt sie zurück.
 
